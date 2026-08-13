@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { giornoLocale } from '../common/date-only';
 
 /**
  * LE REGOLE DELL'ELENCO DEI LAVORI, senza database.
@@ -59,6 +60,22 @@ export function normalizzaLavoro(d: DatiLavoro, obbligaTitolo: boolean): Record<
 export const MSG_TITOLO = 'Scrivi cosa c\'è da fare: bastano poche parole, ma devono dirlo.';
 
 /**
+ * Cosa scrive la risposta.
+ *
+ * ⚠️ **Svuotarla azzera anche chi e quando**, come per la spunta: una risposta cancellata che lascia
+ * dietro «risposto da Simone il 13/8» racconta che qualcuno ha risposto, quando non c'è più niente.
+ *
+ * ⚠️ La risposta **non** spunta la voce. Sapere una cosa e averla fatta sono due stati diversi, e
+ * confonderli farebbe sparire dall'elenco proprio le voci che hanno appena ricevuto quello che
+ * serviva per lavorarci.
+ */
+export function datiRisposta(testo: unknown, staffId: string | null | undefined, adesso: Date) {
+  const v = typeof testo === 'string' ? testo.trim() : '';
+  if (!v) return { risposta: null, rispostaIl: null, rispostaDaId: null };
+  return { risposta: v.slice(0, 8000), rispostaIl: adesso, rispostaDaId: staffId ?? null };
+}
+
+/**
  * Cosa scrive la spunta.
  *
  * ⚠️ **Togliendola si azzerano anche chi e quando.** Una voce riaperta che continua a dire «fatta da
@@ -87,4 +104,63 @@ export function ordinaLavori<T extends { fatto: boolean; fattoIl?: Date | null }
   const daFare = righe.filter((r) => !r.fatto);
   const fatte = righe.filter((r) => r.fatto).sort((a, b) => (b.fattoIl?.getTime() ?? 0) - (a.fattoIl?.getTime() ?? 0));
   return [...daFare, ...fatte];
+}
+
+/** Quel che serve al riassunto: niente Prisma, così si prova con un elenco di oggetti. */
+export interface LavoroDaRiassumere {
+  titolo: string;
+  dettaglio?: string | null;
+  categoria: string;
+  blocca: boolean;
+  fatto: boolean;
+  risposta?: string | null;
+  rispostaIl?: Date | null;
+  rispostaDa?: { displayName: string } | null;
+}
+
+/**
+ * IL TESTO DA INCOLLARE IN CHAT — il pulsante «Copia per Claude».
+ *
+ * Richiesta di Simone (13/8): «così posso consultarmi, inserire mano a mano, e poi te le esporto al
+ * momento giusto». Il database non è raggiungibile da fuori — e non deve esserlo — quindi il ponte è
+ * lui che copia e incolla. Questa funzione fa il testo.
+ *
+ * ⚠️ **Solo le voci APERTE.** Lo storico sono 481 righe: incollarle tutte vorrebbe dire annegare le
+ * dieci che contano dentro sei mesi di cose già fatte. Chi vuole lo storico apre la pagina.
+ *
+ * ⚠️ **I blocchi per primi, dentro ogni gruppo**: è l'ordine in cui va letto: quello che tiene ferme
+ * altre cose viene prima di quello che aspetta e basta.
+ *
+ * ⚠️ La data si scrive con `giornoLocale`, non con `toISOString`: è la lezione del 13/8, tre test
+ * che erano veri solo a Greenwich.
+ */
+export function testoPerClaude(righe: LavoroDaRiassumere[]): string {
+  const aperte = righe.filter((r) => !r.fatto);
+  const conRisposta = aperte.filter((r) => (r.risposta ?? '').trim()).length;
+  const out: string[] = [];
+  out.push(`# Lavori Metabole — ${aperte.length} aperte, ${conRisposta} con una risposta`);
+  out.push('');
+  out.push('Estratto dalla pagina Lavori del backoffice. Le voci già fatte non ci sono.');
+  out.push('Legenda: 🔴 blocca altro lavoro · 🟡 aspetta una persona o una decisione.');
+  out.push('');
+  const categorie = Array.from(new Set(aperte.map((r) => r.categoria)));
+  for (const c of categorie) {
+    const voci = aperte.filter((r) => r.categoria === c).sort((a, b) => Number(b.blocca) - Number(a.blocca));
+    out.push(`## ${c}`);
+    out.push('');
+    for (const v of voci) {
+      const segno = v.blocca ? '🔴' : /^aspetta/i.test(v.categoria) ? '🟡' : '·';
+      out.push(`### ${segno} ${v.titolo}`);
+      if ((v.dettaglio ?? '').trim()) out.push(`Domanda: ${v.dettaglio!.trim()}`);
+      const risposta = (v.risposta ?? '').trim();
+      if (risposta) {
+        const firma = [v.rispostaIl ? giornoLocale(v.rispostaIl) : null, v.rispostaDa?.displayName ?? null]
+          .filter(Boolean)
+          .join(', ');
+        out.push(`RISPOSTA${firma ? ` (${firma})` : ''}: ${risposta}`);
+      }
+      out.push('');
+    }
+  }
+  return out.join('\n').trimEnd() + '\n';
 }

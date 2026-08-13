@@ -34,6 +34,9 @@ interface Lavoro {
   ordine: number;
   blocca: boolean;
   fatto: boolean;
+  risposta: string | null;
+  rispostaIl: string | null;
+  rispostaDa: { displayName: string } | null;
   fattoIl: string | null;
   fattoDa: { displayName: string } | null;
   createdAt: string;
@@ -82,6 +85,10 @@ export function Lavori() {
   const [nuovoBlocca, setNuovoBlocca] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [inModifica, setInModifica] = useState<string | null>(null);
+  const [copiato, setCopiato] = useState(false);
+  const [caricamento, setCaricamento] = useState<{ aggiunte: number; saltate: number; titoli: { titolo: string; categoria: string }[] } | null>(null);
+  // ⚠️ `caricandoVoci` e non `caricando`: quello esiste già ed è il caricamento della PAGINA.
+  const [caricandoVoci, setCaricandoVoci] = useState(false);
 
   async function carica() {
     try {
@@ -164,6 +171,55 @@ export function Lavori() {
     }
   }
 
+  /**
+   * «Copia per Claude»: il testo lo fa il SERVER, non questa pagina.
+   *
+   * ⚠️ Se se lo costruisse qui, fra un mese il testo incollato in chat e quello che la pagina mostra
+   * direbbero due cose diverse — e chi legge in chat non ha modo di accorgersene.
+   */
+  async function copiaPerClaude() {
+    try {
+      const r = await api<{ testo: string }>('/admin/lavori/testo');
+      await navigator.clipboard.writeText(r.testo);
+      setCopiato(true);
+      setTimeout(() => setCopiato(false), 4000);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Non sono riuscito a copiare.');
+    }
+  }
+
+  /**
+   * «Carica le voci nuove»: due gesti, come sulla shell.
+   *
+   * ⚠️ Il primo clic **non scrive**: chiede al server cosa aggiungerebbe e lo mostra. È il
+   * `CONFERMA=1` dello script portato dentro la pagina — un pulsante che scrive al primo clic
+   * butterebbe via quella sicurezza proprio dove è più facile premere per sbaglio.
+   */
+  async function caricaVoci(conferma: boolean) {
+    setCaricandoVoci(true);
+    try {
+      const r = await api<{ aggiunte: number; saltate: number; titoli: { titolo: string; categoria: string }[] }>(
+        '/admin/lavori/carica',
+        { method: 'POST', body: JSON.stringify({ conferma }) },
+      );
+      if (conferma) { setCaricamento(null); await carica(); }
+      else setCaricamento(r);
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Caricamento non riuscito.');
+    } finally {
+      setCaricandoVoci(false);
+    }
+  }
+
+  async function rispondi(l: Lavoro, testo: string) {
+    try {
+      await api(`/admin/lavori/${l.id}/risposta`, { method: 'POST', body: JSON.stringify({ risposta: testo }) });
+      await carica();
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Risposta non salvata.');
+    }
+  }
+
   async function elimina(l: Lavoro) {
     // ⚠️ Chiudere un lavoro è SPUNTARLO. Qui si cancella solo quello che è stato scritto per sbaglio.
     if (!confirm(`Eliminare «${l.titolo}»?\n\nSe invece è stato fatto, mettici la spunta: resta scritto con la data.`)) return;
@@ -184,6 +240,7 @@ export function Lavori() {
     spunta: (x: Lavoro) => void spunta(x),
     salvaModifica: (x: Lavoro, campi: Partial<Lavoro>) => void salvaModifica(x, campi),
     elimina: (x: Lavoro) => void elimina(x),
+    rispondi: (x: Lavoro, testo: string) => void rispondi(x, testo),
   });
 
   if (caricando) return <div className="card">Carico…</div>;
@@ -210,6 +267,35 @@ export function Lavori() {
           </span>
           <input className="input" style={{ maxWidth: 260, marginLeft: 'auto' }} placeholder="Cerca fra i lavori…" value={cerca} onChange={(e) => setCerca(e.target.value)} />
         </div>
+        {puoScrivere && (
+          <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button className="btn ghost" onClick={() => void copiaPerClaude()} title="Copia negli appunti le voci aperte e le risposte date, pronte da incollare in chat">
+              <i className={`ti ${copiato ? 'ti-check' : 'ti-clipboard-text'}`} /> {copiato ? 'Copiato' : 'Copia per Claude'}
+            </button>
+            <button className="btn ghost" disabled={caricandoVoci} onClick={() => void caricaVoci(false)}
+              title="Guarda se il rilascio ha portato voci nuove. Non scrive niente: prima te le mostra.">
+              <i className="ti ti-download" /> Carica le voci nuove
+            </button>
+          </div>
+        )}
+        {caricamento && (
+          <div className="card" style={{ marginTop: 10, background: 'var(--chip)' }}>
+            {caricamento.aggiunte === 0 ? (
+              <div>Non c'è niente di nuovo da caricare: le {caricamento.saltate} voci del rilascio sono già in elenco.</div>
+            ) : (
+              <>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Aggiungerei {caricamento.aggiunte} voci ({caricamento.saltate} già presenti, che <b>non</b> tocco):</div>
+                <ul style={{ margin: '0 0 10px 18px' }}>
+                  {caricamento.titoli.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
+                </ul>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="btn" disabled={caricandoVoci} onClick={() => void caricaVoci(true)}><i className="ti ti-check" /> Conferma</button>
+                  <button className="btn ghost" onClick={() => setCaricamento(null)}>Annulla</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="hint" style={{ marginTop: 8 }}>
           🔴 blocca altro lavoro · 🟡 aspetta una persona o una decisione · 🟢 fatto, e resta scritto.
           Lo storico in fondo è un <b>estratto</b> di <code>progetto/REGISTRO.md</code>, che resta la fonte del dettaglio.
@@ -271,7 +357,7 @@ export function Lavori() {
  * verrebbe ricreata a ogni render e si rimonterebbe a ogni lettera digitata nella ricerca —
  * portandosi via il testo di una modifica aperta.
  */
-function Riga({ l, puoScrivere, modifica, apriModifica, chiudiModifica, spunta, salvaModifica, elimina }: {
+function Riga({ l, puoScrivere, modifica, apriModifica, chiudiModifica, spunta, salvaModifica, elimina, rispondi }: {
 l: Lavoro;
 puoScrivere: boolean;
 modifica: boolean;
@@ -280,6 +366,7 @@ chiudiModifica: () => void;
 spunta: (l: Lavoro) => void;
 salvaModifica: (l: Lavoro, campi: Partial<Lavoro>) => void;
 elimina: (l: Lavoro) => void;
+rispondi: (l: Lavoro, testo: string) => void;
 }) {
   const t = tonoDi(l);
   const c = COLORE[t];
@@ -287,6 +374,8 @@ elimina: (l: Lavoro) => void;
   const [dettaglio, setDettaglio] = useState(l.dettaglio ?? '');
   const [categoria, setCategoria] = useState(l.categoria);
   const [blocca, setBlocca] = useState(l.blocca);
+  const [risposta, setRisposta] = useState(l.risposta ?? '');
+  const [apriRisposta, setApriRisposta] = useState(false);
 
   return (
     <div
@@ -333,6 +422,30 @@ elimina: (l: Lavoro) => void;
             {l.dettaglio && (
               <div className="muted" style={{ fontSize: 12.5, marginTop: 3, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{l.dettaglio}</div>
             )}
+            {/*
+              LA RISPOSTA — quello che si è saputo, scritto man mano (richiesta di Simone, 13/8).
+              ⚠️ Non spunta la voce: «l'ho saputo» e «l'ho fatto» sono due stati diversi, e farli
+              coincidere farebbe sparire dall'elenco proprio le voci pronte da lavorare.
+            */}
+            {l.risposta && !apriRisposta && (
+              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--chip)', fontSize: 12.5, whiteSpace: 'pre-wrap' }}>
+                <b>Risposta</b>
+                {(l.rispostaIl || l.rispostaDa) && (
+                  <span className="muted"> · {dataIt(l.rispostaIl)}{l.rispostaDa ? ` · ${l.rispostaDa.displayName}` : ''}</span>
+                )}
+                <div style={{ marginTop: 3 }}>{l.risposta}</div>
+              </div>
+            )}
+            {puoScrivere && apriRisposta && (
+              <div style={{ marginTop: 8 }}>
+                <textarea className="input" rows={3} value={risposta} onChange={(e) => setRisposta(e.target.value)}
+                  placeholder="Cosa hai saputo? (svuotando il campo la risposta si cancella, con chi e quando)" />
+                <div className="row" style={{ gap: 8, marginTop: 6 }}>
+                  <button className="btn sm" onClick={() => { rispondi(l, risposta); setApriRisposta(false); }}>Salva la risposta</button>
+                  <button className="btn ghost sm" onClick={() => { setRisposta(l.risposta ?? ''); setApriRisposta(false); }}>Annulla</button>
+                </div>
+              </div>
+            )}
             <div className="row" style={{ gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               <span className="chip" style={{ fontSize: 10.5, background: 'transparent', border: `1px solid ${c.bordo}`, color: c.testo }}>
                 <i className={`ti ${c.icona}`} /> {c.etichetta}
@@ -348,7 +461,10 @@ elimina: (l: Lavoro) => void;
       </div>
       {puoScrivere && !modifica && (
         <div className="row" style={{ gap: 4 }}>
-          <button className="btn ghost sm" title="Modifica" onClick={apriModifica}><i className="ti ti-pencil" /></button>
+          <button className="btn ghost sm" title={l.risposta ? 'Modifica la risposta' : 'Scrivi cosa hai saputo'} onClick={() => setApriRisposta((v) => !v)}>
+          <i className={`ti ${l.risposta ? 'ti-message-2-check' : 'ti-message-2-plus'}`} />
+        </button>
+        <button className="btn ghost sm" title="Modifica" onClick={apriModifica}><i className="ti ti-pencil" /></button>
           <button className="btn ghost sm" title="Elimina (solo se scritta per sbaglio)" onClick={() => elimina(l)}><i className="ti ti-trash" /></button>
         </div>
       )}

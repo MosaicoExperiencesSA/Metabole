@@ -318,6 +318,7 @@ model Staff {
   idoneitaDecise        ClientProfile[] @relation("IdoneitaDecisaDa")
   // Chi ha spuntato un lavoro nella pagina «Lavori». `SetNull`: se lascia, la voce resta fatta.
   lavoriFatti           Lavoro[]        @relation("LavoroFattoDa")
+  lavoriRisposti        Lavoro[]        @relation("LavoroRispostaDa")
   escalations           Escalation[]    @relation("EscalationAssignee")
   authoredDiets         Diet[]          @relation("DietAuthor")
   approvedDiets         Diet[]          @relation("DietApprover")
@@ -2847,6 +2848,25 @@ model Lavoro {
    * che finché non si chiude, dietro c'è una fila ferma. Se diventasse un modo per dire «urgente»,
    * in un mese sarebbe tutto rosso e il colore smetterebbe di dire qualcosa.
    */
+  /**
+   * LA RISPOSTA — quello che si è saputo su questa voce, scritto man mano.
+   *
+   * Richiesta di Simone (13/8): «se mi dai la possibilità di inserire le risposte… così posso
+   * consultarmi e inserire mano a mano, e poi te le esporto al momento giusto». Molte voci aperte
+   * aspettano la risposta di qualcun altro — la nutrizionista, un fornitore — e finora quella
+   * risposta viveva in una chat o in una mail, cioè da nessuna parte.
+   *
+   * ⚠️ Non è la stessa cosa del `dettaglio`: il dettaglio è la DOMANDA (cosa c'è da fare e perché),
+   * questa è quello che è arrivato. In un campo solo, per aggiungere quello che si è saputo si
+   * riscriverebbe quello che si voleva sapere — ed è così che si perde il perché di una voce.
+   *
+   * ⚠️ E non spunta niente: «l'ho saputo» e «l'ho fatto» sono due stati diversi.
+   */
+  risposta     String?
+  rispostaIl   DateTime? @map("risposta_il")
+  rispostaDaId String?   @map("risposta_da_id")
+  rispostaDa   Staff?    @relation("LavoroRispostaDa", fields: [rispostaDaId], references: [id], onDelete: SetNull)
+
   blocca   Boolean   @default(false)
   fatto    Boolean   @default(false)
   /** ⚠️ Si azzerano insieme alla spunta: una voce riaperta che dice ancora «fatta il 13/8» è una riga che fa perdere fiducia in tutta la lista. */

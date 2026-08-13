@@ -32,7 +32,37 @@ le distingue (l'ambito si chiede quando la regola nasce; «a tutte» non scrive,
 ⚠️ **Non vanno fuse.** Una traduzione clinica data di fretta su una cliente non deve entrare nel
 vocabolario di tutte le clienti perché qualcuno ha risposto in fretta a una domanda.
 
-## 3. Cosa chiediamo a Vera (la funzione che implementa l'altra sessione)
+## 3. ✅ FATTA — la funzione, com'è davvero (13/8, sessione di Vera)
+
+`backend/src/vera/apri-richiesta.ts`. Firma reale, da usare così:
+
+```ts
+import { apriRichiestaVera } from '../vera/apri-richiesta';
+
+await apriRichiestaVera(prisma, {
+  tipo: 'allergia_da_tradurre',
+  clienteId,
+  testo: `${nome} ha dichiarato un'allergia che non so tradurre: «${termine}». …`,
+  origine: 'personal-base',
+  chiave: `allergia:${clienteId}:${normalizza(termine)}`,
+  termine,   // facoltativo ma consigliato
+});
+```
+
+Quello che ha aggiunto l'altra sessione, e che vale la pena sapere prima di chiamarla:
+
+- **è una funzione, non un servizio da iniettare** (prende `prisma`): chi la chiama sta dentro il
+  salvataggio del questionario o la costruzione della base personale, e legare quel percorso a un
+  modulo di backoffice vorrebbe dire che un problema qui fa fallire il salvataggio di una cliente;
+- ⚠️ **non lancia mai**, ma **scrive l'errore nei log**: una coda che smette di riempirsi in silenzio
+  è peggio di una coda vuota, perché sembra che non ci sia niente da fare;
+- `chiave` e `termine` sono **facoltativi con ripiego** — la chiave si costruisce da tipo + cliente +
+  testo, il termine si legge fra le virgolette basse. ⚠️ Passarli comunque: se il testo cambia di una
+  virgola, la stessa domanda torna a sembrare nuova;
+- ritorna `{ creata, id }`, e `creata: false` **non è un errore**: è il caso normale dalla seconda
+  volta in poi. La notifica parte solo alla creazione vera.
+
+## 3-bis. Com'era stata chiesta (per memoria)
 
 ```ts
 apriRichiestaVera({

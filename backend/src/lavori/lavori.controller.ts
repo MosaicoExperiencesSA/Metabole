@@ -47,6 +47,30 @@ export class LavoriController {
     return this.lavori.aggiorna(id, dto);
   }
 
+  /** La risposta: quello che si è saputo. Svuotarla la cancella, chi e quando compresi. */
+  @Post(':id/risposta')
+  @RequirePage('dev_backlog', 'manage')
+  rispondi(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { risposta?: unknown }) {
+    return this.lavori.rispondi(id, body?.risposta, user.sub);
+  }
+
+  /** Il testo del pulsante «Copia per Claude». GET: legge e basta. */
+  @Get('testo')
+  @RequirePage('dev_backlog')
+  testo() {
+    return this.lavori.testo();
+  }
+
+  /**
+   * «Carica le voci nuove». ⚠️ Senza `conferma: true` **non scrive**: dice solo cosa aggiungerebbe.
+   * È il `CONFERMA=1` della shell, portato dentro la pagina in due gesti invece che in uno.
+   */
+  @Post('carica')
+  @RequirePage('dev_backlog', 'manage')
+  carica(@Body() body: { conferma?: unknown }) {
+    return this.lavori.caricaVociIniziali(body?.conferma === true);
+  }
+
   /** La spunta. `fatto: false` la toglie, e azzera chi e quando. */
   @Post(':id/fatto')
   @RequirePage('dev_backlog', 'manage')

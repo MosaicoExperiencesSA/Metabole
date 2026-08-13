@@ -1,0 +1,92 @@
+PARTE DELLA SESSIONE «allergie / pagina Lavori» — da unire al messaggio di commit.
+
+⚠️ Questo file esiste perché il 13/8 `COMMIT.txt` è stato sovrascritto DUE VOLTE in un'ora: due
+sessioni lavorano allo stesso commit e ognuna scriveva il proprio messaggio da zero. Qui la mia parte
+non si perde; in `COMMIT.txt` va aggiunta in coda, non al posto dell'altra.
+
+=== LE SCHERMATE 28-30 DELL'APP: DUE DECISIONI CHE TOLGONO LAVORO ===
+
+I video di coach e nutrizionista (28-29) restano ANNULLATI: lo erano già dal 17/07, scritto nel
+backlog, e il codice è d'accordo — nessun player, nessun campo video su Staff. Era rimasta in lista
+come se fosse un arretrato.
+
+L'«assaggio del menu» (30) NON si fa: nasceva come vetrina prima del paywall, e dall'11/8 il paywall
+non c'è più — «Conosciamoci» dà un menu vero, gratis, per otto giorni.
+⚠️ Il dubbio era chi sceglie una data lontana: verificato nel codice che `MenuStatusBanner` (stato
+`scheduled`) già le dice quando parte il piano, quando si sblocca il menu e come chiedere a Gaia di
+spostare la data.
+
+Decisioni in `Decisioni_Simone_20260813.md` §6, backlog aggiornato, una voce in meno nel caricamento
+della pagina Lavori.
+
+=== VERA COME CODA DELLE DOMANDE, E LE VOCI DALL'ALTRA SESSIONE ===
+
+Decisione di Simone: le domande e le richieste arrivano a Vera, «così la nutrizionista ha le chat con
+le clienti per le risposte base e la chat con Vera che aiuta tutta Metabole ad apprendere».
+
+Il caso da cui nasce: tre clienti hanno un'allergia scritta a mano che il motore non sa tradurre —
+«Favismo», «Carboidrati» — e ⚠️ oggi due di quelle tre NON escludono niente, perché la parola non
+compare in nessun ingrediente. Non è traducibile da noi: la traduce una nutrizionista.
+
+⚠️ Perché Vera e non una notifica: da UNA risposta escono DUE scritture diverse — l'esclusione su
+quella cliente (dato sanitario: transazione, audit, permesso `change_allergies`) e la parola imparata
+per tutte (dizionario, dove «a tutte» non scrive ma apre una proposta).
+
+Il confine fra le due sessioni è in `progetto/CONTRATTO_Vera_Richieste.md`, e l'altra sessione l'ha
+già implementato (`vera/apri-richiesta.ts`): una funzione sola, `chiave` per non riaprire la stessa
+domanda ogni notte, e ⚠️ finché la nutrizionista non risponde NON si blocca niente.
+
+Nel caricamento della pagina Lavori entrano le otto voci mandate dall'altra sessione. ⚠️ La nona —
+«cliente già in piano che dichiara un'allergia» — NON è stata aggiunta: è la stessa decisione di
+`decisione-blocco-percorso`, che c'è già, e due righe per la stessa decisione sono il modo in cui una
+lista smette di essere creduta.
+
+=== REGOLA DEI PERMESSI, E LA PAGINA CHE NON LA RISPETTA ===
+
+Simone (13/8): «tutte le pagine che aggiungiamo vanno gestite nei permessi, sempre». Scritta in
+`CLAUDE.md` e nel promemoria del backlog: una voce di menu = una chiave sua.
+⚠️ Oggi c'è un caso solo che non la rispetta: **Assistente (Vera)** usa `food_swaps`, la chiave delle
+Sostituzioni — due voci di menu con un permesso solo, che da lì in poi si concedono e si tolgono
+insieme. Cosa cambiare è in `progetto/NOTA_Permesso_Pagina_Assistente.md`, per la sessione di Vera.
+(Gli altri riusi — `clients`, `users`, `crm_leads` — sono la stessa pagina in più schermate: si
+lasciano stare.)
+
+=== LA PAGINA LAVORI: LE RISPOSTE, E IL CARICAMENTO SENZA SHELL ===
+
+Due richieste di Simone (13/8).
+
+**Il campo Risposta** su ogni voce: «così posso consultarmi, inserire mano a mano, e poi te le
+esporto al momento giusto». Molte voci aperte aspettano la risposta di qualcun altro, e quella
+risposta finora viveva in una chat o in una mail, cioè da nessuna parte.
+⚠️ Campo suo e non dentro `dettaglio`: il dettaglio è la DOMANDA, questa è quello che è arrivato. In
+un campo solo, per aggiungere quel che si è saputo si riscriverebbe quel che si voleva sapere.
+⚠️ E NON spunta la voce: «l'ho saputo» e «l'ho fatto» sono due stati diversi, e confonderli farebbe
+sparire dall'elenco proprio le voci pronte da lavorare.
+⚠️ Svuotandola si azzerano anche chi e quando, come per la spunta.
+
+**«Copia per Claude»**: il testo lo costruisce il SERVER (`testoPerClaude`), non la pagina — se se lo
+facesse il client, fra un mese il testo incollato in chat e quello che la pagina mostra direbbero due
+cose diverse. Solo le voci APERTE (lo storico sono 481 righe: annegherebbe le dieci che contano), i
+blocchi per primi dentro ogni gruppo, e la risposta firmata con data e nome.
+
+**«Carica le voci nuove»**, chiesto da Simone per non passare dalla shell.
+⚠️ Due gesti, non uno: il primo clic NON scrive, mostra cosa aggiungerebbe. È il `CONFERMA=1` dello
+script portato dentro la pagina — un pulsante che scrive al primo clic butterebbe via quella
+sicurezza proprio dove è più facile premere per sbaglio.
+⚠️ Non aggiorna quello che trova, e lo dice: quella voce può essere stata spuntata o riscritta a mano.
+⚠️ L'elenco si è spostato da `prisma/carica-lavori.ts` a `src/lavori/voci-iniziali.ts`, e lo script
+ora lo importa da lì: **una lista sola**. Con due copie, fra un mese la shell e la pagina
+caricherebbero elenchi diversi.
+⚠️ Lo storico (481 righe) resta lavoro da shell: sta in un JSON accanto allo script, che in `dist/`
+non c'è — un pulsante che dipende da un file che in produzione può mancare fallisce il giorno che
+serve.
+
+Migrazione additiva `20260813200000_lavoro_risposta`. ⚠️ Applicata SOPRA lo schema riletto dal disco,
+dopo il modello `RichiestaVera` dell'altra sessione: non è stata rimessa una copia parcheggiata.
+6 test nuovi, verificati rossi prima (la risposta svuotata che lasciava chi e quando; le voci fatte
+che finivano nel testo da incollare). Suite dei lavori: 17 verdi.
+
+=== ALTRO ===
+
+- `conta:allergie`: la soglia dell'avviso passa da «più della metà» ad «almeno la metà». Il conto
+  vero del 13/8 è 24 su 48 — esattamente metà — e l'allarme NON è partito, per una persona.

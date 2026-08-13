@@ -28,6 +28,10 @@ Riordino drag & drop dei moduli in Impostazioni (lista trascinabile + chip "Aggi
 l'ordine si salva in `dashboardModules` e la dashboard lo rispetta.
 
 ## PROMEMORIA — permessi pagine
+⚠️ **Una voce di menu = una chiave sua** (Simone, 13/8: «vanno gestite nei permessi, sempre»).
+Riusare la chiave di un'altra pagina lega due cose che da lì in poi si concedono e si tolgono
+insieme. Caso aperto: **Assistente (Vera)** usa `food_swaps`, la chiave delle Sostituzioni.
+
 Ogni NUOVA pagina del backoffice va aggiunta alla lista permessi:
 1. backend/src/permissions/pages.ts → BACKOFFICE_PAGES + DEFAULT_PERMISSIONS
 2. backoffice/src/lib/labels.ts → PAGE_LABEL (etichetta)

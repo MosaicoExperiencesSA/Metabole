@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 💬 **La pagina Lavori: le risposte si scrivono lì, e le voci nuove si caricano senza
+  shell.** Due richieste di Simone. **Il campo Risposta** — «così posso consultarmi, inserire mano a
+  mano, e poi te le esporto al momento giusto»: molte voci aspettano la risposta di qualcun altro, e
+  quella risposta viveva in una chat o in una mail, cioè da nessuna parte. ⚠️ Campo suo e non dentro
+  `dettaglio`: il dettaglio è la **domanda**, questa è **quello che è arrivato** — in un campo solo,
+  per aggiungere ciò che si è saputo si riscriverebbe ciò che si voleva sapere. ⚠️ E **non spunta la
+  voce**: «l'ho saputo» e «l'ho fatto» sono due stati diversi, e confonderli farebbe sparire
+  dall'elenco proprio le voci pronte da lavorare. Svuotandola si azzerano chi e quando, come per la
+  spunta.
+  **«Copia per Claude»**: il testo lo fa il **server**, non la pagina — se se lo costruisse il client,
+  fra un mese quello incollato in chat e quello mostrato direbbero due cose diverse, e chi legge in
+  chat non avrebbe modo di accorgersene. Solo le voci **aperte** (lo storico sono 481 righe:
+  annegherebbe le dieci che contano), blocchi per primi, risposta firmata.
+  **«Carica le voci nuove»** al posto della shell. ⚠️ **Due gesti, non uno**: il primo clic non
+  scrive, mostra cosa aggiungerebbe — è il `CONFERMA=1` dello script, e un pulsante che scrive al
+  primo clic butterebbe via quella sicurezza dove è più facile premere per sbaglio. ⚠️ Non aggiorna
+  ciò che trova (può essere stato spuntato o riscritto) e lo dice nel riepilogo.
+  ⚠️ L'elenco si è spostato in `src/lavori/voci-iniziali.ts` e lo script lo **importa**: una lista
+  sola. Con due copie, fra un mese shell e pagina caricherebbero elenchi diversi — è la stessa
+  ragione per cui la conta delle allergie e la campagna passano da `common/da-ricontattare.ts`.
+  ⚠️ Lo storico resta da shell: vive in un JSON accanto allo script, che in `dist/` non c'è.
+  Migrazione additiva, **applicata sopra lo schema riletto dal disco** dopo il modello
+  `RichiestaVera` dell'altra sessione — non è stata rimessa una copia parcheggiata. 6 test nuovi,
+  verificati rossi prima. Suite dei lavori 17 verdi.
+
 - `[Sviluppo]` 🙋 **Vera — Consegna 3b: le domande che aspettano una nutrizionista.**
   Implementa `progetto/CONTRATTO_Vera_Richieste.md`, il confine fra le due sessioni. Quando il
   sistema incontra una parola che **non sa tradurre** — «Favismo», che oggi non toglie un solo piatto

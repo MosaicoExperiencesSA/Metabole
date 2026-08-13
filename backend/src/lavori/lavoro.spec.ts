@@ -5,7 +5,7 @@
  * vuota: sono i due modi in cui questa pagina può diventare bugiarda, e una lista bugiarda smette di
  * essere guardata — che è l'unico modo in cui può fallire.
  */
-import { CATEGORIA_DEFAULT, datiSpunta, normalizzaLavoro, ordinaLavori } from './lavoro';
+import { CATEGORIA_DEFAULT, datiRisposta, datiSpunta, normalizzaLavoro, ordinaLavori, testoPerClaude } from './lavoro';
 
 const ADESSO = new Date('2026-08-13T18:30:00.000Z');
 
@@ -85,5 +85,52 @@ describe('l\'ordine dell\'elenco', () => {
     // «Così è tutto registrato ed evidente» (Simone): una lista in cui il fatto sparisce risponde a
     // «cosa resta» e non a «cosa è stato fatto».
     expect(ordinaLavori(righe)).toHaveLength(4);
+  });
+});
+
+describe('la risposta', () => {
+  it('scritta, porta chi e quando', () => {
+    expect(datiRisposta('  Nocanty: togliere fave e legumi.  ', 's-simone', ADESSO)).toEqual({
+      risposta: 'Nocanty: togliere fave e legumi.',
+      rispostaIl: ADESSO,
+      rispostaDaId: 's-simone',
+    });
+  });
+
+  it('⚠️ svuotata, azzera anche chi e quando', () => {
+    // Una risposta cancellata che lascia dietro «risposto da Simone il 13/8» racconta che qualcuno
+    // ha risposto, quando non c'è più niente.
+    expect(datiRisposta('   ', 's-simone', ADESSO)).toEqual({ risposta: null, rispostaIl: null, rispostaDaId: null });
+    expect(datiRisposta(undefined, 's-simone', ADESSO).risposta).toBeNull();
+  });
+});
+
+describe('il testo da incollare in chat', () => {
+  const righe = [
+    { titolo: 'Solfiti', dettaglio: 'Serve l\'elenco', categoria: 'Aspetta Nocanty', blocca: true, fatto: false,
+      risposta: 'Vino, aceto, frutta essiccata.', rispostaIl: ADESSO, rispostaDa: { displayName: 'Lucia' } },
+    { titolo: 'Scala dei passi', dettaglio: null, categoria: 'Aspetta Nocanty', blocca: false, fatto: false },
+    { titolo: 'Una cosa già fatta', dettaglio: null, categoria: 'Manutenzione', blocca: false, fatto: true },
+  ];
+
+  it('⚠️ le voci FATTE non ci sono: lo storico annegherebbe quelle che contano', () => {
+    const t = testoPerClaude(righe);
+    expect(t).not.toContain('Una cosa già fatta');
+    expect(t).toContain('2 aperte, 1 con una risposta');
+  });
+
+  it('⚠️ i blocchi vengono PRIMA, dentro il loro gruppo', () => {
+    const t = testoPerClaude([righe[1], righe[0]]);
+    expect(t.indexOf('Solfiti')).toBeLessThan(t.indexOf('Scala dei passi'));
+  });
+
+  it('la risposta esce firmata con data e nome', () => {
+    // La data è `giornoLocale` (anno-mese-giorno, nel fuso dell'azienda) e non una formattazione
+    // nuova: un secondo modo di scrivere le date è come si ricasca nei tre test di stamattina.
+    expect(testoPerClaude(righe)).toContain('RISPOSTA (2026-08-13, Lucia): Vino, aceto, frutta essiccata.');
+  });
+
+  it('una voce senza risposta non stampa una riga vuota', () => {
+    expect(testoPerClaude([righe[1]])).not.toContain('RISPOSTA');
   });
 });

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DatiLavoro, datiSpunta, normalizzaLavoro, ordinaLavori } from './lavoro';
+import { DatiLavoro, datiRisposta, datiSpunta, normalizzaLavoro, ordinaLavori, testoPerClaude } from './lavoro';
+import { VOCI_INIZIALI } from './voci-iniziali';
 
 /**
  * L'ELENCO DEI LAVORI — «cosa manca», in un posto solo.
@@ -25,7 +26,7 @@ export class LavoriService {
   async elenco() {
     const righe = await this.prisma.lavoro.findMany({
       orderBy: [{ fatto: 'asc' }, { categoria: 'asc' }, { ordine: 'asc' }, { createdAt: 'asc' }],
-      include: { fattoDa: { select: { displayName: true } } },
+      include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
     });
     const daFare = righe.filter((r) => !r.fatto).length;
     return {
@@ -40,7 +41,7 @@ export class LavoriService {
     const campi = normalizzaLavoro(dati, true);
     return this.prisma.lavoro.create({
       data: campi as { titolo: string },
-      include: { fattoDa: { select: { displayName: true } } },
+      include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
     });
   }
 
@@ -50,8 +51,68 @@ export class LavoriService {
     return this.prisma.lavoro.update({
       where: { id },
       data: campi,
-      include: { fattoDa: { select: { displayName: true } } },
+      include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
     });
+  }
+
+  /**
+   * La risposta: quello che si è saputo su questa voce.
+   *
+   * ⚠️ Non spunta niente. «L'ho saputo» e «l'ho fatto» sono due stati diversi: farli coincidere
+   * toglierebbe dall'elenco proprio le voci che hanno appena ricevuto quello che serviva per
+   * lavorarci.
+   */
+  async rispondi(id: string, testo: unknown, actorUserId: string) {
+    await this.esiste(id);
+    const staff = await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } });
+    return this.prisma.lavoro.update({
+      where: { id },
+      data: datiRisposta(testo, staff?.id, new Date()),
+      include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
+    });
+  }
+
+  /** Il testo del pulsante «Copia per Claude»: solo le voci aperte, con le risposte date. */
+  async testo() {
+    const righe = await this.prisma.lavoro.findMany({
+      orderBy: [{ fatto: 'asc' }, { categoria: 'asc' }, { ordine: 'asc' }, { createdAt: 'asc' }],
+      include: { rispostaDa: { select: { displayName: true } } },
+    });
+    return { testo: testoPerClaude(righe) };
+  }
+
+  /**
+   * IL CARICAMENTO DALLA PAGINA — «Carica le voci nuove».
+   *
+   * Fa quello che faceva solo la shell, con le stesse due regole:
+   *
+   * ⚠️ **Prima si guarda, poi si scrive.** `conferma: false` (il primo clic) non tocca niente e
+   * dice cosa aggiungerebbe. Sulla shell quella sicurezza ce l'ha `CONFERMA=1`; un pulsante che
+   * scrive al primo clic la butterebbe via proprio dove è più facile premere per sbaglio.
+   *
+   * ⚠️ **Non aggiorna mai quello che trova.** Una voce già in elenco può essere stata spuntata o
+   * riscritta a mano: «riallinearla» la riporterebbe indietro senza dirlo. È la lezione di
+   * `accendi-automazioni.ts`, che pensato per accenderne tre ne ha spente venti.
+   *
+   * ⚠️ Lo storico (le 481 righe dal REGISTRO) NON passa da qui: sta in un file accanto allo script,
+   * che in `dist/` non c'è. Resta un lavoro da shell, ed è già stato fatto una volta sola.
+   */
+  async caricaVociIniziali(conferma: boolean) {
+    const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
+    const presenti = new Set(
+      (await this.prisma.lavoro.findMany({ where: { chiave: { in: chiavi } }, select: { chiave: true } }))
+        .map((r: { chiave: string | null }) => r.chiave),
+    );
+    const mancanti = VOCI_INIZIALI.filter((v) => !presenti.has(v.chiave));
+    if (conferma) {
+      for (const v of mancanti) await this.prisma.lavoro.create({ data: v });
+    }
+    return {
+      scritto: conferma,
+      aggiunte: mancanti.length,
+      saltate: VOCI_INIZIALI.length - mancanti.length,
+      titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
+    };
   }
 
   /**
@@ -69,7 +130,7 @@ export class LavoriService {
     return this.prisma.lavoro.update({
       where: { id },
       data: datiSpunta(fatto, staff?.id, new Date()),
-      include: { fattoDa: { select: { displayName: true } } },
+      include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
     });
   }
 
