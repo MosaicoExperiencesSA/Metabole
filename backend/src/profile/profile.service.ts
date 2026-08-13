@@ -8,6 +8,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { campiCambiati } from '../common/diff-campi';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
@@ -255,6 +256,22 @@ export class ProfileService {
    * i menu (ultimo giorno erogato), non quello che dovrebbe essere in teoria: se i due
    * non coincidono è un problema da vedere, non da nascondere.
    */
+  /**
+   * I due elenchi del Profilo: «Cibi assolutamente vietati» (le allergie) e «Cibi da evitare»
+   * (intolleranze e non graditi), già espansi negli alimenti veri.
+   *
+   * ⚠️ L'espansione la fa `profile/esclusioni-cliente.ts` con le parole di `menu/exclusions.ts`, che
+   * è la stessa funzione con cui il motore toglie i piatti: se l'app se ne tenesse una copia, il
+   * giorno che la mappa cambia la cliente leggerebbe un elenco e ne mangerebbe un altro.
+   */
+  async esclusioni(userId: string) {
+    const p = (await this.prisma.clientProfile.findUnique({
+      where: { userId },
+      select: { allergies: true, intolerances: true, dislikedFoods: true },
+    })) as { allergies: string[]; intolerances: string[]; dislikedFoods: string[] } | null;
+    return esclusioniCliente(p ?? {});
+  }
+
   async nutrition(userId: string) {
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId },

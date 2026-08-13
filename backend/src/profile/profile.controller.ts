@@ -34,6 +34,17 @@ export class ProfileController {
     return this.profile.updateTheme(user.sub, dto.color);
   }
 
+  /**
+   * COSA NON DEVE ARRIVARLE NEL PIATTO — i due elenchi dietro i pulsanti del Profilo (13/8).
+   *
+   * ⚠️ Sola lettura, e deve restarlo: le allergie le corregge la nutrizionista (permesso
+   * `change_allergies`), non la cliente dall'app. Qui si mostra soltanto.
+   */
+  @Get('esclusioni')
+  esclusioni(@CurrentUser() user: AuthUser) {
+    return this.profile.esclusioni(user.sub);
+  }
+
   /** Riepilogo di sola lettura dell'alimentazione (tipo, pasti, dieta) per il Profilo. */
   @Get('nutrition')
   nutrition(@CurrentUser() user: AuthUser) {
