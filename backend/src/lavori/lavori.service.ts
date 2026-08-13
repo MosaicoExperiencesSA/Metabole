@@ -99,19 +99,41 @@ export class LavoriService {
    */
   async caricaVociIniziali(conferma: boolean) {
     const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
-    const presenti = new Set(
-      (await this.prisma.lavoro.findMany({ where: { chiave: { in: chiavi } }, select: { chiave: true } }))
-        .map((r: { chiave: string | null }) => r.chiave),
-    );
-    const mancanti = VOCI_INIZIALI.filter((v) => !presenti.has(v.chiave));
+    const righe = (await this.prisma.lavoro.findMany({
+      where: { chiave: { in: chiavi } },
+      select: { id: true, chiave: true, fatto: true },
+    })) as { id: string; chiave: string | null; fatto: boolean }[];
+    const perChiave = new Map(righe.map((r) => [r.chiave, r]));
+
+    const mancanti = VOCI_INIZIALI.filter((v) => !perChiave.has(v.chiave));
+    /**
+     * L'AGGIORNAMENTO DELLO STATO (richiesta di Simone, 13/8 sera): il file può CHIUDERE una voce
+     * ancora aperta in pagina — è la notizia «questa consegna l'ha finita» — ma MAI riaprirne una
+     * spuntata: la pagina resta lo stato vivo, e una spunta messa a mano non si discute da un file.
+     */
+    const daSpuntare = VOCI_INIZIALI.filter((v) => v.fatta === true)
+      .map((v) => perChiave.get(v.chiave))
+      .filter((r): r is { id: string; chiave: string | null; fatto: boolean } => !!r && !r.fatto);
+
     if (conferma) {
-      for (const v of mancanti) await this.prisma.lavoro.create({ data: v });
+      for (const v of mancanti) {
+        // `fatta` è un campo del FILE, non una colonna: si traduce nella spunta e non si scrive.
+        const { fatta, ...campi } = v;
+        await this.prisma.lavoro.create({
+          data: fatta ? { ...campi, ...datiSpunta(true, null, new Date()) } : campi,
+        });
+      }
+      for (const r of daSpuntare) {
+        await this.prisma.lavoro.update({ where: { id: r.id }, data: datiSpunta(true, null, new Date()) });
+      }
     }
     return {
       scritto: conferma,
       aggiunte: mancanti.length,
-      saltate: VOCI_INIZIALI.length - mancanti.length,
+      spuntate: daSpuntare.length,
+      saltate: VOCI_INIZIALI.length - mancanti.length - daSpuntare.length,
       titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
+      chiuse: daSpuntare.map((r) => r.chiave),
     };
   }
 

@@ -18,6 +18,12 @@ export type Voce = {
   chiave: string; titolo: string; dettaglio: string; categoria: string; ordine: number;
   /** ⚠️ Il rosso della pagina: «finché questa non si chiude, dietro c'è una fila ferma». Non «urgente». */
   blocca?: boolean;
+  /**
+   * IL LAVORO È FINITO (richiesta di Simone, 13/8 sera). Il caricamento SPUNTA la voce in pagina
+   * se è ancora aperta — mai il contrario: una spunta tolta a mano non viene riaperta dal file.
+   * Così il file resta l'unico posto da aggiornare quando una consegna chiude un lavoro.
+   */
+  fatta?: boolean;
 };
 
 /**
@@ -66,6 +72,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Oggi l\'esclusione testuale ha solo la parola letterale «solfiti», dichiarato nel codice e in un test. I solfiti non si scrivono negli ingredienti: stanno nel vino, nell\'aceto balsamico, nella frutta disidratata, in certi salumi. Quell\'elenco decide quali piatti si tolgono dal piatto di una cliente, e in eccesso si sbaglia facilmente. Handoff allergie §1.2.',
     categoria: NOCANTY,
     ordine: 10,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'nocanty-soglia-visita',
@@ -92,6 +99,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '+5% ogni due settimane, tetto a +40% (decisione dell\'8 del 12/8). Per chi ha problemi cardiaci, articolari o è in gravidanza prescrivere passi è materia clinica.',
     categoria: NOCANTY,
     ordine: 40,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'nocanty-peso-efficacia',
@@ -100,6 +108,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Con i pesi di default un piatto a 5★ ora pareggia un piatto efficacissimo bocciato a 1★ (prima vinceva sempre l\'efficacia). È una manopola dei Parametri, e la gira lei.',
     categoria: NOCANTY,
     ordine: 50,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'nocanty-kcal-conferma',
@@ -116,6 +125,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '⚠️ L\'ordine conta: migrazione → backend (deve reggere l\'app vecchia) → backoffice → OTA. Le migrazioni del 13/8 sono additive.',
     categoria: SIMONE,
     ordine: 10,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'conta-allergie',
@@ -133,6 +143,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '⚠️ Non prima che il backend sia in produzione e verificato, e il numero di versione non si riusa mai.',
     categoria: SIMONE,
     ordine: 30,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'decisione-blocco-percorso',
@@ -157,6 +168,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '⚠️ Non si comincia senza aver letto l\'output di `conta:allergie`. Modello da copiare: `menu/data-inizio-chat.ts` (non «Conosciamoci»). Trappole già mappate: un solo flusso aperto per volta, scadenza a un\'ora (si riapre, non si riprende), niente pulsanti in chat, risposte libere da far confermare, transazione + audit perché è un dato sanitario.',
     categoria: CODICE,
     ordine: 10,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'visita-calendario',
@@ -180,6 +192,7 @@ export const VOCI_INIZIALI: Voce[] = [
       '⚠️ Prima serve `npx prisma generate`: il client generato sul Mac è più vecchio dello schema, e senza rigenerarlo il type-check mostra errori che non esistono.',
     categoria: MANUTENZIONE,
     ordine: 10,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'rimuovi-traccia-diet-family',
@@ -399,6 +412,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Dagli screenshot di Simone (13/8): il saluto chiedeva il nome, ma lo stato scadeva in 2 ore e dopo la scadenza OGNI risposta cadeva su «non ci arrivo» — per sempre. Ora il battesimo è una condizione sui dati (nome non ancora scelto): «ti chiamerò Vera» funziona anche il giorno dopo. E l\'estrattore non prende più la prima parola («Ciao ti chiamerò Vera» l\'avrebbe battezzata «Ciao»). Bonus: «annulla» a vuoto risponde «non c\'era niente in corso». Finestra della chat portata a ~640px.',
     categoria: CODICE,
     ordine: 233,
+    fatta: true, // chiusa il 13/8
   },
   {
     chiave: 'campagna-allergie-a-tutti',

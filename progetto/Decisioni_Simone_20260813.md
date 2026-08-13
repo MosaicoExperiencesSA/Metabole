@@ -446,3 +446,30 @@ cliente.
 
 **I menu già preparati si rifanno** con la regola dell'annulla del §6.2: solo i giorni futuri non
 ancora aperti che contengono (o, per il «rimetti», che NON contengono) lo spuntino toccato.
+
+---
+
+## 15. «Serve la visita» parte in automatico — i criteri di Nocanty ✅ RISPOSTA ARRIVATA (13/8, pagina Lavori)
+
+**La risposta, testuale: «allergia dichiarata, utilizzo farmaci, problemi sanitari».**
+
+Mappa esatta su dati che esistono già: *farmaci e problemi sanitari* = `screeningFlag` (lo calcola il
+questionario da `hasConditions`/`takesMedications`); *allergia dichiarata* = `allergies` non vuoto.
+È lo stesso criterio di `daValutare()` — nessun criterio nuovo da inventare, e nessuna doppia copia.
+
+**Cosa mancava**: lo screening del questionario apriva già la presa in carico, ma **l'allergia da
+sola no** — e le allergie ora arrivano anche DOPO il questionario (scheda in home, campagna in
+chat). La segnalazione «serve la visita» parte da tutte e tre le strade: questionario, scheda in
+home, campagna.
+
+**I paletti** (dalle trappole già scritte in `clients/idoneita.ts`):
+- Si apre **solo se `idoneita` è vuota**: una valutazione clinica scritta non si riapre da un
+  automatismo — il via libera non scade su un timer.
+- Dedup di `apriSegnalazione`: una clinica già aperta non si duplica.
+- **Evento, non cron**: parte quando la dichiarazione arriva, mai a ripetizione ogni notte.
+- Chi scrive le allergie dalla scheda (nutrizionista/capo) NON fa scattare niente: ha la scheda
+  davanti e il campo idoneità a un click — un automatismo lì sarebbe rumore verso se stessa.
+
+**Il «freno forte» (stessa pagina, stessa sera) è DECISO: non esiste.** «Non fermiamo nessuno»:
+la scheda in home + la campagna chiedono a tutti, e la sorveglianza passa da questa segnalazione.
+La voce rossa si chiude.
