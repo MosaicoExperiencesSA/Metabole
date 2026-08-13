@@ -105,3 +105,29 @@ describe('la tabella delle finestre', () => {
     expect(finestraDigiuno(null)).toBeUndefined();
   });
 });
+
+describe('slotEsclusiTotali — digiuno + spuntini tolti (azione 3, Decisioni 13/8 §14)', () => {
+  const { slotEsclusiTotali } = require('./finestre-digiuno');
+
+  it('unisce la finestra del digiuno e i pasti esclusi della cliente', () => {
+    const s = slotEsclusiTotali('intermittent_fasting', 'skip_breakfast', ['afternoon_snack']);
+    expect(s.has('breakfast')).toBe(true);
+    expect(s.has('afternoon_snack')).toBe(true);
+  });
+
+  it('i pasti esclusi valgono anche SENZA digiuno: sono un dato della cliente, non del percorso', () => {
+    const s = slotEsclusiTotali('standard', null, ['morning_snack']);
+    expect([...s]).toEqual(['morning_snack']);
+  });
+
+  it('solo gli spuntini passano da qui: un pasto principale scritto per sbaglio non toglie la cena', () => {
+    const s = slotEsclusiTotali('standard', null, ['dinner', 'afternoon_snack']);
+    expect(s.has('dinner')).toBe(false);
+    expect(s.has('afternoon_snack')).toBe(true);
+  });
+
+  it('niente di niente = insieme vuoto', () => {
+    expect(slotEsclusiTotali('standard', null, []).size).toBe(0);
+    expect(slotEsclusiTotali('standard', null, undefined).size).toBe(0);
+  });
+});

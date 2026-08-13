@@ -34,6 +34,7 @@ function make(
     richieste?: unknown[];
     invecchiate?: unknown[];
     valori?: Record<string, unknown>;
+    giorniMenu?: unknown[];
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -50,10 +51,14 @@ function make(
     // `head_nutritionist` → `perimetroClienti` ritorna null: nessun filtro, il test resta sul dialogo.
     user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([CLIENTE]) },
     clientProfile: {
-      findUnique: jest.fn().mockResolvedValue(opzioni.profilo ?? { dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia' }),
+      findUnique: jest.fn().mockResolvedValue(opzioni.profilo ?? { dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: [] }),
       update: profileUpdate,
     },
     recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]) },
+    menuDay: {
+      findMany: jest.fn().mockResolvedValue(opzioni.giorniMenu ?? []),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     staff: {
       updateMany: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }),
@@ -793,5 +798,77 @@ describe('VeraChatService — le ricette', () => {
     });
     await service.parla('lucia', 'voglio cambiare la ricetta pollo al curry');
     expect(ultimoAgente(messaggioCreate).testo).toContain('Non trovo nessuna ricetta');
+  });
+});
+
+describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
+  const DOMANI = new Date(Date.now() + 86_400_000);
+  const GIORNO_CON_MERENDA = { id: 'g1', clientId: 'c1', date: DOMANI, viewedAt: null, meals: [{ slot: 'breakfast', recipeId: 'r1' }, { slot: 'afternoon_snack', recipeId: 'r2' }] };
+
+  it('«lo spuntino» secco: chiede QUALE, non indovina', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'a Giulia Rossi togli lo spuntino');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('quale_spuntino');
+    expect(testo).toContain('quale');
+  });
+
+  it('con lo slot detto: anteprima con kcal ridistribuite e giorni da rifare, passo conferma', async () => {
+    const { service, messaggioCreate } = make({}, { giorniMenu: [GIORNO_CON_MERENDA] });
+    await service.parla('lucia', 'togli la merenda a Giulia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('conferma');
+    expect(testo).toContain('merenda');
+    expect(testo).toContain('ridistribu'); // le kcal non si perdono, e l'anteprima lo dice
+  });
+
+  it('alla conferma scrive pastiEsclusi, rifà i giorni non visti e NON chiede l\'ambito', async () => {
+    const stato = {
+      passo: 'conferma' as const,
+      frase: 'togli la merenda a Giulia',
+      intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'] },
+      clienteId: 'c1',
+      clienteNome: 'Giulia',
+    };
+    const { service, messaggioCreate, prisma, profileUpdate } = make({}, { statoAperto: stato, giorniMenu: [GIORNO_CON_MERENDA] });
+    await service.parla('lucia', 'sì');
+    expect(profileUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ pastiEsclusi: ['afternoon_snack'] }) }),
+    );
+    expect(prisma.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
+    const { testo, stato: dopo } = ultimoAgente(messaggioCreate);
+    expect(dopo?.passo).toBeUndefined(); // giro chiuso: niente domanda sull'ambito
+    expect(testo).not.toContain('per tutte');
+  });
+
+  it('se era già così, lo dice e non tocca niente', async () => {
+    const stato = {
+      passo: 'conferma' as const,
+      frase: 'togli la merenda a Giulia',
+      intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'] },
+      clienteId: 'c1',
+      clienteNome: 'Giulia',
+    };
+    const { service, messaggioCreate, profileUpdate } = make(
+      {},
+      { statoAperto: stato, profilo: { dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: ['afternoon_snack'] } },
+    );
+    await service.parla('lucia', 'sì');
+    expect(profileUpdate).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già');
+  });
+
+  it('dal passo quale_spuntino, «il pomeriggio» porta all\'anteprima', async () => {
+    const stato = {
+      passo: 'quale_spuntino' as const,
+      frase: 'togli lo spuntino a Giulia',
+      intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: null },
+      clienteId: 'c1',
+      clienteNome: 'Giulia',
+    };
+    const { service, messaggioCreate } = make({}, { statoAperto: stato, giorniMenu: [GIORNO_CON_MERENDA] });
+    await service.parla('lucia', 'quello del pomeriggio');
+    const { stato: dopo } = ultimoAgente(messaggioCreate);
+    expect(dopo?.passo).toBe('conferma');
   });
 });

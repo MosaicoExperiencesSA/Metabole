@@ -41,6 +41,8 @@ import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
  * al massimo le si chiede di ripetere con parole sue, che costa dieci secondi. Il contrario costa una
  * regola scritta su una persona da una frase che non ha detto lei.
  */
+import { LetturaPasti, Spuntino, leggiPasti } from './togli-spuntino';
+
 export function separaCitazione(testo: string): { suo: string; citato: string } {
   const righe = (testo ?? '').split('\n');
   const citate: string[] = [];
@@ -60,7 +62,8 @@ export type Intento =
   | IntentoRestrizione
   | IntentoSostituzione
   | IntentoRicetta
-  | IntentoFuoriPortata;
+  | IntentoFuoriPortata
+  | IntentoPasti;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -89,6 +92,14 @@ export interface IntentoSostituzione {
  * parte, e lo legge `ricetta-dettata.ts`. Tenerli separati è ciò che permette di rileggere la
  * ricetta scritta senza rileggere la frase che l'ha chiesta.
  */
+export interface IntentoPasti {
+  tipo: 'pasti';
+  cliente: string | null;
+  azione: 'togli' | 'rimetti';
+  /** `null` = «lo spuntino» secco: si chiede quale, non si indovina. */
+  slots: Spuntino[] | null;
+}
+
 export interface IntentoRicetta {
   tipo: 'ricetta';
   modo: 'nuova' | 'modifica';
@@ -279,7 +290,15 @@ export function capisci(frase: string): Intento | null {
     return { tipo: 'sostituzione', cliente, from: sost[0].from, to: sost[0].to };
   }
 
-  // 4) Divieto, eventualmente con eccezione.
+  // 4) I PASTI: «togli lo spuntino», «rimetti la merenda» (azione 3, Decisioni 13/8 §14).
+  //    ⚠️ PRIMA dei divieti: altrimenti «togli lo spuntino» diventerebbe il divieto dell'alimento
+  //    «spuntino» — perfettamente formato, e completamente sbagliato. Il riconoscitore è stretto
+  //    apposta: «togli lo yogurt dallo spuntino» parla del contenuto e resta un divieto.
+  const pasti: LetturaPasti | null = leggiPasti(testo);
+  if (pasti) return { tipo: 'pasti', cliente, azione: pasti.azione, slots: pasti.slots };
+
+  // 4bis) Divieto, eventualmente con eccezione.
+
   for (const forma of DIVIETI) {
     const m = forma.exec(testo);
     if (!m) continue;

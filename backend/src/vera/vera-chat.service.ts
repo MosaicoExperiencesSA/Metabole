@@ -21,7 +21,8 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
 import { PoolDisponibileService } from './pool-disponibile.service';
@@ -205,6 +206,8 @@ export class VeraChatService {
         return this.risolviCliente(nutrizionistaId, stato, frase);
       case 'quale_famiglia':
         return this.imparaFamiglia(nutrizionistaId, stato, frase);
+      case 'quale_spuntino':
+        return this.scegliSpuntino(nutrizionistaId, stato, frase);
       case 'ambito':
         return this.chiudiConAmbito(nutrizionistaId, stato, frase);
       case 'revisione':
@@ -602,6 +605,9 @@ export class VeraChatService {
     const intento = stato.intento as Intento;
     const clienteId = stato.clienteId!;
 
+    // I PASTI hanno la loro anteprima: niente pool di ricette, niente ambito «per tutte».
+    if (intento.tipo === 'pasti') return this.anteprimaPasti(stato, intento as IntentoPasti);
+
     if (intento.tipo === 'restrizione') {
       const daChiedere = stato.famiglieDaChiedere ?? (await this.famiglieSconosciute(nutrizionistaId, intento.vietati));
       if (daChiedere.length) {
@@ -694,6 +700,123 @@ export class VeraChatService {
     return `Per **${cliente}** vieto ${termini.length} aliment${termini.length === 1 ? 'o' : 'i'}: ${termini.join(', ')}.${tenuti}`;
   }
 
+  // ──────────────────────────────────────────────── i pasti (azione 3, Decisioni §14) ──
+
+  /** I giorni futuri MAI aperti toccati dalla decisione sugli spuntini (regola dell'annulla, §6.2). */
+  private async giorniPastiDaRifare(clientId: string, slots: Spuntino[], azione: 'togli' | 'rimetti') {
+    const oggi = new Date();
+    const giorni = (await this.prisma.menuDay.findMany({
+      where: { clientId, viewedAt: null, date: { gt: oggi } } as never,
+      select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+    })) as { id: string; clientId: string; date: Date; viewedAt: Date | null; meals: unknown }[];
+    return giorniDaRifarePerPasti(giorni, slots, oggi, azione);
+  }
+
+  private async anteprimaPasti(stato: StatoVera, intento: IntentoPasti): Promise<EsitoVera> {
+    const cliente = stato.clienteNome ?? 'lei';
+    // «Lo spuntino» secco: si chiede quale, non si indovina.
+    if (!intento.slots || !intento.slots.length) {
+      return {
+        testo: testi.chiediQualeSpuntino(cliente),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'quale_spuntino' },
+      };
+    }
+
+    const p = (await this.prisma.clientProfile.findUnique({
+      where: { userId: stato.clienteId! },
+      select: { pastiEsclusi: true } as never,
+    })) as { pastiEsclusi?: string[] } | null;
+    const attuali = p?.pastiEsclusi ?? [];
+    const dopo = pastiDopo(attuali, { azione: intento.azione, slots: intento.slots });
+    const quali = intento.slots.map(etichettaSpuntino).join(' e ');
+    if (dopo.join('|') === attuali.join('|')) {
+      // Niente da fare: dirlo vale più di un'anteprima che promette il nulla.
+      return { testo: `Era già così: per **${cliente}** non cambia niente (${quali}). Non tocco nulla.`, esito: 'annullata' };
+    }
+
+    const giorni = await this.giorniPastiDaRifare(stato.clienteId!, intento.slots, intento.azione);
+    const righe = [
+      intento.azione === 'togli'
+        ? `Per **${cliente}** tolgo ${quali}: il motore non ${intento.slots.length === 1 ? 'lo' : 'li'} eroga più.`
+        : `Per **${cliente}** rimetto ${quali}.`,
+      // ⚠️ La frase sulle kcal è una promessa del motore, non un auspicio: gli slot esclusi escono
+      // PRIMA della composizione (stessa strada del digiuno), quindi il target del giorno si
+      // ridistribuisce sui pasti rimasti.
+      'Le kcal della giornata non si perdono: si ridistribuiscono sui pasti rimasti.',
+      giorni.length
+        ? `Le giornate future non ancora aperte da rifare sono ${giorni.length}; quelle già lette restano come sono.`
+        : 'Nessuna giornata già preparata da rifare.',
+      'Confermi?',
+    ];
+    return { testo: righe.join('\n\n'), esito: 'in_corso', stato: { ...stato, passo: 'conferma' } };
+  }
+
+  /** La risposta a «quale spuntino?»: si aggiorna l'intento e si torna all'anteprima. */
+  private async scegliSpuntino(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const slots = leggiQualeSpuntino(frase);
+    if (!slots) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi > MAX_TENTATIVI) return { testo: testi.nonCapito(MAX_TENTATIVI), esito: 'arresa' };
+      return {
+        testo: testi.chiediQualeSpuntino(stato.clienteNome ?? 'lei'),
+        esito: 'in_corso',
+        stato: { ...stato, tentativi },
+      };
+    }
+    const intento = { ...(stato.intento as IntentoPasti), slots };
+    return this.anteprimaPasti({ ...stato, intento, tentativi: undefined }, intento);
+  }
+
+  private async applicaPasti(nutrizionistaId: string, stato: StatoVera, intento: IntentoPasti): Promise<EsitoVera> {
+    const clienteId = stato.clienteId!;
+    const slots = intento.slots as Spuntino[];
+    const cliente = stato.clienteNome ?? 'lei';
+    const quali = slots.map(etichettaSpuntino).join(' e ');
+
+    // Si rilegge al momento della scrittura: lo stato appeso al messaggio è vecchio per definizione.
+    const p = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clienteId },
+      select: { pastiEsclusi: true } as never,
+    })) as { pastiEsclusi?: string[] } | null;
+    const attuali = p?.pastiEsclusi ?? [];
+    const dopo = pastiDopo(attuali, { azione: intento.azione, slots });
+    if (dopo.join('|') === attuali.join('|')) {
+      return { testo: `Era già così: per **${cliente}** non cambia niente (${quali}). Non tocco nulla.`, esito: 'annullata' };
+    }
+
+    await this.prisma.clientProfile.update({
+      where: { userId: clienteId },
+      data: { pastiEsclusi: dopo } as never,
+    });
+
+    // La regola dell'annulla (§6.2): si rifanno solo i giorni futuri MAI aperti toccati davvero.
+    const giorni = await this.giorniPastiDaRifare(clienteId, slots, intento.azione);
+    if (giorni.length) {
+      await this.prisma.menuDay.deleteMany({ where: { id: { in: giorni.map((g) => g.id) } } });
+    }
+
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'pasti_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: clienteId,
+      soggettoNome: stato.clienteNome ?? null,
+      dettaglio: { azione: intento.azione, slots, giorniRifatti: giorni.length },
+    })) as { id: string };
+
+    const riepilogo =
+      (intento.azione === 'togli'
+        ? `per ${cliente} ho tolto ${quali} — le kcal si ridistribuiscono sui pasti rimasti`
+        : `per ${cliente} ho rimesso ${quali}`) +
+      (giorni.length
+        ? `. Ho rifatto ${giorni.length} ${giorni.length === 1 ? 'giornata' : 'giornate'} non ancora aperte.`
+        : '. Nessuna giornata già preparata era da rifare.');
+    return { testo: testi.scritta(riepilogo), esito: 'scritta', azioneId: riga.id };
+  }
+
   // ───────────────────────────────────────────────────────── conferma e scrittura ─
 
   private async confermaOAnnulla(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
@@ -714,6 +837,14 @@ export class VeraChatService {
         esito: 'in_corso',
         stato,
       };
+    }
+    /**
+     * ⚠️ I PASTI NON HANNO L'AMBITO «PER TUTTE» (Decisioni 13/8 §14): togliere uno spuntino a
+     * tutte le clienti è una regola di dieta — l'azione 6, che nel motore non esiste ancora.
+     * Al sì si scrive e basta.
+     */
+    if ((stato.intento as Intento).tipo === 'pasti') {
+      return this.applicaPasti(nutrizionistaId, stato, stato.intento as IntentoPasti);
     }
     return {
       testo: testi.chiediAmbito(stato.clienteNome ?? 'lei'),

@@ -406,6 +406,11 @@ model ClientProfile {
   // skip_breakfast | skip_breakfast_lunch | skip_dinner_breakfast. Null = finestra decisa
   // dalla dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
   fastingWindow          String?    @map("fasting_window")
+  // Gli SPUNTINI che questa cliente non vuole (Vera, azione 3 — Decisioni 13/8 §14).
+  // Solo morning_snack/afternoon_snack: i pasti principali passano da fastingWindow, che è una
+  // scelta di percorso col suo permesso. Le kcal del giorno si ridistribuiscono sui pasti rimasti
+  // (stessa strada del digiuno: gli slot esclusi escono PRIMA della composizione).
+  pastiEsclusi           String[]   @default([]) @map("pasti_esclusi")
   // --- Gate misure severo (richiesta Simone 5/8, voce #6) ---
   // Se le misure non arrivano, il giorno dopo l'app si blocca: solo la coach può riaprirla.
   // `measuresUnlockedUntil` è la finestra di grazia concessa dalla coach dalla chat.

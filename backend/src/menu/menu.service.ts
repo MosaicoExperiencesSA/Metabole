@@ -17,7 +17,7 @@ import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
-import { slotSaltati } from './finestre-digiuno';
+import { slotEsclusiTotali } from './finestre-digiuno';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
@@ -610,10 +610,13 @@ export class MenuService {
     const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
 
     // Prepara gli snapshot dei giorni del ciclo.
-    // Digiuno intermittente: gli slot che questa cliente ha scelto di saltare (voce #7).
-    const slotSaltati = this.slotSaltatiPerDigiuno(
+    // Gli slot che questa cliente non riceve: la finestra del digiuno (voce #7) PIÙ gli spuntini
+    // tolti da Vera (azione 3, Decisioni 13/8 §14). Escono PRIMA della composizione, quindi il
+    // target kcal del giorno si ridistribuisce sui pasti rimasti — per tutte e due le strade.
+    const slotSaltati = slotEsclusiTotali(
       (profile as { pathType?: string | null }).pathType,
       (profile as { fastingWindow?: string | null }).fastingWindow,
+      (profile as { pastiEsclusi?: string[] }).pastiEsclusi,
     );
 
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
@@ -1482,23 +1485,6 @@ export class MenuService {
     return hit?.kcal ?? 0;
   }
 
-  /**
-   * Digiuno intermittente: quali slot NON vanno erogati, in base alla finestra scelta dalla
-   * cliente (`clientProfile.fastingWindow`, voce #7 del 5/8).
-   *
-   * Prima la finestra la decideva solo il template della dieta: scegliere «digiuno intermittente»
-   * selezionava le diete marcate `fasting` e basta. Ma saltare la colazione o saltare la cena sono
-   * due vite diverse, e la cliente non aveva voce in capitolo.
-   *
-   * Lo spuntino del mattino segue sempre la colazione: se salti la colazione, uno spuntino alle
-   * dieci riaprirebbe la finestra e il digiuno non sarebbe più tale.
-   */
-  private slotSaltatiPerDigiuno(pathType?: string | null, fastingWindow?: string | null): Set<string> {
-    // La mappa sta in `finestre-digiuno.ts`, con le altre sette cose che dipendono dalla stessa
-    // lista: prima era uno `switch` qui, e aggiungere una voce voleva dire toccare otto punti
-    // sparsi — sette dei quali sarebbero passati inosservati (11/8).
-    return slotSaltati(pathType, fastingWindow);
-  }
 
   /** Pool DayCombo (RecipeInfo per slot) dal contesto di scoring. */
   private dayComboPools(ctx: {

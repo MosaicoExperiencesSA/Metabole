@@ -15,6 +15,7 @@ export type PassoVera =
   | 'nome'            // il primo incontro: come vuole chiamarmi
   | 'quale_cliente'   // omonimie: nome e cognome, o email
   | 'quale_famiglia'  // «formaggi molli» non lo conosco: quali sono?
+  | 'quale_spuntino'  // «togli lo spuntino» secco: quale dei due? (azione 3, Decisioni §14)
   | 'conferma'        // ecco cosa sto per fare, e cosa comporta
   | 'ambito'          // solo per questa cliente o per tutte?
   | 'revisione'       // (solo il capo) ti sottopongo una proposta per volta
@@ -121,6 +122,10 @@ export const testi = {
     `Ho capito che parli del tipo di dieta (${dettaglio}), non di una singola cliente. Questo ` +
     'ancora non lo so fare: cambia il menu di tutte le clienti di quella dieta, e deve passare ' +
     'dall\'approvazione. Se intendevi una cliente sola, dimmi il suo nome.',
+
+  chiediQualeSpuntino: (cliente: string) =>
+    `Per ${cliente}: quale spuntino? Dimmi «quello del mattino», «la merenda del pomeriggio», ` +
+    'oppure «tutti e due».',
 
   chiediCliente: () =>
     'Su quale cliente? Dimmi nome e cognome, oppure la sua email.',

@@ -114,6 +114,28 @@ export function slotSaltati(pathType?: string | null, fastingWindow?: string | n
   return new Set(finestraDigiuno(fastingWindow)?.salta ?? []);
 }
 
+/**
+ * TUTTI gli slot che il motore non deve erogare per questa cliente: la finestra del digiuno PIÙ
+ * gli spuntini che ha chiesto di togliere (Vera, azione 3 — Decisioni 13/8 §14).
+ *
+ * ⚠️ Da `pastiEsclusi` passano SOLO gli spuntini: un pasto principale finito lì per sbaglio (un
+ * dato scritto a mano, una migrazione storta) non deve poter togliere la cena a nessuno — i pasti
+ * principali hanno la loro porta, `fastingWindow`, col suo permesso. Il filtro sta qui e non nei
+ * chiamanti: è l'unico punto che decide, e la rete di sicurezza di `dayComboPools` (mai una
+ * giornata vuota) resta dietro comunque.
+ */
+export function slotEsclusiTotali(
+  pathType?: string | null,
+  fastingWindow?: string | null,
+  pastiEsclusi?: readonly string[] | null,
+): Set<string> {
+  const esclusi = slotSaltati(pathType, fastingWindow);
+  for (const p of pastiEsclusi ?? []) {
+    if (p === 'morning_snack' || p === 'afternoon_snack') esclusi.add(p);
+  }
+  return esclusi;
+}
+
 /** Il pasto che resta più tardi: per la 20-4 e per la mail del primo giorno. */
 export const pastoPrincipaleDigiuno = (fastingWindow?: string | null): 'colazione' | 'pranzo' | 'cena' =>
   finestraDigiuno(fastingWindow)?.pastoPrincipale ?? 'cena';

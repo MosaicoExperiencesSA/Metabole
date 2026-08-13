@@ -11,13 +11,13 @@
 
 ## Stato in una riga
 
-**Il battesimo non si perde più, e le colazioni imparano dolce/salato.** Dagli screenshot di Simone
-(13/8 pomeriggio): lo stato «nome» scadeva con la conversazione e ogni risposta al saluto cadeva su
-«non ci arrivo», per sempre — ora il battesimo è una **condizione sui dati** (`nomeAgente` vuoto) e
-l'estrattore non prende più la prima parola. In parallelo è nato il prerequisito dell'azione 3
-(«a colazione qualcosa di salato»): pagina «Colazioni» nel backoffice dove il sistema propone
-dolce/salato dagli ingredienti e Lucia conferma (`piatto:dolce`/`piatto:salato` su `Recipe.tags`,
-il tag scritto È la conferma). ⚠️ L'azione resta spenta finché le conferme non bastano. **+19+9 test.**
+**L'azione 3 ha la sua prima frase viva: «togli lo spuntino».** Campo `pastiEsclusi` sul profilo
+(solo spuntini — i pasti principali restano su `fastingWindow`), kcal ridistribuite sui pasti
+rimasti per la stessa strada del digiuno (`slotEsclusiTotali`), «lo spuntino» secco fa chiedere
+quale, «rimetti» fa il percorso inverso, e i giorni futuri mai aperti si rifanno con la regola
+dell'annulla. Niente «per tutte»: quella è l'azione 6. Delle tre frasi dell'azione 3 restano
+«a colazione qualcosa di salato» (i dati arrivano: 2653 colazioni in pagina, Lucia sta confermando)
+e «rifai con più proteine» (serve la decisione sul livello per-cliente). **+27 test.**
 
 ## Consegna 1 — Le fondamenta
 
@@ -159,6 +159,14 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 13/8/2026 sera — Azione 3, prima frase: «togli lo spuntino» (10 file)
+`vera/togli-spuntino.ts` (lettura della frase, «quale spuntino?», giorni da rifare), intento
+`pasti` in `capisci.ts` — ⚠️ PRIMA dei DIVIETI, che leggevano «togli lo spuntino» come il divieto
+dell'alimento «spuntino» —, flusso in `vera-chat.service` (anteprima con le kcal dette chiare →
+conferma → scrittura con registro), migrazione `pasti_esclusi`, unione col digiuno in
+`finestre-digiuno.slotEsclusiTotali()` usata dal motore. E sulla pagina Colazioni: selezione per
+riga e invio a pacchetti da 500 (il blocco da 986 sbatteva sul tetto del server).
 
 ### 13/8/2026 — Battesimo che non scade + Colazioni dolce/salato (14 file)
 Il fix dei tre difetti visti negli screenshot di Simone (battesimo irraggiungibile dopo la scadenza,

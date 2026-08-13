@@ -424,3 +424,25 @@ per tipo, come sempre.
 
 **Ordine domani (14/8, ore 11):** prima `chiedi:allergie` (3 notifiche col dialogo), poi
 `avvisa:allergie` (i 45). Tutti e due prima in prova, letti riga per riga, poi `CONFERMA=1`.
+
+---
+
+## 14. Vera, azione 3 — «togli lo spuntino»: come si fa ✅ IMPLEMENTATA (13/8 sera)
+
+**Il campo.** `ClientProfile.pastiEsclusi` (array di slot, migrazione additiva), **solo spuntini**
+(`morning_snack`, `afternoon_snack`). I pasti principali NON passano da qui: quelli sono
+`fastingWindow`, che è una scelta di percorso con il suo permesso — due porte diverse apposta.
+
+**Le kcal si ridistribuiscono, non si perdono.** Stesso precedente del digiuno: gli slot esclusi
+escono PRIMA della composizione della giornata, quindi il target kcal del giorno si spalma sui
+pasti rimasti. È il comportamento già scritto in `dayComboPools` — una strada sola per tutti e due.
+
+**«Lo spuntino» secco = Vera chiede quale.** Mattina, merenda del pomeriggio, o tutti e due: non si
+indovina — è la regola di tutto l'assistente. «Rimetti lo spuntino» fa il percorso inverso.
+
+**Niente «per tutte».** Togliere un pasto a tutte le clienti è una regola di dieta (azione 6, che
+non esiste ancora nel motore): qui il flusso salta la domanda dell'ambito e scrive solo sulla
+cliente.
+
+**I menu già preparati si rifanno** con la regola dell'annulla del §6.2: solo i giorni futuri non
+ancora aperti che contengono (o, per il «rimetti», che NON contengono) lo spuntino toccato.

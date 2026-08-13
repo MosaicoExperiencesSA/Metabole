@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-13
 
+- `[Sviluppo]` 🥪 **Vera, azione 3 — «togli lo spuntino» (Decisioni §14).** Campo nuovo
+  `ClientProfile.pastiEsclusi` (migrazione additiva, solo spuntini: i pasti principali restano su
+  `fastingWindow`). Le kcal NON si perdono: gli slot esclusi escono prima della composizione e il
+  target si ridistribuisce sui pasti rimasti — stessa strada del digiuno, unificata in
+  `slotEsclusiTotali()`. «Lo spuntino» secco → Vera chiede quale (mattina/merenda/tutti e due);
+  «rimetti» fa il percorso inverso; niente ambito «per tutte» (sarebbe una regola di dieta, azione
+  6). I giorni futuri mai aperti si rifanno con la regola dell'annulla — criterio ribaltato per il
+  «rimetti». ⚠️ Trappola disinnescata: «togli lo spuntino» veniva letto dai DIVIETI come *vietare
+  l'alimento «spuntino»*. 27 test nuovi visti rossi. Voce 235: il dato non si vede ancora in scheda.
+
+- `[Sviluppo]` ☕ **Pagina Colazioni: selezione per riga e invio a pacchetti (richieste di Simone
+  dalla produzione).** «Conferma le 986 proposte salate» sbatteva sul tetto dei 500 per chiamata:
+  ora la pagina spezza in pacchetti da 500 e somma l'esito. Flag di selezione su ogni riga,
+  «Seleziona la pagina», «Conferma la selezione (N)» — ogni riga spuntata si conferma con la SUA
+  proposta; le spuntate senza proposta si saltano e si dice quante.
+
 - `[Sviluppo]` ☕ **Colazioni dolci e salate: propone il sistema, conferma Lucia (Decisioni §12).**
   Nasce dall'azione 3 di Vera («a colazione qualcosa di salato»): il dato non esisteva, e non
   riguarda 14.000 ricette ma solo lo slot colazione. Convenzione `piatto:dolce`/`piatto:salato` su

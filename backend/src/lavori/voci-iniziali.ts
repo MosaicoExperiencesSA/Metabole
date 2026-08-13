@@ -409,6 +409,14 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 234,
   },
   {
+    chiave: 'pasti-esclusi-in-scheda',
+    titolo: 'Gli spuntini tolti da Vera non si vedono ancora nella scheda cliente',
+    dettaglio:
+      '«Togli lo spuntino» (azione 3, 13/8 sera) scrive `ClientProfile.pastiEsclusi` e il motore lo rispetta, ma NESSUNA scheda lo mostra: né backoffice né app. È lo stesso buco che avevano le allergie (§4 dell\'handoff): un dato che agisce e non si vede è un dato che prima o poi qualcuno contraddice senza saperlo. Serve una riga in sola lettura nella scheda cliente (accanto ai pasti del digiuno) e nel profilo dell\'app.',
+    categoria: CODICE,
+    ordine: 235,
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

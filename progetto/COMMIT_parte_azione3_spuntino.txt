@@ -1,0 +1,31 @@
+─── PARTE: Vera azione 3 «togli lo spuntino» + selezione in pagina Colazioni (13/8 sera) ───
+
+Vera impara «togli lo spuntino», e la pagina Colazioni prende la selezione per riga
+
+1) «TOGLI LO SPUNTINO» (Decisioni §14). Campo nuovo ClientProfile.pastiEsclusi (migrazione
+additiva 20260813210000, solo spuntini: i pasti principali restano su fastingWindow, che ha il suo
+permesso). Le kcal NON si perdono: gli slot esclusi escono PRIMA della composizione e il target del
+giorno si ridistribuisce sui pasti rimasti — stessa strada del digiuno, unificata in
+finestre-digiuno.slotEsclusiTotali() (con il filtro: un pasto principale scritto per sbaglio in
+pastiEsclusi non toglie la cena a nessuno). «Lo spuntino» secco → Vera chiede quale; «rimetti» fa
+il percorso inverso (e il criterio dei giorni da rifare si ribalta: quelli a cui MANCA); niente
+ambito «per tutte» — quella è una regola di dieta, azione 6. Giorni futuri mai aperti rifatti con
+la regola dell'annulla del §6.2.
+⚠️ Trappola disinnescata: «togli lo spuntino» veniva letto dai DIVIETI come *vietare l'alimento
+«spuntino»* — il ramo pasti sta PRIMA, e «togli lo yogurt dallo spuntino» resta un divieto.
+
+2) PAGINA COLAZIONI (richieste di Simone dalla produzione). Il blocco da 986 proposte sbatteva sul
+tetto dei 500 per chiamata: la pagina ora spezza in pacchetti da 500 e somma l'esito. Flag di
+selezione su ogni riga, «Seleziona la pagina», «Conferma la selezione (N)»: ogni spuntata si
+conferma con la SUA proposta, quelle senza proposta si saltano e si dice quante.
+
+FILE — backend: vera/togli-spuntino.ts+spec (nuovi), vera/capisci.ts+spec, vera/vera-chat.ts,
+vera/vera-chat.service.ts+spec, vera/registro.service.ts, vera/registro-allargato.ts,
+menu/finestre-digiuno.ts+spec, menu/menu.service.ts, lavori/voci-iniziali.ts (voce 235),
+prisma/schema.prisma, prisma/migrations/20260813210000_pasti_esclusi/.
+Backoffice: pages/Colazioni.tsx. Docs: Decisioni §14, REGISTRO, VERA_AVANZAMENTO.
+
+TEST: 27 nuovi visti rossi (11 togli-spuntino + 4 capisci + 5 servizio Vera + 4 finestre-digiuno
++ 3 già contati nel fix composti). Suite toccate riverificate: vera/ + menu.service + pasti-digiuno
+= 348 verdi, capisci 29, finestre 17. ⚠️ Sul Mac servono prisma:tipi (colonna nuova) e la catena
+completa prima della push. Migrazione additiva: nessuna cliente cambia finché Vera non scrive.

@@ -43,6 +43,7 @@ export function Colazioni() {
   const [loading, setLoading] = useState(true);
   const [scrivendo, setScrivendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selezione, setSelezione] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
 
   async function load() {
@@ -51,6 +52,7 @@ export function Colazioni() {
       const r = await api<{ items: Colazione[]; conta: Conta }>('/recipes/colazioni');
       setRows(r.items);
       setConta(r.conta);
+      setSelezione(new Set());
       setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata ai nutrizionisti.');
@@ -74,19 +76,29 @@ export function Colazioni() {
     }
   }
 
-  /** La conferma in blocco di TUTTE le proposte di un tipo ancora senza tag. */
-  async function confermaBlocco(tipo: Tipo) {
-    const scelte = rows.filter((r) => !r.confermato && r.proposta === tipo).map((r) => ({ id: r.id, tipo }));
-    if (!scelte.length) return;
-    const quali = tipo === 'salato' ? 'salate' : 'dolci';
-    if (!confirm(`Confermo ${scelte.length} colazioni come ${quali}?\n\nSono le proposte del sistema che vedi in tabella filtrando «Proposta: ${tipo === 'salato' ? 'salata' : 'dolce'}». Se qualcuna non ti convince, prima correggila dalla sua riga.`)) return;
-    setError(null); setNotice(null); setScrivendo(true);
-    try {
+  /**
+   * L'invio a PACCHETTI: il server accetta al massimo 500 scelte per chiamata, e le proposte sono
+   * di più (986 salate al primo giro — l'errore «no more than 500 elements» visto in produzione
+   * il 13/8 sera). Si spezza qui, in sequenza, e si somma l'esito.
+   */
+  async function inviaScelte(scelte: { id: string; tipo: Tipo }[]): Promise<{ scritte: number; saltate: number }> {
+    const totale = { scritte: 0, saltate: 0 };
+    for (let i = 0; i < scelte.length; i += 500) {
       const esito = await api<{ scritte: number; saltate: number }>('/recipes/colazioni/conferma', {
         method: 'POST',
-        body: JSON.stringify({ scelte }),
+        body: JSON.stringify({ scelte: scelte.slice(i, i + 500) }),
       });
-      setNotice(`Confermate ${esito.scritte} colazioni ${quali}.${esito.saltate ? ` Saltate ${esito.saltate} (ricette sparite nel frattempo).` : ''}`);
+      totale.scritte += esito.scritte;
+      totale.saltate += esito.saltate;
+    }
+    return totale;
+  }
+
+  async function confermaScelte(scelte: { id: string; tipo: Tipo }[], racconto: string) {
+    setError(null); setNotice(null); setScrivendo(true);
+    try {
+      const esito = await inviaScelte(scelte);
+      setNotice(`${racconto}: confermate ${esito.scritte}.${esito.saltate ? ` Saltate ${esito.saltate} (ricette sparite nel frattempo).` : ''}`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Conferma non riuscita.');
@@ -95,7 +107,33 @@ export function Colazioni() {
     }
   }
 
+  /** La conferma in blocco di TUTTE le proposte di un tipo ancora senza tag. */
+  async function confermaBlocco(tipo: Tipo) {
+    const scelte = rows.filter((r) => !r.confermato && r.proposta === tipo).map((r) => ({ id: r.id, tipo }));
+    if (!scelte.length) return;
+    const quali = tipo === 'salato' ? 'salate' : 'dolci';
+    if (!confirm(`Confermo ${scelte.length} colazioni come ${quali}?\n\nSono le proposte del sistema che vedi in tabella filtrando «Proposta: ${tipo === 'salato' ? 'salata' : 'dolce'}». Se qualcuna non ti convince, prima correggila dalla sua riga.`)) return;
+    await confermaScelte(scelte, `Proposte ${quali}`);
+  }
+
+  /**
+   * La conferma della SELEZIONE (richiesta di Simone, 13/8 sera): ogni riga spuntata si conferma
+   * con la SUA proposta. Le spuntate senza proposta o già confermate si saltano e si conta.
+   */
+  async function confermaSelezione() {
+    const spuntate = rows.filter((r) => selezione.has(r.id));
+    const scelte = spuntate.filter((r) => !r.confermato && r.proposta).map((r) => ({ id: r.id, tipo: r.proposta as Tipo }));
+    const fuori = spuntate.length - scelte.length;
+    if (!scelte.length) {
+      setNotice('Nella selezione non c\'è nessuna proposta da confermare: le righe senza proposta si decidono una a una.');
+      return;
+    }
+    if (!confirm(`Confermo ${scelte.length} colazioni con la loro proposta?${fuori ? `\n\n${fuori} righe selezionate non hanno una proposta (o sono già confermate): quelle restano come sono.` : ''}`)) return;
+    await confermaScelte(scelte, 'Selezione');
+  }
+
   const COLONNE: Colonna<Colazione>[] = [
+    { chiave: 'sel', titolo: '✓', stile: { width: 36 } },
     { chiave: 'ricetta', titolo: 'Ricetta', valore: (r) => r.name, filtro: 'testo' },
     { chiave: 'kcal', titolo: 'kcal', valore: (r) => String(r.kcal), stile: { width: 70 } },
     // Gli indizi si mostrano, non si nascondono: sono il motivo della proposta.
@@ -140,6 +178,29 @@ export function Colazioni() {
               Conferma le {conta.proposteDolce} proposte dolci
             </button>
           )}
+          {selezione.size > 0 && (
+            <button className="btn sm" disabled={scrivendo} onClick={() => void confermaSelezione()}>
+              Conferma la selezione ({selezione.size})
+            </button>
+          )}
+          {selezione.size > 0 && (
+            <button className="btn ghost sm" disabled={scrivendo} onClick={() => setSelezione(new Set())}>
+              Svuota
+            </button>
+          )}
+          <button
+            className="btn ghost sm"
+            disabled={scrivendo}
+            title="Spunta tutte le righe della pagina che vedi (coi filtri attivi)"
+            onClick={() => setSelezione((prima) => {
+              const dopo = new Set(prima);
+              const tutteSpuntate = t.pagina.every((r) => dopo.has(r.id));
+              for (const r of t.pagina) { if (tutteSpuntate) dopo.delete(r.id); else dopo.add(r.id); }
+              return dopo;
+            })}
+          >
+            {t.pagina.every((r) => selezione.has(r.id)) && t.pagina.length > 0 ? 'Togli la pagina' : 'Seleziona la pagina'}
+          </button>
         </div>
         <input
           className="input"
@@ -168,6 +229,17 @@ export function Colazioni() {
             <tbody>
               {t.pagina.map((r) => (
                 <tr key={r.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selezione.has(r.id)}
+                      onChange={() => setSelezione((prima) => {
+                        const dopo = new Set(prima);
+                        if (dopo.has(r.id)) dopo.delete(r.id); else dopo.add(r.id);
+                        return dopo;
+                      })}
+                    />
+                  </td>
                   <td><b>{r.name}</b></td>
                   <td className="muted">{r.kcal}</td>
                   <td className="muted">{r.indizi.join(', ') || '—'}</td>

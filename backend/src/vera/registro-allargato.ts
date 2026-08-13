@@ -84,6 +84,7 @@ const ETICHETTA_AZIONE: Record<string, string> = {
   ricetta_modificata: 'Ricetta modificata',
   ricetta_nuova: 'Ricetta nuova',
   regola_dieta: 'Regola su un tipo di dieta',
+  pasti_cliente: 'Spuntini della cliente',
   voce_dizionario: 'Parola nuova nel dizionario',
 };
 

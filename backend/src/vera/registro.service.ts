@@ -34,6 +34,8 @@ export type AzioneVeraTipo =
   | 'ricetta_modificata'
   | 'ricetta_nuova'
   | 'regola_dieta'
+  /** Spuntini tolti o rimessi a una cliente (azione 3, Decisioni 13/8 §14). */
+  | 'pasti_cliente'
   /** Una parola che entra nel dizionario di TUTTE: nasce sempre come proposta. */
   | 'voce_dizionario';
 

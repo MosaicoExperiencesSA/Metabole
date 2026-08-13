@@ -183,3 +183,30 @@ describe('capisci — le ricette', () => {
     expect(i?.tipo).toBe('restrizione');
   });
 });
+
+describe('capisci — i pasti (azione 3, Decisioni 13/8 §14)', () => {
+  it('«togli lo spuntino» è uno SLOT, non un alimento da vietare', () => {
+    expect(capisci('a Giulia Rossi togli lo spuntino')).toEqual({
+      tipo: 'pasti', cliente: 'Giulia Rossi', azione: 'togli', slots: null,
+    });
+  });
+
+  it('con lo slot detto, lo slot è quello', () => {
+    expect(capisci('togli la merenda a Giulia')).toEqual({
+      tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'],
+    });
+    expect(capisci('rimetti lo spuntino del mattino a Giulia')).toEqual({
+      tipo: 'pasti', cliente: 'Giulia', azione: 'rimetti', slots: ['morning_snack'],
+    });
+  });
+
+  it('«togli il tonno» resta un divieto alimentare', () => {
+    const i = capisci('a Giulia togli il tonno');
+    expect(i?.tipo).toBe('restrizione');
+  });
+
+  it('e il contenuto dello spuntino resta cibo: «togli lo yogurt dallo spuntino»', () => {
+    const i = capisci('a Giulia togli lo yogurt dallo spuntino');
+    expect(i?.tipo).toBe('restrizione');
+  });
+});
