@@ -1,0 +1,48 @@
+Il pasto che manca a una giornata si prende dalle settimane successive dello stesso ciclo
+
+Regola chiesta da Simone (14/8), testuale: «se per esempio settimana 2 digiuno
+intermittente giorno 2 mi manca la cena vado a cercare la cena nelle settimane
+successive con le giuste caratteristiche». Decisione scritta prima del codice:
+progetto/NOTA_Pasto_Mancante_Dalle_Settimane_Successive.md.
+
+Com'era: dall'11/8 (§15.4) una giornata monca SI SCARTA — regola giusta, che ha
+chiuso il difetto della giornata con la sola colazione, ma che butta via una giornata
+intera anche quando le manca UN solo pasto che esiste identico due settimane dopo,
+nello stesso ciclo, già approvato.
+
+Adesso, PRIMA di scartare, si ripara:
+
+- Nuovo modulo PURO `menu/ripara-giornata.ts` (come `catalog/giornate-complete.ts`:
+  niente Prisma, si collauda con giornate vere). `riparaGiornata` / `riparaGiornate`.
+- Si guarda AVANTI per prime — `dayIndex` maggiore, dalla più vicina — ed è la
+  richiesta testuale; solo se avanti non c'è niente si guarda indietro: meglio un
+  pasto che nessun pasto, e il piatto resta comunque del ciclo di quella dieta.
+- «Le giuste caratteristiche» sono garantite dalla PROVENIENZA: stesso slot, e il
+  piatto viene dalle altre giornate della STESSA dieta e dello stesso livello, quindi
+  è già del catalogo di quella dieta. ⚠️ Regime, stagionalità, esclusioni e allergeni
+  della cliente restano dove sono sempre stati (buildScoringContext / evaluateMeals):
+  questa regola non li scavalca e non pesca fuori dalla dieta.
+- ⚠️ Mai un doppione nella stessa giornata: lo stesso piatto a pranzo e a cena è
+  peggio del buco che si sta chiudendo.
+- A parità comanda il TARGET calorico quando lo si conosce (`levelTargetKcal`): vince
+  il candidato che avvicina il totale della giornata al target. Senza kcal note si
+  prende il primo in avanti, e non si finge una scelta calorica che non si è fatta.
+- ⚠️ Nessuna riparazione a catena: ogni giornata si ripara guardando le giornate
+  ORIGINALI, mai quelle già riparate nello stesso giro — altrimenti un piatto
+  prestato si propagherebbe su mezzo ciclo e la varietà sparirebbe senza un errore.
+- L'ordine dei pasti resta quello della giornata: il pasto aggiunto va al suo posto.
+- Il ripiego SI DICE: log con «giorno 9 dinner ← giorno 15» ed evento
+  `diet_day_repaired`. Il catalogo va comunque completato: questa regola toglie il
+  danno alla cliente, non il lavoro dal tavolo del nutrizionista.
+- Aggancio in `menu.service.soloGiornateComplete` come gradino SOPRA la scala
+  esistente: se dopo la riparazione una giornata è ancora monca, gemella →
+  segnalazione valgono identiche. `riparaLeMonche` non lancia mai: in caso di guaio
+  restituisce le giornate com'erano (un miglioramento che rompe l'erogazione è un
+  peggioramento).
+- Lista Lavori: voce nuova 243 (fatta).
+
+Test: 14 nuovi in ripara-giornata.spec.ts (visti rossi: il modulo non esisteva) + 1
+end-to-end in menu.service.spec.ts (⚠️ quella suite in sandbox non compila per lo stub
+di Prisma: lo vede la catena sul Mac). In sandbox: 535 verdi su src/menu (baseline
+521), tsc 52 = 52.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest

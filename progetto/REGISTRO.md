@@ -20,6 +20,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 🧩 **Il pasto che manca si prende dalle settimane successive** (regola chiesta da
+  Simone, 14/8: «settimana 2 giorno 2 mi manca la cena → la cerco nelle settimane successive»).
+  Prima di scartare la giornata monca si ripara: stesso slot, dalle altre giornate della stessa
+  dieta e livello, guardando avanti per prime; mai un doppione nella giornata; a parità comanda il
+  target calorico. Le caratteristiche sono garantite dalla provenienza — il piatto è del catalogo
+  di quella dieta, quindi esclusioni e allergeni restano a valle. Se resta monca, gemella →
+  segnalazione come prima. Il ripiego si dice (log + `diet_day_repaired`) e il catalogo va comunque
+  completato. Modulo puro `menu/ripara-giornata.ts`, 15 test.
+  Decisione in `NOTA_Pasto_Mancante_Dalle_Settimane_Successive.md`.
+
 - `[Sviluppo]` ⏰ **Attività coach: push alla creazione + escalation alla manager** (richieste di
   Simone, 14/8). Prima nascevano mute e si vedevano solo in pagina; ora la coach riceve in-app +
   push alla creazione (da `ensureTask`, l'unico punto in cui nasce ogni attività), e quelle ancora

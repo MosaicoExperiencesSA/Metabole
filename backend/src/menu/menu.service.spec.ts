@@ -1269,6 +1269,34 @@ describe('MenuService — giornate incomplete (§15.4)', () => {
     }
   });
 
+  /**
+   * LA REGOLA DEL 14/8 (Simone): «se settimana 2 giorno 2 mi manca la cena vado a cercare la cena
+   * nelle settimane successive». Prima quella giornata si buttava via intera; ora si ripara col
+   * piatto del ciclo — e il ripiego resta scritto.
+   */
+  it('la giornata a cui manca UN pasto si ripara col piatto del ciclo, e lo traccia', async () => {
+    const senzaCena = (dayIndex: number) => ({
+      dayIndex, level: 1,
+      meals: [
+        { slot: 'breakfast', recipeId: 'b1' }, { slot: 'morning_snack', recipeId: 's1' },
+        { slot: 'lunch', recipeId: 'r1' }, { slot: 'afternoon_snack', recipeId: 'm1' },
+      ],
+    });
+    const { service, prisma } = await monta({
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'd1', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 5 }), findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([senzaCena(1), completa(2), completa(3)]) },
+    });
+    const creati = await service.deliverIfEligible('u1');
+    expect(creati.length).toBeGreaterThan(0);
+    // Nessuna giornata servita senza cena: era il buco da chiudere.
+    for (const call of (prisma.menuDay.upsert as jest.Mock).mock.calls) {
+      expect((call[0].create.meals as { slot: string }[]).map((m) => m.slot)).toContain('dinner');
+    }
+    // ⚠️ E il ripiego NON è silenzioso: resta l'evento, come per la gemella.
+    const eventi = (prisma.analyticsEvent.create as jest.Mock).mock.calls.map((c) => c[0].data.name);
+    expect(eventi).toContain('diet_day_repaired');
+  });
+
   it('nessuna completa: scende sulla GEMELLA e lo traccia (non in silenzio)', async () => {
     const gemella = { id: 'd2', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 3, fasting: false, style: 'mediterranean' };
     const templateDi = jest.fn(({ where }: any) =>

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { giornateComplete } from '../catalog/giornate-complete';
+import { riparaGiornate } from './ripara-giornata';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
@@ -1979,12 +1980,95 @@ export class MenuService {
    *
    * Restituisce `null` quando non c'è niente da servire: chi chiama esce senza erogare.
    */
-  private async soloGiornateComplete(
+  /**
+   * Le giornate monche riparate coi piatti delle altre giornate del ciclo (Simone, 14/8).
+   *
+   * ⚠️ Il ripiego si DICE: log con quale giorno, quale slot e da dove arriva il piatto, più
+   * l'evento `diet_day_repaired`. Un ripiego dichiarato è un dato, uno nascosto è un errore — e il
+   * nutrizionista deve comunque completare il catalogo: questa regola toglie il danno alla cliente,
+   * non il lavoro dal tavolo.
+   *
+   * ⚠️ Non lancia mai e in caso di guaio restituisce le giornate COM'ERANO: la riparazione è un
+   * miglioramento, e un miglioramento che rompe l'erogazione è un peggioramento.
+   */
+  private async riparaLeMonche(
     clientId: string,
     diet: DietaPerErogazione,
     templates: TemplateGiornata[],
     level: number,
+  ): Promise<TemplateGiornata[]> {
+    try {
+      // Le kcal servono solo a scegliere FRA i candidati: se non si riescono a leggere, la
+      // riparazione si fa lo stesso prendendo il primo in avanti (e non finge una scelta calorica).
+      let kcalDi: Map<string, number> | undefined;
+      try {
+        const ids = [...new Set(
+          templates.flatMap((t) => (Array.isArray(t.meals) ? (t.meals as { recipeId?: string }[]) : []))
+            .map((m) => m?.recipeId)
+            .filter((x): x is string => !!x),
+        )];
+        if (ids.length) {
+          const ricette = (await this.prisma.recipe.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, kcal: true },
+          })) as { id: string; kcal: number }[];
+          kcalDi = new Map(ricette.map((r) => [r.id, r.kcal]));
+        }
+      } catch {
+        kcalDi = undefined;
+      }
+
+      const esito = riparaGiornate(templates, diet, {
+        kcalDi,
+        targetKcal: this.levelTargetKcal(diet.levels, level),
+      });
+      if (!esito.riparate) return templates;
+
+      const righe = esito.dettaglio
+        .map((d) => `giorno ${d.dayIndex} ${d.slot} ← giorno ${d.daGiorno}`)
+        .join('; ');
+      this.logger.warn(
+        `Dieta ${diet.id}: ${esito.riparate} giornate riparate coi piatti del ciclo (${righe}). ` +
+          'Il catalogo va comunque completato.',
+      );
+      await this.prisma.analyticsEvent
+        .create({
+          data: {
+            eventId: randomUUID(),
+            name: 'diet_day_repaired',
+            userId: clientId,
+            phase: 'app',
+            data: { dietId: diet.id, level, riparate: esito.riparate, dettaglio: esito.dettaglio.slice(0, 20) } as never,
+          } as never,
+        })
+        .catch(() => undefined);
+      return esito.giornate;
+    } catch (err) {
+      this.logger.warn(
+        `Riparazione delle giornate non riuscita per la dieta ${diet.id}: ` +
+          `${err instanceof Error ? err.message : String(err)}. Si prosegue con le giornate come sono.`,
+      );
+      return templates;
+    }
+  }
+
+  private async soloGiornateComplete(
+    clientId: string,
+    diet: DietaPerErogazione,
+    templatesInArrivo: TemplateGiornata[],
+    level: number,
   ): Promise<{ diet: DietaPerErogazione; templates: TemplateGiornata[]; level: number } | null> {
+    /**
+     * 0) PRIMA DI SCARTARE, SI RIPARA (Simone, 14/8): «se settimana 2 giorno 2 mi manca la cena
+     * vado a cercare la cena nelle settimane successive con le giuste caratteristiche».
+     *
+     * Il piatto arriva dalle altre giornate della STESSA dieta e dello stesso livello, per lo
+     * stesso slot: è già del catalogo di questa dieta, quindi esclusioni, allergeni e stagionalità
+     * della cliente restano dove sono sempre stati — a valle. Se dopo la riparazione una giornata
+     * è ancora monca, la scala qui sotto vale identica.
+     * Decisione: `progetto/NOTA_Pasto_Mancante_Dalle_Settimane_Successive.md`.
+     */
+    const templates = await this.riparaLeMonche(clientId, diet, templatesInArrivo, level);
     const { complete, monche } = giornateComplete(templates, diet);
     if (complete.length > 0) {
       if (monche > 0) {
