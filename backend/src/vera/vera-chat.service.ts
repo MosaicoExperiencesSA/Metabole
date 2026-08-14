@@ -21,7 +21,7 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoCambioDieta, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
@@ -30,7 +30,7 @@ import { RegistroVeraService } from './registro.service';
 import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
-import { SCRITTURA_CLIENTE, ScritturaCliente } from './richieste.service';
+import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
 import {
   EsitoVera,
@@ -82,6 +82,12 @@ export class VeraChatService {
      * (`change_diet_type`) e la rierogazione dei giorni futuri già dentro.
      */
     @Inject(SCRITTURA_CLIENTE) private readonly clienti: ScritturaCliente,
+    /**
+     * La porta delle CALORIE scritte a mano (14/8): permesso, storico in `kcal_override`, rifiuto
+     * sotto soglia e avviso ai capi stanno già lì. Rifarli qui sarebbe la seconda strada per lo
+     * stesso dato clinico.
+     */
+    @Inject(SCRITTURA_KCAL) private readonly kcal: ScritturaKcal,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -242,6 +248,8 @@ export class VeraChatService {
         return this.leggiLaRicetta(nutrizionistaId, stato, frase);
       case 'ricetta_conferma':
         return this.scriviLaRicetta(nutrizionistaId, stato, frase);
+      case 'quanti_giorni':
+        return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
       case 'quale_dieta':
@@ -666,6 +674,11 @@ export class VeraChatService {
     // I PASTI hanno la loro anteprima: niente pool di ricette, niente ambito «per tutte».
     if (intento.tipo === 'pasti') return this.anteprimaPasti(stato, intento as IntentoPasti);
 
+    // LE CALORIE (14/8, Nocanty via Vera): anteprima col numero VERO, poi conferma, poi la porta.
+    if (intento.tipo === 'correzione_kcal') {
+      return this.avviaCorrezioneKcal(nutrizionistaId, stato, intento as IntentoCorrezioneKcal);
+    }
+
     // IL CAMBIO DI DIETA (azione 3, 14/8) ha il suo giro: dieta dal catalogo, «da quando?», conferma.
     if (intento.tipo === 'cambio_dieta') {
       return this.avviaCambioDieta(nutrizionistaId, stato, (intento as IntentoCambioDieta).dieta);
@@ -939,6 +952,123 @@ export class VeraChatService {
     };
   }
 
+  // ─────────────────────────────── le calorie scritte a mano, dettate (14/8) ──
+
+  /**
+   * «RIDUCI LE KCAL DEL 10% A GIULIA PER 7 GIORNI» (Nocanty; decisione in
+   * `progetto/NOTA_Vera_Detta_La_Correzione_Kcal.md`).
+   *
+   * L'anteprima mostra il **numero vero** (target di adesso → target dopo), non la percentuale:
+   * è la regola del pool applicata ai numeri. Se la durata non l'ha detta, si chiede — «per 7
+   * giorni» e «finché non te lo dico io» sono due prescrizioni diverse.
+   */
+  private async avviaCorrezioneKcal(
+    nutrizionistaId: string,
+    stato: StatoVera,
+    intento: IntentoCorrezioneKcal,
+  ): Promise<EsitoVera> {
+    if (intento.giorni === null) {
+      return {
+        testo: testi.chiediQuantiGiorni(stato.clienteNome ?? 'lei', intento.pct),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'quanti_giorni' },
+      };
+    }
+    return this.anteprimaCorrezioneKcal(nutrizionistaId, stato, intento.pct, intento.giorni);
+  }
+
+  /** «Per 7 giorni» / «per sempre». ⚠️ Due risposte non capite chiudono: una durata non si indovina. */
+  private async leggiQuantiGiorni(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const intento = stato.intento as IntentoCorrezioneKcal;
+    const t = normalizza(frase);
+    let giorni: number | null | undefined;
+    if (/\bper sempre\b|\bsempre\b|\bfinche non\b|\ba tempo indeterminato\b/.test(t)) giorni = null;
+    else {
+      const settimane = /\b(una|due|tre|quattro|\d{1,2})\s+settiman/.exec(t);
+      const g = /\b(\d{1,3})\s*(giorn|gg)/.exec(t) ?? /^\s*(\d{1,3})\s*$/.exec(t);
+      if (settimane) {
+        const parole: Record<string, number> = { una: 1, due: 2, tre: 3, quattro: 4 };
+        const n = parole[settimane[1]] ?? Number(settimane[1]);
+        giorni = Number.isFinite(n) && n > 0 ? n * 7 : undefined;
+      } else if (g) {
+        const n = Number(g[1]);
+        giorni = Number.isFinite(n) && n > 0 ? n : undefined;
+      }
+    }
+    if (giorni === undefined) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) return { testo: testi.annullato(), esito: 'annullata' };
+      return {
+        testo: testi.chiediQuantiGiorni(stato.clienteNome ?? 'lei', intento.pct),
+        esito: 'in_corso',
+        stato: { ...stato, tentativi },
+      };
+    }
+    return this.anteprimaCorrezioneKcal(nutrizionistaId, stato, intento.pct, giorni);
+  }
+
+  private async anteprimaCorrezioneKcal(
+    nutrizionistaId: string,
+    stato: StatoVera,
+    pct: number,
+    giorni: number | null,
+  ): Promise<EsitoVera> {
+    // Stessa simulazione del backoffice: un secondo calcolo qui darebbe due numeri per la stessa
+    // domanda, e quello mostrato sarebbe quello sbagliato proprio quando serve.
+    const sim = await this.kcal
+      .simulaKcal({ sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) }, stato.clienteId!, null, pct)
+      .catch(() => ({ prima: null, dopo: null }));
+    const prima = sim?.prima?.target ?? null;
+    const dopo = sim?.dopo?.target ?? null;
+    return {
+      testo: testi.anteprimaKcal(stato.clienteNome ?? 'lei', pct, prima, dopo, giorni),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'conferma', giorniCorrezione: giorni, kcalPrima: prima, kcalDopo: dopo, tentativi: 0 },
+    };
+  }
+
+  private async applicaCorrezioneKcal(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const intento = stato.intento as IntentoCorrezioneKcal;
+    const giorni = stato.giorniCorrezione ?? null;
+    try {
+      await this.kcal.impostaKcal(
+        { sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) },
+        stato.clienteId!,
+        {
+          correzionePct: intento.pct,
+          // ⚠️ Il motivo è la FRASE ORIGINALE, per intero: è la stessa regola del registro, e chi
+          // rilegge lo storico fra tre mesi trova quello che ha detto lei, non un mio riassunto.
+          motivo: stato.frase,
+          ...(giorni ? { perGiorni: giorni } : {}),
+        },
+      );
+    } catch (err) {
+      const messaggio = err instanceof Error ? err.message : 'Non sono riuscita a scriverla.';
+      logger.warn(`Correzione kcal non scritta (cliente=${stato.clienteId}): ${messaggio}`);
+      return { testo: testi.correzioneKcalSottoSoglia(messaggio), esito: 'arresa' };
+    }
+
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'variante_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: stato.clienteId ?? null,
+      soggettoNome: stato.clienteNome ?? null,
+      // ⚠️ Il prima e il dopo si conservano: il fabbisogno cambia col peso, quindi fra un mese
+      // quella percentuale darà un altro numero e senza questi due non si saprebbe cos'era.
+      dettaglio: {
+        correzioneKcal: { pct: intento.pct, giorni, prima: stato.kcalPrima ?? null, dopo: stato.kcalDopo ?? null },
+      },
+    })) as { id: string };
+    return {
+      testo: testi.correzioneKcalFatta(stato.clienteNome ?? 'lei', intento.pct, stato.kcalDopo ?? null, giorni),
+      esito: 'scritta',
+      azioneId: riga.id,
+    };
+  }
+
   // ──────────────────────────────────────────── il cambio di dieta (azione 3) ──
 
   /**
@@ -1119,6 +1249,9 @@ export class VeraChatService {
      */
     if ((stato.intento as Intento).tipo === 'pasti') {
       return this.applicaPasti(nutrizionistaId, stato, stato.intento as IntentoPasti);
+    }
+    if ((stato.intento as Intento).tipo === 'correzione_kcal') {
+      return this.applicaCorrezioneKcal(nutrizionistaId, stato);
     }
     // Il cambio di dieta è per UNA cliente per costruzione: niente ambito «per tutte».
     if ((stato.intento as Intento).tipo === 'cambio_dieta') {

@@ -551,6 +551,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'La seconda metà della richiesta di Nocanty: «questa cosa vorrei farla anche dalla mia assistente». Il campo e la scadenza esistono dal 14/8 (voce 247) proprio perché la dettatura possa scriverli senza inventarsi una seconda strada. ⚠️ Tocca i numeri nel piatto: intento in `capisci.ts`, anteprima con il target PRIMA e DOPO (`kcalNeed.estimate` in simulazione), conferma, e la scrittura passa dalla porta che c\'è già (`impostaKcal`, coi suoi permessi, lo storico in `kcal_override` e il rifiuto sotto soglia). A mente fresca.',
     categoria: CODICE,
     ordine: 248,
+    fatta: true, // 14/8: intento correzione_kcal + anteprima col numero vero + porta impostaKcal
   },
   {
     chiave: 'vera-handoff-sessione',

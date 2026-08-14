@@ -8,7 +8,9 @@ import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
 import { ClientsService } from '../clients/clients.service';
-import { RichiesteVeraService, SCRITTURA_CLIENTE } from './richieste.service';
+import { NutritionistModule } from '../nutritionist/nutritionist.module';
+import { NutritionistService } from '../nutritionist/nutritionist.service';
+import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
 import { SCRITTURA_RICETTA } from './scrittura-ricetta';
 import { VeraChatService } from './vera-chat.service';
 import { VeraController } from './vera.controller';
@@ -53,7 +55,7 @@ import { VeraController } from './vera.controller';
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
   // MailModule: il postino dell'avviso di conflitto (13/8 sera). Esporta MailService.
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule],
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
@@ -69,6 +71,8 @@ import { VeraController } from './vera.controller';
     { provide: SCRITTURA_CLIENTE, useExisting: ClientsService },
     /** Il punto unico di scrittura sul catalogo delle ricette. Stessa istanza, stesso audit. */
     { provide: SCRITTURA_RICETTA, useExisting: CatalogService },
+    /** Il punto unico delle calorie scritte a mano: permesso, storico e soglia stanno già lì. */
+    { provide: SCRITTURA_KCAL, useExisting: NutritionistService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

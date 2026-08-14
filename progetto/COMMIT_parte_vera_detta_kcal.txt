@@ -1,0 +1,36 @@
+Vera: «riduci le kcal del 10% a Giulia per 7 giorni» dettato a voce
+
+La seconda metà della richiesta di Nocanty (13/8): «la percentuale la inserisco io
+nella scheda… questa cosa vorrei farla anche dalla mia assistente». Il campo e la
+scadenza sono nati stamattina proprio per questo (voce 247). Decisione scritta prima
+del codice: progetto/NOTA_Vera_Detta_La_Correzione_Kcal.md.
+
+- Intento `correzione_kcal` in capisci.ts: «riduci/abbassa/taglia/aumenta … kcal|calorie
+  … 10%», con cliente, percentuale FIRMATA (il segno viene dal verbo: «riduci» toglie,
+  «aumenta» aggiunge — la stessa convenzione di `kcalAdjustPct`) e durata («per 7
+  giorni», «per una settimana»; `null` = non l'ha detta).
+  ⚠️ Letto PRIMA dei divieti e pretende la parola kcal/calorie: «togli il 10% di
+  formaggio a Giulia» deve restare un divieto, e le domande restano domande.
+- L'anteprima dice il NUMERO VERO, non la percentuale: «il suo target passa da 1620 a
+  1460 kcal al giorno». `simulaKcal` è la stessa simulazione del backoffice — un
+  secondo calcolo qui darebbe due numeri per la stessa domanda, e quello mostrato
+  sarebbe quello sbagliato proprio quando serve.
+- Senza durata Vera CHIEDE, offrendo «per sempre» come risposta esplicita: «per 7
+  giorni» e «finché non te lo dico io» sono due prescrizioni diverse, e una durata non
+  si indovina. Due risposte non capite chiudono senza scrivere.
+- La scrittura passa dalla PORTA che c'è già (token `SCRITTURA_KCAL` →
+  `NutritionistService.impostaKcal`, come SCRITTURA_CLIENTE per il profilo): permesso
+  sulla cliente, storico in `kcal_override`, avviso ai capi. ⚠️ Il motivo è la FRASE
+  ORIGINALE per intero — chi rilegge fra tre mesi trova quello che ha detto lei.
+- ⚠️ SOTTO LA SOGLIA DI SICUREZZA VERA SI FERMA e lo dice, col numero a cui si
+  arriverebbe: quella conferma si dà dalla scheda, davanti al numero. Dettare «sì vai»
+  a una domanda che il backoffice fa apposta due volte toglierebbe senso alla domanda.
+- Registro: `variante_cliente` con dettaglio.correzioneKcal { pct, giorni, prima, dopo }.
+  Il prima e il dopo si conservano: il fabbisogno cambia col peso, quindi fra un mese
+  quella percentuale darà un altro numero e senza questi due non si saprebbe cos'era.
+- Lista Lavori: voce 248 spuntata.
+
+Test: 12 nuovi visti rossi (5 su capisci, 7 sul dialogo). In sandbox 378 verdi su
+src/vera; tsc 52 = 52 baseline.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest
+(nessuna migrazione: il campo è quello di stamattina).

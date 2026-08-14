@@ -170,6 +170,13 @@ OTA il 12/8). Va prima della pubblicazione.
 
 ## Storico delle push
 
+### 14/8/2026 (6ª) — Le calorie dettate (10 file)
+Intento `correzione_kcal` (segno dal verbo, pretende la parola kcal/calorie, letto prima dei
+divieti), passo `quanti_giorni`, anteprima col numero vero via `simulaKcal`, scrittura dal token
+`SCRITTURA_KCAL` → `NutritionistService.impostaKcal`. Sotto soglia ci si ferma: la conferma
+esplicita resta nella scheda, davanti al numero.
+
+
 ### 14/8/2026 (5ª) — Vera porta i «girati» di Gaia (11 file)
 `girata_da_gaia` aperta da `passaAllaNutrizionista` con chiave `gaia:<escalationId>`; passo
 `risposta_cliente` nel dialogo; `risposta-alla-cliente.ts` (funzioni libere: Vera non importa

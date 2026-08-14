@@ -66,7 +66,8 @@ export type Intento =
   | IntentoPasti
   | IntentoFamiglia
   | IntentoSegnalazioni
-  | IntentoCambioDieta;
+  | IntentoCambioDieta
+  | IntentoCorrezioneKcal;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -121,6 +122,21 @@ export interface IntentoSegnalazioni {
  * scheda cliente (permesso `change_diet_type`). `dieta: null` = «cambia la dieta a Giulia» senza
  * dire quale: si chiede, non si indovina.
  */
+/**
+ * «Riduci le kcal del 10% a Giulia per 7 giorni» (Nocanty, 13/8; decisione 14/8).
+ *
+ * `pct` è **firmato**: negativo toglie, positivo aggiunge — la stessa convenzione di
+ * `ClientProfile.kcalAdjustPct`, così il numero non cambia significato per strada.
+ * `giorni: null` = non l'ha detto: si chiede, non si indovina («per 7 giorni» e «finché non te lo
+ * dico io» sono due prescrizioni diverse).
+ */
+export interface IntentoCorrezioneKcal {
+  tipo: 'correzione_kcal';
+  cliente: string | null;
+  pct: number;
+  giorni: number | null;
+}
+
 export interface IntentoCambioDieta {
   tipo: 'cambio_dieta';
   cliente: string | null;
@@ -329,6 +345,12 @@ export function capisci(frase: string): Intento | null {
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   if (daScartare(testo)) return null;
 
+  // 0-ter) LE CALORIE: «riduci le kcal del 10% a Giulia per 7 giorni». Prima dei divieti, perché
+  //        «riduci/togli» sono le stesse parole con cui si vieta un alimento — e «togli il 10% di
+  //        formaggio» deve restare un divieto.
+  const kcal = leggiCorrezioneKcal(testo);
+  if (kcal) return kcal;
+
   // 0-bis) Il CAMBIO di dieta per una persona («sposta Giulia sulla keto») va letto PRIMA della
   //         regola di dieta: contiene le stesse parole («sulla keto») e senza quest'ordine
   //         finirebbe in `fuori_portata` — capito, e capito male.
@@ -463,4 +485,49 @@ function leggiCambioDieta(testo: string): IntentoCambioDieta | null {
   const secco = CAMBIA_DIETA_SECCO.exec(testo);
   if (secco) return { tipo: 'cambio_dieta', cliente: personaPulita(secco[1]), dieta: null };
   return null;
+}
+
+/**
+ * «RIDUCI LE KCAL DEL 10% A GIULIA PER 7 GIORNI» — la correzione calorica dettata.
+ *
+ * ⚠️ Pretende la parola **kcal/calorie**: senza, «riduci del 10% a Giulia» potrebbe essere
+ * qualunque cosa, e «togli il 10% di formaggio» è un divieto. La percentuale e il verbo da soli non
+ * bastano mai — è la parola che dice DI COSA si sta parlando.
+ */
+const CORREZIONE_KCAL =
+  /\b(riduci|riduciamo|abbassa|abbassiamo|taglia|togli|diminuisci|aumenta|aumentiamo|alza|alziamo)\b[^.]{0,40}?\b(kcal|calorie|apporto calorico)\b[^.]{0,60}?(\d{1,2})\s*%/iu;
+const CORREZIONE_KCAL_INVERSA =
+  /\b(kcal|calorie|apporto calorico)\b[^.]{0,20}?\b(riduci|abbassa|taglia|togli|diminuisci|aumenta|alza)\w*\b[^.]{0,40}?(\d{1,2})\s*%/iu;
+
+/** «per 7 giorni», «per una settimana», «per due settimane». `null` = non l'ha detto. */
+function leggiGiorni(testo: string): number | null {
+  const settimane = /\bper\s+(una|due|tre|quattro|\d{1,2})\s+settiman[ae]\b/iu.exec(testo);
+  if (settimane) {
+    const parole: Record<string, number> = { una: 1, due: 2, tre: 3, quattro: 4 };
+    const n = parole[settimane[1].toLowerCase()] ?? Number(settimane[1]);
+    return Number.isFinite(n) && n > 0 ? n * 7 : null;
+  }
+  const giorni = /\bper\s+(\d{1,3})\s+giorn[oi]\b/iu.exec(testo);
+  if (giorni) {
+    const n = Number(giorni[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
+function leggiCorrezioneKcal(testo: string): IntentoCorrezioneKcal | null {
+  const m = CORREZIONE_KCAL.exec(testo) ?? CORREZIONE_KCAL_INVERSA.exec(testo);
+  if (!m) return null;
+  const verbo = (CORREZIONE_KCAL.exec(testo) ? m[1] : m[2]).toLowerCase();
+  const numero = Number(CORREZIONE_KCAL.exec(testo) ? m[3] : m[3]);
+  if (!Number.isFinite(numero) || numero <= 0) return null;
+  // Il segno viene dal VERBO: «riduci» toglie, «aumenta» aggiunge. Scriverlo qui una volta evita
+  // che a valle qualcuno debba indovinare cosa voleva dire un 10 senza segno.
+  const inAumento = /^(aumenta|aumentiamo|alza|alziamo)/.test(verbo);
+  return {
+    tipo: 'correzione_kcal',
+    cliente: nomePersona(testo),
+    pct: inAumento ? numero : -numero,
+    giorni: leggiGiorni(testo),
+  };
 }

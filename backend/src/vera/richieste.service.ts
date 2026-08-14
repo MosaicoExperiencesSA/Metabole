@@ -35,6 +35,28 @@ export interface ScritturaCliente {
 
 export const SCRITTURA_CLIENTE = 'VERA_SCRITTURA_CLIENTE';
 
+/**
+ * La porta delle CALORIE scritte a mano (14/8, Nocanty via Vera). Stessa forma di
+ * `SCRITTURA_CLIENTE` e per la stessa ragione: `impostaKcal` ha già il permesso, lo storico in
+ * `kcal_override`, il rifiuto sotto soglia e l'avviso ai capi. Rifarli qui vorrebbe dire due
+ * strade per lo stesso dato clinico.
+ */
+export interface ScritturaKcal {
+  simulaKcal(
+    user: { sub: string; role: string },
+    clientId: string,
+    deficitKcal?: number | null,
+    correzionePct?: number | null,
+  ): Promise<{ prima: { target: number } | null; dopo: { target: number } | null }>;
+  impostaKcal(
+    user: { sub: string; role: string },
+    clientId: string,
+    input: { deficitKcal?: number | null; correzionePct?: number | null; motivo: string; perGiorni?: number | null },
+  ): Promise<unknown>;
+}
+
+export const SCRITTURA_KCAL = 'VERA_SCRITTURA_KCAL';
+
 export interface RichiestaAperta {
   id: string;
   tipo: string;

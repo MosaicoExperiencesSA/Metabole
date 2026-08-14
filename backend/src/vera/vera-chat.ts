@@ -27,6 +27,7 @@ export type PassoVera =
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
+  | 'quanti_giorni'      // «riduci le kcal del 10%»: per quanto? (Nocanty via Vera, 14/8)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
   | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
 
@@ -64,6 +65,10 @@ export interface StatoVera {
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
+  /** La correzione calorica dettata: quanti giorni (null = per sempre) e i due numeri mostrati. */
+  giorniCorrezione?: number | null;
+  kcalPrima?: number | null;
+  kcalDopo?: number | null;
   /** Il cambio di dieta (azione 3): la dieta trovata in catalogo, quella di prima, e il «da quando». */
   dietaTrovata?: { name: string; style: string; regime: string };
   dietaPrima?: string | null;
@@ -281,6 +286,40 @@ export const testi = {
    * insegnerebbe a fidarsi di un quadro che quel giorno era cieco su una colonna.
    */
   guidaFonteRotta: (cosa: string) => `⚠️ Non sono riuscito a leggere ${cosa}: lì non so dirti se c'è qualcosa.`,
+
+  // ── le calorie scritte a mano, dettate (Nocanty via Vera, 14/8) ────────────
+
+  /**
+   * ⚠️ L'anteprima dice il NUMERO, non la percentuale. «Le tolgo il 10%» non dice niente a
+   * nessuno; «passa da 1620 a 1460 kcal al giorno» sì — è la regola del pool applicata ai numeri.
+   */
+  anteprimaKcal: (cliente: string, pct: number, prima: number | null, dopo: number | null, giorni: number | null) =>
+    `${pct < 0 ? 'Riduco' : 'Aumento'} le calorie di **${cliente}** del ${Math.abs(pct)}%` +
+    `${giorni ? ` **per ${giorni} giorni**` : ' **finché non me lo dici tu**'}.\n\n` +
+    (prima && dopo
+      ? `Il suo target passa da **${prima}** a **${dopo}** kcal al giorno.`
+      : '⚠️ Non riesco a calcolare il target di adesso: controlla che abbia sesso, età, altezza e peso in scheda.') +
+    (giorni ? '\nPoi torna da sola al ritmo normale.' : '') +
+    '\n\n**Confermi?**',
+
+  chiediQuantiGiorni: (cliente: string, pct: number) =>
+    `${pct < 0 ? 'Ridurre' : 'Aumentare'} del ${Math.abs(pct)}% le calorie di ${cliente}: **per quanto tempo?**\n` +
+    '· «per 7 giorni» (o quanti vuoi)\n· «per sempre» — resta finché non me lo togli tu',
+
+  correzioneKcalFatta: (cliente: string, pct: number, dopo: number | null, giorni: number | null) =>
+    `Fatto: ${cliente} ${pct < 0 ? 'scende' : 'sale'} ${dopo ? `a **${dopo}** kcal al giorno` : `del ${Math.abs(pct)}%`}` +
+    `${giorni ? `, fino a ${giorni} giorni da oggi; poi riprende col ritmo normale.` : ', finché non me lo dici tu.'} ` +
+    'Lo trovi nel registro e nello storico delle calorie.',
+
+  /**
+   * ⚠️ Sotto la soglia di sicurezza Vera si FERMA. Quella conferma si dà dalla scheda, guardando
+   * il numero: dettare «sì vai» a una domanda che il backoffice fa apposta due volte toglierebbe
+   * il senso alla domanda.
+   */
+  correzioneKcalSottoSoglia: (messaggio: string) =>
+    `Non l'ho scritta. ${messaggio}\n\n` +
+    'Questa conferma non te la faccio dare a voce: si dà dalla **scheda della cliente**, con il ' +
+    'numero davanti. Il clinico decidi tu, ma davanti al numero.',
 
   approvata: (riepilogo: string) => `Approvata. ${riepilogo}`,
 

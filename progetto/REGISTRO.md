@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 🗣️ **Vera: «riduci le kcal del 10% a Giulia per 7 giorni»** — la seconda metà della
+  richiesta di Nocanty («questa cosa vorrei farla anche dalla mia assistente»). L'anteprima dice il
+  numero vero (da 1620 a 1460 kcal/giorno), non la percentuale; se la durata non c'è si chiede, con
+  «per sempre» come risposta esplicita; la scrittura passa dalla porta della scheda (permesso,
+  storico, avviso ai capi) col motivo = la frase originale. ⚠️ Sotto la soglia di sicurezza Vera si
+  ferma e lo dice: quella conferma si dà dalla scheda, davanti al numero. 12 test.
+  Decisione in `NOTA_Vera_Detta_La_Correzione_Kcal.md`.
+
 - `[Sviluppo]` ⏳ **La correzione calorica ha una durata** («riduci del 10% per 7 giorni e poi
   riprendi col normale ritmo» — risposta di Nocanty al §15.2 punto 1). La percentuale c'era dall'11/8,
   mancava la scadenza: campo `kcalAdjustUntil` (migrazione additiva, NULL = come prima), guardata al

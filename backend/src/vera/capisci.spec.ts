@@ -316,3 +316,33 @@ describe('capisci — «spostala sulla keto»: il cambio di dieta (azione 3, Sim
     expect(capisci('posso spostare Giulia sulla keto?')).toBeNull();
   });
 });
+
+describe('capisci — «riduci le kcal del 10% per 7 giorni» (Nocanty via Vera, 14/8)', () => {
+  it('la frase di Nocanty, con cliente, percentuale e giorni', () => {
+    expect(capisci('riduci le kcal del 10% a Giulia Rossi per 7 giorni')).toEqual({
+      tipo: 'correzione_kcal', cliente: 'Giulia Rossi', pct: -10, giorni: 7,
+    });
+  });
+
+  it('«a Giulia riduci le calorie del 10% per una settimana»', () => {
+    const i = capisci('a Giulia riduci le calorie del 10% per una settimana');
+    expect(i?.tipo).toBe('correzione_kcal');
+    expect((i as { pct?: number }).pct).toBe(-10);
+    expect((i as { giorni?: number }).giorni).toBe(7);
+  });
+
+  it('«aumenta le kcal del 5% a Giulia»: senza giorni la durata si chiede, non si indovina', () => {
+    const i = capisci('aumenta le kcal del 5% a Giulia');
+    expect(i?.tipo).toBe('correzione_kcal');
+    expect((i as { pct?: number }).pct).toBe(5);
+    expect((i as { giorni?: number | null }).giorni).toBeNull();
+  });
+
+  it('⚠️ «togli il 10% di formaggio a Giulia» NON è una correzione calorica', () => {
+    expect(capisci('togli il 10% di formaggio a Giulia')?.tipo).not.toBe('correzione_kcal');
+  });
+
+  it('⚠️ una domanda resta una domanda: «posso ridurre le kcal del 10%?»', () => {
+    expect(capisci('posso ridurre le kcal del 10% a Giulia?')).toBeNull();
+  });
+});

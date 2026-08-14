@@ -37,6 +37,7 @@ function make(
     giorniMenu?: unknown[];
     avvisi?: unknown[];
     daVerificare?: number;
+    kcal?: { simulaKcal: jest.Mock; impostaKcal: jest.Mock };
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -128,9 +129,14 @@ function make(
   } as unknown as ScritturaRicetta;
   // La porta della scheda per il cambio di dieta (azione 3, 14/8).
   const clienti = { updateClient: jest.fn().mockResolvedValue({}) };
+  // La porta delle calorie scritte a mano (14/8, Nocanty via Vera).
+  const kcal = opzioni.kcal ?? {
+    simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1600 }, dopo: { target: 1440 } }),
+    impostaKcal: jest.fn().mockResolvedValue({}),
+  };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette, clienti as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette, clienti as never, kcal as never),
     valori,
     ricette,
     richieste,
@@ -141,6 +147,7 @@ function make(
     prisma,
     pool,
     clienti,
+    kcal,
   };
 }
 
@@ -1158,5 +1165,77 @@ describe('VeraChatService — le domande girate da Gaia', () => {
      * infinito dentro l'apertura della pagina.
      */
     expect((richieste.chiudiSenzaRisposta as jest.Mock).mock.calls.length).toBeLessThanOrEqual(12);
+  });
+});
+
+/**
+ * «RIDUCI LE KCAL DEL 10% A GIULIA PER 7 GIORNI» (Nocanty via Vera).
+ * Decisione in progetto/NOTA_Vera_Detta_La_Correzione_Kcal.md.
+ */
+describe('VeraChatService — la correzione calorica dettata', () => {
+  const kcalFinto = () => ({
+    simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1620 }, dopo: { target: 1460 } }),
+    impostaKcal: jest.fn().mockResolvedValue({ ok: true }),
+  });
+
+  it('l\'anteprima dice il NUMERO VERO, non la percentuale', async () => {
+    const kcal = kcalFinto();
+    const { service, messaggioCreate } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('1620');
+    expect(testo).toContain('1460');
+    expect(testo).toContain('7 giorni');
+    expect(stato?.passo).toBe('conferma');
+  });
+
+  it('al sì scrive dalla PORTA della scheda, col motivo = la frase originale', async () => {
+    const kcal = kcalFinto();
+    const { service } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    await service.parla('lucia', 'sì');
+    const [, clientId, input] = (kcal.impostaKcal as jest.Mock).mock.calls[0];
+    expect(clientId).toBe('c1');
+    expect(input.correzionePct).toBe(-10);
+    expect(input.perGiorni).toBe(7);
+    expect(input.motivo).toContain('riduci le kcal del 10%');
+  });
+
+  it('senza durata la CHIEDE: «per 7 giorni» e «per sempre» non sono la stessa cosa', async () => {
+    const { service, messaggioCreate } = make({}, { kcal: kcalFinto() });
+    await service.parla('lucia', 'riduci le kcal del 5% a Giulia Rossi');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('per quanto');
+    expect(stato?.passo).toBe('quanti_giorni');
+  });
+
+  it('«per sempre» è una risposta esplicita, e scrive senza scadenza', async () => {
+    const kcal = kcalFinto();
+    const { service } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 5% a Giulia Rossi');
+    await service.parla('lucia', 'per sempre');
+    await service.parla('lucia', 'sì');
+    expect((kcal.impostaKcal as jest.Mock).mock.calls[0][2].perGiorni).toBeUndefined();
+  });
+
+  it('⚠️ sotto la soglia di sicurezza Vera SI FERMA: quella conferma si dà dalla scheda', async () => {
+    const kcal = kcalFinto();
+    (kcal.impostaKcal as jest.Mock).mockRejectedValue(
+      new Error('Con questi valori il menu scenderebbe a 980 kcal/giorno, sotto la soglia minima di sicurezza.'),
+    );
+    const { service, messaggioCreate } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 40% a Giulia Rossi per 7 giorni');
+    await service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('980');
+    expect(testo).toContain('scheda');
+  });
+
+  it('⚠️ un «no» non scrive niente', async () => {
+    const kcal = kcalFinto();
+    const { service } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    await service.parla('lucia', 'no');
+    expect(kcal.impostaKcal).not.toHaveBeenCalled();
   });
 });
