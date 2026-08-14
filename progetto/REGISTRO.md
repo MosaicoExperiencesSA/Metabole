@@ -20,6 +20,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` ⏰ **Attività coach: push alla creazione + escalation alla manager** (richieste di
+  Simone, 14/8). Prima nascevano mute e si vedevano solo in pagina; ora la coach riceve in-app +
+  push alla creazione (da `ensureTask`, l'unico punto in cui nasce ogni attività), e quelle ancora
+  «da fare» il giorno dopo la scadenza vanno alla manager delle coach (sales; admin di riserva),
+  una volta sola per attività — l'idempotenza è la notifica stessa, niente colonna nuova (schema
+  conteso). Tetto 20 per giro, detto nei log. Decisione in `NOTA_Attivita_Coach_Push_Escalation.md`.
+
 - `[Sviluppo]` 🔀 **Vera: «sposta Giulia sulla keto» — il cambio di dieta con «da quando?»**
   (azione 3, dalla risposta di Simone in pagina Lavori). La dieta si cerca nel catalogo (mai
   indovinata), «da subito» rifà i giorni da domani, «lascia i giorni già preparati» li tiene

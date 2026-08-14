@@ -5,6 +5,8 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope } from '../common/coach-team';
 import { frasePrezziPercorso, type PianoDaCitare } from '../commerce/prezzo-piano';
+import { PushService } from '../notifications/push.service';
+import { avvisaAttivitaNuova, escalateAttivitaScadute } from './avvisi-attivita';
 
 /**
  * Task coach (handoff Prezzi/Prova, punto 5): "la coach deve vedere cosa fare e
@@ -19,6 +21,8 @@ export class CoachTasksService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly configParams: ConfigParamsService,
+    // La push delle attività (Simone, 14/8): prima nascevano mute e si vedevano solo in pagina.
+    private readonly push: PushService,
   ) {}
 
   /** Coach → le SUE clienti; coordinatrice → sue + del suo team; responsabile e admin → tutte. */
@@ -143,7 +147,15 @@ export class CoachTasksService {
       select: { id: true },
     });
     if (exists) return 0;
-    await this.prisma.coachTask.create({ data: { clientId, kind, refId, title, description, dueDate } });
+    const creata = (await this.prisma.coachTask.create({
+      data: { clientId, kind, refId, title, description, dueDate },
+    })) as unknown as { id: string };
+    /**
+     * L'ATTIVITÀ NUOVA ARRIVA ALLA COACH ANCHE VIA PUSH (Simone, 14/8). Qui e non nei singoli
+     * rami di `generateDaily`: questo è l'unico punto in cui nasce ogni attività, quindi nessun
+     * tipo può sfuggire. `avvisaAttivitaNuova` non lancia mai e senza coach assegnata tace.
+     */
+    await avvisaAttivitaNuova(this.prisma, this.push, { id: creata.id, clientId, title, description, dueDate });
     return 1;
   }
 
@@ -179,7 +191,7 @@ export class CoachTasksService {
     }
   }
 
-  async generateDaily(): Promise<{ created: number }> {
+  async generateDaily(): Promise<{ created: number; escalation: { avvisate: number; rimaste: number } }> {
     const now = new Date();
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     let created = 0;
@@ -377,6 +389,12 @@ export class CoachTasksService {
       }
     }
 
-    return { created };
+    /**
+     * L'ESCALATION ALLA MANAGER (Simone, 14/8): le attività ancora «da fare» il giorno dopo la
+     * scadenza. In coda al giro, così un problema qui non ferma la generazione — e comunque
+     * `escalateAttivitaScadute` non lancia mai.
+     */
+    const escalation = await escalateAttivitaScadute(this.prisma, this.push);
+    return { created, escalation };
   }
 }

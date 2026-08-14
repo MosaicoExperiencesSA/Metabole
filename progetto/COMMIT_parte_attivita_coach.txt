@@ -1,0 +1,32 @@
+Attività coach: push alla creazione + escalation alla manager il giorno dopo la scadenza
+
+Richieste di Simone (14/8, dagli screenshot della pagina Attività coach): «queste
+notifiche arrivano alla coach anche via push?» (non arrivavano: nascevano dal cron e
+si vedevano solo in pagina) — «se la coach non le chiude vanno mandate alla manager
+delle coach, dopo 24 ore, da quando andava fatta». Decisione scritta prima del codice:
+progetto/NOTA_Attivita_Coach_Push_Escalation.md.
+
+- Nuovo `coach-tasks/avvisi-attivita.ts` (funzioni libere con prisma+push, come
+  notifica-utente.ts: si provano con un finto e non trascinano moduli; nessuna lancia mai):
+  · `avvisaAttivitaNuova` — chiamata da `ensureTask`, l'UNICO punto in cui nasce ogni
+    attività (nessun tipo può sfuggire): in-app + push alla coach della cliente
+    (tipo `coach_task_new`, rispetta l'opt-out per tipo dello staff, `datiPush` per
+    il tocco). Senza coach assegnata tace: la vede il responsabile in pagina.
+  · `escalateAttivitaScadute` — in coda a `generateDaily` (stesso giro del cron):
+    le attività ancora «da fare» con scadenza di ieri o prima (= il primo giro del
+    giorno DOPO quello in cui andavano fatte) vanno alla manager delle coach
+    (`destinatariManagerCoach`: ruolo sales, admin di riserva — un avviso senza
+    destinatario non è un avviso), con coach, cliente e scadenza nel corpo.
+    ⚠️ UNA VOLTA SOLA per attività, SENZA migrazione: l'idempotenza è la notifica
+    stessa (`coach_task_escalation` con payload.taskId — filtro Json path). Niente
+    colonna nuova di proposito: schema.prisma oggi è conteso con la sessione
+    parallela. ⚠️ Tetto di 20 per giro, e quante restano SI DICE nei log.
+- CoachTasksModule importa PushModule (autonomo: Prisma+Config).
+- Nell'app coach non serve nulla: dashboard Attività e pagina Notifiche ci sono già
+  (verificato nel codice); il tocco sulla push porta lì.
+- Lista Lavori: voce 242 spuntata dal file.
+
+Test: 8 nuovi in avvisi-attivita.spec.ts (con verifica per mutazione del dedupe:
+spegnendolo il test lo prende). In sandbox: 1986 verdi totali (baseline main 1978),
+stesse 51 suite pre-esistenti dello stub; tsc 52 = 52.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest
