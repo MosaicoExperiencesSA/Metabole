@@ -248,3 +248,43 @@ export function scadenzaDaGiorni(giorni: number, oggi: Date = new Date()): Date 
   fine.setUTCDate(fine.getUTCDate() + Math.floor(giorni) - 1);
   return fine;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * «RIFAI CON PIÙ PROTEINE» — la quota proteica minima di UNA cliente (14/8, decisione A di Simone).
+ *
+ * La banda esisteva già, ma solo per DIETA (`menu_daycombo_protein_min`, pagina Regole motore):
+ * «più proteine a Giulia» non aveva dove scriversi. Ora la sua vince su quella della dieta.
+ *
+ * ⚠️ Vince **solo sul minimo**: il massimo resta della dieta. Alzare il pavimento non deve spostare
+ * il soffitto — sono due decisioni diverse, e legarle vorrebbe dire che chi ne prende una prende
+ * anche l'altra senza saperlo.
+ *
+ * ⚠️ E vale anche se è più BASSA di quella della dieta: il campo esiste per contare più della
+ * regola generale, in tutte e due le direzioni. Chi lo scrive è chi la segue.
+ */
+export function quotaProteicaMinima(
+  suaFrazione: number | null | undefined,
+  minimoDellaDieta: number,
+): number {
+  const v = typeof suaFrazione === 'number' && Number.isFinite(suaFrazione) ? suaFrazione : null;
+  // Fuori dalla scala 0–1 è un errore di battitura (un 30 al posto di 0,30), non una scelta:
+  // si ignora e si torna alla dieta, che è il ripiego che non sbaglia.
+  if (v === null || v < 0 || v > 1) return minimoDellaDieta;
+  return v;
+}
+
+/** Quanto sale il minimo quando «più proteine» arriva senza un numero (decisione di Simone). */
+export const SCATTO_PIU_PROTEINE = 0.10;
+
+/** ⚠️ Oltre questo non è più una giornata bilanciata: è un integratore con un contorno. */
+export const MASSIMO_QUOTA_PROTEICA = 0.60;
+
+/**
+ * «Più proteine» senza un numero: +10 punti sul minimo che ha adesso, col tetto di sicurezza.
+ * Resta comunque dettabile («portala al 35%»), che è la strada da preferire quando lei lo dice.
+ */
+export function minimoDaPiuProteine(minimoAttuale: number): number {
+  return Math.min(MASSIMO_QUOTA_PROTEICA, Math.round((minimoAttuale + SCATTO_PIU_PROTEINE) * 100) / 100);
+}

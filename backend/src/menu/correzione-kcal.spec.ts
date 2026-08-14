@@ -1,4 +1,4 @@
-import { calcolaTargetKcal, haCorrezioniAMano, spiegaTargetKcal, LIMITE_ASSOLUTO_KCAL, correzioneAttiva, scadenzaDaGiorni } from './correzione-kcal';
+import { calcolaTargetKcal, haCorrezioniAMano, spiegaTargetKcal, LIMITE_ASSOLUTO_KCAL, correzioneAttiva, scadenzaDaGiorni, quotaProteicaMinima, minimoDaPiuProteine } from './correzione-kcal';
 
 /**
  * I numeri di questi test sono quelli di una cliente vera per come li produce il motore: fabbisogno
@@ -177,5 +177,41 @@ describe('scadenzaDaGiorni — «per 7 giorni» da oggi', () => {
   it('⚠️ zero o meno non è una durata: si torna null e non si scrive una scadenza già passata', () => {
     expect(scadenzaDaGiorni(0, new Date('2026-08-14T10:00:00.000Z'))).toBeNull();
     expect(scadenzaDaGiorni(-3, new Date('2026-08-14T10:00:00.000Z'))).toBeNull();
+  });
+});
+
+/**
+ * «RIFAI CON PIÙ PROTEINE» (14/8, decisione A di Simone): la quota minima di QUESTA cliente vince
+ * su quella della dieta — e vince solo sul minimo.
+ */
+describe('quotaProteicaMinima — la sua vince su quella della dieta', () => {
+  it('senza niente sul profilo vale la banda della dieta: il comportamento di oggi', () => {
+    expect(quotaProteicaMinima(null, 0.2)).toBe(0.2);
+    expect(quotaProteicaMinima(undefined, 0.2)).toBe(0.2);
+  });
+
+  it('la sua vince quando c\'è', () => {
+    expect(quotaProteicaMinima(0.3, 0.2)).toBe(0.3);
+  });
+
+  it('⚠️ vale anche se è PIÙ BASSA di quella della dieta: è una decisione clinica, non un massimo', () => {
+    // Se la nutrizionista scrive 15 su una dieta che ne chiede 20, ha deciso lei: il campo
+    // esiste per contare più della regola generale, in tutte e due le direzioni.
+    expect(quotaProteicaMinima(0.15, 0.2)).toBe(0.15);
+  });
+
+  it('⚠️ un valore fuori scala si ignora: 0–1 è una frazione, 30 è un errore di battitura', () => {
+    expect(quotaProteicaMinima(30, 0.2)).toBe(0.2);
+    expect(quotaProteicaMinima(-0.1, 0.2)).toBe(0.2);
+  });
+});
+
+describe('minimoDaPiuProteine — «più proteine» senza un numero', () => {
+  it('+10 punti sul minimo della dieta (decisione di Simone: dal 20% al 30%)', () => {
+    expect(minimoDaPiuProteine(0.2)).toBeCloseTo(0.3, 5);
+  });
+
+  it('⚠️ non si sfonda: sopra il 60% non è più una giornata, è un integratore', () => {
+    expect(minimoDaPiuProteine(0.55)).toBeCloseTo(0.6, 5);
   });
 });

@@ -65,6 +65,9 @@ export interface StatoVera {
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
+  /** Le proteine: la quota minima di adesso e quella che si sta per scrivere (frazioni 0–1). */
+  proteinePrima?: number;
+  proteineDopo?: number;
   /** La correzione calorica dettata: quanti giorni (null = per sempre) e i due numeri mostrati. */
   giorniCorrezione?: number | null;
   kcalPrima?: number | null;
@@ -286,6 +289,26 @@ export const testi = {
    * insegnerebbe a fidarsi di un quadro che quel giorno era cieco su una colonna.
    */
   guidaFonteRotta: (cosa: string) => `⚠️ Non sono riuscito a leggere ${cosa}: lì non so dirti se c'è qualcosa.`,
+
+  // ── le proteine (terza frase dell'azione 3, 14/8) ──────────────────────────
+
+  /**
+   * ⚠️ Anche qui si mostra il NUMERO: «la sua quota proteica minima passa dal 20% al 30%». «Più
+   * proteine» da solo non si può né confermare né controllare dopo.
+   */
+  anteprimaProteine: (cliente: string, prima: number, dopo: number) =>
+    `Per **${cliente}** alzo la quota proteica minima della giornata ` +
+    `da **${Math.round(prima * 100)}%** a **${Math.round(dopo * 100)}%** dei macro.\n\n` +
+    'Vale solo per lei — la sua dieta non cambia — e i giorni futuri che non ha ancora aperto si ' +
+    'rifanno con la nuova quota.\n\n**Confermi?**',
+
+  proteineGiaCosi: (cliente: string, valore: number) =>
+    `${cliente} ha già la quota proteica minima al ${Math.round(valore * 100)}%: non tocco niente.`,
+
+  proteineFatte: (cliente: string, valore: number, giorni: number) =>
+    `Fatto: per ${cliente} la quota proteica minima è al **${Math.round(valore * 100)}%**` +
+    `${giorni ? `, e rifaccio ${giorni === 1 ? 'la giornata' : `le ${giorni} giornate`} che non ha ancora aperto.` : '.'} ` +
+    'Lo trovi nel registro.',
 
   // ── le calorie scritte a mano, dettate (Nocanty via Vera, 14/8) ────────────
 

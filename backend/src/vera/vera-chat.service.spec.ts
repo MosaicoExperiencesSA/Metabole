@@ -104,6 +104,7 @@ function make(
     approva: jest.fn().mockResolvedValue({ riepilogo: 'Applicata a 3 clienti su 3.' }),
     respingi: jest.fn().mockResolvedValue({ riga: { id: 'a1' } }),
     sostituzioniDaVerificare: jest.fn().mockResolvedValue(opzioni.daVerificare ?? 0),
+    menuDaRifare: jest.fn().mockResolvedValue([]),
   } as unknown as RegistroVeraService;
 
   const richieste = {
@@ -129,6 +130,8 @@ function make(
   } as unknown as ScritturaRicetta;
   // La porta della scheda per il cambio di dieta (azione 3, 14/8).
   const clienti = { updateClient: jest.fn().mockResolvedValue({}) };
+  // Il minimo proteico della dieta, per l'anteprima delle proteine (14/8).
+  const configParams = { getNumber: jest.fn().mockResolvedValue(0.2), getBool: jest.fn().mockResolvedValue(false) };
   // La porta delle calorie scritte a mano (14/8, Nocanty via Vera).
   const kcal = opzioni.kcal ?? {
     simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1600 }, dopo: { target: 1440 } }),
@@ -136,7 +139,7 @@ function make(
   };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette, clienti as never, kcal as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never),
     valori,
     ricette,
     richieste,
@@ -1283,5 +1286,78 @@ describe('VeraChatService — il capo vede chi ha già una sua versione della pa
     const { testo, stato } = ultimoAgente(made.messaggioCreate);
     expect(stato?.passo).toBe('revisione');
     expect(testo).toContain('formaggi molli');
+  });
+});
+
+/**
+ * «RIFAI CON PIÙ PROTEINE» (decisione A di Simone, 14/8; foglio in DECISIONE_Piu_Proteine.md).
+ * La banda esisteva solo per DIETA: qui si scrive la quota minima di QUESTA cliente.
+ */
+describe('VeraChatService — «più proteine» per una cliente', () => {
+  const conProfilo = (proteinMinPct: number | null, giorni: unknown[] = []) => ({
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: [], proteinMinPct,
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    menuDay: {
+      findMany: jest.fn().mockResolvedValue(giorni),
+      deleteMany: jest.fn().mockResolvedValue({ count: giorni.length }),
+      count: jest.fn().mockResolvedValue(giorni.length),
+    },
+  });
+
+  it('senza numero: +10 punti sul minimo della dieta, e l\'anteprima mostra le PERCENTUALI', async () => {
+    const { service, messaggioCreate } = make(conProfilo(null));
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('20%');
+    expect(testo).toContain('30%');
+    expect(stato?.passo).toBe('conferma');
+  });
+
+  it('col numero detto vince quello: «portala al 35%»', async () => {
+    const { service, messaggioCreate } = make(conProfilo(null));
+    await service.parla('lucia', 'porta Giulia Rossi al 35% di proteine');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('35%');
+  });
+
+  it('al sì scrive la SUA quota e rifà i giorni non ancora aperti', async () => {
+    const over = conProfilo(null, [{ id: 'g1', date: new Date() }]);
+    const made = make(over);
+    const { service, messaggioCreate } = made;
+    // La regola dell'annulla: i giorni da rifare li dice il registro, che è l'unico posto in cui
+    // quella domanda ha una risposta sola.
+    (made.registro.menuDaRifare as jest.Mock).mockResolvedValue(['2026-08-15', '2026-08-16']);
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await service.parla('lucia', 'sì');
+    expect((over.clientProfile.update as jest.Mock).mock.calls[0][0].data.proteinMinPct).toBeCloseTo(0.3, 5);
+    expect(over.menuDay.deleteMany).toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('30%');
+  });
+
+  it('⚠️ se ce l\'ha già a quel valore non tocca niente', async () => {
+    const over = conProfilo(0.3);
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'porta Giulia Rossi al 30% di proteine');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già');
+    expect(over.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ un «no» non scrive niente', async () => {
+    const over = conProfilo(null);
+    const { service } = make(over);
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await service.parla('lucia', 'no');
+    expect(over.clientProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('parte dal SUO valore quando ce l\'ha già: 30% → 40%, non 20% → 30%', async () => {
+    const { service, messaggioCreate } = make(conProfilo(0.3));
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('30%');
+    expect(testo).toContain('40%');
   });
 });

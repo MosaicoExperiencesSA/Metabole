@@ -1,0 +1,41 @@
+«Rifai con più proteine»: la quota proteica minima di UNA cliente
+
+La terza frase dell'azione 3, l'ultima che mancava. Decisa da Simone il 14/8 (opzione A
+del foglio `progetto/DECISIONE_Piu_Proteine.md`, scritto prima del codice con le tre
+letture possibili e quello che il motore fa già davvero).
+
+Quello che c'era: la quota proteica È GIÀ un parametro del motore
+(`menu_daycombo_protein_min` 0,20 / `_max` 0,45, pagina Regole motore, già per dieta),
+e DayCombo penalizza le giornate fuori banda. Quello che mancava non era il concetto:
+era il livello per-CLIENTE. «Più proteine a Giulia» non aveva dove scriversi.
+
+- Migrazione ADDITIVA `20260814120000_protein_min_pct`: `client_profile.protein_min_pct`
+  (frazione 0–1, nullable). NULL = vale la banda della sua dieta, cioè il comportamento
+  di oggi. ⚠️ `schema.prisma` riletto dal Mac e confrontato con origin/main prima di
+  toccarlo.
+- `menu/correzione-kcal.ts` (puro): `quotaProteicaMinima(sua, dellaDieta)` — la sua
+  vince, anche se è PIÙ BASSA (il campo esiste per contare più della regola generale, in
+  tutte e due le direzioni: chi lo scrive è chi la segue); un valore fuori scala 0–1 si
+  ignora e si torna alla dieta (un 30 al posto di 0,30 è un errore di battitura, non una
+  scelta). `minimoDaPiuProteine` = +10 punti col tetto al 60% — oltre non è una giornata
+  bilanciata, è un integratore con un contorno.
+- ⚠️ Vince SOLO sul minimo: il massimo resta della dieta. Alzare il pavimento non deve
+  spostare il soffitto — sono due decisioni diverse, e legarle vorrebbe dire che chi ne
+  prende una prende anche l'altra senza saperlo.
+- `menu.service`: `pMin` passa da `quotaProteicaMinima(profile.proteinMinPct, …)`.
+- Vera: intento `proteine` («rifai con più proteine», «porta Giulia al 35% di
+  proteine»), letto PRIMA delle calorie e dei divieti — «più proteine» contiene «più» e
+  «niente proteine in polvere» deve restare un divieto. L'anteprima mostra le
+  PERCENTUALI («dal 20% al 30%»), non l'aggettivo: «più proteine» non si può né
+  confermare né controllare il mese dopo. Se ce l'ha già a quel valore non tocca niente.
+  Parte sempre dal SUO valore quando ce l'ha (30% → 40%, non 20% → 30%).
+- Al sì: scrive la quota, rifà SOLO i giorni futuri non ancora aperti (la regola
+  dell'annulla, via `registro.menuDaRifare` — la funzione che risponde già a quella
+  domanda), e registra `variante_cliente` con prima/dopo.
+- Lista Lavori: voce 250 (fatta).
+
+Test: 20 nuovi visti rossi (6 sulle funzioni pure, 5 su capisci, 6 sul dialogo, più i
+casi al contorno). In sandbox 951 verdi su src/vera+src/menu; tsc 52 = 52 baseline.
+
+⚠️ La migrazione la applica Render al deploy: sul Mac serve solo la catena
+`npm run prisma:tipi && npm run typecheck && npx jest`.

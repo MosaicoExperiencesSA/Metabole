@@ -20,11 +20,13 @@ import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
+import { minimoDaPiuProteine, quotaProteicaMinima } from '../menu/correzione-kcal';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
@@ -76,6 +78,12 @@ export class VeraChatService {
     private readonly registro: RegistroVeraService,
     private readonly richieste: RichiesteVeraService,
     private readonly valori: ValoriNutrizionaliService,
+    /**
+     * Serve a UNA cosa: leggere il minimo proteico della dieta per mostrarlo in anteprima
+     * («passa dal 20% al 30%»). Lo usa già `PoolDisponibileService` nello stesso modulo, quindi
+     * non porta con sé niente di nuovo.
+     */
+    private readonly configParams: ConfigParamsService,
     @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
     /**
      * La porta della SCHEDA per il cambio di dieta (azione 3, 14/8): stesso token delle risposte
@@ -675,6 +683,11 @@ export class VeraChatService {
     // I PASTI hanno la loro anteprima: niente pool di ricette, niente ambito «per tutte».
     if (intento.tipo === 'pasti') return this.anteprimaPasti(stato, intento as IntentoPasti);
 
+    // LE PROTEINE (14/8, decisione A): la quota minima di questa cliente, mostrata in percentuale.
+    if (intento.tipo === 'proteine') {
+      return this.anteprimaProteine(stato, intento as IntentoProteine);
+    }
+
     // LE CALORIE (14/8, Nocanty via Vera): anteprima col numero VERO, poi conferma, poi la porta.
     if (intento.tipo === 'correzione_kcal') {
       return this.avviaCorrezioneKcal(nutrizionistaId, stato, intento as IntentoCorrezioneKcal);
@@ -950,6 +963,67 @@ export class VeraChatService {
       testo: `${testi.rispostaMandata(cliente)}${dopo ? `\n\n${dopo.testo}` : ''}`,
       esito: 'scritta',
       stato: dopo?.stato,
+    };
+  }
+
+  // ──────────────────────── le proteine: la quota minima di questa cliente ──
+
+  /**
+   * «RIFAI CON PIÙ PROTEINE» (decisione A di Simone, 14/8; foglio in
+   * `progetto/DECISIONE_Piu_Proteine.md`).
+   *
+   * La banda proteica esisteva già ma solo per DIETA: qui si scrive la quota minima **di questa
+   * cliente**, che vince sulla sua. ⚠️ Si mostra la PERCENTUALE, non «più proteine»: un aggettivo
+   * non si può né confermare né controllare il mese dopo.
+   */
+  private async anteprimaProteine(stato: StatoVera, intento: IntentoProteine): Promise<EsitoVera> {
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: stato.clienteId! },
+      select: { proteinMinPct: true },
+    })) as { proteinMinPct: number | null } | null;
+    // Il minimo di adesso: il suo se ce l'ha, altrimenti quello della dieta (il default del motore
+    // se il parametro non è impostato — qui basta come punto di partenza da mostrare).
+    const minimoDietaG = await this.configParams.getNumber('menu_daycombo_protein_min', 0.2).catch(() => 0.2);
+    const prima = quotaProteicaMinima(profilo?.proteinMinPct ?? null, minimoDietaG);
+    const dopo = intento.pct ?? minimoDaPiuProteine(prima);
+
+    if (Math.abs(dopo - prima) < 0.005) {
+      return { testo: testi.proteineGiaCosi(stato.clienteNome ?? 'lei', prima), esito: 'annullata' };
+    }
+    return {
+      testo: testi.anteprimaProteine(stato.clienteNome ?? 'lei', prima, dopo),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'conferma', proteinePrima: prima, proteineDopo: dopo },
+    };
+  }
+
+  private async applicaProteine(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const valore = stato.proteineDopo!;
+    await this.prisma.clientProfile.update({
+      where: { userId: stato.clienteId! },
+      data: { proteinMinPct: valore } as never,
+    });
+    // La regola dell'annulla: si rifanno SOLO i giorni futuri che non ha ancora aperto.
+    const daRifare = await this.registro.menuDaRifare(stato.clienteId!);
+    if (daRifare.length) {
+      await this.prisma.menuDay
+        .deleteMany({ where: { clientId: stato.clienteId!, viewedAt: null, date: { gte: new Date(new Date().setUTCHours(0, 0, 0, 0)) } } as never })
+        .catch(() => undefined);
+    }
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'variante_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: stato.clienteId ?? null,
+      soggettoNome: stato.clienteNome ?? null,
+      dettaglio: { proteine: { prima: stato.proteinePrima ?? null, dopo: valore, giorniRifatti: daRifare.length } },
+    })) as { id: string };
+    return {
+      testo: testi.proteineFatte(stato.clienteNome ?? 'lei', valore, daRifare.length),
+      esito: 'scritta',
+      azioneId: riga.id,
     };
   }
 
@@ -1253,6 +1327,9 @@ export class VeraChatService {
     }
     if ((stato.intento as Intento).tipo === 'correzione_kcal') {
       return this.applicaCorrezioneKcal(nutrizionistaId, stato);
+    }
+    if ((stato.intento as Intento).tipo === 'proteine') {
+      return this.applicaProteine(nutrizionistaId, stato);
     }
     // Il cambio di dieta è per UNA cliente per costruzione: niente ambito «per tutte».
     if ((stato.intento as Intento).tipo === 'cambio_dieta') {

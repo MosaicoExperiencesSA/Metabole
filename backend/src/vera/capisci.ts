@@ -67,7 +67,8 @@ export type Intento =
   | IntentoFamiglia
   | IntentoSegnalazioni
   | IntentoCambioDieta
-  | IntentoCorrezioneKcal;
+  | IntentoCorrezioneKcal
+  | IntentoProteine;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -135,6 +136,17 @@ export interface IntentoCorrezioneKcal {
   cliente: string | null;
   pct: number;
   giorni: number | null;
+}
+
+/**
+ * «Rifai con più proteine a Giulia» — la terza frase dell'azione 3 (decisione A di Simone, 14/8).
+ * `pct` è la quota minima come FRAZIONE (0,35), oppure `null` = «più» senza un numero: lo scatto
+ * di scorta (+10 punti sul minimo che ha adesso) lo mette il servizio, che sa qual è quel minimo.
+ */
+export interface IntentoProteine {
+  tipo: 'proteine';
+  cliente: string | null;
+  pct: number | null;
 }
 
 export interface IntentoCambioDieta {
@@ -345,6 +357,11 @@ export function capisci(frase: string): Intento | null {
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   if (daScartare(testo)) return null;
 
+  // 0-quater) LE PROTEINE: prima delle calorie e dei divieti — «più proteine» contiene «più», e
+  //           «niente proteine in polvere» deve restare un divieto.
+  const prot = leggiProteine(testo);
+  if (prot) return prot;
+
   // 0-ter) LE CALORIE: «riduci le kcal del 10% a Giulia per 7 giorni». Prima dei divieti, perché
   //        «riduci/togli» sono le stesse parole con cui si vieta un alimento — e «togli il 10% di
   //        formaggio» deve restare un divieto.
@@ -530,4 +547,41 @@ function leggiCorrezioneKcal(testo: string): IntentoCorrezioneKcal | null {
     pct: inAumento ? numero : -numero,
     giorni: leggiGiorni(testo),
   };
+}
+
+/**
+ * «RIFAI CON PIÙ PROTEINE» / «PORTA GIULIA AL 35% DI PROTEINE».
+ *
+ * ⚠️ Pretende la parola **proteine** insieme a un aumento o a una percentuale: «niente proteine in
+ * polvere» è un divieto e deve restare tale, e la parola da sola non chiede niente.
+ */
+const PIU_PROTEINE = /\b(piu|più)\s+proteic\w*|\b(piu|più)\s+proteine\b|\bproteine\s+(piu|più)\s+alt/iu;
+const PROTEINE_AL_PCT = /\b(?:porta\w*|metti\w*|alza\w*|imposta\w*)\b[^.]{0,40}?(\d{1,2})\s*%[^.]{0,20}?\bprotein/iu;
+const PROTEINE_PCT_AL = /\bprotein\w*[^.]{0,25}?\bal\s+(\d{1,2})\s*%/iu;
+
+/**
+ * «Porta **Giulia Rossi** al 35%»: qui il nome sta subito dopo il verbo, senza la preposizione che
+ * `nomePersona` cerca. Si riconosce dalla maiuscola — un nome proprio ce l'ha, «le calorie» no — e
+ * si prova SOLO come ripiego: la strada normale resta `nomePersona`.
+ */
+const NOME_DOPO_IL_VERBO =
+  /\b(?:porta|portala|portiamo|metti|mettila|alza|alziamo|imposta|impostiamo)\s+([A-ZÀ-Ý][a-zà-ÿ']{1,20}(?:\s+[A-ZÀ-Ý][a-zà-ÿ']{1,20})?)\s+(?:al|a|alla)\b/u;
+
+function chiPortaAl(testo: string): string | null {
+  const m = NOME_DOPO_IL_VERBO.exec(testo);
+  return m ? m[1].trim() : null;
+}
+
+function leggiProteine(testo: string): IntentoProteine | null {
+  const conNumero = PROTEINE_AL_PCT.exec(testo) ?? PROTEINE_PCT_AL.exec(testo);
+  if (conNumero) {
+    const n = Number(conNumero[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 99) {
+      return { tipo: 'proteine', cliente: nomePersona(testo) ?? chiPortaAl(testo), pct: Math.round(n) / 100 };
+    }
+  }
+  if (PIU_PROTEINE.test(testo)) {
+    return { tipo: 'proteine', cliente: nomePersona(testo) ?? chiPortaAl(testo), pct: null };
+  }
+  return null;
 }

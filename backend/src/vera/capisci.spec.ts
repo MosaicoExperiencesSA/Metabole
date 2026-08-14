@@ -346,3 +346,30 @@ describe('capisci — «riduci le kcal del 10% per 7 giorni» (Nocanty via Vera,
     expect(capisci('posso ridurre le kcal del 10% a Giulia?')).toBeNull();
   });
 });
+
+describe('capisci — «rifai con più proteine» (terza frase dell\'azione 3, 14/8)', () => {
+  it('«a Giulia Rossi rifai con più proteine»: senza numero, lo scatto lo mette il servizio', () => {
+    const i = capisci('a Giulia Rossi rifai con più proteine');
+    expect(i?.tipo).toBe('proteine');
+    expect((i as { cliente?: string }).cliente).toBe('Giulia Rossi');
+    expect((i as { pct?: number | null }).pct).toBeNull();
+  });
+
+  it('«porta Giulia al 35% di proteine»: il numero detto vince', () => {
+    const i = capisci('porta Giulia al 35% di proteine');
+    expect(i?.tipo).toBe('proteine');
+    expect((i as { pct?: number | null }).pct).toBe(0.35);
+  });
+
+  it('«più proteine a Giulia» nella forma corta', () => {
+    expect(capisci('più proteine a Giulia')?.tipo).toBe('proteine');
+  });
+
+  it('⚠️ «riduci le kcal del 10% a Giulia» resta la correzione calorica', () => {
+    expect(capisci('riduci le kcal del 10% a Giulia')?.tipo).toBe('correzione_kcal');
+  });
+
+  it('⚠️ «a Giulia niente proteine in polvere» resta un divieto', () => {
+    expect(capisci('a Giulia niente proteine in polvere')?.tipo).toBe('restrizione');
+  });
+});

@@ -69,10 +69,15 @@ dell'annulla, come per tutto il resto.
 
 ---
 
-## La domanda, in una riga
+## ✅ DECISO da Simone (14/8)
 
-**Quando Lucia dice «rifai con più proteine a Giulia»: le scrivo una quota minima sua (A), uno
-scostamento dalla dieta (B), o solo una preferenza senza soglia (C)?**
+**La A**, con **+10 punti** come valore di scorta quando la percentuale non viene detta (dal 20%
+della dieta al 30% per quella cliente), e la possibilità di dettarla («portala al 35%»).
 
-E se scegli A: **quanto vale «più proteine»** quando lei non dice un numero — propongo **+10 punti**
-sul minimo della sua dieta (dal 20% al 30%), con la possibilità di dettarlo («portala al 35%»).
+Quindi:
+- campo per-cliente `proteinMinPct` (frazione 0–1, nullable): `null` = vale la banda della sua
+  dieta, cioè il comportamento di oggi;
+- vince su `menu_daycombo_protein_min` quando c'è, e **solo sul minimo** — il massimo resta della
+  dieta: alzare il pavimento non deve spostare il soffitto;
+- Vera lo detta con anteprima («la sua quota proteica minima passa dal 20% al 30%») e conferma;
+- si rifanno **solo i giorni futuri non ancora aperti**, come per l'annulla.

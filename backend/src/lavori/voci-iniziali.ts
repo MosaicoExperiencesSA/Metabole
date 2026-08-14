@@ -563,6 +563,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // consegnata il giorno stesso
   },
   {
+    chiave: 'vera-piu-proteine',
+    titolo: '«Rifai con più proteine»: la quota proteica minima di UNA cliente',
+    dettaglio:
+      'La terza frase dell\'azione 3, decisa da Simone il 14/8 (opzione A del foglio `progetto/DECISIONE_Piu_Proteine.md`). La banda proteica esisteva già ma solo per DIETA (`menu_daycombo_protein_min`, pagina Regole motore): ora `ClientProfile.proteinMinPct` (migrazione additiva, NULL = vale la dieta) vince sul minimo — e SOLO sul minimo, il massimo resta della dieta. Vera la detta con l\'anteprima in percentuale («dal 20% al 30%»), lo scatto di scorta è +10 punti quando il numero non è detto, il tetto è 60%, e si rifanno solo i giorni futuri non ancora aperti. ⚠️ La banda è una penalità morbida nel ranking di DayCombo, non un filtro: un minimo alto non può lasciare una cliente senza cena.',
+    categoria: CODICE,
+    ordine: 250,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

@@ -17,6 +17,7 @@ import { PushService } from '../notifications/push.service';
 import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
+import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { slotEsclusiTotali } from './finestre-digiuno';
 import { DayComboService, RecipeInfo } from './day-combo.service';
@@ -577,7 +578,15 @@ export class MenuService {
     const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
     const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
     const kcalNeedEnabled = pickBoolOverride(overrides, 'menu_kcal_need_enabled', kcalNeedG);
-    const pMin = pickNumOverride(overrides, 'menu_daycombo_protein_min', pMinG);
+    /**
+     * ⚠️ LA QUOTA PROTEICA DI QUESTA CLIENTE vince su quella della dieta (14/8, terza frase
+     * dell'azione 3: «rifai con più proteine»). Solo il MINIMO: il massimo resta della dieta —
+     * alzare il pavimento non deve spostare il soffitto.
+     */
+    const pMin = quotaProteicaMinima(
+      (profile as { proteinMinPct?: number | null }).proteinMinPct ?? null,
+      pickNumOverride(overrides, 'menu_daycombo_protein_min', pMinG),
+    );
     const pMax = pickNumOverride(overrides, 'menu_daycombo_protein_max', pMaxG);
     // Selettore per-slot (comportamento base, sempre disponibile come fallback).
     const selector = this.selectorFromContext(ctx, kcalTolPct / 100);

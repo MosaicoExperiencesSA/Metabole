@@ -1,0 +1,15 @@
+-- «RIFAI CON PIÙ PROTEINE A GIULIA» (14/8 — terza frase dell'azione 3, decisione A di Simone).
+--
+-- La quota proteica esisteva già come BANDA, ma solo per DIETA
+-- (`menu_daycombo_protein_min` / `_max`, pagina Regole motore): «più proteine a QUESTA cliente»
+-- non aveva dove scriversi.
+--
+-- Frazione 0–1 come il parametro della dieta (0,30 = 30% dei macro della giornata).
+-- NULL = vale la banda della sua dieta, cioè il comportamento di oggi: additiva, nessuna cliente
+-- cambia comportamento finché qualcuno non scrive un numero.
+--
+-- ⚠️ Vince SOLO sul minimo: il massimo resta quello della dieta. Alzare il pavimento non deve
+-- spostare il soffitto — sono due decisioni diverse e vanno prese separatamente.
+-- ⚠️ La banda è una penalità morbida nel ranking di DayCombo, non un filtro: un minimo alto non
+-- può lasciare una cliente senza cena (il filtro duro è solo sulle kcal).
+ALTER TABLE "client_profile" ADD COLUMN "protein_min_pct" DOUBLE PRECISION;

@@ -406,6 +406,10 @@ model ClientProfile {
   // skip_breakfast | skip_breakfast_lunch | skip_dinner_breakfast. Null = finestra decisa
   // dalla dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
   fastingWindow          String?    @map("fasting_window")
+  // QUOTA PROTEICA MINIMA DI QUESTA CLIENTE (14/8, terza frase dell'azione 3: «rifai con più
+  // proteine»). Frazione 0–1, come `menu_daycombo_protein_min` della dieta, su cui vince — e vince
+  // SOLO sul minimo: il massimo resta della dieta. NULL = vale la banda della sua dieta.
+  proteinMinPct          Float?     @map("protein_min_pct")
   // Gli SPUNTINI che questa cliente non vuole (Vera, azione 3 — Decisioni 13/8 §14).
   // Solo morning_snack/afternoon_snack: i pasti principali passano da fastingWindow, che è una
   // scelta di percorso col suo permesso. Le kcal del giorno si ridistribuiscono sui pasti rimasti

@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 💪 **«Rifai con più proteine»: la quota proteica minima di UNA cliente** — la terza e
+  ultima frase dell'azione 3 (decisione A di Simone, foglio in `DECISIONE_Piu_Proteine.md`). La
+  banda esisteva già ma solo per dieta: ora `proteinMinPct` sul profilo vince SOLO sul minimo (il
+  massimo resta della dieta). Vera la detta con l'anteprima in percentuale — «dal 20% al 30%», mai
+  l'aggettivo —, +10 punti di scorta quando il numero non è detto, tetto al 60%, e si rifanno solo
+  i giorni futuri non ancora aperti. Un valore fuori scala 0–1 si ignora: un 30 al posto di 0,30 è
+  un errore di battitura. 20 test.
+
 - `[Sviluppo]` 📖 **Il dizionario promosso a comune: il capo conferma sapendo** (domanda di Nocanty,
   risposta di Simone: «chiedi conferma al nutrizionista capo attraverso Vera»). La convivenza resta
   — la voce personale vince sempre sulla comune, e nessuno viene sovrascritto — ma prima del sì il

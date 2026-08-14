@@ -170,6 +170,13 @@ OTA il 12/8). Va prima della pubblicazione.
 
 ## Storico delle push
 
+### 14/8/2026 (8ª) — «Più proteine»: l'azione 3 è completa (13 file)
+`proteinMinPct` sul profilo (migrazione additiva), `quotaProteicaMinima` e `minimoDaPiuProteine`
+puri, `pMin` del motore che legge la cliente, intento `proteine` letto prima di calorie e divieti,
+anteprima in percentuale. Con questa le tre frasi dell'azione 3 sono tutte vive: «togli lo
+spuntino» (13/8), «a colazione qualcosa di salato» (aspetta le conferme di Lucia) e «più proteine».
+
+
 ### 14/8/2026 (7ª) — Il dizionario comune si approva sapendo (8 file)
 `conflitti-dizionario.ts` puro (confronto per radice, identiche escluse, comuni escluse) +
 `altreVersioniPersonali` + il riepilogo del capo che dice chi ne ha una sua e cosa NON succede.
