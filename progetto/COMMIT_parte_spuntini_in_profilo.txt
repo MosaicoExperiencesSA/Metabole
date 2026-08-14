@@ -1,0 +1,37 @@
+Gli spuntini tolti dall'assistente si vedono anche nel profilo dell'app (voce 235)
+
+IL BUCO
+«Togli lo spuntino» (azione 3, 13/8) scrive `ClientProfile.pastiEsclusi`, e il motore lo rispetta
+sul serio: le giornate arrivano senza quel pasto e le kcal si ridistribuiscono sugli altri
+(`slotEsclusiTotali`, la stessa strada del digiuno). Ma nell'app **non lo diceva niente**. La
+cliente riceveva un piano senza merenda e l'unica cosa che poteva fare era scrivere alla coach «mi
+manca un pasto» — per una cosa decisa apposta per lei.
+
+È lo stesso buco che avevano le allergie (§4 dell'handoff): un dato che agisce e non si vede è un
+dato che prima o poi qualcuno contraddice senza saperlo. Il backoffice la riga ce l'aveva già
+dall'11/8; mancava metà del lavoro, ed era la metà che legge la persona interessata.
+
+COSA CAMBIA
+- `/me/nutrition` manda `pastiEsclusi`. ⚠️ SEMPRE un elenco, mai `null`: il campo è nullable in
+  banca dati, e mandare il null costringerebbe l'app a difendersi da un buco che qui costa `?? []`.
+- Il profilo dell'app mostra una riga in **sola lettura** — «Tolti dalla tua nutrizionista / Lo
+  spuntino del mattino» — accanto ai pasti del digiuno. Non è modificabile da lei: si cambia solo
+  dettandolo all'assistente, che poi rifà i giorni non ancora aperti.
+- Sotto, una riga che risponde all'unica domanda che quella riga fa nascere («allora mangio
+  meno?») con un fatto e non con una rassicurazione: le calorie di quel pasto sono ridistribuite
+  sugli altri, la giornata resta completa.
+
+⚠️ UN CODICE DEL MOTORE NON FINISCE SULLO SCHERMO DI UNA CLIENTE
+`app/src/lib/spuntiniEsclusi.ts` traduce gli slot a parole. Uno slot che non sa nominare NON diventa
+«dinner» in faccia a chi legge — ma nemmeno sparisce, che sarebbe la stessa bugia per omissione che
+questa voce esiste per chiudere: diventa «un altro pasto». Lo staff il codice esatto lo vede
+comunque in scheda.
+
+FILE
+- backend/src/profile/profile.service.ts — `pastiEsclusi` nel select e nella risposta (+ 4 test in
+  spuntini-esclusi-in-profilo.spec.ts).
+- app/src/lib/spuntiniEsclusi.ts (+ .spec) — modulo puro, 6 test.
+- app/src/pages/Profilo.tsx — la riga e la nota.
+- backend/src/lavori/voci-iniziali.ts — voce 235 spuntata.
+
+10 test nuovi (4 backend + 6 app). Nessuna migrazione: il campo c'è dal 13/8.

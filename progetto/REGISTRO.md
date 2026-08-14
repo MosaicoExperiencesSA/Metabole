@@ -20,6 +20,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 👁️ **Gli spuntini tolti dall'assistente si vedono anche nell'app** (voce 235). «Togli
+  lo spuntino» agisce sul motore dal 13/8 — giornate senza quel pasto, kcal ridistribuite sugli
+  altri — e nell'app **non lo diceva niente**: la cliente riceveva un piano senza merenda e l'unica
+  cosa che poteva fare era scrivere alla coach «mi manca un pasto», per una cosa decisa apposta per
+  lei. Lo stesso buco delle allergie, e mancava proprio la metà che legge la persona interessata (il
+  backoffice la riga ce l'aveva dall'11/8). Ora `/me/nutrition` manda `pastiEsclusi` — sempre un
+  elenco, mai `null` — e il profilo lo mostra in sola lettura, **a parole e mai col codice del
+  motore**, con sotto il fatto che risponde all'unica domanda che fa nascere: le calorie di quel
+  pasto sono ridistribuite sugli altri. 10 test (4 backend + 6 app).
+
 - `[Sviluppo]` ✅ **Vera fa verificare a voce i cambi concordati in chat** (voce 245, lettura A
   scelta da Simone). La coda arriva in chat una riga per volta — cliente, piatto, da/a, e **quante
   volte** l'ha chiesta, che è il dato che cambia la decisione — e si risponde «va bene» o «no»; il

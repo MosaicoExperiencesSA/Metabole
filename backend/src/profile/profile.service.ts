@@ -360,11 +360,20 @@ export class ProfileService {
         // ripieghi): senza, la cliente e lo staff cercherebbero con due profili diversi — che è
         // esattamente il difetto che questa riga chiude.
         objective: true,
+        /**
+         * Gli spuntini che la nutrizionista ha tolto a QUESTA cliente («togli lo spuntino», azione
+         * 3 di Vera). Il motore li rispetta già e le kcal si ridistribuiscono sui pasti rimasti:
+         * senza questa riga la cliente riceveva giornate senza merenda **senza che niente glielo
+         * dicesse** — lo stesso buco che avevano le allergie, e che finisce con lei che scrive alla
+         * coach «mi manca un pasto» per una cosa decisa apposta.
+         */
+        pastiEsclusi: true,
         assignedCoach: { select: { displayName: true } },
       },
     })) as {
       regime: string | null; dietStyle: string | null; dietFamily: string | null; mealsPerDay: number | null;
       pathType: string | null; fastingWindow: string | null; objective: string | null;
+      pastiEsclusi: string[] | null;
       assignedCoach: { displayName: string | null } | null;
     } | null;
     if (!profile) throw new NotFoundException('Profilo non ancora creato: completa prima il questionario.');
@@ -444,6 +453,16 @@ export class ProfileService {
       mealsPerDay: profile.mealsPerDay,
       fasting: profile.pathType === 'intermittent_fasting',
       fastingWindow: profile.fastingWindow,
+      /**
+       * ⚠️ Sempre un elenco, mai `null`: il campo è nullable in banca dati, e mandare il null
+       * costringerebbe l'app a difendersi da un buco che qui costa un `?? []`. «Nessuno escluso» e
+       * «non lo so» sono la stessa cosa per chi legge — ma solo se chi risponde è coerente.
+       *
+       * Sono soltanto spuntini (`finestre-digiuno.ts` lascia passare solo quelli): i pasti
+       * principali saltati stanno in `fastingWindow`, ed è la riga qui sopra. Due dati diversi, due
+       * righe diverse in profilo.
+       */
+      pastiEsclusi: profile.pastiEsclusi ?? [],
       // Prima quella assegnata: è la decisione della nutrizionista. Il ripiego resta la dieta dei
       // menu, che è tutto quello che sappiamo delle clienti registrate prima del 7/8 (`dietFamily`
       // è null per loro).

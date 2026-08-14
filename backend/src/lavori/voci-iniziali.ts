@@ -432,11 +432,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'pasti-esclusi-in-scheda',
-    titolo: 'Gli spuntini tolti da Vera non si vedono ancora nella scheda cliente',
+    titolo: 'Gli spuntini tolti dall\'assistente si vedono in scheda E nel profilo dell\'app',
     dettaglio:
-      '«Togli lo spuntino» (azione 3, 13/8 sera) scrive `ClientProfile.pastiEsclusi` e il motore lo rispetta, ma NESSUNA scheda lo mostra: né backoffice né app. È lo stesso buco che avevano le allergie (§4 dell\'handoff): un dato che agisce e non si vede è un dato che prima o poi qualcuno contraddice senza saperlo. Serve una riga in sola lettura nella scheda cliente (accanto ai pasti del digiuno) e nel profilo dell\'app.',
+      '«Togli lo spuntino» (azione 3, 13/8 sera) scrive `ClientProfile.pastiEsclusi` e il motore lo rispetta, ma NESSUNA scheda lo mostrava: né backoffice né app. Lo stesso buco che avevano le allergie — un dato che agisce e non si vede è un dato che prima o poi qualcuno contraddice senza saperlo, e qui quel qualcuno era la cliente stessa che scriveva alla coach «mi manca un pasto». Chiuso il 14/8: il backoffice aveva già la riga, ora `/me/nutrition` manda `pastiEsclusi` (sempre un elenco, mai `null`) e il profilo dell\'app lo dice a parole — «Lo spuntino del mattino», mai il codice del motore — con la nota che risponde all\'unica domanda che quella riga fa nascere: le kcal di quel pasto sono ridistribuite sugli altri. Sola lettura: si cambia solo dettandolo all\'assistente. Modulo puro `app/src/lib/spuntiniEsclusi.ts`, 6 test app + 4 backend.',
     categoria: CODICE,
     ordine: 235,
+    fatta: true, // chiusa il 14/8: backoffice (11/8) + profilo dell'app
   },
   {
     chiave: 'vera-famiglia-a-secco',

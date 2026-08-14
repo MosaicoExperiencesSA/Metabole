@@ -8,6 +8,7 @@ import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import Sheet from '../components/Sheet';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
+import { raccontaSpuntiniEsclusi } from '../lib/spuntiniEsclusi';
 import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
@@ -45,6 +46,11 @@ const REGIME_LABEL: Record<string, string> = {
 interface Nutrition {
   regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
   fasting: boolean; fastingWindow: string | null; dietName: string | null; coachName: string | null;
+  /**
+   * Gli spuntini che la nutrizionista ha tolto a lei («togli lo spuntino», azione 3
+   * dell'assistente). Il motore li rispetta già da giorni: qui si dicono, che è tutta la voce 235.
+   */
+  pastiEsclusi?: string[];
   /** La descrizione che la nutrizionista ha scritto per la cliente su QUESTA dieta. */
   dietDescription?: string | null;
   /** Lo stile della dieta assegnata: la chiave delle schede generali (`DIET_INFO`). */
@@ -135,6 +141,8 @@ function MyNutrition() {
   const stileScheda = n.dietStyleAssegnato ?? n.dietStyle;
   const scheda = stileScheda ? DIET_INFO[stileScheda] : undefined;
   const haInfoDieta = Boolean(n.dietDescription || scheda);
+  // `null` quando non le è stato tolto niente: la riga non compare proprio, invece di dire «nessuno».
+  const spuntiniTolti = raccontaSpuntiniEsclusi(n.pastiEsclusi);
 
   return (
     <div className="card">
@@ -163,6 +171,13 @@ function MyNutrition() {
           n.fastingWindow ? (SALTA_LABEL[n.fastingWindow] ?? n.fastingWindow) : null,
           'li decide la tua dieta',
         )}
+        {/*
+          ⚠️ GLI SPUNTINI TOLTI DALLA NUTRIZIONISTA (voce 235). Il motore li rispetta dal 13/8 e
+          nessuna schermata lo diceva: la cliente riceveva giornate senza merenda senza sapere
+          perché — lo stesso buco che avevano le allergie. Sola lettura: questo non lo cambia lei,
+          e il selettore del digiuno qui sotto non c'entra.
+        */}
+        {spuntiniTolti && riga('circle-minus', 'Tolti dalla tua nutrizionista', spuntiniTolti, '')}
         {riga(
           'book',
           'La tua dieta',
@@ -171,6 +186,18 @@ function MyNutrition() {
           haInfoDieta ? () => setInfo(true) : undefined,
         )}
         {n.regime && riga('leaf', 'Regime', REGIME_LABEL[n.regime] ?? n.regime, '')}
+        {/*
+          La domanda che quella riga fa nascere è una sola — «allora mangio meno?» — e la risposta
+          è un fatto, non una rassicurazione: `slotEsclusiTotali` ridistribuisce le kcal di quel
+          pasto sugli altri, la stessa strada del digiuno. Scriverlo qui costa due righe e evita un
+          messaggio alla coach.
+        */}
+        {spuntiniTolti && (
+          <div className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+            Le calorie di quel pasto sono ridistribuite sugli altri: la giornata resta completa.
+            Se non ti torna, parlane con la tua coach.
+          </div>
+        )}
       </div>
       {/*
         Il cambio dieta è deciso ma le giornate in arrivo sono ancora quelle vecchie. Va detto QUI,
