@@ -20,6 +20,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 📖 **Il dizionario promosso a comune: il capo conferma sapendo** (domanda di Nocanty,
+  risposta di Simone: «chiedi conferma al nutrizionista capo attraverso Vera»). La convivenza resta
+  — la voce personale vince sempre sulla comune, e nessuno viene sovrascritto — ma prima del sì il
+  capo legge chi ha già una sua versione diversa, con nome e differenze, e la frase dice anche cosa
+  NON succede: «le loro restano e continuano a valere». Confronto per radice; chi ce l'ha identica
+  non compare. 12 test. Decisione in `NOTA_Dizionario_Promosso_Conferma_Capo.md`.
+
 - `[Sviluppo]` 🗣️ **Vera: «riduci le kcal del 10% a Giulia per 7 giorni»** — la seconda metà della
   richiesta di Nocanty («questa cosa vorrei farla anche dalla mia assistente»). L'anteprima dice il
   numero vero (da 1620 a 1460 kcal/giorno), non la percentuale; se la durata non c'è si chiede, con

@@ -1,0 +1,39 @@
+Dizionario promosso a comune: il capo conferma vedendo chi ne ha già una sua diversa
+
+Domanda di Nocanty (13/8): «quando una parola imparata su una cliente diventa valida
+per tutte, cosa succede a chi ne aveva già una sua diversa? ⚠️ Tocca il piatto di
+persone che non hanno chiesto niente». Risposta di Simone: «chiedi conferma al
+nutrizionista capo attraverso Vera» — e alla seconda formulazione: «ho già risposto».
+Decisione scritta prima del codice:
+progetto/NOTA_Dizionario_Promosso_Conferma_Capo.md.
+
+Com'era: `risolvi` fa già vincere la voce personale sulla comune, e `promuovi` accende
+`comune: true`. Quindi convivevano già — ma il capo approvava ALLA CIECA, senza sapere
+che altre nutrizioniste usano quella stessa parola in un altro senso.
+
+- Nuovo `vera/conflitti-dizionario.ts` (puro): `conflittiDiPromozione` trova chi ha una
+  voce con lo STESSO NOME e alimenti diversi, e dice in cosa differisce (cosa
+  aggiungerebbe la comune, cosa ha solo lei); `raccontaConflitti` scrive la frase.
+  ⚠️ Confronto per RADICE (`chiaveAlimento`): «crescenze» e «crescenza» non sono un
+  conflitto, e far comparire un avviso per una lettera insegna a ignorare gli avvisi.
+  ⚠️ Chi ce l'ha identica NON compare: quello che cambia la decisione è il disaccordo.
+  ⚠️ Le voci già comuni non contano: una voce di tutte non è «di qualcuno».
+- `DizionarioService.altreVersioniPersonali(nome)`: cerca per `chiave` e non per nome
+  esatto — cercare per stringa nasconderebbe proprio i conflitti che contano.
+- Il riepilogo che Vera sottopone al capo ora dice, per le voci di dizionario, cosa
+  vorrebbe dire la parola per tutte E chi ne ha una sua versione diversa (con il nome
+  della nutrizionista, letto da `Staff.displayName`).
+  ⚠️ E finisce dicendo cosa NON succede: «se approvi, le loro restano e continuano a
+  valere per le loro clienti». Senza quella riga il capo può credere di star cambiando
+  i menu delle clienti di qualcun altro, e respingerebbe una promozione buona per paura
+  di un effetto che non esiste.
+  ⚠️ Sotto `try`: è un'informazione in più su una coda che deve continuare a funzionare.
+- Nessuno viene sovrascritto, mai: non esiste un gesto che riscrive il dizionario
+  altrui. Allineare le voci personali sarebbe un'azione nuova con effetti sul piatto di
+  clienti di altri, e avrà la sua decisione se servirà.
+- Lista Lavori: voce 249 (fatta).
+
+Test: 12 nuovi visti rossi (9 sul modulo puro, 3 sul dialogo). In sandbox 2044 verdi
+(baseline 2032), 390 su src/vera; tsc 52 = 52.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest
+(nessuna migrazione).

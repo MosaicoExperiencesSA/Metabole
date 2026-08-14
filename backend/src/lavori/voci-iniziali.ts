@@ -554,6 +554,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 14/8: intento correzione_kcal + anteprima col numero vero + porta impostaKcal
   },
   {
+    chiave: 'dizionario-promossa-conferma-capo',
+    titolo: 'Dizionario promosso a comune: il capo conferma vedendo chi ne ha già una sua diversa',
+    dettaglio:
+      'Domanda di Nocanty (13/8) e risposta di Simone: «chiedi conferma al nutrizionista capo attraverso Vera». La convivenza RESTA (la voce personale vince sempre sulla comune, confermato) e nessuno viene sovrascritto; quello che cambia è che prima del sì il capo legge chi ha già una sua versione diversa, con nome e differenze (alimenti in più nella comune, alimenti che ha solo lei) — e la frase dice anche cosa NON succede: «le loro restano e continuano a valere». Confronto per radice (`chiaveAlimento`), chi ce l\'ha identica non compare. Decisione in `progetto/NOTA_Dizionario_Promosso_Conferma_Capo.md`.',
+    categoria: CODICE,
+    ordine: 249,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

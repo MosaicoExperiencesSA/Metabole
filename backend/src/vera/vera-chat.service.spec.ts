@@ -1239,3 +1239,49 @@ describe('VeraChatService — la correzione calorica dettata', () => {
     expect(kcal.impostaKcal).not.toHaveBeenCalled();
   });
 });
+
+describe('VeraChatService — il capo vede chi ha già una sua versione della parola (14/8)', () => {
+  const PROPOSTA = [{
+    id: 'a1', frase: 'per tutte «formaggi molli» sono questi', nutrizionistaId: 'lucia',
+    soggettoNome: 'Giulia', dettaglio: { famiglia: 'formaggi molli', membri: ['stracchino', 'crescenza'] },
+    conflittoSanitario: false, createdAt: new Date('2026-08-14T08:00:00.000Z'),
+  }];
+
+  it('⚠️ prima del sì gli dice CHI ne ha una diversa, e che le loro restano', async () => {
+    const made = make({
+      staff: {
+        updateMany: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }),
+        findFirst: jest.fn().mockResolvedValue({ nomeAgente: 'Vera' }),
+        findMany: jest.fn().mockResolvedValue([{ userId: 'anna', displayName: 'Anna' }]),
+      },
+    }, { coda: PROPOSTA });
+    (made.dizionario as unknown as { altreVersioniPersonali: jest.Mock }).altreVersioniPersonali =
+      jest.fn().mockResolvedValue([{ nutrizionistaId: 'anna', nome: 'formaggi molli', membri: ['stracchino', 'mozzarella'] }]);
+
+    await made.service.apri('nocanty');
+    const { testo } = ultimoAgente(made.messaggioCreate);
+    expect(testo).toContain('Anna');
+    expect(testo).toContain('crescenza');   // quello che la comune aggiungerebbe
+    expect(testo).toContain('mozzarella');  // quello che ha lei e la comune non ha
+    expect(testo).toContain('restano');     // e cosa NON succede
+  });
+
+  it('senza nessuno che la usi diversamente, nessuna riga in più', async () => {
+    const made = make({}, { coda: PROPOSTA });
+    (made.dizionario as unknown as { altreVersioniPersonali: jest.Mock }).altreVersioniPersonali =
+      jest.fn().mockResolvedValue([]);
+    await made.service.apri('nocanty');
+    expect(ultimoAgente(made.messaggioCreate).testo).not.toContain('versione diversa');
+  });
+
+  it('⚠️ se la lettura dei conflitti si rompe, la coda funziona lo stesso', async () => {
+    const made = make({}, { coda: PROPOSTA });
+    (made.dizionario as unknown as { altreVersioniPersonali: jest.Mock }).altreVersioniPersonali =
+      jest.fn().mockRejectedValue(new Error('boom'));
+    await made.service.apri('nocanty');
+    const { testo, stato } = ultimoAgente(made.messaggioCreate);
+    expect(stato?.passo).toBe('revisione');
+    expect(testo).toContain('formaggi molli');
+  });
+});

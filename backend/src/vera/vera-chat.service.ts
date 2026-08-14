@@ -24,6 +24,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
+import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
@@ -1396,16 +1397,54 @@ export class VeraChatService {
     const chi = await this.nomeStaff(p.nutrizionistaId);
     const quando = p.createdAt.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
     const termini = ((p.dettaglio ?? {}) as { termini?: string[] }).termini ?? [];
-    const riepilogo = termini.length
-      ? `Vuole vietare a tutte le sue clienti: ${termini.join(', ')}.` +
-        (p.soggettoNome ? ` (Nata guardando ${p.soggettoNome}.)` : '')
-      : 'Vuole estendere a tutte le sue clienti quello che aveva deciso per una.';
+    const d = (p.dettaglio ?? {}) as { famiglia?: string; membri?: string[] };
+    /**
+     * ⚠️ UNA PAROLA CHE DIVENTA DI TUTTE: prima del sì, il capo deve sapere **chi ne ha già una
+     * sua diversa** (Simone, 13/8: «chiedi conferma al nutrizionista capo attraverso Vera»).
+     * Prima approvava alla cieca una parola che altre usano già in un altro senso.
+     * Sotto `try`: è un'informazione in più su una coda che deve continuare a funzionare.
+     */
+    let conflitti = '';
+    if (d.famiglia) {
+      try {
+        const altre = await this.dizionario.altreVersioniPersonali(d.famiglia);
+        conflitti = raccontaConflitti(
+          conflittiDiPromozione(
+            { nutrizionistaId: p.nutrizionistaId, nome: d.famiglia, membri: d.membri ?? [] },
+            await this.conNomiStaff(altre),
+          ),
+        );
+      } catch (err) {
+        logger.warn(`Conflitti di dizionario non letti (proposta=${p.id}): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    const riepilogo =
+      (termini.length
+        ? `Vuole vietare a tutte le sue clienti: ${termini.join(', ')}.` +
+          (p.soggettoNome ? ` (Nata guardando ${p.soggettoNome}.)` : '')
+        : d.famiglia
+          ? `Vuole che «${d.famiglia}» voglia dire ${(d.membri ?? []).join(', ') || '—'} per tutte.`
+          : 'Vuole estendere a tutte le sue clienti quello che aveva deciso per una.') +
+      (conflitti ? `\n\n${conflitti}` : '');
 
     return {
       testo: testi.sottoponi(coda.length, chi, quando, p.frase, riepilogo, p.conflittoSanitario),
       esito: 'in_corso',
       stato: { passo: 'revisione', frase: p.frase, azioneId: p.id },
     };
+  }
+
+  /** I nomi delle staff che hanno una loro versione: «Anna» dice più di un id accorciato. */
+  private async conNomiStaff<T extends { nutrizionistaId: string }>(voci: T[]): Promise<(T & { nutrizionistaNome: string | null })[]> {
+    const ids = [...new Set(voci.map((v) => v.nutrizionistaId))];
+    if (!ids.length) return [];
+    const righe = (await this.prisma.staff.findMany({
+      where: { userId: { in: ids } } as never,
+      select: { userId: true, displayName: true },
+    })) as { userId: string; displayName: string | null }[];
+    const nomi = new Map(righe.map((r) => [r.userId, r.displayName]));
+    return voci.map((v) => ({ ...v, nutrizionistaNome: nomi.get(v.nutrizionistaId) ?? null }));
   }
 
   /** Sì = approva e applica; no = chiedi il motivo. Nel dubbio non si fa niente. */

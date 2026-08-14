@@ -170,6 +170,12 @@ OTA il 12/8). Va prima della pubblicazione.
 
 ## Storico delle push
 
+### 14/8/2026 (7ª) — Il dizionario comune si approva sapendo (8 file)
+`conflitti-dizionario.ts` puro (confronto per radice, identiche escluse, comuni escluse) +
+`altreVersioniPersonali` + il riepilogo del capo che dice chi ne ha una sua e cosa NON succede.
+Nessun gesto che riscriva il dizionario altrui: se servirà, avrà la sua decisione.
+
+
 ### 14/8/2026 (6ª) — Le calorie dettate (10 file)
 Intento `correzione_kcal` (segno dal verbo, pretende la parola kcal/calorie, letto prima dei
 divieti), passo `quanti_giorni`, anteprima col numero vero via `simulaKcal`, scrittura dal token

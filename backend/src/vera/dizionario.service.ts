@@ -74,6 +74,24 @@ export class DizionarioService {
   }
 
   /**
+   * LE VOCI PERSONALI DI ALTRE con lo stesso nome — quello che il capo deve vedere prima di
+   * rendere comune una parola (Simone, 13/8: «chiedi conferma al nutrizionista capo attraverso
+   * Vera»). Decisione in `progetto/NOTA_Dizionario_Promosso_Conferma_Capo.md`.
+   *
+   * ⚠️ Si cerca per `chiave`, non per nome esatto: «formaggio molle» e «formaggi molli» sono la
+   * stessa parola, e cercarla per stringa nasconderebbe proprio i conflitti che contano.
+   * Le comuni si scartano: una voce già di tutte non è «di qualcuno».
+   */
+  async altreVersioniPersonali(nome: string): Promise<VoceDizionario[]> {
+    const chiave = chiaveAlimento(nome);
+    if (!chiave) return [];
+    return (await this.prisma.famigliaAlimento.findMany({
+      where: { chiave, comune: false } as never,
+      take: 50,
+    })) as unknown as VoceDizionario[];
+  }
+
+  /**
    * Che cosa vuol dire questa parola, per questa nutrizionista.
    *
    * ⚠️ **La sua batte la comune, sempre.** Due nutrizioniste possono intendere cose diverse con la
