@@ -46,9 +46,15 @@ function make(
       create: messaggioCreate,
       count: jest.fn().mockResolvedValue(1),
       findMany: jest.fn().mockResolvedValue([]),
-      findFirst: jest.fn().mockResolvedValue(
-        opzioni.statoAperto ? { meta: { stato: opzioni.statoAperto }, createdAt: new Date() } : null,
-      ),
+      // Lo stato del dialogo vive nel meta dell'ULTIMO messaggio dell'agente: il finto lo
+      // rilegge da quello che il test ha appena scritto, così i giri a più turni funzionano
+      // come in produzione. `statoAperto` resta il punto di partenza del primo turno.
+      findFirst: jest.fn().mockImplementation(() => {
+        const agente = messaggioCreate.mock.calls.map((c) => c[0].data).filter((d: { ruolo: string }) => d.ruolo === 'agente');
+        const ultimo = agente[agente.length - 1];
+        if (ultimo) return Promise.resolve({ meta: ultimo.meta ?? {}, createdAt: new Date() });
+        return Promise.resolve(opzioni.statoAperto ? { meta: { stato: opzioni.statoAperto }, createdAt: new Date() } : null);
+      }),
     },
     // `head_nutritionist` → `perimetroClienti` ritorna null: nessun filtro, il test resta sul dialogo.
     user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([CLIENTE]) },
@@ -60,6 +66,7 @@ function make(
     menuDay: {
       findMany: jest.fn().mockResolvedValue(opzioni.giorniMenu ?? []),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue((opzioni.giorniMenu ?? []).length),
     },
     // La guida della giornata (14/8): segnalazioni aperte e campanella. A zero se il test non dice altro.
     escalation: { count: jest.fn().mockResolvedValue(0) },
@@ -118,9 +125,11 @@ function make(
     createRecipe: jest.fn().mockResolvedValue({ id: 'r-nuova' }),
     updateRecipe: jest.fn().mockResolvedValue({ id: 'r1' }),
   } as unknown as ScritturaRicetta;
+  // La porta della scheda per il cambio di dieta (azione 3, 14/8).
+  const clienti = { updateClient: jest.fn().mockResolvedValue({}) };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, ricette, clienti as never),
     valori,
     ricette,
     richieste,
@@ -130,6 +139,7 @@ function make(
     registro,
     prisma,
     pool,
+    clienti,
   };
 }
 
@@ -984,5 +994,100 @@ describe('VeraChatService — «hai segnalazioni per me?»: la guida della giorn
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).toContain('2 sostituzioni da verificare');
     expect(testo).toContain('Non sono riuscito a leggere');
+  });
+});
+
+/**
+ * «SPOSTA GIULIA SULLA KETO» — il cambio di dieta (azione 3, risposta di Simone del 14/8).
+ * Decisione in progetto/NOTA_Vera_Variante_Piano.md: una strada sola (la porta della scheda),
+ * la domanda «da quando?», e mai un menu toccato a mano da qui.
+ */
+describe('VeraChatService — il cambio di dieta (azione 3, 14/8)', () => {
+  const DIETE = [
+    { name: 'Keto', style: 'keto', regime: 'omnivore', approvedAt: new Date('2026-07-01') },
+    { name: 'Mediterranea', style: 'mediterranean', regime: 'omnivore', approvedAt: new Date('2026-07-01') },
+  ];
+  const conDiete = (righe: unknown[] = DIETE) => ({
+    diet: { findMany: jest.fn().mockResolvedValue(righe) },
+  });
+
+  async function finoAllaConferma(extra: Record<string, unknown> = {}) {
+    const made = make({ ...conDiete(), ...extra });
+    const { service, messaggioCreate } = made;
+    await service.parla('lucia', 'sposta Giulia Rossi sulla keto');
+    const daQuando = ultimoAgente(messaggioCreate);
+    return { ...made, daQuando };
+  }
+
+  it('trova la dieta e chiede «da quando?» PRIMA di confermare', async () => {
+    const { daQuando } = await finoAllaConferma();
+    expect(daQuando.stato?.passo).toBe('da_quando');
+    expect(daQuando.testo).toContain('da subito');
+    expect(daQuando.testo).toContain('lascia i giorni già preparati');
+  });
+
+  it('«da subito» + sì: scrive TUTTI E TRE i campi dalla porta della scheda, con l\'attrice vera', async () => {
+    const { service, daQuando, clienti, messaggioCreate, registro } = await finoAllaConferma();
+    await service.parla('lucia', 'da subito');
+    const conferma = ultimoAgente(messaggioCreate);
+    expect(conferma.stato?.passo).toBe('conferma');
+    await service.parla('lucia', 'sì');
+    expect(clienti.updateClient).toHaveBeenCalledWith('c1', 'lucia', {
+      regime: 'omnivore',
+      dietStyle: 'keto',
+      dietFamily: 'Keto',
+    });
+    // E la riga di registro c'è, con la frase originale.
+    const scritta = (registro.scrivi as jest.Mock).mock.calls[0][0];
+    expect(scritta.azione).toBe('variante_cliente');
+    expect(scritta.frase).toBe('sposta Giulia Rossi sulla keto');
+    expect(scritta.dettaglio.cambioDieta.daSubito).toBe(true);
+  });
+
+  it('«lascia i giorni già preparati» passa il flag che NON rifà i giorni erogati', async () => {
+    const { service, clienti } = await finoAllaConferma();
+    await service.parla('lucia', 'lascia i giorni già preparati');
+    await service.parla('lucia', 'sì');
+    const dto = (clienti.updateClient as jest.Mock).mock.calls[0][2];
+    expect(dto.dietChangeKeepDeliveredDays).toBe(true);
+  });
+
+  it('⚠️ un «no» alla conferma NON scrive niente', async () => {
+    const { service, clienti } = await finoAllaConferma();
+    await service.parla('lucia', 'da subito');
+    await service.parla('lucia', 'no');
+    expect(clienti.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('la dieta che non c\'è si dice, coi nomi disponibili — non si indovina', async () => {
+    const { service, messaggioCreate, clienti } = make({ ...conDiete() });
+    await service.parla('lucia', 'sposta Giulia Rossi sulla paleo');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('paleo');
+    expect(testo).toContain('Keto');
+    expect(stato?.passo).toBe('quale_dieta');
+    expect(clienti.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ «da quando» non capito due volte: si ANNULLA senza scrivere (una data non si indovina)', async () => {
+    const { service, clienti, messaggioCreate } = await finoAllaConferma();
+    await service.parla('lucia', 'boh');
+    await service.parla('lucia', 'mah vedi tu');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Non ho scritto niente');
+    expect(clienti.updateClient).not.toHaveBeenCalled();
+  });
+
+  it('se la porta della scheda rifiuta (permesso), lo si dice e non si registra niente', async () => {
+    const { service, registro, messaggioCreate } = await finoAllaConferma({
+    });
+    const made = await finoAllaConferma();
+    (made.clienti.updateClient as jest.Mock).mockRejectedValue(new Error('Cambiare il tipo di dieta richiede il permesso'));
+    await made.service.parla('lucia', 'da subito');
+    await made.service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(made.messaggioCreate);
+    expect(testo).toContain('Non sono riuscita a scrivere');
+    expect((made.registro.scrivi as jest.Mock)).not.toHaveBeenCalled();
+    void service; void registro; void messaggioCreate;
   });
 });

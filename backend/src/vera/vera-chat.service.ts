@@ -21,7 +21,7 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoCambioDieta, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
@@ -30,6 +30,7 @@ import { RegistroVeraService } from './registro.service';
 import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
+import { SCRITTURA_CLIENTE, ScritturaCliente } from './richieste.service';
 import {
   EsitoVera,
   etichettaAvviso,
@@ -74,6 +75,12 @@ export class VeraChatService {
     private readonly richieste: RichiesteVeraService,
     private readonly valori: ValoriNutrizionaliService,
     @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
+    /**
+     * La porta della SCHEDA per il cambio di dieta (azione 3, 14/8): stesso token delle risposte
+     * alle richieste, per la stessa ragione — un punto di scrittura solo, coi suoi permessi
+     * (`change_diet_type`) e la rierogazione dei giorni futuri già dentro.
+     */
+    @Inject(SCRITTURA_CLIENTE) private readonly clienti: ScritturaCliente,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -234,6 +241,10 @@ export class VeraChatService {
         return this.leggiLaRicetta(nutrizionistaId, stato, frase);
       case 'ricetta_conferma':
         return this.scriviLaRicetta(nutrizionistaId, stato, frase);
+      case 'quale_dieta':
+        return this.scegliDieta(nutrizionistaId, stato, frase);
+      case 'da_quando':
+        return this.leggiDaQuando(nutrizionistaId, stato, frase);
       case 'conferma':
       default:
         return this.confermaOAnnulla(nutrizionistaId, stato, frase);
@@ -652,6 +663,11 @@ export class VeraChatService {
     // I PASTI hanno la loro anteprima: niente pool di ricette, niente ambito «per tutte».
     if (intento.tipo === 'pasti') return this.anteprimaPasti(stato, intento as IntentoPasti);
 
+    // IL CAMBIO DI DIETA (azione 3, 14/8) ha il suo giro: dieta dal catalogo, «da quando?», conferma.
+    if (intento.tipo === 'cambio_dieta') {
+      return this.avviaCambioDieta(nutrizionistaId, stato, (intento as IntentoCambioDieta).dieta);
+    }
+
     if (intento.tipo === 'restrizione') {
       const daChiedere = stato.famiglieDaChiedere ?? (await this.famiglieSconosciute(nutrizionistaId, intento.vietati));
       if (daChiedere.length) {
@@ -863,6 +879,160 @@ export class VeraChatService {
 
   // ───────────────────────────────────────────────────────── conferma e scrittura ─
 
+  // ──────────────────────────────────────────── il cambio di dieta (azione 3) ──
+
+  /**
+   * «SPOSTA GIULIA SULLA KETO» (decisione in `progetto/NOTA_Vera_Variante_Piano.md`).
+   *
+   * La dieta si cerca nel CATALOGO (solo `approved`), per nome: zero → lo dico coi nomi
+   * disponibili; più d'una → chiedo. Poi la domanda di Simone — «da quando?» — e solo dopo la
+   * conferma. La scrittura passa dalla porta della scheda (`updateClient`, permesso
+   * `change_diet_type`), che rifà da sé i giorni futuri: qui non si tocca nessun menu a mano.
+   */
+  private async avviaCambioDieta(nutrizionistaId: string, stato: StatoVera, nomeDieta: string | null): Promise<EsitoVera> {
+    if (!nomeDieta) {
+      const nomi = await this.nomiDieteApprovate();
+      return { testo: testi.chiediQualeDieta([]) + (nomi.length ? `\n(${nomi.join(', ')})` : ''), esito: 'in_corso', stato: { ...stato, passo: 'quale_dieta' } };
+    }
+    const diete = await this.dieteCheCombaciano(nomeDieta);
+    if (diete.length === 0) {
+      return {
+        testo: testi.dietaNonTrovata(nomeDieta, await this.nomiDieteApprovate()),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'quale_dieta' },
+      };
+    }
+    if (diete.length > 1) {
+      return {
+        testo: testi.chiediQualeDieta(diete.map((d) => d.name)),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'quale_dieta', dieteCandidate: diete.map((d) => d.name) },
+      };
+    }
+    return this.chiediDaQuandoCambioDieta(nutrizionistaId, stato, diete[0]);
+  }
+
+  private async scegliDieta(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    return this.avviaCambioDieta(nutrizionistaId, stato, (frase ?? '').trim() || null);
+  }
+
+  private async chiediDaQuandoCambioDieta(
+    nutrizionistaId: string,
+    stato: StatoVera,
+    dieta: { name: string; style: string; regime: string },
+  ): Promise<EsitoVera> {
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: stato.clienteId! },
+      select: { dietFamily: true, dietStyle: true, regime: true },
+    })) as { dietFamily: string | null; dietStyle: string | null; regime: string | null } | null;
+
+    // È già su quella dieta: dirlo, non riscrivere (e non rifare nessun giorno per niente).
+    if (profilo?.dietFamily && profilo.dietFamily.toLowerCase() === dieta.name.toLowerCase()) {
+      return { testo: testi.dietaGiaQuella(stato.clienteNome ?? 'lei', dieta.name), esito: 'annullata' };
+    }
+
+    const oggi = new Date();
+    oggi.setUTCHours(0, 0, 0, 0);
+    const giorniPreparati = await this.prisma.menuDay.count({
+      where: { clientId: stato.clienteId!, date: { gt: oggi } } as never,
+    });
+    return {
+      testo: testi.chiediDaQuando(stato.clienteNome ?? 'lei', profilo?.dietFamily ?? null, dieta.name, giorniPreparati),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'da_quando', dietaTrovata: dieta, dietaPrima: profilo?.dietFamily ?? null },
+    };
+  }
+
+  /**
+   * «Da subito» o «lascia i giorni già preparati». ⚠️ Una data puntuale oggi NON si legge: una
+   * data indovinata scrive menu sbagliati. Due risposte non capite → si annulla senza scrivere.
+   */
+  private async leggiDaQuando(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const t = normalizza(frase);
+    let daSubito: boolean | null = null;
+    if (/\bsubito\b|\bda domani\b|\brifai\b|\brifalli\b/.test(t)) daSubito = true;
+    else if (/\blascia\b|\bpreparat\b|\bnon toccare\b|\bprossimi\b|\bquando finiscono\b/.test(t)) daSubito = false;
+    if (daSubito === null) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) return { testo: testi.annullato(), esito: 'annullata' };
+      return { testo: testi.daQuandoNonCapito(), esito: 'in_corso', stato: { ...stato, tentativi } };
+    }
+    return {
+      testo: testi.confermaCambioDieta(stato.clienteNome ?? 'lei', stato.dietaTrovata!.name, daSubito),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'conferma', daSubito, tentativi: 0 },
+    };
+  }
+
+  private async applicaCambioDieta(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const dieta = stato.dietaTrovata;
+    if (!dieta) return { testo: testi.annullato(), esito: 'annullata' };
+    const daSubito = stato.daSubito !== false;
+    try {
+      /**
+       * ⚠️ TUTTI E TRE i campi, dalla dieta trovata: `pickDietFor` abbina famiglia+stile (+regime
+       * a monte), e scriverne uno solo lascerebbe l'abbinamento a metà — la famiglia nuova con lo
+       * stile vecchio non trova niente e il motore ripiegherebbe su un'altra dieta in silenzio.
+       */
+      await this.clienti.updateClient(stato.clienteId!, nutrizionistaId, {
+        regime: dieta.regime,
+        dietStyle: dieta.style,
+        dietFamily: dieta.name,
+        ...(daSubito ? {} : { dietChangeKeepDeliveredDays: true }),
+      });
+    } catch (err) {
+      const motivo = err instanceof Error ? err.message : 'un errore inatteso.';
+      logger.warn(`Cambio dieta non riuscito (cliente=${stato.clienteId}): ${motivo}`);
+      return { testo: testi.cambioDietaNonRiuscito(motivo.endsWith('.') ? motivo : `${motivo}.`), esito: 'arresa' };
+    }
+
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'variante_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: stato.clienteId ?? null,
+      soggettoNome: stato.clienteNome ?? null,
+      dettaglio: { cambioDieta: { prima: stato.dietaPrima ?? null, dopo: dieta.name, daSubito } },
+    })) as { id: string };
+    return {
+      testo: testi.cambioDietaFatto(stato.clienteNome ?? 'lei', dieta.name, daSubito),
+      esito: 'scritta',
+      azioneId: riga.id,
+    };
+  }
+
+  /** I nomi (distinti) delle diete approvate, per dirli quando il nome dettato non trova niente. */
+  private async nomiDieteApprovate(): Promise<string[]> {
+    const righe = (await this.prisma.diet.findMany({
+      where: { status: 'approved' } as never,
+      select: { name: true },
+      take: 200,
+    })) as { name: string }[];
+    return [...new Set(righe.map((r) => r.name))].slice(0, 15);
+  }
+
+  /** Le diete approvate il cui nome combacia con quello dettato — per NOME DISTINTO, non per riga. */
+  private async dieteCheCombaciano(nome: string): Promise<{ name: string; style: string; regime: string }[]> {
+    const cercato = normalizza(nome);
+    if (!cercato) return [];
+    const righe = (await this.prisma.diet.findMany({
+      where: { status: 'approved' } as never,
+      select: { name: true, style: true, regime: true, approvedAt: true },
+      orderBy: { approvedAt: 'desc' },
+      take: 500,
+    })) as { name: string; style: string; regime: string }[];
+    const perNome = new Map<string, { name: string; style: string; regime: string }>();
+    for (const r of righe) {
+      if (!perNome.has(r.name.toLowerCase())) perNome.set(r.name.toLowerCase(), r);
+    }
+    return [...perNome.values()].filter((d) => {
+      const n = normalizza(d.name);
+      return n === cercato || n.includes(cercato) || cercato.includes(n) || combaciaAlimento(d.name, nome);
+    });
+  }
+
   private async confermaOAnnulla(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
     // Il ramo «non avevo capito»: qui `conferma` è solo il contenitore del contatore tentativi.
     if (!stato.intento) {
@@ -889,6 +1059,10 @@ export class VeraChatService {
      */
     if ((stato.intento as Intento).tipo === 'pasti') {
       return this.applicaPasti(nutrizionistaId, stato, stato.intento as IntentoPasti);
+    }
+    // Il cambio di dieta è per UNA cliente per costruzione: niente ambito «per tutte».
+    if ((stato.intento as Intento).tipo === 'cambio_dieta') {
+      return this.applicaCambioDieta(nutrizionistaId, stato);
     }
     return {
       testo: testi.chiediAmbito(stato.clienteNome ?? 'lei'),

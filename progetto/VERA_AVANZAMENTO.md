@@ -170,6 +170,14 @@ OTA il 12/8). Va prima della pubblicazione.
 
 ## Storico delle push
 
+### 14/8/2026 mattina (2ª) — Il cambio di dieta dettato (11 file)
+Intento `cambio_dieta` letto PRIMA della regola di dieta; catalogo, «da quando?», conferma;
+scrittura dalla porta della scheda con `change_diet_type` e rierogazione già dentro; flag
+`dietChangeKeepDeliveredDays` per «lascia i giorni già preparati»; registro `variante_cliente`.
+Il finto della chat ora rilegge lo stato dall'ultimo messaggio dell'agente: i giri a più turni
+si provano come in produzione. Decisione in `NOTA_Vera_Variante_Piano.md`.
+
+
 ### 14/8/2026 mattina — Vera guida la giornata (17 file)
 Intento `segnalazioni` («hai segnalazioni per me?» non cade più su «non ci arrivo»), quadro della
 giornata dalle tabelle di origine con le CLINICHE in testa e la campanella senza doppi conteggi,

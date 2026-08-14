@@ -25,7 +25,9 @@ export type PassoVera =
   | 'aggiorna_famiglia'  // in catalogo è entrato qualcosa che forse è di una tua famiglia
   | 'ricetta_quale'      // quale delle ricette che si chiamano così
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
-  | 'ricetta_conferma';  // ecco cosa scrivo, coi macro veri. Confermi?
+  | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
+  | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
+  | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
 
 export interface StatoVera {
   passo: PassoVera;
@@ -61,6 +63,13 @@ export interface StatoVera {
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
+  /** Il cambio di dieta (azione 3): la dieta trovata in catalogo, quella di prima, e il «da quando». */
+  dietaTrovata?: { name: string; style: string; regime: string };
+  dietaPrima?: string | null;
+  /** true = «da subito» (i giorni futuri si rifanno da domani); false = lascia i giorni preparati. */
+  daSubito?: boolean;
+  /** I nomi di dieta che combaciano, quando sono più d'uno. */
+  dieteCandidate?: string[];
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -271,6 +280,52 @@ export const testi = {
   guidaFonteRotta: (cosa: string) => `⚠️ Non sono riuscito a leggere ${cosa}: lì non so dirti se c'è qualcosa.`,
 
   approvata: (riepilogo: string) => `Approvata. ${riepilogo}`,
+
+  // ── il cambio di dieta (azione 3, Simone 14/8) ─────────────────────────────
+
+  chiediQualeDieta: (candidate: string[]) =>
+    candidate.length
+      ? `Quale dieta? Ne ho più d'una che combacia: ${candidate.join(', ')}. Dimmi il nome preciso.`
+      : 'Su quale dieta la sposto? Dimmi il nome (per esempio «sulla keto»).',
+
+  dietaNonTrovata: (nome: string, disponibili: string[]) =>
+    `Nel catalogo non trovo una dieta che si chiami «${nome}».` +
+    (disponibili.length ? ` Quelle approvate sono: ${disponibili.join(', ')}. Quale?` : ''),
+
+  dietaGiaQuella: (cliente: string, dieta: string) =>
+    `${cliente} è già sulla ${dieta}: non tocco niente.`,
+
+  /**
+   * ⚠️ La domanda «da quando?» viene PRIMA della conferma, ed è quella di Simone (14/8): «tutto
+   * quanto già erogato non cambia salvo diversa istruzione». Le due risposte utili si dicono per
+   * esteso — una domanda aperta qui produrrebbe una data indovinata, su menu veri.
+   */
+  chiediDaQuando: (cliente: string, prima: string | null, dopo: string, giorniPreparati: number) =>
+    `Sposto **${cliente}**${prima ? ` dalla ${prima}` : ''} alla **${dopo}**. ` +
+    'I giorni fino a oggi compreso restano come sono.\n\n**Da quando parte la dieta nuova?**\n' +
+    `· «**da subito**» — rifaccio da domani ${giorniPreparati === 1 ? 'la giornata già preparata' : `le ${giorniPreparati} giornate già preparate`}\n` +
+    '· «**lascia i giorni già preparati**» — la dieta nuova entra coi prossimi menu',
+
+  confermaCambioDieta: (cliente: string, dopo: string, daSubito: boolean) =>
+    `Quindi: ${cliente} passa alla **${dopo}**, ` +
+    (daSubito
+      ? 'e da domani rifaccio i giorni già preparati (oggi e il passato restano).'
+      : 'i giorni già preparati restano e la dieta nuova entra coi prossimi menu.') +
+    ' **Confermi?**',
+
+  cambioDietaFatto: (cliente: string, dopo: string, daSubito: boolean) =>
+    `Fatto: ${cliente} è sulla **${dopo}**. I giorni fino a oggi restano come sono; ` +
+    (daSubito
+      ? 'da domani i menu si rifanno con la dieta nuova — se in questo momento non può ricevere menu, restano i vecchi e lo vedi in scheda.'
+      : 'i giorni già preparati restano, la dieta nuova entra coi prossimi menu.') +
+    ' Lo trovi nel registro.',
+
+  cambioDietaNonRiuscito: (motivo: string) =>
+    `Non sono riuscita a scrivere il cambio di dieta: ${motivo} Non ho toccato niente.`,
+
+  daQuandoNonCapito: () =>
+    'Non ho capito da quando. Rispondi «da subito» oppure «lascia i giorni già preparati» — ' +
+    'nel dubbio non scrivo niente.',
 
   chiediMotivo: () =>
     'Perché la respingi? Il motivo lo legge chi l\'ha proposta, e serve a farle capire cosa cambiare — ' +

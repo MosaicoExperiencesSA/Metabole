@@ -25,6 +25,12 @@ export class UpdateClientDto {
   @IsOptional() @IsString() @MaxLength(40) dietStyle?: string;
   /** Famiglia (`Diet.name`): con lo stile identifica il prodotto. Vuota = abbinamento per stile. */
   @IsOptional() @IsString() @MaxLength(120) dietFamily?: string;
+  /**
+   * «Lascia i giorni già preparati» (Vera, azione 3 — 14/8): col cambio di dieta NON si rifanno i
+   * giorni futuri già erogati; la dieta nuova entra coi prossimi menu generati. ⚠️ È un'istruzione
+   * per questa scrittura, non un dato: non è in `PROFILE_FIELDS` e non finisce mai sul profilo.
+   */
+  @IsOptional() @IsBoolean() dietChangeKeepDeliveredDays?: boolean;
   @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   /**

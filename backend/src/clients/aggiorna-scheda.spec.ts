@@ -81,3 +81,26 @@ describe('updateClient — le scritture partono davvero', () => {
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 });
+
+describe('updateClient — «lascia i giorni già preparati» (Vera, azione 3, 14/8)', () => {
+  it('di default il cambio dieta RIFÀ i giorni futuri (comportamento della scheda)', async () => {
+    const { s } = servizio();
+    const menu = (s as unknown as { menu: { redeliverFutureDays: jest.Mock } }).menu;
+    await s.updateClient('u1', 'admin', { dietFamily: 'Mediterranea' } as never);
+    expect(menu.redeliverFutureDays).toHaveBeenCalledWith('u1');
+  });
+
+  it('⚠️ col flag i giorni erogati NON si toccano: la dieta nuova entra coi prossimi menu', async () => {
+    const { s } = servizio();
+    const menu = (s as unknown as { menu: { redeliverFutureDays: jest.Mock } }).menu;
+    await s.updateClient('u1', 'admin', { dietFamily: 'Mediterranea', dietChangeKeepDeliveredDays: true } as never);
+    expect(menu.redeliverFutureDays).not.toHaveBeenCalled();
+  });
+
+  it('il flag NON finisce sul profilo: è un\'istruzione, non un dato', async () => {
+    const { s, prisma } = servizio();
+    await s.updateClient('u1', 'admin', { dietFamily: 'Mediterranea', dietChangeKeepDeliveredDays: true } as never);
+    const upsert = prisma.clientProfile.upsert.mock.calls[0]?.[0];
+    expect(JSON.stringify(upsert ?? {})).not.toContain('dietChangeKeepDeliveredDays');
+  });
+});

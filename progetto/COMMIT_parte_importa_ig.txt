@@ -1,0 +1,19 @@
+─── PARTE: import dell'indice glicemico (14/8 mattina) ───
+
+La tabella IG del capo nutrizionista: 96 righe pronte da importare, con lo stato esplicito
+
+Sbloccata dal crudo/cotto (Decisioni §16): ogni riga del PDF porta lo stato (crudo/bollito/cotto/
+secco/liquido/…), quindi l'ambiguità che bloccava l'import non esiste più — la pasta è dichiarata
+BOLLITA nella riga stessa.
+
+- prisma/dati-ig.ts: le 96 righe trascritte (nome come lo scriverebbe una cliente + sinonimi,
+  categoria del PDF, stato, IG con min/max, macro per 100 g, affidabilità Alta/Media/Bassa →
+  solida/media/debole, note della tabella). IG «~0» (mozzarella, parmigiano) = 0 senza banda.
+- prisma/importa-ig.ts + npm run importa:ig: prova di default, CONFERMA=1 per scrivere. Le tre
+  sorti di una riga: nome nuovo → CREATA e CONFERMATA dal capo (verifiedById a runtime:
+  head_nutritionist attivo più anziano, detto nell'output); nome esistente senza IG → si aggiunge
+  SOLO l'indice (macro curate intoccate); nome esistente con IG → non si tocca.
+
+File: prisma/dati-ig.ts (nuovo), prisma/importa-ig.ts (nuovo), package.json.
+Script di dati: niente test jest (come i fratelli assegna-senza-glutine/chiedi-allergie);
+verificato che compili e che i 96 nomi siano unici (vincolo @unique su name).

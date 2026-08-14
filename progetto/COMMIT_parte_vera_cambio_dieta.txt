@@ -1,0 +1,45 @@
+Vera: «sposta Giulia sulla keto» — il cambio di dieta per una cliente, con «da quando?»
+
+Dalla risposta di Simone in pagina Lavori (14/8) sulla variante di piano (azione 3):
+la nutrizionista «o detta le nuove combinazioni ... oppure sceglie una diversa dieta;
+tutto quanto già erogato non cambia salvo diversa istruzione ... da subito va a
+correggere il menu già dal giorno dopo; quello già fatto compresa la data odierna
+resta fisso». Decisione scritta prima del codice: progetto/NOTA_Vera_Variante_Piano.md.
+Questa consegna fa il PRIMO meccanismo (la dieta diversa); il secondo (i menu dettati)
+è in lista Lavori con la voce 241.
+
+- Intento `cambio_dieta` in capisci.ts («sposta/metti/porta Giulia sulla keto»,
+  «Giulia passa alla vegetariana», «cambia la dieta a Giulia» senza nome → si chiede).
+  ⚠️ Letto PRIMA della regola di dieta: «sulla keto» sono le stesse parole di
+  «nella keto niente tonno», e senza quest'ordine finirebbe in fuori_portata.
+  Le domande restano non-istruzioni («posso spostare...?» → null).
+- Il giro: dieta cercata nel CATALOGO (solo approved, per nome distinto; zero → si
+  dicono i nomi disponibili; più d'una → si chiede quale), poi la domanda di Simone
+  «DA QUANDO?» — «da subito» (rifaccio da domani i giorni già preparati) oppure
+  «lascia i giorni già preparati» (la dieta nuova entra coi prossimi menu) — poi la
+  conferma. Due risposte non capite sul «da quando» → si ANNULLA senza scrivere:
+  una data non si indovina. «È già sulla X» → non si riscrive niente.
+- La scrittura passa dalla PORTA DELLA SCHEDA (token SCRITTURA_CLIENTE →
+  ClientsService.updateClient): permesso change_diet_type sull'attrice vera, audit,
+  e la rierogazione dei giorni futuri GIÀ DENTRO la porta (redeliverFutureDays:
+  date > oggi, col paracadute che rimette i giorni se la rierogazione è a vuoto).
+  Vera scrive TUTTI E TRE i campi (regime + dietStyle + dietFamily) dalla dieta
+  trovata: pickDietFor abbina famiglia+stile, e scriverne uno solo lascerebbe
+  l'abbinamento a metà. ⚠️ Vera non tocca nessun menu a mano e non importa MenuModule.
+- Flag nuovo sulla porta: `dietChangeKeepDeliveredDays` (UpdateClientDto, letto e mai
+  scritto sul profilo) — col flag i giorni erogati restano e l'audit lo dice
+  (client.diet_type.menus_kept). Default invariato: la scheda continua a rifare.
+- Registro: azione `variante_cliente`, ambito cliente, dettaglio
+  { cambioDieta: { prima, dopo, daSubito } }. Se la porta rifiuta (permesso), Vera lo
+  dice e NON registra niente.
+- Lista Lavori: voce 240 (cambio dieta, fatta), 241 (menu dettati, da fare),
+  242 (attività coach: push + escalation alla manager dopo 24h dalla scadenza —
+  le due regole date da Simone oggi, con la verifica già fatta: nell'app coach
+  dashboard Attività e pagina Notifiche ci sono già).
+
+Test: 22 nuovi visti rossi — 7 su capisci, 8 sul flusso in vera-chat.service (355
+verdi su src/vera), 3 su updateClient in aggiorna-scheda.spec (⚠️ quella suite in
+sandbox non compila per lo stub di Prisma: li vede la catena sul Mac), e il finto
+della chat ora rilegge lo stato dall'ultimo messaggio dell'agente (i giri a più
+turni si provano come in produzione). tsc 52 = 52 baseline.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest

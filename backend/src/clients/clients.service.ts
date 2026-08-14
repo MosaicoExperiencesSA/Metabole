@@ -943,17 +943,29 @@ export class ClientsService {
       });
       // I menu cambiano DALLA PROSSIMA EROGAZIONE: i giorni già consumati restano,
       // i giorni futuri già erogati vengono rifatti con la nuova dieta (solo la differenza).
-      try {
-        const r = await this.menu.redeliverFutureDays(userId);
+      // ⚠️ Salvo «lascia i giorni già preparati» (Vera, azione 3 — 14/8): col flag i giorni
+      // erogati restano e la dieta nuova entra coi prossimi menu. L'audit lo dice comunque.
+      if (d.dietChangeKeepDeliveredDays === true) {
         await this.audit.log({
-          action: 'client.diet_type.menus_redelivered',
+          action: 'client.diet_type.menus_kept',
           actorId,
           entityType: 'user',
           entityId: userId,
-          metadata: { removedFutureDays: r.removed, delivered: r.delivered } as never,
+          metadata: { keepDeliveredDays: true } as never,
         });
-      } catch {
-        /* la rigenerazione non deve mai bloccare il salvataggio della scheda */
+      } else {
+        try {
+          const r = await this.menu.redeliverFutureDays(userId);
+          await this.audit.log({
+            action: 'client.diet_type.menus_redelivered',
+            actorId,
+            entityType: 'user',
+            entityId: userId,
+            metadata: { removedFutureDays: r.removed, delivered: r.delivered } as never,
+          });
+        } catch {
+          /* la rigenerazione non deve mai bloccare il salvataggio della scheda */
+        }
       }
     }
 

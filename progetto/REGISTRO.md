@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 🔀 **Vera: «sposta Giulia sulla keto» — il cambio di dieta con «da quando?»**
+  (azione 3, dalla risposta di Simone in pagina Lavori). La dieta si cerca nel catalogo (mai
+  indovinata), «da subito» rifà i giorni da domani, «lascia i giorni già preparati» li tiene
+  (flag nuovo sulla porta della scheda, mai scritto sul profilo); oggi e il passato restano
+  fissi per costruzione. Scrittura via `updateClient` (permesso `change_diet_type`), registro
+  `variante_cliente`. Il secondo meccanismo (menu dettati) è la voce 241. 22 test visti rossi.
+  Decisione in `NOTA_Vera_Variante_Piano.md`.
+
 - `[Sviluppo]` 🥐 **Gaia: sul cambio colazione chiede «dolce o salata?»** (richiesta di Simone,
   14/8, dallo screenshot della chat di Antonio). Passo nuovo `colazione_gusto`: solo la colazione
   e solo senza preferenza detta («una colazione proteica» non fa la domanda). Il gusto sono i TAG
@@ -47,6 +55,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 - `[Sviluppo]` ↕️ **Voce 237: la chat di Vera si ridimensiona** — bordo inferiore trascinabile,
   altezza ricordata (`metabole_bo_vera_chat_h`); si salva solo l'altezza scelta trascinando.
   36 test nuovi visti rossi (341 verdi su Vera); tsc e jest in sandbox al baseline.
+
+- `[Sviluppo]` 📊 **La tabella dell'indice glicemico è pronta da importare** (voce rossa di ieri,
+  sbloccata dal crudo/cotto §16). 96 righe trascritte dal PDF del capo nutrizionista
+  (`prisma/dati-ig.ts`, International Tables 2008), OGNI riga con lo stato esplicito — la pasta è
+  dichiarata bollita, e «80 g di spaghetti» a crudo non può più sbagliare di 2,5 volte. Script
+  `npm run importa:ig` (prova di default, CONFERMA=1): le righe nuove nascono CONFERMATE dal capo
+  (Decisioni §10); un nome già in tabella senza IG riceve SOLO l'indice (le macro curate non si
+  toccano); un nome con l'IG non si tocca affatto. Si lancia dalla shell di Render.
 
 ## 2026-08-13
 

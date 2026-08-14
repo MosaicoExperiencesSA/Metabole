@@ -276,3 +276,43 @@ describe('capisci — «hai segnalazioni per me?»: la guida della giornata (Sim
     expect(capisci('a Giulia niente tonno')?.tipo).toBe('restrizione');
   });
 });
+
+describe('capisci — «spostala sulla keto»: il cambio di dieta (azione 3, Simone 14/8)', () => {
+  it('«sposta Giulia Rossi sulla keto»', () => {
+    expect(capisci('sposta Giulia Rossi sulla keto')).toEqual({
+      tipo: 'cambio_dieta', cliente: 'Giulia Rossi', dieta: 'keto',
+    });
+  });
+
+  it('«metti Giulia sulla dieta mediterranea»', () => {
+    const i = capisci('metti Giulia sulla dieta mediterranea');
+    expect(i?.tipo).toBe('cambio_dieta');
+    expect((i as { dieta?: string }).dieta).toBe('mediterranea');
+    expect((i as { cliente?: string }).cliente).toBe('Giulia');
+  });
+
+  it('«Giulia passa alla vegetariana»', () => {
+    const i = capisci('Giulia passa alla vegetariana');
+    expect(i?.tipo).toBe('cambio_dieta');
+    expect((i as { dieta?: string }).dieta).toBe('vegetariana');
+  });
+
+  it('«cambia la dieta a Giulia» senza dire quale: la dieta si chiede, non si indovina', () => {
+    const i = capisci('cambia la dieta a Giulia');
+    expect(i?.tipo).toBe('cambio_dieta');
+    expect((i as { dieta?: string | null }).dieta).toBeNull();
+    expect((i as { cliente?: string }).cliente).toBe('Giulia');
+  });
+
+  it('⚠️ «nella mediterranea niente tonno» resta la regola di dieta, non un cambio', () => {
+    expect(capisci('nella mediterranea niente tonno')?.tipo).toBe('fuori_portata');
+  });
+
+  it('⚠️ «metti il tacchino al posto del pollo» resta una sostituzione', () => {
+    expect(capisci('per Anna metti il tacchino al posto del pollo')?.tipo).toBe('sostituzione');
+  });
+
+  it('⚠️ una DOMANDA non è un\'istruzione: «posso spostare Giulia sulla keto?»', () => {
+    expect(capisci('posso spostare Giulia sulla keto?')).toBeNull();
+  });
+});

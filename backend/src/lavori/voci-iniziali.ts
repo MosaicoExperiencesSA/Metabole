@@ -475,6 +475,31 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // consegnata il giorno stesso
   },
   {
+    chiave: 'vera-cambio-dieta-cliente',
+    titolo: 'Vera: «sposta Giulia sulla keto» — il cambio di dieta per una cliente, con «da quando?»',
+    dettaglio:
+      'Risposta di Simone (14/8, pagina Lavori) sulla variante di piano: la nutrizionista «sceglie una diversa dieta». Intento `cambio_dieta` (letto PRIMA della regola di dieta), dieta cercata nel catalogo (zero → nomi disponibili; più d\'una → si chiede), domanda «da quando?» («da subito» = rifaccio da domani; «lascia i giorni già preparati» = la nuova entra coi prossimi menu — flag `dietChangeKeepDeliveredDays` sulla porta della scheda), conferma, scrittura via `updateClient` (permesso `change_diet_type`, rierogazione già dentro, oggi e il passato MAI toccati). Registro `variante_cliente`. Decisione in `progetto/NOTA_Vera_Variante_Piano.md`.',
+    categoria: CODICE,
+    ordine: 240,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
+    chiave: 'vera-menu-dettati',
+    titolo: 'Vera: la nutrizionista DETTA le combinazioni e crea menu specifici per una cliente',
+    dettaglio:
+      'Il secondo meccanismo della variante di piano (risposta di Simone, 14/8): dettare giornate intere — slot per slot, coi conti di kcal dalla tabella nutrienti — guidata da Vera, per UNA cliente, sui giorni futuri non ancora aperti. È la dettatura di menu, non un cambio di dieta: merita la sua decisione scritta prima (che pasti accetta, come si bilancia la giornata, cosa succede se i conti non tornano).',
+    categoria: CODICE,
+    ordine: 241,
+  },
+  {
+    chiave: 'coach-task-push-escalation',
+    titolo: 'Attività coach: push alla creazione + alla manager delle coach se restano da fare 24h dopo la scadenza',
+    dettaglio:
+      'Richiesta di Simone (14/8, dagli screenshot della pagina Attività coach). Oggi NESSUNA attività manda push (solo «piano in scadenza» e «ripresa peso» fanno campanella in-app). Da fare: (1) alla creazione l\'attività arriva alla coach anche via push, rispettando le preferenze; (2) se resta «da fare» 24 ore DOPO la scadenza (dueDate — confermato da Simone: «da quando andava fatta») va alla manager delle coach, una volta sola per attività (serve l\'idempotenza: campo `escalatedAt` o dedupe). Nell\'app coach ci sono già dashboard Attività e pagina Notifiche: nessun lavoro app.',
+    categoria: CODICE,
+    ordine: 242,
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

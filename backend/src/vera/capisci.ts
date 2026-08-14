@@ -65,7 +65,8 @@ export type Intento =
   | IntentoFuoriPortata
   | IntentoPasti
   | IntentoFamiglia
-  | IntentoSegnalazioni;
+  | IntentoSegnalazioni
+  | IntentoCambioDieta;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -110,6 +111,20 @@ export interface IntentoFamiglia {
  */
 export interface IntentoSegnalazioni {
   tipo: 'segnalazioni';
+}
+
+/**
+ * «Sposta Giulia sulla keto» — il cambio di DIETA per una cliente (azione 3, Simone 14/8).
+ *
+ * ⚠️ Non è la regola su un tipo di dieta («nella mediterranea niente tonno», che resta
+ * `fuori_portata`): qui si sposta UNA persona su un altro prodotto, per la stessa strada della
+ * scheda cliente (permesso `change_diet_type`). `dieta: null` = «cambia la dieta a Giulia» senza
+ * dire quale: si chiede, non si indovina.
+ */
+export interface IntentoCambioDieta {
+  tipo: 'cambio_dieta';
+  cliente: string | null;
+  dieta: string | null;
 }
 
 export interface IntentoPasti {
@@ -314,6 +329,12 @@ export function capisci(frase: string): Intento | null {
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   if (daScartare(testo)) return null;
 
+  // 0-bis) Il CAMBIO di dieta per una persona («sposta Giulia sulla keto») va letto PRIMA della
+  //         regola di dieta: contiene le stesse parole («sulla keto») e senza quest'ordine
+  //         finirebbe in `fuori_portata` — capito, e capito male.
+  const cambio = leggiCambioDieta(testo);
+  if (cambio) return cambio;
+
   // 1) Parla di un tipo di dieta? Allora NON è una regola su una cliente, e non so ancora farla.
   //    Va riconosciuto PRIMA di tutto: «nella mediterranea» contiene una preposizione che il
   //    riconoscitore di persone leggerebbe volentieri come un nome.
@@ -410,4 +431,36 @@ function chiedeSegnalazioni(testo: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
   return FORME_SEGNALAZIONI.some((f) => f.test(t));
+}
+
+/**
+ * «SPOSTA GIULIA SULLA KETO» — le forme del cambio dieta. Ancorate alla FINE della frase: il nome
+ * della dieta è l'ultima parola, e una coda qualsiasi («sposta Giulia sulla keto perché…») passa
+ * comunque dal taglio di `FINE` fatto a monte? No: qui non c'è un elenco da leggere, quindi la
+ * frase deve finire con la dieta — una coda libera farebbe capire male, e capire male è peggio.
+ */
+const CAMBI_DIETA: RegExp[] = [
+  // «sposta/metti/porta Giulia (Rossi) sulla (dieta) keto»
+  /\b(?:sposta|spostiamo|spostala|metti|mettila|mettiamo|porta|portala)\s+([a-zà-ÿ' ]+?)?\s*(?:sulla|alla|nella)\s+(?:dieta\s+)?([\wà-ÿ]+)\s*$/iu,
+  // «Giulia passa alla (dieta) vegetariana»
+  /^([a-zà-ÿ' ]+?)\s+passa\s+(?:alla|sulla)\s+(?:dieta\s+)?([\wà-ÿ]+)\s*$/iu,
+];
+
+/** «cambia la dieta a Giulia», senza dire quale: la dieta si chiede dopo. */
+const CAMBIA_DIETA_SECCO = /\bcambia(?:re|mo)?\s+(?:la\s+)?dieta\s+(?:a|ad|di|alla|della)\s+([a-zà-ÿ' ]+?)\s*$/iu;
+
+/** Il nome catturato, ripulito: articoli e pronomi non sono una persona. */
+function personaPulita(grezzo: string | undefined): string | null {
+  const p = (grezzo ?? '').replace(/\b(?:la|lo|le|li|il|signora|signor)\b/giu, ' ').replace(/\s+/g, ' ').trim();
+  return p.length >= 2 ? p : null;
+}
+
+function leggiCambioDieta(testo: string): IntentoCambioDieta | null {
+  for (const forma of CAMBI_DIETA) {
+    const m = forma.exec(testo);
+    if (m) return { tipo: 'cambio_dieta', cliente: personaPulita(m[1]), dieta: m[2].trim().toLowerCase() };
+  }
+  const secco = CAMBIA_DIETA_SECCO.exec(testo);
+  if (secco) return { tipo: 'cambio_dieta', cliente: personaPulita(secco[1]), dieta: null };
+  return null;
 }
