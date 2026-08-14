@@ -164,14 +164,87 @@ export function calcolaTargetKcal(input: IngressoCalcoloKcal): EsitoCalcoloKcal 
  * Un target calorico senza il suo perché è un numero che nessuno può contestare — e le cose che
  * nessuno può contestare, in clinica, sono quelle che restano sbagliate più a lungo.
  */
-export function spiegaTargetKcal(e: EsitoCalcoloKcal, tdee: number): string {
+export interface DurataCorrezione {
+  /** Fino a quando vale (compreso). */
+  finoAl?: Date | null;
+  /** È scritta ma già scaduta: il numero è tornato normale da solo. */
+  scaduta?: boolean;
+  /** La percentuale come sta scritta in scheda, anche se spenta. */
+  pctScritta?: number | null;
+}
+
+export function spiegaTargetKcal(e: EsitoCalcoloKcal, tdee: number, durata?: DurataCorrezione): string {
   const parti: string[] = [`fabbisogno ${Math.round(tdee)} kcal`];
   if (e.fonteDeficit === 'imposto') parti.push(`deficit imposto dal nutrizionista ${e.deficit} kcal`);
   else if (e.fonteDeficit === 'calcolato') parti.push(`deficit calcolato ${e.deficit} kcal${e.tettoApplicato ? ' (tagliato dal tetto di sicurezza)' : ''}`);
   else parti.push('nessun deficit (mantenimento)');
-  if (e.correzionePct !== 0) parti.push(`correzione del nutrizionista ${e.correzionePct > 0 ? '+' : ''}${e.correzionePct}%`);
+  /**
+   * ⚠️ La correzione a termine si racconta con la sua data: «togli il 10%» e «togli il 10% fino al
+   * 21/8» sono due cose diverse per chi legge la scheda. E quando è scaduta si dice che il numero
+   * è tornato normale — un target che cambia da solo senza una frase che lo spiega è un guasto.
+   */
+  if (e.correzionePct !== 0) {
+    const fino = durata?.finoAl ? ` fino al ${durata.finoAl.toISOString().slice(8, 10)}/${durata.finoAl.toISOString().slice(5, 7)}` : '';
+    parti.push(`correzione del nutrizionista ${e.correzionePct > 0 ? '+' : ''}${e.correzionePct}%${fino}`);
+  } else if (durata?.scaduta && durata.pctScritta) {
+    parti.push(
+      `la correzione del ${durata.pctScritta > 0 ? '+' : ''}${durata.pctScritta}% è scaduta` +
+        `${durata.finoAl ? ` il ${durata.finoAl.toISOString().slice(8, 10)}/${durata.finoAl.toISOString().slice(5, 7)}` : ''}: ` +
+        'si è tornati al ritmo normale',
+    );
+  }
   if (e.sogliaApplicata) parti.push('alzato alla soglia minima di sicurezza');
   if (e.sottoSoglia) parti.push('⚠️ SOTTO la soglia minima di sicurezza, per scelta del nutrizionista');
   if (e.limiteAssolutoApplicato) parti.push(`⚠️ alzato al limite assoluto di ${LIMITE_ASSOLUTO_KCAL} kcal: il valore scritto non sta in piedi`);
   return `${e.target} kcal/giorno — ${parti.join(', ')}.`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * LA CORREZIONE A TERMINE — «riduci le kcal del 10% per 7 giorni e poi riprendi col normale ritmo»
+ * (risposta di Nocanty, 13/8; decisione in `progetto/NOTA_Correzione_Kcal_A_Termine.md`).
+ *
+ * Fin qui la percentuale, una volta scritta, restava per sempre finché qualcuno se ne ricordava — e
+ * nessuno se ne ricorda: è il classico dato che agisce e non si vede. La scadenza la fa smettere da
+ * sola.
+ *
+ * ⚠️ **Scade senza cron.** Si guarda qui, al momento del calcolo. Un lavoro notturno che «pulisce»
+ * i campi è un lavoro notturno che un giorno pulisce il campo sbagliato, e il valore scritto serve
+ * comunque a chi apre la scheda dopo («le avevo tolto il 10% fino al 21»): si spegne, non si
+ * cancella.
+ *
+ * ⚠️ **Si confronta per GIORNO.** Con un confronto per istante un menu generato alle 23:50
+ * dell'ultimo giorno si comporterebbe diversamente da uno generato alle 8:00 dello stesso giorno —
+ * e la differenza finirebbe nel piatto di una persona senza che nessuno sappia perché.
+ */
+export function correzioneAttiva(
+  correzionePct: number | null | undefined,
+  scadenza: Date | null | undefined,
+  oggi: Date = new Date(),
+): number {
+  const pct = typeof correzionePct === 'number' && Number.isFinite(correzionePct) ? correzionePct : 0;
+  if (!pct) return 0;
+  // Nessuna scadenza = «vale finché non la tolgo»: è il comportamento di prima, e non cambia.
+  if (!scadenza) return pct;
+  return giorno(oggi) <= giorno(scadenza) ? pct : 0;
+}
+
+/** La data ridotta al suo giorno (UTC), che è l'unità in cui si ragiona sui menu. */
+function giorno(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/**
+ * L'ultimo giorno coperto da «per N giorni», a partire da oggi (compreso).
+ *
+ * «Per 7 giorni» vuol dire oggi e i sei successivi: dal settimo giorno dopo si riprende col ritmo
+ * normale. ⚠️ Zero o meno non è una durata: si torna `null` invece di scrivere una scadenza già
+ * passata, che spegnerebbe la correzione nello stesso istante in cui qualcuno la sta scrivendo.
+ */
+export function scadenzaDaGiorni(giorni: number, oggi: Date = new Date()): Date | null {
+  if (!Number.isFinite(giorni) || giorni < 1) return null;
+  const fine = new Date(giorno(oggi));
+  fine.setUTCDate(fine.getUTCDate() + Math.floor(giorni) - 1);
+  return fine;
 }

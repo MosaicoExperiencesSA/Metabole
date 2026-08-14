@@ -1,0 +1,53 @@
+La correzione calorica ha una durata: «−10% per 7 giorni e poi riprendi col normale ritmo»
+
+Risposta di Nocanty al §15.2 punto 1 (13/8, pagina Lavori): «La percentuale la
+inserisco io nella scheda della cliente e memorizzi il mio cambiamento: esempio riduci
+le kcal del 10% PER 7 GIORNI e poi riprendi col normale ritmo. Questa cosa vorrei
+farla anche dalla mia assistente». Decisione scritta prima del codice:
+progetto/NOTA_Correzione_Kcal_A_Termine.md.
+
+Cosa c'era già: `kcalAdjustPct` esiste dall'11/8 (§15.5) e funziona — entra dopo il
+deficit e prima del pavimento. Mancava la SECONDA METÀ della frase: oggi la correzione
+resta per sempre finché qualcuno se ne ricorda, e nessuno se ne ricorda (il classico
+dato che agisce e non si vede).
+
+- Migrazione ADDITIVA `20260814110000_kcal_adjust_until`: `client_profile.
+  kcal_adjust_until` (DATE, nullable). NULL = «vale finché non la tolgo», cioè il
+  comportamento di oggi: nessuna cliente cambia con la migrazione.
+  ⚠️ `schema.prisma` è stato riletto dal Mac e confrontato con origin/main PRIMA di
+  toccarlo (è il file che il 13/8 ha perso tre pezzi con due sessioni in parallelo).
+- `menu/correzione-kcal.ts` (puro): `correzioneAttiva(pct, scadenza, oggi)` e
+  `scadenzaDaGiorni(giorni, oggi)`. L'ultimo giorno è COMPRESO («per 7 giorni» copre
+  oggi e i sei successivi) e il confronto è per GIORNO, non per istante: un menu
+  generato alle 23:50 non deve comportarsi diversamente da uno delle 8:00.
+  Zero o meno non è una durata: torna null invece di scrivere una scadenza già passata.
+- ⚠️ Scade SENZA cron: la scadenza si guarda in `kcal-need.service` al momento del
+  calcolo. Un lavoro notturno che «pulisce» i campi un giorno pulisce quello sbagliato,
+  e il valore scritto serve comunque a chi apre la scheda dopo: si SPEGNE, non si
+  cancella. L'esito espone `correzioneFinoAl` e `correzioneScaduta`.
+- La spiegazione lo dice: «correzione del nutrizionista −10% fino al 21/08» finché è
+  attiva, e «la correzione del −10% è scaduta il 20/08: si è tornati al ritmo normale»
+  dopo. Un target che cambia da solo senza una frase che lo spiega è un guasto.
+- Scheda: `impostaKcal` accetta `perGiorni` (DTO: intero 1..90 — oltre i 90 giorni non
+  è una correzione a termine, è il piano, e quello si scrive come deficit). ⚠️ Togliere
+  la correzione toglie anche la data: una scadenza appesa a niente spegnerebbe la
+  prossima correzione scritta senza che nessuno capisca perché. ⚠️ Cambiare SOLO la
+  durata è un cambiamento vero: senza la data nel confronto, «−10% per 7 giorni» su
+  una cliente che ha già «−10% per sempre» veniva rifiutato come «niente da cambiare».
+- La durata finisce nel MOTIVO dello storico («— per 7 giorni, fino al 2026-08-20»):
+  `kcal_override` è quello che una persona rilegge fra un mese. Una colonna in più su
+  una tabella di storico si aggiunge quando qualcuno la deve interrogare.
+- Lista Lavori: 247 (fatta) e 248 (la dettatura a Vera — la seconda metà della
+  richiesta di Nocanty, da fare a mente fresca perché tocca i numeri nel piatto).
+  E la 246 («un assistente per il coach») è CHIUSA: chiarimento di Simone del 14/8,
+  «non serve un assistente per le coach, alle coach devono solo arrivare le notifiche»
+  — e quelle ci sono già dalla voce 242.
+
+Test: 9 nuovi in correzione-kcal.spec.ts (modulo puro, visti rossi) + 5 in
+nutritionist.service.spec.ts (⚠️ quella suite in sandbox non compila per lo stub di
+Prisma: li vede la catena sul Mac). In sandbox 2021 verdi (baseline 2012), tsc 52 = 52.
+
+⚠️ SUL MAC, PRIMA DELLA CATENA: la migrazione va applicata.
+  cd backend && npx prisma migrate dev   (oppure `npx prisma migrate deploy`)
+  poi: npm run prisma:tipi && npm run typecheck && npx jest
+Su Render la migrazione parte con il deploy come le altre.

@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` ⏳ **La correzione calorica ha una durata** («riduci del 10% per 7 giorni e poi
+  riprendi col normale ritmo» — risposta di Nocanty al §15.2 punto 1). La percentuale c'era dall'11/8,
+  mancava la scadenza: campo `kcalAdjustUntil` (migrazione additiva, NULL = come prima), guardata al
+  momento del calcolo — nessun cron azzera niente —, ultimo giorno compreso e confronto per giorno.
+  Il valore non si cancella: si spegne, e la spiegazione lo dice. In scheda `perGiorni` (1..90);
+  togliere la correzione toglie la data. La dettatura a Vera è la voce 248.
+  Decisione in `NOTA_Correzione_Kcal_A_Termine.md`.
+
+- `[Prodotto]` ✅ **Chiusa la voce 246 «assistente per il coach»**: chiarimento di Simone — «non
+  serve un assistente per le coach, alle coach devono solo arrivare le notifiche», e quelle sono
+  già vive dalla voce 242 (push alla creazione + escalation alla manager).
+
 - `[Sviluppo]` 🔁 **Vera porta le domande che Gaia gira alla nutrizionista** (richiesta di Simone,
   14/8: «da una parte o dall'altra il nutrizionista risponde»). La segnalazione resta dov'è e si
   aggiunge una porta: richiesta `girata_da_gaia` con chiave `gaia:<escalationId>` — idempotenza e

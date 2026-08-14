@@ -1,0 +1,16 @@
+-- LA CORREZIONE CALORICA HA UNA DURATA (14/8 — risposta di Nocanty al §15.2 punto 1).
+--
+-- «La percentuale la inserisco io nella scheda della cliente e memorizzi il mio cambiamento:
+-- esempio riduci le kcal del 10% PER 7 GIORNI e poi riprendi col normale ritmo.»
+--
+-- `kcal_adjust_pct` esisteva già dall'11/8 e funziona; mancava la seconda metà della frase. Senza
+-- questa data la correzione resta per sempre finché qualcuno se ne ricorda — e nessuno se ne
+-- ricorda: è il classico dato che agisce e non si vede.
+--
+-- L'ultimo giorno è COMPRESO: «per 7 giorni» da oggi copre oggi e i sei successivi.
+-- NULL = «vale finché non la tolgo», che è il comportamento di oggi: additiva, nessuna cliente
+-- cambia comportamento finché qualcuno non scrive una data.
+--
+-- ⚠️ Scade da sola, senza cron: la si guarda al momento del calcolo (menu/correzione-kcal.ts).
+-- Il valore NON si cancella alla scadenza, si spegne: serve a chi apre la scheda dopo.
+ALTER TABLE "client_profile" ADD COLUMN "kcal_adjust_until" DATE;

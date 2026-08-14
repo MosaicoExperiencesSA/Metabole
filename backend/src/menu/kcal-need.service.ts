@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { calcolaTargetKcal, spiegaTargetKcal } from './correzione-kcal';
+import { calcolaTargetKcal, spiegaTargetKcal, correzioneAttiva } from './correzione-kcal';
 
 /**
  * Fabbisogno calorico giornaliero della cliente (kcal/giorno), stimato dal profilo.
@@ -59,6 +59,10 @@ export interface KcalEstimate {
   sottoSoglia: boolean;
   /** Il tetto ha tagliato il deficit dedotto (succede solo su quello dedotto). */
   tettoApplicato: boolean;
+  /** Fino a quando vale la correzione (`null` = finché non la tolgono). */
+  correzioneFinoAl: string | null;
+  /** La correzione è scritta ma SCADUTA: il target è già tornato normale, e va detto. */
+  correzioneScaduta: boolean;
   /** La frase che spiega il numero, già pronta per la scheda e per lo storico. */
   spiegazione: string;
 }
@@ -141,12 +145,24 @@ export class KcalNeedService {
       deficitCalcolato = Math.max(0, rateDeficit != null ? rateDeficit : tdee * defaultDeficitPct);
     }
 
-    const p = profile as { kcalDeficitOverride?: number | null; kcalAdjustPct?: number | null };
+    const p = profile as {
+      kcalDeficitOverride?: number | null;
+      kcalAdjustPct?: number | null;
+      kcalAdjustUntil?: Date | null;
+    };
+    /**
+     * ⚠️ LA CORREZIONE SCADE (14/8, risposta di Nocanty: «del 10% per 7 giorni e poi riprendi col
+     * normale ritmo»). La scadenza si guarda QUI, al momento del calcolo: nessun cron azzera il
+     * campo, e il valore resta scritto — spento — per chi apre la scheda dopo.
+     * ⚠️ La simulazione del backoffice non passa da qui: sta chiedendo «se scrivessi questo», e
+     * quello che scriverebbe parte oggi.
+     */
+    const correzioneDelProfilo = correzioneAttiva(p.kcalAdjustPct ?? null, p.kcalAdjustUntil ?? null);
     const esito = calcolaTargetKcal({
       tdee,
       deficitCalcolato,
       deficitImposto: simulazione ? simulazione.deficitImposto ?? null : p.kcalDeficitOverride ?? null,
-      correzionePct: simulazione ? simulazione.correzionePct ?? null : p.kcalAdjustPct ?? null,
+      correzionePct: simulazione ? simulazione.correzionePct ?? null : correzioneDelProfilo,
       soglia: sex === 'male' ? floorM : floorF,
       tettoDeficitPct: deficitMaxPct,
       tettoDeficitKcal: deficitMaxKcal,
@@ -167,7 +183,15 @@ export class KcalNeedService {
       correzionePct: esito.correzionePct,
       sottoSoglia: esito.sottoSoglia,
       tettoApplicato: esito.tettoApplicato,
-      spiegazione: spiegaTargetKcal(esito, tdee),
+      correzioneFinoAl: p.kcalAdjustUntil ? p.kcalAdjustUntil.toISOString().slice(0, 10) : null,
+      // Scritta ma non più attiva: il numero è già tornato normale da solo, e chi guarda la scheda
+      // deve poterlo capire senza rifare i conti a mente.
+      correzioneScaduta: !!p.kcalAdjustPct && !!p.kcalAdjustUntil && correzioneDelProfilo === 0,
+      spiegazione: spiegaTargetKcal(esito, tdee, {
+        finoAl: p.kcalAdjustUntil ?? null,
+        scaduta: !!p.kcalAdjustPct && !!p.kcalAdjustUntil && correzioneDelProfilo === 0,
+        pctScritta: p.kcalAdjustPct ?? null,
+      }),
     };
   }
 

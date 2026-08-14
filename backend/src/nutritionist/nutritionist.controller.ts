@@ -62,6 +62,18 @@ class ImpostaKcalDto extends ValoriKcalDto {
   motivo!: string;
 
   /**
+   * PER QUANTI GIORNI vale la correzione (Nocanty, 13/8: «riduci le kcal del 10% per 7 giorni e poi
+   * riprendi col normale ritmo»). Assente = vale finché non la tolgono, che è il comportamento di
+   * prima. ⚠️ Il tetto a 90 non è burocrazia: oltre tre mesi non è più «una settimana di scarico»,
+   * è il piano — e quello si scrive come deficit, che segue il peso quando cambia.
+   */
+  @IsOptional()
+  @IsInt({ message: 'I giorni vanno scritti come numero intero.' })
+  @Min(1, { message: 'La durata parte da un giorno.' })
+  @Max(90, { message: 'Oltre i 90 giorni non è una correzione a termine: usa il deficit.' })
+  perGiorni?: number;
+
+  /**
    * Conferma esplicita per scendere sotto la soglia minima di sicurezza. Il primo invio senza
    * questo flag viene rifiutato **con dentro il numero** a cui si arriverebbe: si può andare sotto,
    * ma non per sbaglio.

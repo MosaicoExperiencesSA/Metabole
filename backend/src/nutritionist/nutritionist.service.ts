@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { AuditService } from '../audit/audit.service';
+import { scadenzaDaGiorni } from '../menu/correzione-kcal';
 import { EngineService } from '../engine/engine.service';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import {
@@ -751,13 +752,28 @@ export class NutritionistService {
   async impostaKcal(
     user: AuthUser,
     clientId: string,
-    input: { deficitKcal?: number | null; correzionePct?: number | null; motivo: string; confermaSottoSoglia?: boolean },
+    input: {
+      deficitKcal?: number | null;
+      correzionePct?: number | null;
+      motivo: string;
+      confermaSottoSoglia?: boolean;
+      /**
+       * «Per quanti giorni» vale la correzione (Nocanty, 13/8: «del 10% per 7 giorni e poi riprendi
+       * col normale ritmo»). Assente = vale finché non la tolgono, cioè come prima.
+       */
+      perGiorni?: number | null;
+    },
   ) {
     await this.clientePermesso(user, clientId);
     const profilo = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { kcalDeficitOverride: true, kcalAdjustPct: true, name: true },
-    })) as { kcalDeficitOverride: number | null; kcalAdjustPct: number | null; name: string | null } | null;
+      select: { kcalDeficitOverride: true, kcalAdjustPct: true, kcalAdjustUntil: true, name: true },
+    })) as {
+      kcalDeficitOverride: number | null;
+      kcalAdjustPct: number | null;
+      kcalAdjustUntil: Date | null;
+      name: string | null;
+    } | null;
     if (!profilo) throw new NotFoundException('Profilo non trovato');
 
     // 0 e null vogliono dire la stessa cosa — «non impostato» — e tenerli entrambi sarebbe un modo
@@ -765,7 +781,23 @@ export class NutritionistService {
     const deficitKcal = input.deficitKcal != null && input.deficitKcal > 0 ? Math.round(input.deficitKcal) : null;
     const correzionePct = input.correzionePct != null && input.correzionePct !== 0 ? input.correzionePct : null;
 
-    if (deficitKcal === profilo.kcalDeficitOverride && correzionePct === profilo.kcalAdjustPct) {
+    /**
+     * LA DURATA (14/8, Nocanty). ⚠️ La scadenza vive **solo** insieme alla correzione: togliendo la
+     * percentuale si toglie anche la data, altrimenti resterebbe una scadenza appesa a niente —
+     * pronta a spegnere la prossima correzione scritta, senza che nessuno capisca perché.
+     */
+    const scadenza = correzionePct !== null ? scadenzaDaGiorni(input.perGiorni ?? 0) : null;
+    const scadenzaPrima = profilo.kcalAdjustUntil ? profilo.kcalAdjustUntil.toISOString().slice(0, 10) : null;
+    const scadenzaDopo = scadenza ? scadenza.toISOString().slice(0, 10) : null;
+
+    // ⚠️ Cambiare SOLO la durata è un cambiamento vero: «−10% per sempre» e «−10% per 7 giorni»
+    // sono due prescrizioni diverse, e senza la data in questo confronto la seconda verrebbe
+    // rifiutata come «non c'è niente da cambiare».
+    if (
+      deficitKcal === profilo.kcalDeficitOverride &&
+      correzionePct === profilo.kcalAdjustPct &&
+      scadenzaDopo === scadenzaPrima
+    ) {
       throw new BadRequestException('I valori sono già questi: non c’è niente da cambiare.');
     }
 
@@ -782,7 +814,11 @@ export class NutritionistService {
 
     await this.prisma.clientProfile.update({
       where: { userId: clientId },
-      data: { kcalDeficitOverride: deficitKcal, kcalAdjustPct: correzionePct } as never,
+      data: {
+        kcalDeficitOverride: deficitKcal,
+        kcalAdjustPct: correzionePct,
+        kcalAdjustUntil: scadenza,
+      } as never,
     });
 
     const staffId = await this.staffId(user.sub);
@@ -796,7 +832,13 @@ export class NutritionistService {
         targetPrima: prima?.target ?? null,
         targetDopo: dopo?.target ?? null,
         sottoSoglia: !!dopo?.sottoSoglia,
-        motivo: input.motivo,
+        // ⚠️ La durata finisce nel MOTIVO e non in una colonna nuova: `kcal_override` è lo storico
+        // che una persona rilegge, e «per 7 giorni, fino al 20/8» è esattamente quello che serve
+        // sapere fra un mese. Una colonna in più su una tabella di storico si aggiunge quando
+        // qualcuno la deve interrogare, non quando la si deve leggere.
+        motivo: scadenzaDopo
+          ? `${input.motivo} — per ${Math.floor(input.perGiorni as number)} giorni, fino al ${scadenzaDopo}`
+          : input.motivo,
         byStaffId: staffId,
       } as never,
     });

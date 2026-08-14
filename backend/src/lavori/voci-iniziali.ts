@@ -528,11 +528,29 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'assistente-del-coach',
-    titolo: 'Un assistente per il coach: le sue attività e i suoi avvisi in chat',
+    titolo: 'Un assistente per il coach — NON SERVE (chiarito da Simone il 14/8)',
     dettaglio:
-      'Simone (14/8, dagli screenshot di «Attività coach»): anche le attività devono passare dall\'assistente. Vera però è della nutrizionista (permesso `nutri_assistant`, perimetro sulle sue clienti): un agente per il coach è un\'altra cosa — altra chiave di permesso, altro perimetro (`coachTeamScope`), altre azioni (segnare fatto/saltato a voce). Serve la decisione prima del codice. ⚠️ Nell\'app coach dashboard Attività e pagina Notifiche esistono già, e dal 14/8 le attività mandano push.',
+      '⚠️ Voce chiusa il giorno stesso in cui è nata: «non serve un assistente per le coach, alle coach devono solo arrivare le notifiche». Era una lettura mia troppo larga dello screenshot di «Attività coach». Le notifiche alla coach ci sono già e sono della stessa mattina (voce 242): push alla creazione di ogni attività ed escalation alla manager se restano da fare il giorno dopo la scadenza. L\'assistente resta della nutrizionista.',
     categoria: CODICE,
     ordine: 246,
+    fatta: true, // non si fa: chiarimento di Simone, 14/8
+  },
+  {
+    chiave: 'kcal-correzione-a-termine',
+    titolo: 'La correzione calorica ha una durata: «−10% per 7 giorni e poi riprendi»',
+    dettaglio:
+      'Risposta di Nocanty al §15.2 punto 1 (13/8): «la percentuale la inserisco io nella scheda e memorizzi il mio cambiamento, esempio riduci le kcal del 10% per 7 giorni e poi riprendi col normale ritmo». La percentuale c\'era già dall\'11/8 (§15.5): mancava la durata. Campo nuovo `kcalAdjustUntil` (migrazione additiva, NULL = come prima), scadenza guardata al momento del calcolo (nessun cron azzera niente), ultimo giorno compreso, confronto per GIORNO. Il valore non si cancella alla scadenza: si spegne, e la spiegazione lo dice («fino al 21/8» / «è scaduta: si è tornati al ritmo normale»). Togliere la correzione toglie anche la data. Decisione in `progetto/NOTA_Correzione_Kcal_A_Termine.md`.',
+    categoria: CODICE,
+    ordine: 247,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
+    chiave: 'vera-detta-correzione-kcal',
+    titolo: 'Vera: «riduci le kcal del 10% a Giulia per 7 giorni» dettato a voce',
+    dettaglio:
+      'La seconda metà della richiesta di Nocanty: «questa cosa vorrei farla anche dalla mia assistente». Il campo e la scadenza esistono dal 14/8 (voce 247) proprio perché la dettatura possa scriverli senza inventarsi una seconda strada. ⚠️ Tocca i numeri nel piatto: intento in `capisci.ts`, anteprima con il target PRIMA e DOPO (`kcalNeed.estimate` in simulazione), conferma, e la scrittura passa dalla porta che c\'è già (`impostaKcal`, coi suoi permessi, lo storico in `kcal_override` e il rifiuto sotto soglia). A mente fresca.',
+    categoria: CODICE,
+    ordine: 248,
   },
   {
     chiave: 'vera-handoff-sessione',

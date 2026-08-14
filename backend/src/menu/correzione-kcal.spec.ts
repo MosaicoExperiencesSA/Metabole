@@ -1,4 +1,4 @@
-import { calcolaTargetKcal, haCorrezioniAMano, spiegaTargetKcal, LIMITE_ASSOLUTO_KCAL } from './correzione-kcal';
+import { calcolaTargetKcal, haCorrezioniAMano, spiegaTargetKcal, LIMITE_ASSOLUTO_KCAL, correzioneAttiva, scadenzaDaGiorni } from './correzione-kcal';
 
 /**
  * I numeri di questi test sono quelli di una cliente vera per come li produce il motore: fabbisogno
@@ -128,5 +128,54 @@ describe('correzione-kcal — le calorie scritte a mano dal nutrizionista', () =
       const e = calcolaTargetKcal({ ...base, deficitCalcolato: 1400 });
       expect(spiegaTargetKcal(e, base.tdee)).toContain('tagliato dal tetto di sicurezza');
     });
+  });
+});
+
+/**
+ * LA CORREZIONE HA UNA DURATA (risposta di Nocanty, 13/8; decisione 14/8 in
+ * progetto/NOTA_Correzione_Kcal_A_Termine.md): «riduci le kcal del 10% per 7 giorni e poi riprendi
+ * col normale ritmo».
+ */
+describe('correzioneAttiva — «per 7 giorni, e poi si riprende»', () => {
+  const G = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+  it('senza scadenza vale finché non la togli: è il comportamento di prima, e non cambia', () => {
+    expect(correzioneAttiva(-10, null, G('2026-12-31'))).toBe(-10);
+  });
+
+  it('dentro la finestra si applica', () => {
+    expect(correzioneAttiva(-10, G('2026-08-21'), G('2026-08-14'))).toBe(-10);
+  });
+
+  it('⚠️ l\'ultimo giorno è COMPRESO: «per 7 giorni» copre anche il settimo', () => {
+    expect(correzioneAttiva(-10, G('2026-08-20'), G('2026-08-20'))).toBe(-10);
+  });
+
+  it('⚠️ si confronta per GIORNO, non per istante: un menu delle 23:50 fa come uno delle 8:00', () => {
+    expect(correzioneAttiva(-10, G('2026-08-20'), new Date('2026-08-20T23:50:00.000Z'))).toBe(-10);
+  });
+
+  it('dopo la scadenza non si applica più: il target torna quello normale, da solo', () => {
+    expect(correzioneAttiva(-10, G('2026-08-20'), G('2026-08-21'))).toBe(0);
+  });
+
+  it('nessuna correzione scritta resta nessuna correzione', () => {
+    expect(correzioneAttiva(null, G('2026-08-21'), G('2026-08-14'))).toBe(0);
+  });
+});
+
+describe('scadenzaDaGiorni — «per 7 giorni» da oggi', () => {
+  it('7 giorni da oggi coprono oggi e i sei successivi', () => {
+    const fine = scadenzaDaGiorni(7, new Date('2026-08-14T10:00:00.000Z'))!;
+    expect(fine.toISOString().slice(0, 10)).toBe('2026-08-20');
+  });
+
+  it('1 giorno vuol dire solo oggi', () => {
+    expect(scadenzaDaGiorni(1, new Date('2026-08-14T10:00:00.000Z'))!.toISOString().slice(0, 10)).toBe('2026-08-14');
+  });
+
+  it('⚠️ zero o meno non è una durata: si torna null e non si scrive una scadenza già passata', () => {
+    expect(scadenzaDaGiorni(0, new Date('2026-08-14T10:00:00.000Z'))).toBeNull();
+    expect(scadenzaDaGiorni(-3, new Date('2026-08-14T10:00:00.000Z'))).toBeNull();
   });
 });

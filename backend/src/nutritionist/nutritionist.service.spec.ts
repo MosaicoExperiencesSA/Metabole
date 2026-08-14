@@ -391,7 +391,9 @@ describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
       .impostaKcal(user, 'p1', { deficitKcal: 450, correzionePct: -5, motivo: 'ferma da tre settimane a 1600' });
 
     expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data)
-      .toEqual({ kcalDeficitOverride: 450, kcalAdjustPct: -5 });
+      // ⚠️ `kcalAdjustUntil` dal 14/8 viaggia SEMPRE nella scrittura: senza durata vale `null`,
+      // che è «vale finché non la tolgo» — il comportamento di prima, scritto in chiaro.
+      .toEqual({ kcalDeficitOverride: 450, kcalAdjustPct: -5, kcalAdjustUntil: null });
     const riga = (prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data;
     // I valori dicono cosa è stato scritto, il target dice cosa è arrivato nel piatto: servono
     // entrambi, perché in mezzo c'è il fabbisogno, che cambia da solo quando cambia il peso.
@@ -438,7 +440,8 @@ describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
       .impostaKcal(user, 'p1', { deficitKcal: null, correzionePct: null, motivo: 'ha ripreso a calare, torno al calcolo' });
 
     expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data)
-      .toEqual({ kcalDeficitOverride: null, kcalAdjustPct: null });
+      // Togliere la correzione toglie anche la sua scadenza: non resta una data appesa a niente.
+      .toEqual({ kcalDeficitOverride: null, kcalAdjustPct: null, kcalAdjustUntil: null });
     // «Chi gliele ha tolte» è una domanda che si fa quanto «chi gliele ha messe».
     expect((prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data)
       .toMatchObject({ deficitKcal: null, adjustPct: null, prevDeficitKcal: 450, prevAdjustPct: -5 });
@@ -507,5 +510,77 @@ describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
     expect(res.dopo?.sottoSoglia).toBe(true);
     expect(prisma.clientProfile.update).not.toHaveBeenCalled();
     expect(prisma.kcalOverride.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * LA CORREZIONE A TERMINE (risposta di Nocanty, 13/8): «riduci le kcal del 10% per 7 giorni e poi
+ * riprendi col normale ritmo». Decisione in progetto/NOTA_Correzione_Kcal_A_Termine.md.
+ */
+describe('NutritionistService — la correzione con una durata', () => {
+  const stima = (target: number) => ({
+    bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900,
+    target, deficit: 285, floored: false, objective: 'dimagrimento', weightKg: 70,
+    fonteDeficit: 'calcolato', deficitCalcolato: 285, correzionePct: 0,
+    sottoSoglia: false, tettoApplicato: false, correzioneFinoAl: null, correzioneScaduta: false,
+    spiegazione: `${target} kcal/giorno`,
+  });
+  const prismaBase = (profilo: Record<string, unknown> = {}) => ({
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        assignedNutritionistId: 'nut-1', kcalDeficitOverride: null, kcalAdjustPct: null,
+        kcalAdjustUntil: null, name: 'Anna', ...profilo,
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }), findMany: jest.fn().mockResolvedValue([]) },
+    escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }), findFirst: jest.fn().mockResolvedValue(null) },
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  });
+  const kcalFinta = () => makeKcalNeed({ estimate: jest.fn(() => Promise.resolve(stima(1450))) });
+
+  it('«−10% per 7 giorni» scrive anche la scadenza, e l\'ultimo giorno è compreso', async () => {
+    const prisma = prismaBase();
+    await make(prisma, undefined, undefined, undefined, kcalFinta())
+      .impostaKcal(user, 'p1', { correzionePct: -10, perGiorni: 7, motivo: 'settimana di scarico' });
+    const dati = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(dati.kcalAdjustPct).toBe(-10);
+    const atteso = new Date();
+    atteso.setUTCHours(0, 0, 0, 0);
+    atteso.setUTCDate(atteso.getUTCDate() + 6);
+    expect((dati.kcalAdjustUntil as Date).toISOString().slice(0, 10)).toBe(atteso.toISOString().slice(0, 10));
+  });
+
+  it('senza durata la correzione resta come prima: vale finché non la tolgono', async () => {
+    const prisma = prismaBase();
+    await make(prisma, undefined, undefined, undefined, kcalFinta())
+      .impostaKcal(user, 'p1', { correzionePct: -10, motivo: 'stima alta' });
+    expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data.kcalAdjustUntil).toBeNull();
+  });
+
+  it('⚠️ togliere la correzione toglie anche la scadenza: non resta una data appesa a niente', async () => {
+    const prisma = prismaBase({ kcalAdjustPct: -10, kcalAdjustUntil: new Date('2026-08-21') });
+    await make(prisma, undefined, undefined, undefined, kcalFinta())
+      .impostaKcal(user, 'p1', { correzionePct: null, motivo: 'ripresa normale' });
+    const dati = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(dati.kcalAdjustPct).toBeNull();
+    expect(dati.kcalAdjustUntil).toBeNull();
+  });
+
+  it('la durata finisce nello storico: si deve poter dire «per quanti giorni» era', async () => {
+    const prisma = prismaBase();
+    await make(prisma, undefined, undefined, undefined, kcalFinta())
+      .impostaKcal(user, 'p1', { correzionePct: -10, perGiorni: 7, motivo: 'settimana di scarico' });
+    expect((prisma.kcalOverride.create as jest.Mock).mock.calls[0][0].data.motivo).toContain('7 giorni');
+  });
+
+  it('⚠️ cambiare SOLO la durata è un cambiamento vero: non è «non c\'è niente da cambiare»', async () => {
+    const prisma = prismaBase({ kcalAdjustPct: -10, kcalAdjustUntil: null });
+    await expect(
+      make(prisma, undefined, undefined, undefined, kcalFinta())
+        .impostaKcal(user, 'p1', { correzionePct: -10, perGiorni: 7, motivo: 'la chiudo a sette giorni' }),
+    ).resolves.toBeDefined();
   });
 });

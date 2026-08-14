@@ -502,6 +502,10 @@ model ClientProfile {
   // Ogni cambiamento passa da `kcal_override`: qui c'è il valore di ADESSO, là il perché.
   kcalDeficitOverride    Int?       @map("kcal_deficit_override")
   kcalAdjustPct          Float?     @map("kcal_adjust_pct")
+  // Fino a QUANDO vale la correzione (14/8, risposta di Nocanty: «del 10% per 7 giorni e poi
+  // riprendi col normale ritmo»). NULL = finché non la tolgo — il comportamento di prima.
+  // L'ultimo giorno è compreso, e la scadenza si guarda al calcolo: nessun cron azzera niente.
+  kcalAdjustUntil        DateTime?  @map("kcal_adjust_until") @db.Date
   consents               Json?      // versioni dei consensi accettati
   notificationPrefs      Json?      @map("notification_prefs") // opt-out per tipo + email opzionale
   referralCode           String?    @unique @map("referral_code") // codice "porta un'amica" della cliente
