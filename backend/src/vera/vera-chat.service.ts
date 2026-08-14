@@ -31,6 +31,7 @@ import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 import { SCRITTURA_CLIENTE, ScritturaCliente } from './richieste.service';
+import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
 import {
   EsitoVera,
   etichettaAvviso,
@@ -241,6 +242,8 @@ export class VeraChatService {
         return this.leggiLaRicetta(nutrizionistaId, stato, frase);
       case 'ricetta_conferma':
         return this.scriviLaRicetta(nutrizionistaId, stato, frase);
+      case 'risposta_cliente':
+        return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
       case 'quale_dieta':
         return this.scegliDieta(nutrizionistaId, stato, frase);
       case 'da_quando':
@@ -879,6 +882,63 @@ export class VeraChatService {
 
   // ───────────────────────────────────────────────────────── conferma e scrittura ─
 
+  /**
+   * LA RISPOSTA A UNA DOMANDA GIRATA DA GAIA (Simone, 14/8): «da una parte o dall'altra il
+   * nutrizionista risponde».
+   *
+   * Tre uscite: si detta la risposta e **parte davvero** alla cliente (e la segnalazione si
+   * chiude); «la vedo io» chiude la domanda qui senza scrivere a nessuno (la segnalazione resta
+   * aperta: se la vede lei, la chiude lei); «lascia stare» è l'annulla di sempre.
+   *
+   * ⚠️ Se la scrittura nella chat non riesce, la segnalazione NON si chiude e si dice: chiudere
+   * una segnalazione per una risposta che non è partita è il modo di far sparire il problema
+   * dalla pagina lasciandolo nel piatto della cliente.
+   */
+  private async rispondiAllaGirata(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const testo = (frase ?? '').trim();
+    const cliente = stato.clienteNome ?? null;
+
+    if (/^\s*(la vedo io|ci penso io|me ne occupo io|la gestisco io|rispondo io)\b/i.test(normalizza(testo))) {
+      if (stato.richiestaId) {
+        await this.richieste.chiudiSenzaRisposta(stato.richiestaId, nutrizionistaId, 'La nutrizionista risponde direttamente.');
+      }
+      const dopo = await this.cosaTiPorto(nutrizionistaId);
+      return {
+        testo: `${testi.laVedoIo()}${dopo ? `\n\n${dopo.testo}` : ''}`,
+        esito: 'in_corso',
+        stato: dopo?.stato,
+      };
+    }
+    if (leggiConferma(testo) === false || /^\s*(lascia stare|lascia perdere|annulla)\b/i.test(normalizza(testo))) {
+      return { testo: testi.annullato(), esito: 'annullata' };
+    }
+    if (testo.length < 3) {
+      return { testo: testi.girataDaGaia(1, cliente, stato.frase), esito: 'in_corso', stato };
+    }
+
+    const ruolo = await this.ruolo(nutrizionistaId);
+    const mandata = await scriviAllaCliente(this.prisma, {
+      clienteId: stato.clienteId!,
+      autoreId: nutrizionistaId,
+      ruoloAutore: ruolo,
+      testo,
+    });
+    if (!mandata) {
+      return { testo: testi.rispostaNonMandata(cliente), esito: 'arresa', stato };
+    }
+    if (stato.richiestaId) {
+      await this.richieste.chiudiSenzaRisposta(stato.richiestaId, nutrizionistaId, testo);
+    }
+    await chiudiSegnalazione(this.prisma, stato.escalationId ?? null, nutrizionistaId);
+
+    const dopo = await this.cosaTiPorto(nutrizionistaId);
+    return {
+      testo: `${testi.rispostaMandata(cliente)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'scritta',
+      stato: dopo?.stato,
+    };
+  }
+
   // ──────────────────────────────────────────── il cambio di dieta (azione 3) ──
 
   /**
@@ -1457,10 +1517,40 @@ export class VeraChatService {
   }
 
   /** La prossima domanda aperta, scritta com'era: chi sa cosa manca l'ha già formulata. */
-  private async prossimaRichiesta(userId: string, capo: boolean): Promise<EsitoVera | null> {
+  private async prossimaRichiesta(userId: string, capo: boolean, giro = 0): Promise<EsitoVera | null> {
     const aperte = await this.richieste.aperte(userId, capo);
     if (!aperte.length) return null;
     const r = aperte[0];
+
+    /**
+     * LE DOMANDE GIRATE DA GAIA (Simone, 14/8) hanno una loro strada: si risponde a testo libero e
+     * la risposta va DAVVERO alla cliente.
+     *
+     * ⚠️ Prima di farla si guarda se la segnalazione è ancora aperta: se qualcuno l'ha già gestita
+     * dalla pagina, la domanda si chiude da sola e si passa alla prossima. Una domanda che torna
+     * dopo che l'hai già gestita altrove è il modo più rapido per insegnare a non leggere l'agente.
+     */
+    if ((r as { tipo?: string }).tipo === 'girata_da_gaia') {
+      const escalationId = escalationIdDallaChiave((r as { chiave?: string }).chiave);
+      if (escalationId && !(await segnalazioneAncoraAperta(this.prisma, escalationId))) {
+        await this.richieste.chiudiSenzaRisposta(r.id, userId, 'Già gestita dalla pagina Segnalazioni.');
+        // ⚠️ Il `giro` è il freno: se una chiusura non andasse a buon fine, la stessa richiesta
+        // tornerebbe in testa e questo giro non finirebbe mai. Dopo qualche tentativo si smette.
+        return giro < 5 ? this.prossimaRichiesta(userId, capo, giro + 1) : null;
+      }
+      return {
+        testo: testi.girataDaGaia(aperte.length, r.clienteNome, r.testo),
+        esito: 'in_corso',
+        stato: {
+          passo: 'risposta_cliente',
+          frase: r.testo,
+          richiestaId: r.id,
+          clienteId: r.clienteId,
+          clienteNome: r.clienteNome ?? undefined,
+          escalationId: escalationId ?? undefined,
+        },
+      };
+    }
     return {
       testo: testi.richiesta(aperte.length, r.testo),
       esito: 'in_corso',

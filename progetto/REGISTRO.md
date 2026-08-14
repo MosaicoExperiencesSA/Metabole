@@ -20,6 +20,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 🔁 **Vera porta le domande che Gaia gira alla nutrizionista** (richiesta di Simone,
+  14/8: «da una parte o dall'altra il nutrizionista risponde»). La segnalazione resta dov'è e si
+  aggiunge una porta: richiesta `girata_da_gaia` con chiave `gaia:<escalationId>` — idempotenza e
+  legame insieme, senza colonne nuove. La risposta dettata a Vera arriva davvero alla cliente nel
+  thread della nutrizionista e chiude la segnalazione; se la scrittura non riesce la segnalazione
+  resta aperta e si dice. «La vedo io» chiude solo la domanda; una segnalazione già chiusa dalla
+  pagina toglie la domanda da Vera. 12 test.
+  Decisione in `NOTA_Vera_Porta_I_Girati_Di_Gaia.md`.
+
 - `[Sviluppo]` 🧩 **Il pasto che manca si prende dalle settimane successive** (regola chiesta da
   Simone, 14/8: «settimana 2 giorno 2 mi manca la cena → la cerco nelle settimane successive»).
   Prima di scartare la giornata monca si ripara: stesso slot, dalle altre giornate della stessa

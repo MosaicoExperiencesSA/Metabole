@@ -4,6 +4,8 @@ import { avvisaCoachDellaCliente, avvisaNutrizionistaDellaCliente } from '../com
 import { toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
+import { apriRichiestaVera } from '../vera/apri-richiesta';
+import { CHIAVE_GAIA } from '../vera/risposta-alla-cliente';
 import { nonHoCapito, pastoNominato, proponeUnPastoIntero } from './ascolto';
 import { distanzaGiorni, etichettaGiorno, giornoDellaConversazione } from './giorno-conversazione';
 import {
@@ -1354,13 +1356,35 @@ export class SostituzioneChatService {
     try {
       // `apriSegnalazione` e non una create diretta: se sulla cliente non c'è nessuna
       // nutrizionista, la manda al capo nutrizionista invece di lasciarla lì.
-      await apriSegnalazione(this.prisma as never, {
+      const segnalazione = await apriSegnalazione(this.prisma as never, {
         clientId,
         category: categoria,
         source: 'coach',
         reason: motivo,
         dedupe: true,
       });
+
+      /**
+       * ⚠️ E LA STESSA COSA ARRIVA ANCHE ALL'ASSISTENTE (Simone, 14/8): «anche queste notifiche
+       * devono arrivare attraverso l'assistente, poi le lasciamo anche lì, ma da una parte o
+       * dall'altra il nutrizionista risponde».
+       *
+       * La segnalazione resta dov'è: qui si AGGIUNGE una porta. La chiave `gaia:<escalationId>` è
+       * l'idempotenza e insieme il legame con la segnalazione — così rispondere da Vera la chiude,
+       * e chiuderla dalla pagina toglie la domanda da Vera, senza una colonna nuova.
+       *
+       * Non lancia mai (la cliente ha già avuto la sua risposta da Gaia) ma l'errore si scrive:
+       * una coda che smette di riempirsi in silenzio è peggio di una coda vuota.
+       */
+      if (segnalazione?.id) {
+        await apriRichiestaVera(this.prisma, {
+          tipo: 'girata_da_gaia',
+          clienteId: clientId,
+          testo: motivo,
+          origine: 'chat-gaia',
+          chiave: `${CHIAVE_GAIA}${segnalazione.id}`,
+        });
+      }
     } catch (err) {
       this.logger.error('Segnalazione da cambio piatto in chat non aperta', err instanceof Error ? err.stack : String(err));
     }

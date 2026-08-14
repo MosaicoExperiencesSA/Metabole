@@ -1,0 +1,44 @@
+Vera porta le domande che Gaia gira alla nutrizionista, e la risposta parte da lì
+
+Richiesta di Simone (14/8, dallo screenshot della chat di Antonio dove Gaia scrive
+«ho girato la richiesta alla tua nutrizionista, che ti risponde nel vostro thread»):
+«anche queste notifiche devono arrivare attraverso l'assistente, poi le lasciamo
+anche lì, ma da una parte o dall'altra il nutrizionista risponde». Decisione scritta
+prima del codice: progetto/NOTA_Vera_Porta_I_Girati_Di_Gaia.md.
+
+Com'era: il «girato» apriva SOLO una segnalazione; la nutrizionista lo scopriva
+aprendo la pagina Segnalazioni o la chat. La coda di Vera non ne sapeva niente.
+
+- La segnalazione RESTA dov'è: si aggiunge una porta. In coda a
+  `passaAllaNutrizionista` si apre anche una richiesta Vera `girata_da_gaia` con
+  chiave `gaia:<escalationId>`. ⚠️ Quella chiave è insieme l'idempotenza (la stessa
+  segnalazione non genera due domande) e il legame con la segnalazione: nessuna
+  colonna nuova su tabelle condivise.
+- Vera la porta in chat con la SUA domanda: non «elencami gli alimenti» (quella è la
+  domanda delle allergie), ma «scrivimi la risposta e la mando io a lei».
+- La risposta dettata ARRIVA davvero alla cliente, nel thread `nutritionist`, firmata
+  da chi l'ha dettata (`scriviAllaCliente`: upsert del thread — una cliente che non ha
+  mai scritto non deve far fallire la risposta), e CHIUDE la segnalazione
+  (`chiudiSegnalazione`): è l'altra metà di «da una parte o dall'altra».
+  ⚠️ Se la scrittura in chat non riesce la segnalazione NON si chiude e si dice:
+  chiuderla per una risposta non partita farebbe sparire il problema dalla pagina
+  lasciandolo nel piatto della cliente.
+- «La vedo io» chiude la domanda senza scrivere a nessuno e lascia la segnalazione
+  aperta; «lascia stare» è l'annulla di sempre.
+- Se la segnalazione è già stata chiusa dalla pagina, la domanda NON si fa più: la
+  richiesta si chiude da sola (`chiudiSenzaRisposta`) e si passa alla prossima, con un
+  freno sui giri — una domanda che torna dopo che l'hai gestita altrove insegna a non
+  leggere l'agente.
+- Il quadro della giornata non cambia forma: le girate sono richieste aperte e entrano
+  nella riga che già esiste. Nessun contatore nuovo.
+- Nuovo `vera/risposta-alla-cliente.ts` (funzioni libere con prisma, come
+  avvisa-capo.ts): Vera non importa ChatModule né EscalationsModule.
+- Lista Lavori: voce 244 (fatta) + due voci nuove tenute fuori DI PROPOSITO, ognuna
+  con la sua decisione da prendere: 245 (verificare a voce i cambi in chat: i 70 ml di
+  panna contro i 70 g di olio sono il caso vero) e 246 (un assistente per il COACH:
+  altra chiave di permesso, altro perimetro, altre azioni).
+
+Test: 8 nuovi in risposta-alla-cliente.spec.ts (modulo puro, visti rossi) + 4 sul
+dialogo in vera-chat.service.spec.ts. In sandbox: 2012 verdi (baseline 2000 dopo la
+consegna precedente), 367 su src/vera; tsc 52 = 52.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest

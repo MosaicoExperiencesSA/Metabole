@@ -26,6 +26,7 @@ export type PassoVera =
   | 'ricetta_quale'      // quale delle ricette che si chiamano così
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
+  | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
   | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
 
@@ -70,6 +71,8 @@ export interface StatoVera {
   daSubito?: boolean;
   /** I nomi di dieta che combaciano, quando sono più d'uno. */
   dieteCandidate?: string[];
+  /** La segnalazione da cui è nata la domanda girata da Gaia: rispondere qui la chiude (14/8). */
+  escalationId?: string;
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -362,6 +365,28 @@ export const testi = {
   richiesta: (restanti: number, testo: string) =>
     `${restanti === 1 ? 'C\'è una domanda' : `Ci sono ${restanti} domande`} che aspettano te.\n\n${testo}\n\n` +
     '(elencami gli alimenti da togliere, separati da virgola — oppure scrivi «lascia stare»)',
+
+  // ── le domande girate da Gaia (Simone, 14/8) ───────────────────────────────
+
+  /**
+   * ⚠️ Domanda DIVERSA da quella delle allergie: lì si chiede un elenco di alimenti, qui si chiede
+   * una risposta **per la cliente**, che parte davvero. Confonderle vorrebbe dire far scrivere due
+   * righe di elenco dentro un messaggio che una persona leggerà.
+   */
+  girataDaGaia: (restanti: number, cliente: string | null, testo: string) =>
+    `${restanti === 1 ? 'C\'è una domanda' : `Ci sono ${restanti} domande`} che aspettano te.\n\n` +
+    `**${cliente ?? 'Una cliente'}** — ${testo}\n\n` +
+    'Scrivimi la risposta e **la mando io a lei** nella vostra chat. ' +
+    'Oppure dimmi «la vedo io» e la lascio a te.',
+
+  rispostaMandata: (cliente: string | null) =>
+    `Fatto: l'ho scritta a ${cliente ?? 'lei'} nella vostra chat, e ho chiuso la segnalazione.`,
+
+  rispostaNonMandata: (cliente: string | null) =>
+    `⚠️ Non sono riuscita a scriverle nella chat: la risposta per ${cliente ?? 'lei'} non è partita, ` +
+    'e ho lasciato la segnalazione aperta. Riprova o scrivile dalla chat.',
+
+  laVedoIo: () => 'Va bene: te la lascio. La segnalazione resta aperta finché non la chiudi tu.',
 
   rispostaScritta: (cliente: string | null, alimenti: string[]) =>
     alimenti.length

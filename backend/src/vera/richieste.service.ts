@@ -67,6 +67,27 @@ export class RichiesteVeraService {
     })) as unknown as RichiestaAperta[];
   }
 
+  /**
+   * Chiude una domanda SENZA risposta: è quello che serve quando la cosa è già stata gestita
+   * altrove (la segnalazione chiusa dalla pagina) o quando la nutrizionista dice «la vedo io».
+   *
+   * ⚠️ Si chiude, non si cancella: la domanda è successa, e il registro di cosa il sistema ha
+   * chiesto è la stessa traccia che rende leggibile tutto il resto.
+   */
+  async chiudiSenzaRisposta(id: string, attoreId?: string | null, nota?: string): Promise<void> {
+    await this.prisma.richiestaVera
+      .update({
+        where: { id },
+        data: {
+          stato: 'chiusa',
+          chiusaDaId: attoreId ?? null,
+          chiusaIl: new Date(),
+          ...(nota ? { risposta: nota } : {}),
+        } as never,
+      })
+      .catch(() => undefined);
+  }
+
   async quante(userId: string, tutte = false): Promise<number> {
     return this.prisma.richiestaVera.count({
       where: { stato: 'aperta', ...(tutte ? {} : { nutrizionistaId: userId }) } as never,

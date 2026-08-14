@@ -510,6 +510,31 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // consegnata il giorno stesso
   },
   {
+    chiave: 'vera-porta-i-girati-di-gaia',
+    titolo: 'Vera porta le domande che Gaia gira alla nutrizionista, e la risposta parte da lì',
+    dettaglio:
+      'Richiesta di Simone (14/8): «anche queste notifiche devono arrivare attraverso l\'assistente, poi le lasciamo anche lì, ma da una parte o dall\'altra il nutrizionista risponde». La segnalazione resta dov\'è e si aggiunge una porta: `passaAllaNutrizionista` apre anche una richiesta Vera `girata_da_gaia` con chiave `gaia:<escalationId>` (idempotenza E legame, senza colonne nuove). Vera la porta in chat con la sua domanda (non l\'elenco di alimenti delle allergie); la risposta dettata arriva davvero alla cliente nel thread `nutritionist` (creato se non c\'è, firmato da chi ha dettato) e CHIUDE la segnalazione; «la vedo io» chiude la domanda senza scrivere; se la segnalazione è già stata chiusa dalla pagina la domanda non si fa più. Decisione in `progetto/NOTA_Vera_Porta_I_Girati_Di_Gaia.md`.',
+    categoria: CODICE,
+    ordine: 244,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
+    chiave: 'vera-cambi-da-verificare-in-chat',
+    titolo: 'Vera: i cambi da verificare si potrebbero verificare a voce',
+    dettaglio:
+      'Il quadro della giornata li conta già e la tabella «Cambi concordati in chat» in scheda ha ✓/✎/✗. Portarli DENTRO la chat vuol dire decidere cosa succede quando la nutrizionista corregge i grammi a voce (i 70 ml di panna ≈ 200 kcal contro i 70 g di olio ≈ 630 sono il caso vero): serve la sua decisione prima del codice. Tenuto fuori dalla consegna del 14/8 di proposito.',
+    categoria: CODICE,
+    ordine: 245,
+  },
+  {
+    chiave: 'assistente-del-coach',
+    titolo: 'Un assistente per il coach: le sue attività e i suoi avvisi in chat',
+    dettaglio:
+      'Simone (14/8, dagli screenshot di «Attività coach»): anche le attività devono passare dall\'assistente. Vera però è della nutrizionista (permesso `nutri_assistant`, perimetro sulle sue clienti): un agente per il coach è un\'altra cosa — altra chiave di permesso, altro perimetro (`coachTeamScope`), altre azioni (segnare fatto/saltato a voce). Serve la decisione prima del codice. ⚠️ Nell\'app coach dashboard Attività e pagina Notifiche esistono già, e dal 14/8 le attività mandano push.',
+    categoria: CODICE,
+    ordine: 246,
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

@@ -170,6 +170,14 @@ OTA il 12/8). Va prima della pubblicazione.
 
 ## Storico delle push
 
+### 14/8/2026 (5ª) — Vera porta i «girati» di Gaia (11 file)
+`girata_da_gaia` aperta da `passaAllaNutrizionista` con chiave `gaia:<escalationId>`; passo
+`risposta_cliente` nel dialogo; `risposta-alla-cliente.ts` (funzioni libere: Vera non importa
+ChatModule né EscalationsModule) scrive nel thread `nutritionist` e chiude la segnalazione.
+Tenuti fuori di proposito, con la loro voce: verificare i cambi a voce (245) e l'assistente del
+coach (246).
+
+
 ### 14/8/2026 mattina (2ª) — Il cambio di dieta dettato (11 file)
 Intento `cambio_dieta` letto PRIMA della regola di dieta; catalogo, «da quando?», conferma;
 scrittura dalla porta della scheda con `change_diet_type` e rierogazione già dentro; flag

@@ -26,7 +26,12 @@ import type { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('RichiesteVera');
 
-export type TipoRichiesta = 'allergia_da_tradurre' | 'intolleranza_da_tradurre';
+/**
+ * ⚠️ `girata_da_gaia` (14/8) non è una parola da tradurre: è una domanda della cliente che Gaia non
+ * se l'è sentita di decidere. Si risponde a testo libero e la risposta va alla cliente — quindi il
+ * dialogo di Vera la tratta in un modo suo (vedi `NOTA_Vera_Porta_I_Girati_Di_Gaia.md`).
+ */
+export type TipoRichiesta = 'allergia_da_tradurre' | 'intolleranza_da_tradurre' | 'girata_da_gaia';
 
 export interface RichiestaDaAprire {
   tipo: TipoRichiesta;

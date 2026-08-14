@@ -109,6 +109,7 @@ function make(
     // Nessuna domanda aperta se il test non dice altro.
     aperte: jest.fn().mockResolvedValue(opzioni.richieste ?? []),
     quante: jest.fn().mockResolvedValue((opzioni.richieste ?? []).length),
+    chiudiSenzaRisposta: jest.fn().mockResolvedValue(undefined),
     rispondi: jest.fn().mockResolvedValue({ aggiunti: ['fave', 'legumi'], clienteNome: 'Mariastella' }),
     collega: jest.fn().mockResolvedValue(undefined),
   } as unknown as RichiesteVeraService;
@@ -1089,5 +1090,73 @@ describe('VeraChatService — il cambio di dieta (azione 3, 14/8)', () => {
     expect(testo).toContain('Non sono riuscita a scrivere');
     expect((made.registro.scrivi as jest.Mock)).not.toHaveBeenCalled();
     void service; void registro; void messaggioCreate;
+  });
+});
+
+/**
+ * I «GIRATI» DI GAIA DENTRO VERA (Simone, 14/8): «da una parte o dall'altra il nutrizionista
+ * risponde». Decisione in progetto/NOTA_Vera_Porta_I_Girati_Di_Gaia.md.
+ */
+describe('VeraChatService — le domande girate da Gaia', () => {
+  const GIRATA = [{
+    id: 'r-gaia', tipo: 'girata_da_gaia', clienteId: 'c1', clienteNome: 'Giulia Rossi',
+    testo: 'Su «Miele» preferisco non decidere da sola: non ho un\'alternativa che mi convinca.',
+    chiave: 'gaia:esc-1', origine: 'chat-gaia', createdAt: new Date('2026-08-14T09:01:00.000Z'),
+  }];
+  const conEscalation = (stato = 'open') => ({
+    escalation: { findUnique: jest.fn().mockResolvedValue({ status: stato }), update: jest.fn().mockResolvedValue({}) },
+    chatThread: { upsert: jest.fn().mockResolvedValue({ id: 'th-1' }), update: jest.fn().mockResolvedValue({}) },
+    message: { create: jest.fn().mockResolvedValue({ id: 'm-1' }) },
+  });
+
+  it('la porta in chat con la SUA domanda: si risponde per la cliente, non con un elenco di alimenti', async () => {
+    const { service, messaggioCreate } = make(conEscalation(), { richieste: GIRATA });
+    await service.apri('lucia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Giulia Rossi');
+    expect(testo).toContain('Miele');
+    // ⚠️ NON la domanda delle allergie: lì si chiede un elenco, qui una risposta per la cliente.
+    expect(testo).not.toContain('elencami gli alimenti');
+    expect(testo).toContain('la vedo io');
+    expect(stato?.passo).toBe('risposta_cliente');
+  });
+
+  it('la risposta dettata ARRIVA alla cliente e chiude anche la segnalazione', async () => {
+    const over = conEscalation();
+    const { service, messaggioCreate, prisma } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', 'Il miele va bene, tienilo: 10 g al mattino.');
+    const messaggio = (over.message.create as jest.Mock).mock.calls[0][0].data;
+    expect(messaggio.body).toContain('Il miele va bene');
+    expect(messaggio.senderUserId).toBe('lucia');
+    // L'altra metà: la segnalazione non resta aperta in pagina.
+    expect((over.escalation.update as jest.Mock).mock.calls[0][0].data.status).toBe('resolved');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Giulia Rossi');
+    void prisma;
+  });
+
+  it('«la vedo io» chiude la domanda SENZA scrivere alla cliente', async () => {
+    const over = conEscalation();
+    const { service } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', 'la vedo io');
+    expect(over.message.create).not.toHaveBeenCalled();
+    // La segnalazione resta aperta: se la vede lei, la chiude lei dalla pagina o dalla chat.
+    expect(over.escalation.update).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ se la segnalazione è già stata chiusa dalla pagina, la domanda NON si fa più', async () => {
+    const over = conEscalation('resolved');
+    const { service, messaggioCreate, richieste } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    // La richiesta si chiude da sola e l'agente non porta niente: a coda vuota tace.
+    expect((richieste.chiudiSenzaRisposta as jest.Mock).mock.calls[0][0]).toBe('r-gaia');
+    expect(messaggioCreate).not.toHaveBeenCalled();
+    /**
+     * ⚠️ E il FRENO tiene. Qui il finto restituisce sempre la stessa lista (in produzione la
+     * richiesta chiusa sparisce da `aperte`): senza il contatore di giri questo sarebbe un ciclo
+     * infinito dentro l'apertura della pagina.
+     */
+    expect((richieste.chiudiSenzaRisposta as jest.Mock).mock.calls.length).toBeLessThanOrEqual(12);
   });
 });
