@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` ✅ **Vera fa verificare a voce i cambi concordati in chat** (voce 245, lettura A
+  scelta da Simone). La coda arriva in chat una riga per volta — cliente, piatto, da/a, e **quante
+  volte** l'ha chiesta, che è il dato che cambia la decisione — e si risponde «va bene» o «no»; il
+  motivo si prende solo se lo dice lei, perché un campo obbligatorio su una coda veloce diventa
+  «boh». ⚠️ Il punto che regge tutto: un numero dettato, **anche dentro un sì** («sì, ma metti 30
+  g»), non vale come conferma, non scrive niente e manda in scheda — 70 ml di panna sono ~200 kcal
+  contro i ~630 di 70 g di olio, e quel numero si scrive guardando il campo. Scrittura dalla stessa
+  porta del pulsante in scheda (`FoodSwapsService.aggiorna`), riga riletta prima di scrivere.
+  37 test, con controllo per mutazione. Decisione in `DECISIONE_Verificare_Cambi_A_Voce.md`.
+
+- `[Sviluppo]` 📝 **Vera: la giornata dettata a parole** (voce 241, lettura B scelta da Simone). Il
+  rischio della B — «pasta al pomodoro» sono più ricette con calorie diverse — si chiude con la
+  regola di casa: una sola combacia si propone, più d'una si CHIEDE (con le kcal accanto), nessuna
+  si dice. Solo dal pool certificato della cliente, totale contro l'obiettivo prima di scrivere,
+  sopra il ±15% non si scrive, e si tocca un giorno solo — se non è ancora stato aperto. 25 test,
+  col controllo per mutazione sul modulo puro. Decisione in `DECISIONE_Menu_Dettati.md`.
+
 - `[Sviluppo]` 💪 **«Rifai con più proteine»: la quota proteica minima di UNA cliente** — la terza e
   ultima frase dell'azione 3 (decisione A di Simone, foglio in `DECISIONE_Piu_Proteine.md`). La
   banda esisteva già ma solo per dieta: ora `proteinMinPct` sul profilo vince SOLO sul minimo (il

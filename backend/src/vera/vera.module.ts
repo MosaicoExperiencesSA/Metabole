@@ -3,6 +3,8 @@ import { MailModule } from '../mail/mail.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CatalogService } from '../catalog/catalog.service';
 import { ClientsModule } from '../clients/clients.module';
+import { FoodSwapsModule } from '../food-swaps/food-swaps.module';
+import { FoodSwapsService } from '../food-swaps/food-swaps.service';
 import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
@@ -12,6 +14,7 @@ import { NutritionistModule } from '../nutritionist/nutritionist.module';
 import { NutritionistService } from '../nutritionist/nutritionist.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
 import { SCRITTURA_RICETTA } from './scrittura-ricetta';
+import { SCRITTURA_SOSTITUZIONI } from './scrittura-sostituzioni';
 import { VeraChatService } from './vera-chat.service';
 import { VeraController } from './vera.controller';
 
@@ -55,7 +58,16 @@ import { VeraController } from './vera.controller';
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
   // MailModule: il postino dell'avviso di conflitto (13/8 sera). Esporta MailService.
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule],
+  /**
+   * ⚠️ `FoodSwapsModule` per una riga sola, e anche questa è una riga di contratto (voce 245): i
+   * cambi concordati in chat si decidono da `FoodSwapsService.aggiorna`, lo stesso metodo del
+   * pulsante in scheda, con lo stesso audit e la stessa validazione dello stato.
+   *
+   * Nessun anello: `FoodSwapsModule` importa solo `NotificationsModule`, che è già nel grafo
+   * (ci arriva da `ClientsModule`), e nessuno dei due importa Vera.
+   * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
+   */
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
@@ -73,6 +85,8 @@ import { VeraController } from './vera.controller';
     { provide: SCRITTURA_RICETTA, useExisting: CatalogService },
     /** Il punto unico delle calorie scritte a mano: permesso, storico e soglia stanno già lì. */
     { provide: SCRITTURA_KCAL, useExisting: NutritionistService },
+    /** Il punto unico dei cambi concordati in chat: la stessa porta del pulsante in scheda. */
+    { provide: SCRITTURA_SOSTITUZIONI, useExisting: FoodSwapsService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

@@ -63,3 +63,44 @@ sicura quanto la scheda — ma è un lavoro in più, e va deciso se vale.
 1. **A, B o C?**
 2. Se A: quando lei dice «no», Vera **chiede il motivo** (che la cliente vedrebbe) o **rifiuta e
    basta**? (in scheda oggi il rifiuto non chiede niente)
+
+---
+
+# ✅ DECISO — 14/8/2026: la **A**
+
+Risposta di Simone: **«A — Solo ✓ e ✗ a voce, i grammi in scheda»**.
+
+Quindi, in concreto:
+
+- Vera **porta** la sostituzione in coda, **una per volta**, con dentro tutto quello che serve per
+  decidere: chi, quale piatto, cosa al posto di cosa, le quantità se ci sono, e **quante volte**
+  quella cliente l'ha già chiesta.
+- Lei risponde **«va bene»** → la riga diventa `verificata`. **«no»** → `annullata`.
+- Se detta **un numero** («metti 30 g invece di 70»), Vera **non scrive e non conferma**: la manda
+  alla scheda. ⚠️ È il cuore della A: un numero dettato che passasse per un ✓ sarebbe il modo
+  peggiore possibile di sbagliare, perché sembrerebbe una conferma. La regola è quindi
+  **il numero blocca il giro**, non «il numero si ignora».
+
+## La domanda 2, con la risposta che mi sono dato
+
+> Quando lei dice «no», Vera **chiede il motivo** o **rifiuta e basta**?
+
+**Rifiuta e basta**, e il motivo si prende **solo se lo dice lei di sua iniziativa** («no, è troppo
+grassa» → finisce in `nota`).
+
+Perché così: in scheda oggi il rifiuto **non chiede niente**, e questo giro non deve inventare un
+obbligo che il resto dell'applicazione non ha — soprattutto perché sarebbe un obbligo su una coda
+fatta apposta per essere veloce. Chiedere il motivo a ogni «no» significa che al terzo «no» si
+scrive «boh» pur di andare avanti: un campo compilato male è peggio di un campo vuoto, perché
+sembra un dato.
+
+⚠️ **È reversibile in una riga** — è una domanda in più nel dialogo, non un cambio di struttura. Se
+mi dici il contrario, si fa.
+
+## Cosa NON fa questo giro
+
+- Non tocca il menu. La riga è **memoria**: il piatto di oggi sta in `menu_day.meals` e lo corregge
+  `SostituzioneChatService`. Confondere le due cose è il primo bug che questa tabella avrebbe.
+- Non scrive per una strada nuova: passa da `FoodSwapsService.aggiorna`, **lo stesso metodo del
+  pulsante in scheda**, con lo stesso audit e la stessa validazione dello stato. Una seconda porta
+  per lo stesso dato è il difetto che qui è già stato pagato due volte.

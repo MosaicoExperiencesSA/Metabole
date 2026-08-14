@@ -27,7 +27,9 @@ export type PassoVera =
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
+  | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
   | 'quanti_giorni'      // «riduci le kcal del 10%»: per quanto? (Nocanty via Vera, 14/8)
+  | 'giornata_scelte'    // la giornata dettata: quale piatto, per le righe ambigue (voce 241)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
   | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
 
@@ -65,6 +67,10 @@ export interface StatoVera {
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
+  /** La giornata dettata (voce 241): le righe lette, le scelte fatte e la data su cui si scrive. */
+  righeGiornata?: unknown;
+  scelteGiornata?: { slot: string; recipeId: string; nome: string; kcal: number }[];
+  dataGiornata?: string;
   /** Le proteine: la quota minima di adesso e quella che si sta per scrivere (frazioni 0–1). */
   proteinePrima?: number;
   proteineDopo?: number;
@@ -81,6 +87,9 @@ export interface StatoVera {
   dieteCandidate?: string[];
   /** La segnalazione da cui è nata la domanda girata da Gaia: rispondere qui la chiude (14/8). */
   escalationId?: string;
+  /** La sostituzione che sto sottoponendo (voce 245), e il nome di chi l'ha chiesta. */
+  sostituzioneId?: string;
+  sostituzioneCliente?: string;
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -290,6 +299,57 @@ export const testi = {
    */
   guidaFonteRotta: (cosa: string) => `⚠️ Non sono riuscito a leggere ${cosa}: lì non so dirti se c'è qualcosa.`,
 
+  // ── la giornata dettata (voce 241, decisione B di Simone) ──────────────────
+
+  /**
+   * ⚠️ La domanda che chiude il rischio della lettura B: quando una riga combacia con più piatti,
+   * non si sceglie — si chiede, **con le calorie accanto**. Senza quei numeri la scelta è a caso
+   * come lo sarebbe stata la nostra.
+   */
+  chiediQualePiatto: (pasto: string, dettato: string, candidate: { nome: string; kcal: number }[]) =>
+    `Per **${pasto}** hai detto «${dettato}», e nel suo ricettario ce ne sono ${candidate.length}:\n` +
+    candidate.map((c, i) => `${i + 1}) ${c.nome} — ${c.kcal} kcal`).join('\n') +
+    '\n\nQuale? (rispondi col numero)',
+
+  giornataPiattoAssente: (pasto: string, dettato: string) =>
+    `Per **${pasto}** non trovo «${dettato}» fra i piatti approvati per lei.\n` +
+    'Puoi dirmelo con un altro nome, oppure dettarmi la ricetta nuova e poi rimetterla in giornata.',
+
+  anteprimaGiornata: (
+    quando: string,
+    scelte: { pasto: string; nome: string; kcal: number }[],
+    kcal: number,
+    target: number | null,
+    scostamento: number | null,
+  ) =>
+    `Ecco la giornata di **${quando}**:\n` +
+    scelte.map((s) => `· ${s.pasto}: **${s.nome}** — ${s.kcal} kcal`).join('\n') +
+    `\n\n**Totale ${kcal} kcal**` +
+    (target ? ` contro un obiettivo di ${target} (${scostamento! > 0 ? '+' : ''}${scostamento}%).` : '.') +
+    '\n\n**Confermi?**',
+
+  /**
+   * ⚠️ Fuori tolleranza NON si scrive (decisione di Simone): si dice di quanto sfora. Una giornata
+   * che sballa di un quarto non è una variante, è un altro piano — e quello si scrive guardando i
+   * numeri, non dettandolo.
+   */
+  giornataFuoriTolleranza: (kcal: number, target: number, scostamento: number) =>
+    `Questa giornata fa **${kcal} kcal** contro un obiettivo di **${target}**: sono ` +
+    `**${scostamento > 0 ? '+' : ''}${scostamento}%**, fuori dal ±15% che teniamo.\n\n` +
+    'Non la scrivo. Cambia un piatto e ridettamela, oppure falla dalla scheda se è una scelta voluta.',
+
+  giornataSenzaTarget: () =>
+    '⚠️ Non riesco a calcolare il suo obiettivo calorico (mancano sesso, età, altezza o peso in ' +
+    'scheda), quindi non posso dirti se la giornata ci sta dentro. Non la scrivo.',
+
+  giornataScritta: (quando: string, kcal: number) =>
+    `Fatto: la giornata di ${quando} è quella che hai dettato (${kcal} kcal). ` +
+    'Lo trovi nel registro, e lei la vedrà quando aprirà quel giorno.',
+
+  giornataNienteDaScrivere: () =>
+    'Non ho capito nessun pasto. Scrivimeli uno per riga, per esempio:\n' +
+    '«Colazione: yogurt greco e frutta secca\nPranzo: pasta al pomodoro\nCena: orata al forno».',
+
   // ── le proteine (terza frase dell'azione 3, 14/8) ──────────────────────────
 
   /**
@@ -449,6 +509,49 @@ export const testi = {
     'e ho lasciato la segnalazione aperta. Riprova o scrivile dalla chat.',
 
   laVedoIo: () => 'Va bene: te la lascio. La segnalazione resta aperta finché non la chiudi tu.',
+
+  // ───────────────── i cambi concordati in chat, verificati a voce (voce 245) ──
+
+  /**
+   * ⚠️ La domanda dice **cosa si può rispondere**, e dice anche cosa NON si può: i grammi si
+   * correggono in scheda. Scriverlo qui è ciò che rende la regola una scelta condivisa invece di
+   * un rifiuto che arriva dopo, quando lei ha già dettato il numero.
+   */
+  cambioDaVerificare: (racconto: string, restanti: number) =>
+    `${restanti === 1 ? 'C\'è un cambio' : `Ci sono ${restanti} cambi`} concordati in chat da verificare.\n\n` +
+    `${racconto}\n\n` +
+    'Dimmi **«va bene»** e la confermo, oppure **«no»** e la annullo. ' +
+    'Se invece vanno cambiati i **grammi**, quelli si scrivono in scheda: ti ci mando io.',
+
+  cambioConfermato: (cliente: string) => `Confermata: per ${cliente} il cambio è validato.`,
+
+  cambioAnnullato: (cliente: string, motivo: string | null) =>
+    `Annullata: per ${cliente} il cambio non vale${motivo ? ` (${motivo})` : ''}.`,
+
+  /**
+   * ⚠️ IL NUMERO NON SI SCRIVE, e non si finge nemmeno di averlo capito a metà.
+   *
+   * 70 ml di panna sono ~200 kcal, 70 g di olio ~630: è il numero che decide il pasto, e si scrive
+   * guardando il campo. Qui si dice **perché**, non solo che non si può: un rifiuto senza motivo
+   * insegna solo a riprovare con parole diverse.
+   */
+  cambioGrammiInScheda: (cliente: string) =>
+    '⚠️ I **grammi** non li scrivo a voce, e non ho toccato niente.\n\n' +
+    'Non è prudenza formale: 70 ml di panna sono ~200 kcal, 70 g di olio ~630 — è il numero che ' +
+    'decide il pasto, e va scritto guardando il campo. Aprilo dalla **scheda di ' +
+    `${cliente}**, sezione «Cambi concordati in chat», e correggilo lì: da lì parte anche la ` +
+    'notifica a lei con la tua nota.\n\nIntanto la lascio da verificare.',
+
+  cambioNonCapito: (racconto: string) =>
+    `Non ho capito. Sul cambio qui sotto posso solo confermare o annullare:\n\n${racconto}\n\n` +
+    'Dimmi **«va bene»** oppure **«no»** — i grammi si correggono in scheda.',
+
+  cambioSparito: () =>
+    'Quel cambio non è più da verificare: qualcuno l\'ha già guardato. Non ho toccato niente.',
+
+  nessunCambioDaVerificare: () =>
+    'Non c\'è nessun cambio concordato in chat da verificare. Le clienti non ne hanno chiesti, ' +
+    'oppure sono già stati guardati tutti.',
 
   rispostaScritta: (cliente: string | null, alimenti: string[]) =>
     alimenti.length

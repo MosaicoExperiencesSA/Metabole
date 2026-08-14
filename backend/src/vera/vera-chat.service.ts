@@ -22,10 +22,18 @@ import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
+import {
+  abbinaRighe,
+  contaGiornata,
+  leggiGiornataDettata,
+  RicettaCandidata,
+  RigaAbbinata,
+  SceltaGiornata,
+} from './giornata-dettata';
 import { minimoDaPiuProteine, quotaProteicaMinima } from '../menu/correzione-kcal';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
 import { PoolDisponibileService } from './pool-disponibile.service';
@@ -33,6 +41,8 @@ import { RegistroVeraService } from './registro.service';
 import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
+import { SCRITTURA_SOSTITUZIONI, ScritturaSostituzioni } from './scrittura-sostituzioni';
+import { leggiVerdetto, motivoDetto, raccontaSostituzione } from './verifica-sostituzioni';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
 import {
@@ -97,6 +107,11 @@ export class VeraChatService {
      * stesso dato clinico.
      */
     @Inject(SCRITTURA_KCAL) private readonly kcal: ScritturaKcal,
+    /**
+     * La porta delle SOSTITUZIONI (voce 245, 14/8): `FoodSwapsService.aggiorna`, cioè lo stesso
+     * metodo del pulsante in scheda. A voce cambia **chi** lo chiama, non cosa succede.
+     */
+    @Inject(SCRITTURA_SOSTITUZIONI) private readonly sostituzioni: ScritturaSostituzioni,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -224,6 +239,9 @@ export class VeraChatService {
       };
     }
     if (intento.tipo === 'segnalazioni') return this.guidaGiornata(nutrizionistaId);
+    if (intento.tipo === 'sostituzioni') {
+      return (await this.prossimaSostituzione(nutrizionistaId)) ?? { testo: testi.nessunCambioDaVerificare(), esito: 'in_corso' };
+    }
     if (intento.tipo === 'famiglia') return this.famigliaASecco(nutrizionistaId, intento, frase);
     if (intento.tipo === 'ricetta') return this.avviaRicetta(nutrizionistaId, intento, frase);
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
@@ -257,10 +275,14 @@ export class VeraChatService {
         return this.leggiLaRicetta(nutrizionistaId, stato, frase);
       case 'ricetta_conferma':
         return this.scriviLaRicetta(nutrizionistaId, stato, frase);
+      case 'giornata_scelte':
+        return this.scegliPiattoGiornata(nutrizionistaId, stato, frase);
       case 'quanti_giorni':
         return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
+      case 'verifica_cambio':
+        return this.verdettoSostituzione(nutrizionistaId, stato, frase);
       case 'quale_dieta':
         return this.scegliDieta(nutrizionistaId, stato, frase);
       case 'da_quando':
@@ -683,6 +705,12 @@ export class VeraChatService {
     // I PASTI hanno la loro anteprima: niente pool di ricette, niente ambito «per tutte».
     if (intento.tipo === 'pasti') return this.anteprimaPasti(stato, intento as IntentoPasti);
 
+    // LA GIORNATA DETTATA (voce 241, decisione B): si legge, si abbinano le righe, si chiede
+    // quello che è ambiguo, si mostra il totale e solo allora si scrive.
+    if (intento.tipo === 'giornata') {
+      return this.avviaGiornataDettata(nutrizionistaId, stato, intento as IntentoGiornata);
+    }
+
     // LE PROTEINE (14/8, decisione A): la quota minima di questa cliente, mostrata in percentuale.
     if (intento.tipo === 'proteine') {
       return this.anteprimaProteine(stato, intento as IntentoProteine);
@@ -964,6 +992,304 @@ export class VeraChatService {
       esito: 'scritta',
       stato: dopo?.stato,
     };
+  }
+
+  // ───────────── i cambi concordati in chat, verificati a voce (voce 245) ──
+
+  /**
+   * LA PROSSIMA SOSTITUZIONE DA VERIFICARE, portata in chat (voce 245, lettura **A** di Simone del
+   * 14/8; foglio `progetto/DECISIONE_Verificare_Cambi_A_Voce.md`).
+   *
+   * Il quadro della giornata le **conta** già («3 sostituzioni da verificare»); qui si porta la
+   * prima dentro la conversazione, con quanto serve per decidere. `null` = non c'è niente, e allora
+   * non si dice niente: chi chiama sa se deve rispondere «nessuna» o tacere.
+   *
+   * ⚠️ Sotto `try`: sta dentro `cosaTiPorto`, che gira a ogni apertura di pagina e dopo ogni
+   * decisione. Se questa lettura si rompe la cosa giusta è che non si veda — non che la
+   * nutrizionista non riesca più a parlare con l'assistente.
+   */
+  private async prossimaSostituzione(userId: string): Promise<EsitoVera | null> {
+    let riga: Awaited<ReturnType<RegistroVeraService['prossimaDaVerificare']>> = null;
+    let quante = 0;
+    try {
+      [riga, quante] = await Promise.all([
+        this.registro.prossimaDaVerificare(userId),
+        this.registro.sostituzioniDaVerificare(userId),
+      ]);
+    } catch (err) {
+      logger.warn(`Cambi da verificare: non li leggo (utente=${userId}): ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+    if (!riga) return null;
+    const racconto = raccontaSostituzione(riga);
+    return {
+      testo: testi.cambioDaVerificare(racconto, Math.max(quante, 1)),
+      esito: 'in_corso',
+      stato: {
+        passo: 'verifica_cambio',
+        frase: '',
+        sostituzioneId: riga.id,
+        sostituzioneCliente: riga.cliente,
+        clienteId: riga.clientId,
+        clienteNome: riga.cliente,
+      },
+    };
+  }
+
+  /**
+   * ✓ o ✗ — e **il numero blocca il giro**.
+   *
+   * Tre uscite, e la terza è quella che rende sicura tutta la lettura A:
+   *  - «va bene» → `verificata`, per la stessa porta del pulsante in scheda;
+   *  - «no» → `annullata`, col motivo **solo se lo dice lei** (Vera non lo chiede: in scheda oggi il
+   *    rifiuto non chiede niente, e un motivo obbligatorio su una coda veloce diventa «boh»);
+   *  - un numero dettato → **non si scrive niente** e si manda in scheda. 70 ml di panna sono ~200
+   *    kcal, 70 g di olio ~630: è il numero che decide il pasto, e va scritto guardando il campo.
+   *
+   * ⚠️ La riga si **rilegge** prima di scrivere. Lo stato è appeso a un messaggio, e fra la domanda
+   * e la risposta può esserci passata una collega dalla scheda: scrivere `annullata` su una riga già
+   * validata da qualcun altro, senza dirlo, è il modo silenzioso di disfare il lavoro di un'altra.
+   */
+  private async verdettoSostituzione(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const cliente = stato.sostituzioneCliente ?? 'questa cliente';
+    const verdetto = leggiVerdetto(frase);
+
+    if (verdetto === 'grammi') {
+      // ⚠️ Si LASCIA da verificare e si resta sulla stessa riga: la coda non deve avanzare per un
+      // giro che non ha deciso niente, altrimenti quella sostituzione sparisce dalla conversazione
+      // senza che nessuno l'abbia guardata.
+      return { testo: testi.cambioGrammiInScheda(cliente), esito: 'arresa' };
+    }
+    if (verdetto === null) {
+      if (/^\s*(lascia stare|lascia perdere|dopo|non adesso|piu tardi|più tardi)\b/i.test(normalizza(frase))) {
+        return { testo: testi.annullato(), esito: 'annullata' };
+      }
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) return { testo: testi.annullato(), esito: 'annullata' };
+      const riga = await this.registro.prossimaDaVerificare(nutrizionistaId).catch(() => null);
+      return {
+        testo: testi.cambioNonCapito(riga ? raccontaSostituzione(riga) : ''),
+        esito: 'non_capito',
+        stato: { ...stato, tentativi },
+      };
+    }
+
+    const ancora = (await this.prisma.foodSwap.findUnique({
+      where: { id: stato.sostituzioneId! },
+      select: { stato: true },
+    })) as { stato: string } | null;
+    if (!ancora || ancora.stato !== 'da_verificare') {
+      const dopo = await this.prossimaSostituzione(nutrizionistaId);
+      return {
+        testo: `${testi.cambioSparito()}${dopo ? `\n\n${dopo.testo}` : ''}`,
+        esito: 'annullata',
+        stato: dopo?.stato,
+      };
+    }
+
+    const motivo = verdetto === 'no' ? motivoDetto(frase) : null;
+    await this.sostituzioni.aggiorna(nutrizionistaId, stato.sostituzioneId!, {
+      stato: verdetto === 'ok' ? 'verificata' : 'annullata',
+      ...(motivo ? { nota: motivo } : {}),
+    });
+
+    // Finita una, si porta la prossima: è una coda, e farsela richiedere una per volta sarebbe
+    // esattamente il lavoro ripetitivo che questo giro esiste per togliere.
+    const dopo = await this.prossimaSostituzione(nutrizionistaId);
+    const detto = verdetto === 'ok' ? testi.cambioConfermato(cliente) : testi.cambioAnnullato(cliente, motivo);
+    return {
+      testo: `${detto}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'scritta',
+      stato: dopo?.stato,
+    };
+  }
+
+  // ──────────────────── la giornata dettata a parole (voce 241, lettura B) ──
+
+  /**
+   * «PER GIULIA DOMANI: COLAZIONE… PRANZO… CENA…» (decisione B di Simone, 14/8; foglio in
+   * `progetto/DECISIONE_Menu_Dettati.md`).
+   *
+   * ⚠️ Il rischio della B è che «pasta al pomodoro» sia cinque ricette con calorie diverse.
+   * Qui si chiude come ovunque: una sola → si propone; più d'una → si CHIEDE, con le calorie
+   * accanto; nessuna → si dice. Non si sceglie mai al posto suo.
+   */
+  private async avviaGiornataDettata(
+    nutrizionistaId: string,
+    stato: StatoVera,
+    intento: IntentoGiornata,
+  ): Promise<EsitoVera> {
+    const righe = leggiGiornataDettata(intento.testo);
+    if (!righe.length) return { testo: testi.giornataNienteDaScrivere(), esito: 'in_corso' };
+
+    const pool = await this.poolDellaCliente(stato.clienteId!);
+    const abbinate = abbinaRighe(righe, pool);
+    return this.prossimaDomandaGiornata(nutrizionistaId, { ...stato, righeGiornata: abbinate, scelteGiornata: [] });
+  }
+
+  /**
+   * Le ricette approvate per QUELLA cliente: la sua base personale certificata.
+   *
+   * ⚠️ Si pesca solo da lì, come fa il cambio piatto di Gaia: fuori ci sono allergeni non
+   * revisionati e regimi che non sono i suoi. Se il pool non c'è si torna a mani vuote — e la
+   * giornata non si scrive — invece di ripiegare sul catalogo intero.
+   */
+  private async poolDellaCliente(clientId: string): Promise<RicettaCandidata[]> {
+    const pool = (await this.prisma.clientMenuPool.findFirst({
+      where: { clientId } as never,
+      orderBy: { version: 'desc' },
+      select: { recipeIds: true },
+    })) as { recipeIds: string[] } | null;
+    const ids = (pool?.recipeIds ?? []).filter(Boolean);
+    if (!ids.length) return [];
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { id: { in: ids }, active: true } as never,
+      select: { id: true, name: true, kcal: true, mealSlot: true },
+    })) as { id: string; name: string; kcal: number; mealSlot: string }[];
+    return ricette.map((r) => ({ recipeId: r.id, nome: r.name, kcal: r.kcal, slot: r.mealSlot }));
+  }
+
+  /**
+   * Il giro: si prende la prima riga non ancora risolta. Se è ambigua si chiede; se non ha
+   * candidate si dice e ci si ferma (una giornata a cui manca un pasto non si scrive); se è
+   * risolta si passa avanti. Finite le righe, si mostra il totale.
+   */
+  private async prossimaDomandaGiornata(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const righe = (stato.righeGiornata ?? []) as RigaAbbinata[];
+    const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
+    const fatti = new Set(scelte.map((s) => s.slot));
+
+    for (const riga of righe) {
+      if (fatti.has(riga.slot)) continue;
+      const pasto = etichettaSlot(riga.slot);
+      if (riga.esito === 'nessuna') {
+        return { testo: testi.giornataPiattoAssente(pasto, riga.testo), esito: 'arresa' };
+      }
+      if (riga.esito === 'molte') {
+        return {
+          testo: testi.chiediQualePiatto(pasto, riga.testo, riga.candidate),
+          esito: 'in_corso',
+          stato: { ...stato, passo: 'giornata_scelte' },
+        };
+      }
+      // Una sola: si prende, e si continua senza disturbare.
+      const c = riga.candidate[0];
+      return this.prossimaDomandaGiornata(nutrizionistaId, {
+        ...stato,
+        scelteGiornata: [...scelte, { slot: riga.slot, recipeId: c.recipeId, nome: c.nome, kcal: c.kcal }],
+      });
+    }
+    return this.anteprimaGiornata(nutrizionistaId, stato);
+  }
+
+  /** La risposta col numero, per una riga ambigua. */
+  private async scegliPiattoGiornata(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const righe = (stato.righeGiornata ?? []) as RigaAbbinata[];
+    const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
+    const fatti = new Set(scelte.map((s) => s.slot));
+    const daRisolvere = righe.find((r) => !fatti.has(r.slot) && r.esito === 'molte');
+    if (!daRisolvere) return this.anteprimaGiornata(nutrizionistaId, stato);
+
+    const n = Number((frase ?? '').trim().replace(/[^\d]/g, ''));
+    const scelta = Number.isFinite(n) && n >= 1 && n <= daRisolvere.candidate.length ? daRisolvere.candidate[n - 1] : null;
+    if (!scelta) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) return { testo: testi.annullato(), esito: 'annullata' };
+      return {
+        testo: testi.chiediQualePiatto(etichettaSlot(daRisolvere.slot), daRisolvere.testo, daRisolvere.candidate),
+        esito: 'in_corso',
+        stato: { ...stato, tentativi },
+      };
+    }
+    return this.prossimaDomandaGiornata(nutrizionistaId, {
+      ...stato,
+      tentativi: 0,
+      scelteGiornata: [...scelte, { slot: daRisolvere.slot, recipeId: scelta.recipeId, nome: scelta.nome, kcal: scelta.kcal }],
+    });
+  }
+
+  /**
+   * Il totale contro l'obiettivo, PRIMA di scrivere.
+   *
+   * ⚠️ Fuori dal ±15% non si scrive (decisione di Simone): si dice di quanto sfora. ⚠️ E senza
+   * obiettivo non si scrive lo stesso: «non lo so» non è «va bene», e una giornata approvata da un
+   * controllo che non è stato fatto è peggio di una giornata non scritta.
+   */
+  private async anteprimaGiornata(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
+    if (!scelte.length) return { testo: testi.giornataNienteDaScrivere(), esito: 'in_corso' };
+
+    const target = await this.kcal
+      .simulaKcal({ sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) }, stato.clienteId!)
+      .then((r) => r?.prima?.target ?? null)
+      .catch(() => null);
+    const conto = contaGiornata(scelte, target);
+    if (conto.dentroTolleranza === null) return { testo: testi.giornataSenzaTarget(), esito: 'arresa' };
+    if (!conto.dentroTolleranza) {
+      return {
+        testo: testi.giornataFuoriTolleranza(conto.kcal, target!, conto.scostamentoPct!),
+        esito: 'arresa',
+      };
+    }
+    const quando = stato.dataGiornata ?? 'domani';
+    return {
+      testo: testi.anteprimaGiornata(
+        quando,
+        scelte.map((s) => ({ pasto: etichettaSlot(s.slot), nome: s.nome, kcal: s.kcal })),
+        conto.kcal,
+        target,
+        conto.scostamentoPct,
+      ),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'conferma' },
+    };
+  }
+
+  /**
+   * La scrittura: un solo giorno, e solo se **non è ancora stato aperto**.
+   *
+   * ⚠️ Si scrive nel `meals` con lo stesso snapshot che usa il motore ({slot, recipeId, name,
+   * kcal}): una giornata dettata dev'essere indistinguibile da una generata per tutto il resto
+   * dell'applicazione — sostituzioni, allergeni, report.
+   */
+  private async scriviGiornataDettata(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
+    const domani = new Date();
+    domani.setUTCHours(0, 0, 0, 0);
+    domani.setUTCDate(domani.getUTCDate() + 1);
+
+    const giorno = (await this.prisma.menuDay.findFirst({
+      where: { clientId: stato.clienteId!, date: domani, viewedAt: null } as never,
+      select: { id: true },
+    })) as { id: string } | null;
+    if (!giorno) {
+      return {
+        testo:
+          'Non trovo la giornata di domani fra quelle che non ha ancora aperto: potrebbe averla già ' +
+          'vista, o non essere ancora stata preparata. Non scrivo niente.',
+        esito: 'arresa',
+      };
+    }
+
+    await this.prisma.menuDay.update({
+      where: { id: giorno.id },
+      data: {
+        meals: scelte.map((s) => ({ slot: s.slot, recipeId: s.recipeId, name: s.nome, kcal: s.kcal })) as never,
+      },
+    });
+
+    const kcal = scelte.reduce((n, s) => n + s.kcal, 0);
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'variante_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: stato.clienteId ?? null,
+      soggettoNome: stato.clienteNome ?? null,
+      dettaglio: { giornataDettata: { data: domani.toISOString().slice(0, 10), kcal, pasti: scelte } },
+    })) as { id: string };
+    return { testo: testi.giornataScritta('domani', kcal), esito: 'scritta', azioneId: riga.id };
   }
 
   // ──────────────────────── le proteine: la quota minima di questa cliente ──
@@ -1331,6 +1657,9 @@ export class VeraChatService {
     if ((stato.intento as Intento).tipo === 'proteine') {
       return this.applicaProteine(nutrizionistaId, stato);
     }
+    if ((stato.intento as Intento).tipo === 'giornata') {
+      return this.scriviGiornataDettata(nutrizionistaId, stato);
+    }
     // Il cambio di dieta è per UNA cliente per costruzione: niente ambito «per tutte».
     if ((stato.intento as Intento).tipo === 'cambio_dieta') {
       return this.applicaCambioDieta(nutrizionistaId, stato);
@@ -1674,6 +2003,13 @@ export class VeraChatService {
     }
     const richiesta = await this.prossimaRichiesta(userId, capo);
     if (richiesta) return richiesta;
+    /**
+     * I cambi concordati in chat (voce 245) vengono **dopo** le due code di sopra e **prima** della
+     * manutenzione: dietro una sostituzione da verificare c'è una cliente che ha già mangiato
+     * qualcos'altro — non aspetta una risposta, ma aspetta che qualcuno guardi.
+     */
+    const cambio = await this.prossimaSostituzione(userId);
+    if (cambio) return cambio;
     /**
      * ⚠️ La manutenzione del dizionario è **ultima**, e non per gentilezza: dietro le altre due
      * code c'è qualcuno che aspetta — una nutrizionista ferma, una cliente il cui piatto oggi non è

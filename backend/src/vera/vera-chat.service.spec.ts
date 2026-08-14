@@ -38,6 +38,8 @@ function make(
     avvisi?: unknown[];
     daVerificare?: number;
     kcal?: { simulaKcal: jest.Mock; impostaKcal: jest.Mock };
+    /** La prossima sostituzione da verificare (voce 245). Assente = coda vuota. */
+    cambio?: Record<string, unknown> | null;
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -71,6 +73,8 @@ function make(
     },
     // La guida della giornata (14/8): segnalazioni aperte e campanella. A zero se il test non dice altro.
     escalation: { count: jest.fn().mockResolvedValue(0) },
+    // La riga si RILEGGE prima di scrivere il verdetto (voce 245): di default è ancora da guardare.
+    foodSwap: { findUnique: jest.fn().mockResolvedValue({ stato: 'da_verificare' }) },
     notification: { findMany: jest.fn().mockResolvedValue(opzioni.avvisi ?? []) },
     staff: {
       updateMany: jest.fn().mockResolvedValue({}),
@@ -104,6 +108,10 @@ function make(
     approva: jest.fn().mockResolvedValue({ riepilogo: 'Applicata a 3 clienti su 3.' }),
     respingi: jest.fn().mockResolvedValue({ riga: { id: 'a1' } }),
     sostituzioniDaVerificare: jest.fn().mockResolvedValue(opzioni.daVerificare ?? 0),
+    // ⚠️ Nessun cambio da verificare se il test non dice altro: come la manutenzione del
+    // dizionario, questa coda sta dentro `cosaTiPorto` e senza questa riga si intrometterebbe in
+    // mezzo a tutti gli altri dialoghi.
+    prossimaDaVerificare: jest.fn().mockResolvedValue(opzioni.cambio ?? null),
     menuDaRifare: jest.fn().mockResolvedValue([]),
   } as unknown as RegistroVeraService;
 
@@ -137,9 +145,11 @@ function make(
     simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1600 }, dopo: { target: 1440 } }),
     impostaKcal: jest.fn().mockResolvedValue({}),
   };
+  // La porta dei cambi concordati in chat (voce 245): la stessa del pulsante in scheda.
+  const sostituzioni = { aggiorna: jest.fn().mockResolvedValue({ id: 's1' }) };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never),
     valori,
     ricette,
     richieste,
@@ -151,6 +161,7 @@ function make(
     pool,
     clienti,
     kcal,
+    sostituzioni,
   };
 }
 
@@ -1359,5 +1370,195 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).toContain('30%');
     expect(testo).toContain('40%');
+  });
+});
+
+/**
+ * LA GIORNATA DETTATA A PAROLE (voce 241, decisione B di Simone, 14/8).
+ * Il punto: «pasta al pomodoro» sono due ricette con 90 kcal di differenza — e Vera CHIEDE.
+ */
+describe('VeraChatService — la giornata dettata', () => {
+  const RICETTE = [
+    { id: 'r-yog', name: 'Yogurt greco con frutta secca', kcal: 320, mealSlot: 'breakfast' },
+    { id: 'r-p1', name: 'Pasta al pomodoro e basilico', kcal: 520, mealSlot: 'lunch' },
+    { id: 'r-p2', name: 'Pasta al pomodoro integrale', kcal: 610, mealSlot: 'lunch' },
+    { id: 'r-orata', name: 'Orata al forno con patate', kcal: 480, mealSlot: 'dinner' },
+  ];
+  const DETTATO = 'Per Giulia Rossi\nColazione: yogurt greco con frutta secca\nPranzo: pasta al pomodoro\nCena: orata al forno';
+
+  const conCatalogo = (giorno: unknown = { id: 'md-1' }) => ({
+    clientMenuPool: { findFirst: jest.fn().mockResolvedValue({ recipeIds: RICETTE.map((r) => r.id) }) },
+    recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue(RICETTE) },
+    menuDay: {
+      findFirst: jest.fn().mockResolvedValue(giorno),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      update: jest.fn().mockResolvedValue({}),
+    },
+  });
+  const kcalFinto = (target = 1400) => ({
+    simulaKcal: jest.fn().mockResolvedValue({ prima: { target }, dopo: { target } }),
+    impostaKcal: jest.fn().mockResolvedValue({}),
+  });
+
+  it('⚠️ sul pasto ambiguo CHIEDE, con le calorie accanto — non sceglie', async () => {
+    const { service, messaggioCreate } = make(conCatalogo(), { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('pasta al pomodoro');
+    expect(testo).toContain('520');
+    expect(testo).toContain('610');
+    expect(stato?.passo).toBe('giornata_scelte');
+  });
+
+  it('scelto il numero, mostra il totale contro l\'obiettivo e chiede conferma', async () => {
+    const { service, messaggioCreate } = make(conCatalogo(), { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('1320');   // 320 + 520 + 480
+    expect(testo).toContain('1400');
+    expect(stato?.passo).toBe('conferma');
+  });
+
+  it('al sì scrive la giornata con lo snapshot del motore ({slot, recipeId, name, kcal})', async () => {
+    const over = conCatalogo();
+    const { service } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    await service.parla('lucia', 'sì');
+    const dati = (over.menuDay.update as jest.Mock).mock.calls[0][0].data.meals;
+    expect(dati).toHaveLength(3);
+    expect(dati[0]).toMatchObject({ slot: 'breakfast', recipeId: 'r-yog', name: expect.any(String), kcal: 320 });
+  });
+
+  it('⚠️ fuori dal ±15% NON scrive e dice di quanto sfora (decisione di Simone)', async () => {
+    const over = conCatalogo();
+    const { service, messaggioCreate } = make(over, { kcal: kcalFinto(900) });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    const { testo } = ultimoAgente(messaggioCreate);
+    // Il numero e lo scostamento devono esserci: «sfora» senza dire di quanto non serve a decidere.
+    expect(testo).toContain('Non la scrivo');
+    expect(testo).toContain('+46.7%');
+    expect(over.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ un piatto che non esiste nel suo ricettario ferma tutto: non si ripiega su un simile', async () => {
+    const over = conCatalogo();
+    const { service, messaggioCreate } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', 'Per Giulia Rossi\nColazione: sushi\nCena: orata al forno');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('non trovo');
+    expect(over.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ se la giornata di domani è già stata aperta, non si tocca', async () => {
+    const over = conCatalogo(null);
+    const { service, messaggioCreate } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    await service.parla('lucia', 'sì');
+    expect(over.menuDay.update).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già');
+  });
+});
+
+/**
+ * VERIFICARE A VOCE I CAMBI CONCORDATI IN CHAT — voce 245, lettura **A** di Simone (14/8).
+ * Foglio: `progetto/DECISIONE_Verificare_Cambi_A_Voce.md`.
+ *
+ * A voce passano solo ✓ e ✗. I grammi restano in scheda, perché 70 ml di panna sono ~200 kcal e
+ * 70 g di olio ~630: quel numero si scrive guardando il campo.
+ */
+describe('VeraChatService — i cambi concordati in chat, verificati a voce (voce 245)', () => {
+  const CAMBIO = {
+    id: 's1',
+    clientId: 'c1',
+    cliente: 'Giulia Rossi',
+    dishName: 'Pasta al pesto',
+    fromFood: 'panna',
+    toFood: 'olio',
+    fromQty: 70,
+    toQty: 70,
+    unit: 'g',
+    volte: 3,
+  };
+
+  it('«verifichiamo i cambi» porta la sostituzione in chat, con quanto serve per decidere', async () => {
+    const { service, messaggioCreate } = make({}, { cambio: CAMBIO, daVerificare: 3 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Giulia Rossi');
+    expect(testo).toContain('panna');
+    expect(testo).toContain('olio');
+    expect(testo).toContain('3 volte');
+    expect(stato?.passo).toBe('verifica_cambio');
+  });
+
+  it('«va bene» valida la riga, e passa dalla PORTA UNICA (la stessa del pulsante in scheda)', async () => {
+    const { service, sostituzioni } = make({}, { cambio: CAMBIO, daVerificare: 1 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    await service.parla('lucia', 'va bene');
+    expect(sostituzioni.aggiorna).toHaveBeenCalledWith('lucia', 's1', { stato: 'verificata' });
+  });
+
+  it('«no, è troppo grassa» annulla e tiene il motivo che ha detto lei', async () => {
+    const { service, sostituzioni } = make({}, { cambio: CAMBIO, daVerificare: 1 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    await service.parla('lucia', 'no, è troppo grassa');
+    expect(sostituzioni.aggiorna).toHaveBeenCalledWith('lucia', 's1', { stato: 'annullata', nota: 'è troppo grassa' });
+  });
+
+  it('⚠️ un «no» secco non fa nascere un motivo inventato, e Vera non lo chiede', async () => {
+    const { service, sostituzioni, messaggioCreate } = make({}, { cambio: CAMBIO, daVerificare: 1 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    await service.parla('lucia', 'no');
+    expect(sostituzioni.aggiorna).toHaveBeenCalledWith('lucia', 's1', { stato: 'annullata' });
+    expect(ultimoAgente(messaggioCreate).testo.toLowerCase()).not.toContain('perché');
+  });
+
+  it('⚠️ IL CASO CHE CONTA: «sì, ma metti 30 g» NON scrive niente e manda in scheda', async () => {
+    // Se passasse per una conferma, la riga verrebbe validata con la grammatura VECCHIA — e
+    // sembrerebbe approvata da lei. 70 ml di panna ~200 kcal, 70 g di olio ~630.
+    const { service, sostituzioni, messaggioCreate } = make({}, { cambio: CAMBIO, daVerificare: 1 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    await service.parla('lucia', 'sì, ma metti 30 g');
+    expect(sostituzioni.aggiorna).not.toHaveBeenCalled();
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo.toLowerCase()).toContain('scheda');
+    expect(testo).toContain('Giulia Rossi');
+  });
+
+  it('⚠️ una riga che intanto ha guardato una collega non si sovrascrive: si dice', async () => {
+    const { service, sostituzioni, messaggioCreate, prisma } = make({}, { cambio: CAMBIO, daVerificare: 1 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    (prisma.foodSwap as unknown as { findUnique: jest.Mock }).findUnique.mockResolvedValue({ stato: 'verificata' });
+    await service.parla('lucia', 'no');
+    expect(sostituzioni.aggiorna).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già');
+  });
+
+  it('finita una, porta subito la prossima: è una coda, non una richiesta per volta', async () => {
+    const { service, messaggioCreate } = make({}, { cambio: CAMBIO, daVerificare: 2 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    await service.parla('lucia', 'va bene');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Confermata');
+    expect(testo).toContain('panna');
+    expect(stato?.passo).toBe('verifica_cambio');
+  });
+
+  it('la coda vuota lo dice, invece di rispondere «non ci arrivo»', async () => {
+    const { service, messaggioCreate } = make({}, { cambio: null, daVerificare: 0 });
+    await service.parla('lucia', 'verifichiamo i cambi');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('nessun cambio');
+  });
+
+  it('⚠️ una lettura rotta non blocca la chat: la coda non si vede, l\'assistente parla', async () => {
+    const { service, messaggioCreate, registro } = make({}, { cambio: CAMBIO });
+    (registro.prossimaDaVerificare as jest.Mock).mockRejectedValue(new Error('db giù'));
+    await service.parla('lucia', 'verifichiamo i cambi');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('nessun cambio');
   });
 });

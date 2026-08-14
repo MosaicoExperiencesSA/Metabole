@@ -11,15 +11,24 @@
 
 ## Stato in una riga
 
-**Vera adesso guida la giornata: «hai segnalazioni per me?» risponde col quadro** (segnalazioni
-cliniche in testa — decisione di Simone 14/8 —, coda del capo, domande aperte, sostituzioni,
-campanella) e porta subito la prima cosa da fare; il capo riceve la campanella quando il team gli
-mette una proposta in coda, e all'approvazione di un divieto di dieta gli arriva l'elenco di chi
-resterebbe senza un pasto (e resta scritto sulla riga). Chat ridimensionabile (voce 237). Delle
-tre frasi dell'azione 3 restano «a colazione qualcosa di salato» (aspetta le conferme di Lucia)
-e «rifai con più proteine» (aspetta la decisione di Simone). **+36 test (341 su Vera).**
+**Vera adesso chiude anche la coda dei cambi concordati in chat** (voce 245, lettura A): li porta
+uno per volta, si risponde «va bene» o «no», e ⚠️ **un numero dettato non vale come conferma** — i
+grammi si scrivono in scheda, perché 70 ml di panna sono ~200 kcal contro i ~630 di 70 g di olio.
+Con questa, tutto quello che la giornata **conta** in apertura ora si può anche **fare** parlando:
+proposte del capo, domande girate da Gaia, cambi da verificare, manutenzione del dizionario.
+L'azione 3 è completa (spuntino, cambio dieta, più proteine) e la variante di piano ha tutti e due i
+meccanismi (dieta diversa e giornata dettata a parole). Resta fuori solo «a colazione qualcosa di
+salato», che aspetta le conferme di Lucia in pagina — non noi. **+37 test (463 su Vera).**
 
 ## Stato precedente
+
+**Vera guida la giornata: «hai segnalazioni per me?» risponde col quadro** (segnalazioni cliniche in
+testa — decisione di Simone 14/8 —, coda del capo, domande aperte, sostituzioni, campanella) e porta
+subito la prima cosa da fare; il capo riceve la campanella quando il team gli mette una proposta in
+coda, e all'approvazione di un divieto di dieta gli arriva l'elenco di chi resterebbe senza un pasto.
+Chat ridimensionabile (voce 237). **+36 test (341 su Vera).**
+
+## Stato di due passi fa
 
 **L'azione 3 ha la sua prima frase viva: «togli lo spuntino».** Campo `pastiEsclusi` sul profilo
 (solo spuntini — i pasti principali restano su `fastingWindow`), kcal ridistribuite sui pasti
@@ -169,6 +178,20 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 14/8/2026 (10ª) — I cambi concordati in chat, verificati a voce (12 file)
+`verifica-sostituzioni.ts` puro (`leggiVerdetto` ok/no/**grammi**, `motivoDetto`,
+`raccontaSostituzione`), `prossimaDaVerificare` sul registro ordinata per VOLTE, intento
+`sostituzioni` letto prima della lista delle famiglie, passo `verifica_cambio` e il posto nella coda
+di `cosaTiPorto`. Scrive da `FoodSwapsService.aggiorna` legato per token, e rilegge la riga prima di
+toccarla. ⚠️ Il numero blocca il giro: «sì, ma metti 30 g» non è un sì.
+
+### 14/8/2026 (9ª) — La giornata dettata a parole (10 file)
+`giornata-dettata.ts` puro (lettura delle righe, abbinamento per parola dentro lo slot, conto del
+totale), intento `giornata` (almeno due pasti coi due punti), flusso con le domande sulle righe
+ambigue e la scrittura su un giorno solo mai aperto. Con questa la variante di piano ha tutti e due
+i meccanismi: la dieta diversa (mattina) e i menu dettati.
+
 
 ### 14/8/2026 (8ª) — «Più proteine»: l'azione 3 è completa (13 file)
 `proteinMinPct` sul profilo (migrazione additiva), `quotaProteicaMinima` e `minimoDaPiuProteine`

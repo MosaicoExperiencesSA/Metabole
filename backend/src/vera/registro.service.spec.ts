@@ -500,3 +500,58 @@ describe('RegistroVeraService.approva — l\'elenco delle scoperte resta scritto
     expect(dati.dettaglio.termini).toEqual(['tonno']);
   });
 });
+
+describe('RegistroVeraService.prossimaDaVerificare — la coda dei cambi (voce 245)', () => {
+  const clienti = { findMany: jest.fn().mockResolvedValue([{ userId: 'c1' }, { userId: 'c2' }]) };
+  // Il perimetro legge il ruolo e la scheda staff di chi guarda: è lo stesso di ovunque.
+  const utente = { findUnique: jest.fn().mockResolvedValue({ role: 'nutritionist' }) };
+  const staff = { findUnique: jest.fn().mockResolvedValue({ id: 'st1' }) };
+
+  it('porta la prima riga da verificare, con dentro tutto quello che serve per decidere', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 's1', clientId: 'c1', dishName: 'Pasta al pesto', fromFood: 'panna', toFood: 'olio',
+      fromQty: 70, toQty: 70, unit: 'g', volte: 3,
+      client: { firstName: 'Giulia', lastName: 'Rossi', email: 'g@r.it' },
+    });
+    const service = make({ clientProfile: clienti, user: utente, staff, foodSwap: { findFirst } });
+    const riga = await service.prossimaDaVerificare('lucia');
+    expect(riga).toMatchObject({ id: 's1', cliente: 'Giulia Rossi', fromFood: 'panna', toFood: 'olio', volte: 3 });
+  });
+
+  it('⚠️ solo le sue clienti: il perimetro è lo stesso del contatore, non uno nuovo', async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const service = make({ clientProfile: clienti, user: utente, staff, foodSwap: { findFirst } });
+    await service.prossimaDaVerificare('lucia');
+    expect(findFirst.mock.calls[0][0].where.clientId.in).toEqual(['c1', 'c2']);
+    expect(findFirst.mock.calls[0][0].where.stato).toBe('da_verificare');
+  });
+
+  it('⚠️ ordina per VOLTE, non per data: chiesta tre volte non è un caso, è un menu da guardare', async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const service = make({ clientProfile: clienti, user: utente, staff, foodSwap: { findFirst } });
+    await service.prossimaDaVerificare('lucia');
+    expect(findFirst.mock.calls[0][0].orderBy[0]).toEqual({ volte: 'desc' });
+  });
+
+  it('nessuna cliente nel perimetro: nessuna riga, e non si interroga la tabella', async () => {
+    const findFirst = jest.fn();
+    const service = make({
+      clientProfile: { findMany: jest.fn().mockResolvedValue([]) },
+      user: utente,
+      staff,
+      foodSwap: { findFirst },
+    });
+    expect(await service.prossimaDaVerificare('lucia')).toBeNull();
+    expect(findFirst).not.toHaveBeenCalled();
+  });
+
+  it('una cliente senza nome resta leggibile: si usa l\'email, non «null null»', async () => {
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 's1', clientId: 'c1', dishName: null, fromFood: 'panna', toFood: 'olio',
+      fromQty: null, toQty: null, unit: null, volte: 1,
+      client: { firstName: null, lastName: null, email: 'g@r.it' },
+    });
+    const service = make({ clientProfile: clienti, user: utente, staff, foodSwap: { findFirst } });
+    expect((await service.prossimaDaVerificare('lucia'))?.cliente).toBe('g@r.it');
+  });
+});

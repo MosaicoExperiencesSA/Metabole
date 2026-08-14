@@ -487,9 +487,10 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'vera-menu-dettati',
     titolo: 'Vera: la nutrizionista DETTA le combinazioni e crea menu specifici per una cliente',
     dettaglio:
-      'Il secondo meccanismo della variante di piano (risposta di Simone, 14/8): dettare giornate intere — slot per slot, coi conti di kcal dalla tabella nutrienti — guidata da Vera, per UNA cliente, sui giorni futuri non ancora aperti. È la dettatura di menu, non un cambio di dieta: merita la sua decisione scritta prima (che pasti accetta, come si bilancia la giornata, cosa succede se i conti non tornano).',
+      'Il secondo meccanismo della variante di piano (risposta di Simone, 14/8), fatto con la lettura B decisa da lui: si detta a parole e il sistema traduce. ⚠️ Il rischio della B — «pasta al pomodoro» sono cinque ricette con calorie diverse — si chiude con la regola di casa: una sola combacia → si propone; più d\'una → si CHIEDE, con le kcal accanto; nessuna → si dice. Si cerca solo nel pool certificato della cliente, si mostra il totale contro l\'obiettivo e sopra il ±15% NON si scrive; si tocca un giorno solo, e solo se non è ancora stato aperto. Decisione in `progetto/DECISIONE_Menu_Dettati.md`.',
     categoria: CODICE,
     ordine: 241,
+    fatta: true, // 14/8: giornata-dettata.ts (puro) + flusso in vera-chat.service
   },
   {
     chiave: 'coach-task-push-escalation',
@@ -520,11 +521,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-cambi-da-verificare-in-chat',
-    titolo: 'Vera: i cambi da verificare si potrebbero verificare a voce',
+    titolo: 'Vera porta i cambi concordati in chat e li fa verificare a voce (✓/✗)',
     dettaglio:
-      'Il quadro della giornata li conta già e la tabella «Cambi concordati in chat» in scheda ha ✓/✎/✗. Portarli DENTRO la chat vuol dire decidere cosa succede quando la nutrizionista corregge i grammi a voce (i 70 ml di panna ≈ 200 kcal contro i 70 g di olio ≈ 630 sono il caso vero): serve la sua decisione prima del codice. Tenuto fuori dalla consegna del 14/8 di proposito.',
+      'Decisione di Simone (14/8): la **A** — a voce passano solo ✓ e ✗, i grammi restano in scheda. Vera porta una riga per volta (ordinata per VOLTE, non per data: chiesta tre volte non è un caso), con cliente, piatto, da/a, quantità e quante volte; «va bene» la valida, «no» la annulla e tiene il motivo SOLO se lo dice lei (Vera non lo chiede: in scheda oggi il rifiuto non chiede niente). ⚠️ Il cuore della decisione: un numero dettato — anche dentro un sì, «sì, ma metti 30 g» — NON vale come conferma, non scrive niente e manda in scheda, perché 70 ml di panna sono ~200 kcal contro i ~630 di 70 g di olio. La scrittura passa da `FoodSwapsService.aggiorna`, lo stesso metodo del pulsante in scheda, e la riga si rilegge prima di scrivere (una collega può averla già guardata). Decisione in `progetto/DECISIONE_Verificare_Cambi_A_Voce.md`.',
     categoria: CODICE,
     ordine: 245,
+    fatta: true, // consegnata il 14/8
   },
   {
     chiave: 'assistente-del-coach',

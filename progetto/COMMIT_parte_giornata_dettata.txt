@@ -1,0 +1,49 @@
+Vera: la nutrizionista detta la giornata a parole e il sistema la traduce
+
+La voce 241, il secondo meccanismo della variante di piano (risposta di Simone del
+14/8: «la nutrizionista o detta le nuove combinazioni e crea dei menu specifici guidata
+da Vera, oppure sceglie una diversa dieta» — la seconda strada è del mattino).
+Simone ha scelto la lettura B del foglio `progetto/DECISIONE_Menu_Dettati.md`, con:
+fuori tolleranza kcal ci si ferma, e la giornata dettata vale un giorno solo.
+
+⚠️ IL RISCHIO DELLA B, E COME SI CHIUDE. «Pasta al pomodoro» può essere cinque ricette
+con calorie molto diverse: sceglierne una da soli non produce nessun errore, produce
+una giornata diversa da quella dettata. Vale la regola di casa — non si indovina mai:
+
+  una sola ricetta combacia  → si propone, con le sue kcal
+  più d'una                  → si CHIEDE, in fila e con le calorie accanto
+  nessuna                    → si dice, e non si ripiega su qualcosa che le somiglia
+
+Così il caso facile resta un giro solo (il motivo per cui la B è stata scelta) e quello
+ambiguo diventa una domanda invece di una scommessa da duecento calorie.
+
+- Nuovo `vera/giornata-dettata.ts` (PURO): `leggiGiornataDettata` (dal testo alle righe,
+  «Colazione: …» / «Pranzo - …», ordine della giornata e non quello di dettatura),
+  `abbinaRighe` (confronto per PAROLA con la radice, mai per sottostringa; solo dentro
+  lo slot dettato: la colazione non può finire a cena), `contaGiornata` (totale e
+  scostamento). ⚠️ Una riga che non nomina un pasto si SALTA — attribuirla all'ultimo
+  vorrebbe dire scrivere un pasto che nessuno ha dettato. Un pasto ripetuto vince
+  l'ULTIMO: chi si corregge dettando lo fa scrivendo di nuovo.
+- Intento `giornata` in capisci.ts: si riconosce da ALMENO DUE pasti coi due punti — con
+  uno solo somiglia troppo a un appunto. Letto prima di tutto il resto, perché dentro ci
+  sono nomi di piatti che gli altri riconoscitori leggerebbero come alimenti da vietare.
+  Il nome della cliente si cerca nella RIGA DI APERTURA: sotto ci sono i piatti, e
+  «Orata» a inizio riga somiglia troppo a un nome di persona.
+- Il flusso: pool CERTIFICATO della cliente (`client_menu_pool`, come il cambio piatto di
+  Gaia: fuori ci sono allergeni non revisionati e regimi che non sono i suoi) → domande
+  sulle righe ambigue → totale contro l'obiettivo → conferma → scrittura.
+- ⚠️ Sopra il ±15% NON si scrive e si dice di quanto sfora, col numero. ⚠️ E senza
+  obiettivo calcolabile non si scrive lo stesso: «non lo so» non è «va bene», e una
+  giornata approvata da un controllo che non è stato fatto è peggio di una non scritta.
+- Si scrive UN GIORNO (domani) e solo se `viewedAt` è null: un menu già letto resta suo.
+  Nel `meals` va lo stesso snapshot del motore ({slot, recipeId, name, kcal}), così una
+  giornata dettata è indistinguibile da una generata per sostituzioni, allergeni, report.
+- Registro: `variante_cliente` con `dettaglio.giornataDettata { data, kcal, pasti }`.
+
+Test: 25 nuovi — 16 sul modulo puro e 6 sul flusso, più i casi al contorno.
+⚠️ Sul modulo puro ho fatto la verifica per MUTAZIONE (i test non li avevo visti rossi
+prima): spegnendo la regola «più d'una → chiedi» ne cadono 3, togliendo il filtro sullo
+slot ne cade 1. I test mordono davvero.
+In sandbox: 2086 verdi (baseline 2061), 426 su src/vera; tsc 52 = 52.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest
+(nessuna migrazione).

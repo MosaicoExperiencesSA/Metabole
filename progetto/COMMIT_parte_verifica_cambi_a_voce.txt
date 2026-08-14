@@ -1,0 +1,56 @@
+Vera fa verificare a voce i cambi concordati in chat: solo ✓ e ✗, i grammi restano in scheda
+
+VOCE 245 — decisione A di Simone (14/8), foglio in progetto/DECISIONE_Verificare_Cambi_A_Voce.md.
+
+Gaia propone la sostituzione a pari grammatura e la registra come `da_verificare`. In scheda la
+nutrizionista ha tre gesti (conferma / correggi i grammi / rifiuta) e la maggior parte sono
+conferme: è quel lavoro ripetitivo che questa consegna toglie, portando la riga dentro la chat.
+
+COSA FA
+- Vera porta UNA riga per volta, con dentro tutto quello che serve per decidere: cliente, piatto,
+  cosa al posto di cosa, le quantità, e QUANTE VOLTE quella cliente l'ha già chiesta.
+- «va bene» → `verificata`. «no» → `annullata`, col motivo SOLO se lo dice lei di sua iniziativa.
+- Finita una, porta subito la prossima: è una coda, e farsela richiedere una per volta sarebbe
+  esattamente il lavoro che questo giro esiste per togliere.
+- Si apre a voce («verifichiamo i cambi», «ci sono sostituzioni da verificare?») e da sola, dopo le
+  proposte del capo e le domande aperte, prima della manutenzione del dizionario.
+
+⚠️ IL PUNTO CHE REGGE TUTTA LA DECISIONE — IL NUMERO BLOCCA IL GIRO
+70 ml di panna sono ~200 kcal, 70 g di olio ~630: è il numero che decide il pasto, e la pari
+grammatura di Gaia lì non regge. Un numero dettato NON si rilegge. Quindi un numero — anche dentro
+un sì, «sì, ma metti 30 g» — non vale come conferma, non scrive niente, e manda alla scheda con il
+perché. Se passasse per un ✓, la riga verrebbe validata con la grammatura VECCHIA e sembrerebbe
+approvata da lei: l'unico modo di sbagliare che non lascia traccia di essere un errore.
+
+⚠️ IL MOTIVO DEL RIFIUTO NON SI CHIEDE
+In scheda oggi il rifiuto non chiede niente, e un campo obbligatorio su una coda fatta per essere
+veloce diventa «boh» al terzo no. Un campo compilato male è peggio di un campo vuoto: sembra un
+dato. Il motivo si prende solo se lo dice lei («no, è troppo grassa»). Reversibile in una riga.
+
+⚠️ UNA PORTA SOLA, E LA RIGA SI RILEGGE
+La scrittura passa da `FoodSwapsService.aggiorna` — lo stesso metodo del pulsante in scheda — legato
+per token (`SCRITTURA_SOSTITUZIONI`, `useExisting`), con lo stesso audit e la stessa validazione
+dello stato. E prima di scrivere la riga si rilegge: fra la domanda e la risposta può esserci
+passata una collega dalla scheda, e sovrascrivere il suo lavoro in silenzio è peggio che dirlo.
+
+ORDINE DELLA CODA: per VOLTE, non per data. Una sostituzione chiesta tre volte non è un caso: è una
+cliente che quel piatto non lo mangia, e la decisione che ne segue può essere «cambiamole il menu».
+Stessa ragione per cui la coda del capo ha `ordinaPerRischio`.
+
+FILE
+- backend/src/vera/verifica-sostituzioni.ts (+ .spec) — modulo PURO: leggiVerdetto (ok/no/grammi),
+  motivoDetto (tagliato a 300, come il campo in scheda), raccontaSostituzione. 13 test.
+- backend/src/vera/scrittura-sostituzioni.ts — il token, non un import.
+- backend/src/vera/registro.service.ts (+ .spec) — prossimaDaVerificare, stesso perimetro del
+  contatore che il quadro della giornata usa già. 5 test.
+- backend/src/vera/capisci.ts (+ .spec) — intento `sostituzioni`, letto PRIMA della lista delle
+  famiglie (che catturerebbe «sostituzioni» come nome di famiglia). 10 test.
+- backend/src/vera/vera-chat.ts — passo `verifica_cambio` e le frasi.
+- backend/src/vera/vera-chat.service.ts (+ .spec) — prossimaSostituzione, verdettoSostituzione,
+  e il posto nella coda di `cosaTiPorto`. 9 test.
+- backend/src/vera/vera.module.ts — FoodSwapsModule + SCRITTURA_SOSTITUZIONI.
+- backend/src/lavori/voci-iniziali.ts — voce 245 spuntata.
+
+37 test nuovi. Nessuna migrazione: non c'è un campo nuovo, si usa la tabella che c'è.
+Controllo per mutazione su due proprietà: togliendo il blocco del numero cadono 3 test, togliendo la
+rilettura della riga ne cade 1.

@@ -221,6 +221,64 @@ export class RegistroVeraService {
     });
   }
 
+  /**
+   * LA PROSSIMA sostituzione da verificare, con dentro tutto quello che serve per decidere
+   * (voce 245, lettura **A** di Simone; foglio `progetto/DECISIONE_Verificare_Cambi_A_Voce.md`).
+   *
+   * ⚠️ L'ordine è per **volte**, non per data. Una sostituzione chiesta tre volte non è un caso: è
+   * una cliente che quel piatto non lo mangia, e la decisione che ne segue può essere «cambiamole
+   * il menu» invece di «validiamo la riga». Una coda cronologica farebbe arrivare per ultima la
+   * cosa che dice di più — è la stessa ragione per cui la coda del capo ha `ordinaPerRischio`.
+   *
+   * ⚠️ Stesso perimetro del contatore qui sopra, e non uno nuovo: due idee diverse di «le sue
+   * clienti» sono due risposte diverse alla stessa domanda, date nella stessa schermata.
+   */
+  async prossimaDaVerificare(userId: string): Promise<{
+    id: string;
+    clientId: string;
+    cliente: string;
+    dishName: string | null;
+    fromFood: string;
+    toFood: string;
+    fromQty: number | null;
+    toQty: number | null;
+    unit: string | null;
+    volte: number;
+  } | null> {
+    const perimetro = await perimetroClienti(this.prisma, userId);
+    const clienti = (await this.prisma.clientProfile.findMany({
+      where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+      select: { userId: true },
+      take: 1000,
+    })) as { userId: string }[];
+    if (!clienti.length) return null;
+
+    const riga = (await this.prisma.foodSwap.findFirst({
+      where: { stato: 'da_verificare', clientId: { in: clienti.map((c) => c.userId) } } as never,
+      orderBy: [{ volte: 'desc' }, { ultimaVoltaIl: 'asc' }],
+      include: { client: { select: { firstName: true, lastName: true, email: true } } },
+    } as never)) as
+      | {
+          id: string;
+          clientId: string;
+          dishName: string | null;
+          fromFood: string;
+          toFood: string;
+          fromQty: number | null;
+          toQty: number | null;
+          unit: string | null;
+          volte: number;
+          client: { firstName: string | null; lastName: string | null; email: string } | null;
+        }
+      | null;
+    if (!riga) return null;
+
+    // ⚠️ Il nome vuoto ripiega sull'email e non su «null null»: chi legge deve poter capire di chi
+    // si sta parlando anche quando l'anagrafica è incompleta.
+    const nome = [riga.client?.firstName, riga.client?.lastName].filter(Boolean).join(' ').trim();
+    return { ...riga, cliente: nome || riga.client?.email || 'questa cliente' };
+  }
+
   // ────────────────────────────────────────────────────── la coda del capo ──
 
   /**

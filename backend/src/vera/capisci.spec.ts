@@ -277,6 +277,39 @@ describe('capisci — «hai segnalazioni per me?»: la guida della giornata (Sim
   });
 });
 
+describe('capisci — «verifichiamo i cambi»: la coda delle sostituzioni (voce 245, Simone 14/8)', () => {
+  it.each([
+    'verifichiamo i cambi',
+    'ci sono cambi da verificare?',
+    'sostituzioni da verificare?',
+    'hai sostituzioni da verificare?',
+    'fammi vedere le sostituzioni da verificare',
+    'i cambi concordati in chat',
+  ])('«%s» apre la coda delle sostituzioni', (frase) => {
+    expect(capisci(frase)?.tipo).toBe('sostituzioni');
+  });
+
+  it('⚠️ va letta PRIMA della lista: «fammi vedere la lista delle sostituzioni» non è una famiglia', () => {
+    // `MOSTRA_FAMIGLIA` prende «hai la lista dei X?» e catturerebbe «sostituzioni» come nome di
+    // famiglia — cioè una lista di dizionario che non esiste, invece della coda che esiste.
+    expect(capisci('fammi vedere la lista delle sostituzioni')?.tipo).toBe('sostituzioni');
+  });
+
+  it('⚠️ «hai la lista dei formaggi molli?» resta la famiglia', () => {
+    expect(capisci('hai la lista dei formaggi molli?')?.tipo).toBe('famiglia');
+  });
+
+  it('⚠️ «hai segnalazioni per me?» resta il quadro della giornata', () => {
+    expect(capisci('hai segnalazioni per me?')?.tipo).toBe('segnalazioni');
+  });
+
+  it('⚠️ «a Giulia sostituisci la panna con il latte» NON è la coda: è un\'istruzione', () => {
+    // Le forme sono ancorate all'intera frase. Una frase che CONTIENE «sostitu» non è la domanda,
+    // e aprire la coda al posto di eseguire sarebbe capire male con l'aria di aver capito.
+    expect(capisci('a Giulia sostituisci la panna con il latte')?.tipo).not.toBe('sostituzioni');
+  });
+});
+
 describe('capisci — «spostala sulla keto»: il cambio di dieta (azione 3, Simone 14/8)', () => {
   it('«sposta Giulia Rossi sulla keto»', () => {
     expect(capisci('sposta Giulia Rossi sulla keto')).toEqual({
@@ -371,5 +404,21 @@ describe('capisci — «rifai con più proteine» (terza frase dell\'azione 3, 1
 
   it('⚠️ «a Giulia niente proteine in polvere» resta un divieto', () => {
     expect(capisci('a Giulia niente proteine in polvere')?.tipo).toBe('restrizione');
+  });
+});
+
+describe('capisci — la giornata dettata (voce 241, lettura B)', () => {
+  it('due pasti o più: è una giornata, e si sa per chi', () => {
+    const i = capisci('Per Giulia Rossi domani\nColazione: yogurt greco\nPranzo: pasta al pomodoro\nCena: orata');
+    expect(i?.tipo).toBe('giornata');
+    expect((i as { cliente?: string }).cliente).toBe('Giulia Rossi');
+  });
+
+  it('⚠️ un pasto solo NON è una giornata: somiglia troppo a un appunto', () => {
+    expect(capisci('Cena: orata al forno')?.tipo).not.toBe('giornata');
+  });
+
+  it('⚠️ «a Giulia niente pasta al pomodoro» resta un divieto', () => {
+    expect(capisci('a Giulia niente pasta al pomodoro')?.tipo).toBe('restrizione');
   });
 });

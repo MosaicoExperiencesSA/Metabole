@@ -42,6 +42,7 @@ import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
  * regola scritta su una persona da una frase che non ha detto lei.
  */
 import { LetturaPasti, Spuntino, leggiPasti } from './togli-spuntino';
+import { leggiGiornataDettata } from './giornata-dettata';
 
 export function separaCitazione(testo: string): { suo: string; citato: string } {
   const righe = (testo ?? '').split('\n');
@@ -66,9 +67,11 @@ export type Intento =
   | IntentoPasti
   | IntentoFamiglia
   | IntentoSegnalazioni
+  | IntentoSostituzioniDaVerificare
   | IntentoCambioDieta
   | IntentoCorrezioneKcal
-  | IntentoProteine;
+  | IntentoProteine
+  | IntentoGiornata;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -116,6 +119,18 @@ export interface IntentoSegnalazioni {
 }
 
 /**
+ * «Verifichiamo i cambi» / «ci sono sostituzioni da verificare?» — la coda dei cambi concordati in
+ * chat (voce 245, decisione **A** di Simone del 14/8; foglio
+ * `progetto/DECISIONE_Verificare_Cambi_A_Voce.md`).
+ *
+ * Come `segnalazioni`, è una domanda e non un'istruzione: aprire una coda non esegue niente. Il
+ * quadro della giornata le conta già; questo intento serve a chi vuole andarci dritta.
+ */
+export interface IntentoSostituzioniDaVerificare {
+  tipo: 'sostituzioni';
+}
+
+/**
  * «Sposta Giulia sulla keto» — il cambio di DIETA per una cliente (azione 3, Simone 14/8).
  *
  * ⚠️ Non è la regola su un tipo di dieta («nella mediterranea niente tonno», che resta
@@ -143,6 +158,18 @@ export interface IntentoCorrezioneKcal {
  * `pct` è la quota minima come FRAZIONE (0,35), oppure `null` = «più» senza un numero: lo scatto
  * di scorta (+10 punti sul minimo che ha adesso) lo mette il servizio, che sa qual è quel minimo.
  */
+/**
+ * «Per Giulia domani: colazione… pranzo… cena…» — la giornata dettata (voce 241, lettura B).
+ * Qui si riconosce SOLO che sta dettando una giornata e per chi: le righe le legge
+ * `giornata-dettata.ts`, che è il posto dove quella lettura si prova per tabella.
+ */
+export interface IntentoGiornata {
+  tipo: 'giornata';
+  cliente: string | null;
+  /** Il testo con i pasti, già separato dalla riga di apertura. */
+  testo: string;
+}
+
 export interface IntentoProteine {
   tipo: 'proteine';
   cliente: string | null;
@@ -350,12 +377,24 @@ export function capisci(frase: string): Intento | null {
    * le AZIONI è sacrosanto: una domanda non si esegue. Ma «hai la lista dei formaggi molli?» è
    * una domanda che MERITA risposta (Nocanty, 13/8): mostrare una lista non esegue niente.
    */
+  /**
+   * ⚠️ LA CODA DEI CAMBI PRIMA DELLA LISTA (voce 245). `MOSTRA_FAMIGLIA` prende «hai la lista dei
+   * X?» e catturerebbe «sostituzioni» come nome di famiglia: una lista di dizionario che non
+   * esiste, mostrata al posto di una coda che esiste.
+   */
+  if (chiedeSostituzioni(testo)) return { tipo: 'sostituzioni' };
   const mostraF = MOSTRA_FAMIGLIA.exec(testo);
   if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
   // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
   // `daScartare` che butta via ogni «?». Rispondere non esegue niente.
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   if (daScartare(testo)) return null;
+
+  // 0-quinquies) LA GIORNATA DETTATA: si riconosce da DUE pasti nominati con i due punti. Prima
+  //              di tutto il resto, perché dentro ci sono nomi di piatti che gli altri
+  //              riconoscitori leggerebbero volentieri come alimenti da vietare.
+  const giornata = leggiIntentoGiornata(testo);
+  if (giornata) return giornata;
 
   // 0-quater) LE PROTEINE: prima delle calorie e dei divieti — «più proteine» contiene «più», e
   //           «niente proteine in polvere» deve restare un divieto.
@@ -460,8 +499,34 @@ const FORME_SEGNALAZIONI: RegExp[] = [
   /^guidami\s*$/,
 ];
 
+/**
+ * «VERIFICHIAMO I CAMBI» — le forme della coda delle sostituzioni (voce 245).
+ *
+ * ⚠️ Ancorate all'intera frase, come quelle delle segnalazioni e per lo stesso motivo: una frase
+ * che CONTIENE «sostituzioni» («a Giulia sostituisci la panna col latte») è un'istruzione da
+ * eseguire, non una coda da aprire. Aprire la coda al posto di eseguire sarebbe capire male con
+ * l'aria di aver capito, che è il modo peggiore.
+ */
+const FORME_SOSTITUZIONI: RegExp[] = [
+  // «verifichiamo i cambi» — l'imperativo
+  /^(?:verifichiamo|verifica|verificare|vediamo|guardiamo|controlliamo|riguardiamo)\s+(?:i |le |gli |dei |delle )?(?:cambi|sostituzioni)(?:\s+(?:concordati|concordate|da verificare|in chat|delle clienti|aperti|aperte))*$/,
+  // «ci sono cambi da verificare?» / «fammi vedere la lista delle sostituzioni»
+  /^(?:ci sono|hai|ce ne sono|quali sono|quante sono|dammi|dimmi|leggimi|mostrami|fammi vedere|vedi)\s+(?:la |le |i |gli |dei |delle )?(?:lista (?:dei|delle|di) )?(?:cambi|sostituzioni)(?:\s+(?:da verificare|da guardare|da controllare|concordati|concordate|in chat|aperti|aperte|in sospeso|in coda))*$/,
+  // «sostituzioni da verificare» / «i cambi concordati in chat» — il titolo secco
+  /^(?:i |le |gli )?(?:cambi|sostituzioni)\s+(?:da verificare|da guardare|da controllare|concordati|concordate|in chat|aperti|aperte|in sospeso|in coda)(?:\s+(?:in chat|da verificare))*$/,
+];
+
+function chiedeSostituzioni(testo: string): boolean {
+  return FORME_SOSTITUZIONI.some((f) => f.test(pulisciDomanda(testo)));
+}
+
 function chiedeSegnalazioni(testo: string): boolean {
-  const t = testo
+  return FORME_SEGNALAZIONI.some((f) => f.test(pulisciDomanda(testo)));
+}
+
+/** Minuscolo, senza accenti, senza apostrofi, senza il punto di domanda in coda. */
+function pulisciDomanda(testo: string): string {
+  return testo
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -469,7 +534,6 @@ function chiedeSegnalazioni(testo: string): boolean {
     .replace(/[?!.]+\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  return FORME_SEGNALAZIONI.some((f) => f.test(t));
 }
 
 /**
@@ -584,4 +648,25 @@ function leggiProteine(testo: string): IntentoProteine | null {
     return { tipo: 'proteine', cliente: nomePersona(testo) ?? chiPortaAl(testo), pct: null };
   }
   return null;
+}
+
+/**
+ * ⚠️ Una giornata dettata si riconosce da **almeno due pasti** nominati con i due punti.
+ *
+ * Con uno solo («Cena: orata») la frase somiglia troppo a mille altre cose, e sbagliare qui vuol
+ * dire prendere per un menu quello che era un appunto. Due pasti in due righe non capitano per caso.
+ */
+function leggiIntentoGiornata(testo: string): IntentoGiornata | null {
+  const righe = leggiGiornataDettata(testo);
+  if (righe.length < 2) return null;
+  /**
+   * ⚠️ Il nome si cerca nella RIGA DI APERTURA, non in tutto il testo: sotto ci sono i nomi dei
+   * piatti, e «Orata» con la maiuscola a inizio riga somiglia troppo a un nome di persona. La
+   * riga di apertura è quella che dice per chi è la giornata.
+   */
+  const apertura = (testo ?? '').split('\n')[0] ?? '';
+  // ⚠️ Niente flag `i`: renderebbe insensibile anche la maiuscola del NOME, che è il solo segnale
+  // che distingue «per Giulia» da «per domani». Le due forme del verbo si scrivono a mano.
+  const dallApertura = /\b(?:[Pp]er|[Aa]d?)\s+([A-ZÀ-Ý][a-zà-ÿ']{1,20}(?:\s+[A-ZÀ-Ý][a-zà-ÿ']{1,20})?)/u.exec(apertura);
+  return { tipo: 'giornata', cliente: nomePersona(apertura) ?? (dallApertura ? dallApertura[1].trim() : null), testo };
 }
