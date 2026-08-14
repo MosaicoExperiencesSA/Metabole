@@ -1,0 +1,30 @@
+Gaia: sul cambio colazione chiede «dolce o salata?» e filtra per i tag di Lucia
+
+Richiesta di Simone (14/8 mattina, dallo screenshot della chat di Antonio): «nel caso
+il cliente chieda il cambio colazione deve chiedere dolce o salata? e in base alla
+risposta cercare nel pool delle colazioni una con ingredienti diversi con lo stesso
+apporto di nutrizionali». Decisione scritta prima del codice in
+progetto/NOTA_Gaia_Colazione_Dolce_Salata.md.
+
+- Nuovo passo `colazione_gusto` nel dialogo del cambio piatto: sul cambio della
+  COLAZIONE senza una preferenza detta, Gaia chiede «la vuoi dolce o salata?».
+  ⚠️ Solo la colazione (l'unico slot con i tag) e solo senza preferenza: «una
+  colazione proteica» ha già risposto a una domanda più precisa e NON fa la domanda.
+- Il gusto sono i TAG di Lucia (`piatto:dolce`/`piatto:salato`, pagina Colazioni,
+  Decisioni 13/8 §12): una colazione senza tag NON partecipa alla ricerca filtrata.
+  `filtraPerGusto` + `gustoDaTesto` + `testoChiediGustoColazione` in cambio-piatto.ts
+  (pure, testate); `candidatiPerSlot` ora porta i tags.
+- «Stesso apporto» = le regole che il cambio piatto ha già: tolleranza kcal
+  (menu_kcal_balance_tolerance_pct), solo la base certificata (client_menu_pool),
+  piatto attuale e piatti della giornata esclusi, quasi-omonimo in fondo.
+- «Fa lo stesso» è una risposta piena: si cerca senza filtro. Risposta non capita:
+  si ripete UNA volta (stessa domanda, parola per parola), poi si cerca senza filtro.
+- Col filtro e niente dentro le calorie: si dice il gusto chiesto («non trovo
+  un'alternativa salata…») e si passa alla nutrizionista (strada esistente).
+- Il gusto scelto finisce in `preferenzaPiatto` («colazione dolce/salata»): il cambio
+  registrato in scheda e nel report dice cosa aveva chiesto lei.
+- Lista Lavori: voce nuova `gaia-colazione-dolce-salata` (239, già fatta).
+
+Test: 10 nuovi visti rossi (521 verdi su src/menu contro 511 del baseline; il test del
+bivio «pasto intero» aggiornato al nuovo passaggio). tsc 52 = 52 baseline.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest.

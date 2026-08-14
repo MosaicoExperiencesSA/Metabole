@@ -18,6 +18,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-14
+
+- `[Sviluppo]` 🥐 **Gaia: sul cambio colazione chiede «dolce o salata?»** (richiesta di Simone,
+  14/8, dallo screenshot della chat di Antonio). Passo nuovo `colazione_gusto`: solo la colazione
+  e solo senza preferenza detta («una colazione proteica» non fa la domanda). Il gusto sono i TAG
+  di Lucia (`piatto:dolce`/`piatto:salato`): senza tag non si partecipa. «Fa lo stesso» cerca
+  senza filtro; niente dentro le calorie → nutrizionista, nominando il gusto. Il gusto chiesto
+  finisce nel registro del cambio. 10 test visti rossi. Decisione in
+  `NOTA_Gaia_Colazione_Dolce_Salata.md`.
+
+- `[Sviluppo]` 🧭 **Vera guida la giornata: «hai segnalazioni per me?»** (richiesta di Simone,
+  14/8 mattina — dallo screenshot la domanda cadeva su «non ci arrivo»). Intento `segnalazioni`
+  ancorato all'intera frase; il quadro si compone dalle tabelle di origine con le segnalazioni
+  CLINICHE in testa (risposta di Simone in pagina Lavori), poi coda del capo, domande aperte,
+  sostituzioni e campanella (senza doppi conteggi); subito dopo Vera porta la prima cosa da fare.
+  Una fonte rotta si dice («non lo so» ≠ «nessuno»). Decisione in `NOTA_Vera_Guida_Giornata.md`.
+
+- `[Sviluppo]` 🔔 **La campanella del capo quando il team gli mette una proposta in coda**
+  (`vera_proposta_in_coda`, solo in-app; l'email resta al conflitto sanitario; niente doppia
+  campanella se la riga è anche un conflitto). Prima la coda si scopriva solo aprendo la pagina.
+
+- `[Sviluppo]` 📋 **L'elenco delle clienti scoperte arriva al capo** (voce
+  `vera-regola-dieta-scoperte`, decisione 13/8): all'approvazione di un divieto di dieta il
+  messaggio dice chi resterebbe senza quale pasto, con nome; l'elenco si persiste nel dettaglio
+  della riga. Chi aveva già lo slot vuoto per le sue esclusioni non è «scoperta dalla regola».
+
+- `[Sviluppo]` ↕️ **Voce 237: la chat di Vera si ridimensiona** — bordo inferiore trascinabile,
+  altezza ricordata (`metabole_bo_vera_chat_h`); si salva solo l'altezza scelta trascinando.
+  36 test nuovi visti rossi (341 verdi su Vera); tsc e jest in sandbox al baseline.
+
 ## 2026-08-13
 
 - `[Sviluppo]` 👋 **Vera: il saluto davanti non spiazza più** («Ciao Vera, hai la lista…?» cadeva

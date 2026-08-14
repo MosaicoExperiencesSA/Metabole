@@ -35,6 +35,8 @@ function make(
     invecchiate?: unknown[];
     valori?: Record<string, unknown>;
     giorniMenu?: unknown[];
+    avvisi?: unknown[];
+    daVerificare?: number;
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -59,6 +61,9 @@ function make(
       findMany: jest.fn().mockResolvedValue(opzioni.giorniMenu ?? []),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    // La guida della giornata (14/8): segnalazioni aperte e campanella. A zero se il test non dice altro.
+    escalation: { count: jest.fn().mockResolvedValue(0) },
+    notification: { findMany: jest.fn().mockResolvedValue(opzioni.avvisi ?? []) },
     staff: {
       updateMany: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }),
@@ -90,11 +95,13 @@ function make(
     daApprovare: jest.fn().mockResolvedValue(opzioni.coda ?? []),
     approva: jest.fn().mockResolvedValue({ riepilogo: 'Applicata a 3 clienti su 3.' }),
     respingi: jest.fn().mockResolvedValue({ riga: { id: 'a1' } }),
+    sostituzioniDaVerificare: jest.fn().mockResolvedValue(opzioni.daVerificare ?? 0),
   } as unknown as RegistroVeraService;
 
   const richieste = {
     // Nessuna domanda aperta se il test non dice altro.
     aperte: jest.fn().mockResolvedValue(opzioni.richieste ?? []),
+    quante: jest.fn().mockResolvedValue((opzioni.richieste ?? []).length),
     rispondi: jest.fn().mockResolvedValue({ aggiunti: ['fave', 'legumi'], clienteNome: 'Mariastella' }),
     collega: jest.fn().mockResolvedValue(undefined),
   } as unknown as RichiesteVeraService;
@@ -906,5 +913,76 @@ describe('VeraChatService — la famiglia chiesta a secco (13/8, 17:47)', () => 
     expect(testo.toLowerCase()).toContain('formaggi molli');
     expect(stato).toBeUndefined();
     expect((pool as never as { anteprima: jest.Mock }).anteprima).not.toHaveBeenCalled();
+  });
+});
+
+describe('VeraChatService — «hai segnalazioni per me?»: la guida della giornata (Simone, 14/8)', () => {
+  it('a giornata vuota risponde che non c\'è niente — non «non ci arrivo»', async () => {
+    // Lo screenshot del 14/8, 08:35: la domanda esplicita cadeva nel «non capito», che è vero e
+    // fuorviante — la risposta giusta esisteva già (codaVuota).
+    const { service, messaggioCreate } = make();
+    await service.parla('nocanty', 'Ciao hai segnalazioni per me?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Non c\'è niente che aspetta te');
+    expect(testo).not.toContain('Non ci arrivo');
+  });
+
+  it('col lavoro in coda fa il quadro E porta subito la prima proposta, già istruita', async () => {
+    const { service, messaggioCreate } = make({}, {
+      coda: [{
+        id: 'a1', frase: 'a tutte niente tonno', nutrizionistaId: 'lucia', soggettoNome: null,
+        dettaglio: { termini: ['tonno'] }, conflittoSanitario: false, createdAt: new Date('2026-08-13T08:00:00.000Z'),
+      }],
+    });
+    await service.parla('nocanty', 'cosa mi aspetta oggi?');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('da approvare');
+    // Guida, non elenca: dopo il quadro c'è già la prima cosa da fare.
+    expect(testo).toContain('«a tutte niente tonno»');
+    expect(stato?.passo).toBe('revisione');
+  });
+
+  it('⚠️ le segnalazioni cliniche vanno IN TESTA (Simone, 14/8, pagina Lavori)', async () => {
+    const count = jest.fn().mockImplementation(({ where }: { where: { category?: string } }) =>
+      Promise.resolve(where.category === 'clinical' ? 2 : 3));
+    const { service, messaggioCreate } = make({ escalation: { count } }, { daVerificare: 1 });
+    await service.parla('nocanty', 'hai segnalazioni per me?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('2 segnalazioni cliniche');
+    expect(testo).toContain('1 segnalazione aperta');
+    // «in testa a tutte»: la riga clinica viene prima di ogni altra.
+    expect(testo.indexOf('cliniche')).toBeLessThan(testo.indexOf('sostituzion'));
+  });
+
+  it('legge la campanella: gli avvisi non letti, raggruppati e con l\'etichetta', async () => {
+    const { service, messaggioCreate } = make({}, {
+      avvisi: [
+        { type: 'vera_conflitto_sanitario' },
+        { type: 'vera_conflitto_sanitario' },
+        { type: 'stall_coach_alert' },
+      ],
+    });
+    await service.parla('nocanty', 'novità?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('campanella');
+    expect(testo).toContain('2 su conflitti sanitari');
+  });
+
+  it('⚠️ le vera_richiesta della campanella NON si contano due volte (le code vengono dalle tabelle)', async () => {
+    const { service, messaggioCreate } = make({}, { avvisi: [{ type: 'vera_richiesta' }] });
+    await service.parla('nocanty', 'novità?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    // L'unica notifica non letta è già raccontata dalla coda delle domande: niente riga campanella.
+    expect(testo).not.toContain('campanella');
+  });
+
+  it('⚠️ una fonte rotta si DICE, non si finge uno zero («non lo so» ≠ «nessuno»)', async () => {
+    const { service, messaggioCreate } = make({
+      escalation: { count: jest.fn().mockRejectedValue(new Error('boom')) },
+    }, { daVerificare: 2 });
+    await service.parla('nocanty', 'hai segnalazioni per me?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('2 sostituzioni da verificare');
+    expect(testo).toContain('Non sono riuscito a leggere');
   });
 });

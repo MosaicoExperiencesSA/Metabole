@@ -1260,7 +1260,10 @@ describe('SostituzioneChatService — ascoltare meglio (12/8)', () => {
     const bivio = await service.avanza('client-1', apertura.stato!, 'voglio cambiare la colazione con pane e marmellata');
     expect(bivio.stato?.passo).toBe('pasto_intero');
 
-    const esito = await service.avanza('client-1', bivio.stato!, '2');
+    // Dal 14/8 sulla colazione senza preferenza c'è prima «dolce o salata?» (richiesta di Simone).
+    const gusto = await service.avanza('client-1', bivio.stato!, '2');
+    expect(gusto.stato?.passo).toBe('colazione_gusto');
+    const esito = await service.avanza('client-1', gusto.stato!, 'fa lo stesso');
     expect(esito.stato?.passo).toBe('scelta_piatto');
     // Alternative vere, dal pool approvato per lei, non il piatto che aveva già.
     expect(esito.testo).toMatch(/Uova strapazzate|Skyr/);
@@ -1366,5 +1369,96 @@ describe('SostituzioneChatService — la giornata di cui si parla (§16.2)', () 
     const dopoCibo = await service.avanza('client-1', apertura.stato!, 'le carote');
     const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
     expect(dopoMotivo.testo).toContain('solo per oggi: domani torna come prima');
+  });
+});
+
+/**
+ * «DOLCE O SALATA?» — richiesta di Simone del 14/8, dallo screenshot della chat di Antonio.
+ * Sul cambio della COLAZIONE senza una preferenza detta, Gaia chiede il gusto e cerca fra le
+ * colazioni taggate da Lucia (`piatto:dolce`/`piatto:salato`), a pari calorie.
+ */
+describe('SostituzioneChatService — cambio colazione: «dolce o salata?» (14/8)', () => {
+  const conTag = (prisma: any) => {
+    const catalogo = [
+      { id: 'r-colazione', name: 'Yogurt e avena', mealSlot: 'breakfast', kcal: 320, macros: { protein_g: 14 }, difficulty: 'semplice', ingredients: [], tags: ['piatto:dolce'] },
+      { id: 'r-uova', name: 'Uova strapazzate e pane di segale', mealSlot: 'breakfast', kcal: 340, macros: { protein_g: 24 }, difficulty: 'semplice', ingredients: [], tags: ['piatto:salato'] },
+      { id: 'r-toast', name: 'Toast integrale con ricotta', mealSlot: 'breakfast', kcal: 330, macros: { protein_g: 18 }, difficulty: 'semplice', ingredients: [], tags: ['piatto:salato'] },
+      { id: 'r-porridge', name: 'Porridge ai frutti di bosco', mealSlot: 'breakfast', kcal: 335, macros: { protein_g: 12 }, difficulty: 'semplice', ingredients: [], tags: ['piatto:dolce'] },
+      // ⚠️ Senza tag: nessuno l'ha classificata, e nella ricerca filtrata NON deve comparire.
+      { id: 'r-skyr', name: 'Skyr con mandorle', mealSlot: 'breakfast', kcal: 330, macros: { protein_g: 20 }, difficulty: 'semplice', ingredients: [], tags: [] },
+    ];
+    prisma.recipe.findMany = jest.fn().mockImplementation(({ where }: any) => {
+      const perId = (where?.id?.in ?? null) as string[] | null;
+      return Promise.resolve(
+        catalogo
+          .filter((r) => (perId ? perId.includes(r.id) : true))
+          .filter((r) => (where?.mealSlot ? r.mealSlot === where.mealSlot : true)),
+      );
+    });
+    prisma.clientMenuPool.findFirst = jest.fn().mockResolvedValue({
+      recipeIds: ['r-colazione', 'r-uova', 'r-toast', 'r-porridge', 'r-skyr'],
+    });
+  };
+
+  it('sul cambio colazione senza preferenza CHIEDE il gusto, non propone alla cieca', async () => {
+    const { service } = await creaServizio(conTag);
+    const esito = await service.proponiAltroPiatto('cli-1', 'vorrei cambiare la colazione');
+    expect(esito.stato?.passo).toBe('colazione_gusto');
+    expect(esito.testo).toContain('dolce o salata');
+  });
+
+  it('«salata» → solo le colazioni taggate salate, a pari calorie; la senza-tag resta fuori', async () => {
+    const { service } = await creaServizio(conTag);
+    const domanda = await service.proponiAltroPiatto('cli-1', 'vorrei cambiare la colazione');
+    const esito = await service.avanza('cli-1', domanda.stato!, 'salata');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+    const nomi = esito.stato?.alternativePiatto?.map((a) => a.nome) ?? [];
+    expect(nomi).toContain('Uova strapazzate e pane di segale');
+    expect(nomi).toContain('Toast integrale con ricotta');
+    expect(nomi).not.toContain('Skyr con mandorle');
+    expect(nomi).not.toContain('Porridge ai frutti di bosco');
+  });
+
+  it('«fa lo stesso» → si cerca senza filtro', async () => {
+    const { service } = await creaServizio(conTag);
+    const domanda = await service.proponiAltroPiatto('cli-1', 'vorrei cambiare la colazione');
+    const esito = await service.avanza('cli-1', domanda.stato!, 'fa lo stesso');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+    expect((esito.stato?.alternativePiatto ?? []).length).toBeGreaterThan(0);
+  });
+
+  it('⚠️ «una colazione proteica» NON fa la domanda: ha già detto cosa vuole', async () => {
+    const { service } = await creaServizio(conTag);
+    const esito = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    expect(esito.stato?.passo).toBe('scelta_piatto');
+  });
+
+  it('risposta non capita: si ripete UNA volta, poi si cerca senza filtro', async () => {
+    const { service } = await creaServizio(conTag);
+    const domanda = await service.proponiAltroPiatto('cli-1', 'vorrei cambiare la colazione');
+    const primo = await service.avanza('cli-1', domanda.stato!, 'mah');
+    expect(primo.esito).toBe('in_corso');
+    expect(primo.stato?.passo).toBe('colazione_gusto');
+    const secondo = await service.avanza('cli-1', primo.stato!, 'non so dirti');
+    expect(secondo.stato?.passo).toBe('scelta_piatto');
+  });
+
+  it('col filtro e niente dentro le calorie: lo dice col gusto chiesto e passa alla nutrizionista', async () => {
+    const { service } = await creaServizio((prisma: any) => {
+      conTag(prisma);
+      // Solo colazioni dolci nel pool: chiedere «salata» deve finire alla nutrizionista.
+      prisma.clientMenuPool.findFirst = jest.fn().mockResolvedValue({ recipeIds: ['r-colazione', 'r-porridge'] });
+    });
+    const domanda = await service.proponiAltroPiatto('cli-1', 'vorrei cambiare la colazione');
+    const esito = await service.avanza('cli-1', domanda.stato!, 'salata');
+    expect(esito.esito).toBe('arresa');
+    expect(esito.testo).toContain('salata');
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+
+  it('il pranzo NON fa la domanda del gusto: è una cosa della colazione', async () => {
+    const { service } = await creaServizio(conTag);
+    const esito = await service.proponiAltroPiatto('cli-1', 'voglio cambiare il pranzo');
+    expect(esito.stato?.passo).not.toBe('colazione_gusto');
   });
 });

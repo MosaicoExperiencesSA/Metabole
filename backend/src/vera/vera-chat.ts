@@ -255,6 +255,21 @@ export const testi = {
 
   codaVuota: () => 'Non c\'è niente che aspetta te. Quando arriva una proposta te la porto qui.',
 
+  // ── la guida della giornata (Simone, 14/8) ─────────────────────────────────
+
+  /**
+   * Il quadro di «hai segnalazioni per me?»: una riga per fonte, e solo le fonti che hanno
+   * qualcosa. ⚠️ L'ordine delle righe lo decide il servizio, e le segnalazioni CLINICHE vanno in
+   * testa (Simone, 14/8, pagina Lavori: se ci sono problemi clinici «vanno in testa a tutte»).
+   */
+  guida: (righe: string[]) => `Ecco il quadro di oggi:\n\n${righe.map((r) => `• ${r}`).join('\n')}`,
+
+  /**
+   * ⚠️ «Non lo so» ≠ «nessuno»: una fonte rotta si dice, non si finge uno zero. Fingere lo zero
+   * insegnerebbe a fidarsi di un quadro che quel giorno era cieco su una colonna.
+   */
+  guidaFonteRotta: (cosa: string) => `⚠️ Non sono riuscito a leggere ${cosa}: lì non so dirti se c'è qualcosa.`,
+
   approvata: (riepilogo: string) => `Approvata. ${riepilogo}`,
 
   chiediMotivo: () =>
@@ -383,4 +398,21 @@ export function estraiNome(frase: string): EsitoNome | null {
     .trim();
   if (/^[a-zA-ZÀ-ÿ]{2,30}$/.test(secco)) return { tipo: 'nome', nome: secco };
   return null;
+}
+
+/**
+ * L'ETICHETTA di un tipo di notifica, per il quadro della giornata.
+ *
+ * ⚠️ Non è un catalogo completo dei tipi — nascono più in fretta di qualunque elenco. Il ripiego
+ * (`tipo` con gli underscore tolti) è brutto apposta: si vede, e la parola giusta si aggiunge qui.
+ */
+const ETICHETTE_AVVISI: Record<string, string> = {
+  vera_conflitto_sanitario: 'conflitti sanitari',
+  stall_coach_alert: 'clienti ferme col peso',
+  no_checkin_coach_alert: 'check-in mancati',
+  chat_reply: 'risposte in chat',
+};
+
+export function etichettaAvviso(tipo: string): string {
+  return ETICHETTE_AVVISI[tipo] ?? (tipo ?? '').replace(/_/g, ' ');
 }

@@ -26,7 +26,8 @@
  *    persona; bloccare tutto vorrebbe dire che una cliente con un catalogo povero ferma una regola
  *    giusta per le altre trecento.
  */
-import { expandExclusion } from '../menu/exclusions';
+import { exclusionKeys, expandExclusion } from '../menu/exclusions';
+import { calcolaPool, RicettaDelPool as RicettaPerPool } from './pool-disponibile';
 
 /** Il codice della regola dentro `ProductRule`. Uno solo, e non uno per termine. */
 export const RULE_CODE_ESCLUSIONI = 'diet_excluded_terms';
@@ -115,4 +116,60 @@ export function slotScoperti(
     if (rimaste === 0) out.push({ slot, rimaste });
   }
   return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Quello che serve di una cliente per chiedersi se la regola la lascerebbe senza un pasto. */
+export interface ClientePerScoperte {
+  userId: string;
+  nome: string | null;
+  /** Le sue esclusioni personali, grezze: allergie + intolleranze + cibi che non vuole. */
+  esclusioni: readonly string[];
+}
+
+export interface ClienteScoperta {
+  userId: string;
+  nome: string | null;
+  /** I pasti che resterebbero a zero, con l'etichetta italiana. */
+  pasti: string[];
+}
+
+/**
+ * CHI RESTEREBBE SENZA UN PASTO — l'elenco per il capo (decisione di Simone, 13/8; voce
+ * `vera-regola-dieta-scoperte`).
+ *
+ * L'erogazione non svuota mai uno slot: per chi resterebbe a zero il divieto si salta e lei resta
+ * com'era. Giusto — ma finché quell'elenco non arriva al capo, la regola *sembra* applicata a
+ * tutte, e la bugia è silenziosa. Questa funzione risponde alla domanda con nome e cognome.
+ *
+ * ⚠️ Una cliente è scoperta se uno slot che PRIMA della regola aveva almeno una ricetta (già tolte
+ * le sue esclusioni personali) DOPO resterebbe a zero. Chi aveva già lo slot vuoto per conto suo
+ * non c'entra con questa regola: metterla in elenco farebbe sembrare il divieto più cattivo di
+ * com'è, e il capo smetterebbe di leggere l'elenco.
+ *
+ * Pura: il confronto sul piatto è lo stesso del motore (`calcolaPool` → `hitsExclusion`), perché
+ * una stima diversa da quello che il motore farà davvero prima o poi mente senza dare errori.
+ */
+export function clientiScoperte(
+  slotPool: ReadonlyMap<string, readonly RicettaPerPool[]>,
+  vietate: ReadonlySet<string>,
+  clienti: readonly ClientePerScoperte[],
+): ClienteScoperta[] {
+  if (!vietate.size || !slotPool.size || !clienti.length) return [];
+  const poolPrima = new Map([...slotPool].map(([slot, r]) => [slot, [...r]]));
+  const poolDopo = new Map([...slotPool].map(([slot, r]) => [slot, r.filter((x) => !vietate.has(x.id))]));
+
+  const fuori: ClienteScoperta[] = [];
+  for (const c of clienti) {
+    const chiavi = exclusionKeys([...(c.esclusioni ?? [])]);
+    const prima = calcolaPool(poolPrima, chiavi, 0);
+    const dopo = calcolaPool(poolDopo, chiavi, 0);
+    const restanoPrima = new Map(prima.slots.map((s) => [s.slot, s.restano]));
+    const pasti = dopo.slots
+      .filter((s) => s.restano === 0 && (restanoPrima.get(s.slot) ?? 0) > 0)
+      .map((s) => s.etichetta);
+    if (pasti.length) fuori.push({ userId: c.userId, nome: c.nome, pasti });
+  }
+  return fuori;
 }

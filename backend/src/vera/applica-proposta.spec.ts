@@ -132,6 +132,7 @@ describe('il divieto su una dieta (§6.2)', () => {
     const prisma = {
       productRule: { findFirst: jest.fn().mockResolvedValue(null), create, update: jest.fn() },
       recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -150,6 +151,7 @@ describe('il divieto su una dieta (§6.2)', () => {
         update,
       },
       recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     await applicaProposta(prisma as never, proposta as never);
@@ -166,6 +168,7 @@ describe('il divieto su una dieta (§6.2)', () => {
         create: jest.fn(), update,
       },
       recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -178,6 +181,7 @@ describe('il divieto su una dieta (§6.2)', () => {
     const prisma = {
       productRule: { findFirst: jest.fn(), create, update: jest.fn() },
       recipe: { findMany: jest.fn().mockResolvedValue([]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     };
     await applicaProposta(prisma as never, { ...proposta, soggettoId: null } as never);
@@ -199,6 +203,7 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
       prisma: {
         productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
         recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Tonno alle olive', ingredients: [] }]) },
+        dietDayTemplate: { findMany: jest.fn().mockResolvedValue([]) },
         menuDay: { findMany: jest.fn().mockResolvedValue(giorni), deleteMany },
       },
     };
@@ -220,5 +225,73 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(deleteMany).not.toHaveBeenCalled();
     expect(esito.riepilogo).toContain('non ho toccato niente');
+  });
+});
+
+describe('l\'elenco delle scoperte arriva al capo (voce vera-regola-dieta-scoperte)', () => {
+  const proposta = {
+    id: 'p1', nutrizionistaId: 's1', azione: 'regola_dieta', ambito: 'dieta',
+    soggettoId: 'd1', soggettoNome: 'Mediterranea', dettaglio: { termini: ['tonno'] },
+  };
+
+  it('chi resterebbe senza un pasto si dice al capo, con nome e pasto — e per lei il divieto non vale', async () => {
+    const prisma = {
+      productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Insalata di tonno', ingredients: [] }]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ meals: [{ slot: 'dinner', recipeId: 'r-tonno' }] }]) },
+      // Due letture diverse sulla stessa tabella: il rifacimento (viewedAt null) e la coorte (distinct).
+      menuDay: {
+        findMany: jest.fn().mockImplementation((args: { distinct?: string[] }) =>
+          Promise.resolve(args?.distinct ? [{ clientId: 'c1' }] : [])),
+        deleteMany: jest.fn(),
+      },
+      clientProfile: {
+        findMany: jest.fn().mockResolvedValue([
+          { userId: 'c1', name: 'Giulia Rossi', allergies: [], intolerances: [], dislikedFoods: [] },
+        ]),
+      },
+    };
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(esito.riepilogo).toContain('Giulia Rossi');
+    expect(esito.riepilogo).toContain('cena');
+    expect(esito.riepilogo).toContain('NON vale');
+    expect(esito.scoperte).toHaveLength(1);
+  });
+
+  it('⚠️ se il conto delle scoperte si rompe si DICE — la regola vale, l\'elenco va guardato a mano', async () => {
+    // «Non lo so» ≠ «nessuno»: un elenco vuoto per un errore inghiottito è la bugia silenziosa
+    // che questa voce esiste per chiudere.
+    const prisma = {
+      productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Insalata di tonno', ingredients: [] }]) },
+      dietDayTemplate: { findMany: jest.fn().mockRejectedValue(new Error('boom')) },
+      menuDay: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
+    };
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(esito.riepilogo).toContain('Non sono riuscito a calcolare chi resterebbe scoperta');
+  });
+
+  it('con tutte le clienti coperte l\'elenco non compare e non sporca il messaggio', async () => {
+    const prisma = {
+      productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([
+        { id: 'r-tonno', name: 'Insalata di tonno', ingredients: [] },
+        { id: 'r-pollo', name: 'Pollo ai ferri', ingredients: [] },
+      ]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ meals: [{ slot: 'dinner', recipeId: 'r-tonno' }, { slot: 'dinner', recipeId: 'r-pollo' }] }]) },
+      menuDay: {
+        findMany: jest.fn().mockImplementation((args: { distinct?: string[] }) =>
+          Promise.resolve(args?.distinct ? [{ clientId: 'c1' }] : [])),
+        deleteMany: jest.fn(),
+      },
+      clientProfile: {
+        findMany: jest.fn().mockResolvedValue([
+          { userId: 'c1', name: 'Giulia Rossi', allergies: [], intolerances: [], dislikedFoods: [] },
+        ]),
+      },
+    };
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(esito.riepilogo).not.toContain('NON vale');
+    expect(esito.scoperte ?? []).toHaveLength(0);
   });
 });

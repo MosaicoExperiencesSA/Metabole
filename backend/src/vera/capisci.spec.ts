@@ -244,3 +244,35 @@ describe('capisci — il saluto davanti non spiazza (Nocanty, 13/8 18:05)', () =
     expect((i as { cliente?: string }).cliente).toBe('Giulia');
   });
 });
+
+describe('capisci — «hai segnalazioni per me?»: la guida della giornata (Simone, 14/8)', () => {
+  it.each([
+    'hai segnalazioni per me?',
+    'Ciao hai segnalazioni per me?',
+    'ci sono novità?',
+    'novità?',
+    'avvisi?',
+    'hai notifiche per me?',
+    'cosa mi aspetta oggi?',
+    "cosa c'è da fare?",
+    "che c'è per me?",
+    'cosa devo fare oggi?',
+    'da dove comincio?',
+    'guidami',
+  ])('«%s» chiede il quadro della giornata', (frase) => {
+    expect(capisci(frase)?.tipo).toBe('segnalazioni');
+  });
+
+  it('⚠️ «avvisi Giulia che salta il controllo» resta un\'istruzione (non capita), non la domanda', () => {
+    // Le forme sono ancorate all'intera frase: una frase che CONTIENE «avvisi» non è la domanda.
+    expect(capisci('avvisi Giulia che salta il controllo')?.tipo).not.toBe('segnalazioni');
+  });
+
+  it('⚠️ «hai la lista dei formaggi molli?» resta la famiglia, non le segnalazioni', () => {
+    expect(capisci('hai la lista dei formaggi molli?')?.tipo).toBe('famiglia');
+  });
+
+  it('⚠️ «a Giulia niente tonno» resta una restrizione', () => {
+    expect(capisci('a Giulia niente tonno')?.tipo).toBe('restrizione');
+  });
+});

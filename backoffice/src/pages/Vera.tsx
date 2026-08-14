@@ -95,6 +95,9 @@ const ORIGINE: Record<string, string> = {
 
 const data = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
+/** Sotto quest'altezza la chat non scende: tre messaggi e la riga per scrivere ci devono stare. */
+const ALTEZZA_CHAT_MIN = 320;
+
 export function Vera() {
   const { can } = useAuth();
   // ⚠️ `nutri_assistant` e non `food_swaps`: la chiave è cambiata il 13/8, e questa riga è il posto
@@ -116,6 +119,43 @@ export function Vera() {
   const [aperta, setAperta] = useState<Azione | null>(null);
   const [report, setReport] = useState<{ periodo: string; testo: string } | null>(null);
   const fine = useRef<HTMLDivElement>(null);
+  const finestraChat = useRef<HTMLDivElement>(null);
+
+  /**
+   * L'ALTEZZA DELLA CHAT SI RICORDA (voce 237, richiesta di Simone dagli screenshot del 13/8).
+   *
+   * Solo il valore scelto TRASCINANDO finisce in localStorage: salvare l'altezza a ogni misura
+   * congelerebbe in pixel il default `min(72vh, 640px)` alla prima visita, e su uno schermo diverso
+   * sembrerebbe una scelta che nessuno ha fatto.
+   */
+  const [altezzaChat] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem('metabole_bo_vera_chat_h') || '');
+      return Number.isFinite(v) && v >= ALTEZZA_CHAT_MIN && v <= 2000 ? v : null;
+    } catch {
+      return null;
+    }
+  });
+
+  function trascinaAltezza(e: React.MouseEvent) {
+    e.preventDefault();
+    const el = finestraChat.current;
+    if (!el) return;
+    const inizioY = e.clientY;
+    const inizioAltezza = el.getBoundingClientRect().height;
+    const muovi = (ev: MouseEvent) => {
+      const h = Math.max(ALTEZZA_CHAT_MIN, Math.round(inizioAltezza + ev.clientY - inizioY));
+      el.style.height = `${h}px`;
+    };
+    const lascia = () => {
+      document.removeEventListener('mousemove', muovi);
+      document.removeEventListener('mouseup', lascia);
+      const h = Math.round(el.getBoundingClientRect().height);
+      try { localStorage.setItem('metabole_bo_vera_chat_h', String(h)); } catch { /* storage non disponibile */ }
+    };
+    document.addEventListener('mousemove', muovi);
+    document.addEventListener('mouseup', lascia);
+  }
 
   async function caricaRegistro() {
     const [reg, ric, asp, all] = await Promise.all([
@@ -308,7 +348,11 @@ export function Vera() {
       )}
 
       {/* ── la conversazione ─────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'min(72vh, 640px)' }}>
+      <div
+        ref={finestraChat}
+        className="card"
+        style={{ padding: 0, display: 'flex', flexDirection: 'column', height: altezzaChat ?? 'min(72vh, 640px)', minHeight: ALTEZZA_CHAT_MIN }}
+      >
         <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messaggi.length === 0 && <div className="empty">Scrivi la prima frase qui sotto.</div>}
           {messaggi.map((m) => {
@@ -362,6 +406,15 @@ export function Vera() {
             Puoi leggere il registro qui sotto. Per dettare all'assistente serve il permesso di gestione.
           </div>
         )}
+
+        {/* Il bordo che si trascina (voce 237). Solo mouse: il backoffice si usa alla scrivania. */}
+        <div
+          onMouseDown={trascinaAltezza}
+          title="Trascina per ridimensionare la chat"
+          style={{ height: 10, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
+        >
+          <div style={{ width: 44, height: 3, borderRadius: 2, background: 'var(--line)' }} />
+        </div>
       </div>
 
       {/* ── il registro ──────────────────────────────────────────────────── */}

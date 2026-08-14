@@ -54,6 +54,7 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 16,
     blocca: false,
+    fatta: true, // 14/8: `clientiScoperte` al momento dell'approvazione — nel messaggio del capo E nel dettaglio della riga
   },
   {
     chiave: 'vera-azione-3-variante-piano',
@@ -445,6 +446,33 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 236,
     fatta: true, // consegnata la sera stessa
+  },
+  {
+    chiave: 'vera-chat-dimensionabile',
+    titolo: 'Vera: la finestra della chat si deve poter ridimensionare',
+    dettaglio:
+      'Richiesta di Simone (13/8 sera, dagli screenshot delle prove di Nocanty): oggi la chat è a altezza fissa (min(72vh, 640px), alzata ieri da 460). Renderla dimensionabile — trascinamento del bordo inferiore (CSS resize/handle) e altezza ricordata tra una visita e l\'altra. Pagina `backoffice/src/pages/Vera.tsx`.',
+    categoria: CODICE,
+    ordine: 237,
+    fatta: true, // 14/8: bordo inferiore trascinabile, altezza ricordata (localStorage) — Vera.tsx
+  },
+  {
+    chiave: 'vera-guida-giornata',
+    titolo: 'Vera guida la giornata: «hai segnalazioni per me?» + campanella del capo sulla proposta nuova',
+    dettaglio:
+      'Richiesta di Simone (14/8 mattina, dallo screenshot: la domanda cadeva su «non ci arrivo»). Intento `segnalazioni` in `capisci.ts` (forme ancorate: «avvisi Giulia che…» resta un\'istruzione); il quadro si compone dalle tabelle di origine — segnalazioni CLINICHE IN TESTA (risposta di Simone in pagina Lavori), poi le altre, la coda del capo, le domande aperte, le sostituzioni, e la campanella (avvisi non letti, senza contare due volte le code) — e subito dopo Vera porta la prima cosa da fare. Una fonte rotta si dice («non lo so» ≠ «nessuno»). E il capo riceve la notifica `vera_proposta_in_coda` quando il team gli mette una proposta in coda (solo in-app; il conflitto sanitario resta l\'unico con email, e non fa doppia campanella). Decisione in `progetto/NOTA_Vera_Guida_Giornata.md`.',
+    categoria: CODICE,
+    ordine: 238,
+    fatta: true, // consegnata il giorno stesso
+  },
+  {
+    chiave: 'gaia-colazione-dolce-salata',
+    titolo: 'Gaia: sul cambio colazione chiede «dolce o salata?» e filtra per i tag di Lucia',
+    dettaglio:
+      'Richiesta di Simone (14/8, dallo screenshot della chat di Antonio). Sul cambio della COLAZIONE senza preferenza detta, Gaia chiede il gusto e cerca nel pool certificato solo fra le colazioni taggate `piatto:dolce`/`piatto:salato` (le conferme di Lucia: senza tag non si partecipa), a pari calorie e con ingredienti diversi (le regole del cambio piatto). «Fa lo stesso» = senza filtro; due risposte non capite = senza filtro; niente dentro le calorie = si dice il gusto chiesto e si passa alla nutrizionista. «Una colazione proteica» NON fa la domanda. Decisione in `progetto/NOTA_Gaia_Colazione_Dolce_Salata.md`.',
+    categoria: CODICE,
+    ordine: 239,
+    fatta: true, // consegnata il giorno stesso
   },
   {
     chiave: 'vera-handoff-sessione',

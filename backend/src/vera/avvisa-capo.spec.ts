@@ -1,4 +1,4 @@
-import { avvisaConflittoSanitario, testoAvvisoConflitto } from './avvisa-capo';
+import { avvisaConflittoSanitario, avvisaPropostaInCoda, testoAvvisoConflitto } from './avvisa-capo';
 import { PrismaService } from '../prisma/prisma.service';
 
 const RIGA = {
@@ -114,5 +114,45 @@ describe('avvisaConflittoSanitario — anche via EMAIL (decisione di Simone, 13/
     expect(quanti).toBe(2);
     expect(send).toHaveBeenCalledTimes(2);
     expect(createMany).toHaveBeenCalled();
+  });
+});
+
+describe('avvisaPropostaInCoda — «avvisa il capo quando il team gli mette qualcosa in coda» (Simone, 14/8)', () => {
+  const PROPOSTA = {
+    id: 'a9',
+    frase: 'nella mediterranea niente tonno',
+    nutrizionistaId: 'lucia',
+    soggettoNome: 'Mediterranea',
+  };
+
+  it('avvisa i capi, escluso chi ha proposto', async () => {
+    const { prisma, createMany } = make([{ id: 'capo1' }, { id: 'lucia' }]);
+    expect(await avvisaPropostaInCoda(prisma, PROPOSTA)).toBe(1);
+    const dati = createMany.mock.calls[0][0].data;
+    expect(dati.map((d: { userId: string }) => d.userId)).toEqual(['capo1']);
+  });
+
+  it('⚠️ title e body vivono dentro payload, con l\'azioneId per arrivarci', async () => {
+    const { prisma, createMany } = make([{ id: 'capo1' }]);
+    await avvisaPropostaInCoda(prisma, PROPOSTA);
+    const dati = createMany.mock.calls[0][0].data;
+    expect(dati[0].payload.title).toContain('proposta');
+    expect(dati[0].payload.body).toContain('Lucia Verdi');
+    expect(dati[0].payload.body).toContain('nella mediterranea niente tonno');
+    expect(dati[0].payload.azioneId).toBe('a9');
+    expect(dati[0].type).toBe('vera_proposta_in_coda');
+  });
+
+  it('⚠️ non lancia mai: la proposta resta scritta anche se l\'avviso muore', async () => {
+    const prisma = {
+      user: { findMany: jest.fn().mockRejectedValue(new Error('boom')) },
+    } as unknown as PrismaService;
+    expect(await avvisaPropostaInCoda(prisma, PROPOSTA)).toBe(0);
+  });
+
+  it('senza capi da avvisare non scrive niente', async () => {
+    const { prisma, createMany } = make([{ id: 'lucia' }]);
+    expect(await avvisaPropostaInCoda(prisma, PROPOSTA)).toBe(0);
+    expect(createMany).not.toHaveBeenCalled();
   });
 });

@@ -123,3 +123,66 @@ export async function avvisaConflittoSanitario(
     return 0;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** La riga appena messa in coda: quello che serve per far suonare la campanella giusta. */
+export interface PropostaInCoda {
+  id: string;
+  frase: string;
+  nutrizionistaId: string;
+  soggettoNome: string | null;
+}
+
+/**
+ * LA CAMPANELLA DEL CAPO quando il team gli mette una proposta in coda (Simone, 14/8).
+ *
+ * Prima il capo scopriva la coda solo APRENDO la pagina dell'assistente: «subito» che diventa
+ * «quando capita» — e dietro una proposta ferma c'è una nutrizionista che aspetta.
+ *
+ * ⚠️ Solo in-app, NIENTE email: quella resta al conflitto sanitario, che è un altro orologio
+ * (decisione di Simone del 13/8 sul conflitto; qui vale il contrario — una email per ogni proposta
+ * insegna a cancellarle senza leggerle). ⚠️ Non l'autore della proposta: lo sa già. ⚠️ E come
+ * `avvisaConflittoSanitario`, NON lancia mai: perdere la scrittura per una notifica non partita
+ * sarebbe un guasto peggiore del guasto. Se la riga è anche un conflitto sanitario questa funzione
+ * non viene proprio chiamata: parte l'avviso di conflitto, che è più forte — una campanella, non due.
+ */
+export async function avvisaPropostaInCoda(prisma: PrismaService, riga: PropostaInCoda): Promise<number> {
+  try {
+    const capi = (await prisma.user.findMany({
+      where: { role: 'head_nutritionist', status: 'active', deletedAt: null } as never,
+      select: { id: true },
+      take: 20,
+    })) as { id: string }[];
+    const daAvvisare = capi.filter((c) => c.id !== riga.nutrizionistaId);
+    if (!daAvvisare.length) return 0;
+
+    const autore = (await prisma.user.findUnique({
+      where: { id: riga.nutrizionistaId },
+      select: { firstName: true, lastName: true },
+    })) as { firstName: string | null; lastName: string | null } | null;
+    const nome = [autore?.firstName, autore?.lastName].filter(Boolean).join(' ') || 'Una nutrizionista';
+    const suCosa = riga.soggettoNome ? ` su ${riga.soggettoNome}` : '';
+
+    // ⚠️ `title` e `body` vivono dentro `payload`: la tabella non ha quelle colonne.
+    await prisma.notification.createMany({
+      data: daAvvisare.map((capo) => ({
+        userId: capo.id,
+        type: 'vera_proposta_in_coda',
+        channel: 'inapp',
+        payload: {
+          title: 'Una proposta aspetta te',
+          body: `${nome} ha proposto${suCosa}: «${riga.frase.slice(0, 140)}»`,
+          kind: 'vera_proposta_in_coda',
+          azioneId: riga.id,
+        },
+        scheduledFor: new Date(),
+        sentAt: new Date(),
+      })) as never,
+    });
+    return daAvvisare.length;
+  } catch (err) {
+    logger.warn(`Avviso di proposta in coda non mandato (azione=${riga?.id}): ${err instanceof Error ? err.message : String(err)}`);
+    return 0;
+  }
+}

@@ -64,7 +64,8 @@ export type Intento =
   | IntentoRicetta
   | IntentoFuoriPortata
   | IntentoPasti
-  | IntentoFamiglia;
+  | IntentoFamiglia
+  | IntentoSegnalazioni;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -98,6 +99,17 @@ export interface IntentoFamiglia {
   tipo: 'famiglia';
   azione: 'mostra' | 'crea';
   nome: string;
+}
+
+/**
+ * «Hai segnalazioni per me?» / «cosa mi aspetta oggi?» — la guida della giornata (Simone, 14/8).
+ *
+ * Non è un'istruzione: è la domanda sulla giornata, e merita risposta anche quando la risposta è
+ * «niente». Prima cadeva nel «non ci arrivo» (screenshot del 14/8, 08:35), che era vero e
+ * fuorviante.
+ */
+export interface IntentoSegnalazioni {
+  tipo: 'segnalazioni';
 }
 
 export interface IntentoPasti {
@@ -297,6 +309,9 @@ export function capisci(frase: string): Intento | null {
    */
   const mostraF = MOSTRA_FAMIGLIA.exec(testo);
   if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
+  // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
+  // `daScartare` che butta via ogni «?». Rispondere non esegue niente.
+  if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   if (daScartare(testo)) return null;
 
   // 1) Parla di un tipo di dieta? Allora NON è una regola su una cliente, e non so ancora farla.
@@ -365,3 +380,34 @@ export function capisci(frase: string): Intento | null {
 }
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * «HAI SEGNALAZIONI PER ME?» — le forme della domanda sulla giornata (Simone, 14/8).
+ *
+ * ⚠️ Tutte ANCORATE all'intera frase: «avvisi Giulia che salta il controllo» CONTIENE «avvisi» ma è
+ * un'istruzione, e deve restare non capita — non diventare la domanda. Meglio un «non ci arrivo»
+ * che un quadro della giornata al posto di un'azione.
+ *
+ * ⚠️ Niente `\b` sulle parole accentate (`\b` in JavaScript è ASCII, trappola già pagata): prima si
+ * normalizzano accenti e apostrofi («novità» → «novita», «c'è» → «c e»), poi si confronta.
+ */
+const FORME_SEGNALAZIONI: RegExp[] = [
+  /^(?:hai|ci sono|che|quali|dammi|dimmi|leggimi|vedi)?\s*(?:le\s+|delle\s+|degli\s+|gli\s+)?(?:segnalazioni|avvisi|notifiche|novita)(?:\s+(?:nuove|nuovi|per me|da vedere|da leggere|da gestire|oggi))*\s*$/,
+  /^cosa (?:mi aspetta|aspetta me)(?:\s+oggi)?\s*$/,
+  /^(?:cosa|che cosa|che) c e (?:da (?:fare|vedere|gestire)|per me|di nuovo)(?:\s+oggi)?\s*$/,
+  /^cosa devo fare(?:\s+oggi)?\s*$/,
+  /^da dove (?:comincio|inizio|parto)(?:\s+oggi)?\s*$/,
+  /^guidami\s*$/,
+];
+
+function chiedeSegnalazioni(testo: string): boolean {
+  const t = testo
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’`]/g, ' ')
+    .replace(/[?!.]+\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return FORME_SEGNALAZIONI.some((f) => f.test(t));
+}

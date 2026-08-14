@@ -11,6 +11,16 @@
 
 ## Stato in una riga
 
+**Vera adesso guida la giornata: «hai segnalazioni per me?» risponde col quadro** (segnalazioni
+cliniche in testa — decisione di Simone 14/8 —, coda del capo, domande aperte, sostituzioni,
+campanella) e porta subito la prima cosa da fare; il capo riceve la campanella quando il team gli
+mette una proposta in coda, e all'approvazione di un divieto di dieta gli arriva l'elenco di chi
+resterebbe senza un pasto (e resta scritto sulla riga). Chat ridimensionabile (voce 237). Delle
+tre frasi dell'azione 3 restano «a colazione qualcosa di salato» (aspetta le conferme di Lucia)
+e «rifai con più proteine» (aspetta la decisione di Simone). **+36 test (341 su Vera).**
+
+## Stato precedente
+
 **L'azione 3 ha la sua prima frase viva: «togli lo spuntino».** Campo `pastiEsclusi` sul profilo
 (solo spuntini — i pasti principali restano su `fastingWindow`), kcal ridistribuite sui pasti
 rimasti per la stessa strada del digiuno (`slotEsclusiTotali`), «lo spuntino» secco fa chiedere
@@ -159,6 +169,15 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 14/8/2026 mattina — Vera guida la giornata (17 file)
+Intento `segnalazioni` («hai segnalazioni per me?» non cade più su «non ci arrivo»), quadro della
+giornata dalle tabelle di origine con le CLINICHE in testa e la campanella senza doppi conteggi,
+`cosaTiPorto` subito dopo il quadro; `avvisaPropostaInCoda` per il capo (solo in-app, mai doppia
+campanella); `clientiScoperte` pura in `regola-dieta.ts`, elenco nel messaggio di approvazione e
+persistito nel dettaglio della riga; chat ridimensionabile con altezza ricordata (voce 237).
+Decisione scritta prima del codice in `NOTA_Vera_Guida_Giornata.md`.
+
 
 ### 13/8/2026 sera — Azione 3, prima frase: «togli lo spuntino» (10 file)
 `vera/togli-spuntino.ts` (lettura della frase, «quale spuntino?», giorni da rifare), intento

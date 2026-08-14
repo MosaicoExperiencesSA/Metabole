@@ -18,8 +18,8 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
-import { avvisaConflittoSanitario } from './avvisa-capo';
+import { applicaProposta, EsitoApplicazione, ordinaPerRischio, Proposta } from './applica-proposta';
+import { avvisaConflittoSanitario, avvisaPropostaInCoda } from './avvisa-capo';
 import { MailService } from '../mail/mail.service';
 import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus';
 import { DizionarioService } from './dizionario.service';
@@ -121,6 +121,18 @@ export class RegistroVeraService {
         nutrizionistaId: input.nutrizionistaId,
         vincolo: (input.dettaglio as { vincolo?: string } | null | undefined)?.vincolo ?? null,
       }, this.mail);
+    } else if (input.inApprovazione) {
+      /**
+       * La proposta nuova fa suonare la campanella del capo (Simone, 14/8): prima la scopriva solo
+       * aprendo la pagina. `else`: una riga che è ANCHE un conflitto sanitario ha già l'avviso di
+       * conflitto, che è più forte — una campanella per riga, non due.
+       */
+      await avvisaPropostaInCoda(this.prisma, {
+        id: (riga as unknown as { id: string }).id,
+        frase: input.frase,
+        nutrizionistaId: input.nutrizionistaId,
+        soggettoNome: input.soggettoNome ?? null,
+      });
     }
     return riga;
   }
@@ -243,14 +255,24 @@ export class RegistroVeraService {
       throw new BadRequestException('Questa proposta non è in attesa di approvazione: qualcuno l’ha già decisa.');
     }
 
-    const esito =
+    const esito: EsitoApplicazione =
       riga.azione === 'voce_dizionario' ? await this.approvaVoceDizionario(attore, riga)
         : riga.azione === 'ricetta_nuova' || riga.azione === 'ricetta_modificata' ? await this.approvaRicetta(attore, riga)
           : await applicaProposta(this.prisma, riga);
 
+    /**
+     * ⚠️ Le SCOPERTE si scrivono anche sulla riga, non solo nel messaggio: la chat scorre, il
+     * registro resta. Senza, l'elenco di chi è rimasta fuori dal divieto vive dieci minuti
+     * (voce `vera-regola-dieta-scoperte`). Il dettaglio originale non si sostituisce: ci si aggiunge.
+     */
     const aggiornata = await this.prisma.azioneVera.update({
       where: { id },
-      data: { stato: 'attiva' } as never,
+      data: {
+        stato: 'attiva',
+        ...(esito.scoperte?.length
+          ? { dettaglio: { ...((riga.dettaglio ?? {}) as Record<string, unknown>), scoperte: esito.scoperte } }
+          : {}),
+      } as never,
     });
     await this.audit.log({
       action: 'vera.approva',

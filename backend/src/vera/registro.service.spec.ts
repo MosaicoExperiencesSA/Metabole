@@ -418,3 +418,85 @@ describe('RegistroVeraService.spedisciReportMensile — il 1° del mese, da solo
     expect((prisma.notification as { create: jest.Mock }).create).toHaveBeenCalled();
   });
 });
+
+describe('RegistroVeraService.scrivi — l\'avviso al capo sulla proposta nuova (Simone, 14/8)', () => {
+  const PROPOSTA = {
+    nutrizionistaId: 'lucia',
+    frase: 'nella mediterranea niente tonno',
+    azione: 'regola_dieta' as const,
+    ambito: 'dieta' as const,
+    soggettoTipo: 'diet' as const,
+    soggettoId: 'd1',
+    soggettoNome: 'Mediterranea',
+  };
+  const prismaConCapi = (createMany: jest.Mock) => ({
+    azioneVera: { create: jest.fn().mockResolvedValue({ id: 'a1' }) },
+    user: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'capo1' }, { id: 'lucia' }]),
+      findUnique: jest.fn().mockResolvedValue({ firstName: 'Lucia', lastName: 'Verdi' }),
+    },
+    notification: { createMany },
+  });
+
+  it('una proposta in coda fa suonare la campanella del capo — non quella di chi ha proposto', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const service = make(prismaConCapi(createMany));
+    await service.scrivi({ ...PROPOSTA, inApprovazione: true });
+    expect(createMany).toHaveBeenCalledTimes(1);
+    const dati = createMany.mock.calls[0][0].data;
+    expect(dati.map((d: { userId: string }) => d.userId)).toEqual(['capo1']);
+    expect(dati[0].type).toBe('vera_proposta_in_coda');
+  });
+
+  it('un\'azione che NON va in approvazione non avvisa nessuno', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 0 });
+    const service = make(prismaConCapi(createMany));
+    await service.scrivi({ ...PROPOSTA, azione: 'restrizione_cliente', ambito: 'cliente', soggettoTipo: 'user' });
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ conflitto sanitario E in approvazione: UNA campanella (quella di conflitto), non due', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const service = make(prismaConCapi(createMany));
+    await service.scrivi({ ...PROPOSTA, inApprovazione: true, conflittoSanitario: true });
+    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(createMany.mock.calls[0][0].data[0].type).toBe('vera_conflitto_sanitario');
+  });
+});
+
+describe('RegistroVeraService.approva — l\'elenco delle scoperte resta scritto sulla riga', () => {
+  it('⚠️ le scoperte finiscono nel dettaglio: la chat scorre, il registro resta', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 'a1' });
+    const service = make({
+      azioneVera: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'a1', stato: 'in_approvazione', frase: 'nella mediterranea niente tonno',
+          nutrizionistaId: 'lucia', azione: 'regola_dieta', ambito: 'dieta',
+          soggettoId: 'd1', soggettoNome: 'Mediterranea', dettaglio: { termini: ['tonno'] },
+        }),
+        update,
+      },
+      productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Insalata di tonno', ingredients: [] }]) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ meals: [{ slot: 'dinner', recipeId: 'r-tonno' }] }]) },
+      menuDay: {
+        findMany: jest.fn().mockImplementation((args: { distinct?: string[] }) =>
+          Promise.resolve(args?.distinct ? [{ clientId: 'c1' }] : [])),
+        deleteMany: jest.fn(),
+      },
+      clientProfile: {
+        findMany: jest.fn().mockResolvedValue([
+          { userId: 'c1', name: 'Giulia Rossi', allergies: [], intolerances: [], dislikedFoods: [] },
+        ]),
+      },
+    });
+    const esito = await service.approva({ id: 'nocanty', role: 'head_nutritionist' }, 'a1');
+    expect(esito.riepilogo).toContain('Giulia Rossi');
+    const dati = update.mock.calls[0][0].data;
+    expect(dati.stato).toBe('attiva');
+    expect(dati.dettaglio.scoperte).toHaveLength(1);
+    expect(dati.dettaglio.scoperte[0].nome).toBe('Giulia Rossi');
+    // Il dettaglio originale non si perde: ci si aggiunge, non lo si sostituisce.
+    expect(dati.dettaglio.termini).toEqual(['tonno']);
+  });
+});

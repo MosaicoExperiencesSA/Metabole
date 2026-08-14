@@ -13,9 +13,9 @@
  * ventesima volta: il giorno in cui una scrittura passa senza anteprima è il giorno in cui il
  * registro smette di raccontare cosa è successo davvero.
  */
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
-import { perimetroClienti } from '../common/perimetro-clienti';
+import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
@@ -32,6 +32,7 @@ import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 import {
   EsitoVera,
+  etichettaAvviso,
   leggiAmbito,
   leggiConferma,
   leggiElenco,
@@ -50,6 +51,11 @@ interface ClienteTrovata {
 
 /** Quanti alimenti si propongono quando si chiede «quali sono?». Oltre, l'elenco non si legge. */
 const MAX_PROPOSTI = 20;
+
+const logger = new Logger('VeraChat');
+
+/** I tipi di notifica che il quadro della giornata conta già dalle tabelle di origine. */
+const AVVISI_GIA_CONTATI = new Set(['vera_richiesta', 'vera_proposta_in_coda']);
 
 /** Come si dicono i regimi in italiano: nell'anteprima si rilegge una frase, non un codice. */
 const ETICHETTA_REGIME: Record<string, string> = {
@@ -194,6 +200,7 @@ export class VeraChatService {
         azioneId: riga.id,
       };
     }
+    if (intento.tipo === 'segnalazioni') return this.guidaGiornata(nutrizionistaId);
     if (intento.tipo === 'famiglia') return this.famigliaASecco(nutrizionistaId, intento, frase);
     if (intento.tipo === 'ricetta') return this.avviaRicetta(nutrizionistaId, intento, frase);
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
@@ -1071,6 +1078,101 @@ export class VeraChatService {
       esito: 'annullata',
       stato: prossima?.stato,
     };
+  }
+
+  /**
+   * «HAI SEGNALAZIONI PER ME?» — la guida della giornata (Simone, 14/8; decisione in
+   * `progetto/NOTA_Vera_Guida_Giornata.md`).
+   *
+   * Il quadro si compone dalle TABELLE di origine (le stesse di `aspetta-me`), non dalle notifiche:
+   * la campanella si aggiunge in fondo, per i soli tipi che le code sopra non raccontano già. E
+   * dopo il quadro l'agente porta subito la prima cosa da fare (`cosaTiPorto`): guida, non elenca.
+   *
+   * ⚠️ Risponde SEMPRE, anche a vuoto. Prima la domanda esplicita cadeva nel «non ci arrivo»
+   * (screenshot del 14/8, 08:35): vero e fuorviante, perché la risposta giusta esisteva già
+   * (`codaVuota`). ⚠️ E qui non si scrive niente: è l'unico giro che è SOLO lettura.
+   */
+  private async guidaGiornata(userId: string): Promise<EsitoVera> {
+    const capo = (await this.ruolo(userId)) !== 'nutritionist';
+    const rotte: string[] = [];
+    const leggi = async <T>(cosa: string, lettura: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await lettura();
+      } catch (err) {
+        // ⚠️ «Non lo so» ≠ «nessuno»: la fonte rotta si scrive nei log E si dice in chat. Fingere
+        // uno zero insegnerebbe a fidarsi di un quadro cieco su una colonna.
+        logger.warn(`Guida della giornata: non leggo ${cosa} (utente=${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        rotte.push(cosa);
+        return null;
+      }
+    };
+
+    const seg = await leggi('le segnalazioni', () => this.contaSegnalazioni(userId));
+    const daApprovare = capo ? await leggi('la coda delle proposte', async () => (await this.registro.daApprovare()).length) : 0;
+    const domande = await leggi('le domande aperte', () => this.richieste.quante(userId, capo));
+    const daVerificare = await leggi('le sostituzioni da verificare', () => this.registro.sostituzioniDaVerificare(userId));
+    const avvisi = await leggi('la campanella', () => this.avvisiNonLetti(userId));
+
+    // L'ordine è una decisione, non un caso: le segnalazioni CLINICHE in testa (Simone, 14/8,
+    // pagina Lavori: se ci sono problemi clinici «vanno in testa a tutte le richieste»).
+    const righe: string[] = [];
+    if (seg?.cliniche) {
+      righe.push(
+        `${seg.cliniche} ${seg.cliniche === 1 ? 'segnalazione clinica' : 'segnalazioni cliniche'} sulle tue clienti — ` +
+        'vengono prima di tutto (le trovi nella pagina Segnalazioni)',
+      );
+    }
+    if (seg?.altre) righe.push(`${seg.altre} ${seg.altre === 1 ? 'segnalazione aperta' : 'segnalazioni aperte'} sulle tue clienti`);
+    if (daApprovare) righe.push(`${daApprovare} ${daApprovare === 1 ? 'proposta del tuo team' : 'proposte del tuo team'} da approvare`);
+    if (domande) righe.push(`${domande} ${domande === 1 ? 'domanda aperta che aspetta' : 'domande aperte che aspettano'} una risposta`);
+    if (daVerificare) righe.push(`${daVerificare} ${daVerificare === 1 ? 'sostituzione da verificare' : 'sostituzioni da verificare'}`);
+    if (avvisi?.length) {
+      const totale = avvisi.reduce((somma, a) => somma + a.quanti, 0);
+      const dettaglio = avvisi.slice(0, 4).map((a) => `${a.quanti} su ${etichettaAvviso(a.tipo)}`).join(', ');
+      righe.push(`${totale} ${totale === 1 ? 'avviso non letto' : 'avvisi non letti'} sulla campanella (${dettaglio}${avvisi.length > 4 ? ', …' : ''})`);
+    }
+    for (const cosa of rotte) righe.push(testi.guidaFonteRotta(cosa));
+
+    const prossima = await this.cosaTiPorto(userId);
+    if (!righe.length) return prossima ?? { testo: testi.codaVuota(), esito: 'in_corso' };
+    return {
+      testo: `${testi.guida(righe)}${prossima ? `\n\n${prossima.testo}` : ''}`,
+      esito: prossima?.esito ?? 'in_corso',
+      stato: prossima?.stato,
+    };
+  }
+
+  /** Le segnalazioni aperte sulle clienti nel perimetro: le CLINICHE contate a parte, perché vanno in testa. */
+  private async contaSegnalazioni(userId: string): Promise<{ cliniche: number; altre: number }> {
+    const perimetro = await perimetroClienti(this.prisma, userId);
+    const base = { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuCliente(perimetro) };
+    const [cliniche, tutte] = await Promise.all([
+      this.prisma.escalation.count({ where: { ...base, category: 'clinical' } as never }),
+      this.prisma.escalation.count({ where: base as never }),
+    ]);
+    return { cliniche, altre: Math.max(0, tutte - cliniche) };
+  }
+
+  /**
+   * La campanella: gli avvisi in-app non letti, raggruppati per tipo.
+   *
+   * ⚠️ `vera_richiesta` e `vera_proposta_in_coda` si SALTANO: quelle code il quadro le conta già
+   * dalle tabelle di origine, e due contatori sulla stessa cosa prima o poi ne dicono due.
+   * ⚠️ E si contano, NON si marcano lette: leggerne il conto in chat non è averle gestite.
+   */
+  private async avvisiNonLetti(userId: string): Promise<{ tipo: string; quanti: number }[]> {
+    const righe = (await this.prisma.notification.findMany({
+      where: { userId, channel: 'inapp', readAt: null, archivedAt: null, sentAt: { not: null } } as never,
+      select: { type: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })) as { type: string }[];
+    const conta = new Map<string, number>();
+    for (const r of righe) {
+      if (AVVISI_GIA_CONTATI.has(r.type)) continue;
+      conta.set(r.type, (conta.get(r.type) ?? 0) + 1);
+    }
+    return [...conta.entries()].map(([tipo, quanti]) => ({ tipo, quanti }));
   }
 
   /**

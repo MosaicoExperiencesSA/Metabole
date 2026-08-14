@@ -18,12 +18,16 @@
  *  - si **conta e si racconta** quante ne sono state toccate. Un'azione che scrive su ottanta
  *    profili e risponde «fatto» è un'azione di cui nessuno saprà mai la portata.
  */
+import { Logger } from '@nestjs/common';
 import { combaciaAlimento } from '../common/nomi-alimento';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
 import { type GiornoDaValutare, clientiColpiti, giorniDaRifare } from './menu-da-rifare';
-import { RULE_CODE_ESCLUSIONI, ricetteVietate, terminiVietati } from './regola-dieta';
+import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
+import { RicettaDelPool } from './pool-disponibile';
+
+const logger = new Logger('VeraApplicaProposta');
 
 /** ⚠️ Oltre questo numero di clienti non si scrive: si dice quante sarebbero e si chiede a mano. */
 const MAX_CLIENTI_IN_UNA_VOLTA = 200;
@@ -42,6 +46,12 @@ export interface EsitoApplicazione {
   riepilogo: string;
   /** Quante clienti sono state toccate davvero. */
   toccate: number;
+  /**
+   * Chi resterebbe SENZA UN PASTO e per cui il divieto di dieta non vale (voce
+   * `vera-regola-dieta-scoperte`). Solo per `regola_dieta`; si persiste nel dettaglio della riga,
+   * così l'elenco non scorre via con la chat.
+   */
+  scoperte?: ClienteScoperta[];
 }
 
 /**
@@ -178,12 +188,106 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
       : ` Ho rifatto ${giorni.length} ${giorni.length === 1 ? 'giornata' : 'giornate'} non ancora aperte ` +
         `(${persone.length} ${persone.length === 1 ? 'cliente' : 'clienti'}); quelle già lette restano come sono.`;
 
+  /**
+   * L'ELENCO DELLE SCOPERTE (decisione di Simone, 13/8; voce `vera-regola-dieta-scoperte`).
+   *
+   * L'erogazione non svuota mai uno slot: per chi resterebbe a zero il divieto si salta e lei resta
+   * com'era. Finché quell'elenco non arriva al capo, la regola *sembra* applicata a tutte — quindi
+   * si calcola QUI, nel momento in cui lui approva, e finisce nel messaggio che sta leggendo.
+   *
+   * ⚠️ Se il conto si rompe non si finge un elenco vuoto: si scrive nei log e si DICE («non lo so»
+   * ≠ «nessuno»). La regola vale comunque: perdere la scrittura per un conteggio non partito
+   * sarebbe il guasto peggiore.
+   */
+  let scoperte: ClienteScoperta[] = [];
+  let contoScoperteRotto = false;
+  try {
+    scoperte = await scopertePerDieta(prisma, dietId, ricetteFuori);
+  } catch (err) {
+    contoScoperteRotto = true;
+    logger.warn(`Scoperte non calcolate (dieta=${dietId}): ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const MAX_NOMI = 10;
+  const elenco = scoperte
+    .slice(0, MAX_NOMI)
+    .map((s) => `${s.nome ?? s.userId.slice(0, 8)} (${s.pasti.join(', ')})`)
+    .join('; ');
+  const codaScoperte = contoScoperteRotto
+    ? ' ⚠️ Non sono riuscito a calcolare chi resterebbe scoperta: la regola vale, ma l\'elenco va guardato a mano.'
+    : scoperte.length
+      ? ` ⚠️ ${scoperte.length} ${scoperte.length === 1 ? 'cliente resterebbe senza un pasto e per lei' : 'clienti resterebbero senza un pasto e per loro'} ` +
+        `il divieto NON vale: ${elenco}${scoperte.length > MAX_NOMI ? `; e altre ${scoperte.length - MAX_NOMI}` : ''}. ` +
+        'Restano com\'erano: vanno sistemate a mano (o con un\'alternativa in catalogo).'
+      : '';
+
   return {
     toccate: persone.length,
     riepilogo:
       `Fatto: su ${p.soggettoNome ?? 'questa dieta'} ${nuovi.length > 1 ? 'i piatti con' : 'il piatto con'} ` +
-      `${nuovi.join(', ')} non entreranno più nei menu nuovi.` + coda,
+      `${nuovi.join(', ')} non entreranno più nei menu nuovi.` + coda + codaScoperte,
+    ...(scoperte.length ? { scoperte } : {}),
   };
+}
+
+/**
+ * Chi, fra le clienti CON MENU IN CALENDARIO su questa dieta (da oggi in poi), resterebbe senza un
+ * pasto. ⚠️ È un'approssimazione dichiarata: chi non ha ancora giorni generati non compare — ma per
+ * lei il pool filtrato scatterà alla prima generazione, con la stessa regola del «non svuotare».
+ *
+ * Il pool si legge dai `DietDayTemplate` di livello 1 come fa `PoolDisponibileService.poolPerSlot`
+ * (il livello 2 non esiste: 315 diete a livello 1), e le ricette arrivano già lette dal chiamante.
+ */
+async function scopertePerDieta(
+  prisma: PrismaService,
+  dietId: string,
+  vietate: ReadonlySet<string>,
+): Promise<ClienteScoperta[]> {
+  if (!vietate.size) return [];
+  const templates = ((await prisma.dietDayTemplate.findMany({
+    where: { dietId, level: 1 } as never,
+    select: { meals: true },
+  })) ?? []) as { meals: unknown }[];
+  if (!templates.length) return [];
+
+  const ricette = ((await prisma.recipe.findMany({ select: { id: true, name: true, ingredients: true } })) ?? []) as {
+    id: string; name: string; ingredients: unknown;
+  }[];
+  const perId = new Map(ricette.map((r) => [r.id, r]));
+  const slotPool = new Map<string, RicettaDelPool[]>();
+  for (const t of templates) {
+    for (const m of ((t.meals as { slot?: string; recipeId?: string }[]) ?? [])) {
+      if (!m?.slot || !m?.recipeId) continue;
+      const r = perId.get(m.recipeId);
+      if (!r) continue;
+      if (!slotPool.has(m.slot)) slotPool.set(m.slot, []);
+      const lista = slotPool.get(m.slot)!;
+      if (!lista.some((x) => x.id === r.id)) lista.push(r);
+    }
+  }
+  if (!slotPool.size) return [];
+
+  const oggi = new Date();
+  const coorte = ((await prisma.menuDay.findMany({
+    where: { dietId, date: { gte: new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate())) } } as never,
+    select: { clientId: true },
+    distinct: ['clientId'] as never,
+  })) ?? []) as { clientId: string }[];
+  if (!coorte.length) return [];
+
+  const profili = ((await prisma.clientProfile.findMany({
+    where: { userId: { in: coorte.map((c) => c.clientId) } } as never,
+    select: { userId: true, name: true, allergies: true, intolerances: true, dislikedFoods: true },
+  })) ?? []) as { userId: string; name: string | null; allergies: string[]; intolerances: string[]; dislikedFoods: string[] }[];
+
+  return clientiScoperte(
+    slotPool,
+    vietate,
+    profili.map((p) => ({
+      userId: p.userId,
+      nome: p.name,
+      esclusioni: [...(p.allergies ?? []), ...(p.intolerances ?? []), ...(p.dislikedFoods ?? [])],
+    })),
+  );
 }
 
 async function applicaRestrizione(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {

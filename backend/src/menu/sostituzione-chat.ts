@@ -166,7 +166,12 @@ export type PassoSostituzione =
    * preferisce un'alternativa scelta da Gaia fra i piatti approvati per lei, a pari calorie.
    * Prima questa richiesta finiva dentro la ricerca dell'ingrediente, e ne usciva un pasto a caso.
    */
-  | 'pasto_intero';
+  | 'pasto_intero'
+  /**
+   * Cambio della COLAZIONE senza una preferenza detta: «la vuoi dolce o salata?» (Simone, 14/8).
+   * La risposta filtra le alternative per i tag di Lucia (`piatto:dolce`/`piatto:salato`).
+   */
+  | 'colazione_gusto';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -205,6 +210,8 @@ export interface StatoSostituzione {
   piattoAttuale?: { recipeId: string; nome: string; kcal: number };
   /** Che cosa aveva chiesto: serve nel testo e finisce nel registro del cambio. */
   preferenzaPiatto?: string | null;
+  /** Il gusto scelto per la colazione («dolce»/«salato»), quando la domanda è stata fatta. */
+  gustoColazione?: string | null;
   /**
    * Sostituti che la cliente ha già rifiutato in questa conversazione. Servono per non riproporre
    * il burro dopo che ha detto «non voglio il burro» — e restano QUI, nella conversazione, senza

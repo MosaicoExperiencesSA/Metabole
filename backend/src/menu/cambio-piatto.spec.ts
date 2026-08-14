@@ -7,6 +7,9 @@ import {
   type CandidatoPiatto,
   slotDaRisposta,
   testoChiediQualePasto,
+  gustoDaTesto,
+  filtraPerGusto,
+  testoChiediGustoColazione,
 } from './cambio-piatto';
 
 /**
@@ -213,5 +216,34 @@ describe('quale pasto', () => {
     expect(slotDaRisposta('9', PASTI)).toBeNull();
     // Un pasto che oggi non c'è non si può scegliere.
     expect(slotDaRisposta('lo spuntino', PASTI)).toBeNull();
+  });
+});
+
+describe('«dolce o salata?» — il gusto della colazione (Simone, 14/8)', () => {
+  it('legge la risposta: dolce, salata, «fa lo stesso»', () => {
+    expect(gustoDaTesto('dolce')).toBe('dolce');
+    expect(gustoDaTesto('la voglio salata')).toBe('salato');
+    expect(gustoDaTesto('meglio salato')).toBe('salato');
+    expect(gustoDaTesto('fa lo stesso')).toBe('indifferente');
+    expect(gustoDaTesto('per me è uguale')).toBe('indifferente');
+    expect(gustoDaTesto('boh')).toBeNull();
+    expect(gustoDaTesto('vorrei cambiare la colazione')).toBeNull();
+  });
+
+  it('⚠️ filtra per i TAG di Lucia: una colazione senza tag non partecipa', () => {
+    const candidati = [
+      { recipeId: 'r1', nome: 'Uova e pane', kcal: 340, tags: ['piatto:salato'] },
+      { recipeId: 'r2', nome: 'Porridge', kcal: 330, tags: ['piatto:dolce'] },
+      { recipeId: 'r3', nome: 'Skyr con mandorle', kcal: 335, tags: [] },
+    ];
+    expect(filtraPerGusto(candidati, 'salato').map((c) => c.recipeId)).toEqual(['r1']);
+    expect(filtraPerGusto(candidati, 'dolce').map((c) => c.recipeId)).toEqual(['r2']);
+  });
+
+  it('la domanda nomina le due strade e la via d\'uscita', () => {
+    const t = testoChiediGustoColazione('Giulia');
+    expect(t).toContain('dolce o salata');
+    expect(t).toContain('fa lo stesso');
+    expect(t).toContain('Giulia');
   });
 });

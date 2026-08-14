@@ -28,7 +28,11 @@ import {
   testoNessunaAlternativa,
   testoProponiAlternative,
   testoSceltaNonValida,
+  filtraPerGusto,
+  gustoDaTesto,
+  testoChiediGustoColazione,
   type CandidatoPiatto,
+  type GustoColazione,
 } from './cambio-piatto';
 import { exclusionKeys } from './exclusions';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
@@ -363,6 +367,7 @@ export class SostituzioneChatService {
     if (stato.passo === 'motivo') return this.ricorda(await this.passoMotivo(clientId, stato, testoCliente));
     if (stato.passo === 'scelta_piatto') return this.ricorda(await this.passoSceltaPiatto(clientId, stato, testoCliente));
     if (stato.passo === 'scelta_pasto') return this.ricorda(await this.passoSceltaPasto(clientId, stato, testoCliente));
+    if (stato.passo === 'colazione_gusto') return this.ricorda(await this.passoColazioneGusto(clientId, stato, testoCliente));
     if (stato.passo === 'rifiuto') return this.ricorda(await this.passoRifiuto(clientId, stato, testoCliente));
     return this.ricorda(await this.passoConferma(clientId, stato, testoCliente));
   }
@@ -1483,13 +1488,13 @@ export class SostituzioneChatService {
 
     const ricette = (await this.prisma.recipe.findMany({
       where: { id: { in: ids }, mealSlot: slot as never, active: true },
-      select: { id: true, name: true, kcal: true, macros: true, difficulty: true },
-    })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null }[];
+      select: { id: true, name: true, kcal: true, macros: true, difficulty: true, tags: true },
+    })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null; tags?: string[] }[];
 
     return ricette.map((r) => {
       const macro = (r.macros ?? {}) as { protein_g?: unknown };
       const prot = typeof macro.protein_g === 'number' ? macro.protein_g : null;
-      return { recipeId: r.id, nome: r.name, kcal: r.kcal, proteineG: prot, difficolta: r.difficulty };
+      return { recipeId: r.id, nome: r.name, kcal: r.kcal, proteineG: prot, difficolta: r.difficulty, tags: r.tags ?? [] };
     });
   }
 
@@ -1504,6 +1509,11 @@ export class SostituzioneChatService {
     testoCliente: string,
     slotVoluto?: string,
     data?: string | null,
+    /**
+     * Il gusto della colazione: `undefined` = non ancora chiesto (se serve, si chiede);
+     * `null` = chiesto e «fa lo stesso» (si cerca senza filtro); altrimenti filtra per tag.
+     */
+    gusto?: GustoColazione | null,
   ): Promise<EsitoSostituzione> {
     const oggi = this.oggiIso();
     const giorno = giornoDellaConversazione({ testo: testoCliente, statoData: data, oggiIso: oggi });
@@ -1532,8 +1542,28 @@ export class SostituzioneChatService {
     }
 
     const attuale = bersaglio.pasto;
-    const candidati = await this.candidatiPerSlot(clientId, attuale.slot);
-    const proteineAttuali = candidati.find((c) => c.recipeId === attuale.recipeId)?.proteineG ?? null;
+
+    /**
+     * «DOLCE O SALATA?» (Simone, 14/8): sul cambio della COLAZIONE, se non ha detto cosa vuole,
+     * si chiede il gusto prima di proporre. ⚠️ Solo la colazione — è l'unico slot con i tag di
+     * Lucia — e solo senza preferenza: «una colazione proteica» ha già risposto a una domanda
+     * più precisa, e richiederle il gusto sarebbe ignorare quello che ha appena scritto.
+     */
+    if (attuale.slot === 'breakfast' && !preferenza && gusto === undefined) {
+      const domanda = testoChiediGustoColazione(nome);
+      return {
+        testo: domanda,
+        stato: { passo: 'colazione_gusto', tentativi: 0, slotPiatto: attuale.slot, data: giorno, ultimaDomanda: domanda },
+        esito: 'aperto',
+      };
+    }
+
+    const tutti_i_candidati = await this.candidatiPerSlot(clientId, attuale.slot);
+    // Il filtro del gusto passa dai TAG (le conferme di Lucia): una colazione senza tag non
+    // partecipa alla ricerca filtrata. Le proteine del piatto attuale si leggono PRIMA del filtro:
+    // il piatto di adesso può essere dolce anche quando lei chiede una salata.
+    const candidati = gusto ? filtraPerGusto(tutti_i_candidati, gusto) : tutti_i_candidati;
+    const proteineAttuali = tutti_i_candidati.find((c) => c.recipeId === attuale.recipeId)?.proteineG ?? null;
     const tolleranza = await this.configParams
       .getNumber('menu_kcal_balance_tolerance_pct', 15)
       .catch(() => 15);
@@ -1553,13 +1583,14 @@ export class SostituzioneChatService {
     });
 
     if (!alternative.length) {
+      const cosaChiesto = gusto ? `colazione ${gusto === 'dolce' ? 'dolce' : 'salata'}` : preferenza ?? 'diversa';
       await this.passaAllaNutrizionista(
         clientId,
-        `Nessuna alternativa ${preferenza ?? 'diversa'} dentro le calorie per ${etichettaSlot(attuale.slot)} ` +
+        `Nessuna alternativa ${cosaChiesto} dentro le calorie per ${etichettaSlot(attuale.slot)} ` +
         `(${attuale.name}, ${attuale.kcal} kcal): il catalogo approvato non ne ha.`,
       ).catch(() => undefined);
       return {
-        testo: testoNessunaAlternativa(etichettaSlot(attuale.slot), preferenza, nome),
+        testo: testoNessunaAlternativa(etichettaSlot(attuale.slot), preferenza, nome, gusto),
         inoltraA: 'nutritionist',
         esito: 'arresa',
       };
@@ -1580,7 +1611,10 @@ export class SostituzioneChatService {
         data: giorno,
         slotPiatto: attuale.slot,
         piattoAttuale: { recipeId: attuale.recipeId, nome: bersaglio.nome, kcal: attuale.kcal },
-        preferenzaPiatto: preferenza,
+        // Il gusto chiesto finisce nella preferenza registrata: in scheda e nel report il cambio
+        // deve dire cosa aveva chiesto lei, non solo cosa le è stato dato.
+        preferenzaPiatto: preferenza ?? (gusto ? `colazione ${gusto === 'dolce' ? 'dolce' : 'salata'}` : null),
+        gustoColazione: gusto ?? null,
         alternativePiatto: alternative.map((a) => ({ recipeId: a.recipeId, nome: a.nome, kcal: a.kcal })),
       },
       esito: 'in_corso',
@@ -1633,6 +1667,35 @@ export class SostituzioneChatService {
     // persa proprio nel passo in cui si va a cercare l'alternativa.
     const preferenzaScritta = stato.preferenzaPiatto ? `voglio qualcosa di più ${stato.preferenzaPiatto}` : '';
     return this.proponiAltroPiatto(clientId, preferenzaScritta, slot, stato.data);
+  }
+
+  /**
+   * La risposta a «dolce o salata?» (Simone, 14/8).
+   *
+   * «Fa lo stesso» è una risposta piena: si cerca senza filtro. Una risposta non capita si
+   * ripete UNA volta (con la stessa domanda, parola per parola — regola del 12/8); alla seconda
+   * si cerca senza filtro: meglio due proposte qualsiasi che un dialogo che insiste sul gusto.
+   */
+  private async passoColazioneGusto(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    const slot = stato.slotPiatto ?? 'breakfast';
+    const gusto = gustoDaTesto(testoCliente);
+    if (!gusto) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= 2) {
+        return this.proponiAltroPiatto(clientId, '', slot, stato.data, null);
+      }
+      const nome = await this.nomeDi(clientId);
+      return {
+        testo: nonHoCapito(stato.ultimaDomanda, nome),
+        stato: { ...stato, tentativi },
+        esito: 'in_corso',
+      };
+    }
+    return this.proponiAltroPiatto(clientId, '', slot, stato.data, gusto === 'indifferente' ? null : gusto);
   }
 
   /** La cliente ha risposto con il numero dell'alternativa. */

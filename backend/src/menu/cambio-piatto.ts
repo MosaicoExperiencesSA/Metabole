@@ -40,7 +40,15 @@ import { condividonoAlimento } from '../common/nomi-alimento';
 import { etichettaSlot } from './sostituzione-chat';
 
 /** Che tipo di alternativa ha chiesto. `null` = «diverso» e basta. */
+import { TAG_DOLCE, TAG_SALATO } from '../vera/colazioni';
+
 export type PreferenzaPiatto = 'proteico' | 'leggero' | 'veloce' | null;
+
+/**
+ * «DOLCE O SALATA?» — il gusto della colazione (richiesta di Simone, 14/8).
+ * `indifferente` è una risposta piena: vuol dire «cerca senza filtro», non «non ho capito».
+ */
+export type GustoColazione = 'dolce' | 'salato';
 
 export interface CandidatoPiatto {
   recipeId: string;
@@ -50,6 +58,8 @@ export interface CandidatoPiatto {
   proteineG?: number | null;
   /** `Recipe.difficulty`: semplice | media | elaborata. Serve alla preferenza «veloce». */
   difficolta?: string | null;
+  /** `Recipe.tags`: servono al gusto della colazione (`piatto:dolce`/`piatto:salato`). */
+  tags?: string[];
 }
 
 export interface AlternativaProposta extends CandidatoPiatto {
@@ -270,8 +280,13 @@ export function testoProponiAlternative(
  * un'alternativa dentro le calorie, la decisione è del nutrizionista — e dirlo è più utile che
  * proporre qualcosa fuori piano.
  */
-export function testoNessunaAlternativa(slotEtichetta: string, preferenza: PreferenzaPiatto, nome?: string | null): string {
-  const cosa = preferenza === 'proteico' ? 'più proteica' : 'diversa';
+export function testoNessunaAlternativa(
+  slotEtichetta: string,
+  preferenza: PreferenzaPiatto,
+  nome?: string | null,
+  gusto?: GustoColazione | null,
+): string {
+  const cosa = gusto ? (gusto === 'dolce' ? 'dolce' : 'salata') : preferenza === 'proteico' ? 'più proteica' : 'diversa';
   const apertura = nome ? `${nome}, tra` : 'Tra';
   return (
     `${apertura} i piatti approvati per te non trovo un'alternativa ${cosa} per ${slotEtichetta.toLowerCase()} ` +
@@ -358,4 +373,48 @@ export function slotDaRisposta(testo: string, pasti: { slot: string; piatto: str
     if (prima.length >= 4 && t.includes(prima)) return p.slot;
   }
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * La risposta a «dolce o salata?». `null` = non capita (si ripete la domanda, una volta).
+ *
+ * ⚠️ «indifferente» non è un ripiego: «fa lo stesso» è una risposta piena e chiude la domanda —
+ * si cerca senza filtro. Trattarla come non capita farebbe ripetere una domanda a cui la cliente
+ * ha appena risposto.
+ */
+export function gustoDaTesto(testo: string): GustoColazione | 'indifferente' | null {
+  const t = normalizza(testo);
+  if (!t) return null;
+  const dolce = /\bdolc(e|i)\b/.test(t);
+  const salato = /\bsalat(a|o|e|i)\b/.test(t);
+  if (dolce && salato) return null; // le ha dette tutte e due: non è una scelta
+  if (dolce) return 'dolce';
+  if (salato) return 'salato';
+  if (/\b(fa lo stesso|lo stesso|uguale|indifferente|come viene|come vuoi|scegli tu|non importa|qualsiasi|una qualsiasi|vedi tu)\b/.test(t)) {
+    return 'indifferente';
+  }
+  return null;
+}
+
+/**
+ * Solo le colazioni col TAG giusto. ⚠️ Una colazione senza tag NON partecipa (Decisioni 13/8 §12):
+ * il tag scritto È la conferma di una persona (Lucia, pagina Colazioni), e proporre come «salata»
+ * una colazione che nessuno ha classificato è un'invenzione — la stessa ragione per cui l'azione
+ * di Vera «a colazione qualcosa di salato» resta spenta finché le conferme non bastano.
+ */
+export function filtraPerGusto(candidati: CandidatoPiatto[], gusto: GustoColazione): CandidatoPiatto[] {
+  const tag = gusto === 'dolce' ? TAG_DOLCE : TAG_SALATO;
+  return candidati.filter((c) => (c.tags ?? []).includes(tag));
+}
+
+/** La domanda, con la via d'uscita dentro: chi non ha una preferenza non deve inventarne una. */
+export function testoChiediGustoColazione(nome?: string | null): string {
+  const apertura = nome ? `${nome}, volentieri` : 'Volentieri';
+  return (
+    `${apertura}! Per la colazione: **la vuoi dolce o salata?**\n` +
+    'Cerco fra le colazioni approvate per te una con ingredienti diversi e lo stesso apporto. ' +
+    '(Se per te è uguale, dimmi «fa lo stesso».)'
+  );
 }

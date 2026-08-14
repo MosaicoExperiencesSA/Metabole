@@ -1,0 +1,51 @@
+Vera guida la giornata + campanella del capo + elenco scoperte + chat ridimensionabile
+
+Quattro consegne su Vera (14/8 mattina):
+
+1) «Hai segnalazioni per me?» — la guida della giornata (richiesta di Simone, 14/8).
+   Nuovo intento `segnalazioni` in capisci.ts (forme ANCORATE all'intera frase: «avvisi
+   Giulia che…» resta un'istruzione), riconosciuto PRIMA del filtro delle domande, come
+   la lista delle famiglie. La risposta è il quadro di oggi, composto dalle TABELLE di
+   origine e non dalle notifiche: segnalazioni CLINICHE IN TESTA (risposta di Simone in
+   pagina Lavori), poi le altre segnalazioni aperte, la coda del capo, le domande
+   aperte, le sostituzioni da verificare, e la campanella (avvisi in-app non letti,
+   raggruppati per tipo, SENZA contare due volte le code — vera_richiesta e
+   vera_proposta_in_coda si saltano). Dopo il quadro Vera porta subito la prima cosa
+   da fare (cosaTiPorto): guida, non elenca. Risponde anche a vuoto («Non c'è niente
+   che aspetta te») invece di «non ci arrivo» (screenshot 14/8 08:35). Una fonte rotta
+   si logga e SI DICE («non lo so» ≠ «nessuno»). Le notifiche NON si marcano lette
+   dalla chat. Decisione scritta prima del codice: progetto/NOTA_Vera_Guida_Giornata.md.
+
+2) La campanella del capo quando il team gli mette una proposta in coda (Simone, 14/8).
+   `avvisaPropostaInCoda` in avvisa-capo.ts, in fondo a registro.scrivi: DOPO la
+   scrittura, non lancia mai, esclude l'autore. Tipo `vera_proposta_in_coda`, title e
+   body dentro payload. Solo in-app: l'email resta al conflitto sanitario (orologio
+   diverso). Una riga che è ANCHE conflitto non fa doppia campanella (else-if).
+
+3) L'elenco delle clienti scoperte arriva al capo (voce vera-regola-dieta-scoperte,
+   decisione di Simone 13/8). `clientiScoperte` in regola-dieta.ts: funzione PURA con
+   lo stesso confronto del motore (calcolaPool → hitsExclusion). All'approvazione di
+   un divieto di dieta il messaggio del capo dice chi resterebbe senza quale pasto
+   (nome e pasti), e l'elenco si persiste nel dettaglio della riga di registro (la
+   chat scorre, il registro resta). Chi aveva GIÀ lo slot vuoto per le sue esclusioni
+   personali non è «scoperta dalla regola». Se il conto si rompe si dice — la regola
+   vale comunque. Coorte = clienti con menu in calendario da oggi su quella dieta
+   (approssimazione dichiarata: chi non ha giorni generati vedrà comunque il pool
+   filtrato alla prima generazione, con lo stesso «non svuotare»).
+
+4) Voce 237: la chat di Vera si ridimensiona (backoffice/src/pages/Vera.tsx).
+   Bordo inferiore trascinabile, altezza ricordata (localStorage
+   `metabole_bo_vera_chat_h`, minimo 320px). Si salva SOLO l'altezza scelta
+   trascinando: salvare quella del layout congelerebbe in px il default
+   min(72vh, 640px) alla prima visita.
+
+Lista Lavori (voci-iniziali.ts, sopra la versione del Mac con la 237): spuntate
+vera-regola-dieta-scoperte e vera-chat-dimensionabile; voce nuova vera-guida-giornata
+(238, già fatta).
+
+Test: 341 verdi in src/vera (+36 nuovi, tutti visti rossi prima). In sandbox: jest
+totale 1954 verdi (baseline su origin/main pulito: 1918), stesse 51 suite pre-esistenti
+che non compilano con lo stub di Prisma; tsc completo 52 errori = 52 del baseline
+(zero nuovi); backoffice `tsc -b` muto.
+Catena sul Mac: cd backend && npm run prisma:tipi && npm run typecheck && npx jest
+(+ cd backoffice && npm run build).
