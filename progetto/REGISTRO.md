@@ -62,7 +62,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   dichiarata bollita, e «80 g di spaghetti» a crudo non può più sbagliare di 2,5 volte. Script
   `npm run importa:ig` (prova di default, CONFERMA=1): le righe nuove nascono CONFERMATE dal capo
   (Decisioni §10); un nome già in tabella senza IG riceve SOLO l'indice (le macro curate non si
-  toccano); un nome con l'IG non si tocca affatto. Si lancia dalla shell di Render.
+  toccano); un nome con l'IG non si tocca affatto. Si lancia dalla shell di Render. **LANCIATO il 14/8
+  mattina: 63 nuove + 4 solo-IG + 29 già complete.** Voce chiusa.
 
 ## 2026-08-13
 
