@@ -20,6 +20,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` 👂 **Le frasi che l'assistente non ha capito si vedono nella sua pagina** (voce
+  `vera-corpus-prima-del-rilascio`). `GET /vera/corpus` c'era dal 12/8 e **non lo apriva nessuno**:
+  era un endpoint, non un posto — e un rituale che nessuno ha l'abitudine di fare non è un rituale.
+  ⚠️ Serve perché un traduttore smette di capire **senza dare nessun errore rosso**: il giorno in cui
+  cambia il catalogo o una regola in `capisci.ts`, l'unico sintomo è che l'assistente comincia a
+  sembrare più scema di prima. Ora le frasi stanno sotto la chat, dalla più ripetuta, con quante
+  volte e se si è arresa — **com'è stato scritto**, perché ripulirle butterebbe via esattamente
+  l'informazione che serve. Il riquadro non compare quando non ce n'è nessuna, ed è chiuso di
+  default: è manutenzione, non una cosa che aspetta qualcuno.
+
 - `[Sviluppo]` 🧹 **Elenco lavori: undici voci chiuse dopo averle verificate NEL CODICE.** Sei erano
   già fatte e la pagina non lo sapeva (il testo incollato che non comanda l'assistente, il registro
   allargato, il dizionario che invecchia, l'azione 3 con tutti e tre i meccanismi, le azioni a raggio

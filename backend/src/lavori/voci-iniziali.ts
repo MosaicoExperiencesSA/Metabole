@@ -337,11 +337,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-corpus-prima-del-rilascio',
-    titolo: 'Vera: rileggere il corpus PRIMA di toccare `capisci.ts`',
+    titolo: 'Le frasi che l\'assistente non ha capito si vedono nella sua pagina',
     dettaglio:
-      '`GET /vera/corpus` restituisce le frasi vere: quelle capite (che devono continuare a passare) e quelle no (le parole da insegnare). ⚠️ È il rituale che tiene in piedi tutto il resto: un traduttore marcisce senza dare nessun errore rosso, e l\'unico modo di accorgersene è un elenco di frasi vere ripassato prima di ogni rilascio. Oggi è un endpoint che nessuno ha ancora l\'abitudine di aprire.',
+      'Chiuso il 16/8. `GET /vera/corpus` esisteva dal 12/8 e non lo apriva nessuno: era un endpoint, non un posto — e un rituale che nessuno ha l\'abitudine di fare non è un rituale. Ora le frasi non capite compaiono nella pagina dell\'assistente, sotto la chat, dalla più ripetuta, con quante volte e se si è arresa. ⚠️ Il riquadro NON compare quando non ce ne sono (stessa regola di «quello che aspetta me») ed è chiuso di default: è manutenzione, non una cosa che aspetta qualcuno. ⚠️ Le frasi si mostrano COM\'È STATO SCRITTO: ripulirle butterebbe via esattamente l\'informazione che serve, cioè come le viene di dirlo. ⚠️ La lettura sta sotto `catch`: se si rompe non compare il riquadro, non si rompe la pagina.',
     categoria: MANUTENZIONE,
     ordine: 222,
+    fatta: true, // chiusa il 16/8: il corpus è in pagina, non più solo un endpoint
   },
   {
     chiave: 'vera-dizionario-alimento-nuovo',

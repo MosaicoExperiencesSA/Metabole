@@ -98,6 +98,22 @@ const data = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: '2-di
 /** Sotto quest'altezza la chat non scende: tre messaggi e la riga per scrivere ci devono stare. */
 const ALTEZZA_CHAT_MIN = 320;
 
+/**
+ * LE FRASI CHE L'ASSISTENTE NON HA CAPITO (voce `vera-corpus-prima-del-rilascio`).
+ *
+ * ⚠️ `GET /vera/corpus` esiste dal 12/8 e **non lo apriva nessuno**: era un endpoint, non un posto.
+ * Un traduttore marcisce senza dare nessun errore rosso — il giorno in cui cambia il catalogo o una
+ * regola in `capisci.ts`, l'unico sintomo è che l'assistente comincia a sembrare più scema di prima.
+ * L'unico rimedio che funziona è vedere le frasi vere, e per vederle devono stare dove si guarda.
+ */
+interface FraseNonCapita {
+  frase: string;
+  quante: number;
+  ultimaVolta: string;
+  /** Si è arresa dopo il secondo tentativo, o era solo il primo «non ci arrivo»? */
+  arresa: boolean;
+}
+
 export function Vera() {
   const { can } = useAuth();
   // ⚠️ `nutri_assistant` e non `food_swaps`: la chiave è cambiata il 13/8, e questa riga è il posto
@@ -157,17 +173,28 @@ export function Vera() {
     document.addEventListener('mouseup', lascia);
   }
 
+  // Le frasi non capite, dalla più ripetuta. Vuoto = il riquadro non compare proprio.
+  const [nonCapite, setNonCapite] = useState<FraseNonCapita[]>([]);
+  const [apriFrasi, setApriFrasi] = useState(false);
+
   async function caricaRegistro() {
-    const [reg, ric, asp, all] = await Promise.all([
+    const [reg, ric, asp, all, corp] = await Promise.all([
       api<Azione[]>('/vera/registro'),
       api<Richiesta[]>('/vera/richieste'),
       api<AspettaMe>('/vera/aspetta-me'),
       api<Voce[]>('/vera/registro/tutto'),
+      /**
+       * ⚠️ Sotto `catch`: il corpus è materiale di manutenzione, non serve a far funzionare
+       * niente. Se questa lettura si rompe la cosa giusta è che il riquadro non compaia — non
+       * che la pagina dell'assistente non si apra.
+       */
+      api<{ nonCapite: FraseNonCapita[] }>('/vera/corpus').catch(() => ({ nonCapite: [] })),
     ]);
     setAzioni(reg);
     setRichieste(ric);
     setAspetta(asp);
     setTutto(all);
+    setNonCapite(corp.nonCapite ?? []);
   }
 
   async function apri() {
@@ -416,6 +443,54 @@ export function Vera() {
           <div style={{ width: 44, height: 3, borderRadius: 2, background: 'var(--line)' }} />
         </div>
       </div>
+
+      {/* ── le frasi che non ha capito ───────────────────────────────────── */}
+      {/*
+        ⚠️ Se non ce ne sono, questo riquadro NON compare. È la stessa regola del riquadro «quello
+        che aspetta me»: una scatola che dice «niente da fare» ogni volta insegna a non leggerla.
+        ⚠️ E chiuso di default: è manutenzione, non una cosa che aspetta qualcuno. Deve stare sotto
+        gli occhi di chi passa di qui, non prendersi la pagina.
+      */}
+      {nonCapite.length > 0 && (
+        <div className="card" style={{ marginTop: 18, borderLeft: '3px solid var(--line)' }}>
+          <div className="spread" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <i className="ti ti-message-question" style={{ color: 'var(--muted)' }} />
+              <b>
+                {nonCapite.length === 1
+                  ? "C'è una frase che non ho capito"
+                  : `Ci sono ${nonCapite.length} frasi che non ho capito`}
+              </b>
+              <span className="muted" style={{ fontSize: 12.5 }}>negli ultimi 90 giorni</span>
+            </div>
+            <button className="btn ghost" onClick={() => setApriFrasi((v) => !v)}>
+              <i className={`ti ti-chevron-${apriFrasi ? 'up' : 'down'}`} /> {apriFrasi ? 'Chiudi' : 'Guarda'}
+            </button>
+          </div>
+          {apriFrasi && (
+            <>
+              <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.55, margin: '10px 0 4px' }}>
+                Sono le parole da insegnargli. ⚠️ Un traduttore smette di capire <b>senza dare nessun
+                errore</b>: l'unico sintomo è che l'assistente sembra più scema di prima. Vanno
+                ripassate prima di ogni rilascio.
+              </div>
+              <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                {nonCapite.map((f) => (
+                  <li key={f.frase} style={{ marginBottom: 7, lineHeight: 1.5 }}>
+                    {/* ⚠️ La frase si mostra COM'È STATA SCRITTA. Ripulirla vorrebbe dire buttare via
+                        esattamente l'informazione che serve: com'è che le viene di dirlo. */}
+                    <span style={{ fontSize: 14 }}>«{f.frase}»</span>{' '}
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      — {f.quante === 1 ? 'una volta' : `${f.quante} volte`}
+                      {f.arresa ? ', e si è arresa' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── il registro ──────────────────────────────────────────────────── */}
       <div className="card" style={{ padding: 0, marginTop: 18 }}>
