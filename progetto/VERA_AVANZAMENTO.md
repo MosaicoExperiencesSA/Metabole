@@ -11,7 +11,16 @@
 
 ## Stato in una riga
 
-**Vera adesso chiude anche la coda dei cambi concordati in chat** (voce 245, lettura A): li porta
+**Vera adesso chiede gli allergeni della ricetta che il capo ha appena approvato** (voce 227): li
+legge dagli ingredienti, mostra la parola che li ha fatti scattare, e li scrive solo se lui conferma.
+Era l'ultimo punto in cui una decisione presa in chat restava a metà — la ricetta si accendeva e
+`collegaRicetta` continuava a rifiutarla, senza che niente lo dicesse. ⚠️ Trovato guardando e
+lasciato aperto: `updateRecipe` non azzera `allergensReviewed` quando la modifica arriva dal
+backoffice (voce 252, serve una decisione di Simone). **+23 test (486 su Vera).**
+
+## Stato precedente
+
+**Vera chiude anche la coda dei cambi concordati in chat** (voce 245, lettura A): li porta
 uno per volta, si risponde «va bene» o «no», e ⚠️ **un numero dettato non vale come conferma** — i
 grammi si scrivono in scheda, perché 70 ml di panna sono ~200 kcal contro i ~630 di 70 g di olio.
 Con questa, tutto quello che la giornata **conta** in apertura ora si può anche **fare** parlando:
@@ -20,7 +29,7 @@ L'azione 3 è completa (spuntino, cambio dieta, più proteine) e la variante di 
 meccanismi (dieta diversa e giornata dettata a parole). Resta fuori solo «a colazione qualcosa di
 salato», che aspetta le conferme di Lucia in pagina — non noi. **+37 test (463 su Vera).**
 
-## Stato precedente
+## Stato di due passi fa
 
 **Vera guida la giornata: «hai segnalazioni per me?» risponde col quadro** (segnalazioni cliniche in
 testa — decisione di Simone 14/8 —, coda del capo, domande aperte, sostituzioni, campanella) e porta
@@ -28,7 +37,7 @@ subito la prima cosa da fare; il capo riceve la campanella quando il team gli me
 coda, e all'approvazione di un divieto di dieta gli arriva l'elenco di chi resterebbe senza un pasto.
 Chat ridimensionabile (voce 237). **+36 test (341 su Vera).**
 
-## Stato di due passi fa
+## Più indietro
 
 **L'azione 3 ha la sua prima frase viva: «togli lo spuntino».** Campo `pastiEsclusi` sul profilo
 (solo spuntini — i pasti principali restano su `fastingWindow`), kcal ridistribuite sui pasti
@@ -178,6 +187,12 @@ OTA il 12/8). Va prima della pubblicazione.
 ---
 
 ## Storico delle push
+
+### 16/8/2026 (11ª) — Gli allergeni della ricetta approvata (9 file)
+`allergeni-ricetta.ts` puro (`leggiAllergeni` tutti/nessuno/elenco/**aggiungi**, i suggeriti col
+perché, l'elenco a parole), `allergeniDaConfermare` che esce dall'approvazione, i passi
+`allergeni_ricetta` e `allergeni_conferma`, e la scrittura da `setRecipeAllergens`. Vale anche per una
+modifica che cambia gli ingredienti. ⚠️ «Sì, aggiungi anche il sesamo» aggiunge, non sostituisce.
 
 ### 14/8/2026 (10ª) — I cambi concordati in chat, verificati a voce (12 file)
 `verifica-sostituzioni.ts` puro (`leggiVerdetto` ok/no/**grammi**, `motivoDetto`,

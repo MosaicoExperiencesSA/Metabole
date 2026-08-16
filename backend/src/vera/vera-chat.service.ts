@@ -41,6 +41,8 @@ import { RegistroVeraService } from './registro.service';
 import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
 import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
+import { suggestAllergens } from '../catalog/allergens';
+import { EsitoAllergeni, leggiAllergeni, raccontaScelti, raccontaSuggerimenti, Suggerimento } from './allergeni-ricetta';
 import { SCRITTURA_SOSTITUZIONI, ScritturaSostituzioni } from './scrittura-sostituzioni';
 import { leggiVerdetto, motivoDetto, raccontaSostituzione } from './verifica-sostituzioni';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
@@ -283,6 +285,10 @@ export class VeraChatService {
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
       case 'verifica_cambio':
         return this.verdettoSostituzione(nutrizionistaId, stato, frase);
+      case 'allergeni_ricetta':
+        return this.rispondiAllergeni(nutrizionistaId, stato, frase);
+      case 'allergeni_conferma':
+        return this.confermaAllergeni(nutrizionistaId, stato, frase);
       case 'quale_dieta':
         return this.scegliDieta(nutrizionistaId, stato, frase);
       case 'da_quando':
@@ -989,6 +995,140 @@ export class VeraChatService {
     const dopo = await this.cosaTiPorto(nutrizionistaId);
     return {
       testo: `${testi.rispostaMandata(cliente)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'scritta',
+      stato: dopo?.stato,
+    };
+  }
+
+  // ──────────── gli allergeni della ricetta appena approvata (voce 227) ──
+
+  /**
+   * LA DOMANDA, subito dopo l'approvazione (voce 227; foglio
+   * `progetto/NOTA_Vera_Allergeni_Ricetta_Nuova.md`).
+   *
+   * ⚠️ I suggerimenti si calcolano con `suggestAllergens`, **la stessa funzione della scheda**: due
+   * dizionari sarebbero due risposte diverse alla stessa domanda, date nella stessa applicazione.
+   * E si mostra il **perché** di ognuno — la parola dell'ingrediente — perché un elenco di allergeni
+   * senza il perché si conferma senza guardarlo.
+   *
+   * `null` = non sono riuscita a leggere la ricetta: allora non si chiede niente e si va avanti,
+   * invece di aprire un dialogo su un piatto che non so nominare.
+   */
+  private async chiediAllergeniRicetta(recipeId: string): Promise<EsitoVera | null> {
+    let ricetta: { name: string; ingredients: unknown } | null = null;
+    try {
+      ricetta = (await this.prisma.recipe.findUnique({
+        where: { id: recipeId },
+        select: { name: true, ingredients: true },
+      })) as { name: string; ingredients: unknown } | null;
+    } catch (err) {
+      logger.warn(`Allergeni: non leggo la ricetta ${recipeId}: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+    if (!ricetta) return null;
+
+    const suggeriti = suggestAllergens(ricetta.ingredients) as Suggerimento[];
+    return {
+      testo: testi.chiediAllergeni(ricetta.name, raccontaSuggerimenti(suggeriti)),
+      esito: 'in_corso',
+      stato: {
+        passo: 'allergeni_ricetta',
+        frase: '',
+        ricettaAllergeniId: recipeId,
+        ricettaAllergeniNome: ricetta.name,
+        allergeniSuggeriti: suggeriti.map((x) => x.allergen),
+      },
+    };
+  }
+
+  /**
+   * La risposta alla domanda.
+   *
+   * ⚠️ Il «sì» scrive SUBITO, l'elenco dettato no. Non è un'asimmetria distratta: il sì conferma una
+   * lista che ha appena **letto**, mentre un elenco dettato è contenuto nuovo — e questa lista
+   * decide se una cliente allergica riceve quel piatto. Vale la regola di casa, i numeri e le liste
+   * si mostrano prima di scriverli, e qui vale doppio.
+   *
+   * ⚠️ `aggiungi` fa l'UNIONE con i suggeriti. «Sì, aggiungi anche il sesamo» letto come elenco
+   * perderebbe pesce e glutine: dimenticare un allergene è l'errore che qui non si può fare.
+   */
+  private async rispondiAllergeni(attoreId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const nome = stato.ricettaAllergeniNome ?? 'la ricetta';
+    const suggeriti = stato.allergeniSuggeriti ?? [];
+
+    if (/^\s*(lascia stare|lascia perdere|annulla|dopo|non adesso|piu tardi|più tardi)\b/i.test(normalizza(frase))) {
+      return { testo: testi.allergeniLasciati(nome), esito: 'annullata' };
+    }
+
+    const letto: EsitoAllergeni | null = leggiAllergeni(frase);
+    if (!letto) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) return { testo: testi.allergeniLasciati(nome), esito: 'arresa' };
+      return {
+        testo: testi.allergeniNonCapiti(raccontaSuggerimenti(await this.suggeritiDi(stato))),
+        esito: 'non_capito',
+        stato: { ...stato, tentativi },
+      };
+    }
+
+    // Il sì: quelli mostrati, già letti. Si scrive.
+    if (letto.tipo === 'tutti') return this.scriviAllergeni(attoreId, stato, suggeriti);
+
+    const scelti =
+      letto.tipo === 'nessuno' ? []
+        : letto.tipo === 'aggiungi' ? [...new Set([...suggeriti, ...letto.codici])]
+          : letto.codici;
+
+    return {
+      testo: testi.anteprimaAllergeni(nome, raccontaScelti(scelti)),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'allergeni_conferma', allergeniScelti: scelti, tentativi: 0 },
+    };
+  }
+
+  /** I suggerimenti col loro perché, ricalcolati per poter rifare la domanda uguale. */
+  private async suggeritiDi(stato: StatoVera): Promise<Suggerimento[]> {
+    const ricetta = (await this.prisma.recipe
+      .findUnique({ where: { id: stato.ricettaAllergeniId! }, select: { ingredients: true } })
+      .catch(() => null)) as { ingredients: unknown } | null;
+    return ricetta ? (suggestAllergens(ricetta.ingredients) as Suggerimento[]) : [];
+  }
+
+  /** Il sì sull'elenco dettato. Un no riporta alla domanda, non chiude il giro. */
+  private async confermaAllergeni(attoreId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const nome = stato.ricettaAllergeniNome ?? 'la ricetta';
+    const risposta = leggiConferma(frase);
+    if (risposta === true) return this.scriviAllergeni(attoreId, stato, stato.allergeniScelti ?? []);
+    if (risposta === false) {
+      return {
+        testo: testi.chiediAllergeni(nome, raccontaSuggerimenti(await this.suggeritiDi(stato))),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'allergeni_ricetta', allergeniScelti: undefined, tentativi: 0 },
+      };
+    }
+    return {
+      testo: testi.anteprimaAllergeni(nome, raccontaScelti(stato.allergeniScelti ?? [])),
+      esito: 'in_corso',
+      stato,
+    };
+  }
+
+  /**
+   * La scrittura, dalla **porta della scheda**: `setRecipeAllergens` filtra sui 14 codici UE, mette
+   * `allergensReviewed: true` e lascia la traccia in audit. Nessuna seconda strada per un dato
+   * sanitario.
+   */
+  private async scriviAllergeni(attoreId: string, stato: StatoVera, codici: readonly string[]): Promise<EsitoVera> {
+    const nome = stato.ricettaAllergeniNome ?? 'la ricetta';
+    try {
+      await this.ricette.setRecipeAllergens(attoreId, stato.ricettaAllergeniId!, [...codici]);
+    } catch (err) {
+      logger.warn(`Allergeni non scritti (ricetta=${stato.ricettaAllergeniId}): ${err instanceof Error ? err.message : String(err)}`);
+      return { testo: testi.allergeniLasciati(nome), esito: 'arresa' };
+    }
+    const dopo = await this.cosaTiPorto(attoreId);
+    return {
+      testo: `${testi.allergeniScritti(nome, raccontaScelti(codici))}${dopo ? `\n\n${dopo.testo}` : ''}`,
       esito: 'scritta',
       stato: dopo?.stato,
     };
@@ -1869,6 +2009,27 @@ export class VeraChatService {
 
     const attore = { id: attoreId, role: await this.ruolo(attoreId) };
     const esito = await this.registro.approva(attore, stato.azioneId!);
+
+    /**
+     * ⚠️ LA DOMANDA SUGLI ALLERGENI PRIMA DELLA PROSSIMA COSA (voce 227). Approvare accende la
+     * ricetta ma non conferma gli allergeni, e `collegaRicetta` si rifiuta di metterla in una
+     * giornata finché restano da confermare: passare oltre vorrebbe dire lasciargli una ricetta
+     * accesa e invisibile, che è esattamente il difetto che questa voce chiude. La coda non si
+     * perde — riparte da sola appena questa risposta è data.
+     */
+    const allergeni = (esito as { allergeniDaConfermare?: string }).allergeniDaConfermare;
+    if (allergeni) {
+      const domanda = await this.chiediAllergeniRicetta(allergeni);
+      if (domanda) {
+        return {
+          testo: `${testi.approvata((esito as { riepilogo: string }).riepilogo)}\n\n${domanda.testo}`,
+          esito: 'scritta',
+          stato: domanda.stato,
+          azioneId: stato.azioneId,
+        };
+      }
+    }
+
     const prossima = await this.cosaTiPorto(attoreId);
     return {
       testo: `${testi.approvata((esito as { riepilogo: string }).riepilogo)}\n\n${prossima?.testo ?? testi.codaVuota()}`.trim(),

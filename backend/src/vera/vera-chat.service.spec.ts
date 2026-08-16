@@ -135,7 +135,9 @@ function make(
   const ricette = {
     createRecipe: jest.fn().mockResolvedValue({ id: 'r-nuova' }),
     updateRecipe: jest.fn().mockResolvedValue({ id: 'r1' }),
-  } as unknown as ScritturaRicetta;
+    // Gli allergeni confermati (voce 227): la stessa porta del pulsante in scheda.
+    setRecipeAllergens: jest.fn().mockResolvedValue({ id: 'r1' }),
+  } as unknown as ScritturaRicetta & { setRecipeAllergens: jest.Mock };
   // La porta della scheda per il cambio di dieta (azione 3, 14/8).
   const clienti = { updateClient: jest.fn().mockResolvedValue({}) };
   // Il minimo proteico della dieta, per l'anteprima delle proteine (14/8).
@@ -1560,5 +1562,103 @@ describe('VeraChatService — i cambi concordati in chat, verificati a voce (voc
     (registro.prossimaDaVerificare as jest.Mock).mockRejectedValue(new Error('db giù'));
     await service.parla('lucia', 'verifichiamo i cambi');
     expect(ultimoAgente(messaggioCreate).testo).toContain('nessun cambio');
+  });
+});
+
+/**
+ * GLI ALLERGENI DELLA RICETTA APPENA APPROVATA — voce 227.
+ * Foglio: `progetto/NOTA_Vera_Allergeni_Ricetta_Nuova.md`.
+ *
+ * Approvare accende la ricetta ma non conferma gli allergeni, e `collegaRicetta` si rifiuta di
+ * metterla in una giornata finché restano da confermare: senza questa domanda il capo lo scopre
+ * dal fatto che la ricetta non compare da nessuna parte.
+ */
+describe('VeraChatService — gli allergeni della ricetta approvata (voce 227)', () => {
+  const CODA = [{ id: 'a1', frase: 'inseriamo una ricetta', nutrizionistaId: 'lucia', soggettoNome: null, dettaglio: {}, conflittoSanitario: false, createdAt: new Date() }];
+  const RICETTA = { id: 'r1', name: 'Orata al forno con patate', ingredients: [{ name: 'orata' }, { name: 'pangrattato' }] };
+
+  /** Il capo con una ricetta in coda, e `approva` che dice «mancano gli allergeni di r1». */
+  const conRicetta = () => {
+    const esito = make(
+      { recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(RICETTA) } },
+      { coda: CODA },
+    );
+    (esito.registro.approva as jest.Mock).mockResolvedValue({ toccate: 1, riepilogo: 'Ricetta attivata.', allergeniDaConfermare: 'r1' });
+    return esito;
+  };
+
+  it('dopo il sì chiede gli allergeni, e dice PERCHÉ li propone', async () => {
+    const { service, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Orata al forno con patate');
+    expect(testo).toContain('Pesce');
+    expect(testo).toContain('orata'); // la parola che l'ha fatto scattare
+    expect(testo).toContain('Glutine');
+    expect(stato?.passo).toBe('allergeni_ricetta');
+  });
+
+  it('«sì» scrive quelli mostrati, dalla porta della scheda', async () => {
+    const { service, ricette } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'sì');
+    expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('nocanty', 'r1', ['glutine', 'pesce']);
+  });
+
+  it('⚠️ un elenco DETTATO non si scrive subito: si rilegge e si chiede conferma', async () => {
+    // Il «sì» conferma una lista già letta. Un elenco dettato è contenuto nuovo, e questa lista
+    // decide se una cliente allergica riceve quel piatto.
+    const { service, ricette, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'solo latte e uova');
+    expect(ricette.setRecipeAllergens).not.toHaveBeenCalled();
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Uova');
+    expect(testo).toContain('Latte e derivati');
+    expect(stato?.passo).toBe('allergeni_conferma');
+    await service.parla('nocanty', 'sì');
+    expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('nocanty', 'r1', ['uova', 'latte']);
+  });
+
+  it('⚠️ «sì, aggiungi anche il sesamo» AGGIUNGE ai suggeriti, non li sostituisce', async () => {
+    const { service, ricette, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'sì, aggiungi anche il sesamo');
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('allergeni_conferma');
+    await service.parla('nocanty', 'sì');
+    expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('nocanty', 'r1', ['glutine', 'pesce', 'sesamo']);
+  });
+
+  it('⚠️ «nessuno» è la risposta più impegnativa: si rilegge prima di scriverla', async () => {
+    const { service, ricette, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'nessuno');
+    expect(ricette.setRecipeAllergens).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('allergeni_conferma');
+    await service.parla('nocanty', 'sì');
+    expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('nocanty', 'r1', []);
+  });
+
+  it('⚠️ non capito: si richiede, non si indovina', async () => {
+    const { service, ricette, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'quelli soliti');
+    expect(ricette.setRecipeAllergens).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('allergeni_ricetta');
+  });
+
+  it('«lascia stare» non scrive, e dice che la ricetta resta invisibile finché non li conferma', async () => {
+    const { service, ricette, messaggioCreate } = conRicetta();
+    await service.apri('nocanty');
+    await service.parla('nocanty', 'sì');
+    await service.parla('nocanty', 'lascia stare');
+    expect(ricette.setRecipeAllergens).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('non entrerà in nessuna giornata');
   });
 });

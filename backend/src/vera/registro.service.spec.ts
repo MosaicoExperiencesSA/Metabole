@@ -319,9 +319,14 @@ describe('RegistroVeraService — approvare una ricetta', () => {
     ...over,
   });
 
-  const makeConProposta = (p: Record<string, unknown>, ricette = makeRicette()) => ({
+  const makeConProposta = (p: Record<string, unknown>, ricette = makeRicette(), ingredientiPrima: unknown = null) => ({
     service: make(
-      { azioneVera: { findUnique: jest.fn().mockResolvedValue(p), update: jest.fn().mockResolvedValue({ id: 'a1' }) } },
+      {
+        azioneVera: { findUnique: jest.fn().mockResolvedValue(p), update: jest.fn().mockResolvedValue({ id: 'a1' }) },
+        // Serve a capire se la modifica CAMBIA gli ingredienti: se sì, la conferma degli allergeni
+        // che c'era parlava di un altro piatto e va rifatta.
+        recipe: { findUnique: jest.fn().mockResolvedValue({ ingredients: ingredientiPrima }) },
+      },
       makeAudit(),
       makeDizionario(),
       ricette,
@@ -337,9 +342,13 @@ describe('RegistroVeraService — approvare una ricetta', () => {
     const esito = await service.approva(CAPO, 'a1');
     expect((ricette as unknown as { updateRecipe: jest.Mock }).updateRecipe)
       .toHaveBeenCalledWith('nocanty', 'r1', { active: true });
-    // ⚠️ Approvare non conferma gli allergeni: sono due responsabilità diverse, e chi approva deve
-    // saperlo dalla risposta invece di scoprirlo dal fatto che la ricetta non compare da nessuna parte.
-    expect((esito as { riepilogo: string }).riepilogo).toContain('allergeni');
+    /**
+     * ⚠️ Approvare NON conferma gli allergeni — sono due responsabilità diverse — e `collegaRicetta`
+     * si rifiuta di metterla in una giornata finché restano da confermare. Fino al 16/8 questo si
+     * diceva in una frase e basta: chi non se ne ricordava aveva una ricetta accesa e invisibile.
+     * Adesso esce l'id, e la chat FA LA DOMANDA subito (voce 227).
+     */
+    expect((esito as { allergeniDaConfermare?: string }).allergeniDaConfermare).toBe('r1');
   });
 
   it('⚠️ approvare una MODIFICA non spegne la ricetta viva', async () => {
@@ -357,6 +366,32 @@ describe('RegistroVeraService — approvare una ricetta', () => {
     const scritti = (ricette as unknown as { updateRecipe: jest.Mock }).updateRecipe.mock.calls[0][2];
     expect(scritti).not.toHaveProperty('active');
     expect(scritti.kcal).toBe(210);
+  });
+
+  it('⚠️ una modifica che CAMBIA gli ingredienti fa rifare la domanda sugli allergeni', async () => {
+    // La conferma che c'era parlava di un altro piatto: `catalog.updateRecipe` non azzera
+    // `allergensReviewed`, e una risposta vecchia su ingredienti nuovi è peggio di nessuna risposta.
+    const { service } = makeConProposta(
+      proposta({
+        azione: 'ricetta_modificata',
+        dettaglio: { campi: { name: 'Tonno alle olive', active: false, ingredients: [{ name: 'tonno' }, { name: 'noci' }] } },
+      }),
+      makeRicette(),
+      [{ name: 'tonno' }],
+    );
+    const esito = await service.approva(CAPO, 'a1');
+    expect((esito as { allergeniDaConfermare?: string }).allergeniDaConfermare).toBe('r1');
+  });
+
+  it('una modifica che NON tocca gli ingredienti non richiede niente: la conferma di prima vale', async () => {
+    const { service } = makeConProposta(
+      proposta({
+        azione: 'ricetta_modificata',
+        dettaglio: { campi: { name: 'Tonno alle olive', active: false, kcal: 210 } },
+      }),
+    );
+    const esito = await service.approva(CAPO, 'a1');
+    expect((esito as { allergeniDaConfermare?: string }).allergeniDaConfermare).toBeUndefined();
   });
 
   it('una proposta di modifica senza i campi non tocca niente', async () => {

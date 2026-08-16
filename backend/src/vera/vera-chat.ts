@@ -28,6 +28,8 @@ export type PassoVera =
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
   | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
+  | 'allergeni_ricetta'   // ricetta appena approvata: questi sono gli allergeni? (voce 227, 16/8)
+  | 'allergeni_conferma'  // …e questo è l'elenco che sto per scrivere. Confermi?
   | 'quanti_giorni'      // «riduci le kcal del 10%»: per quanto? (Nocanty via Vera, 14/8)
   | 'giornata_scelte'    // la giornata dettata: quale piatto, per le righe ambigue (voce 241)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
@@ -90,6 +92,12 @@ export interface StatoVera {
   /** La sostituzione che sto sottoponendo (voce 245), e il nome di chi l'ha chiesta. */
   sostituzioneId?: string;
   sostituzioneCliente?: string;
+  /** La ricetta di cui sto chiedendo gli allergeni (voce 227): quale, come si chiama, cosa propongo. */
+  ricettaAllergeniId?: string;
+  ricettaAllergeniNome?: string;
+  /** I codici letti dagli ingredienti, e quelli che sto per scrivere dopo la sua risposta. */
+  allergeniSuggeriti?: string[];
+  allergeniScelti?: string[];
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;
@@ -548,6 +556,44 @@ export const testi = {
 
   cambioSparito: () =>
     'Quel cambio non è più da verificare: qualcuno l\'ha già guardato. Non ho toccato niente.',
+
+  // ─────────────────── gli allergeni della ricetta appena approvata (voce 227) ──
+
+  /**
+   * ⚠️ La domanda dice **cosa può rispondere**, e le tre risposte non sono equivalenti: «sì» vale
+   * per quelli che ha appena letto, un elenco li riscrive, «nessuno» è un'affermazione clinica. Va
+   * scritto, perché è la differenza fra confermare e dettare.
+   */
+  chiediAllergeni: (ricetta: string, racconto: string) =>
+    `Prima che possa entrare in una giornata, **${ricetta}** ha bisogno degli allergeni confermati.\n\n` +
+    `${racconto}\n\n` +
+    'Confermi questi? Oppure dimmi tu l\'elenco giusto — «latte e uova» — o **«nessuno»** se questa ' +
+    'ricetta non ne ha.',
+
+  /**
+   * ⚠️ L'elenco DETTATO si rilegge prima di scriverlo, il «sì» no: quello conferma una lista che ha
+   * appena letto. Qui invece è contenuto nuovo, e questa lista decide se una cliente allergica
+   * riceve quel piatto.
+   */
+  anteprimaAllergeni: (ricetta: string, elenco: string) =>
+    `Su **${ricetta}** sto per scrivere: **${elenco}**.\n\nConfermi?`,
+
+  allergeniScritti: (ricetta: string, elenco: string) =>
+    `Fatto: su **${ricetta}** ho confermato ${elenco}. Da adesso può entrare nelle giornate, ` +
+    'filtrata per chi è allergica.',
+
+  allergeniNonCapiti: (racconto: string) =>
+    `Non ho capito.\n\n${racconto}\n\nDimmi **«sì»** per confermare questi, oppure l\'elenco giusto ` +
+    '(«latte e uova»), oppure **«nessuno»**.',
+
+  /**
+   * ⚠️ Non risponde? Non succede niente di male, e va detto: la ricetta resta accesa e non
+   * revisionata, esattamente com'era prima che questa domanda esistesse. Una domanda che sembra
+   * bloccante quando non lo è insegna a rispondere a caso pur di uscirne.
+   */
+  allergeniLasciati: (ricetta: string) =>
+    `Va bene, non scrivo niente. ⚠️ **${ricetta}** resta accesa ma senza allergeni confermati, ` +
+    'quindi non entrerà in nessuna giornata finché non li confermi — da qui o dalla sua scheda.',
 
   nessunCambioDaVerificare: () =>
     'Non c\'è nessun cambio concordato in chat da verificare. Le clienti non ne hanno chiesti, ' +

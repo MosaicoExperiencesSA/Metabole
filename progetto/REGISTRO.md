@@ -18,6 +18,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-16
+
+- `[Sviluppo]` 🥜 **Vera propone gli allergeni della ricetta appena approvata** (voce 227). Approvare
+  una ricetta la accendeva ma non confermava gli allergeni, e `collegaRicetta` si rifiuta di metterla
+  in una giornata finché restano da confermare: il capo si ritrovava una ricetta **accesa e
+  invisibile**, e lo scopriva dal fatto che non compariva da nessuna parte. Ora la domanda gliela si
+  fa subito, dove sta già decidendo, con la **parola dell'ingrediente** accanto a ogni allergene
+  («Pesce — da “orata”») perché un elenco senza il perché si conferma senza guardarlo. ⚠️ Tre
+  asimmetrie volute: il «sì» scrive subito (conferma una lista già letta) mentre un elenco dettato si
+  rilegge prima; «sì, aggiungi anche il sesamo» **aggiunge** invece di sostituire; e un allergene non
+  suggerito si accetta lo stesso — `suggestAllergens` può non vederci qualcosa, e aggiungerne uno di
+  troppo costa una ricetta, dimenticarne uno costa una cliente. Si scrive da `setRecipeAllergens`, la
+  porta del pulsante in scheda. 23 test, con controllo per mutazione.
+  Decisione in `NOTA_Vera_Allergeni_Ricetta_Nuova.md`.
+
+- `[Sviluppo]` ⚠️ **Trovato guardando, e lasciato aperto**: `catalog.updateRecipe` scrive gli
+  ingredienti **senza azzerare `allergensReviewed`**. Una ricetta a cui si cambiano gli ingredienti
+  dal backoffice resta «revisionata» con la conferma di prima, data su un piatto diverso — nessun
+  errore, nessuna riga rossa, e il filtro degli allergeni gira su un'informazione vecchia. Non l'ho
+  chiuso da solo: azzerarlo toglie dai menu ogni ricetta che qualcuno modifica finché non la si
+  rivede, e su 315 clienti è una decisione operativa. La metà che passa da Vera è chiusa (la modifica
+  approvata in chat rifà la domanda). Voce 252 in elenco lavori, per Simone.
+
+---
+
 ## 2026-08-14
 
 - `[Sviluppo]` 🔘 **Lavori: il pulsante del rilascio spunta anche, e adesso lo dice** (voce 251,

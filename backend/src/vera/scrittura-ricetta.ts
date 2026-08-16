@@ -18,6 +18,13 @@
 export interface ScritturaRicetta {
   createRecipe(userId: string, dto: unknown): Promise<unknown>;
   updateRecipe(userId: string, id: string, dto: unknown): Promise<unknown>;
+  /**
+   * Gli allergeni CONFERMATI (voce 227, 16/8). Terzo e ultimo metodo, e vale la pena dire perché è
+   * qui e non fatto a mano: filtra sui 14 codici UE, mette `allergensReviewed: true` e lascia la
+   * traccia in audit. È la stessa funzione del pulsante in scheda — una seconda strada per un dato
+   * sanitario è il difetto che questo progetto ha già pagato due volte.
+   */
+  setRecipeAllergens(userId: string, id: string, allergens: string[]): Promise<unknown>;
 }
 
 export const SCRITTURA_RICETTA = 'VERA_SCRITTURA_RICETTA';

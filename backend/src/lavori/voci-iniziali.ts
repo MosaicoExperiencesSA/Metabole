@@ -372,11 +372,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-ricetta-allergeni',
-    titolo: 'Vera: la ricetta nuova nasce senza allergeni marcati',
+    titolo: 'Vera propone gli allergeni della ricetta appena approvata, e li scrive se il capo conferma',
     dettaglio:
-      'Approvare una ricetta la accende ma NON conferma gli allergeni: `allergensReviewed` resta false, e `collegaRicetta` si rifiuta di metterla in una giornata finché qualcuno non li conferma dalla scheda. È giusto che siano due responsabilità diverse, ma oggi il capo lo scopre dal fatto che la ricetta non compare da nessuna parte. Esiste già `recipeAllergenSuggestions(id)` in catalog: l\'assistente potrebbe proporli al momento dell\'approvazione, restando una proposta.',
+      'Approvare una ricetta la accende ma NON conferma gli allergeni: `allergensReviewed` resta false e `collegaRicetta` si rifiuta di metterla in una giornata — quindi il capo aveva una ricetta accesa e invisibile, e lo scopriva dal fatto che non compariva da nessuna parte. Chiuso il 16/8: subito dopo il sì, Vera mostra gli allergeni letti dagli ingredienti con la PAROLA che li ha fatti scattare («Pesce — da “orata”»), e li scrive solo se lui conferma, da `CatalogService.setRecipeAllergens` (la porta del pulsante in scheda). ⚠️ Tre asimmetrie volute: il «sì» scrive subito perché conferma una lista già letta, mentre un elenco dettato si RILEGGE prima di scriverlo; «sì, aggiungi anche il sesamo» AGGIUNGE ai suggeriti invece di sostituirli (leggerlo come elenco perderebbe pesce e glutine); e un allergene che non era fra i suggeriti si accetta lo stesso, perché `suggestAllergens` può non vederci qualcosa e aggiungerne uno di troppo costa una ricetta, dimenticarne uno costa una cliente. Vale anche per una MODIFICA che cambia gli ingredienti: la conferma di prima parlava di un altro piatto. Decisione in `progetto/NOTA_Vera_Allergeni_Ricetta_Nuova.md`.',
     categoria: CODICE,
     ordine: 227,
+    fatta: true, // chiusa il 16/8
   },
   {
     chiave: 'vera-ricetta-crudo-cotto',
@@ -582,6 +583,14 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 251,
     fatta: true, // trovata e chiusa la sera stessa
+  },
+  {
+    chiave: 'allergeni-reviewed-non-si-azzera',
+    titolo: 'Cambiare gli ingredienti dal backoffice NON azzera gli allergeni confermati',
+    dettaglio:
+      '⚠️ Verificato nel codice il 16/8 scrivendo la voce 227: `catalog.updateRecipe` (riga 1187) scrive `ingredients` senza toccare `allergensReviewed`. Una ricetta con allergeni confermati a cui qualcuno cambia gli ingredienti dalla scheda resta `allergensReviewed: true` — con la conferma di PRIMA, data su un piatto diverso. Nessun errore, nessuna riga rossa, e il filtro degli allergeni continua a girare su un\'informazione vecchia. ⚠️ NON l\'ho chiuso da solo perché azzerare `allergensReviewed` a ogni modifica di ingredienti TOGLIE DAI MENU ogni ricetta che qualcuno tocca, finché non la si rivede: su 315 clienti è una decisione operativa, non un dettaglio tecnico. La metà che passa da Vera è già chiusa (la modifica approvata in chat rifà la domanda). Serve la decisione di Simone sul resto: azzerare sempre, azzerare solo se cambia la LISTA degli ingredienti e non le quantità, o segnalare senza spegnere.',
+    categoria: SIMONE,
+    ordine: 252,
   },
   {
     chiave: 'vera-handoff-sessione',

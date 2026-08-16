@@ -391,17 +391,36 @@ export class RegistroVeraService {
       await this.ricette.updateRecipe(attore.id, id, { active: true });
       return {
         toccate: 1,
-        riepilogo:
-          'Ricetta attivata. ⚠️ Prima di poter entrare in una giornata servono ancora gli allergeni ' +
-          'confermati, dalla scheda della ricetta.',
+        riepilogo: 'Ricetta attivata.',
+        // La domanda sugli allergeni la fa la chat, subito (voce 227): il rimando alla scheda
+        // costringeva a ricordarsene, e chi non se ne ricordava aveva una ricetta invisibile.
+        allergeniDaConfermare: id,
       };
     }
 
     const campi = ((riga.dettaglio ?? {}) as { campi?: RicettaDaScrivere }).campi;
     if (!campi) return { toccate: 0, riepilogo: 'La proposta non conteneva la ricetta nuova: non ho toccato niente.' };
     const { active: _spenta, ...daScrivere } = campi;
+    /**
+     * ⚠️ Se cambiano gli INGREDIENTI, la conferma degli allergeni che c'è parlava di un altro
+     * piatto. `catalog.updateRecipe` non azzera `allergensReviewed` — e non lo azzera nemmeno
+     * quando la modifica arriva dal backoffice, che è un buco più largo di questo e va deciso da
+     * Simone (voce in elenco lavori). Quello che si può chiudere qui è la metà che passa da Vera:
+     * la stessa domanda si rifà, perché la risposta di prima non vale più.
+     */
+    const prima = (await this.prisma.recipe.findUnique({ where: { id }, select: { ingredients: true } })) as
+      | { ingredients: unknown }
+      | null;
+    const ingredientiCambiati =
+      daScrivere.ingredients !== undefined &&
+      JSON.stringify(prima?.ingredients ?? null) !== JSON.stringify(daScrivere.ingredients);
+
     await this.ricette.updateRecipe(attore.id, id, daScrivere);
-    return { toccate: 1, riepilogo: `Ricetta «${campi.name}» aggiornata: da adesso è questa che va nei piatti.` };
+    return {
+      toccate: 1,
+      riepilogo: `Ricetta «${campi.name}» aggiornata: da adesso è questa che va nei piatti.`,
+      ...(ingredientiCambiati ? { allergeniDaConfermare: id } : {}),
+    };
   }
 
   /**

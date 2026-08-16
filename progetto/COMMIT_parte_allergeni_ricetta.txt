@@ -1,0 +1,60 @@
+Vera propone gli allergeni della ricetta appena approvata (voce 227)
+
+IL BUCO, VERIFICATO NEL CODICE
+Il capo approva una ricetta nuova → `registro.approvaRicetta` la ACCENDE. Ma `allergensReviewed`
+resta false, e `catalog.collegaRicetta` (riga 896) si rifiuta di metterla in una giornata finché
+resta false. Risultato: una ricetta «approvata» che non compare da nessuna parte, e il capo lo
+scopre proprio da quello. La frase di Vera lo diceva («servono ancora gli allergeni, dalla scheda»),
+ma era un rimando: bisognava ricordarsene, aprire la scheda, trovarla.
+
+COSA FA ADESSO
+Subito dopo il sì, nella stessa chat, Vera mostra gli allergeni letti dagli ingredienti — ognuno con
+la PAROLA che l'ha fatto scattare («Pesce — da “orata”») — e li scrive solo se lui conferma.
+
+  «sì»                    → si scrivono quelli mostrati: li ha appena letti
+  un elenco               → si RIMOSTRA quello che ho capito, e si chiede conferma
+  «nessuno»               → si RIMOSTRA («scrivo che non ne ha»), e si chiede conferma
+  altro                   → non si indovina: si richiede
+
+⚠️ TRE ASIMMETRIE, TUTTE VOLUTE
+
+1. Il «sì» scrive subito, un elenco dettato no. Il sì conferma una lista già LETTA; un elenco
+   dettato è contenuto nuovo, e questa lista decide se una cliente allergica riceve quel piatto. La
+   regola di casa — le liste si mostrano prima di scriverle — qui vale doppio.
+
+2. «Sì, aggiungi anche il sesamo» AGGIUNGE, non sostituisce. Si può sbagliare in due modi, tutti e
+   due gravi e in versi opposti: leggerlo come «sì» perde il sesamo, leggerlo come elenco perde
+   pesce e glutine. Esce come `aggiungi`, e l'unione la fa il servizio.
+
+3. Un allergene che NON era fra i suggeriti si accetta lo stesso — al contrario di `allargaFamiglia`,
+   che tiene solo i nomi che aveva proposto lui. `suggestAllergens` cerca parole negli ingredienti e
+   può non vederci qualcosa: aggiungere un allergene di troppo costa una ricetta in meno,
+   dimenticarne uno costa una cliente. Fra i due errori si sceglie sempre lo stesso.
+
+⚠️ VALE ANCHE PER UNA MODIFICA CHE CAMBIA GLI INGREDIENTI
+La conferma che c'era parlava di un altro piatto. `catalog.updateRecipe` non azzera
+`allergensReviewed`, quindi la modifica approvata in chat rifà la domanda.
+
+⚠️ E IL BUCO PIÙ LARGO CHE NON HO CHIUSO
+Lo stesso `updateRecipe` non azzera `allergensReviewed` nemmeno quando la modifica arriva dal
+BACKOFFICE: una ricetta a cui si cambiano gli ingredienti dalla scheda resta «revisionata» con la
+conferma di prima. Non l'ho toccato perché azzerarlo toglie dai menu ogni ricetta che qualcuno
+modifica, finché non la si rivede: su 315 clienti è una decisione operativa, non un dettaglio
+tecnico. È in elenco lavori come voce aperta per Simone (voce 252), con le tre strade possibili.
+
+PORTA UNICA: si scrive da `CatalogService.setRecipeAllergens`, la stessa del pulsante in scheda —
+filtra sui 14 codici UE, mette `allergensReviewed: true`, lascia la traccia in audit.
+
+FILE
+- backend/src/vera/allergeni-ricetta.ts (+ .spec) — modulo PURO: leggiAllergeni (tutti/nessuno/
+  elenco/aggiungi), raccontaSuggerimenti, raccontaScelti. Dizionario condiviso con il catalogo. 14 test.
+- backend/src/vera/registro.service.ts (+ .spec) — `allergeniDaConfermare` esce dall'approvazione. 2 test.
+- backend/src/vera/scrittura-ricetta.ts — `setRecipeAllergens` nel token.
+- backend/src/vera/applica-proposta.ts — il campo nuovo in `EsitoApplicazione`.
+- backend/src/vera/vera-chat.ts — passi `allergeni_ricetta` e `allergeni_conferma`, e le frasi.
+- backend/src/vera/vera-chat.service.ts (+ .spec) — il flusso. 7 test.
+- backend/src/lavori/voci-iniziali.ts — voce 227 spuntata, voce 252 aperta per Simone.
+
+23 test nuovi. Nessuna migrazione. Nessun modulo nuovo: `SCRITTURA_RICETTA` era già CatalogService.
+Controllo per mutazione: se «sì, aggiungi X» sostituisce invece di aggiungere cadono 2 test; se
+l'elenco dettato si scrive senza rileggerlo ne cadono 3.

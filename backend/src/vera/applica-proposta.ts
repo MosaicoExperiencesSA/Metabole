@@ -52,6 +52,14 @@ export interface EsitoApplicazione {
    * così l'elenco non scorre via con la chat.
    */
   scoperte?: ClienteScoperta[];
+  /**
+   * La ricetta appena approvata su cui **mancano gli allergeni confermati** (voce 227).
+   *
+   * ⚠️ Non è un dettaglio di comodo: `collegaRicetta` si rifiuta di mettere in una giornata una
+   * ricetta con `allergensReviewed: false`, quindi senza questa domanda la ricetta approvata resta
+   * invisibile e il capo lo scopre dal fatto che non compare da nessuna parte.
+   */
+  allergeniDaConfermare?: string;
 }
 
 /**
