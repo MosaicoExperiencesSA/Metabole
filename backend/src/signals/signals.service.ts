@@ -380,7 +380,14 @@ export class SignalsService {
     return { opened, days };
   }
 
-  private async evaluateMilestones(clientId: string): Promise<string[]> {
+  /**
+   * I traguardi appena raggiunti — **con la loro etichetta**, non solo il codice (16/8).
+   *
+   * ⚠️ Le etichette sono già scritte qui sopra (`MILESTONE_DEFS` e le due dell'obiettivo) e sono
+   * parole che legge la cliente: farle uscire di qui è ciò che evita una seconda copia delle stesse
+   * frasi dentro l'app — e fra un anno due frasi diverse per lo stesso traguardo.
+   */
+  private async evaluateMilestones(clientId: string): Promise<{ type: string; label: string }[]> {
     const [profile, objective, count, latest] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId: clientId },
@@ -418,13 +425,15 @@ export class SignalsService {
       }
     }
 
-    const created: string[] = [];
+    // ⚠️ `skipDuplicates`: un traguardo si raggiunge UNA volta sola, e `result.count` è quello che
+    // distingue «l'ha appena raggiunto» da «ce l'aveva già». Solo i primi si dicono.
+    const created: { type: string; label: string }[] = [];
     for (const m of earned) {
       const result = await this.prisma.milestone.createMany({
         data: [{ clientId, type: m.type, label: m.label }],
         skipDuplicates: true,
       });
-      if (result.count > 0) created.push(m.type);
+      if (result.count > 0) created.push(m);
     }
     return created;
   }

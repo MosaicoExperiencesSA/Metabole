@@ -607,6 +607,14 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 252,
   },
   {
+    chiave: 'app-dati-che-non-legge',
+    titolo: 'App: sei dati che il server manda alla cliente e nessuna schermata mostra',
+    dettaglio:
+      'Trovati il 16/8 con un giro sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte in questo progetto — un dato che agisce e non si vede. I due più gravi (i traguardi raggiunti e il guardrail del calo rapido) sono stati chiusi lo stesso giorno; questi restano, e sono SCHERMATE NUOVE, non correzioni: **1)** `GET /me/progress` non lo chiama nessuno — media mobile, chili persi, PROIEZIONE della data obiettivo, giorni di stallo — eppure il calcolo gira e lo leggono il motore e l\'allarme di stallo della coach: agisce su di lei ed è l\'unica a non vederlo. **2)** `GET /me/cycle` mai chiamato: le due cotture del ciclo, le stelle di gradimento (che decidono cosa il motore le ripropone) e l\'esito del ciclo precedente. **3)** `totalSafe` e `certificate` da `/me/personal-base`: quante ricette sono state certificate sicure per lei e la firma del certificato di personalizzazione — la prova numerica che la personalizzazione è avvenuta, e la sola persona a cui interessa non ce l\'ha. **4)** `since` in `/me/measurement-gate`: da quando il menu è fermo (oggi legge «contatta la tua coach» senza sapere da quanto). **5)** `thighsCm`: lo staff può registrarle una circonferenza cosce che lei non vedrà mai. **6)** `GET /me/ratings/pending` esiste e il popup delle valutazioni non lo usa: si ricostruisce l\'elenco da `/me/menu` e ripropone anche i piatti già votati. ⚠️ Le prime tre vanno disegnate prima di scriverle: sono pagine, non righe.',
+    categoria: CODICE,
+    ordine: 253,
+  },
+  {
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:

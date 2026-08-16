@@ -137,10 +137,28 @@ describe('SignalsService', () => {
     );
   });
 
-  it('prima misura → traguardo first_measurement', async () => {
+  it('prima misura → traguardo first_measurement, con l\'etichetta che legge la cliente', async () => {
     prisma.milestone.createMany.mockResolvedValue({ count: 1 });
     const result = await service.upsertMeasurement('u1', { weightKg: 67 });
-    expect(result.newMilestones).toContain('first_measurement');
+    /**
+     * ⚠️ Esce l'ETICHETTA, non solo il codice (16/8). Sono parole che legge la cliente e sono già
+     * scritte nel servizio: farle uscire di qui evita una seconda copia nell'app — e fra un anno
+     * due frasi diverse per lo stesso traguardo.
+     */
+    // `toContainEqual` e non `toEqual`: con questo peso di partenza scattano anche i «-1 kg», e
+    // fissare l'elenco intero renderebbe il test fragile su una cosa che non sta collaudando.
+    expect(result.newMilestones).toContainEqual({
+      type: 'first_measurement',
+      label: 'Prima misura registrata: si parte!',
+    });
+  });
+
+  it('⚠️ un traguardo GIÀ raggiunto non si ridice: solo quelli appena scritti', async () => {
+    // `skipDuplicates` fa tornare count 0 quando c'era già: è quello che distingue «l'ha appena
+    // raggiunto» da «ce l'aveva da un mese», e senza questa riga l'app festeggerebbe a ogni pesata.
+    prisma.milestone.createMany.mockResolvedValue({ count: 0 });
+    const result = await service.upsertMeasurement('u1', { weightKg: 67 });
+    expect(result.newMilestones).toEqual([]);
   });
 
   it('guardrail calo rapido: oltre soglia → escalation al nutrizionista', async () => {

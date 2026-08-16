@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` 🏆 **I traguardi e il calo rapido arrivano alla cliente** — trovati con un giro
+  sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte qui: un dato che
+  agisce e non si vede. `POST /me/measurements` rispondeva **da sempre** i traguardi appena raggiunti
+  e il guardrail del calo rapido, e l'app **buttava via la risposta**. Il momento in cui una persona
+  raggiunge l'obiettivo per cui sta facendo tutto questo esisteva in banca dati e non le veniva
+  detto; e una pesata poteva aprirle addosso una segnalazione clinica senza che la schermata
+  cambiasse. ⚠️ Se la pesata è stata segnalata **il traguardo aspetta**: festeggiare accanto a un
+  allarme è una schermata che si contraddice da sola. ⚠️ E il testo dice **cosa è successo**, non che
+  c'è un problema — il guardrail apre una segnalazione, non fa una diagnosi. 7 test.
+  ⚠️ Il giro ha trovato altri quattro casi, che sono **schermate nuove e non correzioni**: `/me/progress`
+  (proiezione della data obiettivo, giorni di stallo) e `/me/cycle` non li chiama nessuno, il
+  certificato di personalizzazione lo vede solo il nutrizionista, e il popup delle valutazioni
+  ripropone i piatti già votati perché ignora `/me/ratings/pending`. Voce 253.
+
 - `[Sviluppo]` ⚠️ **Allergie e intolleranze in cima al profilo dell'app** (richiesta di Simone).
   C'erano già, ma nel secondo riquadro insieme alla spiegazione lunga: ora salgono in **sintesi** nel
   primo, accanto alla dieta e al regime — quello che si legge come «il mio piano in una schermata».

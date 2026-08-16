@@ -4,6 +4,7 @@ import AppHeader from '../components/AppHeader';
 import CarouselNav, { scrollCarouselTo } from '../components/CarouselNav';
 import ReportsSection from '../components/ReportsSection';
 import { parseMisura } from '../lib/misure';
+import { esitoPesata, type EsitoPesata, type Traguardo } from '../lib/esitoPesata';
 import { oggiIso } from '../lib/giorno';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
@@ -101,6 +102,13 @@ export default function Obiettivo() {
     if (el) setChartIdx(Math.round(el.scrollLeft / el.clientWidth));
   }
 
+  /**
+   * Cosa è successo con l'ULTIMA pesata salvata: i traguardi appena raggiunti, oppure il fatto che
+   * la pesata sia stata segnalata alla nutrizionista. Il server lo rispondeva già da sempre e
+   * nessuna schermata lo leggeva.
+   */
+  const [esito, setEsito] = useState<EsitoPesata | null>(null);
+
   async function saveObjective() {
     setObjBusy(true);
     setObjErr(null);
@@ -159,9 +167,13 @@ export default function Obiettivo() {
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
     try {
-      await api('/me/measurements', { method: 'POST', body: JSON.stringify(body) });
+      const r = await api<{ newMilestones?: Traguardo[]; rapidLossAlert?: boolean }>(
+        '/me/measurements',
+        { method: 'POST', body: JSON.stringify(body) },
+      );
       await load();
       setMsg('Misure salvate!');
+      setEsito(esitoPesata(r?.newMilestones, !!r?.rapidLossAlert));
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
     } finally {
@@ -318,6 +330,46 @@ export default function Obiettivo() {
           <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>Hai inviato le misure di oggi. Se hai sbagliato puoi correggerle una volta.</div>
         )}
         {msg && <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}
+        {/*
+          ⚠️ QUELLO CHE IL SERVER RISPONDEVA E NESSUNO LEGGEVA (16/8). `POST /me/measurements`
+          torna da sempre i traguardi appena raggiunti e il guardrail del calo rapido: si salvava,
+          la pagina si ricaricava, e la cliente non sapeva né di aver raggiunto l'obiettivo né che
+          si era aperta una segnalazione su di lei.
+
+          ⚠️ Il gate delle misure (`MeasuresGate`) resta fuori di proposito: lì dopo il salvataggio
+          si fa `window.location.reload()` per aggiornare menu e lista della spesa, e un messaggio
+          scritto un istante prima di ricaricare è un messaggio che nessuno legge.
+        */}
+        {esito?.tipo === 'traguardi' && (
+          <div
+            className="card"
+            style={{ marginTop: 10, background: '#EAF6EC', boxShadow: 'none', padding: 11 }}
+          >
+            {esito.etichette.map((e) => (
+              <div key={e} style={{ fontSize: 13.5, fontWeight: 600, color: '#2E6B3A', lineHeight: 1.5 }}>
+                <i className="ti ti-trophy" style={{ verticalAlign: '-2px', marginRight: 6 }} />
+                {e}
+              </div>
+            ))}
+          </div>
+        )}
+        {esito?.tipo === 'segnalata' && (
+          <div
+            className="card"
+            style={{ marginTop: 10, background: '#FDECC8', boxShadow: 'none', padding: 11 }}
+          >
+            {/*
+              ⚠️ Si dice COSA È SUCCESSO, non che c'è un problema: il guardrail apre una
+              segnalazione, non fa una diagnosi. Allarmarla sarebbe sbagliato quanto tacere — ma
+              tacere è peggio, perché poi la nutrizionista le scrive e lei non sa perché.
+            */}
+            <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#8A5A00' }}>
+              <i className="ti ti-info-circle" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              Il calo di questi giorni è più rapido del previsto, quindi abbiamo avvisato la tua
+              nutrizionista: la guarda lei e ti scrive se serve. Tu continua come stai facendo.
+            </span>
+          </div>
+        )}
       </div>
 
       {measurements.length === 0 ? (
