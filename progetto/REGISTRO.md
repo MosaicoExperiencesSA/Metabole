@@ -20,6 +20,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` 📱 **iOS: il deployment target sale a 15.0, e lo rimette lo script** (prima della 2.2,
+  come avevi detto il 13/8). Capacitor genera 13.0 e dalla primavera 2027 App Store Connect rifiuta
+  gli upload costruiti così: è una scadenza, e arrivarci il giorno della pubblicazione vuol dire
+  scoprirlo mentre si carica. ⚠️ Sta in `scripts/install-ios.mjs` e non fatto a mano in Xcode, per la
+  stessa ragione di tutto quel file: `ios/` viene rigenerato e quello che vive solo lì sparisce **senza
+  dare errore**, con la build che passa lo stesso. ⚠️ Si tocca anche il **Podfile**: `platform :ios` a
+  13 mentre l'app dichiara 15 è il disallineamento che fa saltare un pod la sera sbagliata. ⚠️ E lo
+  script verifica il proprio risultato: se resta un solo target sotto il minimo, esce con errore.
+
 - `[Sviluppo]` 🏆 **I traguardi e il calo rapido arrivano alla cliente** — trovati con un giro
   sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte qui: un dato che
   agisce e non si vede. `POST /me/measurements` rispondeva **da sempre** i traguardi appena raggiunti

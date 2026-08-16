@@ -5,6 +5,7 @@
  *      al posto dell'icona di default di Capacitor.
  *   2. VERSIONE: MARKETING_VERSION / CURRENT_PROJECT_VERSION nel progetto Xcode
  *      presi da app/android-version.json (stessa fonte di verità di Android).
+ *   2e. DEPLOYMENT TARGET iOS 15.0, nel progetto Xcode E nel Podfile.
  *   3. FIRMA E CAPABILITY PUSH (vedi sotto: è la parte che il 6/8/2026 è costata un'ora)
  *   4. PUSH (solo se app/GoogleService-Info.plist esiste — stesso pattern difensivo
  *      di install-push.mjs Android; senza file: build ok, push spente):
@@ -55,6 +56,12 @@ const ENTITLEMENTS = path.join(APP_DIR, 'App.entitlements');
 // Team di firma. È «Genius Company SA», NON «Mosaico Experiences SA»: il 6/8 un suggerimento
 // sbagliato in build-ios.sh stava per far scegliere il team errato. Scritto una volta qui.
 const DEVELOPMENT_TEAM = 'TNDPSUPTA8';
+/**
+ * Il minimo di iOS su cui gira l'app. Capacitor genera 13.0; dalla primavera 2027 App Store Connect
+ * rifiuta gli upload costruiti su un minimo così basso. Scritto una volta qui, usato nel progetto
+ * Xcode e nel Podfile — che devono dire lo stesso numero.
+ */
+const IOS_TARGET = '15.0';
 // `aps-environment` = production: è la voce che nella 2.0 valeva `development` e teneva le
 // push spente in produzione senza che niente lo segnalasse.
 const ENTITLEMENTS_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -194,6 +201,63 @@ async function main() {
       console.log('→ User Script Sandboxing disattivato (fix script CocoaPods).');
     } else {
       console.log('→ User Script Sandboxing già a NO.');
+    }
+  }
+
+  /**
+   * 2e) DEPLOYMENT TARGET a 15.0 — nel progetto Xcode E nel Podfile.
+   *
+   * Capacitor genera 13.0. Oggi non blocca niente, ma **dalla primavera 2027 App Store Connect
+   * rifiuta gli upload** costruiti su un minimo così basso: è una scadenza, non un'opinione, e
+   * arrivarci il giorno della pubblicazione vuol dire scoprirlo mentre si sta caricando.
+   *
+   * ⚠️ Sta QUI e non fatto a mano in Xcode per la stessa ragione di tutto il resto di questo file:
+   * `ios/` viene rigenerato, e ogni cosa che vive solo nel progetto Xcode sparisce con lui. Una
+   * modifica a mano è una modifica che si riperde alla prossima `cap add ios`, e nessuna delle
+   * sparizioni dà errore — la build passa lo stesso.
+   *
+   * ⚠️ E si tocca ANCHE il Podfile: se `platform :ios` resta a 13.0, CocoaPods costruisce i pod per
+   * 13 mentre l'app dichiara 15. Non è un dettaglio estetico — è il tipo di disallineamento che
+   * produce decine di warning e, quando va male, un pod che non compila la sera sbagliata.
+   */
+  if (await exists(PBXPROJ)) {
+    let p = await fs.readFile(PBXPROJ, 'utf8');
+    const np = p.includes('IPHONEOS_DEPLOYMENT_TARGET')
+      ? p.replace(/IPHONEOS_DEPLOYMENT_TARGET = [^;]+;/g, `IPHONEOS_DEPLOYMENT_TARGET = ${IOS_TARGET};`)
+      : p.replace(/buildSettings = \{\n/g, `buildSettings = {\n\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = ${IOS_TARGET};\n`);
+    if (np !== p) {
+      await fs.writeFile(PBXPROJ, np);
+      console.log(`→ Deployment target iOS: ${IOS_TARGET}.`);
+    } else {
+      console.log(`→ Deployment target iOS già a ${IOS_TARGET}.`);
+    }
+    /**
+     * ⚠️ SI VERIFICA, non si dichiara. Come i metodi del delegato e la capability push: se resta in
+     * giro anche un solo target sotto il minimo, l'archivio si costruisce lo stesso e il rifiuto
+     * arriva da Apple mesi dopo. Meglio un errore adesso.
+     */
+    const rimasti = (await fs.readFile(PBXPROJ, 'utf8')).match(/IPHONEOS_DEPLOYMENT_TARGET = ([^;]+);/g) ?? [];
+    const sbagliati = rimasti.filter((r) => !r.includes(IOS_TARGET));
+    if (sbagliati.length) {
+      console.error(`⚠️  Restano ${sbagliati.length} target iOS diversi da ${IOS_TARGET}: ${sbagliati.join(' ')}`);
+      process.exit(1);
+    }
+  }
+
+  if (await exists(PODFILE)) {
+    let pod = await fs.readFile(PODFILE, 'utf8');
+    const npod = pod.match(/^\s*platform :ios,/m)
+      ? pod.replace(/^(\s*)platform :ios,\s*'[^']+'/m, `$1platform :ios, '${IOS_TARGET}'`)
+      : `platform :ios, '${IOS_TARGET}'\n${pod}`;
+    if (npod !== pod) {
+      await fs.writeFile(PODFILE, npod);
+      console.log(`→ Podfile: platform :ios, '${IOS_TARGET}' (ora serve \`pod install\`).`);
+    } else {
+      console.log(`→ Podfile: platform già a ${IOS_TARGET}.`);
+    }
+    if (!(await fs.readFile(PODFILE, 'utf8')).includes(`platform :ios, '${IOS_TARGET}'`)) {
+      console.error(`⚠️  Non sono riuscito a mettere platform :ios, '${IOS_TARGET}' nel Podfile.`);
+      process.exit(1);
     }
   }
 

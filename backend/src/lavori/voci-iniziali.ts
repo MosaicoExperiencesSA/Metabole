@@ -211,11 +211,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'ios-target-15',
-    titolo: 'iOS: alzare il deployment target da 13.0 a 15.0',
+    titolo: 'iOS: il deployment target sale a 15.0, e lo rimette lo script',
     dettaglio:
-      'Oggi non blocca, ma dalla primavera 2027 gli upload vengono rifiutati. Va fatto fare a `scripts/install-ios.mjs`, perché `ios/` viene rigenerato e la modifica si perderebbe.',
+      'Fatto il 16/8, come avevi detto («alla prossima pubblicazione, la 2.2.0, lo facciamo»). Capacitor genera 13.0; dalla primavera 2027 App Store Connect rifiuta gli upload costruiti su un minimo così basso — è una scadenza, non un\'opinione. ⚠️ Sta in `scripts/install-ios.mjs` e non fatto a mano in Xcode, per la stessa ragione di tutto il resto di quel file: `ios/` viene rigenerato e ogni cosa che vive solo nel progetto Xcode sparisce con lui, senza dare nessun errore — la build passa lo stesso. ⚠️ Si tocca anche il PODFILE: se `platform :ios` resta a 13.0, CocoaPods costruisce i pod per 13 mentre l\'app dichiara 15, ed è il tipo di disallineamento che fa saltare un pod la sera sbagliata. ⚠️ E lo script VERIFICA il proprio risultato: se resta anche un solo target sotto il minimo esce con errore, invece di dire «fatto».',
     categoria: MANUTENZIONE,
     ordine: 30,
+    fatta: true, // fatta il 16/8, prima della 2.2
   },
   {
     chiave: 'aggiornamenti-grossi',
