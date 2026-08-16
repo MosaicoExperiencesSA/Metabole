@@ -368,12 +368,27 @@ export class ProfileService {
          * coach «mi manca un pasto» per una cosa decisa apposta.
          */
         pastiEsclusi: true,
+        /**
+         * I due vincoli che decidono cosa NON può esserci nel piatto (richiesta di Simone, 16/8).
+         * In app c'erano già, ma nel secondo riquadro: qui salgono in sintesi in quello di sopra,
+         * accanto alla dieta e al regime — quello che si legge come «il mio piano in una schermata».
+         *
+         * ⚠️ `allergieDichiarateIl` viene con loro, e non è un di più: distingue «nessuna allergia»
+         * da «non gliel'abbiamo mai chiesto». La prima è un'affermazione, la seconda no, e senza
+         * questa data l'app non ha modo di dire la differenza.
+         */
+        allergies: true,
+        intolerances: true,
+        allergieDichiarateIl: true,
         assignedCoach: { select: { displayName: true } },
       },
     })) as {
       regime: string | null; dietStyle: string | null; dietFamily: string | null; mealsPerDay: number | null;
       pathType: string | null; fastingWindow: string | null; objective: string | null;
       pastiEsclusi: string[] | null;
+      allergies: string[] | null;
+      intolerances: string[] | null;
+      allergieDichiarateIl: Date | null;
       assignedCoach: { displayName: string | null } | null;
     } | null;
     if (!profile) throw new NotFoundException('Profilo non ancora creato: completa prima il questionario.');
@@ -463,6 +478,15 @@ export class ProfileService {
        * righe diverse in profilo.
        */
       pastiEsclusi: profile.pastiEsclusi ?? [],
+      /**
+       * ⚠️ Sempre elenchi, mai `null` — come `pastiEsclusi` qui sopra e per la stessa ragione.
+       * ⚠️ E `allergieDichiarateIl` va mandata **anche quando è null**: è proprio il null che dice
+       * «non gliel'abbiamo mai chiesto», cioè l'unico modo che l'app ha per non scrivere «nessuna
+       * allergia» a una persona a cui nessuno l'ha domandato.
+       */
+      allergies: profile.allergies ?? [],
+      intolerances: profile.intolerances ?? [],
+      allergieDichiarateIl: profile.allergieDichiarateIl ? profile.allergieDichiarateIl.toISOString() : null,
       // Prima quella assegnata: è la decisione della nutrizionista. Il ripiego resta la dieta dei
       // menu, che è tutto quello che sappiamo delle clienti registrate prima del 7/8 (`dietFamily`
       // è null per loro).

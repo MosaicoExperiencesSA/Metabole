@@ -9,6 +9,7 @@ import NotificationPrefs from '../components/NotificationPrefs';
 import Sheet from '../components/Sheet';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
 import { raccontaSpuntiniEsclusi } from '../lib/spuntiniEsclusi';
+import { elencoIntolleranze, statoAllergie } from '../lib/vincoliProfilo';
 import { DIET_INFO, DIET_INFO_FONTI } from '../onboarding/dietInfo';
 
 const PHONE_PREFIXES = ['+39', '+41', '+33', '+49', '+43', '+44', '+34', '+32', '+31', '+351', '+386', '+1'];
@@ -51,6 +52,14 @@ interface Nutrition {
    * dell'assistente). Il motore li rispetta già da giorni: qui si dicono, che è tutta la voce 235.
    */
   pastiEsclusi?: string[];
+  /**
+   * I due vincoli che decidono cosa NON può esserci nel piatto (Simone, 16/8). Erano già in
+   * profilo, ma nel riquadro «Cibi esclusi» più in basso: qui salgono in sintesi.
+   * ⚠️ `allergieDichiarateIl` a `null` = non gliel'abbiamo mai chiesto, che NON è «nessuna».
+   */
+  allergies?: string[];
+  intolerances?: string[];
+  allergieDichiarateIl?: string | null;
   /** La descrizione che la nutrizionista ha scritto per la cliente su QUESTA dieta. */
   dietDescription?: string | null;
   /** Lo stile della dieta assegnata: la chiave delle schede generali (`DIET_INFO`). */
@@ -143,6 +152,8 @@ function MyNutrition() {
   const haInfoDieta = Boolean(n.dietDescription || scheda);
   // `null` quando non le è stato tolto niente: la riga non compare proprio, invece di dire «nessuno».
   const spuntiniTolti = raccontaSpuntiniEsclusi(n.pastiEsclusi);
+  const allergie = statoAllergie(n.allergies, n.allergieDichiarateIl);
+  const intolleranze = elencoIntolleranze(n.intolerances);
 
   return (
     <div className="card">
@@ -187,6 +198,24 @@ function MyNutrition() {
         )}
         {n.regime && riga('leaf', 'Regime', REGIME_LABEL[n.regime] ?? n.regime, '')}
         {/*
+          ⚠️ ALLERGIE E INTOLLERANZE IN SINTESI (Simone, 16/8). Il dettaglio e la spiegazione lunga
+          restano nel riquadro «Cibi esclusi» più sotto: qui c'è quello che serve a leggere il
+          proprio piano in una schermata, accanto alla dieta e al regime.
+
+          ⚠️ La riga delle allergie c'è SEMPRE, anche vuota. Se sparisse quando non ce ne sono, la
+          sua assenza si leggerebbe come «non ne ho» — che è un'affermazione, e non tocca a una riga
+          mancante farla. E «nessuna» si scrive solo se gliel'abbiamo chiesto davvero: altrimenti si
+          dice che non risultano, che è la verità (`statoAllergie`).
+        */}
+        {riga(
+          'alert-triangle',
+          'Allergie',
+          allergie.tipo === 'elenco' ? allergie.testo : allergie.tipo === 'nessuna' ? 'Nessuna' : null,
+          'non risultano allergie dichiarate',
+        )}
+        {/* Le intolleranze invece compaiono solo se ci sono: un elenco vuoto non afferma niente. */}
+        {intolleranze && riga('mood-sick', 'Intolleranze', intolleranze, '')}
+        {/*
           La domanda che quella riga fa nascere è una sola — «allora mangio meno?» — e la risposta
           è un fatto, non una rassicurazione: `slotEsclusiTotali` ridistribuisce le kcal di quel
           pasto sugli altri, la stessa strada del digiuno. Scriverlo qui costa due righe e evita un
@@ -198,6 +227,15 @@ function MyNutrition() {
             Se non ti torna, parlane con la tua coach.
           </div>
         )}
+        {/*
+          ⚠️ Sola lettura, e va detto DOVE si cambia. Le allergie sono un dato clinico: le corregge
+          la nutrizionista. Una riga che si vede e non si tocca, senza dire come si cambia, insegna
+          solo che l'app non ascolta.
+        */}
+        <div className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+          Allergie e intolleranze le corregge la tua nutrizionista: scrivile in chat.
+          Le allergie le teniamo fuori dai menu sempre, tracce e derivati compresi.
+        </div>
       </div>
       {/*
         Il cambio dieta è deciso ma le giornate in arrivo sono ancora quelle vecchie. Va detto QUI,

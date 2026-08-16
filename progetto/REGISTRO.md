@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` ⚠️ **Allergie e intolleranze in cima al profilo dell'app** (richiesta di Simone).
+  C'erano già, ma nel secondo riquadro insieme alla spiegazione lunga: ora salgono in **sintesi** nel
+  primo, accanto alla dieta e al regime — quello che si legge come «il mio piano in una schermata».
+  Sola lettura, e la riga sotto dice dove si cambiano. ⚠️ La riga delle allergie c'è **sempre, anche
+  vuota**: se sparisse quando non ce ne sono, la sua assenza si leggerebbe come «non ne ho», e non
+  tocca a una riga mancante fare un'affermazione. ⚠️ E «Nessuna» si scrive **solo se gliel'abbiamo
+  chiesto davvero** — altrimenti «non risultano allergie dichiarate», che è la verità: «nessuna
+  allergia» e «non ce l'hai mai detto» non sono la stessa cosa. ⚠️ Le allergie che ci sono valgono
+  anche senza la data, perché chi si è iscritta prima della dichiarazione le ha in scheda col
+  marcatore a null. Le intolleranze compaiono solo se ci sono: un elenco vuoto non afferma niente.
+  11 test (4 backend + 7 app).
+
 - `[Sviluppo]` 👂 **Le frasi che l'assistente non ha capito si vedono nella sua pagina** (voce
   `vera-corpus-prima-del-rilascio`). `GET /vera/corpus` c'era dal 12/8 e **non lo apriva nessuno**:
   era un endpoint, non un posto — e un rituale che nessuno ha l'abitudine di fare non è un rituale.
