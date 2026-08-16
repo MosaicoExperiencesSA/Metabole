@@ -20,6 +20,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` 🔏 **Firma iOS: `install-ios.mjs` non poteva riuscire, e aveva ragione a fermarsi.**
+  Il controllo cercava `CODE_SIGN_IDENTITY` in tutto il pbxproj mentre `patchFirma` la toglieva solo
+  dai due blocchi del target: lo script si fermava dicendo il vero senza via d'uscita. ⚠️ Ma il punto
+  non è che il controllo fosse largo — è che **aveva ragione**: Capacitor scrive
+  `CODE_SIGN_IDENTITY[sdk=iphoneos*] = "iPhone Developer"` anche nei blocchi di **progetto**, e il
+  target li **eredita**. Ripulire solo il target lasciava in piedi la riga che il 6/8 ha firmato
+  l'archivio in development — e le push non arrivarono a nessuno, senza un errore. Ora si toglie da
+  tutto il file (sicuro: i Pods hanno il loro pbxproj) e l'identità la sceglie Xcode.
+  ⚠️ E se resta, adesso il messaggio dice **anche dove**: un controllo che sa dire di no e non sa
+  dire dove costringe la persona sbagliata a fare l'indagine, la sera sbagliata.
+
 - `[Sviluppo]` 📱 **iOS: il deployment target sale a 15.0, e lo rimette lo script** (prima della 2.2,
   come avevi detto il 13/8). Capacitor genera 13.0 e dalla primavera 2027 App Store Connect rifiuta
   gli upload costruiti così: è una scadenza, e arrivarci il giorno della pubblicazione vuol dire

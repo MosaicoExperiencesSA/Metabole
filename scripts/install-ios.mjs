@@ -135,6 +135,28 @@ function addFileRefToPbxproj(pbx, name, fileType, refId) {
  * dai blocchi di progetto e dai Pods, dove queste impostazioni non vanno messe.
  */
 function patchFirma(pbx) {
+  /**
+   * ⚠️ PRIMA si toglie `CODE_SIGN_IDENTITY` da TUTTO il file, poi si sistemano i due blocchi del
+   * target (16/8).
+   *
+   * Fino a oggi si toglieva solo dai blocchi del target — quelli con `INFOPLIST_FILE` — e il
+   * controllo in fondo cercava invece la parola in tutto il progetto: lo script si fermava dicendo
+   * il vero senza poter mai riuscire. Ma la parte importante non è che il controllo fosse troppo
+   * largo: è che **aveva ragione**. Capacitor scrive
+   * `"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer"` anche nei blocchi di PROGETTO, e il
+   * target li **eredita** quando non definisce il proprio. Ripulire solo il target lasciava in
+   * piedi esattamente la riga che il 6/8 ha firmato l'archivio in development.
+   *
+   * ⚠️ Toglierla ovunque è sicuro perché questo è `App.xcodeproj/project.pbxproj`: i Pods hanno il
+   * loro file (`Pods/Pods.xcodeproj`), quindi tutto quello che sta qui dentro è nostro. Con
+   * `CODE_SIGN_STYLE = Automatic` e il `DEVELOPMENT_TEAM` giusto, l'identità la sceglie Xcode —
+   * ed è la scelta giusta sia per il Run su iPhone sia per l'Archive.
+   */
+  pbx = pbx
+    .split('\n')
+    .filter((r) => !/^\s*("?CODE_SIGN_IDENTITY(\[[^\]]*\])?"?)\s*=/.test(r))
+    .join('\n');
+
   return pbx.replace(/buildSettings = \{\n([\s\S]*?)\n\t\t\t\};/g, (blocco, corpo) => {
     if (!corpo.includes('INFOPLIST_FILE = App/Info.plist;')) return blocco;
     let righe = corpo
@@ -325,7 +347,19 @@ async function main() {
     const blocchiTarget = (finale.match(/CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g) ?? []).length;
     const guai = [];
     if (blocchiTarget < 2) guai.push(`CODE_SIGN_ENTITLEMENTS presente in ${blocchiTarget} configurazioni su 2 (Debug e Release)`);
-    if (/CODE_SIGN_IDENTITY/.test(finale)) guai.push('CODE_SIGN_IDENTITY è ancora nel progetto: l\'archivio si firmerebbe in development');
+    /**
+     * ⚠️ Se resta, si dice ANCHE DOVE. La versione muta di questo controllo — «è ancora nel
+     * progetto» e basta — ha fermato la pubblicazione del 16/8 senza dare a nessuno il modo di
+     * capire perché: per saperlo è servito aprire il pbxproj a mano. Un controllo che sa dire di no
+     * e non sa dire dove costringe la persona sbagliata a fare l'indagine, la sera sbagliata.
+     */
+    const restate = finale.split('\n').filter((r) => /CODE_SIGN_IDENTITY/.test(r)).map((r) => r.trim());
+    if (restate.length) {
+      guai.push(
+        `CODE_SIGN_IDENTITY è ancora nel progetto (${restate.length} righe): l'archivio si firmerebbe in development\n     ` +
+        restate.slice(0, 6).join('\n     '),
+      );
+    }
     if (!finale.includes(`DEVELOPMENT_TEAM = ${DEVELOPMENT_TEAM};`)) guai.push(`DEVELOPMENT_TEAM non è ${DEVELOPMENT_TEAM}`);
     if (guai.length) {
       console.error('\n⛔ Progetto Xcode non sistemato: le push in produzione NON funzionerebbero.');
