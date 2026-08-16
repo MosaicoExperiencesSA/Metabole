@@ -58,12 +58,13 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-azione-3-variante-piano',
-    titolo: 'Vera: azione 3 — la variante di piano per una cliente (tre frasi, tre meccanismi)',
+    titolo: 'Vera: azione 3 — la variante di piano per una cliente (tutti e tre i meccanismi)',
     dettaglio:
-      'Simone (13/8): devono funzionare tutte e tre. «Togli lo spuntino» = struttura della giornata (gli slot oggi vengono dalla dieta e dal digiuno, nessuno può toglierne uno per una persona sola); «a colazione qualcosa di salato» = tipo di piatto in UNO slot (oggi si potrebbe fare solo come esclusione, che varrebbe ovunque); «rifai con più proteine» = i numeri del piano (banda proteica/kcal). ⚠️ Si toccano solo i giorni futuri non ancora aperti, e la cliente NON si sposta di dieta.',
+      'Chiusa il 14/8, tutte e tre le frasi che Simone aveva chiesto il 13/8. «Togli lo spuntino» → `ClientProfile.pastiEsclusi`, kcal ridistribuite sui pasti rimasti. «Rifai con più proteine» → `ClientProfile.proteinMinPct`, che vince SOLO sul minimo della dieta. «A colazione qualcosa di salato» → `vera/colazioni.ts`, che pesca dal pool per tag `piatto:salato` (il codice c\'è; resta SPENTA finché Lucia non ha confermato abbastanza colazioni — è la voce `colazioni-dolce-salato`, non questa). ⚠️ In tutti e tre i casi si toccano solo i giorni futuri non ancora aperti, e la cliente NON si sposta di dieta.',
     categoria: CODICE,
     ordine: 17,
     blocca: false,
+    fatta: true, // chiusa il 14/8: spuntino + proteine + colazione salata
   },
   {
     chiave: 'nocanty-solfiti',
@@ -115,10 +116,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'nocanty-kcal-conferma',
-    titolo: '§15.2 punto 1 — il numero di kcal per «Conferma»',
-    dettaglio: 'Il pulsante «Conferma» che applica la proposta aspetta la soglia in kcal.',
+    titolo: '§15.2 punto 1 — la correzione kcal a termine, dettata all\'assistente',
+    dettaglio:
+      'Chiusa dalla risposta di Nocanty del 13/8 («riduci le kcal del 10% per 7 giorni e poi riprendi col normale ritmo, e vorrei farlo anche dalla mia assistente») e dalla consegna del 14/8: `ClientProfile.kcalAdjustPct` esisteva già, si è aggiunta la DURATA (`kcalAdjustUntil`, migrazione additiva, NULL = per sempre come prima) e Vera la detta a voce con l\'anteprima dei due numeri prima di scrivere. ⚠️ Sotto la soglia minima di sicurezza si ferma: quella conferma si dà dalla scheda.',
     categoria: NOCANTY,
     ordine: 60,
+    fatta: true, // risposta 13/8 + consegna 14/8: kcalAdjustUntil e la dettatura a voce
   },
   {
     chiave: 'deploy-allergie-idoneita',
@@ -150,11 +153,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'decisione-blocco-percorso',
-    titolo: 'Decidere se bloccare il percorso senza via libera clinico',
+    titolo: 'Percorso senza via libera clinico: NON si blocca, i problemi clinici vanno in testa',
     dettaglio:
-      'Oggi non si blocca niente, ed è una scelta scritta: bloccare vorrebbe dire sospendere piani attivi a clienti paganti. Il blocco, se sarà blocco, è una consegna sua.',
+      'Chiusa dalla risposta di Simone del 13/8: «se ci sono problemi clinici vanno in testa a tutte le richieste di Vera per il nutrizionista». Quindi niente blocco — bloccare vorrebbe dire sospendere piani attivi a clienti paganti — ma priorità: `guidaGiornata` conta le segnalazioni CLINICHE a parte e le mette come prima riga del quadro, prima della coda del capo, delle domande aperte e delle sostituzioni. Consegnato il 14/8.',
     categoria: SIMONE,
     ordine: 40,
+    fatta: true, // risposta 13/8 + consegna 14/8: le cliniche in testa a guidaGiornata
   },
   {
     chiave: 'whatsapp-numero',
@@ -243,35 +247,38 @@ export const VOCI_INIZIALI: Voce[] = [
   // ── Vera, l'assistente della nutrizionista (consegne 1-3a + contratto richieste, 12-13/8) ──
   {
     chiave: 'vera-citazione-incollato',
-    titolo: 'Vera: il contenitore «citazione» per il testo incollato',
+    titolo: 'Vera: il testo INCOLLATO non comanda l\'assistente',
     dettaglio:
-      'Oggi l\'assistente esegue solo ciò che la nutrizionista scrive di suo pugno. Quando le si darà in pasto un messaggio di una cliente o un referto, quel testo va marcato come CITAZIONE: se contiene qualcosa di azionabile si propone, non si esegue. Va fatto PRIMA di aprire quella porta, non dopo. Specifica §9.1.',
+      'Chiuso. `separaCitazione` (`capisci.ts`) divide quello che la nutrizionista scrive di suo pugno da quello che ha incollato, e `nuovoGiro` lo usa PRIMA di capire: se dentro la citazione c\'è qualcosa di azionabile e fuori no, l\'agente lo dice e si ferma (`testi.dallaCitazione`). ⚠️ È il cancello che impedisce a un messaggio scritto da qualcun altro di comandare chi ha il potere di scrivere regole su persone vere. Specifica §9.1.',
     categoria: CODICE,
     ordine: 210,
+    fatta: true, // verificato nel codice il 16/8: separaCitazione in uso in nuovoGiro
   },
   {
     chiave: 'vera-dashboard',
-    titolo: 'Vera: i moduli in dashboard «quello che aspetta me»',
+    titolo: 'Dashboard «quello che aspetta me»: manca solo il pool sotto soglia',
     dettaglio:
-      'Per la nutrizionista: pool sotto soglia, proposte ferme dal capo, domande di dizionario senza risposta, sostituzioni da verificare. Per il capo: la sua coda più gli avvisi immediati. ⚠️ NON «quello che ho fatto»: un contatore delle regole create è una medaglietta che si guarda due volte. Specifica §13.3.',
+      'Fatto quasi tutto: `/vera/aspetta-me` e il riquadro in cima alla home della nutrizionista mostrano le domande aperte, le proposte che aspettano il capo e le sostituzioni da verificare — e il riquadro sparisce quando sono tutte a zero, invece di dire «niente da fare». ⚠️ Dei quattro moduli della specifica §13.3 manca il POOL SOTTO SOGLIA: `PoolDisponibileService` sa calcolarlo, ma solo dentro l\'anteprima di una singola azione — non esiste un controllo che giri su tutte le clienti e dica «a questa restano tre cene». Prima di scriverlo va deciso QUANDO calcolarlo: a ogni apertura di pagina costa una query per cliente.',
     categoria: CODICE,
     ordine: 211,
   },
   {
     chiave: 'vera-azioni-raggio-largo',
-    titolo: 'Vera: le azioni a raggio largo (variante di piano, ricette, regola su un tipo di dieta)',
+    titolo: 'Vera: azioni a raggio largo — resta solo la regola su un TIPO DI DIETA (azione 6)',
     dettaglio:
-      'Le azioni 3-6 della specifica. Oggi l\'assistente le RICONOSCE e dice che non le sa fare — che è la risposta giusta finché non ci sono. Le ricette nuove prendono i macro dalla tabella nutrienti, mai inventati, e passano dalla coda. Specifica §4.',
+      'Superata. Azione 3 (variante di piano) e azioni 4-5 (ricette dettate, coi macro presi dalla tabella nutrienti e mai inventati, che passano dalla coda del capo) sono fatte. Dell\'elenco originale resta solo l\'azione 6, «nella mediterranea non deve comparire più il tonno», che ha una voce sua con l\'analisi già fatta: `vera-esclusione-di-dieta`. Questa si chiude per non contare due volte la stessa cosa aperta.',
     categoria: CODICE,
     ordine: 212,
+    fatta: true, // superata: resta l\'azione 6, che è vera-esclusione-di-dieta
   },
   {
     chiave: 'vera-registro-allargato',
-    titolo: 'Vera: il registro allargato a tutto ciò che cambia sulle sue clienti',
+    titolo: 'Vera: il registro mostra tutto ciò che cambia sulle sue clienti',
     dettaglio:
-      'Oggi mostra le azioni dell\'assistente. Deve mostrare anche le sostituzioni di Gaia, gli alimenti che la cliente esclude dall\'app e i cambi del motore. ⚠️ Non è una tabella nuova: è il log delle modifiche della scheda cliente allargato a tutte le sue (AuditLog + FoodSwap + le Substitution dentro MenuDay.meals). Lettura e fusione. Specifica §13.2.',
+      'Chiuso. `registro-allargato.ts` fonde tre fonti in una riga sola (`unisciRegistro`): le azioni dell\'assistente (`AzioneVera`), le modifiche di scheda (`AuditLog`) e le sostituzioni concordate in chat (`FoodSwap`), tutte filtrate sul perimetro delle sue clienti. Nessuna tabella nuova: lettura e fusione, come diceva la specifica §13.2.',
     categoria: CODICE,
     ordine: 213,
+    fatta: true, // verificato nel codice il 16/8: unisciRegistro in registro.service
   },
   {
     chiave: 'vera-frase-presentazione',
@@ -301,11 +308,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-dizionario-comune-conflitto',
-    titolo: 'Voce di dizionario promossa a comune: sovrascrive le personali o convivono?',
+    titolo: 'Dizionario promosso a comune: il capo conferma sapendo chi ne ha una sua diversa',
     dettaglio:
-      'Oggi convivono e la voce personale vince sempre su quella comune — «pasto leggero» non vuol dire la stessa cosa per due nutrizioniste. Va confermato che è il comportamento voluto, o deciso il contrario. Specifica §5.',
+      'Chiusa dalla risposta di Simone del 13/8 («chiedi conferma al nutrizionista capo attraverso Vera») e dalla consegna del 14/8. Le voci CONVIVONO — la personale vince sempre sulla comune, nessuno viene sovrascritto — e prima del sì il capo legge CHI ne ha già una sua diversa, con nome e differenze, e cosa NON succede. Confronto per radice; chi ce l\'ha identica non compare. Vedi `conflitti-dizionario.ts`.',
     categoria: NOCANTY,
     ordine: 217,
+    fatta: true, // risposta 13/8 + consegna 14/8: conflitti-dizionario.ts
   },
 
   // ── Vera, Consegna 4 (13/8): quello che è nato scrivendo l'avviso, il report e il corpus ──
@@ -337,11 +345,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-dizionario-alimento-nuovo',
-    titolo: 'Vera: quando entra un alimento nuovo in catalogo, il dizionario non lo sa',
+    titolo: 'Vera si accorge quando il dizionario è invecchiato, e lo chiede',
     dettaglio:
-      '«Formaggi molli» è un elenco di alimenti deciso una volta. Il caciotta che entra in catalogo domani non ci finisce dentro, e la regola della nutrizionista smette silenziosamente di coprire quello che copriva. `dizionario.famiglieCheForsePrendono(alimento)` esiste già e risponde alla domanda giusta: manca chi la chiama quando una ricetta o un ingrediente nuovo viene pubblicato, e la domanda alla nutrizionista che ne segue.',
+      'Chiuso, per una strada diversa da quella immaginata. L\'idea era chiamare `famiglieCheForsePrendono` quando una ricetta viene pubblicata; la strada scelta è il rovescio e funziona meglio: `dizionario.famiglieDaAggiornare` guarda le famiglie contro il catalogo di ADESSO, e `manutenzioneDizionario` porta la domanda in chat — una famiglia per volta, ULTIMA nella coda di `cosaTiPorto`, quando non c\'è niente di più urgente. ⚠️ Al momento della pubblicazione la domanda sarebbe arrivata a chi pubblica (spesso non la nutrizionista che ha scritto la regola) e mentre sta facendo altro. Vedi `dizionario-invecchiato.ts`.',
     categoria: CODICE,
     ordine: 223,
+    fatta: true, // verificato nel codice il 16/8: famiglieDaAggiornare in cosaTiPorto
   },
   {
     chiave: 'vera-lavori-doppioni-caricati',
@@ -354,21 +363,23 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'vera-dizionario-cibi-diversi',
-    titolo: 'Vera: il dizionario impara le VARIANTI, non i cibi nuovi',
+    titolo: 'Vera chiede quando non conosce una parola — e cosa resta fuori, scritto',
     dettaglio:
-      'L\'assistente si accorge che in catalogo è entrato «yogurt magro» e chiede se va dentro «formaggi molli», perché condivide la parola-testa con «yogurt greco» che c\'è già. NON si accorge della burrata accanto alla mozzarella: sono due parole diverse per cose simili, e nessuna euristica sui nomi le lega. ⚠️ Scelta voluta — proporre troppo insegna a rispondere di no senza leggere — ma va saputa: il buco si chiude solo con qualcuno che decide, o con una tabella di famiglie merceologiche che oggi non esiste.',
+      'Chiusa dalla risposta di Simone del 13/8: «deve chiedere quando un cibo o un gruppo non lo conosce, fa domande al nutrizionista guidandolo in modo da apprendere di cosa si tratta». È quello che fa: una parola che il dizionario non ha ferma il giro e diventa una domanda (`famigliaASecco` → `imparaFamiglia`), e la risposta si impara. ⚠️ Resta scritto il limite noto, che NON è un difetto ma una scelta: l\'assistente non propone da sola la burrata accanto alla mozzarella, perché sono due parole diverse per cose simili e nessuna euristica sui nomi le lega. Proporre troppo insegna a rispondere di no senza leggere. Si chiuderebbe solo con una tabella di famiglie merceologiche, che oggi non esiste.',
     categoria: CODICE,
     ordine: 225,
+    fatta: true, // risposta 13/8: chiede quando non conosce — il limite resta scritto
   },
 
   // ── Vera, azioni 4 e 5 fatte il 13/8: quello che è restato fuori ──
   {
     chiave: 'vera-azioni-3-e-6',
-    titolo: 'Vera: restano la variante di piano (azione 3) e la regola su un tipo di dieta (azione 6)',
+    titolo: 'Vera: dell\'elenco 3-6 resta l\'azione 6 (regola su un tipo di dieta)',
     dettaglio:
-      'Le ricette (4 e 5) sono fatte. Restano: la VARIANTE di piano per una cliente sola, e la REGOLA su un tipo di dieta — «nella mediterranea non deve comparire più il tonno». ⚠️ Per la seconda oggi il filtro delle esclusioni è SOLO per-cliente: non esiste nessun campo o tabella che dica «in questa dieta questo alimento non compare». Il contenitore più diretto sarebbe `ProductRule` (`{dietId, ruleCode, params}`) con un codice nuovo, letto in `menu.service` dove si costruisce il pool. Decisione di Simone del 13/8: per la cliente si applica, la regola generale va come proposta al capo — e quando lui approva, si applica davvero.',
+      'Superata, stessa ragione della voce gemella: l\'azione 3 è chiusa dal 14/8 (spuntino, cambio dieta, più proteine, giornata dettata) e le ricette pure. L\'azione 6 vive in `vera-esclusione-di-dieta`, che ha l\'analisi del contenitore (`ProductRule` con un codice nuovo, letto dove si costruisce il pool) e l\'avvertenza che è l\'unico pezzo di Vera che tocca il percorso del pasto di domani, su 315 clienti.',
     categoria: CODICE,
     ordine: 226,
+    fatta: true, // superata: confluita in vera-esclusione-di-dieta
   },
   {
     chiave: 'vera-ricetta-allergeni',
@@ -391,11 +402,12 @@ export const VOCI_INIZIALI: Voce[] = [
   // ── Vera: le due decisioni che restano prima di finirla (13/8) ──
   {
     chiave: 'vera-variante-cosa-significa',
-    titolo: 'Vera, azione 3: «una variante di piano per questa cliente» vuol dire cosa?',
+    titolo: 'Vera, azione 3: «variante di piano» = cambiare i pasti futuri, oppure spostare di dieta',
     dettaglio:
-      'Due letture possibili, molto diverse per chi la usa. (a) Cambiare i PASTI dei giorni futuri di quella persona, lasciandola sulla sua dieta. (b) SPOSTARLA su una dieta diversa (o su una variante della sua). ⚠️ La (b) fa ripartire il piano da capo e cambia tutto quello che ha visto finora; la (a) no, ma non si porta dietro le regole della dieta nuova. Serve la risposta di Simone/Lucia prima di scrivere una riga: è l\'unica azione dove indovinare male non dà nessun errore, dà solo un piano diverso da quello che lei voleva.',
+      'Chiusa dalla risposta di Simone del 14/8: «la nutrizionista o detta le nuove combinazioni e crea dei menu specifici guidata da Vera, oppure sceglie una diversa dieta; tutto quanto già erogato non cambia salvo diversa istruzione, e alla domanda di Vera “da quando” se risponde “da subito” si corregge il menu dal giorno dopo — quello già fatto, compresa la data odierna, resta fisso». Fatti tutti e due i meccanismi il 14/8: il cambio dieta con la domanda «da quando», e la giornata dettata a parole.',
     categoria: SIMONE,
     ordine: 229,
+    fatta: true, // risposta 14/8 + le due consegne dello stesso giorno
   },
   {
     chiave: 'vera-esclusione-di-dieta',
@@ -430,6 +442,7 @@ export const VOCI_INIZIALI: Voce[] = [
       'Due script, nell\'ordine: `chiedi:allergie` (i 3 da codificare, dialogo con Gaia — ora manda anche la PUSH vera, prima c\'era solo la campanella in app) e il nuovo `avvisa:allergie` (gli altri 45: i 24 mai risposto vengono portati alla scheda in home, i 21 già a posto ricevono l\'informativa sul profilo). Tutti e due prima in prova, letti riga per riga, poi CONFERMA=1. ⚠️ Solo DOPO Render + OTA. Decisione in `Decisioni_Simone_20260813.md` §13.',
     categoria: SIMONE,
     ordine: 234,
+    fatta: true, // lanciata da Simone il 14/8 alle 11:00 — sua conferma, non il codice
   },
   {
     chiave: 'pasti-esclusi-in-scheda',

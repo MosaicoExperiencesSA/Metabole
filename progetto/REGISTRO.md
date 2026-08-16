@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-16
 
+- `[Sviluppo]` 🧹 **Elenco lavori: undici voci chiuse dopo averle verificate NEL CODICE.** Sei erano
+  già fatte e la pagina non lo sapeva (il testo incollato che non comanda l'assistente, il registro
+  allargato, il dizionario che invecchia, l'azione 3 con tutti e tre i meccanismi, le azioni a raggio
+  largo, la campagna allergie); cinque erano già state decise da Simone o Nocanty **e consegnate**
+  (kcal a termine, segnalazioni cliniche in testa, dizionario comune col conflitto mostrato al capo,
+  «variante di piano» = pasti futuri, «chiedi quando non conosci una parola»). Due riscritte invece
+  che chiuse, per dire cosa manca davvero: la dashboard «quello che aspetta me» (fatta, tranne il
+  pool sotto soglia) e le due gemelle sull'azione 6, che confluiscono in `vera-esclusione-di-dieta`.
+  ⚠️ Un elenco che dice 34 quando ne restano molte meno non è un elenco: è rumore che fa pianificare
+  male. ⚠️ E la pagina resta più lunga del file, perché i doppioni del 13/8 hanno chiavi che nel file
+  non esistono: quelli si spuntano a mano.
+
 - `[Sviluppo]` 🥜 **Vera propone gli allergeni della ricetta appena approvata** (voce 227). Approvare
   una ricetta la accendeva ma non confermava gli allergeni, e `collegaRicetta` si rifiuta di metterla
   in una giornata finché restano da confermare: il capo si ritrovava una ricetta **accesa e
