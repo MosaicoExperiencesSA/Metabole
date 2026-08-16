@@ -67,6 +67,17 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
     expect(aperta.fatto ?? false).toBe(false);
   });
 
+  /**
+   * ⚠️ Il difetto trovato il 14/8 sera: la pagina mostrava il pulsante «Conferma» solo se c'era
+   * qualcosa da AGGIUNGERE. Nella serata delle tre consegne non c'era niente di nuovo e c'erano
+   * tre voci da spuntare: il pulsante non compariva, e la spunta si è dovuta fare dalla shell di
+   * Render. Perché la pagina possa dire COSA spunterebbe, qui devono uscire i titoli, non le chiavi.
+   */
+  it('dice quali voci spunterebbe, col titolo che si legge in pagina', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse).toEqual([{ titolo: 'Lavoro finito nel file', categoria: 'Da fare — codice' }]);
+  });
+
   it('in prova non scrive niente, ma dice cosa spunterebbe', async () => {
     const esito = await service.caricaVociIniziali(false);
     expect(prisma.lavoro.update).not.toHaveBeenCalled();

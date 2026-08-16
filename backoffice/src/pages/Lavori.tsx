@@ -86,7 +86,19 @@ export function Lavori() {
   const [salvando, setSalvando] = useState(false);
   const [inModifica, setInModifica] = useState<string | null>(null);
   const [copiato, setCopiato] = useState(false);
-  const [caricamento, setCaricamento] = useState<{ aggiunte: number; saltate: number; titoli: { titolo: string; categoria: string }[] } | null>(null);
+  /**
+   * ⚠️ `spuntate`/`chiuse` non sono un di più: il rilascio porta DUE notizie, «ci sono voci nuove» e
+   * «queste le abbiamo finite». Il server le ha sempre mandate tutte e due — questa pagina leggeva
+   * solo la prima, e la sera del 14/8 con 0 nuove e 3 da spuntare non mostrava nemmeno il pulsante
+   * Conferma: le spunte si sono dovute fare dalla shell di Render.
+   */
+  const [caricamento, setCaricamento] = useState<{
+    aggiunte: number;
+    spuntate: number;
+    saltate: number;
+    titoli: { titolo: string; categoria: string }[];
+    chiuse: { titolo: string; categoria: string }[];
+  } | null>(null);
   // ⚠️ `caricandoVoci` e non `caricando`: quello esiste già ed è il caricamento della PAGINA.
   const [caricandoVoci, setCaricandoVoci] = useState(false);
 
@@ -198,7 +210,13 @@ export function Lavori() {
   async function caricaVoci(conferma: boolean) {
     setCaricandoVoci(true);
     try {
-      const r = await api<{ aggiunte: number; saltate: number; titoli: { titolo: string; categoria: string }[] }>(
+      const r = await api<{
+        aggiunte: number;
+        spuntate: number;
+        saltate: number;
+        titoli: { titolo: string; categoria: string }[];
+        chiuse: { titolo: string; categoria: string }[];
+      }>(
         '/admin/lavori/carica',
         { method: 'POST', body: JSON.stringify({ conferma }) },
       );
@@ -272,22 +290,47 @@ export function Lavori() {
             <button className="btn ghost" onClick={() => void copiaPerClaude()} title="Copia negli appunti le voci aperte e le risposte date, pronte da incollare in chat">
               <i className={`ti ${copiato ? 'ti-check' : 'ti-clipboard-text'}`} /> {copiato ? 'Copiato' : 'Copia per Claude'}
             </button>
+            {/*
+              ⚠️ Non più «Carica le voci nuove»: il nome diceva metà di quello che fa, ed è la metà
+              che il 14/8 sera ha fatto finire in shell. Questo pulsante allinea la pagina al
+              rilascio in tutti e due i sensi — aggiunge le voci nuove E spunta quelle che il
+              rilascio dichiara finite.
+            */}
             <button className="btn ghost" disabled={caricandoVoci} onClick={() => void caricaVoci(false)}
-              title="Guarda se il rilascio ha portato voci nuove. Non scrive niente: prima te le mostra.">
-              <i className="ti ti-download" /> Carica le voci nuove
+              title="Allinea la pagina all'ultimo rilascio: aggiunge le voci nuove e spunta quelle finite. Non scrive niente: prima ti mostra cosa farebbe.">
+              <i className="ti ti-download" /> Aggiorna dal rilascio
             </button>
           </div>
         )}
         {caricamento && (
           <div className="card" style={{ marginTop: 10, background: 'var(--chip)' }}>
-            {caricamento.aggiunte === 0 ? (
-              <div>Non c'è niente di nuovo da caricare: le {caricamento.saltate} voci del rilascio sono già in elenco.</div>
+            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 ? (
+              <div>Non c'è niente da allineare: le {caricamento.saltate} voci del rilascio sono già in elenco, e nessuna è da spuntare.</div>
             ) : (
               <>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Aggiungerei {caricamento.aggiunte} voci ({caricamento.saltate} già presenti, che <b>non</b> tocco):</div>
-                <ul style={{ margin: '0 0 10px 18px' }}>
-                  {caricamento.titoli.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
-                </ul>
+                {caricamento.aggiunte > 0 && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Aggiungerei {caricamento.aggiunte} voci:</div>
+                    <ul style={{ margin: '0 0 10px 18px' }}>
+                      {caricamento.titoli.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
+                    </ul>
+                  </>
+                )}
+                {caricamento.spuntate > 0 && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                      Spunterei {caricamento.spuntate} {caricamento.spuntate === 1 ? 'voce' : 'voci'} già in elenco, che il rilascio dà per finite:
+                    </div>
+                    <ul style={{ margin: '0 0 10px 18px' }}>
+                      {caricamento.chiuse.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
+                    </ul>
+                  </>
+                )}
+                {/* ⚠️ Va detto sempre, anche quando non c'è niente da aggiungere: è la promessa che
+                    questo pulsante non tocca il lavoro fatto a mano in pagina. */}
+                <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+                  Le altre {caricamento.saltate} le lascio come sono. Una voce già spuntata <b>non</b> viene mai riaperta.
+                </div>
                 <div className="row" style={{ gap: 8 }}>
                   <button className="btn" disabled={caricandoVoci} onClick={() => void caricaVoci(true)}><i className="ti ti-check" /> Conferma</button>
                   <button className="btn ghost" onClick={() => setCaricamento(null)}>Annulla</button>

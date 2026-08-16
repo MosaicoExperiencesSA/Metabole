@@ -111,9 +111,17 @@ export class LavoriService {
      * ancora aperta in pagina — è la notizia «questa consegna l'ha finita» — ma MAI riaprirne una
      * spuntata: la pagina resta lo stato vivo, e una spunta messa a mano non si discute da un file.
      */
-    const daSpuntare = VOCI_INIZIALI.filter((v) => v.fatta === true)
-      .map((v) => perChiave.get(v.chiave))
-      .filter((r): r is { id: string; chiave: string | null; fatto: boolean } => !!r && !r.fatto);
+    /**
+     * ⚠️ Si tiene la VOCE accanto alla riga, non solo la riga. Il chiamante deve poter dire **cosa**
+     * spunterebbe con le parole che si leggono in pagina: una lista di chiavi (`vera-menu-dettati`)
+     * non è una cosa su cui si preme «Conferma» a cuor leggero.
+     */
+    const daSpuntare: { voce: (typeof VOCI_INIZIALI)[number]; riga: { id: string; chiave: string | null; fatto: boolean } }[] = [];
+    for (const v of VOCI_INIZIALI) {
+      if (v.fatta !== true) continue;
+      const riga = perChiave.get(v.chiave);
+      if (riga && !riga.fatto) daSpuntare.push({ voce: v, riga });
+    }
 
     if (conferma) {
       for (const v of mancanti) {
@@ -123,8 +131,8 @@ export class LavoriService {
           data: fatta ? { ...campi, ...datiSpunta(true, null, new Date()) } : campi,
         });
       }
-      for (const r of daSpuntare) {
-        await this.prisma.lavoro.update({ where: { id: r.id }, data: datiSpunta(true, null, new Date()) });
+      for (const { riga } of daSpuntare) {
+        await this.prisma.lavoro.update({ where: { id: riga.id }, data: datiSpunta(true, null, new Date()) });
       }
     }
     return {
@@ -133,7 +141,8 @@ export class LavoriService {
       spuntate: daSpuntare.length,
       saltate: VOCI_INIZIALI.length - mancanti.length - daSpuntare.length,
       titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
-      chiuse: daSpuntare.map((r) => r.chiave),
+      // Titoli e non chiavi: è quello che la pagina mostra prima di far premere «Conferma».
+      chiuse: daSpuntare.map(({ voce }) => ({ titolo: voce.titolo, categoria: voce.categoria })),
     };
   }
 

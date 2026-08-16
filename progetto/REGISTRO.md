@@ -20,6 +20,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-14
 
+- `[Sviluppo]` 🔘 **Lavori: il pulsante del rilascio spunta anche, e adesso lo dice** (voce 251,
+  difetto trovato sul vivo la sera stessa). Tre consegne finite, zero voci da aggiungere, tre da
+  spuntare: la pagina rispondeva «non c'è niente di nuovo da caricare» e **non mostrava nemmeno il
+  Conferma** — le spunte si sono dovute fare dalla shell di Render. Il server mandava già `spuntate`
+  e `chiuse`: era la pagina a guardare solo `aggiunte`, cioè a non vedere il caso normale di una
+  giornata in cui si chiudono lavori già in elenco. ⚠️ Anche il nome era parte del difetto: «Carica
+  le voci nuove» diceva metà di quello che fa, ed è diventato «Aggiorna dal rilascio». Ora `chiuse`
+  porta i titoli e non le chiavi, il riepilogo mostra le due liste separate, e sotto c'è sempre la
+  promessa che una voce già spuntata non viene mai riaperta. 1 test.
+
 - `[Sviluppo]` 👁️ **Gli spuntini tolti dall'assistente si vedono anche nell'app** (voce 235). «Togli
   lo spuntino» agisce sul motore dal 13/8 — giornate senza quel pasto, kcal ridistribuite sugli
   altri — e nell'app **non lo diceva niente**: la cliente riceveva un piano senza merenda e l'unica

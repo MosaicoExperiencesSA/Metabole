@@ -1,0 +1,34 @@
+Lavori: il pulsante del rilascio spunta anche, e adesso lo dice (voce 251)
+
+TROVATO SUL VIVO, IL 14/8 SERA
+Tre consegne finite in giornata. Zero voci nuove da aggiungere, tre da spuntare. Il pulsante «Carica
+le voci nuove» ha risposto «non c'è niente di nuovo da caricare» e **non ha mostrato nemmeno il
+pulsante Conferma**: le tre spunte si sono dovute fare aprendo la shell di Render.
+
+Il server non c'entrava: `caricaVociIniziali` calcolava e mandava già `spuntate` e `chiuse` insieme
+ad `aggiunte`. Era la PAGINA a guardare solo `aggiunte` — e a decidere su quella se offrire il
+Conferma. Il caso «niente da aggiungere, qualcosa da chiudere» è esattamente il caso normale di una
+giornata in cui si finiscono lavori già in elenco: cioè quasi tutte.
+
+⚠️ IL NOME DEL PULSANTE ERA PARTE DEL DIFETTO
+«Carica le voci nuove» diceva metà di quello che quel pulsante fa, e la metà taciuta era proprio
+quella che serviva. Ora si chiama **«Aggiorna dal rilascio»**, con il suggerimento che dice tutte e
+due le cose. Un pulsante che fa una cosa che il suo nome non nomina è un pulsante che nessuno preme
+quando serve.
+
+COSA CAMBIA
+- `chiuse` torna i TITOLI (`{titolo, categoria}`) invece delle chiavi. Una lista di
+  `vera-menu-dettati` non è una cosa su cui si preme «Conferma» a cuor leggero: prima di scrivere si
+  legge quello che si legge in pagina.
+- Il riepilogo mostra due liste separate — cosa aggiungerei, cosa spunterei — e compare quando c'è
+  ALMENO UNA delle due cose da fare.
+- Sotto, sempre, la promessa che quel pulsante non tocca il lavoro fatto a mano: «le altre le lascio
+  come sono, una voce già spuntata non viene mai riaperta». È la regola a senso unico che il
+  servizio applica dal 13/8, e va detta dove si preme, non solo nel codice.
+
+FILE
+- backend/src/lavori/lavori.service.ts (+ .spec) — `chiuse` coi titoli. 1 test nuovo.
+- backoffice/src/pages/Lavori.tsx — le due liste, il Conferma, il nome del pulsante.
+- backend/src/lavori/voci-iniziali.ts — voce 251, nata già spuntata.
+
+1 test nuovo. Nessuna migrazione. Il backoffice non ha test: `tsc -b` pulito.
