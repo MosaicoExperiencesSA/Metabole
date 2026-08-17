@@ -62,9 +62,10 @@ Vera toglie gli spuntini (`vera-chat.service.ts:970`, filtrati a soli spuntini i
 `finestre-digiuno.ts:127-137`) succede la stessa cosa, in piccolo, **a chiunque**.
 
 ⚠️ **Le due finestre più strette (55% e 45%) oggi non le usa nessuno** — le sette clienti in digiuno
-sono cinque su «salta la colazione», Sonia su «salta la cena», Maria senza finestra. Ma la 20-4 il
-prodotto la **propone** (`finestre-digiuno.ts:41-47`): la riga del ×2,22 è raggiungibile domani,
-non è un caso di scuola.
+sono cinque su «salta la colazione», Sonia su «salta la cena», Maria senza finestra. Ma quelle
+finestre sono **nella tendina della scheda e nel questionario** (`finestre-digiuno.ts:82-99`), e il
+prodotto **propone di provare** una giornata 20-4 (`notifications.service.ts:347-367`, che suggerisce
+e non imposta): la riga del ×2,22 è raggiungibile domani, non è un caso di scuola.
 
 ---
 
@@ -89,17 +90,22 @@ riscrivono, o restano quattro punti in cui il prodotto dice alla cliente una cos
 
 ---
 
-## 3. Il segnale che manca — e che va fatto per primo, comunque
+## 3. ✅ Il segnale che mancava — CONSEGNATO il 17/8 sera (voce 260)
+
+> `menu/giornata-sotto-target.ts` + l'innesto in `deliverIfEligible`: `logger.warn` con la giornata
+> peggiore e `analyticsEvent` **`daily_kcal_below_target`** con tutte. Quello che segue è la
+> diagnosi che ha portato a scriverlo, e resta qui perché è la ragione per cui la Consegna 1 viene
+> prima della cura.
 
 C'è un'asimmetria dentro lo stesso file, e vale la pena vederla:
 
 - **pasti** mancanti → `logger.warn` + `analyticsEvent` `fasting_meals_missing` +
-  `npm run diag:digiuni` cliente per cliente (`menu.service.ts:555-580`);
+  `npm run diag:digiuni` cliente per cliente (`menu.service.ts:557-582`);
 - **calorie** mancanti → **niente.**
 
-La tolleranza `menu_kcal_balance_tolerance_pct` (default 15, `menu.service.ts:619`) esiste ma è usata
+La tolleranza `menu_kcal_balance_tolerance_pct` (default 15, `menu.service.ts:621`) esiste ma è usata
 come **filtro**, non come controllo: `day-combo.service.ts:48-56` scarta le combinazioni fuori banda
-e se non ne resta nessuna torna `null`; quel `null` finisce in `menu.service.ts:718-723`, che compone
+e se non ne resta nessuna torna `null`; quel `null` finisce in `menu.service.ts:720-725`, che compone
 col template e **eroga comunque, senza una riga di log**. Una giornata al 65% del fabbisogno esce
 identica a una giornata giusta.
 
@@ -107,9 +113,10 @@ identica a una giornata giusta.
 (`TOLLERANZA_KCAL_PCT`, `scostamentoPct`, `dentroTolleranza`) **blocca** una giornata dettata fuori
 target e lo dice col numero. Il motore, sulla stessa domanda, tace.
 
-**Proposta: questo è il primo pezzo da consegnare, prima di toccare le porzioni.** Costa poco, non
-ha migrazioni, e serve a sapere *quante* giornate sono sotto target oggi — invece di scalare le
-porzioni e scoprire dopo su chi ha agito.
+**Era il primo pezzo da consegnare, prima di toccare le porzioni** — ed è stato fatto la sera stessa.
+Serve a sapere *quante* giornate sono sotto target oggi, invece di scalare le porzioni e scoprire
+dopo su chi si è agito. ⚠️ Il numero da guardare prima di scrivere la Consegna 2 è quello:
+`daily_kcal_below_target` in `analytics_event`.
 
 ---
 
@@ -190,9 +197,10 @@ ridistribuisce su chi ha ancora margine. Una regola sola, e il tetto la governa.
 
 ## 7. Cosa costa, e in che ordine
 
-### Consegna 1 — la verità (nessuna migrazione, nessun rischio)
-Il segnale che manca (§3) e le quattro frasi (§2). Da qui si sa **quante** giornate sono sotto target
-e di chi, prima di cambiare un grammo a nessuno.
+### ✅ Consegna 1 — la verità (fatta a metà, 17/8 sera)
+Il segnale (§3) è **consegnato**, voce 260. ⛔ Restano **le quattro frasi** (§2): non sono state
+toccate perché il testo è voce di prodotto e serve il sì di Simone su come si riscrivono. Finché
+restano, il prodotto promette una ridistribuzione che il motore non fa.
 
 ### Consegna 2 — il moltiplicatore nel motore
 - Campo nuovo su `MealSnapshot` (`menu/pasto-giornata.ts:108-116`): **opzionale, assente = 1**, così
@@ -207,19 +215,19 @@ e di chi, prima di cambiare un grammo a nessuno.
 - Il calcolo in un **modulo puro** (`menu/porzione-scalata.ts`, sulla falsariga di
   `struttura-per-digiuno.ts`): target, kcal dei pasti rimasti, tetti per slot → fattore per slot.
   Provato per tabella su tutte e cinque le finestre più i due casi degli spuntini.
-- Scrittura in `snapshotMeals` (`menu.service.ts:2375-2390`): è l'imbuto unico, ci passano tutti i
+- Scrittura in `snapshotMeals` (`menu.service.ts:2428-2443`): è l'imbuto unico, ci passano tutti i
   percorsi di composizione. ⚠️ Ma **tre punti riscrivono i pasti dopo** ricostruendo l'oggetto campo
-  per campo, e perderebbero un campo nuovo: `applySimplePreference` (`:1655`, `:1662`),
-  `swapDislikedDishes` (`:1680-1775`) e la ripetizione bigiornaliera (`:757`).
-- ⚠️ `menuDay.upsert` ha `update: {}` (`menu.service.ts:822-834`): **i giorni già erogati non si
+  per campo, e perderebbero un campo nuovo: `applySimplePreference` (`:1708`, `:1715`),
+  `swapDislikedDishes` (`:1733-1828`) e la ripetizione bigiornaliera (`:759`).
+- ⚠️ `menuDay.upsert` ha `update: {}` (`menu.service.ts:875-887`): **i giorni già erogati non si
   riscrivono**. La correzione vale dai giorni nuovi in avanti — per Sonia, dal primo giorno non
   ancora aperto. Se si vuole prima, c'è `diag:rigenera`.
 
 ### Consegna 3 — dove la cliente lo legge
-- **La lista della spesa** (`menu.service.ts:2446-2505`): somma le grammature di catalogo
-  (`current.qty += ing.qty`, riga **2485**) senza alcun fattore. Va moltiplicata prima della somma —
+- **La lista della spesa** (`menu.service.ts:2499-2558`): somma le grammature di catalogo
+  (`current.qty += ing.qty`, riga **2538**) senza alcun fattore. Va moltiplicata prima della somma —
   e ⚠️ **c'è una cache**: se una lista per quell'intervallo esiste già la restituisce così com'è
-  (`:2463-2466`), quindi un fattore scritto dopo non ci arriverebbe mai. Serve invalidarla.
+  (`:2516-2519`), quindi un fattore scritto dopo non ci arriverebbe mai. Serve invalidarla.
   Serve anche una regola di arrotondamento: 185 g di riso non è una quantità che si compra.
 - ⚠️ **Il dettaglio della ricetta è il costo nascosto della strada C.** L'app le grammature non le
   legge dal menu: chiama `GET /recipes/:id` (`app/src/pages/Menu.tsx:59` →
@@ -231,7 +239,7 @@ e di chi, prima di cambiare un grammo a nessuno.
 - Dove si legge «porzione ×1,6»: la fascia delle sostituzioni in `Menu.tsx:243-247` è il posto
   naturale — stesso stile, stessa riga. ⚠️ Non esiste una nota libera per pasto nel JSON: riusare
   `Substitution.nota` sarebbe un abuso (finisce nella verifica della nutrizionista e nei report).
-- Scheda cliente nel backoffice: `backoffice/src/pages/ClientDetail.tsx:2053-2057` mostra le kcal
+- Scheda cliente nel backoffice: `backoffice/src/pages/ClientDetail.tsx:2106-2110` mostra le kcal
   per pasto — con `kcal` già scalato è corretta da sola, ma il fattore va mostrato lì, altrimenti la
   nutrizionista legge un pranzo da 862 kcal e non sa perché.
 - ⚠️ Il kit di rientro **copia `meals` così com'è** in giorni nuovi

@@ -34,6 +34,8 @@ type Riga = {
   cliente: string;
   email: string;
   tolte: string;
+  /** Come resta la lista quando un tag con più alimenti dentro viene spezzato. */
+  spezzati: string;
   restano: number;
 };
 

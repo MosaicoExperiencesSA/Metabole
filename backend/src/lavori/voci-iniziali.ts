@@ -713,6 +713,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'revisione-serata-17-8',
+    titolo: 'La revisione delle cinque consegne del 17/8: sette rilievi, tre seri',
+    dettaglio:
+      'Fatta rileggere la serata da un revisore prima di chiudere la giornata, come dice la regola — e ha trovato sette cose, tutte in codice che compilava e passava i test. ⚠️ **Le tre serie: 1)** la matita contava il **passaggio di testimone** come sovrapposizione (piano A finisce il 25/08, piano B parte il 25/08), ma quella è la coda che `finalizeApproval` costruisce da sola mettendo l\'inizio alla fine del piano in corso: l\'avviso del caso Lorena sarebbe scattato su **ogni rinnovo**, anche risalvando la stessa data — e un avviso che compare sempre è uno che si impara a cliccare via. Ora toccarsi non è sovrapporsi. **2)** Il form della scheda rimanda TUTTI i campi a ogni salvataggio, quindi la pulizia dei gusti riscriveva le intolleranze di una cliente quando una coach correggeva il telefono, col log modifiche che lo attribuiva a lei: ora si pulisce solo ciò che è **davvero cambiato**, la stessa regola di `allergies` e `fastingWindow`. **3)** Togliendo `@Roles(\'admin\')` dall\'annullamento è caduta la premessa del fail-open di `PageGuard` («tanto `@Roles` resta applicato»): un blip del database e una cliente loggata poteva chiamare `POST /admin/subscriptions/:id/cancel` — che non verifica proprietà — e annullare il piano di chiunque. Ora il fail-open vale **solo se la rotta ha ancora un `@Roles`**, altrimenti chiude (vale anche per `impersonate`, aperta dall\'11/8). **Le altre quattro:** i due avvisi della matita si zittivano a vicenda (confermato il primo, il secondo non si vedeva: ora si chiedono in una domanda sola); il giorno era confrontato in **UTC** e non nel fuso aziendale (fra mezzanotte e le due, avvisi fantasma); la scheda coach **in app** ignorava `avvisiSpezie` esattamente come faceva il backoffice prima; un campo mancava nel tipo di `pulisci-spezie.ts`. 10 test nuovi, fra cui quattro sul fail-open del guardiano. Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 265,
+    fatta: true, // 17/8 notte
+  },
+  {
     chiave: 'gusti-altre-porte-di-scrittura',
     titolo: 'Restano quattro porte che scrivono i gusti senza spezzare i tag (e due sono di Vera)',
     dettaglio:

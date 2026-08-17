@@ -76,7 +76,15 @@ export default function CoachClienteDetail() {
     setSaving(true); setOpErr(null); setOpMsg(null);
     const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
     try {
-      await api(`/admin/clients/${id}`, {
+      /**
+       * ⚠️ LA RISPOSTA SI LEGGE — questa è la SECONDA superficie dello staff sulla stessa rotta.
+       *
+       * Fra i cibi non graditi una spezia non viene salvata (escluderla svuota il ricettario invece
+       * di togliere un piatto) e il server lo dice in `avvisiSpezie`. La scheda del backoffice lo
+       * mostra dal 17/8; qui la risposta si buttava via, quindi la coach leggeva «Scheda aggiornata»
+       * e la sua riga non c'era: lo stesso difetto, sull'altra porta.
+       */
+      const esito = await api<{ avvisiSpezie?: { termine: string; testo: string }[] }>(`/admin/clients/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: form.name.trim() || undefined,
@@ -85,7 +93,12 @@ export default function CoachClienteDetail() {
           dislikedFoods: list(form.dislikedFoods),
         }),
       });
-      setOpMsg('Scheda aggiornata.');
+      const spezie = esito?.avvisiSpezie ?? [];
+      setOpMsg(
+        spezie.length
+          ? `Scheda aggiornata. ⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
+          : 'Scheda aggiornata.',
+      );
       setEditing(false);
       state.reload();
     } catch (e) {

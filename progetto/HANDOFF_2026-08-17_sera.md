@@ -1,5 +1,9 @@
 # Passaggio di consegne — Metabole, sera del 17/8/2026 (secondo turno)
 
+> ⚠️ **SUPERATO da `progetto/HANDOFF_2026-08-17_notte.md`** (terzo turno). Fra le 17 e le 24 sono
+> state consegnate sei cose e quattro voci del §3.5 qui sotto sono state chiuse. Questo documento
+> resta per la parte diagnostica, ma **lo stato aperto si legge nell'altro**.
+
 Da incollare in cima a una chat nuova. **Sostituisce** `HANDOFF_2026-08-17.md` per le parti che si
 sovrappongono; quello resta valido su tutto il resto. Tutto quello che c'è qui è verificato nel codice
 o nei dati, non ricordato.
@@ -132,8 +136,9 @@ si tolga.
 > `preDeployCommand: (npx prisma migrate deploy || …) && npx prisma db seed`, con `package.json:80-82`
 > che punta a `prisma/seed.ts`. E `seed.ts:1296-1300` fa `upsert` su tutti i `CONFIG_PARAMS`: `create`
 > se la chiave manca, `update` che **non tocca `value`** («l'admin può averlo cambiato»).
-> `vera_seconda_lettura` è in quell'elenco, `seed.ts:512-526`. Lo dice anche `REGISTRO.md` alla riga
-> 5268: «il seed gira a ogni deploy».
+> `vera_seconda_lettura` è in quell'elenco, `seed.ts:515-526` (la chiave a `:522`). Lo dice anche `REGISTRO.md`
+> («il seed gira a ogni deploy»: cercalo col grep — ⚠️ nella prima stesura avevo scritto «riga 5268»
+> e non era vero, il numero era sbagliato ed è la stessa cosa che questo paragrafo rimprovera).
 > Quindi la riga in `config_param` **nasce da sola al primo deploy dopo `0ca728f`**: niente da creare
 > a mano, niente script. **Resta solo da guardare** che il deploy sia verde e che la chiave si veda
 > nella pagina Parametri; se il deploy non è ancora passato, passa col prossimo.

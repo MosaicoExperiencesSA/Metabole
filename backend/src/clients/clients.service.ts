@@ -735,15 +735,57 @@ export class ClientsService {
      *    guscio» non va spaccata in due. Sono due liste con due regole, e vanno tenute distinte.
      */
     let avvisiSpezie: EsitoSpezia[] = [];
-    if (Array.isArray(profileData.dislikedFoods)) {
-      const filtrati = filtraSpezie(profileData.dislikedFoods as string[]);
-      profileData.dislikedFoods = filtrati.tenuti;
-      avvisiSpezie = filtrati.avvisi;
-    }
-    if (Array.isArray(profileData.intolerances)) {
-      profileData.intolerances = (profileData.intolerances as string[])
-        .map((x) => String(x ?? '').trim())
-        .filter((x) => x.length > 0 && !NON_ALIMENTI.has(x.toLowerCase()));
+    if (profileData.dislikedFoods !== undefined || profileData.intolerances !== undefined) {
+      /**
+       * ⚠️ SI PULISCE SOLO QUELLO CHE È STATO DAVVERO TOCCATO — trovato in revisione, 17/8 sera.
+       *
+       * Il form della scheda **rimanda tutti i campi a ogni salvataggio**: senza questo confronto,
+       * una coach che corregge un numero di telefono riscriveva le intolleranze di una cliente (un
+       * `'altro'` arrivato da un import) e i suoi cibi non graditi — e il log modifiche avrebbe
+       * detto «Intolleranze: da [altro, lattosio] a [lattosio]» **a nome suo**, su un campo che non
+       * ha nemmeno guardato. Cambiare cosa una persona riceve nel piatto come effetto collaterale
+       * del salvataggio di un'anagrafica è peggio del difetto che si stava chiudendo.
+       *
+       * È la stessa regola che `allergies` e `fastingWindow` applicano qui sotto: **il permesso, e
+       * la modifica, valgono sul cambiamento — non sul salvataggio**. Le liste già sporche in banca
+       * dati le ripulisce `npm run pulisci:spezie`, che è il posto dove quel lavoro si vede.
+       */
+      const attualiGusti = (await this.prisma.clientProfile.findUnique({
+        where: { userId },
+        select: { dislikedFoods: true, intolerances: true },
+      })) as { dislikedFoods: string[]; intolerances: string[] } | null;
+      const stessaLista = (a: readonly string[] | undefined, b: readonly string[] | undefined) =>
+        (a ?? []).join('|') === (b ?? []).join('|');
+
+      // ⚠️ `null` non è un array, e la colonna è `String[]`: Prisma lo rifiuterebbe con un 500. Il
+      // DTO lo lascia passare (`@IsOptional`), quindi il campo si toglie invece di fidarsi.
+      for (const campo of ['dislikedFoods', 'intolerances'] as const) {
+        if (profileData[campo] !== undefined && !Array.isArray(profileData[campo])) delete profileData[campo];
+      }
+
+      if (Array.isArray(profileData.dislikedFoods)) {
+        if (stessaLista(profileData.dislikedFoods as string[], attualiGusti?.dislikedFoods)) {
+          delete profileData.dislikedFoods; // non toccato: non si riscrive, e non si pulisce
+        } else {
+          const filtrati = filtraSpezie(profileData.dislikedFoods as string[]);
+          // ⚠️ L'avviso resta anche se dopo la pulizia il risultato è identico a quello che c'era già
+          // (ha scritto «pepe, ceci» dove c'era «ceci»): la sua riga non è passata, e va detto.
+          avvisiSpezie = filtrati.avvisi;
+          if (stessaLista(filtrati.tenuti, attualiGusti?.dislikedFoods)) delete profileData.dislikedFoods;
+          else profileData.dislikedFoods = filtrati.tenuti;
+        }
+      }
+      if (Array.isArray(profileData.intolerances)) {
+        if (stessaLista(profileData.intolerances as string[], attualiGusti?.intolerances)) {
+          delete profileData.intolerances;
+        } else {
+          const pulite = (profileData.intolerances as string[])
+            .map((x) => String(x ?? '').trim())
+            .filter((x) => x.length > 0 && !NON_ALIMENTI.has(x.toLowerCase()));
+          if (stessaLista(pulite, attualiGusti?.intolerances)) delete profileData.intolerances;
+          else profileData.intolerances = pulite;
+        }
+      }
     }
 
     // TIPO DI DIETA (regime + stile): cambiarlo richiede il permesso dedicato
@@ -1234,13 +1276,22 @@ export class ClientsService {
 
     const newEnd = subscriptionEnd(d, sub.plan.period);
 
-    // L'AVVISO: con questa data il piano nasce già finito.
-    if (!conferma && newEnd.getTime() <= now) {
-      const gg = (x: Date) => x.toISOString().slice(0, 10).split('-').reverse().join('/');
-      throw new ConflictException(
-        `Attenzione: con l'inizio al ${gg(d)} il piano «${sub.plan.name}» (${sub.plan.period}) risulta già finito il ` +
-          `${gg(newEnd)}. La cliente vedrà «Nessun piano attivo», non riceverà menu e non comparirà in dashboard. ` +
-          'Se è quello che vuoi, conferma; altrimenti controlla il mese.',
+    /**
+     * GLI AVVISI DELLA MATITA — due, e si chiedono INSIEME.
+     *
+     * ⚠️ Trovato in revisione (17/8 sera): con due `if` separati sullo stesso `conferma`, chi
+     * confermava il primo avviso («il piano risulta già finito») saltava anche il secondo — la
+     * sovrapposizione non gliela mostrava nessuno. Rispondeva a una frase e ne accettava due.
+     * Ora si raccolgono tutti e si chiede una volta sola, con tutte le conseguenze davanti.
+     */
+    const avvisi: string[] = [];
+    const gg = (x: Date) => x.toISOString().slice(0, 10).split('-').reverse().join('/');
+
+    // 1. Con questa data il piano nasce già finito.
+    if (newEnd.getTime() <= now) {
+      avvisi.push(
+        `Con l'inizio al ${gg(d)} il piano «${sub.plan.name}» (${sub.plan.period}) risulta già finito il ` +
+          `${gg(newEnd)}. La cliente vedrà «Nessun piano attivo», non riceverà menu e non comparirà in dashboard.`,
       );
     }
 
@@ -1263,8 +1314,14 @@ export class ClientsService {
       d,
       newEnd,
     );
-    if (!conferma && sovrapposti.length) {
-      throw new ConflictException(fraseSovrapposizione(sovrapposti, sub.plan.name, d, newEnd));
+    if (sovrapposti.length) avvisi.push(fraseSovrapposizione(sovrapposti, sub.plan.name, d, newEnd));
+
+    if (!conferma && avvisi.length) {
+      throw new ConflictException(
+        avvisi.length === 1
+          ? `Attenzione: ${avvisi[0]} Se è quello che vuoi, conferma.`
+          : `Attenzione, due cose:\n\n· ${avvisi.join('\n\n· ')}\n\nSe è quello che vuoi, conferma.`,
+      );
     }
 
     // RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo.

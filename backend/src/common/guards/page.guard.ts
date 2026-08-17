@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_PERMISSIONS, PAGE_GRANTS, PageKey } from '../../permissions/pages';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 import { PAGE_KEY, PageLevel } from '../decorators/require-page.decorator';
 import { AuthUser } from '../interfaces/auth-user.interface';
 import { Role } from '../roles';
@@ -11,8 +12,9 @@ import { Role } from '../roles';
  * Applica la matrice permessi pagina×ruolo lato server (difesa in profondità):
  * se la rotta è taggata con @RequirePage, il ruolo deve avere view (GET) o manage
  * (modifiche) su quella pagina. Rotte non taggate → invariate (solo @Roles).
- * L'admin è sempre ammesso (superutente). Fail-open sugli errori di lookup:
- * resta comunque attivo @Roles.
+ * L'admin è sempre ammesso (superutente). ⚠️ Sugli errori di lookup si è permissivi SOLO se la rotta
+ * ha ancora un @Roles sotto: dove questo guardiano è l'unico cancello (`impersonate`,
+ * `cancel_subscription`) un errore chiude, non apre.
  */
 @Injectable()
 export class PageGuard implements CanActivate {
@@ -64,7 +66,28 @@ export class PageGuard implements CanActivate {
     } catch (e) {
       if (e instanceof ForbiddenException) throw e;
       this.logger.warn(`PageGuard lookup fallito (${user.role}/${meta.pageKey}): ${e instanceof Error ? e.message : e}`);
-      return true; // fail-open: @Roles resta applicato
+      /**
+       * ⚠️ IL FAIL-OPEN VALE SOLO SE SOTTO C'È ANCORA UNA RETE — corretto il 17/8 sera, in revisione.
+       *
+       * Questo `return true` è nato con una premessa scritta nel docstring: «@Roles resta applicato».
+       * Il 17/8 quella premessa ha smesso di valere su due rotte: `impersonate` (11/8) e
+       * l'annullamento abbonamento sono passati da `@Roles('admin')` alla sola chiave di matrice, e
+       * `RolesGuard` **senza metadata lascia passare qualunque utente autenticato**. Il risultato:
+       * un blip del database di trenta secondi e una cliente loggata poteva chiamare
+       * `POST /admin/subscriptions/:id/cancel` — che non verifica nessuna proprietà — e annullare il
+       * piano di chiunque, con il proprio nome nel registro.
+       *
+       * Quindi: se la rotta ha ancora un `@Roles`, si resta permissivi come prima (un errore di
+       * lettura dei permessi non deve chiudere fuori tutto lo staff per una pagina già protetta dal
+       * ruolo). Se non ce l'ha, **questo guardiano è l'unico cancello** e un cancello che si apre da
+       * solo quando il database tossisce non è un cancello.
+       */
+      const ruoliRichiesti = this.reflector.getAllAndOverride<string[] | undefined>(ROLES_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (ruoliRichiesti?.length) return true;
+      throw new ForbiddenException('Permesso non verificabile in questo momento. Riprova fra poco.');
     }
   }
 }

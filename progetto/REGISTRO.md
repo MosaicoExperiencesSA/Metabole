@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🔍 **La revisione delle cinque consegne di oggi: sette rilievi, tre seri.** Voce 265.
+  Fatta rileggere la giornata da un revisore prima di chiuderla — ed è la regola che ogni volta trova
+  cose che **compilano, passano i test e sarebbero arrivate in produzione**. ⚠️ **1) Un avviso che
+  scatta sempre è un avviso che non c'è**: la matita (voce 259, consegnata due ore prima) contava il
+  **passaggio di testimone** come sovrapposizione — piano A finisce il 25/08, piano B parte il 25/08 —
+  ma quella è la coda che `finalizeApproval` costruisce **da sola**, mettendo l'inizio della coda alla
+  fine del piano in corso. Sarebbe scattato su ogni cliente con un rinnovo, anche risalvando la stessa
+  identica data, e nemmeno la cliente riceve due menu quel giorno (`attivoInCorso` ne sceglie uno).
+  Ora toccarsi non è sovrapporsi. Il danno evitato non è il falso positivo: è che chi usa la matita
+  impara a cliccare «Procedo comunque». ⚠️ **2) Il form della scheda rimanda tutti i campi a ogni
+  salvataggio**: la pulizia dei gusti (voce 263, consegnata un'ora prima) riscriveva le intolleranze
+  di una cliente quando una coach correggeva il **telefono**, e il log modifiche lo attribuiva a lei.
+  Ora si pulisce solo ciò che è **davvero cambiato** — la stessa regola che `allergies` e
+  `fastingWindow` applicano dieci righe più sotto: il permesso, e la modifica, valgono sul
+  **cambiamento**, non sul salvataggio. E `null` non arriva più a Prisma (colonna `String[]`: era un
+  500 in attesa). ⚠️ **3) Togliere `@Roles` toglie la rete sotto al fail-open**: `PageGuard` sugli
+  errori di lettura tornava `true` «tanto `@Roles` resta applicato», premessa caduta con
+  l'annullamento (oggi) e con `impersonate` (11/8). Un blip del database di trenta secondi e una
+  **cliente loggata** poteva chiamare `POST /admin/subscriptions/:id/cancel` — che non verifica
+  proprietà — e annullare il piano di chiunque, col proprio nome nel registro. Ora il fail-open vale
+  **solo se la rotta ha ancora un `@Roles`**; dove il guardiano è l'unico cancello, un errore chiude.
+  **Le altre quattro:** i due avvisi della matita si zittivano a vicenda (confermato il primo, il
+  secondo non si vedeva — ora si chiedono in una domanda sola); il giorno era confrontato in **UTC** e
+  non nel fuso aziendale, quindi fra mezzanotte e le due avvisi fantasma (⚠️ e sono le ore in cui si
+  correggono le schede, cioè quelle del caso Lorena); la scheda coach **in app** ignorava
+  `avvisiSpezie` esattamente come faceva il backoffice prima; un campo mancava nel tipo di
+  `pulisci-spezie.ts`. Hanno retto senza rilievi il segnale kcal (il `create` è dentro un `.catch`, e
+  il volume è uno per ciclo di erogazione), i `PAGE_GRANTS` (nessun hub regala la chiave nuova) e le
+  pastiglie. 10 test nuovi — **3116 in 203 suite** — e i due frontend compilati. Nessuna migrazione.
+  ⚠️ Nota di metodo: `npx tsc --noEmit -p tsconfig.json` sul progetto intero è rosso **da prima** su
+  tre script in `prisma/`; la CI compila solo `src/**`.
+
 - `[Sviluppo]` 🌿 **I gusti scritti dalla scheda passavano diritti in banca dati — quarta volta per la
   stessa riga.** Voci 263 (chiusa) e 264 (aperta). `latte` che non si espandeva l'8/8,
   `frutta_a_guscio` il 12/8, il tag `"Carne .ceci"` stamattina, e adesso il percorso dello staff.
@@ -189,7 +221,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   punta a `prisma/seed.ts`, e `seed.ts:1296-1300` fa `upsert` su tutti i `CONFIG_PARAMS` — `create` se
   la chiave manca, `update` che **non tocca `value`** perché «l'admin può averlo cambiato».
   `vera_seconda_lettura` è in quell'elenco (`seed.ts:512-526`). La riga nasce da sé al primo deploy
-  dopo `0ca728f`: niente da lanciare. Lo diceva anche questo registro, alla riga 5268 («il seed gira a
+  dopo `0ca728f`: niente da lanciare. Lo diceva anche questo registro (⚠️ «alla riga 5268» era sbagliato — il numero non l'avevo verificato, si trova col grep: «il seed gira a
   ogni deploy»). Il §3.1 dell'handoff è stato corretto sul posto, col testo originale lasciato sotto
   per memoria: un handoff sbagliato che resta in giro costa più di uno mancante. Resta solo da guardare
   che il deploy sia verde e che la chiave si veda nella pagina Parametri.

@@ -1,0 +1,95 @@
+La revisione della serata: sette rilievi sulle cinque consegne, tre seri
+
+Voce 265. Fatta rileggere la giornata da un revisore prima di chiuderla, come dice la regola. Ha
+trovato SETTE cose, tutte in codice che compilava, passava i test ed era gia' pushato.
+
+═══ LE TRE SERIE
+
+1. UN AVVISO CHE SCATTA SEMPRE E' UN AVVISO CHE NON C'E'.
+   La matita (voce 259, consegnata due ore prima) contava il PASSAGGIO DI TESTIMONE come
+   sovrapposizione: piano A finisce il 25/08, piano B parte il 25/08. Ma quella e' **la coda che
+   `finalizeApproval` costruisce da sola**, mettendo `start` della coda a `endDate` del piano in
+   corso — la configurazione normale di OGNI rinnovo. L'avviso del caso Lorena sarebbe scattato su
+   qualunque cliente con un rinnovo in coda, anche risalvando la stessa identica data.
+   ⚠️ E nemmeno la cliente riceve due menu quel giorno: `attivoInCorso` ne sceglie uno solo.
+   Ora **toccarsi non e' sovrapporsi**, e la sovrapposizione vera comincia dal giorno DOPO.
+   Il danno evitato non e' un falso positivo: e' che chi usa la matita impara a cliccare «Procedo
+   comunque», e l'avviso non c'e' piu' il giorno che serve davvero.
+
+2. IL FORM DELLA SCHEDA RIMANDA TUTTI I CAMPI A OGNI SALVATAGGIO.
+   La pulizia dei gusti (voce 263, consegnata un'ora prima) era applicata sempre: una coach che
+   correggeva un NUMERO DI TELEFONO riscriveva le intolleranze della cliente (un `'altro'` arrivato
+   da un import) e i suoi cibi non graditi — e il log modifiche diceva «Intolleranze: da [altro,
+   lattosio] a [lattosio]» A NOME SUO, su un campo che non aveva nemmeno guardato.
+   ⚠️ Cambiare cosa una persona riceve nel piatto come effetto collaterale del salvataggio di
+   un'anagrafica e' peggio del difetto che si stava chiudendo.
+   Ora si pulisce **solo quello che e' davvero cambiato** — la stessa regola che `allergies` e
+   `fastingWindow` applicano dieci righe piu' sotto: il permesso, e la modifica, valgono sul
+   CAMBIAMENTO e non sul salvataggio. Le liste gia' sporche le ripulisce `npm run pulisci:spezie`.
+   ⚠️ E `null` non arriva piu' a Prisma: il DTO lo lascia passare, la colonna e' `String[]`, sarebbe
+   stato un 500. L'`Array.isArray` che c'era prima era un bypass silenzioso, non una difesa.
+
+3. TOGLIERE `@Roles` TOGLIE ANCHE LA RETE SOTTO AL FAIL-OPEN.
+   `PageGuard`, sugli errori di lettura dei permessi, torna `true` con una premessa scritta nel suo
+   docstring: «fail-open: @Roles resta applicato». Il 17/8 quella premessa ha smesso di valere sulla
+   rotta dell'annullamento (e dall'11/8 su `impersonate`): `RolesGuard` SENZA metadata lascia passare
+   qualunque utente autenticato.
+   ⚠️ Scenario: pool Prisma esaurito per trenta secondi. Una cliente loggata chiama
+   `POST /admin/subscriptions/:id/cancel` — e `annullaAbbonamento` non verifica nessuna proprieta':
+   annulla il piano di chiunque, con il suo nome nel registro.
+   Ora il fail-open vale **solo se la rotta ha ancora un `@Roles`**; dove questo guardiano e' l'unico
+   cancello, un errore CHIUDE. Un cancello che si apre da solo quando il database tossisce non e' un
+   cancello.
+
+═══ LE ALTRE QUATTRO
+
+4. I DUE AVVISI DELLA MATITA SI ZITTIVANO A VICENDA. Due `if` separati sullo stesso `conferma`: chi
+   confermava «il piano risulta gia' finito» saltava anche il controllo sovrapposizione, che non
+   vedeva mai. Rispondeva a una frase e ne accettava due. Ora si raccolgono e si chiede UNA volta,
+   con tutte le conseguenze davanti.
+5. IL GIORNO ERA CONFRONTATO IN UTC. `sovrapposizione-piani` usava `toISOString().slice(0,10)` mentre
+   `abbonamento-in-corso` azzera l'ora in LOCALE — e il commento diceva «la stessa lettura di
+   `staErogando`». Col server su Europe/Rome, fra mezzanotte e le due il giorno UTC e' ancora ieri:
+   avvisi fantasma e un piano che parte oggi etichettato «in coda da oggi». ⚠️ Sono le ore in cui si
+   correggono le schede — cioe' quelle in cui e' successo il caso Lorena.
+6. LA SCHEDA COACH IN APP IGNORAVA `avvisiSpezie`, esattamente come faceva il backoffice prima della
+   voce 263: stessa rotta, stessa pulizia, e la coach leggeva «Scheda aggiornata» con la sua riga non
+   salvata. Sistemata una sola delle due superfici dello staff — ora tutte e due.
+7. `pulisci-spezie.ts`: il campo `spezzati` non era nel tipo `Riga` (TS2353). Non esplodeva perche' lo
+   script gira con `--transpile-only` e la CI compila solo `src/**`.
+   ⚠️ Nota: `npx tsc --noEmit -p tsconfig.json` sul progetto intero e' rosso DA PRIMA su tre script in
+   `prisma/` (`approve-diets`, `carica-lavori`, `dedupe-diets`). Non e' roba di stanotte, ma chi lo
+   lancia va avvisato.
+
+═══ COSA HA RETTO (controllato e senza rilievi)
+Il segnale kcal: `analyticsEvent.create` e' dentro `.catch()`, non puo' rompere l'erogazione, e il
+volume e' al massimo uno per ciclo di erogazione (il gate `last.date > today` esce prima).
+`PAGE_GRANTS`: nessuna pagina «hub» regala `cancel_subscription`. Le pastiglie: i due flag non possono
+essere veri insieme, e il ramo di ripiego degrada al comportamento vecchio. La condizione
+`cambiaForma` della bonifica non riscrive profili sani.
+
+TEST — 10 nuovi (totale 3116 in 203 suite):
+· 4 sul fail-open del guardiano (`common/guards/page-guard-fail-open.spec.ts`): senza `@Roles` si
+  chiude, con `@Roles` si resta permissivi, l'admin non passa dal database, e una rotta senza
+  `@RequirePage` non e' affare suo;
+· 4 sulla pulizia che non tocca i campi non modificati (`clients/gusti-scheda.spec.ts`), incluso
+  l'avviso che arriva anche quando non c'e' niente da riscrivere, e `null` che non arriva a Prisma;
+· 2 sul passaggio di testimone (`clients/sovrapposizione-piani.spec.ts`), fra cui il rinnovo normale
+  che NON deve avvisare.
+
+FILE:
+- backend/src/clients/sovrapposizione-piani.ts (+ spec) — testimone e giorno locale.
+- backend/src/clients/clients.service.ts (+ `clients/gusti-scheda.spec.ts`) — pulizia solo sul
+  cambiamento, `null` fermato, i due avvisi uniti in una domanda sola.
+- backend/src/common/guards/page.guard.ts (+ `page-guard-fail-open.spec.ts`) — fail-open solo con rete.
+- app/src/staff/coach/CoachClienteDetail.tsx — la risposta si legge anche qui.
+- backend/prisma/pulisci-spezie.ts — il tipo `Riga`.
+- backend/src/lavori/voci-iniziali.ts — voce 265.
+- progetto/HANDOFF_2026-08-17_notte.md — il passaggio di consegne aggiornato (supera quello della sera).
+- progetto/DECISIONE_Porzioni_Scalate_Strada_C.md — riferimenti di riga ricontrollati (il file
+  `menu.service.ts` e' cresciuto di 53 righe durante la serata) e §3 marcata come consegnata.
+- progetto/HANDOFF_2026-08-17_sera.md — marcato «superato», e corretta la citazione «riga 5268», che
+  era sbagliata.
+
+NESSUNA MIGRAZIONE. In sandbox: backend build verde e **3116 test in 203 suite**; `backoffice` e
+`app` compilati con `npm run build` (tsc + vite), che e' quello che fa la CI.

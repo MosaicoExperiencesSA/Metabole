@@ -22,8 +22,20 @@ describe('siSovrappongono', () => {
     expect(siSovrappongono(d('2026-08-11'), d('2026-08-20'), d('2026-08-01'), d('2026-08-10'))).toBe(false);
   });
 
-  it('⚠️ il giorno del passaggio di testimone È una sovrapposizione: è il giorno in cui arrivano due menu', () => {
-    expect(siSovrappongono(d('2026-08-01'), d('2026-08-10'), d('2026-08-10'), d('2026-08-20'))).toBe(true);
+  /**
+   * ⚠️ IL PASSAGGIO DI TESTIMONE NON È UNA SOVRAPPOSIZIONE — corretto dopo la revisione del 17/8.
+   *
+   * `finalizeApproval` mette la coda a `start = fine del piano in corso`: toccarsi **è** la
+   * configurazione normale di ogni rinnovo. Contarla come sovrapposizione faceva scattare l'avviso
+   * del caso Lorena anche risalvando la stessa identica data, su ogni cliente con un rinnovo in
+   * coda — e un avviso che compare sempre è un avviso che si impara a cliccare via.
+   */
+  it('⚠️ toccarsi NON è sovrapporsi: la coda che parte il giorno della fine è il rinnovo normale', () => {
+    expect(siSovrappongono(d('2026-08-01'), d('2026-08-10'), d('2026-08-10'), d('2026-08-20'))).toBe(false);
+  });
+
+  it('ma un giorno dentro sì: la sovrapposizione vera comincia dal giorno DOPO il testimone', () => {
+    expect(siSovrappongono(d('2026-08-01'), d('2026-08-11'), d('2026-08-10'), d('2026-08-20'))).toBe(true);
   });
 
   it('⚠️ una fine assente è un piano APERTO: si sovrappone a tutto quello che viene dopo il suo inizio', () => {
@@ -56,6 +68,16 @@ describe('pianiSovrapposti', () => {
 
   it('spostare senza toccare nessuno non avvisa: la matita resta muta quando non c\'è niente da dire', () => {
     expect(pianiSovrapposti([inCorso], d('2026-08-26'), d('2026-11-26'), OGGI)).toEqual([]);
+  });
+
+  /**
+   * ⚠️ IL CASO CHE LA REVISIONE HA TROVATO, e che rendeva l'avviso rumore: la coda la costruisce
+   * `finalizeApproval` con `start = fine del piano in corso`. Se toccarsi contasse, ogni rinnovo
+   * farebbe scattare l'allarme — anche risalvando la data che c'era già.
+   */
+  it('⚠️ il rinnovo normale NON avvisa: la coda che parte il giorno della fine è come la crea il sistema', () => {
+    // «Conosciamoci» resta dov'è (09/08 → 25/08) e «3 mesi» è in coda dal 25/08.
+    expect(pianiSovrapposti([inCoda], d('2026-08-09'), d('2026-08-25'), OGGI)).toEqual([]);
   });
 
   it('⚠️ un annullato, uno scaduto e un carrello NON contano: sovrapporsi a loro non produce due menu', () => {
@@ -92,13 +114,15 @@ describe('fraseSovrapposizione — deve dire contro cosa, quando, e cosa succede
       OGGI,
     );
     const frase = fraseSovrapposizione(s, '3 mesi', d('2026-08-17'), d('2026-11-17'));
-    expect(frase).toContain('«Conosciamoci» sta erogando fino al 25/08/2026');
+    expect(frase.startsWith('«Conosciamoci» sta erogando fino al 25/08/2026')).toBe(true);
     expect(frase).toContain('Portando «3 mesi» dal 17/08/2026 al 17/11/2026');
     expect(frase).toContain('due piani attivi insieme');
     // ⚠️ La conseguenza vera, non «attenzione, sovrapposizione»: chi legge deve poter decidere.
     expect(frase).toContain('i giorni dell\'altro scorreranno senza che riceva niente');
-    // ⚠️ E si chiude come l'altro avviso della stessa matita: è una domanda, non un divieto.
-    expect(frase).toContain('Se è quello che vuoi, conferma');
+    // ⚠️ La chiusura «se è quello che vuoi, conferma» la mette chi chiama: qui torna solo il pezzo
+    // di frase, perché gli avvisi della matita sono due e insieme si chiedono in una volta sola.
+    expect(frase).not.toContain('Se è quello che vuoi');
+    expect(frase).toContain('annulla prima il piano che non serve');
   });
 
   it('quando quello addosso è la coda, la frase dice DA QUANDO e non fino a quando', () => {

@@ -17,6 +17,8 @@
  * e nuova: *dopo lo spostamento, questa riga finirebbe addosso a un'altra?*
  */
 
+import { giornoLocale } from '../common/date-only';
+
 /** Un piano, per quello che serve qui: le sue date, il suo stato e come si chiama. */
 export interface PianoDatato {
   id: string;
@@ -36,14 +38,30 @@ export interface Sovrapposizione {
   fine: Date | null;
 }
 
-const giorno = (d: Date): string => d.toISOString().slice(0, 10);
+/**
+ * Il giorno **locale** (fuso aziendale), non quello UTC.
+ *
+ * ⚠️ Prima qui c'era `toISOString().slice(0,10)`, e il commento diceva «la stessa lettura di
+ * `staErogando`» — non lo era: `abbonamento-in-corso.ts` azzera l'ora in locale. Con il server su
+ * Europe/Rome, fra mezzanotte e le due il giorno UTC è ancora **ieri**: un piano concluso ieri
+ * superava il filtro «non ancora finito» e faceva scattare un avviso fantasma, e un piano che parte
+ * oggi veniva chiamato «in coda da oggi». Finestra stretta — e sono le ore in cui si correggono le
+ * schede, cioè quelle in cui è successo il caso Lorena.
+ */
+const giorno = (d: Date): string => giornoLocale(d);
 
 /**
- * Due periodi si toccano?
+ * Due periodi si sovrappongono?
  *
- * ⚠️ Confronto per **giorno** e fine **compresa**, come tutto il resto del prodotto: l'ultimo giorno
- * di un piano è un giorno di piano, e due piani che si passano il testimone lo stesso giorno sono
- * sovrapposti per un giorno — che è esattamente il caso in cui una cliente riceve due menu.
+ * ⚠️ **Toccarsi non è sovrapporsi**: se un piano finisce il 25/08 e il successivo comincia il 25/08,
+ * quello è il **passaggio di testimone normale** — è la coda che `finalizeApproval` costruisce da
+ * sola, mettendo l'inizio del piano nuovo esattamente alla fine di quello in corso. Contarlo come
+ * sovrapposizione voleva dire far scattare l'avviso del caso Lorena su **ogni rinnovo**, anche
+ * risalvando la stessa identica data: e un avviso che compare sempre è un avviso che si impara a
+ * cliccare via, cioè uno che non c'è il giorno che serve.
+ * ⚠️ Nemmeno la cliente ne riceve due: quel giorno `attivoInCorso` sceglie **uno** dei due (quello
+ * che finisce più tardi) e serve solo quello. La sovrapposizione vera è quella che dura, e comincia
+ * dal giorno **dopo** il testimone.
  * ⚠️ Fine assente = piano **aperto**: non finisce mai, quindi si sovrappone a tutto quello che viene
  * dopo il suo inizio. Trattarla come «finisce oggi» era il modo di non vedere il caso peggiore.
  * ⚠️ Inizio assente = «già cominciato», la stessa lettura di `staErogando` e di
@@ -56,8 +74,8 @@ export function siSovrappongono(
   bInizio: Date | null,
   bFine: Date | null,
 ): boolean {
-  if (aFine && bInizio && giorno(aFine) < giorno(bInizio)) return false;
-  if (bFine && aInizio && giorno(bFine) < giorno(aInizio)) return false;
+  if (aFine && bInizio && giorno(aFine) <= giorno(bInizio)) return false;
+  if (bFine && aInizio && giorno(bFine) <= giorno(aInizio)) return false;
   return true;
 }
 
@@ -99,8 +117,10 @@ const gg = (d: Date | null): string =>
  * cliente. «Attenzione: sovrapposizione» non è un avviso, è un rumore: chi lo legge non sa cosa
  * decidere e clicca avanti.
  *
- * ⚠️ Si chiude come l'altro avviso della stessa matita («se è quello che vuoi, conferma»), perché è
- * la stessa promessa: non è un divieto.
+ * ⚠️ Torna un **pezzo di frase**, non il messaggio intero: «Attenzione:» in testa e «se è quello che
+ * vuoi, conferma» in coda li mette chi chiama, perché gli avvisi della matita sono due e quando
+ * capitano insieme si chiedono in una domanda sola — con due `if` separati sullo stesso `conferma`,
+ * confermare il primo zittiva il secondo.
  */
 export function fraseSovrapposizione(
   sovrapposti: readonly Sovrapposizione[],
@@ -116,9 +136,9 @@ export function fraseSovrapposizione(
       : `«${primo.nome}» sta erogando${primo.fine ? ` fino al ${gg(primo.fine)}` : ' e non ha una scadenza'}`;
   const coda = altri > 0 ? ` (e altri ${altri})` : '';
   return (
-    `Attenzione: ${chi}${coda}. Portando «${nomeSpostato}» dal ${gg(nuovoInizio)} al ${gg(nuovaFine)} ` +
+    `${chi}${coda}. Portando «${nomeSpostato}» dal ${gg(nuovoInizio)} al ${gg(nuovaFine)} ` +
     'la cliente avrà due piani attivi insieme: i menu glieli darà uno solo dei due (quello che finisce ' +
-    'più tardi) e i giorni dell\'altro scorreranno senza che riceva niente. Se è quello che vuoi, ' +
-    'conferma; altrimenti annulla prima il piano che non serve.'
+    'più tardi) e i giorni dell\'altro scorreranno senza che riceva niente. Se non è voluto, annulla ' +
+    'prima il piano che non serve.'
   );
 }

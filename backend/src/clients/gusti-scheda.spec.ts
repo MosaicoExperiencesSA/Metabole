@@ -14,14 +14,17 @@
  */
 import { ClientsService } from './clients.service';
 
-function servizio() {
+function servizio(attuali: { dislikedFoods?: string[]; intolerances?: string[] } = {}) {
   const prisma = {
     user: {
       findUnique: jest.fn().mockResolvedValue({ id: 'u1', role: 'client' }),
       update: jest.fn().mockReturnValue({ op: 'user.update' }),
     },
     clientProfile: {
-      findUnique: jest.fn().mockResolvedValue({ dislikedFoods: [], intolerances: [] }),
+      findUnique: jest.fn().mockResolvedValue({
+        dislikedFoods: attuali.dislikedFoods ?? [],
+        intolerances: attuali.intolerances ?? [],
+      }),
       upsert: jest.fn().mockReturnValue({ op: 'profile.upsert' }),
     },
     rolePagePermission: { findUnique: jest.fn().mockResolvedValue({ canManage: true }) },
@@ -72,7 +75,7 @@ describe('updateClient — i cibi non graditi si ripuliscono in scrittura', () =
   });
 
   it('una lista svuotata di proposito resta svuotata: togliere tutte le esclusioni è un gesto legittimo', async () => {
-    const { s, prisma } = servizio();
+    const { s, prisma } = servizio({ dislikedFoods: ['funghi'] });
     await s.updateClient('u1', 'admin', { dislikedFoods: [] } as never);
     expect(scritto(prisma).dislikedFoods).toEqual([]);
   });
@@ -101,5 +104,49 @@ describe('updateClient — le intolleranze non salvano i non-alimenti', () => {
     const { s, prisma } = servizio();
     await s.updateClient('u1', 'admin', { intolerances: ['pepe'] } as never);
     expect(scritto(prisma).intolerances).toEqual(['pepe']);
+  });
+});
+
+/**
+ * ⚠️ QUELLO CHE LA REVISIONE HA TROVATO (17/8 sera) — e che è peggio del difetto che si chiudeva.
+ *
+ * Il form della scheda rimanda TUTTI i campi a ogni salvataggio. Con la pulizia applicata sempre,
+ * una coach che correggeva un numero di telefono riscriveva i campi clinici di una cliente, e il
+ * log modifiche lo attribuiva a lei. La pulizia vale solo su quello che è stato davvero toccato —
+ * la stessa regola di `allergies` e `fastingWindow`.
+ */
+describe('updateClient — la pulizia NON tocca i campi che nessuno ha modificato', () => {
+  it('⚠️ risalvando la scheda con le stesse liste sporche, quelle liste NON si riscrivono', async () => {
+    const { s, prisma } = servizio({ dislikedFoods: ['Carne .ceci'], intolerances: ['altro', 'lattosio'] });
+    await s.updateClient('u1', 'admin', {
+      phone: '123',
+      dislikedFoods: ['Carne .ceci'],
+      intolerances: ['altro', 'lattosio'],
+    } as never);
+    // Nessuna delle due liste finisce nell'upsert: nessuno le ha toccate.
+    const update = prisma.clientProfile.upsert.mock.calls[0]?.[0]?.update ?? {};
+    expect(update.dislikedFoods).toBeUndefined();
+    expect(update.intolerances).toBeUndefined();
+  });
+
+  it('ma se la tocca davvero, la pulizia scatta', async () => {
+    const { s, prisma } = servizio({ dislikedFoods: ['Carne .ceci'] });
+    await s.updateClient('u1', 'admin', { dislikedFoods: ['Carne .ceci', 'pepe, funghi'] } as never);
+    expect(scritto(prisma).dislikedFoods).toEqual(['Carne', 'ceci', 'funghi']);
+  });
+
+  it('⚠️ l\'avviso arriva anche quando la lista finisce identica a com\'era: la sua riga non è passata lo stesso', async () => {
+    const { s, prisma } = servizio({ dislikedFoods: ['ceci'] });
+    const r = await s.updateClient('u1', 'admin', { dislikedFoods: ['pepe, ceci'] } as never);
+    expect((r as { avvisiSpezie?: { termine: string }[] }).avvisiSpezie?.map((a) => a.termine)).toEqual(['pepe']);
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled(); // niente da riscrivere
+  });
+
+  it('⚠️ `null` non arriva a Prisma: la colonna è `String[]` e sarebbe un 500', async () => {
+    const { s, prisma } = servizio({ dislikedFoods: ['funghi'] });
+    await s.updateClient('u1', 'admin', { dislikedFoods: null, intolerances: null, phone: '123' } as never);
+    const update = prisma.clientProfile.upsert.mock.calls[0]?.[0]?.update ?? {};
+    expect(update.dislikedFoods).toBeUndefined();
+    expect(update.intolerances).toBeUndefined();
   });
 });
