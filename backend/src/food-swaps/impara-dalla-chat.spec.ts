@@ -178,3 +178,37 @@ describe('daScartare', () => {
     expect(daScartare('Sostituisci il pane della nonna con le gallette')).toBe(false);
   });
 });
+
+/**
+ * I REFUSI SUL VERBO — segnalazione di Simone, 17/8.
+ *
+ * Ha scritto «a jolanda **sostitusci** ceci con fagioli» e Vera ha risposto «non ci arrivo». Con la
+ * parola scritta giusta la stessa frase veniva capita: a farla cadere è stata **una lettera**.
+ *
+ * ⚠️ Chi detta a un assistente scrive di corsa. Un riconoscitore che pretende l'ortografia perfetta
+ * del verbo non sta chiedendo precisione: sta chiedendo di essere trattato come un modulo, e la
+ * persona dall'altra parte impara che «non funziona» invece che «ho sbagliato a scrivere».
+ *
+ * ⚠️ Ma la radice si ferma prima di `sostituzione`: «la sostituzione di X con Y» è un RESOCONTO, non
+ * un ordine, e leggerlo come istruzione vorrebbe dire scrivere nel piatto di qualcuno una cosa che
+ * nessuno ha chiesto adesso.
+ */
+describe('sostituzioniNelMessaggio — i refusi sul verbo', () => {
+  it('«sostitusci» (la i mangiata) si capisce', () => {
+    expect(sostituzioniNelMessaggio('sostitusci i ceci con i fagioli')).toMatchObject([{ from: 'ceci', to: 'fagioli' }]);
+  });
+
+  it('«sostituisi» (la c mangiata) si capisce', () => {
+    expect(sostituzioniNelMessaggio('sostituisi i ceci con i fagioli')).toMatchObject([{ from: 'ceci', to: 'fagioli' }]);
+  });
+
+  it('le forme giuste continuano a valere', () => {
+    for (const v of ['sostituisci', 'sostituire', 'sostituiscilo']) {
+      expect(sostituzioniNelMessaggio(`${v} i ceci con i fagioli`)).toMatchObject([{ from: 'ceci', to: 'fagioli' }]);
+    }
+  });
+
+  it('⚠️ «la sostituzione di X con Y» NON è un ordine: è un resoconto', () => {
+    expect(sostituzioniNelMessaggio('la sostituzione dei ceci con i fagioli è andata bene')).toEqual([]);
+  });
+});

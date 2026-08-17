@@ -164,7 +164,20 @@ const proposizioni = (testo: string): string[] =>
  * L'ordine è quello naturale: prima chi parte, poi chi arriva.
  */
 const IN_AVANTI = [
-  /\bsostituis?c?[aeiou]*\w*\s+(.+?)\s+con\s+(.+)/i,
+  /**
+   * ⚠️ LA RADICE TOLLERA I REFUSI, MA SI FERMA PRIMA DI «SOSTITUZIONE» (Simone, 17/8).
+   *
+   * «a jolanda **sostitusci** ceci con fagioli» tornava `null`, e Vera rispondeva «non ci arrivo»:
+   * con la parola scritta giusta la stessa frase veniva capita, a farla cadere era **una lettera**.
+   * Chi detta a un assistente scrive di corsa, e un riconoscitore che pretende l'ortografia perfetta
+   * del verbo insegna alla persona che «non funziona» invece che «ho sbattuto un tasto».
+   *
+   * Le desinenze ammesse — `isc`, `sc`, `is`, `ir`, `ic` — coprono l'imperativo, l'infinito e le due
+   * lettere che si mangiano più spesso. **Non** coprono `sostituzione`: «la sostituzione di X con Y
+   * è andata bene» è un RESOCONTO, e leggerlo come ordine vorrebbe dire scrivere nel piatto di
+   * qualcuno una cosa che nessuno ha chiesto adesso.
+   */
+  /\bsostitu(?:isc|sc|is|ir|ic)\w*\s+(.+?)\s+con\s+(.+)/i,
   /\bsostituire\s+(.+?)\s+con\s+(.+)/i,
   /\bcambi[aei]\w*\s+(.+?)\s+con\s+(.+)/i,
   /\brimpiazz\w+\s+(.+?)\s+con\s+(.+)/i,

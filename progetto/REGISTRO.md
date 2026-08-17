@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` ✏️ **«sostitusci»: Vera cadeva su una lettera.** «a jolanda **sostitusci** ceci con
+  fagioli o lenticchie» → «Non ci arrivo». Passata la frase dentro `capisci` prima di toccare
+  qualcosa: non era il nome minuscolo e non era «o lenticchie» — era il refuso sul verbo, e con la
+  parola scritta giusta la frase veniva capita. La radice ora tollera le due lettere che si mangiano
+  più spesso, ⚠️ e si ferma prima di «sostituzione»: «la sostituzione di X con Y è andata bene» è un
+  **resoconto**, e leggerlo come ordine vorrebbe dire scrivere nel piatto di qualcuno una cosa che
+  nessuno ha chiesto adesso. ⚠️ Il modulo è condiviso con Gaia, quindi la tolleranza vale anche per
+  le clienti — che di refusi ne fanno di più, non di meno. **E la cosa che conta di più non è una
+  riga di codice**: oggi Vera si è rotta tre volte e tre volte ho aggiunto un'espressione regolare.
+  Le frasi vere sono infinite e le forme scritte a mano no, e chi sta dall'altra parte non impara «ho
+  sbattuto un tasto» — impara «non funziona». La proposta è in
+  `progetto/NOTA_Vera_Seconda_Lettura.md`: quando `capisci` torna `null`, il modello **riscrive** la
+  frase e la si rilegge col riconoscitore deterministico. Il modello non vede i dati, non tocca il
+  database e non decide: traduce. Serve un sì o un no.
+
 - `[Sviluppo]` 🔴 **CI rossa: provider mancante nel test del cron.** Aggiungendo `EngineRulesService`
   al costruttore di `CronController` non l'ho messo fra i provider del suo TestingModule, che li
   elenca a mano: `nest build` passava, cadevano i 5 test di `cron.controller.spec.ts`. ⚠️ Non l'ho
