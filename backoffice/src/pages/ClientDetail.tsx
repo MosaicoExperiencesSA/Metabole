@@ -47,7 +47,9 @@ interface Detail {
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
   /** Tutti i piani del cliente (recenti prima): serve per aprire i menu di un piano finito. */
-  subscriptions?: { id: string; status: string; startDate: string | null; endDate: string | null; planName: string | null }[];
+  /** ⚠️ `inCorso`/`inCoda` li decide il backend (`commerce/abbonamento-in-corso.ts`): qui non si
+   *  ricalcolano, altrimenti sarebbero un'altra definizione di «chi sta erogando». */
+  subscriptions?: { id: string; status: string; startDate: string | null; endDate: string | null; planName: string | null; inCorso?: boolean; inCoda?: boolean }[];
   hasActivePlan?: boolean;
   /** Piano fermato dal nutrizionista: da quando, perché e da chi. Null quando il piano è normale. */
   pianoFermato: { dal: string; motivo: string | null; daId: string | null; da: string | null } | null;
@@ -147,6 +149,12 @@ function pianiPerMenu(d: Detail): {
   status: string;
   planName: string | null;
   startDate: string | null;
+  /** ⚠️ La fine VERA del piano, o null. Non è `periodo.to`, che quando la fine manca diventa
+   *  «oggi + 7 giorni» per la finestra dei menu: scritta in pastiglia sarebbe una data inventata. */
+  endDate: string | null;
+  /** Dal backend: sta erogando oggi / è in coda dietro a un altro piano. */
+  inCorso: boolean;
+  inCoda: boolean;
   principale: boolean;
   periodo?: { from: string; to: string; etichetta: string };
 }[] {
@@ -187,6 +195,9 @@ function pianiPerMenu(d: Detail): {
       status: String(s.status ?? ''),
       planName: s.planName ?? null,
       startDate: giorno(s.startDate),
+      endDate: giorno(s.endDate),
+      inCorso: !!(s as { inCorso?: boolean }).inCorso,
+      inCoda: !!(s as { inCoda?: boolean }).inCoda,
       principale: String(s.id) === String(idPrincipale),
       periodo: from ? { from, to, etichetta: `${s.planName ?? 'Piano'} · ${date(from)} → ${date(to)}` } : undefined,
     };
@@ -658,6 +669,10 @@ export function ClientDetail() {
   const canFixMeasures = can('fix_measures', 'manage');
   // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
   const canChangePlanStart = can('change_plan_start', 'manage');
+  // Annullamento di un abbonamento: permesso suo, di default solo admin (17/8). Prima era
+  // `isAdmin`, che in questa pagina vuol dire «vede la pagina Permessi» — e teneva il × nascosto
+  // proprio a chi gestisce i piani, il capo nutrizionista.
+  const canCancelSubscription = can('cancel_subscription', 'manage');
   // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
   const puoAllergie = can('change_allergies', 'manage');
   // Il via libera clinico: lo dà chi ha «Idoneità a proseguire» (13/8).
@@ -1917,15 +1932,33 @@ export function ClientDetail() {
                   opacity: s.principale ? 1 : 0.8,
                 }}
               >
-                {s.planName ?? 'Piano'} · {lab('subStatus', s.status)}
-                {s.startDate && <span className="muted" style={{ marginLeft: 4 }}>{date(s.startDate)}</span>}
+                {/* ⚠️ DUE PIANI ATTIVI ERANO DUE PASTIGLIE IDENTICHE: «Piano · Attivo» più la data
+                    d'inizio, e chi apriva la scheda non poteva sapere quale dei due stesse dando i
+                    menu oggi — è il buco da cui è passato il caso Polidoro. Ora quello in coda lo
+                    dice, e la data mostrata è quella che serve a distinguerli: chi eroga si legge
+                    per la FINE (fino a quando arrivano i menu), chi è in coda per l'INIZIO (da
+                    quando partirà). ⚠️ `inCorso`/`inCoda` arrivano dal backend, che li calcola con
+                    la funzione che usa anche il motore: qui non si ridecide niente. */}
+                {s.planName ?? 'Piano'} · {s.inCoda ? 'In coda' : lab('subStatus', s.status)}
+                {(() => {
+                  // ⚠️ Solo date VERE: se la fine non c'è si scrive che non c'è, non si inventa.
+                  const quando = s.inCoda
+                    ? (s.startDate ? `dal ${date(s.startDate)}` : null)
+                    : s.inCorso
+                      ? (s.endDate ? `fino al ${date(s.endDate)}` : 'senza scadenza')
+                      : (s.startDate ? date(s.startDate) : null);
+                  return quando ? <span className="muted" style={{ marginLeft: 4 }}>{quando}</span> : null;
+                })()}
                 <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
               </button>
               {/* ⚠️ Fuori dalla pastiglia e non dentro: un pulsante dentro un pulsante non è HTML
                   valido, e il click finirebbe sul contenitore aprendo i menu invece di annullare.
-                  Solo admin, e solo sui piani che si possono ancora annullare — su uno già annullato
-                  o scaduto non c'è niente da fare, e mostrarlo lo stesso è un invito a un errore. */}
-              {isAdmin && s.status !== 'cancelled' && s.status !== 'expired' && (
+                  Solo sui piani che si possono ancora annullare — su uno già annullato o scaduto non
+                  c'è niente da fare, e mostrarlo lo stesso è un invito a un errore.
+                  ⚠️ Il permesso è `cancel_subscription` e NON `isAdmin`, che qui voleva dire «vede la
+                  pagina Permessi»: dall'utenza del capo nutrizionista — che è chi gestisce i piani
+                  ogni giorno — il × non si vedeva, e l'unica strada era entrare come admin. */}
+              {canCancelSubscription && s.status !== 'cancelled' && s.status !== 'expired' && (
                 <button
                   className="btn ghost sm"
                   onClick={() => void annullaAbbonamento(s.id, s.planName ?? 'piano')}

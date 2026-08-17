@@ -79,6 +79,7 @@ export const PAGE_LABEL: Record<string, string> = {
   change_fasting_window: 'Cambia i pasti del digiuno',
   set_client_password: 'Imposta password cliente',
   impersonate: 'Entra come cliente (sola lettura)',
+  cancel_subscription: 'Annulla un abbonamento (× sulla pastiglia del piano)',
   dev_backlog: 'Lavori (elenco e storico)',
 };
 

@@ -144,6 +144,19 @@ export const BACKOFFICE_PAGES = [
   // controllo. La guardia che legge questa chiave è su `POST /admin/impersonate`.
   'impersonate',
   /**
+   * ANNULLARE UN ABBONAMENTO dalla scheda cliente (il × sulla pastiglia del piano).
+   *
+   * ⚠️ È nato `@Roles('admin')` il 17/8, «come lo storno e la cancellazione di un acquisto, che sono
+   * i suoi vicini di casa per gravità». La gravità è giusta, il cancello no: chi gestisce i piani
+   * ogni giorno è il **capo nutrizionista**, e dalla sua utenza il pulsante non si vedeva nemmeno.
+   * Con `@Roles` fisso l'unica strada era entrare come admin — cioè fare la cosa grave con l'utenza
+   * sbagliata, e nel registro resta scritto «admin» invece del nome di chi ha deciso.
+   *
+   * Flag suo e non dentro `purchases`: annullare un piano non è vendere né stornare. **Di default
+   * resta solo l'admin**: gli altri li abilita Simone dalla tabella dei permessi, senza un rilascio.
+   */
+  'cancel_subscription',
+  /**
    * LA PAGINA «LAVORI» — l'elenco di cosa manca, con la spunta (13/8, richiesta di Simone).
    *
    * ⚠️ Chiave della matrice e non `@Roles('admin')` scritto nel codice, per la ragione raccontata in
@@ -364,6 +377,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // Solo admin di default. Entrare nell'account di una cliente vuol dire vedere i suoi dati
     // sanitari: si concede a mano, a chi serve, dalla tabella dei permessi.
     impersonate: { view: true, manage: true },
+    // Annullare un abbonamento: di default solo admin. Il capo nutrizionista lo abilita Simone
+    // dalla tabella, ed è il motivo per cui questa chiave esiste (prima era `@Roles('admin')`).
+    cancel_subscription: { view: true, manage: true },
     // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
     dev_backlog: { view: true, manage: true },
   },

@@ -1016,14 +1016,22 @@ export class AdminShopController {
  * avrebbe fatto sembrare l'annullamento una variante dello storno, che è esattamente la confusione
  * da evitare — quello tocca i soldi, questo tocca il piano.
  *
- * `@Roles('admin')` come lo storno e la cancellazione di un acquisto, che sono i suoi vicini di
- * casa per gravità: togliere il piano a una persona è una cosa che si fa raramente e di proposito.
+ * ⚠️ Era `@Roles('admin')`, «come lo storno e la cancellazione di un acquisto, che sono i suoi vicini
+ * di casa per gravità». La gravità è giusta, il cancello no: chi gestisce i piani ogni giorno è il
+ * **capo nutrizionista**, e dalla sua utenza il pulsante × non si vedeva nemmeno. Con `@Roles` fisso
+ * l'unica strada era entrare come admin — cioè fare la cosa grave con l'utenza sbagliata, e nel
+ * registro dell'annullamento sarebbe rimasto scritto «admin» invece del nome di chi ha deciso.
+ *
+ * Ora la chiave della matrice, `cancel_subscription`: **di default solo admin**, gli altri li abilita
+ * Simone dalla tabella dei permessi, senza un rilascio. È lo stesso passaggio fatto l'11/8 per
+ * «Entra come» (`impersonate`), per la ragione scritta in testa a `permissions/pages.ts` — un
+ * pulsante governato dal codice è un pulsante che non si può dare a chi serve.
  */
 @Controller('admin/subscriptions')
 export class AdminSubscriptionsController {
   constructor(private readonly commerce: CommerceService) {}
 
-  @Roles('admin')
+  @RequirePage('cancel_subscription', 'manage')
   @HttpCode(200)
   @Post(':id/cancel')
   cancel(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: CancelSubscriptionDto) {

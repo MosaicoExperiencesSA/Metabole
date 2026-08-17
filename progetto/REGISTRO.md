@@ -20,6 +20,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🔑 **Il × per annullare un piano non si vedeva dal capo nutrizionista.** Voce 261. Il
+  pulsante è nato stamattina con `@Roles('admin')`, «come lo storno e la cancellazione di un acquisto,
+  che sono i suoi vicini di casa per gravità». La gravità era giusta, **il cancello no**: chi gestisce i
+  piani ogni giorno è il capo nutrizionista, e dalla sua utenza il × non compariva nemmeno. ⚠️ L'unica
+  strada era **entrare come admin** — cioè fare la cosa grave con l'utenza sbagliata, e nel registro
+  dell'annullamento resta scritto «admin» invece del nome di chi ha deciso. Ora la rotta chiede la
+  chiave della matrice `cancel_subscription` in gestione (`@RequirePage`), **di default solo admin**:
+  gli altri li abilita Simone dalla tabella dei permessi, senza un rilascio. È lo stesso passaggio
+  fatto l'11/8 per «Entra come». ⚠️ **E il difetto non era solo nel backend**: nella pagina il pulsante
+  era legato a `isAdmin`, che lì vuol dire «vede la pagina Permessi» (`can('permissions')`) e non «è
+  admin» — cambiare la rotta e basta non l'avrebbe fatto comparire a nessuno. `isAdmin` non è stato
+  toccato: gatezza altre cinque cose. ⚠️ Il permesso nasce con `view: true` e non solo `manage`, perché
+  `getForRole` filtra su `canView` e un `manage` senza `view` non arriverebbe mai al frontend. 5 test
+  **sui decoratori**, che è l'unico posto dove «chi può bussare» si vede senza avviare l'applicazione.
+
+- `[Sviluppo]` 🎟️ **Due piani attivi erano due pastiglie identiche: ora dicono chi eroga e chi è in
+  coda.** Voce 262, l'ultimo pezzo **visibile** del caso Polidoro. Le pastiglie dei piani scrivevano
+  tutte «Piano · Attivo» più la **data d'inizio**: con due righe attive erano indistinguibili, e
+  l'unica differenza stava nel tooltip — che a sua volta può mostrare un «+7 giorni» calcolato per la
+  finestra dei menu, non una fine vera. Ora `getDetail` manda per ogni abbonamento `inCorso` e
+  `inCoda`, e la pastiglia dice **«In coda · dal 25/08»** oppure **«Attivo · fino al 25/08»**. ⚠️ La
+  data mostrata cambia perché è quella che serve a distinguerli: di chi eroga interessa **fino a
+  quando** arrivano i menu, della coda **da quando** partirà. ⚠️ **Il giudizio non è stato riscritto
+  nel browser**: `staErogando`/`eInCoda` stanno in `commerce/abbonamento-in-corso.ts` e le usano già
+  motore, pause, coach e `pickMainSubscription` — ricalcolarle nella pagina sarebbe stata la quinta
+  definizione di «chi sta erogando», e oggi due definizioni della stessa domanda sono divergite nello
+  spazio di un'ora. ⚠️ La fine si scrive **solo se esiste** (senza scadenza la pastiglia lo dice), e
+  non si riusa `periodo.to`, che quando la fine manca è un «+7 giorni» inventato per un'altra cosa.
+  ⚠️ `abbonamentoInCoda`, scritta stamattina, non aveva ancora nessun chiamante: il commento in testa
+  alla funzione descriveva letteralmente questa pastiglia. 4 test sul contratto che il DTO consuma —
+  compreso l'`active` con la fine passata (cron di scadenza in ritardo), che **non** risulta in corso:
+  la pastiglia non promette menu che non arrivano. ⛔ Restano senza test il DTO di `getDetail` (non ha
+  spec) e tutto il frontend (il backoffice non ha infrastruttura di test): va detto, non nascosto.
+  Backend 3078 test in 200 suite, backoffice `npm run build` (tsc + vite) verde. Nessuna migrazione.
+
 - `[Sviluppo]` 📉 **Una giornata sotto il fabbisogno usciva identica a una giusta: ora lo dice.**
   Consegna 1 del foglio delle porzioni, quella che non aspetta nessuna decisione. Voce 260.
   `menu_kcal_balance_tolerance_pct` c'era già dal principio, ma era usata come **filtro** e non come

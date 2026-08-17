@@ -17,6 +17,8 @@ import { scostamentoDieta } from './scostamento-dieta';
 import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
 import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
+// Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
+import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
@@ -454,6 +456,18 @@ export class ClientsService {
         startDate: s.startDate,
         endDate: s.endDate,
         planName: s.plan?.name ?? null,
+        /**
+         * ⚠️ CHI EROGA OGGI E CHI È IN CODA LO DICE IL BACKEND, non la scheda.
+         *
+         * Due piani `active` producevano due pastiglie **identiche** («Piano · Attivo» più la data
+         * d'inizio), e chi apriva la scheda non aveva modo di sapere quale dei due stia dando i menu
+         * oggi: è il buco da cui è passato il caso Polidoro. Il giudizio esiste già in una funzione
+         * sola (`commerce/abbonamento-in-corso.ts`) e la usano il motore, le pause e la coach —
+         * riscriverlo in TypeScript dentro il browser sarebbe la quinta definizione della stessa
+         * domanda, e ieri due definizioni sono divergite nello spazio di un'ora.
+         */
+        inCorso: staErogando(s),
+        inCoda: eInCoda(s),
       })),
       hasActivePlan,
       /**

@@ -1,0 +1,82 @@
+Il × dell'annullamento non si vedeva dal capo nutrizionista, e due piani attivi erano due pastiglie identiche
+
+Le due code piccole del caso Polidoro, quelle rimaste in §3.5 dell'handoff della sera. Voci 261 e 262.
+
+═══ 1. IL PERMESSO DELL'ANNULLAMENTO (voce 261)
+
+Il pulsante × e' nato ieri con `@Roles('admin')`, «come lo storno e la cancellazione di un acquisto,
+che sono i suoi vicini di casa per gravita'». La gravita' era giusta, IL CANCELLO NO: chi gestisce i
+piani ogni giorno e' il capo nutrizionista, e dalla sua utenza il × non compariva nemmeno.
+⚠️ L'unica strada era entrare come admin — cioe' fare la cosa grave con l'utenza sbagliata, e nel
+registro dell'annullamento resta scritto «admin» invece del nome di chi ha deciso.
+
+Ora `POST /admin/subscriptions/:id/cancel` chiede la chiave della matrice `cancel_subscription` in
+gestione (`@RequirePage`), **di default solo admin**: gli altri li abilita Simone dalla tabella dei
+permessi, senza un rilascio. E' lo stesso passaggio fatto l'11/8 per «Entra come» (`impersonate`), e
+la ragione e' quella scritta in testa a `permissions/pages.ts` — un pulsante governato dal codice e'
+un pulsante che non si puo' dare a chi serve.
+
+⚠️ NEL BACKOFFICE IL PULSANTE ERA LEGATO A `isAdmin`, che in quella pagina vuol dire «vede la pagina
+Permessi» e NON «e' admin» (`const isAdmin = can('permissions')`): cambiare solo il backend non
+l'avrebbe fatto comparire a nessuno. Aggiunta una costante sua, `canCancelSubscription`, e `isAdmin`
+NON e' stato toccato — gatezza altre cinque cose in quella pagina.
+⚠️ Il permesso nasce con `view: true` e non solo `manage`: `permissions.service.getForRole` filtra su
+`canView`, quindi una chiave con `manage` e senza `view` non arriverebbe MAI al frontend. Lo stesso
+default di `change_plan_start`.
+⚠️ Nessuna riga di permessi da scrivere a mano: `permissions.service.onModuleInit` → `syncDefaults`
+crea all'avvio le righe mancanti, anche per i ruoli personalizzati.
+
+═══ 2. LE DUE PASTIGLIE (voce 262)
+
+In scheda cliente le pastiglie dei piani scrivevano tutte «Piano · Attivo» piu' la DATA D'INIZIO: con
+due righe attive erano indistinguibili, e l'unica differenza stava nel tooltip — che a sua volta puo'
+mostrare un «+7 giorni» calcolato per la finestra dei menu, non una fine vera. E' l'ultimo pezzo
+VISIBILE del caso Polidoro: la scheda non diceva quale dei due piani stesse dando i menu oggi.
+
+Ora `getDetail` manda per ogni abbonamento `inCorso` e `inCoda`, e la pastiglia dice
+**«In coda · dal 25/08»** oppure **«Attivo · fino al 25/08»**.
+
+⚠️ LA DATA MOSTRATA CAMBIA PERCHE' E' QUELLA CHE SERVE A DISTINGUERLI: di chi eroga interessa FINO A
+QUANDO arrivano i menu, della coda DA QUANDO partira'.
+⚠️ IL GIUDIZIO NON E' STATO RISCRITTO NEL BROWSER. `staErogando`/`eInCoda` stanno in
+`commerce/abbonamento-in-corso.ts` e le usano gia' motore, pause, coach e `pickMainSubscription`:
+ricalcolarle in TypeScript lato pagina sarebbe stata la quinta definizione di «chi sta erogando», e
+ieri due definizioni della stessa domanda sono divergite nello spazio di un'ora (motore vs
+`diag:digiuni` su Maria). Il corollario del §5 dell'handoff: se due punti rispondono alla stessa
+domanda, uno dei due deve chiamare l'altro.
+⚠️ LA FINE SI SCRIVE SOLO SE ESISTE: senza scadenza la pastiglia dice «senza scadenza». E NON si
+riusa `periodo.to`, che quando `endDate` manca diventa «oggi + 7 giorni» per la finestra dei menu e
+in pastiglia sarebbe una data inventata.
+⚠️ `abbonamentoInCoda` era scritto ieri e non aveva ancora nessun chiamante in produzione: il
+commento in testa alla funzione descriveva LETTERALMENTE questa pastiglia. Ora la coda la dice
+`eInCoda` riga per riga, che e' la stessa regola sul singolo abbonamento.
+
+═══ TEST — 9 nuovi
+
+· 5 SUI DECORATORI (`commerce/guardia-annullamento.spec.ts`): la chiave esiste fra le pagine del
+  backoffice, la rotta chiede `cancel_subscription` in `manage` ESPLICITO (non dedotto dal verbo
+  HTTP), NON resta appeso a `@Roles`, di default lo ha solo l'admin, e nasce con `view: true`.
+  E' l'unico posto dove «chi puo' bussare» si vede senza avviare l'applicazione — la lezione di
+  `chat/guardie-rotte.spec.ts`, dove una decisione implementata nel servizio moriva su un guardiano
+  che nessun test leggeva.
+· 4 SUL CONTRATTO CHE IL DTO CONSUMA (`commerce/abbonamento-in-corso.spec.ts`): sulla stessa lista i
+  due flag non possono essere veri insieme, un `cancelled`/`expired`/`pending` non e' ne' in corso ne'
+  in coda, un `active` con la fine PASSATA (cron di scadenza in ritardo) non risulta in corso — la
+  pastiglia non promette menu che non arrivano — e un piano senza fine ha `inCorso` vero.
+
+⛔ QUELLO CHE RESTA SENZA TEST, e va detto: il DTO di `getDetail` (nessuno spec lo copre, ne' per
+`subscriptions` ne' per `hasActivePlan`) e tutto il frontend — `backoffice/package.json` non ha uno
+script `test` e non esiste nessun `*.spec.*` sotto `backoffice/src`.
+
+FILE:
+- backend/src/permissions/pages.ts — chiave `cancel_subscription` + default solo admin.
+- backend/src/commerce/commerce.controller.ts — `@Roles('admin')` → `@RequirePage`.
+- backend/src/commerce/guardia-annullamento.spec.ts — 5 test.
+- backend/src/commerce/abbonamento-in-corso.spec.ts — 4 test.
+- backend/src/clients/clients.service.ts — `inCorso`/`inCoda` nel DTO degli abbonamenti.
+- backoffice/src/lib/labels.ts — l'etichetta del permesso in pagina Permessi.
+- backoffice/src/pages/ClientDetail.tsx — `canCancelSubscription`, e la pastiglia che dice la coda.
+- backend/src/lavori/voci-iniziali.ts — voci 261 e 262, spuntate.
+
+NESSUNA MIGRAZIONE. Verificato in sandbox: backend `nest build` verde e **3078 test in 200 suite**
+(prima 3069 in 199), backoffice `npm run build` (tsc + vite) verde.
