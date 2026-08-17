@@ -178,3 +178,73 @@ riempibili subito e quante richiedono l'AI. È un numero che oggi non abbiamo.
 - le famiglie mostrate alla cliente si deduplicano per nome (`catalog.service.ts:1332`), quindi
   aggiungere varianti **non** aggiunge prodotti nel Negozio;
 - niente migrazioni.
+
+---
+
+# I numeri veri (letti in banca dati il 17/8)
+
+Questa sezione sostituisce le stime della parte sopra: `npm run diag:digiuni` e `npm run diag:settimane`
+girati su produzione.
+
+## I digiuni: 7 clienti, 1 rotta
+
+|   | finestra | esito |
+|---|---|---|
+| 5 | salta la colazione | ✔ pasti giusti, kcal giuste |
+| 1 | **salta la cena** — Sonia, `s.sandri66@libero.it` | ✘ **riceve il solo pranzo** |
+| 1 | finestra **non impostata** — Maria, `mariabonaccorso@hotmail.it` | non è rotta: nessuno gliel'ha chiesta |
+
+⚠️ Maria era un falso positivo del mio script: senza finestra, «dovrebbe ricevere tutti e cinque i
+pasti» è una frase che ho scritto io, non una promessa fatta a lei. Riceve il 16:8 classico, che è il
+default sensato. Il suo problema è che la domanda non le è mai stata fatta.
+
+Quindi la strada **B** della sezione sopra (una variante per finestra, ~30 varianti a famiglia) è
+sproporzionata: le finestre davvero usate sono due, e una sola è rotta.
+
+## Le varianti: il catalogo è enorme e quasi tutto inutilizzato
+
+- **306 diete in catalogo.** 101 a posto, 205 da rifare.
+- **Le varianti con qualcuno sopra sono 16, per 25 clienti in tutto.**
+- Quelle 16 stanno in **12 gruppi di ricette** (nome + stile + regime + obiettivo), e dentro un
+  gruppo le tre strutture pasti condividono le ricette: **si genera 12 volte, non 16**.
+
+| gruppo da rigenerare | clienti |
+|---|---|
+| Flexitariana · omnivore · dimagrimento | **11** |
+| Pescetariana · omnivore · dimagrimento | 3 |
+| Keto (non terapeutica) · omnivore · dimagrimento | 2 |
+| Mediterranea · omnivore · dimagrimento | 1 |
+| Mediterranea · vegetarian · dimagrimento | 1 |
+| Pescetariana · vegetarian · dimagrimento | 1 |
+| Keto-Mediterranea · omnivore · dimagrimento | 1 |
+| Low carb · omnivore · dimagrimento | 1 |
+| Proteica · omnivore · dimagrimento | 1 |
+| Vacanze in Serenità · omnivore · dimagrimento | 1 |
+| Vegana · vegan · dimagrimento | 1 |
+| Digiuno intermittente (16:8) · omnivore · dimagrimento | 1 |
+
+⚠️ **Tutti e dodici sono `dimagrimento`, e undici su dodici sono `omnivore`.** Metà della griglia dei
+18 — l'intera colonna `mantenimento`, e quasi tutto il vegano e il vegetariano — oggi non serve
+nessuno. Generare «tutte le 18 varianti di tutte le famiglie» vorrebbe dire pagare ricette nuove per
+290 diete su cui non mangia nessuno.
+
+Il primo gruppo da solo copre **11 clienti su 25**.
+
+## ⚠️ Perché lo script che era stato chiesto non è il lavoro
+
+Le varianti da rigenerare hanno **28 giornate ma 19 ricette diverse per pasto**: sono state fatte col
+metodo vecchio, che ricombinava pochi piatti su tante giornate. Ne servono 7 nuove per pasto per
+settimana.
+
+Aggiungere giornate pescando dalle sorelle non aggiunge un piatto: le sorelle hanno le stesse 19
+ricette. E non cambierebbe nemmeno cosa vede la cliente, perché il motore non serve le giornate del
+catalogo così come sono — ne prende le ricette, fa il pool per pasto e ricompone la giornata a ogni
+erogazione (`dayComboPools`). Le giornate in più sono combinazioni in più **degli stessi piatti**.
+
+Che è, alla lettera, il difetto corretto l'8/8: «il catalogo sembrava pieno (28 giorni) ma i piatti
+erano pochi, e la stessa colazione tornava cinque o sei volte al mese».
+
+**Quello che serve è il generatore del backoffice, su 12 gruppi, in quell'ordine.** Che sei diete
+(Basso indice glicemico, DASH, Detossinante, Mediterranea senza glutine, Flessibile, e le loro
+varianti) siano già a 84 giornate con 84 ricette per pasto dimostra che la strada funziona: è stata
+percorsa per le famiglie sbagliate, cioè quelle senza clienti.

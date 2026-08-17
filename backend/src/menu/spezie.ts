@@ -27,6 +27,8 @@
  *
  * Nest e Prisma non compaiono: gli script di `prisma/` devono poter importare questo file.
  */
+import { spezzaTagAlimenti } from '../common/tag-alimenti';
+
 
 import { EU_ALLERGENS } from '../catalog/allergens';
 
@@ -187,7 +189,17 @@ export function filtraSpezie(termini: (string | null | undefined)[]): {
   const tenuti: string[] = [];
   const avvisi: EsitoSpezia[] = [];
   let genericaGiaDetta = false;
-  for (const raw of termini) {
+  /**
+   * ⚠️ PRIMA SI SPEZZANO LE VOCI CHE CONTENGONO PIÙ ALIMENTI — caso Jolanda Todde, 17/8.
+   *
+   * Il campo è a tag, una voce per alimento, ma in scheda le è arrivata una voce sola:
+   * `"Carne .ceci"`. Da lì in poi non escludeva più niente, perché quella stringa non compare in
+   * nessun piatto. Il lato lettura ormai la recupera (`expandExclusion` prova a spezzare un termine
+   * che non riconosce); qui si evita di scriverla storta, ed è anche il punto in cui **il controllo
+   * sulle spezie comincia a vedere le voci di dentro**: su «pepe, ceci» prima non scattava, perché
+   * classificava la stringa intera.
+   */
+  for (const raw of spezzaTagAlimenti(termini)) {
     const v = (raw ?? '').trim();
     if (!v) continue;
     const esito = classificaSpezia(v);

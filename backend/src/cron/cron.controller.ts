@@ -20,6 +20,7 @@ import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { Public } from '../common/decorators/public.decorator';
 import { EngineService } from '../engine/engine.service';
+import { EngineRulesService } from '../engine-rules/engine-rules.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReportsService } from '../reports/reports.service';
 import { PlanReportService } from '../reports/plan-report.service';
@@ -38,6 +39,7 @@ export class CronController {
   constructor(
     private readonly config: ConfigService,
     private readonly engine: EngineService,
+    private readonly engineRules: EngineRulesService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly leadAssignment: LeadAssignmentService,
@@ -174,4 +176,46 @@ export class CronController {
     this.assertSecret(secret);
     return this.notifications.measuresNudgeTick();
   }
+
+  /**
+   * UNA SETTIMANA DI CATALOGO, PER CHIAMATA — richiesta della nutrizionista, 17/8: «invece di farlo
+   * lei una alla volta col pulsante *genera*, possiamo farli tutti noi fino alla settimana 12, poi
+   * lei piano piano le controlla».
+   *
+   * Sta **fuori** da `daily` di proposito: `daily` è la notte del prodotto — motore, notifiche,
+   * scadenze — e deve restare corta e prevedibile. Questa invece chiama l'AI, costa, e va accesa e
+   * spenta quando serve. Su Render è un Cron Job a parte, ogni pochi minuti; dalla shell è un
+   * `curl` in un ciclo, e si guarda mentre va.
+   *
+   * ⚠️ Un'unità di lavoro per chiamata. Un giro da cinquecento chiamate all'AI che cade a metà
+   * lascia un lavoro di cui nessuno sa il punto; così ogni chiamata finisce, e la successiva
+   * riparte da dove serve — lo stato è il catalogo stesso, non una variabile.
+   *
+   * ⚠️ Si può fermare in qualsiasi momento: basta spegnere il cron. Niente resta a metà, perché
+   * l'unità è la settimana.
+   *
+   * La priorità la decide `prossima-generazione.ts`: prima le famiglie con clienti sopra, dentro un
+   * gruppo prima la variante a 5 pasti (le altre due riusano le sue ricette e non costano una
+   * seconda generazione), e le settimane in ordine — con le settimane **magre** prima di quelle
+   * nuove, perché una settimana magra la sta mangiando qualcuno adesso.
+   */
+  @Public()
+  @HttpCode(200)
+  @Post('genera-catalogo')
+  async generaCatalogo(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    const startedAt = Date.now();
+    try {
+      const esito = await this.engineRules.generaProssimoCatalogo();
+      return { ok: true, ms: Date.now() - startedAt, ...esito };
+    } catch (e) {
+      // ⚠️ Non si rilancia: un cron che risponde 500 su Render diventa un allarme, e qui il caso
+      // normale — l'AI momentaneamente fuori uso — non è un guasto del prodotto. Si dice cos'è
+      // successo e si riproverà al giro dopo. Se è definitivo (credito finito, chiave non valida)
+      // il messaggio lo dice, e va spento il cron invece di lasciarlo sbattere.
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, ms: Date.now() - startedAt, errore: msg };
+    }
+  }
+
 }

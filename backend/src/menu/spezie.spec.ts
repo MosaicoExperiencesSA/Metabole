@@ -102,3 +102,33 @@ describe('filtraSpezie', () => {
     expect(avvisi).toHaveLength(0);
   });
 });
+
+/**
+ * UNA VOCE CHE NE CONTIENE DUE — caso Jolanda Todde, 17/8.
+ *
+ * Il campo del questionario è a tag, una voce per alimento, ma in scheda le è arrivata una voce
+ * sola: `"Carne .ceci"`. Non escludeva niente, perché quella stringa non compare in nessun piatto.
+ * Il taglio sta in `filtraSpezie` perché è **la porta** da cui passano i cibi non graditi prima di
+ * essere salvati, dal questionario e dal profilo dell'app.
+ */
+describe('filtraSpezie — le voci con più alimenti dentro', () => {
+  it('«Carne .ceci» si salva come due voci', () => {
+    expect(filtraSpezie(['Carne .ceci']).tenuti).toEqual(['Carne', 'ceci']);
+  });
+
+  it('⚠️ e adesso il controllo sulle spezie vede anche quello che sta DENTRO la voce', () => {
+    // Prima classificava la stringa intera: «pepe, ceci» non era una spezia riconosciuta, quindi
+    // passava tutta, e l'avviso sul pepe non è mai stato dato a nessuno che scrivesse così.
+    const { tenuti, avvisi } = filtraSpezie(['pepe, ceci']);
+    expect(tenuti).toEqual(['ceci']);
+    expect(avvisi).toHaveLength(1);
+  });
+
+  it('⚠️ un alimento dal nome composto resta intero: non si spezza sugli spazi', () => {
+    expect(filtraSpezie(['frutta a guscio', 'insalata russa']).tenuti).toEqual(['frutta a guscio', 'insalata russa']);
+  });
+
+  it('un elenco già pulito non cambia', () => {
+    expect(filtraSpezie(['funghi', 'ceci']).tenuti).toEqual(['funghi', 'ceci']);
+  });
+});

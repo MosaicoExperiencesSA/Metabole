@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🍳 **Il catalogo si riempie da solo, una settimana per chiamata.** Richiesta della
+  nutrizionista: «invece di farlo lei una alla volta col pulsante *genera*, possiamo farli tutti noi
+  fino alla settimana 12, poi lei piano piano le controlla». `POST /internal/cron/genera-catalogo`,
+  su Render un Cron Job a parte. ⚠️ **Un'unità di lavoro per chiamata**, non un giro che macina
+  tutto: un ciclo da ~500 chiamate all'AI che cade a metà lascia un lavoro di cui nessuno sa il
+  punto, e rilanciarlo rischia di rifare. Qui lo stato **è il catalogo stesso**, quindi si spegne
+  quando si vuole e non resta niente a metà. La priorità sta in un modulo puro (18 test): prima le
+  famiglie con clienti sopra — su 306 diete quelle con qualcuno sopra sono 16 — e dentro un gruppo
+  prima la variante a **5 pasti**, che si finisce tutta prima delle sorelle, perché le altre due
+  riusano le sue ricette e generarle prima vorrebbe dire pagare all'AI piatti che avrebbe regalato.
+  ⚠️ E una settimana **magra** viene prima di una settimana **nuova**: le varianti con clienti hanno
+  28 giornate ma 19 piatti per pasto invece di 28, cioè il conto delle settimane dice «a posto»
+  mentre la cliente vede la stessa colazione cinque volte al mese. ⚠️ Per chi valida non cambia
+  niente: stessa funzione del pulsante, ricette in bozza con gli allergeni da confermare — l'unica
+  cosa che le si toglie è stare lì a premere.
+
+- `[Sviluppo]` 🏷️ **Il tag con due alimenti: adesso non si scrive nemmeno più storto.** Stamattina si
+  è chiusa la metà di **lettura** (`expandExclusion` spezza un termine che non riconosce, e vale
+  subito sulle schede già sporche); questa è quella di **scrittura**. Sta in `filtraSpezie`, che è la
+  porta da cui i cibi non graditi passano prima di essere salvati — questionario e profilo dell'app.
+  ⚠️ Effetto collaterale voluto: adesso il controllo sulle spezie vede anche **dentro** la voce. Su
+  «pepe, ceci» prima non scattava, perché classificava la stringa intera: l'avviso sul pepe non è mai
+  stato dato a chi scriveva così. ⚠️ Non si spezza sugli spazi, ed è la riga che conta di più —
+  «frutta a guscio» diventerebbe «frutta», cioè un danno fatto mentre si crede di star correggendo
+  qualcosa. ⚠️ Una sola definizione dei separatori, in `common/tag-alimenti.ts`, importata da
+  `menu/exclusions.ts`: due elenchi leggermente diversi vorrebbero dire che la scrittura spezza e la
+  lettura no, e nessuno se ne accorgerebbe. 13 test. Resta fuori il backoffice, che scrive
+  `dislikedFoods` senza passare da lì — il lato lettura protegge comunque.
+
 - `[Sviluppo]` 🔎 **`npm run diag:digiuni` — cosa mangia davvero chi ha scelto il digiuno, e cosa
   manca alle 18 varianti.** Sola lettura, non scrive niente. ⚠️ La variante `fasting: true` ha tre
   slot **fissi** (pranzo, merenda, cena): è di fatto la variante «salta la colazione», e nessun campo

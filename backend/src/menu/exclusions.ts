@@ -6,6 +6,8 @@
  * non una misura. Il file non dipende da Nest né da Prisma, quindi è importabile anche dagli
  * script `prisma/` eseguiti con ts-node.
  */
+import { SEPARATORI_ALIMENTI } from '../common/tag-alimenti';
+
 
 // Mappa CATEGORIA generica → parole chiave negli ingredienti. Serve sia per allergie/
 // intolleranze sia per i cibi "non graditi": una categoria generica ("frutta secca",
@@ -166,16 +168,6 @@ const ALIAS: Record<string, string> = {
 function senzaUnderscore(t: string): string {
   return t.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
 }
-
-/**
- * I SEGNI CON CUI UNA PERSONA SEPARA DUE ALIMENTI in un campo che ne aspettava uno.
- *
- * ⚠️ **Non lo spazio.** «Frutta a guscio», «insalata russa», «latte di mandorla» sono un alimento
- * solo: spezzarli sugli spazi trasformerebbe un'esclusione dichiarata in una molto più larga —
- * «frutta a guscio» diventerebbe «frutta», e toglierebbe alla cliente tutta la frutta. Qui stanno
- * soltanto i segni che separano e basta, più la «e» come parola intera.
- */
-const SEPARATORI_ALIMENTI = /\s*(?:[,;./|+&\n]|\s\be\b\s)\s*/;
 
 export function expandExclusion(term: string): string[] {
   const grezzo = (term ?? '').toLowerCase().trim();

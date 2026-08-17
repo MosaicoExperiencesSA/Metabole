@@ -10,6 +10,14 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BASE_RULES, ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
 
+import {
+  prossimaDaGenerare,
+  quantoManca,
+  SETTIMANE_OBIETTIVO,
+  type StrutturaPasti,
+  type VarianteDaRiempire,
+} from './prossima-generazione';
+
 /**
  * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
  * Vedi `generateCatalogFromPreset` per il perché — in breve: chiedere all'AI 140 ricette in un
@@ -1219,4 +1227,155 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
     await this.audit.log({ action: 'engine_rule.proposal.status', actorId, entityType: 'rule_proposal', entityId: id, metadata: { status } });
     return updated;
   }
+
+  // ──────────────────────────────────────────── il catalogo che si riempie da solo (17/8) ─
+
+  /**
+   * UNA SETTIMANA DI CATALOGO, SCELTA DA SOLA — richiesta della nutrizionista girata da Simone il
+   * 17/8: «invece di farlo lei una alla volta col pulsante *genera*, possiamo farli tutti noi fino
+   * alla settimana 12, poi lei piano piano le controlla».
+   *
+   * ⚠️ **Un'unità di lavoro per chiamata**, e non un giro che macina tutto. Un ciclo da cinquecento
+   * chiamate all'AI che cade a metà — credito, un 503, la connessione — lascia un lavoro a metà di
+   * cui nessuno sa il punto, e rilanciarlo rischia di rifare. Così invece ogni chiamata è piccola,
+   * finisce, e la successiva riparte esattamente da dove serve: lo stato è il catalogo stesso.
+   *
+   * ⚠️ **Non cambia niente per chi valida.** Si passa da `generateCatalogFromPreset`, la stessa
+   * funzione del pulsante: le ricette nascono in bozza (`active: false`, allergeni da confermare) e
+   * non entrano nei menu di nessuno finché la nutrizionista non le rivede. L'unica cosa che le si
+   * toglie è stare lì a premere.
+   */
+  async generaProssimoCatalogo(actorUserId?: string | null): Promise<Record<string, unknown>> {
+    const attore = actorUserId ?? (await this.autoreDiSistema());
+    if (!attore) return { fatto: false, motivo: 'nessun capo nutrizionista a cui intestare la generazione' };
+
+    const varianti = await this.varianteDaRiempire();
+    const lavoro = prossimaDaGenerare(varianti, SETTIMANE_OBIETTIVO);
+    const restano = quantoManca(varianti, SETTIMANE_OBIETTIVO);
+    if (!lavoro) return { fatto: false, motivo: 'catalogo completo: dodici settimane piene su tutte le varianti', restano: 0 };
+
+    const esito = await this.generateCatalogFromPreset(
+      lavoro.variante.presetId,
+      attore,
+      lavoro.settimana,
+      lavoro.modalita,
+    );
+    return {
+      fatto: true,
+      variante: lavoro.variante.etichetta,
+      settimana: lavoro.settimana,
+      perche: lavoro.motivo,
+      // `restano` è contato PRIMA di questo giro: è «quante unità di lavoro c'erano», e serve a
+      // stimare quante notti mancano. Dopo questa chiamata ne resta una di meno.
+      restanoPrima: restano,
+      esito,
+    };
+  }
+
+  /** Il capo nutrizionista a cui intestare una generazione fatta dal cron: non c'è un umano loggato. */
+  private async autoreDiSistema(): Promise<string | null> {
+    const capo = (await this.prisma.user.findFirst({
+      where: { role: 'head_nutritionist', status: 'active', deletedAt: null } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    })) as { id: string } | null;
+    return capo?.id ?? null;
+  }
+
+  /**
+   * Lo stato del catalogo, variante per variante, nella forma che il modulo puro sa ordinare.
+   *
+   * ⚠️ Le settimane si contano in due modi perché **il conto delle giornate mente**: una variante
+   * con 28 giornate e 19 piatti diversi per pasto risulta «quattro settimane fatte» ed è una
+   * variante in cui la stessa colazione torna cinque volte al mese. Serve anche la prima settimana
+   * MAGRA — quella che esiste ma non ha sette piatti diversi in ogni pasto — ed è quella che si
+   * ripassa per prima, perché la sta mangiando qualcuno adesso.
+   */
+  private async varianteDaRiempire(): Promise<VarianteDaRiempire[]> {
+    const [presets, diete, giornate, profili] = await Promise.all([
+      this.prisma.rulePreset.findMany({
+        select: { id: true, label: true, style: true, regime: true, objective: true, meals: true },
+      }) as Promise<{ id: string; label: string; style: string; regime: string | null; objective: string | null; meals: string | null }[]>,
+      this.prisma.diet.findMany({
+        select: { id: true, name: true, style: true, regime: true, objective: true, mealsPerDay: true, fasting: true },
+      }) as Promise<{ id: string; name: string; style: string | null; regime: string; objective: string | null; mealsPerDay: number; fasting: boolean | null }[]>,
+      this.prisma.dietDayTemplate.findMany({
+        where: { level: 1 },
+        select: { dietId: true, dayIndex: true, meals: true },
+      }) as Promise<{ dietId: string; dayIndex: number; meals: unknown }[]>,
+      this.prisma.clientProfile.findMany({
+        select: { dietFamily: true, dietStyle: true, regime: true, objective: true },
+      }) as Promise<{ dietFamily: string | null; dietStyle: string | null; regime: string | null; objective: string | null }[]>,
+    ]);
+
+    const chiaveGruppo = (nome: string, stile: string | null, regime: string | null, obiettivo: string | null): string =>
+      `${nome}|${stile ?? ''}|${regime ?? ''}|${obiettivo || 'dimagrimento'}`;
+
+    const clientiPerGruppo = new Map<string, number>();
+    for (const p of profili) {
+      if (!p.dietFamily) continue;
+      const k = chiaveGruppo(p.dietFamily, p.dietStyle, p.regime, p.objective);
+      clientiPerGruppo.set(k, (clientiPerGruppo.get(k) ?? 0) + 1);
+    }
+
+    // Le giornate di ogni dieta, raccolte per settimana e per pasto: da qui escono sia il conto
+    // delle settimane sia la prima magra.
+    const perDieta = new Map<string, Map<number, Map<string, Set<string>>>>();
+    const ultimoGiorno = new Map<string, number>();
+    for (const g of giornate) {
+      ultimoGiorno.set(g.dietId, Math.max(ultimoGiorno.get(g.dietId) ?? 0, g.dayIndex));
+      const settimana = Math.ceil(g.dayIndex / GIORNI_SETTIMANA);
+      if (!perDieta.has(g.dietId)) perDieta.set(g.dietId, new Map());
+      const perSett = perDieta.get(g.dietId)!;
+      if (!perSett.has(settimana)) perSett.set(settimana, new Map());
+      const perSlot = perSett.get(settimana)!;
+      for (const m of (g.meals as { slot?: string; recipeId?: string }[]) ?? []) {
+        if (!m?.slot || !m?.recipeId) continue;
+        if (!perSlot.has(m.slot)) perSlot.set(m.slot, new Set());
+        perSlot.get(m.slot)!.add(m.recipeId);
+      }
+    }
+
+    const out: VarianteDaRiempire[] = [];
+    for (const p of presets) {
+      const meals = (['3', '5', 'fasting'] as const).includes((p.meals ?? '') as never) ? (p.meals as StrutturaPasti) : '5';
+      const fasting = meals === 'fasting';
+      const mealsPerDay = fasting ? 3 : meals === '5' ? 5 : 3;
+      const regime = ['omnivore', 'vegetarian', 'vegan'].includes(p.regime ?? '') ? (p.regime as string) : 'omnivore';
+      const objective = p.objective ?? 'dimagrimento';
+      const dieta = diete.find(
+        (d) =>
+          d.name === p.label &&
+          d.style === p.style &&
+          d.regime === regime &&
+          (d.objective ?? 'dimagrimento') === objective &&
+          d.mealsPerDay === mealsPerDay &&
+          !!d.fasting === fasting,
+      );
+
+      const settimaneFatte = dieta ? Math.ceil((ultimoGiorno.get(dieta.id) ?? 0) / GIORNI_SETTIMANA) : 0;
+      let primaSettimanaMagra: number | null = null;
+      if (dieta) {
+        const perSett = perDieta.get(dieta.id);
+        const attesi = slotAttesi(mealsPerDay, fasting);
+        for (let w = 1; w <= settimaneFatte; w++) {
+          const perSlot = perSett?.get(w);
+          const magra = !perSlot || attesi.some((s) => (perSlot.get(s)?.size ?? 0) < GIORNI_SETTIMANA);
+          if (magra) { primaSettimanaMagra = w; break; }
+        }
+      }
+
+      out.push({
+        presetId: p.id,
+        etichetta: `${p.label} · ${regime} · ${objective} · ${meals === 'fasting' ? 'digiuno' : `${meals} pasti`}`,
+        gruppo: chiaveGruppo(p.label, p.style, regime, objective),
+        struttura: meals,
+        settimaneFatte,
+        primaSettimanaMagra,
+        clientiGruppo: clientiPerGruppo.get(chiaveGruppo(p.label, p.style, regime, objective)) ?? 0,
+      });
+    }
+    return out;
+  }
+
 }
