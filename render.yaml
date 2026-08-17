@@ -106,6 +106,23 @@ services:
     envVars:
       - fromGroup: metabole-shared
 
+  # ⚠️ TEMPORANEO — il catalogo che si riempie da solo (17/8, richiesta della nutrizionista).
+  # Una settimana di catalogo per chiamata, in ordine di utilità (prima le famiglie con clienti).
+  # SI SOSPENDE dal cruscotto quando il catalogo è pieno. Lasciarlo acceso non fa danni — quando non
+  # c'è più niente risponde «catalogo completo» e NON chiama l'AI — ma sospenderlo è più onesto:
+  # un cron acceso che non fa niente è un cron di cui fra tre mesi nessuno ricorda a cosa serviva.
+  # ⚠️ Ogni 10 minuti e non di più: ogni giro chiama l'AI cinque volte (un pasto per volta) e costa.
+  - type: cron
+    name: metabole-cron-genera-catalogo
+    runtime: node
+    region: frankfurt
+    schedule: '*/10 * * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/genera-catalogo'
+    envVars:
+      - fromGroup: metabole-shared
+
   # Promemoria appuntamenti: ogni 10 minuti avvisa la nutrizionista ~30 min prima delle visite.
   - type: cron
     name: metabole-cron-reminders

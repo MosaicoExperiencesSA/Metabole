@@ -1246,6 +1246,27 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
    * toglie è stare lì a premere.
    */
   async generaProssimoCatalogo(actorUserId?: string | null): Promise<Record<string, unknown>> {
+    /**
+     * ⚠️ UN GIRO PER VOLTA. Il cron batte ogni dieci minuti e una settimana può metterci di più —
+     * cinque chiamate all'AI, con i loro tentativi. Due giri sovrapposti sceglierebbero la STESSA
+     * variante e la STESSA settimana (lo stato è il catalogo, e finché il primo non ha scritto il
+     * catalogo non è cambiato), e in modalità «completa» la seconda cancellerebbe le giornate che
+     * la prima sta scrivendo. Il lucchetto sta in memoria e non in banca dati perché il backend è
+     * un processo solo: se un giorno diventasse più d'uno, questo non basta più — e allora la
+     * risposta è una riga di stato, non un flag più furbo.
+     */
+    if (this.generazioneInCorso) return { fatto: false, motivo: 'un altro giro è ancora in corso: si riprova al prossimo battito' };
+    this.generazioneInCorso = true;
+    try {
+      return await this.generaProssimoCatalogoDavvero(actorUserId);
+    } finally {
+      this.generazioneInCorso = false;
+    }
+  }
+
+  private generazioneInCorso = false;
+
+  private async generaProssimoCatalogoDavvero(actorUserId?: string | null): Promise<Record<string, unknown>> {
     const attore = actorUserId ?? (await this.autoreDiSistema());
     if (!attore) return { fatto: false, motivo: 'nessun capo nutrizionista a cui intestare la generazione' };
 
