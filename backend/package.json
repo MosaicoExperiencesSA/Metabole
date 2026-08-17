@@ -60,6 +60,7 @@
     "accendi:automazioni": "ts-node --transpile-only prisma/accendi-automazioni.ts",
     "diag:dieta": "ts-node --transpile-only prisma/diag-dieta.ts",
     "diag:cliente": "ts-node --transpile-only prisma/diag-cliente.ts",
+    "diag:storia": "ts-node --transpile-only prisma/diag-storia-abbonamento.ts",
     "diag:provvigioni": "ts-node --transpile-only prisma/diag-provvigioni.ts",
     "ricalcola:provvigioni": "ts-node --transpile-only prisma/ricalcola-provvigioni.ts",
     "pubblica:tutto": "ts-node --transpile-only prisma/pubblica-tutto.ts",
