@@ -737,8 +737,12 @@ export function ClientDetail() {
 
   /**
    * L'invio vero, separato perché può servire due volte: la prima senza conferma e — se il server
-   * risponde 409 «con questa data il piano risulta già finito» — la seconda con la conferma
-   * dell'operatore.
+   * risponde 409 — la seconda con la conferma dell'operatore.
+   *
+   * ⚠️ Dal 17/8 i 409 sono **due**, e questa pagina non deve sapere quale sia arrivato: «con questa
+   * data il piano risulta già finito» e «con questa data si sovrappone a un altro piano» (voce 259,
+   * il caso Lorena). La frase la compone il server in entrambi i casi e qui si mostra così com'è —
+   * il giorno che se ne aggiunge un terzo, da questo lato non c'è niente da cambiare.
    *
    * L'avviso lo compone il SERVER e non questa pagina: la durata del piano la conosce lui, e
    * ricalcolarla qui vorrebbe dire tenere allineate due copie della stessa regola. Il 10/8 una

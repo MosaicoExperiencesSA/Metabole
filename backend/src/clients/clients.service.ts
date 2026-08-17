@@ -19,6 +19,8 @@ import { toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 // Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
 import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
+// La matita dice cosa sta per rompere: i piani che lo spostamento farebbe sovrapporre (voce 259).
+import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
@@ -1195,6 +1197,29 @@ export class ClientsService {
       );
     }
 
+    /**
+     * L'ALTRO AVVISO: con questa data il piano finisce **addosso a un altro** (voce 259).
+     *
+     * ⚠️ È il caso Lorena, e la matita è lo strumento con cui è successo: il 16/8, quarantotto
+     * secondi dopo l'acquisto del secondo piano, questa data è stata spostata e i due piani si sono
+     * sovrapposti. Chi l'ha fatto stava correggendo una data che la scheda mostrava sbagliata, e non
+     * poteva sapere delle altre righe — nessuno gliene parlava.
+     *
+     * ⚠️ **Conferma e non divieto**, come l'avviso qui sopra: forzare a volte serve davvero, e un
+     * divieto secco si aggira cambiando la riga a mano nel database, dove non lascia traccia.
+     * ⚠️ Un solo `conferma` per due avvisi diversi è voluto: chi conferma risponde alla frase che ha
+     * letto, e la frase la compone il server. Due flag vorrebbero dire che la pagina sa quale avviso
+     * è arrivato — cioè conosce le regole, che è esattamente quello che si sta evitando.
+     */
+    const sovrapposti = pianiSovrapposti(
+      subs.filter((s) => s.id !== sub.id).map((s) => ({ ...s, nome: s.plan?.name ?? null })),
+      d,
+      newEnd,
+    );
+    if (!conferma && sovrapposti.length) {
+      throw new ConflictException(fraseSovrapposizione(sovrapposti, sub.plan.name, d, newEnd));
+    }
+
     // RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo.
     // Se la nuova fine è nel futuro e l'abbonamento era già approvato (attivo o SCADUTO), lo
     // riportiamo ad 'active'. Non tocchiamo 'pending' (pagamento non approvato) né 'cancelled'
@@ -1233,6 +1258,23 @@ export class ClientsService {
           planStartDate: prevProfile?.planStartDate?.toISOString().slice(0, 10) ?? null,
         },
         after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10), ...(reactivate ? { status: 'active', reactivated: true } : {}) },
+        /**
+         * ⚠️ CHI HA CONFERMATO LA SOVRAPPOSIZIONE, e su cosa (voce 259). L'`actorId` c'era già; qui
+         * si scrive **che l'avviso c'era ed è stato superato**, coi piani coinvolti. Senza questa
+         * riga, fra un mese la sovrapposizione di una cliente si legge come un difetto del software
+         * invece che come una decisione presa — è la differenza fra il caso Lorena e il prossimo.
+         */
+        ...(sovrapposti.length
+          ? {
+              sovrapposizioneConfermata: sovrapposti.map((s) => ({
+                id: s.id,
+                piano: s.nome,
+                quando: s.quando,
+                inizio: s.inizio?.toISOString().slice(0, 10) ?? null,
+                fine: s.fine?.toISOString().slice(0, 10) ?? null,
+              })),
+            }
+          : {}),
       },
     });
     // Cambio data di inizio = il piano RIPARTE: si cancellano i menu già erogati e si

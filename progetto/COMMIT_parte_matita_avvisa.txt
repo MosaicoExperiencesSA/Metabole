@@ -1,0 +1,72 @@
+La matita delle date dice cosa sta per rompere (voce 259, l'ultima del caso Lorena)
+
+Il 16/8, quarantotto secondi dopo l'acquisto del secondo piano, qualcuno ha aperto la scheda di
+Lorena Polidoro e ha spostato la data d'inizio. Ha fatto la cosa giusta con quello che le era stato
+mostrato — la scheda scriveva «Inizio piano: 25/08», che era la data del piano IN CODA — e il
+risultato sono stati due piani attivi insieme. LA MATITA NON LO HA DETTO PERCHE' NON LO SAPEVA:
+spostava una data e non guardava le altre righe.
+
+COSA FA ADESSO. `clients/sovrapposizione-piani.ts` (modulo PURO, niente letture/scritture/`Date.now()`
+implicito) dice quali piani lo spostamento farebbe sbattere, e compone la frase. `updatePlanStart` la
+restituisce come **409**, cioe' lo stesso meccanismo dell'altro avviso della stessa matita («con
+questa data il piano risulta gia' finito», 10/8).
+⚠️ LA PAGINA NON HA AVUTO BISOGNO DI UNA RIGA: il suo ramo 409 era gia' generico — mostra il messaggio
+del server e chiede «Procedo comunque?». Aggiornato solo il commento, perche' ora i 409 sono due e chi
+legge quel codice non deve credere che ce ne sia uno.
+
+LA FRASE DICE TRE COSE, e sono le tre che il 16/8 non c'erano:
+· contro COSA si va a sbattere, col NOME: «"Conosciamoci" sta erogando fino al 25/08/2026» oppure
+  «"3 mesi" e' in coda dal 25/08/2026» (⚠️ e un piano senza scadenza lo dice, invece di inventare una
+  fine);
+· QUANDO: «portando "3 mesi" dal 17/08/2026 al 17/11/2026…»;
+· COSA SUCCEDE ALLA CLIENTE: «i menu glieli dara' uno solo dei due (quello che finisce piu' tardi) e i
+  giorni dell'altro scorreranno senza che riceva niente». ⚠️ E' la conseguenza VERA secondo
+  `attivoInCorso`, non un generico «attenzione, sovrapposizione»: chi legge deve poter decidere,
+  altrimenti clicca avanti.
+E si chiude come l'altro avviso: «se e' quello che vuoi, conferma; altrimenti annulla prima il piano
+che non serve.»
+
+⚠️ CONFERMA E NON DIVIETO. Chi gestisce le schede a volte deve forzare davvero (un rimborso da
+sistemare, una promessa fatta al telefono), e un divieto secco si aggira facendo peggio: una riga
+cambiata a mano nel database, che non lascia traccia e non passa da nessun controllo.
+⚠️ UN SOLO `conferma` PER DUE AVVISI, e non due flag: chi conferma risponde alla frase che ha letto, e
+la frase la compone il server. Due flag vorrebbero dire che la pagina sa quale avviso e' arrivato,
+cioe' conosce le regole — che e' esattamente quello che si sta evitando.
+⚠️ CHI SUPERA L'AVVISO FINISCE NEL REGISTRO: `sovrapposizioneConfermata` nell'audit, coi piani
+coinvolti (id, nome, in corso o in coda, date). L'`actorId` c'era gia'; quello che mancava era che
+l'avviso c'e' stato ed e' stato superato. Senza quella riga, fra un mese la sovrapposizione di una
+cliente si rilegge come un difetto del software invece che come una decisione presa — ed e' la
+differenza fra il caso Lorena e il prossimo.
+
+LE REGOLE DI CONFINE, scritte perche' sono quelle che sbagliano da sole:
+⚠️ IL GIORNO DEL PASSAGGIO DI TESTIMONE E' UNA SOVRAPPOSIZIONE (fine compresa, confronto per giorno):
+e' il giorno in cui una cliente riceve due menu.
+⚠️ FINE ASSENTE = PIANO APERTO: si sovrappone a tutto quello che viene dopo il suo inizio. Leggerla
+come «finisce oggi» era il modo di non vedere il caso peggiore.
+⚠️ INIZIO ASSENTE = «gia' cominciato», la stessa lettura di `staErogando` e di
+`filtroClienteConPianoAttivo`: due regole diverse sullo stesso campo nullo farebbero divergere
+l'avviso dall'erogazione.
+⚠️ NON contano `cancelled` (decisione gia' presa), `expired` (finito), `pending` (un carrello, non una
+promessa — stessa lettura di `abbonamentoInCoda`), ne' un `active` con la fine GIA' PASSATA (il cron
+di scadenza in ritardo): sovrapporsi a loro non produce due menu.
+
+TEST — 18 nuovi:
+· 15 sul giudizio e sulla frase (`clients/sovrapposizione-piani.spec.ts`), il caso Lorena in
+  entrambi i versi (spostare la coda addosso a chi eroga, e allungare chi eroga dentro la coda), i
+  quattro stati che non contano, il giorno del testimone, il piano aperto, il piano senza nome;
+· 3 sul COLLEGAMENTO (`clients/plan-start.spec.ts`): il 409 NON scrive niente (un avviso che scrive
+  comunque non e' un avviso), `conferma: true` scrive E registra chi ha superato l'avviso, e una data
+  innocua non chiede niente ne' lascia la riga nel registro.
+CONTROLLO PER MUTAZIONE: staccato il collegamento → cade 1 dei 3; forzato «sempre in corso» al posto
+del riconoscimento della coda → cadono 4.
+
+FILE:
+- backend/src/clients/sovrapposizione-piani.ts — il giudizio e la frase, modulo puro.
+- backend/src/clients/sovrapposizione-piani.spec.ts — 15 test.
+- backend/src/clients/clients.service.ts — l'innesto nella matita + la riga nel registro.
+- backend/src/clients/plan-start.spec.ts — 3 test sul collegamento.
+- backoffice/src/pages/ClientDetail.tsx — solo il commento: i 409 ora sono due.
+- backend/src/lavori/voci-iniziali.ts — voce 259 SPUNTATA.
+
+NESSUNA MIGRAZIONE. In sandbox coi tipi Prisma veri: `nest build` verde e **3096 test in 201 suite**
+(prima 3078 in 200). Backoffice `npm run build` (tsc + vite) verde.

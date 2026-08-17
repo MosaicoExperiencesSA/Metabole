@@ -197,6 +197,72 @@ describe('ClientsService.updatePlanStart', () => {
     });
   });
 
+  /**
+   * LA MATITA CHE AVVISA PRIMA DI SOVRAPPORRE (voce 259) — il collegamento, non il calcolo.
+   *
+   * Il giudizio e la frase stanno in `sovrapposizione-piani.ts` e hanno i loro test per tabella.
+   * Qui si difende quello che quei test non possono vedere: che la matita li CHIAMI, che la frase
+   * torni come 409 (una domanda, non un errore), che `conferma: true` la superi, e ⚠️ che chi
+   * conferma finisca **nel registro** — senza quella riga, fra un mese la sovrapposizione di una
+   * cliente si rilegge come un difetto del software invece che come una decisione presa.
+   */
+  describe('avviso di sovrapposizione (caso Lorena)', () => {
+    /** Due `active`: uno eroga (finisce fra 8 giorni), uno in coda che parte quando l'altro finisce. */
+    const scenarioLorena = () => [
+      {
+        id: 'sub-coda',
+        status: 'active',
+        startDate: inDays(8),
+        endDate: inDays(98),
+        plan: { name: '3 mesi', period: '3m' },
+      },
+      {
+        id: 'sub-corso',
+        status: 'active',
+        startDate: inDays(-8),
+        endDate: inDays(8),
+        plan: { name: 'Conosciamoci', period: '15d' },
+      },
+    ];
+
+    beforeEach(() => {
+      prisma.subscription.findMany.mockResolvedValue(scenarioLorena());
+    });
+
+    it('⚠️ la matita sposta quello IN CORSO (`pickMainSubscription`): allungarlo dentro la coda chiede conferma', async () => {
+      // Inizio fra 5 giorni + 15 giorni di durata → finisce fra 20, e la coda parte fra 8.
+      const errore = await service.updatePlanStart('lorena', 'admin', iso(inDays(5))).catch((e: Error) => e);
+      expect(errore).toBeInstanceOf(Error);
+      expect((errore as { status?: number }).status).toBe(409);
+      const testo = (errore as Error).message;
+      expect(testo).toContain('«3 mesi» è in coda');
+      expect(testo).toContain('due piani attivi insieme');
+      expect(testo).toContain('Se è quello che vuoi, conferma');
+      // ⚠️ E soprattutto: non ha scritto niente. Un avviso che scrive comunque non è un avviso.
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('con `conferma: true` esegue, e SCRIVE NEL REGISTRO chi ha superato l\'avviso e su cosa', async () => {
+      await service.updatePlanStart('lorena', 'admin', iso(inDays(5)), true);
+      expect(prisma.subscription.update).toHaveBeenCalledTimes(1);
+
+      const voce = audit.log.mock.calls.map((c: unknown[]) => c[0]).find((v: { action: string }) => v.action === 'client.plan_start.change');
+      expect(voce.actorId).toBe('admin');
+      expect(voce.metadata.sovrapposizioneConfermata).toEqual([
+        expect.objectContaining({ id: 'sub-coda', piano: '3 mesi', quando: 'in_coda' }),
+      ]);
+    });
+
+    it('una data che NON fa sovrapporre niente non chiede niente e non scrive la riga nel registro', async () => {
+      // Il piano in corso resta dov'è: finisce fra 8 giorni, quando la coda comincia — e il giorno
+      // del passaggio di testimone è compreso, quindi si arretra di un giorno.
+      await expect(service.updatePlanStart('lorena', 'admin', iso(inDays(-9)))).resolves.toBeDefined();
+      const voce = audit.log.mock.calls.map((c: unknown[]) => c[0]).find((v: { action: string }) => v.action === 'client.plan_start.change');
+      expect(voce.metadata.sovrapposizioneConfermata).toBeUndefined();
+    });
+  });
+
   it('non riattiva un abbonamento IN ATTESA (pagamento non approvato)', async () => {
     prisma.subscription.findMany.mockResolvedValue([
       { id: 'sub-attesa', status: 'pending', startDate: D('2026-07-17'), endDate: D('2026-07-25'), plan: { name: '3 mesi', period: '3m' } },

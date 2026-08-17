@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` ✏️ **La matita delle date dice cosa sta per rompere.** Voce 259, l'ultima del caso
+  Lorena. Il 16/8, quarantotto secondi dopo l'acquisto del secondo piano, qualcuno ha aperto quella
+  scheda e ha spostato la data d'inizio: stava correggendo una data che la scheda mostrava sbagliata
+  (quella del piano **in coda**), e il risultato sono stati due piani attivi insieme. ⚠️ **La matita
+  non lo ha detto perché non lo sapeva**: spostava una data e non guardava le altre righe. Ora
+  `clients/sovrapposizione-piani.ts` (modulo puro) dice quali piani lo spostamento farebbe sbattere e
+  compone la frase, e `updatePlanStart` la restituisce come **409** — lo stesso meccanismo dell'altro
+  avviso della stessa matita («con questa data il piano risulta già finito», 10/8). ⚠️ **La pagina non
+  ha avuto bisogno di una riga**: il suo ramo 409 era già generico (mostra il messaggio del server e
+  chiede «Procedo comunque?»); ho aggiornato solo il commento, perché ora i 409 sono due e chi legge
+  quel codice non deve credere che ce ne sia uno. ⚠️ La frase dice **tre** cose, e sono le tre che il
+  16/8 non c'erano: contro cosa si va a sbattere **col nome** («"Conosciamoci" sta erogando fino al
+  25/08» oppure «"3 mesi" è in coda dal 25/08»), quando, e **cosa succede alla cliente** — «i menu
+  glieli darà uno solo dei due, quello che finisce più tardi, e i giorni dell'altro scorreranno senza
+  che riceva niente», che è la conseguenza vera secondo `attivoInCorso` e non un generico «attenzione:
+  sovrapposizione», che è rumore. ⚠️ **Conferma e non divieto**: forzare a volte serve davvero, e un
+  divieto secco si aggira cambiando la riga a mano nel database, dove non lascia traccia. ⚠️ **Un solo
+  `conferma` per due avvisi**, di proposito: chi conferma risponde alla frase che ha letto, e la frase
+  la compone il server — due flag vorrebbero dire che la pagina conosce le regole. ⚠️ E **chi supera
+  l'avviso finisce nel registro** (`sovrapposizioneConfermata` nell'audit, coi piani coinvolti):
+  l'`actorId` c'era già, mancava che l'avviso ci fosse stato — senza quella riga, fra un mese una
+  sovrapposizione si rilegge come un difetto del software invece che come una decisione presa. I
+  confini, che sono la parte che sbaglia da sola: il **giorno del passaggio di testimone è** una
+  sovrapposizione (fine compresa: è il giorno in cui arrivano due menu); **fine assente = piano
+  aperto**, si sovrappone a tutto ciò che viene dopo il suo inizio; inizio assente vale «già
+  cominciato», come in `staErogando`; e non contano `cancelled`, `expired`, `pending` (un carrello non
+  è una promessa) né un `active` con la fine già passata. 18 test — 15 sul giudizio e sulla frase, 3
+  sul collegamento, fra cui che **il 409 non scrive niente**: un avviso che scrive comunque non è un
+  avviso. Mutazione: collegamento staccato → cade 1 su 3; «sempre in corso» al posto del
+  riconoscimento della coda → cadono 4. Nessuna migrazione. Backend 3096 test in 201 suite (prima
+  3078 in 200), backoffice `npm run build` verde.
+
 - `[Sviluppo]` 🔑 **Il × per annullare un piano non si vedeva dal capo nutrizionista.** Voce 261. Il
   pulsante è nato stamattina con `@Roles('admin')`, «come lo storno e la cancellazione di un acquisto,
   che sono i suoi vicini di casa per gravità». La gravità era giusta, **il cancello no**: chi gestisce i
