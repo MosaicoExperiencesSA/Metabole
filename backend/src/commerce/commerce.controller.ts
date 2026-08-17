@@ -519,6 +519,25 @@ class RefundPurchaseDto {
   note?: string | null;
 }
 
+
+class CancelSubscriptionDto {
+  /** Perché lo si annulla: finisce in audit, e fra sei mesi è l'unica cosa che spiega la riga. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  motivo?: string | null;
+
+  /**
+   * ⚠️ Serve SOLO quando l'annullamento lascia la cliente senza nessun piano in corso: in quel caso
+   * il primo tentativo torna 409 con la frase da leggere, e il secondo — con `conferma` — esegue.
+   * Negli altri casi non si chiede niente: una conferma chiesta sempre insegna a cliccare «sì»
+   * senza leggere, e allora la volta che conta non la legge nessuno.
+   */
+  @IsOptional()
+  @IsBoolean()
+  conferma?: boolean;
+}
+
 /**
  * Acquisti: elenco, ricevuta PDF, inserimento manuale (operatore).
  *
@@ -987,5 +1006,27 @@ export class AdminShopController {
   @Delete('products/:id')
   deleteProduct(@CurrentUser() u: AuthUser, @Param('id') id: string) {
     return this.commerce.deleteProduct(u.sub, id);
+  }
+}
+
+/**
+ * ABBONAMENTI: annullamento dalla scheda cliente (17/8, richiesta di Simone dal caso Polidoro).
+ *
+ * ⚠️ Controller suo e non dentro `admin/purchases`: un abbonamento non è un acquisto. Metterlo lì
+ * avrebbe fatto sembrare l'annullamento una variante dello storno, che è esattamente la confusione
+ * da evitare — quello tocca i soldi, questo tocca il piano.
+ *
+ * `@Roles('admin')` come lo storno e la cancellazione di un acquisto, che sono i suoi vicini di
+ * casa per gravità: togliere il piano a una persona è una cosa che si fa raramente e di proposito.
+ */
+@Controller('admin/subscriptions')
+export class AdminSubscriptionsController {
+  constructor(private readonly commerce: CommerceService) {}
+
+  @Roles('admin')
+  @HttpCode(200)
+  @Post(':id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: CancelSubscriptionDto) {
+    return this.commerce.annullaAbbonamento(id, user.sub, dto);
   }
 }

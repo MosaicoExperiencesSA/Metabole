@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🧾 **Due piani attivi su Lorena Polidoro: trovata la causa, e fatto il rimedio.** La
+  storia letta in audit (`npm run diag:storia`, nuovo): alle **20:29:32** «+ Attiva un piano» crea il
+  secondo piano e la **coda scatta** correttamente (`commerce.plan.queued`, inizio 25/08); alle
+  **20:30:20**, quarantotto secondi dopo, la matita lo riporta al 17/08 e i due si sovrappongono.
+  ⚠️ Non è colpa di chi ha usato la matita: **nessuno le ha detto che stava disfacendo una decisione
+  presa 48 secondi prima**, perché per il codice quel piano era un `active` con una data futura —
+  indistinguibile da un piano normale da spostare. ⚠️ E la «fine incoerente» che avevo segnalato non
+  era incoerente: 25/08 + 7 giorni di pausa = 01/09; era il mio avviso a non sapere delle pause, e
+  l'ho corretto. **Consegnato il rimedio**: `POST /admin/subscriptions/:id/cancel`, perché fino a
+  oggi l'unico modo di togliere il secondo piano era scrivere a mano nel database. ⚠️ Annullare non è
+  stornare (i soldi hanno la loro porta, e in audit si registra «nessun movimento») e non cancella la
+  riga. ⚠️ La conferma si chiede **solo** quando la cliente resta senza nessun piano in corso: una
+  conferma chiesta sempre insegna a cliccare «sì» senza leggere. 10 test. **La causa resta aperta**:
+  `queued` come stato, e la matita che dice cosa sta per rompere — il piano è in
+  `progetto/NOTA_Due_Piani_Attivi_Lorena.md`.
+
 - `[Sviluppo]` 💬 **Vera non usciva più da «su quale cliente?».** Dallo screenshot delle 11:02-11:52:
   fatta la domanda, **ogni** messaggio successivo veniva cercato come se fosse un nome di persona —
   l'istruzione riscritta per intero («non trovo nessuna cliente che si chiami "a Jolanda Todde non

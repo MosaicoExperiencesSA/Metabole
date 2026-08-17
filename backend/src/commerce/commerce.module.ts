@@ -4,7 +4,7 @@ import { MonitoringModule } from '../monitoring/monitoring.module';
 import { ReferralModule } from '../referral/referral.module';
 import { AccountingController } from './accounting.controller';
 import { AccountingService } from './accounting.service';
-import {
+import { AdminSubscriptionsController,
   AdminPaymentsController,
   AdminPurchasesController,
   AdminShopController,
@@ -32,7 +32,7 @@ import { StripeService } from './stripe.service';
 
 @Module({
   imports: [NotificationsModule, ReferralModule, MonitoringModule],
-  controllers: [
+  controllers: [AdminSubscriptionsController, 
     CatalogCommerceController,
     MyCommerceController,
     AdminPaymentsController,

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { eViolazioneUnicita } from '../common/violazione-unicita';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -30,6 +31,7 @@ import { isTrialPlan, messaggioData, validaDataInizio } from './piano-prova';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
+import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -2833,4 +2835,78 @@ export class CommerceService {
       })
       .catch(() => undefined);
   }
+
+  // ─────────────────────────────────────────── annullare un abbonamento dalla scheda (17/8) ─
+
+  /**
+   * ANNULLA UN ABBONAMENTO. Richiesta di Simone, 17/8, dal caso Lorena Polidoro: due «Conosciamoci»
+   * attivi insieme, e nessun modo di toglierne uno che non fosse scrivere a mano nel database.
+   *
+   * ⚠️ Un rimedio che non passa dal prodotto non lascia traccia, non chiede conferma e non avvisa
+   * nessuno. La volta che va storto — e va storto proprio quando si sta rimediando in fretta a
+   * qualcos'altro — non c'è niente da leggere.
+   *
+   * ⚠️ **Annullare non è stornare.** Qui si tocca il PIANO: da domani niente menu nuovi. I soldi
+   * hanno la loro porta (`refundPurchase`), che scrive nel ledger e storna le provvigioni. Chi
+   * arriva qui per disfare un incasso sta sbagliando porta, e questa non gliene apre una seconda.
+   *
+   * ⚠️ **Annullare non cancella la riga**: si scrive `cancelled` e la riga resta. Un pagamento la
+   * referenzia, e la storia di una cliente è la cosa che si va a leggere proprio quando qualcosa
+   * non torna. Cancellarla davvero è togliere le prove.
+   *
+   * ⚠️ I giorni di menu già consegnati NON si toccano. Il motore smette di generarne di nuovi
+   * perché non trova più un abbonamento attivo — è la strada normale, e non serve cancellare niente.
+   */
+  async annullaAbbonamento(
+    subscriptionId: string,
+    actorId: string,
+    dto: { motivo?: string | null; conferma?: boolean },
+  ): Promise<{ ok: boolean; testo: string; restaSenzaPiano: boolean }> {
+    const sub = (await this.prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: { select: { name: true } } },
+    })) as { id: string; clientId: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string } | null } | null;
+    if (!sub) throw new NotFoundException('Abbonamento non trovato.');
+
+    const tutti = (await this.prisma.subscription.findMany({
+      where: { clientId: sub.clientId },
+      include: { plan: { select: { name: true } } },
+    })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string } | null }[];
+
+    const leggi = (x: { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string } | null }): AbbonamentoLetto => ({
+      id: x.id, status: x.status, startDate: x.startDate, endDate: x.endDate, piano: x.plan?.name ?? 'piano',
+    });
+
+    const oggi = new Date();
+    const esito = esitoAnnullamento(leggi(sub), tutti.map(leggi), oggi);
+    if (esito.tipo === 'nulla_da_fare') throw new BadRequestException(esito.testo);
+    if (esito.tipo === 'serve_conferma' && !dto?.conferma) throw new ConflictException(esito.testo);
+
+    const restaSenzaPiano = esito.tipo === 'serve_conferma';
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { status: 'cancelled' as never },
+    });
+
+    const testo = raccontaAnnullamento(leggi(sub), restaSenzaPiano);
+    await this.audit.log({
+      action: 'commerce.subscription.cancelled',
+      actorId,
+      entityType: 'subscription',
+      entityId: sub.id,
+      metadata: {
+        clientId: sub.clientId,
+        piano: sub.plan?.name ?? null,
+        prima: { status: sub.status, startDate: sub.startDate?.toISOString() ?? null, endDate: sub.endDate?.toISOString() ?? null },
+        motivo: (dto?.motivo ?? '').slice(0, 300) || null,
+        restaSenzaPiano,
+        // ⚠️ Si registra ANCHE che non è uno storno: fra sei mesi, chi legge questa riga cercando
+        // perché un incasso è sparito dai libri deve trovare scritto che di qui i soldi non passano.
+        soldi: 'nessun movimento: annullamento del piano, non rimborso',
+      },
+    }).catch(() => undefined);
+
+    return { ok: true, testo, restaSenzaPiano };
+  }
+
 }

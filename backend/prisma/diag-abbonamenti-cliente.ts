@@ -103,15 +103,39 @@ async function main() {
   console.log(`Data inizio piano sul profilo (comanda i menu): ${ymd(profile?.planStartDate)}`);
   console.log(`\nAbbonamenti (${subs.length}), dal più recente:`);
 
+  /**
+   * ⚠️ LE PAUSE SPOSTANO LA FINE, e senza saperlo questo avviso grida al lupo — 17/8.
+   *
+   * Su Lorena Polidoro l'avviso «fine incoerente col periodo» mi ha portato a costruire un'ipotesi
+   * sbagliata sulla causa di due abbonamenti attivi: la fine era il 1/9 invece del 25/8 perché il
+   * 17/8 le era stata approvata una **pausa di 7 giorni**, e `pause.service` fa esattamente quello
+   * che dice di fare (`subscription.endDate += giorni`). Nessuna incoerenza: una pausa.
+   *
+   * Un avviso che si accende quando tutto è a posto costa più di un avviso che manca, perché manda
+   * a cercare la causa nel posto sbagliato — e questa volta l'ho pagato io.
+   */
+  const pause = (await prisma.pauseRequest.findMany({
+    where: { clientId: user.id, status: 'approved' } as never,
+    select: { days: true },
+  }).catch(() => [])) as { days: number }[];
+  const giorniDiPausa = pause.reduce((n, p) => n + (p.days ?? 0), 0);
+
   const main = principale(subs);
   for (const s of subs) {
     const marca = main && s.id === main.id ? '►' : ' ';
     const attesa = s.startDate && s.plan ? fineDa(s.startDate, s.plan.period) : null;
-    const fineCoerente = attesa && s.endDate ? ymd(attesa) === ymd(s.endDate) : true;
+    // La fine attesa CON le pause già approvate: è quella vera.
+    const attesaConPause = attesa ? new Date(attesa.getTime() + giorniDiPausa * 86_400_000) : null;
+    const fineCoerente = s.endDate
+      ? [attesa, attesaConPause].some((d) => d && ymd(d) === ymd(s.endDate))
+      : true;
     console.log(
       `${marca} ${s.status.padEnd(9)} ${(s.plan?.name ?? '?').padEnd(18)} periodo ${(s.plan?.period ?? '?').padEnd(12)} ` +
         `inizio ${ymd(s.startDate)}  fine ${ymd(s.endDate)}  creato ${ymd(s.createdAt)}` +
-        (fineCoerente ? '' : `   ⚠ fine incoerente col periodo (attesa ${ymd(attesa)})`),
+        (fineCoerente
+          ? ''
+          : `   ⚠ fine incoerente col periodo (attesa ${ymd(attesa)}` +
+            `${giorniDiPausa ? `, o ${ymd(attesaConPause)} con i ${giorniDiPausa} giorni di pausa` : ''})`),
     );
   }
   console.log('\n► = abbonamento principale: quello che la scheda mostra e che la matita sposta.');
