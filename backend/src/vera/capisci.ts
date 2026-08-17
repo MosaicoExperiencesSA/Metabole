@@ -557,6 +557,18 @@ const FORME_SOSTITUZIONI: RegExp[] = [
   /^(?:ci sono|hai|ce ne sono|quali sono|quante sono|dammi|dimmi|leggimi|mostrami|fammi vedere|vedi)\s+(?:la |le |i |gli |dei |delle )?(?:lista (?:dei|delle|di) )?(?:cambi|sostituzioni)(?:\s+(?:da verificare|da guardare|da controllare|concordati|concordate|in chat|aperti|aperte|in sospeso|in coda))*$/,
   // «sostituzioni da verificare» / «i cambi concordati in chat» — il titolo secco
   /^(?:i |le |gli )?(?:cambi|sostituzioni)\s+(?:da verificare|da guardare|da controllare|concordati|concordate|in chat|aperti|aperte|in sospeso|in coda)(?:\s+(?:in chat|da verificare))*$/,
+  /**
+   * ⚠️ «QUALE sostituzione devo verificare?» — la domanda che fa la PASTIGLIA (Simone, 17/8).
+   *
+   * In cima alla chat c'è scritto «1 sostituzioni da verificare». Lui ha chiesto esattamente quello
+   * che quella riga invita a chiedere, e Vera ha risposto «non trovo nessuna cliente che si chiami
+   * "quale sostituzione devo verificare?"».
+   *
+   * Un'interfaccia che annuncia una cosa e poi non sa rispondere quando gliela chiedi è peggio di
+   * una che non l'annuncia: chi legge la pastiglia impara che l'assistente non c'entra niente con
+   * quello che la pastiglia dice. La pastiglia È la domanda, e va riconosciuta.
+   */
+  /^(?:quale|quali|qual e|che|che cosa)\s+(?:e |sono )?(?:la |le |il |i |lo |gli )?(?:cambio|cambi|sostituzione|sostituzioni)\s+(?:devo|dobbiamo|posso|possiamo|c e da|ci sono da|da)\s+(?:verificare|guardare|controllare|vedere)$/,
 ];
 
 function chiedeSostituzioni(testo: string): boolean {

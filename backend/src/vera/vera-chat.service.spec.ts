@@ -1662,3 +1662,58 @@ describe('VeraChatService — gli allergeni della ricetta approvata (voce 227)',
     expect(ultimoAgente(messaggioCreate).testo).toContain('non entrerà in nessuna giornata');
   });
 });
+
+/**
+ * NON SI RESTA INCASTRATI SU «SU QUALE CLIENTE?» — screenshot di Simone, 17/8.
+ *
+ * Alle 11:02 scrive «Jolanda Todde non darle più i ceci» e Vera chiede su quale cliente. Da quel
+ * momento **ogni** messaggio successivo viene cercato come se fosse un nome di persona: alle 11:07
+ * riscrive l'istruzione intera e si sente rispondere «non trovo nessuna cliente che si chiami "a
+ * Jolanda Todde non darle più i ceci"»; alle 11:52, quarantacinque minuti dopo, chiede «quale
+ * sostituzione devo verificare?» e si sente rispondere la stessa cosa con la sua domanda dentro.
+ *
+ * ⚠️ Il difetto non è il riconoscimento del nome: è che dal passo non si esce. Una domanda chiusa
+ * che non ammette nessun'altra risposta trasforma un fraintendimento di un minuto in una chat
+ * inutilizzabile per sempre — e chi ci sta dentro non ha nessun modo di capire cosa fare.
+ *
+ * La via d'uscita è la stessa porta dell'inizio: se quello che ha scritto non è una cliente ma è
+ * una frase che SO leggere, riparto da lì.
+ */
+describe('VeraChatService — la via d\'uscita da «su quale cliente?»', () => {
+  it('⚠️ l\'istruzione riscritta per intero non viene cercata come NOME', async () => {
+    // Il finto non trova nessuno: quello che conta è COSA è stato cercato. Prima si cercava la
+    // frase intera — «non trovo nessuna cliente che si chiami "a Jolanda Todde non darle più i
+    // ceci"» — adesso si rilegge e si cerca il nome che c'è dentro.
+    const { service, messaggioCreate } = make(
+      { user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([]) } },
+      { statoAperto: { passo: 'quale_cliente', frase: 'niente ceci', intento: null } as unknown as StatoVera },
+    );
+    await service.parla('n1', 'a Giulia Rossi non dare più i ceci');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('«Giulia Rossi»');
+    expect(testo).not.toContain('non dare più');
+  });
+
+  it('⚠️ e una DOMANDA sblocca il passo invece di essere cercata fra le clienti', async () => {
+    // È il caso delle 11:52: la pastiglia dice «1 sostituzioni da verificare», lui lo chiede, e la
+    // sua domanda gli torna indietro dentro «non trovo nessuna cliente che si chiami…».
+    const { service, messaggioCreate } = make(
+      { user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([]) } },
+      { statoAperto: { passo: 'quale_cliente', frase: 'niente ceci', intento: null } as unknown as StatoVera, cambio: null },
+    );
+    await service.parla('n1', 'quale sostituzione devo verificare?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).not.toMatch(/nessuna cliente che si chiami/i);
+  });
+
+  it('un nome che non esiste continua a dire che non esiste: non si indovina', async () => {
+    const { service, messaggioCreate } = make(
+      { user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([]) } },
+      { statoAperto: { passo: 'quale_cliente', frase: 'niente ceci', intento: null } as unknown as StatoVera },
+    );
+    await service.parla('n1', 'Ludovica Sconosciuta');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toMatch(/non trovo nessuna cliente/i);
+    expect(stato?.passo).toBe('quale_cliente');
+  });
+});

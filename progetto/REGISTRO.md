@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 💬 **Vera non usciva più da «su quale cliente?».** Dallo screenshot delle 11:02-11:52:
+  fatta la domanda, **ogni** messaggio successivo veniva cercato come se fosse un nome di persona —
+  l'istruzione riscritta per intero («non trovo nessuna cliente che si chiami "a Jolanda Todde non
+  darle più i ceci"») e, quarantacinque minuti dopo, una domanda su tutt'altro. ⚠️ Il difetto non è
+  il riconoscimento del nome: è che **dal passo non si esce**, e una domanda chiusa che non ammette
+  nessun'altra risposta trasforma un fraintendimento di un minuto in una chat inutilizzabile. Adesso,
+  se fra le clienti non si trova niente, la frase si rilegge e si riparte da lì. ⚠️ La ricerca resta
+  prima — una cliente vera vince sempre — e se la rilettura non capisce si dice «non trovo» come
+  prima: non si indovina. E in più: **la pastiglia «1 sostituzioni da verificare» chiedeva una cosa
+  che Vera non sapeva leggere**. Un'interfaccia che annuncia qualcosa e poi non risponde quando
+  gliela chiedi è peggio di una che non l'annuncia. 7 test.
+
 - `[Sviluppo]` 🍳 **Il catalogo si riempie da solo, una settimana per chiamata.** Richiesta della
   nutrizionista: «invece di farlo lei una alla volta col pulsante *genera*, possiamo farli tutti noi
   fino alla settimana 12, poi lei piano piano le controlla». `POST /internal/cron/genera-catalogo`,

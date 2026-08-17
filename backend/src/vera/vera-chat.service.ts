@@ -345,6 +345,28 @@ export class VeraChatService {
 
     const trovate = await this.cercaClienti(nutrizionistaId, q);
     if (trovate.length === 0) {
+      /**
+       * ⚠️ LA VIA D'USCITA DAL PASSO — screenshot di Simone, 17/8.
+       *
+       * Alle 11:02 Vera chiede «su quale cliente?». Da lì in poi **ogni** messaggio finiva qui
+       * dentro come se fosse un nome: l'istruzione riscritta per intero («a Jolanda Todde non darle
+       * più i ceci» → «non trovo nessuna cliente che si chiami "a Jolanda Todde non darle più i
+       * ceci"») e, quarantacinque minuti dopo, perfino una domanda su un'altra cosa.
+       *
+       * Il difetto non è il riconoscimento del nome: è che **dal passo non si esce**. Una domanda
+       * chiusa che non ammette nessun'altra risposta trasforma un fraintendimento di un minuto in
+       * una chat inutilizzabile, e chi ci sta dentro non ha modo di capire cosa fare.
+       *
+       * ⚠️ La ricerca fra le clienti resta PRIMA: una cliente vera vince sempre su una rilettura.
+       * Si rilegge solo quando non c'è nessuna, cioè quando la risposta di adesso sarebbe comunque
+       * «non trovo nessuno» — e allora provare a capire la frase non toglie niente a nessuno.
+       *
+       * ⚠️ E se la rilettura non capisce, si dice «non trovo» come prima: non si indovina, e il
+       * passo resta aperto. Un giro solo, quindi nessun rimbalzo: `nuovoGiro` che ritorna qui lo fa
+       * con il NOME estratto, e su un nome `capisci` non riconosce nessun intento.
+       */
+      const riletta = capisci(q);
+      if (riletta) return this.nuovoGiro(nutrizionistaId, q);
       return { testo: testi.nessunCliente(q), esito: 'in_corso', stato: { ...stato, passo: 'quale_cliente' } };
     }
     if (trovate.length > 1) {

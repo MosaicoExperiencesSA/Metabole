@@ -479,3 +479,43 @@ describe('capisci — il nome in testa alla frase, senza preposizione', () => {
     expect(restr('A Simone non dare più il tonno').cliente).toBe('Simone');
   });
 });
+
+/**
+ * «QUALE SOSTITUZIONE DEVO VERIFICARE?» — segnalata da Simone il 17/8, con lo screenshot.
+ *
+ * In cima alla chat c'è la pastiglia «1 sostituzioni da verificare». Lui ha fatto la domanda che
+ * quella pastiglia invita a fare, e Vera ha risposto «non trovo nessuna cliente che si chiami
+ * "quale sostituzione devo verificare?"».
+ *
+ * ⚠️ Un'interfaccia che annuncia una cosa e poi non sa rispondere quando gliela chiedi è peggio di
+ * una che non l'annuncia: la pastiglia è la domanda, e le forme riconosciute non la contenevano.
+ */
+describe('capisci — la domanda che fa la pastiglia dei cambi', () => {
+  it('«quale sostituzione devo verificare?» apre la coda', () => {
+    expect(capisci('quale sostituzione devo verificare?')?.tipo).toBe('sostituzioni');
+  });
+
+  it('le forme che una persona scrive davvero', () => {
+    for (const f of [
+      'quali sostituzioni devo verificare',
+      'quale cambio devo verificare?',
+      'quali cambi devo verificare',
+      'qual è la sostituzione da verificare?',
+      'che sostituzioni devo controllare',
+      'quale sostituzione devo guardare?',
+    ]) {
+      expect(capisci(f)?.tipo).toBe('sostituzioni');
+    }
+  });
+
+  it('⚠️ e le forme che c\'erano già continuano a valere', () => {
+    expect(capisci('verifichiamo i cambi')?.tipo).toBe('sostituzioni');
+    expect(capisci('ci sono cambi da verificare?')?.tipo).toBe('sostituzioni');
+  });
+
+  it('⚠️ una FRASE che nomina una sostituzione resta un\'istruzione, non una coda', () => {
+    // «a Giulia sostituisci la panna col latte» contiene «sostituisci» ed è un ordine da eseguire.
+    // Aprire la coda al posto di eseguire sarebbe capire male con l'aria di aver capito.
+    expect(capisci('a Giulia sostituisci la panna col latte')?.tipo).not.toBe('sostituzioni');
+  });
+});
