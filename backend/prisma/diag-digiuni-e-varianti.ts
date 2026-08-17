@@ -48,6 +48,10 @@ const STRUTTURE = ['3', '5', 'fasting'] as const;
 
 const TUTTI_GLI_SLOT = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
 
+/** Come si chiama questa cliente: il nome del profilo, poi quello dell'utente. Come `diag:cliente`. */
+const nomeDi = (p: { name?: string | null; user?: { firstName?: string | null; lastName?: string | null } | null }): string =>
+  p.name?.trim() || `${p.user?.firstName ?? ''} ${p.user?.lastName ?? ''}`.trim() || '(senza nome)';
+
 const inItaliano = (slots: string[]): string =>
   slots.length ? slots.map((s) => NOME_PASTO[s] ?? s).join(', ') : '— NIENTE —';
 
@@ -76,15 +80,19 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
   const profili = (await prisma.clientProfile.findMany({
     where: { pathType: 'intermittent_fasting' } as never,
     select: {
-      userId: true, regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true,
+      userId: true, name: true, regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true,
       objective: true, pathType: true, fastingWindow: true, pastiEsclusi: true,
-      user: { select: { email: true, name: true } },
+      // ⚠️ `User` non ha un campo `name`: ha `firstName` e `lastName`. Il nome «buono» è quello
+      // scritto sul profilo (`ClientProfile.name`), e si ripiega sui due dell'utente — è lo stesso
+      // ordine che usa `diag:cliente`, e due diagnostiche che chiamano la stessa persona in due modi
+      // diversi costringono chi legge a capire quale delle due ha ragione.
+      user: { select: { email: true, firstName: true, lastName: true } },
     } as never,
   })) as unknown as {
-    userId: string; regime: string | null; dietStyle: string | null; dietFamily: string | null;
-    mealsPerDay: number | null; objective: string | null; pathType: string | null;
-    fastingWindow: string | null; pastiEsclusi: string[] | null;
-    user: { email: string | null; name: string | null } | null;
+    userId: string; name: string | null; regime: string | null; dietStyle: string | null;
+    dietFamily: string | null; mealsPerDay: number | null; objective: string | null;
+    pathType: string | null; fastingWindow: string | null; pastiEsclusi: string[] | null;
+    user: { email: string | null; firstName: string | null; lastName: string | null } | null;
   }[];
 
   if (!profili.length) {
@@ -119,7 +127,7 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
     const ricevuti = inCatalogo.filter((s) => !esclusi.has(s));
 
     const riga = {
-      cliente: `${p.user?.name ?? '—'} · ${p.user?.email ?? '—'}`,
+      cliente: `${nomeDi(p)} · ${p.user?.email ?? '—'}`,
       finestra,
       'dovrebbe ricevere': inItaliano(promessi),
       'riceve davvero': inItaliano(ricevuti),
