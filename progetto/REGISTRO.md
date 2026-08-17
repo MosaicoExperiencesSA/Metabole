@@ -20,6 +20,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` ✅ **Lorena Polidoro sistemata dalla scheda, non dal database.** Il pulsante nuovo è
+  stato usato in produzione e ha funzionato: uno dei due «Conosciamoci» annullato, l'altro resta in
+  corso fino al 01/09 con i 7 giorni di pausa che le erano stati concessi. ⚠️ Annullato il piano nato
+  il **09/08** e non il doppione del 16/08: la pausa vive sul secondo, e togliere quello le avrebbe
+  tolto una settimana. È una cosa che si vede solo guardando le date — la prima indicazione che avevo
+  dato era l'altra, e sarebbe costata a lei. ⚠️ Resta aperta la **causa**: `queued` non è uno stato,
+  quindi il caso può ripresentarsi comunque sia nato (`progetto/NOTA_Due_Piani_Attivi_Lorena.md`). E
+  resta che il pulsante è `@Roles('admin')`: da capo nutrizionista non si vede.
+
 - `[Sviluppo]` ✏️ **«sostitusci»: Vera cadeva su una lettera.** «a jolanda **sostitusci** ceci con
   fagioli o lenticchie» → «Non ci arrivo». Passata la frase dentro `capisci` prima di toccare
   qualcosa: non era il nome minuscolo e non era «o lenticchie» — era il refuso sul verbo, e con la
