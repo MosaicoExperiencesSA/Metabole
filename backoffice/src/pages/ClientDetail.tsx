@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -754,6 +754,38 @@ export function ClientDetail() {
       setError(err instanceof ApiError ? err.message : 'Cambio data non riuscito.');
     }
   }
+  /**
+   * ANNULLA UN ABBONAMENTO dalla scheda (17/8, dal caso Lorena Polidoro: due piani attivi insieme).
+   *
+   * ⚠️ Annullare NON è stornare: qui si toglie il PIANO, i soldi hanno la loro strada. E non
+   * cancella la riga — resta come `annullato`, perché un pagamento la referenzia e la storia di una
+   * cliente è la cosa che si va a leggere proprio quando qualcosa non torna.
+   *
+   * ⚠️ L'avviso lo compone il SERVER (409) e non questa pagina: sapere se dopo l'annullamento la
+   * cliente resta senza menu vuol dire guardare TUTTI i suoi abbonamenti con le loro date, e
+   * rifarlo qui vorrebbe dire tenere allineate due copie della stessa regola. È la stessa scelta
+   * fatta per il cambio della data di inizio, ed è quella che ha retto.
+   */
+  async function annullaAbbonamento(subId: string, nomePiano: string, conferma = false) {
+    if (!conferma && !confirm(`Annullare «${nomePiano}»?\n\nIl piano smette di produrre menu nuovi. I giorni già consegnati restano, e la riga resta in scheda come «Annullato». Non è un rimborso: i soldi non si toccano.`)) return;
+    setError(null); setNotice(null);
+    try {
+      const r = await api<{ testo: string; restaSenzaPiano: boolean }>(
+        `/admin/subscriptions/${subId}/cancel`,
+        { method: 'POST', body: JSON.stringify({ motivo: 'annullato dalla scheda cliente', conferma }) },
+      );
+      setNotice(r.testo);
+      void loadDetail();
+    } catch (err) {
+      // 409 = l'avviso, non un errore: si può fare, ma la cliente resta senza piano in corso.
+      if (err instanceof ApiError && err.status === 409 && !conferma) {
+        if (confirm(`${err.message}\n\nProcedo comunque?`)) await annullaAbbonamento(subId, nomePiano, true);
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : 'Annullamento non riuscito.');
+    }
+  }
+
   /** Rigenera i menu da oggi in poi: corregge menu vecchi sbagliati (es. solo colazione). */
   async function regenerateMenu() {
     if (!confirm('Rigenerare i menu di questa cliente da OGGI in poi?\nI giorni già erogati da oggi vengono ricreati con la generazione corretta (lo storico passato resta). Usalo per correggere menu vecchi sbagliati.')) return;
@@ -1870,8 +1902,8 @@ export function ClientDetail() {
                 primo ed è evidenziato; se il backend non manda ancora l'elenco si ricade sul
                 solo piano principale, come prima. */}
             {pianiPerMenu(d).map((s) => (
+              <Fragment key={s.id}>
               <button
-                key={s.id}
                 className="chip"
                 onClick={() => void openMenus(s.periodo)}
                 title={
@@ -1889,6 +1921,21 @@ export function ClientDetail() {
                 {s.startDate && <span className="muted" style={{ marginLeft: 4 }}>{date(s.startDate)}</span>}
                 <i className="ti ti-tools-kitchen-2" style={{ marginLeft: 4 }} />
               </button>
+              {/* ⚠️ Fuori dalla pastiglia e non dentro: un pulsante dentro un pulsante non è HTML
+                  valido, e il click finirebbe sul contenitore aprendo i menu invece di annullare.
+                  Solo admin, e solo sui piani che si possono ancora annullare — su uno già annullato
+                  o scaduto non c'è niente da fare, e mostrarlo lo stesso è un invito a un errore. */}
+              {isAdmin && s.status !== 'cancelled' && s.status !== 'expired' && (
+                <button
+                  className="btn ghost sm"
+                  onClick={() => void annullaAbbonamento(s.id, s.planName ?? 'piano')}
+                  title={`Annulla «${s.planName ?? 'piano'}»: smette di produrre menu nuovi. Non è un rimborso.`}
+                  style={{ marginLeft: -4 }}
+                >
+                  <i className="ti ti-x" />
+                </button>
+              )}
+              </Fragment>
             ))}
           </div>
         </div>

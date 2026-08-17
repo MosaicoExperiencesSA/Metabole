@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🔴 **CI rossa: provider mancante nel test del cron.** Aggiungendo `EngineRulesService`
+  al costruttore di `CronController` non l'ho messo fra i provider del suo TestingModule, che li
+  elenca a mano: `nest build` passava, cadevano i 5 test di `cron.controller.spec.ts`. ⚠️ Non l'ho
+  visto perché quella suite è una di quelle che **in sandbox non compilano** per lo stub di Prisma:
+  la mia verifica «tsc pulito sui file toccati» non poteva vederlo, e non l'avevo detto abbastanza
+  forte — **sul codice che tocca Prisma il controllo dei tipi in sandbox non vale**, vale sul Mac e
+  in CI. Oltre alla toppa, quattro test che difendono la decisione: `daily` **non** genera catalogo
+  (quella notte non deve chiamare l'AI), l'endpoint genera e dice cosa ha fatto, senza segreto non
+  genera niente perché è un endpoint che **spende**, e se la generazione esplode non risponde 500.
+  Il primo è quello che conta: adesso la dipendenza è nel costruttore, e senza quel test il giorno
+  che qualcuno la infila fra gli step notturni se ne accorge la fattura.
+
 - `[Sviluppo]` 🧾 **Due piani attivi su Lorena Polidoro: trovata la causa, e fatto il rimedio.** La
   storia letta in audit (`npm run diag:storia`, nuovo): alle **20:29:32** «+ Attiva un piano» crea il
   secondo piano e la **coda scatta** correttamente (`commerce.plan.queued`, inizio 25/08); alle

@@ -10,6 +10,7 @@ import { CommerceService } from '../commerce/commerce.service';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { EngineService } from '../engine/engine.service';
+import { EngineRulesService } from '../engine-rules/engine-rules.service';
 import { VisitsService } from '../health-area/visits.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { RegistroVeraService } from '../vera/registro.service';
@@ -46,6 +47,7 @@ describe('CronController (endpoint per Render Cron)', () => {
   let notifications: { generateDailyBatch: jest.Mock; measuresNudgeTick: jest.Mock };
   let monitoring: { dailyTick: jest.Mock };
   let audit: { log: jest.Mock };
+  let engineRules: { generaProssimoCatalogo: jest.Mock };
 
   beforeEach(async () => {
     engine = { runBatch: jest.fn().mockResolvedValue({ total: 1, run: 1, flagged: 0, skipped: 0 }) };
@@ -55,12 +57,19 @@ describe('CronController (endpoint per Render Cron)', () => {
     };
     monitoring = { dailyTick: jest.fn().mockResolvedValue({ ok: true }) };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
+    engineRules = { generaProssimoCatalogo: jest.fn().mockResolvedValue({ fatto: true, variante: 'Flexitariana · omnivore · dimagrimento · 5 pasti', settimana: 3 }) };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [CronController],
       providers: [
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('segreto-cron') } },
         { provide: EngineService, useValue: engine },
+        /**
+         * ⚠️ Il generatore di catalogo NON è uno step di `daily`: sta su un endpoint suo, perché
+         * chiama l'AI e costa. Sta qui solo perché il costruttore lo chiede — e il test più sotto
+         * verifica che `daily` non lo sfiori nemmeno.
+         */
+        { provide: EngineRulesService, useValue: engineRules },
         { provide: NotificationsService, useValue: notifications },
         { provide: AuditService, useValue: audit },
         { provide: LeadAssignmentService, useValue: { expireStale: jest.fn().mockResolvedValue({ expired: 0 }) } },
@@ -131,4 +140,43 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(await controller.reminders('segreto-cron')).toEqual({ appointmentReminders: { sent: 3 } });
     expect(await controller.measuresNudge('segreto-cron')).toEqual({ inviati: 0 });
   });
+
+  /**
+   * IL GENERATORE DI CATALOGO STA FUORI DA `daily`, ED È UNA DECISIONE — 17/8.
+   *
+   * `daily` è la notte del prodotto: motore, notifiche, scadenze. Deve restare corta e prevedibile,
+   * e soprattutto **non deve costare**. Il riempimento del catalogo chiama l'AI cinque volte a giro:
+   * infilarlo lì dentro vorrebbe dire spendere ogni notte senza che nessuno l'abbia chiesto, e
+   * scoprirlo dalla fattura.
+   *
+   * ⚠️ Questi due test esistono perché la dipendenza ADESSO c'è nel costruttore: senza di loro, il
+   * giorno che qualcuno aggiunge `await step('catalogo', …)` in mezzo agli altri non se ne accorge
+   * nessuno finché non arriva il conto.
+   */
+  it('⚠️ `daily` NON genera catalogo: quella notte non deve chiamare l\'AI', async () => {
+    await controller.daily('segreto-cron');
+    expect(engineRules.generaProssimoCatalogo).not.toHaveBeenCalled();
+  });
+
+  it('l\'endpoint del catalogo genera, e risponde dicendo cosa ha fatto', async () => {
+    const r = (await controller.generaCatalogo('segreto-cron')) as { ok: boolean; variante?: string };
+    expect(engineRules.generaProssimoCatalogo).toHaveBeenCalledTimes(1);
+    expect(r.ok).toBe(true);
+    expect(r.variante).toContain('Flexitariana');
+  });
+
+  it('⚠️ e senza il segreto non genera niente: è un endpoint che spende', async () => {
+    await expect(controller.generaCatalogo('sbagliato')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(engineRules.generaProssimoCatalogo).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ se la generazione esplode l\'endpoint NON risponde 500: lo dice e basta', async () => {
+    // Un cron che risponde 500 su Render diventa un allarme, e l'AI momentaneamente fuori uso non è
+    // un guasto del prodotto. Si dice cos'è successo e si riprova al giro dopo.
+    engineRules.generaProssimoCatalogo.mockRejectedValueOnce(new Error('credito esaurito'));
+    const r = (await controller.generaCatalogo('segreto-cron')) as { ok: boolean; errore?: string };
+    expect(r.ok).toBe(false);
+    expect(r.errore).toContain('credito esaurito');
+  });
+
 });
