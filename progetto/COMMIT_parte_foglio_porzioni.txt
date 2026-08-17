@@ -1,0 +1,76 @@
+Le porzioni si scalano all'erogazione: il foglio della strada C (e il segnale che manca)
+
+FOGLIO DI DECISIONE, NESSUN CODICE DI PRODUZIONE. Voce 255, la meta' che la correzione del digiuno
+del 17/8 (voce 254) non chiude: Sonia ha i pasti giusti al 65% del suo fabbisogno.
+
+`progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`. La strada l'ha scelta Simone (C: la porzione si
+scala all'erogazione), quindi il foglio non ripropone il confronto con la B: serve a decidere le cose
+che la C non dice ancora, e a scrivere cosa costa PRIMA di toccare le calorie di qualcuno.
+
+QUANTO MANCA, FINESTRA PER FINESTRA — incrociando `FINESTRE_DIGIUNO` con le quote di
+`quoteKcalPerSlot` e col catalogo che la correzione del 17/8 serve a ciascuna:
+· salta la colazione   → digiuno, 100% — non serve niente
+· salta la cena (Sonia) → 5 pasti, 65% → ×1,54
+· salta il pranzo      → 5 pasti, 65% → ×1,54
+· salta colazione e pranzo → digiuno, 55% → ×1,82
+· salta cena e colazione   → digiuno, 45% → ×2,22
+· i due spuntini tolti da Vera (`pastiEsclusi`), fuori dal digiuno → 80% → ×1,25
+⚠️ Le due finestre strette oggi non le usa nessuno, MA LA 20-4 IL PRODOTTO LA PROPONE: la riga del
+×2,22 e' raggiungibile domani, non e' un caso di scuola.
+
+LE TRE DOMANDE PER SIMONE, tutte cliniche, in testa al foglio:
+  1. il TETTO del moltiplicatore: uno solo (×1,6) o uno per tipo di pasto (principali ×1,8,
+     colazione ×1,6, spuntini ×1,25)? Consigliato il secondo: col tetto unico lo spuntino di Sonia
+     passa da 160 a 256 kcal e non e' piu' uno spuntino.
+  2. COSA SI FA QUANDO IL TETTO NON BASTA (il 45%): si eroga al tetto e SI DICE (gemello di
+     `fasting_meals_missing`), e/o si previene quando la finestra si sceglie — «con questa finestra
+     arriveremmo al 45% delle tue calorie». ⚠️ Avvisare o impedire? Nel dubbio avvisare: un divieto
+     secco si aggira scrivendo il campo a mano, e allora non lo sa nessuno.
+  3. scalano tutti allo stesso modo, o i pasti principali piu' degli spuntini? (Nel foglio c'e' la
+     tabella su 1600 kcal: uniforme vs pesata, pasto per pasto.)
+
+⚠️ IL PEZZO CHE NON ASPETTA NESSUNA DECISIONE, e va consegnato per primo: OGGI UNA GIORNATA SOTTO
+TARGET ESCE IDENTICA A UNA GIUSTA. `menu_kcal_balance_tolerance_pct` esiste ma e' usata come FILTRO,
+non come controllo: `day-combo.service.ts:48-56` scarta le combinazioni fuori banda e torna `null`, e
+`menu.service.ts:718-723` compone col template ed EROGA COMUNQUE, senza una riga di log. Nello stesso
+file, per i PASTI mancanti, il segnale e' stato costruito (`fasting_meals_missing`, warn +
+analyticsEvent + `diag:digiuni` cliente per cliente). Per le CALORIE non esiste l'equivalente.
+Il precedente da copiare e' di Vera: `giornata-dettata.ts` blocca una giornata dettata fuori target e
+lo dice col numero. Il motore, sulla stessa domanda, tace.
+
+⚠️ LE QUATTRO FRASI CHE PROMETTONO UNA COSA CHE IL MOTORE NON FA — vanno sistemate in ogni caso:
+`app/src/pages/Profilo.tsx:226` (alla cliente: «le calorie di quel pasto sono ridistribuite sugli
+altri»), `vera-chat.service.ts:926` e `:992` (Vera lo dice a voce alla nutrizionista e allo staff),
+`schema.prisma:415` (il commento della colonna). La strada C le rende vere; fino a quel giorno sono
+quattro punti in cui il prodotto dice una cosa che non succede.
+
+I TRE PUNTI CHE ROMPEREBBERO IN SILENZIO (scritti nel foglio col numero di riga):
+· LA LISTA DELLA SPESA somma le grammature di catalogo senza fattore (`menu.service.ts:2485`) — e ha
+  una CACHE (`:2463-2466`): un fattore scritto dopo non ci arriverebbe mai;
+· IL DETTAGLIO RICETTA non passa dal menu: l'app chiama `GET /recipes/:id`, che non sa ne' di quale
+  giorno ne' di quale pasto — mostrerebbe la porzione BASE in contraddizione visibile con la riga del
+  pasto sopra (ed e' gia' oggi il punto dove le sostituzioni concordate non si vedono);
+· I TOTALI KCAL DELLA GIORNATA LI SOMMA IL FRONTEND (`Home.tsx:307`, `Percorso.tsx:90` e `:237`),
+  quindi il campo nuovo NON basta: `kcal` va scritto GIA' SCALATO, con `porzione` e `kcalBase`
+  accanto per non perdere l'origine. Cosi' i trenta punti che leggono `m.kcal` leggono un numero vero.
+⚠️ E il tetto va in `config_param` (regola n.1: le soglie del motore mai hardcodate) piu' in
+`prisma/seed.ts`, che gira a ogni deploy e crea le chiavi mancanti senza toccare i valori cambiati
+dall'admin.
+
+ALTRO NEL FOGLIO: le tre consegne in ordine (la verita' prima della cura), i punti di scrittura
+(`snapshotMeals` e' l'imbuto unico, ma TRE punti riscrivono i pasti dopo e perderebbero un campo
+nuovo), il limite dei piatti «a pezzo» (×1,5 di una mela), e che `menuDay.upsert` ha `update: {}`:
+la correzione vale dai giorni non ancora aperti, non su quelli gia' erogati.
+
+FILE:
+- progetto/DECISIONE_Porzioni_Scalate_Strada_C.md — il foglio.
+- progetto/HANDOFF_2026-08-17_sera.md — il passaggio di consegne della sera, recuperato dalla chat che
+  si e' bloccata. ⚠️ Con la CORREZIONE del suo §3.1: `vera_seconda_lettura` in `config_param` NON va
+  creato a mano. Il seed gira a ogni deploy (`render.yaml:48` → `npx prisma db seed`) e
+  `seed.ts:1296-1300` fa upsert su tutti i `CONFIG_PARAMS` senza toccare i valori: la riga nasce da
+  se' al primo deploy dopo 0ca728f. Era ricordato, non verificato — lo dice anche REGISTRO riga 5268.
+- backend/src/lavori/voci-iniziali.ts — voce 255 aggiornata: strada C decisa, il foglio, le tre
+  domande che restano. Resta categoria SIMONE, perche' le domande sono sue.
+
+NESSUNA MIGRAZIONE, nessun test (non c'e' codice nuovo). Le tabelle del foglio sono state ricavate
+leggendo `FINESTRE_DIGIUNO`, `quoteKcalPerSlot` e `struttura-per-digiuno.ts`, non stimate.

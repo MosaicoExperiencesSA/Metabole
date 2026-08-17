@@ -20,6 +20,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🍽️ **Le porzioni si scalano all'erogazione: scritto il foglio della strada C, e trovato
+  il segnale che manca.** Voce 255, la metà che la correzione del digiuno (voce 254) non chiude: Sonia
+  ha i pasti giusti al **65%** del fabbisogno. La strada l'ha scelta Simone (C: un moltiplicatore di
+  porzione all'erogazione, un catalogo solo), quindi il foglio
+  (`progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`) non ripropone il confronto con la B: mette per
+  iscritto quanto manca, quanto costa, e le domande che la C non risolve. ⚠️ **Quanto manca l'ho
+  contato, non stimato**, incrociando `FINESTRE_DIGIUNO` con `quoteKcalPerSlot` e col catalogo che la
+  correzione del 17/8 serve a ciascuna finestra: «salta la cena» e «salta il pranzo» stanno al 65%
+  (fattore ×1,54), «salta colazione e pranzo» al 55% (×1,82), **«salta cena e colazione» al 45%
+  (×2,22)** — e i due spuntini tolti da Vera, fuori dal digiuno, valgono l'80% (×1,25). Le due
+  finestre strette oggi non le usa nessuno, ⚠️ ma **la 20-4 il prodotto la propone**: la riga del
+  ×2,22 è raggiungibile domani. Le tre domande per Simone, tutte cliniche, sono in testa al foglio: il
+  **tetto** (uno solo, o uno per tipo di pasto — col tetto unico lo spuntino di Sonia diventa da 256
+  kcal e non è più uno spuntino), **cosa si fa quando il tetto non basta**, e **se scalano tutti allo
+  stesso modo**. ⚠️ **Ma la cosa che ho trovato scrivendo il foglio non aspetta nessuna decisione: una
+  giornata sotto target oggi esce identica a una giusta.** `menu_kcal_balance_tolerance_pct` esiste ma
+  è usata come **filtro**, non come controllo: `day-combo.service.ts:48-56` scarta le combinazioni
+  fuori banda e torna `null`, e `menu.service.ts:718-723` compone col template ed **eroga comunque,
+  senza una riga di log**. Nello stesso file, per i **pasti** mancanti, il segnale è stato costruito
+  (`fasting_meals_missing`, warn + `analyticsEvent` + `diag:digiuni` cliente per cliente): per le
+  **calorie** non esiste l'equivalente — e il controllo che manca al motore Vera ce l'ha già, per le
+  giornate dettate (`giornata-dettata.ts`, che blocca e lo dice col numero). Per questo la prima
+  consegna proposta non è la cura, è il numero che dice quante sono. ⚠️ E le **quattro frasi che
+  promettono una cosa che il motore non fa** vanno sistemate in ogni caso: `Profilo.tsx:226` («le
+  calorie di quel pasto sono ridistribuite sugli altri», alla cliente), `vera-chat.service.ts:926` e
+  `:992` (Vera lo dice a voce), `schema.prisma:415`. I tre punti che romperebbero in silenzio sono nel
+  foglio col numero di riga: la lista della spesa (somma le grammature senza fattore, **e ha una
+  cache**), il dettaglio ricetta (chiama `GET /recipes/:id`, che non sa né di quale giorno né di quale
+  pasto), e i **totali kcal che li somma il frontend** — quindi `kcal` va scritto già scalato, con
+  `porzione` e `kcalBase` accanto. Nessuna migrazione, nessun codice di produzione.
+
+- `[Sviluppo]` 🔎 **`vera_seconda_lettura` in `config_param`: era un falso allarme, e l'handoff della
+  sera lo diceva sbagliato.** L'handoff (`progetto/HANDOFF_2026-08-17_sera.md`, recuperato dalla chat che
+  si è bloccata) apriva con «il seed non gira su un database che esiste già» e chiedeva di creare la
+  riga a mano. ⚠️ **Non è così, ed è lo stesso handoff a mettere al primo posto la regola che l'avrebbe
+  evitato**: si verifica nel codice, non nei documenti. `render.yaml:48` →
+  `preDeployCommand: (npx prisma migrate deploy || …) && npx prisma db seed`, `package.json:80-82`
+  punta a `prisma/seed.ts`, e `seed.ts:1296-1300` fa `upsert` su tutti i `CONFIG_PARAMS` — `create` se
+  la chiave manca, `update` che **non tocca `value`** perché «l'admin può averlo cambiato».
+  `vera_seconda_lettura` è in quell'elenco (`seed.ts:512-526`). La riga nasce da sé al primo deploy
+  dopo `0ca728f`: niente da lanciare. Lo diceva anche questo registro, alla riga 5268 («il seed gira a
+  ogni deploy»). Il §3.1 dell'handoff è stato corretto sul posto, col testo originale lasciato sotto
+  per memoria: un handoff sbagliato che resta in giro costa più di uno mancante. Resta solo da guardare
+  che il deploy sia verde e che la chiave si veda nella pagina Parametri.
+
 - `[Sviluppo]` 🗣️ **Vera: la seconda lettura. Il modello traduce, `capisci` decide.** Sì di Simone la
   mattina, consegnata la sera. Quando il riconoscitore torna `null`, il modello **riscrive** la frase
   nella forma canonica e la si rilegge col riconoscitore deterministico. ⚠️ Il modello non vede i dati
