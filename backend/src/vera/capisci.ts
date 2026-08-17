@@ -266,13 +266,56 @@ function pulisci(pezzo: string): string {
  */
 function nomePersona(testo: string): string | null {
   // «a Simone …», «per Anna Rossi …», «alla cliente Giulia …»
-  const m = /(?:^|[\s,;.])(?:a|ad|per|alla|al)\s+(?:client[ei]\s+|sig(?:\.|nora)\s+)?([A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’]+)?)/u.exec(testo);
+  // ⚠️ Le preposizioni si scrivono nelle due forme a mano invece di mettere il flag `i`: `i`
+  // renderebbe insensibile anche la maiuscola del NOME, che qui è il solo segnale che distingue
+  // «per Giulia» da «per domani». Senza la forma maiuscola, «Per Giulia Rossi domani» — cioè una
+  // frase che comincia con la preposizione, com'è normale — non veniva riconosciuta da questa riga.
+  const m = /(?:^|[\s,;.])(?:[Aa]|[Aa]d|[Pp]er|[Aa]lla|[Aa]l)\s+(?:client[ei]\s+|sig(?:\.|nora)\s+)?([A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’]+)?)/u.exec(testo);
   if (m) return m[1].trim();
   // «… a giulia» tutto minuscolo: si accetta solo con la preposizione attaccata a fine frase, dove
   // l'ambiguità è minima. Una parola maiuscola a caso NON è un nome: sarebbe il modo più rapido
   // per attribuire una regola alla persona sbagliata.
   const m2 = /\b(?:a|ad|per)\s+([a-zà-ÿ][\wà-ÿ'’]{2,})\s*$/u.exec(testo.trim());
-  return m2 ? m2[1].trim() : null;
+  if (m2) return m2[1].trim();
+  return nomeInTesta(testo);
+}
+
+/**
+ * IL NOME CHE APRE LA FRASE, senza preposizione: «Jolanda Todde non darle più i ceci».
+ *
+ * Segnalato da Simone il 17/8 collaudando Vera. Il divieto veniva capito benissimo — è la prima
+ * forma dei `DIVIETI` — ma il nome no, perché sopra si cerca soltanto dopo «a / ad / per / alla /
+ * al». Il segnaposto dell'interfaccia mostra la forma che il codice sa leggere («a Giulia Rossi non
+ * dare più…»), non quella che scrive chi ha in mente la cliente e comincia da lei.
+ *
+ * ## ⚠️ Due parole maiuscole, non una
+ *
+ * Ogni frase comincia con la maiuscola. Con una parola sola «Togli i ceci a Jolanda» darebbe la
+ * cliente «Togli»: la regola finirebbe addosso a chiunque si chiami così, e la domanda «su quale
+ * cliente?» sparirebbe proprio nel caso in cui serviva. Due nomi propri di fila in apertura sono un
+ * segnale che nessun verbo italiano produce per caso.
+ *
+ * ⚠️ Si prova **per ultimo**: la forma con la preposizione è dichiarata, e dove c'è vince sempre.
+ * E la rete sotto resta — il nome estratto qui viene cercato fra le clienti vere
+ * (`risolviCliente`), quindi un'estrazione sbagliata produce «non trovo nessuna cliente che si
+ * chiami…», non una regola scritta sulla persona sbagliata.
+ */
+/**
+ * ⚠️ Le parole che aprono la frase e NON sono un nome, per quanto maiuscole. Una frase comincia
+ * con la maiuscola sempre, quindi «Per Giulia Rossi domani» ha due parole maiuscole di fila come
+ * «Jolanda Todde»: senza questo elenco il ripiego prenderebbe «Per Giulia» e sposterebbe la regola
+ * su una persona che non esiste. Le frasi con la preposizione hanno già la loro riga, sopra.
+ */
+const APERTURE_NON_NOME = new Set([
+  'a', 'ad', 'al', 'alla', 'allo', 'ai', 'agli', 'alle', 'per', 'con', 'di', 'da', 'del', 'della',
+  'dello', 'dei', 'delle', 'in', 'su', 'sul', 'sulla', 'e', 'ma', 'poi', 'oggi', 'domani', 'ieri',
+]);
+
+function nomeInTesta(testo: string): string | null {
+  const m = /^([A-ZÀ-Ý][\wÀ-ÿ'’]+)\s+([A-ZÀ-Ý][\wÀ-ÿ'’]+)\b/u.exec((testo ?? '').trim());
+  if (!m) return null;
+  if (APERTURE_NON_NOME.has(m[1].toLowerCase())) return null;
+  return `${m[1]} ${m[2]}`.trim();
 }
 
 /** Vero se la frase è una domanda o una negazione dell'istruzione: non si esegue. */

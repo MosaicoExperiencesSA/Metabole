@@ -187,3 +187,56 @@ describe('⚠️ solfiti: quello che NON si toglie', () => {
     expect(parole).not.toContain('limone');
   });
 });
+
+/**
+ * DUE ALIMENTI DENTRO UN TAG SOLO — caso Jolanda Todde, 17/8.
+ *
+ * In scheda aveva `Cibi esclusi (1): "Carne .ceci"`: una stringa sola, scritta di getto nel campo
+ * a tag del questionario. `expandExclusion` non riconosceva quella chiave e restituiva la stringa
+ * intera, che il motore andava a cercare dentro il nome e gli ingredienti dei piatti — dove non
+ * compare mai. **Né la carne né i ceci sono stati esclusi**, e le è arrivata in menu un'insalata di
+ * ceci il giorno dopo aver detto che i ceci non li vuole.
+ *
+ * ⚠️ È la terza volta che questo progetto paga la stessa riga: `latte` che non espandeva i derivati
+ * (8/8), `frutta_a_guscio` con l'underscore (12/8), e adesso due alimenti in un tag. Il difetto è
+ * sempre lo stesso, ed è quello scritto in testa a `exclusions.ts`: **una chiave che la mappa non
+ * riconosce si comporta come un'esclusione che non c'è, e non produce nessun errore.**
+ *
+ * Si corregge QUI e non solo nel questionario perché qui agisce subito su tutte le clienti che
+ * hanno già un tag sporco in scheda, senza migrazioni e senza toccare un dato scritto da loro.
+ */
+describe('expandExclusion — un tag che contiene più alimenti', () => {
+  it('«Carne .ceci» esclude la carne E i ceci', () => {
+    const k = expandExclusion('Carne .ceci');
+    expect(k).toContain('carne');
+    expect(k).toContain('ceci');
+  });
+
+  it('i separatori che escono da una tastiera vera: virgola, punto, punto e virgola, slash', () => {
+    for (const t of ['carne, ceci', 'carne. ceci', 'carne; ceci', 'carne / ceci', 'carne e ceci']) {
+      const k = expandExclusion(t);
+      expect(k).toContain('carne');
+      expect(k).toContain('ceci');
+    }
+  });
+
+  it('⚠️ ogni pezzo si espande per conto suo: «latte, ceci» porta dentro anche il burro', () => {
+    // Spezzare senza riespandere sarebbe mezza correzione: «latte» vale solo se tira dentro i
+    // derivati, che è la lezione dell'8/8 (il burro proposto a una cliente allergica al latte).
+    const k = expandExclusion('latte, ceci');
+    expect(k).toContain('burro');
+    expect(k).toContain('ceci');
+  });
+
+  it('⚠️ un alimento dal nome composto NON si spezza: «frutta a guscio», «insalata russa»', () => {
+    // Spezzare sugli spazi trasformerebbe «frutta a guscio» in «frutta», «guscio» — cioè in
+    // un'esclusione molto più larga di quella dichiarata, che toglierebbe tutta la frutta.
+    expect(expandExclusion('frutta a guscio')).toContain('noci');
+    expect(expandExclusion('insalata russa')).toContain('insalata russa');
+  });
+
+  it('un tag pulito resta esattamente com\'era', () => {
+    expect(expandExclusion('kiwi')).toEqual(['kiwi']);
+    expect(expandExclusion('')).toEqual([]);
+  });
+});

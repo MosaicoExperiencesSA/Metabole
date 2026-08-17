@@ -44,6 +44,7 @@
     "diag:famiglie": "ts-node --transpile-only prisma/diag-famiglie-ambigue.ts",
     "pulisci:spezie": "ts-node --transpile-only prisma/pulisci-spezie.ts",
     "diag:settimane": "ts-node --transpile-only prisma/diag-settimane.ts",
+    "diag:digiuni": "ts-node --transpile-only prisma/diag-digiuni-e-varianti.ts",
     "fix:stato-questionario": "ts-node --transpile-only prisma/fix-stato-questionario.ts",
     "fix:consenso-sanitario": "ts-node --transpile-only prisma/fix-consenso-sanitario.ts",
     "fix:segnalazioni": "ts-node --transpile-only prisma/fix-segnalazioni-orfane.ts",

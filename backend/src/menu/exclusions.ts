@@ -167,9 +167,53 @@ function senzaUnderscore(t: string): string {
   return t.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * I SEGNI CON CUI UNA PERSONA SEPARA DUE ALIMENTI in un campo che ne aspettava uno.
+ *
+ * ⚠️ **Non lo spazio.** «Frutta a guscio», «insalata russa», «latte di mandorla» sono un alimento
+ * solo: spezzarli sugli spazi trasformerebbe un'esclusione dichiarata in una molto più larga —
+ * «frutta a guscio» diventerebbe «frutta», e toglierebbe alla cliente tutta la frutta. Qui stanno
+ * soltanto i segni che separano e basta, più la «e» come parola intera.
+ */
+const SEPARATORI_ALIMENTI = /\s*(?:[,;./|+&\n]|\s\be\b\s)\s*/;
+
 export function expandExclusion(term: string): string[] {
   const grezzo = (term ?? '').toLowerCase().trim();
   if (!grezzo) return [];
+
+  /**
+   * DUE ALIMENTI DENTRO UN TAG SOLO — caso Jolanda Todde, 17/8.
+   *
+   * In scheda aveva un'unica voce, `"Carne .ceci"`, scritta di getto nel campo a tag del
+   * questionario. Non essendo una chiave della mappa tornava intera, e il motore andava a cercare
+   * la stringa `carne .ceci` dentro il nome e gli ingredienti dei piatti — dove non compare mai.
+   * Né la carne né i ceci sono stati esclusi, e il giorno dopo le è arrivata un'insalata di ceci.
+   *
+   * ⚠️ Terza volta per la stessa riga: `latte` che non espandeva i derivati (8/8),
+   * `frutta_a_guscio` con l'underscore (12/8), e adesso questo. Il difetto è quello scritto in
+   * testa al file — **una chiave che la mappa non riconosce si comporta come un'esclusione che non
+   * c'è, e non produce nessun errore** — e le prime due volte si è chiusa la forma singola. Questa
+   * volta si chiude la forma generale: se non ti riconosco, prima di arrendermi provo a spezzarti.
+   *
+   * ⚠️ Il taglio si prova **dopo** aver guardato se il termine intero è già una chiave conosciuta:
+   * «latte e derivati» e «frutta a guscio» sono voci vere della mappa, e spezzarle vorrebbe dire
+   * perdere proprio l'espansione che serve. La strada nota vince sempre sul ripiego.
+   */
+  const conSpaziPrima = senzaUnderscore(grezzo);
+  const giaNota = !!(
+    ALIAS[grezzo] || ALIAS[conSpaziPrima] || INTOLERANCE_MAP[conSpaziPrima] || INTOLERANCE_MAP[grezzo]
+  );
+  if (!giaNota) {
+    const pezzi = grezzo.split(SEPARATORI_ALIMENTI).map((p) => p.trim()).filter((p) => p.length >= 2);
+    if (pezzi.length > 1) {
+      const out = new Set<string>();
+      // Ogni pezzo si riespande per conto suo: spezzare senza riespandere sarebbe mezza
+      // correzione, e «latte» vale solo se si porta dietro burro e panna (la lezione dell'8/8).
+      for (const p of pezzi) for (const k of expandExclusion(p)) out.add(k);
+      return [...out];
+    }
+  }
+
   // Prima l'alias (`lactose` → `lattosio`), poi la mappa. Il termine originale resta sempre fra
   // le parole chiave: se la mappa non lo conosce, almeno la parola scritta dalla cliente vale.
   // ⚠️ `latticini_` è un alias vero con l'underscore in fondo: si guarda la forma grezza PRIMA di

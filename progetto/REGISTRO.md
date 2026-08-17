@@ -18,6 +18,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-17
+
+- `[Sviluppo]` 🔎 **`npm run diag:digiuni` — cosa mangia davvero chi ha scelto il digiuno, e cosa
+  manca alle 18 varianti.** Sola lettura, non scrive niente. ⚠️ La variante `fasting: true` ha tre
+  slot **fissi** (pranzo, merenda, cena): è di fatto la variante «salta la colazione», e nessun campo
+  lo dice. Poi l'erogazione toglie da lì gli slot della finestra scelta dalla cliente — e chi ha
+  scelto «salto la cena» resta **col solo pranzo, un pasto al giorno**. Lo script lo dice cliente per
+  cliente, con nome ed email, confrontando i pasti che la finestra promette con quelli che restano.
+  Seconda parte: la griglia 3 regimi × 2 obiettivi × 3 strutture per ogni famiglia, e — soprattutto —
+  la divisione fra le varianti **riempibili subito senza AI** (manca solo la struttura pasti, e le
+  sorelle hanno già le ricette: è il generatore stesso a dire che le condividono) e quelle **che
+  richiedono di generare ricette nuove** (manca il regime o l'obiettivo, e lì non si ricicla niente —
+  una ricetta onnivora in una dieta vegana è l'errore che il generatore evita apposta). Serve a non
+  spendere in chiamate all'AI prima di sapere quante clienti stanno davvero su quelle caselle.
+
+- `[Sviluppo]` 🫘 **Tre volte che non abbiamo ascoltato la cliente — caso Jolanda Todde.** Tre
+  difetti diversi trovati in un'ora, con una cosa sola in comune, ed è quella seria: **nessuno dei
+  tre dà errore.** La cliente dice qualcosa di sé, il sistema risponde come se l'avesse capita, e va
+  avanti.
+  **(a)** In scheda aveva `Cibi esclusi (1): "Carne .ceci"` — un tag solo. `expandExclusion` non
+  riconosceva quella chiave, la restituiva intera, e il motore cercava la stringa `carne .ceci` nei
+  piatti, dove non compare mai: **né la carne né i ceci sono mai stati esclusi**, e il giorno dopo le
+  è arrivata un'insalata di ceci. ⚠️ È la **terza volta** per questa riga — `latte` che non espandeva
+  i derivati (8/8), `frutta_a_guscio` con l'underscore (12/8) — e il difetto sta scritto in testa a
+  `exclusions.ts` da allora: *una chiave che la mappa non riconosce si comporta come un'esclusione
+  che non c'è, e non produce nessun errore*. Le prime due volte si è chiusa la forma singola; questa
+  volta la forma generale. ⚠️ Si corregge in `expandExclusion` e non solo nel questionario, perché lì
+  agisce **subito su chi ha già un tag sporco in scheda**, senza migrazioni. ⚠️ Non si spezza sugli
+  spazi: «frutta a guscio» è un alimento solo.
+  **(b)** «Sostituisci a pranzo i ceci» → «metti 200 g di **ceci secchi** al posto di 200 g di ceci
+  cotti in scatola», con motivo «non mi piace». È il rovescio esatto della correzione dell'11/8 sui
+  gruppi di equivalenza: da quando il filtro delle parole condivise vale solo per la mappa, un gruppo
+  può restituire una preparazione diversa dello **stesso** alimento. Il confronto giusto non è col
+  nome in ricetta — che porta con sé la preparazione — ma con **la parola che ha scritto lei**: ha
+  detto «ceci», il sostituto non può essere un cece. ⚠️ La correzione dell'11/8 resta intatta: lì
+  aveva scritto «pasta integrale», e «pasta di ceci» non la combacia.
+  **(c)** «Jolanda Todde non darle più i ceci» → Vera: «su quale cliente?». Il divieto l'aveva capito
+  benissimo; era il **nome** a non passare, perché si cercava solo dopo una preposizione. ⚠️ Due
+  parole maiuscole di fila e in apertura, non una: «Togli i ceci a Jolanda» darebbe la cliente
+  «Togli». ⚠️ E la preposizione ora si riconosce anche maiuscola — «A Simone non dare più il tonno»
+  non veniva letto, cioè la forma dichiarata falliva su una frase normale.
+  14 test nuovi, nessuna migrazione. Restano aperti il campo a tag dell'app (che quel dato lo scrive
+  male) e `menuDay.upsert` con `update: {}`, per cui un cibo non gradito dichiarato **dopo** non
+  tocca i giorni già erogati e nessuno lo dice a nessuno.
+
 ## 2026-08-16
 
 - `[Sviluppo]` 🔏 **Firma iOS: `install-ios.mjs` non poteva riuscire, e aveva ragione a fermarsi.**

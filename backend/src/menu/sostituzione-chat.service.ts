@@ -1003,6 +1003,27 @@ export class SostituzioneChatService {
        * chiede di cambiare «pasta integrale»).
        */
       if (fonte === 'mappa' && condividonoAlimento(nomeIngrediente, c)) continue;
+      /**
+       * ⚠️ E IL CIBO CHE HA NOMINATO LEI NON TORNA MAI INDIETRO — caso Jolanda, 17/8.
+       *
+       * Ha scritto «sostituisci a pranzo i ceci» e si è sentita proporre «200 g di ceci secchi al
+       * posto di 200 g di ceci cotti in scatola». Le due reti sopra non l'hanno fermata: quella di
+       * `candidati` chiede che **ogni** parola combaci, e «secchi» non sta in «cotti in scatola»,
+       * quindi «ceci secchi» non era «sé stesso»; e il filtro delle parole condivise ormai vale
+       * solo per la mappa, perché sui gruppi azzerava l'intero gruppo (il tuo «Pasta integrale»
+       * dell'11/8).
+       *
+       * Il confronto giusto non è col nome dell'ingrediente in ricetta, che porta con sé la
+       * preparazione: è con **la parola che ha scritto lei**. Ha detto «ceci» → il sostituto non
+       * può essere un cece. E la correzione dell'11/8 resta intatta, perché lì aveva scritto
+       * «pasta integrale» e «pasta di ceci» non la combacia — «integrale» non c'è dentro.
+       *
+       * Vale per i gruppi come per la mappa: qui non stiamo dubitando del giudizio della
+       * nutrizionista su cosa equivale a cosa, stiamo solo evitando di restituirle in tavola la
+       * stessa cosa che ha chiesto di togliere. Se dopo questo non resta niente, Gaia dice che non
+       * ha un'alternativa e passa alla coach — che fra i due errori possibili è quello giusto.
+       */
+      if (termine && combaciaAlimento(c, termine)) continue;
       // Già rifiutato a voce dalla cliente: riproporlo è il modo più rapido di perderne la
       // fiducia. Il confronto è per parola, come tutto il resto: «burro» esclude «burro salato».
       if (escludi.some((x) => x && (combaciaAlimento(c, x) || combaciaAlimento(x, c)))) continue;

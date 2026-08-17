@@ -422,3 +422,60 @@ describe('capisci — la giornata dettata (voce 241, lettura B)', () => {
     expect(capisci('a Giulia niente pasta al pomodoro')?.tipo).toBe('restrizione');
   });
 });
+
+/**
+ * IL NOME CHE APRE LA FRASE — segnalato da Simone il 17/8, collaudando Vera.
+ *
+ * Ha scritto «Jolanda Todde non darle più i ceci» e Vera ha risposto «su quale cliente?». Il
+ * divieto l'aveva capito benissimo: quello che non sapeva leggere era il nome, perché
+ * `nomePersona` lo cercava **solo dopo una preposizione** («a Giulia Rossi…»). Il segnaposto
+ * dell'interfaccia mostra la forma che il codice sa leggere, non quella che una persona scrive.
+ *
+ * ⚠️ Servono DUE parole maiuscole di fila, e all'inizio della frase. Una sola sarebbe la prima
+ * parola di qualunque frase — «Togli i ceci a Jolanda» darebbe la cliente «Togli» — e attribuire
+ * una regola alla persona sbagliata è il danno peggiore che questo file possa fare. Il ripiego
+ * sicuro c'è comunque: il nome estratto viene cercato fra le clienti vere, e se non esiste Vera
+ * dice «non trovo nessuna cliente che si chiami…» invece di scrivere su qualcuno.
+ */
+describe('capisci — il nome in testa alla frase, senza preposizione', () => {
+  it('«Jolanda Todde non darle più i ceci»', () => {
+    const i = restr('Jolanda Todde non darle più i ceci');
+    expect(i.tipo).toBe('restrizione');
+    expect(i.cliente).toBe('Jolanda Todde');
+    expect(i.vietati).toEqual(['ceci']);
+  });
+
+  it('vale per tutte le forme di divieto, non solo per «non darle più»', () => {
+    expect(restr('Anna Rossi niente formaggi molli').cliente).toBe('Anna Rossi');
+    expect(restr('Anna Rossi togli il tonno').cliente).toBe('Anna Rossi');
+  });
+
+  it('l\'eccezione continua a staccarsi', () => {
+    const i = restr('Anna Rossi non dare più i formaggi ma solo il grana');
+    expect(i.vietati).toEqual(['formaggi']);
+    expect(i.tenuti).toEqual(['grana']);
+  });
+
+  it('⚠️ UNA sola parola maiuscola in testa NON è un nome', () => {
+    // «Togli» apre la frase con la maiuscola come qualsiasi verbo. Leggerlo come nome vorrebbe
+    // dire cercare una cliente che si chiama «Togli» — e in un caso peggiore trovarla.
+    const i = restr('Togli i ceci a Jolanda');
+    expect(i.cliente).toBe('Jolanda');
+  });
+
+  it('⚠️ la preposizione vince sempre: è la forma dichiarata, e non si tocca', () => {
+    expect(restr('a Simone non dare più formaggi teneri ma solo grana').cliente).toBe('Simone');
+  });
+
+  it('senza nome resta senza cliente, come prima', () => {
+    expect(restr('niente formaggi molli').cliente).toBeNull();
+  });
+
+  it('⚠️ anche la preposizione MAIUSCOLA, che è come comincia una frase vera', () => {
+    // «Per Giulia Rossi domani…» aveva due parole maiuscole di fila come «Jolanda Todde», e senza
+    // questa riga il ripiego avrebbe letto la cliente «Per Giulia». La preposizione si riconosce
+    // nelle due forme: è la strada dichiarata, e deve valere anche a inizio frase.
+    expect(restr('Per Anna Rossi niente formaggi molli').cliente).toBe('Anna Rossi');
+    expect(restr('A Simone non dare più il tonno').cliente).toBe('Simone');
+  });
+});

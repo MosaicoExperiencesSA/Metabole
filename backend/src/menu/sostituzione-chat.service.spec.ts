@@ -570,6 +570,50 @@ describe('SostituzioneChatService', () => {
   });
 
   /**
+   * ⚠️ E L'ALTRA META ANCORA: IL CIBO CHE HA NOMINATO LEI NON TORNA INDIETRO — caso Jolanda, 17/8.
+   *
+   * Ha scritto «sostituisci a pranzo i ceci» e Gaia le ha risposto «metti 200 g di ceci secchi al
+   * posto di 200 g di ceci cotti in scatola». È il rovescio esatto della correzione qui sopra: da
+   * quando il filtro delle parole condivise vale solo per la mappa, un gruppo può restituire una
+   * preparazione diversa dello **stesso** alimento. E la rete di `candidati` non la prende, perché
+   * pretende che ogni parola combaci e «secchi» non sta dentro «cotti in scatola».
+   *
+   * Il confronto giusto è con la parola che ha scritto LEI, non col nome in ricetta: ha detto
+   * «ceci», e il sostituto non può essere un cece. Il caso della pasta qui sopra non si muove,
+   * perché lì aveva scritto «pasta integrale» e «pasta di ceci» non lo combacia.
+   */
+  it('⚠️ «i ceci» non si sostituiscono con altri ceci, nemmeno dentro un gruppo approvato', async () => {
+    prisma.recipe.findMany.mockResolvedValue([
+      { id: 'r-pranzo', name: 'Insalata di ceci con feta', ingredients: [{ name: 'ceci cotti in scatola', qty: 200, unit: 'g' }] },
+    ]);
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { productId: null, members: { items: ['ceci cotti in scatola', 'ceci secchi', 'lenticchie'] } },
+    ]);
+    const apertura = await service.apri('client-1');
+    const esito = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'i ceci');
+
+    expect(esito.esito).toBe('in_corso');
+    expect(esito.stato?.proposta?.a).toBe('lenticchie');
+  });
+
+  it('⚠️ se nel gruppo ci sono SOLO altri ceci, si dice che non c\'è alternativa invece di girarci intorno', async () => {
+    // Fra i due errori possibili — «non ho un\'alternativa che mi convinca», che passa la palla
+    // alla coach, e «ti do lo stesso cibo con un\'altra preparazione» — il secondo è quello che
+    // insegna a una cliente che non l\'abbiamo ascoltata. Si sceglie sempre il primo.
+    prisma.recipe.findMany.mockResolvedValue([
+      { id: 'r-pranzo', name: 'Insalata di ceci con feta', ingredients: [{ name: 'ceci cotti in scatola', qty: 200, unit: 'g' }] },
+    ]);
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { productId: null, members: { items: ['ceci cotti in scatola', 'ceci secchi', 'ceci in barattolo'] } },
+    ]);
+    const apertura = await service.apri('client-1');
+    const esito = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'i ceci');
+
+    expect(esito.esito).toBe('rifiutata');
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+
+  /**
    * L'altra metà: sulla MAPPA il filtro deve restare. Se cadesse, Gaia tornerebbe a rispondere «metti
    * 150 g di yogurt senza lattosio al posto di 150 g di yogurt greco», che è una presa in giro.
    */

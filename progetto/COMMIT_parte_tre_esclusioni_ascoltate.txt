@@ -1,0 +1,101 @@
+Tre volte che non abbiamo ascoltato la cliente (caso Jolanda Todde, 17/8)
+
+Tre difetti diversi, trovati in un'ora guardando due schermate e una diagnostica. Hanno in comune
+una cosa sola, ed è la piu' seria: NESSUNO DEI TRE DA' ERRORE. La cliente dice qualcosa di se',
+il sistema risponde come se l'avesse capita, e va avanti.
+
+──────────────────────────────────────────────────────────────────────────────
+1. DUE ALIMENTI DENTRO UN TAG SOLO — un'esclusione che non escludeva niente
+
+In scheda Jolanda aveva `Cibi esclusi (1): "Carne .ceci"`. Una stringa sola, scritta di getto nel
+campo a tag del questionario. `expandExclusion` non riconosceva quella chiave, la restituiva
+intera, e il motore andava a cercare la stringa `carne .ceci` dentro il nome e gli ingredienti dei
+piatti — dove non compare mai. Ne' la carne ne' i ceci sono mai stati esclusi, e il giorno dopo le
+e' arrivata in menu un'insalata di ceci.
+
+⚠️ E' LA TERZA VOLTA che questo progetto paga questa identica riga: `latte` che non espandeva i
+derivati (8/8, il burro proposto a un'allergica), `frutta_a_guscio` con l'underscore (12/8), e
+adesso due alimenti in un tag. Il difetto sta scritto in testa a `exclusions.ts` da allora: **una
+chiave che la mappa non riconosce si comporta come un'esclusione che non c'e', e non produce nessun
+errore.** Le prime due volte si e' chiusa la forma singola. Questa volta si chiude la forma
+generale: se non ti riconosco, prima di arrendermi provo a spezzarti.
+
+⚠️ Si corregge in `expandExclusion` e NON solo nel questionario, perche' li' agisce subito su tutte
+le clienti che hanno gia' un tag sporco in scheda — Jolanda compresa — senza migrazioni e senza
+riscrivere un dato che hanno scritto loro.
+⚠️ NON si spezza sugli spazi: «frutta a guscio», «insalata russa», «latte di mandorla» sono un
+alimento solo, e spezzarli trasformerebbe un'esclusione dichiarata in una molto piu' larga.
+⚠️ Il taglio si prova DOPO aver guardato se il termine intero e' gia' una chiave nota: «latte e
+derivati» e «frutta a guscio» sono voci vere della mappa. La strada nota vince sul ripiego.
+⚠️ Ogni pezzo si riespande per conto suo: spezzare senza riespandere sarebbe mezza correzione, e
+«latte» vale solo se si porta dietro burro e panna.
+
+──────────────────────────────────────────────────────────────────────────────
+2. «SOSTITUISCI I CECI» → I CECI — il sostituto che e' lo stesso cibo
+
+Gaia le ha risposto: «metti 200 g di ceci secchi al posto di 200 g di ceci cotti in scatola — da
+oggi in avanti, e non te lo propongo piu' nei menu nuovi». Con motivo «non mi piace».
+
+E' il rovescio esatto della correzione dell'11/8 (il tuo «se nella tabella alternative ho la pasta
+integrale, perche' Gaia dice che non la ha?»): da quando il filtro delle parole condivise vale solo
+per la mappa, un gruppo di equivalenza puo' restituire una PREPARAZIONE DIVERSA DELLO STESSO
+ALIMENTO. E la rete di `candidati` non la prende, perche' pretende che OGNI parola combaci e
+«secchi» non sta dentro «cotti in scatola».
+
+Il confronto giusto non e' col nome dell'ingrediente in ricetta, che porta con se' la preparazione:
+e' con LA PAROLA CHE HA SCRITTO LEI. Ha detto «ceci» → il sostituto non puo' essere un cece.
+⚠️ La correzione dell'11/8 resta intatta: li' aveva scritto «pasta integrale», e «pasta di ceci»
+non la combacia perche' «integrale» non c'e' dentro. Il gruppo della nutrizionista continua a
+valere per intero.
+⚠️ Se dopo il filtro non resta niente, Gaia dice che non ha un'alternativa e passa alla coach. Fra
+i due errori possibili — «non ho un'alternativa che mi convinca» e «ti do lo stesso cibo con
+un'altra preparazione» — il secondo insegna a una cliente che non l'abbiamo ascoltata.
+
+──────────────────────────────────────────────────────────────────────────────
+3. VERA NON RICONOSCE IL NOME QUANDO APRE LA FRASE
+
+«Jolanda Todde non darle piu' i ceci» → «Su quale cliente?». Il divieto era stato capito benissimo
+(e' la prima forma dei DIVIETI, e «i ceci» era gia' staccato pulito): era il NOME a non passare,
+perche' `nomePersona` lo cercava solo dopo una preposizione. Il segnaposto dell'interfaccia mostra
+la forma che il codice sa leggere («a Giulia Rossi non dare piu'…»), non quella che scrive chi ha
+in mente la cliente e comincia da lei.
+
+⚠️ Servono DUE parole maiuscole di fila, e in apertura. Una sola sarebbe la prima parola di
+qualunque frase — «Togli i ceci a Jolanda» darebbe la cliente «Togli» — e attribuire una regola
+alla persona sbagliata e' il danno peggiore che quel file possa fare.
+⚠️ Si prova PER ULTIMO: la forma con la preposizione e' dichiarata e dove c'e' vince sempre.
+⚠️ Un elenco di aperture che non sono nomi (a, per, alla, oggi, domani…) tiene fuori «Per Giulia
+Rossi domani», che ha due maiuscole di fila come «Jolanda Todde».
+⚠️ E la preposizione ora si riconosce anche MAIUSCOLA: `[Pp]er`, `[Aa]lla`. La riga aveva solo la
+minuscola — niente flag `i`, e a ragione, perche' `i` renderebbe insensibile anche la maiuscola del
+NOME, che e' il solo segnale che distingue «per Giulia» da «per domani». Quindi «A Simone non dare
+piu' il tonno» non veniva riconosciuto: la forma dichiarata falliva su una frase normale.
+
+La rete sotto resta comunque: il nome estratto viene cercato fra le clienti vere, quindi
+un'estrazione sbagliata produce «non trovo nessuna cliente che si chiami…», non una regola scritta
+sulla persona sbagliata.
+
+──────────────────────────────────────────────────────────────────────────────
+FILE
+- backend/src/menu/exclusions.ts (+ exclusioni-allergeni.spec.ts) — `SEPARATORI_ALIMENTI` e il
+  taglio di ripiego dentro `expandExclusion`. 5 test nuovi.
+- backend/src/menu/sostituzione-chat.service.ts (+ .spec) — il candidato non puo' combaciare col
+  termine scritto dalla cliente. 2 test nuovi.
+- backend/src/vera/capisci.ts (+ .spec) — `nomeInTesta` + `APERTURE_NON_NOME`, e le preposizioni
+  maiuscole nella riga esistente. 7 test nuovi.
+
+14 test nuovi. Nessuna migrazione. Nessun modulo nuovo.
+
+CONTROLLO PER MUTAZIONE
+- disattivando la riga del termine in `sostituzione-chat.service.ts` cadono 2 test (verificato);
+- i 3 test del tag sporco erano rossi prima della correzione di `expandExclusion` (verificato);
+- i 2 test del nome in testa erano rossi prima di `nomeInTesta` (verificato), e il test della
+  giornata dettata «Per Giulia Rossi domani» e' caduto alla prima versione — e' il motivo per cui
+  esiste `APERTURE_NON_NOME`.
+
+RESTA APERTO, e va in elenco lavori
+- il campo a tag del questionario accetta ancora una stringa con due alimenti: qui si legge bene un
+  dato scritto male, ma sarebbe meglio non scriverlo male. E' la meta' di scrittura, e tocca l'app.
+- `menuDay.upsert` ha `update: {}` — «mai sovrascrivere un giorno gia' erogato». Quindi un cibo non
+  gradito dichiarato DOPO vale solo sui giorni nuovi, e i due gia' in cassa restano come sono.
+  Nessuno lo dice a nessuno. E' la stessa famiglia: un dato che agisce e non si vede.
