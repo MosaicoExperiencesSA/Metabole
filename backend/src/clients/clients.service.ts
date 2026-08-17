@@ -329,6 +329,9 @@ export class ClientsService {
       mealsPerDay: (profile as { mealsPerDay?: number | null } | null)?.mealsPerDay ?? null,
       objective: (profile as { objective?: string | null } | null)?.objective ?? null,
       pathType: (profile as { pathType?: string | null } | null)?.pathType ?? null,
+      // In digiuno il catalogo lo decide la FINESTRA (`struttura-per-digiuno.ts`): senza questa
+      // riga la scheda mostrerebbe come «dieta servita» una variante che l'erogazione non serve.
+      fastingWindow: (profile as { fastingWindow?: string | null } | null)?.fastingWindow ?? null,
     };
     const [esitoDieta, giorniInArrivo] = await Promise.all([
       dietaMostrataPer(this.prisma, profiloMatch),

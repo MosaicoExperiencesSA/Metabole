@@ -1,0 +1,121 @@
+──────────────────────────────────────────────────────────────────────────────
+[Digiuno — 17/8, parte 1]
+Sonia mangiava un pasto al giorno: il catalogo lo decide la finestra
+
+IL DIFETTO, in tre righe messe in fila (letto col codice, non dedotto):
+  1. la variante `fasting: true` del catalogo ha tre slot FISSI — pranzo, merenda, cena
+     (`pastiAttesi`, catalog/giornate-complete.ts). E' di fatto la variante «salta la colazione»,
+     e NESSUN CAMPO LO DICE;
+  2. `pickDietFor` per una cliente in digiuno cercava `{fasting: true}` e ignorava tutto il resto;
+  3. l'erogazione toglie da quella giornata gli slot della finestra scelta (`slotEsclusiTotali`).
+
+  finestra «salto la colazione» → resta pranzo, merenda, cena → i pasti giusti, 100% delle kcal
+  finestra «salto la cena»      → resta il SOLO PRANZO         → UN PASTO AL GIORNO, 45% delle kcal
+
+Sonia (`s.sandri66@libero.it`) e' su «salto la cena». ⚠️ E non l'ha segnalato NIENTE: la rete di
+sicurezza di `dayComboPools` impedisce la giornata VUOTA, non quella MONCA. E' il difetto di
+famiglia di questo progetto — un dato che agisce e non si vede — applicato alle calorie di una
+persona.
+
+LA REGOLA: SI SERVE UN CATALOGO CHE ABBIA I PASTI CHE LA FINESTRA PROMETTE.
+⚠️ E NON «il digiuno usa sempre il catalogo a 5 pasti». Sarebbe stato un peggioramento SILENZIOSO
+per le cinque clienti che oggi stanno bene: nel catalogo digiuno pranzo+merenda+cena valgono
+.45+.10+.45 = 100% della giornata, nel 5 pasti gli stessi tre valgono .35+.10+.25 = 70%
+(`quoteKcalPerSlot`). Avrebbero ricevuto i pasti giusti con un terzo di calorie in meno, e nessuno
+se ne sarebbe accorto — cioe' esattamente lo stesso difetto, dall'altro lato.
+
+Finestra per finestra la regola viene da se':
+  salta la colazione        promette pranzo, merenda, cena              → digiuno   (non cambia)
+  SALTA LA CENA             promette colazione, spuntino, pranzo        → 5 PASTI   ← cambia
+  SALTA IL PRANZO           promette colazione, spuntino, merenda, cena → 5 PASTI   ← cambia
+  salta colazione e pranzo  promette merenda, cena                      → digiuno   (non cambia)
+  salta cena e colazione    promette pranzo                             → digiuno   (non cambia)
+
+Le due che si spostano sono esattamente le due rotte, e le tre che stanno bene non si muovono.
+⚠️ Non e' un elenco di finestre scritto a mano: la funzione conta i pasti. Il giorno che si aggiunge
+una riga a `FINESTRE_DIGIUNO` decide da sola — c'e' un test che gira su TUTTA la tabella e verifica
+che il catalogo scelto contenga sempre i pasti promessi.
+
+⚠️ FINESTRA NON IMPOSTATA O SCONOSCIUTA: non si sposta nessuno, si resta sul digiuno (il
+comportamento di oggi, che e' il 16:8 classico). Il contrario — «non so cosa salti, quindi ti do la
+giornata intera a 5 pasti» — vorrebbe dire togliere il digiuno a chi l'ha chiesto senza dirglielo,
+per un dato scritto storto. Il caso esiste: Maria (`mariabonaccorso@hotmail.it`) e' in digiuno senza
+finestra perche' nessuno gliel'ha mai chiesta. Quello e' una domanda mancata, e si risolve
+chiedendo.
+
+⚠️ QUELLO CHE QUESTA CONSEGNA NON RISOLVE, DETTO CHIARO: LE CALORIE.
+Sonia passa da 1 pasto (45%) a 3 pasti (65%): i pasti giusti, ancora corti. Quello che resta NON si
+ingrandisce — `DayCombo` sceglie una ricetta per slot dentro il pool, e un moltiplicatore di porzione
+non esiste da nessuna parte. E' il prezzo dichiarato della strada A della nota: meglio i pasti giusti
+un po' scarsi che il pasto sbagliato. Le due strade che chiudono anche il buco delle calorie (una
+variante per finestra, oppure la porzione che si scala all'erogazione) stanno in
+`progetto/NOTA_Digiuno_E_Riempimento_Varianti.md` §4 e costano molto di piu'.
+
+⚠️ E IL BUCO CHE PUO' RESTARE, CHE ADESSO SI VEDE.
+L'ultimo ripiego di `pickDietFor` lascia cadere anche il filtro sui pasti (meglio una dieta vicina
+che nessun menu). Quindi se in catalogo la variante a 5 pasti di quella famiglia non c'e' ancora,
+chi salta la cena torna a ricevere il solo pranzo. Fino a oggi succedeva in silenzio; adesso
+`menu.service` scrive un warn e un `analyticsEvent` (`fasting_meals_missing`) con i pasti che
+mancano, e `npm run diag:digiuni` lo dice cliente per cliente con nome ed email.
+⚠️ Non si BLOCCA l'erogazione: tre pasti su cinque sono meglio di nessun menu, e generare la
+variante mancante non e' nelle mani di chi apre l'app.
+⚠️ E puo' cambiare FAMIGLIA: se «Digiuno intermittente (16:8)» non ha la variante a 5 pasti, il
+ripiego resta nello stesso STILE ma prende un'altra famiglia. `diag:digiuni` stampa la dieta servita
+per nome, quindi si vede.
+
+LA FINESTRA VA LETTA DA TUTTI I CHIAMANTI, NON SOLO DALL'EROGAZIONE.
+`pick-diet.ts` esiste perche' questa scelta si faccia UNA VOLTA per tutti: cinque punti chiamano
+`pickDietFor` e se uno non passa `fastingWindow` sceglie una dieta diversa dagli altri — il menu del
+giorno su una, la base personalizzata sull'altra, e la scheda che mostra una terza. Quindi la riga e'
+stata aggiunta in tutti e cinque:
+  · menu.service (erogazione) — leggeva gia' il profilo intero;
+  · personal-base.service — la base personalizzata sicura;
+  · vera/pool-disponibile.service — il pool che Vera guarda prima di promettere qualcosa;
+  · clients.service — la «dieta servita» nella scheda dello staff;
+  · profile.service — la descrizione che legge LA CLIENTE.
+
+FILE
+- backend/src/catalog/struttura-per-digiuno.ts (+ .spec) — modulo PURO: la decisione. 10 test.
+- backend/src/catalog/pick-diet.ts (+ .spec) — `fastingWindow` nel profilo di abbinamento. 4 test.
+- backend/src/menu/menu.service.ts — il warn + `fasting_meals_missing` quando i pasti mancano.
+- backend/src/personal-base/personal-base.service.ts — `fastingWindow` nella select.
+- backend/src/vera/pool-disponibile.service.ts — idem, e nel profilo che passa a `pickDietFor`.
+- backend/src/clients/clients.service.ts — `fastingWindow` in `profiloMatch`.
+- backend/src/profile/profile.service.ts — `fastingWindow` a `dietaMostrataPer`.
+
+14 test nuovi. NESSUNA MIGRAZIONE.
+CONTROLLO PER MUTAZIONE (fatto, non promesso): tornando a «sempre digiuno» cadono 4 test; passando a
+«sempre 5 pasti» — la versione sbagliata della correzione — cadono 3, e sono quelli che difendono le
+cinque clienti che stanno bene.
+
+⚠️ VERIFICA DOPO IL DEPLOY, in questo ordine:
+  1. `npm run diag:digiuni` dalla shell di Render (sola lettura): la riga di Sonia deve passare da
+     «riceve: pranzo» a «riceve: colazione, spuntino, pranzo». Se resta rotta, in catalogo manca la
+     variante a 5 pasti della sua famiglia — e il rimedio e' generarla, non toccare questo codice.
+  2. i log: `fasting_meals_missing` non deve comparire per nessuna delle 7 clienti in digiuno.
+──────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────
+[Digiuno — 17/8, parte 2]
+Elenco lavori: una voce chiusa, due aperte, e la 215 con le prove
+
+- 254 `digiuno-catalogo-per-finestra` — SPUNTATA: e' questa consegna.
+- 255 `digiuno-porzioni-non-si-scalano` (Aspetta Simone) — la meta' che NON si chiude: i pasti sono
+  giusti, le porzioni no (Sonia dal 45% al 65% del fabbisogno). ⚠️ Lo stesso buco vale fuori dal
+  digiuno quando Vera toglie i due spuntini: la giornata perde il 20% e la nota in app dice che le
+  kcal «sono ridistribuite», cosa che il motore NON fa. Le strade B e C stanno nella nota §4.
+- 256 `digiuno-finestra-mai-chiesta` (codice) — Maria: `pathType` digiuno e finestra vuota. ⚠️ Non e'
+  un difetto del motore, e' una DOMANDA MANCATA: riceve il 16:8 classico, che e' il default sensato.
+  Va chiesta (questionario per le nuove, Gaia o la coach per chi c'e' gia'). Nel frattempo
+  `struttura-per-digiuno.ts` non la sposta di catalogo di proposito.
+- 215 `vera-modello-seconda-passata` — la voce c'era gia' dal 13/8; aggiornata con le PROVE del 17/8
+  (le tre rotture in una giornata, con l'ora) e con la forma precisa della proposta: il modello
+  TRADUCE, `capisci` DECIDE, `daScartare` gira prima, la riscrittura si mostra. Il foglio e'
+  `progetto/NOTA_Vera_Seconda_Lettura.md`. Resta in «Aspetta Simone»: serve un si' o un no.
+
+FILE
+- backend/src/lavori/voci-iniziali.ts — 3 voci nuove, 1 aggiornata.
+
+⚠️ Dopo il deploy: «Aggiorna dal rilascio» nella pagina Lavori (o `CONFERMA=1 npm run carica:lavori`).
+Il riepilogo deve dire 3 da aggiungere e 1 da spuntare.
+──────────────────────────────────────────────────────────────────────────────

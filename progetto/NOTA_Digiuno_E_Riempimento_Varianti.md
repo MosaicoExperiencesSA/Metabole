@@ -248,3 +248,37 @@ erano pochi, e la stessa colazione tornava cinque o sei volte al mese».
 (Basso indice glicemico, DASH, Detossinante, Mediterranea senza glutine, Flessibile, e le loro
 varianti) siano già a 84 giornate con 84 ricette per pasto dimostra che la strada funziona: è stata
 percorsa per le famiglie sbagliate, cioè quelle senza clienti.
+
+---
+
+# ✅ APPLICATO il 17/8 — la strada A, ma solo dove serve
+
+Consegnata la parte del digiuno (non lo script di riempimento varianti, che resta da fare col
+generatore del backoffice sui 12 gruppi, in quell'ordine).
+
+**La regola scritta nel codice** (`backend/src/catalog/struttura-per-digiuno.ts`, modulo puro):
+si serve **un catalogo che abbia i pasti che la finestra promette**. Quindi:
+
+| finestra | catalogo servito | cambia? |
+|---|---|---|
+| salta la colazione | digiuno | no — resta al 100% delle kcal |
+| **salta la cena** (Sonia) | **5 pasti** | **sì** |
+| **salta il pranzo** | **5 pasti** | **sì** |
+| salta colazione e pranzo | digiuno | no |
+| salta cena e colazione | digiuno | no |
+
+⚠️ **Non** «il digiuno usa sempre il 5 pasti»: le tre finestre che oggi funzionano non si muovono,
+altrimenti sarebbero passate dal 100% al 70% delle calorie in silenzio. E la scelta **non è un
+elenco di finestre**: la funzione conta i pasti, quindi una riga nuova in `FINESTRE_DIGIUNO` è già
+coperta (c'è un test che gira su tutta la tabella).
+
+⚠️ **Le calorie restano il buco aperto**: Sonia passa dal 45% al 65%. I pasti sono quelli giusti, le
+porzioni no. Le strade B e C della §4 restano sul tavolo, e la §4 dice quanto costano.
+
+⚠️ **Il buco che può restare, adesso si vede**: se in catalogo manca la variante a 5 pasti di quella
+famiglia, l'ultimo ripiego di `pickDietFor` serve comunque una dieta digiuno e la cliente torna a un
+pasto al giorno. Ora `menu.service` scrive un warn e un `analyticsEvent` `fasting_meals_missing`, e
+`npm run diag:digiuni` lo dice cliente per cliente.
+
+**Da verificare dopo il deploy**: `npm run diag:digiuni` sulla shell di Render — la riga di Sonia
+deve passare da «riceve: pranzo» a «riceve: colazione, spuntino, pranzo».

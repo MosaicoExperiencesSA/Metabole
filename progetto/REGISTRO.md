@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🍽️ **Sonia mangiava un pasto al giorno: il catalogo del digiuno adesso lo decide la
+  finestra.** `s.sandri66@libero.it`, finestra «salto la cena»: doveva ricevere colazione, spuntino e
+  pranzo e riceveva **il solo pranzo** — il 45% delle sue calorie. La causa sta in tre righe messe in
+  fila: la variante `fasting: true` del catalogo ha tre slot **fissi** (pranzo, merenda, cena), cioè è
+  di fatto la variante «salta la colazione» e nessun campo lo dice; `pickDietFor` per chi digiuna
+  cercava `{fasting: true}` e basta; l'erogazione toglie da quella giornata gli slot della finestra.
+  ⚠️ **E non l'ha segnalato niente**: la rete di `dayComboPools` ferma la giornata *vuota*, non quella
+  *monca* — il difetto di famiglia di questo progetto, applicato alle calorie di una persona. Adesso
+  la regola è **«si serve un catalogo che abbia i pasti che la finestra promette»**, e ⚠️ **non** «il
+  digiuno usa sempre il 5 pasti»: quella sarebbe stata la stessa cosa dall'altro lato, perché nel
+  catalogo digiuno pranzo+merenda+cena valgono il 100% della giornata e nel 5 pasti il 70% — le cinque
+  clienti che stanno bene avrebbero ricevuto i pasti giusti con un terzo di calorie in meno, in
+  silenzio. Si spostano solo «salto la cena» e «salto il pranzo», che sono esattamente le due rotte, e
+  si spostano **per la regola**: la funzione conta i pasti, non elenca le finestre, e un test gira su
+  tutta `FINESTRE_DIGIUNO`. ⚠️ Finestra non impostata (Maria) → non si muove niente: il suo problema è
+  una domanda mancata, non un catalogo. ⚠️ **Quello che NON risolve, detto chiaro:** Sonia passa da 1
+  pasto (45%) a 3 pasti (65%) — i pasti giusti, ancora corti, perché quello che resta non si
+  ingrandisce e un moltiplicatore di porzione non esiste. È il prezzo dichiarato della strada A della
+  nota. ⚠️ E il buco che può restare **ora si vede**: se in catalogo manca la variante a 5 pasti di
+  quella famiglia, l'ultimo ripiego serve comunque una dieta digiuno e la cliente torna a un pasto —
+  `menu.service` scrive un warn e un `fasting_meals_missing`, e `npm run diag:digiuni` lo dice con nome
+  ed email. La finestra è stata aggiunta a **tutti e cinque** i chiamanti di `pickDietFor` (erogazione,
+  base personalizzata, pool di Vera, scheda dello staff, descrizione che legge la cliente): uno che non
+  la passasse sceglierebbe una dieta diversa dagli altri, che è il difetto che `pick-diet.ts` esiste per
+  evitare. 14 test, nessuna migrazione, controllo per mutazione fatto (4 test cadono tornando a
+  «sempre digiuno», 3 passando a «sempre 5 pasti»).
+  Elenco lavori: voce **254** spuntata, **255** (le porzioni non si scalano — Sonia resta al 65% del
+  fabbisogno: decide Simone fra le strade B e C) e **256** (a Maria la finestra non è mai stata
+  chiesta) nuove, e la **215** di Vera aggiornata con le prove del 17/8. ⚠️ E una cosa sul metodo, che
+  ieri è costata una CI rossa: la verifica è stata fatta **coi tipi Prisma veri anche in sandbox** —
+  `npm run typecheck` qui si pianta su `prisma generate`, ma la ricetta con le variabili d'ambiente
+  funziona in 768 ms, e da lì `nest build` è verde e girano **3007 test in 196 suite**, cioè la CI
+  intera. Lo stub non è un destino: si genera il client vero e si guarda.
+
 - `[Sviluppo]` ✅ **Lorena Polidoro sistemata dalla scheda, non dal database.** Il pulsante nuovo è
   stato usato in produzione e ha funzionato: uno dei due «Conosciamoci» annullato, l'altro resta in
   corso fino al 01/09 con i 7 giorni di pausa che le erano stati concessi. ⚠️ Annullato il piano nato

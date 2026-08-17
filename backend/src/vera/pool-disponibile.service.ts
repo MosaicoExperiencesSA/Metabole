@@ -107,6 +107,10 @@ export class PoolDisponibileService {
         mealsPerDay: true,
         objective: true,
         pathType: true,
+        // Serve a `pickDietFor`: in digiuno il catalogo lo decide la finestra
+        // (`struttura-per-digiuno.ts`). Senza, Vera guarderebbe il pool di una dieta che
+        // all'erogazione non viene servita.
+        fastingWindow: true,
         allergies: true,
         intolerances: true,
         dislikedFoods: true,
@@ -121,6 +125,7 @@ export class PoolDisponibileService {
       mealsPerDay: (p.mealsPerDay as number | null) ?? null,
       objective: (p.objective as string | null) ?? null,
       pathType: (p.pathType as string | null) ?? null,
+      fastingWindow: (p.fastingWindow as string | null) ?? null,
       allergies: ((p.allergies as string[]) ?? []),
       intolerances: ((p.intolerances as string[]) ?? []),
       dislikedFoods: ((p.dislikedFoods as string[]) ?? []),

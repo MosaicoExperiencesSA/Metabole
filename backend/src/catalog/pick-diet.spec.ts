@@ -101,6 +101,53 @@ describe('pickDietFor — la famiglia identifica il prodotto, lo stile no', () =
     expect(chiamate[0]).not.toHaveProperty('mealsPerDay');
   });
 
+  /**
+   * IL CASO SONIA (17/8). `s.sandri66@libero.it`, finestra «salto la cena»: riceveva **un pasto al
+   * giorno**. Il catalogo `fasting` ha tre slot fissi (pranzo, merenda, cena) e la finestra togliendo
+   * cena e merenda le lasciava il solo pranzo — con la rete di `dayComboPools` che ferma la giornata
+   * vuota, non quella monca. La regola sta in `struttura-per-digiuno.ts`; qui si guarda che arrivi
+   * davvero al catalogo.
+   */
+  it('⚠️ digiuno «salto la cena»: cerca il catalogo a 5 PASTI, l\'unico che ha colazione e spuntino', async () => {
+    const { trova, chiamate } = trovatore([]);
+    await pickDietFor(trova, { ...BASE, pathType: 'intermittent_fasting', fastingWindow: 'skip_dinner' });
+    expect(chiamate[0]).toMatchObject({ mealsPerDay: 5, fasting: false });
+  });
+
+  it('⚠️ digiuno «salto la colazione»: NON si muove dal catalogo digiuno', async () => {
+    // Le cinque clienti che oggi stanno bene. Nel digiuno i loro tre pasti valgono il 100% della
+    // giornata, nel 5 pasti il 70%: spostarle sarebbe un peggioramento silenzioso.
+    const { trova, chiamate } = trovatore([]);
+    await pickDietFor(trova, { ...BASE, pathType: 'intermittent_fasting', fastingWindow: 'skip_breakfast' });
+    expect(chiamate[0]).toMatchObject({ fasting: true });
+    expect(chiamate[0]).not.toHaveProperty('mealsPerDay');
+  });
+
+  it('la finestra non tocca chi non è in digiuno', async () => {
+    // Un dato rimasto sul profilo dopo un cambio di percorso non deve cambiare la dieta di nessuno:
+    // comanda `pathType`.
+    const { trova, chiamate } = trovatore([]);
+    await pickDietFor(trova, { ...BASE, pathType: 'five', fastingWindow: 'skip_dinner' });
+    expect(chiamate[0]).toMatchObject({ mealsPerDay: 5, fasting: false });
+    const primaDelSecondoGiro = chiamate.length;
+    await pickDietFor(trova, { ...BASE, mealsPerDay: 3, pathType: 'three', fastingWindow: 'skip_dinner' });
+    expect(chiamate[primaDelSecondoGiro]).toMatchObject({ mealsPerDay: 3, fasting: false });
+  });
+
+  it('digiuno «salto la cena» senza la variante a 5 pasti: si serve comunque un menu', async () => {
+    // L'ultimo ripiego lascia cadere il filtro sui pasti: meglio una dieta vicina che nessun menu.
+    // ⚠️ Ma allora la cliente torna a ricevere meno pasti di quelli promessi, e `menu.service` lo
+    // dice (`pastiPromessiCheMancano`): prima succedeva in silenzio.
+    const soloDigiuno: Dieta[] = [
+      { id: 'dig', name: 'Vegetariana', style: 'flexible', regime: 'onnivoro', objective: 'dimagrimento', mealsPerDay: 3, fasting: true },
+    ];
+    const { trova } = trovatore(soloDigiuno);
+    const d = await pickDietFor(trova, {
+      ...BASE, dietFamily: 'Vegetariana', pathType: 'intermittent_fasting', fastingWindow: 'skip_dinner',
+    });
+    expect(d?.id).toBe('dig');
+  });
+
   it('ultimo ripiego: nessuna variante col piano pasti richiesto → una dieta dello stesso regime', async () => {
     // Solo diete a 3 pasti in catalogo: una cliente a 5 pasti non deve restare senza menu.
     const solo3 = CATALOGO.map((d) => ({ ...d, mealsPerDay: 3 }));

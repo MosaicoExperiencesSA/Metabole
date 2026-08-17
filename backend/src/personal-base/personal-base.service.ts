@@ -137,6 +137,10 @@ export class PersonalBaseService {
         dietFamily: true,
         mealsPerDay: true,
         pathType: true,
+        // La finestra del digiuno decide QUALE catalogo sa servire questa cliente
+        // (`struttura-per-digiuno.ts`). Senza, `pickDietFor` ricadrebbe sul catalogo digiuno e la
+        // base personalizzata si costruirebbe su una dieta diversa da quella del menu del giorno.
+        fastingWindow: true,
         objective: true,
         allergies: true,
         allergiesOther: true,
@@ -148,6 +152,7 @@ export class PersonalBaseService {
       dietFamily: string | null;
       mealsPerDay: number | null;
       pathType: string | null;
+      fastingWindow: string | null;
       objective: string | null;
       allergies: string[];
       allergiesOther: string[];

@@ -436,6 +436,9 @@ export class ProfileService {
       mealsPerDay: profile.mealsPerDay,
       objective: profile.objective,
       pathType: profile.pathType,
+      // In digiuno il catalogo lo decide la FINESTRA (`struttura-per-digiuno.ts`): senza questa
+      // riga la cliente leggerebbe la descrizione di una dieta diversa da quella che mangia.
+      fastingWindow: profile.fastingWindow,
     });
 
     const nomeConsegnata = ultimo?.diet ? ultimo.diet.clientName || ultimo.diet.name : null;

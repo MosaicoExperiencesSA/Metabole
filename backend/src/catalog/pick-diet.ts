@@ -27,6 +27,8 @@
  * scheda.
  */
 
+import { strutturaPerFinestra } from './struttura-per-digiuno';
+
 /** I campi del profilo che contano per l'abbinamento. Tutto il resto è irrilevante qui. */
 export interface DietMatchProfile {
   regime: string | null;
@@ -36,6 +38,16 @@ export interface DietMatchProfile {
   mealsPerDay: number | null;
   objective?: string | null;
   pathType?: string | null;
+  /**
+   * La finestra del digiuno (`skip_dinner`, `skip_lunch`, …). Serve a scegliere un catalogo che
+   * abbia i pasti che la finestra promette: vedi `struttura-per-digiuno.ts`.
+   *
+   * ⚠️ Chi chiama `pickDietFor` per una cliente in digiuno **deve** leggerla dal profilo. Se la
+   * lascia fuori, questa funzione ricade sul catalogo digiuno — cioè sul comportamento di prima —
+   * e due chiamanti dello stesso profilo sceglierebbero due diete diverse: il menu del giorno su
+   * una, la base personalizzata sull'altra. È il difetto che questo file esiste per evitare.
+   */
+  fastingWindow?: string | null;
 }
 
 /** Come si interroga il catalogo. Il chiamante passa Prisma e si tiene i suoi tipi. */
@@ -44,10 +56,13 @@ export type TrovaDieta<T> = (where: Record<string, unknown>) => Promise<T | null
 export async function pickDietFor<T>(trova: TrovaDieta<T>, profile: DietMatchProfile): Promise<T | null> {
   if (!profile.regime || !profile.mealsPerDay) return null;
 
-  // Piano pasti: digiuno intermittente (pathType) → varianti `fasting`; altrimenti match sul
-  // numero di pasti (3/5), escludendo le varianti digiuno.
+  // Piano pasti: digiuno intermittente (pathType) → il catalogo che ha i pasti che la FINESTRA
+  // promette (`struttura-per-digiuno.ts`: quasi sempre `fasting`, il 5 pasti per chi salta la cena
+  // o il pranzo); altrimenti match sul numero di pasti (3/5), escludendo le varianti digiuno.
   const wantsFasting = profile.pathType === 'intermittent_fasting';
-  const mealsWhere = wantsFasting ? { fasting: true } : { mealsPerDay: profile.mealsPerDay, fasting: false };
+  const mealsWhere = wantsFasting
+    ? strutturaPerFinestra(profile.fastingWindow)
+    : { mealsPerDay: profile.mealsPerDay, fasting: false };
   const base: Record<string, unknown> = { status: 'approved', regime: profile.regime, ...mealsWhere };
 
   const styleWhere = profile.dietStyle ? { style: profile.dietStyle } : {};

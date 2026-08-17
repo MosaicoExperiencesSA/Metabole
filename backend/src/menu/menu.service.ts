@@ -6,6 +6,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
+import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
@@ -523,6 +524,49 @@ export class MenuService {
     const esitoCompletezza = await this.soloGiornateComplete(clientId, diet, templates, level);
     if (!esitoCompletezza) return []; // niente da servire: la segnalazione è già stata aperta
     ({ diet, templates, level } = esitoCompletezza);
+
+    /**
+     * ⚠️ LA FINESTRA DEL DIGIUNO PROMETTE PASTI CHE QUESTA DIETA NON HA — e va DETTO.
+     *
+     * `pickDietFor` ora chiede il catalogo che ha i pasti della finestra (`struttura-per-digiuno.ts`),
+     * ma la sua catena di ripieghi finisce, all'ultimo passo, per lasciare cadere anche il filtro sui
+     * pasti: meglio una dieta vicina che nessun menu. Quindi se la variante a 5 pasti di quella
+     * famiglia in catalogo non c'è ancora, chi salta la cena può tornare a ricevere il solo pranzo.
+     *
+     * Fino a oggi succedeva **in silenzio**, ed è il difetto di famiglia di questo progetto: un dato
+     * che agisce e non si vede. Una cliente ha mangiato una volta al giorno per settimane e da nessuna
+     * parte risultava un problema. Il conto si fa qui, dove la dieta servita è quella definitiva.
+     *
+     * ⚠️ Non si blocca l'erogazione: tre pasti su cinque sono meglio di nessun menu, e il rimedio —
+     * generare la variante mancante — non è nelle mani di chi apre l'app. Si lascia una traccia
+     * cercabile, e `npm run diag:digiuni` lo dice cliente per cliente, con nome ed email.
+     */
+    const pastiMancanti = pastiPromessiCheMancano(
+      (profile as { pathType?: string | null }).pathType,
+      (profile as { fastingWindow?: string | null }).fastingWindow,
+      diet,
+    );
+    if (pastiMancanti.length) {
+      this.logger.warn(
+        `Digiuno: la finestra di ${clientId} promette pasti che la dieta servita non ha in catalogo ` +
+          `(mancano: ${pastiMancanti.join(', ')}; dieta "${diet.name}", ${diet.fasting ? 'digiuno' : `${diet.mealsPerDay} pasti`}).`,
+      );
+      await this.prisma.analyticsEvent
+        .create({
+          data: {
+            eventId: randomUUID(),
+            name: 'fasting_meals_missing',
+            userId: clientId,
+            phase: 'app',
+            data: {
+              finestra: (profile as { fastingWindow?: string | null }).fastingWindow ?? null,
+              mancano: pastiMancanti,
+              dietId: diet.id,
+            } as never,
+          } as never,
+        })
+        .catch(() => undefined);
+    }
 
     // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
     // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento

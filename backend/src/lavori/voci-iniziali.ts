@@ -294,7 +294,7 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'vera-modello-seconda-passata',
     titolo: 'Vera: il modello come seconda passata quando il riconoscitore non capisce',
     dettaglio:
-      'Oggi capisci.ts è deterministico, con 16 casi di prova. AiService (Anthropic) c\'è già. La proposta: quando capisci torna null, chiedere al modello una PROPOSTA — che resta una proposta, mostrata e confermata come tutte le altre. ⚠️ Dopo, mai al posto: la scrittura non deve cambiare strada. Serve un sì di Simone perché cambia il costo e il comportamento.',
+      'Oggi capisci.ts è deterministico, con 16 casi di prova. AiService (Anthropic) c\'è già. La proposta: quando capisci torna null, chiedere al modello una PROPOSTA — che resta una proposta, mostrata e confermata come tutte le altre. ⚠️ Dopo, mai al posto: la scrittura non deve cambiare strada. Serve un sì di Simone perché cambia il costo e il comportamento. ⚠️ AGGIORNATA IL 17/8, con le prove: quel giorno Vera si è rotta TRE volte in una giornata (il nome a inizio frase alle 11:02, la domanda che fa la pastiglia alle 11:52, il refuso «sostitusci» alle 13:41) e tre volte si è aggiunta un\'espressione regolare a mano. La forma precisa della proposta — il modello TRADUCE nella forma canonica, `capisci` DECIDE, la riscrittura si mostra prima di eseguire, `daScartare` gira PRIMA (una domanda col punto interrogativo non arriva nemmeno al modello) — sta in `progetto/NOTA_Vera_Seconda_Lettura.md`, con le tre cose che possono andare storte e cosa le ferma. La domanda per Simone è una sola ed è in fondo al foglio.',
     categoria: SIMONE,
     ordine: 215,
   },
@@ -622,6 +622,31 @@ export const VOCI_INIZIALI: Voce[] = [
       'La chat in cui Vera è stata costruita (12-13/8) è diventata troppo lunga. Tutto quello che serve per riprenderla da un\'altra sessione — cosa c\'è, dove sta, le regole di lavoro, le trappole già pagate e le due decisioni aperte — è in `progetto/HANDOFF_Vera_Sessione.md`. ⚠️ Va letto PRIMA di toccare `backend/src/vera/`: metà delle scelte che sembrano strane lì dentro sono difetti già pagati una volta.',
     categoria: MANUTENZIONE,
     ordine: 231,
+  },
+  {
+    chiave: 'digiuno-catalogo-per-finestra',
+    titolo: 'Digiuno: il catalogo servito lo decide la FINESTRA (Sonia riceveva un pasto al giorno)',
+    dettaglio:
+      'Trovato il 17/8 con `npm run diag:digiuni`: la variante `fasting: true` del catalogo ha tre slot FISSI (pranzo, merenda, cena) — è di fatto la variante «salta la colazione» e nessun campo lo dice — e l\'erogazione toglie da lì gli slot della finestra scelta. Chi salta la cena restava col SOLO PRANZO: Sonia (`s.sandri66@libero.it`), il 45% delle sue calorie, e ⚠️ non lo segnalava niente, perché la rete di `dayComboPools` ferma la giornata vuota e non quella monca. Ora `pickDietFor` chiede un catalogo che ABBIA i pasti che la finestra promette (`catalog/struttura-per-digiuno.ts`, modulo puro): si spostano sul 5 pasti solo «salto la cena» e «salto il pranzo», che sono le due rotte. ⚠️ NON «il digiuno usa sempre il 5 pasti»: nel catalogo digiuno pranzo+merenda+cena valgono il 100% della giornata e nel 5 pasti il 70%, quindi le cinque clienti che stanno bene avrebbero perso un terzo delle calorie in silenzio. ⚠️ La scelta conta i pasti, non elenca le finestre: una riga nuova in `FINESTRE_DIGIUNO` è già coperta. La finestra è stata aggiunta a tutti e cinque i chiamanti di `pickDietFor`. 14 test, nessuna migrazione. Foglio: `progetto/NOTA_Digiuno_E_Riempimento_Varianti.md`.',
+    categoria: CODICE,
+    ordine: 254,
+    fatta: true, // 17/8: consegnata; da confermare con `npm run diag:digiuni` dopo il deploy
+  },
+  {
+    chiave: 'digiuno-porzioni-non-si-scalano',
+    titolo: 'Digiuno: i pasti sono giusti, le PORZIONI no — Sonia è al 65% del fabbisogno',
+    dettaglio:
+      'La metà che la correzione del 17/8 (voce 254) NON chiude, e va detta perché tocca le calorie di una persona: le ricette nascono dimensionate su una quota della giornata, e quando la finestra toglie dei pasti quello che resta NON si ingrandisce — `DayCombo` sceglie una ricetta per slot dentro il pool e un moltiplicatore di porzione non esiste da nessuna parte. Chi salta la cena passa dal 45% al 65% del fabbisogno: meglio, non giusto. ⚠️ Lo stesso buco esiste FUORI dal digiuno, in piccolo: quando Vera toglie i due spuntini (`pastiEsclusi`) la giornata perde il 20% e la nota in app dice che le kcal «sono ridistribuite» — cosa che il motore non fa. Le due strade stanno in `progetto/NOTA_Digiuno_E_Riempimento_Varianti.md` §4: **B** una variante di catalogo per finestra (pasti E calorie giuste, ma ricette nuove da generare con l\'AI, e le finestre davvero usate sono due), **C** la porzione che si scala all\'erogazione (un catalogo solo, risolve anche gli spuntini, ma è lavoro su motore, app e lista della spesa — e una porzione ×1,6 di un piatto pensato piccolo non sempre è un piatto sensato). Decide Simone: è una scelta clinica prima che tecnica.',
+    categoria: SIMONE,
+    ordine: 255,
+  },
+  {
+    chiave: 'digiuno-finestra-mai-chiesta',
+    titolo: 'Digiuno senza finestra: a Maria non è mai stato chiesto quali pasti salta',
+    dettaglio:
+      'Maria (`mariabonaccorso@hotmail.it`) ha `pathType: intermittent_fasting` e `fastingWindow` vuota. ⚠️ NON è un difetto del motore e non è un allarme: senza finestra non si salta nulla e riceve il 16:8 classico, che è il default sensato — «dovrebbe ricevere tutti e cinque i pasti» era una frase del mio primo script, non una promessa fatta a lei (falso positivo corretto il 17/8). Il difetto è che **la domanda non le è mai stata fatta**: la finestra decide quali pasti mangia e per lei l\'ha decisa un valore di scorta. Va chiesta — dal questionario per chi si iscrive, e alle clienti già in digiuno senza finestra da Gaia o dalla coach. Nel frattempo `struttura-per-digiuno.ts` NON la sposta di catalogo, di proposito: cambiarle la dieta sotto i piedi per un campo vuoto sarebbe rispondere a una domanda mancata con un\'altra decisione presa al posto suo.',
+    categoria: CODICE,
+    ordine: 256,
   },
 
 ];
