@@ -119,3 +119,44 @@ FILE
 ⚠️ Dopo il deploy: «Aggiorna dal rilascio» nella pagina Lavori (o `CONFERMA=1 npm run carica:lavori`).
 Il riepilogo deve dire 3 da aggiungere e 1 da spuntare.
 ──────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────
+[Digiuno — 17/8, parte 3]
+`diag:digiuni` gridava su un caso sano
+
+DOPO IL DEPLOY della parte 1, `npm run diag:digiuni` su produzione:
+  Sonia · s.sandri66@libero.it | skip_dinner | riceve: colazione, spuntino, pranzo ✅
+  dieta servita: Flexitariana · vegetarian · 5 — STESSA famiglia, STESSO regime, cambia la struttura.
+Le cinque su «salto la colazione» sono rimaste su `fasting`, intatte: la regola ha fatto quello che
+doveva.
+
+MA la riga rossa non e' sparita: al posto di Sonia c'era MARIA, e li' era un FALSO ALLARME.
+Senza finestra impostata non si salta niente e riceve il 16:8 classico. «Dovrebbe ricevere tutti e
+cinque i pasti» era una frase di QUESTO SCRIPT, non una promessa fatta a lei.
+⚠️ E le due risposte avevano divergito: `menu.service` su Maria taceva (giustamente, perche'
+`pastiPromessiCheMancano` senza finestra non promette niente) e la diagnostica la segnalava. **Due
+definizioni della stessa domanda** — il difetto che questo progetto paga piu' spesso — nate nello
+spazio di un'ora, fra un modulo e uno script che avrei dovuto far parlare subito.
+
+DUE CORREZIONI:
+1. il giudizio lo da' `pastiPromessiCheMancano`, la STESSA funzione che il motore usa per decidere
+   se scrivere `fasting_meals_missing`. Non un conto riscritto qui. ⚠️ Con una differenza voluta: se
+   NESSUNA dieta e' servita mancano tutti i pasti promessi, e non si passa alla funzione una dieta
+   finta — le farebbe rispondere sulla struttura sbagliata proprio nel caso piu' grave.
+2. chi e' in digiuno senza finestra sta in un elenco SUO («❓ ... senza finestra impostata»), che
+   dice qual e' il problema vero: **la domanda non le e' mai stata fatta**. Non fra le rotte.
+⚠️ E un allarme che grida su un caso sano non e' un dettaglio di forma: dopo due, alla lista non
+crede piu' nessuno — la lezione sta scritta in testa a `common/piano-attivo.ts` e l'ho ripagata.
+
+Aggiornato anche il testo sotto la tabella delle rotte: prima spiegava la causa VECCHIA (il catalogo
+`fasting` che ha solo tre slot). Dal 17/8 se una riga e' ancora li' la causa e' una sola — quella
+variante in catalogo non esiste e l'ultimo ripiego ha servito un'altra struttura — e il rimedio e'
+generarla, non toccare la scelta della dieta.
+
+FILE
+- backend/prisma/diag-digiuni-e-varianti.ts — sola lettura, non scrive niente.
+
+Nessun test (script di diagnostica; la funzione che ora decide ha i suoi 10). Nessuna migrazione.
+⚠️ `tsc` su `prisma/`: i 3 errori che restano sono preesistenti e in altri script
+(`approve-diets`, `carica-lavori`, `dedupe-diets`) — contati prima e dopo, identici.
+──────────────────────────────────────────────────────────────────────────────

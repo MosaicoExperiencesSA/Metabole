@@ -34,7 +34,8 @@
  *   npm run diag:digiuni
  */
 import { PrismaClient } from '@prisma/client';
-import { FINESTRE_DIGIUNO, slotEsclusiTotali } from '../src/menu/finestre-digiuno';
+import { FINESTRE_DIGIUNO, finestraDigiuno, slotEsclusiTotali } from '../src/menu/finestre-digiuno';
+import { pastiPromessiCheMancano } from '../src/catalog/struttura-per-digiuno';
 import { pickDietFor } from '../src/catalog/pick-diet';
 import { pastiAttesi, NOME_PASTO } from '../src/catalog/giornate-complete';
 
@@ -103,6 +104,17 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
   const perFinestra = new Map<string, number>();
   const rotte: Record<string, string>[] = [];
   const sane: Record<string, string>[] = [];
+  /**
+   * ⚠️ Chi è in digiuno SENZA finestra impostata sta in un elenco suo, e non fra le «rotte».
+   *
+   * Il 17/8 questo script ha stampato Maria (`mariabonaccorso@hotmail.it`) fra le clienti che
+   * «ricevono meno pasti di quelli promessi», e non era vero: senza finestra non si salta niente e
+   * riceve il 16:8 classico. «Dovrebbe ricevere tutti e cinque i pasti» era una frase di questo
+   * script, non una promessa fatta a lei — e un allarme che grida su un caso sano è il modo più
+   * rapido per far smettere di credere alla lista (la lezione sta in `common/piano-attivo.ts`).
+   * Il suo problema è reale ma è un altro: **la domanda non le è mai stata fatta.**
+   */
+  const senzaFinestra: Record<string, string>[] = [];
 
   for (const p of profili) {
     const finestra = p.fastingWindow ?? '(non impostata)';
@@ -133,7 +145,33 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
       'riceve davvero': inItaliano(ricevuti),
       'dieta servita': servita ? `${servita.name} · ${servita.regime} · ${strutturaDi(servita)}` : '⚠️ NESSUNA',
     };
-    const mancanti = promessi.filter((s) => !ricevuti.includes(s));
+
+    // Senza finestra non c'è nessuna promessa da confrontare: si elenca e non si giudica.
+    if (!finestraDigiuno(p.fastingWindow)) {
+      senzaFinestra.push({
+        cliente: riga.cliente,
+        'riceve davvero': riga['riceve davvero'],
+        'dieta servita': riga['dieta servita'],
+      });
+      continue;
+    }
+
+    /**
+     * IL GIUDIZIO LO DÀ LA STESSA FUNZIONE DEL MOTORE, non un conto scritto qui.
+     *
+     * `pastiPromessiCheMancano` è quella che `menu.service` usa per decidere se scrivere
+     * `fasting_meals_missing`. Prima questo script se lo calcolava da solo, e il 17/8 le due
+     * risposte hanno divergito: il motore taceva su Maria (giustamente) e la diagnostica la
+     * segnalava. Due definizioni della stessa domanda è il difetto che questo progetto paga più
+     * spesso — qui basta chiamare la funzione che decide.
+     */
+    const mancanti = (
+      // ⚠️ Nessuna dieta servita: mancano TUTTI i pasti promessi. Passare una dieta finta alla
+      // funzione le farebbe rispondere sulla struttura sbagliata, cioè mentire in un caso grave.
+      servita ? pastiPromessiCheMancano(p.pathType, p.fastingWindow, servita) : promessi
+    )
+      // Uno spuntino che la cliente ha CHIESTO di togliere non è un pasto che le manca.
+      .filter((s) => !(p.pastiEsclusi ?? []).includes(s));
     if (mancanti.length) rotte.push({ ...riga, mancano: inItaliano(mancanti) });
     else sane.push(riga);
   }
@@ -147,12 +185,26 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
   const senza = perFinestra.get('(non impostata)') ?? 0;
   if (senza) console.log(`${String(senza).padStart(6)}  ⚠️ finestra non impostata (i pasti li decide la dieta)`);
 
+  if (senzaFinestra.length) {
+    console.log(
+      `\n❓ ${senzaFinestra.length} client${senzaFinestra.length === 1 ? 'e è' : 'i sono'} in digiuno SENZA finestra impostata.\n` +
+      'Non è un difetto e non riceve meno del dovuto: senza finestra non si salta niente, e quello che\n' +
+      'arriva è il 16:8 classico deciso dalla dieta. ⚠️ Quello che manca è LA DOMANDA — quali pasti\n' +
+      'salta non le è mai stato chiesto, e la risposta cambierebbe cosa mangia.\n',
+    );
+    console.table(senzaFinestra);
+  }
+
   if (rotte.length) {
     console.log(`\n⚠️ ${rotte.length} client${rotte.length === 1 ? 'e riceve' : 'i ricevono'} MENO pasti di quelli che la finestra promette:\n`);
     console.table(rotte);
     console.log(
-      '\nNon è un arrotondamento: il catalogo `fasting` ha solo pranzo, merenda e cena, e la finestra\n' +
-      'toglie da lì. Chi salta la cena resta col solo pranzo — un pasto al giorno.',
+      '\nNon è un arrotondamento: è un pasto che non arriva. Dal 17/8 il motore chiede un catalogo che\n' +
+      'ABBIA i pasti della finestra (`catalog/struttura-per-digiuno.ts`), quindi se una riga è ancora\n' +
+      'qui la causa è UNA: quella variante in catalogo non esiste, e l\'ultimo ripiego di `pickDietFor`\n' +
+      'ha servito una struttura diversa. ⚠️ Il rimedio è generare la variante (parte 2 di questo\n' +
+      'script dice se serve l\'AI o se è riempibile subito), NON toccare la scelta della dieta.\n' +
+      'Le stesse righe le trovi nei log del backend come `fasting_meals_missing`.',
     );
   } else {
     console.log('\n✅ Nessuna cliente riceve meno pasti di quelli promessi dalla sua finestra.');

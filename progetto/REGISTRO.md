@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🔕 **Verificato in produzione: Sonia mangia tre pasti. E `diag:digiuni` gridava su un
+  caso sano.** Dopo il deploy: Sonia riceve colazione, spuntino e pranzo, servita da
+  **Flexitariana · vegetarian · 5** — stessa famiglia, stesso regime, cambia solo la struttura: il
+  ripiego di famiglia che avevo segnalato come rischio non è servito. Le cinque su «salto la
+  colazione» sono rimaste su `fasting`, intatte. ⚠️ Ma la riga rossa non è sparita: al posto di Sonia
+  c'era **Maria**, e lì era un **falso allarme** — senza finestra impostata non si salta niente e
+  riceve il 16:8 classico; «dovrebbe ricevere tutti e cinque i pasti» era una frase del mio script,
+  non una promessa fatta a lei. ⚠️ E la cosa seria è che **le due risposte avevano divergito nello
+  spazio di un'ora**: `menu.service` su Maria taceva (giustamente) e la diagnostica la segnalava —
+  due definizioni della stessa domanda, che è il difetto che questo progetto paga più spesso, e
+  stavolta l'ho creato io fra un modulo e uno script che avrei dovuto far parlare subito. Adesso il
+  giudizio lo dà `pastiPromessiCheMancano`, la stessa funzione che il motore usa per decidere se
+  scrivere `fasting_meals_missing`; ⚠️ con una differenza voluta: se nessuna dieta è servita mancano
+  **tutti** i pasti promessi e non si passa alla funzione una dieta finta, che la farebbe rispondere
+  sulla struttura sbagliata proprio nel caso più grave. E chi è in digiuno senza finestra ha un elenco
+  suo, che dice qual è il problema vero: **la domanda non le è mai stata fatta**. ⚠️ Un allarme che
+  grida su un caso sano non è un dettaglio di forma — dopo due, alla lista non crede più nessuno, e
+  quella lezione era già scritta in testa a `common/piano-attivo.ts`.
+
 - `[Sviluppo]` 🍽️ **Sonia mangiava un pasto al giorno: il catalogo del digiuno adesso lo decide la
   finestra.** `s.sandri66@libero.it`, finestra «salto la cena»: doveva ricevere colazione, spuntino e
   pranzo e riceveva **il solo pranzo** — il 45% delle sue calorie. La causa sta in tre righe messe in
