@@ -150,6 +150,18 @@ export const testi = {
     'Non c\'era niente in corso da annullare: non stavo per scrivere nulla. Ripartiamo quando ' +
     'vuoi — per esempio «a Giulia Rossi niente formaggi molli».',
 
+  /**
+   * LA RISCRITTURA SI MOSTRA (seconda lettura, 17/8). Non «ho capito che vuoi togliere i ceci»: **la
+   * frase**, perché è l'unica forma in cui si vede se il traduttore ha aggiunto qualcosa. Poi viene
+   * l'anteprima di sempre, con la sua conferma: fino a lì non è stato scritto niente.
+   *
+   * ⚠️ E si dice che è una rilettura, non si finge di aver capito al primo colpo: chi legge deve
+   * sapere che quella non è la frase che ha scritto lei.
+   */
+  hoLettoCosi: (riscritta: string) =>
+    `La tua frase non era in una forma che riconosco, e l'ho riletta così:\n> **${riscritta}**\n\n` +
+    'Se non è questo che intendevi, dimmi «no» e ricominciamo.',
+
   nonCapito: (tentativi: number) =>
     tentativi < MAX_TENTATIVI
       ? 'Non ci arrivo. Puoi riscriverla dicendo **su chi** e **cosa** — per esempio «a Giulia Rossi ' +

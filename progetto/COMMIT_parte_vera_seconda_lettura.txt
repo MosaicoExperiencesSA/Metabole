@@ -1,0 +1,86 @@
+──────────────────────────────────────────────────────────────────────────────
+[Vera — 17/8]
+La seconda lettura: il modello TRADUCE, `capisci` DECIDE
+
+IL PERCHE', con le prove del 17/8: Vera si e' rotta TRE volte in una giornata — il nome a inizio
+frase (11:02), la domanda che fa la pastiglia (11:52), un refuso su una lettera (13:41,
+«sostitusci») — e tre volte ho aggiunto un'espressione regolare a mano. Le correzioni erano giuste e
+restano, ma le frasi vere sono infinite e le forme scritte a mano no: chi sta dall'altra parte non
+impara «ho sbattuto un tasto», impara «non funziona», e dopo due «non ci arrivo» smette di provare.
+Si' di Simone il 17/8. Foglio: `progetto/NOTA_Vera_Seconda_Lettura.md`.
+
+  frase → capisci() → intento              ← la strada di sempre, invariata
+              ↓ null
+        il modello RISCRIVE nella forma canonica
+              ↓
+   frase riscritta → capisci() → intento    (e la riscrittura si MOSTRA)
+              ↓ ancora null
+        «non ci arrivo» — esattamente come oggi
+
+LE TRE PROPRIETA':
+1. il modello non vede mai i dati e non tocca mai il database: riceve una stringa, torna una stringa.
+   Il prompt e' la frase e le forme canoniche — nessun nome, nessun catalogo (c'e' un test che
+   verifica che il prompt stia sotto i 200 caratteri);
+2. a DECIDERE resta `capisci`, con le sue forme e i suoi test. Il modello non allarga quello che Vera
+   SA FARE: allarga solo il modo in cui glielo si puo' DIRE;
+3. la riscrittura si mostra prima di eseguire, e si mostra LA FRASE — «ceci → fagioli» non fa vedere
+   se il modello ha aggiunto qualcosa, la frase si'.
+
+⚠️ LA PARTE CHE CONTA DI QUESTA CONSEGNA E' LA GUARDIA, non la traduzione.
+`riscritturaAccettabile`: il modello puo' RIORDINARE le parole della frase, non AGGIUNGERNE. Ogni
+parola piena della riscrittura deve venire dalla frase originale (confronto per RADICE, cosi'
+«sostitusci» → «sostituisci» passa) oppure essere una delle PAROLE DELLA FORMA, che sono un elenco
+CHIUSO (verbi e preposizioni con cui `capisci` riconosce le sue forme — dentro non entrano alimenti,
+nomi, numeri, diete). «a Giulia togli il pesce» → «...il pesce E I CROSTACEI» viene rifiutata.
+⚠️ E' una guardia OLTRE la conferma, non al posto suo: la conferma la legge una persona stanca alle
+sette di sera, e una parola in piu' in fondo a una frase giusta e' esattamente cio' che non si nota.
+
+⚠️ I NUMERI SI CONTROLLANO A PARTE, e questo l'ha trovato UN TEST, non un ragionamento.
+Il filtro delle parole scarta quelle sotto le tre lettere, quindi «riduci le calorie a Giulia» →
+«riduci le calorie DEL 30% a Giulia» ci passava in mezzo. E `capisci` le percentuali le legge
+(`leggiCorrezioneKcal`, `leggiProteine`): un numero inventato dal modello non e' una parola in piu'
+in una frase, e' il fabbisogno calorico di una persona cambiato da nessuno. Il test l'ho scritto
+prima di guardare se passava, ed e' fallito.
+
+LE ALTRE DUE COSE CHE POSSONO ANDARE STORTE:
+· UNA DOMANDA LETTA COME ORDINE («posso togliere il pesce a Giulia?»). `daScartare` gira PRIMA della
+  chiamata: una frase col punto interrogativo non arriva nemmeno al modello. La funzione era gia' in
+  `capisci.ts` ed e' stata solo ESPORTATA — la difesa resta in un posto solo, non in due.
+· IL MODELLO NON RISPONDE (credito, 503, lentezza). `generateJson` torna null su ogni errore e non
+  lancia: si ricade su «non ci arrivo». La seconda lettura e' un DI PIU', e se manca non manca niente.
+
+DOVE E' INNESTATA: in fondo a `nuovoGiro`, DOPO il battesimo, «annulla» e la coda del capo — quelle
+sono risposte CERTE a frasi che `capisci` non riconosce, e una traduzione non deve passare davanti a
+qualcosa che sappiamo gia' leggere. E prima del «non ci arrivo», perche' quello e' il giro che oggi va
+perso: il modello si paga solo la'. Anche al RITENTATIVO, che e' il momento in cui lei ha gia'
+riscritto una volta e sta per sentirsi dire «non ci arrivo» la seconda.
+⚠️ UNA chiamata per giro (`giaRiletta`): una riscrittura capita a metta' potrebbe rimbalzare fra
+`capisci` e il modello per sempre, spendendo a ogni rimbalzo. C'e' un test.
+
+L'INTERRUTTORE: `vera_seconda_lettura`, e sta NEL SEED — non solo nel default del codice.
+`config-params.service.create` porta scritto perche': «la promessa configurabile dal backoffice era
+vera solo se qualcuno si ricordava di aggiungere la chiave al seed», ed e' gia' successo due volte. Un
+interruttore che nessuno vede e' un interruttore che non si puo' spegnere quando serve. Spento, il
+comportamento e' IDENTICO a quello di prima.
+
+E IL GUADAGNO CHE NON SI PAGA: ogni riscrittura andata a buon fine e' una frase vera da aggiungere a
+`capisci`. Il corpus delle frasi non capite esiste gia' (`vera/corpus.ts`): con la seconda lettura si
+riempie da solo di coppie «come l'ha detta» → «come si scrive». Il modello e' il modo per SMETTERE di
+aver bisogno del modello.
+
+FILE
+- backend/src/vera/seconda-lettura.ts (+ .spec) — modulo PURO: la guardia e l'orchestrazione. 15 test.
+- backend/src/vera/capisci.ts — `daScartare` esportata (nessun cambio di comportamento).
+- backend/src/vera/vera-chat.service.ts — l'innesto, in due punti, con `giaRiletta`.
+- backend/src/vera/vera-chat.ts — `hoLettoCosi`: la riscrittura mostrata, detta come rilettura.
+- backend/src/vera/vera.module.ts — `AiModule` (⚠️ lo vede solo `app.module.spec.ts`).
+- backend/src/vera/vera-chat.service.spec.ts — 7 test sull'innesto.
+- backend/prisma/seed.ts — `vera_seconda_lettura`, con la descrizione per chi lo trovera' in tabella.
+- backend/src/lavori/voci-iniziali.ts — voce 215 SPUNTATA, col difetto dei numeri scritto dentro.
+
+22 test nuovi. NESSUNA MIGRAZIONE. `nest build` verde, 3047 test in 198 suite coi tipi Prisma VERI.
+CONTROLLO PER MUTAZIONE: spegnendo l'innesto cadono 3 test; spegnendo la guardia sulle parole nuove
+ne cadono 4.
+⚠️ In produzione serve `AI_API_KEY` su Render: senza, `generateJson` torna null e si resta al
+comportamento di prima — senza errori e senza rumore.
+──────────────────────────────────────────────────────────────────────────────

@@ -318,8 +318,15 @@ function nomeInTesta(testo: string): string | null {
   return `${m[1]} ${m[2]}`.trim();
 }
 
-/** Vero se la frase è una domanda o una negazione dell'istruzione: non si esegue. */
-function daScartare(testo: string): boolean {
+/**
+ * Vero se la frase è una domanda o una negazione dell'istruzione: non si esegue.
+ *
+ * ⚠️ **Esportata dal 17/8** perché la seconda lettura (`seconda-lettura.ts`) deve poterla chiamare
+ * PRIMA di passare la frase al modello: «posso togliere il pesce a Giulia?» non deve diventare
+ * «togli il pesce a Giulia» passando da un traduttore. È la più insidiosa delle tre cose che possono
+ * andare storte, e si ferma qui — in un posto solo, non in due.
+ */
+export function daScartare(testo: string): boolean {
   const t = normalizza(testo);
   if (t.includes('?')) return true;
   if (/^(posso|potrei|si puo|si può|va bene se|che ne dici)/.test(t)) return true;

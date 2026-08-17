@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🗣️ **Vera: la seconda lettura. Il modello traduce, `capisci` decide.** Sì di Simone la
+  mattina, consegnata la sera. Quando il riconoscitore torna `null`, il modello **riscrive** la frase
+  nella forma canonica e la si rilegge col riconoscitore deterministico. ⚠️ Il modello non vede i dati
+  e non tocca il database: riceve una stringa e torna una stringa — il prompt è la frase più le forme
+  canoniche, e c'è un test che verifica che stia **sotto i 200 caratteri**, cioè che non ci sia finito
+  dentro nessun nome e nessun catalogo. A decidere resta `capisci`: il modello non allarga quello che
+  Vera **sa fare**, allarga il modo in cui glielo si può **dire**. ⚠️ **La parte che conta di questa
+  consegna non è la traduzione, è la guardia**: il modello può *riordinare* le parole della frase, non
+  *aggiungerne* — ogni parola piena della riscrittura deve venire dalla frase (confronto per radice,
+  così «sostitusci» → «sostituisci» passa) o essere una delle **parole della forma**, che sono un
+  elenco chiuso in cui non entrano alimenti, nomi, numeri o diete. «a Giulia togli il pesce» → «…il
+  pesce **e i crostacei**» viene rifiutata, e il rifiuto si scrive nei log. ⚠️ **E i numeri si
+  controllano a parte, cosa che ha trovato un test e non un ragionamento**: il filtro delle parole
+  scarta quelle sotto le tre lettere, quindi «riduci le calorie a Giulia» → «riduci le calorie **del
+  30%** a Giulia» ci passava in mezzo — e `capisci` le percentuali le legge. Un numero inventato dal
+  modello non è una parola in più in una frase: è il fabbisogno calorico di una persona cambiato da
+  nessuno. ⚠️ Una **domanda** non arriva nemmeno al modello: `daScartare` gira prima, ed è stata solo
+  **esportata** da `capisci.ts` — la difesa resta in un posto solo. ⚠️ Se il modello non risponde
+  (credito, 503, timeout) si dice «non ci arrivo» come sempre: la seconda lettura è un **di più**, e se
+  manca non manca niente. L'innesto sta in fondo a `nuovoGiro`, **dopo** il battesimo, «annulla» e la
+  coda del capo — quelle sono risposte certe, e una traduzione non deve passare davanti a qualcosa che
+  sappiamo già leggere — e **prima** del «non ci arrivo», perché è il giro che oggi va perso: il
+  modello si paga solo lì. Vale anche al **ritentativo**, che è il momento in cui lei ha già riscritto
+  una volta. ⚠️ Una chiamata per giro (`giaRiletta`): senza, una riscrittura capita a metà rimbalzerebbe
+  fra i due spendendo a ogni rimbalzo. ⚠️ L'interruttore `vera_seconda_lettura` sta **nel seed** e non
+  solo nel default del codice, perché `config-params.service.create` porta scritto che quella
+  dimenticanza è già costata due volte: un interruttore che nessuno vede non si può spegnere quando
+  serve. E il guadagno che non si paga: ogni riscrittura riuscita è una frase vera da aggiungere a
+  `capisci` — il corpus esiste già, e il modello diventa il modo per **smettere** di aver bisogno del
+  modello. 22 test, nessuna migrazione; 3 cadono spegnendo l'innesto e 4 spegnendo la guardia. Voce 215
+  spuntata. ⚠️ In produzione serve `AI_API_KEY` su Render.
+
 - `[Sviluppo]` 🎫 **Fra due piani attivi, quale «è» il piano: la scheda mostrava quello in coda.**
   ⚠️ La storia di Lorena è più precisa di come l'avevo scritta, e la parte che mancava è peggiore:
   `pickMainSubscription` faceva `find(s => s.status === 'active')` su una lista `createdAt desc`,

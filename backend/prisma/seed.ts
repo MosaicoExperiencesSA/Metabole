@@ -513,6 +513,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Assistente AI in chat: se "true" (e AI_API_KEY configurata su Render) l\'assistente risponde con Claude ai messaggi generici; i temi sensibili/sanitari restano instradati al nutrizionista',
   },
   {
+    /**
+     * ⚠️ La chiave sta QUI e non solo nel default del codice: `config-params.service.create` porta
+     * scritto perché — «la promessa configurabile dal backoffice era vera solo se qualcuno si
+     * ricordava di aggiungere la chiave al seed», ed è già successo due volte. Un interruttore che
+     * nessuno vede è un interruttore che non si può spegnere quando serve.
+     */
+    key: 'vera_seconda_lettura',
+    value: 'true',
+    type: 'string',
+    description: 'Seconda lettura di Vera: se "true" (e AI_API_KEY configurata su Render), quando il riconoscitore non capisce una frase il modello la RISCRIVE nella forma canonica e la si rilegge — il modello traduce, non decide, e la riscrittura si mostra prima di eseguire. Spenta, il comportamento è quello di prima: «non ci arrivo»',
+  },
+  {
     key: 'bank_transfer_details',
     value: BANK_TRANSFER_DETAILS,
     type: 'string',

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module';
 import { MailModule } from '../mail/mail.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CatalogService } from '../catalog/catalog.service';
@@ -67,7 +68,17 @@ import { VeraController } from './vera.controller';
    * (ci arriva da `ClientsModule`), e nessuno dei due importa Vera.
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule],
+  /**
+   * ⚠️ `AiModule` per la SECONDA LETTURA (17/8): quando `capisci` torna null, il modello riscrive la
+   * frase nella forma canonica e la si rilegge col riconoscitore deterministico. Il modello traduce,
+   * non decide, e non vede nessun dato — vedi `seconda-lettura.ts`.
+   *
+   * Nessun anello: `AiModule` non importa niente e non conosce Vera.
+   * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO, non
+   * alla compilazione — il 12/8 un modulo senza il suo import ha fatto uscire il processo con 1 al
+   * primo boot su Render, con `tsc` verde e 1794 test verdi.
+   */
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,

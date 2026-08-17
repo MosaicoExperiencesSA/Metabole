@@ -40,6 +40,12 @@ function make(
     kcal?: { simulaKcal: jest.Mock; impostaKcal: jest.Mock };
     /** La prossima sostituzione da verificare (voce 245). Assente = coda vuota. */
     cambio?: Record<string, unknown> | null;
+    /**
+     * La SECONDA LETTURA (17/8). Assente = spenta, come in tutti i test scritti prima: `getBool`
+     * torna `false` e il comportamento è identico a quello di sempre. Passando una frase qui si
+     * accende l'interruttore e si finge la risposta del modello.
+     */
+    riscritturaModello?: string | null;
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -141,7 +147,19 @@ function make(
   // La porta della scheda per il cambio di dieta (azione 3, 14/8).
   const clienti = { updateClient: jest.fn().mockResolvedValue({}) };
   // Il minimo proteico della dieta, per l'anteprima delle proteine (14/8).
-  const configParams = { getNumber: jest.fn().mockResolvedValue(0.2), getBool: jest.fn().mockResolvedValue(false) };
+  const secondaLetturaAccesa = opzioni.riscritturaModello !== undefined;
+  const configParams = {
+    getNumber: jest.fn().mockResolvedValue(0.2),
+    // ⚠️ `vera_seconda_lettura` è l'unica chiave che può essere vera: tutto il resto resta come era,
+    // così i test scritti prima del 17/8 collaudano ancora il comportamento che collaudavano.
+    getBool: jest.fn((chiave: string) => Promise.resolve(chiave === 'vera_seconda_lettura' && secondaLetturaAccesa)),
+  };
+  /** Il modello della seconda lettura: finto, e risponde quello che gli dice il test. */
+  const ai = {
+    generateJson: jest.fn().mockResolvedValue(
+      opzioni.riscritturaModello ? { frase: opzioni.riscritturaModello } : null,
+    ),
+  };
   // La porta delle calorie scritte a mano (14/8, Nocanty via Vera).
   const kcal = opzioni.kcal ?? {
     simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1600 }, dopo: { target: 1440 } }),
@@ -151,7 +169,7 @@ function make(
   const sostituzioni = { aggiorna: jest.fn().mockResolvedValue({ id: 's1' }) };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never),
     valori,
     ricette,
     richieste,
@@ -164,6 +182,7 @@ function make(
     clienti,
     kcal,
     sostituzioni,
+    ai,
   };
 }
 
@@ -1715,5 +1734,86 @@ describe('VeraChatService — la via d\'uscita da «su quale cliente?»', () => 
     const { testo, stato } = ultimoAgente(messaggioCreate);
     expect(testo).toMatch(/non trovo nessuna cliente/i);
     expect(stato?.passo).toBe('quale_cliente');
+  });
+});
+
+/**
+ * LA SECONDA LETTURA (17/8, decisa da Simone). Il modello traduce, `capisci` decide, la riscrittura
+ * si mostra. Qui si collauda l'INNESTO: quando il modello viene chiamato, quando no, e cosa legge
+ * la nutrizionista quando è servito.
+ *
+ * La guardia sull'output del modello — che è la parte pericolosa — sta in `seconda-lettura.spec.ts`.
+ */
+describe('VeraChatService — la seconda lettura', () => {
+  const capoNutrizionista = {
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+  };
+
+  it('⚠️ NON si chiama il modello se `capisci` la frase la capisce già', async () => {
+    // Il costo è una chiamata sul giro che era comunque perso: su un giro che funziona, zero.
+    const { service, ai } = make(capoNutrizionista, { riscritturaModello: 'a Giulia niente ceci' });
+    await service.parla('n1', 'a Giulia Rossi niente formaggi molli');
+    expect(ai.generateJson).not.toHaveBeenCalled();
+  });
+
+  it('spenta (come prima del 17/8): il modello non si chiama e la risposta è «non ci arrivo»', async () => {
+    // `riscritturaModello` assente = interruttore `vera_seconda_lettura` a false.
+    const { service, messaggioCreate, ai } = make(capoNutrizionista, {});
+    await service.parla('n1', 'mah la jolanda i ceci insomma');
+    expect(ai.generateJson).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toMatch(/non ci arrivo/i);
+  });
+
+  it('accesa: la frase riscritta viene MOSTRATA prima di procedere', async () => {
+    const { service, messaggioCreate, ai } = make(capoNutrizionista, {
+      riscritturaModello: 'a jolanda niente ceci',
+    });
+    await service.parla('n1', 'mah la jolanda i ceci insomma');
+    expect(ai.generateJson).toHaveBeenCalledTimes(1);
+    const { testo } = ultimoAgente(messaggioCreate);
+    // ⚠️ Si mostra LA FRASE: è l'unica forma in cui si vede se il traduttore ha aggiunto qualcosa.
+    expect(testo).toContain('a jolanda niente ceci');
+    expect(testo).toMatch(/riletta/i);
+    // E non si finge di aver capito al primo colpo.
+    expect(testo).not.toMatch(/^Per /);
+  });
+
+  it('⚠️ una DOMANDA non arriva al modello nemmeno da qui', async () => {
+    // La difesa vive in `daScartare`, dentro `capisci`, e questo test guarda che sia davvero sulla
+    // strada: una domanda che diventa un ordine è il modo peggiore di sbagliare.
+    const { service, ai } = make(capoNutrizionista, { riscritturaModello: 'togli il pesce a Giulia' });
+    await service.parla('n1', 'posso togliere il pesce a Giulia?');
+    expect(ai.generateJson).not.toHaveBeenCalled();
+  });
+
+  it('il modello non risponde: si dice «non ci arrivo», come sempre', async () => {
+    const { service, messaggioCreate, ai } = make(capoNutrizionista, { riscritturaModello: null });
+    await service.parla('n1', 'mah la jolanda i ceci insomma');
+    // L'interruttore è acceso (la chiave c'è), ma il modello torna null: credito, 503, timeout.
+    expect(ai.generateJson).toHaveBeenCalledTimes(1);
+    expect(ultimoAgente(messaggioCreate).testo).toMatch(/non ci arrivo/i);
+  });
+
+  it('⚠️ una riscrittura che AGGIUNGE un alimento viene rifiutata: «non ci arrivo»', async () => {
+    // La guardia ha i suoi test a parte; questo verifica che sia sulla strada e che il rifiuto
+    // arrivi alla nutrizionista come un «non ci arrivo», non come una regola in più.
+    const { service, messaggioCreate } = make(capoNutrizionista, {
+      riscritturaModello: 'a jolanda niente ceci e crostacei',
+    });
+    await service.parla('n1', 'mah la jolanda i ceci insomma');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toMatch(/non ci arrivo/i);
+    expect(testo).not.toContain('crostacei');
+  });
+
+  it('il modello si chiama UNA volta per giro: nessun rimbalzo', async () => {
+    // Se la riscrittura passa `capisci` ma il giro rientra qui, la seconda lettura non riparte —
+    // altrimenti un rimbalzo costerebbe una chiamata a ogni giro.
+    const { service, ai } = make(capoNutrizionista, { riscritturaModello: 'a jolanda niente ceci' });
+    await service.parla('n1', 'mah la jolanda i ceci insomma');
+    expect(ai.generateJson).toHaveBeenCalledTimes(1);
   });
 });

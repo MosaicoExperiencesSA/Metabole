@@ -22,7 +22,8 @@ import { expandExclusion } from '../menu/exclusions';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { AiService } from '../ai/ai.service';
+import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
@@ -45,6 +46,7 @@ import { suggestAllergens } from '../catalog/allergens';
 import { EsitoAllergeni, leggiAllergeni, raccontaScelti, raccontaSuggerimenti, Suggerimento } from './allergeni-ricetta';
 import { SCRITTURA_SOSTITUZIONI, ScritturaSostituzioni } from './scrittura-sostituzioni';
 import { leggiVerdetto, motivoDetto, raccontaSostituzione } from './verifica-sostituzioni';
+import { secondaLettura } from './seconda-lettura';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
 import {
@@ -114,6 +116,12 @@ export class VeraChatService {
      * metodo del pulsante in scheda. A voce cambia **chi** lo chiama, non cosa succede.
      */
     @Inject(SCRITTURA_SOSTITUZIONI) private readonly sostituzioni: ScritturaSostituzioni,
+    /**
+     * LA SECONDA LETTURA (17/8): l'unico uso del modello dentro Vera, e traduce — non decide.
+     * ⚠️ `generateJson` torna `null` su qualunque errore e non lancia, quindi qui non serve nessun
+     * `try`: se il modello non c'è, si ricade sul «non ci arrivo» di prima.
+     */
+    private readonly ai: AiService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -177,7 +185,12 @@ export class VeraChatService {
 
   // ───────────────────────────────────────────────────────────── il dialogo ──
 
-  private async nuovoGiro(nutrizionistaId: string, fraseIntera: string): Promise<EsitoVera> {
+  /**
+   * ⚠️ `giaRiletta`: la seconda lettura si prova UNA volta per giro. Quando riesce si rientra qui con
+   * la frase riscritta, e da lì il modello non si chiama più — altrimenti una riscrittura che
+   * `capisci` capisce a metà potrebbe rimbalzare fra i due per sempre, spendendo a ogni rimbalzo.
+   */
+  private async nuovoGiro(nutrizionistaId: string, fraseIntera: string, giaRiletta = false): Promise<EsitoVera> {
     /**
      * ⚠️ PRIMA si separa quello che ha incollato, POI si capisce.
      *
@@ -212,6 +225,27 @@ export class VeraChatService {
       // Si prova quella PRIMA di rispondere «non ho capito», che sarebbe vero e inutile.
       const prossima = await this.cosaTiPorto(nutrizionistaId);
       if (prossima) return prossima;
+      /**
+       * ⚠️ LA SECONDA LETTURA — l'ULTIMA cosa che si prova, e per costruzione.
+       *
+       * Sta qui in fondo, dopo il battesimo, dopo «annulla» e dopo la coda del capo, perché tutte
+       * quelle sono risposte **certe** a frasi che `capisci` non riconosce: una traduzione non deve
+       * poter passare davanti a qualcosa che sappiamo già leggere. E sta prima del «non ci arrivo»
+       * perché è esattamente il giro che oggi va perso — quindi il modello si paga solo là.
+       *
+       * Il modello **traduce**: a decidere resta `capisci`, che rilegge la frase riscritta con le
+       * sue forme e i suoi test. Se non passa da lì, qui sotto si dice «non ci arrivo» come sempre.
+       */
+      const riletta = giaRiletta ? null : await this.provaSecondaLettura(frase);
+      if (riletta) {
+        const esito = await this.nuovoGiro(nutrizionistaId, riletta, true);
+        /**
+         * ⚠️ SI MOSTRA LA FRASE, non solo l'intento. «ceci → fagioli» non fa vedere che il modello
+         * ha aggiunto qualcosa; la frase sì. Va davanti all'anteprima, che è il punto in cui una
+         * traduzione sbagliata si legge e si ferma — e niente è ancora stato scritto.
+         */
+        return { ...esito, testo: `${testi.hoLettoCosi(riletta)}\n\n${esito.testo}` };
+      }
       return { testo: testi.nonCapito(1), esito: 'non_capito', stato: { passo: 'conferma', frase, tentativi: 1 } };
     }
     if (intento.tipo === 'fuori_portata') {
@@ -1786,12 +1820,39 @@ export class VeraChatService {
     });
   }
 
+  /**
+   * La seconda lettura, con le sue dipendenze legate: il modello, `capisci`, e `daScartare` che gira
+   * PRIMA della chiamata (una domanda col punto interrogativo non arriva nemmeno al modello).
+   *
+   * ⚠️ Si può spegnere senza un rilascio: `vera_seconda_lettura` in `config_param`. Spenta, il
+   * comportamento è **identico** a quello di prima — ed è la ragione per cui l'interruttore esiste:
+   * è una funzione che spende, e che tocca il piatto di 315 persone attraverso una traduzione.
+   */
+  private async provaSecondaLettura(frase: string): Promise<string | null> {
+    if (!(await this.configParams.getBool('vera_seconda_lettura', true))) return null;
+    const esito = await secondaLettura<Intento>(frase, {
+      chiediAlModello: (system, prompt) => this.ai.generateJson<{ frase?: unknown }>(system, prompt, 300),
+      capisci,
+      daScartare,
+      avvisa: (m) => logger.warn(m),
+    });
+    return esito?.riscritta ?? null;
+  }
+
   private async confermaOAnnulla(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
     // Il ramo «non avevo capito»: qui `conferma` è solo il contenitore del contatore tentativi.
     if (!stato.intento) {
       const tentativi = (stato.tentativi ?? 1) + 1;
       const riprova = capisci(frase);
       if (riprova) return this.nuovoGiro(nutrizionistaId, frase);
+      // ⚠️ La seconda lettura vale anche al RITENTATIVO: è il momento in cui lei ha già riscritto la
+      // frase una volta e sta per sentirsi dire «non ci arrivo» la seconda. Se qui si arrende, si
+      // arrende per sempre — dopo due «non ci arrivo» una persona smette di provare.
+      const tradotta = await this.provaSecondaLettura(frase);
+      if (tradotta) {
+        const esito = await this.nuovoGiro(nutrizionistaId, tradotta, true);
+        return { ...esito, testo: `${testi.hoLettoCosi(tradotta)}\n\n${esito.testo}` };
+      }
       if (tentativi > MAX_TENTATIVI) return { testo: testi.nonCapito(MAX_TENTATIVI), esito: 'arresa' };
       return { testo: testi.nonCapito(tentativi), esito: 'non_capito', stato: { ...stato, tentativi } };
     }
