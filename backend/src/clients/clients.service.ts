@@ -11,6 +11,10 @@ import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.serv
 import { campiCambiati } from '../common/diff-campi';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
+// La pulizia dei gusti scritti dalla scheda: spezza i tag e ferma le spezie (la stessa del
+// questionario e del profilo in app), più i «non alimenti» delle intolleranze.
+import { filtraSpezie, type EsitoSpezia } from '../menu/spezie';
+import { NON_ALIMENTI } from '../common/allergie';
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
@@ -707,6 +711,41 @@ export class ClientsService {
     const profileData: Record<string, unknown> = {};
     for (const k of PROFILE_FIELDS) if (d[k] !== undefined) profileData[k] = d[k] === '' ? null : d[k];
 
+    /**
+     * ⚠️ I GUSTI SCRITTI DALLA SCHEDA PASSAVANO DIRITTI IN BANCA DATI — quarta volta per la stessa
+     * riga (`latte` l'8/8, `frutta_a_guscio` il 12/8, `"Carne .ceci"` il 17/8).
+     *
+     * Il ciclo qui sopra riempie `profileData` **ciecamente** per tutte le `PROFILE_FIELDS`, e il
+     * 17/8 la pulizia dei tag è stata messa sui due percorsi della CLIENTE (questionario e profilo in
+     * app) — non su questo, che è quello della nutrizionista. La scheda manda una stringa spezzata
+     * sulle sole virgole, quindi «Carne .ceci» arrivava intero: una voce che non escludeva niente, e
+     * nessuno lo diceva.
+     *
+     * Due pulizie, diverse perché le due liste sono diverse:
+     *
+     * 1. `dislikedFoods` → `filtraSpezie`, che **spezza prima di classificare** (`spezzaTagAlimenti`)
+     *    e ferma le spezie. ⚠️ Le spezie scartate **si dicono a chi ha premuto Salva**: una voce che
+     *    sparisce in silenzio è il difetto che paghiamo da tre giorni, e qui chi scrive è una
+     *    professionista che ha il diritto di sapere che la sua riga non è stata salvata — e perché
+     *    (escludere il pepe svuota il pool invece di togliere un piatto).
+     * 2. `intolerances` → via i **non-alimenti** (`altro`, `other`, `nessuna`, `none`…). Il
+     *    questionario li toglie da sempre (`common/allergie.ts`), la scheda no: `'altro'` salvato
+     *    come intolleranza diventa una parola che il motore va a cercare dentro i piatti.
+     *    ⚠️ Qui i tag NON si spezzano: un'intolleranza è un codice o un termine clinico, e «frutta a
+     *    guscio» non va spaccata in due. Sono due liste con due regole, e vanno tenute distinte.
+     */
+    let avvisiSpezie: EsitoSpezia[] = [];
+    if (Array.isArray(profileData.dislikedFoods)) {
+      const filtrati = filtraSpezie(profileData.dislikedFoods as string[]);
+      profileData.dislikedFoods = filtrati.tenuti;
+      avvisiSpezie = filtrati.avvisi;
+    }
+    if (Array.isArray(profileData.intolerances)) {
+      profileData.intolerances = (profileData.intolerances as string[])
+        .map((x) => String(x ?? '').trim())
+        .filter((x) => x.length > 0 && !NON_ALIMENTI.has(x.toLowerCase()));
+    }
+
     // TIPO DI DIETA (regime + stile): cambiarlo richiede il permesso dedicato
     // "change_diet_type" (default: nutrizionisti e admin). Il resto della scheda
     // resta modificabile da chi ha accesso, come prima.
@@ -1013,7 +1052,15 @@ export class ClientsService {
     } catch {
       /* non bloccante: il glutine resta escluso dai menu dalle esclusioni del profilo */
     }
-    return { updated: true };
+    /**
+     * ⚠️ GLI AVVISI TORNANO A CHI HA PREMUTO SALVA, e non finiscono in un log che nessuno apre.
+     *
+     * `avvisiSpezie` esce dalla stessa `filtraSpezie` che usa il profilo in app, dove la frase la
+     * legge la cliente (`profile.service` la rimanda insieme al profilo). Qui la legge la
+     * nutrizionista: se ha scritto «pepe» fra i cibi non graditi, quella riga non è stata salvata e
+     * deve saperlo — con il motivo, perché il motivo è la parte che le fa cambiare gesto.
+     */
+    return { updated: true, ...(avvisiSpezie.length ? { avvisiSpezie } : {}) };
   }
 
   /**

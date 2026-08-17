@@ -703,5 +703,22 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 262,
     fatta: true, // 17/8 sera
   },
+  {
+    chiave: 'gusti-dalla-scheda-ripuliti',
+    titolo: 'I gusti scritti dalla scheda passavano diritti in banca dati (quarta volta)',
+    dettaglio:
+      'Stessa riga, quarta ripetizione: `latte` che non si espandeva (8/8), `frutta_a_guscio` (12/8), il tag `"Carne .ceci"` che non escludeva niente (17/8). ⚠️ Ogni correzione ha coperto **il percorso da cui era arrivata la segnalazione**, e questo — la scheda della nutrizionista — era quello rimasto fuori: `updateClient` riempie `profileData` **ciecamente** per tutte le `PROFILE_FIELDS`, e la scheda manda una stringa spezzata sulle **sole virgole**. Ora `dislikedFoods` passa da `filtraSpezie` (che **spezza prima di classificare**) e `intolerances` perde i **non-alimenti** (`altro`, `other`, `nessuna`…) come nel questionario. ⚠️ **Due liste, due regole**: un\'intolleranza NON si spezza (è un codice o un termine clinico, «frutta a guscio» non va spaccata) e il cancello spezie non la tocca, perché quella è sicurezza e non gusto. ⚠️ **Le spezie scartate si dicono a chi ha premuto Salva** (`avvisiSpezie` nella risposta, mostrato nel banner della scheda): la risposta della PATCH prima si buttava via, e un «Scheda aggiornata.» che nasconde una riga non scritta fa riscrivere la stessa riga la volta dopo. ⚠️ E la **bonifica** (`npm run pulisci:spezie`) ora passa dalla stessa funzione: prima valutava il termine INTERO, quindi «pepe, ceci» le sfuggiva — ora spezza, e ripulisce anche le liste che cambiano solo forma, che sono le clienti per cui il difetto era invisibile. 10 test su cosa arriva davvero nell\'upsert, visti cadere per mutazione (2 e 2). Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 263,
+    fatta: true, // 17/8 sera
+  },
+  {
+    chiave: 'gusti-altre-porte-di-scrittura',
+    titolo: 'Restano quattro porte che scrivono i gusti senza spezzare i tag (e due sono di Vera)',
+    dettaglio:
+      'Censimento fatto il 17/8 sera chiudendo la voce 263: le porte che scrivono `dislikedFoods` sono **otto**, e ora tre sono pulite (questionario, profilo in app, scheda staff) più lo script di bonifica. Le altre: **1)** `menu.service.substituteDisliked` con `scope: \'forever\'` — ha il cancello spezie sul termine ma non spezza, quindi «pepe, ceci» digitato in app supera il cancello e si salva intero; **2)** `sostituzione-chat.service.aggiungiAiNonGraditi` (Gaia) — rischio basso, il valore è un nome di ingrediente del catalogo; **3)** `vera-chat.service.scriviRestrizione` — la nutrizionista detta una restrizione per **una** cliente; **4)** `applica-proposta.applicaRestrizione` — la stessa cosa su una **coorte**, quindi ⚠️ un termine sporco si moltiplica su N profili. ⛔ Le due di Vera non le ho chiuse di mia iniziativa: lì la domanda non è tecnica ed è di Simone — **se la nutrizionista detta una spezia, cosa si fa?** Scartarla in silenzio è il difetto che paghiamo da quattro volte; scartarla dicendolo vuol dire scrivere la frase che Vera risponde (e Vera **ha** una voce, a differenza di un form); tenerla vuol dire accettare che il pool si svuoti — ma chi la detta è la professionista che firma le diete. ⚠️ Il lato **lettura** protegge già dai tag doppi (`expandExclusion` li spezza dal 17/8): quello che resta esposto sono le spezie, e il testo grezzo che finisce nel report PDF della cliente (`plan-report.service.ts:250`).',
+    categoria: SIMONE,
+    ordine: 264,
+  },
 
 ];

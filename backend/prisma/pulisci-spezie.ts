@@ -26,7 +26,7 @@
  *   CONFERMA=1 npm run pulisci:spezie   → applica
  */
 import { PrismaClient } from '@prisma/client';
-import { classificaSpezia } from '../src/menu/spezie';
+import { filtraSpezie } from '../src/menu/spezie';
 
 const prisma = new PrismaClient();
 
@@ -57,23 +57,31 @@ async function main(): Promise<void> {
     const attuali = (p.dislikedFoods ?? []).filter((s) => (s ?? '').trim());
     if (attuali.length === 0) continue;
 
-    const tenuti: string[] = [];
-    const tolte: string[] = [];
-    let generica = false;
-    for (const c of attuali) {
-      const esito = classificaSpezia(c);
-      if (esito.tipo === 'nessuna') tenuti.push(c);
-      else {
-        tolte.push(c);
-        if (esito.tipo === 'generica') generica = true;
-      }
-    }
-    if (tolte.length === 0) continue;
+    /**
+     * ⚠️ SI PASSA DA `filtraSpezie`, NON DA `classificaSpezia` SUL TERMINE INTERO.
+     *
+     * Questo script è nato l'8/8, prima che si scoprisse (17/8) che nei "cibi non graditi" ci sono
+     * anche voci con **più alimenti dentro**: «Carne .ceci», «pepe, ceci». Valutate intere non sono
+     * spezie — quindi passavano — e a valle non escludevano niente. `filtraSpezie` fa le due cose
+     * nell'ordine giusto: prima **spezza** (`spezzaTagAlimenti`), poi classifica ogni pezzo. Così
+     * «pepe, ceci» diventa «ceci» invece di restare una riga che non fa niente, e la bonifica
+     * chiude entrambi i difetti in un colpo.
+     *
+     * ⚠️ Si riscrive anche quando NON si toglie nulla ma la lista **cambia forma** (un tag spezzato
+     * in due): sono le clienti per cui il difetto era invisibile, ed è il motivo per cui il
+     * confronto qui sotto è sull'elenco intero e non sul conteggio delle spezie.
+     */
+    const { tenuti, avvisi } = filtraSpezie(attuali);
+    const tolte = avvisi.map((a) => a.termine);
+    const generica = avvisi.some((a) => a.tipo === 'generica');
+    const cambiaForma = tenuti.join('|') !== attuali.map((x) => x.trim()).join('|');
+    if (tolte.length === 0 && !cambiaForma) continue;
 
     const riga: Riga = {
       cliente: p.name ?? '(senza nome)',
       email: p.user?.email ?? '—',
-      tolte: tolte.join(', '),
+      tolte: tolte.length ? tolte.join(', ') : '—',
+      spezzati: tolte.length === 0 || cambiaForma ? tenuti.join(', ') : '—',
       restano: tenuti.length,
     };
     daScrivere.push({ userId: p.userId, tenuti });
@@ -82,7 +90,7 @@ async function main(): Promise<void> {
   }
 
   if (tabella.length === 0) {
-    console.log(`Esaminati ${profili.length} profili: nessuna spezia fra i cibi esclusi ✓`);
+    console.log(`Esaminati ${profili.length} profili: nessuna spezia e nessun tag da spezzare fra i cibi esclusi ✓`);
     return;
   }
 
@@ -115,7 +123,7 @@ async function main(): Promise<void> {
       data: { dislikedFoods: tenuti } as never,
     });
   }
-  console.log(`\n✓ Spezie tolte dai cibi esclusi di ${daScrivere.length} clienti.`);
+  console.log(`\n✓ Cibi esclusi ripuliti (spezie tolte, tag con più alimenti spezzati) per ${daScrivere.length} clienti.`);
   console.log('I menu già consegnati restano come sono; i prossimi ripartono dal ricettario pieno.');
 }
 

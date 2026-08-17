@@ -1,0 +1,71 @@
+I gusti scritti dalla scheda passavano diritti in banca dati (quarta volta per la stessa riga)
+
+Voce 263. E il censimento delle porte che restano, voce 264 (aspetta Simone).
+
+LA STESSA RIGA, QUATTRO VOLTE: `latte` che non si espandeva (8/8), `frutta_a_guscio` (12/8), il tag
+`"Carne .ceci"` che non escludeva niente (17/8), e adesso il percorso dello staff.
+⚠️ Ogni correzione ha coperto IL PERCORSO DA CUI ERA ARRIVATA LA SEGNALAZIONE. Questo — la scheda
+della nutrizionista — e' quello che e' rimasto fuori ogni volta: `updateClient` riempie `profileData`
+CIECAMENTE per tutte le `PROFILE_FIELDS` (`for (const k of PROFILE_FIELDS) …`), e la scheda manda una
+stringa spezzata sulle SOLE VIRGOLE. Quindi «Carne .ceci» digitato in scheda arrivava intero: una
+voce che a valle non escludeva niente, e nessuno lo diceva.
+
+COSA FA ADESSO — due pulizie, e sono diverse perche' le due liste sono diverse:
+· `dislikedFoods` → `filtraSpezie`, la STESSA del questionario e del profilo in app: spezza prima di
+  classificare (`spezzaTagAlimenti`) e ferma le spezie. «Carne .ceci» → ['Carne','ceci'];
+  «pepe, ceci» → ['ceci'].
+· `intolerances` → via i NON-ALIMENTI (`altro`, `other`, `nessuna`, `none`…), come fa il questionario
+  da sempre con `common/allergie.ts`. `'altro'` salvato come intolleranza diventa una parola che il
+  motore va a cercare dentro i piatti.
+⚠️ UN'INTOLLERANZA NON SI SPEZZA, ed e' voluto: e' un codice o un termine clinico, e «frutta a
+guscio» non va spaccata in due. E il cancello spezie non la tocca: quella e' sicurezza, non gusto —
+una spezia fra le intolleranze RESTA (c'e' un test che lo tiene fermo).
+⚠️ E «frutta a guscio» non si spezza nemmeno fra i gusti: `SEPARATORI_ALIMENTI` non contiene lo
+spazio, per quella ragione.
+
+⚠️ LE SPEZIE SCARTATE SI DICONO A CHI HA PREMUTO SALVA. `avvisiSpezie` torna nella risposta della
+PATCH e la scheda lo mostra nel banner: «Scheda aggiornata. ⚠️ Non salvato fra i cibi non graditi:
+pepe — <il motivo>». La risposta della PATCH prima si BUTTAVA VIA (`await api(...)` e via), quindi un
+«Scheda aggiornata.» nascondeva una riga non scritta: chi l'aveva digitata la cercherebbe la volta
+dopo e la riscriverebbe uguale. Una voce che sparisce in silenzio e' il difetto di cui questa riga e'
+la quarta ripetizione — non si chiude un difetto del silenzio aggiungendo silenzio.
+⚠️ E chi scrive qui e' una PROFESSIONISTA: ha diritto di sapere che la sua riga non e' passata, e di
+sapere perche' (escludere il pepe svuota il pool invece di togliere un piatto).
+
+LA BONIFICA, aggiornata nello stesso colpo: `npm run pulisci:spezie` (anteprima di default,
+`CONFERMA=1` per scrivere) passava `classificaSpezia` sul termine INTERO — quindi «pepe, ceci» le
+sfuggiva, perche' intero non e' una spezia. Ora passa da `filtraSpezie`, che spezza prima di
+classificare, e ⚠️ riscrive anche le liste che NON perdono niente ma CAMBIANO FORMA (un tag spezzato
+in due): sono le clienti per cui il difetto era invisibile. La tabella mostra una colonna in piu' con
+la lista come resta.
+
+TEST — 10 nuovi (`clients/gusti-scheda.spec.ts`), tutti su COSA ARRIVA DAVVERO NELL'UPSERT, che e'
+l'unico posto dove la differenza fra «pulito in scrittura» e «sperato pulito» si vede:
+il tag spezzato, la spezia scartata col suo avviso, ⚠️ «peperoni» che NON e' «pepe» (confronto per
+parola, non per sottostringa), i cibi veri intatti, «frutta a guscio» che non si spezza, il profilo
+che non si tocca affatto se il campo non c'e' nel DTO, la lista svuotata di proposito che resta
+svuotata, i non-alimenti delle intolleranze (anche con maiuscole e spazi), l'intolleranza che non si
+spezza, la spezia fra le intolleranze che resta.
+CONTROLLO PER MUTAZIONE: togliendo `filtraSpezie` dal percorso staff cadono 2 test; togliendo il
+filtro dei non-alimenti ne cadono altri 2.
+
+⛔ QUELLO CHE RESTA, ed e' scritto nella voce 264 perche' serve una decisione di Simone: le porte che
+scrivono `dislikedFoods` sono OTTO, e adesso tre sono pulite (piu' lo script). Restano
+`substituteDisliked` con `scope='forever'` (cancello spezie ma nessuno split), Gaia
+(`aggiungiAiNonGraditi`, rischio basso: nomi di ingredienti del catalogo) e ⚠️ le DUE di Vera —
+`scriviRestrizione` su una cliente e `applicaRestrizione` su una COORTE, dove un termine sporco si
+moltiplica su N profili. Le due di Vera non le ho chiuse di mia iniziativa: se la nutrizionista detta
+una spezia, scartarla in silenzio e' il difetto di sempre, scartarla dicendolo vuol dire scrivere la
+frase che Vera risponde, e tenerla vuol dire accettare che il pool si svuoti. E' una scelta sua.
+
+FILE:
+- backend/src/clients/clients.service.ts — le due pulizie + `avvisiSpezie` nella risposta.
+- backend/src/clients/gusti-scheda.spec.ts — 10 test.
+- backoffice/src/pages/ClientDetail.tsx — la risposta della PATCH si legge, e l'avviso si mostra.
+- backend/prisma/pulisci-spezie.ts — la bonifica passa da `filtraSpezie` (spezza prima di classificare).
+- backend/src/lavori/voci-iniziali.ts — voce 263 spuntata, voce 264 aperta (aspetta Simone).
+
+NESSUNA MIGRAZIONE. In sandbox coi tipi Prisma veri: `nest build` verde e **3106 test in 202 suite**
+(prima 3096 in 201). Backoffice `npm run build` (tsc + vite) verde.
+⚠️ Dopo il deploy vale la pena lanciare `npm run pulisci:spezie` (senza CONFERMA) dalla shell di
+Render: adesso vede anche i tag doppi, quindi l'elenco sara' piu' lungo di quello dell'8/8.

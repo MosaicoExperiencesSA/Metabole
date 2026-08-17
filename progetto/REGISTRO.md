@@ -20,6 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🌿 **I gusti scritti dalla scheda passavano diritti in banca dati — quarta volta per la
+  stessa riga.** Voci 263 (chiusa) e 264 (aperta). `latte` che non si espandeva l'8/8,
+  `frutta_a_guscio` il 12/8, il tag `"Carne .ceci"` stamattina, e adesso il percorso dello staff.
+  ⚠️ **Ogni correzione ha coperto il percorso da cui era arrivata la segnalazione**, e questo — la
+  scheda della nutrizionista — è quello rimasto fuori ogni volta: `updateClient` riempie `profileData`
+  **ciecamente** per tutte le `PROFILE_FIELDS`, e la scheda manda una stringa spezzata sulle **sole
+  virgole**. Ora `dislikedFoods` passa da `filtraSpezie` (la stessa del questionario e del profilo in
+  app: spezza **prima** di classificare) e `intolerances` perde i **non-alimenti** (`altro`, `other`,
+  `nessuna`…), che il questionario toglie da sempre e la scheda no — `'altro'` salvato come
+  intolleranza è una parola che il motore va a cercare dentro i piatti. ⚠️ **Due liste, due regole**:
+  un'intolleranza NON si spezza (è un codice o un termine clinico, «frutta a guscio» non va spaccata) e
+  il cancello spezie non la tocca, perché quella è **sicurezza e non gusto** — una spezia fra le
+  intolleranze resta, e c'è un test che lo tiene fermo. ⚠️ **E le spezie scartate si dicono a chi ha
+  premuto Salva**: `avvisiSpezie` torna nella risposta e la scheda lo scrive nel banner. La risposta
+  della PATCH prima si **buttava via**, quindi «Scheda aggiornata.» nascondeva una riga non scritta:
+  chi l'aveva digitata la riscriverebbe uguale la volta dopo. Non si chiude un difetto del silenzio
+  aggiungendo silenzio — e chi scrive lì è una professionista, che ha diritto di sapere anche **perché**
+  (escludere il pepe svuota il pool invece di togliere un piatto). ⚠️ Nello stesso colpo la **bonifica**
+  `npm run pulisci:spezie`: valutava `classificaSpezia` sul termine **intero**, quindi «pepe, ceci» le
+  sfuggiva; ora passa da `filtraSpezie` e riscrive anche le liste che non perdono niente ma **cambiano
+  forma** — che sono le clienti per cui il difetto era invisibile. 10 test su cosa arriva davvero
+  nell'upsert (fra cui «peperoni» che **non** è «pepe»: confronto per parola, non per sottostringa),
+  visti cadere per mutazione 2 e 2. ⛔ **E il censimento di quello che resta, voce 264**: le porte che
+  scrivono `dislikedFoods` sono **otto**, adesso tre sono pulite più lo script. Restano
+  `substituteDisliked` con `scope: 'forever'`, Gaia, e ⚠️ **le due di Vera** — una cliente e una
+  **coorte**, dove un termine sporco si moltiplica su N profili. Quelle due non le ho chiuse da solo:
+  se la nutrizionista detta una spezia, scartarla in silenzio è il difetto di sempre, scartarla
+  dicendolo vuol dire scrivere la frase che Vera risponde, tenerla vuol dire accettare che il pool si
+  svuoti. È una scelta di Simone. Backend 3106 test in 202 suite, backoffice verde, nessuna migrazione.
+
 - `[Sviluppo]` ✏️ **La matita delle date dice cosa sta per rompere.** Voce 259, l'ultima del caso
   Lorena. Il 16/8, quarantotto secondi dopo l'acquisto del secondo piano, qualcuno ha aperto quella
   scheda e ha spostato la data d'inizio: stava correggendo una data che la scheda mostrava sbagliata

@@ -1142,12 +1142,28 @@ export function ClientDetail() {
     const mealsByPath: Record<string, number> = { classic3: 3, five: 5, intermittent_fasting: 3, supplements: 5 };
     if (f.pathType && mealsByPath[f.pathType]) dto.mealsPerDay = mealsByPath[f.pathType];
     try {
-      await api(`/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(dto) });
+      /**
+       * ⚠️ LA RISPOSTA SI LEGGE — prima si buttava via.
+       *
+       * Fra i cibi non graditi una spezia non viene salvata (escluderla svuoterebbe il pool invece
+       * di togliere un piatto), e il server lo dice in `avvisiSpezie`. Ignorare quella risposta
+       * voleva dire un «Scheda aggiornata.» che nascondeva una riga non scritta: chi l'ha digitata
+       * la cercherebbe la volta dopo e la riscriverebbe uguale.
+       */
+      const esito = await api<{ avvisiSpezie?: { termine: string; titolo: string; testo: string }[] }>(
+        `/admin/clients/${id}`,
+        { method: 'PATCH', body: JSON.stringify(dto) },
+      );
       const data = await api<Detail>(`/admin/clients/${id}`);
       setD(data);
       setNotes(data.notes ?? []);
       setEditing(false);
-      setNotice('Scheda aggiornata.');
+      const spezie = esito?.avvisiSpezie ?? [];
+      setNotice(
+        spezie.length
+          ? `Scheda aggiornata. ⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
+          : 'Scheda aggiornata.',
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Salvataggio non riuscito.');
     } finally {
