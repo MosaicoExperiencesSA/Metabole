@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 📉 **Una giornata sotto il fabbisogno usciva identica a una giusta: ora lo dice.**
+  Consegna 1 del foglio delle porzioni, quella che non aspetta nessuna decisione. Voce 260.
+  `menu_kcal_balance_tolerance_pct` c'era già dal principio, ma era usata come **filtro** e non come
+  **controllo**: `day-combo.service.ts:48-56` scarta le combinazioni fuori banda e, quando non ne resta
+  nessuna, torna `null`; da lì `deliverIfEligible` compone col selettore per-slot ed **eroga comunque,
+  senza una riga di log**. ⚠️ E venti righe sopra, nello stesso file, per i **pasti** mancanti il
+  segnale era stato costruito il pomeriggio prima (`fasting_meals_missing` + `diag:digiuni`, cliente per
+  cliente): per le **calorie** non esisteva l'equivalente. La stessa domanda, sullo stesso codice,
+  lasciata senza risposta — e il difetto di famiglia di questo progetto è esattamente quello. Ora il
+  giudizio sta in un modulo **puro** (`menu/giornata-sotto-target.ts`, come `struttura-per-digiuno` e
+  `abbonamento-in-corso`) e l'erogazione scrive un `logger.warn` con la giornata **peggiore** più un
+  `analyticsEvent` **`daily_kcal_below_target`** con tutte: target e sua provenienza (fabbisogno o
+  livello dieta), tolleranza, kcal + scostamento + **quota del target** per ogni giornata (0,65 = il 65%
+  arrivato nel piatto), slot non erogati, finestra, `pastiEsclusi`, dieta. ⚠️ **Non blocca niente**,
+  come `fasting_meals_missing`: una giornata scarsa è meglio di nessun menu, e il rimedio — le porzioni
+  scalate — non è nelle mani di chi apre l'app. ⚠️ **Un evento per erogazione e non uno per giorno**:
+  `deliverIfEligible` gira a ogni apertura dell'app, e un evento per giornata farebbe contare le
+  aperture invece delle giornate. ⚠️ Il controllo sta **dopo** la ripetizione bigiornaliera, le
+  «ricette semplici» e il cambio dei piatti non graditi: sono tre passaggi che **riscrivono** la
+  giornata, e prima di loro i pasti non sono ancora quelli che la cliente riceverà. ⚠️ La soglia è
+  **quella che il motore usa per comporre**, non una costante nuova: due soglie sulla stessa domanda
+  divergono in un pomeriggio, ed è successo ieri fra il motore e la diagnostica su Maria. ⚠️ Si guarda
+  **solo il sotto**: una giornata troppo ricca è un'altra domanda, e mescolarle vorrebbe dire non poter
+  contare né l'una né l'altra. ⚠️ E la guardia «senza target non giudico» non è cosmetica: togliendola
+  **non compila** (TS2345/TS18049), perché è quella che restringe `number | null | undefined` — qui è
+  il tipo a dire che «non lo so» non è «va bene». 22 test: 20 sul giudizio, con in tabella i numeri veri
+  delle cinque finestre (100% · 65% Sonia · 65% · 55% · 45%) e dei due casi di `pastiEsclusi` (80% e
+  90%), e **2 sul collegamento** in `menu.service.spec` — che è la parte che i test del modulo non
+  possono vedere. Controllo per mutazione: soglia irraggiungibile → cadono 10; `Math.abs` al posto del
+  solo «sotto» → cade 1; collegamento staccato → cade 1 dei 2 nuovi. Nessuna migrazione. In sandbox coi
+  tipi Prisma veri: build verde e **3069 test in 199 suite** (baseline 3047 in 198).
+
 - `[Sviluppo]` 🍽️ **Le porzioni si scalano all'erogazione: scritto il foglio della strada C, e trovato
   il segnale che manca.** Voce 255, la metà che la correzione del digiuno (voce 254) non chiude: Sonia
   ha i pasti giusti al **65%** del fabbisogno. La strada l'ha scelta Simone (C: un moltiplicatore di

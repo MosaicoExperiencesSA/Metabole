@@ -1,0 +1,64 @@
+Una giornata sotto il fabbisogno usciva identica a una giusta: ora lo dice
+
+Consegna 1 del foglio delle porzioni (`progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`), quella che
+NON aspetta nessuna decisione. Voce 260 in elenco lavori.
+
+IL DIFETTO. `menu_kcal_balance_tolerance_pct` (default 15%) c'era gia', ma era usata come FILTRO e
+non come CONTROLLO: `day-combo.service.ts:48-56` scarta le combinazioni fuori banda e, quando non ne
+resta nessuna, torna `null`; da li' `deliverIfEligible` compone col selettore per-slot ed EROGA
+COMUNQUE. Una giornata al 65% del fabbisogno — Sonia, finestra «salto la cena» — usciva identica a
+una giusta: nessun log, nessun evento, nessuna riga in una diagnostica.
+⚠️ NELLO STESSO FILE, venti righe sopra, per i PASTI mancanti il segnale era stato costruito il 17/8
+(`fasting_meals_missing`, warn + `analyticsEvent` + `diag:digiuni` cliente per cliente). Per le
+CALORIE non esisteva l'equivalente. E' la stessa domanda, sullo stesso codice, lasciata senza
+risposta — ed e' il difetto di famiglia di questo progetto: un dato che agisce e non si vede.
+
+COSA FA ADESSO. `menu/giornata-sotto-target.ts`, modulo PURO (niente letture, niente scritture,
+niente `Date.now()`), come `struttura-per-digiuno.ts` e `abbonamento-in-corso.ts`: date le giornate
+composte, il target e la tolleranza, dice quali escono sotto la banda, con lo scostamento in punti
+percentuali e la QUOTA DEL TARGET arrivata nel piatto (0,65 = il 65%).
+`deliverIfEligible` scrive un `logger.warn` con la giornata PEGGIORE e un `analyticsEvent`
+**`daily_kcal_below_target`** con tutte: target e sua provenienza (fabbisogno o livello dieta),
+tolleranza, kcal + scostamento + quota per ogni giornata, slot non erogati, finestra del digiuno,
+`pastiEsclusi`, dieta.
+
+LE SCELTE, e perche':
+⚠️ NON BLOCCA NIENTE. Stessa scelta di `fasting_meals_missing`: una giornata scarsa e' meglio di
+nessun menu, e il rimedio — le porzioni scalate (strada C) — non e' nelle mani di chi apre l'app.
+⚠️ UN EVENTO PER EROGAZIONE, NON UNO PER GIORNO. `deliverIfEligible` gira a OGNI apertura dell'app
+(`signals.service.ts:115` e `:188`): un evento per giornata farebbe contare le aperture invece delle
+giornate, e il numero diventerebbe inutile proprio a chi lo guarda.
+⚠️ IL CONTROLLO STA DOPO la ripetizione bigiornaliera, la preferenza «ricette semplici» e il cambio
+dei piatti non graditi. Sono tre passaggi che RISCRIVONO la giornata: prima di loro i pasti non sono
+ancora quelli che la cliente ricevera'. Questo e' il primo punto in cui lo sono.
+⚠️ LA SOGLIA E' QUELLA CHE IL MOTORE USA PER COMPORRE, non una costante nuova di questo file: due
+soglie sulla stessa domanda divergerebbero in un pomeriggio — e' successo il 17/8 fra `menu.service`
+e `diag:digiuni` su Maria, nello spazio di un'ora.
+⚠️ SOLO SOTTO, non «fuori» banda: una giornata troppo ricca e' un'altra domanda, e mescolarle in un
+evento solo vorrebbe dire non poter piu' contare ne' l'una ne' l'altra.
+⚠️ SENZA TARGET torna una lista VUOTA, e la guardia non e' cosmetica: togliendola il compilatore si
+ferma (TS2345 / TS18049), perche' e' quella che restringe `number | null | undefined` a `number`.
+«Non lo so» non e' «va bene», e qui e' il tipo a dirlo.
+⚠️ Una giornata VUOTA non finisce qui: la fermano gia' la rete di `dayComboPools` e il blocco delle
+intolleranze. Qui si guarda la giornata MONCA, che e' quella che passa.
+
+TEST — 22 nuovi, tutti visti cadere per MUTAZIONE:
+· 20 sul giudizio (`giornata-sotto-target.spec.ts`), tabella compresa: i numeri VERI delle cinque
+  finestre (100% / 65% Sonia / 65% / 55% / 45%) e dei due casi di `pastiEsclusi` (80% e 90%), presi
+  dal foglio. Se una di quelle righe smette di essere segnalata, il difetto e' tornato invisibile.
+· 2 sul COLLEGAMENTO (`menu.service.spec.ts`), che sono la parte che i test del modulo non possono
+  vedere: che `deliverIfEligible` lo chiami, che l'evento esca UNA volta, e che i due giorni vengano
+  erogati comunque.
+CONTROLLO PER MUTAZIONE: soglia irraggiungibile → cadono 10 test; `Math.abs` al posto del solo «sotto»
+→ ne cade 1 (quello della giornata sopra target); il collegamento staccato → cade 1 dei 2 nuovi in
+`menu.service.spec`; la guardia del target togliata → non compila.
+
+FILE:
+- backend/src/menu/giornata-sotto-target.ts — il giudizio, modulo puro.
+- backend/src/menu/giornata-sotto-target.spec.ts — 20 test.
+- backend/src/menu/menu.service.ts — l'innesto prima della scrittura dei giorni, col perche' scritto.
+- backend/src/menu/menu.service.spec.ts — 2 test sul collegamento.
+- backend/src/lavori/voci-iniziali.ts — voce 260, spuntata.
+
+NESSUNA MIGRAZIONE. Verificato IN SANDBOX coi tipi Prisma veri (`prisma generate --no-engine`):
+`nest build` verde e 3069 test in 199 suite (baseline 3047 in 198).

@@ -22,6 +22,8 @@ import { toDateOnly } from '../common/date-only';
 import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { slotEsclusiTotali } from './finestre-digiuno';
+// Il controllo che mancava: una giornata sotto il fabbisogno oggi esce identica a una giusta.
+import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
@@ -815,6 +817,57 @@ export class MenuService {
         await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory);
         this.pushSlotHistory(swapHistory, day.meals, varietyGap);
       }
+    }
+
+    /**
+     * ⚠️ LA GIORNATA CHE ESCE SOTTO IL FABBISOGNO, E CHE FINO A OGGI NON LO DICEVA A NESSUNO.
+     *
+     * `menu_kcal_balance_tolerance_pct` c'era già, ma come **filtro**: `DayCombo` scarta le
+     * combinazioni fuori banda e, quando non ne resta nessuna, torna `null` — e il ripiego qui
+     * sopra compone col selettore per-slot ed **eroga comunque**. Una giornata al 65% del
+     * fabbisogno (Sonia, finestra «salto la cena») usciva identica a una giusta.
+     *
+     * Il controllo va **qui e non dentro `DayCombo`**: la giornata la riscrivono anche la
+     * ripetizione bigiornaliera, la preferenza «ricette semplici» e il cambio dei piatti non
+     * graditi. Questo è il primo punto in cui i pasti sono quelli che la cliente riceverà.
+     *
+     * ⚠️ **Non blocca niente** — è la stessa scelta di `fasting_meals_missing` venti righe sopra:
+     * una giornata scarsa è meglio di nessun menu, e il rimedio (porzioni scalate, strada C —
+     * `progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`) non è nelle mani di chi apre l'app.
+     * ⚠️ **Un evento per erogazione, non uno per giorno**: `deliverIfEligible` gira a ogni apertura
+     * dell'app, e un evento per giornata renderebbe il conteggio degli eventi un conteggio delle
+     * aperture. La peggiore giornata va nel log, tutte nell'evento.
+     */
+    const sottoTarget = giornateSottoTarget(daySnapshots, targetKcal, kcalTolPct);
+    if (sottoTarget.length) {
+      const peggiore = laPeggiore(sottoTarget)!;
+      this.logger.warn(
+        `Kcal: ${sottoTarget.length} giornat${sottoTarget.length === 1 ? 'a' : 'e'} sotto il target per ${clientId} ` +
+          `(target ${Math.round(targetKcal)} kcal da ${targetSource === 'need' ? 'fabbisogno' : 'livello dieta'}, ` +
+          `tolleranza ${kcalTolPct}%). Peggiore: ${peggiore.data}, ${peggiore.kcal} kcal ` +
+          `(${peggiore.scostamentoPct}%, il ${Math.round(peggiore.quotaDelTarget * 100)}% del target)` +
+          `${slotSaltati.size ? `; pasti non erogati: ${[...slotSaltati].join(', ')}` : ''}.`,
+      );
+      await this.prisma.analyticsEvent
+        .create({
+          data: {
+            eventId: randomUUID(),
+            name: 'daily_kcal_below_target',
+            userId: clientId,
+            phase: 'app',
+            data: {
+              targetKcal: Math.round(targetKcal),
+              targetSource,
+              tolleranzaPct: kcalTolPct,
+              giorni: sottoTarget,
+              slotSaltati: [...slotSaltati],
+              finestra: (profile as { fastingWindow?: string | null }).fastingWindow ?? null,
+              pastiEsclusi: (profile as { pastiEsclusi?: string[] }).pastiEsclusi ?? [],
+              dietId: diet.id,
+            } as never,
+          } as never,
+        })
+        .catch(() => undefined);
     }
 
     const created: string[] = [];

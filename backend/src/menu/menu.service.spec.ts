@@ -1343,3 +1343,101 @@ describe('MenuService — giornate incomplete (§15.4)', () => {
     expect(prisma.escalation.create).toHaveBeenCalled();
   });
 });
+
+/**
+ * IL SEGNALE DELLA GIORNATA SOTTO IL FABBISOGNO (17/8) — il collegamento, non il calcolo.
+ *
+ * Il giudizio sta in `giornata-sotto-target.ts` e ha i suoi test per tabella. Qui si difende la sola
+ * cosa che quei test non possono vedere: che `deliverIfEligible` lo CHIAMI, che l'evento esca una
+ * volta per erogazione, e ⚠️ che il menu venga erogato comunque — una giornata scarsa è meglio di
+ * nessun menu, e bloccare qui sarebbe un difetto peggiore di quello che si sta segnalando.
+ */
+describe('MenuService · la giornata sotto il target si segnala (e si eroga comunque)', () => {
+  const recipes = [
+    { id: 'b1', name: 'Colazione A', kcal: 300, macros: { protein_g: 15, carbs_g: 40, fat_g: 8 } },
+    { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
+    { id: 'd1', name: 'Cena A', kcal: 500, macros: { protein_g: 32, carbs_g: 40, fat_g: 16 } },
+  ];
+  const tmpl = (dayIndex: number) => ({
+    dayIndex,
+    level: 1,
+    meals: [
+      { slot: 'breakfast', recipeId: 'b1' },
+      { slot: 'lunch', recipeId: 'l1' },
+      { slot: 'dinner', recipeId: 'd1' },
+    ],
+  });
+
+  /** `levelKcal` è il target: 1300 di pool su 1400 sta in banda, su 2400 no. */
+  function build(levelKcal: number) {
+    const prisma: any = {
+      productRule: { findUnique: jest.fn().mockResolvedValue(null) },
+      equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          planStartDate: D(todayIso), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 3,
+          intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
+        }),
+      },
+      subscription: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]),
+      },
+      menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
+      measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
+      engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
+      diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', levels: [{ level: 1, kcal: levelKcal }] }) },
+      dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1), tmpl(2)]) },
+      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
+      recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
+      analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const config = {
+      getNumber: jest.fn((k: string, def?: number) =>
+        Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
+      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    };
+    const { DayComboService } = require('./day-combo.service');
+    const service = new MenuService(
+      prisma as PrismaService,
+      config as unknown as ConfigParamsService,
+      { log: jest.fn() } as unknown as AuditService,
+      { activePausePeriod: jest.fn().mockResolvedValue(null) } as any,
+      { stateFor: jest.fn().mockResolvedValue('normale') } as any,
+      new DayComboService(),
+      kcalNeedStub(), pushStub(),
+    );
+    return { service, prisma };
+  }
+
+  const eventiKcal = (prisma: any) =>
+    (prisma.analyticsEvent.create as jest.Mock).mock.calls.filter((c) => c[0]?.data?.name === 'daily_kcal_below_target');
+
+  it('target 2400 e giornate da 1300: UN evento per erogazione, con tutte le giornate dentro', async () => {
+    const { service, prisma } = build(2400);
+    const created = await service.deliverIfEligible('u1');
+    // ⚠️ Si eroga comunque: il segnale non blocca.
+    expect(created).toHaveLength(2);
+    expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+
+    const eventi = eventiKcal(prisma);
+    expect(eventi).toHaveLength(1); // non uno per giorno: `deliverIfEligible` gira a ogni apertura
+    const dati = eventi[0][0].data.data;
+    expect(dati.targetKcal).toBe(2400);
+    expect(dati.targetSource).toBe('level');
+    expect(dati.giorni).toHaveLength(2);
+    expect(dati.giorni[0].kcal).toBe(1300);
+    expect(dati.giorni[0].quotaDelTarget).toBeCloseTo(0.54, 2);
+    expect(dati.giorni[0].scostamentoPct).toBeLessThan(-15);
+  });
+
+  it('target 1400 e le stesse giornate: nessun evento — 1300 sta nella banda del 15%', async () => {
+    const { service, prisma } = build(1400);
+    expect(await service.deliverIfEligible('u1')).toHaveLength(2);
+    expect(eventiKcal(prisma)).toHaveLength(0);
+  });
+});
