@@ -135,6 +135,10 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
 
   it('SENZA abbonamento attivo il menu non si genera (gating bonifico)', async () => {
     prisma.subscription.findFirst.mockResolvedValue(null);
+    // ⚠️ Anche `findMany`: dal 17/8 l'erogazione legge TUTTI gli attivi e sceglie quello in corso
+    // (`attivoInCorso`), perché due righe `active` sono legittime e `findFirst` senza `orderBy` ne
+    // prendeva una a caso. «Nessun abbonamento attivo» si dice qui, ed è questa riga a dirlo.
+    prisma.subscription.findMany.mockResolvedValue([]);
     expect(await service.deliverIfEligible('u1')).toEqual([]);
     expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
   });
@@ -398,7 +402,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
           intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
         }),
       },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
@@ -484,7 +488,7 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       // findMany qui è consumata SOLO dalla penalità (le giornate recenti); ne conto le ripetizioni di l1.
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -559,7 +563,7 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
@@ -644,7 +648,7 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
       productRule: { findUnique: jest.fn().mockResolvedValue(ruleEnabled === null ? null : { enabled: ruleEnabled }) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue(groups) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
@@ -729,7 +733,7 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
       },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue(recentLunch.map((r) => ({ meals: [{ slot: 'lunch', recipeId: r }] }))),
@@ -795,7 +799,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
       productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'pescetarian', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue(recentBreakfast.map((r) => ({ meals: [{ slot: 'breakfast', recipeId: r }] }))),
@@ -881,7 +885,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
           prefersSimpleRecipes: true, // ← la cliente ha attivato "preferisco ricette semplici"
         }),
       },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
@@ -981,7 +985,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
           prefersSimpleRecipes: false,
         }),
       },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },

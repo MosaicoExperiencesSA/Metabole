@@ -1,0 +1,92 @@
+──────────────────────────────────────────────────────────────────────────────
+[Due piani attivi — 17/8]
+Fra due piani attivi, quale «e'» il piano: la scelta che nessuno faceva
+
+⚠️ LA STORIA DI LORENA E' PIU' PRECISA DI COME L'AVEVO SCRITTA, e la parte che mancava e' peggiore.
+
+`pickMainSubscription` sceglie l'abbonamento che la scheda mostra come piano corrente, e la sua
+prima riga era `subs.find(s => s.status === 'active')` su una lista che arriva `createdAt desc`.
+Quindi fra due righe `active` vinceva LA PIU' RECENTE — e alle 20:30:20 la piu' recente era #2,
+quello nato 48 secondi prima, in coda dal 25/08.
+
+Cioe': la scheda non e' che *non avvisava*. La scheda MOSTRAVA IL PIANO IN CODA al posto di quello in
+corso, e scriveva «Inizio piano: 25/08». Chi l'ha aperta ha letto una data sbagliata e l'ha corretta:
+ha fatto la cosa giusta con quello che le era stato mostrato. E la matita usa la STESSA funzione,
+quindi ha spostato la stessa riga sbagliata.
+⚠️ Questo si vede nel codice e combacia coi tempi dell'audit; non ho lo screenshot di cosa lei vedeva
+sullo schermo. Ma la riga che sceglieva era sbagliata comunque sia andata quella sera.
+
+GLI ALTRI TRE PUNTI — nessuno ha bisogno dello stato `queued` per essere un difetto:
+· `menu.service` — `findFirst({status:'active'})` SENZA `orderBy`: ne prendeva una a caso, e da li'
+  escono «piano concluso?» e `planEnd`, cioe' FINO A CHE GIORNO ARRIVANO I MENU. Quanti giorni
+  riceveva una cliente con due piani dipendeva dall'ordine delle righe nella tabella.
+· `pause.service` — `orderBy createdAt desc`: la piu' recente e' tipicamente LA CODA, quindi i giorni
+  di pausa si sommavano alla fine del piano sbagliato. Concessi sulla carta, mai ricevuti da lei.
+· `coach.service` — `new Map(subs.map(...))` tiene L'ULTIMA riga: `planEndDate` in lista clienti
+  poteva essere la fine del piano in coda, e la coach programmava su una data che non era quella.
+E `data-inizio-chat` la domanda giusta se la faceva, ma A MANO, per conto suo: quattro punti, quattro
+definizioni della stessa domanda.
+
+LA DECISIONE (`progetto/NOTA_Chi_Sta_Erogando_Adesso.md`), un modulo PURO:
+  1. chi sta erogando OGGI (attivo, cominciato, non finito, confronto per GIORNO). Se piu' d'uno —
+     lo stato rotto — vince QUELLO CHE FINISCE PIU' TARDI;
+  2. se nessuno eroga: il primo che partira', cioe' la coda;
+  3. nessun attivo: null, e chi chiama si comporta come prima.
+
+⚠️ «Finisce piu' tardi» e NON «cominciato prima»: se due piani si sovrappongono la cliente ha pagato
+fino alla fine del secondo, e prendere la fine piu' vicina le taglierebbe giorni che ha comprato.
+Fra due scelte imperfette si prende quella che non toglie niente a nessuno.
+⚠️ `startDate` nulla vale «GIA' cominciato»: e' come si comporta gia' `filtroClienteConPianoAttivo`,
+che guarda solo la fine. Due regole diverse sullo stesso campo farebbero divergere l'erogazione dalle
+diagnostiche, che e' il modo in cui questi difetti nascono.
+⚠️ LE DATE SONO OBBLIGATORIE NEL TIPO, non opzionali per comodita': un chiamante che se le
+dimenticasse tornerebbe in silenzio al difetto di prima, su una cliente vera. E la guardia ha
+funzionato subito: il compilatore ha trovato un cast in `clients.service` (`as {status: string}[]`)
+che le buttava via — cioe' il punto esatto da cui il difetto entrava nella scheda.
+
+LE SCHERMATE DELLO STAFF — decisione di Simone: un piano in coda conta come «ha un piano», perche' e'
+un contratto. Quindi `planActive` resta vero anche se l'unico attivo e' in coda (ed e' il motivo per
+cui `attivoInCorso` ripiega sulla coda invece di tornare null); quello che cambia e' che
+`planEndDate` diventa la fine del piano IN CORSO. ⚠️ Il prezzo, scritto perche' e' reale: nei giorni
+fra l'acquisto e la partenza la coach legge «ha un piano» e la cliente non riceve ancora niente.
+L'altra strada — «senza piano» a chi ha appena comprato — e' quella che invita ad attivarne un
+secondo sopra, cioe' il caso Polidoro.
+
+⚠️ QUESTO NON E' LO STATO `queued`. La causa resta quella (`NOTA_Due_Piani_Attivi_Lorena.md` §4a, 47
+letture di `status:'active'` da rivedere: 27 solo-active, 15 anche-queued, 5 da decidere). Qui si
+rende DETERMINISTICO un comportamento che dipendeva dall'ordine delle righe. E' meno, ed e' quello
+che si fa senza migrazione.
+Non consegnato qui: l'avviso della matita prima di sovrapporre (§4b) — e' una consegna sua.
+
+FILE
+- backend/src/commerce/abbonamento-in-corso.ts (+ .spec) — modulo PURO: la scelta. 16 test.
+- backend/src/commerce/commerce.service.ts — `pickMainSubscription` parte da `attivoInCorso`.
+- backend/src/clients/clients.service.ts — il cast che buttava via le date.
+- backend/src/menu/menu.service.ts — l'erogazione.
+- backend/src/pause/pause.service.ts — il congelamento.
+- backend/src/coach/coach.service.ts — una riga per cliente, scelta.
+- backend/src/clients/plan-start.spec.ts — il caso Lorena su `pickMainSubscription`. 2 test.
+- backend/src/menu/*.spec.ts — i mock leggono `findMany` (⚠️ «senza abbonamento attivo» ora si dice li').
+- progetto/NOTA_Chi_Sta_Erogando_Adesso.md — la decisione, scritta prima del codice.
+
+18 test nuovi. NESSUNA MIGRAZIONE. Verifica: `nest build` verde e 3025 test in 197 suite, coi tipi
+Prisma VERI (non lo stub).
+ROSSO PRIMA, non a parole: il test del caso Lorena su `pickMainSubscription` e' stato visto fallire
+prima della correzione. CONTROLLO PER MUTAZIONE: rimettendo «la prima della lista» cadono 6 test.
+──────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────
+[Due piani attivi — 17/8, elenco lavori]
+
+- 257 `piani-attivi-scelta-per-date` — SPUNTATA: e' questa consegna.
+- 258 `queued-stato-abbonamento` — la CAUSA che resta, con il censimento GIA' DENTRO la voce (47
+  letture: 27 solo-active, 15 anche-queued, 5 da decidere, piu' 5 filtri in memoria) e il pattern che
+  le distingue. ⚠️ Scritto anche che il vincolo in banca dati non va nella stessa consegna dello stato.
+- 259 `matita-avvisa-sovrapposizione` — §4b della nota: conferma con le parole giuste, non divieto.
+  `abbonamentoInCoda` esiste gia' dal 17/8 proprio per poterlo DIRE: manca il pezzo che lo dice.
+- 215 `vera-modello-seconda-passata` — da «Aspetta Simone» a **codice da scrivere**: il si' e' arrivato
+  il 17/8. Il come sta in `progetto/NOTA_Vera_Seconda_Lettura.md`.
+
+⚠️ Dopo il deploy: «Aggiorna dal rilascio» nella pagina Lavori — 2 da aggiungere e 1 da spuntare (la
+215 esisteva gia', cambia solo la categoria).
+──────────────────────────────────────────────────────────────────────────────

@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-17
 
+- `[Sviluppo]` 🎫 **Fra due piani attivi, quale «è» il piano: la scheda mostrava quello in coda.**
+  ⚠️ La storia di Lorena è più precisa di come l'avevo scritta, e la parte che mancava è peggiore:
+  `pickMainSubscription` faceva `find(s => s.status === 'active')` su una lista `createdAt desc`,
+  quindi fra due righe attive vinceva **la più recente** — che alle 20:30:20 era il piano nato 48
+  secondi prima, in coda dal 25/08. La scheda non è che *non avvisava*: **scriveva «Inizio piano:
+  25/08»**, la data della coda, e la matita — che usa la stessa funzione — ha spostato quella riga.
+  Chi l'ha aperta ha corretto una data sbagliata: ha fatto la cosa giusta con quello che le era stato
+  mostrato. ⚠️ Lo si vede nel codice e combacia coi tempi dell'audit; non ho lo screenshot di cosa
+  vedeva sullo schermo, ma la riga che sceglieva era sbagliata comunque sia andata quella sera. Gli
+  altri tre punti, tutti difetti **già oggi** senza bisogno di `queued`: `menu.service` faceva
+  `findFirst` **senza `orderBy`** e da quella riga escono «piano concluso?» e `planEnd`, cioè fino a
+  che giorno arrivano i menu — quanti giorni riceveva una cliente con due piani dipendeva dall'ordine
+  delle righe nella tabella; `pause.service` ordinava per `createdAt desc`, quindi i giorni di pausa
+  si sommavano alla fine del piano in coda (concessi sulla carta, mai ricevuti); `coach.service`
+  costruiva una `Map` che tiene l'ultima riga, e la `planEndDate` in lista clienti poteva essere
+  quella sbagliata. Ora la scelta è **una sola funzione** (`commerce/abbonamento-in-corso.ts`, modulo
+  puro): chi eroga oggi, e fra due sovrapposti **quello che finisce più tardi** — ⚠️ non «cominciato
+  prima», perché con due piani sovrapposti la cliente ha pagato fino alla fine del secondo e la fine
+  più vicina le taglierebbe giorni comprati. ⚠️ Le date sono **obbligatorie nel tipo**, e la guardia
+  ha funzionato subito: il compilatore ha trovato un cast in `clients.service` che le buttava via —
+  cioè il punto esatto da cui il difetto entrava nella scheda. Decisione di Simone: un piano in coda
+  conta come «ha un piano» perché è un contratto, quindi il pallino della coach resta acceso e quello
+  che cambia è la data mostrata; ⚠️ col prezzo scritto, che nei giorni fra acquisto e partenza lei
+  legge «ha un piano» e la cliente non riceve niente — l'altra strada è quella che invita ad attivarne
+  un secondo sopra. ⚠️ **Non è lo stato `queued`**: quello resta la causa (47 letture di
+  `status:'active'` censite — 27 solo-active, 15 anche-queued, 5 da decidere). Qui si rende
+  deterministico un comportamento che dipendeva dall'ordine delle righe, senza migrazione. 18 test,
+  visti **rossi prima**, e 6 cadono se si rimette «la prima della lista». Foglio:
+  `progetto/NOTA_Chi_Sta_Erogando_Adesso.md`. Elenco lavori: **257** spuntata, **258** (`queued` come
+  stato, col censimento già dentro la voce così non lo rifà nessuno) e **259** (la matita che avvisa
+  prima di sovrapporre) nuove; e la **215** di Vera passa da «Aspetta Simone» a codice da scrivere,
+  perché il sì è arrivato.
+
 - `[Sviluppo]` 🔕 **Verificato in produzione: Sonia mangia tre pasti. E `diag:digiuni` gridava su un
   caso sano.** Dopo il deploy: Sonia riceve colazione, spuntino e pranzo, servita da
   **Flexitariana · vegetarian · 5** — stessa famiglia, stesso regime, cambia solo la struttura: il

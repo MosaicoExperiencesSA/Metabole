@@ -11,6 +11,7 @@ import { MonitoringService } from '../monitoring/monitoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
 import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
+import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -541,11 +542,18 @@ export class PauseService {
    * Se non c'è scadenza impostata (abbonamento senza fine) non fa nulla.
    */
   private async freezeSubscription(clientId: string, days: number): Promise<Date | null> {
-    const sub = await this.prisma.subscription.findFirst({
+    /**
+     * ⚠️ Non `orderBy createdAt desc`: quello prendeva la riga più RECENTE, che su una cliente con
+     * un piano in coda è **la coda** — l'inizio è nel futuro perché è stata comprata dopo. I giorni
+     * di pausa finivano sommati alla fine del piano sbagliato: concessi sulla carta, e mai ricevuti
+     * da lei. La pausa deve allungare il piano che sta erogando ADESSO, che è la stessa riga che
+     * `menu.service` usa per decidere fino a quando consegnare i menu.
+     */
+    const attivi = await this.prisma.subscription.findMany({
       where: { clientId, status: 'active' },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, endDate: true },
+      select: { id: true, status: true, startDate: true, endDate: true },
     });
+    const sub = attivoInCorso(attivi);
     if (!sub || !sub.endDate) return null;
     const newEnd = new Date(sub.endDate.getTime() + days * 86_400_000);
     await this.prisma.subscription.update({ where: { id: sub.id }, data: { endDate: newEnd } });

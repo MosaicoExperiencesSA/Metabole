@@ -22,6 +22,7 @@ import { PdfService } from '../pdf/pdf.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
+import { attivoInCorso } from './abbonamento-in-corso';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { coachTeamScope } from '../common/coach-team';
@@ -130,10 +131,26 @@ export function isMonitoringPlan(period: string | null | undefined): boolean {
  * con un checkout ANNULLATO creato dopo la prova, spostava le date sull'abbonamento annullato
  * mentre la scheda continuava a mostrare la prova scaduta con le date vecchie. Da fuori sembrava
  * che il salvataggio non facesse niente. Una sola funzione, un solo comportamento.
+ *
+ * ⚠️ IL PRIMO PASSO NON È PIÙ «il primo attivo della lista» (correzione del 17/8, caso Lorena
+ * Polidoro). Due righe `active` sulla stessa cliente sono legittime — una eroga, l'altra è in coda
+ * con una data d'inizio futura — e `find(s => s.status === 'active')` su una lista `createdAt desc`
+ * prendeva **la più recente**, cioè quella in coda. Risultato: la scheda scriveva «Inizio piano:
+ * 25/08» (la data della coda) e la matita, che usa questa stessa funzione, spostava quella riga. Chi
+ * l'ha aperta ha corretto una data sbagliata — ha fatto la cosa giusta con quello che le era stato
+ * mostrato — e i due piani si sono sovrapposti.
+ * Adesso fra gli attivi sceglie `attivoInCorso`, che guarda le DATE: chi eroga oggi, altrimenti la
+ * prima coda. Decisione in `progetto/NOTA_Chi_Sta_Erogando_Adesso.md`.
+ *
+ * ⚠️ Le date sono OBBLIGATORIE nel tipo, e non opzionali per comodità: un chiamante che si
+ * dimenticasse di selezionarle tornerebbe in silenzio al difetto di prima, su una cliente vera. Se
+ * il compilatore si lamenta, la risposta è aggiungere i due campi alla `select`.
  */
-export function pickMainSubscription<T extends { status: string }>(subs: T[]): T | null {
+export function pickMainSubscription<T extends { status: string; startDate: Date | null; endDate: Date | null }>(
+  subs: T[],
+): T | null {
   return (
-    subs.find((s) => s.status === 'active') ??
+    attivoInCorso(subs) ??
     subs.find((s) => s.status === 'pending') ??
     subs.find((s) => s.status !== 'cancelled' && s.status !== 'expired') ??
     subs.find((s) => s.status === 'expired') ??

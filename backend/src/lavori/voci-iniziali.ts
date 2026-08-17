@@ -295,7 +295,8 @@ export const VOCI_INIZIALI: Voce[] = [
     titolo: 'Vera: il modello come seconda passata quando il riconoscitore non capisce',
     dettaglio:
       'Oggi capisci.ts è deterministico, con 16 casi di prova. AiService (Anthropic) c\'è già. La proposta: quando capisci torna null, chiedere al modello una PROPOSTA — che resta una proposta, mostrata e confermata come tutte le altre. ⚠️ Dopo, mai al posto: la scrittura non deve cambiare strada. Serve un sì di Simone perché cambia il costo e il comportamento. ⚠️ AGGIORNATA IL 17/8, con le prove: quel giorno Vera si è rotta TRE volte in una giornata (il nome a inizio frase alle 11:02, la domanda che fa la pastiglia alle 11:52, il refuso «sostitusci» alle 13:41) e tre volte si è aggiunta un\'espressione regolare a mano. La forma precisa della proposta — il modello TRADUCE nella forma canonica, `capisci` DECIDE, la riscrittura si mostra prima di eseguire, `daScartare` gira PRIMA (una domanda col punto interrogativo non arriva nemmeno al modello) — sta in `progetto/NOTA_Vera_Seconda_Lettura.md`, con le tre cose che possono andare storte e cosa le ferma. La domanda per Simone è una sola ed è in fondo al foglio.',
-    categoria: SIMONE,
+    // ✅ 17/8: Simone ha detto SÌ. Non è più una decisione in attesa, è lavoro da scrivere.
+    categoria: CODICE,
     ordine: 215,
   },
   {
@@ -647,6 +648,32 @@ export const VOCI_INIZIALI: Voce[] = [
       'Maria (`mariabonaccorso@hotmail.it`) ha `pathType: intermittent_fasting` e `fastingWindow` vuota. ⚠️ NON è un difetto del motore e non è un allarme: senza finestra non si salta nulla e riceve il 16:8 classico, che è il default sensato — «dovrebbe ricevere tutti e cinque i pasti» era una frase del mio primo script, non una promessa fatta a lei (falso positivo corretto il 17/8). Il difetto è che **la domanda non le è mai stata fatta**: la finestra decide quali pasti mangia e per lei l\'ha decisa un valore di scorta. Va chiesta — dal questionario per chi si iscrive, e alle clienti già in digiuno senza finestra da Gaia o dalla coach. Nel frattempo `struttura-per-digiuno.ts` NON la sposta di catalogo, di proposito: cambiarle la dieta sotto i piedi per un campo vuoto sarebbe rispondere a una domanda mancata con un\'altra decisione presa al posto suo.',
     categoria: CODICE,
     ordine: 256,
+  },
+
+  {
+    chiave: 'piani-attivi-scelta-per-date',
+    titolo: 'Due piani attivi: la scheda mostrava quello IN CODA come piano corrente',
+    dettaglio:
+      '⚠️ La causa vera del caso Lorena Polidoro, trovata il 17/8 e più precisa della prima ricostruzione: `pickMainSubscription` faceva `find(s => s.status === \'active\')` su una lista `createdAt desc`, quindi fra due righe attive vinceva **la più recente** — che era il piano in coda dal 25/08. La scheda scriveva «Inizio piano: 25/08» e la matita, che usa la stessa funzione, ha spostato quella riga: chi l\'ha aperta ha corretto una data sbagliata. Con lo stesso difetto, senza bisogno di `queued`: `menu.service` faceva `findFirst` **senza `orderBy`** (e da lì escono «piano concluso?» e fino a che giorno arrivano i menu: dipendeva dall\'ordine delle righe nella tabella), `pause.service` ordinava per `createdAt desc` (i giorni di pausa sommati al piano in coda: concessi e mai ricevuti), `coach.service` costruiva una `Map` che tiene l\'ultima riga. Ora la scelta è una funzione sola (`commerce/abbonamento-in-corso.ts`): chi eroga oggi, e fra due sovrapposti quello che finisce più tardi — ⚠️ non «cominciato prima», perché la cliente ha pagato fino alla fine del secondo. ⚠️ Le date sono obbligatorie nel tipo, e il compilatore ha trovato subito un cast in `clients.service` che le buttava via. 18 test, nessuna migrazione. Foglio: `progetto/NOTA_Chi_Sta_Erogando_Adesso.md`.',
+    categoria: CODICE,
+    ordine: 257,
+    fatta: true, // 17/8: consegnata, test visti rossi prima
+  },
+  {
+    chiave: 'queued-stato-abbonamento',
+    titolo: '«In coda» diventa uno STATO: oggi è un `active` con una data futura',
+    dettaglio:
+      'La causa che resta dopo la voce 257. Un piano messo in fila si scrive `active` con inizio nel futuro, e da questa scelta discende tutto: il database non può vietare due attivi (due attivi sono legittimi), la scheda mostra due «Attivo» identici, e la matita non sa che sta disfacendo una coda. Migrazione **additiva** (un valore in più nell\'enum), `finalizeApproval` scrive `queued`, e un lavoro giornaliero dentro `daily` promuove a `active` i `queued` la cui data è arrivata. ⚠️ **Il censimento è già fatto, non rifarlo** (17/8): **47 letture** di `status: \'active\'` su `Subscription` — 27 «solo active», 15 «anche queued», 5 da decidere (`coach-tasks:201`, `coach:104`, `commerce:1408`, `commerce:1431`, `dashboard:148`), più 5 filtri fatti in memoria. Il pattern: ogni query che filtra **anche sulle date** è solo-active; ogni query che chiede «ha già comprato / ha convertito» va estesa a `queued`, e sono quelle già scritte `status: { in: [\'active\',\'pending\'] }`. ⚠️ Il vincolo in banca dati **non** va nella stessa consegna dello stato: prima lo stato vive e si vede che nessuno è finito nel posto sbagliato. Decisione di Simone (17/8): un piano in coda **conta** come «ha un piano» nelle schermate dello staff, perché è un contratto.',
+    categoria: CODICE,
+    ordine: 258,
+  },
+  {
+    chiave: 'matita-avvisa-sovrapposizione',
+    titolo: 'La matita delle date dice cosa sta per rompere',
+    dettaglio:
+      'Se la data nuova fa sovrapporre questo piano a un altro non concluso, si chiede conferma **con le parole giuste** — «questo piano è in coda dietro a *Conosciamoci*, che finisce il 25/08; portandolo al 17/08 la cliente ne avrà due attivi insieme» — e si registra chi ha confermato. ⚠️ **Conferma e non divieto**: chi gestisce le schede a volte deve davvero forzare, e un divieto secco si aggira facendo peggio (una riga a mano nel database, che non lascia traccia). `abbonamentoInCoda` esiste già dal 17/8 (`commerce/abbonamento-in-corso.ts`) proprio per poterlo **dire**: manca il pezzo che lo dice. §4b di `progetto/NOTA_Due_Piani_Attivi_Lorena.md`.',
+    categoria: CODICE,
+    ordine: 259,
   },
 
 ];

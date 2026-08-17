@@ -241,7 +241,10 @@ export class ClientsService {
     // (in ultimo) annullato. Così non si spaccia per "piano corrente" un abbonamento
     // ANNULLATO quando esiste, es., una prova scaduta più significativa. `subs` è già
     // ordinato per createdAt desc (query in alto).
-    const subs = subscriptions as { status: string }[];
+    // ⚠️ Le DATE nel tipo, non solo lo stato: `pickMainSubscription` fra due righe `active` sceglie
+    // per data (chi eroga oggi, non l'ultima creata — caso Lorena, 17/8). Questo cast le buttava
+    // via, e con esse la scelta: la scheda mostrava il piano in coda come piano corrente.
+    const subs = subscriptions as { status: string; startDate: Date | null; endDate: Date | null }[];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const subscription = pickMainSubscription(subs);

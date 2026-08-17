@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
+import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
@@ -352,11 +353,21 @@ export class MenuService {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile?.planStartDate) return []; // senza data di inizio niente menu
 
-    // Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
-    const activeSubscription = (await this.prisma.subscription.findFirst({
+    /**
+     * Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
+     *
+     * ⚠️ `findMany` + `attivoInCorso`, e non `findFirst`: qui c'era `findFirst({status:'active'})`
+     * **senza `orderBy`**. Due righe `active` sulla stessa cliente sono legittime — una eroga,
+     * l'altra è in coda con l'inizio nel futuro — e senza ordinamento il database ne restituisce
+     * una **a caso**. Da questa riga escono «piano concluso?» e `planEnd`, cioè **fino a che giorno
+     * arrivano i menu**: quanti giorni riceveva una cliente con due piani dipendeva dall'ordine
+     * delle righe nella tabella. Adesso la scelta è per date, la stessa che fa la scheda.
+     */
+    const attivi = (await this.prisma.subscription.findMany({
       where: { clientId, status: 'active' },
       include: { plan: { select: { priceCents: true, period: true } } },
-    })) as ({ endDate?: Date | null; plan: { priceCents: number; period: string | null } | null } & Record<string, unknown>) | null;
+    })) as ({ startDate: Date | null; endDate: Date | null; status: string; plan: { priceCents: number; period: string | null } | null } & Record<string, unknown>)[];
+    const activeSubscription = attivoInCorso(attivi);
     if (!activeSubscription) return [];
 
     // MONITORAGGIO (€19/mese): **non è un piano alimentare**, e fin qui riceveva gli stessi

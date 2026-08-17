@@ -50,7 +50,7 @@ describe('MenuService — gate misure', () => {
     const prisma = {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
     };
@@ -65,7 +65,7 @@ describe('MenuService — gate misure', () => {
     const prisma = {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -79,7 +79,7 @@ describe('MenuService — gate misure', () => {
     const prisma = {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(0)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -92,7 +92,7 @@ describe('MenuService — gate misure', () => {
     const prisma = {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn() },
@@ -106,7 +106,7 @@ describe('MenuService — gate misure', () => {
     const prisma = {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
-      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-1)) }) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ travelState: null, travelStart: null, travelEnd: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }) },
@@ -118,7 +118,7 @@ describe('MenuService — gate misure', () => {
   const deliveryPrisma = (over: Record<string, unknown>) => ({
     productRule: { findUnique: jest.fn().mockResolvedValue(null) },
     equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
-    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
     menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
     dailyCheckin: { findUnique: jest.fn() },
     engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -210,7 +210,7 @@ describe('MenuService — gate misure', () => {
           mealsPerDay: 5,
         }),
       },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue({ date: D(dayIso(-2)) }) },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue({ id: 'ck' }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(1) },
@@ -240,7 +240,7 @@ describe('MenuService — misura di partenza del piano', () => {
     const creaNotifica = jest.fn().mockResolvedValue({ id: 'n1' });
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
       // Il finto risponde `null`: nessuna misura dal giorno di visibilità in poi. Le pesate di
       // luglio esistono ma cadono fuori dalla finestra, ed è tutto il punto.
@@ -261,7 +261,7 @@ describe('MenuService — misura di partenza del piano', () => {
     const creaNotifica = jest.fn();
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
       notification: { findFirst: jest.fn().mockResolvedValue({ id: 'giaChiesto' }), create: creaNotifica },
@@ -278,7 +278,7 @@ describe('MenuService — misura di partenza del piano', () => {
     const creaNotifica = jest.fn();
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm-oggi' }) },
       notification: { findFirst: jest.fn(), create: creaNotifica },
@@ -301,7 +301,7 @@ describe('MenuService — misura di partenza del piano', () => {
  * blocco di ciclo, con tanto di «contatta la tua coach per sbloccare la app».
  */
 describe('MenuService — gate misure nel Monitoraggio', () => {
-  const inMonitoraggio = { subscription: { findFirst: jest.fn().mockResolvedValue({ plan: { period: 'monitoring' } }) } };
+  const inMonitoraggio = { subscription: { findFirst: jest.fn().mockResolvedValue({ plan: { period: 'monitoring' } }), findMany: jest.fn().mockResolvedValue([{ status: 'active', startDate: null, endDate: null, plan: { period: 'monitoring' } }]) } };
 
   it('nessun menu mai erogato → NON blocca (il popup misure non compare)', async () => {
     const prisma = {
@@ -405,7 +405,7 @@ describe('MenuService — la vacanza NON esenta più dalle misure (11/8)', () =>
   };
   const prismaSenzaMisure = (profilo: Record<string, unknown> = inVacanzaDa40Giorni) => ({
     clientProfile: { findUnique: jest.fn().mockResolvedValue(profilo) },
-    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }) },
+    subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
     menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
     measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },

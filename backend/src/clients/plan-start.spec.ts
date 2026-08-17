@@ -23,32 +23,63 @@ const inDays = (n: number) => {
 describe('pickMainSubscription', () => {
   it('con un ANNULLATO più recente e una prova SCADUTA sceglie la scaduta (caso Giusy)', () => {
     // La lista arriva ordinata per createdAt desc: l'annullato è il primo.
+    // ⚠️ Le date ci sono anche dove non decidono niente (qui nessuno dei due è attivo): dal 17/8 il
+    // tipo le richiede, perché un chiamante che se le dimentica tornerebbe in silenzio al difetto
+    // di Lorena. Vederle scritte in ogni caso di prova è parte della guardia.
     const subs = [
-      { id: 'annullato', status: 'cancelled' },
-      { id: 'prova', status: 'expired' },
+      { id: 'annullato', status: 'cancelled', startDate: D('2026-07-20'), endDate: D('2026-10-20') },
+      { id: 'prova', status: 'expired', startDate: D('2026-07-17'), endDate: D('2026-07-25') },
     ];
     expect(pickMainSubscription(subs)?.id).toBe('prova');
   });
 
   it('un abbonamento ATTIVO vince su tutto, anche se più vecchio', () => {
     const subs = [
-      { id: 'annullato', status: 'cancelled' },
-      { id: 'in-attesa', status: 'pending' },
-      { id: 'attivo', status: 'active' },
+      { id: 'annullato', status: 'cancelled', startDate: null, endDate: null },
+      { id: 'in-attesa', status: 'pending', startDate: null, endDate: null },
+      { id: 'attivo', status: 'active', startDate: null, endDate: null },
     ];
     expect(pickMainSubscription(subs)?.id).toBe('attivo');
   });
 
   it('uno stato non terminale (in pausa) viene prima di uno scaduto', () => {
     const subs = [
-      { id: 'scaduto', status: 'expired' },
-      { id: 'in-pausa', status: 'paused' },
+      { id: 'scaduto', status: 'expired', startDate: null, endDate: null },
+      { id: 'in-pausa', status: 'paused', startDate: null, endDate: null },
     ];
     expect(pickMainSubscription(subs)?.id).toBe('in-pausa');
   });
 
   it('senza abbonamenti torna null', () => {
     expect(pickMainSubscription([])).toBeNull();
+  });
+
+  /**
+   * ⚠️ IL CASO LORENA POLIDORO (16/8), ed è il difetto che questa funzione aveva in testa alla sua
+   * catena: `find(s => s.status === 'active')` su una lista `createdAt desc` prende **la più
+   * recente**, e la più recente era il piano IN CODA dal 25/08.
+   *
+   * Quindi la scheda scriveva «Inizio piano: 25/08» — la data del piano in coda — e la matita, che
+   * usa la stessa funzione, spostava quella riga. Chi l'ha aperta ha corretto una data sbagliata: ha
+   * fatto la cosa giusta con quello che le era stato mostrato. Da lì i due piani sovrapposti.
+   */
+  it('⚠️ due ATTIVI, uno in corso e uno in coda: vince quello IN CORSO (caso Lorena)', () => {
+    const subs = [
+      { id: 'in-coda', status: 'active', startDate: inDays(8), endDate: inDays(15) },
+      { id: 'in-corso', status: 'active', startDate: inDays(-8), endDate: inDays(8) },
+    ];
+    expect(pickMainSubscription(subs)?.id).toBe('in-corso');
+    // E non dipende dall'ordine della lista: era esattamente il difetto.
+    expect(pickMainSubscription([...subs].reverse())?.id).toBe('in-corso');
+  });
+
+  it('l\'unico attivo è in coda: si mostra quello, non «nessun piano»', () => {
+    // Decisione di Simone (17/8): un piano comprato conta anche se parte fra una settimana.
+    const subs = [
+      { id: 'in-coda', status: 'active', startDate: inDays(8), endDate: inDays(15) },
+      { id: 'scaduto', status: 'expired', startDate: inDays(-30), endDate: inDays(-2) },
+    ];
+    expect(pickMainSubscription(subs)?.id).toBe('in-coda');
   });
 });
 

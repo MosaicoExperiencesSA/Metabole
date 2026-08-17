@@ -4,6 +4,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { vociCalendario, type VoceCalendario } from '../agenda/calendario';
+import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
@@ -41,6 +42,7 @@ interface ProfileRow {
 interface SubRow {
   clientId: string;
   status: string;
+  startDate: Date | null;
   endDate: Date | null;
 }
 interface MeasRow {
@@ -103,7 +105,9 @@ export class CoachService {
     const [subs, measures, alerts, objectives, users] = await Promise.all([
       this.prisma.subscription.findMany({
         where: { clientId: { in: ids }, status: 'active' },
-        select: { clientId: true, status: true, endDate: true },
+        // `startDate` serve alla scelta qui sotto: fra due righe attive la fine da mostrare è
+        // quella del piano che sta erogando, e per saperlo bisogna sapere quando comincia.
+        select: { clientId: true, status: true, startDate: true, endDate: true },
       }) as Promise<SubRow[]>,
       this.prisma.measurement.findMany({
         where: { clientId: { in: ids } },
@@ -127,7 +131,30 @@ export class CoachService {
       }) as Promise<{ id: string; email: string; phone: string | null }[]>,
     ]);
 
-    const subByClient = new Map(subs.map((s) => [s.clientId, s]));
+    /**
+     * ⚠️ `new Map(subs.map(…))` teneva **l'ultima riga** di ogni cliente: con due abbonamenti
+     * `active` — uno in corso e uno in coda — la `planEndDate` in lista clienti poteva essere la
+     * fine del piano in coda, e la coach programmava il lavoro su una data che non era quella.
+     * Adesso si SCEGLIE, con la stessa funzione dell'erogazione e della scheda.
+     *
+     * ⚠️ Il pallino «ha un piano» resta vero anche se l'unico attivo è in coda (decisione di Simone,
+     * 17/8: «un piano comprato è un contratto, anche se parte fra una settimana»), ed è il motivo per
+     * cui `attivoInCorso` ripiega sulla coda invece di tornare `null`. Il prezzo è dichiarato: nei
+     * giorni fra l'acquisto e la partenza la coach legge «ha un piano» e la cliente non riceve ancora
+     * niente. L'alternativa — «senza piano» su chi ha appena comprato — è quella che invita ad
+     * attivarne un secondo sopra, cioè il caso Polidoro.
+     */
+    const perCliente = new Map<string, SubRow[]>();
+    for (const s of subs) {
+      const righe = perCliente.get(s.clientId);
+      if (righe) righe.push(s);
+      else perCliente.set(s.clientId, [s]);
+    }
+    const subByClient = new Map<string, SubRow>();
+    for (const [clientId, righe] of perCliente) {
+      const scelta = attivoInCorso(righe);
+      if (scelta) subByClient.set(clientId, scelta);
+    }
     const measByClient = new Map(measures.map((m) => [m.clientId, m]));
     const objByClient = new Map(objectives.map((o) => [o.clientId, o]));
     const userById = new Map(users.map((u) => [u.id, u]));
