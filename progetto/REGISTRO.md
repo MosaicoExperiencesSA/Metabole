@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🧰 **Il kit di rientro non ricopia le giornate: le riporziona sul fabbisogno di
+  adesso** (voce 282 — e con lei la 255 si chiude, tranne la decisione sui pezzi).
+  `generateRientroMenus` sceglie i giorni che su quella cliente avevano fatto perdere di più e li
+  ricrea nei giorni successivi copiando `meals` così com'è: ⚠️ **è l'unico posto del progetto dove
+  una giornata di ieri diventa una giornata di domani senza passare da `deliverIfEligible`**, e
+  copiarla di peso sbaglia in due modi. Una giornata scritta prima di stamattina **non è scalata**,
+  quindi il kit rimetterebbe nel futuro una giornata al 65% — ⚠️ e **nessuno la aggiusterebbe più**,
+  perché l'erogazione compone solo le date che non esistono ancora e il suo `upsert` ha
+  `update: {}`: il rimedio delle porzioni le passerebbe accanto senza vederla. E una giornata
+  scalata mesi fa porta un fattore dimensionato su un fabbisogno che oggi non è più il suo. ⚠️ **Il
+  modo sbagliato di rimediare è scalare quello che è già scalato**: 891 × 1,8 fa 1603, cioè ×3,24
+  sulla ricetta — si torna sempre alla porzione di catalogo prima di riscalare, ed è la stessa
+  trappola dell'app vista dall'altra parte. ⚠️ `porzione` si **toglie** e non si mette a 1: l'app
+  distingue «assente» da «presente». ⚠️ **Senza fabbisogno calcolabile non si tocca niente** —
+  riportare la giornata al catalogo «perché non sappiamo» rimpicciolirebbe il piatto in silenzio, e
+  «non si rimpicciolisce mai» è la regola con cui la strada C è stata decisa — **ma si scrive nei
+  log**, perché quelle porzioni sono quelle di allora e non una scelta di adesso. La scalatura passa
+  da `porzioniScalate`, la stessa funzione dell'erogazione. Modulo puro `menu/riporziona-giornata.ts`
+  (8 test) e ⚠️ **il primo test di `generateRientroMenus`, che non ne aveva nessuno** (3):
+  `MonitoringModule` importa `MenuModule` per `KcalNeedService`, senza cicli. 11 test (222 suite,
+  3491 verdi). Nessuna migrazione.
+
 - `[Sviluppo]` 🛒 **La lista della spesa si rifà a ogni apertura: quello che si conserva sono le
   spunte** (voce 281, ultima coda della 255 — ma il difetto è più vecchio di lei e più largo).
   `shoppingList` teneva una riga per `(cliente, dal, al)` e, se la trovava, **la restituiva così

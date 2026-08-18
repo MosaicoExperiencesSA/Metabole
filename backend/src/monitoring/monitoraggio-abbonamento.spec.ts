@@ -2,6 +2,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { KcalNeedService } from '../menu/kcal-need.service';
 import { MonitoringService } from './monitoring.service';
 
 /**
@@ -35,6 +36,9 @@ function makeService(prisma: Record<string, unknown>) {
     notifications as unknown as NotificationsService,
     configParams as unknown as ConfigParamsService,
     audit as unknown as AuditService,
+    // ⚠️ Il kit di rientro riporziona sul fabbisogno (voce 255): qui non si eroga niente, ma il
+    // costruttore lo vuole.
+    { computeTargetKcal: jest.fn().mockResolvedValue(null) } as unknown as KcalNeedService,
   );
   return { service, notifications, audit };
 }

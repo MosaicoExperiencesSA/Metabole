@@ -1,11 +1,14 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { aPrezzoAlMese, prezzoPiano } from '../commerce/prezzo-piano';
 import { STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
+import { KcalNeedService } from '../menu/kcal-need.service';
+import { TETTI_PREDEFINITI } from '../menu/porzione-scalata';
+import { riporzionaSulFabbisogno } from '../menu/riporziona-giornata';
 
 interface Period {
   id: string;
@@ -49,7 +52,12 @@ export class MonitoringService {
     private readonly notifications: NotificationsService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    // ⚠️ Il fabbisogno serve a RIPORZIONARE le giornate copiate dal kit di rientro (voce 255): è la
+    // stessa classe che usa l'erogazione, non un secondo calcolo.
+    private readonly kcalNeed: KcalNeedService,
   ) {}
+
+  private readonly logger = new Logger(MonitoringService.name);
 
   private async funnelEvent(name: string, clientId: string, data: Record<string, unknown> = {}): Promise<void> {
     await this.prisma.analyticsEvent
@@ -470,6 +478,31 @@ export class MonitoringService {
     // 3) Riempi con i giorni più recenti.
     for (const h of history) push(h);
 
+    /**
+     * ⚠️ LE GIORNATE COPIATE SI RIPORZIONANO SUL FABBISOGNO DI ADESSO (voce 255, ultima coda).
+     *
+     * Copiarle di peso sbaglia in due modi: una giornata di prima del 18/8 **non è scalata** e
+     * tornerebbe nel futuro al 65% — e nessuno la aggiusterebbe più, perché `deliverIfEligible`
+     * compone solo le date che non esistono ancora; e una scalata mesi fa porta un fattore
+     * dimensionato su un fabbisogno che oggi non è più il suo. Il perché e i tre ⚠️ (a partire da
+     * «non si scala quello che è già scalato») stanno in `menu/riporziona-giornata.ts`.
+     */
+    const targetKcal = await this.kcalNeed.computeTargetKcal(clientId);
+    const tetti = {
+      principale: await this.configParams.getNumber('porzione_tetto_pasto_principale', TETTI_PREDEFINITI.principale),
+      colazione: await this.configParams.getNumber('porzione_tetto_colazione', TETTI_PREDEFINITI.colazione),
+      spuntino: await this.configParams.getNumber('porzione_tetto_spuntino', TETTI_PREDEFINITI.spuntino),
+    };
+    if (!targetKcal) {
+      // ⚠️ Detto e non dedotto: senza fabbisogno le giornate restano com'erano — che è la scelta
+      // prudente (riportarle al catalogo le rimpicciolirebbe in silenzio), ma chi legge i log deve
+      // sapere che quelle porzioni sono quelle di allora.
+      this.logger.warn(
+        `Kit di rientro per ${clientId}: fabbisogno non calcolabile, le giornate copiate tengono ` +
+          'le porzioni che avevano. Mancano sesso, età, altezza o peso nel profilo.',
+      );
+    }
+
     // Ricrea i giorni scelti nei prossimi giorni (a partire da domani), saltando date già occupate.
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -477,6 +510,7 @@ export class MonitoringService {
     for (let i = 0; i < Math.min(picked.length, giorni); i++) {
       const target = new Date(today.getTime() + (i + 1) * 86_400_000);
       const src = picked[i];
+      const { meals: pasti } = riporzionaSulFabbisogno(src.meals, targetKcal, tetti);
       try {
         await this.prisma.menuDay.upsert({
           where: { clientId_date: { clientId, date: target } } as never,
@@ -485,14 +519,14 @@ export class MonitoringService {
             date: target,
             dietId: src.dietId,
             level: src.level,
-            meals: src.meals as never,
+            meals: pasti as never,
             status: 'planned',
             visibleFrom: today,
           } as never,
           update: {
             dietId: src.dietId,
             level: src.level,
-            meals: src.meals as never,
+            meals: pasti as never,
             status: 'planned',
             visibleFrom: today,
           } as never,

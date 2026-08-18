@@ -1,0 +1,49 @@
+Il kit di rientro non ricopia le giornate: le riporziona sul fabbisogno di adesso
+
+Con questa si chiude la voce 255, tranne la decisione sui pezzi.
+
+DOVE
+`monitoring.generateRientroMenus` — i menu che arrivano da soli a fine pausa se il peso è risalito.
+Sceglie i giorni che su quella cliente avevano fatto perdere di più e li ricrea nei giorni
+successivi, copiando `meals` così com'è. ⚠️ È l'unico posto del progetto dove una giornata di ieri
+diventa una giornata di domani SENZA passare da `deliverIfEligible`.
+
+PERCHÉ COPIARLA E BASTA SBAGLIA, IN DUE MODI DIVERSI
+1. La giornata vecchia non è scalata. Le porzioni si scalano dal 18/8: un giorno di due mesi fa non
+   ha nessun `porzione`. Copiato di peso, il kit rimette nel FUTURO una giornata al 65% —
+   ⚠️ e nessuno la aggiusterà più, perché `deliverIfEligible` compone solo le date che non esistono
+   ancora e il suo `upsert` ha `update: {}`. Il rimedio di stamattina le passerebbe accanto senza
+   vederla.
+2. Il fattore vecchio non è più il suo. Una giornata scalata a ×1,8 quando pesava dieci chili di più
+   è dimensionata su un fabbisogno che oggi non ha. Il numero è giusto per quel giorno e per nessun
+   altro.
+
+⚠️ E IL MODO SBAGLIATO DI RIMEDIARE è scalare quello che è già scalato: 891 × 1,8 fa 1603, cioè
+×3,24 sulla ricetta. Si torna sempre alla porzione di CATALOGO prima di riscalare — `kcalBase`
+esiste per questo, ed è la stessa trappola dell'app di ieri sera vista dall'altra parte.
+
+⚠️ `porzione` SI TOGLIE, non si mette a 1: l'app distingue «assente» da «presente», e una giornata
+con `porzione: 1` addosso direbbe alla cliente che qualcosa è stato deciso sulla sua porzione quando
+non è vero.
+
+⚠️ SENZA FABBISOGNO CALCOLABILE NON SI TOCCA NIENTE, MA SI SCRIVE
+Riportare la giornata al catalogo «perché non sappiamo» le rimpicciolirebbe il piatto in silenzio, e
+«non si rimpicciolisce mai» è la regola con cui la strada C è stata decisa. Quindi resta com'era —
+ma con un `warn` nei log, perché chi legge deve sapere che quelle porzioni sono quelle di allora e
+non una scelta di adesso.
+
+⚠️ La scalatura passa da `porzioniScalate`, la stessa funzione che usa l'erogazione: se domani i
+tetti cambiano, il kit di rientro cambia con lei. Due funzioni per la stessa domanda si
+contraddicono in un pomeriggio — è già successo il 17/8 fra il motore e `diag:digiuni`.
+
+FILE
+- backend/src/menu/riporziona-giornata.ts (nuovo, + .spec.ts con 8 test)
+- backend/src/monitoring/monitoring.service.ts · monitoring.module.ts (importa `MenuModule` per
+  `KcalNeedService`: nessun ciclo, `MenuModule` non importa noi)
+- backend/src/monitoring/rientro-porzioni.spec.ts (3 test — ⚠️ `generateRientroMenus` non ne aveva
+  nessuno) · monitoraggio-abbonamento.spec.ts (il costruttore ha un parametro in più)
+- backend/src/lavori/voci-iniziali.ts (voce 282; la 281 aggiornata)
+
+222 suite / 3491 test verdi. Nessuna migrazione.
+⛔ Della voce 255 resta solo la decisione sui PEZZI: ×1,5 di una mela è una mela e mezza, e
+arrotondare (o togliere le ricette a pezzo dalla scalatura) è una parola della nutrizionista.
