@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🪤 **Via la trappola su `dietFamily`: aveva finito il suo lavoro** (era in elenco con
+  la data «19/8», ed è la notte fra i due). ⚠️ **La data era un modo di dire una condizione** —
+  «quando il colpevole è stato trovato e corretto» — e la condizione era vera dall'11/8. Dall'11/8
+  `prisma/traccia-diet-family.ts` intercettava ogni scrittura su `dietFamily` e ne registrava lo
+  stack: serviva a capire perché la dieta di una cliente, spostata **cinque volte da tre persone**,
+  tornasse ogni volta indietro. ⚠️ **La risposta resta scritta, ed è la parte che conta**: non la
+  riscriveva **nessuno**. La traccia ha mostrato una sola scrittura e nessuna riscrittura, e a quel
+  punto la domanda giusta non era più «chi la sovrascrive» ma «questa scrittura viene eseguita?» —
+  non veniva eseguita, perché `updateClient` costruiva le `ops` e non le lanciava mai (mancava il
+  `$transaction`, e le operazioni di Prisma sono pigre). Non tornava indietro: non era mai partita. E
+  non se ne accorgeva nessuno perché l'audit scriveva «cambiato da X a Y» calcolandolo dai valori
+  **richiesti**. Il commento che spiega tutto questo resta in `prisma.service.ts`, dove la trappola
+  stava. 223 suite, 3519 verdi (una suite in meno: era la sua). Nessuna migrazione. ⚠️ Su Render si
+  può togliere la variabile `TRACCIA_DIET_FAMILY`, se c'era: non la legge più nessuno.
+
 - `[Sviluppo]` 🔍 **La seconda revisione: il nome del piatto nel carrello, e «c'era già» detto come un
   errore.** Ho fatto rileggere anche le due consegne della notte — la revisione di prima e le
   sostituzioni — e ha trovato due cose vere, tutte e due **introdotte poche ore fa da quelle stesse

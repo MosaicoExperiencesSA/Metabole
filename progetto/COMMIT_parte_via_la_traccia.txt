@@ -1,0 +1,34 @@
+Via la trappola su `dietFamily`: aveva finito il suo lavoro, e la risposta resta scritta
+
+Era in elenco con una data — «19/8» — e la data era un modo di dire una condizione: «quando il
+colpevole è stato trovato e corretto». La condizione è vera dall'11/8, e la trappola da allora non
+ha più niente da dire.
+
+COSA ERA
+Dall'11/8 `prisma/traccia-diet-family.ts` intercettava ogni `update`/`upsert`/`updateMany` su
+`clientProfile` che toccasse `dietFamily` e scriveva nei log il valore e lo stack di chi chiamava.
+Serviva a rispondere a una domanda che leggendo il codice non si chiudeva: la dieta di una cliente
+era stata spostata da «Pescetariana» a «Mediterranea» cinque volte, da tre persone, e ogni volta
+tornava indietro.
+
+⚠️ LA RISPOSTA, CHE È LA PARTE CHE CONTA E CHE LA TRAPPOLA STESSA CHIEDEVA DI NON PERDERE
+**Nessuno riscriveva `dietFamily`.** La traccia ha mostrato UNA sola scrittura e nessuna
+riscrittura — e a quel punto la domanda giusta non era più «chi la sovrascrive» ma «questa scrittura
+viene eseguita?». Non veniva eseguita: `updateClient` costruiva le `ops` e non le lanciava mai,
+perché mancava il `$transaction`. Le operazioni di Prisma sono pigre: costruirle non le esegue. La
+dieta non tornava indietro — non era mai partita. E non se ne accorgeva nessuno perché l'audit
+scriveva «cambiato da X a Y» calcolandolo dai valori RICHIESTI, non da quelli scritti.
+
+La lezione resta scritta dove stava la trappola (`prisma.service.ts`): quando l'audit racconta una
+modifica e il database non la conosce, la domanda non è «chi la sovrascrive» ma «quella scrittura
+viene eseguita?».
+
+FILE
+- tolti: `backend/src/prisma/traccia-diet-family.ts` e il suo `.spec.ts`
+- `backend/src/prisma/prisma.service.ts` (l'aggancio, sostituito dal commento che spiega perché non
+  c'è più) · `backend/src/clients/clients.service.ts` (il rimando al file, ora datato)
+- `backend/src/lavori/voci-iniziali.ts` (la voce riscritta e spuntata)
+
+223 suite / 3519 test verdi (una suite in meno: era la sua). Nessuna migrazione.
+⚠️ Su Render si può togliere la variabile `TRACCIA_DIET_FAMILY`, se era stata messa: adesso non la
+legge più nessuno.

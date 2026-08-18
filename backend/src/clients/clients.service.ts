@@ -1100,7 +1100,8 @@ export class ClientsService {
      * dieta di una cliente da «Pescetariana» a «Mediterranea» cinque volte vedendola tornare
      * indietro: non tornava indietro, non era mai partita.
      *
-     * Trovato l'11/8 con la traccia su `dietFamily` (`prisma/traccia-diet-family.ts`), che ha
+     * Trovato l'11/8 con la traccia su `dietFamily` (`prisma/traccia-diet-family.ts`, tolta il 19/8
+     * a lavoro finito), che ha
      * mostrato UNA sola scrittura e nessuna riscrittura: a quel punto la domanda giusta non era più
      * «chi la sovrascrive» ma «questa scrittura viene eseguita?».
      */

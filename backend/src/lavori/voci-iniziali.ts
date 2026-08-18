@@ -219,9 +219,10 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'rimuovi-traccia-diet-family',
-    titolo: '19/8 — rimuovere la diagnostica `traccia-diet-family`',
+    titolo: 'La trappola su `dietFamily` è stata tolta: aveva finito il suo lavoro',
     dettaglio:
-      'Tre file, non uno: `src/prisma/traccia-diet-family.ts`, il suo `.spec` e l\'aggancio in `src/prisma/prisma.service.ts`.',
+      'Tolta la notte fra il 18 e il 19/8, e i file erano tre: `src/prisma/traccia-diet-family.ts`, il suo `.spec` e l\'aggancio in `prisma.service.ts`. ⚠️ **La data era un modo di dire una condizione** — «quando il colpevole è stato trovato e corretto» — e la condizione era vera dall\'11/8. **E la risposta resta scritta**, che è la parte che conta e che la trappola stessa chiedeva di non perdere: **nessuno riscriveva `dietFamily`**. Le `ops` di `updateClient` venivano costruite e **mai eseguite**, perché mancava il `$transaction`: le operazioni di Prisma sono pigre. La dieta spostata cinque volte da tre persone non tornava indietro — non era mai partita, e l\'audit raccontava una modifica che non c\'era perché la calcola dai valori **richiesti**. La lezione, che vale più della trappola: quando l\'audit racconta una modifica e il database non la conosce, la domanda non è «chi la sovrascrive» ma «quella scrittura viene eseguita?». Il commento resta in `prisma.service.ts`, dove la trappola stava.',
+    fatta: true, // 19/8
     categoria: MANUTENZIONE,
     ordine: 20,
   },
