@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` ⭐ **Le stelle mai date non orientano più il motore** (voce 270, chiusa nella notte con
+  la decisione di Simone: **escluderle dal gradimento**). Se la cliente tocca solo «Seguita / Non
+  seguita» l'app manda comunque `stars: 3` — e quella parte non cambia, è la sua risposta del 18/8 —
+  ma ⚠️ **quel 3 non è un'opinione**: è un valore di scorta, e finiva nel segnale «gradimento» con
+  cui il motore decide cosa riproporle. Chi diceva soltanto «non l'ho seguita» risultava aver dato
+  **tre stelle** a quel piatto, e se lo rivedeva davanti con la faccia di uno che le era piaciuto.
+  Ora i voti col tag `stelle_non_date` restano fuori da **tre letture**, quelle in cui le stelle
+  orientano il motore: il punteggio del pool, il gradimento del ciclo e i segnali del motore.
+  ⚠️ **Restano com'erano** i «piatti più apprezzati» del report e le schermate dello staff — scelta
+  sua: là il numero è il resoconto di quello che è stato scritto, non una decisione su cosa arriverà
+  nel piatto. ⚠️ **Si filtra nella query e non in memoria**: filtrando dopo bisognerebbe leggere i tag
+  ovunque, e il primo posto che se ne dimentica torna a contare il valore di scorta senza che si
+  veda. ⚠️ **I voti senza tag contano**: sono quelli di prima del 18/8, e trattarli come «non dati»
+  butterebbe via la storia di chi le stelle le ha date davvero. ⚠️ E il prezzo detto ad alta voce:
+  per chi non valuta quasi mai, il motore ha **meno segnale** e torna a scegliere per varietà e
+  calorie — non peggio di prima, perché prima sceglieva **col segnale sbagliato**, ma diverso.
+  Modulo `menu/stelle-che-contano.ts`, 6 test (225 suite, 3531 verdi). Nessuna migrazione.
+
 - `[Sviluppo]` 🪤 **Via la trappola su `dietFamily`: aveva finito il suo lavoro** (era in elenco con
   la data «19/8», ed è la notte fra i due). ⚠️ **La data era un modo di dire una condizione** —
   «quando il colpevole è stato trovato e corretto» — e la condizione era vera dall'11/8. Dall'11/8

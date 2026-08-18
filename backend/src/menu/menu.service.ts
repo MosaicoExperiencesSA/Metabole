@@ -25,6 +25,7 @@ import { slotEsclusiTotali } from './finestre-digiuno';
 // Il controllo che mancava: una giornata sotto il fabbisogno oggi esce identica a una giusta.
 import { TETTI_PREDEFINITI, porzioniScalate } from './porzione-scalata';
 import { aggregaSpesa, conservaSpuntati, stessaLista } from './lista-della-spesa';
+import { SOLO_STELLE_DATE } from './stelle-che-contano';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
@@ -1474,7 +1475,12 @@ export class MenuService {
       // passerebbe, e il divieto sarebbe una decorazione.
       this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
-      this.prisma.recipeRating.findMany({ where: { clientId }, select: { recipeId: true, stars: true } }) as Promise<{ recipeId: string; stars: number }[]>,
+      // ⚠️ Solo le stelle DATE: il 3 che l'app scrive quando la cliente tocca solo «Seguita / Non
+      // seguita» non è un'opinione, e qui deciderebbe cosa riproporle. Vedi `stelle-che-contano.ts`.
+      this.prisma.recipeRating.findMany({
+        where: { clientId, ...SOLO_STELLE_DATE },
+        select: { recipeId: true, stars: true },
+      }) as Promise<{ recipeId: string; stars: number }[]>,
     ]);
 
     /**

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { SOLO_STELLE_DATE } from '../menu/stelle-che-contano';
 import { etichettaMetodo } from '../common/metodi-cottura';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -105,8 +106,14 @@ export class CycleService {
   async menuGradimento(clientId: string, recipeIds: string[]): Promise<number> {
     const def = await this.configParams.getNumber('cycle_default_rating', 5);
     if (!recipeIds.length) return def;
+    /**
+     * ⚠️ Solo le stelle DATE (decisione della notte del 18/8). Il 3 che l'app scrive quando la
+     * cliente tocca solo «Seguita / Non seguita» è un valore di scorta, non un giudizio: qui
+     * abbassava il gradimento del ciclo — o lo teneva alto — al posto suo. Vedi
+     * `menu/stelle-che-contano.ts`.
+     */
     const ratings = (await this.prisma.recipeRating.findMany({
-      where: { clientId, recipeId: { in: recipeIds } },
+      where: { clientId, recipeId: { in: recipeIds }, ...SOLO_STELLE_DATE },
       select: { recipeId: true, stars: true },
     })) as { recipeId: string; stars: number }[];
     const maxByRecipe = new Map<string, number>();

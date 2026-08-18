@@ -1,0 +1,44 @@
+Le stelle mai date non orientano più il motore
+
+Decisione di Simone, notte fra il 18 e il 19/8: **quel 3 va escluso dal gradimento**.
+
+IL CASO
+Il popup «Com'è andata ieri?» chiede due cose insieme: se ha seguito il piatto e quante stelle gli
+dà. Se la cliente tocca SOLO «Seguita / Non seguita» e va via, l'app manda comunque `stars: 3`,
+perché la rotta le stelle le pretende (e quella parte non cambia: «se il cliente non specifica metti
+3 stelle», Simone, 18/8). Dal 18/8 quei voti sono marcati col tag `stelle_non_date`.
+
+⚠️ Quel 3 non è un'opinione: è un valore di scorta scritto dall'app, e finiva nel segnale
+«gradimento» con cui il motore decide cosa riproporle. Una cliente che diceva soltanto «non l'ho
+seguita» risultava aver dato TRE STELLE a quel piatto — e se lo rivedeva davanti con la faccia di
+uno che le era piaciuto.
+
+DOVE CAMBIA, E DOVE NO
+Restano fuori da tre letture, quelle in cui le stelle **orientano il motore**:
+- il punteggio del pool (`menu.service`), cioè cosa le viene proposto;
+- il gradimento del ciclo (`cycle.service.menuGradimento`);
+- i segnali del motore (`engine/signals-collector`).
+
+⚠️ Restano com'erano i «piatti più apprezzati» del report e le schermate dello staff — scelta di
+Simone: là il numero è il resoconto di quello che è stato scritto, non una decisione su cosa
+arriverà nel piatto.
+
+⚠️ SI FILTRA NELLA QUERY, NON IN MEMORIA. Filtrando dopo bisognerebbe leggere i tag ovunque, e il
+primo posto che se ne dimentica torna a contare il valore di scorta senza che si veda.
+
+⚠️ E I VOTI SENZA TAG CONTANO: sono tutti quelli scritti prima del 18/8, e non c'è modo di sapere
+quali fossero valori di scorta. Trattarli come «non dati» butterebbe via la storia di chi le stelle
+le ha date davvero, che è la parte buona del segnale.
+
+⚠️ IL PREZZO, DETTO: per chi non dà quasi mai le stelle il motore ha MENO segnale, e torna a
+scegliere per varietà e calorie invece che per gusto. Non è peggio di prima — prima sceglieva col
+segnale SBAGLIATO, che è un'altra cosa — ma va saputo: una cliente che valuta poco non è una
+cliente a cui tutto piace mediamente.
+
+FILE
+- backend: `menu/stelle-che-contano.ts` (nuovo, + .spec con 4 test) · `menu/menu.service.ts` ·
+  `cycle/cycle.service.ts` · `engine/signals-collector.service.ts` + due spec (i test guardano la
+  QUERY, che è l'unico punto dove il filtro si vede)
+- `backend/src/lavori/voci-iniziali.ts` (la voce riscritta e spuntata)
+
+225 suite / 3531 test verdi. Nessuna migrazione.

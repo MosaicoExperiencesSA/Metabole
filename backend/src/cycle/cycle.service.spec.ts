@@ -76,6 +76,20 @@ describe('CycleService.getActiveCycle', () => {
     expect(res.gradimento).toBe(2);
   });
 
+  /**
+   * ⚠️ IL 3 CHE L'APP SCRIVE AL POSTO DELLA CLIENTE NON ABBASSA PIÙ IL GRADIMENTO (decisione della
+   * notte del 18/8). Chi tocca solo «Seguita / Non seguita» manda `stars: 3` col tag
+   * `stelle_non_date`: qui quel valore di scorta decideva il gradimento del ciclo al posto suo.
+   * Il filtro sta nella QUERY, quindi il test guarda la query — è l'unico punto dove si vede.
+   */
+  it('⚠️ le stelle mai date restano fuori dal gradimento: si filtrano nella lettura', async () => {
+    const { service, prisma } = make({ menuDays: twoDays });
+    await service.getActiveCycle('c1');
+    expect(prisma.recipeRating.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ NOT: { tags: { has: 'stelle_non_date' } } }) }),
+    );
+  });
+
   it('espone l\'esito dell\'ultimo ciclo chiuso', async () => {
     const { service } = make({ menuDays: twoDays, lastFeedback: { esitoPeso: 'perso', esitoCm: 'stabile', followed: true, cycleEnd: d(8) } });
     const res = await service.getActiveCycle('c1');

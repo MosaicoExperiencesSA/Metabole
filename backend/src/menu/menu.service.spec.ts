@@ -306,6 +306,18 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(pending[0].recipeId).toBe('r1');
   });
 
+  /**
+   * ⚠️ LE STELLE MAI DATE NON ORIENTANO PIÙ IL MOTORE (decisione della notte del 18/8). Il 3 che
+   * l'app scrive quando la cliente tocca solo «Seguita / Non seguita» è un valore di scorta: qui
+   * pesava sul punteggio del pool, cioè su cosa le viene riproposto.
+   */
+  it('⚠️ il punteggio del pool legge solo le stelle DATE', async () => {
+    prisma.recipeRating.findMany.mockClear();
+    await service.deliverIfEligible('u1').catch(() => undefined);
+    const letture = prisma.recipeRating.findMany.mock.calls.map((c: any) => c[0]?.where ?? {});
+    expect(letture.some((w: any) => w?.NOT?.tags?.has === 'stelle_non_date')).toBe(true);
+  });
+
   it('lista spesa: aggrega gli ingredienti per nome e unità', async () => {
     prisma.menuDay.findMany.mockResolvedValue([
       { date: D(todayIso), meals: [{ slot: 'lunch', recipeId: 'r1' }, { slot: 'dinner', recipeId: 'r2' }] },

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { SOLO_STELLE_DATE } from '../menu/stelle-che-contano';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,8 +42,10 @@ export class SignalsCollectorService {
         where: { clientId, date: { gte: sevenDaysAgo } },
         orderBy: { date: 'desc' },
       }),
+      // ⚠️ Solo le stelle DATE: un 3 messo dall'app al posto della cliente non è un segnale di
+      // gusto, ed è un segnale che il motore usa. Vedi `menu/stelle-che-contano.ts`.
       this.prisma.recipeRating.findMany({
-        where: { clientId, date: { gte: new Date(today.getTime() - 14 * 86_400_000) } },
+        where: { clientId, date: { gte: new Date(today.getTime() - 14 * 86_400_000) }, ...SOLO_STELLE_DATE },
         select: { stars: true },
       }),
       this.configParams.getNumber('low_energy_chronic_threshold', 2.5),
