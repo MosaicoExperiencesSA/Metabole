@@ -22,6 +22,7 @@
  * `npm run seed:nutrienti`  ·  gira anche dentro `prisma/seed.ts` a ogni deploy.
  */
 import { PrismaClient } from '@prisma/client';
+import { capoCheConferma } from './capo-che-conferma';
 
 export interface RigaNutriente {
   name: string;
@@ -32,7 +33,17 @@ export interface RigaNutriente {
   giMin?: number;
   giMax?: number;
   giSource?: string;
-  giReliability?: 'solida' | 'media' | 'debole';
+  /**
+   * `solida` | `media` | `debole` | `non_applicabile`.
+   *
+   * ⚠️ **`non_applicabile` NON è «non lo so»**, ed è la ragione per cui esiste (18/8). Un alimento
+   * senza carboidrati — l'olio, il parmigiano, il petto di pollo — non ha un indice glicemico: non è
+   * un dato che ci manca, è un dato che non esiste. Prima le due cose erano lo stesso `null`, e
+   * Gaia rispondeva a «qual è l'indice glicemico del salmone?» **tacendo**, che è vero e sembra
+   * reticenza. Il capo nutrizionista le ha marcate N.D. nella sua tabella del 18/8: adesso la
+   * risposta è quella giusta, «non si applica», e non è una nostra deduzione — è la sua.
+   */
+  giReliability?: 'solida' | 'media' | 'debole' | 'non_applicabile';
   kcal?: number;
   protein?: number;
   carbs?: number;
@@ -42,6 +53,18 @@ export interface RigaNutriente {
   source?: string;
   sourceRef?: string;
   note?: string;
+  /**
+   * ⚠️ **APPROVATA DAL CAPO NUTRIZIONISTA** (18/8). Il seed la scrive con `verifiedById` e
+   * `verifiedAt` valorizzati, cioè come se l'avesse guardata lui in scheda — perché l'ha guardata.
+   *
+   * ⚠️ E questo la rende INTOCCABILE dai deploy successivi: la regola 1 qui sopra dice che una riga
+   * confermata non si sovrascrive, e da adesso vale anche per queste. Cambiare un numero in questo
+   * file non lo cambierà più in produzione — ci vuole una tabella nuova firmata da lui, oppure la
+   * correzione si fa in scheda. È il prezzo di avere una decisione clinica che un rilascio non può
+   * disfare, ed è il prezzo giusto: ma se non è scritto qui, il prossimo che modifica una riga
+   * penserà che il deploy non abbia funzionato.
+   */
+  confermato?: true;
 }
 
 const CREA = 'CREA — Banca Dati di Composizione degli Alimenti';
@@ -49,8 +72,27 @@ const IT2008 = 'International Tables of Glycemic Index (Atkinson et al., 2008)';
 const IT2021 = 'International Tables of Glycemic Index (Atkinson et al., 2021)';
 const SYDNEY = 'Università di Sydney — glycemicindex.com';
 const LPI = 'Linus Pauling Institute (da International Tables 2008)';
+/**
+ * LA TABELLA DEL CAPO NUTRIZIONISTA, 18/8/2026 — quello che mancava, riempito da lui.
+ *
+ * Il 18/8 ha mandato la tabella completa dei 57 alimenti. ⚠️ Confrontata riga per riga con quello
+ * che c'era: **58 differenze, tutte nella stessa direzione** — un buco nel seed e un valore nella
+ * sua tabella. Zero contraddizioni: nessun numero che avevamo è stato smentito. Vale la pena
+ * dirlo, perché era il rischio del confronto e non si è avverato.
+ */
+const CAPO = 'Tabella del capo nutrizionista (18/8/2026)';
 
-export const VALORI: RigaNutriente[] = [
+/**
+ * ⚠️ TUTTE LE RIGHE QUI DENTRO SONO NELLA TABELLA FIRMATA DAL CAPO NUTRIZIONISTA IL 18/8.
+ *
+ * La funzione non fa altro che metterci sopra `confermato: true`, ed esiste per una ragione sola:
+ * il confine dev'essere **visibile**. Una riga aggiunta domani dalla ricerca, che lui non ha ancora
+ * guardato, va scritta FUORI da questa chiamata — altrimenti si intesta a lui una decisione che non
+ * ha preso, ed è la cosa peggiore che si possa fare a una firma.
+ */
+const firmateDalCapo = (righe: RigaNutriente[]): RigaNutriente[] => righe.map((r) => ({ ...r, confermato: true as const }));
+
+export const VALORI: RigaNutriente[] = firmateDalCapo([
   // ---------- Cereali e derivati ----------
   {
     name: 'riso bianco', synonyms: ['riso brillato', 'riso comune'], category: 'cereali', state: 'crudo',
@@ -76,7 +118,8 @@ export const VALORI: RigaNutriente[] = [
   {
     name: 'riso parboiled', category: 'cereali', state: 'crudo',
     gi: 68, giMin: 68, giMax: 75, giSource: IT2008, giReliability: 'media',
-    note: '68 con 10 minuti di cottura, 75 con 20: qui la cottura conta più della varietà.',
+    kcal: 337, protein: 7.4, carbs: 73.8, fat: 0.3, fiber: 1, source: CAPO,
+    note: '68 con 10 minuti di cottura, 75 con 20: qui la cottura conta più della varietà. I valori per 100 g mancavano: li ha dati il capo il 18/8.',
   },
   {
     name: 'pasta di semola', synonyms: ['pasta', 'spaghetti', 'pasta normale'], category: 'cereali', state: 'cruda',
@@ -133,7 +176,8 @@ export const VALORI: RigaNutriente[] = [
   {
     name: 'gallette di riso', category: 'cereali',
     gi: 82, giSource: IT2008, giReliability: 'solida',
-    note: 'Uno degli IG più alti in tabella, e le fonti concordano.',
+    kcal: 387, protein: 8.1, carbs: 81, fat: 2.8, fiber: 3.1, source: CAPO,
+    note: 'Uno degli IG più alti in tabella, e le fonti concordano. I valori per 100 g mancavano: li ha dati il capo il 18/8.',
   },
   {
     name: 'patate', synonyms: ['patata'], category: 'verdura', state: 'crude',
@@ -165,13 +209,17 @@ export const VALORI: RigaNutriente[] = [
   },
   {
     name: 'fagioli borlotti', synonyms: ['borlotti', 'fagioli'], category: 'legumi', state: 'secchi',
+    gi: 28, giSource: CAPO, giReliability: 'debole',
     kcal: 312, protein: 20.2, carbs: 47.7, sugars: 3.5, fat: 2, fiber: 17.3, source: CREA, sourceRef: 'CREA 004120',
-    note: 'Nessun IG specifico per i borlotti da fonte affidabile: la riga resta senza indice invece di prenderlo da un altro fagiolo.',
+    note:
+      'L\'11/8 questa riga restava SENZA indice: nessun dato specifico sui borlotti da fonte affidabile, e prenderlo ' +
+      'da un altro fagiolo sarebbe stato inventare. Il 18/8 il capo ha dato 28, dichiarandolo lui stesso DEBOLE.',
   },
   {
     name: 'fagioli cannellini', synonyms: ['cannellini'], category: 'legumi', state: 'secchi',
     gi: 31, giSource: SYDNEY, giReliability: 'debole',
-    note: 'L\'IG è quello dei fagioli bianchi navy/haricot: surrogato dichiarato, non un dato sui cannellini.',
+    kcal: 279, protein: 23.4, carbs: 45.5, fat: 1.6, fiber: 17.6, source: CAPO,
+    note: 'L\'IG è quello dei fagioli bianchi navy/haricot: surrogato dichiarato, non un dato sui cannellini. I valori per 100 g li ha dati il capo il 18/8.',
   },
   {
     name: 'piselli', category: 'legumi', state: 'freschi',
@@ -180,43 +228,43 @@ export const VALORI: RigaNutriente[] = [
   },
 
   // ---------- Frutta ----------
-  { name: 'mela', category: 'frutta', gi: 39, giMin: 36, giMax: 39, giSource: LPI, giReliability: 'solida', kcal: 44, protein: 0.2, carbs: 10, sugars: 10, fiber: 2.6, source: CREA, sourceRef: 'CREA 007120' },
+  { name: 'mela', category: 'frutta', gi: 39, giMin: 36, giMax: 39, giSource: LPI, giReliability: 'solida', kcal: 44, protein: 0.2, carbs: 10, sugars: 10, fat: 0.1, fiber: 2.6, source: CREA, sourceRef: 'CREA 007120', note: 'I grassi (0,1 g) mancavano: dati dal capo il 18/8.' },
   { name: 'banana', category: 'frutta', gi: 62, giMin: 48, giMax: 62, giSource: IT2008, giReliability: 'media', kcal: 76, protein: 1.2, carbs: 17.4, sugars: 14.8, fat: 0.3, fiber: 1.8, source: CREA, sourceRef: 'CREA 007510', note: 'L\'IG dipende dalla maturazione: poco matura 48-55, matura 62.' },
   { name: 'pera', category: 'frutta', gi: 38, giMin: 29, giMax: 38, giSource: LPI, giReliability: 'media', kcal: 43, protein: 0.3, carbs: 8.8, sugars: 8.8, fat: 0.1, fiber: 3.8, source: CREA, sourceRef: 'CREA 007260' },
   { name: 'arancia', category: 'frutta', gi: 40, giMin: 40, giMax: 45, giSource: IT2008, giReliability: 'solida', kcal: 37, protein: 0.7, carbs: 7.8, sugars: 7.8, fat: 0.2, fiber: 1.6, source: CREA, sourceRef: 'CREA 008000' },
-  { name: 'kiwi', category: 'frutta', kcal: 48, protein: 1.2, carbs: 9, sugars: 9, fat: 0.6, fiber: 2.2, source: CREA, sourceRef: 'CREA 007570', note: 'Nessun IG trovato da fonte affidabile: la riga resta senza indice.' },
+  { name: 'kiwi', category: 'frutta', gi: 52, giSource: CAPO, giReliability: 'media', kcal: 48, protein: 1.2, carbs: 9, sugars: 9, fat: 0.6, fiber: 2.2, source: CREA, sourceRef: 'CREA 007570', note: 'L\'11/8 nessun IG da fonte affidabile e la riga restava senza indice; il 18/8 il capo ha dato 52.' },
   { name: 'fragole', category: 'frutta', gi: 40, giSource: SYDNEY, giReliability: 'media', kcal: 30, protein: 0.9, carbs: 5.3, sugars: 5.3, fat: 0.4, fiber: 1.6, source: CREA, sourceRef: 'CREA 007730' },
-  { name: 'anguria', synonyms: ['melone d\'acqua', 'cocomero'], category: 'frutta', gi: 60, giMin: 50, giMax: 76, giSource: IT2021, giReliability: 'debole', note: 'Dato molto instabile: le tabelle 2008 danno 72-76, le 2021 danno 50. Il carico glicemico resta comunque basso (4 per 120 g).' },
-  { name: 'pesca', category: 'frutta', gi: 42, giSource: IT2008, giReliability: 'media', note: 'Pesca FRESCA: quella sciroppata è più alta.' },
-  { name: 'ananas', category: 'frutta', gi: 58, giMin: 58, giMax: 66, giSource: LPI, giReliability: 'media' },
-  { name: 'uva', category: 'frutta', gi: 59, giSource: IT2008, giReliability: 'media' },
+  { name: 'anguria', synonyms: ['melone d\'acqua', 'cocomero'], category: 'frutta', gi: 60, giMin: 50, giMax: 76, giSource: IT2021, giReliability: 'debole', kcal: 16, protein: 0.4, carbs: 3.7, fat: 0.2, fiber: 0.2, source: CAPO, note: 'Dato molto instabile: le tabelle 2008 danno 72-76, le 2021 danno 50. Il carico glicemico resta comunque basso (4 per 120 g). I valori per 100 g li ha dati il capo il 18/8.' },
+  { name: 'pesca', category: 'frutta', gi: 42, giSource: IT2008, giReliability: 'media', kcal: 27, protein: 0.8, carbs: 6.1, fat: 0.1, fiber: 1.6, source: CAPO, note: 'Pesca FRESCA: quella sciroppata è più alta. I valori per 100 g li ha dati il capo il 18/8.' },
+  { name: 'ananas', category: 'frutta', gi: 58, giMin: 58, giMax: 66, giSource: LPI, giReliability: 'media', kcal: 42, protein: 0.5, carbs: 10, fat: 0.1, fiber: 1, source: CAPO },
+  { name: 'uva', category: 'frutta', gi: 59, giSource: IT2008, giReliability: 'media', kcal: 61, protein: 0.5, carbs: 15.6, fat: 0.1, fiber: 1.5, source: CAPO },
 
   // ---------- Latte e derivati ----------
   { name: 'latte intero', category: 'latticini', gi: 41, giSource: IT2008, giReliability: 'media', kcal: 64, protein: 3.3, carbs: 4.9, sugars: 4.9, fat: 3.6, fiber: 0, source: CREA, sourceRef: 'CREA 135010' },
-  { name: 'latte parzialmente scremato', category: 'latticini', kcal: 46, protein: 3.5, carbs: 5, sugars: 5, fat: 1.5, fiber: 0, source: CREA, sourceRef: 'CREA 135020', note: 'Nessun IG per il parzialmente scremato: le tabelle hanno solo intero (41) e scremato (32).' },
+  { name: 'latte parzialmente scremato', category: 'latticini', gi: 32, giSource: CAPO, giReliability: 'media', kcal: 46, protein: 3.5, carbs: 5, sugars: 5, fat: 1.5, fiber: 0, source: CREA, sourceRef: 'CREA 135020', note: 'Le tabelle internazionali hanno solo intero (41) e scremato (32) e la riga restava senza indice; il 18/8 il capo ha dato 32 — cioè il valore dello scremato.' },
   { name: 'yogurt bianco intero', synonyms: ['yogurt intero'], category: 'latticini', gi: 12, giSource: SYDNEY, giReliability: 'debole', kcal: 66, protein: 3.8, carbs: 4.3, sugars: 4.3, fat: 3.9, fiber: 0, source: CREA, sourceRef: 'CREA 150010', note: 'L\'IG viene dalla voce «greek style, full cream»: non è esattamente lo yogurt bianco intero.' },
   { name: 'yogurt greco 0%', synonyms: ['yogurt greco magro', 'yogurt greco'], category: 'latticini', gi: 19, giSource: SYDNEY, giReliability: 'debole', kcal: 51, protein: 9, carbs: 4, sugars: 4, fat: 0, fiber: 0, source: CREA, sourceRef: 'CREA 150030' },
-  { name: 'ricotta di vacca', synonyms: ['ricotta'], category: 'latticini', kcal: 146, protein: 8.8, carbs: 3.5, sugars: 3.5, fat: 10.9, fiber: 0, source: CREA, sourceRef: 'CREA 166820' },
-  { name: 'mozzarella di vacca', synonyms: ['mozzarella'], category: 'latticini', kcal: 253, protein: 18.7, carbs: 0.7, sugars: 0.7, fat: 19.5, fiber: 0, source: CREA, sourceRef: 'CREA 164820' },
-  { name: 'parmigiano reggiano', synonyms: ['parmigiano', 'grana'], category: 'latticini', kcal: 397, protein: 32.4, carbs: 0, sugars: 0, fat: 29.7, fiber: 0, source: CREA, sourceRef: 'CREA 166000' },
+  { name: 'ricotta di vacca', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['ricotta'], category: 'latticini', kcal: 146, protein: 8.8, carbs: 3.5, sugars: 3.5, fat: 10.9, fiber: 0, source: CREA, sourceRef: 'CREA 166820' },
+  { name: 'mozzarella di vacca', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['mozzarella'], category: 'latticini', kcal: 253, protein: 18.7, carbs: 0.7, sugars: 0.7, fat: 19.5, fiber: 0, source: CREA, sourceRef: 'CREA 164820' },
+  { name: 'parmigiano reggiano', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['parmigiano', 'grana'], category: 'latticini', kcal: 397, protein: 32.4, carbs: 0, sugars: 0, fat: 29.7, fiber: 0, source: CREA, sourceRef: 'CREA 166000' },
 
   // ---------- Alimenti proteici ----------
-  { name: 'petto di pollo', synonyms: ['pollo'], category: 'proteici', state: 'crudo', kcal: 100, protein: 23.3, carbs: 0, sugars: 0, fat: 0.8, fiber: 0, source: CREA, sourceRef: 'CREA 106500' },
-  { name: 'fesa di tacchino', synonyms: ['tacchino'], category: 'proteici', state: 'cruda', kcal: 107, protein: 24, carbs: 0, sugars: 0, fat: 1.2, fiber: 0, source: CREA, sourceRef: 'CREA 106850' },
-  { name: 'uovo', synonyms: ['uova', 'uovo intero'], category: 'proteici', state: 'crudo', kcal: 128, protein: 12.4, carbs: 0, sugars: 0, fat: 8.7, fiber: 0, source: CREA, sourceRef: 'CREA 181100' },
-  { name: 'tonno al naturale', synonyms: ['tonno'], category: 'proteici', kcal: 103, protein: 25.1, carbs: 0, sugars: 0, fat: 0.3, fiber: 0, source: CREA, sourceRef: 'CREA 123550', note: 'Sgocciolato.' },
-  { name: 'salmone', category: 'proteici', state: 'crudo', kcal: 185, protein: 18.4, carbs: 1, sugars: 1, fat: 12, fiber: 0, source: CREA, sourceRef: 'CREA 122400' },
-  { name: 'merluzzo', synonyms: ['nasello'], category: 'proteici', state: 'crudo', kcal: 71, protein: 17, carbs: 0, sugars: 0, fat: 0.3, fiber: 0, source: CREA, sourceRef: 'CREA 121410' },
-  { name: 'manzo magro', synonyms: ['fesa di manzo', 'manzo'], category: 'proteici', state: 'crudo', kcal: 103, protein: 21.8, carbs: 0, sugars: 0, fat: 1.8, fiber: 0, source: CREA, sourceRef: 'CREA 101160', note: 'Taglio: fesa. Altri tagli vanno da ~2 a oltre 10 g di grassi: «manzo» da solo non dice le calorie.' },
-  { name: 'prosciutto crudo', category: 'proteici', kcal: 269, protein: 25.9, carbs: 0.3, fat: 18.3, fiber: 0, source: CREA, sourceRef: 'CREA 110510', note: 'Prosciutto di Parma.' },
-  { name: 'bresaola', category: 'proteici', kcal: 152, protein: 33.1, carbs: 0.4, fat: 2, fiber: 0, source: CREA, sourceRef: 'CREA 110020' },
+  { name: 'petto di pollo', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['pollo'], category: 'proteici', state: 'crudo', kcal: 100, protein: 23.3, carbs: 0, sugars: 0, fat: 0.8, fiber: 0, source: CREA, sourceRef: 'CREA 106500' },
+  { name: 'fesa di tacchino', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['tacchino'], category: 'proteici', state: 'cruda', kcal: 107, protein: 24, carbs: 0, sugars: 0, fat: 1.2, fiber: 0, source: CREA, sourceRef: 'CREA 106850' },
+  { name: 'uovo', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['uova', 'uovo intero'], category: 'proteici', state: 'crudo', kcal: 128, protein: 12.4, carbs: 0, sugars: 0, fat: 8.7, fiber: 0, source: CREA, sourceRef: 'CREA 181100' },
+  { name: 'tonno al naturale', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['tonno'], category: 'proteici', kcal: 103, protein: 25.1, carbs: 0, sugars: 0, fat: 0.3, fiber: 0, source: CREA, sourceRef: 'CREA 123550', note: 'Sgocciolato.' },
+  { name: 'salmone', giReliability: 'non_applicabile', giSource: CAPO, category: 'proteici', state: 'crudo', kcal: 185, protein: 18.4, carbs: 1, sugars: 1, fat: 12, fiber: 0, source: CREA, sourceRef: 'CREA 122400' },
+  { name: 'merluzzo', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['nasello'], category: 'proteici', state: 'crudo', kcal: 71, protein: 17, carbs: 0, sugars: 0, fat: 0.3, fiber: 0, source: CREA, sourceRef: 'CREA 121410' },
+  { name: 'manzo magro', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['fesa di manzo', 'manzo'], category: 'proteici', state: 'crudo', kcal: 103, protein: 21.8, carbs: 0, sugars: 0, fat: 1.8, fiber: 0, source: CREA, sourceRef: 'CREA 101160', note: 'Taglio: fesa. Altri tagli vanno da ~2 a oltre 10 g di grassi: «manzo» da solo non dice le calorie.' },
+  { name: 'prosciutto crudo', giReliability: 'non_applicabile', giSource: CAPO, category: 'proteici', kcal: 269, protein: 25.9, carbs: 0.3, fat: 18.3, fiber: 0, source: CREA, sourceRef: 'CREA 110510', note: 'Prosciutto di Parma.' },
+  { name: 'bresaola', giReliability: 'non_applicabile', giSource: CAPO, category: 'proteici', kcal: 152, protein: 33.1, carbs: 0.4, fat: 2, fiber: 0, source: CREA, sourceRef: 'CREA 110020' },
 
   // ---------- Grassi ----------
-  { name: 'olio extravergine di oliva', synonyms: ['olio evo', 'olio di oliva', 'olio'], category: 'grassi', kcal: 899, protein: 0, carbs: 0, sugars: 0, fat: 99.9, fiber: 0, source: CREA, sourceRef: 'CREA 009210' },
-  { name: 'mandorle', category: 'grassi', kcal: 628, protein: 22, carbs: 4.6, sugars: 3.7, fat: 55.3, fiber: 12.7, source: CREA, sourceRef: 'CREA 008540', note: 'Secche.' },
-  { name: 'noci', category: 'grassi', kcal: 702, protein: 14.3, carbs: 5.1, sugars: 3.1, fat: 68.1, fiber: 6.2, source: CREA, sourceRef: 'CREA 008570', note: 'Secche.' },
-  { name: 'avocado', category: 'grassi', kcal: 238, protein: 4.4, carbs: 1.8, sugars: 1.8, fat: 23, fiber: 3.3, source: CREA, sourceRef: 'CREA 007490' },
-  { name: 'burro', category: 'grassi', kcal: 758, protein: 0.8, carbs: 1.1, sugars: 1.1, fat: 83.4, fiber: 0, source: CREA, sourceRef: 'CREA 190010' },
+  { name: 'olio extravergine di oliva', giReliability: 'non_applicabile', giSource: CAPO, synonyms: ['olio evo', 'olio di oliva', 'olio'], category: 'grassi', kcal: 899, protein: 0, carbs: 0, sugars: 0, fat: 99.9, fiber: 0, source: CREA, sourceRef: 'CREA 009210' },
+  { name: 'mandorle', category: 'grassi', gi: 15, giSource: CAPO, giReliability: 'debole', kcal: 628, protein: 22, carbs: 4.6, sugars: 3.7, fat: 55.3, fiber: 12.7, source: CREA, sourceRef: 'CREA 008540', note: 'Secche.' },
+  { name: 'noci', category: 'grassi', gi: 15, giSource: CAPO, giReliability: 'debole', kcal: 702, protein: 14.3, carbs: 5.1, sugars: 3.1, fat: 68.1, fiber: 6.2, source: CREA, sourceRef: 'CREA 008570', note: 'Secche.' },
+  { name: 'avocado', category: 'grassi', gi: 10, giSource: CAPO, giReliability: 'debole', kcal: 238, protein: 4.4, carbs: 1.8, sugars: 1.8, fat: 23, fiber: 3.3, source: CREA, sourceRef: 'CREA 007490' },
+  { name: 'burro', giReliability: 'non_applicabile', giSource: CAPO, category: 'grassi', kcal: 758, protein: 0.8, carbs: 1.1, sugars: 1.1, fat: 83.4, fiber: 0, source: CREA, sourceRef: 'CREA 190010' },
 
   // ---------- Dolci e zuccheri ----------
   { name: 'zucchero', synonyms: ['saccarosio', 'zucchero bianco'], category: 'dolci', gi: 63, giSource: LPI, giReliability: 'media', kcal: 392, protein: 0, carbs: 100, sugars: 100, fat: 0, fiber: 0, source: CREA, sourceRef: 'CREA 201500', note: 'Il CREA esprime i carboidrati in monosaccaridi e dà 104,5 g su 100 g: qui normalizzato a 100, altrimenti la somma dei macro sfora.' },
@@ -224,15 +272,27 @@ export const VALORI: RigaNutriente[] = [
   { name: 'cioccolato fondente', synonyms: ['cioccolato'], category: 'dolci', gi: 29, giSource: SYDNEY, giReliability: 'debole', kcal: 531, protein: 6.6, carbs: 49.7, sugars: 49.7, fat: 33.6, fiber: 8, source: CREA, sourceRef: 'CREA 203020', note: 'Voce generica, non specifica per il 70% di cacao — né per l\'IG né per i valori.' },
 
   // ---------- Verdura ----------
-  { name: 'carote', synonyms: ['carota'], category: 'verdura', state: 'bollite', gi: 35, giMin: 33, giMax: 39, giSource: IT2008, giReliability: 'media', note: 'Il carico glicemico è bassissimo (2 per 80 g): l\'IG da solo, qui, dice poco.' },
-  { name: 'zucca', category: 'verdura', state: 'bollita', gi: 51, giMin: 51, giMax: 75, giSource: SYDNEY, giReliability: 'debole', note: 'Il dato è della butternut; in letteratura ci sono voci di zucca fino a 75.' },
-];
+  { name: 'carote', synonyms: ['carota'], category: 'verdura', state: 'bollite', gi: 35, giMin: 33, giMax: 39, giSource: IT2008, giReliability: 'media', kcal: 35, protein: 0.8, carbs: 7.6, fat: 0.2, fiber: 2.7, source: CAPO, note: 'Il carico glicemico è bassissimo (2 per 80 g): l\'IG da solo, qui, dice poco.' },
+  { name: 'zucca', category: 'verdura', state: 'bollita', gi: 51, giMin: 51, giMax: 75, giSource: SYDNEY, giReliability: 'debole', kcal: 18, protein: 0.8, carbs: 3.5, fat: 0.1, fiber: 1.2, source: CAPO, note: 'Il dato è della butternut; in letteratura ci sono voci di zucca fino a 75.' },
+]);
 
 /** Il seed vero e proprio, riusabile da `prisma/seed.ts`. */
-export async function seedValoriNutrizionali(prisma: PrismaClient): Promise<{ creati: number; aggiornati: number; saltati: number }> {
+export async function seedValoriNutrizionali(
+  prisma: PrismaClient,
+): Promise<{ creati: number; aggiornati: number; saltati: number; firmate: number; senzaFirma: boolean }> {
   let creati = 0;
   let aggiornati = 0;
   let saltati = 0;
+  let firmate = 0;
+
+  /**
+   * CHI FIRMA. ⚠️ Se non c'è un capo nutrizionista attivo **non si ripiega** scrivendo i valori
+   * come «da confermare»: si scrivono lo stesso (Gaia li usa anche non confermati, ed è meglio
+   * averli), ma la firma **non** si mette. Intestare a nessuno una conferma clinica sarebbe
+   * riempire una colonna che dice «l'ha guardata una persona» senza che nessuno l'abbia guardata.
+   * Il chiamante lo dice, e `senzaFirma` esiste per quello.
+   */
+  const capo = await capoCheConferma(prisma as never);
 
   for (const r of VALORI) {
     const dati = {
@@ -254,6 +314,8 @@ export async function seedValoriNutrizionali(prisma: PrismaClient): Promise<{ cr
       sourceRef: r.sourceRef ?? null,
       note: r.note ?? null,
     };
+    /** La firma si aggiunge solo alle righe che il capo ha davvero guardato, e solo se c'è lui. */
+    const firma = r.confermato && capo ? { verifiedById: capo.staffId, verifiedAt: new Date() } : {};
 
     const esistente = (await prisma.nutrientFact.findUnique({
       where: { name: r.name },
@@ -261,8 +323,9 @@ export async function seedValoriNutrizionali(prisma: PrismaClient): Promise<{ cr
     })) as { id: string; verifiedAt: Date | null } | null;
 
     if (!esistente) {
-      await prisma.nutrientFact.create({ data: { name: r.name, ...dati } as never });
+      await prisma.nutrientFact.create({ data: { name: r.name, ...dati, ...firma } as never });
       creati += 1;
+      if ('verifiedAt' in firma) firmate += 1;
       continue;
     }
     if (esistente.verifiedAt) {
@@ -280,11 +343,12 @@ export async function seedValoriNutrizionali(prisma: PrismaClient): Promise<{ cr
       saltati += 1;
       continue;
     }
-    await prisma.nutrientFact.update({ where: { id: esistente.id }, data: dati as never });
+    await prisma.nutrientFact.update({ where: { id: esistente.id }, data: { ...dati, ...firma } as never });
     aggiornati += 1;
+    if ('verifiedAt' in firma) firmate += 1;
   }
 
-  return { creati, aggiornati, saltati };
+  return { creati, aggiornati, saltati, firmate, senzaFirma: !capo };
 }
 
 /** Esecuzione a mano: `npm run seed:nutrienti`. */
@@ -294,8 +358,21 @@ if (require.main === module) {
     .then((esito) => {
       console.log(
         `\nBanca dati nutrizionale: ${esito.creati} creati, ${esito.aggiornati} aggiornati, ` +
-          `${esito.saltati} lasciati intatti perché confermati dalla nutrizionista.\n`,
+          `${esito.saltati} lasciati intatti perché confermati dalla nutrizionista, ` +
+          `${esito.firmate} firmate dal capo.\n`,
       );
+      if (esito.senzaFirma) {
+        console.log(
+          '⚠️ Nessun capo nutrizionista attivo: i valori sono stati scritti, ma NON firmati. ' +
+            'Rilancia questo seed quando c\'è un capo, o le righe resteranno «da confermare».\n',
+        );
+      }
+      if (esito.saltati) {
+        console.log(
+          `ℹ️ ${esito.saltati} righe erano già confermate e NON sono state toccate: da quel momento il ` +
+            'file non le governa più. Se un numero va cambiato si cambia in scheda, non qui.\n',
+        );
+      }
     })
     .catch((e) => {
       console.error(e);

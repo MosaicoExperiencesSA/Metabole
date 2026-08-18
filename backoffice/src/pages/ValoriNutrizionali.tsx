@@ -59,6 +59,14 @@ const AFFIDABILITA: Record<string, { etichetta: string; chip: string; spiega: st
   solida: { etichetta: 'Solida', chip: '', spiega: 'Più fonti concordano: Gaia dice il numero.' },
   media: { etichetta: 'Media', chip: 'amber', spiega: 'Una fonte autorevole o un range noto: Gaia dice il numero se il range è stretto, altrimenti il range.' },
   debole: { etichetta: 'Debole', chip: 'red', spiega: 'Un solo dato, un surrogato o fonti in disaccordo: Gaia dice SOLO il range, mai il numero.' },
+  /**
+   * ⚠️ «NON SI APPLICA» NON È «NON LO SO» (18/8). Un alimento senza carboidrati — l'olio, il
+   * parmigiano, il petto di pollo — un indice glicemico non ce l'ha: non è un dato che ci manca.
+   * Prima le due cose erano lo stesso campo vuoto, e Gaia rispondeva **tacendo** a chi lo chiedeva.
+   * ⚠️ E dev'esserci anche nella tendina qui sotto: senza, aprire una di queste righe e salvarla
+   * riscriverebbe «non lo so» sopra una dichiarazione del capo nutrizionista, in silenzio.
+   */
+  non_applicabile: { etichetta: 'Non si applica', chip: '', spiega: 'Alimento senza carboidrati (o con quantità trascurabili): l\'indice glicemico non esiste per questo alimento, e Gaia lo dice invece di tacere.' },
 };
 
 const numero = (v: number | null) => (v === null || v === undefined ? '—' : String(v).replace('.', ','));
@@ -355,12 +363,13 @@ export function ValoriNutrizionali() {
                                 className="select sm"
                                 value={bozza.glycemicIndexReliability ?? ''}
                                 onChange={(e) => setBozza((b) => ({ ...b, glycemicIndexReliability: e.target.value }))}
-                                title="Con «debole» Gaia dice il range e non il numero"
+                                title="Con «debole» Gaia dice il range e non il numero. «Non si applica» = l'alimento un indice glicemico non ce l'ha."
                               >
                                 <option value="">—</option>
                                 <option value="solida">Solida</option>
                                 <option value="media">Media</option>
                                 <option value="debole">Debole</option>
+                                <option value="non_applicabile">Non si applica (niente carboidrati)</option>
                               </select>
                             </label>
                             <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>

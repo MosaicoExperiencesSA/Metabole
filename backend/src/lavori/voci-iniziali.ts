@@ -915,6 +915,16 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 268,
   },
 
+  {
+    chiave: 'tabella-capo-valori-mancanti',
+    titolo: 'I valori nutrizionali che mancavano: integrati e approvati dal capo (18/8)',
+    dettaglio:
+      'Il capo nutrizionista ha mandato la tabella completa dei 57 alimenti, tutte le righe «Confermato». ⚠️ Confronto riga per riga prima di toccare niente: **58 differenze, tutte nella stessa direzione** (un buco da noi, un valore da lui), **zero contraddizioni**. Entrano i sei IG che mancavano (borlotti 28, kiwi 52, latte parz. scremato 32, avocado 10, mandorle 15, noci 15) e i valori per 100 g di dieci righe; le note che dicevano «la riga resta senza indice» sono state riscritte, perché accanto a un numero si smentivano da sole. ⚠️ **«Non si applica» non è «non lo so»**: 14 alimenti senza carboidrati hanno N.D. nella sua colonna, e adesso Gaia lo DICE invece di tacere (con zero numeri autorizzati). ⚠️ La tendina in backoffice aveva tre opzioni: salvare una di quelle righe avrebbe riscritto «non lo so» sopra la sua firma — aggiunta la quarta. ⚠️ E il prezzo della firma: da adesso il seed non governa più quelle righe, quindi cambiare un numero nel file non lo cambia più in produzione. `tabella-capo.spec.ts` (61 test) rifà da solo il confronto. ⛔ **Resta da lanciare** `npm run seed:nutrienti` in produzione (gira comunque a ogni deploy).',
+    categoria: DATI,
+    ordine: 269,
+    fatta: true, // 18/8
+  },
+
   /**
    * ⚠️ LE TRE RIGHE DOPPIE DEL 13/8 (voce 224). Non sono lavori: sono duplicati rimasti in pagina
    * con una chiave diversa da quella delle voci vere — che sono, nell'ordine,

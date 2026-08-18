@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🥗 **I valori che mancavano, integrati e approvati dal capo nutrizionista.** Ha mandato
+  la tabella completa dei 57 alimenti, tutte le righe «Confermato». ⚠️ Prima di toccare qualsiasi cosa
+  l'ho trascritta e confrontata riga per riga col seed su dieci campi: **58 differenze, tutte nella
+  stessa direzione** — un buco da noi, un valore da lui. **Zero contraddizioni**: nessun numero che
+  avevamo è stato smentito, ed era il rischio del confronto. Entrano i sei IG che l'11/8 mancavano
+  (borlotti 28, kiwi 52, latte parzialmente scremato 32, avocado 10, mandorle 15, noci 15) e i valori
+  per 100 g di dieci righe. ⚠️ **Le note sono state riscritte, non lasciate lì**: tre dicevano «nessun
+  IG da fonte affidabile, la riga resta senza indice», e lasciarle accanto a un numero avrebbe fatto
+  un documento che si smentisce da solo. ⚠️ **E il pezzo che vale più dei numeri: «non si applica» non
+  è «non lo so».** Quattordici alimenti (olio, parmigiano, petto di pollo, uovo, salmone…) hanno N.D.
+  nella sua colonna dell'IG, perché un alimento senza carboidrati un indice glicemico **non ce l'ha**.
+  Prima quel caso e «non lo sappiamo» erano lo stesso campo vuoto, e a «qual è l'indice glicemico del
+  salmone?» Gaia rispondeva **tacendo sull'unica cosa che le era stata chiesta** — vero, e
+  indistinguibile da una reticenza. Adesso lo dice, con **zero numeri autorizzati** (la guardia in
+  uscita continua a rifiutare qualunque cifra inventata), e non è una nostra deduzione: è la sua
+  dichiarazione. ⚠️ La tendina in backoffice aveva tre opzioni: aprire una di quelle righe e salvarla
+  avrebbe riscritto «non lo so» sopra la sua firma, in silenzio — aggiunta la quarta. ⚠️ E il prezzo
+  della firma, detto ad alta voce: da adesso il seed non governa più quelle 57 righe, quindi cambiare
+  un numero nel file **non lo cambia più in produzione** — ci vuole una tabella nuova firmata, o la
+  scheda. `tabella-capo.spec.ts` rifà da solo il confronto che ho fatto a mano (61 test): se fallisce,
+  la domanda non è «come lo aggiusto», è «chi ha firmato il numero nuovo?». 217 suite, 3431 verdi.
+
 - `[Sviluppo]` 🧭 **«Ordine del menu»: cinque difetti chiusi, e il backoffice adesso ha i test.**
   Nessuno era mai stato segnalato: sono usciti rileggendo `menuOrder.ts` per spiegare come funziona.
   ⚠️ Il più grave era **perdita di dati silenziosa**: `menuOrder` passava dalla `clean` comune a tutte

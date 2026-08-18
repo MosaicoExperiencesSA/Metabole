@@ -1,0 +1,72 @@
+I valori che mancavano, integrati e approvati dal capo nutrizionista
+
+Il 18/8 il capo nutrizionista ha mandato la tabella completa dei 57 alimenti (IG, affidabilità,
+kcal, proteine, carboidrati, grassi, fibre, stato crudo/cotto), tutte le righe marcate «Confermato».
+
+IL CONFRONTO, PRIMA DI TOCCARE QUALSIASI COSA
+Trascritta la sua tabella e confrontata riga per riga con `seed-valori-nutrizionali.ts` su nome,
+categoria, stato e sette campi: **58 differenze, tutte nella stessa direzione** — un buco nel seed,
+un valore nella sua tabella. **Zero contraddizioni**: nessun numero che avevamo è stato smentito.
+Vale la pena scriverlo perché era il rischio del confronto, ed è quello che non si è avverato.
+
+COSA ENTRA
+- 16 righe completate: gli IG che l'11/8 mancavano (fagioli borlotti 28, kiwi 52, latte
+  parzialmente scremato 32, avocado 10, mandorle 15, noci 15) e i valori per 100 g che mancavano
+  (ananas, anguria, carote, fagioli cannellini, gallette di riso, pesca, riso parboiled, uva, zucca,
+  più i grassi della mela).
+- ⚠️ **Le note sono state riscritte, non lasciate lì.** Tre righe dicevano «nessun IG da fonte
+  affidabile: la riga resta senza indice»: lasciare quella frase accanto a un numero avrebbe fatto
+  un documento che si smentisce da solo. Adesso raccontano la storia vera — l'11/8 non c'era, il
+  18/8 l'ha dato lui — che è anche l'informazione utile quando qualcuno chiederà da dove viene.
+- Le 57 righe sono scritte **firmate**: `verifiedById` = capo nutrizionista, `verifiedAt`
+  valorizzato, come già fa l'import dell'indice glicemico.
+
+⚠️ «NON SI APPLICA» NON È «NON LO SO» — il pezzo che vale più dei numeri
+Quattordici alimenti (olio, parmigiano, petto di pollo, uovo, tonno, salmone, merluzzo, manzo,
+bresaola, prosciutto, burro, mozzarella, ricotta, fesa di tacchino) hanno N.D. nella sua colonna
+dell'IG: un alimento senza carboidrati un indice glicemico **non ce l'ha**. Prima quel caso e
+«non lo sappiamo» erano lo stesso campo vuoto, e `indiceGlicemicoDaDire` tornava `null` per
+entrambi — cioè: a «qual è l'indice glicemico del salmone?» Gaia rispondeva **tacendo sull'unica
+cosa che le era stata chiesta**. Vero, e indistinguibile da una reticenza.
+
+Ora quelle righe portano `giReliability: 'non_applicabile'` e Gaia risponde: «l'indice glicemico del
+salmone non si applica: è un alimento senza carboidrati o con quantità trascurabili». ⚠️ Con
+`numeri: []`: non c'è nessuna cifra da autorizzare, e la guardia in uscita continua a rifiutare
+qualunque numero il modello si inventi. ⚠️ E non è una nostra deduzione dal fatto che il campo è
+vuoto: è una dichiarazione del capo, e adesso è scritta come tale.
+
+⚠️ E LA TENDINA IN BACKOFFICE, che era il modo silenzioso di disfarlo
+La pagina Valori nutrizionali aveva tre opzioni di affidabilità. Aprire una di queste righe e
+salvarla avrebbe riscritto `null` sopra la dichiarazione del capo — senza un errore, perché la
+tendina semplicemente non aveva quel valore da mostrare. Aggiunta la quarta voce.
+
+⚠️ IL PREZZO DELLA FIRMA, DETTO AD ALTA VOCE
+Il seed non sovrascrive una riga confermata (regola 1, dal giorno che esiste). Da adesso vale anche
+per queste 57: **cambiare un numero in quel file non lo cambierà più in produzione.** Ci vuole una
+tabella nuova firmata da lui, o la correzione si fa in scheda. È il prezzo giusto — un rilascio non
+deve disfare una decisione clinica — ma se non è scritto, il prossimo che modifica una riga penserà
+che il deploy sia rotto. È scritto nel tipo, nel commento e nel messaggio che il seed stampa.
+
+⚠️ SE NON C'È UN CAPO ATTIVO non si ripiega: i valori si scrivono lo stesso (Gaia li usa anche non
+confermati, ed è meglio averli) ma la **firma no**, e il seed lo dice. Intestare a nessuno una
+conferma clinica sarebbe riempire una colonna che dice «l'ha guardata una persona».
+
+IL COLLAUDO CHE TIENE FERMA LA FIRMA
+`src/nutrient-facts/tabella-capo.spec.ts`: una copia indipendente della sua tabella, confrontata
+riga per riga col seed (57 righe × 10 campi, 61 test). Il confronto che ho fatto una volta a mano
+adesso si rifà da solo. ⚠️ Se quel test fallisce la domanda non è «come lo aggiusto»: è «chi ha
+firmato il numero nuovo?».
+
+UNA PORTA SOLA PER «CHI FIRMA»
+La ricerca del capo nutrizionista stava dentro `importa-ig.ts`; adesso serve anche al seed, e due
+copie sono due modi di scegliere un capo diverso il giorno che ce ne sono due.
+`prisma/capo-che-conferma.ts`, chiamato da entrambi.
+
+FILE
+- backend/prisma/seed-valori-nutrizionali.ts · prisma/capo-che-conferma.ts · prisma/importa-ig.ts
+- backend/src/nutrient-facts/valori-nutrizionali.service.ts (+ spec) · tabella-capo.spec.ts
+- backoffice/src/pages/ValoriNutrizionali.tsx
+
+⛔ DA LANCIARE IN PRODUZIONE: `npm run seed:nutrienti` (gira anche da solo a ogni deploy).
+
+Build verde, 217 suite / 3431 test.

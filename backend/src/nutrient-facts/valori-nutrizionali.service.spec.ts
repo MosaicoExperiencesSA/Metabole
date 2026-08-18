@@ -50,6 +50,14 @@ const TABELLA = [
   riga({ id: 'mela', name: 'mela', category: 'frutta', glycemicIndex: 39, glycemicIndexMin: 36, glycemicIndexMax: 39, glycemicIndexReliability: 'solida', kcal: 44, glycemicIndexSource: 'LPI' }),
   riga({ id: 'borlotti', name: 'fagioli borlotti', synonyms: ['borlotti'], category: 'legumi', kcal: 312, protein: 20.2, state: 'secchi', source: 'CREA', note: 'Nessun IG affidabile per i borlotti.' }),
   riga({ id: 'gallette', name: 'gallette di riso', glycemicIndex: 82, glycemicIndexReliability: 'solida', glycemicIndexSource: 'IT2008' }),
+  /**
+   * ⚠️ Le DUE righe senza numero, che prima erano indistinguibili (18/8):
+   *  - il salmone un indice glicemico **non ce l'ha**, e il capo l'ha dichiarato;
+   *  - del sedano non lo sappiamo, e basta.
+   * Il collaudo qui sotto è che non ricevano la stessa risposta.
+   */
+  riga({ id: 'salmone', name: 'salmone', category: 'proteici', state: 'crudo', kcal: 185, protein: 18.4, glycemicIndexReliability: 'non_applicabile', glycemicIndexSource: 'Tabella del capo nutrizionista (18/8/2026)' }),
+  riga({ id: 'sedano', name: 'sedano', category: 'verdura', kcal: 20 }),
 ];
 
 describe('ValoriNutrizionaliService — quale alimento trova', () => {
@@ -142,8 +150,27 @@ describe('ValoriNutrizionaliService — COME si dice il dato', () => {
   });
 
   it('nessun indice glicemico → niente da dire, e non si inventa', async () => {
-    const borlotti = (await service.cerca('borlotti'))!;
-    expect(service.indiceGlicemicoDaDire(borlotti)).toBeNull();
+    const sedano = (await service.cerca('sedano'))!;
+    expect(service.indiceGlicemicoDaDire(sedano)).toBeNull();
+  });
+
+  it('⚠️ «non si applica» non è «non lo so»: l\'alimento senza carboidrati riceve una risposta', async () => {
+    // Prima queste due righe finivano tutte e due su `null`, cioè: niente da passare al modello.
+    // A «qual è l'indice glicemico del salmone?» Gaia rispondeva tacendo sull'unica cosa chiesta.
+    const salmone = (await service.cerca('salmone'))!;
+    const d = service.indiceGlicemicoDaDire(salmone)!;
+    expect(d).not.toBeNull();
+    expect(d.testo).toContain('non si applica');
+    // ⚠️ E nessun numero autorizzato: non c'è nessuna cifra da dire, e la guardia in uscita
+    // continua a rifiutare qualunque numero il modello si inventi.
+    expect(d.numeri).toEqual([]);
+  });
+
+  it('la scheda porta la frase del «non si applica» senza aggiungere numeri ammessi', async () => {
+    const scheda = await service.schedaPerRisposta('qual è l\'indice glicemico del salmone?');
+    expect(scheda.righe.some((r) => r.includes('non si applica'))).toBe(true);
+    // I numeri ammessi sono solo quelli dei valori per 100 g, non un indice inventato.
+    expect(scheda.numeriAmmessi).not.toContain(0);
   });
 
   it('i valori per 100 g portano lo STATO con sé: crudo e cotto non sono lo stesso alimento', async () => {

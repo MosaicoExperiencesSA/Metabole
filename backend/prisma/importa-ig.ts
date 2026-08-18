@@ -23,6 +23,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { FONTE_IG, FONTE_IG_REF, RIGHE_IG } from './dati-ig';
+import { capoCheConferma } from './capo-che-conferma';
 
 const prisma = new PrismaClient();
 
@@ -36,26 +37,18 @@ async function main(): Promise<void> {
   console.log('==================================================================');
   console.log('');
 
-  // Chi conferma: il capo nutrizionista (Decisioni §10).
-  const capi = (await prisma.user.findMany({
-    where: { role: 'head_nutritionist', status: 'active', deletedAt: null } as never,
-    select: { id: true, email: true, createdAt: true },
-    orderBy: { createdAt: 'asc' },
-  })) as { id: string; email: string; createdAt: Date }[];
-  if (!capi.length) {
-    console.log('⚠️ Nessun capo nutrizionista attivo: senza chi conferma non carico niente.');
+  /**
+   * Chi conferma: il capo nutrizionista (Decisioni §10). ⚠️ La ricerca sta in
+   * `capo-che-conferma.ts` e non più qui: dal 18/8 la stessa domanda la fa anche il seed dei valori
+   * nutrizionali, e due copie sono due modi di scegliere un capo diverso il giorno che ce ne sono due.
+   */
+  const capo = await capoCheConferma(prisma as never);
+  if (!capo) {
+    console.log('⚠️ Nessun capo nutrizionista attivo (o senza riga staff): senza chi conferma non carico niente.');
     return;
   }
-  const capo = capi[0];
-  const staffCapo = (await prisma.staff.findUnique({
-    where: { userId: capo.id } as never,
-    select: { id: true, displayName: true },
-  })) as { id: string; displayName: string | null } | null;
-  if (!staffCapo) {
-    console.log(`⚠️ Il capo ${capo.email} non ha una riga staff: non so a chi intestare la conferma.`);
-    return;
-  }
-  console.log(`Conferma intestata a: ${staffCapo.displayName ?? capo.email}${capi.length > 1 ? `  (⚠️ i capi attivi sono ${capi.length}: preso il più anziano)` : ''}`);
+  const staffCapo = { id: capo.staffId };
+  console.log(`Conferma intestata a: ${capo.nome}${capo.quanti > 1 ? `  (⚠️ i capi attivi sono ${capo.quanti}: preso il più anziano)` : ''}`);
   console.log('');
 
   const conto = { create: 0, soloIg: 0, gia: 0 };

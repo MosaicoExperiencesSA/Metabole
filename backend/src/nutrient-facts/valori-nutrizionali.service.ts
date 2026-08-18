@@ -184,6 +184,30 @@ export class ValoriNutrizionaliService {
    */
   indiceGlicemicoDaDire(v: ValoreNutrizionale): DaDire | null {
     const { glycemicIndex: gi, glycemicIndexMin: min, glycemicIndexMax: max } = v;
+
+    /**
+     * ⚠️ «NON SI APPLICA» NON È «NON LO SO» (18/8).
+     *
+     * Prima questa funzione tornava `null` sia per un alimento di cui non avevamo l'indice, sia per
+     * uno che un indice **non ce l'ha**: l'olio, il parmigiano, il petto di pollo. E `null` vuol
+     * dire «non passare niente al modello», cioè: a «qual è l'indice glicemico del salmone?» Gaia
+     * rispondeva **tacendo** sull'unica cosa che le era stata chiesta. Vero, e indistinguibile da
+     * una reticenza.
+     *
+     * Il capo nutrizionista ha marcato quelle righe `non_applicabile` nella sua tabella del 18/8, e
+     * adesso la risposta è quella giusta. ⚠️ `numeri: []` è voluto: non c'è nessun numero da
+     * autorizzare, e la guardia in uscita continua a rifiutare qualunque cifra il modello inventi.
+     */
+    if (v.glycemicIndexReliability === 'non_applicabile') {
+      return {
+        testo:
+          `l'indice glicemico del/della ${v.name} non si applica: è un alimento senza carboidrati ` +
+          'o con quantità trascurabili, e l\'indice glicemico misura la risposta ai carboidrati',
+        numeri: [],
+        fonte: v.glycemicIndexSource,
+      };
+    }
+
     if (gi === null && min === null) return null;
 
     const affidabilita = v.glycemicIndexReliability ?? 'debole';
