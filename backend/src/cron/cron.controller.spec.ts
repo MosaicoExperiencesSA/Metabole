@@ -184,10 +184,47 @@ describe('CronController (endpoint per Render Cron)', () => {
   });
 
   it('l\'endpoint del catalogo genera, e risponde dicendo cosa ha fatto', async () => {
-    const r = (await controller.generaCatalogo('segreto-cron')) as { ok: boolean; variante?: string };
+    const r = (await controller.generaCatalogo('segreto-cron')) as unknown as { ok: boolean; variante?: string };
     expect(engineRules.generaProssimoCatalogo).toHaveBeenCalledTimes(1);
     expect(r.ok).toBe(true);
     expect(r.variante).toContain('Flexitariana');
+  });
+
+  /**
+   * ⚠️ IL BATTITO (18/8, domanda di Simone: «come facciamo a sapere se sta lavorando?»).
+   *
+   * Prima la riga di registro la lasciava solo la generazione **riuscita**: catalogo completo, AI
+   * fuori uso e cron spento su Render avevano lo stesso aspetto — nessuna riga. E il terzo è quello
+   * che fa danno, perché un cron che non parte non lascia traccia da nessuna parte.
+   */
+  it('⚠️ ogni giro lascia un battito nel registro, anche quando genera', async () => {
+    await controller.generaCatalogo('segreto-cron');
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'cron.genera_catalogo', metadata: expect.objectContaining({ ok: true }) }),
+    );
+  });
+
+  it('⚠️ e lo lascia ANCHE quando non ha fatto niente: è tutto il punto', async () => {
+    engineRules.generaProssimoCatalogo.mockResolvedValueOnce({ fatto: false, motivo: 'catalogo completo' });
+    await controller.generaCatalogo('segreto-cron');
+    const battito = audit.log.mock.calls.map((c: any[]) => c[0]).find((x: any) => x.action === 'cron.genera_catalogo');
+    expect(battito.metadata).toMatchObject({ ok: true, fatto: false, motivo: 'catalogo completo' });
+  });
+
+  it('⚠️ e anche quando esplode: l\'errore è il caso in cui serve di più', async () => {
+    engineRules.generaProssimoCatalogo.mockRejectedValueOnce(new Error('credito esaurito'));
+    await controller.generaCatalogo('segreto-cron');
+    const battito = audit.log.mock.calls.map((c: any[]) => c[0]).find((x: any) => x.action === 'cron.genera_catalogo');
+    expect(battito.metadata).toMatchObject({ ok: false });
+    expect(String(battito.metadata.errore)).toContain('credito esaurito');
+  });
+
+  /** ⚠️ Se il registro non scrive, il giro è comunque andato: perdere una generazione per un
+   *  battito sarebbe il rimedio peggiore del male. */
+  it('⚠️ un battito che non si scrive non fa fallire la generazione', async () => {
+    audit.log.mockRejectedValueOnce(new Error('registro giù'));
+    const r = (await controller.generaCatalogo('segreto-cron')) as unknown as { ok: boolean };
+    expect(r.ok).toBe(true);
   });
 
   it('⚠️ e senza il segreto non genera niente: è un endpoint che spende', async () => {
@@ -199,7 +236,7 @@ describe('CronController (endpoint per Render Cron)', () => {
     // Un cron che risponde 500 su Render diventa un allarme, e l'AI momentaneamente fuori uso non è
     // un guasto del prodotto. Si dice cos'è successo e si riprova al giro dopo.
     engineRules.generaProssimoCatalogo.mockRejectedValueOnce(new Error('credito esaurito'));
-    const r = (await controller.generaCatalogo('segreto-cron')) as { ok: boolean; errore?: string };
+    const r = (await controller.generaCatalogo('segreto-cron')) as unknown as { ok: boolean; errore?: string };
     expect(r.ok).toBe(false);
     expect(r.errore).toContain('credito esaurito');
   });

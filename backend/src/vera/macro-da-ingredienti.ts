@@ -44,6 +44,12 @@ export interface MacroCalcolati {
   macros: { protein_g: number; carbs_g: number; fat_g: number };
   /** Alimenti che non sono nella tabella nutrienti: senza questi non si scrive niente. */
   mancanti: string[];
+  /**
+   * ⚠️ Alimenti che nella tabella ci sono **più di una volta, con stati diversi** (crudo e cotto), e
+   * la ricetta non dice quale (voce 228). Non si contano — un numero preso dallo stato sbagliato
+   * sbaglia fino a tre volte (farro: 353 kcal crudo, 127 bollito) — e si chiede.
+   */
+  ambigui: string[];
   /** Righe senza un peso utilizzabile: la ricetta si scrive, ma questi non sono nel conto. */
   nonContati: string[];
   /** C'è almeno un ingrediente misurato in volume: l'approssimazione va detta. */
@@ -78,12 +84,15 @@ const arrotonda = (n: number) => Math.round(n * 10) / 10;
 export function calcolaMacro(
   ingredienti: IngredienteDaContare[],
   valori: Map<string, ValorePer100 | null>,
+  /** I nomi che la tabella ha in più stati e la ricetta non distingue: vedi `ambigui`. */
+  ambiguiNoti: readonly string[] = [],
 ): MacroCalcolati {
   let kcal = 0;
   let protein = 0;
   let carbs = 0;
   let fat = 0;
   const mancanti: string[] = [];
+  const ambigui: string[] = [];
   const nonContati: string[] = [];
   let contieneVolumi = false;
 
@@ -95,6 +104,12 @@ export function calcolaMacro(
     }
     if (VOLUMI.has((i.unit ?? '').toLowerCase())) contieneVolumi = true;
 
+    // ⚠️ L'ambiguità viene PRIMA del «manca»: sono due cose diverse e portano a due azioni diverse
+    // — una si risolve aggiungendo una riga alla tabella, l'altra dicendo se lo pesa crudo o cotto.
+    if (ambiguiNoti.includes(i.name)) {
+      ambigui.push(i.name);
+      continue;
+    }
     const v = valori.get(i.name) ?? null;
     // ⚠️ Anche un alimento in tabella ma **senza kcal** conta come mancante: una riga a metà darebbe
     // un totale più basso del vero, e un totale più basso del vero è esattamente il tipo di errore
@@ -114,6 +129,7 @@ export function calcolaMacro(
     kcal: Math.round(kcal),
     macros: { protein_g: arrotonda(protein), carbs_g: arrotonda(carbs), fat_g: arrotonda(fat) },
     mancanti: [...new Set(mancanti)],
+    ambigui: [...new Set(ambigui)],
     nonContati: [...new Set(nonContati)],
     contieneVolumi,
   };
@@ -129,6 +145,26 @@ export function raccontaMacro(m: MacroCalcolati): string {
     righe.push(
       `Non ho contato ${m.nonContati.join(', ')}: ${m.nonContati.length === 1 ? 'non ha' : 'non hanno'} un peso. ` +
         'Se pesa, dimmi quanti grammi e rifaccio il conto.',
+    );
+  }
+  /**
+   * ⚠️ GLI ALIMENTI CHE NON HO IN TABELLA — 18/8. Erano contati (`mancanti`) e **non detti**: la
+   * riga sopra il calcolo spiegava già perché un totale più basso del vero è «il tipo di errore che
+   * nessuno nota guardando il numero», e poi il racconto se ne dimenticava. Chi dettava una ricetta
+   * con dentro un alimento fuori tabella leggeva un totale kcal più basso del vero, senza niente
+   * che glielo dicesse.
+   */
+  if (m.mancanti.length) {
+    righe.push(
+      `⚠️ Non ho i valori di ${m.mancanti.join(', ')}: ${m.mancanti.length === 1 ? 'non è' : 'non sono'} in tabella, ` +
+        'quindi il totale qui sopra è più basso del vero.',
+    );
+  }
+  if (m.ambigui.length) {
+    righe.push(
+      `⚠️ Di ${m.ambigui.join(', ')} ho i valori in più stati (crudo e cotto) e non so quale intendi: ` +
+        'da crudo a bollito le kcal per 100 g possono ridursi di quasi tre volte, quindi non li ho contati. ' +
+        'Dimmi come li pesa e rifaccio il conto.',
     );
   }
   return righe.join(' ');

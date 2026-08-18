@@ -20,6 +20,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🍚 **Crudo o cotto: se la tabella ha due stati non si sceglie il primo — si chiede**
+  (voce 228, chiusa col file caricato da Simone). La scheda «Crudo ↔ cotto» dà la misura: **farro
+  perlato 353 kcal da crudo, 127 da bollito, rapporto 0,36×**. ⚠️ Dire il numero sbagliato non è
+  un'imprecisione: sbaglia di quasi **tre volte**, sempre nello stesso verso. E `cerca` prendeva **la
+  prima riga che combacia col nome**: con due righe «riso bianco» quale rispondeva lo decideva
+  l'ordine di lettura del database. Ora se lo stato è scritto nella domanda si sceglie quella riga,
+  se non c'è **non si sceglie**. ⚠️ Confronto per parola («crudo» dentro «crudité» non conta) e righe
+  con lo stesso stato non sono ambigue, o l'avviso sarebbe diventato rumore. ⚠️ **E per strada è
+  saltato fuori un difetto più vecchio e più grave**: `calcolaMacro` raccoglieva gli alimenti fuori
+  tabella in `mancanti` — con un commento sopra che spiegava perché contano — e `raccontaMacro` **non
+  li diceva mai**. Chi dettava una ricetta con dentro un alimento che non abbiamo leggeva un totale
+  kcal più basso del vero, e niente glielo diceva. Ora si dicono, separati dagli ambigui perché
+  portano a due azioni diverse. ⚠️ E le due tabelle sono **verificate riga per riga** contro i file
+  di Simone: 96 + 57 righe, zero differenze.
+
+- `[Sviluppo]` 📡 **Il generatore di ricette ora lascia un battito a ogni giro** (voce 279, dalla
+  domanda di Simone «come facciamo a sapere se sta lavorando?»). La riga nel registro la lasciava
+  solo la generazione **riuscita**, quindi ⚠️ i tre motivi per cui un giro finisce a mani vuote
+  avevano lo stesso aspetto — nessuna riga: catalogo completo, AI fuori uso, e ⛔ **cron spento su
+  Render**. Il terzo è quello che fa danno, perché un cron che non parte non lascia traccia da
+  nessuna parte. Ora `cron.genera_catalogo` si scrive **sempre**, col motivo e con l'errore, in un
+  `try` a parte (perdere una generazione per un battito sarebbe il rimedio peggiore del male). E
+  nuovo **`npm run diag:catalogo`**: ultimo giro ed esito, giri ed errori nella finestra, settimane
+  mancanti per variante, unità di lavoro rimaste, ricette nate e quante aspettano gli allergeni. ⚠️
+  Senza **nessun** battito lo dice a chiare lettere, con le due cause in ordine di probabilità,
+  invece di stampare zeri. ⚠️ Il conto delle settimane non è riscritto: `statoVarianti` è pubblica e
+  la diagnostica chiama quella.
+
+- `[Sviluppo]` 🎛️ **Dashboard: nessun modulo è fisso, i predefiniti si riconoscono, e c'è «Ripristina
+  default»** (voce 278, dalla risposta di Simone). ⚠️ È la risposta giusta al problema dei blocchi
+  fissi: invece di **togliere** la possibilità di spegnere un riquadro «perché poi non lo ritrova
+  più», si dà **la strada di ritorno**. Un pulsante che rimette le cose a posto vale più di un
+  divieto. ⚠️ E chiede conferma con se stesso invece che con un pop-up: un clic per sbaglio
+  disferebbe la disposizione che qualcuno si è costruito. 33 test in tutto (212 suite, 3284 verdi).
+
 - `[Sviluppo]` 📏 **La taglia del catalogo si calcola sulla mediana del fabbisogno delle clienti**
   (voce 273, chiusa con la risposta di Simone: «la taglia calorica va calcolata sulla base del
   fabbisogno della cliente»). Il generatore scriveva ogni pasto come `menu_daycombo_kcal_target ×

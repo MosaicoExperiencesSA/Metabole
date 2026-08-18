@@ -685,12 +685,20 @@ export class VeraChatService {
   /** I valori veri, uno per ingrediente. La ricerca per nome e sinonimi è quella di Gaia. */
   private async macroDiRicetta(ricetta: RicettaDettata) {
     const valori = new Map<string, ValorePer100 | null>();
+    /**
+     * ⚠️ CRUDO O COTTO (voce 228). Un ingrediente che la tabella ha in più stati e la ricetta non
+     * distingue non si conta e **si chiede**: prendere il primo che passa sbaglia fino a tre volte
+     * (farro: 353 kcal da crudo, 127 da bollito), e sbaglia sempre in eccesso.
+     */
+    const ambigui: string[] = [];
     for (const i of ricetta.ingredienti) {
       if (valori.has(i.name)) continue;
+      const scelta = await this.valori.cercaConStato(i.name).catch(() => ({ tipo: 'niente' as const }));
+      if (scelta.tipo === 'ambiguo') ambigui.push(i.name);
       const v = (await this.valori.cerca(i.name).catch(() => null)) as ValorePer100 | null;
       valori.set(i.name, v);
     }
-    return calcolaMacro(ricetta.ingredienti, valori);
+    return calcolaMacro(ricetta.ingredienti, valori, ambigui);
   }
 
   /** Il sì. Da qui in poi si scrive — e solo da qui. */

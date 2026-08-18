@@ -180,6 +180,9 @@ export function Impostazioni() {
   const [modules, setModules] = useState<string[] | null>(null);
   const [modMsg, setModMsg] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  /** ⚠️ «Ripristina default» chiede conferma con se stesso invece di un pop-up: spegne e riaccende
+   *  moduli, e un clic per sbaglio disferebbe la disposizione che qualcuno si è costruito. */
+  const [confermaRipristino, setConfermaRipristino] = useState(false);
   const [showEarnings, setShowEarnings] = useState(false);
 
   // --- Preferenze notifiche (attiva/disattiva ogni alert) ---
@@ -396,8 +399,31 @@ export function Impostazioni() {
 
       {/* Moduli dashboard */}
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Moduli in dashboard</h2>
-        <p className="hint" style={{ marginTop: 0 }}>Trascina per riordinare i riquadri; l'ordine si riflette in dashboard. {modMsg && <b style={{ color: 'var(--ok-ink)' }}>· {modMsg}</b>}</p>
+        <div className="spread" style={{ alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <h2 style={{ marginTop: 0, marginBottom: 0 }}>Moduli in dashboard</h2>
+          {/**
+            * ⚠️ «RIPRISTINA DEFAULT» — decisione di Simone, 18/8: «non esistono blocchi fissi, tutti
+            * sono attivabili o spegnibili e si possono riorganizzare; quelli di default sono
+            * evidenziati da un colore diverso, e se un utente si è perso preme il pulsante».
+            *
+            * È la risposta giusta al problema dei blocchi fissi: invece di togliere a qualcuno la
+            * possibilità di spegnere un riquadro «perché poi non lo ritrova più», gli si dà la
+            * strada di ritorno. Un pulsante che rimette le cose a posto vale più di un divieto.
+            */}
+          <button
+            className="btn ghost sm"
+            onClick={() => { if (confermaRipristino) { void saveModules([...DEFAULT_MODULE_IDS]); setConfermaRipristino(false); } else setConfermaRipristino(true); }}
+            onBlur={() => setConfermaRipristino(false)}
+            title="Rimette i moduli come erano appena creato l'account"
+          >
+            <i className="ti ti-rotate" /> {confermaRipristino ? 'Sicuro? Premi di nuovo' : 'Ripristina default'}
+          </button>
+        </div>
+        <p className="hint" style={{ marginTop: 4 }}>
+          Nessun modulo è fisso: si accendono, si spengono e si trascinano tutti. Quelli con il bordo
+          colorato sono i <b>predefiniti</b>, cioè quelli che rimette «Ripristina default».
+          {modMsg && <b style={{ color: 'var(--ok-ink)' }}> · {modMsg}</b>}
+        </p>
 
         {selectedModules.length === 0 ? (
           <div className="empty" style={{ padding: '18px 12px' }}>Nessun modulo attivo. Aggiungine qui sotto.</div>
@@ -411,12 +437,20 @@ export function Impostazioni() {
                 onDragEnd={() => setDragId(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => { if (dragId) reorder(dragId, m.id); setDragId(null); }}
-                style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--chip)', cursor: 'grab', opacity: dragId === m.id ? 0.4 : 1 }}
+                /* ⚠️ Il bordo colorato dice «questo è un predefinito», e serve a chi sta spegnendo
+                   qualcosa: sapere che una scelta si può disfare cambia quanto si è disposti a
+                   provarla. */
+                style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: DEFAULT_MODULE_IDS.includes(m.id) ? '1px solid var(--teal)' : '1px solid var(--line)', background: 'var(--chip)', cursor: 'grab', opacity: dragId === m.id ? 0.4 : 1 }}
               >
                 <i className="ti ti-grip-vertical" style={{ fontSize: 18, color: 'var(--muted)' }} />
                 <i className={`ti ${m.icon}`} style={{ fontSize: 18 }} />
                 <span style={{ flex: 1 }}>
-                  <b style={{ display: 'block', fontSize: 14 }}>{m.label}</b>
+                  <b style={{ display: 'block', fontSize: 14 }}>
+                    {m.label}
+                    {DEFAULT_MODULE_IDS.includes(m.id) && (
+                      <span style={{ color: 'var(--teal)', fontWeight: 500, fontSize: 11.5, marginLeft: 6 }}>predefinito</span>
+                    )}
+                  </b>
                   <span className="muted" style={{ fontSize: 12 }}>{m.preview}</span>
                 </span>
                 <button className="btn ghost sm" onClick={() => toggleModule(m.id)} title="Rimuovi dalla dashboard"><i className="ti ti-x" /></button>
@@ -430,7 +464,13 @@ export function Impostazioni() {
             <p className="muted" style={{ fontSize: 12, margin: '14px 0 6px' }}>Aggiungi altri moduli</p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {unselectedModules.map((m) => (
-                <button key={m.id} className="chip" onClick={() => toggleModule(m.id)} style={{ cursor: 'pointer', gap: 6 }}>
+                <button
+                  key={m.id}
+                  className="chip"
+                  onClick={() => toggleModule(m.id)}
+                  title={DEFAULT_MODULE_IDS.includes(m.id) ? 'Modulo predefinito: lo rimette anche «Ripristina default»' : undefined}
+                  style={{ cursor: 'pointer', gap: 6, ...(DEFAULT_MODULE_IDS.includes(m.id) ? { borderColor: 'var(--teal)', color: 'var(--teal)' } : {}) }}
+                >
                   <i className={`ti ${m.icon}`} /> {m.label} <i className="ti ti-plus" style={{ fontSize: 13 }} />
                 </button>
               ))}

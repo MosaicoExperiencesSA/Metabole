@@ -96,3 +96,56 @@ describe('raccontaMacro', () => {
     expect(testo).not.toContain('Non ho contato');
   });
 });
+
+/**
+ * ⚠️ QUELLO CHE NON SI CONTA VA DETTO — 18/8.
+ *
+ * `mancanti` esisteva dal primo giorno, con un commento sopra il calcolo che spiegava perché
+ * conta («un totale più basso del vero è esattamente il tipo di errore che nessuno nota guardando
+ * il numero») — e poi il racconto se ne dimenticava. Chi dettava una ricetta con dentro un alimento
+ * fuori tabella leggeva un totale kcal più basso del vero, e niente glielo diceva.
+ */
+describe('⚠️ raccontaMacro dice quello che NON ha contato', () => {
+  const ing = (name: string, qty: number | null = 100, unit: string | null = 'g') => ({ name, qty, unit });
+  const val = (name: string, kcal: number): ValorePer100 => ({ name, kcal, protein: 5, carbs: 10, fat: 2 });
+
+  it('⚠️ un alimento fuori tabella: lo dice, e dice che il totale è più basso del vero', () => {
+    const m = calcolaMacro(
+      [ing('pane'), ing('marmellata di sambuco')],
+      new Map<string, ValorePer100 | null>([['pane', val('pane', 270)], ['marmellata di sambuco', null]]),
+    );
+    expect(m.mancanti).toEqual(['marmellata di sambuco']);
+    const testo = raccontaMacro(m);
+    expect(testo).toContain('Non ho i valori di marmellata di sambuco');
+    expect(testo).toContain('più basso del vero');
+  });
+
+  /**
+   * ⚠️ «Non ce l'ho» e «ce l'ho due volte» sono due problemi diversi e portano a due azioni
+   * diverse: il primo si risolve aggiungendo una riga alla tabella, il secondo dicendo se lo pesa
+   * crudo o cotto. Metterli nello stesso messaggio manderebbe la nutrizionista a fare la cosa
+   * sbagliata.
+   */
+  it('⚠️ un alimento ambiguo NON è un alimento mancante: due messaggi diversi', () => {
+    const m = calcolaMacro(
+      [ing('farro'), ing('olio', 10)],
+      new Map<string, ValorePer100 | null>([['farro', val('farro', 353)], ['olio', val('olio', 899)]]),
+      ['farro'],
+    );
+    expect(m.ambigui).toEqual(['farro']);
+    expect(m.mancanti).toEqual([]);
+    // ⚠️ E non è entrato nel conto: 10 g di olio soltanto.
+    expect(m.kcal).toBe(90);
+    const testo = raccontaMacro(m);
+    expect(testo).toContain('in più stati (crudo e cotto)');
+    expect(testo).toContain('quasi tre volte');
+    expect(testo).toContain('Dimmi come li pesa');
+  });
+
+  it('quando è tutto in tabella non dice niente in più: un avviso che compare sempre non è un avviso', () => {
+    const m = calcolaMacro([ing('pane')], new Map<string, ValorePer100 | null>([['pane', val('pane', 270)]]));
+    const testo = raccontaMacro(m);
+    expect(testo).not.toContain('Non ho i valori');
+    expect(testo).not.toContain('più stati');
+  });
+});

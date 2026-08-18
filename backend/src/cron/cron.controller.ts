@@ -214,17 +214,40 @@ export class CronController {
   async generaCatalogo(@Headers('x-cron-secret') secret?: string) {
     this.assertSecret(secret);
     const startedAt = Date.now();
+    let esito: Record<string, unknown>;
     try {
-      const esito = await this.engineRules.generaProssimoCatalogo();
-      return { ok: true, ms: Date.now() - startedAt, ...esito };
+      esito = { ok: true, ...(await this.engineRules.generaProssimoCatalogo()) };
     } catch (e) {
       // ⚠️ Non si rilancia: un cron che risponde 500 su Render diventa un allarme, e qui il caso
       // normale — l'AI momentaneamente fuori uso — non è un guasto del prodotto. Si dice cos'è
       // successo e si riproverà al giro dopo. Se è definitivo (credito finito, chiave non valida)
       // il messaggio lo dice, e va spento il cron invece di lasciarlo sbattere.
-      const msg = e instanceof Error ? e.message : String(e);
-      return { ok: false, ms: Date.now() - startedAt, errore: msg };
+      esito = { ok: false, errore: e instanceof Error ? e.message : String(e) };
     }
+    const risposta = { ...esito, ms: Date.now() - startedAt };
+
+    /**
+     * ⚠️ IL BATTITO — richiesta di Simone del 18/8: «come facciamo a sapere se sta lavorando?».
+     *
+     * Si scrive **sempre**, anche quando il giro non genera niente, ed è tutto il punto. Prima la
+     * riga di registro la lasciava solo `generateCatalogFromPreset` **quando riusciva**: i tre
+     * motivi per cui un giro può finire a mani vuote — catalogo completo, AI fuori uso, cron spento
+     * su Render — avevano lo stesso aspetto, cioè nessuna riga. E il terzo è quello che fa danno,
+     * perché un cron che non parte non lascia traccia da nessuna parte.
+     *
+     * Da qui in avanti il silenzio vuol dire **una cosa sola**: non sta girando. `npm run
+     * diag:catalogo` legge queste righe.
+     *
+     * ⚠️ In `try` a parte: se il registro non scrive, il giro è comunque andato — perdere la
+     * generazione per un battito sarebbe il rimedio peggiore del male.
+     */
+    try {
+      await this.audit.log({ action: 'cron.genera_catalogo', metadata: risposta });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[cron.genera-catalogo] battito non scritto:', e);
+    }
+    return risposta;
   }
 
 }

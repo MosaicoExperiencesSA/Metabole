@@ -1,0 +1,107 @@
+Crudo o cotto non si tira a indovinare, il generatore lascia un battito, e i moduli di dashboard
+
+Voci 228, 279 e 278 (tutte chiuse). ⚠️ E per strada e' saltato fuori un difetto piu' vecchio.
+
+═══ 1. VOCE 228 — CRUDO O COTTO
+
+Nocanty aveva risposto «file caricato in claude», e il file e' arrivato. La scheda «Crudo ↔ cotto»
+da' la misura del problema:
+
+  farro perlato    crudo 353 kcal  →  bollito 127 kcal     rapporto 0,36×
+
+⚠️ Dire il numero sbagliato NON E' UN'IMPRECISIONE: sbaglia di quasi TRE VOLTE, e sbaglia sempre
+nello stesso verso (il crudo pesa piu' del cotto a parita' di grammi). Chi legge «80 g di farro =
+282 kcal» quando ne sta mangiando 102 non ha un'approssimazione, ha un altro pasto.
+
+COSA FACEVA PRIMA. `ValoriNutrizionaliService.cerca` prendeva LA PRIMA RIGA CHE COMBACIA COL NOME.
+Con due righe «riso bianco» — una crudo e una bollita — quale rispondeva lo decideva l'ordine di
+lettura del database. Nessun errore, nessuna riga rossa, un numero plausibile e sbagliato.
+
+Nuovo `nutrient-facts/stato-alimento.ts`:
+  · se lo stato e' SCRITTO NELLA DOMANDA («riso bollito», «farro crudo») → sceglie quella riga;
+  · se non c'e' e gli stati sono diversi → NON SCEGLIE, e chi risponde chiede.
+
+⚠️ Il confronto e' PER PAROLA: «crudo» dentro «crudité» non e' uno stato. Un confronto per
+sottostringa avrebbe risposto con sicurezza a domande che non lo dicevano — cioe' avrebbe
+trasformato una guardia in una fonte di errori.
+
+⚠️ Righe con lo STESSO stato non sono ambigue: sono duplicati. Trattarle come ambigue avrebbe fatto
+rispondere «dipende» a una domanda che non dipende da niente, cioe' avrebbe reso la guardia rumore.
+
+Vale su tutt'e due le porte: la chat di Gaia (l'istruzione entra fra i dati, e ⚠️ il numero NON
+entra fra quelli ammessi, cosi' la guardia in uscita lo ferma comunque) e la ricetta dettata a Vera.
+
+═══ 1-bis. ⚠️ IL DIFETTO PIU' VECCHIO CHE E' SALTATO FUORI
+
+`calcolaMacro` raccoglieva gli alimenti fuori tabella in `mancanti` — con un commento sopra il
+calcolo che spiegava perche' contano: «un totale piu' basso del vero e' esattamente il tipo di
+errore che nessuno nota guardando il numero» — E `raccontaMacro` NON LI DICEVA MAI.
+
+Chi dettava una ricetta con dentro un alimento che non abbiamo in tabella leggeva un totale kcal
+PIU' BASSO DEL VERO, e niente glielo diceva. Il commento sapeva; il racconto se n'era dimenticato.
+
+Ora si dicono. ⚠️ E separati dagli ambigui, perche' portano a due azioni diverse:
+  «non ce l'ho»       → si aggiunge una riga alla tabella
+  «ce l'ho due volte» → si dice se lo pesa crudo o cotto
+Metterli nello stesso messaggio manderebbe la nutrizionista a fare la cosa sbagliata.
+
+⚠️ E LA TABELLA E' VERIFICATA. Confrontate riga per riga col file di Simone: 96 righe di indice
+glicemico e 57 di valori nutrizionali, ZERO differenze su ogni campo (nome, stato, IG, min, max,
+kcal, proteine, carboidrati, zuccheri, grassi, fibre).
+
+═══ 2. VOCE 279 — «COME FACCIAMO A SAPERE SE STA LAVORANDO?»
+
+Domanda di Simone sul generatore di ricette. La risposta onesta era: non lo sai, o meglio lo sai
+solo quando e' andato bene.
+
+⚠️ I TRE MOTIVI PER CUI UN GIRO PUO' FINIRE A MANI VUOTE AVEVANO LO STESSO ASPETTO — NESSUNA RIGA:
+  1. il catalogo e' completo                → tutto bene;
+  2. l'AI e' fuori uso / credito finito     → si riprovera', o non si riprovera' mai piu';
+  3. ⛔ il cron su Render e' spento         → non gira, e non lo dice nessuno.
+
+Il terzo e' quello che fa danno: un cron che non parte non lascia traccia da nessuna parte.
+
+① IL BATTITO. `cron.genera_catalogo`, scritto SEMPRE — anche quando il giro non fa niente — col
+motivo e con l'errore quando c'e'. ⚠️ In un `try` a parte: perdere una generazione per un battito
+sarebbe il rimedio peggiore del male. Da qui in avanti il silenzio vuol dire una cosa sola.
+
+② `npm run diag:catalogo`. Ultimo giro e com'e' andato · giri ed errori nella finestra · settimane
+mancanti variante per variante, con le clienti sopra · unita' di lavoro rimaste · ricette nate, di
+cui quante aspettano la conferma allergeni (un catalogo che cresce con una coda che non si smaltisce
+e' un catalogo che cresce e non serve a nessuno).
+
+⚠️ E SE DI BATTITI NON NE TROVA NESSUNO LO DICE A CHIARE LETTERE, con le due cause in ordine di
+probabilita', invece di stampare zeri. «Nessun battito» e «tutto a posto» non devono somigliarsi.
+
+⚠️ Il conto delle settimane NON e' riscritto: `statoVarianti` e' stato reso pubblico e la
+diagnostica chiama quello. Due punti che rispondono alla stessa domanda divergono, e il giorno che
+divergono la diagnostica direbbe che manca poco mentre il generatore continua a lavorare.
+
+⚠️ Avvisa anche quando sono passate piu' di 36 ore dall'ultimo giro.
+
+═══ 3. VOCE 278 — I MODULI IN DASHBOARD
+
+Risposta di Simone: «non esistono blocchi fissi, tutti sono attivabili o spegnibili e si possono
+riorganizzare; quelli di default sono evidenziati da un colore diverso, e se un utente si e' perso
+preme (ripristina default)».
+
+⚠️ E' la risposta giusta al problema dei blocchi fissi, e vale la pena dirla: invece di TOGLIERE a
+qualcuno la possibilita' di spegnere un riquadro «perche' poi non lo ritrova piu'», gli si da' LA
+STRADA DI RITORNO. Un pulsante che rimette le cose a posto vale piu' di un divieto — e sapere che
+una scelta si puo' disfare cambia quanto si e' disposti a provarla.
+
+Le prime due parti c'erano gia'. Aggiunte: bordo colorato + scritta «predefinito» nell'elenco
+attivo, pastiglia colorata fra quelli da aggiungere, e il pulsante «Ripristina default».
+
+⚠️ Il pulsante chiede conferma CON SE STESSO («Sicuro? Premi di nuovo») invece che con un pop-up:
+spegne e riaccende moduli, e un clic per sbaglio disferebbe la disposizione che qualcuno si e'
+costruito.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 212 suite, 3284 test verdi (33 nuovi)
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.
+DA LANCIARE DOPO IL DEPLOY: `npm run diag:catalogo`.

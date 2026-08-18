@@ -136,6 +136,15 @@ function make(
    */
   const valori = {
     cerca: jest.fn().mockImplementation(async (nome: string) => (opzioni.valori ?? {})[nome] ?? null),
+    /**
+     * Crudo/cotto (voce 228): di default nessun alimento è ambiguo, cioè il comportamento che
+     * questi test già difendevano. `opzioni.ambigui` serve al test che prova il contrario.
+     */
+    cercaConStato: jest.fn().mockImplementation(async (nome: string) =>
+      ((opzioni as { ambigui?: string[] }).ambigui ?? []).includes(nome)
+        ? { tipo: 'ambiguo', stati: ['crudo', 'bollito'], righe: [] }
+        : { tipo: 'niente' },
+    ),
     registraMancante: jest.fn().mockResolvedValue(undefined),
   } as unknown as ValoriNutrizionaliService;
   const ricette = {

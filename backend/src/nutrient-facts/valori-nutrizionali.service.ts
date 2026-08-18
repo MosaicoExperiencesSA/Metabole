@@ -1,3 +1,4 @@
+import { type EsitoScelta, fraseAmbiguita, scegliPerStato } from './stato-alimento';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -101,8 +102,22 @@ export class ValoriNutrizionaliService {
       nomi: [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).filter(Boolean),
     }));
 
-    const esatto = conNomi.find((c) => c.nomi.includes(t));
-    if (esatto) return esatto.v;
+    /**
+     * ⚠️ CRUDO O COTTO — voce 228. Prima qui c'era `find`, cioè «la prima riga che combacia», e con
+     * due righe «riso bianco» (una crudo e una bollita) quale rispondeva lo decideva l'ordine di
+     * lettura del database. Dalla tabella del 18/8: il farro va da 353 kcal a 127, un rapporto di
+     * 0,36× — rispondere con quella sbagliata non è un'imprecisione, è un altro pasto.
+     *
+     * Ora, se gli stati sono diversi e la domanda non dice quale, `cerca` torna `null`: chi vuole
+     * l'ambiguità la chiede a `cercaConStato`. ⚠️ `null` è la risposta giusta, perché tutti i
+     * chiamanti di `cerca` sanno già trattare «non lo so» — e nessuno di loro sa trattare un numero
+     * sbagliato.
+     */
+    const esatti = conNomi.filter((c) => c.nomi.includes(t));
+    if (esatti.length) {
+      const scelta = scegliPerStato(esatti.map((c) => c.v), termine);
+      return scelta.tipo === 'unica' || scelta.tipo === 'per_stato' ? scelta.riga : null;
+    }
 
     /**
      * Il nome DENTRO il testo. Si prende il più lungo che combacia, e non è un'ottimizzazione: «riso
@@ -113,6 +128,19 @@ export class ValoriNutrizionaliService {
       .flatMap((c) => c.nomi.filter((n) => t.includes(n)).map((n) => ({ v: c.v, lunghezza: n.length })))
       .sort((a, b) => b.lunghezza - a.lunghezza);
     return dentro[0]?.v ?? null;
+  }
+
+  /**
+   * Come `cerca`, ma dice anche **quando non si può rispondere**: più righe con stati diversi e la
+   * domanda che non specifica quale. Serve a `schedaPerRisposta`, che deve poter istruire Gaia a
+   * chiedere invece di dare un numero.
+   */
+  async cercaConStato(termine: string): Promise<EsitoScelta<ValoreNutrizionale>> {
+    const t = normalizzaNome(termine);
+    if (t.length < 3) return { tipo: 'niente' };
+    const tutti = (await this.prisma.nutrientFact.findMany()) as unknown as ValoreNutrizionale[];
+    const esatti = tutti.filter((v) => [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).includes(t));
+    return scegliPerStato(esatti, termine);
   }
 
   /** Cerca più alimenti in un testo: serve ai confronti («meglio il basmati o l'integrale?»). */
@@ -208,13 +236,34 @@ export class ValoriNutrizionaliService {
     fonti: string[];
     /** I termini che sembravano alimenti e non sono in tabella: già registrati fra i mancanti. */
     mancanti: string[];
+    /** ⚠️ Alimenti presenti in più stati (crudo/cotto): per questi NON si dice nessun numero. */
+    ambigui: string[];
   }> {
     const trovati = await this.cercaTutti(testo);
     const righe: string[] = [];
     const numeriAmmessi: number[] = [];
     const fonti = new Set<string>();
 
+    /**
+     * ⚠️ GLI ALIMENTI CON PIÙ STATI, PRIMA DI TUTTO IL RESTO (voce 228). Se lo stesso nome esiste
+     * crudo e bollito e la domanda non dice quale, non si mette **nessun numero** fra i dati: si
+     * mette l'istruzione di chiedere. Un numero plausibile e sbagliato non lo ferma nessuno, perché
+     * non ha l'aspetto di un errore.
+     */
+    const ambigui: string[] = [];
     for (const v of trovati) {
+      const scelta = await this.cercaConStato(v.name).catch(() => ({ tipo: 'niente' as const }));
+      if (scelta.tipo === 'ambiguo') ambigui.push(v.name);
+    }
+
+    for (const v of trovati) {
+      if (ambigui.includes(v.name)) {
+        const scelta = await this.cercaConStato(v.name).catch(() => ({ tipo: 'niente' as const }));
+        if (scelta.tipo === 'ambiguo') righe.push(fraseAmbiguita(v.name, scelta.stati));
+        // ⚠️ E nessun numero di questo alimento entra fra quelli ammessi: la guardia in uscita
+        // deve fermare anche un numero che, per caso, coincide con quello di uno dei due stati.
+        continue;
+      }
       const ig = this.indiceGlicemicoDaDire(v);
       const val = this.valoriDaDire(v);
       if (ig) {
@@ -231,7 +280,7 @@ export class ValoriNutrizionaliService {
       if (!ig && !val) righe.push(`di ${v.name} non abbiamo né indice glicemico né valori: non dire numeri.`);
     }
 
-    return { trovati, righe, numeriAmmessi, fonti: [...fonti], mancanti: [] };
+    return { trovati, righe, numeriAmmessi, fonti: [...fonti], mancanti: [], ambigui };
   }
 
   /**

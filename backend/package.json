@@ -78,7 +78,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "rinomina:prodotto": "ts-node --transpile-only prisma/rinomina-prodotto.ts",
     "seed:nutrienti": "ts-node --transpile-only prisma/seed-valori-nutrizionali.ts",
-    "fix:tag-settimane": "ts-node --transpile-only prisma/fix-tag-settimane.ts"
+    "fix:tag-settimane": "ts-node --transpile-only prisma/fix-tag-settimane.ts",
+    "diag:catalogo": "ts-node --transpile-only prisma/diag-catalogo.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

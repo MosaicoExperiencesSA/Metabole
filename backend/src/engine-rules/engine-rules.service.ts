@@ -1345,7 +1345,7 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
     const attore = actorUserId ?? (await this.autoreDiSistema());
     if (!attore) return { fatto: false, motivo: 'nessun capo nutrizionista a cui intestare la generazione' };
 
-    const varianti = await this.varianteDaRiempire();
+    const varianti = await this.statoVarianti();
     const lavoro = prossimaDaGenerare(varianti, SETTIMANE_OBIETTIVO);
     const restano = quantoManca(varianti, SETTIMANE_OBIETTIVO);
     if (!lavoro) return { fatto: false, motivo: 'catalogo completo: dodici settimane piene su tutte le varianti', restano: 0 };
@@ -1387,7 +1387,16 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
    * MAGRA — quella che esiste ma non ha sette piatti diversi in ogni pasto — ed è quella che si
    * ripassa per prima, perché la sta mangiando qualcuno adesso.
    */
-  private async varianteDaRiempire(): Promise<VarianteDaRiempire[]> {
+  /**
+   * Lo stato di ogni variante di catalogo: quante settimane ha, qual è la prima magra, quante
+   * clienti ci stanno sopra.
+   *
+   * ⚠️ **Pubblica di proposito** (era privata): `npm run diag:catalogo` deve rispondere «quanto
+   * manca?» con **questo** conto e non con una sua copia. Due punti che rispondono alla stessa
+   * domanda divergono, e il giorno che divergono la diagnostica dice che manca poco mentre il
+   * generatore continua a lavorare — o il contrario. Sola lettura: non scrive niente.
+   */
+  async statoVarianti(): Promise<VarianteDaRiempire[]> {
     const [presets, diete, giornate, profili] = await Promise.all([
       this.prisma.rulePreset.findMany({
         select: { id: true, label: true, style: true, regime: true, objective: true, meals: true },
