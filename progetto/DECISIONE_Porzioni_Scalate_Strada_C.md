@@ -120,6 +120,63 @@ dopo su chi si è agito. ⚠️ Il numero da guardare prima di scrivere la Conse
 
 ---
 
+## 3-bis. ⚠️ LA PRIMA LETTURA IN PRODUZIONE HA CAMBIATO LA DOMANDA (18/8)
+
+`npm run diag:porzioni` su 14 giorni: **84 giornate erogate, 18 clienti, 5 con giornate sotto banda**.
+E **quattro casi su cinque non hanno né digiuno né spuntini tolti**: sono «nessuna esclusione, è il
+catalogo». Antonio riceve il **53% del suo fabbisogno per nove giornate su nove**.
+
+### La causa, verificata nel codice e non dedotta dai numeri
+
+Il catalogo ha **una sola taglia calorica**, e l'erogazione punta a **un'altra cosa**:
+
+| | chi decide | valore |
+|---|---|---|
+| le **ricette del catalogo** | `menu_daycombo_kcal_target` (`engine-rules.catalog.ts:39`, `perDiet`) | **1500 kcal/giorno** di default (1600–1800 in tre preset) |
+| il **menu erogato** | `menu_kcal_need_enabled` → il **fabbisogno della cliente** (Mifflin) | quello che è |
+
+Il generatore scrive ogni ricetta dimensionata su quella giornata da 1500
+(`engine-rules.service.ts:255` e `:447`: `kcalPasto = targetKcal × quota`). Poi `DayCombo` compone
+puntando al fabbisogno vero — ma **dentro un pool che giornate più grandi non le contiene**.
+
+⇒ **Chi ha un fabbisogno sopra ~1765 kcal** (1500 ÷ 0,85, il bordo della banda del 15%) **riceve
+giornate fuori banda per costruzione**, tutti i giorni, qualunque cosa faccia il motore. E i numeri
+osservati tornano: 53% → fabbisogno ≈2830 · 60% → ≈2500 · 72% → ≈2080 · 75% → ≈2000. Tutti sopra la
+soglia, nessuno per colpa della propria finestra.
+
+⚠️ Il parametro lo dice pure, nella sua descrizione: «Non cambia i menu già erogati: quelli seguono il
+fabbisogno della cliente». Le due cose sono **dichiaratamente** separate — non era scritto da nessuna
+parte cosa succede quando non coincidono, e fino al 17/8 non lo diceva nessuno.
+
+⚠️ E lo schema aveva già previsto la risposta: `Diet.levels` nasce come `[{level:1,kcal:1400},
+{level:2,kcal:1600}]`, cioè **più taglie per la stessa dieta**. Il livello 2 non esiste: 315 diete
+sono tutte a livello 1.
+
+### Cosa cambia per questo foglio
+
+**La strada C non è un cerotto per il digiuno: è il meccanismo che manca al prodotto per servire UN
+catalogo a PIÙ fabbisogni.** Il caso della finestra di digiuno è un'istanza particolare (la giornata
+perde dei pasti), quello del catalogo è il caso generale (la giornata è tarata più in basso della
+persona).
+
+Ma il tetto cambia di significato, e va scelto su un altro numero:
+
+| | serviva per | fattore richiesto |
+|---|---|---|
+| digiuno «salto la cena» | recuperare i pasti tolti | ×1,54 |
+| **catalogo vs fabbisogno alto** | **tutti i giorni, per sempre** | **fino a ×1,89** |
+
+⚠️ E qui la differenza clinica è vera: ×1,54 per tre giorni su una finestra è una porzione più
+generosa; **×1,89 su ogni piatto di ogni giorno non è una porzione più grande, è un altro piano
+alimentare** — con la lista della spesa che raddoppia e piatti pensati piccoli serviti in doppia dose.
+
+**La strada onesta, se i numeri confermano:** una **seconda taglia di catalogo** per i fabbisogni alti
+(è quello per cui `levels` esiste, e si genera col generatore che c'è già), **più** la porzione scalata
+a coprire lo scarto che resta — con un tetto **piccolo** (×1,2–1,3), che è quello che una porzione può
+davvero fare senza diventare un altro piatto.
+
+---
+
 ## 4. Domanda 1 — il tetto
 
 Il precedente in casa: nelle sostituzioni in chat la grammatura ammessa sta fra **⅓ e 3×**, e fuori

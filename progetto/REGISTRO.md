@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🎯 **Il catalogo ha UNA taglia calorica (1500) e l'erogazione punta al fabbisogno: chi
+  sta sopra riceve corto per costruzione.** Voce 273, e ⚠️ **questa domanda viene prima del tetto del
+  moltiplicatore** (voce 255). Nata leggendo `diag:porzioni` in produzione — 84 giornate, 18 clienti,
+  5 sotto banda, **quattro su cinque senza digiuno e senza spuntini tolti** — e poi **verificata nel
+  codice, non dedotta dai numeri**: le ricette del catalogo le dimensiona `menu_daycombo_kcal_target`
+  («Kcal target delle bozze generate», default **1500**, 1600–1800 in tre preset) e il generatore
+  scrive ogni pasto come `targetKcal × quota`; l'erogazione invece punta al **fabbisogno della
+  cliente**, e `DayCombo` compone dentro un pool che **giornate più grandi non le contiene**. ⇒ **chi
+  ha un fabbisogno sopra ~1765 kcal** (1500 ÷ 0,85, il bordo della banda) **riceve giornate fuori banda
+  per costruzione, tutti i giorni**. I numeri tornano quasi esattamente: 53% → ≈2830 kcal di
+  fabbisogno, 60% → ≈2500, 72% → ≈2080, 75% → ≈2000. Antonio è al 53% su **nove giornate su nove**.
+  ⚠️ La descrizione del parametro dichiara la separazione («non cambia i menu già erogati: quelli
+  seguono il fabbisogno della cliente»), ma cosa succede quando le due non coincidono non era scritto
+  da nessuna parte — e fino al segnale del 17/8 non lo diceva nessuno. ⚠️ E lo schema aveva già
+  previsto la risposta: `Diet.levels` nasce come **più taglie** per la stessa dieta, e il livello 2 non
+  esiste (315 diete a livello 1). **Cosa cambia per la strada C**: non è un cerotto per il digiuno, è
+  il meccanismo che manca per servire **un** catalogo a **più** fabbisogni — ma il tetto cambia
+  significato, perché ×1,54 per tre giorni di finestra è una porzione più generosa, mentre **×1,89 su
+  ogni piatto di ogni giorno è un altro piano alimentare**, con la lista della spesa che raddoppia.
+  Tre strade nella voce (seconda taglia di catalogo · porzione scalata · alzare il parametro e
+  rigenerare); la proposta è **le prime due insieme**, con un tetto piccolo (×1,2–1,3). Analisi in
+  `progetto/DECISIONE_Porzioni_Scalate_Strada_C.md` §3-bis. Nessun codice di produzione.
+
 - `[Sviluppo]` 🔎 **La prima lettura vera delle porzioni, e due correzioni alla tabella che la mostra.**
   84 giornate erogate, 18 clienti, **5 con giornate sotto la banda del fabbisogno**. ⚠️ E il risultato
   non è quello che il foglio si aspettava: **quattro casi su cinque sono «nessuna esclusione: è il

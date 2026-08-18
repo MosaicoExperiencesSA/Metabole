@@ -713,6 +713,14 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'catalogo-una-taglia-sola',
+    titolo: 'Il catalogo ha UNA taglia calorica (1500) e l\'erogazione punta al fabbisogno: chi sta sopra riceve corto per costruzione',
+    dettaglio:
+      'Trovato il 18/8 leggendo `npm run diag:porzioni` in produzione — 84 giornate, 18 clienti, 5 con giornate sotto banda — e poi **verificato nel codice, non dedotto dai numeri**. Le ricette del catalogo le dimensiona `menu_daycombo_kcal_target` («Kcal target delle bozze generate», default **1500**, `perDiet`, 1600–1800 in tre preset): il generatore scrive ogni pasto come `targetKcal × quota`. L\'erogazione invece punta al **fabbisogno della cliente** (`menu_kcal_need_enabled`, acceso di default), e `DayCombo` compone dentro un pool che **giornate più grandi non le contiene**. ⇒ ⚠️ **Chi ha un fabbisogno sopra ~1765 kcal** (1500 ÷ 0,85, il bordo della banda del 15%) **riceve giornate fuori banda per costruzione, tutti i giorni**. I numeri osservati tornano: 53% → fabbisogno ≈2830, 60% → ≈2500, 72% → ≈2080, 75% → ≈2000 — e **quattro casi su cinque non hanno né digiuno né spuntini tolti**. ⚠️ La descrizione del parametro dichiara la separazione («non cambia i menu già erogati: quelli seguono il fabbisogno della cliente»), ma cosa succede quando le due non coincidono non era scritto da nessuna parte, e fino al segnale del 17/8 non lo diceva nessuno. ⚠️ E lo schema aveva già previsto la risposta: `Diet.levels` nasce come più taglie per la stessa dieta (`[{level:1,kcal:1400},{level:2,kcal:1600}]`) e il livello 2 non esiste — 315 diete tutte a livello 1. ⛔ **Decide Simone**, ed è la domanda che viene PRIMA del tetto del moltiplicatore (voce 255): una **seconda taglia di catalogo** per i fabbisogni alti (col generatore che c\'è già, ed è quello per cui `levels` esiste), la **porzione scalata** anche per questo caso (ma ×1,89 su ogni piatto di ogni giorno non è una porzione più grande, è un altro piano alimentare), o **alzare il parametro e rigenerare** (che sposta il problema su chi ha il fabbisogno basso). La strada C resta, ma cambia significato: non è un cerotto per il digiuno, è il meccanismo che manca per servire UN catalogo a PIÙ fabbisogni. Analisi in `progetto/DECISIONE_Porzioni_Scalate_Strada_C.md` §3-bis.',
+    categoria: SIMONE,
+    ordine: 273,
+  },
+  {
     chiave: 'diag-porzioni-retroattiva',
     titolo: '`npm run diag:porzioni`: misura le giornate GIÀ erogate, senza aspettare che qualcuno apra l\'app',
     dettaglio:
