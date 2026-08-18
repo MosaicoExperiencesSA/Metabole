@@ -60,7 +60,9 @@ interface Detail {
 }
 
 /** Menu del cliente per la revisione: piatto + stelline date dal cliente. */
-interface MenuMeal { slot: string | null; name: string; kcal: number | null; stars: number | null; ratedSameDay: boolean | null; ratedOn: string | null }
+/** ⚠️ `kcal` è quello che la cliente mangia: con `porzione` valorizzata è già moltiplicato
+ *  (voce 255). `porzione`/`kcalBase` servono a dire PERCHÉ quel numero è più alto del solito. */
+interface MenuMeal { slot: string | null; name: string; kcal: number | null; porzione: number | null; kcalBase: number | null; stars: number | null; ratedSameDay: boolean | null; ratedOn: string | null }
 interface MenuDayRow { id: string; date: string; level: number; status: string; dietName: string | null; meals: MenuMeal[] }
 
 const SLOT_LABEL: Record<string, string> = {
@@ -1576,11 +1578,20 @@ export function ClientDetail() {
             <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
             <Row label="Pasti / percorso" value={lab('pathType', p.pathType)} />
           {/* Quali pasti salta: prima non compariva da nessuna parte nel backoffice, quindi lo
-              staff non poteva sapere se una cliente in digiuno saltava la colazione o la cena. */}
+              staff non poteva sapere se una cliente in digiuno saltava la colazione o la cena.
+              ⚠️ E la finestra VUOTA non è «li decide la dieta» (18/8, voce 256): è una domanda che
+              non le è mai stata fatta — il questionario la chiede solo da agosto. Detta come prima
+              sembrava una scelta; è un valore di scorta che sta decidendo quali pasti mangia. Sono
+              due stati diversi e vanno letti diversi, come ovunque in questo progetto. La coach se
+              lo trova anche fra le sue attività (`finestra-mai-chiesta.ts`). */}
           {p.pathType === 'intermittent_fasting' && (
             <Row
               label="Pasti che salta"
-              value={p.fastingWindow ? FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow : 'li decide la dieta'}
+              value={
+                p.fastingWindow
+                  ? FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow
+                  : '⚠️ mai chiesta — intanto riceve tutti i pasti della dieta'
+              }
             />
           )}
           {/* Gli spuntini tolti da Vera («togli lo spuntino», 13/8): agiscono sul motore e prima
@@ -2108,6 +2119,17 @@ export function ClientDetail() {
                           <span className="muted" style={{ width: 84, flexShrink: 0, fontSize: 12 }}>{(meal.slot && SLOT_LABEL[meal.slot]) ?? meal.slot ?? '—'}</span>
                           <span style={{ flex: 1 }}>{meal.name}</span>
                           {meal.kcal != null && <span className="muted" style={{ fontSize: 11.5 }}>{meal.kcal} kcal</span>}
+                          {/* ⚠️ Senza questa pastiglia la nutrizionista legge un pranzo da 891 kcal
+                              e non ha modo di sapere che è una porzione scalata sul fabbisogno e
+                              non un errore del catalogo (voce 255). */}
+                          {meal.porzione != null && meal.porzione > 1.05 && (
+                            <span
+                              title={meal.kcalBase != null ? `Porzione di catalogo: ${meal.kcalBase} kcal` : 'Porzione scalata sul fabbisogno'}
+                              style={{ fontSize: 10.5, color: '#8E6BB5', border: '1px solid #E2D6F0', borderRadius: 8, padding: '0 5px' }}
+                            >
+                              ×{String(Math.round(meal.porzione * 10) / 10).replace('.', ',')}
+                            </span>
+                          )}
                           {meal.stars != null ? (
                             <span>
                               <Stars n={meal.stars} />

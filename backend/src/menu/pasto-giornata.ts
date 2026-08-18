@@ -109,7 +109,24 @@ export interface MealSnapshot {
   slot: string;
   recipeId: string;
   name: string;
+  /**
+   * ⚠️ LE KCAL SONO QUELLE CHE LA CLIENTE MANGIA, cioè **già scalate** dal moltiplicatore di
+   * porzione quando ce n'è uno (voce 255, 18/8). Non è un dettaglio implementativo: l'app **non**
+   * riceve il totale della giornata dal server, se lo somma da sola da queste righe
+   * (`Home.tsx`, `Percorso.tsx` in due punti). Scrivere qui la porzione di catalogo e il fattore a
+   * parte renderebbe sbagliati, in silenzio, tutti i totali di tre schermate — e i trenta punti che
+   * leggono `m.kcal` continuerebbero a leggere un numero che non è più vero.
+   */
   kcal: number;
+  /**
+   * Il moltiplicatore di porzione applicato a questo pasto. ⚠️ **Opzionale, assente = 1**: i giorni
+   * scritti prima del 18/8 si rileggono senza migrazione, com'è già per `substitutions` e
+   * `cambioPiatto`.
+   */
+  porzione?: number;
+  /** Le kcal della porzione di catalogo, prima della scalatura. Servono a non perdere l'origine —
+   *  e a poter rifare i conti quando il fabbisogno cambia. Assente = `kcal` non è stata scalata. */
+  kcalBase?: number;
   substitutions?: Substitution[];
   /** Presente solo se il piatto è stato cambiato in chat. Vedi `CambioPiatto`. */
   cambioPiatto?: CambioPiatto;

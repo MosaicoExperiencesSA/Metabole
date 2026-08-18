@@ -24,6 +24,20 @@ export type Voce = {
    * Così il file resta l'unico posto da aggiornare quando una consegna chiude un lavoro.
    */
   fatta?: boolean;
+  /**
+   * ⚠️ **Spunta se c'è, ma NON crearla.**
+   *
+   * Serve a un caso solo, e nasce dalla voce 224: il 13/8 le voci di Vera sono finite due volte nel
+   * file, con chiavi diverse per le stesse cose. Il doppione è stato tolto da qui, ma se il
+   * caricamento era già girato in mezzo quelle righe sono rimaste **in pagina**, aperte, a
+   * duplicare voci che esistono già con un'altra chiave.
+   *
+   * Marcarle `fatta: true` e basta le spunterebbe — ma se in pagina non ci fossero, il caricamento
+   * le **creerebbe**: tre voci nuove già spuntate, cioè spazzatura scritta per pulire spazzatura.
+   * Con questo campo il file può dire «questa non è un lavoro, è una riga da chiudere: se la trovi
+   * spuntala, altrimenti non è mai esistita».
+   */
+  soloSeEsiste?: boolean;
 };
 
 /**
@@ -39,9 +53,9 @@ export const DATI = 'Dati e catalogo';
 export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'tabella-ig-import',
-    titolo: 'Importare la tabella dell\'indice glicemico del capo nutrizionista (~94 alimenti)',
+    titolo: 'Indice glicemico: trascrizione VERIFICATA contro la tabella vera — resta solo da lanciare',
     dettaglio:
-      'PDF del 13/8 (Linus Pauling / International Tables 2008): IG con min e max, affidabilità, macro per 100 g, stato e fonte. ⚠️ Nessuna migrazione: `NutrientFact` ha già tutti i campi. Simone: si carica CONFERMATO di default (`verifiedById` = capo nutrizionista, `verifiedAt` valorizzato), perché «vuoti = da confermare» e finirebbe in una coda che nessuno ha chiesto. ⚠️ Prima va sciolto il crudo/cotto: la tabella dà la pasta BOLLITA (158 kcal), e una ricetta che dice «80 g di spaghetti» a crudo sbaglia di due volte e mezzo.',
+      'PDF del 13/8 (Linus Pauling / International Tables 2008): IG con min e max, affidabilità, macro per 100 g, stato e fonte. Il codice c\'era già da allora — `prisma/dati-ig.ts` (96 righe trascritte) e `npm run importa:ig` (anteprima, scrive solo con `CONFERMA=1`). ⚠️ **Il 18/8 Simone ha caricato il file originale in xlsx e ho confrontato riga per riga: 96 righe su 96, ZERO differenze** su nome, categoria, stato, IG, IG min, IG max, kcal, proteine, carboidrati, grassi, fibre e affidabilità. Era la verifica che mancava: 96 righe di dati clinici trascritti a mano, e un refuso su una kcal sarebbe finito in quello che Gaia dice alle clienti. ⚠️ Il crudo/cotto **è sciolto**, ed è la ragione per cui l\'import è sbloccato: ogni riga porta lo **stato esplicito**, e la pasta lì è BOLLITA (158 kcal/100 g) — usare il valore da crudo sbaglierebbe di due volte e mezzo. Si carica **confermato** (`verifiedById` = capo nutrizionista, `verifiedAt` valorizzato), perché «vuoti = da confermare» finirebbe in una coda che nessuno ha chiesto. Le tre sorti di una riga: nome nuovo → si crea; nome già in tabella **senza** IG → si aggiunge **solo** l\'IG (⚠️ le macro esistenti non si toccano: potrebbero essere state curate a mano); nome già in tabella **con** IG → non si tocca niente. ⛔ **Resta solo da lanciarlo in produzione**: `npm run importa:ig` per l\'anteprima, poi `CONFERMA=1`.',
     categoria: DATI,
     ordine: 20,
     blocca: false,
@@ -357,11 +371,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'vera-lavori-doppioni-caricati',
-    titolo: 'Lavori: spuntare le voci di Vera doppie, se sono già state caricate',
+    titolo: 'Le tre voci di Vera doppie in pagina si spuntano dal file, senza crearne di nuove',
     dettaglio:
-      'Il 13/8 le voci di Vera sono finite due volte in `voci-iniziali.ts` (due sessioni, chiavi diverse per le stesse cose). Il doppione è stato tolto dal file, ma se `CONFERMA=1 npm run carica:lavori` era già girato in mezzo, in pagina restano `vera-moduli-dashboard`, `ai-assistant-enabled` e `dizionario-promossa-a-comune`: si spuntano dalla pagina, non si cancellano. ⚠️ E NON si rilancia il caricamento per «riallineare».',
+      'Il 13/8 le voci di Vera sono finite due volte in `voci-iniziali.ts` — due sessioni, chiavi diverse per le stesse cose. Il doppione è stato tolto dal file, ma il caricamento era già girato in mezzo: in pagina restano `vera-moduli-dashboard`, `ai-assistant-enabled` e `dizionario-promossa-a-comune`, aperte, a duplicare voci che esistono già con un\'altra chiave (`vera-dashboard`, `vera-ai-assistant-enabled`, `vera-dizionario-comune-conflitto`). ⚠️ Marcarle `fatta: true` e basta non bastava: se in pagina **non** ci fossero, il caricamento le **creerebbe** — tre voci nuove già spuntate, cioè spazzatura scritta per pulire spazzatura. Nuovo campo `soloSeEsiste` su `Voce`: il file può dire «questa non è un lavoro, è una riga da chiudere — se la trovi spuntala, se non c\'è non è mai esistita». Non si cancella niente, si spunta: in pagina può esserci sopra il commento di qualcuno. E queste righe non compaiono fra i «testi da allineare», che sarebbe rumore. Basta premere «Aggiorna dal rilascio» dopo il prossimo deploy. 4 test.',
     categoria: MANUTENZIONE,
     ordine: 224,
+    fatta: true, // 18/8
   },
 
   {
@@ -602,17 +617,18 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'allergeni-reviewed-non-si-azzera',
-    titolo: 'Cambiare gli ingredienti dal backoffice NON azzera gli allergeni confermati',
+    titolo: 'Cambiare gli ingredienti ora AZZERA gli allergeni confermati: gli allergeni vincono sulle modifiche',
     dettaglio:
-      '⚠️ Verificato nel codice il 16/8 scrivendo la voce 227: `catalog.updateRecipe` (riga 1187) scrive `ingredients` senza toccare `allergensReviewed`. Una ricetta con allergeni confermati a cui qualcuno cambia gli ingredienti dalla scheda resta `allergensReviewed: true` — con la conferma di PRIMA, data su un piatto diverso. Nessun errore, nessuna riga rossa, e il filtro degli allergeni continua a girare su un\'informazione vecchia. ⚠️ NON l\'ho chiuso da solo perché azzerare `allergensReviewed` a ogni modifica di ingredienti TOGLIE DAI MENU ogni ricetta che qualcuno tocca, finché non la si rivede: su 315 clienti è una decisione operativa, non un dettaglio tecnico. La metà che passa da Vera è già chiusa (la modifica approvata in chat rifà la domanda). Serve la decisione di Simone sul resto: azzerare sempre, azzerare solo se cambia la LISTA degli ingredienti e non le quantità, o segnalare senza spegnere.',
-    categoria: SIMONE,
+      'Trovato nel codice il 16/8 scrivendo la voce 227, chiuso il 18/8 con la risposta di Simone: **«gli allergeni vincono sempre sulle modifiche; in caso venga data una sostituzione incompatibile va segnalato»**. Il difetto: `catalog.updateRecipe` scriveva `ingredients` **senza toccare** `allergensReviewed`. Una ricetta con gli allergeni confermati a cui qualcuno cambiava gli ingredienti restava `allergensReviewed: true` — con la firma di **prima**, data su un piatto diverso. Nessun errore, nessuna riga rossa, e `collegaRicetta` la lasciava entrare nelle diete perché il campo diceva di sì. Una conferma è una firma su un contenuto: cambiato il contenuto, la firma non vale più. ⚠️ **Decade sui NOMI degli ingredienti, non su qualunque salvataggio**, ed è il modo di applicare «vincono sempre» che protegge davvero: una quantità non può introdurre né togliere un allergene (80 g o 100 g di farina hanno lo stesso glutine), mentre azzerare per un peso corretto **toglierebbe il piatto dai menu** senza aggiungere un grammo di sicurezza. Quello che cambia gli allergeni è cosa c\'è dentro: un ingrediente aggiunto, tolto o rinominato. ⚠️ Il confronto è fra **insiemi di nomi** normalizzati: l\'ordine non conta (spostare una riga nel form non è una modifica), e stesso numero con uno scambiato **conta** — una scorciatoia sulla lunghezza della lista avrebbe lasciato passare farina→mandorle. ⚠️ E se gli ingredienti non si leggono, si azzera: su un campo di sicurezza «non ho capito» vale «non è confermato», mai il contrario. ⚠️ **Non è retroattivo**: vale dalla prossima modifica, quindi il catalogo non si svuota di colpo e la coda di «Allergeni ricette» si riempie al ritmo con cui qualcuno tocca le ricette. Chi salva lo **legge**: la pagina Ricette dice che la ricetta non entra più nei menu nuovi, dove si riconferma, e che i menu già consegnati non cambiano — e resta nel registro modifiche, perché chi un domani si chiede «perché questa ricetta è sparita dai menu?» deve trovare la risposta. **Sulla seconda metà della risposta** («sostituzione incompatibile va segnalato»): verificato, è già vero su tutt\'e due le porte — il dialogo di Gaia ferma il sostituto che tocca un allergene dichiarato e **passa la mano a una persona** (`sostituzione-chat.service.ts:795-802, 902`), e il pulsante «non gradisco» dell\'app sceglie i sostituti passando da `evaluateMeals`, che è il punto obbligato dove allergeni ed esclusioni si applicano. 15 test. Nessuna migrazione.',
+    categoria: CODICE,
     ordine: 252,
+    fatta: true, // 18/8
   },
   {
     chiave: 'app-dati-che-non-legge',
-    titolo: 'App: sei dati che il server manda alla cliente e nessuna schermata mostra',
+    titolo: 'App: restano TRE dati che il server manda alla cliente e nessuna schermata mostra (erano sei)',
     dettaglio:
-      'Trovati il 16/8 con un giro sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte in questo progetto — un dato che agisce e non si vede. I due più gravi (i traguardi raggiunti e il guardrail del calo rapido) sono stati chiusi lo stesso giorno; questi restano, e sono SCHERMATE NUOVE, non correzioni: **1)** `GET /me/progress` non lo chiama nessuno — media mobile, chili persi, PROIEZIONE della data obiettivo, giorni di stallo — eppure il calcolo gira e lo leggono il motore e l\'allarme di stallo della coach: agisce su di lei ed è l\'unica a non vederlo. **2)** `GET /me/cycle` mai chiamato: le due cotture del ciclo, le stelle di gradimento (che decidono cosa il motore le ripropone) e l\'esito del ciclo precedente. **3)** `totalSafe` e `certificate` da `/me/personal-base`: quante ricette sono state certificate sicure per lei e la firma del certificato di personalizzazione — la prova numerica che la personalizzazione è avvenuta, e la sola persona a cui interessa non ce l\'ha. **4)** `since` in `/me/measurement-gate`: da quando il menu è fermo (oggi legge «contatta la tua coach» senza sapere da quanto). **5)** `thighsCm`: lo staff può registrarle una circonferenza cosce che lei non vedrà mai. **6)** `GET /me/ratings/pending` esiste e il popup delle valutazioni non lo usa: si ricostruisce l\'elenco da `/me/menu` e ripropone anche i piatti già votati. ⚠️ Le prime tre vanno disegnate prima di scriverle: sono pagine, non righe.',
+      'Trovati il 16/8 con un giro sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte in questo progetto — un dato che agisce e non si vede. **Chiusi:** i traguardi raggiunti e il guardrail del calo rapido (16/8); il popup delle valutazioni, che ricostruiva l\'elenco da `/me/menu` e riproponeva piatti già votati invece di leggere `GET /me/ratings/pending` (voce 269, 18/8); e il 18/8 gli ultimi due piccoli — **`since` di `/me/measurement-gate`**, che il backend manda da sempre e nessuno leggeva: il riquadro diceva «App in pausa», uno stato senza storia, e ora dice **da quanto** il menu è fermo («da ieri», «da 5 giorni», «da 2 settimane»), ⚠️ tacendo quando la data non c\'è invece di scrivere «da 0 giorni» — e **`thighsCm`**, la circonferenza cosce che lo staff poteva registrarle e che lei non avrebbe mai visto: il campo c\'era in banca dati, nel form del backoffice e nella risposta di `GET /me/measurements`, e si fermava all\'interfaccia TypeScript dell\'app. ⚠️ Ora la vede **e la può scrivere**: mostrarla soltanto avrebbe lasciato un dato sul suo corpo che governa solo lo staff. Niente barra «verso il tuo obiettivo» per le cosce, perché un `targetThighsCm` non esiste e inventarlo sarebbe una migrazione per una cosa che nessuno ha chiesto: una barra senza traguardo misura la distanza da niente. **⛔ RESTANO I TRE GROSSI, e sono SCHERMATE NUOVE — vanno disegnate prima di scriverle: 1)** `GET /me/progress` non lo chiama nessuno — media mobile, chili persi, PROIEZIONE della data obiettivo, giorni di stallo — eppure il calcolo gira e lo leggono il motore e l\'allarme di stallo della coach: agisce su di lei ed è l\'unica a non vederlo. **2)** `GET /me/cycle` mai chiamato: le due cotture del ciclo, le stelle di gradimento (che decidono cosa il motore le ripropone) e l\'esito del ciclo precedente. **3)** `totalSafe` e `certificate` da `/me/personal-base`: quante ricette sono state certificate sicure per lei e la firma del certificato di personalizzazione — la prova numerica che la personalizzazione è avvenuta, e la sola persona a cui interessa non ce l\'ha.',
     categoria: CODICE,
     ordine: 253,
   },
@@ -620,9 +636,10 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'vera-handoff-sessione',
     titolo: 'Vera: il passaggio di consegne sta in progetto/HANDOFF_Vera_Sessione.md',
     dettaglio:
-      'La chat in cui Vera è stata costruita (12-13/8) è diventata troppo lunga. Tutto quello che serve per riprenderla da un\'altra sessione — cosa c\'è, dove sta, le regole di lavoro, le trappole già pagate e le due decisioni aperte — è in `progetto/HANDOFF_Vera_Sessione.md`. ⚠️ Va letto PRIMA di toccare `backend/src/vera/`: metà delle scelte che sembrano strane lì dentro sono difetti già pagati una volta.',
+      'La chat in cui Vera è stata costruita (12-13/8) è diventata troppo lunga. Tutto quello che serve per riprenderla da un\'altra sessione — cosa c\'è, dove sta, le regole di lavoro, le trappole già pagate e le decisioni aperte — è in `progetto/HANDOFF_Vera_Sessione.md` (308 righe, verificato il 18/8). ⚠️ Va letto **prima** di toccare `backend/src/vera/`: metà delle scelte che sembrano strane lì dentro sono difetti già pagati una volta. Spuntata il 18/8: non è un lavoro da fare, è un cartello, e il cartello c\'è. Resta in elenco perché si legga.',
     categoria: MANUTENZIONE,
     ordine: 231,
+    fatta: true, // 18/8 — il file esiste, questa voce è un cartello
   },
   {
     chiave: 'digiuno-catalogo-per-finestra',
@@ -635,19 +652,21 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'digiuno-porzioni-non-si-scalano',
-    titolo: 'Digiuno: i pasti sono giusti, le PORZIONI no — Sonia è al 65% del fabbisogno',
+    titolo: 'Le porzioni si scalano sul fabbisogno: Sonia dal 65% al 100%',
     dettaglio:
-      'La metà che la correzione del 17/8 (voce 254) NON chiude, e va detta perché tocca le calorie di una persona: le ricette nascono dimensionate su una quota della giornata, e quando la finestra toglie dei pasti quello che resta NON si ingrandisce — `DayCombo` sceglie una ricetta per slot dentro il pool e un moltiplicatore di porzione non esiste da nessuna parte. Chi salta la cena passa dal 45% al 65% del fabbisogno: meglio, non giusto. ⚠️ Lo stesso buco esiste FUORI dal digiuno, in piccolo: quando Vera toglie i due spuntini (`pastiEsclusi`) la giornata perde il 20% e la nota in app dice che le kcal «sono ridistribuite» — cosa che il motore non fa. ✅ **Strada scelta da Simone il 17/8: la C**, la porzione si scala all\'erogazione (un catalogo solo, e risolve anche gli spuntini). Foglio: `progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`, scritto il 17/8 sera. ⚠️ Restano TRE domande sue, tutte cliniche, e sono in testa al foglio: il **tetto** del moltiplicatore (uno solo o uno per tipo di pasto), **cosa si fa quando il tetto non basta** (la finestra «salta cena e colazione» chiede ×2,22: nessun tetto ci arriva), e **se scalano tutti allo stesso modo** o i pasti principali più degli spuntini (col fattore uniforme lo spuntino di Sonia diventa da 246 kcal). Nel foglio c\'è anche il pezzo da consegnare per primo, che non aspetta nessuna decisione: oggi una giornata sotto target esce identica a una giusta — `day-combo` torna `null` e `menu.service` eroga col template senza una riga di log, mentre per i PASTI mancanti il segnale è stato costruito (`fasting_meals_missing`).',
-    categoria: SIMONE,
+      'Chiusa il 18/8 con la decisione di Simone — **«va riproporzionato il pasto correggendo le quantità in base al fabbisogno»**, cioè la strada C del foglio `progetto/DECISIONE_Porzioni_Scalate_Strada_C.md`. Il buco: le ricette nascono dimensionate su una quota della giornata di catalogo (`menu_daycombo_kcal_target`, 1500), l\'erogazione punta al **fabbisogno**, e quando la finestra del digiuno toglieva dei pasti quello che restava **non si ingrandiva** — chi salta la cena riceveva il 65%, chi salta cena e colazione il 45%. Nuovo `menu/porzione-scalata.ts`: fattore **uniforme** con un **tetto per tipo di pasto** (principali ×1,8, colazione ×1,6, spuntini ×1,25, tutti in `config_param`). ⚠️ I tetti per tipo e non uno solo: a ×1,6 uno spuntino da 160 kcal diventa 256 e non è più uno spuntino. ⚠️ E chi non è al tetto cresce **della stessa percentuale** di chiunque altro non sia al tetto — il rapporto fra colazione e pranzo lo ha deciso la dieta, non noi. (Sulla giornata di Sonia: 509/200/891 con la regola giusta, 478/193/929 con la ridistribuzione «in proporzione al margine» che avevo scritto per prima e che un test ha bocciato.) ⚠️ **Non si rimpicciolisce mai**: scalare all\'ingiù toccherebbe il menu di tutte le clienti sotto i 1500 kcal, ed è una decisione clinica diversa da quella presa. ⚠️ La scalatura è **l\'ultimo passo prima della misura**: la giornata la riscrivono la ripetizione bigiornaliera, le «ricette semplici» e il cambio dei piatti non graditi, e tutti e tre ricostruiscono i pasti campo per campo — scrivendo il fattore prima, lo butterebbero via senza un errore. ⚠️ E `daily_kcal_below_target` cambia significato: da oggi vuol dire «resta corta **anche col moltiplicatore al tetto**», più raro e più grave. Toccati insieme: **kcal già scalate** nello snapshot (l\'app somma i totali da lì, in tre schermate: scrivere il fattore a parte le avrebbe rese sbagliate in silenzio), `kcalBase` e `porzione` accanto per non perdere l\'origine, la **lista della spesa** (sommava le grammature di catalogo: la cliente comprava il cibo della porzione piccola e a metà settimana finiva), la riga «porzione più abbondante ×1,8» nel menu dell\'app e la pastiglia «×1,8» nella scheda del backoffice. ⛔ **Cosa resta e va detto:** la scheda ricetta (`GET /recipes/:id`) mostra ancora le grammature di catalogo perché non sa di quale giorno si parli — per ora lo colma la frase in app («pesa gli ingredienti per 1,8 volte»), la soluzione vera è passarle giorno e slot; i giorni **già erogati** non si riscrivono (`menuDay.upsert` ha `update: {}`), quindi vale dai giorni nuovi; il kit di rientro copia `meals` così com\'è; e ⚠️ **i pezzi restano un problema aperto** — ×1,5 di una mela è una mela e mezza, e il numero vero esce così com\'è invece di essere arrotondato di nascosto: accettarlo o togliere le ricette a pezzo dalla scalatura è una decisione da prendere con la nutrizionista. 29 test nuovi. Nessuna migrazione.',
+    categoria: CODICE,
     ordine: 255,
+    fatta: true, // 18/8
   },
   {
     chiave: 'digiuno-finestra-mai-chiesta',
-    titolo: 'Digiuno senza finestra: a Maria non è mai stato chiesto quali pasti salta',
+    titolo: 'Digiuno senza finestra: la domanda non era mai stata fatta — ora è un\'attività della coach',
     dettaglio:
-      'Maria ha `pathType: intermittent_fasting` e `fastingWindow` vuota. ⚠️ NON è un difetto del motore e non è un allarme: senza finestra non si salta nulla e riceve il 16:8 classico, che è il default sensato — «dovrebbe ricevere tutti e cinque i pasti» era una frase del mio primo script, non una promessa fatta a lei (falso positivo corretto il 17/8). Il difetto è che **la domanda non le è mai stata fatta**: la finestra decide quali pasti mangia e per lei l\'ha decisa un valore di scorta. Va chiesta — dal questionario per chi si iscrive, e alle clienti già in digiuno senza finestra da Gaia o dalla coach. Nel frattempo `struttura-per-digiuno.ts` NON la sposta di catalogo, di proposito: cambiarle la dieta sotto i piedi per un campo vuoto sarebbe rispondere a una domanda mancata con un\'altra decisione presa al posto suo.',
+      'Una cliente ha `pathType: intermittent_fasting` e `fastingWindow` **vuota**. ⚠️ Prima di tutto il resto: **il motore non è rotto**. Senza finestra non si salta nulla e riceve il 16:8 classico, che è il valore di scorta sensato — «dovrebbe ricevere tutti e cinque i pasti» era una frase del mio primo script, non una promessa fatta a lei (falso positivo corretto il 17/8). Il difetto è più difficile da vedere: la finestra decide **quali pasti mangia**, e per lei l\'ha decisa un valore di scorta. **La domanda non le è mai stata fatta.** Il questionario la fa, obbligatoria, dal 5-11/8 (`showIf` sul digiuno): chi si iscrive oggi la sceglie. Restavano fuori le clienti di prima. ⛔ Ho scartato di farla chiedere a Gaia: «quali pasti preferisci saltare?» arrivato a freddo, a chi mangia così da mesi, è una domanda che si risponde male — la risposta giusta dipende da come sta e da cosa le hanno detto in visita. Non è un dato da riempire, è **una conversazione da avere**, e il progetto ha già il posto dove una cosa da fare diventa lavoro di una persona: le attività della coach. Fatto: **1)** nuova attività «Chiedi a [nome] quali pasti salta nel digiuno», generata dal cron notturno per chi è in digiuno senza finestra **e ha un abbonamento attivo** (aprire un\'attività su chi ha finito il percorso mesi fa è il modo più rapido di insegnare alla coach a ignorare la colonna), con `refId` **fisso**: si chiede una volta sola, e se la coach la segna fatta non torna. ⚠️ Il testo dice **cosa succede intanto** — «NON è ferma e non è rotta, riceve tutti i pasti della sua dieta» — perché «manca la finestra» letto da solo suona come un guasto, e una coach che chiama allarmata una cliente che sta bene fa più danno del dato mancante. **2)** Nel backoffice la finestra vuota non si legge più «li decide la dieta», che sembrava una scelta: ora è «⚠️ mai chiesta — intanto riceve tutti i pasti della dieta». Tre stati, non due. **3)** Nell\'app, la card della finestra compariva coi pallini tutti spenti e nessuna spiegazione: ora dice che la domanda non c\'era quando si è iscritta, che intanto non le manca niente, e a cosa serve dirlo. ⚠️ E NON promette che le calorie del pasto saltato finiscono negli altri: non è vero finché la voce 255 è aperta. 8 test. Nessuna migrazione.',
     categoria: CODICE,
     ordine: 256,
+    fatta: true, // 18/8
   },
 
   {
@@ -711,6 +730,15 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 263,
     fatta: true, // 17/8 sera
+  },
+  {
+    chiave: 'gaia-chiude-le-conversazioni-lasciate-a-meta',
+    titolo: 'Gaia ripeteva la stessa domanda all\'infinito a chi non rispondeva: ora la chiude lei',
+    dettaglio:
+      'Segnalato da Simone il 18/8 con la chat di una cliente sotto gli occhi: tre volte di fila «Certo [nome], vediamo insieme. Quale alimento vuoi cambiare?», il 10/8 alle 13:07, l\'11/8 alle 16:00 e ancora — e in mezzo **nessuna risposta**. ⚠️ Ma non era Gaia che insisteva, e la ricostruzione conta perché cambia il rimedio: **nessun cron scrive quel messaggio**, lo scrive il pulsante «Sostituisci» della home (`POST /me/threads/sostituzione`). Erano tre **aperture**: la cliente tocca, legge — nel messaggio c\'è anche il menu del giorno, che è metà del motivo per cui uno lo tocca — e se ne va. Lo stato del dialogo scade dopo un\'ora (`SCADENZA_FLUSSO_MS`), quindi l\'apertura dopo riparte da zero e **non sa** di aver già chiesto. Ora una domanda rimasta senza risposta per 24 ore la chiude Gaia: «capisco che l\'argomento non sia più di tuo interesse, chiudo qui — se cambi idea tocca «Sostituisci» quando vuoi». ⚠️ Chiude il **tempo**, non un altro tocco del pulsante: la strada alternativa (alla terza apertura rispondere con la chiusura) le direbbe «capisco che non ti interessa più» **nell\'istante in cui sta chiedendo**. E chiudendo a tempo la seconda domanda identica non arriva nemmeno. ⚠️ Nessuna tabella nuova: il marcatore **è la riga** — il messaggio di chiusura non porta `meta.sost`, quindi chiude il dialogo e insieme impedisce di richiudere la stessa conversazione domani notte. ⚠️ Due guardie sul primo giro dopo il rilascio, che trova tutto l\'arretrato: finestra di **30 giorni** all\'indietro (svegliare qualcuno per una domanda di marzo non è chiudere una conversazione, è aprirne una) e **tetto di 100 per giro, dichiarato nell\'esito** — un tetto silenzioso fa sembrare finito un giro che ne ha lasciate indietro cento. Soglia in `config_param` (`chat_chiusura_silenzio_ore`, 24). Passo del cron notturno, non dei `reminders` che girano ogni dieci minuti: questo scrive alla cliente. 26 test. Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 277,
+    fatta: true, // 18/8
   },
   {
     chiave: 'niente-email-clienti-nel-repository',
@@ -823,6 +851,41 @@ export const VOCI_INIZIALI: Voce[] = [
       'Censimento fatto il 17/8 sera chiudendo la voce 263: le porte che scrivono `dislikedFoods` sono **otto**, e ora tre sono pulite (questionario, profilo in app, scheda staff) più lo script di bonifica. Le altre: **1)** `menu.service.substituteDisliked` con `scope: \'forever\'` — ha il cancello spezie sul termine ma non spezza, quindi «pepe, ceci» digitato in app supera il cancello e si salva intero; **2)** `sostituzione-chat.service.aggiungiAiNonGraditi` (Gaia) — rischio basso, il valore è un nome di ingrediente del catalogo; **3)** `vera-chat.service.scriviRestrizione` — la nutrizionista detta una restrizione per **una** cliente; **4)** `applica-proposta.applicaRestrizione` — la stessa cosa su una **coorte**, quindi ⚠️ un termine sporco si moltiplica su N profili. ⛔ Le due di Vera non le ho chiuse di mia iniziativa: lì la domanda non è tecnica ed è di Simone — **se la nutrizionista detta una spezia, cosa si fa?** Scartarla in silenzio è il difetto che paghiamo da quattro volte; scartarla dicendolo vuol dire scrivere la frase che Vera risponde (e Vera **ha** una voce, a differenza di un form); tenerla vuol dire accettare che il pool si svuoti — ma chi la detta è la professionista che firma le diete. ⚠️ Il lato **lettura** protegge già dai tag doppi (`expandExclusion` li spezza dal 17/8): quello che resta esposto sono le spezie, e il testo grezzo che finisce nel report PDF della cliente (`plan-report.service.ts:250`).',
     categoria: SIMONE,
     ordine: 264,
+  },
+
+  /**
+   * ⚠️ LE TRE RIGHE DOPPIE DEL 13/8 (voce 224). Non sono lavori: sono duplicati rimasti in pagina
+   * con una chiave diversa da quella delle voci vere — che sono, nell'ordine,
+   * `vera-dashboard`, `vera-ai-assistant-enabled` e `vera-dizionario-comune-conflitto`.
+   * `soloSeEsiste` fa in modo che il caricamento le spunti se le trova e non le inventi se non ci
+   * sono. ⚠️ Non si CANCELLANO, si spuntano: in pagina può esserci sopra un commento di qualcuno.
+   */
+  {
+    chiave: 'vera-moduli-dashboard',
+    titolo: 'Doppione del 13/8 — vedi «Vera: i moduli in dashboard "quello che aspetta me"»',
+    dettaglio: 'Riga duplicata rimasta in pagina: la voce vera ha la chiave `vera-dashboard`. Chiusa il 18/8.',
+    categoria: MANUTENZIONE,
+    ordine: 900,
+    fatta: true,
+    soloSeEsiste: true,
+  },
+  {
+    chiave: 'ai-assistant-enabled',
+    titolo: 'Doppione del 13/8 — vedi «`ai_assistant_enabled` è "false" in produzione»',
+    dettaglio: 'Riga duplicata rimasta in pagina: la voce vera ha la chiave `vera-ai-assistant-enabled`. Chiusa il 18/8.',
+    categoria: MANUTENZIONE,
+    ordine: 901,
+    fatta: true,
+    soloSeEsiste: true,
+  },
+  {
+    chiave: 'dizionario-promossa-a-comune',
+    titolo: 'Doppione del 13/8 — vedi «Voce di dizionario promossa a comune»',
+    dettaglio: 'Riga duplicata rimasta in pagina: la voce vera ha la chiave `vera-dizionario-comune-conflitto`. Chiusa il 18/8.',
+    categoria: MANUTENZIONE,
+    ordine: 902,
+    fatta: true,
+    soloSeEsiste: true,
   },
 
 ];

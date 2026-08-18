@@ -20,6 +20,159 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔬 **Indice glicemico: la trascrizione è verificata riga per riga contro la tabella
+  vera — 96 su 96, zero differenze.** Simone ha caricato il file originale in xlsx e l'ho confrontato
+  con `prisma/dati-ig.ts`, campo per campo: nome, categoria, stato, IG, IG min, IG max, kcal,
+  proteine, carboidrati, grassi, fibre, affidabilità. **Nessuno scostamento, nessuna riga mancante,
+  nessuna riga inventata.** ⚠️ Era la verifica che mancava, e non è una formalità: sono 96 righe di
+  dati clinici trascritte a mano da un PDF, e un refuso su una kcal sarebbe finito dritto in quello
+  che Gaia dice alle clienti. Il codice c'era da allora — `dati-ig.ts` e `npm run importa:ig` — e il
+  crudo/cotto è sciolto perché **ogni riga porta lo stato esplicito**: la pasta lì è BOLLITA (158
+  kcal/100 g), e usare il valore da crudo sbaglierebbe di due volte e mezzo. ⛔ **Resta solo da
+  lanciarlo in produzione**: `npm run importa:ig` per l'anteprima, poi `CONFERMA=1`.
+
+- `[Sviluppo]` 🧹 **Tre pulizie: i doppioni in pagina, il cartello di Vera, e lo script per spostare
+  percorso.** ① **Voce 224** — il 13/8 le voci di Vera erano finite due volte nel file con chiavi
+  diverse; il doppione è stato tolto, ma il caricamento era già girato e in pagina restavano tre
+  righe aperte che duplicano voci esistenti. ⚠️ Marcarle `fatta: true` e basta non bastava: se in
+  pagina **non** ci fossero, il caricamento le **creerebbe** — tre voci nuove già spuntate, cioè
+  spazzatura scritta per pulire spazzatura. Nuovo campo `soloSeEsiste`: «se la trovi spuntala, se non
+  c'è non è mai esistita». Non si cancella niente (in pagina può esserci sopra il commento di
+  qualcuno) e queste righe non compaiono fra i «testi da allineare», che sarebbe rumore. ② **Voce
+  231** — `HANDOFF_Vera_Sessione.md` esiste (308 righe): non è un lavoro, è un cartello da leggere
+  prima di toccare `backend/src/vera/`, e resta in elenco perché si legga. ③ **`npm run
+  sposta:percorso`**, lo strumento per la risposta di Simone su Maria («spostiamola su Mediterranea
+  3 pasti»): è una scrittura in produzione, quindi la lancia lui. ⚠️ Scritto **generico**: uno script
+  con un nome dentro è uno script che si riscrive la volta dopo, e la volta dopo qualcuno
+  copia-incolla e sbaglia una riga. ⚠️ `SOLO` obbligatorio — uno script che cambia il percorso di
+  tutte le clienti se lanciato senza argomenti non è uno strumento, è una trappola. ⚠️ Azzera
+  `fastingWindow` fuori dal digiuno (lasciarla sarebbe un dato che torna ad agire mesi dopo) e dice
+  **quante giornate future sono già scritte**, che restano costruite sul percorso vecchio finché non
+  si rigenerano. 4 test (3210 verdi). **Dopo il deploy: «Aggiorna dal rilascio» nella pagina Lavori.**
+
+- `[Sviluppo]` ⚖️ **Le porzioni si scalano sul fabbisogno: dal 65% al 100%** (voce 255, strada C).
+  Decisione di Simone: «va riproporzionato il pasto correggendo le quantità in base al fabbisogno».
+  Il buco: le ricette nascono dimensionate sulla giornata di **catalogo** (1500 kcal), l'erogazione
+  punta al **fabbisogno**, e quando la finestra del digiuno toglieva dei pasti quello che restava
+  non si ingrandiva — chi salta la cena riceveva il 65%, chi salta cena e colazione il 45%. Nuovo
+  `menu/porzione-scalata.ts`: fattore **uniforme** con un **tetto per tipo di pasto** (principali
+  ×1,8, colazione ×1,6, spuntini ×1,25, tutti e tre in `config_param`). ⚠️ Per tipo e non uno solo:
+  a ×1,6 uno spuntino da 160 kcal diventa 256, e non è più uno spuntino. ⚠️ E chi non è al tetto
+  cresce **della stessa percentuale** di chiunque altro non sia al tetto — il rapporto fra colazione
+  e pranzo lo ha deciso la dieta, non noi. È la sfumatura che ho sbagliato alla prima scrittura:
+  «in proporzione al margine» dava 478/193/929 invece di 509/200/891, cioè spostava cibo dalla
+  colazione al pranzo senza che nessuno l'avesse deciso; l'ha bocciata un test, non una rilettura.
+  ⚠️ **Non si rimpicciolisce mai**: scalare all'ingiù toccherebbe il menu di tutte le clienti sotto
+  i 1500 kcal, ed è una decisione clinica diversa. ⚠️ La scalatura è **l'ultimo passo prima della
+  misura**: la giornata la riscrivono la ripetizione bigiornaliera, le «ricette semplici» e il cambio
+  dei piatti non graditi, e tutti e tre ricostruiscono i pasti campo per campo — scrivendo il fattore
+  prima, lo butterebbero via senza un errore. ⚠️ E `daily_kcal_below_target` cambia significato: da
+  oggi è «resta corta **anche col moltiplicatore al tetto**», più raro e più grave; i due test che lo
+  difendevano sono stati **riscritti col significato nuovo**, non cancellati. Le `kcal` dello
+  snapshot sono **già scalate** (l'app somma i totali da lì in tre schermate: il fattore a parte le
+  avrebbe rese sbagliate in silenzio), con `kcalBase` e `porzione` accanto. Toccata anche la **lista
+  della spesa**, che sommava le grammature di catalogo — la cliente comprava il cibo della porzione
+  piccola e a metà settimana finiva: un errore che non si vede nell'app, si vede in cucina. E si
+  legge: riga «Porzione più abbondante ×1,8 — pesa gli ingredienti per 1,8 volte» nel menu, pastiglia
+  «×1,8» nella scheda del backoffice. ⛔ **Resta**: la scheda ricetta con le grammature di catalogo
+  (per ora la colma la frase in app), i giorni già erogati, il kit di rientro, la lista della spesa
+  già in cache, e ⚠️ **i pezzi** — ×1,5 di una mela è una mela e mezza, e il numero esce così com'è
+  invece di essere arrotondato di nascosto: quella è una decisione della nutrizionista. 29 test (208
+  suite, 3206 verdi; app 89). Nessuna migrazione.
+
+- `[Sviluppo]` 🛡️ **Gli allergeni vincono sulle modifiche: cambiare gli ingredienti azzera la
+  conferma.** Voce 252, chiusa con la risposta di Simone («gli allergeni vincono sempre sulle
+  modifiche; in caso venga data una sostituzione incompatibile va segnalato»). Il difetto:
+  `catalog.updateRecipe` scriveva `ingredients` **senza toccare** `allergensReviewed`, quindi una
+  ricetta a cui qualcuno cambiava gli ingredienti restava «confermata» con la firma di un piatto
+  diverso — e `collegaRicetta` la lasciava entrare nelle diete perché il campo diceva di sì. Una
+  conferma è una firma su un contenuto: cambiato il contenuto, la firma non vale più. ⚠️ **Decade
+  sui NOMI degli ingredienti, non su qualunque salvataggio**, ed è il modo di applicare «vincono
+  sempre» che protegge davvero: una quantità non può introdurre né togliere un allergene, mentre
+  azzerare per un peso corretto toglierebbe il piatto dai menu senza aggiungere un grammo di
+  sicurezza. Confronto fra **insiemi di nomi** normalizzati: l'ordine non conta, e ⚠️ **stesso
+  numero con uno scambiato conta** — la scorciatoia sulla lunghezza della lista avrebbe lasciato
+  passare farina→mandorle. ⚠️ Ingredienti illeggibili: si azzera, perché su un campo di sicurezza
+  «non ho capito» vale «non è confermato», mai il contrario. ⚠️ E un salvataggio che non manda
+  `ingredients` non fa decadere niente: senza quel ramo, cambiare il **titolo** di una ricetta le
+  avrebbe tolto la conferma. ⚠️ **Non è retroattivo**: vale dalla prossima modifica, così il
+  catalogo non si svuota di colpo. Chi salva lo **legge** — la pagina Ricette dice la conseguenza
+  («NON entra nei menu nuovi»), dove si rimedia e che i menu già consegnati non cambiano — e resta
+  nel registro modifiche, perché chi un domani si chiede «perché questa ricetta è sparita dai menu?»
+  deve trovare la risposta. **Sulla seconda metà della risposta**: verificato che è già vera su
+  tutt'e due le porte — il dialogo di Gaia ferma il sostituto che tocca un allergene dichiarato e
+  passa la mano a una persona, il pulsante «non gradisco» dell'app passa da `evaluateMeals`. Non ho
+  aggiunto niente lì: lo scrivo perché «verificato» vale come risposta solo dicendo dove si è
+  guardato. 15 test (207 suite, 3179 verdi). Nessuna migrazione.
+
+- `[Sviluppo]` 👁️ **Due dei sei dati che l'app riceveva e non mostrava: adesso si vedono** (voce 253,
+  restano i tre grossi). ⚠️ **`since` di `/me/measurement-gate`**: il backend lo manda da sempre e
+  nessuna schermata lo leggeva. Il riquadro diceva «App in pausa — contatta la tua coach», che è uno
+  **stato senza storia**: chi lo legge non sa se è successo stamattina o se va avanti da una
+  settimana, e non ha modo di capire quanto sta perdendo. Ora dice da quanto il menu è fermo — «da
+  ieri», «da 5 giorni», «da 2 settimane» — e ⚠️ **tace quando la data non c'è**, invece di scrivere
+  «da 0 giorni»: non saperlo e «è appena successo» sono due cose diverse. I giorni si contano per
+  **calendario** e non a multipli di 24 ore: bloccata alle 23 e riaperta alle 8, per lei è «da ieri»,
+  non «da oggi». ⚠️ E nella frase «inserisci qui le misure» viene **prima** di «contatta la tua
+  coach»: mandarla ad aspettare una risposta per una cosa che le costa trenta secondi è farle perdere
+  un altro giorno di menu. ⚠️ **`thighsCm`**: lo staff poteva registrarle una circonferenza cosce che
+  lei non avrebbe **mai** visto — il campo c'era in banca dati, nel form del backoffice e nella
+  risposta di `GET /me/measurements`, e si fermava all'interfaccia TypeScript dell'app. Ora la vede
+  nell'andamento **e la può scrivere**: mostrarla soltanto avrebbe lasciato un dato misurato sul suo
+  corpo che governa solo lo staff, e la porta era già aperta (`CreateMeasurementDto` accetta
+  `thighsCm` da sempre) — mancava la casella. Nessuna barra «verso il tuo obiettivo» per le cosce:
+  `targetThighsCm` non esiste, e una barra senza traguardo misura la distanza da niente. ⚠️ Toccate
+  **entrambe** le strade di salvataggio, inserimento e correzione: una sola avrebbe voluto dire che
+  correggere una misura cancella le cosce appena scritte. 8 test (app: 11 file, 85 test verdi).
+  Nessuna migrazione.
+
+- `[Sviluppo]` 🍽️ **Digiuno senza finestra: la domanda non era mai stata fatta, e ora è un'attività
+  della coach.** Voce 256, chiusa. ⚠️ Prima di tutto il resto: **il motore non è rotto** — senza
+  finestra non si salta niente e arriva il 16:8 classico, che è il valore di scorta sensato
+  («dovrebbe ricevere tutti e cinque i pasti» era una frase del mio primo script, falso positivo
+  corretto il 17/8). Il difetto è più difficile da vedere: la finestra decide **quali pasti mangia**,
+  e per lei l'ha decisa un valore di scorta. Il questionario la chiede, obbligatoria, da agosto:
+  restavano fuori le clienti di prima. ⛔ **Scartato di farla chiedere a Gaia**: «quali pasti
+  preferisci saltare?» arrivato a freddo, a chi mangia così da mesi, è una domanda che si risponde
+  male — la risposta giusta dipende da come sta e da cosa le hanno detto in visita. Non è un dato da
+  riempire, è **una conversazione da avere**, e il progetto ha già il posto dove una cosa da fare
+  diventa lavoro di una persona. Nuova attività della coach dal cron notturno, per chi è in digiuno
+  senza finestra **e ha un abbonamento attivo** (aprirla su chi ha finito il percorso mesi fa è il
+  modo più rapido di insegnare alla coach a ignorare la colonna), con `refId` **fisso**: si chiede
+  una volta sola. ⚠️ E il testo dice **cosa succede intanto** — «NON è ferma e non è rotta, riceve
+  tutti i pasti della sua dieta» — perché «manca la finestra» letto da solo suona come un guasto, e
+  una coach che chiama allarmata una cliente che sta bene fa più danno del dato mancante. Nel
+  backoffice la finestra vuota non si legge più «li decide la dieta», che sembrava una scelta: ora è
+  «⚠️ mai chiesta». Nell'app la card compariva coi pallini tutti spenti e nessuna spiegazione: ora
+  dice che la domanda non c'era quando si è iscritta e a cosa serve dirlo — ⚠️ **senza promettere
+  che le calorie del pasto saltato finiscono negli altri**, che non è vero finché la voce 255 è
+  aperta. 8 test (206 suite, 3164 verdi). Nessuna migrazione.
+
+- `[Sviluppo]` 💬 **Gaia ripeteva la stessa domanda all'infinito a chi non rispondeva: ora la chiude
+  lei.** Segnalazione di Simone, con la chat di una cliente sotto gli occhi: tre volte di fila
+  «Certo […], vediamo insieme. Quale alimento vuoi cambiare?» — 10/8 alle 13:07, 11/8 alle 16:00 e
+  ancora — e in mezzo **nessuna risposta**. ⚠️ Ma non era Gaia che insisteva, e la ricostruzione
+  conta perché cambia il rimedio: **nessun cron scrive quel messaggio**, lo scrive il pulsante
+  «Sostituisci» della home. Erano **tre aperture**: la cliente tocca, legge — nel messaggio c'è
+  anche il menu del giorno, che è metà del motivo per cui uno lo tocca — e se ne va. Il dialogo
+  scade dopo un'ora, quindi l'apertura dopo riparte da zero e non sa di aver già chiesto. Ora la
+  domanda rimasta senza risposta per 24 ore la chiude Gaia, dicendo che ha capito e **che si può
+  ricominciare quando vuole** — senza quest'ultima riga, «ho capito che non ti interessa» è una
+  porta chiusa in faccia a chi si era solo distratta. ⚠️ **Chiude il tempo, non un altro tocco del
+  pulsante**: la strada alternativa — alla terza apertura rispondere con la chiusura — le direbbe
+  «capisco che non ti interessa più» nell'istante esatto in cui sta chiedendo. E chiudendo a tempo
+  la seconda domanda identica non arriva nemmeno. ⚠️ Nessuna tabella nuova e nessun contatore: **il
+  marcatore è la riga**, come per la campagna allergie — `meta.sost` esiste solo finché il dialogo
+  aspetta qualcosa, e il messaggio di chiusura non ce l'ha, quindi chiude il dialogo **ed** è ciò
+  che impedisce di richiuderlo domani notte. ⚠️ Due guardie sul primo giro dopo il rilascio, che
+  trova tutto l'arretrato: finestra di **30 giorni** all'indietro (svegliare qualcuno per una
+  domanda di marzo non è chiudere una conversazione, è aprirne una) e **tetto di 100 per giro,
+  dichiarato nell'esito** — un tetto silenzioso fa sembrare finito un giro che ne ha lasciate
+  indietro cento. Soglia in `config_param` (`chat_chiusura_silenzio_ore`). Passo del cron
+  **notturno** e non dei `reminders`, che girano ogni dieci minuti: questo scrive alla cliente, e
+  c'è un test che tiene ferma anche questa. 26 test (205 suite, 3156 verdi). Nessuna migrazione.
+  **Voce 277.**
+
 - `[Sviluppo]` 🔒 **Le email di otto clienti erano nei file del repository, e il repository è
   pubblico.** Trovata guardando `docs/` per il workflow Pages rosso, quindi fuori da qualunque
   lavoro programmato. Gli indirizzi di **otto clienti reali** stavano in **21 file versionati** —

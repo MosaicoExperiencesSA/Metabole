@@ -1417,8 +1417,36 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
   const eventiKcal = (prisma: any) =>
     (prisma.analyticsEvent.create as jest.Mock).mock.calls.filter((c) => c[0]?.data?.name === 'daily_kcal_below_target');
 
-  it('target 2400 e giornate da 1300: UN evento per erogazione, con tutte le giornate dentro', async () => {
+  /** I pasti scritti nel primo giorno erogato: è quello che la cliente riceve davvero. */
+  const pastiErogati = (prisma: any) =>
+    (prisma.menuDay.upsert as jest.Mock).mock.calls[0][0].create.meals as {
+      slot: string; kcal: number; porzione?: number; kcalBase?: number;
+    }[];
+
+  /**
+   * ⚠️ IL SIGNIFICATO DI QUESTO ALLARME È CAMBIATO IL 18/8 (voce 255, strada C).
+   *
+   * Prima misurava la giornata **di catalogo**: 1300 kcal su un fabbisogno di 2400 erano il 54%, e
+   * l'evento scattava. Ora, prima di misurare, le porzioni si scalano — quindi «sotto il
+   * fabbisogno» vuol dire «resta corta ANCHE col moltiplicatore al tetto», che è una cosa più rara
+   * e più grave. Questi due test tengono ferme tutt'e due le metà.
+   */
+  it('⚠️ target 2400 su una giornata da 1300: le porzioni si scalano, e l\'allarme NON scatta più', async () => {
     const { service, prisma } = build(2400);
+    await expect(service.deliverIfEligible('u1')).resolves.toHaveLength(2);
+
+    const pasti = pastiErogati(prisma);
+    // Tutti e tre al loro tetto: 300×1,6 · 500×1,8 · 500×1,8 = 2280, cioè il 95% di 2400.
+    expect(pasti.map((m) => m.kcal)).toEqual([480, 900, 900]);
+    // ⚠️ `kcalBase` conserva l'origine: senza, il fabbisogno che cambia non avrebbe da dove ripartire.
+    expect(pasti.map((m) => m.kcalBase)).toEqual([300, 500, 500]);
+    expect(pasti.map((m) => m.porzione)).toEqual([1.6, 1.8, 1.8]);
+    // 2280 su 2400 è dentro la banda: non c'è più niente da segnalare.
+    expect(eventiKcal(prisma)).toHaveLength(0);
+  });
+
+  it('⚠️ ma se nemmeno al tetto ci si arriva, l\'evento esce — UNO per erogazione', async () => {
+    const { service, prisma } = build(3000);
     const created = await service.deliverIfEligible('u1');
     // ⚠️ Si eroga comunque: il segnale non blocca.
     expect(created).toHaveLength(2);
@@ -1427,18 +1455,34 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
     const eventi = eventiKcal(prisma);
     expect(eventi).toHaveLength(1); // non uno per giorno: `deliverIfEligible` gira a ogni apertura
     const dati = eventi[0][0].data.data;
-    expect(dati.targetKcal).toBe(2400);
+    expect(dati.targetKcal).toBe(3000);
     expect(dati.targetSource).toBe('level');
     expect(dati.giorni).toHaveLength(2);
-    expect(dati.giorni[0].kcal).toBe(1300);
-    expect(dati.giorni[0].quotaDelTarget).toBeCloseTo(0.54, 2);
+    /**
+     * ⚠️ Le kcal nell'evento sono quelle SCALATE (2280), non quelle di catalogo (1300): è la
+     * giornata che la cliente riceve. Se qui comparisse 1300, `diag:kcal` racconterebbe un
+     * problema più grave di quello vero e manderebbe la nutrizionista a cercare una causa
+     * sbagliata.
+     */
+    expect(dati.giorni[0].kcal).toBe(2280);
+    expect(dati.giorni[0].quotaDelTarget).toBeCloseTo(0.76, 2);
     expect(dati.giorni[0].scostamentoPct).toBeLessThan(-15);
+  });
+
+  it('⚠️ e la giornata che resta corta anche al tetto finisce nel log, con quali slot erano al tetto', async () => {
+    const { service } = build(3000);
+    const avvisi = jest.spyOn((service as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn');
+    await service.deliverIfEligible('u1');
+    const riga = avvisi.mock.calls.map((c) => String(c[0])).find((m) => m.includes('ANCHE col moltiplicatore'));
+    expect(riga).toBeDefined();
+    expect(riga).toContain('breakfast');
+    avvisi.mockRestore();
   });
 
   it('⚠️ se la scrittura dell\'evento fallisce, il menu si eroga lo stesso (e l\'errore non sparisce)', async () => {
     // Degradare sì, tacere no: `diag:kcal` legge solo questi eventi, e una scrittura persa in
     // silenzio è indistinguibile da «nessuna giornata sotto il fabbisogno».
-    const { service, prisma } = build(2400);
+    const { service, prisma } = build(3000);
     (prisma.analyticsEvent.create as jest.Mock).mockRejectedValue(new Error('colonna sparita'));
     const avvisi = jest.spyOn((service as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn');
 

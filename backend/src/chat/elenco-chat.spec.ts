@@ -15,6 +15,7 @@ import { AllergieChatService } from './allergie-chat.service';
 import { SostituzioneChatService } from '../menu/sostituzione-chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from './chat.service';
 
@@ -79,6 +80,8 @@ function creaServizio(tocca?: (prisma: any) => void) {
       // apre la notifica — quindi qui basta che esista.
       { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
       { provide: ValoriNutrizionaliService, useValue: {} },
+      // Le soglie di Gaia stanno in `config_param`: qui nessun test le usa.
+      { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockImplementation((_k: string, f?: number) => Promise.resolve(f)) } },
     ],
   }).compile();
   return { moduleRef, prisma, notifications };

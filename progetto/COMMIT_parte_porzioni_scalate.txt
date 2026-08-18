@@ -1,0 +1,115 @@
+Le porzioni si scalano sul fabbisogno: Sonia dal 65% al 100% (strada C)
+
+Voce 255 (chiusa). Decisione di Simone del 18/8: «va riproporzionato il pasto correggendo le
+quantita' in base al fabbisogno».
+
+═══ IL BUCO
+
+Le ricette del catalogo nascono dimensionate su una quota della giornata, e la giornata del catalogo
+vale `menu_daycombo_kcal_target` (1500). L'erogazione invece punta al FABBISOGNO della singola
+cliente. Quando la finestra del digiuno toglieva dei pasti, quello che restava NON SI INGRANDIVA:
+`DayCombo` sceglie una ricetta per slot dentro il pool, e un moltiplicatore di porzione non esisteva
+da nessuna parte.
+
+  chi salta la cena              → 65% del fabbisogno
+  chi salta cena e colazione     → 45%
+
+═══ 1. `menu/porzione-scalata.ts` — modulo puro
+
+Fattore UNIFORME con un TETTO PER TIPO DI PASTO (§4 colonna B, §6 del foglio):
+
+  pasti principali ×1,8 · colazione ×1,6 · spuntini ×1,25
+
+⚠️ Per TIPO e non uno solo: a ×1,6 uno spuntino da 160 kcal diventa 256, e non e' piu' uno
+spuntino — e' un pasto.
+
+⚠️ E CHI NON E' AL TETTO CRESCE DELLA STESSA PERCENTUALE di chiunque altro non sia al tetto. E' la
+sfumatura che ho sbagliato alla prima scrittura: ridistribuire «in proporzione al margine» da' a
+ogni pasto una fetta diversa, e colazione e pranzo finiscono con moltiplicatori diversi fra loro.
+Ma il rapporto fra colazione e pranzo lo ha deciso la dieta, non noi. Sulla giornata di Sonia
+(320/160/560 su un fabbisogno di 1600):
+
+  giusto      → colazione 509 · spuntino 200 (al tetto) · pranzo 891
+  sbagliato   → colazione 478 · spuntino 193             · pranzo 929
+
+Il secondo sposta cibo dalla colazione al pranzo senza che nessuno l'abbia deciso. C'e' un test che
+tiene fermo che i due fattori non al tetto siano UGUALI.
+
+⚠️ NON SI RIMPICCIOLISCE MAI. Se la giornata di catalogo vale gia' piu' del fabbisogno, i fattori
+restano a 1. Scalare all'ingiu' toccherebbe il menu di TUTTE le clienti sotto i 1500 kcal, ed e' una
+decisione clinica diversa da quella che e' stata presa.
+
+⚠️ Uno slot sconosciuto prende il tetto PIU' BASSO: su una scala che moltiplica il cibo di una
+persona, un nome che non riconosciamo deve costare prudenza.
+
+I tre tetti stanno in `config_param` (+ seed): sono numeri clinici, la nutrizionista deve poterli
+cambiare senza un rilascio.
+
+═══ 2. DOVE SI APPLICA, E PERCHE' PROPRIO LI'
+
+⚠️ ULTIMO PASSO PRIMA DELLA MISURA, in `deliverIfEligible`. La giornata la riscrivono, dopo
+`snapshotMeals`, almeno tre passaggi — ripetizione bigiornaliera, preferenza «ricette semplici»,
+cambio dei piatti non graditi — e tutti e tre ricostruiscono i pasti CAMPO PER CAMPO. Scrivendo il
+fattore prima, lo butterebbero via senza nessun errore. Scalando alla fine non c'e' nessun campo da
+ricordarsi di riportare, e la regola vale per forza su tutti i percorsi di composizione.
+
+⚠️ E PRIMA di `giornateSottoTarget`, non dopo. Da oggi `daily_kcal_below_target` vuol dire «resta
+corta ANCHE COL MOLTIPLICATORE AL TETTO»: piu' raro e piu' grave. Misurare prima di scalare
+terrebbe acceso un allarme appena spento. I due test che lo difendevano sono stati riscritti col
+significato nuovo, non cancellati.
+
+═══ 3. COME SONO SCRITTE LE KCAL — la scelta che decide quanti punti si rompono
+
+`MealSnapshot.kcal` e' GIA' SCALATO. Accanto ci sono `kcalBase` (la porzione di catalogo) e
+`porzione` (il fattore), tutti e due OPZIONALI: i giorni scritti prima di oggi si rileggono senza
+migrazione.
+
+⚠️ Il motivo: l'app NON riceve il totale della giornata dal server, se lo somma da sola da queste
+righe — `Home.tsx`, `Percorso.tsx` in due punti. Scrivendo qui la porzione di catalogo e il fattore
+a parte, tutti i totali di tre schermate sarebbero diventati sbagliati IN SILENZIO, e i trenta punti
+che leggono `m.kcal` avrebbero continuato a leggere un numero che non e' piu' vero.
+
+═══ 4. LA LISTA DELLA SPESA
+
+Sommava le grammature di catalogo mentre il piatto cresceva: la cliente comprava il cibo per la
+porzione piccola e a meta' settimana finiva. Un errore che non si vede nell'app — si vede in cucina.
+Ora `quantitaScalata` moltiplica prima della somma: a peso si arrotonda all'intero, il resto tiene
+un decimale.
+
+═══ 5. DOVE SI LEGGE
+
+  · APP, riga del pasto: «Porzione piu' abbondante, ×1,8 — pesa gli ingredienti per 1,8 volte
+    (in ricetta ne trovi 500)». ⚠️ Serve per una ragione precisa: la scheda della ricetta mostra le
+    grammature DI CATALOGO, perche' `GET /recipes/:id` non sa di quale giorno si parli. Senza questa
+    riga la cliente legge «Pranzo 891 kcal», apre la ricetta e trova gli ingredienti per 500 — una
+    contraddizione visibile, e nessun modo di capire quale numero sia quello giusto.
+  · BACKOFFICE, scheda cliente: pastiglia «×1,8» accanto alle kcal del pasto, col totale di catalogo
+    nel tooltip. Senza, la nutrizionista legge un pranzo da 891 kcal e non sa perche'.
+
+⚠️ La riga NON compare sotto ×1,05: un avviso che compare sempre non e' un avviso.
+
+═══ ⛔ COSA RESTA — e va detto
+
+  · LA SCHEDA RICETTA mostra ancora le grammature di catalogo. Per ora lo colma la frase in app; la
+    soluzione vera e' passarle giorno e slot (e' gia' oggi il punto dove non si vedono nemmeno le
+    sostituzioni concordate: le due cose si chiudono insieme).
+  · I GIORNI GIA' EROGATI non si riscrivono (`menuDay.upsert` ha `update: {}`). Vale dai giorni
+    nuovi in avanti. Per anticipare c'e' `diag:rigenera`.
+  · IL KIT DI RIENTRO copia `meals` cosi' com'e': un fattore calcolato per una finestra verrebbe
+    clonato in un periodo in cui quella finestra magari non c'e' piu'.
+  · LA LISTA DELLA SPESA GIA' CREATA per un intervallo resta in cache com'e'.
+  · ⚠️ I PEZZI. ×1,5 di una mela e' una mela e mezza, e il numero esce cosi' com'e' invece di essere
+    arrotondato di nascosto. Accettare l'arrotondamento («2 frutti») o togliere le ricette a pezzo
+    dalla scalatura e' una decisione da prendere con la nutrizionista, non da noi.
+  · §5-B DEL FOGLIO: avvisare quando si SCEGLIE una finestra che col proprio fabbisogno non e'
+    raggiungibile. E' l'unica strada che toglie il problema invece di rattopparlo.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 208 suite, 3206 test verdi (29 nuovi)
+  npx vitest run (app)           → 12 file, 89 test verdi
+  npx tsc --noEmit (app)         → 0 errori
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.

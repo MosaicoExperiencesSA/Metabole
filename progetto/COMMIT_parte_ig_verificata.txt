@@ -1,0 +1,37 @@
+Indice glicemico: trascrizione verificata contro la tabella vera (96 su 96, zero differenze)
+
+═══ COSA HO FATTO
+
+Simone ha caricato il file originale in xlsx («Tabella Nutrizionale Completa e Indice Glicemico»,
+Linus Pauling Institute / International Tables 2008 / USDA / CREA). Il codice per l'import esisteva
+gia' dal 13/8 — `prisma/dati-ig.ts` (96 righe trascritte a mano dal PDF) e `npm run importa:ig` —
+ma quelle 96 righe non erano mai state ricontrollate contro la fonte.
+
+Confronto riga per riga, campo per campo: nome, categoria, stato, IG, IG min, IG max, kcal,
+proteine, carboidrati, grassi, fibre, affidabilita'.
+
+  96 righe su 96 · ZERO differenze · nessuna riga mancante · nessuna riga inventata
+
+⚠️ Non e' una formalita'. Sono dati CLINICI trascritti a mano da un PDF, e un refuso su una kcal o
+su un IG sarebbe finito dritto in quello che Gaia dice alle clienti — senza nessun errore, senza
+nessuna riga rossa, e senza modo di accorgersene se non ricontrollando.
+
+(Le uniche righe del file che non hanno un corrispondente nel codice sono le cinque della LEGENDA:
+«Come si legge», la spiegazione di IG min/max, di «~0», dell'affidabilita' e dello stato.)
+
+═══ IL CRUDO/COTTO E' SCIOLTO
+
+⚠️ Era il blocco dichiarato nella voce: «prima va sciolto il crudo/cotto». E' sciolto, e lo scioglie
+il file stesso — OGNI RIGA PORTA LO STATO ESPLICITO (crudo | bollito | cotto | secco | fritto |
+tostato | crema | liquido). La pasta li' e' BOLLITA, 158 kcal/100 g: usare il valore da crudo
+sbaglierebbe di DUE VOLTE E MEZZA.
+
+═══ ⛔ RESTA SOLO DA LANCIARLO
+
+  npm run importa:ig              → anteprima, non scrive niente
+  CONFERMA=1 npm run importa:ig   → scrive
+
+Si carica CONFERMATO (`verifiedById` = capo nutrizionista): «vuoti = da confermare» finirebbe in una
+coda che nessuno ha chiesto. Le tre sorti di una riga: nome nuovo → si crea; nome gia' in tabella
+SENZA indice glicemico → si aggiunge SOLO l'IG (⚠️ le macro esistenti non si toccano: potrebbero
+essere state curate a mano); nome gia' in tabella CON indice glicemico → non si tocca niente.

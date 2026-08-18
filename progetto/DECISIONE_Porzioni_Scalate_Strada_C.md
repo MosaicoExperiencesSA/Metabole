@@ -9,6 +9,23 @@ quote vere del motore, non da una stima.
 
 ---
 
+> ## ✅ DECISO E CONSEGNATO — 18/8/2026
+>
+> Simone, in pagina Lavori: **«Va riproporzionato il pasto correggendo le quantità in base al
+> fabbisogno»**. È la strada C.
+>
+> Le tre domande di sotto non le ha risposte una per una, e ho preso **la "consigliata" di
+> ciascuna** — sono tutte e tre parametri, quindi cambiarle non costa un rilascio:
+>
+> | | scelta | dove si cambia |
+> |---|---|---|
+> | §4 tetto | **B** — per tipo di pasto: principali ×1,8 · colazione ×1,6 · spuntini ×1,25 | `config_param`: `porzione_tetto_pasto_principale`, `porzione_tetto_colazione`, `porzione_tetto_spuntino` |
+> | §5 quando non basta | **A** — si eroga al tetto e lo si dice (log + `daily_kcal_below_target`, che ora vuol dire «resta corta anche col moltiplicatore»). ⛔ La **B** (avvisare quando si sceglie la finestra) resta da fare | — |
+> | §6 chi scala di più | **uniforme coi tetti per slot**: chi non è al tetto cresce della stessa percentuale | — |
+>
+> ⚠️ Restano aperti, e sono scritti nella voce 255: la scheda ricetta con le grammature di
+> catalogo, i giorni già erogati, il kit di rientro, e **i pezzi** (×1,5 di una mela).
+
 ## 0. Le tre domande da decidere (le risposte vanno qui sotto)
 
 1. **Il tetto del moltiplicatore.** Quanto può crescere una porzione prima che il piatto non abbia
@@ -259,7 +276,7 @@ Il segnale (§3) è **consegnato**, voce 260. ⛔ Restano **le quattro frasi** (
 toccate perché il testo è voce di prodotto e serve il sì di Simone su come si riscrivono. Finché
 restano, il prodotto promette una ridistribuzione che il motore non fa.
 
-### Consegna 2 — il moltiplicatore nel motore
+### ✅ Consegna 2 — il moltiplicatore nel motore — CONSEGNATA il 18/8
 - Campo nuovo su `MealSnapshot` (`menu/pasto-giornata.ts:108-116`): **opzionale, assente = 1**, così
   i giorni già scritti si rileggono senza migrazione — è lo stesso criterio già usato per
   `substitutions` e `cambioPiatto`, ed è dichiarato in testa a quel file.
@@ -280,7 +297,7 @@ restano, il prodotto promette una ridistribuzione che il motore non fa.
   riscrivono**. La correzione vale dai giorni nuovi in avanti — per Sonia, dal primo giorno non
   ancora aperto. Se si vuole prima, c'è `diag:rigenera`.
 
-### Consegna 3 — dove la cliente lo legge
+### Consegna 3 — dove la cliente lo legge — FATTA A METÀ il 18/8 (lista della spesa, riga in app, pastiglia nel backoffice; resta la scheda ricetta)
 - **La lista della spesa** (`menu.service.ts:2499-2558`): somma le grammature di catalogo
   (`current.qty += ing.qty`, riga **2538**) senza alcun fattore. Va moltiplicata prima della somma —
   e ⚠️ **c'è una cache**: se una lista per quell'intervallo esiste già la restituisce così com'è

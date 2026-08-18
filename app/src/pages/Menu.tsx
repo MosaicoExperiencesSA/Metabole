@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
-import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe } from '../lib/meals';
+import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, testoPorzione } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
@@ -240,6 +240,15 @@ export default function Menu() {
                   <div className="meal-body">
                     <span className="meal-tag" style={{ background: s.bg, color: s.color }}>{s.label}</span>
                     <div className="meal-name">{m.name}</div>
+                    {/* ⚠️ La porzione scalata (voce 255): sta QUI, sopra le sostituzioni e sopra le
+                        kcal, perché è la cosa che spiega tutte e due. Senza, il numero di kcal e le
+                        grammature della scheda ricetta si contraddicono e nessuno sa a quale credere. */}
+                    {testoPorzione(m) && (
+                      <div style={{ fontSize: 11, color: '#8E6BB5', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <i className="ti ti-arrows-maximize" style={{ fontSize: 13 }} />
+                        {testoPorzione(m)}
+                      </div>
+                    )}
                     {m.substitutions && m.substitutions.length > 0 && (
                       <div style={{ fontSize: 11, color: '#0E7C66', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <i className="ti ti-replace" style={{ fontSize: 13 }} />

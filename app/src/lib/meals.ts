@@ -76,7 +76,38 @@ export function testoSostituzione(sub: ApiSubstitution): string {
   return `${q(sub.fromQty, sub.unit)}${sub.from} → ${q(sub.toQty, sub.unitA ?? sub.unit)}${sub.to}`;
 }
 
-export interface ApiMeal { slot: string; recipeId: string; name: string; kcal: number; substitutions?: ApiSubstitution[] }
+/**
+ * ⚠️ `kcal` sono quelle che si mangiano davvero: se `porzione` c'è, sono GIÀ moltiplicate (voce
+ * 255, 18/8). L'app somma i totali della giornata da queste righe — Home, Percorso in due punti —
+ * e un totale calcolato sulla porzione di catalogo sarebbe sbagliato in silenzio in tre schermate.
+ * `kcalBase` è la porzione di catalogo, e serve solo a spiegare da dove viene il numero.
+ */
+export interface ApiMeal {
+  slot: string;
+  recipeId: string;
+  name: string;
+  kcal: number;
+  /** Assente = porzione di catalogo. Presente = il piatto è stato ingrandito sul fabbisogno. */
+  porzione?: number;
+  kcalBase?: number;
+  substitutions?: ApiSubstitution[];
+}
+
+/**
+ * La riga «porzione più abbondante» sotto il nome del piatto, o `null` se non c'è niente da dire.
+ *
+ * ⚠️ Va detta, e questa è la ragione precisa: la scheda della ricetta (`GET /recipes/:id`) mostra
+ * le grammature **di catalogo**, perché non sa di quale giorno si stia parlando. Senza questa riga
+ * la cliente legge «Pranzo 891 kcal», apre la ricetta e trova gli ingredienti per 500: una
+ * contraddizione visibile, e nessun modo di capire quale dei due numeri sia quello giusto.
+ */
+export function testoPorzione(m: Pick<ApiMeal, 'porzione' | 'kcalBase'>): string | null {
+  const f = m.porzione;
+  if (!f || !Number.isFinite(f) || f <= 1.05) return null;
+  const quante = (Math.round(f * 10) / 10).toString().replace('.', ',');
+  const base = m.kcalBase ? ` (in ricetta ne trovi ${m.kcalBase})` : '';
+  return `Porzione più abbondante, ×${quante} — pesa gli ingredienti per ${quante} volte${base}`;
+}
 export interface ApiMenuDay { id: string; date: string; meals: ApiMeal[] }
 export interface ApiRecipe {
   id: string;

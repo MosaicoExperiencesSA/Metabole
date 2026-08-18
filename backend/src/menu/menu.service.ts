@@ -23,6 +23,7 @@ import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { slotEsclusiTotali } from './finestre-digiuno';
 // Il controllo che mancava: una giornata sotto il fabbisogno oggi esce identica a una giusta.
+import { TETTI_PREDEFINITI, porzioniScalate, quantitaScalata } from './porzione-scalata';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { expandExclusion } from './exclusions';
@@ -849,6 +850,55 @@ export class MenuService {
      * dell'app, e un evento per giornata renderebbe il conteggio degli eventi un conteggio delle
      * aperture. La peggiore giornata va nel log, tutte nell'evento.
      */
+    /**
+     * ⚠️ LE PORZIONI SI SCALANO SUL FABBISOGNO — voce 255, strada C, decisa da Simone il 18/8:
+     * «va riproporzionato il pasto correggendo le quantità in base al fabbisogno».
+     *
+     * ⚠️ **Va QUI, ed è la cosa più importante di questo blocco.** La giornata la riscrivono, dopo
+     * `snapshotMeals`, almeno tre passaggi: la ripetizione bigiornaliera, la preferenza «ricette
+     * semplici» e il cambio dei piatti non graditi — e tutti e tre ricostruiscono i pasti campo per
+     * campo, quindi un `porzione` scritto prima verrebbe buttato via da loro senza un errore.
+     * Scalando come ULTIMO passo prima della misura non c'è nessun campo da ricordarsi di
+     * riportare, e la regola vale per forza su tutti i percorsi di composizione.
+     *
+     * ⚠️ E va **prima** di `giornateSottoTarget`, non dopo: da oggi «sotto il fabbisogno» vuol dire
+     * «resta corta **anche col moltiplicatore**», cioè una cosa più rara e più grave. Misurare prima
+     * di scalare terrebbe acceso un allarme che è appena stato spento.
+     */
+    const tetti = {
+      principale: await this.configParams.getNumber('porzione_tetto_pasto_principale', TETTI_PREDEFINITI.principale),
+      colazione: await this.configParams.getNumber('porzione_tetto_colazione', TETTI_PREDEFINITI.colazione),
+      spuntino: await this.configParams.getNumber('porzione_tetto_spuntino', TETTI_PREDEFINITI.spuntino),
+    };
+    const restateCorte: { data: string; quota: number; alTetto: string[] }[] = [];
+    for (const giorno of daySnapshots) {
+      const esito = porzioniScalate(giorno.meals, targetKcal, tetti);
+      if (esito.restaCorta) {
+        restateCorte.push({
+          data: giorno.date.toISOString().slice(0, 10),
+          quota: Math.round(esito.quota * 100) / 100,
+          alTetto: esito.alTetto,
+        });
+      }
+      if (!esito.scalata) continue;
+      giorno.meals = giorno.meals.map((m, i) => {
+        const f = esito.fattori[i];
+        if (!(f > 1.0001)) return m;
+        // ⚠️ `kcal` già scalato (vedi il docstring di `MealSnapshot`), `kcalBase` per non perdere
+        // l'origine, `porzione` per poterlo dire alla cliente e alla nutrizionista.
+        return { ...m, kcal: Math.round(m.kcal * f), kcalBase: m.kcal, porzione: Math.round(f * 100) / 100 };
+      });
+    }
+    if (restateCorte.length) {
+      // ⚠️ Un log a parte da quello sotto: «non ci arriva nemmeno al tetto» è la riga che il foglio
+      // §5 chiama «il minimo che va fatto comunque», e sparirebbe dentro l'altro messaggio.
+      this.logger.warn(
+        `Porzioni: ${restateCorte.length} giornat${restateCorte.length === 1 ? 'a' : 'e'} restano sotto il fabbisogno ` +
+          `per ${clientId} ANCHE col moltiplicatore al tetto (target ${Math.round(targetKcal)} kcal). ` +
+          restateCorte.map((r) => `${r.data}: ${Math.round(r.quota * 100)}% (al tetto: ${r.alTetto.join(', ') || 'nessuno'})`).join(' · '),
+      );
+    }
+
     const sottoTarget = giornateSottoTarget(daySnapshots, targetKcal, kcalTolPct);
     if (sottoTarget.length) {
       const peggiore = laPeggiore(sottoTarget)!;
@@ -2554,15 +2604,22 @@ export class MenuService {
     for (const day of days) {
       for (const meal of day.meals as unknown as MealSnapshot[]) {
         const ingredients = (byId.get(meal.recipeId) ?? []) as { name: string; qty?: number; unit?: string }[];
+        /**
+         * ⚠️ LA PORZIONE VALE ANCHE QUI (voce 255, 18/8). La lista sommava le grammature di
+         * catalogo mentre il piatto cresceva: la cliente comprava il cibo per la porzione piccola
+         * e a metà settimana finiva. Un errore che non si vede nell'app — si vede in cucina.
+         */
+        const fattore = meal.porzione ?? 1;
         for (const ing of ingredients) {
           const key = `${ing.name.toLowerCase()}|${ing.unit ?? ''}`;
+          const qta = quantitaScalata(ing.qty, fattore, ing.unit);
           const current = aggregate.get(key);
           if (current) {
-            if (current.qty !== null && ing.qty) current.qty += ing.qty;
+            if (current.qty !== null && qta) current.qty += qta;
           } else {
             aggregate.set(key, {
               name: ing.name,
-              qty: ing.qty ?? null,
+              qty: qta,
               unit: ing.unit ?? null,
               checked: false,
             });

@@ -64,6 +64,38 @@ const CONFIG_PARAMS: SeedParam[] = [
     type: 'number',
     description: 'Calorie minime giornaliere',
   },
+  /**
+   * I TETTI DEL MOLTIPLICATORE DI PORZIONE (voce 255, strada C — 18/8).
+   *
+   * ⚠️ Uno per TIPO di pasto e non uno solo: un tetto unico a ×1,6 porterebbe uno spuntino da 160
+   * kcal a 256, e non è più uno spuntino. Sono numeri clinici: la nutrizionista deve poterli
+   * cambiare senza un rilascio.
+   */
+  {
+    key: 'porzione_tetto_pasto_principale',
+    value: '1.8',
+    type: 'number',
+    description: 'Moltiplicatore massimo della porzione per pranzo e cena (porzioni scalate sul fabbisogno)',
+  },
+  {
+    key: 'porzione_tetto_colazione',
+    value: '1.6',
+    type: 'number',
+    description: 'Moltiplicatore massimo della porzione per la colazione',
+  },
+  {
+    key: 'porzione_tetto_spuntino',
+    value: '1.25',
+    type: 'number',
+    description: 'Moltiplicatore massimo della porzione per gli spuntini (oltre, uno spuntino diventa un pasto)',
+  },
+  {
+    key: 'chat_chiusura_silenzio_ore',
+    value: '24',
+    type: 'number',
+    description:
+      'Ore di silenzio dopo cui Gaia chiude da sé una domanda rimasta senza risposta (dialogo sostituzione)',
+  },
   {
     key: 'stats_clients_base',
     value: '18979',

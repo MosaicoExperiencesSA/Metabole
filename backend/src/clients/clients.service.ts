@@ -1178,6 +1178,13 @@ export class ClientsService {
             slot: m.slot ?? null,
             name: m.name ?? '—',
             kcal: m.kcal ?? null,
+            /**
+             * ⚠️ Il moltiplicatore di porzione (voce 255, 18/8). `kcal` è già scalato, quindi la
+             * colonna è corretta da sola — ma senza questo campo la nutrizionista legge un pranzo
+             * da 891 kcal e non sa perché, e l'unico modo di scoprirlo sarebbe leggere il codice.
+             */
+            porzione: (m as { porzione?: number }).porzione ?? null,
+            kcalBase: (m as { kcalBase?: number }).kcalBase ?? null,
             stars: ex?.stars ?? la?.stars ?? null,
             ratingTags: ex?.tags ?? la?.tags ?? [],
             // true = valutato proprio quel giorno; false = ultima valutazione della stessa ricetta in un altro giorno.

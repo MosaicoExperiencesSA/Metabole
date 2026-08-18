@@ -1,0 +1,77 @@
+Digiuno senza finestra: la domanda non era mai stata fatta, e ora e' un'attivita' della coach
+
+Voce 256 (chiusa).
+
+═══ PRIMA DI TUTTO IL RESTO: IL MOTORE NON E' ROTTO
+
+Una cliente ha `pathType: intermittent_fasting` e `fastingWindow` VUOTA. Il primo script che l'ha
+trovata gridava «dovrebbe ricevere tutti e cinque i pasti»: era un falso positivo mio, corretto il
+17/8, e va ripetuto perche' cambia tutto il resto. Senza finestra il motore non salta niente e le
+arriva il 16:8 classico, che e' il valore di scorta sensato.
+
+⚠️ IL DIFETTO E' UN ALTRO, e piu' difficile da vedere: la finestra decide QUALI PASTI MANGIA, e per
+lei l'ha decisa un valore di scorta. La domanda non le e' mai stata fatta.
+
+Il questionario la fa, obbligatoria, da agosto (`onboarding.questions.ts`, `showIf` sul digiuno):
+chi si iscrive oggi la sceglie. Restavano fuori le clienti di prima.
+
+═══ ⛔ PERCHE' NON LA CHIEDE GAIA
+
+Si poteva. Ma «quali pasti preferisci saltare?» arrivato da solo, a freddo, a una persona che sta
+gia' mangiando cosi' da mesi, e' una domanda che si risponde male: la risposta giusta dipende da
+come sta, da com'e' andata finora, da cosa le hanno detto in visita.
+
+Non e' un dato mancante da riempire. E' UNA CONVERSAZIONE DA AVERE — e il progetto ha gia' il posto
+dove una cosa che deve fare una persona diventa lavoro: le attivita' della coach.
+
+═══ 1. `coach-tasks/finestra-mai-chiesta.ts` — modulo puro
+
+  serveChiedereLaFinestra(pathType, fastingWindow) → boolean
+  testoFinestraMaiChiesta(nome) → { title, description }
+
+L'attivita' nasce dal cron notturno per chi e' in digiuno senza finestra E ha un abbonamento
+ATTIVO. ⚠️ Il filtro sull'abbonamento non e' un dettaglio: aprire un'attivita' su una persona che
+ha finito il percorso mesi fa e' dare alla coach lavoro che non serve a nessuno, ed e' il modo piu'
+rapido di insegnarle a ignorare la colonna.
+
+⚠️ `refId` FISSO (`'unica'`), non la data e non l'id del piano. La chiave di unicita' e'
+`clientId + kind + refId`: con un riferimento che cambia, l'attivita' rinascerebbe a ogni rinnovo
+su una domanda gia' fatta. Se la coach la segna fatta e la finestra resta vuota, vuol dire che ne
+hanno parlato e va bene cosi'.
+
+⚠️ E IL TESTO DICE COSA SUCCEDE INTANTO:
+
+  «E' in digiuno intermittente ma la finestra non e' mai stata impostata: la domanda del
+   questionario e' arrivata dopo di lei. ⚠️ Intanto NON e' ferma e non e' rotta — senza finestra il
+   motore non salta niente e riceve tutti i pasti della sua dieta, che e' il valore di scorta
+   sensato. Ma quali pasti mangia lo sta decidendo quel valore di scorta al posto suo. […]»
+
+Senza quella riga, «manca la finestra» letto da solo suona come un guasto — e una coach che chiama
+allarmata una cliente che sta bene ha fatto piu' danno del dato mancante.
+
+═══ 2. Backoffice: tre stati, non due
+
+La riga «Pasti che salta» diceva «li decide la dieta» quando la finestra era vuota. Sembrava una
+scelta. Ora dice «⚠️ mai chiesta — intanto riceve tutti i pasti della dieta».
+
+«Non lo so» e «nessuno» sono due cose diverse: e' la stessa regola gia' applicata agli allergeni,
+agli spuntini di Vera e alla diagnostica delle calorie.
+
+═══ 3. App: la card che non spiegava niente
+
+`FastingWindowPref` compariva alla cliente coi pallini TUTTI SPENTI e nessuna spiegazione: un dato
+che decide quali pasti mangia, e non si vede. Ora, se la finestra e' vuota, la card dice che quando
+si e' iscritta la domanda non c'era, che intanto non le manca niente, e a cosa serve dirlo.
+
+⚠️ E NON promette che le calorie del pasto saltato finiscono negli altri. Non e' vero: e'
+esattamente il difetto della voce 255, ancora aperta e in attesa di Simone. Scriverlo qui sarebbe
+stato promettere alla cliente una cosa che il motore non fa.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 206 suite, 3164 test verdi (8 nuovi)
+  npx tsc --noEmit (app)         → 0 errori
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.

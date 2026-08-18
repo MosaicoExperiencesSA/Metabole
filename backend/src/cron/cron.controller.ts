@@ -14,6 +14,7 @@ import { RegistroVeraService } from '../vera/registro.service';
 import { PauseService } from '../pause/pause.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
+import { ChatService } from '../chat/chat.service';
 import { AuditService } from '../audit/audit.service';
 import { CommerceService } from '../commerce/commerce.service';
 import { CrmService } from '../commerce/crm.service';
@@ -47,6 +48,8 @@ export class CronController {
     private readonly planReports: PlanReportService,
     private readonly alerts: AlertsService,
     private readonly summaries: ConversationSummaryService,
+    /** Serve al passo che chiude le conversazioni di Gaia lasciate a metà. */
+    private readonly chat: ChatService,
     private readonly commerce: CommerceService,
     private readonly signals: SignalsService,
     private readonly visits: VisitsService,
@@ -92,6 +95,12 @@ export class CronController {
     await step('notifications', () => this.notifications.generateDailyBatch());
     await step('alerts', () => this.alerts.recomputeAllBatch());
     await step('conversationSummaries', () => this.summaries.generateDailyBatch());
+    /**
+     * Le conversazioni di Gaia rimaste senza risposta: dopo un giorno le chiude lei, dicendo che ha
+     * capito (18/8). ⚠️ Sta QUI e non fra i `reminders` — che girano ogni dieci minuti — perché
+     * questo scrive alla cliente: una volta al giorno basta, e non c'è niente da rincorrere.
+     */
+    await step('chiusureGaia', () => this.chat.chiudiSostituzioniLasciateAMeta());
     await step('leadAssignments', () => this.leadAssignment.expireStale());
     await step('stalePayments', () => this.commerce.autoCancelStalePayments());
     // Prova gratuita: scadenza automatica + purge del profilo a +7 giorni (handoff lancio).

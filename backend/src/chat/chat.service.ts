@@ -19,6 +19,13 @@ import {
   rilevaIntentoSostituzione,
 } from '../menu/sostituzione-chat';
 import {
+  GIORNI_ALL_INDIETRO,
+  ORE_DI_SILENZIO,
+  testoChiusuraPerSilenzio,
+  vaChiusa,
+} from '../menu/conversazione-lasciata-a-meta';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import {
   CorrezioneCambio,
   EsitoSostituzione,
   SostituzioneChatService,
@@ -36,6 +43,13 @@ import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
 import { domandaNutrizionale, terminiAlimentoCandidati } from './domanda-nutrizionale';
 
 type Counterpart = 'ai' | 'coach' | 'nutritionist';
+
+/**
+ * Quante conversazioni lasciate a metà si chiudono in un giro. Non è un limite di prestazioni: è
+ * che il primo giro dopo il rilascio trova tutto l'arretrato, e cento messaggi di Gaia nello stesso
+ * minuto sono un evento, non una chiusura. Le altre le prende il giro di domani.
+ */
+const MASSIMO_CHIUSURE_PER_GIRO = 100;
 
 /**
  * Chat (spec sez. 5): un thread per controparte. L'assistente AI risponde
@@ -57,6 +71,8 @@ export class ChatService {
     private readonly allergie: AllergieChatService,
     /** La banca dati nutrizionale: i numeri che Gaia può dire vengono da qui (11/8). */
     private readonly valori: ValoriNutrizionaliService,
+    /** Le soglie non si scrivono nel codice: `chat_chiusura_silenzio_ore` sta in `config_param`. */
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   // ---------- Thread ----------
@@ -800,6 +816,95 @@ export class ChatService {
       dataInizio: meta.dataInizio?.passo ? meta.dataInizio : null,
       allergie: meta.allergie?.passo ? meta.allergie : null,
     };
+  }
+
+  /**
+   * CHIUDE LE CONVERSAZIONI LASCIATE A META'. Passo notturno, richiesta di Simone del 18/8.
+   *
+   * Il caso: nella chat di una cliente, tre volte di fila «Certo Patricia, vediamo insieme. Quale
+   * alimento vuoi cambiare?» e in mezzo nessuna risposta. Non era Gaia che insisteva — erano tre
+   * tocchi del pulsante «Sostituisci», e ogni tocco riparte da zero perché il dialogo scade dopo
+   * un'ora e non sa di aver già chiesto. Ora la domanda rimasta senza risposta la chiude Gaia.
+   *
+   * ⚠️ Chiude il TEMPO, non un altro tocco: dire «capisco che non ti interessa più» nell'istante in
+   * cui la cliente sta toccando il pulsante sarebbe il contrario di quello che serve. E chiudendo a
+   * tempo la seconda domanda identica non arriva nemmeno.
+   *
+   * ⚠️ Non azzera nessuno stato a mano: il messaggio di chiusura diventa l'ultimo messaggio di
+   * Gaia e non porta `meta.sost`, quindi `flussiAperti` non trova più niente. Ed è anche il
+   * marcatore che impedisce di richiudere la stessa conversazione la notte dopo — la riga è il
+   * marcatore, come per la campagna allergie.
+   */
+  async chiudiSostituzioniLasciateAMeta(adesso: Date = new Date()) {
+    const ore = await this.configParams
+      .getNumber('chat_chiusura_silenzio_ore', ORE_DI_SILENZIO)
+      .catch(() => ORE_DI_SILENZIO);
+    const finestra = GIORNI_ALL_INDIETRO * 24 * 3_600_000;
+    /**
+     * ⚠️ `lastMessageAt` è solo un PRE-FILTRO grossolano, per non leggere l'ultimo messaggio di
+     * ogni thread della banca dati. La decisione la prende `vaChiusa` sul messaggio vero: se i due
+     * non combaciassero (un ultimo messaggio cancellato, per esempio) vince il messaggio.
+     */
+    const thread = await this.prisma.chatThread.findMany({
+      where: {
+        counterpart: 'ai' as never,
+        lastMessageAt: {
+          gte: new Date(adesso.getTime() - finestra),
+          lte: new Date(adesso.getTime() - ore * 3_600_000),
+        },
+      },
+      select: { id: true, clientId: true },
+      orderBy: { lastMessageAt: 'asc' },
+      take: MASSIMO_CHIUSURE_PER_GIRO + 1,
+    });
+    // ⚠️ Se il tetto viene toccato lo si DICE: un tetto silenzioso fa sembrare «tutto chiuso» un
+    // giro che ne ha lasciate indietro un centinaio. Le altre le prende il giro di domani.
+    const troncato = thread.length > MASSIMO_CHIUSURE_PER_GIRO;
+    const daGuardare = troncato ? thread.slice(0, MASSIMO_CHIUSURE_PER_GIRO) : thread;
+
+    let chiuse = 0;
+    for (const th of daGuardare) {
+      try {
+        const ultimo = await this.prisma.message.findFirst({
+          where: { threadId: th.id, deletedAt: null },
+          orderBy: { sentAt: 'desc' },
+          select: { senderRole: true, sentAt: true, meta: true },
+        });
+        if (!vaChiusa(ultimo, adesso, ore).chiudere) continue;
+        const nome = await this.nomeCliente(th.clientId);
+        await this.prisma.message.create({
+          data: {
+            threadId: th.id,
+            senderRole: 'ai',
+            body: testoChiusuraPerSilenzio(nome),
+            meta: { kind: 'sostituzione', esitoSostituzione: 'chiusa_per_silenzio' } as never,
+          },
+        });
+        await this.prisma.chatThread.update({
+          where: { id: th.id },
+          data: { lastMessageAt: new Date() },
+        });
+        chiuse += 1;
+      } catch (e) {
+        // Una conversazione che non si chiude non deve fermare le altre: è la regola del cron.
+        this.logger.warn(`chiusura per silenzio NON riuscita su thread ${th.id}: ${String(e)}`);
+      }
+    }
+    return { esaminate: daGuardare.length, chiuse, oreDiSilenzio: ore, troncato };
+  }
+
+  /** Il nome con cui Gaia si rivolge alla cliente. Una gentilezza, non un requisito: se non si
+   *  legge, la frase esce senza nome (`appellativo` tiene la maiuscola al posto giusto). */
+  private async nomeCliente(clientId: string): Promise<string | null> {
+    try {
+      const [profilo, utente] = await Promise.all([
+        this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { name: true } }),
+        this.prisma.user.findUnique({ where: { id: clientId }, select: { firstName: true } }),
+      ]);
+      return (profilo?.name ?? null) || (utente?.firstName ?? null);
+    } catch {
+      return null;
+    }
   }
 
   // ---------- La ri-domanda sulle allergie (§7 dell'handoff) ----------

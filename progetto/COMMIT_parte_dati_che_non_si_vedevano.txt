@@ -1,0 +1,70 @@
+Due dei sei dati che l'app riceveva e non mostrava: da quanto il menu e' fermo, e le cosce
+
+Voce 253 (restano i tre grossi, che sono schermate nuove).
+
+═══ 1. `since` — «App in pausa» era uno stato senza storia
+
+`GET /me/measurement-gate` risponde da sempre con `since`: il momento in cui la pesata e' diventata
+dovuta. NESSUNA schermata lo leggeva. Il riquadro diceva:
+
+  «App in pausa — Contatta la tua coach per sbloccare la app.»
+
+⚠️ La differenza non e' cosmetica. Chi legge quella frase non sa se e' successo stamattina o se va
+avanti da una settimana, e non ha modo di capire quanto sta perdendo. Ora:
+
+  «Il tuo menu e' fermo da 5 giorni, in attesa della pesata. Inserisci qui le misure e riparte
+   subito, oppure contatta la tua coach.»
+
+Nuovo `app/src/lib/da-quanto-fermo.ts`:
+
+  daQuantoFermo(since, adesso) → 'da oggi' | 'da ieri' | 'da 5 giorni' | 'da 2 settimane' | null
+  frasePausaMenu(since, adesso) → string
+
+⚠️ I GIORNI SI CONTANO PER CALENDARIO, non a multipli di 24 ore. Bloccata alle 23, riapre l'app alle
+8 del mattino dopo: sono nove ore, ma il giorno e' un altro e per lei e' «da ieri». A multipli di 24
+avrebbe letto «da oggi», cioe' che e' appena successo.
+
+⚠️ E SENZA DATA TORNA `null`, non «da 0 giorni». Chi chiama scrive la frase di prima — meno precisa
+ma vera. Inventare per non lasciare un buco e' il difetto, non il rimedio. Stessa cosa per una data
+nel futuro: e' un dato che non torna, e su un dato che non torna si tace.
+
+⚠️ E «inserisci qui le misure» viene PRIMA di «contatta la tua coach». Mandarla ad aspettare una
+risposta per una cosa che le costa trenta secondi e' farle perdere un altro giorno di menu. C'e' un
+test che tiene fermo anche l'ordine delle due frasi.
+
+═══ 2. `thighsCm` — un dato sul suo corpo, invisibile a lei
+
+Lo staff poteva registrarle una circonferenza cosce che lei non avrebbe MAI visto. Il campo c'era in
+banca dati, nel form del backoffice e nella risposta di `GET /me/measurements` (che non ha `select`,
+quindi lo mandava gia'): si fermava all'interfaccia TypeScript dell'app, che non lo dichiarava.
+
+Ora e' fra le metriche dell'andamento, con il suo grafico.
+
+⚠️ E LA PUO' SCRIVERE. Mostrarla soltanto avrebbe lasciato un dato misurato sul suo corpo che
+governa solo lo staff — la meta' del difetto, non la sua fine. La porta era gia' aperta
+(`CreateMeasurementDto` accetta `thighsCm` da sempre): mancava la casella.
+
+⚠️ NESSUNA BARRA «verso il tuo obiettivo» per le cosce: `Objective` non ha un `targetThighsCm`, e
+inventarlo sarebbe una migrazione per una cosa che nessuno ha chiesto. `targetKey: null` e'
+dichiarato e gestito. Una barra senza traguardo misura la distanza da niente.
+
+⚠️ TOCCATE ENTRAMBE LE STRADE DI SALVATAGGIO, inserimento e correzione. Una sola avrebbe voluto
+dire che correggere una misura CANCELLA le cosce appena scritte — il campo assente arriva come
+`undefined`, e con due strade una scrive e l'altra dimentica.
+
+═══ COSA RESTA APERTO NELLA VOCE 253
+
+I tre grossi, e sono SCHERMATE NUOVE da disegnare prima di scriverle:
+  1) `GET /me/progress` — media mobile, chili persi, proiezione della data obiettivo, giorni di
+     stallo. Il calcolo gira, lo leggono il motore e l'allarme della coach: lei e' l'unica a non
+     vederlo.
+  2) `GET /me/cycle` — cotture del ciclo, stelle di gradimento, esito del ciclo precedente.
+  3) `totalSafe` e `certificate` da `/me/personal-base` — la prova numerica che la
+     personalizzazione e' avvenuta, e la sola persona a cui interessa non ce l'ha.
+
+═══ VERIFICHE
+
+  npx tsc --noEmit (app)  → 0 errori
+  npx vitest run          → 11 file, 85 test verdi (8 nuovi)
+
+Nessuna migrazione. Nessuna modifica al backend.

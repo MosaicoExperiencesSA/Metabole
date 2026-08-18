@@ -1,3 +1,4 @@
+import { laConfermaDecade } from './conferma-allergeni-decade';
 import {
   BadRequestException,
   ForbiddenException,
@@ -1200,14 +1201,45 @@ export class CatalogService {
     // Stagionalità (voce #11): array vuoto = buona tutto l'anno.
     if (dto.seasons !== undefined) data.seasons = dto.seasons;
     if (dto.active !== undefined) data.active = dto.active;
+
+    /**
+     * ⚠️ GLI ALLERGENI VINCONO SEMPRE SULLE MODIFICHE (Simone, 18/8 — voce 252).
+     *
+     * Prima questa funzione scriveva `ingredients` senza toccare `allergensReviewed`: una ricetta
+     * con gli allergeni confermati a cui qualcuno cambiava gli ingredienti restava «confermata»
+     * con la firma di un piatto diverso. Nessun errore, nessuna riga rossa — e `collegaRicetta` la
+     * lasciava entrare nelle diete perché il campo diceva di sì.
+     *
+     * La regola sta in `conferma-allergeni-decade.ts`, dove è anche scritto perché decade sui NOMI
+     * degli ingredienti e non su qualunque salvataggio: una quantità non può introdurre né togliere
+     * un allergene, e azzerare per un peso corretto toglierebbe il piatto dai menu senza aggiungere
+     * un grammo di sicurezza.
+     */
+    const eraConfermata = (existing as { allergensReviewed?: boolean }).allergensReviewed === true;
+    const confermaDecaduta = laConfermaDecade(
+      eraConfermata,
+      (existing as { ingredients?: unknown }).ingredients,
+      dto.ingredients as unknown,
+    );
+    if (confermaDecaduta) data.allergensReviewed = false;
+
     const recipe = await this.prisma.recipe.update({ where: { id }, data });
     await this.audit.log({
       action: 'catalog.recipe.update',
       actorId: userId,
       entityType: 'recipe',
       entityId: id,
+      // ⚠️ Nell'audit, perché è un cambio di STATO DI SICUREZZA che nessuno ha chiesto
+      // esplicitamente: chi un domani si chiede «perché questa ricetta è sparita dai menu?» deve
+      // trovare la risposta qui, con la data e il nome di chi ha salvato.
+      ...(confermaDecaduta ? { metadata: { allergensReviewed: false, motivo: 'ingredienti_cambiati' } } : {}),
     });
-    return recipe;
+    /**
+     * ⚠️ `confermaDecaduta` torna INSIEME alla ricetta, e non solo nel log: una conseguenza che
+     * chi la provoca non vede è la stessa famiglia di difetti che stiamo togliendo da settimane.
+     * Il backoffice la scrive con `fraseConfermaDecaduta`.
+     */
+    return { ...(recipe as Record<string, unknown>), confermaAllergeniDecaduta: confermaDecaduta };
   }
 
   /**

@@ -1,0 +1,61 @@
+Tre pulizie: i doppioni in pagina, il cartello di Vera, e uno script per spostare percorso
+
+Voci 224 e 231 (chiuse) + lo strumento che serve alla risposta di Simone su Maria.
+
+═══ 1. VOCE 224 — le tre voci doppie in pagina
+
+Il 13/8 le voci di Vera sono finite due volte in `voci-iniziali.ts` (due sessioni, chiavi diverse
+per le stesse cose). Il doppione e' stato tolto dal file, ma il caricamento era gia' girato in
+mezzo: in pagina restano `vera-moduli-dashboard`, `ai-assistant-enabled` e
+`dizionario-promossa-a-comune`, APERTE, a duplicare voci che esistono gia' con un'altra chiave
+(`vera-dashboard`, `vera-ai-assistant-enabled`, `vera-dizionario-comune-conflitto`).
+
+⚠️ MARCARLE `fatta: true` E BASTA NON BASTAVA. Il caricamento fa due cose: spunta quelle che trova
+e CREA quelle che mancano. Se in pagina quelle tre non ci fossero, le avrebbe create — tre voci
+nuove gia' spuntate, cioe' spazzatura scritta per pulire spazzatura.
+
+Nuovo campo `soloSeEsiste` su `Voce`: il file puo' dire «questa non e' un lavoro, e' una riga da
+chiudere — se la trovi spuntala, se non c'e' non e' mai esistita».
+
+⚠️ Non si CANCELLA niente, si spunta: in pagina puo' esserci sopra il commento di qualcuno.
+⚠️ E queste righe non compaiono fra i «testi da allineare» del riepilogo: sarebbe rumore.
+
+DA FARE DOPO IL DEPLOY: premere «Aggiorna dal rilascio» nella pagina Lavori.
+
+═══ 2. VOCE 231 — il cartello di Vera
+
+`progetto/HANDOFF_Vera_Sessione.md` esiste (308 righe, verificato). Non e' un lavoro da fare, e' un
+cartello: va letto PRIMA di toccare `backend/src/vera/`, perche' meta' delle scelte che sembrano
+strane li' dentro sono difetti gia' pagati una volta. Spuntata, e resta in elenco perche' si legga.
+
+═══ 3. `npm run sposta:percorso` — lo strumento per la risposta su Maria
+
+Simone, 18/8: «Maria spostiamola su Mediterranea 3 pasti». E' una scrittura in produzione, quindi
+non la faccio io: c'e' lo script.
+
+  SOLO=<email> PERCORSO=classic3 npm run sposta:percorso              → anteprima
+  SOLO=<email> PERCORSO=classic3 CONFERMA=1 npm run sposta:percorso   → scrive
+
+Opzionali: `PASTI=`, `STILE=mediterranean`, `FAMIGLIA=<nome dieta>`.
+
+⚠️ SCRITTO GENERICO DI PROPOSITO. Uno script con un nome dentro e' uno script che si riscrive la
+volta dopo, e la volta dopo qualcuno copia-incolla e sbaglia una riga.
+
+⚠️ `SOLO` E' OBBLIGATORIO. Uno script che cambia il percorso di TUTTE le clienti se lanciato senza
+argomenti non e' uno strumento, e' una trappola.
+
+⚠️ AZZERA `fastingWindow` quando il percorso nuovo non e' il digiuno. Lasciarla li' sarebbe il
+difetto di famiglia di questo progetto: un dato che non si vede piu' da nessuna parte ma che il
+giorno in cui qualcuno rimette il digiuno torna ad agire, con una scelta di mesi prima.
+
+⚠️ E DICE QUANTE GIORNATE FUTURE SONO GIA' SCRITTE: restano costruite sul percorso VECCHIO finche'
+non si rigenerano (`npm run diag:rigenera`). Cambiare il profilo senza saperlo vorrebbe dire
+credere di aver spostato una cliente che per una settimana mangia ancora come prima.
+
+⚠️ E un'email che non corrisponde a nessuno viene detta: senza, un refuso darebbe «0 clienti
+spostate», che ha la faccia del «fatto».
+
+═══ VERIFICHE
+
+  npm run build   → ok
+  npx jest --ci   → 208 suite, 3210 test verdi (4 nuovi)

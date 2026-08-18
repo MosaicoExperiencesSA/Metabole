@@ -178,6 +178,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   const [rows, setRows] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** Quello che il salvataggio ha cambiato senza che nessuno lo chiedesse: oggi solo la conferma
+   *  allergeni decaduta (voce 252). Vive nella pagina perché la finestra si chiude salvando. */
+  const [avvisoSalvataggio, setAvvisoSalvataggio] = useState<string | null>(null);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [f, setF] = useState(emptyFilters(scopeRegime ?? ''));
   // Dentro Gestione dieta si parte dalle ricette DELLA dieta aperta. Prima l'elenco era tutto il
@@ -408,6 +411,9 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
+      {/* La conferma allergeni decaduta dopo una modifica degli ingredienti (voce 252): sta qui e
+          non nella finestra, perché il salvataggio la chiude. */}
+      {avvisoSalvataggio && <Banner kind="info">{avvisoSalvataggio}</Banner>}
       {scopeDietId && !soloDieta && (
         <Banner kind="info">
           Stai vedendo <b>tutte</b> le ricette del regime, non solo quelle di
@@ -562,14 +568,14 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
           recipe={editing === 'new' ? null : editing}
           defaultRegime={scopeRegime}
           onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); void load(); }}
+          onSaved={(avviso) => { setEditing(null); setAvvisoSalvataggio(avviso ?? null); void load(); }}
         />
       )}
     </>
   );
 }
 
-function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: () => void }) {
+function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: (avviso?: string | null) => void }) {
   const { regimes, cookingMethods } = useTaxonomy();
   const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
   const [busy, setBusy] = useState(false);
@@ -608,9 +614,31 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
 
     setBusy(true);
     try {
-      if (recipe) await api(`/recipes/${recipe.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await api('/recipes', { method: 'POST', body: JSON.stringify(body) });
-      onSaved();
+      /**
+       * ⚠️ La risposta del PATCH si LEGGE (18/8, voce 252). Da oggi cambiare gli ingredienti fa
+       * decadere la conferma degli allergeni — cioè toglie la ricetta dai menu nuovi — e chi ha
+       * appena salvato deve saperlo. Una conseguenza che chi la provoca non vede è la stessa
+       * famiglia di difetti che stiamo togliendo da settimane.
+       *
+       * Il messaggio lo mostra la PAGINA e non questa finestra, perché il salvataggio la chiude:
+       * un avviso dentro una finestra che si sta chiudendo non lo legge nessuno.
+       */
+      let avviso: string | null = null;
+      if (recipe) {
+        const r = await api<{ confermaAllergeniDecaduta?: boolean }>(
+          `/recipes/${recipe.id}`, { method: 'PATCH', body: JSON.stringify(body) },
+        );
+        if (r?.confermaAllergeniDecaduta) {
+          avviso =
+            `«${body.name}»: hai cambiato gli ingredienti, quindi la conferma degli allergeni non ` +
+            'vale più — era stata data su un piatto diverso. ⚠️ Da adesso la ricetta NON entra nei ' +
+            'menu nuovi finché non ricontrolli gli allergeni in «Allergeni ricette». I menu già ' +
+            'consegnati non cambiano.';
+        }
+      } else {
+        await api('/recipes', { method: 'POST', body: JSON.stringify(body) });
+      }
+      onSaved(avviso);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
     } finally {

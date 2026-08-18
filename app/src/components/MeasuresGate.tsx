@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
 import { parseMisura } from '../lib/misure';
 import { EVENTO_APRI_MISURE } from './MenuStatusBanner';
+import { frasePausaMenu } from '../lib/da-quanto-fermo';
 
 /**
  * Popup delle misure (Tracciamento_Dati §5).
@@ -26,6 +27,13 @@ interface Gate {
    */
   level?: 'none' | 'popup' | 'locked' | 'promemoria';
   lockedMessage?: string | null;
+  /**
+   * ⚠️ Da quando la pesata è dovuta. Il backend lo manda da sempre e NESSUNO lo leggeva (voce
+   * 253, giro del 16/8 sui dati che agiscono senza farsi vedere): il riquadro diceva «App in
+   * pausa» e basta, cioè uno stato senza storia — chi legge non sa se è successo stamattina o se
+   * va avanti da una settimana, e non ha modo di capire quanto sta perdendo.
+   */
+  since?: string | null;
 }
 
 
@@ -40,6 +48,8 @@ export default function MeasuresGate() {
   // Dal giorno dopo la richiesta il gate diventa un blocco vero: niente scorciatoie, e l'unica
   // via d'uscita è inserire le misure o farsi riaprire l'app dalla coach.
   const [locked, setLocked] = useState(false);
+  /** Da quando il menu è fermo: serve alla frase del riquadro «App in pausa». */
+  const [since, setSince] = useState<string | null>(null);
   // Aperto dalla cliente (dal banner) e non dal gate: si può chiudere, e il titolo non la sgrida.
   const [volontario, setVolontario] = useState(false);
   /**
@@ -63,6 +73,7 @@ export default function MeasuresGate() {
       setPromemoria(daChiedere);
       setShow(!!gate.blocking || daChiedere);
       setLocked(gate.level === 'locked');
+      setSince(gate.since ?? null);
       if (gate.blocking || daChiedere) {
         track('measures_gate_shown', { cycleDate: gate.cycleDate, level: gate.level ?? 'popup' });
       }
@@ -130,7 +141,9 @@ export default function MeasuresGate() {
             </b>
             <div className="muted" style={{ fontSize: 11 }}>
               {locked
-                ? 'Contatta la tua coach per sbloccare la app — oppure inserisci qui le misure e riparte subito.'
+                /* `frasePausaMenu` mette dentro il «da quanto» quando lo sappiamo, e quando non lo
+                   sappiamo lascia la frase di prima invece di inventare «da 0 giorni». */
+                ? frasePausaMenu(since)
                 : promemoria
                   /* Dopo il «Riapri l'app» il muro non c'è più, ma il menu resta fermo finché la
                      pesata non arriva: dirglielo è l'unico modo perché quella finestra serva a

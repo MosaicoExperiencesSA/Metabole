@@ -6,6 +6,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope } from '../common/coach-team';
 import { frasePrezziPercorso, type PianoDaCitare } from '../commerce/prezzo-piano';
 import { PushService } from '../notifications/push.service';
+import {
+  RIFERIMENTO_UNICO,
+  TIPO_FINESTRA_MAI_CHIESTA,
+  serveChiedereLaFinestra,
+  testoFinestraMaiChiesta,
+} from './finestra-mai-chiesta';
 import { avvisaAttivitaNuova, escalateAttivitaScadute } from './avvisi-attivita';
 
 /**
@@ -390,11 +396,64 @@ export class CoachTasksService {
     }
 
     /**
+     * LA DOMANDA MAI FATTA sulla finestra del digiuno (voce 256). Vedi `finestra-mai-chiesta.ts`:
+     * non è un dato da riempire, è una conversazione da avere — quindi diventa lavoro di una
+     * persona, non un messaggio automatico a freddo.
+     */
+    created += await this.chiediLaFinestraDelDigiuno(today);
+
+    /**
      * L'ESCALATION ALLA MANAGER (Simone, 14/8): le attività ancora «da fare» il giorno dopo la
      * scadenza. In coda al giro, così un problema qui non ferma la generazione — e comunque
      * `escalateAttivitaScadute` non lancia mai.
      */
     const escalation = await escalateAttivitaScadute(this.prisma, this.push);
     return { created, escalation };
+  }
+
+  /**
+   * Un'attività per ogni cliente **in corso** che è in digiuno senza finestra impostata: la
+   * domanda del questionario è arrivata dopo di lei, e quali pasti mangia lo sta decidendo un
+   * valore di scorta. Vedi `finestra-mai-chiesta.ts` per il perché di un'attività e non di un
+   * messaggio di Gaia.
+   *
+   * ⚠️ Solo chi ha un abbonamento **attivo**: aprire un'attività su una persona che ha finito il
+   * percorso mesi fa è dare alla coach lavoro che non serve a nessuno — ed è il modo più rapido di
+   * insegnarle a ignorare la colonna.
+   *
+   * ⚠️ Non lancia mai: è un ramo in coda a una notte di lavoro, e un errore qui non deve portarsi
+   * via i task che contano.
+   */
+  private async chiediLaFinestraDelDigiuno(today: Date): Promise<number> {
+    try {
+      const profili = (await this.prisma.clientProfile.findMany({
+        where: {
+          pathType: 'intermittent_fasting',
+          OR: [{ fastingWindow: null }, { fastingWindow: '' }],
+          user: { subscriptions: { some: { status: 'active' as never } } },
+        } as never,
+        select: { userId: true, name: true, pathType: true, fastingWindow: true },
+        take: 200,
+      })) as { userId: string; name: string | null; pathType: string | null; fastingWindow: string | null }[];
+
+      let fatte = 0;
+      for (const p of profili) {
+        // La query filtra già, ma la decisione la prende il modulo: è lui il posto dove sta scritta
+        // la regola, e domani potrebbe non essere più «campo vuoto».
+        if (!serveChiedereLaFinestra(p.pathType, p.fastingWindow)) continue;
+        const { title, description } = testoFinestraMaiChiesta(p.name);
+        fatte += await this.ensureTask(
+          p.userId,
+          TIPO_FINESTRA_MAI_CHIESTA,
+          RIFERIMENTO_UNICO,
+          title,
+          description,
+          this.day(today, 3),
+        );
+      }
+      return fatte;
+    } catch {
+      return 0;
+    }
   }
 }

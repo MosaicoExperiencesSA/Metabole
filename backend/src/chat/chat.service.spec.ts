@@ -10,6 +10,16 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatService } from './chat.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
+
+/**
+ * Le soglie vivono in `config_param` e qui non si stanno provando: il finto risponde sempre col
+ * valore predefinito che gli passa il chiamante. Una funzione e non una costante, così ogni modulo
+ * di test ha i suoi contatori di chiamate.
+ */
+const configParamsFinto = () => ({
+  getNumber: jest.fn().mockImplementation((_k: string, fallback?: number) => Promise.resolve(fallback)),
+});
 
 const client: AuthUser = { sub: 'client-1', email: 'c@m.eu', role: 'client' };
 const coach: AuthUser = { sub: 'coach-user', email: 'co@m.eu', role: 'coach' };
@@ -84,6 +94,8 @@ describe('ChatService', () => {
         }),
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      // Il nome con cui Gaia si rivolge alla cliente nella chiusura per silenzio (18/8).
+      user: { findUnique: jest.fn().mockResolvedValue({ firstName: 'Patricia' }) },
     };
     notifications = {
       notifyOncePerDay: jest.fn().mockResolvedValue(true),
@@ -129,6 +141,7 @@ describe('ChatService', () => {
             registraMancante: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: ConfigParamsService, useValue: configParamsFinto() },
       ],
     }).compile();
     service = moduleRef.get(ChatService);
@@ -138,6 +151,112 @@ describe('ChatService', () => {
     await service.myThreads('client-1');
     expect(prisma.chatThread.upsert).toHaveBeenCalledTimes(3);
   });
+
+  /**
+   * ⚠️ IL CASO PATRICIA (18/8). Tre volte «Certo Patricia, vediamo insieme. Quale alimento vuoi
+   * cambiare?» e in mezzo nessuna risposta. Non era Gaia che insisteva: erano tre tocchi del
+   * pulsante «Sostituisci», e ogni tocco riparte da zero perché il dialogo scade dopo un'ora.
+   */
+  describe('chiudiSostituzioniLasciateAMeta — la domanda senza risposta la chiude chi l\'ha fatta', () => {
+    const ADESSO = new Date('2026-08-18T03:00:00Z');
+    const oreFa = (h: number) => new Date(ADESSO.getTime() - h * 3_600_000);
+    const inAttesa = (h: number) => ({
+      senderRole: 'ai',
+      sentAt: oreFa(h),
+      meta: { kind: 'sostituzione', sost: { passo: 'cibo', tentativi: 0 } },
+    });
+
+    const conThread = (ultimo: unknown, quanti = 1) => {
+      prisma.chatThread.findMany.mockResolvedValue(
+        Array.from({ length: quanti }, (_, i) => ({ id: `th-${i}`, clientId: `cli-${i}` })),
+      );
+      prisma.message.findFirst.mockResolvedValue(ultimo);
+    };
+
+    it('un giorno di silenzio: Gaia scrive la chiusura, una volta sola', async () => {
+      conThread(inAttesa(30));
+      const r = await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(r).toMatchObject({ esaminate: 1, chiuse: 1, oreDiSilenzio: 24, troncato: false });
+      expect(prisma.message.create).toHaveBeenCalledTimes(1);
+      const body = prisma.message.create.mock.calls[0][0].data.body as string;
+      expect(body).toContain('Patricia');
+      expect(body).toContain('non sia più di tuo interesse');
+      expect(body).toContain('«Sostituisci»');
+    });
+
+    /**
+     * ⚠️ Il messaggio di chiusura NON porta `meta.sost`: è quello che lo rende, insieme, la fine
+     * del dialogo (`flussiAperti` non trova più niente) e il marcatore che impedisce di
+     * richiudere la stessa conversazione domani notte.
+     */
+    it('⚠️ la chiusura non porta stato: chiude il dialogo E fa da marcatore', async () => {
+      conThread(inAttesa(30));
+      await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      const meta = prisma.message.create.mock.calls[0][0].data.meta as Record<string, unknown>;
+      expect(meta).toEqual({ kind: 'sostituzione', esitoSostituzione: 'chiusa_per_silenzio' });
+      expect(meta.sost).toBeUndefined();
+    });
+
+    it('⚠️ e infatti la volta dopo non trova più niente da chiudere', async () => {
+      conThread({
+        senderRole: 'ai',
+        sentAt: oreFa(30),
+        meta: { kind: 'sostituzione', esitoSostituzione: 'chiusa_per_silenzio' },
+      });
+      const r = await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(r.chiuse).toBe(0);
+      expect(prisma.message.create).not.toHaveBeenCalled();
+    });
+
+    it('un dialogo di due ore fa non si tocca: potrebbe rispondere adesso', async () => {
+      conThread(inAttesa(2));
+      const r = await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(r.chiuse).toBe(0);
+      expect(prisma.message.create).not.toHaveBeenCalled();
+    });
+
+    it('ha risposto la cliente: non c\'è niente di appeso', async () => {
+      conThread({ senderRole: 'client', sentAt: oreFa(40), meta: null });
+      expect((await service.chiudiSostituzioniLasciateAMeta(ADESSO)).chiuse).toBe(0);
+    });
+
+    it('⚠️ non guarda i messaggi cancellati: l\'ultimo è l\'ultimo VISIBILE', async () => {
+      conThread(inAttesa(30));
+      await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(prisma.message.findFirst.mock.calls[0][0].where).toMatchObject({ deletedAt: null });
+    });
+
+    /**
+     * ⚠️ IL PRIMO GIRO DOPO IL RILASCIO: in banca dati c'è tutto l'arretrato. Cento messaggi di
+     * Gaia nello stesso minuto sono un evento, non una chiusura — e un tetto che non si dichiara
+     * fa sembrare «finito» un giro che ne ha lasciate indietro un centinaio.
+     */
+    it('⚠️ il tetto per giro esiste, e quando scatta lo DICE', async () => {
+      conThread(inAttesa(30), 150);
+      const r = await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(r.troncato).toBe(true);
+      expect(r.esaminate).toBe(100);
+      expect(r.chiuse).toBe(100);
+    });
+
+    it('una chiusura che fallisce non ferma le altre', async () => {
+      conThread(inAttesa(30), 3);
+      prisma.message.create
+        .mockRejectedValueOnce(new Error('pool esaurito'))
+        .mockResolvedValue({ id: 'm' });
+      const r = await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      expect(r).toMatchObject({ esaminate: 3, chiuse: 2 });
+    });
+
+    it('la finestra è chiusa a due capi: si guarda fra 24 ore e 30 giorni fa', async () => {
+      conThread(inAttesa(30));
+      await service.chiudiSostituzioniLasciateAMeta(ADESSO);
+      const dove = prisma.chatThread.findMany.mock.calls[0][0].where.lastMessageAt;
+      expect(dove.lte).toEqual(new Date(ADESSO.getTime() - 24 * 3_600_000));
+      expect(dove.gte).toEqual(new Date(ADESSO.getTime() - 30 * 24 * 3_600_000));
+    });
+  });
+
 
   it('una cliente non entra nel thread di un\'altra', async () => {
     prisma.chatThread.findUnique.mockResolvedValue({ id: 't1', clientId: 'ALTRA', counterpart: 'ai' });
@@ -773,6 +892,7 @@ describe('ChatService — quando Gaia inventa un dato nutrizionale', () => {
             registraMancante: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: ConfigParamsService, useValue: configParamsFinto() },
       ],
     }).compile();
     return { service: moduleRef.get(ChatService), prisma, notifications };
@@ -877,6 +997,7 @@ describe('ChatService — la domanda nutrizionale con la banca dati', () => {
         // apre la notifica — quindi qui basta che esista.
         { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         { provide: ValoriNutrizionaliService, useValue: valori },
+        { provide: ConfigParamsService, useValue: configParamsFinto() },
       ],
     }).compile();
     return { service: moduleRef.get(ChatService), ai, valori, prisma };
@@ -971,6 +1092,7 @@ describe('ChatService.eliminaMessaggio', () => {
         // apre la notifica — quindi qui basta che esista.
         { provide: AllergieChatService, useValue: { apri: jest.fn(), avanza: jest.fn() } },
         { provide: ValoriNutrizionaliService, useValue: {} },
+        { provide: ConfigParamsService, useValue: configParamsFinto() },
       ],
     }).compile();
     return { service: mod.get(ChatService), prisma, audit };

@@ -5,6 +5,7 @@ import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AuditService } from '../audit/audit.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
+import { ChatService } from '../chat/chat.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { CommerceService } from '../commerce/commerce.service';
 import { CrmService } from '../commerce/crm.service';
@@ -46,6 +47,8 @@ describe('CronController (endpoint per Render Cron)', () => {
   let engine: { runBatch: jest.Mock };
   let notifications: { generateDailyBatch: jest.Mock; measuresNudgeTick: jest.Mock };
   let monitoring: { dailyTick: jest.Mock };
+  /** Il passo che chiude le conversazioni di Gaia rimaste senza risposta (18/8). */
+  let chat: { chiudiSostituzioniLasciateAMeta: jest.Mock };
   let audit: { log: jest.Mock };
   let engineRules: { generaProssimoCatalogo: jest.Mock };
 
@@ -56,6 +59,11 @@ describe('CronController (endpoint per Render Cron)', () => {
       measuresNudgeTick: jest.fn().mockResolvedValue({ inviati: 0 }),
     };
     monitoring = { dailyTick: jest.fn().mockResolvedValue({ ok: true }) };
+    chat = {
+      chiudiSostituzioniLasciateAMeta: jest
+        .fn()
+        .mockResolvedValue({ esaminate: 0, chiuse: 0, oreDiSilenzio: 24, troncato: false }),
+    };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
     engineRules = { generaProssimoCatalogo: jest.fn().mockResolvedValue({ fatto: true, variante: 'Flexitariana · omnivore · dimagrimento · 5 pasti', settimana: 3 }) };
 
@@ -77,6 +85,8 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: PlanReportService, useValue: { generateDaily: jest.fn().mockResolvedValue({ sent: 0 }), generateMonthly: jest.fn().mockResolvedValue({ sent: 0 }) } },
         { provide: AlertsService, useValue: { recomputeAllBatch: jest.fn().mockResolvedValue({ clients: 1, errors: 0 }) } },
         { provide: ConversationSummaryService, useValue: { generateDailyBatch: jest.fn().mockResolvedValue({ threads: 0, created: 0, errors: 0 }) } },
+        // Le conversazioni di Gaia lasciate a metà: chiuse da lei dopo un giorno di silenzio (18/8).
+        { provide: ChatService, useValue: chat },
         { provide: CommerceService, useValue: { autoCancelStalePayments: jest.fn().mockResolvedValue({ cancelled: 0 }), expireTrialsAndPurge: jest.fn().mockResolvedValue({ expired: 0 }) } },
         { provide: SignalsService, useValue: { runAdherenceSweep: jest.fn().mockResolvedValue({ clients: 0 }) } },
         { provide: VisitsService, useValue: { sendUpcomingReminders: jest.fn().mockResolvedValue({ sent: 3 }) } },
@@ -108,6 +118,21 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(res._meta.failures).toEqual([]);
     // Heartbeat: registrato sempre, così ogni notte si vede che il cron è girato.
     expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'cron.daily' }));
+  });
+
+  /**
+   * ⚠️ Il passo che chiude le conversazioni di Gaia rimaste senza risposta (18/8). Sta nel `daily`
+   * e non fra i `reminders`, che girano ogni dieci minuti: questo SCRIVE alla cliente.
+   */
+  it('⚠️ il `daily` chiude anche le conversazioni di Gaia lasciate a metà', async () => {
+    const res = (await controller.daily('segreto-cron')) as EsitoCron & { chiusureGaia?: unknown };
+    expect(chat.chiudiSostituzioniLasciateAMeta).toHaveBeenCalledTimes(1);
+    expect(res.chiusureGaia).toEqual({ esaminate: 0, chiuse: 0, oreDiSilenzio: 24, troncato: false });
+  });
+
+  it('⚠️ i `reminders`, che girano ogni dieci minuti, NON scrivono alle clienti', async () => {
+    await controller.reminders('segreto-cron');
+    expect(chat.chiudiSostituzioniLasciateAMeta).not.toHaveBeenCalled();
   });
 
   it('uno step che esplode NON ferma gli altri, e finisce nei failures', async () => {

@@ -843,6 +843,19 @@ function FastingWindowPref() {
       <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
         Quali pasti salti. I menu si adeguano dal prossimo ciclo: quelli già consegnati restano come sono.
       </p>
+      {/* ⚠️ NESSUNA SCELTA NON È UNA SCELTA (18/8, voce 256). Chi si è iscritta prima di agosto
+          questa domanda non se l'è mai sentita fare: la card le compariva con tutti i pallini
+          spenti e nessuna spiegazione, cioè con un dato che decide quali pasti mangia e non si
+          vede. Qui lo diciamo — e diciamo anche che intanto non manca niente, o «non hai scelto»
+          si legge come «ti stiamo togliendo qualcosa». */}
+      {!value && (
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#FFF6E8', border: '1px solid #F0DCC0', borderRadius: 10, padding: '8px 10px' }}>
+          Non l'hai ancora scelta: quando ti sei iscritta questa domanda non c'era. Intanto ricevi
+          <b> tutti i pasti</b> della tua dieta, quindi non ti manca niente — ma se qualche pasto lo
+          salti, dircelo serve: i menu vengono costruiti sui pasti che fai davvero, invece di
+          proporti piatti che poi non mangi.
+        </p>
+      )}
       <div style={{ display: 'grid', gap: 8 }}>
         {FASTING_OPTIONS.map((o) => {
           const on = value === o.value;

@@ -15,6 +15,9 @@ jest.mock('./voci-iniziali', () => ({
     { chiave: 'gia-spuntata', titolo: 'Già chiusa in pagina', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 2 },
     { chiave: 'nuova-gia-chiusa', titolo: 'Nasce già spuntata', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 3, fatta: true },
     { chiave: 'nuova-aperta', titolo: 'Nasce aperta', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 4 },
+    // ⚠️ Le due righe di chiusura dei doppioni (voce 224): una c'è in pagina, l'altra no.
+    { chiave: 'doppione-in-pagina', titolo: 'Doppione da chiudere', dettaglio: 'x', categoria: 'Manutenzione', ordine: 900, fatta: true, soloSeEsiste: true },
+    { chiave: 'doppione-inesistente', titolo: 'Doppione che non c\'è', dettaglio: 'x', categoria: 'Manutenzione', ordine: 901, fatta: true, soloSeEsiste: true },
   ],
 }));
 
@@ -31,6 +34,8 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
           { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x' },
           // ⚠️ In pagina c'è il DETTAGLIO VECCHIO: il file l'ha riscritto e la pagina non lo sa.
           { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'testo vecchio' },
+          // Il doppione rimasto in pagina il 13/8: aperto, con un testo suo che non interessa a nessuno.
+          { id: 'l3', chiave: 'doppione-in-pagina', fatto: false, titolo: 'tutt\'altro titolo', dettaglio: 'tutt\'altro' },
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'l1' }),
@@ -73,7 +78,9 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
     expect(prisma.lavoro.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'l1' }, data: expect.objectContaining({ fatto: true }) }),
     );
-    expect(esito.spuntate).toBe(1);
+    // 2 e non 1: dal 18/8 il file porta anche le righe che chiudono i doppioni (`soloSeEsiste`),
+    // e anche quelle sono spunte — solo su voci che in pagina ci sono già.
+    expect(esito.spuntate).toBe(2);
   });
 
   it('MAI riaprire: una voce spuntata in pagina resta spuntata anche se il file la dà aperta', async () => {
@@ -102,14 +109,52 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
    */
   it('dice quali voci spunterebbe, col titolo che si legge in pagina', async () => {
     const esito = await service.caricaVociIniziali(false);
-    expect(esito.chiuse).toEqual([{ titolo: 'Lavoro finito nel file', categoria: 'Da fare — codice' }]);
+    expect(esito.chiuse).toEqual([
+      { titolo: 'Lavoro finito nel file', categoria: 'Da fare — codice' },
+      { titolo: 'Doppione da chiudere', categoria: 'Manutenzione' },
+    ]);
   });
 
   it('in prova non scrive niente, ma dice cosa spunterebbe', async () => {
     const esito = await service.caricaVociIniziali(false);
     expect(prisma.lavoro.update).not.toHaveBeenCalled();
     expect(prisma.lavoro.create).not.toHaveBeenCalled();
-    expect(esito.spuntate).toBe(1);
+    expect(esito.spuntate).toBe(2);
+    // ⚠️ 2 e non 3: il doppione che in pagina non c'è NON viene contato fra le aggiunte, perché
+    // non verrebbe creato.
     expect(esito.aggiunte).toBe(2);
+  });
+
+  /**
+   * ⚠️ LE RIGHE `soloSeEsiste` (voce 224). Il 13/8 le voci di Vera sono finite due volte nel file,
+   * con chiavi diverse per le stesse cose. Il doppione è stato tolto dal file, ma se il caricamento
+   * era già girato in mezzo quelle righe sono rimaste in PAGINA, aperte.
+   *
+   * Marcarle `fatta: true` e basta non bastava: se in pagina non ci fossero, il caricamento le
+   * **creerebbe** — tre voci nuove già spuntate, cioè spazzatura scritta per pulire spazzatura.
+   */
+  describe('⚠️ le righe che chiudono un doppione: spuntano se c\'è, non creano se non c\'è', () => {
+    it('quella presente in pagina viene spuntata', async () => {
+      const esito = await service.caricaVociIniziali(false);
+      expect(esito.chiuse.map((c) => c.titolo)).toContain('Doppione da chiudere');
+    });
+
+    it('⚠️ quella che in pagina non c\'è NON viene creata', async () => {
+      const esito = await service.caricaVociIniziali(false);
+      expect(esito.titoli.map((c) => c.titolo)).not.toContain('Doppione che non c\'è');
+    });
+
+    it('⚠️ e nemmeno scrivendo davvero: nessun `create` con quella chiave', async () => {
+      await service.caricaVociIniziali(true);
+      const chiaviCreate = prisma.lavoro.create.mock.calls.map((c: any) => c[0].data.chiave);
+      expect(chiaviCreate).not.toContain('doppione-inesistente');
+      expect(chiaviCreate).toContain('nuova-aperta');
+    });
+
+    /** Il loro testo non è una voce di lavoro: elencarlo fra «i testi cambiati» sarebbe rumore. */
+    it('non compaiono fra i testi da allineare, anche se in pagina dicono tutt\'altro', async () => {
+      const esito = await service.caricaVociIniziali(false);
+      expect(esito.testiCambiati.map((x) => x.titolo)).not.toContain('Doppione da chiudere');
+    });
   });
 });

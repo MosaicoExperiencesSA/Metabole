@@ -15,6 +15,14 @@ interface Measurement {
   weightKg: number;
   waistCm: number | null;
   hipsCm: number | null;
+  /**
+   * ⚠️ Lo staff poteva registrarle una circonferenza cosce che lei NON avrebbe mai visto (voce
+   * 253, giro del 16/8): il campo esisteva nel database, nel form del backoffice e nella risposta
+   * di `GET /me/measurements`, e si fermava qui — questa interfaccia non lo dichiarava, quindi per
+   * l'app non esisteva. Un dato suo, misurato sul suo corpo, invisibile alla sola persona a cui
+   * riguarda.
+   */
+  thighsCm: number | null;
   replacedSnapshot?: unknown | null; // valorizzato ⇒ misura del giorno già corretta una volta
 }
 interface Objective {
@@ -75,6 +83,13 @@ const METRICS = [
   { key: 'weightKg', label: 'Peso', unit: 'kg', color: '#12A386', targetKey: 'targetWeightKg' },
   { key: 'waistCm', label: 'Vita', unit: 'cm', color: '#E8825A', targetKey: 'targetWaistCm' },
   { key: 'hipsCm', label: 'Fianchi', unit: 'cm', color: '#3A6EA5', targetKey: 'targetHipsCm' },
+  /**
+   * ⚠️ Le cosce NON hanno un obiettivo: `Objective` non ha un `targetThighsCm`, e inventarlo
+   * vorrebbe dire una migrazione per una cosa che nessuno ha chiesto. `targetKey: null` è
+   * dichiarato e gestito: il grafico dell'andamento c'è, la barra «verso il tuo obiettivo» no —
+   * perché un traguardo non c'è, e una barra senza traguardo misura la distanza da niente.
+   */
+  { key: 'thighsCm', label: 'Cosce', unit: 'cm', color: '#8E6BB5', targetKey: null },
 ] as const;
 
 export default function Obiettivo() {
@@ -84,6 +99,7 @@ export default function Obiettivo() {
   const [weight, setWeight] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
+  const [thighs, setThighs] = useState('');
   const [busy, setBusy] = useState(false);
   const [correcting, setCorrecting] = useState(false); // modalità "cambia misure" attiva
   const [confirmCorrect, setConfirmCorrect] = useState(false); // sto mostrando "Sei sicuro?"
@@ -144,6 +160,7 @@ export default function Obiettivo() {
       setWeight(d1(last.weightKg));
       setWaist(last.waistCm != null ? d1(last.waistCm) : '');
       setHips(last.hipsCm != null ? d1(last.hipsCm) : '');
+      setThighs(last.thighsCm != null ? d1(last.thighsCm) : '');
     }
     setCorrecting(false);
     setConfirmCorrect(false);
@@ -164,8 +181,10 @@ export default function Obiettivo() {
     const body: Record<string, number> = { weightKg: w };
     const wa = parseMisura(waist);
     const hi = parseMisura(hips);
+    const co = parseMisura(thighs);
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
+    if (co !== undefined) body.thighsCm = co;
     try {
       const r = await api<{ newMilestones?: Traguardo[]; rapidLossAlert?: boolean }>(
         '/me/measurements',
@@ -193,8 +212,10 @@ export default function Obiettivo() {
     const body: Record<string, number> = { weightKg: w };
     const wa = parseMisura(waist);
     const hi = parseMisura(hips);
+    const co = parseMisura(thighs);
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
+    if (co !== undefined) body.thighsCm = co;
     try {
       await api('/me/measurements/correct', { method: 'POST', body: JSON.stringify(body) });
       await load();
@@ -292,6 +313,10 @@ export default function Obiettivo() {
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => setWeight(e.target.value)} /></div>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} disabled={!inputsEnabled} onChange={(e) => setWaist(e.target.value)} /></div>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} disabled={!inputsEnabled} onChange={(e) => setHips(e.target.value)} /></div>
+          {/* ⚠️ Non basta MOSTRARLE le cosce: se solo lo staff può scriverle, resta un dato su di
+              lei che lei non governa. La porta era già aperta — `CreateMeasurementDto` accetta
+              `thighsCm` da sempre — e mancava soltanto questa casella. */}
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Cosce (cm)</div><input className="input" inputMode="decimal" value={thighs} disabled={!inputsEnabled} onChange={(e) => setThighs(e.target.value)} /></div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             {!sentToday ? (
               <button className="btn" style={{ padding: 11 }} onClick={submit} disabled={busy}>
@@ -433,7 +458,9 @@ export default function Obiettivo() {
             <b style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>Verso il tuo obiettivo</b>
             {METRICS.map((m) => {
               const series = measurements.map((x) => x[m.key] as number | null).filter((v): v is number => v != null);
-              const target = objective ? (objective[m.targetKey] as number | null) : null;
+              // `targetKey: null` (le cosce): nessun obiettivo, quindi niente barra. Il `return`
+              // qui sotto la salta già, come fa da sempre per chi il traguardo non l'ha impostato.
+              const target = objective && m.targetKey ? (objective[m.targetKey] as number | null) : null;
               if (series.length === 0 || target == null) return null;
               const start = series[0];
               const current = series[series.length - 1];

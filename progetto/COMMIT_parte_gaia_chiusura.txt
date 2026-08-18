@@ -1,0 +1,95 @@
+Gaia chiude da se' le conversazioni lasciate a meta' (la stessa domanda non si ripete all'infinito)
+
+Voce 277. Segnalazione di Simone del 18/8, con la chat di una cliente sotto gli occhi.
+
+═══ COSA SI VEDEVA
+
+Nella chat, tre volte di fila lo stesso messaggio di Gaia:
+
+  Certo [nome], vediamo insieme. Quale alimento vuoi cambiare?
+  Oggi hai — colazione: … · pranzo: … · cena: …
+  Scrivimi solo il nome dell'alimento (per esempio «le carote»).      [10 ago, 13:07]
+  Certo [nome], vediamo insieme. Quale alimento vuoi cambiare?         [11 ago, 16:00]
+  Certo [nome], vediamo insieme. Quale alimento vuoi cambiare?         […]
+
+E in mezzo, nessuna risposta della cliente.
+
+═══ PERCHE' SUCCEDEVA — e non e' «Gaia insiste»
+
+⚠️ NESSUN CRON scrive quel messaggio. Lo scrive il pulsante «Sostituisci» della home (e della
+schermata Menu): POST /me/threads/sostituzione → SostituzioneChatService.apri.
+
+Quelle tre righe sono TRE APERTURE. La cliente tocca il pulsante, legge — nel messaggio c'e' anche
+il menu del giorno, che e' meta' del motivo per cui uno lo tocca — e se ne va senza rispondere.
+Lo stato del dialogo scade dopo un'ora (SCADENZA_FLUSSO_MS), quindi l'apertura dopo riparte da zero
+e non sa di aver gia' chiesto. Ogni volta la stessa domanda, per sempre.
+
+La ricostruzione conta perche' cambia il rimedio: non c'era niente da «zittire».
+
+═══ COSA CAMBIA
+
+Una domanda rimasta senza risposta per 24 ore la chiude Gaia:
+
+  «[Nome], ti avevo chiesto quale alimento volevi cambiare e non ci siamo piu' sentite: capisco
+   che l'argomento non sia piu' di tuo interesse, quindi chiudo qui.
+
+   Se cambi idea tocca «Sostituisci» dalla home quando vuoi: ripartiamo da capo, senza fretta. 💚»
+
+⚠️ CHIUDE IL TEMPO, NON UN ALTRO TOCCO DEL PULSANTE. L'altra strada — alla terza apertura
+rispondere con la frase di chiusura invece che con la domanda — le direbbe «capisco che non ti
+interessa piu'» NELL'ISTANTE ESATTO in cui sta chiedendo di cambiare un alimento. E chiudendo a
+tempo la seconda domanda identica non arriva nemmeno: la prima e' gia' stata chiusa quando torna.
+
+⚠️ E la frase dice tre cose, tutte e tre necessarie: A COSA si riferisce (a un giorno di distanza
+«capisco» da solo non si capisce), che si chiude, e CHE SI PUO' RICOMINCIARE. Senza l'ultima,
+«ho capito che non ti interessa» e' una porta chiusa in faccia a chi si era solo distratta.
+
+═══ 1. `menu/conversazione-lasciata-a-meta.ts` — modulo puro
+
+  eUnaDomandaInAttesa(messaggio) → boolean
+  vaChiusa(ultimo, adesso, ore, giorniIndietro) → { chiudere } | { chiudere: false, perche }
+  testoChiusuraPerSilenzio(nome) → string
+
+⚠️ NESSUNA TABELLA NUOVA, e nessun contatore: IL MARCATORE E' LA RIGA, come per la campagna
+allergie. `meta.sost` c'e' solo finche' il dialogo aspetta qualcosa — quando si applica, si rifiuta
+o si passa alla coach non viene scritto. Quindi la sua presenza E' la domanda «stiamo ancora
+aspettando una risposta?».
+
+⚠️ E il messaggio di chiusura non porta `meta.sost`: cosi' fa due mestieri in uno. Chiude il
+dialogo (`flussiAperti` non trova piu' niente) ED e' il marcatore che impedisce di richiudere la
+stessa conversazione domani notte. C'e' un test apposta.
+
+`vaChiusa` dice NO in tre modi diversi, e si sa quale: non_e_una_domanda / troppo_presto /
+troppo_vecchia. Un «no» muto non si capisce mai.
+
+═══ 2. `chat.service.chiudiSostituzioniLasciateAMeta()`
+
+⚠️ DUE GUARDIE SUL PRIMO GIRO DOPO IL RILASCIO, che trova tutto l'arretrato di sempre:
+
+  · FINESTRA DI 30 GIORNI all'indietro. Svegliare una persona per una domanda di marzo non e'
+    chiudere una conversazione: e' aprirne una.
+  · TETTO DI 100 PER GIRO, e ⚠️ DICHIARATO NELL'ESITO (`troncato: true`). Cento messaggi di Gaia
+    nello stesso minuto sono un evento, non una chiusura — e un tetto silenzioso fa sembrare
+    «finito» un giro che ne ha lasciate indietro un centinaio. Le altre le prende domani.
+
+`lastMessageAt` e' solo un pre-filtro grossolano per non leggere l'ultimo messaggio di ogni thread:
+la decisione la prende `vaChiusa` sul messaggio vero, e si guarda solo l'ultimo VISIBILE
+(`deletedAt: null`). Una chiusura che fallisce non ferma le altre.
+
+═══ 3. Il passo del cron
+
+`daily`, non `reminders`. ⚠️ I `reminders` girano ogni dieci minuti: questo SCRIVE ALLA CLIENTE,
+una volta al giorno basta e non c'e' niente da rincorrere. C'e' un test che tiene ferma anche
+questa: i `reminders` non devono chiamarlo.
+
+═══ 4. La soglia sta in `config_param`
+
+`chat_chiusura_silenzio_ore` = 24 (seed). Si cambia dal backoffice senza un rilascio, come tutte
+le soglie del progetto.
+
+═══ VERIFICHE
+
+  npm run build      → ok
+  npx jest --ci      → 205 suite, 3156 test verdi (26 nuovi: 17 sul modulo, 9 sul passo notturno)
+
+Nessuna migrazione. Nessun cambio per chi risponde a Gaia: cambia solo per chi non risponde.

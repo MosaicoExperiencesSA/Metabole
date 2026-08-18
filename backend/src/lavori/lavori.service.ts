@@ -105,7 +105,12 @@ export class LavoriService {
     })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null }[];
     const perChiave = new Map(righe.map((r) => [r.chiave, r]));
 
-    const mancanti = VOCI_INIZIALI.filter((v) => !perChiave.has(v.chiave));
+    /**
+     * ⚠️ `soloSeEsiste` NON si crea mai. Sono le righe che il file usa per **chiudere** un doppione
+     * rimasto in pagina (voce 224): crearle vorrebbe dire scrivere spazzatura nuova per pulire
+     * quella vecchia. Se in pagina non ci sono, per il caricamento non esistono.
+     */
+    const mancanti = VOCI_INIZIALI.filter((v) => !perChiave.has(v.chiave) && v.soloSeEsiste !== true);
     /**
      * L'AGGIORNAMENTO DELLO STATO (richiesta di Simone, 13/8 sera): il file può CHIUDERE una voce
      * ancora aperta in pagina — è la notizia «questa consegna l'ha finita» — ma MAI riaprirne una
@@ -139,6 +144,8 @@ export class LavoriService {
     const testiCambiati = VOCI_INIZIALI.flatMap((v) => {
       const riga = perChiave.get(v.chiave);
       if (!riga) return [];
+      // Le righe di chiusura dei doppioni non sono voci di lavoro: il loro testo non interessa a nessuno.
+      if (v.soloSeEsiste) return [];
       const diverso =
         riga.titolo !== v.titolo || (riga.dettaglio ?? '') !== (v.dettaglio ?? '');
       return diverso ? [{ titolo: v.titolo, categoria: v.categoria }] : [];
@@ -147,7 +154,7 @@ export class LavoriService {
     if (conferma) {
       for (const v of mancanti) {
         // `fatta` è un campo del FILE, non una colonna: si traduce nella spunta e non si scrive.
-        const { fatta, ...campi } = v;
+        const { fatta, soloSeEsiste: _soloSeEsiste, ...campi } = v;
         await this.prisma.lavoro.create({
           data: fatta ? { ...campi, ...datiSpunta(true, null, new Date()) } : campi,
         });

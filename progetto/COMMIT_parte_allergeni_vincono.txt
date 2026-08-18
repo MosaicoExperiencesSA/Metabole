@@ -1,0 +1,99 @@
+Gli allergeni vincono sulle modifiche: cambiare gli ingredienti azzera la conferma
+
+Voce 252 (chiusa). Risposta di Simone del 18/8: «gli allergeni vincono sempre sulle modifiche; in
+caso venga data una sostituzione incompatibile va segnalato».
+
+═══ IL DIFETTO
+
+`catalog.updateRecipe` scriveva `ingredients` SENZA TOCCARE `allergensReviewed`.
+
+Una ricetta con gli allergeni confermati, a cui qualcuno cambia gli ingredienti dalla scheda,
+restava `allergensReviewed: true` — con la firma di PRIMA, data su un piatto diverso. Nessun errore,
+nessuna riga rossa, e `collegaRicetta` la lasciava entrare nelle diete perche' il campo diceva di
+si'.
+
+Una conferma e' una firma su un contenuto. Cambiato il contenuto, la firma non vale piu'.
+
+═══ ⚠️ PERCHE' SUI NOMI E NON SU QUALUNQUE SALVATAGGIO
+
+«Gli allergeni vincono sempre sulle modifiche» applicato in modo che protegga davvero:
+
+  · UNA QUANTITA' NON PUO' INTRODURRE NE' TOGLIERE UN ALLERGENE. 80 g di farina o 100 g di farina
+    hanno lo stesso glutine. Azzerare la conferma perche' qualcuno ha corretto un peso non aggiunge
+    un grammo di sicurezza, e intanto TOGLIE IL PIATTO DAI MENU finche' qualcuno non lo rivede:
+    paga un costo vero per una protezione che non c'e'.
+  · QUELLO CHE CAMBIA GLI ALLERGENI E' COSA C'E' DENTRO: un ingrediente aggiunto, tolto o
+    rinominato. Li' la conferma decade, sempre, senza eccezioni e senza chiedere.
+
+Se questa lettura non e' quella che intendevi, si cambia una riga (`laConfermaDecade`) e diventa
+«a ogni salvataggio». Lo scrivo qui perche' tu lo veda, non perche' me lo tenga.
+
+═══ 1. `catalog/conferma-allergeni-decade.ts` — modulo puro
+
+  nomeConfrontabile(x)              → forma confrontabile del nome
+  confrontaIngredienti(prima, dopo) → 'uguali' | 'cambiati' | 'illeggibili'
+  laConfermaDecade(era, prima, dopo)→ boolean
+  fraseConfermaDecaduta(nome)       → string
+
+⚠️ Il confronto e' fra INSIEMI DI NOMI normalizzati (minuscole, accenti sciolti, punteggiatura via):
+  · l'ORDINE non conta — spostare una riga nel form non e' una modifica;
+  · le quantita' e le unita' non contano;
+  · ⚠️ STESSO NUMERO CON UNO SCAMBIATO CONTA. La scorciatoia che viene in mente per prima —
+    confrontare la LUNGHEZZA della lista — direbbe «uguali» su farina→mandorle, e il piatto
+    resterebbe in catalogo con la conferma di quando c'era la farina. C'e' un test apposta.
+
+⚠️ E SE GLI INGREDIENTI NON SI LEGGONO, SI AZZERA. Su un campo di sicurezza «non ho capito» vale
+«non e' confermato», mai il contrario.
+
+⚠️ `updateRecipe` aggiorna solo i campi inviati: chi salva il nome o le stagioni non manda
+`ingredients`, e li' non decade niente. Senza quel ramo, cambiare il TITOLO di una ricetta le
+avrebbe tolto la conferma — un difetto peggiore di quello che stiamo correggendo.
+
+═══ 2. NON E' RETROATTIVO
+
+Le ricette gia' in catalogo restano come sono. Questo vale dalla prossima modifica in poi, quindi il
+catalogo non si svuota di colpo e la coda di «Allergeni ricette» si riempie al ritmo con cui
+qualcuno tocca le ricette.
+
+═══ 3. CHI SALVA LO LEGGE
+
+Il PATCH torna `confermaAllergeniDecaduta`, e la pagina Ricette scrive:
+
+  «"Torta di mele": hai cambiato gli ingredienti, quindi la conferma degli allergeni non vale piu'
+   — era stata data su un piatto diverso. ⚠️ Da adesso la ricetta NON entra nei menu nuovi finche'
+   non ricontrolli gli allergeni in «Allergeni ricette». I menu gia' consegnati non cambiano.»
+
+⚠️ Dice la CONSEGUENZA, non l'azione: «conferma azzerata» e' gergo nostro, e chi lo legge non
+capisce che il piatto ha appena smesso di entrare nei menu. E dice DOVE si rimedia, o e' un avviso
+che lascia la persona ferma.
+
+⚠️ Il messaggio sta nella PAGINA e non nella finestra: il salvataggio la chiude, e un avviso dentro
+una finestra che si sta chiudendo non lo legge nessuno.
+
+⚠️ E finisce nel registro modifiche (`metadata: { allergensReviewed: false, motivo:
+'ingredienti_cambiati' }`), perche' chi un domani si chiede «perche' questa ricetta e' sparita dai
+menu?» deve trovare la risposta, con la data e il nome di chi ha salvato.
+
+═══ 4. LA SECONDA META' DELLA RISPOSTA — verificata, e' gia' vera
+
+«In caso venga data una sostituzione incompatibile va segnalato». Sono andato a guardare le due
+porte da cui una sostituzione puo' arrivare:
+
+  · IL DIALOGO DI GAIA — `sostituzione-chat.service.ts:795-802` classifica il sostituto e torna
+    'allergene' se tocca un allergene dichiarato; la riga 902 passa la mano a una persona con
+    «gli unici sostituti per X toccano un allergene dichiarato. Serve una decisione clinica».
+    Non propone e non applica: chiede.
+  · IL PULSANTE «NON GRADISCO» DELL'APP — `menu.service.substituteDisliked` sceglie i sostituti
+    passando da `evaluateMeals`, che e' il punto obbligato dove allergeni ed esclusioni si
+    applicano a ogni erogazione.
+
+Non ho aggiunto niente: era gia' cosi'. Lo scrivo perche' «verificato» valga come risposta solo se
+si dice dove si e' guardato.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 207 suite, 3179 test verdi (15 nuovi)
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.
