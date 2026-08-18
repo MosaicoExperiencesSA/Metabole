@@ -46,6 +46,7 @@
     "diag:settimane": "ts-node --transpile-only prisma/diag-settimane.ts",
     "diag:digiuni": "ts-node --transpile-only prisma/diag-digiuni-e-varianti.ts",
     "diag:kcal": "ts-node --transpile-only prisma/diag-kcal-sotto-target.ts",
+    "diag:porzioni": "ts-node --transpile-only prisma/diag-porzioni.ts",
     "fix:stato-questionario": "ts-node --transpile-only prisma/fix-stato-questionario.ts",
     "fix:consenso-sanitario": "ts-node --transpile-only prisma/fix-consenso-sanitario.ts",
     "fix:segnalazioni": "ts-node --transpile-only prisma/fix-segnalazioni-orfane.ts",

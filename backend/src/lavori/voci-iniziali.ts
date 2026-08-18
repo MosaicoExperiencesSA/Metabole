@@ -713,6 +713,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'diag-porzioni-retroattiva',
+    titolo: '`npm run diag:porzioni`: misura le giornate GIÀ erogate, senza aspettare che qualcuno apra l\'app',
+    dettaglio:
+      'Nata da un\'esecuzione vera: `diag:kcal` legge gli **eventi** che l\'erogazione scrive quando eroga, quindi risponde solo per chi ha aperto l\'app dopo il rilascio del segnale — e alla prima prova, giustamente, non sapeva niente (voce 271). Questa guarda invece i **giorni già in banca dati** e risponde subito. ⚠️ Il giudizio **non è riscritto**: chiama `giornateSottoTarget`, la stessa funzione del motore, e il target lo calcola `KcalNeedService`, la stessa classe che usa l\'erogazione — allo script si passa solo la porta per leggere i `config_param`. Due risposte diverse sarebbero un difetto, non un metodo diverso: è la lezione del 17/8, quando motore e `diag:digiuni` si sono contraddetti in un pomeriggio. Stampa per cliente il **perché** (finestra del digiuno, spuntini tolti, o «è il catalogo»), la **quota peggiore**, il **fattore necessario** e se il tetto che stai provando basta — cioè i numeri con cui si rispondono le due domande cliniche della voce 255. ⚠️ Dice **due limiti** invece di lasciarli dedurre: si confrontano giornate già erogate col fabbisogno di **oggi** (se peso o obiettivo sono cambiati, il numero di ieri è misurato col metro di adesso — va bene per scegliere un tetto, non per dire a una cliente cosa ha mangiato), e le clienti **senza fabbisogno calcolabile** (mancano sesso, età, altezza o peso) si contano a parte, perché per loro il motore usa le kcal del livello e da lì non si vede: non è un ✓, è un «non lo so». `TETTO=`, `GIORNI=` e `SOLO=<email>` come le altre. Nessuna scrittura, nessuna migrazione.',
+    categoria: MANUTENZIONE,
+    ordine: 272,
+    fatta: true, // 18/8
+  },
+  {
     chiave: 'diag-kcal-tre-stati',
     titolo: '«Nessuna giornata sotto il fabbisogno ✓» diceva ✓ anche quando non lo sapeva',
     dettaglio:

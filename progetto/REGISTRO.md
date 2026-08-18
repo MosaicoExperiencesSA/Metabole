@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 📏 **`npm run diag:porzioni`: misura le giornate GIÀ erogate, senza aspettare che
+  qualcuno apra l'app.** Voce 272, e nasce da un'esecuzione vera: `diag:kcal` legge gli **eventi** che
+  l'erogazione scrive **quando eroga**, quindi risponde solo per chi ha aperto l'app dopo il rilascio
+  del segnale — e alla prima prova, giustamente, non sapeva niente. Questa guarda i **giorni già in
+  banca dati** e risponde oggi. ⚠️ **Il giudizio non è riscritto**: chiama `giornateSottoTarget`, la
+  stessa funzione del motore, e il target lo calcola `KcalNeedService`, la stessa classe che usa
+  l'erogazione — allo script si passa solo la porta per leggere i `config_param`. Due risposte diverse
+  alla stessa domanda sarebbero un difetto, non un metodo diverso: è la lezione del 17/8, quando il
+  motore e `diag:digiuni` si sono contraddetti in un pomeriggio. Per cliente stampa il **perché**
+  (finestra del digiuno, spuntini tolti, o «è il catalogo»), la **quota peggiore**, il **fattore
+  necessario** e se il tetto che stai provando basta — cioè i numeri con cui si rispondono le due
+  domande cliniche della voce 255. ⚠️ E **dice i suoi due limiti**: si confrontano giornate già erogate
+  col fabbisogno di **oggi** (se peso o obiettivo sono cambiati, il numero di ieri è misurato col metro
+  di adesso — va bene per scegliere un tetto, non per dire a una cliente cosa ha mangiato), e le
+  clienti **senza fabbisogno calcolabile** si contano a parte, perché per loro il motore usa le kcal
+  del livello: non è un ✓, è un «non lo so». Nessuna scrittura, nessuna migrazione, 3117 test in 203
+  suite.
+
 - `[Sviluppo]` ✅❓ **«Nessuna giornata sotto il fabbisogno ✓» diceva ✓ anche quando non lo sapeva.**
   Voce 271, trovata alla **prima esecuzione in produzione** di `diag:kcal` — il giorno dopo averlo
   scritto. Zero eventi, e lo script ha stampato il ✓. ⚠️ Quel ✓ non era vero, era **«non lo so»**: il

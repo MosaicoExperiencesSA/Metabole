@@ -1,0 +1,43 @@
+`npm run diag:porzioni`: misura le giornate GIA' erogate, senza aspettare che qualcuno apra l'app
+
+Voce 272. Diagnostica di SOLA LETTURA, nessuna migrazione.
+
+PERCHE' SERVE, e come e' nata. `diag:kcal` (voce 268) legge gli EVENTI che l'erogazione scrive
+**quando eroga**: risponde solo per chi ha aperto l'app dopo il rilascio del segnale. Alla prima
+esecuzione in produzione, giustamente, non sapeva niente — ed e' la ragione per cui ieri quel ✓ era
+falso (voce 271). Questa guarda invece i **giorni gia' in banca dati**: risponde subito, oggi.
+
+⚠️ IL GIUDIZIO NON E' RISCRITTO. Chiama `giornateSottoTarget` — la stessa funzione del motore — e il
+target lo calcola `KcalNeedService`, la stessa classe che usa l'erogazione: allo script si passa solo
+la porta per leggere i `config_param`. Due risposte diverse alla stessa domanda sarebbero un difetto,
+non un metodo diverso. E' la lezione del 17/8, quando il motore e `diag:digiuni` si sono contraddetti
+nello spazio di un pomeriggio.
+
+COSA STAMPA, per cliente: il PERCHE' (finestra del digiuno, spuntini tolti da Vera, o «nessuna
+esclusione: e' il catalogo»), la QUOTA PEGGIORE della finestra, il FATTORE NECESSARIO, se il tetto che
+stai provando basta (e a che percentuale si fermerebbe se non basta), e quante giornate su quante.
+
+  npm run diag:porzioni             → ultimi 14 giorni, tetto ×1,8
+  TETTO=1.6 npm run diag:porzioni   → quante coperte, quante ancora corte
+  GIORNI=30 npm run diag:porzioni   → finestra piu' lunga
+  SOLO=a@b.it npm run diag:porzioni → una cliente sola
+
+⚠️ E DICE I SUOI DUE LIMITI, invece di lasciarli dedurre:
+· si confrontano giornate GIA' EROGATE con il fabbisogno di OGGI — se peso, obiettivo o correzione
+  kcal sono cambiati nel frattempo, il numero di ieri e' misurato col metro di adesso. Va bene per
+  scegliere un tetto, NON per dire a una cliente cosa ha mangiato;
+· le clienti SENZA fabbisogno calcolabile (mancano sesso, eta', altezza o peso) si contano a parte:
+  per loro il motore usa le kcal del LIVELLO della dieta, e da qui non si puo' dire se la giornata e'
+  corta. Non e' un ✓, e' un «non lo so».
+
+FILE:
+- backend/prisma/diag-porzioni.ts — la diagnostica.
+- backend/package.json — `npm run diag:porzioni`.
+- backend/src/lavori/voci-iniziali.ts — voce 272, spuntata.
+
+Build verde e **3117 test in 203 suite**. Lo script non ha test, come gli altri `prisma/*.ts`: e'
+verificato dal compilatore ed e' di sola lettura.
+
+DA LANCIARE DOPO IL DEPLOY, ed e' l'ingresso della Consegna 2 del foglio:
+  npm run diag:porzioni
+  TETTO=1.6 npm run diag:porzioni
