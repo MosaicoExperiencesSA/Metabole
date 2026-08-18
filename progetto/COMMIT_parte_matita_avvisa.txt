@@ -1,7 +1,7 @@
 La matita delle date dice cosa sta per rompere (voce 259, l'ultima del caso Lorena)
 
 Il 16/8, quarantotto secondi dopo l'acquisto del secondo piano, qualcuno ha aperto la scheda di
-Lorena Polidoro e ha spostato la data d'inizio. Ha fatto la cosa giusta con quello che le era stato
+Lorena e ha spostato la data d'inizio. Ha fatto la cosa giusta con quello che le era stato
 mostrato — la scheda scriveva «Inizio piano: 25/08», che era la data del piano IN CODA — e il
 risultato sono stati due piani attivi insieme. LA MATITA NON LO HA DETTO PERCHE' NON LO SAPEVA:
 spostava una data e non guardava le altre righe.

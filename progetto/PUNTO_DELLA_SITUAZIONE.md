@@ -494,7 +494,7 @@ Tutti esistono e in dry-run non scrivono niente.
 | `npm run sistema:nomi` | Gli 86k lead importati hanno nome e cognome dentro un unico campo. Dice quali righe rileggere (`CERTEZZA=dubbi`). |
 | `npm run fix:assegnazioni` | Assegnazioni incoerenti rimaste dal 6/8. |
 | `npm run diag:ricorrente` | Non sappiamo se il primo rinnovo automatico funzionerà (§4.2). |
-| `npm run diag:cliente -- giusy.vita01@gmail.com` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
+| `npm run diag:cliente -- <email di Giusy>` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
 | `npm run diag:famiglie` | 20 clienti con famiglia di dieta ambigua. |
 
 **Da lanciare PRIMA del deploy che toglie l'esenzione vacanza** (caso Gioia, 11/8): sapere quante

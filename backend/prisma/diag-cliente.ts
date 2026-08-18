@@ -16,7 +16,7 @@
  *    esclusioni e ha aperto una segnalazione.
  *
  * USO (shell di Render, dentro ~/project/src/backend):
- *   npm run diag:cliente -- lorenzo.martino1975@gmail.com
+ *   npm run diag:cliente -- cliente@esempio.it
  */
 import { PrismaClient } from '@prisma/client';
 

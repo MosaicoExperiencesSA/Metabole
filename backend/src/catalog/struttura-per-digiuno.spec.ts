@@ -7,7 +7,7 @@ import { FINESTRE_DIGIUNO } from '../menu/finestre-digiuno';
 import { pastiAttesi } from './giornate-complete';
 
 /**
- * Il caso vero: Sonia (`s.sandri66@libero.it`), finestra «salto la cena», riceveva **un pasto al
+ * Il caso vero: Sonia, finestra «salto la cena», riceveva **un pasto al
  * giorno**. Il catalogo digiuno ha tre slot fissi — pranzo, merenda, cena — e la finestra togliendo
  * cena e merenda le lasciava il solo pranzo.
  *

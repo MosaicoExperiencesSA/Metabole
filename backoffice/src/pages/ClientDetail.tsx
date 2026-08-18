@@ -774,7 +774,7 @@ export function ClientDetail() {
     }
   }
   /**
-   * ANNULLA UN ABBONAMENTO dalla scheda (17/8, dal caso Lorena Polidoro: due piani attivi insieme).
+   * ANNULLA UN ABBONAMENTO dalla scheda (17/8, dal caso Lorena: due piani attivi insieme).
    *
    * ⚠️ Annullare NON è stornare: qui si toglie il PIANO, i soldi hanno la loro strada. E non
    * cancella la riga — resta come `annullato`, perché un pagamento la referenzia e la storia di una

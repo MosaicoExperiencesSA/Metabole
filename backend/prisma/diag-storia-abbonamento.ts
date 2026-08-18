@@ -1,7 +1,7 @@
 /**
  * DIAGNOSTICA: **la storia degli abbonamenti di una cliente, in ordine di tempo.**
  *
- * Nasce dal caso Lorena Polidoro (17/8): due «Conosciamoci» attivi insieme, uno con la data di fine
+ * Nasce dal caso Lorena (17/8): due «Conosciamoci» attivi insieme, uno con la data di fine
  * che non torna col suo periodo. La scheda mostra lo **stato di adesso**, e da lì la causa si può
  * solo indovinare — l'ho fatto una volta e ho indovinato male, dando la colpa a una corsa fra due
  * richieste che invece erano a una settimana di distanza.

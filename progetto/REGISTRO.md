@@ -20,6 +20,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔒 **Le email di otto clienti erano nei file del repository, e il repository è
+  pubblico.** Trovata guardando `docs/` per il workflow Pages rosso, quindi fuori da qualunque
+  lavoro programmato. Gli indirizzi di **otto clienti reali** stavano in **21 file versionati** —
+  i `REGISTRO_*.md` in radice, `progetto/` (REGISTRO, handoff, note, un `COMMIT_parte_*`), quattro
+  script `prisma/diag-*`, `voci-iniziali.ts`, `struttura-per-digiuno.ts` e **tre file di test** —
+  arrivati lì un po' per volta, ogni volta con la buona ragione di «così si capisce di chi si
+  parla». ⚠️ Il problema non è l'email da sola: accanto c'erano **nome, finestra del digiuno,
+  fabbisogno calorico, cibi non graditi**. Email + nome + dato sulla salute è la categoria che il
+  GDPR protegge di più (art. 9), su un repository che chiunque può clonare. ⚠️ **E ci ho messo del
+  mio**: il 17/8 sera ho scritto io uno di quegli indirizzi in
+  `COMMIT_parte_bonifica_solo_email.txt`, seguendo la convenzione che trovavo nei file senza
+  fermarmi a chiedermi se fosse giusta — è il difetto di famiglia visto dal di dentro, un dato che
+  agisce e non si vede perché nessuno lo guarda mai come dato. **Fatto:** le 37 occorrenze
+  sostituite con il **nome di battesimo** (Sonia, Maria, Giusy, Patty, Simona, Lorenzo, Gioia,
+  Ilaria), i comandi d'esempio con un segnaposto — `cliente@esempio.it` negli script dove l'esempio
+  è generico, `<email di Nome>` dove serve sapere di chi si parla perché quel comando va ancora
+  lanciato — e via anche i **cognomi** dei clienti («Lorena Polidoro» → «Lorena», «Gioia Lurve» →
+  «Gioia», «Ilaria Stefani», «Giusy Vita»), che erano rimasti in 16 file fra codice, registri e
+  `lavori-storico.json`. ⚠️ **Ripulire i file non toglie il dato dallo storico**: `git log -p` ce
+  l'ha ancora, e su un repository pubblico è leggibile come prima. Le due strade che chiudono
+  davvero sono **rendere privato il repository** (immediata, un clic nelle Settings) o
+  **riscrivere lo storico** con `git filter-repo` (invasiva: cambia tutti gli hash, serve un
+  force-push e chi ha un clone deve riclonare) — ⛔ è una scelta di Simone, non una cosa da fare di
+  iniziativa. **La regola da qui in avanti:** nei documenti e nei commenti si scrive il nome di
+  battesimo o l'id interno, mai l'indirizzo; gli indirizzi restano solo dove servono a far girare
+  qualcosa (`.env`, il seed, gli alias `+test` di Simone). ⚠️ E perché la regola non dipenda dalla
+  memoria di nessuno, nuovo `common/email-nei-file.ts` + **una guardia che passa in rassegna i
+  file versionati** (`git ls-files`) e diventa **rossa** se un indirizzo di un dominio di posta
+  vero rientra, dicendo file e riga. Provata al contrario: rimessa un'email finta in
+  `progetto/DA_FARE.md`, il test è diventato rosso indicandola. 8 test nuovi (204 suite, 3128 test
+  verdi). Nessuna migrazione. **Voce 276.** ⚠️ Restano nel repository i **nomi e cognomi dello
+  staff** (coach, responsabili) nei registri e in `lavori-storico.json`: sono dati di lavoro, molto
+  meno esposti di un dato sanitario, ma se il repository resta pubblico vanno guardati anche
+  quelli — non l'ho fatto di iniziativa perché toglierli costa in leggibilità e la decisione è di
+  Simone.
+
 - `[Sviluppo]` 📐 **`diag:porzioni` conta anche «LE TAGLIE»: per quante persone servirebbe un secondo
   catalogo.** Coda della scoperta di prima (voce 273): il catalogo ha **una** taglia calorica, la dieta
   se la porta scritta in `Diet.levels[0].kcal`, e l'erogazione punta al fabbisogno — chi sta sopra
@@ -490,7 +526,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   quella lezione era già scritta in testa a `common/piano-attivo.ts`.
 
 - `[Sviluppo]` 🍽️ **Sonia mangiava un pasto al giorno: il catalogo del digiuno adesso lo decide la
-  finestra.** `s.sandri66@libero.it`, finestra «salto la cena»: doveva ricevere colazione, spuntino e
+  finestra.** Sonia, finestra «salto la cena»: doveva ricevere colazione, spuntino e
   pranzo e riceveva **il solo pranzo** — il 45% delle sue calorie. La causa sta in tre righe messe in
   fila: la variante `fasting: true` del catalogo ha tre slot **fissi** (pranzo, merenda, cena), cioè è
   di fatto la variante «salta la colazione» e nessun campo lo dice; `pickDietFor` per chi digiuna
@@ -523,7 +559,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   funziona in 768 ms, e da lì `nest build` è verde e girano **3007 test in 196 suite**, cioè la CI
   intera. Lo stub non è un destino: si genera il client vero e si guarda.
 
-- `[Sviluppo]` ✅ **Lorena Polidoro sistemata dalla scheda, non dal database.** Il pulsante nuovo è
+- `[Sviluppo]` ✅ **Lorena sistemata dalla scheda, non dal database.** Il pulsante nuovo è
   stato usato in produzione e ha funzionato: uno dei due «Conosciamoci» annullato, l'altro resta in
   corso fino al 01/09 con i 7 giorni di pausa che le erano stati concessi. ⚠️ Annullato il piano nato
   il **09/08** e non il doppione del 16/08: la pausa vive sul secondo, e togliere quello le avrebbe
@@ -559,7 +595,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   Il primo è quello che conta: adesso la dipendenza è nel costruttore, e senza quel test il giorno
   che qualcuno la infila fra gli step notturni se ne accorge la fattura.
 
-- `[Sviluppo]` 🧾 **Due piani attivi su Lorena Polidoro: trovata la causa, e fatto il rimedio.** La
+- `[Sviluppo]` 🧾 **Due piani attivi su Lorena: trovata la causa, e fatto il rimedio.** La
   storia letta in audit (`npm run diag:storia`, nuovo): alle **20:29:32** «+ Attiva un piano» crea il
   secondo piano e la **coda scatta** correttamente (`commerce.plan.queued`, inizio 25/08); alle
   **20:30:20**, quarantotto secondi dopo, la matita lo riporta al 17/08 e i due si sovrappongono.
@@ -4774,7 +4810,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
     esattamente da un divario del genere. +17 test, con lo scenario di Giusy scritto per nome.
   - ⚠️ **Da guardare dopo il deploy**: più esclusioni vuol dire meno ricette utilizzabili. Su una
     cliente allergica al latte il pool si restringe davvero — è corretto, ma va verificato che non
-    diventi un «piano bloccato»: `npm run diag:cliente -- giusy.vita01@gmail.com` e si guardano le
+    diventi un «piano bloccato»: `npm run diag:cliente -- <email di Giusy>` e si guardano le
     giornate erogate.
 - `[Sviluppo]` 👥 **Tabella clienti: filtri, riordino e colonna Coach** — richiesta della mattina
   dell'8/8 che era rimasta indietro. L'elenco clienti aveva una sola casella di ricerca e nessun
@@ -5026,7 +5062,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   tutte, perché una nutrizionista assegnata non ce l'ha nessuna — e **senza avvisare nessuno**:
   `signals.service.ts` (calo rapido) e `engine.service.ts` (guardrail di sicurezza). Sono le due
   cliniche, cioè le uniche che non possono aspettare.
-  Trovato dal caso di `giusy.vita01@gmail.com`: **«Calo rapido: 2,87 kg/settimana»** — soglia 1.5,
+  Trovato dal caso di Giusy: **«Calo rapido: 2,87 kg/settimana»** — soglia 1.5,
   quindi quasi il doppio — aperta il **22 luglio** e ancora lì, non assegnata, mai notificata. Tre
   settimane. Il motore aveva fatto il suo lavoro: mancava il destinatario. Un guardrail che nessuno
   riceve è un guardrail spento.
@@ -5245,8 +5281,8 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   Suite: 846 test, 67 suite, verdi; type-check pulito anche sul backoffice.
 
 - `[Sviluppo]` 🩹 **Tre clienti bloccate al carrello: il questionario perdeva il consenso sanitario.**
-  Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia Lurve 12:52, Giusy 14:20,
-  Ilaria Stefani 16:13), tutte con la **Prova Gratuita** nel carrello e tutte con lo stesso muro:
+  Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia 12:52, Giusy 14:20,
+  Ilaria 16:13), tutte con la **Prova Gratuita** nel carrello e tutte con lo stesso muro:
   «Per il piano serve il consenso ai dati sanitari: completa prima il questionario». La domanda di
   Simone era «come è possibile che una cliente sia arrivata fino all'acquisto senza passare dal
   questionario?» — e la risposta è che **non ci è arrivata senza: il questionario l'ha fatto, ed è
@@ -6658,7 +6694,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   significa riperderla al prossimo rilascio.
 
 - `[Sviluppo]` **La coach non perde più la cliente quando le manda le credenziali.** Segnalazione
-  di Simone: Gioia Lurve ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead
+  di Simone: Gioia ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead
   risulta assegnato a lei, ma aprendolo si finisce su una cliente «non assegnata a nessuno».
   La causa è un ponte mancante fra due mondi: il CRM ragiona per lead
   (`CrmRecord.assignedCoachId`), tutto il resto del backoffice ragiona per profilo
@@ -7373,7 +7409,7 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 - `[Prodotto]` **Marketing — Email per ciclo di vita (per stato utente)** (`marketing/Metabole_Email_Ciclo_Vita.md`) — set completo di email triggered mappate a stati CRM e agente. Le 3 richieste con **copy pronta** (Benvenuto; "Il tuo profilo è pronto" con riepilogo questionario + piano + nutrizionista + coach; "Il tuo piano inizia domani + lista della spesa") + proposta di tutto il resto da agente di marketing: conversione (profilo incompleto, **checkout abbandonato** 3 email, nurture chi non sceglie il piano, obiezione prezzo), retention (onboarding 1–7, milestone, feedback ricette, contenuti valore, **riattivazione dropout_risk**, supporto stato Conforto, **referral**), **rinnovo** in scadenza (T-7/T-3/T-1 + upsell), **win-back** scaduti (grace, novità, survey uscita, stagionale), transazionali/dunning, consensi/preferenze. Con merge tag Brevo, trigger, priorità, A/B, metriche e passaggio dal Giudice. Da tradurre + costruire template Brevo. Nessun invio senza consenso. **Aggiunta copy completa** delle email ad alto impatto (checkout abbandonato A2.1–A2.3, rinnovo C1–C3) e una **Parte 4 — Email per EVENTO** (EV1 obiettivo di peso raggiunto, primo risultato, traguardo intermedio, costanza, **plateau**, **giornata storta/morale**, misure mancanti, rientro, compleanno, anniversario, pre-evento agenda, passaggio a mantenimento) con regole di frequenza e benessere.
 
 - `[Sviluppo]` **Create le 14 utenze staff reali in produzione** — via `POST /admin/users` (admin
-  `admin@metabole.eu`, password recuperata col flusso di reset): Giusy Vita (`sales` = Responsabile
+  `admin@metabole.eu`, password recuperata col flusso di reset): Giusy (`sales` = Responsabile
   Coach), Antonio Nocera (`head_marketing`) e 12 coach (`coach`), email `nome@metabole.eu`, password
   provvisoria con **obbligo di cambio al primo accesso**, le 12 coach con **manager = Giusy** e **ref
   code personalizzato** (regola: 5 lettere cognome + iniziale nome + 01; inserimento case-insensitive,

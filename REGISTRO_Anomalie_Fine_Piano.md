@@ -5,7 +5,7 @@
 ## Anomalie segnalate
 1. **Daniela Moreno:** "termino il piano oggi, ma mi ha dato il menù per domani e dopodomani."
    → il generatore consegnava giorni di menu **oltre la fine del piano**.
-2. **Giusy Vita:** piano scaduto il 28, ma riceve la notifica *"Il tuo piano di oggi — tutto
+2. **Giusy:** piano scaduto il 28, ma riceve la notifica *"Il tuo piano di oggi — tutto
    confermato per oggi, continua col ritmo"* che la riporta al piano scaduto.
    → la notifica quotidiana del motore partiva anche a **piano scaduto**.
 

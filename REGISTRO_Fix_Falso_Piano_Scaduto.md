@@ -3,7 +3,7 @@
 **Data:** 23 luglio 2026 · Base: main.
 
 ## Problema
-Un'utente (`patty_moren51@yahoo.it`) con **inizio piano = oggi** vedeva "**Nessun piano attivo /
+Un'utente (Patty) con **inizio piano = oggi** vedeva "**Nessun piano attivo /
 piano scaduto**". Impossibile logicamente. Regressione introdotta col fix "Nessun piano attivo".
 
 ## Causa

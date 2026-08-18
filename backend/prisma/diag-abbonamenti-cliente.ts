@@ -106,7 +106,7 @@ async function main() {
   /**
    * ⚠️ LE PAUSE SPOSTANO LA FINE, e senza saperlo questo avviso grida al lupo — 17/8.
    *
-   * Su Lorena Polidoro l'avviso «fine incoerente col periodo» mi ha portato a costruire un'ipotesi
+   * Su Lorena l'avviso «fine incoerente col periodo» mi ha portato a costruire un'ipotesi
    * sbagliata sulla causa di due abbonamenti attivi: la fine era il 1/9 invece del 25/8 perché il
    * 17/8 le era stata approvata una **pausa di 7 giorni**, e `pause.service` fa esattamente quello
    * che dice di fare (`subscription.endDate += giorni`). Nessuna incoerenza: una pausa.

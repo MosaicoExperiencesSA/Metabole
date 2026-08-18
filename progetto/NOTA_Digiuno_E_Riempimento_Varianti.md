@@ -191,8 +191,8 @@ girati su produzione.
 |   | finestra | esito |
 |---|---|---|
 | 5 | salta la colazione | ✔ pasti giusti, kcal giuste |
-| 1 | **salta la cena** — Sonia, `s.sandri66@libero.it` | ✘ **riceve il solo pranzo** |
-| 1 | finestra **non impostata** — Maria, `mariabonaccorso@hotmail.it` | non è rotta: nessuno gliel'ha chiesta |
+| 1 | **salta la cena** — Sonia | ✘ **riceve il solo pranzo** |
+| 1 | finestra **non impostata** — Maria | non è rotta: nessuno gliel'ha chiesta |
 
 ⚠️ Maria era un falso positivo del mio script: senza finestra, «dovrebbe ricevere tutti e cinque i
 pasti» è una frase che ho scritto io, non una promessa fatta a lei. Riceve il 16:8 classico, che è il

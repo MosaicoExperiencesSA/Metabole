@@ -1,0 +1,118 @@
+Fuori dal repository le email degli otto clienti (e una guardia perche' non rientrino)
+
+Voce 276. Consegna non programmata: e' venuta fuori da un controllo laterale, e viene prima del resto.
+
+═══ COME L'HO TROVATA
+
+Stavo guardando `docs/` per capire il workflow «pages build and deployment» rosso. Guardando cosa
+c'e' dentro al repository mi sono chiesto una cosa che non mi ero mai chiesto: **cosa ci sarebbe se
+uno lo aprisse senza essere noi?** Il repository e' pubblico.
+
+    git grep -lIE "[a-z0-9._%+-]+@(gmail|libero|hotmail|tiscali|yahoo|...)\..*"
+
+37 occorrenze, **otto clienti reali**, **21 file versionati**.
+
+═══ COSA C'ERA, E PERCHE' NON E' UN DETTAGLIO
+
+⚠️ Qui NON li rielenco: questo file e' versionato come gli altri, e riscriverli per raccontare che
+li ho tolti sarebbe la stessa cosa da capo. Per nome, e per numero di file:
+
+  Sonia   → 9 file  (di cui 3 di codice: struttura-per-digiuno.ts + 2 .spec.ts)
+  Maria   → 7 file  (diag-digiuni-e-varianti.ts, struttura-per-digiuno.ts, voci-iniziali.ts, ...)
+  Giusy   → 6 file  (plan-start.spec.ts, 3 REGISTRO_*, DA_FARE, PUNTO_DELLA_SITUAZIONE)
+  Patty   → 5 file  (diag-provvigioni.ts, ricalcola-provvigioni.ts, 3 REGISTRO_*)
+  Lorenzo → 1 file  (diag-cliente.ts)
+  Simona  → 1 file  (COMMIT_parte_bonifica_solo_email.txt — quello che ho scritto io ieri sera)
+  Gioia   → 1 file  (REGISTRO_Allinea_Subscription_Data_Inizio.md)
+  + una   → 1 file  (REGISTRO_Cambio_Email_Cliente.md)
+
+⚠️ Il problema non e' l'email da sola. E' cosa le stava accanto, nella stessa riga:
+
+  struttura-per-digiuno.ts:15   «Una cliente ha ricevuto un pasto al giorno (Sonia, <email>)»
+  NOTA_Digiuno...md:194         «salta la cena — Sonia, <email>»
+  REGISTRO_Varieta_Menu.md:3    «la cliente <email> (Pescetariana, livello 1) lamenta una dieta...»
+
+Email + nome + finestra di digiuno + fabbisogno calorico + cibi non graditi. Sono **dati sulla
+salute**, la categoria che il GDPR protegge di piu' (art. 9), su un repository che chiunque puo'
+clonare senza chiedere niente a nessuno.
+
+⚠️ E CI HO MESSO DEL MIO. Il 17/8 sera ho scritto io l'indirizzo di Simona dentro
+`COMMIT_parte_bonifica_solo_email.txt`. (La guardia scritta oggi, alla prima passata, ha trovato
+proprio questa riga qui: l'avevo riscritta mentre raccontavo di averla tolta.) Ho seguito la convenzione che trovavo nei file — «cosi' si
+capisce di chi si parla» — senza fermarmi a chiedermi se fosse giusta. E' il difetto di famiglia
+visto dal di dentro: un dato che agisce e non si vede, perche' nessuno lo guarda mai *come dato*.
+
+═══ 1. LE 37 OCCORRENZE
+
+Sostituite con il **nome di battesimo**: Sonia, Maria, Giusy, Patty, Simona, Lorenzo, Gioia, Ilaria.
+Il nome basta a capire di chi si parla, ed e' quello che i documenti volevano dire davvero.
+
+I comandi d'esempio, due casi diversi:
+  · negli script (`diag-cliente.ts`, `diag-provvigioni.ts`, `ricalcola-provvigioni.ts`) l'esempio e'
+    generico → `cliente@esempio.it`, che come esempio e' anche piu' chiaro di prima;
+  · nei documenti dove quel comando **va ancora lanciato** (DA_FARE, PUNTO_DELLA_SITUAZIONE,
+    REGISTRO) → `<email di Giusy>`, cosi' la cosa da fare resta una cosa da fare.
+
+Due casi senza nome noto riscritti a mano: «confermato su una cliente reale» e «dal vecchio
+indirizzo al nuovo».
+
+═══ 2. VIA ANCHE I COGNOMI (16 file)
+
+Cercando le email ho trovato i cognomi: «Lorena Polidoro» (9 file, fra cui `sovrapposizione-piani.ts`
+e `commerce.service.ts`), «Gioia Lurve», «Ilaria Stefani», «Giusy Vita». Stessa regola: resta il nome
+di battesimo. Toccati anche `lavori-storico.json` (JSON riletto e valido) e due frammenti rimasti
+senza dominio (`patty_moren51`, `lurve`, `levbeem2024→2023`).
+
+═══ 3. LA GUARDIA — `common/email-nei-file.ts`
+
+Una bonifica che non ha una guardia dietro e' una bonifica che si rifa' fra tre mesi, perche' la
+prossima volta che serve dire di chi si parla la tentazione e' la stessa.
+
+  emailDiPersoneVere(testo) → [{ indirizzo, riga }]
+
+Modulo puro, nessuna dipendenza. Segnala gli indirizzi sui **domini di posta vera** (gmail, libero,
+hotmail, tiscali, yahoo, icloud, outlook, aruba, poste, ...): su quei domini una persona ci legge
+davvero, quindi non e' mai una fixture. Non segnala i domini finti (`@x.it`, `@example.com`,
+`@metabole.eu`), gli indirizzi di Simone (alias `+playreview`, `+delete-test`, ... compresi: il
+confronto e' sulla parte prima della chiocciola) e i segnaposto tipo `tua@email.it`.
+
+La spec fa due cose: sei test a tabella sulla funzione, e ⚠️ **la passata vera** — `git ls-files`,
+1.968 file, salta i binari e quello che pesa piu' di 5 MB, e **fallisce dicendo file e riga**.
+
+⚠️ Provata al contrario, perche' un test che non ho visto fallire non difende niente: rimessa
+un'email finta su un dominio vero in fondo a `progetto/DA_FARE.md` → rosso, con scritto
+`progetto/DA_FARE.md:393`. Tolta → verde. Costa 0,45 s.
+
+⚠️ E se un giorno torna rossa, la risposta NON e' allungare la lista degli ammessi: e' togliere
+l'indirizzo e scrivere il nome. Sta scritto nel docstring, dove lo legge chi la vede rossa.
+
+═══ ⛔ QUELLO CHE RESTA, E CHE DECIDE SIMONE
+
+⚠️ **Ripulire i file non toglie il dato dallo storico.** `git log -p` ce l'ha ancora, e su un
+repository pubblico e' leggibile esattamente come prima. Le vie che chiudono davvero sono due:
+
+  1. RENDERE PRIVATO IL REPOSITORY — immediata, un clic nelle Settings, nessun rischio. Se non deve
+     essere pubblico per un motivo preciso, e' la prima cosa da fare.
+  2. RISCRIVERE LO STORICO (`git filter-repo`) — l'unica che toglie il dato anche dal passato, ma
+     cambia tutti gli hash: serve un force-push e chi ha un clone deve riclonare. Ha senso solo se
+     il repository resta pubblico.
+
+⚠️ Restano anche i **nomi e cognomi dello staff** (coach, responsabili) nei registri e in
+`lavori-storico.json`. Sono dati di lavoro, molto meno esposti di un dato sanitario — ma se il
+repository resta pubblico vanno guardati anche quelli. Non l'ho fatto di iniziativa: toglierli costa
+in leggibilita' e la decisione non e' mia.
+
+═══ LA REGOLA, DA QUI IN AVANTI
+
+Nei documenti e nei commenti si scrive il **nome di battesimo** o l'**id interno**, mai l'indirizzo.
+Gli indirizzi restano solo dove servono a far girare qualcosa: `.env`, il seed, gli alias `+test`.
+
+═══ VERIFICHE
+
+  npm run build                          → ok
+  npx jest --ci                          → 204 suite, 3128 test verdi (8 nuovi)
+  git grep sulle 8 email                 → nessun residuo
+  git grep sui cognomi e sui frammenti   → nessun residuo
+  python3 -c "json.load(lavori-storico)" → 481 voci, valido
+
+Nessuna migrazione. Nessuna modifica di comportamento del prodotto.

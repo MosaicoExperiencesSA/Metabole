@@ -107,7 +107,7 @@ async function digiuni(diete: DietaRiga[]): Promise<void> {
   /**
    * ⚠️ Chi è in digiuno SENZA finestra impostata sta in un elenco suo, e non fra le «rotte».
    *
-   * Il 17/8 questo script ha stampato Maria (`mariabonaccorso@hotmail.it`) fra le clienti che
+   * Il 17/8 questo script ha stampato Maria fra le clienti che
    * «ricevono meno pasti di quelli promessi», e non era vero: senza finestra non si salta niente e
    * riceve il 16:8 classico. «Dovrebbe ricevere tutti e cinque i pasti» era una frase di questo
    * script, non una promessa fatta a lei — e un allarme che grida su un caso sano è il modo più

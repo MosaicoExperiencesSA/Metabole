@@ -1,6 +1,6 @@
 # Registro — "Ho corretto la data inizio piano ma non cambia niente"
 
-**Data:** 5 agosto 2026 · Segnalazione di Simone su `giusy.vita01@gmail.com`: «ho corretto la data
+**Data:** 5 agosto 2026 · Segnalazione di Simone su Giusy: «ho corretto la data
 inizio piano ma non si corregge né la fine né torna attivo il piano».
 
 Nella scheda si leggeva: *Inizio piano 06/08/2026 · attivato il 17/07/2026 · fine 25/07/2026*, con
@@ -119,7 +119,7 @@ riporta da solo il piano ad **attivo**.
 Per vedere com'è messa davvero una cliente prima e dopo:
 
 ```
-npm run diag:abbonamenti -- --email=giusy.vita01@gmail.com
+npm run diag:abbonamenti -- --email=<email di Giusy>
 ```
 
 È **sola lettura**, si può lanciare in produzione senza rischi. Stampa tutti gli abbonamenti

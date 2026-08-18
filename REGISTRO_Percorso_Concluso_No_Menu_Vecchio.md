@@ -25,7 +25,7 @@ OGGI" anche a distanza di giorni (ultimo menu erogato 26/07, oggi 29/07), invece
 - `hasActivePlan` (in `menuStatus` e nella scheda) ora richiede `status='active'` **e** `endDate`
   non ancora passata. Copre il ritardo del cron: un piano finito risulta concluso anche se lo stato
   è ancora 'active'. **Non** confligge coi piani spostati in avanti (endDate FUTURA → restano attivi:
-  es. patty/lurve dopo l'allineamento).
+  es. i due casi visti sopra dopo l'allineamento).
 - `deliverIfEligible` non eroga se `endDate` è già passata (coerenza con lo stato menu).
 
 ## Verifica

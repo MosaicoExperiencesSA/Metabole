@@ -1,5 +1,5 @@
 /**
- * ANNULLARE UN ABBONAMENTO DALLA SCHEDA — richiesta di Simone, 17/8 (caso Lorena Polidoro).
+ * ANNULLARE UN ABBONAMENTO DALLA SCHEDA — richiesta di Simone, 17/8 (caso Lorena).
  *
  * Lorena ha due «Conosciamoci» attivi insieme, e fino a oggi l'unico modo di toglierne uno era
  * scrivere a mano nel database. Un rimedio che non passa dal prodotto non lascia traccia, non

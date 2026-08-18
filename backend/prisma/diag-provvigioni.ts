@@ -22,7 +22,7 @@
  * (`pending_commission`) e verrà pagata a chi sarà assegnato.
  *
  * USO (shell di Render, dentro ~/project/src/backend):
- *   npm run diag:provvigioni -- patty_moren51@yahoo.it     → l'ultimo pagamento di quella cliente
+ *   npm run diag:provvigioni -- cliente@esempio.it     → l'ultimo pagamento di quella cliente
  *   npm run diag:provvigioni -- <id-pagamento>
  */
 import { PrismaClient } from '@prisma/client';

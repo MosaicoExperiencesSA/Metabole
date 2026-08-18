@@ -22,7 +22,7 @@
  * Rilanciarlo due volte non raddoppia niente: la seconda volta la differenza è zero.
  *
  * USO (shell di Render, dentro ~/project/src/backend):
- *   npm run ricalcola:provvigioni -- patty_moren51@yahoo.it   → una cliente
+ *   npm run ricalcola:provvigioni -- cliente@esempio.it   → una cliente
  *   npm run ricalcola:provvigioni -- 2026-07-01               → tutti i pagamenti da quella data
  *   CONFERMA=1 npm run ricalcola:provvigioni -- ...           → applica
  */

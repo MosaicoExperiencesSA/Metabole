@@ -2,7 +2,7 @@
 
 **Data:** 29 luglio 2026 · Base: main.
 
-## Problema (confermato: lurve.gioia@gmail.com)
+## Problema (confermato su una cliente reale)
 Inizio piano 27/07, ma badge "Nessun piano attivo / Prova Gratuita · Scaduto". Dettaglio:
 subscription **20/07 → 28/07** (attivata al pagamento), `planStartDate` **27/07** (scelta dopo).
 La prova scade il 28 (sulle date vecchie) pur avendo la cliente iniziato il 27.
@@ -24,7 +24,7 @@ che aggiornava **solo il profilo, non la subscription**. Risultato: date disalli
 - Onboarding pre-pagamento invariato: se non c'è ancora una subscription, non fa nulla; poi
   `finalizeApproval` userà già la data scelta.
 
-## Sistemare lurve (e simili) SUBITO
+## Sistemare quel caso (e i simili) SUBITO
 Dalla scheda cliente: **ri-salvare la data di inizio** con la matita ("sposta inizio piano") →
 `updatePlanStart` ricalcola fine (+8 giorni) e **riattiva** (fix già in produzione). In alternativa,
 per i casi con fine futura: `npm run reactivate:future-expired -- --apply`.

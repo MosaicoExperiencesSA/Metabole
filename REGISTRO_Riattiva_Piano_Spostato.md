@@ -3,7 +3,7 @@
 **Data:** 23 luglio 2026 · Base: main.
 
 ## Problema (confermato sui dati reali)
-`patty_moren51@yahoo.it` — 1 abbonamento **`expired`** "Prova Gratuita" con date **NEL FUTURO**
+Patty — 1 abbonamento **`expired`** "Prova Gratuita" con date **NEL FUTURO**
 (`start 30/07 → end 07/08`, oggi 28/07). Risultato: badge "Nessun piano attivo / Scaduto" e
 nessun menu, pur avendo un piano che parte tra 2 giorni.
 

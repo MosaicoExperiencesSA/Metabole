@@ -70,7 +70,7 @@ crudo): sono comodi ma sono carni lavorate.
 
 ### Latticini
 Mozzarella · stracchino · ricotta *(⚠️ escludere per chi l'ha fra i cibi non graditi — vedi
-`patty_moren51`)* · parmigiano e grana · pecorino · provola · yogurt greco intero al naturale ·
+Patty)* · parmigiano e grana · pecorino · provola · yogurt greco intero al naturale ·
 mascarpone.
 
 ### Verdure a basso contenuto di carboidrati

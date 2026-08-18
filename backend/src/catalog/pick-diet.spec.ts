@@ -102,7 +102,7 @@ describe('pickDietFor — la famiglia identifica il prodotto, lo stile no', () =
   });
 
   /**
-   * IL CASO SONIA (17/8). `s.sandri66@libero.it`, finestra «salto la cena»: riceveva **un pasto al
+   * IL CASO SONIA (17/8). Sonia, finestra «salto la cena»: riceveva **un pasto al
    * giorno**. Il catalogo `fasting` ha tre slot fissi (pranzo, merenda, cena) e la finestra togliendo
    * cena e merenda le lasciava il solo pranzo — con la rete di `dayComboPools` che ferma la giornata
    * vuota, non quella monca. La regola sta in `struttura-per-digiuno.ts`; qui si guarda che arrivi

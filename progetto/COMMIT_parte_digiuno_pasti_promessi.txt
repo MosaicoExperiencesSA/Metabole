@@ -12,7 +12,7 @@ IL DIFETTO, in tre righe messe in fila (letto col codice, non dedotto):
   finestra «salto la colazione» → resta pranzo, merenda, cena → i pasti giusti, 100% delle kcal
   finestra «salto la cena»      → resta il SOLO PRANZO         → UN PASTO AL GIORNO, 45% delle kcal
 
-Sonia (`s.sandri66@libero.it`) e' su «salto la cena». ⚠️ E non l'ha segnalato NIENTE: la rete di
+Sonia e' su «salto la cena». ⚠️ E non l'ha segnalato NIENTE: la rete di
 sicurezza di `dayComboPools` impedisce la giornata VUOTA, non quella MONCA. E' il difetto di
 famiglia di questo progetto — un dato che agisce e non si vede — applicato alle calorie di una
 persona.
@@ -39,7 +39,7 @@ che il catalogo scelto contenga sempre i pasti promessi.
 ⚠️ FINESTRA NON IMPOSTATA O SCONOSCIUTA: non si sposta nessuno, si resta sul digiuno (il
 comportamento di oggi, che e' il 16:8 classico). Il contrario — «non so cosa salti, quindi ti do la
 giornata intera a 5 pasti» — vorrebbe dire togliere il digiuno a chi l'ha chiesto senza dirglielo,
-per un dato scritto storto. Il caso esiste: Maria (`mariabonaccorso@hotmail.it`) e' in digiuno senza
+per un dato scritto storto. Il caso esiste: Maria e' in digiuno senza
 finestra perche' nessuno gliel'ha mai chiesta. Quello e' una domanda mancata, e si risolve
 chiedendo.
 
@@ -125,7 +125,7 @@ Il riepilogo deve dire 3 da aggiungere e 1 da spuntare.
 `diag:digiuni` gridava su un caso sano
 
 DOPO IL DEPLOY della parte 1, `npm run diag:digiuni` su produzione:
-  Sonia · s.sandri66@libero.it | skip_dinner | riceve: colazione, spuntino, pranzo ✅
+  Sonia | skip_dinner | riceve: colazione, spuntino, pranzo ✅
   dieta servita: Flexitariana · vegetarian · 5 — STESSA famiglia, STESSO regime, cambia la struttura.
 Le cinque su «salto la colazione» sono rimaste su `fasting`, intatte: la regola ha fatto quello che
 doveva.

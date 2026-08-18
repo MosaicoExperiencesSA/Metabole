@@ -77,7 +77,7 @@ in §3.1.
 
 ### 2.1 Il digiuno: il catalogo lo decide la finestra — **verificato in produzione**
 
-Sonia (`s.sandri66@libero.it`) riceveva **un pasto al giorno**. La variante `fasting` del catalogo ha
+Sonia riceveva **un pasto al giorno**. La variante `fasting` del catalogo ha
 tre slot fissi (pranzo, merenda, cena) — è di fatto «salta la colazione» — e la finestra toglieva da
 lì. Ora `pickDietFor` chiede un catalogo che **abbia** i pasti che la finestra promette
 (`catalog/struttura-per-digiuno.ts`).
@@ -182,7 +182,7 @@ sulle date** è solo-active; ogni query che chiede «ha già comprato / ha conve
   dire, manca il pezzo che lo dice.
 - Il pulsante × dell'annullamento è `@Roles('admin')`: **da capo nutrizionista non si vede.** ~30 min.
 - Le due pastiglie di piano sono **identiche** (mostrano l'inizio, non la fine).
-- **Maria** (`mariabonaccorso@hotmail.it`): digiuno senza finestra, mai chiesta. Voce 256.
+- **Maria** (Maria): digiuno senza finestra, mai chiesta. Voce 256.
 - `menuDay.upsert` ha `update: {}`: un cibo non gradito dichiarato **dopo** non tocca i giorni già
   erogati, e nessuno lo dice.
 - Il backoffice scrive `dislikedFoods` senza passare da `filtraSpezie`.

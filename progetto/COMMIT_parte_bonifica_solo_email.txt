@@ -51,7 +51,7 @@ NESSUNA MIGRAZIONE. ⚠️ Lo script non ha test (come gli altri `prisma/*.ts`):
 compilatore, e resta di sola lettura finche' non gli si passa `CONFERMA=1`.
 
 DA FARE IN PRODUZIONE, in quest'ordine:
-  1. `SOLO=simona.ossoli@tiscali.it CONFERMA=1 npm run pulisci:spezie`  → applica il caso pulito;
+  1. `SOLO=<email di Simona> CONFERMA=1 npm run pulisci:spezie`  → applica il caso pulito;
   2. sistemare a mano la lista di Ilaria dalla sua scheda (ora il salvataggio pulisce e avvisa),
      scrivendo cosa intende davvero al posto di «pesce tranne salmone, tonno»;
   3. rilanciare l'anteprima senza `SOLO` per vedere che non resti niente.

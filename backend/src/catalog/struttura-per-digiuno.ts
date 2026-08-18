@@ -12,7 +12,7 @@
  *   finestra «salto la colazione» → resta pranzo, merenda, cena  → i pasti giusti, 100% delle kcal
  *   finestra «salto la cena»      → resta il SOLO PRANZO          → **un pasto al giorno**
  *
- * Una cliente ha ricevuto un pasto al giorno (Sonia, `s.sandri66@libero.it`), e non lo ha segnalato
+ * Una cliente ha ricevuto un pasto al giorno (Sonia), e non lo ha segnalato
  * niente: la rete di sicurezza di `dayComboPools` impedisce la giornata **vuota**, non quella monca.
  *
  * ## La regola: si sceglie un catalogo che ABBIA i pasti che la finestra promette
@@ -54,7 +54,7 @@
  * Se `fastingWindow` è vuota o non è fra quelle in tabella, si resta sul catalogo digiuno: è il
  * comportamento di oggi, ed è il 16:8 classico. Il contrario — «non so cosa salti, quindi ti do la
  * giornata intera a 5 pasti» — vorrebbe dire togliere il digiuno a chi l'ha chiesto senza dirglielo,
- * per un dato scritto storto. Il caso esiste: Maria (`mariabonaccorso@hotmail.it`) è in digiuno senza
+ * per un dato scritto storto. Il caso esiste: Maria è in digiuno senza
  * finestra impostata, perché nessuno gliel'ha mai chiesta. Il suo problema è una domanda mancata, e
  * si risolve chiedendo, non spostandole il catalogo sotto i piedi.
  */

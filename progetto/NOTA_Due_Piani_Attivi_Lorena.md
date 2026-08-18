@@ -1,4 +1,4 @@
-# Due piani attivi sulla stessa cliente — caso Lorena Polidoro
+# Due piani attivi sulla stessa cliente — caso Lorena
 
 Scritta prima del codice, 17/8/2026. La causa non è dedotta: è letta in audit, riga per riga
 (`npm run diag:storia`).

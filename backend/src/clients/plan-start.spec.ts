@@ -2,7 +2,7 @@ import { ClientsService } from './clients.service';
 import { pickMainSubscription } from '../commerce/commerce.service';
 
 /**
- * Caso reale che ha generato questi test (5 agosto 2026, `giusy.vita01@gmail.com`):
+ * Caso reale che ha generato questi test (5 agosto 2026, Giusy):
  * l'operatore corregge la data di inizio dalla scheda, il messaggio dice "spostato", ma nella
  * scheda la FINE resta quella vecchia e il piano non torna attivo.
  *

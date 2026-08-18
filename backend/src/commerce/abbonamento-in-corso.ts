@@ -12,7 +12,7 @@
  * | `pause.service` (congelamento) | `orderBy createdAt desc` | i giorni di pausa sommati alla fine del piano **sbagliato**: concessi sulla carta, mai ricevuti |
  * | `coach.service` (lista clienti) | `new Map(subs.map(…))`, che **tiene l'ultima** | `planEndDate` poteva essere la fine del piano in coda |
  *
- * ⚠️ È il caso Lorena Polidoro del 16/8, e la parte che nella prima ricostruzione mancava: la scheda
+ * ⚠️ È il caso Lorena del 16/8, e la parte che nella prima ricostruzione mancava: la scheda
  * non è che *non avvisava* — mostrava «Inizio piano: 25/08», cioè la data del piano in coda. Chi l'ha
  * aperta ha corretto una data sbagliata, e la matita ha spostato la stessa riga sbagliata. Ha fatto
  * la cosa giusta con quello che le era stato mostrato.

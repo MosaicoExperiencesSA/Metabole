@@ -1498,7 +1498,7 @@
  {
   "chiave": "storico-2026-08-09-42",
   "titolo": "Tre clienti bloccate al carrello: il questionario perdeva il consenso sanitario.",
-  "dettaglio": "Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia Lurve 12:52, Giusy 14:20, Ilaria Stefani 16:13), tutte con la Prova Gratuita nel carrello e tutte con lo stesso muro: «Per il piano serve il consenso ai dati sanitari: completa prima il questionario». La domanda di Simone era «come è possibile che una cliente sia arrivata fino all'acquisto senza passare dal questionario?» — e la risposta è che non c…",
+  "dettaglio": "Segnalazione di Simone dell'8/8, tre casi in un pomeriggio (Gioia 12:52, Giusy 14:20, Ilaria 16:13), tutte con la Prova Gratuita nel carrello e tutte con lo stesso muro: «Per il piano serve il consenso ai dati sanitari: completa prima il questionario». La domanda di Simone era «come è possibile che una cliente sia arrivata fino all'acquisto senza passare dal questionario?» — e la risposta è che non c…",
   "categoria": "Storico · Sviluppo",
   "data": "2026-08-09",
   "ordine": 187
@@ -2306,7 +2306,7 @@
  {
   "chiave": "storico-2026-08-06-18",
   "titolo": "La coach non perde più la cliente quando le manda le credenziali.",
-  "dettaglio": "Segnalazione di Simone: Gioia Lurve ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead risulta assegnato a lei, ma aprendolo si finisce su una cliente «non assegnata a nessuno». La causa è un ponte mancante fra due mondi: il CRM ragiona per lead (CrmRecord.assignedCoachId), tutto il resto del backoffice ragiona per profilo (ClientProfile.assignedCoachId) — liste clienti, chat, attività dell…",
+  "dettaglio": "Segnalazione di Simone: Gioia ha inviato le credenziali a Francesco reale dal pulsante sul lead; il lead risulta assegnato a lei, ma aprendolo si finisce su una cliente «non assegnata a nessuno». La causa è un ponte mancante fra due mondi: il CRM ragiona per lead (CrmRecord.assignedCoachId), tutto il resto del backoffice ragiona per profilo (ClientProfile.assignedCoachId) — liste clienti, chat, attività dell…",
   "categoria": "Storico · Sviluppo",
   "data": "2026-08-06",
   "ordine": 288
@@ -3010,7 +3010,7 @@
  {
   "chiave": "storico-2026-07-14-35",
   "titolo": "Create le 14 utenze staff reali in produzione",
-  "dettaglio": "— via POST /admin/users (admin admin@metabole.eu, password recuperata col flusso di reset): Giusy Vita (sales = Responsabile Coach), Antonio Nocera (head_marketing) e 12 coach (coach), email nome@metabole.eu, password provvisoria con obbligo di cambio al primo accesso, le 12 coach con manager = Giusy e ref code personalizzato (regola: 5 lettere cognome + iniziale nome + 01; inserimento case-insensitive, già garant…",
+  "dettaglio": "— via POST /admin/users (admin admin@metabole.eu, password recuperata col flusso di reset): Giusy (sales = Responsabile Coach), Antonio Nocera (head_marketing) e 12 coach (coach), email nome@metabole.eu, password provvisoria con obbligo di cambio al primo accesso, le 12 coach con manager = Giusy e ref code personalizzato (regola: 5 lettere cognome + iniziale nome + 01; inserimento case-insensitive, già garant…",
   "categoria": "Storico · Sviluppo",
   "data": "2026-07-14",
   "ordine": 376

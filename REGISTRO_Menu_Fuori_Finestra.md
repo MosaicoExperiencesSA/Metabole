@@ -1,6 +1,6 @@
 # Registro — "Rigenera menu" sembra funzionare ma i menu non compaiono
 
-**Data:** 5 agosto 2026 · Segnalazione di Simone su `giusy.vita01@gmail.com`: «non riesco a far
+**Data:** 5 agosto 2026 · Segnalazione di Simone su Giusy: «non riesco a far
 rigenerare i menu» → alla domanda su cosa succede: **«sembra andare, ma i menu non compaiono»**.
 
 ## Cosa succedeva davvero
@@ -132,7 +132,7 @@ alla prima apertura. Non serve premere di nuovo "Rigenera menu" — anzi, meglio
 **cancella prima e rigenera dopo** (`deleteMany(date >= oggi)` e poi `deliverIfEligible`), quindi se
 per qualsiasi motivo l'erogazione si blocca la cliente resta con zero giorni. Se dopo il push i
 menu ancora non si vedessero, allora il problema è un altro e c'è
-`npm run diag:rigenera -- --email=giusy.vita01@gmail.com` (commit `c54c53d`) che dice quale
+`npm run diag:rigenera -- --email=<email di Giusy>` (commit `c54c53d`) che dice quale
 controllo sta bloccando l'erogazione.
 
 Da tenere presente: **l'app installata non c'entra**. Questo è tutto server, arriva col push, e si

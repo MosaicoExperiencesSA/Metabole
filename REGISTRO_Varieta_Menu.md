@@ -1,6 +1,6 @@
 # Menu ripetitivi — perché succedeva e cosa è cambiato
 
-Segnalazione: la cliente `patty_moren51@yahoo.it` (Pescetariana, livello 1) lamenta una dieta molto
+Segnalazione: la cliente Patty (Pescetariana, livello 1) lamenta una dieta molto
 ripetitiva. Il reclamo è fondato: dal pannello backoffice, colazione **identica per tre giorni di
 fila** due volte di seguito (Frittata spinaci e feta dall'1 al 3 agosto, poi Salmone affumicato e
 cream cheese dal 4 al 6), e cena ripetuta a coppie, mentre il pranzo cambiava ogni giorno.
@@ -53,7 +53,7 @@ Il parametro è regolabile dal backoffice in "Regole motore" e sovrascrivibile *
 
 Dalla Render Shell, nella cartella `backend`:
 
-    npm run diag:varieta -- --email=patty_moren51@yahoo.it
+    npm run diag:varieta -- --email=<email di Patty>
 
 È in sola lettura. Stampa i parametri attivi (segnalando la penalità spenta), i piatti serviti per
 ogni pasto negli ultimi 30 giorni con la serie più lunga dello stesso piatto di fila, e soprattutto

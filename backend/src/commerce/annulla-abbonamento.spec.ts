@@ -1,7 +1,7 @@
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
 
 /**
- * ANNULLARE UN ABBONAMENTO DALLA SCHEDA — caso Lorena Polidoro, 17/8.
+ * ANNULLARE UN ABBONAMENTO DALLA SCHEDA — caso Lorena, 17/8.
  *
  * ⚠️ La regola che governa questo file: **la conferma si chiede una volta sola, quando serve**.
  * Serve quando dopo l'annullamento la cliente smette di ricevere menu. Chiederla sempre insegna a

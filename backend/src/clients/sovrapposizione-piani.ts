@@ -2,7 +2,7 @@
  * LA MATITA DICE COSA STA PER ROMPERE (voce 259, §4b di `NOTA_Due_Piani_Attivi_Lorena.md`).
  *
  * Il 16/8, quarantotto secondi dopo l'acquisto di un secondo piano, qualcuno ha aperto la scheda di
- * Lorena Polidoro e ha spostato la data d'inizio. Ha fatto la cosa giusta con quello che le era
+ * Lorena e ha spostato la data d'inizio. Ha fatto la cosa giusta con quello che le era
  * stato mostrato — la scheda scriveva «Inizio piano: 25/08», che era la data del piano IN CODA — ma
  * il risultato è stato **due piani attivi insieme**. La matita non lo ha detto, perché non lo sapeva:
  * spostava una data e non guardava le altre righe.

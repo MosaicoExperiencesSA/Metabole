@@ -86,7 +86,7 @@ Tutti esistono, nessuno risulta lanciato. In dry-run non scrivono niente.
 | `npm run sistema:nomi` (fase lead) | Gli 86k lead importati hanno nome e cognome tutto dentro `name`. |
 | `npm run fix:assegnazioni` | Assegnazioni incoerenti rimaste dal 6/8. |
 | `npm run diag:ricorrente` | Non sappiamo se il primo rinnovo automatico funzionerà. Vedi §2.1. |
-| `npm run diag:cliente -- giusy.vita01@gmail.com` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
+| `npm run diag:cliente -- <email di Giusy>` | Verifica mai fatta: dopo il filtro allergeni più severo, che non sia diventato «piano bloccato». |
 | `npm run diag:famiglie` | 20 clienti con famiglia di dieta ambigua, mai chiuse. |
 
 Da fare a mano dal backoffice: **archiviare la bozza duplicata `Keto-Mediterranea (5 pasti)`**;

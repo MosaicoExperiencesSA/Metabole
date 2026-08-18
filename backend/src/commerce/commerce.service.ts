@@ -2856,7 +2856,7 @@ export class CommerceService {
   // ─────────────────────────────────────────── annullare un abbonamento dalla scheda (17/8) ─
 
   /**
-   * ANNULLA UN ABBONAMENTO. Richiesta di Simone, 17/8, dal caso Lorena Polidoro: due «Conosciamoci»
+   * ANNULLA UN ABBONAMENTO. Richiesta di Simone, 17/8, dal caso Lorena: due «Conosciamoci»
    * attivi insieme, e nessun modo di toglierne uno che non fosse scrivere a mano nel database.
    *
    * ⚠️ Un rimedio che non passa dal prodotto non lascia traccia, non chiede conferma e non avvisa
