@@ -95,19 +95,30 @@ async function main(): Promise<void> {
     select: {
       id: true,
       email: true,
-      clientProfile: { select: { name: true, fastingWindow: true, pastiEsclusi: true, pathType: true } },
+      clientProfile: {
+        select: { name: true, fastingWindow: true, pastiEsclusi: true, pathType: true, sex: true },
+      },
     },
   })) as unknown as {
     id: string;
     email: string;
-    clientProfile: { name: string | null; fastingWindow: string | null; pastiEsclusi: string[]; pathType: string | null } | null;
+    clientProfile: {
+      name: string | null;
+      fastingWindow: string | null;
+      pastiEsclusi: string[];
+      pathType: string | null;
+      sex: string | null;
+    } | null;
   }[];
   const perId = new Map(utenti.map((u) => [u.id, u]));
 
   type Riga = {
     cliente: string;
     email: string;
+    sesso: string;
     perche: string;
+    target: number;
+    'giornata più corta': number;
     'quota peggiore': string;
     'fattore necessario': string;
     'col tetto': string;
@@ -116,6 +127,7 @@ async function main(): Promise<void> {
   const righe: Riga[] = [];
   let senzaTarget = 0;
   let coperte = 0;
+  let inBanda = 0;
   let scoperte = 0;
 
   for (const [clientId, gg] of perCliente) {
@@ -135,8 +147,18 @@ async function main(): Promise<void> {
     if (!fuori.length) continue;
     const peggiore = fuori.reduce((p, g) => (g.quotaDelTarget < p.quotaDelTarget ? g : p));
     const fattore = peggiore.quotaDelTarget > 0 ? 1 / peggiore.quotaDelTarget : Infinity;
-    const basta = fattore <= tetto;
-    basta ? coperte++ : scoperte++;
+    /**
+     * ⚠️ IL TETTO SI GIUDICA CONTRO LA BANDA, NON CONTRO IL 100% — corretto dopo la prima lettura
+     * in produzione (18/8): con `TETTO=1.6` una cliente al 60% arrivava al **96%** e la colonna
+     * scriveva «NON basta», facendo sembrare quel tetto peggiore di quanto sia. Il motore considera
+     * giusta una giornata dentro la tolleranza (default ±15%): fermarsi al 96% non è un difetto.
+     */
+    const dopoIlTetto = peggiore.quotaDelTarget * tetto;
+    const soglia = 1 - tolleranzaPct / 100;
+    const esito = dopoIlTetto >= 1 ? 'pieno' : dopoIlTetto >= soglia ? 'banda' : 'corta';
+    if (esito === 'pieno') coperte++;
+    else if (esito === 'banda') inBanda++;
+    else scoperte++;
 
     const p = u?.clientProfile;
     const motivi: string[] = [];
@@ -147,10 +169,18 @@ async function main(): Promise<void> {
     righe.push({
       cliente: p?.name ?? '(senza nome)',
       email,
+      sesso: p?.sex === 'male' ? 'uomo' : p?.sex === 'female' ? 'donna' : '?',
       perche: motivi.join(' · '),
+      target: Math.round(target),
+      'giornata più corta': peggiore.kcal,
       'quota peggiore': `${Math.round(peggiore.quotaDelTarget * 100)}%`,
       'fattore necessario': Number.isFinite(fattore) ? `×${fattore.toFixed(2)}` : '—',
-      'col tetto': basta ? `basta (≤ ×${tetto})` : `NON basta: si ferma al ${Math.round(peggiore.quotaDelTarget * tetto * 100)}%`,
+      'col tetto':
+        esito === 'pieno'
+          ? `arriva al 100%`
+          : esito === 'banda'
+            ? `dentro la banda (${Math.round(dopoIlTetto * 100)}%)`
+            : `RESTA CORTA: ${Math.round(dopoIlTetto * 100)}%`,
       'giornate sotto': `${fuori.length} su ${gg.length}`,
     });
   }
@@ -165,7 +195,12 @@ async function main(): Promise<void> {
     console.log('Nessuna cliente con giornate sotto la banda del fabbisogno in questa finestra ✓');
   } else {
     console.table(righe);
-    console.log(`\nCol tetto ×${tetto}: **${coperte} coperte**, **${scoperte} ancora corte**.`);
+    console.log(
+      `\nCol tetto ×${tetto}: **${coperte} arrivano al 100%**, **${inBanda} dentro la banda ` +
+        `(≥${Math.round((1 - tolleranzaPct / 100) * 100)}%)**, **${scoperte} restano corte**.\n` +
+        '⚠️ «dentro la banda» conta come risolto: è la stessa tolleranza con cui il motore compone le\n' +
+        '   giornate. Il tetto va scelto sulla terza colonna, non sulla prima.',
+    );
   }
   if (senzaTarget) {
     console.log(

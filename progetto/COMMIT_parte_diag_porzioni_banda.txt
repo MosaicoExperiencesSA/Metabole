@@ -1,0 +1,36 @@
+diag:porzioni: il tetto si giudica contro la BANDA, e la tabella dice anche perche'
+
+Correzione a caldo della voce 272, dopo la PRIMA lettura vera in produzione (84 giornate, 18 clienti).
+
+⚠️ 1. IL VERDETTO SUL TETTO ERA CONTRO IL 100%, NON CONTRO LA BANDA.
+Con `TETTO=1.6`, una cliente al 60% arriva al **96%** del fabbisogno e la colonna scriveva
+«NON basta». Il motore considera giusta una giornata dentro la tolleranza (default ±15%): fermarsi al
+96% non e' un difetto, e far sembrare quel tetto peggiore di quanto sia avrebbe distorto la decisione
+per cui la tabella e' stata scritta. Ora gli esiti sono tre — **arriva al 100%** / **dentro la banda
+(N%)** / **RESTA CORTA: N%** — e il riepilogo li conta separati, con scritto che «il tetto si sceglie
+sulla terza colonna, non sulla prima».
+
+⚠️ 2. MANCAVANO I NUMERI CHE SPIEGANO IL CASO.
+Aggiunte le colonne **target**, **giornata piu' corta** (kcal assolute) e **sesso**. Senza quelle non
+si distingue una giornata corta *per la finestra del digiuno* da una giornata corta perche' **il
+catalogo e' dimensionato piu' in basso del fabbisogno di quella persona** — che e' esattamente la
+domanda che la prima lettura ha sollevato.
+
+LA PRIMA LETTURA, per memoria (ultimi 14 giorni):
+· 84 giornate erogate, 18 clienti, 5 con giornate sotto banda;
+· ⚠️ **QUATTRO SU CINQUE sono «nessuna esclusione: e' il catalogo»** — niente digiuno, niente spuntini
+  tolti. Per loro il moltiplicatore di porzione (strada C) non e' la cura: e' un cerotto su un
+  catalogo che non arriva al loro fabbisogno;
+· il quinto e' in digiuno `skip_breakfast`, che secondo la tabella del foglio dovrebbe valere il
+  **100%** delle kcal e invece sta al 75%: da capire, ed e' la stessa domanda;
+· una delle cinque e' l'account di revisione del Play Store, non una cliente vera;
+· col tetto ×1,8: 4 coperte su 5. Col ×1,6: 2 (ma col verdetto vecchio — vanno riletti).
+
+FILE:
+- backend/prisma/diag-porzioni.ts — banda, colonne nuove, riepilogo a tre.
+- backend/src/lavori/voci-iniziali.ts — voce 272 aggiornata con la correzione e con quello che la
+  prima lettura ha detto.
+
+NESSUNA MIGRAZIONE, sola lettura. Build verde, 3117 test in 203 suite.
+
+DA RILANCIARE: `npm run diag:porzioni` e `TETTO=1.6 npm run diag:porzioni`.

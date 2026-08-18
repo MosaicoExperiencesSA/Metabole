@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔎 **La prima lettura vera delle porzioni, e due correzioni alla tabella che la mostra.**
+  84 giornate erogate, 18 clienti, **5 con giornate sotto la banda del fabbisogno**. ⚠️ E il risultato
+  non è quello che il foglio si aspettava: **quattro casi su cinque sono «nessuna esclusione: è il
+  catalogo»** — niente digiuno, niente spuntini tolti da Vera. Per quelle persone il **moltiplicatore
+  di porzione (strada C) non è la cura**: sarebbe un cerotto su un catalogo che non arriva al loro
+  fabbisogno. Il quinto è in digiuno `skip_breakfast`, che secondo la tabella del foglio dovrebbe
+  valere il **100%** delle kcal e invece sta al **75%**: è la stessa domanda. (Una delle cinque è
+  l'account di revisione del Play Store, non una cliente.) ⚠️ **Due correzioni alla diagnostica, a
+  caldo**: il verdetto sul tetto giudicava contro il **100%** e non contro la **banda** — con ×1,6 una
+  cliente al 60% arriva al 96% e leggeva «NON basta», cioè faceva sembrare quel tetto peggiore di
+  quanto sia, proprio nella tabella scritta per deciderlo; ora gli esiti sono tre (arriva al 100% ·
+  dentro la banda · resta corta) e il riepilogo li conta separati. E mancavano i numeri che spiegano il
+  caso: aggiunte le colonne **target**, **giornata più corta** in kcal e **sesso**, senza le quali non
+  si distingue una giornata corta *per la finestra* da una corta perché il catalogo è dimensionato più
+  in basso del fabbisogno di quella persona. Nessuna scrittura, nessuna migrazione.
+
 - `[Sviluppo]` 📏 **`npm run diag:porzioni`: misura le giornate GIÀ erogate, senza aspettare che
   qualcuno apra l'app.** Voce 272, e nasce da un'esecuzione vera: `diag:kcal` legge gli **eventi** che
   l'erogazione scrive **quando eroga**, quindi risponde solo per chi ha aperto l'app dopo il rilascio
