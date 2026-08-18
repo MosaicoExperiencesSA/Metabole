@@ -170,7 +170,7 @@ export class VeraController {
   async aspettaMe(@CurrentUser() user: AuthUser) {
     const capo = user.role !== 'nutritionist';
     const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
-    const [richieste, daApprovare, daVerificare, pool] = await Promise.all([
+    const [richieste, daApprovare, daVerificare, pool, catalogo] = await Promise.all([
       this.richieste.quante(user.sub, capo),
       capo ? this.registro.daApprovare().then((r) => r.length) : Promise.resolve(0),
       this.registro.sostituzioniDaVerificare(user.sub),
@@ -185,8 +185,13 @@ export class VeraController {
           this.logger.warn(`Pool sotto soglia NON calcolato per ${user.sub}: ${String(e)}`);
           return null;
         }),
+      /**
+       * ⚠️ LE TRE CODE DEL CATALOGO (18/8). `quanteApprovazioni` non lancia: torna `null` quando non
+       * riesce a contare, e `null` non è zero — la pagina lo scrive diverso, come per il pool.
+       */
+      this.chat.quanteApprovazioni(),
     ]);
-    return { richieste, daApprovare, daVerificare, capo, pool };
+    return { richieste, daApprovare, daVerificare, capo, pool, catalogo };
   }
 
   @Get('registro')

@@ -3,6 +3,7 @@ import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
 import { KcalNeedService } from '../menu/kcal-need.service';
 import { type EsitoTaglia, fraseTaglia, tagliaDalFabbisogno } from './taglia-dal-fabbisogno';
+import { statoDaiBattiti } from './stato-generatore';
 
 /** Quante clienti al massimo si guardano per decidere la taglia: un tetto dichiarato, non
  *  silenzioso. La generazione di un catalogo è già un'operazione lunga; questa parte no. */
@@ -23,6 +24,7 @@ import {
   type StrutturaPasti,
   type VarianteDaRiempire,
 } from './prossima-generazione';
+import { primaSettimanaMagra as primaMagra, settimanaGiaPiena, type GiornataInCiclo } from './settimana-magra';
 
 /**
  * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
@@ -359,16 +361,21 @@ export class EngineRulesService {
     const existingVariant = famiglia.find((d) => d.mealsPerDay === mealsPerDay && !!d.fasting === fasting) ?? null;
     const sorelle = famiglia.filter((d) => d.id !== existingVariant?.id).map((d) => d.id);
 
-    // Quante settimane esistono già su questa variante (dal giorno più alto in catalogo).
+    /**
+     * Le giornate di questa variante: da qui escono DUE cose, e prima ne usciva una sola.
+     *
+     * ⚠️ Prima si leggeva solo il **giorno più alto**, e bastava per contare le settimane ma non
+     * per sapere se erano piene. Simone, 18/8: «le ricette ovviamente vanno sempre a riempimento
+     * delle settimane incomplete» — e per riempirle bisogna prima saper vedere che sono a metà.
+     */
+    const giornateVariante: GiornataInCiclo[] = existingVariant
+      ? ((await this.prisma.dietDayTemplate.findMany({
+          where: { dietId: existingVariant.id },
+          select: { dayIndex: true, meals: true },
+        })) as { dayIndex: number; meals: unknown }[])
+      : [];
     let settimaneFatte = 0;
-    if (existingVariant) {
-      const ultimo = (await this.prisma.dietDayTemplate.findFirst({
-        where: { dietId: existingVariant.id },
-        orderBy: { dayIndex: 'desc' },
-        select: { dayIndex: true },
-      })) as { dayIndex: number } | null;
-      settimaneFatte = Math.ceil((ultimo?.dayIndex ?? 0) / GIORNI_SETTIMANA);
-    }
+    for (const g of giornateVariante) settimaneFatte = Math.max(settimaneFatte, Math.ceil(g.dayIndex / GIORNI_SETTIMANA));
 
     /**
      * SETTIMANA CHIESTA vs SETTIMANA POSSIBILE — il difetto dell'11/8 («fino alla 9 le ha generate,
@@ -393,12 +400,28 @@ export class EngineRulesService {
      * 10»: chi è indietro recupera un passo per volta. Chi chiama sa cosa è stato fatto perché la
      * risposta dice sia la settimana chiesta sia quella generata.
      */
-    const week = Math.min(settimanaChiesta, settimaneFatte + 1);
+    /**
+     * ⚠️ PRIMA SI RIEMPIE QUELLO CHE È A METÀ (Simone, 18/8). Il cron lo faceva già — la priorità
+     * delle settimane magre sta in `prossima-generazione.ts` — ma qui, con `settimanaRichiesta`
+     * lasciata al valore di partenza (1), il tetto `settimaneFatte + 1` puntava sempre alla
+     * settimana NUOVA: una variante con la settimana 2 a metà continuava a crescere in avanti
+     * lasciandosi il buco alle spalle. Ora il tetto è la prima settimana magra, se ce n'è una.
+     *
+     * Chi chiede una settimana precisa la ottiene lo stesso: il `min` la rispetta.
+     */
+    const magra = primaMagra(giornateVariante, slots);
+    const week = Math.min(settimanaChiesta, magra ?? settimaneFatte + 1);
     const primoGiorno = (week - 1) * GIORNI_SETTIMANA + 1;
     const ultimoGiorno = week * GIORNI_SETTIMANA;
-    // Settimana già in catalogo e nessuna istruzione: non si tocca niente e si torna indietro,
-    // così è il backoffice a chiedere se completarla o rifarla.
-    if (week <= settimaneFatte && modalita === 'auto') {
+    /**
+     * Settimana già PIENA e nessuna istruzione: non si tocca niente e si torna indietro, così è il
+     * backoffice a chiedere se completarla o rifarla.
+     *
+     * ⚠️ «Piena», non «esistente». Prima bastava che una giornata con quel numero esistesse: quattro
+     * giorni su sette rispondevano «c'è già» al pulsante *genera*, e quella settimana restava a metà
+     * per sempre — nessuno la generava più, perché risultava fatta.
+     */
+    if (week <= settimaneFatte && modalita === 'auto' && settimanaGiaPiena(giornateVariante, week, slots)) {
       return {
         alreadyExists: true as const,
         dietId: existingVariant!.id,
@@ -1388,6 +1411,40 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
    * ripassa per prima, perché la sta mangiando qualcuno adesso.
    */
   /**
+   * IL RIQUADRO «IL GENERATORE STA LAVORANDO?» — dalla domanda di Simone del 18/8: «non ho capito
+   * da dove vedo se le ricette vengono create».
+   *
+   * ⚠️ Risponde la stessa cosa che dice `npm run diag:catalogo`, ma **dove la si guarda già**: una
+   * shell non è «vedere», e una diagnostica che nessuno lancia è una diagnostica che non esiste.
+   *
+   * Sola lettura, e non lancia mai: sta in cima a una pagina che deve aprirsi comunque.
+   */
+  async statoGeneratore(giorni = 7): Promise<Record<string, unknown>> {
+    const da = new Date(Date.now() - Math.max(1, giorni) * 86_400_000);
+    const [battiti, nate, daConfermare, varianti] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { action: 'cron.genera_catalogo', createdAt: { gte: da } } as never,
+        orderBy: { createdAt: 'desc' },
+        take: 60,
+        select: { createdAt: true, metadata: true },
+      }) as Promise<{ createdAt: Date; metadata: unknown }[]>,
+      this.prisma.recipe.count({ where: { createdAt: { gte: da } } as never }),
+      this.prisma.recipe.count({ where: { createdAt: { gte: da }, allergensReviewed: false } as never }),
+      this.statoVarianti(),
+    ]);
+
+    const stato = statoDaiBattiti(battiti);
+    return {
+      ...stato,
+      giorni,
+      ricetteNate: nate,
+      ricetteDaConfermare: daConfermare,
+      /** Unità di lavoro rimaste: una per giro, quindi altrettante notti. */
+      restano: quantoManca(varianti, SETTIMANE_OBIETTIVO),
+    };
+  }
+
+  /**
    * Lo stato di ogni variante di catalogo: quante settimane ha, qual è la prima magra, quante
    * clienti ci stanno sopra.
    *
@@ -1459,16 +1516,15 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       );
 
       const settimaneFatte = dieta ? Math.ceil((ultimoGiorno.get(dieta.id) ?? 0) / GIORNI_SETTIMANA) : 0;
-      let primaSettimanaMagra: number | null = null;
-      if (dieta) {
-        const perSett = perDieta.get(dieta.id);
-        const attesi = slotAttesi(mealsPerDay, fasting);
-        for (let w = 1; w <= settimaneFatte; w++) {
-          const perSlot = perSett?.get(w);
-          const magra = !perSlot || attesi.some((s) => (perSlot.get(s)?.size ?? 0) < GIORNI_SETTIMANA);
-          if (magra) { primaSettimanaMagra = w; break; }
-        }
-      }
+      /**
+       * ⚠️ La stessa funzione che usa il generatore (`settimana-magra.ts`). Prima la regola era
+       * scritta qui e un'altra, diversa, stava dentro `generateCatalogFromPreset`: il cron sapeva
+       * che una settimana era magra e il pulsante rispondeva «c'è già» sulla stessa settimana.
+       * Due punti che rispondono alla stessa domanda, e uno dei due deve chiamare l'altro.
+       */
+      const primaSettimanaMagra = dieta
+        ? primaMagra(giornate.filter((g) => g.dietId === dieta.id), slotAttesi(mealsPerDay, fasting))
+        : null;
 
       out.push({
         presetId: p.id,

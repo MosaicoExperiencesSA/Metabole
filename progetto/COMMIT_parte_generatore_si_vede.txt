@@ -1,0 +1,56 @@
+«Non ho capito da dove vedo se le ricette vengono create»: il riquadro in cima alle Ricette
+
+Coda della voce 279, dalla seconda domanda di Simone del 18/8.
+
+═══ LA DOMANDA, E PERCHE' LA PRIMA RISPOSTA NON BASTAVA
+
+Alla prima domanda («come facciamo a sapere se sta lavorando?») avevo risposto col battito e con
+`npm run diag:catalogo`. Poi e' arrivata la seconda: «non ho capito da dove vedo se le ricette
+vengono create».
+
+⚠️ Aveva ragione. UNA SHELL NON E' «VEDERE», e una diagnostica che nessuno lancia e' una
+diagnostica che non esiste. Il posto giusto e' dove uno guarda gia'.
+
+═══ IL RIQUADRO — in cima alla pagina Ricette
+
+  🤖  Il generatore di ricette — Ultimo giro: generata «Mediterranea 5 pasti», settimana 6.
+      Negli ultimi 7 giorni: 34 ricette nuove (12 aspettano gli allergeni → Allergeni ricette)
+      · 7 giri · restano 18 settimane da riempire
+
+Le stesse informazioni di `diag:catalogo`, dove si guardano gia'.
+
+⚠️ IL COLLEGAMENTO AD «ALLERGENI RICETTE» NON E' UNA COMODITA': finche' una ricetta e' li' NON
+entra in nessuna dieta. Un catalogo che cresce con una coda che non si smaltisce e' un catalogo che
+cresce e non serve a nessuno.
+
+═══ IL GIUDIZIO — `stato-generatore.ts`, cinque esiti distinti
+
+  mai_partito     ⚠️ nessun battito → il cron su Render non esiste o e' spento
+  lavora             ha generato: dice cosa e quale settimana
+  niente_da_fare     non aveva niente da fare: dice il motivo
+  errore          ⚠️ l'ultimo giro e' fallito: dice quale errore
+  fermo           ⚠️ l'ultimo giro e' troppo vecchio: dice da quante ore
+
+⚠️ «MAI PARTITO» NON E' «TUTTO A POSTO». Il messaggio manda a guardare SU RENDER, non nel codice, e
+dice esplicitamente che non vuol dire che il catalogo sia a posto. Prima del battito le due cose si
+leggevano uguali, ed e' tutto il motivo per cui il battito esiste.
+
+⚠️ «FERMO» VINCE SULL'ESITO: se l'ultimo giro e' di tre giorni fa, che sia andato bene non importa
+piu' — la notizia e' che non ne sono arrivati altri. E si dice il numero di ore, non «da un po'»:
+chi legge deve poter decidere se e' un caso o un guasto.
+
+═══ ⚠️ E QUESTO RIQUADRO NON SPARISCE QUANDO VA TUTTO BENE
+
+E' l'opposto della regola che vale per gli altri riquadri di questo progetto («se non c'e' niente da
+fare, sparisci»). Qui la domanda e' «sta lavorando?»: un riquadro che compare solo quando c'e' un
+problema risponde «non lo so» proprio nel caso in cui uno viene a controllare.
+
+Se il conto non si legge, il riquadro lo dice piano e la pagina delle ricette si apre lo stesso.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 213 suite, 3292 test verdi (8 nuovi)
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.

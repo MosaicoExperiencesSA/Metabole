@@ -1,0 +1,42 @@
+Il generatore riempie le settimane a metà invece di rispondere «c'è già»
+
+Simone, 18/8: «le ricette ovviamente vanno sempre a riempimento delle settimane incomplete».
+
+IL PROBLEMA
+La stessa domanda — «questa settimana è a posto?» — si rispondeva in due punti con due criteri:
+
+  - `statoVarianti` (per il cron): magra = un pasto con meno di sette piatti DIVERSI;
+  - `generateCatalogFromPreset` (per il pulsante): fatta = esiste una giornata con quel numero.
+
+Il secondo è il conto delle settimane, e il conto delle settimane mente. Quattro giornate scritte
+nella settimana 2 fanno «due settimane fatte»: da quel momento la settimana 2 resta a metà PER
+SEMPRE — il pulsante *genera* risponde «c'è già» e la generazione automatica guarda avanti, perché
+il tetto era `settimaneFatte + 1`, cioè sempre la settimana nuova.
+
+COSA CAMBIA
+- Un modulo puro solo, `settimana-magra.ts`, che risponde alla domanda una volta per tutte. Lo
+  chiamano tutti e due: se due punti rispondono alla stessa domanda, uno dei due deve chiamare
+  l'altro.
+- Il generatore legge le GIORNATE della variante, non più solo il giorno più alto: per riempire una
+  settimana a metà bisogna prima saper vedere che è a metà.
+- La settimana da fare è la prima MAGRA, se ce n'è una; solo se sono tutte piene si apre la nuova.
+  Chi chiede una settimana precisa la ottiene lo stesso (il `min` la rispetta).
+- «C'è già» si dice solo quando la settimana è davvero PIENA. Su una settimana a metà la risposta
+  giusta non è «c'è già», è riempirla — e riempirla non perde niente: la modalità «completa» non
+  cancella nessuna ricetta e chiede all'AI solo la differenza per arrivare a sette piatti per pasto.
+
+⚠️ SI CONTANO I PIATTI DIVERSI, NON LE GIORNATE. Le varianti nate col metodo vecchio hanno 28
+giornate e 19 piatti per pasto: a contare le giornate sono a posto, a tavola è la stessa colazione
+cinque volte al mese.
+
+⚠️ IL ROVESCIO HA IL SUO TEST: il riempimento non deve diventare «rifà sempre qualcosa». Se la
+settimana chiesta è piena non si tocca niente, ed è il backoffice a chiedere completa o rifai.
+
+FILE
+- backend/src/engine-rules/settimana-magra.ts (+ .spec.ts, 10 test)
+- backend/src/engine-rules/engine-rules.service.ts — `generateCatalogFromPreset` e `statoVarianti`
+- backend/src/engine-rules/engine-rules.service.spec.ts — i finti ora dicono COSA c'è dentro una
+  settimana, non solo che esiste (un test che finge «c'è la settimana 1» senza dire cosa contiene
+  stava fingendo anche la domanda), più 2 test nuovi sul comportamento.
+
+Build verde, 215 suite / 3359 test.

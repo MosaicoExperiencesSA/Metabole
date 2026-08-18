@@ -20,6 +20,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` ✅ **Le tre code del catalogo passano da Vera, una riga per volta.** Richiesta di
+  Simone: «se ci sono ricette da approvare, combinazioni da approvare, allergeni da approvare, vanno
+  tutti inviati a vera che aiuta il nutrizionista a verificare uno per uno». Le tre code esistevano
+  già, ma si svuotavano con tre pulsanti che agiscono **in blocco** sull'intera dieta — e ⚠️ un
+  pulsante che verifica sessanta piatti in un colpo non verifica niente: è una firma in fondo a un
+  foglio che nessuno ha letto. Ora si dice «approvazioni» (o si clicca la pastiglia in cima) e Vera
+  porta una riga per volta, **con dentro cosa si sta approvando**: gli ingredienti della ricetta, gli
+  alimenti del gruppo, il pasto e le calorie. ⚠️ **Gli allergeni vengono prima dell'accensione, e mai
+  insieme sulla stessa ricetta**: finché sono da guardare, la domanda «la accendo?» non compare
+  proprio — altrimenti un «sì» detto di corsa accende un piatto non verificato. ⚠️ E quella domanda
+  non è nuova: è quella della voce 227, che la coda **chiama** invece di rifarla, con un marcatore
+  perché a fine giro si torni in coda. ⚠️ **«Non lo so» è un salta, non un no**: su una coda di
+  verifica il dubbio non è un rifiuto. ⚠️ **Il no non scrive niente** — una ricetta non approvata è
+  già spenta, e inventare qui una cancellazione darebbe alla chat un potere che il pulsante
+  equivalente non ha: si dice dove si cambia davvero. ⚠️ Si avanza perché la riga è stata **guardata**,
+  non perché il database ha detto sì. Le scritture passano dalle porte di sempre (`updateRecipe`,
+  `setRecipeAllergens`, `EquivalenceService.approve`). 56 test nuovi (215 suite, 3359 verdi).
+
+- `[Sviluppo]` 🧱 **«Le ricette vanno sempre a riempimento delle settimane incomplete»** (Simone,
+  18/8). Era già la regola del cron, ma la stessa domanda — «questa settimana è a posto?» — si
+  rispondeva in due punti con due criteri: per il cron «magra» voleva dire *un pasto con meno di
+  sette piatti diversi*, per il pulsante *genera* «fatta» voleva dire *esiste una giornata con quel
+  numero*. ⚠️ E il conto delle settimane mente: quattro giornate scritte nella settimana 2 fanno «due
+  settimane fatte», e da lì quella settimana resta a metà **per sempre** — il pulsante risponde «c'è
+  già» e la generazione guarda avanti. Ora la risposta è una sola (`settimana-magra.ts`) e la
+  chiamano tutti e due; il generatore legge le giornate e non più solo il giorno più alto; la
+  settimana da fare è la prima magra, e «c'è già» si dice solo quando è davvero piena. ⚠️ Si contano i
+  piatti **diversi**, non le giornate: 28 giornate con 19 piatti per pasto sono a posto per chi conta
+  e sono la stessa colazione cinque volte al mese per chi mangia. ⚠️ Col suo rovescio a test: se la
+  settimana chiesta è piena non si tocca niente. 12 test nuovi.
+
+- `[Sviluppo]` 🤖 **«Non ho capito da dove vedo se le ricette vengono create»: il riquadro in cima
+  alle Ricette.** Seconda domanda di Simone sul generatore, e aveva ragione: alla prima avevo
+  risposto col battito e con `npm run diag:catalogo`, ma ⚠️ **una shell non è «vedere»**, e una
+  diagnostica che nessuno lancia è una diagnostica che non esiste. Ora in cima alla pagina Ricette
+  c'è un riquadro con le stesse informazioni, dove si guardano già: ultimo giro ed esito, ricette
+  nate negli ultimi 7 giorni, quante aspettano gli allergeni — ⚠️ **col collegamento**, perché finché
+  sono lì non entrano in nessuna dieta — giri, errori e settimane rimaste. Il giudizio sta in
+  `stato-generatore.ts` con cinque esiti distinti, e ⚠️ **«mai partito» non è «tutto a posto»**: il
+  messaggio manda a guardare su Render, non nel codice, e lo dice. ⚠️ «Fermo» vince sull'esito (se
+  l'ultimo giro è di tre giorni fa, che sia andato bene non importa più) e dice **da quante ore**,
+  non «da un po'». ⚠️ E questo riquadro **non sparisce quando va tutto bene**, al contrario di tutti
+  gli altri: la domanda a cui risponde è «sta lavorando?», e un riquadro che compare solo quando c'è
+  un problema risponde «non lo so» proprio a chi viene a controllare. 8 test (213 suite, 3292 verdi).
+
 - `[Sviluppo]` 🍚 **Crudo o cotto: se la tabella ha due stati non si sceglie il primo — si chiede**
   (voce 228, chiusa col file caricato da Simone). La scheda «Crudo ↔ cotto» dà la misura: **farro
   perlato 353 kcal da crudo, 127 da bollito, rapporto 0,36×**. ⚠️ Dire il numero sbagliato non è

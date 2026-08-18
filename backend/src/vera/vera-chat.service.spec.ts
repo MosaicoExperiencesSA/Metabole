@@ -176,12 +176,15 @@ function make(
   };
   // La porta dei cambi concordati in chat (voce 245): la stessa del pulsante in scheda.
   const sostituzioni = { aggiorna: jest.fn().mockResolvedValue({ id: 's1' }) };
+  // La porta delle combinazioni (18/8): la stessa del pulsante in Equivalenze.
+  const combinazioni = { approve: jest.fn().mockResolvedValue({ id: 'g1' }) };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never),
     valori,
     ricette,
     richieste,
+    combinazioni,
     messaggioCreate,
     profileUpdate,
     dizionario,
@@ -1824,5 +1827,155 @@ describe('VeraChatService — la seconda lettura', () => {
     const { service, ai } = make(capoNutrizionista, { riscritturaModello: 'a jolanda niente ceci' });
     await service.parla('n1', 'mah la jolanda i ceci insomma');
     expect(ai.generateJson).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * LE TRE CODE DEL CATALOGO, UNA PER VOLTA (18/8).
+ *
+ * ⚠️ Il collaudo che conta qui non è la fila (ce l'ha il suo file, senza banca dati): è che il sì
+ * passi dalla **porta di sempre** — `updateRecipe` di `CatalogService`, `approve` di
+ * `EquivalenceService` — e che una ricetta con gli allergeni aperti non arrivi mai alla domanda
+ * «la accendo?».
+ */
+describe('la coda delle approvazioni', () => {
+  const catalogo = (
+    ricette: { id: string; name: string; active: boolean; allergensReviewed: boolean }[],
+    gruppi: { id: string; name: string; status: string }[] = [],
+  ) => ({
+    diet: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'd1', name: 'Mediterranea', dayTemplates: [{ meals: ricette.map((r) => ({ slot: 'lunch', recipeId: r.id })) }] },
+      ]),
+    },
+    recipe: {
+      count: jest.fn().mockResolvedValue(1),
+      findMany: jest.fn().mockResolvedValue(
+        ricette.map((r) => ({ ...r, mealSlot: 'lunch', kcal: 500, ingredients: [{ name: 'pollo' }] })),
+      ),
+      findUnique: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve(ricette.find((r) => r.id === where.id) ?? null),
+      ),
+    },
+    equivalenceGroup: {
+      findMany: jest.fn().mockResolvedValue(gruppi.map((g) => ({ ...g, productId: 'd1', members: { items: ['riso', 'farro'] } }))),
+      findUnique: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        Promise.resolve(gruppi.find((g) => g.id === where.id) ?? null),
+      ),
+    },
+  });
+
+  it('«cosa c\'è da approvare?» apre la coda e porta la prima ricetta', async () => {
+    const { service, messaggioCreate } = make(catalogo([{ id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: true }]));
+    await service.parla('lucia', 'cosa c\'è da approvare?');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Pollo alle erbe');
+    expect(testo).toContain('pollo'); // gli ingredienti: si approva guardando, non a memoria
+    expect(stato?.passo).toBe('approvazione');
+    expect(stato?.approvazioneTipo).toBe('ricetta');
+  });
+
+  it('il sì accende la ricetta dalla porta del catalogo, non con una update a mano', async () => {
+    const { service, ricette } = make(catalogo([{ id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: true }]));
+    await service.parla('lucia', 'approvazioni');
+    await service.parla('lucia', 'sì');
+    expect(ricette.updateRecipe).toHaveBeenCalledWith('lucia', 'r1', { active: true });
+  });
+
+  it('il NO non scrive niente, e dice dove si cambia davvero', async () => {
+    const { service, ricette, messaggioCreate } = make(catalogo([{ id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: true }]));
+    await service.parla('lucia', 'approvazioni');
+    await service.parla('lucia', 'no');
+    // ⚠️ Il punto: nessuna cancellazione inventata. La ricetta era spenta e resta spenta.
+    expect(ricette.updateRecipe).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('in Ricette');
+  });
+
+  it('«non lo so» mette da parte e passa alla prossima, senza decidere niente', async () => {
+    const { service, ricette, messaggioCreate } = make(
+      catalogo([
+        { id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: true },
+        { id: 'r2', name: 'Orata al forno', active: false, allergensReviewed: true },
+      ]),
+    );
+    await service.parla('lucia', 'approvazioni');
+    await service.parla('lucia', 'non lo so');
+    expect(ricette.updateRecipe).not.toHaveBeenCalled();
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Orata al forno');
+    expect(stato?.saltate).toEqual(['ricetta:r1']);
+  });
+
+  it('⚠️ una ricetta con gli allergeni aperti non arriva mai alla domanda «la accendo?»', async () => {
+    const { service, messaggioCreate, ricette } = make(catalogo([{ id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: false }]));
+    await service.parla('lucia', 'approvazioni');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    // Si consegna al giro degli allergeni (voce 227), marcato perché alla fine torni in coda.
+    expect(stato?.passo).toBe('allergeni_ricetta');
+    expect(stato?.daCoda).toBe(true);
+    expect(testo).not.toMatch(/La accendo/);
+    expect(ricette.updateRecipe).not.toHaveBeenCalled();
+  });
+
+  it('confermati gli allergeni, si torna in coda invece di finire in un\'altra', async () => {
+    const { service, messaggioCreate, ricette } = make(
+      catalogo([
+        { id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: false },
+        { id: 'r2', name: 'Orata al forno', active: false, allergensReviewed: true },
+      ]),
+    );
+    await service.parla('lucia', 'approvazioni');
+    await service.parla('lucia', 'sì');
+    expect(ricette.setRecipeAllergens).toHaveBeenCalled();
+    // ⚠️ Senza il marcatore `daCoda` qui ripartiva `cosaTiPorto` e le altre ricette da approvare
+    // sparivano dalla conversazione senza che nessuno lo dicesse.
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Orata al forno');
+  });
+
+  it('la combinazione si approva da EquivalenceService, con gli alimenti sotto gli occhi', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      catalogo([{ id: 'r1', name: 'Pollo', active: true, allergensReviewed: true }], [{ id: 'g1', name: 'Cereali', status: 'draft' }]),
+    );
+    await service.parla('lucia', 'approvazioni');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('riso, farro');
+    await service.parla('lucia', 'sì');
+    expect(combinazioni.approve).toHaveBeenCalledWith('lucia', 'g1');
+  });
+
+  it('⚠️ se nel frattempo l\'ha accesa un\'altra, non si riscrive sopra: lo si dice e si va avanti', async () => {
+    const dati = catalogo([{ id: 'r1', name: 'Pollo alle erbe', active: false, allergensReviewed: true }]);
+    const { service, ricette, messaggioCreate } = make(dati);
+    await service.parla('lucia', 'approvazioni');
+    // Fra la domanda e la risposta passa una collega dalla scheda.
+    dati.recipe.findUnique.mockResolvedValue({ active: true, allergensReviewed: true });
+    await service.parla('lucia', 'sì');
+    expect(ricette.updateRecipe).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toMatch(/nel frattempo è cambiata/);
+  });
+
+  it('«basta» si ferma e dice quanto resta', async () => {
+    const { service, messaggioCreate } = make(
+      catalogo([
+        { id: 'r1', name: 'Pollo', active: false, allergensReviewed: true },
+        { id: 'r2', name: 'Orata', active: false, allergensReviewed: true },
+      ]),
+    );
+    await service.parla('lucia', 'approvazioni');
+    await service.parla('lucia', 'basta');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toMatch(/Restano 2 cose/);
+    expect(stato).toBeUndefined();
+  });
+
+  it('niente da approvare: lo dice, invece di aprire una coda vuota', async () => {
+    const { service, messaggioCreate } = make(catalogo([{ id: 'r1', name: 'Pollo', active: true, allergensReviewed: true }]));
+    await service.parla('lucia', 'approvazioni');
+    expect(ultimoAgente(messaggioCreate).testo).toMatch(/niente da approvare/i);
+  });
+
+  it('il quadro della giornata invita alla coda quando c\'è qualcosa', async () => {
+    const { service, messaggioCreate } = make(catalogo([{ id: 'r1', name: 'Pollo', active: false, allergensReviewed: false }]));
+    await service.parla('lucia', 'hai segnalazioni per me?');
+    expect(ultimoAgente(messaggioCreate).testo).toMatch(/aspettano la tua approvazione/);
   });
 });

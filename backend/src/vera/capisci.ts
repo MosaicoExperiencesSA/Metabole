@@ -68,6 +68,7 @@ export type Intento =
   | IntentoFamiglia
   | IntentoSegnalazioni
   | IntentoSostituzioniDaVerificare
+  | IntentoApprovazioni
   | IntentoCambioDieta
   | IntentoCorrezioneKcal
   | IntentoProteine
@@ -128,6 +129,18 @@ export interface IntentoSegnalazioni {
  */
 export interface IntentoSostituzioniDaVerificare {
   tipo: 'sostituzioni';
+}
+
+/**
+ * «COSA C'È DA APPROVARE?» — le tre code del catalogo (Simone, 18/8: «se ci sono ricette da
+ * approvare, combinazioni da approvare, allergeni da approvare, vanno tutti inviati a vera che
+ * aiuta il nutrizionista a verificare uno per uno»).
+ *
+ * Come `segnalazioni` e `sostituzioni`: è una domanda, non un'istruzione. Aprire la coda non
+ * approva niente — ogni riga si conferma da sola, una per volta.
+ */
+export interface IntentoApprovazioni {
+  tipo: 'approvazioni';
 }
 
 /**
@@ -433,6 +446,12 @@ export function capisci(frase: string): Intento | null {
    * esiste, mostrata al posto di una coda che esiste.
    */
   if (chiedeSostituzioni(testo)) return { tipo: 'sostituzioni' };
+  /**
+   * ⚠️ LE APPROVAZIONI PRIMA DELLA LISTA, per la stessa ragione della riga sopra: «hai ricette da
+   * approvare?» finirebbe in `MOSTRA_FAMIGLIA` come richiesta della famiglia «ricette», che non
+   * esiste — una lista vuota mostrata al posto di una coda piena.
+   */
+  if (chiedeApprovazioni(testo)) return { tipo: 'approvazioni' };
   const mostraF = MOSTRA_FAMIGLIA.exec(testo);
   if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
   // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
@@ -577,6 +596,30 @@ const FORME_SOSTITUZIONI: RegExp[] = [
    */
   /^(?:quale|quali|qual e|che|che cosa)\s+(?:e |sono )?(?:la |le |il |i |lo |gli )?(?:cambio|cambi|sostituzione|sostituzioni)\s+(?:devo|dobbiamo|posso|possiamo|c e da|ci sono da|da)\s+(?:verificare|guardare|controllare|vedere)$/,
 ];
+
+/**
+ * «COSA C'È DA APPROVARE?» — le forme delle tre code del catalogo (18/8).
+ *
+ * ⚠️ Ancorate all'intera frase, per lo stesso motivo delle altre due: «approva il gruppo dei
+ * formaggi» CONTIENE «approva» ed è un'istruzione su una cosa precisa, non una coda da aprire.
+ *
+ * ⚠️ E «la ricetta X va approvata» non deve finire qui: la parola da sola non basta, ci vuole la
+ * forma della domanda. Meglio un «non ho capito» che aprire sessanta piatti quando ne intendevi uno.
+ */
+const FORME_APPROVAZIONI: RegExp[] = [
+  // il titolo secco, e la parola che le pastiglie scrivono
+  /^(?:le )?approvazioni(?:\s+(?:in sospeso|aperte|del catalogo|da fare))?$/,
+  /^(?:cosa|che cosa|che|quanto) c e da approvare(?:\s+(?:oggi|in catalogo))?$/,
+  /^(?:ci sono|hai|ce ne sono|quali sono|quante sono|dammi|dimmi|mostrami|fammi vedere|vedi)\s+(?:delle |le |dei |i |gli )?(?:cose|ricette|combinazioni|allergeni|voci|approvazioni)?\s*(?:da approvare|da confermare|da validare|da verificare in catalogo)(?:\s+(?:in catalogo|in sospeso|aperte))?$/,
+  // l'imperativo: «approviamo», «riprendiamo le approvazioni», «continuiamo con le approvazioni»
+  /^(?:approviamo|riprendiamo|riprendi|continuiamo|continua|andiamo avanti con|ricominciamo)(?:\s+(?:con|le|la|i|gli))*\s*(?:approvazioni|coda|revisione|catalogo)?$/,
+  /^(?:approviamo|validiamo|revisioniamo|guardiamo|vediamo)\s+(?:le |i |gli )?(?:ricette|combinazioni|allergeni|cose)\s+(?:da approvare|da confermare|in bozza|nuove)$/,
+  /^(?:quale|quali|cosa)\s+(?:ricetta|ricette|combinazione|combinazioni)\s+(?:devo|dobbiamo|posso|c e da|ci sono da|da)\s+approvare$/,
+];
+
+function chiedeApprovazioni(testo: string): boolean {
+  return FORME_APPROVAZIONI.some((f) => f.test(pulisciDomanda(testo)));
+}
 
 function chiedeSostituzioni(testo: string): boolean {
   return FORME_SOSTITUZIONI.some((f) => f.test(pulisciDomanda(testo)));

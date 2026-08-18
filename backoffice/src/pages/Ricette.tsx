@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
@@ -414,6 +415,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       {/* La conferma allergeni decaduta dopo una modifica degli ingredienti (voce 252): sta qui e
           non nella finestra, perché il salvataggio la chiude. */}
       {avvisoSalvataggio && <Banner kind="info">{avvisoSalvataggio}</Banner>}
+      <GeneratoreWidget />
       {scopeDietId && !soloDieta && (
         <Banner kind="info">
           Stai vedendo <b>tutte</b> le ricette del regime, non solo quelle di
@@ -572,6 +574,79 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
         />
       )}
     </>
+  );
+}
+
+/**
+ * «IL GENERATORE STA LAVORANDO?» — richiesta di Simone, 18/8: «non ho capito da dove vedo se le
+ * ricette vengono create».
+ *
+ * ⚠️ Sta QUI, in cima alle Ricette, e non in una diagnostica da shell: una diagnostica che nessuno
+ * lancia è una diagnostica che non esiste. Le stesse informazioni di `npm run diag:catalogo`, dove
+ * si guardano già.
+ *
+ * ⚠️ E NON sparisce quando è tutto a posto, a differenza degli altri riquadri di questo progetto.
+ * La domanda a cui risponde è «sta lavorando?», e un riquadro che compare solo quando c'è un
+ * problema risponde «non lo so» proprio nel caso in cui uno viene a controllare.
+ */
+interface StatoGeneratore {
+  verdetto: 'mai_partito' | 'lavora' | 'niente_da_fare' | 'errore' | 'fermo';
+  messaggio: string;
+  oreFa: number | null;
+  giorni: number;
+  giri: number;
+  errori: number;
+  ricetteNate: number;
+  ricetteDaConfermare: number;
+  restano: number;
+}
+
+function GeneratoreWidget() {
+  const [s, setS] = useState<StatoGeneratore | null>(null);
+  const [rotto, setRotto] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    api<StatoGeneratore>('/engine-rules/generatore')
+      .then((r) => { if (vivo) setS(r); })
+      // ⚠️ Un errore qui non deve far sembrare rotta la pagina delle ricette: si dice piano.
+      .catch(() => { if (vivo) setRotto(true); });
+    return () => { vivo = false; };
+  }, []);
+
+  if (rotto) {
+    return (
+      <div className="card" style={{ borderLeft: '3px solid var(--line)' }}>
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          <i className="ti ti-robot" /> Il generatore: stato non leggibile in questo momento. Le ricette qui sotto ci sono comunque.
+        </span>
+      </div>
+    );
+  }
+  if (!s) return null;
+
+  const grave = s.verdetto === 'mai_partito' || s.verdetto === 'errore' || s.verdetto === 'fermo';
+  return (
+    <div className="card" style={{ borderLeft: `3px solid ${grave ? 'var(--warm, #B0663F)' : 'var(--teal)'}` }}>
+      <div className="row" style={{ gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <i className="ti ti-robot" style={{ color: grave ? 'var(--warm, #B0663F)' : 'var(--teal)' }} />
+        <b style={{ fontSize: 13.5 }}>Il generatore di ricette</b>
+        <span style={{ fontSize: 13 }}>{grave ? '⚠️ ' : ''}{s.messaggio}</span>
+      </div>
+      <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+        Negli ultimi {s.giorni} giorni: <b>{s.ricetteNate}</b> ricette nuove
+        {s.ricetteDaConfermare > 0 && (
+          <>
+            {' '}(<b>{s.ricetteDaConfermare}</b> aspettano gli allergeni →{' '}
+            {/* ⚠️ Il collegamento c'è perché finché una ricetta è lì NON entra in nessuna dieta: un
+                catalogo che cresce con una coda ferma è un catalogo che cresce e non serve a nessuno. */}
+            <Link to="/tag-allergeni">Allergeni ricette</Link>)
+          </>
+        )}
+        {' · '}{s.giri} giri{s.errori > 0 && <>, di cui <b>{s.errori} in errore</b></>}
+        {' · '}{s.restano === 0 ? 'catalogo completo' : <>restano <b>{s.restano}</b> settimane da riempire</>}
+      </div>
+    </div>
   );
 }
 

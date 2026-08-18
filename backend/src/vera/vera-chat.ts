@@ -33,6 +33,7 @@ export type PassoVera =
   | 'quanti_giorni'      // «riduci le kcal del 10%»: per quanto? (Nocanty via Vera, 14/8)
   | 'giornata_scelte'    // la giornata dettata: quale piatto, per le righe ambigue (voce 241)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
+  | 'approvazione'       // la coda del catalogo, una voce per volta (18/8)
   | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
 
 export interface StatoVera {
@@ -98,6 +99,23 @@ export interface StatoVera {
   /** I codici letti dagli ingredienti, e quelli che sto per scrivere dopo la sua risposta. */
   allergeniSuggeriti?: string[];
   allergeniScelti?: string[];
+  /**
+   * LA CODA DELLE APPROVAZIONI (18/8) — la voce in corso e quello che si è messo da parte.
+   *
+   * ⚠️ La coda NON si porta dentro lo stato: si rilegge dal catalogo a ogni giro. Congelarla
+   * vorrebbe dire continuare a chiedere di una ricetta che nel frattempo una collega ha già
+   * acceso dalla scheda. Qui si tiene solo la voce che sto chiedendo e le chiavi che LEI ha
+   * saltato — quelle sì, altrimenti «salta» ripropone la stessa riga all'infinito.
+   */
+  approvazioneTipo?: 'allergeni' | 'ricetta' | 'combinazione';
+  approvazioneId?: string;
+  approvazioneNome?: string;
+  approvazioneDieta?: string;
+  saltate?: string[];
+  /** Quante cose si sono approvate in questo giro: serve solo alla frase di chiusura. */
+  approvate?: number;
+  /** Vero quando il giro sugli allergeni è nato dalla coda: quando finisce, si torna in coda. */
+  daCoda?: boolean;
   /** La domanda aperta che sto facendo, e la parola che ne uscirebbe per il dizionario. */
   richiestaId?: string;
   termine?: string;

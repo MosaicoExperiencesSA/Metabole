@@ -4,6 +4,8 @@ import { MailModule } from '../mail/mail.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { CatalogService } from '../catalog/catalog.service';
 import { ClientsModule } from '../clients/clients.module';
+import { EquivalenceModule } from '../equivalence/equivalence.module';
+import { EquivalenceService } from '../equivalence/equivalence.service';
 import { FoodSwapsModule } from '../food-swaps/food-swaps.module';
 import { FoodSwapsService } from '../food-swaps/food-swaps.service';
 import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
@@ -14,6 +16,7 @@ import { ClientsService } from '../clients/clients.service';
 import { NutritionistModule } from '../nutritionist/nutritionist.module';
 import { NutritionistService } from '../nutritionist/nutritionist.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
+import { SCRITTURA_COMBINAZIONE } from './scrittura-combinazione';
 import { SCRITTURA_RICETTA } from './scrittura-ricetta';
 import { SCRITTURA_SOSTITUZIONI } from './scrittura-sostituzioni';
 import { VeraChatService } from './vera-chat.service';
@@ -78,7 +81,16 @@ import { VeraController } from './vera.controller';
    * alla compilazione — il 12/8 un modulo senza il suo import ha fatto uscire il processo con 1 al
    * primo boot su Render, con `tsc` verde e 1794 test verdi.
    */
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule],
+  /**
+   * ⚠️ `EquivalenceModule` per una riga sola, e anche questa è una riga di contratto (18/8): le
+   * combinazioni si approvano da `EquivalenceService.approve`, lo stesso metodo del pulsante in
+   * Equivalenze, con lo stesso audit e lo stesso bump di versione.
+   *
+   * Nessun anello: `EquivalenceModule` importa solo `NotificationsModule`, che è già nel grafo, e
+   * nessuno dei due conosce Vera.
+   * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
+   */
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule, EquivalenceModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
@@ -98,6 +110,8 @@ import { VeraController } from './vera.controller';
     { provide: SCRITTURA_KCAL, useExisting: NutritionistService },
     /** Il punto unico dei cambi concordati in chat: la stessa porta del pulsante in scheda. */
     { provide: SCRITTURA_SOSTITUZIONI, useExisting: FoodSwapsService },
+    /** Il punto unico dell'approvazione di una combinazione: la stessa porta del pulsante in Equivalenze. */
+    { provide: SCRITTURA_COMBINAZIONE, useExisting: EquivalenceService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

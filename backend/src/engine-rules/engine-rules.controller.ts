@@ -72,6 +72,18 @@ export class EngineRulesController {
     return this.service.catalog();
   }
 
+  /**
+   * «IL GENERATORE STA LAVORANDO?» — il riquadro in cima alla pagina Ricette (18/8).
+   *
+   * ⚠️ Sola lettura, e sotto lo stesso ruolo del resto di questo controller. Serve a rispondere
+   * dove si guarda già, invece che da una shell: una diagnostica che nessuno lancia è una
+   * diagnostica che non esiste.
+   */
+  @Get('generatore')
+  statoGeneratore(@Query('giorni') giorni?: string) {
+    return this.service.statoGeneratore(Number(giorni) || 7);
+  }
+
   @Patch('global/:code')
   setGlobal(@Param('code') code: string, @Body() dto: SetGlobalDto, @CurrentUser() u: AuthUser) {
     return this.service.setGlobal(code, dto.value, u.sub);

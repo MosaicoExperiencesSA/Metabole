@@ -52,6 +52,12 @@ interface AspettaMe {
   daApprovare: number;
   daVerificare: number;
   capo: boolean;
+  /**
+   * LE TRE CODE DEL CATALOGO (18/8). `null` = non lo so — la lettura si è rotta — ed è diverso da
+   * zero: la pastiglia lo scrive diverso, invece di dire «tutto a posto» perché non ha saputo
+   * contare.
+   */
+  catalogo?: { allergeni: number; ricette: number; combinazioni: number; totale: number } | null;
 }
 
 interface Azione {
@@ -219,6 +225,28 @@ export function Vera() {
   useEffect(() => { void apri(); }, []);
   useEffect(() => { fine.current?.scrollIntoView({ block: 'end' }); }, [messaggi]);
 
+  /**
+   * Manda una frase alla chat senza passare dalla casella. Serve alle pastiglie: quello che una
+   * pastiglia annuncia deve essere raggiungibile CLICCANDOLA, non solo sapendo la parola giusta
+   * da scrivere. È la stessa lezione del widget del generatore — una coda che si apre solo a voce
+   * è una coda che nessuno svuota.
+   */
+  async function chiedi(frase: string) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await api<{ messaggi: Messaggio[] }>('/vera/chat', { method: 'POST', body: JSON.stringify({ testo: frase }) });
+      setMessaggi(r.messaggi);
+      await caricaRegistro();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Messaggio non inviato.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function invia() {
     const t = testo.trim();
     if (!t || busy) return;
@@ -323,7 +351,7 @@ export function Vera() {
         Un contatore delle regole create è una medaglietta: la si guarda due volte e poi mai più.
         Qui ci sono solo cose che hanno bisogno di una persona.
       */}
-      {aspetta && (aspetta.richieste > 0 || aspetta.daApprovare > 0 || aspetta.daVerificare > 0) && (
+      {aspetta && (aspetta.richieste > 0 || aspetta.daApprovare > 0 || aspetta.daVerificare > 0 || (aspetta.catalogo?.totale ?? 0) > 0 || aspetta.catalogo === null) && (
         <div className="row" style={{ gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           {aspetta.daApprovare > 0 && (
             <span className="chip amber">
@@ -338,6 +366,31 @@ export function Vera() {
           {aspetta.daVerificare > 0 && (
             <span className="chip">
               <i className="ti ti-replace" /> {aspetta.daVerificare} sostituzioni da verificare
+            </span>
+          )}
+          {/*
+            LE TRE CODE DEL CATALOGO (18/8, richiesta di Simone: «vanno tutti inviati a vera che
+            aiuta il nutrizionista a verificare uno per uno»).
+            ⚠️ Questa pastiglia si CLICCA e apre la coda in chat. Le altre qui sopra sono
+            annunci; questa è la porta — perché la coda esiste per essere svuotata, e chiedere di
+              indovinare la parola «approvazioni» sarebbe averla nascosta dietro un indovinello.
+          */}
+          {(aspetta.catalogo?.totale ?? 0) > 0 && (
+            <button
+              type="button"
+              className="chip amber"
+              onClick={() => void chiedi('approvazioni')}
+              disabled={busy}
+              title={`${aspetta.catalogo!.allergeni} allergeni, ${aspetta.catalogo!.ricette} ricette, ${aspetta.catalogo!.combinazioni} combinazioni`}
+              style={{ cursor: 'pointer', border: 'none' }}
+            >
+              <i className="ti ti-checkup-list" /> {aspetta.catalogo!.totale} da approvare in catalogo
+            </button>
+          )}
+          {/* ⚠️ «Non lo so» ≠ «niente»: se il conto non riesce si dice, invece di tacere. */}
+          {aspetta.catalogo === null && (
+            <span className="chip" title="Il conto delle code di catalogo non è riuscito.">
+              <i className="ti ti-alert-triangle" /> code di catalogo: non lo so
             </span>
           )}
         </div>

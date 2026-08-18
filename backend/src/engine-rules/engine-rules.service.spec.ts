@@ -175,12 +175,45 @@ describe('EngineRulesService', () => {
     expect(new Set(usate).size).toBe(usate.length);
   });
 
+  /**
+   * LE GIORNATE GIÀ IN CATALOGO su questa variante, `settimane` settimane **piene**: sette giornate
+   * per settimana e sette piatti diversi per pasto.
+   *
+   * ⚠️ Prima qui bastava `findFirst` col giorno più alto, perché il generatore contava solo quello.
+   * Dal 18/8 guarda se le settimane sono davvero piene (Simone: «le ricette vanno sempre a
+   * riempimento delle settimane incomplete»), quindi il finto deve dire cosa c'è dentro — ed è
+   * giusto così: un test che finge «c'è la settimana 1» senza dire cosa contiene stava fingendo
+   * anche la domanda.
+   */
+  const CINQUE_PASTI = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+  function giornateInCatalogo(prisma: any, settimane: number, giorniUltimaSettimana = 7) {
+    const giorni: any[] = [];
+    for (let w = 1; w <= settimane; w++) {
+      const quanti = w === settimane ? giorniUltimaSettimana : 7;
+      for (let i = 0; i < quanti; i++) {
+        giorni.push({
+          dayIndex: (w - 1) * 7 + i + 1,
+          meals: CINQUE_PASTI.map((slot) => ({ slot, recipeId: `own-${slot}-${w}-${i}` })),
+        });
+      }
+    }
+    prisma.dietDayTemplate.findFirst.mockResolvedValue(giorni.length ? { dayIndex: giorni[giorni.length - 1].dayIndex } : null);
+    const prima = prisma.dietDayTemplate.findMany.getMockImplementation?.();
+    prisma.dietDayTemplate.findMany.mockImplementation((args: any) => {
+      // La lettura del ciclo di QUESTA variante: `dietId` secco e `dayIndex` fra i campi chiesti.
+      if (typeof args?.where?.dietId === 'string' && args?.select?.dayIndex === true && !args?.where?.dayIndex) {
+        return Promise.resolve(giorni);
+      }
+      return prima ? prima(args) : Promise.resolve([]);
+    });
+  }
+
   it('la settimana 2 si aggiunge in coda alla 1, senza ricreare la dieta', async () => {
     const { service, prisma, ai } = build();
     preset5Pasti(prisma);
     aiSetteRicette(ai);
     prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
-    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 }); // c'è già la settimana 1
+    giornateInCatalogo(prisma, 1); // c'è già la settimana 1, ed è piena
     const res = await service.generateCatalogFromPreset('p1', 'u1', 2);
     expect(res.week).toBe(2);
     expect(prisma.diet.create).not.toHaveBeenCalled();
@@ -195,10 +228,44 @@ describe('EngineRulesService', () => {
     preset5Pasti(prisma);
     aiSetteRicette(ai);
     prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
-    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 14 });
+    giornateInCatalogo(prisma, 2); // due settimane piene
     const res = await service.generateCatalogFromPreset('p1', 'u1', 2);
     expect(res).toEqual(expect.objectContaining({ alreadyExists: true, week: 2, recipes: 0 }));
     expect(prisma.recipe.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ «LE RICETTE VANNO SEMPRE A RIEMPIMENTO DELLE SETTIMANE INCOMPLETE» (Simone, 18/8).
+   *
+   * Il difetto: il generatore contava le settimane dal giorno più alto in catalogo. Quattro giornate
+   * scritte nella settimana 2 facevano «due settimane fatte», e da quel momento la settimana 2
+   * restava a metà per sempre — il pulsante rispondeva «c'è già» e il cron guardava avanti.
+   */
+  it('una settimana a metà si RIEMPIE, invece di rispondere «c\'è già»', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    // La 1 piena, la 2 con quattro giornate su sette.
+    giornateInCatalogo(prisma, 2, 4);
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 3);
+    // Non la 3: prima si finisce la 2. E NON è un «alreadyExists».
+    expect(res.week).toBe(2);
+    expect((res as { alreadyExists?: boolean }).alreadyExists).toBeUndefined();
+    const indici = prisma.dietDayTemplate.create.mock.calls.map((c: any) => c[0].data.dayIndex);
+    expect(indici).toEqual([8, 9, 10, 11, 12, 13, 14]);
+  });
+
+  it('⚠️ e chiedere ESPLICITAMENTE una settimana piena continua a rispondere «c\'è già»', async () => {
+    // Il rovescio: il riempimento non deve diventare «rifà sempre qualcosa». Se la settimana
+    // chiesta è piena, non si tocca niente — è il backoffice a chiedere completa o rifai.
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
+    giornateInCatalogo(prisma, 2, 4);
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(res).toEqual(expect.objectContaining({ alreadyExists: true, week: 1 }));
   });
 
   it('la variante a 3 pasti RIUSA le ricette di quella a 5: stessa dieta, stesso regime', async () => {
@@ -371,7 +438,7 @@ describe('EngineRulesService', () => {
     preset5Pasti(prisma);
     aiSetteRicette(ai);
     prisma.diet.findMany.mockResolvedValue([{ id: 'dietEsistente', name: 'Keto', mealsPerDay: 5, fasting: false }]);
-    prisma.dietDayTemplate.findFirst.mockResolvedValue({ dayIndex: 7 }); // una settimana fatta
+    giornateInCatalogo(prisma, 1); // una settimana fatta, e piena
     const r = await service.generateCatalogFromPreset('p1', 'u1', 4);
     // La 2, non la 4: fra la 1 e la 4 ci sarebbero due settimane vuote in mezzo.
     expect(r.week).toBe(2);

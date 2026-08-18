@@ -47,6 +47,28 @@ import { suggestAllergens } from '../catalog/allergens';
 import { EsitoAllergeni, leggiAllergeni, raccontaScelti, raccontaSuggerimenti, Suggerimento } from './allergeni-ricetta';
 import { SCRITTURA_SOSTITUZIONI, ScritturaSostituzioni } from './scrittura-sostituzioni';
 import { leggiVerdetto, motivoDetto, raccontaSostituzione } from './verifica-sostituzioni';
+import {
+  contaCoda,
+  costruisciCoda,
+  chiaveVoce,
+  fraseApertura,
+  fraseApprovataCombinazione,
+  fraseApprovataRicetta,
+  fraseCodaFinita,
+  fraseCodaVuotaApprovazioni,
+  fraseInterrotta,
+  fraseInvitoCoda,
+  fraseLasciata,
+  fraseNonScritta,
+  fraseSaltata,
+  fraseSparita,
+  leggiRispostaApprovazione,
+  testoVoce,
+  type ContoCoda,
+  type DietaInRevisione,
+  type VoceDaApprovare,
+} from './coda-approvazioni';
+import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
 import { secondaLettura } from './seconda-lettura';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
@@ -123,6 +145,11 @@ export class VeraChatService {
      * `try`: se il modello non c'è, si ricade sul «non ci arrivo» di prima.
      */
     private readonly ai: AiService,
+    /**
+     * La porta delle COMBINAZIONI (18/8): `EquivalenceService.approve`, lo stesso metodo del
+     * pulsante in Equivalenze, con lo stesso audit e lo stesso bump di versione.
+     */
+    @Inject(SCRITTURA_COMBINAZIONE) private readonly combinazioni: ScritturaCombinazione,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -276,6 +303,7 @@ export class VeraChatService {
       };
     }
     if (intento.tipo === 'segnalazioni') return this.guidaGiornata(nutrizionistaId);
+    if (intento.tipo === 'approvazioni') return this.avviaApprovazioni();
     if (intento.tipo === 'sostituzioni') {
       return (await this.prossimaSostituzione(nutrizionistaId)) ?? { testo: testi.nessunCambioDaVerificare(), esito: 'in_corso' };
     }
@@ -318,6 +346,8 @@ export class VeraChatService {
         return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
+      case 'approvazione':
+        return this.rispostaApprovazione(nutrizionistaId, stato, frase);
       case 'verifica_cambio':
         return this.verdettoSostituzione(nutrizionistaId, stato, frase);
       case 'allergeni_ricetta':
@@ -1121,6 +1151,31 @@ export class VeraChatService {
     const nome = stato.ricettaAllergeniNome ?? 'la ricetta';
     const suggeriti = stato.allergeniSuggeriti ?? [];
 
+    /**
+     * ⚠️ DENTRO LA CODA, «salta» e «basta» valgono anche qui (18/8). Sono le parole che la coda
+     * insegna a usare a ogni riga: se sull'unico passo che non è suo cadessero nel «non ho capito»,
+     * la nutrizionista imparerebbe che i comandi valgono a volte — che è come non averli.
+     * ⚠️ Si intercettano SOLO questi due: «sì» e un elenco dettato restano di `leggiAllergeni`,
+     * che è la funzione che sa leggere gli allergeni.
+     */
+    if (stato.daCoda) {
+      const comando = leggiRispostaApprovazione(frase);
+      if (comando === 'salta') {
+        const chiave = chiaveVoce({ tipo: 'allergeni', id: stato.ricettaAllergeniId! });
+        const dopo = await this.apriCodaApprovazioni([...(stato.saltate ?? []), chiave], stato.approvate ?? 0);
+        return { ...dopo, testo: `${fraseSaltata(nome)}\n\n${dopo.testo}` };
+      }
+      if (comando === 'basta') {
+        let restano = 0;
+        try {
+          restano = contaCoda(await this.dieteInRevisione()).totale;
+        } catch {
+          restano = 0;
+        }
+        return { testo: fraseInterrotta(restano), esito: 'annullata' };
+      }
+    }
+
     if (/^\s*(lascia stare|lascia perdere|annulla|dopo|non adesso|piu tardi|più tardi)\b/i.test(normalizza(frase))) {
       return { testo: testi.allergeniLasciati(nome), esito: 'annullata' };
     }
@@ -1190,6 +1245,30 @@ export class VeraChatService {
     } catch (err) {
       logger.warn(`Allergeni non scritti (ricetta=${stato.ricettaAllergeniId}): ${err instanceof Error ? err.message : String(err)}`);
       return { testo: testi.allergeniLasciati(nome), esito: 'arresa' };
+    }
+    /**
+     * ⚠️ SE IL GIRO È NATO DALLA CODA, ALLA CODA SI TORNA (18/8). Senza questo, confermare gli
+     * allergeni di una ricetta faceva ripartire `cosaTiPorto` — cioè un'altra coda — e le altre
+     * cinquanta ricette da approvare sparivano dalla conversazione senza che nessuno lo dicesse.
+     * `approvate + 1`: confermare gli allergeni È una delle cose che aspettavano una firma.
+     */
+    if (stato.daCoda) {
+      /**
+       * ⚠️ LA CHIAVE VA IN `saltate` ANCHE QUANDO LA SCRITTURA È RIUSCITA. Sembra ridondante — la
+       * riga scritta non ricompare nella coda — ma è la sola cosa che garantisce che la coda
+       * AVANZI: se un giorno la scrittura tornasse senza aver cambiato il campo, avanzare
+       * «perché ho scritto» farebbe rifare la stessa domanda all'infinito. Si avanza perché
+       * questa riga l'abbiamo guardata, non perché il database ci ha creduto.
+       * ⚠️ E non nasconde l'accensione della stessa ricetta: quella ha una chiave diversa
+       * (`ricetta:` invece di `allergeni:`), e infatti è la domanda giusta da fare subito dopo.
+       */
+      const chiaveFatta = chiaveVoce({ tipo: 'allergeni', id: stato.ricettaAllergeniId! });
+      const inCoda = await this.apriCodaApprovazioni([...(stato.saltate ?? []), chiaveFatta], (stato.approvate ?? 0) + 1);
+      return {
+        testo: `${testi.allergeniScritti(nome, raccontaScelti(codici))}\n\n${inCoda.testo}`,
+        esito: 'scritta',
+        stato: inCoda.stato,
+      };
     }
     const dopo = await this.cosaTiPorto(attoreId);
     return {
@@ -1307,6 +1386,298 @@ export class VeraChatService {
       esito: 'scritta',
       stato: dopo?.stato,
     };
+  }
+
+  // ──────────── le tre code di approvazione del catalogo, una per volta (18/8) ──
+
+  /**
+   * QUELLO CHE ASPETTA UNA FIRMA IN CATALOGO, letto dalle sorgenti.
+   *
+   * Si guardano le diete in **bozza o in revisione**: sono quelle che il generatore riempie e che
+   * nessuno ha ancora validato. Le ricette si prendono dalle GIORNATE di quelle diete (è la stessa
+   * strada di `dietReviewStatus`, che è quella che scrive i tre contatori sulla pagina), e i gruppi
+   * di equivalenza dal loro `productId`.
+   *
+   * ⚠️ Torna `[]` solo quando non c'è niente. Se la lettura si rompe **lancia**: chi chiama lo
+   * trasforma in «non lo so», che è diverso da «non c'è niente da approvare». Su una coda di
+   * verifica un finto zero è la bugia più comoda che ci sia.
+   */
+  private async dieteInRevisione(): Promise<DietaInRevisione[]> {
+    const diete = (await this.prisma.diet.findMany({
+      where: { status: { in: ['draft', 'in_review'] } } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, dayTemplates: { select: { meals: true } } },
+      take: 60,
+    })) as { id: string; name: string; dayTemplates: { meals: unknown }[] }[];
+    if (!diete.length) return [];
+
+    const perDieta = new Map<string, string[]>();
+    const tutte = new Set<string>();
+    for (const d of diete) {
+      const ids = new Set<string>();
+      for (const t of d.dayTemplates) {
+        for (const m of (Array.isArray(t.meals) ? t.meals : []) as { recipeId?: string }[]) {
+          if (m.recipeId) {
+            ids.add(m.recipeId);
+            tutte.add(m.recipeId);
+          }
+        }
+      }
+      perDieta.set(d.id, [...ids]);
+    }
+
+    const ricette = tutte.size
+      ? ((await this.prisma.recipe.findMany({
+          where: { id: { in: [...tutte] } },
+          select: { id: true, name: true, active: true, allergensReviewed: true, mealSlot: true, kcal: true, ingredients: true },
+        })) as { id: string; name: string; active: boolean; allergensReviewed: boolean; mealSlot: string; kcal: number; ingredients: unknown }[])
+      : [];
+    const perId = new Map(ricette.map((r) => [r.id, r]));
+
+    const gruppi = (await this.prisma.equivalenceGroup.findMany({
+      where: { productId: { in: diete.map((d) => d.id) } } as never,
+      select: { id: true, name: true, status: true, productId: true, members: true },
+    })) as { id: string; name: string; status: string; productId: string | null; members: unknown }[];
+
+    return diete.map((d) => ({
+      dietaId: d.id,
+      dietaNome: d.name,
+      ricette: (perDieta.get(d.id) ?? []).flatMap((id) => {
+        const r = perId.get(id);
+        if (!r) return [];
+        return [{
+          id: r.id,
+          nome: r.name,
+          attiva: r.active,
+          allergeniVerificati: r.allergensReviewed,
+          slot: r.mealSlot,
+          kcal: r.kcal,
+          ingredienti: (Array.isArray(r.ingredients) ? r.ingredients : []).map((i) => String((i as { name?: unknown })?.name ?? '')).filter(Boolean),
+        }];
+      }),
+      combinazioni: gruppi
+        .filter((g) => g.productId === d.id)
+        .map((g) => ({
+          id: g.id,
+          nome: g.name,
+          stato: g.status,
+          alimenti: (((g.members as { items?: unknown })?.items ?? []) as unknown[]).map((x) => String(x)).filter(Boolean),
+        })),
+    }));
+  }
+
+  /**
+   * In quante diete compare una ricetta. Serve a una frase sola, ed è una frase che conta:
+   * accendere un piatto lo accende per tutte, e chi risponde deve saperlo prima di dire sì.
+   */
+  private quanteDiete(diete: readonly DietaInRevisione[], recipeId: string): number {
+    return diete.filter((d) => d.ricette.some((r) => r.id === recipeId)).length;
+  }
+
+  /**
+   * LA PROSSIMA COSA DA APPROVARE, portata in chat.
+   *
+   * ⚠️ La coda si **ricostruisce ogni volta** dalla banca dati, e non si porta dentro lo stato:
+   * fra una risposta e l'altra può essere passata una collega dalla scheda, e continuare a chiedere
+   * di una ricetta già accesa da un'altra è il modo di far disfare il lavoro fatto.
+   *
+   * ⚠️ Le ricette con gli allergeni ancora aperti non passano di qui: si consegnano al giro che
+   * esiste già (`chiediAllergeniRicetta`), marcato `daCoda` perché alla fine torni in coda. Due
+   * dialoghi diversi per la stessa domanda sarebbero due elenchi di allergeni diversi, scritti
+   * dalla stessa persona nella stessa applicazione.
+   */
+  private async apriCodaApprovazioni(saltate: string[], approvate: number): Promise<EsitoVera> {
+    let diete: DietaInRevisione[];
+    try {
+      diete = await this.dieteInRevisione();
+    } catch (err) {
+      logger.warn(`Coda approvazioni: non la leggo: ${err instanceof Error ? err.message : String(err)}`);
+      return { testo: testi.guidaFonteRotta('le code di approvazione'), esito: 'arresa' };
+    }
+
+    const fila = costruisciCoda(diete, saltate);
+    if (!fila.length) {
+      return {
+        testo: approvate > 0 || saltate.length ? fraseCodaFinita(approvate) : fraseCodaVuotaApprovazioni(),
+        esito: approvate > 0 ? 'scritta' : 'in_corso',
+      };
+    }
+
+    const voce = fila[0];
+    if (voce.tipo === 'allergeni') {
+      const domanda = await this.chiediAllergeniRicetta(voce.id);
+      if (domanda?.stato) {
+        return { ...domanda, stato: { ...domanda.stato, daCoda: true, saltate, approvate } };
+      }
+      // Non riesco a leggere quella ricetta: la salto e vado avanti, invece di piantarmi.
+      return this.apriCodaApprovazioni([...saltate, chiaveVoce(voce)], approvate);
+    }
+
+    return {
+      testo: testoVoce(voce, fila.length, this.quanteDiete(diete, voce.id)),
+      esito: 'in_corso',
+      stato: {
+        passo: 'approvazione',
+        frase: '',
+        approvazioneTipo: voce.tipo,
+        approvazioneId: voce.id,
+        approvazioneNome: voce.nome,
+        approvazioneDieta: voce.dietaNome,
+        saltate,
+        approvate,
+      },
+    };
+  }
+
+  /** L'apertura della coda: prima cosa c'è, poi la prima riga. */
+  private async avviaApprovazioni(): Promise<EsitoVera> {
+    let conto: ContoCoda;
+    try {
+      conto = contaCoda(await this.dieteInRevisione());
+    } catch (err) {
+      logger.warn(`Coda approvazioni: non conto: ${err instanceof Error ? err.message : String(err)}`);
+      return { testo: testi.guidaFonteRotta('le code di approvazione'), esito: 'arresa' };
+    }
+    if (conto.totale === 0) return { testo: fraseCodaVuotaApprovazioni(), esito: 'in_corso' };
+    const prima = await this.apriCodaApprovazioni([], 0);
+    return { ...prima, testo: `${fraseApertura(conto)}\n\n${prima.testo}` };
+  }
+
+  /**
+   * SÌ / NO / SALTA / BASTA — e il no non scrive niente.
+   *
+   * ⚠️ La riga si **rilegge** prima di scrivere, come per i cambi concordati: fra la domanda e la
+   * risposta può esserci passata una collega. Se nel frattempo è già a posto lo si dice e si va
+   * avanti, invece di riscrivere sopra il lavoro di un'altra senza dirlo.
+   *
+   * ⚠️ E se la scrittura fallisce **non si avanza dicendo che è fatta**: si dice che non è fatta e
+   * si manda in scheda. Una coda che dice «✓» su una riga non scritta è peggio della coda.
+   */
+  private async rispostaApprovazione(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const saltate = stato.saltate ?? [];
+    const approvate = stato.approvate ?? 0;
+    const nome = stato.approvazioneNome ?? 'questa voce';
+    const tipo = stato.approvazioneTipo!;
+    const chiave = chiaveVoce({ tipo, id: stato.approvazioneId! });
+    const risposta = leggiRispostaApprovazione(frase);
+
+    if (risposta === 'basta') {
+      let restano = 0;
+      try {
+        restano = contaCoda(await this.dieteInRevisione()).totale;
+      } catch {
+        restano = 0;
+      }
+      return { testo: fraseInterrotta(restano), esito: approvate > 0 ? 'scritta' : 'annullata' };
+    }
+
+    if (risposta === 'salta') {
+      const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+      return { ...dopo, testo: `${fraseSaltata(nome)}\n\n${dopo.testo}` };
+    }
+
+    if (risposta === 'no') {
+      /**
+       * ⚠️ Il no NON scrive. Una ricetta non approvata è già spenta, un gruppo non approvato è già
+       * in bozza: il no È lo stato di adesso. Inventare qui una cancellazione o un «rifiutata»
+       * darebbe a questa chat un potere che il pulsante equivalente non ha — e su una riga di
+       * catalogo che sta in tre diete. Si lascia com'è, si dice dove si cambia davvero, e si toglie
+       * dalla fila per questo giro.
+       */
+      const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+      const voce: VoceDaApprovare = { tipo, id: stato.approvazioneId!, nome, dietaId: '', dietaNome: stato.approvazioneDieta ?? '' };
+      return { ...dopo, testo: `${fraseLasciata(voce)}\n\n${dopo.testo}` };
+    }
+
+    if (risposta === null) {
+      const tentativi = (stato.tentativi ?? 0) + 1;
+      if (tentativi >= MAX_TENTATIVI) {
+        return { testo: fraseInterrotta(0), esito: 'annullata' };
+      }
+      return {
+        testo: `Non ho capito. Su **${nome}**: «sì» per approvarla, «no» per lasciarla com'è, «salta» per rivederla dopo, «basta» per fermarci.`,
+        esito: 'non_capito',
+        stato: { ...stato, tentativi },
+      };
+    }
+
+    // ─── il sì: si rilegge, si scrive dalla porta di sempre, e solo dopo si avanza ───
+    if (tipo === 'ricetta') {
+      const ancora = (await this.prisma.recipe
+        .findUnique({ where: { id: stato.approvazioneId! }, select: { active: true, allergensReviewed: true } })
+        .catch(() => null)) as { active: boolean; allergensReviewed: boolean } | null;
+      if (!ancora || ancora.active) {
+        const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+        return { ...dopo, testo: `${fraseSparita(nome)}\n\n${dopo.testo}` };
+      }
+      /**
+       * ⚠️ IL CONTROLLO CHE VALE LA PENA AVERE DUE VOLTE. `costruisciCoda` non propone mai
+       * l'accensione di una ricetta con gli allergeni aperti; qui si ricontrolla comunque, perché
+       * fra la domanda e il «sì» qualcuno potrebbe averli riaperti dalla scheda — e accendere un
+       * piatto non verificato è l'unico errore di questa coda che arriva nel piatto di una cliente.
+       */
+      if (!ancora.allergensReviewed) {
+        const dopo = await this.apriCodaApprovazioni(saltate, approvate);
+        return { ...dopo, testo: `Non la accendo: gli allergeni di **${nome}** sono tornati da confermare.\n\n${dopo.testo}` };
+      }
+      try {
+        await this.ricette.updateRecipe(nutrizionistaId, stato.approvazioneId!, { active: true });
+      } catch (err) {
+        logger.warn(`Approvazione ricetta ${stato.approvazioneId} non scritta: ${err instanceof Error ? err.message : String(err)}`);
+        const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+        return { ...dopo, testo: `${fraseNonScritta(nome)}\n\n${dopo.testo}` };
+      }
+      // ⚠️ La chiave in `saltate` anche dopo un sì riuscito: si avanza perché la riga è stata
+      // guardata, non perché la scrittura ha detto di sì. Vedi il commento in `scriviAllergeni`.
+      const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate + 1);
+      return { ...dopo, testo: `${fraseApprovataRicetta(nome)}\n\n${dopo.testo}`, esito: 'scritta' };
+    }
+
+    const gruppo = (await this.prisma.equivalenceGroup
+      .findUnique({ where: { id: stato.approvazioneId! }, select: { status: true } })
+      .catch(() => null)) as { status: string } | null;
+    if (!gruppo || gruppo.status === 'approved') {
+      const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+      return { ...dopo, testo: `${fraseSparita(nome)}\n\n${dopo.testo}` };
+    }
+    try {
+      await this.combinazioni.approve(nutrizionistaId, stato.approvazioneId!);
+    } catch (err) {
+      logger.warn(`Approvazione gruppo ${stato.approvazioneId} non scritta: ${err instanceof Error ? err.message : String(err)}`);
+      const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate);
+      return { ...dopo, testo: `${fraseNonScritta(nome)}\n\n${dopo.testo}` };
+    }
+    const dopo = await this.apriCodaApprovazioni([...saltate, chiave], approvate + 1);
+    return { ...dopo, testo: `${fraseApprovataCombinazione(nome)}\n\n${dopo.testo}`, esito: 'scritta' };
+  }
+
+  /**
+   * Il conto per il riquadro «quello che aspetta me». `null` = non lo so — che è diverso da zero, e
+   * la pagina lo scrive diverso (stessa regola del pool sotto soglia).
+   */
+  async quanteApprovazioni(): Promise<ContoCoda | null> {
+    try {
+      return contaCoda(await this.dieteInRevisione());
+    } catch (err) {
+      logger.warn(`Coda approvazioni: non la conto per il riquadro: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  /**
+   * L'invito alle approvazioni dentro il quadro della giornata.
+   *
+   * ⚠️ `null` quando non c'è niente **e** quando non riesco a contare: qui il «non lo so» non si
+   * scrive, perché il quadro ha già la sua riga per le fonti rotte (`guidaFonteRotta`) e due modi
+   * di dire la stessa cosa nello stesso riquadro non aiutano nessuno.
+   */
+  private async invitoApprovazioni(): Promise<string | null> {
+    try {
+      return fraseInvitoCoda(contaCoda(await this.dieteInRevisione()));
+    } catch (err) {
+      logger.warn(`Coda approvazioni: non la conto per il quadro: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
   }
 
   // ──────────────────── la giornata dettata a parole (voce 241, lettura B) ──
@@ -2210,6 +2581,14 @@ export class VeraChatService {
     if (daApprovare) righe.push(`${daApprovare} ${daApprovare === 1 ? 'proposta del tuo team' : 'proposte del tuo team'} da approvare`);
     if (domande) righe.push(`${domande} ${domande === 1 ? 'domanda aperta che aspetta' : 'domande aperte che aspettano'} una risposta`);
     if (daVerificare) righe.push(`${daVerificare} ${daVerificare === 1 ? 'sostituzione da verificare' : 'sostituzioni da verificare'}`);
+    /**
+     * LE APPROVAZIONI DEL CATALOGO (18/8). Vanno **dopo** le clienti e prima della campanella: qui
+     * dietro non c'è nessuno che aspetta oggi — c'è un catalogo che non cresce. Ma senza questa riga
+     * la coda esisterebbe solo per chi sa chiedergliela, e una coda che si apre solo a parole magiche
+     * è una coda che nessuno svuota.
+     */
+    const invito = await this.invitoApprovazioni();
+    if (invito) righe.push(invito);
     if (avvisi?.length) {
       const totale = avvisi.reduce((somma, a) => somma + a.quanti, 0);
       const dettaglio = avvisi.slice(0, 4).map((a) => `${a.quanti} su ${etichettaAvviso(a.tipo)}`).join(', ');

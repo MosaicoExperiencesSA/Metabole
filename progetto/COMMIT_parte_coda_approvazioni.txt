@@ -1,0 +1,77 @@
+Le tre code del catalogo passano da Vera, una riga per volta: allergeni, ricette, combinazioni
+
+Simone, 18/8: «se ci sono ricette da approvare, combinazioni da approvare, allergeni da approvare,
+vanno tutti inviati a vera che aiuta il nutrizionista a verificare uno per uno».
+
+IL PROBLEMA
+Le tre code esistevano già — sono i tre contatori della pagina di validazione — ma si svuotavano con
+tre pulsanti che agiscono IN BLOCCO sull'intera dieta: «attiva tutte le ricette», «segna gli
+allergeni verificati», «approva i gruppi». Un pulsante che verifica sessanta piatti in un colpo non
+verifica niente: è una firma in fondo a un foglio che nessuno ha letto. E le ricette da approvare
+adesso arrivano dal generatore automatico, quindi la coda cresce da sola tutte le notti.
+
+COSA FA
+- «approvazioni» (o «cosa c'è da approvare?») apre la coda; Vera dice cosa aspetta e porta la prima
+  riga. Da lì: «sì» / «no» / «salta» / «basta», a ogni riga.
+- Ogni domanda mostra COSA SI STA APPROVANDO: gli ingredienti della ricetta, gli alimenti del
+  gruppo, il pasto e le calorie. ⚠️ Una domanda che dice solo il nome («approvo "Pollo alle erbe"?»)
+  si risponde sì senza guardare: è lo stesso difetto dei pulsanti in blocco, rimpicciolito.
+- Le scritture passano dalle porte che esistono già: `CatalogService.updateRecipe`,
+  `CatalogService.setRecipeAllergens`, `EquivalenceService.approve` — stesso permesso, stesso audit.
+- La pastiglia in cima alla pagina di Vera si CLICCA e apre la coda: quello che una pastiglia
+  annuncia dev'essere raggiungibile cliccandolo, non solo sapendo la parola giusta da scrivere.
+
+⚠️ GLI ALLERGENI VENGONO PRIMA DELL'ACCENSIONE, E MAI INSIEME SULLA STESSA RICETTA
+Se una ricetta ha gli allergeni ancora da guardare, di quella ricetta si chiede SOLO l'allergene: la
+domanda «la accendo?» non compare proprio. Altrimenti un «sì» detto di corsa accende un piatto di
+cui nessuno ha guardato gli allergeni. La domanda sull'accensione ricompare da sola al giro dopo,
+perché la coda si ricostruisce ogni volta dalla banca dati. Il controllo è ripetuto anche al
+momento del sì: fra la domanda e la risposta qualcuno potrebbe averli riaperti dalla scheda.
+
+⚠️ E LA DOMANDA SUGLI ALLERGENI NON È NUOVA: È QUELLA CHE C'ERA GIÀ
+La coda consegna quelle ricette al giro della voce 227 (`chiediAllergeniRicetta`) invece di
+rifarne uno suo. Due dialoghi diversi per la stessa domanda sarebbero due elenchi di allergeni
+diversi, scritti dalla stessa persona nella stessa applicazione. Lo stato porta un marcatore
+(`daCoda`) perché a fine giro si torni in coda: senza, confermare gli allergeni di una ricetta
+faceva ripartire un'altra coda e le altre cinquanta righe sparivano senza che nessuno lo dicesse.
+
+⚠️ «NON LO SO» È UN SALTA, NON UN NO
+Su una coda di verifica il dubbio non è un rifiuto: chi non è sicura deve poter passare oltre senza
+che il suo dubbio diventi una decisione. Tre stati, come sempre qui: sì, no, e «non lo so».
+(E l'ordine dei controlli È la funzione: «non va bene» contiene «va bene», «non lo so» contiene
+«lo so». Il sì si guarda per ultimo.)
+
+⚠️ IL NO NON SCRIVE NIENTE, E LO DICE
+Una ricetta non approvata è già spenta, un gruppo non approvato è già in bozza: il no È lo stato di
+adesso. Inventare qui una cancellazione o un «rifiutata» darebbe a questa chat un potere che il
+pulsante equivalente non ha — e su una riga di catalogo che sta in tre diete. Si lascia com'è e si
+dice dove si cambia davvero (in Ricette, in Equivalenze).
+
+⚠️ SI AVANZA PERCHÉ LA RIGA È STATA GUARDATA, NON PERCHÉ IL DATABASE HA DETTO SÌ
+La chiave della voce finisce fra le «saltate» anche quando la scrittura è riuscita. Sembra
+ridondante — la riga scritta non ricompare nella coda — ma è la sola cosa che garantisce che la coda
+AVANZI: se un giorno una scrittura tornasse senza aver cambiato il campo, avanzare «perché ho
+scritto» rifarebbe la stessa domanda all'infinito.
+
+⚠️ UNA RICETTA SI CHIEDE UNA VOLTA SOLA anche se sta in tre diete: è la stessa riga di catalogo,
+accenderla la accende per tutte, e chiederlo tre volte insegna a rispondere senza leggere. La frase
+lo avverte quando le diete sono più d'una.
+
+⚠️ IL CONTO NON TOGLIE LE SALTATE: quello che si è messo da parte resta lavoro da fare, e un
+contatore che cala perché ho detto «dopo» racconta una bugia riposante. E se il conto non riesce la
+pastiglia scrive «non lo so», che è diverso da zero.
+
+FILE
+- backend/src/vera/coda-approvazioni.ts (+ .spec.ts, 44 test) — modulo puro: la fila, l'ordine,
+  le frasi, la lettura della risposta. Nessun accesso al database.
+- backend/src/vera/scrittura-combinazione.ts — il token per `EquivalenceService.approve`.
+- backend/src/vera/vera-chat.service.ts — `dieteInRevisione`, `apriCodaApprovazioni`,
+  `rispostaApprovazione`, il passo `approvazione`, il ritorno in coda dagli allergeni,
+  l'invito nel quadro della giornata, `quanteApprovazioni` per il riquadro.
+- backend/src/vera/capisci.ts — l'intento `approvazioni` (ancorato all'intera frase: «approva il
+  gruppo dei formaggi» è un'istruzione su una cosa precisa, non una coda da aprire).
+- backend/src/vera/vera-chat.ts — i campi di stato; backend/src/vera/vera.module.ts — EquivalenceModule.
+- backend/src/vera/vera.controller.ts — `catalogo` in `aspetta-me`.
+- backoffice/src/pages/Vera.tsx — la pastiglia cliccabile.
+
+12 test nuovi sul servizio, 44 sul modulo puro. Build verde, 215 suite / 3359 test.
