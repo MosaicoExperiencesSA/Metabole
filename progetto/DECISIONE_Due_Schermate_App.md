@@ -1,6 +1,7 @@
 # I due dati che la cliente non vede — e la scoperta che cambia la domanda
 
-**Scritto la sera del 18/8/2026, prima del codice.** Chiude la parte di analisi della voce 253 («App:
+**Scritto la sera del 18/8/2026, prima del codice — e riletto un'ora dopo, che è il motivo per cui
+il §2 adesso dice «quattro» dove diceva «due».** Chiude la parte di analisi della voce 253 («App:
 restano DUE dati che il server manda e nessuna schermata mostra»). Tutto quello che c'è qui è
 **verificato nel codice**, non ricordato: dove serve c'è il nome del file e della funzione.
 
@@ -46,10 +47,12 @@ Torna: `cycleStart`/`cycleEnd`, lo `state` del ciclo, le **due cotture** (`cooki
 ⚠️ **Due cose da sapere prima di disegnarci sopra:**
 
 1. **È un GET che SCRIVE.** `getActiveCycle` fa `clientCycle.update` o `.create` a ogni chiamata
-   (`cycle.service.ts:77-81`). Oggi lo chiama solo lo staff, quindi succede di rado; se lo chiama
-   l'app, quella riga si riscrive **a ogni apertura**. La scrittura è idempotente sul ciclo corrente,
-   quindi non sporca i dati — ma va detto, perché una schermata che scrive quando la guardi è una
-   cosa che si scopre sempre nel momento sbagliato.
+   (`cycle.service.ts:77-81`). ⚠️ E la prima versione di questo foglio scriveva «oggi lo chiama solo lo staff, quindi
+   succede di rado»: **non è vero, oggi non lo chiama nessuno** — né `me/cycle` né
+   `clients/:id/cycle` compaiono in `app/src` o `backoffice/src`. Quella scrittura oggi ha
+   frequenza **zero**; se lo chiama l'app diventa **a ogni apertura**. La scrittura è idempotente
+   sul ciclo corrente, quindi non sporca i dati — ma va detto, perché una schermata che scrive
+   quando la guardi è una cosa che si scopre sempre nel momento sbagliato.
 2. ⚠️ **`gradimento` non è il gradimento.** È il **minimo**, fra le ricette del ciclo, del massimo
    delle stelle che ognuna ha preso — con **default 5 quando una ricetta non è mai stata valutata**
    (`menuGradimento`, `cycle_default_rating`). Serve al motore per capire se il ciclo ha un piatto
@@ -77,13 +80,30 @@ Quindi oggi:
 
 - la cliente vede una percentuale che **balla con l'acqua**: due etti di ritenzione e la barra torna
   indietro, in una giornata in cui non è successo niente;
-- il motore e la coach vedono un'altra percentuale, più stabile, **sulla stessa cliente**;
+- il motore e l'allarme di stallo della coach vedono un'altra percentuale, più stabile, **sulla
+  stessa cliente**;
 - e nessuno dei due sa dell'altro.
 
-⚠️ **Non è una schermata mancante: sono due risposte alla stessa domanda**, che è la cosa che questo
-progetto ha deciso di non fare più (17/8: se due punti rispondono alla stessa domanda, uno dei due
-deve chiamare l'altro). Il lavoro vero, qui, è **togliere il conto locale**, non aggiungere una
+⚠️ **Non è una schermata mancante: sono risposte diverse alla stessa domanda**, che è la cosa che
+questo progetto ha deciso di non fare più (17/8: se due punti rispondono alla stessa domanda, uno dei
+due deve chiamare l'altro). Il lavoro vero, qui, è **togliere il conto locale**, non aggiungere una
 pagina.
+
+### ⚠️ E la prima versione di questo foglio diceva «due»: sono QUATTRO
+
+Rileggendo un'ora dopo ne sono saltate fuori altre due, tutte e due sull'**ultima misura**:
+
+| dove | come | chi lo legge |
+|---|---|---|
+| `app/src/pages/Obiettivo.tsx:465-474` | ultima misura | la cliente, in «I tuoi obiettivi» |
+| `backend/src/signals/progress.service.ts:171` | **media mobile** | il motore, l'allarme di stallo |
+| `backend/src/signals/signals.service.ts:685-692` (`widget`) | ultima misura | la cliente, dal widget |
+| `backend/src/coach/coach.service.ts:177-180` (elenco clienti) | ultima misura | **la coach** |
+
+Due conseguenze, e cambiano la decisione n.1: **togliere il conto locale da `Obiettivo.tsx` non
+basta** — resterebbero tre numeri invece di due; e «la coach vede un numero più stabile» è vero per
+l'**allarme di stallo**, ma **falso** per quello che legge nella sua lista clienti. Se si passa alla
+media mobile, si passa in tutti e quattro i posti.
 
 ---
 

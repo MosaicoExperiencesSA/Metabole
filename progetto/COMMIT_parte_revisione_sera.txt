@@ -1,0 +1,76 @@
+La revisione della sera: sette correzioni sul lavoro appena consegnato
+
+Prima di chiudere ho fatto rileggere le sei consegne della sera (da `1274252` a `cdf482e`) da due
+revisori avversariali, come il 17/8. Hanno trovato roba vera su codice già pushato, verde e testato:
+i test difendono quello a cui si è pensato.
+
+1. ⚠️ L'ATTIVITÀ «FISSA LA VISITA» SENZA COACH ASSEGNATA NON LA RICEVEVA NESSUNO
+   `avvisaAttivitaNuova` non manda la push se la coach non c'è, e l'elenco delle attività è filtrato
+   per cliente assegnata: restava visibile solo a chi vede tutto. E capita proprio all'inizio del
+   percorso — finché l'assegnazione è in attesa, `assignedCoachId` è null — cioè quando il via
+   libera clinico si decide. Intanto il backoffice diceva «Ho aperto un'attività alla coach».
+   Adesso lo dice: nel testo dell'attività e nel banner della scheda («⚠️ questa cliente NON ha una
+   coach assegnata: nessuna coach la riceve»).
+
+2. ⚠️ `refId` = ID DELLA NOTA NON POTEVA COLLIDERE MAI
+   Il commento prometteva «due salvataggi della stessa valutazione non devono farne due», ma
+   `decidiIdoneita` crea una nota NUOVA a ogni salvataggio: la chiave di unicità non scattava, e
+   risalvare apriva una seconda attività con una seconda push. Adesso `refId` è il GIORNO della
+   decisione (nel fuso aziendale): due salvataggi dello stesso giorno sono la stessa cosa, una
+   valutazione nuova domani apre la sua.
+
+3. ⚠️ ORDINE MENU: LA PRIMA VOCE DI UN GRUPPO SCAVALCAVA IL TITOLO
+   La risalita saltava i marcatori, quindi una voce nascosta che era la prima del suo gruppo finiva
+   in coda al gruppo PRECEDENTE — e se quel gruppo aveva solo voci nascoste, spariva. Adesso la
+   risalita si ferma al titolo; se il gruppo non c'è più si continua a risalire, perché «vicino a
+   dov'era» resta meglio che «in fondo a tutto».
+
+4. ⚠️ LISTA DELLA SPESA: LA SOMMA DIPENDEVA DALL'ORDINE DEI GIORNI
+   Il commento diceva «se una delle righe non ha quantità la somma resta quella delle altre»; il
+   codice lo faceva solo se il `null` arrivava per secondo. «q.b. di farro il lunedì» cancellava i
+   100 g del martedì. Ora `null + 100 = 100` da qualunque parte arrivi.
+
+5. ⚠️ IL TERZO STATO DELLA SCHEDA RICETTA NON COMPARIVA DALLA HOME
+   Aprendo la ricetta dal pulsante della home il fattore non viaggiava, quindi se il server non
+   riusciva a scalare la cliente vedeva le grammature di catalogo SENZA l'avviso «pesa ×1,8». Il
+   numero però ce l'avevamo già in casa: sta nei giorni caricati.
+
+6. LA SOGLIA 1,05 ERA IN TRE POSTI, NON IN DUE
+   Il backoffice aveva il numero scritto a mano dentro `ClientDetail.tsx`, fuori da ogni test.
+   Adesso è una costante con il suo test, come negli altri due.
+
+7. UN `if` MORTO in `stessaLista` (non poteva cambiare l'esito): tolto. Una riga che non decide
+   niente fa credere che ci sia un caso in più.
+
+E QUATTRO REGOLE CHE NESSUN TEST DIFENDEVA (verificate per mutazione dal revisore, ora coperte):
+il ramo «fattore senza `kcalBase`» in `aPorzioneDiCatalogo`; l'ancora dell'ordine menu; `apriAttivita`,
+che non aveva NESSUN test pur essendo il punto unico da cui parte anche la push; e i due casi nuovi
+qui sopra.
+
+DOCUMENTI CORRETTI, perché dicevano cose che il codice smentisce
+- `DECISIONE_Due_Schermate_App.md`: la percentuale verso l'obiettivo non ha DUE risposte ma QUATTRO —
+  oltre a `Obiettivo.tsx` e `progress.service`, la calcolano sull'ultima misura anche il **widget**
+  (`signals.service.widget`) e **l'elenco clienti della coach** (`coach.service`). Cambia la
+  decisione n.1: togliere il conto locale dall'app non basta. E «`/me/cycle` lo chiama solo lo
+  staff» era falso: non lo chiama nessuno.
+- `progress.service.ts`: il docstring diceva che «l'app della cliente» legge `/me/progress`. Non è
+  vero, e ⚠️ è il motivo per cui la cosa era rimasta invisibile: chi passava di lì leggeva che l'app
+  c'era già.
+- `HANDOFF_2026-08-18.md`: la tabella dei numeri era ferma a prima della serata.
+- La voce dell'ordine menu citava `progetto/DIFETTI_Ordine_Menu.md`, che **non esiste**.
+
+⛔ E UNA VOCE NUOVA, che è il rilievo più grosso e NON l'ho chiuso stanotte (voce 284): le
+sostituzioni di Gaia restano alle grammature di catalogo e non entrano nella lista della spesa.
+`ingredientiEffettivi` esiste già e non la chiama nessuno dei due punti. Va fatto con la testa
+fresca: tocca tre posti che devono restare d'accordo, e c'è da decidere se il fattore si applica
+anche alla quantità del sostituto.
+
+FILE
+- backend: `clients/visita-da-fissare.ts` · `clients/clients.service.ts` · `menu/lista-della-spesa.ts`
+  · `signals/progress.service.ts` · `coach-tasks/apri-attivita.spec.ts` (nuovo) + tre spec
+- backoffice: `lib/menuOrder.ts` · `lib/porzione.ts` (nuovo, + spec) · `pages/ClientDetail.tsx`
+- app: `pages/Menu.tsx`
+- `backend/src/lavori/voci-iniziali.ts` (voce 284 nuova, due voci corrette)
+- `progetto/DECISIONE_Due_Schermate_App.md` · `progetto/HANDOFF_2026-08-18.md`
+
+224 suite / 3516 test verdi · app 103 · backoffice 25. Nessuna migrazione.

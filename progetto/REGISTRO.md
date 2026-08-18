@@ -20,6 +20,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔍 **La revisione della sera: sette correzioni sul lavoro appena consegnato.** Prima
+  di chiudere ho fatto rileggere le sei consegne della sera da due revisori avversariali, come il
+  17/8 — e come il 17/8 hanno trovato roba vera su codice **già pushato, verde e testato**. ⚠️ **La
+  più grave: l'attività «fissa la visita» a una cliente senza coach assegnata non la riceveva
+  nessuno** (niente push, e l'elenco è filtrato per cliente assegnata), mentre il backoffice diceva
+  «Ho aperto un'attività alla coach» — e capita proprio all'inizio del percorso, che è quando il via
+  libera clinico si decide. Ora si dice, nell'attività e nella scheda. ⚠️ **E `refId` = id della nota
+  non poteva collidere mai**: `decidiIdoneita` crea una nota nuova a ogni salvataggio, quindi
+  risalvare la stessa valutazione apriva una seconda attività con una seconda push — il contrario di
+  quello che il commento prometteva. Adesso è il **giorno** della decisione. Poi: ⚠️ nell'ordine menu
+  la prima voce di un gruppo **scavalcava il titolo** e finiva in coda al gruppo precedente (e un
+  gruppo di sole voci nascoste spariva); ⚠️ nella lista della spesa la somma **dipendeva
+  dall'ordine** dei giorni («q.b. di farro il lunedì» cancellava i 100 g del martedì), mentre il
+  commento prometteva il contrario; ⚠️ il **terzo stato** della scheda ricetta non compariva aprendo
+  il piatto dalla home; la soglia 1,05 era in **tre** posti e non in due, e il terzo era scritto a
+  mano fuori da ogni test; e un `if` morto in `stessaLista`. ⚠️ **Quattro regole non erano difese da
+  nessun test** — verificate per mutazione dal revisore, ora coperte: fra queste `apriAttivita`, che
+  non aveva **nessun** test pur essendo il punto unico da cui parte anche la push. **E i documenti
+  dicevano cose che il codice smentisce**: la percentuale verso l'obiettivo non ha due risposte ma
+  **quattro** (ci sono anche il widget e l'elenco clienti della coach, tutti e due sull'ultima
+  misura — cambia la decisione n.1 del foglio), «`/me/cycle` lo chiama solo lo staff» era falso (non
+  lo chiama nessuno), il docstring di `progress.service` diceva che l'app legge `/me/progress` — ed è
+  **il motivo per cui la cosa era rimasta invisibile** — e una voce citava un foglio che non esiste.
+  ⛔ Il rilievo più grosso **non è chiuso** ed è la voce 284: le sostituzioni di Gaia restano alle
+  grammature di catalogo e non entrano nella lista della spesa, mentre `ingredientiEffettivi` esiste
+  già e non la chiama nessuno dei due punti. 224 suite, 3516 verdi; app 103, backoffice 25. Nessuna
+  migrazione.
+
 - `[Sviluppo]` 🔭 **I due dati che la cliente non vede: l'analisi, e la scoperta che cambia la
   domanda** (voce 253, parte di analisi chiusa). Nessun codice di prodotto: un foglio,
   `progetto/DECISIONE_Due_Schermate_App.md`, da leggere prima di scrivere. ⚠️ **Il primo dei due non

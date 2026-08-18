@@ -23,7 +23,7 @@ import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
 import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
-import { toDateOnly } from '../common/date-only';
+import { giornoLocale, toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 // Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
 import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
@@ -622,9 +622,12 @@ export class ClientsService {
      * sarebbe una decisione clinica che non si salva. Ma l'errore si scrive.
      */
     let attivitaAperta = false;
+    let attivitaSenzaCoach = false;
     if (decisione.esito === 'serve_visita') {
       try {
-        attivitaAperta = await this.apriLaVisitaDaFissare(userId, nota.id);
+        const esito = await this.apriLaVisitaDaFissare(userId);
+        attivitaAperta = esito.aperta;
+        attivitaSenzaCoach = esito.senzaCoach;
       } catch (e) {
         this.logger.error(
           `Via libera clinico: decisione salvata per ${userId}, ma l'attività «fissa la visita» non è ` +
@@ -638,7 +641,7 @@ export class ClientsService {
       actorId,
       entityType: 'user',
       entityId: userId,
-      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta },
+      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta, attivitaSenzaCoach },
     });
 
     return {
@@ -647,6 +650,7 @@ export class ClientsService {
       decisaDa: staff?.id ?? null,
       segnalazioniChiuse: chiuse.count,
       attivitaAperta,
+      attivitaSenzaCoach,
       nota: { id: nota.id, body: nota.body, createdAt: nota.createdAt, author: nota.author?.displayName ?? null },
     };
   }
@@ -660,13 +664,28 @@ export class ClientsService {
    * telefono. ⚠️ E se non si riesce a contarlo si passa `null`, non zero: il testo distingue «non ne
    * ha» da «non lo so», perché mandano la coach a dire due cose diverse.
    */
-  private async apriLaVisitaDaFissare(clientId: string, notaId: string): Promise<boolean> {
+  private async apriLaVisitaDaFissare(clientId: string): Promise<{ aperta: boolean; senzaCoach: boolean }> {
     const cliente = (await this.prisma.user.findUnique({
       where: { id: clientId },
       // ⚠️ Solo il nome di battesimo: è la regola scritta oggi con la bonifica delle email — nei
       // testi si scrive il nome o l'id interno, mai di più del necessario.
-      select: { firstName: true, clientProfile: { select: { assignedNutritionist: { select: { displayName: true } } } } },
-    })) as { firstName: string | null; clientProfile: { assignedNutritionist: { displayName: string } | null } | null } | null;
+      select: {
+        firstName: true,
+        clientProfile: {
+          select: {
+            assignedNutritionist: { select: { displayName: true } },
+            // ⚠️ Serve a sapere se l'attività arriva a qualcuno: vedi `visita-da-fissare.ts`.
+            assignedCoach: { select: { displayName: true } },
+          },
+        },
+      },
+    })) as {
+      firstName: string | null;
+      clientProfile: {
+        assignedNutritionist: { displayName: string } | null;
+        assignedCoach: { displayName: string } | null;
+      } | null;
+    } | null;
 
     let disponibili: number | null = null;
     try {
@@ -675,18 +694,31 @@ export class ClientsService {
       this.logger.warn(`Credito visite non calcolabile per ${clientId}: l'attività lo dirà. ${(e as Error).message}`);
     }
 
+    const coach = cliente?.clientProfile?.assignedCoach?.displayName ?? null;
     const { title, description } = testoVisitaDaFissare({
       nome: cliente?.firstName,
       nutrizionista: cliente?.clientProfile?.assignedNutritionist?.displayName,
       visiteDisponibili: disponibili,
+      coach,
     });
-    return this.coachTasks.apriAttivita({
+    /**
+     * ⚠️ `refId` È IL GIORNO DELLA DECISIONE, non l'id della nota — corretto rileggendo, la sera
+     * stessa. Con l'id della nota **non poteva collidere mai**: `decidiIdoneita` crea una nota nuova
+     * a ogni salvataggio, quindi risalvare la stessa valutazione (una correzione, un doppio invio,
+     * la rete lenta) apriva una seconda attività identica e mandava una seconda push — il contrario
+     * di quello che il commento prometteva. Col giorno, due salvataggi dello stesso giorno sono la
+     * stessa cosa; una valutazione nuova domani è un fatto nuovo e apre la sua.
+     * ⚠️ Il giorno si legge nel fuso aziendale (`giornoLocale`), non in UTC: fra mezzanotte e le due
+     * il giorno UTC è ancora ieri.
+     */
+    const aperta = await this.coachTasks.apriAttivita({
       clientId,
       kind: TIPO_VISITA_DA_FISSARE,
-      refId: notaId,
+      refId: `serve_visita:${giornoLocale(new Date())}`,
       title,
       description,
     });
+    return { aperta, senzaCoach: !coach };
   }
 
   async deleteNote(userId: string, noteId: string, actorId: string) {

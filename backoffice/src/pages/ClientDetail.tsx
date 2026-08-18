@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner } from '../components/ui';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
+import { PORZIONE_DA_DIRE } from '../lib/porzione';
 import { useTaxonomy } from '../lib/taxonomy';
 
 interface Detail {
@@ -699,7 +700,7 @@ export function ClientDetail() {
     setError(null);
     setNotice(null);
     try {
-      const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean }>(`/admin/clients/${id}/idoneita`, {
+      const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean; attivitaSenzaCoach?: boolean }>(`/admin/clients/${id}/idoneita`, {
         method: 'POST',
         body: JSON.stringify({ esito, nota: nota.trim() }),
       });
@@ -716,7 +717,12 @@ export function ClientDetail() {
         esito !== 'serve_visita'
           ? ''
           : esitoRisposta.attivitaAperta
-            ? ' Ho aperto un\'attività alla coach: «Fissa la visita».'
+            ? esitoRisposta.attivitaSenzaCoach
+              /* ⚠️ L'attività c'è ma non ha un destinatario: senza coach assegnata non parte nessuna
+                 push e in elenco la vedono solo responsabile e admin. Dire «fatto» qui sarebbe la
+                 conferma di una cosa che non è successa. */
+              ? ' Ho aperto l\'attività, ma ⚠️ questa cliente NON ha una coach assegnata: nessuna coach la riceve. Assegnale una coach.'
+              : ' Ho aperto un\'attività alla coach: «Fissa la visita».'
             : ' ⚠️ L\'attività alla coach NON risulta aperta: avvisala tu.';
       setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}${attivita}`);
       /**
@@ -2142,7 +2148,7 @@ export function ClientDetail() {
                           {/* ⚠️ Senza questa pastiglia la nutrizionista legge un pranzo da 891 kcal
                               e non ha modo di sapere che è una porzione scalata sul fabbisogno e
                               non un errore del catalogo (voce 255). */}
-                          {meal.porzione != null && meal.porzione > 1.05 && (
+                          {meal.porzione != null && meal.porzione > PORZIONE_DA_DIRE && (
                             <span
                               title={meal.kcalBase != null ? `Porzione di catalogo: ${meal.kcalBase} kcal` : 'Porzione scalata sul fabbisogno'}
                               style={{ fontSize: 10.5, color: '#8E6BB5', border: '1px solid #E2D6F0', borderRadius: 8, padding: '0 5px' }}

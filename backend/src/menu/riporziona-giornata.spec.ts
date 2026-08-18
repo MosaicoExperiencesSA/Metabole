@@ -30,6 +30,19 @@ describe('aPorzioneDiCatalogo — si torna alla base prima di riscalare', () => 
     expect('kcalBase' in primo).toBe(false);
   });
 
+  /**
+   * ⚠️ IL RAMO CHE NESSUN TEST DIFENDEVA (trovato dalla revisione, la sera stessa): un pasto con il
+   * fattore addosso ma **senza** `kcalBase` — succede se qualcosa ha riscritto il pasto perdendo
+   * l'origine. Le kcal non si possono riportare indietro, ma il fattore va tolto lo stesso: se
+   * restasse, la giornata verrebbe riscalata **sopra** una scalatura già fatta.
+   */
+  it('⚠️ il pasto col fattore ma senza kcalBase perde il fattore', () => {
+    const strano = [{ slot: 'lunch', recipeId: 'r', name: 'x', kcal: 891, porzione: 1.8 }];
+    const [uno] = aPorzioneDiCatalogo(strano);
+    expect(uno.kcal).toBe(891);
+    expect('porzione' in uno).toBe(false);
+  });
+
   it('la giornata mai scalata resta identica', () => {
     expect(aPorzioneDiCatalogo(mai)).toEqual(mai);
   });

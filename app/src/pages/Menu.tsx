@@ -190,7 +190,21 @@ export default function Menu() {
     if (el) el.scrollTo({ left: 0 });
   }
 
-  if (recipe) return <Recipe recipeId={recipe.recipeId} date={recipe.date} slot={recipe.slot} porzione={recipe.porzione} tag={recipe.tag} onBack={() => setRecipe(null)} />;
+  /**
+   * ⚠️ LA PORZIONE DEL PASTO SERVE ANCHE QUANDO LA RICETTA SI APRE DA FUORI (dalla home, con
+   * `?ricetta=&giorno=&slot=`). Lì `porzione` non viaggia nell'indirizzo — ed è giusto che non
+   * viaggi, il fattore non lo decide il telefono — ma senza, la scheda perde il suo **terzo stato**:
+   * quello in cui il server non è riuscito a scalare e bisogna dire «queste sono di catalogo, pesa
+   * ×1,8». Il numero però ce l'abbiamo già in casa: sta nei giorni appena caricati. Trovato
+   * rileggendo la sera del 18/8.
+   */
+  const porzioneDalMenu =
+    recipe?.porzione ??
+    (days ?? [])
+      .find((d) => d.date.slice(0, 10) === recipe?.date)
+      ?.meals.find((m) => m.recipeId === recipe?.recipeId && (!recipe?.slot || m.slot === recipe.slot))?.porzione;
+
+  if (recipe) return <Recipe recipeId={recipe.recipeId} date={recipe.date} slot={recipe.slot} porzione={porzioneDalMenu} tag={recipe.tag} onBack={() => setRecipe(null)} />;
   if (days === null) return <div className="center"><div className="spin" /></div>;
 
   const todayMs = startOfDay(new Date()).getTime();

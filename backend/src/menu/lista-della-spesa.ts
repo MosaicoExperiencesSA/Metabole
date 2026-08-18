@@ -53,6 +53,11 @@ const chiave = (name: string, unit?: string | null): string => `${name.trim().to
  * non diventa uno zero, e ⚠️ se **una** delle righe che si sommano non ha quantità la somma resta
  * quella delle altre: dire «120 g» quando un pezzo non si sa quanto pesa è meglio che dire `null`,
  * che nella lista si legge come «non serve pesarlo».
+ *
+ * ⚠️ **E vale in tutti e due gli ordini.** Fino alla revisione del 18/8 sera la regola qui sopra era
+ * scritta nel commento e realizzata a metà: se la riga senza quantità arrivava **per prima**, la
+ * somma nasceva `null` e da lì non si muoveva più — quindi «q.b. di farro il lunedì» cancellava i
+ * 100 g del martedì. L'ordine dei giorni non deve decidere cosa compare nella lista della spesa.
  */
 export function aggregaSpesa(
   giorni: { meals: unknown }[],
@@ -70,7 +75,9 @@ export function aggregaSpesa(
         const qta = quantitaScalata(ing.qty, fattore, ing.unit);
         const gia = somma.get(k);
         if (gia) {
-          if (gia.qty !== null && qta !== null) gia.qty = Math.round((gia.qty + qta) * 10) / 10;
+          // Le quantità note si sommano; quelle che non ci sono si saltano — da qualunque parte
+          // arrivino. `null + 100` non è `null`, è `100`.
+          if (qta !== null) gia.qty = gia.qty === null ? qta : Math.round((gia.qty + qta) * 10) / 10;
         } else {
           somma.set(k, { name: ing.name, qty: qta, unit: ing.unit ?? null, checked: false });
         }
@@ -108,6 +115,10 @@ export function conservaSpuntati(calcolate: VoceSpesa[], vecchie: unknown): Voce
  *
  * ⚠️ Confronto per **contenuto e non per ordine**: l'ordine delle voci dipende da quello dei pasti,
  * e un giorno rigenerato con gli stessi piatti in ordine diverso non è una lista diversa.
+ *
+ * (C'era anche un `perChiave.size !== a.length`: era codice morto — le chiavi di `a` sono distinte
+ * per costruzione, quindi se una manca l'`every` qui sotto torna già `false`. Tolto nella revisione
+ * del 18/8 sera: una riga che non può cambiare l'esito fa credere che ci sia un caso in più.)
  */
 export function stessaLista(a: VoceSpesa[], b: unknown): boolean {
   if (!Array.isArray(b) || a.length !== b.length) return false;
@@ -116,7 +127,6 @@ export function stessaLista(a: VoceSpesa[], b: unknown): boolean {
       .filter((v) => v?.name)
       .map((v) => [chiave(v.name as string, v.unit), v]),
   );
-  if (perChiave.size !== a.length) return false;
   return a.every((v) => {
     const altra = perChiave.get(chiave(v.name, v.unit));
     return !!altra && (altra.qty ?? null) === v.qty && !!altra.checked === v.checked;

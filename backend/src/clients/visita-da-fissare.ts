@@ -47,9 +47,20 @@ export function testoVisitaDaFissare(p: {
   nome?: string | null;
   nutrizionista?: string | null;
   visiteDisponibili?: number | null;
+  /** ⚠️ Chi riceve l'attività. Assente = **nessuno la riceve**, e va detto. */
+  coach?: string | null;
 }): { title: string; description: string } {
   const chi = (p.nome ?? '').trim() || 'la cliente';
   const conChi = (p.nutrizionista ?? '').trim();
+  /**
+   * ⚠️ SENZA COACH ASSEGNATA L'ATTIVITÀ NON LA RICEVE NESSUNO — trovato rileggendo, la sera stessa.
+   * `avvisaAttivitaNuova` non manda la push se la coach non c'è, e l'elenco delle attività è filtrato
+   * per cliente assegnata: resta visibile solo a chi vede tutto (responsabile, admin). E capita
+   * proprio all'inizio del percorso, che è quando il via libera clinico si decide: finché
+   * l'assegnazione è in attesa, `assignedCoachId` è `null` (`commerce/crm.service.ts`).
+   * Dirlo è l'unica cosa onesta: l'alternativa era un'attività che sembra partita e non è partita.
+   */
+  const senzaCoach = !(p.coach ?? '').trim();
 
   // ⚠️ Tre stati, e il terzo è «non lo so»: se il conto delle visite non si è potuto fare, non si
   // scrive né «ne ha» né «non ne ha». Un numero inventato qui manda la coach a dire la cosa
@@ -68,6 +79,9 @@ export function testoVisitaDaFissare(p: {
       'Il motivo è nella sua nota, in cima alla lista note della scheda: leggila prima di chiamarla. ' +
       `${credito}` +
       (conChi ? ` La sua nutrizionista è ${conChi}.` : ' ⚠️ Non ha una nutrizionista assegnata: senza, non ci sono orari da scegliere.') +
+      (senzaCoach
+        ? ' ⚠️ E non ha una COACH assegnata: questa attività non arriva a nessuna coach e nessuna push è partita — assegnale una coach, o resta qui a aspettare.'
+        : '') +
       ' Quando la visita è fissata, segna l\'attività fatta.',
   };
 }

@@ -913,7 +913,7 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'ordine-menu-difetti-minori',
     titolo: 'Ordine del menu: resta solo il difetto 6, le righe morte nelle preferenze',
     dettaglio:
-      'Il difetto **6** del foglio `progetto/DIFETTI_Ordine_Menu.md`, l\'ultimo dei sette. ✅ **Il 7 è chiuso la sera del 18/8**: `conNascosteAlLoroPosto` rimette le voci che questa persona non vede **dove le aveva messe**, invece che in fondo all\'ultimo gruppo — prima venivano tenute (giusto) ma spostate (sbagliato), quindi il giorno che il permesso arrivava la pagina ricompariva in coda al menu e nessuno collegava le due cose. ⚠️ Si lavora sulla **lista salvata** e non sulla vista, perché la vista le voci nascoste non le contiene nemmeno; l\'ancora è preferibilmente una **rotta** e non un titolo, perché due gruppi possono chiamarsi uguale e un\'ancora ambigua rimetterebbe la voce nel gruppo sbagliato; se prima di lei non c\'è nessuna rotta sopravvissuta ci si aggancia al titolo, e se non c\'è nemmeno quello la riga torna in cima. 8 test (22 in tutto nel file). **Resta il 6:** una voce **tolta dal software** resta nelle preferenze di chi l\'aveva ordinata — in lettura viene saltata, ma la riga consuma una delle 80 disponibili finché la persona non risalva. Si chiuderebbe riscrivendo indietro l\'ordine ripulito in lettura, ⚠️ ma è **una scrittura che nessuno ha chiesto**: non ne vale la pena finché il tetto degli 80 non dà fastidio, ed è la stessa ragione per cui era stato lasciato aperto.',
+      'Il difetto **6**, l\'ultimo dei sette. ⚠️ La numerazione viene dalla rilettura del 18/8 mattina ed è raccontata nella voce del `REGISTRO.md` di quel giorno: il foglio `progetto/DIFETTI_Ordine_Menu.md` che alcuni testi citavano **non esiste nel repository** (corretto la sera stessa, rileggendo). ✅ **Il 7 è chiuso la sera del 18/8**: `conNascosteAlLoroPosto` rimette le voci che questa persona non vede **dove le aveva messe**, invece che in fondo all\'ultimo gruppo — prima venivano tenute (giusto) ma spostate (sbagliato), quindi il giorno che il permesso arrivava la pagina ricompariva in coda al menu e nessuno collegava le due cose. ⚠️ Si lavora sulla **lista salvata** e non sulla vista, perché la vista le voci nascoste non le contiene nemmeno; l\'ancora è preferibilmente una **rotta** e non un titolo, perché due gruppi possono chiamarsi uguale e un\'ancora ambigua rimetterebbe la voce nel gruppo sbagliato; se prima di lei non c\'è nessuna rotta sopravvissuta ci si aggancia al titolo, e se non c\'è nemmeno quello la riga torna in cima. 8 test (22 in tutto nel file). **Resta il 6:** una voce **tolta dal software** resta nelle preferenze di chi l\'aveva ordinata — in lettura viene saltata, ma la riga consuma una delle 80 disponibili finché la persona non risalva. Si chiuderebbe riscrivendo indietro l\'ordine ripulito in lettura, ⚠️ ma è **una scrittura che nessuno ha chiesto**: non ne vale la pena finché il tetto degli 80 non dà fastidio, ed è la stessa ragione per cui era stato lasciato aperto.',
     categoria: CODICE,
     ordine: 268,
   },
@@ -975,6 +975,15 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 283,
     fatta: true, // 18/8
+  },
+
+  {
+    chiave: 'sostituzioni-non-scalate',
+    titolo: 'Le sostituzioni di Gaia restano alle grammature di catalogo (e non entrano nella lista della spesa)',
+    dettaglio:
+      'Trovato dalla revisione della sera del 18/8, ed è un difetto **precedente** alle consegne di ieri sera: sono loro che lo hanno reso visibile. ⚠️ **Il numero della sostituzione non è scalato.** `sostituzione-chat.service.ts` scrive `fromQty`/`toQty` prendendoli dagli ingredienti **di catalogo** e non moltiplica per `porzione`: su un pranzo scalato ×1,8 la scheda del menu adesso dice «nella ricetta trovi già le tue quantità», la scheda ricetta elenca «carote 180 g» e la riga della sostituzione, due righe sopra, dice «100 g carote → 100 g biete». Chi cucina mette 100 g di biete invece di 180. ⚠️ **E la lista della spesa non le applica affatto**: `aggregaSpesa` legge gli ingredienti per `recipeId` e ignora `pasto.substitutions`, quindi le fa comprare le carote (per giunta scalate) e zero biete. ⚠️ La funzione giusta **esiste già** ed è a due file di distanza: `ingredientiEffettivi(ingredientiRicetta, pasto)` in `menu/sostituzione-chat.service.ts`, che applica le sostituzioni con `toQty`/`unitA` — non la chiamano né `ingredientiScalati` (scheda ricetta) né `aggregaSpesa` (lista della spesa). ⛔ Da fare con la testa fresca, perché tocca tre punti che devono restare d\'accordo (scheda ricetta, lista della spesa, riga della sostituzione nel menu) e va deciso se il fattore si applica **anche** alla quantità del sostituto — il che vuol dire scalare un numero che oggi viene scritto una volta sola, al momento dell\'accordo in chat, e che dopo non si aggiorna se il fabbisogno cambia.',
+    categoria: CODICE,
+    ordine: 284,
   },
 
   /**

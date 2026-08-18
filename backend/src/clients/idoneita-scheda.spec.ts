@@ -166,9 +166,55 @@ describe('la nutrizionista dice «serve una visita»', () => {
     const { service, coachTasks } = await crea();
     const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
     expect(coachTasks.apriAttivita).toHaveBeenCalledWith(
-      expect.objectContaining({ clientId: 'cli-1', kind: TIPO_VISITA_DA_FISSARE, refId: 'nota-1' }),
+      expect.objectContaining({ clientId: 'cli-1', kind: TIPO_VISITA_DA_FISSARE }),
     );
     expect(esito.attivitaAperta).toBe(true);
+  });
+
+  /**
+   * ⚠️ `refId` È IL GIORNO, non l'id della nota — corretto rileggendo la sera stessa. Con l'id della
+   * nota non poteva collidere mai (`decidiIdoneita` crea una nota nuova a ogni salvataggio), quindi
+   * risalvare la stessa valutazione apriva una seconda attività e mandava una seconda push: il
+   * contrario di quello che il commento prometteva.
+   */
+  it('⚠️ due salvataggi nello stesso giorno hanno lo STESSO riferimento', async () => {
+    const { service, coachTasks } = await crea();
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const [primo, secondo] = coachTasks.apriAttivita.mock.calls.map((c: any) => c[0].refId);
+    expect(primo).toBe(secondo);
+    expect(primo).toMatch(/^serve_visita:\d{4}-\d{2}-\d{2}$/);
+  });
+
+  /**
+   * ⚠️ Senza coach assegnata l'attività non la riceve nessuno: la nutrizionista che ha appena deciso
+   * deve saperlo, o crede di aver passato la palla a qualcuno.
+   */
+  it('⚠️ senza coach assegnata lo dice a chi ha deciso', async () => {
+    const { service, prisma } = await crea();
+    prisma.user.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.id === 'cli-1'
+          ? { id: 'cli-1', role: 'client', firstName: 'Sonia', clientProfile: { assignedNutritionist: { displayName: 'Dr.ssa Bini' }, assignedCoach: null } }
+          : { id: where?.id, role: 'nutritionist' },
+      ),
+    );
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    expect(esito.attivitaSenzaCoach).toBe(true);
+  });
+
+  it('e con la coach assegnata non dice niente, perché non c\'è niente da dire', async () => {
+    const { service, prisma, coachTasks } = await crea();
+    prisma.user.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.id === 'cli-1'
+          ? { id: 'cli-1', role: 'client', firstName: 'Sonia', clientProfile: { assignedNutritionist: { displayName: 'Dr.ssa Bini' }, assignedCoach: { displayName: 'Marta' } } }
+          : { id: where?.id, role: 'nutritionist' },
+      ),
+    );
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    expect(esito.attivitaSenzaCoach).toBe(false);
+    expect(coachTasks.apriAttivita.mock.calls[0][0].description).not.toContain('COACH assegnata');
   });
 
   it('«può proseguire» non apre niente: non c\'è nessuna visita da fissare', async () => {

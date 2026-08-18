@@ -36,7 +36,7 @@ describe('testoVisitaDaFissare — il testo che la coach legge prima di chiamare
   });
 
   it('senza nutrizionista assegnata lo dice: senza, non ci sono orari da scegliere', () => {
-    expect(testoVisitaDaFissare({ nome: 'Sonia', visiteDisponibili: 1 }).description).toContain('Non ha una nutrizionista assegnata');
+    expect(testoVisitaDaFissare({ nome: 'Sonia', visiteDisponibili: 1, coach: 'Marta' }).description).toContain('Non ha una nutrizionista assegnata');
   });
 
   /**
@@ -46,6 +46,22 @@ describe('testoVisitaDaFissare — il testo che la coach legge prima di chiamare
   it('⚠️ manda a leggere la nota invece di ricopiarla', () => {
     const t = testoVisitaDaFissare({ nome: 'Sonia', visiteDisponibili: 1 });
     expect(t.description).toContain('lista note');
+  });
+
+  /**
+   * ⚠️ IL CASO TROVATO RILEGGENDO (18/8 sera): senza coach assegnata l'attività **non la riceve
+   * nessuno** — niente push, e in elenco la vedono solo responsabile e admin. E capita proprio
+   * all'inizio del percorso, che è quando il via libera clinico si decide.
+   */
+  it('⚠️ senza COACH assegnata lo dice: l\'attività non arriva a nessuno', () => {
+    const t = testoVisitaDaFissare({ nome: 'Sonia', nutrizionista: 'Dr.ssa Bini', visiteDisponibili: 1 });
+    expect(t.description).toContain('non ha una COACH assegnata');
+    expect(t.description).toContain('nessuna push');
+  });
+
+  it('con la coach, di lei non si parla: è chi sta leggendo', () => {
+    const t = testoVisitaDaFissare({ nome: 'Sonia', nutrizionista: 'Dr.ssa Bini', visiteDisponibili: 1, coach: 'Marta' });
+    expect(t.description).not.toContain('COACH assegnata');
   });
 
   it('senza nome non si scrive un vuoto', () => {

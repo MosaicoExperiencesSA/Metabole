@@ -35,10 +35,15 @@ const FINESTRA_MISURE = 120;
  *  - `stallDays` calcolato su una data ferma, quindi **`stalled: true` falso** — e quell'alert va
  *    alla coach.
  *
- * Non peggiorava col volume del database: peggiorava con la **costanza della cliente**. Le tre cose
- * che leggono questa funzione sono l'app della cliente, l'alert di stallo della coach
- * (`signals.service`) e il motore (`engine/signals-collector`), quindi il dato vecchio arrivava a
- * tutti e tre.
+ * Non peggiorava col volume del database: peggiorava con la **costanza della cliente**. A leggere
+ * questa funzione sono l'alert di stallo della coach (`signals.service`) e il motore
+ * (`engine/signals-collector`), quindi il dato vecchio arrivava a tutti e due.
+ *
+ * ⚠️ **Qui c'era scritto anche «l'app della cliente», e non è vero**: `GET /me/progress` non lo
+ * chiama nessuna schermata (verificato il 18/8 sera, `progetto/DECISIONE_Due_Schermate_App.md`).
+ * L'app la percentuale se la calcola da sola in `Obiettivo.tsx`, sull'**ultima misura** invece che
+ * sulla media mobile — cioè risponde alla stessa domanda in un altro modo. Il commento sbagliato è
+ * il motivo per cui la cosa è rimasta invisibile: chi passava di qui leggeva che l'app c'era già.
  *
  * Ora si leggono le 120 **più recenti** (`desc`) e si rimettono in ordine cronologico in memoria,
  * perché tutto il resto — media mobile, pendenza, stallo — presuppone l'ordine dal più vecchio al più

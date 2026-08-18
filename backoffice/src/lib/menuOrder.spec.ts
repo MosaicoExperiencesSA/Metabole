@@ -181,6 +181,25 @@ describe('conNascosteAlLoroPosto', () => {
     expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(['/pagamenti', '#gruppo:Clienti', '/clienti']);
   });
 
+  /**
+   * ⚠️ IL CASO TROVATO RILEGGENDO, la sera stessa: la voce nascosta che era la PRIMA del suo gruppo
+   * finiva in coda al gruppo PRECEDENTE, perché la risalita saltava i marcatori. E se quel gruppo
+   * aveva solo voci nascoste, spariva dalla barra.
+   */
+  it('⚠️ la prima voce di un gruppo NON scavalca il titolo e non finisce nel gruppo prima', () => {
+    const salvate = ['#gruppo:Clienti', '/clienti', '#gruppo:Vendite', '/pagamenti', '/ordini'];
+    const nuove = ['#gruppo:Clienti', '/clienti', '#gruppo:Vendite', '/ordini'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual([
+      '#gruppo:Clienti', '/clienti', '#gruppo:Vendite', '/pagamenti', '/ordini',
+    ]);
+  });
+
+  it('⚠️ e se il suo gruppo non c\'è più si risale oltre il confine: vicino a dov\'era, non in fondo', () => {
+    const salvate = ['#gruppo:Clienti', '/clienti', '#gruppo:Vendite', '/pagamenti'];
+    const nuove = ['#gruppo:Clienti', '/clienti'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(['#gruppo:Clienti', '/clienti', '/pagamenti']);
+  });
+
   it('senza niente di nascosto non tocca niente, e non duplica una voce che c\'è già', () => {
     const nuove = ['#gruppo:Clienti', '/clienti'];
     expect(conNascosteAlLoroPosto([], nuove)).toEqual(nuove);

@@ -49,6 +49,22 @@ describe('aggregaSpesa — quello che finisce nel carrello', () => {
     ]);
   });
 
+  /**
+   * ⚠️ E VALE IN TUTTI E DUE GLI ORDINI (revisione del 18/8 sera). Prima la somma partiva `null` se
+   * la riga senza quantità arrivava per prima, e da lì non si muoveva più: «q.b. di farro il lunedì»
+   * cancellava i 100 g del martedì. L'ordine dei giorni non deve decidere cosa compare nella lista.
+   */
+  it('⚠️ la riga senza quantità non azzera la somma NEMMENO se arriva per prima', () => {
+    const ricette = new Map([
+      ['senza', [ing('Farro')]],
+      ['con', [ing('Farro', 100)]],
+    ]);
+    const primaSenza = aggregaSpesa([{ meals: [{ slot: 'lunch', recipeId: 'senza' }, { slot: 'dinner', recipeId: 'con' }] }], ricette);
+    const primaCon = aggregaSpesa([{ meals: [{ slot: 'dinner', recipeId: 'con' }, { slot: 'lunch', recipeId: 'senza' }] }], ricette);
+    expect(primaSenza[0].qty).toBe(100);
+    expect(primaCon[0].qty).toBe(100);
+  });
+
   it('la ricetta che non c\'è più e la giornata illeggibile non fanno cadere la lista', () => {
     const voci = aggregaSpesa(
       [{ meals: [{ slot: 'lunch', recipeId: 'sparita' }] }, { meals: null }, { meals: [{ slot: 'dinner', recipeId: 'r-cena' }] }],

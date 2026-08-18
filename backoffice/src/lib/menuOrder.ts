@@ -159,6 +159,13 @@ export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
  * ⚠️ Se la riga precedente è sparita si risale ancora indietro, invece di rinunciare: una voce
  * nascosta dopo un'altra voce nascosta non deve finire in coda solo perché la sua vicina non c'è
  * più.
+ *
+ * ⚠️ **Ma non si scavalca il titolo del proprio gruppo** (corretto la sera del 18/8, rileggendo).
+ * La prima versione risaliva saltando i marcatori: una voce nascosta che era la **prima** del suo
+ * gruppo finiva così in coda al gruppo **precedente** — e se quel gruppo aveva solo voci nascoste,
+ * il gruppo spariva. Adesso la risalita si ferma al titolo: se il titolo esiste ancora, l'ancora è
+ * lui e la voce torna in cima al suo gruppo; se il gruppo non c'è più (rinominato o sciolto) si
+ * continua a risalire, perché «vicino a dov'era» resta meglio che «in fondo a tutto».
  */
 export function conNascosteAlLoroPosto(salvate: readonly string[], nuove: readonly string[]): string[] {
   if (!salvate.length) return [...nuove];
@@ -173,18 +180,26 @@ export function conNascosteAlLoroPosto(salvate: readonly string[], nuove: readon
     // Prima le rotte sopravvissute, poi — solo se non ce ne sono — i titoli: un titolo può
     // ripetersi, una rotta no.
     let posto = -1;
-    for (let k = i - 1; k >= 0 && posto < 0; k--) {
+    // 1) La rotta sopravvissuta più vicina PRIMA di lei, **senza uscire dal suo gruppo**.
+    let k = i - 1;
+    for (; k >= 0 && posto < 0; k--) {
       const precedente = salvate[k];
-      if (precedente.startsWith('#gruppo')) continue;
+      if (precedente.startsWith('#gruppo')) break; // il confine del gruppo: di là non è più casa sua
       const dove = out.indexOf(precedente);
       if (dove >= 0) posto = dove;
     }
-    if (posto < 0) {
-      for (let k = i - 1; k >= 0 && posto < 0; k--) {
-        const precedente = salvate[k];
-        if (!precedente.startsWith('#gruppo')) continue;
-        const dove = out.indexOf(precedente);
-        if (dove >= 0) posto = dove;
+    // 2) Nessuna rotta prima di lei nel suo gruppo: l'ancora è il TITOLO, se esiste ancora.
+    if (posto < 0 && k >= 0) {
+      const titolo = salvate[k];
+      const dove = titolo.startsWith('#gruppo') ? out.indexOf(titolo) : -1;
+      if (dove >= 0) posto = dove;
+      // 3) Il gruppo non c'è più: si risale ancora, fuori dal confine, perché «vicino a dov'era»
+      //    è meglio che «in fondo a tutto».
+      if (posto < 0) {
+        for (let j = k - 1; j >= 0 && posto < 0; j--) {
+          const dovePiuSu = out.indexOf(salvate[j]);
+          if (dovePiuSu >= 0) posto = dovePiuSu;
+        }
       }
     }
     out.splice(posto + 1, 0, riga);
