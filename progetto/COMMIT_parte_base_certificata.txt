@@ -1,0 +1,50 @@
+La base certificata la vede anche lei: «148 ricette certificate sicure per te»
+
+Il giro del 16/8 sui dati che il server manda alla cliente e nessuna schermata mostra ne aveva
+lasciati tre. Questo era uno dei tre, ed è chiuso.
+
+⚠️ E LA NOTA CHE AVEVO SCRITTO ERA SBAGLIATA
+Diceva: «schermata nuova, va disegnata prima di scriverla». Guardandolo da vicino non è vero. Non
+serviva una schermata: serviva una RIGA, e nel posto preciso dove la domanda nasce.
+
+`GET /me/personal-base` risponde dall'R8 con **quante ricette del catalogo sono state certificate
+sicure** per questa cliente e con la **firma del certificato di personalizzazione**. Nell'app non lo
+chiamava nessuno. La promessa del prodotto è «il tuo menu è costruito su di te»: quel numero è la
+prova che è successo, e la sola persona a cui interessa era l'unica a non averlo.
+
+DOVE, E PERCHÉ PROPRIO LÌ
+Nel Profilo, subito sotto le allergie. Sopra ha appena letto le sue allergie e la frase «le teniamo
+fuori dai menu sempre, tracce e derivati compresi». La domanda che quella frase fa nascere è una
+sola — «e allora cosa mi resta?» — e la risposta era un numero che esisteva già.
+
+  🛡 148 ricette del catalogo sono state certificate sicure per te: il motore pesca solo da lì.
+     Certificato di personalizzazione n. 3 · firma a1b2c3d4e5f6…
+
+⚠️ TRE STATI, E IL TERZO È IL SILENZIO
+- pronta → il numero;
+- bloccata → il testo del socio, quello che il server manda già («stiamo perfezionando il tuo menu
+  insieme al tuo nutrizionista»);
+- **lettura fallita → non compare niente.** «0 ricette certificate sicure per te» detto perché una
+  chiamata è andata storta sarebbe falso, ed è la frase più spaventosa che quella schermata possa
+  contenere.
+⚠️ E «pronta con ZERO ricette» non è pronta: qualunque cosa sia successa dietro, per chi legge non
+vuol dire niente di buono. Si dice che ci stiamo lavorando, che dal suo punto di vista è la verità.
+
+⚠️ LA LETTURA STA SOTTO `catch`, E SEPARATA dal riepilogo. È un di più: legarla al caricamento di
+dieta, allergie e regime vorrebbe dire far sparire tutto il riquadro perché non si è saputo contare
+le ricette sicure.
+
+⚠️ LA FIRMA SI MOSTRA PICCOLA, e si dice cosa è senza chiedere a lei di farci qualcosa. Una prova
+che esiste solo nel database non è una prova per chi dovrebbe fidarsi.
+
+DUE PICCOLE COSE PER STRADA
+- In `App.tsx` la rotta `/preferenze` era scritta **due volte** (e la prima con l'indentazione
+  sbagliata): tolta la seconda.
+- Corretta la voce 258 in Lavori: il censimento del 17/8 diceva «47 letture», rifatto ne sono circa
+  novanta — e la voce diceva «non rifarlo».
+
+FILE
+- app/src/lib/base-certificata.ts (+ .spec.ts, 9 test) · app/src/pages/Profilo.tsx · app/src/App.tsx
+- backend/src/lavori/voci-iniziali.ts (le due voci corrette)
+
+Build verde (app e backend), 98 test lato app, 218 suite / 3452 lato backend.

@@ -7,6 +7,7 @@ import BrandPicker from '../components/BrandPicker';
 import WaterUnitPicker from '../components/WaterUnitPicker';
 import NotificationPrefs from '../components/NotificationPrefs';
 import Sheet from '../components/Sheet';
+import { baseDaMostrare, fraseQuante, type RispostaBase } from '../lib/base-certificata';
 import { parseCodiceFiscale } from '../lib/codiceFiscale';
 import { raccontaSpuntiniEsclusi } from '../lib/spuntiniEsclusi';
 import { elencoIntolleranze, statoAllergie } from '../lib/vincoliProfilo';
@@ -89,11 +90,20 @@ function MyNutrition() {
   const [stato, setStato] = useState<'carico' | 'ok' | 'ko'>('carico');
   /** Il foglio informativo sulla dieta è aperto: stesso pattern del «?» nel questionario. */
   const [info, setInfo] = useState(false);
+  /**
+   * LA BASE CERTIFICATA. ⚠️ Lettura a parte e **sotto `catch`**: è un di più, e se non arriva la
+   * riga semplicemente non c'è. Legarla al caricamento del riepilogo vorrebbe dire far sparire
+   * dieta, allergie e regime perché non si è saputo contare le ricette sicure.
+   */
+  const [base, setBase] = useState<RispostaBase | null>(null);
 
   useEffect(() => {
     api<Nutrition>('/me/nutrition')
       .then((r) => { setN(r); setStato('ok'); })
       .catch(() => setStato('ko'));
+    api<RispostaBase>('/me/personal-base')
+      .then(setBase)
+      .catch(() => setBase(null));
   }, []);
 
   if (stato === 'carico') return <div className="card"><p className="muted" style={{ margin: 0, fontSize: 12.5 }}>Carico…</p></div>;
@@ -236,6 +246,47 @@ function MyNutrition() {
           Allergie e intolleranze le corregge la tua nutrizionista: scrivile in chat.
           Le allergie le teniamo fuori dai menu sempre, tracce e derivati compresi.
         </div>
+        {/*
+          ⚠️ LA CONSEGUENZA DI QUELLE RIGHE, DETTA A LEI (18/8). `GET /me/personal-base` risponde da
+          sempre con quante ricette del catalogo sono state certificate sicure per questa cliente e
+          con la firma del certificato di personalizzazione — e nell'app non lo chiamava NESSUNO.
+
+          Sta qui e non altrove perché è qui che nasce la domanda: sopra ha appena letto le sue
+          allergie e la frase «le teniamo fuori dai menu sempre». La domanda che segue è «e allora
+          cosa mi resta?», e la risposta è un numero che esisteva già.
+
+          ⚠️ Se la lettura non riesce non compare niente: «0 ricette certificate sicure per te»
+          detto perché una chiamata è andata storta sarebbe falso, e spaventoso.
+        */}
+        {(() => {
+          const b = baseDaMostrare(base);
+          if (!b) return null;
+          if (b.tipo === 'in_lavorazione') {
+            return (
+              <div className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+                <i className="ti ti-shield-half" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+                {b.testo}
+              </div>
+            );
+          }
+          return (
+            <div className="muted" style={{ fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+              <i className="ti ti-shield-check" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              {fraseQuante(b.quante)}: il motore pesca solo da lì.
+              {/*
+                ⚠️ La firma si mostra piccola e si dice COSA È, senza chiedere a lei di farci
+                qualcosa. È la prova che la personalizzazione è avvenuta davvero — la cosa che il
+                prodotto promette — e una prova che esiste solo nel database non è una prova per chi
+                dovrebbe fidarsi.
+              */}
+              {b.firma && (
+                <span style={{ display: 'block', marginTop: 4, fontSize: 11.5, opacity: 0.85 }}>
+                  Certificato di personalizzazione{b.versione ? ` n. ${b.versione}` : ''} · firma {b.firma}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </div>
       {/*
         Il cambio dieta è deciso ma le giornate in arrivo sono ancora quelle vecchie. Va detto QUI,

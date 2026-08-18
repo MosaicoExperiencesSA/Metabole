@@ -1,0 +1,66 @@
+La scheda della ricetta con le grammature di QUESTA cliente, non quelle di catalogo
+
+Coda della voce 255 (porzioni scalate, strada C). Era l'ultima cosa che la cliente vedeva
+sbagliata: le altre tre che restano non le legge nessuno da un telefono.
+
+IL BUCO
+`GET /recipes/:id` risponde con la ricetta di CATALOGO, perché non sa di quale giorno si stia
+parlando. Chi ha la porzione ingrandita leggeva «Pranzo 891 kcal» nel menu, apriva la ricetta e
+trovava gli ingredienti per 495. Due numeri che si contraddicono sotto gli occhi della stessa
+persona, e nessun modo di sapere quale sia quello giusto. A turare il buco c'era una FRASE — «pesa
+gli ingredienti per 1,8 volte» — cioè un conto a mano chiesto a chi sta cucinando.
+
+Ora la richiesta porta `?giorno=&slot=` e il server risponde con le grammature già scalate, le kcal
+dello snapshot e la bandierina `porzione`.
+
+⚠️ IL FATTORE NON SI PASSA, ANCHE SE L'APP CE L'HA
+Gliel'ha mandato `/me/menu`. Accettarlo come parametro sarebbe comodo e vorrebbe dire che il
+telefono decide quanto cibo compare nella scheda. Arrivano solo il giorno e lo slot — cioè *cosa sto
+guardando* — e il fattore si rilegge dallo snapshot di quella cliente. Il giorno si legge sempre
+come PROPRIO (`user.sub`): nessuna richiesta può chiedere la giornata di un'altra persona.
+
+⚠️ SCALA IL SERVER, NON L'APP
+La regola di arrotondamento è `quantitaScalata`, quella della lista della spesa. Riscriverla nell'app
+sarebbero due risposte alla stessa domanda: il giorno che la nutrizionista decidesse di arrotondare
+i pezzi, la lista della spesa e la scheda ricetta direbbero due numeri diversi per lo stesso piatto.
+
+⚠️ E LA SCALATURA È A RICHIESTA, NON AUTOMATICA — è la riga che protegge chi ha l'app di adesso
+Il backend si aggiorna col deploy, l'app con l'OTA: per giorni convivono. L'app pubblicata dice
+ancora «pesa gli ingredienti per 1,8 volte» e NON manda `giorno`: se la scalatura fosse automatica,
+quelle clienti peserebbero ×3,24. Chi non chiede riceve esattamente quello che riceveva prima, e c'è
+un test che tiene ferma proprio questa riga.
+
+⚠️ TRE STATI, E IL TERZO È QUELLO CHE FA MALE
+- la giornata c'è e il piatto pure → grammature scalate, e la scheda dice «Quantità già per la tua
+  porzione, ×1,8: pesa questi numeri»;
+- porzione di catalogo → non si dice niente, ed è la stragrande maggioranza dei piatti;
+- la giornata non si trova, oppure il piatto compare due volte nello stesso giorno con fattori
+  diversi e non sappiamo in quale pasto siamo → la scheda resta di catalogo **e lo dice**, in rosso,
+  rimettendo l'istruzione di pesare a mano. Indovinare qui vorrebbe dire scrivere una grammatura
+  sbagliata sotto il nome di un piatto vero.
+
+⚠️ LA SOGLIA È UNA SOLA, E STA IN DUE POSTI CHE DEVONO RESTARE D'ACCORDO
+`PORZIONE_DA_DIRE` = 1,05, nel backend, ed è la stessa che l'app usa per la riga sotto il nome del
+piatto. Se il server scalasse a un fattore che il menu tace, la cliente vedrebbe cambiare gli
+ingredienti senza nessuna spiegazione. Un test per parte tiene fermo il numero e nomina l'altro.
+
+ALTRE DUE COSE PER STRADA
+- La riga nel menu non dice più «pesa gli ingredienti per 1,8 volte» ma «nella ricetta trovi già le
+  tue quantità»: lasciarla com'era, ora che la scheda scala, era il modo più diretto di far fare il
+  conto due volte.
+- Dalla home il pulsante «Ricetta» manda anche lo slot: senza, un piatto che compare due volte nello
+  stesso giorno (spuntino e merenda, tetti diversi) finiva proprio nel terzo stato.
+
+VERIFICATO, NON DEDOTTO: dei quattro punti che la voce 255 lasciava aperti, i giorni GIÀ erogati non
+si riscrivono (`menuDay.upsert` ha `update: {}`) ma sono al massimo `menu_days_delivered` giorni per
+cliente — il buco si chiude da sé quando rollano, non è un arretrato da bonificare. Restano il kit
+di rientro, la lista della spesa già in cache e la decisione sui pezzi.
+
+FILE
+- backend/src/menu/porzione-del-giorno.ts (+ .spec.ts, 11 test) · backend/src/menu/porzione-scalata.ts
+  (`PORZIONE_DA_DIRE`) · backend/src/catalog/catalog.service.ts (+ .spec.ts, 4 test) ·
+  backend/src/catalog/catalog.controller.ts
+- app/src/lib/meals.ts (+ testo-porzione.spec.ts) · app/src/pages/Menu.tsx · app/src/pages/Home.tsx
+- backend/src/lavori/voci-iniziali.ts (voce 280, e la 255 aggiornata)
+
+Backend 219 suite / 3467 test verdi, app 94 test e build verde. Nessuna migrazione.

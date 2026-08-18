@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
-import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, testoPorzione } from '../lib/meals';
+import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, testoPorzione, testoIngredientiScheda } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
@@ -50,19 +50,33 @@ function StarRating({ recipeId, date }: { recipeId: string; date?: string }) {
   );
 }
 
-function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: string; tag?: string; onBack: () => void }) {
+/**
+ * La scheda della ricetta.
+ *
+ * ⚠️ `giorno` e `slot` viaggiano nella richiesta perché il server possa rispondere con le
+ * grammature **della porzione che questa cliente ha ricevuto quel giorno** (voce 255): prima
+ * mostrava sempre quelle di catalogo, e chi aveva la porzione ingrandita leggeva «891 kcal» nel
+ * menu e trovava qui gli ingredienti per 495. ⚠️ Il fattore **non si manda**: lo rilegge il server
+ * dalla giornata: quanto cibo compare in questa pagina non lo decide il telefono.
+ */
+function Recipe({ recipeId, date, slot, porzione, tag, onBack }: { recipeId: string; date?: string; slot?: string; porzione?: number; tag?: string; onBack: () => void }) {
   const [recipe, setRecipe] = useState<ApiRecipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [method, setMethod] = useState(0);
 
   useEffect(() => {
-    api<ApiRecipe>(`/recipes/${recipeId}`).then(setRecipe).catch(() => setRecipe(null)).finally(() => setLoading(false));
-  }, [recipeId]);
+    const q = new URLSearchParams();
+    if (date) q.set('giorno', date);
+    if (slot) q.set('slot', slot);
+    const qs = q.toString();
+    api<ApiRecipe>(`/recipes/${recipeId}${qs ? `?${qs}` : ''}`).then(setRecipe).catch(() => setRecipe(null)).finally(() => setLoading(false));
+  }, [recipeId, date, slot]);
 
   if (loading) return <div className="menu"><button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button><div className="center"><div className="spin" /></div></div>;
   if (!recipe) return <div className="menu"><button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button><div className="card"><p className="muted" style={{ margin: 0 }}>Ricetta non disponibile.</p></div></div>;
 
   const methods = recipe.cookingMethods ?? [];
+  const porzioneScheda = testoIngredientiScheda({ porzioneScheda: recipe.porzione, porzioneMenu: porzione });
   return (
     <div className="menu">
       <button className="back-link" onClick={onBack}><i className="ti ti-chevron-left" /> Menu</button>
@@ -71,6 +85,11 @@ function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: stri
         <span className="meal-tag" style={{ background: '#F2EFE8', color: '#5F6E6B' }}>{recipe.kcal} kcal</span>
         {tag && <span className="meal-tag" style={{ background: '#DCEBE3', color: '#0E7C66' }}>{tag}</span>}
       </div>
+      {/* ⚠️ La porzione di catalogo si dice solo quando le kcal sopra NON sono quelle di catalogo:
+          serve a capire da dove viene il numero, non a proporre una seconda quantità possibile. */}
+      {recipe.porzione && recipe.kcalBase ? (
+        <div className="muted" style={{ fontSize: 11, marginTop: -4 }}>La porzione di catalogo è da {recipe.kcalBase} kcal</div>
+      ) : null}
 
       {recipe.ingredients && recipe.ingredients.length > 0 && (
         <div className="card">
@@ -78,6 +97,22 @@ function Recipe({ recipeId, date, tag, onBack }: { recipeId: string; date?: stri
             <span className="event-ic" style={{ background: '#F3E8DC', color: '#B8863B' }}><i className="ti ti-basket" /></span>
             <b style={{ fontSize: 13 }}>Ingredienti</b>
           </div>
+          {/* ⚠️ Sopra la lista e non sotto: chi legge una grammatura ha già cominciato a pesare. */}
+          {porzioneScheda && (
+            <div
+              style={{
+                fontSize: 12,
+                margin: '-2px 0 10px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 6,
+                color: porzioneScheda.scalata ? '#8E6BB5' : '#993C1D',
+              }}
+            >
+              <i className={`ti ${porzioneScheda.scalata ? 'ti-arrows-maximize' : 'ti-alert-triangle'}`} style={{ fontSize: 14, flex: 'none', marginTop: 1 }} />
+              {porzioneScheda.testo}
+            </div>
+          )}
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.7 }}>
             {recipe.ingredients.map((ing, i) => (
               <li key={i}>{ing.name}{ing.qty ? ` — ${ing.qty}${ing.unit ? ' ' + ing.unit : ''}` : ''}</li>
@@ -119,11 +154,15 @@ export default function Menu() {
     return g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : null;
   });
   // Ricetta aperta direttamente (es. dal tasto "Ricetta" della Home via ?ricetta=&giorno=).
-  const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; tag?: string } | null>(() => {
+  const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; slot?: string; porzione?: number; tag?: string } | null>(() => {
     const p = new URLSearchParams(window.location.search);
     const r = p.get('ricetta');
     const g = p.get('giorno');
-    return r ? { recipeId: r, date: g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : undefined } : null;
+    // ⚠️ Anche lo slot: senza, un piatto che compare due volte nella stessa giornata (spuntino e
+    // merenda) ha due porzioni possibili e il server non può sceglierne una — la scheda resterebbe
+    // sulle grammature di catalogo proprio nel caso in cui la porzione è cambiata.
+    const sl = p.get('slot');
+    return r ? { recipeId: r, date: g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : undefined, slot: sl ?? undefined } : null;
   });
   const mealsRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
@@ -151,7 +190,7 @@ export default function Menu() {
     if (el) el.scrollTo({ left: 0 });
   }
 
-  if (recipe) return <Recipe recipeId={recipe.recipeId} date={recipe.date} tag={recipe.tag} onBack={() => setRecipe(null)} />;
+  if (recipe) return <Recipe recipeId={recipe.recipeId} date={recipe.date} slot={recipe.slot} porzione={recipe.porzione} tag={recipe.tag} onBack={() => setRecipe(null)} />;
   if (days === null) return <div className="center"><div className="spin" /></div>;
 
   const todayMs = startOfDay(new Date()).getTime();
@@ -257,7 +296,7 @@ export default function Menu() {
                     )}
                     <div className="row-between">
                       <span className="muted" style={{ fontSize: 12 }}>{m.kcal} kcal</span>
-                      <button className="btn-recipe" onClick={() => setRecipe({ recipeId: m.recipeId, date: selDay.date.slice(0, 10), tag: s.label })}>Ricetta</button>
+                      <button className="btn-recipe" onClick={() => setRecipe({ recipeId: m.recipeId, date: selDay.date.slice(0, 10), slot: m.slot, porzione: m.porzione, tag: s.label })}>Ricetta</button>
                     </div>
                   </div>
                 </div>

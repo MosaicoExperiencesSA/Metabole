@@ -1,5 +1,9 @@
 # Passaggio di consegne — Metabole, sera del 17/8/2026 (secondo turno)
 
+> ⚠️ **SUPERATO da `progetto/HANDOFF_2026-08-18.md`.** Il 18/8 sono state consegnate 33 voci e
+> quasi tutto quello che qui risulta aperto è stato chiuso o riscritto. **Lo stato aperto si legge
+> nell'altro.**
+
 > ⚠️ **SUPERATO da `progetto/HANDOFF_2026-08-17_notte.md`** (terzo turno). Fra le 17 e le 24 sono
 > state consegnate sei cose e quattro voci del §3.5 qui sotto sono state chiuse. Questo documento
 > resta per la parte diagnostica, ma **lo stato aperto si legge nell'altro**.

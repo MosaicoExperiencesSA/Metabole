@@ -20,6 +20,53 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🥄 **La scheda della ricetta con le grammature di QUESTA cliente** (coda della voce
+  255, ora voce 280). Era l'ultima delle quattro code delle porzioni scalate che una cliente **vede**:
+  `GET /recipes/:id` risponde con la ricetta di **catalogo** perché non sa di quale giorno si parli,
+  quindi chi ha la porzione ingrandita leggeva «Pranzo 891 kcal» nel menu, apriva la ricetta e
+  trovava gli ingredienti per 495. Due numeri che si contraddicono sotto gli occhi della stessa
+  persona, e a turare il buco c'era una **frase** — «pesa gli ingredienti per 1,8 volte» — cioè un
+  conto a mano chiesto a chi sta cucinando. Ora la richiesta porta `?giorno=&slot=` e il server
+  risponde con le grammature già scalate. ⚠️ **Il fattore non si passa, anche se l'app ce l'ha**:
+  accettarlo vorrebbe dire che il telefono decide quanto cibo compare nella scheda — si rilegge
+  dallo snapshot, e il giorno si legge sempre come **proprio** (`user.sub`). ⚠️ **Scala il server e
+  non l'app**: la regola di arrotondamento è `quantitaScalata`, la stessa della lista della spesa, e
+  riscriverla di là sarebbero due risposte alla stessa domanda — il giorno che si decidesse di
+  arrotondare i pezzi, lista e scheda direbbero due numeri diversi per lo stesso piatto. ⚠️ **E la
+  scalatura è a richiesta, non automatica**, che è la riga che protegge chi ha l'app di adesso: il
+  backend si aggiorna col deploy e l'app con l'OTA, e l'app pubblicata dice ancora «pesa per 1,8
+  volte» — riceverle già scalate le farebbe pesare **×3,24**. Chi non chiede riceve esattamente
+  quello di prima, e c'è un test che tiene ferma quella riga. ⚠️ **Tre stati, e il terzo è quello
+  che fa male**: se la giornata non si trova, o il piatto compare due volte nello stesso giorno con
+  fattori diversi e non si sa in quale pasto si è, la scheda resta di catalogo **e lo dice**,
+  rimettendo l'istruzione di pesare a mano — indovinare qui vorrebbe dire scrivere una grammatura
+  sbagliata sotto il nome di un piatto vero. ⚠️ La soglia `PORZIONE_DA_DIRE` (1,05) è **una sola in
+  due posti** che devono restare d'accordo, e un test per parte tiene fermo il numero nominando
+  l'altro: se il server scalasse a un fattore che il menu tace, gli ingredienti cambierebbero senza
+  che nessuno spieghi perché. Per strada: la riga nel menu non ordina più di moltiplicare (era il
+  modo più diretto di far fare il conto due volte) e dalla home il pulsante «Ricetta» manda anche lo
+  slot. ⚠️ **Verificato, non dedotto**: dei tre punti che restano alla voce 255, i giorni **già
+  erogati** non si riscrivono, ma sono al massimo `menu_days_delivered` per cliente — il buco si
+  chiude da sé quando rollano, non è un arretrato. 15 test nuovi (219 suite, 3467 verdi; app 94).
+  Nessuna migrazione.
+
+- `[Sviluppo]` 🛡 **La base certificata la vede anche lei.** `GET /me/personal-base` risponde dall'R8
+  con quante ricette del catalogo sono state certificate sicure per quella cliente e con la firma del
+  certificato di personalizzazione — e nell'app **non lo chiamava nessuno**. La promessa del prodotto
+  è «il tuo menu è costruito su di te»: quel numero è la prova che è successo, e la sola persona a
+  cui interessa era l'unica a non averlo. ⚠️ **E la nota che avevo scritto il 16/8 era sbagliata**:
+  diceva «schermata nuova, va disegnata prima». Non serviva una schermata, serviva una **riga** — nel
+  Profilo, subito sotto le allergie, perché è lì che nasce la domanda a cui risponde: ha appena letto
+  le sue allergie e «le teniamo fuori dai menu sempre», e la domanda che segue è «e allora cosa mi
+  resta?». Ora legge «148 ricette del catalogo sono state certificate sicure per te: il motore pesca
+  solo da lì», con sotto, piccolo, numero e firma del certificato. ⚠️ Tre stati, e il terzo è il
+  **silenzio**: se la lettura non riesce non compare niente, perché «0 ricette certificate sicure per
+  te» detto per un errore di rete sarebbe falso e spaventoso. ⚠️ E «pronta con zero ricette» non è
+  pronta. ⚠️ La lettura è separata e sotto `catch`: legarla al riepilogo avrebbe fatto sparire dieta,
+  allergie e regime perché non si è saputo contare le ricette. Per strada: la rotta `/preferenze` era
+  scritta due volte in `App.tsx`, e il censimento della voce 258 («47 letture, non rifarlo») era
+  sbagliato di quasi il doppio — corretto. 9 test nuovi.
+
 - `[Sviluppo]` 🧾 **Il piano «in coda» diventa uno stato suo — prima le letture, la scrittura dopo**
   (voce 258, la causa che restava dopo il caso Lorena). ⚠️ Questa consegna **non scrive** `queued`:
   crea lo stato e insegna a tutte le letture cosa farne. Non è prudenza generica, è la sola sequenza

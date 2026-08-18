@@ -14,6 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import { classificaColazione, nomiIngredienti, tagsDopoScelta, tipoConfermato, type TipoColazione } from '../vera/colazioni';
 import { METODI_COTTURA } from '../common/metodi-cottura';
+import { ingredientiScalati, porzioneDelGiorno } from '../menu/porzione-del-giorno';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
 import {
@@ -39,6 +40,21 @@ import {
  * delle due, e la seconda ha rimesso la CI rossa da sola.
  */
 type PrismaTx = Prisma.TransactionClient;
+
+/**
+ * Da dove si sta guardando la scheda della ricetta: il giorno e il pasto, non il fattore.
+ *
+ * ⚠️ `clientId` lo mette il controller da `user.sub`, **mai** il chiamante: la porzione che si legge
+ * è quella della giornata di chi guarda.
+ */
+export interface ContestoScheda {
+  clientId?: string;
+  /** `YYYY-MM-DD`. Formato sbagliato = si tace e si mostra il catalogo, non un errore. */
+  giorno?: string;
+  slot?: string;
+}
+
+const SOLO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Catalogo diete e ricette (spec sez. 4/5/6):
@@ -1251,11 +1267,65 @@ export class CatalogService {
    * escono dal server, il prossimo pezzo di interfaccia che stampa quello che riceve li rimette a
    * schermo. Si tolgono dove nascono.
    */
-  async getRecipe(id: string) {
+  async getRecipe(id: string, contesto?: ContestoScheda) {
     const recipe = await this.prisma.recipe.findUnique({ where: { id } });
     if (!recipe || !recipe.active) throw new NotFoundException('Ricetta non trovata');
     const { tags: _interni, ...senzaTag } = recipe as unknown as Record<string, unknown>;
-    return senzaTag;
+    return this.conLaPorzioneDelGiorno(senzaTag, id, contesto);
+  }
+
+  /**
+   * LA SCHEDA CON LE GRAMMATURE DI QUESTA CLIENTE, IN QUESTO GIORNO — voce 255, coda della strada C.
+   *
+   * Il perché e i tre ⚠️ che governano la scelta stanno in `menu/porzione-del-giorno.ts`: in breve,
+   * la scalatura la fa il **server** (la regola di arrotondamento è quella della lista della spesa,
+   * e due copie sarebbero due risposte alla stessa domanda) e **solo se la chiede il chiamante**
+   * (l'app vecchia dice ancora «pesa gli ingredienti per 1,8 volte», e riceverle già scalate le
+   * farebbe pesare ×3,24).
+   *
+   * ⚠️ **Il giorno si legge SEMPRE come proprio.** `clientId` è `user.sub`: chi guarda vede la
+   * porzione della sua giornata, e nessuna richiesta può chiedere quella di un'altra persona. Uno
+   * membro dello staff che passasse `giorno` non ha `MenuDay`, quindi riceve la scheda di catalogo.
+   *
+   * ⚠️ **Sotto `catch`, e con l'errore scritto.** La porzione è un di più: se la lettura del giorno
+   * fallisce, la ricetta deve aprirsi lo stesso — ma un `catch` muto qui vorrebbe dire che la scheda
+   * torna alle grammature di catalogo *in silenzio*, che è esattamente il difetto che questa
+   * consegna chiude.
+   */
+  private async conLaPorzioneDelGiorno(
+    scheda: Record<string, unknown>,
+    recipeId: string,
+    contesto?: ContestoScheda,
+  ): Promise<Record<string, unknown>> {
+    const giorno = contesto?.giorno?.trim();
+    if (!contesto?.clientId || !giorno || !SOLO_DATA.test(giorno)) return scheda;
+    try {
+      const day = await this.prisma.menuDay.findUnique({
+        where: { clientId_date: { clientId: contesto.clientId, date: new Date(`${giorno}T00:00:00.000Z`) } },
+        select: { meals: true },
+      });
+      if (!day) return scheda;
+      const porzione = porzioneDelGiorno(day.meals, recipeId, contesto.slot);
+      if (!porzione) return scheda;
+      const scalati = ingredientiScalati(scheda.ingredients, porzione.fattore);
+      return {
+        ...scheda,
+        // ⚠️ Le kcal sono quelle dello SNAPSHOT, non `kcal × fattore`: sono il numero che la
+        // cliente ha già letto nel menu, ed è dalla differenza fra i due che nasceva il dubbio.
+        ...(porzione.kcal !== undefined ? { kcal: porzione.kcal } : {}),
+        ...(porzione.kcalBase !== undefined ? { kcalBase: porzione.kcalBase } : {}),
+        ...(scalati ? { ingredients: scalati } : {}),
+        // La bandierina che l'app aspetta: «queste grammature sono già le tue». Senza, non avrebbe
+        // modo di sapere se la scalatura è avvenuta, e ridirebbe di moltiplicare a mano.
+        porzione: porzione.fattore,
+      };
+    } catch (e) {
+      this.logger.error(
+        `Scheda ricetta ${recipeId}: la porzione del giorno ${giorno} non si è potuta leggere, ` +
+          `si mostrano le grammature di catalogo — ${(e as Error).message}`,
+      );
+      return scheda;
+    }
   }
 
   async createRecipe(userId: string, dto: CreateRecipeDto) {

@@ -249,11 +249,24 @@ export class RecipesController {
     return this.catalog.confermaColazioni(user.sub, dto.scelte);
   }
 
-  // Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE
-  // @RequirePage qui, altrimenti la cliente riceve 403 e la ricetta si apre vuota.
+  /**
+   * Dettaglio ricetta: aperto a ogni utente autenticato (cliente inclusa) — NIENTE
+   * `@RequirePage` qui, altrimenti la cliente riceve 403 e la ricetta si apre vuota.
+   *
+   * ⚠️ `giorno` e `slot` sono **facoltativi e servono a una cosa sola**: dire *cosa sto guardando*,
+   * così la scheda può mostrare le grammature della porzione che quella cliente ha ricevuto quel
+   * giorno invece di quelle di catalogo (voce 255). Il **fattore non si passa**: si rilegge dallo
+   * snapshot suo. Chi non li manda — l'app pubblicata, il backoffice — riceve esattamente quello
+   * che riceveva prima, ed è la ragione per cui sono facoltativi e non automatici.
+   */
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.catalog.getRecipe(id);
+  get(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Query('giorno') giorno?: string,
+    @Query('slot') slot?: string,
+  ) {
+    return this.catalog.getRecipe(id, { clientId: user?.sub, giorno, slot });
   }
 
   @Roles('nutritionist', 'head_nutritionist', 'admin')

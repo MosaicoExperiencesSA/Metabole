@@ -194,6 +194,23 @@ export function porzioniScalate(
 export const porzioneLeggibile = (fattore: number): number => Math.round(fattore * 10) / 10;
 
 /**
+ * SOTTO QUESTO FATTORE NON SI DICE NIENTE, E NON SI RISCRIVE NIENTE DI QUELLO CHE LEGGE LA CLIENTE.
+ *
+ * Un ×1,03 su 80 g di farro sono due grammi: nessuno li pesa, e una riga «porzione più abbondante»
+ * che compare per due grammi è un avviso che si impara a saltare — così il giorno che il numero
+ * conta davvero non lo legge più nessuno.
+ *
+ * ⚠️ **Lo stesso numero sta in `app/src/lib/meals.ts` (`testoPorzione`)**, e i due DEVONO
+ * coincidere: se il server scalasse le grammature della scheda a un fattore che la riga sotto il
+ * nome del piatto tace, la cliente vedrebbe cambiare gli ingredienti senza nessuna spiegazione. Un
+ * test per parte tiene fermo il numero.
+ *
+ * ⚠️ Non vale per la **lista della spesa**, che scala sempre: lì i grammi si sommano su sette
+ * giorni e su tutti i pasti, e il 3% smette di essere invisibile.
+ */
+export const PORZIONE_DA_DIRE = 1.05;
+
+/**
  * Le unità che si comprano a peso o a volume: lì un decimale è rumore, e si arrotonda all'intero.
  * Tutto il resto (cucchiai, pezzi, tazze) tiene un decimale, perché «1 uovo» e «1,5 uova» sono
  * due cose diverse e nasconderlo sarebbe peggio che mostrarlo.

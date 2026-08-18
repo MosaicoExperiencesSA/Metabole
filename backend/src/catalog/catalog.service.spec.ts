@@ -165,3 +165,106 @@ describe('CatalogService (flusso approvazione diete)', () => {
     ).rejects.toThrow(BadRequestException);
   });
 });
+
+/**
+ * LA SCHEDA RICETTA CON LE GRAMMATURE DI QUESTA CLIENTE (voce 255, coda della strada C).
+ *
+ * Il modulo puro è provato in `menu/porzione-del-giorno.spec.ts`. Qui si prova la parte che nessun
+ * modulo puro può provare: che il fattore arrivi **dalla giornata di chi guarda** e che la scheda
+ * si apra lo stesso quando qualcosa non torna.
+ */
+describe('CatalogService.getRecipe — la porzione del giorno', () => {
+  let service: CatalogService;
+  let prisma: any;
+
+  const ricetta = {
+    id: 'r-pranzo',
+    name: 'Farro e ceci',
+    kcal: 495,
+    active: true,
+    tags: ['interno:x'],
+    ingredients: [
+      { name: 'farro perlato', qty: 80, unit: 'g' },
+      { name: 'ceci', qty: 100, unit: 'g' },
+    ],
+  };
+
+  beforeEach(async () => {
+    prisma = {
+      recipe: { findUnique: jest.fn().mockResolvedValue(ricetta) },
+      menuDay: {
+        findUnique: jest.fn().mockResolvedValue({
+          meals: [{ slot: 'lunch', recipeId: 'r-pranzo', name: 'Farro e ceci', kcal: 891, kcalBase: 495, porzione: 1.8 }],
+        }),
+      },
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        CatalogService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: NotificationsService, useValue: { notify: jest.fn() } },
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0) } },
+      ],
+    }).compile();
+    service = moduleRef.get(CatalogService);
+  });
+
+  it('col giorno e lo slot le grammature sono già quelle della cliente, e le kcal quelle del menu', async () => {
+    const r: any = await service.getRecipe('r-pranzo', { clientId: 'c1', giorno: '2026-08-20', slot: 'lunch' });
+    expect(r.ingredients).toEqual([
+      { name: 'farro perlato', qty: 144, unit: 'g' },
+      { name: 'ceci', qty: 180, unit: 'g' },
+    ]);
+    // ⚠️ 891 è il numero che ha letto nel menu, non `495 × 1,8` ricalcolato qui.
+    expect(r.kcal).toBe(891);
+    expect(r.kcalBase).toBe(495);
+    expect(r.porzione).toBe(1.8);
+    // ⚠️ Il giorno si legge come PROPRIO: `clientId` è quello di chi guarda, non un parametro.
+    expect(prisma.menuDay.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { clientId_date: { clientId: 'c1', date: new Date('2026-08-20T00:00:00.000Z') } } }),
+    );
+  });
+
+  /**
+   * ⚠️ IL TEST CHE PROTEGGE L'APP PUBBLICATA. Finché non esce l'OTA, l'app in mano alle clienti
+   * dice ancora «pesa gli ingredienti per 1,8 volte» e NON manda `giorno`. Se la scalatura fosse
+   * automatica peserebbero ×3,24. Senza contesto la risposta deve restare identica a prima.
+   */
+  it('⚠️ senza `giorno` la risposta è quella di sempre: grammature di catalogo, nessun campo nuovo', async () => {
+    const r: any = await service.getRecipe('r-pranzo');
+    expect(r.ingredients[0].qty).toBe(80);
+    expect(r.kcal).toBe(495);
+    expect(r.porzione).toBeUndefined();
+    expect(r.kcalBase).toBeUndefined();
+    expect(prisma.menuDay.findUnique).not.toHaveBeenCalled();
+    // I tag interni restano fuori dalla risposta, come prima.
+    expect(r.tags).toBeUndefined();
+  });
+
+  it('la giornata che non c\'è, il piatto che quel giorno non c\'era e la data storta non scalano niente', async () => {
+    prisma.menuDay.findUnique.mockResolvedValue(null);
+    expect((await service.getRecipe('r-pranzo', { clientId: 'c1', giorno: '2026-08-20' }) as any).porzione).toBeUndefined();
+
+    prisma.menuDay.findUnique.mockResolvedValue({ meals: [{ slot: 'dinner', recipeId: 'altra', name: 'x', kcal: 500 }] });
+    expect((await service.getRecipe('r-pranzo', { clientId: 'c1', giorno: '2026-08-20' }) as any).porzione).toBeUndefined();
+
+    prisma.menuDay.findUnique.mockClear();
+    await service.getRecipe('r-pranzo', { clientId: 'c1', giorno: '20/08/2026' });
+    expect(prisma.menuDay.findUnique).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ La porzione è un DI PIÙ: se la lettura del giorno esplode, la ricetta si apre lo stesso —
+   * ma l'errore finisce nei log, perché tornare in silenzio alle grammature di catalogo è proprio
+   * il difetto che questa consegna chiude.
+   */
+  it('⚠️ se la lettura del giorno fallisce la scheda si apre lo stesso, e l\'errore si scrive', async () => {
+    const log = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    prisma.menuDay.findUnique.mockRejectedValue(new Error('connessione persa'));
+    const r: any = await service.getRecipe('r-pranzo', { clientId: 'c1', giorno: '2026-08-20', slot: 'lunch' });
+    expect(r.ingredients[0].qty).toBe(80);
+    expect(r.porzione).toBeUndefined();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('connessione persa'));
+  });
+});

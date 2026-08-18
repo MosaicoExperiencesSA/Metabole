@@ -1,5 +1,9 @@
 # Passaggio di consegne — Metabole, notte del 17/8/2026 (terzo turno)
 
+> ⚠️ **SUPERATO da `progetto/HANDOFF_2026-08-18.md`.** Il 18/8 sono state consegnate 33 voci e
+> quasi tutto quello che qui risulta aperto è stato chiuso o riscritto. **Lo stato aperto si legge
+> nell'altro.**
+
 Da incollare in cima a una chat nuova. **Sostituisce** `HANDOFF_2026-08-17_sera.md` (che a sua volta
 sostituiva quello del mattino) per tutto ciò che si sovrappone. Tutto quello che c'è qui è verificato
 nel codice o nei dati, non ricordato. ⚠️ E dove ci sono numeri di riga: sono stati ricontrollati

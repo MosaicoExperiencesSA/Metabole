@@ -92,7 +92,7 @@ function Shell() {
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/conferma-email" element={<ConfermaEmail />} />
           <Route path="/verifica-email" element={<VerificaEmail />} />
-        <Route path="/preferenze" element={<Preferenze />} />
+          {/* La riga era doppia (e con l'indentazione sbagliata): la seconda non serviva a niente. */}
           <Route path="/preferenze" element={<Preferenze />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/payment/success" element={<PaymentResult ok />} />
