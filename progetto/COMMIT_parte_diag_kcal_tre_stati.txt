@@ -1,0 +1,54 @@
+«Nessuna giornata sotto il fabbisogno ✓» diceva ✓ anche quando non lo sapeva
+
+Voce 271. Trovato alla PRIMA esecuzione in produzione, il giorno dopo aver scritto `diag:kcal`
+(voce 268).
+
+L'output era questo:
+
+  Nessuna giornata sotto il fabbisogno negli ultimi 14 giorni ✓
+
+⚠️ E quel ✓ NON ERA VERO: era «non lo so». Il segnale scatta ALL'EROGAZIONE, e l'erogazione gira
+quando la cliente apre l'app — senza consegne nella finestra, zero eventi non dice niente sulle
+calorie di nessuno. Lo script mostrava la faccia del «va tutto bene» su una domanda a cui non aveva
+risposta: e' il difetto di famiglia di questo progetto, fatto con le nostre mani, a ventiquattr'ore
+di distanza dalla riga in cui lo denunciamo.
+
+═══ 1. TRE STATI, NON DUE
+
+Il numero che li distingue e' quante GIORNATE SONO STATE EROGATE nella finestra
+(`menuDay.count({ createdAt >= da })`):
+
+· nessuna erogazione  → «Non lo so: negli ultimi N giorni non e' stata erogata nessuna giornata,
+                        quindi il segnale non ha avuto occasione di scattare. ⚠️ Questo NON vuol dire
+                        che le calorie siano a posto: vuol dire che da qui non si vede.»
+                        (e suggerisce `GIORNI=30`)
+· erogazioni, zero eventi → ✓ **col numero delle erogazioni accanto**, che e' la prova che il
+                        controllo ha avuto occasione di scattare. Con l'avvertenza che restano fuori
+                        le clienti a cui non e' stato erogato niente.
+· eventi → la tabella, con in testa anche il totale delle giornate erogate.
+
+E' la stessa regola di `feedback-errori-nei-log`: **tre stati, «non lo so» ≠ «nessuno»**. Vale per un
+catch muto e vale per una diagnostica.
+
+═══ 2. E LA SCRITTURA DELL'EVENTO NON PUO' SPARIRE IN SILENZIO
+
+`analyticsEvent.create` per `daily_kcal_below_target` era dentro un `.catch(() => undefined)`. Quindi
+una scrittura fallita (una colonna cambiata, un payload rifiutato) sarebbe stata **indistinguibile da
+un ✓**: `diag:kcal` legge SOLO quegli eventi.
+Ora degrada come prima — l'erogazione non si ferma per una riga di analytics — ma **scrive un warn**.
+⚠️ Stessa cura al gemello `fasting_meals_missing`, che aveva lo stesso silenzio: e' l'evento con cui
+sappiamo che una cliente riceve meno pasti di quelli che la sua finestra promette.
+
+TEST: uno nuovo in `menu.service.spec` — se la scrittura dell'evento fallisce, i due giorni si erogano
+lo stesso E l'avviso esce. Rimettendo il `.catch(() => undefined)` cade.
+
+FILE:
+- backend/prisma/diag-kcal-sotto-target.ts — i tre stati.
+- backend/src/menu/menu.service.ts — i due `.catch` che ora dicono cosa e' andato storto.
+- backend/src/menu/menu.service.spec.ts — il test del degrado che non tace.
+- backend/src/lavori/voci-iniziali.ts — voce 271, spuntata.
+
+NESSUNA MIGRAZIONE. Build verde e **3117 test in 203 suite**.
+
+DOPO IL DEPLOY: rilanciare `npm run diag:kcal`. Se dice «non lo so», la risposta vera arriva quando le
+clienti riaprono l'app e l'erogazione riparte — oppure con `GIORNI=30`.

@@ -578,7 +578,18 @@ export class MenuService {
             } as never,
           } as never,
         })
-        .catch(() => undefined);
+        /**
+         * ⚠️ SE L'EVENTO NON SI SCRIVE, SI DICE — 18/8.
+         *
+         * Degradare va bene: l'erogazione non deve fermarsi perché una riga di analytics non passa.
+         * Ingoiarlo no: questo evento e `npm run diag:digiuni` sono il solo modo di sapere che una
+         * cliente riceve meno pasti di quelli che la sua finestra promette.
+         */
+        .catch((e: unknown) =>
+          this.logger.warn(
+            `Digiuno: evento fasting_meals_missing NON scritto per ${clientId}: ${e instanceof Error ? e.message : e}`,
+          ),
+        );
     }
 
     // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
@@ -867,7 +878,19 @@ export class MenuService {
             } as never,
           } as never,
         })
-        .catch(() => undefined);
+        /**
+         * ⚠️ SE L'EVENTO NON SI SCRIVE, SI DICE — corretto il 18/8, un giorno dopo averlo scritto.
+         *
+         * Degradare va bene: l'erogazione non deve fermarsi perché una riga di analytics non passa.
+         * Ingoiare l'errore no: `npm run diag:kcal` legge **solo** questi eventi, e una scrittura
+         * che fallisce in silenzio è indistinguibile da «nessuna giornata sotto il fabbisogno» —
+         * cioè da un ✓. È la regola di `feedback-errori-nei-log`: se degradi, scrivilo.
+         */
+        .catch((e: unknown) =>
+          this.logger.warn(
+            `Kcal: evento daily_kcal_below_target NON scritto per ${clientId}: ${e instanceof Error ? e.message : e}`,
+          ),
+        );
     }
 
     const created: string[] = [];

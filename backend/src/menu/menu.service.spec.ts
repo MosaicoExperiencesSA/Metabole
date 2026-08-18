@@ -1435,6 +1435,19 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
     expect(dati.giorni[0].scostamentoPct).toBeLessThan(-15);
   });
 
+  it('⚠️ se la scrittura dell\'evento fallisce, il menu si eroga lo stesso (e l\'errore non sparisce)', async () => {
+    // Degradare sì, tacere no: `diag:kcal` legge solo questi eventi, e una scrittura persa in
+    // silenzio è indistinguibile da «nessuna giornata sotto il fabbisogno».
+    const { service, prisma } = build(2400);
+    (prisma.analyticsEvent.create as jest.Mock).mockRejectedValue(new Error('colonna sparita'));
+    const avvisi = jest.spyOn((service as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn');
+
+    await expect(service.deliverIfEligible('u1')).resolves.toHaveLength(2);
+    expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+    expect(avvisi.mock.calls.some((c) => String(c[0]).includes('daily_kcal_below_target NON scritto'))).toBe(true);
+    avvisi.mockRestore();
+  });
+
   it('target 1400 e le stesse giornate: nessun evento — 1300 sta nella banda del 15%', async () => {
     const { service, prisma } = build(1400);
     expect(await service.deliverIfEligible('u1')).toHaveLength(2);

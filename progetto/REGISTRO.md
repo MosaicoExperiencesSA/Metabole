@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` ✅❓ **«Nessuna giornata sotto il fabbisogno ✓» diceva ✓ anche quando non lo sapeva.**
+  Voce 271, trovata alla **prima esecuzione in produzione** di `diag:kcal` — il giorno dopo averlo
+  scritto. Zero eventi, e lo script ha stampato il ✓. ⚠️ Quel ✓ non era vero, era **«non lo so»**: il
+  segnale scatta **all'erogazione**, e l'erogazione gira quando la cliente apre l'app — senza consegne
+  nella finestra, zero eventi non dice niente sulle calorie di nessuno. Una diagnostica che mostra la
+  faccia del «va tutto bene» su una domanda a cui non ha risposta è il difetto di famiglia di questo
+  progetto, fatto con le nostre mani a ventiquattr'ore di distanza dalla riga in cui lo denunciamo.
+  Ora gli stati sono **tre**, e il numero che li distingue è quante **giornate sono state erogate**
+  nella finestra: nessuna erogazione → «non lo so, e non vuol dire che le calorie siano a posto»
+  (con il suggerimento di allargare a `GIORNI=30`); erogazioni ma nessun evento → ✓ **col numero delle
+  erogazioni accanto**, che è la prova che il controllo ha avuto occasione di scattare; eventi → la
+  tabella. ⚠️ **E la seconda metà**: la scrittura dell'evento stava dentro un `.catch(() => undefined)`,
+  quindi una scrittura fallita sarebbe stata **indistinguibile da un ✓** — `diag:kcal` legge solo
+  quegli eventi. Ora degrada come prima (l'erogazione non si ferma per una riga di analytics) ma **lo
+  scrive nei log**, e la stessa cura è andata al gemello `fasting_meals_missing`, che aveva lo stesso
+  silenzio dal 17/8. Un test tiene fermo che il menu si eroga lo stesso **e** che l'avviso esce:
+  rimettendo il catch muto, cade. Nessuna migrazione, 3117 test in 203 suite.
+
 - `[Sviluppo]` ⭐ **Il popup «Com'è andata ieri?» richiedeva le stelle dei piatti già votati.** Voci 269
   (chiusa) e 270 (aperta). È il punto 6 della voce 253 — il giro sistematico sulle rotte `/me/*` del
   16/8: **`GET /me/ratings/pending` esiste dal principio**, torna i pasti degli ultimi tre giorni

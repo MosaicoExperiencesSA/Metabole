@@ -64,10 +64,32 @@ async function main(): Promise<void> {
   })) as { userId: string | null; data: unknown; receivedAt: Date }[];
 
   if (eventi.length === 0) {
+    /**
+     * ⚠️ TRE STATI, NON DUE — corretto il 18/8, un giorno dopo aver scritto questa diagnostica.
+     *
+     * La prima esecuzione in produzione ha stampato «nessuna giornata sotto il fabbisogno ✓», e quel
+     * ✓ non era vero: era «non lo so». Il segnale scatta **all'erogazione**, e l'erogazione gira
+     * quando la cliente apre l'app: senza consegne nella finestra, zero eventi non dice niente sulle
+     * calorie di nessuno. Una diagnostica che mostra la faccia del «va tutto bene» quando non sa è
+     * il difetto di famiglia di questo progetto, fatto con le mie mani.
+     *
+     * Il numero che distingue i due casi è quante GIORNATE SONO STATE EROGATE nella finestra.
+     */
+    const giornateErogate = await prisma.menuDay.count({ where: { createdAt: { gte: da } } });
+    if (giornateErogate === 0) {
+      console.log(
+        `Non lo so: negli ultimi ${giorniFinestra} giorni non è stata erogata nessuna giornata, quindi\n` +
+          'il segnale non ha avuto occasione di scattare per nessuno.\n' +
+          '⚠️ Questo NON vuol dire che le calorie siano a posto: vuol dire che da qui non si vede.\n' +
+          '   `deliverIfEligible` gira quando la cliente apre l\'app, e scrive solo i giorni NUOVI.\n' +
+          `   Riprova con una finestra più larga: GIORNI=30 npm run diag:kcal`,
+      );
+      return;
+    }
     console.log(
       `Nessuna giornata sotto il fabbisogno negli ultimi ${giorniFinestra} giorni ✓\n` +
-        '⚠️ Se il segnale è stato rilasciato da poco, può voler dire solo che l\'erogazione non è\n' +
-        '   ancora passata per nessuno: `deliverIfEligible` gira quando la cliente apre l\'app.',
+        `(e il controllo ha avuto occasione di scattare: ${giornateErogate} giornate erogate nella finestra)\n` +
+        '⚠️ Restano fuori le clienti a cui non è stato erogato niente in questi giorni.',
     );
     return;
   }
@@ -145,8 +167,9 @@ async function main(): Promise<void> {
     return;
   }
 
+  const giornateErogate = await prisma.menuDay.count({ where: { createdAt: { gte: da } } });
   console.log(
-    `Ultimi ${giorniFinestra} giorni · ${eventi.length} erogazioni con almeno una giornata sotto il ` +
+    `Ultimi ${giorniFinestra} giorni · ${giornateErogate} giornate erogate · ${eventi.length} erogazioni con almeno una giornata sotto il ` +
       `fabbisogno · ${righe.length} client${righe.length === 1 ? 'e' : 'i'} coinvolt${righe.length === 1 ? 'a' : 'e'}.\n`,
   );
   console.table(righe);

@@ -713,6 +713,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'diag-kcal-tre-stati',
+    titolo: '«Nessuna giornata sotto il fabbisogno ✓» diceva ✓ anche quando non lo sapeva',
+    dettaglio:
+      'Trovato **alla prima esecuzione in produzione**, il giorno dopo aver scritto `diag:kcal` (voce 268): zero eventi, e lo script ha stampato «Nessuna giornata sotto il fabbisogno negli ultimi 14 giorni ✓». ⚠️ Quel ✓ non era vero, era **«non lo so»**: il segnale scatta **all\'erogazione**, e l\'erogazione gira quando la cliente apre l\'app — senza consegne nella finestra, zero eventi non dice niente sulle calorie di nessuno. Una diagnostica che mostra la faccia del «va tutto bene» quando non sa è il difetto di famiglia di questo progetto, fatto con le nostre mani e a ventiquattr\'ore di distanza dalla riga che lo denuncia. Ora gli stati sono **tre**, e il numero che li distingue è quante **giornate sono state erogate** nella finestra: nessuna erogazione → «non lo so, e non vuol dire che le calorie siano a posto»; erogazioni ma nessun evento → ✓ **col numero delle erogazioni accanto**, che è la prova che il controllo ha avuto occasione di scattare; eventi → la tabella. ⚠️ E la seconda metà: la scrittura dell\'evento era dentro un `.catch(() => undefined)`, quindi un errore di scrittura sarebbe stato **indistinguibile da un ✓**. Ora degrada come prima ma **lo scrive nei log** — e lo stesso è stato fatto al gemello `fasting_meals_missing`, che aveva lo stesso silenzio. Un test in `menu.service.spec` tiene fermo che il menu si eroga lo stesso e che l\'avviso esce: spegnendolo cade.',
+    categoria: CODICE,
+    ordine: 271,
+    fatta: true, // 18/8
+  },
+  {
     chiave: 'popup-valutazioni-gia-date',
     titolo: 'Il popup «Com\'è andata ieri?» richiedeva le stelle dei piatti già votati',
     dettaglio:
