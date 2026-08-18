@@ -1,0 +1,67 @@
+Ordine del menu: cinque difetti chiusi, e il backoffice adesso ha i test
+
+Foglio delle decisioni: progetto/DIFETTI_Ordine_Menu.md (18/8). Nessuno dei cinque era mai stato
+segnalato da un utente: sono usciti rileggendo il file per spiegare come funziona.
+
+1) DUE GRUPPI OMONIMI: IL SALVATAGGIO NE FONDEVA UNO NELL'ALTRO — perdita di dati, silenziosa
+`menuOrder` passava dalla `clean` comune a tutte le preferenze, che deduplica con un `Set`. Giusto
+per le rotte — la stessa voce due volte nel menu non ha senso — ma dall'11/8 i TITOLI dei gruppi
+vivono nella stessa lista, e due gruppi chiamati tutti e due «Vendite» producono due righe
+identiche: la seconda spariva, i due gruppi diventavano uno con dentro le voci di entrambi, senza
+un errore e senza un avviso. Chi lo subiva riprovava pensando di aver sbagliato.
+
+Ora c'è `backend/src/users/ordine-menu.ts`: il dedup vale SOLO per le rotte, i marcatori `#gruppo…`
+passano sempre.
+
+3) TITOLI NON RIPULITI E LIMITE SOLO NEL BROWSER — chiuso nella stessa funzione
+`trim()`, perché «Vendite » e «Vendite» erano due gruppi diversi e niente lo diceva (e con il
+difetto 1 di mezzo, quale sopravvivesse dipendeva da dove era caduto lo spazio). E taglio a 64
+caratteri per riga più `@MaxLength(64, {each:true})` sul DTO.
+⚠️ Il limite del browser non è un limite: la casella nell'editor ha `maxLength={24}`, ma vale per
+chi usa la schermata, non per chi parla con l'API — una chiamata diretta poteva salvare un titolo
+da cinquemila caratteri, che la barra laterale poi disegnava.
+⚠️ E il taglio viene PRIMA del dedup: due rotte che differiscono solo dopo il sessantaquattresimo
+carattere, deduplicate prima, resterebbero due righe identiche nella lista salvata.
+
+2) L'ICONA SPARIVA A CHI RINOMINAVA UN GRUPPO — deciso: segue le VOCI, non il titolo
+`Layout.tsx` cercava la sezione di fabbrica per titolo. Rinominando «CRM» in «Vendite» nessuna
+sezione si chiamava più così e l'icona spariva: nessuno collegava le due cose, aveva rinominato un
+gruppo, mica toccato le icone. Ora `iconaDelGruppo` guarda da quale sezione vengono la maggior parte
+delle voci: regge al rename e a chi sposta due voci da un gruppo all'altro — l'icona segue il
+contenuto, che è la cosa che il gruppo è davvero.
+⚠️ Il secondo criterio di ordinamento è alfabetico di proposito: a parità di voci fra due sezioni la
+scelta dev'essere la stessa a ogni caricamento, o l'icona di un gruppo misto cambierebbe da sola.
+
+4) UN `?? true` CHE NON SCATTAVA MAI — deciso: si resta CHIUSI, si toglie la riga morta
+`collapsed[g] ?? hasActive ?? true`: `hasActive` è sempre un booleano, quindi il `?? true` non veniva
+raggiunto mai e il comportamento vero era «chiuso». Non cambia niente per nessuno; cambia che il
+codice dice quello che fa, e che chi lo legge fra sei mesi non prova a «sistemare» una scelta.
+⚠️ Il rovescio, scritto nel commento: una pagina dentro un gruppo a fisarmonica che si usa di rado è
+invisibile finché non ci si ricorda che quel gruppo esiste. Al primo «non trovo più X», si guarda qui.
+
+5) IL GRUPPO VUOTO SI SALVA MA NON COMPARE — deciso: resta invisibile, e l'editor lo dice
+Il menu non disegna un'intestazione che non porta da nessuna parte. Ma chi lo aveva creato per
+riempirlo dopo pensava che il salvataggio non avesse funzionato: adesso la nota nell'editor lo dice.
+⚠️ Scartato il divieto di salvare vuoto: crei il gruppo e non puoi più salvare il resto del lavoro
+finché non l'hai riempito.
+
+⚠️ E IL PEZZO CHE STAVA SOTTO A TUTTI E CINQUE: IL BACKOFFICE NON AVEVA TEST
+Backend e app avevano i loro; il backoffice veniva **solo compilato** dalla CI. È il motivo per cui
+quattro difetti sono stati lì una settimana, e per cui sono usciti solo perché qualcuno ha chiesto
+di spiegare come funziona quel file. Un file che decide cosa una persona vede nel menu e che non ha
+un collaudo non è «semplice»: è solo non controllato.
+Aggiunti vitest al backoffice (stessa forma dell'app: `environment: 'node'`, si collauda `lib/`), il
+passo «Test» nella CI e `menuOrder.spec.ts` — 14 casi, compresi i due che reggono tutto il resto:
+una voce nuova in NAV compare a chi ha già un ordine salvato, una rotta sparita non rompe la lettura.
+
+NON FATTI, DI PROPOSITO (difetti 6 e 7 del foglio): le righe morte nelle preferenze di chi non
+risalva mai, e le voci nascoste dai permessi che tornano in fondo invece che al loro posto. Sono i
+due più rari e costano una scrittura non richiesta: si fanno quando si ritoccherà il file. Restano
+in Lavori.
+
+FILE
+- backend/src/users/ordine-menu.ts (+ .spec.ts, 9 test) · users.service.ts · me.controller.ts
+- backoffice/src/lib/menuOrder.ts (+ .spec.ts, 14 test) · components/Layout.tsx · components/MenuOrderCard.tsx
+- backoffice/package.json, package-lock.json, vite.config.ts · .github/workflows/ci.yml
+
+Build verde (backend e backoffice), 216 suite / 3368 test lato backend, 14 lato backoffice.

@@ -14,6 +14,7 @@ import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
 import { parseCodiceFiscale } from '../common/codice-fiscale.util';
 import { randomBytes } from 'crypto';
+import { puliscoOrdineMenu, RIGHE_MASSIME } from './ordine-menu';
 
 /** Password provvisoria leggibile: niente caratteri ambigui (0/O/1/l/I), con cifre. */
 function genTempPassword(): string {
@@ -309,7 +310,12 @@ export class UsersService {
     if (input.dashboardShortcuts !== undefined) prefs.dashboardShortcuts = clean(input.dashboardShortcuts);
     if (input.dashboardModules !== undefined) prefs.dashboardModules = clean(input.dashboardModules);
     if (input.dashboardCharts !== undefined) prefs.dashboardCharts = clean(input.dashboardCharts, 3); // max 3 grafici
-    if (input.menuOrder !== undefined) prefs.menuOrder = clean(input.menuOrder, 80);
+    /**
+     * ⚠️ L'ORDINE DEL MENU HA LA SUA PULIZIA, e non è pignoleria: nella sua lista i TITOLI dei
+     * gruppi stanno insieme alle rotte, e il `Set` di `clean` fondeva due gruppi omonimi in uno
+     * solo — perdita di dati senza un errore e senza un avviso. Vedi `ordine-menu.ts`.
+     */
+    if (input.menuOrder !== undefined) prefs.menuOrder = puliscoOrdineMenu(input.menuOrder, RIGHE_MASSIME);
     if (input.showEarnings !== undefined) prefs.showEarnings = !!input.showEarnings;
     if (input.waterUnit !== undefined && ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(input.waterUnit)) prefs.waterUnit = input.waterUnit;
     if (input.dashboardBlocksOff !== undefined) prefs.dashboardBlocksOff = clean(input.dashboardBlocksOff);

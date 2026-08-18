@@ -243,9 +243,19 @@ export function MenuOrderCard() {
               </button>
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
+              {/*
+                ⚠️ IL GRUPPO VUOTO SI SALVA MA NON COMPARE (difetto 5, deciso da Simone il 18/8).
+                Il menu non disegna un'intestazione che non porta da nessuna parte — giusto così —
+                ma chi lo aveva creato per riempirlo dopo pensava che il salvataggio non avesse
+                funzionato. Il comportamento non cambia: **smette di essere una sorpresa**.
+                ⚠️ Scartato il divieto di salvare vuoto: crei il gruppo e non puoi più salvare il
+                resto del lavoro finché non l'hai riempito. Un controllo che protegge un dato pulito
+                prendendo in ostaggio dieci minuti di lavoro non è un buon affare.
+              */}
               {g.items.length === 0 && (
                 <div className="muted" style={{ fontSize: 12.5, padding: '8px 12px', border: '1px dashed var(--line)', borderRadius: 10 }}>
-                  Gruppo vuoto: portaci una voce con le frecce, oppure eliminalo.
+                  Gruppo vuoto: <b>non comparirà nel menu</b> finché non ci porti una voce. Usa le
+                  frecce di una voce del gruppo accanto, oppure eliminalo — si salva lo stesso.
                 </div>
               )}
               {g.items.map((it, vi) => (

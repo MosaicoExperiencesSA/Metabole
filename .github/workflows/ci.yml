@@ -54,6 +54,11 @@ jobs:
       - name: Build (tsc + vite)
         run: npm run build
 
+      # I test del backoffice (18/8). Prima qui c'era solo la compilazione: è il motivo per cui
+      # quattro difetti di `menuOrder.ts` sono passati indenni per una settimana.
+      - name: Test
+        run: npm test
+
   app:
     name: App · build
     runs-on: ubuntu-latest

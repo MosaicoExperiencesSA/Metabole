@@ -130,6 +130,38 @@ export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
 }
 
 /**
+ * L'ICONA DI UN GRUPPO — dalle sue VOCI, non dal suo titolo (difetto 2 del 18/8).
+ *
+ * Prima la barra laterale cercava la sezione di fabbrica **per titolo**
+ * (`NAV.find((s) => s.group === gruppo.group)`). Chi rinominava «CRM» in «Vendite» vedeva sparire
+ * l'icona: nessuna sezione di fabbrica si chiamava più così, e nessuno collegava le due cose —
+ * aveva rinominato un gruppo, mica toccato le icone.
+ *
+ * Si guarda invece da quale sezione di fabbrica vengono la maggior parte delle voci del gruppo.
+ * Regge al rename e regge a chi sposta due voci da un gruppo all'altro: **l'icona segue il
+ * contenuto**, che è la cosa che il gruppo è davvero — il titolo è solo come l'ha chiamato chi lo
+ * ha fatto (deciso da Simone, 18/8).
+ *
+ * ⚠️ Il secondo criterio di ordinamento è alfabetico **di proposito**: a parità di voci fra due
+ * sezioni la scelta dev'essere la stessa a ogni caricamento, o l'icona di un gruppo misto
+ * cambierebbe da sola fra una visita e l'altra.
+ *
+ * `undefined` = nessuna delle voci viene da una sezione con icona. Un gruppo vuoto non ne ha, e va
+ * bene: non compare comunque.
+ */
+export function iconaDelGruppo(
+  voci: readonly { to: string }[],
+  sezioni: readonly { icon?: string; items: readonly { to: string }[] }[],
+): string | undefined {
+  const conteggi = new Map<string, number>();
+  for (const it of voci) {
+    const sez = sezioni.find((s) => s.items.some((x) => x.to === it.to));
+    if (sez?.icon) conteggi.set(sez.icon, (conteggi.get(sez.icon) ?? 0) + 1);
+  }
+  return [...conteggi.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+}
+
+/**
  * I gruppi da DISEGNARE, a partire dalle sezioni di fabbrica e dall'ordine salvato.
  *
  * ⚠️ La regola che conta: una voce presente nel menu di fabbrica e **non nominata** dai gruppi

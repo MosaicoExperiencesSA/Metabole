@@ -23,9 +23,17 @@ class UpdatePrefsDto {
   @ArrayMaxSize(3)
   dashboardCharts?: string[];
 
+  /**
+   * ⚠️ `@MaxLength` per riga, e sta qui perché nell'editor la casella ha `maxLength={24}` — ma il
+   * limite del browser non è un limite: vale per chi usa la schermata, non per chi parla con l'API.
+   * Senza, una chiamata diretta poteva salvare un titolo da cinquemila caratteri che la barra
+   * laterale poi disegnava (difetto 3 del 18/8). Il taglio a 64 lo fa comunque `puliscoOrdineMenu`;
+   * questo rifiuta la richiesta invece di accorciarla in silenzio.
+   */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(64, { each: true })
   @ArrayMaxSize(80)
   menuOrder?: string[];
 

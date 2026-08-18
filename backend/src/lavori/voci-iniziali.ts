@@ -897,6 +897,24 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 18/8
   },
 
+  {
+    chiave: 'ordine-menu-difetti',
+    titolo: 'Ordine del menu: i cinque difetti del foglio del 18/8 — chiusi',
+    dettaglio:
+      'Foglio `progetto/DIFETTI_Ordine_Menu.md`. ⚠️ Il più grave era **perdita di dati silenziosa**: `menuOrder` passava dalla `clean` comune alle preferenze, che deduplica con un `Set` — giusto per le rotte, ma i **titoli dei gruppi** vivono nella stessa lista, e due gruppi omonimi producevano due righe identiche: la seconda spariva e i due gruppi diventavano uno, senza un errore. Ora `backend/src/users/ordine-menu.ts` deduplica solo le rotte, fa `trim` e taglia a 64 **lato server** (⚠️ la casella ha `maxLength={24}`, ma il limite del browser non è un limite). Poi: l\'**icona segue le voci e non il titolo** (rinominare un gruppo la faceva sparire); via un `?? true` che non scattava mai; il **gruppo vuoto** lo dice nell\'editor invece di sembrare un salvataggio fallito. ⚠️ E il pezzo sotto a tutti: **il backoffice non aveva test** — aggiunti vitest, il passo «Test» in CI e `menuOrder.spec.ts` (14 casi).',
+    categoria: CODICE,
+    ordine: 267,
+    fatta: true, // 18/8
+  },
+  {
+    chiave: 'ordine-menu-difetti-minori',
+    titolo: 'Ordine del menu: le righe morte e le voci nascoste che tornano in fondo',
+    dettaglio:
+      'I difetti **6 e 7** del foglio `progetto/DIFETTI_Ordine_Menu.md`, lasciati aperti di proposito il 18/8 — sono i più rari dei sette e costano una scrittura non richiesta. **6)** Una voce tolta dal software resta nelle preferenze di chi l\'aveva ordinata: in lettura viene saltata, ma la riga consuma una delle 80 disponibili finché la persona non risalva. Si chiuderebbe riscrivendo indietro l\'ordine ripulito in lettura — ma è una scrittura che nessuno ha chiesto, e non ne vale la pena finché il tetto degli 80 non dà fastidio. **7)** `conNascoste()` fa la cosa giusta (non cancella dalle preferenze le rotte che questa persona non può vedere) ma le riattacca **in fondo all\'ultimo gruppo**: chi ottiene un permesso ritrova la voce in coda invece che dove l\'aveva messa. Tenere la posizione vuol dire lavorare sulla lista salvata invece che sulla vista. Da fare quando si ritoccherà il file.',
+    categoria: CODICE,
+    ordine: 268,
+  },
+
   /**
    * ⚠️ LE TRE RIGHE DOPPIE DEL 13/8 (voce 224). Non sono lavori: sono duplicati rimasti in pagina
    * con una chiave diversa da quella delle voci vere — che sono, nell'ordine,

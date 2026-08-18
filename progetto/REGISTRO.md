@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🧭 **«Ordine del menu»: cinque difetti chiusi, e il backoffice adesso ha i test.**
+  Nessuno era mai stato segnalato: sono usciti rileggendo `menuOrder.ts` per spiegare come funziona.
+  ⚠️ Il più grave era **perdita di dati silenziosa**: `menuOrder` passava dalla `clean` comune a tutte
+  le preferenze, che deduplica con un `Set` — giusto per le rotte, ma dall'11/8 i **titoli dei
+  gruppi** vivono nella stessa lista, e due gruppi chiamati tutti e due «Vendite» producevano due
+  righe identiche. La seconda spariva: i due gruppi diventavano uno, con dentro le voci di entrambi,
+  senza un errore e senza un avviso — e chi lo subiva riprovava pensando di aver sbagliato lei. Ora
+  `ordine-menu.ts` deduplica **solo le rotte**, fa `trim` («Vendite » e «Vendite» erano due gruppi
+  diversi) e taglia a 64 caratteri **lato server**: ⚠️ la casella nell'editor ha `maxLength={24}`, ma
+  il limite del browser non è un limite — vale per chi usa la schermata, non per chi parla con l'API.
+  ⚠️ E il taglio viene **prima** del dedup, o due rotte lunghe uguali dopo il taglio resterebbero due.
+  Poi: **l'icona segue le voci, non il titolo** (rinominare «CRM» in «Vendite» la faceva sparire, e
+  nessuno collegava le due cose) — con il secondo criterio di ordinamento alfabetico di proposito, o
+  l'icona di un gruppo misto cambierebbe da sola fra una visita e l'altra; via un `?? true` che **non
+  scattava mai** e faceva credere che i gruppi a fisarmonica partissero aperti (partono chiusi, ed è
+  voluto — ⚠️ col rovescio scritto nel commento: una pagina dentro un gruppo che si usa di rado è
+  invisibile finché non ci si ricorda che quel gruppo esiste); e il **gruppo vuoto** ora dice
+  nell'editor che non comparirà nel menu finché è vuoto, invece di sembrare un salvataggio fallito.
+  ⚠️ **E il pezzo che stava sotto a tutti e cinque: il backoffice non aveva test.** Backend e app
+  avevano i loro, il backoffice veniva solo *compilato* dalla CI — è il motivo per cui quattro
+  difetti sono stati lì una settimana. Aggiunti vitest (stessa forma dell'app), il passo «Test» nella
+  CI e `menuOrder.spec.ts` con 14 casi. I difetti 6 e 7 del foglio restano aperti di proposito: sono
+  i più rari e costano una scrittura non richiesta.
+
 - `[Sviluppo]` ✅ **Le tre code del catalogo passano da Vera, una riga per volta.** Richiesta di
   Simone: «se ci sono ricette da approvare, combinazioni da approvare, allergeni da approvare, vanno
   tutti inviati a vera che aiuta il nutrizionista a verificare uno per uno». Le tre code esistevano

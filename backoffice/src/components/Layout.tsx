@@ -6,7 +6,7 @@ import { UserMenu } from './UserMenu';
 import { NotificationBell } from './NotificationBell';
 import { OverdueGate } from './RecallGuard';
 import { api } from '../api/client';
-import { readMenuOrderCache, writeMenuOrderCache, gruppiEffettivi, EVENTO_MENU_CAMBIATO } from '../lib/menuOrder';
+import { readMenuOrderCache, writeMenuOrderCache, gruppiEffettivi, iconaDelGruppo, EVENTO_MENU_CAMBIATO } from '../lib/menuOrder';
 
 interface NavItem {
   key: string; // pageKey dei permessi
@@ -211,17 +211,29 @@ export function Layout({ title, children }: { title: string; children: ReactNode
           **Se un gruppo è a fisarmonica o solo un titolo lo decide chi guarda** (richiesta di
           Simone dell'11/8): la preferenza vince, e solo quando non dice niente — cioè per le
           preferenze salvate prima che l'interruttore esistesse — si eredita com'era di fabbrica.
-          L'icona resta attaccata al titolo di fabbrica: un gruppo rinominato la perde, ed è giusto,
-          era l'icona di *quel* gruppo.
+          ⚠️ L'ICONA SEGUE LE VOCI, NON IL TITOLO (18/8). Prima si cercava la sezione di fabbrica
+          per titolo, e chi rinominava «CRM» in «Vendite» si vedeva sparire l'icona senza capire
+          perché — aveva rinominato un gruppo, mica toccato le icone. Ora si guarda da dove vengono
+          le sue voci: regge al rename e a chi sposta due voci da un gruppo all'altro.
         */}
         {gruppiEffettivi(NAV.map((s) => ({ group: s.group, collapsible: s.collapsible, items: s.items.filter((it) => can(it.key)) })), menuOrder).map((gruppo) => {
-          const section = NAV.find((s) => s.group === gruppo.group);
           const visible = gruppo.items;
           if (visible.length === 0) return null;
+          const icona = iconaDelGruppo(visible, NAV);
 
           if (gruppo.comprimibile) {
             const hasActive = visible.some((it) => location.pathname.startsWith(it.to));
-            const isOpen = collapsed[gruppo.group] ?? hasActive ?? true;
+            /**
+             * ⚠️ Un gruppo a fisarmonica che non contiene la pagina attiva parte CHIUSO, ed è
+             * voluto: chi lo mette a fisarmonica lo fa proprio per tenere la barra corta. Qui c'era
+             * un `?? true` in coda che **non scattava mai** (`hasActive` è sempre un booleano) e
+             * faceva credere il contrario a chi leggeva. Tolto: il comportamento non cambia, cambia
+             * che il codice dice quello che fa (18/8).
+             * ⚠️ Il rovescio, da sapere: una pagina dentro un gruppo a fisarmonica che si usa di
+             * rado è invisibile finché non ci si ricorda che quel gruppo esiste. Se arriva un «non
+             * trovo più X», è qui che si guarda per primo.
+             */
+            const isOpen = collapsed[gruppo.group] ?? hasActive;
             return (
               <div key={gruppo.group}>
                 <button
@@ -229,7 +241,7 @@ export function Layout({ title, children }: { title: string; children: ReactNode
                   style={{ fontWeight: 700, marginTop: 8 }}
                   onClick={() => setCollapsed((c) => ({ ...c, [gruppo.group]: !(c[gruppo.group] ?? hasActive) }))}
                 >
-                  {section?.icon && <i className={`ti ${section.icon}`} />}
+                  {icona && <i className={`ti ${icona}`} />}
                   {gruppo.group}
                   <i className={`ti ti-chevron-${isOpen ? 'down' : 'right'}`} style={{ marginLeft: 'auto', fontSize: 15 }} />
                 </button>
