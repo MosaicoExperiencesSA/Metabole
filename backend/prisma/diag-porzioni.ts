@@ -74,9 +74,9 @@ async function main(): Promise<void> {
 
   const giorni = (await prisma.menuDay.findMany({
     where: { date: { gte: da, lte: oggi } },
-    select: { clientId: true, date: true, meals: true },
+    select: { clientId: true, date: true, meals: true, dietId: true, level: true },
     orderBy: { date: 'asc' },
-  })) as { clientId: string; date: Date; meals: unknown }[];
+  })) as { clientId: string; date: Date; meals: unknown; dietId: string | null; level: number | null }[];
 
   if (giorni.length === 0) {
     console.log(`Nessuna giornata erogata negli ultimi ${giorniFinestra} giorni: non c'è niente da misurare.`);
@@ -84,10 +84,13 @@ async function main(): Promise<void> {
   }
 
   const perCliente = new Map<string, { date: Date; meals: PastoConKcal[] }[]>();
+  /** La dieta (e il livello) dell'ULTIMA giornata erogata: è il catalogo che quella cliente riceve. */
+  const dietaDi = new Map<string, { dietId: string | null; level: number | null }>();
   for (const g of giorni) {
     const meals = (Array.isArray(g.meals) ? g.meals : []) as PastoConKcal[];
     if (!meals.length) continue;
     (perCliente.get(g.clientId) ?? perCliente.set(g.clientId, []).get(g.clientId)!).push({ date: g.date, meals });
+    dietaDi.set(g.clientId, { dietId: g.dietId, level: g.level }); // i giorni arrivano in ordine: vince l'ultimo
   }
 
   const utenti = (await prisma.user.findMany({
@@ -125,6 +128,8 @@ async function main(): Promise<void> {
     'giornate sotto': string;
   };
   const righe: Riga[] = [];
+  /** Il fabbisogno di ogni cliente in esame: serve anche al blocco delle taglie qui sotto. */
+  const fabbisogni = new Map<string, number>();
   let senzaTarget = 0;
   let coperte = 0;
   let inBanda = 0;
@@ -136,6 +141,7 @@ async function main(): Promise<void> {
     if (solo.size && !solo.has(email.toLowerCase())) continue;
 
     const target = await kcalNeed.computeTargetKcal(clientId);
+    if (target) fabbisogni.set(clientId, target);
     if (!target) {
       // ⚠️ «Non lo so» non è «va bene»: senza sesso/età/altezza/peso il fabbisogno non si calcola, e
       // all'erogazione il motore usa le kcal del LIVELLO della dieta. Si conta a parte e si dice.
@@ -209,6 +215,62 @@ async function main(): Promise<void> {
         '   non si può dire se la giornata è corta. Non è un ✓: è un «non lo so».',
     );
   }
+  /**
+   * ⚠️ LE TAGLIE — il numero che serve alla decisione della voce 273.
+   *
+   * Le ricette del catalogo sono dimensionate su UNA giornata (`menu_daycombo_kcal_target`, default
+   * 1500), e la dieta se la porta scritta in `levels[0].kcal` da quando il generatore l'ha creata.
+   * Chi ha un fabbisogno sopra quella taglia riceve giornate corte **per costruzione**, e la domanda
+   * che decide se serve una seconda taglia di catalogo è una sola: **quante sono**.
+   */
+  const diete = (await prisma.diet.findMany({
+    where: { id: { in: [...new Set([...dietaDi.values()].map((d) => d.dietId).filter(Boolean))] as string[] } },
+    select: { id: true, name: true, levels: true },
+  })) as { id: string; name: string; levels: unknown }[];
+  const tagliaDi = new Map(
+    diete.map((d) => {
+      const arr = (Array.isArray(d.levels) ? d.levels : []) as { level?: number; kcal?: number }[];
+      return [d.id, { nome: d.name, kcal: arr[0]?.kcal ?? null }];
+    }),
+  );
+
+  type RigaTaglia = { cliente: string; email: string; fabbisogno: number; 'taglia catalogo': string; rapporto: string };
+  const sopra: RigaTaglia[] = [];
+  let sottoOInPari = 0;
+  let senzaTaglia = 0;
+  for (const [clientId, fabbisogno] of fabbisogni) {
+    const u = perId.get(clientId);
+    if (solo.size && !solo.has((u?.email ?? '').toLowerCase())) continue;
+    const t = tagliaDi.get(dietaDi.get(clientId)?.dietId ?? '');
+    if (!t?.kcal) { senzaTaglia++; continue; }
+    const rapporto = fabbisogno / t.kcal;
+    // Il bordo della banda: sopra questo il catalogo non può comporre una giornata giusta.
+    if (rapporto <= 1 / (1 - tolleranzaPct / 100)) { sottoOInPari++; continue; }
+    sopra.push({
+      cliente: u?.clientProfile?.name ?? '(senza nome)',
+      email: u?.email ?? '—',
+      fabbisogno: Math.round(fabbisogno),
+      'taglia catalogo': `${t.kcal} (${t.nome})`,
+      rapporto: `×${rapporto.toFixed(2)}`,
+    });
+  }
+  sopra.sort((a, b) => parseFloat(b.rapporto.slice(1)) - parseFloat(a.rapporto.slice(1)));
+
+  console.log(`\n── LE TAGLIE ──  chi ha un fabbisogno più grande del catalogo che riceve (voce 273)\n`);
+  if (!sopra.length) {
+    console.log(`Nessuna: tutte e ${sottoOInPari} le clienti misurabili stanno dentro la taglia del loro catalogo ✓`);
+  } else {
+    console.table(sopra);
+    console.log(
+      `**${sopra.length} clienti su ${sopra.length + sottoOInPari}** hanno un fabbisogno oltre il bordo\n` +
+        `della banda della loro taglia: per loro il catalogo non può comporre una giornata giusta,\n` +
+        'e nessun moltiplicatore di porzione cambia il fatto che le ricette sono scritte più piccole.',
+    );
+  }
+  if (senzaTaglia) {
+    console.log(`⚠️ ${senzaTaglia} senza taglia dichiarata in \`Diet.levels\`: da lì non si può dire niente.`);
+  }
+
   console.log(
     '\n⚠️ Si confrontano giornate GIÀ EROGATE con il fabbisogno di OGGI: se peso, obiettivo o\n' +
       '   correzione kcal sono cambiati nel frattempo, il numero di ieri è misurato col metro di adesso.\n' +

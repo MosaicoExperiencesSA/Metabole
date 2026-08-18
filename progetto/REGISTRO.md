@@ -20,6 +20,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 📐 **`diag:porzioni` conta anche «LE TAGLIE»: per quante persone servirebbe un secondo
+  catalogo.** Coda della scoperta di prima (voce 273): il catalogo ha **una** taglia calorica, la dieta
+  se la porta scritta in `Diet.levels[0].kcal`, e l'erogazione punta al fabbisogno — chi sta sopra
+  riceve corto per costruzione. La decisione che ne segue, cioè **se fare una seconda taglia**, dipende
+  da un numero solo: **quante persone stanno sopra**. Se sono due è un caso da gestire a mano; se sono
+  un terzo del parco è una funzionalità mancante. Ora l'ultimo blocco della diagnostica lo dice: per
+  ogni cliente il **fabbisogno**, la **taglia del catalogo che riceve** (col nome della dieta) e il
+  **rapporto** fra i due, con dentro solo chi sta **oltre il bordo della banda** (fabbisogno > taglia ÷
+  0,85) — sotto quel confine il motore una giornata giusta la compone e non c'è niente da decidere.
+  ⚠️ E la riga che conta, scritta nell'output: **per loro nessun moltiplicatore di porzione cambia il
+  fatto che le ricette sono scritte più piccole**. Il moltiplicatore porta alle calorie giuste
+  moltiplicando le grammature, la seconda taglia ci porta con piatti pensati per quella misura: sono
+  due risposte diverse, e la tabella serve a scegliere sapendo su quante persone si sta decidendo.
+  ⚠️ Le diete senza livelli dichiarati si contano a parte: da lì non si può dire niente. Sola lettura,
+  nessuna migrazione, 3120 test in 203 suite.
+
+- `[Sviluppo]` 🗂️ **«Aggiorna dal rilascio» non riscrive il testo delle voci già in elenco: adesso lo
+  dice.** Voci 274 (chiusa) e 275 (aperta), da una domanda di Simone — «la lista lavori la stai tenendo
+  allineata?». La risposta onesta era **sì per il file, no per la pagina**: il file è allineato (20 voci
+  dalla 254 alla 273, nessun buco, nessun duplicato, ogni consegna del 17 e del 18/8 ha la sua), ma
+  `caricaVociIniziali` fa **due** cose — crea le voci mancanti e spunta quelle che il file dà per
+  finite — e il **testo** no. ⚠️ Quindi quando nel file un titolo o un dettaglio cambiano, e succede a
+  ogni giro perché una voce si riscrive appena si scopre la causa vera, in pagina resta la versione di
+  prima e chi legge crede di leggere l'ultima parola. Oggi stesso: la voce 255 riscritta due volte, la
+  272 corretta stamattina. Un aggiornamento che non arriva e nessuno lo dice: la stessa famiglia di
+  tutto il resto. ⚠️ **Non si riscrive di nascosto**, perché la pagina è **lo stato vivo** e una voce
+  può essere stata corretta a mano dal backoffice: si **mostra**. Il riepilogo del pulsante ora elenca
+  le voci il cui testo nel rilascio è più recente, dicendo che qui non viene riscritto — e il «non c'è
+  niente da allineare» non compare più quando invece c'è qualcosa da sapere. 3 test, fra cui che
+  **segnalarle non è aggiornarle** (nessuna scrittura tocca titolo o dettaglio). ⛔ La seconda metà è di
+  Simone (voce 275): se si vuole che il rilascio porti anche i testi, bisogna decidere cosa fare di una
+  voce corretta a mano in pagina — e la stessa domanda vale per `categoria` e `ordine`. Backend 3120
+  test in 203 suite, backoffice verde, nessuna migrazione.
+  ⚠️ *Questa voce è stata scritta in ritardo di un commit: il ponte verso il Mac era fermo quando la
+  consegna è stata fatta, e il commit `e6c297e` è partito senza. È il motivo per cui compare qui sotto
+  a una consegna più recente.*
+
 - `[Sviluppo]` 🎯 **Il catalogo ha UNA taglia calorica (1500) e l'erogazione punta al fabbisogno: chi
   sta sopra riceve corto per costruzione.** Voce 273, e ⚠️ **questa domanda viene prima del tetto del
   moltiplicatore** (voce 255). Nata leggendo `diag:porzioni` in produzione — 84 giornate, 18 clienti,

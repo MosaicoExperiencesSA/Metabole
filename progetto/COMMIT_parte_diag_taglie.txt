@@ -1,0 +1,35 @@
+diag:porzioni: «LE TAGLIE», cioe' per quante persone servirebbe un secondo catalogo
+
+Aggiunta al blocco finale di `npm run diag:porzioni`. Nessun codice di produzione, sola lettura.
+
+PERCHE'. Ieri sera abbiamo scoperto che il catalogo ha UNA taglia calorica (voce 273): le ricette le
+dimensiona `menu_daycombo_kcal_target` (default 1500) e la dieta se la porta scritta in
+`levels[0].kcal` da quando il generatore l'ha creata; l'erogazione invece punta al fabbisogno della
+cliente. Chi sta sopra riceve giornate corte PER COSTRUZIONE.
+La decisione che ne segue — se fare una **seconda taglia di catalogo** — dipende da UN numero:
+**quante persone stanno sopra**. Se sono due, e' un caso da gestire a mano; se sono un terzo del
+parco, e' una funzionalita' mancante.
+
+COSA STAMPA ADESSO, in fondo alla tabella di sempre:
+· ogni cliente col **fabbisogno**, la **taglia del catalogo che riceve** (col nome della dieta) e il
+  **rapporto** fra i due;
+· ⚠️ dentro l'elenco finiscono solo quelle oltre il **bordo della banda** (fabbisogno > taglia ÷ 0,85):
+  sotto quel confine il motore una giornata giusta la compone, e non c'e' niente da decidere;
+· il totale: «N clienti su M hanno un fabbisogno oltre il bordo della banda della loro taglia».
+
+⚠️ E la riga che conta, scritta nell'output: **per loro nessun moltiplicatore di porzione cambia il
+fatto che le ricette sono scritte piu' piccole.** Il moltiplicatore le porta al numero giusto di
+calorie moltiplicando le grammature; la seconda taglia le porta al numero giusto con piatti pensati
+per quella misura. Sono due risposte diverse, e la tabella serve a scegliere fra le due sapendo su
+quante persone si sta decidendo.
+⚠️ La taglia si legge da `Diet.levels[0].kcal`, cioe' da quello che il generatore ha scritto quando ha
+creato quella dieta. Le diete senza livelli dichiarati si contano a parte: da li' non si puo' dire
+niente.
+
+FILE:
+- backend/prisma/diag-porzioni.ts — il blocco «LE TAGLIE».
+- backend/src/lavori/voci-iniziali.ts — voce 273 aggiornata: il numero che decide adesso si conta.
+
+NESSUNA MIGRAZIONE. Build verde, 3120 test in 203 suite.
+
+DA LANCIARE DOPO IL DEPLOY: `npm run diag:porzioni` — e guardare l'ultimo blocco.
