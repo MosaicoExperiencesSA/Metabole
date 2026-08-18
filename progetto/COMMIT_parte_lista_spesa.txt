@@ -1,0 +1,53 @@
+La lista della spesa si rifà a ogni apertura: quello che si conserva sono le spunte
+
+Ultima coda della voce 255 — ma il difetto è più vecchio di lei, e più largo.
+
+IL DIFETTO
+`shoppingList` teneva una riga per (cliente, dal, al) e, se la trovava, LA RESTITUIVA COSÌ COM'ERA.
+Nessuno la invalidava mai. Quindi tutto quello che cambia la giornata DOPO che la lista è nata non
+arrivava mai nel carrello:
+
+- le porzioni scalate del 18/8 — chi aveva già la lista continuava a comprare il cibo della
+  porzione piccola, che è esattamente l'errore che quella consegna voleva chiudere;
+- il piatto cambiato in chat con Gaia, le «ricette semplici», il piatto non gradito sostituito in
+  erogazione: la lista continuava a chiedere gli ingredienti di un piatto che quel giorno non c'è;
+- la grammatura corretta in backoffice dalla nutrizionista.
+
+⚠️ E non lo diceva nessuno: la lista SEMBRAVA la lista di quei giorni. È il difetto di famiglia di
+questo progetto — un dato che agisce e non si vede — dentro l'unica schermata che si guarda mentre
+si spinge un carrello.
+
+⚠️ SCARTATA LA STRADA DELLE DATE, ed è la parte che vale la pena leggere
+La strada breve era «se un giorno è stato toccato dopo che la lista è nata, rifalla». Non si può, e
+per due motivi che bastano da soli: `ShoppingList.updatedAt` lo muove ANCHE LA SPUNTA (è la lezione
+della voce 275: un `updatedAt` che risponde a due domande non risponde bene a nessuna), e
+`MenuDay.updatedAt` lo muove `deliverIfEligible`, che gira A OGNI APERTURA DELL'APP. Il confronto
+sarebbe stato sempre vero o sempre falso — e in tutti e due i casi sbagliato in silenzio.
+
+LA SCELTA
+La lista si RICALCOLA a ogni lettura. Costa la query sulle ricette dei sette giorni, cioè quello che
+costava comunque la prima volta. La riga in tabella resta, ma smette di essere una COPIA della
+lista: diventa il posto dove vive l'unica cosa che il server non sa ricostruire, cioè cosa hai già
+messo nel carrello.
+
+⚠️ SI SCRIVE SOLO SE È CAMBIATO QUALCOSA (`stessaLista`, che confronta per contenuto e non per
+ordine: un giorno rigenerato con gli stessi piatti in ordine diverso non è una lista diversa). La
+lista si rilegge molte volte al giorno, con l'app in mano davanti a uno scaffale: una scrittura per
+ogni lettura muoverebbe `updatedAt` senza che sia successo niente.
+
+⚠️ SI CONSERVA LA SPUNTA, NON LA QUANTITÀ. Se il piatto è cresciuto, i 120 g diventano 216 anche su
+una riga già spuntata: chi ha già comprato lo vede e decide. Tenere il numero vecchio perché «tanto
+l'ha già presa» vorrebbe dire nasconderle che ora gliene serve di più. Una voce sparita se ne va con
+la sua spunta; una voce nuova nasce da spuntare.
+
+⚠️ E il moltiplicatore è quello del PASTO, non della giornata: dentro lo stesso giorno la colazione
+può essere al suo tetto e il pranzo no. «q.b.» resta senza quantità e non diventa uno zero, e una
+riga senza quantità non azzera la somma delle altre.
+
+FILE
+- backend/src/menu/lista-della-spesa.ts (nuovo, + .spec.ts con 10 test) ·
+  backend/src/menu/menu.service.ts (`shoppingList`) · backend/src/menu/menu.service.spec.ts (3 test)
+- backend/src/lavori/voci-iniziali.ts (voce 281; la 280 aggiornata)
+
+220 suite / 3480 test verdi. Nessuna migrazione.
+⛔ Della voce 255 resta solo il kit di rientro (copia `meals` così com'è) e la decisione sui pezzi.

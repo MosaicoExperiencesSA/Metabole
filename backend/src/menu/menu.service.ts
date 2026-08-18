@@ -23,7 +23,8 @@ import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { slotEsclusiTotali } from './finestre-digiuno';
 // Il controllo che mancava: una giornata sotto il fabbisogno oggi esce identica a una giusta.
-import { TETTI_PREDEFINITI, porzioniScalate, quantitaScalata } from './porzione-scalata';
+import { TETTI_PREDEFINITI, porzioniScalate } from './porzione-scalata';
+import { aggregaSpesa, conservaSpuntati, stessaLista } from './lista-della-spesa';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
@@ -31,7 +32,7 @@ import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
-import { MealSnapshot, Substitution } from './pasto-giornata';
+import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 import { EsitoSpezia, classificaSpezia } from './spezie';
 import { punteggioRicetta, type PesiPunteggio } from './punteggio';
@@ -2598,7 +2599,16 @@ export class MenuService {
 
   // ---------- Lista spesa ----------
 
-  /** Lista spesa aggregata dei giorni erogati nell'intervallo (default: da oggi in avanti). */
+  /**
+   * Lista spesa dei giorni erogati nell'intervallo (default: da oggi in avanti).
+   *
+   * ⚠️ **Si RICALCOLA a ogni lettura**, e la riga in tabella serve solo a conservare le spunte. Il
+   * perché sta in `lista-della-spesa.ts`: prima, se la riga esisteva, si tornava quella — quindi
+   * porzioni scalate, piatti cambiati in chat e grammature corrette dalla nutrizionista non
+   * arrivavano mai nel carrello, e la lista *sembrava* la lista di quei giorni. ⚠️ Si **scrive solo
+   * se è cambiato qualcosa** (`stessaLista`): una scrittura per ogni lettura muoverebbe `updatedAt`
+   * senza che sia successo niente.
+   */
   async shoppingList(clientId: string, from?: string, to?: string) {
     const today = toDateOnly();
     const days = await this.prisma.menuDay.findMany({
@@ -2616,12 +2626,6 @@ export class MenuService {
     const dateFrom = days[0].date;
     const dateTo = days[days.length - 1].date;
 
-    const existing = await this.prisma.shoppingList.findUnique({
-      where: { clientId_dateFrom_dateTo: { clientId, dateFrom, dateTo } },
-    });
-    if (existing) return existing;
-
-    // Aggrega gli ingredienti delle ricette dei giorni.
     const recipeIds = [
       ...new Set(days.flatMap((d: { meals: unknown }) => (d.meals as MealSnapshot[]).map((m) => m.recipeId))),
     ];
@@ -2629,42 +2633,22 @@ export class MenuService {
       where: { id: { in: recipeIds as string[] } },
       select: { id: true, ingredients: true },
     });
-    const byId = new Map(recipes.map((r: { id: string; ingredients: unknown }) => [r.id, r.ingredients]));
-    const aggregate = new Map<string, { name: string; qty: number | null; unit: string | null; checked: boolean }>();
-    for (const day of days) {
-      for (const meal of day.meals as unknown as MealSnapshot[]) {
-        const ingredients = (byId.get(meal.recipeId) ?? []) as { name: string; qty?: number; unit?: string }[];
-        /**
-         * ⚠️ LA PORZIONE VALE ANCHE QUI (voce 255, 18/8). La lista sommava le grammature di
-         * catalogo mentre il piatto cresceva: la cliente comprava il cibo per la porzione piccola
-         * e a metà settimana finiva. Un errore che non si vede nell'app — si vede in cucina.
-         */
-        const fattore = meal.porzione ?? 1;
-        for (const ing of ingredients) {
-          const key = `${ing.name.toLowerCase()}|${ing.unit ?? ''}`;
-          const qta = quantitaScalata(ing.qty, fattore, ing.unit);
-          const current = aggregate.get(key);
-          if (current) {
-            if (current.qty !== null && qta) current.qty += qta;
-          } else {
-            aggregate.set(key, {
-              name: ing.name,
-              qty: qta,
-              unit: ing.unit ?? null,
-              checked: false,
-            });
-          }
-        }
-      }
-    }
-    return this.prisma.shoppingList.create({
-      data: {
-        clientId,
-        dateFrom,
-        dateTo,
-        items: [...aggregate.values()] as never,
-      },
+    const byId = new Map(
+      recipes.map((r: { id: string; ingredients: unknown }) => [r.id, (r.ingredients ?? []) as IngredienteRicetta[]]),
+    );
+    const calcolate = aggregaSpesa(days as { meals: unknown }[], byId);
+
+    const existing = await this.prisma.shoppingList.findUnique({
+      where: { clientId_dateFrom_dateTo: { clientId, dateFrom, dateTo } },
     });
+    if (!existing) {
+      return this.prisma.shoppingList.create({
+        data: { clientId, dateFrom, dateTo, items: calcolate as never },
+      });
+    }
+    const unite = conservaSpuntati(calcolate, existing.items);
+    if (stessaLista(unite, existing.items)) return existing;
+    return this.prisma.shoppingList.update({ where: { id: existing.id }, data: { items: unite as never } });
   }
 
   /** Spunta/despunta un elemento della lista. */

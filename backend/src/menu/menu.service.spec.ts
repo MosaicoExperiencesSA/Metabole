@@ -320,6 +320,56 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(list.items).toHaveLength(2);
   });
 
+  /**
+   * ⚠️ LA LISTA VECCHIA NON SI RESTITUIVA PIÙ AGGIORNATA DA NESSUNO. Se la riga esisteva, si
+   * tornava quella: porzioni scalate, piatti cambiati in chat e grammature corrette dalla
+   * nutrizionista non arrivavano mai nel carrello, e la lista *sembrava* la lista di quei giorni.
+   */
+  it('⚠️ la lista già in tabella si RIFÀ: la porzione scalata arriva anche a chi ce l\'aveva già', async () => {
+    prisma.menuDay.findMany.mockResolvedValue([
+      { date: D(todayIso), meals: [{ slot: 'lunch', recipeId: 'r1', porzione: 1.8 }] },
+    ]);
+    prisma.recipe.findMany.mockResolvedValue([{ id: 'r1', ingredients: [{ name: 'Farro', qty: 80, unit: 'g' }] }]);
+    prisma.shoppingList.findUnique.mockResolvedValue({
+      id: 'sl1',
+      items: [{ name: 'Farro', qty: 80, unit: 'g', checked: false }],
+    });
+    prisma.shoppingList.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'sl1', ...data }));
+    const list: any = await service.shoppingList('u1');
+    expect(list.items).toEqual([{ name: 'Farro', qty: 144, unit: 'g', checked: false }]);
+  });
+
+  it('⚠️ e le spunte restano: è l\'unica cosa che il server non sa rifare da solo', async () => {
+    prisma.menuDay.findMany.mockResolvedValue([
+      { date: D(todayIso), meals: [{ slot: 'lunch', recipeId: 'r1', porzione: 1.8 }] },
+    ]);
+    prisma.recipe.findMany.mockResolvedValue([{ id: 'r1', ingredients: [{ name: 'Farro', qty: 80, unit: 'g' }] }]);
+    prisma.shoppingList.findUnique.mockResolvedValue({
+      id: 'sl1',
+      items: [{ name: 'Farro', qty: 80, unit: 'g', checked: true }],
+    });
+    prisma.shoppingList.update.mockImplementation(({ data }: any) => Promise.resolve({ id: 'sl1', ...data }));
+    const list: any = await service.shoppingList('u1');
+    expect(list.items[0]).toEqual({ name: 'Farro', qty: 144, unit: 'g', checked: true });
+  });
+
+  /**
+   * ⚠️ Una scrittura per ogni lettura muoverebbe `updatedAt` senza che sia successo niente — e la
+   * lista si rilegge molte volte al giorno, con l'app in mano davanti a uno scaffale.
+   */
+  it('⚠️ se non è cambiato niente NON scrive: torna la riga com\'era', async () => {
+    prisma.menuDay.findMany.mockResolvedValue([
+      { date: D(todayIso), meals: [{ slot: 'lunch', recipeId: 'r1' }] },
+    ]);
+    prisma.recipe.findMany.mockResolvedValue([{ id: 'r1', ingredients: [{ name: 'Farro', qty: 80, unit: 'g' }] }]);
+    const riga = { id: 'sl1', items: [{ name: 'Farro', qty: 80, unit: 'g', checked: true }] };
+    prisma.shoppingList.findUnique.mockResolvedValue(riga);
+    const list: any = await service.shoppingList('u1');
+    expect(list).toBe(riga);
+    expect(prisma.shoppingList.update).not.toHaveBeenCalled();
+    expect(prisma.shoppingList.create).not.toHaveBeenCalled();
+  });
+
   // --- Finestra di getMenu ---
   // Emula il comportamento di Prisma (orderBy + take) su uno storico più lungo della
   // finestra: è l'unico modo per far vedere al test la differenza tra "i primi 30" e

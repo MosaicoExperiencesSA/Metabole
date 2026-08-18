@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🛒 **La lista della spesa si rifà a ogni apertura: quello che si conserva sono le
+  spunte** (voce 281, ultima coda della 255 — ma il difetto è più vecchio di lei e più largo).
+  `shoppingList` teneva una riga per `(cliente, dal, al)` e, se la trovava, **la restituiva così
+  com'era**: nessuno la invalidava mai. Quindi tutto quello che cambia la giornata **dopo** che la
+  lista è nata non arrivava nel carrello — le porzioni scalate di stamattina (chi aveva già la lista
+  continuava a comprare il cibo della porzione piccola, cioè proprio l'errore che quella consegna
+  voleva chiudere), il piatto **cambiato in chat** con Gaia, le «ricette semplici», il piatto non
+  gradito sostituito in erogazione, la grammatura corretta in backoffice dalla nutrizionista. ⚠️ E
+  non lo diceva nessuno: la lista **sembrava** la lista di quei giorni — il difetto di famiglia di
+  questo progetto, dentro l'unica schermata che si guarda mentre si spinge un carrello. ⚠️ **La
+  strada delle date è stata scartata**, ed è la parte che vale: «se un giorno è stato toccato dopo
+  che la lista è nata, rifalla» non si può fare, perché `ShoppingList.updatedAt` lo muove **anche la
+  spunta** (la lezione della voce 275, di stamattina) e `MenuDay.updatedAt` lo muove
+  `deliverIfEligible`, che gira **a ogni apertura dell'app** — il confronto sarebbe stato sempre
+  vero o sempre falso, e in tutti e due i casi sbagliato in silenzio. Ora la lista si **ricalcola** a
+  ogni lettura, e costa la query sulle ricette dei sette giorni, cioè quello che costava comunque la
+  prima volta: la riga in tabella smette di essere una **copia** e diventa il posto dove vive
+  l'unica cosa che il server non sa ricostruire, **cosa hai già messo nel carrello**. ⚠️ Si scrive
+  **solo se è cambiato qualcosa** (`stessaLista` confronta per contenuto e non per ordine: un giorno
+  rigenerato con gli stessi piatti non è una lista diversa), o `updatedAt` si muoverebbe a ogni
+  sguardo. ⚠️ **Si conserva la spunta, non la quantità**: se il piatto è cresciuto i 120 g diventano
+  216 anche su una riga già spuntata — chi ha già comprato lo vede e decide, mentre tenere il numero
+  vecchio le nasconderebbe che ora gliene serve di più. Modulo puro `menu/lista-della-spesa.ts`, 13
+  test (220 suite, 3480 verdi). Nessuna migrazione. ⛔ Della voce 255 resta **solo il kit di
+  rientro** e la decisione sui **pezzi**.
+
 - `[Sviluppo]` 🥄 **La scheda della ricetta con le grammature di QUESTA cliente** (coda della voce
   255, ora voce 280). Era l'ultima delle quattro code delle porzioni scalate che una cliente **vede**:
   `GET /recipes/:id` risponde con la ricetta di **catalogo** perché non sa di quale giorno si parli,
