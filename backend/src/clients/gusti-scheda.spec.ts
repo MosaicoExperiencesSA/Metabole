@@ -30,7 +30,7 @@ function servizio(attuali: { dislikedFoods?: string[]; intolerances?: string[] }
     rolePagePermission: { findUnique: jest.fn().mockResolvedValue({ canManage: true }) },
     $transaction: jest.fn().mockResolvedValue([]),
   } as never;
-  const s = new ClientsService(prisma, {} as never, { log: jest.fn().mockResolvedValue(undefined) } as never, {} as never, {} as never);
+  const s = new ClientsService(prisma, {} as never, { log: jest.fn().mockResolvedValue(undefined) } as never, {} as never, {} as never, {} as never, {} as never);
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
   (s as unknown as { roleCanManage: () => Promise<boolean> }).roleCanManage = () => Promise.resolve(true);
   return { s, prisma: prisma as unknown as { clientProfile: { upsert: jest.Mock } } };

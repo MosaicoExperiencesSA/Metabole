@@ -699,14 +699,26 @@ export function ClientDetail() {
     setError(null);
     setNotice(null);
     try {
-      const esitoRisposta = await api<{ segnalazioniChiuse: number }>(`/admin/clients/${id}/idoneita`, {
+      const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean }>(`/admin/clients/${id}/idoneita`, {
         method: 'POST',
         body: JSON.stringify({ esito, nota: nota.trim() }),
       });
       const coda = esitoRisposta.segnalazioniChiuse
         ? ` ${esitoRisposta.segnalazioniChiuse} segnalazione/i clinica/e chiusa/e.`
         : '';
-      setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}`);
+      /**
+       * ⚠️ «Serve una visita» apre un'attività alla coach, e chi decide deve sapere se è successo.
+       * Senza questa riga la nutrizionista non ha modo di distinguere «l'ho detto a qualcuno» da
+       * «l'ho scritto e basta» — ed è la differenza fra una visita che si fissa e una che aspetta
+       * che qualcuno riapra questa scheda.
+       */
+      const attivita =
+        esito !== 'serve_visita'
+          ? ''
+          : esitoRisposta.attivitaAperta
+            ? ' Ho aperto un\'attività alla coach: «Fissa la visita».'
+            : ' ⚠️ L\'attività alla coach NON risulta aperta: avvisala tu.';
+      setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}${attivita}`);
       /**
        * ⚠️ Il banner (di esito o di errore) sta IN CIMA alla pagina, e questo pulsante sta in fondo
        * alla scheda. Il 13/8 la rotta era sbagliata e il 404 finiva in un banner tre schermate più

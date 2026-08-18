@@ -25,6 +25,8 @@ import { AuthService } from '../auth/auth.service';
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
+import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { ClientsService } from './clients.service';
 
 const PROFILO = {
@@ -80,6 +82,8 @@ async function crea(opzioni?: { permesso?: boolean; profilo?: Record<string, unk
       { provide: AuditService, useValue: audit },
       { provide: NotificationsService, useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
       { provide: MenuService, useValue: { restartFromPlanStart: jest.fn(), regenerateFromToday: jest.fn() } },
+      { provide: CoachTasksService, useValue: { apriAttivita: jest.fn().mockResolvedValue(true) } },
+      { provide: PrenotazioniService, useValue: { credito: jest.fn().mockResolvedValue({ disponibili: 0, concesse: 0, usate: 0 }) } },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit };

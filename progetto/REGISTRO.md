@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🩺 **«Serve una visita» adesso lo sa anche la coach: l'attività si apre da sola** (la
+  voce «La visita nel calendario», aperta da giorni). La nutrizionista sceglieva «serve una visita»,
+  scriveva la nota obbligatoria e salvava: la decisione finiva sul profilo, la nota nella lista note,
+  le segnalazioni cliniche si chiudevano — ⚠️ **e la visita non la fissava nessuno**. L'unico modo
+  perché succedesse qualcosa era che qualcuno si ricordasse di riaprire quella scheda, su una
+  decisione **clinica**. ⚠️ **Scartato l'appuntamento creato da solo**: un appuntamento vuole un
+  orario, e l'orario dipende dall'agenda della nutrizionista e da quando può la cliente — se ne
+  metterebbe in calendario uno che qualcuno dovrà disdire. E c'è un secondo cancello:
+  `prenotazioni.service` lascia prenotare **solo chi una visita l'ha comprata** (Simone, 12/8),
+  quindi per chi non ce l'ha la strada non finisce con un orario ma con un acquisto — ed è
+  esattamente il tipo di cosa che una persona deve dire a un'altra. Quindi nasce un'**attività della
+  coach**, come per la finestra del digiuno. ⚠️ **Nel testo c'è quante visite le restano**, ed è il
+  numero che cambia la telefonata: senza, la coach propone un orario e la cliente si sente
+  rispondere dall'app «serve prima acquistarla dal negozio» — una figura fatta fare a lei su una
+  cosa che sapevamo già. ⚠️ Tre stati: ne ha · non ne ha · **non lo so**. ⚠️ Il **motivo clinico non
+  si copia**: la nota è già nella lista note con autore e ora, e due copie di un dato sanitario
+  divergono — si dice dov'è. ⚠️ `refId` è l'**id della nota**: una valutazione nuova è un fatto nuovo
+  e merita un'attività nuova, due salvataggi della stessa no. ⚠️ E l'attività passa da `apriAttivita`,
+  il punto unico da cui nascono **e** da cui parte la push alla coach: scrivere su `coachTask` da qui
+  avrebbe creato un tipo che non avvisa nessuno, e non si sarebbe visto perché in elenco ci sarebbe
+  stato lo stesso. ⚠️ Sotto `catch` con l'errore nei log, e nel backoffice chi decide **legge se è
+  successo** («Ho aperto un'attività alla coach» / «⚠️ NON risulta aperta: avvisala tu»): senza, la
+  nutrizionista non distingue «l'ho detto a qualcuno» da «l'ho scritto e basta». 11 test (223 suite,
+  3502 verdi; backoffice verde). Nessuna migrazione.
+
 - `[Sviluppo]` 🧰 **Il kit di rientro non ricopia le giornate: le riporziona sul fabbisogno di
   adesso** (voce 282 — e con lei la 255 si chiude, tranne la decisione sui pezzi).
   `generateRientroMenus` sceglie i giorni che su quella cliente avevano fatto perdere di più e li

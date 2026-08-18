@@ -1,7 +1,10 @@
 import { randomUUID } from 'crypto';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { AuthService } from '../auth/auth.service';
+import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
+import { PrenotazioniService } from '../agenda/prenotazioni.service';
+import { TIPO_VISITA_DA_FISSARE, testoVisitaDaFissare } from './visita-da-fissare';
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -43,7 +46,13 @@ export class ClientsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly menu: MenuService,
+    // ⚠️ Servono a «serve una visita»: l'attività si apre dal punto unico che manda anche la push
+    // (`apriAttivita`), e il credito visite lo conta chi già lo conta per l'app.
+    private readonly coachTasks: CoachTasksService,
+    private readonly prenotazioni: PrenotazioniService,
   ) {}
+
+  private readonly logger = new Logger(ClientsService.name);
 
   /**
    * Visibilità per ruolo: coach e nutrizionista vedono SOLO i clienti assegnati a loro
@@ -601,12 +610,35 @@ export class ClientsService {
       data: { status: 'resolved' as never, resolvedAt: new Date() },
     });
 
+    /**
+     * ⚠️ «SERVE UNA VISITA» VA DETTO A QUALCUNO CHE PUÒ FISSARLA. Prima di oggi la decisione
+     * restava scritta sulla scheda e la visita non la fissava nessuno: l'unico modo perché
+     * succedesse qualcosa era che qualcuno si ricordasse di riaprire quella scheda. Il perché
+     * dell'attività — e non di un appuntamento creato da solo — sta in `visita-da-fissare.ts`.
+     *
+     * ⚠️ `refId` è l'**id della nota**, cioè di QUESTA decisione: una valutazione nuova è un fatto
+     * nuovo e merita un'attività nuova, mentre due salvataggi della stessa non devono farne due.
+     * ⚠️ Sotto `catch`: un'attività non aperta è un lavoro in più per qualcuno, un'eccezione qui
+     * sarebbe una decisione clinica che non si salva. Ma l'errore si scrive.
+     */
+    let attivitaAperta = false;
+    if (decisione.esito === 'serve_visita') {
+      try {
+        attivitaAperta = await this.apriLaVisitaDaFissare(userId, nota.id);
+      } catch (e) {
+        this.logger.error(
+          `Via libera clinico: decisione salvata per ${userId}, ma l'attività «fissa la visita» non è ` +
+            `stata aperta — la visita resta da fissare a mano. ${(e as Error).message}`,
+        );
+      }
+    }
+
     await this.audit.log({
       action: 'client.idoneita.decisa',
       actorId,
       entityType: 'user',
       entityId: userId,
-      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count },
+      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta },
     });
 
     return {
@@ -614,11 +646,49 @@ export class ClientsService {
       decisaIl: new Date(),
       decisaDa: staff?.id ?? null,
       segnalazioniChiuse: chiuse.count,
+      attivitaAperta,
       nota: { id: nota.id, body: nota.body, createdAt: nota.createdAt, author: nota.author?.displayName ?? null },
     };
   }
 
   /** Elimina una nota dal log (solo admin, controllato dal controller). */
+  /**
+   * L'attività «fissa la visita», col numero che cambia la telefonata.
+   *
+   * ⚠️ Il credito visite si legge da `PrenotazioniService`, che è chi lo conta già per l'app: un
+   * secondo conteggio qui direbbe alla coach un numero diverso da quello che la cliente vede sul
+   * telefono. ⚠️ E se non si riesce a contarlo si passa `null`, non zero: il testo distingue «non ne
+   * ha» da «non lo so», perché mandano la coach a dire due cose diverse.
+   */
+  private async apriLaVisitaDaFissare(clientId: string, notaId: string): Promise<boolean> {
+    const cliente = (await this.prisma.user.findUnique({
+      where: { id: clientId },
+      // ⚠️ Solo il nome di battesimo: è la regola scritta oggi con la bonifica delle email — nei
+      // testi si scrive il nome o l'id interno, mai di più del necessario.
+      select: { firstName: true, clientProfile: { select: { assignedNutritionist: { select: { displayName: true } } } } },
+    })) as { firstName: string | null; clientProfile: { assignedNutritionist: { displayName: string } | null } | null } | null;
+
+    let disponibili: number | null = null;
+    try {
+      disponibili = (await this.prenotazioni.credito(clientId)).disponibili;
+    } catch (e) {
+      this.logger.warn(`Credito visite non calcolabile per ${clientId}: l'attività lo dirà. ${(e as Error).message}`);
+    }
+
+    const { title, description } = testoVisitaDaFissare({
+      nome: cliente?.firstName,
+      nutrizionista: cliente?.clientProfile?.assignedNutritionist?.displayName,
+      visiteDisponibili: disponibili,
+    });
+    return this.coachTasks.apriAttivita({
+      clientId,
+      kind: TIPO_VISITA_DA_FISSARE,
+      refId: notaId,
+      title,
+      description,
+    });
+  }
+
   async deleteNote(userId: string, noteId: string, actorId: string) {
     const note = await this.prisma.clientNote.findUnique({ where: { id: noteId }, select: { id: true, clientId: true } });
     if (!note || note.clientId !== userId) throw new NotFoundException('Nota non trovata.');

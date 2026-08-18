@@ -1,0 +1,55 @@
+«Serve una visita» adesso lo sa anche la coach: l'attività si apre da sola
+
+IL BUCO
+La nutrizionista apre la scheda, sceglie «serve una visita», scrive la nota obbligatoria e salva.
+Da lì in poi: la decisione è sul profilo, la nota è nella lista note, le segnalazioni cliniche si
+chiudono. ⚠️ E la visita non la fissa nessuno. L'unico modo perché succedesse qualcosa era che
+qualcuno si ricordasse di riaprire quella scheda — su una decisione CLINICA, cioè il caso in cui
+«me ne ricorderò» costa di più.
+
+⚠️ SCARTATO L'APPUNTAMENTO CREATO DA SOLO
+Un appuntamento si crea con un orario, e l'orario dipende dall'agenda della nutrizionista e da
+quando può la cliente: scriverne uno a caso vuol dire metterne in calendario uno che qualcuno dovrà
+disdire. E c'è un secondo cancello che lo rende impossibile: `prenotazioni.service` lascia prenotare
+SOLO chi una visita l'ha comprata (Simone, 12/8). Per chi non ce l'ha, la strada non finisce con un
+orario ma con un acquisto — ed è esattamente il tipo di cosa che una persona deve dire a un'altra.
+
+Quindi: un'attività della coach (`visita_da_fissare`), come per la finestra del digiuno. È il posto
+dove in questo progetto una cosa da fare diventa lavoro di qualcuno.
+
+⚠️ IL NUMERO CHE CAMBIA LA TELEFONATA
+Nel testo c'è quante visite le restano. Senza, la coach chiama, propongono un orario, la cliente
+apre l'app e trova «per prenotare una visita serve prima acquistarla dal negozio»: una figura fatta
+fare a lei, su una cosa che sapevamo già.
+⚠️ Tre stati: ne ha · non ne ha · NON LO SO. Se il credito non si è potuto contare non si scrive né
+l'uno né l'altro: un numero inventato manda la coach a dire la cosa sbagliata a una persona che si
+fida di lei.
+
+ALTRE TRE SCELTE, TUTTE DELLA STESSA FAMIGLIA
+- Il MOTIVO CLINICO non si copia nell'attività: la nota della nutrizionista è già nella lista note,
+  con autore e ora. Due copie di un dato sanitario divergono, e la seconda non ha firma. Si dice
+  dov'è.
+- `refId` è l'ID DELLA NOTA, cioè di QUESTA decisione: una valutazione nuova è un fatto nuovo e
+  merita un'attività nuova; due salvataggi della stessa non devono farne due.
+- L'attività passa da `apriAttivita`, il punto unico da cui nascono le attività E da cui parte la
+  push alla coach. Scrivere su `coachTask` da qui avrebbe creato un tipo che non avvisa nessuno — e
+  non si sarebbe visto, perché in elenco ci sarebbe stato lo stesso.
+
+⚠️ SOTTO `catch`, CON L'ERRORE NEI LOG: un'attività non aperta è un lavoro in più per qualcuno,
+un'eccezione qui sarebbe una decisione clinica che non si salva.
+
+E NEL BACKOFFICE CHI DECIDE LEGGE SE È SUCCESSO
+«Ho aperto un'attività alla coach: "Fissa la visita"», oppure «⚠️ L'attività alla coach NON risulta
+aperta: avvisala tu». Senza, la nutrizionista non ha modo di distinguere «l'ho detto a qualcuno» da
+«l'ho scritto e basta».
+
+FILE
+- backend/src/clients/visita-da-fissare.ts (nuovo, + .spec.ts con 7 test) ·
+  backend/src/clients/clients.service.ts · clients.module.ts (importa `CoachTasksModule` e
+  `AgendaModule`: nessun anello, nessuno dei due importa noi)
+- backend/src/coach-tasks/coach-tasks.service.ts (`apriAttivita`, per aprirne una fuori dal cron)
+- backend/src/clients/idoneita-scheda.spec.ts (4 test nuovi) + sei spec che costruiscono il servizio
+- backoffice/src/pages/ClientDetail.tsx
+- backend/src/lavori/voci-iniziali.ts (la voce «La visita nel calendario», riscritta e spuntata)
+
+223 suite / 3502 test verdi, backoffice verde (build + 14 test). Nessuna migrazione.

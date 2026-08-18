@@ -52,6 +52,8 @@ describe('ClientsService.sendPasswordReset — chi può, su chi', () => {
       { log: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService,
       {} as unknown as NotificationsService,
       {} as unknown as MenuService,
+      {} as never,
+      {} as never,
     );
     return { service, prisma, requestPasswordReset };
   }

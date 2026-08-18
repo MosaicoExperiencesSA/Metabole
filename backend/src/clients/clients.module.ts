@@ -1,12 +1,19 @@
 import { Module } from '@nestjs/common';
+import { AgendaModule } from '../agenda/agenda.module';
 import { AuthModule } from '../auth/auth.module';
+import { CoachTasksModule } from '../coach-tasks/coach-tasks.module';
 import { MenuModule } from '../menu/menu.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
 
 @Module({
-  imports: [AuthModule, MenuModule, NotificationsModule],
+  /**
+   * ⚠️ `CoachTasksModule` e `AgendaModule` servono a «serve una visita» (voce «La visita nel
+   * calendario»): l'attività si apre dal punto unico che manda anche la push, e il credito visite
+   * lo conta chi lo conta già per l'app. Nessun anello: nessuno dei due importa noi.
+   */
+  imports: [AuthModule, MenuModule, NotificationsModule, CoachTasksModule, AgendaModule],
   controllers: [ClientsController],
   providers: [ClientsService],
   /**

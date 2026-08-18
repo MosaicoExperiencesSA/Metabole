@@ -148,6 +148,29 @@ export class CoachTasksService {
     return d;
   }
 
+  /**
+   * Apre un'attività **fuori dal giro notturno**, quando succede il fatto che la rende necessaria.
+   *
+   * ⚠️ Passa da `ensureTask` e non scrive su `coachTask` per conto suo: è l'unico punto in cui
+   * nasce un'attività, ed è anche quello che manda la push alla coach. Una seconda strada per
+   * creare attività vorrebbe dire un tipo che non avvisa nessuno — e non si vedrebbe, perché
+   * l'attività in elenco ci sarebbe lo stesso.
+   *
+   * Ritorna `true` se l'ha creata adesso, `false` se c'era già (stesso cliente, tipo e riferimento).
+   */
+  async apriAttivita(p: {
+    clientId: string;
+    kind: string;
+    refId: string;
+    title: string;
+    description: string;
+    /** Entro quando. Default: domani — chi apre un'attività a mano ha di solito fretta. */
+    dueDate?: Date;
+  }): Promise<boolean> {
+    const scadenza = p.dueDate ?? this.day(new Date(), 1);
+    return (await this.ensureTask(p.clientId, p.kind, p.refId, p.title, p.description, scadenza)) === 1;
+  }
+
   /** Crea il task se non esiste già (unicità cliente+tipo+riferimento). Ritorna 1 se creato. */
   private async ensureTask(clientId: string, kind: string, refId: string, title: string, description: string, dueDate: Date): Promise<number> {
     const exists = await this.prisma.coachTask.findUnique({

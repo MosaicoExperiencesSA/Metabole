@@ -192,10 +192,12 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'visita-calendario',
-    titolo: 'La visita nel calendario quando l\'esito è «serve una visita»',
-    dettaglio: 'Oggi la decisione si registra ma la visita si prenota a mano.',
+    titolo: '«Serve una visita» adesso lo sa anche la coach: l\'attività si apre da sola',
+    dettaglio:
+      'Chiusa il 18/8. La nutrizionista sceglieva «serve una visita», scriveva la nota obbligatoria e salvava: da lì in poi la decisione era sul profilo, la nota nella lista note, le segnalazioni cliniche chiuse — e ⚠️ **la visita non la fissava nessuno**. L\'unico modo perché succedesse qualcosa era che qualcuno si ricordasse di riaprire quella scheda, su una decisione **clinica**. ⚠️ **Scartato l\'appuntamento creato da solo**: un appuntamento vuole un orario, e l\'orario dipende dall\'agenda della nutrizionista e da quando può la cliente — scriverne uno a caso vuol dire metterne in calendario uno che qualcuno dovrà disdire. E c\'è un secondo cancello che lo rende impossibile: `prenotazioni.service` lascia prenotare **solo chi una visita l\'ha comprata** (Simone, 12/8), quindi per chi non ce l\'ha la strada non finisce con un orario ma con un acquisto. Ora nasce un\'**attività della coach** (`visita_da_fissare`), come per la finestra del digiuno: è il posto dove in questo progetto una cosa da fare diventa lavoro di qualcuno. ⚠️ Nel testo c\'è **quante visite le restano**, ed è il numero che cambia la telefonata: senza, la coach propone un orario e la cliente si sente rispondere dall\'app «serve prima acquistarla dal negozio» — una figura fatta fare a lei su una cosa che sapevamo già. ⚠️ Tre stati: ne ha · non ne ha · **non lo so** (se il credito non si è potuto contare non si scrive né l\'uno né l\'altro). ⚠️ Il **motivo clinico non si copia** nell\'attività: la nota è già nella lista note con autore e ora, e due copie di un dato sanitario divergono — si dice dov\'è. ⚠️ `refId` è l\'**id della nota**: una valutazione nuova è un fatto nuovo e merita un\'attività nuova, due salvataggi della stessa no. ⚠️ L\'attività passa da `apriAttivita`, che è il punto unico da cui nascono le attività **e** da cui parte la push alla coach: una seconda strada avrebbe creato un tipo che non avvisa nessuno, e non si sarebbe visto perché in elenco ci sarebbe stato lo stesso. ⚠️ Sotto `catch`, con l\'errore nei log: un\'attività non aperta è un lavoro in più, un\'eccezione qui sarebbe una decisione clinica che non si salva. E nel backoffice la nutrizionista **legge se è successo**: «Ho aperto un\'attività alla coach» oppure «⚠️ NON risulta aperta: avvisala tu» — senza, non avrebbe modo di distinguere «l\'ho detto a qualcuno» da «l\'ho scritto e basta». 11 test nuovi. Nessuna migrazione.',
     categoria: CODICE,
     ordine: 20,
+    fatta: true, // 18/8
   },
   {
     chiave: 'coda-da-validare-b-c',
