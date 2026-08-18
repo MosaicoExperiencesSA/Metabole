@@ -1,0 +1,35 @@
+Ordine del menu, difetto 7: le voci nascoste tornano DOVE le aveva messe
+
+La card dell'ordine menu lavora sulle voci VISIBILI: chi non ha il permesso `payments` non vede
+quella riga e non può posizionarla. Nelle sue preferenze però c'è, ed è giusto che ci resti — il
+giorno che il permesso arriva, la pagina deve tornare dove l'aveva messa lei.
+
+`conNascoste` faceva la cosa giusta a metà: le teneva, ma le riattaccava IN FONDO ALL'ULTIMO GRUPPO.
+Quindi chi otteneva un permesso ritrovava la voce in coda al menu, lontana da dove stava — e nessuno
+collegava le due cose: la personalizzazione era rispettata solo di nome.
+
+LA REGOLA (`conNascosteAlLoroPosto`)
+⚠️ Si lavora sulla LISTA SALVATA, non sulla vista: la vista le voci nascoste non le contiene
+nemmeno, quindi da lì la posizione non si può nemmeno guardare. Ogni riga nascosta si riaggancia
+alla riga che la precedeva nella lista salvata, se quella riga esiste ancora.
+⚠️ L'ancora è preferibilmente una ROTTA e non un titolo di gruppo: i titoli possono ripetersi (due
+gruppi «Vendite» sono legittimi da quando i doppioni non si fondono più), e un'ancora ambigua
+rimetterebbe la voce nel gruppo sbagliato. Se prima di lei non c'è nessuna rotta sopravvissuta ci si
+aggancia al titolo — prima occorrenza — e se non c'è nemmeno quello la riga torna in cima: era la
+prima, e in cima resta.
+⚠️ Se la riga precedente è sparita si risale ancora indietro invece di rinunciare: una voce nascosta
+dopo un'altra voce nascosta non deve finire in coda solo perché la sua vicina non c'è più.
+
+RESTA IL DIFETTO 6, E DI PROPOSITO
+Una voce tolta dal software resta nelle preferenze di chi l'aveva ordinata: in lettura viene
+saltata, ma consuma una delle 80 righe finché la persona non risalva. Si chiuderebbe riscrivendo
+indietro l'ordine ripulito in lettura — ⚠️ ma è una scrittura che nessuno ha chiesto, e non ne vale
+la pena finché il tetto degli 80 non dà fastidio. È la stessa ragione per cui era stato lasciato
+aperto stamattina.
+
+FILE
+- backoffice/src/lib/menuOrder.ts (+ .spec.ts, 8 test nuovi → 22 nel file)
+- backoffice/src/components/MenuOrderCard.tsx
+- backend/src/lavori/voci-iniziali.ts (la voce riscritta: adesso dice che resta solo il 6)
+
+Backoffice verde: build + 22 test. Backend non toccato. Nessuna migrazione.

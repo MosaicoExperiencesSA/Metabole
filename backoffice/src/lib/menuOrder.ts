@@ -130,6 +130,69 @@ export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
 }
 
 /**
+ * LE VOCI CHE QUESTA PERSONA NON VEDE RESTANO **DOVE LE AVEVA MESSE** (difetto 7 del 18/8).
+ *
+ * ## Il caso
+ *
+ * La card dell'ordine menu lavora sulle voci **visibili**: chi non ha il permesso `payments` non
+ * vede quella riga, quindi non può nemmeno posizionarla. Le sue preferenze però quella riga ce
+ * l'hanno — ed è giusto che ci resti: il giorno che le arriva il permesso, la pagina deve tornare
+ * dove l'aveva messa lei e non in un posto qualsiasi.
+ *
+ * Fin qui `conNascoste` faceva la cosa giusta a metà: le teneva, ma le **riattaccava in fondo
+ * all'ultimo gruppo**. Risultato: chi ottiene un permesso ritrova la voce in coda al menu, lontana
+ * da dove l'aveva messa, e nessuno collega le due cose — la personalizzazione era stata rispettata
+ * solo di nome.
+ *
+ * ## La regola
+ *
+ * ⚠️ Si lavora sulla **lista salvata**, non sulla vista: la vista non contiene le voci nascoste,
+ * quindi da lì la posizione non si può nemmeno guardare. Ogni riga nascosta si riaggancia alla
+ * riga che la precedeva **nella lista salvata**, se quella riga esiste ancora nella nuova.
+ *
+ * ⚠️ L'ancora è preferibilmente una **rotta** e non un titolo di gruppo: i titoli possono ripetersi
+ * (due gruppi «Vendite» sono legittimi da quando i doppioni non si fondono più), e un'ancora
+ * ambigua rimetterebbe la voce nel gruppo sbagliato. Se prima di lei non c'è nessuna rotta
+ * sopravvissuta, ci si aggancia al titolo — prima occorrenza — e se non c'è nemmeno quello, la
+ * riga torna in cima: era la prima, e in cima resta.
+ *
+ * ⚠️ Se la riga precedente è sparita si risale ancora indietro, invece di rinunciare: una voce
+ * nascosta dopo un'altra voce nascosta non deve finire in coda solo perché la sua vicina non c'è
+ * più.
+ */
+export function conNascosteAlLoroPosto(salvate: readonly string[], nuove: readonly string[]): string[] {
+  if (!salvate.length) return [...nuove];
+  const nella = new Set(nuove);
+  const nascoste = salvate.filter((r) => !r.startsWith('#gruppo') && !nella.has(r));
+  if (!nascoste.length) return [...nuove];
+
+  const out = [...nuove];
+  for (const riga of nascoste) {
+    if (out.includes(riga)) continue; // ⚠️ mai due volte la stessa rotta
+    const i = salvate.indexOf(riga);
+    // Prima le rotte sopravvissute, poi — solo se non ce ne sono — i titoli: un titolo può
+    // ripetersi, una rotta no.
+    let posto = -1;
+    for (let k = i - 1; k >= 0 && posto < 0; k--) {
+      const precedente = salvate[k];
+      if (precedente.startsWith('#gruppo')) continue;
+      const dove = out.indexOf(precedente);
+      if (dove >= 0) posto = dove;
+    }
+    if (posto < 0) {
+      for (let k = i - 1; k >= 0 && posto < 0; k--) {
+        const precedente = salvate[k];
+        if (!precedente.startsWith('#gruppo')) continue;
+        const dove = out.indexOf(precedente);
+        if (dove >= 0) posto = dove;
+      }
+    }
+    out.splice(posto + 1, 0, riga);
+  }
+  return out;
+}
+
+/**
  * L'ICONA DI UN GRUPPO — dalle sue VOCI, non dal suo titolo (difetto 2 del 18/8).
  *
  * Prima la barra laterale cercava la sezione di fabbrica **per titolo**

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { NAV } from './Layout';
-import { gruppiEffettivi, serializzaGruppi, writeMenuOrderCache, type GruppoMenu } from '../lib/menuOrder';
+import { conNascosteAlLoroPosto, gruppiEffettivi, serializzaGruppi, writeMenuOrderCache, type GruppoMenu } from '../lib/menuOrder';
 
 /**
  * ORDINE DEL MENU — voci, gruppi, titoli e fisarmoniche.
@@ -59,29 +59,18 @@ export function MenuOrderCard() {
   const vista = gruppiEffettivi(sezioni, bozza === undefined ? ordine : bozza);
   const daSalvare = bozza !== undefined;
 
-  /** Mette il lavoro in bozza: si serializza subito, come verrà salvato. */
-  const aggiorna = (g: GruppoMenu[]) => setBozza(serializzaGruppi(conNascoste(g)));
-
   /**
-   * ⚠️ Le rotte che questa persona NON vede non devono sparire dalle sue preferenze.
+   * Mette il lavoro in bozza: si serializza subito, come verrà salvato — e le voci che questa
+   * persona non vede tornano dentro **al loro posto**.
    *
-   * La card lavora sulle voci visibili. Se salvassimo solo quelle, il giorno che le arriva un
-   * permesso in più la pagina tornerebbe in un posto qualsiasi — e la sua personalizzazione di
-   * quella voce sarebbe stata cancellata senza che nessuno l'abbia chiesto.
+   * ⚠️ Le rotte che non vede non devono sparire dalle sue preferenze: il giorno che le arriva il
+   * permesso, la pagina deve tornare dove l'aveva messa lei. Prima venivano tenute ma riattaccate
+   * **in fondo all'ultimo gruppo** (difetto 7 del 18/8), cioè lontano da dove stavano: la
+   * personalizzazione era rispettata solo di nome. La regola sta in `conNascosteAlLoroPosto`, e
+   * lavora sulla **lista salvata** — la vista le voci nascoste non le contiene nemmeno.
    */
-  function conNascoste(nuovi: GruppoMenu[]): GruppoMenu[] {
-    const visibili = new Set(sezioni.flatMap((s) => s.items.map((i) => i.to)));
-    // `#gruppo` senza i due punti: i marcatori sono tre (`#gruppo:`, `#gruppoc:`, `#gruppot:`) e
-    // filtrarne uno solo farebbe passare gli altri due per rotte, riattaccandoli come «voci
-    // orfane» e moltiplicando i titoli a ogni salvataggio.
-    const salvate = (ordine ?? []).filter((r) => !r.startsWith('#gruppo'));
-    const nominate = new Set(nuovi.flatMap((g) => g.voci));
-    const orfane = salvate.filter((r) => !visibili.has(r) && !nominate.has(r));
-    if (!orfane.length || !nuovi.length) return nuovi;
-    const out = nuovi.map((g) => ({ ...g, voci: [...g.voci] }));
-    out[out.length - 1].voci.push(...orfane);
-    return out;
-  }
+  const aggiorna = (g: GruppoMenu[]) =>
+    setBozza(conNascosteAlLoroPosto(ordine ?? [], serializzaGruppi(g)));
 
   /**
    * Salva e **ricarica**. Il ricaricamento è voluto (Simone, 12/8): è l'unico modo onesto di dire

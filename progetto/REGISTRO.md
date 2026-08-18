@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🧭 **Ordine del menu, difetto 7: le voci nascoste tornano DOVE le aveva messe.** La
+  card lavora sulle voci **visibili**, quindi chi non ha un permesso quella riga non la vede e non
+  può posizionarla — ma nelle sue preferenze c'è, ed è giusto che ci resti. `conNascoste` faceva la
+  cosa giusta a metà: le teneva e le riattaccava **in fondo all'ultimo gruppo**, così il giorno che
+  il permesso arrivava la pagina ricompariva in coda al menu, lontana da dove stava, e ⚠️ nessuno
+  collegava le due cose: la personalizzazione era rispettata **solo di nome**. Ora
+  `conNascosteAlLoroPosto` riaggancia ogni riga nascosta a quella che la precedeva. ⚠️ Si lavora
+  sulla **lista salvata** e non sulla vista, perché la vista quelle righe non le contiene nemmeno.
+  ⚠️ L'ancora è preferibilmente una **rotta** e non un titolo: due gruppi possono chiamarsi uguale
+  (da stamattina i doppioni non si fondono più) e un'ancora ambigua rimetterebbe la voce nel gruppo
+  sbagliato; senza rotte sopravvissute ci si aggancia al titolo, e senza nemmeno quello la riga
+  torna **in cima**, dov'era. ⚠️ E se la riga precedente è sparita si risale ancora indietro: due
+  nascoste di fila non devono finire in coda perché la prima non c'è più. 8 test (22 nel file, il
+  backoffice i test ce li ha da stamattina). ⛔ **Resta il difetto 6 e resta di proposito**: una voce
+  tolta dal software consuma una delle 80 righe finché la persona non risalva, e chiuderla vuol dire
+  una **scrittura che nessuno ha chiesto**. Nessuna migrazione, backend non toccato.
+
 - `[Sviluppo]` 📝 **Le esclusioni scritte come frasi: l'avviso adesso c'è anche nel QUESTIONARIO**
   (voce 283, coda della 267). La regola di stamattina era arrivata su quattro porte — profilo,
   «non gradisco», scheda backoffice, scheda coach — e ⚠️ **restava fuori proprio il questionario,

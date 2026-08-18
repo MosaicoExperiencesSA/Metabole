@@ -8,7 +8,7 @@
  * personalizzato il menu, e una voce tolta non deve rompere la lettura.
  */
 import { describe, expect, it } from 'vitest';
-import { gruppiEffettivi, iconaDelGruppo, leggiGruppi, orderNavItems, serializzaGruppi } from './menuOrder';
+import { gruppiEffettivi, iconaDelGruppo, leggiGruppi, orderNavItems, serializzaGruppi, conNascosteAlLoroPosto } from './menuOrder';
 
 const NAV = [
   {
@@ -118,5 +118,79 @@ describe('orderNavItems', () => {
   it('le voci non nominate finiscono in fondo, in ordine alfabetico', () => {
     const items = [{ to: '/a', label: 'Anatra' }, { to: '/b', label: 'Zebra' }, { to: '/c', label: 'Mucca' }];
     expect(orderNavItems(items, ['/b']).map((i) => i.label)).toEqual(['Zebra', 'Anatra', 'Mucca']);
+  });
+});
+
+/**
+ * LE VOCI NASCOSTE RESTANO DOVE LE AVEVA MESSE (difetto 7 del foglio, chiuso il 18/8 sera).
+ *
+ * Chi non ha un permesso non vede quella riga e non può posizionarla, ma nelle sue preferenze c'è.
+ * Prima veniva tenuta — ed era giusto — e riattaccata **in fondo all'ultimo gruppo**: il giorno che
+ * il permesso arrivava, la pagina ricompariva in coda al menu invece che al suo posto, e nessuno
+ * collegava le due cose.
+ */
+describe('conNascosteAlLoroPosto', () => {
+  it('⚠️ la voce nascosta torna dopo la riga che la precedeva, non in fondo', () => {
+    const salvate = ['#gruppo:Clienti', '/clienti', '/pagamenti', '#gruppo:Catalogo', '/ricette'];
+    // `/pagamenti` non è visibile a questa persona: la vista non ce l'ha.
+    const nuove = ['#gruppo:Clienti', '/clienti', '#gruppo:Catalogo', '/ricette'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual([
+      '#gruppo:Clienti', '/clienti', '/pagamenti', '#gruppo:Catalogo', '/ricette',
+    ]);
+  });
+
+  it('segue la riga di appoggio quando il gruppo viene riordinato', () => {
+    const salvate = ['#gruppo:Clienti', '/clienti', '/pagamenti', '#gruppo:Catalogo', '/ricette'];
+    // «Catalogo» passa in cima, e `/clienti` finisce dopo: la nascosta lo segue.
+    const nuove = ['#gruppo:Catalogo', '/ricette', '#gruppo:Clienti', '/clienti'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual([
+      '#gruppo:Catalogo', '/ricette', '#gruppo:Clienti', '/clienti', '/pagamenti',
+    ]);
+  });
+
+  /**
+   * ⚠️ L'ancora è preferibilmente una ROTTA e non un titolo: i titoli possono ripetersi (due gruppi
+   * «Vendite» sono legittimi da quando i doppioni non si fondono più), e un'ancora ambigua
+   * rimetterebbe la voce nel gruppo sbagliato.
+   */
+  it('⚠️ con due gruppi dallo stesso nome si aggancia alla rotta, non al titolo', () => {
+    const salvate = ['#gruppo:Vendite', '/lead', '#gruppo:Vendite', '/ordini', '/pagamenti'];
+    const nuove = ['#gruppo:Vendite', '/lead', '#gruppo:Vendite', '/ordini'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual([
+      '#gruppo:Vendite', '/lead', '#gruppo:Vendite', '/ordini', '/pagamenti',
+    ]);
+  });
+
+  it('se prima di lei non c\'è nessuna rotta sopravvissuta si aggancia al titolo', () => {
+    const salvate = ['#gruppo:Clienti', '/pagamenti', '/clienti'];
+    const nuove = ['#gruppo:Clienti', '/clienti'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(['#gruppo:Clienti', '/pagamenti', '/clienti']);
+  });
+
+  it('⚠️ due nascoste di fila non finiscono in coda: si risale finché si trova un appiglio', () => {
+    const salvate = ['#gruppo:Clienti', '/clienti', '/pagamenti', '/fatture', '#gruppo:Catalogo', '/ricette'];
+    const nuove = ['#gruppo:Clienti', '/clienti', '#gruppo:Catalogo', '/ricette'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual([
+      '#gruppo:Clienti', '/clienti', '/pagamenti', '/fatture', '#gruppo:Catalogo', '/ricette',
+    ]);
+  });
+
+  it('la riga che era in cima resta in cima anche se il suo gruppo è sparito', () => {
+    const salvate = ['/pagamenti', '#gruppo:Clienti', '/clienti'];
+    const nuove = ['#gruppo:Clienti', '/clienti'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(['/pagamenti', '#gruppo:Clienti', '/clienti']);
+  });
+
+  it('senza niente di nascosto non tocca niente, e non duplica una voce che c\'è già', () => {
+    const nuove = ['#gruppo:Clienti', '/clienti'];
+    expect(conNascosteAlLoroPosto([], nuove)).toEqual(nuove);
+    expect(conNascosteAlLoroPosto(['#gruppo:Clienti', '/clienti'], nuove)).toEqual(nuove);
+  });
+
+  /** I tre marcatori restano marcatori: `#gruppoc:` e `#gruppot:` non sono rotte orfane. */
+  it('⚠️ i titoli non diventano mai voci da riattaccare', () => {
+    const salvate = ['#gruppoc:Clienti', '/clienti', '#gruppot:Catalogo', '/ricette'];
+    const nuove = ['#gruppo:Tutto', '/clienti', '/ricette'];
+    expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(nuove);
   });
 });
