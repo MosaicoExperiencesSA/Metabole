@@ -1,0 +1,57 @@
+La bonifica dei cibi esclusi si applica a una cliente per volta (e le esclusioni con «tranne» dentro)
+
+Voci 266 (fatta) e 267 (aspetta Simone). Consegna piccola, nata da mezz'ora di produzione vera.
+
+═══ COSA E' SUCCESSO
+
+Il 17/8 sera Simone ha lanciato l'anteprima di `npm run pulisci:spezie` sulla shell di Render, dopo
+la correzione che le fa vedere anche i tag con piu' alimenti dentro. Due clienti in elenco:
+
+· SIMONA — la sua era **una voce sola**, un blob di testo libero
+  («Oatmeal, Fiocchi d avena, Fiocchi d'avena, Avena, Porridge, …») che a valle non escludeva niente:
+  chiedeva di non ricevere avena e la riceveva. Spezzata in 8 voci comincia a funzionare. Da applicare.
+· ILARIA — ⚠️ da guardare a mano. Nella sua lista c'e' **«pesce tranne salmone, tonno»**: spezzata sulla
+  virgola diventa «pesce tranne salmone» + «tonno», cioe' rende il TONNO un cibo escluso — l'opposto di
+  quello che aveva scritto, visto che lo elencava fra le eccezioni. Piu' «Non mi piace la cicoria», che
+  e' una frase e non un alimento.
+
+Lo script scriveva TUTTO O NIENTE: la scelta era fra applicare anche la seconda o non applicare niente.
+
+═══ 1. `SOLO=<email>` (voce 266)
+
+  npm run pulisci:spezie                                  → anteprima, tutte
+  SOLO=a@b.it npm run pulisci:spezie                      → guarda una cliente sola
+  SOLO=a@b.it,c@d.it CONFERMA=1 npm run pulisci:spezie    → applica solo a quelle
+
+⚠️ Un'email che non corrisponde a nessun profilo **viene detta**, non ignorata: senza, un refuso
+darebbe «nessuna spezia da ripulire ✓» — la faccia del «va tutto bene» su un lavoro che non e' stato
+fatto. E' il difetto di famiglia del progetto in miniatura.
+I conteggi in stampa contano i profili IN ESAME, non tutti; e senza `CONFERMA` il messaggio finale
+ricorda che se in elenco c'e' una riga da guardare a mano si applicano prima le altre con `SOLO=`.
+
+═══ 2. LE ESCLUSIONI CON UNA NEGAZIONE DENTRO (voce 267, aspetta Simone)
+
+Il campo dei cibi non graditi accetta **frasi**, il motore legge **alimenti**: quello che c'e' in mezzo
+si perde in silenzio. Non e' un difetto della pulizia dei tag — la stessa stringa esce grezza anche nel
+report PDF che riceve la cliente (`plan-report.service.ts:250`).
+⛔ Tre strade, e la scelta e' di prodotto:
+  1. la porta d'ingresso: **Gaia (o il questionario) se ne accorge e chiede** «quindi il tonno lo
+     mangi?» — l'unico modo di trasformare una frase in una lista giusta parlando con chi l'ha scritta;
+  2. la **scheda avvisa chi salva** («"pesce tranne salmone" non e' un alimento: il pesce continuera' ad
+     arrivare»), sulla falsariga dell'avviso spezie che c'e' gia' dal 17/8;
+  3. si accetta e si **segnala** soltanto, con una diagnostica che le elenca.
+⚠️ Riconoscere la negazione e' la parte facile (`tranne`, `eccetto`, `a parte`, `solo se`, `ma`): la
+parte che vale e' cosa si fa dopo.
+
+FILE:
+- backend/prisma/pulisci-spezie.ts — `SOLO=<email>`, l'avviso sulle email inesistenti, i conteggi.
+- backend/src/lavori/voci-iniziali.ts — voce 266 spuntata, voce 267 aperta.
+
+NESSUNA MIGRAZIONE. ⚠️ Lo script non ha test (come gli altri `prisma/*.ts`): e' verificato dal
+compilatore, e resta di sola lettura finche' non gli si passa `CONFERMA=1`.
+
+DA FARE IN PRODUZIONE, in quest'ordine:
+  1. `SOLO=simona.ossoli@tiscali.it CONFERMA=1 npm run pulisci:spezie`  → applica il caso pulito;
+  2. sistemare a mano la lista di Ilaria dalla sua scheda (ora il salvataggio pulisce e avvisa),
+     scrivendo cosa intende davvero al posto di «pesce tranne salmone, tonno»;
+  3. rilanciare l'anteprima senza `SOLO` per vedere che non resti niente.

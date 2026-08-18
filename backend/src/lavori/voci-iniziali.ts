@@ -713,6 +713,23 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'esclusioni-con-negazione',
+    titolo: 'Le esclusioni con una negazione dentro passano e non escludono niente',
+    dettaglio:
+      'Trovato il 17/8 sera sul vivo, lanciando l\'anteprima di `npm run pulisci:spezie` in produzione. Il campo dei cibi non graditi accetta **frasi**, e il motore legge **alimenti**: quello che una cliente scrive in mezzo si perde in silenzio. I due casi veri, dalla lista di una cliente sola: ⚠️ **«pesce tranne salmone, tonno»** — come termine intero non esclude niente (il pesce continua ad arrivarle), e **spezzato sulla virgola** diventa «pesce tranne salmone» + «tonno», cioè rende escluso il tonno, che è l\'**opposto** di quello che ha scritto: lo elencava fra le eccezioni. E **«Non mi piace la cicoria»**, una frase intera salvata come alimento (accanto a «Cicoria», che invece funziona). ⚠️ Non è un difetto della pulizia dei tag: è che il campo è libero e nessuno rilegge quello che ci finisce dentro — infatti la stessa stringa esce **grezza** anche nel report PDF che riceve la cliente (`plan-report.service.ts:250`). ⛔ **La risposta la decide Simone**, perché sono tre strade diverse: **1)** la porta d\'ingresso — Gaia (o il questionario) se ne accorge e **chiede**: «quindi il tonno lo mangi?», che è l\'unico modo di trasformare una frase in una lista giusta parlando con chi l\'ha scritta; **2)** la scheda avvisa chi salva — «"pesce tranne salmone" non è un alimento: il pesce continuerà ad arrivare» — sulla falsariga dell\'avviso spezie che c\'è già dal 17/8; **3)** si accetta e si segnala soltanto, con una diagnostica che le elenca. ⚠️ Riconoscere la negazione è la parte facile (`tranne`, `eccetto`, `a parte`, `solo se`, `non mi piace`, `ma`): la parte che vale è **cosa si fa dopo**, e quella è una scelta di prodotto. Nel frattempo la bonifica ha il filtro `SOLO=<email>` per non applicare in blocco su liste come questa.',
+    categoria: SIMONE,
+    ordine: 267,
+  },
+  {
+    chiave: 'bonifica-spezie-solo-email',
+    titolo: 'La bonifica dei cibi esclusi si può applicare a una cliente per volta',
+    dettaglio:
+      '`npm run pulisci:spezie` scriveva **tutto o niente**, e alla prima esecuzione in produzione (17/8) è bastata la prima anteprima per far vedere perché non basta: due clienti in elenco, una da sistemare subito e una da guardare a mano (la lista con «pesce tranne salmone, tonno», voce 267). La scelta era fra applicare anche quella o non applicare niente. Ora c\'è `SOLO=<email>` — anche più email separate da virgola — che vale sia in anteprima («guarda solo questa») sia con `CONFERMA=1` («applica solo a queste»). ⚠️ E un\'email che non corrisponde a nessun profilo **viene detta**: senza, un refuso darebbe «nessuna spezia da ripulire ✓», cioè la faccia del «va tutto bene» su un lavoro che non è stato fatto. I conteggi in stampa contano i profili **in esame**, non tutti.',
+    categoria: MANUTENZIONE,
+    ordine: 266,
+    fatta: true, // 18/8
+  },
+  {
     chiave: 'revisione-serata-17-8',
     titolo: 'La revisione delle cinque consegne del 17/8: sette rilievi, tre seri',
     dettaglio:

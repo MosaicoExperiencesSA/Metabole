@@ -18,6 +18,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-18
+
+- `[Sviluppo]` 🧹 **La bonifica dei cibi esclusi si applica a una cliente per volta, e le esclusioni
+  con «tranne» dentro finiscono in elenco lavori.** Voci 266 (chiusa) e 267 (aperta). Ieri sera Simone
+  ha lanciato l'anteprima di `npm run pulisci:spezie` in produzione, e mezz'ora di dati veri ha detto
+  più di una giornata di ragionamenti. Due clienti: **Simona** aveva **una voce sola** — un blob di
+  testo libero («Oatmeal, Fiocchi d avena, Fiocchi d'avena, Avena, Porridge…») che a valle non
+  escludeva niente: chiedeva di non ricevere avena **e la riceveva**. Spezzata in otto voci comincia a
+  funzionare. ⚠️ **Ilaria** no: nella sua lista c'è «pesce tranne salmone, tonno», e spezzata sulla
+  virgola diventa «pesce tranne salmone» + «tonno» — cioè rende il **tonno** un cibo escluso, l'opposto
+  di quello che aveva scritto, visto che lo elencava fra le eccezioni. Più «Non mi piace la cicoria»,
+  che è una frase e non un alimento. E lo script scriveva **tutto o niente**: la scelta era fra
+  applicare anche quella o non applicare niente. Ora c'è **`SOLO=<email>`** (anche più email separate
+  da virgola), che vale sia in anteprima sia con `CONFERMA=1`. ⚠️ E un'email che non corrisponde a
+  nessun profilo **viene detta**: senza, un refuso darebbe «nessuna spezia da ripulire ✓» — la faccia
+  del «va tutto bene» su un lavoro che non è stato fatto, che è il difetto di famiglia di questo
+  progetto in miniatura. ⛔ La seconda metà è una **decisione di Simone** (voce 267): il campo accetta
+  **frasi** e il motore legge **alimenti**, e quello che c'è in mezzo si perde in silenzio — la stessa
+  stringa esce grezza anche nel report PDF che riceve la cliente. Tre strade: che sia **Gaia (o il
+  questionario) a chiedere** «quindi il tonno lo mangi?», che la **scheda avvisi chi salva** come già
+  fa per le spezie, o che si **segnali** soltanto. Riconoscere la negazione è la parte facile; cosa si
+  fa dopo è prodotto. ⚠️ Lo script non ha test, come gli altri `prisma/*.ts`: è verificato dal
+  compilatore e resta di sola lettura senza `CONFERMA=1`. Nessuna migrazione, 3116 test in 203 suite.
+
 ## 2026-08-17
 
 - `[Sviluppo]` 🔍 **La revisione delle cinque consegne di oggi: sette rilievi, tre seri.** Voce 265.

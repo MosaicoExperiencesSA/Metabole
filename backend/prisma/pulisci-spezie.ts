@@ -23,7 +23,14 @@
  *
  * USO (shell di Render, dentro ~/project/src/backend):
  *   npm run pulisci:spezie              → mostra e basta, non scrive niente
- *   CONFERMA=1 npm run pulisci:spezie   → applica
+ *   CONFERMA=1 npm run pulisci:spezie   → applica a TUTTE le clienti in elenco
+ *   SOLO=a@b.it npm run pulisci:spezie  → guarda una cliente sola
+ *   SOLO=a@b.it,c@d.it CONFERMA=1 npm run pulisci:spezie   → applica solo a quelle
+ *
+ * ⚠️ `SOLO` esiste per una ragione vera, vista alla prima esecuzione (17/8): l'anteprima ha mostrato
+ * due clienti, una da sistemare subito e una da guardare a mano — «pesce tranne salmone, tonno»
+ * spezzato sulla virgola rende il TONNO un cibo escluso, cioè l'opposto di quello che aveva scritto
+ * lei. Senza `SOLO` la scelta era fra applicare anche quella o non applicare niente.
  */
 import { PrismaClient } from '@prisma/client';
 import { filtraSpezie } from '../src/menu/spezie';
@@ -39,8 +46,19 @@ type Riga = {
   restano: number;
 };
 
+/** Le email di `SOLO`, normalizzate. Vuoto = tutte. */
+function soloRichieste(): Set<string> {
+  return new Set(
+    (process.env.SOLO ?? '')
+      .split(',')
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 async function main(): Promise<void> {
   const conferma = process.env.CONFERMA === '1';
+  const solo = soloRichieste();
 
   const profili = (await prisma.clientProfile.findMany({
     select: { userId: true, name: true, dislikedFoods: true, user: { select: { email: true } } },
@@ -51,11 +69,31 @@ async function main(): Promise<void> {
     user: { email: string } | null;
   }[];
 
+  /**
+   * ⚠️ UN'EMAIL DI `SOLO` CHE NON ESISTE VA DETTA, non ignorata.
+   *
+   * Un refuso nell'email (o una cliente cancellata) senza questo avviso darebbe «nessuna spezia da
+   * ripulire ✓» — cioè la stessa faccia del «va tutto bene», su un lavoro che non è stato fatto.
+   * È il difetto di famiglia di questo progetto in miniatura: qualcosa che non succede e non si vede.
+   */
+  const emailEsistenti = new Set(profili.map((p) => (p.user?.email ?? '').toLowerCase()).filter(Boolean));
+  const inesistenti = [...solo].filter((e) => !emailEsistenti.has(e));
+  if (inesistenti.length) {
+    console.log(`⚠️  Nessun profilo con queste email: ${inesistenti.join(', ')} — controlla come sono scritte.\n`);
+  }
+
+  const inEsame = solo.size
+    ? profili.filter((p) => solo.has((p.user?.email ?? '').toLowerCase()))
+    : profili;
+  if (solo.size) {
+    console.log(`Filtro SOLO attivo: ${inEsame.length} profil${inEsame.length === 1 ? 'o' : 'i'} su ${profili.length}.\n`);
+  }
+
   const daScrivere: { userId: string; tenuti: string[] }[] = [];
   const tabella: Riga[] = [];
   const daSentire: Riga[] = [];
 
-  for (const p of profili) {
+  for (const p of inEsame) {
     const attuali = (p.dislikedFoods ?? []).filter((s) => (s ?? '').trim());
     if (attuali.length === 0) continue;
 
@@ -92,11 +130,11 @@ async function main(): Promise<void> {
   }
 
   if (tabella.length === 0) {
-    console.log(`Esaminati ${profili.length} profili: nessuna spezia e nessun tag da spezzare fra i cibi esclusi ✓`);
+    console.log(`Esaminati ${inEsame.length} profili: nessuna spezia e nessun tag da spezzare fra i cibi esclusi ✓`);
     return;
   }
 
-  console.log(`Esaminati ${profili.length} profili. Da ripulire: ${tabella.length}.\n`);
+  console.log(`Esaminati ${inEsame.length} profili. Da ripulire: ${tabella.length}.\n`);
   console.table(tabella);
   console.log(
     '\n"restano" è quanti cibi VERI restano esclusi dopo la pulizia. Se è ancora alto (oltre una\n' +
@@ -115,7 +153,11 @@ async function main(): Promise<void> {
   }
 
   if (!conferma) {
-    console.log('\nNiente scritto: rilancia con  CONFERMA=1 npm run pulisci:spezie');
+    console.log(
+      '\nNiente scritto. Per applicare:  CONFERMA=1 npm run pulisci:spezie' +
+        (solo.size ? `  (con SOLO=${[...solo].join(',')})` : '') +
+        '\n⚠️ Se in elenco c\'è una riga che va guardata a mano, applica prima le altre con  SOLO=<email>.',
+    );
     return;
   }
 
