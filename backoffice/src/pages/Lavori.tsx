@@ -98,7 +98,9 @@ export function Lavori() {
     saltate: number;
     titoli: { titolo: string; categoria: string }[];
     chiuse: { titolo: string; categoria: string }[];
-    /** Voci già in elenco il cui TESTO nel rilascio è cambiato: non vengono riscritte, si dicono. */
+    /** Voci il cui testo viene **riscritto** dal rilascio (nessuno le aveva corrette a mano). */
+    riscritte: { titolo: string; categoria: string }[];
+    /** ⚠️ Voci corrette A MANO dalla pagina: il rilascio ha un testo diverso e NON le tocca. */
     testiCambiati: { titolo: string; categoria: string }[];
   } | null>(null);
   // ⚠️ `caricandoVoci` e non `caricando`: quello esiste già ed è il caricamento della PAGINA.
@@ -218,6 +220,7 @@ export function Lavori() {
         saltate: number;
         titoli: { titolo: string; categoria: string }[];
         chiuse: { titolo: string; categoria: string }[];
+        riscritte: { titolo: string; categoria: string }[];
         testiCambiati: { titolo: string; categoria: string }[];
       }>(
         '/admin/lavori/carica',
@@ -307,7 +310,7 @@ export function Lavori() {
         )}
         {caricamento && (
           <div className="card" style={{ marginTop: 10, background: 'var(--chip)' }}>
-            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 && !(caricamento.testiCambiati?.length) ? (
+            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 && !(caricamento.riscritte?.length) && !(caricamento.testiCambiati?.length) ? (
               <div>Non c'è niente da allineare: le {caricamento.saltate} voci del rilascio sono già in elenco, e nessuna è da spuntare.</div>
             ) : (
               <>
@@ -329,18 +332,32 @@ export function Lavori() {
                     </ul>
                   </>
                 )}
-                {/* ⚠️ IL TESTO PIÙ VECCHIO VA DETTO (18/8). Questo pulsante aggiunge e spunta: il
-                    testo di una voce già in elenco non lo riscrive. Quando nel rilascio un titolo o
-                    un dettaglio cambiano — succede ogni volta che si scopre la causa vera di un
-                    difetto — qui resta la versione di prima, e chi legge crede di leggere l'ultima
-                    parola. Non si riscrive (la pagina è lo stato vivo, e una voce può essere stata
-                    corretta a mano), ma si dice. */}
+                {/* ⚠️ DAL 18/8 IL TESTO SI RISCRIVE (voce 275). Una voce si riscrive ogni volta che
+                    si scopre la causa vera di un difetto, e finora in pagina restava la versione del
+                    primo caricamento: chi leggeva credeva di leggere l'ultima parola. */}
+                {caricamento.riscritte?.length > 0 && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                      Aggiorno il testo di {caricamento.riscritte.length}{' '}
+                      {caricamento.riscritte.length === 1 ? 'voce' : 'voci'} (categoria e posizione restano dove sono):
+                    </div>
+                    <ul style={{ margin: '0 0 10px 18px' }}>
+                      {caricamento.riscritte.map((t) => (
+                        <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {/* ⚠️ Ma NON quelle corrette a mano da qui: una correzione che sparisce al rilascio
+                    dopo, in silenzio, sarebbe lo stesso difetto spostato di un metro — e questa è la
+                    pagina che serve a non farlo succedere altrove. Si dicono, così sai che le due
+                    versioni sono diverse. */}
                 {caricamento.testiCambiati?.length > 0 && (
                   <>
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>
                       ⚠️ {caricamento.testiCambiati.length}{' '}
-                      {caricamento.testiCambiati.length === 1 ? 'voce ha' : 'voci hanno'} un testo più recente nel rilascio,
-                      e qui NON viene riscritto:
+                      {caricamento.testiCambiati.length === 1 ? 'voce è stata corretta' : 'voci sono state corrette'} a mano da qui:
+                      il rilascio ha un testo diverso e NON lo riscrivo.
                     </div>
                     <ul style={{ margin: '0 0 10px 18px' }}>
                       {caricamento.testiCambiati.map((t) => (

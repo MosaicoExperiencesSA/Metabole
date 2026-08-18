@@ -15,6 +15,7 @@
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
+import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
 import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
@@ -1954,8 +1955,27 @@ export class VeraChatService {
       select: { dislikedFoods: true },
     })) as { dislikedFoods: string[] } | null;
     const attuali = p?.dislikedFoods ?? [];
+    /**
+     * ⚠️ **VERA VINCE SEMPRE SU GAIA** — decisione di Simone, 18/8, alla domanda «se la
+     * nutrizionista detta una spezia, cosa si fa?».
+     *
+     * Quindi qui **non** passa `filtraSpezie`: chi detta è la professionista che firma le diete, e
+     * una sua parola non viene scartata. Passa però `spezzaTagAlimenti`, che è l'altra metà di
+     * quella funzione e non c'entra col permesso: una voce come «pepe, ceci» va scritta come DUE
+     * righe, o da quel momento non esclude più niente — è il caso del 17/8, dove `"Carne .ceci"`
+     * salvata intera non compariva in nessun piatto e smetteva di escludere.
+     *
+     * ⚠️ Le due metà sono diverse e vanno tenute diverse: **scartare** è una decisione di prodotto
+     * (e Vera la vince), **spezzare** è correggere la forma di un dato perché continui a funzionare.
+     * Confonderle vorrebbe dire dare a Vera il potere di scrivere un tag rotto.
+     *
+     * ⚠️ E il pool che si svuota resta detto: la chat mostra l'anteprima (`raccontaPool`) prima di
+     * scrivere, quindi la nutrizionista sceglie sapendo cosa resta — che è la differenza fra
+     * accettare una conseguenza e non vederla.
+     */
+    const spezzati = spezzaTagAlimenti(termini);
     // Idempotente: ridettare la stessa regola non deve raddoppiare le righe nel profilo.
-    const nuovi = termini.filter((t) => !attuali.some((a) => combaciaAlimento(a, t)));
+    const nuovi = spezzati.filter((t) => !attuali.some((a) => combaciaAlimento(a, t)));
     if (nuovi.length) {
       await this.prisma.clientProfile.update({
         where: { userId: clientId },

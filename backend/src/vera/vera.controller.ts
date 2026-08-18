@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Logger, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { PrismaService } from '../prisma/prisma.service';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { AmbitoVera, AzioneVeraTipo, RegistroVeraService } from './registro.service';
@@ -32,7 +33,10 @@ import { AnteprimaPoolDto, InsegnaFamigliaDto, MessaggioVeraDto, RespingiDto, Sc
 @Controller('vera')
 @Roles('admin', 'nutritionist', 'head_nutritionist')
 export class VeraController {
+  private readonly logger = new Logger(VeraController.name);
+
   constructor(
+    private readonly prisma: PrismaService,
     private readonly pool: PoolDisponibileService,
     private readonly dizionario: DizionarioService,
     private readonly registro: RegistroVeraService,
@@ -165,12 +169,24 @@ export class VeraController {
   @RequirePage('nutri_assistant')
   async aspettaMe(@CurrentUser() user: AuthUser) {
     const capo = user.role !== 'nutritionist';
-    const [richieste, daApprovare, daVerificare] = await Promise.all([
+    const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
+    const [richieste, daApprovare, daVerificare, pool] = await Promise.all([
       this.richieste.quante(user.sub, capo),
       capo ? this.registro.daApprovare().then((r) => r.length) : Promise.resolve(0),
       this.registro.sostituzioniDaVerificare(user.sub),
+      /**
+       * ⚠️ IL POOL SOTTO SOGLIA — l'ultimo dei quattro moduli della §13.3, e l'unico che mancava.
+       * Il conto non deve poter far fallire il riquadro: se si rompe si degrada a «non lo so»
+       * (`null`), che è diverso da «nessuna» e la pagina lo scrive diverso.
+       */
+      this.pool
+        .quanteSottoSoglia(staff?.id ?? null, capo)
+        .catch((e: unknown) => {
+          this.logger.warn(`Pool sotto soglia NON calcolato per ${user.sub}: ${String(e)}`);
+          return null;
+        }),
     ]);
-    return { richieste, daApprovare, daVerificare, capo };
+    return { richieste, daApprovare, daVerificare, capo, pool };
   }
 
   @Get('registro')

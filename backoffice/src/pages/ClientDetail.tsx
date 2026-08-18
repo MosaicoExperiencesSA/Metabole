@@ -1152,20 +1152,28 @@ export function ClientDetail() {
        * voleva dire un «Scheda aggiornata.» che nascondeva una riga non scritta: chi l'ha digitata
        * la cercherebbe la volta dopo e la riscriverebbe uguale.
        */
-      const esito = await api<{ avvisiSpezie?: { termine: string; titolo: string; testo: string }[] }>(
-        `/admin/clients/${id}`,
-        { method: 'PATCH', body: JSON.stringify(dto) },
-      );
+      const esito = await api<{
+        avvisiSpezie?: { termine: string; titolo: string; testo: string }[];
+        /** ⚠️ «Aiutiamo le clienti a scrivere in modo corretto» (Simone, 18/8): quello che è stato
+         *  salvato NON è un elenco di alimenti, e così com'è non toglie niente dal menu. */
+        aiutoEsclusioni?: string;
+      }>(`/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(dto) });
       const data = await api<Detail>(`/admin/clients/${id}`);
       setD(data);
       setNotes(data.notes ?? []);
       setEditing(false);
       const spezie = esito?.avvisiSpezie ?? [];
-      setNotice(
+      // ⚠️ I due avvisi si sommano invece di zittirsi a vicenda: sono due cose diverse — «questa
+      // riga non è stata salvata» e «questa riga è stata salvata ma non esclude niente» — ed è
+      // già successo il 17/8 che il secondo avviso coprisse il primo.
+      const pezzi = [
+        'Scheda aggiornata.',
         spezie.length
-          ? `Scheda aggiornata. ⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
-          : 'Scheda aggiornata.',
-      );
+          ? `⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
+          : null,
+        esito?.aiutoEsclusioni ?? null,
+      ].filter(Boolean);
+      setNotice(pezzi.join(' '));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Salvataggio non riuscito.');
     } finally {

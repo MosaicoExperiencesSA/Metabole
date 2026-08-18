@@ -25,6 +25,12 @@ interface Aspetta {
   daApprovare: number;
   daVerificare: number;
   capo: boolean;
+  /**
+   * ⚠️ Il quarto modulo della §13.3, arrivato il 18/8. `null` = **non lo so** (il conto è fallito e
+   * il server l'ha degradato), che è diverso da «nessuna»: la chip lo scrive diverso invece di
+   * mostrare uno zero rassicurante e falso.
+   */
+  pool: { quante: number; nomi: string[]; esaminate: number; nonValutabili: number } | null;
 }
 interface Patient {
   clientId: string;
@@ -439,7 +445,10 @@ function AssistenteWidget() {
     return () => { vivo = false; };
   }, []);
 
-  if (!a || (a.richieste === 0 && a.daApprovare === 0 && a.daVerificare === 0)) return null;
+  // ⚠️ Il riquadro sparisce solo se non c'è VERAMENTE niente: le clienti col pool sotto soglia e
+  // quelle di cui non si è potuto dire niente contano tutt'e due come «qualcosa da guardare».
+  const poolDaDire = !a?.pool || a.pool.quante > 0 || a.pool.nonValutabili > 0;
+  if (!a || (a.richieste === 0 && a.daApprovare === 0 && a.daVerificare === 0 && !poolDaDire)) return null;
 
   return (
     <div className="card" style={{ borderLeft: '3px solid var(--gold)' }}>
@@ -450,6 +459,23 @@ function AssistenteWidget() {
           {a.daApprovare > 0 && <span className="chip amber">{a.daApprovare} da approvare</span>}
           {a.richieste > 0 && <span className="chip amber">{a.richieste} domande aperte</span>}
           {a.daVerificare > 0 && <span className="chip">{a.daVerificare} sostituzioni da verificare</span>}
+          {/* ⚠️ Tre stati e tre chip diverse: «N col pool sotto soglia» (c'è un problema), «N non
+              valutabili» (non lo so, e non è la stessa cosa di zero), «pool non calcolato» (il
+              conto è fallito). Uno zero muto avrebbe insegnato a non guardare più il riquadro. */}
+          {a.pool === null && <span className="chip">pool non calcolato</span>}
+          {a.pool && a.pool.quante > 0 && (
+            <span
+              className="chip amber"
+              title={a.pool.nomi.length ? `${a.pool.nomi.join(', ')}${a.pool.quante > a.pool.nomi.length ? ', …' : ''}` : undefined}
+            >
+              {a.pool.quante} col pool sotto soglia
+            </span>
+          )}
+          {a.pool && a.pool.nonValutabili > 0 && (
+            <span className="chip" title="Senza dieta assegnata, o con una dieta di cui non si è potuto leggere il pool: non è «a posto», è «non lo so».">
+              {a.pool.nonValutabili} da guardare a mano
+            </span>
+          )}
         </div>
         <Link className="btn sm" to="/assistente"><i className="ti ti-message-chatbot" /> Apri l'assistente</Link>
       </div>

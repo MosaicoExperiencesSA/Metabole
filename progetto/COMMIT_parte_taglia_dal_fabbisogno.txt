@@ -1,0 +1,67 @@
+La taglia del catalogo si calcola sulla mediana del fabbisogno delle clienti
+
+Voce 273 (chiusa). Risposta di Simone del 18/8: «la taglia calorica va calcolata sulla base del
+fabbisogno della cliente».
+
+═══ IL DIFETTO — verificato nel codice, non dedotto dai numeri
+
+Il generatore di catalogo scriveva ogni pasto come `menu_daycombo_kcal_target × quota`, e quel
+parametro era un NUMERO FISSO: 1500 di default, 1600-1800 in tre preset.
+
+L'erogazione invece punta al FABBISOGNO della cliente, e `DayCombo` compone dentro un pool che
+giornate piu' grandi non le contiene.
+
+⇒ ⚠️ CHI HA UN FABBISOGNO SOPRA ~1765 kcal (1500 ÷ 0,85, il bordo della banda del 15%) RICEVEVA
+GIORNATE FUORI BANDA PER COSTRUZIONE, TUTTI I GIORNI. E per lei nessun moltiplicatore di porzione
+cambia il fatto che le ricette sono scritte piu' piccole.
+
+═══ COSA CAMBIA
+
+`tagliaPerIlCatalogo` prende il fabbisogno delle clienti IN CORSO che quel preset descrive — stesso
+regime, stesso obiettivo, stessa struttura di pasti — e ne fa la MEDIANA.
+
+⚠️ LA MEDIANA E NON LA MEDIA, ed e' tutto il modulo.
+
+Una cliente a 3200 kcal in mezzo a dieci a 1600 sposterebbe la media a 1745, e il catalogo con lei:
+dieci persone riceverebbero piatti pensati per una. La mediana e' LA PERSONA IN MEZZO, e non si
+lascia spostare da un caso estremo — che e' esattamente la proprieta' che serve quando il numero
+decide cosa mangiano tutte.
+
+⚠️ TRE STATI, NON DUE. Se su quella dieta non c'e' nessuna cliente calcolabile, la taglia resta
+quella del preset E IL MOTIVO SI DICE. Un numero calcolato sul nulla ha lo stesso aspetto di un
+numero calcolato bene.
+
+⚠️ E SI CONTA QUANTE RESTANO FUORI BANDA ANCHE CON LA TAGLIA SCELTA, in tutt'e due i versi: chi sta
+molto sopra riceve poco, chi sta molto sotto riceve troppo. Contare solo i primi farebbe sembrare
+che alzare la taglia non costi niente.
+
+(Su questa cosa mi ha corretto un test: avevo scritto che su [1400, 1500, 1700, 2400, 2900] con
+taglia 1700 restavano fuori DUE clienti, pensando solo a chi sta sopra. Sono TRE: il pavimento e'
+1445, quindi anche la cliente a 1400 riceve piatti troppo grandi.)
+
+La riga che finisce nei log del generatore:
+
+  «Taglia 1700 kcal, dalla mediana dei fabbisogni di 5 clienti. ⚠️ 3 su 5 restano comunque fuori
+   banda (da 1400 a 2900 kcal): una taglia sola non le serve tutte.»
+
+═══ ⚠️ COSA NON FA
+
+VALE SOLO PER LE BOZZE NUOVE che una generazione produce. Le diete gia' approvate e i menu gia'
+erogati NON cambiano: la taglia arriva nel piatto quando la nutrizionista APPROVA il catalogo
+generato — cioe' con una persona in mezzo, che su un numero clinico e' il punto.
+
+⛔ E RESTA APERTA LA SECONDA TAGLIA, ma da oggi con una cifra davanti invece che un'impressione: se
+`fuoriBanda` e' grosso, una taglia sola non serve tutte. E' esattamente la domanda per cui
+`Diet.levels` esiste — e il livello 2 non e' mai stato usato.
+
+═══ L'INTERRUTTORE
+
+`config_param` → `catalogo_taglia_dal_fabbisogno` (acceso). Se qualcosa non torna si spegne dal
+backoffice senza un rilascio, e si torna al numero del preset.
+
+═══ VERIFICHE
+
+  npm run build   → ok
+  npx jest --ci   → 211 suite, 3262 test verdi (12 nuovi)
+
+Nessuna migrazione.

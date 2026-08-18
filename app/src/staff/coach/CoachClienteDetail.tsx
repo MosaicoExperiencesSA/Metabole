@@ -84,7 +84,7 @@ export default function CoachClienteDetail() {
        * mostra dal 17/8; qui la risposta si buttava via, quindi la coach leggeva «Scheda aggiornata»
        * e la sua riga non c'era: lo stesso difetto, sull'altra porta.
        */
-      const esito = await api<{ avvisiSpezie?: { termine: string; testo: string }[] }>(`/admin/clients/${id}`, {
+      const esito = await api<{ avvisiSpezie?: { termine: string; testo: string }[]; aiutoEsclusioni?: string }>(`/admin/clients/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: form.name.trim() || undefined,
@@ -94,10 +94,18 @@ export default function CoachClienteDetail() {
         }),
       });
       const spezie = esito?.avvisiSpezie ?? [];
+      // I due avvisi si sommano, non si coprono: «non salvato» e «salvato ma non esclude niente»
+      // sono due cose diverse, e la coach deve leggerle tutt'e due.
       setOpMsg(
-        spezie.length
-          ? `Scheda aggiornata. ⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
-          : 'Scheda aggiornata.',
+        [
+          'Scheda aggiornata.',
+          spezie.length
+            ? `⚠️ Non salvato fra i cibi non graditi: ${spezie.map((a) => a.termine).join(', ')} — ${spezie[0].testo}`
+            : null,
+          esito?.aiutoEsclusioni ?? null,
+        ]
+          .filter(Boolean)
+          .join(' '),
       );
       setEditing(false);
       state.reload();

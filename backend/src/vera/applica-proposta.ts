@@ -20,6 +20,7 @@
  */
 import { Logger } from '@nestjs/common';
 import { combaciaAlimento } from '../common/nomi-alimento';
+import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -299,7 +300,12 @@ async function scopertePerDieta(
 }
 
 async function applicaRestrizione(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {
-  const puliti = termini.map((t) => (t ?? '').trim()).filter(Boolean);
+  /**
+   * ⚠️ **VERA VINCE SEMPRE SU GAIA** (Simone, 18/8): niente `filtraSpezie` qui — chi detta è la
+   * professionista che firma le diete. Ma `spezzaTagAlimenti` sì: «pepe, ceci» scritto in una riga
+   * sola non esclude più niente, e qui il danno si moltiplica per tutti i clienti della coorte.
+   */
+  const puliti = spezzaTagAlimenti(termini.map((t) => (t ?? '').trim()).filter(Boolean));
   if (!puliti.length) return { toccate: 0, riepilogo: 'Non c’era nessun alimento da vietare: non ho scritto niente.' };
 
   // ⚠️ Il perimetro è quello di CHI HA PROPOSTO, non di chi approva.

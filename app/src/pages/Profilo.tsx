@@ -585,10 +585,24 @@ function ExcludedFoods() {
       // dei prossimi giorni (stesso endpoint della "cambia cibo" in Home). Qui la portata
       // è per forza `forever`: siamo nella sezione "Cibi esclusi", dove l'esclusione
       // permanente è proprio l'intento dichiarato.
-      const r = await api<{ applicato?: boolean; avvisoSpezia?: { titolo: string; testo: string } }>(
-        '/me/menu/substitute',
-        { method: 'POST', body: JSON.stringify({ ingredient: v, scope: 'forever' }) },
-      );
+      const r = await api<{
+        applicato?: boolean;
+        avvisoSpezia?: { titolo: string; testo: string };
+        /** ⚠️ Quello che ha scritto non è un alimento ma una frase: il server lo dice, e lo dice
+         *  LUI perché la regola vive in un posto solo (`common/esclusioni-scritte-bene.ts`). */
+        avvisoEsclusione?: string;
+      }>('/me/menu/substitute', { method: 'POST', body: JSON.stringify({ ingredient: v, scope: 'forever' }) });
+      /**
+       * ⚠️ Va guardato PRIMA delle spezie: se quello che ha scritto è una frase, non è nemmeno
+       * arrivato al cancello delle spezie — e mostrarle il messaggio sbagliato la manderebbe a
+       * cercare un problema che non ha.
+       */
+      if (r.avvisoEsclusione) {
+        setFoods(prev); // il server non l'ha salvato: la pastiglia non deve restare lì a mentire
+        setAdd(v); // e il testo torna nel campo, così può correggerlo invece di riscriverlo
+        setAvviso({ titolo: 'Scrivilo come un elenco', testo: r.avvisoEsclusione });
+        return;
+      }
       if (r.avvisoSpezia) {
         setFoods(prev); // il server non l'ha salvato: la pastiglia non deve restare lì a mentire
         setAvviso({ titolo: r.avvisoSpezia.titolo, testo: r.avvisoSpezia.testo });

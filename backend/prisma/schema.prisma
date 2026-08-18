@@ -2880,6 +2880,21 @@ model Lavoro {
   rispostaDaId String?   @map("risposta_da_id")
   rispostaDa   Staff?    @relation("LavoroRispostaDa", fields: [rispostaDaId], references: [id], onDelete: SetNull)
 
+  /**
+   * ⚠️ IL TESTO DI QUESTA RIGA L'HA SCRITTO UNA PERSONA dal backoffice (18/8, voce 275).
+   *
+   * «Aggiorna dal rilascio» riscrive il testo delle voci che vengono dal file — perché una voce si
+   * riscrive ogni volta che si scopre la causa vera, e in pagina restava quella del primo
+   * caricamento — ma **non tocca queste**: una correzione fatta a mano che sparisce al rilascio
+   * dopo, senza che chi l'ha scritta lo sappia, è esattamente il difetto che questa pagina serve a
+   * non far succedere altrove.
+   *
+   * ⚠️ `updatedAt` non bastava: lo muovono anche la spunta e la risposta. Una voce spuntata
+   * risulterebbe «toccata a mano» e smetterebbe di aggiornarsi dal file — il difetto tornerebbe,
+   * solo più difficile da vedere.
+   */
+  testoAMano Boolean @default(false) @map("testo_a_mano")
+
   blocca   Boolean   @default(false)
   fatto    Boolean   @default(false)
   /** ⚠️ Si azzerano insieme alla spunta: una voce riaperta che dice ancora «fatta il 13/8» è una riga che fa perdere fiducia in tutta la lista. */

@@ -13,6 +13,7 @@ import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 // La pulizia dei gusti scritti dalla scheda: spezza i tag e ferma le spezie (la stessa del
 // questionario e del profilo in app), più i «non alimenti» delle intolleranze.
+import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { filtraSpezie, type EsitoSpezia } from '../menu/spezie';
 import { NON_ALIMENTI } from '../common/allergie';
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
@@ -735,6 +736,7 @@ export class ClientsService {
      *    guscio» non va spaccata in due. Sono due liste con due regole, e vanno tenute distinte.
      */
     let avvisiSpezie: EsitoSpezia[] = [];
+    let aiutoEsclusioni: string | null = null;
     if (profileData.dislikedFoods !== undefined || profileData.intolerances !== undefined) {
       /**
        * ⚠️ SI PULISCE SOLO QUELLO CHE È STATO DAVVERO TOCCATO — trovato in revisione, 17/8 sera.
@@ -767,6 +769,13 @@ export class ClientsService {
         if (stessaLista(profileData.dislikedFoods as string[], attualiGusti?.dislikedFoods)) {
           delete profileData.dislikedFoods; // non toccato: non si riscrive, e non si pulisce
         } else {
+          /**
+           * ⚠️ L'AIUTO A SCRIVERE L'ELENCO (Simone, 18/8), sulla lista **davvero cambiata** e prima
+           * del filtro spezie. Vale anche qui e non solo in app: il campo lo compila anche la coach
+           * ripetendo quello che la cliente le ha detto a voce, e una frase scritta lì fa lo stesso
+           * danno. ⚠️ Non corregge niente: dice.
+           */
+          aiutoEsclusioni = fraseAiutoEsclusioni(problemiEsclusioni(profileData.dislikedFoods as string[]));
           const filtrati = filtraSpezie(profileData.dislikedFoods as string[]);
           // ⚠️ L'avviso resta anche se dopo la pulizia il risultato è identico a quello che c'era già
           // (ha scritto «pepe, ceci» dove c'era «ceci»): la sua riga non è passata, e va detto.
@@ -1102,7 +1111,12 @@ export class ClientsService {
      * nutrizionista: se ha scritto «pepe» fra i cibi non graditi, quella riga non è stata salvata e
      * deve saperlo — con il motivo, perché il motivo è la parte che le fa cambiare gesto.
      */
-    return { updated: true, ...(avvisiSpezie.length ? { avvisiSpezie } : {}) };
+    return {
+      updated: true,
+      ...(avvisiSpezie.length ? { avvisiSpezie } : {}),
+      // Solo quando c'è qualcosa da dire: un avviso che compare sempre non è un avviso.
+      ...(aiutoEsclusioni ? { aiutoEsclusioni } : {}),
+    };
   }
 
   /**

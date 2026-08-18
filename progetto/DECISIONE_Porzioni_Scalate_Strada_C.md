@@ -137,7 +137,20 @@ dopo su chi si è agito. ⚠️ Il numero da guardare prima di scrivere la Conse
 
 ---
 
-## 3-bis. ⚠️ LA PRIMA LETTURA IN PRODUZIONE HA CAMBIATO LA DOMANDA (18/8)
+## 3-bis. ✅ CHIUSA IL 18/8 — la taglia si calcola sul fabbisogno
+
+> Simone: **«la taglia calorica va calcolata sulla base del fabbisogno della cliente»**.
+>
+> Fatto: il generatore prende la **mediana** del fabbisogno delle clienti in corso su quel preset,
+> invece del numero fisso. ⚠️ Mediana e non media: una a 3200 in mezzo a dieci a 1600 sposterebbe
+> la media a 1745 e il catalogo con lei. ⚠️ Vale per le **bozze nuove**: le diete già approvate non
+> cambiano, e la taglia arriva nel piatto quando la nutrizionista approva.
+>
+> ⛔ **Resta aperta la seconda taglia**, ma ora con una cifra davanti: il generatore dice quante
+> clienti restano fuori banda **anche** con la taglia scelta. Se quel numero è grosso, una taglia
+> sola non le serve tutte — ed è esattamente la domanda per cui `Diet.levels` esiste.
+
+## 3-ter. ⚠️ LA PRIMA LETTURA IN PRODUZIONE HA CAMBIATO LA DOMANDA (18/8)
 
 `npm run diag:porzioni` su 14 giorni: **84 giornate erogate, 18 clienti, 5 con giornate sotto banda**.
 E **quattro casi su cinque non hanno né digiuno né spuntini tolti**: sono «nessuna esclusione, è il

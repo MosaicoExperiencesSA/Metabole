@@ -48,9 +48,21 @@ export class LavoriService {
   async aggiorna(id: string, dati: DatiLavoro) {
     const campi = normalizzaLavoro(dati, false);
     await this.esiste(id);
+    /**
+     * ⚠️ CHI CORREGGE IL TESTO DALLA PAGINA SE LO TIENE (18/8, voce 275). Da quando il caricamento
+     * riscrive il testo delle voci che vengono dal file, questa riga è ciò che impedisce a una
+     * correzione fatta a mano di sparire al rilascio dopo — senza che chi l'ha scritta lo sappia.
+     *
+     * ⚠️ Solo se cambia davvero **titolo o dettaglio**: salvare la categoria o l'ordine non è
+     * scrivere un testo, e marcare anche quello congelerebbe la voce per sempre al primo
+     * spostamento.
+     */
+    const testoToccato =
+      (campi as { titolo?: unknown }).titolo !== undefined ||
+      (campi as { dettaglio?: unknown }).dettaglio !== undefined;
     return this.prisma.lavoro.update({
       where: { id },
-      data: campi,
+      data: { ...campi, ...(testoToccato ? { testoAMano: true } : {}) },
       include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
     });
   }
@@ -101,8 +113,8 @@ export class LavoriService {
     const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
     const righe = (await this.prisma.lavoro.findMany({
       where: { chiave: { in: chiavi } },
-      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true },
-    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null }[];
+      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true, testoAMano: true },
+    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null; testoAMano: boolean }[];
     const perChiave = new Map(righe.map((r) => [r.chiave, r]));
 
     /**
@@ -141,15 +153,31 @@ export class LavoriService {
      * Nel frattempo la differenza si **mostra**: un elenco che dice quali voci in pagina hanno un
      * testo più vecchio di quello del rilascio. Meglio saperlo che crederle aggiornate.
      */
-    const testiCambiati = VOCI_INIZIALI.flatMap((v) => {
+    /**
+     * ⚠️ IL TESTO ORA SI RISCRIVE — ma solo dove non l'ha scritto una persona (18/8, voce 275).
+     *
+     * Prima non si riscriveva mai, e la pagina restava alla versione del primo caricamento: una
+     * voce corretta nel file — succede a ogni giro, perché una voce si riscrive quando si scopre la
+     * causa vera — in pagina raccontava ancora la ricostruzione sbagliata, e chi la leggeva credeva
+     * di leggere l'ultima parola. Il caso che l'ha deciso: la bonifica delle email del 18/8 ha
+     * ripulito il file, e in pagina l'indirizzo di una cliente è rimasto lì.
+     *
+     * ⚠️ Le voci con `testoAMano` NON si toccano, e si dicono a parte. Una correzione fatta dal
+     * backoffice che sparisce al rilascio dopo, in silenzio, sarebbe lo stesso difetto spostato di
+     * un metro.
+     */
+    const daRiscrivere: { id: string; titolo: string; dettaglio: string | null; categoria: string }[] = [];
+    const testiCambiati: { titolo: string; categoria: string }[] = [];
+    for (const v of VOCI_INIZIALI) {
       const riga = perChiave.get(v.chiave);
-      if (!riga) return [];
+      if (!riga) continue;
       // Le righe di chiusura dei doppioni non sono voci di lavoro: il loro testo non interessa a nessuno.
-      if (v.soloSeEsiste) return [];
-      const diverso =
-        riga.titolo !== v.titolo || (riga.dettaglio ?? '') !== (v.dettaglio ?? '');
-      return diverso ? [{ titolo: v.titolo, categoria: v.categoria }] : [];
-    });
+      if (v.soloSeEsiste) continue;
+      const diverso = riga.titolo !== v.titolo || (riga.dettaglio ?? '') !== (v.dettaglio ?? '');
+      if (!diverso) continue;
+      if (riga.testoAMano) testiCambiati.push({ titolo: v.titolo, categoria: v.categoria });
+      else daRiscrivere.push({ id: riga.id, titolo: v.titolo, dettaglio: v.dettaglio ?? null, categoria: v.categoria });
+    }
 
     if (conferma) {
       for (const v of mancanti) {
@@ -162,6 +190,12 @@ export class LavoriService {
       for (const { riga } of daSpuntare) {
         await this.prisma.lavoro.update({ where: { id: riga.id }, data: datiSpunta(true, null, new Date()) });
       }
+      for (const r of daRiscrivere) {
+        // ⚠️ Solo titolo e dettaglio: `categoria` e `ordine` restano dove qualcuno li ha messi in
+        // pagina. Riscriverli qui sposterebbe le voci sotto gli occhi di chi le sta guardando, e
+        // non è quello che si chiede a un pulsante che dice «aggiorna dal rilascio».
+        await this.prisma.lavoro.update({ where: { id: r.id }, data: { titolo: r.titolo, dettaglio: r.dettaglio } });
+      }
     }
     return {
       scritto: conferma,
@@ -171,7 +205,13 @@ export class LavoriService {
       titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
       // Titoli e non chiavi: è quello che la pagina mostra prima di far premere «Conferma».
       chiuse: daSpuntare.map(({ voce }) => ({ titolo: voce.titolo, categoria: voce.categoria })),
-      /** Voci già in pagina il cui TESTO nel file è cambiato: NON vengono riscritte, si dicono. */
+      /** Voci il cui testo è stato **riscritto** dal file (nessuno le aveva corrette a mano). */
+      riscritte: daRiscrivere.map((r) => ({ titolo: r.titolo, categoria: r.categoria })),
+      /**
+       * ⚠️ Voci il cui testo nel file è cambiato ma che qualcuno ha corretto **a mano** dalla
+       * pagina: NON vengono riscritte, e si dicono — perché il file ha qualcosa di nuovo da
+       * raccontare su di loro e chi le legge deve sapere che le due versioni sono diverse.
+       */
       testiCambiati,
     };
   }

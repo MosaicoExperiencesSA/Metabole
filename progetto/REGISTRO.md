@@ -20,6 +20,94 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 📏 **La taglia del catalogo si calcola sulla mediana del fabbisogno delle clienti**
+  (voce 273, chiusa con la risposta di Simone: «la taglia calorica va calcolata sulla base del
+  fabbisogno della cliente»). Il generatore scriveva ogni pasto come `menu_daycombo_kcal_target ×
+  quota` con un numero **fisso**, mentre l'erogazione punta al fabbisogno: ⚠️ chi sta sopra ~1765
+  kcal riceveva giornate fuori banda **per costruzione, tutti i giorni**, e per lei nessun
+  moltiplicatore di porzione cambia il fatto che le ricette sono scritte più piccole. Ora la taglia
+  viene dalla **mediana** del fabbisogno delle clienti in corso su quel preset. ⚠️ **Mediana e non
+  media, ed è tutto il modulo**: una cliente a 3200 in mezzo a dieci a 1600 sposterebbe la media a
+  1745 e il catalogo con lei — dieci persone riceverebbero piatti pensati per una. ⚠️ Tre stati:
+  senza clienti calcolabili resta la taglia del preset **e si dice il motivo**, perché un numero
+  calcolato sul nulla ha lo stesso aspetto di uno calcolato bene. ⚠️ E si conta quante restano fuori
+  banda **anche con la taglia scelta**, in tutt'e due i versi — su questo mi ha corretto un test:
+  avevo scritto «due» guardando solo chi sta sopra, e sono tre, perché con la taglia a 1700 il
+  pavimento è 1445 e anche la cliente a 1400 riceve piatti troppo grandi. È il numero che dice se
+  serve una **seconda taglia** (`Diet.levels` nasce per quello, mai usato): la domanda resta aperta,
+  ma ha una cifra davanti invece di un'impressione. ⚠️ **Vale solo per le bozze nuove**: le diete già
+  approvate non cambiano, e la taglia arriva nel piatto quando la nutrizionista approva. Interruttore
+  in `config_param` (`catalogo_taglia_dal_fabbisogno`). 12 test (211 suite, 3262 verdi).
+
+- `[Sviluppo]` 🔁 **Il rilascio ora aggiorna il testo delle voci — tranne quelle corrette a mano
+  dalla pagina** (voce 275, chiusa). ⚠️ **La domanda era scritta male**, e Simone l'ha detto («non
+  capisco la domanda»): l'avevo posta da dentro il codice invece che dal caso vero. Il caso vero: la
+  pagina tiene **la sua copia** del testo di ogni voce, e «Aggiorna dal rilascio» aggiungeva e
+  spuntava senza toccare il testo di quelle già in elenco — mentre una voce si riscrive **a ogni
+  giro**, perché si riscrive quando si scopre la causa vera. ⚠️ L'esempio che l'ha deciso: la
+  bonifica delle email ha ripulito il file, e nell'estratto della pagina l'indirizzo di una cliente
+  era ancora lì. Ora il testo si riscrive, ⛔ **tranne** dove l'ha scritto una persona dal backoffice:
+  quelle non si toccano e si dicono a parte, perché una correzione che sparisce al rilascio dopo, in
+  silenzio, sarebbe lo stesso difetto spostato di un metro — e questa è la pagina che serve a non
+  farlo succedere altrove. ⚠️ `updatedAt` **non bastava**, ed è il motivo della colonna: lo muovono
+  anche la spunta e la risposta, quindi una voce spuntata sarebbe risultata «toccata a mano» e
+  avrebbe smesso di aggiornarsi — il difetto sarebbe tornato, solo più difficile da vedere. ⚠️ Si
+  riscrivono **solo titolo e dettaglio**: categoria e ordine restano dove qualcuno li ha messi, o le
+  voci si sposterebbero sotto gli occhi di chi le sta guardando. 3 test (3250 verdi). ⚠️ **Migrazione
+  additiva** `20260818120000_lavoro_testo_a_mano`.
+
+- `[Sviluppo]` 🥄 **«Vera vince sempre su Gaia»** (voce 264, chiusa con la risposta di Simone alla
+  domanda «se la nutrizionista detta una spezia, cosa si fa?»). Le due porte di Vera —
+  `scriviRestrizione` e `applicaRestrizione` — non passano più da `filtraSpezie`: chi detta è la
+  professionista che firma le diete. ⚠️ **Ma l'altra metà di quella funzione resta, e la distinzione
+  è tutto il lavoro**: `filtraSpezie` faceva due cose attaccate — **scartare** (una decisione di
+  prodotto, e Vera la vince) e **spezzare** (correggere la forma di un dato perché continui a
+  funzionare, che non c'entra col permesso di nessuno). «pepe, ceci» in una riga sola non compare in
+  nessun piatto e smette di escludere — il caso del 17/8 — e sulla coorte si moltiplica per N
+  profili. Confonderle avrebbe dato a Vera il potere di scrivere un tag rotto, che non è quello che
+  «Vera vince» vuol dire. ⚠️ E il pool che si stringe resta **detto**: l'anteprima glielo mostra
+  prima che scriva. 2 test.
+
+- `[Sviluppo]` ⭐ **Le tre stelle messe dall'app ora si riconoscono** (voce 270, metà chiusa).
+  Risposta di Simone: «se il cliente non specifica metti 3 stelle» — quindi **cosa si scrive** è
+  deciso e non cambia. ⚠️ Ma quel 3 era **indistinguibile** da un 3 vero e finiva nel segnale
+  «gradimento» che decide cosa il motore ripropone: chi diceva soltanto «non l'ho seguita»
+  risultava averle dato tre stelle. Da oggi il popup aggiunge il tag **`stelle_non_date`** — il tag
+  `seguita`/`non_seguita` da solo non bastava, perché c'è anche quando le stelle le ha date davvero.
+  Non cambia niente per nessuno oggi: cambia che il dato è recuperabile e che il conto si può fare.
+  ⛔ **Torna a Simone la seconda metà, ora con un numero davanti**: quel 3 marcato deve contare nel
+  gradimento, o va escluso? Scriverlo è una riga; deciderlo no, perché sposta cosa arriva nel piatto.
+
+- `[Sviluppo]` 📝 **Le esclusioni scritte come frasi ora vengono dette a chi le scrive** (voce 267,
+  chiusa con la risposta di Simone: «le esclusioni devono essere un elenco, ogni parola seguita da
+  una virgola, aiutiamo le clienti a scrivere in modo corretto»). Il campo accetta **frasi** e il
+  motore legge **alimenti**: «pesce tranne salmone, tonno» non toglieva niente, e spezzato sulla
+  virgola rendeva escluso il **tonno** — l'opposto di quello che la cliente aveva scritto, visto che
+  lo elencava fra le eccezioni. Nuovo `common/esclusioni-scritte-bene.ts`: riconosce eccezioni,
+  frasi e voci troppo lunghe, e torna la frase da mostrare. ⚠️ **Non corregge niente**, ed è la
+  scelta che conta: su «pesce tranne salmone» la correzione più ovvia — tenere la prima parola —
+  escluderebbe **tutto il pesce, salmone compreso**, cioè di nuovo il contrario. Chi ha scritto la
+  frase è l'unica persona che sa cosa intendeva, e a lei si chiede; sulle frasi invece il
+  suggerimento c'è («Volevi scrivere «cicoria»?»), perché lì non è indovinare. ⚠️ Il messaggio dice
+  **cosa succede davvero** — «così com'è non toglie niente dal menu» — e non «formato non valido»:
+  chi legge la seconda corregge la forma, chi legge la prima capisce cosa sta perdendo. ⚠️ Una
+  parola di eccezione dentro un'altra non conta («marmellata» non contiene «ma»), o l'avviso avrebbe
+  segnalato mezzo catalogo al primo giro. Quattro porte (profilo in app col testo che torna nel
+  campo, pulsante «non gradisco», scheda backoffice, scheda coach), e ⚠️ l'avviso spezie e questo
+  **si sommano** invece di coprirsi. La regola vive nel backend: nell'app sarebbe stata una seconda
+  copia. ⛔ Resta fuori il **questionario**, che è la porta d'ingresso vera.
+
+- `[Sviluppo]` 🧭 **«Quello che aspetta me»: c'è anche il pool sotto soglia** (voce 211, chiusa). La
+  §13.3 chiedeva quattro moduli, il quarto mancava e la voce diceva «prima va deciso QUANDO
+  calcolarlo». ⚠️ **Il pool non è della cliente: è della dieta.** Le esclusioni sono sue, il pool no
+  — e le diete sono poche: si leggono i pool **una volta per dieta**, poi il conto è aritmetica in
+  memoria, e la domanda si può fare a ogni apertura invece che in un lavoro notturno con un numero
+  vecchio di ore. Nuovo `vera/clienti-pool-scoperto.ts` che **riusa** `calcolaPool` e non una sua
+  copia. ⚠️ Tre stati e tre chip: «N col pool sotto soglia», «N da guardare a mano» (senza dieta: non
+  è a posto, è **non lo so**) e «pool non calcolato» quando il conto fallisce. Contare le non
+  valutabili fra le sane darebbe un numero rassicurante e falso. 37 test in tutto (3247 verdi).
+  Nessuna migrazione.
+
 - `[Sviluppo]` 🔬 **Indice glicemico: la trascrizione è verificata riga per riga contro la tabella
   vera — 96 su 96, zero differenze.** Simone ha caricato il file originale in xlsx e l'ho confrontato
   con `prisma/dati-ig.ts`, campo per campo: nome, categoria, stato, IG, IG min, IG max, kcal,

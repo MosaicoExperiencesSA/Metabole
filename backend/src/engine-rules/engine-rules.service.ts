@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
 import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
+import { KcalNeedService } from '../menu/kcal-need.service';
+import { type EsitoTaglia, fraseTaglia, tagliaDalFabbisogno } from './taglia-dal-fabbisogno';
+
+/** Quante clienti al massimo si guardano per decidere la taglia: un tetto dichiarato, non
+ *  silenzioso. La generazione di un catalogo è già un'operazione lunga; questa parte no. */
+const MASSIMO_CLIENTI_PER_TAGLIA = 300;
 import { AiService } from '../ai/ai.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { SLOT_ORDINE, coperturaCatalogo, slotAttesi, statoCopertura } from './copertura-catalogo';
@@ -55,12 +61,67 @@ function quoteKcalPerSlot(slots: string[], fasting: boolean): Record<string, num
  */
 @Injectable()
 export class EngineRulesService {
+  private readonly logger = new Logger(EngineRulesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
     private readonly ai: AiService,
+    /** La taglia calorica del catalogo si calcola sul fabbisogno delle clienti (voce 273). */
+    private readonly kcalNeed: KcalNeedService,
   ) {}
+
+  /**
+   * La taglia calorica con cui generare il catalogo di questo preset.
+   *
+   * Prende il fabbisogno delle clienti **in corso** che quel preset descrive — stesso regime,
+   * stesso obiettivo, stessa struttura di pasti — e ne fa la mediana (`taglia-dal-fabbisogno.ts`,
+   * dove è scritto perché la mediana e non la media).
+   *
+   * ⚠️ Se non c'è nessuna cliente calcolabile resta la taglia del preset, e il motivo **si dice**:
+   * un numero calcolato sul nulla ha lo stesso aspetto di un numero calcolato bene.
+   *
+   * ⚠️ Non lancia mai: una generazione di catalogo non deve fallire perché un conteggio non è
+   * partito. Nel dubbio si torna alla taglia del preset, che è il comportamento di prima.
+   */
+  private async tagliaPerIlCatalogo(
+    preset: { regime: string | null; objective: string | null; style: string | null; meals?: string | null },
+    tagliaPreset: number,
+    tolleranzaPct: number,
+  ): Promise<{ targetKcal: number; taglia: EsitoTaglia }> {
+    const ripiego = { targetKcal: tagliaPreset, taglia: tagliaDalFabbisogno([], tagliaPreset, tolleranzaPct) };
+    try {
+      const attivo = await this.configParams.getBool('catalogo_taglia_dal_fabbisogno', true);
+      if (!attivo) return ripiego;
+
+      const pasti = (preset as { meals?: string | null }).meals ?? '5';
+      const profili = (await this.prisma.clientProfile.findMany({
+        where: {
+          ...(preset.regime ? { regime: preset.regime } : {}),
+          ...(preset.objective ? { objective: preset.objective } : {}),
+          ...(preset.style ? { dietStyle: preset.style } : {}),
+          // La struttura dei pasti: il digiuno è un percorso, gli altri due un numero di pasti.
+          ...(pasti === 'fasting'
+            ? { pathType: 'intermittent_fasting' }
+            : { mealsPerDay: pasti === '3' ? 3 : 5, NOT: { pathType: 'intermittent_fasting' } }),
+          user: { subscriptions: { some: { status: 'active' as never } } },
+        } as never,
+        select: { userId: true },
+        take: MASSIMO_CLIENTI_PER_TAGLIA,
+      })) as { userId: string }[];
+
+      const fabbisogni = await Promise.all(
+        profili.map((p) => this.kcalNeed.computeTargetKcal(p.userId).catch(() => null)),
+      );
+      const taglia = tagliaDalFabbisogno(fabbisogni, tagliaPreset, tolleranzaPct);
+      this.logger.log(`Catalogo «${preset.style ?? '—'}»: ${fraseTaglia(taglia)}`);
+      return { targetKcal: taglia.taglia, taglia };
+    } catch (e) {
+      this.logger.warn(`Taglia dal fabbisogno NON calcolata: ${String(e)}. Uso quella del preset (${tagliaPreset}).`);
+      return ripiego;
+    }
+  }
 
   private coerce(code: string, raw: unknown): { value: number | boolean; asString: string } {
     const rule = ENGINE_RULE_BY_CODE.get(code);
@@ -252,7 +313,21 @@ export class EngineRulesService {
     const protMin = Math.round(Number(rules.menu_daycombo_protein_min ?? 0.2) * 100);
     const protMax = Math.round(Number(rules.menu_daycombo_protein_max ?? 0.35) * 100);
     const kcalTol = Number(rules.menu_kcal_balance_tolerance_pct ?? 15);
-    const targetKcal = Math.max(600, Math.min(4000, Math.round(Number(rules.menu_daycombo_kcal_target ?? 1500)) || 1500));
+    const tagliaPreset = Math.max(600, Math.min(4000, Math.round(Number(rules.menu_daycombo_kcal_target ?? 1500)) || 1500));
+    /**
+     * ⚠️ LA TAGLIA SI CALCOLA SUL FABBISOGNO DELLE CLIENTI — decisione di Simone, 18/8 (voce 273):
+     * «la taglia calorica va calcolata sulla base del fabbisogno della cliente».
+     *
+     * Prima era un numero fisso nel preset (1500), mentre l'erogazione punta al fabbisogno: chi
+     * stava sopra ~1765 kcal riceveva giornate fuori banda **per costruzione, tutti i giorni**, e
+     * per lei nessun moltiplicatore di porzione cambia il fatto che le ricette sono scritte più
+     * piccole.
+     *
+     * ⚠️ Vale solo per le **bozze nuove** che questa chiamata genera. I menu già erogati e le diete
+     * già approvate non cambiano: la taglia arriva nel piatto quando la nutrizionista approva il
+     * catalogo generato, cioè con una persona in mezzo.
+     */
+    const { targetKcal, taglia } = await this.tagliaPerIlCatalogo(preset, tagliaPreset, kcalTol);
     // Dimensione PASTI della variante: 3 pasti, 5 pasti (storico/default) o digiuno
     // intermittente 16:8 (3 pasti nella finestra 12-20, niente colazione).
     const meals = ['3', '5', 'fasting'].includes((preset as { meals?: string | null }).meals ?? '') ? String((preset as { meals?: string | null }).meals) : '5';

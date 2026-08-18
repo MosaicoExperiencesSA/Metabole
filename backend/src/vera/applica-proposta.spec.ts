@@ -38,6 +38,34 @@ describe('applicaProposta — la restrizione estesa', () => {
     expect(update.mock.calls[1][0].data.dislikedFoods).toEqual(['pane', 'tonno']);
   });
 
+  /**
+   * ⚠️ VERA VINCE SEMPRE SU GAIA — decisione di Simone, 18/8, alla domanda «se la nutrizionista
+   * detta una spezia, cosa si fa?».
+   *
+   * Dal pulsante dell'app e dalla scheda una spezia viene scartata: escluderla svuoterebbe il
+   * ricettario invece di togliere un piatto. Qui no: chi detta è la professionista che firma le
+   * diete. Il pool che si stringe glielo dice l'anteprima **prima** che scriva, quindi sceglie
+   * sapendo — che è la differenza fra accettare una conseguenza e non vederla.
+   */
+  it('⚠️ una SPEZIA dettata dalla nutrizionista si scrive: non passa da `filtraSpezie`', async () => {
+    const { prisma, update } = makePrisma([{ userId: 'c1', dislikedFoods: [] }]);
+    const esito = await applicaProposta(prisma, proposta({ dettaglio: { termini: ['pepe'] } }));
+    expect(esito.toccate).toBe(1);
+    expect(update.mock.calls[0][0].data.dislikedFoods).toEqual(['pepe']);
+  });
+
+  /**
+   * ⚠️ Ma l'ALTRA metà di `filtraSpezie` resta, e non c'entra col permesso: spezzare è correggere
+   * la forma di un dato perché continui a funzionare. «pepe, ceci» scritto in una riga sola non
+   * compare in nessun piatto e da lì in poi non esclude più niente — e qui il danno si moltiplica
+   * per tutte le clienti della coorte.
+   */
+  it('⚠️ ma una voce con DUE alimenti dentro viene comunque spezzata in due righe', async () => {
+    const { prisma, update } = makePrisma([{ userId: 'c1', dislikedFoods: [] }]);
+    await applicaProposta(prisma, proposta({ dettaglio: { termini: ['pepe, ceci'] } }));
+    expect(update.mock.calls[0][0].data.dislikedFoods).toEqual(['pepe', 'ceci']);
+  });
+
   it('è idempotente: chi ce l’ha già non viene toccato né contato', async () => {
     // Riapprovare non deve raddoppiare niente, e il conteggio deve restare vero.
     const { prisma, update } = makePrisma([

@@ -17,6 +17,14 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { exclusionKeys } from '../menu/exclusions';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcolaPool, EsitoPool, raccontaPool, RicettaDelPool } from './pool-disponibile';
+import { type ClienteDaContare, type EsitoConteggioPool, contaClientiSottoSoglia } from './clienti-pool-scoperto';
+
+/**
+ * ⚠️ Un tetto dichiarato, non silenzioso. Serve a non far diventare pesante una lettura che sta
+ * dentro l'apertura di una pagina: `esaminate` dice sempre quante ne ha davvero guardate, quindi
+ * se un giorno il tetto viene toccato si vede dal numero invece che da una lentezza.
+ */
+const MASSIMO_CLIENTI_CONTATE = 500;
 
 /** Il profilo, ridotto a ciò che serve per scegliere la dieta e costruire le esclusioni. */
 interface ProfiloPool extends DietMatchProfile {
@@ -95,6 +103,64 @@ export class PoolDisponibileService {
   }
 
   // ---------- lettura ----------
+
+  /**
+   * QUANTE CLIENTI HANNO IL POOL SOTTO SOGLIA — il modulo che mancava a «quello che aspetta me».
+   *
+   * ⚠️ **Il pool non è della cliente: è della DIETA.** Le esclusioni sono sue, il pool no — e le
+   * diete sono poche. Si leggono i pool **una volta per dieta**, poi il conto per ogni cliente è
+   * aritmetica in memoria (`clienti-pool-scoperto.ts`). È questo che rende la domanda «quante sono
+   * scoperte?» una domanda che si può fare a ogni apertura della pagina, invece di un lavoro
+   * notturno con un numero vecchio di ore.
+   *
+   * ⚠️ Solo le clienti con un abbonamento **attivo**: contare chi ha finito il percorso mesi fa
+   * gonfierebbe il numero con persone a cui non stiamo erogando niente, e un numero gonfio è un
+   * numero che si smette di guardare.
+   */
+  async quanteSottoSoglia(staffId: string | null, capo: boolean): Promise<EsitoConteggioPool> {
+    const soglia = await this.configParams.getNumber('personal_base_min_recipes_per_slot', 3);
+    const profili = (await this.prisma.clientProfile.findMany({
+      where: {
+        ...(capo || !staffId ? {} : { assignedNutritionistId: staffId }),
+        user: { subscriptions: { some: { status: 'active' as never } } },
+      } as never,
+      select: {
+        userId: true, name: true, regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true,
+        objective: true, pathType: true, fastingWindow: true,
+        allergies: true, intolerances: true, dislikedFoods: true,
+      },
+      take: MASSIMO_CLIENTI_CONTATE,
+    })) as (ProfiloPool & { userId: string; name: string | null })[];
+
+    /**
+     * ⚠️ La dieta si sceglie con la stessa funzione dell'erogazione (`pickDietFor`), e il risultato
+     * si tiene in cache per **profilo identico**: 315 clienti stanno su una manciata di diete, e
+     * senza cache questa riga sarebbe 315 interrogazioni per un numero in un riquadro.
+     */
+    const cacheDiete = new Map<string, { id: string; name: string } | null>();
+    const dietaDi = async (p: ProfiloPool): Promise<string | null> => {
+      const chiave = JSON.stringify([p.regime, p.dietStyle, p.dietFamily, p.mealsPerDay, p.objective, p.pathType, p.fastingWindow]);
+      if (!cacheDiete.has(chiave)) cacheDiete.set(chiave, await this.dieta(p));
+      return cacheDiete.get(chiave)?.id ?? null;
+    };
+
+    const clienti: ClienteDaContare[] = [];
+    for (const p of profili) {
+      clienti.push({
+        id: p.userId,
+        nome: p.name,
+        dietId: await dietaDi(p),
+        chiaviEscluse: [...exclusionKeys([...p.allergies, ...p.intolerances, ...p.dislikedFoods])],
+      });
+    }
+
+    const poolPerDieta = new Map<string, Map<string, RicettaDelPool[]>>();
+    for (const dietId of new Set(clienti.map((c) => c.dietId).filter((d): d is string => !!d))) {
+      poolPerDieta.set(dietId, await this.poolPerSlot(dietId));
+    }
+
+    return contaClientiSottoSoglia(clienti, poolPerDieta, soglia);
+  }
 
   private async profilo(clientId: string): Promise<ProfiloPool & { nome: string | null }> {
     const p = (await this.prisma.clientProfile.findUnique({

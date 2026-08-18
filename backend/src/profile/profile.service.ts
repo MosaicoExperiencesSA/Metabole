@@ -16,6 +16,7 @@ import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-all
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
 import { campiCambiati } from '../common/diff-campi';
+import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { toDateOnly } from '../common/date-only';
@@ -55,6 +56,18 @@ export class ProfileService {
     // esclusi", e le app vecchie). Senza il filtro qui, una spezia rientrerebbe dalla finestra.
     // Vedi `menu/spezie.ts`.
     let avvisiSpezie: EsitoSpezia[] = [];
+    /**
+     * ⚠️ AIUTARE A SCRIVERE L'ELENCO (decisione di Simone, 18/8): «le esclusioni devono essere un
+     * elenco, ogni parola seguita da una virgola, aiutiamo le clienti a scrivere in modo corretto».
+     *
+     * Si guarda quello che è arrivato **prima** del filtro spezie, e ⚠️ **non si corregge niente**:
+     * si torna la frase da mostrare a chi ha appena scritto. Correggere da soli sarebbe l'errore
+     * peggiore proprio qui — su «pesce tranne salmone» la correzione più ovvia (tenere la prima
+     * parola) escluderebbe TUTTO il pesce, salmone compreso, cioè il contrario di quello che voleva.
+     */
+    const aiutoEsclusioni = Array.isArray(rest.dislikedFoods)
+      ? fraseAiutoEsclusioni(problemiEsclusioni(rest.dislikedFoods))
+      : null;
     if (Array.isArray(rest.dislikedFoods)) {
       const filtrati = filtraSpezie(rest.dislikedFoods);
       rest.dislikedFoods = filtrati.tenuti;
@@ -117,7 +130,12 @@ export class ProfileService {
         /* non bloccante */
       }
     }
-    return avvisiSpezie.length ? { ...profile, avvisiSpezie } : profile;
+    return {
+      ...profile,
+      ...(avvisiSpezie.length ? { avvisiSpezie } : {}),
+      // ⚠️ Il campo c'è solo quando c'è qualcosa da dire: un avviso che compare sempre non è un avviso.
+      ...(aiutoEsclusioni ? { aiutoEsclusioni } : {}),
+    };
   }
 
   /**

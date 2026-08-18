@@ -38,12 +38,25 @@ function build() {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     equivalenceGroup: { create: jest.fn().mockResolvedValue({}) },
+    // Nessuna cliente su questo preset: la taglia resta quella del preset, e lo dice.
+    clientProfile: { findMany: jest.fn().mockResolvedValue([]) },
   };
-  const configParams = { update: jest.fn().mockResolvedValue({}) };
+  const configParams = {
+    update: jest.fn().mockResolvedValue({}),
+    /**
+     * ⚠️ `getBool` risponde col valore predefinito che gli passa il chiamante, e `clientProfile`
+     * qui sotto non trova nessuna cliente: quindi la taglia dal fabbisogno (voce 273) si ripiega
+     * su quella del preset, che è il comportamento che questi test già difendevano.
+     */
+    getBool: jest.fn().mockImplementation((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    getNumber: jest.fn().mockImplementation((_k: string, def?: number) => Promise.resolve(def)),
+  };
   const audit = { log: jest.fn() };
   const ai = { generateJson: jest.fn().mockResolvedValue(null) };
-  const service = new EngineRulesService(prisma as any, configParams as any, audit as any, ai as any);
-  return { service, prisma, configParams, ai };
+  /** La taglia si calcola sul fabbisogno delle clienti: qui non ce ne sono, e va bene così. */
+  const kcalNeed = { computeTargetKcal: jest.fn().mockResolvedValue(null) };
+  const service = new EngineRulesService(prisma as any, configParams as any, audit as any, ai as any, kcalNeed as any);
+  return { service, prisma, configParams, ai, kcalNeed };
 }
 
 describe('EngineRulesService', () => {

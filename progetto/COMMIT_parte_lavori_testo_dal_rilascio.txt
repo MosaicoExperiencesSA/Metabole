@@ -1,0 +1,66 @@
+Il rilascio ora aggiorna il testo delle voci — tranne quelle corrette a mano dalla pagina
+
+Voce 275 (chiusa). ⚠️ CON UNA MIGRAZIONE (additiva).
+
+═══ LA DOMANDA ERA SCRITTA MALE
+
+Simone: «Non capisco la domanda». Aveva ragione: l'avevo posta da dentro il codice invece che dal
+caso vero.
+
+Il caso vero. La pagina Lavori tiene LA SUA COPIA del testo di ogni voce, nel database. Quando una
+voce viene riscritta nel file — e succede a ogni giro, perche' una voce si riscrive quando si scopre
+la causa vera di un difetto — il pulsante «Aggiorna dal rilascio» NON aggiornava il testo di quelle
+gia' in elenco: aggiungeva le nuove e spuntava le finite. Chi leggeva la pagina credeva di leggere
+l'ultima parola.
+
+⚠️ L'ESEMPIO CHE L'HA DECISO: la bonifica delle email del 18/8 ha ripulito il file, e nell'estratto
+della pagina che Simone mi ha mandato l'indirizzo di una cliente era ancora li'. La correzione non
+arrivava dove la si legge tutti i giorni.
+
+═══ COSA CAMBIA
+
+Il testo si riscrive. ⛔ TRANNE dove l'ha scritto una persona dal backoffice.
+
+Perche' il file non puo' vincere sempre: dalla pagina si puo' correggere una voce a mano, e
+riscriverla al rilascio dopo farebbe sparire quella correzione senza che chi l'ha scritta lo sappia.
+Sarebbe il difetto di famiglia di questo progetto — un dato che agisce e non si vede — applicato
+proprio alla pagina che serve a non perderne traccia.
+
+Quindi il riepilogo del pulsante ora dice DUE cose:
+
+  «Aggiorno il testo di N voci (categoria e posizione restano dove sono)»
+  «⚠️ N voci sono state corrette a mano da qui: il rilascio ha un testo diverso e NON lo riscrivo»
+
+═══ LA COLONNA, E PERCHE' NON BASTAVA `updatedAt`
+
+`lavoro.testo_a_mano BOOLEAN NOT NULL DEFAULT false`. La scrive `aggiorna()` quando cambia il
+TITOLO o il DETTAGLIO — non quando cambia categoria o ordine: salvare una posizione non e' scrivere
+un testo, e marcare anche quello avrebbe congelato la voce per sempre al primo spostamento.
+
+⚠️ `updatedAt` NON BASTAVA, ed e' il motivo per cui serve una colonna: lo muovono anche la spunta e
+la risposta. Una voce spuntata sarebbe risultata «toccata a mano» e avrebbe smesso di aggiornarsi
+dal file — cioe' il difetto sarebbe tornato, solo piu' difficile da vedere.
+
+⚠️ ADDITIVA CON DEFAULT: nessuna riga esistente cambia comportamento. Le voci gia' in pagina
+risultano NON toccate a mano, che e' vero per quasi tutte e nel dubbio e' la scelta che le allinea.
+
+═══ ⚠️ SI RISCRIVONO SOLO TITOLO E DETTAGLIO
+
+`categoria` e `ordine` restano dove qualcuno li ha messi in pagina. Riscriverli sposterebbe le voci
+sotto gli occhi di chi le sta guardando, e non e' quello che si chiede a un pulsante che dice
+«aggiorna dal rilascio».
+
+═══ SE PREFERISCI ALTRIMENTI
+
+Ho scelto la strada che NON PUO' PERDERE IL LAVORO DI NESSUNO. Le altre due sono una riga:
+  · il file vince sempre → togliere il controllo su `testoAMano`;
+  · il file non riscrive mai → com'era prima del 18/8.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 3250 test verdi (3 nuovi)
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+⚠️ MIGRAZIONE: `20260818120000_lavoro_testo_a_mano`. Additiva.
+DOPO IL DEPLOY: premere «Aggiorna dal rilascio» — questa volta allinea anche i testi.

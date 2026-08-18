@@ -72,6 +72,13 @@ const CONFIG_PARAMS: SeedParam[] = [
    * cambiare senza un rilascio.
    */
   {
+    key: 'catalogo_taglia_dal_fabbisogno',
+    value: 'true',
+    type: 'boolean',
+    description:
+      'Il generatore di catalogo calcola la taglia calorica dalla MEDIANA del fabbisogno delle clienti su quella dieta, invece di usare il numero fisso del preset (voce 273)',
+  },
+  {
     key: 'porzione_tetto_pasto_principale',
     value: '1.8',
     type: 'number',

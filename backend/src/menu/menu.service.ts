@@ -26,6 +26,7 @@ import { slotEsclusiTotali } from './finestre-digiuno';
 import { TETTI_PREDEFINITI, porzioniScalate, quantitaScalata } from './porzione-scalata';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
+import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { expandExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
@@ -1932,10 +1933,39 @@ export class MenuService {
     applicato: boolean;
     /** Presente solo se c'è un pop-up da mostrare. */
     avvisoSpezia?: EsitoSpezia;
+    /**
+     * ⚠️ Presente quando quello che ha scritto NON è un nome di alimento (Simone, 18/8: «le
+     * esclusioni devono essere un elenco, ogni parola seguita da una virgola, aiutiamo le clienti a
+     * scrivere in modo corretto»). Il controllo sta QUI e non nell'app di proposito: sarebbe la
+     * seconda copia di una regola, e il giorno che divergono l'app direbbe una cosa e il motore ne
+     * farebbe un'altra.
+     */
+    avvisoEsclusione?: string;
   }> {
     const ingredient = (rawIngredient ?? '').trim();
     if (ingredient.length < 2) throw new BadRequestException("Scrivi l'ingrediente che non gradisci.");
     const forever = scope === 'forever';
+
+    /**
+     * ⚠️ PRIMA DI TUTTO IL RESTO: non è un alimento, è una frase.
+     *
+     * Si ferma **prima** di toccare i menu, perché il danno è già fatto al momento del salvataggio:
+     * «pesce tranne salmone» salvato non toglie niente, e lei crede di aver escluso il pesce. Il
+     * cancello delle spezie sta venti righe sotto e risponde a un'altra domanda — lì il termine è
+     * un alimento vero, solo che escluderlo svuoterebbe il ricettario.
+     */
+    const problemi = problemiEsclusioni([ingredient]);
+    if (problemi.length) {
+      return {
+        applied: [],
+        disliked: ingredient,
+        scope,
+        forever,
+        message: fraseAiutoEsclusioni(problemi) ?? '',
+        applicato: false,
+        avvisoEsclusione: fraseAiutoEsclusioni(problemi) ?? undefined,
+      };
+    }
 
     // Il cancello delle spezie vale per TUTTE le portate, non solo per "per sempre": anche una
     // sostituzione di tre giorni farebbe scartare i piatti speziati, che è il danno da evitare.

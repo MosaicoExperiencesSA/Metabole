@@ -1,0 +1,22 @@
+-- «IL RILASCIO RISCRIVE IL TESTO, MA NON QUELLO CHE HA SCRITTO UNA PERSONA» (18/8, voce 275).
+--
+-- La pagina Lavori tiene la SUA copia del testo di ogni voce. Quando una voce viene riscritta nel
+-- file — e succede a ogni giro, perché una voce si riscrive quando si scopre la causa vera — il
+-- pulsante «Aggiorna dal rilascio» non aggiornava il testo di quelle già in elenco: aggiungeva le
+-- nuove e spuntava le finite. Chi leggeva la pagina credeva di leggere l'ultima parola.
+--
+-- ⚠️ Ma il file non può vincere SEMPRE: dalla pagina si può correggere una voce a mano, e
+-- riscriverla al rilascio dopo farebbe sparire quella correzione senza che chi l'ha scritta lo
+-- sappia. È il difetto di famiglia di questo progetto (un dato che agisce e non si vede), applicato
+-- proprio alla pagina che serve a non perderne traccia.
+--
+-- Questa colonna ricorda una cosa sola: «il testo di questa riga l'ha scritto una persona dal
+-- backoffice». Il caricamento riscrive tutte le altre e lascia stare queste, dicendo quali sono.
+--
+-- ⚠️ `updatedAt` non bastava, ed è il motivo per cui serve una colonna: lo muove anche la spunta,
+-- e anche la risposta. Una voce spuntata risulterebbe «toccata a mano» e non verrebbe più
+-- aggiornata dal file — cioè il difetto tornerebbe, solo più difficile da vedere.
+--
+-- Additiva, con default: nessuna riga esistente cambia comportamento. Le voci già in pagina
+-- risultano NON toccate a mano, che è vero per quasi tutte e nel dubbio è la scelta che le allinea.
+ALTER TABLE "lavoro" ADD COLUMN "testo_a_mano" BOOLEAN NOT NULL DEFAULT false;

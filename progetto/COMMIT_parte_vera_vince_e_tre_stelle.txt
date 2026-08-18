@@ -1,0 +1,59 @@
+Vera vince su Gaia, e le tre stelle messe dall'app ora si riconoscono
+
+Voce 264 (chiusa) e voce 270 (metà chiusa, metà torna a Simone con un numero davanti).
+
+═══ 1. VOCE 264 — «Vera vince sempre su Gaia»
+
+Risposta di Simone del 18/8 alla domanda «se la nutrizionista detta una spezia, cosa si fa?».
+
+Le due porte di Vera — `vera-chat.service.scriviRestrizione` (una cliente) e
+`applica-proposta.applicaRestrizione` (una coorte) — NON passano piu' da `filtraSpezie`: chi detta
+e' la professionista che firma le diete, e una sua parola non viene scartata.
+
+⚠️ MA L'ALTRA META' DI QUELLA FUNZIONE RESTA, E LA DISTINZIONE E' TUTTO IL LAVORO.
+
+`filtraSpezie` fa due cose diverse, e finora erano attaccate:
+
+  SCARTARE  → una decisione di prodotto. E Vera la vince.
+  SPEZZARE  → correggere la forma di un dato perche' continui a funzionare. Non c'entra col
+              permesso di nessuno.
+
+«pepe, ceci» scritto in una riga sola non compare in nessun piatto, e da li' in poi non esclude piu'
+niente — e' il caso del 17/8 con `"Carne .ceci"`. Sulla coorte quel danno si moltiplica per N
+profili. Confondere le due meta' avrebbe dato a Vera il potere di scrivere un tag rotto: non e'
+quello che «Vera vince» vuol dire.
+
+⚠️ E IL POOL CHE SI STRINGE RESTA DETTO: la chat mostra l'anteprima (`raccontaPool`) PRIMA che
+scriva, quindi la nutrizionista sceglie sapendo cosa resta. E' la differenza fra accettare una
+conseguenza e non vederla.
+
+⛔ Restano aperte le altre due porte del censimento: `substituteDisliked` con `scope: forever` (ha
+il cancello spezie ma non spezzava — ⚠️ ora pero' ha davanti il controllo delle esclusioni scritte
+male) e `aggiungiAiNonGraditi` di Gaia, a rischio basso perche' il valore e' un nome di ingrediente
+del catalogo. E resta il testo grezzo nel report PDF della cliente.
+
+═══ 2. VOCE 270 — «se il cliente non specifica metti 3 stelle»
+
+La parte che riguarda COSA SI SCRIVE e' decisa e non cambia: chi tocca solo «Seguita / Non seguita»
+continua a mandare `stars: 3`.
+
+⚠️ Ma quel 3 era INDISTINGUIBILE da un 3 vero. Finiva in `RecipeRating` insieme agli altri, cioe'
+nel segnale «gradimento» che il motore usa per decidere cosa riproporle: una cliente che diceva
+soltanto «non l'ho seguita» risultava averle dato tre stelle.
+
+Da oggi il popup aggiunge il tag `stelle_non_date`.
+
+⚠️ Il tag `seguita`/`non_seguita` da solo NON bastava a distinguerli: c'e' anche quando le stelle
+le ha date davvero.
+
+Non cambia niente per nessuno OGGI. Cambia che il dato e' recuperabile, e che il conto si puo' fare.
+
+⛔ E QUI TORNA A TE, ma ora con un numero davanti: quel 3 marcato deve CONTARE nel gradimento che
+orienta il motore, o va escluso? Scriverlo e' una riga; deciderlo no, perche' sposta cosa arriva nel
+piatto. Il conto: `RecipeRating` con il tag `stelle_non_date`.
+
+═══ VERIFICHE
+
+  npm run build   → ok
+  npx jest --ci   → 3249 test verdi (2 nuovi)
+  npx tsc --noEmit (app) → 0 errori · npx vitest run → 89 verdi

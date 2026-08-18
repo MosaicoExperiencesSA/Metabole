@@ -31,11 +31,11 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
         // In pagina esistono le prime due: una aperta (che il file dichiara finita) e una già spuntata.
         findMany: jest.fn().mockResolvedValue([
           // Identica al file: niente da segnalare.
-          { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x' },
+          { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false },
           // ⚠️ In pagina c'è il DETTAGLIO VECCHIO: il file l'ha riscritto e la pagina non lo sa.
-          { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'testo vecchio' },
+          { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'testo vecchio', testoAMano: false },
           // Il doppione rimasto in pagina il 13/8: aperto, con un testo suo che non interessa a nessuno.
-          { id: 'l3', chiave: 'doppione-in-pagina', fatto: false, titolo: 'tutt\'altro titolo', dettaglio: 'tutt\'altro' },
+          { id: 'l3', chiave: 'doppione-in-pagina', fatto: false, titolo: 'tutt\'altro titolo', dettaglio: 'tutt\'altro', testoAMano: false },
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'l1' }),
@@ -54,18 +54,53 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
    * ogni volta che si scopre la causa vera — in pagina resta com'era, e chi legge crede di leggere
    * l'ultima parola.
    */
-  it('dice quali voci in pagina hanno un testo più vecchio del file', async () => {
-    const esito = await service.caricaVociIniziali(false);
-    expect(esito.testiCambiati.map((t) => t.titolo)).toEqual(['Già chiusa in pagina']);
+  /**
+   * ⚠️ DAL 18/8 IL TESTO SI RISCRIVE (voce 275). Prima non si riscriveva mai e la pagina restava
+   * alla versione del primo caricamento: una voce corretta nel file — succede a ogni giro, perché
+   * una voce si riscrive quando si scopre la causa vera — in pagina raccontava ancora la
+   * ricostruzione sbagliata. Il caso che l'ha deciso: la bonifica delle email ha ripulito il file,
+   * e in pagina l'indirizzo di una cliente è rimasto lì.
+   */
+  it('⚠️ riscrive il testo delle voci che nessuno ha corretto a mano', async () => {
+    const esito = await service.caricaVociIniziali(true);
+    expect(esito.riscritte.map((r) => r.titolo)).toEqual(['Già chiusa in pagina']);
+    const scritta = (prisma.lavoro.update as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .find((s) => s.where.id === 'l2');
+    expect(scritta.data).toEqual({ titolo: 'Già chiusa in pagina', dettaglio: 'x' });
   });
 
-  it('⚠️ e non le riscrive: segnalarle non è aggiornarle', async () => {
-    await service.caricaVociIniziali(true);
+  /**
+   * ⚠️ Ma NON quelle scritte da una persona dal backoffice. Una correzione fatta a mano che
+   * sparisce al rilascio dopo, in silenzio, sarebbe lo stesso difetto spostato di un metro — e
+   * questa è la pagina che serve a non farlo succedere altrove.
+   */
+  it('⚠️ NON riscrive quelle corrette a mano, e le dice a parte', async () => {
+    prisma.lavoro.findMany.mockResolvedValue([
+      { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false },
+      { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Riscritta da una persona', dettaglio: 'quello che ha scritto lei', testoAMano: true },
+    ]);
+    const esito = await service.caricaVociIniziali(true);
+    expect(esito.testiCambiati.map((x) => x.titolo)).toEqual(['Già chiusa in pagina']);
+    expect(esito.riscritte).toEqual([]);
     const scritture = (prisma.lavoro.update as jest.Mock).mock.calls.map((c) => c[0]);
     for (const s of scritture) {
       expect(s.data.titolo).toBeUndefined();
       expect(s.data.dettaglio).toBeUndefined();
     }
+  });
+
+  /**
+   * ⚠️ `categoria` e `ordine` restano dove qualcuno li ha messi in pagina: riscriverli
+   * sposterebbe le voci sotto gli occhi di chi le sta guardando, e non è quello che si chiede a un
+   * pulsante che dice «aggiorna dal rilascio».
+   */
+  it('⚠️ riscrive SOLO titolo e dettaglio, non categoria e ordine', async () => {
+    await service.caricaVociIniziali(true);
+    const scritta = (prisma.lavoro.update as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .find((s) => s.where.id === 'l2');
+    expect(Object.keys(scritta.data).sort()).toEqual(['dettaglio', 'titolo']);
   });
 
   it('una voce identica fra file e pagina non compare fra i testi cambiati', async () => {

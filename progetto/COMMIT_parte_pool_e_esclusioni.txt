@@ -1,0 +1,87 @@
+Il pool sotto soglia in dashboard, e le esclusioni scritte come frasi che ora vengono dette
+
+Voci 211 e 267 (chiuse).
+
+═══ 1. VOCE 211 — «quello che aspetta me»: c'e' anche il pool sotto soglia
+
+La §13.3 chiedeva QUATTRO moduli per la nutrizionista: proposte ferme dal capo, domande di
+dizionario senza risposta, sostituzioni da verificare e POOL SOTTO SOGLIA. I primi tre c'erano; il
+quarto no, e la voce diceva «prima va deciso QUANDO calcolarlo» — contare il pool di 315 clienti a
+ogni apertura della pagina sembrava caro.
+
+⚠️ NON LO E', E LA RAGIONE E' CHE IL POOL NON E' DELLA CLIENTE: E' DELLA DIETA. Le esclusioni sono
+sue, il pool no — e le diete sono poche. Si leggono i pool UNA VOLTA PER DIETA, poi il conto per
+ogni cliente e' aritmetica in memoria. E' questo che rende «quante sono scoperte?» una domanda che
+si puo' fare a ogni apertura, invece di un lavoro notturno con un numero vecchio di ore.
+
+Nuovo `vera/clienti-pool-scoperto.ts` (modulo puro) che RIUSA `calcolaPool` — non una sua copia,
+perche' due conti della stessa cosa prima o poi divergono e nessuno se ne accorge.
+
+⚠️ TRE STATI, NON DUE:
+  · «N col pool sotto soglia»  → c'e' un problema, col nome delle prime cinque nel tooltip
+  · «N da guardare a mano»     → senza dieta assegnata: NON e' «a posto», e' «non lo so»
+  · «pool non calcolato»       → il conto e' fallito, e il riquadro lo dice invece di mostrare 0
+
+Contare le non valutabili fra le sane darebbe un numero rassicurante e falso, che e' il modo piu'
+efficace di smettere di guardare quel riquadro.
+
+⚠️ Solo clienti con abbonamento ATTIVO. ⚠️ La cache della dieta e' per PROFILO IDENTICO: senza,
+sarebbero 315 interrogazioni per un numero in un riquadro. ⚠️ Il tetto per giro e' dichiarato
+(`esaminate` dice sempre quante ne ha davvero guardate), e un errore qui non fa cadere il riquadro:
+si degrada a `null`, che la pagina scrive diverso da zero.
+
+═══ 2. VOCE 267 — «aiutiamo le clienti a scrivere in modo corretto»
+
+Risposta di Simone del 18/8: «le esclusioni devono essere un elenco, ogni parola deve essere seguita
+da una virgola, aiutiamo le clienti a scrivere in modo corretto». E' la strada 2.
+
+I DUE CASI VERI, trovati in produzione il 17/8:
+
+  «pesce tranne salmone, tonno»  → come termine intero non esclude niente: il pesce continua ad
+                                   arrivarle. Spezzato sulla virgola rende escluso il TONNO, che e'
+                                   ⚠️ L'OPPOSTO di quello che aveva scritto: lo elencava fra le
+                                   eccezioni.
+  «Non mi piace la cicoria»      → una frase intera salvata come alimento, accanto a «Cicoria» che
+                                   invece funziona.
+
+Nuovo `common/esclusioni-scritte-bene.ts`. Riconosce tre cose e torna la frase da mostrare:
+
+  eccezione     → `tranne`, `eccetto`, `a parte`, `salvo`, `escluso`, `ma non`, `solo se`, …
+  frase         → `non mi piace`, `non mangio`, `non voglio`, `odio`, `evito`, `niente`, …
+  troppo lunga  → oltre sei parole, con l'invito alla virgola
+
+⚠️ NON CORREGGE NIENTE, ed e' la scelta che conta. Su «pesce tranne salmone» la correzione piu'
+ovvia — tenere la prima parola — escluderebbe TUTTO IL PESCE, SALMONE COMPRESO: di nuovo il
+contrario di quello che voleva. Chi ha scritto la frase e' l'unica persona che sa cosa intendeva, e
+a lei si CHIEDE. Sulle frasi invece il suggerimento c'e' («Volevi scrivere "cicoria"?»), perche' li'
+non e' indovinare.
+
+⚠️ IL MESSAGGIO DICE COSA SUCCEDE DAVVERO, non «formato non valido». Chi legge «formato non valido»
+corregge la forma; chi legge «cosi' com'e' non toglie niente dal menu» capisce cosa sta perdendo —
+ed e' l'unica versione che porta a una lista giusta. E chiude sempre con COME si scrive, o e' un
+rimprovero.
+
+⚠️ UNA PAROLA DI ECCEZIONE DENTRO UN'ALTRA PAROLA NON CONTA: «marmellata» non contiene «ma». Senza
+il confronto per parola l'avviso avrebbe segnalato mezzo catalogo al primo giro, cioe' si sarebbe
+reso inutile da solo.
+
+Attivo su QUATTRO PORTE: profilo in app (⚠️ e il testo torna nel campo, cosi' la cliente corregge
+invece di riscrivere), pulsante «non gradisco» dell'app, scheda del backoffice, scheda coach in app.
+
+⚠️ L'avviso delle spezie e questo SI SOMMANO invece di zittirsi a vicenda: sono due cose diverse —
+«questa riga non e' stata salvata» e «questa riga e' stata salvata ma non esclude niente» — ed e'
+gia' successo il 17/8 che un avviso ne coprisse un altro.
+
+⚠️ Il controllo vive nel BACKEND e non nell'app: sarebbe stata la seconda copia di una regola, e il
+giorno che divergono l'app direbbe una cosa e il motore ne farebbe un'altra.
+
+⛔ RESTA FUORI IL QUESTIONARIO, che e' la porta d'ingresso vera: la lista nasce li'.
+
+═══ VERIFICHE
+
+  npm run build                  → ok
+  npx jest --ci                  → 3247 test verdi (37 nuovi: 9 sul pool, 28 sulle esclusioni)
+  npx tsc --noEmit (app)         → 0 errori
+  npx tsc --noEmit (backoffice)  → 0 errori
+
+Nessuna migrazione.

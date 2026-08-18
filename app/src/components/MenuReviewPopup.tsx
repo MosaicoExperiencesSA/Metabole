@@ -73,9 +73,22 @@ export default function MenuReviewPopup() {
               method: 'POST',
               body: JSON.stringify({
                 recipeId: r.recipeId,
+                /**
+                 * ⚠️ LE TRE STELLE QUANDO NON LE HA DATE LEI (voce 270, decisione di Simone del
+                 * 18/8: «se il cliente non specifica metti 3 stelle»). Restano tre — ma da oggi
+                 * si SA che le ha messe l'app: senza il marcatore, un 3 inventato è
+                 * indistinguibile da un 3 vero, e finisce nel segnale «gradimento» che decide
+                 * cosa il motore le ripropone senza che nessuno possa più separarli.
+                 *
+                 * Il tag `seguita`/`non_seguita` da solo non basta a distinguerli: c'è anche
+                 * quando le stelle le ha date davvero.
+                 */
                 stars: r.stars > 0 ? r.stars : 3,
                 date: day,
-                tags: r.followed === 'yes' ? ['seguita'] : r.followed === 'no' ? ['non_seguita'] : [],
+                tags: [
+                  ...(r.followed === 'yes' ? ['seguita'] : r.followed === 'no' ? ['non_seguita'] : []),
+                  ...(r.stars > 0 ? [] : ['stelle_non_date']),
+                ],
               }),
             }).catch(() => { /* una valutazione non deve bloccare le altre */ }),
           ),
