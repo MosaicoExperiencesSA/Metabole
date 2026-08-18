@@ -91,6 +91,17 @@ export function filtroClienteConPianoAttivo(adesso = new Date()) {
   return {
     subscriptions: {
       some: {
+        /**
+         * ⚠️ **`queued` NON entra qui, ed è una scelta** (voce 258, 18/8). Questo filtro dice «il
+         * motore vale solo per chi ha un piano attivo», e una cliente il cui piano comincia lunedì
+         * non ha menu da correggere: farla entrare vorrebbe dire scrivere decisioni del motore su
+         * giornate che non esistono ancora. Vale anche per le due schermate del nutrizionista che
+         * usano questo filtro — non c'è niente da validare su un piano non cominciato.
+         *
+         * Chi cerca «ha un piano» (le liste dello staff, i contatori) usa `STATI_CON_UN_PIANO` in
+         * `commerce/stati-abbonamento.ts`, che invece la coda ce l'ha dentro. Sono due domande
+         * diverse, e questo commento esiste perché finora avevano per caso la stessa risposta.
+         */
         status: 'active' as const,
         // `mode: 'insensitive'`: il Negozio salva `period` verbatim e il suo controllo di formato
         // accetta le maiuscole, quindi un piano creato come «Monitoring» passerebbe un `not`

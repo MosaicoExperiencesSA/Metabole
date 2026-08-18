@@ -33,6 +33,7 @@ import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
+import { STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -317,7 +318,9 @@ export class CommerceService {
         // cancelled|expired; le pause vivono nella tabella pause_request). Inserirlo
         // faceva rifiutare la query da Prisma → 500 su /me/plans e /me/products.
         // Un abbonamento "in pausa" resta 'active', quindi active+expired bastano.
-        where: { clientId, status: { in: ['active', 'expired'] as never } },
+        // ⚠️ «Ha già comprato»: la coda dentro, gli annullati fuori (voce 258). Senza `queued` un
+      // prodotto comprato e in partenza lunedì sarebbe stato riproposto in vendita.
+      where: { clientId, status: { in: [...STATI_GIA_COMPRATO] as never } },
         select: { planId: true },
       }) as Promise<{ planId: string }[]>,
     ]);
@@ -474,7 +477,9 @@ export class CommerceService {
     const piano = await this.pianoDellaProva();
     const [attivoQualunque, provaEsistente] = await Promise.all([
       this.prisma.subscription.findFirst({
-        where: { clientId, status: 'active' } as never,
+        // ⚠️ Anche la coda: chi ha un piano che comincia lunedì non è una cliente «senza niente» a
+      // cui regalare la prova di benvenuto (voce 258).
+      where: { clientId, status: { in: [...STATI_CON_UN_PIANO] } } as never,
         select: { id: true },
       }) as Promise<{ id: string } | null>,
       this.prisma.subscription.findFirst({
@@ -1902,7 +1907,7 @@ export class CommerceService {
     for (const t of staleTrials) {
       // Ha convertito? (abbonamento attivo/in attesa o un pagamento vero approvato)
       const [activeSub, paid, alreadyPurged] = await Promise.all([
-        this.prisma.subscription.findFirst({ where: { clientId: t.clientId, status: { in: ['active', 'pending'] as never } }, select: { id: true } }), // 'paused' non è uno stato valido (enum), faceva 500
+        this.prisma.subscription.findFirst({ where: { clientId: t.clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] as never } }, select: { id: true } }), // 'paused' non è uno stato valido (enum), faceva 500
         this.prisma.payment.findFirst({ where: { clientId: t.clientId, status: 'approved', amountCents: { gt: 0 } } as never, select: { id: true } }),
         this.prisma.analyticsEvent.findFirst({ where: { userId: t.clientId, name: 'profile_purged' } as never, select: { id: true } }),
       ]);

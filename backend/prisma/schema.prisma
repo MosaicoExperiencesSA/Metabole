@@ -177,6 +177,14 @@ enum PaymentStatus {
 enum SubscriptionStatus {
   pending
   active
+  /// Piano MESSO IN FILA: comprato e approvato, ma comincia quando finisce quello in corso.
+  /// ⚠️ Prima si scriveva `active` con `startDate` nel futuro, e da lì discende tutto il caso
+  /// Lorena del 16/8: due righe `active` indistinguibili, la scheda che mostrava come piano
+  /// corrente quello in coda, e la matita che spostava la riga sbagliata.
+  /// ⚠️ Un piano in coda È un contratto: nelle schermate dello staff conta come «ha un piano»
+  /// (decisione di Simone, 17/8). NON conta per l'erogazione: non è ancora cominciato.
+  /// Il vocabolario sta in `src/commerce/stati-abbonamento.ts`.
+  queued
   cancelled
   expired
 }

@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🧾 **Il piano «in coda» diventa uno stato suo — prima le letture, la scrittura dopo**
+  (voce 258, la causa che restava dopo il caso Lorena). ⚠️ Questa consegna **non scrive** `queued`:
+  crea lo stato e insegna a tutte le letture cosa farne. Non è prudenza generica, è la sola sequenza
+  sicura — se la scrittura arrivasse oggi, un piano in coda sparirebbe da ogni query che filtra
+  `status = 'active'`, e sparirebbe **in silenzio**. ⚠️ Il censimento ha contato una novantina di
+  letture che scrivono quasi tutte la stessa stringa, e **non chiedono la stessa cosa**: «chi eroga
+  oggi?», «ha un piano?», «ha già comprato?», «c'è qualcosa in ballo?». Finché la coda si scriveva
+  `active` le quattro risposte coincidevano per caso e nessuno ha dovuto distinguerle. Ora
+  `stati-abbonamento.ts` dà un nome a ciascuna, e il punto è che **la scelta si veda nel nome** di
+  chi la fa. La decisione che regge tutto è di Simone (17/8): un piano in coda **è un contratto** —
+  conta come «ha un piano» nelle schermate dello staff, **non** conta per l'erogazione. Quindi la
+  coda entra nella lista clienti, nel contatore della dashboard, nella prova di benvenuto, nel
+  monitoraggio, nelle campagne, nei percorsi conclusi; e ⚠️ **non entra** in motore, menu, notifiche,
+  pause e report — `filtroClienteConPianoAttivo` resta `active` di proposito, e adesso c'è scritto
+  perché. ⚠️ La coda ha **due forme** e si leggono entrambe: la migrazione è additiva e i piani messi
+  in fila prima di oggi sono ancora `active` con la partenza nel futuro — leggere solo lo stato nuovo
+  avrebbe chiuso il difetto per i piani nuovi lasciandolo aperto proprio su quelli dove è successo.
+  ⚠️ E uno `queued` **non eroga mai**, nemmeno con la data già passata: lì è la promozione a essere in
+  ritardo, e indovinare vorrebbe dire consegnare i menu di un piano che nessuno ha fatto partire.
+  ⚠️ Difetto trovato per strada: `clientAgenda` prendeva la scadenza con un `findFirst` **senza
+  `orderBy`** — con una riga non si vedeva, con la coda avrebbe preso una riga a caso. Niente vincolo
+  in banca dati, di proposito: `npm run diag:coda` è la fotografia da guardare prima. 19 test nuovi
+  (218 suite, 3452 verdi).
+
 - `[Sviluppo]` 🥗 **I valori che mancavano, integrati e approvati dal capo nutrizionista.** Ha mandato
   la tabella completa dei 57 alimenti, tutte le righe «Confermato». ⚠️ Prima di toccare qualsiasi cosa
   l'ho trascritta e confrontata riga per riga col seed su dieci campi: **58 differenze, tutte nella

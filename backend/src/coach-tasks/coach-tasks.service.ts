@@ -13,6 +13,7 @@ import {
   testoFinestraMaiChiesta,
 } from './finestra-mai-chiesta';
 import { avvisaAttivitaNuova, escalateAttivitaScadute } from './avvisi-attivita';
+import { STATI_CON_UN_PIANO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
 
 /**
  * Task coach (handoff Prezzi/Prova, punto 5): "la coach deve vedere cosa fare e
@@ -129,7 +130,8 @@ export class CoachTasksService {
         // Niente `as never` su questa query, di proposito: è proprio il cast che spegneva il
         // controllo del compilatore e ha lasciato passare 'paused' due volte. Senza, uno stato
         // inesistente non compila nemmeno.
-        where: { clientId: t.clientId, status: { in: ['active', 'pending'] } },
+        // ⚠️ Con la coda dentro (voce 258): «ha già qualcosa» comprende il piano che parte lunedì.
+      where: { clientId: t.clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] } as never },
         select: { id: true },
       });
       if (!active) notConverted++;
@@ -267,7 +269,8 @@ export class CoachTasksService {
         // Niente `as never` su questa query, di proposito: è proprio il cast che spegneva il
         // controllo del compilatore e ha lasciato passare 'paused' due volte. Senza, uno stato
         // inesistente non compila nemmeno.
-          where: { clientId: t.clientId, status: { in: ['active', 'pending'] } },
+          // ⚠️ Con la coda dentro (voce 258): «ha già qualcosa» comprende il piano che parte lunedì.
+      where: { clientId: t.clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] } as never },
           select: { id: true },
         });
         if (!converted) {
@@ -430,7 +433,9 @@ export class CoachTasksService {
         where: {
           pathType: 'intermittent_fasting',
           OR: [{ fastingWindow: null }, { fastingWindow: '' }],
-          user: { subscriptions: { some: { status: 'active' as never } } },
+          // ⚠️ Anche la coda: la finestra del digiuno si chiede PRIMA che il piano cominci (voce 258),
+      // che è proprio il momento in cui serve saperla.
+      user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } as never },
         } as never,
         select: { userId: true, name: true, pathType: true, fastingWindow: true },
         take: 200,

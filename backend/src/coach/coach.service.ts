@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { vociCalendario, type VoceCalendario } from '../agenda/calendario';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
@@ -104,7 +105,10 @@ export class CoachService {
 
     const [subs, measures, alerts, objectives, users] = await Promise.all([
       this.prisma.subscription.findMany({
-        where: { clientId: { in: ids }, status: 'active' },
+        // ⚠️ `STATI_CON_UN_PIANO` e non `'active'`: una cliente il cui piano parte lunedì ha
+        // pagato, e in una lista dello staff «senza piano» è una riga che invita a richiamarla per
+        // vendergliene un altro (voce 258).
+        where: { clientId: { in: ids }, status: { in: [...STATI_CON_UN_PIANO] } as never },
         // `startDate` serve alla scelta qui sotto: fra due righe attive la fine da mostrare è
         // quella del piano che sta erogando, e per saperlo bisogna sapere quando comincia.
         select: { clientId: true, status: true, startDate: true, endDate: true },
@@ -412,10 +416,17 @@ export class CoachService {
 
     if (nextOnly) return { next: voci[0] ? enrich(voci[0]) : null };
 
-    const sub = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
-      select: { endDate: true },
-    })) as { endDate: Date | null } | null;
+    /**
+     * ⚠️ Tutte le righe con un piano, e la scelta la fa `attivoInCorso` (voce 258).
+     * Prima era un `findFirst` **senza `orderBy`** su `status: 'active'`: con una riga sola non si
+     * vedeva, ma allargando l'elenco alla coda una `findFirst` senza ordine prenderebbe una riga a
+     * caso — che è precisamente il difetto del caso Lorena, in miniatura.
+     */
+    const conPiano = (await this.prisma.subscription.findMany({
+      where: { clientId, status: { in: [...STATI_CON_UN_PIANO] } as never },
+      select: { status: true, startDate: true, endDate: true },
+    })) as { status: string; startDate: Date | null; endDate: Date | null }[];
+    const sub = attivoInCorso(conPiano);
     return {
       appointments: voci.map(enrich),
       planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,

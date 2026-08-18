@@ -1,0 +1,15 @@
+-- Il piano MESSO IN FILA diventa uno stato suo (voce 258, causa del caso Lorena).
+--
+-- ⚠️ ADDITIVA E BASTA: aggiunge il valore all'enum e NON tocca nessuna riga. Nessuno scrive ancora
+-- `queued` — la scrittura è la consegna dopo. L'ordine non è un capriccio: prima lo stato deve
+-- esistere e TUTTE le letture devono già sapere cosa farne, altrimenti il giorno che
+-- `finalizeApproval` lo scrive un piano in coda sparisce da ogni query che filtra `status =
+-- 'active'`, e sparisce in silenzio — che è esattamente il difetto che questa voce chiude.
+--
+-- ⚠️ Niente vincolo di unicità qui, ed è voluto: prima lo stato vive e si guarda che nessuno sia
+-- finito nel posto sbagliato. Un vincolo messo insieme alla scrittura trasforma un dato storto in
+-- un errore 500 su una cassa.
+--
+-- ⚠️ `ADD VALUE` su un enum Postgres non si può disfare con un rollback dentro una transazione:
+-- se questa migrazione va a metà, il valore resta e non fa danno (nessuno lo scrive).
+ALTER TYPE "SubscriptionStatus" ADD VALUE IF NOT EXISTS 'queued';

@@ -10,6 +10,7 @@ import { DiscountsService } from '../commerce/discounts.service';
 import { deriveSegment, prefsToken } from '../common/funnel-segment';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
+import { STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
 
 export type LifecycleKind = 'event' | 'scheduled';
 
@@ -595,7 +596,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         if (!u) continue;
         // Ha comprato dopo? (abbonamento in corso, oppure pagamento approvato dopo l'evento)
         const bought = await this.prisma.subscription.findFirst({
-          where: { clientId: uid, status: { in: ['active', 'pending'] as never }, createdAt: { gte: ev.receivedAt } },
+          where: { clientId: uid, status: { in: [...STATI_QUALCOSA_IN_BALLO] as never }, createdAt: { gte: ev.receivedAt } },
           select: { id: true },
         });
         if (bought) continue;
@@ -701,7 +702,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
             select: {
               id: true, email: true, firstName: true, deletedAt: true,
               clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true } } } },
-              subscriptions: { where: { status: { in: ['active', 'pending'] } as never }, select: { id: true } },
+              subscriptions: { where: { status: { in: [...STATI_QUALCOSA_IN_BALLO] } as never }, select: { id: true } },
             },
           })) as {
             id: string; email: string; firstName: string | null; deletedAt: Date | null;
@@ -757,7 +758,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
       for (const sub of subs) {
         if (!sub.client || sub.client.deletedAt) continue;
         const stillOut = await this.prisma.subscription.findFirst({
-          where: { clientId: sub.clientId, status: { in: ['active', 'pending'] as never } },
+          where: { clientId: sub.clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] as never } },
           select: { id: true },
         });
         if (stillOut) continue; // ha già rinnovato o sta pagando: niente win-back
@@ -803,7 +804,7 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
           where: {
             clientId: sub.clientId,
             id: { not: sub.id },
-            status: { in: ['active', 'pending'] as never },
+            status: { in: [...STATI_QUALCOSA_IN_BALLO] as never },
             plan: { priceCents: { gt: 0 } },
           } as never,
           select: { id: true },

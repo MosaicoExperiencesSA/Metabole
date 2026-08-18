@@ -224,10 +224,45 @@ describe('CoachService — agenda/appuntamenti', () => {
       appointment: { findMany: jest.fn().mockResolvedValue([]) },
       visit: { findMany: jest.fn().mockResolvedValue([]) },
       staff: { findMany: jest.fn().mockResolvedValue([]) },
-      subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: D('2026-09-01') }) },
+      // ⚠️ `findMany` e non più `findFirst` (voce 258): la scelta fra le righe la fa
+      // `attivoInCorso`, perché ora la lista comprende anche i piani in coda.
+      subscription: { findMany: jest.fn().mockResolvedValue([{ status: 'active', startDate: D('2026-07-01'), endDate: D('2026-09-01') }]) },
     };
     const res = (await makeService(prisma).clientAgenda('c1', false)) as { appointments: unknown[]; planEndDate: string | null };
     expect(res.planEndDate).toBe('2026-09-01');
     expect(res.appointments).toEqual([]);
+  });
+
+  it('⚠️ la scadenza mostrata è quella del piano CHE EROGA, non di quello in coda', async () => {
+    // Il difetto del caso Lorena in miniatura: qui c'era un `findFirst` senza `orderBy`, e con
+    // due righe la data mostrata dipendeva dall'ordine in cui il database le tirava fuori.
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
+      appointment: { findMany: jest.fn().mockResolvedValue([]) },
+      visit: { findMany: jest.fn().mockResolvedValue([]) },
+      staff: { findMany: jest.fn().mockResolvedValue([]) },
+      subscription: {
+        findMany: jest.fn().mockResolvedValue([
+          { status: 'queued', startDate: D('2026-09-02'), endDate: D('2026-11-01') },
+          { status: 'active', startDate: D('2026-07-01'), endDate: D('2026-09-01') },
+        ]),
+      },
+    };
+    const res = (await makeService(prisma).clientAgenda('c1', false)) as { planEndDate: string | null };
+    expect(res.planEndDate).toBe('2026-09-01');
+  });
+
+  it('se l\'unico piano è in coda, la scadenza è la sua: la cliente NON è senza piano', async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
+      appointment: { findMany: jest.fn().mockResolvedValue([]) },
+      visit: { findMany: jest.fn().mockResolvedValue([]) },
+      staff: { findMany: jest.fn().mockResolvedValue([]) },
+      subscription: {
+        findMany: jest.fn().mockResolvedValue([{ status: 'queued', startDate: D('2026-09-02'), endDate: D('2026-11-01') }]),
+      },
+    };
+    const res = (await makeService(prisma).clientAgenda('c1', false)) as { planEndDate: string | null };
+    expect(res.planEndDate).toBe('2026-11-01');
   });
 });

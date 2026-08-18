@@ -25,6 +25,7 @@ import {
   type VarianteDaRiempire,
 } from './prossima-generazione';
 import { primaSettimanaMagra as primaMagra, settimanaGiaPiena, type GiornataInCiclo } from './settimana-magra';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 /**
  * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
@@ -107,7 +108,9 @@ export class EngineRulesService {
           ...(pasti === 'fasting'
             ? { pathType: 'intermittent_fasting' }
             : { mealsPerDay: pasti === '3' ? 3 : 5, NOT: { pathType: 'intermittent_fasting' } }),
-          user: { subscriptions: { some: { status: 'active' as never } } },
+          // ⚠️ Anche chi comincia lunedì (voce 258): il catalogo si dimensiona sul fabbisogno di chi
+      // mangerà quella dieta, e lei la mangerà — mentre il catalogo si costruisce adesso.
+      user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } as never },
         } as never,
         select: { userId: true },
         take: MASSIMO_CLIENTI_PER_TAGLIA,

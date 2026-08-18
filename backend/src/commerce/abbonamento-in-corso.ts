@@ -33,12 +33,16 @@
  * diverse sullo stesso campo farebbero divergere l'erogazione dalle diagnostiche, che è il modo in
  * cui questi difetti nascono.
  *
- * ⚠️ **Questo non è lo stato `queued`.** La causa resta quella (`NOTA_Due_Piani_Attivi_Lorena.md`
- * §4a). Qui si rende **deterministico** un comportamento che dipendeva dall'ordine delle righe: è
- * meno, ed è quello che si può fare senza migrazione e senza rivedere 47 letture.
+ * ⚠️ **Dal 18/8 lo stato `queued` esiste** (voce 258), e questo modulo lo capisce — nelle DUE forme:
+ * lo stato nuovo, e quella vecchia (`active` con la partenza nel futuro), perché la migrazione è
+ * additiva e i piani messi in fila prima di oggi sono ancora scritti così. Vedi
+ * `stati-abbonamento.ts`. Quando questo file è nato, l'11/8, lo stato non c'era e qui si poteva solo
+ * rendere **deterministico** un comportamento che dipendeva dall'ordine delle righe.
  *
  * Decisione: `progetto/NOTA_Chi_Sta_Erogando_Adesso.md`.
  */
+
+import { eInCodaPerStato, STATI_CON_UN_PIANO } from './stati-abbonamento';
 
 /** Quello che serve per scegliere. Chi chiama si tiene i suoi campi in più. */
 export interface AbbonamentoDatato {
@@ -70,9 +74,15 @@ export function staErogando(s: AbbonamentoDatato, oggi: Date = new Date()): bool
   return true;
 }
 
-/** Attivo ma comincia DOPO oggi: è in coda dietro a un altro piano. */
+/**
+ * In coda dietro a un altro piano.
+ *
+ * ⚠️ Il giudizio sta in `stati-abbonamento.ts` e non qui: dal 18/8 la coda ha DUE forme (lo stato
+ * `queued`, e le righe vecchie scritte `active` con la partenza nel futuro), e due punti che
+ * rispondono alla stessa domanda sono due punti che un giorno divergono.
+ */
 export function eInCoda(s: AbbonamentoDatato, oggi: Date = new Date()): boolean {
-  return s.status === 'active' && !!s.startDate && giorno(s.startDate) > giorno(oggi);
+  return eInCodaPerStato(s, oggi);
 }
 
 /** Ordine di fine, con «nessuna fine» in cima: un piano senza scadenza dura più di tutti. */
@@ -94,7 +104,13 @@ const iniziaPrima = <T extends AbbonamentoDatato>(a: T, b: T): T =>
  * `pickMainSubscription`, che chiama questa per il suo primo passo.
  */
 export function attivoInCorso<T extends AbbonamentoDatato>(subs: readonly T[], oggi: Date = new Date()): T | null {
-  const attivi = subs.filter((s) => s.status === 'active');
+  /**
+   * ⚠️ `queued` entra qui dentro, e serve al PASSO 2 (nessuno eroga → il primo della coda). Una
+   * cliente il cui unico piano parte lunedì tornerebbe `null`, cioè «senza piano», e le schermate
+   * dello staff la mostrerebbero come una da rimettere in vendita: ha pagato.
+   * ⚠️ Al passo 1 non cambia niente: `staErogando` chiede `active`, e uno `queued` non eroga mai.
+   */
+  const attivi = subs.filter((s) => (STATI_CON_UN_PIANO as readonly string[]).includes(s.status));
   if (!attivi.length) return null;
 
   const erogano = attivi.filter((s) => staErogando(s, oggi));
@@ -103,7 +119,7 @@ export function attivoInCorso<T extends AbbonamentoDatato>(subs: readonly T[], o
   const inCoda = attivi.filter((s) => eInCoda(s, oggi));
   if (inCoda.length) return inCoda.reduce(iniziaPrima);
 
-  // Restano solo attivi con la fine PASSATA (il cron di scadenza in ritardo): non erogano niente,
+  // Restano solo piani con la fine PASSATA (il cron di scadenza in ritardo): non erogano niente,
   // ma sono l'unica cosa che c'è e chi chiama si aspetta una riga come prima — tornare `null` qui
   // farebbe sparire il piano dalla scheda di chi lo sta guardando. Si dà quello finito per ultimo,
   // che è il più recente dei due nell'unico senso che conta per una cliente.

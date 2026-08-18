@@ -3,6 +3,7 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { MailboxService } from '../mailbox/mailbox.service';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const FINANCE_ROLES = ['admin', 'sales'];
@@ -145,7 +146,9 @@ export class DashboardService {
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const newThisMonth = ids.length ? await this.prisma.user.count({ where: { id: { in: ids }, createdAt: { gte: monthStart } } }) : 0;
-      const activeSubs = ids.length ? await this.prisma.subscription.count({ where: { clientId: { in: ids }, status: 'active' as never } }) : 0;
+      // ⚠️ «Quanti hanno un piano», non «quanti stanno erogando»: un piano in coda è un contratto
+    // pagato, e un contatore che lo salta racconta meno clienti di quanti ce ne sono (voce 258).
+    const activeSubs = ids.length ? await this.prisma.subscription.count({ where: { clientId: { in: ids }, status: { in: [...STATI_CON_UN_PIANO] } as never } }) : 0;
       out.charts = [
         { a: 'Clienti', b: String(ids.length) },
         { a: 'Nuovi questo mese', b: String(newThisMonth) },

@@ -342,7 +342,12 @@ export class CrmService {
             clientId: s.clientId,
             OR: [
               { status: 'pending' },
-              { status: 'active', OR: [{ endDate: null }, { endDate: { gte: oggi } }] },
+              /**
+               * ⚠️ La coda conta come percorso APERTO (voce 258): un piano che parte lunedì non è
+               * un percorso concluso, e chiuderlo vorrebbe dire rimettere in vendita una cliente
+               * che ha già pagato.
+               */
+              { status: { in: ['active', 'queued'] }, OR: [{ endDate: null }, { endDate: { gte: oggi } }] },
             ],
           } as never,
           select: { id: true },

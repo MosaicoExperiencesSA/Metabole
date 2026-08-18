@@ -5,6 +5,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { aPrezzoAlMese, prezzoPiano } from '../commerce/prezzo-piano';
+import { STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
 
 interface Period {
   id: string;
@@ -83,7 +84,9 @@ export class MonitoringService {
 
     // Idoneo ad attivarlo: nessun abbonamento attivo/in attesa e nessun monitoraggio attivo.
     const activeSub = await this.prisma.subscription.findFirst({
-      where: { clientId, status: { in: ['active', 'pending'] } as never },
+      // ⚠️ Con la coda dentro: chi ha un piano che parte lunedì non è idoneo al monitoraggio
+      // (voce 258). Senza, avrebbe attivato il monitoraggio sopra un piano già pagato.
+      where: { clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] } as never },
       select: { id: true },
     });
     /**
@@ -103,7 +106,7 @@ export class MonitoringService {
      * la regola **senza che nessun test lo dica**, perché il difetto vivrebbe nella combinazione.
      */
     const hadMaintenance = await this.prisma.subscription.findFirst({
-      where: { clientId, status: { in: ['active', 'expired'] } as never, plan: { period: 'maintenance' } } as never,
+      where: { clientId, status: { in: [...STATI_GIA_COMPRATO] } as never, plan: { period: 'maintenance' } } as never,
       select: { id: true },
     });
     const last = await this.lastWeight(clientId);
@@ -137,7 +140,9 @@ export class MonitoringService {
   /** Attiva il monitoraggio gratuito (cliente, a fine percorso). */
   async start(clientId: string): Promise<{ started: true; endsAt: string }> {
     const activeSub = await this.prisma.subscription.findFirst({
-      where: { clientId, status: { in: ['active', 'pending'] } as never },
+      // ⚠️ Con la coda dentro: chi ha un piano che parte lunedì non è idoneo al monitoraggio
+      // (voce 258). Senza, avrebbe attivato il monitoraggio sopra un piano già pagato.
+      where: { clientId, status: { in: [...STATI_QUALCOSA_IN_BALLO] } as never },
       select: { id: true },
     });
     if (activeSub) throw new BadRequestException('Hai già un piano attivo: il monitoraggio serve dopo la fine del percorso.');

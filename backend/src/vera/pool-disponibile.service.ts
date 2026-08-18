@@ -18,6 +18,7 @@ import { exclusionKeys } from '../menu/exclusions';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcolaPool, EsitoPool, raccontaPool, RicettaDelPool } from './pool-disponibile';
 import { type ClienteDaContare, type EsitoConteggioPool, contaClientiSottoSoglia } from './clienti-pool-scoperto';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 /**
  * ⚠️ Un tetto dichiarato, non silenzioso. Serve a non far diventare pesante una lettura che sta
@@ -122,7 +123,9 @@ export class PoolDisponibileService {
     const profili = (await this.prisma.clientProfile.findMany({
       where: {
         ...(capo || !staffId ? {} : { assignedNutritionistId: staffId }),
-        user: { subscriptions: { some: { status: 'active' as never } } },
+        // ⚠️ Anche la coda (voce 258): un pool sotto soglia va visto PRIMA che la cliente cominci,
+      // che è l'unico momento in cui c'è ancora tempo per rimediare.
+      user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } as never },
       } as never,
       select: {
         userId: true, name: true, regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true,

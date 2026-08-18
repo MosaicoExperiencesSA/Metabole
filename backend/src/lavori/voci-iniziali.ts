@@ -925,6 +925,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 18/8
   },
 
+  {
+    chiave: 'stato-in-coda-scrittura',
+    titolo: 'Il piano «in coda»: adesso scriverlo, promuoverlo, e poi il vincolo',
+    dettaglio:
+      'La SECONDA metà della voce 258. Il 18/8 è stata consegnata la prima: lo stato `queued` esiste (migrazione additiva), il vocabolario delle quattro domande sta in `commerce/stati-abbonamento.ts`, e tutte le letture sanno già cosa farne — ⚠️ **ma nessuno lo scrive ancora**, ed era l\'unica sequenza sicura. Resta: **1)** `finalizeApproval` scrive `queued` invece di `active` con la partenza nel futuro; **2)** un lavoro dentro `daily` che promuove a `active` i `queued` la cui data è arrivata (⚠️ e finché non gira, `codaInRitardo` li fa vedere: uno `queued` non eroga mai, nemmeno con la data passata); **3)** SOLO DOPO, il vincolo in banca dati — prima lo stato vive e si guarda che nessuno sia finito nel posto sbagliato, perché un vincolo messo insieme alla scrittura trasforma un dato storto in un errore 500 su una cassa. ⛔ **Prima di cominciare, lanciare `npm run diag:coda`**: dice quanti piani sono in coda oggi, in che forma (quelli vecchi sono ancora `active` con la partenza nel futuro, e vanno convertiti) e quanti clienti hanno **due piani che erogano insieme** — il numero che dice quanto è urgente il vincolo.',
+    categoria: CODICE,
+    ordine: 270,
+  },
+
   /**
    * ⚠️ LE TRE RIGHE DOPPIE DEL 13/8 (voce 224). Non sono lavori: sono duplicati rimasti in pagina
    * con una chiave diversa da quella delle voci vere — che sono, nell'ordine,

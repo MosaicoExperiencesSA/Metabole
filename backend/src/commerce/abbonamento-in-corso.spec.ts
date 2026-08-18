@@ -176,3 +176,50 @@ describe('le due pastiglie: `inCorso` e `inCoda` sulla stessa lista', () => {
     expect(senzaFine.endDate).toBeNull();
   });
 });
+
+/**
+ * LO STATO `queued` (voce 258, 18/8).
+ *
+ * ⚠️ Il collaudo che conta: uno `queued` non eroga MAI — nemmeno se la sua data d'inizio è passata,
+ * perché in quel caso il lavoro di promozione è in ritardo e indovinare al posto suo vorrebbe dire
+ * consegnare menu di un piano che nessuno ha fatto partire.
+ */
+describe('il piano in coda, con lo stato suo', () => {
+  const OGGI = new Date('2026-08-18T10:00:00Z');
+  const riga = (over: Partial<{ status: string; startDate: Date | null; endDate: Date | null }>) => ({
+    status: 'active',
+    startDate: null as Date | null,
+    endDate: null as Date | null,
+    ...over,
+  });
+
+  it('⚠️ uno `queued` non sta erogando, nemmeno se la partenza è già passata', () => {
+    expect(staErogando(riga({ status: 'queued', startDate: new Date('2026-09-01') }), OGGI)).toBe(false);
+    // La promozione giornaliera è in ritardo: si vede altrove (`codaInRitardo`), NON si indovina qui.
+    expect(staErogando(riga({ status: 'queued', startDate: new Date('2026-08-10') }), OGGI)).toBe(false);
+  });
+
+  it('uno `queued` è in coda, e lo è anche un `active` che parte domani (la forma vecchia)', () => {
+    expect(eInCoda(riga({ status: 'queued', startDate: new Date('2026-09-01') }), OGGI)).toBe(true);
+    expect(eInCoda(riga({ status: 'active', startDate: new Date('2026-09-01') }), OGGI)).toBe(true);
+  });
+
+  it('⚠️ una cliente il cui UNICO piano è in coda non risulta senza piano', () => {
+    // Senza questo, le schermate dello staff mostrerebbero «nessun piano» a chi ha pagato e comincia
+    // lunedì — e qualcuno la richiamerebbe per vendergliene un altro.
+    const coda = riga({ status: 'queued', startDate: new Date('2026-09-01'), endDate: new Date('2026-10-01') });
+    expect(attivoInCorso([coda], OGGI)).toBe(coda);
+  });
+
+  it('fra chi eroga e chi è in coda vince chi eroga', () => {
+    const eroga = riga({ startDate: new Date('2026-08-01'), endDate: new Date('2026-08-31') });
+    const coda = riga({ status: 'queued', startDate: new Date('2026-09-01') });
+    expect(attivoInCorso([coda, eroga], OGGI)).toBe(eroga);
+  });
+
+  it('la coda si vede da `abbonamentoInCoda` con lo stato nuovo', () => {
+    const eroga = riga({ startDate: new Date('2026-08-01'), endDate: new Date('2026-08-31') });
+    const coda = riga({ status: 'queued', startDate: new Date('2026-09-01') });
+    expect(abbonamentoInCoda([eroga, coda], OGGI)).toBe(coda);
+  });
+});

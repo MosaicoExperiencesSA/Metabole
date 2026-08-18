@@ -1,0 +1,75 @@
+Il piano «in coda» diventa uno stato suo — prima le letture, la scrittura dopo
+
+Voce 258, la causa che restava dopo il caso Lorena. ⚠️ Questa consegna NON scrive `queued`: crea lo
+stato e insegna a tutte le letture cosa farne. L'ordine non è prudenza generica, è la sola sequenza
+sicura — se `finalizeApproval` scrivesse `queued` oggi, un piano in coda sparirebbe da ogni query
+che filtra `status = 'active'`, e sparirebbe **in silenzio**.
+
+IL PROBLEMA
+Un piano messo in fila si scrive `active` con l'inizio nel futuro. Da lì discende tutto: il database
+non può vietare due attivi (due attivi sono legittimi), la scheda mostrava due «Attivo» identici, e
+la matita non sapeva che stava disfacendo una coda.
+
+⚠️ E QUATTRO DOMANDE DIVERSE AVEVANO PER CASO LA STESSA RISPOSTA
+Il censimento ha contato una novantina di punti che leggono `status` su `Subscription`, e quasi
+tutti scrivono la stessa stringa. Ma non chiedono la stessa cosa:
+
+  · chi sta erogando i menu OGGI?          (il motore, le notifiche, il congelamento)
+  · questa cliente HA UN PIANO?            (la lista clienti, la dashboard, i contatori)
+  · ha GIÀ COMPRATO questo?                («non riproporglielo», le conversioni)
+  · c'è QUALCOSA IN BALLO?                 (prima di creare un secondo acquisto)
+
+Finché la coda si scriveva `active` le quattro risposte coincidevano e nessuno ha dovuto
+distinguerle. Da adesso non coincidono più. `src/commerce/stati-abbonamento.ts` dà un nome a
+ciascuna, e il punto è che **la scelta si veda nel nome** di chi la fa: rileggendo una query si
+capisce quale domanda sta facendo senza tenere a mente novanta casi.
+
+LA DECISIONE CHE REGGE TUTTO (Simone, 17/8)
+Un piano in coda È UN CONTRATTO: nelle schermate dello staff conta come «ha un piano», perché la
+cliente ha pagato. NON conta per l'erogazione, perché non è ancora cominciato. Tutto il resto
+discende da queste due frasi.
+
+COSA CAMBIA NELLE LETTURE
+- «Ha un piano» → la coda entra: lista clienti del coach, contatore della dashboard, scadenza in
+  agenda, la prova di benvenuto (non si regala a chi ha già comprato), la taglia del catalogo, il
+  pool sotto soglia di Vera, la domanda sulla finestra del digiuno.
+- «Ha già comprato» / «qualcosa in ballo» → la coda entra: `purchasedIds`, l'idoneità al
+  monitoraggio, le attività coach, le tre campagne del lifecycle, i percorsi conclusi del CRM.
+- ⚠️ **Chi eroga NON cambia**: motore, menu, notifiche, segnali, pause, report, referral restano su
+  `active` con le loro date. `filtroClienteConPianoAttivo` resta `active` **di proposito**, e adesso
+  c'è scritto perché: su un piano non cominciato non ci sono giornate da correggere, e nemmeno
+  niente da validare per il nutrizionista.
+
+⚠️ LA CODA HA DUE FORME, E SI LEGGONO TUTTE E DUE
+La migrazione è additiva e non riscrive niente: i piani messi in fila prima di oggi sono ancora
+`active` con la partenza nel futuro. `eInCodaPerStato` riconosce entrambe. Leggere solo lo stato
+nuovo avrebbe chiuso il difetto per i piani nuovi lasciandolo aperto su quelli di prima — cioè
+esattamente su quelli dove il difetto è successo.
+
+⚠️ UNO `queued` NON EROGA MAI, nemmeno se la sua data d'inizio è già passata: in quel caso è la
+promozione giornaliera a essere in ritardo, e indovinare al posto suo vorrebbe dire consegnare i
+menu di un piano che nessuno ha fatto partire. Si vede invece (`codaInRitardo`).
+
+⚠️ UN DIFETTO TROVATO PER STRADA. `coach.service.clientAgenda` prendeva la scadenza del piano con un
+`findFirst` **senza `orderBy`**: con una riga sola non si vedeva, ma allargando l'elenco alla coda
+avrebbe preso una riga a caso — il caso Lorena in miniatura. Ora passa da `attivoInCorso`, con i due
+test che lo dicono.
+
+NIENTE VINCOLO IN BANCA DATI, DI PROPOSITO: prima lo stato vive e si guarda che nessuno sia finito
+nel posto sbagliato. Un vincolo messo insieme alla scrittura trasforma un dato storto in un errore
+500 su una cassa. `npm run diag:coda` è la fotografia da guardare prima: quanti piani sono in coda,
+in che forma, e ⚠️ quanti clienti hanno due piani che erogano insieme — il numero che dice quanto è
+urgente quel vincolo.
+
+RESTA DA FARE (la consegna dopo): `finalizeApproval` scrive `queued`, il lavoro giornaliero che
+promuove a `active` i `queued` la cui data è arrivata, e poi il vincolo.
+
+FILE
+- backend/prisma/schema.prisma + migrations/20260818170000_subscription_queued (ADDITIVA)
+- backend/src/commerce/stati-abbonamento.ts (+ spec, 14 test) · abbonamento-in-corso.ts (+ 5 test)
+- coach.service (+ spec) · dashboard.service · monitoring.service · commerce.service · crm.service
+  · coach-tasks.service · engine-rules.service · vera/pool-disponibile.service · lifecycle.service
+  · common/piano-attivo.ts (la nota sul perché la coda NON entra)
+- backend/prisma/diag-piani-in-coda.ts + `npm run diag:coda`
+
+Build verde, 218 suite / 3452 test.
