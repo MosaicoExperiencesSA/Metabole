@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 📐 **`npm run diag:kcal`: quante giornate escono sotto il fabbisogno, e con che tetto si
+  coprono.** Voce 268. Il segnale `daily_kcal_below_target` esiste dal 17/8 e da allora **accumula**:
+  mancava il posto dove leggerlo, e per sapere quante giornate escono corte bisognava aprire il
+  database. Ora una diagnostica di sola lettura lo mette in tabella — cliente, **perché** le manca
+  (finestra del digiuno, spuntini tolti da Vera, o «nessuna esclusione: è il catalogo»), **quota
+  peggiore** della giornata, **fattore necessario**, e se il tetto che stai provando basta. ⚠️ È qui
+  che serve: le due domande cliniche ancora aperte del foglio delle porzioni — che tetto dare al
+  moltiplicatore, e cosa fare quando non basta — diventano **due conteggi** invece che due opinioni
+  (`TETTO=1.6 npm run diag:kcal` dice quante coperte e quante ancora corte, e di quanto). `GIORNI=`
+  allarga la finestra, `SOLO=<email>` guarda una cliente sola. ⚠️ Si prende l'evento **più recente**
+  per cliente: quello vecchio racconta una situazione già cambiata. ⚠️ E lo script **dice il suo
+  limite** invece di lasciarlo dedurre: *chi non compare non è detto che stia bene* — vuol dire che in
+  quella finestra non le è stata erogata una giornata sotto banda, o che non le è stata erogata
+  affatto, perché l'erogazione gira quando la cliente apre l'app. Una diagnostica che tace su quello
+  che non sa è il modo più rapido di far leggere «tutto a posto». ⚠️ Le clienti sotto target **senza**
+  digiuno e **senza** spuntini tolti finiscono in un avviso a parte: lì il moltiplicatore non c'entra,
+  è il catalogo che non ha giornate nella banda, e la strada è `diag:varieta` — mescolarle avrebbe
+  fatto contare due problemi diversi come uno. Nessuna scrittura, nessuna migrazione; lo script non ha
+  test come gli altri `prisma/*.ts`, ed è verificato dal compilatore. 3116 test in 203 suite.
+
 - `[Sviluppo]` 🧹 **La bonifica dei cibi esclusi si applica a una cliente per volta, e le esclusioni
   con «tranne» dentro finiscono in elenco lavori.** Voci 266 (chiusa) e 267 (aperta). Ieri sera Simone
   ha lanciato l'anteprima di `npm run pulisci:spezie` in produzione, e mezz'ora di dati veri ha detto

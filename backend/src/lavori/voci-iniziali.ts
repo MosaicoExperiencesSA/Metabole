@@ -713,6 +713,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'diag-kcal-sotto-target',
+    titolo: '`npm run diag:kcal`: quante giornate escono sotto il fabbisogno, e con che tetto si coprono',
+    dettaglio:
+      'Il segnale `daily_kcal_below_target` esiste dal 17/8 (voce 260) e da allora accumula: mancava il posto dove **leggerlo**. Questa diagnostica di sola lettura lo mette in tabella — cliente, perché le manca (finestra del digiuno, spuntini tolti da Vera, o nessuno dei due), **quota peggiore** della giornata, **fattore necessario**, e quante giornate. ⚠️ Serve a rispondere **con dei numeri** alle due domande cliniche ancora aperte del foglio delle porzioni (voce 255): `TETTO=1.6 npm run diag:kcal` dice quante clienti quel tetto copre e quante restano corte, e di quanto — cioè trasforma «che tetto diamo?» e «cosa si fa quando non basta?» da domande di principio in due conteggi. `GIORNI=` allarga la finestra, `SOLO=<email>` guarda una cliente sola. ⚠️ Si prende l\'evento **più recente** per cliente: quello vecchio racconta una situazione già cambiata. ⚠️ E dice a voce alta il limite che conta: **chi non compare non è detto che stia bene** — vuol dire che in quella finestra non le è stata erogata una giornata sotto banda, o non le è stata erogata affatto (`deliverIfEligible` gira quando la cliente apre l\'app). ⚠️ Segnala a parte le clienti sotto target **senza** digiuno e **senza** spuntini tolti: lì il moltiplicatore di porzione non c\'entra niente, è il catalogo che non ha giornate nella banda, e la strada è `diag:varieta`. Nessuna scrittura, nessuna migrazione.',
+    categoria: MANUTENZIONE,
+    ordine: 268,
+    fatta: true, // 18/8
+  },
+  {
     chiave: 'esclusioni-con-negazione',
     titolo: 'Le esclusioni con una negazione dentro passano e non escludono niente',
     dettaglio:

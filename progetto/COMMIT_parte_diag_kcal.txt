@@ -1,0 +1,49 @@
+`npm run diag:kcal`: quante giornate escono sotto il fabbisogno, e con che tetto si coprono
+
+Voce 268. Diagnostica di SOLA LETTURA, nessuna migrazione.
+
+IL SEGNALE C'ERA, MANCAVA IL POSTO DOVE LEGGERLO. `daily_kcal_below_target` lo scrive l'erogazione
+dal 17/8 (voce 260) e da allora accumula in `analytics_event`. Fin qui per sapere quante giornate
+escono sotto il fabbisogno bisognava aprire il database.
+
+COSA STAMPA, per cliente:
+· PERCHE' le manca — finestra del digiuno, spuntini tolti da Vera, oppure «nessuna esclusione: e' il
+  catalogo»;
+· QUOTA PEGGIORE — quanto della giornata arriva davvero nel piatto (65% = manca un terzo);
+· FATTORE NECESSARIO — quanto dovrebbe crescere la porzione perche' torni il fabbisogno;
+· COL TETTO — se il tetto che stai provando basta, e se non basta a che percentuale si fermerebbe;
+· quante giornate, e quante volte il segnale e' scattato.
+
+⚠️ E' QUI CHE SERVE: le due domande cliniche ancora aperte del foglio delle porzioni (voce 255) —
+«che tetto diamo al moltiplicatore» e «cosa si fa quando il tetto non basta» — diventano due
+conteggi invece che due opinioni:
+
+  TETTO=1.6 npm run diag:kcal      → quante coperte, quante ancora corte
+  TETTO=1.8 npm run diag:kcal      → e con l'altro tetto?
+  GIORNI=30 npm run diag:kcal      → finestra piu' lunga
+  SOLO=a@b.it npm run diag:kcal    → una cliente sola
+
+LE SCELTE, e perche':
+⚠️ Si prende l'evento PIU' RECENTE per cliente: quello vecchio racconta una situazione gia' cambiata
+(fra ieri e oggi possono averle sistemato la finestra).
+⚠️ Lo script DICE IL SUO LIMITE, invece di lasciarlo dedurre: **chi non compare non e' detto che stia
+bene** — vuol dire che in quella finestra non le e' stata erogata una giornata sotto banda, oppure che
+non le e' stata erogata affatto, perche' `deliverIfEligible` gira quando la cliente apre l'app. Una
+diagnostica che tace su cosa non sa e' il modo piu' rapido di far leggere «tutto a posto».
+⚠️ Le clienti sotto target SENZA digiuno e SENZA spuntini tolti finiscono in un avviso a parte: li' il
+moltiplicatore di porzione non c'entra niente, e' il catalogo che non ha giornate nella banda, e la
+strada e' `npm run diag:varieta`. Mescolarle avrebbe fatto contare due problemi diversi come uno.
+⚠️ E anche qui un `SOLO=` con un refuso lo dice, invece di stampare una tabella vuota che somiglia a
+«nessun problema».
+
+FILE:
+- backend/prisma/diag-kcal-sotto-target.ts — la diagnostica.
+- backend/package.json — `npm run diag:kcal`.
+- backend/src/lavori/voci-iniziali.ts — voce 268, spuntata.
+
+⚠️ Lo script non ha test, come gli altri `prisma/*.ts`: e' verificato dal compilatore ed e' di sola
+lettura. `npx tsc --noEmit -p tsconfig.json` non segnala niente su questo file (gli errori su
+`approve-diets`, `carica-lavori` e `dedupe-diets` sono preesistenti e la CI non li compila).
+
+DA LANCIARE DOPO IL DEPLOY: `npm run diag:kcal` — e poi la stessa cosa con `TETTO=1.6`. Quei due
+numeri sono l'ingresso della Consegna 2 del foglio.
