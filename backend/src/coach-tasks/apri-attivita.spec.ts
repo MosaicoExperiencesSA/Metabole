@@ -16,7 +16,11 @@ describe('CoachTasksService.apriAttivita', () => {
 
   beforeEach(async () => {
     prisma = {
-      coachTask: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 't1' }) },
+      coachTask: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 't1' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ name: 'Sonia', assignedCoach: null }) },
     };
     const moduleRef = await Test.createTestingModule({
@@ -35,17 +39,34 @@ describe('CoachTasksService.apriAttivita', () => {
     service.apriAttivita({ clientId: 'c1', kind: 'visita_da_fissare', refId: 'serve_visita:2026-08-18', title: 'T', description: 'D' });
 
   it('la crea e dice di averla creata', async () => {
-    await expect(apri()).resolves.toBe(true);
+    await expect(apri()).resolves.toBe('creata');
     expect(prisma.coachTask.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ clientId: 'c1', kind: 'visita_da_fissare', refId: 'serve_visita:2026-08-18' }) }),
     );
   });
 
-  /** ⚠️ Il contratto su cui si appoggia chi chiama: `false` = c'era già, non «è andata male». */
-  it('⚠️ se c\'è già non ne crea una seconda, e torna false', async () => {
+  /**
+   * ⚠️ Il contratto su cui si appoggia chi chiama: «c'era già» è un SUCCESSO, non un errore. Con un
+   * booleano il backoffice traduceva `false` in «l'attività NON risulta aperta» e lo diceva a chi
+   * aveva appena deciso — su un secondo salvataggio, che dal 18/8 è il caso normale.
+   */
+  it('⚠️ se c\'è già non ne crea una seconda, e lo dice con le parole giuste', async () => {
     prisma.coachTask.findUnique.mockResolvedValue({ id: 'gia' });
-    await expect(apri()).resolves.toBe(false);
+    await expect(apri()).resolves.toBe('gia-presente');
     expect(prisma.coachTask.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ E il testo si aggiorna: la descrizione è la fotografia del momento in cui l'attività è nata
+   * («questa cliente non ha una coach»), e chi la legge la legge DOPO — magari quando la coach è
+   * stata assegnata proprio perché quel testo lo chiedeva.
+   */
+  it('⚠️ se c\'era già ma il testo è cambiato, lo riscrive', async () => {
+    prisma.coachTask.findUnique.mockResolvedValue({ id: 'gia' });
+    await apri();
+    expect(prisma.coachTask.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ description: 'D' }) }),
+    );
   });
 
   /** La scadenza predefinita è DOMANI: chi apre un'attività a mano ha di solito fretta. */

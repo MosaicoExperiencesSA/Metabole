@@ -22,6 +22,7 @@ import type { IngredienteRicetta, Substitution } from './pasto-giornata';
 export function ingredientiEffettivi(
   ingredientiRicetta: IngredienteRicetta[],
   pasto: { substitutions?: Substitution[] },
+  opzioni?: { seNonTrovato?: 'aggiungi' | 'salta' },
 ): IngredienteRicetta[] {
   let out = ingredientiRicetta.map((i) => ({ ...i }));
   for (const s of pasto.substitutions ?? []) {
@@ -31,9 +32,25 @@ export function ingredientiEffettivi(
       sostituito = true;
       return { name: s.to, qty: s.toQty ?? i.qty, unit: s.unitA ?? s.unit ?? i.unit };
     });
-    // Sostituzione che non trova la sua origine (piatto cambiato, catena di cambi): il
-    // sostituto va comunque considerato presente, altrimenti resta invisibile.
-    if (!sostituito && !out.some((i) => !!i?.name && combaciaAlimento(i.name, s.to))) {
+    /**
+     * Sostituzione che non trova la sua origine: il sostituto va comunque considerato presente,
+     * altrimenti resta invisibile.
+     *
+     * ⚠️ **MA SOLO PER CHI CHIEDE «cosa c'è nel piatto», non per chi chiede «cosa devo comprare».**
+     * Il cambio di PIATTO — `swapDislikedDishes`, il piatto non gradito sostituito in erogazione —
+     * scrive una sostituzione in cui `from` e `to` sono **nomi di ricetta**, non di ingrediente. Per
+     * la chat va bene: serve solo a non far negare a Gaia l'esistenza di quel nome. Ma nella lista
+     * della spesa e nella scheda ricetta quel ripiego diventa **una riga da comprare che si chiama
+     * «Riso e lenticchie»**, in mezzo a farro e zucchine — trovato dalla revisione della notte del
+     * 18/8, poche ore dopo che questa funzione era stata data a quei due punti.
+     *
+     * Quindi chi chiama sceglie: la chat `aggiungi` (com'è sempre stato), la spesa e la scheda
+     * `salta`. ⚠️ Il prezzo di `salta`, detto: una sostituzione **di ingrediente** la cui origine è
+     * sparita (una ricetta cambiata sotto) non compare — e va bene così, perché l'alternativa è
+     * inventare una riga di spesa con un nome che nessuno ha mai comprato.
+     */
+    const seNonTrovato = opzioni?.seNonTrovato ?? 'aggiungi';
+    if (seNonTrovato === 'aggiungi' && !sostituito && !out.some((i) => !!i?.name && combaciaAlimento(i.name, s.to))) {
       out.push({ name: s.to, qty: s.toQty, unit: s.unitA ?? s.unit });
     }
   }

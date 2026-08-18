@@ -74,7 +74,11 @@ export function aggregaSpesa(
        * concordata con Gaia («carote → biete») non arrivava **mai** nel carrello. La cliente
        * comprava le carote — per giunta scalate — e zero biete, e in cucina se ne accorgeva da sola.
        */
-      const ingredienti = ingredientiEffettivi(ingredientiPerRicetta.get(pasto?.recipeId) ?? [], pasto ?? {});
+      const ingredienti = ingredientiEffettivi(ingredientiPerRicetta.get(pasto?.recipeId) ?? [], pasto ?? {}, {
+        // ⚠️ `salta`: un sostituto che non trova la sua origine qui diventerebbe una riga da
+        // comprare — e col cambio di PIATTO quella riga si chiamerebbe come una ricetta.
+        seNonTrovato: 'salta',
+      });
       const fattore = pasto?.porzione ?? 1;
       for (const ing of ingredienti) {
         if (!ing?.name) continue;

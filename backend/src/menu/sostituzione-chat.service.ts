@@ -19,8 +19,8 @@ import {
 // §16.9: una funzione, non un servizio iniettato. Il percorso del pasto non deve dipendere da un
 // modulo di backoffice — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
-// ⚠️ Esce da qui e vive da sola: la chiamano anche la lista della spesa e la scheda ricetta.
-export { ingredientiEffettivi } from './ingredienti-effettivi';
+// ⚠️ Vive fuori da qui, e apposta: la chiamano anche la lista della spesa e la scheda ricetta,
+// che di questo servizio non hanno bisogno. Vedi `menu/ingredienti-effettivi.ts`.
 import { ingredientiEffettivi } from './ingredienti-effettivi';
 import { PrismaService } from '../prisma/prisma.service';
 import {

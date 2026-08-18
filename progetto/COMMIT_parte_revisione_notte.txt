@@ -1,0 +1,51 @@
+La seconda revisione: il nome del piatto nel carrello, e «c'era già» detto come un errore
+
+Ho fatto rileggere anche le due consegne della notte — cioè la revisione di prima e le sostituzioni.
+Ha trovato due cose vere, tutte e due **introdotte poche ore fa da quelle stesse correzioni**. È il
+rischio della correzione: chiudere il caso raccontato e aprire quello vicino.
+
+1. ⚠️ IL NOME DEL PIATTO FINIVA NELLA LISTA DELLA SPESA (e fra gli ingredienti della ricetta)
+   `swapDislikedDishes` — il piatto non gradito sostituito in erogazione — scrive una sostituzione
+   in cui `from` e `to` sono **nomi di ricetta**, non di ingrediente. Fino a ieri quella riga la
+   leggevano solo l'app (che la mostra come «Insalata di farro → Riso e lenticchie», ed è giusto) e
+   la chat. Dandola a `ingredientiEffettivi`, il suo ripiego — «se non trovo l'origine, aggiungo il
+   sostituto», scritto per **un solo consumatore**, la chat, dove serve a non far negare a Gaia che
+   quell'alimento esista — è diventato un'istruzione di acquisto: nel carrello compariva una riga
+   «Riso e lenticchie» in mezzo a farro e zucchine, e un pallino con lo stesso nome in fondo agli
+   ingredienti della scheda.
+   Adesso chi chiama sceglie (`seNonTrovato`): la chat `aggiungi`, la spesa e la scheda `salta`.
+   ⚠️ Il prezzo di `salta`, detto: una sostituzione di ingrediente la cui origine è sparita non
+   compare — e va bene, perché l'alternativa è inventare una riga con un nome che nessuno compra.
+
+2. ⚠️ «C'ERA GIÀ» VENIVA DETTO COME UN ERRORE, E LA PUSH NON RIPARTE
+   `apriAttivita` tornava un booleano e il backoffice traduceva `false` in «⚠️ l'attività alla coach
+   NON risulta aperta: avvisala tu». Con `refId` = id della nota quel ramo era irraggiungibile; da
+   quando `refId` è il GIORNO — cioè da tre ore — è il caso normale del secondo salvataggio. E il
+   secondo salvataggio è proprio quello che il banner nuovo induce: «questa cliente non ha una coach
+   assegnata» → la nutrizionista assegna la coach → risalva → si sentiva dire che non era partito
+   niente.
+   Adesso `apriAttivita` torna `'creata' | 'gia-presente'`, e:
+   - «c'era già» si dice come un successo;
+   - ⚠️ se il testo è cambiato (la coach adesso c'è) la descrizione **si riscrive**: era una
+     fotografia del momento della nascita, e chi la legge la legge dopo;
+   - ⚠️ e si dice che la push **non riparte**, perché nasce con l'attività: se hai appena assegnato
+     la coach, avvisala tu.
+
+DOCUMENTI: la voce «visita nel calendario» diceva ancora che `refId` è l'id della nota — cioè
+l'affermazione che il codice ha smontato tre ore fa.
+
+⛔ E UNA VOCE NUOVA (285), che NON ho chiuso: il numero della sostituzione **nasce in chat**, e lì è
+ancora quello di catalogo. Gaia dice «120 g di biete» mentre nella ricetta ce ne sono 216; lo stesso
+nella tabella «cambi in chat» del backoffice, che da stanotte è l'unico numero «ufficiale» rimasto
+accanto a quello della ricetta; e la scheda ricetta dice «biete» negli ingredienti e «carote» nei
+passi di cottura. Prima di scrivere va deciso **una volta sola per tutti e tre**: il numero che si
+dice a voce è quello di catalogo o quello del piatto?
+
+FILE
+- backend: `menu/ingredienti-effettivi.ts` (`seNonTrovato`) · `menu/lista-della-spesa.ts` ·
+  `menu/porzione-del-giorno.ts` · `menu/sostituzione-chat.service.ts` (via il re-export morto) ·
+  `coach-tasks/coach-tasks.service.ts` · `clients/clients.service.ts` + tre spec
+- backoffice: `pages/ClientDetail.tsx`
+- `backend/src/lavori/voci-iniziali.ts` (voce 285 nuova, due voci corrette)
+
+4 test nuovi. 224 suite / 3525 verdi, app 106, backoffice 25. Nessuna migrazione.

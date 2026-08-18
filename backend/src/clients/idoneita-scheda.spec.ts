@@ -62,7 +62,7 @@ async function crea(opzioni?: { permesso?: boolean }) {
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   // «Serve una visita» apre un'attività della coach: sono le due porte da cui passa.
-  const coachTasks = { apriAttivita: jest.fn().mockResolvedValue(true) };
+  const coachTasks = { apriAttivita: jest.fn().mockResolvedValue('creata') };
   const prenotazioni = { credito: jest.fn().mockResolvedValue({ disponibili: 1, concesse: 1, usate: 0 }) };
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -215,6 +215,19 @@ describe('la nutrizionista dice «serve una visita»', () => {
     const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
     expect(esito.attivitaSenzaCoach).toBe(false);
     expect(coachTasks.apriAttivita.mock.calls[0][0].description).not.toContain('COACH assegnata');
+  });
+
+  /**
+   * ⚠️ «C'ERA GIÀ» È UN SUCCESSO (revisione della notte). Il secondo salvataggio dello stesso giorno
+   * non crea niente, e per chi ha deciso l'attività c'è: dirle «non risulta aperta» le farebbe
+   * cercare un problema che non ha, o rifare tutto una terza volta.
+   */
+  it('⚠️ se l\'attività c\'era già, per chi decide è aperta lo stesso', async () => {
+    const { service, coachTasks } = await crea();
+    coachTasks.apriAttivita.mockResolvedValue('gia-presente');
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    expect(esito.attivitaAperta).toBe(true);
+    expect(esito.attivitaGiaPresente).toBe(true);
   });
 
   it('«può proseguire» non apre niente: non c\'è nessuna visita da fissare', async () => {

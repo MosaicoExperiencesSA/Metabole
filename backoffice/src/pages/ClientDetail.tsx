@@ -700,7 +700,7 @@ export function ClientDetail() {
     setError(null);
     setNotice(null);
     try {
-      const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean; attivitaSenzaCoach?: boolean }>(`/admin/clients/${id}/idoneita`, {
+      const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean; attivitaGiaPresente?: boolean; attivitaSenzaCoach?: boolean }>(`/admin/clients/${id}/idoneita`, {
         method: 'POST',
         body: JSON.stringify({ esito, nota: nota.trim() }),
       });
@@ -716,14 +716,20 @@ export function ClientDetail() {
       const attivita =
         esito !== 'serve_visita'
           ? ''
-          : esitoRisposta.attivitaAperta
-            ? esitoRisposta.attivitaSenzaCoach
+          : !esitoRisposta.attivitaAperta
+            ? ' ⚠️ L\'attività alla coach NON risulta aperta: avvisala tu.'
+            : esitoRisposta.attivitaSenzaCoach
               /* ⚠️ L'attività c'è ma non ha un destinatario: senza coach assegnata non parte nessuna
                  push e in elenco la vedono solo responsabile e admin. Dire «fatto» qui sarebbe la
                  conferma di una cosa che non è successa. */
               ? ' Ho aperto l\'attività, ma ⚠️ questa cliente NON ha una coach assegnata: nessuna coach la riceve. Assegnale una coach.'
-              : ' Ho aperto un\'attività alla coach: «Fissa la visita».'
-            : ' ⚠️ L\'attività alla coach NON risulta aperta: avvisala tu.';
+              : esitoRisposta.attivitaGiaPresente
+                /* ⚠️ «C'era già» è un successo, non un errore — ed è il caso normale del secondo
+                   salvataggio nello stesso giorno. Ma la notifica alla coach parte solo quando
+                   l'attività NASCE: se nel frattempo è cambiato qualcosa (una coach assegnata
+                   adesso), il testo è aggiornato ma la push non riparte, e va detto. */
+                ? ' L\'attività alla coach c\'era già da oggi: l\'ho aggiornata. ⚠️ Una nuova notifica però non parte: se hai appena assegnato la coach, avvisala tu.'
+                : ' Ho aperto un\'attività alla coach: «Fissa la visita».';
       setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}${attivita}`);
       /**
        * ⚠️ Il banner (di esito o di errore) sta IN CIMA alla pagina, e questo pulsante sta in fondo

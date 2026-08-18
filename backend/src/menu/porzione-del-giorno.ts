@@ -141,7 +141,11 @@ export function ingredientiScalati(
   if (!Array.isArray(ingredients)) return null;
   // ⚠️ PRIMA le sostituzioni, POI la scalatura: si scala quello che c'è nel piatto. Invertendo,
   // si scalerebbe un ingrediente che quella cliente non ha più.
-  const effettivi = ingredientiEffettivi(ingredients as IngredienteRicetta[], { substitutions: sostituzioni });
+  const effettivi = ingredientiEffettivi(ingredients as IngredienteRicetta[], { substitutions: sostituzioni }, {
+    // ⚠️ `salta`: il cambio di PIATTO scrive una sostituzione col nome della ricetta, e qui
+    // diventerebbe un ingrediente col nome del piatto stesso, in fondo alla lista.
+    seNonTrovato: 'salta',
+  });
   return effettivi.map((ing) => {
     const qta = quantitaScalata(ing?.qty, fattore, ing?.unit);
     return qta === null ? ing : { ...ing, qty: qta };

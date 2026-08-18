@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔍 **La seconda revisione: il nome del piatto nel carrello, e «c'era già» detto come un
+  errore.** Ho fatto rileggere anche le due consegne della notte — la revisione di prima e le
+  sostituzioni — e ha trovato due cose vere, tutte e due **introdotte poche ore fa da quelle stesse
+  correzioni**: è il rischio della correzione, chiudere il caso raccontato e aprire quello vicino.
+  ⚠️ **Il nome del piatto finiva nella lista della spesa**: `swapDislikedDishes` scrive una
+  sostituzione in cui `from` e `to` sono **nomi di ricetta**, e il ripiego di `ingredientiEffettivi`
+  — «se non trovo l'origine aggiungo il sostituto», scritto per **un solo consumatore**, la chat —
+  è diventato un'istruzione di acquisto: nel carrello compariva «Riso e lenticchie» in mezzo a farro
+  e zucchine. Adesso chi chiama sceglie: la chat `aggiungi`, la spesa e la scheda `salta`. ⚠️ **E
+  «c'era già» veniva detto come un errore**: `apriAttivita` tornava un booleano e il backoffice
+  traduceva `false` in «l'attività NON risulta aperta» — un ramo irraggiungibile fino a tre ore
+  prima, e diventato il **secondo salvataggio normale** da quando `refId` è il giorno. Peggio: è
+  proprio il salvataggio che il banner nuovo induce («non ha una coach assegnata» → la assegna →
+  risalva). Ora torna `'creata' | 'gia-presente'`, il testo dell'attività **si riscrive** quando è
+  cambiato (era la fotografia del momento della nascita, e chi la legge la legge dopo) e si dice che
+  la **push non riparte**. Corretta anche la voce che raccontava ancora il vecchio `refId`. ⛔ Voce
+  **285 aperta e non chiusa**: il numero della sostituzione **nasce in chat**, e lì è ancora quello
+  di catalogo — Gaia dice «120 g di biete» mentre nella ricetta ce ne sono 216, e lo stesso vale per
+  la tabella del backoffice e per i passi di cottura, che continuano a dire «carote». Va deciso una
+  volta sola per tutti e tre. 4 test (224 suite, 3525 verdi). Nessuna migrazione.
+
 - `[Sviluppo]` 🥬 **Le sostituzioni di Gaia arrivano nel carrello e nella scheda ricetta** (voce 284,
   aperta e chiusa nella notte). Era il rilievo più grosso della revisione, e non una regressione: era
   lì da prima, e le consegne della sera l'hanno reso visibile. ⚠️ **La lista della spesa non

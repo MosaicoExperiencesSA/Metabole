@@ -622,11 +622,15 @@ export class ClientsService {
      * sarebbe una decisione clinica che non si salva. Ma l'errore si scrive.
      */
     let attivitaAperta = false;
+    let attivitaGiaPresente = false;
     let attivitaSenzaCoach = false;
     if (decisione.esito === 'serve_visita') {
       try {
         const esito = await this.apriLaVisitaDaFissare(userId);
-        attivitaAperta = esito.aperta;
+        // ⚠️ «C'era già» è un successo, non un errore: l'attività c'è. Confonderli vuol dire dire a
+        // chi ha appena deciso che non è partito niente (revisione della notte del 18/8).
+        attivitaAperta = true;
+        attivitaGiaPresente = esito.esito === 'gia-presente';
         attivitaSenzaCoach = esito.senzaCoach;
       } catch (e) {
         this.logger.error(
@@ -641,7 +645,7 @@ export class ClientsService {
       actorId,
       entityType: 'user',
       entityId: userId,
-      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta, attivitaSenzaCoach },
+      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta, attivitaGiaPresente, attivitaSenzaCoach },
     });
 
     return {
@@ -650,6 +654,7 @@ export class ClientsService {
       decisaDa: staff?.id ?? null,
       segnalazioniChiuse: chiuse.count,
       attivitaAperta,
+      attivitaGiaPresente,
       attivitaSenzaCoach,
       nota: { id: nota.id, body: nota.body, createdAt: nota.createdAt, author: nota.author?.displayName ?? null },
     };
@@ -664,7 +669,9 @@ export class ClientsService {
    * telefono. ⚠️ E se non si riesce a contarlo si passa `null`, non zero: il testo distingue «non ne
    * ha» da «non lo so», perché mandano la coach a dire due cose diverse.
    */
-  private async apriLaVisitaDaFissare(clientId: string): Promise<{ aperta: boolean; senzaCoach: boolean }> {
+  private async apriLaVisitaDaFissare(
+    clientId: string,
+  ): Promise<{ esito: 'creata' | 'gia-presente'; senzaCoach: boolean }> {
     const cliente = (await this.prisma.user.findUnique({
       where: { id: clientId },
       // ⚠️ Solo il nome di battesimo: è la regola scritta oggi con la bonifica delle email — nei
@@ -711,14 +718,14 @@ export class ClientsService {
      * ⚠️ Il giorno si legge nel fuso aziendale (`giornoLocale`), non in UTC: fra mezzanotte e le due
      * il giorno UTC è ancora ieri.
      */
-    const aperta = await this.coachTasks.apriAttivita({
+    const esito = await this.coachTasks.apriAttivita({
       clientId,
       kind: TIPO_VISITA_DA_FISSARE,
       refId: `serve_visita:${giornoLocale(new Date())}`,
       title,
       description,
     });
-    return { aperta, senzaCoach: !coach };
+    return { esito, senzaCoach: !coach };
   }
 
   async deleteNote(userId: string, noteId: string, actorId: string) {

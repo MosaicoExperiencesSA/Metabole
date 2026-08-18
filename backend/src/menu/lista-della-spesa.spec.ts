@@ -92,6 +92,31 @@ describe('aggregaSpesa — quello che finisce nel carrello', () => {
     ]);
   });
 
+  /**
+   * ⚠️ IL CAMBIO DI PIATTO NON È UNO SCAMBIO DI INGREDIENTE (revisione della notte del 18/8).
+   * `swapDislikedDishes` scrive una sostituzione in cui `from` e `to` sono **nomi di ricetta**:
+   * dandola in pasto a `ingredientiEffettivi` senza dire niente, il ripiego «se non trovo l'origine
+   * aggiungo il sostituto» faceva comparire nel carrello una riga che si chiama «Riso e lenticchie»
+   * in mezzo a farro e zucchine.
+   */
+  it('⚠️ il NOME DEL PIATTO non finisce fra le cose da comprare', () => {
+    const voci = aggregaSpesa(
+      [
+        {
+          meals: [
+            {
+              slot: 'lunch',
+              recipeId: 'r-nuovo',
+              substitutions: [{ from: 'Insalata di farro con carote', to: 'Riso e lenticchie', reason: 'non gradito' }],
+            },
+          ],
+        },
+      ],
+      new Map([['r-nuovo', [ing('riso integrale', 70, 'g'), ing('lenticchie', 50, 'g')]]]),
+    );
+    expect(voci.map((v) => v.name)).toEqual(['riso integrale', 'lenticchie']);
+  });
+
   it('la ricetta che non c\'è più e la giornata illeggibile non fanno cadere la lista', () => {
     const voci = aggregaSpesa(
       [{ meals: [{ slot: 'lunch', recipeId: 'sparita' }] }, { meals: null }, { meals: [{ slot: 'dinner', recipeId: 'r-cena' }] }],

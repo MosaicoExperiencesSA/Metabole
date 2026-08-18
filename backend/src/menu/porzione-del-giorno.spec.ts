@@ -156,6 +156,14 @@ describe('pastoDelGiorno e le sostituzioni', () => {
     ]);
   });
 
+  /** ⚠️ E nemmeno fra gli ingredienti della scheda: stesso ripiego, stesso danno. */
+  it('⚠️ il nome del piatto non diventa un ingrediente della ricetta', () => {
+    const scalati = ingredientiScalati([{ name: 'riso integrale', qty: 70, unit: 'g' }], 1.8, [
+      { from: 'Insalata di farro con carote', to: 'Riso e lenticchie', reason: 'non gradito', concordataIl: 'x' } as never,
+    ]);
+    expect(scalati).toEqual([{ name: 'riso integrale', qty: 126, unit: 'g' }]);
+  });
+
   it('senza sostituzioni non cambia niente rispetto a prima', () => {
     expect(ingredientiScalati([{ name: 'farro', qty: 80, unit: 'g' }], 1.5)).toEqual([{ name: 'farro', qty: 120, unit: 'g' }]);
   });

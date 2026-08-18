@@ -156,7 +156,16 @@ export class CoachTasksService {
    * creare attività vorrebbe dire un tipo che non avvisa nessuno — e non si vedrebbe, perché
    * l'attività in elenco ci sarebbe lo stesso.
    *
-   * Ritorna `true` se l'ha creata adesso, `false` se c'era già (stesso cliente, tipo e riferimento).
+   * ⚠️ Torna **`'creata'` o `'gia-presente'`, non un booleano** — e la differenza conta più di quanto
+   * sembri. Con un booleano chi chiamava traduceva `false` in «non è riuscita», e lo diceva a chi
+   * aveva appena deciso: «⚠️ l'attività NON risulta aperta». Ma `false` vuol dire che **c'era già**,
+   * cioè che è tutto a posto. Trovato dalla revisione della notte del 18/8, poche ore dopo aver
+   * reso quel caso — il secondo salvataggio dello stesso giorno — normale invece che impossibile.
+   *
+   * ⚠️ E se c'era già **il testo si aggiorna**, quando è cambiato: la descrizione è una fotografia
+   * del momento in cui l'attività è nata («questa cliente non ha una coach assegnata»), e resta
+   * appesa lì anche dopo che il motivo è sparito. Chi la legge la legge **dopo**.
+   * ⚠️ La push però **non riparte**: nasce con l'attività. Chi chiama deve saperlo, e dirlo.
    */
   async apriAttivita(p: {
     clientId: string;
@@ -166,9 +175,17 @@ export class CoachTasksService {
     description: string;
     /** Entro quando. Default: domani — chi apre un'attività a mano ha di solito fretta. */
     dueDate?: Date;
-  }): Promise<boolean> {
+  }): Promise<'creata' | 'gia-presente'> {
     const scadenza = p.dueDate ?? this.day(new Date(), 1);
-    return (await this.ensureTask(p.clientId, p.kind, p.refId, p.title, p.description, scadenza)) === 1;
+    const creata = (await this.ensureTask(p.clientId, p.kind, p.refId, p.title, p.description, scadenza)) === 1;
+    if (creata) return 'creata';
+    await this.prisma.coachTask
+      .updateMany({
+        where: { clientId: p.clientId, kind: p.kind, refId: p.refId, NOT: { description: p.description } } as never,
+        data: { title: p.title, description: p.description },
+      })
+      .catch(() => undefined);
+    return 'gia-presente';
   }
 
   /** Crea il task se non esiste già (unicità cliente+tipo+riferimento). Ritorna 1 se creato. */
