@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` ⭐ **Il popup «Com'è andata ieri?» richiedeva le stelle dei piatti già votati.** Voci 269
+  (chiusa) e 270 (aperta). È il punto 6 della voce 253 — il giro sistematico sulle rotte `/me/*` del
+  16/8: **`GET /me/ratings/pending` esiste dal principio**, torna i pasti degli ultimi tre giorni
+  ancora senza valutazione, e **non la chiamava nessuno**. Il popup si costruiva l'elenco da
+  `/me/menu`, cioè dal menu del giorno, e chiedeva le stelle di **tutti** i piatti di ieri. ⚠️ Si vede
+  su due strade: chi valuta un piatto da un'altra schermata se lo ritrova nel popup, e chi apre l'app
+  da un **secondo dispositivo** ricomincia da capo — il «già visto» di oggi vive nel `localStorage` di
+  quel telefono, le valutazioni stanno sul server. ⚠️ Il **filtro sul giorno resta**: la rotta torna
+  tre giorni, il popup ne chiede uno, e portare in primo piano anche l'altro ieri non è una
+  correzione — è una domanda in più a una persona, e va decisa. ⚠️ Lo stesso piatto in due pasti dello
+  stesso giorno si chiede **una volta sola**: la valutazione è unica per `(cliente, ricetta, giorno)`,
+  e chiederla due volte vorrebbe dire far rispondere due volte per scrivere una riga sola, con la
+  seconda risposta che cancella la prima senza dirlo. Regola in un modulo **puro**
+  (`app/src/lib/valutazioni-da-chiedere.ts`), 5 test **vitest** visti cadere per mutazione — l'app ha
+  la sua infrastruttura di test, a differenza del backoffice, e vale la pena usarla. ⚠️ **E la cosa
+  trovata mentre lo sistemavo, voce 270**: se la cliente tocca **solo** l'aderenza (Seguita / Non
+  seguita) senza dare le stelle, il popup manda comunque **`stars: 3`**, perché la rotta le stelle le
+  pretende e l'aderenza viaggia come tag. Quel 3 non è un'informazione, è **un voto inventato
+  dall'app**, e finisce nel segnale «gradimento» con cui il motore decide cosa riproporle: una che dice
+  soltanto «non l'ho seguita» risulta averle dato tre stelle. Tre strade, decide Simone (porta sua per
+  l'aderenza · non mandare niente senza stelle · escludere dal gradimento quelle col tag). Nessuna
+  migrazione, backend invariato. ⚠️ Arriva alle clienti solo con la prossima pubblicazione o OTA.
+
 - `[Sviluppo]` 📐 **`npm run diag:kcal`: quante giornate escono sotto il fabbisogno, e con che tetto si
   coprono.** Voce 268. Il segnale `daily_kcal_below_target` esiste dal 17/8 e da allora **accumula**:
   mancava il posto dove leggerlo, e per sapere quante giornate escono corte bisognava aprire il

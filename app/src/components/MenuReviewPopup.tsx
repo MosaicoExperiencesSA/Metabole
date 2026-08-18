@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
+import { slotInfo } from '../lib/meals';
 import { isoDi } from '../lib/giorno';
+import { valutazioniDaChiedere, type PastoDaValutare } from '../lib/valutazioni-da-chiedere';
 
 /**
  * Popup "Com'è andata ieri?" — all'apertura fa valutare i menu del giorno prima:
@@ -28,11 +29,26 @@ export default function MenuReviewPopup() {
     try {
       if (localStorage.getItem(dismissKey(day))) { setRows([]); return; }
     } catch { /* storage non disponibile */ }
-    api<{ days: ApiMenuDay[] }>('/me/menu')
-      .then((r) => {
-        const d = (r.days ?? []).find((x) => x.date.slice(0, 10) === day);
-        const meals: ApiMeal[] = d?.meals ?? [];
-        setRows(meals.map((m) => ({ recipeId: m.recipeId, slot: m.slot, name: m.name, stars: 0, followed: null })));
+    /**
+     * ⚠️ L'elenco lo dice il SERVER, non il menu del giorno.
+     *
+     * Prima si prendevano i pasti da `/me/menu` e si chiedevano tutti, **anche quelli già votati**:
+     * chi aveva valutato un piatto da un'altra schermata se lo ritrovava qui, e chi apriva l'app da
+     * un secondo telefono ricominciava da capo (il «già visto» di oggi vive nel `localStorage` di
+     * quel dispositivo, le valutazioni stanno sul server). `GET /me/ratings/pending` esisteva dal
+     * principio e non la chiamava nessuno.
+     */
+    api<PastoDaValutare[]>('/me/ratings/pending')
+      .then((pending) => {
+        setRows(
+          valutazioniDaChiedere(pending, day).map((m) => ({
+            recipeId: m.recipeId,
+            slot: m.slot,
+            name: m.name,
+            stars: 0,
+            followed: null,
+          })),
+        );
       })
       .catch(() => setRows([]));
   }, [day]);

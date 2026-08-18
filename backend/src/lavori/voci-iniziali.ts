@@ -713,6 +713,23 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'popup-valutazioni-gia-date',
+    titolo: 'Il popup «Com\'è andata ieri?» richiedeva le stelle dei piatti già votati',
+    dettaglio:
+      'Punto 6 della voce 253 (il giro sistematico sulle rotte `/me/*` del 16/8): `GET /me/ratings/pending` esiste dal principio — torna i pasti degli ultimi tre giorni **ancora senza valutazione** — e **non la chiamava nessuno**. Il popup si costruiva l\'elenco da `/me/menu`, cioè dal menu del giorno, e chiedeva le stelle di **tutti** i piatti di ieri. ⚠️ Si vedeva su due strade: chi valuta un piatto da un\'altra schermata se lo ritrova nel popup, e chi apre l\'app da un **secondo dispositivo** ricomincia da capo, perché il «già visto» di oggi vive nel `localStorage` di quel telefono mentre le valutazioni stanno sul server. Ora l\'elenco lo dice il server. ⚠️ Il filtro sul giorno **resta**: la rotta torna tre giorni, il popup ne chiede uno — portare in primo piano anche l\'altro ieri non è una correzione, è una domanda in più a una persona, e va decisa. ⚠️ Lo stesso piatto in due pasti dello stesso giorno si chiede **una volta sola**: la valutazione è unica per `(cliente, ricetta, giorno)`, e chiederla due volte vorrebbe dire far rispondere due volte per scrivere una riga sola, con la seconda risposta che cancella la prima senza dirlo. Regola in un modulo puro (`app/src/lib/valutazioni-da-chiedere.ts`) con 5 test, visti cadere per mutazione. ⚠️ Arriva alle clienti solo con la prossima pubblicazione o OTA.',
+    categoria: CODICE,
+    ordine: 269,
+    fatta: true, // 18/8
+  },
+  {
+    chiave: 'aderenza-senza-stelle-scrive-tre',
+    titolo: 'Dire solo «seguita/non seguita» scrive una valutazione a 3 stelle che nessuno ha dato',
+    dettaglio:
+      'Trovato il 18/8 sistemando il popup delle valutazioni (voce 269). Nel popup «Com\'è andata ieri?» ci sono due gesti: le **stelle** e l\'**aderenza** (Seguita / Non seguita). Se la cliente tocca solo l\'aderenza, il popup manda comunque `stars: 3` — perché la rotta `POST /me/ratings` le stelle le pretende (`@Min(1) @Max(5)`) e l\'aderenza viaggia come **tag** della valutazione, senza una porta sua. ⚠️ Quel 3 non è un\'informazione: è un voto **inventato dall\'app**, e finisce in `RecipeRating` insieme agli altri — cioè nel segnale «gradimento» che il motore usa per decidere cosa riproporle, e nel learning della dieta. Una cliente che dice soltanto «non l\'ho seguita» risulta averle dato tre stelle. ⛔ **Decide Simone**, perché sono tre strade diverse: **1)** l\'aderenza ha una porta sua (rotta o campo separato) e le stelle restano facoltative — la più pulita, ma tocca l\'API e l\'app; **2)** il popup **non manda niente** se le stelle non ci sono, e l\'aderenza si perde (oggi almeno resta il tag); **3)** si tiene `stars: 3` ma il motore **esclude** dal gradimento le valutazioni nate solo dall\'aderenza (riconoscibili dal tag) — la più veloce, e non chiede una pubblicazione dell\'app. ⚠️ Quante siano oggi si conta: `RecipeRating` con `stars = 3` e un tag `seguita`/`non_seguita`.',
+    categoria: SIMONE,
+    ordine: 270,
+  },
+  {
     chiave: 'diag-kcal-sotto-target',
     titolo: '`npm run diag:kcal`: quante giornate escono sotto il fabbisogno, e con che tetto si coprono',
     dettaglio:

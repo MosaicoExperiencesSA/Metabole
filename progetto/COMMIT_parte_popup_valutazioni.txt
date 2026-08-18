@@ -1,0 +1,55 @@
+Il popup «Com'è andata ieri?» richiedeva le stelle dei piatti già votati
+
+Voci 269 (chiusa) e 270 (aspetta Simone). Punto 6 della voce 253, il giro sistematico sulle rotte
+`/me/*` del 16/8.
+
+═══ 1. L'ELENCO LO DICE IL SERVER (voce 269)
+
+`GET /me/ratings/pending` esiste dal principio — torna i pasti degli ultimi tre giorni ANCORA SENZA
+valutazione — e **non la chiamava nessuno**. Il popup si costruiva l'elenco da `/me/menu`, cioe' dal
+menu del giorno, e chiedeva le stelle di TUTTI i piatti di ieri.
+
+⚠️ Si vedeva su due strade:
+· chi valuta un piatto da un'altra schermata se lo ritrova nel popup;
+· chi apre l'app da un SECONDO DISPOSITIVO ricomincia da capo — il «gia' visto» di oggi vive nel
+  `localStorage` di quel telefono, mentre le valutazioni stanno sul server.
+
+⚠️ IL FILTRO SUL GIORNO RESTA. La rotta torna tre giorni, il popup ne chiede uno: portare in primo
+piano anche l'altro ieri non e' una correzione, e' una domanda in piu' a una persona che ne aspettava
+una — e quella si decide, non si fa di straforo.
+⚠️ LO STESSO PIATTO IN DUE PASTI DELLO STESSO GIORNO SI CHIEDE UNA VOLTA SOLA. La valutazione e' unica
+per `(cliente, ricetta, giorno)` (`@@unique` su `RecipeRating`): chiederla due volte vorrebbe dire far
+rispondere due volte per scrivere una riga sola, con la seconda risposta che cancella la prima senza
+dirlo.
+
+La regola sta in un modulo PURO — `app/src/lib/valutazioni-da-chiedere.ts` — perche' si possa provare
+per tabella: 5 test, visti cadere per mutazione (tolto il filtro sul giorno ne cade 1, tolto il dedup
+ne cade 1). E' lo stesso schema dei moduli puri del backend.
+
+═══ 2. ⚠️ E LA COSA CHE HO TROVATO MENTRE LO SISTEMAVO (voce 270, aspetta Simone)
+
+Nel popup ci sono due gesti: le STELLE e l'ADERENZA (Seguita / Non seguita). Se la cliente tocca solo
+l'aderenza, il popup manda comunque **`stars: 3`** — perche' `POST /me/ratings` le stelle le pretende
+(`@Min(1) @Max(5)`) e l'aderenza viaggia come TAG della valutazione, senza una porta sua.
+
+Quel 3 non e' un'informazione: e' un voto INVENTATO DALL'APP, e finisce in `RecipeRating` insieme
+agli altri — cioe' nel segnale «gradimento» con cui il motore decide cosa riproporle, e nel learning
+della dieta. Una cliente che dice soltanto «non l'ho seguita» risulta averle dato tre stelle.
+
+⛔ Tre strade, e la scelta e' di prodotto:
+  1. l'aderenza ha una porta sua (rotta o campo separato) e le stelle restano facoltative — la piu'
+     pulita, ma tocca API e app;
+  2. il popup non manda niente senza stelle, e l'aderenza si perde (oggi almeno resta il tag);
+  3. si tiene `stars: 3` ma il motore ESCLUDE dal gradimento le valutazioni nate solo dall'aderenza
+     (riconoscibili dal tag) — la piu' veloce, e non chiede una pubblicazione dell'app.
+⚠️ Quante siano oggi si conta: `RecipeRating` con `stars = 3` e un tag `seguita`/`non_seguita`.
+
+FILE:
+- app/src/lib/valutazioni-da-chiedere.ts — la regola, modulo puro.
+- app/src/lib/valutazioni-da-chiedere.spec.ts — 5 test (vitest).
+- app/src/components/MenuReviewPopup.tsx — chiama `/me/ratings/pending` invece di dedurre dal menu.
+- backend/src/lavori/voci-iniziali.ts — voce 269 spuntata, voce 270 aperta.
+
+NESSUNA MIGRAZIONE, nessuna modifica al backend (la rotta c'era gia').
+Verificato: `app` → `tsc -b` pulito e **77 test in 10 file** (vitest); backend invariato, 3116 test.
+⚠️ ARRIVA ALLE CLIENTI SOLO CON LA PROSSIMA PUBBLICAZIONE O OTA: e' codice dell'app, non del server.
