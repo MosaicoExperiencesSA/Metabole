@@ -101,8 +101,8 @@ export class LavoriService {
     const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
     const righe = (await this.prisma.lavoro.findMany({
       where: { chiave: { in: chiavi } },
-      select: { id: true, chiave: true, fatto: true },
-    })) as { id: string; chiave: string | null; fatto: boolean }[];
+      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true },
+    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null }[];
     const perChiave = new Map(righe.map((r) => [r.chiave, r]));
 
     const mancanti = VOCI_INIZIALI.filter((v) => !perChiave.has(v.chiave));
@@ -122,6 +122,27 @@ export class LavoriService {
       const riga = perChiave.get(v.chiave);
       if (riga && !riga.fatto) daSpuntare.push({ voce: v, riga });
     }
+
+    /**
+     * ⚠️ IL TESTO DI UNA VOCE GIÀ IN PAGINA NON VIENE RISCRITTO — e va DETTO.
+     *
+     * Questo caricamento fa due cose: crea le voci mancanti e spunta quelle che il file dichiara
+     * finite. Il **testo** no: se nel file un titolo o un dettaglio cambiano — succede di continuo,
+     * perché una voce si riscrive quando si scopre la causa vera — in pagina resta la versione
+     * vecchia, e nessuno lo dice. Chi legge la pagina crede di leggere l'ultima parola.
+     *
+     * Riscriverli in automatico non si può fare a cuor leggero: la pagina è **lo stato vivo** e una
+     * voce può essere stata corretta a mano dal backoffice, che è una scelta di prodotto (voce 274).
+     * Nel frattempo la differenza si **mostra**: un elenco che dice quali voci in pagina hanno un
+     * testo più vecchio di quello del rilascio. Meglio saperlo che crederle aggiornate.
+     */
+    const testiCambiati = VOCI_INIZIALI.flatMap((v) => {
+      const riga = perChiave.get(v.chiave);
+      if (!riga) return [];
+      const diverso =
+        riga.titolo !== v.titolo || (riga.dettaglio ?? '') !== (v.dettaglio ?? '');
+      return diverso ? [{ titolo: v.titolo, categoria: v.categoria }] : [];
+    });
 
     if (conferma) {
       for (const v of mancanti) {
@@ -143,6 +164,8 @@ export class LavoriService {
       titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
       // Titoli e non chiavi: è quello che la pagina mostra prima di far premere «Conferma».
       chiuse: daSpuntare.map(({ voce }) => ({ titolo: voce.titolo, categoria: voce.categoria })),
+      /** Voci già in pagina il cui TESTO nel file è cambiato: NON vengono riscritte, si dicono. */
+      testiCambiati,
     };
   }
 

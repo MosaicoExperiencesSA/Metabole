@@ -98,6 +98,8 @@ export function Lavori() {
     saltate: number;
     titoli: { titolo: string; categoria: string }[];
     chiuse: { titolo: string; categoria: string }[];
+    /** Voci già in elenco il cui TESTO nel rilascio è cambiato: non vengono riscritte, si dicono. */
+    testiCambiati: { titolo: string; categoria: string }[];
   } | null>(null);
   // ⚠️ `caricandoVoci` e non `caricando`: quello esiste già ed è il caricamento della PAGINA.
   const [caricandoVoci, setCaricandoVoci] = useState(false);
@@ -216,6 +218,7 @@ export function Lavori() {
         saltate: number;
         titoli: { titolo: string; categoria: string }[];
         chiuse: { titolo: string; categoria: string }[];
+        testiCambiati: { titolo: string; categoria: string }[];
       }>(
         '/admin/lavori/carica',
         { method: 'POST', body: JSON.stringify({ conferma }) },
@@ -304,7 +307,7 @@ export function Lavori() {
         )}
         {caricamento && (
           <div className="card" style={{ marginTop: 10, background: 'var(--chip)' }}>
-            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 ? (
+            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 && !(caricamento.testiCambiati?.length) ? (
               <div>Non c'è niente da allineare: le {caricamento.saltate} voci del rilascio sono già in elenco, e nessuna è da spuntare.</div>
             ) : (
               <>
@@ -323,6 +326,26 @@ export function Lavori() {
                     </div>
                     <ul style={{ margin: '0 0 10px 18px' }}>
                       {caricamento.chiuse.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
+                    </ul>
+                  </>
+                )}
+                {/* ⚠️ IL TESTO PIÙ VECCHIO VA DETTO (18/8). Questo pulsante aggiunge e spunta: il
+                    testo di una voce già in elenco non lo riscrive. Quando nel rilascio un titolo o
+                    un dettaglio cambiano — succede ogni volta che si scopre la causa vera di un
+                    difetto — qui resta la versione di prima, e chi legge crede di leggere l'ultima
+                    parola. Non si riscrive (la pagina è lo stato vivo, e una voce può essere stata
+                    corretta a mano), ma si dice. */}
+                {caricamento.testiCambiati?.length > 0 && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                      ⚠️ {caricamento.testiCambiati.length}{' '}
+                      {caricamento.testiCambiati.length === 1 ? 'voce ha' : 'voci hanno'} un testo più recente nel rilascio,
+                      e qui NON viene riscritto:
+                    </div>
+                    <ul style={{ margin: '0 0 10px 18px' }}>
+                      {caricamento.testiCambiati.map((t) => (
+                        <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>
+                      ))}
                     </ul>
                   </>
                 )}

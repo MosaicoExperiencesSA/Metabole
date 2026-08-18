@@ -713,6 +713,23 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 17/8 sera
   },
   {
+    chiave: 'lavori-testo-non-aggiornato',
+    titolo: '«Aggiorna dal rilascio» non riscrive il testo delle voci già in elenco: adesso lo dice',
+    dettaglio:
+      'Nato da una domanda di Simone del 18/8 — «la lista lavori la stai tenendo allineata?» — e la risposta onesta era **sì per il file, no per la pagina**. `caricaVociIniziali` fa due cose: **crea** le voci mancanti e **spunta** quelle che il file dà per finite. Il **testo** no: quando nel file un titolo o un dettaglio cambiano — e succede a ogni giro, perché una voce si riscrive quando si scopre la causa vera — in pagina resta la versione di prima, e chi legge crede di leggere l\'ultima parola. Era un aggiornamento che non arriva e nessuno lo dice: la stessa famiglia di tutto il resto. ⚠️ **Non si riscrive di nascosto**, perché la pagina è **lo stato vivo** e una voce può essere stata corretta a mano dal backoffice: si **mostra**. Il riepilogo del pulsante ora elenca le voci il cui testo nel rilascio è più recente, dicendo che qui non viene riscritto — e il messaggio «non c\'è niente da allineare» non compare più quando invece c\'è qualcosa da sapere. 3 test. ⚠️ Se poi si vuole che il file **riscriva** anche il testo, quella è la voce 275: serve prima decidere cosa fare di una voce corretta a mano in pagina.',
+    categoria: CODICE,
+    ordine: 274,
+    fatta: true, // 18/8
+  },
+  {
+    chiave: 'lavori-file-riscrive-il-testo',
+    titolo: 'Il file deve poter riscrivere il testo di una voce già in elenco?',
+    dettaglio:
+      'La seconda metà della voce 274. Oggi «Aggiorna dal rilascio» aggiunge e spunta, e il testo delle voci esistenti resta quello del primo caricamento — ora almeno lo dice. ⛔ Se si vuole che il rilascio porti anche i **testi aggiornati** (che è quello che uno si aspetta da un pulsante chiamato così), serve decidere una cosa sola: **cosa si fa di una voce corretta a mano dal backoffice?** Tre strade: **1)** il file vince sempre — semplice, ma una correzione fatta in pagina sparisce al rilascio dopo, e chi l\'ha scritta non lo sa; **2)** il file vince solo se nessuno ha toccato quella voce a mano — serve un campo che se lo ricordi (oggi `updatedAt` non basta: lo muove anche la spunta); **3)** il file non riscrive mai e ci si tiene l\'elenco che dice quali sono più vecchie (com\'è adesso). ⚠️ La stessa domanda si porrà per `categoria` e `ordine`, che oggi restano quelli del primo caricamento: una voce che nel file passa da CODICE a SIMONE, in pagina resta dov\'era.',
+    categoria: SIMONE,
+    ordine: 275,
+  },
+  {
     chiave: 'catalogo-una-taglia-sola',
     titolo: 'Il catalogo ha UNA taglia calorica (1500) e l\'erogazione punta al fabbisogno: chi sta sopra riceve corto per costruzione',
     dettaglio:

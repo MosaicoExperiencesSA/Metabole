@@ -27,8 +27,10 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
       lavoro: {
         // In pagina esistono le prime due: una aperta (che il file dichiara finita) e una già spuntata.
         findMany: jest.fn().mockResolvedValue([
-          { id: 'l1', chiave: 'aperta-e-finita', fatto: false },
-          { id: 'l2', chiave: 'gia-spuntata', fatto: true },
+          // Identica al file: niente da segnalare.
+          { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x' },
+          // ⚠️ In pagina c'è il DETTAGLIO VECCHIO: il file l'ha riscritto e la pagina non lo sa.
+          { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'testo vecchio' },
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'l1' }),
@@ -39,6 +41,31 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
       providers: [LavoriService, { provide: PrismaService, useValue: prisma }],
     }).compile();
     service = moduleRef.get(LavoriService);
+  });
+
+  /**
+   * ⚠️ IL TESTO NON SI RISCRIVE, MA SI DICE (18/8, dalla domanda di Simone «la lista lavori la stai
+   * tenendo allineata?»). Il file è allineato, la pagina no: una voce riscritta nel file — succede a
+   * ogni volta che si scopre la causa vera — in pagina resta com'era, e chi legge crede di leggere
+   * l'ultima parola.
+   */
+  it('dice quali voci in pagina hanno un testo più vecchio del file', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.testiCambiati.map((t) => t.titolo)).toEqual(['Già chiusa in pagina']);
+  });
+
+  it('⚠️ e non le riscrive: segnalarle non è aggiornarle', async () => {
+    await service.caricaVociIniziali(true);
+    const scritture = (prisma.lavoro.update as jest.Mock).mock.calls.map((c) => c[0]);
+    for (const s of scritture) {
+      expect(s.data.titolo).toBeUndefined();
+      expect(s.data.dettaglio).toBeUndefined();
+    }
+  });
+
+  it('una voce identica fra file e pagina non compare fra i testi cambiati', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.testiCambiati.map((t) => t.titolo)).not.toContain('Lavoro finito nel file');
   });
 
   it('spunta le voci esistenti che il file dichiara finite', async () => {

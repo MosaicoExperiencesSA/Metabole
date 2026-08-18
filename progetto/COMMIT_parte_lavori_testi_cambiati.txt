@@ -1,0 +1,47 @@
+«Aggiorna dal rilascio» non riscrive il testo delle voci gia' in elenco: adesso lo dice
+
+Voci 274 (chiusa) e 275 (aspetta Simone). Nata da una domanda di Simone: «la lista lavori la stai
+tenendo allineata?».
+
+LA RISPOSTA ONESTA ERA: SI' PER IL FILE, NO PER LA PAGINA.
+Il file (`voci-iniziali.ts`) e' allineato — 20 voci dalla 254 alla 273, nessun buco, nessun duplicato,
+ogni consegna del 17 e del 18/8 ha la sua. La pagina no, e non per una dimenticanza: per come funziona
+il pulsante.
+
+`caricaVociIniziali` fa DUE cose: **crea** le voci mancanti e **spunta** quelle che il file da' per
+finite. Il TESTO no. Quindi quando nel file un titolo o un dettaglio cambiano — e succede a ogni giro,
+perche' una voce si riscrive appena si scopre la causa vera — in pagina resta la versione di prima, e
+chi legge crede di leggere l'ultima parola.
+⚠️ Oggi, per esempio: la voce 255 (porzioni) e' stata riscritta due volte, la 272 corretta stamattina.
+In pagina, se erano gia' state caricate, si legge ancora il testo vecchio.
+
+E' un aggiornamento che non arriva e nessuno lo dice: la stessa famiglia di tutto il resto.
+
+COSA FA ADESSO. ⚠️ **Non si riscrive di nascosto**: la pagina e' LO STATO VIVO, e una voce puo' essere
+stata corretta a mano dal backoffice — sovrascriverla al rilascio dopo la farebbe sparire senza che
+nessuno lo sappia. Si **mostra**: il riepilogo del pulsante elenca le voci il cui testo nel rilascio e'
+piu' recente, dicendo che qui NON viene riscritto. E il messaggio «non c'e' niente da allineare» non
+compare piu' quando invece c'e' qualcosa da sapere.
+
+TEST — 3 nuovi (`lavori.service.spec`): quali voci finiscono nell'elenco dei testi cambiati, che una
+voce identica non ci finisce, e ⚠️ che segnalarle NON e' aggiornarle (nessuna scrittura tocca titolo o
+dettaglio).
+
+⛔ LA SECONDA META', VOCE 275, ed e' di Simone: si vuole che il rilascio porti anche i TESTI
+aggiornati — che e' quello che uno si aspetta da un pulsante chiamato «Aggiorna dal rilascio»? Serve
+decidere cosa fare di una voce corretta a mano in pagina:
+  1. il file vince sempre (semplice, ma una correzione fatta in pagina sparisce e chi l'ha scritta non
+     lo sa);
+  2. il file vince solo se nessuno ha toccato quella voce a mano — serve un campo che se lo ricordi,
+     perche' `updatedAt` non basta: lo muove anche la spunta;
+  3. non si riscrive mai e ci si tiene l'elenco (com'e' adesso).
+⚠️ La stessa domanda vale per `categoria` e `ordine`: una voce che nel file passa da CODICE a SIMONE,
+in pagina resta dov'era.
+
+FILE:
+- backend/src/lavori/lavori.service.ts — `testiCambiati` nel riepilogo.
+- backend/src/lavori/lavori.service.spec.ts — 3 test.
+- backoffice/src/pages/Lavori.tsx — l'elenco nel riepilogo del pulsante.
+- backend/src/lavori/voci-iniziali.ts — voci 274 e 275.
+
+NESSUNA MIGRAZIONE. Backend build verde e **3120 test in 203 suite**; backoffice `npm run build` verde.
