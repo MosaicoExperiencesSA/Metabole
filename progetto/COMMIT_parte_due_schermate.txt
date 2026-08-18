@@ -1,0 +1,51 @@
+I due dati che la cliente non vede: l'analisi, e la scoperta che cambia la domanda
+
+Nessun codice di prodotto. Chiude la parte di ANALISI della voce 253 (i due dati grossi che il
+server manda e nessuna schermata mostra), e la chiude con un foglio da leggere prima di scrivere:
+`progetto/DECISIONE_Due_Schermate_App.md`.
+
+⚠️ LA SCOPERTA CHE CAMBIA LA DOMANDA SUL PRIMO DEI DUE
+`Obiettivo.tsx:465` calcola la barra «verso il tuo obiettivo» così:
+
+    const current = series[series.length - 1];   // l'ULTIMA misura, quella di stamattina
+    const pct = ((current - start) / (target - start)) * 100;
+
+`GET /me/progress`, per la stessa domanda, usa la MEDIA MOBILE — perché la regola del progetto
+(spec 7.2) è «si ragiona sempre sulla tendenza, mai sul singolo dato». Quindi oggi la cliente vede
+una percentuale che balla con l'acqua (due etti di ritenzione e la barra torna indietro in una
+giornata in cui non è successo niente), mentre il motore (`engine/signals-collector:39`) e l'allarme
+di stallo della coach (`signals.service:332`) ne vedono un'altra, più stabile, sulla stessa persona.
+
+⇒ Non è una schermata mancante: sono DUE RISPOSTE ALLA STESSA DOMANDA, che è la cosa che questo
+progetto ha deciso di non fare più. Il lavoro vero è togliere il conto locale, non aggiungere una
+pagina.
+
+DUE TRAPPOLE SUL SECONDO (`GET /me/cycle`), trovate nel codice
+- ⚠️ È un GET che SCRIVE: `getActiveCycle` fa `clientCycle.update`/`create` a ogni chiamata. Oggi lo
+  chiama solo lo staff; se lo chiama l'app, quella riga si riscrive a ogni apertura.
+- ⚠️ Il campo `gradimento` NON è il gradimento: è il minimo, fra le ricette del ciclo, del massimo
+  delle stelle di ognuna — con default 5 quando una ricetta non è mai stata valutata. Mostrarlo come
+  «il tuo gradimento: 5 ⭐» a chi non ha votato niente rifarebbe il difetto delle tre stelle
+  inventate (voce 270), dentro una schermata.
+
+COSA PROPONE IL FOGLIO
+- `/me/progress` dentro «I tuoi obiettivi», non in una pagina nuova: la barra usa il numero del
+  server, sopra c'è la tendenza settimanale, e si scrive SU COSA è calcolata (o il giorno che non si
+  muove dopo una pesata buona sembra rotta).
+- `/me/cycle` come scheda dentro il Menu: le due cotture (l'unica cosa che le cambia la cucina) e
+  l'esito del ciclo precedente. Il gradimento fuori, per il motivo qui sopra.
+
+⛔ E FINISCE CON CINQUE DECISIONI, perché il codice si scrive dopo: la percentuale passa alla media
+mobile (⚠️ per qualcuna il numero cambierà il giorno del rilascio, a volte all'indietro)? La
+proiezione della data obiettivo si mostra — o resta solo nel Report, dove è una figura dentro un
+documento e non una promessa in home? I giorni di stallo si mostrano? Cosa vede del ciclo? E
+`getActiveCycle` resta un GET che scrive?
+
+⚠️ La terza vale la pena chiederla alla nutrizionista: «ferma da 11 giorni» può essere la spinta
+giusta o la frase che la fa smettere, e non è una scelta di software.
+
+FILE
+- progetto/DECISIONE_Due_Schermate_App.md (nuovo, 161 righe)
+- backend/src/lavori/voci-iniziali.ts (la voce 253 ora rimanda al foglio: l'analisi non va rifatta)
+
+Nessun codice di prodotto, nessuna migrazione, nessun test nuovo.

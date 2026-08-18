@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🔭 **I due dati che la cliente non vede: l'analisi, e la scoperta che cambia la
+  domanda** (voce 253, parte di analisi chiusa). Nessun codice di prodotto: un foglio,
+  `progetto/DECISIONE_Due_Schermate_App.md`, da leggere prima di scrivere. ⚠️ **Il primo dei due non
+  è una schermata mancante.** `Obiettivo.tsx:465` calcola la barra «verso il tuo obiettivo»
+  sull'**ultima misura**; `GET /me/progress` la calcola sulla **media mobile**, perché la regola del
+  progetto (spec 7.2) è «si ragiona sempre sulla tendenza, mai sul singolo dato». Quindi la cliente
+  vede una percentuale che **balla con l'acqua** — due etti di ritenzione e la barra torna indietro
+  in una giornata in cui non è successo niente — mentre il motore e l'allarme di stallo della coach
+  ne leggono un'altra, più stabile, **sulla stessa persona**. Sono due risposte alla stessa domanda,
+  ed è la cosa che questo progetto ha deciso di non fare più: il lavoro vero è **togliere il conto
+  locale**, non aggiungere una pagina. ⚠️ E sul secondo, due trappole trovate nel codice: `GET
+  /me/cycle` **scrive** (`clientCycle.update`/`create` a ogni chiamata — oggi lo chiama solo lo
+  staff), e il campo `gradimento` **non è il gradimento** — è il minimo fra le ricette del ciclo del
+  massimo delle loro stelle, con **default 5 quando una ricetta non è mai stata valutata**:
+  mostrarlo rifarebbe il difetto delle tre stelle inventate (voce 270) dentro una schermata. Il
+  foglio propone `/me/progress` dentro «I tuoi obiettivi» e il ciclo come scheda nel Menu (le due
+  cotture, l'esito precedente), e ⛔ **finisce con cinque decisioni** — fra cui se mostrare la
+  **proiezione della data obiettivo** (scritta a una cliente diventa una promessa) e i **giorni di
+  stallo**, che ⚠️ vale la pena chiedere alla nutrizionista: «ferma da 11 giorni» può essere la
+  spinta giusta o la frase che la fa smettere.
+
 - `[Sviluppo]` 🧭 **Ordine del menu, difetto 7: le voci nascoste tornano DOVE le aveva messe.** La
   card lavora sulle voci **visibili**, quindi chi non ha un permesso quella riga non la vede e non
   può posizionarla — ma nelle sue preferenze c'è, ed è giusto che ci resti. `conNascoste` faceva la
