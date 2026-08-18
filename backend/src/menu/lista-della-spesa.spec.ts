@@ -65,6 +65,33 @@ describe('aggregaSpesa — quello che finisce nel carrello', () => {
     expect(primaCon[0].qty).toBe(100);
   });
 
+  /**
+   * ⚠️ IL CARRELLO SEGUE IL PIATTO, NON IL CATALOGO (revisione del 18/8 sera). Prima gli ingredienti
+   * si leggevano per `recipeId` e basta: una sostituzione concordata con Gaia non arrivava mai nella
+   * lista, e la cliente comprava le carote — scalate — invece delle biete.
+   */
+  it('⚠️ la sostituzione concordata arriva nel carrello, e si scala anche lei', () => {
+    const voci = aggregaSpesa(
+      [
+        {
+          meals: [
+            {
+              slot: 'lunch',
+              recipeId: 'r-pranzo',
+              porzione: 1.8,
+              substitutions: [{ from: 'carote', to: 'biete', reason: 'non graditi', fromQty: 100, toQty: 120, unit: 'g', concordataIl: '2026-08-18' }],
+            },
+          ],
+        },
+      ],
+      new Map([['r-pranzo', [ing('carote', 100, 'g'), ing('farro', 80, 'g')]]]),
+    );
+    expect(voci).toEqual([
+      { name: 'biete', qty: 216, unit: 'g', checked: false },
+      { name: 'farro', qty: 144, unit: 'g', checked: false },
+    ]);
+  });
+
   it('la ricetta che non c\'è più e la giornata illeggibile non fanno cadere la lista', () => {
     const voci = aggregaSpesa(
       [{ meals: [{ slot: 'lunch', recipeId: 'sparita' }] }, { meals: null }, { meals: [{ slot: 'dinner', recipeId: 'r-cena' }] }],

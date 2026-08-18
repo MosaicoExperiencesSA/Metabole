@@ -32,6 +32,7 @@
  * posto dove vive l'unica cosa che il server non sa ricostruire, cioè **cosa hai già messo nel
  * carrello**.
  */
+import { ingredientiEffettivi } from './ingredienti-effettivi';
 import type { IngredienteRicetta, MealSnapshot } from './pasto-giornata';
 import { quantitaScalata } from './porzione-scalata';
 
@@ -67,7 +68,13 @@ export function aggregaSpesa(
   for (const giorno of giorni) {
     if (!Array.isArray(giorno?.meals)) continue;
     for (const pasto of giorno.meals as MealSnapshot[]) {
-      const ingredienti = ingredientiPerRicetta.get(pasto?.recipeId) ?? [];
+      /**
+       * ⚠️ GLI INGREDIENTI SONO QUELLI DEL PIATTO, NON QUELLI DEL CATALOGO. Fino alla revisione del
+       * 18/8 sera qui si leggevano gli ingredienti per `recipeId` e basta: una sostituzione
+       * concordata con Gaia («carote → biete») non arrivava **mai** nel carrello. La cliente
+       * comprava le carote — per giunta scalate — e zero biete, e in cucina se ne accorgeva da sola.
+       */
+      const ingredienti = ingredientiEffettivi(ingredientiPerRicetta.get(pasto?.recipeId) ?? [], pasto ?? {});
       const fattore = pasto?.porzione ?? 1;
       for (const ing of ingredienti) {
         if (!ing?.name) continue;

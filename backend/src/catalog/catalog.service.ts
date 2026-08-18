@@ -14,7 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import { classificaColazione, nomiIngredienti, tagsDopoScelta, tipoConfermato, type TipoColazione } from '../vera/colazioni';
 import { METODI_COTTURA } from '../common/metodi-cottura';
-import { ingredientiScalati, porzioneDelGiorno } from '../menu/porzione-del-giorno';
+import { ingredientiScalati, pastoDelGiorno, porzioneDelGiorno } from '../menu/porzione-del-giorno';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
 import {
@@ -1305,9 +1305,21 @@ export class CatalogService {
         select: { meals: true },
       });
       if (!day) return scheda;
+      /**
+       * ⚠️ DUE COSE DIVERSE, E LA SECONDA VALE ANCHE SENZA LA PRIMA: la **porzione** (che scala le
+       * grammature) e le **sostituzioni** concordate in chat (che cambiano di cosa si parla). Un
+       * piatto non scalato può avere lo stesso una sostituzione: chiedendo solo la porzione, la
+       * scheda mostrava le carote a chi aveva concordato le biete (revisione del 18/8 sera).
+       */
+      const pasto = pastoDelGiorno(day.meals, recipeId, contesto.slot);
+      if (!pasto) return scheda;
       const porzione = porzioneDelGiorno(day.meals, recipeId, contesto.slot);
-      if (!porzione) return scheda;
-      const scalati = ingredientiScalati(scheda.ingredients, porzione.fattore);
+      const scalati = ingredientiScalati(scheda.ingredients, porzione?.fattore ?? 1, pasto.substitutions);
+      if (!porzione) {
+        // Niente porzione da dire: restano le kcal e il nome di catalogo, ma gli ingredienti sono
+        // quelli del piatto. `porzione` non si scrive: non c'è nessun moltiplicatore da annunciare.
+        return scalati ? { ...scheda, ingredients: scalati } : scheda;
+      }
       return {
         ...scheda,
         // ⚠️ Le kcal sono quelle dello SNAPSHOT, non `kcal × fattore`: sono il numero che la

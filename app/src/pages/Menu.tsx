@@ -305,7 +305,7 @@ export default function Menu() {
                     {m.substitutions && m.substitutions.length > 0 && (
                       <div style={{ fontSize: 11, color: '#0E7C66', margin: '2px 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <i className="ti ti-replace" style={{ fontSize: 13 }} />
-                        {m.substitutions.map(testoSostituzione).join(' · ')}
+                        {m.substitutions.map((s) => testoSostituzione(s, m.porzione)).join(' · ')}
                       </div>
                     )}
                     <div className="row-between">

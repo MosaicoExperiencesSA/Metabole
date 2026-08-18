@@ -34,13 +34,20 @@
  * ×3,24. Per questo la scheda si scala **solo se il chiamante lo chiede** (`?giorno=&slot=`): chi
  * non sa di poterlo chiedere continua a ricevere il catalogo, e la sua frase resta vera.
  */
-import type { MealSnapshot, IngredienteRicetta } from './pasto-giornata';
+import { ingredientiEffettivi } from './ingredienti-effettivi';
+import type { MealSnapshot, IngredienteRicetta, Substitution } from './pasto-giornata';
 import { PORZIONE_DA_DIRE, quantitaScalata } from './porzione-scalata';
 
 /** Quello che la scheda ricetta ha bisogno di sapere di questo pasto, in questo giorno. */
 export interface PorzioneDelGiorno {
   /** Il moltiplicatore applicato al piatto. Sempre sopra `PORZIONE_DA_DIRE`: sotto, si tace. */
   fattore: number;
+  /**
+   * Le sostituzioni concordate su QUESTO pasto. ⚠️ Servono perché la scheda mostri quello che c'è
+   * nel piatto e non quello che c'è nel catalogo: senza, la cliente che ha concordato «carote →
+   * biete» apre la ricetta e trova ancora le carote (revisione del 18/8 sera).
+   */
+  sostituzioni?: Substitution[];
   /** Le kcal che la cliente ha ricevuto (già scalate), dallo snapshot. */
   kcal?: number;
   /** Le kcal della porzione di catalogo. */
@@ -76,19 +83,40 @@ export function porzioneDelGiorno(
   recipeId: string,
   slot?: string,
 ): PorzioneDelGiorno | null {
+  const pasto = pastoDelGiorno(meals, recipeId, slot);
+  if (!pasto || nonCambiaNiente(pasto.porzione)) return null;
+  return {
+    fattore: pasto.porzione as number,
+    kcal: pasto.kcal,
+    kcalBase: pasto.kcalBase,
+    sostituzioni: pasto.substitutions,
+  };
+}
+
+/**
+ * Il pasto di quella giornata, quale che sia la sua porzione — o `null` se non si può dire quale.
+ *
+ * ⚠️ **Serve separato da `porzioneDelGiorno`**, e il motivo è un caso che la prima versione perdeva:
+ * un piatto **non scalato** può avere lo stesso delle **sostituzioni** concordate in chat. Chiedendo
+ * solo la porzione si tornava `null`, e la scheda mostrava le carote a chi aveva concordato le
+ * biete. La porzione e le sostituzioni sono due cose diverse: qui si trova il pasto, poi ognuna
+ * decide per sé.
+ */
+export function pastoDelGiorno(meals: unknown, recipeId: string, slot?: string): MealSnapshot | null {
   if (!Array.isArray(meals) || !recipeId) return null;
   const candidati = (meals as MealSnapshot[]).filter(
     (m) => m && m.recipeId === recipeId && (!slot || m.slot === slot),
   );
   if (!candidati.length) return null;
   // ⚠️ Lo stesso piatto in due pasti dello stesso giorno con DUE fattori diversi (il tetto dello
-  // spuntino è più basso di quello dei principali: succede davvero). Senza lo slot non si può
-  // scegliere, e sceglierne uno a caso vuol dire mostrare la grammatura dell'altro pasto.
-  const fattori = new Set(candidati.map((m) => (nonCambiaNiente(m.porzione) ? 1 : (m.porzione as number))));
-  if (fattori.size > 1) return null;
-  const scelto = candidati[0];
-  if (nonCambiaNiente(scelto.porzione)) return null;
-  return { fattore: scelto.porzione as number, kcal: scelto.kcal, kcalBase: scelto.kcalBase };
+  // spuntino è più basso di quello dei principali: succede davvero), o con sostituzioni diverse.
+  // Senza lo slot non si può scegliere, e sceglierne uno a caso vuol dire mostrare il pasto
+  // dell'altro: meglio «non lo so».
+  const impronte = new Set(
+    candidati.map((m) => `${nonCambiaNiente(m.porzione) ? 1 : m.porzione}|${JSON.stringify(m.substitutions ?? [])}`),
+  );
+  if (impronte.size > 1) return null;
+  return candidati[0];
 }
 
 /**
@@ -99,10 +127,22 @@ export function porzioneDelGiorno(
  * decisione della nutrizionista e non è stata presa (vedi `DECISIONE_Porzioni_Scalate_Strada_C.md`).
  * ⚠️ Un ingrediente **senza quantità** resta senza quantità: moltiplicare un vuoto darebbe uno zero,
  * e «0 g di olio» è un'istruzione, non un dato mancante.
+ *
+ * ⚠️ E prima si applicano le **sostituzioni concordate** (`ingredientiEffettivi`): la scheda deve
+ * mostrare quello che c'è nel piatto di questa cliente, non quello che c'è nel catalogo. Fino alla
+ * revisione del 18/8 sera chi aveva concordato «carote → biete» apriva la ricetta e trovava ancora
+ * le carote, scalate.
  */
-export function ingredientiScalati(ingredients: unknown, fattore: number): IngredienteRicetta[] | null {
+export function ingredientiScalati(
+  ingredients: unknown,
+  fattore: number,
+  sostituzioni?: Substitution[],
+): IngredienteRicetta[] | null {
   if (!Array.isArray(ingredients)) return null;
-  return (ingredients as IngredienteRicetta[]).map((ing) => {
+  // ⚠️ PRIMA le sostituzioni, POI la scalatura: si scala quello che c'è nel piatto. Invertendo,
+  // si scalerebbe un ingrediente che quella cliente non ha più.
+  const effettivi = ingredientiEffettivi(ingredients as IngredienteRicetta[], { substitutions: sostituzioni });
+  return effettivi.map((ing) => {
     const qta = quantitaScalata(ing?.qty, fattore, ing?.unit);
     return qta === null ? ing : { ...ing, qty: qta };
   });

@@ -70,7 +70,20 @@ export interface ApiSubstitution {
  * biete» dice alla cliente cosa mettere davvero nel piatto, che mentre cucina è l'unica cosa
  * che le serve sapere. Senza grammi resta la forma di sempre.
  */
-export function testoSostituzione(sub: ApiSubstitution): string {
+export function testoSostituzione(sub: ApiSubstitution, porzione?: number): string {
+  /**
+   * ⚠️ SUL PIATTO SCALATO LE GRAMMATURE QUI NON SI DICONO — trovato rileggendo, il 18/8 sera.
+   * `fromQty`/`toQty` sono scritte una volta sola, al momento dell'accordo in chat, e sono quelle di
+   * **catalogo**: su un pranzo cresciuto ×1,8 questa riga diceva «100 g carote → 100 g biete» due
+   * righe sopra a una scheda ricetta che dice 216, e a una riga che dice «nella ricetta trovi già le
+   * tue quantità». Tre numeri diversi per la stessa cosa, e chi cucina ne sceglie uno.
+   *
+   * ⚠️ Non si scalano **qui**: la regola di arrotondamento vive nel server (`quantitaScalata`), e
+   * riscriverla nell'app sarebbe la terza copia. Si dice **cosa** è cambiato — che è l'informazione
+   * di questa riga — e per **quanto** si manda alla ricetta, che è già scalata e ha una fonte sola.
+   */
+  const scalato = !!porzione && Number.isFinite(porzione) && porzione > PORZIONE_DA_DIRE;
+  if (scalato) return `${sub.from} → ${sub.to}`;
   const q = (qta?: number, unita?: string) => (qta !== undefined && qta > 0 ? `${qta}${unita ? ` ${unita}` : ''} ` : '');
   // A destra l'unità del sostituto: sono due alimenti diversi e possono misurarsi in modi diversi.
   return `${q(sub.fromQty, sub.unit)}${sub.from} → ${q(sub.toQty, sub.unitA ?? sub.unit)}${sub.to}`;

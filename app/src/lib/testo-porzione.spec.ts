@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PORZIONE_DA_DIRE, testoIngredientiScheda, testoPorzione } from './meals';
+import { PORZIONE_DA_DIRE, testoIngredientiScheda, testoPorzione, testoSostituzione } from './meals';
 
 describe('testoPorzione — la riga che impedisce alla cliente di leggere due numeri diversi', () => {
   /**
@@ -79,5 +79,30 @@ describe('testoIngredientiScheda — chi comanda è la risposta del server, non 
    */
   it('la scheda scalata parla anche se l\'app non sapeva niente del fattore', () => {
     expect(testoIngredientiScheda({ porzioneScheda: 1.6 })?.scalata).toBe(true);
+  });
+});
+
+/**
+ * LA RIGA DELLA SOSTITUZIONE SUL PIATTO SCALATO (revisione del 18/8 sera).
+ *
+ * `fromQty`/`toQty` sono scritte una volta sola, al momento dell'accordo in chat, e sono quelle di
+ * catalogo: su un pranzo cresciuto ×1,8 questa riga diceva «100 g carote → 100 g biete» due righe
+ * sopra a una scheda ricetta che ne dice 216. Tre numeri per la stessa cosa, e chi cucina ne sceglie
+ * uno.
+ */
+describe('testoSostituzione', () => {
+  const sub = { from: 'carote', to: 'biete', reason: 'non graditi', fromQty: 100, toQty: 120, unit: 'g' };
+
+  it('sul piatto NON scalato le grammature restano: sono giuste', () => {
+    expect(testoSostituzione(sub)).toBe('100 g carote → 120 g biete');
+    expect(testoSostituzione(sub, 1)).toBe('100 g carote → 120 g biete');
+  });
+
+  it('⚠️ sul piatto scalato si dice COSA è cambiato, e il quanto lo dice la ricetta', () => {
+    expect(testoSostituzione(sub, 1.8)).toBe('carote → biete');
+  });
+
+  it('sotto la soglia niente cambia: non è un piatto scalato', () => {
+    expect(testoSostituzione(sub, 1.03)).toBe('100 g carote → 120 g biete');
   });
 });

@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 🥬 **Le sostituzioni di Gaia arrivano nel carrello e nella scheda ricetta** (voce 284,
+  aperta e chiusa nella notte). Era il rilievo più grosso della revisione, e non una regressione: era
+  lì da prima, e le consegne della sera l'hanno reso visibile. ⚠️ **La lista della spesa non
+  applicava le sostituzioni** — `aggregaSpesa` leggeva gli ingredienti per `recipeId` e ignorava
+  `pasto.substitutions`: chi aveva concordato «carote → biete» comprava le carote, per giunta
+  scalate ×1,8, e zero biete. Un errore che non si vede nell'app: si vede al banco frigo. ⚠️ E la
+  **scheda ricetta** faceva lo stesso. ⚠️ **La funzione giusta esisteva già** — `ingredientiEffettivi`
+  — ma stava **dentro `sostituzione-chat.service.ts`**, un servizio che si porta dietro audit,
+  config, segnalazioni e Vera: chi aveva bisogno solo di quella regola non poteva chiamarla senza
+  tirarsi dietro tutto il resto, e infatti non la chiamava. **Una funzione difficile da chiamare è
+  una funzione che qualcuno dimenticherà**: adesso vive da sola, senza dipendenze, e la importano
+  tutti e tre i posti che rispondono alla stessa domanda. ⚠️ **Prima si sostituisce, poi si scala**:
+  invertendo si scalerebbe un ingrediente che quella cliente non ha più. ⚠️ E `pastoDelGiorno` trova
+  il pasto **anche senza moltiplicatore**, perché un piatto non scalato può avere lo stesso una
+  sostituzione — porzione e sostituzioni sono due domande diverse sullo stesso pasto. ⚠️ Nell'app, sul
+  piatto scalato la riga della sostituzione **non dice più le grammature**: `fromQty`/`toQty` sono di
+  catalogo e scritte una volta sola, quindi diceva «100 g → 120 g» due righe sopra a una scheda che
+  dice 216 — tre numeri per la stessa cosa. Si dice **cosa** è cambiato, e il **quanto** lo dice la
+  ricetta, che ha una fonte sola. 9 test (224 suite, 3521 verdi; app 106). Nessuna migrazione.
+
 - `[Sviluppo]` 🔍 **La revisione della sera: sette correzioni sul lavoro appena consegnato.** Prima
   di chiudere ho fatto rileggere le sei consegne della sera da due revisori avversariali, come il
   17/8 — e come il 17/8 hanno trovato roba vera su codice **già pushato, verde e testato**. ⚠️ **La

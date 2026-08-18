@@ -19,6 +19,9 @@ import {
 // §16.9: una funzione, non un servizio iniettato. Il percorso del pasto non deve dipendere da un
 // modulo di backoffice — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
+// ⚠️ Esce da qui e vive da sola: la chiamano anche la lista della spesa e la scheda ricetta.
+export { ingredientiEffettivi } from './ingredienti-effettivi';
+import { ingredientiEffettivi } from './ingredienti-effettivi';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ordinaAlternative,
@@ -171,35 +174,6 @@ export interface CorrezioneCambio {
 /** Annullamento esplicito: solo una risposta secca, per non confonderla con «non mi piace». */
 const ANNULLA_SECCO = /^(no|annulla|lascia stare|lascia perdere|niente|nulla)[.!]?$/;
 
-/**
- * Gli ingredienti come stanno NEL PIATTO oggi: quelli della ricetta di catalogo, con sopra le
- * sostituzioni già concordate.
- *
- * Senza questo, Gaia negava l'esistenza di un alimento che aveva scritto lei: concordato ieri
- * «carote → biete», oggi la cliente apre il menu, legge «biete 100 g», preme Sostituisci e
- * scrive «le biete» — e si sentiva rispondere che le biete non ci sono, perché nessuna ricetta
- * di catalogo le contiene. Due tentativi così e il dialogo passava alla coach.
- */
-export function ingredientiEffettivi(
-  ingredientiRicetta: IngredienteRicetta[],
-  pasto: { substitutions?: Substitution[] },
-): IngredienteRicetta[] {
-  let out = ingredientiRicetta.map((i) => ({ ...i }));
-  for (const s of pasto.substitutions ?? []) {
-    let sostituito = false;
-    out = out.map((i) => {
-      if (sostituito || !i?.name || !combaciaAlimento(i.name, s.from)) return i;
-      sostituito = true;
-      return { name: s.to, qty: s.toQty ?? i.qty, unit: s.unitA ?? s.unit ?? i.unit };
-    });
-    // Sostituzione che non trova la sua origine (piatto cambiato, catena di cambi): il
-    // sostituto va comunque considerato presente, altrimenti resta invisibile.
-    if (!sostituito && !out.some((i) => !!i?.name && combaciaAlimento(i.name, s.to))) {
-      out.push({ name: s.to, qty: s.toQty, unit: s.unitA ?? s.unit });
-    }
-  }
-  return out;
-}
 
 /** Maiuscola sulla prima lettera: le etichette dei pasti nascono minuscole per stare in frase. */
 const maiuscolaIniziale = (t: string): string => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);

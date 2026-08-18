@@ -1,0 +1,48 @@
+Le sostituzioni di Gaia arrivano nel carrello e nella scheda ricetta
+
+Il rilievo più grosso della revisione di stanotte, e non era una regressione: era lì da prima, e le
+consegne della sera l'hanno reso visibile.
+
+⚠️ LA LISTA DELLA SPESA NON APPLICAVA LE SOSTITUZIONI
+`aggregaSpesa` leggeva gli ingredienti per `recipeId` e ignorava `pasto.substitutions`: chi aveva
+concordato «carote → biete» con Gaia comprava le carote — per giunta scalate ×1,8 — e zero biete. È
+un errore che non si vede nell'app: si vede al banco frigo.
+
+⚠️ E LA SCHEDA RICETTA FACEVA LO STESSO: mostrava l'ingrediente di catalogo a chi nel piatto ne
+aveva un altro.
+
+⚠️ LA FUNZIONE GIUSTA ESISTEVA GIÀ, ED È IL PEZZO CHE VALE LA CONSEGNA
+`ingredientiEffettivi` c'era, ma stava DENTRO `sostituzione-chat.service.ts` — un servizio che si
+porta dietro audit, config, segnalazioni e Vera. Chi aveva bisogno solo di quella regola non poteva
+chiamarla senza tirarsi dietro tutto il resto, e infatti non la chiamava. **Una funzione difficile
+da chiamare è una funzione che qualcuno dimenticherà.** Adesso vive da sola in
+`menu/ingredienti-effettivi.ts`, senza dipendenze, e la importano tutti e tre i posti che
+rispondono alla stessa domanda: il dialogo con Gaia, la scheda ricetta, la lista della spesa.
+
+⚠️ PRIMA SI SOSTITUISCE, POI SI SCALA. Invertendo si scalerebbe un ingrediente che quella cliente
+non ha più.
+
+⚠️ E DUE COSE CHE SEMBRAVANO UNA. `pastoDelGiorno` trova il pasto anche quando NON c'è nessun
+moltiplicatore: un piatto non scalato può avere lo stesso una sostituzione, e chiedendo solo la
+porzione la scheda continuava a mostrare le carote. La porzione e le sostituzioni sono due domande
+diverse sullo stesso pasto.
+
+⚠️ TERZA COSA, NELL'APP: sul piatto scalato la riga della sostituzione non dice più le grammature,
+dice «carote → biete». `fromQty`/`toQty` sono scritte una volta sola, al momento dell'accordo in
+chat, e sono di catalogo: su un pranzo ×1,8 quella riga diceva «100 g carote → 120 g biete» due
+righe sopra a una scheda ricetta che dice 216 e a una riga che dice «nella ricetta trovi già le tue
+quantità». Tre numeri per la stessa cosa, e chi cucina ne sceglie uno. Non si scalano nell'app: la
+regola di arrotondamento vive nel server, e riscriverla di là sarebbe la terza copia. Si dice COSA è
+cambiato — che è l'informazione di quella riga — e il QUANTO lo dice la ricetta, che ha una fonte
+sola.
+
+FILE
+- backend: `menu/ingredienti-effettivi.ts` (nuovo, la funzione spostata) · `menu/lista-della-spesa.ts`
+  · `menu/porzione-del-giorno.ts` (`pastoDelGiorno`) · `catalog/catalog.service.ts` ·
+  `menu/sostituzione-chat.service.ts` (ora la importa)
+- app: `lib/meals.ts` (`testoSostituzione`) · `pages/Menu.tsx`
+- `backend/src/lavori/voci-iniziali.ts` (voce 284, aperta e chiusa)
+
+9 test nuovi. 224 suite / 3521 verdi, app 106, backoffice 25. Nessuna migrazione.
+⚠️ La parte app arriva alle clienti con la prossima pubblicazione o OTA; la lista della spesa e la
+scheda ricetta si correggono col deploy.

@@ -1,4 +1,4 @@
-import { ingredientiScalati, porzioneDelGiorno } from './porzione-del-giorno';
+import { ingredientiScalati, pastoDelGiorno, porzioneDelGiorno } from './porzione-del-giorno';
 import { PORZIONE_DA_DIRE } from './porzione-scalata';
 
 /** Una giornata come sta in `MenuDay.meals`. */
@@ -118,5 +118,55 @@ describe('ingredientiScalati — la stessa regola della lista della spesa', () =
   it('una lista illeggibile torna null, e chi chiama lascia la scheda com\'era', () => {
     expect(ingredientiScalati(undefined, 1.8)).toBeNull();
     expect(ingredientiScalati('farro, ceci' as unknown, 1.8)).toBeNull();
+  });
+});
+
+/**
+ * LE SOSTITUZIONI VALGONO ANCHE SENZA PORZIONE (revisione del 18/8 sera).
+ *
+ * La porzione e le sostituzioni sono due cose diverse: un piatto non scalato può avere lo stesso
+ * «carote → biete» concordato in chat. Chiedendo solo la porzione, la scheda mostrava le carote.
+ */
+describe('pastoDelGiorno e le sostituzioni', () => {
+  const conSostituzione = [
+    {
+      slot: 'lunch',
+      recipeId: 'r-pranzo',
+      name: 'Farro e ceci',
+      kcal: 495,
+      substitutions: [{ from: 'carote', to: 'biete', reason: 'non graditi', fromQty: 100, toQty: 120, unit: 'g', concordataIl: '2026-08-18' }],
+    },
+  ];
+
+  it('⚠️ il pasto si trova anche quando non c\'è nessun moltiplicatore', () => {
+    expect(porzioneDelGiorno(conSostituzione, 'r-pranzo')).toBeNull();
+    expect(pastoDelGiorno(conSostituzione, 'r-pranzo')?.substitutions).toHaveLength(1);
+  });
+
+  it('⚠️ e gli ingredienti della scheda sono quelli del PIATTO: prima si sostituisce, poi si scala', () => {
+    const scalati = ingredientiScalati(
+      [{ name: 'carote', qty: 100, unit: 'g' }, { name: 'farro', qty: 80, unit: 'g' }],
+      1.8,
+      conSostituzione[0].substitutions as never,
+    );
+    // 120 g di biete (la quantità concordata) × 1,8, e le carote non ci sono più.
+    expect(scalati).toEqual([
+      { name: 'biete', qty: 216, unit: 'g' },
+      { name: 'farro', qty: 144, unit: 'g' },
+    ]);
+  });
+
+  it('senza sostituzioni non cambia niente rispetto a prima', () => {
+    expect(ingredientiScalati([{ name: 'farro', qty: 80, unit: 'g' }], 1.5)).toEqual([{ name: 'farro', qty: 120, unit: 'g' }]);
+  });
+
+  /** ⚠️ Due volte lo stesso piatto con sostituzioni diverse: non si indovina, come per i fattori. */
+  it('⚠️ due pasti uguali con sostituzioni diverse, senza slot: non si sceglie', () => {
+    const doppio = [
+      { slot: 'snack_am', recipeId: 'r', name: 'x', kcal: 100, substitutions: [{ from: 'a', to: 'b', reason: 'r', concordataIl: 'x' }] },
+      { slot: 'snack_pm', recipeId: 'r', name: 'x', kcal: 100 },
+    ];
+    expect(pastoDelGiorno(doppio, 'r')).toBeNull();
+    expect(pastoDelGiorno(doppio, 'r', 'snack_am')?.substitutions).toHaveLength(1);
   });
 });
