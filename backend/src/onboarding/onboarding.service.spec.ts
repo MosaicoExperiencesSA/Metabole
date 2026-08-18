@@ -310,6 +310,55 @@ describe('OnboardingService', () => {
   });
 
   /**
+   * AIUTARE A SCRIVERE L'ELENCO — ANCHE QUI, che è la porta d'ingresso vera.
+   *
+   * La regola (Simone, 18/8) era arrivata su quattro porte e restava fuori proprio il questionario,
+   * dove quasi tutte le esclusioni vengono scritte la prima volta.
+   */
+  describe('le esclusioni scritte come frasi si dicono a chi le scrive', () => {
+    const upsert = () => prisma.clientProfile.upsert.mock.calls[0][0];
+    const conProfilo = () => {
+      prisma.clientProfile.findUnique.mockResolvedValue({
+        id: 'p1', userId: 'u1', screeningFlag: false, onboardingCompletedAt: new Date(),
+        dietStyle: 'mediterranean', mealsPerDay: 5, pathType: 'five', regime: 'omnivore',
+        allergies: [], allergiesOther: [], intolerances: [], intolerancesOther: [],
+        assignedCoach: { id: 's-c', displayName: 'Marta' },
+        assignedNutritionist: { id: 's-n', displayName: 'Dr.ssa Bini' },
+      });
+    };
+
+    it('⚠️ «pesce tranne salmone» non toglie niente, e adesso glielo diciamo', async () => {
+      conProfilo();
+      const esito: any = await service.submitAnswers('u1', {
+        ...baseAnswers(),
+        dislikedFoods: ['pesce tranne salmone', 'tonno'],
+      });
+      expect(esito.aiutoEsclusioni).toContain('salmone');
+      expect(esito.aiutoEsclusioni).toContain('uno per virgola');
+    });
+
+    /**
+     * ⚠️ QUI NON SI SCARTA E NON SI BLOCCA, ed è la differenza con le altre quattro porte: siamo
+     * dentro il cancello del carrello, e fermare il questionario per una frase scritta male vuol
+     * dire lasciare una cliente in mezzo al percorso. Si salva quello che ha scritto, e si dice.
+     */
+    it('⚠️ il questionario NON si blocca: quello che ha scritto viene salvato lo stesso', async () => {
+      conProfilo();
+      await service.submitAnswers('u1', { ...baseAnswers(), dislikedFoods: ['pesce tranne salmone'] });
+      expect(upsert().update.dislikedFoods).toEqual(['pesce tranne salmone']);
+    });
+
+    it('un elenco scritto bene non dice niente: un avviso che compare sempre non è un avviso', async () => {
+      conProfilo();
+      const esito: any = await service.submitAnswers('u1', {
+        ...baseAnswers(),
+        dislikedFoods: ['funghi', 'cavolfiore'],
+      });
+      expect(esito.aiutoEsclusioni).toBeUndefined();
+    });
+  });
+
+  /**
    * IL QUESTIONARIO SI FA UNA VOLTA SOLA, E DOPO NON DECIDE PIÙ LA DIETA.
    *
    * Regola di Simone (11/8): «il cliente può fare il questionario solo una volta, al primo accesso.

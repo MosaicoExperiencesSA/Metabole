@@ -967,6 +967,16 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true, // 18/8
   },
 
+  {
+    chiave: 'esclusioni-questionario',
+    titolo: 'Le esclusioni scritte come frasi: adesso l\'avviso c\'è anche nel QUESTIONARIO',
+    dettaglio:
+      'Chiusa il 18/8 sera. La regola («le esclusioni devono essere un elenco, ogni parola seguita da una virgola, aiutiamo le clienti a scrivere in modo corretto» — Simone, 18/8) era arrivata su **quattro porte**: profilo in app, pulsante «non gradisco», scheda backoffice, scheda coach. ⚠️ **Restava fuori proprio il questionario, che è la porta d\'ingresso vera**: è lì che quasi tutte le esclusioni vengono scritte la prima volta, e «pesce tranne salmone» scritto lì non toglieva niente dal menu senza che nessuno glielo dicesse. ⚠️ **Qui non si scarta e non si blocca**, ed è la differenza con le altre quattro: là la voce non viene salvata e il testo torna nel campo, perché lei è a un dito da quel campo; qui siamo dentro il **cancello del carrello**, e fermare il questionario per una frase scritta male vuol dire lasciare una cliente in mezzo al percorso. Si salva quello che ha scritto, si dice cosa succede davvero, e si dice **dove correggerlo** (Profilo → Cibi esclusi). ⚠️ Si guarda quello che arriva **prima** del filtro spezie, come fa il profilo: una frase scritta male non è un problema di spezie. ⚠️ Il campo di risposta è **suo** (`aiutoEsclusioni`) e non dentro `avvisiEsclusioni`: quella lista l\'app la mostra sotto il titolo «Allergie e intolleranze», e questa non è né l\'una né l\'altra — così l\'app pubblicata, che il campo nuovo non lo conosce, non mostra una frase sotto il cartello sbagliato. Le parole restano quelle del server (`common/esclusioni-scritte-bene.ts`), che è l\'unico posto dove la regola vive. 3 test. Nessuna migrazione. ⚠️ Arriva alle clienti con la **prossima pubblicazione o OTA**.',
+    categoria: CODICE,
+    ordine: 283,
+    fatta: true, // 18/8
+  },
+
   /**
    * ⚠️ LE TRE RIGHE DOPPIE DEL 13/8 (voce 224). Non sono lavori: sono duplicati rimasti in pagina
    * con una chiave diversa da quella delle voci vere — che sono, nell'ordine,

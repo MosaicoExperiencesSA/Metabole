@@ -301,6 +301,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
   // commerciale, e poi si azzerano. Vedi `backend/src/menu/spezie.ts`.
   const [avvisiSpezie, setAvvisiSpezie] = useState<NonNullable<OnboardingResult['avvisiSpezie']> | null>(null);
   const [avvisiEsclusioni, setAvvisiEsclusioni] = useState<string[] | null>(null);
+  const [aiutoEsclusioni, setAiutoEsclusioni] = useState<string | null>(null);
   const [muted, setMutedState] = useState(isMuted());
   const { user } = useAuth();
   // Bozza locale dell'onboarding: se l'utente perde la linea o chiude l'app a metà,
@@ -482,6 +483,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* ignora */ } }
       setAvvisiSpezie(res.avvisiSpezie ?? null);
       setAvvisiEsclusioni(res.avvisiEsclusioni?.length ? res.avvisiEsclusioni : null);
+      setAiutoEsclusioni(res.aiutoEsclusioni ?? null);
       setResult(res);
     } catch (e) {
       setSubmitErr(e instanceof ApiError ? e.message : 'Qualcosa non ha funzionato. Riprova.');
@@ -522,6 +524,38 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
             </div>
           ))}
           <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => setAvvisiSpezie(null)}>
+            Ho capito, andiamo avanti
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /**
+   * ⚠️ Ha scritto una FRASE fra i cibi non graditi («pesce tranne salmone»), e il motore legge
+   * alimenti: così com'è non toglie niente dal menu.
+   *
+   * ⚠️ Qui, a differenza del Profilo, quello che ha scritto **è stato salvato**: il questionario è
+   * il cancello del carrello e fermarlo per una frase vorrebbe dire lasciarla in mezzo al percorso.
+   * Quindi la schermata non dice «non l'ho salvato», dice **cosa succede davvero** e dove si
+   * corregge — con le stesse parole del Profilo, perché la regola vive in un posto solo (lato
+   * server, `common/esclusioni-scritte-bene.ts`).
+   */
+  if (result && aiutoEsclusioni) {
+    return (
+      <div className="app-frame">
+        <div className="screen no-tabbar center" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14, padding: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <i className="ti ti-list-check" style={{ color: '#C98A2E', fontSize: 22 }} />
+            <h2 style={{ margin: 0, fontSize: 18 }}>Scrivilo come un elenco</h2>
+          </div>
+          <div style={{ padding: '12px 13px', borderRadius: 12, background: '#FDF6E8', border: '1px solid #F0DFBA' }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.55, color: '#5C4A22', whiteSpace: 'pre-line' }}>{aiutoEsclusioni}</div>
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Quello che hai scritto è salvato: puoi correggerlo quando vuoi dal Profilo, in «Cibi esclusi».
+          </div>
+          <button className="btn" style={{ width: '100%', justifyContent: 'center', padding: 12 }} onClick={() => setAiutoEsclusioni(null)}>
             Ho capito, andiamo avanti
           </button>
         </div>

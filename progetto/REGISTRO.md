@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-18
 
+- `[Sviluppo]` 📝 **Le esclusioni scritte come frasi: l'avviso adesso c'è anche nel QUESTIONARIO**
+  (voce 283, coda della 267). La regola di stamattina era arrivata su quattro porte — profilo,
+  «non gradisco», scheda backoffice, scheda coach — e ⚠️ **restava fuori proprio il questionario,
+  che è la porta d'ingresso vera**: è lì che quasi tutte le esclusioni vengono scritte la prima
+  volta, e «pesce tranne salmone» scritto lì non toglieva niente dal menu senza che nessuno glielo
+  dicesse. ⚠️ **Qui non si scarta e non si blocca**, ed è la differenza con le altre quattro: là la
+  voce non viene salvata e il testo torna nel campo, perché lei è a un dito da quel campo; qui
+  siamo dentro il **cancello del carrello**, e fermare il questionario per una frase scritta male
+  vuol dire lasciare una cliente in mezzo al percorso. Si salva, si dice cosa succede davvero, e si
+  dice **dove correggerlo**. ⚠️ Si guarda quello che arriva **prima** del filtro spezie, come fa il
+  profilo. ⚠️ Il campo di risposta è **suo** (`aiutoEsclusioni`) e non dentro `avvisiEsclusioni`:
+  quella lista l'app la mostra sotto il titolo «Allergie e intolleranze», e questa non è né l'una né
+  l'altra — così l'app pubblicata, che il campo nuovo non lo conosce, non mostra una frase sotto il
+  cartello sbagliato. Le parole restano quelle del server: la regola vive in un posto solo. 3 test
+  (223 suite, 3505 verdi; app 103). Nessuna migrazione. ⚠️ Arriva alle clienti con la prossima
+  pubblicazione o OTA.
+
 - `[Sviluppo]` 🩺 **«Serve una visita» adesso lo sa anche la coach: l'attività si apre da sola** (la
   voce «La visita nel calendario», aperta da giorni). La nutrizionista sceglieva «serve una visita»,
   scriveva la nota obbligatoria e salvava: la decisione finiva sul profilo, la nota nella lista note,

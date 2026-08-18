@@ -1,0 +1,36 @@
+Le esclusioni scritte come frasi: adesso l'avviso c'è anche nel questionario
+
+LA PORTA CHE MANCAVA
+La regola di stamattina («le esclusioni devono essere un elenco, ogni parola seguita da una virgola,
+aiutiamo le clienti a scrivere in modo corretto») era arrivata su quattro porte: profilo in app,
+pulsante «non gradisco», scheda backoffice, scheda coach. ⚠️ Restava fuori il QUESTIONARIO, che è la
+porta d'ingresso vera — è lì che quasi tutte le esclusioni vengono scritte la prima volta. «pesce
+tranne salmone» scritto lì non toglieva niente dal menu, e nessuno glielo diceva.
+
+⚠️ QUI NON SI SCARTA E NON SI BLOCCA, ed è la differenza con le altre quattro
+Là la voce non viene salvata e il testo torna nel campo, perché lei è a un dito da quel campo. Qui
+siamo dentro il cancello del carrello: fermare il questionario per una frase scritta male vuol dire
+lasciare una cliente in mezzo al percorso. Quindi si salva quello che ha scritto, si dice cosa
+succede davvero — «così com'è non toglie niente dal menu» — e si dice DOVE correggerlo (Profilo →
+Cibi esclusi).
+
+⚠️ Si guarda quello che arriva PRIMA del filtro spezie, come fa il profilo: una frase scritta male
+non è un problema di spezie, e vederla per prima è quello che le fa capire cosa sta perdendo.
+
+⚠️ IL CAMPO È SUO, e non dentro `avvisiEsclusioni`
+Quella lista l'app la mostra sotto il titolo «Allergie e intolleranze», e questa non è né l'una né
+l'altra. Un campo nuovo (`aiutoEsclusioni`) è anche il modo di non far comparire una frase sotto il
+cartello sbagliato sull'app pubblicata, che il campo non lo conosce: lo ignora, e per lei non cambia
+niente finché non esce l'aggiornamento.
+
+Le parole restano quelle del server (`common/esclusioni-scritte-bene.ts`): la regola vive in un
+posto solo, e l'app la mostra.
+
+FILE
+- backend/src/onboarding/onboarding.service.ts (+ .spec.ts, 3 test)
+- app/src/onboarding/types.ts · app/src/pages/Onboarding.tsx (schermata «Scrivilo come un elenco»,
+  con le stesse parole del Profilo)
+- backend/src/lavori/voci-iniziali.ts (voce 283)
+
+223 suite / 3505 test verdi lato backend, app 103 test e build verde. Nessuna migrazione.
+⚠️ Arriva alle clienti con la prossima pubblicazione o OTA.

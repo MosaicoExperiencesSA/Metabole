@@ -68,4 +68,12 @@ export interface OnboardingResult {
    * a escluderle.
    */
   avvisiEsclusioni?: string[];
+  /**
+   * Quello che ha scritto fra i cibi non graditi è una **frase** e non un alimento («pesce tranne
+   * salmone»): il motore legge alimenti, quindi così com'è non toglie niente dal menu. ⚠️ Campo suo
+   * e non dentro `avvisiEsclusioni`, che l'app mostra sotto il titolo «Allergie e intolleranze».
+   * Le parole le costruisce il server (`common/esclusioni-scritte-bene.ts`), che è l'unico posto
+   * dove quella regola vive.
+   */
+  aiutoEsclusioni?: string;
 }
