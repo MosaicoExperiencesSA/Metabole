@@ -222,6 +222,22 @@ export function NutritionistHome() {
           <h2 style={{ marginTop: 0 }}>Da validare</h2>
 
           <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0' }}>Decisioni del motore ({conteggio(queue?.counts.engineDecisions ?? 0, queue?.mostrati?.engineDecisions ?? queue?.engineDecisions.length ?? 0)})</h3>
+          {/*
+            ⚠️ COSA FANNO DAVVERO QUESTI DUE PULSANTI — la domanda di Nocanty, risposta il 19/8.
+            «Presa visione» e «Correggi…» scrivono la stessa cosa: `reviewOutcome`, chi e quando, e una
+            riga di registro. ⚠️ **La proposta del motore non viene applicata**, nemmeno confermata:
+            `reviewDecision` non azzera `flaggedForReview`, e il menu legge solo le decisioni non
+            segnalate. Il pulsante si chiamava «Conferma», che è la parola con cui si dice «fallo»:
+            chi lo premeva credeva di aver applicato qualcosa. ⛔ Farlo applicare davvero è bloccato
+            sul numero di Nocanty — di quanto si alzano le calorie — e non è una decisione di software.
+          */}
+          {queue && queue.engineDecisions.length > 0 && (
+            <div className="muted" style={{ fontSize: 11, margin: '0 0 6px', lineHeight: 1.4 }}>
+              Questi due pulsanti <b>registrano che l'hai letta</b>: la proposta del motore non viene
+              applicata al piano in nessuno dei due casi. Per cambiare davvero il piano si passa dalla
+              scheda della cliente.
+            </div>
+          )}
           {(!queue || queue.engineDecisions.length === 0) ? (
             <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Nessuna decisione da rivedere.</div>
           ) : (
@@ -239,7 +255,7 @@ export function NutritionistHome() {
                   </div>
                 </div>
                 <div className="row" style={{ gap: 6 }}>
-                  <button className="btn sm" onClick={() => reviewDecision(d.id, 'confirm')}>Conferma</button>
+                  <button className="btn sm" onClick={() => reviewDecision(d.id, 'confirm')}>Presa visione</button>
                   <button className="btn ghost sm" onClick={() => void apriAzioni(d.id)}>Correggi…</button>
                 </div>
               </div>

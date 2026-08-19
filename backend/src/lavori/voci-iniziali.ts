@@ -941,6 +941,16 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'quattro-decisioni-19-8',
+    titolo: 'Il mantenimento sulla tendenza, il «tranne» che diventa una telefonata, e due frasi che dicevano il falso',
+    dettaglio:
+      'Quattro risposte di Simone del 19/8, chiuse in giornata. **1)** `hasReachedObjective` — che decide se offrirle il **Mantenimento** — guardava l\'ultima pesata: proporlo perché una mattina la bilancia ha detto 69,8 con la media a 70,6 vuol dire venderlo **un attimo prima che il peso risalga**. Ora passa dalla stessa risposta di tutto il resto (`percentuale-obiettivo.ts`). **2)** «Pesce tranne salmone» diventa un\'**attività della coach** (voce 267, chiusa): l\'avviso mentre scrive c\'era dal 18/8 e ⚠️ non corregge — la correzione più ovvia toglierebbe tutto il pesce, salmone compreso — quindi la domanda la fa una persona. ⚠️ Solo le frasi con un\'**eccezione**, le uniche che possono fare l\'opposto; e il riferimento è l\'**impronta dell\'elenco**, così la domanda torna se lo riscrive e non si ripropone se ne hanno parlato. **3)** Nella coda «Da validare», «Conferma» e «Correggi» facevano la stessa cosa — scrivere «ho letto» — mentre la proposta del motore **non viene mai applicata**: il pulsante adesso si chiama **«Presa visione»**, con una riga che dice cosa fanno tutti e due. ⛔ Applicarla davvero resta bloccato sul numero di Nocanty. **4)** Il **Report** resta sul peso **misurato** (è un documento firmato che lei può portare dal medico) ⚠️ ma adesso **dice perché** può non coincidere con l\'app: senza quella riga sarebbero due numeri diversi sulla stessa persona, cioè il difetto tolto da tutto il resto lo stesso giorno. 233 suite, 3635 test. Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 293,
+    fatta: true, // 19/8
+  },
+
+  {
     chiave: 'due-dati-app',
     titolo: 'I due dati che la cliente non vedeva, e la percentuale che rispondeva in cinque modi',
     dettaglio:
@@ -952,9 +962,9 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'percentuale-obiettivo-punti-rimasti',
-    titolo: 'Gli altri quattro punti che rispondono ancora con l\'ultima pesata',
+    titolo: 'Restano DUE punti che rispondono ancora con l\'ultima pesata (erano quattro)',
     dettaglio:
-      'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. Sono `reports.service` (`lostTotalKg`, `toGoKg` — il Report che riceve **lei**), `plan-report.service` (`toGoKg` e i mesi mancanti), `commerce.hasReachedObjective` (⚠️ decide se offrirle il **mantenimento**) e `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⚠️ Tutti e quattro rispondono a «quanto manca all\'obiettivo» con l\'**ultima pesata**, mentre da oggi la barra, la home, la lista della coach e i traguardi usano la **media mobile**: la cliente può leggere un numero nel Report e un altro in app. ⛔ La domanda per Simone e la nutrizionista è se il Report — che è un documento firmato su un periodo — debba dire il peso **misurato** a quella data o la tendenza: sono due cose diverse, e la risposta non è ovvia.',
+      'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. **Chiusi il 19/8, dalle risposte di Simone:** `commerce.hasReachedObjective` — che decide se offrirle il **mantenimento** — è passato alla media mobile, perché proporglielo perché una mattina la bilancia ha detto 69,8 con la media a 70,6 vuol dire venderglielo un attimo prima che il peso risalga; e `reports.service` **resta di proposito sul peso misurato** (il Report è un documento firmato su un periodo, e «il peso a quella data» è un fatto verificabile che lei si può portare dal medico) ⚠️ **ma adesso lo dichiara**, con una riga sotto i numeri: due numeri diversi sulla stessa persona senza nessuno che dica perché erano esattamente il difetto tolto da tutto il resto del prodotto quel giorno. **Restano** `plan-report.service` (`toGoKg` e i mesi mancanti) e `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⚠️ Tutti e due rispondono a «quanto manca all\'obiettivo» con l\'**ultima pesata**, mentre la barra, la home, la lista della coach, i traguardi e il mantenimento usano la **media mobile**. ⛔ Il `kcal-need` non si tocca senza la nutrizionista: `kgToLose` entra nel **fabbisogno calorico**, e cambiarne la base cambia quante calorie mangia ogni cliente — è una decisione clinica, non di software. Il `plan-report` è la stessa domanda del Report ed è ragionevole che segua la stessa risposta, ma va detto lì come è detto nel Report.',
     categoria: CODICE,
     ordine: 292,
   },

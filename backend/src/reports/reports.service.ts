@@ -216,6 +216,29 @@ export class ReportsService {
       row('Perso questo mese:', kg(r.lostThisMonthKg));
       row('Perso dall\'inizio:', kg(r.lostTotalKg));
       row('Peso attuale:', kg(r.currentWeightKg));
+      /**
+       * ⚠️ IL NUMERO DI QUESTO REPORT È IL PESO **MISURATO**, E VA DETTO — decisione di Simone, 19/8.
+       *
+       * Dal 19/8 l'app, la home, la lista della coach e i traguardi rispondono alla domanda «quanto
+       * manca» sulla **media mobile** (la tendenza), perché una giornata storta non deve far tornare
+       * indietro una barra. Il Report no, ed è una scelta: è un documento firmato su un periodo, e
+       * «il peso alla data del report» è un fatto verificabile — la tendenza è un'interpretazione, e
+       * un documento che lei può portare dal medico deve dire il numero della bilancia.
+       *
+       * ⚠️ Ma allora si dice, qui dentro: senza questa riga restano due numeri diversi sulla stessa
+       * persona e nessuno che spieghi perché — che è precisamente il difetto che il 19/8 è stato
+       * speso a togliere da tutto il resto del prodotto.
+       */
+      doc.moveDown(0.2);
+      doc.font('Helvetica').fontSize(8.5).fillColor('#6b6a63')
+        .text(
+          'I numeri di questa pagina sono le misure registrate a quella data. Nell\'app la percentuale ' +
+            'verso l\'obiettivo è calcolata sulla media degli ultimi giorni, per non farla oscillare ' +
+            'con una singola pesata: per questo i due valori possono non coincidere.',
+          { width: 483 },
+        );
+      doc.fillColor('#10403a').fontSize(11);
+      doc.moveDown(0.3);
       row('Obiettivo:', kg(r.targetWeightKg));
       if (r.toGoKg != null) row('Ancora da perdere:', kg(r.toGoKg > 0 ? r.toGoKg : 0));
       row('Pesate nel mese:', String(r.measurements));

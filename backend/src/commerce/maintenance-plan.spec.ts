@@ -168,7 +168,16 @@ function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; manteni
       findFirst: jest.fn(async ({ where }: { where: { id: string } }) => plans.find((p) => p.id === where.id) ?? null),
     },
     objective: { findFirst: jest.fn(async () => ({ targetWeightKg: 70 })) },
-    measurement: { findFirst: jest.fn(async () => ({ weightKg: opts.reached ? 68 : 80 })) },
+    /**
+     * ⚠️ `findMany` e non più `findFirst` (19/8): l'obiettivo raggiunto si giudica sulla **media
+     * mobile**, non sulla pesata di stamattina — offrire il Mantenimento perché una mattina la
+     * bilancia ha detto 69,8, con la tendenza ancora sopra, vuol dire venderlo un attimo prima che
+     * il peso risalga. Tre pesate coerenti fra loro: la media dice la stessa cosa dell'ultima.
+     */
+    measurement: {
+      findMany: jest.fn(async () => (opts.reached ? [{ weightKg: 68 }, { weightKg: 68 }, { weightKg: 68 }] : [{ weightKg: 80 }, { weightKg: 80 }, { weightKg: 80 }])),
+      findFirst: jest.fn(async () => ({ weightKg: opts.reached ? 68 : 80 })),
+    },
     payment: {
       findMany: jest.fn(async () => []),
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'pay1', ...data })),
@@ -179,7 +188,8 @@ function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; manteni
       findFirst: subFindFirst,
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'sub1', ...data })),
     },
-    clientProfile: { findUnique: jest.fn(async () => ({ consents: { healthDataConsent: { accepted: true } }, name: 'Giusy', user: { locale: 'it' } })) },
+    // `startWeightKg`: la partenza da cui si misura l'avanzamento (vedi `percentuale-obiettivo.ts`).
+    clientProfile: { findUnique: jest.fn(async () => ({ consents: { healthDataConsent: { accepted: true } }, name: 'Giusy', user: { locale: 'it' }, startWeightKg: 80 })) },
     order: { create: jest.fn(async () => ({ id: 'ord1' })) },
     user: { findUnique: jest.fn(async () => ({ locale: 'it' })) },
   };
@@ -223,6 +233,26 @@ describe('Il Mantenimento nella vetrina', () => {
     const svc = makeService(fakePrisma({ reached: false }));
     const ids = (await svc.listPlansForClient('c1')).map((p) => p.id);
     expect(ids).toContain('p3');
+    expect(ids).not.toContain('pm');
+  });
+
+  /**
+   * ⚠️ L'OBIETTIVO RAGGIUNTO SI GIUDICA SULLA TENDENZA — 19/8, decisione di Simone.
+   *
+   * Una mattina la bilancia dice 69,8 e la media è ancora 70,6: offrirle il Mantenimento in quel
+   * momento vuol dire vendere una cosa **un attimo prima che il peso risalga**, cioè nel momento in
+   * cui è più contenta e con la settimana dopo che le dà torto. Sulla media arriva qualche giorno
+   * più tardi, ma quando è vero.
+   */
+  it('⚠️ una sola pesata sotto il target non basta: conta la media', async () => {
+    const prisma = fakePrisma({ reached: false });
+    // ⚠️ Come le manda il database: dalla più RECENTE alla più vecchia. L'ultima pesata è 69,8 —
+    // sotto il traguardo di 70 — ma le tre di fila fanno 70,6.
+    prisma.measurement.findMany = jest.fn(async () => [{ weightKg: 69.8 }, { weightKg: 70.8 }, { weightKg: 71.2 }]);
+    prisma.clientProfile.findUnique = jest.fn(async () => ({ consents: { healthDataConsent: { accepted: true } }, name: 'Giusy', user: { locale: 'it' }, startWeightKg: 80 }));
+    prisma.objective.findFirst = jest.fn(async () => ({ targetWeightKg: 70 }));
+    const svc = makeService(prisma);
+    const ids = (await svc.listPlansForClient('c1')).map((p) => p.id);
     expect(ids).not.toContain('pm');
   });
 

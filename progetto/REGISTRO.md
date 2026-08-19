@@ -53,6 +53,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   solo alla fine `npm run converti:code` per le 4 code vecchie (prova a vuoto, poi `CONFERMA=1`) —
   convertirle prima vuol dire far comparire il Profilo sbagliato proprio a loro. Foglio: `progetto/HANDOFF_2026-08-19.md`.
 
+- `[Sviluppo]` 🧩 **Quattro decisioni chiuse in giornata**, e nessuna era una schermata nuova: erano
+  quattro punti che dicevano una cosa e ne facevano un'altra. **1) Il Mantenimento si offre sulla
+  tendenza**: `hasReachedObjective` guardava l'ultima pesata, e proporlo perché una mattina la
+  bilancia ha detto 69,8 — con la media a 70,6 — vuol dire venderlo **un attimo prima che il peso
+  risalga**, cioè quando è più contenta e con la settimana dopo che le dà torto. **2) «Pesce tranne
+  salmone» diventa una telefonata** (voce 267, chiusa): l'avviso mentre scrive c'era dal 18/8 e
+  ⚠️ non corregge — la correzione più ovvia toglierebbe tutto il pesce, salmone compreso — quindi
+  adesso nasce un'**attività della coach**, come per la finestra del digiuno. ⚠️ Solo per le frasi
+  con un'eccezione, che sono le uniche che possono fare l'**opposto**; «non mi piace la cicoria» al
+  massimo non toglie la cicoria, e farne un'attività riempirebbe la colonna che si smette di
+  leggere. ⚠️ Il riferimento è l'**impronta dell'elenco**: se lo riscrive con un'altra frase ambigua
+  la domanda torna, se la coach la segna fatta non si ripropone. **3) Il pulsante che diceva
+  «Conferma» senza confermare niente**: nella coda del nutrizionista «Conferma» e «Correggi» fanno la
+  stessa cosa — scrivono «ho letto» — e ⚠️ la proposta del motore **non viene mai applicata**. Ora si
+  chiama **«Presa visione»**, con una riga sopra che dice cosa fanno tutti e due; ⛔ applicarla
+  davvero è bloccato sul numero di Nocanty. **4) Il Report resta sul peso misurato, e dice perché**:
+  è un documento firmato che lei può portare dal medico, quindi deve dire il numero della bilancia —
+  ⚠️ ma senza una riga che lo spieghi resterebbero due numeri diversi sulla stessa persona, cioè il
+  difetto tolto da tutto il resto del prodotto lo stesso giorno. 233 suite, **3635 test**.
+
 - `[Sviluppo]` 📊 **I due dati che la cliente non vedeva — e la percentuale che rispondeva in cinque
   modi.** Arrivate le cinque decisioni del foglio `DECISIONE_Due_Schermate_App.md` (Simone, 19/8):
   la percentuale passa alla **media mobile del server**, proiezione e giorni di stallo **restano

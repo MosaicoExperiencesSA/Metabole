@@ -28,6 +28,7 @@ import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { coachTeamScope } from '../common/coach-team';
 import { aGiorno } from '../common/date-only';
+import { avanzamentoPeso, FINESTRA_MASSIMA } from '../signals/percentuale-obiettivo';
 import { emettiEventoFunnel } from './funnel-event';
 import { assicuraProvaIniziata } from './prova-attivata';
 import { isTrialPlan, messaggioData, validaDataInizio } from './piano-prova';
@@ -340,16 +341,35 @@ export class CommerceService {
   }
 
   /**
-   * Il cliente ha RAGGIUNTO l'obiettivo? (peso attuale ≤ peso obiettivo). Usato per mostrare il
-   * MANTENIMENTO solo a obiettivo raggiunto (stessa regola del report).
+   * Il cliente ha RAGGIUNTO l'obiettivo? Usato per mostrare il **Mantenimento** solo a obiettivo
+   * raggiunto.
+   *
+   * ⚠️ **Sulla tendenza, non sulla pesata di stamattina** (decisione di Simone, 19/8). Offrirle il
+   * Mantenimento perché una mattina la bilancia ha detto 69,8 — con la media a 70,6 — vuol dire
+   * proporglielo **un attimo prima che il peso risalga**, cioè vendere una cosa nel momento in cui è
+   * più contenta e vederla tornare indietro la settimana dopo. Sulla media arriva qualche giorno più
+   * tardi, ma quando è vero.
+   *
+   * È la stessa risposta che danno la barra in app, la home, la lista della coach e i traguardi:
+   * `signals/percentuale-obiettivo.ts`.
    */
   private async hasReachedObjective(clientId: string): Promise<boolean> {
-    const [objective, lastMeasure] = await Promise.all([
+    const [objective, pesate, profilo, finestra] = await Promise.all([
       this.prisma.objective.findFirst({ where: { clientId }, orderBy: { createdAt: 'desc' }, select: { targetWeightKg: true } }) as Promise<{ targetWeightKg: number | null } | null>,
-      this.prisma.measurement.findFirst({ where: { clientId }, orderBy: { date: 'desc' }, select: { weightKg: true } }) as Promise<{ weightKg: number } | null>,
+      this.prisma.measurement.findMany({
+        where: { clientId },
+        orderBy: { date: 'desc' },
+        take: FINESTRA_MASSIMA,
+        select: { weightKg: true },
+      }) as Promise<{ weightKg: number }[]>,
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { startWeightKg: true } }) as Promise<{ startWeightKg: number | null } | null>,
+      this.configParams.getNumber('moving_average_window', 3),
     ]);
     const target = objective?.targetWeightKg ?? null;
-    return target != null && lastMeasure != null && lastMeasure.weightKg <= target;
+    if (target == null) return false;
+    // Dalla più recente alla più vecchia → il modulo le vuole in ordine di data.
+    const avanzamento = avanzamentoPeso(pesate.map((m) => m.weightKg).reverse(), profilo?.startWeightKg ?? null, target, finestra);
+    return avanzamento.pesoDiAdesso != null && avanzamento.pesoDiAdesso <= target;
   }
 
   /**

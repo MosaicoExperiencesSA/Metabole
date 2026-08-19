@@ -1,0 +1,54 @@
+Quattro decisioni chiuse: il mantenimento sulla tendenza, il «tranne» che diventa una telefonata,
+il pulsante che diceva «Conferma» senza confermare niente, e il Report che dice perché è diverso
+
+Quattro risposte di Simone del 19/8, e il codice che ne discende. Nessuna delle quattro era una
+schermata nuova: erano quattro punti che dicevano una cosa e ne facevano un'altra.
+
+1) IL MANTENIMENTO SI OFFRE SULLA TENDENZA, NON SULLA PESATA DI STAMATTINA
+`hasReachedObjective` guardava l'ultima pesata. ⚠️ Offrirle il Mantenimento perché una mattina la
+bilancia ha detto 69,8 — con la media a 70,6 — vuol dire venderglielo **un attimo prima che il peso
+risalga**: nel momento in cui è più contenta, e con la settimana dopo che le dà torto. Adesso passa
+da `percentuale-obiettivo.ts`, la stessa risposta della barra in app, della home, della lista della
+coach e dei traguardi. Arriva qualche giorno più tardi, ma quando è vero.
+
+2) «PESCE TRANNE SALMONE» DIVENTA UNA TELEFONATA (voce 267, chiusa)
+Dal 18/8 le cinque porte **segnalano** mentre si scrive, e ⚠️ non correggono: su «pesce tranne
+salmone» la correzione più ovvia — tenere la prima parola — toglierebbe tutto il pesce, salmone
+compreso, cioè il contrario di quello che ha chiesto. Restava la domanda vera, e la risposta è: **la
+fa una persona**. Nasce un'attività della coach, come per la finestra del digiuno.
+
+⚠️ **Solo le frasi con un'eccezione** («tranne», «a parte», «solo se»): sono le uniche che possono
+fare l'**opposto**. «Non mi piace la cicoria» è scritto male ma al massimo non toglie la cicoria —
+farne un'attività vorrebbe dire riempire la colonna di cose che non cambiano cosa mangia, e la
+colonna piena è quella che si smette di leggere.
+
+⚠️ **Il riferimento è l'impronta dell'elenco**, non una data né un valore fisso: se lei riscrive le
+esclusioni e ci rimette un'altra frase ambigua la domanda torna ad avere senso e l'attività rinasce;
+se la coach la segna fatta e l'elenco resta com'è, non si ripropone.
+
+⚠️ E il testo dice **cosa succede intanto**: non è ferma e non è rotta — quel termine semplicemente
+non toglie nessun piatto, quindi il cibo che credeva di aver escluso continua ad arrivarle.
+
+3) IL PULSANTE CHE DICEVA «CONFERMA» SENZA CONFERMARE NIENTE
+Nella coda «Da validare» del nutrizionista, «Conferma» e «Correggi» fanno **la stessa cosa**:
+scrivono `reviewOutcome`, chi e quando, e una riga di registro. ⚠️ La proposta del motore **non
+viene applicata**, nemmeno confermata — `reviewDecision` non azzera `flaggedForReview`, e il menu
+legge solo le decisioni non segnalate. Chi premeva «Conferma» credeva di aver applicato qualcosa.
+
+Adesso il pulsante si chiama **«Presa visione»**, e sopra la lista c'è una riga che dice cosa fanno
+tutti e due. ⛔ Farlo applicare davvero è bloccato sul numero di Nocanty — di quanto si alzano le
+calorie — e non è una decisione di software.
+
+4) IL REPORT RESTA SUL PESO MISURATO, E DICE PERCHÉ
+Decisione di Simone: il Report è un documento firmato su un periodo, e «il peso alla data del
+report» è un **fatto verificabile** — la tendenza è un'interpretazione, e quel foglio lei se lo può
+portare dal medico. ⚠️ Ma allora va detto: senza una riga che lo spieghi restano due numeri diversi
+sulla stessa persona e nessuno che dica perché, che è esattamente il difetto tolto da tutto il resto
+del prodotto lo stesso giorno. Ora in fondo ai numeri c'è una riga piccola che lo dichiara.
+
+FILE
+- backend: `commerce.service.ts` (`hasReachedObjective`) · `coach-tasks/esclusioni-da-chiarire.ts`
+  (nuovo, 9 test) + `coach-tasks.service.ts` · `reports/reports.service.ts`
+- backoffice: `NutritionistHome.tsx` (il pulsante e la riga che spiega)
+
+233 suite / 3635 test verdi · app 106 · backoffice 31. Nessuna migrazione.

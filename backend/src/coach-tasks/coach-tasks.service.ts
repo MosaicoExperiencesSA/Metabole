@@ -14,6 +14,7 @@ import {
 } from './finestra-mai-chiesta';
 import { avvisaAttivitaNuova, escalateAttivitaScadute } from './avvisi-attivita';
 import { STATI_CON_UN_PIANO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
+import { frasiDaChiarire, impronta, TIPO_ESCLUSIONI_DA_CHIARIRE, testoEsclusioniDaChiarire } from './esclusioni-da-chiarire';
 
 /**
  * Task coach (handoff Prezzi/Prova, punto 5): "la coach deve vedere cosa fare e
@@ -468,12 +469,65 @@ export class CoachTasksService {
     created += await this.chiediLaFinestraDelDigiuno(today);
 
     /**
+     * «PESCE TRANNE SALMONE»: la frase che va chiarita con una persona (voce 267, 19/8). Stessa
+     * forma della finestra del digiuno, e per la stessa ragione: chi l'ha scritta è l'unica che sa
+     * cosa intendeva. Vedi `esclusioni-da-chiarire.ts`.
+     */
+    created += await this.chiediCosaIntendeva(today);
+
+    /**
      * L'ESCALATION ALLA MANAGER (Simone, 14/8): le attività ancora «da fare» il giorno dopo la
      * scadenza. In coda al giro, così un problema qui non ferma la generazione — e comunque
      * `escalateAttivitaScadute` non lancia mai.
      */
     const escalation = await escalateAttivitaScadute(this.prisma, this.push);
     return { created, escalation };
+  }
+
+  /**
+   * Un'attività per ogni cliente che fra i cibi esclusi ha scritto una **frase con un'eccezione**
+   * («pesce tranne salmone»): quel termine non toglie nessun piatto, quindi il cibo che credeva di
+   * aver escluso continua ad arrivarle — e ⚠️ correggerlo da soli farebbe il contrario di quello che
+   * voleva. Vedi `esclusioni-da-chiarire.ts` per il perché è un lavoro di una persona.
+   *
+   * ⚠️ Solo chi ha un piano comprato: aprire un'attività su chi ha finito il percorso mesi fa è dare
+   * alla coach lavoro che non serve a nessuno.
+   *
+   * ⚠️ Non lancia mai: è un ramo in coda a una notte di lavoro.
+   */
+  private async chiediCosaIntendeva(today: Date): Promise<number> {
+    try {
+      const profili = (await this.prisma.clientProfile.findMany({
+        where: {
+          // ⚠️ Il filtro grosso lo fa il database (l'elenco non è vuoto), il **giudizio** lo prende
+          // il modulo: la regola sta scritta in un posto solo, e domani potrebbe non essere «tranne».
+          NOT: { dislikedFoods: { isEmpty: true } },
+          user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } as never },
+        } as never,
+        select: { userId: true, name: true, dislikedFoods: true },
+        take: 200,
+      })) as { userId: string; name: string | null; dislikedFoods: string[] }[];
+
+      let fatte = 0;
+      for (const p of profili) {
+        const frasi = frasiDaChiarire(p.dislikedFoods ?? []);
+        if (!frasi.length) continue;
+        const { title, description } = testoEsclusioniDaChiarire(p.name, frasi);
+        fatte += await this.ensureTask(
+          p.userId,
+          TIPO_ESCLUSIONI_DA_CHIARIRE,
+          // ⚠️ L'impronta dell'elenco, non una data: se lei lo riscrive con un'altra frase ambigua la
+          // domanda torna ad avere senso, e con un riferimento fisso non gliela farebbe più nessuno.
+          impronta(p.dislikedFoods ?? []),
+          title,
+          description,
+          this.day(today, 3),
+        );
+      }
+      return fatte;
+    } catch {
+      return 0;
+    }
   }
 
   /**
