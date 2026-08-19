@@ -1,0 +1,48 @@
+Le domande sul grano saraceno: `npm run diag:crudo-cotto` dice quali alimenti non lo dicono
+
+Segnalazione della nutrizionista, girata da Simone il 19/8: le sono arrivate domande sul **grano
+saraceno**. Il motivo è un numero:
+
+    grano saraceno   crudo ~343 kcal → cotto ~92 kcal      rapporto 0,27×
+
+⚠️ Quasi **quattro volte**. Chi legge «80 g di grano saraceno» e lo pesa dalla parte sbagliata non ha
+un'imprecisione, ha un altro pasto. È lo stesso guasto già visto sul farro (voce 228, 353 → 127).
+
+COSA C'È GIÀ, E COSA LASCIAVA SCOPERTO
+Dal 18/8 `NutrientFact.state` fa parte del significato dei numeri, e `stato-alimento.ts` fa la cosa
+giusta: se l'alimento è in tabella **due volte** con stati diversi e la domanda non lo dice, Gaia non
+sceglie — risponde «dipende se crudo o cotto», e non prende il primo con una scusa.
+
+⚠️ **Ma se la riga è UNA SOLA non c'è nessuna ambiguità da dichiarare**, e Gaia dice il numero. Se
+quella riga è il crudo e la cliente sta pesando il cotto, il numero è **giusto in tabella e sbagliato
+nel piatto**: nessun errore, nessuna riga rossa. È il difetto di famiglia di questo progetto — un
+dato che agisce e non si vede — e qui si vede solo quando arriva la domanda alla nutrizionista.
+
+COSA DICE LA DIAGNOSTICA
+Tre elenchi, ordinati per **quante ricette attive usano quell'alimento**: è una priorità oggettiva e
+non un giudizio clinico, e mette in cima quelli che arrivano a più clienti.
+
+1. ⚠️ **In tabella ma senza stato**, e usati nelle ricette: sono quelli su cui Gaia dice un numero
+   senza dire da che parte pesare.
+2. **Fuori tabella**, usati nelle ricette: su quelli non dice niente — meglio di un numero sbagliato,
+   ma resta un buco.
+3. **Già a posto**: quanti alimenti hanno più stati, cioè dove il sistema dichiara l'ambiguità.
+
+⚠️ Si conta sulle ricette **attive**: una bozza mai approvata non è nel piatto di nessuno, e contarla
+farebbe salire in cima un alimento che oggi non mangia nessuno. ⚠️ E lo stesso ingrediente ripetuto
+dentro una ricetta conta **una volta**: senza, un piatto che ripete l'olio salirebbe da solo.
+
+⚠️ NON SCRIVE E NON INDOVINA NESSUNO STATO
+«Il grano saraceno delle ricette sarà cotto» è una supposizione, e metterla in banca dati vuol dire
+far dire a Gaia un numero deciso da chi non è nutrizionista. L'elenco lo riempie lei, dalla pagina
+Alimenti.
+
+⛔ RESTA APERTO, E VA DETTO
+La scheda ricetta scrive «80 g di grano saraceno» e **non dice da che parte pesare**: è il posto in
+cui la domanda nasce, prima ancora che la cliente la faccia a Gaia. Riempire gli stati toglie il
+numero sbagliato; dirlo nella scheda toglie la domanda. La seconda è una voce a sé.
+
+FILE
+- backend: `prisma/diag-crudo-cotto.ts` (nuovo) · `package.json`
+
+237 suite / 3711 test verdi. Sola lettura, nessuna migrazione.

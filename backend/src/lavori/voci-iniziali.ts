@@ -983,6 +983,18 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'scheda-ricetta-crudo-o-cotto',
+    nata: '2026-08-19T16:10',
+    // ⚠️ Bassa per la regola del 19/8: la priorità la dà Simone, non io.
+    priorita: 'bassa',
+    titolo: 'La scheda ricetta dice «80 g di grano saraceno» e non dice da che parte pesare',
+    dettaglio:
+      'Dalle domande arrivate alla nutrizionista sul **grano saraceno** (19/8). Crudo ~343 kcal, cotto ~92: ⚠️ quasi **quattro volte** — chi pesa dalla parte sbagliata non ha un\'imprecisione, ha un altro pasto. È lo stesso guasto del farro (voce 228). ✅ **Fatto lo strumento** (`npm run diag:crudo-cotto`): dice quali alimenti sono in tabella **senza stato** e usati nelle ricette (Gaia lì dice un numero senza dire da che parte), quali sono usati e **fuori tabella**, e quanti sono già a posto — ordinati per quante ricette attive li usano, che è una priorità oggettiva e non un giudizio clinico. ⚠️ Non indovina nessuno stato: «il grano saraceno delle ricette sarà cotto» è una supposizione, e metterla in banca dati vuol dire far dire a Gaia un numero deciso da chi non è nutrizionista — l\'elenco lo riempie lei dalla pagina Alimenti. ⛔ **Ma il buco vero è a monte**: la scheda ricetta scrive «80 g di grano saraceno» e la grammatura non porta con sé lo stato. Riempire la tabella toglie il numero sbagliato; **dirlo nella scheda toglie la domanda**, che è dove nasce. ⛔ Prima di scrivere serve decidere **da dove viene lo stato di un ingrediente dentro una ricetta**: (a) si eredita dall\'alimento in tabella quando ce n\'è uno solo — semplice, ma il piatto potrebbe intenderne un altro; (b) diventa un campo dell\'ingrediente della ricetta, e allora va riempito su un catalogo di diciannovemila ricette; (c) lo dicono i **passi di cottura**, e la scheda lo ripete in cima. Nessuna è gratis.',
+    categoria: SIMONE,
+    ordine: 299,
+  },
+
+  {
     chiave: 'giorni-da-rifare-tre-definizioni',
     nata: '2026-08-19T15:40',
     // ⚠️ Bassa per la regola del 19/8 («se trovi qualche cosa lo aggiungi con priorità bassa»).

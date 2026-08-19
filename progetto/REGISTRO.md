@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🌾 **Le domande sul grano saraceno: `npm run diag:crudo-cotto`.** Segnalazione della
+  nutrizionista. Crudo ~343 kcal, cotto ~92: ⚠️ quasi **quattro volte**, e chi pesa dalla parte
+  sbagliata non ha un'imprecisione, ha un altro pasto (stesso guasto del farro, voce 228). Dal 18/8
+  `stato-alimento.ts` fa la cosa giusta quando l'alimento è in tabella **due volte** con stati
+  diversi: non sceglie e lo dichiara. ⚠️ **Ma con una riga sola non c'è nessuna ambiguità da
+  dichiarare** e Gaia dice il numero: se quella riga è il crudo e lei pesa il cotto, il numero è
+  giusto in tabella e sbagliato nel piatto — nessun errore, nessuna riga rossa. La diagnostica dice
+  quali alimenti sono **senza stato e usati nelle ricette**, quali sono **fuori tabella**, e quanti
+  sono già a posto, ordinati per **quante ricette attive li usano** (priorità oggettiva, non un
+  giudizio clinico). ⚠️ Conta le ricette **attive** — una bozza non è nel piatto di nessuno — e lo
+  stesso ingrediente ripetuto in una ricetta vale **una volta**. ⚠️ Non indovina nessuno stato:
+  metterlo vorrebbe dire far dire a Gaia un numero deciso da chi non è nutrizionista. ⛔ E il buco
+  vero è a monte: **la scheda ricetta non dice da che parte pesare** — voce
+  `scheda-ricetta-crudo-o-cotto`, con le tre strade possibili e nessuna gratis.
+
+
+- `[Sviluppo]` 🧭 **`diag:allergeni`, il secondo modo di guardare.** Il primo giro in produzione ha
+  dato una risposta che è una risposta: le ricette confermate **a mano** sono **tre**, d'accordo 3 su
+  3. ⚠️ Centopercento su tre righe non vuol dire niente — ma il numero è informativo: da quella
+  pagina non c'era mai passato nessuno, ed è coerente con il difetto scoperto un'ora prima (chiedeva
+  solo le ricette attive mentre quelle da rivedere sono bozze, e «Rivedi» rispondeva 404 su una
+  bozza). Le tre conferme sono tutto quello che è passato da un cancello chiuso.
+  Serviva quindi un modo di guardare che **non aspettasse nessuno**: ⚠️ il **titolo** della ricetta
+  passa dallo stesso riconoscitore, e se nomina un allergene che negli allergeni scritti non c'è,
+  quella riga va guardata. L'esempio è vero, da una schermata di oggi: «Acciughe fresche al pomodoro
+  su **crostini integrali** e rucola» — crostini e integrali sono glutine, e se l'elenco ingredienti
+  dice «base croccante» il riconoscitore non lo prende. ⚠️ Un sospetto **non è un errore** e non si
+  corregge niente in automatico: un titolo non è un elenco di ingredienti, e scrivere un allergene
+  per una parola nel nome metterebbe «pesce» su «insalata di mare finta». Serve una persona, ma su
+  poche righe invece che su diciannovemila. ⚠️ Le ricette senza ingredienti si saltano e si contano
+  a parte. Sola lettura, nessuna migrazione.
+
+
 - `[Sviluppo]` 🔗 **«Aggiorna dal rilascio» dice quando il file è indietro rispetto alla pagina.**
   Dalla voce aperta la mattina del 19/8 nel modo peggiore: avevo fatto il punto della situazione
   leggendo `voci-iniziali.ts` invece della pagina, e avevo ripresentato come aperte la tabella IG e

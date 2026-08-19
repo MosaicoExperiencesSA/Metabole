@@ -71,9 +71,12 @@ async function main() {
 
   if (!idsAMano.length) {
     console.log('⚠️  Nessuna ricetta risulta confermata a mano dal riquadro «Rivedi».');
-    console.log('   Senza un metro di paragone questa diagnostica non può dire niente — e «non lo so»');
+    console.log('   Senza un metro di paragone il confronto con la persona non si può fare — e «non lo so»');
     console.log('   non è «va tutto bene». Fai confermare a mano una cinquantina di ricette e rilancia.');
     console.log('');
+    // ⚠️ Il punto 5 non ha bisogno del metro umano: si calcola lo stesso, ed è l'unica cosa che
+    // questa diagnostica può dire il primo giorno.
+    await sospetti();
     return;
   }
 
@@ -142,12 +145,75 @@ async function main() {
   }
   console.log('');
 
+  await sospetti();
+
   console.log('──────────────────────────────────────────────────────────────────');
   console.log('  ⚠️  DA LEGGERE INSIEME AL NUMERO: le ricette confermate a mano sono quelle');
   console.log('     vecchie, scritte dallo staff; quelle che il blocco conferma sono generate');
   console.log('     dall\'AI, con nomi di ingredienti più fantasiosi. Un buon voto qui non');
   console.log('     garantisce lo stesso voto là.');
   console.log('  Nessuna scrittura: questa diagnostica legge e basta.');
+  console.log('');
+}
+
+/**
+ * ⚠️ IL NOME DICE UN ALLERGENE CHE GLI INGREDIENTI NON DICHIARANO — la parte che non ha bisogno di
+ * un metro umano.
+ *
+ * Nasce dal primo giro in produzione (19/8): le ricette confermate a mano erano **tre**, perché la
+ * pagina degli allergeni era rotta e nessuno ci era mai potuto passare. Con tre ricette il voto è
+ * 100% e non vuol dire niente — «non lo so» non è «va tutto bene» — quindi serviva un secondo modo
+ * di guardare, che non aspettasse nessuno.
+ *
+ * Questo: il **titolo** della ricetta viene passato allo stesso riconoscitore. Se il nome nomina un
+ * allergene che negli allergeni scritti non c'è, quella riga va guardata da una persona. L'esempio
+ * vero, preso da una schermata: «Acciughe fresche al pomodoro su **crostini integrali** e rucola» —
+ * «crostini» e «integrali» sono glutine, e se l'elenco ingredienti dice «pane di segale» il
+ * riconoscitore lo prende, se dice «base croccante» no.
+ *
+ * ⚠️ **Non è una correzione automatica**, ed è la stessa ragione di sempre: un titolo non è un
+ * elenco di ingredienti, e scrivere un allergene perché una parola compare nel nome metterebbe
+ * «pesce» su «insalata di mare finta». Qui si fa un elenco da guardare, e lo guarda una persona.
+ *
+ * ⚠️ E il conto tace sulle ricette **senza ingredienti**: lì non c'è niente da confrontare, e
+ * contarle fra i sospetti vorrebbe dire riempire l'elenco di righe che non si possono verificare.
+ */
+async function sospetti() {
+  const ricette = (await prisma.recipe.findMany({
+    where: { allergensReviewed: true } as never,
+    select: { id: true, name: true, ingredients: true, allergens: true } as never,
+  })) as { id: string; name: string; ingredients: unknown; allergens: unknown }[];
+
+  const casi: { nome: string; dalNome: string[] }[] = [];
+  const perAllergene = new Map<string, number>();
+  let senzaIngredienti = 0;
+
+  for (const r of ricette) {
+    if (!Array.isArray(r.ingredients) || !(r.ingredients as unknown[]).length) { senzaIngredienti += 1; continue; }
+    const scritti = insieme(r.allergens);
+    // Il titolo trattato come se fosse un ingrediente: stesso riconoscitore, nessuna regola nuova.
+    const dalNome = suggestAllergens([{ name: r.name }]).map((x) => x.allergen).filter((a) => !scritti.has(a));
+    if (!dalNome.length) continue;
+    for (const a of dalNome) perAllergene.set(a, (perAllergene.get(a) ?? 0) + 1);
+    casi.push({ nome: r.name, dalNome });
+  }
+
+  console.log('5) ⚠️  IL NOME DICE UN ALLERGENE CHE GLI ALLERGENI SCRITTI NON DICONO.');
+  console.log('   Non serve nessuna conferma a mano per calcolarlo: è il titolo confrontato con');
+  console.log('   quello che c\'è in banca dati. Sono le righe da far guardare per prime.');
+  console.log(`   Ricette confermate esaminate: ${ricette.length - senzaIngredienti}${senzaIngredienti ? ` (${senzaIngredienti} senza ingredienti, saltate)` : ''}.`);
+  console.log(`   ⚠️  Sospette: ${casi.length}.`);
+  if (perAllergene.size) {
+    for (const [a, n] of [...perAllergene.entries()].sort((x, y) => y[1] - x[1])) {
+      console.log(`     · ${allergenLabel(a).padEnd(22)} ${n}`);
+    }
+  }
+  for (const c of casi.slice(0, ESEMPI)) {
+    console.log(`     ▸ ${c.nome} — il nome suggerisce: ${c.dalNome.map(allergenLabel).join(', ')}`);
+  }
+  if (casi.length > ESEMPI) console.log(`     … e altre ${casi.length - ESEMPI} (ESEMPI=n per vederne di più)`);
+  console.log('   ⚠️  Un sospetto NON è un errore: «insalata di mare finta» nomina il pesce e non ce l\'ha.');
+  console.log('      Serve una persona — ma queste sono poche righe invece di diciannovemila.');
   console.log('');
 }
 

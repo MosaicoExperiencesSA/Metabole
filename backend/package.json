@@ -81,6 +81,7 @@
     "fix:tag-settimane": "ts-node --transpile-only prisma/fix-tag-settimane.ts",
     "diag:catalogo": "ts-node --transpile-only prisma/diag-catalogo.ts",
     "diag:allergeni": "ts-node --transpile-only prisma/diag-allergeni.ts",
+    "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",
     "converti:code": "ts-node --transpile-only prisma/converti-code-vecchie.ts"
   },

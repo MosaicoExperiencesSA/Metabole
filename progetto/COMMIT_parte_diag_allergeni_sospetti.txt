@@ -1,0 +1,42 @@
+diag:allergeni — il secondo modo di guardare, quello che non aspetta nessuno
+
+Il primo giro in produzione ha dato una risposta che è una risposta: **le ricette confermate a mano
+sono tre.** D'accordo 3 su 3, cioè 100% — e centopercento su tre righe non vuol dire niente.
+
+⚠️ Ma il numero non è deludente, è **informativo**: dice che da quella pagina non c'era mai passato
+nessuno. Ed è coerente con quello che avevamo appena scoperto — la pagina chiedeva al server solo le
+ricette attive mentre tutte quelle da rivedere sono bozze, e il riquadro «Rivedi» rispondeva 404 su
+una bozza. Le tre conferme a mano sono tutto quello che è riuscito a passare da un cancello chiuso.
+
+IL PROBLEMA
+Il metro umano ci sarà quando qualcuno avrà rivisto a mano una cinquantina di ricette **generate**.
+Fino ad allora la domanda «quanto è buono il riconoscitore» resta senza risposta — e nel frattempo
+migliaia di ricette entrano in catalogo con gli allergeni che scrive lui.
+
+IL SECONDO MODO DI GUARDARE
+⚠️ **Il titolo della ricetta passa dallo stesso riconoscitore.** Se il nome nomina un allergene che
+negli allergeni scritti non c'è, quella riga va guardata da una persona.
+
+L'esempio è vero, preso da una schermata di oggi: «Acciughe fresche al pomodoro su **crostini
+integrali** e rucola». «Crostini» e «integrali» sono glutine: se l'elenco ingredienti dice «pane di
+segale» il riconoscitore lo prende, se dice «base croccante» no — e la ricetta entra in catalogo
+dichiarata senza glutine.
+
+Non serve nessuna conferma a mano per calcolarlo: è il titolo confrontato con quello che c'è in
+banca dati. Gira anche il primo giorno, e gira anche quando il metro umano manca del tutto.
+
+⚠️ **Un sospetto non è un errore**, e non si corregge niente in automatico: un titolo non è un elenco
+di ingredienti, e scrivere un allergene perché una parola compare nel nome metterebbe «pesce» su
+«insalata di mare finta». Serve una persona — ma su poche righe invece che su diciannovemila.
+
+⚠️ Le ricette **senza ingredienti** si saltano e si contano a parte: lì non c'è niente da
+confrontare, e metterle fra i sospetti riempirebbe l'elenco di righe non verificabili.
+
+USO
+  npm run diag:allergeni
+  ESEMPI=30 npm run diag:allergeni
+
+FILE
+- backend: `prisma/diag-allergeni.ts`
+
+Sola lettura, nessuna migrazione.
