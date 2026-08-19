@@ -139,6 +139,26 @@ function Recipe({ recipeId, date, slot, porzione, tag, onBack }: { recipeId: str
               ))}
             </div>
           )}
+          {/*
+            ⚠️ SOPRA I PASSI E NON SOTTO: chi legge «taglia le carote» dopo aver letto «biete» negli
+            ingredienti si ferma lì, e una spiegazione in fondo arriva dopo il dubbio. I passi non
+            vengono riscritti di proposito — cambiare una parola dentro una frase darebbe «la porro»
+            o «biete tagliate a rondelle» — quindi si dice cosa mettere al posto di cosa.
+          */}
+          {(recipe.sostituzioniNeiPassi ?? []).length > 0 && (
+            <div
+              style={{
+                fontSize: 12, margin: '-2px 0 10px', display: 'flex', alignItems: 'flex-start',
+                gap: 6, color: '#8E6BB5',
+              }}
+            >
+              <i className="ti ti-refresh" style={{ fontSize: 14, flex: 'none', marginTop: 1 }} />
+              <span>
+                Qui sotto trovi ancora {recipe.sostituzioniNeiPassi!.map((x) => `«${x.da}»`).join(', ')}:
+                {' '}al loro posto usa {recipe.sostituzioniNeiPassi!.map((x) => `«${x.a}»`).join(', ')}, come negli ingredienti.
+              </span>
+            </div>
+          )}
           <ol className="recipe-steps">
             {(methods[method]?.steps ?? []).map((s, i) => <li key={i}>{s}</li>)}
           </ol>

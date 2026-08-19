@@ -20,6 +20,58 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` ⚖️ **Gaia dice la grammatura del piatto, non quella di catalogo** (coda della voce
+  284, chiusa dalla risposta di Simone: «il numero del piatto»). Dal 18/8 le porzioni si scalano sul
+  fabbisogno: Gaia diceva «metti 120 g di biete al posto di 100 g di carote» mentre nel piatto ce
+  n'erano 216 — e la chat è il posto dove la cliente ha detto «sì» e dove torna a controllare, cioè
+  l'unico numero che non poteva usare in cucina. Stessa cosa nella tabella «cambi in chat» del
+  backoffice, rimasta l'unica «ufficiale» da quando l'app quel numero non lo mostra più.
+  ⚠️ **In banca dati i numeri restano di catalogo**: sono quelli scritti sul menu e il piatto si
+  scala al momento di mostrarlo — salvarli già scalati vorrebbe dire scalarli due volte (120 → 216 →
+  389), e nessuno se ne accorgerebbe finché una cliente non cucina. Il fattore viaggia accanto e si
+  applica solo quando si parla. ⚠️ L'arrotondamento è la **stessa** `quantitaScalata` della scheda
+  ricetta e della lista della spesa: «216 g» di là e «215 g» di qua si legge come un errore di
+  misura, non come una regola. ⚠️ Sotto il 5% non si scala niente, che è la soglia che decide anche
+  la riga «porzione più abbondante». ⚠️ Nel backoffice si dice pure **che il piatto è scalato**, col
+  numero di catalogo accanto.
+  ⚠️ **E i passi di cottura non si riscrivono**: la scheda diceva «biete» negli ingredienti e
+  «carote» nei passi, ma cambiare una parola dentro una frase dà «la porro» e «biete tagliate a
+  rondelle» — istruzioni sbagliate, la stessa ragione per cui su «pesce tranne salmone» non
+  correggiamo noi. Si dice sopra i passi, e **solo** per gli alimenti nominati davvero lì, cercati
+  come parola e non come sottostringa (l'errore che faceva sostituire i peperoni a chi scriveva
+  «pepe»). Senza niente da dire la riga non compare: una nota che c'è sempre non è una nota.
+  235 suite / **3681 test verdi**, app 106, backoffice 31. Nessuna migrazione.
+
+
+- `[Sviluppo]` 🧪 **«4612 aspettano gli allergeni» e la pagina era vuota** — segnalazione del
+  nutrizionista, girata da Simone. **Tre strati dello stesso difetto, e il primo da solo bastava.**
+  ⚠️ **1)** Il generatore crea le ricette come **bozze** (`active: false`) e la pagina Allergeni
+  chiedeva `includeInactive=false`: le 4612 non entravano nemmeno nella query. La pagina Ricette
+  chiede `true` e infatti conta 19347 — due pagine sullo stesso catalogo con due domande diverse.
+  ⚠️ **2)** Il filtro «Da rivedere» girava **in memoria** sulle mille righe già scelte dal tetto in
+  ordine alfabetico: è testualmente il difetto che `listRecipes` racconta di aver chiuso l'11/8 per
+  la pagina Ricette — «una ricetta che c'è ma non compare è peggio di un errore, perché chi cerca
+  conclude che non esiste» — chiuso lì e non qui. ⚠️ **3)** E comunque non si sarebbero potute
+  confermare: `getRecipe` risponde **404 su una ricetta non attiva**, giusto per la cliente che apre
+  una scheda dall'app, e ci passavano sia i suggerimenti sia il salvataggio — le due cose che
+  lavorano *esattamente* sulle bozze.
+  **Due decisioni di Simone**: (a) confermare gli allergeni **fa entrare la ricetta in catalogo** —
+  prima restava bozza e nessuna schermata diceva quante fossero in quello stato, e un secondo
+  cancello senza porta è un magazzino — ⚠️ ma solo la ricetta **mai confermata prima**, perché una
+  archiviata a mano lo è di proposito; (b) **conferma in blocco**, perché il generatore scrive ~4600
+  ricette a settimana e una per una sono diciannove ore per svuotare un mucchio che nel frattempo si
+  è riempito. ⚠️ Il blocco scrive gli allergeni **riconosciuti dagli ingredienti**, ricalcolati
+  adesso, mai un elenco vuoto: «di queste mi fido del riconoscitore» non è «queste non hanno
+  allergeni». A scaglioni di 500, e se cade a metà si dice quante erano già passate.
+  ⚠️ E il numero accanto al collegamento adesso è quello che si trova arrivandoci: diceva quante ne
+  aspettano fra le nate in sette giorni, e portava a una pagina che non filtra per data.
+  ⛔ **Resta la domanda vera, e non è di software**: da oggi il cancello davanti al piatto di una
+  cliente allergica è il **riconoscitore automatico**, non una persona — e quanto sia buono non l'ha
+  misurato nessuno. Voce `allergeni-quanto-e-buono-il-riconoscitore`.
+  234 suite / **3667 test verdi**, backoffice 31, 15 test nuovi, quattro mutazioni provate e tutte e
+  quattro fanno fallire i test. Nessuna migrazione.
+
+
 - `[Sviluppo]` 🗂️ **La lista lavori dice da quando esiste un punto, e Simone gli può dare la
   priorità.** Nasce da una frase sua: «pensavo di chiudere la lista lavori ma invece che diminuire
   aumentano». **1) Priorità Alta / Neutra / Bassa**, tre pulsanti su ogni riga che salvano al clic —

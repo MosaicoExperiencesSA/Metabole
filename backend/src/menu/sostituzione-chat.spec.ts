@@ -409,6 +409,57 @@ describe('sostituzione in chat — i testi di Gaia', () => {
  * Sì — con tre regole, perché il modo sbagliato di farlo è peggio del non farlo: una volta per
  * messaggio, solo il nome proprio, e se il nome non c'è la frase deve restare corretta.
  */
+/**
+ * LA GRAMMATURA CHE GAIA DICE — quella del PIATTO SUO, non quella di catalogo (19/8, decisione di
+ * Simone).
+ *
+ * ⚠️ Dal 18/8 le porzioni si scalano sul fabbisogno. Gaia diceva «metti 120 g di biete al posto di
+ * 100 g di carote» mentre nel piatto di quella cliente ce n'erano 216: la chat è il posto dove lei
+ * ha detto «sì» e dove torna a controllare, ed era l'unico numero che non poteva usare in cucina.
+ */
+describe('sostituzione in chat — la grammatura è quella del piatto', () => {
+  const p = {
+    data: '2026-08-19', slot: 'lunch', recipeId: 'r1', piatto: 'Insalata di farro',
+    da: 'carote', a: 'biete', qtaDa: 100, qtaA: 100, unita: 'g',
+  };
+
+  it('⚠️ col piatto scalato dice il numero del piatto, non quello di catalogo', () => {
+    const t = testoConferma({ ...p, fattore: 1.8 }, MOTIVI[0]);
+    expect(t).toContain('180 g di biete');
+    expect(t).toContain('180 g di carote');
+    expect(t).not.toContain('100 g');
+  });
+
+  /** Un piatto non scalato non ha due numeri: si dice quello che c'è, com'è sempre stato. */
+  it('senza fattore resta il numero di catalogo', () => {
+    expect(testoConferma(p, MOTIVI[0])).toContain('100 g di carote');
+    expect(testoConferma({ ...p, fattore: 1 }, MOTIVI[0])).toContain('100 g di carote');
+  });
+
+  /**
+   * ⚠️ L'ARROTONDAMENTO È QUELLO DELLA SCHEDA RICETTA (`quantitaScalata`): a peso all'intero. Se qui
+   * si arrotondasse diversamente, la chat direbbe «155 g» e la scheda «154 g» — e due numeri che
+   * differiscono di uno si leggono come un errore di misura, non come una regola.
+   */
+  it('⚠️ arrotonda come la scheda ricetta: i grammi all\'intero', () => {
+    expect(testoConferma({ ...p, qtaDa: 86, qtaA: 86, fattore: 1.8 }, MOTIVI[0])).toContain('155 g di carote');
+  });
+
+  /** ⚠️ Tutte le frasi che dicono un numero devono dire lo STESSO numero. */
+  it('⚠️ vale per ogni frase che pronuncia una grammatura', () => {
+    const scalata = { ...p, fattore: 1.8 };
+    expect(testoChiediMotivo(scalata)).toContain('180 g di carote');
+    expect(testoFatto(scalata, MOTIVI[0])).toContain('180 g di biete');
+  });
+
+  /** Un ingrediente senza quantità resta senza quantità: moltiplicare un vuoto darebbe «0 g». */
+  it('senza quantità non compare un numero', () => {
+    const t = testoConferma({ ...p, qtaDa: undefined, qtaA: undefined, fattore: 1.8 }, MOTIVI[0]);
+    expect(t).not.toMatch(/\d+ g/);
+    expect(t).toContain('biete');
+  });
+});
+
 describe('Gaia chiama per nome', () => {
   it('usa solo il PRIMO nome, mai il cognome', () => {
     expect(soloNomeProprio('Maria Grazia Cerchiara')).toBe('Maria');

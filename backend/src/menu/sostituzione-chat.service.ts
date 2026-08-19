@@ -21,6 +21,8 @@ import {
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 // ⚠️ Vive fuori da qui, e apposta: la chiamano anche la lista della spesa e la scheda ricetta,
 // che di questo servizio non hanno bisogno. Vedi `menu/ingredienti-effettivi.ts`.
+import { fattoreDaDire } from './porzione-del-giorno';
+import { quantitaScalata } from './porzione-scalata';
 import { ingredientiEffettivi } from './ingredienti-effettivi';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -135,8 +137,25 @@ export interface SostituzioneInChat {
   piatto: string;
   from: string;
   to: string;
+  /** ⚠️ Grammature di CATALOGO: sono quelle scritte sul menu. Per quelle del piatto vedi sotto. */
   fromQty?: number;
   toQty?: number;
+  /**
+   * LE GRAMMATURE **DEL PIATTO SUO** — quelle che la cliente ha davvero davanti (19/8, decisione di
+   * Simone: «il numero del piatto»).
+   *
+   * ⚠️ Le porzioni si scalano sul fabbisogno dal 18/8: «120 g di biete al posto di 100 g di carote»
+   * è il rapporto di catalogo, mentre nel piatto di quella cliente ce ne sono 216. La nutrizionista
+   * che approva o corregge la grammatura ragionava sul numero di catalogo, e da quando l'app quel
+   * numero non lo mostra più il suo era rimasto l'unico «ufficiale» accanto a quello della ricetta.
+   *
+   * ⚠️ Li calcola il **server**, con la stessa `quantitaScalata` della scheda ricetta e della lista
+   * della spesa: rifare l'arrotondamento nel backoffice darebbe «216 g» di là e «215 g» di qua, che
+   * si legge come un errore di misura invece che come una regola. Assenti quando il piatto non è
+   * scalato — allora i due numeri coincidono e non c'è niente da distinguere.
+   */
+  fromQtyPiatto?: number;
+  toQtyPiatto?: number;
   unit?: string;
   /** Unità del sostituto, se diversa da quella di partenza (es. panna in ml → burro in g). */
   unitA?: string;
@@ -906,6 +925,13 @@ export class SostituzioneChatService {
       unita: trovato.ingrediente.unit,
       unitaA: unitaPerSostituto(trovato.ingrediente.unit, sostituto),
       grammaturaCorretta: corretta,
+      /**
+       * ⚠️ IL FATTORE DEL PIATTO SUO — perché Gaia dica la grammatura che deve mettere nel piatto e
+       * non quella di catalogo (19/8, decisione di Simone). ⚠️ `qtaDa`/`qtaA` restano di catalogo:
+       * sono i numeri che finiscono nella sostituzione scritta sul menu, e il piatto viene scalato
+       * al momento di mostrarlo — salvarli già scalati vorrebbe dire scalarli due volte.
+       */
+      fattore: fattoreDaDire(trovato.pasto.pasto.porzione),
     };
     return {
       testo: testoChiediMotivo(proposta),
@@ -2005,6 +2031,16 @@ export class SostituzioneChatService {
             to: s.to,
             fromQty: s.fromQty,
             toQty: s.toQty,
+            // ⚠️ `fattoreDaDire` e non `pasto.porzione`: sotto il 5% il menu non segnala niente e la
+            // scheda ricetta resta di catalogo, quindi qui scalare direbbe un numero che da nessuna
+            // altra parte compare.
+            ...(() => {
+              const f = fattoreDaDire(pasto.porzione);
+              if (f === 1) return {};
+              const da = quantitaScalata(s.fromQty, f, s.unit);
+              const a = quantitaScalata(s.toQty, f, s.unitA ?? s.unit);
+              return { ...(da !== null ? { fromQtyPiatto: da } : {}), ...(a !== null ? { toQtyPiatto: a } : {}) };
+            })(),
             unit: s.unit,
             unitA: s.unitA,
             motivo: s.motivo,

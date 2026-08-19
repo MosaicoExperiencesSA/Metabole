@@ -2617,8 +2617,18 @@ interface SostituzioneRow {
   piatto: string;
   from: string;
   to: string;
+  /** ⚠️ Grammature di CATALOGO: quelle scritte sul menu. Per quelle del piatto vedi sotto. */
   fromQty?: number;
   toQty?: number;
+  /**
+   * LE GRAMMATURE DEL PIATTO SUO — presenti solo quando il piatto è scalato (19/8).
+   *
+   * ⚠️ Le calcola il server con la stessa regola della scheda ricetta e della lista della spesa:
+   * qui non si rifà il conto, o «216 g» di là diventerebbe «215 g» di qua e si leggerebbe come un
+   * errore di misura invece che come una regola.
+   */
+  fromQtyPiatto?: number;
+  toQtyPiatto?: number;
   unit?: string;
   /** Unità del sostituto quando è diversa (panna in ml → burro in g). Assente = la stessa. */
   unitA?: string;
@@ -2937,7 +2947,30 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     )}
                     {s.tipo === 'piatto'
                       ? <>{s.from} → <b>{s.to}</b></>
-                      : <>{quantita(s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQty, s.unitA ?? s.unit)}{s.to}</b></>}
+                      : (
+                        <>
+                          {/*
+                            ⚠️ LA GRAMMATURA CHE SI MOSTRA È QUELLA DEL PIATTO SUO (19/8, decisione
+                            di Simone). Le porzioni si scalano sul fabbisogno dal 18/8: «120 g di
+                            biete al posto di 100 g di carote» è il rapporto di catalogo, mentre nel
+                            piatto di questa cliente ce ne sono 216 — e da quando l'app quel numero
+                            non lo mostra più, questo era rimasto l'unico «ufficiale» accanto a
+                            quello della ricetta. Chi approva o corregge deve vedere il numero vero.
+                          */}
+                          {quantita(s.fromQtyPiatto ?? s.fromQty, s.unit)}{s.from} → <b>{quantita(s.toQtyPiatto ?? s.toQty, s.unitA ?? s.unit)}{s.to}</b>
+                          {/*
+                            ⚠️ E si dice che il piatto è scalato, col numero di catalogo accanto: la
+                            nutrizionista che apre il catalogo trova 120 g e deve capire perché qui
+                            ne legge 216, invece di pensare a un errore. Un numero diverso senza una
+                            ragione visibile è il difetto che questa correzione serve a chiudere.
+                          */}
+                          {s.fromQtyPiatto !== undefined && (
+                            <div className="muted" style={{ fontSize: 11.5 }}>
+                              porzione scalata · a catalogo {quantita(s.fromQty, s.unit)}{s.from} → {quantita(s.toQty, s.unitA ?? s.unit)}{s.to}
+                            </div>
+                          )}
+                        </>
+                      )}
                     {s.grammaturaCorretta && (
                       <div style={{ fontSize: 11.5, color: '#9A5B12' }}>
                         grammatura riportata a pari: da ricontrollare

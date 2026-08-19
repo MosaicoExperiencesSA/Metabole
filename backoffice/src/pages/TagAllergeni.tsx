@@ -32,6 +32,8 @@ interface Recipe {
   mealSlot: string;
   allergens?: string[];
   allergensReviewed?: boolean;
+  /** ⚠️ Le ricette generate nascono bozze: è il motivo per cui questa pagina le chiedeva e non le vedeva. */
+  active?: boolean;
 }
 interface Suggestion { allergen: string; label: string; matched: string[] }
 interface SuggestResp { recipeId: string; name: string; current: string[]; reviewed: boolean; suggestions: Suggestion[] }
@@ -45,11 +47,31 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [editing, setEditing] = useState<Recipe | null>(null);
   const [totale, setTotale] = useState(0);
   const [troncato, setTroncato] = useState(false);
+  /**
+   * ⚠️ IL FILTRO «DA RIVEDERE» GIRA SUL SERVER, non sulle righe ricevute (19/8, segnalazione del
+   * nutrizionista: il riquadro del generatore diceva «4612 aspettano gli allergeni» e questa pagina
+   * era vuota). Due cause, e la prima da sola bastava: la pagina chiedeva `includeInactive=false`,
+   * mentre **tutte** le ricette che aspettano sono bozze (`active: false`) — non entravano nemmeno
+   * nella query. E anche vedendole, il filtro in memoria avrebbe cercato dentro le mille righe che
+   * il tetto aveva già scelto in ordine alfabetico.
+   */
+  const [soloDaRivedere, setSoloDaRivedere] = useState(true);
+  /** Le righe spuntate per la conferma in blocco. */
+  const [scelte, setScelte] = useState<Set<string>>(new Set());
+  const [confermandoBlocco, setConfermandoBlocco] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const qs = scopeRegime ? `/recipes?includeInactive=false&regime=${encodeURIComponent(scopeRegime)}` : '/recipes?includeInactive=false';
+      /**
+       * ⚠️ `includeInactive=true`: le ricette che aspettano gli allergeni sono **bozze**, e con
+       * `false` il server non le mandava affatto. È la riga che teneva vuota questa pagina mentre
+       * 4612 ricette aspettavano.
+       */
+      const p = new URLSearchParams({ includeInactive: 'true' });
+      if (scopeRegime) p.set('regime', scopeRegime);
+      if (soloDaRivedere) p.set('daRivedere', 'true');
+      const qs = `/recipes?${p.toString()}`;
       // `GET /recipes` risponde `{ items, total, troncato }` da quando i filtri girano sul
       // database (7/8): prima era un array nudo.
       const r = await api<{ items: Recipe[]; total: number; troncato?: boolean }>(qs);
@@ -63,7 +85,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime]);
+  useEffect(() => { setScelte(new Set()); void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeRegime, soloDaRivedere]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
@@ -78,6 +100,58 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   }
 
   const todo = rows.filter((r) => !r.allergensReviewed).length;
+
+  /**
+   * LA CONFERMA IN BLOCCO — decisione di Simone del 19/8.
+   *
+   * ⚠️ Non è una comodità: il generatore scrive ~4600 ricette a settimana, e confermarle una per
+   * una aprendo un riquadro sono diciannove ore per svuotare un mucchio che nel frattempo si è
+   * riempito di nuovo. Non è una pagina lenta, è una pagina che non si può usare.
+   *
+   * ⚠️ Gli allergeni **non si mandano da qui**: li ricalcola il server dagli ingredienti di adesso.
+   * Il senso del gesto è «di queste mi fido del riconoscitore», e mandare l'elenco dal browser
+   * vorrebbe dire scrivere in banca dati una fotografia vecchia — sulla cosa dove sbagliare fa più
+   * male.
+   *
+   * ⚠️ A scaglioni di 500: una chiamata che ne tocca quattromila o riesce tutta o si perde tutta, e
+   * non c'è modo di dire alla persona a che punto era.
+   */
+  async function confermaInBlocco() {
+    const ids = [...scelte];
+    if (!ids.length) return;
+    if (!confirm(
+      `Confermi gli allergeni di ${ids.length} ricett${ids.length === 1 ? 'a' : 'e'}?\n\n` +
+      'Vengono presi gli allergeni riconosciuti dagli ingredienti, e le ricette che erano bozze ' +
+      'ENTRANO IN CATALOGO: da quel momento il motore le può mettere nel piatto di una cliente.',
+    )) return;
+    setConfermandoBlocco(true);
+    setError(null); setNotice(null);
+    let confermate = 0; let attivate = 0;
+    try {
+      for (let i = 0; i < ids.length; i += 500) {
+        const fetta = ids.slice(i, i + 500);
+        const r = await api<{ confermate: number; attivate: number }>('/recipes/allergens/bulk', {
+          method: 'POST', body: JSON.stringify({ ids: fetta }),
+        });
+        confermate += r.confermate; attivate += r.attivate;
+      }
+      setNotice(`${confermate} ricette confermate${attivate ? `, di cui ${attivate} entrate in catalogo` : ''}.`);
+      setScelte(new Set());
+      await load();
+    } catch (e) {
+      // ⚠️ Si dice quante erano già passate: «non è riuscito» su un'operazione a scaglioni farebbe
+      // rifare da capo un lavoro per metà fatto.
+      setError(
+        `${e instanceof Error ? e.message : 'Conferma non riuscita.'}` +
+        (confermate ? ` ⚠️ ${confermate} ricette erano già state confermate prima dell'errore: quelle restano.` : ''),
+      );
+      await load();
+    } finally {
+      setConfermandoBlocco(false);
+    }
+  }
+
+  const tutteScelte = (righe: Recipe[]) => righe.length > 0 && righe.every((r) => scelte.has(r.id));
 
   const COLONNE: Colonna<Recipe>[] = [
     { chiave: 'ricetta', titolo: 'Ricetta', valore: (r) => r.name, filtro: 'testo' },
@@ -96,7 +170,12 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
    */
   const t = useTabella(rows, COLONNE, { testaFissa: true,
     ordineIniziale: { chiave: 'ricetta' },
-    filtriIniziali: { stato: 'Da rivedere' },
+    /**
+     * ⚠️ Niente filtro iniziale sulla colonna Stato: adesso è il **server** a mandare solo quelle da
+     * rivedere. Due controlli sullo stesso dato erano già stati tolti una volta da questa pagina, e
+     * rimetterne uno qui vorrebbe dire che azzerando i filtri comparirebbero righe confermate che il
+     * server non ha nemmeno mandato.
+     */
     nomeExcel: 'Allergeni ricette',
   });
 
@@ -114,7 +193,9 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
     <>
       <div className="spread" style={{ marginBottom: 16 }}>
         <p className="muted" style={{ margin: 0 }}>
-          Conferma gli allergeni di ogni ricetta. Il motore usa <b>solo</b> ricette con allergeni confermati; un prodotto non è attivabile finché tutte le sue ricette non sono confermate. <b>{todo}</b> da rivedere.
+          Conferma gli allergeni di ogni ricetta. Il motore usa <b>solo</b> ricette con allergeni confermati.
+          {' '}⚠️ <b>Confermare gli allergeni fa entrare la ricetta in catalogo</b>: le ricette generate nascono
+          come bozze, e la conferma è il gesto che le attiva. <b>{todo}</b> da rivedere qui.
         </p>
       </div>
 
@@ -122,6 +203,21 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
         <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <ContatoreRighe conteggio={t.conteggio} filtriAttivi={t.filtriAttivi} azzera={t.azzera} nome="ricette" />
           <BottoneExcel tabella={t} avviso={avvisoExport} />
+          {/*
+            ⚠️ Questo interruttore cambia la DOMANDA AL SERVER, non un filtro sulle righe già
+            ricevute: con 4612 da rivedere sparse su 19347 ricette, filtrare qui vorrebbe dire
+            cercare dentro la fetta alfabetica che il tetto ha già scelto.
+          */}
+          <label className="row" style={{ gap: 6, alignItems: 'center', fontSize: 13 }}
+            title="Chiede al server solo le ricette che aspettano gli allergeni, non un filtro su quelle già scaricate">
+            <input type="checkbox" checked={soloDaRivedere} onChange={(e) => setSoloDaRivedere(e.target.checked)} />
+            solo quelle da rivedere
+          </label>
+          {scelte.size > 0 && (
+            <button className="btn" disabled={confermandoBlocco} onClick={() => void confermaInBlocco()}>
+              <i className="ti ti-checks" /> {confermandoBlocco ? 'Confermo…' : `Conferma le ${scelte.size} selezionate`}
+            </button>
+          )}
         </div>
         <input
           className="input"
@@ -137,9 +233,19 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
 
       {troncato && (
         <Banner kind="info">
-          Il catalogo ha <b>{totale}</b> ricette e il server ne manda le prime <b>{rows.length}</b> in ordine
-          alfabetico: i filtri di questa tabella cercano solo fra queste. Una ricetta oltre l'elenco non
-          compare nemmeno filtrando — non vuol dire che non ci sia.
+          {soloDaRivedere ? (
+            <>
+              Aspettano gli allergeni <b>{totale}</b> ricette; il server ne manda le prime <b>{rows.length}</b>.
+              Confermane un blocco e la pagina si ricarica con le successive: il mucchio si svuota a scaglioni,
+              non serve cercarle.
+            </>
+          ) : (
+            <>
+              Il catalogo ha <b>{totale}</b> ricette e il server ne manda le prime <b>{rows.length}</b> in ordine
+              alfabetico: i filtri di questa tabella cercano solo fra queste. Una ricetta oltre l'elenco non
+              compare nemmeno filtrando — non vuol dire che non ci sia.
+            </>
+          )}
         </Banner>
       )}
 
@@ -154,7 +260,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
           <div className="empty">
             {rows.length === 0
               ? 'Nessuna ricetta.'
-              : todo === 0 && t.filtri.stato === 'Da rivedere'
+              : todo === 0 && soloDaRivedere
                 ? 'Tutte le ricette hanno gli allergeni confermati 🎉'
                 : 'Nessuna ricetta con questi filtri.'}
           </div>
@@ -165,13 +271,46 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
               {t.rigaFiltri()}
             </thead>
             <tbody>
+              {/*
+                ⚠️ «Scegli tutte» sceglie le righe DI QUESTA PAGINA, non tutte quelle trovate: un
+                interruttore che ne selezionasse quattromila senza mostrarle farebbe premere
+                «Conferma» su un numero che nessuno ha guardato.
+              */}
+              <tr style={{ background: 'var(--chip)' }}>
+                <td colSpan={5} style={{ padding: '6px 10px' }}>
+                  <label className="row" style={{ gap: 8, alignItems: 'center', fontSize: 12.5, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={tutteScelte(t.pagina)}
+                      onChange={(e) => setScelte((s0) => {
+                        const n = new Set(s0);
+                        for (const r of t.pagina) { if (e.target.checked) n.add(r.id); else n.delete(r.id); }
+                        return n;
+                      })}
+                    />
+                    scegli le {t.pagina.length} di questa pagina{scelte.size > 0 ? ` · ${scelte.size} scelte in tutto` : ''}
+                  </label>
+                </td>
+              </tr>
               {t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la revisione allergeni">
-                  <td><b>{r.name}</b></td>
+                  <td>
+                    <label className="row" style={{ gap: 8, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={scelte.has(r.id)}
+                        onChange={() => setScelte((s0) => { const n = new Set(s0); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
+                      />
+                      <b>{r.name}</b>
+                    </label>
+                  </td>
                   <td className="muted">{MEAL[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{(r.allergens ?? []).map((a) => LABEL.get(a) ?? a).join(', ') || '—'}</td>
                   <td>
                     <span className={`chip ${r.allergensReviewed ? '' : 'gray'}`}>{r.allergensReviewed ? 'Confermata' : 'Da rivedere'}</span>
+                    {/* ⚠️ «Bozza» si dice: confermare gli allergeni la fa entrare in catalogo, e chi
+                        preme deve sapere che quel gesto non è solo un'etichetta. */}
+                    {r.active === false && <span className="chip gray" style={{ marginLeft: 4 }}>bozza</span>}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
@@ -276,7 +415,7 @@ function TagModal({ recipe, onClose, onSaved }: { recipe: Recipe; onClose: () =>
           </div>
           <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
             <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
-            <button className="btn" onClick={confirm} disabled={busy}>{busy ? 'Salvo…' : 'Conferma allergeni'}</button>
+            <button className="btn" onClick={confirm} disabled={busy}>{busy ? 'Salvo…' : recipe.active === false ? 'Conferma e metti in catalogo' : 'Conferma allergeni'}</button>
           </div>
         </>
       )}

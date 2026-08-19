@@ -186,6 +186,17 @@ export interface ApiRecipe {
   tags?: string[];
   ingredients?: { name: string; qty?: number; unit?: string }[];
   cookingMethods?: { type: string; steps: string[] }[];
+  /**
+   * ⚠️ «Negli ingredienti c'è scritto biete, nei passi carote» (19/8).
+   *
+   * Le sostituzioni concordate cambiano gli **ingredienti** della scheda; i passi di cottura escono
+   * dal catalogo intatti, e il server **non li riscrive di proposito**: cambiare una parola dentro
+   * una frase produce «la porro» e «biete tagliate a rondelle», cioè istruzioni sbagliate. Manda
+   * invece l'elenco di cosa leggerà col nome vecchio, e qui si dice sopra i passi.
+   *
+   * Assente quando non c'è niente da dire — e allora la riga non compare affatto.
+   */
+  sostituzioniNeiPassi?: { da: string; a: string }[];
 }
 
 /**

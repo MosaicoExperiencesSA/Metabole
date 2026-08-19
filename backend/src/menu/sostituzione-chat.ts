@@ -28,6 +28,8 @@
  * Qui la domanda è una sola, il motivo, e la durata la deduce il codice.
  */
 
+import { quantitaScalata } from './porzione-scalata';
+
 /** La domanda che conta. La durata è la conseguenza, non la scelta della cliente. */
 export type MotivoKey = 'non_disponibile' | 'non_piace' | 'digestione' | 'no_tempo';
 
@@ -192,6 +194,19 @@ export interface PropostaSostituzione {
   unitaA?: string;
   /** Vero se `qtaA` è stata riportata a pari grammatura dal controllo di plausibilità. */
   grammaturaCorretta?: boolean;
+  /**
+   * IL FATTORE DI PORZIONE DEL PIATTO — quello con cui si **dicono** le grammature (19/8, decisione
+   * di Simone: «il numero del piatto»).
+   *
+   * ⚠️ `qtaDa` e `qtaA` restano di **catalogo**, e devono restarci: sono i numeri che finiscono
+   * nella sostituzione scritta sul menu, e il piatto viene scalato al momento di mostrarlo. Se qui
+   * si salvasse il numero già scalato, il piatto verrebbe scalato **due volte** — 120 g diventano
+   * 216, poi 389 — e nessuno se ne accorgerebbe finché una cliente non cucina.
+   *
+   * Quindi il fattore viaggia accanto ai numeri di catalogo, e si applica **solo quando si parla**.
+   * `1` (o assente) = questo piatto non è scalato, e si dice il numero di catalogo.
+   */
+  fattore?: number;
 }
 
 export interface StatoSostituzione {
@@ -415,8 +430,21 @@ export function unitaPerSostituto(unita: string | undefined, sostituto: string):
 
 // ---------- Testi di Gaia ----------
 
-const quantita = (qta?: number, unita?: string): string =>
-  qta !== undefined && qta > 0 ? `${qta}${unita ? ` ${unita}` : ''} di ` : '';
+/**
+ * LA GRAMMATURA CHE SI DICE — quella **del piatto suo**, non quella di catalogo (19/8).
+ *
+ * ⚠️ Il caso che l'ha deciso: Gaia diceva «metti 120 g di biete al posto di 100 g di carote» mentre
+ * nel piatto di quella cliente, scalato sul suo fabbisogno, ce n'erano 216. La chat è il posto dove
+ * lei ha detto «sì» e dove torna a controllare: era l'unico numero che non poteva usare in cucina.
+ *
+ * ⚠️ L'arrotondamento passa da `quantitaScalata`, la **stessa** funzione della scheda ricetta e
+ * della lista della spesa: due arrotondamenti diversi darebbero «216 g» di là e «215 g» di qua, che
+ * si legge come un errore di misura invece che come una regola.
+ */
+const quantitaNelPiatto = (qta?: number, fattore?: number, unita?: string): string => {
+  const scalata = quantitaScalata(qta, fattore, unita);
+  return scalata !== null && scalata > 0 ? `${scalata}${unita ? ` ${unita}` : ''} di ` : '';
+};
 
 const maiuscola = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -498,7 +526,7 @@ export function testoCiboNonTrovato(cibo: string, ultimoTentativo: boolean, quan
 export function testoChiediMotivo(p: PropostaSostituzione): string {
   const elenco = MOTIVI.map((m) => `${m.numero}) ${m.label}`).join('\n');
   return (
-    `${maiuscola(nelloSlot(p.slot))} (${p.piatto}) ci sono ${quantita(p.qtaDa, p.unita)}${p.da}.\n\n` +
+    `${maiuscola(nelloSlot(p.slot))} (${p.piatto}) ci sono ${quantitaNelPiatto(p.qtaDa, p.fattore, p.unita)}${p.da}.\n\n` +
     'Perché lo vuoi cambiare? Te lo chiedo perché la risposta cambia per quanto vale il cambio.\n\n' +
     `${elenco}\n\nRispondi col numero, o a parole tue.`
   );
@@ -526,8 +554,8 @@ const testoDurata = (durata: Durata, quando = 'oggi'): string => {
 };
 
 export function testoConferma(p: PropostaSostituzione, motivo: Motivo, nome?: string | null, quando = 'oggi'): string {
-  const daQta = quantita(p.qtaDa, p.unita);
-  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  const daQta = quantitaNelPiatto(p.qtaDa, p.fattore, p.unita);
+  const aQta = quantitaNelPiatto(p.qtaA, p.fattore, p.unitaA ?? p.unita);
   return (
     `Allora facciamo così${conNome(nome)}: ${nelloSlot(p.slot)} metti ` +
     `${aQta}${p.a} al posto di ${daQta}${p.da} — ${testoDurata(motivo.durata, quando)}.\n\n` +
@@ -634,8 +662,8 @@ export function testoContropropostaOk(
   motivo: Motivo,
   nome?: string | null,
 ): string {
-  const daQta = quantita(p.qtaDa, p.unita);
-  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  const daQta = quantitaNelPiatto(p.qtaDa, p.fattore, p.unita);
+  const aQta = quantitaNelPiatto(p.qtaA, p.fattore, p.unitaA ?? p.unita);
   return (
     `Sì${conNome(nome)}, «${p.a}» si può — ${nelloSlot(p.slot)} metti ${aQta}${p.a} al posto di ` +
     `${daQta}${p.da}, ${testoDurata(motivo.durata)}.\n\nConfermo? (sì / no)`
@@ -738,8 +766,8 @@ export function testoAltroSostituto(
   rifiutato: string,
   nome?: string | null,
 ): string {
-  const daQta = quantita(p.qtaDa, p.unita);
-  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  const daQta = quantitaNelPiatto(p.qtaDa, p.fattore, p.unita);
+  const aQta = quantitaNelPiatto(p.qtaA, p.fattore, p.unitaA ?? p.unita);
   return (
     `Capito${conNome(nome)}: niente ${rifiutato}. Allora proviamo con un'altra cosa — ` +
     `${nelloSlot(p.slot)} metti ${aQta}${p.a} al posto di ${daQta}${p.da}, ${testoDurata(motivo.durata)}.\n\n` +
@@ -768,7 +796,7 @@ export function testoNienteAltroSostituto(da: string, rifiutati: string[], nome?
 }
 
 export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: string | null, quando = 'oggi'): string {
-  const aQta = quantita(p.qtaA, p.unitaA ?? p.unita);
+  const aQta = quantitaNelPiatto(p.qtaA, p.fattore, p.unitaA ?? p.unita);
   let out =
     `Fatto${conNome(nome)}: il menu di ${quando} è aggiornato. ${maiuscola(nelloSlot(p.slot))} ` +
     `trovi ${aQta}${p.a} al posto ${/^[aeiou]/i.test(p.da) ? "dell'" : 'di '}${p.da}.`;
@@ -786,7 +814,7 @@ export function testoFatto(p: PropostaSostituzione, motivo: Motivo, nome?: strin
  * toccato niente» sarebbe falso — il cambio c'è, l'ha chiesto lei.
  */
 export function testoGiaFatto(p: PropostaSostituzione): string {
-  return `Quel cambio c'è già: ${nelloSlot(p.slot)} trovi ${quantita(p.qtaA, p.unitaA ?? p.unita)}${p.a}. Non ho fatto niente di nuovo. 💚`;
+  return `Quel cambio c'è già: ${nelloSlot(p.slot)} trovi ${quantitaNelPiatto(p.qtaA, p.fattore, p.unitaA ?? p.unita)}${p.a}. Non ho fatto niente di nuovo. 💚`;
 }
 
 export function testoNessunSostituto(cibo: string): string {

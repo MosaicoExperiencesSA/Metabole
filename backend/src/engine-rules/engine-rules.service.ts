@@ -1424,7 +1424,7 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
    */
   async statoGeneratore(giorni = 7): Promise<Record<string, unknown>> {
     const da = new Date(Date.now() - Math.max(1, giorni) * 86_400_000);
-    const [battiti, nate, daConfermare, varianti] = await Promise.all([
+    const [battiti, nate, daConfermare, daConfermareInTutto, varianti] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: { action: 'cron.genera_catalogo', createdAt: { gte: da } } as never,
         orderBy: { createdAt: 'desc' },
@@ -1433,6 +1433,15 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       }) as Promise<{ createdAt: Date; metadata: unknown }[]>,
       this.prisma.recipe.count({ where: { createdAt: { gte: da } } as never }),
       this.prisma.recipe.count({ where: { createdAt: { gte: da }, allergensReviewed: false } as never }),
+      /**
+       * ⚠️ QUANTE NE ASPETTANO **IN TUTTO**, non solo fra quelle nate negli ultimi sette giorni.
+       *
+       * Il collegamento accanto a questo numero porta alla pagina Allergeni, che non filtra per
+       * data: chi ci arriva contando di trovarne 4612 e ne trova il doppio non sa più a quale dei
+       * due numeri credere. Il numero che si scrive accanto a un collegamento deve essere quello
+       * che si trova dall'altra parte (19/8).
+       */
+      this.prisma.recipe.count({ where: { allergensReviewed: false } as never }),
       this.statoVarianti(),
     ]);
 
@@ -1442,6 +1451,8 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       giorni,
       ricetteNate: nate,
       ricetteDaConfermare: daConfermare,
+      /** Il totale che si trova aprendo la pagina Allergeni: vedi il riquadro sopra. */
+      ricetteDaConfermareInTutto: daConfermareInTutto,
       /** Unità di lavoro rimaste: una per giro, quindi altrettante notti. */
       restano: quantoManca(varianti, SETTIMANE_OBIETTIVO),
     };

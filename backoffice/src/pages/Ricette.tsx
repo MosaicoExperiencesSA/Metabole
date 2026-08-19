@@ -598,6 +598,8 @@ interface StatoGeneratore {
   errori: number;
   ricetteNate: number;
   ricetteDaConfermare: number;
+  /** Quante ne aspettano in TUTTO: è il numero che si trova aprendo la pagina Allergeni. */
+  ricetteDaConfermareInTutto?: number;
   restano: number;
 }
 
@@ -635,11 +637,14 @@ function GeneratoreWidget() {
       </div>
       <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
         Negli ultimi {s.giorni} giorni: <b>{s.ricetteNate}</b> ricette nuove
-        {s.ricetteDaConfermare > 0 && (
+        {(s.ricetteDaConfermareInTutto ?? s.ricetteDaConfermare) > 0 && (
           <>
-            {' '}(<b>{s.ricetteDaConfermare}</b> aspettano gli allergeni →{' '}
+            {' '}(<b>{s.ricetteDaConfermareInTutto ?? s.ricetteDaConfermare}</b> aspettano gli allergeni →{' '}
             {/* ⚠️ Il collegamento c'è perché finché una ricetta è lì NON entra in nessuna dieta: un
-                catalogo che cresce con una coda ferma è un catalogo che cresce e non serve a nessuno. */}
+                catalogo che cresce con una coda ferma è un catalogo che cresce e non serve a nessuno.
+                ⚠️ Il numero è quello TOTALE e non quello dei sette giorni: la pagina dall'altra parte
+                non filtra per data, e un collegamento deve promettere il numero che si trova
+                arrivandoci (19/8, segnalazione del nutrizionista). */}
             <Link to="/tag-allergeni">Allergeni ricette</Link>)
           </>
         )}

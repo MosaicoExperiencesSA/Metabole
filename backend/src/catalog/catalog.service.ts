@@ -15,6 +15,7 @@ import { EU_ALLERGEN_CODES, suggestAllergens } from './allergens';
 import { classificaColazione, nomiIngredienti, tagsDopoScelta, tipoConfermato, type TipoColazione } from '../vera/colazioni';
 import { METODI_COTTURA } from '../common/metodi-cottura';
 import { ingredientiScalati, pastoDelGiorno, porzioneDelGiorno } from '../menu/porzione-del-giorno';
+import { sostituzioniDaSapere } from '../menu/sostituzioni-nei-passi';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
 import {
@@ -413,9 +414,25 @@ export class CatalogService {
 
   // ---------- Allergeni ricette (R8) ----------
 
+  /**
+   * LA RICETTA COM'È, BOZZA COMPRESA — per chi ne rivede gli allergeni.
+   *
+   * ⚠️ `getRecipe` risponde **404 su una ricetta non attiva**, ed è giusto: la usa anche la cliente
+   * che apre una scheda dall'app, e una ricetta archiviata non deve comparirle. Ma la revisione
+   * degli allergeni lavora **esattamente** sulle bozze — nascono `active: false` e ci restano
+   * finché non sono confermate — quindi passando di lì il riquadro «Rivedi» rispondeva 404 sia in
+   * lettura sia in scrittura. Terzo strato dello stesso difetto del 19/8: la pagina non le
+   * elencava, il server non le mandava, e comunque non si sarebbero potute confermare.
+   */
+  private async ricettaDaRivedere(id: string) {
+    const recipe = await this.prisma.recipe.findUnique({ where: { id } });
+    if (!recipe) throw new NotFoundException('Ricetta non trovata');
+    return recipe as unknown as { id: string; name: string; ingredients: unknown; allergens?: string[]; allergensReviewed?: boolean; active?: boolean };
+  }
+
   /** Pre-tag assistito: suggerisce gli allergeni dagli ingredienti + stato attuale. */
   async recipeAllergenSuggestions(id: string) {
-    const recipe = await this.getRecipe(id);
+    const recipe = await this.ricettaDaRivedere(id);
     return {
       recipeId: recipe.id,
       name: recipe.name,
@@ -425,22 +442,88 @@ export class CatalogService {
     };
   }
 
-  /** Il nutrizionista CONFERMA gli allergeni della ricetta (→ reviewed=true). */
+  /**
+   * Il nutrizionista CONFERMA gli allergeni della ricetta (→ reviewed=true) **e la fa entrare in
+   * catalogo** (19/8, decisione di Simone).
+   *
+   * ⚠️ Prima la conferma non attivava niente: le ricette generate nascono `active: false`
+   * («BOZZA: non entra nel motore finché non approvata»), quindi anche confermandole tutte
+   * restavano ferme, e nessuna schermata diceva quante fossero in quello stato intermedio. Un
+   * secondo cancello che non ha una porta non è un cancello, è un magazzino.
+   *
+   * ⚠️ **Attiva solo la ricetta MAI confermata prima.** Una ricetta archiviata a mano è archiviata
+   * di proposito, e correggerle gli allergeni non deve resuscitarla: la conferma passata è quello
+   * che distingue «bozza appena nata» da «tolta dal catalogo da qualcuno».
+   */
   async setRecipeAllergens(userId: string, id: string, allergens: string[]) {
-    await this.getRecipe(id);
+    const prima = await this.ricettaDaRivedere(id);
     const clean = [...new Set(allergens)].filter((a) => EU_ALLERGEN_CODES.includes(a));
+    const attiva = prima.allergensReviewed !== true && prima.active !== true;
     const updated = await this.prisma.recipe.update({
       where: { id },
-      data: { allergens: clean, allergensReviewed: true } as never,
+      data: { allergens: clean, allergensReviewed: true, ...(attiva ? { active: true } : {}) } as never,
     });
     await this.audit.log({
       action: 'catalog.recipe.allergens.set',
       actorId: userId,
       entityType: 'recipe',
       entityId: id,
-      metadata: { count: clean.length },
+      // ⚠️ `attivata` si scrive: «la ricetta è entrata in catalogo» è una notizia diversa da
+      // «qualcuno ha spuntato il glutine», e in un registro devono restare distinte.
+      metadata: { count: clean.length, attivata: attiva },
     });
     return updated;
+  }
+
+  /**
+   * CONFERMA IN BLOCCO — la decisione di Simone del 19/8, e la ragione per cui non è un lusso.
+   *
+   * Il generatore scrive ~4600 ricette a settimana. Confermarle una per una, aprendo e chiudendo un
+   * riquadro, è una diciannovina d'ore di lavoro per svuotare un mucchio che nel frattempo si è
+   * riempito di nuovo: non è una pagina lenta, è una pagina che non si può usare.
+   *
+   * ⚠️ **Si confermano gli allergeni SUGGERITI dagli ingredienti**, non un elenco vuoto: qui il
+   * nutrizionista sta dicendo «di queste mi fido del riconoscitore», e scrivere `[]` vorrebbe dire
+   * dichiarare che quelle ricette non contengono allergeni — cioè il contrario, sulla cosa dove
+   * sbagliare fa più male.
+   *
+   * ⚠️ E si ricalcolano **adesso** dagli ingredienti veri, non si copiano quelli scritti alla
+   * nascita: se il riconoscitore è migliorato da allora, la conferma deve valere sulla versione di
+   * oggi. Un blocco che conferma una fotografia vecchia conferma il vecchio errore.
+   */
+  async confermaAllergeniInBlocco(userId: string, ids: string[]): Promise<{ confermate: number; attivate: number; saltate: number }> {
+    const unici = [...new Set((ids ?? []).filter((i) => typeof i === 'string' && i))];
+    if (!unici.length) return { confermate: 0, attivate: 0, saltate: 0 };
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { id: { in: unici } } as never,
+      select: { id: true, name: true, ingredients: true, allergensReviewed: true, active: true } as never,
+    })) as { id: string; name: string; ingredients: unknown; allergensReviewed: boolean; active: boolean }[];
+
+    let confermate = 0;
+    let attivate = 0;
+    for (const r of ricette) {
+      const allergeni = suggestAllergens(r.ingredients).map((x) => x.allergen).filter((a) => EU_ALLERGEN_CODES.includes(a));
+      const attiva = r.allergensReviewed !== true && r.active !== true;
+      await this.prisma.recipe.update({
+        where: { id: r.id },
+        data: { allergens: allergeni, allergensReviewed: true, ...(attiva ? { active: true } : {}) } as never,
+      });
+      confermate += 1;
+      if (attiva) attivate += 1;
+    }
+    /**
+     * ⚠️ **Una riga sola per il blocco, non una per ricetta.** Quattromila righe di registro per un
+     * clic renderebbero illeggibile il registro proprio nel giorno in cui serve rileggerlo — e la
+     * cosa da sapere è «chi ha confermato quante, e quando», non l'elenco.
+     */
+    await this.audit.log({
+      action: 'catalog.recipe.allergens.bulk',
+      actorId: userId,
+      entityType: 'recipe',
+      entityId: ricette[0]?.id ?? 'nessuna',
+      metadata: { chieste: unici.length, confermate, attivate, saltate: unici.length - confermate },
+    });
+    return { confermate, attivate, saltate: unici.length - confermate };
   }
 
   // ---------- Colazioni dolci e salate (Decisioni 13/8 §12) ----------
@@ -1119,6 +1202,16 @@ export class CatalogService {
   async listRecipes(filter: {
     regime?: string; mealSlot?: string; q?: string; includeInactive?: boolean; dietId?: string;
     difficulty?: string; season?: string; stato?: string; kcalMin?: number; kcalMax?: number;
+    /**
+     * ⚠️ «Solo quelle che aspettano gli allergeni» — e gira sul DATABASE, non sulle righe
+     * ricevute (19/8, segnalazione del nutrizionista).
+     *
+     * La pagina Allergeni filtrava in memoria le mille righe che il tetto le aveva già scelto in
+     * ordine alfabetico: con 4612 ricette da rivedere sparse su 19347, il filtro pescava dentro una
+     * fetta arbitraria del catalogo. È lo stesso difetto che il riquadro qui sopra racconta di aver
+     * chiuso l'11/8 per la pagina Ricette — chiuso lì e non qui.
+     */
+    daRivedere?: boolean;
   }): Promise<{ items: unknown[]; total: number; troncato: boolean }> {
     // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
     // dieta ha decine di ricette, non migliaia.
@@ -1155,6 +1248,7 @@ export class CatalogService {
       ...(filter.difficulty ? { difficulty: filter.difficulty } : {}),
       ...(Object.keys(kcal).length ? { kcal } : {}),
       ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
+      ...(filter.daRivedere ? { allergensReviewed: false } : {}),
     };
 
     const TETTO = 1000;
@@ -1315,13 +1409,28 @@ export class CatalogService {
       if (!pasto) return scheda;
       const porzione = porzioneDelGiorno(day.meals, recipeId, contesto.slot);
       const scalati = ingredientiScalati(scheda.ingredients, porzione?.fattore ?? 1, pasto.substitutions);
+      /**
+       * ⚠️ NEGLI INGREDIENTI C'È SCRITTO «BIETE», NEI PASSI ANCORA «CAROTE» (19/8).
+       *
+       * Le sostituzioni si applicano agli ingredienti; i passi di cottura escono dal catalogo
+       * intatti, e chi cucina legge due cose diverse sulla stessa ricetta. ⚠️ **Non si riscrivono**:
+       * cambiare una parola dentro una frase produce «la porro» e «biete tagliate a rondelle» —
+       * italiano sbagliato e istruzioni sbagliate. Si dice, sopra i passi, dove serve.
+       */
+      const passi = (Array.isArray(scheda.cookingMethods) ? scheda.cookingMethods : [])
+        .flatMap((m) => (Array.isArray((m as { steps?: unknown }).steps) ? ((m as { steps: unknown[] }).steps as string[]) : []));
+      const daSapere = sostituzioniDaSapere(pasto.substitutions, passi);
+      // ⚠️ Il campo si scrive solo se c'è qualcosa da dire: un array vuoto in risposta è una
+      // sezione che l'app disegna sempre, e una nota che c'è sempre non è una nota.
+      const nota = daSapere.length ? { sostituzioniNeiPassi: daSapere } : {};
       if (!porzione) {
         // Niente porzione da dire: restano le kcal e il nome di catalogo, ma gli ingredienti sono
         // quelli del piatto. `porzione` non si scrive: non c'è nessun moltiplicatore da annunciare.
-        return scalati ? { ...scheda, ingredients: scalati } : scheda;
+        return scalati ? { ...scheda, ingredients: scalati, ...nota } : { ...scheda, ...nota };
       }
       return {
         ...scheda,
+        ...nota,
         // ⚠️ Le kcal sono quelle dello SNAPSHOT, non `kcal × fattore`: sono il numero che la
         // cliente ha già letto nel menu, ed è dalla differenza fra i due che nasceva il dubbio.
         ...(porzione.kcal !== undefined ? { kcal: porzione.kcal } : {}),

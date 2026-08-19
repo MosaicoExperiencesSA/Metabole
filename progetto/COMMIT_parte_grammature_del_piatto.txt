@@ -1,0 +1,57 @@
+Gaia dice la grammatura che deve mettere nel piatto, non quella di catalogo
+
+Coda della voce 284, aperta dalla revisione della notte del 18/8 e chiusa dalla risposta di Simone
+del 19/8: «il numero del piatto».
+
+IL CASO
+Dal 18/8 le porzioni si scalano sul fabbisogno. Gaia diceva «a pranzo metti 120 g di biete al posto
+di 100 g di carote» mentre nel piatto di quella cliente ce n'erano 216 — la grammatura di catalogo,
+cioè il rapporto di sostituzione, non la porzione. ⚠️ E la chat è il posto dove lei ha detto «sì» e
+dove torna a controllare: era l'unico numero che non poteva usare in cucina.
+
+Stessa cosa nella tabella «cambi in chat» del backoffice: la nutrizionista che approva o corregge
+ragionava su 120 g mentre nel piatto ce n'erano 216 — e da quando l'app quel numero non lo mostra
+più, il suo era rimasto l'unico «ufficiale» accanto a quello della ricetta.
+
+COSA CAMBIA, E COSA NON CAMBIA
+⚠️ **In banca dati i numeri restano di CATALOGO.** Sono quelli scritti sul menu, e il piatto viene
+scalato al momento di mostrarlo: salvarli già scalati vorrebbe dire scalarli **due volte** — 120
+diventano 216, poi 389 — e nessuno se ne accorgerebbe finché una cliente non cucina. Il fattore
+viaggia accanto ai numeri e si applica **solo quando si parla**.
+
+⚠️ L'arrotondamento passa dalla **stessa** `quantitaScalata` della scheda ricetta e della lista
+della spesa. Rifarlo qui darebbe «216 g» di là e «215 g» di qua, e due numeri che differiscono di
+uno si leggono come un errore di misura, non come una regola.
+
+⚠️ Sotto il 5% non si scala niente (`fattoreDaDire`): è la stessa soglia che decide se il menu
+scrive «porzione più abbondante». Scalando comunque, la chat direbbe 105 g dove la scheda dice 100
+— grammature che cambiano senza che nessuno abbia detto perché.
+
+⚠️ Nel backoffice si dice anche **che il piatto è scalato**, col numero di catalogo accanto: chi
+apre il catalogo trova 120 g e deve poter capire perché lì ne legge 216, invece di pensare a un
+errore.
+
+IL TERZO PEZZO — I PASSI DI COTTURA, CHE NON SI RISCRIVONO
+La scheda ricetta applica le sostituzioni agli **ingredienti**, ma i passi escono dal catalogo
+intatti: sopra c'è scritto «biete», dentro «taglia le carote a rondelle».
+
+⚠️ **Non si riscrivono, di proposito.** La correzione ovvia — cambiare la parola nel testo — dà «la
+porro» e «biete tagliate a rondelle»: italiano sbagliato e istruzioni sbagliate. È la stessa ragione
+per cui su «pesce tranne salmone» non correggiamo noi. Si **dice**, sopra i passi: «Qui sotto trovi
+ancora «carote»: al loro posto usa «biete», come negli ingredienti».
+
+⚠️ E solo per gli alimenti **nominati davvero** nei passi, cercati **come parola** e non come
+sottostringa — è l'errore che faceva sostituire i peperoni a chi scriveva «pepe» — e riconoscendo
+singolare e plurale, perché i passi dicono «la carota» dove l'ingrediente si chiama «carote». Senza
+niente da dire, la riga non compare affatto: una nota che c'è sempre non è una nota.
+
+FILE
+- backend: `menu/porzione-del-giorno.ts` (`fattoreDaDire`, la soglia in un posto solo) ·
+  `menu/sostituzione-chat.ts` (`quantitaNelPiatto`, il campo `fattore`) ·
+  `menu/sostituzione-chat.service.ts` (il fattore del piatto, le grammature per il backoffice) ·
+  `menu/sostituzioni-nei-passi.ts` (nuovo, 9 test) · `catalog/catalog.service.ts` (la scheda ricetta)
+- app: `pages/Menu.tsx` (la riga sopra i passi) · `lib/meals.ts`
+- backoffice: `pages/ClientDetail.tsx` (la grammatura del piatto, e che è scalata)
+
+235 suite / 3681 test verdi · app 106 · backoffice 31 · due mutazioni provate sulla grammatura e
+tutte e due fanno fallire i test. Nessuna migrazione.

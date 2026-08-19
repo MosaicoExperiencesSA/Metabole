@@ -1,0 +1,67 @@
+«4612 aspettano gli allergeni» e la pagina era vuota: tre strati dello stesso difetto
+
+Segnalazione del nutrizionista, girata da Simone il 19/8: il riquadro in cima alla pagina Ricette
+diceva «4612 ricette aspettano gli allergeni → Allergeni ricette», e aprendo quella pagina non
+c'era niente da rivedere. Il numero era vero. La pagina era vera. Non potevano incontrarsi.
+
+STRATO 1 — LA PAGINA CHIEDEVA SOLO LE RICETTE ATTIVE
+Il generatore crea le ricette come BOZZE: `active: false`, col commento «non entra nel motore finché
+non approvata». È giusto così. ⚠️ Ma la pagina Allergeni chiamava `GET /recipes?includeInactive=false`,
+e il server traduce quel parametro in `where: { active: true }`: le 4612 bozze **non entravano
+nemmeno nella query**. La pagina riceveva mille ricette attive in ordine alfabetico, già confermate
+quasi tutte, e ci applicava il filtro «Da rivedere». Zero.
+Il confronto che lo dimostra: la pagina Ricette chiede `includeInactive: 'true'` e infatti conta
+19347; la pagina Allergeni chiedeva `false`.
+
+STRATO 2 — IL FILTRO GIRAVA IN MEMORIA
+⚠️ Anche vedendole, «Da rivedere» era un filtro sulle **mille righe già scelte dal tetto** in ordine
+alfabetico. Con 4612 sparse su 19347, cercare lì dentro vuol dire pescare in una fetta arbitraria
+del catalogo — ed è **testualmente** il difetto che il riquadro sopra `listRecipes` racconta di aver
+chiuso l'11/8 per la pagina Ricette: «una ricetta che c'è ma non compare è peggio di un errore,
+perché chi cerca conclude che non esiste». Chiuso lì, e non qui. Ora il filtro è una condizione del
+database (`daRivedere`), e il totale si conta sulla stessa condizione.
+
+STRATO 3 — E COMUNQUE NON SI SAREBBERO POTUTE CONFERMARE
+⚠️ `getRecipe` risponde **404 su una ricetta non attiva**, ed è giusto: la usa anche la cliente che
+apre una scheda dall'app. Ma ci passavano sia i suggerimenti sia il salvataggio della conferma —
+cioè le due cose che lavorano **esattamente** sulle bozze. Il riquadro «Rivedi» avrebbe risposto
+«Ricetta non trovata» su ogni ricetta generata. Ora quei due passano da una lettura che le bozze le
+vede, e quello che non esiste resta un 404.
+
+E LE DUE DECISIONI DI SIMONE, PRESE OGGI
+**1) Confermare gli allergeni fa entrare la ricetta in catalogo.** Prima la conferma scriveva
+`allergensReviewed: true` e basta: anche confermandole tutte e 4612 restavano bozze, e nessuna
+schermata diceva quante fossero in quello stato intermedio. Un secondo cancello che non ha una
+porta non è un cancello, è un magazzino. ⚠️ **Ma si attiva solo la ricetta MAI confermata prima**:
+una archiviata a mano è archiviata di proposito, e correggerle gli allergeni non deve resuscitarla.
+La pagina lo dice — la pastiglia «bozza» sulla riga, e il pulsante che diventa «Conferma e metti in
+catalogo».
+
+**2) La conferma in blocco.** ⚠️ Non è una comodità: il generatore scrive ~4600 ricette a settimana,
+e confermarle una per una aprendo un riquadro sono diciannove ore per svuotare un mucchio che nel
+frattempo si è riempito di nuovo. Non è una pagina lenta, è una pagina che non si può usare.
+⚠️ Il blocco scrive gli allergeni **riconosciuti dagli ingredienti**, non un elenco vuoto: il gesto
+è «di queste mi fido del riconoscitore», e scrivere `[]` dichiarerebbe che quelle ricette non
+contengono allergeni — il contrario, sulla cosa dove sbagliare fa più male. ⚠️ E si ricalcolano
+**adesso**: un blocco che conferma la fotografia scattata alla nascita conferma il vecchio errore.
+⚠️ Gli id **non arrivano dal browser insieme agli allergeni**, e si va a scaglioni di 500: una
+chiamata che ne tocca quattromila o riesce tutta o si perde tutta, e non c'è modo di dire alla
+persona a che punto era. Se cade a metà, la pagina dice quante erano già passate.
+⚠️ «Scegli tutte» sceglie le righe **di questa pagina**: un interruttore che ne selezionasse
+quattromila senza mostrarle farebbe premere «Conferma» su un numero che nessuno ha guardato.
+
+E IL NUMERO NEL RIQUADRO
+⚠️ Diceva quante ne aspettano **fra quelle nate negli ultimi sette giorni**, ma il collegamento
+porta a una pagina che non filtra per data: chi ci arriva contando di trovarne 4612 e ne trova il
+doppio non sa più a quale dei due numeri credere. Adesso il numero accanto al collegamento è quello
+che si trova arrivandoci.
+
+FILE
+- backend: `catalog/catalog.service.ts` (filtro `daRivedere`, `ricettaDaRivedere`, attivazione alla
+  conferma, `confermaAllergeniInBlocco`) · `catalog/catalog.controller.ts` · `catalog/dto/allergens.dto.ts`
+  · `engine-rules/engine-rules.service.ts` (il totale vero)
+- backoffice: `pages/TagAllergeni.tsx` (filtro sul server, selezione, conferma in blocco, «bozza»)
+  · `pages/Ricette.tsx` (il numero del collegamento)
+
+234 suite / 3667 test verdi · backoffice 31 · 15 test nuovi, quattro mutazioni provate e tutte e
+quattro fanno fallire i test. Nessuna migrazione.

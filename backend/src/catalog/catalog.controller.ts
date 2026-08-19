@@ -16,7 +16,7 @@ import { RequirePage } from '../common/decorators/require-page.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
-import { SetRecipeAllergensDto } from './dto/allergens.dto';
+import { ConfermaAllergeniInBloccoDto, SetRecipeAllergensDto } from './dto/allergens.dto';
 import { ConfermaColazioniDto, SetColazioneDto } from './dto/colazioni.dto';
 import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto, CollegaRicettaDto } from './dto/catalog.dto';
 
@@ -225,10 +225,13 @@ export class RecipesController {
     @Query('stato') stato?: string,
     @Query('kcalMin') kcalMin?: string,
     @Query('kcalMax') kcalMax?: string,
+    /** ⚠️ Il filtro «aspetta gli allergeni» gira sul database: vedi `listRecipes`. */
+    @Query('daRivedere') daRivedere?: string,
   ) {
     const num = (v?: string) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined);
     return this.catalog.listRecipes({
       regime, mealSlot, q, includeInactive: includeInactive === 'true', dietId,
+      daRivedere: daRivedere === 'true',
       difficulty, season, stato, kcalMin: num(kcalMin), kcalMax: num(kcalMax),
     });
   }
@@ -350,5 +353,16 @@ export class RecipesController {
   @Patch(':id/allergens')
   setAllergens(@Param('id') id: string, @Body() dto: SetRecipeAllergensDto, @CurrentUser() user: AuthUser) {
     return this.catalog.setRecipeAllergens(user.sub, id, dto.allergens);
+  }
+
+  /**
+   * Conferma in blocco (19/8): gli allergeni sono quelli **suggeriti dagli ingredienti**, calcolati
+   * al momento. Il corpo porta solo gli id — vedi `confermaAllergeniInBlocco` per il perché.
+   */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @RequirePage('recipes')
+  @Post('allergens/bulk')
+  confermaAllergeniInBlocco(@Body() dto: ConfermaAllergeniInBloccoDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.confermaAllergeniInBlocco(user.sub, dto.ids);
   }
 }

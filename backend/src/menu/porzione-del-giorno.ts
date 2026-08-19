@@ -66,6 +66,22 @@ const nonCambiaNiente = (f: unknown): boolean =>
   !(typeof f === 'number' && Number.isFinite(f) && f > PORZIONE_DA_DIRE);
 
 /**
+ * IL FATTORE CON CUI SI DICE UNA GRAMMATURA — `1` quando non cambia niente.
+ *
+ * ⚠️ Esiste per non far rispondere due volte alla stessa domanda. Le grammature si dicono in quattro
+ * posti — la scheda ricetta, la lista della spesa, la chat con Gaia e la tabella «cambi in chat» del
+ * backoffice — e devono dire **lo stesso numero**: «216 g» nella scheda e «215 g» in chat è peggio
+ * di due numeri dichiaratamente diversi, perché sembra un errore di misura invece di una regola.
+ *
+ * ⚠️ Sotto `PORZIONE_DA_DIRE` torna `1` e non il fattore vero: è la stessa soglia che decide se il
+ * menu scrive «porzione più abbondante». Scalando comunque, la chat direbbe 105 g dove la scheda
+ * dice 100 — grammature che cambiano senza che nessuno abbia detto perché.
+ */
+export function fattoreDaDire(porzione: unknown): number {
+  return nonCambiaNiente(porzione) ? 1 : (porzione as number);
+}
+
+/**
  * Il fattore di porzione di un piatto dentro una giornata già scritta, o `null`.
  *
  * ⚠️ **Tre esiti, non due**, e il terzo è il silenzio: se la giornata non contiene quel piatto — o
