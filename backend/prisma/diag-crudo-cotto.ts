@@ -54,6 +54,7 @@
  *   QUANTI=40 npm run diag:crudo-cotto
  */
 import { PrismaClient } from '@prisma/client';
+import { abbina } from '../src/nutrient-facts/abbinamento-alimenti';
 import { scegliPerRicetta } from '../src/nutrient-facts/stato-alimento';
 import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
@@ -71,6 +72,12 @@ async function main() {
   const alimenti = (await prisma.nutrientFact.findMany({
     select: { name: true, synonyms: true, state: true, kcal: true } as never,
   })) as { name: string; synonyms: string[]; state: string | null; kcal: number | null }[];
+  if (!alimenti.length) {
+    // ⚠️ Tabella vuota: «zero fuori tabella» e «tutto fuori tabella» avrebbero lo stesso aspetto.
+    console.log('⚠️  La tabella nutrienti è vuota: non c\'è niente con cui confrontare le ricette.');
+    console.log('');
+    return;
+  }
 
   /** Da nome normalizzato (nome o sinonimo) alle righe che lo portano. */
   const perNome = new Map<string, { name: string; state: string | null }[]>();
@@ -150,10 +157,46 @@ async function main() {
   if (senzaStato.length > QUANTI) console.log(`     … e altri ${senzaStato.length - QUANTI}`);
   console.log('');
 
+  /**
+   * ⚠️ I DUE ELENCHI IN CUI SI SPACCA IL «FUORI TABELLA» (19/8, dopo il primo giro in produzione).
+   *
+   * 7831 nomi sconosciuti sembrano un elenco da riempire, e non lo sono: quasi tutti parlano di
+   * righe **che ci sono già**, scritte in un altro modo. Qui si separano le due cose, perché portano
+   * a due lavori diversi:
+   *
+   *   3a) quelli che si abbinerebbero da soli con le regole di `abbinamento-alimenti.ts` — da
+   *       controllare **prima** di accendere quelle regole in produzione: si guarda l'elenco, e se
+   *       anche un accoppiamento è storto lo si è scoperto prima e non dopo;
+   *   3b) quelli che restano fuori davvero: è la lista da aggiungere a mano, ed è corta.
+   */
+  const alimentiPerAbbinare = alimenti.map((a) => ({ name: a.name, synonyms: a.synonyms ?? [] }));
+  const nomiDi = (r: { name: string; synonyms: string[] }) => [r.name, ...r.synonyms];
+  const abbinabili: { nome: string; quante: number; a: string; regola: string }[] = [];
+  const restanoFuori: { nome: string; quante: number }[] = [];
+  for (const x of fuoriTabella) {
+    const trovato = abbina(x.nome, alimentiPerAbbinare, nomiDi);
+    if (trovato) abbinabili.push({ nome: x.nome, quante: x.quante, a: trovato.riga.name, regola: trovato.regola });
+    else restanoFuori.push(x);
+  }
+
   console.log(`3) FUORI TABELLA — usati nelle ricette e sconosciuti a Gaia: ${fuoriTabella.length}.`);
-  console.log('   Su questi non dice niente, che è meglio di un numero sbagliato ma resta un buco.');
-  for (const x of fuoriTabella.slice(0, QUANTI)) console.log(`     ▸ ${String(x.quante).padStart(5)} ricette   ${x.nome}`);
-  if (fuoriTabella.length > QUANTI) console.log(`     … e altri ${fuoriTabella.length - QUANTI}`);
+  console.log('   Su questi Gaia non dice niente: meglio di un numero sbagliato, ma resta un buco.');
+  console.log('');
+  console.log(`3a) ⚠️  SI ABBINEREBBERO DA SOLI: ${abbinabili.length} nomi, ${abbinabili.reduce((n, x) => n + x.quante, 0)} usi in ricette.`);
+  console.log('    ⚠️  DA CONTROLLARE PRIMA di accendere l\'abbinamento: se anche uno di questi');
+  console.log('       accoppiamenti è storto, si è scoperto adesso e non dopo averlo messo in');
+  console.log('       produzione. Scorrine cinquanta con la nutrizionista.');
+  for (const x of abbinabili.slice(0, QUANTI)) {
+    console.log(`     ▸ ${String(x.quante).padStart(5)} ricette   ${x.nome}  →  ${x.a}   [${x.regola}]`);
+  }
+  if (abbinabili.length > QUANTI) console.log(`     … e altri ${abbinabili.length - QUANTI} (QUANTI=n per vederne di più)`);
+  console.log('');
+
+  console.log(`3b) DA AGGIUNGERE A MANO: ${restanoFuori.length} nomi.`);
+  console.log('    Nessuna regola li può abbinare: o l\'alimento non c\'è in tabella, o il nome è');
+  console.log('    ambiguo e indovinare vorrebbe dire scrivere calorie decise a caso.');
+  for (const x of restanoFuori.slice(0, QUANTI)) console.log(`     ▸ ${String(x.quante).padStart(5)} ricette   ${x.nome}`);
+  if (restanoFuori.length > QUANTI) console.log(`     … e altri ${restanoFuori.length - QUANTI}`);
   console.log('');
 
   console.log(`4) GIÀ A POSTO — alimenti con la riga a crudo (o a secco): ${aPosto}.`);

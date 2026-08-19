@@ -1,0 +1,52 @@
+I nomi liberi degli ingredienti: le regole per abbinarli, e la misura prima di accenderle
+
+Dal primo giro di `npm run diag:crudo-cotto` in produzione (19/8): **7831** nomi di ingredienti usati
+nelle ricette attive non si trovano in tabella. Guardando i primi si capisce che non è un elenco da
+riempire — è un problema di **abbinamento**:
+
+    «olio extravergine d oliva»  (2486 ricette)  →  in tabella c'è «olio extravergine di oliva»
+    «olio extravergine oliva»    (1237 ricette)  →  la stessa riga
+    «spinaci freschi»            (1350 ricette)  →  in tabella c'è «spinaci»
+    «noci sgusciate»             ( 748 ricette)  →  in tabella c'è «noci»
+
+⚠️ **IL DANNO È PIÙ PICCOLO DI QUELLO CHE AVEVO SCRITTO**, e va corretto: le ricette generate portano
+le calorie calcolate dall'**AI**, non sommate dalla tabella. La somma la fa `calcolaMacro` solo
+quando la nutrizionista **detta** una ricetta a Vera, e lì quello che manca si dichiara e blocca. Il
+danno quotidiano è un altro: **Gaia risponde «non ce l'ho» su alimenti che ci sono**.
+
+LE REGOLE, E LA TERZA CHE NON ESISTE
+1. **Le paroline non contano.** «olio extravergine d oliva» ha le stesse parole che distinguono di
+   «olio extravergine **di** oliva»: è la stessa riga scritta in un altro modo.
+2. **La ricetta è più specifica della tabella.** «spinaci freschi» → «spinaci»: aggiungere un
+   aggettivo non cambia l'alimento.
+
+⚠️ **Avevo proposto una terza regola — «alla ricetta manca solo una parolina» — e il test l'ha
+bocciata prima che finisse in produzione.** Non può esistere: se al nome della ricetta manca una
+parola della tabella, quella parola **distingue**. «Olio extravergine» senza «oliva» potrebbe essere
+di girasole; «riso» senza «integrale» è un altro riso. Una regola che le ignorasse sarebbe la stessa
+scorciatoia da cui è nata tutta questa storia (voce 228).
+
+⛔ Quei casi si chiudono con **un sinonimo aggiunto a mano**: «olio extravergine» sono 2771 ricette
+e si risolve con **una riga**, decisa da una persona — non con una regola che indovina.
+
+⚠️ **E davanti a due righe che vanno bene uguale non si sceglie**: fra «olio di oliva» e «olio di
+girasole», per un ingrediente «olio oliva girasole», la risposta è `null`. La riga che lo garantisce
+non era coperta da nessun test — l'ha scoperto una **mutazione**: toglierla non faceva fallire
+niente, perché il caso che credevo la provasse («latte» fra intero e scremato) tornava `null` per
+un'altra ragione. Adesso c'è il caso vero.
+
+⚠️ PRIMA SI MISURA, POI SI ACCENDE
+Le regole **non sono ancora attive**: per ora la diagnostica dice, per ogni nome sconosciuto, **a
+quale riga si abbinerebbe** e con quale regola. Si scorre l'elenco con la nutrizionista, e se anche
+un accoppiamento è storto lo si è scoperto prima di metterlo in produzione invece che dopo.
+
+Il «fuori tabella» si spacca quindi in due lavori diversi:
+· **3a — si abbinerebbero da soli**: da controllare;
+· **3b — da aggiungere a mano**: nessuna regola li può abbinare, ed è la lista corta (sale, pepe,
+  aglio, brodo vegetale…).
+
+FILE
+- backend: `nutrient-facts/abbinamento-alimenti.ts` (nuovo, 12 test) · `prisma/diag-crudo-cotto.ts`
+
+237 suite / 3734 test verdi · tre mutazioni provate, e la prima ha aggiunto un test che mancava.
+Nessuna migrazione, e nessun comportamento cambiato in produzione: per ora si guarda soltanto.

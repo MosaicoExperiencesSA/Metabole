@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔤 **I nomi liberi degli ingredienti: le regole per abbinarli, e la misura prima di
+  accenderle.** 7831 nomi usati nelle ricette non si trovano in tabella, ma non è un elenco da
+  riempire: «olio extravergine d oliva» è «olio extravergine **di** oliva», «spinaci freschi» sono
+  «spinaci». ⚠️ **E il danno è più piccolo di quello che avevo scritto**: le ricette generate portano
+  le calorie dell'**AI**, non sommate dalla tabella — la somma la fa solo Vera quando la
+  nutrizionista detta, e lì si dichiara e blocca. Il danno vero è che **Gaia dice «non ce l'ho» su
+  alimenti che ci sono**. Due regole: le **paroline non contano**, e la **ricetta più specifica**
+  prende la riga più generica. ⚠️ **La terza regola che avevo proposto — «manca solo una parolina» —
+  il test l'ha bocciata prima che finisse in produzione**: se al nome manca una parola della tabella,
+  quella parola **distingue** («olio extravergine» senza «oliva» può essere di girasole). Quei casi
+  si chiudono con **un sinonimo scritto da una persona**: 2771 ricette, una riga. ⚠️ E davanti a due
+  righe pari non si sceglie — la riga che lo garantisce **non era coperta**, l'ha scoperto una
+  mutazione: il caso che credevo la provasse tornava `null` per un'altra ragione. ⚠️ **Le regole non
+  sono attive**: per ora la diagnostica dice a quale riga ogni nome *si abbinerebbe*, così la si
+  controlla con la nutrizionista prima di accenderla. Il «fuori tabella» si spacca in «si
+  abbinerebbero» e «da aggiungere a mano», che sono due lavori diversi.
+  237 suite / **3736 test verdi**. Nessuna migrazione, e in produzione non cambia niente: si guarda.
+
+
 - `[Sviluppo]` 🥛 **«Il latte è sempre liquido»** — correzione di Simone sulla consegna di un'ora
   prima. ⚠️ **Se ogni latte è liquido, «liquido» non può essere un avviso**: è come scrivere «solido»
   sul pane, e uno stato che non distingue niente non può mettere in dubbio un numero. Avevo trattato
