@@ -1,0 +1,66 @@
+--------------------------------------------------------------------------------
+Parte: la ricerca degli alimenti va a PAROLE INTERE — 19/8 sera
+--------------------------------------------------------------------------------
+
+LA MISURA, E POI LA SCELTA
+
+`npm run diag:ricerca` girato in produzione. Il numero e netto:
+
+  40 trappole, e tutte e 40 possono scattare — perche in nessun caso la parola lunga
+  e in tabella:
+
+    «melanzane» / «melanzana»  →  «mela»       1025 usi
+    «denocciolate»             →  «nocciola»    385 usi   olive denocciolate a 628 kcal
+    «melagrana»                →  «grana»        72 usi   il melograno diventa il parmigiano
+    «cipollotto»               →  «pollo»        55 usi
+    «pescatrice»               →  «pesca»        32 usi   la coda di rospo diventa una pesca
+    «surgelato» / «congelato»  →  «gelato»       45 usi
+    «datterini»                →  «datteri»      22 usi   18 kcal contro ~280
+    «fagiolini»                →  «fagioli»      15 usi   31 kcal contro ~300
+
+  E quelle GIUSTE erano tre in tutto: «pomodorini», «pomodorino» → pomodori,
+  «spinacino» → spinaci. Circa 1700 usi sbagliati contro 231 giusti.
+
+  Sulle domande vere invece: 210 messaggi di clienti in tutta la storia della chat,
+  UNA sola domanda nutrizionale, ZERO differenze fra i due modi.
+
+⚠️ Cioe la trappola era CARICA MA NON ANCORA SCATTATA. Si chiude adesso che costa zero,
+non il giorno che scatta su una cliente.
+
+Simone ha scelto: PAROLE INTERE. `MODO_DI_OGGI` cambiato, una riga.
+
+⚠️ PERDERE I TRE CASI BUONI NON E UN DANNO
+
+Quando Gaia non trova piu «pomodorini» dice «non ce l ho», e il termine finisce in
+`nutrient_lookup_miss` — che e il modo in cui la tabella cresce guidata dalle domande vere.
+Un «non lo so» si vede e diventa una riga; «44 kcal» detto dalla mela non si vede e resta li.
+
+⚠️ IL TEST CHE DICEVA IL CONTRARIO E DIVENTATO ROSSO, ED E GIUSTO COSI
+
+Ieri avevo scritto un test che fotografava il difetto: «oggi "le melanzane" trovano la MELA»,
+con accanto scritto che il giorno della scelta sarebbe diventato rosso. E diventato rosso.
+Cambiato insieme al comportamento, nello stesso commit — un test aggiornato dopo, di nascosto,
+non avrebbe raccontato niente a nessuno. Provata anche la mutazione al contrario (rimettere il
+pezzo di parola): due test falliscono.
+
+⚠️ I DUE MODI RESTANO TUTTI E DUE
+
+Non ho tolto il vecchio. `diag:ricerca` continua a confrontarli, e il giorno che la tabella si
+riempie la stessa misura dira se il pezzo di parola e tornato a valere qualcosa. Un modo tolto
+e una misura che non si puo piu rifare.
+
+✅ E LA MISURA HA PRODOTTO PER CASO LA LISTA DELLA SPESA
+
+Cercava le trappole e ha trovato che i nomi che le fanno scattare sono tutti nomi che in tabella
+NON CI SONO: melanzane, olive denocciolate, melagrana, cipollotto, piselli sgranati, coda di
+pescatrice, datterini, fagiolini, spinacino. Alimenti veri e comuni, non casi limite. E la lista
+3b, in ordine di urgenza, e sta scritta nella voce dei nomi liberi degli ingredienti.
+`QUANTI=60 npm run diag:ricerca` le mostra tutte e quaranta.
+
+FILE
+- backend/nutrient-facts: `nome-dentro-la-domanda.ts` (`MODO_DI_OGGI`) ·
+  `valori-nutrizionali.service.spec.ts` (i test girati insieme al comportamento)
+- backend/prisma: `diag-ricerca-alimenti.ts` (dice il modo in produzione e a cosa serve adesso)
+- backend/lavori: `voci-iniziali.ts` — voce chiusa, e la lista 3b aggiunta alla voce dei nomi liberi
+
+241 suite / 3808 test verdi. Una mutazione provata: morde. Nessuna migrazione.

@@ -20,6 +20,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` ✅ **La ricerca degli alimenti va a PAROLE INTERE — scelta di Simone, dopo la
+  misura.** `npm run diag:ricerca` in produzione: **40 trappole, e tutte e 40 possono scattare**,
+  perché in nessun caso la parola lunga è in tabella. «melanzane/melanzana»→**mela** (1025 usi),
+  «denocciolate»→**nocciola** (385: le olive denocciolate contate a 628 kcal), «melagrana»→**grana**
+  (il melograno che diventa il parmigiano), «cipollotto»→**pollo**, «pescatrice»→**pesca** (la coda
+  di rospo che diventa una pesca), «surgelato»→**gelato**, «datterini»→**datteri** (18 kcal contro
+  280), «fagiolini»→**fagioli** (31 contro 300). ⚠️ E quelle **giuste** erano tre in tutto:
+  «pomodorini», «pomodorino» e «spinacino». **~1700 usi sbagliati contro 231 giusti.**
+  ⚠️ Sulle domande vere, invece, il cambio non toglieva e non aggiungeva niente: in tutta la storia
+  della chat ci sono **210 messaggi di clienti e una sola domanda nutrizionale**. Cioè la trappola
+  era **carica ma non ancora scattata** — e si chiude adesso che costa zero, non il giorno che
+  scatta su una cliente.
+  ✅ **Perdere i tre casi buoni non è un danno**: quando Gaia non trova «pomodorini» dice «non ce
+  l'ho» e il termine finisce fra i mancanti, che è *il modo in cui la tabella cresce guidata dalle
+  domande vere*. Un «non lo so» si vede e diventa una riga; «44 kcal» detto dalla mela non si vede.
+  ⚠️ **Il test che diceva il contrario è diventato rosso, ed è giusto così.** L'avevo scritto ieri
+  fotografando il difetto — «oggi "le melanzane" trovano la MELA» — con accanto che il giorno della
+  scelta sarebbe diventato rosso. È cambiato **insieme** al comportamento, nello stesso commit: un
+  test aggiornato dopo, di nascosto, non avrebbe raccontato niente a nessuno.
+  ⚠️ **I due modi restano tutti e due nel codice**: `diag:ricerca` continua a confrontarli, e il
+  giorno che la tabella si riempie la stessa misura dirà se il pezzo di parola è tornato a valere
+  qualcosa. Un modo tolto è una misura che non si può più rifare.
+  ✅ **E la misura ha prodotto per caso la lista della spesa della tabella alimenti**: cercava le
+  trappole e ha scoperto che i nomi che le fanno scattare sono tutti nomi **che in tabella non ci
+  sono** — melanzane, olive denocciolate, melagrana, cipollotto, piselli sgranati, coda di
+  pescatrice, datterini, fagiolini. Alimenti veri e comuni, non casi limite. È la lista 3b, in
+  ordine di urgenza, e adesso sta scritta nella voce dei nomi liberi degli ingredienti.
+
 - `[Sviluppo]` 📏 **La misura del «pezzo di parola»: `npm run diag:ricerca`.** Ieri sera avevo messo
   in elenco che la ricerca degli alimenti si incastra dove non deve — «melanzane» contiene «mela»,
   «risotto» contiene «riso» — e avevo scritto «quello lo misuro io, ma la scelta è di Simone».

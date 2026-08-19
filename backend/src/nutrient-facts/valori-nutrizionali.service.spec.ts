@@ -101,16 +101,25 @@ describe('ValoriNutrizionaliService — quale alimento trova', () => {
   });
 
   /**
-   * ⚠️ IL DIFETTO DEL PEZZO DI PAROLA, MESSO NERO SU BIANCO (19/8). «Melanzane» contiene «mela», e
-   * `cercaTutti` — che è la strada vera di ogni risposta di Gaia sui numeri — trova la mela.
+   * ⚠️ IL DIFETTO DEL PEZZO DI PAROLA — ed è **chiuso** dalla sera del 19/8.
    *
-   * ⛔ Il test dice che **oggi succede**: non è un test di ciò che vorrei, è la fotografia di com'è.
-   * Il giorno che Simone sceglie le parole intere, questo test diventa rosso ed è **giusto** che lo
-   * diventi — si cambia l'aspettativa insieme al comportamento, in un posto solo.
+   * Il test c'era già ieri e diceva l'opposto: «oggi "le melanzane" trovano la MELA», con scritto
+   * accanto che il giorno della scelta sarebbe diventato rosso ed era giusto così. È diventato
+   * rosso, e questa è la riga che lo ha reso verde di nuovo. ⚠️ Si cambia l'aspettativa **insieme**
+   * al comportamento, in un posto solo: un test aggiornato dopo, di nascosto, non avrebbe raccontato
+   * niente a nessuno.
+   *
+   * ⛔ E la risposta giusta non è «un altro alimento», è **niente**: «melanzane» in tabella non c'è,
+   * e adesso lo dice invece di dire 44 kcal.
    */
-  it('⚠️ oggi «le melanzane» trovano la MELA: il difetto del pezzo di parola', async () => {
+  it('⚠️ «le melanzane» non trovano più la mela: la trappola è chiusa', async () => {
     const trovati = await service.cercaTutti('quante calorie hanno le melanzane?');
-    expect(trovati.map((t) => t.id)).toEqual(['mela']);
+    expect(trovati.map((t) => t.id)).toEqual([]);
+  });
+
+  /** ⚠️ E la mela vera continua a trovarsi: la chiusura non ha portato via niente di buono. */
+  it('la mela vera si trova ancora', async () => {
+    expect((await service.cercaTutti('quante calorie ha la mela?')).map((t) => t.id)).toEqual(['mela']);
   });
 
   /**
@@ -124,10 +133,14 @@ describe('ValoriNutrizionaliService — quale alimento trova', () => {
     expect((await service.cercaTutti('quante calorie ha la mela?', 3, 'parole_intere')).map((t) => t.id)).toEqual(['mela']);
   });
 
-  /** Lo stesso sul parametro di `cerca`, che ce l'ha per la stessa ragione. */
-  it('⚠️ anche «cerca» accetta il modo, e cambia risposta', async () => {
-    expect((await service.cerca('quante calorie hanno le melanzane?'))?.id).toBe('mela');
-    expect(await service.cerca('quante calorie hanno le melanzane?', 'parole_intere')).toBeNull();
+  /**
+   * ⚠️ I DUE MODI RESTANO TUTTI E DUE, e questo test è la ragione: `diag:ricerca` continua a
+   * confrontarli, e il giorno che la tabella si riempie la stessa misura dirà se il pezzo di parola
+   * è tornato a valere qualcosa. Un modo tolto è una misura che non si può più rifare.
+   */
+  it('⚠️ i due modi restano distinguibili: il vecchio trova la mela, quello di oggi no', async () => {
+    expect((await service.cerca('quante calorie hanno le melanzane?', 'pezzo_di_parola'))?.id).toBe('mela');
+    expect(await service.cerca('quante calorie hanno le melanzane?')).toBeNull();
   });
 
   it('due alimenti in un confronto, nell\'ordine in cui li ha scritti', async () => {

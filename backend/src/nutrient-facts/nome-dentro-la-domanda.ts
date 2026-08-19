@@ -37,19 +37,47 @@
  * un po' diversa dall'originale — è lo stesso motivo per cui un test double che si comporta
  * diversamente dall'originale non verifica niente.
  *
- * ⛔ **Il modo si cambia in un punto solo (`MODO_DI_OGGI`), e lo decide Simone**, non io: è una
- * scelta su come parla il prodotto, non una pulizia di codice. Finché non ha scelto, resta com'è.
+ * ⛔ **Il modo si cambia in un punto solo (`MODO_DI_OGGI`), e l'ha deciso Simone** il 19/8 sera
+ * leggendo i numeri della misura: **parole intere**. I due modi restano tutti e due perché
+ * `diag:ricerca` continua a confrontarli — il giorno che la tabella si riempie, la stessa misura
+ * dice se il pezzo di parola è tornato a valere qualcosa.
  */
 
 export type ModoDiCercare = 'pezzo_di_parola' | 'parole_intere';
 
 /**
- * ⚠️ COM'È OGGI, e non è una svista: è la riga che si cambia il giorno che Simone sceglie.
+ * ⚠️ **PAROLE INTERE — scelto da Simone il 19/8 sera, dopo aver letto la misura.**
+ *
+ * Fino a quel momento era `pezzo_di_parola`, ed era com'era sempre stato. `npm run diag:ricerca` ha
+ * contato in produzione **40 trappole, e tutte e 40 possono scattare** — perché in nessun caso la
+ * parola lunga è in tabella:
+ *
+ *     «melanzane» / «melanzana» → «mela»       1025 usi
+ *     «denocciolate»            → «nocciola»    385 usi   (le olive denocciolate: 628 kcal)
+ *     «melagrana»               → «grana»        72 usi   (il melograno diventa il parmigiano)
+ *     «cipollotto»              → «pollo»        55 usi
+ *     «pescatrice»              → «pesca»        32 usi   (la coda di rospo diventa una pesca)
+ *     «surgelato» / «congelato» → «gelato»       45 usi
+ *     «datterini»               → «datteri»      22 usi   (18 kcal contro ~280)
+ *     «fagiolini»               → «fagioli»      15 usi   (31 kcal contro ~300)
+ *
+ * ⚠️ E quelle **giuste** erano tre in tutto: «pomodorini» e «pomodorino» → «pomodori», «spinacino» →
+ * «spinaci». Circa 1700 usi sbagliati contro 231 giusti.
+ *
+ * ⚠️ **Sulle domande vere il cambio non toglie e non aggiunge niente**: in tutta la storia della
+ * chat ci sono 210 messaggi di clienti e **una sola** domanda nutrizionale, e le due ricerche
+ * rispondevano uguale. Cioè la trappola era **carica ma non ancora scattata** — si chiude adesso che
+ * costa zero, non quando il traffico di Gaia la fa scattare su una cliente.
+ *
+ * ✅ **E perdere i tre casi buoni non è un danno**: quando Gaia non trova «pomodorini» dice «non ce
+ * l'ho» e il termine finisce in `nutrient_lookup_miss`, che è **il modo in cui la tabella cresce
+ * guidata dalle domande vere**. Un «non lo so» si vede e diventa una riga; «44 kcal» detto dalla
+ * mela non si vede e resta lì.
  *
  * Sta scritta qui e non sparsa nei chiamanti perché una scelta che vive in un punto solo si può
  * cambiare leggendo una riga; la stessa scelta ripetuta in tre posti si cambia in due su tre.
  */
-export const MODO_DI_OGGI: ModoDiCercare = 'pezzo_di_parola';
+export const MODO_DI_OGGI: ModoDiCercare = 'parole_intere';
 
 /** Ciò che, attaccato a un nome, vuol dire che il nome è solo un pezzo di un'altra parola. */
 const LETTERA = /[a-z0-9]/;

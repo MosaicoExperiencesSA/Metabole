@@ -47,8 +47,11 @@
  * parola** che conteneva il nome («melanzane»), che senza la frase intorno non dice niente di
  * nessuno. Nient'altro, e i conteggi.
  *
- * ⚠️ Non scrive niente. Non cambia il modo di cercare: quello resta `MODO_DI_OGGI`, e lo cambia
- * Simone quando ha letto questi numeri.
+ * ⚠️ Non scrive niente e non cambia il modo di cercare. ✅ **Il 19/8 sera Simone ha letto questi
+ * numeri e ha scelto le parole intere**, che sono in produzione dalla consegna dopo. La misura resta
+ * viva per due ragioni: la sezione 1 è la **lista della spesa** della tabella alimenti in ordine di
+ * urgenza (ogni trappola aperta è un alimento vero che manca), e la sezione 2 dirà se un giorno il
+ * pezzo di parola è tornato a valere qualcosa.
  *
  * ## USO (shell di Render, dentro ~/project/src/backend)
  *
@@ -60,6 +63,7 @@ import { PrismaClient } from '@prisma/client';
 import { domandaNutrizionale } from '../src/chat/domanda-nutrizionale';
 import { ValoriNutrizionaliService, normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 import { paroleChe } from '../src/nutrient-facts/abbinamento-alimenti';
+import { MODO_DI_OGGI } from '../src/nutrient-facts/nome-dentro-la-domanda';
 
 const prisma = new PrismaClient();
 const QUANTI = Math.max(1, Number(process.env.QUANTI ?? 20) || 20);
@@ -252,14 +256,17 @@ async function main() {
   await trappoleDellaTabella();
   await domandeVere();
   console.log('──────────────────────────────────────────────────────────────────');
-  console.log('  LE QUATTRO STRADE, e la scelta è di Simone:');
-  console.log('   (a) PAROLE INTERE — sparisce tutta la colonna (c): gli errori e gli aiuti insieme.');
-  console.log('   (b) PAROLE INTERE, E SE NON TROVA NIENTE RIPROVA COME OGGI — tiene gli aiuti,');
-  console.log('       ⚠️ ma quando il pezzo di parola è l\'unica strada l\'errore resta identico.');
-  console.log('   (c) NIENTE — si accetta che ogni tanto risponda di un altro alimento.');
-  console.log('   (d) I SINONIMI: le righe giuste della colonna (c) si chiudono a mano, una per una,');
-  console.log('       e poi si può fare la (a) senza perdere niente. ⚠️ Costa lavoro di persone.');
-  console.log('  ⚠️ Il cambio è una riga: `MODO_DI_OGGI` in `nome-dentro-la-domanda.ts`.');
+  console.log(`  ⚠️ IL MODO IN PRODUZIONE ADESSO È: ${MODO_DI_OGGI}.`);
+  console.log('  Scelto da Simone il 19/8 sera leggendo questi numeri: 40 trappole tutte aperte,');
+  console.log('  ~1700 usi sbagliati contro 231 giusti, e zero differenze sulle domande vere.');
+  console.log('');
+  console.log('  A COSA SERVE ANCORA QUESTA MISURA, adesso che la scelta è fatta:');
+  console.log('   · la sezione 1 è la LISTA DELLA SPESA della tabella alimenti, in ordine di');
+  console.log('     urgenza: ogni trappola aperta è un alimento vero che in tabella NON c\'è.');
+  console.log('     Il giorno che la riga si aggiunge, la trappola si chiude da sola.');
+  console.log('   · la sezione 2 dice se il pezzo di parola è tornato a valere qualcosa: si');
+  console.log('     rilancia quando la tabella si è riempita, o quando Gaia riceve più domande.');
+  console.log('  ⚠️ Il cambio è sempre una riga: `MODO_DI_OGGI` in `nome-dentro-la-domanda.ts`.');
   console.log('  Nessuna scrittura: questa diagnostica legge e basta.');
   console.log('');
 }
