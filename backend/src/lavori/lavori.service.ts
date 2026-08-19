@@ -200,6 +200,32 @@ export class LavoriService {
      * ogni rilascio gli toglierebbe di mano l'unica leva che ha chiesto — in silenzio, che è la
      * parte peggiore. Perciò vale solo alla nascita della voce.
      */
+    /**
+     * ⚠️ **LA DIVERGENZA SI DICE** (19/8, dalla voce `lista-lavori-file-e-pagina`).
+     *
+     * Il file può solo *chiudere* una voce, mai riaprirla: quando qualcosa si chiude fuori da una
+     * consegna — Simone lancia uno script, una decisione arriva in chat — la pagina lo sa e il file
+     * no. E chi legge il file (io, in ogni sessione nuova) crede di leggere l'elenco vero: il 19/8
+     * gli ho ripresentato come aperte la tabella IG e la conta allergie, già lanciate da lui.
+     *
+     * Qui non si **corregge** niente — quale delle due versioni vinca è una decisione di prodotto,
+     * non di software, ed è ancora aperta. Si **mostra**, che è la stessa scelta già fatta per i
+     * testi cambiati: meglio saperlo che crederle allineate.
+     */
+    const fileIndietro = VOCI_INIZIALI.filter((v) => {
+      if (v.fatta === true || v.soloSeEsiste) return false;
+      const riga = perChiave.get(v.chiave);
+      return !!riga && riga.fatto;
+    }).map((v) => ({ chiave: v.chiave, titolo: v.titolo }));
+
+    /**
+     * ⚠️ E l'altra direzione: le voci scritte **a mano dalla pagina** (`chiave: null`) che nel file
+     * non esistono e non esisteranno mai. Non ricevono la data di nascita né le riscritture del
+     * rilascio, e chi legge il file non sa nemmeno che ci sono — sono tre, oggi, e due sono in
+     * priorità alta. Si conta e si dice: non c'è niente da correggere, c'è da saperlo.
+     */
+    const soloInPagina = await this.prisma.lavoro.count({ where: { chiave: null, fatto: false } as never });
+
     const daDatare: { id: string; nataIl: Date }[] = [];
     for (const v of VOCI_INIZIALI) {
       if (!v.nata) continue;
@@ -246,6 +272,14 @@ export class LavoriService {
       riscritte: daRiscrivere.map((r) => ({ titolo: r.titolo, categoria: r.categoria })),
       /** ⚠️ Voci a cui il rilascio ha **aggiunto** la data di nascita che mancava (mai riscritta). */
       datate: daDatare.length,
+      /**
+       * ⚠️ Voci che **il file crede aperte e la pagina ha già chiuso**: il file è indietro. Non si
+       * tocca niente — si dice, perché è l'errore che il 19/8 mi ha fatto ripresentare come da fare
+       * due cose già fatte.
+       */
+      fileIndietro,
+      /** ⚠️ Quante voci vivono **solo in pagina** (scritte a mano): il file non le vedrà mai. */
+      soloInPagina,
       /**
        * ⚠️ Voci il cui testo nel file è cambiato ma che qualcuno ha corretto **a mano** dalla
        * pagina: NON vengono riscritte, e si dicono — perché il file ha qualcosa di nuovo da

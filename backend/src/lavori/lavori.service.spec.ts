@@ -49,6 +49,9 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'l1' }),
+        // ⚠️ Il doppio finto deve rispondere come l'originale: `count` esiste, e un doppio che si
+        // comporta diversamente non verifica niente (lezione del 19/8 su `audit.log`).
+        count: jest.fn().mockResolvedValue(0),
       },
       staff: { findUnique: jest.fn().mockResolvedValue(null) },
     };
@@ -227,6 +230,7 @@ describe('LavoriService.caricaVociIniziali — la data di nascita e la priorità
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'x' }),
+        count: jest.fn().mockResolvedValue(0),
       },
       staff: { findUnique: jest.fn().mockResolvedValue(null) },
     };
@@ -298,5 +302,70 @@ describe('LavoriService.caricaVociIniziali — la data di nascita e la priorità
       .map((c) => c[0])
       .filter((u) => u.data.priorita !== undefined);
     expect(conPriorita).toEqual([]);
+  });
+});
+
+/**
+ * ⚠️ LA DIVERGENZA FRA IL FILE E LA PAGINA SI DICE (19/8, dalla voce `lista-lavori-file-e-pagina`).
+ *
+ * Il file può solo *chiudere* una voce, mai riaprirla: quando qualcosa si chiude fuori da una
+ * consegna — Simone lancia uno script sulla shell, una decisione arriva in chat — la pagina lo sa e
+ * il file no. E chi legge il file crede di leggere l'elenco vero: il 19/8 gli ho ripresentato come
+ * aperte la tabella IG e la conta allergie, che aveva già lanciato lui.
+ */
+describe('LavoriService.caricaVociIniziali — il file e la pagina che divergono', () => {
+  let service: LavoriService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      lavoro: {
+        findMany: jest.fn().mockResolvedValue([
+          // ⚠️ Il file la dà per aperta (non ha `fatta: true`), la pagina l'ha spuntata: file indietro.
+          { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'x', testoAMano: false, nataIl: null },
+          // Questa il file la sa già chiusa: non è una divergenza, è il funzionamento normale.
+          { id: 'l1', chiave: 'aperta-e-finita', fatto: true, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false, nataIl: null },
+        ]),
+        create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
+        update: jest.fn().mockResolvedValue({ id: 'x' }),
+        count: jest.fn().mockResolvedValue(3),
+      },
+      staff: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [LavoriService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = moduleRef.get(LavoriService);
+  });
+
+  /** ⚠️ IL CASO CHE VALE LA VOCE: il file la crede aperta, in pagina è spuntata. */
+  it('⚠️ dice quali voci il file crede aperte e la pagina ha già chiuso', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.fileIndietro.map((v) => v.chiave)).toEqual(['gia-spuntata']);
+  });
+
+  /**
+   * ⚠️ Una voce che il file dichiara **finita** e la pagina ha spuntato non è una divergenza: è il
+   * caso normale, e metterla nell'elenco lo riempirebbe di righe che non dicono niente — un avviso
+   * che compare sempre non è un avviso.
+   */
+  it('⚠️ una voce che il file sa già chiusa non è una divergenza', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.fileIndietro.map((v) => v.chiave)).not.toContain('aperta-e-finita');
+  });
+
+  /** L'altra direzione: le voci scritte a mano dalla pagina, che nel file non esistono. */
+  it('conta le voci che vivono solo in pagina', async () => {
+    expect((await service.caricaVociIniziali(false)).soloInPagina).toBe(3);
+    expect((prisma.lavoro.count as jest.Mock).mock.calls[0][0].where).toEqual({ chiave: null, fatto: false });
+  });
+
+  /** ⚠️ È una lettura: dirlo non deve scrivere niente, nemmeno col secondo clic. */
+  it('⚠️ non corregge niente: quale versione vinca è una decisione, non un automatismo', async () => {
+    await service.caricaVociIniziali(true);
+    const spunteTolte = (prisma.lavoro.update as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .filter((u) => u.data.fatto === false);
+    expect(spunteTolte).toEqual([]);
   });
 });

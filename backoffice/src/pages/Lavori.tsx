@@ -163,6 +163,10 @@ export function Lavori() {
     riscritte: { titolo: string; categoria: string }[];
     /** ⚠️ Voci corrette A MANO dalla pagina: il rilascio ha un testo diverso e NON le tocca. */
     testiCambiati: { titolo: string; categoria: string }[];
+    /** ⚠️ Voci che il FILE crede aperte e la pagina ha già chiuso: il file è indietro. */
+    fileIndietro?: { chiave: string; titolo: string }[];
+    /** ⚠️ Quante voci vivono solo qui, scritte a mano: il file non le vedrà mai. */
+    soloInPagina?: number;
   } | null>(null);
   // ⚠️ `caricandoVoci` e non `caricando`: quello esiste già ed è il caricamento della PAGINA.
   const [caricandoVoci, setCaricandoVoci] = useState(false);
@@ -294,6 +298,8 @@ export function Lavori() {
         chiuse: { titolo: string; categoria: string }[];
         riscritte: { titolo: string; categoria: string }[];
         testiCambiati: { titolo: string; categoria: string }[];
+        fileIndietro?: { chiave: string; titolo: string }[];
+        soloInPagina?: number;
       }>(
         '/admin/lavori/carica',
         { method: 'POST', body: JSON.stringify({ conferma }) },
@@ -389,7 +395,7 @@ export function Lavori() {
         )}
         {caricamento && (
           <div className="card" style={{ marginTop: 10, background: 'var(--chip)' }}>
-            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 && !(caricamento.riscritte?.length) && !(caricamento.testiCambiati?.length) ? (
+            {caricamento.aggiunte === 0 && caricamento.spuntate === 0 && !(caricamento.riscritte?.length) && !(caricamento.testiCambiati?.length) && !(caricamento.fileIndietro?.length) ? (
               <div>Non c'è niente da allineare: le {caricamento.saltate} voci del rilascio sono già in elenco, e nessuna è da spuntare.</div>
             ) : (
               <>
@@ -444,6 +450,39 @@ export function Lavori() {
                       ))}
                     </ul>
                   </>
+                )}
+                {/*
+                  ⚠️ LA DIVERGENZA FRA IL FILE E QUESTA PAGINA (19/8).
+
+                  Il file può solo *chiudere* una voce, mai riaprirla: quando qualcosa si chiude
+                  fuori da una consegna — uno script lanciato sulla shell, una decisione presa in
+                  chat — questa pagina lo sa e il file no. E chi legge il file crede di leggere
+                  l'elenco vero: il 19/8 sono state ripresentate come da fare la tabella IG e la
+                  conta allergie, già lanciate. ⚠️ Qui non si corregge niente — quale delle due
+                  versioni vinca è una decisione, non un automatismo — si dice.
+                */}
+                {(caricamento.fileIndietro?.length ?? 0) > 0 && (
+                  <>
+                    <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--danger)' }}>
+                      ⚠️ Il rilascio è indietro su {caricamento.fileIndietro!.length}{' '}
+                      {caricamento.fileIndietro!.length === 1 ? 'voce' : 'voci'}: qui {caricamento.fileIndietro!.length === 1 ? 'è' : 'sono'} già{' '}
+                      {caricamento.fileIndietro!.length === 1 ? 'spuntata' : 'spuntate'}, nel file {caricamento.fileIndietro!.length === 1 ? 'risulta' : 'risultano'} da fare.
+                    </div>
+                    <ul style={{ margin: '0 0 10px 18px' }}>
+                      {caricamento.fileIndietro!.map((t) => <li key={t.chiave}>{t.titolo}</li>)}
+                    </ul>
+                    <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+                      Non tocco niente: la spunta che hai messo qui vale. Serve a saperlo — chi legge il
+                      file senza aprire questa pagina le riproporrebbe come da fare.
+                    </div>
+                  </>
+                )}
+                {(caricamento.soloInPagina ?? 0) > 0 && (
+                  <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+                    ⚠️ {caricamento.soloInPagina} voci aperte vivono <b>solo qui</b>, scritte a mano: nel
+                    rilascio non esistono, quindi non ricevono la data di nascita né le riscritture del
+                    testo. Se ne vuoi una nel repository, dimmelo e la scrivo nel file.
+                  </div>
                 )}
                 {/* ⚠️ Va detto sempre, anche quando non c'è niente da aggiungere: è la promessa che
                     questo pulsante non tocca il lavoro fatto a mano in pagina. */}

@@ -1,0 +1,43 @@
+«Aggiorna dal rilascio» dice quando il file è indietro rispetto alla pagina
+
+Dalla voce aperta la mattina del 19/8, nel modo peggiore: avevo fatto a Simone il punto della
+situazione leggendo `voci-iniziali.ts` invece della pagina, e gli avevo ripresentato come aperte la
+**tabella IG** e la **conta allergie** — due cose che aveva già lanciato lui sulla shell di Render.
+La sua risposta: «la tabella IG quante volte te la devo dare?».
+
+IL DIFETTO
+⚠️ **Il file non è lo stato.** Lo stato è la pagina, e il file può solo *chiudere* una voce, mai
+riaprirla: quando qualcosa si chiude fuori da una consegna — uno script lanciato in shell, una
+decisione presa in chat — la pagina lo sa e il file resta indietro **in silenzio**. E chi legge il
+file, cioè io in ogni sessione nuova, crede di leggere l'elenco vero.
+
+⚠️ Vale anche al contrario: le voci scritte a mano dalla pagina non hanno una chiave, quindi nel file
+non esistono e non esisteranno mai — non ricevono la data di nascita né le riscritture del testo, e
+chi legge il file non sa nemmeno che ci sono. Oggi sono tre, e due erano in priorità alta.
+
+COSA FA ADESSO
+«Aggiorna dal rilascio» aggiunge due informazioni a quelle che dava già:
+· ⚠️ **quali voci il file crede aperte e la pagina ha già chiuso**, col titolo che si legge in pagina
+  e non con la chiave — una lista di `tabella-ig-import` non è una cosa su cui si ragiona;
+· quante voci vivono **solo in pagina**, con l'offerta di scriverne una nel file se serve.
+
+⚠️ **E non corregge niente**, di proposito. Quale delle due versioni debba vincere è una decisione di
+prodotto, non un automatismo: togliere da solo una spunta messa a mano sarebbe un difetto peggiore
+di quello che risolve. È la stessa scelta già fatta per i testi cambiati a mano — si mostra, non si
+sovrascrive. C'è un test che tiene ferma proprio questa riga.
+
+⚠️ **Una voce che il file dichiara finita e la pagina ha spuntato NON è una divergenza**: è il caso
+normale. Elencarla riempirebbe l'avviso di righe che non dicono niente, e un avviso che compare
+sempre non è un avviso.
+
+RESTA APERTA, E SI VEDE
+La strada più radicale — un `npm run allinea:lavori` che rigenera il file dalla pagina — non si fa
+adesso: fa vincere la pagina su un file che sta nel repository e si legge nei commit. Si aspetta di
+vedere se il segnale basta; da oggi, per la prima volta, si può misurare invece di supporre.
+
+FILE
+- backend: `lavori/lavori.service.ts` · `lavori/lavori.service.spec.ts` (4 test) · `lavori/voci-iniziali.ts`
+- backoffice: `pages/Lavori.tsx`
+
+236 suite / 3696 test verdi · backoffice 31 · tre mutazioni provate e tutte e tre fanno fallire i
+test. Nessuna migrazione.

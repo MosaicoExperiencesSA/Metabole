@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔗 **«Aggiorna dal rilascio» dice quando il file è indietro rispetto alla pagina.**
+  Dalla voce aperta la mattina del 19/8 nel modo peggiore: avevo fatto il punto della situazione
+  leggendo `voci-iniziali.ts` invece della pagina, e avevo ripresentato come aperte la tabella IG e
+  la conta allergie — già lanciate da Simone. ⚠️ **Il file non è lo stato**: può solo *chiudere* una
+  voce, mai riaprirla, quindi quando qualcosa si chiude fuori da una consegna resta indietro **in
+  silenzio**. ⚠️ E al contrario: le voci scritte a mano dalla pagina non hanno chiave, nel file non
+  esistono, non ricevono la data di nascita né le riscritture — e chi legge il file non sa nemmeno
+  che ci sono. Ora il pulsante dice **quali voci il file crede aperte e la pagina ha già chiuso**
+  (col titolo, non con la chiave) e **quante vivono solo in pagina**. ⚠️ Non corregge niente, di
+  proposito: quale versione vinca è una decisione, e togliere da solo una spunta messa a mano sarebbe
+  peggio del problema — c'è un test che tiene ferma questa riga. ⚠️ E una voce che il file dichiara
+  finita e la pagina ha spuntato **non è una divergenza**: è il caso normale, elencarla renderebbe
+  l'avviso rumore. ⛔ Resta aperta la strada radicale (`npm run allinea:lavori`, il file rigenerato
+  dalla pagina): fa vincere la pagina su un file che sta nel repository e si legge nei commit, e non
+  si fa finché il segnale non si dimostra insufficiente — da oggi si può misurare invece di supporre.
+  236 suite / **3696 test verdi**, backoffice 31, tre mutazioni provate e tutte e tre fanno fallire
+  i test. Nessuna migrazione.
+
+
 - `[Sviluppo]` 🗓️ **La giornata di oggi si rifà, e «quanto manca» nell'app è uno solo.** Due risposte
   di Simone, e in tutte e due il lavoro era togliere una risposta di troppo. **1)** «Quali giorni si
   possono rifare» era scritto in **tre posti**, e ⚠️ in uno dei tre il confine partiva da **domani**
