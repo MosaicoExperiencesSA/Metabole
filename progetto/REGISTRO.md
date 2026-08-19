@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🤖 **La lista si allinea da sola a ogni rilascio** (Simone: «non devo spuntare io le
+  voci, fallo tu»). ⚠️ La frase dice una cosa più grossa di quello che sembra: *se dopo ogni consegna
+  una persona deve ricordarsi di premere un pulsante perché l'elenco dica la verità, quel pulsante è
+  un lavoro* — e le cose che vanno ricordate ogni volta, prima o poi, non si ricordano. Poi qualcuno
+  legge l'elenco, ci trova aperte delle voci già chiuse, e ci perde una giornata: è successo oggi,
+  tre indagini su tre lavori già fatti.
+  L'allineamento è nel `preDeployCommand`, accanto alle migrazioni, ed è **lo stesso codice del
+  pulsante** — non una seconda copia: due strade che scrivono la stessa cosa in due modi divergono.
+  ⛔ Con un `|| true` intorno: far fallire il rilascio di un'app che serve delle clienti **per la
+  contabilità dei nostri compiti** sarebbe una sproporzione. ⚠️ E stampa i **titoli**, non i numeri:
+  «3 voci spuntate» non si può verificare, «ho chiuso *Moduli fissi in dashboard*» sì — è l'unico
+  modo in cui un automatismo che tocca l'elenco di qualcun altro si può controllare.
+  ✅ **E il file è allineato alle risposte già date**: chiuse Colazioni, Riconoscitore allergeni,
+  Vincolo piani sovrapposti, Nomi liberi degli ingredienti e File-e-pagina. Restano **sei** voci, e
+  cinque aspettano una persona.
+  ⚠️ **Sulla voce degli allergeni ho scritto cosa è stato verificato e cosa no**, e non è pignoleria:
+  quello che c'è è il *giudizio* di chi conosce le ricette, non la misura che la voce chiedeva — il
+  confronto fra un campione confermato a mano e quello che il riconoscitore avrebbe detto, coi due
+  numeri separati. ⛔ Il primo dei due — quante volte **non** vede un allergene che c'è — è quello
+  che fa male, e resta non misurato. Chiudere sulla parola di chi sa è una decisione legittima;
+  crederla una misura no.
+
 - `[Sviluppo]` 🔍 **Seconda revisione avversariale della giornata, sulle consegne che avevano visto
   solo i miei occhi: 27 rilievi.** Le sei che contano.
   ⛔ **La coda che non sarebbe mai partita, e nessuno l'avrebbe saputo.** Stasera avevo insegnato al

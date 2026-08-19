@@ -1,0 +1,68 @@
+--------------------------------------------------------------------------------
+Parte: la lista si allinea da sola al rilascio — 19/8 notte
+--------------------------------------------------------------------------------
+
+Simone: «non devo spuntare io le voci, fallo tu». Poi: «allinea la lista».
+
+Aveva ragione, e la prima frase dice una cosa piu grossa di quello che sembra. ⚠️ SE DOPO OGNI
+CONSEGNA UNA PERSONA DEVE RICORDARSI DI PREMERE UN PULSANTE PERCHE L ELENCO DICA LA VERITA,
+QUEL PULSANTE E UN LAVORO — e le cose che vanno ricordate ogni volta, prima o poi, non si
+ricordano. Poi qualcuno legge l elenco, ci trova aperte delle voci gia chiuse, e ci perde una
+giornata. E successo oggi: tre indagini su tre lavori gia fatti.
+
+1) L ALLINEAMENTO GIRA DA SOLO A OGNI DEPLOY
+
+`prisma/allinea-lavori.ts` nel `preDeployCommand`, accanto alle migrazioni. ⚠️ E LO STESSO
+CODICE del pulsante (`LavoriService.caricaVociIniziali`), non una seconda copia: due strade che
+scrivono la stessa cosa in due modi divergono. Il pulsante resta dov e, per quando si vuole
+guardare prima di confermare.
+
+⚠️ Non e `carica:lavori`, che resta e fa un altra cosa: quello e il PRIMO caricamento e per
+scelta non aggiorna mai una voce gia in elenco.
+
+⛔ E HA UN `|| true` INTORNO. Sta nella stessa riga delle migrazioni: far fallire il rilascio di
+un app che serve delle clienti PER LA CONTABILITA DEI NOSTRI COMPITI sarebbe una sproporzione.
+Se non riesce, l elenco resta indietro di un giro e lo dicono i log.
+
+⚠️ E stampa i TITOLI, non i numeri: «3 voci spuntate» non si puo verificare, «ho chiuso *Moduli
+fissi in dashboard*» si — e se ho chiuso la voce sbagliata si vede leggendo. E l unico modo in
+cui un automatismo che tocca l elenco di qualcun altro si puo controllare.
+
+Il patto resta quello di sempre: il file puo CREARE e CHIUDERE, mai riaprire, mai togliere una
+spunta, mai riscrivere un testo corretto a mano, e chiudere per titolo solo se il titolo
+combacia con UNA riga sola.
+
+2) IL FILE ALLINEATO ALLE TUE RISPOSTE
+
+Chiuse cinque voci con le risposte che avevi gia dato:
+
+  · Colazioni dolce/salato        «ci sta lavorando, va bene cosi chiudiamo il punto»
+  · Riconoscitore allergeni       «testato col nutrizionista dice che e ok»
+  · Vincolo piani sovrapposti     «non ci sono anomalie di questo tipo… il punto e chiuso»
+  · Nomi liberi degli ingredienti «crea una tabella dove possiamo correggere a mano» → fatta
+  · File e pagina Lavori          chiusa da questa consegna
+
+⚠️ SULLA VOCE DEGLI ALLERGENI HO SCRITTO COSA E STATO VERIFICATO E COSA NO, e non e pignoleria:
+quello che c e e il GIUDIZIO di chi conosce le ricette, non la misura che la voce chiedeva — il
+confronto fra un campione confermato a mano e quello che il riconoscitore avrebbe detto, coi due
+numeri separati. ⛔ Il primo dei due (quante volte NON vede un allergene che c e) e quello che fa
+male, e resta non misurato. Chiudere sulla parola di chi sa e una decisione legittima; crederla
+una misura no. Se un giorno un allergene passa, si riparte da li.
+
+⚠️ E la voce dei nomi liberi si chiude anche se il lavoro a mano continua: non e piu un punto di
+elenco, e un elenco vero dentro la pagina, che dice quante righe restano e cala da solo. *Una
+voce che descrive un lavoro continuo resta aperta per sempre, e a forza di restare aperta smette
+di dire qualcosa.*
+
+RESTANO SEI VOCI, E CINQUE ASPETTANO UNA PERSONA
+
+  · numero WhatsApp (settembre, deciso)      · coda «Da validare»: il numero di Nocanty
+  · aggiornamenti grossi (sessione tranquilla) · kcal-need: la nutrizionista
+  · come si prendono le misure: Simone e Lucia
+  · ordine del menu, difetto 6 — l unico di codice, e la voce stessa spiega perche non conviene
+
+FILE
+- `render.yaml` (`preDeployCommand`) · backend/prisma: `allinea-lavori.ts` (nuovo) ·
+  `package.json` · backend/lavori: `voci-iniziali.ts` (cinque voci chiuse)
+
+245 suite / 3859 test verdi. Nessuna migrazione.

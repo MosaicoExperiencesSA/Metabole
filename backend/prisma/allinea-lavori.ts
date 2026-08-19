@@ -1,0 +1,86 @@
+/**
+ * ALLINEA LA PAGINA «LAVORI» AL RILASCIO — gira **da solo** a ogni deploy.
+ *
+ * Richiesta di Simone, 19/8 notte: **«non devo spuntare io le voci, fallo tu»**. Aveva ragione, e la
+ * frase dice una cosa più grossa di quello che sembra: se dopo ogni consegna una persona deve
+ * ricordarsi di premere un pulsante perché l'elenco dica la verità, quel pulsante **è un lavoro** —
+ * e le cose che vanno ricordate ogni volta, prima o poi, non si ricordano. Poi qualcuno legge
+ * l'elenco, ci trova aperte tre voci già chiuse, e ci perde una giornata. È successo il 19/8: tre
+ * indagini su tre lavori già fatti.
+ *
+ * ⚠️ **Fa esattamente quello che fa il pulsante**, perché è **lo stesso codice**
+ * (`LavoriService.caricaVociIniziali`), non una seconda copia: il pulsante resta dov'è, per quando
+ * si vuole guardare prima di confermare. Due strade che scrivono la stessa cosa in due modi
+ * divergono, ed è la ragione per cui questo script non ricopia niente.
+ *
+ * ⚠️ **Non è `carica:lavori`**, che è un'altra cosa e resta: quello fa il *primo* caricamento e
+ * per scelta **non aggiorna mai** una voce già in elenco. Questo invece è l'allineamento del
+ * rilascio: crea le mancanti, spunta quelle che il file dichiara finite, riscrive i testi che
+ * nessuno ha corretto a mano.
+ *
+ * ## ⚠️ COSA NON PUÒ FARE, ED È IL PATTO
+ *
+ * ⛔ **Non toglie mai una spunta.** La pagina è lo stato vivo: una spunta messa a mano non si
+ * discute da un file. Il file può solo *chiudere*, mai *riaprire*.
+ * ⛔ **Non riscrive** una voce che qualcuno ha corretto dal backoffice (`testoAMano`).
+ * ⛔ **Non crea** le voci `soloSeEsiste`: se in pagina non ci sono, per il caricamento non esistono.
+ *
+ * ## ⚠️ E NON FA FALLIRE IL DEPLOY
+ *
+ * Sta nel `preDeployCommand` accanto alle migrazioni, ma con un `|| true` intorno: se questo
+ * allineamento non riesce, l'elenco dei lavori resta indietro di un giro — mentre far fallire il
+ * rilascio di un'app che serve delle clienti **per la contabilità dei nostri compiti** sarebbe una
+ * sproporzione. Si grida nei log e si va avanti.
+ *
+ * USO
+ *   npm run allinea:lavori           # dice cosa farebbe, e non scrive
+ *   CONFERMA=1 npm run allinea:lavori
+ */
+import { PrismaClient } from '@prisma/client';
+import { LavoriService } from '../src/lavori/lavori.service';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const conferma = process.env.CONFERMA === '1';
+  const service = new LavoriService(prisma as never);
+  const e = await service.caricaVociIniziali(conferma);
+
+  console.log('');
+  console.log('==================================================================');
+  console.log(`  LAVORI — allineamento dal rilascio ${conferma ? '(SCRITTO)' : '(prova, non scrivo)'}`);
+  console.log('==================================================================');
+  console.log(`  voci nuove aggiunte:      ${e.aggiunte}`);
+  console.log(`  voci spuntate:            ${e.spuntate}`);
+  console.log(`  testi riscritti:          ${e.riscritte.length}`);
+  console.log(`  date di nascita aggiunte: ${e.datate}`);
+  console.log('');
+  /**
+   * ⚠️ **I titoli, non i numeri.** «3 voci spuntate» non si può verificare; «ho chiuso *Moduli
+   * fissi in dashboard*» sì — e se ho chiuso la voce sbagliata si vede leggendo, che è l'unico modo
+   * in cui un automatismo che tocca l'elenco di qualcun altro si può controllare.
+   */
+  for (const c of e.chiuse) console.log(`   ✔︎ chiusa:     ${c.titolo}`);
+  for (const t of e.titoli) console.log(`   + aggiunta:   ${t.titolo}`);
+  for (const r of e.riscritte) console.log(`   ✎ riscritta:  ${r.titolo}`);
+  if (e.testiCambiati.length) {
+    console.log('');
+    console.log('  ⚠️ Queste hanno un testo corretto A MANO in pagina e NON le tocco:');
+    for (const t of e.testiCambiati) console.log(`     · ${t.titolo}`);
+  }
+  if (e.fileIndietro.length) {
+    console.log('');
+    console.log('  ⚠️ Il file le crede aperte, la pagina le ha già chiuse (il file è indietro):');
+    for (const v of e.fileIndietro) console.log(`     · ${v.titolo}`);
+  }
+  if (e.soloInPagina) {
+    console.log('');
+    console.log(`  ⚠️ Voci scritte a mano in pagina e aperte: ${e.soloInPagina}.`);
+    console.log('     Il file le può chiudere solo per TITOLO, e solo se il titolo è unico.');
+  }
+  console.log('');
+}
+
+main()
+  .catch((e) => { console.error(e); process.exitCode = 1; })
+  .finally(() => void prisma.$disconnect());
