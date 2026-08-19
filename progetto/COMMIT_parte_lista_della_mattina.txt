@@ -1,0 +1,47 @@
+«Cosa devo fare oggi?» adesso è una lista numerata, non un conteggio
+
+Richiesta di Simone (19/8): «Vera gli sottopone tutte le cose che deve fare, numerate».
+
+COSA C'ERA, E PERCHÉ NON BASTAVA
+Dal 14/8 «hai segnalazioni per me?» componeva il **quadro** della giornata leggendo le tabelle vere.
+⚠️ Ma erano **conteggi**: «3 segnalazioni, 2 proposte, 1 domanda» dice **quanto** lavoro c'è, non
+**quale**. Non si può dire «faccio la 3», non si vede il nome di chi aspetta, e non si depenna
+niente. Chi legge un conteggio sa solo che è indietro.
+
+⚠️ E la coda **«Da validare»** — le decisioni del motore in attesa — nel quadro **non c'era
+affatto**: viveva solo nel riquadro della home. Un elenco che si presenta come «tutte le cose che
+devi fare» e ne salta una categoria intera è peggio di nessun elenco, perché chi lo legge smette di
+guardare altrove.
+
+⚠️ UNA DECISIONE GIÀ PRESA, CAMBIATA — E VA DETTO
+«Cosa devo fare oggi?» e «cosa c'è da fare?» portavano il quadro, e c'erano due test che lo
+fissavano. Ora portano la lista. ⚠️ Ma la lista **non dice meno** di quello che sostituisce: le due
+cose che non si numerano — le approvazioni del catalogo e la campanella — restano in fondo, come
+righe, sotto «non numerate, perché si aprono da un'altra parte». Un miglioramento che perde pezzi non
+è un miglioramento. «Hai segnalazioni per me?» continua a dare il quadro.
+
+LE TRE COSE CHE LA LISTA DICE INVECE DI TACERE
+· ⚠️ **Il taglio.** Oltre dieci voci per fonte non si numerano: si portano le prime e si scrive
+  quante restano. Un elenco troncato in silenzio si legge come «è tutto qui», ed è il modo più
+  efficace per far smettere di guardare altrove.
+· ⚠️ **La fonte rotta.** «Non lo so» ≠ «nessuno»: se una lettura fallisce si dice **quale colonna è
+  cieca**, invece di fingere uno zero. Ogni fonte ha il suo `try`.
+· **Chi aspetta.** Ogni riga porta il nome della cliente, non solo la categoria.
+
+⚠️ E LE AZIONI NON SI RISCRIVONO QUI
+Il modulo importa le azioni della coda «Da validare» da dove sono già scritte
+(`engine/causa-decisione.ts`, decise con Nocanty): per ogni causa **solo** quelle che hanno senso per
+quella causa. Se un domani Nocanty toglie «blocca il piano» dall'energia bassa, deve sparire da tutte
+e due i posti — o fra un mese la coda e la chat offrirebbero due cose diverse sulla stessa riga.
+
+⛔ COSA RESTA
+La lista si **legge**; aprire una voce dicendo «la 3» ed eseguirne l'azione è il pezzo dopo. Le
+sostituzioni e il catalogo restano **conteggi** di proposito: sono code che si aprono a parte, una
+voce per volta, e numerarle qui prometterebbe un'apertura che da questa lista non c'è.
+
+FILE
+- backend: `vera/lista-della-mattina.ts` (nuovo, 15 test) · `vera/capisci.ts` + spec ·
+  `vera/vera-chat.service.ts` + spec (3 test nuovi) · `lavori/voci-iniziali.ts`
+
+239 suite / 3769 test verdi · tre mutazioni provate e tutte e tre fanno fallire i test.
+Nessuna migrazione.

@@ -72,6 +72,8 @@ import {
   type DietaInRevisione,
   type VoceDaApprovare,
 } from './coda-approvazioni';
+import { ETICHETTA_CAUSA, isCausa } from '../engine/causa-decisione';
+import { numera, testoDellaLista, type TipoVoce, type VoceDaFare } from './lista-della-mattina';
 import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
 import {
   bastaPerScrivere,
@@ -314,6 +316,7 @@ export class VeraChatService {
         azioneId: riga.id,
       };
     }
+    if (intento.tipo === 'lista') return this.mostraLista(nutrizionistaId);
     if (intento.tipo === 'segnalazioni') return this.guidaGiornata(nutrizionistaId);
     if (intento.tipo === 'approvazioni') return this.avviaApprovazioni();
     if (intento.tipo === 'sostituzioni') {
@@ -2752,6 +2755,165 @@ export class VeraChatService {
   }
 
   /** Le segnalazioni aperte sulle clienti nel perimetro: le CLINICHE contate a parte, perché vanno in testa. */
+  /**
+   * LA LISTA DELLA MATTINA — le voci vere, non i conteggi (Simone, 19/8: «Vera gli sottopone tutte
+   * le cose che deve fare, numerate»).
+   *
+   * ⚠️ **Ogni fonte in un `try` suo.** «Non lo so» ≠ «nessuno»: se una lettura si rompe, la lista non
+   * finge uno zero — dice quale colonna è cieca. Una lista che si presenta come «tutto quello che
+   * devi fare» e ne salta una categoria in silenzio è peggio di nessuna lista, perché chi la legge
+   * smette di guardare altrove. È la stessa regola di `guidaGiornata`.
+   *
+   * ⚠️ **Un tetto per fonte, e si dice quando taglia.** Cinquanta segnalazioni non si numerano: si
+   * portano le prime e si scrive quante restano. Un elenco troncato in silenzio si legge come «è
+   * tutto qui».
+   */
+  private async listaDellaMattina(userId: string): Promise<{ voci: VoceDaFare[]; rotte: string[]; tagliate: number }> {
+    const capo = (await this.ruolo(userId)) !== 'nutritionist';
+    const rotte: string[] = [];
+    let tagliate = 0;
+    const TETTO = 10;
+    const leggi = async <T>(cosa: string, lettura: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        const righe = await lettura();
+        if (righe.length > TETTO) tagliate += righe.length - TETTO;
+        return righe.slice(0, TETTO);
+      } catch (err) {
+        logger.warn(`Lista della mattina: non leggo ${cosa} (utente=${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        rotte.push(cosa);
+        return [];
+      }
+    };
+
+    const perimetro = await perimetroClienti(this.prisma, userId).catch(() => null);
+    const nomeDi = (c: unknown): string =>
+      ((c as { clientProfile?: { name?: string | null } } | null)?.clientProfile?.name ?? '').trim() || 'una cliente';
+
+    const segnalazioni = await leggi('le segnalazioni', async () => {
+      const righe = (await this.prisma.escalation.findMany({
+        where: { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuCliente(perimetro) } as never,
+        orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+        take: 40,
+        select: { id: true, category: true, reason: true, client: { select: { clientProfile: { select: { name: true } } } } },
+      })) as { id: string; category: string | null; reason: string | null; client: unknown }[];
+      return righe.map((r) => ({
+        tipo: (r.category === 'clinical' ? 'segnalazione_clinica' : 'segnalazione') as TipoVoce,
+        id: r.id,
+        titolo: `${nomeDi(r.client)}: ${(r.reason ?? 'segnalazione aperta').slice(0, 90)}`,
+      }));
+    });
+
+    /**
+     * ⚠️ LA CODA «DA VALIDARE», che nel quadro dei conteggi **non c'era affatto**: viveva solo nel
+     * riquadro della home. Un elenco che dice «queste sono tutte le cose che devi fare» e ne salta
+     * una categoria intera insegna a non fidarsi del resto.
+     */
+    const daValidare = await leggi('la coda «Da validare»', async () => {
+      const clienti = (await this.prisma.clientProfile.findMany({
+        where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+        select: { userId: true },
+        take: 1000,
+      })) as { userId: string }[];
+      if (!clienti.length) return [];
+      const righe = (await this.prisma.engineDecision.findMany({
+        where: { clientId: { in: clienti.map((c) => c.userId) }, flaggedForReview: true, reviewedAt: null } as never,
+        orderBy: { createdAt: 'asc' },
+        take: 40,
+        select: { id: true, reasonKey: true, client: { select: { clientProfile: { select: { name: true } } } } },
+      })) as { id: string; reasonKey: string | null; client: unknown }[];
+      return righe.map((r) => ({
+        tipo: 'da_validare' as TipoVoce,
+        id: r.id,
+        causa: r.reasonKey,
+        titolo: `${nomeDi(r.client)}: ${isCausa(r.reasonKey) ? ETICHETTA_CAUSA[r.reasonKey] : 'decisione del motore da guardare'}`,
+      }));
+    });
+
+    const proposte = capo
+      ? await leggi('le proposte da approvare', async () => {
+          const righe = (await this.registro.daApprovare(40)) as unknown as {
+            id: string; frase: string; soggettoNome: string | null;
+          }[];
+          return righe.map((r) => ({
+            tipo: 'proposta_da_approvare' as TipoVoce,
+            id: r.id,
+            titolo: `${r.soggettoNome ? `${r.soggettoNome}: ` : ''}${(r.frase ?? '').slice(0, 90)}`,
+          }));
+        })
+      : [];
+
+    const domande = await leggi('le domande aperte', async () => {
+      const righe = await this.richieste.aperte(userId, capo);
+      return righe.slice(0, 40).map((r) => ({
+        tipo: 'domanda_aperta' as TipoVoce,
+        id: r.id,
+        titolo: `${r.clienteNome ?? 'una cliente'}: ${(r.testo ?? '').slice(0, 90)}`,
+      }));
+    });
+
+    /**
+     * ⚠️ Le sostituzioni e il catalogo restano **conteggi**, e la lista lo dice: sono code che si
+     * aprono a parte, una voce per volta, e numerarle qui vorrebbe dire prometterne l'apertura da
+     * questa lista. Meglio una riga onesta che dieci righe che non si possono depennare.
+     */
+    const daVerificare = await this.registro.sostituzioniDaVerificare(userId).catch(() => {
+      rotte.push('le sostituzioni da verificare');
+      return 0;
+    });
+    const sostituzioni: VoceDaFare[] = daVerificare
+      ? [{
+          tipo: 'sostituzione_da_verificare',
+          id: 'coda',
+          titolo: `${daVerificare} ${daVerificare === 1 ? 'cambio concordato in chat da verificare' : 'cambi concordati in chat da verificare'}`,
+        }]
+      : [];
+
+    const voci = numera([...segnalazioni, ...daValidare, ...proposte, ...domande, ...sostituzioni]);
+    return { voci, rotte, tagliate };
+  }
+
+  /**
+   * La lista, scritta. ⚠️ Le fonti rotte e il taglio si **dicono**: un elenco che si presenta come
+   * «tutto quello che devi fare» e tace su una colonna cieca o su venti righe tagliate insegna a
+   * fidarsi di un elenco incompleto.
+   */
+  private async mostraLista(userId: string): Promise<EsitoVera> {
+    const { voci, rotte, tagliate } = await this.listaDellaMattina(userId);
+    const nome = await this.nomeStaff(userId).catch(() => null);
+    const pezzi = [testoDellaLista(voci, nome)];
+    if (tagliate > 0) {
+      pezzi.push(`(Ce ne sono altre ${tagliate}: te le porto quando queste sono chiuse.)`);
+    }
+    /**
+     * ⚠️ LA LISTA NON PUÒ DIRE MENO DEL QUADRO CHE SOSTITUISCE.
+     *
+     * Fino al 19/8 «cosa devo fare oggi?» portava il quadro in conteggi, e lì dentro c'erano due
+     * cose che qui **non si numerano**: le approvazioni del catalogo e la campanella. Le prime
+     * perché si aprono da una coda a parte, una voce per volta; la seconda perché un avviso non
+     * letto non è un lavoro da depennare. ⚠️ Ma toglierle dalla risposta vorrebbe dire che passando
+     * alla lista qualcuno smette di vedere una coda che prima vedeva — un miglioramento che perde
+     * pezzi non è un miglioramento. Restano in fondo, come righe.
+     */
+    const coda: string[] = [];
+    const invito = await this.invitoApprovazioni().catch(() => null);
+    if (invito) coda.push(`· ${invito}`);
+    const avvisi = await this.avvisiNonLetti(userId).catch(() => {
+      rotte.push('la campanella');
+      return [] as { tipo: string; quanti: number }[];
+    });
+    if (avvisi.length) {
+      const totale = avvisi.reduce((somma, a) => somma + a.quanti, 0);
+      const dettaglio = avvisi.slice(0, 4).map((a) => `${a.quanti} su ${etichettaAvviso(a.tipo)}`).join(', ');
+      coda.push(`· ${totale} ${totale === 1 ? 'avviso non letto' : 'avvisi non letti'} sulla campanella (${dettaglio}${avvisi.length > 4 ? ', …' : ''})`);
+    }
+    if (coda.length) pezzi.push(`Non numerate, perché si aprono da un'altra parte:\n${coda.join('\n')}`);
+
+    if (rotte.length) {
+      pezzi.push(`⚠️ Non sono riuscita a leggere ${rotte.join(' e ')}: su quello questa lista è cieca, non vuota.`);
+    }
+    return { testo: pezzi.join('\n\n'), esito: 'in_corso' };
+  }
+
   private async contaSegnalazioni(userId: string): Promise<{ cliniche: number; altre: number }> {
     const perimetro = await perimetroClienti(this.prisma, userId);
     const base = { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuCliente(perimetro) };

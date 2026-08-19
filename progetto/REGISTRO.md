@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 📋 **«Cosa devo fare oggi?» adesso è una lista numerata, non un conteggio** (richiesta
+  di Simone). Dal 14/8 il **quadro** della giornata leggeva le tabelle vere, ⚠️ ma erano **conteggi**:
+  «3 segnalazioni, 2 proposte» dice *quanto* lavoro c'è, non *quale* — non si può dire «faccio la 3»,
+  non si vede chi aspetta, non si depenna. ⚠️ E la coda **«Da validare»** nel quadro **non c'era
+  affatto**: viveva solo nel riquadro della home, e un elenco che dice «tutte le cose da fare»
+  saltandone una categoria insegna a non fidarsi del resto.
+  ⚠️ **È una decisione già presa che cambia, e va detto**: due test fissavano «cosa devo fare oggi?»
+  sul quadro. Ora porta la lista — ma la lista **non dice meno**: catalogo e campanella, che non si
+  numerano, restano in fondo come righe. Un miglioramento che perde pezzi non è un miglioramento.
+  Tre cose si **dicono** invece di tacerle: il **taglio** oltre le dieci voci per fonte (un elenco
+  troncato in silenzio si legge come «è tutto qui»), la **fonte rotta** («non lo so» ≠ «nessuno»,
+  ogni fonte nel suo `try`), e il **nome di chi aspetta** su ogni riga. ⚠️ Le azioni della coda non si
+  riscrivono qui: si **importano** da `engine/causa-decisione.ts`, o fra un mese la coda e la chat
+  offrirebbero due cose diverse sulla stessa riga. ⛔ Resta: aprire una voce dicendo «la 3».
+  239 suite / **3769 test verdi**, tre mutazioni provate e tutte e tre fanno fallire i test.
+
+
 - `[Sviluppo]` 🔁 **«Aggiungi un'equivalenza»: Vera la sa fare** — dallo screenshot in cui rispondeva
   **due volte** «non ci arrivo nemmeno adesso» a una frase chiarissima, e per giunta rimandava «alla
   scheda della cliente», che con un gruppo di equivalenza non c'entra. ⚠️ **Non è la lista del

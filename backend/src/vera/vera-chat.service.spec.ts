@@ -79,7 +79,12 @@ function make(
       count: jest.fn().mockResolvedValue((opzioni.giorniMenu ?? []).length),
     },
     // La guida della giornata (14/8): segnalazioni aperte e campanella. A zero se il test non dice altro.
-    escalation: { count: jest.fn().mockResolvedValue(0) },
+    escalation: {
+      count: jest.fn().mockResolvedValue(0),
+      // ⚠️ `findMany` c'è perché l'originale ce l'ha: la lista numerata del 19/8 legge le righe, non
+      // il conteggio. Un doppio che conosce solo `count` non verifica niente della lista.
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     // La riga si RILEGGE prima di scrivere il verdetto (voce 245): di default è ancora da guardare.
     foodSwap: { findUnique: jest.fn().mockResolvedValue({ stato: 'da_verificare' }) },
     notification: { findMany: jest.fn().mockResolvedValue(opzioni.avvisi ?? []) },
@@ -2123,5 +2128,62 @@ describe('VeraChatService — l\'equivalenza dettata', () => {
     );
     await service.parla('lucia', 'no');
     expect(combinazioni.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * LA LISTA DELLA MATTINA — «Vera gli sottopone tutte le cose che deve fare, numerate» (Simone, 19/8).
+ *
+ * ⚠️ Sostituisce il **quadro in conteggi** su «cosa devo fare oggi?»: «3 segnalazioni, 2 proposte»
+ * dice quanto lavoro c'è, non *quale*. Con la lista si può dire «faccio la 3», si vede il nome di chi
+ * aspetta, e si depenna.
+ */
+describe('VeraChatService — la lista della mattina', () => {
+  const segnalazione = (i: number, clinica = false) => ({
+    id: `e${i}`,
+    category: clinica ? 'clinical' : 'other',
+    reason: `motivo ${i}`,
+    client: { clientProfile: { name: `Cliente ${i}` } },
+  });
+
+  it('numera le voci e ci mette dentro il nome di chi aspetta', async () => {
+    const { service, messaggioCreate } = make({
+      escalation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([segnalazione(1, true), segnalazione(2)]) },
+    });
+    await service.parla('lucia', 'cosa devo fare oggi?');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('1.');
+    expect(testo).toContain('Cliente 1');
+    expect(testo).toContain('2.');
+  });
+
+  /**
+   * ⚠️ IL CASO CHE VALE IL TETTO. Cinquanta segnalazioni non si numerano: si portano le prime e **si
+   * dice quante restano**. Un elenco troncato in silenzio si legge come «è tutto qui», ed è il modo
+   * più efficace per far smettere di guardare altrove.
+   */
+  it('⚠️ oltre il tetto dice quante ne restano, invece di troncare in silenzio', async () => {
+    const molte = Array.from({ length: 14 }, (_, i) => segnalazione(i + 1));
+    const { service, messaggioCreate } = make({
+      escalation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue(molte) },
+    });
+    await service.parla('lucia', 'fammi la lista');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('altre 4');
+  });
+
+  /**
+   * ⚠️ «NON LO SO» ≠ «NESSUNO». Se una fonte si rompe, la lista dice quale colonna è cieca invece di
+   * fingere uno zero: una lista che si presenta come «tutto quello che devi fare» e tace su una
+   * fonte rotta insegna a fidarsi di un elenco incompleto.
+   */
+  it('⚠️ una fonte rotta si dice: la lista è cieca, non vuota', async () => {
+    const { service, messaggioCreate } = make({
+      escalation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockRejectedValue(new Error('boom')) },
+    });
+    await service.parla('lucia', 'fammi la lista');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('cieca');
+    expect(testo).toContain('le segnalazioni');
   });
 });

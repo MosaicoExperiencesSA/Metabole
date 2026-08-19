@@ -74,7 +74,8 @@ export type Intento =
   | IntentoCorrezioneKcal
   | IntentoProteine
   | IntentoGiornata
-  | IntentoEquivalenza;
+  | IntentoEquivalenza
+  | IntentoLista;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -238,6 +239,11 @@ export interface IntentoRicetta {
  * risposta giusta è chiedere quali alimenti — non «non ci arrivo». Era il caso dello screenshot del
  * 19/8, in cui Vera rispondeva due volte «non ci arrivo nemmeno adesso» a una frase chiarissima.
  */
+/** «Fammi la lista»: le cose da fare numerate. ⚠️ Diverso dal quadro in conteggi. */
+export interface IntentoLista {
+  tipo: 'lista';
+}
+
 export interface IntentoEquivalenza {
   tipo: 'equivalenza';
   alimenti: string[];
@@ -476,6 +482,12 @@ export function capisci(frase: string): Intento | null {
   if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
   // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
   // `daScartare` che butta via ogni «?». Rispondere non esegue niente.
+  /**
+   * ⚠️ La lista PRIMA del quadro: sono due domande diverse e la seconda è più larga. Messa dopo,
+   * «cosa devo fare oggi» finirebbe nel quadro dei conteggi — che risponde a «quanto lavoro c'è»,
+   * non a «quale».
+   */
+  if (chiedeLista(testo)) return { tipo: 'lista' };
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
   /**
    * L'EQUIVALENZA (19/8, dallo screenshot in cui Vera rispondeva due volte «non ci arrivo»).
@@ -658,6 +670,24 @@ function chiedeApprovazioni(testo: string): boolean {
 
 function chiedeSostituzioni(testo: string): boolean {
   return FORME_SOSTITUZIONI.some((f) => f.test(pulisciDomanda(testo)));
+}
+
+/**
+ * «FAMMI LA LISTA» — le cose da fare **numerate**, non contate (Simone, 19/8).
+ *
+ * ⚠️ È una domanda diversa da «hai segnalazioni per me?», che porta il **quadro** in conteggi. Qui si
+ * chiede l'elenco: si può dire «faccio la 3», si vede il nome di chi aspetta, e si depenna. Chi
+ * legge un conteggio sa solo che è indietro.
+ */
+const FORME_LISTA = [
+  /^(?:fammi|dammi|mostrami|fai|vediamo|voglio)\s+(?:vedere\s+)?(?:la\s+)?lista(?:\s+(?:delle|di|dei)\s+(?:cose|attivita|lavori).*)?$/,
+  /^(?:cosa|che cosa|che)\s+(?:devo|dobbiamo|c e da|ho da)\s+fare(?:\s+(?:oggi|adesso|stamattina|stamane))?$/,
+  /^(?:lista|elenco)(?:\s+(?:delle|di|dei)\s+(?:cose|attivita|lavori).*)?$/,
+  /^(?:le\s+)?cose\s+da\s+fare$/,
+];
+
+function chiedeLista(testo: string): boolean {
+  return FORME_LISTA.some((f) => f.test(pulisciDomanda(testo)));
 }
 
 function chiedeSegnalazioni(testo: string): boolean {

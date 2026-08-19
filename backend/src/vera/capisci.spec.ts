@@ -254,13 +254,38 @@ describe('capisci — «hai segnalazioni per me?»: la guida della giornata (Sim
     'avvisi?',
     'hai notifiche per me?',
     'cosa mi aspetta oggi?',
-    "cosa c'è da fare?",
     "che c'è per me?",
-    'cosa devo fare oggi?',
     'da dove comincio?',
     'guidami',
   ])('«%s» chiede il quadro della giornata', (frase) => {
     expect(capisci(frase)?.tipo).toBe('segnalazioni');
+  });
+
+  /**
+   * ⚠️ DUE DI QUESTE FRASI HANNO CAMBIATO RISPOSTA IL 19/8, ed è una decisione, non un incidente.
+   *
+   * «Cosa devo fare oggi?» e «cosa c'è da fare?» portavano il **quadro in conteggi** — «3
+   * segnalazioni, 2 proposte» — che risponde a «quanto lavoro c'è», non a «quale». Simone ha
+   * chiesto la lista numerata: si può dire «faccio la 3», si vede il nome di chi aspetta, e si
+   * depenna. Un conteggio dice solo che sei indietro.
+   *
+   * ⚠️ E la lista **non dice meno** del quadro che sostituisce: le due cose che non si numerano —
+   * le approvazioni del catalogo e la campanella — restano in fondo come righe. Un miglioramento
+   * che perde pezzi non è un miglioramento.
+   */
+  it.each([
+    "cosa c'è da fare?",
+    'cosa devo fare oggi?',
+    'fammi la lista',
+    'lista delle cose da fare',
+    'cose da fare',
+  ])('⚠️ «%s» chiede la LISTA numerata, non il quadro', (frase) => {
+    expect(capisci(frase)?.tipo).toBe('lista');
+  });
+
+  /** ⚠️ Ma «hai la lista dei formaggi molli?» resta la famiglia: la parola «lista» non basta. */
+  it('⚠️ «lista» con un nome dietro resta la famiglia del dizionario', () => {
+    expect(capisci('hai la lista dei formaggi molli?')?.tipo).toBe('famiglia');
   });
 
   it('⚠️ «avvisi Giulia che salta il controllo» resta un\'istruzione (non capita), non la domanda', () => {
