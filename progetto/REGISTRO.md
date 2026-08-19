@@ -20,6 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🚧 **Il rilascio a metà**, visto in produzione un'ora dopo la consegna sugli
+  allergeni. Vercel pubblica il backoffice in un minuto, Render ci mette di più: in quella finestra
+  la pagina Allergeni mandava `daRivedere=true` a un server che non lo conosceva, riceveva tutto il
+  catalogo e scriveva «aspettano gli allergeni **19347** ricette». ⚠️ Un numero sbagliato con la
+  faccia di un numero giusto — cioè il difetto che quella consegna toglieva, rifatto durante il
+  rilascio che lo toglieva — e accanto il pulsante del blocco che rispondeva `Cannot POST`.
+  Ora `GET /recipes` **dice se il filtro l'ha applicato** (`filtroDaRivedere`, scritto solo quando è
+  stato chiesto: un campo che c'è sempre non distingue niente), e la pagina che non riceve l'eco lo
+  dichiara in rosso e **nasconde** il pulsante invece di offrirlo e farlo fallire. ⚠️ È il
+  ragionamento della transizione OTA dell'app applicato al backoffice: il pezzo pubblicato per primo
+  non finge che l'altro ci sia già. 235 suite / **3683 test verdi**.
+
+- `[Sviluppo]` 🔎 **Tre voci della pagina Lavori erano già fatte** — verificate leggendo il codice,
+  non il file: **1)** «Schermate app 30 e 27-28» era **decisa il 13/8**
+  (`Decisioni_Simone_20260813.md` §6): i video di coach e nutrizionista erano stati annullati il
+  17/07 e nell'app non esiste nessun player né un campo video su `Staff`; l'assaggio del menu è
+  superato da «Conosciamoci», e la parola «assaggio» non compare in nessun file del progetto.
+  **2)** «Vera: rifare i giorni futuri quando il capo approva un divieto di dieta» è scritta in
+  `applica-proposta.ts` + `vera/menu-da-rifare.ts`, tetto dei 200 clienti compreso, col riepilogo che
+  dice quanti giorni sono rimasti indietro. **3)** «Moduli fissi in dashboard» è in
+  `Impostazioni.tsx`: trascinamento per riordinare, predefiniti col bordo colorato e la pastiglia, e
+  «Ripristina default» che chiede conferma con se stesso. ⚠️ Sono voci scritte **a mano dalla
+  pagina**, senza chiave: il file non le può spuntare, deve farlo Simone — ed è la stessa divergenza
+  file/pagina che oggi mi ha fatto ripresentare la tabella IG come aperta.
+  ⚠️ Rileggendo la (2) è saltato fuori un difetto vero: «quali giorni si possono rifare» ha **tre**
+  definizioni, e una delle tre **esclude la giornata di oggi** mentre le altre due la includono —
+  quindi togliere uno spuntino non tocca il menu di oggi che la cliente non ha ancora aperto, ma
+  vietare un alimento sì. Voce `giorni-da-rifare-tre-definizioni`, priorità bassa.
+
+
 - `[Sviluppo]` ⚖️ **Gaia dice la grammatura del piatto, non quella di catalogo** (coda della voce
   284, chiusa dalla risposta di Simone: «il numero del piatto»). Dal 18/8 le porzioni si scalano sul
   fabbisogno: Gaia diceva «metti 120 g di biete al posto di 100 g di carote» mentre nel piatto ce

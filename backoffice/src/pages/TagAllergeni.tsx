@@ -59,6 +59,8 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   /** Le righe spuntate per la conferma in blocco. */
   const [scelte, setScelte] = useState<Set<string>>(new Set());
   const [confermandoBlocco, setConfermandoBlocco] = useState(false);
+  /** Falso quando il server non conosce ancora il filtro: vedi il riquadro in `load`. */
+  const [serverFiltra, setServerFiltra] = useState(true);
 
   async function load() {
     setLoading(true);
@@ -74,10 +76,20 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       const qs = `/recipes?${p.toString()}`;
       // `GET /recipes` risponde `{ items, total, troncato }` da quando i filtri girano sul
       // database (7/8): prima era un array nudo.
-      const r = await api<{ items: Recipe[]; total: number; troncato?: boolean }>(qs);
+      const r = await api<{ items: Recipe[]; total: number; troncato?: boolean; filtroDaRivedere?: boolean }>(qs);
       setRows(r.items);
       setTotale(r.total ?? r.items.length);
       setTroncato(!!r.troncato);
+      /**
+       * ⚠️ IL SERVER DICE SE IL FILTRO L'HA APPLICATO DAVVERO (19/8).
+       *
+       * Il backoffice si pubblica in un minuto e il backend ci mette di più: in quella finestra
+       * questa pagina manda `daRivedere=true` a un server che non lo conosce, riceve tutto il
+       * catalogo e — senza questa eco — scriverebbe «aspettano gli allergeni 19347 ricette». Un
+       * numero sbagliato con la faccia di un numero giusto è esattamente il difetto che questa
+       * pagina è stata corretta per togliere: se l'eco non torna, si dice che il server è indietro.
+       */
+      setServerFiltra(soloDaRivedere ? r.filtroDaRivedere === true : true);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata ai nutrizionisti.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -213,7 +225,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
             <input type="checkbox" checked={soloDaRivedere} onChange={(e) => setSoloDaRivedere(e.target.checked)} />
             solo quelle da rivedere
           </label>
-          {scelte.size > 0 && (
+          {scelte.size > 0 && serverFiltra && (
             <button className="btn" disabled={confermandoBlocco} onClick={() => void confermaInBlocco()}>
               <i className="ti ti-checks" /> {confermandoBlocco ? 'Confermo…' : `Conferma le ${scelte.size} selezionate`}
             </button>
@@ -231,7 +243,19 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
-      {troncato && (
+      {/*
+        ⚠️ Il rilascio a metà: backoffice nuovo, backend ancora vecchio. Dirlo è meglio che mostrare
+        numeri che non tornano e un pulsante che risponde «Cannot POST».
+      */}
+      {!serverFiltra && (
+        <Banner kind="err">
+          Il server non conosce ancora il filtro «solo quelle da rivedere»: questa pagina è stata
+          pubblicata prima del rilascio del backend. I numeri qui sotto sono quelli di <b>tutto</b> il
+          catalogo, e la conferma in blocco non funziona finché il deploy non è finito. Ricarica fra
+          qualche minuto.
+        </Banner>
+      )}
+      {troncato && serverFiltra && (
         <Banner kind="info">
           {soloDaRivedere ? (
             <>

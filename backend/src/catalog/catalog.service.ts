@@ -1212,7 +1212,7 @@ export class CatalogService {
      * chiuso l'11/8 per la pagina Ricette — chiuso lì e non qui.
      */
     daRivedere?: boolean;
-  }): Promise<{ items: unknown[]; total: number; troncato: boolean }> {
+  }): Promise<{ items: unknown[]; total: number; troncato: boolean; filtroDaRivedere?: boolean }> {
     // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
     // dieta ha decine di ricette, non migliaia.
     // Con `dietId` si sa anche IN QUALI SETTIMANE ogni ricetta è usata: serve al filtro per settimana
@@ -1291,7 +1291,24 @@ export class CatalogService {
         settimane: settimane ? (settimane.get(r.id) ?? []) : (u ? settimaneDiTutte(u) : null),
       };
     });
-    return { items: conUtilizzo, total, troncato: total > items.length };
+    return {
+      items: conUtilizzo,
+      total,
+      troncato: total > items.length,
+      /**
+       * ⚠️ **L'ECO DEL FILTRO** — «l'ho applicato davvero» (19/8, dal rilascio di oggi).
+       *
+       * Il backoffice si pubblica in un minuto e il backend ci mette di più: in quella finestra la
+       * pagina nuova manda `daRivedere=true` a un server che non lo conosce, riceve tutto il
+       * catalogo e scrive «aspettano gli allergeni 19347 ricette». È **falso**, e non è un dettaglio
+       * di transizione: è un numero sbagliato scritto con la faccia di un numero giusto, che è il
+       * difetto che questo rilascio serviva a togliere.
+       *
+       * Con l'eco la pagina non deve indovinare: se il campo non torna, sta parlando con un server
+       * che il filtro non ce l'ha, e lo dice invece di raccontare una cosa diversa.
+       */
+      ...(filter.daRivedere ? { filtroDaRivedere: true } : {}),
+    };
   }
 
   /** Modifica ricetta (nutrizionista). Aggiorna solo i campi inviati. */

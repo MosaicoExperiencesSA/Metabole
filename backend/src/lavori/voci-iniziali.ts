@@ -983,6 +983,18 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'giorni-da-rifare-tre-definizioni',
+    nata: '2026-08-19T15:40',
+    // ⚠️ Bassa per la regola del 19/8 («se trovi qualche cosa lo aggiungi con priorità bassa»).
+    priorita: 'bassa',
+    titolo: '«Quali giorni si possono rifare» ha tre risposte, e una delle tre esclude oggi',
+    dettaglio:
+      'Trovato il 19/8 rileggendo il codice per verificare la voce sul divieto di dieta. La stessa domanda — «quali menu futuri posso ancora rifare?» — è scritta in **tre posti**: `registro.service.menuDaRifare` (per una cliente), `vera/menu-da-rifare.ts` `giorniDaRifare` (per una dieta, filtrando sui piatti vietati) e `vera/togli-spuntino.ts` `giorniDaRifarePerPasti` (per gli spuntini). Tutte e tre dicono «futuri e mai aperti», ⚠️ **ma il confine di oggi è diverso**: le prime due includono la giornata di oggi se non è stata aperta (`date >= mezzanotte`), la terza la esclude (`date > adesso`). ⚠️ La conseguenza si vede su una cliente che non ha ancora aperto il menu di oggi: se la nutrizionista le toglie lo spuntino, **oggi lo spuntino ce l\'ha ancora**; se le vieta un alimento, oggi cambia. Nessuno dei due comportamenti è scritto come scelta — sono due `where` scritti in momenti diversi. ⛔ La domanda per Simone e la nutrizionista è quale sia quello giusto: rifare la giornata di oggi che non ha ancora aperto è più coerente, ma è anche il giorno in cui potrebbe aver già fatto la spesa. Deciso quello, le tre definizioni diventano una funzione sola: era già scritto nella voce del divieto di dieta («la funzione esiste, va riusata, non riscritta») ed è successo lo stesso.',
+    categoria: SIMONE,
+    ordine: 298,
+  },
+
+  {
     chiave: 'allergeni-bozze-invisibili',
     nata: '2026-08-19T14:20',
     titolo: '«4612 aspettano gli allergeni» e la pagina era vuota: le bozze che nessuno poteva rivedere',

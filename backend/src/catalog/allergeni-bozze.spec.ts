@@ -78,6 +78,24 @@ describe('CatalogService — le bozze che aspettano gli allergeni', () => {
     });
   });
 
+  /**
+   * ⚠️ L'ECO DEL FILTRO — il rilascio a metà, visto in produzione il 19/8.
+   *
+   * Il backoffice si pubblica in un minuto e il backend ci mette di più. In quella finestra la
+   * pagina nuova manda `daRivedere=true` a un server che non lo conosce, riceve tutto il catalogo e
+   * scrive «aspettano gli allergeni 19347 ricette»: un numero sbagliato con la faccia di un numero
+   * giusto, cioè il difetto che questo rilascio serviva a togliere, rifatto durante il rilascio.
+   */
+  describe('⚠️ l\'eco: «il filtro l\'ho applicato davvero»', () => {
+    it('torna solo quando il filtro è stato chiesto', async () => {
+      expect((await service.listRecipes({ daRivedere: true, includeInactive: true })).filtroDaRivedere).toBe(true);
+    });
+
+    it('e non compare se nessuno l\'ha chiesto: non è un campo da leggere sempre', async () => {
+      expect((await service.listRecipes({ includeInactive: true })).filtroDaRivedere).toBeUndefined();
+    });
+  });
+
   describe('confermare gli allergeni fa entrare la ricetta in catalogo', () => {
     /** Decisione di Simone, 19/8: un gesto solo. Prima la conferma non attivava niente. */
     it('una bozza mai confermata si attiva', async () => {

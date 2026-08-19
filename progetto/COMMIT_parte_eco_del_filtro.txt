@@ -1,0 +1,30 @@
+Il rilascio a metà: la pagina diceva «19347 aspettano gli allergeni» perché il server era indietro
+
+Visto in produzione un'ora dopo la consegna precedente, e vale la pena scriverlo perché si ripeterà.
+
+Il backoffice si pubblica su Vercel in un minuto; il backend su Render ci mette di più. In quella
+finestra la pagina Allergeni — nuova — manda `daRivedere=true` a un server che quel filtro non lo
+conosce ancora, riceve tutto il catalogo, e scrive: «Aspettano gli allergeni 19347 ricette».
+
+⚠️ **È falso, e non è un disagio di transizione: è un numero sbagliato con la faccia di un numero
+giusto** — cioè esattamente il difetto che la consegna precedente serviva a togliere, rifatto durante
+il rilascio che lo toglieva. E accanto c'era il pulsante «Conferma le 100 selezionate», che
+rispondeva `Cannot POST /api/v1/recipes/allergens/bulk`.
+
+LA CORREZIONE: IL SERVER DICE SE IL FILTRO L'HA APPLICATO
+`GET /recipes` torna `filtroDaRivedere: true` quando il filtro c'è stato davvero. ⚠️ Il campo si
+scrive **solo** quando il filtro è stato chiesto: un campo che c'è sempre non distingue niente.
+
+La pagina non deve più indovinare. Se chiede il filtro e l'eco non torna, sta parlando con un server
+indietro: lo dice in rosso — «questa pagina è stata pubblicata prima del rilascio del backend, i
+numeri sono quelli di tutto il catalogo, la conferma in blocco non funziona finché il deploy non è
+finito» — e nasconde il pulsante del blocco invece di offrirlo e farlo fallire.
+
+⚠️ È lo stesso ragionamento della transizione OTA dell'app, applicato al backoffice: il pezzo
+pubblicato per primo non deve fingere che l'altro ci sia già.
+
+FILE
+- backend: `catalog/catalog.service.ts` (l'eco) · `catalog/allergeni-bozze.spec.ts` (2 test)
+- backoffice: `pages/TagAllergeni.tsx` (l'avviso, e il pulsante che non si offre)
+
+235 suite / 3683 test verdi · backoffice 31. Nessuna migrazione.
