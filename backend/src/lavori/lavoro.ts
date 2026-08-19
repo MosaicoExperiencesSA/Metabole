@@ -13,12 +13,50 @@ export const TITOLO_MIN = 3;
 export const TITOLO_MAX = 200;
 export const CATEGORIA_DEFAULT = 'Da fare';
 
+/**
+ * LA PRIORITÀ — la dà Simone, dalla pagina (19/8).
+ *
+ * ⚠️ **Non è `blocca`.** `blocca` è un FATTO che chiunque può verificare — dietro questa voce c'è
+ * una fila ferma —; la priorità è un GIUDIZIO, e lo dà una persona sola. Tenerle separate è quello
+ * che permette di dire «lo so che ferma la coda, aspetta lo stesso»: con un campo solo quella frase
+ * non si potrebbe più dire, e il rosso tornerebbe a voler dire «urgente» — cioè in un mese sarebbe
+ * tutto rosso e il colore smetterebbe di dire qualcosa.
+ *
+ * ⚠️ **`neutra` è il default, non `bassa`.** Una voce nuova non è meno importante delle altre: è una
+ * voce su cui nessuno si è ancora pronunciato. Metterla in fondo al posto di chi deve decidere è un
+ * giudizio inventato, lo stesso difetto delle tre stelle di default (voce 270).
+ */
+export const PRIORITA = ['alta', 'neutra', 'bassa'] as const;
+export type Priorita = (typeof PRIORITA)[number];
+export const PRIORITA_DEFAULT: Priorita = 'neutra';
+
+export const MSG_PRIORITA = `La priorità può essere solo: ${PRIORITA.join(', ')}.`;
+
+/**
+ * ⚠️ Un valore che non conosciamo **è un errore, non una neutra**.
+ *
+ * Il valore arriva dalla nostra pagina: se un giorno ci arriva «Alta » con uno spazio o «media»,
+ * silenziosamente la voce che Simone aveva messo in cima tornerebbe in mezzo al mucchio — e lui lo
+ * scoprirebbe non vedendola più. Meglio un errore che si legge subito.
+ *
+ * Gli spazi e le maiuscole sì: «Alta» dalla pagina e «alta» dal file sono la stessa cosa.
+ */
+export function normalizzaPriorita(v: unknown): Priorita {
+  const t = (typeof v === 'string' ? v : '').trim().toLowerCase();
+  if (!(PRIORITA as readonly string[]).includes(t)) throw new BadRequestException(MSG_PRIORITA);
+  return t as Priorita;
+}
+
+/** Alta prima, bassa in fondo: il peso dell'ordinamento, in un posto solo. */
+export const PESO_PRIORITA: Record<Priorita, number> = { alta: 0, neutra: 1, bassa: 2 };
+
 export interface DatiLavoro {
   titolo?: unknown;
   dettaglio?: unknown;
   categoria?: unknown;
   ordine?: unknown;
   blocca?: unknown;
+  priorita?: unknown;
 }
 
 /**
@@ -53,6 +91,11 @@ export function normalizzaLavoro(d: DatiLavoro, obbligaTitolo: boolean): Record<
   if (d.ordine !== undefined) {
     const n = Number(d.ordine);
     out.ordine = Number.isFinite(n) ? Math.trunc(n) : 0;
+  }
+  if (d.priorita !== undefined) {
+    // ⚠️ Non si azzera con la stringa vuota come il dettaglio: «senza priorità» non esiste, esiste
+    // «neutra». Un campo vuoto qui sarebbe un quarto stato che nessuno ha chiesto.
+    out.priorita = normalizzaPriorita(d.priorita);
   }
   return out;
 }
@@ -100,8 +143,24 @@ export function datiSpunta(fatto: boolean, staffId: string | null | undefined, a
  * Le fatte non spariscono — è la parte «così è tutto registrato» della richiesta — ma non devono
  * nemmeno stare in mezzo, o l'elenco smette di rispondere a «cosa resta» a colpo d'occhio.
  */
-export function ordinaLavori<T extends { fatto: boolean; fattoIl?: Date | null }>(righe: T[]): T[] {
-  const daFare = righe.filter((r) => !r.fatto);
+export function ordinaLavori<T extends { fatto: boolean; fattoIl?: Date | null; priorita?: string | null }>(righe: T[]): T[] {
+  /**
+   * ⚠️ **La priorità viene prima della categoria, e prima di `blocca`.** È la richiesta del 19/8
+   * («aggiungi la possibilità per me di dare le priorità»), e serve a una cosa sola: che l'elenco
+   * risponda a «cosa faccio adesso» invece che a «cosa esiste». Il `blocca` resta il colore e resta
+   * nel testo, ma non decide più l'ordine: una voce può bloccare altro lavoro **ed essere
+   * rimandata**, ed è proprio la frase che le due colonne separate permettono di dire.
+   *
+   * ⚠️ A parità di priorità l'ordine **non si tocca**: resta quello che ha mandato il server
+   * (categoria, `ordine`, data). Un secondo criterio inventato qui farebbe muovere le righe sotto
+   * gli occhi di chi le sta guardando senza che nessuno l'abbia chiesto.
+   */
+  const peso = (r: T) => PESO_PRIORITA[(r.priorita ?? PRIORITA_DEFAULT) as Priorita] ?? PESO_PRIORITA.neutra;
+  const daFare = righe
+    .filter((r) => !r.fatto)
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => peso(a.r) - peso(b.r) || a.i - b.i)
+    .map((x) => x.r);
   const fatte = righe.filter((r) => r.fatto).sort((a, b) => (b.fattoIl?.getTime() ?? 0) - (a.fattoIl?.getTime() ?? 0));
   return [...daFare, ...fatte];
 }
@@ -113,9 +172,32 @@ export interface LavoroDaRiassumere {
   categoria: string;
   blocca: boolean;
   fatto: boolean;
+  priorita?: string | null;
+  /** Quando è nato il punto, se lo sappiamo. Vedi `dataDiNascita`. */
+  nataIl?: Date | null;
+  /** Quando la riga è entrata in elenco. ⚠️ Non è la stessa cosa: vedi `dataDiNascita`. */
+  createdAt?: Date | null;
   risposta?: string | null;
   rispostaIl?: Date | null;
   rispostaDa?: { displayName: string } | null;
+}
+
+/**
+ * «QUANDO È NATO QUESTO PUNTO» — e i due modi diversi di rispondere (19/8, richiesta di Simone:
+ * «altrimenti non capisco nulla»).
+ *
+ * ⚠️ `createdAt` **non** è la data di nascita per le voci che vengono dal file: entrano tutte
+ * insieme al clic su «Aggiorna dal rilascio», quindi cento voci nate in due settimane risulterebbero
+ * create nello stesso minuto. Spacciare quella per la data di nascita sarebbe una **data falsa**, e
+ * una data falsa è peggio di una assente: si legge come un fatto e non si può controllare.
+ *
+ * Perciò due risposte con parole diverse — ed è il solito terzo stato di questo progetto, quello che
+ * dice «non lo so» invece di indovinare.
+ */
+export function dataDiNascita(l: { nataIl?: Date | null; createdAt?: Date | null }): { quando: Date; certa: boolean } | null {
+  if (l.nataIl) return { quando: l.nataIl, certa: true };
+  if (l.createdAt) return { quando: l.createdAt, certa: false };
+  return null;
 }
 
 /**
@@ -142,15 +224,32 @@ export function testoPerClaude(righe: LavoroDaRiassumere[]): string {
   out.push('');
   out.push('Estratto dalla pagina Lavori del backoffice. Le voci già fatte non ci sono.');
   out.push('Legenda: 🔴 blocca altro lavoro · 🟡 aspetta una persona o una decisione.');
+  out.push('La priorità la dà Simone dalla pagina: si scrive solo quando è alta o bassa.');
   out.push('');
   const categorie = Array.from(new Set(aperte.map((r) => r.categoria)));
   for (const c of categorie) {
-    const voci = aperte.filter((r) => r.categoria === c).sort((a, b) => Number(b.blocca) - Number(a.blocca));
+    // ⚠️ Stesso ordine della pagina: la priorità prima, e a parità di priorità quello che blocca.
+    // Due ordini diversi per la stessa lista vorrebbero dire che il testo incollato in chat e la
+    // pagina non raccontano la stessa cosa — ed è la lista su cui si decide cosa fare.
+    const voci = aperte
+      .filter((r) => r.categoria === c)
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) =>
+        (PESO_PRIORITA[(a.r.priorita ?? PRIORITA_DEFAULT) as Priorita] ?? 1) - (PESO_PRIORITA[(b.r.priorita ?? PRIORITA_DEFAULT) as Priorita] ?? 1) ||
+        Number(b.r.blocca) - Number(a.r.blocca) || a.i - b.i)
+      .map((x) => x.r);
     out.push(`## ${c}`);
     out.push('');
     for (const v of voci) {
       const segno = v.blocca ? '🔴' : /^aspetta/i.test(v.categoria) ? '🟡' : '·';
-      out.push(`### ${segno} ${v.titolo}`);
+      // ⚠️ La priorità si scrive solo quando qualcuno l'ha data: stampare «(neutra)» su ogni riga
+      // riempirebbe il testo di una parola che non aggiunge niente, e le due «alta» sparirebbero
+      // in mezzo. Un contrassegno che c'è sempre non contrassegna niente.
+      const pr = (v.priorita ?? PRIORITA_DEFAULT) !== PRIORITA_DEFAULT ? ` [priorità ${v.priorita}]` : '';
+      out.push(`### ${segno} ${v.titolo}${pr}`);
+      const nata = dataDiNascita(v);
+      // ⚠️ «Aperta il» e «in elenco dal» sono due fatti diversi: vedi `dataDiNascita`.
+      if (nata) out.push(nata.certa ? `Aperta il ${giornoLocale(nata.quando)}` : `In elenco dal ${giornoLocale(nata.quando)} (data del caricamento, non di nascita)`);
       if ((v.dettaglio ?? '').trim()) out.push(`Domanda: ${v.dettaglio!.trim()}`);
       const risposta = (v.risposta ?? '').trim();
       if (risposta) {

@@ -33,6 +33,10 @@ interface Lavoro {
   categoria: string;
   ordine: number;
   blocca: boolean;
+  /** 'alta' | 'neutra' | 'bassa' — la dà Simone. ⚠️ Non è `blocca`: vedi PRIORITA sotto. */
+  priorita: string;
+  /** Quando è NATO il punto, se lo sappiamo. ⚠️ Diverso da `createdAt`: vedi `quandoNata`. */
+  nataIl: string | null;
   fatto: boolean;
   risposta: string | null;
   rispostaIl: string | null;
@@ -41,6 +45,27 @@ interface Lavoro {
   fattoDa: { displayName: string } | null;
   createdAt: string;
 }
+
+/**
+ * LA PRIORITÀ — la dà Simone (19/8), e sta in una riga di pulsanti su ogni voce.
+ *
+ * ⚠️ **Non è il rosso.** Il rosso (`blocca`) è un fatto verificabile — dietro questa voce c'è una
+ * fila ferma —; la priorità è un giudizio, e lo dà una persona sola. Sono due colonne separate
+ * proprio perché si possa dire «lo so che ferma la coda, aspetta lo stesso»: con un campo solo
+ * quella frase non si potrebbe più dire, e in un mese sarebbe tutto rosso.
+ *
+ * ⚠️ Si salva **al clic**, senza aprire la modifica: se per dare una priorità servisse aprire,
+ * cambiare e salvare, dopo tre voci si smetterebbe di darla — e una leva che non si usa non è una
+ * leva.
+ */
+const PRIORITA = [
+  { v: 'alta',   etichetta: 'Alta',   icona: 'ti-arrow-up',    colore: 'var(--danger)' },
+  { v: 'neutra', etichetta: 'Neutra', icona: 'ti-minus',       colore: 'var(--muted)' },
+  { v: 'bassa',  etichetta: 'Bassa',  icona: 'ti-arrow-down',  colore: 'var(--muted)' },
+] as const;
+
+const PESO_PRIORITA: Record<string, number> = { alta: 0, neutra: 1, bassa: 2 };
+const peso = (l: Lavoro) => PESO_PRIORITA[l.priorita ?? 'neutra'] ?? 1;
 
 type Tono = 'fatto' | 'blocca' | 'attesa' | 'aperto';
 
@@ -68,6 +93,42 @@ function dataIt(iso: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/**
+ * «QUANDO È NATO QUESTO PUNTO» — e perché a volte la pagina lo dice con parole diverse.
+ *
+ * Richiesta di Simone (19/8): «voglio che mi segni nell'elenco lavori la data e ora di creazione di
+ * quel punto altrimenti non capisco nulla».
+ *
+ * ⚠️ `createdAt` **non** risponde a quella domanda per le voci che arrivano dal rilascio: entrano
+ * tutte insieme al clic su «Aggiorna dal rilascio», quindi cento voci nate in due settimane
+ * risulterebbero create nello stesso minuto. Mostrarla come data di nascita sarebbe una **data
+ * falsa** — e una data falsa è peggio di una assente, perché si legge come un fatto e non si può
+ * controllare. Quindi: «Aperta il …» quando la sappiamo, «In elenco dal …» quando abbiamo solo la
+ * data del caricamento. Due fatti diversi, due frasi diverse.
+ */
+function quandoNata(l: Lavoro): { testo: string; spiega: string } | null {
+  const iso = l.nataIl ?? l.createdAt ?? null;
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  /**
+   * ⚠️ **L'ora si scrive solo se la sappiamo.** Di molte voci si conosce il giorno (dal registro,
+   * dal commit, dal testo della voce stessa) e non il minuto: stampare «18/08/2026, 00:00» darebbe
+   * a un'ora inventata l'aspetto di un'ora misurata. Mezzanotte esatta vuol dire «giorno noto, ora
+   * no» — e una voce nata davvero a mezzanotte perde il minuto, che è il prezzo giusto da pagare.
+   */
+  const soloGiorno = d.getHours() === 0 && d.getMinutes() === 0;
+  const quando = soloGiorno
+    ? d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : d.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return l.nataIl
+    ? { testo: `Aperta il ${quando}`, spiega: 'Data e ora in cui questo punto è nato.' }
+    : {
+        testo: `In elenco dal ${dataIt(iso)}`,
+        spiega: 'Non sappiamo quando è nato il punto: questa è la data in cui la riga è entrata in elenco (le voci del rilascio entrano tutte insieme).',
+      };
 }
 
 export function Lavori() {
@@ -135,16 +196,27 @@ export function Lavori() {
   const fatte = filtrate.filter((r) => r.fatto);
   const bloccanti = aperte.filter((r) => r.blocca).length;
   const inAttesa = aperte.filter((r) => tonoDi(r) === 'attesa').length;
+  const alte = aperte.filter((r) => r.priorita === 'alta').length;
 
   /** Le aperte raggruppate per categoria, nell'ordine in cui il server le ha mandate. */
   const gruppi = useMemo(() => {
     const m = new Map<string, Lavoro[]>();
     for (const r of aperte) m.set(r.categoria, [...(m.get(r.categoria) ?? []), r]);
-    // I gruppi con un blocco dentro vanno in cima: è lì che si guarda per primo.
+    /**
+     * Dentro ogni gruppo: **priorità prima**, poi quello che blocca. ⚠️ È l'ordine che ha chiesto
+     * Simone il 19/8, ed è il motivo per cui le due colonne restano separate: una voce può bloccare
+     * altro lavoro ed essere comunque rimandata.
+     */
+    for (const [c, voci] of m) {
+      m.set(c, voci.map((r, i) => ({ r, i })).sort((a, b) => peso(a.r) - peso(b.r) || Number(b.r.blocca) - Number(a.r.blocca) || a.i - b.i).map((x) => x.r));
+    }
+    // In cima il gruppo che contiene una priorità alta; poi quelli con un blocco dentro.
     return Array.from(m.entries()).sort((a, b) => {
+      const pa = a[1].some((x) => x.priorita === 'alta') ? 0 : 1;
+      const pb = b[1].some((x) => x.priorita === 'alta') ? 0 : 1;
       const ba = a[1].some((x) => x.blocca) ? 0 : 1;
       const bb = b[1].some((x) => x.blocca) ? 0 : 1;
-      return ba - bb || a[0].localeCompare(b[0], 'it');
+      return pa - pb || ba - bb || a[0].localeCompare(b[0], 'it');
     });
   }, [aperte]);
 
@@ -276,6 +348,13 @@ export function Lavori() {
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <span className="chip" style={{ fontWeight: 800 }}>{aperte.length} da fare</span>
+          {/* ⚠️ La priorità alta è la prima cosa che si legge: è la leva di Simone, e sta accanto al totale. */}
+          {alte > 0 && (
+            <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', fontWeight: 800 }}
+              title="Priorità alta: l'hai messa tu. È un giudizio, non un blocco.">
+              <i className="ti ti-arrow-up" /> {alte} in priorità alta
+            </span>
+          )}
           {bloccanti > 0 && (
             <span className="chip" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', fontWeight: 800 }}>
               <i className="ti ti-hand-stop" /> {bloccanti} blocca{bloccanti === 1 ? '' : 'no'} altro lavoro
@@ -381,6 +460,9 @@ export function Lavori() {
         )}
         <div className="hint" style={{ marginTop: 8 }}>
           🔴 blocca altro lavoro · 🟡 aspetta una persona o una decisione · 🟢 fatto, e resta scritto.
+          {' '}⚠️ La <b>priorità</b> (Alta / Neutra / Bassa) è una cosa diversa dal rosso: il rosso dice che dietro
+          c'è una fila ferma, la priorità dice cosa vuoi fare prima. Una voce può bloccare altro lavoro ed essere
+          comunque rimandata.
           Lo storico in fondo è un <b>estratto</b> di <code>progetto/REGISTRO.md</code>, che resta la fonte del dettaglio.
         </div>
       </div>
@@ -533,9 +615,53 @@ rispondi: (l: Lavoro, testo: string) => void;
               <span className="chip" style={{ fontSize: 10.5, background: 'transparent', border: `1px solid ${c.bordo}`, color: c.testo }}>
                 <i className={`ti ${c.icona}`} /> {c.etichetta}
               </span>
+              {/*
+                LA PRIORITÀ — tre pulsanti, e si salva al clic (19/8, richiesta di Simone).
+                ⚠️ Senza salvataggio immediato servirebbero apri → cambia → salva per ogni voce, e
+                dopo tre voci si smetterebbe di darla: una leva che non si usa non è una leva.
+                ⚠️ Chi non può scrivere vede comunque QUALE priorità ha la voce: nasconderla a chi
+                legge farebbe sembrare l'elenco senza priorità proprio a chi lo deve solo leggere.
+              */}
+              {puoScrivere ? (
+                <span className="row" style={{ gap: 0, border: '1px solid var(--line)', borderRadius: 999, overflow: 'hidden' }}>
+                  {PRIORITA.map((p) => {
+                    const attiva = (l.priorita ?? 'neutra') === p.v;
+                    return (
+                      <button
+                        key={p.v}
+                        className="btn ghost"
+                        title={`Priorità ${p.etichetta.toLowerCase()} — è un tuo giudizio, non è «blocca altro lavoro»`}
+                        onClick={() => { if (!attiva) salvaModifica(l, { priorita: p.v }); }}
+                        style={{
+                          fontSize: 10.5, padding: '2px 8px', border: 'none', borderRadius: 0,
+                          fontWeight: attiva ? 800 : 500,
+                          background: attiva ? (p.v === 'alta' ? 'var(--danger-bg)' : 'var(--chip)') : 'transparent',
+                          color: attiva ? p.colore : 'var(--muted)',
+                        }}
+                      >
+                        <i className={`ti ${p.icona}`} /> {p.etichetta}
+                      </button>
+                    );
+                  })}
+                </span>
+              ) : (l.priorita ?? 'neutra') !== 'neutra' ? (
+                <span className="chip" style={{ fontSize: 10.5 }}>priorità {l.priorita}</span>
+              ) : null}
+              {/*
+                ⚠️ QUANDO È NATO IL PUNTO (19/8): «altrimenti non capisco nulla». Le parole cambiano
+                se la data è quella vera o solo quella del caricamento — vedi `quandoNata`.
+              */}
+              {(() => {
+                const n = quandoNata(l);
+                return n ? (
+                  <span className="muted" style={{ fontSize: 11.5, fontStyle: l.nataIl ? 'normal' : 'italic' }} title={n.spiega}>
+                    <i className="ti ti-calendar-plus" /> {n.testo}
+                  </span>
+                ) : null;
+              })()}
               {l.fatto && l.fattoIl && (
                 <span className="muted" style={{ fontSize: 11.5 }}>
-                  {dataIt(l.fattoIl)}{l.fattoDa ? ` · ${l.fattoDa.displayName}` : ''}
+                  <i className="ti ti-check" /> fatta il {dataIt(l.fattoIl)}{l.fattoDa ? ` · ${l.fattoDa.displayName}` : ''}
                 </span>
               )}
             </div>

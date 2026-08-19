@@ -2903,6 +2903,38 @@ model Lavoro {
    */
   testoAMano Boolean @default(false) @map("testo_a_mano")
 
+  /**
+   * LA PRIORITÀ — «alta», «neutra», «bassa». La decide **Simone**, dalla pagina (19/8).
+   *
+   * ⚠️ **Non è `blocca`, e non deve diventarlo.** `blocca` è un FATTO — dietro questa voce c'è una
+   * fila ferma — e chiunque lo può verificare; la priorità è un GIUDIZIO, e lo dà una persona sola.
+   * Tenerle separate è ciò che permette a una voce di bloccare altro lavoro ed essere comunque
+   * rimandata («lo so che ferma la coda, aspetta lo stesso»): con un campo solo quella frase non si
+   * potrebbe più dire, e il rosso tornerebbe a voler dire «urgente» — che è esattamente il difetto
+   * scritto sopra `blocca`.
+   *
+   * ⚠️ Il default è **neutra**, non «bassa». Una voce nuova non è meno importante delle altre: è
+   * una voce su cui nessuno si è ancora pronunciato, e dire «bassa» al posto di chi deve decidere è
+   * un giudizio inventato — lo stesso difetto delle tre stelle di default (voce 270).
+   */
+  priorita String @default("neutra")
+
+  /**
+   * QUANDO È NATO IL PUNTO — non quando è entrato in questa tabella (19/8, richiesta di Simone:
+   * «voglio che mi segni nell'elenco lavori la data e ora di creazione di quel punto altrimenti non
+   * capisco nulla»).
+   *
+   * ⚠️ **`createdAt` non risponde a questa domanda** per le voci che vengono dal file: quelle
+   * entrano tutte insieme quando si preme «Aggiorna dal rilascio», quindi cento voci nate in due
+   * settimane risulterebbero tutte create nello stesso minuto. Una data falsa è peggio di una data
+   * assente: si legge come un fatto e non si può controllare.
+   *
+   * Perciò è **facoltativa**: la dichiara il file (`nata`) per le voci di cui la data si sa davvero,
+   * e la pagina scrive «Aperta il …». Dove manca, la pagina dice «In elenco dal …» — parole diverse
+   * per un fatto diverso, invece di far passare la data del caricamento per la data di nascita.
+   */
+  nataIl DateTime? @map("nata_il")
+
   blocca   Boolean   @default(false)
   fatto    Boolean   @default(false)
   /** ⚠️ Si azzerano insieme alla spunta: una voce riaperta che dice ancora «fatta il 13/8» è una riga che fa perdere fiducia in tutta la lista. */
@@ -2914,6 +2946,7 @@ model Lavoro {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([fatto, categoria, ordine])
+  @@index([fatto, priorita])
   @@map("lavoro")
 }
 

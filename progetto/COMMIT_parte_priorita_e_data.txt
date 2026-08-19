@@ -1,0 +1,64 @@
+La lista lavori adesso dice da quando esiste un punto, e Simone può metterlo in cima
+
+Due richieste dello stesso messaggio del 19/8, e una ragione sola: «pensavo di chiudere la lista
+lavori ma invece che diminuire aumentano». L'elenco non si riusciva più a governare, perché non
+diceva né cosa contasse di più né da quando una voce fosse lì.
+
+1) LA PRIORITÀ — ALTA / NEUTRA / BASSA, E LA DÀ LUI
+Tre pulsanti su ogni riga, e si salva al clic: se per dare una priorità servisse aprire, cambiare e
+salvare, dopo tre voci si smetterebbe di darla — e una leva che non si usa non è una leva.
+L'elenco si riordina di conseguenza, in pagina e nel testo del pulsante «Copia per Claude», che
+devono raccontare la stessa cosa.
+
+⚠️ NON È IL ROSSO, e le due colonne restano separate di proposito. `blocca` è un **fatto** che
+chiunque può verificare — dietro questa voce c'è una fila ferma —; la priorità è un **giudizio**, e
+lo dà una persona sola. Con un campo solo non si potrebbe più dire «lo so che ferma la coda,
+aspetta lo stesso», e il rosso tornerebbe a voler dire «urgente»: in un mese sarebbe tutto rosso e
+il colore smetterebbe di dire qualcosa.
+
+⚠️ Il default è **neutra**, non bassa: una voce nuova non è meno importante, è una voce su cui
+nessuno si è pronunciato. Metterla in fondo al posto di chi deve decidere sarebbe un giudizio
+inventato — lo stesso difetto delle tre stelle di default (voce 270).
+
+⚠️ Una parola che non è una delle tre **è un errore, non una neutra**: arriva dalla nostra pagina, e
+tornare in silenzio a «neutra» farebbe scivolare in mezzo al mucchio proprio la voce che lui aveva
+messo in cima — se ne accorgerebbe non trovandola più.
+
+2) DA QUANDO ESISTE QUESTO PUNTO
+⚠️ `createdAt` non risponde a quella domanda: le voci del file entrano tutte insieme al clic su
+«Aggiorna dal rilascio», quindi cento voci nate in due settimane risulterebbero create nello stesso
+minuto. Una data falsa è **peggio** di una assente, perché si legge come un fatto e non si può
+controllare.
+
+Quindi due frasi diverse per due fatti diversi: **«Aperta il …»** quando la data si sa davvero (la
+dichiara il file, o è l'istante in cui la voce è stata scritta dalla pagina), **«In elenco dal …»**
+in corsivo quando abbiamo solo la data del caricamento. ⚠️ E l'ora si stampa solo se la sappiamo:
+di molte voci si conosce il giorno e non il minuto, e «18/08/2026, 00:00» darebbe a un'ora
+inventata l'aspetto di un'ora misurata.
+
+⚠️ Il rilascio **aggiunge** la data alle voci che non ce l'hanno e non la riscrive mai: una data che
+cambia da sola non è più una data. La priorità fa l'opposto — vale solo alla nascita della voce —
+perché un file che riscrivesse il giudizio di Simone a ogni rilascio gli toglierebbe di mano
+l'unica leva che ha chiesto, in silenzio.
+
+3) IL DIFETTO CHE HA FATTO NASCERE TUTTO — E CHE RESTA APERTO
+Il punto della situazione del 19/8 l'avevo fatto leggendo `voci-iniziali.ts` invece della pagina, e
+gli ho ripresentato come aperte la tabella IG e la conta allergie: due cose che aveva già lanciato
+lui. ⚠️ **Il file non è lo stato**: il file può solo *chiudere* una voce, mai riaprirla, quindi
+resta indietro in silenzio ogni volta che qualcosa si chiude fuori da una consegna. Le tre voci qui
+si allineano (tabella IG, conta allergie e i due dati dell'app, chiusi ieri sera), la coda «Da
+validare» prende la decisione del 19/8, e il difetto vero — come tenere allineati file e pagina —
+entra in elenco con **priorità bassa**, come ha chiesto lui.
+
+MIGRAZIONE
+`20260819140000_lavoro_priorita_nata`: due colonne additive con default, nessuna riga esistente
+cambia comportamento. Le voci già in pagina restano «neutra» (nessuno si è pronunciato) e senza data
+di nascita (non la sappiamo), che è la verità.
+
+FILE
+- backend: `prisma/schema.prisma` + migrazione · `lavori/lavoro.ts` (priorità, ordine, `dataDiNascita`,
+  testo per la chat) · `lavori/lavori.service.ts` (la data si aggiunge, la priorità no) ·
+  `lavori/voci-iniziali.ts` (`nata`, `priorita`, tre voci allineate, una nuova)
+- backoffice: `pages/Lavori.tsx` (i tre pulsanti, la data, il contatore «in priorità alta»)
+
+233 suite / 3652 test verdi · backoffice 31 · sei mutazioni provate e tutte e sei fanno fallire i test.

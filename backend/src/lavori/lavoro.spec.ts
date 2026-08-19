@@ -5,7 +5,7 @@
  * vuota: sono i due modi in cui questa pagina può diventare bugiarda, e una lista bugiarda smette di
  * essere guardata — che è l'unico modo in cui può fallire.
  */
-import { CATEGORIA_DEFAULT, datiRisposta, datiSpunta, normalizzaLavoro, ordinaLavori, testoPerClaude } from './lavoro';
+import { CATEGORIA_DEFAULT, dataDiNascita, datiRisposta, datiSpunta, MSG_PRIORITA, normalizzaLavoro, normalizzaPriorita, ordinaLavori, testoPerClaude } from './lavoro';
 
 const ADESSO = new Date('2026-08-13T18:30:00.000Z');
 
@@ -85,6 +85,88 @@ describe('l\'ordine dell\'elenco', () => {
     // «Così è tutto registrato ed evidente» (Simone): una lista in cui il fatto sparisce risponde a
     // «cosa resta» e non a «cosa è stato fatto».
     expect(ordinaLavori(righe)).toHaveLength(4);
+  });
+});
+
+describe('la priorità — la dà Simone, e non è il rosso', () => {
+  it('le tre parole, spazi e maiuscole compresi', () => {
+    expect(normalizzaPriorita('alta')).toBe('alta');
+    expect(normalizzaPriorita(' Bassa ')).toBe('bassa');
+    expect(normalizzaPriorita('NEUTRA')).toBe('neutra');
+  });
+
+  /**
+   * ⚠️ UN VALORE CHE NON CONOSCIAMO È UN ERRORE, NON UNA NEUTRA.
+   *
+   * Il valore arriva dalla nostra pagina. Se un giorno arrivasse «media» o «Alta » con uno spazio di
+   * troppo, tornando in silenzio a «neutra» la voce che Simone aveva messo in cima scivolerebbe in
+   * mezzo al mucchio — e lui lo scoprirebbe non trovandola più, che è il modo peggiore.
+   */
+  it('⚠️ una parola che non è delle tre non diventa «neutra»: è un errore', () => {
+    expect(() => normalizzaPriorita('media')).toThrow(MSG_PRIORITA);
+    expect(() => normalizzaPriorita('')).toThrow(MSG_PRIORITA);
+    expect(() => normalizzaPriorita(undefined)).toThrow(MSG_PRIORITA);
+    expect(() => normalizzaPriorita(2)).toThrow(MSG_PRIORITA);
+  });
+
+  it('dalla pagina arriva insieme al resto', () => {
+    expect(normalizzaLavoro({ priorita: 'alta' }, false)).toEqual({ priorita: 'alta' });
+  });
+
+  /** ⚠️ Non mandarla non vuol dire azzerarla: salvare il titolo non deve toccare la priorità. */
+  it('⚠️ chi non la manda non la cambia', () => {
+    expect(normalizzaLavoro({ titolo: 'Una voce qualsiasi' }, false)).toEqual({ titolo: 'Una voce qualsiasi' });
+  });
+});
+
+describe('quando è nato il punto — e i due modi di rispondere', () => {
+  const NASCITA = new Date('2026-08-19T10:07:00Z');
+  const CARICAMENTO = new Date('2026-08-13T18:00:00Z');
+
+  it('se la data di nascita c\'è, è quella, ed è certa', () => {
+    expect(dataDiNascita({ nataIl: NASCITA, createdAt: CARICAMENTO })).toEqual({ quando: NASCITA, certa: true });
+  });
+
+  /**
+   * ⚠️ IL CASO CHE VALE IL CAMPO. Le voci del file entrano tutte insieme al clic su «Aggiorna dal
+   * rilascio»: `createdAt` le fa risultare nate nello stesso minuto, anche quelle scritte due
+   * settimane prima. Si può ancora mostrare — «in elenco dal» è un fatto vero — ma **non spacciata
+   * per la data di nascita**: una data falsa si legge come un fatto e non si può controllare.
+   */
+  it('⚠️ senza, resta `createdAt` ma dichiarato NON certo', () => {
+    expect(dataDiNascita({ createdAt: CARICAMENTO })).toEqual({ quando: CARICAMENTO, certa: false });
+  });
+
+  it('e se non c\'è né l\'una né l\'altra non si inventa niente', () => {
+    expect(dataDiNascita({})).toBeNull();
+    expect(dataDiNascita({ nataIl: null, createdAt: null })).toBeNull();
+  });
+});
+
+describe('l\'ordine con la priorità', () => {
+  const r = (id: string, priorita: string | null, fatto = false) => ({ id, priorita, fatto, fattoIl: null });
+
+  it('alta in cima, bassa in fondo', () => {
+    expect(ordinaLavori([r('a', 'bassa'), r('b', 'alta'), r('c', 'neutra')]).map((x) => x.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  /** Una voce senza priorità è una voce su cui nessuno si è pronunciato: sta con le neutre. */
+  it('chi non ce l\'ha vale neutra', () => {
+    expect(ordinaLavori([r('a', 'bassa'), r('b', null), r('c', 'alta')]).map((x) => x.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  /**
+   * ⚠️ A PARITÀ DI PRIORITÀ L'ORDINE NON SI TOCCA. Un secondo criterio inventato qui farebbe muovere
+   * le righe sotto gli occhi di chi le sta guardando, senza che nessuno l'abbia chiesto.
+   */
+  it('⚠️ a parità di priorità resta l\'ordine che ha mandato il server', () => {
+    expect(ordinaLavori([r('a', 'neutra'), r('b', 'neutra'), r('c', 'neutra')]).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  /** ⚠️ E le fatte restano in fondo: la priorità ordina il lavoro, non lo storico. */
+  it('⚠️ una fatta con priorità alta non torna in cima', () => {
+    const fatta = { id: 'z', priorita: 'alta', fatto: true, fattoIl: new Date('2026-08-13T09:00:00Z') };
+    expect(ordinaLavori([fatta, r('a', 'bassa')]).map((x) => x.id)).toEqual(['a', 'z']);
   });
 });
 

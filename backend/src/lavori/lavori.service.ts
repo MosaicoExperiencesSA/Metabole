@@ -37,8 +37,16 @@ export class LavoriService {
     };
   }
 
+  /**
+   * ⚠️ Una voce scritta a mano dalla pagina **nasce adesso**, e la data si scrive subito.
+   *
+   * Per queste `createdAt` sarebbe già la risposta giusta — ma allora la pagina avrebbe due sorgenti
+   * per la stessa riga di testo, e il giorno che una delle due cambia significato lo scopriremmo
+   * leggendo una data sbagliata. Una domanda, una risposta: `nataIl`.
+   */
   async crea(dati: DatiLavoro) {
     const campi = normalizzaLavoro(dati, true);
+    campi.nataIl = new Date();
     return this.prisma.lavoro.create({
       data: campi as { titolo: string },
       include: { fattoDa: { select: { displayName: true } }, rispostaDa: { select: { displayName: true } } },
@@ -113,8 +121,8 @@ export class LavoriService {
     const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
     const righe = (await this.prisma.lavoro.findMany({
       where: { chiave: { in: chiavi } },
-      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true, testoAMano: true },
-    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null; testoAMano: boolean }[];
+      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true, testoAMano: true, nataIl: true },
+    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null; testoAMano: boolean; nataIl: Date | null }[];
     const perChiave = new Map(righe.map((r) => [r.chiave, r]));
 
     /**
@@ -179,13 +187,42 @@ export class LavoriService {
       else daRiscrivere.push({ id: riga.id, titolo: v.titolo, dettaglio: v.dettaglio ?? null, categoria: v.categoria });
     }
 
+    /**
+     * ⚠️ LA DATA DI NASCITA SI PUÒ AGGIUNGERE A UNA VOCE GIÀ IN ELENCO — la priorità NO.
+     *
+     * Sono due campi nuovi (19/8) e si comportano in modo opposto di proposito. `nataIl` è un
+     * **fatto** che il file ha scoperto dopo: le voci già in pagina non ce l'hanno, e riempirla
+     * quando è vuota è l'unico modo di dare a Simone quello che ha chiesto senza rifare l'elenco.
+     * ⚠️ Ma solo **quando è vuota**: sovrascriverla vorrebbe dire che una data in pagina può
+     * cambiare da sola, e una data che cambia non è più una data.
+     *
+     * La priorità invece è un **giudizio**, e lo dà lui dalla pagina. Un file che gliela riscrive a
+     * ogni rilascio gli toglierebbe di mano l'unica leva che ha chiesto — in silenzio, che è la
+     * parte peggiore. Perciò vale solo alla nascita della voce.
+     */
+    const daDatare: { id: string; nataIl: Date }[] = [];
+    for (const v of VOCI_INIZIALI) {
+      if (!v.nata) continue;
+      const riga = perChiave.get(v.chiave);
+      if (!riga || riga.nataIl) continue;
+      const d = new Date(v.nata);
+      // ⚠️ Una data che non si legge non si scrive: meglio «non lo so» che un 1970 in pagina.
+      if (Number.isNaN(d.getTime())) continue;
+      daDatare.push({ id: riga.id, nataIl: d });
+    }
+
     if (conferma) {
       for (const v of mancanti) {
-        // `fatta` è un campo del FILE, non una colonna: si traduce nella spunta e non si scrive.
-        const { fatta, soloSeEsiste: _soloSeEsiste, ...campi } = v;
+        // `fatta`, `nata` e `priorita` sono campi del FILE: due si traducono in colonne, uno nella spunta.
+        const { fatta, soloSeEsiste: _soloSeEsiste, nata, priorita, ...campi } = v;
+        const nataIl = nata && !Number.isNaN(new Date(nata).getTime()) ? new Date(nata) : null;
+        const dati = { ...campi, ...(nataIl ? { nataIl } : {}), ...(priorita ? { priorita } : {}) };
         await this.prisma.lavoro.create({
-          data: fatta ? { ...campi, ...datiSpunta(true, null, new Date()) } : campi,
+          data: fatta ? { ...dati, ...datiSpunta(true, null, new Date()) } : dati,
         });
+      }
+      for (const d of daDatare) {
+        await this.prisma.lavoro.update({ where: { id: d.id }, data: { nataIl: d.nataIl } });
       }
       for (const { riga } of daSpuntare) {
         await this.prisma.lavoro.update({ where: { id: riga.id }, data: datiSpunta(true, null, new Date()) });
@@ -207,6 +244,8 @@ export class LavoriService {
       chiuse: daSpuntare.map(({ voce }) => ({ titolo: voce.titolo, categoria: voce.categoria })),
       /** Voci il cui testo è stato **riscritto** dal file (nessuno le aveva corrette a mano). */
       riscritte: daRiscrivere.map((r) => ({ titolo: r.titolo, categoria: r.categoria })),
+      /** ⚠️ Voci a cui il rilascio ha **aggiunto** la data di nascita che mancava (mai riscritta). */
+      datate: daDatare.length,
       /**
        * ⚠️ Voci il cui testo nel file è cambiato ma che qualcuno ha corretto **a mano** dalla
        * pagina: NON vengono riscritte, e si dicono — perché il file ha qualcosa di nuovo da

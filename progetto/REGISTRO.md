@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🗂️ **La lista lavori dice da quando esiste un punto, e Simone gli può dare la
+  priorità.** Nasce da una frase sua: «pensavo di chiudere la lista lavori ma invece che diminuire
+  aumentano». **1) Priorità Alta / Neutra / Bassa**, tre pulsanti su ogni riga che salvano al clic —
+  se servisse aprire, cambiare e salvare, dopo tre voci si smetterebbe di darla, e una leva che non
+  si usa non è una leva. ⚠️ **Non è il rosso**, e le due colonne restano separate di proposito:
+  `blocca` è un fatto che chiunque può verificare, la priorità è un giudizio che dà una persona sola
+  — con un campo solo non si potrebbe più dire «lo so che ferma la coda, aspetta lo stesso», e in un
+  mese sarebbe tutto rosso. ⚠️ Default **neutra** e non bassa: una voce nuova non è meno importante,
+  è una voce su cui nessuno si è pronunciato. **2) Da quando esiste il punto**: ⚠️ `createdAt` non
+  risponde, perché le voci del file entrano tutte insieme col rilascio — cento voci nate in due
+  settimane risulterebbero create nello stesso minuto, e **una data falsa è peggio di una assente**.
+  Quindi «Aperta il …» quando si sa, «In elenco dal …» in corsivo quando si ha solo la data del
+  caricamento, e l'ora si stampa solo se la sappiamo. ⚠️ Il rilascio **aggiunge** la data mancante e
+  non la riscrive mai; la priorità vale solo alla nascita, perché riscrivere il suo giudizio a ogni
+  rilascio gli toglierebbe di mano l'unica leva che ha chiesto.
+  ⚠️ **E il difetto che ha fatto nascere tutto**: il punto della situazione l'avevo fatto leggendo
+  `voci-iniziali.ts` invece della pagina, e gli ho ripresentato come aperte la **tabella IG** e la
+  **conta allergie** — due cose già lanciate da lui («la tabella IG quante volte te la devo dare?»).
+  Il file può solo *chiudere* una voce, mai riaprirla: resta indietro in silenzio ogni volta che
+  qualcosa si chiude fuori da una consegna. Le tre voci si allineano, la coda «Da validare» prende la
+  decisione del 19/8, e il difetto vero — come tenere allineati file e pagina — entra in elenco con
+  **priorità bassa**, come ha chiesto lui. Migrazione `20260819140000_lavoro_priorita_nata`
+  (additiva). 233 suite / **3652 test verdi**, backoffice 31, sei mutazioni provate e tutte e sei
+  fanno fallire i test.
+
+
 - `[Sviluppo]` 🧾 **Il piano in coda si scrive `queued`, e dodici letture che dicevano il falso**
   (voce 258, seconda metà). `finalizeApproval` scrive `queued` quando il piano comincia più avanti, e
   un passo notturno (`promuoviCodeArrivate`, **primo** del `daily` perché tutti gli altri leggono lo

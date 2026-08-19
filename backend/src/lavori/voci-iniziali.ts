@@ -38,6 +38,30 @@ export type Voce = {
    * spuntala, altrimenti non è mai esistita».
    */
   soloSeEsiste?: boolean;
+  /**
+   * QUANDO È NATO IL PUNTO — data e ora, in ISO locale (`'2026-08-19T12:07'`).
+   *
+   * Richiesta di Simone, 19/8: «voglio che mi segni nell'elenco lavori la data e ora di creazione di
+   * quel punto altrimenti non capisco nulla». ⚠️ `createdAt` non risponde: le voci del file entrano
+   * tutte insieme al clic su «Aggiorna dal rilascio», quindi cento voci nate in due settimane
+   * risulterebbero create nello stesso minuto.
+   *
+   * ⚠️ **Si scrive solo dove la data si sa davvero** — dal REGISTRO, dal commit o dal testo della
+   * voce stessa. Dove non si sa si lascia vuoto e la pagina dice «in elenco dal …», che è un fatto
+   * diverso: inventare una data plausibile per riempire una colonna è il modo più veloce di rendere
+   * inutile tutta la colonna.
+   */
+  nata?: string;
+  /**
+   * La priorità **iniziale**, solo per le voci nuove.
+   *
+   * ⚠️ **Non riallinea mai una voce già in elenco.** La priorità la dà Simone dalla pagina: un file
+   * che gliela riscrive a ogni rilascio gli toglierebbe di mano l'unica leva che ha chiesto — e in
+   * silenzio, che è la parte peggiore. Qui serve a un caso solo: una voce che nasce da una revisione
+   * mia entra **bassa**, perché l'ha decisa lui il 19/8 («se trovi qualche cosa lo aggiungi in lista
+   * con priorità bassa»), non perché io la ritenga meno importante.
+   */
+  priorita?: 'alta' | 'neutra' | 'bassa';
 };
 
 /**
@@ -53,12 +77,18 @@ export const DATI = 'Dati e catalogo';
 export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'tabella-ig-import',
+    nata: '2026-08-13',
     titolo: 'Indice glicemico: trascrizione VERIFICATA contro la tabella vera — resta solo da lanciare',
     dettaglio:
       'PDF del 13/8 (Linus Pauling / International Tables 2008): IG con min e max, affidabilità, macro per 100 g, stato e fonte. Il codice c\'era già da allora — `prisma/dati-ig.ts` (96 righe trascritte) e `npm run importa:ig` (anteprima, scrive solo con `CONFERMA=1`). ⚠️ **Il 18/8 Simone ha caricato il file originale in xlsx e ho confrontato riga per riga: 96 righe su 96, ZERO differenze** su nome, categoria, stato, IG, IG min, IG max, kcal, proteine, carboidrati, grassi, fibre e affidabilità. Era la verifica che mancava: 96 righe di dati clinici trascritti a mano, e un refuso su una kcal sarebbe finito in quello che Gaia dice alle clienti. ⚠️ Il crudo/cotto **è sciolto**, ed è la ragione per cui l\'import è sbloccato: ogni riga porta lo **stato esplicito**, e la pasta lì è BOLLITA (158 kcal/100 g) — usare il valore da crudo sbaglierebbe di due volte e mezzo. Si carica **confermato** (`verifiedById` = capo nutrizionista, `verifiedAt` valorizzato), perché «vuoti = da confermare» finirebbe in una coda che nessuno ha chiesto. Le tre sorti di una riga: nome nuovo → si crea; nome già in tabella **senza** IG → si aggiunge **solo** l\'IG (⚠️ le macro esistenti non si toccano: potrebbero essere state curate a mano); nome già in tabella **con** IG → non si tocca niente. ⛔ **Resta solo da lanciarlo in produzione**: `npm run importa:ig` per l\'anteprima, poi `CONFERMA=1`.',
     categoria: DATI,
     ordine: 20,
     blocca: false,
+    // ⚠️ CHIUSA: Simone l'ha lanciata sulla shell di Render e in pagina risulta fatta. Restava
+    // aperta **solo in questo file**, e il 19/8 gliel'ho ripresentata come se aspettasse ancora lui
+    // — «la tabella IG quante volte te la devo dare?». Il file non è lo stato: lo stato è la
+    // pagina, e quando i due divergono il file racconta lavoro che non esiste.
+    fatta: true,
   },
   {
     chiave: 'vera-regola-dieta-scoperte',
@@ -154,6 +184,9 @@ export const VOCI_INIZIALI: Voce[] = [
       'È in sola lettura e non scrive niente. ⚠️ Va letto PRIMA di decidere qualsiasi campagna: se la terza popolazione è la maggioranza, quella non è una campagna ma una pagina del questionario che non raccoglie. Blocca il §7.',
     categoria: SIMONE,
     ordine: 20,
+    // ⚠️ CHIUSA: lanciata, e l'esito è arrivato (le 21 clienti da ricontattare). Stessa storia della
+    // tabella IG: restava aperta solo qui.
+    fatta: true,
   },
   {
     chiave: 'ota-2-1-8',
@@ -201,9 +234,10 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'coda-da-validare-b-c',
+    nata: '2026-08-13',
     titolo: 'Coda «Da validare»: la B è chiusa (12/8), resta la C — e forse la C non serve più',
     dettaglio:
-      '⚠️ **Voce corretta il 18/8 rileggendo il codice**: diceva «restano le consegne B e C», ma la **B era già stata consegnata il 12/8** (REGISTRO 3475-3502) — le azioni per causa, «Autorizza a proseguire» e «Blocca il piano» vivono in `engine/causa-decisione.ts:65-134` (`AZIONI_PER_CAUSA`, `azioneAmmessa`), `nutritionist.service.ts:487` e `:523-541` (`eseguiAzione`, che rifiuta un\'azione non prevista per quella causa) e nei pulsanti di `NutritionistHome.tsx:214-240`. **Resta la C**: «Conferma» dovrebbe applicare la proposta al piano, e oggi scrive soltanto `reviewOutcome` — ⚠️ un campo che in tutto il backend ha **una sola occorrenza**, quella scrittura: nessuno lo legge. Quindi «Conferma» è un registro di «ho letto» con l\'aspetto di un\'azione, che è il difetto di famiglia di questo progetto. ⛔ **Ma prima di farla serve una parola di Simone**, perché la C potrebbe essere stata **superata dalla B**: da quando la coda ha azioni esplicite per causa, «Conferma» che significa «visto, non serve fare niente» è una risposta legittima — e farle applicare da sola l\'azione proposta dal motore vorrebbe dire che un clic di presa visione cambia il piano di una persona. Le due strade sono: **1)** «Conferma» applica la proposta (e allora va rinominato: «Conferma e applica»); **2)** resta presa visione, e si toglie l\'ambiguità dall\'etichetta. ⚠️ Il livello 2 non esiste (315 diete a livello 1): la voce 1 si fa in percentuale.',
+      '⚠️ **Voce corretta il 18/8 rileggendo il codice**: diceva «restano le consegne B e C», ma la **B era già stata consegnata il 12/8** (REGISTRO 3475-3502) — le azioni per causa, «Autorizza a proseguire» e «Blocca il piano» vivono in `engine/causa-decisione.ts:65-134` (`AZIONI_PER_CAUSA`, `azioneAmmessa`), `nutritionist.service.ts:487` e `:523-541` (`eseguiAzione`, che rifiuta un\'azione non prevista per quella causa) e nei pulsanti di `NutritionistHome.tsx:214-240`. **Resta la C**: «Conferma» dovrebbe applicare la proposta al piano, e oggi scrive soltanto `reviewOutcome` — ⚠️ un campo che in tutto il backend ha **una sola occorrenza**, quella scrittura: nessuno lo legge. Quindi «Conferma» è un registro di «ho letto» con l\'aspetto di un\'azione, che è il difetto di famiglia di questo progetto. ⛔ **Ma prima di farla serve una parola di Simone**, perché la C potrebbe essere stata **superata dalla B**: da quando la coda ha azioni esplicite per causa, «Conferma» che significa «visto, non serve fare niente» è una risposta legittima — e farle applicare da sola l\'azione proposta dal motore vorrebbe dire che un clic di presa visione cambia il piano di una persona. Le due strade erano: **1)** «Conferma» applica la proposta (e allora va rinominato: «Conferma e applica»); **2)** resta presa visione, e si toglie l\'ambiguità dall\'etichetta. ✅ **Il 19/8 Simone ha scelto la 2**: il pulsante si chiama **«Presa visione»** e sopra la lista c\'è una riga che dice cosa fanno tutti e due — l\'ambiguità è tolta, e nessun clic cambia più il piano di una persona per sbaglio. ⛔ **Resta aperta la sola parte 1**: far applicare davvero la proposta al piano. È ferma sul numero di Nocanty — di quanto si alzano le calorie — e non è una decisione di software. ⚠️ Il livello 2 non esiste (315 diete a livello 1): la voce 1 si fa in percentuale.',
     categoria: SIMONE,
     ordine: 30,
   },
@@ -444,6 +478,7 @@ export const VOCI_INIZIALI: Voce[] = [
   // ── 13/8 pomeriggio: colazioni, battesimo di Vera, campagna allergie a tutti ──
   {
     chiave: 'colazioni-dolce-salato',
+    nata: '2026-08-13',
     titolo: 'Colazioni: la pagina «dolce o salata» è su — servono le conferme di Lucia',
     dettaglio:
       'Pagina nuova «Colazioni» nel backoffice (dal menu, sotto Allergeni ricette): il sistema propone dolce/salato dagli ingredienti delle sole ricette di colazione, Lucia conferma — anche in blocco. Il tag scritto È la conferma (`piatto:dolce`/`piatto:salato`), gli incerti restano senza proposta e li decide lei. ⚠️ L\'azione di Vera «a colazione qualcosa di salato» resta SPENTA finché le conferme non bastano: una colazione senza tag non partecipa. Decisione in `Decisioni_Simone_20260813.md` §12.',
@@ -632,11 +667,17 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'app-dati-che-non-legge',
+    nata: '2026-08-16',
     titolo: 'App: restano DUE dati che il server manda alla cliente e nessuna schermata mostra (erano sei)',
     dettaglio:
       'Trovati il 16/8 con un giro sistematico su tutte le rotte `/me/*`, cercando il difetto già pagato tre volte in questo progetto — un dato che agisce e non si vede. **Chiusi:** i traguardi raggiunti e il guardrail del calo rapido (16/8); il popup delle valutazioni, che ricostruiva l\'elenco da `/me/menu` e riproponeva piatti già votati invece di leggere `GET /me/ratings/pending` (voce 269, 18/8); e il 18/8 gli ultimi due piccoli — **`since` di `/me/measurement-gate`**, che il backend manda da sempre e nessuno leggeva: il riquadro diceva «App in pausa», uno stato senza storia, e ora dice **da quanto** il menu è fermo («da ieri», «da 5 giorni», «da 2 settimane»), ⚠️ tacendo quando la data non c\'è invece di scrivere «da 0 giorni» — e **`thighsCm`**, la circonferenza cosce che lo staff poteva registrarle e che lei non avrebbe mai visto: il campo c\'era in banca dati, nel form del backoffice e nella risposta di `GET /me/measurements`, e si fermava all\'interfaccia TypeScript dell\'app. ⚠️ Ora la vede **e la può scrivere**: mostrarla soltanto avrebbe lasciato un dato sul suo corpo che governa solo lo staff. Niente barra «verso il tuo obiettivo» per le cosce, perché un `targetThighsCm` non esiste e inventarlo sarebbe una migrazione per una cosa che nessuno ha chiesto: una barra senza traguardo misura la distanza da niente. **⛔ RESTANO I DUE GROSSI, e quelli sì sono SCHERMATE NUOVE — vanno disegnate prima di scriverle: 1)** `GET /me/progress` non lo chiama nessuno — media mobile, chili persi, PROIEZIONE della data obiettivo, giorni di stallo — eppure il calcolo gira e lo leggono il motore e l\'allarme di stallo della coach: agisce su di lei ed è l\'unica a non vederlo. **2)** `GET /me/cycle` mai chiamato: le due cotture del ciclo, le stelle di gradimento (che decidono cosa il motore le ripropone) e l\'esito del ciclo precedente. **3) ✅ CHIUSO il 18/8** — `totalSafe` e `certificate` da `/me/personal-base`. ⚠️ La nota diceva «schermata nuova, va disegnata prima»: **era sbagliata**. Non serviva una schermata, serviva una riga nel Profilo **subito sotto le allergie** — perché è lì che nasce la domanda a cui quel numero risponde: ha appena letto le sue allergie e «le teniamo fuori dai menu sempre», e la domanda che segue è «e allora cosa mi resta?». Ora legge «148 ricette del catalogo sono state certificate sicure per te: il motore pesca solo da lì», con sotto, piccolo, il numero e la firma del certificato — la prova che la personalizzazione è avvenuta, che è la cosa che il prodotto promette. ⚠️ Tre stati: pronta → il numero; bloccata → il testo del socio; lettura fallita → **niente**, perché «0 ricette certificate sicure per te» detto per un errore di rete sarebbe falso e spaventoso. ⚠️ E «pronta con 0 ricette» non è pronta. Restano quindi **DUE**, e quelli sì sono schermate. ⚠️ **L\'analisi è FATTA, la sera del 18/8: `progetto/DECISIONE_Due_Schermate_App.md`** — non va rifatta. Dentro c\'è la scoperta che cambia la domanda sul primo dei due: `Obiettivo.tsx:465` calcola la barra «verso il tuo obiettivo» sull\'**ultima misura**, mentre `/me/progress` la calcola sulla **media mobile** — cioè non è una schermata mancante, sono **due risposte alla stessa domanda** sulla stessa cliente, e la seconda è quella che leggono il motore e l\'allarme della coach. Il lavoro vero è **togliere il conto locale**, non aggiungere una pagina. E sul secondo, due trappole trovate nel codice: ⚠️ `GET /me/cycle` **scrive** (`clientCycle.update/create` a ogni chiamata), e ⚠️ il campo `gradimento` **non è il gradimento** — è il minimo fra le ricette del ciclo del massimo delle loro stelle, con **default 5 quando una ricetta non è mai stata valutata**: mostrarlo come «il tuo gradimento» rifarebbe il difetto delle tre stelle inventate (voce 270) dentro una schermata. ⛔ Il foglio finisce con **cinque decisioni** (la proiezione della data obiettivo si mostra? i giorni di stallo? cosa del ciclo? il GET che scrive si separa?): il codice si scrive dopo.',
     categoria: CODICE,
     ordine: 253,
+    // ⚠️ CHIUSI TUTTI E DUE il 19/8: `Obiettivo.tsx` legge `/me/progress` (e la barra non si
+    // calcola più in locale sull'ultima pesata — era quello il lavoro vero), `Menu.tsx` legge
+    // `/me/cycle` con le cotture e l'esito precedente, col `gradimento` lasciato fuori e la lettura
+    // separata dalla scrittura.
+    fatta: true,
   },
   {
     chiave: 'vera-handoff-sessione',
@@ -913,6 +954,7 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'ordine-menu-difetti-minori',
+    nata: '2026-08-18',
     titolo: 'Ordine del menu: resta solo il difetto 6, le righe morte nelle preferenze',
     dettaglio:
       'Il difetto **6**, l\'ultimo dei sette. ⚠️ La numerazione viene dalla rilettura del 18/8 mattina ed è raccontata nella voce del `REGISTRO.md` di quel giorno: il foglio `progetto/DIFETTI_Ordine_Menu.md` che alcuni testi citavano **non esiste nel repository** (corretto la sera stessa, rileggendo). ✅ **Il 7 è chiuso la sera del 18/8**: `conNascosteAlLoroPosto` rimette le voci che questa persona non vede **dove le aveva messe**, invece che in fondo all\'ultimo gruppo — prima venivano tenute (giusto) ma spostate (sbagliato), quindi il giorno che il permesso arrivava la pagina ricompariva in coda al menu e nessuno collegava le due cose. ⚠️ Si lavora sulla **lista salvata** e non sulla vista, perché la vista le voci nascoste non le contiene nemmeno; l\'ancora è preferibilmente una **rotta** e non un titolo, perché due gruppi possono chiamarsi uguale e un\'ancora ambigua rimetterebbe la voce nel gruppo sbagliato; se prima di lei non c\'è nessuna rotta sopravvissuta ci si aggancia al titolo, e se non c\'è nemmeno quello la riga torna in cima. 8 test (22 in tutto nel file). **Resta il 6:** una voce **tolta dal software** resta nelle preferenze di chi l\'aveva ordinata — in lettura viene saltata, ma la riga consuma una delle 80 disponibili finché la persona non risalva. Si chiuderebbe riscrivendo indietro l\'ordine ripulito in lettura, ⚠️ ma è **una scrittura che nessuno ha chiesto**: non ne vale la pena finché il tetto degli 80 non dà fastidio, ed è la stessa ragione per cui era stato lasciato aperto.',
@@ -941,6 +983,30 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'lista-lavori-priorita-e-data',
+    nata: '2026-08-19T13:30',
+    titolo: 'La lista lavori dice da quando esiste un punto, e Simone gli può dare la priorità',
+    dettaglio:
+      'Due richieste dello stesso messaggio del 19/8 — «pensavo di chiudere la lista lavori ma invece che diminuire aumentano» — e una ragione sola: l\'elenco non si riusciva più a governare. **1) Priorità Alta / Neutra / Bassa**, tre pulsanti su ogni riga che salvano al clic (se servisse aprire-cambiare-salvare, dopo tre voci si smetterebbe di darla). ⚠️ **Non è il rosso**: `blocca` è un fatto verificabile — dietro c\'è una fila ferma — la priorità è un giudizio, e sono due colonne separate proprio perché si possa dire «lo so che ferma la coda, aspetta lo stesso». ⚠️ Il default è **neutra** e non bassa: una voce nuova non è meno importante, è una voce su cui nessuno si è pronunciato. **2) Da quando esiste il punto**: ⚠️ `createdAt` non risponde, perché le voci del file entrano tutte insieme col rilascio e cento voci nate in due settimane risulterebbero create nello stesso minuto — una data falsa è peggio di una assente. Quindi «Aperta il …» quando la data si sa, «In elenco dal …» in corsivo quando si ha solo quella del caricamento, e l\'ora si stampa solo se la sappiamo. ⚠️ Il rilascio **aggiunge** la data mancante e non la riscrive mai; la priorità invece vale solo alla nascita, perché riscrivere il giudizio di Simone a ogni rilascio gli toglierebbe di mano l\'unica leva che ha chiesto.',
+    categoria: CODICE,
+    ordine: 295,
+    fatta: true, // 19/8
+  },
+
+  {
+    chiave: 'lista-lavori-file-e-pagina',
+    nata: '2026-08-19T13:10',
+    // ⚠️ BASSA perché l'ha deciso Simone il 19/8 («se trovi qualche cosa lo aggiungi in lista con
+    // priorità bassa»), non perché io la ritenga poco importante: la priorità la dà lui.
+    priorita: 'bassa',
+    titolo: 'Il file delle voci e la pagina Lavori divergono, e chi legge il file racconta lavoro che non esiste',
+    dettaglio:
+      'Trovato il 19/8 nel modo peggiore: ho fatto a Simone il punto della situazione leggendo `voci-iniziali.ts` invece della pagina, e gli ho ripresentato come aperte la **tabella IG** e la **conta allergie** — due cose che aveva già lanciato lui sulla shell di Render. La sua risposta: «la tabella IG quante volte te la devo dare?». ⚠️ **Il file non è lo stato**: lo stato è la pagina, e il file può solo *chiudere* una voce, mai riaprirla. La conseguenza è che il file resta indietro in silenzio ogni volta che qualcosa si chiude fuori da una consegna — e chi legge il file (io, in ogni sessione nuova) crede di leggere l\'elenco vero. ⚠️ Vale anche al contrario: in pagina ci sono voci scritte a mano da Simone («Moduli fissi in dashboard», «Schermate app 30 e 27-28», «Vera: rifare i giorni futuri») che nel file non esistono, quindi non ricevono né la data di nascita né le riscritture del rilascio. Il pulsante «Copia per Claude» risolve il caso singolo — basta incollarmelo — ma è un gesto che va ricordato ogni volta, e le cose che vanno ricordate ogni volta prima o poi non si ricordano. ⛔ Da decidere **come**: le strade sono (a) il caricamento **dice** quali voci del file risultano chiuse in pagina e viceversa, come già fa per i testi cambiati; (b) un `npm run allinea:lavori` che rigenera il file dalla pagina; (c) niente, e resta il copia-incolla. Nessuna è ovvia: la (b) fa vincere la pagina su un file che sta nel repository e si legge nei commit.',
+    categoria: CODICE,
+    ordine: 294,
+  },
+
+  {
     chiave: 'quattro-decisioni-19-8',
     titolo: 'Il mantenimento sulla tendenza, il «tranne» che diventa una telefonata, e due frasi che dicevano il falso',
     dettaglio:
@@ -962,6 +1028,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'percentuale-obiettivo-punti-rimasti',
+    nata: '2026-08-19',
     titolo: 'Restano DUE punti che rispondono ancora con l\'ultima pesata (erano quattro)',
     dettaglio:
       'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. **Chiusi il 19/8, dalle risposte di Simone:** `commerce.hasReachedObjective` — che decide se offrirle il **mantenimento** — è passato alla media mobile, perché proporglielo perché una mattina la bilancia ha detto 69,8 con la media a 70,6 vuol dire venderglielo un attimo prima che il peso risalga; e `reports.service` **resta di proposito sul peso misurato** (il Report è un documento firmato su un periodo, e «il peso a quella data» è un fatto verificabile che lei si può portare dal medico) ⚠️ **ma adesso lo dichiara**, con una riga sotto i numeri: due numeri diversi sulla stessa persona senza nessuno che dica perché erano esattamente il difetto tolto da tutto il resto del prodotto quel giorno. **Restano** `plan-report.service` (`toGoKg` e i mesi mancanti) e `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⚠️ Tutti e due rispondono a «quanto manca all\'obiettivo» con l\'**ultima pesata**, mentre la barra, la home, la lista della coach, i traguardi e il mantenimento usano la **media mobile**. ⛔ Il `kcal-need` non si tocca senza la nutrizionista: `kgToLose` entra nel **fabbisogno calorico**, e cambiarne la base cambia quante calorie mangia ogni cliente — è una decisione clinica, non di software. Il `plan-report` è la stessa domanda del Report ed è ragionevole che segua la stessa risposta, ma va detto lì come è detto nel Report.',
@@ -1011,6 +1078,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'coda-vincolo-e-code-scadute',
+    nata: '2026-08-19',
     titolo: 'Il vincolo sui piani sovrapposti, e le code arrivate a scadenza senza mai partire',
     dettaglio:
       'Quello che resta della voce 258 dopo il 19/8, e **due cose diverse**. **1) Il vincolo in banca dati** che vieta due piani che erogano insieme: adesso si può, perché lo stato vive e `npm run diag:coda` dice che le sovrapposizioni sono **zero**. ⚠️ Va messo per ultimo di proposito: un vincolo aggiunto insieme alla scrittura trasforma un dato storto in un errore 500 su una cassa. **2) Le code arrivate a scadenza senza mai partire**: `promuoviCodeArrivate` non le promuove — da attive-e-finite prenderebbero il report di fine percorso, la chiusura CRM e (sulle prove) la **cancellazione della personalizzazione**, e nessuna delle tre si torna indietro — quindi restano `queued` e si vedono in `diag:coda`. ⛔ **Cosa farne è una decisione di Simone**, una per una: rimborso, partenza posticipata, o piano nuovo. Oggi in produzione non ce n\'è nessuna: questa voce esiste perché il giorno che ce ne sarà una, chi la trova sappia che è stata lasciata lì apposta.',
@@ -1070,6 +1138,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'sostituzioni-numeri-altrove',
+    nata: '2026-08-18',
     titolo: 'Le grammature delle sostituzioni fuori dall\'app: Gaia, la scheda coach e i passi della ricetta',
     dettaglio:
       'Coda della voce 284, aperta dalla revisione della notte del 18/8. Nell\'app la riga della sostituzione sul piatto scalato non dice più le grammature, perché sono quelle di **catalogo** e la scheda ricetta ne dice altre. ⚠️ **Ma il numero nasce in chat**, e lì non è cambiato niente: Gaia dice «a pranzo metti 120 g biete al posto di 100 g carote» mentre nella ricetta ce ne sono 216 — e la chat è il posto dove la cliente ha detto «sì» e dove torna a controllare (`menu/sostituzione-chat.ts`, sei frasi). ⚠️ Stessa cosa nella **tabella «cambi in chat» del backoffice** (`ClientDetail.tsx`): la nutrizionista che approva o corregge la grammatura ragiona su 120 g mentre nel piatto ce ne sono 216, e da quando l\'app quel numero non lo mostra più, quello del backoffice è rimasto l\'unico «ufficiale» accanto a quello della ricetta. `pasto.porzione` è disponibile in tutti quei punti: non è un dato che manca, è un dato che non si legge. ⚠️ E c\'è un terzo pezzo: la scheda ricetta adesso dice «biete» negli **ingredienti** e «carote» nei **passi di cottura** (`cookingMethods[].steps`, che escono dal catalogo intatti) — riguarda solo le ricette generate dal motore, che i passi ce li hanno. ⛔ Prima di scrivere: decidere se il numero che si dice a voce è quello **di catalogo** o quello **del piatto**, perché è la stessa scelta in tre posti e va fatta una volta sola.',

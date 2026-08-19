@@ -14,7 +14,13 @@ jest.mock('./voci-iniziali', () => ({
     { chiave: 'aperta-e-finita', titolo: 'Lavoro finito nel file', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 1, fatta: true },
     { chiave: 'gia-spuntata', titolo: 'Già chiusa in pagina', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 2 },
     { chiave: 'nuova-gia-chiusa', titolo: 'Nasce già spuntata', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 3, fatta: true },
-    { chiave: 'nuova-aperta', titolo: 'Nasce aperta', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 4 },
+    { chiave: 'nuova-aperta', titolo: 'Nasce aperta', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 4, nata: '2026-08-19T10:07', priorita: 'bassa' },
+    // ⚠️ Il file sa da quando esiste questa voce; in pagina la data manca perché il campo è nato dopo.
+    { chiave: 'gia-in-pagina-senza-data', titolo: 'Vecchia, senza data', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 5, nata: '2026-08-16T09:30' },
+    // ⚠️ Questa la data ce l'ha già: il file NON la deve riscrivere.
+    { chiave: 'gia-in-pagina-con-data', titolo: 'Vecchia, con data', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 6, nata: '2026-08-16T09:30' },
+    // Una data che non si legge non si scrive: meglio «non lo so» che un 1970 in pagina.
+    { chiave: 'data-illeggibile', titolo: 'Data storta', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 7, nata: 'non una data' },
     // ⚠️ Le due righe di chiusura dei doppioni (voce 224): una c'è in pagina, l'altra no.
     { chiave: 'doppione-in-pagina', titolo: 'Doppione da chiudere', dettaglio: 'x', categoria: 'Manutenzione', ordine: 900, fatta: true, soloSeEsiste: true },
     { chiave: 'doppione-inesistente', titolo: 'Doppione che non c\'è', dettaglio: 'x', categoria: 'Manutenzione', ordine: 901, fatta: true, soloSeEsiste: true },
@@ -36,6 +42,10 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
           { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'testo vecchio', testoAMano: false },
           // Il doppione rimasto in pagina il 13/8: aperto, con un testo suo che non interessa a nessuno.
           { id: 'l3', chiave: 'doppione-in-pagina', fatto: false, titolo: 'tutt\'altro titolo', dettaglio: 'tutt\'altro', testoAMano: false },
+          // ⚠️ Nate prima del campo: la data non ce l'hanno, e il file la sa.
+          { id: 'l4', chiave: 'gia-in-pagina-senza-data', fatto: false, titolo: 'Vecchia, senza data', dettaglio: 'x', testoAMano: false, nataIl: null },
+          { id: 'l5', chiave: 'gia-in-pagina-con-data', fatto: false, titolo: 'Vecchia, con data', dettaglio: 'x', testoAMano: false, nataIl: new Date('2026-08-11T08:00:00Z') },
+          { id: 'l6', chiave: 'data-illeggibile', fatto: false, titolo: 'Data storta', dettaglio: 'x', testoAMano: false, nataIl: null },
         ]),
         create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
         update: jest.fn().mockResolvedValue({ id: 'l1' }),
@@ -191,5 +201,102 @@ describe('LavoriService.caricaVociIniziali — lo stato viaggia col file', () =>
       const esito = await service.caricaVociIniziali(false);
       expect(esito.testiCambiati.map((x) => x.titolo)).not.toContain('Doppione da chiudere');
     });
+  });
+});
+
+/**
+ * LA DATA DI NASCITA E LA PRIORITÀ — i due campi del 19/8, che si comportano in modo opposto.
+ *
+ * Richiesta di Simone: «voglio che mi segni nell'elenco lavori la data e ora di creazione di quel
+ * punto altrimenti non capisco nulla» e «aggiungi alla lista lavori la possibilità per me di darti
+ * le priorità Alta Bassa Neutra».
+ */
+describe('LavoriService.caricaVociIniziali — la data di nascita e la priorità', () => {
+  let service: LavoriService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      lavoro: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false, nataIl: null },
+          { id: 'l2', chiave: 'gia-spuntata', fatto: true, titolo: 'Già chiusa in pagina', dettaglio: 'x', testoAMano: false, nataIl: null },
+          { id: 'l4', chiave: 'gia-in-pagina-senza-data', fatto: false, titolo: 'Vecchia, senza data', dettaglio: 'x', testoAMano: false, nataIl: null },
+          { id: 'l5', chiave: 'gia-in-pagina-con-data', fatto: false, titolo: 'Vecchia, con data', dettaglio: 'x', testoAMano: false, nataIl: new Date('2026-08-11T08:00:00Z') },
+          { id: 'l6', chiave: 'data-illeggibile', fatto: false, titolo: 'Data storta', dettaglio: 'x', testoAMano: false, nataIl: null },
+        ]),
+        create: jest.fn().mockResolvedValue({ id: 'nuovo' }),
+        update: jest.fn().mockResolvedValue({ id: 'x' }),
+      },
+      staff: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [LavoriService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    service = moduleRef.get(LavoriService);
+  });
+
+  const dataScritta = (id: string) =>
+    (prisma.lavoro.update as jest.Mock).mock.calls.map((c) => c[0]).find((u) => u.where.id === id && u.data.nataIl);
+
+  /**
+   * ⚠️ IL CASO CHE VALE IL CAMPO. Le cento voci già in pagina sono nate prima che il campo
+   * esistesse: se il rilascio non gliela aggiungesse, la data ce l'avrebbero solo le voci future — e
+   * la colonna che Simone ha chiesto per capire l'elenco non direbbe niente proprio sull'elenco di
+   * adesso.
+   */
+  it('⚠️ aggiunge la data alle voci che non ce l\'hanno', async () => {
+    const esito = await service.caricaVociIniziali(true);
+    expect(esito.datate).toBe(1);
+    expect(dataScritta('l4').data.nataIl).toEqual(new Date('2026-08-16T09:30'));
+  });
+
+  /**
+   * ⚠️ MA NON LA RISCRIVE MAI. Una data in pagina che cambia da sola a ogni rilascio non è più una
+   * data: è un numero che si muove, e su un numero che si muove non si ragiona.
+   */
+  it('⚠️ non tocca la data di chi ce l\'ha già, nemmeno se il file ne dice un\'altra', async () => {
+    await service.caricaVociIniziali(true);
+    expect(dataScritta('l5')).toBeUndefined();
+  });
+
+  /** ⚠️ Una data che non si legge non si scrive: meglio «non lo so» che un 1970 in pagina. */
+  it('⚠️ una data illeggibile non diventa una data sbagliata', async () => {
+    await service.caricaVociIniziali(true);
+    expect(dataScritta('l6')).toBeUndefined();
+  });
+
+  /** Prima si guarda e poi si scrive: senza conferma non parte nemmeno una update. */
+  it('senza conferma dice quante ne daterebbe e non scrive', async () => {
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.datate).toBe(1);
+    expect(prisma.lavoro.update).not.toHaveBeenCalled();
+  });
+
+  /** La voce che nasce adesso porta con sé data e priorità dichiarate dal file. */
+  it('una voce nuova nasce con la sua data e la sua priorità', async () => {
+    await service.caricaVociIniziali(true);
+    const creata = (prisma.lavoro.create as jest.Mock).mock.calls
+      .map((c) => c[0].data)
+      .find((d) => d.chiave === 'nuova-aperta');
+    expect(creata.nataIl).toEqual(new Date('2026-08-19T10:07'));
+    expect(creata.priorita).toBe('bassa');
+    // ⚠️ `nata` e `priorita` sono campi del FILE: `nata` non è una colonna e non deve finire in banca dati.
+    expect(creata.nata).toBeUndefined();
+  });
+
+  /**
+   * ⚠️ LA PRIORITÀ DI UNA VOCE GIÀ IN ELENCO NON SI TOCCA — è l'opposto della data, e di proposito.
+   *
+   * La data è un fatto che il file ha scoperto dopo; la priorità è un giudizio, e lo dà Simone dalla
+   * pagina. Un file che gliela riscrive a ogni rilascio gli toglierebbe di mano l'unica leva che ha
+   * chiesto, in silenzio — che è la parte peggiore.
+   */
+  it('⚠️ non riscrive MAI la priorità di una voce già in elenco', async () => {
+    await service.caricaVociIniziali(true);
+    const conPriorita = (prisma.lavoro.update as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .filter((u) => u.data.priorita !== undefined);
+    expect(conPriorita).toEqual([]);
   });
 });
