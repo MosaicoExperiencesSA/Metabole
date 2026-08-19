@@ -18,6 +18,7 @@
  */
 
 import { giornoLocale } from '../common/date-only';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 /** Un piano, per quello che serve qui: le sue date, il suo stato e come si chiama. */
 export interface PianoDatato {
@@ -94,7 +95,12 @@ export function pianiSovrapposti(
 ): Sovrapposizione[] {
   const g = giorno(oggi);
   return (altri ?? [])
-    .filter((p) => p.status === 'active')
+    // ⚠️ **`STATI_CON_UN_PIANO`, non `'active'`** (19/8, voce 258): dal 19/8 il secondo piano
+    // comprato nasce `queued`, e con il confronto vecchio usciva dal filtro — cioè l'avviso taceva
+    // proprio sul caso per cui è nato. Chi sposta le date del piano in corso glielo farebbe finire
+    // addosso a una coda già pagata senza che nessuno dica niente: è il caso Lorena, dal verso
+    // opposto. (Il ramo `quando: 'in_coda'` qui sotto sarebbe diventato irraggiungibile.)
+    .filter((p) => (STATI_CON_UN_PIANO as readonly string[]).includes(p.status))
     .filter((p) => !p.endDate || giorno(p.endDate) >= g) // già finito: non eroga niente
     .filter((p) => siSovrappongono(nuovoInizio, nuovaFine, p.startDate, p.endDate))
     .map((p) => ({

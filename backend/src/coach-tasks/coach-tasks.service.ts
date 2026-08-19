@@ -110,9 +110,11 @@ export class CoachTasksService {
     const [openTasks, overdueTasks, trialsActive, expiringToday, expiringTomorrow, expiredTrials] = await Promise.all([
       this.prisma.coachTask.count({ where: { status: 'todo', ...(scopeId ? { client: clientWhere } : {}) } as never }),
       this.prisma.coachTask.count({ where: { status: 'todo', dueDate: { lt: today }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
-      this.prisma.subscription.count({ where: { status: 'active', plan: { priceCents: 0 }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
-      this.prisma.subscription.count({ where: { status: 'active', plan: { priceCents: 0 }, endDate: { gte: today, lt: tomorrow }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
-      this.prisma.subscription.count({ where: { status: 'active', plan: { priceCents: 0 }, endDate: { gte: tomorrow, lt: dayAfter }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
+      // ⚠️ `STATI_CON_UN_PIANO` e non `'active'` (19/8, voce 258): una prova che comincia lunedì è
+      // una prova avviata, e la coach la deve vedere adesso — è la settimana in cui si converte.
+      this.prisma.subscription.count({ where: { status: { in: STATI_CON_UN_PIANO }, plan: { priceCents: 0 }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
+      this.prisma.subscription.count({ where: { status: { in: STATI_CON_UN_PIANO }, plan: { priceCents: 0 }, endDate: { gte: today, lt: tomorrow }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
+      this.prisma.subscription.count({ where: { status: { in: STATI_CON_UN_PIANO }, plan: { priceCents: 0 }, endDate: { gte: tomorrow, lt: dayAfter }, ...(scopeId ? { client: clientWhere } : {}) } as never }),
       this.prisma.subscription.findMany({
         where: { status: 'expired', plan: { priceCents: 0 }, ...(scopeId ? { client: clientWhere } : {}) } as never,
         select: { clientId: true },
@@ -247,7 +249,10 @@ export class CoachTasksService {
 
     // --- PROVE (attive o scadute da poco) ---
     const trials = (await this.prisma.subscription.findMany({
-      where: { plan: { priceCents: 0 }, status: { in: ['active', 'expired'] as never }, startDate: { not: null } } as never,
+      // ⚠️ `queued` compreso (19/8, voce 258): una prova che comincia lunedì genera già i suoi
+      // compiti — il riquadro qui sopra la conta fra le «prove attive», e una coach che vede il
+      // numero ma non trova la riga di lavoro smette di fidarsi di tutti e due.
+      where: { plan: { priceCents: 0 }, status: { in: ['active', 'queued', 'expired'] as never }, startDate: { not: null } } as never,
       select: { id: true, clientId: true, status: true, startDate: true, endDate: true },
     })) as { id: string; clientId: string; status: string; startDate: Date | null; endDate: Date | null }[];
 
@@ -256,9 +261,18 @@ export class CoachTasksService {
       const start = new Date(t.startDate); start.setHours(0, 0, 0, 0);
       const dayN = Math.floor((today.getTime() - start.getTime()) / 86_400_000);
       if (dayN < 0) continue;
+      /**
+       * ⚠️ **Anche una prova ancora scritta `queued`** (19/8, voce 258): siamo già oltre `dayN >= 0`,
+       * quindi la partenza è arrivata — se lo stato dice ancora «in coda» vuol dire che la
+       * promozione notturna è in ritardo, e intanto quella cliente sta ricevendo i menu. Guardando
+       * il solo `active`, il riquadro la contava fra le prove attive (più su) e la coach non trovava
+       * nessuna riga di lavoro: un numero e una lista che si contraddicono, e si smette di fidarsi
+       * di tutti e due.
+       */
+      const partita = t.status === 'active' || t.status === 'queued';
 
       // G0 — misure iniziali (solo finché mancano: senza punto A niente report).
-      if (t.status === 'active' && dayN >= 0) {
+      if (partita && dayN >= 0) {
         const hasMeasure = await this.prisma.measurement.count({ where: { clientId: t.clientId } });
         if (hasMeasure === 0) {
           created += await this.ensureTask(t.clientId, 'trial_g0_measures', t.id,
@@ -268,14 +282,14 @@ export class CoachTasksService {
         }
       }
       // G1 — benvenuto personale (obbligatorio).
-      if (t.status === 'active' && dayN >= 1) {
+      if (partita && dayN >= 1) {
         created += await this.ensureTask(t.clientId, 'trial_g1_welcome', t.id,
           'Messaggio personale di benvenuto (G1) — obbligatorio',
           'È il momento che decide tutto: mandale un messaggio personale (non un template) su come è andato il primo giorno.',
           this.day(start, 1));
       }
       // G4 — solo se aderenza < 70% nei primi 4 giorni (check-in ≤ 2 su 4).
-      if (t.status === 'active' && dayN >= 4) {
+      if (partita && dayN >= 4) {
         const checkins = await this.prisma.dailyCheckin.count({
           where: { clientId: t.clientId, date: { gte: start, lt: this.day(start, 4) } },
         });
@@ -287,14 +301,14 @@ export class CoachTasksService {
         }
       }
       // G6 — il codice founding è partito (email automatica): la voce della coach vale di più.
-      if (t.status === 'active' && dayN >= 6) {
+      if (partita && dayN >= 6) {
         created += await this.ensureTask(t.clientId, 'trial_g6_code', t.id,
           'Codice founding inviato: sentila (G6)',
           `Oggi le è arrivato il codice personale valido 48h${prezzi ? ` (${prezzi})` : ''}: un tuo messaggio vale più dell'email.`,
           this.day(start, 6));
       }
       // G7 — chiusura: "domani finisce, ti va di continuare?".
-      if (t.status === 'active' && dayN >= 7) {
+      if (partita && dayN >= 7) {
         created += await this.ensureTask(t.clientId, 'trial_g7_closing', t.id,
           'WhatsApp di chiusura prova (G7)',
           '"Domani finisce la prova: ti va di continuare?" — ricordale il codice personale e cosa perde se il profilo si cancella.',
@@ -324,6 +338,10 @@ export class CoachTasksService {
 
     // --- FINE PIANO (ogni piano con scadenza raggiunta, prova inclusa) ---
     const ended = (await this.prisma.subscription.findMany({
+      // ⚠️ NON `queued`: un piano ancora in coda non è un piano finito, anche se la sua fine è
+      // passata — è una coda arrivata a scadenza senza mai partire, e il report di fine percorso è
+      // l'ultima cosa da mandare a quella cliente. Le vede `promuoviCodeArrivate`, che le grida nei
+      // log di proposito invece di promuoverle.
       where: { endDate: { lte: now, gte: this.day(now, -14) }, status: { in: ['active', 'expired'] as never } } as never,
       select: { id: true, clientId: true, endDate: true },
     })) as { id: string; clientId: string; endDate: Date | null }[];

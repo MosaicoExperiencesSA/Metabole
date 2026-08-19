@@ -5,6 +5,7 @@ import { nextRuleCode, refCodeBase } from '../common/ref-code';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 // Metodo aziendale (14/7): anche i codici cliente seguono cognome+iniziale+01.
 // Stessa forma dei ref code coach → l'unicità si controlla su ENTRAMBI gli
@@ -259,8 +260,18 @@ export class ReferralService {
    * senza `rewardedAt` e verrà ripescato da `riscuotiSospese`.
    */
   private async premia(referrerClientId: string, referralId: string, days: number, referredClientId: string): Promise<boolean> {
+    /**
+     * ⚠️ Anche i piani in coda (19/8, voce 258). `riscuotiSospese` viene chiamata dall'attivazione,
+     * **subito dopo** che il piano è stato scritto: se quel piano comincia più avanti è `queued`, e
+     * cercando i soli `active` i giorni regalati non si applicavano a niente. Restavano appesi fino
+     * al prossimo acquisto — cioè il premio della cliente che porta un'amica dipendeva dal fatto
+     * che il suo piano cominciasse oggi.
+     *
+     * `orderBy endDate desc`: i giorni si aggiungono al piano che finisce più tardi, che è quello
+     * che glieli fa durare.
+     */
     const sub = (await this.prisma.subscription.findFirst({
-      where: { clientId: referrerClientId, status: 'active' },
+      where: { clientId: referrerClientId, status: { in: STATI_CON_UN_PIANO as never } },
       orderBy: { endDate: 'desc' },
       select: { id: true, endDate: true },
     })) as { id: string; endDate: Date | null } | null;

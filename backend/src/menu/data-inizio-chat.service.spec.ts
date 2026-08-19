@@ -129,6 +129,22 @@ describe('Gaia sposta la data di inizio', () => {
     );
     // `regenerateFromToday`, MAI `restartFromPlanStart`: la seconda cancella anche lo storico.
     expect(menu.regenerateFromToday).toHaveBeenCalledWith('cli-1');
+    /**
+     * ⚠️ **E LO STATO** (19/8, voce 258). Questo era il quinto punto che scrive la data d'inizio di
+     * un piano, e l'unico rimasto a non toccare `status`: da qui passano la chat con Gaia e il
+     * pulsante nel profilo, cioè le due strade della cliente. Una data spostata fra venti giorni
+     * lasciava un piano `active` con la partenza nel futuro — la forma ambigua che questa voce
+     * toglie di mezzo — e quella riga non sarebbe mai entrata nella promozione notturna, che cerca
+     * i `queued`.
+     */
+    expect(sub.data.status).toBe('queued');
+  });
+
+  /** ⚠️ E una data di OGGI fa partire il piano adesso, non alla passata notturna. */
+  it('⚠️ spostata a oggi, il piano risulta ATTIVO subito', async () => {
+    const { service, prisma } = await crea();
+    await service.avanza('cli-1', { passo: 'conferma', data: traIso(0) }, 'sì');
+    expect(prisma.subscription.update.mock.calls.at(-1)?.[0].data.status).toBe('active');
   });
 
   it('sul «no» non scrive niente', async () => {

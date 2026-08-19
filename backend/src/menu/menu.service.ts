@@ -8,6 +8,7 @@ import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
 import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
@@ -224,19 +225,34 @@ export class MenuService {
     });
     const planStartDate = profile?.planStartDate ? profile.planStartDate.toISOString().slice(0, 10) : null;
 
-    // 0) ACCESSO AL MENU: serve un abbonamento ATTIVO ED ENTRO IL PERIODO (status 'active' e
-    // endDate non ancora passata). Se l'utente ha avuto un piano ma ora è scaduto/annullato —
-    // nessuno attivo-entro-periodo né in attesa — e non è in pausa/viaggio, il menu NON si mostra:
-    // stato `expired` ("nessun piano attivo"/percorso concluso).
-    // Il controllo su `endDate` serve perché il cron di scadenza può girare in ritardo: un piano
-    // con fine già passata deve risultare concluso anche se lo stato è ancora 'active'. Non è in
-    // conflitto con i piani spostati in avanti (quelli hanno endDate FUTURA → restano attivi).
+    /**
+     * 0) ACCESSO AL MENU: serve un piano comprato ed entro il periodo. Se la cliente ha avuto un
+     * piano ma ora è scaduto/annullato — e non è in pausa/viaggio — il menu NON si mostra: stato
+     * `expired` («nessun piano attivo» / percorso concluso).
+     *
+     * Il controllo su `endDate` serve perché il cron di scadenza può girare in ritardo: un piano
+     * con la fine già passata è concluso anche se lo stato dice ancora `active`.
+     *
+     * ⚠️ **`STATI_CON_UN_PIANO` e non `'active'`** (19/8, voce 258): da quando un piano che comincia
+     * più avanti nasce `queued`, una cliente che compra oggi con partenza lunedì ha **una riga
+     * sola**, in coda. Con il confronto vecchio non era né attiva né in attesa, quindi qui usciva
+     * `expired` — e l'app le scriveva «il tuo piano è terminato, riattiva un piano dal Negozio» il
+     * giorno stesso in cui aveva pagato. Chi ha comprato ha un piano: quando comincia lo dice il
+     * passo 5, con la data.
+     */
     const subs = (await this.prisma.subscription.findMany({
       where: { clientId },
-      select: { status: true, endDate: true },
-    })) as { status: string; endDate: Date | null }[];
+      // ⚠️ `startDate` serve al passo 5 (la finestra si misura sul piano che eroga davvero) e `id`
+      // al passo 4-bis, per rileggere il piano SCELTO invece di uno qualsiasi.
+      // ⚠️ `plan.period` sta qui e non in una query a parte: il ramo del Monitoraggio (passo 4-bis)
+      // deve parlare del piano SCELTO, e sceglierlo due volte con due query è il modo in cui le due
+      // risposte divergono.
+      select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
+    })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { period: string | null } | null }[];
     const hasActivePlan = subs.some(
-      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
+      (s) =>
+        (STATI_CON_UN_PIANO as readonly string[]).includes(s.status) &&
+        (!s.endDate || s.endDate.getTime() >= today.getTime()),
     );
     const hasPendingPlan = subs.some((s) => s.status === 'pending');
     if (subs.length > 0 && !hasActivePlan && !hasPendingPlan) {
@@ -269,17 +285,30 @@ export class MenuService {
     // Senza questo ramo la cliente restava su «Menu in preparazione», che è una bugia gentile:
     // aspetta qualcosa che non arriverà, e prima o poi scrive alla coach per un guasto che non
     // c'è. Meglio una frase che spiega cosa sta pagando, e che i menu tornano al rientro.
-    const monitoraggio = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
-      select: { plan: { select: { period: true } } },
-    })) as { plan: { period: string | null } | null } | null;
-    if (monitoraggio?.plan?.period === 'monitoring') {
+    /**
+     * ⚠️ **`attivoInCorso` e non un `findFirst` senza `orderBy`** (19/8, seconda revisione). Due
+     * righe sulla stessa cliente sono legittime — un Monitoraggio che eroga e un piano alimentare in
+     * coda — e senza ordinamento il database ne restituiva **una a caso**: metà delle volte questa
+     * schermata diceva «Menu in preparazione» a chi è in Monitoraggio (dove i menu non arriveranno
+     * mai), e metà «monitoring» a chi aspetta il piano alimentare. Chi decide qual è il piano di
+     * adesso è una funzione sola, la stessa dell'erogazione.
+     */
+    const pianoDiAdesso = attivoInCorso(subs);
+    if (pianoDiAdesso?.plan?.period === 'monitoring') {
       return { state: 'monitoring', availableFrom: null, planStartDate };
     }
 
     // 5) Idoneo ma troppo presto: mostro la data in cui il menu comparirà.
     const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
-    const start = toDateOnly(profile.planStartDate.toISOString());
+    /**
+     * ⚠️ La finestra è quella del **piano che eroga**, non della data scritta nel profilo: su una
+     * cliente con un piano in corso e uno comprato in coda `planStartDate` è la partenza della coda
+     * (la riallinea `finalizeApproval` dal 10/8), e questa schermata le diceva «il menu comparirà
+     * fra due mesi» mentre il piano che sta pagando è ancora suo. Stessa correzione e stessa
+     * ragione di `deliverIfEligible`: le due devono rispondere uguale.
+     */
+    const inizioDelPiano = pianoDiAdesso?.startDate ?? profile.planStartDate;
+    const start = toDateOnly(inizioDelPiano.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     const availableFrom = visibleFrom.toISOString().slice(0, 10);
     if (today.getTime() < visibleFrom.getTime()) {
@@ -292,13 +321,15 @@ export class MenuService {
     // pesate di tre settimane prima passava il gate senza che nessuno le chiedesse niente, e i
     // menu partivano. Vedi `misura-di-partenza.ts`.
     const activeSubscription = await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
+      // ⚠️ Anche in coda: la misura di partenza si chiede dentro la finestra di visibilità, cioè
+      // PRIMA che il piano cominci. Chiedendola solo a piano partito si perde il primo giorno.
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       select: { id: true },
     });
     if (activeSubscription) {
       // La finestra del punto A è la stessa della visibilità: una pesata fatta dentro quella
       // finestra è di questo piano, una fatta prima è di un'altra storia.
-      if (await mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore)) {
+      if (await mancaMisuraDiPartenza(this.prisma, clientId, inizioDelPiano, visibleDaysBefore)) {
         return { state: 'awaiting_measures', availableFrom: null, planStartDate };
       }
     }
@@ -370,7 +401,19 @@ export class MenuService {
      * delle righe nella tabella. Adesso la scelta è per date, la stessa che fa la scheda.
      */
     const attivi = (await this.prisma.subscription.findMany({
-      where: { clientId, status: 'active' },
+      /**
+       * ⚠️ **Si leggono anche i piani in coda** (19/8, voce 258), e la scelta la fa `attivoInCorso`
+       * come prima. Fino a ieri la coda era scritta `active` con la partenza nel futuro, quindi
+       * entrava qui da sola: è così che i menu si compongono nei giorni di **anteprima**
+       * (`menu_visible_days_before_start`) prima che il piano cominci. Leggendo solo `active`, una
+       * cliente il cui unico piano è in coda non riceveva più niente fino al giorno d'inizio — e
+       * siccome il gate delle misure sta dopo la finestra, avrebbe perso anche il primo giorno.
+       *
+       * ⚠️ Un piano in coda **non anticipa niente**: la finestra di visibilità qui sotto
+       * (`today < visibleFrom`) resta il solo cancello, e un piano che parte fra un mese non compone
+       * un bel niente.
+       */
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       include: { plan: { select: { priceCents: true, period: true } } },
     })) as ({ startDate: Date | null; endDate: Date | null; status: string; plan: { priceCents: number; period: string | null } | null } & Record<string, unknown>)[];
     const activeSubscription = attivoInCorso(attivi);
@@ -410,7 +453,21 @@ export class MenuService {
     if ((profile as { planHeldAt?: Date | null }).planHeldAt) return [];
 
     const today = toDateOnly();
-    const start = toDateOnly(profile.planStartDate.toISOString());
+    /**
+     * ⚠️ **LA FINESTRA È QUELLA DEL PIANO CHE EROGA, NON QUELLA SCRITTA NEL PROFILO** (19/8).
+     *
+     * Qui c'era `profile.planStartDate`, e su una cliente con un piano in corso **e uno comprato in
+     * coda** era la data della COIDA: dal 10/8 l'acquisto in coda riallinea `planStartDate` alla
+     * partenza del piano nuovo (`finalizeApproval`), perché scheda e scadenza dicessero la stessa
+     * cosa. Conseguenza mai vista da nessuno: chi comprava il rinnovo con due mesi di anticipo
+     * smetteva di ricevere menu **da quel momento**, perché per questa riga era «troppo presto» —
+     * cioè il piano che stava pagando spariva il giorno in cui ne comprava un altro.
+     *
+     * Il piano che eroga l'ha già scelto `attivoInCorso` due passi più su: la finestra si misura
+     * sulla **sua** partenza. `planStartDate` resta il ripiego per le righe vecchie senza data.
+     */
+    const inizioDelPiano = (activeSubscription as { startDate: Date | null }).startDate ?? profile.planStartDate;
+    const start = toDateOnly(inizioDelPiano.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     if (today.getTime() < visibleFrom.getTime()) return []; // troppo presto
 
@@ -427,7 +484,9 @@ export class MenuService {
     //
     // Il controllo sta DOPO la finestra di visibilità di proposito: a un piano che parte fra una
     // settimana non si chiede niente, perché non c'è ancora niente da sbloccare.
-    if (await mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore)) {
+    // ⚠️ E la misura di partenza è quella di QUESTO piano: stessa data della finestra, o le due
+    // domande divergono e il gate chiede una pesata per un piano che non è quello che sta erogando.
+    if (await mancaMisuraDiPartenza(this.prisma, clientId, inizioDelPiano, visibleDaysBefore)) {
       await this.chiediMisureDiPartenza(clientId).catch(() => undefined);
       return [];
     }
@@ -1047,10 +1106,17 @@ export class MenuService {
     // per sempre, e chi paga €19 al mese si trovava l'app bloccata da un popup che chiede le
     // misure per un menu che non arriverà. E dopo una settimana di menu di rientro sarebbe
     // scattato anche il blocco di ciclo, con tanto di «contatta la tua coach».
-    const inMonitoraggio = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
-      select: { plan: { select: { period: true } } },
-    })) as { plan: { period: string | null } | null } | null;
+    /**
+     * ⚠️ `attivoInCorso` e non un `findFirst` senza `orderBy`: su una cliente con un Monitoraggio che
+     * eroga e un piano alimentare in coda, la riga tornava a caso — e metà delle volte il popup
+     * bloccante delle misure si riaccendeva su chi è in Monitoraggio, cioè la trappola che il
+     * commento qui sopra racconta di aver chiuso.
+     */
+    const attiviQui = (await this.prisma.subscription.findMany({
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
+      select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
+    })) as ({ plan: { period: string | null } | null } & { status: string; startDate: Date | null; endDate: Date | null })[];
+    const inMonitoraggio = attivoInCorso(attiviQui);
     if (inMonitoraggio?.plan?.period === 'monitoring') {
       return { required: false, blocking: false, cycleDate: null, level: 'none', since: null, lockedMessage: null };
     }
@@ -1192,17 +1258,29 @@ export class MenuService {
      * l'altra cosa per cui serve — `DietAgentService` la usa per scegliere menu che la cliente
      * mangerà davvero invece di menu che la farebbero calare — e quella non c'entra col peso.
      */
-    const activeSub = await this.prisma.subscription.findFirst({ where: { clientId, status: 'active' }, select: { id: true } });
-    if (!activeSub) return false;
+    /**
+     * ⚠️ Anche in coda — le misure di partenza si chiedono nella finestra di anteprima, cioè prima
+     * che il piano cominci — e ⚠️ la data è quella del **piano scelto**, non quella scritta nel
+     * profilo: erano tre punti a rispondere alla stessa domanda («da quando comincia?») e due
+     * usavano date diverse. Su una cliente di ritorno la differenza faceva trattenere il menu
+     * senza che il popup le chiedesse niente.
+     */
+    const attiviQui = (await this.prisma.subscription.findMany({
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
+      select: { id: true, status: true, startDate: true, endDate: true },
+    })) as { id: string; status: string; startDate: Date | null; endDate: Date | null }[];
+    const pianoDiAdesso = attivoInCorso(attiviQui);
+    if (!pianoDiAdesso) return false;
     const pause = await this.events.activePausePeriod(clientId);
     if (pause) return false;
     const visibleDaysBefore = await this.configParams.getNumber('menu_visible_days_before_start', 2);
     const today = toDateOnly();
-    const start = toDateOnly(profile.planStartDate.toISOString());
+    const inizioDelPiano = pianoDiAdesso.startDate ?? profile.planStartDate;
+    const start = toDateOnly(inizioDelPiano.toISOString());
     const visibleFrom = new Date(start.getTime() - visibleDaysBefore * 86_400_000);
     if (today.getTime() < visibleFrom.getTime()) return false; // troppo presto
     // La misura di partenza di QUESTO piano, non una qualsiasi mai fatta: `misura-di-partenza.ts`.
-    return mancaMisuraDiPartenza(this.prisma, clientId, profile.planStartDate, visibleDaysBefore);
+    return mancaMisuraDiPartenza(this.prisma, clientId, inizioDelPiano, visibleDaysBefore);
   }
 
   /**

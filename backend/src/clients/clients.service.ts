@@ -8,6 +8,7 @@ import { TIPO_VISITA_DA_FISSARE, testoVisitaDaFissare } from './visita-da-fissar
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { statoPerInizio, STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { perimetroClienti, type PerimetroClienti } from '../common/perimetro-clienti';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
@@ -266,12 +267,21 @@ export class ClientsService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const subscription = pickMainSubscription(subs);
-    // Flag per la scheda: c'è un abbonamento ATTIVO ed ENTRO il periodo? (status 'active' e
-    // endDate non passata). Il controllo su endDate copre il caso in cui il cron di scadenza è
-    // in ritardo: un piano finito risulta comunque "senza piano attivo". I piani spostati in
-    // avanti hanno endDate futura, quindi restano attivi.
+    /**
+     * Flag per la scheda: c'è un piano comprato ed entro il periodo? Il controllo su `endDate`
+     * copre il caso in cui il cron di scadenza è in ritardo: un piano finito risulta comunque
+     * «senza piano attivo».
+     *
+     * ⚠️ **`STATI_CON_UN_PIANO` e non `'active'`** (19/8, voce 258): nelle schermate dello staff un
+     * piano in coda **conta come «ha un piano»** — è la decisione del 17/8 scritta in testa a
+     * `stati-abbonamento.ts`. Con il confronto vecchio la scheda mostrava la pastiglia arancione
+     * «Nessun piano attivo» su una cliente il cui piano parte lunedì: è la riga che fa richiamare
+     * qualcuno per rivenderle quello che ha già comprato.
+     */
     const hasActivePlan = (subscriptions as { status: string; endDate: Date | null }[]).some(
-      (s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= today.getTime()),
+      (s) =>
+        (STATI_CON_UN_PIANO as readonly string[]).includes(s.status) &&
+        (!s.endDate || s.endDate.getTime() >= today.getTime()),
     );
 
     // Nome leggibile dello stato pipeline (es. "Prova" invece della chiave "trial") per il badge CRM.
@@ -1455,12 +1465,21 @@ export class ClientsService {
       );
     }
 
-    // RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo.
-    // Se la nuova fine è nel futuro e l'abbonamento era già approvato (attivo o SCADUTO), lo
-    // riportiamo ad 'active'. Non tocchiamo 'pending' (pagamento non approvato) né 'cancelled'
-    // (stato terminale voluto). Senza questo, un abbonamento scaduto spostato in avanti restava
-    // 'expired' → "Nessun piano attivo" e niente menu pur avendo date future.
-    const reactivate = newEnd.getTime() > now && (sub.status === 'active' || sub.status === 'expired');
+    /**
+     * RIATTIVAZIONE: spostare l'inizio nel futuro deve rendere il piano di nuovo attivo. Se la
+     * nuova fine è nel futuro e l'abbonamento era già approvato, si riscrive lo stato. Non si
+     * toccano `pending` (pagamento non approvato) né `cancelled` (stato terminale voluto): senza
+     * questo, un abbonamento scaduto spostato in avanti restava `expired` → «Nessun piano attivo»
+     * e niente menu pur avendo date future.
+     *
+     * ⚠️ **`queued` è fra gli stati che si riscrivono** (19/8, voce 258), e lo stato nuovo lo decide
+     * `statoPerInizio` e non questa riga: una coda spostata a OGGI deve diventare attiva subito, e
+     * un piano attivo spostato a lunedì deve tornare in coda. Senza, la matita salvava le date
+     * nuove lasciando lo stato vecchio — la cliente vedeva la data giusta sulla scheda e i menu
+     * arrivavano il giorno dopo, quando passava il lavoro notturno.
+     */
+    const daRiscrivere = newEnd.getTime() > now && ['active', 'queued', 'expired'].includes(sub.status);
+    const statoNuovo = statoPerInizio(d, new Date(now));
 
     const prevProfile = (await this.prisma.clientProfile.findUnique({
       where: { userId },
@@ -1470,7 +1489,7 @@ export class ClientsService {
     await this.prisma.$transaction([
       this.prisma.subscription.update({
         where: { id: sub.id },
-        data: { startDate: d, endDate: newEnd, ...(reactivate ? { status: 'active' as never } : {}) },
+        data: { startDate: d, endDate: newEnd, ...(daRiscrivere ? { status: statoNuovo as never } : {}) },
       }),
       this.prisma.clientProfile.upsert({
         where: { userId },
@@ -1492,7 +1511,7 @@ export class ClientsService {
           endDate: sub.endDate?.toISOString().slice(0, 10) ?? null,
           planStartDate: prevProfile?.planStartDate?.toISOString().slice(0, 10) ?? null,
         },
-        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10), ...(reactivate ? { status: 'active', reactivated: true } : {}) },
+        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10), ...(daRiscrivere ? { status: statoNuovo, reactivated: statoNuovo === 'active' } : {}) },
         /**
          * ⚠️ CHI HA CONFERMATO LA SOVRAPPOSIZIONE, e su cosa (voce 259). L'`actorId` c'era già; qui
          * si scrive **che l'avviso c'era ed è stato superato**, coi piani coinvolti. Senza questa
@@ -1533,8 +1552,10 @@ export class ClientsService {
       startDate: d.toISOString().slice(0, 10),
       endDate: newEnd.toISOString().slice(0, 10),
       plan: sub.plan.name,
-      status: reactivate ? 'active' : sub.status,
-      reactivated: reactivate,
+      status: daRiscrivere ? statoNuovo : sub.status,
+      // ⚠️ «Riattivato» vuol dire che da adesso eroga: una coda spostata a lunedì è stata scritta,
+      // ma non è ripartita. Dirlo lo stesso farebbe scrivere in scheda una cosa che non è successa.
+      reactivated: daRiscrivere && statoNuovo === 'active',
     };
   }
 

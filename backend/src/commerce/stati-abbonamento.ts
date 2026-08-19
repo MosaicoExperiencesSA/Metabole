@@ -101,3 +101,25 @@ export function codaInRitardo(s: { status: string; startDate: Date | null }, ogg
   };
   return giorno(s.startDate) <= giorno(oggi);
 }
+
+/**
+ * LO STATO CHE DEVE AVERE UN PIANO PAGATO CON QUESTA DATA D'INIZIO.
+ *
+ * ⚠️ Esiste per una ragione sola: **i punti che scrivono sono cinque**, e prima del 19/8 ognuno
+ * decideva per sé. L'approvazione del bonifico, la matita della scheda cliente, l'allineamento dal
+ * profilo, la data spostata in chat con Gaia e l'attivazione di «Conosciamoci» scrivevano tutti
+ * `active`, anche con la partenza fra tre settimane — ed è da lì che nasceva la parola che dice due
+ * cose. Adesso la domanda «attivo o in coda?» ha una risposta sola, e chi scrive la chiama.
+ *
+ * ⚠️ Il confronto è sull'**istante**, non sul giorno: una coda che parte alla scadenza del piano in
+ * corso eredita l'ora di quella scadenza, e per quel poco di giornata che resta il piano vecchio sta
+ * ancora erogando. Con un confronto per giorno i due si sovrapporrebbero per qualche ora, che è
+ * esattamente lo stato che questa voce serve a togliere di mezzo.
+ *
+ * ⚠️ Senza data d'inizio il piano è attivo: `startDate` nulla vuol dire «già cominciato», ed è come
+ * si comportano già `staErogando` e `filtroClienteConPianoAttivo`. Due regole diverse sullo stesso
+ * campo nullo sono il modo in cui questi difetti nascono.
+ */
+export function statoPerInizio(inizio: Date | null | undefined, oggi: Date = new Date()): 'active' | 'queued' {
+  return inizio && inizio.getTime() > oggi.getTime() ? 'queued' : 'active';
+}

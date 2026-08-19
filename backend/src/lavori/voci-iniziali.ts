@@ -932,11 +932,31 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'stato-in-coda-scrittura',
-    titolo: 'Il piano «in coda»: adesso scriverlo, promuoverlo, e poi il vincolo',
+    titolo: 'Il piano «in coda» adesso si scrive davvero — e dodici letture che dicevano il falso',
     dettaglio:
-      'La SECONDA metà della voce 258. Il 18/8 è stata consegnata la prima: lo stato `queued` esiste (migrazione additiva), il vocabolario delle quattro domande sta in `commerce/stati-abbonamento.ts`, e tutte le letture sanno già cosa farne — ⚠️ **ma nessuno lo scrive ancora**, ed era l\'unica sequenza sicura. Resta: **1)** `finalizeApproval` scrive `queued` invece di `active` con la partenza nel futuro; **2)** un lavoro dentro `daily` che promuove a `active` i `queued` la cui data è arrivata (⚠️ e finché non gira, `codaInRitardo` li fa vedere: uno `queued` non eroga mai, nemmeno con la data passata); **3)** SOLO DOPO, il vincolo in banca dati — prima lo stato vive e si guarda che nessuno sia finito nel posto sbagliato, perché un vincolo messo insieme alla scrittura trasforma un dato storto in un errore 500 su una cassa. ⛔ **Prima di cominciare, lanciare `npm run diag:coda`**: dice quanti piani sono in coda oggi, in che forma (quelli vecchi sono ancora `active` con la partenza nel futuro, e vanno convertiti) e quanti clienti hanno **due piani che erogano insieme** — il numero che dice quanto è urgente il vincolo.',
+      'La SECONDA metà della voce 258, chiusa il 19/8. `finalizeApproval` scrive `queued` invece di `active` con la partenza nel futuro, e un passo notturno (`promuoviCodeArrivate`, **primo** del `daily` perché tutti gli altri leggono lo stato) fa partire le code arrivate. ⚠️ **Ma la parte grossa della consegna non è quella**: la revisione avversariale ha trovato che il 18/8 le letture erano state adeguate solo in parte — **dodici punti** confrontavano ancora `status === \'active\'` a mano, e con la scrittura nuova avrebbero fatto danno in silenzio. Il peggiore: `menu.service.menuStatus`, che a una cliente appena pagante con partenza lunedì scriveva «**il tuo piano è terminato, riattiva un piano dal Negozio**» il giorno stesso del pagamento. Poi: l\'erogazione perdeva i due giorni di anteprima; il calcolo della coda non vedeva le code (due piani pagati sovrapposti — il caso Lorena riaperto dalla scrittura nuova); l\'abbonamento Stripe in coda non compariva nel profilo e **la disdetta rispondeva 404** (paga e non può uscire); i giorni di «porta un\'amica» e quelli di pausa si perdevano; scheda cliente, diagnostiche, contatori e check-in tacevano. ⚠️ E **cinque punti scrivevano** la data d\'inizio decidendo ognuno per sé: ora la domanda «attivo o in coda?» ha una risposta sola (`statoPerInizio`). ⚠️ Tre difetti erano **più vecchi della voce**: l\'`actorId: \'system\'` viola la chiave esterna su `user` e il registro non si scriveva (**lo stesso difetto era in produzione da settimane** su `commerce.payment.approve` di tutti i pagamenti con carta: chiuso lo stesso giorno, voce `audit-attore-che-non-esiste`); chi comprava il rinnovo in anticipo **smetteva di ricevere menu** perché la finestra si misurava sulla data del profilo, che l\'acquisto in coda riallinea al piano NUOVO (dal 10/8); la data scelta dopo il pagamento da una cliente **di ritorno** non muoveva l\'abbonamento. ⚠️ Una coda arrivata a scadenza **senza mai partire non si promuove**: da attiva-e-finita prenderebbe, nella stessa notte, il report di fine percorso e la cancellazione della personalizzazione — cose che non si tornano indietro. Resta `queued`, si grida nei log e si vede in `npm run diag:coda`. 3590 test verdi (229 suite), tre ronde di revisione avversariale e due di mutation testing. Nessuna migrazione. **Resta**: il vincolo in banca dati, e le quattro decisioni del foglio `HANDOFF_2026-08-19.md`.',
     categoria: CODICE,
     ordine: 270,
+    fatta: true, // 19/8
+  },
+
+  {
+    chiave: 'audit-attore-che-non-esiste',
+    titolo: 'L\'attore che non esiste: i pagamenti con carta non lasciavano una riga di registro',
+    dettaglio:
+      'Trovato il 19/8 rivedendo la promozione delle code, ed è più vecchio di quella voce. `AuditLog.actorId` è una **chiave esterna su `user`**, ma chi scrive nel registro non sempre ha un utente per le mani e ci mette una stringa che spiega chi è stato: `\'stripe-webhook\'` sull\'audit `commerce.payment.approve` di **tutti i pagamenti con carta**, `\'public\'` sul lead che arriva dal form del sito. L\'INSERT viola il vincolo, `AuditService` assorbe l\'eccezione — ed è giusto, un pagamento non deve fallire per una riga di registro — ⚠️ **ma la riga si perdeva in silenzio**: lo si scopre il giorno in cui si va a leggere il registro di un pagamento, cioè quando serve. ⚠️ **Scartato l\'elenco di stringhe da riconoscere**: il giorno che qualcuno ne inventa una nuova siamo daccapo, ed è quello che è successo fra la prima e la seconda. Ora, se l\'INSERT fallisce e un attore c\'era, si riprova **una volta sola** senza attore, tenendo nel `metadata` chi diceva di essere (`attoreNonUtente`) e lasciando un `warn` — un ripiego che non si vede diventa la norma. ⚠️ Se l\'attore non c\'era non si riprova: il guasto è un altro. Le righe perse **non tornano**. 3 test, nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 287,
+    fatta: true, // 19/8
+  },
+
+  {
+    chiave: 'coda-vincolo-e-code-scadute',
+    titolo: 'Il vincolo sui piani sovrapposti, e le code arrivate a scadenza senza mai partire',
+    dettaglio:
+      'Quello che resta della voce 258 dopo il 19/8, e **due cose diverse**. **1) Il vincolo in banca dati** che vieta due piani che erogano insieme: adesso si può, perché lo stato vive e `npm run diag:coda` dice che le sovrapposizioni sono **zero**. ⚠️ Va messo per ultimo di proposito: un vincolo aggiunto insieme alla scrittura trasforma un dato storto in un errore 500 su una cassa. **2) Le code arrivate a scadenza senza mai partire**: `promuoviCodeArrivate` non le promuove — da attive-e-finite prenderebbero il report di fine percorso, la chiusura CRM e (sulle prove) la **cancellazione della personalizzazione**, e nessuna delle tre si torna indietro — quindi restano `queued` e si vedono in `diag:coda`. ⛔ **Cosa farne è una decisione di Simone**, una per una: rimborso, partenza posticipata, o piano nuovo. Oggi in produzione non ce n\'è nessuna: questa voce esiste perché il giorno che ce ne sarà una, chi la trova sappia che è stata lasciata lì apposta.',
+    categoria: CODICE,
+    ordine: 286,
   },
 
   {

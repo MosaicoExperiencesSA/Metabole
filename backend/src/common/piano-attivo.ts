@@ -34,8 +34,15 @@
 // Si prende il `PrismaService` vero, come `rete-staff.ts`: nel sandbox il client è uno stub e
 // un'interfaccia ristretta non gli combacia. I test e gli script passano un finto con un cast.
 import type { PrismaService } from '../prisma/prisma.service';
+import { eInCodaPerStato } from '../commerce/stati-abbonamento';
 
-export type StatoPiano = 'attivo' | 'scaduto_da_chiudere' | 'concluso' | 'mai';
+/**
+ * ⚠️ **`in_coda` esiste dal 19/8** (voce 258): un piano comprato che comincia più avanti non è né
+ * attivo né concluso. Senza questa voce cadeva nel ramo `else` e le diagnostiche lo scrivevano
+ * «concluso il 30/11» — cioè concluso a una data che deve ancora arrivare, con `riceveMenu: false`.
+ * È precisamente la categoria di riga falsa per cui questo file è stato scritto.
+ */
+export type StatoPiano = 'attivo' | 'in_coda' | 'scaduto_da_chiudere' | 'concluso' | 'mai';
 
 export interface PianoDiCliente {
   stato: StatoPiano;
@@ -137,6 +144,9 @@ export async function pianiDiClienti(
     where: { clientId: { in: ids } },
     select: {
       clientId: true, status: true, endDate: true,
+      // ⚠️ `startDate` serve a riconoscere la coda nella forma VECCHIA (`active` con la partenza nel
+      // futuro): finché quelle righe esistono, guardare il solo stato ne racconta metà.
+      startDate: true,
       // ⚠️ `period` serve a `riceveMenu`: senza, il Monitoraggio risultava «attivo e riceve menu»
       // mentre l'erogazione non gli manda niente. Vedi sotto.
       plan: { select: { name: true, period: true } },
@@ -144,7 +154,7 @@ export async function pianiDiClienti(
     // Il più recente per ultimo non basta: si scorre tutto e si tiene il migliore (vedi sotto).
     orderBy: [{ startDate: 'desc' }],
   })) as {
-    clientId: string; status: string; endDate: Date | null;
+    clientId: string; status: string; startDate: Date | null; endDate: Date | null;
     plan: { name: string | null; period: string | null } | null;
   }[];
 
@@ -175,10 +185,25 @@ export async function pianiDiClienti(
 
   const oggi = soloData(adesso);
   for (const s of righe ?? []) {
-    const finito = !!s.endDate && soloData(s.endDate).getTime() < oggi.getTime();
-    const stato: StatoPiano = s.status === 'active'
-      ? (finito ? 'scaduto_da_chiudere' : 'attivo')
-      : 'concluso';
+    // «Finito» conta solo per una riga che dovrebbe essere viva: uno `expired` è già concluso, e
+    // chiamarlo «da chiudere» manderebbe qualcuno a sistemare una riga che sta bene.
+    const viva = s.status === 'active' || s.status === 'queued';
+    const finito = viva && !!s.endDate && soloData(s.endDate).getTime() < oggi.getTime();
+    /**
+     * ⚠️ Una coda **già finita** non è «in coda»: è una riga da sistemare, come un `active` con la
+     * fine passata. Senza questo controllo usciva scritta «in coda dal 24/08» con la scadenza già
+     * passata — una riga falsa, che per giunta batteva il piano concluso della stessa cliente. È
+     * precisamente il tipo di riga che questo file esiste per non produrre.
+     */
+    const stato: StatoPiano = finito
+      ? 'scaduto_da_chiudere'
+      : s.status === 'queued'
+        ? 'in_coda'
+        : s.status === 'active'
+          ? eInCodaPerStato(s, adesso)
+            ? 'in_coda' // la forma vecchia della coda: `active` con la partenza nel futuro
+            : 'attivo'
+          : 'concluso';
     const candidato: PianoDiCliente = {
       stato,
       nomePiano: s.plan?.name ?? null,
@@ -195,20 +220,37 @@ export async function pianiDiClienti(
        * Il costo del falso allarme non è il tempo perso a controllarlo: è che dopo due o tre nessuno
        * guarda più la lista — ed è la stessa lista dove un giorno comparirà quello vero.
        */
+      /**
+       * ⚠️ **Anche una coda riceve menu** (19/8): nella finestra di anteprima l'erogazione compone
+       * i giorni del piano che deve cominciare, e lo faceva già quando la coda era scritta
+       * `active`. Segnare `false` avrebbe fatto scrivere alla diagnostica delle diete monche
+       * «nessuna cliente attiva: non sta danneggiando nessuno» su una cliente che quei menu li ha
+       * in mano. In una diagnostica di sicurezza un falso allarme costa un minuto, un falso
+       * silenzio costa il difetto che non si vede.
+       */
       riceveMenu:
-        stato === 'attivo' &&
+        (stato === 'attivo' || stato === 'in_coda') &&
         (s.plan?.period ?? '').toLowerCase() !== 'monitoring' &&
         !nonRicevono.has(s.clientId),
       etichetta: stato === 'attivo'
         ? `attivo${s.plan?.name ? ` · ${s.plan.name}` : ''}`
-        : stato === 'scaduto_da_chiudere'
-          ? `scaduto il ${giorno(s.endDate)} ma ancora «active» — da chiudere`
-          : `concluso il ${giorno(s.endDate)}`,
+        : stato === 'in_coda'
+          ? `in coda dal ${giorno(s.startDate)}${s.plan?.name ? ` · ${s.plan.name}` : ''}`
+          : stato === 'scaduto_da_chiudere'
+            ? `scaduto il ${giorno(s.endDate)} ma ancora «${s.status}» — da chiudere`
+            : `concluso il ${giorno(s.endDate)}`,
     };
-    // Un piano ATTIVO vince sempre su uno concluso: una cliente che ne ha avuti tre e ora ne ha uno
-    // vivo va raccontata dal vivo. Fra due conclusi resta il primo trovato, che è il più recente.
+    /**
+     * Un piano ATTIVO vince sempre su uno concluso: una cliente che ne ha avuti tre e ora ne ha uno
+     * vivo va raccontata dal vivo. Fra due conclusi resta il primo trovato, che è il più recente.
+     *
+     * ⚠️ E una **coda** vince su un concluso, ma perde contro un attivo: «in coda dal 31/08» dice
+     * una cosa vera e utile su una cliente che ha pagato, mentre «concluso il 22/07» su quella
+     * stessa cliente è la riga che la fa richiamare per rivenderle quello che ha già comprato.
+     */
+    const forza = (x: StatoPiano): number => (x === 'attivo' ? 2 : x === 'in_coda' ? 1 : 0);
     const attuale = out.get(s.clientId);
-    if (!attuale || (candidato.stato === 'attivo' && attuale.stato !== 'attivo')) {
+    if (!attuale || forza(candidato.stato) > forza(attuale.stato)) {
       out.set(s.clientId, candidato);
     }
   }

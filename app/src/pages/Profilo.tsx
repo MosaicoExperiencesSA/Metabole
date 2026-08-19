@@ -1387,12 +1387,27 @@ export default function Profilo() {
       <div className="sec" style={{ marginTop: 4 }}>Il mio piano</div>
       {loading ? (
         <div className="card"><p className="muted" style={{ margin: 0 }}>Carico…</p></div>
-      ) : sub && sub.status === 'active' && sub.plan ? (
+      ) : sub && (sub.status === 'active' || sub.status === 'queued') && sub.plan ? (
         <div className="card" style={{ border: '2px solid #12A386' }}>
           <div className="row-between">
             <div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{sub.plan.name}</div>
-              <span className="chip" style={{ background: '#DCF0D8', color: '#3B6D11', marginTop: 4 }}><i className="ti ti-circle-check" /> Attivo</span>
+              {/*
+                ⚠️ IL PIANO CHE COMINCIA PIÙ AVANTI È UN PIANO — 19/8, voce 258.
+                Dal 19/8 il server lo scrive `queued` invece di `active` con la data nel futuro.
+                Con il confronto di prima questa scheda cadeva nel ramo finale e a una cliente che
+                aveva appena pagato scriveva «Non hai ancora un piano attivo — Scopri i piani»: il
+                giorno del pagamento, con l'invito a ricomprare quello che aveva appena comprato.
+                E ⚠️ colpiva anche chi ha un piano in corso e ne compra uno in coda, perché
+                `/me/subscription` risponde con il più RECENTE.
+                La pastiglia dice quale dei due è, perché sono due cose diverse: uno sta erogando,
+                l'altro comincia il giorno che c'è scritto sotto.
+              */}
+              {sub.status === 'queued' ? (
+                <span className="chip" style={{ background: '#F3E8DC', color: '#B8863B', marginTop: 4 }}><i className="ti ti-clock-hour-4" /> Comincia {planStart(sub) ? fmtDate(planStart(sub)!) : 'a breve'}</span>
+              ) : (
+                <span className="chip" style={{ background: '#DCF0D8', color: '#3B6D11', marginTop: 4 }}><i className="ti ti-circle-check" /> Attivo</span>
+              )}
             </div>
             <i className="ti ti-seeding" style={{ fontSize: 30, color: '#12A386' }} />
           </div>

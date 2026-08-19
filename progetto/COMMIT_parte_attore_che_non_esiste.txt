@@ -1,0 +1,45 @@
+L'attore che non esiste: di tutti i pagamenti con carta non restava una riga di registro
+
+Trovato il 19/8 rivedendo la promozione delle code, ed è più vecchio di quella voce.
+
+IL DIFETTO
+`AuditLog.actorId` è una **chiave esterna su `user`**. Ma chi scrive nel registro non sempre ha un
+utente per le mani, e allora ci mette una stringa che spiega chi è stato:
+
+  · `finalizeApproval(payment, 'stripe-webhook', 'carta')` → l'audit `commerce.payment.approve` di
+    **tutti i pagamenti con carta**;
+  · `crm.service` → `actorId: 'public'` sul lead che arriva dal form del sito;
+  · e ieri notte ce ne stavo aggiungendo una terza, `'system'`, sul lavoro che fa partire le code.
+
+L'INSERT viola il vincolo, `AuditService` assorbe l'eccezione — ed è **giusto** che la assorba: un
+pagamento non deve fallire per una riga di registro — ma la riga **si perde in silenzio**. Non c'è
+niente, da nessuna parte, che lo dica: si scopre il giorno in cui si va a leggere il registro di un
+pagamento, cioè esattamente quando serve.
+
+⚠️ È già la seconda volta che succede, con due stringhe diverse.
+
+LA SCELTA: NON UN ELENCO DI STRINGHE DA RICONOSCERE
+La strada corta sarebbe stata «se l'attore è `'public'` o `'stripe-webhook'` allora scrivi `null`».
+⚠️ Non regge: il giorno che qualcuno ne inventa una nuova siamo daccapo — ed è precisamente quello
+che è successo fra la prima e la seconda.
+
+Quindi il rimedio sta **dove il difetto si manifesta**, cioè nella scrittura: se l'INSERT fallisce e
+un attore c'era, si riprova **una volta sola** senza attore, conservando nel `metadata` chi diceva di
+essere (`attoreNonUtente`). La riga esiste, dice la verità («l'ha fatto il webhook di Stripe») e non è
+legata a un utente che non c'è.
+
+⚠️ E il ripiego lascia un `warn`: un ripiego che non si vede diventa la norma, e fra un mese nessuno
+si ricorda perché metà delle righe non hanno l'attore.
+
+⚠️ Se l'attore NON c'era, non si riprova: il guasto è un altro (il database giù, un campo lungo), e
+rifare la stessa query uguale non serve a niente se non a raddoppiare il carico mentre si è in
+difficoltà.
+
+COSA CAMBIA IN PRATICA
+Da adesso i pagamenti con carta e i lead dal sito lasciano la loro riga. Quelle di prima **non
+tornano**: sono perse, e questo commit non le ricostruisce — non ci sono i dati per farlo.
+
+FILE
+- backend/src/audit/audit.service.ts (+ 3 test: il ripiego, il non-ripiego, e `logMany`)
+
+Build verde, 229 suite / 3590 test.

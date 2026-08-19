@@ -122,6 +122,40 @@ describe('ReferralService.onConvert', () => {
   beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-07-15T09:00:00.000Z')); });
   afterEach(() => { jest.useRealTimers(); });
 
+  /**
+   * ⚠️ I GIORNI REGALATI VANNO ANCHE SU UN PIANO CHE COMINCIA LUNEDÌ (19/8, voce 258).
+   *
+   * `riscuotiSospese` viene chiamata dall'attivazione, **subito dopo** che il piano è stato scritto
+   * — e da oggi quel piano è `queued` se comincia più avanti. Cercando i soli `active` il premio non
+   * si applicava a niente e l'invito restava «da riscuotere» fino al prossimo acquisto: cioè chi
+   * porta un'amica veniva pagata o no a seconda di quando comincia il suo piano, che è una regola
+   * che nessuno ha deciso e che lei non può capire.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`, cioè non verificherebbe niente.
+   */
+  it('⚠️ la referrer col solo piano IN CODA riceve lo stesso i suoi giorni', async () => {
+    const coda = { id: 'sub-coda', status: 'queued', endDate: new Date('2026-08-01T00:00:00.000Z') };
+    const subUpdate = jest.fn().mockResolvedValue({});
+    const prisma = {
+      referral: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'r1', referrerClientId: 'referrer-1', convertedAt: null }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      subscription: {
+        findFirst: jest.fn(({ where }: { where: { status?: unknown } }) => {
+          const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];
+          return Promise.resolve(ammessi.includes(coda.status) ? coda : null);
+        }),
+        update: subUpdate,
+      },
+    };
+    await make(prisma, 30).onConvert('referred-1');
+    expect(subUpdate).toHaveBeenCalledTimes(1);
+    const newEnd = subUpdate.mock.calls[0][0].data.endDate as Date;
+    expect(newEnd.getTime()).toBe(new Date('2026-08-31T00:00:00.000Z').getTime());
+  });
+
   it('converte e premia estendendo l\'abbonamento attivo della referrer', async () => {
     const end = new Date('2026-08-01T00:00:00.000Z');
     const subUpdate = jest.fn().mockResolvedValue({});

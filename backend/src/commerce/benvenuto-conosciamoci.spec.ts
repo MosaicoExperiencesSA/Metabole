@@ -258,16 +258,31 @@ describe('CommerceService.attivaBenvenuto', () => {
     expect(prisma.order.create).not.toHaveBeenCalled();
   });
 
-  /** Conseguenza n.1 dell'analisi, la peggiore: una `pending` senza pagamento è senza uscita. */
-  it('la Subscription nasce ACTIVE, con startDate ed endDate già scritte', async () => {
+  /**
+   * Conseguenza n.1 dell'analisi, la peggiore: una `pending` senza pagamento è senza uscita. La
+   * Subscription nasce già approvata, con le date scritte.
+   *
+   * ⚠️ **`queued` quando comincia più avanti** (19/8, voce 258): la data la sceglie lei in fondo al
+   * questionario e può essere fra cinque giorni. Prima anche questo punto scriveva `active` con la
+   * partenza nel futuro — la forma ambigua — e due clienti nella stessa situazione, una in prova e
+   * una a pagamento, finivano scritte in due modi diversi. Quello che conta qui resta vero: non è
+   * `pending`, cioè non aspetta nessun pagamento.
+   */
+  it('la Subscription nasce già approvata (in coda, se comincia più avanti) e con le date scritte', async () => {
     await service.attivaBenvenuto('c1', fra(5));
     const dati = prisma.subscription.create.mock.calls[0][0].data;
-    expect(dati.status).toBe('active');
+    expect(dati.status).toBe('queued');
     expect(dati.startDate).toBeInstanceOf(Date);
     expect(dati.endDate).toBeInstanceOf(Date);
     // 8 giorni di prova: la fine non è «tre mesi» per un fallback muto.
     const durata = Math.round((dati.endDate.getTime() - dati.startDate.getTime()) / GIORNO);
     expect(durata).toBe(8);
+  });
+
+  /** ⚠️ E se comincia OGGI nasce attiva: la prova parte subito, come è sempre stato. */
+  it('⚠️ con la data di oggi la prova nasce ATTIVA', async () => {
+    await service.attivaBenvenuto('c1', fra(0));
+    expect(prisma.subscription.create.mock.calls[0][0].data.status).toBe('active');
   });
 
   /** Conseguenza n.7: senza `planStartDate` `deliverIfEligible` non parte nemmeno. */

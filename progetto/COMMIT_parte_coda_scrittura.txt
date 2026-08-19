@@ -1,0 +1,115 @@
+Il piano in coda si scrive `queued` — e le tredici letture che non lo capivano
+
+Voce 258, seconda metà. Il 18/8 era stata consegnata la prima (lo stato esiste, il vocabolario delle
+quattro domande, le letture adeguate). Oggi si scrive. ⚠️ Ma la parte grossa di questa consegna non è
+la scrittura: è che **le letture non erano adeguate quanto credevo**.
+
+COSA SCRIVE, ADESSO
+`finalizeApproval` scrive `queued` quando il piano comincia più avanti — dietro un piano in corso, o
+alla data scelta dalla cliente. Un passo notturno (`promuoviCodeArrivate`) fa partire le code
+arrivate, ed è **il primo del `daily`**: tutti i passi che vengono dopo leggono lo stato, e un piano
+che comincia oggi deve essere già attivo quando lo attraversano.
+
+⚠️ E LA MOTIVAZIONE CHE AVEVO SCRITTO PRIMA ERA FALSA. Il commento diceva «prima del motore, o
+l'erogazione salta il primo giorno». Non è vero: `engine.runBatch()` non eroga menu — valuta regole e
+scrive decisioni. I menu li compone `deliverIfEligible`, che gira **quando la cliente apre l'app**.
+L'ordine è giusto lo stesso, ma per un'altra ragione — e la ragione falsa era peggio dell'ordine
+sbagliato, perché sembrava aver già risolto il problema del primo giorno, che invece si risolve nelle
+due letture del menu.
+
+⚠️ LE LETTURE SBAGLIATE — TREDICI (trovate dalle revisioni avversariali, tutte verificate nel codice)
+Sotto sono raggruppate in dodici punti; la tredicesima (il sollecito misure) è arrivata dalla quarta
+ronda, dopo le altre, ed è in fondo.
+Il 18/8 avevo adeguato dashboard, coach, CRM, lifecycle, disdette — e dato per scontato il resto.
+Con la scrittura nuova avrebbero sbagliato **in silenzio**:
+
+  1. `menu.service.menuStatus` — a una cliente che compra oggi con partenza lunedì l'app scriveva
+     «**Il tuo piano è terminato: riattiva un piano dal Negozio**». Il giorno del pagamento.
+  2. `deliverIfEligible` — spariva la finestra di anteprima di due giorni, e col gate delle misure
+     spostato alla mattina stessa si perdeva anche il primo giorno di piano.
+  3. il calcolo della coda in `finalizeApproval` — non vedeva le code: chi ne aveva già una e
+     comprava un terzo piano se lo ritrovava **sovrapposto**. Il caso Lorena, riaperto da noi.
+  4. `myRecurring` / `cancelMyRecurring` / `resumeMyRecurring` — l'abbonamento Stripe in coda non
+     compariva nel profilo e la disdetta rispondeva **404**: Stripe addebita e lei non può uscire.
+  5. `referral.premia` — i giorni di «porta un'amica» non si applicavano a niente.
+  6. `pause.freezeSubscription` — i giorni di pausa concessi e mai sommati a nessuna scadenza.
+  7. `clients.getDetail` — la pastiglia «Nessun piano attivo» su chi ha appena pagato.
+  8. `common/piano-attivo` — le diagnostiche scrivevano «concluso il 30/11», a una data futura.
+  9. `statoMonitoraggio` — il Monitoraggio tornava in vetrina sopra un Mantenimento già pagato, e
+     l'acquisto poi lo rifiutava: due condizioni sulla stessa domanda, divergenti.
+ 10. `analytics`, `coach-tasks`, `coach.service`, `signals`, `notifications` — contatori che
+     calavano, prove che sparivano dai riquadri, check-in e messaggio quotidiano spenti.
+ 11. `sovrapposizione-piani` — l'avviso della matita taceva proprio sul caso per cui è nato.
+ 12. `annulla-abbonamento` — annullando l'unica coda, l'audit scriveva «Resta attivo l'altro piano»
+     a una persona che non aveva più niente.
+ 13. `notifications.measuresNudgeTick` — la cliente in coda si trovava l'app ferma sulla schermata
+     «servono le tue misure» **senza ricevere nessun sollecito** e senza che nascesse il compito per
+     la coach: il blocco senza la richiesta, cioè la punizione senza la domanda.
+
+⚠️ CINQUE PUNTI SCRIVEVANO LA DATA D'INIZIO, E OGNUNO DECIDEVA PER SÉ
+Approvazione del bonifico, matita della scheda, allineamento dal profilo, data spostata in chat con
+Gaia, attivazione di «Conosciamoci»: scrivevano tutti `active`, anche con la partenza fra tre
+settimane. Adesso la domanda «attivo o in coda?» ha una risposta sola: `statoPerInizio`.
+
+⚠️ TRE DIFETTI PIÙ VECCHI DI QUESTA VOCE, TROVATI PER STRADA
+- `AuditLog.actorId` è una **chiave esterna su `user`**: il mio `actorId: 'system'` faceva fallire
+  l'INSERT, `AuditService` inghiotte l'errore, e il registro non esisteva. ⚠️ Lo stesso difetto è in
+  produzione da settimane su `commerce.payment.approve` di **tutti i pagamenti con carta**
+  (`finalizeApproval(payment, 'stripe-webhook')`) e su `crm.service` (`actorId: 'public'`): è chiuso
+  lo stesso giorno, ma **in una consegna sua** — `COMMIT_parte_attore_che_non_esiste.txt`.
+- Chi comprava il rinnovo **in anticipo smetteva di ricevere menu**: l'acquisto in coda riallinea
+  `planStartDate` alla partenza del piano NUOVO (dal 10/8), e l'erogazione misurava la sua finestra
+  proprio su quel campo. Due mesi di anticipo = due mesi senza menu, sul piano che stava pagando.
+  Adesso la finestra è quella del piano che eroga.
+- La data scelta **dopo il pagamento** da una cliente di ritorno non muoveva l'abbonamento:
+  l'allineamento scattava solo alla prima scrittura. Ora vale finché non ha ricevuto il primo menu.
+
+⚠️ UNA CODA ARRIVATA A SCADENZA SENZA MAI PARTIRE NON SI PROMUOVE
+Prima l'avevo scritta al contrario, e sembrava il gesto onesto: portarla allo stato vero invece di
+lasciarla in uno stato che nessuno guarda. Ma da attiva-e-finita quella riga entra, **nella stessa
+notte**, nella scadenza automatica delle prove (che a +7 giorni **cancella** pesi dei menu,
+valutazioni, base personale e certificato), nel report di fine percorso consegnato in app e nella
+chiusura CRM. Una cliente che ha pagato e non ha mai ricevuto un piatto si prenderebbe i complimenti
+per il percorso e la cancellazione della personalizzazione. Resta `queued`, si grida nei log, e si
+vede in `npm run diag:coda`: cosa farne è una decisione, non un automatismo.
+
+ALTRE COSE CHE SI SONO SISTEMATE PER FORZA
+- ⚠️ Due `findFirst` **senza `orderBy`** in `menu.service` (il ramo del Monitoraggio e il gate delle
+  misure): con una riga sola non si vedevano, allargando l'insieme alla coda restituivano una riga a
+  caso — metà delle volte «Menu in preparazione» a chi è in Monitoraggio, metà il popup bloccante
+  delle misure. Ora passano da `attivoInCorso`, come l'erogazione.
+- Il registro della promozione si scrive in un `finally`: le righe già promosse sono già attive sul
+  database, e senza, il giro andato storto — l'unico in cui il registro serve — era anche l'unico a
+  non lasciarne traccia.
+- Le code già scadute si leggono in una query a parte: essendo le più vecchie si sarebbero prese
+  tutto il `take`, e accumulandosi avrebbero **bloccato la promozione di quelle sane**.
+- Il fuso: la promozione usa `aGiorno` (`common/date-only.ts`) e non il fuso del processo. Su Render
+  il processo è in UTC e il cron gira alle 05:00 UTC: una «fine di oggi» calcolata a mano sarebbe
+  stata l'01:59 di domani a Roma.
+- Una pausa su un piano **non ancora cominciato** non allunga più niente e lo dice nei log: non
+  c'era nessun menu da sospendere. Cosa debba fare è una domanda di prodotto (handoff).
+
+⚠️ L'ORDINE DEL RILASCIO, CHE QUI NON È UN DETTAGLIO
+L'app si aggiorna **dopo** il backend (pubblicazione o OTA), e le tre correzioni lato app di questa
+consegna — «Non hai ancora un piano attivo» nel Profilo, la parola grezza «queued» nel Calendario, e
+lo spostamento della data d'inizio che spariva proprio dai piani spostabili — arrivano alle clienti
+solo con quella. Finché non è pubblicata, un piano scritto `queued` si vede male sull'app **vecchia**.
+Quindi: 1) deploy del backend; 2) **pubblicazione o OTA dell'app**; 3) solo allora
+`npm run converti:code` (prova a vuoto, poi `CONFERMA=1`) per le 4 code vecchie. ⚠️ Lo script per
+ultimo anche per un secondo motivo: converte righe che il codice vecchio cerca come `active`.
+
+COME È STATA VERIFICATA
+Quattro ronde di revisione avversariale — la seconda, la terza e la quarta hanno trovato difetti
+**introdotti dalle correzioni della precedente**, e la quarta ha trovato anche i tre punti dell'APP —
+e due di mutation testing sui test nuovi. 229 suite, **3590 test**. Nessuna migrazione.
+
+FILE PRINCIPALI
+- commerce: `stati-abbonamento.ts` (+`statoPerInizio`), `commerce.service.ts`, `annulla-abbonamento.ts`
+- menu: `menu.service.ts`, `data-inizio-chat.service.ts`
+- letture: `analytics`, `clients`, `coach`, `coach-tasks`, `notifications`, `pause`, `profile`,
+  `referral`, `signals`, `common/piano-attivo.ts`, `clients/sovrapposizione-piani.ts`
+- app: `Profilo.tsx` (⚠️ scriveva «Non hai ancora un piano attivo» a chi aveva appena pagato) e
+  `Calendario.tsx` (stampava la parola grezza «queued» in una pastiglia verde) · backoffice:
+  `ClientDetail.tsx` (l'etichetta «In coda»)
+- cron: `cron.controller.ts` (`codeArrivate` primo passo)
+- script: `prisma/converti-code-vecchie.ts` (`npm run converti:code`), `prisma/diag-piani-in-coda.ts`

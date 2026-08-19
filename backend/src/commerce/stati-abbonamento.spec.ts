@@ -6,6 +6,7 @@ import {
   STATI_GIA_COMPRATO,
   STATI_QUALCOSA_IN_BALLO,
   STATI_VIVI,
+  statoPerInizio,
 } from './stati-abbonamento';
 
 const OGGI = new Date('2026-08-18T10:00:00Z');
@@ -87,5 +88,44 @@ describe('codaInRitardo', () => {
 
   it('una coda senza data d\'inizio non è in ritardo: non si sa da quando', () => {
     expect(codaInRitardo({ status: 'queued', startDate: null }, OGGI)).toBe(false);
+  });
+});
+
+/**
+ * LA RISPOSTA SOLA ALLA DOMANDA «ATTIVO O IN CODA?» — voce 258, 19/8.
+ *
+ * Cinque punti scrivono lo stato di un abbonamento: l'approvazione del bonifico, la matita della
+ * scheda cliente, l'allineamento dal profilo, la data spostata in chat con Gaia e l'attivazione di
+ * «Conosciamoci». Prima decidevano ognuno per sé, e scrivevano tutti `active`.
+ */
+describe('statoPerInizio', () => {
+  const ADESSO = new Date('2026-08-19T10:00:00Z');
+
+  it('chi comincia più avanti nasce in coda', () => {
+    expect(statoPerInizio(new Date('2026-08-31T00:00:00Z'), ADESSO)).toBe('queued');
+  });
+
+  it('chi comincia oggi (data a mezzanotte) è attivo: la giornata è già cominciata', () => {
+    expect(statoPerInizio(new Date('2026-08-19T00:00:00Z'), ADESSO)).toBe('active');
+  });
+
+  it('chi è cominciato ieri è attivo', () => {
+    expect(statoPerInizio(new Date('2026-08-01T00:00:00Z'), ADESSO)).toBe('active');
+  });
+
+  /**
+   * ⚠️ Il confronto è sull'ISTANTE e non sul giorno: una coda che parte alla scadenza del piano in
+   * corso eredita l'ora di quella scadenza, e per quel che resta della giornata il piano vecchio sta
+   * ancora erogando. Con un confronto per giorno i due si sovrapporrebbero per qualche ora — che è
+   * lo stato che questa voce serve a togliere di mezzo.
+   */
+  it('⚠️ la coda che parte oggi alle 18 è ancora in coda alle 10', () => {
+    expect(statoPerInizio(new Date('2026-08-19T18:00:00Z'), ADESSO)).toBe('queued');
+  });
+
+  /** ⚠️ Senza data d'inizio il piano è attivo: `startDate` nulla vuol dire «già cominciato». */
+  it('⚠️ senza data d\'inizio è attivo, come per `staErogando`', () => {
+    expect(statoPerInizio(null, ADESSO)).toBe('active');
+    expect(statoPerInizio(undefined, ADESSO)).toBe('active');
   });
 });

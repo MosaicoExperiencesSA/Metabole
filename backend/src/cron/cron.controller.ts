@@ -91,6 +91,20 @@ export class CronController {
       }
     };
 
+    /**
+     * ⚠️ PRIMO DELLA NOTTE, e il motivo è che **tutti i passi qui sotto leggono lo stato**: le
+     * scadenze delle prove, le attività della coach, i report, gli avvisi. Un piano che comincia
+     * oggi dev'essere già attivo quando li attraversa, o per una notte intera esiste un contratto
+     * pagato che nessuno di quei passi conta.
+     *
+     * ⚠️ **Non** è per l'erogazione: i menu non li compone questo cron. `engine.runBatch()` valuta
+     * le regole e scrive decisioni; a comporre i menu è `deliverIfEligible`, che gira quando la
+     * cliente apre l'app (e al salvataggio di una misura). La prima versione di questo commento
+     * diceva il contrario — e siccome sembrava aver già risolto il problema del primo giorno, lo
+     * nascondeva: quel problema si risolve altrove, nelle due letture del menu che da oggi sanno
+     * cos'è un piano in coda (`menu.service.ts`).
+     */
+    await step('codeArrivate', () => this.commerce.promuoviCodeArrivate());
     await step('engine', () => this.engine.runBatch());
     await step('notifications', () => this.notifications.generateDailyBatch());
     await step('alerts', () => this.alerts.recomputeAllBatch());

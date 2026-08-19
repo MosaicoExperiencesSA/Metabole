@@ -26,6 +26,8 @@ describe('CommerceService (flusso bonifico)', () => {
   let finance: any;
   let crm: any;
   let notifications: any;
+  /** Il registro: la promozione delle code ci scrive una riga per piano. */
+  let audit: any;
 
   beforeEach(async () => {
     prisma = {
@@ -36,9 +38,15 @@ describe('CommerceService (flusso bonifico)', () => {
           name: 'Giulia',
           consents: { healthDataConsent: { accepted: true } },
         }),
+        // Il piano in coda riallinea `planStartDate`: scheda, scadenza e menu devono dire la
+        // stessa data (decisione del 10/8).
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       subscription: {
         findFirst: jest.fn().mockResolvedValue(null),
+        // La promozione notturna delle code (voce 258): legge i `queued` arrivati e li sposta.
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         // Attivato il piano, il monitoraggio rilegge il piano dall'abbonamento per decidere
         // se convertire un monitoraggio in corso o erogare i menu di rientro.
         findUnique: jest.fn().mockResolvedValue({ plan: { id: 'p1', name: 'Trimestrale', priceCents: 29700, period: '3m' }, createdAt: new Date('2026-07-01T00:00:00.000Z') }),
@@ -82,6 +90,11 @@ describe('CommerceService (flusso bonifico)', () => {
     finance = { recordIncome: jest.fn(), generateCommissions: jest.fn() };
     crm = { autoAdvance: jest.fn() };
     notifications = { notifyOncePerDay: jest.fn() };
+    // ⚠️ `log` deve tornare una PROMESSA, non `undefined`: il ramo del piano in coda scrive l'audit
+    // con `.catch(() => undefined)`, e un finto audit sincrono faceva esplodere il test su un
+    // difetto che non esiste. Un doppio di comodo che si comporta diversamente dall'originale non
+    // sta verificando il codice vero.
+    audit = { log: jest.fn().mockResolvedValue(undefined), logMany: jest.fn().mockResolvedValue(undefined) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -99,9 +112,11 @@ describe('CommerceService (flusso bonifico)', () => {
           useValue: {
             enabled: true,
             createCheckoutSession: jest.fn().mockResolvedValue({ sessionId: 'cs_test_1', url: 'https://checkout.stripe.com/cs_test_1' }),
+            cancelAtPeriodEnd: jest.fn().mockResolvedValue(undefined),
+            resumeSubscription: jest.fn().mockResolvedValue(undefined),
           },
         },
-        { provide: AuditService, useValue: { log: jest.fn() } },
+        { provide: AuditService, useValue: audit },
         { provide: PdfService, useValue: { renderTemplatePdf: jest.fn().mockResolvedValue(Buffer.from('pdf')) } },
         {
           provide: ReferralService,
@@ -220,6 +235,54 @@ describe('CommerceService (flusso bonifico)', () => {
       );
     });
 
+    /**
+     * ⚠️ IL PIANO CHE PARTE PIÙ AVANTI NASCE `queued` (voce 258, seconda metà — 19/8). Fino a ieri
+     * si scriveva `active` con la data nel futuro: le date lo tenevano fuori dall'erogazione, ma la
+     * stessa parola diceva due cose («sta erogando» e «comincia fra tre settimane») e ognuno dei
+     * novanta punti che leggono `status` doveva ricordarsi di guardare anche le date. Il caso
+     * Lorena del 17/8 è nato lì.
+     */
+    it('⚠️ in coda a un piano attivo: nasce `queued`, non `active`', async () => {
+      prisma.payment.findUnique.mockResolvedValue(paymentReady());
+      // C'è già un piano attivo che finisce fra un mese: il nuovo parte alla sua scadenza.
+      const fraUnMese = new Date(Date.now() + 30 * 86_400_000);
+      prisma.subscription.findFirst.mockResolvedValue({ endDate: fraUnMese });
+      await service.approvePayment(operator, 'pay-1');
+      expect(prisma.subscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'queued', startDate: fraUnMese }) }),
+      );
+    });
+
+    /**
+     * ⚠️ LA CODA SI CALCOLA SU TUTTI I PIANI COMPRATI, NON SUI SOLI `active` (19/8).
+     *
+     * Da quando la coda si scrive `queued`, cercare «un altro piano attivo che finisce nel futuro»
+     * non trovava più le code: una cliente che ne ha già una in fila e compra un terzo piano se lo
+     * ritrovava sovrapposto per intero a quello già pagato — cioè il caso Lorena, riaperto dalla
+     * scrittura nuova. Il finto Prisma non filtra, quindi qui si guarda la domanda che è stata
+     * fatta al database: è l'unica cosa che il test può vedere.
+     */
+    it('⚠️ il piano nuovo si accoda anche a una coda, non solo a chi sta erogando', async () => {
+      prisma.payment.findUnique.mockResolvedValue(paymentReady());
+      prisma.subscription.findFirst.mockResolvedValue({ endDate: new Date(Date.now() + 60 * 86_400_000) });
+      await service.approvePayment(operator, 'pay-1');
+      const domanda = prisma.subscription.findFirst.mock.calls
+        .map((c: any[]) => c[0])
+        .find((w: any) => w?.where?.endDate?.gt);
+      expect(domanda.where.status).toEqual({ in: expect.arrayContaining(['active', 'queued']) });
+    });
+
+    it('e la data scelta dalla cliente nel futuro fa lo stesso: è una coda anche quella', async () => {
+      prisma.payment.findUnique.mockResolvedValue(paymentReady());
+      prisma.subscription.findFirst.mockResolvedValue(null);
+      const fraDieciGiorni = new Date(Date.now() + 10 * 86_400_000);
+      prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: fraDieciGiorni, consents: {} });
+      await service.approvePayment(operator, 'pay-1');
+      expect(prisma.subscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'queued' }) }),
+      );
+    });
+
     it('anche senza contabile si può approvare (operatore ha visto il bonifico in banca)', async () => {
       prisma.payment.findUnique.mockResolvedValue({ ...paymentReady(), status: 'pending' });
       const res = (await service.approvePayment(operator, 'pay-1')) as unknown as { status: string };
@@ -280,6 +343,242 @@ describe('CommerceService (flusso bonifico)', () => {
       expect(mail.sendPaymentReceipt).not.toHaveBeenCalled();
     });
   });
+
+  /**
+   * LA PROMOZIONE DELLE CODE ARRIVATE — l'altra metà della voce 258 (19/8).
+   *
+   * Scrivere `queued` all'acquisto ha senso solo se qualcuno, il giorno giusto, dice «adesso».
+   * ⚠️ Nessuna lettura promuove da sola: un `queued` non eroga nemmeno con la data già passata,
+   * perché indovinare vorrebbe dire consegnare i menu di un piano che nessuno ha fatto partire.
+   * Questo è quel qualcuno, e gira nel cron notturno **prima** del motore.
+   */
+  /**
+   * L'ABBONAMENTO RICORRENTE CHE COMINCIA PIÙ AVANTI — voce 258, 19/8.
+   *
+   * ⚠️ Stripe addebita **da subito** un abbonamento comprato per cominciare fra due settimane.
+   * Cercando i soli `active`, il profilo della cliente non mostrava nessun abbonamento e il
+   * pulsante della disdetta rispondeva «Nessun abbonamento da disdire»: pagava e non poteva
+   * uscire, se non bloccando la carta. Fare la disdetta self-service è una scelta di prodotto —
+   * e una scelta che vale solo se il pulsante funziona.
+   */
+  describe('abbonamento Stripe in coda: si vede e si disdice', () => {
+    const conCarta = {
+      id: 'sub-stripe',
+      endDate: new Date(Date.now() + 60 * 86_400_000),
+      cancelAtPeriodEnd: false,
+      lastPaymentFailedAt: null,
+      stripeSubscriptionId: 'sub_ABC',
+      plan: { name: 'Mensile', priceCents: 4900 },
+    };
+
+    it('⚠️ il profilo lo mostra anche se comincia più avanti', async () => {
+      prisma.subscription.findFirst.mockResolvedValue(conCarta);
+      expect(await service.myRecurring('client-1')).not.toBeNull();
+      expect(prisma.subscription.findFirst.mock.calls[0][0].where.status).toEqual({
+        in: expect.arrayContaining(['active', 'queued']),
+      });
+    });
+
+    it('⚠️ e si può disdire: non si resta chiusi dentro un piano che non è ancora cominciato', async () => {
+      prisma.subscription.findFirst.mockResolvedValue(conCarta);
+      const esito = await service.cancelMyRecurring('client-1');
+      expect(esito.disdetta).toBe(true);
+      expect(prisma.subscription.findFirst.mock.calls[0][0].where.status).toEqual({
+        in: expect.arrayContaining(['active', 'queued']),
+      });
+    });
+
+    /**
+     * ⚠️ E CI SI PUÒ RIPENSARE. Le tre porte sono una cosa sola: se la disdetta si può fare su un
+     * piano in coda ma il ripensamento no, il pulsante «Riattiva» risponde «Nessuna disdetta da
+     * annullare» a chi la disdetta l'ha appena fatta — e per restare cliente deve scrivere a
+     * qualcuno. Una porta che si apre in un verso solo è peggio di una porta chiusa.
+     */
+    it('⚠️ e ci si può ripensare: il «Riattiva» funziona anche sul piano in coda', async () => {
+      prisma.subscription.findFirst.mockResolvedValue({ ...conCarta, cancelAtPeriodEnd: true });
+      await service.resumeMyRecurring('client-1');
+      expect(prisma.subscription.findFirst.mock.calls[0][0].where.status).toEqual({
+        in: expect.arrayContaining(['active', 'queued']),
+      });
+    });
+  });
+
+  describe('promuoviCodeArrivate (il piano in coda che comincia stanotte)', () => {
+    const inCoda = (over: Record<string, unknown> = {}) => ({
+      id: 'sub-coda',
+      clientId: 'client-1',
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 90 * 86_400_000),
+      ...over,
+    });
+    /** Il finto database che si comporta come quello vero: la scrittura è guardata dallo stato. */
+    const scritturaRiuscita = () => prisma.subscription.updateMany.mockResolvedValue({ count: 1 });
+
+    /**
+     * Le due letture del metodo sono domande diverse, e il finto le distingue dal `where` come
+     * farebbe il database: le code **sane** da promuovere, e quelle **già finite**, che si contano
+     * soltanto. Con un finto unico che risponde uguale a tutte e due, «le scadute non si
+     * promuovono» sembrerebbe funzionare qualunque cosa facesse il codice.
+     */
+    const codeInDb = ({ sane = [], scadute = [] }: { sane?: unknown[]; scadute?: unknown[] }) =>
+      prisma.subscription.findMany.mockImplementation(({ where }: any) =>
+        Promise.resolve(where?.endDate?.lt ? scadute : sane),
+      );
+
+    it('il piano in coda arrivato passa ad attivo, e lo dice il registro', async () => {
+      codeInDb({ sane: [inCoda()] });
+      scritturaRiuscita();
+      const esito = await service.promuoviCodeArrivate();
+      expect(esito).toEqual({ promossi: 1, giaScaduti: 0 });
+      expect(prisma.subscription.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'active' } }),
+      );
+      expect(audit.logMany).toHaveBeenCalledWith([
+        expect.objectContaining({ action: 'commerce.plan.promoted', entityId: 'sub-coda' }),
+      ]);
+    });
+
+    /**
+     * ⚠️ IL REGISTRO NON PORTA UN `actorId` INVENTATO. `AuditLog.actorId` è una chiave esterna su
+     * `user`: un `'system'` che non esiste fa fallire l'INSERT, e `AuditService` inghiotte
+     * l'errore — quindi il registro di questo passo non esisterebbe **e nessuno lo saprebbe**. È
+     * proprio il caso in cui il registro serve: qui non c'è nessuno che guarda.
+     */
+    it('⚠️ la riga di registro non ha un attore inventato: `actorId` è una chiave esterna', async () => {
+      codeInDb({ sane: [inCoda()] });
+      scritturaRiuscita();
+      await service.promuoviCodeArrivate();
+      expect(audit.logMany.mock.calls[0][0][0].actorId).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ IL CONFRONTO È PER GIORNO, E IL GIORNO È QUELLO DELL'AZIENDA. `startDate` è una data: il
+     * piano che parte «oggi» è scritto a mezzanotte e il cron gira alle 05:00 UTC. Su Render il
+     * processo è in UTC, quindi una «fine di oggi» calcolata col fuso del processo sarebbe stata
+     * l'01:59 di domani a Roma — un piano comprato dopo mezzanotte sarebbe partito un giorno di
+     * calendario in anticipo. Il fuso in questo progetto ha una risposta sola (`date-only.ts`).
+     */
+    it('⚠️ prende tutti quelli che cominciano OGGI, e «oggi» è il giorno dell\'azienda', async () => {
+      codeInDb({});
+      // Un istante che a Roma è già il 20 agosto e in UTC è ancora il 19.
+      await service.promuoviCodeArrivate(new Date('2026-08-19T23:30:00.000Z'));
+      const soglia: Date = prisma.subscription.findMany.mock.calls[0][0].where.startDate.lte;
+      expect(prisma.subscription.findMany.mock.calls[0][0].where.status).toBe('queued');
+      // La fine del 20 agosto, non del 19: la cliente che parte il 20 parte stanotte.
+      expect(soglia.toISOString()).toBe('2026-08-20T23:59:59.999Z');
+      expect(new Date('2026-08-20T00:00:00.000Z').getTime()).toBeLessThanOrEqual(soglia.getTime());
+      expect(new Date('2026-08-21T00:00:00.000Z').getTime()).toBeGreaterThan(soglia.getTime());
+    });
+
+    it('nessuna coda arrivata: non scrive niente', async () => {
+      codeInDb({});
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 0, giaScaduti: 0 });
+      expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+      expect(audit.logMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⚠️ LA SCRITTURA È GUARDATA DA `status: 'queued'`, E NON È UN DOPPIONE DELLA LETTURA.
+     *
+     * Fra la lettura delle code e la scrittura passa del tempo, e in mezzo può esserci
+     * un'operatrice che rimborsa quel contratto (`refundPayment` lo porta a `cancelled`) o una
+     * seconda passata del cron. Senza la guardia riaccenderemmo un piano che non c'è più: la
+     * cliente si ritroverebbe i menu di un abbonamento rimborsato.
+     */
+    it('⚠️ scrive solo su chi è ANCORA in coda, e con la partenza ancora arrivata', async () => {
+      codeInDb({ sane: [inCoda()] });
+      scritturaRiuscita();
+      await service.promuoviCodeArrivate();
+      const where = prisma.subscription.updateMany.mock.calls[0][0].where;
+      expect(where.id).toBe('sub-coda');
+      expect(where.status).toBe('queued');
+      // ⚠️ E la data: fra la lettura e la scrittura la matita può aver spostato l'inizio in avanti.
+      expect(where.startDate.lte).toBeInstanceOf(Date);
+    });
+
+    /**
+     * ⚠️ «PROMOSSI» È QUANTI NE HA CAMBIATI IL DATABASE, NON QUANTI NE AVEVO LETTI.
+     *
+     * I due numeri coincidono quasi sempre, ed è per questo che è facile scambiarli: il giorno in
+     * cui non coincidono è esattamente il giorno in cui è successo qualcosa. Se `promossi`
+     * contasse le righe lette, il cron direbbe «2 piani partiti» mentre ne è partito uno — e il
+     * rapporto che dovrebbe farci accorgere del problema sarebbe quello che lo nasconde. E la
+     * riga di registro nascerebbe anche per il piano che non è partito.
+     */
+    it('⚠️ chi non è stato toccato non conta e non finisce nel registro', async () => {
+      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b' })] });
+      // `sub-b` è stato rimborsato fra la lettura e la scrittura: la guardia lo salta.
+      prisma.subscription.updateMany.mockImplementation(({ where }: any) =>
+        Promise.resolve({ count: where.id === 'sub-a' ? 1 : 0 }),
+      );
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 0 });
+      expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-a' })]);
+    });
+
+    /**
+     * ⚠️ UNA CODA ARRIVATA A SCADENZA SENZA MAI PARTIRE **NON** SI PROMUOVE, E SI GRIDA.
+     *
+     * Promuoverla sembrava il gesto onesto: lo stato vero invece di uno `queued` che nessuno
+     * guarda. Ma da attiva-e-finita quella riga entra, nella stessa notte, nella scadenza
+     * automatica delle prove (che a +7 giorni **cancella** pesi dei menu, valutazioni, base
+     * personale e certificato), nel report di fine percorso consegnato in app e nella chiusura CRM.
+     * Una cliente che ha pagato e non ha mai ricevuto un piatto si prenderebbe i complimenti per il
+     * percorso e la cancellazione della personalizzazione — e nessuna delle due si torna indietro.
+     * Cosa farne è una decisione di Simone; questo cron non la prende, la **dice**.
+     */
+    it('⚠️ una coda arrivata a scadenza senza mai partire resta in coda, e finisce nei log', async () => {
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({ scadute: [inCoda({ id: 'sub-vecchia', endDate: new Date(Date.now() - 2 * 86_400_000) })] });
+      scritturaRiuscita();
+      const esito = await service.promuoviCodeArrivate();
+      expect(esito).toEqual({ promossi: 0, giaScaduti: 1 });
+      expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('client-1'));
+    });
+
+    /** ⚠️ E le altre code della stessa notte partono lo stesso: una ferma non ferma le altre. */
+    it('⚠️ una coda scaduta non blocca quelle sane della stessa passata', async () => {
+      jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({
+        sane: [inCoda({ id: 'sub-sana' })],
+        scadute: [inCoda({ id: 'sub-vecchia', endDate: new Date(Date.now() - 2 * 86_400_000) })],
+      });
+      scritturaRiuscita();
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 1 });
+      expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-sana' })]);
+    });
+
+    /**
+     * ⚠️ IL REGISTRO SI SCRIVE ANCHE SE IL GIRO SI ROMPE A METÀ. Le righe già promosse sono già
+     * attive sul database: senza il `finally`, il giro andato storto — l'unico in cui il registro
+     * serve — sarebbe anche l'unico a non lasciarne traccia.
+     */
+    it('⚠️ se la scrittura esplode a metà, chi è già partito è comunque nel registro', async () => {
+      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b' })] });
+      prisma.subscription.updateMany.mockImplementation(({ where }: any) =>
+        where.id === 'sub-a' ? Promise.resolve({ count: 1 }) : Promise.reject(new Error('Neon ha chiuso')),
+      );
+      await expect(service.promuoviCodeArrivate()).rejects.toThrow('Neon ha chiuso');
+      expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-a' })]);
+    });
+
+    /** ⚠️ L'ultimo giorno del piano è un giorno di piano: chi finisce OGGI non è scaduto. */
+    it('⚠️ il piano che finisce oggi non è «già scaduto»', async () => {
+      codeInDb({ sane: [inCoda({ endDate: new Date('2026-08-19T00:00:00.000Z') })] });
+      scritturaRiuscita();
+      const esito = await service.promuoviCodeArrivate(new Date('2026-08-19T18:00:00.000Z'));
+      expect(esito).toEqual({ promossi: 1, giaScaduti: 0 });
+    });
+
+    /** ⚠️ Il registro che non scrive non deve far saltare la promozione: i menu contano di più. */
+    it('⚠️ un registro che esplode non impedisce al piano di partire', async () => {
+      codeInDb({ sane: [inCoda()] });
+      scritturaRiuscita();
+      audit.logMany.mockRejectedValue(new Error('registro giù'));
+      await expect(service.promuoviCodeArrivate()).resolves.toEqual({ promossi: 1, giaScaduti: 0 });
+    });
+  });
+
 });
 
 /**

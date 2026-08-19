@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { pickMainSubscription, subscriptionEnd } from '../commerce/commerce.service';
+import { statoPerInizio } from '../commerce/stati-abbonamento';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
@@ -284,7 +285,21 @@ export class DataInizioChatService {
       scritture.push(
         this.prisma.subscription.update({
           where: { id: situazione.subscriptionId },
-          data: { startDate: d, endDate: fine } as never,
+          data: {
+            startDate: d,
+            endDate: fine,
+            /**
+             * ⚠️ **ANCHE LO STATO** (19/8, voce 258): questo era il quinto punto che scrive la data
+             * d'inizio di un piano, e l'unico rimasto a non toccare `status`. Da qui passano la
+             * chat con Gaia e il pulsante nel profilo, cioè le due strade della cliente.
+             *
+             * Sbagliava in tutti e due i versi: una coda spostata a **oggi** restava `queued` e i
+             * menu non arrivavano fino alla passata notturna; un piano attivo spostato **avanti**
+             * restava `active` con la partenza nel futuro — la forma ambigua — e non sarebbe mai
+             * entrato nella promozione, che cerca i `queued`.
+             */
+            status: statoPerInizio(d) as never,
+          } as never,
         }),
       );
     }
@@ -458,6 +473,8 @@ export class DataInizioChatService {
     // scelta e non si sposta di qui.
     const inCorso = subs.find(
       (s) =>
+        // ⚠️ Solo `active`: uno `queued` con la data già arrivata NON è partito — è la promozione
+        // notturna a essere in ritardo, e finché non passa la cliente può ancora spostare la data.
         s.status === 'active' &&
         !!s.startDate &&
         s.startDate.getTime() <= oggi.getTime() &&

@@ -137,6 +137,26 @@ describe('fraseSovrapposizione — deve dire contro cosa, quando, e cosa succede
     );
   });
 
+  /**
+   * ⚠️ L'AVVISO DEVE VEDERE ANCHE LE CODE SCRITTE `queued` (19/8, voce 258).
+   *
+   * Fino al 18/8 il secondo piano comprato era scritto `active` con la partenza nel futuro, quindi
+   * passava il filtro da solo. Da oggi nasce `queued`: leggendo i soli `active` questo avviso
+   * sarebbe rimasto **muto proprio sul caso per cui è nato** — lo staff sposta le date del piano in
+   * corso, glielo fa finire addosso a una coda già pagata, e nessuno gli dice niente. È il caso
+   * Lorena, dal verso opposto.
+   */
+  it('⚠️ la coda scritta `queued` conta come sovrapposizione, come quella vecchia', () => {
+    const s = pianiSovrapposti(
+      [piano({ id: 'coda', nome: '3 mesi', status: 'queued', startDate: d('2026-08-25'), endDate: d('2026-11-25') })],
+      d('2026-08-20'),
+      d('2026-09-20'),
+      OGGI,
+    );
+    expect(s).toHaveLength(1);
+    expect(s[0].quando).toBe('in_coda');
+  });
+
   it('un piano aperto lo dice invece di inventare una fine', () => {
     const s = pianiSovrapposti([piano({ id: 'aperto', nome: 'Mantenimento', startDate: d('2026-08-01'), endDate: null })], d('2026-09-01'), d('2026-12-01'), OGGI);
     expect(fraseSovrapposizione(s, '3 mesi', d('2026-09-01'), d('2026-12-01'))).toContain('non ha una scadenza');

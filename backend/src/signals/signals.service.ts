@@ -6,6 +6,7 @@ import { DietLearningService } from '../diet-learning/diet-learning.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { decidiRiapertura } from '../escalations/riapertura';
 import { PrismaService } from '../prisma/prisma.service';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import {
   CreateCheckinDto,
   CreateMeasurementDto,
@@ -196,8 +197,11 @@ export class SignalsService {
   private async maybeTrackTrialMeasures(clientId: string): Promise<void> {
     const count = await this.prisma.measurement.count({ where: { clientId } });
     if (count !== 1) return; // solo alla prima misura
+    // ⚠️ Anche in coda (19/8, voce 258): la misura di partenza si prende nella finestra di
+    // anteprima, cioè prima che la prova cominci. È il punto A del report A→B, e senza di lui il
+    // funnel del lancio conta meno prove di quelle vere.
     const trial = await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active', plan: { priceCents: 0 } } as never,
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never }, plan: { priceCents: 0 } } as never,
       select: { id: true },
     });
     if (!trial) return;
@@ -526,8 +530,11 @@ export class SignalsService {
     // legge quella risposta, e alla cliente sembra che l'app le chieda conto di un percorso che
     // non ha. Durante una PAUSA il piano resta attivo, quindi il check-in continua: è voluto,
     // è l'unico filo che resta teso mentre i menu sono sospesi.
+    // ⚠️ Anche i piani in coda (19/8, voce 258): «Come ti senti oggi?» ha senso per chi ha comprato
+    // e sta per cominciare — ed è quello che succedeva fino al 18/8, quando la coda era scritta
+    // `active`. Toglierlo avrebbe spento il check-in a chi ha appena pagato.
     const subs = (await this.prisma.subscription.findMany({
-      where: { clientId, status: 'active' },
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       select: { endDate: true },
     })) as { endDate: Date | null }[];
     const hasActivePlan = subs.some((s) => !s.endDate || s.endDate.getTime() >= today.getTime());

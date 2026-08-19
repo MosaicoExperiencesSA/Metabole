@@ -11,6 +11,7 @@ import { notificaUtente, staffDisabledTypes } from './notifica-utente';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
 import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 interface NotifyInput {
   userId: string;
@@ -338,8 +339,10 @@ export class NotificationsService {
     // Piano attivo? Il messaggio quotidiano "il tuo piano di oggi" NON va inviato a chi ha il
     // piano SCADUTO (endDate passata) o senza abbonamento attivo: altrimenti la cliente riceve
     // "piano confermato, continua col ritmo" e il link la riporta a un piano finito (bug).
+    // ⚠️ Anche in coda (19/8, voce 258): nella finestra di anteprima i menu si compongono già, e un
+    // messaggio quotidiano che tace mentre il menu c'è è una schermata che si contraddice da sola.
     const activeSub = await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' },
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       select: { endDate: true },
     });
     const hasActivePlan = !!activeSub && (!activeSub.endDate || activeSub.endDate.getTime() >= today.getTime());
@@ -635,9 +638,18 @@ export class NotificationsService {
     ]);
     if (ora < inizio || ora >= fine) return { controllate: 0, sollecitate: 0, coachAvvisate: 0 };
 
-    // Solo chi ha un piano attivo: a piano scaduto le misure non servono a nulla.
+    /**
+     * Solo chi ha un piano comprato: a piano scaduto le misure non servono a nulla.
+     *
+     * ⚠️ **Anche i piani in coda** (19/8, voce 258, quarta revisione — questa lettura era sfuggita
+     * alle prime tre). `measurementGate` chiede la misura di partenza già nella **finestra di
+     * anteprima**, cioè prima che il piano cominci: senza `queued` qui, la cliente si trovava l'app
+     * ferma sulla schermata «servono le tue misure» e **non le arrivava nessun sollecito**, né
+     * nasceva il compito per la coach. Il blocco senza la richiesta è la punizione senza la
+     * domanda — ed è esattamente il difetto che questo giro è stato scritto per chiudere.
+     */
     const attivi = (await this.prisma.subscription.findMany({
-      where: { status: 'active' },
+      where: { status: { in: STATI_CON_UN_PIANO as never } },
       select: { clientId: true },
       distinct: ['clientId'],
     })) as { clientId: string }[];

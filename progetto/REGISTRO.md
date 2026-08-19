@@ -18,6 +18,58 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-19
+
+- `[Sviluppo]` 🧾 **Il piano in coda si scrive `queued`, e dodici letture che dicevano il falso**
+  (voce 258, seconda metà). `finalizeApproval` scrive `queued` quando il piano comincia più avanti, e
+  un passo notturno (`promuoviCodeArrivate`, **primo** del `daily` perché tutti gli altri leggono lo
+  stato) fa partire le code arrivate. ⚠️ **Ma la parte grossa della consegna non è la scrittura**: il
+  18/8 avevo adeguato una parte delle letture e dato per scontato il resto, e la revisione
+  avversariale ha trovato **tredici punti** che confrontavano ancora `status === 'active'` a mano. Il
+  peggiore stava in `menu.service`: a una cliente che compra oggi con partenza lunedì l'app scriveva
+  «**Il tuo piano è terminato, riattiva un piano dal Negozio**» il giorno stesso del pagamento. Poi:
+  spariva la finestra di anteprima di due giorni; il calcolo della coda non vedeva le code (due piani
+  pagati sovrapposti — il caso Lorena riaperto da noi); l'abbonamento Stripe in coda non compariva
+  nel profilo e **la disdetta rispondeva 404**; i giorni di «porta un'amica» e quelli di pausa si
+  perdevano; scheda cliente, diagnostiche, contatori, check-in e messaggio quotidiano tacevano.
+  ⚠️ **Cinque punti scrivevano** la data d'inizio decidendo ognuno per sé: adesso «attivo o in
+  coda?» ha una risposta sola (`statoPerInizio`). ⚠️ **Tre difetti erano più vecchi della voce**:
+  `actorId: 'system'` viola la chiave esterna su `user` e il registro non si scriveva — **e lo stesso
+  difetto è in produzione da settimane sull'audit di tutti i pagamenti con carta**; chi comprava il
+  rinnovo in anticipo **smetteva di ricevere menu**, perché la finestra si misurava sulla data del
+  profilo che l'acquisto in coda riallinea al piano nuovo (dal 10/8); e la data scelta dopo il
+  pagamento da una cliente **di ritorno** non muoveva l'abbonamento. ⚠️ Una coda arrivata a scadenza
+  **senza mai partire non si promuove**: da attiva-e-finita prenderebbe, nella stessa notte, il
+  report di fine percorso e la cancellazione della personalizzazione — e nessuna delle due si torna
+  indietro. Resta `queued`, si grida nei log e si vede in `npm run diag:coda`. ⚠️ La motivazione che
+  avevo scritto sull'ordine nel cron **era falsa** (`engine.runBatch()` non eroga menu: li compone
+  `deliverIfEligible`, quando la cliente apre l'app) — l'ordine è giusto lo stesso, ma una ragione
+  falsa è peggio di un ordine sbagliato, perché sembra aver già risolto il problema. ⚠️ E tre punti stavano nell'**app**, usciti solo alla quarta ronda: il Profilo
+  scriveva «Non hai ancora un piano attivo» a chi aveva appena pagato, il Calendario stampava la
+  parola inglese «queued» in una pastiglia verde. **Quattro** ronde di revisione avversariale — ognuna
+  ha trovato difetti **introdotti dalle correzioni della precedente** — e due di mutation testing.
+  229 suite, **3590 test verdi**. Nessuna migrazione.
+  ⚠️ **L'ordine del rilascio**: prima il backend, poi la **pubblicazione dell'app**, e
+  solo alla fine `npm run converti:code` per le 4 code vecchie (prova a vuoto, poi `CONFERMA=1`) —
+  convertirle prima vuol dire far comparire il Profilo sbagliato proprio a loro. Foglio: `progetto/HANDOFF_2026-08-19.md`.
+
+- `[Sviluppo]` 🧾 **L'attore che non esiste: di tutti i pagamenti con carta non restava una riga di
+  registro.** `AuditLog.actorId` è una **chiave esterna su `user`**, ma chi scrive non sempre ha un
+  utente per le mani e ci mette una stringa che spiega chi è stato: `'stripe-webhook'` sull'audit
+  `commerce.payment.approve` di **tutti i pagamenti con carta**, `'public'` sul lead che arriva dal
+  form del sito. L'INSERT viola il vincolo, `AuditService` assorbe l'eccezione — ed è giusto che la
+  assorba, un pagamento non deve fallire per una riga di registro — ⚠️ **ma la riga si perdeva in
+  silenzio**, e non c'era niente che lo dicesse: lo si scopre il giorno in cui si va a leggere il
+  registro di un pagamento, cioè quando serve. ⚠️ **Scartato l'elenco di stringhe da riconoscere**
+  («se è `public` allora…»): il giorno che qualcuno ne inventa una nuova siamo daccapo, ed è
+  precisamente quello che è successo fra la prima e la seconda. Ora se l'INSERT fallisce e un attore
+  c'era si riprova **una volta sola** senza attore, conservando nel `metadata` chi diceva di essere
+  (`attoreNonUtente`) e lasciando un `warn` — un ripiego che non si vede diventa la norma. ⚠️ Se
+  l'attore non c'era non si riprova: il guasto è un altro. Le righe perse **non tornano**: non ci
+  sono i dati per ricostruirle. 3 test.
+
+---
+
 ## 2026-08-18
 
 - `[Sviluppo]` ⭐ **Le stelle mai date non orientano più il motore** (voce 270, chiusa nella notte con

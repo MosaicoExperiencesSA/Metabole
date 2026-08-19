@@ -141,13 +141,48 @@ describe('ClientsService.updatePlanStart', () => {
     expect(r.plan).toBe('Prova Gratuita');
   });
 
-  it('con la nuova fine nel futuro riporta la prova scaduta ad ATTIVO', async () => {
+  /**
+   * ⚠️ SPOSTARE L'INIZIO NEL FUTURO RIMETTE IL PIANO **IN CODA**, NON ATTIVO (19/8, voce 258).
+   *
+   * Fino al 18/8 qui si scriveva `active` con la partenza fra due giorni, che è la forma ambigua
+   * che questa voce toglie di mezzo: la stessa parola diceva «sta erogando» e «comincia giovedì».
+   * Un piano che comincia giovedì è in coda fino a giovedì, e ci pensa la promozione notturna a
+   * farlo partire — che è anche il motivo per cui `reactivated` qui è **falso**: la scheda non deve
+   * scrivere «riattivato» di un piano che oggi non eroga niente.
+   */
+  it('⚠️ con l\'inizio spostato AVANTI la prova scaduta torna IN CODA, non attiva', async () => {
     const r = await service.updatePlanStart('giusy', 'admin', iso(inDays(2)));
 
-    expect(r.reactivated).toBe(true);
+    expect(r.status).toBe('queued');
+    expect(r.reactivated).toBe(false);
+    expect(prisma.subscription.update.mock.calls[0][0].data.status).toBe('queued');
+  });
+
+  /** ⚠️ E spostato a OGGI riparte davvero, senza aspettare la passata notturna. */
+  it('⚠️ con l\'inizio spostato a OGGI la prova scaduta torna ATTIVA', async () => {
+    const r = await service.updatePlanStart('giusy', 'admin', iso(inDays(0)));
+
     expect(r.status).toBe('active');
-    const data = prisma.subscription.update.mock.calls[0][0].data;
-    expect(data.status).toBe('active');
+    expect(r.reactivated).toBe(true);
+    expect(prisma.subscription.update.mock.calls[0][0].data.status).toBe('active');
+  });
+
+  /**
+   * ⚠️ UNA CODA ANTICIPATA A OGGI DEVE PARTIRE OGGI (19/8, voce 258).
+   *
+   * `queued` è uno stato nuovo, e l'elenco degli stati che la matita può riscrivere era stato
+   * scritto quando non esisteva. Lasciandolo fuori, la matita salvava le date nuove e **lo stato
+   * vecchio**: la cliente vedeva la data giusta sulla scheda e i menu le arrivavano il giorno dopo,
+   * quando passava il lavoro notturno. È un difetto che si vede solo dal lato di chi aspetta.
+   */
+  it('⚠️ la coda anticipata a OGGI parte adesso, non alla passata notturna', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { id: 'sub-coda', status: 'queued', startDate: inDays(10), endDate: inDays(100), plan: { name: '3 mesi', period: '3m' } },
+    ]);
+    const r = await service.updatePlanStart('lorena', 'admin', iso(inDays(0)), true);
+
+    expect(r.status).toBe('active');
+    expect(prisma.subscription.update.mock.calls[0][0].data.status).toBe('active');
   });
 
   it('se la nuova fine resta nel PASSATO non riattiva niente (confermando l\'avviso)', async () => {

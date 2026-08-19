@@ -266,6 +266,25 @@ describe('SignalsService', () => {
     );
   });
 
+  /**
+   * ⚠️ IL CHECK-IN SI CHIEDE ANCHE A CHI COMINCIA LUNEDÌ (19/8, voce 258).
+   *
+   * «Come ti senti oggi?» è legato al piano perché a piano scaduto è una domanda senza seguito. Ma
+   * una cliente che ha appena pagato ha **una riga sola**, in coda: leggendo i soli `active` il filo
+   * con lei si spegneva proprio nei giorni fra il pagamento e la partenza — quelli in cui è più
+   * contenta di essere seguita.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`.
+   */
+  it('⚠️ todayStatus: col solo piano IN CODA il check-in si chiede lo stesso', async () => {
+    prisma.subscription.findMany.mockImplementation(({ where }: { where: { status?: unknown } }) => {
+      const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];
+      return Promise.resolve(ammessi.includes('queued') ? [{ status: 'queued', endDate: null }] : []);
+    });
+    expect((await service.todayStatus('u1')).hasActivePlan).toBe(true);
+  });
+
   it('todayStatus: segnala il check-in mancante per il popup', async () => {
     const status = await service.todayStatus('u1');
     expect(status.checkinDone).toBe(false);

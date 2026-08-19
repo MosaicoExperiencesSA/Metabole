@@ -86,6 +86,37 @@ describe('CoachService.dashboard', () => {
     expect(res.expiringPlans).toHaveLength(1);
   });
 
+  /**
+   * ⚠️ ANCHE I PIANI IN CODA NELLE SCADENZE IN ARRIVO (19/8, voce 258). Una cliente il cui piano
+   * scade fra due settimane va richiamata adesso, e che quel piano sia già cominciato o cominci
+   * lunedì non cambia niente per chi deve prendere il telefono. Leggendo i soli `active` la coda
+   * spariva dall'elenco — e la coach perdeva proprio le clienti che hanno comprato di recente.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`.
+   */
+  it('⚠️ le scadenze in arrivo comprendono i piani in coda', async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
+      clientProfile: { count: jest.fn().mockResolvedValue(1) },
+      subscription: {
+        findMany: jest.fn(({ where }: any) => {
+          const ammessi: string[] = where?.status?.in ?? [where?.status];
+          return Promise.resolve(
+            ammessi.includes('queued')
+              ? [{ clientId: 'c1', endDate: D('2026-07-20'), client: { clientProfile: { name: 'Anna' } } }]
+              : [],
+          );
+        }),
+      },
+      alert: { count: jest.fn().mockResolvedValue(0) },
+      ledgerEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amountCents: 0 } }) },
+    };
+    const res = (await makeService(prisma).dashboard(user)) as { expiringPlans: unknown[] };
+    expect(res.expiringPlans).toHaveLength(1);
+  });
+
   it('nessuno staff → isCoach false', async () => {
     const prisma = { user: { findUnique: jest.fn().mockResolvedValue({ role: 'coach' }) }, staff: { findUnique: jest.fn().mockResolvedValue(null) } };
     const res = await makeService(prisma).dashboard(user);

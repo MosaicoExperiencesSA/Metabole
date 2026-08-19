@@ -2,11 +2,13 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
@@ -31,6 +33,8 @@ const FREEZE_ABS_MAX_DAYS = 90;
 
 @Injectable()
 export class PauseService {
+  /** ⚠️ La pausa che non sposta niente deve dirlo: è un regalo promesso e non dato. */
+  private readonly logger = new Logger(PauseService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -549,12 +553,34 @@ export class PauseService {
      * da lei. La pausa deve allungare il piano che sta erogando ADESSO, che è la stessa riga che
      * `menu.service` usa per decidere fino a quando consegnare i menu.
      */
+    /**
+     * ⚠️ Anche i piani in coda (19/8, voce 258): `attivoInCorso` sceglie comunque quello che sta
+     * erogando, e leggere i soli `active` faceva tornare `null` a chi ha una coda soltanto — i
+     * giorni di pausa venivano concessi senza essere sommati a nessuna scadenza, cioè persi. Il caso
+     * che conta è la coda con la partenza **già arrivata**: la promozione notturna è in ritardo, i
+     * menu stanno arrivando, e quei giorni sono giorni veri.
+     */
     const attivi = await this.prisma.subscription.findMany({
-      where: { clientId, status: 'active' },
+      where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
       select: { id: true, status: true, startDate: true, endDate: true },
     });
     const sub = attivoInCorso(attivi);
     if (!sub || !sub.endDate) return null;
+    /**
+     * ⚠️ **Un piano che non è ancora cominciato non si allunga.** Allungare la fine di un piano che
+     * partirà fra due mesi vorrebbe dire regalare giorni per una pausa in cui lei non ha perso
+     * niente: non c'era nessun menu da sospendere. Cosa debba fare una pausa chiesta prima della
+     * partenza — spostare l'inizio? rifiutarla? — è una domanda di prodotto e non la decide questo
+     * metodo: qui si dice che non si è fatto niente, e la si lascia a chi può rispondere.
+     */
+    if (sub.startDate && sub.startDate.getTime() > Date.now()) {
+      this.logger.warn(
+        `Pausa di ${days} giorni su ${clientId}: il piano comincia il ${sub.startDate.toISOString().slice(0, 10)} ` +
+          'e non è ancora partito, quindi la scadenza non è stata spostata. Nessun giorno di menu è andato perso, ' +
+          'ma se la pausa cade dentro il piano va rivista a mano.',
+      );
+      return null;
+    }
     const newEnd = new Date(sub.endDate.getTime() + days * 86_400_000);
     await this.prisma.subscription.update({ where: { id: sub.id }, data: { endDate: newEnd } });
     return newEnd;

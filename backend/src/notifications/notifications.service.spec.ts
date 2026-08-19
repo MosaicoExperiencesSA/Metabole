@@ -69,7 +69,11 @@ describe('NotificationsService', () => {
       recipeRating: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       staff: { findUnique: jest.fn().mockResolvedValue({ userId: 'nutri-user' }) },
       // Piano attivo (endDate futura) → il messaggio quotidiano "piano di oggi" può partire.
-      subscription: { findFirst: jest.fn().mockResolvedValue({ endDate: new Date(Date.now() + 7 * 86_400_000) }) },
+      subscription: {
+        findFirst: jest.fn().mockResolvedValue({ endDate: new Date(Date.now() + 7 * 86_400_000) }),
+        // Il giro dei solleciti misure legge tutte le clienti con un piano comprato.
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     const config = {
       getNumber: jest.fn((key: string) =>
@@ -121,6 +125,50 @@ describe('NotificationsService', () => {
     const engineCall = prisma.notification.create.mock.calls.find((c: any) => c[0].data.type === 'engine_daily');
     expect(engineCall[0].data.payload.tone).toBe('encouraging');
     expect(engineCall[0].data.payload.composer).toBe('template');
+  });
+
+  /**
+   * ⚠️ IL MESSAGGIO QUOTIDIANO VALE ANCHE PER CHI COMINCIA DOMANI (19/8, voce 258).
+   *
+   * «Il tuo piano di oggi» non si manda a chi ha il piano scaduto — il link la porterebbe a un
+   * percorso finito. Ma una cliente che ha appena pagato ha **una riga sola**, in coda: leggendo i
+   * soli `active` il messaggio taceva proprio nei giorni di anteprima, quelli in cui i menu si
+   * compongono già e lei li può guardare. Una schermata che mostra il menu e un messaggio che dice
+   * che non c'è sono la stessa app che si contraddice.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`.
+   */
+  /**
+   * ⚠️ IL SOLLECITO DELLE MISURE VALE ANCHE PER CHI COMINCIA LUNEDÌ — 19/8, quarta revisione.
+   *
+   * `measurementGate` chiede la misura di partenza già nella **finestra di anteprima**, cioè prima
+   * che il piano cominci. Se il giro dei solleciti guardasse i soli `active`, la cliente in coda si
+   * troverebbe l'app ferma sulla schermata «servono le tue misure» senza ricevere nessuna push e
+   * senza che nasca il compito per la coach: il blocco senza la richiesta, cioè la punizione senza
+   * la domanda.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`.
+   */
+  it('⚠️ il sollecito misure raggiunge anche chi ha il piano IN CODA', async () => {
+    prisma.subscription.findMany.mockImplementation(({ where }: any) => {
+      const ammessi: string[] = where?.status?.in ?? [where?.status];
+      return Promise.resolve(ammessi.includes('queued') ? [{ clientId: 'u1' }] : []);
+    });
+    menu.measurementGate.mockResolvedValue({ blocking: true, level: 'soft' });
+    const esito = await service.measuresNudgeTick();
+    expect(esito.controllate).toBe(1);
+  });
+
+  it('⚠️ col solo piano IN CODA il messaggio quotidiano parte lo stesso', async () => {
+    prisma.subscription.findFirst.mockImplementation(({ where }: any) => {
+      const ammessi: string[] = where?.status?.in ?? [where?.status];
+      return Promise.resolve(
+        ammessi.includes('queued') ? { status: 'queued', endDate: new Date(Date.now() + 7 * 86_400_000) } : null,
+      );
+    });
+    expect(await service.generateDailyForClient('u1')).toContain('engine_daily');
   });
 
   it('MAI due notifiche dello stesso tipo nello stesso giorno', async () => {

@@ -248,7 +248,10 @@ export class CoachService {
       this.prisma.clientProfile.count({ where: { assignedCoachId: { in: scope } } }),
       this.prisma.subscription.findMany({
         where: {
-          status: 'active',
+          // ⚠️ Anche in coda (19/8, voce 258): una cliente il cui piano scade fra due settimane va
+          // richiamata adesso, e che quel piano sia già cominciato o cominci lunedì non cambia
+          // niente per chi deve prendere il telefono.
+          status: { in: STATI_CON_UN_PIANO as never },
           endDate: { gte: now, lte: horizon },
           client: { clientProfile: { assignedCoachId: { in: scope } } },
         },

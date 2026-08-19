@@ -121,7 +121,7 @@ const PIANO_MANT = { id: 'pm', name: 'Mantenimento Metabole', priceCents: 2900, 
  * ultima misura 68 o 80). `consent` serve perche' `subscribe` controlla anche quello: lo teniamo
  * acceso, cosi' se un test fallisce sappiamo che e' per il mantenimento e non per il consenso.
  */
-type StatoMantenimento = 'mai' | 'in_corso' | 'scaduto' | 'disdetto_fine_futura' | 'rinnovato';
+type StatoMantenimento = 'mai' | 'in_corso' | 'scaduto' | 'disdetto_fine_futura' | 'rinnovato' | 'scaduto_e_ricomprato';
 
 function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; mantenimento?: StatoMantenimento }) {
   const plans = opts.plans ?? [PIANO_3M, PIANO_MANT];
@@ -141,12 +141,26 @@ function fakePrisma(opts: { reached: boolean; plans?: typeof PIANO_3M[]; manteni
     if (w.plan?.period !== 'maintenance') return null;
     const chiedeInCorso = !!w.status;
     if (chiedeInCorso) {
-      // In corso: la fine non è passata. Comprende il DISDETTO con fine nel futuro — il mese pagato
-      // è suo — e il rinnovato, che sposta la fine in avanti.
-      return ['in_corso', 'rinnovato', 'disdetto_fine_futura'].includes(mant) ? { id: 'sub-mant-attivo' } : null;
+      /**
+       * In corso: la fine non è passata. Comprende il DISDETTO con fine nel futuro — il mese pagato
+       * è suo — e il rinnovato, che sposta la fine in avanti.
+       *
+       * ⚠️ Il finto guarda QUALI stati vengono chiesti (19/8, voce 258) e non solo se c'è un filtro:
+       * altrimenti un mantenimento IN CODA risulterebbe «in corso» qualunque cosa chiedesse il
+       * codice, e il test non vedrebbe la differenza fra chiedere `queued` e non chiederlo.
+       */
+      const ammessi: string[] = (w.status as unknown as { in?: string[] })?.in ?? [w.status as unknown as string];
+      const statoDellaRiga: Record<string, string | undefined> = {
+        in_corso: 'active',
+        rinnovato: 'active',
+        disdetto_fine_futura: 'cancelled',
+        scaduto_e_ricomprato: 'queued',
+      };
+      const riga = statoDellaRiga[mant];
+      return riga && ammessi.includes(riga) ? { id: 'sub-mant-attivo' } : null;
     }
     // Concluso: esiste un mantenimento con la fine già passata.
-    return mant === 'scaduto' ? { id: 'sub-mant-scaduto' } : null;
+    return ['scaduto', 'scaduto_e_ricomprato'].includes(mant) ? { id: 'sub-mant-scaduto' } : null;
   });
   return {
     plan: {
@@ -332,6 +346,23 @@ describe('Il Monitoraggio: solo a mantenimento scaduto e non rinnovato', () => {
 
   it('mantenimento SCADUTO e non rinnovato → si vede', async () => {
     expect(await vetrina('scaduto')).toContain('pmon');
+  });
+
+  /**
+   * ⚠️ IL MANTENIMENTO RICOMPRATO E CHE COMINCIA LUNEDÌ NASCONDE IL MONITORAGGIO (19/8, voce 258).
+   *
+   * È il caso che rimetteva in piedi il difetto: mantenimento finito, la cliente ne ricompra subito
+   * un altro con partenza fra qualche giorno. Da quando la coda si scrive `queued`, chiedere i soli
+   * `active` non la vedeva — quindi «concluso e nessuno in corso», e il Monitoraggio da €19 tornava
+   * in vetrina **sopra** un Mantenimento già pagato.
+   *
+   * E non è solo una riga di troppo: `MonitoringService.start` legge `STATI_QUALCOSA_IN_BALLO`, che
+   * la coda ce l'ha. La vetrina glielo offriva e l'acquisto lo rifiutava con «Hai già un piano
+   * attivo» — due condizioni sulla stessa domanda che si contraddicono, cioè la schermata da cui una
+   * cliente scrive alla coach.
+   */
+  it('⚠️ mantenimento scaduto ma già RICOMPRATO (in coda) → il Monitoraggio non torna in vetrina', async () => {
+    expect(await vetrina('scaduto_e_ricomprato')).not.toContain('pmon');
   });
 
   it('il mantenimento resta comprabile in tutti questi casi: la regola riguarda solo il monitoraggio', async () => {

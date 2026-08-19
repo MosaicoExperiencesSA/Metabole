@@ -133,6 +133,206 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
   });
 
+  /**
+   * IL PIANO IN CODA E I DUE GIORNI DI ANTEPRIMA — voce 258, 19/8.
+   *
+   * Fino al 18/8 un piano che comincia più avanti era scritto `active` con la partenza nel futuro,
+   * quindi entrava da solo nell'erogazione: è così che i menu si compongono nei giorni di anteprima
+   * (`menu_visible_days_before_start`) **prima** che il piano cominci. Da quando nasce `queued`,
+   * leggere solo `active` faceva sparire quell'anteprima — e siccome il gate delle misure sta dopo
+   * la finestra, la cliente avrebbe perso anche il primo giorno di piano.
+   */
+  it('⚠️ il piano IN CODA compone i giorni di anteprima, come faceva quando era scritto `active`', async () => {
+    const domani = daysFromToday(1);
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(domani),
+      regime: 'omnivore',
+      dietStyle: 'mediterranean',
+      mealsPerDay: 5,
+      intolerances: [],
+      assignedNutritionistId: null,
+    });
+    prisma.subscription.findMany.mockResolvedValue([
+      { id: 'sub-coda', status: 'queued', startDate: D(domani), endDate: D(daysFromToday(90)), plan: { priceCents: 29700, period: '3m' } },
+    ]);
+    const created = await service.deliverIfEligible('u1');
+    expect(created).toEqual([domani, daysFromToday(2)]);
+    // ⚠️ E la coda dev'essere stata CHIESTA al database: il finto Prisma non filtra, quindi senza
+    // questa riga il test passerebbe anche leggendo i soli `active` — cioè non verificherebbe niente.
+    expect(prisma.subscription.findMany.mock.calls[0][0].where.status).toEqual({
+      in: expect.arrayContaining(['active', 'queued']),
+    });
+  });
+
+  /** ⚠️ Ma non anticipa niente: la finestra di visibilità resta il solo cancello. */
+  it('⚠️ un piano in coda che parte fra un mese non compone un bel niente', async () => {
+    const fraUnMese = daysFromToday(30);
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(fraUnMese),
+      regime: 'omnivore',
+      dietStyle: 'mediterranean',
+      mealsPerDay: 5,
+      intolerances: [],
+      assignedNutritionistId: null,
+    });
+    prisma.subscription.findMany.mockResolvedValue([
+      { id: 'sub-coda', status: 'queued', startDate: D(fraUnMese), endDate: D(daysFromToday(120)), plan: { priceCents: 29700, period: '3m' } },
+    ]);
+    expect(await service.deliverIfEligible('u1')).toEqual([]);
+  });
+
+  /**
+   * ⚠️ E QUELLO CHE LEGGE LEI. Una cliente che compra oggi con partenza fra dieci giorni ha una
+   * riga sola, in coda: leggendo solo `active` l'app le scriveva «il tuo piano è terminato,
+   * riattiva un piano dal Negozio» il giorno stesso in cui aveva pagato. Deve leggere la data.
+   */
+  it('⚠️ con il solo piano in coda l\'app dice QUANDO comincia, non «percorso concluso»', async () => {
+    const fraDieciGiorni = daysFromToday(10);
+    prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: D(fraDieciGiorni) });
+    prisma.subscription.findMany.mockResolvedValue([
+      { status: 'queued', endDate: D(daysFromToday(100)) },
+    ]);
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    const stato = await service.menuStatus('u1', false);
+    expect(stato.state).toBe('scheduled');
+    expect(stato.availableFrom).toBe(daysFromToday(8)); // due giorni prima dell'inizio
+  });
+
+  /**
+   * ⚠️ CHI COMPRA IL RINNOVO IN ANTICIPO NON DEVE SMETTERE DI RICEVERE I MENU — trovato il 19/8
+   * rileggendo, ed era già in produzione dal 10/8.
+   *
+   * L'acquisto in coda riallinea `clientProfile.planStartDate` alla partenza del piano NUOVO, così
+   * che scheda e scadenza raccontino la stessa data. Ma l'erogazione misurava la sua finestra
+   * proprio su `planStartDate`: quindi il giorno in cui una cliente comprava il rinnovo con due mesi
+   * d'anticipo, per l'erogazione diventava «troppo presto» e i menu si fermavano — sul piano che
+   * stava ancora pagando. La finestra è del piano che eroga, ed è `attivoInCorso` a dire qual è.
+   */
+  it('⚠️ il piano in corso continua a erogare anche dopo che la cliente ha comprato la coda', async () => {
+    const fra60 = daysFromToday(60);
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(fra60), // riallineata dall'acquisto in coda: è la partenza del piano NUOVO
+      regime: 'omnivore',
+      dietStyle: 'mediterranean',
+      mealsPerDay: 5,
+      intolerances: [],
+      assignedNutritionistId: null,
+    });
+    prisma.subscription.findMany.mockResolvedValue([
+      { id: 'A', status: 'active', startDate: D(daysFromToday(-30)), endDate: D(fra60), plan: { priceCents: 29700, period: '3m' } },
+      { id: 'B', status: 'queued', startDate: D(fra60), endDate: D(daysFromToday(150)), plan: { priceCents: 29700, period: '3m' } },
+    ]);
+    // Il piano A va avanti da un mese: l'ultima giornata erogata è quella di ieri.
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(-1)) });
+    expect(await service.deliverIfEligible('u1')).toEqual([todayIso, daysFromToday(1)]);
+  });
+
+  /** ⚠️ E la schermata dice la stessa cosa: non «il menu comparirà fra due mesi». */
+  it('⚠️ e l\'app non le annuncia il menu fra due mesi mentre il piano di adesso è suo', async () => {
+    const fra60 = daysFromToday(60);
+    prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: D(fra60) });
+    prisma.subscription.findMany.mockResolvedValue([
+      { status: 'active', startDate: D(daysFromToday(-30)), endDate: D(fra60) },
+      { status: 'queued', startDate: D(fra60), endDate: D(daysFromToday(150)) },
+    ]);
+    prisma.subscription.findFirst.mockResolvedValue(null);
+    expect((await service.menuStatus('u1', false)).state).not.toBe('scheduled');
+  });
+
+  /**
+   * LE ALTRE QUATTRO LETTURE DI QUESTO FILE — voce 258, 19/8.
+   *
+   * `menuStatus` e l'erogazione non sono gli unici punti che qui dentro chiedono «ha un piano?»: ce
+   * ne sono altri quattro, e leggevano tutti `status: 'active'`. Fino al 18/8 non si vedeva, perché
+   * la coda era scritta `active`; da quando nasce `queued` ognuno sbaglia in un modo diverso e **in
+   * silenzio**, che è il modo in cui questi difetti fanno danno.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, questi test passerebbero anche
+   * leggendo i soli `active`, cioè non verificherebbero niente.
+   */
+  describe('le letture che devono vedere anche il piano in coda', () => {
+    /** Una cliente con un piano solo, in coda, che comincia domani. */
+    const soloInCoda = (period: string | null) => {
+      const coda = { id: 'sub-coda', status: 'queued', startDate: D(daysFromToday(1)), endDate: D(daysFromToday(90)), plan: { priceCents: 29700, period } };
+      // Senza filtro sullo stato la domanda è «tutti i suoi abbonamenti»: la coda c'è. Con un
+      // filtro, c'è solo se `queued` è fra gli stati chiesti — è il punto di questi test.
+      const filtra = ({ where }: any) => {
+        if (!where?.status) return coda;
+        const ammessi: string[] = where.status.in ?? [where.status];
+        return ammessi.includes('queued') ? coda : null;
+      };
+      prisma.subscription.findFirst.mockImplementation((args: any) => Promise.resolve(filtra(args)));
+      prisma.subscription.findMany.mockImplementation((args: any) => Promise.resolve([filtra(args)].filter(Boolean)));
+      prisma.clientProfile.findUnique.mockResolvedValue({
+        planStartDate: D(daysFromToday(1)),
+        regime: 'omnivore',
+        dietStyle: 'mediterranean',
+        mealsPerDay: 5,
+        intolerances: [],
+        assignedNutritionistId: null,
+      });
+    };
+
+    /**
+     * ⚠️ «Il Monitoraggio non prevede menu» va DETTO. Senza questo ramo la cliente resta su «Menu in
+     * preparazione», che è una bugia gentile: aspetta qualcosa che non arriverà e prima o poi scrive
+     * alla coach per un guasto che non c'è. Un Monitoraggio che comincia domani è esattamente la
+     * stessa ragione per cui i menu non arriveranno.
+     */
+    it('⚠️ il Monitoraggio IN CODA lo dice: «monitoring», non «menu in preparazione»', async () => {
+      soloInCoda('monitoring');
+      expect((await service.menuStatus('u1', false)).state).toBe('monitoring');
+    });
+
+    /**
+     * ⚠️ DUE RIGHE, E LA SCELTA NON PUÒ ESSERE «LA PRIMA CHE CAPITA».
+     *
+     * Una cliente in Monitoraggio che compra il piano alimentare ha due abbonamenti: quello che
+     * eroga e quello in coda. Qui c'era un `findFirst` **senza `orderBy`**, quindi il database ne
+     * restituiva uno a caso: metà delle volte l'app diceva «Menu in preparazione» a chi è in
+     * Monitoraggio — dove i menu non arriveranno mai — e metà «monitoring» a chi aspetta il piano
+     * alimentare. Chi decide qual è il piano di adesso è `attivoInCorso`, la stessa funzione
+     * dell'erogazione: una domanda, una risposta.
+     */
+    it('⚠️ Monitoraggio che eroga + piano alimentare in coda: vince chi eroga, non la prima riga', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: D(daysFromToday(1)) });
+      prisma.subscription.findMany.mockResolvedValue([
+        // La coda per prima, di proposito: se qualcuno tornasse a prendere «la prima», si vedrebbe.
+        { id: 'coda', status: 'queued', startDate: D(daysFromToday(1)), endDate: D(daysFromToday(90)), plan: { period: '3m' } },
+        { id: 'mon', status: 'active', startDate: D(daysFromToday(-30)), endDate: D(daysFromToday(30)), plan: { period: 'monitoring' } },
+      ]);
+      expect((await service.menuStatus('u1', false)).state).toBe('monitoring');
+    });
+
+    /**
+     * ⚠️ E il gate delle misure: in Monitoraggio il peso **si chiede, non si impone** (decisione di
+     * Simone, 9/8). Senza riconoscere il Monitoraggio in coda, chi paga €19 al mese si ritrovava il
+     * popup bloccante che chiede le misure per un menu che non arriverà — e dalla sua parte non c'è
+     * nessun modo di uscirne.
+     */
+    it('⚠️ in Monitoraggio, anche se comincia domani, il popup misure non blocca l\'app', async () => {
+      soloInCoda('monitoring');
+      prisma.measurement.findFirst.mockResolvedValue(null);
+      prisma.measurement.count.mockResolvedValue(0);
+      expect(await service.measurementGate('u1')).toMatchObject({ required: false, blocking: false });
+    });
+
+    /**
+     * ⚠️ E sul piano alimentare la misura di partenza SI CHIEDE, dentro la finestra di anteprima —
+     * cioè prima che il piano cominci. È il motivo per cui il primo giorno di menu parte puntuale:
+     * chiedendola solo a piano partito, il popup arriverebbe la mattina stessa e il primo giorno si
+     * perderebbe. Con la coda invisibile qui usciva «non manca niente», e non gliela chiedeva
+     * nessuno.
+     */
+    it('⚠️ sul piano alimentare in coda la pesata di partenza si chiede lo stesso', async () => {
+      soloInCoda('3m');
+      prisma.measurement.findFirst.mockResolvedValue(null);
+      prisma.measurement.count.mockResolvedValue(0);
+      prisma.menuDay.findFirst.mockResolvedValue(null);
+      expect(await service.measurementGate('u1')).toMatchObject({ required: true, blocking: true });
+    });
+  });
+
   it('SENZA abbonamento attivo il menu non si genera (gating bonifico)', async () => {
     prisma.subscription.findFirst.mockResolvedValue(null);
     // ⚠️ Anche `findMany`: dal 17/8 l'erogazione legge TUTTI gli attivi e sceglie quello in corso

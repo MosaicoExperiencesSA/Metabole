@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
@@ -26,6 +27,7 @@ import { attivoInCorso } from './abbonamento-in-corso';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { coachTeamScope } from '../common/coach-team';
+import { aGiorno } from '../common/date-only';
 import { emettiEventoFunnel } from './funnel-event';
 import { assicuraProvaIniziata } from './prova-attivata';
 import { isTrialPlan, messaggioData, validaDataInizio } from './piano-prova';
@@ -33,7 +35,7 @@ import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
-import { STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
+import { statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -225,6 +227,8 @@ export function metadatiAbbonamentoDaFattura(inv: unknown): { subscriptionId?: s
 
 @Injectable()
 export class CommerceService {
+  /** ⚠️ La promozione delle code parla nei log: se non gira, la cliente resta senza menu. */
+  private readonly logger = new Logger(CommerceService.name);
   private readonly receiptKey: Buffer;
 
   constructor(
@@ -398,7 +402,11 @@ export class CommerceService {
       this.prisma.subscription.findFirst({
         where: {
           clientId,
-          status: { in: ['active', 'cancelled'] },
+          // ⚠️ `queued` compreso (19/8): un Mantenimento comprato e che comincia lunedì è già
+          // comprato. Senza, il Monitoraggio tornava in vetrina sopra un piano pagato — e
+          // `MonitoringService.start`, che legge `STATI_QUALCOSA_IN_BALLO`, lo rifiutava con
+          // «Hai già un piano attivo». Due condizioni sulla stessa domanda, divergenti.
+          status: { in: ['active', 'queued', 'cancelled'] },
           plan: { period: MAINTENANCE_PERIOD },
           OR: [{ endDate: null }, { endDate: { gte: oggi } }],
         } as never,
@@ -528,7 +536,11 @@ export class CommerceService {
       data: {
         clientId,
         planId: piano.id,
-        status: 'active' as never,
+        // ⚠️ Anche «Conosciamoci» rispetta il vocabolario (19/8, voce 258): la data d'inizio la
+        // sceglie la cliente in fondo al questionario e può essere fra due settimane. Scrivendo
+        // sempre `active` questo punto continuava a produrre la forma vecchia — e due clienti nella
+        // stessa identica situazione, una in prova e una a pagamento, vedevano schermate opposte.
+        status: statoPerInizio(inizio) as never,
         startDate: inizio,
         endDate: subscriptionEnd(inizio, period),
       },
@@ -1396,7 +1408,10 @@ export class CommerceService {
    */
   async myRecurring(clientId: string) {
     const sub = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' as never, stripeSubscriptionId: { not: null } } as never,
+      // ⚠️ Anche in coda (19/8, voce 258): un abbonamento Stripe comprato per cominciare più avanti
+      // viene addebitato **da subito**. Cercando i soli `active` il profilo non mostrava niente e la
+      // disdetta rispondeva «Nessun abbonamento da disdire»: pagava e non poteva uscire.
+      where: { clientId, status: { in: STATI_CON_UN_PIANO }, stripeSubscriptionId: { not: null } } as never,
       orderBy: { endDate: 'desc' },
       select: {
         id: true, endDate: true, cancelAtPeriodEnd: true, lastPaymentFailedAt: true,
@@ -1428,7 +1443,8 @@ export class CommerceService {
    */
   async cancelMyRecurring(clientId: string) {
     const sub = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' as never, stripeSubscriptionId: { not: null } } as never,
+      // ⚠️ Anche in coda: si disdice un abbonamento che Stripe sta già addebitando (vedi `myRecurring`).
+      where: { clientId, status: { in: STATI_CON_UN_PIANO }, stripeSubscriptionId: { not: null } } as never,
       orderBy: { endDate: 'desc' },
       select: { id: true, stripeSubscriptionId: true, endDate: true },
     })) as { id: string; stripeSubscriptionId: string | null; endDate: Date | null } | null;
@@ -1451,7 +1467,8 @@ export class CommerceService {
   /** Ripensamento: annulla la disdetta finché il periodo pagato non è finito. */
   async resumeMyRecurring(clientId: string) {
     const sub = (await this.prisma.subscription.findFirst({
-      where: { clientId, status: 'active' as never, cancelAtPeriodEnd: true } as never,
+      // ⚠️ Anche in coda: si ripensa una disdetta che si è potuta fare (vedi `cancelMyRecurring`).
+      where: { clientId, status: { in: STATI_CON_UN_PIANO }, cancelAtPeriodEnd: true } as never,
       select: { id: true, stripeSubscriptionId: true },
     })) as { id: string; stripeSubscriptionId: string | null } | null;
     if (!sub?.stripeSubscriptionId) throw new NotFoundException('Nessuna disdetta da annullare.');
@@ -1614,7 +1631,7 @@ export class CommerceService {
           include: { plan: true, client: { select: { email: true, locale: true } } },
         })) as
           | {
-              id: string; clientId: string; endDate: Date | null;
+              id: string; clientId: string; status: string; startDate: Date | null; endDate: Date | null;
               plan: { name: string } | null;
               client: { email: string; locale: string | null } | null;
             }
@@ -1670,8 +1687,25 @@ export class CommerceService {
       : (() => { const d = new Date(sub.endDate ?? new Date()); d.setMonth(d.getMonth() + 1); return d; })();
     await this.prisma.subscription.update({
       where: { id: sub.id },
-      // Il rinnovo riuscito chiude anche l'eventuale serie di tentativi falliti.
-      data: { status: 'active', endDate: nuovaFine, lastPaymentFailedAt: null } as never,
+      data: {
+        /**
+         * ⚠️ **UNA FATTURA PAGATA NON È IL GIORNO D'INIZIO** (19/8, voce 258). Un abbonamento
+         * ricorrente comprato per cominciare più avanti viene addebitato da subito: se la coda è più
+         * lunga di un ciclo di fatturazione, qui si scriveva `active` su un piano che comincia fra
+         * due settimane — la forma ambigua — e da lì la riga usciva **per sempre** dal raggio di
+         * `promuoviCodeArrivate`, che cerca i `queued`: nessuno le avrebbe più detto «adesso».
+         *
+         * ⚠️ Una coda resta una coda, e basta: **non** si ricalcola lo stato dalla data. Ricalcolarlo
+         * sembrava più pulito, ma la promozione ragiona per **giorno** e il calcolo per **istante** —
+         * un piano promosso stanotte alle 5, con la partenza scritta alle 14, sarebbe stato rispedito
+         * in coda da una fattura arrivata a mezzogiorno, e ci sarebbe rimasto fino al giorno dopo.
+         * Chi fa partire i piani è uno solo.
+         */
+        status: (sub.status === 'queued' ? 'queued' : 'active') as never,
+        endDate: nuovaFine,
+        // Il rinnovo riuscito chiude anche l'eventuale serie di tentativi falliti.
+        lastPaymentFailedAt: null,
+      } as never,
     });
 
     /**
@@ -1975,8 +2009,23 @@ export class CommerceService {
       // CODA: se la cliente ha già un altro abbonamento attivo che termina nel futuro,
       // il nuovo NON parte subito ma alla scadenza di quello (rinnovo/secondo piano in
       // coda). Altrimenti parte oggi. Così può comprare in anticipo senza sovrapporre.
+      /**
+       * ⚠️ **`STATI_CON_UN_PIANO` e non `'active'`** (19/8, voce 258). Da quando la coda si scrive
+       * `queued`, cercando solo gli `active` questa riga non vedeva più le code: una cliente con un
+       * piano in corso E una coda che compra un terzo piano se lo ritrovava sovrapposto per intero
+       * a quello già pagato, e chi ha come unico piano una coda vedeva il nuovo partire OGGI, sopra
+       * di lei. È il caso Lorena, riaperto dalla scrittura nuova.
+       *
+       * `orderBy endDate desc` prende la fine più lontana fra tutti i piani comprati: il nuovo si
+       * accoda a **tutti**, che è l'unica scelta che non toglie giorni a nessuno.
+       */
       const activeAhead = (await this.prisma.subscription.findFirst({
-        where: { clientId: payment.clientId, id: { not: payment.subscriptionId }, status: 'active', endDate: { gt: now } } as never,
+        where: {
+          clientId: payment.clientId,
+          id: { not: payment.subscriptionId },
+          status: { in: STATI_CON_UN_PIANO },
+          endDate: { gt: now },
+        } as never,
         orderBy: { endDate: 'desc' },
         select: { endDate: true },
       })) as { endDate: Date | null } | null;
@@ -2038,9 +2087,33 @@ export class CommerceService {
         });
       }
       const end = subscriptionEnd(start, safePeriod);
+      /**
+       * ⚠️ IL PIANO CHE PARTE PIÙ AVANTI NASCE `queued`, NON `active` (voce 258, seconda metà —
+       * 19/8, dopo la fotografia di `npm run diag:coda`).
+       *
+       * Fino a oggi un piano in coda si scriveva `active` con la data d'inizio nel futuro: le date
+       * lo tenevano fuori dall'erogazione, e ha funzionato — ma **la stessa parola diceva due
+       * cose**, «sta erogando» e «comincia fra tre settimane», e ognuno dei novanta punti che
+       * leggono `status` doveva ricordarsi di guardare anche le date. Il caso Lorena (17/8) è nato
+       * lì: la scheda mostrava come corrente il piano della coda.
+       *
+       * ⚠️ **Prima le letture, poi la scrittura**, ed è costato: il 18/8 il vocabolario degli stati
+       * era stato scritto, ma solo una parte dei lettori lo usava. La revisione del 19/8 ne ha
+       * trovati **dodici** che confrontavano ancora `status === 'active'` a mano — fra cui le due
+       * del menu, che a una cliente appena pagante avrebbero scritto «il tuo piano è terminato».
+       * Sono stati sistemati con questa stessa consegna: una scrittura nuova non vale niente se i
+       * lettori non la capiscono, e il modo in cui non la capiscono è **il silenzio**.
+       *
+       * ⚠️ Un `queued` **non eroga**: `attivoInCorso` sceglie sempre chi sta erogando, e la data
+       * d'inizio arrivata non lo promuove da sola — a quel punto è la promozione notturna a essere
+       * in ritardo (`promuoviCodeArrivate`), e indovinare vorrebbe dire far partire un piano che
+       * nessuno ha fatto partire. Quello che il piano in coda fa, e deve continuare a fare, è
+       * **comporre i giorni di anteprima** nella finestra `menu_visible_days_before_start`: è
+       * sempre stato così, quando la coda era scritta `active` (vedi `menu.service.ts`).
+       */
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
-        data: { status: 'active', startDate: start, endDate: end },
+        data: { status: statoPerInizio(start, now) as never, startDate: start, endDate: end },
       });
       // "Porta un'amica": alla prima attivazione dell'invitata premia chi l'ha
       // invitata (idempotente sull'invito; non deve mai far fallire il pagamento).
@@ -2263,6 +2336,142 @@ export class CommerceService {
       metadata: { reason, byClient: opts.byClient },
     });
     return this.publicPayment(cancelled as unknown as Record<string, unknown>);
+  }
+
+  /**
+   * I PIANI IN CODA ARRIVATI DIVENTANO ATTIVI — il passo notturno della voce 258.
+   *
+   * Un piano `queued` è un contratto pagato che comincia più avanti. Il giorno in cui comincia,
+   * qualcuno deve dirlo: ⚠️ **nessuna lettura promuove da sola**, e un `queued` non diventa attivo
+   * per il fatto che la data è arrivata. Se questo lavoro non gira, la cliente resta con un piano
+   * pagato che non parte — ed è il motivo per cui qui si **scrive nei log** quando se ne trovano di
+   * rimasti indietro.
+   *
+   * ⚠️ **Il giorno è quello dell'azienda, non quello del processo** (`aGiorno`, `common/date-only.ts`).
+   * Su Render il processo gira in UTC e il cron parte alle 05:00 UTC: con un `new Date(y, m, d, 23,
+   * 59, …)` la fine di «oggi» sarebbe stata l'01:59 di domani a Roma, e un piano comprato dopo
+   * mezzanotte sarebbe partito un giorno di calendario in anticipo. Il fuso ha già una risposta sola
+   * in questo progetto, e la lezione delle misure sovrascritte fra mezzanotte e le due (7/8) è che
+   * la seconda risposta non si vede finché non fa danno.
+   *
+   * ⚠️ **Si scrive riga per riga, e ognuna è guardata da `status: 'queued'`.** Fra la lettura e la
+   * scrittura può passare un'operatrice che rimborsa quel contratto: senza la guardia lo
+   * riaccenderemmo, e il registro direbbe «partito» di un piano che non è partito. Il numero che
+   * torna è quello delle righe **davvero** cambiate, non di quelle lette — il giorno in cui i due
+   * numeri non coincidono è esattamente il giorno in cui è successo qualcosa, e un rapporto che
+   * conta le letture è il rapporto che lo nasconde.
+   *
+   * ⚠️ Una coda **già scaduta** invece NON si promuove: resta `queued` e si grida nei log. Il perché
+   * sta per esteso sul ramo, ed è che da attiva-e-finita quella riga prenderebbe, nella stessa
+   * notte, il report di fine percorso e la cancellazione della personalizzazione — due cose che non
+   * si tornano indietro, su una cliente che non ha mai ricevuto un piatto.
+   *
+   * @param oggi il giorno da cui si guarda. Esiste per poter collaudare senza aspettare domani,
+   *             come `codaInRitardo` e `staErogando`.
+   */
+  async promuoviCodeArrivate(oggi: Date = new Date()): Promise<{ promossi: number; giaScaduti: number }> {
+    // ⚠️ Il confronto è per GIORNO: `startDate` è una data (mezzanotte), e un piano che parte oggi
+    // deve partire stanotte. Stesso criterio di `codaInRitardo`, che è la funzione che risponde alla
+    // stessa domanda a chi guarda le schermate.
+    const giornoDiOggi = aGiorno(oggi);
+    const fineDiOggi = new Date(giornoDiOggi.getTime() + 86_400_000 - 1);
+    const TETTO = 500;
+    const arrivate = (await this.prisma.subscription.findMany({
+      /**
+       * ⚠️ Le code **già finite** si leggono a parte (qui sotto) e non entrano in questa finestra:
+       * non si promuovono — il perché sta più avanti — e siccome sono per costruzione quelle con la
+       * partenza più vecchia, con l'`orderBy` qui sotto si sarebbero prese tutto il `take`. Cioè:
+       * accumulandosi avrebbero finito per bloccare la promozione delle code sane, e nessuna
+       * cliente sarebbe più partita.
+       */
+      where: { status: 'queued' as never, startDate: { lte: fineDiOggi }, OR: [{ endDate: null }, { endDate: { gte: giornoDiOggi } }] },
+      // ⚠️ Le più vecchie per prime, e un tetto: se un giorno la scrittura fallisse a ripetizione
+      // l'insieme crescerebbe senza fine, e un errore parziale è meglio di un errore totale — le
+      // code più indietro sono anche quelle che hanno aspettato di più.
+      orderBy: { startDate: 'asc' },
+      take: TETTO,
+      select: { id: true, clientId: true, startDate: true, endDate: true },
+    })) as { id: string; clientId: string; startDate: Date | null; endDate: Date | null }[];
+    if (arrivate.length === TETTO) {
+      // ⚠️ Un tetto raggiunto in silenzio si legge come «fatto tutto». Se succede, ne restano fuori
+      // altre e ci vorranno più notti: va detto, o l'arretrato si drena senza che nessuno lo sappia.
+      this.logger.warn(`Code arrivate: ho raggiunto il tetto di ${TETTO} in una passata. Ne restano fuori: riguardo domani.`);
+    }
+
+    /**
+     * ⚠️ **UNA CODA GIÀ SCADUTA NON SI PROMUOVE**, e la ragione è cambiata idea il 19/8 dopo la
+     * seconda revisione. Portarla ad `active` sembrava il gesto onesto — lo stato vero invece di uno
+     * `queued` che nessuno guarda. Ma da attiva-e-finita quella riga entra, **nella stessa notte**,
+     * in tre lavori che vengono dopo: la scadenza automatica delle prove (che a +7 giorni
+     * **cancella** pesi dei menu, valutazioni, base personale e certificato), il report di fine
+     * percorso consegnato in app, e la chiusura CRM «percorso concluso». Cioè una cliente che ha
+     * pagato e non ha mai ricevuto un piatto riceverebbe i complimenti per il percorso e si vedrebbe
+     * cancellare la personalizzazione. Nessuna di quelle tre cose si torna indietro.
+     *
+     * Quindi resta `queued` — che non fa niente a nessuno — e **si grida nei log**: cosa farne (un
+     * rimborso, una partenza posticipata, un piano nuovo) è una decisione di Simone, non di questo
+     * cron. `codaInRitardo` continua a vederla, perché è esattamente per questo che esiste.
+     */
+    const giaScaduti = (await this.prisma.subscription.findMany({
+      where: { status: 'queued' as never, startDate: { lte: fineDiOggi }, endDate: { lt: giornoDiOggi } },
+      select: { id: true, clientId: true },
+      take: 200,
+    })) as { id: string; clientId: string }[];
+    if (giaScaduti.length) {
+      this.logger.warn(
+        `Code arrivate: ${giaScaduti.length} piani sono arrivati a scadenza SENZA MAI PARTIRE ` +
+          `(clienti: ${giaScaduti.map((s) => s.clientId).join(', ')}). Restano «in coda» di proposito: ` +
+          'non li promuovo, perché da attivi-e-finiti prenderebbero il report di fine percorso e la ' +
+          'cancellazione della personalizzazione. Quelle clienti hanno pagato un piano che non ha ' +
+          'erogato niente: serve una decisione, non un automatismo.',
+      );
+    }
+    const promosse: typeof arrivate = [];
+    try {
+      for (const s of arrivate) {
+        /**
+         * ⚠️ Le guardie si ripetono nella scrittura, e non sono ridondanti: fra la lettura e questa
+         * riga passano dei secondi, e in mezzo può esserci un'operatrice che rimborsa il contratto o
+         * la matita che sposta l'inizio più avanti. `status: 'queued'` **e** la partenza ancora
+         * arrivata: se una delle due non è più vera, quella riga non è più la riga che ho letto.
+         */
+        const { count } = await this.prisma.subscription.updateMany({
+          where: { id: s.id, status: 'queued' as never, startDate: { lte: fineDiOggi } },
+          data: { status: 'active' as never },
+        });
+        if (count > 0) promosse.push(s);
+      }
+    } finally {
+      /**
+       * ⚠️ IL REGISTRO SI SCRIVE ANCHE SE IL GIRO SI ROMPE A METÀ, ed è per questo che sta in un
+       * `finally`: le righe già promosse sono **già attive sul database**, e se la riga N esplode
+       * (Neon che chiude la connessione) senza questo blocco resterebbero senza traccia — proprio
+       * nel giro andato storto, che è l'unico in cui il registro serve davvero.
+       *
+       * ⚠️ `logMany` e non un ciclo di `log`: una riga per piano, una sola INSERT. E ⚠️ **senza
+       * `actorId`**: è una chiave esterna su `user`, e un `'system'` inventato farebbe fallire la
+       * scrittura in silenzio (`AuditService` inghiotte l'errore).
+       */
+      if (promosse.length) {
+        await this.audit
+          .logMany(
+            promosse.map((s) => ({
+              action: 'commerce.plan.promoted',
+              entityType: 'subscription',
+              entityId: s.id,
+              metadata: {
+                clientId: s.clientId,
+                inizio: s.startDate?.toISOString() ?? null,
+                fine: s.endDate?.toISOString() ?? null,
+              },
+            })),
+          )
+          .catch(() => undefined);
+        this.logger.log(`Code arrivate: ${promosse.length} piani passati da «in coda» ad attivi.`);
+      }
+    }
+
+    return { promossi: promosse.length, giaScaduti: giaScaduti.length };
   }
 
   /**

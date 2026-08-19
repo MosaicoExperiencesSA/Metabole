@@ -70,6 +70,33 @@ async function main() {
       if (doppi.length > 20) console.log(`   … e altri ${doppi.length - 20}.`);
     }
 
+    /**
+     * ⚠️ LE CODE ARRIVATE A SCADENZA SENZA MAI PARTIRE — aggiunto il 19/8 con la promozione notturna.
+     *
+     * `promuoviCodeArrivate` **non le promuove** di proposito (da attive-e-finite prenderebbero il
+     * report di fine percorso e la cancellazione della personalizzazione) e le grida nei log di
+     * Render. Ma i log di Render ruotano e non li apre nessuno: se non ci fosse un posto dove
+     * guardarle, resterebbero `queued` per sempre e nessuno lo saprebbe — che è il difetto di
+     * famiglia di questo progetto, appena un livello più su.
+     */
+    const scadutePerSempre = righe.filter(
+      (r) => r.status === 'queued' && r.endDate && r.endDate.getTime() < oggi.getTime(),
+    );
+    console.log('');
+    console.log(`Code arrivate a scadenza SENZA MAI PARTIRE: ${scadutePerSempre.length}`);
+    if (scadutePerSempre.length) {
+      console.log('⚠️ Queste clienti hanno pagato un piano che non ha erogato niente. Restano «in coda»');
+      console.log('   di proposito: portarle ad attive farebbe partire il report di fine percorso e la');
+      console.log('   cancellazione della personalizzazione. Serve una decisione, una per una.');
+      for (const r of scadutePerSempre.slice(0, 30)) {
+        console.log(
+          `   cliente ${r.clientId}: doveva partire il ${r.startDate?.toISOString().slice(0, 10) ?? '—'}, ` +
+            `finita il ${r.endDate?.toISOString().slice(0, 10) ?? '—'}`,
+        );
+      }
+      if (scadutePerSempre.length > 30) console.log(`   … e altre ${scadutePerSempre.length - 30}.`);
+    }
+
     console.log('');
     if (formaVecchia.length) {
       console.log('Le code nella forma vecchia, per data di partenza:');

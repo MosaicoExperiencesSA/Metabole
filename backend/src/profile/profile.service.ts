@@ -15,6 +15,7 @@ import { apriServeVisita } from '../clients/serve-visita';
 import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
+import { statoPerInizio } from '../commerce/stati-abbonamento';
 import { campiCambiati } from '../common/diff-campi';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
@@ -77,7 +78,24 @@ export class ProfileService {
     // (quando è ancora vuota). In quel caso va allineata anche la subscription: altrimenti la
     // prova, attivata al pagamento con la data di allora, scade sulle date vecchie mentre l'inizio
     // piano dice un'altra data ("Nessun piano attivo" pur avendo iniziato da poco).
-    const firstStartSet = !!planStartDate && !(current as { planStartDate: Date | null }).planStartDate;
+    /**
+     * ⚠️ **NON SOLO LA PRIMA VOLTA** (19/8, terza revisione della voce 258). Qui c'era
+     * `firstStartSet`: si allineava l'abbonamento solo quando `planStartDate` era ancora vuota. Ma
+     * una cliente **di ritorno** ce l'ha già (dal piano vecchio, con una data passata), quindi dopo
+     * il pagamento l'app le rimostra il calendario e lei sceglie: la data finiva nel profilo e
+     * l'abbonamento restava com'era. Finché la finestra dei menu si misurava sul profilo la cosa
+     * passava inosservata; da quando si misura sull'abbonamento — che è giusto, perché il profilo
+     * può parlare di un altro piano — la sua scelta non muoveva più niente e i menu partivano
+     * quando volevano loro.
+     *
+     * ⚠️ Solo finché **non ha ricevuto un solo menu**: dopo, la data d'inizio non è più una
+     * preferenza ma un fatto, e riscriverla da qui sposterebbe anche la scadenza di un piano già
+     * cominciato. Chi vuole spostare un piano partito passa dalla scheda cliente, dove c'è
+     * l'avviso delle sovrapposizioni.
+     */
+    const dataCambiata =
+      !!planStartDate &&
+      new Date(planStartDate).getTime() !== ((current as { planStartDate: Date | null }).planStartDate?.getTime() ?? NaN);
     if (locale) {
       await this.prisma.user.update({ where: { id: userId }, data: { locale } });
     }
@@ -114,8 +132,11 @@ export class ProfileService {
       metadata: { campi, profileId: profile.id, origine: 'app', nessunCambio: campi.length === 0 },
     });
 
-    // Primo inserimento della data d'inizio → allinea la subscription (date + riattivazione).
-    if (firstStartSet && planStartDate) {
+    // Data d'inizio scelta o cambiata prima del primo menu → allinea la subscription (date + stato).
+    const primoMenuGiaErogato = dataCambiata
+      ? (await this.prisma.menuDay.count({ where: { clientId: userId } })) > 0
+      : true;
+    if (dataCambiata && !primoMenuGiaErogato && planStartDate) {
       await this.alignSubscriptionToPlanStart(userId, new Date(planStartDate)).catch(() => {
         /* non bloccare il salvataggio del profilo per un errore di allineamento */
       });
@@ -154,10 +175,18 @@ export class ProfileService {
     const sub = pickMainSubscription(subs);
     if (!sub) return;
     const newEnd = subscriptionEnd(d, sub.plan.period);
-    const reactivate = newEnd.getTime() > Date.now() && (sub.status === 'active' || sub.status === 'expired');
+    /**
+     * ⚠️ `queued` è fra gli stati che si riscrivono, e lo stato nuovo lo decide `statoPerInizio`
+     * (19/8, voce 258): la data scelta dalla cliente in fondo al questionario può essere oggi —
+     * e allora il piano deve partire adesso, non alla passata notturna — oppure fra tre settimane,
+     * e allora il piano va in coda. Prima qui si scriveva sempre `active`, cioè la parola che dice
+     * due cose.
+     */
+    const daRiscrivere = newEnd.getTime() > Date.now() && ['active', 'queued', 'expired'].includes(sub.status);
+    const statoNuovo = statoPerInizio(d);
     await this.prisma.subscription.update({
       where: { id: sub.id },
-      data: { startDate: d, endDate: newEnd, ...(reactivate ? { status: 'active' as never } : {}) },
+      data: { startDate: d, endDate: newEnd, ...(daRiscrivere ? { status: statoNuovo as never } : {}) },
     });
     await this.audit.log({
       action: 'profile.plan_start.align_subscription',
@@ -168,7 +197,7 @@ export class ProfileService {
         clientId: userId,
         startDate: d.toISOString().slice(0, 10),
         endDate: newEnd.toISOString().slice(0, 10),
-        ...(reactivate ? { status: 'active', reactivated: true } : {}),
+        ...(daRiscrivere ? { status: statoNuovo, reactivated: statoNuovo === 'active' } : {}),
       },
     });
   }

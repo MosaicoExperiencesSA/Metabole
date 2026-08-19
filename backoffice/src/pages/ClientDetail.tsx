@@ -128,7 +128,8 @@ const L: Record<string, Record<string, string>> = {
   weekdayLunch: { home: 'Da casa', canteen: 'Mensa', out: 'Fuori', on_the_go: 'Al volo' },
   yesno: { no: 'No', yes: 'Sì', tell_in_visit: 'Lo dirà in visita' },
   payStatus: { pending: 'In attesa', receipt_uploaded: 'Contabile caricata', approved: 'Approvato', rejected: 'Rifiutato' },
-  subStatus: { pending: 'In attesa', active: 'Attivo', paused: 'In pausa', expired: 'Scaduto', cancelled: 'Annullato' },
+  // ⚠️ `queued` c'è dal 19/8 (voce 258): senza, la matita rispondeva «stato: queued» in italiano.
+  subStatus: { pending: 'In attesa', active: 'Attivo', queued: 'In coda', paused: 'In pausa', expired: 'Scaduto', cancelled: 'Annullato' },
   method: { bank_transfer: 'Bonifico', card: 'Carta' },
 };
 const lab = (group: string, v: string | null | undefined) => (v ? L[group]?.[v] ?? v : '—');

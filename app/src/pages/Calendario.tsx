@@ -284,7 +284,19 @@ export default function Calendario() {
           <div className="card" style={{ border: '1px solid var(--teal)', background: 'linear-gradient(135deg,#F3FBF8,#fff)' }}>
             <div className="row-between">
               <div>
-                <span className="meal-tag" style={{ background: '#DCF0D8', color: '#3B6D11' }}>{sub.status === 'active' ? 'Piano attivo' : sub.status}</span>
+                {/*
+                  ⚠️ MAI IL VALORE GREZZO (19/8): qui si stampava `sub.status` così com'era, e dal
+                  19/8 il server può mandare `queued` — cioè la parola inglese «queued» dentro una
+                  pastiglia verde da «tutto a posto», sopra un «scade tra N gg» calcolato su un piano
+                  che non è ancora cominciato. Un codice interno sullo schermo di una cliente è
+                  sempre un difetto, anche quando il colore è giusto.
+                */}
+                <span
+                  className="meal-tag"
+                  style={sub.status === 'queued' ? { background: '#F3E8DC', color: '#B8863B' } : { background: '#DCF0D8', color: '#3B6D11' }}
+                >
+                  {sub.status === 'active' ? 'Piano attivo' : sub.status === 'queued' ? 'Piano in arrivo' : 'Il tuo piano'}
+                </span>
                 <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6 }}>{sub.plan?.name ?? 'Il tuo percorso'}</div>
                 <div className="muted" style={{ fontSize: 11 }}>Coach + nutrizionista + Gaia</div>
               </div>

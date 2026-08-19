@@ -51,6 +51,8 @@ describe('CronController (endpoint per Render Cron)', () => {
   let chat: { chiudiSostituzioniLasciateAMeta: jest.Mock };
   let audit: { log: jest.Mock };
   let engineRules: { generaProssimoCatalogo: jest.Mock };
+  /** Il commercio nel cron: scadenze pagamenti, prove, e la promozione delle code. */
+  let commerce: { autoCancelStalePayments: jest.Mock; expireTrialsAndPurge: jest.Mock; promuoviCodeArrivate: jest.Mock };
 
   beforeEach(async () => {
     engine = { runBatch: jest.fn().mockResolvedValue({ total: 1, run: 1, flagged: 0, skipped: 0 }) };
@@ -66,6 +68,12 @@ describe('CronController (endpoint per Render Cron)', () => {
     };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
     engineRules = { generaProssimoCatalogo: jest.fn().mockResolvedValue({ fatto: true, variante: 'Flexitariana · omnivore · dimagrimento · 5 pasti', settimana: 3 }) };
+    commerce = {
+      autoCancelStalePayments: jest.fn().mockResolvedValue({ cancelled: 0 }),
+      expireTrialsAndPurge: jest.fn().mockResolvedValue({ expired: 0 }),
+      // Il passo che fa partire i piani in coda arrivati a scadenza (voce 258, 19/8).
+      promuoviCodeArrivate: jest.fn().mockResolvedValue({ promossi: 0, giaScaduti: 0 }),
+    };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [CronController],
@@ -87,7 +95,7 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: ConversationSummaryService, useValue: { generateDailyBatch: jest.fn().mockResolvedValue({ threads: 0, created: 0, errors: 0 }) } },
         // Le conversazioni di Gaia lasciate a metà: chiuse da lei dopo un giorno di silenzio (18/8).
         { provide: ChatService, useValue: chat },
-        { provide: CommerceService, useValue: { autoCancelStalePayments: jest.fn().mockResolvedValue({ cancelled: 0 }), expireTrialsAndPurge: jest.fn().mockResolvedValue({ expired: 0 }) } },
+        { provide: CommerceService, useValue: commerce },
         { provide: SignalsService, useValue: { runAdherenceSweep: jest.fn().mockResolvedValue({ clients: 0 }) } },
         { provide: VisitsService, useValue: { sendUpcomingReminders: jest.fn().mockResolvedValue({ sent: 3 }) } },
         { provide: AgentOrchestratorService, useValue: { enqueueDaily: jest.fn().mockResolvedValue({ queued: 0 }) } },
@@ -133,6 +141,32 @@ describe('CronController (endpoint per Render Cron)', () => {
   it('⚠️ i `reminders`, che girano ogni dieci minuti, NON scrivono alle clienti', async () => {
     await controller.reminders('segreto-cron');
     expect(chat.chiudiSostituzioniLasciateAMeta).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ LA PROMOZIONE È IL PRIMO PASSO DELLA NOTTE (voce 258, 19/8).
+   *
+   * Tutti i passi che seguono leggono lo stato degli abbonamenti — scadenze delle prove, attività
+   * della coach, report, avvisi. Un piano che comincia oggi dev'essere già attivo quando li
+   * attraversa, o per una notte intera esiste un contratto pagato che nessuno di quei passi conta.
+   *
+   * Il test guarda l'ordine di **invocazione** e non l'ordine delle righe nel file, perché è quello
+   * che decide.
+   */
+  it('⚠️ le code arrivate si promuovono per prime, prima di ogni passo che legge lo stato', async () => {
+    await controller.daily('segreto-cron');
+    expect(commerce.promuoviCodeArrivate).toHaveBeenCalledTimes(1);
+    expect(commerce.promuoviCodeArrivate.mock.invocationCallOrder[0]).toBeLessThan(
+      engine.runBatch.mock.invocationCallOrder[0],
+    );
+  });
+
+  /** ⚠️ E se la promozione esplode, la notte va avanti: chi era già attivo non c'entra niente. */
+  it('⚠️ una promozione che fallisce non ferma il resto della notte', async () => {
+    commerce.promuoviCodeArrivate.mockRejectedValue(new Error('DB giù'));
+    const res = (await controller.daily('segreto-cron')) as EsitoCron;
+    expect(res.codeArrivate).toEqual({ error: 'DB giù' });
+    expect(engine.runBatch).toHaveBeenCalledTimes(1);
   });
 
   it('uno step che esplode NON ferma gli altri, e finisce nei failures', async () => {

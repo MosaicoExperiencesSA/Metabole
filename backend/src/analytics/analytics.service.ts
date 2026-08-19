@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { giornoLocale } from '../common/date-only';
 import {
@@ -108,7 +109,11 @@ export class AnalyticsService {
       }),
     ]);
     const subsList = subs as { startDate: Date | null; endDate: Date | null; status: string }[];
-    const activeSubs = subsList.filter((s) => s.status === 'active').length;
+    // ⚠️ `STATI_CON_UN_PIANO` e non `'active'` (19/8, voce 258): un piano che comincia lunedì è un
+    // abbonamento comprato, e il numero qui dev'essere lo stesso della dashboard — che li conta già
+    // così. Due conteggi della stessa cosa che non coincidono è peggio di un conteggio sbagliato:
+    // nessuno sa più quale guardare.
+    const activeSubs = subsList.filter((s) => (STATI_CON_UN_PIANO as readonly string[]).includes(s.status)).length;
 
     // Misure per cliente (già ordinate per data crescente).
     const byClient = new Map<string, Meas[]>();
