@@ -54,14 +54,100 @@
  *   QUANTI=40 npm run diag:crudo-cotto
  */
 import { PrismaClient } from '@prisma/client';
-import { abbina } from '../src/nutrient-facts/abbinamento-alimenti';
+import { abbina, paroleChe } from '../src/nutrient-facts/abbinamento-alimenti';
 import { scegliPerRicetta } from '../src/nutrient-facts/stato-alimento';
 import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
 const prisma = new PrismaClient();
 const QUANTI = Math.max(1, Number(process.env.QUANTI ?? 20) || 20);
 
+/**
+ * ⚠️ «PERCHÉ QUESTO STA QUI?» — la modalità che risponde su UN nome (19/8).
+ *
+ * Nasce da tre domande di Simone sulla lista: «sale è sale, pepe è pepe, perché qui? acqua? ricotta
+ * fresca?». Erano domande giuste, e la risposta onesta era «senza guardare i dati non lo so» — che
+ * su una diagnostica è una risposta che non si può dare due volte.
+ *
+ * ⚠️ Non aggiunge una regola: **spiega quella che c'è già**, passo per passo, su un nome solo. Un
+ * elenco che dice *dove* finisce una riga senza dire *perché* obbliga chi lo legge a fidarsi — e chi
+ * si fida di un elenco che non capisce, il giorno che sbaglia non se ne accorge.
+ *
+ *   NOME='ricotta fresca' npm run diag:crudo-cotto
+ */
+async function spiegaUnNome(nome: string) {
+  console.log('');
+  console.log('==================================================================');
+  console.log(`  PERCHÉ «${nome}» FINISCE DOVE FINISCE`);
+  console.log('==================================================================');
+  console.log('');
+
+  const alimenti = (await prisma.nutrientFact.findMany({
+    select: { name: true, synonyms: true, state: true, kcal: true } as never,
+  })) as { name: string; synonyms: string[]; state: string | null; kcal: number | null }[];
+  const t = normalizzaNome(nome);
+
+  const esatti = alimenti.filter((a) => [a.name, ...(a.synonyms ?? [])].map(normalizzaNome).includes(t));
+  console.log(`1) In tabella con questo nome esatto (o come sinonimo): ${esatti.length}.`);
+  for (const e of esatti) console.log(`     ▸ ${e.name}   stato: ${e.state ?? '(nessuno)'}   ${e.kcal ?? '?'} kcal`);
+  if (esatti.length) {
+    const scelta = scegliPerRicetta(esatti);
+    console.log(`   → per una ricetta (grammature a crudo): ${scelta.tipo}`);
+    if (scelta.tipo === 'solo_cotto') console.log(`     ⚠️  in tabella c'è solo: ${scelta.stati.join(', ')} — manca la riga a crudo.`);
+    console.log('');
+    return;
+  }
+  console.log('   Nessuna: quindi non passa dalla via esatta, e si prova l\'abbinamento.');
+  console.log('');
+
+  const trovato = abbina(nome, alimenti, (a) => [a.name, ...(a.synonyms ?? [])]);
+  console.log('2) Abbinamento (`abbinamento-alimenti.ts`):');
+  if (trovato) {
+    console.log(`     ▸ si abbina a «${trovato.riga.name}» con la regola [${trovato.regola}].`);
+    const scelta = scegliPerRicetta([trovato.riga]);
+    console.log(`     ▸ stato di quella riga: ${trovato.riga.state ?? '(nessuno)'} → per la ricetta: ${scelta.tipo}`);
+  } else {
+    console.log('     ▸ NON si abbina. Le due regole sono: le paroline non contano, e la ricetta');
+    console.log('       può aggiungere solo QUALIFICATORI innocui (freschi, sgusciate, pelate…).');
+    /**
+     * ⚠️ Si dice **quali righe erano vicine e perché non bastavano**: «non si abbina» da solo manda
+     * chi legge a cercare a mano dentro diciannovemila ricette, ed è esattamente il gesto che questa
+     * diagnostica esiste per evitare.
+     */
+    const mie = new Set(paroleChe(nome));
+    const vicine = alimenti
+      .map((a) => {
+        const nomi = [a.name, ...(a.synonyms ?? [])];
+        let migliore: { nome: string; comuni: number; inPiuSue: string[] } | null = null;
+        for (const n of nomi) {
+          const sue = paroleChe(n);
+          const comuni = sue.filter((p) => mie.has(p)).length;
+          if (!comuni) continue;
+          if (!migliore || comuni > migliore.comuni) migliore = { nome: n, comuni, inPiuSue: sue.filter((p) => !mie.has(p)) };
+        }
+        return migliore ? { riga: a, ...migliore } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.comuni - a!.comuni)
+      .slice(0, 5) as { riga: { name: string }; nome: string; comuni: number; inPiuSue: string[] }[];
+    if (!vicine.length) {
+      console.log('     ▸ E in tabella non c\'è niente che condivida nemmeno una parola: l\'alimento');
+      console.log('       manca del tutto, e va aggiunto dalla pagina Alimenti.');
+    } else {
+      console.log('     ▸ Le righe più vicine, e cosa manca perché l\'abbinamento scatti:');
+      for (const v of vicine) {
+        const inPiuMie = [...mie].filter((p) => !paroleChe(v.nome).includes(p));
+        console.log(`         · «${v.riga.name}»  — parole in comune: ${v.comuni}`);
+        if (v.inPiuSue.length) console.log(`           la tabella ha in più: ${v.inPiuSue.join(', ')}  (parole che DISTINGUONO: non si abbina)`);
+        if (inPiuMie.length) console.log(`           la ricetta ha in più: ${inPiuMie.join(', ')}  (qualificatori innocui? se no, non si abbina)`);
+      }
+    }
+  }
+  console.log('');
+}
+
 async function main() {
+  const soloUno = (process.env.NOME ?? '').trim();
+  if (soloUno) return spiegaUnNome(soloUno);
   console.log('');
   console.log('==================================================================');
   console.log('  CRUDO O COTTO — quali alimenti non lo dicono');

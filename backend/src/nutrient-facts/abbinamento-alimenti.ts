@@ -34,8 +34,25 @@
  * 1. **Le PAROLINE non contano.** «olio extravergine d oliva» e «olio extravergine oliva» hanno le
  *    stesse parole che distinguono di «olio extravergine **di** oliva»: sono la stessa riga scritta
  *    in tre modi, e 3723 ricette la scrivono in uno dei due modi «sbagliati».
- * 2. **La ricetta è più specifica della tabella.** Tutte le parole della riga compaiono nel nome
- *    dell'ingrediente: «spinaci freschi» → «spinaci». Aggiungere un aggettivo non cambia l'alimento.
+ * 2. **La ricetta aggiunge solo QUALIFICATORI INNOCUI.** «spinaci freschi» → «spinaci», «mandorle
+ *    sgusciate» → «mandorle»: parole che dicono com'è presentato, non cosa è.
+ *
+ * ⚠️ **LA REGOLA 2 È NATA SBAGLIATA, E L'HA MOSTRATO IL PRIMO GIRO IN PRODUZIONE** (19/8). Diceva
+ * «tutte le parole della riga compaiono nel nome dell'ingrediente», e su una riga che si chiama
+ * «zucca» — o che ha un sinonimo corto come «olio» — ci cascava dentro qualunque cosa:
+ *
+ *     «semi di zucca»   → «zucca»                     531 ricette · ~550 kcal contro 26: VENTI volte
+ *     «olio di cocco»   → «olio extravergine di oliva» 400 ricette · non è lo stesso olio
+ *     «olio di sesamo»  → «olio extravergine di oliva» 282 ricette
+ *
+ * ⚠️ Le parole in più non sono sempre aggettivi: «semi di», «olio di», «farina di» fanno **un altro
+ * alimento**. Quindi la regola si rovescia: non «tutto quello che non conosco è innocuo», ma **solo
+ * quello che conosco come innocuo**. Un elenco chiuso si può leggere e discutere; «tutto il resto»
+ * no — ed è il default che questo progetto usa dappertutto.
+ *
+ * ⚠️ E se fra le parole in più c'è una parola di **stato** — cotto, secche, tostate, bollite — non è
+ * un abbinamento: è un altro stato, e lì decide `scegliPerRicetta` con la convenzione del crudo.
+ * «Lenticchie rosse secche» non sono le «lenticchie» bollite della tabella.
  *
  * ⚠️ **NON ESISTE una terza regola «alla ricetta manca solo una parolina»**, e il test l'ha
  * dimostrato prima che la scrivessi in produzione: se al nome della ricetta manca una parola della
@@ -48,6 +65,33 @@
  * fra «latte intero» e «latte scremato» perché la ricetta dice «latte» vuol dire scrivere calorie
  * decise a caso.
  */
+
+/**
+ * I QUALIFICATORI INNOCUI: dicono **com'è presentato** un alimento, non **cosa è**.
+ *
+ * ⚠️ L'elenco è chiuso di proposito, ed è la correzione del 19/8: la prima versione della regola
+ * accettava qualunque parola in più, e faceva diventare «semi di zucca» la zucca e «olio di cocco»
+ * l'olio d'oliva. Aggiungere una voce qui è una decisione che si legge; «tutto quello che non
+ * conosco è innocuo» non si legge, e sbaglia in silenzio.
+ *
+ * ⚠️ **Non ci sono parole di cottura o di conservazione** (cotto, secco, tostato, bollito): quelle
+ * cambiano i numeri, e la loro casa è `scegliPerRicetta`.
+ */
+const QUALIFICATORI = new Set([
+  'fresco', 'fresca', 'freschi', 'fresche',
+  'intero', 'intera', 'interi', 'intere',
+  'sgusciato', 'sgusciata', 'sgusciati', 'sgusciate',
+  'pelato', 'pelata', 'pelati', 'pelate',
+  'sbucciato', 'sbucciata', 'sbucciati', 'sbucciate',
+  'tagliato', 'tagliata', 'tagliati', 'tagliate',
+  'tritato', 'tritata', 'tritati', 'tritate',
+  'grattugiato', 'grattugiata',
+  'affettato', 'affettata', 'affettati', 'affettate',
+  'maturo', 'matura', 'maturi', 'mature',
+  'bio', 'biologico', 'biologica', 'biologici', 'biologiche',
+  'grande', 'grandi', 'piccolo', 'piccola', 'piccoli', 'piccole', 'medio', 'media',
+  'qb',
+]);
 
 /** Le parole che non distinguono un alimento da un altro: preposizioni, articoli, congiunzioni. */
 const PAROLINE = new Set([
@@ -109,8 +153,19 @@ export function abbina<T>(
         esatti.push({ riga: r, peso: sue.length });
         continue;
       }
-      // 2) la ricetta è più specifica: «spinaci freschi» contiene tutte le parole di «spinaci».
-      if (sue.every((p) => insieme.has(p))) specifiche.push({ riga: r, peso: sue.length });
+      /**
+       * 2) la ricetta aggiunge **solo qualificatori innocui**: «spinaci freschi» → «spinaci».
+       *
+       * ⚠️ Le parole in più si controllano una per una. La prima versione non lo faceva, e faceva
+       * diventare «semi di zucca» la zucca (531 ricette, venti volte le calorie) e «olio di cocco»
+       * l'olio d'oliva (400 ricette). Le parole in più non sono sempre aggettivi.
+       */
+      if (sue.every((p) => insieme.has(p))) {
+        const inPiu = mie.filter((p) => !new Set(sue).has(p));
+        if (inPiu.length && inPiu.every((p) => QUALIFICATORI.has(p))) {
+          specifiche.push({ riga: r, peso: sue.length });
+        }
+      }
       /**
        * ⚠️ E basta. Il caso opposto — al nome della ricetta manca una parola della tabella — **non**
        * si abbina: quella parola distingue, e «olio extravergine» senza «oliva» potrebbe essere di

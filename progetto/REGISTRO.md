@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🎃 **«Semi di zucca» non è la zucca.** Primo giro in produzione dell'abbinamento, e la
+  lista proposta conteneva **«semi di zucca» → «zucca»** (531 ricette, ~550 kcal contro 26: **venti
+  volte**), **«olio di cocco»** e **«olio di sesamo» → olio d'oliva** (682 ricette), **«lenticchie
+  rosse secche» → «lenticchie»** che in tabella sono bollite. ⚠️ La causa è precisa: la regola diceva
+  «tutte le parole della riga compaiono nel nome dell'ingrediente», e su una riga che si chiama
+  **«zucca»** — o con un **sinonimo corto** come «olio» — ci casca dentro qualunque cosa. **Le parole
+  in più non sono sempre aggettivi**: «semi di», «olio di», «farina di» fanno **un altro alimento**.
+  ⚠️ La correzione rovescia l'elenco: non «tutto quello che non conosco è innocuo» ma **solo quello
+  che conosco come innocuo** — un elenco chiuso di qualificatori (freschi, sgusciate, pelate, intere,
+  bio…). Un elenco chiuso si legge e si discute, «tutto il resto» no. ⚠️ E dentro **non c'è nessuna
+  parola di cottura o conservazione**: quelle cambiano i numeri e la loro casa è `scegliPerRicetta`
+  — c'è una mutazione che lo prova.
+  ⚠️ **E va scritto cosa ho sbagliato io**: la consegna prima diceva «prima si misura, poi si
+  accende», e poi ho acceso sulla parola «lista confermata» **senza aver visto la lista**. Il giro in
+  produzione l'aveva prodotta, e conteneva cinque accoppiamenti sbagliati su venti righe: bastava
+  leggerla. La regola resta quella, e stavolta si aspetta la lettura.
+  238 suite / **3743 test verdi**, due mutazioni provate e tutte e due fanno fallire i test.
+
+
 - `[Sviluppo]` 🔗 **L'abbinamento dei nomi è acceso** (lista degli accoppiamenti confermata da Simone
   e dalla nutrizionista). ⚠️ **Due strade diverse, e tenerle separate è il punto**:
   `cercaPerIngrediente` — nuova, per il calcolo dei macro quando si detta una ricetta — riceve un

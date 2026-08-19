@@ -1,0 +1,66 @@
+«Semi di zucca» non è la zucca: le parole in più non sono sempre aggettivi
+
+Il primo giro in produzione dell'abbinamento, e la lista degli accoppiamenti proposti conteneva
+questi — che è esattamente il motivo per cui era stata fatta guardare prima di accenderla, salvo che
+l'avevo accesa io un'ora prima invece di aspettare la lettura.
+
+    «semi di zucca»    →  «zucca»                       531 ricette
+    «olio di cocco»    →  «olio extravergine di oliva»  400 ricette
+    «olio di sesamo»   →  «olio extravergine di oliva»  282 ricette
+    «lenticchie rosse secche» → «lenticchie»            364 ricette
+    «nocciole tostate» →  «nocciole»                    299 ricette
+
+⚠️ I semi di zucca fanno ~550 kcal/100 g, la zucca 26: **venti volte**. L'olio di cocco non è olio
+d'oliva. Le lenticchie secche non sono le lenticchie **bollite** che stanno in tabella.
+
+LA CAUSA, PRECISA
+La regola diceva: «tutte le parole della riga compaiono nel nome dell'ingrediente». ⚠️ Su una riga
+che si chiama **«zucca»** — o che ha un **sinonimo corto** come «olio» — ci casca dentro qualunque
+cosa: «semi di **zucca**» contiene «zucca», «**olio** di cocco» contiene «olio».
+
+⚠️ **Le parole in più non sono sempre aggettivi.** «Semi di», «olio di», «farina di» fanno **un altro
+alimento**, non lo stesso alimento presentato in un altro modo.
+
+LA CORREZIONE: L'ELENCO SI ROVESCIA
+Non più «tutto quello che non conosco è innocuo», ma **solo quello che conosco come innocuo**. Le
+parole in più si controllano una per una contro un elenco chiuso di **qualificatori**: freschi,
+sgusciate, pelate, intere, tritato, maturo, bio, a fette. ⚠️ Un elenco chiuso si può leggere e
+discutere; «tutto il resto» no — ed è il default che questo progetto usa dappertutto.
+
+⚠️ **E nell'elenco non c'è nessuna parola di cottura o conservazione** — cotto, secco, tostato,
+bollito. Quelle cambiano i numeri, e la loro casa è `scegliPerRicetta` con la convenzione del crudo.
+C'è una mutazione che lo prova: mettendo «secche» e «tostate» fra i qualificatori, i test cadono.
+
+COSA CAMBIA NEI NUMERI
+La lista 3a si accorcia parecchio, e va bene così: meglio pochi accoppiamenti giusti che tremila di
+cui tre su venti sono sbagliati. ⚠️ E quello che esce dalla 3a torna nella 3b — «da aggiungere a
+mano» — che è dove deve stare: «olio di cocco» è una riga nuova della tabella, non un sinonimo.
+
+⚠️ COSA HO SBAGLIATO IO, E VA SCRITTO
+La consegna precedente diceva «prima si misura, poi si accende», e poi l'ho accesa sulla parola
+«lista confermata» **senza aver visto la lista**. La misura c'era, il giro in produzione l'ha
+prodotta, e conteneva cinque accoppiamenti sbagliati su venti righe — cioè avrebbe fermato
+l'accensione se qualcuno l'avesse letta. La regola resta quella di prima, e stavolta si aspetta la
+lettura.
+
+E «PERCHÉ QUESTO STA QUI?» — la modalità che risponde su UN nome
+Dalle domande di Simone sulla lista 3b: «sale è sale, pepe è pepe, perché qui? acqua? ricotta
+fresca?». Erano domande giuste, e la risposta onesta era «senza guardare i dati non lo so» — che su
+una diagnostica non si può dare due volte.
+
+    NOME='ricotta fresca' npm run diag:crudo-cotto
+
+⚠️ Non aggiunge nessuna regola: **spiega quella che c'è già**, passo per passo. Dice se il nome è in
+tabella esatto, con che stato, cosa vale per una ricetta; e se non si abbina, **quali righe erano
+vicine e cosa mancava** — le parole che la tabella ha in più (distinguono: non si abbina) e quelle
+che ha in più la ricetta (qualificatori innocui? se no, non si abbina).
+
+⚠️ Un elenco che dice *dove* finisce una riga senza dire *perché* obbliga chi legge a fidarsi, e chi
+si fida di un elenco che non capisce, il giorno che sbaglia non se ne accorge.
+
+FILE
+- backend: `nutrient-facts/abbinamento-alimenti.ts` (`QUALIFICATORI`) + spec (5 test nuovi coi casi
+  veri della produzione) · `prisma/diag-crudo-cotto.ts` (modalità `NOME=`)
+
+238 suite / 3743 test verdi · due mutazioni provate e tutte e due fanno fallire i test.
+Nessuna migrazione.
