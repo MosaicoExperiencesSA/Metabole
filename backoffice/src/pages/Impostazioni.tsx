@@ -246,7 +246,7 @@ export function Impostazioni() {
    * home ripristinata a metà è esattamente lo stato da cui la persona stava cercando di uscire.
    */
   async function ripristinaHome() {
-    const fabbrica = homeDiFabbrica(availableModules.map((m) => m.id));
+    const fabbrica = homeDiFabbrica();
     setModMsg(null);
     try {
       await api('/me/preferences', { method: 'PUT', body: JSON.stringify(fabbrica) });

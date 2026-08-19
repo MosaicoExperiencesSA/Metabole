@@ -46,17 +46,25 @@ describe('la home di fabbrica', () => {
   });
 
   /**
-   * ⚠️ NON SI SALVANO RIGHE MORTE. Il default dei moduli è uno e globale, e contiene id che un
-   * coach non ha il permesso di aprire: rimetterli tutti scriverebbe nelle sue preferenze voci
-   * invisibili, che restano lì e riemergono il giorno che il permesso arriva.
+   * ⚠️ I MODULI **NON** SI FILTRANO SUI PERMESSI, e stamattina lo facevo — la revisione
+   * avversariale del 19/8 sera ha mostrato due modi in cui il filtro peggiorava le cose:
+   *
+   * ⛔ una coach senza «Bonifici» premeva il pulsante e si salvava una lista **senza** quel modulo:
+   * il giorno che il permesso arrivava, il modulo non tornava più. Il filtro aveva reso permanente
+   * una restrizione che prima era dinamica.
+   * ⛔ e un ruolo che non vedesse nessuno dei quattro predefiniti si salvava `[]`, che **non è
+   * nullo**: il ripiego `?? DEFAULT` non scatta più e la home resta vuota per sempre — la stessa
+   * trappola documentata per le scorciatoie, tre righe più su.
+   *
+   * ⚠️ Chi filtra è la **lettura**. La preferenza dice cosa vuole la persona, il permesso cosa può
+   * vedere oggi: due cose che cambiano per ragioni diverse.
    */
-  it('⚠️ i moduli si filtrano su quelli che quel ruolo vede davvero', () => {
-    expect(homeDiFabbrica(['m_clienti']).dashboardModules).toEqual(['m_clienti']);
-    expect(homeDiFabbrica([]).dashboardModules).toEqual([]);
+  it('⚠️ rimette SEMPRE tutti i predefiniti, permessi o no', () => {
+    expect(homeDiFabbrica().dashboardModules).toEqual(DEFAULT_MODULE_IDS);
   });
 
-  it('senza filtro tornano tutti i predefiniti: è il caso dell\'admin', () => {
-    expect(homeDiFabbrica().dashboardModules).toEqual(DEFAULT_MODULE_IDS);
+  it('⚠️ e non può mai tornare una lista vuota: `[]` non fa scattare il ripiego di chi legge', () => {
+    expect(homeDiFabbrica().dashboardModules.length).toBeGreaterThan(0);
   });
 
   /** I predefiniti devono esistere davvero nel catalogo, o il pulsante rimetterebbe fantasmi. */
@@ -69,8 +77,10 @@ describe('la home di fabbrica', () => {
   it('⚠️ torna copie, non le costanti', () => {
     const a = homeDiFabbrica();
     a.dashboardCharts.push('inventato');
+    a.dashboardModules.push('inventato');
     a.dashboardShortcuts.push('inventato');
     expect(DEFAULT_CHART_KEYS).not.toContain('inventato');
     expect(DEFAULT_SHORTCUT_IDS).not.toContain('inventato');
+    expect(DEFAULT_MODULE_IDS).not.toContain('inventato');
   });
 });

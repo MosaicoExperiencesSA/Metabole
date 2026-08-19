@@ -149,6 +149,36 @@ export class LavoriService {
     }
 
     /**
+     * ⚠️ **LE VOCI SCRITTE A MANO IN PAGINA SI POSSONO CHIUDERE — PER TITOLO** (19/8 sera, richiesta
+     * di Simone: «la lista è piena, aggiorna le cose fatte»).
+     *
+     * Una voce scritta dal backoffice ha `chiave: null`: il file non la vede, quindi **nessuna
+     * consegna la può spuntare**, nemmeno quando il lavoro è finito. Oggi è costato tre indagini —
+     * «Schermate app 30 e 27-28», «Vera: rifare i giorni futuri», «Moduli fissi in dashboard»: tutte
+     * e tre erano già fatte, e per scoprirlo ho dovuto rileggere il codice una per una.
+     *
+     * ⚠️ **Solo per chiudere, e solo con `soloSeEsiste`.** Non crea niente, non riapre niente, non
+     * riscrive testi: se in pagina quel titolo non c'è, per il caricamento non esiste. È lo stesso
+     * patto del `chiave`, applicato all'unica cosa che identifica una riga scritta a mano.
+     *
+     * ⛔ **E solo se il titolo combacia con UNA riga sola.** Due voci intitolate uguale sarebbero
+     * due lavori diversi, e spuntarne una a caso è esattamente il genere di errore silenzioso che
+     * questo progetto passa le giornate a togliere. Se sono due, non si tocca niente.
+     */
+    const perTitolo = VOCI_INIZIALI.filter((v) => v.soloSeEsiste && v.fatta === true && v.titolo);
+    if (perTitolo.length) {
+      const aMano = (await this.prisma.lavoro.findMany({
+        where: { chiave: null, fatto: false, titolo: { in: perTitolo.map((v) => v.titolo) } } as never,
+        select: { id: true, chiave: true, fatto: true, titolo: true },
+      })) as { id: string; chiave: string | null; fatto: boolean; titolo: string }[];
+      for (const v of perTitolo) {
+        const combacianti = aMano.filter((r) => r.titolo === v.titolo);
+        if (combacianti.length !== 1) continue;
+        daSpuntare.push({ voce: v, riga: combacianti[0] });
+      }
+    }
+
+    /**
      * ⚠️ IL TESTO DI UNA VOCE GIÀ IN PAGINA NON VIENE RISCRITTO — e va DETTO.
      *
      * Questo caricamento fa due cose: crea le voci mancanti e spunta quelle che il file dichiara

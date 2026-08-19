@@ -80,8 +80,20 @@ describe('CommerceService (flusso bonifico)', () => {
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'ord1', ...data })),
         update: jest.fn(),
       },
-      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-op' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-op' }), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       user: { findUnique: jest.fn().mockResolvedValue({ locale: 'it' }) },
+      /**
+       * ⚠️ Serve a `apriSegnalazione`, che dal 19/8 sera viene chiamata quando una coda non si può
+       * promuovere. Senza queste due righe il finto tirerebbe un `TypeError`, il `.catch` lo
+       * inghiottirebbe e **la segnalazione non sarebbe provata da nessuno** — cioè il test direbbe
+       * «tutto a posto» proprio sul pezzo che esiste perché nessuno se ne accorga.
+       * È la quinta volta oggi che un doppio a cui manca un metodo salta in silenzio ciò che deve
+       * verificare, e ogni volta è stata la mutazione o la revisione a dirlo, mai i test verdi.
+       */
+      escalation: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'esc-1', ...data })),
+      },
     };
     mail = {
       sendBankTransferInstructions: jest.fn().mockResolvedValue(true),
@@ -592,6 +604,29 @@ describe('CommerceService (flusso bonifico)', () => {
      * ⛔ E la cliente ci perde davvero: `attivoInCorso` ne sceglie uno solo, e i giorni dell'altro
      * scorrono senza che riceva niente. Paga e non riceve.
      */
+    /**
+     * ⚠️ E LA COSA FINISCE NELLA CODA DI QUALCUNO — trovato dalla revisione avversariale del 19/8
+     * sera, ed è la correzione che tiene in piedi tutte le altre.
+     *
+     * Il rifiuto di promuovere era raccontato in tre posti che non legge nessuno: il numero di
+     * ritorno del cron (che il chiamante scarta), un `logger.warn` (e i log di Render ruotano) e uno
+     * script da lanciare a mano. ⛔ Una cliente che ha pagato un piano che non parte non produceva
+     * **nessuna riga nella coda di nessuno** — e su un abbonamento mensile ogni rinnovo sposta la
+     * scadenza più in là, quindi quel piano non partirebbe **mai**.
+     */
+    it('⚠️ una coda bloccata apre una segnalazione: se no non lo sa nessuno', async () => {
+      jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({
+        sane: [inCoda({ id: 'sub-coda', startDate: new Date('2026-08-19T00:00:00.000Z') })],
+        altre: [{ id: 'sub-prima', clientId: 'client-1', startDate: new Date('2026-06-01T00:00:00.000Z'), endDate: new Date('2026-08-29T00:00:00.000Z') }],
+      });
+      scritturaRiuscita();
+      await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'));
+      expect(prisma.escalation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ clientId: 'client-1' }) }),
+      );
+    });
+
     it('⚠️ una coda che finirebbe ADDOSSO a un piano ancora in corso non si promuove', async () => {
       const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
       codeInDb({

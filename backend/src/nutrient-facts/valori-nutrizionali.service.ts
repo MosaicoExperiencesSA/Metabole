@@ -1,6 +1,6 @@
-import { abbina, paroleChe } from './abbinamento-alimenti';
+import { abbina, eParolina, paroleChe, paroleDi } from './abbinamento-alimenti';
 import { ingredientiScoperti, usiNegliIngredienti } from './ingredienti-scoperti';
-import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, posizioneDentro } from './nome-dentro-la-domanda';
+import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, sequenzaDentro } from './nome-dentro-la-domanda';
 import { type EsitoPerRicetta, type EsitoScelta, fraseAmbiguita, scegliPerRicetta, scegliPerStato } from './stato-alimento';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -222,19 +222,19 @@ export class ValoriNutrizionaliService {
      * più larga**, è la stessa ricerca su una scrittura normalizzata. Non può abbinare niente che
      * non fosse già a un «di» di distanza.
      */
-    const senzaParoline = (x: string) => paroleChe(x).join(' ');
-    const tp = senzaParoline(t);
+    const paroleDomanda = paroleDi(t);
 
-    const trovati: { v: ValoreNutrizionale; lunghezza: number; posizione: number }[] = [];
+    const trovati: { v: ValoreNutrizionale; lunghezza: number; posizione: number; fine: number }[] = [];
     for (const v of tutti) {
       const nomi = [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).filter(Boolean);
-      let migliore: { lunghezza: number; posizione: number } | null = null;
+      let migliore: { lunghezza: number; posizione: number; fine: number } | null = null;
       for (const n of nomi) {
-        const np = senzaParoline(n);
-        if (!np) continue;
-        const pos = posizioneDentro(tp, np, modo);
-        if (pos < 0) continue;
-        if (!migliore || np.length > migliore.lunghezza) migliore = { lunghezza: np.length, posizione: pos };
+        const sue = paroleDi(n);
+        if (!sue.length) continue;
+        const seq = sequenzaDentro(paroleDomanda, sue, modo, eParolina);
+        if (!seq) continue;
+        const quante = paroleChe(n).length;
+        if (!migliore || quante > migliore.lunghezza) migliore = { lunghezza: quante, posizione: seq.da, fine: seq.a };
       }
       if (migliore) trovati.push({ v, ...migliore });
     }
@@ -247,9 +247,9 @@ export class ValoriNutrizionaliService {
     const perLunghezza = [...trovati].sort((a, b) => b.lunghezza - a.lunghezza);
     const tenuti: typeof trovati = [];
     for (const c of perLunghezza) {
-      const dentroUnAltro = tenuti.some(
-        (t2) => t2.posizione <= c.posizione && t2.posizione + t2.lunghezza >= c.posizione + c.lunghezza,
-      );
+      // ⚠️ Il confronto è per POSIZIONE DI PAROLA, non per carattere: da quando si abbina per
+      // sequenza, `lunghezza` conta le parole che distinguono e la fine la dice `fine`.
+      const dentroUnAltro = tenuti.some((t2) => t2.posizione <= c.posizione && t2.fine >= c.fine);
       if (!dentroUnAltro) tenuti.push(c);
     }
     // Nell'ordine in cui la cliente li ha scritti: «meglio A o B» va risposto parlando di A e poi B.
@@ -432,7 +432,7 @@ export class ValoriNutrizionaliService {
    * ricette e che oggi non usa più nessuno deve scendere da solo. Un elenco che cresce e non cala
    * racconta un lavoro che non finisce mai.
    */
-  async aggiornaIngredientiScoperti(tetto = 300): Promise<{ scoperti: number; scritti: number; fuori: number }> {
+  async aggiornaIngredientiScoperti(tetto = 300): Promise<{ scoperti: number; scritti: number; falliti: number; fuori: number }> {
     const [ricette, righe] = await Promise.all([
       this.prisma.recipe.findMany({ where: { active: true } as never, select: { ingredients: true } as never }) as Promise<
         { ingredients: unknown }[]
@@ -453,6 +453,14 @@ export class ValoriNutrizionaliService {
     }
 
     const nomi = new Set(daScrivere.map((x) => x.nome));
+    /**
+     * ⚠️ **SI CONTANO GLI ESITI, NON LE INTENZIONI** — 19/8 sera, revisione avversariale. Prima
+     * tornava `scritti: daScrivere.length`, cioè quante ne volevo scrivere: se il database fosse
+     * caduto a metà, il cron avrebbe riportato «300 scritte» e `ok: true`. Un guasto notturno che si
+     * racconta come successo è peggio di un guasto: nessuno va a guardare.
+     */
+    let scritti = 0;
+    let falliti = 0;
     for (const x of daScrivere) {
       /**
        * ⚠️ `upsert` e non `create`: il nome può già esserci perché una cliente l'ha **chiesto** a
@@ -465,8 +473,13 @@ export class ValoriNutrizionaliService {
           update: { ricette: x.ricette, motivo: x.motivo, suggerito: x.suggerito } as never,
           create: { term: x.nome, times: 0, ricette: x.ricette, motivo: x.motivo, suggerito: x.suggerito } as never,
         })
-        .catch(() => undefined);
+        .then(() => { scritti += 1; })
+        .catch((e) => {
+          falliti += 1;
+          if (falliti === 1) this.logger.warn(`Alimenti da correggere: la prima scrittura fallita è «${x.nome}»: ${String(e)}`);
+        });
     }
+    if (falliti) this.logger.warn(`Alimenti da correggere: ${falliti} righe su ${daScrivere.length} non si sono scritte.`);
 
     /** Chi non è più usato da nessuna ricetta torna a zero: l'elenco deve poter calare. */
     const daAzzerare = (await this.prisma.nutrientLookupMiss.findMany({
@@ -480,7 +493,7 @@ export class ValoriNutrizionaliService {
         .catch(() => undefined);
     }
 
-    return { scoperti: scoperti.length, scritti: daScrivere.length, fuori };
+    return { scoperti: scoperti.length, scritti, falliti, fuori };
   }
 
 }

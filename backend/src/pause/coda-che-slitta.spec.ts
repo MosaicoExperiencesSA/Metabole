@@ -80,4 +80,37 @@ describe('la coda che slitta quando una pausa allunga il piano in corso', () => 
     expect(codaCheSlitta(righe, 'uno', g('2026-08-25'), 0)).toEqual([]);
     expect(codaCheSlitta(righe, 'uno', g('2026-08-25'), -3)).toEqual([]);
   });
+
+  /**
+   * ⚠️ IL GIORNO È QUELLO DI ROMA, NON QUELLO DEL PROCESSO — trovato dalla revisione avversariale
+   * del 19/8 sera, ed era un difetto vero nascosto da un commento sbagliato.
+   *
+   * Il modulo usava `setHours(0,0,0,0)` con scritto accanto «mezzanotte locale»: su Render il
+   * processo gira in **UTC**, quindi era mezzanotte UTC. Un piano che finisce alle 00:00Z del 26 e
+   * una coda che parte alle 22:00Z del 25 sono **lo stesso giorno a Roma** (il passaggio di
+   * testimone normale) e **due giorni diversi** in UTC.
+   *
+   * ⛔ Risultato: la coda non scorreva, la pausa allungava il piano davanti, e la coda finiva
+   * dentro di lui — il caso Lorena riaperto dal confine di giorno.
+   *
+   * ⚠️ E l'intera suite non se ne accorgeva, perché **tutte le date dei test erano a mezzanotte
+   * UTC**: con quei dati i due modi di contare i giorni coincidono sempre.
+   */
+  it('⚠️ le 22:00Z del 25 sono il 26 a Roma: la coda scorre lo stesso', () => {
+    const righe = [
+      { id: 'uno', status: 'active', startDate: g('2026-06-01'), endDate: new Date('2026-08-26T00:00:00.000Z') },
+      { id: 'due', status: 'queued', startDate: new Date('2026-08-25T22:00:00.000Z'), endDate: new Date('2026-11-25T22:00:00.000Z') },
+    ];
+    const spostati = codaCheSlitta(righe, 'uno', new Date('2026-08-26T00:00:00.000Z'), 7);
+    expect(spostati.map((x) => x.id)).toEqual(['due']);
+  });
+
+  /** E il verso opposto: un giorno prima davvero resta fuori, anche con le ore di mezzo. */
+  it('⚠️ le 22:00Z del 24 sono il 25 a Roma: prima del confine, non scorre', () => {
+    const righe = [
+      { id: 'uno', status: 'active', startDate: g('2026-06-01'), endDate: new Date('2026-08-26T00:00:00.000Z') },
+      { id: 'due', status: 'queued', startDate: new Date('2026-08-24T22:00:00.000Z'), endDate: g('2026-11-25') },
+    ];
+    expect(codaCheSlitta(righe, 'uno', new Date('2026-08-26T00:00:00.000Z'), 7)).toEqual([]);
+  });
 });

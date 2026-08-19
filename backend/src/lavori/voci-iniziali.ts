@@ -1265,4 +1265,45 @@ export const VOCI_INIZIALI: Voce[] = [
     priorita: 'bassa',
   },
 
+  /**
+   * ⚠️ LE TRE VOCI SCRITTE A MANO IN PAGINA CHE OGGI RISULTAVANO APERTE SU LAVORI GIÀ FATTI.
+   *
+   * Hanno `chiave: null` in banca dati — le ha scritte Simone dal backoffice — quindi il file non le
+   * ha mai viste. Il 19/8 sera mi sono costate tre indagini: ogni volta sono partito per fare il
+   * lavoro e ogni volta era già fatto. Da stasera il caricamento le può **chiudere per titolo**
+   * (`soloSeEsiste`), che è l'unica cosa che identifica una riga scritta a mano.
+   *
+   * ⛔ Chiudere, mai creare: se in pagina il titolo non c'è, per il caricamento non esiste.
+   */
+  {
+    chiave: 'pagina-schermate-30-27-28',
+    titolo: 'Schermate app 30 (assaggio menu) e 27-28 (video onboarding)',
+    dettaglio:
+      'Chiusa il 19/8 sera. ⚠️ Erano **due cose già annullate**, e la voce le teneva vive da sola: l\'assaggio del menu (30) non è mai esistito nel codice ed era stato superato da «Conosciamoci» il 13/8; i video erano le schermate **28-29** (non 27-28: la voce mescolava due numerazioni) e li ha annullati Simone il **17/07**. ⚠️ Cercandoli è saltato fuori un difetto vivo: la pagina delle misure di partenza prometteva a ogni cliente «guarda il video toccando il pulsante», e il pulsante non c\'era — corretto lo stesso giorno.',
+    categoria: CODICE,
+    ordine: 950,
+    fatta: true,
+    soloSeEsiste: true,
+  },
+  {
+    chiave: 'pagina-vera-giorni-futuri',
+    titolo: 'Vera: rifare i giorni futuri non ancora aperti quando il capo approva un divieto di dieta',
+    dettaglio:
+      'Chiusa il 19/8 sera, ma **era già fatta dal 18/8**: il rifacimento sta in `applica-proposta.ts`, tetto compreso. ⚠️ Non si vedeva per colpa di un commento venti righe sopra il codice che lo fa, che diceva «si rifanno in un secondo momento» e rimandava a una voce di elenco lavori **mai esistita**. *Un commento che descrive come da fare un lavoro fatto è una trappola.* Corretto, e aggiunti i tre test che mancavano sul tetto dei 200 (la regola si scrive comunque · 200 non è «oltre» · il tetto conta le persone, non le giornate).',
+    categoria: CODICE,
+    ordine: 951,
+    fatta: true,
+    soloSeEsiste: true,
+  },
+  {
+    chiave: 'pagina-moduli-dashboard',
+    titolo: 'Moduli fissi in dashboard',
+    dettaglio:
+      'Chiusa il 19/8 sera, e **il nucleo era già fatto dal 18/8**: nessun modulo fisso, tutti accendibili, spegnibili e trascinabili, i predefiniti col bordo colorato, il pulsante «Ripristina default» con conferma. ⚠️ Rileggendo la richiesta fino in fondo («se un utente **si è perso** preme il pulsante») è emerso che il pulsante rimetteva **solo i moduli**: chi si era perso spegnendo il portafoglio o la tabella clienti non recuperava niente. Ora rimette tutta la home — moduli, blocchi, grafici e scorciatoie — in una scrittura sola. ⛔ L\'ordine del menu no: ha il suo pulsante nel suo riquadro.',
+    categoria: CODICE,
+    ordine: 952,
+    fatta: true,
+    soloSeEsiste: true,
+  },
+
 ];

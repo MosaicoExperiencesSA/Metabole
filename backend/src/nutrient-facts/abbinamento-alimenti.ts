@@ -129,6 +129,13 @@ export function paroleDi(nome: string): string[] {
 /** Le parole che **distinguono**: quelle che restano tolte le paroline. */
 export const paroleChe = (nome: string): string[] => paroleDi(nome).filter((p) => !PAROLINE.has(p));
 
+/**
+ * È una parolina? ⚠️ Esportata perché la ricerca dentro una domanda deve poterle **saltare**, e
+ * saltarle è diverso da toglierle: vedi `sequenzaDentro` in `nome-dentro-la-domanda.ts`, dove
+ * toglierle incollava parole che nella domanda erano lontane.
+ */
+export const eParolina = (p: string): boolean => PAROLINE.has(p);
+
 export type Regola = 'esatto' | 'ricetta_piu_specifica';
 
 export interface Abbinamento<T> {

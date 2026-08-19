@@ -5,6 +5,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { scegliPerRicetta } from './stato-alimento';
+import { normalizzaNome } from './valori-nutrizionali.service';
 
 /**
  * LA BANCA DATI NUTRIZIONALE VISTA DALLA NUTRIZIONISTA (11/8).
@@ -53,18 +55,39 @@ export class NutrientFactsController {
   @Get('mancanti')
   @RequirePage('nutrient_facts')
   async mancanti() {
-    const TETTO = 200;
-    const [righe, quanti] = await Promise.all([
+    const TETTO = 100;
+    /**
+     * ⚠️ **DUE ELENCHI, NON UNO ORDINATO SU DUE UNITÀ** — corretto il 19/8 sera dopo la revisione
+     * avversariale, ed era un difetto che aveva sepolto la ragione per cui questa tabella esiste.
+     *
+     * Per mezza giornata qui c'era un `orderBy: [{ricette:'desc'}, {times:'desc'}]` con un tetto
+     * unico. ⛔ Ma il passo notturno scrive **trecento** righe con `ricette ≥ 1`: le prime duecento
+     * erano quindi **sempre e solo** ingredienti di ricette, e **nessun termine chiesto da una
+     * cliente** poteva più comparire. «Tempeh chiesto 40 volte è la prossima riga da scrivere» —
+     * la frase con cui questa tabella è nata, ancora scritta qui sopra — da quel momento non era
+     * più vera, e nessun errore lo diceva.
+     *
+     * ⚠️ È lo stesso motivo per cui i due numeri non si sommano: **sono unità diverse**. Ordinarle
+     * insieme è sommarle di nascosto. Quindi due domande, due elenchi, due tetti.
+     */
+    const [daRicette, quanteRicette, chieste, quanteChieste] = await Promise.all([
       this.prisma.nutrientLookupMiss.findMany({
-        where: { status: 'open' } as never,
-        // ⚠️ Prima le ricette: un nome in 1025 ricette è nel piatto di molte più persone di uno
-        // chiesto tre volte in chat. A pari ricette torna a contare quante volte l'hanno chiesto.
-        orderBy: [{ ricette: 'desc' }, { times: 'desc' }, { lastAskedAt: 'desc' }] as never,
+        where: { status: 'open', ricette: { gt: 0 } } as never,
+        orderBy: [{ ricette: 'desc' }, { term: 'asc' }] as never,
         take: TETTO,
       } as never),
-      this.prisma.nutrientLookupMiss.count({ where: { status: 'open' } as never }),
+      this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { gt: 0 } } as never }),
+      this.prisma.nutrientLookupMiss.findMany({
+        where: { status: 'open', ricette: { lte: 0 } } as never,
+        orderBy: [{ times: 'desc' }, { lastAskedAt: 'desc' }] as never,
+        take: TETTO,
+      } as never),
+      this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { lte: 0 } } as never }),
     ]);
-    return { righe, quanti, mostrati: (righe as unknown[]).length };
+    return {
+      daRicette: { righe: daRicette, quanti: quanteRicette },
+      chieste: { righe: chieste, quanti: quanteChieste },
+    };
   }
 
   /**
@@ -98,12 +121,47 @@ export class NutrientFactsController {
         : Promise.resolve(null))) as { id: string; name: string; synonyms: string[] } | null;
     if (!riga) throw new BadRequestException('Serve la riga a cui attaccare il sinonimo.');
 
-    // ⚠️ Se c'è già non si scrive due volte: un sinonimo doppio non fa danno ma sporca la riga.
-    const gia = (riga.synonyms ?? []).some((x) => x.trim().toLowerCase() === miss.term.trim().toLowerCase());
+    /**
+     * ⚠️ **NON SI ATTACCA UN SINONIMO A UNA RIGA CHE NON SI PUÒ USARE** — 19/8 sera, revisione
+     * avversariale, ed era il difetto più subdolo dei due pulsanti.
+     *
+     * `suggerito` viene dall'abbinamento, che dice *quale riga* ma non *se quella riga serve*.
+     * Caso vero: «lenticchie bio» → riga «lenticchie», che in tabella è **bollita**. Un clic, e il
+     * termine usciva dall'elenco come risolto. ⛔ Da lì in poi nessun numero sbagliato — la
+     * convenzione del crudo blocca — ma **il lavoro vero spariva**: manca la riga a crudo, che vale
+     * 325 kcal contro 93, e il passo notturno non riapre una riga chiusa a mano. Una scorciatoia che
+     * *nasconde* un buco è peggio del buco.
+     */
+    const stessoNome = (await this.prisma.nutrientFact.findMany({
+      where: { name: riga.name },
+      select: { name: true, state: true } as never,
+    })) as { name: string; state: string | null }[];
+    const scelta = scegliPerRicetta(stessoNome);
+    if (scelta.tipo === 'solo_cotto') {
+      throw new BadRequestException(
+        `«${riga.name}» in tabella c'è solo da cotto (${scelta.stati.join(', ')}), e nelle ricette le ` +
+          'grammature sono a crudo: attaccarci questo nome lo toglierebbe dall\'elenco senza risolvere ' +
+          'niente. Serve prima la riga a crudo.',
+      );
+    }
+
+    /**
+     * ⚠️ **`push` e non riscrittura dell'array.** Due operatrici che chiudono due termini diversi
+     * sulla stessa riga nella stessa finestra — ed è il caso da 6494 ricette dell'olio, dove i
+     * termini da attaccare sono tre — con un leggi-modifica-scrivi si sovrascrivono a vicenda:
+     * l'ultima vince e il primo sinonimo sparisce **senza errore**. Postgres sa aggiungere in fondo
+     * a un array da solo.
+     *
+     * ⚠️ E il confronto «c'è già» usa `normalizzaNome`, come **ogni** confronto di nomi in questo
+     * dominio: `trim().toLowerCase()` non toglie apostrofi e accenti, e «olio extravergine d'oliva»
+     * non risultava uguale a «olio extravergine d oliva» — due risposte alla stessa domanda a
+     * quattro righe di distanza.
+     */
+    const gia = (riga.synonyms ?? []).some((x) => normalizzaNome(x) === normalizzaNome(miss.term));
     if (!gia) {
       await this.prisma.nutrientFact.update({
         where: { id: riga.id },
-        data: { synonyms: [...(riga.synonyms ?? []), miss.term] } as never,
+        data: { synonyms: { push: miss.term } } as never,
       });
     }
     /**

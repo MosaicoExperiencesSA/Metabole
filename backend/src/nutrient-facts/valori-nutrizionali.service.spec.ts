@@ -143,6 +143,30 @@ describe('ValoriNutrizionaliService — quale alimento trova', () => {
     expect(await service.cerca('quante calorie hanno le melanzane?')).toBeNull();
   });
 
+  /**
+   * ⚠️ LE PAROLINE SI SALTANO, NON SI TOLGONO — trovato dalla revisione avversariale del 19/8 sera,
+   * ed era un difetto che diceva numeri sbagliati a una cliente.
+   *
+   * `cercaTutti` toglieva le paroline da tutte e due i lati e riattaccava le parole: così
+   * «gallette **e il** riso» diventava «gallette riso» e combaciava con la riga «gallette di riso».
+   * ⛔ Chi chiedeva di **due** alimenti riceveva **un** numero, sbagliato e plausibile. Togliere le
+   * paroline non ne salta una: ne salta quante ne trova, e **incolla parole che nella domanda erano
+   * lontane**.
+   */
+  it('⚠️ «le gallette e il riso» NON sono le gallette di riso', async () => {
+    const trovati = await service.cercaTutti('quante calorie hanno le gallette e il riso?');
+    expect(trovati.map((t) => t.id)).not.toContain('gallette');
+  });
+
+  /**
+   * ⚠️ E LA PAROLINA CHE STA DENTRO IL NOME SI SALTA ANCORA: è il caso per cui la regola esiste.
+   * «Olio extravergine oliva» e «olio extravergine d oliva» sono lo stesso olio scritto in due modi,
+   * e in produzione sono 3723 ricette.
+   */
+  it('la domanda può TOGLIERE una parolina: «riso brillato» resta trovabile scritto corto', async () => {
+    expect((await service.cercaTutti('e il riso brillato?')).map((x) => x.id)).toEqual(['bianco']);
+  });
+
   it('due alimenti in un confronto, nell\'ordine in cui li ha scritti', async () => {
     const trovati = await service.cercaTutti('meglio il riso basmati o il riso integrale?');
     expect(trovati.map((t) => t.id)).toEqual(['basmati', 'integrale']);

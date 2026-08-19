@@ -113,3 +113,95 @@ export function posizioneDentro(domanda: string, nome: string, modo: ModoDiCerca
   }
   return -1;
 }
+
+
+/**
+ * IL NOME DELLA TABELLA COME **SEQUENZA DI PAROLE** DENTRO LA DOMANDA — e perché non basta togliere
+ * le paroline da tutte e due i lati.
+ *
+ * ⚠️ Prima `cercaTutti` faceva così: toglieva le paroline dalla domanda e dal nome, riattaccava le
+ * parole con uno spazio e cercava una stringa dentro l'altra. Il commento diceva «non può abbinare
+ * niente che non fosse già a un "di" di distanza». ⛔ **Era falso**, e la revisione avversariale del
+ * 19/8 sera l'ha rotto con due domande vere:
+ *
+ *     «quante calorie hanno le gallette E IL riso?»  →  «gallette riso»  →  «gallette di riso»
+ *     «quante calorie hanno il succo E IL limone?»   →  «succo limone»   →  «succo di limone»
+ *
+ * Chi chiedeva di **due** alimenti riceveva **un** numero, sbagliato e plausibile. Togliere le
+ * paroline non salta una parolina: ne salta quante ne trova, quindi **incolla parole che nella
+ * domanda erano lontane**. Era la stessa classe di errore chiusa la sera stessa passando a
+ * «parole intere», riaperta da un'altra porta nella stessa funzione.
+ *
+ * ✅ La regola giusta è: le parole che **distinguono** devono comparire **nell'ordine**, e in mezzo
+ * si può saltare **solo** una parolina. «Olio extravergine d oliva» trova «olio extravergine di
+ * oliva» (in mezzo c'è «di», una parolina); «gallette e il riso» non trova «gallette di riso»,
+ * perché fra «gallette» e «riso» c'è «e il» — due paroline che nella domanda separano due cose
+ * diverse... e infatti anche «di» separerebbe, se non fosse che nel nome della tabella c'è.
+ *
+ * ⚠️ **Il confronto è fra le parole della domanda e quelle del nome, una per una.** Quindi
+ * `parole_intere` è il comportamento naturale; `pezzo_di_parola` resta possibile (una parola della
+ * domanda che **contiene** quella del nome) perché `diag:ricerca` continua a confrontare i due modi.
+ */
+export interface Sequenza {
+  /** Indice della prima parola della domanda che fa parte dell'abbinamento. */
+  da: number;
+  /** Indice **dopo** l'ultima. Serve a scartare un nome contenuto dentro un altro già trovato. */
+  a: number;
+}
+
+export function sequenzaDentro(
+  paroleDomanda: readonly string[],
+  /** Le parole del nome della tabella **tutte**, paroline comprese: servono a contare i buchi. */
+  paroleNome: readonly string[],
+  modo: ModoDiCercare,
+  eParolina: (p: string) => boolean,
+): Sequenza | null {
+  /**
+   * ⚠️ LA REGOLA, IN UNA RIGA: **la domanda può TOGLIERE paroline, non aggiungerne.**
+   *
+   * Il nome si legge come «parole che distinguono, separate da N paroline»:
+   *
+   *     «olio extravergine di oliva»  →  olio · extravergine · [1] · oliva
+   *     «gallette di riso»            →  gallette · [1] · riso
+   *
+   * Fra due parole che distinguono, la domanda può avere **al massimo** le paroline che ha il nome:
+   *
+   *     «olio extravergine oliva»    0 ≤ 1   ✅  è lo stesso olio scritto più corto
+   *     «olio extravergine d oliva»  1 ≤ 1   ✅  è lo stesso olio scritto con l'apostrofo
+   *     «gallette e il riso»         2 >  1  ⛔  sono DUE alimenti, e prima diventavano uno
+   *
+   * ⚠️ Il primo tentativo di questa correzione diceva «in mezzo si salta solo una parolina» ed era
+   * ancora sbagliato: «e» e «il» **sono** paroline, quindi «gallette e il riso» passava lo stesso.
+   * Il numero conta. Se ne accorge solo chi prova la frase vera — l'ho scoperto scrivendola.
+   */
+  const distintive: { parola: string; buchiPrima: number }[] = [];
+  let buchi = 0;
+  for (const w of paroleNome) {
+    if (eParolina(w)) { if (distintive.length) buchi++; continue; }
+    distintive.push({ parola: w, buchiPrima: buchi });
+    buchi = 0;
+  }
+  if (!distintive.length || !paroleDomanda.length) return null;
+
+  const combacia = (parolaDomanda: string, parolaNome: string) =>
+    modo === 'parole_intere' ? parolaDomanda === parolaNome : parolaDomanda.includes(parolaNome);
+
+  for (let inizio = 0; inizio < paroleDomanda.length; inizio++) {
+    if (!combacia(paroleDomanda[inizio], distintive[0].parola)) continue;
+    let i = inizio + 1;
+    let k = 1;
+    let ok = true;
+    while (k < distintive.length) {
+      let saltate = 0;
+      while (i < paroleDomanda.length && eParolina(paroleDomanda[i])) { i++; saltate++; }
+      if (i >= paroleDomanda.length || saltate > distintive[k].buchiPrima || !combacia(paroleDomanda[i], distintive[k].parola)) {
+        ok = false;
+        break;
+      }
+      i++;
+      k++;
+    }
+    if (ok) return { da: inizio, a: i };
+  }
+  return null;
+}

@@ -38,6 +38,7 @@
  * torna che cosa scrivere.
  */
 
+import { giornoLocale } from '../common/date-only';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 export interface RigaDaSpostare {
@@ -55,12 +56,22 @@ export interface Spostamento {
 
 const GIORNO = 86_400_000;
 
-/** Mezzanotte locale: i confronti fra piani si fanno per GIORNO in tutto il progetto. */
-const giorno = (d: Date): number => {
-  const x = new Date(d.getTime());
-  x.setHours(0, 0, 0, 0);
-  return x.getTime();
-};
+/**
+ * IL GIORNO **DELL'AZIENDA**, non quello del processo.
+ *
+ * ⚠️ Qui c'era `setHours(0,0,0,0)` con scritto accanto «mezzanotte locale» — e non lo era: su Render
+ * il processo gira in **UTC**, quindi quella era mezzanotte UTC. La revisione avversariale del 19/8
+ * sera l'ha rotto con un caso vero: un piano che finisce alle 00:00Z del 26 e una coda che parte
+ * alle 22:00Z del 25 sono **lo stesso giorno a Roma** — il passaggio di testimone normale — ma due
+ * giorni diversi in UTC. La coda non scorreva, la pausa allungava il piano davanti, e la coda
+ * finiva **dentro** di lui: cioè esattamente il caso Lorena che questo modulo esiste per chiudere,
+ * riaperto dal confine di giorno.
+ *
+ * ⛔ E il commento sbagliato è la parte peggiore: diceva «locale» e nessuno andava a verificare.
+ * Adesso è la **stessa** funzione che usa `sovrapposizione-piani.ts`, cioè la matita — due funzioni
+ * che rispondono alla stessa domanda devono chiamare la stessa terza, non somigliarsi.
+ */
+const giorno = (d: Date): string => giornoLocale(d);
 
 /**
  * Le righe della fila da far scorrere, e di quanto.

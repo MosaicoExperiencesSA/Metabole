@@ -36,7 +36,7 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
     const prisma = crea([ric('melanzane'), ric('melanzane')], [{ name: 'mela', synonyms: [], state: 'crudo' }]);
     const esito = await (await build(prisma)).aggiornaIngredientiScoperti();
 
-    expect(esito).toEqual({ scoperti: 1, scritti: 1, fuori: 0 });
+    expect(esito).toEqual({ scoperti: 1, scritti: 1, falliti: 0, fuori: 0 });
     const [call] = scritte(prisma);
     expect(call.where).toEqual({ term: 'melanzane' });
     expect(call.create).toMatchObject({ term: 'melanzane', ricette: 2, motivo: 'non_in_tabella' });
@@ -84,7 +84,7 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
   it('⚠️ il tetto si vede nel risultato, non si nasconde', async () => {
     const prisma = crea([ric('melanzane', 'zucchine', 'fagiolini')], []);
     const esito = await (await build(prisma)).aggiornaIngredientiScoperti(2);
-    expect(esito).toEqual({ scoperti: 3, scritti: 2, fuori: 1 });
+    expect(esito).toEqual({ scoperti: 3, scritti: 2, falliti: 0, fuori: 1 });
     expect(scritte(prisma)).toHaveLength(2);
   });
 
@@ -109,5 +109,21 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
     const prisma = crea([], []);
     await (await build(prisma)).aggiornaIngredientiScoperti();
     expect(prisma.recipe.findMany.mock.calls[0][0].where).toEqual({ active: true });
+  });
+
+  /**
+   * ⚠️ SI CONTANO GLI ESITI, NON LE INTENZIONI — trovato dalla revisione avversariale del 19/8 sera.
+   * Prima tornava «quante ne volevo scrivere»: con il database caduto a metà il cron avrebbe
+   * riportato «300 scritte» e `ok: true`. Un guasto che si racconta come successo è peggio di un
+   * guasto, perché nessuno va a guardare. ⚠️ E il doppio non poteva accorgersene: `upsert` era un
+   * `mockResolvedValue` che non può fallire.
+   */
+  it('⚠️ se le scritture falliscono lo dice, invece di contarle come fatte', async () => {
+    const prisma = crea([ric('melanzane', 'zucchine')], []);
+    prisma.nutrientLookupMiss.upsert = jest.fn().mockRejectedValue(new Error('Neon giù'));
+    jest.spyOn((await build(prisma) as never as { logger: { warn: jest.Mock } }).logger, 'warn').mockImplementation(() => undefined);
+    const esito = await (await build(prisma)).aggiornaIngredientiScoperti();
+    expect(esito.scritti).toBe(0);
+    expect(esito.falliti).toBe(2);
   });
 });

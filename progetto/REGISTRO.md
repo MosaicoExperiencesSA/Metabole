@@ -20,6 +20,54 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔍 **Seconda revisione avversariale della giornata, sulle consegne che avevano visto
+  solo i miei occhi: 27 rilievi.** Le sei che contano.
+  ⛔ **La coda che non sarebbe mai partita, e nessuno l'avrebbe saputo.** Stasera avevo insegnato al
+  cron a non promuovere una coda che finirebbe addosso a un altro piano — giusto. Ma su un
+  abbonamento **ricorrente** ogni rinnovo sposta la scadenza avanti di un mese: la coda dietro resta
+  sovrapposta **per sempre**, e quel piano già pagato non sarebbe mai partito. E lo raccontavo in tre
+  posti che non legge nessuno. ⚠️ *Il difetto di famiglia di questo progetto — un dato che agisce e
+  non si vede — commesso mentre lo stavo chiudendo.* Ora ogni coda ferma apre una **segnalazione**.
+  ⛔ **La pausa contava i giorni in UTC e la matita a Roma.** `setHours(0,0,0,0)` con scritto accanto
+  «mezzanotte locale»: su Render il processo è in UTC. Un piano che finisce alle 00:00Z del 26 e una
+  coda che parte alle 22:00Z del 25 sono lo **stesso giorno a Roma** e due giorni diversi in UTC — la
+  coda non scorreva e finiva dentro il piano allungato: il caso Lorena riaperto dal confine di
+  giorno, dentro il modulo scritto per chiuderlo. ⚠️ E la suite non se ne accorgeva perché **tutte le
+  date dei test erano a mezzanotte UTC**, dove i due modi coincidono sempre.
+  ⛔ **«Le gallette e il riso» diventava «gallette di riso».** `cercaTutti` toglieva le paroline da
+  entrambi i lati e riattaccava le parole: chi chiedeva di **due** alimenti riceveva **un** numero,
+  sbagliato e plausibile. La stessa classe di errore chiusa stasera con «parole intere», riaperta da
+  un'altra porta nella stessa funzione. ⚠️ E la prima correzione era ancora sbagliata («in mezzo si
+  salta solo una parolina» — ma «e» e «il» *sono* paroline). La regola vera: **la domanda può
+  togliere paroline, non aggiungerne**. Me ne sono accorto solo scrivendo la frase vera.
+  ⛔ **Il passo notturno poteva far riavviare l'istanza**: ~5 secondi di CPU bloccante dentro il
+  processo che serve le clienti, con l'health check a 5 secondi — e l'8/8 un'istanza è già stata
+  uccisa così. Un indice preparato una volta: da 5000 ms a 40 ms, stesso risultato.
+  ⛔ **L'elenco dei mancanti aveva sepolto la ragione per cui esiste**: ordinato su due unità diverse
+  con un tetto unico, le prime 200 righe erano sempre e solo ingredienti di ricette e **nessun
+  termine chiesto da una cliente** poteva più comparire. Ora due elenchi, due tetti, due conteggi.
+  ⛔ **Il pulsante «è "X"» poteva nascondere un buco da tre volte**: «lenticchie bio» attaccato alla
+  riga *bollita* usciva dall'elenco come risolto, e il lavoro vero (la riga a crudo, 325 contro 93
+  kcal) spariva per sempre. Ora l'endpoint rifiuta e spiega.
+  Più: il rinnovo Stripe che segnalava ogni mese senza aver scavalcato niente; `scritti` che contava
+  le intenzioni e non gli esiti; i sinonimi con leggi-modifica-scrivi (due operatrici insieme e uno
+  spariva); «Ripristina default» che filtrava i moduli sui permessi e **salvava il filtrato** — mia
+  correzione di due ore prima, e sembrava più pulita.
+  ⚠️ **E un finto a cui mancava un metodo, la quinta volta oggi**: senza `escalation` nel doppio di
+  `commerce.spec`, `apriSegnalazione` avrebbe tirato un `TypeError`, il `.catch` l'avrebbe inghiottito
+  e la segnalazione non sarebbe stata provata da nessuno. Ogni volta l'ha detto una mutazione o una
+  revisione, **mai i test verdi**.
+
+- `[Sviluppo]` 📋 **Le voci scritte a mano in pagina ora si possono chiudere — per titolo** (richiesta
+  di Simone: «la lista è piena, aggiorna le cose fatte»). Una voce scritta dal backoffice ha
+  `chiave: null`: il file non la vede, quindi **nessuna consegna la può spuntare**, nemmeno a lavoro
+  finito. ⚠️ Oggi è costato **tre indagini** — «Schermate app 30 e 27-28», «Vera: rifare i giorni
+  futuri», «Moduli fissi in dashboard»: tutte e tre già fatte, e ogni volta sono partito per rifarle.
+  Ora il caricamento le chiude per titolo con `soloSeEsiste`: solo per chiudere, mai per creare, e
+  ⛔ **solo se il titolo combacia con una riga sola** — due voci intitolate uguale sono due lavori
+  diversi, e spuntarne una a caso è il genere di errore silenzioso che qui si passa le giornate a
+  togliere.
+
 - `[Sviluppo]` 🔁 **«Ripristina default» manteneva un terzo della promessa.** Ero partito per la
   voce «Moduli fissi in dashboard»: ⚠️ **era già fatta dal 18/8** — terza volta oggi che una voce in
   pagina risulta aperta su un lavoro chiuso. Ma rileggendo la richiesta fino in fondo («se un utente

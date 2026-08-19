@@ -109,10 +109,25 @@ export interface HomeDiFabbrica {
  * a tre centimetri da questo: rimetterlo anche da qui vorrebbe dire che un pulsante fa una cosa che
  * il suo testo non dice, e la prima volta che succede nessuno capisce perché il menu è cambiato.
  */
-export function homeDiFabbrica(moduliVisibili?: readonly string[]): HomeDiFabbrica {
-  const visibili = moduliVisibili ? new Set(moduliVisibili) : null;
+export function homeDiFabbrica(): HomeDiFabbrica {
   return {
-    dashboardModules: DEFAULT_MODULE_IDS.filter((id) => !visibili || visibili.has(id)),
+    /**
+     * ⚠️ **NON si filtrano sui permessi, e stamattina lo facevo** — corretto il 19/8 sera dopo la
+     * revisione avversariale, che ha mostrato due modi in cui il filtro peggiorava le cose:
+     *
+     * ⛔ Una coach senza il permesso «Bonifici» premeva il pulsante e si salvava una lista **senza**
+     * quel modulo. Il giorno che il permesso arrivava, il modulo **non tornava più**: il filtro
+     * aveva reso permanente una restrizione che prima era dinamica (il rendering filtra già a ogni
+     * caricamento, quindi il modulo compariva da solo).
+     * ⛔ E un ruolo che non vedesse nessuno dei quattro predefiniti si sarebbe salvato `[]` — che
+     * **non è nullo**, quindi il ripiego `?? DEFAULT` non scatta più: home vuota, per sempre. È la
+     * stessa trappola che il commento qui sotto documenta per le scorciatoie, e ci ero cascato tre
+     * righe più su.
+     *
+     * ⚠️ Chi filtra è la **lettura**, non la scrittura: la preferenza dice cosa vuole la persona, il
+     * permesso dice cosa può vedere oggi, e sono due cose che cambiano per ragioni diverse.
+     */
+    dashboardModules: [...DEFAULT_MODULE_IDS],
     // I blocchi nascono ACCESI e si spengono: «tutti accesi» è l'elenco degli spenti vuoto.
     dashboardBlocksOff: [],
     dashboardCharts: [...DEFAULT_CHART_KEYS],

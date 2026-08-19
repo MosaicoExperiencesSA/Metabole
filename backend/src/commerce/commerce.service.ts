@@ -45,6 +45,7 @@ import { statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_
  * niente Nest), quindi importarlo non lega i due domini.
  */
 import { siSovrappongono } from '../clients/sovrapposizione-piani';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -1713,6 +1714,8 @@ export class CommerceService {
     const nuovaFine = fineStripe
       ? new Date(fineStripe * 1000)
       : (() => { const d = new Date(sub.endDate ?? new Date()); d.setMonth(d.getMonth() + 1); return d; })();
+    /** ⚠️ Dove finiva PRIMA di questo rinnovo: serve al controllo delle code, più sotto. */
+    const vecchiaFine: Date | null = sub.endDate ?? null;
     await this.prisma.subscription.update({
       where: { id: sub.id },
       data: {
@@ -1765,7 +1768,18 @@ export class CommerceService {
         },
         select: { id: true, startDate: true, endDate: true },
       })) as { id: string; startDate: Date | null; endDate: Date | null }[];
-      const scavalcati = dietro.filter((d) => siSovrappongono(sub.startDate ?? null, nuovaFine, d.startDate, d.endDate));
+      /**
+       * ⚠️ SI CONFRONTA IL **PEZZO NUOVO**, non tutto il piano — corretto il 19/8 sera dopo la
+       * revisione avversariale. Prima qui c'era `sub.startDate`, cioè l'inizio **originale**
+       * dell'abbonamento, mesi fa: così qualunque piano affiancato ancora vivo veniva segnalato a
+       * **ogni** rinnovo, per sempre, anche quando la scadenza nuova non aveva scavalcato niente.
+       * ⛔ Un avviso che compare sempre non è un avviso: si impara a saltarlo, e il giorno che dice
+       * una cosa vera nessuno lo legge. Qui interessa solo il tratto che questo rinnovo ha
+       * **aggiunto**: da dove finiva prima a dove finisce adesso.
+       */
+      const scavalcati = vecchiaFine
+        ? dietro.filter((d) => siSovrappongono(vecchiaFine, nuovaFine, d.startDate, d.endDate))
+        : [];
       if (scavalcati.length) {
         this.logger.warn(
           `Rinnovo Stripe su ${sub.clientId}: la scadenza nuova (${nuovaFine.toISOString().slice(0, 10)}) passa sopra ` +
@@ -2565,6 +2579,38 @@ export class CommerceService {
       return !addosso;
     });
     if (sovrapposte.length) {
+      /**
+       * ⚠️ **UNA CODA FERMA DEVE FINIRE NELLA CODA DI QUALCUNO** — corretto il 19/8 sera dopo la
+       * revisione avversariale, ed è la correzione che tiene in piedi tutte le altre.
+       *
+       * Stasera avevo scritto il rifiuto di promuovere e l'avevo raccontato in tre posti che non
+       * legge nessuno: il numero di ritorno del cron (che il chiamante scarta), un `logger.warn` (e
+       * i log di Render ruotano) e `npm run diag:coda`, che qualcuno deve ricordarsi di lanciare.
+       *
+       * ⛔ Cioè: una cliente che ha pagato un piano che non parte **non produceva nessuna riga nella
+       * coda di nessuno**. E il caso peggiore non è raro — su un abbonamento ricorrente ogni rinnovo
+       * sposta la scadenza in avanti, quindi la coda dietro resta sovrapposta **per sempre**: senza
+       * un avviso, quel piano non partirebbe mai e nessuno lo saprebbe. È il difetto di famiglia di
+       * questo progetto — un dato che agisce e non si vede — commesso mentre lo si stava chiudendo.
+       *
+       * ⚠️ `apriSegnalazione` e non una riga scritta a mano: assegna, avvisa, e se sulla cliente non
+       * c'è nessuna nutrizionista la manda al capo invece di lasciarla lì. E si deduplica da sola,
+       * quindi non ne apre una ogni notte sullo stesso caso.
+       */
+      for (const s of sovrapposte) {
+        await apriSegnalazione(this.prisma as never, {
+          clientId: s.clientId,
+          // ⚠️ `other`: le categorie sono un elenco chiuso e clinico (dieta bloccata, aderenza,
+          // umore). Un piano pagato che non parte non è una di quelle, e inventarne una qui
+          // vorrebbe dire allargare un elenco clinico per un problema di cassa. Il testo dice tutto.
+          category: 'other',
+          source: 'engine',
+          reason:
+            'Un piano pagato non riesce a partire: la data d\'inizio cade dentro un altro piano ancora in corso. ' +
+            'Resta in coda e non eroga niente — finché qualcuno non sposta la partenza, accorcia l\'altro o rimborsa. ' +
+            'Non si sblocca da solo: su un abbonamento mensile ogni rinnovo sposta la scadenza più in là.',
+        }).catch(() => undefined);
+      }
       this.logger.warn(
         `Code arrivate: ${sovrapposte.length} piani NON li promuovo perché finirebbero addosso a un ` +
           `altro piano della stessa cliente (clienti: ${sovrapposte.map((s) => s.clientId).join(', ')}). ` +

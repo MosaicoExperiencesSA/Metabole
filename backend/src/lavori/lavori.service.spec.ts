@@ -24,6 +24,8 @@ jest.mock('./voci-iniziali', () => ({
     // ⚠️ Le due righe di chiusura dei doppioni (voce 224): una c'è in pagina, l'altra no.
     { chiave: 'doppione-in-pagina', titolo: 'Doppione da chiudere', dettaglio: 'x', categoria: 'Manutenzione', ordine: 900, fatta: true, soloSeEsiste: true },
     { chiave: 'doppione-inesistente', titolo: 'Doppione che non c\'è', dettaglio: 'x', categoria: 'Manutenzione', ordine: 901, fatta: true, soloSeEsiste: true },
+    // ⚠️ La voce scritta A MANO in pagina (`chiave: null`) che il file chiude PER TITOLO (19/8 sera).
+    { chiave: 'pagina-scritta-a-mano', titolo: 'Moduli fissi in dashboard', dettaglio: 'x', categoria: 'Da fare — codice', ordine: 950, fatta: true, soloSeEsiste: true },
   ],
 }));
 
@@ -367,5 +369,64 @@ describe('LavoriService.caricaVociIniziali — il file e la pagina che divergono
       .map((c) => c[0])
       .filter((u) => u.data.fatto === false);
     expect(spunteTolte).toEqual([]);
+  });
+});
+/**
+ * ⚠️ LE VOCI SCRITTE A MANO IN PAGINA SI CHIUDONO PER TITOLO (19/8 sera).
+ *
+ * Hanno `chiave: null`, quindi il file non le ha mai viste e nessuna consegna le poteva spuntare —
+ * anche quando il lavoro era finito. Oggi è costato tre indagini su tre voci già fatte.
+ */
+describe('chiudere per titolo le voci scritte a mano', () => {
+  const conPagina = (aMano: { id: string; titolo: string }[]) => ({
+    lavoro: {
+      /**
+       * ⚠️ Il finto distingue le due letture dal `where`, come farebbe il database: quella per
+       * CHIAVE (le voci del file) e quella per TITOLO fra le righe scritte a mano (`chiave: null`).
+       * Un finto che rispondesse uguale a tutte e due farebbe passare il test qualunque cosa
+       * facesse il codice.
+       */
+      findMany: jest.fn().mockImplementation((args: any) => {
+        const w = args?.where ?? {};
+        if ('chiave' in w && w.chiave === null) {
+          return Promise.resolve(aMano.filter((r) => (w.titolo?.in ?? [r.titolo]).includes(r.titolo)).map((r) => ({ ...r, chiave: null, fatto: false, dettaglio: null, testoAMano: false, nataIl: null })));
+        }
+        return Promise.resolve([]);
+      }),
+      count: jest.fn().mockResolvedValue(aMano.length),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+  });
+
+  it('⚠️ una voce a mano col titolo di una voce «fatta» del file si spunta', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard' }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse.map((x) => x.titolo)).toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⛔ DUE VOCI CON LO STESSO TITOLO SONO DUE LAVORI DIVERSI: spuntarne una a caso è il genere di
+   * errore silenzioso che questo progetto passa le giornate a togliere. Se sono due, non si tocca.
+   */
+  it('⚠️ due voci a mano con lo stesso titolo: non si tocca niente', async () => {
+    const prisma = conPagina([
+      { id: 'l1', titolo: 'Moduli fissi in dashboard' },
+      { id: 'l2', titolo: 'Moduli fissi in dashboard' },
+    ]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+  });
+
+  /** ⛔ E non si CREA mai: se in pagina quel titolo non c'è, per il caricamento non esiste. */
+  it('⚠️ una voce a mano che non c\'è non viene creata', async () => {
+    const prisma = conPagina([]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.titoli.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
   });
 });

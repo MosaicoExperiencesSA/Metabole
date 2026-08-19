@@ -1,0 +1,130 @@
+--------------------------------------------------------------------------------
+Parte: le correzioni della revisione avversariale sulle consegne di oggi — 19/8 notte
+--------------------------------------------------------------------------------
+
+Due revisori avversariali sul lavoro consegnato oggi e mai visto da nessuno tranne me.
+Ventisette rilievi. Qui ci sono le correzioni, dalle piu gravi.
+
+⛔ 1. LA CODA CHE NON SAREBBE MAI PARTITA, E NESSUNO L AVREBBE SAPUTO
+
+Stasera avevo insegnato al cron a NON promuovere una coda che finirebbe addosso a un altro
+piano. Giusto. Ma su un abbonamento RICORRENTE ogni rinnovo sposta la scadenza avanti di un
+mese, quindi la coda dietro resta sovrapposta PER SEMPRE: quel piano — gia pagato — non sarebbe
+mai partito. E io lo raccontavo in tre posti che non legge nessuno: il numero di ritorno del
+cron (che il chiamante scarta), un `logger.warn` (i log di Render ruotano) e uno script da
+lanciare a mano.
+
+⚠️ Cioe una cliente che ha pagato un piano che non parte NON PRODUCEVA NESSUNA RIGA NELLA CODA
+DI NESSUNO. E il difetto di famiglia di questo progetto — un dato che agisce e non si vede —
+commesso mentre lo stavo chiudendo.
+
+Ora ogni coda ferma apre una SEGNALAZIONE, con `apriSegnalazione`: assegna, avvisa, e se sulla
+cliente non c e nessuna nutrizionista la manda al capo. Si deduplica da sola.
+
+⛔ 2. LA PAUSA CONTAVA I GIORNI IN UTC E LA MATITA A ROMA
+
+`coda-che-slitta.ts` usava `setHours(0,0,0,0)` con scritto accanto «mezzanotte locale». Su Render
+il processo gira in UTC: era mezzanotte UTC. Un piano che finisce alle 00:00Z del 26 e una coda
+che parte alle 22:00Z del 25 sono LO STESSO GIORNO a Roma — il passaggio di testimone normale —
+e due giorni diversi in UTC.
+
+⛔ Risultato: la coda non scorreva, la pausa allungava il piano davanti, e la coda finiva dentro
+di lui. Il caso Lorena riaperto dal confine di giorno, dentro il modulo scritto per chiuderlo.
+
+⚠️ E l intera suite non se ne accorgeva perche TUTTE le date dei test erano a mezzanotte UTC: con
+quei dati i due modi di contare i giorni coincidono sempre. Aggiunti due casi con le ore vere.
+
+⛔ 3. «LE GALLETTE E IL RISO» DIVENTAVA «GALLETTE DI RISO»
+
+`cercaTutti` toglieva le paroline da tutte e due i lati e riattaccava le parole. Il commento
+diceva «non puo abbinare niente che non fosse gia a un "di" di distanza». Era FALSO:
+
+    «quante calorie hanno le gallette E IL riso?»  →  «gallette riso»  →  «gallette di riso»
+    «quante calorie hanno il succo E IL limone?»   →  «succo limone»   →  «succo di limone»
+
+Chi chiedeva di DUE alimenti riceveva UN numero, sbagliato e plausibile. La stessa classe di
+errore chiusa stasera passando a «parole intere», riaperta da un altra porta nella stessa
+funzione.
+
+⚠️ E la prima correzione era ancora sbagliata: avevo scritto «in mezzo si salta solo una
+parolina», ma «e» e «il» SONO paroline. La regola vera e: LA DOMANDA PUO TOGLIERE PAROLINE, NON
+AGGIUNGERNE — fra due parole che distinguono, la domanda puo averne al massimo quante ne ha il
+nome. Me ne sono accorto solo scrivendo la frase vera.
+
+⛔ 4. IL PASSO NOTTURNO POTEVA FAR RIAVVIARE L ISTANZA
+
+`ingredientiScoperti` chiamava l abbinamento per OGNI nome fuori tabella contro OGNI riga:
+misurato, ~5 SECONDI di CPU bloccante. E quel passo gira DENTRO il processo che serve le clienti
+(il cron di Render e un curl sull endpoint), Node e a thread singolo, e l health check ha 5
+secondi di pazienza. L 8/8 un istanza e gia stata uccisa cosi, e sta scritto nel `render.yaml`.
+
+Un indice per parola, preparato una volta: da ~5000 ms a 40 ms. Il risultato non cambia di una
+riga — si stringe il giro, non la regola.
+
+⛔ 5. L ELENCO DEI MANCANTI AVEVA SEPOLTO LA RAGIONE PER CUI ESISTE
+
+Ordinavo in un elenco solo prima per «quante ricette» e poi per «quante volte l hanno chiesto»,
+con un tetto di 200. Ma il passo notturno ne scrive 300 con `ricette >= 1`: le prime 200 erano
+quindi SEMPRE E SOLO ingredienti di ricette, e nessun termine chiesto da una cliente poteva piu
+comparire in pagina. «Tempeh chiesto 40 volte e la prossima riga da scrivere» — la frase con cui
+questa tabella e nata — aveva smesso di essere vera.
+
+⚠️ E lo stesso motivo per cui i due numeri non si sommano: sono unita diverse, e ordinarle
+insieme e sommarle di nascosto. Ora sono due elenchi, due tetti, due conteggi.
+
+⛔ 6. IL PULSANTE «e "X"» POTEVA NASCONDERE UN BUCO DA TRE VOLTE
+
+`suggerito` dice QUALE riga, non SE quella riga serve. «Lenticchie bio» → riga «lenticchie», che
+in tabella e BOLLITA: un clic e il termine usciva dall elenco come risolto. Nessun numero
+sbagliato — la convenzione del crudo blocca — ma il lavoro vero (serve la riga a crudo, 325 kcal
+contro 93) spariva, e il passo notturno non riapre una riga chiusa a mano. Ora l endpoint
+rifiuta e spiega.
+
+7. ALTRE, PIU PICCOLE MA VERE
+
+  · il rinnovo Stripe confrontava TUTTO il piano invece del pezzo nuovo: segnalava ogni mese, per
+    sempre, anche quando non aveva scavalcato niente. Un avviso che compare sempre non e un avviso.
+  · `scritti` contava le INTENZIONI: col database caduto a meta il cron avrebbe detto «300
+    scritte» e `ok: true`. Ora conta gli esiti, e dice i falliti.
+  · i sinonimi si aggiungevano con leggi-modifica-scrivi: due operatrici insieme e uno spariva.
+    Ora `push` atomico. E il controllo «c e gia» usa `normalizzaNome` come tutto il resto.
+  · «Ripristina default» FILTRAVA i moduli sui permessi e salvava il filtrato: una coach senza
+    «Bonifici» non l avrebbe piu recuperato il giorno del permesso, e un ruolo senza nessun
+    predefinito si salvava `[]` — che non e nullo, quindi home vuota per sempre. Chi filtra e la
+    LETTURA. (Era una correzione mia di due ore prima: il filtro sembrava piu pulito.)
+  · togliere una riga dall elenco non ricaricava: la lista si svuotava fino a sparire con
+    centinaia di righe ancora da lavorare.
+
+⚠️ E UN FINTO A CUI MANCAVA UN METODO, LA QUINTA VOLTA OGGI
+
+Al finto di `commerce.spec` mancava `escalation`: senza, `apriSegnalazione` avrebbe tirato un
+TypeError, il `.catch` l avrebbe inghiottito e LA SEGNALAZIONE NON SAREBBE STATA PROVATA DA
+NESSUNO — cioe il test avrebbe detto «tutto a posto» proprio sul pezzo che esiste perche nessuno
+se ne accorga. Ogni volta l ha detto una mutazione o una revisione, mai i test verdi.
+
+--------------------------------------------------------------------------------
+E LA LISTA: LE VOCI SCRITTE A MANO ORA SI POSSONO CHIUDERE
+--------------------------------------------------------------------------------
+
+Richiesta di Simone: «la lista e piena, aggiorna le cose fatte».
+
+Una voce scritta dal backoffice ha `chiave: null`: il file non la vede, quindi NESSUNA consegna
+la puo spuntare, nemmeno quando il lavoro e finito. Oggi e costato tre indagini — «Schermate app
+30 e 27-28», «Vera: rifare i giorni futuri», «Moduli fissi in dashboard»: tutte e tre gia fatte.
+
+Ora il caricamento le chiude PER TITOLO, con `soloSeEsiste`: ⚠️ solo per chiudere, mai per
+creare, e ⛔ SOLO SE IL TITOLO COMBACIA CON UNA RIGA SOLA — due voci intitolate uguale sono due
+lavori diversi, e spuntarne una a caso e il genere di errore silenzioso che qui si passa le
+giornate a togliere. Le tre voci sono nel file e si chiudono al prossimo «Aggiorna dal rilascio».
+
+FILE
+- backend/commerce: `commerce.service.ts` + `commerce.spec.ts` (finto allargato, 1 test nuovo)
+- backend/pause: `coda-che-slitta.ts` + spec (2 test nuovi)
+- backend/nutrient-facts: `nome-dentro-la-domanda.ts` · `abbinamento-alimenti.ts` ·
+  `ingredienti-scoperti.ts` · `valori-nutrizionali.service.ts` + spec ·
+  `alimenti-da-correggere.spec.ts` · `nutrient-facts.controller.ts`
+- backend/lavori: `lavori.service.ts` + spec (3 test nuovi) · `voci-iniziali.ts` (3 voci chiuse)
+- backoffice: `ValoriNutrizionali.tsx` · `lib/dashboardModules.ts` + spec · `pages/Impostazioni.tsx`
+
+245 suite / 3859 test verdi, 39 nel backoffice, build ok. Sei mutazioni provate: mordono tutte.
+Nessuna migrazione.

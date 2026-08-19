@@ -37,7 +37,7 @@
  * con `['crudo']` al maschile — due risposte alla stessa domanda, e quella sbagliata era la copia.
  */
 
-import { abbina } from './abbinamento-alimenti';
+import { abbina, paroleChe } from './abbinamento-alimenti';
 import { scegliPerRicetta } from './stato-alimento';
 import { normalizzaNome } from './valori-nutrizionali.service';
 
@@ -95,6 +95,32 @@ export function ingredientiScoperti(
     }
   }
 
+  /**
+   * ⚠️ **UN INDICE, NON UN GIRO DENTRO L'ALTRO** — corretto il 19/8 sera dopo la revisione
+   * avversariale, e non è un'ottimizzazione per far bella figura.
+   *
+   * La prima versione chiamava `abbina` per **ogni** nome fuori tabella contro **ogni** riga:
+   * 7831 × 250 righe × i loro sinonimi, con `paroleChe` che ri-normalizzava ogni nome ogni volta.
+   * Misurato: **~5 secondi di CPU bloccante**. E questo passo gira **dentro il processo che serve
+   * le clienti** (il cron di Render è un `curl` sull'endpoint, non un processo a parte): cinque
+   * secondi di event loop fermo su Node, che è a thread singolo, con l'health check a 5 secondi.
+   *
+   * ⛔ L'8/8 un'istanza è già stata uccisa per un health check andato in timeout, e sta scritto nel
+   * `render.yaml`. Qui la causa gliela stavo mettendo dentro io.
+   *
+   * ⚠️ La correzione non cambia una virgola del risultato: si prepara **una volta** l'elenco delle
+   * righe candidate per prima parola, e `abbina` si chiama solo su quelle. Le regole restano quelle
+   * di `abbinamento-alimenti.ts` — è il giro che si stringe, non la regola.
+   */
+  const perPrimaParola = new Map<string, RigaTabella[]>();
+  for (const r of righe ?? []) {
+    const chiavi = new Set<string>();
+    for (const n of [r.name, ...(r.synonyms ?? [])]) {
+      for (const p of paroleChe(normalizzaNome(n))) chiavi.add(p);
+    }
+    for (const k of chiavi) perPrimaParola.set(k, [...(perPrimaParola.get(k) ?? []), r]);
+  }
+
   const fuori: Scoperto[] = [];
   for (const [nome, ricette] of usi) {
     const trovate = perNome.get(nome);
@@ -104,7 +130,17 @@ export function ingredientiScoperti(
        * già: se ci arriva, si suggerisce quella riga — un sinonimo scritto a mano chiude il caso, e
        * chiude insieme tutte le ricette che scrivono quel nome.
        */
-      const forse = abbina(nome, righe ?? [], (r) => [r.name, ...(r.synonyms ?? [])], (r) => r.state);
+      /**
+       * ⚠️ Solo le righe che hanno **almeno una parola in comune** con questo nome: l'abbinamento
+       * chiede comunque che tutte le parole della riga compaiano nell'ingrediente, quindi una riga
+       * senza nemmeno una parola in comune non può abbinarsi — provarla è tempo buttato, e moltiplicato
+       * per settemila nomi diventa il blocco dell'event loop.
+       */
+      const candidate = new Set<RigaTabella>();
+      for (const p of paroleChe(nome)) for (const r of perPrimaParola.get(p) ?? []) candidate.add(r);
+      const forse = candidate.size
+        ? abbina(nome, [...candidate], (r) => [r.name, ...(r.synonyms ?? [])], (r) => r.state)
+        : null;
       fuori.push({ nome, ricette, motivo: 'non_in_tabella', suggerito: forse?.riga.name ?? null });
       continue;
     }
