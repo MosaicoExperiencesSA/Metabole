@@ -71,8 +71,12 @@ describe('NotificationsService', () => {
       // Piano attivo (endDate futura) → il messaggio quotidiano "piano di oggi" può partire.
       subscription: {
         findFirst: jest.fn().mockResolvedValue({ endDate: new Date(Date.now() + 7 * 86_400_000) }),
-        // Il giro dei solleciti misure legge tutte le clienti con un piano comprato.
-        findMany: jest.fn().mockResolvedValue([]),
+        // ⚠️ `findMany` e non `findFirst`: il messaggio quotidiano legge TUTTI i piani della cliente e
+        // sceglie quello che eroga (`attivoInCorso`), perché due righe sono legittime e una `findFirst`
+        // senza `orderBy` ne prendeva una a caso. Lo usa anche il giro dei solleciti misure.
+        findMany: jest.fn().mockResolvedValue([
+          { status: 'active', startDate: new Date(Date.now() - 7 * 86_400_000), endDate: new Date(Date.now() + 7 * 86_400_000) },
+        ]),
       },
     };
     const config = {
@@ -162,12 +166,25 @@ describe('NotificationsService', () => {
   });
 
   it('⚠️ col solo piano IN CODA il messaggio quotidiano parte lo stesso', async () => {
-    prisma.subscription.findFirst.mockImplementation(({ where }: any) => {
+    prisma.subscription.findMany.mockImplementation(({ where }: any) => {
       const ammessi: string[] = where?.status?.in ?? [where?.status];
-      return Promise.resolve(
-        ammessi.includes('queued') ? { status: 'queued', endDate: new Date(Date.now() + 7 * 86_400_000) } : null,
-      );
+      const coda = { status: 'queued', startDate: new Date(Date.now() + 86_400_000), endDate: new Date(Date.now() + 90 * 86_400_000) };
+      return Promise.resolve(ammessi.includes('queued') ? [coda] : []);
     });
+    expect(await service.generateDailyForClient('u1')).toContain('engine_daily');
+  });
+
+  /**
+   * ⚠️ E CON DUE RIGHE NON SI SCEGLIE A CASO. Una cliente con il piano che eroga **e** una coda
+   * rimasta indietro con la fine già passata: un `findFirst` senza `orderBy` poteva prendere la
+   * seconda, e allora il messaggio quotidiano spariva a chi il piano ce l'ha. La coda per prima,
+   * di proposito: se qualcuno tornasse a prendere «la prima», si vedrebbe.
+   */
+  it('⚠️ fra la coda vecchia e il piano che eroga, il messaggio segue chi eroga', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { status: 'queued', startDate: new Date(Date.now() - 60 * 86_400_000), endDate: new Date(Date.now() - 30 * 86_400_000) },
+      { status: 'active', startDate: new Date(Date.now() - 7 * 86_400_000), endDate: new Date(Date.now() + 7 * 86_400_000) },
+    ]);
     expect(await service.generateDailyForClient('u1')).toContain('engine_daily');
   });
 

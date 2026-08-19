@@ -1,0 +1,45 @@
+I tre grafici della contabilità mostrano l'anno, non un punto solo
+
+Segnalazione di Simone (19/8, con lo screenshot): «il dato numerico va bene ma il grafico dovrebbe
+darmi l'anno».
+
+IL DIFETTO
+«Incassi / mese», «Costi / mese» e «Utile / mese» leggevano `report.series`, cioè la serie del
+**periodo selezionato** — che è un mese. Un mese fa un punto, e un punto disegnato da solo non è un
+grafico: è un pallino con sotto scritto «ago 26». Nemmeno la freccia ▲▼ compariva, perché il
+confronto è con il punto precedente e il punto precedente non c'era.
+
+LA SCELTA: ULTIMI DODICI MESI, NON ANNO SOLARE (decisione di Simone)
+Finestra mobile che finisce col mese selezionato: ad agosto 26 mostra set 25 → ago 26. ⚠️ L'anno
+solare avrebbe riportato lo stesso difetto a gennaio — un punto e undici caselle vuote — e a marzo ne
+avrebbe mostrati tre. Così il grafico è sempre pieno, e cambiando mese scorre indietro insieme ai
+numeri.
+
+⚠️ I NUMERI GRANDI RESTANO DEL MESE. Sono due domande diverse — «come è andato agosto» e «come sta
+andando» — e prima avevano la stessa risposta. Ora la scheda dice tutte e due le cose: il numero del
+mese in cima, la strada per arrivarci sotto.
+
+⚠️ UNA SECONDA CHIAMATA, NON UN CAMPO IN PIÙ NELL'API. `/admin/accounting/report` sa già rispondere
+su un intervallo qualsiasi e riempie da solo i mesi vuoti: non serve niente di nuovo da nessuna
+parte, e la serie dei dodici mesi vive in uno stato suo. ⚠️ **Suo e non dentro `report`**: se i
+grafici leggessero la serie del report tornerebbero al mese solo, ed è com'erano prima.
+
+⚠️ E LE ETICHETTE DELL'ASSE SI DIRADANO (`lib/etichetteAsse.ts`, 6 test)
+`MiniTrend` scriveva **tutti** i mesi sotto il grafico. Con tre o quattro punti andava bene; con
+dodici «ago 26» larghi ~35 px su una scheda da 320 px diventano una riga grigia illeggibile — e
+un'etichetta illeggibile è come un'etichetta assente, solo che sembra messa apposta. Se ne scrivono
+al massimo sei, ⚠️ **contando all'indietro dall'ultima**: l'ultimo punto è il mese che si sta
+guardando, quello dei numeri grandi in cima, e senza la sua etichetta il grafico direbbe un numero
+senza dire di quando. Contando in avanti dal primo, l'ultima sarebbe finita a caso e a volte
+attaccata alla penultima. ⚠️ Si dirada l'**etichetta**, non il dato: la linea e il passaggio del
+mouse restano su tutti i punti.
+
+Il diradamento è un modulo puro con i suoi test perché «quali etichette ci stanno» è una domanda che
+torna ogni volta che un grafico si allunga — e `MiniTrend` lo usano anche Dashboard e Grafici.
+
+FILE
+- backoffice/src/pages/Contabilita.tsx (`annoRange`, la serie in uno stato suo)
+- backoffice/src/lib/etichetteAsse.ts (nuovo) + .spec.ts (6 test)
+- backoffice/src/components/MiniTrend.tsx
+
+Backoffice: 3 file di test, 31 test verdi. Nessuna modifica al backend, nessuna migrazione.

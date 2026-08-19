@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
+import { etichetteDaMostrare } from '../lib/etichetteAsse';
 
 /**
  * Grafico compatto a linea con area e LINEA DI TENDENZA (regressione lineare).
- * Mostra TUTTI i mesi sull'asse in basso e, al passaggio del mouse, il valore
- * del punto più vicino in un tooltip. Un solo colore (accento del tema); testo
+ * Mostra i mesi sull'asse in basso — ⚠️ diradati quando sono tanti, `lib/etichetteAsse.ts` — e, al
+ * passaggio del mouse, il valore del punto più vicino in un tooltip. Un solo colore (accento del tema); testo
  * in token di inchiostro, non nel colore della serie.
  */
 export function MiniTrend({
@@ -64,6 +65,9 @@ export function MiniTrend({
   }
 
   const hx = hover != null ? (x(hover) / W) * 100 : 0; // % orizzontale del punto
+  // Quali mesi entrano sull'asse senza sovrapporsi. ⚠️ Si dirada l'ETICHETTA, non il dato: la linea
+  // e il passaggio del mouse restano su tutti i punti, compresi quelli senza nome sotto.
+  const daMostrare = etichetteDaMostrare(labels.length);
 
   return (
     <div className="card" style={{ margin: 0 }}>
@@ -99,23 +103,29 @@ export function MiniTrend({
         )}
       </div>
 
-      {/* Mesi sull'asse in basso (tutti) */}
+      {/* I mesi sull'asse in basso — ⚠️ DIRADATI quando sono tanti (`lib/etichetteAsse.ts`).
+          Qui c'erano tutti, e andava bene finché i punti erano tre o quattro: dal 19/8 i grafici
+          della contabilità ne hanno dodici, e dodici «ago 26» su una scheda da 320 px diventano una
+          riga grigia illeggibile. La regola sta in un modulo suo, con i suoi test, perché «quali
+          etichette ci stanno» è una domanda che si rifà ogni volta che un grafico si allunga. */}
       <div style={{ position: 'relative', height: 14, marginTop: 3 }}>
-        {labels.map((l, i) => (
-          <span
-            key={i}
-            className="muted"
-            style={{
-              position: 'absolute',
-              left: `${(x(i) / W) * 100}%`,
-              transform: i === 0 ? 'none' : i === n - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
-              fontSize: 10,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {l}
-          </span>
-        ))}
+        {labels.map((l, i) =>
+          !daMostrare[i] ? null : (
+            <span
+              key={i}
+              className="muted"
+              style={{
+                position: 'absolute',
+                left: `${(x(i) / W) * 100}%`,
+                transform: i === 0 ? 'none' : i === n - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                fontSize: 10,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {l}
+            </span>
+          ),
+        )}
       </div>
     </div>
   );

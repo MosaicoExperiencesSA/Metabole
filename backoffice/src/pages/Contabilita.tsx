@@ -73,9 +73,34 @@ function monthRange(month: string): { from: string; to: string } {
   return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
 }
 
+/**
+ * I DODICI MESI CHE FINISCONO COL MESE SELEZIONATO — la finestra dei tre grafici (19/8).
+ *
+ * ⚠️ I numeri grandi restano quelli del **mese**, i grafici raccontano l'**anno**: sono due domande
+ * diverse («come è andato agosto» e «come sta andando»), e prima avevano la stessa risposta — cioè i
+ * grafici mostravano **un punto solo**, che di una tendenza non dice niente.
+ *
+ * ⚠️ Finestra **mobile** e non anno solare (scelta di Simone, 19/8): a gennaio un grafico da
+ * capodanno avrebbe un punto e undici caselle vuote, che è di nuovo il difetto di adesso. Così il
+ * grafico è sempre pieno, e cambiando mese scorre indietro insieme ai numeri.
+ */
+function annoRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split('-').map(Number);
+  // Undici mesi indietro: con il mese selezionato fanno dodici punti.
+  const inizio = new Date(Date.UTC(y, m - 1 - 11, 1));
+  const from = `${inizio.getUTCFullYear()}-${String(inizio.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  return { from, to: monthRange(month).to };
+}
+
 export function Contabilita() {
   const [month, setMonth] = useState(currentMonth());
   const [report, setReport] = useState<Report | null>(null);
+  /**
+   * La serie dei dodici mesi per i grafici. ⚠️ Sta in uno stato SUO e non dentro `report`: se i
+   * grafici leggessero la serie del report, tornerebbero a mostrare il solo mese selezionato — ed è
+   * esattamente com'erano prima. Due domande, due risposte.
+   */
+  const [serieAnno, setSerieAnno] = useState<Report['series']>([]);
   const [costs, setCosts] = useState<CostEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<'pdf' | 'csv' | null>(null);
@@ -93,11 +118,17 @@ export function Contabilita() {
     setError(null);
     try {
       const { from, to } = monthRange(month);
-      const [rep, cs] = await Promise.all([
+      const anno = annoRange(month);
+      const [rep, cs, repAnno] = await Promise.all([
         api<Report>(`/admin/accounting/report?from=${from}&to=${to}`),
         api<CostEntry[]>('/admin/accounting/costs'),
+        // ⚠️ Una seconda chiamata e non un campo in più nella prima: l'endpoint sa già rispondere su
+        // un intervallo qualsiasi e riempie da solo i mesi vuoti, quindi qui non serve niente di
+        // nuovo da nessuna parte. È una pagina che si apre di rado, e il conto lo fa il database.
+        api<Report>(`/admin/accounting/report?from=${anno.from}&to=${anno.to}`),
       ]);
       setReport(rep);
+      setSerieAnno(repAnno.series);
       setCosts(cs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -130,7 +161,7 @@ export function Contabilita() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
 
-  const labels = useMemo(() => (report?.series ?? []).map((s) => monthShort(s.month)), [report]);
+  const labels = useMemo(() => serieAnno.map((s) => monthShort(s.month)), [serieAnno]);
 
   async function del(c: CostEntry) {
     if (!confirm(`Eliminare il costo "${c.label}" (${euro(c.amountCents)})?`)) return;
@@ -328,12 +359,15 @@ export function Contabilita() {
             </div>
           )}
 
-          {/* Grafici mensili (un asse per grafico: incassi, costi, utile) */}
-          {report.series.length > 0 && (
+          {/* Grafici degli ULTIMI DODICI MESI (un asse per grafico: incassi, costi, utile).
+              ⚠️ La serie è `serieAnno`, non `report.series`: quella del report è il solo mese
+              selezionato, cioè un punto — e un punto non è una tendenza. I numeri grandi qui sopra
+              restano del mese, il grafico dice come ci si è arrivati. */}
+          {serieAnno.length > 0 && (
             <div className="card-row" style={{ marginTop: 16 }}>
-              <MiniTrend label="Incassi / mese" values={report.series.map((s) => s.incomeCents / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--teal)" />
-              <MiniTrend label="Costi / mese" values={report.series.map((s) => s.costsCents / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--coral)" invertDelta />
-              <MiniTrend label="Utile / mese" values={report.series.map((s) => (s.incomeCents - s.costsCents) / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--violet)" />
+              <MiniTrend label="Incassi / mese" values={serieAnno.map((s) => s.incomeCents / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--teal)" />
+              <MiniTrend label="Costi / mese" values={serieAnno.map((s) => s.costsCents / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--coral)" invertDelta />
+              <MiniTrend label="Utile / mese" values={serieAnno.map((s) => (s.incomeCents - s.costsCents) / 100)} labels={labels} format={(v) => euro0(v * 100)} color="var(--violet)" />
             </div>
           )}
 

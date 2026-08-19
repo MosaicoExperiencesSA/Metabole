@@ -53,6 +53,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   solo alla fine `npm run converti:code` per le 4 code vecchie (prova a vuoto, poi `CONFERMA=1`) —
   convertirle prima vuol dire far comparire il Profilo sbagliato proprio a loro. Foglio: `progetto/HANDOFF_2026-08-19.md`.
 
+- `[Sviluppo]` 🌅 **Il messaggio quotidiano non si decide più a caso.** Trovato rifacendo **col grep**
+  il censimento dei `findFirst` su `Subscription` — cioè applicando la lezione della giornata invece
+  di fidarsi di quello che si ricordava. `generateDailyForClient` decideva se mandare «il tuo piano di
+  oggi» con un `findFirst` **senza `orderBy`**: con una riga sola non si vedeva, ma due righe sulla
+  stessa cliente sono legittime — una eroga, una è in coda — e senza ordinamento il database ne
+  restituisce **una a caso**. Bastava uscisse quella sbagliata perché il messaggio sparisse a chi il
+  piano ce l'ha, e tornasse il giorno dopo senza che nessuno capisse perché. ⚠️ È lo stesso difetto
+  del caso Lorena, nella schermata che si guarda ogni mattina — e la consegna delle code di oggi lo
+  rendeva **più probabile**, non meno: le righe candidate sono di più. Ora `attivoInCorso`, la stessa
+  funzione dell'erogazione e della pausa. ⚠️ Restano due `findFirst` senza `orderBy`, ed è giusto:
+  cercano un `pending` per rispondere «c'è già una richiesta non pagata?», e quella domanda non
+  dipende da quale riga esce. 2 test.
+
+- `[Sviluppo]` 📈 **I tre grafici della contabilità mostrano l'anno, non un punto solo** (segnalazione
+  di Simone con lo screenshot: «il dato numerico va bene ma il grafico dovrebbe darmi l'anno»).
+  «Incassi / mese», «Costi / mese» e «Utile / mese» leggevano la serie del **periodo selezionato**,
+  che è un mese: un pallino con sotto «ago 26», e nemmeno la freccia ▲▼, perché il confronto è con il
+  punto precedente e il punto precedente non c'era. Ora la serie dei grafici è quella degli **ultimi
+  dodici mesi** che finiscono col mese scelto. ⚠️ **Finestra mobile e non anno solare** (scelta sua):
+  da capodanno l'anno solare avrebbe riportato lo stesso difetto — un punto e undici caselle vuote.
+  ⚠️ **I numeri grandi restano del mese**: sono due domande diverse («come è andato agosto» e «come
+  sta andando») e prima avevano la stessa risposta. ⚠️ Una **seconda chiamata** e non un campo nuovo
+  nell'API: l'endpoint sa già rispondere su un intervallo qualsiasi e riempie i mesi vuoti da solo.
+  ⚠️ E le **etichette dell'asse si diradano** (`lib/etichetteAsse.ts`, 6 test): dodici «ago 26» su una
+  scheda da 320 px diventano una riga grigia illeggibile, e un'etichetta illeggibile è come
+  un'etichetta assente — solo che sembra messa apposta. Se ne scrivono al massimo sei, **contando
+  all'indietro dall'ultima**, perché l'ultimo punto è il mese dei numeri grandi in cima: senza il suo
+  nome il grafico direbbe un numero senza dire di quando. Si dirada l'etichetta, non il dato.
+
 - `[Sviluppo]` 🧾 **L'attore che non esiste: di tutti i pagamenti con carta non restava una riga di
   registro.** `AuditLog.actorId` è una **chiave esterna su `user`**, ma chi scrive non sempre ha un
   utente per le mani e ci mette una stringa che spiega chi è stato: `'stripe-webhook'` sull'audit

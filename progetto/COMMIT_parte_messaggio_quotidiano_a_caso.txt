@@ -1,0 +1,30 @@
+Il messaggio quotidiano non si decide più a caso
+
+Trovato il 19/8 rifacendo col grep il censimento dei `findFirst` su `Subscription` — cioè applicando
+la lezione della giornata invece di fidarmi di quello che ricordavo.
+
+IL DIFETTO
+`generateDailyForClient` decide se mandare «il tuo piano di oggi» leggendo l'abbonamento con un
+`findFirst` **senza `orderBy`**. Con una riga sola non si vedeva. Ma due righe sulla stessa cliente
+sono legittime — una eroga, una è in coda — e senza ordinamento il database ne restituisce **una a
+caso**: bastava che uscisse quella sbagliata perché il messaggio quotidiano sparisse a una cliente
+che il piano ce l'ha, e ricomparisse il giorno dopo senza che nessuno capisse perché.
+
+È lo stesso difetto del caso Lorena (`abbonamento-in-corso.ts`, 11/8), nella schermata che si guarda
+ogni mattina. La consegna delle code di oggi lo ha reso **più probabile**, non meno: allargando la
+lettura ai piani in coda, le righe candidate sono di più.
+
+ORA
+`findMany` + `attivoInCorso`, la stessa funzione dell'erogazione e della pausa: chi eroga oggi, e fra
+due sovrapposti quello che finisce più tardi. Una domanda, una risposta.
+
+⚠️ Due test, e il secondo mette la coda **per prima** di proposito: se un giorno qualcuno tornasse a
+prendere «la prima riga», si vedrebbe.
+
+⚠️ RESTANO due `findFirst` senza `orderBy` su `Subscription`, ed è giusto così: cercano un `pending`
+per rispondere «c'è già una richiesta non pagata?». Quella domanda non dipende da quale riga esce.
+
+FILE
+- backend/src/notifications/notifications.service.ts (+ 2 test)
+
+229 suite / 3591 test verdi. Nessuna migrazione.

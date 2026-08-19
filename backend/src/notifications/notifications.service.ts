@@ -11,6 +11,7 @@ import { notificaUtente, staffDisabledTypes } from './notifica-utente';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
 import { STAFF_NOTIFICATION_TYPES, staffTypesForRole } from './staff-notifications';
+import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
 interface NotifyInput {
@@ -341,10 +342,18 @@ export class NotificationsService {
     // "piano confermato, continua col ritmo" e il link la riporta a un piano finito (bug).
     // ⚠️ Anche in coda (19/8, voce 258): nella finestra di anteprima i menu si compongono già, e un
     // messaggio quotidiano che tace mentre il menu c'è è una schermata che si contraddice da sola.
-    const activeSub = await this.prisma.subscription.findFirst({
+    /**
+     * ⚠️ `findMany` + `attivoInCorso`, e non un `findFirst` **senza `orderBy`** (19/8, quarta
+     * revisione). Due righe sulla stessa cliente sono legittime — una eroga, una è in coda — e
+     * senza ordinamento il database ne restituisce **una a caso**: bastava che la riga scelta fosse
+     * quella sbagliata perché il messaggio quotidiano sparisse a una cliente che ha il piano in
+     * corso. È lo stesso difetto del caso Lorena, in una schermata che si guarda ogni mattina.
+     */
+    const suoiPiani = (await this.prisma.subscription.findMany({
       where: { clientId, status: { in: STATI_CON_UN_PIANO as never } },
-      select: { endDate: true },
-    });
+      select: { status: true, startDate: true, endDate: true },
+    })) as { status: string; startDate: Date | null; endDate: Date | null }[];
+    const activeSub = attivoInCorso(suoiPiani);
     const hasActivePlan = !!activeSub && (!activeSub.endDate || activeSub.endDate.getTime() >= today.getTime());
 
     // 0-bis. DIGIUNO INTERMITTENTE — suggerimento settimanale della giornata 20-4 (voce #7 del 5/8).

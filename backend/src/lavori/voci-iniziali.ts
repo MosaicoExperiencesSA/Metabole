@@ -941,6 +941,26 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'messaggio-quotidiano-riga-a-caso',
+    titolo: 'Il messaggio quotidiano si decideva su una riga a caso',
+    dettaglio:
+      'Trovato il 19/8 rifacendo **col grep** il censimento dei `findFirst` su `Subscription`, cioè applicando la lezione della giornata invece di fidarsi di quello che si ricordava. `generateDailyForClient` decideva se mandare «il tuo piano di oggi» con un `findFirst` **senza `orderBy`**: con una riga sola non si vedeva, ma due righe sulla stessa cliente sono legittime — una eroga, una è in coda — e senza ordinamento il database ne restituisce **una a caso**. Bastava uscisse quella sbagliata perché il messaggio quotidiano sparisse a una cliente che il piano ce l\'ha, e tornasse il giorno dopo senza che nessuno capisse perché. ⚠️ È lo stesso difetto del caso Lorena (`abbonamento-in-corso.ts`, 11/8), nella schermata che si guarda ogni mattina — e la scrittura di `queued` lo rendeva **più probabile**, non meno: le righe candidate sono di più. Ora `findMany` + `attivoInCorso`, la stessa funzione dell\'erogazione e della pausa. ⚠️ Il secondo test mette la coda **per prima** di proposito: se qualcuno tornasse a prendere «la prima riga», si vedrebbe. ⚠️ Restano due `findFirst` senza `orderBy` su `Subscription`, ed è giusto così: cercano un `pending` per rispondere «c\'è già una richiesta non pagata?», e quella domanda non dipende da quale riga esce. 2 test, nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 289,
+    fatta: true, // 19/8
+  },
+
+  {
+    chiave: 'grafici-contabilita-dodici-mesi',
+    titolo: 'I grafici della contabilità mostravano un punto solo',
+    dettaglio:
+      'Segnalazione di Simone del 19/8, con lo screenshot: «il dato numerico va bene ma il grafico dovrebbe darmi l\'anno». I tre grafici — Incassi, Costi, Utile per mese — leggevano la serie del **periodo selezionato**, che è un mese: un pallino con sotto scritto «ago 26», e nemmeno la freccia ▲▼, perché il confronto è col punto precedente e il punto precedente non c\'era. Ora la serie è quella degli **ultimi dodici mesi** che finiscono col mese scelto. ⚠️ **Finestra mobile e non anno solare** (scelta sua): a gennaio l\'anno solare avrebbe riportato lo stesso difetto — un punto e undici caselle vuote. ⚠️ **I numeri grandi restano del mese**: «come è andato agosto» e «come sta andando» sono due domande diverse, e prima avevano la stessa risposta. ⚠️ Una **seconda chiamata** e non un campo nuovo nell\'API — l\'endpoint sa già rispondere su un intervallo qualsiasi e riempie i mesi vuoti da solo — e la serie vive in uno **stato suo**: dentro `report` sarebbe tornata al mese solo. ⚠️ E le **etichette dell\'asse si diradano** (`lib/etichetteAsse.ts`, 6 test): dodici «ago 26» su una scheda da 320 px diventano una riga grigia illeggibile, e un\'etichetta illeggibile è come un\'etichetta assente — solo che sembra messa apposta. Al massimo sei, **contando all\'indietro dall\'ultima**, che è il mese dei numeri grandi in cima. Si dirada l\'etichetta, non il dato: linea e tooltip restano su tutti i punti. Nessuna modifica al backend.',
+    categoria: CODICE,
+    ordine: 288,
+    fatta: true, // 19/8
+  },
+
+  {
     chiave: 'audit-attore-che-non-esiste',
     titolo: 'L\'attore che non esiste: i pagamenti con carta non lasciavano una riga di registro',
     dettaglio:
