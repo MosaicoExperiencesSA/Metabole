@@ -24,7 +24,20 @@ export const ONBOARDING_QUESTIONS = {
     {
       key: 'baseline',
       title: 'Il tuo punto di partenza',
-      subtitle: 'Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, guarda il video toccando il pulsante.',
+      /**
+       * ⚠️ QUI C'ERA UNA PROMESSA A VUOTO, ed è stata in produzione per settimane: «Se non sai come
+       * prenderle, **guarda il video toccando il pulsante**». Il pulsante non esiste e il video non
+       * esiste — non c'è nessun `<video>` in tutta l'app, nessun asset, nessun handler. La frase
+       * veniva dal prototipo, dove le schermate 28-29 erano due video di presentazione: ⛔ quei
+       * video **Simone li ha annullati il 17/07**, e il testo che li citava è rimasto.
+       *
+       * ⚠️ È il punto più delicato del questionario — le prime misure di una persona — e lì le
+       * dicevamo di cercare un pulsante che non c'è. Chi non lo trova pensa di aver sbagliato lei.
+       *
+       * ✅ Al suo posto una cosa **vera**: la chat c'è, e le risponde una persona. Se un giorno il
+       * video si farà, questa frase tornerà a parlare di lui.
+       */
+      subtitle: 'Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni. Se non sai come prenderle, scrivimelo in chat: te lo spiego io.',
       fields: [
         { key: 'startWeightKg', type: 'number', label: 'Peso (kg)', min: 35, max: 250, required: true },
         { key: 'heightCm', type: 'number', label: 'Altezza (cm)', min: 120, max: 230, required: true },

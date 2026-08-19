@@ -265,8 +265,10 @@ c'era già nella 2.1.4: mancava il dato che lo fa comparire).
   sono costruite le giornate in arrivo. ⚠️ Nel collegarlo è emerso che le due versioni della stessa
   frase usavano regole diverse: il lato staff guarda le giornate **future** (correzione del 12/8), il
   lato cliente confrontava l'**ultima erogata** — la versione rumorosa era rimasta dove la legge lei.
-- Rifiniture rimaste: anteprima menu (schermata 30), widget «tutto pronto» (34), video 27-28, schermi 29
-  e 33.
+- Rifiniture rimaste: widget «tutto pronto» (34) e schermo 33. ⚠️ **L'«assaggio del menu» (30) e i
+  video (28-29) sono usciti da questo elenco il 19/8 sera**: erano già decisi come non da fare — il 30
+  superato da «Conosciamoci» il 13/8, i video annullati da Simone il **17/07** — e la riga li teneva
+  vivi da sola. Nel codice non sono mai esistiti: nessuna rotta, nessun player, nessun campo.
 - **La logica sta dentro i componenti**, ed è per questo che i test dell'app sono solo quattro file in
   `src/lib/`. Non manca il runner: manca l'abitudine di tirare fuori la regola. La strada che funziona
   l'ha mostrata `pianoCarrello.ts`.

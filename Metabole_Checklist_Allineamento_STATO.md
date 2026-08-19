@@ -36,7 +36,7 @@ Fonte di verità: `docs/Metabole_Prototipo_Navigabile.html` (Direttiva Replica 1
 | 27 | Il tuo percorso è pronto | ✅ | bolla Gaia verbatim + coach/nutrizionista reali |
 | 28 | La tua coach, Sara (video) | ➖ | **annullato (Simone, 17/07): il video non si fa** |
 | 29 | Il tuo nutrizionista (video) | ➖ | **annullato (Simone, 17/07): il video non si fa** |
-| 30 | Un assaggio del tuo menu | 🟡 | il menu reale è disponibile dopo l'avvio del piano; da valutare anteprima |
+| 30 | Un assaggio del tuo menu | ➖ | **superato (13/8): lo fa «Conosciamoci»** — mai costruito, nessuna rotta né componente |
 | 31 | Scegli il tuo piano | ✅ | **pagamento Stripe reale** (checkout) |
 | 32 | Riepilogo | ✅ | checkout |
 | 33 | Quando vuoi iniziare? | ✅ | scelta data (StartDatePrompt) |

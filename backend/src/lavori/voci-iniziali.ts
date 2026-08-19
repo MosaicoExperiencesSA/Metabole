@@ -1254,4 +1254,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  {
+    chiave: 'misure-come-si-prendono',
+    titolo: 'Come si prendono le misure: la cliente non lo sa, e per settimane le abbiamo promesso un video che non c\'era',
+    dettaglio:
+      'Trovato il 19/8 sera cercando tutt\'altro (la voce sulle schermate 30 e 27-28). La pagina delle **misure di partenza** del questionario diceva a ogni cliente: «Se non sai come prenderle, **guarda il video toccando il pulsante**». ⛔ Il pulsante non c\'è e il video non c\'è — in tutta l\'app non esiste nessun `<video>`, nessun asset, nessun handler. La frase veniva dal prototipo, dove le schermate 28-29 erano due video di presentazione: ⚠️ quei video **li ha annullati Simone il 17/07**, e il testo che li citava è rimasto in produzione per settimane. ⚠️ *Un difetto di testo non è un difetto minore quando il testo è una promessa*, e questa stava nel punto più delicato del questionario — le prime misure di una persona. Chi cercava il pulsante e non lo trovava pensava di aver sbagliato lei. ✅ **La bugia è tolta il 19/8 sera**, e al suo posto c\'è una cosa vera: «scrivimelo in chat: te lo spiego io» — la chat c\'è e le risponde una persona. C\'è anche un test che impedisce ai testi del questionario di promettere di nuovo un video o un pulsante che il prodotto non ha. ⛔ **Resta la domanda vera, e non è di software**: vita e fianchi si possono misurare in modi diversi e la differenza è di centimetri, cioè di quello che poi il motore legge come progresso. Come vogliamo dirglielo — un disegno, tre righe di testo scritte dalla nutrizionista, un video vero — lo decidono Simone e Lucia. Finché non è deciso, la chat regge: è lenta ma è onesta.',
+    categoria: SIMONE,
+    ordine: 620,
+    nata: '2026-08-19T23:40',
+    priorita: 'bassa',
+  },
+
 ];

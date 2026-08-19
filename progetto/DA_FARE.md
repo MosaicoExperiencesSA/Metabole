@@ -342,8 +342,14 @@ Business dedicato**. Il passo 1 (link invece della password) è fatto.
 4. **Login social Google/Apple**: zero codice, e in registrazione le due voci dicono «in arrivo».
 5. **Publisher social**: auto-publish Instagram/Facebook ed export da Canva mancano, bloccati sulle
    credenziali. Oggi si registra a mano, e la UI lo dice.
-6. **Rifiniture app**: anteprima menu (schermata 30) e widget «tutto pronto» (34). Video 27-28 e
-   schermi 29, 33.
+6. **Rifiniture app**: restano il widget «tutto pronto» (34) e gli schermi 33.
+   ⚠️ **Tolti da qui il 19/8 sera: l'«assaggio del menu» (30) e i video (28-29)**, e non perché siano
+   stati fatti — erano **già decisi come non da fare**, e questa riga li teneva vivi da sola. Il 30
+   l'ha superato «Conosciamoci» (decisione del 13/8, `Decisioni_Simone_20260813.md` §6.2); i video di
+   presentazione di coach e nutrizionista li ha annullati Simone **il 17/07**. ⚠️ E la riga citava
+   «27-28»: nella numerazione della Direttiva i video sono **28-29**, il 27 è «Il tuo percorso è
+   pronto», che c'è ed è fatto. Un elenco di lavoro che porta avanti per un mese due cose annullate e
+   un numero sbagliato fa perdere tempo ogni volta che qualcuno lo legge.
 7. **Certificazione unicità**: certificato e collision check esistono; da chiarire se il «registro
    firmato» sia qualcosa in più o solo un modo diverso di dire la stessa cosa.
 

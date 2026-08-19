@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🗣️ **«Se non sai come prenderle, guarda il video toccando il pulsante» — e il pulsante
+  non c'era.** Cercando cosa fossero l'«assaggio menu» e i «video onboarding» di una voce vecchia
+  dell'elenco (Simone: «video onboarding cosa intendi? assaggio menu togliamolo da ovunque») ho
+  trovato un difetto vivo: la pagina delle **misure di partenza** del questionario prometteva a ogni
+  cliente un video e un pulsante **che non esistono** — in tutta l'app non c'è nessun `<video>`,
+  nessun asset, nessun handler. La frase veniva dal prototipo, dalle schermate 28-29, ⛔ **annullate
+  da Simone il 17/07**, ed è rimasta in produzione per settimane. ⚠️ *Un difetto di testo non è un
+  difetto minore quando il testo è una promessa*: stava nel punto più delicato del questionario — le
+  prime misure di una persona — e chi cercava il pulsante e non lo trovava pensava di aver sbagliato
+  lei. ✅ Al suo posto una cosa vera («scrivimelo in chat: te lo spiego io»), più un test che
+  impedisce ai testi del questionario di promettere un media che il prodotto non ha.
+  ⚠️ **E le due cose della voce erano già morte tutte e due.** L'«assaggio del menu» non è mai
+  esistito nel codice — zero rotte, zero componenti, zero endpoint — ed era già stato superato da
+  «Conosciamoci» il 13/8; i video erano le schermate **28-29** e non 27-28 (la voce mescolava due
+  numerazioni: il 27 è «Il tuo percorso è pronto», che c'è ed è fatto). ⛔ Cioè la voce teneva vive
+  per un mese due cose annullate e un numero sbagliato, e ogni volta che qualcuno la leggeva ci
+  perdeva del tempo.
+  Allineati i **tre** documenti che raccontano lo stato di oggi (`DA_FARE.md`,
+  `PUNTO_DELLA_SITUAZIONE.md`, `Checklist_Allineamento_STATO.md`). ⚠️ **Non** toccati i
+  `DA_RIPRENDERE_*`: sono fotografie datate, e riscrivere una fotografia è il modo di non poter più
+  ricostruire cosa si sapeva quel giorno.
+  ⛔ Resta in elenco, priorità bassa: **come si prendono davvero le misure**. Vita e fianchi si
+  misurano in modi diversi e la differenza è di centimetri — cioè di quello che il motore legge come
+  progresso. Un disegno, tre righe della nutrizionista o un video vero: lo decidono Simone e Lucia.
+
 - `[Sviluppo]` 🧾 **La tabella degli alimenti da correggere a mano** (risposta di Simone sulla voce
   dei nomi liberi: «crea una tabella dove possiamo correggere a mano»). L'elenco esisteva già, ma
   solo come **testo** dentro `diag:crudo-cotto` e `diag:ricerca`, cioè su una shell di Render. ⚠️ Un

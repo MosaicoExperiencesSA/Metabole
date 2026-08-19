@@ -1,0 +1,86 @@
+--------------------------------------------------------------------------------
+Parte: la promessa a vuoto nelle misure di partenza — 19/8 sera
+--------------------------------------------------------------------------------
+
+Simone sulla voce «Schermate app 30 (assaggio menu) e 27-28 (video onboarding)»:
+«Video onboarding cosa intendi? Assaggio menu togliamolo da ovunque».
+
+Sono andato a leggere il codice invece di richiederglielo. Le due risposte:
+
+1) L ASSAGGIO DEL MENU NON ESISTE, E NON E MAI ESISTITO
+
+Zero righe in `app/src`, `backend/src`, `backoffice/src`: nessuna rotta, nessun componente,
+nessun endpoint, nessun campo in banca dati, nessuna email. ⚠️ Non e «va tolto dal prodotto»:
+non e mai stato costruito. Ed era gia stato DECISO come non da fare il 13/8 — l ha superato
+«Conosciamoci» (`Decisioni_Simone_20260813.md` §6.2).
+
+Restano solo residui scollegati: `app/public/audio/anteprima.mp3` (mai riprodotto: nessun
+`clip="anteprima"` da nessuna parte), la riga che lo genera in `tools/genera_voci_gaia.mjs:62`,
+e le schermate del prototipo HTML. ⛔ Quelli li cancello io no: sono file da togliere a mano, e
+li elenco qui sotto perche qualcuno decida.
+
+2) I VIDEO ERANO LE SCHERMATE 28-29, NON 27-28 — E LI HAI ANNULLATI TU IL 17/07
+
+Erano le due presentazioni in video di coach e nutrizionista prima del pagamento. Nell app non
+c e nessun player, nessun `<video>`, nessun campo video su `Staff`. Restano orfani
+`coachvideo.mp3` e `nutrivideo.mp3`.
+
+⚠️ La voce diceva «27-28» perche MESCOLAVA DUE NUMERAZIONI: il 30 viene dalla Direttiva
+(34 schermate), il «27-28» da una riga del REGISTRO sfalsata di uno. Nella numerazione ufficiale
+il 27 e «Il tuo percorso e pronto», che c e ed e fatto.
+
+⛔ Cioe: la voce teneva vive DUE COSE GIA ANNULLATE e un numero sbagliato, e ogni volta che
+qualcuno la leggeva ci perdeva del tempo.
+
+⚠️ E CERCANDO QUESTO HO TROVATO UN DIFETTO VERO, VIVO IN PRODUZIONE
+
+La pagina delle MISURE DI PARTENZA del questionario diceva a ogni cliente:
+
+    «Inseriscimi le tue misure di partenza. Ricordati che dovrai aggiornarle ogni due giorni.
+     Se non sai come prenderle, GUARDA IL VIDEO TOCCANDO IL PULSANTE.»
+
+⛔ Il pulsante non c e e il video non c e. La frase veniva dal prototipo — dalle schermate 28-29,
+quelle annullate il 17/07 — ed e rimasta in produzione per settimane.
+
+⚠️ Un difetto di TESTO non e un difetto minore quando il testo e una PROMESSA. Quella frase stava
+nel punto piu delicato del questionario — le prime misure di una persona — e chi cercava il
+pulsante e non lo trovava pensava di aver sbagliato lei.
+
+Al suo posto una cosa vera: «scrivimelo in chat: te lo spiego io». La chat c e, e le risponde una
+persona. E c e un test che impedisce ai testi del questionario di promettere di nuovo un video o
+un pulsante che il prodotto non ha — il giorno che il video si fara, si toglie la parola da quell
+elenco insieme al pulsante, in un posto solo, e la cosa si vede nel commit.
+
+⛔ RESTA UNA DOMANDA VERA, ED E IN ELENCO LAVORI (priorita bassa): vita e fianchi si possono
+misurare in modi diversi, e la differenza e di centimetri — cioe di quello che il motore legge
+come progresso. Come dirglielo (un disegno, tre righe scritte dalla nutrizionista, un video vero)
+lo decidono Simone e Lucia. Finche non e deciso, la chat regge: e lenta ma e onesta.
+
+DOCUMENTI ALLINEATI (tre, e solo quelli che raccontano lo STATO DI OGGI)
+
+  · `progetto/DA_FARE.md:345`            tenevano vivi assaggio e video
+  · `progetto/PUNTO_DELLA_SITUAZIONE.md:268`
+  · `Metabole_Checklist_Allineamento_STATO.md:39`
+
+⚠️ NON ho toccato `DA_RIPRENDERE_20260812_sera.md` e `DA_RIPRENDERE_20260813.md`: sono
+FOTOGRAFIE DATATE, e riscrivere una fotografia e il modo di non poter piu ricostruire cosa si
+sapeva quel giorno. Ne `Metabole_Direttiva_Replica_Prototipo.md`, che descrive il prototipo — e
+nel prototipo quelle schermate c erano davvero.
+
+⛔ DA FARE A MANO, DA PARTE TUA (io i file non li cancello):
+  · `app/public/audio/anteprima.mp3` + `audio/anteprima.mp3` + `audio/anteprima.json`
+  · `app/public/audio/coachvideo.mp3`, `nutrivideo.mp3` (+ le copie in `audio/` e i `.json`)
+  · le righe 60-62 di `tools/genera_voci_gaia.mjs` che generano quelle tre clip
+⚠️ Non l ho fatto io perche togliere il generatore senza togliere i file (o viceversa) lascia
+una meta-verita peggiore di due file inutili.
+
+⛔ E LA VOCE IN ELENCO LA DEVI SPUNTARE TU: «Schermate app 30 e 27-28» vive SOLO IN PAGINA,
+scritta a mano — nel file non c e, quindi nessuna consegna la puo chiudere. E esattamente il
+caso descritto dalla voce «Il file e la pagina Lavori divergono».
+
+FILE
+- backend/onboarding: `onboarding.questions.ts` · `testi-senza-promesse.spec.ts` (nuovo, 2 test)
+- backend/lavori: `voci-iniziali.ts` — una voce nuova, priorita bassa
+- progetto: `DA_FARE.md` · `PUNTO_DELLA_SITUAZIONE.md` · `Metabole_Checklist_Allineamento_STATO.md`
+
+245 suite / 3847 test verdi. Una mutazione provata: morde. Nessuna migrazione.
