@@ -39,6 +39,7 @@ import {
 } from './giornata-dettata';
 import { minimoDaPiuProteine, quotaProteicaMinima } from '../menu/correzione-kcal';
 import { calcolaMacro, raccontaMacro, ValorePer100 } from './macro-da-ingredienti';
+import { fraseSoloCotto, scegliPerRicetta } from '../nutrient-facts/stato-alimento';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { RegistroVeraService } from './registro.service';
 import { cosaManca, leggiRicetta, RicettaDettata } from './ricetta-dettata';
@@ -722,14 +723,40 @@ export class VeraChatService {
      * (farro: 353 kcal da crudo, 127 da bollito), e sbaglia sempre in eccesso.
      */
     const ambigui: string[] = [];
+    const soloCotto: string[] = [];
+    const statoIgnoto: string[] = [];
     for (const i of ricetta.ingredienti) {
       if (valori.has(i.name)) continue;
       const scelta = await this.valori.cercaConStato(i.name).catch(() => ({ tipo: 'niente' as const }));
       if (scelta.tipo === 'ambiguo') ambigui.push(i.name);
+      /**
+       * ⚠️ NELLE RICETTE SI PESA A CRUDO (convenzione di Simone, 19/8, come nei libri di cucina), e
+       * la tabella ha molte righe **solo da cotto**: pasta, riso, quinoa, legumi, patate. Contare
+       * «80 g di quinoa» con la riga bollita (120 kcal/100 g) scrive 96 kcal dove ce ne sono ~284.
+       * `cerca` non lo sa — risponde con l'unica riga che trova — quindi la scelta si fa qui, con
+       * `scegliPerRicetta`, che è il posto dove la convenzione è scritta.
+       */
+      if (scelta.tipo === 'ambiguo' || scelta.tipo === 'unica' || scelta.tipo === 'per_stato') {
+        const righe = scelta.tipo === 'ambiguo' ? scelta.righe : [scelta.riga];
+        const perLaRicetta = scegliPerRicetta(righe);
+        if (perLaRicetta.tipo === 'solo_cotto') {
+          soloCotto.push(i.name);
+          valori.set(i.name, null);
+          continue;
+        }
+        if (perLaRicetta.tipo === 'stato_ignoto') statoIgnoto.push(i.name);
+        // ⚠️ Se una riga a crudo c'è, l'ambiguità non c'è più: la convenzione l'ha sciolta.
+        if (perLaRicetta.tipo !== 'niente') {
+          const k = ambigui.indexOf(i.name);
+          if (k >= 0) ambigui.splice(k, 1);
+          valori.set(i.name, perLaRicetta.riga as unknown as ValorePer100);
+          continue;
+        }
+      }
       const v = (await this.valori.cerca(i.name).catch(() => null)) as ValorePer100 | null;
       valori.set(i.name, v);
     }
-    return calcolaMacro(ricetta.ingredienti, valori, ambigui);
+    return calcolaMacro(ricetta.ingredienti, valori, ambigui, soloCotto, statoIgnoto);
   }
 
   /** Il sì. Da qui in poi si scrive — e solo da qui. */
@@ -746,6 +773,18 @@ export class VeraChatService {
     // e nel frattempo qualcuno potrebbe aver corretto la tabella nutrienti. Costa una lettura.
     if (cosaManca(ricetta).length || macro.mancanti.length) {
       return { testo: testi.alimentiFuoriTabella(macro.mancanti), esito: 'in_corso', stato };
+    }
+    /**
+     * ⚠️ LA RICETTA NON SI SCRIVE SE UN INGREDIENTE L'ABBIAMO SOLO DA COTTO (19/8).
+     *
+     * Stessa regola dei mancanti, e per la stessa ragione: `Recipe.kcal` è obbligatorio, e l'unico
+     * modo di riempirlo qui sarebbe contare la riga bollita su una grammatura a crudo — cioè
+     * scrivere un numero fino a tre volte più basso del vero dentro un campo su cui il motore
+     * calcola le giornate. Un totale più basso del vero è il tipo di errore che nessuno nota
+     * guardando il numero.
+     */
+    if (macro.soloCotto.length) {
+      return { testo: fraseSoloCotto(macro.soloCotto), esito: 'in_corso', stato };
     }
 
     const campi: RicettaDaScrivere = {

@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🍚 **Le grammature delle ricette sono a crudo, e adesso il codice lo rispetta.**
+  Convenzione di Simone, dalle domande sul grano saraceno: «come si fa nei libri». È la scelta giusta
+  perché è **una sola** — le alternative erano un campo da riempire su diciannovemila ricette o
+  dedurlo dai passi, cioè una regola per piatto. ⚠️ **Ma non la rispettavamo**: la tabella ha 37
+  righe su 96 **solo da cotto**, e sono le più pesanti del piatto (pasta, riso, quinoa, legumi,
+  patate). Contare «80 g di quinoa» con la riga bollita scriveva **96 kcal dove ce ne sono ~284** —
+  tre volte meno, dentro `Recipe.kcal`, il campo su cui il motore calcola le giornate. Nessun errore,
+  nessuna riga rossa. Ora `scegliPerRicetta` prende la riga a crudo o a secco; ⚠️ con **solo il
+  cotto** non conta e lo dice, e la ricetta dettata a Vera **non si scrive** (stessa regola dei
+  mancanti: l'unico modo di riempire `kcal` sarebbe indovinare); ⚠️ **senza stato** si conta e si
+  **dichiara**, perché «senza stato» non è «cotto» ma «non lo so» e rifiutarle bloccherebbe quasi
+  ogni ricetta. ⚠️ Diversa da `scegliPerStato`, che risponde a una **domanda**: lì se lo stato non è
+  detto la risposta onesta è «dipende», qui lo dice la convenzione e la risposta onesta è «questo
+  numero non lo so». E lo si **dice** da tutte e due le parti: nell'app sotto gli ingredienti (sempre,
+  perché non è un avviso ma l'unità di misura) e nel form del backoffice a chi le scrive.
+  `diag:crudo-cotto` cambia domanda di conseguenza e usa la **stessa** funzione del calcolo.
+  237 suite / **3717 test verdi**, app 106, backoffice 31, tre mutazioni provate e tutte e tre fanno
+  fallire i test. Nessuna migrazione.
+
+
 - `[Sviluppo]` 🌾 **Le domande sul grano saraceno: `npm run diag:crudo-cotto`.** Segnalazione della
   nutrizionista. Crudo ~343 kcal, cotto ~92: ⚠️ quasi **quattro volte**, e chi pesa dalla parte
   sbagliata non ha un'imprecisione, ha un altro pasto (stesso guasto del farro, voce 228). Dal 18/8

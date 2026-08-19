@@ -123,6 +123,21 @@ function Recipe({ recipeId, date, slot, porzione, tag, onBack }: { recipeId: str
               <li key={i}>{ing.name}{ing.qty ? ` — ${ing.qty}${ing.unit ? ' ' + ing.unit : ''}` : ''}</li>
             ))}
           </ul>
+          {/*
+            ⚠️ «A CRUDO» — convenzione decisa da Simone il 19/8, dalle domande arrivate alla
+            nutrizionista sul grano saraceno: crudo ~343 kcal, cotto ~92, quasi quattro volte. Chi
+            pesa dalla parte sbagliata non ha un'imprecisione, ha un altro pasto.
+
+            ⚠️ Sta SOTTO l'elenco e non sopra, al contrario della riga sulla porzione scalata: quella
+            cambia i numeri e va letta prima di pesare, questa dice cosa vogliono dire i numeri e si
+            rilegge quando viene il dubbio — cioè con l'alimento già in mano.
+
+            ⚠️ E c'è sempre, anche quando la ricetta non ha cereali: non è un avviso, è l'unità di
+            misura. «Ogni tanto le grammature sono a crudo» sarebbe la cosa peggiore.
+          */}
+          <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+            Le grammature sono <b>a crudo</b>, come nei libri di cucina: pesa prima di cuocere.
+          </div>
         </div>
       )}
 

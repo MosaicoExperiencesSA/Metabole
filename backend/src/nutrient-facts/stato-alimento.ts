@@ -108,3 +108,67 @@ export function fraseAmbiguita(nome: string, stati: readonly string[]): string {
     `${elenco}.`
   );
 }
+
+/**
+ * ⚠️ NELLE RICETTE LE GRAMMATURE SONO A **CRUDO** — convenzione decisa da Simone il 19/8: «diamo
+ * per assodato che gli ingredienti siano a crudo in tutte le ricette, come si fa nei libri».
+ *
+ * È una convenzione buona perché è **una sola**, ed è quella che una persona si aspetta: nei libri
+ * di cucina «80 g di riso» sono 80 g di riso secco. Ma una convenzione vale solo se il codice la
+ * rispetta, e qui c'è un punto in cui non la rispettava.
+ *
+ * ⚠️ **Il caso che conta.** La tabella nutrienti ha molte righe **solo da cotto**: pasta, riso,
+ * quinoa, cuscus, orzo, farro, tutti i legumi, le patate — 37 righe su 96 dell'import verificato.
+ * Contando «80 g di quinoa» con la riga bollita (120 kcal/100 g) si scrivono 96 kcal dove ce ne
+ * sono ~284: **tre volte meno**, sull'ingrediente più pesante del piatto. Nessun errore, nessuna
+ * riga rossa, un totale plausibile e sbagliato.
+ *
+ * ⚠️ **Senza stato non è «cotto»**: è «non lo so». Rifiutare anche quelle bloccherebbe quasi ogni
+ * ricetta — nella tabella verificata quasi tutta la frutta e la verdura è `crudo`, ma le righe
+ * arrivate da altre fonti lo stato non ce l'hanno. Si contano, **e si dice** che non sappiamo se
+ * quel valore è a crudo: è la stessa regola che il modulo dei macro applica già ai millilitri e al
+ * «sale q.b.» — un'approssimazione dichiarata è un dato, una nascosta è un errore.
+ */
+export const STATI_A_CRUDO = ['crudo', 'secco'];
+
+export type EsitoPerRicetta<T extends RigaConStato> =
+  /** Si può contare: la riga è a crudo (o a secco), come la ricetta. */
+  | { tipo: 'va_bene'; riga: T }
+  /** ⚠️ Si può contare, ma NON sappiamo se quel valore è a crudo: si conta e si dichiara. */
+  | { tipo: 'stato_ignoto'; riga: T }
+  /** ⚠️ In tabella c'è **solo da cotto**: contarla su una grammatura a crudo sbaglia di volte. */
+  | { tipo: 'solo_cotto'; stati: string[] }
+  | { tipo: 'niente' };
+
+/**
+ * Quale riga usare per **una ricetta**, dove per convenzione la grammatura è a crudo.
+ *
+ * ⚠️ Diverso da `scegliPerStato`, che serve a rispondere a una **domanda**: lì lo stato lo dice chi
+ * chiede, e se non lo dice la risposta onesta è «dipende». Qui lo stato lo dice la convenzione, e la
+ * risposta onesta quando la tabella ha solo il cotto non è «dipende»: è «questo numero non lo so».
+ */
+export function scegliPerRicetta<T extends RigaConStato>(candidati: readonly T[]): EsitoPerRicetta<T> {
+  const righe = (candidati ?? []).filter(Boolean);
+  if (!righe.length) return { tipo: 'niente' };
+  const stato = (r: RigaConStato) => (r.state ?? '').trim().toLowerCase();
+
+  const aCrudo = righe.find((r) => STATI_A_CRUDO.includes(stato(r)));
+  if (aCrudo) return { tipo: 'va_bene', riga: aCrudo };
+
+  const senzaStato = righe.find((r) => !stato(r));
+  if (senzaStato) return { tipo: 'stato_ignoto', riga: senzaStato };
+
+  return { tipo: 'solo_cotto', stati: [...new Set(righe.map(stato))] };
+}
+
+/** La riga che Vera scrive quando di un alimento ha **solo** il valore da cotto. */
+export function fraseSoloCotto(nomi: readonly string[]): string {
+  const elenco = nomi.join(', ');
+  const uno = nomi.length === 1;
+  return (
+    `⚠️ Di ${elenco} in tabella ho **solo il valore da cotto**, e nelle ricette le grammature sono a ` +
+    `crudo: ${uno ? 'contarlo' : 'contarli'} così darebbe un totale molto più basso del vero (sul riso ` +
+    'e sui legumi anche tre volte). Non li ho contati. Aggiungi la riga a crudo dalla pagina Alimenti ' +
+    'e rifacciamo il conto.'
+  );
+}

@@ -1,0 +1,62 @@
+Le grammature delle ricette sono a crudo — e adesso il codice lo rispetta
+
+Convenzione decisa da Simone il 19/8, dalle domande arrivate alla nutrizionista sul grano saraceno:
+«diamo per assodato che gli ingredienti siano a crudo in tutte le ricette, come si fa nei libri».
+
+⚠️ È la scelta giusta perché è **una sola** ed è quella che una persona si aspetta: nei libri di
+cucina «80 g di riso» sono 80 g di riso secco. Le alternative erano un campo `stato` da riempire su
+diciannovemila ricette, o dedurlo dai passi di cottura — cioè una regola diversa per ogni piatto.
+
+MA UNA CONVENZIONE VALE SOLO SE IL CODICE LA RISPETTA, E NON LA RISPETTAVA
+⚠️ La tabella nutrienti ha **37 righe su 96 solo da cotto**, e sono le più pesanti del piatto: pasta,
+riso, quinoa, cuscus, orzo, farro, tutti i legumi, le patate. Quando la nutrizionista detta una
+ricetta a Vera, i macro si sommano da lì (`calcolaMacro`) — e `cerca` restituiva l'unica riga che
+trovava, senza sapere niente di stati.
+
+⚠️ **Contare «80 g di quinoa» con la riga bollita (120 kcal/100 g) scrive 96 kcal dove ce ne sono
+~284.** Tre volte meno, sull'ingrediente più pesante, dentro `Recipe.kcal` — che è il campo su cui il
+motore calcola le giornate e sceglie le combinazioni. Nessun errore, nessuna riga rossa, un totale
+plausibile e sbagliato.
+
+COSA FA ADESSO
+`scegliPerRicetta` (in `stato-alimento.ts`, dove la convenzione è scritta) sceglie con tre esiti:
+
+· **c'è la riga a crudo o a secco** → si conta quella, e se c'era anche il cotto l'ambiguità non
+  esiste più: la convenzione l'ha sciolta;
+· ⚠️ **c'è SOLO il cotto** → non si conta, e si dice: «di quinoa ho solo il valore da cotto, e nelle
+  ricette si pesa a crudo». ⚠️ E la ricetta **non si scrive**, stessa regola dei mancanti e per la
+  stessa ragione — `Recipe.kcal` è obbligatorio, e l'unico modo di riempirlo sarebbe indovinare;
+· **nessuno stato** → si conta, **e si dichiara**. ⚠️ «Senza stato» non è «cotto», è «non lo so»:
+  rifiutare anche quelle bloccherebbe quasi ogni ricetta, e un'approssimazione dichiarata è un dato
+  mentre una nascosta è un errore. È la stessa regola che il modulo applica già ai millilitri e al
+  «sale q.b.».
+
+⚠️ È diversa da `scegliPerStato`, che serve a rispondere a una **domanda**: lì lo stato lo dice chi
+chiede, e se non lo dice la risposta onesta è «dipende». Qui lo dice la convenzione, e quando c'è
+solo il cotto la risposta onesta non è «dipende»: è «questo numero non lo so».
+
+E LO SI DICE, DALLE DUE PARTI
+· **App**, sotto gli ingredienti: «Le grammature sono a crudo, come nei libri di cucina: pesa prima
+  di cuocere.» ⚠️ Sotto e non sopra: la riga sulla porzione scalata cambia i numeri e va letta prima
+  di pesare, questa dice cosa **vogliono dire** i numeri e si rilegge quando viene il dubbio, con
+  l'alimento in mano. ⚠️ E c'è sempre, anche senza cereali: non è un avviso, è l'unità di misura —
+  «ogni tanto le grammature sono a crudo» sarebbe la cosa peggiore.
+· **Backoffice**, nel form della ricetta: la stessa cosa a chi le scrive. Senza, la convenzione
+  varrebbe per la cliente e non per chi riempie il campo.
+
+E LA DIAGNOSTICA CAMBIA DOMANDA
+`npm run diag:crudo-cotto` ora mette in cima **«solo da cotto e usati nelle ricette»**, che col
+crudo per convenzione è il pericolo vero — prima elencava «senza stato», che è un dubbio e non un
+errore. ⚠️ Usa la **stessa** `scegliPerRicetta` del calcolo: rifarla con regole diverse vorrebbe dire
+che la diagnostica dice «a posto» su un alimento che il calcolo rifiuta.
+⚠️ E dice una cosa che serve: **i valori a crudo non si calcolano dal cotto con un fattore**. Il
+rapporto cambia da alimento ad alimento — il riso assorbe acqua, la carne la perde.
+
+FILE
+- backend: `nutrient-facts/stato-alimento.ts` (`scegliPerRicetta`, `STATI_A_CRUDO`, `fraseSoloCotto`)
+  + spec · `vera/macro-da-ingredienti.ts` · `vera/vera-chat.service.ts` · `prisma/diag-crudo-cotto.ts`
+  · `lavori/voci-iniziali.ts`
+- app: `pages/Menu.tsx` · backoffice: `pages/Ricette.tsx`
+
+237 suite / 3717 test verdi · app 106 · backoffice 31 · tre mutazioni provate e tutte e tre fanno
+fallire i test. Nessuna migrazione.

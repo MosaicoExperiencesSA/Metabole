@@ -766,6 +766,16 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
       {/* Ingredienti */}
       <div style={{ marginTop: 14 }}>
         <b style={{ fontSize: 13 }}>Ingredienti</b>
+        {/*
+          ⚠️ LA CONVENZIONE SI DICE A CHI SCRIVE, non solo a chi legge (19/8, decisione di Simone).
+          La stessa riga compare nell'app sotto gli ingredienti della scheda: se qui non ci fosse,
+          la convenzione varrebbe per la cliente e non per chi riempie il campo — e le grammature
+          scritte a cotto arriverebbero nel piatto moltiplicate per tre senza che nessuno lo dica.
+        */}
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+          ⚠️ Le grammature si scrivono <b>a crudo</b>, come nei libri di cucina — è quello che legge
+          la cliente nella scheda, ed è la base con cui si calcolano le calorie.
+        </div>
         {f.ingredients.map((ing, i) => (
           <div key={i} className="row" style={{ gap: 6, marginTop: 6 }}>
             <input className="input" style={{ flex: 2 }} placeholder="Nome" value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} />

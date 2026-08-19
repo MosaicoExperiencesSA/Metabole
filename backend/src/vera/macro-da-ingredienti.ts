@@ -24,6 +24,8 @@
  *    strumento; contarlo come zero **senza dirlo** sarebbe peggio.
  */
 
+import { fraseSoloCotto } from '../nutrient-facts/stato-alimento';
+
 /** I valori della tabella, **per 100 g**. È l'unità di `NutrientFact`, e non va convertita altrove. */
 export interface ValorePer100 {
   name: string;
@@ -50,6 +52,19 @@ export interface MacroCalcolati {
    * sbaglia fino a tre volte (farro: 353 kcal crudo, 127 bollito) — e si chiede.
    */
   ambigui: string[];
+  /**
+   * ⚠️ Alimenti di cui la tabella ha **solo il valore da cotto**, mentre nelle ricette le grammature
+   * sono a **crudo** (convenzione decisa da Simone il 19/8, come nei libri di cucina). Contarli
+   * darebbe un totale molto più basso del vero — sul riso e sui legumi anche tre volte — quindi non
+   * si contano e si dice. Vedi `nutrient-facts/stato-alimento.ts`.
+   */
+  soloCotto: string[];
+  /**
+   * Alimenti contati con una riga che **non dichiara lo stato**: si contano, ma l'approssimazione si
+   * dichiara. «Senza stato» non è «cotto», è «non lo so» — e rifiutarli bloccherebbe quasi ogni
+   * ricetta.
+   */
+  statoIgnoto: string[];
   /** Righe senza un peso utilizzabile: la ricetta si scrive, ma questi non sono nel conto. */
   nonContati: string[];
   /** C'è almeno un ingrediente misurato in volume: l'approssimazione va detta. */
@@ -86,6 +101,10 @@ export function calcolaMacro(
   valori: Map<string, ValorePer100 | null>,
   /** I nomi che la tabella ha in più stati e la ricetta non distingue: vedi `ambigui`. */
   ambiguiNoti: readonly string[] = [],
+  /** ⚠️ I nomi di cui la tabella ha **solo** il valore da cotto: vedi `soloCotto`. */
+  soloCottoNoti: readonly string[] = [],
+  /** I nomi contati con una riga senza stato dichiarato: vedi `statoIgnoto`. */
+  statoIgnotoNoti: readonly string[] = [],
 ): MacroCalcolati {
   let kcal = 0;
   let protein = 0;
@@ -93,6 +112,8 @@ export function calcolaMacro(
   let fat = 0;
   const mancanti: string[] = [];
   const ambigui: string[] = [];
+  const soloCotto: string[] = [];
+  const statoIgnoto: string[] = [];
   const nonContati: string[] = [];
   let contieneVolumi = false;
 
@@ -110,6 +131,16 @@ export function calcolaMacro(
       ambigui.push(i.name);
       continue;
     }
+    /**
+     * ⚠️ SOLO DA COTTO: non si conta, e viene **prima** del «manca». Sono due cose diverse e portano
+     * a due azioni diverse — qui la riga in tabella c'è, e va aggiunta quella a crudo; là l'alimento
+     * non c'è affatto. Confonderle manderebbe la nutrizionista a cercare la cosa sbagliata.
+     */
+    if (soloCottoNoti.includes(i.name)) {
+      soloCotto.push(i.name);
+      continue;
+    }
+    if (statoIgnotoNoti.includes(i.name)) statoIgnoto.push(i.name);
     const v = valori.get(i.name) ?? null;
     // ⚠️ Anche un alimento in tabella ma **senza kcal** conta come mancante: una riga a metà darebbe
     // un totale più basso del vero, e un totale più basso del vero è esattamente il tipo di errore
@@ -130,6 +161,8 @@ export function calcolaMacro(
     macros: { protein_g: arrotonda(protein), carbs_g: arrotonda(carbs), fat_g: arrotonda(fat) },
     mancanti: [...new Set(mancanti)],
     ambigui: [...new Set(ambigui)],
+    soloCotto: [...new Set(soloCotto)],
+    statoIgnoto: [...new Set(statoIgnoto)],
     nonContati: [...new Set(nonContati)],
     contieneVolumi,
   };
@@ -154,6 +187,18 @@ export function raccontaMacro(m: MacroCalcolati): string {
    * con dentro un alimento fuori tabella leggeva un totale kcal più basso del vero, senza niente
    * che glielo dicesse.
    */
+  /**
+   * ⚠️ SOLO DA COTTO — 19/8, dalla convenzione «nelle ricette si pesa a crudo». Va detto PRIMA dei
+   * mancanti, perché è l'errore più grosso dei due: qui il numero c'è, sembra buono, e sbaglia di
+   * volte. Un totale più basso del vero è il tipo di errore che nessuno nota guardando il numero.
+   */
+  if (m.soloCotto.length) righe.push(fraseSoloCotto(m.soloCotto));
+  if (m.statoIgnoto.length) {
+    righe.push(
+      `Di ${m.statoIgnoto.join(', ')} la tabella non dice se il valore è a crudo o a cotto: ` +
+        `${m.statoIgnoto.length === 1 ? 'l\'ho contato' : 'li ho contati'} lo stesso, ma il numero potrebbe non tornare.`,
+    );
+  }
   if (m.mancanti.length) {
     righe.push(
       `⚠️ Non ho i valori di ${m.mancanti.join(', ')}: ${m.mancanti.length === 1 ? 'non è' : 'non sono'} in tabella, ` +

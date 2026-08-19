@@ -1,4 +1,4 @@
-import { fraseAmbiguita, scegliPerStato, statoNelTesto } from './stato-alimento';
+import { fraseAmbiguita, scegliPerStato, statoNelTesto, fraseSoloCotto, scegliPerRicetta } from './stato-alimento';
 
 const riga = (state: string | null, name = 'x') => ({ state, name });
 
@@ -84,5 +84,60 @@ describe('fraseAmbiguita — è un\'ISTRUZIONE, non un dato', () => {
    */
   it('⚠️ e dice quanto cambia, non solo che cambia', () => {
     expect(fraseAmbiguita('farro', ['crudo', 'bollito'])).toContain('quasi tre volte');
+  });
+});
+
+/**
+ * ⚠️ NELLE RICETTE SI PESA A CRUDO — convenzione di Simone (19/8): «diamo per assodato che gli
+ * ingredienti siano a crudo in tutte le ricette, come si fa nei libri».
+ *
+ * ⚠️ È diversa da `scegliPerStato`, che serve a rispondere a una DOMANDA: lì lo stato lo dice chi
+ * chiede, e se non lo dice la risposta onesta è «dipende». Qui lo stato lo dice la convenzione, e
+ * quando la tabella ha solo il cotto la risposta onesta è «questo numero non lo so».
+ */
+describe('scegliPerRicetta', () => {
+  const r = (state: string | null) => ({ state, nome: state ?? 'senza' });
+
+  it('prende la riga a crudo, o a secco', () => {
+    expect(scegliPerRicetta([r('bollito'), r('crudo')])).toEqual({ tipo: 'va_bene', riga: r('crudo') });
+    expect(scegliPerRicetta([r('cotto'), r('secco')])).toEqual({ tipo: 'va_bene', riga: r('secco') });
+  });
+
+  /**
+   * ⚠️ IL CASO CHE VALE LA CONVENZIONE. Nella tabella verificata 37 righe su 96 sono solo da cotto:
+   * pasta, riso, quinoa, cuscus, orzo, farro, tutti i legumi, le patate. Contare «80 g di quinoa»
+   * con la riga bollita (120 kcal/100 g) scrive 96 kcal dove ce ne sono ~284 — tre volte meno,
+   * sull'ingrediente più pesante del piatto, e il numero sembra buono.
+   */
+  it('⚠️ con SOLO il cotto non sceglie: quel numero non si può usare su una grammatura a crudo', () => {
+    expect(scegliPerRicetta([r('bollito')])).toEqual({ tipo: 'solo_cotto', stati: ['bollito'] });
+    expect(scegliPerRicetta([r('bollito'), r('cotto')])).toEqual({ tipo: 'solo_cotto', stati: ['bollito', 'cotto'] });
+  });
+
+  /**
+   * ⚠️ «SENZA STATO» NON È «COTTO», È «NON LO SO». Rifiutare anche quelle bloccherebbe quasi ogni
+   * ricetta — le righe arrivate da fonti diverse dall'import verificato lo stato non ce l'hanno.
+   * Si contano, e si dichiara: un'approssimazione dichiarata è un dato, una nascosta è un errore.
+   */
+  it('⚠️ senza stato si conta, ma si dichiara', () => {
+    expect(scegliPerRicetta([r(null)])).toEqual({ tipo: 'stato_ignoto', riga: r(null) });
+    expect(scegliPerRicetta([r('')])).toEqual({ tipo: 'stato_ignoto', riga: r('') });
+  });
+
+  /** ⚠️ E il crudo vince sul senza-stato: se la riga giusta c'è, si usa quella. */
+  it('⚠️ fra «crudo» e «senza stato» vince il crudo', () => {
+    expect(scegliPerRicetta([r(null), r('crudo')])).toEqual({ tipo: 'va_bene', riga: r('crudo') });
+  });
+
+  it('senza righe non c\'è niente da scegliere', () => {
+    expect(scegliPerRicetta([])).toEqual({ tipo: 'niente' });
+  });
+
+  /** La frase dice cosa fare, non solo che c'è un problema. */
+  it('la frase del «solo cotto» dice dove si aggiunge la riga', () => {
+    const f = fraseSoloCotto(['quinoa']);
+    expect(f).toContain('solo il valore da cotto');
+    expect(f).toContain('a crudo');
+    expect(f).toContain('Alimenti');
   });
 });
