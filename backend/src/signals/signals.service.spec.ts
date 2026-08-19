@@ -80,7 +80,17 @@ describe('SignalsService', () => {
       objective: { findFirst: jest.fn().mockResolvedValue({ targetWeightKg: 62 }) },
       // Il check-in si propone SOLO con un piano attivo (voce #5 del 5/8): senza questo
       // modello nel finto Prisma, todayStatus esplode invece di rispondere.
-      subscription: { findMany: jest.fn().mockResolvedValue([{ endDate: null }]) },
+      subscription: {
+        findMany: jest.fn().mockResolvedValue([{ endDate: null }]),
+        // La prova col punto A del report (`trial_measures_ok`): senza questa riga il finto Prisma
+        // non ha il modello e il salvataggio della misura esplode invece di rispondere.
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      // Gli eventi di funnel: qui si guarda solo che nascano, non cosa ci sia dentro.
+      analyticsEvent: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'ev1' }),
+      },
     };
     config = {
       getNumber: jest.fn((key: string) =>
@@ -277,6 +287,29 @@ describe('SignalsService', () => {
    * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
    * leggendo i soli `active`.
    */
+  /**
+   * ⚠️ IL PUNTO A DEL REPORT A→B VALE ANCHE SE LA PROVA È ANCORA SCRITTA «IN CODA» — voce 258, 19/8.
+   *
+   * `trial_measures_ok` si emette alla **prima** misura di una cliente in prova, e la misura di
+   * partenza si chiede già nella finestra di anteprima — cioè prima che il piano cominci. Guardando
+   * il solo `active`, l'evento non nasceva: il funnel del lancio contava meno prove con il punto A
+   * di quelle vere, e la differenza non si vede da nessuna parte se non nel grafico, mesi dopo.
+   *
+   * ⚠️ Il finto Prisma qui **filtra come il database vero**: senza, il test passerebbe anche
+   * leggendo i soli `active`.
+   */
+  it('⚠️ la prima misura di una prova IN CODA emette lo stesso `trial_measures_ok`', async () => {
+    prisma.measurement.count.mockResolvedValue(1); // è la prima misura in assoluto
+    prisma.analyticsEvent.findFirst.mockResolvedValue(null); // non è già stato emesso
+    prisma.subscription.findFirst.mockImplementation(({ where }: any) => {
+      const ammessi: string[] = where?.status?.in ?? [where?.status];
+      return Promise.resolve(ammessi.includes('queued') ? { id: 'sub-prova' } : null);
+    });
+    await service.upsertMeasurement('u1', { date: new Date().toISOString().slice(0, 10), weightKg: 67 } as never);
+    const nomi = prisma.analyticsEvent.create.mock.calls.map((c: any[]) => c[0].data.name);
+    expect(nomi).toContain('trial_measures_ok');
+  });
+
   it('⚠️ todayStatus: col solo piano IN CODA il check-in si chiede lo stesso', async () => {
     prisma.subscription.findMany.mockImplementation(({ where }: { where: { status?: unknown } }) => {
       const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];

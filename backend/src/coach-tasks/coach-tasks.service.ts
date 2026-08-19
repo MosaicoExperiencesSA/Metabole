@@ -359,7 +359,11 @@ export class CoachTasksService {
     // in app alla coach. Idempotente: si crea solo insieme al task `plan_expiry_heads_up`.
     const expiring = (await this.prisma.subscription.findMany({
       where: {
-        status: 'active',
+        // ⚠️ Anche in coda (19/8): la dashboard della coach conta già le scadenze così, e questo è
+        // l'appunto in Calendario **per lo stesso identico evento**. Con due condizioni diverse la
+        // coach vedeva il piano nell'elenco e non lo trovava in agenda — e quando due schermate
+        // dicono cose diverse non se ne crede più nessuna delle due.
+        status: { in: STATI_CON_UN_PIANO as never },
         plan: { priceCents: { gt: 0 } },
         endDate: { gte: today, lte: this.day(today, 7) },
       } as never,

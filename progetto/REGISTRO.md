@@ -53,6 +53,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   solo alla fine `npm run converti:code` per le 4 code vecchie (prova a vuoto, poi `CONFERMA=1`) —
   convertirle prima vuol dire far comparire il Profilo sbagliato proprio a loro. Foglio: `progetto/HANDOFF_2026-08-19.md`.
 
+- `[Sviluppo]` ✅ **Chiusi i due punti della coda rimasti senza test, e le scadenze che rispondevano
+  in due modi.** Nell'handoff (§4.4) c'era scritto che due letture erano state corrette **senza un
+  test dedicato**, e che non era una dimenticanza: era scritto lì perché un giorno qualcuno le
+  avrebbe rilette chiedendosi se erano coperte. **1)** I compiti G0…G7 della prova si contano dal
+  giorno d'inizio, quindi ci si arriva solo a partenza avvenuta: se lì lo stato dice ancora `queued`
+  la promozione notturna è in ritardo e quella cliente **sta già ricevendo i menu** — col solo
+  `active` il riquadro la contava fra le prove attive e la coach non trovava la riga di lavoro.
+  **2)** `trial_measures_ok` (il punto A del report A→B) non nasceva per una prova in coda, e il
+  funnel del lancio contava meno prove di quelle vere — ⚠️ una differenza che non si vede da nessuna
+  parte se non nel grafico, mesi dopo. **3)** Le **scadenze in arrivo**: la dashboard della coach le
+  conta comprese le code, l'appunto in Calendario — che nasce per lo **stesso identico evento** — no.
+  La coach vedeva il piano nell'elenco e non lo trovava in agenda, e ⚠️ quando due schermate
+  rispondono diversamente alla stessa domanda non se ne crede più nessuna delle due. 4 test, e in
+  tutti il finto Prisma **filtra come il database vero**: un doppio che risponde uguale a chiunque
+  chieda avrebbe fatto passare i test anche sul codice sbagliato. 230 suite, 3595 test.
+
 - `[Sviluppo]` 🌅 **Il messaggio quotidiano non si decide più a caso.** Trovato rifacendo **col grep**
   il censimento dei `findFirst` su `Subscription` — cioè applicando la lezione della giornata invece
   di fidarsi di quello che si ricordava. `generateDailyForClient` decideva se mandare «il tuo piano di

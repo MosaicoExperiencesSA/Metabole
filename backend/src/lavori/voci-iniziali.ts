@@ -941,6 +941,16 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'coda-ultimi-due-buchi',
+    titolo: 'I due punti della coda senza test, e le scadenze che rispondevano in due modi',
+    dettaglio:
+      'Coda della voce 258, chiusa il 19/8. Nell\'handoff (§4.4) era scritto che due letture erano state corrette **senza un test dedicato**, e che non era una dimenticanza: stava lì perché un giorno qualcuno le avrebbe rilette chiedendosi se erano coperte. **1)** I compiti G0…G7 della prova si contano dal giorno d\'inizio, quindi ci si arriva solo a partenza avvenuta: se lì lo stato dice ancora `queued` vuol dire che la promozione notturna è in ritardo — e intanto quella cliente **sta ricevendo i menu**. Col solo `active` il riquadro la contava fra le «prove attive» e la coach non trovava nessuna riga di lavoro: un numero e una lista che si contraddicono fanno smettere di fidarsi di tutti e due. **2)** `trial_measures_ok` (il punto A del report A→B) non nasceva per una prova in coda, e il funnel del lancio contava meno prove col punto A di quelle vere — ⚠️ differenza invisibile ovunque tranne che nel grafico, mesi dopo. **3)** Le **scadenze in arrivo**: la dashboard della coach le conta comprese le code, l\'appunto in Calendario — stesso identico evento — no. ⚠️ Due schermate che rispondono diversamente alla stessa domanda tolgono credito a tutte e due. 4 test, e in tutti il finto Prisma **filtra come il database vero**: un doppio che risponde uguale a chiunque chieda avrebbe fatto passare i test anche sul codice sbagliato — è successo a metà dei test scritti quel giorno, prima di accorgersene. Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 290,
+    fatta: true, // 19/8
+  },
+
+  {
     chiave: 'messaggio-quotidiano-riga-a-caso',
     titolo: 'Il messaggio quotidiano si decideva su una riga a caso',
     dettaglio:

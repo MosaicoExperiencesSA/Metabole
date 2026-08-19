@@ -1,0 +1,38 @@
+I due punti della coda rimasti senza test, e le scadenze che rispondevano in due modi
+
+Coda della voce 258. Nell'handoff del 19/8 (§4.4) c'era scritto che due letture erano state corrette
+**senza un test dedicato**, e che non era una dimenticanza: era scritto lì perché un giorno qualcuno
+le avrebbe rilette chiedendosi se erano coperte. Adesso lo sono, e quel paragrafo si può togliere.
+
+1) I COMPITI DELLA PROVA (`coach-tasks.generateDaily`)
+I compiti G0…G7 si contano dal giorno d'inizio, quindi si arriva lì solo quando la partenza è già
+passata. Se a quel punto lo stato dice ancora `queued`, vuol dire una cosa sola: la promozione
+notturna è in ritardo — e intanto quella cliente **sta ricevendo i menu**. ⚠️ Guardando il solo
+`active`, il riquadro in cima la contava fra le «prove attive» e la coach non trovava nessuna riga di
+lavoro: un numero e una lista che si contraddicono non fanno perdere un compito, fanno smettere di
+fidarsi di tutti e due. 3 test, e il terzo tiene ferma la regola dall'altra parte: una prova che
+comincia **domani** non apre niente.
+
+2) IL PUNTO A DEL REPORT A→B (`signals`, `trial_measures_ok`)
+Si emette alla prima misura di una cliente in prova, e la misura di partenza si chiede già nella
+finestra di anteprima — cioè prima che il piano cominci. Senza la coda, l'evento non nasceva: il
+funnel del lancio contava meno prove col punto A di quelle vere, ⚠️ e la differenza non si vede da
+nessuna parte se non nel grafico, mesi dopo. 1 test.
+
+3) LE SCADENZE IN ARRIVO, CHE RISPONDEVANO IN DUE MODI
+La dashboard della coach conta i piani in scadenza **compresi quelli in coda** (19/8); l'appunto nel
+Calendario, che nasce per lo **stesso identico evento**, li contava solo `active`. La coach vedeva il
+piano nell'elenco e non lo trovava in agenda. ⚠️ Quando due schermate rispondono diversamente alla
+stessa domanda non se ne crede più nessuna delle due — ed è la ragione per cui questa voce esiste.
+
+⚠️ COME SONO SCRITTI I TEST. In tutti e tre i casi il finto Prisma **filtra come il database vero**:
+un doppio che risponde uguale a chiunque chieda avrebbe fatto passare i test anche sul codice
+sbagliato — è successo a metà dei test scritti oggi, prima di accorgersene.
+
+FILE
+- backend/src/coach-tasks/compiti-prova-in-coda.spec.ts (nuovo, 3 test)
+- backend/src/coach-tasks/coach-tasks.service.ts (le scadenze in arrivo)
+- backend/src/signals/signals.service.spec.ts (+1 test)
+- progetto/HANDOFF_2026-08-19.md (§4.4 chiuso)
+
+230 suite / 3595 test verdi. Nessuna migrazione.
