@@ -53,6 +53,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   solo alla fine `npm run converti:code` per le 4 code vecchie (prova a vuoto, poi `CONFERMA=1`) —
   convertirle prima vuol dire far comparire il Profilo sbagliato proprio a loro. Foglio: `progetto/HANDOFF_2026-08-19.md`.
 
+- `[Sviluppo]` 📊 **I due dati che la cliente non vedeva — e la percentuale che rispondeva in cinque
+  modi.** Arrivate le cinque decisioni del foglio `DECISIONE_Due_Schermate_App.md` (Simone, 19/8):
+  la percentuale passa alla **media mobile del server**, proiezione e giorni di stallo **restano
+  fuori** dall'app, del ciclo si vedono **cotture + esito precedente**, e `getActiveCycle` **si
+  separa** in lettura e scrittura. Il foglio aveva contato quattro punti che calcolavano la
+  percentuale ognuno per conto suo; la revisione ne ha trovato ⚠️ **un quinto, il peggiore**: i
+  **traguardi**. Si calcolavano sul peso di stamattina mentre la barra, **nella stessa schermata**,
+  usa la media mobile: si poteva leggere «**-5 kg: che traguardo!**» sopra una barra che dice 43%, e
+  «**Obiettivo raggiunto! 🎉**» per una pesata sotto il target mentre la tendenza è ancora sopra —
+  ⚠️ e un traguardo **si scrive una volta sola e non si corregge**. Ora il conto è uno
+  (`percentuale-obiettivo.ts`), con un **tetto alla finestra**: `moving_average_window` non ha né
+  minimo né massimo nei Parametri, e sopra 120 i chiamanti sarebbero tornati a divergere. ⚠️ Il
+  prezzo è detto in pagina: «sulla media degli ultimi giorni, non sul peso di stamattina» — senza
+  quella riga la cliente pesa 300 g in meno, la barra non si muove e la schermata sembra rotta.
+  ⚠️ Nella stessa pagina c'erano anche **due partenze diverse** («Obiettivo attuale -14,0 kg» sopra
+  «di -10,0 kg»): adesso è una. **Il ciclo**: una scheda nel Menu con le cotture di questi giorni e
+  com'è andato quello chiuso; ⚠️ la schermata **non scrive più** (`getActiveCycle` materializzava a
+  ogni chiamata, e collegarci l'app voleva dire una scrittura a ogni apertura); ⛔ il «gradimento»
+  resta fuori — non è il gradimento, è il minimo del massimo delle stelle **con default 5**, cioè le
+  tre stelle inventate rifatte in una schermata. ⚠️ E due difetti della stessa famiglia trovati dalla
+  revisione: le **cotture potevano essere inventate** da un ripiego, e «**precedente**» non voleva
+  dire precedente — il feedback si scrive quando lei si pesa al secondo giorno, quindi la riga
+  parlava a volte dei giorni che stava guardando. 232 suite, **3627 test**.
+
 - `[Sviluppo]` ✅ **Chiusi i due punti della coda rimasti senza test, e le scadenze che rispondevano
   in due modi.** Nell'handoff (§4.4) c'era scritto che due letture erano state corrette **senza un
   test dedicato**, e che non era una dimenticanza: era scritto lì perché un giorno qualcuno le

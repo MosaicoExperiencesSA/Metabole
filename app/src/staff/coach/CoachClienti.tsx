@@ -95,7 +95,12 @@ export default function CoachClienti() {
                           <div style={{ flex: 1, height: 6, borderRadius: 4, background: '#EDF1EF', overflow: 'hidden' }}>
                             <div style={{ width: `${c.progressPct}%`, height: '100%', background: 'var(--sf-brand)', borderRadius: 4 }} />
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sf-brand-dark)' }}>{c.progressPct}%</span>
+                          {/* ⚠️ Con la virgola: dal 19/8 la percentuale arriva con un decimale (è la
+                              stessa che vede la cliente, sulla media mobile) e `43.3%` col punto è
+                              un numero scritto da un programma. */}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sf-brand-dark)' }}>
+                            {String(Math.round(c.progressPct * 10) / 10).replace('.', ',')}%
+                          </span>
                         </div>
                       )}
                       <div className="sf-row-sub" style={{ marginTop: 4 }}>

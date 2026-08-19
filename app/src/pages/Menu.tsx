@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
-import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, testoPorzione, testoIngredientiScheda } from '../lib/meals';
+import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, type ApiCiclo, testoPorzione, testoIngredientiScheda } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
 
 /**
@@ -19,6 +19,11 @@ function dayLabel(iso: string): string {
   if (diff === 1) return 'Domani';
   if (diff === -1) return 'Ieri';
   return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+}
+
+/** «9 lug» — la data corta della finestra del ciclo, che serve solo a darle un confine. */
+function giornoCorto(iso: string): string {
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
 }
 
 function StarRating({ recipeId, date }: { recipeId: string; date?: string }) {
@@ -168,11 +173,30 @@ export default function Menu() {
   const [idx, setIdx] = useState(0);
   const [blocked, setBlocked] = useState<{ active: boolean; reason: string | null } | null>(null);
   const [status, setStatus] = useState<MenuStatus | null>(null);
+  /**
+   * IL CICLO DI QUESTI GIORNI — `GET /me/cycle`, che esisteva dal principio e non chiamava nessuno.
+   *
+   * ⚠️ Ne servono **due cose sole**: le **cotture**, che sono quello che cambia cosa fa in cucina e
+   * che oggi non le dice nessuno, e **com'è andato il ciclo appena chiuso**. ⛔ Il «gradimento» che
+   * quell'endpoint calcolava **non arriva più fin qui** (il server non lo manda a lei): non è il
+   * gradimento, è il minimo del massimo delle stelle con default 5 per le ricette mai valutate —
+   * mostrarlo a chi non ha votato niente sarebbe il difetto delle stelle inventate, in una schermata.
+   */
+  const [ciclo, setCiclo] = useState<ApiCiclo | null>(null);
 
   useEffect(() => {
     api<{ delivered: string[]; days: ApiMenuDay[]; blocked?: { active: boolean; reason: string | null }; status?: MenuStatus }>('/me/menu')
       .then((r) => { setDays(r.days ?? []); setBlocked(r.blocked ?? null); setStatus(r.status ?? null); })
-      .catch(() => setDays([]));
+      .catch(() => setDays([]))
+      /**
+       * ⚠️ **DOPO** `/me/menu`, non insieme. È `/me/menu` che **eroga** i giorni nuovi
+       * (`deliverIfEligible`): partendo in parallelo, alla prima apertura dopo la pesata di fine
+       * ciclo la pagina mostrerebbe i giorni nuovi e questa scheda le cotture di quello chiuso. Si
+       * vede una volta per ciclo, ed è il tipo di cosa che sembra un caso.
+       *
+       * Se non risponde, la scheda semplicemente non compare: non è un pezzo del menu.
+       */
+      .then(() => api<ApiCiclo>('/me/cycle').then(setCiclo).catch(() => setCiclo(null)));
   }, []);
 
   function scrollTo(i: number) {
@@ -264,6 +288,30 @@ export default function Menu() {
             Il giorno viaggia nell'indirizzo e da lì arriva a Gaia. Non compare sui giorni PASSATI:
             un menu di ieri è già stato mangiato, e correggerlo non vuol dire niente.
           */}
+          {/*
+            LE COTTURE DI QUESTI GIORNI, e com'è andato il ciclo prima.
+            ⚠️ Solo sui giorni in arrivo: su un menu di ieri «questi giorni» vorrebbe dire un'altra
+            cosa, e la riga diventerebbe una didascalia sbagliata invece che un'informazione.
+          */}
+          {!isPastDay && ciclo?.attivo && (ciclo.cotture.length > 0 || ciclo.esitoPrecedente) && (
+            <div className="card" style={{ marginBottom: 10, background: '#F7FAF9', boxShadow: 'none' }}>
+              {ciclo.cotture.length > 0 && (
+                <div style={{ fontSize: 13 }}>
+                  <b>In questi giorni si cucina</b>{' '}
+                  {ciclo.cotture.map((c) => c.etichetta.toLowerCase()).join(' e ')}
+                  {/* ⚠️ «Questi giorni» ha un confine, e va detto: senza le date la riga resta vera
+                      per sempre e nessuno sa a cosa si riferisce. */}
+                  {ciclo.dal && ciclo.al ? ` (${giornoCorto(ciclo.dal)}–${giornoCorto(ciclo.al)})` : ''}.
+                </div>
+              )}
+              {ciclo.esitoPrecedente && (
+                <div className="muted" style={{ fontSize: 12, marginTop: ciclo.cotture.length > 0 ? 4 : 0 }}>
+                  {ciclo.esitoPrecedente.riga}
+                </div>
+              )}
+            </div>
+          )}
+
           {!isPastDay && (
             <div style={{ marginBottom: 10 }}>
               <a

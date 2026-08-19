@@ -94,7 +94,98 @@ describe('CycleService.getActiveCycle', () => {
     const { service } = make({ menuDays: twoDays, lastFeedback: { esitoPeso: 'perso', esitoCm: 'stabile', followed: true, cycleEnd: d(8) } });
     const res = await service.getActiveCycle('c1');
     if (!res.active) throw new Error('atteso attivo');
-    expect(res.lastOutcome).toEqual({ esitoPeso: 'perso', esitoCm: 'stabile', followed: true });
+    // ⚠️ `cycleEnd` viaggia con l'esito (19/8): senza, chi lo mostra non può sapere **di quale
+    // ciclo** parla — e il feedback più recente può essere quello dei giorni che si stanno guardando.
+    expect(res.lastOutcome).toEqual({ esitoPeso: 'perso', esitoCm: 'stabile', followed: true, cycleEnd: d(8) });
+  });
+});
+
+describe('CycleService.cicloPerLaCliente — la strada dell\'app', () => {
+  /**
+   * ⚠️ LA SCHERMATA DELLA CLIENTE NON SCRIVE. `getActiveCycle` materializza la riga del ciclo a ogni
+   * chiamata: oggi non lo chiama nessuno, quindi quella scrittura ha frequenza **zero** — ma
+   * collegandoci l'app sarebbe diventata **una scrittura a ogni apertura**. È idempotente e non
+   * sporca i dati, ma una schermata che scrive quando la guardi è una cosa che si scopre sempre nel
+   * momento sbagliato.
+   */
+  it('⚠️ non materializza niente: è una lettura e basta', async () => {
+    const { service, cycleWrites, prisma } = make({ menuDays: twoDays });
+    await service.cicloPerLaCliente('c1');
+    expect(cycleWrites).toHaveLength(0);
+    expect(prisma.clientCycle.create).not.toHaveBeenCalled();
+    expect(prisma.clientCycle.update).not.toHaveBeenCalled();
+  });
+
+  it('manda le cotture di questi giorni e le date del ciclo', async () => {
+    const { service } = make({ menuDays: twoDays });
+    const r = await service.cicloPerLaCliente('c1');
+    expect(r.attivo).toBe(true);
+    expect(r.dal).toBe('2026-07-09');
+    expect(r.al).toBe('2026-07-10');
+    expect(r.cotture).toEqual([
+      { tipo: 'veloce', etichetta: 'Veloce' },
+      { tipo: 'forno', etichetta: 'Al forno' },
+    ]);
+  });
+
+  /**
+   * ⚠️ IL `gradimento` NON ESCE DA QUI. Non è il gradimento: è il minimo del massimo delle stelle,
+   * con **default 5** per le ricette mai valutate. Mostrarlo a chi non ha votato niente sarebbe il
+   * difetto delle tre stelle inventate (voce 270) rifatto in una schermata.
+   */
+  it('⚠️ il «gradimento» non arriva alla cliente', async () => {
+    const { service } = make({ menuDays: twoDays });
+    const r = (await service.cicloPerLaCliente('c1')) as Record<string, unknown>;
+    expect(r.gradimento).toBeUndefined();
+    expect(Object.keys(r)).toEqual(['attivo', 'dal', 'al', 'cotture', 'esitoPrecedente']);
+  });
+
+  it('l\'esito del ciclo chiuso arriva in italiano, non come enum', async () => {
+    const { service } = make({
+      menuDays: twoDays,
+      lastFeedback: { esitoPeso: 'perso', esitoCm: 'stabile', followed: true, cycleEnd: d(8) },
+    });
+    const r = await service.cicloPerLaCliente('c1');
+    expect(r.esitoPrecedente?.riga).toContain('il peso è sceso');
+    expect(r.esitoPrecedente?.riga).not.toContain('perso');
+  });
+
+  /**
+   * ⚠️ «PRECEDENTE» VUOL DIRE PRECEDENTE. Il feedback si scrive quando lei si pesa al **secondo
+   * giorno del ciclo**, cioè prima che arrivi l'erogazione nuova: in quella finestra il più recente
+   * parla dei giorni che sta guardando adesso. La scheda diceva «in questi giorni si cucina…» e
+   * subito sotto «nei due giorni precedenti il peso è sceso», sugli stessi due giorni.
+   */
+  it('⚠️ l\'esito del ciclo CORRENTE non si spaccia per quello precedente', async () => {
+    const { service } = make({
+      menuDays: twoDays, // finestra 9→10 luglio
+      lastFeedback: { esitoPeso: 'perso', esitoCm: 'perso', followed: true, cycleEnd: d(10) },
+    });
+    expect((await service.cicloPerLaCliente('c1')).esitoPrecedente).toBeNull();
+  });
+
+  /**
+   * ⚠️ LE COTTURE INVENTATE NON SI MOSTRANO. `pickTwoCookings` ha un ripiego («veloce» e «al forno»)
+   * perché la riga di `ClientCycle` vuole due valori: se le ricette del ciclo non dichiarano nessun
+   * metodo, quella coppia è un **default**. Scriverle «in questi giorni si cucina veloce e al forno»
+   * sarebbe il difetto delle cinque stelle di scorta, rifatto in una schermata — ed è la ragione per
+   * cui il «gradimento» è stato tenuto fuori.
+   */
+  it('⚠️ se le ricette non dichiarano cotture, non se ne inventano', async () => {
+    const { service } = make({ menuDays: twoDays, cookingMethods: [{ cookingMethods: [] }] });
+    expect((await service.cicloPerLaCliente('c1')).cotture).toEqual([]);
+  });
+
+  it('e con una sola cottura vera si dice quella, non due', async () => {
+    const { service } = make({ menuDays: twoDays, cookingMethods: [{ cookingMethods: [{ type: 'vapore' }] }] });
+    expect((await service.cicloPerLaCliente('c1')).cotture).toEqual([{ tipo: 'vapore', etichetta: 'Al vapore' }]);
+  });
+
+  it('senza menu erogati lo dice, senza inventare date', async () => {
+    const { service } = make({ menuDays: [] });
+    expect(await service.cicloPerLaCliente('c1')).toEqual({
+      attivo: false, dal: null, al: null, cotture: [], esitoPrecedente: null,
+    });
   });
 });
 

@@ -7,11 +7,59 @@ const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 const user = { sub: 'u-coach', role: 'coach' } as AuthUser;
 
 function makeService(prisma: Record<string, unknown>, expiringDays = 14) {
-  const config = { getNumber: jest.fn().mockResolvedValue(expiringDays) };
+  // ⚠️ `getNumber` risponde per CHIAVE: la lista clienti ne legge due (i giorni di scadenza e la
+  // finestra della media mobile), e un finto che risponde sempre lo stesso numero darebbe una
+  // finestra di 14 pesate — cioè un test che misura un mondo che non esiste.
+  const config = {
+    getNumber: jest.fn(async (key: string, def?: number) =>
+      key === 'moving_average_window' ? 3 : (expiringDays ?? def),
+    ),
+  };
   return new CoachService(prisma as unknown as PrismaService, config as unknown as ConfigParamsService);
 }
 
 describe('CoachService.clients', () => {
+  /**
+   * ⚠️ LA PERCENTUALE CHE LEGGE LA COACH È QUELLA CHE LEGGONO IL MOTORE E LA CLIENTE — 19/8.
+   *
+   * In questa lista si calcolava sull'**ultima pesata**, mentre l'allarme di stallo e i progressi
+   * della cliente usano la **media mobile**. Stessa persona, stessa domanda, due numeri: e quello
+   * della coach era il più ballerino, perché due etti di ritenzione lo muovono tutto.
+   *
+   * Qui la cliente parte da 80 con traguardo 70 e le ultime tre pesate sono 76, 75, 76: sull'ultima
+   * farebbe 40%, sulla media (75,67) fa 43,3 → **43**.
+   */
+  it('⚠️ la percentuale è sulla media mobile, non sull\'ultima pesata', async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ role: 'coach' }),
+        findMany: jest.fn().mockResolvedValue([{ id: 'c1', email: 'anna@t.it', phone: null }]),
+      },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'coach-1' }) },
+      clientProfile: {
+        findMany: jest.fn().mockResolvedValue([{ userId: 'c1', name: 'Anna', startWeightKg: 80, planStartDate: null }]),
+      },
+      subscription: { findMany: jest.fn().mockResolvedValue([]) },
+      measurement: {
+        findMany: jest.fn().mockResolvedValue([
+          { clientId: 'c1', date: D('2026-07-01'), weightKg: 76 },
+          { clientId: 'c1', date: D('2026-07-08'), weightKg: 75 },
+          { clientId: 'c1', date: D('2026-07-15'), weightKg: 76 },
+        ]),
+      },
+      alert: { findMany: jest.fn().mockResolvedValue([]) },
+      objective: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', targetWeightKg: 70 }]) },
+    };
+    const res = (await makeService(prisma).clients(user)) as {
+      clients: { progressPct: number | null; lastWeightKg: number | null; weightDeltaKg: number | null }[];
+    };
+    expect(res.clients[0].progressPct).toBe(43.3);
+    // ⚠️ «Ultima pesata» resta l'ultima pesata: quella è una misura, non una tendenza.
+    expect(res.clients[0].lastWeightKg).toBe(76);
+    // E i chili persi seguono la stessa regola della percentuale: 80 − 75,67.
+    expect(res.clients[0].weightDeltaKg).toBe(4.3);
+  });
+
   it('elenca solo le clienti della coach con riepilogo e ordina per alert', async () => {
     const prisma = {
       // `coachTeamScope` (rete coach a tre livelli) legge il RUOLO da prisma.user: senza

@@ -288,6 +288,28 @@ describe('SignalsService', () => {
    * leggendo i soli `active`.
    */
   /**
+   * ⚠️ IL NUMERO DELLA HOME È LO STESSO DELLA BARRA E DELLA COACH — 19/8.
+   *
+   * Il widget calcolava la percentuale sull'**ultima pesata**: due etti di ritenzione e la home
+   * diceva che era tornata indietro, mentre il motore e l'allarme di stallo guardavano la media
+   * mobile. Dei quattro punti unificati questo è quello che lei legge senza nemmeno aprire l'app.
+   *
+   * Start 80, traguardo 70, ultime tre pesate 76-75-76: sull'ultima farebbe 40%, sulla media
+   * (75,67) fa 43,3 → ⚠️ e qui **si arrotonda a 43**, perché il widget nativo ha spazio per un
+   * intero (`docs/Widget_Nativo_Guida.md`). È come si scrive, non un secondo conto.
+   */
+  it('⚠️ il widget: la percentuale è sulla media mobile, e intera', async () => {
+    prisma.measurement.findMany.mockResolvedValue([{ weightKg: 76 }, { weightKg: 75 }, { weightKg: 76 }]);
+    prisma.objective.findFirst.mockResolvedValue({ targetWeightKg: 70 });
+    prisma.clientProfile.findUnique.mockResolvedValue({ name: 'Anna', startWeightKg: 80, assignedNutritionistId: null });
+    prisma.user = { findUnique: jest.fn().mockResolvedValue({ firstName: 'Anna', prefs: null }) };
+    prisma.menuDay = { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) };
+    const w = (await service.widget('u1')) as { progressPercent: number | null; weightLostKg: number | null };
+    expect(w.progressPercent).toBe(43);
+    expect(w.weightLostKg).toBe(4.3);
+  });
+
+  /**
    * ⚠️ IL PUNTO A DEL REPORT A→B VALE ANCHE SE LA PROVA È ANCORA SCRITTA «IN CODA» — voce 258, 19/8.
    *
    * `trial_measures_ok` si emette alla **prima** misura di una cliente in prova, e la misura di

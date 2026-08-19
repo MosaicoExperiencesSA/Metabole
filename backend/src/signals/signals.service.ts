@@ -7,6 +7,7 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { decidiRiapertura } from '../escalations/riapertura';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
+import { avanzamentoPeso, FINESTRA_MASSIMA } from './percentuale-obiettivo';
 import {
   CreateCheckinDto,
   CreateMeasurementDto,
@@ -392,7 +393,7 @@ export class SignalsService {
    * frasi dentro l'app — e fra un anno due frasi diverse per lo stesso traguardo.
    */
   private async evaluateMilestones(clientId: string): Promise<{ type: string; label: string }[]> {
-    const [profile, objective, count, latest] = await Promise.all([
+    const [profile, objective, count, ultimePesate, finestra] = await Promise.all([
       this.prisma.clientProfile.findUnique({
         where: { userId: clientId },
         select: { startWeightKg: true },
@@ -403,18 +404,32 @@ export class SignalsService {
         select: { targetWeightKg: true },
       }),
       this.prisma.measurement.count({ where: { clientId } }),
-      this.prisma.measurement.findFirst({
+      /**
+       * ⚠️ **Le ultime pesate, non l'ultima** (19/8). I traguardi si calcolavano sul peso di
+       * stamattina, mentre la barra «verso il tuo obiettivo» — nella **stessa schermata** — passa
+       * dalla media mobile. Risultato: «**-5 kg: che traguardo!**» sopra una barra che dice 43%, e
+       * ⚠️ un traguardo **si scrive una volta sola e resta**: il giorno dopo non si corregge.
+       *
+       * Il caso peggiore è «Obiettivo raggiunto! 🎉» dato su una pesata sotto il target mentre la
+       * tendenza è ancora sopra: quella frase, a una persona, si dice una volta.
+       */
+      this.prisma.measurement.findMany({
         where: { clientId },
         orderBy: { date: 'desc' },
+        take: FINESTRA_MASSIMA,
         select: { weightKg: true },
       }),
+      this.configParams.getNumber('moving_average_window', 3),
     ]);
 
     const earned: { type: string; label: string }[] = [];
     if (count >= 1) earned.push({ type: 'first_measurement', label: 'Prima misura registrata: si parte!' });
 
-    if (profile?.startWeightKg && latest) {
-      const lost = profile.startWeightKg - latest.weightKg;
+    // Dalla più recente alla più vecchia → il modulo le vuole in ordine di data.
+    const pesi = (ultimePesate as { weightKg: number }[]).map((m) => m.weightKg).reverse();
+    const avanzamento = avanzamentoPeso(pesi, profile?.startWeightKg ?? null, objective?.targetWeightKg ?? null, finestra);
+    if (profile?.startWeightKg && avanzamento.pesoDiAdesso !== null) {
+      const lost = avanzamento.persiKg ?? 0;
       for (const def of MILESTONE_DEFS) {
         if (def.lostKg && lost >= def.lostKg) earned.push({ type: def.type, label: def.label });
       }
@@ -423,7 +438,7 @@ export class SignalsService {
         if (total > 0 && lost >= total / 2) {
           earned.push({ type: 'halfway', label: 'Metà strada: continua così!' });
         }
-        if (latest.weightKg <= objective.targetWeightKg) {
+        if (avanzamento.pesoDiAdesso <= objective.targetWeightKg) {
           earned.push({ type: 'goal_reached', label: 'Obiettivo raggiunto! 🎉' });
         }
       }
@@ -683,22 +698,34 @@ export class SignalsService {
       }
     }
 
-    // Progresso verso l'obiettivo peso (se disponibile).
-    const [measurements, objective] = await Promise.all([
+    /**
+     * Progresso verso l'obiettivo peso.
+     *
+     * ⚠️ **Il conto è quello di `percentuale-obiettivo.ts`** (19/8): qui c'era un calcolo suo,
+     * sull'**ultima pesata**, mentre il motore e l'allarme di stallo leggevano la media mobile.
+     * Stessa cliente, stessa domanda, due numeri — e quello che vedeva lei era il più ballerino:
+     * due etti di ritenzione e la home diceva che era tornata indietro.
+     */
+    const [misure, objective, finestra, profilo] = await Promise.all([
       this.prisma.measurement.findMany({ where: { clientId }, orderBy: { date: 'asc' }, select: { weightKg: true } }),
       this.prisma.objective.findFirst({ where: { clientId }, orderBy: { createdAt: 'desc' }, select: { targetWeightKg: true } }),
+      this.configParams.getNumber('moving_average_window', 3),
+      this.prisma.clientProfile.findUnique({ where: { userId: clientId }, select: { startWeightKg: true } }),
     ]);
-    let weightLostKg: number | null = null;
-    let progressPercent: number | null = null;
-    if (measurements.length >= 1) {
-      const start = measurements[0].weightKg;
-      const current = measurements[measurements.length - 1].weightKg;
-      weightLostKg = Math.round((start - current) * 10) / 10;
-      const target = objective?.targetWeightKg ?? null;
-      if (target != null && start - target !== 0) {
-        progressPercent = Math.max(0, Math.min(100, Math.round(((start - current) / (start - target)) * 100)));
-      }
-    }
+    const avanzamento = avanzamentoPeso(
+      (misure as { weightKg: number }[]).map((m) => m.weightKg),
+      (profilo as { startWeightKg: number | null } | null)?.startWeightKg ?? null,
+      objective?.targetWeightKg ?? null,
+      finestra,
+    );
+    const weightLostKg = avanzamento.persiKg;
+    /**
+     * ⚠️ **Intero**, e solo qui: il widget nativo è un riquadro di due centimetri, il suo contratto
+     * dice `progressPercent: 60` (`docs/Widget_Nativo_Guida.md`) e «43,3%» lì dentro non ci sta.
+     * ⚠️ È un **arrotondamento di presentazione**, non un secondo conto: il numero è quello di
+     * `avanzamentoPeso`, e questa riga tocca solo come si scrive.
+     */
+    const progressPercent = avanzamento.percento === null ? null : Math.round(avanzamento.percento);
 
     // Streak: giorni consecutivi con check-in fino a oggi.
     const recent = await this.prisma.dailyCheckin.findMany({

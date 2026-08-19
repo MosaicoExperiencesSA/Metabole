@@ -1,0 +1,79 @@
+I due dati che la cliente non vedeva — e la percentuale che rispondeva in cinque modi
+
+Le cinque decisioni del foglio `DECISIONE_Due_Schermate_App.md` sono arrivate (Simone, 19/8), e
+questa è la consegna che ne discende.
+
+1) LA PERCENTUALE VERSO L'OBIETTIVO: DA CINQUE RISPOSTE A UNA
+Il foglio ne aveva contate quattro; la revisione ne ha trovata **una quinta, la peggiore**.
+
+  · `progress.service`  → media mobile   (il motore, l'allarme di stallo della coach)
+  · `signals.widget`    → ultima pesata  (la cliente, dalla home)
+  · `coach.service`     → ultima pesata  (la coach, nella lista clienti)
+  · `app/Obiettivo.tsx` → ultima pesata  (la cliente, in «I tuoi obiettivi»)
+  · ⚠️ `evaluateMilestones` → ultima pesata (**i traguardi**, e restano scritti per sempre)
+
+⚠️ Il quinto è quello che fa danno: i traguardi si calcolavano sul peso di stamattina mentre la barra,
+**nella stessa schermata**, usa la media mobile. Una cliente poteva leggere «**-5 kg: che
+traguardo!**» sopra una barra che dice 43%, e «**Obiettivo raggiunto! 🎉**» per una pesata sotto il
+target mentre la tendenza è ancora sopra. Un traguardo si scrive una volta sola e **non si corregge
+il giorno dopo**.
+
+Adesso il conto è uno: `signals/percentuale-obiettivo.ts`. ⚠️ Con un **tetto alla finestra**
+(`FINESTRA_MASSIMA = 30`): `moving_average_window` è una chiave dei Parametri senza minimo né
+massimo, e con una finestra più larga di 120 i tre chiamanti sarebbero tornati a divergere, perché
+`progress.service` legge al massimo le ultime 120 pesate.
+
+⚠️ Il prezzo, detto: per qualche cliente il numero **cambia** il giorno del rilascio, e in qualche
+caso all'indietro. È la conseguenza che Simone ha accettato scegliendo la media mobile.
+
+⚠️ E la pagina lo dice: «**sulla media degli ultimi giorni, non sul peso di stamattina: una giornata
+storta non ti fa tornare indietro**». Senza quella riga la cliente pesa 300 g in meno, la barra non
+si muove, e sopra — nel modulo «Misure di oggi» — vede l'ultima pesata: la schermata sembra rotta.
+
+⚠️ E le partenze diverse nella stessa pagina. La card «Obiettivo attuale» usava la **prima pesata**,
+la barra il peso del **profilo**: si leggeva «Obiettivo attuale -14,0 kg» e due dita più giù «di
+-10,0 kg». Nessuno dei due era sbagliato: erano due domande con due partenze.
+
+2) IL CICLO: `GET /me/cycle` ESISTEVA E NON LO CHIAMAVA NESSUNO
+Adesso c'è una scheda nel Menu con **le cotture di questi giorni** — la cosa che cambia cosa fa in
+cucina — e **com'è andato il ciclo appena chiuso**, in una riga di italiano.
+
+⚠️ **La schermata non scrive più.** `getActiveCycle` materializza `ClientCycle` a ogni chiamata: oggi
+non la chiamava nessuno, quindi quella scrittura aveva frequenza **zero** — collegandoci l'app
+sarebbe diventata una scrittura a ogni apertura. La lettura si è separata (`leggiCicloAttivo`); lo
+staff, che ha bisogno che la riga esista, resta su `getActiveCycle`.
+
+⛔ **Il «gradimento» non arriva alla cliente**, ed è una decisione: non è il gradimento, è il minimo
+del massimo delle stelle **con default 5 per le ricette mai valutate**. Mostrarlo a chi non ha votato
+niente sarebbe il difetto delle tre stelle inventate (voce 270) rifatto in una schermata.
+
+⚠️ E due cose che la revisione ha trovato, tutte e due della stessa famiglia:
+  · **le cotture potevano essere inventate.** `pickTwoCookings` ha un ripiego («veloce» e «al forno»)
+    per la riga di `ClientCycle`: se le ricette non dichiarano nessun metodo, quella coppia è un
+    **default**, e sarebbe diventata la frase «in questi giorni si cucina veloce e al forno» sotto gli
+    occhi di chi sta per cucinare. Ora passano solo le cotture **vere**;
+  · **«precedente» non voleva dire precedente.** Il feedback del ciclo si scrive quando lei si pesa
+    al secondo giorno, cioè **prima** che arrivi l'erogazione nuova: in quella finestra la scheda
+    diceva «in questi giorni si cucina…» e subito sotto «nei due giorni precedenti il peso è sceso»,
+    parlando degli stessi due giorni. Adesso si confronta la data, e in dubbio si tace.
+
+⛔ FUORI, E SONO DECISIONI DI SIMONE (19/8)
+  · la **proiezione della data obiettivo**: resta nel Report, dove è una curva dentro un documento
+    firmato. In home diventerebbe una promessa, e a spostarsi sarebbe proprio nei giorni difficili;
+  · i **giorni di stallo**: restano il dato che fa suonare l'allarme alla coach. «Ferma da 11 giorni»
+    letto in un giorno storto può essere la spinta a smettere invece che a riprendere.
+
+RESTA APERTO, E SI VEDE
+Quattro punti rispondono ancora alla stessa domanda con l'ultima pesata: `reports.service`,
+`plan-report.service`, `commerce.hasReachedObjective` (decide se offrirle il mantenimento) e
+`kcal-need`. Non erano fra i quattro del foglio e toccarli è una decisione clinica, non di software:
+sono elencati nella voce `percentuale-obiettivo-punti-rimasti`.
+
+FILE
+- backend: `signals/percentuale-obiettivo.ts` (nuovo, 10 test) · `progress.service` · `signals.service`
+  (widget + traguardi) · `coach/coach.service` · `cycle/ciclo-per-la-cliente.ts` (nuovo, 12 test) ·
+  `cycle/cycle.service` (lettura separata) · `cycle/cycle.controller`
+- app: `Obiettivo.tsx` (la barra, la card, la riga che dice su cosa è calcolata) · `Menu.tsx` (la
+  scheda del ciclo) · `lib/meals.ts` · `staff/coach/CoachClienti.tsx` (la virgola)
+
+232 suite / 3627 test verdi · app 106 · backoffice 31. Nessuna migrazione.

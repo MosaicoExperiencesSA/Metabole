@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SOLO_STELLE_DATE } from '../menu/stelle-che-contano';
 import { etichettaMetodo } from '../common/metodi-cottura';
+import { cottureDelCiclo, esitoPrecedenteInItaliano } from './ciclo-per-la-cliente';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -35,8 +36,34 @@ export class CycleService {
     private readonly configParams: ConfigParamsService,
   ) {}
 
-  /** Ciclo attivo del cliente (le ultime N giornate erogate = finestra corrente). */
+  /**
+   * Ciclo attivo del cliente (le ultime N giornate erogate = finestra corrente), **e lo materializza**
+   * in `ClientCycle`.
+   *
+   * ⚠️ **È un GET che scrive**, e questa riga esiste per dirlo. Fino al 19/8 era l'unica versione, e
+   * non lo chiamava nessuno: la scrittura aveva frequenza zero. Collegandoci l'app sarebbe diventata
+   * **una scrittura a ogni apertura della schermata** — idempotente, quindi non sporca i dati, ma una
+   * schermata che scrive quando la guardi è una cosa che si scopre sempre nel momento sbagliato.
+   *
+   * Quindi la lettura si è separata (`leggiCicloAttivo`) e la cliente passa da lì. Qui resta chi ha
+   * bisogno che la riga **esista**: lo staff, che sul ciclo ci lavora.
+   */
   async getActiveCycle(clientId: string) {
+    return this.cicloAttivo(clientId, true);
+  }
+
+  /**
+   * LA STESSA LETTURA, SENZA SCRIVERE NIENTE — la strada della cliente (19/8).
+   *
+   * ⚠️ Non è una copia: è **la stessa funzione** con la scrittura spenta. Due letture che ricostruiscono
+   * il ciclo in due modi sarebbero due risposte alla stessa domanda, ed è il difetto che questo
+   * progetto ha smesso di fare.
+   */
+  async leggiCicloAttivo(clientId: string) {
+    return this.cicloAttivo(clientId, false);
+  }
+
+  private async cicloAttivo(clientId: string, materializza: boolean) {
     const daysPerCycle = await this.configParams.getNumber('menu_days_delivered', 2);
     const days = (await this.prisma.menuDay.findMany({
       where: { clientId },
@@ -60,7 +87,10 @@ export class CycleService {
 
     const [cooking, gradimento, existing, lastOutcome] = await Promise.all([
       this.pickTwoCookings(ids),
-      this.menuGradimento(clientId, ids),
+      // ⚠️ Il gradimento serve al motore e allo staff, non alla cliente — e `cicloPerLaCliente` lo
+      // scarta. Calcolarlo lo stesso vorrebbe dire due query (un parametro e le valutazioni) a ogni
+      // apertura del Menu, per un numero che nessuno legge.
+      materializza ? this.menuGradimento(clientId, ids) : Promise.resolve(null),
       this.prisma.clientCycle.findFirst({ where: { clientId, cycleEnd } as never }) as Promise<{ id: string; state: string } | null>,
       this.prisma.cycleFeedback.findFirst({
         where: { clientId },
@@ -71,14 +101,16 @@ export class CycleService {
 
     // Lo stato si conserva tra le riletture dello stesso ciclo (default 'normale').
     const state = (existing?.state as CycleState) ?? 'normale';
-    const data = {
-      clientId, dietId, cycleStart, cycleEnd,
-      cookingG1: cooking.g1, cookingG2: cooking.g2, state, status: 'active',
-    };
-    if (existing) {
-      await this.prisma.clientCycle.update({ where: { id: existing.id }, data: { ...data } as never });
-    } else {
-      await this.prisma.clientCycle.create({ data: data as never });
+    if (materializza) {
+      const data = {
+        clientId, dietId, cycleStart, cycleEnd,
+        cookingG1: cooking.g1, cookingG2: cooking.g2, state, status: 'active',
+      };
+      if (existing) {
+        await this.prisma.clientCycle.update({ where: { id: existing.id }, data: { ...data } as never });
+      } else {
+        await this.prisma.clientCycle.create({ data: data as never });
+      }
     }
 
     return {
@@ -90,10 +122,54 @@ export class CycleService {
         g1: cooking.g1, g2: cooking.g2,
         g1Label: etichettaMetodo(cooking.g1),
         g2Label: etichettaMetodo(cooking.g2),
+        // ⚠️ Quelle dichiarate davvero dalle ricette del ciclo: vedi `pickTwoCookings`.
+        vere: cooking.vere,
       },
       gradimento, // max stelle del ciclo (default 5)
-      lastOutcome: lastOutcome ? { esitoPeso: lastOutcome.esitoPeso, esitoCm: lastOutcome.esitoCm, followed: lastOutcome.followed } : null,
+      // ⚠️ `cycleEnd` viaggia con l'esito: senza, chi lo mostra non può sapere **di quale ciclo**
+      // parla — e il feedback più recente può essere quello dei giorni che sta guardando adesso.
+      lastOutcome: lastOutcome
+        ? { esitoPeso: lastOutcome.esitoPeso, esitoCm: lastOutcome.esitoCm, followed: lastOutcome.followed, cycleEnd: lastOutcome.cycleEnd }
+        : null,
       days: days.map((d) => ({ date: d.date, meals: (d.meals as MealSnapshot[]) ?? [] })),
+    };
+  }
+
+  /**
+   * QUELLO CHE VEDE LA CLIENTE DEL SUO CICLO — e nient'altro (19/8).
+   *
+   * ⚠️ Non è `getActiveCycle` con qualche campo in meno: **non scrive** (vedi `leggiCicloAttivo`) e
+   * ⚠️ **non manda il `gradimento`**, che non è il gradimento — è il minimo del massimo delle stelle
+   * con default 5 per le ricette mai valutate. Mostrarlo a chi non ha votato niente sarebbe il
+   * difetto delle stelle inventate (voce 270) rifatto in una schermata.
+   *
+   * Restano le due cose che a lei servono davvero: **le cotture di questi giorni**, che è quello che
+   * cambia cosa fa in cucina e che oggi non le dice nessuno, e **com'è andato il ciclo appena
+   * chiuso**, in una riga di italiano.
+   */
+  async cicloPerLaCliente(clientId: string): Promise<{
+    attivo: boolean;
+    dal: string | null;
+    al: string | null;
+    cotture: { tipo: string; etichetta: string }[];
+    esitoPrecedente: { riga: string; seguito: boolean } | null;
+  }> {
+    const [ciclo, giorniDelCiclo] = await Promise.all([
+      this.leggiCicloAttivo(clientId),
+      // ⚠️ «Nei due giorni precedenti» non si scrive a mano: la finestra è `menu_days_delivered`, e
+      // sta nei Parametri perché un giorno potrebbe non essere due.
+      this.configParams.getNumber('menu_days_delivered', 2),
+    ]);
+    if (!ciclo.active) return { attivo: false, dal: null, al: null, cotture: [], esitoPrecedente: null };
+    return {
+      attivo: true,
+      dal: ciclo.cycleStart.toISOString().slice(0, 10),
+      al: ciclo.cycleEnd.toISOString().slice(0, 10),
+      // ⚠️ Solo le cotture VERE: un ripiego diventerebbe una frase inventata sotto gli occhi di chi
+      // sta per cucinare (vedi `pickTwoCookings`).
+      cotture: cottureDelCiclo(ciclo.cooking.vere[0], ciclo.cooking.vere[1]),
+      // ⚠️ E l'esito solo se è davvero **precedente**: vedi `esitoPrecedenteInItaliano`.
+      esitoPrecedente: esitoPrecedenteInItaliano(ciclo.lastOutcome, ciclo.cycleStart, giorniDelCiclo),
     };
   }
 
@@ -128,8 +204,17 @@ export class CycleService {
   }
 
   /** Due cotture diverse (a parità di kcal) tra quelle disponibili sulle ricette del ciclo. */
-  private async pickTwoCookings(recipeIds: string[]): Promise<{ g1: string; g2: string }> {
-    if (!recipeIds.length) return { g1: 'veloce', g2: 'forno' };
+  /**
+   * Le due cotture del ciclo. ⚠️ `g1`/`g2` hanno un **ripiego** («veloce» e «al forno») quando le
+   * ricette non dichiarano nessun metodo: serve alla riga di `ClientCycle`, che vuole due valori.
+   *
+   * ⚠️ **`vere` dice se sono cotture o un ripiego**, e non è un dettaglio: da quando la scheda del
+   * Menu le mostra alla cliente, un ripiego diventerebbe la frase «in questi giorni si cucina veloce
+   * e al forno» costruita **da un default** — esattamente il difetto delle stelle inventate (voce
+   * 270), rifatto in una schermata. Chi parla a lei mostra le cotture solo se `vere`.
+   */
+  private async pickTwoCookings(recipeIds: string[]): Promise<{ g1: string; g2: string; vere: string[] }> {
+    if (!recipeIds.length) return { g1: 'veloce', g2: 'forno', vere: [] };
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: recipeIds } },
       select: { cookingMethods: true },
@@ -142,6 +227,7 @@ export class CycleService {
     }
     const g1 = types[0] ?? 'veloce';
     const g2 = types[1] ?? (g1 === 'veloce' ? 'forno' : 'veloce');
-    return { g1, g2 };
+    // Al massimo due: sono «le due cotture del ciclo», non l'elenco di tutti i metodi del catalogo.
+    return { g1, g2, vere: types.slice(0, 2) };
   }
 }

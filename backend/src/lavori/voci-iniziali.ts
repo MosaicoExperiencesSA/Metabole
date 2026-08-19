@@ -941,6 +941,25 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'due-dati-app',
+    titolo: 'I due dati che la cliente non vedeva, e la percentuale che rispondeva in cinque modi',
+    dettaglio:
+      'Consegnata il 19/8, con le cinque decisioni del foglio `DECISIONE_Due_Schermate_App.md` arrivate da Simone: percentuale sulla **media mobile del server**, proiezione della data e giorni di stallo **fuori** dall\'app, del ciclo si vedono **cotture + esito precedente**, `getActiveCycle` **separato** in lettura e scrittura. ⚠️ Il foglio aveva contato quattro punti che calcolavano la percentuale ognuno per conto suo; la revisione ne ha trovato **un quinto, il peggiore**: i **traguardi**, calcolati sul peso di stamattina mentre la barra — nella **stessa schermata** — usa la media mobile. Si poteva leggere «-5 kg: che traguardo!» sopra una barra che dice 43%, e «Obiettivo raggiunto! 🎉» per una pesata sotto il target con la tendenza ancora sopra — ⚠️ e un traguardo **si scrive una volta sola e non si corregge il giorno dopo**. Ora il conto è uno (`signals/percentuale-obiettivo.ts`), con un **tetto alla finestra** (`moving_average_window` non ha né minimo né massimo nei Parametri, e sopra 120 i chiamanti tornerebbero a divergere). ⚠️ Il prezzo è scritto in pagina: «sulla media degli ultimi giorni, non sul peso di stamattina», perché senza quella riga la cliente pesa 300 g in meno, la barra non si muove e la schermata sembra rotta. **Il ciclo**: una scheda nel Menu con le cotture di questi giorni e com\'è andato quello chiuso; ⚠️ la schermata **non scrive più**; ⛔ il «gradimento» resta fuori — è il minimo del massimo delle stelle con **default 5**, cioè le tre stelle inventate rifatte in una schermata. ⚠️ La revisione ha trovato anche che le **cotture potevano essere inventate** da un ripiego e che «precedente» non voleva dire precedente. 232 suite, 3627 test. Nessuna migrazione.',
+    categoria: CODICE,
+    ordine: 291,
+    fatta: true, // 19/8
+  },
+
+  {
+    chiave: 'percentuale-obiettivo-punti-rimasti',
+    titolo: 'Gli altri quattro punti che rispondono ancora con l\'ultima pesata',
+    dettaglio:
+      'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. Sono `reports.service` (`lostTotalKg`, `toGoKg` — il Report che riceve **lei**), `plan-report.service` (`toGoKg` e i mesi mancanti), `commerce.hasReachedObjective` (⚠️ decide se offrirle il **mantenimento**) e `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⚠️ Tutti e quattro rispondono a «quanto manca all\'obiettivo» con l\'**ultima pesata**, mentre da oggi la barra, la home, la lista della coach e i traguardi usano la **media mobile**: la cliente può leggere un numero nel Report e un altro in app. ⛔ La domanda per Simone e la nutrizionista è se il Report — che è un documento firmato su un periodo — debba dire il peso **misurato** a quella data o la tendenza: sono due cose diverse, e la risposta non è ovvia.',
+    categoria: CODICE,
+    ordine: 292,
+  },
+
+  {
     chiave: 'coda-ultimi-due-buchi',
     titolo: 'I due punti della coda senza test, e le scadenze che rispondevano in due modi',
     dettaglio:

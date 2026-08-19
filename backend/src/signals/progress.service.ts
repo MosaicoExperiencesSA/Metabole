@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { avanzamentoPeso } from './percentuale-obiettivo';
 import {
   DatedValue,
   movingAverage,
-  progressPercent,
   projectTargetDate,
   slopePerDay,
   stallDays,
@@ -156,6 +156,8 @@ export class ProgressService {
     const target = objective?.targetWeightKg ?? null;
     const start = profile.startWeightKg ?? primaMisura?.weightKg ?? weights[0];
 
+    const avanzamento = avanzamentoPeso(weights, profile.startWeightKg ?? primaMisura?.weightKg ?? null, target, window);
+
     const projection =
       target !== null ? projectTargetDate(currentMA, target, rate, today) : null;
     const stall = stallDays(maSeries, today);
@@ -173,8 +175,11 @@ export class ProgressService {
       start: { weightKg: start, waistCm: profile.startWaistCm, hipsCm: profile.startHipsCm },
       objective,
       progress: {
-        weightPercent: target !== null ? progressPercent(start, currentMA, target) : null,
-        lostKg: Math.round((start - currentMA) * 10) / 10,
+        // ⚠️ Il conto sta in `percentuale-obiettivo.ts` e non più qui: alla stessa domanda
+        // rispondevano quattro punti con quattro conti (vedi la nota in testa a quel file). Questo
+        // era l'unico che la faceva giusta, ed è diventato la funzione che chiamano tutti.
+        weightPercent: avanzamento.percento,
+        lostKg: avanzamento.persiKg,
         remainingKg: target !== null ? Math.round((currentMA - target) * 10) / 10 : null,
       },
       trend: {

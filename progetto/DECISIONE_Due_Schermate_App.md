@@ -164,7 +164,27 @@ quello che sembra.
 
 ---
 
-## 6. ⛔ Le cinque decisioni
+## 6. ✅ Le cinque decisioni — RISPOSTE il 19/8, e consegnate lo stesso giorno
+
+| # | domanda | risposta di Simone |
+|---|---|---|
+| 1 | la percentuale passa alla media mobile? | **sì** — ⚠️ col prezzo accettato: per qualche cliente il numero cambia al rilascio, e in qualche caso all'indietro |
+| 2 | la proiezione della data si mostra? | **no** — resta nel Report, dove è una curva dentro un documento firmato |
+| 3 | i giorni di stallo si mostrano? | **no** — restano il dato che fa suonare l'allarme alla coach |
+| 4 | del ciclo, cosa vede? | **cotture + esito precedente** (⛔ non il gradimento) |
+| 5 | `getActiveCycle` resta un GET che scrive? | **no, si separa**: lettura pura per la cliente |
+
+⚠️ **E la revisione ne ha trovato un quinto punto che calcolava la percentuale per conto suo, il
+peggiore**: i **traguardi** (`evaluateMilestones`), sull'ultima pesata, in una frase che **si scrive
+una volta sola e resta**. Il conto adesso è uno solo: `signals/percentuale-obiettivo.ts`.
+
+⚠️ **Restano fuori quattro punti** che rispondono ancora con l'ultima pesata — `reports.service`,
+`plan-report.service`, `commerce.hasReachedObjective`, `kcal-need` — perché toccarli è una decisione
+clinica: vedi la voce `percentuale-obiettivo-punti-rimasti` in pagina Lavori.
+
+---
+
+## 6-bis. Le cinque decisioni, come erano poste
 
 1. **La percentuale in app passa alla media mobile del server?** (proposta: sì — è la stessa domanda
    e oggi ha due risposte). ⚠️ Conseguenza da accettare: per qualche cliente il numero **cambierà**

@@ -187,3 +187,22 @@ export interface ApiRecipe {
   ingredients?: { name: string; qty?: number; unit?: string }[];
   cookingMethods?: { type: string; steps: string[] }[];
 }
+
+/**
+ * IL CICLO DI QUESTI GIORNI, come lo manda `GET /me/cycle` alla cliente (19/8).
+ *
+ * ⚠️ Non è tutto quello che il server sa del ciclo: il **gradimento** resta fuori di proposito — non
+ * è il gradimento, è il minimo del massimo delle stelle con default 5 per le ricette mai valutate, e
+ * mostrarlo a chi non ha votato niente sarebbe il difetto delle tre stelle inventate (voce 270)
+ * rifatto in una schermata. La decisione è di Simone, 19/8.
+ */
+export interface ApiCiclo {
+  attivo: boolean;
+  /** Le date della finestra di questi giorni, `YYYY-MM-DD`. */
+  dal: string | null;
+  al: string | null;
+  /** Le cotture del ciclo, già scritte come si leggono («Al forno»). Possono essere zero, una o due. */
+  cotture: { tipo: string; etichetta: string }[];
+  /** Com'è andato il ciclo appena chiuso, in una riga di italiano — o `null` se non si sa. */
+  esitoPrecedente: { riga: string; seguito: boolean } | null;
+}

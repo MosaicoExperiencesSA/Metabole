@@ -79,6 +79,26 @@ function Spark({ vals, dates, format, color }: { vals: number[]; dates?: string[
   );
 }
 
+/**
+ * QUELLO CHE IL SERVER SA DEI PROGRESSI — `GET /me/progress`, che fino al 19/8 non chiamava nessuno.
+ *
+ * ⚠️ Serve per **una cosa sola**: la percentuale del peso. Il server la calcola sulla **media
+ * mobile** — la regola scritta del progetto è «si ragiona sempre sulla tendenza, mai sul singolo
+ * dato» — mentre questa pagina se la calcolava da sola sull'**ultima pesata**. Stessa cliente,
+ * stessa domanda, due numeri: e quello che vedeva lei era il più ballerino, perché due etti di
+ * ritenzione lo mandavano indietro in una giornata in cui non era successo niente.
+ *
+ * ⛔ Il resto di quello che manda `/me/progress` **non si mostra**, ed è una decisione di Simone
+ * (19/8): la **proiezione della data** («arrivi il 14 novembre») scritta qui diventerebbe una
+ * promessa, e resta nel Report dov'è una curva dentro un documento; i **giorni di stallo** sono il
+ * dato che fa suonare l'allarme alla coach, e «ferma da 11 giorni» letto in un giorno storto può
+ * essere la spinta a smettere invece che a riprendere.
+ */
+interface ProgressiDalServer {
+  progress?: { weightPercent: number | null; lostKg: number | null };
+  start?: { weightKg: number | null };
+}
+
 const METRICS = [
   { key: 'weightKg', label: 'Peso', unit: 'kg', color: '#12A386', targetKey: 'targetWeightKg' },
   { key: 'waistCm', label: 'Vita', unit: 'cm', color: '#E8825A', targetKey: 'targetWaistCm' },
@@ -94,6 +114,8 @@ const METRICS = [
 
 export default function Obiettivo() {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  /** I progressi come li calcola il server: serve la sola percentuale del peso. */
+  const [progressi, setProgressi] = useState<ProgressiDalServer | null>(null);
   const [objective, setObjective] = useState<Objective | null>(null);
   const [loading, setLoading] = useState(true);
   const [weight, setWeight] = useState('');
@@ -145,10 +167,13 @@ export default function Obiettivo() {
   }
 
   async function load() {
-    const [msRaw, obj] = await Promise.all([
+    const [msRaw, obj, prog] = await Promise.all([
       api<Measurement[]>('/me/measurements').catch(() => [] as Measurement[]),
       api<Objective>('/me/objective').catch((e) => (e instanceof ApiError && e.status === 404 ? null : null)),
+      // Se non risponde, la barra del peso resta com'era: vedi il commento sul calcolo, più giù.
+      api<ProgressiDalServer>('/me/progress').catch(() => null),
     ]);
+    setProgressi(prog);
     // L'API le manda DECRESCENTI: le riordiniamo CRESCENTI (dalla più vecchia alla più
     // recente) così i grafici vanno nel verso giusto (un calo scende) e il form
     // pre-compila con l'ULTIMA misura (quella di oggi), non con la più vecchia.
@@ -252,7 +277,15 @@ export default function Obiettivo() {
       {objective && (() => {
         const sorted = [...measurements].sort((a, b) => a.date.localeCompare(b.date));
         const start = sorted[0];
-        const dW = objective.targetWeightKg != null && start ? start.weightKg - objective.targetWeightKg : null;
+        /**
+         * ⚠️ **LA PARTENZA È UNA SOLA IN QUESTA PAGINA** (19/8, dalla revisione). Qui c'era la prima
+         * pesata, mentre la barra più sotto usa quella del **profilo** — il peso dichiarato al
+         * questionario, che di solito è un altro numero. Sulla stessa schermata si leggeva
+         * «Obiettivo attuale −14,0 kg» e due dita più giù «di −10,0 kg», e nessuno dei due era
+         * sbagliato: erano due domande a cui rispondevano due punti di partenza diversi.
+         */
+        const partenzaPeso = progressi?.start?.weightKg ?? start?.weightKg ?? null;
+        const dW = objective.targetWeightKg != null && partenzaPeso != null ? partenzaPeso - objective.targetWeightKg : null;
         const dWa = objective.targetWaistCm != null && start?.waistCm != null ? start.waistCm - objective.targetWaistCm : null;
         const dH = objective.targetHipsCm != null && start?.hipsCm != null ? start.hipsCm - objective.targetHipsCm : null;
         const cm = dWa ?? dH;
@@ -462,8 +495,27 @@ export default function Obiettivo() {
               // qui sotto la salta già, come fa da sempre per chi il traguardo non l'ha impostato.
               const target = objective && m.targetKey ? (objective[m.targetKey] as number | null) : null;
               if (series.length === 0 || target == null) return null;
-              const start = series[0];
-              const current = series[series.length - 1];
+              /**
+               * ⚠️ IL PESO LO CALCOLA IL SERVER — 19/8, decisione di Simone.
+               *
+               * Qui c'era un conto locale sull'**ultima pesata**, mentre il server (e quindi il
+               * motore e l'allarme di stallo della coach) risponde alla stessa domanda sulla **media
+               * mobile**. Due numeri sulla stessa persona, e quello che vedeva lei tornava indietro
+               * per due etti di ritenzione, in una giornata in cui non era successo niente.
+               *
+               * ⚠️ **Solo il peso**: vita e fianchi il server non li calcola, e restano il conto di
+               * questa pagina — dichiarato, non dimenticato.
+               *
+               * ⚠️ E se `/me/progress` non risponde si torna al conto locale, che è quello di prima:
+               * meglio il numero vecchio che una barra vuota. È l'unico caso in cui i due conti
+               * convivono, e dura quanto dura la richiesta fallita.
+               */
+              const dalServer = m.key === 'weightKg' ? progressi : null;
+              const startServer = dalServer?.start?.weightKg;
+              const start = typeof startServer === 'number' ? startServer : series[0];
+              const persiDalServer = dalServer?.progress?.lostKg;
+              const current =
+                typeof persiDalServer === 'number' ? start - persiDalServer : series[series.length - 1];
               // Movimenti CON SEGNO rispetto al punto di partenza: negativo = in calo.
               // Prima si stampava un "-" fisso davanti al numero, che con il peso in aumento
               // produceva "--1,0" (segnalato il 5/8) e con un obiettivo in crescita sarebbe
@@ -471,7 +523,9 @@ export default function Obiettivo() {
               const fatto = current - start;
               const totale = target - start;
               const pctRaw = totale === 0 ? 100 : (fatto / totale) * 100;
-              const pct = Math.max(0, Math.min(100, Math.round(pctRaw)));
+              const pctServer = dalServer?.progress?.weightPercent;
+              const dalServerDavvero = typeof pctServer === 'number';
+              const pct = dalServerDavvero ? pctServer : Math.max(0, Math.min(100, Math.round(pctRaw)));
               // Direzione opposta a quella dell'obiettivo: la barra a 0% da sola non spiega niente.
               const controMano = pctRaw < 0;
               return (
@@ -480,12 +534,28 @@ export default function Obiettivo() {
                     <b>{m.label}</b>
                     <span className="muted">
                       {signed(fatto)} di {signed(totale)} {m.unit} ·{' '}
-                      <b style={{ color: controMano ? 'var(--warm, #B0663F)' : m.color }}>{pct}%</b>
+                      {/* ⚠️ La percentuale si scrive com'è: arrotondandola all'intero direbbe 45%
+                          accanto a dei chili che ne fanno 44, e i due numeri della stessa riga si
+                          contraddirebbero. E la virgola, non il punto. */}
+                      <b style={{ color: controMano ? 'var(--warm, #B0663F)' : m.color }}>
+                        {String(Math.round(pct * 10) / 10).replace('.', ',')}%
+                      </b>
                     </span>
                   </div>
                   <div className={controMano ? 'bar bar-off' : 'bar'}>
-                    <span style={{ width: `${pct}%`, background: m.color }} />
+                    <span style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: m.color }} />
                   </div>
+                  {/*
+                    ⚠️ SU COSA È CALCOLATA, DETTO — è il prezzo della decisione del 19/8 (passare alla
+                    media mobile), e va pagato qui. Senza questa riga la cliente pesa 300 g in meno, la
+                    barra non si muove, e sopra — nel modulo «Misure di oggi» — vede l'ultima pesata:
+                    la schermata sembra rotta, e a quel punto smette di crederle anche quando si muove.
+                  */}
+                  {dalServerDavvero && (
+                    <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.35 }}>
+                      Sulla media degli ultimi giorni, non sul peso di stamattina: una giornata storta non ti fa tornare indietro.
+                    </div>
+                  )}
                   {controMano && (
                     <div className="muted" style={{ fontSize: 11, marginTop: 4, lineHeight: 1.35 }}>
                       {d1(Math.abs(fatto))} {m.unit} sopra il punto di partenza. Conta la tendenza delle settimane, non la singola misura.

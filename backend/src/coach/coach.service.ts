@@ -6,6 +6,7 @@ import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { vociCalendario, type VoceCalendario } from '../agenda/calendario';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
+import { avanzamentoPeso } from '../signals/percentuale-obiettivo';
 
 const DAY = 86_400_000;
 const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
@@ -103,6 +104,8 @@ export class CoachService {
     // (altrimenti salteremmo la parte che elenca i lead assegnati).
     if (ids.length === 0 && !includeLeads) return { clients: [] };
 
+    // La finestra della media mobile è quella dei Parametri: la stessa del motore e dell'app.
+    const finestraMedia = await this.configParams.getNumber('moving_average_window', 3);
     const [subs, measures, alerts, objectives, users] = await Promise.all([
       this.prisma.subscription.findMany({
         // ⚠️ `STATI_CON_UN_PIANO` e non `'active'`: una cliente il cui piano parte lunedì ha
@@ -113,10 +116,24 @@ export class CoachService {
         // quella del piano che sta erogando, e per saperlo bisogna sapere quando comincia.
         select: { clientId: true, status: true, startDate: true, endDate: true },
       }) as Promise<SubRow[]>,
+      /**
+       * ⚠️ **Tutte le pesate, non solo l'ultima** (19/8). C'era `distinct: ['clientId']`, cioè la
+       * pesata più recente, e la percentuale in lista si calcolava su quella. Ma la stessa domanda —
+       * «quanto manca all'obiettivo?» — il motore e l'allarme di stallo se la fanno sulla **media
+       * mobile**: la coach leggeva un numero che ballava con l'acqua mentre l'allarme ne guardava un
+       * altro, sulla stessa cliente. Adesso il conto è uno solo (`percentuale-obiettivo.ts`), e per
+       * farlo servono le ultime pesate, non l'ultima.
+       *
+       * ⚠️ Il prezzo, detto: questa query passa da una riga per cliente a tutte le sue pesate. Su
+       * cinquanta clienti sono qualche migliaio di righe da tre campi — niente, per una pagina di
+       * elenco che già ne fa sei di query. Il giorno che le clienti fossero migliaia, la strada è una
+       * `$queryRaw` con `row_number()` che prende le ultime N per cliente: sta scritto qui perché chi
+       * la troverà lenta sappia già dove guardare, invece di rimettere `distinct` e ricreare i due
+       * numeri.
+       */
       this.prisma.measurement.findMany({
         where: { clientId: { in: ids } },
-        orderBy: { date: 'desc' },
-        distinct: ['clientId'],
+        orderBy: { date: 'asc' },
         select: { clientId: true, date: true, weightKg: true },
       }) as Promise<MeasRow[]>,
       this.prisma.alert.findMany({
@@ -159,7 +176,19 @@ export class CoachService {
       const scelta = attivoInCorso(righe);
       if (scelta) subByClient.set(clientId, scelta);
     }
-    const measByClient = new Map(measures.map((m) => [m.clientId, m]));
+    /**
+     * Le pesate di ognuna, in ordine: servono alla media mobile. L'ultima riga di ogni cliente resta
+     * quella che si mostra come «ultima pesata» in elenco.
+     */
+    const pesateByClient = new Map<string, MeasRow[]>();
+    for (const m of measures) {
+      const righe = pesateByClient.get(m.clientId);
+      if (righe) righe.push(m);
+      else pesateByClient.set(m.clientId, [m]);
+    }
+    const measByClient = new Map(
+      [...pesateByClient.entries()].map(([clientId, righe]) => [clientId, righe[righe.length - 1]]),
+    );
     const objByClient = new Map(objectives.map((o) => [o.clientId, o]));
     const userById = new Map(users.map((u) => [u.id, u]));
     const alertCount = new Map<string, number>();
@@ -169,16 +198,17 @@ export class CoachService {
       const sub = subByClient.get(p.userId);
       const meas = measByClient.get(p.userId);
       const obj = objByClient.get(p.userId);
-      const start = p.startWeightKg ?? null;
-      const last = meas?.weightKg ?? null;
-      const target = obj?.targetWeightKg ?? null;
-      // Peso perso finora (positivo = calo) e % di avanzamento verso il target.
-      const weightDeltaKg = start != null && last != null ? Math.round((start - last) * 10) / 10 : null;
-      let progressPct: number | null = null;
-      if (start != null && last != null && target != null && start !== target) {
-        const pct = ((start - last) / (start - target)) * 100;
-        progressPct = Math.max(0, Math.min(100, Math.round(pct)));
-      }
+      const obiettivoPeso = obj?.targetWeightKg ?? null;
+      // ⚠️ Peso perso e percentuale li dà `percentuale-obiettivo.ts`, la stessa funzione che
+      // risponde alla cliente e al motore: la coach non deve leggere un terzo numero.
+      const avanzamento = avanzamentoPeso(
+        (pesateByClient.get(p.userId) ?? []).map((m) => m.weightKg),
+        p.startWeightKg ?? null,
+        obiettivoPeso,
+        finestraMedia,
+      );
+      const weightDeltaKg = avanzamento.persiKg;
+      const progressPct = avanzamento.percento;
       const u = userById.get(p.userId);
       return {
         clientId: p.userId,
@@ -189,7 +219,7 @@ export class CoachService {
         planEndDate: sub?.endDate ? sub.endDate.toISOString().slice(0, 10) : null,
         planStartDate: p.planStartDate ? p.planStartDate.toISOString().slice(0, 10) : null,
         lastMeasureDate: meas?.date ? meas.date.toISOString().slice(0, 10) : null,
-        lastWeightKg: last,
+        lastWeightKg: meas?.weightKg ?? null,
         weightDeltaKg,
         progressPct,
         openAlerts: alertCount.get(p.userId) ?? 0,
