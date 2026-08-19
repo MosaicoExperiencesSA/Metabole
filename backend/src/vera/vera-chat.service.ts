@@ -24,7 +24,9 @@ import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
-import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
+  IntentoEquivalenza,
+} from './capisci';
 import { daQuandoSiPuoRifare } from './menu-da-rifare';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
@@ -71,6 +73,14 @@ import {
   type VoceDaApprovare,
 } from './coda-approvazioni';
 import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
+import {
+  bastaPerScrivere,
+  leggiEquivalenza,
+  testoAnteprima,
+  testoChiediAltri,
+  testoChiediNome,
+  testoFatto,
+} from './equivalenza-dettata';
 import { secondaLettura } from './seconda-lettura';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
@@ -311,6 +321,13 @@ export class VeraChatService {
     }
     if (intento.tipo === 'famiglia') return this.famigliaASecco(nutrizionistaId, intento, frase);
     if (intento.tipo === 'ricetta') return this.avviaRicetta(nutrizionistaId, intento, frase);
+    /**
+     * ⚠️ L'EQUIVALENZA NON HA UNA CLIENTE, e va intercettata **prima** della riga qui sotto che
+     * chiede «di chi stiamo parlando?»: un gruppo di equivalenza vale per tutte, e mandarlo a
+     * `risolviCliente` chiederebbe un nome che non esiste. ⚠️ Questo ordine conta davvero — quello
+     * rispetto a `daScartare`, in `capisci.ts`, credevo contasse e non contava: vedi il commento lì.
+     */
+    if (intento.tipo === 'equivalenza') return this.avviaEquivalenza(intento);
     return this.risolviCliente(nutrizionistaId, { passo: 'quale_cliente', frase, intento }, intento.cliente ?? '');
   }
 
@@ -322,6 +339,12 @@ export class VeraChatService {
         return this.risolviCliente(nutrizionistaId, stato, frase);
       case 'quale_famiglia':
         return this.imparaFamiglia(nutrizionistaId, stato, frase);
+      case 'equivalenza_alimenti':
+        return this.equivalenzaAlimenti(stato, frase);
+      case 'equivalenza_nome':
+        return this.equivalenzaNome(stato, frase);
+      case 'equivalenza_conferma':
+        return this.equivalenzaScrivi(nutrizionistaId, stato, frase);
       case 'quale_spuntino':
         return this.scegliSpuntino(nutrizionistaId, stato, frase);
       case 'ambito':
@@ -608,6 +631,81 @@ export class VeraChatService {
    * anche la modifica come bozza. Ma una bozza-copia di una ricetta viva vuol dire due ricette con
    * lo stesso nome, di cui una sbagliata, e nessuno che sappia quale sta andando nei piatti.
    */
+  /**
+   * «AGGIUNGI UN'EQUIVALENZA» — il gruppo che dice al motore quali alimenti può scambiare (19/8).
+   *
+   * ⚠️ Tre passi e non uno, per la stessa ragione delle ricette: **il nome non si inventa** e la
+   * conferma si chiede. «Equivalenza 1» non dice niente a chi la rilegge fra un mese, e un gruppo
+   * scritto senza rileggerlo è una regola del motore nata da una frase battuta di fretta.
+   */
+  private async avviaEquivalenza(intento: IntentoEquivalenza): Promise<EsitoVera> {
+    const letta = { alimenti: intento.alimenti, nome: intento.nome };
+    if (!bastaPerScrivere(letta)) {
+      return {
+        testo: testoChiediAltri(letta),
+        esito: 'in_corso',
+        stato: { passo: 'equivalenza_alimenti', frase: '', equivalenzaAlimenti: letta.alimenti },
+      };
+    }
+    return {
+      testo: testoChiediNome(letta),
+      esito: 'in_corso',
+      stato: { passo: 'equivalenza_nome', frase: '', equivalenzaAlimenti: letta.alimenti },
+    };
+  }
+
+  /** Gli alimenti arrivati al secondo giro: si aggiungono a quelli già detti, non li sostituiscono. */
+  private async equivalenzaAlimenti(stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const letta = leggiEquivalenza(`aggiungi equivalenza: ${frase}`) ?? { alimenti: [], nome: null };
+    // ⚠️ Si UNISCE a quello che aveva già detto: chi ha scritto «pollo» e poi «tacchino, coniglio»
+    // si aspetta un gruppo di tre, non di due.
+    const visti = new Set<string>();
+    const alimenti = [...(stato.equivalenzaAlimenti ?? []), ...letta.alimenti].filter((a) => {
+      const k = a.toLowerCase();
+      if (visti.has(k)) return false;
+      visti.add(k);
+      return true;
+    });
+    const insieme = { alimenti, nome: null };
+    if (!bastaPerScrivere(insieme)) {
+      return { testo: testoChiediAltri(insieme), esito: 'in_corso', stato: { ...stato, equivalenzaAlimenti: alimenti } };
+    }
+    return {
+      testo: testoChiediNome(insieme),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'equivalenza_nome', equivalenzaAlimenti: alimenti },
+    };
+  }
+
+  private async equivalenzaNome(stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const nome = (frase ?? '').trim().replace(/[.!?]+$/, '');
+    // ⚠️ Un nome di due lettere non è un nome: si richiede invece di scrivere «ok» in banca dati.
+    if (nome.length < 3) {
+      return { testo: testoChiediNome({ alimenti: stato.equivalenzaAlimenti ?? [], nome: null }), esito: 'in_corso', stato };
+    }
+    return {
+      testo: testoAnteprima({ alimenti: stato.equivalenzaAlimenti ?? [], nome: null }, nome),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'equivalenza_conferma', equivalenzaNome: nome },
+    };
+  }
+
+  /**
+   * Il sì. ⚠️ Da qui si scrive — e nasce **bozza**: `EquivalenceService.create` mette
+   * `status: 'draft'` e avvisa i capi nutrizionisti. Il motore non la usa finché non è approvata, ed
+   * è la stessa regola delle proposte di Vera: una frase in chat non cambia cosa mangiano le clienti.
+   */
+  private async equivalenzaScrivi(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const risposta = leggiConferma(frase);
+    if (risposta === null) return { testo: 'Non ho capito se confermi. Rispondi «sì» o «no».', esito: 'in_corso', stato };
+    if (risposta === false) return { testo: testi.annullato(), esito: 'annullata' };
+
+    const alimenti = stato.equivalenzaAlimenti ?? [];
+    const nome = stato.equivalenzaNome ?? '';
+    await this.combinazioni.create(nutrizionistaId, { name: nome, items: alimenti });
+    return { testo: testoFatto(nome, alimenti.length), esito: 'scritta' };
+  }
+
   private async avviaRicetta(nutrizionistaId: string, intento: IntentoRicetta, frase: string): Promise<EsitoVera> {
     const tags = intento.stile ? [intento.stile] : [];
     if (intento.modo === 'nuova') {

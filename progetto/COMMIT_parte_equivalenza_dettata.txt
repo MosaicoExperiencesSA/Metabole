@@ -1,0 +1,61 @@
+«Aggiungi un'equivalenza»: Vera la sa fare, e gli alimenti della nutrizionista sono in tabella
+
+Due cose, e nascono tutte e due da uno screenshot e da un foglio di Simone del 19/8.
+
+1) VERA CAPISCE «AGGIUNGI EQUIVALENZA»
+Nello screenshot Vera rispondeva **due volte** «Non ci arrivo nemmeno adesso, e preferisco fermarmi
+invece di indovinare. Questa la puoi fare dalla scheda della cliente» a «aggiungi equivalenza» e a
+«voglio aggiungere un equivalenza». ⚠️ E la seconda metà di quella frase è pure sbagliata: un gruppo
+di equivalenza con la scheda di una cliente non c'entra niente.
+
+⚠️ **Non è la lista del dizionario**, che si chiama quasi uguale. La lista («i formaggi molli sono:
+mozzarella, stracchino…») dà un nome a un insieme e serve a scrivere i **divieti**. Il gruppo di
+equivalenza dice al motore quali alimenti può **scambiare fra loro nel piatto di una cliente**: è una
+regola che cambia cosa mangia la gente.
+
+Tre passi, per la stessa ragione delle ricette: ⚠️ **il nome non si inventa** («Equivalenza 1» non
+dice niente a chi la rilegge fra un mese) e la conferma si chiede. L'anteprima dice le due cose che
+chi detta deve sapere: che il motore **scambierà** quegli alimenti, e che nasce come **proposta** —
+`EquivalenceService.create` scrive `draft` e avvisa i capi. ⚠️ Una frase in chat non cambia cosa
+mangiano le clienti.
+
+⚠️ **Due alimenti o non è un'equivalenza**: con uno solo si chiede il secondo invece di scrivere un
+gruppo che non scambia niente. E gli alimenti detti al secondo giro si **uniscono** ai primi: chi
+scrive «pollo» e poi «tacchino, coniglio» si aspetta un gruppo di tre.
+
+⚠️ E UNA RAGIONE FALSA, TOLTA
+Avevo scritto nel codice che la causa del «non ci arrivo» era `daScartare`, la funzione che butta via
+le frasi senza una cliente. **Non è vero**: provata, quella lascia passare «aggiungi equivalenza». La
+causa era semplicemente che **nessun caso la prendeva**. Me ne sono accorto da una mutazione che
+spostava la riga e non faceva fallire niente. Una ragione falsa è peggio di un ordine sbagliato,
+perché sembra aver già risolto il problema — è la lezione della mattina sull'ordine del cron, e vale
+anche quando la scrivo io.
+
+2) `npm run importa:alimenti` — le 32 righe compilate dalla nutrizionista
+Dal foglio che Simone le ha fatto riempire: gli alimenti che `diag:crudo-cotto` aveva trovato
+mancanti (aglio, sale, limone, cipolla, brodo, aromi) e quelli che c'erano **solo da cotto**.
+
+⚠️ **IL PUNTO DIFFICILE: `NutrientFact.name` è unico.** Metà del secondo gruppo — carote, spinaci,
+zucca, patate, ceci, lenticchie, broccoli, polenta, pane di segale… — esiste già con quel nome
+esatto, come bollita o cotta. Non si può inserire una seconda «carote» a crudo.
+
+La riga vecchia si **rinomina** col suo stato — «carote» → «carote bollite» — e il nome nudo va alla
+riga a crudo: è quello che scrivono le ricette, e le ricette sono a crudo. ⚠️ Il nome vecchio non si
+perde: diventa un **sinonimo** della riga rinominata. ⚠️ E le due righe con lo stesso sinonimo sono
+esattamente ciò che serve a `scegliPerStato`: da lì in avanti, a una domanda che non dice crudo o
+cotto, Gaia risponde «dipende» invece di dare un numero. Prima non poteva — la riga era una sola.
+
+⚠️ **Non tocca i valori di una riga già a crudo**: sono dati verificati, e sovrascriverli con un file
+nuovo vorrebbe dire perdere in silenzio una correzione fatta a mano. Si dice, e decide una persona.
+⚠️ Prova a vuoto obbligatoria: `CONFERMA=1` per scrivere, come per l'indice glicemico.
+⚠️ I dati stanno in un **modulo TypeScript** e non in un JSON accanto allo script: un file che in
+`dist/` non c'è fa fallire lo script proprio il giorno che serve — lezione già scritta nel progetto.
+
+FILE
+- backend: `vera/equivalenza-dettata.ts` (nuovo, 13 test) · `vera/capisci.ts` · `vera/vera-chat.ts`
+  · `vera/vera-chat.service.ts` + spec (6 test nuovi, e il doppio con `create`) ·
+  `vera/scrittura-combinazione.ts` · `prisma/importa-alimenti.ts` + `prisma/dati-alimenti.ts` (nuovi)
+  · `package.json`
+
+239 suite / 3762 test verdi · due mutazioni provate: una ha fatto fallire i test, l'altra no — e
+quella che non ha morso ha tolto una spiegazione falsa dal codice.

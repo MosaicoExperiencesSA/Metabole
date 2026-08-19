@@ -20,6 +20,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔁 **«Aggiungi un'equivalenza»: Vera la sa fare** — dallo screenshot in cui rispondeva
+  **due volte** «non ci arrivo nemmeno adesso» a una frase chiarissima, e per giunta rimandava «alla
+  scheda della cliente», che con un gruppo di equivalenza non c'entra. ⚠️ **Non è la lista del
+  dizionario**: quella dà un nome a un insieme e serve ai divieti, questo dice al motore quali
+  alimenti può **scambiare nel piatto** — è una regola che cambia cosa mangia la gente. Tre passi
+  come per le ricette: ⚠️ **il nome non si inventa** e la conferma si chiede; l'anteprima dice che il
+  motore li scambierà e che nasce come **proposta** (`draft`, e avvisa i capi). ⚠️ Due alimenti o non
+  è un'equivalenza, e quelli detti al secondo giro si **uniscono** ai primi.
+  ⚠️ **E una ragione falsa, tolta**: avevo scritto che la causa era `daScartare`. Non è vero —
+  provata, lascia passare la frase: nessun caso la prendeva, e basta. L'ha mostrato una mutazione che
+  spostava la riga senza far fallire niente. Una ragione falsa è peggio di un ordine sbagliato,
+  perché sembra aver già risolto il problema: è la lezione della mattina sul cron, e vale anche
+  quando la scrivo io.
+
+- `[Sviluppo]` 🧂 **`npm run importa:alimenti` — le 32 righe compilate dalla nutrizionista** sul
+  foglio che Simone le ha fatto riempire (i buchi trovati da `diag:crudo-cotto`). ⚠️ **Il punto
+  difficile: `NutrientFact.name` è unico**, e metà delle righe a crudo — carote, spinaci, zucca,
+  patate, ceci, lenticchie, broccoli, polenta — **esiste già con quel nome** come bollita. La riga
+  vecchia si **rinomina** col suo stato («carote» → «carote bollite») e il nome nudo va alla riga a
+  crudo, perché è quello che scrivono le ricette. ⚠️ Il nome vecchio diventa un **sinonimo**, e le due
+  righe con lo stesso sinonimo sono esattamente ciò che serve a `scegliPerStato`: da lì in avanti, a
+  una domanda che non dice crudo o cotto, Gaia risponde «dipende» invece di dare un numero — prima
+  non poteva, la riga era una sola. ⚠️ Non tocca i valori di una riga già a crudo (dati verificati) e
+  la prova a vuoto è obbligatoria. ⚠️ I dati in un **modulo TS** e non in un JSON accanto: un file che
+  in `dist/` non c'è fa fallire lo script il giorno che serve.
+  239 suite / **3762 test verdi**.
+
+
 - `[Sviluppo]` 🎃 **«Semi di zucca» non è la zucca.** Primo giro in produzione dell'abbinamento, e la
   lista proposta conteneva **«semi di zucca» → «zucca»** (531 ricette, ~550 kcal contro 26: **venti
   volte**), **«olio di cocco»** e **«olio di sesamo» → olio d'oliva** (682 ricette), **«lenticchie

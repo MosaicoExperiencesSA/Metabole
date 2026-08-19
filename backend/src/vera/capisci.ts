@@ -23,6 +23,7 @@
  *   una negazione ribalta il senso. Una frase non capita costa alla nutrizionista dieci secondi per
  *   riformularla; una frase capita male costa cibo sbagliato nel piatto di una persona.
  */
+import { leggiEquivalenza } from './equivalenza-dettata';
 import { normalizza } from '../common/nomi-alimento';
 import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
 
@@ -72,7 +73,8 @@ export type Intento =
   | IntentoCambioDieta
   | IntentoCorrezioneKcal
   | IntentoProteine
-  | IntentoGiornata;
+  | IntentoGiornata
+  | IntentoEquivalenza;
 
 /** «A Simone niente formaggi molli» — eventualmente con un'eccezione: «…ma solo il grana». */
 export interface IntentoRestrizione {
@@ -224,6 +226,24 @@ export interface IntentoRicetta {
  * «mediterranea», o peggio la applicherebbe all'ultima cliente nominata. Dire «questo non lo so
  * ancora fare» è una risposta; fare la cosa sbagliata con sicurezza non lo è.
  */
+/**
+ * «AGGIUNGI UN'EQUIVALENZA» — il gruppo che dice al motore quali alimenti può scambiare (19/8).
+ *
+ * ⚠️ Non è la **lista del dizionario**, che si chiama quasi uguale: quella dà un nome a un insieme e
+ * serve a scrivere i divieti («niente formaggi molli»). Questo dice al motore che nel piatto di una
+ * cliente può mettere il tacchino al posto del pollo — è una regola che cambia cosa mangia la gente,
+ * e infatti nasce come proposta e la approva il capo.
+ *
+ * ⚠️ `alimenti` può essere **vuoto**: «aggiungi equivalenza» secco è una richiesta capita, e la
+ * risposta giusta è chiedere quali alimenti — non «non ci arrivo». Era il caso dello screenshot del
+ * 19/8, in cui Vera rispondeva due volte «non ci arrivo nemmeno adesso» a una frase chiarissima.
+ */
+export interface IntentoEquivalenza {
+  tipo: 'equivalenza';
+  alimenti: string[];
+  nome: string | null;
+}
+
 export interface IntentoFuoriPortata {
   tipo: 'fuori_portata';
   cosa: 'regola_dieta';
@@ -457,6 +477,21 @@ export function capisci(frase: string): Intento | null {
   // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
   // `daScartare` che butta via ogni «?». Rispondere non esegue niente.
   if (chiedeSegnalazioni(testo)) return { tipo: 'segnalazioni' };
+  /**
+   * L'EQUIVALENZA (19/8, dallo screenshot in cui Vera rispondeva due volte «non ci arrivo»).
+   *
+   * ⚠️ **La causa era semplicemente che nessun caso la prendeva**: la frase attraversava tutto il
+   * riconoscitore e usciva `null`. Avevo scritto qui che il colpevole era `daScartare` — la funzione
+   * che butta via le frasi senza una cliente — e **non è vero**: provata, quella lascia passare
+   * «aggiungi equivalenza». La mutazione che sposta questa riga dopo di lei non fa fallire nessun
+   * test, ed è così che me ne sono accorto. Una ragione falsa è peggio di un ordine sbagliato,
+   * perché sembra aver già risolto il problema (lezione del 19/8 mattina sull'ordine del cron).
+   *
+   * ⚠️ Sta comunque **prima** della riga che chiede «di chi stiamo parlando?», e quello sì conta: un
+   * gruppo di equivalenza non ha una cliente — vale per tutte.
+   */
+  const equi = leggiEquivalenza(testo);
+  if (equi) return { tipo: 'equivalenza', alimenti: equi.alimenti, nome: equi.nome };
   if (daScartare(testo)) return null;
 
   // 0-quinquies) LA GIORNATA DETTATA: si riconosce da DUE pasti nominati con i due punti. Prima

@@ -34,7 +34,10 @@ export type PassoVera =
   | 'giornata_scelte'    // la giornata dettata: quale piatto, per le righe ambigue (voce 241)
   | 'quale_dieta'        // «spostala sulla…»: quale dieta del catalogo? (azione 3, 14/8)
   | 'approvazione'       // la coda del catalogo, una voce per volta (18/8)
-  | 'da_quando';         // cambio dieta: da subito, o lascio i giorni già preparati?
+  | 'da_quando'          // cambio dieta: da subito, o lascio i giorni già preparati?
+  | 'equivalenza_alimenti'  // «aggiungi equivalenza»: quali alimenti si scambiano? (19/8)
+  | 'equivalenza_nome'      // …e come lo chiamiamo? ⚠️ il nome non si inventa
+  | 'equivalenza_conferma'; // ecco cosa scrivo: è una regola del motore, e nasce come proposta
 
 export interface StatoVera {
   passo: PassoVera;
@@ -58,6 +61,9 @@ export interface StatoVera {
   azioneId?: string;
   /** La voce di dizionario di cui sto chiedendo se allargarla. */
   famigliaId?: string;
+  /** Gli alimenti del gruppo di equivalenza che si sta dettando, e il suo nome. */
+  equivalenzaAlimenti?: string[];
+  equivalenzaNome?: string;
   /**
    * LA RICETTA, come l'ha scritta lei, per intero.
    *

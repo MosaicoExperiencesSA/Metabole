@@ -12,6 +12,12 @@
  */
 export interface ScritturaCombinazione {
   approve(userId: string, id: string): Promise<unknown>;
+  /**
+   * ⚠️ **Creare** un gruppo, dal 19/8: «aggiungi equivalenza» dettata a Vera. Nasce `draft` e
+   * avvisa i capi nutrizionisti — quella regola sta in `EquivalenceService.create` e qui non si
+   * duplica: da questa porta si passa, non si decide.
+   */
+  create(userId: string, dto: { name: string; items: string[]; note?: string; productId?: string }): Promise<unknown>;
 }
 
 export const SCRITTURA_COMBINAZIONE = 'VERA_SCRITTURA_COMBINAZIONE';

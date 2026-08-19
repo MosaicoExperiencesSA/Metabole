@@ -196,7 +196,15 @@ function make(
   // La porta dei cambi concordati in chat (voce 245): la stessa del pulsante in scheda.
   const sostituzioni = { aggiorna: jest.fn().mockResolvedValue({ id: 's1' }) };
   // La porta delle combinazioni (18/8): la stessa del pulsante in Equivalenze.
-  const combinazioni = { approve: jest.fn().mockResolvedValue({ id: 'g1' }) };
+  /**
+   * ⚠️ `create` c'è perché l'originale ce l'ha (19/8, «aggiungi equivalenza»). Un doppio che si
+   * comporta diversamente dall'originale non verifica niente — è la lezione già pagata due volte
+   * oggi, su `audit.log` e su `cercaPerIngrediente`.
+   */
+  const combinazioni = {
+    approve: jest.fn().mockResolvedValue({ id: 'g1' }),
+    create: jest.fn().mockResolvedValue({ id: 'g-nuovo' }),
+  };
 
   return {
     service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never),
@@ -2037,5 +2045,83 @@ describe('la coda delle approvazioni', () => {
     const { service, messaggioCreate } = make(catalogo([{ id: 'r1', name: 'Pollo', active: false, allergensReviewed: false }]));
     await service.parla('lucia', 'hai segnalazioni per me?');
     expect(ultimoAgente(messaggioCreate).testo).toMatch(/aspettano la tua approvazione/);
+  });
+});
+
+/**
+ * «AGGIUNGI UN'EQUIVALENZA» — il giro intero, dallo screenshot del 19/8 in cui Vera rispondeva due
+ * volte «non ci arrivo nemmeno adesso» a una frase chiarissima.
+ */
+describe('VeraChatService — l\'equivalenza dettata', () => {
+  /**
+   * ⚠️ IL CASO DELLO SCREENSHOT. «aggiungi equivalenza» secco è una richiesta **capita**: si
+   * riconosce e si chiedono gli alimenti. Prima finiva in `daScartare` — la funzione che butta via
+   * le frasi senza una cliente — perché un gruppo di equivalenza una cliente non ce l'ha.
+   */
+  it('⚠️ «aggiungi equivalenza» non è più «non ci arrivo»: chiede quali alimenti', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'aggiungi equivalenza');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).not.toContain('Non ci arrivo');
+    expect(testo).toContain('Quali alimenti');
+    expect(stato?.passo).toBe('equivalenza_alimenti');
+  });
+
+  /** Gli alimenti detti tutti insieme saltano il primo passo e si va al nome. */
+  it('con gli alimenti nella frase, chiede subito il nome', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'aggiungi equivalenza: petto di pollo, tacchino, coniglio');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('equivalenza_nome');
+    expect(stato?.equivalenzaAlimenti).toEqual(['petto di pollo', 'tacchino', 'coniglio']);
+    expect(testo).toContain('Come lo chiamiamo');
+  });
+
+  /** ⚠️ Gli alimenti del secondo giro si UNISCONO ai primi: chi dice «pollo» e poi «tacchino» ne vuole due. */
+  it('⚠️ gli alimenti detti dopo si aggiungono, non sostituiscono', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_alimenti', frase: '', equivalenzaAlimenti: ['pollo'] } },
+    );
+    await service.parla('lucia', 'tacchino e coniglio');
+    const { stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.equivalenzaAlimenti).toEqual(['pollo', 'tacchino', 'coniglio']);
+    expect(stato?.passo).toBe('equivalenza_nome');
+  });
+
+  /**
+   * ⚠️ L'ANTEPRIMA DICE CHE È UNA REGOLA DEL MOTORE E CHE NASCE COME PROPOSTA. Una regola che si
+   * crede locale e agisce su trecento persone è il difetto peggiore che questa chat possa fare.
+   */
+  it('⚠️ prima di scrivere dice cosa comporta, e chiede conferma', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_nome', frase: '', equivalenzaAlimenti: ['pollo', 'tacchino'] } },
+    );
+    await service.parla('lucia', 'carni bianche');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('scambiarli');
+    expect(testo).toContain('proposta');
+    expect(stato?.passo).toBe('equivalenza_conferma');
+  });
+
+  /** ⚠️ Al sì si scrive, e passa dalla porta di Equivalenze: nasce bozza e avvisa il capo. */
+  it('⚠️ al sì crea il gruppo da EquivalenceService, non scrivendo a mano', async () => {
+    const { service, combinazioni } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_conferma', frase: '', equivalenzaAlimenti: ['pollo', 'tacchino'], equivalenzaNome: 'carni bianche' } },
+    );
+    await service.parla('lucia', 'sì');
+    expect(combinazioni.create).toHaveBeenCalledWith('lucia', { name: 'carni bianche', items: ['pollo', 'tacchino'] });
+  });
+
+  /** ⚠️ E al no non si scrive niente: la conferma è una conferma. */
+  it('⚠️ al no non scrive niente', async () => {
+    const { service, combinazioni } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_conferma', frase: '', equivalenzaAlimenti: ['pollo', 'tacchino'], equivalenzaNome: 'carni bianche' } },
+    );
+    await service.parla('lucia', 'no');
+    expect(combinazioni.create).not.toHaveBeenCalled();
   });
 });
