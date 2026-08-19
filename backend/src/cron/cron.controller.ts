@@ -28,6 +28,7 @@ import { PlanReportService } from '../reports/plan-report.service';
 import { SignalsService } from '../signals/signals.service';
 import { VisitsService } from '../health-area/visits.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -60,6 +61,8 @@ export class CronController {
     private readonly pause: PauseService,
     private readonly crm: CrmService,
     private readonly privacy: PrivacyService,
+    /** L'elenco degli alimenti da correggere a mano: si ricalcola di notte. */
+    private readonly valori: ValoriNutrizionaliService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -108,6 +111,15 @@ export class CronController {
     await step('engine', () => this.engine.runBatch());
     await step('notifications', () => this.notifications.generateDailyBatch());
     await step('alerts', () => this.alerts.recomputeAllBatch());
+    /**
+     * ⚠️ L'ELENCO DEGLI ALIMENTI DA CORREGGERE A MANO (19/8 sera). Legge tutte le ricette attive e
+     * la tabella nutrienti e scrive in `nutrient_lookup_miss` cosa il conto non sa contare, con
+     * quante ricette lo usano. ⚠️ **Non tocca nessun valore nutrizionale e non scrive niente di
+     * clinico**: riempie un elenco di lavoro, e a lavorarlo è una persona.
+     * ⚠️ Sta dopo gli avvisi e non fra i primi: non lo legge nessun altro passo, e se una notte
+     * salta l'unica conseguenza è un elenco vecchio di un giorno.
+     */
+    await step('alimentiDaCorreggere', () => this.valori.aggiornaIngredientiScoperti());
     await step('conversationSummaries', () => this.summaries.generateDailyBatch());
     /**
      * Le conversazioni di Gaia rimaste senza risposta: dopo un giorno le chiude lei, dicendo che ha

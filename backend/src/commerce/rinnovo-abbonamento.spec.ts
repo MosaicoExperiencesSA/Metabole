@@ -35,7 +35,17 @@ import { StripeService } from './stripe.service';
 
 function harness() {
   const prisma: any = {
-    subscription: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+    subscription: {
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
+      /**
+       * ⚠️ Serve al controllo «questo rinnovo scavalca una coda?» (19/8 sera). Senza questo metodo
+       * il finto tirerebbe un `TypeError`, il `try` lo inghiottirebbe e il controllo **non sarebbe
+       * provato da nessuno** — un test double a cui manca un metodo dell'originale non verifica
+       * quel pezzo, lo salta in silenzio. È già successo tre volte oggi.
+       */
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     payment: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'pay-rinnovo', ...data })),
@@ -326,5 +336,65 @@ describe('handleInvoicePaid — evento plan_renewed', () => {
     expect(res).toEqual({ handled: true, renewed: true });
     expect(h.finance.recordIncome).toHaveBeenCalled();
     expect(h.finance.generateCommissions).toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⚠️ IL RINNOVO CHE SCAVALCA UNA CODA — decisione di Simone, 19/8 sera.
+ *
+ * `handleInvoicePaid` scrive la scadenza alla fine del periodo pagato, sempre: **un rinnovo non si
+ * tocca**, è un soldo incassato e la cliente ha diritto ai giorni che ha comprato. ⚠️ Ma se dietro
+ * c'è un piano già pagato in fila, la scadenza nuova gli passa sopra: l'erogazione ne sceglie uno —
+ * quello che finisce più tardi — e i giorni dell'altro scorrono senza che lei riceva niente.
+ *
+ * ⛔ E qui la coda **non** si sposta in avanti, al contrario della pausa, ed è la stessa decisione
+ * con due risposte diverse perché le due cose sono diverse: una pausa è un evento singolo, un
+ * abbonamento ricorrente si rinnova ogni mese — spostare la coda a ogni rinnovo vorrebbe dire
+ * spingerla in avanti per sempre, e un percorso pagato non partirebbe mai. Si registra, e decide
+ * una persona.
+ */
+describe('handleInvoicePaid — il rinnovo che passa sopra una coda', () => {
+  const conCoda = async (coda: { id: string; startDate: Date | null; endDate: Date | null }[]) => {
+    const h = harness();
+    const service = await build(h);
+    h.prisma.subscription.findUnique.mockResolvedValue({
+      id: 'nostro-sub-1', clientId: 'cli-1', stripeSubscriptionId: 'sub_STRIPE_1', status: 'active',
+      startDate: new Date('2026-07-08T00:00:00.000Z'), endDate: new Date('2026-08-08T00:00:00.000Z'),
+      plan: { name: 'Mantenimento' }, client: { email: 'giulia@test.it', locale: 'it' },
+    });
+    h.prisma.subscription.findMany.mockResolvedValue(coda);
+    await service.handleInvoicePaid({ type: 'invoice.paid', data: { object: fattura() } });
+    return h;
+  };
+  const sopraScritto = (h: ReturnType<typeof harness>) =>
+    h.prisma.audit ?? h.audit.log.mock.calls.map((c: any[]) => c[0].action);
+
+  /** La fattura porta la scadenza al 08/09, e in coda c'è un piano che parte il 20/08. */
+  it('⚠️ lo scrive nel registro, e il rinnovo NON si ferma', async () => {
+    const h = await conCoda([
+      { id: 'coda-1', startDate: new Date('2026-08-20T00:00:00.000Z'), endDate: new Date('2026-11-20T00:00:00.000Z') },
+    ]);
+    expect(sopraScritto(h)).toContain('commerce.renewal.over_queue');
+    // ⚠️ E la scadenza si scrive lo stesso: il rinnovo è pagato.
+    const scrittura = h.prisma.subscription.update.mock.calls.find((c: any) => c[0].data?.endDate);
+    expect(scrittura[0].data.endDate).toEqual(new Date('2026-09-08T00:00:00.000Z'));
+  });
+
+  /**
+   * ⚠️ **Toccarsi non è sovrapporsi**: la coda che parte esattamente il giorno in cui finisce il
+   * periodo rinnovato è il passaggio di testimone normale. Senza questo test l'avviso sarebbe
+   * scattato su **ogni** rinnovo con una coda dietro — e un avviso che compare sempre non è un
+   * avviso.
+   */
+  it('⚠️ la coda che parte il giorno in cui finisce il periodo NON è uno scavalcamento', async () => {
+    const h = await conCoda([
+      { id: 'coda-1', startDate: new Date('2026-09-08T00:00:00.000Z'), endDate: new Date('2026-12-08T00:00:00.000Z') },
+    ]);
+    expect(sopraScritto(h)).not.toContain('commerce.renewal.over_queue');
+  });
+
+  it('senza niente in coda non si scrive niente', async () => {
+    const h = await conCoda([]);
+    expect(sopraScritto(h)).not.toContain('commerce.renewal.over_queue');
   });
 });

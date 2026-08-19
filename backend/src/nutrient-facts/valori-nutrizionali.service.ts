@@ -1,4 +1,5 @@
 import { abbina, paroleChe } from './abbinamento-alimenti';
+import { ingredientiScoperti, usiNegliIngredienti } from './ingredienti-scoperti';
 import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, posizioneDentro } from './nome-dentro-la-domanda';
 import { type EsitoPerRicetta, type EsitoScelta, fraseAmbiguita, scegliPerRicetta, scegliPerStato } from './stato-alimento';
 import { Injectable, Logger } from '@nestjs/common';
@@ -408,4 +409,78 @@ export class ValoriNutrizionaliService {
       this.logger.warn(`Non ho potuto registrare l'alimento mancante «${t}»: ${e instanceof Error ? e.message : e}`);
     }
   }
+  /**
+   * AGGIORNA L'ELENCO DEGLI ALIMENTI DA CORREGGERE A MANO — gira di notte, non scrive niente di
+   * clinico. Richiesta di Simone, 19/8 sera: «crea una tabella dove possiamo correggere a mano».
+   *
+   * ⚠️ **Scrive nella stessa tabella dei mancanti**, non in una nuova: «quali alimenti ci mancano»
+   * è una domanda sola, e arriva da due parti — le clienti che li chiedono a Gaia (`times`) e le
+   * ricette che li usano (`ricette`). Due elenchi divergono al primo giorno e fanno lavorare due
+   * volte sullo stesso nome.
+   *
+   * ⚠️ **Un tetto dichiarato.** Gli ingredienti scoperti sono migliaia (7831 al primo giro del
+   * 19/8), e quasi tutti sono aromi o nomi usati da una ricetta sola: scriverli tutti farebbe un
+   * elenco che nessuno apre due volte, e migliaia di scritture ogni notte. Si prendono i primi per
+   * numero di ricette, e **quanti ne restano fuori si dice** — un tetto in silenzio si legge come
+   * «è tutto qui».
+   *
+   * ⚠️ **Non tocca `status`.** Se una persona ha già detto «questo non è un alimento» (`ignored`) o
+   * ha già scritto la riga (`filled`), il passo notturno non glielo riapre: sarebbe un automatismo
+   * che disfa una decisione presa a mano, ed è il difetto peggiore di quello che risolve.
+   *
+   * ⚠️ E **azzera `ricette` su chi non è più usato**: un nome che era in cima perché lo usavano 500
+   * ricette e che oggi non usa più nessuno deve scendere da solo. Un elenco che cresce e non cala
+   * racconta un lavoro che non finisce mai.
+   */
+  async aggiornaIngredientiScoperti(tetto = 300): Promise<{ scoperti: number; scritti: number; fuori: number }> {
+    const [ricette, righe] = await Promise.all([
+      this.prisma.recipe.findMany({ where: { active: true } as never, select: { ingredients: true } as never }) as Promise<
+        { ingredients: unknown }[]
+      >,
+      this.prisma.nutrientFact.findMany({ select: { name: true, synonyms: true, state: true } as never }) as Promise<
+        { name: string; synonyms: string[]; state: string | null }[]
+      >,
+    ]);
+
+    const scoperti = ingredientiScoperti(usiNegliIngredienti(ricette), righe);
+    const daScrivere = scoperti.slice(0, Math.max(1, tetto));
+    const fuori = scoperti.length - daScrivere.length;
+    if (fuori > 0) {
+      this.logger.log(
+        `Alimenti da correggere: ne scrivo ${daScrivere.length} dei ${scoperti.length} trovati (tetto ${tetto}). ` +
+          `Gli altri ${fuori} sono usati da meno ricette e restano fuori: si vedono con \`npm run diag:crudo-cotto\`.`,
+      );
+    }
+
+    const nomi = new Set(daScrivere.map((x) => x.nome));
+    for (const x of daScrivere) {
+      /**
+       * ⚠️ `upsert` e non `create`: il nome può già esserci perché una cliente l'ha **chiesto** a
+       * Gaia. In quel caso la riga è la stessa e si aggiunge solo il conto delle ricette — non si
+       * tocca `times`, che racconta un fatto diverso e non è nostro da riscrivere.
+       */
+      await this.prisma.nutrientLookupMiss
+        .upsert({
+          where: { term: x.nome },
+          update: { ricette: x.ricette, motivo: x.motivo, suggerito: x.suggerito } as never,
+          create: { term: x.nome, times: 0, ricette: x.ricette, motivo: x.motivo, suggerito: x.suggerito } as never,
+        })
+        .catch(() => undefined);
+    }
+
+    /** Chi non è più usato da nessuna ricetta torna a zero: l'elenco deve poter calare. */
+    const daAzzerare = (await this.prisma.nutrientLookupMiss.findMany({
+      where: { ricette: { gt: 0 } } as never,
+      select: { id: true, term: true },
+    })) as { id: string; term: string }[];
+    const spenti = daAzzerare.filter((r) => !nomi.has(r.term)).map((r) => r.id);
+    if (spenti.length) {
+      await this.prisma.nutrientLookupMiss
+        .updateMany({ where: { id: { in: spenti } }, data: { ricette: 0 } as never })
+        .catch(() => undefined);
+    }
+
+    return { scoperti: scoperti.length, scritti: daScrivere.length, fuori };
+  }
+
 }

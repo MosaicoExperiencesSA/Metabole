@@ -48,6 +48,20 @@
  * supposizione: metterla in banca dati vorrebbe dire far dire a Gaia un numero deciso da me. L'elenco
  * lo riempie la nutrizionista.
  *
+ * ## ⚠️ E DAL 19/8 SERA L'ELENCO DI LAVORO STA NELLA PAGINA
+ *
+ * Richiesta di Simone: «crea una tabella dove possiamo correggere a mano». I primi 300 nomi per
+ * numero di ricette finiscono ogni notte nella pagina **Valori nutrizionali** del backoffice, con
+ * scritto perche il conto non li sa contare e a quale riga si abbinerebbero. ⚠️ Questa diagnostica
+ * **resta**, e non e un doppione: la pagina mostra la testa dell'elenco a chi ci lavora, qui si
+ * vedono **tutti** e settemila, divisi nei quattro casi, con i conteggi.
+ *
+ * ⚠️ Le REGOLE sono le stesse in tutti e due i posti — `scegliPerRicetta` e `abbina`, importate,
+ * non ricopiate. Il primo giro in produzione ha mostrato cosa succede a ricopiarle: qui la regola
+ * del crudo era scritta a mano e bocciava «quinoa (cruda)» perche confrontava con `['crudo']` al
+ * maschile. Quello che resta diverso e **come si assembla l'elenco**, e resta diverso apposta:
+ * questa diagnostica risponde a «com'e messa la tabella», la pagina a «cosa faccio adesso».
+ *
  * ## USO (shell di Render, dentro ~/project/src/backend)
  *
  *   npm run diag:crudo-cotto

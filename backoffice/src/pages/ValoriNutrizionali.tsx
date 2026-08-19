@@ -51,9 +51,34 @@ interface Valore {
 interface Mancante {
   id: string;
   term: string;
+  /** Quante volte una cliente l'ha CHIESTO a Gaia e non c'era. */
   times: number;
+  /** Quante ricette attive lo usano. ⚠️ Non si somma a `times`: sono unità diverse. */
+  ricette: number;
+  motivo: string | null;
+  /** La riga a cui si abbinerebbe: si chiude con un sinonimo invece che con una riga nuova. */
+  suggerito: string | null;
   lastAskedAt: string;
 }
+
+/**
+ * ⚠️ I TRE PERCHÉ, e si chiudono in tre modi diversi. Un elenco che dice solo «manca» obbliga chi lo
+ * lavora a ricapirlo ogni volta — e chi deve ricapire ogni volta, dopo un po' non lo apre più.
+ */
+const MOTIVO: Record<string, { etichetta: string; spiega: string }> = {
+  non_in_tabella: {
+    etichetta: 'Non in tabella',
+    spiega: 'Nessuna riga ha questo nome. Si chiude aggiungendo la riga — o, se è un altro modo di dire una riga che c\'è già, aggiungendolo come sinonimo.',
+  },
+  solo_da_cotto: {
+    etichetta: 'Solo da cotto',
+    spiega: 'La riga c\'è ma porta il valore da cotto, e nelle ricette le grammature sono a crudo: contarla così sbaglia di volte (riso e legumi anche tre). Serve la riga a crudo.',
+  },
+  senza_stato: {
+    etichetta: 'Senza stato',
+    spiega: 'La riga c\'è e non dice se quel valore è a crudo o da cotto. «Senza stato» non è «cotto»: è «non lo so», e va dichiarato.',
+  },
+};
 
 const AFFIDABILITA: Record<string, { etichetta: string; chip: string; spiega: string }> = {
   solida: { etichetta: 'Solida', chip: '', spiega: 'Più fonti concordano: Gaia dice il numero.' },
@@ -76,6 +101,8 @@ export function ValoriNutrizionali() {
   const puoModificare = can('nutrient_facts', 'manage');
   const [valori, setValori] = useState<Valore[]>([]);
   const [mancanti, setMancanti] = useState<Mancante[]>([]);
+  /** ⚠️ Quanti sono davvero: l'elenco ne mostra al massimo 200, e un tetto taciuto si legge «è tutto qui». */
+  const [quantiMancanti, setQuantiMancanti] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,10 +116,11 @@ export function ValoriNutrizionali() {
     try {
       const [v, m] = await Promise.all([
         api<Valore[]>(`/nutrient-facts${soloDaConfermare ? '?daConfermare=1' : ''}`),
-        api<Mancante[]>('/nutrient-facts/mancanti').catch(() => [] as Mancante[]),
+        api<{ righe: Mancante[]; quanti: number }>('/nutrient-facts/mancanti').catch(() => ({ righe: [], quanti: 0 })),
       ]);
       setValori(v);
-      setMancanti(m);
+      setMancanti(m.righe ?? []);
+      setQuantiMancanti(m.quanti ?? 0);
       setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Il tuo ruolo non può vedere i valori nutrizionali.');
@@ -161,11 +189,31 @@ export function ValoriNutrizionali() {
     }
   }
 
+  /**
+   * ⚠️ «Questo nome è un altro modo di dire quella riga». È l'azione che fa risparmiare il lavoro
+   * vero: «olio extravergine» scritto in tre modi sono 6494 ricette, e si chiudono con tre sinonimi
+   * invece che con tre righe nuove — righe che sarebbero lo stesso alimento contato due volte, con
+   * numeri che prima o poi divergono.
+   */
+  async function aggiungiSinonimo(m: Mancante) {
+    if (!m.suggerito) return;
+    if (!confirm(`Aggiungere «${m.term}» come altro nome di «${m.suggerito}»?\n\nDa quel momento le ricette che scrivono «${m.term}» si contano su quella riga.`)) return;
+    try {
+      await api(`/nutrient-facts/mancanti/${m.id}/sinonimo`, { method: 'POST', body: JSON.stringify({}) });
+      setMancanti((xs) => xs.filter((x) => x.id !== m.id));
+      setQuantiMancanti((n) => Math.max(0, n - 1));
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
   async function ignoraMancante(m: Mancante) {
     if (!confirm(`Togliere «${m.term}» dalla lista? Usalo quando non è il nome di un alimento.`)) return;
     try {
       await api(`/nutrient-facts/mancanti/${m.id}`, { method: 'PATCH' });
       setMancanti((xs) => xs.filter((x) => x.id !== m.id));
+      setQuantiMancanti((n) => Math.max(0, n - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Non riuscito.');
     }
@@ -221,29 +269,74 @@ export function ValoriNutrizionali() {
       {mancanti.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h3 style={{ marginTop: 0, fontSize: 16 }}>
-            Alimenti che le clienti hanno chiesto e non abbiamo ({mancanti.length})
+            Alimenti da correggere ({quantiMancanti})
           </h3>
           <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-            Quando un'alimento non è in tabella, Gaia non inventa: gira la domanda a te e lo scrive
-            qui. I più chiesti sono i primi da aggiungere.
+            Quello che il conto non sa contare, in cima quello che pesa di più. Arriva da due parti:
+            le <b>ricette</b> che lo usano e le <b>domande</b> delle clienti a cui Gaia non ha saputo
+            rispondere. I due numeri non si sommano — sono cose diverse.
           </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {mancanti.slice(0, 40).map((m) => (
-              <span key={m.id} className="chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <b>{m.term}</b>
-                <span className="muted">×{m.times}</span>
-                {puoModificare && (
-                  <button
-                    className="btn ghost sm"
-                    style={{ padding: '0 4px' }}
-                    title="Non è un alimento: togli dalla lista"
-                    onClick={() => void ignoraMancante(m)}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            ))}
+          {quantiMancanti > mancanti.length && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+              Ne vedi {mancanti.length} di {quantiMancanti}: gli altri sono usati da meno ricette.
+            </p>
+          )}
+          <div style={stileScorrevole(mancanti.length)}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Alimento</th>
+                  <th style={{ textAlign: 'right' }}>Ricette</th>
+                  <th style={{ textAlign: 'right' }}>Chiesto</th>
+                  <th>Perché</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {mancanti.map((m) => {
+                  const perche = m.motivo ? MOTIVO[m.motivo] : null;
+                  return (
+                    <tr key={m.id}>
+                      <td><b>{m.term}</b></td>
+                      <td style={{ textAlign: 'right' }}>{m.ricette > 0 ? m.ricette : <span className="muted">—</span>}</td>
+                      <td style={{ textAlign: 'right' }}>{m.times > 0 ? m.times : <span className="muted">—</span>}</td>
+                      <td>
+                        {perche ? (
+                          <span title={perche.spiega}>{perche.etichetta}</span>
+                        ) : (
+                          <span className="muted" title="Chiesto in chat e non trovato in tabella.">Chiesto e non trovato</span>
+                        )}
+                        {m.suggerito && m.motivo === 'non_in_tabella' && (
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            somiglia a «{m.suggerito}»
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {puoModificare && m.suggerito && m.motivo === 'non_in_tabella' && (
+                          <button
+                            className="btn ghost sm"
+                            title={`Aggiunge «${m.term}» come altro nome di «${m.suggerito}»: da lì in poi le ricette che lo scrivono si contano su quella riga.`}
+                            onClick={() => void aggiungiSinonimo(m)}
+                          >
+                            è «{m.suggerito}»
+                          </button>
+                        )}
+                        {puoModificare && (
+                          <button
+                            className="btn ghost sm"
+                            title="Non è un alimento (o non ci serve): togli dall'elenco"
+                            onClick={() => void ignoraMancante(m)}
+                          >
+                            togli
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

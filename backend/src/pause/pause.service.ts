@@ -14,6 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { toDateOnly } from '../common/date-only';
 import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
+import { codaCheSlitta } from './coda-che-slitta';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -582,7 +583,49 @@ export class PauseService {
       return null;
     }
     const newEnd = new Date(sub.endDate.getTime() + days * 86_400_000);
-    await this.prisma.subscription.update({ where: { id: sub.id }, data: { endDate: newEnd } });
+
+    /**
+     * ⚠️ **E LA CODA SCORRE CON LUI** — decisione di Simone, 19/8 sera.
+     *
+     * Prima si allungava la fine del piano in corso e basta. Se dietro c'era una coda già pagata
+     * quella restava dov'era, e cominciava **dentro** il piano appena allungato: `attivoInCorso` ne
+     * sceglie **uno solo** — quello che finisce più tardi — e i giorni dell'altro scorrono senza che
+     * la cliente riceva niente. ⛔ Cioè i giorni di pausa glieli davo con una mano e gliene toglievo
+     * altrettanti con l'altra, e il conto non lo faceva vedere nessuno. È esattamente ciò che nel
+     * caso Lorena ha portato il piano #2 al 01/09.
+     *
+     * ⚠️ **La pausa non si tocca**: è una promessa già fatta a voce quando arriva qui. Si sposta la
+     * coda, che è anche lei sua — e spostandola non perde nemmeno un giorno di quello che ha pagato.
+     * La regola (tutta la fila, inizio **e** fine, e le sovrapposizioni già autorizzate non si
+     * disfano) sta in `coda-che-slitta.ts`, con scritto perché.
+     *
+     * ⚠️ **Una transazione sola.** Se l'allungamento passasse e lo spostamento no, resterebbe
+     * scritto proprio lo stato che questo codice esiste per evitare — e nessuno lo saprebbe.
+     */
+    const slittano = codaCheSlitta(attivi as never, sub.id, sub.endDate, days);
+    await this.prisma.$transaction([
+      this.prisma.subscription.update({ where: { id: sub.id }, data: { endDate: newEnd } }),
+      ...slittano.map((x) =>
+        this.prisma.subscription.update({
+          where: { id: x.id },
+          data: { startDate: x.startDate, endDate: x.endDate },
+        }),
+      ),
+    ] as never);
+    if (slittano.length) {
+      this.logger.log(
+        `Pausa di ${days} giorni su ${clientId}: spostati in avanti anche ${slittano.length} piani in fila, ` +
+          'inizio e fine, così non le scorrono sotto il piano allungato.',
+      );
+      await this.audit
+        .log({
+          action: 'pause.queue.shifted',
+          entityType: 'subscription',
+          entityId: sub.id,
+          metadata: { clientId, giorni: days, spostati: slittano.map((x) => x.id) },
+        })
+        .catch(() => undefined);
+    }
     return newEnd;
   }
 

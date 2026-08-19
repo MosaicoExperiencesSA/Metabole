@@ -1,0 +1,77 @@
+--------------------------------------------------------------------------------
+Parte: la pausa sposta la coda, il rinnovo Stripe lo scrive — 19/8 sera
+--------------------------------------------------------------------------------
+
+Le due strade che allungavano una data senza dirlo a nessuno. Due domande, due risposte di
+Simone, e sono due risposte DIVERSE — di proposito.
+
+1) LA PAUSA: LA CODA SCORRE CON IL PIANO ALLUNGATO
+
+`freezeSubscription` sommava i giorni di pausa alla fine del piano che sta erogando e non
+guardava se dietro c era una coda gia pagata:
+
+    piano #1  01/06 → 25/08     pausa di 7 giorni →  01/06 → 01/09
+    piano #2  25/08 → 25/11                          25/08 → 25/11   ← restava dov era
+
+⛔ E quei sette giorni la cliente li perdeva DUE VOLTE: il #2 cominciava mentre il #1 stava
+ancora erogando, l erogazione ne sceglie uno solo — quello che finisce piu tardi — e i giorni
+dell altro scorrono senza che riceva niente. Glieli davamo con una mano e gliene toglievamo
+altrettanti con l altra, e il conto non lo faceva vedere nessuno. E esattamente cio che nel caso
+Lorena ha portato il piano #2 al 01/09.
+
+⚠️ La pausa non si tocca: e una promessa gia fatta a voce quando arriva qui. Si sposta la coda,
+che e anche lei sua — e spostandola non perde nemmeno un giorno di quello che ha pagato.
+
+Tre cose che la regola fa, e perche:
+  · sposta INIZIO E FINE. Solo l inizio le accorcerebbe il piano di quei giorni: la stessa
+    sottrazione silenziosa, spostata di un metro.
+  · sposta TUTTA LA FILA. Spostandone una sola, quella finirebbe addosso alla seconda: difetto
+    chiuso qui e riaperto un metro piu in la. Tutte dello stesso numero di giorni, e le distanze
+    fra loro restano quelle di prima.
+  · ⚠️ NON tocca le righe che cominciano PRIMA della vecchia fine. Quelle si sovrappongono gia, e
+    una sovrapposizione che esiste oggi l ha autorizzata UNA PERSONA (la matita chiede conferma
+    e la registra, ed e una decisione di Simone tenerla cosi). Spostarla vorrebbe dire disfare
+    in automatico quello che qualcuno ha deciso a mano.
+
+⚠️ Il confine e «>= la vecchia fine» e non «si sovrappone alla fine nuova»: la coda che parte
+esattamente il giorno in cui finisce il piano e il passaggio di testimone normale, ed e il caso
+piu frequente di tutti — se non scorresse anche lei si troverebbe a partire DENTRO il piano
+allungato.
+
+⚠️ Allungamento e spostamento in UNA TRANSAZIONE SOLA: se il primo passasse e il secondo no,
+resterebbe scritto proprio lo stato che questo codice esiste per evitare.
+
+2) IL RINNOVO STRIPE: SI SCRIVE, NON SI SPOSTA NIENTE
+
+`handleInvoicePaid` riscrive la scadenza alla fine del periodo pagato, sempre: un rinnovo non si
+tocca, e un soldo incassato. Ma se dietro c e un piano gia pagato in fila, la scadenza nuova gli
+passa sopra.
+
+⛔ E qui la coda NON si sposta in avanti, al contrario della pausa, ed e la stessa decisione
+presa con due risposte diverse perche le due cose sono diverse: una pausa e un evento singolo,
+un abbonamento ricorrente SI RINNOVA OGNI MESE. Spostare la coda a ogni rinnovo vorrebbe dire
+spingerla in avanti per sempre — un percorso pagato che non parte mai, e nessuno che se ne
+accorga perche ogni singolo spostamento e piccolo e sensato.
+
+Quindi si registra e basta (log + `commerce.renewal.over_queue` in audit), e decide una persona.
+⚠️ E il controllo sta in un try/catch che non ferma il rinnovo: il pagamento e gia incassato, e
+fallire li vorrebbe dire non scrivere la scadenza a una cliente che ha pagato per non essere
+riusciti a scrivere una riga di diario.
+
+⚠️ DUE FINTI ALLARGATI INSIEME AL CODICE
+
+  · al finto della pausa mancava `$transaction`. Messo come `Promise.all`, non
+    `mockResolvedValue([])`: un finto che risponde senza eseguire farebbe passare il test anche
+    se le scritture non partissero.
+  · al finto del rinnovo mancava `subscription.findMany`. Senza, il `try` avrebbe inghiottito un
+    TypeError e il controllo nuovo NON sarebbe stato provato da nessuno. E la quarta volta oggi
+    che un test double a cui manca un metodo salta in silenzio il pezzo che dovrebbe verificare.
+
+FILE
+- backend/pause: `coda-che-slitta.ts` + spec (nuovi, 8 test) · `pause.service.ts` ·
+  `pausa-allunga-il-piano.spec.ts` (3 test nuovi, finto allargato)
+- backend/commerce: `commerce.service.ts` (`handleInvoicePaid`) ·
+  `rinnovo-abbonamento.spec.ts` (3 test nuovi, finto allargato)
+
+242 suite / 3827 test verdi. Tre mutazioni provate, tutte e tre fanno fallire i test.
+Nessuna migrazione.

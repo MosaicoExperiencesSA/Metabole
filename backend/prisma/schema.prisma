@@ -2610,13 +2610,43 @@ model NutrientLookupMiss {
   id        String   @id @default(uuid())
   /** Il termine normalizzato, così «Basmati» e «basmati» sono la stessa riga. */
   term      String   @unique
+  /** Quante volte una cliente l'ha CHIESTO a Gaia e non c'era. */
   times     Int      @default(1)
   firstAskedAt DateTime @default(now()) @map("first_asked_at")
   lastAskedAt  DateTime @default(now()) @map("last_asked_at")
   /** open | filled | ignored — `ignored` per i termini che non sono alimenti. */
   status    String   @default("open")
+  /**
+   * QUANTE RICETTE ATTIVE LO USANO (19/8 sera, richiesta di Simone: «crea una tabella dove possiamo
+   * correggere a mano»).
+   *
+   * ⚠️ **Non è una seconda tabella**, ed è la scelta che conta: gli alimenti che mancano sono una
+   * domanda sola, e arrivano da due parti — le clienti che li chiedono a Gaia (`times`) e le ricette
+   * che li usano (`ricette`). Due tabelle vorrebbero dire due elenchi da lavorare, che divergono al
+   * primo giorno e fanno lavorare due volte sullo stesso nome.
+   *
+   * ⚠️ Le due colonne restano **separate** e non si sommano: sono unità diverse — «chiesto 40 volte
+   * da persone diverse» e «usato in 1025 ricette» non sono confrontabili, e un totale inventato
+   * farebbe ordinare l'elenco su un numero che non vuol dire niente. Si mostrano tutte e due e
+   * decide chi guarda.
+   */
+  ricette   Int      @default(0)
+  /**
+   * PERCHÉ il conto non lo sa contare: `non_in_tabella` · `solo_da_cotto` · `senza_stato`.
+   * ⚠️ I tre casi si chiudono in tre modi diversi (una riga nuova, la riga a crudo, lo stato
+   * dichiarato): un elenco che dice solo «manca» obbliga chi lo lavora a ricapirlo ogni volta.
+   */
+  motivo    String?
+  /**
+   * La riga a cui questo nome si abbinerebbe, se ce n'è una. ⚠️ È il campo che fa risparmiare il
+   * lavoro: «olio extravergine» → «olio extravergine di oliva» si chiude con **un sinonimo**, e con
+   * una riga sola si chiudono migliaia di ricette. ⛔ Il sinonimo però lo scrive una persona: qui si
+   * suggerisce, non si applica.
+   */
+  suggerito String?
 
   @@index([status, times])
+  @@index([status, ricette])
   @@map("nutrient_lookup_miss")
 }
 

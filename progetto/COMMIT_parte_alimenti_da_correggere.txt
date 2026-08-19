@@ -1,0 +1,86 @@
+--------------------------------------------------------------------------------
+Parte: la tabella degli alimenti da correggere a mano — 19/8 sera
+--------------------------------------------------------------------------------
+
+Risposta di Simone sulla voce dei nomi liberi degli ingredienti: «crea una tabella dove possiamo
+correggere a mano».
+
+L elenco esisteva gia, ma solo come TESTO dentro `npm run diag:crudo-cotto` e `npm run
+diag:ricerca`, cioe su una shell di Render che deve aprire lui. ⚠️ Un elenco di lavoro che vive
+dove chi deve lavorarci non entra e un elenco che nessuno lavora.
+
+⚠️ NON UNA PAGINA NUOVA, E NON UNA TABELLA NUOVA
+
+«Quali alimenti ci mancano» e UNA domanda, e la risposta arrivava gia da due parti: le clienti che
+li chiedono a Gaia (`times`, dall 11/8) e le ricette che li usano (`ricette`, che nasce qui). Due
+tabelle vorrebbero dire due elenchi da lavorare, che divergono al primo giorno e fanno lavorare
+due volte sullo stesso nome — la stessa regola per cui in questo progetto due punti che rispondono
+alla stessa domanda devono chiamarsi fra loro invece di somigliarsi.
+
+Quindi: stessa riga, stessa pagina (Valori nutrizionali), niente chiave di permesso nuova.
+
+⚠️ E I DUE NUMERI NON SI SOMMANO. «Chiesto 40 volte da persone diverse» e «usato in 1025 ricette»
+sono unita diverse: un totale inventato farebbe ordinare l elenco su un numero che non vuol dire
+niente. Si mostrano tutti e due, e decide chi guarda.
+
+COSA SI VEDE, E PERCHE
+
+  Alimento          Ricette  Chiesto  Perche
+  melanzane            1025        —  Non in tabella
+  olive denocciolate    385        —  Non in tabella
+  lenticchie            300        2  Solo da cotto
+  sedano                 40        —  Senza stato
+
+⚠️ I TRE PERCHE SI CHIUDONO IN TRE MODI DIVERSI: una riga nuova · la riga a crudo (nelle ricette
+le grammature sono a crudo) · lo stato dichiarato. Un elenco che dice solo «manca» obbliga chi lo
+lavora a ricapirlo ogni volta — e chi deve ricapire ogni volta, dopo un po non lo apre piu.
+
+⚠️ IL PULSANTE CHE FA RISPARMIARE IL LAVORO VERO
+
+Quando l abbinamento saprebbe dove portare quel nome, l elenco lo dice e offre il pulsante
+«e olio extravergine di oliva»: un clic e il nome diventa un SINONIMO di quella riga. «Olio
+extravergine» scritto in tre modi sono 6494 ricette, e si chiudono con tre sinonimi invece che con
+tre righe nuove — righe che sarebbero LO STESSO ALIMENTO CONTATO DUE VOLTE, con numeri che prima o
+poi divergono.
+
+⛔ Ma lo decide una persona: l elenco SUGGERISCE, non applica. E la stessa prudenza per cui
+l abbinamento automatico ha un elenco chiuso di qualificatori e non «tutto quello che somiglia».
+
+⚠️ TRE COSE CHE IL PASSO NOTTURNO NON FA
+
+  · non tocca `status`: se una persona ha gia detto «non e un alimento» o ha gia scritto la riga,
+    l automatismo non glielo riapre. Un automatismo che disfa una decisione presa a mano e il
+    difetto peggiore di quello che risolve — ricompare all infinito e nessuno capisce perche.
+  · non riscrive `times`: racconta un fatto che non e nostro da cancellare con un conteggio di
+    ricette.
+  · non nasconde il tetto: 300 righe scritte, 200 mostrate, e tutti e due i numeri si dicono.
+    Un tetto in silenzio si legge come «e tutto qui».
+
+⚠️ E L ELENCO CALA. Un nome che era in cima perche lo usavano 500 ricette e che oggi non usa piu
+nessuno torna a zero da solo: un elenco che cresce e non cala racconta un lavoro che non finisce
+mai, e chi lo guarda smette di guardarlo.
+
+⚠️ LE REGOLE NON SONO RICOPIATE
+
+`ingredienti-scoperti.ts` importa `scegliPerRicetta` e `abbina` — le stesse che usa il conto vero.
+Il primo giro in produzione ha mostrato cosa succede a ricopiarle: la diagnostica bocciava «quinoa
+(cruda)» perche la sua copia confrontava con `['crudo']` al maschile. Due risposte alla stessa
+domanda, e quella sbagliata era la copia.
+
+La diagnostica RESTA e non e un doppione: la pagina mostra la testa dell elenco a chi ci lavora,
+`diag:crudo-cotto` mostra tutti e settemila divisi nei quattro casi. Una risponde a «cosa faccio
+adesso», l altra a «com e messa la tabella».
+
+FILE
+- migrazione `20260819200000_alimenti_da_correggere` — tre colonne su `nutrient_lookup_miss`
+  (`ricette`, `motivo`, `suggerito`) + un indice. ADDITIVA: il codice vecchio continua identico.
+- backend/nutrient-facts: `ingredienti-scoperti.ts` + spec (nuovi, 11 test) ·
+  `valori-nutrizionali.service.ts` (`aggiornaIngredientiScoperti`) ·
+  `alimenti-da-correggere.spec.ts` (nuovo, 7 test) · `nutrient-facts.controller.ts`
+- backend/cron: `cron.controller.ts` + spec + `cron.module.ts` — il passo notturno
+- backend/prisma: `diag-crudo-cotto.ts` (dice dove sta adesso l elenco di lavoro)
+- backoffice: `ValoriNutrizionali.tsx` — la sezione nuova
+- backend/lavori: `voci-iniziali.ts`
+
+244 suite / 3845 test verdi. Tre mutazioni provate, tutte e tre fanno fallire i test.
+⚠️ C E UNA MIGRAZIONE: la applica Render al deploy.

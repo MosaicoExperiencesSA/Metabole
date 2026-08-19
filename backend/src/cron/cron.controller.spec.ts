@@ -21,6 +21,7 @@ import { PlanReportService } from '../reports/plan-report.service';
 import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { CronController } from './cron.controller';
 
 /**
@@ -112,6 +113,12 @@ describe('CronController (endpoint per Render Cron)', () => {
         {
           provide: PrivacyService,
           useValue: { passoGiornaliero: jest.fn().mockResolvedValue({ aperte: 0, avvisate: 0, cancellate: 0, errori: [] }) },
+        },
+        // L'elenco degli alimenti da correggere a mano: si ricalcola di notte e non scrive niente
+        // di clinico. ⚠️ Sta in fondo di proposito — nessun altro passo lo legge.
+        {
+          provide: ValoriNutrizionaliService,
+          useValue: { aggiornaIngredientiScoperti: jest.fn().mockResolvedValue({ scoperti: 0, scritti: 0, fuori: 0 }) },
         },
       ],
     }).compile();

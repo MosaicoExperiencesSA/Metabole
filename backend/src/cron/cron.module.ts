@@ -5,6 +5,7 @@ import { MonitoringModule } from '../monitoring/monitoring.module';
 import { PauseModule } from '../pause/pause.module';
 import { PrivacyModule } from '../privacy/privacy.module';
 import { VeraModule } from '../vera/vera.module';
+import { NutrientFactsModule } from '../nutrient-facts/nutrient-facts.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { ChatModule } from '../chat/chat.module';
 import { CommerceModule } from '../commerce/commerce.module';
@@ -17,7 +18,7 @@ import { SignalsModule } from '../signals/signals.module';
 import { CronController } from './cron.controller';
 
 @Module({
-  imports: [EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule],
+  imports: [EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule],
   controllers: [CronController],
 })
 export class CronModule {}

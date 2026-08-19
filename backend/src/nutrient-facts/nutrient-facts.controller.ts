@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,15 +38,88 @@ export class NutrientFactsController {
     } as never);
   }
 
-  /** Gli alimenti che le clienti hanno chiesto e non ci sono, i più richiesti in cima. */
+  /**
+   * GLI ALIMENTI CHE MANCANO — chiesti dalle clienti **e** usati dalle ricette, in un elenco solo.
+   *
+   * ⚠️ Dal 19/8 sera questa non è più «la lista dei termini chiesti a Gaia»: è **l'elenco di lavoro**
+   * (richiesta di Simone: «crea una tabella dove possiamo correggere a mano»). La stessa riga porta
+   * due numeri che **non si sommano** — `times` = quante volte una cliente l'ha chiesto, `ricette` =
+   * quante ricette attive lo usano — perché sono unità diverse e un totale inventato farebbe
+   * ordinare l'elenco su un numero che non vuol dire niente.
+   *
+   * ⚠️ **Il tetto si dichiara.** Prima c'era `take: 200` e basta: chi guardava la pagina non poteva
+   * sapere se erano tutti. Ora si torna anche quanti sono davvero.
+   */
   @Get('mancanti')
   @RequirePage('nutrient_facts')
   async mancanti() {
-    return this.prisma.nutrientLookupMiss.findMany({
-      where: { status: 'open' } as never,
-      orderBy: [{ times: 'desc' }, { lastAskedAt: 'desc' }],
-      take: 200,
-    } as never);
+    const TETTO = 200;
+    const [righe, quanti] = await Promise.all([
+      this.prisma.nutrientLookupMiss.findMany({
+        where: { status: 'open' } as never,
+        // ⚠️ Prima le ricette: un nome in 1025 ricette è nel piatto di molte più persone di uno
+        // chiesto tre volte in chat. A pari ricette torna a contare quante volte l'hanno chiesto.
+        orderBy: [{ ricette: 'desc' }, { times: 'desc' }, { lastAskedAt: 'desc' }] as never,
+        take: TETTO,
+      } as never),
+      this.prisma.nutrientLookupMiss.count({ where: { status: 'open' } as never }),
+    ]);
+    return { righe, quanti, mostrati: (righe as unknown[]).length };
+  }
+
+  /**
+   * «QUESTO NOME È UN ALTRO MODO DI DIRE QUELLA RIGA»: lo aggiunge come **sinonimo**.
+   *
+   * ⚠️ È l'azione che fa risparmiare il lavoro vero: «olio extravergine» scritto in tre modi sono
+   * 6494 ricette, e si chiudono con tre sinonimi invece che con tre righe nuove — righe nuove che,
+   * fra l'altro, sarebbero **lo stesso alimento contato due volte** con numeri che prima o poi
+   * divergono.
+   *
+   * ⛔ **Lo decide una persona, non l'abbinamento automatico.** L'elenco suggerisce la riga
+   * (`suggerito`), ma finché nessuno clicca non succede niente: è la stessa prudenza per cui
+   * l'abbinamento ha un elenco chiuso di qualificatori e non «tutto quello che somiglia».
+   */
+  @Post('mancanti/:id/sinonimo')
+  @RequirePage('nutrient_facts', 'manage')
+  async aggiungiSinonimo(
+    @Param('id') id: string,
+    @Body() body: { rigaId?: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    const miss = (await this.prisma.nutrientLookupMiss.findUnique({ where: { id } })) as
+      | { id: string; term: string; suggerito: string | null }
+      | null;
+    if (!miss) throw new NotFoundException('Questo termine non è più in elenco.');
+
+    const riga = (await (body?.rigaId
+      ? this.prisma.nutrientFact.findUnique({ where: { id: body.rigaId } })
+      : miss.suggerito
+        ? this.prisma.nutrientFact.findFirst({ where: { name: miss.suggerito } })
+        : Promise.resolve(null))) as { id: string; name: string; synonyms: string[] } | null;
+    if (!riga) throw new BadRequestException('Serve la riga a cui attaccare il sinonimo.');
+
+    // ⚠️ Se c'è già non si scrive due volte: un sinonimo doppio non fa danno ma sporca la riga.
+    const gia = (riga.synonyms ?? []).some((x) => x.trim().toLowerCase() === miss.term.trim().toLowerCase());
+    if (!gia) {
+      await this.prisma.nutrientFact.update({
+        where: { id: riga.id },
+        data: { synonyms: [...(riga.synonyms ?? []), miss.term] } as never,
+      });
+    }
+    /**
+     * ⚠️ Il termine esce dall'elenco come **`filled`** e non `ignored`: «l'abbiamo risolto» e
+     * «non è un alimento» sono due fatti diversi, e confonderli vorrebbe dire non poter più
+     * rispondere a «quanti ne abbiamo chiusi davvero?».
+     */
+    await this.prisma.nutrientLookupMiss.update({ where: { id }, data: { status: 'filled' } as never });
+    await this.audit.log({
+      action: 'nutrient_fact.synonym_added',
+      actorId: user.sub,
+      entityType: 'nutrient_fact',
+      entityId: riga.id,
+      metadata: { termine: miss.term, riga: riga.name, giaPresente: gia },
+    });
+    return { ok: true, riga: riga.name, termine: miss.term };
   }
 
   /**

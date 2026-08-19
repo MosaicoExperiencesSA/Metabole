@@ -25,8 +25,16 @@ describe('PauseService — la pausa allunga il piano comprato', () => {
    */
   const CODA_ARRIVATA = { id: 'sub-coda', status: 'queued', startDate: giorno(-10), endDate: giorno(80) };
 
-  const crea = (riga: Record<string, unknown> = CODA_ARRIVATA) => {
+  const crea = (righe: Record<string, unknown>[] | Record<string, unknown> = CODA_ARRIVATA) => {
+    const tutte = Array.isArray(righe) ? righe : [righe];
     const prisma = {
+      /**
+       * ⚠️ `Promise.all`, non `mockResolvedValue([])`. La transazione di Prisma nella forma a
+       * elenco **esegue** le operazioni: un finto che risponde `[]` senza eseguirle farebbe passare
+       * il test anche se le scritture non partissero — cioè verificherebbe il contrario di quello
+       * che c'è scritto sopra.
+       */
+      $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
       pauseRequest: {
         findFirst: jest.fn().mockResolvedValue(null), // nessuna richiesta già in attesa
         create: jest.fn().mockResolvedValue({ id: 'req-1', status: 'auto_approved' }),
@@ -36,7 +44,7 @@ describe('PauseService — la pausa allunga il piano comprato', () => {
       subscription: {
         findMany: jest.fn(({ where }: { where: { status?: unknown } }) => {
           const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];
-          return Promise.resolve([riga].filter((s) => ammessi.includes((s as { status: string }).status)));
+          return Promise.resolve(tutte.filter((s) => ammessi.includes((s as { status: string }).status)));
         }),
         update: jest.fn().mockResolvedValue({}),
       },
@@ -77,5 +85,49 @@ describe('PauseService — la pausa allunga il piano comprato', () => {
     const { service, prisma } = crea({ id: 'sub-futura', status: 'queued', startDate: giorno(60), endDate: giorno(150) });
     await service.requestPause('c1', { startDate: iso(giorno(3)), endDate: iso(giorno(9)) });
     expect(prisma.subscription.update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ LA CODA SCORRE CON IL PIANO ALLUNGATO — decisione di Simone, 19/8 sera.
+   *
+   * Prima si allungava la fine del piano in corso e basta. Se dietro c'era una coda già pagata,
+   * quella restava dov'era e cominciava **dentro** il piano appena allungato: l'erogazione ne
+   * sceglie **uno solo** — quello che finisce più tardi — e i giorni dell'altro scorrono senza che
+   * la cliente riceva niente. ⛔ I giorni di pausa glieli davamo con una mano e gliene toglievamo
+   * altrettanti con l'altra, e il conto non lo faceva vedere nessuno.
+   */
+  describe('⚠️ e la coda dietro scorre con lui', () => {
+    const IN_CORSO = { id: 'sub-uno', status: 'active', startDate: giorno(-60), endDate: giorno(10) };
+    const CODA_DIETRO = { id: 'sub-due', status: 'queued', startDate: giorno(10), endDate: giorno(100) };
+
+    it('⚠️ il piano in coda si sposta in avanti degli stessi giorni, inizio E fine', async () => {
+      const { service, prisma } = crea([IN_CORSO, CODA_DIETRO]);
+      await service.requestPause('c1', { startDate: iso(giorno(1)), endDate: iso(giorno(7)) });
+
+      const spostamento = prisma.subscription.update.mock.calls.find((c: any) => c[0].where.id === 'sub-due');
+      expect(spostamento).toBeDefined();
+      expect(spostamento[0].data.startDate).toEqual(new Date(CODA_DIETRO.startDate.getTime() + 7 * 86_400_000));
+      // ⚠️ Anche la fine: spostare solo l'inizio le accorcerebbe il piano di sette giorni.
+      expect(spostamento[0].data.endDate).toEqual(new Date(CODA_DIETRO.endDate.getTime() + 7 * 86_400_000));
+    });
+
+    /**
+     * ⚠️ **In una transazione sola.** Se l'allungamento passasse e lo spostamento no, resterebbe
+     * scritto proprio lo stato che questo codice esiste per evitare — e nessuno lo saprebbe.
+     */
+    it('⚠️ allungamento e spostamento stanno nella stessa transazione', async () => {
+      const { service, prisma } = crea([IN_CORSO, CODA_DIETRO]);
+      await service.requestPause('c1', { startDate: iso(giorno(1)), endDate: iso(giorno(7)) });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction.mock.calls[0][0]).toHaveLength(2);
+    });
+
+    /** Senza niente dietro, non si sposta nessuno: una transazione con la sola riga allungata. */
+    it('senza coda dietro non si sposta nessuno', async () => {
+      const { service, prisma } = crea([IN_CORSO]);
+      await service.requestPause('c1', { startDate: iso(giorno(1)), endDate: iso(giorno(7)) });
+      expect(prisma.$transaction.mock.calls[0][0]).toHaveLength(1);
+      expect(prisma.subscription.update).toHaveBeenCalledTimes(1);
+    });
   });
 });

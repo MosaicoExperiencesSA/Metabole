@@ -1737,6 +1737,65 @@ export class CommerceService {
     });
 
     /**
+     * ⚠️ **IL RINNOVO CHE SCAVALCA UNA CODA SI SCRIVE** — decisione di Simone, 19/8 sera.
+     *
+     * `nuovaFine` è la fine del periodo pagato, e si scrive sempre: **un rinnovo non si tocca**, è
+     * un soldo incassato e la cliente ha diritto ai giorni che ha comprato. ⚠️ Ma se dietro c'è un
+     * piano già pagato in fila, la scadenza nuova gli passa **sopra**, e da lì in poi due piani
+     * erogherebbero insieme: l'erogazione ne sceglie uno — quello che finisce più tardi — e i giorni
+     * dell'altro scorrono senza che lei riceva niente.
+     *
+     * ⛔ **E qui la coda NON si sposta in avanti**, al contrario della pausa (`coda-che-slitta.ts`),
+     * ed è la stessa decisione presa con due risposte diverse perché le due cose sono diverse: una
+     * pausa è un evento singolo, un abbonamento ricorrente **si rinnova ogni mese**. Spostare la
+     * coda a ogni rinnovo vorrebbe dire spingerla in avanti per sempre — un percorso pagato che non
+     * parte mai, e nessuno che se ne accorga perché ogni singolo spostamento è piccolo e sensato.
+     *
+     * ⚠️ Quindi si registra e basta: la decisione (accorciare, disdire il ricorrente, spostare la
+     * partenza) è di una persona, e questo è il posto dove la trova. Un dato che agisce e non si
+     * vede è il difetto di famiglia di questo progetto: qui almeno si vede.
+     */
+    try {
+      const dietro = (await this.prisma.subscription.findMany({
+        where: {
+          clientId: sub.clientId,
+          status: { in: STATI_CON_UN_PIANO as never },
+          id: { not: sub.id },
+          OR: [{ endDate: null }, { endDate: { gte: new Date() } }],
+        },
+        select: { id: true, startDate: true, endDate: true },
+      })) as { id: string; startDate: Date | null; endDate: Date | null }[];
+      const scavalcati = dietro.filter((d) => siSovrappongono(sub.startDate ?? null, nuovaFine, d.startDate, d.endDate));
+      if (scavalcati.length) {
+        this.logger.warn(
+          `Rinnovo Stripe su ${sub.clientId}: la scadenza nuova (${nuovaFine.toISOString().slice(0, 10)}) passa sopra ` +
+            `${scavalcati.length} piano/i già pagati (${scavalcati.map((d) => d.id).join(', ')}). Il rinnovo NON si tocca: ` +
+            'serve una decisione su quei piani, o i loro giorni scorreranno senza che la cliente riceva niente. ' +
+            'Si vedono in `npm run diag:coda`.',
+        );
+        await this.audit
+          .log({
+            action: 'commerce.renewal.over_queue',
+            entityType: 'subscription',
+            entityId: sub.id,
+            metadata: {
+              clientId: sub.clientId,
+              nuovaFine: nuovaFine.toISOString(),
+              scavalcati: scavalcati.map((d) => d.id),
+            },
+          })
+          .catch(() => undefined);
+      }
+    } catch (e) {
+      /**
+       * ⚠️ Non si ferma il rinnovo per un controllo che serve a **guardare**. Il pagamento è già
+       * incassato: fallire qui vorrebbe dire non scrivere la scadenza a una cliente che ha pagato,
+       * per non essere riusciti a scrivere una riga di diario.
+       */
+      this.logger.warn(`Rinnovo Stripe: non sono riuscito a controllare le code di ${sub.clientId}: ${String(e)}`);
+    }
+
+    /**
      * L'EVENTO `plan_renewed` — mancava, e la dashboard marketing vedeva **zero rinnovi**.
      *
      * L'evento esisteva solo sul percorso manuale/bonifico (`approvePayment`), dove per capire se un

@@ -20,6 +20,60 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🧾 **La tabella degli alimenti da correggere a mano** (risposta di Simone sulla voce
+  dei nomi liberi: «crea una tabella dove possiamo correggere a mano»). L'elenco esisteva già, ma
+  solo come **testo** dentro `diag:crudo-cotto` e `diag:ricerca`, cioè su una shell di Render. ⚠️ Un
+  elenco di lavoro che vive dove chi deve lavorarci non entra è un elenco che nessuno lavora.
+  ⚠️ **Non una pagina nuova e non una tabella nuova**: «quali alimenti ci mancano» è **una**
+  domanda, e la risposta arrivava già da due parti — le clienti che li chiedono a Gaia e le ricette
+  che li usano. Due tabelle divergono al primo giorno e fanno lavorare due volte sullo stesso nome.
+  Stessa riga, stessa pagina (Valori nutrizionali), nessuna chiave di permesso nuova. ⚠️ E i due
+  numeri **non si sommano**: «chiesto 40 volte» e «usato in 1025 ricette» sono unità diverse, e un
+  totale inventato farebbe ordinare l'elenco su un numero che non vuol dire niente.
+  ⚠️ **L'elenco dice anche PERCHÉ**, perché i tre casi si chiudono in tre modi diversi: *non in
+  tabella* (una riga nuova), *solo da cotto* (la riga a crudo — nelle ricette le grammature sono a
+  crudo), *senza stato* (lo stato dichiarato). Un elenco che dice solo «manca» obbliga chi lo lavora
+  a ricapirlo ogni volta, e chi deve ricapire ogni volta dopo un po' non lo apre più.
+  ✅ **Il pulsante che fa risparmiare il lavoro vero**: quando l'abbinamento saprebbe dove portare
+  quel nome, l'elenco lo dice e offre «è "olio extravergine di oliva"» — un clic, e il nome diventa
+  un **sinonimo** di quella riga. L'olio scritto in tre modi sono 6494 ricette, e si chiudono con
+  tre sinonimi invece che con tre righe nuove — righe che sarebbero *lo stesso alimento contato due
+  volte*, con numeri che prima o poi divergono. ⛔ Lo decide una persona: l'elenco suggerisce, non
+  applica.
+  ⚠️ **Tre cose che il passo notturno NON fa**: non tocca `status` (se qualcuno ha già detto «non è
+  un alimento», l'automatismo non glielo riapre — un automatismo che disfa una decisione presa a
+  mano ricompare all'infinito e nessuno capisce perché); non riscrive `times`; non nasconde il tetto
+  (300 scritte, 200 mostrate, e tutti e due i numeri si dicono). ⚠️ **E l'elenco cala**: un nome che
+  nessuna ricetta usa più torna a zero da solo — un elenco che cresce e non cala racconta un lavoro
+  che non finisce mai, e chi lo guarda smette di guardarlo.
+
+- `[Sviluppo]` ⏭️ **Le due strade che allungavano una data senza dirlo a nessuno — due domande a
+  Simone, due risposte diverse, di proposito.**
+  ✅ **La pausa: la coda scorre con il piano allungato.** `freezeSubscription` sommava i giorni di
+  pausa alla fine del piano in corso e non guardava se dietro c'era una coda già pagata: quella
+  restava dov'era e cominciava **dentro** il piano appena allungato. ⛔ E quei giorni la cliente li
+  perdeva **due volte** — l'erogazione ne sceglie uno solo, e i giorni dell'altro scorrono senza che
+  riceva niente. Glieli davamo con una mano e gliene toglievamo altrettanti con l'altra, e il conto
+  non lo faceva vedere nessuno. ⚠️ **La pausa non si tocca**, è una promessa già fatta a voce: si
+  sposta la coda, che è anche lei sua. Inizio **e** fine (solo l'inizio le accorcerebbe il piano),
+  **tutta la fila** (spostandone una sola finirebbe addosso alla seconda), e ⚠️ **non** le righe che
+  cominciano prima della vecchia fine: quelle si sovrappongono già, e una sovrapposizione che esiste
+  oggi l'ha autorizzata **una persona**. Allungamento e spostamento in **una transazione sola**.
+  ✅ **Il rinnovo Stripe: si scrive, non si sposta niente.** La scadenza nuova si scrive sempre — un
+  rinnovo è un soldo incassato — ma se passa sopra una coda già pagata la cosa finisce nei log e in
+  audit (`commerce.renewal.over_queue`). ⚠️ **E qui la coda NON si sposta, al contrario della
+  pausa**: una pausa è un evento singolo, un abbonamento ricorrente si rinnova **ogni mese** —
+  spostare la coda a ogni rinnovo la spingerebbe in avanti per sempre, e un percorso pagato non
+  partirebbe mai, senza che nessuno se ne accorga perché ogni singolo spostamento è piccolo e
+  sensato. ⚠️ Il controllo sta in un try/catch che non ferma il rinnovo: fallire lì vorrebbe dire
+  non scrivere la scadenza a una cliente che ha pagato, per non essere riusciti a scrivere una riga
+  di diario.
+  ⚠️ **Due finti allargati insieme al codice**: al finto della pausa mancava `$transaction` (messo
+  come `Promise.all`, non `mockResolvedValue([])` — un finto che risponde senza eseguire farebbe
+  passare il test anche se le scritture non partissero) e al finto del rinnovo mancava
+  `subscription.findMany`, senza il quale il `try` avrebbe inghiottito un `TypeError` e **il
+  controllo nuovo non sarebbe stato provato da nessuno**. È la quarta volta oggi.
+
 - `[Sviluppo]` 🔒 **Il vincolo in banca dati sui piani sovrapposti NON si mette — e al suo posto il
   cron notturno ha smesso di crearli.** La voce chiedeva un vincolo che vietasse due piani che
   erogano insieme. ⚠️ Prima di scriverlo ho chiesto a Simone: la matita della data d'inizio oggi
