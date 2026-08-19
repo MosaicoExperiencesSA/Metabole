@@ -1243,4 +1243,15 @@ export const VOCI_INIZIALI: Voce[] = [
     soloSeEsiste: true,
   },
 
+  {
+    chiave: 'ricerca-per-sottostringa',
+    titolo: 'Gaia trova «mela» dentro «melanzane»: la ricerca degli alimenti va per pezzo di parola',
+    dettaglio:
+      'Trovata dalla revisione avversariale del 19/8 sera, ⚠️ **non è un difetto nuovo**: è come la ricerca degli alimenti ha sempre funzionato. Per rispondere a «quante calorie ha X?» si cerca il nome della tabella **dentro** la domanda, come pezzo di testo — e i pezzi di testo si incastrano dove non dovrebbero: «melanzane» contiene «mela», «risotto» contiene «riso», «pancetta» contiene «pane» e «cetriolo» contiene «cetriolo» ma anche «etriol» non serve a nessuno. ⛔ Il danno è che Gaia risponde con **le calorie dell\'alimento sbagliato**, e il numero è plausibile: 34 kcal per una melanzana (che è la mela) invece di 18 nessuno lo contesta. ⚠️ **Non l\'ho corretta di mia iniziativa**, e la ragione è che la correzione ovvia — cercare solo parole intere — cambia **come Gaia risponde a ogni domanda**, non solo a quelle sbagliate: oggi «hai il riso integrale?» trova la riga anche se in tabella si chiama «riso integrale parboiled», e a parole intere non la troverebbe più. È una decisione, non una pulizia. Le strade: (a) **parole intere e basta** — sparisce «mela dentro melanzane», e qualche domanda che oggi trova la riga smette di trovarla; (b) **parole intere, e se non trova niente riprova come oggi** — non perde nulla, ma quando il pezzo di parola è l\'unica strada resta il rischio; (c) **niente**, e si accetta che ogni tanto risponda di un altro alimento. ⚠️ Serve sapere quanto è grosso il caso vero: quante domande di Gaia oggi trovano la riga **solo** per pezzo di parola. Quello lo misuro io, ma la scelta fra (a), (b) e (c) è di Simone.',
+    categoria: SIMONE,
+    ordine: 610,
+    nata: '2026-08-19T22:30',
+    priorita: 'bassa',
+  },
+
 ];

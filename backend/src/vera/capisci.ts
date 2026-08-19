@@ -478,8 +478,18 @@ export function capisci(frase: string): Intento | null {
    * esiste — una lista vuota mostrata al posto di una coda piena.
    */
   if (chiedeApprovazioni(testo)) return { tipo: 'approvazioni' };
+  /**
+   * ⚠️ LA LISTA DELLE COSE DA FARE NON È UNA FAMIGLIA DEL DIZIONARIO (19/8 sera, dalla revisione).
+   *
+   * `MOSTRA_FAMIGLIA` prende «dammi la lista dei X» e catturava «cose da fare» come **nome di
+   * famiglia**: Vera rispondeva «non conosco "cose da fare", dimmi quali alimenti ne fanno parte» e
+   * alla risposta scriveva nel dizionario una famiglia inventata con dentro «chiamare Giulia».
+   * ⚠️ Quel dizionario serve a scrivere i **divieti**: sporcarlo è peggio di non capire la frase.
+   */
   const mostraF = MOSTRA_FAMIGLIA.exec(testo);
-  if (mostraF) return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
+  if (mostraF && !/^(?:cose|attivita|lavori|roba)\b/i.test(mostraF[1].trim())) {
+    return { tipo: 'famiglia', azione: 'mostra', nome: mostraF[1].trim().toLowerCase() };
+  }
   // «Hai segnalazioni per me?» — come la lista: una domanda che merita risposta, PRIMA di
   // `daScartare` che butta via ogni «?». Rispondere non esegue niente.
   /**

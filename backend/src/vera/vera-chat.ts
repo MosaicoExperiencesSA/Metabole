@@ -37,7 +37,9 @@ export type PassoVera =
   | 'da_quando'          // cambio dieta: da subito, o lascio i giorni già preparati?
   | 'equivalenza_alimenti'  // «aggiungi equivalenza»: quali alimenti si scambiano? (19/8)
   | 'equivalenza_nome'      // …e come lo chiamiamo? ⚠️ il nome non si inventa
-  | 'equivalenza_conferma'; // ecco cosa scrivo: è una regola del motore, e nasce come proposta
+  | 'equivalenza_conferma'  // ecco cosa scrivo: è una regola del motore, e nasce come proposta
+  | 'lista_aperta'          // la lista numerata è sullo schermo: «la 3» apre la terza (19/8)
+  | 'lista_voce';           // una voce aperta: quale delle azioni possibili?
 
 export interface StatoVera {
   passo: PassoVera;
@@ -64,6 +66,14 @@ export interface StatoVera {
   /** Gli alimenti del gruppo di equivalenza che si sta dettando, e il suo nome. */
   equivalenzaAlimenti?: string[];
   equivalenzaNome?: string;
+  /**
+   * Le voci della lista della mattina, numerate. ⚠️ Si conservano nello stato e non si rileggono a
+   * ogni messaggio: fra «fammi la lista» e «la 3» qualcuno può aver chiuso una segnalazione, e la
+   * terza diventerebbe un'altra riga — cioè si aprirebbe una cosa diversa da quella che ha letto.
+   */
+  listaVoci?: { tipo: string; id: string; titolo: string; causa?: string | null; n?: number }[];
+  /** La voce aperta dalla lista, in attesa che scelga l'azione. */
+  listaVoceScelta?: { tipo: string; id: string; titolo: string; causa?: string | null; n?: number };
   /**
    * LA RICETTA, come l'ha scritta lei, per intero.
    *

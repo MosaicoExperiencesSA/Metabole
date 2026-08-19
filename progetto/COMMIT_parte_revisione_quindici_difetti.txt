@@ -1,0 +1,95 @@
+--------------------------------------------------------------------------------
+Parte: la revisione avversariale prima di consegnare (15 difetti) — 19/8 sera
+--------------------------------------------------------------------------------
+
+PERCHE ESISTE QUESTA PARTE
+
+Oggi la produzione ha trovato due miei difetti entro l ora dalla consegna: la quinoa bocciata
+perche lo stato in tabella e «cruda» e non «crudo», e «semi di zucca» contato come zucca in 531
+ricette (venti volte le calorie). Prima di consegnare l ultimo pezzo — la lista della mattina con
+le azioni — ho fatto girare due revisori avversariali sul lavoro di oggi, con l ordine di cercare
+di romperlo invece di approvarlo.
+
+Hanno trovato 15 difetti. Tre scrivevano dati sbagliati e uno apriva un buco di permessi.
+Non ho consegnato: ho corretto. Questa parte sono le correzioni.
+
+I TRE CHE SCRIVEVANO DATI SBAGLIATI
+
+1) LA CONVENZIONE DEL CRUDO SI AGGIRAVA CON UN AGGETTIVO.
+   «lenticchie» in tabella e bollita, quindi la convenzione la blocca: una ricetta che dice
+   «lenticchie 80 g» intende le secche, e contarle bollite sbaglia di tre volte. Funzionava.
+   Ma «lenticchie bio» prendeva l altra strada — quella dell abbinamento per nome — e la
+   convenzione non ci passava: 93 kcal invece di 282. ⚠️ Due strade per la stessa domanda, e una
+   delle due non conosceva la regola. Adesso la porta e una sola: la convenzione si applica sul
+   nome esatto e sull abbinamento, dallo stesso punto.
+
+2) «PASTA FRESCA» PRENDEVA LA RIGA DELLA PASTA SECCA.
+   Fra i «qualificatori innocui» c era «fresco», e sugli spinaci e davvero innocuo («spinaci
+   freschi» sono «spinaci», 1350 ricette). Sulla pasta no: fresca ~290 kcal, secca ~350. Stessa
+   parola, due significati — e la differenza non sta nella parola, sta nello stato della riga.
+   ⚠️ Con «fresco» sono usciti anche «grattugiato» (il pangrattato non e pane) e «intero» (che
+   faceva scegliere da solo fra latte intero e scremato). Adesso una parola di stato si accetta
+   solo se combacia con lo stato della riga.
+
+3) MANCAVANO DEI MODI DI DIRE «COTTO».
+   «Al vapore», «grigliato», «gratinato», «in umido», «brasato», «scottato», «precotto»,
+   «affumicato» finivano in «non lo so», e una riga «non lo so» viene trattata come utilizzabile.
+   Aggiunti. ⚠️ E «a crudo» scritto cosi non veniva riconosciuto come crudo.
+
+IL BUCO DI PERMESSI
+
+4) IL PERIMETRO FALLIVA APERTO.
+   La lista della mattina mostra il lavoro del nutrizionista che chiede. Se la lettura del suo
+   perimetro tirava un errore, il codice proseguiva e mostrava la lista di TUTTI — cioe i clienti
+   di altri nutrizionisti, che sono dati sanitari. ⚠️ Un errore non e un permesso. Adesso se il
+   perimetro non si sa la lista non si mostra.
+
+IL PEGGIORE DEGLI ALTRI
+
+5) LA LISTA SI RINUMERAVA IN SILENZIO.
+   «Fammi vedere la lista» → 1, 2, 3. Depennata la 2, la vecchia 3 diventava 2. Se intanto
+   arrivava «faccio la 2» scritto guardando la lista di prima, si agiva sul cliente sbagliato —
+   e nessuno se ne accorgeva, perche l azione riusciva. ⚠️ Adesso dopo ogni depennamento la
+   lista si ristampa, numerata da capo davanti agli occhi. I numeri non cambiano mai senza che
+   si vedano.
+
+GLI ALTRI DIECI
+
+6) «annulla» diventava il nome di un alimento nell equivalenza dettata.
+7) La chiave «mostra famiglia» del dizionario collideva con la lista della mattina.
+8) Passi senza uscita: dentro la lista e dentro l equivalenza non si poteva dire «lascia stare».
+9) «La tolgo dalla lista?» chiesto e poi non fatto: la domanda c era, l azione no.
+10) Due liste diverse nello stesso conto dei macro, che potevano contraddirsi.
+11) Chiamate al motore senza try/catch: un errore la, e Vera restava muta con un 500.
+12) «1 alimento non ha i valori» scritto al plurale anche quando era uno.
+13) Un nome che si abbina alla riga ma che la riga non permette di contare veniva contato lo
+    stesso — adesso conta solo se la riga si puo davvero usare.
+14) L equivalenza leggeva come alimento un nome di persona («per Anna metti il tacchino»).
+15) Il numero della voce si leggeva anche dove non c era una lista aperta.
+
+⚠️ E UNA CORREZIONE CHE HO SCRITTO IO E CHE NESSUN TEST TENEVA FERMA
+
+La numero 2 l avevo corretta, i test erano verdi, e sembrava fatta. Poi ho provato a rompere la
+correzione apposta — a far accettare qualunque parola di stato senza guardare la riga — e sono
+rimasti verdi TUTTI E 786 i test. ⚠️ La correzione c era e niente la teneva: al primo che
+riscrive quella riga tornava «pasta fresca» = pasta secca, senza un rosso.
+
+Il caso che mancava era il rifiuto: «spinaci freschi» sì da solo passa anche con la regola
+sbagliata, perche entrambe le versioni lo accettano. Serviva «pasta fresca» NO. Adesso ci sono
+tutti e due, piu i ceci secchi contro i ceci bolliti e il caso «la riga non dichiara lo stato».
+
+⚠️ Nella stessa riga c era un pezzo di controllo che non poteva scattare mai — e l ha mostrato
+la mutazione successiva: toglierlo lascia tutto verde. Un controllo che non scatta mai fa credere
+che stia proteggendo qualcosa. Tolto, e scritto perche.
+
+FILE
+- backend/nutrient-facts: `abbinamento-alimenti.ts` + spec (7 test nuovi) ·
+  `stato-alimento.ts` + spec · `valori-nutrizionali.service.ts` ·
+  `valori-per-ricetta.spec.ts` (nuovo)
+- backend/vera: `vera-chat.service.ts` + spec · `capisci.ts` · `equivalenza-dettata.ts` ·
+  `macro-da-ingredienti.ts` · `vera-chat.ts` · `vera.module.ts` ·
+  `scrittura-decisione.ts` (nuovo)
+- backend/lavori: `voci-iniziali.ts` — una voce nuova, priorita bassa, per Simone
+
+240 suite / 3795 test verdi. Cinque mutazioni provate, cinque fanno fallire i test.
+Nessuna migrazione.

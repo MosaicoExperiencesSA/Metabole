@@ -175,12 +175,35 @@ export function normalizzaStato(v: unknown): string {
   if (!t) return '';
   // ⚠️ La radice, non la parola intera: `crudo | cruda | crudi | crude` sono lo stesso stato, e
   // pretendere la forma esatta è il difetto che il 19/8 ha bocciato la quinoa.
+  /**
+   * ⚠️ «a crudo» con la preposizione davanti esisteva già in `statoNelTesto` e qui mancava: una riga
+   * marcata «a crudo» finiva in «non lo so». Trovato dalla revisione del 19/8 sera.
+   * ⚠️ E «crudo o cotto» **non** è crudo: è una riga che dichiara la propria ambiguità, e
+   * `startsWith('crud')` la prendeva per buona. Va trattata come «non lo so».
+   */
+  if (/^(?:a\s+)?crud[oaie]?$/.test(t)) return 'crudo';
+  if (t.includes(' o ') || t.includes('/')) return 'altro';
   for (const radice of ['crud', 'secc', 'essicc', 'disidrat']) {
     if (t.startsWith(radice)) return radice === 'crud' ? 'crudo' : 'secco';
   }
-  for (const radice of ['bollit', 'less']) if (t.startsWith(radice)) return 'bollito';
+  for (const radice of ['bollit', 'less', 'sbollent']) if (t.startsWith(radice)) return 'bollito';
   // ⚠️ «Caldo» e «tiepido» sono cotti: è la correzione di Simone sul latte scaldato.
-  for (const radice of ['cott', 'arrost', 'al forno', 'cald', 'tiepid']) if (t.startsWith(radice)) return 'cotto';
+  /**
+   * ⚠️ TUTTI I MODI DI DIRE «COTTO» (allargato il 19/8 sera, dalla revisione avversariale).
+   *
+   * L'elenco copriva `cott`, `arrost`, `al forno`, `cald`, `tiepid` — e lasciava fuori **al vapore,
+   * grigliato, fritto, saltato, stufato, brasato, scottato, in umido, precotto, affumicato**. Quelle
+   * righe finivano in «non lo so», cioè **si contavano**, con la frase «la tabella non dice se il
+   * valore è a crudo o a cotto» — che è falsa: lo dice benissimo. Verificato: una riga «zucchine al
+   * vapore» faceva scrivere la ricetta, dove «zucchine bollite» la bloccava. Stesso danno, porta
+   * diversa.
+   */
+  for (const radice of [
+    'cott', 'arrost', 'al forno', 'cald', 'tiepid',
+    'al vapore', 'a vapore', 'vapore',
+    'grigliat', 'alla griglia', 'frit', 'saltat', 'stufat', 'brasat', 'scottat',
+    'in umido', 'al sugo', 'precott', 'semicott', 'affumicat', 'gratinat', 'ripassat', 'braciat',
+  ]) if (t.startsWith(radice)) return 'cotto';
   /**
    * ⚠️ Gli stati che descrivono il **prodotto** e non una cottura valgono come crudo: il latte è
    * sempre liquido, quindi «liquido» non può essere un avviso — si pesa com'è. Vedi `STATI_DEL_PRODOTTO`.
@@ -234,7 +257,8 @@ export function fraseSoloCotto(nomi: readonly string[]): string {
   return (
     `⚠️ Di ${elenco} in tabella ho **solo il valore da cotto**, e nelle ricette le grammature sono a ` +
     `crudo: ${uno ? 'contarlo' : 'contarli'} così darebbe un totale molto più basso del vero (sul riso ` +
-    'e sui legumi anche tre volte). Non li ho contati. Aggiungi la riga a crudo dalla pagina Alimenti ' +
-    'e rifacciamo il conto.'
+    // ⚠️ Il numero si accorda fino in fondo: «contarlo… non li ho contati» è una frase che si sente.
+    `e sui legumi anche tre volte). Non ${uno ? "l'ho contato" : 'li ho contati'}. Aggiungi la riga a ` +
+    'crudo dalla pagina Alimenti e rifacciamo il conto.'
   );
 }

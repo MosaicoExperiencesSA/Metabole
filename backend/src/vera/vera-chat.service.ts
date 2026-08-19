@@ -72,8 +72,18 @@ import {
   type DietaInRevisione,
   type VoceDaApprovare,
 } from './coda-approvazioni';
-import { ETICHETTA_CAUSA, isCausa } from '../engine/causa-decisione';
-import { numera, testoDellaLista, type TipoVoce, type VoceDaFare } from './lista-della-mattina';
+import { AZIONI as AZIONI_MOTORE, ETICHETTA_CAUSA, isCausa } from '../engine/causa-decisione';
+import {
+  azioniDi,
+  descriviAzione,
+  leggiIlNumero,
+  numera,
+  testoDellaLista,
+  testoDepennata,
+  type TipoVoce,
+  type VoceDaFare,
+} from './lista-della-mattina';
+import { SCRITTURA_DECISIONE, ScritturaDecisione } from './scrittura-decisione';
 import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
 import {
   bastaPerScrivere,
@@ -164,6 +174,7 @@ export class VeraChatService {
      * pulsante in Equivalenze, con lo stesso audit e lo stesso bump di versione.
      */
     @Inject(SCRITTURA_COMBINAZIONE) private readonly combinazioni: ScritturaCombinazione,
+    @Inject(SCRITTURA_DECISIONE) private readonly decisioni: ScritturaDecisione,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -348,6 +359,10 @@ export class VeraChatService {
         return this.equivalenzaNome(stato, frase);
       case 'equivalenza_conferma':
         return this.equivalenzaScrivi(nutrizionistaId, stato, frase);
+      case 'lista_aperta':
+        return this.listaScegli(nutrizionistaId, stato, frase);
+      case 'lista_voce':
+        return this.listaAzione(nutrizionistaId, stato, frase);
       case 'quale_spuntino':
         return this.scegliSpuntino(nutrizionistaId, stato, frase);
       case 'ambito':
@@ -659,6 +674,14 @@ export class VeraChatService {
 
   /** Gli alimenti arrivati al secondo giro: si aggiungono a quelli già detti, non li sostituiscono. */
   private async equivalenzaAlimenti(stato: StatoVera, frase: string): Promise<EsitoVera> {
+    /**
+     * ⚠️ **SI DEVE POTER USCIRE, E «ANNULLA» NON È UN ALIMENTO.** Trovato dalla revisione del 19/8
+     * sera: la sequenza «aggiungi equivalenza» → «annulla» → «lascia stare» → «non lo so» → «sì»
+     * creava un gruppo di equivalenza in bozza chiamato **«non lo so»** con dentro **«annulla»** e
+     * **«lascia stare»**, con tanto di notifica ai capi nutrizionisti. Le parole con cui si cerca di
+     * uscire non possono diventare dati.
+     */
+    if (VeraChatService.USCITE.test((frase ?? '').trim())) return { testo: testi.annullato(), esito: 'annullata' };
     const letta = leggiEquivalenza(`aggiungi equivalenza: ${frase}`) ?? { alimenti: [], nome: null };
     // ⚠️ Si UNISCE a quello che aveva già detto: chi ha scritto «pollo» e poi «tacchino, coniglio»
     // si aspetta un gruppo di tre, non di due.
@@ -681,6 +704,8 @@ export class VeraChatService {
   }
 
   private async equivalenzaNome(stato: StatoVera, frase: string): Promise<EsitoVera> {
+    // ⚠️ Anche qui si esce: «non lo so» non è il nome di un gruppo di equivalenza.
+    if (VeraChatService.USCITE.test((frase ?? '').trim())) return { testo: testi.annullato(), esito: 'annullata' };
     const nome = (frase ?? '').trim().replace(/[.!?]+$/, '');
     // ⚠️ Un nome di due lettere non è un nome: si richiede invece di scrivere «ok» in banca dati.
     if (nome.length < 3) {
@@ -705,7 +730,21 @@ export class VeraChatService {
 
     const alimenti = stato.equivalenzaAlimenti ?? [];
     const nome = stato.equivalenzaNome ?? '';
-    await this.combinazioni.create(nutrizionistaId, { name: nome, items: alimenti });
+    try {
+      await this.combinazioni.create(nutrizionistaId, { name: nome, items: alimenti });
+    } catch (err) {
+      /**
+       * ⚠️ Senza questo, un rifiuto del servizio (nome duplicato, permesso) faceva saltare tutta la
+       * risposta: 500, nessun messaggio salvato, e lo stato rimasto a `equivalenza_conferma` — così
+       * riscrivendo «sì» si riotteneva 500. Trovato dalla revisione del 19/8 sera. L'errore si
+       * **riporta**: la sua frase dice cosa fare, la mia direbbe solo che non è riuscito.
+       */
+      return {
+        testo: `Non l'ho scritto: ${err instanceof Error ? err.message : 'errore'}. Riprova, o cambia nome al gruppo.`,
+        esito: 'in_corso',
+        stato,
+      };
+    }
     return { testo: testoFatto(nome, alimenti.length), esito: 'scritta' };
   }
 
@@ -831,36 +870,35 @@ export class VeraChatService {
       const scelta = await this.valori.cercaConStato(i.name).catch(() => ({ tipo: 'niente' as const }));
       if (scelta.tipo === 'ambiguo') ambigui.push(i.name);
       /**
-       * ⚠️ NELLE RICETTE SI PESA A CRUDO (convenzione di Simone, 19/8, come nei libri di cucina), e
-       * la tabella ha molte righe **solo da cotto**: pasta, riso, quinoa, legumi, patate. Contare
-       * «80 g di quinoa» con la riga bollita (120 kcal/100 g) scrive 96 kcal dove ce ne sono ~284.
-       * `cerca` non lo sa — risponde con l'unica riga che trova — quindi la scelta si fa qui, con
-       * `scegliPerRicetta`, che è il posto dove la convenzione è scritta.
+       * ⚠️ **UNA SOLA PORTA**, e ci passa la convenzione «a crudo» (correzione del 19/8 sera, dalla
+       * revisione avversariale). Prima c'erano due strade: il nome esatto passava da qui e applicava
+       * `scegliPerRicetta`, il nome abbinato («lenticchie bio») passava da `cercaPerIngrediente` che
+       * lo stato non lo guardava affatto. ⚠️ Risultato: «lenticchie» bloccata giustamente,
+       * «lenticchie bio» contata con la riga **bollita** su una grammatura a crudo — 93 kcal dove ce
+       * ne sono 282, scritte in `Recipe.kcal`. Il controllo saltava esattamente nei casi per cui
+       * l'abbinamento esiste.
+       *
+       * ⚠️ `cercaPerIngrediente` e non `cerca`: qui l'ingresso è un **nome**, non una domanda, e su
+       * un nome vale la regola «la ricetta è più specifica della tabella». Su una frase intera quella
+       * stessa regola si abbinerebbe a caso.
        */
-      if (scelta.tipo === 'ambiguo' || scelta.tipo === 'unica' || scelta.tipo === 'per_stato') {
-        const righe = scelta.tipo === 'ambiguo' ? scelta.righe : [scelta.riga];
-        const perLaRicetta = scegliPerRicetta(righe);
-        if (perLaRicetta.tipo === 'solo_cotto') {
-          soloCotto.push(i.name);
-          valori.set(i.name, null);
-          continue;
-        }
-        if (perLaRicetta.tipo === 'stato_ignoto') statoIgnoto.push(i.name);
-        // ⚠️ Se una riga a crudo c'è, l'ambiguità non c'è più: la convenzione l'ha sciolta.
-        if (perLaRicetta.tipo !== 'niente') {
-          const k = ambigui.indexOf(i.name);
-          if (k >= 0) ambigui.splice(k, 1);
-          valori.set(i.name, perLaRicetta.riga as unknown as ValorePer100);
-          continue;
-        }
+      const perLaRicetta = await this.valori
+        .cercaPerIngrediente(i.name)
+        .catch(() => ({ tipo: 'niente' as const }));
+      if (perLaRicetta.tipo === 'solo_cotto') {
+        soloCotto.push(i.name);
+        valori.set(i.name, null);
+        continue;
       }
-      /**
-       * ⚠️ `cercaPerIngrediente` e non `cerca`: qui l'ingresso è un **nome** («spinaci freschi»), non
-       * una domanda, e su un nome vale la regola «la ricetta è più specifica della tabella». Su una
-       * frase intera quella stessa regola si abbinerebbe a caso — vedi `abbinamento-alimenti.ts`.
-       */
-      const v = (await this.valori.cercaPerIngrediente(i.name).catch(() => null)) as ValorePer100 | null;
-      valori.set(i.name, v);
+      if (perLaRicetta.tipo === 'stato_ignoto') statoIgnoto.push(i.name);
+      if (perLaRicetta.tipo === 'niente') {
+        valori.set(i.name, null);
+        continue;
+      }
+      // ⚠️ Se una riga a crudo c'è, l'ambiguità non c'è più: la convenzione l'ha sciolta.
+      const k = ambigui.indexOf(i.name);
+      if (k >= 0) ambigui.splice(k, 1);
+      valori.set(i.name, perLaRicetta.riga as unknown as ValorePer100);
     }
     return calcolaMacro(ricetta.ingredienti, valori, ambigui, soloCotto, statoIgnoto);
   }
@@ -2769,10 +2807,14 @@ export class VeraChatService {
    * tutto qui».
    */
   private async listaDellaMattina(userId: string): Promise<{ voci: VoceDaFare[]; rotte: string[]; tagliate: number }> {
-    const capo = (await this.ruolo(userId)) !== 'nutritionist';
     const rotte: string[] = [];
     let tagliate = 0;
     const TETTO = 10;
+    /**
+     * ⚠️ Se il ruolo non si legge si assume **nutrizionista**, che è il perimetro più stretto: nel
+     * dubbio si vede di meno, non di più. Prima un errore qui faceva saltare l'intera risposta.
+     */
+    const capo = await this.ruolo(userId).then((r) => r !== 'nutritionist').catch(() => false);
     const leggi = async <T>(cosa: string, lettura: () => Promise<T[]>): Promise<T[]> => {
       try {
         const righe = await lettura();
@@ -2785,7 +2827,25 @@ export class VeraChatService {
       }
     };
 
-    const perimetro = await perimetroClienti(this.prisma, userId).catch(() => null);
+    /**
+     * ⚠️ **IL PERIMETRO NON PUÒ FALLIRE APERTO** — trovato dalla revisione avversariale del 19/8
+     * sera, ed è il difetto più grave dei nove.
+     *
+     * `perimetroClienti` che torna `null` vuol dire «nessun filtro»: è giusto per il capo, che vede
+     * tutte. Ma un `.catch(() => null)` trasformava un **errore di lettura** nella stessa risposta —
+     * e la lista mostrava, numerate e azionabili, le clienti di un'altra nutrizionista. Dati
+     * sanitari, per giunta senza dirlo: era l'unica fonte che, rompendosi, **allargava** invece di
+     * restringere.
+     *
+     * Se non si sa qual è il perimetro, la lista non si fa: si dice. «Non lo so» non è «tutte».
+     */
+    let perimetro: Awaited<ReturnType<typeof perimetroClienti>> | null = null;
+    try {
+      perimetro = await perimetroClienti(this.prisma, userId);
+    } catch (err) {
+      logger.warn(`Lista della mattina: perimetro non leggibile (utente=${userId}): ${err instanceof Error ? err.message : String(err)}`);
+      return { voci: [], rotte: ['di quali clienti ti occupi'], tagliate: 0 };
+    }
     const nomeDi = (c: unknown): string =>
       ((c as { clientProfile?: { name?: string | null } } | null)?.clientProfile?.name ?? '').trim() || 'una cliente';
 
@@ -2911,7 +2971,156 @@ export class VeraChatService {
     if (rotte.length) {
       pezzi.push(`⚠️ Non sono riuscita a leggere ${rotte.join(' e ')}: su quello questa lista è cieca, non vuota.`);
     }
-    return { testo: pezzi.join('\n\n'), esito: 'in_corso' };
+    /**
+     * ⚠️ **Le voci si conservano nello stato**, e non si rileggono a «la 3».
+     *
+     * Fra la lista e la scelta passano dei secondi, ma in quei secondi una collega può chiudere una
+     * segnalazione: rileggendo, la terza riga diventerebbe **un'altra cosa** — e si aprirebbe
+     * qualcosa di diverso da quello che ha letto sullo schermo. Il numero deve valere su ciò che ha
+     * visto, non su ciò che c'è adesso.
+     */
+    return {
+      testo: pezzi.join('\n\n'),
+      esito: 'in_corso',
+      stato: voci.length ? { passo: 'lista_aperta', frase: '', listaVoci: voci } : undefined,
+    };
+  }
+
+  /**
+   * «LA 3» — si apre la terza voce della lista che ha davanti.
+   *
+   * ⚠️ Se il numero non si legge **non si indovina**: si ripresenta l'elenco. Aprire «la prima» a
+   * chi ha scritto «la 12» su una lista di sei sarebbe la cosa peggiore — un'azione su una riga che
+   * non ha scelto.
+   */
+  /** Le parole con cui si esce da un giro. ⚠️ Non sono dati: vedi `equivalenzaAlimenti`. */
+  private static readonly USCITE = /^(?:basta|lascia stare|lasciamo stare|niente|annulla|annullo|esci|chiudi|stop|fine|non lo so|boh|va bene cosi)$/i;
+
+  private async listaScegli(userId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const voci = (stato.listaVoci ?? []) as VoceDaFare[];
+    // «elenco» rimostra la lista: è la via d'uscita quando il numero non si ricorda più.
+    if (/^(?:elenco|lista|rivedi|rifammi la lista|ripeti)$/i.test((frase ?? '').trim())) {
+      return this.mostraLista(userId);
+    }
+    /**
+     * ⚠️ **SI DEVE POTER USCIRE.** La revisione del 19/8 sera ha trovato che questo passo era un
+     * vicolo cieco lungo due ore: qualunque cosa non fosse un numero riceveva «non ho capito quale»,
+     * e nemmeno «annulla» ne usciva. Chi chiedeva la lista al mattino non poteva più fare **niente
+     * altro** con Vera fino alla scadenza della conversazione — compreso scrivere un divieto, che è
+     * il mestiere.
+     */
+    if (/^(?:basta|lascia stare|niente|annulla|esci|chiudi|stop|fine|va bene cosi)$/i.test((frase ?? '').trim())) {
+      return { testo: 'Va bene, chiudo la lista. Dimmi pure altro. 💚', esito: 'annullata' };
+    }
+    const n = leggiIlNumero(frase, voci.length);
+    if (n === null) {
+      /**
+       * ⚠️ E se quello che ha scritto è **un comando vero** — «a Giulia niente pollo» — non si
+       * ingoia: si esce dalla lista e lo si esegue. Un assistente che tiene in ostaggio la
+       * conversazione perché sta aspettando un numero è peggio di uno che non ha la lista.
+       */
+      if (capisci(frase)) return this.nuovoGiro(userId, frase);
+      return {
+        testo: `Non ho capito quale. Dimmi il numero, da 1 a ${voci.length}, «elenco» per rivederle, o «basta» per chiudere la lista.`,
+        esito: 'in_corso',
+        stato,
+      };
+    }
+    const voce = voci.find((v) => v.n === n)!;
+    const azioni = azioniDi(voce);
+    const righe = azioni.map((a, i) => {
+      const d = descriviAzione(a);
+      return `${i + 1}) **${d.etichetta}** — ${d.cosaFa}`;
+    });
+    return {
+      testo: [`**${voce.titolo}**`, '', 'Cosa faccio?', ...righe, '', 'Dimmi il numero, o «lascia stare».'].join('\n'),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'lista_voce', listaVoceScelta: voce },
+    };
+  }
+
+  /**
+   * L'azione scelta su una voce della lista.
+   *
+   * ⚠️ **Quello che si può eseguire da qui si esegue passando dalla stessa porta dei pulsanti**
+   * (`SCRITTURA_DECISIONE` → `NutritionistService.eseguiAzione`): le regole su quali azioni sono
+   * ammesse per quale causa, sul perimetro e su «una decisione si lavora una volta sola» stanno là e
+   * non si duplicano. ⚠️ Quello che **non** si esegue da qui — aprire una scheda, scrivere in chat —
+   * si dice dove si fa, invece di far finta di averlo fatto.
+   */
+  private async listaAzione(userId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const voce = stato.listaVoceScelta as VoceDaFare | undefined;
+    if (!voce) return this.mostraLista(userId);
+    if (/^(?:lascia stare|niente|annulla|no|indietro)$/i.test((frase ?? '').trim())) {
+      return { testo: 'Va bene, non tocco niente. Dimmi un altro numero, o «elenco».', esito: 'in_corso', stato: { ...stato, passo: 'lista_aperta' } };
+    }
+    const azioni = azioniDi(voce);
+    const n = leggiIlNumero(frase, azioni.length);
+    if (n === null) {
+      return { testo: `Dimmi il numero dell'azione, da 1 a ${azioni.length} — oppure «lascia stare».`, esito: 'in_corso', stato };
+    }
+    const azione = azioni[n - 1];
+    const d = descriviAzione(azione);
+
+    if (voce.tipo === 'da_validare' && (azione === AZIONI_MOTORE.AUTORIZZA_PROSEGUIRE || azione === AZIONI_MOTORE.BLOCCA_PIANO)) {
+      const ruolo = await this.ruolo(userId);
+      try {
+        await this.decisioni.eseguiAzione({ sub: userId, email: '', role: ruolo as never }, voce.id, azione);
+      } catch (err) {
+        /**
+         * ⚠️ L'errore del servizio si **riporta**, non si riscrive: «questa decisione è già stata
+         * lavorata» è una frase che dice cosa fare (ricaricare), e sostituirla con un generico
+         * «non è riuscito» toglierebbe l'unica informazione utile.
+         */
+        return { testo: `Non l'ho fatto: ${err instanceof Error ? err.message : 'errore'}`, esito: 'in_corso', stato: { ...stato, passo: 'lista_aperta' } };
+      }
+      return this.dopoIlDepennamento(stato, voce, `${d.etichetta}: fatto su ${voce.titolo}.`, 'scritta');
+    }
+
+    /**
+     * ⚠️ Le altre azioni **non si eseguono da qui**, e si dice dove si fanno. Fingere di averle fatte
+     * — o aprire una scorciatoia che salta i permessi della pagina vera — è il modo in cui nascono
+     * due strade per la stessa modifica, con controlli diversi.
+     */
+    /**
+     * ⚠️ QUESTA NON SI ESEGUE DA QUI, E **NON SI DEPENNA**. Prima la voce spariva dalla lista e il
+     * testo chiudeva con «Fatto», dopo aver detto nella riga sopra che non era stato fatto niente:
+     * la segnalazione restava aperta e usciva dall'elenco con la parola «fatto» accanto. Trovato
+     * dalla revisione del 19/8 sera. Adesso resta in lista, dove deve stare finché non è chiusa
+     * davvero.
+     */
+    return {
+      testo: [
+        `**${d.etichetta}** — ${d.cosaFa}`,
+        '',
+        '⚠️ Questa non la faccio io da qui: si fa dalla pagina, coi suoi permessi — e resta in elenco',
+        'finché non è chiusa davvero. Dimmi un altro numero, o «elenco» per rivederle.',
+      ].join('\n'),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'lista_aperta' },
+    };
+  }
+
+  /**
+   * Dopo un depennamento: **si ristampa la lista**, non si rinumera in silenzio.
+   *
+   * ⚠️ È il difetto peggiore trovato dalla revisione del 19/8 sera. Rinumerando lo stato senza
+   * ristampare, sullo schermo restavano i numeri vecchi e in memoria c'erano quelli nuovi: dopo aver
+   * chiuso la 1, «la 3» apriva la **quarta** — e su una coda «Da validare» quella è una scrittura
+   * clinica sul piano di un'altra cliente. Il commento in `mostraLista` prometteva esattamente di
+   * evitarlo, e questo lo aggirava.
+   */
+  private dopoIlDepennamento(stato: StatoVera, voce: VoceDaFare, capo: string, esito: EsitoVera['esito']): EsitoVera {
+    const restanti = numera(
+      ((stato.listaVoci ?? []) as VoceDaFare[]).filter((v) => v.id !== voce.id).map((v) => ({ ...v, n: undefined })),
+    );
+    if (!restanti.length) return { testo: `${capo}\n\n${testoDepennata(0)}`, esito };
+    return {
+      // ⚠️ L'elenco si riscrive intero: i numeri che legge devono essere quelli che valgono.
+      testo: `${capo}\n\n${testoDellaLista(restanti)}`,
+      esito,
+      stato: { ...stato, passo: 'lista_aperta', listaVoci: restanti, listaVoceScelta: undefined },
+    };
   }
 
   private async contaSegnalazioni(userId: string): Promise<{ cliniche: number; altre: number }> {

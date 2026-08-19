@@ -2,16 +2,19 @@ import { abbina, paroleChe, paroleDi } from './abbinamento-alimenti';
 
 /** Una tabella finta con i nomi veri che il primo giro in produzione ha mostrato. */
 const TABELLA = [
-  { name: 'olio extravergine di oliva', synonyms: ['olio evo'] },
-  { name: 'spinaci', synonyms: [] },
-  { name: 'noci', synonyms: [] },
-  { name: 'riso', synonyms: [] },
-  { name: 'riso integrale', synonyms: [] },
-  { name: 'latte intero', synonyms: [] },
-  { name: 'latte scremato', synonyms: [] },
+  { name: 'olio extravergine di oliva', synonyms: ['olio evo'], state: null },
+  // ⚠️ Gli spinaci in tabella sono a CRUDO: è ciò che rende «freschi» innocuo su di loro.
+  { name: 'spinaci', synonyms: [], state: 'crudo' },
+  { name: 'noci', synonyms: [], state: null },
+  { name: 'riso', synonyms: [], state: null },
+  { name: 'riso integrale', synonyms: [], state: null },
+  { name: 'latte intero', synonyms: [], state: null },
+  { name: 'latte scremato', synonyms: [], state: null },
 ];
-const nomiDi = (r: { name: string; synonyms: string[] }) => [r.name, ...r.synonyms];
-const cerca = (s: string) => abbina(s, TABELLA, nomiDi);
+type Riga = { name: string; synonyms: string[]; state?: string | null };
+const nomiDi = (r: Riga) => [r.name, ...r.synonyms];
+const statoDi = (r: Riga) => r.state ?? null;
+const cerca = (s: string) => abbina(s, TABELLA, nomiDi, statoDi);
 
 describe('le parole di un nome', () => {
   it('toglie accenti e punteggiatura', () => {
@@ -80,13 +83,13 @@ describe('abbina — le paroline non contano', () => {
  */
 describe('abbina — le parole in più che cambiano l\'alimento', () => {
   const tabella = [
-    { name: 'zucca', synonyms: [] },
-    { name: 'olio extravergine di oliva', synonyms: ['olio'] },
-    { name: 'lenticchie', synonyms: [] },
-    { name: 'nocciole', synonyms: [] },
-    { name: 'spinaci', synonyms: [] },
+    { name: 'zucca', synonyms: [], state: 'crudo' },
+    { name: 'olio extravergine di oliva', synonyms: ['olio'], state: null },
+    { name: 'lenticchie', synonyms: [], state: 'bollito' },
+    { name: 'nocciole', synonyms: [], state: null },
+    { name: 'spinaci', synonyms: [], state: 'crudo' },
   ];
-  const c = (s: string) => abbina(s, tabella, nomiDi);
+  const c = (s: string) => abbina(s, tabella, nomiDi, statoDi);
 
   /** ⚠️ 531 ricette. Semi di zucca ~550 kcal/100 g, zucca 26: **venti volte**. */
   it('⚠️ «semi di zucca» NON è «zucca»', () => {
@@ -110,8 +113,8 @@ describe('abbina — le parole in più che cambiano l\'alimento', () => {
   });
 
   /** Ma i qualificatori veri continuano a funzionare: è il caso per cui la regola esiste. */
-  it('«spinaci freschi» resta abbinato: «freschi» dice com\'è, non cosa è', () => {
-    expect(c('spinaci freschi')?.riga.name).toBe('spinaci');
+  it('«spinaci freschi» resta abbinato quando la riga è a crudo', () => {
+    expect(abbina('spinaci freschi', [{ name: 'spinaci', synonyms: [], state: 'crudo' }], nomiDi, statoDi)?.riga.name).toBe('spinaci');
   });
 });
 
@@ -163,5 +166,66 @@ describe('abbina — quando non si sceglie', () => {
 
   it('i sinonimi contano come nomi', () => {
     expect(cerca('olio evo')?.riga.name).toBe('olio extravergine di oliva');
+  });
+});
+
+/**
+ * ⚠️ LA PAROLA DI STATO IN PIÙ: SI ACCETTA SOLO SE COMBACIA CON LA RIGA — e questo blocco esiste
+ * perché **una mutazione ha mostrato che non era coperto** (19/8 sera).
+ *
+ * La revisione avversariale aveva tolto «fresco» dai qualificatori innocui e messo al suo posto la
+ * regola «è uno stato e combacia con la riga». Poi la mutazione — far accettare *qualunque* parola
+ * di stato, senza guardare la riga — ha lasciato **tutti i 786 test verdi**: la correzione c'era, e
+ * niente la teneva ferma. Il caso che mancava è questo, e sono due facce della stessa moneta:
+ *
+ *     «spinaci freschi» → «spinaci»   la riga è a CRUDO, «freschi» vuol dire crudo: combacia
+ *     «pasta fresca»    → niente      la riga è SECCA (~350 kcal), la fresca ne fa ~290
+ *
+ * ⚠️ Senza il secondo caso, il primo da solo passa anche con la regola sbagliata: entrambe le
+ * versioni accettano «freschi» sugli spinaci. È **il rifiuto** che distingue le due regole.
+ */
+describe('abbina — una parola di stato in più vale solo se combacia con lo stato della riga', () => {
+  const tabella = [
+    { name: 'spinaci', synonyms: [], state: 'crudo' },
+    { name: 'pasta', synonyms: [], state: 'secco' },
+    { name: 'ceci', synonyms: [], state: 'bollito' },
+    { name: 'pane', synonyms: [], state: null },
+  ];
+  const c = (s: string) => abbina(s, tabella, nomiDi, statoDi);
+
+  it('⚠️ «pasta fresca» NON è la pasta secca della tabella: 290 contro 350 kcal', () => {
+    expect(c('pasta fresca')).toBeNull();
+  });
+
+  it('«spinaci freschi» sì: la riga è a crudo e «freschi» vuol dire crudo', () => {
+    expect(c('spinaci freschi')?.riga.name).toBe('spinaci');
+  });
+
+  /** ⚠️ L'altro verso: la riga è bollita, e la ricetta parla dei ceci secchi. Sono tre volte. */
+  it('⚠️ «ceci secchi» NON sono i «ceci» bolliti della tabella', () => {
+    expect(c('ceci secchi')).toBeNull();
+  });
+
+  /** E quando combacia davvero passa anche qui: «ceci bolliti» è la riga dei ceci. */
+  it('«ceci bolliti» è la riga bollita', () => {
+    expect(c('ceci bolliti')?.riga.name).toBe('ceci');
+  });
+
+  /**
+   * ⚠️ TERZO STATO: **non lo so**. Se la riga non dichiara lo stato non c'è niente con cui far
+   * combaciare la parola, e si rifiuta — non si tira a indovinare che «pane fresco» sia «pane».
+   */
+  it('⚠️ se la riga non dichiara lo stato, la parola di stato non basta', () => {
+    expect(c('pane fresco')).toBeNull();
+  });
+
+  /** ⚠️ E lo stesso se il chiamante non passa affatto lo stato: non si sa, quindi non si abbina. */
+  it('⚠️ senza «statoDi» nessuna parola di stato viene accettata', () => {
+    expect(abbina('spinaci freschi', tabella, nomiDi)).toBeNull();
+  });
+
+  /** I qualificatori innocui invece non c'entrano con lo stato e continuano a passare. */
+  it('i qualificatori innocui passano anche su una riga secca', () => {
+    expect(c('pasta bio')?.riga.name).toBe('pasta');
   });
 });

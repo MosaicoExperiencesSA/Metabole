@@ -211,3 +211,39 @@ describe('normalizzaStato', () => {
     expect(normalizzaStato(null)).toBe('');
   });
 });
+
+/**
+ * ⚠️ GLI STATI CHE MANCAVANO — trovati dalla revisione avversariale del 19/8 sera.
+ *
+ * L'elenco dei modi di dire «cotto» copriva `cott/arrost/al forno/cald/tiepid` e lasciava fuori **al
+ * vapore, grigliato, fritto, saltato, stufato, brasato, scottato, in umido, affumicato**. Quelle
+ * righe finivano in «non lo so» — cioè **si contavano** — con la frase «la tabella non dice se il
+ * valore è a crudo o a cotto», che è falsa: lo dice benissimo. Una riga «zucchine al vapore» faceva
+ * scrivere la ricetta, dove «zucchine bollite» la bloccava: stesso danno, porta diversa.
+ */
+describe('normalizzaStato — i modi di dire «cotto» che mancavano', () => {
+  it('⚠️ al vapore, grigliato, fritto, saltato, stufato, in umido sono cotti', () => {
+    for (const s of ['al vapore', 'a vapore', 'grigliato', 'alla griglia', 'fritto', 'saltato', 'stufato', 'brasato', 'scottato', 'in umido', 'precotto', 'affumicato', 'gratinato']) {
+      expect(normalizzaStato(s)).toBe('cotto');
+    }
+  });
+
+  it('sbollentato è bollito', () => {
+    expect(normalizzaStato('sbollentato')).toBe('bollito');
+  });
+
+  /** ⚠️ «a crudo» con la preposizione: `statoNelTesto` la conosceva, questa no. */
+  it('⚠️ «a crudo» è crudo', () => {
+    expect(normalizzaStato('a crudo')).toBe('crudo');
+  });
+
+  /**
+   * ⚠️ E UNA RIGA CHE DICHIARA LA PROPRIA AMBIGUITÀ NON È CRUDA. «crudo o cotto» passava per
+   * `startsWith('crud')` e veniva presa per buona — cioè si contava un valore che la riga stessa
+   * dichiara incerto.
+   */
+  it('⚠️ «crudo o cotto» non è crudo: è «non lo so»', () => {
+    expect(normalizzaStato('crudo o cotto')).toBe('altro');
+    expect(normalizzaStato('crudo/cotto')).toBe('altro');
+  });
+});

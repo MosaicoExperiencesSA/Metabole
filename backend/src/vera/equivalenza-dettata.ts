@@ -56,7 +56,7 @@ function spezza(elenco: string): string[] {
  */
 const FORME: { re: RegExp; elenco: number; nome?: number }[] = [
   // «aggiungi equivalenza: pollo, tacchino, coniglio» · «crea un'equivalenza fra pollo e tacchino»
-  { re: /^(?:aggiungi|crea(?:mi)?|fai|facciamo|inserisci|nuova?)\s+(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
+  { re: /^(?:aggiungi(?:amo)?|crea(?:mi|iamo)?|fai|facciamo|inserisci(?:amo)?|nuova?)\s+(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
   // «voglio aggiungere un'equivalenza: …»
   { re: /^(?:voglio|vorrei|devo|posso)\s+(?:aggiungere|creare|fare|inserire)\s+(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
   // «al posto del pollo si può mettere tacchino o coniglio»
@@ -79,6 +79,21 @@ const FORME: { re: RegExp; elenco: number; nome?: number }[] = [
 export function leggiEquivalenza(testo: string): EquivalenzaLetta | null {
   const t = (testo ?? '').trim();
   if (!t) return null;
+  /**
+   * ⚠️ UN'EQUIVALENZA È GLOBALE: SE LA FRASE PARLA DI UNA CLIENTE O DI UNA DIETA, NON SI LEGGE QUI.
+   *
+   * Trovato dalla revisione del 19/8 sera. «Al posto del pollo puoi mettere il tacchino **a
+   * Giulia**» diventava un gruppo `['pollo', 'tacchino a Giulia']`: una regola del motore **per
+   * tutte**, nata da una frase su **una**, con un nome di persona finito dentro un alimento. E
+   * «**nella dieta vegetariana** tofu e seitan sono equivalenti» diventava `['nella dieta
+   * vegetariana tofu', 'seitan']`.
+   *
+   * ⚠️ Non si prova a ritagliare il contesto: si **rifiuta**, e la frase va agli altri
+   * riconoscitori (restrizione su una cliente, regola di dieta) che sanno leggerlo. Indovinare a chi
+   * si riferisce, su una regola che tocca tutte, è il genere di errore che nessuno nota.
+   */
+  if (/\b(?:a|per|di|su)\s+[A-Z][a-zà-ú]+/.test(t)) return null;
+  if (/\b(?:nella|nel|sulla|sul|per la|per il)\s+dieta\b/i.test(t)) return null;
   for (const f of FORME) {
     const m = f.re.exec(t);
     if (!m) continue;
@@ -103,7 +118,7 @@ export function leggiEquivalenza(testo: string): EquivalenzaLetta | null {
     return { alimenti: unici, nome };
   }
   // ⚠️ «aggiungi equivalenza» secco: capito, ma senza alimenti. Non è `null`.
-  if (/^(?:voglio|vorrei|devo)?\s*(?:aggiungere|aggiungi|creare|crea|fare|inserire|nuova?)?\s*(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\s*$/i.test(t)) {
+  if (/^(?:voglio|vorrei|devo)?\s*(?:aggiungere|aggiungi(?:amo)?|creare|crea(?:iamo)?|fare|facciamo|inserire|inserisci(?:amo)?|nuova?)?\s*(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\s*$/i.test(t)) {
     return { alimenti: [], nome: null };
   }
   return null;

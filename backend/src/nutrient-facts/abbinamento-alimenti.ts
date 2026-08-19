@@ -76,20 +76,33 @@
  *
  * ⚠️ **Non ci sono parole di cottura o di conservazione** (cotto, secco, tostato, bollito): quelle
  * cambiano i numeri, e la loro casa è `scegliPerRicetta`.
+ *
+ * ⚠️ E il 19/8 sera la revisione avversariale ne ha tolte quattro che c'erano e non dovevano:
+ *
+ *     «pane grattugiato»  → «pane»    il pangrattato non è pane (~350 contro ~270 kcal)
+ *     «pasta fresca»      → «pasta»   fresca ~290, secca ~350
+ *     «cocco grattugiato» → «cocco»   essiccato oltre 600, fresco 354
+ *     «latte intero»      → «latte»   sceglie da solo fra prodotti con grassi diversi
+ *
+ * ⚠️ `grattugiato` e `intero` **sembrano** innocui e non lo sono: dicono come è **lavorato** un
+ * alimento, e la lavorazione cambia l'acqua che contiene — cioè le calorie per 100 g.
+ *
+ * ⚠️ **`fresco` è il caso interessante, e non si risolve con un elenco**: sugli spinaci è innocuo
+ * («spinaci freschi» sono «spinaci», 1350 ricette), sulla pasta no («pasta fresca» ~290 contro ~350
+ * della secca). La differenza non sta nella parola: sta nello **stato della riga** che si sta
+ * abbinando. `fresco` vuol dire crudo (correzione di Simone sul latte, 19/8) — quindi si accetta
+ * **solo se la riga è a crudo**, e su «pasta» (secca) non si accetta. Vedi `vaBene` dentro `abbina`.
  */
 const QUALIFICATORI = new Set([
-  'fresco', 'fresca', 'freschi', 'fresche',
-  'intero', 'intera', 'interi', 'intere',
   'sgusciato', 'sgusciata', 'sgusciati', 'sgusciate',
   'pelato', 'pelata', 'pelati', 'pelate',
   'sbucciato', 'sbucciata', 'sbucciati', 'sbucciate',
   'tagliato', 'tagliata', 'tagliati', 'tagliate',
   'tritato', 'tritata', 'tritati', 'tritate',
-  'grattugiato', 'grattugiata',
   'affettato', 'affettata', 'affettati', 'affettate',
   'maturo', 'matura', 'maturi', 'mature',
   'bio', 'biologico', 'biologica', 'biologici', 'biologiche',
-  'grande', 'grandi', 'piccolo', 'piccola', 'piccoli', 'piccole', 'medio', 'media',
+  'grande', 'grandi', 'piccolo', 'piccola', 'piccoli', 'piccole', 'medio', 'media', 'medi', 'medie',
   'qb',
 ]);
 
@@ -101,6 +114,8 @@ const PAROLINE = new Set([
 ]);
 
 /** Le parole di un nome, senza accenti e senza punteggiatura. Le paroline restano: servono. */
+import { normalizzaStato } from './stato-alimento';
+
 export function paroleDi(nome: string): string[] {
   return (nome ?? '')
     .toLowerCase()
@@ -136,6 +151,12 @@ export function abbina<T>(
   ingrediente: string,
   righe: readonly T[],
   nomiDi: (r: T) => string[],
+  /**
+   * Lo stato della riga, se il chiamante ce l'ha. ⚠️ Serve alle parole in più che **sono uno stato**
+   * («freschi», «secche»): si accettano solo quando **combaciano** con lo stato della riga. Senza
+   * questo, «pasta fresca» prendeva la riga della pasta secca — 290 contro 350 kcal.
+   */
+  statoDi?: (r: T) => string | null | undefined,
 ): Abbinamento<T> | null {
   const mie = paroleChe(ingrediente);
   if (!mie.length) return null;
@@ -162,7 +183,28 @@ export function abbina<T>(
        */
       if (sue.every((p) => insieme.has(p))) {
         const inPiu = mie.filter((p) => !new Set(sue).has(p));
-        if (inPiu.length && inPiu.every((p) => QUALIFICATORI.has(p))) {
+        const statoRiga = normalizzaStato(statoDi ? statoDi(r) : null);
+        /**
+         * ⚠️ Una parola in più va bene in due casi soli: è un **qualificatore innocuo** (sgusciate,
+         * pelate, mature), oppure **è uno stato e combacia con quello della riga**. Il secondo caso è
+         * quello degli «spinaci freschi»: «freschi» vuol dire crudo, e la riga «spinaci» è a crudo.
+         * ⚠️ Su «pasta fresca» invece la riga è **secca**: gli stati non combaciano e non si abbina —
+         * sono due prodotti con calorie diverse, e prima ci cascavano dentro.
+         */
+        const vaBene = (p: string) => {
+          if (QUALIFICATORI.has(p)) return true;
+          const suo = normalizzaStato(p);
+          /**
+           * ⚠️ Niente `statoRiga !== ''` qui, e la mutazione l'ha dimostrato: togliendolo restano
+           * **tutti i test verdi**, perché con `suo !== ''` l'uguaglianza `suo === statoRiga` non
+           * può essere vera quando la riga non dichiara lo stato. Era una condizione che non
+           * scattava mai — e una condizione che non scatta mai fa credere che stia proteggendo
+           * qualcosa. Il terzo stato («non lo so» = la riga non dichiara) è coperto lo stesso, e
+           * ora c'è un test che lo tiene fermo.
+           */
+          return suo !== 'altro' && suo !== '' && suo === statoRiga;
+        };
+        if (inPiu.length && inPiu.every(vaBene)) {
           specifiche.push({ riga: r, peso: sue.length });
         }
       }

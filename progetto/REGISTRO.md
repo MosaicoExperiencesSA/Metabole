@@ -20,6 +20,60 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔍 **Prima di consegnare ho fatto girare due revisori avversariali sul lavoro di
+  oggi, e hanno trovato 15 difetti.** ⚠️ La ragione per cui l'ho fatto è che oggi la produzione ne
+  ha trovati due miei **entro l'ora dalla consegna**: la quinoa bocciata perché in tabella lo stato
+  è «cruda» e non «crudo», e «semi di zucca» contato come zucca in 531 ricette — venti volte le
+  calorie. Consegnare e aspettare che se ne accorga Simone non è un metodo. **Tre dei quindici
+  scrivevano dati sbagliati e uno apriva un buco di permessi**, quindi non ho consegnato: ho
+  corretto, e questa voce è quella consegna.
+  ⛔ **Il buco di permessi**: la lista della mattina mostra il lavoro del nutrizionista che chiede,
+  e se la lettura del suo perimetro tirava un errore il codice **proseguiva mostrando la lista di
+  tutti** — cioè clienti di altri nutrizionisti, che sono dati sanitari. ⚠️ *Un errore non è un
+  permesso*: adesso se il perimetro non si sa, la lista non si mostra.
+  ⛔ **La convenzione del crudo si aggirava con un aggettivo**: «lenticchie» era bloccata come deve
+  (in tabella sono bollite, la ricetta intende le secche), ma «lenticchie **bio**» prendeva l'altra
+  strada — l'abbinamento per nome — e lì la convenzione non ci passava: **93 kcal invece di 282**.
+  ⚠️ *Due strade per la stessa domanda, e una delle due non conosceva la regola*: adesso la porta è
+  una sola.
+  ⛔ **«Pasta fresca» prendeva la riga della pasta secca** (290 contro 350). «Fresco» era fra i
+  qualificatori innocui, e sugli spinaci lo è davvero — «spinaci freschi» sono «spinaci», 1350
+  ricette. Sulla pasta no. ⚠️ *La differenza non sta nella parola, sta nello stato della riga*: una
+  parola di stato adesso si accetta solo se **combacia**. Con «fresco» sono usciti «grattugiato»
+  (il pangrattato non è pane) e «intero» (che sceglieva da solo fra latte intero e scremato).
+  ⛔ **Il peggiore degli altri: la lista si rinumerava in silenzio.** Depennata la 2, la vecchia 3
+  diventava 2 — e un «faccio la 2» scritto guardando la lista di prima agiva **sul cliente
+  sbagliato**, senza che nessuno se ne accorgesse perché l'azione riusciva. Adesso dopo ogni
+  depennamento la lista si ristampa numerata da capo, davanti agli occhi.
+  Gli altri undici, in breve: «annulla» che diventava il nome di un alimento; la chiave «mostra
+  famiglia» che collideva; passi senza uscita; una domanda «la tolgo dalla lista?» a cui non
+  seguiva l'azione; due liste diverse nello stesso conto dei macro; chiamate al motore senza
+  try/catch; il plurale su un alimento solo; una riga contata anche quando la convenzione non
+  permetteva di contarla; un nome di persona letto come alimento; il numero della voce letto anche
+  senza lista aperta.
+
+- `[Sviluppo]` ⚠️ **E una correzione che avevo scritto io non era tenuta ferma da nessun test — e
+  l'ho scoperto solo perché ho provato a romperla apposta.** Corretta la «pasta fresca», i test
+  erano verdi e sembrava fatta. Poi ho mutato la riga della correzione — far accettare qualunque
+  parola di stato senza guardare la riga — e sono rimasti verdi **tutti e 786**. ⛔ *La correzione
+  c'era e niente la teneva*: al primo che riscrive quella riga tornava «pasta fresca» = pasta
+  secca, senza un rosso. Il caso che mancava era **il rifiuto**: «spinaci freschi» **sì** da solo
+  passa anche con la regola sbagliata, perché entrambe le versioni lo accettano — serviva «pasta
+  fresca» **no**. ⚠️ È la seconda volta oggi che una mutazione trova un test che non copre quello
+  che credevo (la prima era «due righe pari = non lo so»), e la lezione è la stessa: **verde non
+  vuol dire coperto**. Nella stessa riga c'era anche un pezzo di controllo che non poteva scattare
+  mai — la mutazione dopo l'ha mostrato — ed è stato tolto: un controllo che non scatta mai fa
+  credere che stia proteggendo qualcosa.
+
+- `[Sviluppo]` 📋 **In elenco lavori, priorità bassa, una cosa che decide Simone: la ricerca degli
+  alimenti va per pezzo di parola.** Trovata dalla stessa revisione, ⚠️ **non è un difetto nuovo** —
+  è come la ricerca ha sempre funzionato: per rispondere a «quante calorie ha X?» si cerca il nome
+  della tabella *dentro* la domanda, e i pezzi di testo si incastrano dove non dovrebbero
+  («melanzane» contiene «mela», «risotto» contiene «riso»). ⛔ Gaia risponde con le calorie
+  dell'alimento sbagliato, e il numero è **plausibile**. ⚠️ Non l'ho corretta di mia iniziativa
+  perché la correzione ovvia — cercare solo parole intere — **cambia come Gaia risponde a ogni
+  domanda**, non solo a quelle sbagliate: è una decisione, non una pulizia.
+
 - `[Sviluppo]` 📋 **«Cosa devo fare oggi?» adesso è una lista numerata, non un conteggio** (richiesta
   di Simone). Dal 14/8 il **quadro** della giornata leggeva le tabelle vere, ⚠️ ma erano **conteggi**:
   «3 segnalazioni, 2 proposte» dice *quanto* lavoro c'è, non *quale* — non si può dire «faccio la 3»,

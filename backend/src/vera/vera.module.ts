@@ -17,6 +17,7 @@ import { NutritionistModule } from '../nutritionist/nutritionist.module';
 import { NutritionistService } from '../nutritionist/nutritionist.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
 import { SCRITTURA_COMBINAZIONE } from './scrittura-combinazione';
+import { SCRITTURA_DECISIONE } from './scrittura-decisione';
 import { SCRITTURA_RICETTA } from './scrittura-ricetta';
 import { SCRITTURA_SOSTITUZIONI } from './scrittura-sostituzioni';
 import { VeraChatService } from './vera-chat.service';
@@ -112,6 +113,12 @@ import { VeraController } from './vera.controller';
     { provide: SCRITTURA_SOSTITUZIONI, useExisting: FoodSwapsService },
     /** Il punto unico dell'approvazione di una combinazione: la stessa porta del pulsante in Equivalenze. */
     { provide: SCRITTURA_COMBINAZIONE, useExisting: EquivalenceService },
+    /**
+     * ⚠️ Il punto unico per lavorare una decisione della coda «Da validare»: **la stessa porta dei
+     * pulsanti** in NutritionistHome. Le regole (azioni ammesse per causa, perimetro, «una volta
+     * sola») stanno là e non si duplicano in Vera.
+     */
+    { provide: SCRITTURA_DECISIONE, useExisting: NutritionistService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

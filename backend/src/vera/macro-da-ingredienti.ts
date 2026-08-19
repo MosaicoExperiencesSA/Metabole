@@ -140,8 +140,17 @@ export function calcolaMacro(
       soloCotto.push(i.name);
       continue;
     }
-    if (statoIgnotoNoti.includes(i.name)) statoIgnoto.push(i.name);
-    const v = valori.get(i.name) ?? null;
+    /**
+     * ⚠️ **Solo se la riga si può davvero contare.** Trovato dalla revisione del 19/8 sera: un nome
+     * in `statoIgnotoNoti` ma **senza kcal** finiva in tutte e due le liste, e il racconto diceva
+     * «l'ho contato lo stesso» e subito dopo «non è in tabella» — due frasi che si smentiscono nella
+     * stessa riga, e la seconda manda a creare una riga che esiste già.
+     */
+    const valore = valori.get(i.name) ?? null;
+    if (statoIgnotoNoti.includes(i.name) && valore && valore.kcal !== null && valore.kcal !== undefined) {
+      statoIgnoto.push(i.name);
+    }
+    const v = valore;
     // ⚠️ Anche un alimento in tabella ma **senza kcal** conta come mancante: una riga a metà darebbe
     // un totale più basso del vero, e un totale più basso del vero è esattamente il tipo di errore
     // che nessuno nota guardando il numero.

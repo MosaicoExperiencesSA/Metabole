@@ -1,4 +1,5 @@
 import { abbina } from '../nutrient-facts/abbinamento-alimenti';
+import { scegliPerRicetta } from '../nutrient-facts/stato-alimento';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -153,12 +154,19 @@ function make(
      * Qui usa lo **stesso** `abbina` del servizio vero sui valori finti: così un test che si appoggia
      * all'abbinamento («spinaci freschi» → «spinaci») dice qualcosa di vero.
      */
+    /**
+     * ⚠️ Torna un **esito**, come l'originale dal 19/8 sera: `{tipo, riga}`. Prima tornava una riga
+     * nuda, e sei test sono diventati rossi quando il vero è cambiato — è la **terza volta oggi** che
+     * un doppio che non segue l'originale fa perdere tempo (dopo `audit.log` e `combinazioni.create`).
+     * Qui usa lo **stesso** `abbina` e lo **stesso** `scegliPerRicetta` del servizio vero.
+     */
     cercaPerIngrediente: jest.fn().mockImplementation(async (nome: string) => {
-      const tabella = opzioni.valori ?? {};
-      if (tabella[nome]) return tabella[nome];
-      const righe = Object.keys(tabella).map((k) => ({ name: k }));
-      const trovato = abbina(nome, righe, (r) => [r.name]);
-      return trovato ? tabella[trovato.riga.name] : null;
+      const tabella = (opzioni.valori ?? {}) as Record<string, { name: string; state?: string | null }>;
+      const righe = Object.entries(tabella).map(([k, v]) => ({ ...v, chiave: k, name: v.name ?? k }));
+      const esatta = righe.find((r) => r.chiave === nome);
+      if (esatta) return scegliPerRicetta([esatta]);
+      const trovato = abbina(nome, righe, (r) => [r.chiave, r.name], (r) => r.state ?? null);
+      return trovato ? scegliPerRicetta([trovato.riga]) : { tipo: 'niente' };
     }),
     /**
      * Crudo/cotto (voce 228): di default nessun alimento è ambiguo, cioè il comportamento che
@@ -210,13 +218,27 @@ function make(
     approve: jest.fn().mockResolvedValue({ id: 'g1' }),
     create: jest.fn().mockResolvedValue({ id: 'g-nuovo' }),
   };
+  /**
+   * La porta della coda «Da validare» (19/8): la stessa dei pulsanti in NutritionistHome. ⚠️ Le
+   * regole — azioni ammesse per causa, perimetro, «una decisione si lavora una volta sola» — stanno
+   * nel servizio vero e non si duplicano: qui il doppio deve solo **rifiutare come rifiuta lui**,
+   * ed è per questo che `opzioni.decisioneErrore` esiste.
+   */
+  const decisioni = {
+    eseguiAzione: jest.fn().mockImplementation(async () => {
+      const errore = (opzioni as { decisioneErrore?: string }).decisioneErrore;
+      if (errore) throw new Error(errore);
+      return { ok: true };
+    }),
+  };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never, decisioni as never),
     valori,
     ricette,
     richieste,
     combinazioni,
+    decisioni,
     messaggioCreate,
     profileUpdate,
     dizionario,
@@ -851,7 +873,8 @@ describe('VeraChatService — le ricette', () => {
       {},
       {
         statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' },
-        valori: { spinaci: { name: 'spinaci', kcal: 31, protein: 3, carbs: 3, fat: 0 } },
+        // ⚠️ La riga è a CRUDO: è ciò che rende «freschi» innocuo (vedi `abbinamento-alimenti.ts`).
+        valori: { spinaci: { name: 'spinaci', state: 'crudo', kcal: 31, protein: 3, carbs: 3, fat: 0 } },
       },
     );
     await service.parla('lucia', 'Spinaci saltati\nspinaci freschi 200 g\npranzo onnivora');
@@ -2185,5 +2208,199 @@ describe('VeraChatService — la lista della mattina', () => {
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).toContain('cieca');
     expect(testo).toContain('le segnalazioni');
+  });
+});
+
+/**
+ * «LA 3» — aprire una voce della lista e farci qualcosa (19/8, la seconda metà della richiesta di
+ * Simone: la lista serve a **depennare**, non solo a leggere).
+ */
+describe('VeraChatService — «la 3»: aprire una voce della lista', () => {
+  const decisione = (i: number) => ({
+    id: `d${i}`,
+    reasonKey: 'calo_rapido_energia',
+    client: { clientProfile: { name: `Cliente ${i}` } },
+  });
+
+  const conLista = (extra: Record<string, unknown> = {}) =>
+    make(
+      {
+        escalation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+        clientProfile: { findMany: jest.fn().mockResolvedValue([{ userId: 'c1' }, { userId: 'c2' }]), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
+        engineDecision: { findMany: jest.fn().mockResolvedValue([decisione(1), decisione(2)]) },
+      },
+      extra,
+    );
+
+  it('la lista lascia lo stato aperto, e il numero apre la voce giusta', async () => {
+    const { service, messaggioCreate } = conLista();
+    await service.parla('lucia', 'fammi la lista');
+    const primo = ultimoAgente(messaggioCreate);
+    expect(primo.stato?.passo).toBe('lista_aperta');
+    expect(primo.stato?.listaVoci).toHaveLength(2);
+  });
+
+  /**
+   * ⚠️ IL NUMERO VALE SU QUELLO CHE HA LETTO. Le voci si conservano nello stato invece di
+   * rileggerle: fra la lista e «la 2» una collega può chiudere una segnalazione, e la seconda riga
+   * diventerebbe un'altra cosa — si aprirebbe qualcosa di diverso da quello che ha sullo schermo.
+   */
+  it('⚠️ «la 2» apre la seconda della lista che ha davanti, e offre le azioni della sua causa', async () => {
+    const { service, messaggioCreate } = conLista({
+      statoAperto: {
+        passo: 'lista_aperta',
+        frase: '',
+        listaVoci: [
+          { tipo: 'da_validare', id: 'd1', titolo: 'Cliente 1: Calo troppo rapido', causa: 'calo_rapido_energia', n: 1 },
+          { tipo: 'da_validare', id: 'd2', titolo: 'Cliente 2: Calo troppo rapido', causa: 'calo_rapido_energia', n: 2 },
+        ],
+      },
+    });
+    await service.parla('lucia', 'la 2');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Cliente 2');
+    expect(stato?.passo).toBe('lista_voce');
+    expect(stato?.listaVoceScelta?.id).toBe('d2');
+  });
+
+  /** ⚠️ Un numero che non c'è non si indovina: si ripresenta l'elenco invece di aprire «la prima». */
+  it('⚠️ «la 12» su una lista di due non apre niente', async () => {
+    const { service, messaggioCreate } = conLista({
+      statoAperto: { passo: 'lista_aperta', frase: '', listaVoci: [{ tipo: 'da_validare', id: 'd1', titolo: 'x', causa: 'calo_rapido_energia', n: 1 }] },
+    });
+    await service.parla('lucia', 'la 12');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Non ho capito quale');
+    expect(stato?.passo).toBe('lista_aperta');
+  });
+
+  /**
+   * ⚠️ L'AZIONE PASSA DALLA STESSA PORTA DEI PULSANTI. Le regole — quali azioni per quale causa, il
+   * perimetro, «una decisione si lavora una volta sola» — stanno in `NutritionistService` e non si
+   * duplicano qui: se stessero in due posti, il giorno che Nocanty ne cambia una la coda e la chat
+   * farebbero due cose diverse sulla stessa riga.
+   */
+  it('⚠️ l\'azione si esegue da NutritionistService, e la voce si depenna', async () => {
+    const { service, messaggioCreate, decisioni } = conLista({
+      statoAperto: {
+        passo: 'lista_voce',
+        frase: '',
+        listaVoci: [
+          { tipo: 'da_validare', id: 'd1', titolo: 'Cliente 1', causa: 'calo_rapido_energia', n: 1 },
+          { tipo: 'da_validare', id: 'd2', titolo: 'Cliente 2', causa: 'calo_rapido_energia', n: 2 },
+        ],
+        listaVoceScelta: { tipo: 'da_validare', id: 'd1', titolo: 'Cliente 1', causa: 'calo_rapido_energia', n: 1 },
+      },
+    });
+    await service.parla('lucia', '1');
+    expect(decisioni.eseguiAzione).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'lucia' }),
+      'd1',
+      'autorizza_proseguire',
+    );
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.listaVoci).toHaveLength(1);
+    /**
+     * ⚠️ IL DIFETTO PEGGIORE TROVATO DALLA REVISIONE DEL 19/8 SERA. Prima la lista si **rinumerava
+     * in silenzio**: sullo schermo restavano i numeri vecchi, in memoria c'erano i nuovi. Dopo aver
+     * chiuso la 1, «la 3» apriva la **quarta** — e su una coda «Da validare» quella è una scrittura
+     * clinica sul piano di un'altra cliente. Adesso l'elenco si **ristampa**: i numeri che legge
+     * sono quelli che valgono.
+     */
+    expect(stato?.listaVoci?.[0].n).toBe(1);
+    expect(testo).toContain('Cliente 2');
+    expect(testo).toContain('1. ');
+  });
+
+  /**
+   * ⚠️ L'ERRORE DEL SERVIZIO SI RIPORTA, NON SI RISCRIVE. «Questa decisione è già stata lavorata» è
+   * una frase che dice cosa fare; sostituirla con «non è riuscito» toglie l'unica cosa utile.
+   */
+  it('⚠️ se il servizio rifiuta, si riporta la sua frase', async () => {
+    const { service, messaggioCreate } = conLista({
+      decisioneErrore: 'Questa decisione è già stata lavorata: ricarica la coda.',
+      statoAperto: {
+        passo: 'lista_voce',
+        frase: '',
+        listaVoci: [{ tipo: 'da_validare', id: 'd1', titolo: 'Cliente 1', causa: 'calo_rapido_energia', n: 1 }],
+        listaVoceScelta: { tipo: 'da_validare', id: 'd1', titolo: 'Cliente 1', causa: 'calo_rapido_energia', n: 1 },
+      },
+    });
+    await service.parla('lucia', '1');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('già stata lavorata');
+  });
+
+  /**
+   * ⚠️ QUELLO CHE NON SI ESEGUE DA QUI SI DICE DOVE SI FA. Fingere di averlo fatto — o aprire una
+   * scorciatoia che salta i permessi della pagina vera — è il modo in cui nascono due strade per la
+   * stessa modifica, con controlli diversi.
+   */
+  it('⚠️ un\'azione che non si esegue da qui lo dichiara, invece di fingere', async () => {
+    const { service, messaggioCreate, decisioni } = conLista({
+      statoAperto: {
+        passo: 'lista_voce',
+        frase: '',
+        listaVoci: [{ tipo: 'segnalazione_clinica', id: 'e1', titolo: 'Cliente 1: calo', n: 1 }],
+        listaVoceScelta: { tipo: 'segnalazione_clinica', id: 'e1', titolo: 'Cliente 1: calo', n: 1 },
+      },
+    });
+    await service.parla('lucia', '1');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('non la faccio io da qui');
+    expect(decisioni.eseguiAzione).not.toHaveBeenCalled();
+    /**
+     * ⚠️ E NON SI DEPENNA. Prima la voce spariva dalla lista e il testo chiudeva con «Fatto», dopo
+     * aver detto una riga sopra che non era stato fatto niente: la segnalazione restava aperta e
+     * usciva dall'elenco con la parola «fatto» accanto.
+     */
+    expect(stato?.listaVoci).toHaveLength(1);
+    expect(testo).not.toContain('Fatto');
+  });
+
+  /**
+   * ⚠️ IL PERIMETRO NON PUÒ FALLIRE APERTO — il difetto più grave dei nove trovati dalla revisione
+   * del 19/8 sera.
+   *
+   * `perimetroClienti` che torna `null` vuol dire «nessun filtro», ed è giusto per il capo. Ma un
+   * `catch(() => null)` trasformava un **errore di lettura** nella stessa risposta: la lista mostrava
+   * numerate e azionabili le clienti di un'altra nutrizionista — dati sanitari, e senza dirlo. Era
+   * l'unica fonte che rompendosi **allargava** invece di restringere.
+   */
+  it('⚠️ se il perimetro non si legge, la lista non si fa: si dichiara cieca', async () => {
+    const { service, messaggioCreate } = make({
+      user: { findUnique: jest.fn().mockRejectedValue(new Error('boom')) },
+      escalation: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([{ id: 'e1', category: 'clinical', reason: 'x', client: { clientProfile: { name: 'Cliente di un\'altra' } } }]) },
+    });
+    await service.parla('lucia', 'fammi la lista');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('cieca');
+    expect(testo).toContain('di quali clienti ti occupi');
+    // ⚠️ E soprattutto: NON compare nessuna cliente.
+    expect(testo).not.toContain('Cliente di un\'altra');
+  });
+
+  /**
+   * ⚠️ SI DEVE POTER USCIRE. Il passo era un vicolo cieco lungo due ore: qualunque cosa non fosse un
+   * numero riceveva «non ho capito quale», e nemmeno «annulla» ne usciva — chi chiedeva la lista al
+   * mattino non poteva più fare niente altro con Vera.
+   */
+  it('⚠️ «basta» chiude la lista invece di tenere in ostaggio la conversazione', async () => {
+    const { service, messaggioCreate } = conLista({
+      statoAperto: { passo: 'lista_aperta', frase: '', listaVoci: [{ tipo: 'da_validare', id: 'd1', titolo: 'x', causa: 'calo_rapido_energia', n: 1 }] },
+    });
+    await service.parla('lucia', 'basta');
+    const { stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBeUndefined();
+  });
+
+  /** ⚠️ E un comando vero non si ingoia: si esce dalla lista e lo si esegue. */
+  it('⚠️ un comando scritto mentre la lista è aperta non viene ingoiato', async () => {
+    const { service, messaggioCreate } = conLista({
+      statoAperto: { passo: 'lista_aperta', frase: '', listaVoci: [{ tipo: 'da_validare', id: 'd1', titolo: 'x', causa: 'calo_rapido_energia', n: 1 }] },
+    });
+    await service.parla('lucia', 'a Giulia niente pollo');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).not.toContain('Non ho capito quale');
   });
 });
