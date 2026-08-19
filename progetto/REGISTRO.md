@@ -20,6 +20,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔒 **Il vincolo in banca dati sui piani sovrapposti NON si mette — e al suo posto il
+  cron notturno ha smesso di crearli.** La voce chiedeva un vincolo che vietasse due piani che
+  erogano insieme. ⚠️ Prima di scriverlo ho chiesto a Simone: la matita della data d'inizio oggi
+  permette di sovrapporli **apposta**, con un avviso e una conferma («conferma e non divieto: un
+  divieto secco si aggira cambiando la riga a mano nel database»). Risposta: **«la teniamo»**. ⛔
+  Allora il vincolo non si può mettere — trasformerebbe quella conferma in un errore secco. E
+  indagando è emerso di peggio: farebbe fallire anche **il cron che fa partire le code** (un piano
+  pagato che non parte) e **la concessione di una pausa** (un'operatrice che non riesce a dare una
+  pausa promessa). *Un vincolo che rompe la cassa e il cron non protegge: sposta il danno addosso a
+  chi non c'entra.*
+  ✅ **Quindi si è fatto quello che il vincolo doveva ottenere, dove serviva davvero.**
+  `promuoviCodeArrivate` guardava `id`, `status` e `startDate` — **non le altre righe della
+  cliente**. Bastava che il piano precedente si fosse allungato dopo che la coda era stata messa in
+  fila (una pausa concessa, un rinnovo Stripe) e la promozione della notte scriveva **due piani
+  attivi insieme**: il caso Lorena, firmato da un automatismo invece che da una persona. ⛔ E la
+  cliente ci perde davvero — `attivoInCorso` ne sceglie uno solo, e **i giorni dell'altro scorrono
+  senza che riceva niente**. Ora quella coda non si promuove: resta `queued` (i menu continuano ad
+  arrivarle dal piano in corso), si grida nei log e si vede in `npm run diag:coda`, che ha una
+  sezione nuova. È la stessa forma già usata per le code arrivate a scadenza senza mai partire.
+  ⚠️ **Toccarsi non è sovrapporsi, e senza quel test avrei spento ogni rinnovo**: la coda che
+  `finalizeApproval` costruisce parte *esattamente* il giorno in cui finisce il piano prima — è il
+  passaggio di testimone normale, ed è il caso più frequente di tutti. Un controllo scritto un
+  filo più largo avrebbe bloccato la promozione notturna per tutte, in silenzio.
+  ⚠️ E la regola di sovrapposizione è **quella della matita**, importata: due funzioni che
+  rispondono alla stessa domanda divergono, e il giorno che divergono l'avviso in scheda e il cron
+  raccontano due storie diverse sulla stessa cliente.
+  ⚠️ **Il finto del test è stato allargato insieme al codice** — il metodo fa tre letture e non più
+  due — e un fixture che modellava uno stato impossibile (due code della stessa cliente con le
+  stesse date) è stato corretto: si sovrappongono davvero, ed era il test di un'altra cosa.
+  ⛔ **Restano due strade che allungano al buio, e sono due domande per Simone**: la **pausa**
+  (`pause.service` somma i giorni alla fine del piano in corso senza guardare se dietro c'è una coda
+  già pagata — è ciò che nel caso Lorena ha portato il piano #2 al 01/09) e il **rinnovo Stripe**
+  (`handleInvoicePaid` riscrive `endDate` incondizionatamente e scavalca la coda). Nessuna delle due
+  oggi fa danno, e da stasera il cron non le trasforma più in due piani attivi.
+
 - `[Sviluppo]` ✅ **La ricerca degli alimenti va a PAROLE INTERE — scelta di Simone, dopo la
   misura.** `npm run diag:ricerca` in produzione: **40 trappole, e tutte e 40 possono scattare**,
   perché in nessun caso la parola lunga è in tabella. «melanzane/melanzana»→**mela** (1025 usi),

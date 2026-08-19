@@ -415,21 +415,27 @@ describe('CommerceService (flusso bonifico)', () => {
     const scritturaRiuscita = () => prisma.subscription.updateMany.mockResolvedValue({ count: 1 });
 
     /**
-     * Le due letture del metodo sono domande diverse, e il finto le distingue dal `where` come
-     * farebbe il database: le code **sane** da promuovere, e quelle **già finite**, che si contano
-     * soltanto. Con un finto unico che risponde uguale a tutte e due, «le scadute non si
-     * promuovono» sembrerebbe funzionare qualunque cosa facesse il codice.
+     * Le **tre** letture del metodo sono domande diverse, e il finto le distingue dal `where` come
+     * farebbe il database: le code **sane** da promuovere, quelle **già finite** (che si contano
+     * soltanto) e gli **altri piani** delle stesse clienti, che servono a non promuovere una coda
+     * addosso a un piano che eroga ancora. Con un finto unico che risponde uguale a tutte e tre,
+     * «le scadute non si promuovono» e «le sovrapposte non si promuovono» sembrerebbero funzionare
+     * qualunque cosa facesse il codice.
+     *
+     * ⚠️ La terza è arrivata il 19/8 sera, e il finto è stato allargato **insieme** al codice: un
+     * test double che risponde a una domanda che non gli è stata fatta non verifica niente — è la
+     * stessa trappola per cui questo commento esisteva già con «due».
      */
-    const codeInDb = ({ sane = [], scadute = [] }: { sane?: unknown[]; scadute?: unknown[] }) =>
+    const codeInDb = ({ sane = [], scadute = [], altre = [] }: { sane?: unknown[]; scadute?: unknown[]; altre?: unknown[] }) =>
       prisma.subscription.findMany.mockImplementation(({ where }: any) =>
-        Promise.resolve(where?.endDate?.lt ? scadute : sane),
+        Promise.resolve(where?.endDate?.lt ? scadute : where?.clientId?.in ? altre : sane),
       );
 
     it('il piano in coda arrivato passa ad attivo, e lo dice il registro', async () => {
       codeInDb({ sane: [inCoda()] });
       scritturaRiuscita();
       const esito = await service.promuoviCodeArrivate();
-      expect(esito).toEqual({ promossi: 1, giaScaduti: 0 });
+      expect(esito).toEqual({ promossi: 1, giaScaduti: 0, sovrapposte: 0 });
       expect(prisma.subscription.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: { status: 'active' } }),
       );
@@ -472,7 +478,7 @@ describe('CommerceService (flusso bonifico)', () => {
 
     it('nessuna coda arrivata: non scrive niente', async () => {
       codeInDb({});
-      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 0, giaScaduti: 0 });
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 0, giaScaduti: 0, sovrapposte: 0 });
       expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
       expect(audit.logMany).not.toHaveBeenCalled();
     });
@@ -506,12 +512,14 @@ describe('CommerceService (flusso bonifico)', () => {
      * riga di registro nascerebbe anche per il piano che non è partito.
      */
     it('⚠️ chi non è stato toccato non conta e non finisce nel registro', async () => {
-      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b' })] });
+      // ⚠️ Clienti DIVERSE: due code della stessa cliente con le stesse date si sovrappongono
+      // davvero, e dal 19/8 sera non si promuovono — che qui sarebbe un altro test.
+      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b', clientId: 'client-2' })] });
       // `sub-b` è stato rimborsato fra la lettura e la scrittura: la guardia lo salta.
       prisma.subscription.updateMany.mockImplementation(({ where }: any) =>
         Promise.resolve({ count: where.id === 'sub-a' ? 1 : 0 }),
       );
-      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 0 });
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 0, sovrapposte: 0 });
       expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-a' })]);
     });
 
@@ -531,7 +539,7 @@ describe('CommerceService (flusso bonifico)', () => {
       codeInDb({ scadute: [inCoda({ id: 'sub-vecchia', endDate: new Date(Date.now() - 2 * 86_400_000) })] });
       scritturaRiuscita();
       const esito = await service.promuoviCodeArrivate();
-      expect(esito).toEqual({ promossi: 0, giaScaduti: 1 });
+      expect(esito).toEqual({ promossi: 0, giaScaduti: 1, sovrapposte: 0 });
       expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('client-1'));
     });
@@ -544,7 +552,7 @@ describe('CommerceService (flusso bonifico)', () => {
         scadute: [inCoda({ id: 'sub-vecchia', endDate: new Date(Date.now() - 2 * 86_400_000) })],
       });
       scritturaRiuscita();
-      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 1 });
+      expect(await service.promuoviCodeArrivate()).toEqual({ promossi: 1, giaScaduti: 1, sovrapposte: 0 });
       expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-sana' })]);
     });
 
@@ -554,7 +562,9 @@ describe('CommerceService (flusso bonifico)', () => {
      * serve — sarebbe anche l'unico a non lasciarne traccia.
      */
     it('⚠️ se la scrittura esplode a metà, chi è già partito è comunque nel registro', async () => {
-      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b' })] });
+      // ⚠️ Clienti DIVERSE: due code della stessa cliente con le stesse date si sovrappongono
+      // davvero, e dal 19/8 sera non si promuovono — che qui sarebbe un altro test.
+      codeInDb({ sane: [inCoda({ id: 'sub-a' }), inCoda({ id: 'sub-b', clientId: 'client-2' })] });
       prisma.subscription.updateMany.mockImplementation(({ where }: any) =>
         where.id === 'sub-a' ? Promise.resolve({ count: 1 }) : Promise.reject(new Error('Neon ha chiuso')),
       );
@@ -567,7 +577,99 @@ describe('CommerceService (flusso bonifico)', () => {
       codeInDb({ sane: [inCoda({ endDate: new Date('2026-08-19T00:00:00.000Z') })] });
       scritturaRiuscita();
       const esito = await service.promuoviCodeArrivate(new Date('2026-08-19T18:00:00.000Z'));
-      expect(esito).toEqual({ promossi: 1, giaScaduti: 0 });
+      expect(esito).toEqual({ promossi: 1, giaScaduti: 0, sovrapposte: 0 });
+    });
+
+    /**
+     * ⚠️ UNA CODA NON SI PROMUOVE ADDOSSO A UN PIANO CHE EROGA ANCORA (19/8 sera).
+     *
+     * Il gemello della coda scaduta, e nasce dalla stessa indagine: questo cron guardava `id`,
+     * `status` e `startDate` — **non le altre righe della cliente**. Basta che il piano precedente
+     * si sia allungato dopo che la coda è stata messa in fila (una pausa concessa, un rinnovo
+     * Stripe) e la promozione della notte crea **due piani attivi insieme**: il caso Lorena, scritto
+     * da un automatismo invece che da una persona.
+     *
+     * ⛔ E la cliente ci perde davvero: `attivoInCorso` ne sceglie uno solo, e i giorni dell'altro
+     * scorrono senza che riceva niente. Paga e non riceve.
+     */
+    it('⚠️ una coda che finirebbe ADDOSSO a un piano ancora in corso non si promuove', async () => {
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({
+        sane: [inCoda({ id: 'sub-coda', startDate: new Date('2026-08-19T00:00:00.000Z') })],
+        // Il piano di prima, allungato da una pausa: finisce fra dieci giorni, non ieri.
+        altre: [{ id: 'sub-prima', clientId: 'client-1', startDate: new Date('2026-06-01T00:00:00.000Z'), endDate: new Date('2026-08-29T00:00:00.000Z') }],
+      });
+      scritturaRiuscita();
+      const esito = await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'));
+      expect(esito).toEqual({ promossi: 0, giaScaduti: 0, sovrapposte: 1 });
+      expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('client-1'));
+    });
+
+    /**
+     * ⚠️ **TOCCARSI NON È SOVRAPPORSI**, ed è il caso più frequente di tutti: la coda che
+     * `finalizeApproval` costruisce parte **esattamente** il giorno in cui finisce il piano prima.
+     * Se questo test non ci fosse, il controllo nuovo bloccherebbe **ogni rinnovo** — cioè
+     * spegnerebbe la promozione notturna per tutti, e in silenzio.
+     */
+    it('⚠️ il passaggio di testimone normale (finisce il 19, parte il 19) si promuove', async () => {
+      codeInDb({
+        sane: [inCoda({ id: 'sub-coda', startDate: new Date('2026-08-19T00:00:00.000Z') })],
+        altre: [{ id: 'sub-prima', clientId: 'client-1', startDate: new Date('2026-06-01T00:00:00.000Z'), endDate: new Date('2026-08-19T00:00:00.000Z') }],
+      });
+      scritturaRiuscita();
+      expect(await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'))).toEqual({
+        promossi: 1, giaScaduti: 0, sovrapposte: 0,
+      });
+    });
+
+    /** ⚠️ Il piano di un'ALTRA cliente non c'entra niente: il controllo è per persona. */
+    it('⚠️ il piano di un\'altra cliente non blocca la promozione', async () => {
+      codeInDb({
+        sane: [inCoda({ id: 'sub-coda', startDate: new Date('2026-08-19T00:00:00.000Z') })],
+        altre: [{ id: 'sub-altrui', clientId: 'client-9', startDate: new Date('2026-06-01T00:00:00.000Z'), endDate: new Date('2026-08-29T00:00:00.000Z') }],
+      });
+      scritturaRiuscita();
+      expect(await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'))).toEqual({
+        promossi: 1, giaScaduti: 0, sovrapposte: 0,
+      });
+    });
+
+    /**
+     * ⚠️ DUE CODE DELLA STESSA CLIENTE CHE ARRIVANO LA STESSA NOTTE e si sovrappongono fra loro:
+     * restano ferme **tutte e due**. Promuoverne una e poi l'altra non basterebbe — il secondo giro
+     * non vedrebbe la prima, perché le righe si leggono tutte prima di cominciare a scrivere.
+     */
+    it('⚠️ due code della stessa cliente che si accavallano restano ferme tutte e due', async () => {
+      jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({
+        sane: [
+          inCoda({ id: 'sub-a', startDate: new Date('2026-08-19T00:00:00.000Z'), endDate: new Date('2026-11-19T00:00:00.000Z') }),
+          inCoda({ id: 'sub-b', startDate: new Date('2026-08-19T00:00:00.000Z'), endDate: new Date('2026-11-19T00:00:00.000Z') }),
+        ],
+      });
+      scritturaRiuscita();
+      expect(await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'))).toEqual({
+        promossi: 0, giaScaduti: 0, sovrapposte: 2,
+      });
+      expect(prisma.subscription.updateMany).not.toHaveBeenCalled();
+    });
+
+    /** ⚠️ E una coda ferma non ferma quelle sane: come per le scadute, il giro continua. */
+    it('⚠️ una coda sovrapposta non blocca quelle sane della stessa passata', async () => {
+      jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+      codeInDb({
+        sane: [
+          inCoda({ id: 'sub-bloccata', startDate: new Date('2026-08-19T00:00:00.000Z') }),
+          inCoda({ id: 'sub-sana', clientId: 'client-2', startDate: new Date('2026-08-19T00:00:00.000Z') }),
+        ],
+        altre: [{ id: 'sub-prima', clientId: 'client-1', startDate: new Date('2026-06-01T00:00:00.000Z'), endDate: new Date('2026-08-29T00:00:00.000Z') }],
+      });
+      scritturaRiuscita();
+      expect(await service.promuoviCodeArrivate(new Date('2026-08-19T05:00:00.000Z'))).toEqual({
+        promossi: 1, giaScaduti: 0, sovrapposte: 1,
+      });
+      expect(audit.logMany).toHaveBeenCalledWith([expect.objectContaining({ entityId: 'sub-sana' })]);
     });
 
     /** ⚠️ Il registro che non scrive non deve far saltare la promozione: i menu contano di più. */
@@ -575,7 +677,7 @@ describe('CommerceService (flusso bonifico)', () => {
       codeInDb({ sane: [inCoda()] });
       scritturaRiuscita();
       audit.logMany.mockRejectedValue(new Error('registro giù'));
-      await expect(service.promuoviCodeArrivate()).resolves.toEqual({ promossi: 1, giaScaduti: 0 });
+      await expect(service.promuoviCodeArrivate()).resolves.toEqual({ promossi: 1, giaScaduti: 0, sovrapposte: 0 });
     });
   });
 

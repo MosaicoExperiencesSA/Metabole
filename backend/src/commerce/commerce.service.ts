@@ -37,6 +37,14 @@ import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
 import { statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
+/**
+ * ⚠️ La regola «due periodi si sovrappongono?» arriva da `clients/`, dove è nata per la matita della
+ * data d'inizio (caso Lorena, voce 259). ⛔ **Non se ne scrive una seconda qui**: due funzioni che
+ * rispondono alla stessa domanda divergono, e il giorno che divergono l'avviso in scheda e il cron
+ * notturno raccontano due storie diverse sulla stessa cliente. Il modulo è puro (niente Prisma,
+ * niente Nest), quindi importarlo non lega i due domini.
+ */
+import { siSovrappongono } from '../clients/sovrapposizione-piani';
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 const RECEIPT_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic'];
@@ -2389,7 +2397,7 @@ export class CommerceService {
    * @param oggi il giorno da cui si guarda. Esiste per poter collaudare senza aspettare domani,
    *             come `codaInRitardo` e `staErogando`.
    */
-  async promuoviCodeArrivate(oggi: Date = new Date()): Promise<{ promossi: number; giaScaduti: number }> {
+  async promuoviCodeArrivate(oggi: Date = new Date()): Promise<{ promossi: number; giaScaduti: number; sovrapposte: number }> {
     // ⚠️ Il confronto è per GIORNO: `startDate` è una data (mezzanotte), e un piano che parte oggi
     // deve partire stanotte. Stesso criterio di `codaInRitardo`, che è la funzione che risponde alla
     // stessa domanda a chi guarda le schermate.
@@ -2446,9 +2454,69 @@ export class CommerceService {
           'erogato niente: serve una decisione, non un automatismo.',
       );
     }
+    /**
+     * ⚠️ **UNA CODA NON SI PROMUOVE ADDOSSO A UN PIANO CHE EROGA ANCORA** (19/8 sera).
+     *
+     * È il gemello del caso qui sopra, e nasce dalla stessa indagine: questo cron guardava solo
+     * `id`, `status` e `startDate` — **non le altre righe della cliente**. Basta che il piano
+     * precedente si sia allungato dopo che la coda è stata messa in fila — una pausa concessa
+     * (`pause.service` somma i giorni alla fine del piano in corso), un rinnovo Stripe che sposta
+     * la scadenza — e la promozione della notte crea **due piani attivi insieme**: il caso Lorena,
+     * scritto da un automatismo invece che da una persona.
+     *
+     * ⛔ E la cliente ci perde davvero: `attivoInCorso` ne sceglie **uno** (quello che finisce più
+     * tardi) e i giorni dell'altro **scorrono senza che riceva niente**. Cioè paga e non riceve.
+     *
+     * ⚠️ **Non si promuove, e non si tocca nient'altro** — stessa forma della coda già scaduta:
+     * la riga resta `queued`, che non fa male a nessuno, la cliente continua a ricevere i menu del
+     * piano che sta ancora erogando, e la decisione (spostare la partenza, rimborsare, accorciare
+     * l'altro) resta a una persona. ⚠️ **Promuovere e basta** sarebbe stato il gesto che *sembra*
+     * onesto — lo stato vero — e che intanto brucia giorni pagati in silenzio.
+     *
+     * ⚠️ La regola di sovrapposizione è **quella della matita** (`siSovrappongono`), non una seconda
+     * scritta qui: due funzioni che rispondono alla stessa domanda divergono, e il giorno che
+     * divergono l'avviso in scheda e il cron notturno raccontano due storie diverse sulla stessa
+     * cliente. In particolare **toccarsi non è sovrapporsi**: un piano che finisce il 25 e la coda
+     * che parte il 25 sono il passaggio di testimone normale, ed è il caso più frequente di tutti.
+     */
+    const altrui = arrivate.length
+      ? ((await this.prisma.subscription.findMany({
+          where: {
+            clientId: { in: [...new Set(arrivate.map((s) => s.clientId))] },
+            status: { in: STATI_CON_UN_PIANO as never },
+            id: { notIn: arrivate.map((s) => s.id) },
+            OR: [{ endDate: null }, { endDate: { gte: giornoDiOggi } }],
+          },
+          select: { id: true, clientId: true, startDate: true, endDate: true },
+        })) as { id: string; clientId: string; startDate: Date | null; endDate: Date | null }[])
+      : [];
+    /**
+     * ⚠️ Anche **due code dello stesso cliente che arrivano la stessa notte** e si sovrappongono fra
+     * loro: se ne promuovessi una e poi l'altra, il secondo giro non vedrebbe la prima (l'ho letta
+     * prima di cominciare) e finirebbero attive tutte e due. Restano ferme tutte e due, e chi guarda
+     * `diag:coda` le trova.
+     */
+    const daControllare = [...altrui, ...arrivate];
+    const sovrapposte: typeof arrivate = [];
+    const promuovibili = arrivate.filter((s) => {
+      const addosso = daControllare.some(
+        (a) => a.clientId === s.clientId && a.id !== s.id && siSovrappongono(s.startDate, s.endDate, a.startDate, a.endDate),
+      );
+      if (addosso) sovrapposte.push(s);
+      return !addosso;
+    });
+    if (sovrapposte.length) {
+      this.logger.warn(
+        `Code arrivate: ${sovrapposte.length} piani NON li promuovo perché finirebbero addosso a un ` +
+          `altro piano della stessa cliente (clienti: ${sovrapposte.map((s) => s.clientId).join(', ')}). ` +
+          'Restano «in coda»: promuoverli farebbe due piani attivi insieme, e i giorni di uno dei due ' +
+          'scorrerebbero senza che la cliente riceva niente. Si vedono in `npm run diag:coda`.',
+      );
+    }
+
     const promosse: typeof arrivate = [];
     try {
-      for (const s of arrivate) {
+      for (const s of promuovibili) {
         /**
          * ⚠️ Le guardie si ripetono nella scrittura, e non sono ridondanti: fra la lettura e questa
          * riga passano dei secondi, e in mezzo può esserci un'operatrice che rimborsa il contratto o
@@ -2491,7 +2559,7 @@ export class CommerceService {
       }
     }
 
-    return { promossi: promosse.length, giaScaduti: giaScaduti.length };
+    return { promossi: promosse.length, giaScaduti: giaScaduti.length, sovrapposte: sovrapposte.length };
   }
 
   /**

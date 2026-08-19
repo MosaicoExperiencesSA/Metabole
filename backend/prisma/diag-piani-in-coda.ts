@@ -18,6 +18,15 @@
 import { PrismaClient } from '@prisma/client';
 import { eInCodaPerStato } from '../src/commerce/stati-abbonamento';
 import { staErogando } from '../src/commerce/abbonamento-in-corso';
+/** ⚠️ La stessa regola del cron e della matita, non una terza scritta qui. */
+import { siSovrappongono } from '../src/clients/sovrapposizione-piani';
+
+/** Il giorno, per i confronti: la stessa lettura di `staErogando`. */
+const giornoDi = (d: Date): number => {
+  const x = new Date(d.getTime());
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+};
 
 type Riga = { id: string; clientId: string; status: string; startDate: Date | null; endDate: Date | null };
 
@@ -68,6 +77,46 @@ async function main() {
         }
       }
       if (doppi.length > 20) console.log(`   … e altri ${doppi.length - 20}.`);
+    }
+
+    /**
+     * ⚠️ LE CODE FERMATE PERCHÉ FINIREBBERO ADDOSSO A UN ALTRO PIANO — 19/8 sera.
+     *
+     * Dalla sera del 19/8 `promuoviCodeArrivate` non promuove una coda che, diventando attiva, si
+     * troverebbe sopra un altro piano della stessa cliente. ⛔ Prima la promuoveva: il cron guardava
+     * `id`, `status` e `startDate` e **non le altre righe** — bastava che il piano precedente si
+     * fosse allungato dopo (una pausa concessa, un rinnovo Stripe) e la notte scriveva **due piani
+     * attivi insieme**, cioè il caso Lorena firmato da un automatismo.
+     *
+     * ⚠️ Restano `queued`, che non fa male a nessuno: la cliente continua a ricevere i menu del
+     * piano che sta ancora erogando. Ma **qualcuno deve deciderle** — spostare la partenza,
+     * accorciare l'altro, rimborsare — e questo è il posto dove si vedono. Senza, sarebbero code
+     * che non partono mai e nessuno saprebbe perché.
+     */
+    const bloccate = righe
+      .filter((r) => r.status === 'queued' && r.startDate && giornoDi(r.startDate) <= giornoDi(oggi))
+      .filter((r) => !(r.endDate && r.endDate.getTime() < oggi.getTime()))
+      .map((r) => ({
+        r,
+        addosso: (perCliente.get(r.clientId) ?? []).filter(
+          (a) => a.id !== r.id && !(a.endDate && giornoDi(a.endDate) < giornoDi(oggi)) && siSovrappongono(r.startDate, r.endDate, a.startDate, a.endDate),
+        ),
+      }))
+      .filter((x) => x.addosso.length);
+
+    console.log('');
+    console.log(`Code FERMATE perché finirebbero addosso a un altro piano: ${bloccate.length}`);
+    if (bloccate.length) {
+      console.log('⚠️ La partenza è arrivata ma il cron non le promuove: diventerebbero due piani attivi');
+      console.log('   insieme, e i giorni di uno dei due scorrerebbero senza che la cliente riceva niente.');
+      console.log('   Serve una decisione, una per una: spostare la partenza, accorciare l\'altro, rimborsare.');
+      for (const x of bloccate.slice(0, 30)) {
+        console.log(
+          `   cliente ${x.r.clientId}: doveva partire il ${x.r.startDate?.toISOString().slice(0, 10) ?? '—'}, ` +
+            `addosso a ${x.addosso.length} piano/i (il primo finisce il ${x.addosso[0].endDate?.toISOString().slice(0, 10) ?? 'mai'})`,
+        );
+      }
+      if (bloccate.length > 30) console.log(`   … e altre ${bloccate.length - 30}.`);
     }
 
     /**

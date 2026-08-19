@@ -1,0 +1,84 @@
+--------------------------------------------------------------------------------
+Parte: il cron non promuove piu una coda addosso a un piano che eroga — 19/8 sera
+--------------------------------------------------------------------------------
+
+IL VINCOLO IN BANCA DATI NON SI METTE, E LA RAGIONE E UNA RISPOSTA DI SIMONE
+
+La voce chiedeva un vincolo che vietasse due piani che erogano insieme. Prima di scriverlo ho
+chiesto: la matita della data d inizio oggi permette di sovrapporli APPOSTA, con un avviso e una
+conferma («conferma e non divieto: un divieto secco si aggira cambiando la riga a mano nel
+database»). Simone: «la teniamo».
+
+⛔ Allora il vincolo non si puo mettere: trasformerebbe quella conferma in un errore secco in
+backoffice. E c e di peggio, ed e emerso indagando: il vincolo farebbe fallire anche
+
+  · il CRON notturno che fa partire le code  → un piano pagato che non parte
+  · la concessione di una PAUSA              → un operatrice che non riesce a dare una pausa promessa
+
+⚠️ Un vincolo che rompe la cassa e il cron non protegge: sposta il danno, e lo sposta addosso a
+chi non c entra.
+
+COSA HO FATTO INVECE: QUELLO CHE IL VINCOLO DOVEVA OTTENERE, DOVE SERVIVA DAVVERO
+
+`promuoviCodeArrivate` guardava `id`, `status` e `startDate` — NON le altre righe della cliente.
+Bastava che il piano precedente si fosse allungato dopo che la coda era stata messa in fila (una
+pausa concessa, un rinnovo Stripe) e la promozione della notte scriveva DUE PIANI ATTIVI INSIEME:
+il caso Lorena, firmato da un automatismo invece che da una persona.
+
+⛔ E la cliente ci perde davvero: `attivoInCorso` ne sceglie uno solo — quello che finisce piu
+tardi — e i giorni dell altro SCORRONO SENZA CHE RICEVA NIENTE. Paga e non riceve.
+
+Ora una coda che finirebbe addosso a un altro piano non si promuove. Resta `queued`, che non fa
+male a nessuno (la cliente continua a ricevere i menu del piano in corso), si grida nei log e si
+vede in `npm run diag:coda`, che ha una sezione nuova. Stessa forma della coda gia scaduta, che
+era gia trattata cosi.
+
+⚠️ TOCCARSI NON E SOVRAPPORSI, E SENZA QUESTO TEST AVREI SPENTO OGNI RINNOVO
+
+La coda che `finalizeApproval` costruisce parte ESATTAMENTE il giorno in cui finisce il piano
+prima: e il passaggio di testimone normale, ed e il caso piu frequente di tutti. Un controllo
+scritto un po piu largo avrebbe bloccato ogni rinnovo — cioe spento la promozione notturna per
+tutte, in silenzio. C e un test apposta.
+
+⚠️ E la regola di sovrapposizione e QUELLA DELLA MATITA, importata, non una seconda scritta qui:
+due funzioni che rispondono alla stessa domanda divergono, e il giorno che divergono l avviso in
+scheda e il cron notturno raccontano due storie diverse sulla stessa cliente.
+
+⚠️ ANCHE DUE CODE DELLA STESSA NOTTE
+
+Due code della stessa cliente che arrivano insieme e si accavallano restano ferme tutte e due:
+promuoverne una e poi l altra non basterebbe, perche il secondo giro non vedrebbe la prima — le
+righe si leggono tutte prima di cominciare a scrivere.
+
+⚠️ IL FINTO DEL TEST E STATO ALLARGATO INSIEME AL CODICE
+
+Il metodo fa tre letture e non piu due, e il finto le distingue dal `where` come farebbe il
+database. C era gia scritto sopra al finto perche: «con un finto unico che risponde uguale a
+tutte e due, "le scadute non si promuovono" sembrerebbe funzionare qualunque cosa facesse il
+codice». Vale identico per la terza.
+
+⚠️ E un fixture che modellava uno stato impossibile e stato corretto: due code della stessa
+cliente con le stesse date. Si sovrappongono davvero — era il test di un altra cosa, e adesso
+sono due clienti diverse.
+
+⛔ RESTANO DUE STRADE CHE ALLUNGANO AL BUIO, E SONO DUE DOMANDE PER SIMONE
+
+  (a) LA PAUSA. `pause.service` somma i giorni alla fine del piano in corso senza guardare se
+      dietro c e una coda gia pagata: e esattamente cio che nel caso Lorena ha portato il piano
+      #2 al 01/09. Cosa deve fare una pausa che sbatterebbe contro la coda: allungare comunque
+      e SPOSTARE IN AVANTI ANCHE LA CODA, rifiutarsi, o allungare e avvisare?
+  (b) IL RINNOVO STRIPE. `handleInvoicePaid` riscrive `endDate` alla fine del periodo pagato,
+      incondizionatamente: se dietro c e una coda, la scavalca.
+
+Nessuna delle due oggi fa danno (`diag:coda`: zero sovrapposizioni), e da stasera il cron non le
+trasforma piu in due piani attivi. Ma restano due modi in cui una data si allunga senza che
+nessuno lo dica.
+
+FILE
+- backend/commerce: `commerce.service.ts` (`promuoviCodeArrivate`) + `commerce.spec.ts` (5 test
+  nuovi, il finto allargato, un fixture corretto)
+- backend/prisma: `diag-piani-in-coda.ts` — sezione «code fermate»
+- backend/lavori: `voci-iniziali.ts` — la voce riscritta col verdetto e le due domande
+
+241 suite / 3813 test verdi. Tre mutazioni provate, tutte e tre fanno fallire i test.
+Nessuna migrazione.
