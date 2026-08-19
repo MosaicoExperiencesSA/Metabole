@@ -82,6 +82,25 @@ describe('giorniDaRifarePerPasti', () => {
     meals: slots.map((slot) => ({ slot, recipeId: `r-${slot}` })),
   });
 
+  /**
+   * ⚠️ IL CASO CHE VALE LA CORREZIONE DEL 19/8 — «meglio rifare la giornata di oggi» (Simone).
+   *
+   * Fino a quel giorno questa funzione partiva da **domani** mentre le altre due che rispondono alla
+   * stessa domanda partivano da **oggi**: su una cliente che non aveva ancora aperto il menu di
+   * oggi, toglierle lo spuntino non glielo toglieva oggi, ma vietarle un alimento sì. Due
+   * comportamenti diversi, nessuno dei due scritto come scelta.
+   */
+  it('⚠️ la giornata di OGGI, se non l\'ha ancora aperta, si rifà', () => {
+    const giorni = [giorno('oggi', '2026-08-13', ['breakfast', 'afternoon_snack'])];
+    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['oggi']);
+  });
+
+  /** ⚠️ Ma se l'ha già aperta no, e su questo il confine non c'entra: magari ha già fatto la spesa. */
+  it('⚠️ la giornata di oggi GIÀ APERTA resta sua', () => {
+    const giorni = [giorno('oggi', '2026-08-13', ['breakfast', 'afternoon_snack'], true)];
+    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'togli')).toEqual([]);
+  });
+
   it('togli: solo i giorni futuri non aperti che CONTENGONO lo spuntino', () => {
     const giorni = [
       giorno('ieri', '2026-08-12', ['breakfast', 'afternoon_snack']),          // passato: no

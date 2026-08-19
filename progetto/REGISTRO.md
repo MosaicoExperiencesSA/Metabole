@@ -20,6 +20,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🗓️ **La giornata di oggi si rifà, e «quanto manca» nell'app è uno solo.** Due risposte
+  di Simone, e in tutte e due il lavoro era togliere una risposta di troppo. **1)** «Quali giorni si
+  possono rifare» era scritto in **tre posti**, e ⚠️ in uno dei tre il confine partiva da **domani**
+  invece che da oggi: su una cliente che non aveva ancora aperto il menu di oggi, toglierle lo
+  spuntino non glielo toglieva oggi ma vietarle un alimento sì — due comportamenti diversi, nessuno
+  dei due scritto come scelta. Simone: «meglio rifare la giornata di oggi». Ora la risposta è una
+  (`siPuoRifare`) e il confine sta in un posto solo. ⚠️ Ed è la **mezzanotte** di oggi, non «adesso»:
+  `MenuDay.date` è una data senza ora, e confrontarla con l'istante corrente fa sparire la giornata
+  di oggi appena passa mezzanotte, cioè sempre. ⚠️ La regola vera resta: un giorno **già aperto** non
+  si rifà mai — decide `viewedAt`, non il calendario.
+  **2)** `plan-report.service` **non alimenta il PDF firmato**: alimenta la **schermata Report dentro
+  l'app**, quella di fine piano. Scriveva «−4,2 kg da oggi» sull'ultima pesata mentre la pagina
+  Obiettivo della stessa app ne diceva un altro sulla media mobile. Simone ha scelto la tendenza, e
+  ⚠️ cambia anche la decisione sotto — `objectiveReached` sceglie se offrire il Mantenimento, ed è la
+  stessa domanda di `commerce.hasReachedObjective`, passata alla media mobile lo stesso giorno.
+  ⚠️ La stima «quando arrivi» parte dallo stesso peso: due numeri accanto calcolati da due pesi
+  diversi si contraddicono. ⚠️ Restano **misurati** i confronti A→B del periodo e i traguardi: la
+  storia di una persona non si ridisegna con una media.
+  236 suite / **3692 test verdi**, app 106, backoffice 31, tre mutazioni provate e tutte e tre fanno
+  fallire i test. Nessuna migrazione.
+
+
+- `[Sviluppo]` 🔬 **`npm run diag:allergeni` — quanto è buono il riconoscitore, con un numero invece
+  che con un'impressione.** Dalla voce aperta con la conferma in blocco: da oggi migliaia di ricette
+  entrano in catalogo con gli allergeni dedotti dagli ingredienti, e ⚠️ davanti al piatto di una
+  cliente allergica c'è un elenco di parole chiave invece di una persona. Il metro sono le ricette
+  che **una persona ha confermato a mano**, riconosciute dal registro (`...allergens.set`);
+  ⚠️ le conferme in blocco (`...allergens.bulk`) **non fanno testo**, perché lì gli allergeni li ha
+  scritti il riconoscitore e confrontarcisi vuol dire misurarlo con se stesso — è la ragione per cui
+  il blocco scrive un'azione diversa. Due errori tenuti distinti: ⚠️ **mancato** (la persona vede un
+  allergene che la macchina non vede: la ricetta entra dichiarata sicura per chi è allergica) e
+  **inventato** (menu più povero, non salute). Divisi **per allergene**, perché «sbaglia il 4%» e
+  «sbaglia il 4%, tutto sul glutine» sono due situazioni diverse. ⚠️ Senza ricette confermate a mano
+  non stampa zeri: dice che manca il metro, perché «non lo so» non è «va tutto bene»; sotto le 30
+  avverte che il campione è piccolo; e dichiara il limite vero — le confermate a mano sono le ricette
+  **vecchie** dello staff, quelle del blocco sono **generate dall'AI**, quindi un buon voto qui non
+  garantisce lo stesso voto là. Sola lettura, nessuna migrazione.
+
+
 - `[Sviluppo]` 🚧 **Il rilascio a metà**, visto in produzione un'ora dopo la consegna sugli
   allergeni. Vercel pubblica il backoffice in un minuto, Render ci mette di più: in quella finestra
   la pagina Allergeni mandava `daRivedere=true` a un server che non lo conosceva, riceveva tutto il

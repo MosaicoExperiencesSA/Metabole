@@ -1,0 +1,43 @@
+`npm run diag:allergeni`: quanto è buono il riconoscitore, con un numero invece che con un'impressione
+
+Dalla voce aperta il 19/8 con la conferma in blocco. Da quel giorno migliaia di ricette entrano in
+catalogo con gli allergeni **dedotti dagli ingredienti** e un nutrizionista che dice «di queste mi
+fido», non che le guarda una per una. ⚠️ È una scelta ragionevole — l'alternativa era una coda ferma
+per sempre — **ma sposta il cancello**: davanti al piatto di una cliente allergica adesso c'è un
+elenco di parole chiave.
+
+COME SI MISURA, E SU COSA
+Il metro sono le ricette che **una persona ha confermato a mano**, riconosciute dal registro
+(`catalog.recipe.allergens.set`, la conferma singola dal riquadro «Rivedi»). ⚠️ Le conferme in
+blocco (`catalog.recipe.allergens.bulk`) **non fanno testo**: lì gli allergeni li ha scritti il
+riconoscitore, e confrontarcisi vorrebbe dire misurarlo con se stesso e ottenere sempre 100%. È la
+ragione per cui il blocco scrive un'azione DIVERSA nel registro — senza, dopo la prima conferma in
+blocco questa diagnostica sarebbe diventata inutile.
+
+Due errori, e sono molto diversi:
+· ⚠️ **MANCATO** — la persona ha segnato un allergene che la macchina non vede. È il caso che fa
+  male: la ricetta entra in catalogo dichiarata sicura per chi a quell'allergene è allergica.
+· **INVENTATO** — la macchina ne vede uno che la persona ha tolto. Costa un menu più povero, non la
+  salute di nessuno, e si guarda dopo.
+
+Stampa la percentuale d'accordo, i due errori divisi **per allergene** — perché «sbaglia il 4%» e
+«sbaglia il 4%, tutto sul glutine» sono due situazioni diverse — e gli esempi col nome della
+ricetta, così si può andare a vedere cosa non ha riconosciuto.
+
+⚠️ TRE COSE CHE SI DICONO INVECE DI TACERE
+· Senza nessuna ricetta confermata a mano **non si stampano zeri**: si dice che manca il metro di
+  paragone, perché «non lo so» non è «va tutto bene».
+· Sotto le 30 ricette si avverte che il campione è piccolo: un numero che si muove di dieci punti
+  per due ricette è un indizio, non una misura.
+· ⚠️ **Il limite che va letto insieme al numero**: le ricette confermate a mano sono quelle
+  **vecchie**, scritte dallo staff; quelle che il blocco conferma sono **generate dall'AI**, con
+  nomi di ingredienti più fantasiosi. Un buon voto qui non garantisce lo stesso voto là.
+
+USO (shell di Render, dentro ~/project/src/backend)
+  npm run diag:allergeni
+  ESEMPI=20 npm run diag:allergeni
+
+FILE
+- backend: `prisma/diag-allergeni.ts` (nuovo) · `package.json`
+
+Sola lettura, nessuna migrazione.

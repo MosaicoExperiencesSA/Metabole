@@ -2,7 +2,7 @@
  * QUALI MENU SI RIFANNO. I due casi che contano sono le due metà della decisione di Simone: il
  * giorno già aperto che NON si tocca, e il giorno futuro col piatto vietato che si rifà.
  */
-import { clientiColpiti, giorniDaRifare, ricetteDelGiorno } from './menu-da-rifare';
+import { clientiColpiti, giorniDaRifare, ricetteDelGiorno, daQuandoSiPuoRifare, siPuoRifare } from './menu-da-rifare';
 
 const OGGI = new Date('2026-08-13T09:00:00.000Z');
 const g = (o: Partial<{ id: string; clientId: string; date: string; viewedAt: Date | null; meals: unknown }>) => ({
@@ -54,5 +54,37 @@ describe('quante persone tocca', () => {
   it('conta le PERSONE, non i giorni: è quello il numero da confrontare col tetto', () => {
     const giorni = [g({ id: 'a', clientId: 'c1' }), g({ id: 'b', clientId: 'c1' }), g({ id: 'c', clientId: 'c2' })];
     expect(clientiColpiti(giorni)).toEqual(['c1', 'c2']);
+  });
+});
+
+/**
+ * ⚠️ «SI PUÒ ANCORA RIFARE?» — UNA RISPOSTA SOLA (19/8, decisione di Simone: «meglio rifare la
+ * giornata di oggi»).
+ *
+ * La stessa domanda era scritta in tre posti e in uno dei tre il confine partiva da domani. Adesso
+ * `siPuoRifare` è l'unica risposta, e questi test sono il posto dove il confine è fissato.
+ */
+describe('siPuoRifare', () => {
+  const oggi = new Date('2026-08-13T12:00:00Z');
+  const g = (date: string, visto = false) => ({ date: new Date(date), viewedAt: visto ? new Date(date) : null });
+
+  it('⚠️ la giornata di OGGI si può rifare, anche a mezzogiorno passato', () => {
+    expect(siPuoRifare(g('2026-08-13'), oggi)).toBe(true);
+  });
+
+  it('domani sì, ieri no', () => {
+    expect(siPuoRifare(g('2026-08-14'), oggi)).toBe(true);
+    expect(siPuoRifare(g('2026-08-12'), oggi)).toBe(false);
+  });
+
+  /** ⚠️ Il calendario non decide da solo: un giorno già aperto resta suo, magari ci ha fatto la spesa. */
+  it('⚠️ un giorno già aperto non si rifà mai, nemmeno se è domani', () => {
+    expect(siPuoRifare(g('2026-08-14', true), oggi)).toBe(false);
+    expect(siPuoRifare(g('2026-08-13', true), oggi)).toBe(false);
+  });
+
+  /** ⚠️ Il confine è la MEZZANOTTE di oggi, non «adesso»: `date` è una data senza ora. */
+  it('⚠️ il confine è mezzanotte, non l\'istante corrente', () => {
+    expect(daQuandoSiPuoRifare(oggi).toISOString()).toBe('2026-08-13T00:00:00.000Z');
   });
 });

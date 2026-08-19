@@ -15,6 +15,7 @@
  * giusta, ripassato prima di ogni rilascio, e quell'elenco esce da qui: ogni correzione diventa un
  * caso di prova. Il sistema si costruisce il collaudo con gli errori che ha già fatto.
  */
+import { daQuandoSiPuoRifare } from './menu-da-rifare';
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -520,10 +521,10 @@ export class RegistroVeraService {
    * mostra quando chiede «i menu di domani li rifaccio o parto da dopodomani?».
    */
   async menuDaRifare(clientId: string): Promise<string[]> {
-    const oggi = new Date();
-    oggi.setUTCHours(0, 0, 0, 0);
+    // ⚠️ Il confine è scritto in un posto solo (`daQuandoSiPuoRifare`): fino al 19/8 era ricopiato
+    // in tre punti e in uno dei tre partiva da domani invece che da oggi.
     const giorni = (await this.prisma.menuDay.findMany({
-      where: { clientId, viewedAt: null, date: { gte: oggi } } as never,
+      where: { clientId, viewedAt: null, date: { gte: daQuandoSiPuoRifare() } } as never,
       orderBy: { date: 'asc' },
       select: { date: true },
     })) as { date: Date }[];

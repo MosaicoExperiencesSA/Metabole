@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
 import { ConfigParamsService } from '../config-params/config-params.service';
+import { avanzamentoPeso } from '../signals/percentuale-obiettivo';
 import { litriObiettivo } from '../common/obiettivo-acqua';
 
 /**
@@ -185,11 +186,14 @@ export class PlanReportService {
       select: {
         name: true, regime: true, dietStyle: true, mealsPerDay: true,
         allergies: true, intolerances: true, dislikedFoods: true,
+        // ⚠️ Il peso di partenza serve alla media mobile: senza, `avanzamentoPeso` ripiega sulla
+        // prima misura del campione, che qui è la prima del periodo e non l'inizio del percorso.
+        startWeightKg: true,
         assignedCoach: { select: { displayName: true, user: { select: { phone: true } } } },
       },
     })) as {
       name: string | null; regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
-      allergies: string[]; intolerances: string[]; dislikedFoods: string[];
+      allergies: string[]; intolerances: string[]; dislikedFoods: string[]; startWeightKg: number | null;
       assignedCoach: { displayName: string; user: { phone: string | null } } | null;
     } | null;
 
@@ -226,7 +230,37 @@ export class PlanReportService {
       select: { targetWeightKg: true },
     })) as { targetWeightKg: number | null } | null;
     const targetWeightKg = objective?.targetWeightKg ?? null;
-    const toGoKg = targetWeightKg != null && b ? round1(b.weightKg - targetWeightKg) : null;
+
+    /**
+     * ⚠️ QUANTO MANCA SI DICE SULLA **TENDENZA**, NON SULLA PESATA DI STAMATTINA (19/8, decisione di
+     * Simone).
+     *
+     * ⚠️ E questa schermata non è il PDF firmato. Il Report-documento resta sul peso **misurato** —
+     * è un fatto verificabile che lei può portare dal medico, e lì la scelta è scritta e spiegata
+     * (`reports.service`). Questo è il **Report dentro l'app** (`app/src/pages/Report.tsx`), che lei
+     * apre a fine piano: scriveva «−4,2 kg da oggi» sull'ultima pesata mentre la pagina Obiettivo
+     * della stessa app, due schermate più in là, ne diceva un altro sulla media mobile. Due numeri
+     * diversi sulla stessa persona dentro la stessa app, e nessuno a dire perché.
+     *
+     * ⚠️ **Cambia anche la decisione che ci sta sotto**: `objectiveReached` qui sceglie se offrirle
+     * il Mantenimento o un altro piano-obiettivo, ed è la stessa domanda di
+     * `commerce.hasReachedObjective` — passata alla media mobile lo stesso giorno, perché proporre
+     * il Mantenimento per una mattina fortunata vuol dire venderlo un attimo prima che il peso
+     * risalga. Due punti che rispondono alla stessa domanda devono dare la stessa risposta.
+     *
+     * ⚠️ Restano **misurati** i confronti A→B del periodo e i traguardi: raccontano cosa è successo,
+     * e la storia di una persona non si ridisegna con una media.
+     */
+    const finestraMedia = await this.configParams.getNumber('moving_average_window', 3).catch(() => 3);
+    const avanzamento = avanzamentoPeso(
+      ms.map((m) => m.weightKg),
+      profile?.startWeightKg ?? null,
+      targetWeightKg,
+      finestraMedia,
+    );
+    /** Il peso «di adesso» per tutto ciò che guarda **avanti**: la tendenza, non l'ultimo numero. */
+    const pesoDiAdesso = avanzamento.pesoDiAdesso ?? b?.weightKg ?? null;
+    const toGoKg = targetWeightKg != null && pesoDiAdesso != null ? round1(pesoDiAdesso - targetWeightKg) : null;
 
     // "Cosa ha imparato Gaia su di te" — SOLO fatti reali presenti a DB.
     const gaia: string[] = [];
@@ -356,11 +390,13 @@ export class PlanReportService {
     // `monthsToGoal` (mesi stimati al traguardo) serve anche a scegliere il piano suggerito 1/3 mesi.
     let etaLabel: string | null = null;
     let monthsToGoal: number | null = null;
-    if (w0 != null && b && targetWeightKg != null && b.weightKg > targetWeightKg) {
+    // ⚠️ La stima parte dallo STESSO peso di adesso dei chili che mancano: due numeri accanto
+    // calcolati da due pesi diversi si contraddicono («ti mancano 3 kg» e una data che ne presuppone 4).
+    if (w0 != null && pesoDiAdesso != null && targetWeightKg != null && pesoDiAdesso > targetWeightKg) {
       const monthsElapsed = Math.max(1, (end.getTime() - journeyFrom.getTime()) / (30.4 * 86_400_000));
-      const rate = (b.weightKg - w0) / monthsElapsed; // negativo = perde
+      const rate = (pesoDiAdesso - w0) / monthsElapsed; // negativo = perde
       if (rate < -0.05) {
-        const monthsLeft = Math.ceil((b.weightKg - targetWeightKg) / -rate);
+        const monthsLeft = Math.ceil((pesoDiAdesso - targetWeightKg) / -rate);
         monthsToGoal = monthsLeft;
         if (monthsLeft <= 24) {
           const eta = this.addMonths(end, monthsLeft);

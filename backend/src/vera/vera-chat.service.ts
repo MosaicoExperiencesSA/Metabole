@@ -25,6 +25,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione } from './capisci';
+import { daQuandoSiPuoRifare } from './menu-da-rifare';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
@@ -925,7 +926,10 @@ export class VeraChatService {
   private async giorniPastiDaRifare(clientId: string, slots: Spuntino[], azione: 'togli' | 'rimetti') {
     const oggi = new Date();
     const giorni = (await this.prisma.menuDay.findMany({
-      where: { clientId, viewedAt: null, date: { gt: oggi } } as never,
+      // ⚠️ `gte` dalla mezzanotte di oggi, non `gt: adesso`: `MenuDay.date` è una data senza ora, e
+      // confrontarla con l'istante corrente fa sparire la giornata di oggi appena passa mezzanotte.
+      // Il confine è uno solo per tutti e tre i punti — vedi `daQuandoSiPuoRifare`.
+      where: { clientId, viewedAt: null, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
       select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
     })) as { id: string; clientId: string; date: Date; viewedAt: Date | null; meals: unknown }[];
     return giorniDaRifarePerPasti(giorni, slots, oggi, azione);
@@ -1909,7 +1913,7 @@ export class VeraChatService {
     const daRifare = await this.registro.menuDaRifare(stato.clienteId!);
     if (daRifare.length) {
       await this.prisma.menuDay
-        .deleteMany({ where: { clientId: stato.clienteId!, viewedAt: null, date: { gte: new Date(new Date().setUTCHours(0, 0, 0, 0)) } } as never })
+        .deleteMany({ where: { clientId: stato.clienteId!, viewedAt: null, date: { gte: daQuandoSiPuoRifare() } } as never })
         .catch(() => undefined);
     }
     const riga = (await this.registro.scrivi({

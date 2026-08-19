@@ -1,0 +1,51 @@
+La giornata di oggi si rifà, e «quanto manca» nell'app è uno solo
+
+Due risposte di Simone del 19/8, e in tutte e due il lavoro non era scrivere una funzione nuova:
+era togliere una risposta di troppo.
+
+1) «SI PUÒ ANCORA RIFARE?» — UNA RISPOSTA SOLA, E OGGI È DENTRO
+La stessa domanda era scritta in **tre posti**: `registro.service.menuDaRifare` (per una cliente),
+`vera/menu-da-rifare.ts` (per una dieta) e `vera/togli-spuntino.ts` (per gli spuntini). Tutte e tre
+dicevano «futuri e mai aperti», ⚠️ **ma il confine di oggi era diverso**: due includevano la giornata
+di oggi, la terza partiva da domani.
+
+⚠️ La conseguenza si vedeva su una cliente che non aveva ancora aperto il menu di oggi: toglierle lo
+spuntino **non glielo toglieva oggi**, vietarle un alimento **sì**. Nessuno dei due comportamenti era
+scritto come scelta — erano due `where` scritti in momenti diversi.
+
+Simone: «meglio rifare la giornata di oggi». Adesso la risposta è una — `siPuoRifare` — e il confine
+sta in un posto solo (`daQuandoSiPuoRifare`).
+
+⚠️ Il confine è la **mezzanotte di oggi** e non «adesso»: `MenuDay.date` è una data senza ora, e
+confrontarla con l'istante corrente fa sparire la giornata di oggi appena passa mezzanotte, cioè
+sempre.
+
+⚠️ E la regola vera resta intatta: un giorno **già aperto** non si rifà mai, perché magari ci ha già
+fatto la spesa. Decide `viewedAt`, non il calendario.
+
+2) IL REPORT DENTRO L'APP DICE LA TENDENZA, COME IL RESTO DELL'APP
+`plan-report.service` **non alimenta il PDF firmato** — quello resta sul peso misurato ed è una
+scelta scritta e spiegata. Alimenta la **schermata Report dentro l'app**, quella che la cliente apre
+a fine piano: scriveva «−4,2 kg da oggi» sull'ultima pesata mentre la pagina Obiettivo della stessa
+app, due schermate più in là, ne diceva un altro sulla media mobile. ⚠️ Due numeri diversi sulla
+stessa persona dentro la stessa app, e nessuno a dire perché.
+
+⚠️ **Cambia anche la decisione che ci sta sotto**: `objectiveReached` sceglie se offrirle il
+Mantenimento o un altro piano-obiettivo, ed è la stessa domanda di `commerce.hasReachedObjective` —
+passata alla media mobile lo stesso giorno, perché proporre il Mantenimento per una mattina fortunata
+vuol dire venderlo un attimo prima che il peso risalga.
+
+⚠️ E la stima «quando arrivi» parte dallo **stesso** peso di adesso: due numeri accanto calcolati da
+due pesi diversi si contraddicono — «ti mancano 3 kg» con una data che ne presuppone 4.
+
+⚠️ Restano **misurati** i confronti A→B del periodo e i traguardi: raccontano cosa è successo, e la
+storia di una persona non si ridisegna con una media.
+
+FILE
+- backend: `vera/menu-da-rifare.ts` (`siPuoRifare`, `daQuandoSiPuoRifare`) · `vera/togli-spuntino.ts`
+  · `vera/vera-chat.service.ts` · `vera/registro.service.ts` · `vera/applica-proposta.ts`
+  · `reports/plan-report.service.ts` + `reports/plan-report-obiettivo.spec.ts` (nuovo, 3 test)
+  · `lavori/voci-iniziali.ts`
+
+236 suite / 3692 test verdi · app 106 · backoffice 31 · tre mutazioni provate e tutte e tre fanno
+fallire i test. Nessuna migrazione.

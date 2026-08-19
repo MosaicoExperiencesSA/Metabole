@@ -13,6 +13,33 @@
  * rimescolerebbero menu che non c'entrano niente, per una regola su un solo alimento.
  */
 
+/**
+ * DA QUANDO UN MENU SI PUÒ ANCORA RIFARE — **la giornata di oggi compresa** (19/8, decisione di
+ * Simone: «meglio rifare la giornata di oggi»).
+ *
+ * ⚠️ Esisteva scritta in **tre posti**, e in uno dei tre il confine era diverso: `menuDaRifare` (per
+ * una cliente) e `giorniDaRifare` (per una dieta) includevano oggi, `giorniDaRifarePerPasti` (per
+ * gli spuntini) partiva da domani. Su una cliente che non aveva ancora aperto il menu di oggi la
+ * conseguenza era visibile: toglierle lo spuntino non lo toglieva oggi, vietarle un alimento sì.
+ * Nessuno dei due era scritto come scelta — erano due `where` scritti in momenti diversi.
+ *
+ * ⚠️ Il confine è **la mezzanotte di oggi**, non «adesso»: `MenuDay.date` è una data senza ora, e
+ * confrontarla con l'istante corrente fa sparire la giornata di oggi appena passa mezzanotte —
+ * cioè sempre. È lo stesso errore che il progetto ha già pagato altrove sui confronti fra date.
+ *
+ * ⚠️ E resta la regola vera, che questo confine **non** tocca: un giorno **già aperto** non si rifà
+ * mai, perché magari ci ha già fatto la spesa. `viewedAt` è quello che decide, non il calendario.
+ */
+export function daQuandoSiPuoRifare(oggi: Date = new Date()): Date {
+  return new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate()));
+}
+
+/** «Questo giorno si può ancora rifare?» — mai aperto, e non passato. La risposta è una sola. */
+export function siPuoRifare(g: { date: Date; viewedAt?: Date | null }, oggi: Date = new Date()): boolean {
+  if (g.viewedAt) return false;
+  return new Date(g.date).getTime() >= daQuandoSiPuoRifare(oggi).getTime();
+}
+
 export interface GiornoDaValutare {
   id: string;
   clientId: string;
@@ -41,12 +68,9 @@ export function giorniDaRifare(
   oggi: Date,
 ): GiornoDaValutare[] {
   if (!vietate.size) return [];
-  const limite = new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate()));
-  return giorni.filter((g) => {
-    if (g.viewedAt) return false; // già letto: resta suo
-    if (new Date(g.date).getTime() < limite.getTime()) return false; // passato
-    return ricetteDelGiorno(g.meals).some((id) => vietate.has(id));
-  });
+  // ⚠️ «Si può ancora rifare?» ha **una** risposta: `siPuoRifare`. Qui si aggiunge solo la seconda
+  // domanda, che è di questa funzione e non delle altre: «contiene davvero il piatto vietato?».
+  return giorni.filter((g) => siPuoRifare(g, oggi) && ricetteDelGiorno(g.meals).some((id) => vietate.has(id)));
 }
 
 /** Quante persone diverse tocca. È il numero da confrontare col tetto, non quello dei giorni. */

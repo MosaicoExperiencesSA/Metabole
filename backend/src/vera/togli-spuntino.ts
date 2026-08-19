@@ -17,6 +17,8 @@
  * giornata diversa da quella che voleva.
  */
 
+import { siPuoRifare } from './menu-da-rifare';
+
 export type Spuntino = 'morning_snack' | 'afternoon_snack';
 export const SPUNTINI: readonly Spuntino[] = ['morning_snack', 'afternoon_snack'];
 
@@ -112,8 +114,14 @@ export function giorniDaRifarePerPasti(
   azione: 'togli' | 'rimetti',
 ): GiornoConPasti[] {
   return giorni.filter((g) => {
-    if (g.viewedAt !== null) return false;
-    if (g.date.getTime() <= oggi.getTime()) return false;
+    /**
+     * ⚠️ **La giornata di oggi si rifà** (19/8, decisione di Simone), e la risposta a «si può ancora
+     * rifare?» adesso è **una sola** (`siPuoRifare`). Qui il confine era «da domani» mentre negli
+     * altri due punti era «da oggi»: su una cliente che non aveva ancora aperto il menu di oggi,
+     * toglierle lo spuntino non lo toglieva oggi ma vietarle un alimento sì — due comportamenti
+     * diversi, nessuno dei due scritto come scelta.
+     */
+    if (!siPuoRifare(g, oggi)) return false;
     const presenti = slotDelGiorno(g.meals);
     return azione === 'togli'
       ? slots.some((s) => presenti.includes(s))

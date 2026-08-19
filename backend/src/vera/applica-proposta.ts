@@ -24,7 +24,7 @@ import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
-import { type GiornoDaValutare, clientiColpiti, giorniDaRifare } from './menu-da-rifare';
+import { type GiornoDaValutare, clientiColpiti, daQuandoSiPuoRifare, giorniDaRifare } from './menu-da-rifare';
 import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
 import { RicettaDelPool } from './pool-disponibile';
 
@@ -177,7 +177,7 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
   const oggi = new Date();
   const giorni = giorniDaRifare(
     ((await prisma.menuDay.findMany({
-      where: { dietId, viewedAt: null, date: { gte: new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate())) } } as never,
+      where: { dietId, viewedAt: null, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
       select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
     })) ?? []) as GiornoDaValutare[],
     ricetteFuori,
