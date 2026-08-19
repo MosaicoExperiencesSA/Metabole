@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🥣 **La quinoa bocciata perché il dato era giusto.** Primo giro in produzione di
+  `diag:crudo-cotto`, un'ora dopo la consegna: due difetti miei, tutti e due nella prima schermata.
+  ⚠️ **1)** In tabella lo stato è scritto al femminile e al plurale (`cruda`, `crude`, `bollite`) e
+  il confronto andava con `['crudo','secco']`: **quinoa**, **patata dolce**, **patate** e **pasta
+  integrale** (che ha *cruda, bollito*) finivano fra quelle da bloccare. Non era la diagnostica: era
+  `scegliPerRicetta`, cioè il codice che decide se una ricetta dettata a Vera si può scrivere —
+  avrebbe **rifiutato una ricetta con la quinoa proprio perché il dato era giusto**, che è il modo
+  peggiore di sbagliare perché punisce chi ha fatto bene il lavoro. Ora si normalizza sulla radice.
+  ⚠️ **2)** `liquido` (i latti), `fresco` (ricotta, yogurt), `viscoso` (sciroppo), `tostato`
+  (anacardi) **non sono stati di cottura**, ed erano finiti fra i «solo da cotto»: il latte scremato,
+  usato in 260 ricette, sarebbe stato bloccato. Per il latte quella domanda non esiste — diventano
+  «non lo so», si contano e si dichiarano. ⚠️ **3)** E la classificazione era **ricopiata a mano**
+  nella diagnostica: due punti sulla stessa domanda, e quello sbagliato era la copia. Ora chiama la
+  funzione vera.
+  ⛔ E il numero che dice più di tutti: **7831 ingredienti fuori tabella**, ma sono aromi (aglio
+  3888, sale 3296, limone 3146) e **varianti dello stesso nome** — «olio extravergine», «olio
+  extravergine d oliva», «olio extravergine oliva». Le ricette generate usano **nomi liberi**, e
+  nessuna tabella li coprirà: voce `ingredienti-nomi-liberi`, con le tre strade.
+  237 suite / **3722 test verdi**, due mutazioni provate e tutte e due fanno fallire i test.
+
+
 - `[Sviluppo]` 🍚 **Le grammature delle ricette sono a crudo, e adesso il codice lo rispetta.**
   Convenzione di Simone, dalle domande sul grano saraceno: «come si fa nei libri». È la scelta giusta
   perché è **una sola** — le alternative erano un campo da riempire su diciannovemila ricette o

@@ -1,4 +1,4 @@
-import { fraseAmbiguita, scegliPerStato, statoNelTesto, fraseSoloCotto, scegliPerRicetta } from './stato-alimento';
+import { fraseAmbiguita, scegliPerStato, statoNelTesto, fraseSoloCotto, scegliPerRicetta, normalizzaStato } from './stato-alimento';
 
 const riga = (state: string | null, name = 'x') => ({ state, name });
 
@@ -129,6 +129,37 @@ describe('scegliPerRicetta', () => {
     expect(scegliPerRicetta([r(null), r('crudo')])).toEqual({ tipo: 'va_bene', riga: r('crudo') });
   });
 
+  /**
+   * ⚠️ IL CASO CHE HA BOCCIATO LA QUINOA — primo giro in produzione, 19/8. In tabella lo stato è
+   * scritto al femminile e al plurale («cruda», «crude»), e il confronto andava con ['crudo']:
+   * quinoa, patata dolce e patate risultavano «solo da cotto» — cioè il codice si sarebbe rifiutato
+   * di scrivere una ricetta con la quinoa **proprio perché il dato era giusto**.
+   */
+  it('⚠️ «cruda» e «crude» sono «crudo»: genere e numero non cambiano lo stato', () => {
+    expect(scegliPerRicetta([r('cruda')])).toEqual({ tipo: 'va_bene', riga: r('cruda') });
+    expect(scegliPerRicetta([r('crude')])).toEqual({ tipo: 'va_bene', riga: r('crude') });
+    expect(scegliPerRicetta([r('secca')])).toEqual({ tipo: 'va_bene', riga: r('secca') });
+    // Il caso vero dalla produzione: «pasta integrale (cruda, bollito)» risultava da bloccare.
+    expect(scegliPerRicetta([r('cruda'), r('bollito')])).toEqual({ tipo: 'va_bene', riga: r('cruda') });
+  });
+
+  it('e lo stesso vale per il cotto: «bollita», «cotta»', () => {
+    expect(scegliPerRicetta([r('bollita')]).tipo).toBe('solo_cotto');
+    expect(scegliPerRicetta([r('cotta')]).tipo).toBe('solo_cotto');
+  });
+
+  /**
+   * ⚠️ E LA SECONDA COSA CHE HA MOSTRATO LA PRODUZIONE: in tabella ci sono stati che **non parlano
+   * di cottura** — liquido (i latti), fresco (ricotta, yogurt), viscoso (sciroppo), tostato
+   * (anacardi). Trattarli come «cotto» bloccava il latte, che crudo o cotto non è: per il latte
+   * quella domanda non esiste. Diventano «non lo so»: si contano e si dichiarano.
+   */
+  it('⚠️ «liquido», «fresco», «viscoso» non sono stati di cottura: non bloccano niente', () => {
+    expect(scegliPerRicetta([r('liquido')])).toEqual({ tipo: 'stato_ignoto', riga: r('liquido') });
+    expect(scegliPerRicetta([r('fresco')])).toEqual({ tipo: 'stato_ignoto', riga: r('fresco') });
+    expect(scegliPerRicetta([r('viscoso')])).toEqual({ tipo: 'stato_ignoto', riga: r('viscoso') });
+  });
+
   it('senza righe non c\'è niente da scegliere', () => {
     expect(scegliPerRicetta([])).toEqual({ tipo: 'niente' });
   });
@@ -139,5 +170,21 @@ describe('scegliPerRicetta', () => {
     expect(f).toContain('solo il valore da cotto');
     expect(f).toContain('a crudo');
     expect(f).toContain('Alimenti');
+  });
+});
+
+describe('normalizzaStato', () => {
+  it('porta genere, numero e accenti alla stessa radice', () => {
+    expect(['crudo', 'cruda', 'crudi', 'crude'].map(normalizzaStato)).toEqual(['crudo', 'crudo', 'crudo', 'crudo']);
+    expect(['secco', 'secca', 'essiccato', 'disidratate'].map(normalizzaStato)).toEqual(['secco', 'secco', 'secco', 'secco']);
+    expect(['bollito', 'bollite', 'lessa'].map(normalizzaStato)).toEqual(['bollito', 'bollito', 'bollito']);
+    expect(['cotto', 'cotta', 'arrostito'].map(normalizzaStato)).toEqual(['cotto', 'cotto', 'cotto']);
+  });
+
+  /** ⚠️ Quello che non parla di cottura si chiama «altro», e «altro» non è «cotto». */
+  it('⚠️ quello che non è uno stato di cottura si dichiara tale', () => {
+    expect(['liquido', 'fresco', 'viscoso', 'tostato'].map(normalizzaStato)).toEqual(['altro', 'altro', 'altro', 'altro']);
+    expect(normalizzaStato('')).toBe('');
+    expect(normalizzaStato(null)).toBe('');
   });
 });

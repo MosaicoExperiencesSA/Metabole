@@ -983,6 +983,17 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'ingredienti-nomi-liberi',
+    nata: '2026-08-19T17:20',
+    priorita: 'bassa',
+    titolo: '7831 ingredienti delle ricette non sono in tabella, e non è un elenco da riempire',
+    dettaglio:
+      'Dal primo giro di `npm run diag:crudo-cotto` in produzione (19/8). Gli ingredienti usati nelle ricette **attive** e sconosciuti alla tabella nutrienti sono **7831**. ⚠️ Il numero non si legge come «mancano 7831 righe»: guardando i primi si capisce cosa sono davvero. Ci sono gli **aromi** — aglio (3888 ricette), sale (3296), limone (3146), pepe nero (1755), prezzemolo fresco — che nel conto delle calorie pesano zero e la tabella non li avrà mai tutti. E soprattutto ci sono le **varianti dello stesso nome**: «olio extravergine» (2771), «olio extravergine d oliva» (2486), «olio extravergine oliva» (1237) sono lo stesso olio scritto in tre modi, e in tabella «olio extravergine di oliva» c\'è (3025 ricette lo trovano). ⛔ **La causa è che le ricette generate dall\'AI usano nomi liberi**, e nessuna tabella potrà coprirli: riempire l\'elenco è una battaglia che si perde a ogni generazione nuova. Le strade sono altre, e sono decisioni: (a) **normalizzare in lettura** — un dizionario di sinonimi che porta le tre scritture dell\'olio alla stessa riga, come già si fa per le allergie; (b) **vincolare la generazione** a un elenco chiuso di ingredienti, che è il modo di non avere il problema ma restringe le ricette; (c) **niente**, e si accetta che il conto dei macro salti gli aromi (che è quasi sempre giusto) e ogni tanto un ingrediente vero. ⚠️ Oggi siamo nella (c) senza averla scelta: `calcolaMacro` **dichiara** quello che non ha contato, quindi non è un guasto silenzioso — ma su una ricetta con l\'olio scritto nel modo sbagliato il totale è più basso del vero, e l\'olio non è un aroma.',
+    categoria: SIMONE,
+    ordine: 300,
+  },
+
+  {
     chiave: 'scheda-ricetta-crudo-o-cotto',
     nata: '2026-08-19T16:10',
     // ⚠️ Bassa per la regola del 19/8: la priorità la dà Simone, non io.

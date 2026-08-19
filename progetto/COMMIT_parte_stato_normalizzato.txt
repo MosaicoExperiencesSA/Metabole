@@ -1,0 +1,48 @@
+La quinoa bocciata perché il dato era giusto: lo stato si normalizza prima di confrontarlo
+
+Il primo giro in produzione di `diag:crudo-cotto`, un'ora dopo la consegna precedente. Due difetti,
+tutti e due miei, tutti e due visibili nella prima schermata.
+
+1) «QUINOA (CRUDA)» CLASSIFICATA COME «SOLO DA COTTO»
+In tabella lo stato è scritto **al femminile e al plurale** — `cruda`, `crude`, `bollite` — e il
+confronto andava con `['crudo', 'secco']`. Risultato: **quinoa**, **patata dolce**, **patate** e
+**pasta integrale** (che ha *cruda, bollito*) finivano fra quelli da bloccare.
+
+⚠️ Non era un difetto della diagnostica: era `scegliPerRicetta`, cioè il codice che decide se una
+ricetta dettata a Vera si può scrivere. Avrebbe **rifiutato una ricetta con la quinoa proprio perché
+il dato era giusto** — il modo peggiore di sbagliare, perché punisce chi ha fatto bene il lavoro.
+
+Adesso lo stato si normalizza sulla **radice**: `crud` → crudo, `secc`/`essicc`/`disidrat` → secco,
+`bollit`/`less` → bollito, `cott`/`arrost` → cotto. Genere, numero e accenti non cambiano uno stato.
+
+2) «LIQUIDO», «FRESCO», «VISCOSO», «TOSTATO» NON SONO STATI DI COTTURA
+In tabella ci sono anche questi: i latti sono `liquido`, ricotta e yogurt `fresco`, lo sciroppo
+d'acero `viscoso`, gli anacardi `tostato`. Erano finiti fra i «solo da cotto» — cioè il latte
+scremato, usato in 260 ricette, sarebbe stato **bloccato**.
+
+⚠️ Ma per il latte la domanda «crudo o cotto?» **non esiste**: nessuno ha mai definito quegli stati
+rispetto alla convenzione delle grammature. Diventano quindi «non lo so»: si contano **e si
+dichiarano**, che è il terzo stato che questo progetto usa dappertutto — e non «cotto», che sarebbe
+una risposta inventata alla domanda sbagliata.
+
+3) E LA DIAGNOSTICA ORA CHIAMA LA FUNZIONE, NON NE COPIA LA REGOLA
+⚠️ La classificazione era **ricopiata a mano** dentro `diag-crudo-cotto.ts`. È esattamente il difetto
+che questo progetto insegue da settimane: due punti che rispondono alla stessa domanda, e quello
+sbagliato era la copia. Ora la diagnostica chiama `scegliPerRicetta`, la stessa che decide se la
+ricetta si scrive — se un domani la regola cambia, cambia per tutte e due.
+
+COSA DICEVA LA PRODUZIONE, AL NETTO DEI DUE DIFETTI
+· **35 alimenti** classificati «solo da cotto», di cui almeno quattro erano falsi allarmi da genere
+  e numero, e sei da stati che non parlano di cottura. Restano quelli veri: carote bollite (1017
+  ricette), broccoli, pane di segale, spinaci, zucca, barbabietola.
+· **7831 ingredienti fuori tabella**, ed è il numero che dice più di tutti: aglio, sale, limone,
+  pepe — ma anche «olio extravergine», «olio extravergine d oliva» e «olio extravergine oliva», che
+  sono lo stesso olio scritto in tre modi. ⛔ Le ricette generate usano **nomi liberi**, e nessuna
+  tabella potrà mai coprirli tutti: è una voce a sé, non un elenco da riempire.
+
+FILE
+- backend: `nutrient-facts/stato-alimento.ts` (`normalizzaStato`, `STATI_DA_COTTO`) + spec (5 test
+  nuovi) · `prisma/diag-crudo-cotto.ts`
+
+237 suite / 3722 test verdi · due mutazioni provate e tutte e due fanno fallire i test.
+Nessuna migrazione.

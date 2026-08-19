@@ -54,7 +54,7 @@
  *   QUANTI=40 npm run diag:crudo-cotto
  */
 import { PrismaClient } from '@prisma/client';
-import { STATI_A_CRUDO } from '../src/nutrient-facts/stato-alimento';
+import { scegliPerRicetta } from '../src/nutrient-facts/stato-alimento';
 import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
 const prisma = new PrismaClient();
@@ -118,15 +118,15 @@ async function main() {
     if (giaVisti.has(nome)) continue;
     giaVisti.add(nome);
     /**
-     * ⚠️ La stessa scelta che fa il codice quando scrive una ricetta (`scegliPerRicetta`): se una
-     * riga a crudo o a secco c'è, va tutto bene qualunque altra riga ci sia accanto. Rifarla qui con
-     * regole diverse vorrebbe dire che la diagnostica dice «a posto» su un alimento che il calcolo
-     * rifiuta — due risposte alla stessa domanda.
+     * ⚠️ **La stessa identica funzione** che usa il calcolo (`scegliPerRicetta`), non una copia della
+     * sua regola. Il primo giro in produzione (19/8) l'ha dimostrato: qui la regola era ricopiata a
+     * mano, e bocciava «quinoa (cruda)» perché confrontava con `['crudo']` al maschile. Due
+     * risposte alla stessa domanda, e quella sbagliata era la copia.
      */
-    const stati = righe.map((r) => (r.state ?? '').trim().toLowerCase());
-    if (stati.some((x) => STATI_A_CRUDO.includes(x))) { aPosto += 1; continue; }
-    if (stati.some((x) => !x)) { senzaStato.push({ nome, quante }); continue; }
-    soloCotto.push({ nome, quante, stati: [...new Set(stati)].join(', ') });
+    const scelta = scegliPerRicetta(righe);
+    if (scelta.tipo === 'va_bene') { aPosto += 1; continue; }
+    if (scelta.tipo === 'stato_ignoto') { senzaStato.push({ nome, quante }); continue; }
+    if (scelta.tipo === 'solo_cotto') soloCotto.push({ nome, quante, stati: scelta.stati.join(', ') });
   }
 
   const perUso = (a: { quante: number }, b: { quante: number }) => b.quante - a.quante;

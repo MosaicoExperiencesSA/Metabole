@@ -131,6 +131,42 @@ export function fraseAmbiguita(nome: string, stati: readonly string[]): string {
  */
 export const STATI_A_CRUDO = ['crudo', 'secco'];
 
+/** Gli stati che vogliono dire «già cotto»: su una grammatura a crudo il loro numero non si usa. */
+export const STATI_DA_COTTO = ['cotto', 'bollito'];
+
+/**
+ * ⚠️ LO STATO SI NORMALIZZA PRIMA DI CONFRONTARLO — e non è un dettaglio di stile.
+ *
+ * Il primo giro in produzione (19/8) ha bocciato **«quinoa (cruda)»**, **«patata dolce (cruda)»** e
+ * **«patate (crude)»**: in tabella lo stato è scritto **al femminile e al plurale**, e il confronto
+ * andava con `['crudo','secco']`. Tre alimenti a crudo dichiarati «solo da cotto» — cioè il codice
+ * avrebbe rifiutato di scrivere una ricetta con la quinoa **proprio perché il dato era giusto**.
+ *
+ * ⚠️ E ha mostrato la seconda cosa: in tabella ci sono stati che **non parlano di cottura** —
+ * `liquido` (i latti), `fresco` (ricotta, yogurt), `viscoso` (sciroppo d'acero), `tostato` (gli
+ * anacardi). Trattarli come «cotto» bloccava il latte, che crudo o cotto non è: per il latte la
+ * domanda non esiste. Qui diventano «non lo so» — si contano e si dichiarano — che è la risposta
+ * onesta: sono stati che nessuno ha mai definito rispetto alla convenzione delle grammature.
+ */
+export function normalizzaStato(v: unknown): string {
+  const t = (typeof v === 'string' ? v : '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (!t) return '';
+  // ⚠️ La radice, non la parola intera: `crudo | cruda | crudi | crude` sono lo stesso stato, e
+  // pretendere la forma esatta è il difetto che il 19/8 ha bocciato la quinoa.
+  for (const radice of ['crud', 'secc', 'essicc', 'disidrat']) {
+    if (t.startsWith(radice)) return radice === 'crud' ? 'crudo' : 'secco';
+  }
+  for (const radice of ['bollit', 'less']) if (t.startsWith(radice)) return 'bollito';
+  for (const radice of ['cott', 'arrost', 'al forno']) if (t.startsWith(radice)) return 'cotto';
+  // ⚠️ Tutto il resto NON è uno stato di cottura: `liquido`, `fresco`, `viscoso`, `tostato`. Non si
+  // finge di saperlo — vedi `scegliPerRicetta`, dove diventa «non lo so».
+  return 'altro';
+}
+
 export type EsitoPerRicetta<T extends RigaConStato> =
   /** Si può contare: la riga è a crudo (o a secco), come la ricetta. */
   | { tipo: 'va_bene'; riga: T }
@@ -150,15 +186,20 @@ export type EsitoPerRicetta<T extends RigaConStato> =
 export function scegliPerRicetta<T extends RigaConStato>(candidati: readonly T[]): EsitoPerRicetta<T> {
   const righe = (candidati ?? []).filter(Boolean);
   if (!righe.length) return { tipo: 'niente' };
-  const stato = (r: RigaConStato) => (r.state ?? '').trim().toLowerCase();
+  const stato = (r: RigaConStato) => normalizzaStato(r.state);
 
   const aCrudo = righe.find((r) => STATI_A_CRUDO.includes(stato(r)));
   if (aCrudo) return { tipo: 'va_bene', riga: aCrudo };
 
-  const senzaStato = righe.find((r) => !stato(r));
-  if (senzaStato) return { tipo: 'stato_ignoto', riga: senzaStato };
+  /**
+   * ⚠️ «Non lo so» copre due casi, e sono la stessa cosa per chi legge: lo stato **manca**, oppure
+   * c'è ma **non parla di cottura** (`liquido`, `fresco`, `tostato`). In tutti e due nessuno ha mai
+   * detto se quel numero valga a crudo — e il latte crudo o cotto non è. Si conta e si dichiara.
+   */
+  const ignoto = righe.find((r) => stato(r) === '' || stato(r) === 'altro');
+  if (ignoto) return { tipo: 'stato_ignoto', riga: ignoto };
 
-  return { tipo: 'solo_cotto', stati: [...new Set(righe.map(stato))] };
+  return { tipo: 'solo_cotto', stati: [...new Set(righe.map((r) => (r.state ?? '').trim().toLowerCase()))] };
 }
 
 /** La riga che Vera scrive quando di un alimento ha **solo** il valore da cotto. */
