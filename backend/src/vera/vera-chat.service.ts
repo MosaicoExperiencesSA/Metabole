@@ -753,7 +753,12 @@ export class VeraChatService {
           continue;
         }
       }
-      const v = (await this.valori.cerca(i.name).catch(() => null)) as ValorePer100 | null;
+      /**
+       * ⚠️ `cercaPerIngrediente` e non `cerca`: qui l'ingresso è un **nome** («spinaci freschi»), non
+       * una domanda, e su un nome vale la regola «la ricetta è più specifica della tabella». Su una
+       * frase intera quella stessa regola si abbinerebbe a caso — vedi `abbinamento-alimenti.ts`.
+       */
+      const v = (await this.valori.cercaPerIngrediente(i.name).catch(() => null)) as ValorePer100 | null;
       valori.set(i.name, v);
     }
     return calcolaMacro(ricetta.ingredienti, valori, ambigui, soloCotto, statoIgnoto);

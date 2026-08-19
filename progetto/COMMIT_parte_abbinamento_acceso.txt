@@ -1,0 +1,46 @@
+L'abbinamento dei nomi è acceso: Gaia smette di dire «non ce l'ho» su alimenti che ha
+
+Lista degli accoppiamenti confermata da Simone e dalla nutrizionista sul giro di
+`npm run diag:crudo-cotto`. Le regole scritte ieri sera passano da «si guarda» a «si usa».
+
+DOVE SI ACCENDE, E DOVE NO
+⚠️ **Due strade diverse, e tenerle separate è il punto.**
+
+· `cercaPerIngrediente(nome)` — **nuova**, e la usa il calcolo dei macro quando la nutrizionista
+  detta una ricetta. Qui l'ingresso è un **nome** («spinaci freschi»), e vale la regola «la ricetta è
+  più specifica della tabella»: 1350 ricette in produzione scrivono «spinaci freschi» dove in
+  tabella c'è «spinaci», e prima quell'alimento risultava fuori tabella e fermava la ricetta.
+
+· `cercaTutti(testo)` — quella delle **domande** di Gaia. ⚠️ Qui la regola «più specifica» sarebbe
+  pericolosa: una frase lunga contiene le parole di mezza tabella e si abbinerebbe a caso. Si accende
+  **solo** la parte delle paroline: si toglie la stessa cosa da tutt'e due i lati — «olio extravergine
+  **di** oliva» e «olio extravergine d'oliva» diventano la stessa scrittura — e si cerca come prima.
+  ⚠️ Non è una ricerca più larga: è la stessa ricerca su una scrittura normalizzata, e non può
+  abbinare niente che non fosse già a un «di» di distanza.
+
+IL TEST CHE TIENE FERMO IL CONFINE
+⚠️ «Riso» **non** diventa «riso integrale»: la ricetta si ferma e lo dice. Sono due alimenti, e
+scambiarli è il difetto da cui è nata tutta la storia del crudo/cotto (voce 228). C'è un test che
+fallisce se qualcuno allarga la regola.
+
+⚠️ E IL DOPPIO DI PROVA CHE NON SI COMPORTAVA COME L'ORIGINALE
+Aggiungendo `cercaPerIngrediente` sono diventati rossi quattro test che col codice non c'entravano:
+il doppio della tabella nutrienti aveva solo `cerca`, e sul metodo nuovo rispondeva `undefined` dove
+il vero risponde un valore o `null`. È **la stessa lezione della mattina** sul doppio di `audit.log`:
+un doppio che si comporta diversamente dall'originale non verifica niente. Ora usa lo **stesso**
+`abbina` del servizio vero, quindi un test che si appoggia all'abbinamento dice qualcosa di vero.
+
+COSA RESTA FUORI, DI PROPOSITO
+⛔ «Olio extravergine» da solo (2771 ricette): «oliva» è una parola che distingue, e nessuna regola
+la può indovinare. Si chiude con **un sinonimo** sulla riga esistente — una riga, scritta da una
+persona, dalla pagina Alimenti.
+⛔ E la lista **3b** della diagnostica: sale, pepe, aglio, brodo vegetale. Da aggiungere a mano, come
+concordato.
+
+FILE
+- backend: `nutrient-facts/valori-nutrizionali.service.ts` (`cercaPerIngrediente`, paroline in
+  `cercaTutti`) · `vera/vera-chat.service.ts` · `vera/vera-chat.service.spec.ts` (il doppio, e due
+  test nuovi)
+
+238 suite / 3738 test verdi · due mutazioni provate e tutte e due fanno fallire i test.
+Nessuna migrazione.

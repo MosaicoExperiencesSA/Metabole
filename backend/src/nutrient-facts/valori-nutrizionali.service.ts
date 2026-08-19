@@ -1,3 +1,4 @@
+import { abbina, paroleChe } from './abbinamento-alimenti';
 import { type EsitoScelta, fraseAmbiguita, scegliPerStato } from './stato-alimento';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -131,6 +132,30 @@ export class ValoriNutrizionaliService {
   }
 
   /**
+   * L'ALIMENTO DI UN INGREDIENTE DI RICETTA — dove il testo è un **nome**, non una domanda.
+   *
+   * ⚠️ È separato da `cerca` di proposito, e la differenza non è cosmetica. `cerca` riceve anche
+   * **frasi intere** («vorrei sapere del riso basmati»), e su una frase la regola «la ricetta è più
+   * specifica della tabella» diventa pericolosa: una frase lunga contiene le parole di mezza
+   * tabella, e si abbinerebbe a caso. Qui l'ingresso è «spinaci freschi», e lì quella regola è
+   * esattamente quello che serve.
+   *
+   * Le regole stanno in `abbinamento-alimenti.ts`, con scritto perché la terza che sembrava ovvia
+   * non esiste. ⚠️ Dopo l'abbinamento si applica lo **stato**: la riga trovata può essere in più
+   * stati, e la convenzione delle ricette è «a crudo».
+   */
+  async cercaPerIngrediente(nome: string): Promise<ValoreNutrizionale | null> {
+    const t = normalizzaNome(nome);
+    if (t.length < 3) return null;
+    const tutti = (await this.prisma.nutrientFact.findMany()) as unknown as ValoreNutrizionale[];
+    // ⚠️ Prima l'uguaglianza esatta, che non ha bisogno di nessuna regola.
+    const esatti = tutti.filter((v) => [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).includes(t));
+    if (esatti.length) return esatti[0];
+    const trovato = abbina(nome, tutti, (v) => [v.name, ...(v.synonyms ?? [])]);
+    return trovato?.riga ?? null;
+  }
+
+  /**
    * Come `cerca`, ma dice anche **quando non si può rispondere**: più righe con stati diversi e la
    * domanda che non specifica quale. Serve a `schedaPerRisposta`, che deve poter istruire Gaia a
    * chiedere invece di dare un numero.
@@ -149,14 +174,28 @@ export class ValoriNutrizionaliService {
     if (t.length < 3) return [];
     const tutti = (await this.prisma.nutrientFact.findMany()) as unknown as ValoreNutrizionale[];
 
+    /**
+     * ⚠️ LE PAROLINE NON CONTANO, NEMMENO QUI (19/8). In tabella c'è «olio extravergine **di**
+     * oliva» e le clienti scrivono «olio extravergine d'oliva»: la stessa cosa, e la ricerca per
+     * sottostringa non la trovava — Gaia rispondeva «non ce l'ho» su un alimento che ha.
+     *
+     * ⚠️ Si toglie la stessa cosa da tutt'e due i lati e si cerca come prima: **non è una ricerca
+     * più larga**, è la stessa ricerca su una scrittura normalizzata. Non può abbinare niente che
+     * non fosse già a un «di» di distanza.
+     */
+    const senzaParoline = (x: string) => paroleChe(x).join(' ');
+    const tp = senzaParoline(t);
+
     const trovati: { v: ValoreNutrizionale; lunghezza: number; posizione: number }[] = [];
     for (const v of tutti) {
       const nomi = [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).filter(Boolean);
       let migliore: { lunghezza: number; posizione: number } | null = null;
       for (const n of nomi) {
-        const pos = t.indexOf(n);
+        const np = senzaParoline(n);
+        if (!np) continue;
+        const pos = tp.indexOf(np);
         if (pos < 0) continue;
-        if (!migliore || n.length > migliore.lunghezza) migliore = { lunghezza: n.length, posizione: pos };
+        if (!migliore || np.length > migliore.lunghezza) migliore = { lunghezza: np.length, posizione: pos };
       }
       if (migliore) trovati.push({ v, ...migliore });
     }

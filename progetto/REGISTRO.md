@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔗 **L'abbinamento dei nomi è acceso** (lista degli accoppiamenti confermata da Simone
+  e dalla nutrizionista). ⚠️ **Due strade diverse, e tenerle separate è il punto**:
+  `cercaPerIngrediente` — nuova, per il calcolo dei macro quando si detta una ricetta — riceve un
+  **nome** e applica la regola «la ricetta è più specifica della tabella» (1350 ricette scrivono
+  «spinaci freschi» dove c'è «spinaci», e prima si fermavano); `cercaTutti`, quella delle **domande**
+  di Gaia, accende **solo** la parte delle paroline, perché su una frase lunga la regola «più
+  specifica» si abbinerebbe a caso — ⚠️ e togliere le paroline da tutt'e due i lati non è una ricerca
+  più larga, è la stessa ricerca su una scrittura normalizzata. ⚠️ C'è il test che tiene fermo il
+  confine: **«riso» non diventa «riso integrale»**, la ricetta si ferma e lo dice.
+  ⚠️ **E il doppio di prova che non si comportava come l'originale**: aggiungendo il metodo nuovo
+  sono diventati rossi quattro test che col codice non c'entravano — il doppio della tabella aveva
+  solo `cerca` e sul metodo nuovo rispondeva `undefined`. Stessa lezione della mattina su
+  `audit.log`: ora il doppio usa lo **stesso** `abbina` del servizio vero.
+  ⛔ Restano fuori di proposito «olio extravergine» da solo (2771 ricette: si chiude con **un
+  sinonimo** scritto da una persona) e la lista 3b — sale, pepe, aglio, brodo — da aggiungere a mano.
+  238 suite / **3738 test verdi**, due mutazioni provate e tutte e due fanno fallire i test.
+
+
 - `[Sviluppo]` 🔤 **I nomi liberi degli ingredienti: le regole per abbinarli, e la misura prima di
   accenderle.** 7831 nomi usati nelle ricette non si trovano in tabella, ma non è un elenco da
   riempire: «olio extravergine d oliva» è «olio extravergine **di** oliva», «spinaci freschi» sono

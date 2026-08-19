@@ -1,3 +1,4 @@
+import { abbina } from '../nutrient-facts/abbinamento-alimenti';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -136,6 +137,24 @@ function make(
    */
   const valori = {
     cerca: jest.fn().mockImplementation(async (nome: string) => (opzioni.valori ?? {})[nome] ?? null),
+    /**
+     * ⚠️ IL DOPPIO DEVE COMPORTARSI COME L'ORIGINALE, o non verifica niente.
+     *
+     * `cercaPerIngrediente` è nata il 19/8 (abbinamento dei nomi liberi) e il doppio non ce l'aveva:
+     * quattro test sono diventati rossi non perché il codice fosse sbagliato, ma perché il finto
+     * rispondeva `undefined` dove il vero risponde un valore o `null`. È la stessa lezione della
+     * mattina sul doppio di `audit.log`.
+     *
+     * Qui usa lo **stesso** `abbina` del servizio vero sui valori finti: così un test che si appoggia
+     * all'abbinamento («spinaci freschi» → «spinaci») dice qualcosa di vero.
+     */
+    cercaPerIngrediente: jest.fn().mockImplementation(async (nome: string) => {
+      const tabella = opzioni.valori ?? {};
+      if (tabella[nome]) return tabella[nome];
+      const righe = Object.keys(tabella).map((k) => ({ name: k }));
+      const trovato = abbina(nome, righe, (r) => [r.name]);
+      return trovato ? tabella[trovato.riga.name] : null;
+    }),
     /**
      * Crudo/cotto (voce 228): di default nessun alimento è ambiguo, cioè il comportamento che
      * questi test già difendevano. `opzioni.ambigui` serve al test che prova il contrario.
@@ -804,6 +823,47 @@ describe('VeraChatService — le ricette', () => {
     expect(testo).toContain('210 kcal');
     expect(testo).toContain('bozza');
     expect(stato?.passo).toBe('ricetta_conferma');
+  });
+
+  /**
+   * ⚠️ IL NOME LIBERO CHE ADESSO SI ABBINA (19/8). Le ricette generate — e le nutrizioniste che
+   * dettano — scrivono «spinaci freschi» dove in tabella c'è «spinaci»: in produzione sono 1350
+   * ricette. Prima l'alimento risultava **fuori tabella** e la ricetta si fermava.
+   *
+   * ⚠️ Le regole stanno in `abbinamento-alimenti.ts` e sono due sole: le paroline non contano, e la
+   * ricetta più specifica prende la riga generica. Non c'è nessuna somiglianza approssimata.
+   */
+  it('⚠️ «spinaci freschi» trova «spinaci»: un aggettivo in più non è un altro alimento', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' },
+        valori: { spinaci: { name: 'spinaci', kcal: 31, protein: 3, carbs: 3, fat: 0 } },
+      },
+    );
+    await service.parla('lucia', 'Spinaci saltati\nspinaci freschi 200 g\npranzo onnivora');
+    const { testo } = ultimoAgente(messaggioCreate);
+    // 200 g × 31/100 = 62 kcal: se non si fosse abbinato, direbbe «non ho i valori di spinaci freschi».
+    expect(testo).toContain('62 kcal');
+    expect(testo).not.toContain('non ho i valori');
+  });
+
+  /**
+   * ⚠️ E QUELLO CHE NON SI DEVE ABBINARE RESTA FUORI. «Riso» non è «riso integrale»: sono due
+   * alimenti, e scambiarli è il difetto da cui è nata tutta la storia del crudo/cotto (voce 228).
+   */
+  it('⚠️ «riso» non diventa «riso integrale»: la ricetta si ferma e lo dice', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' },
+        valori: { 'riso integrale': { name: 'riso integrale', kcal: 123, protein: 3, carbs: 26, fat: 1 } },
+      },
+    );
+    await service.parla('lucia', 'Riso in bianco\nriso 80 g\npranzo onnivora');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('riso');
+    expect(testo).not.toContain('98 kcal');
   });
 
   it('⚠️ al sì la ricetta nasce SPENTA e va in coda', async () => {
