@@ -1,0 +1,34 @@
+«Il latte è sempre liquido»: gli stati che descrivono il prodotto, non una cottura
+
+Correzione di Simone, 19/8, sulla consegna di un'ora prima: «attenzione, latte può essere fresco,
+freddo e sono crudi. Caldo o tiepido e sono cotti. Non esiste latte viscoso o tostato, e il latte è
+sempre liquido».
+
+L'ULTIMA FRASE È QUELLA CHE DECIDE
+⚠️ **Se ogni latte è liquido, «liquido» non può essere un avviso.** È come scrivere «solido» sul
+pane: non distingue niente, e uno stato che non distingue niente non può mettere in dubbio un numero.
+Avevo trattato `liquido` come «non lo so», e i quattro latti — oltre settecento ricette in tutto —
+restavano in un elenco di cose da guardare in cui non c'era niente da guardare.
+
+⚠️ Lo stesso vale per `fresco` (ricotta, yogurt) e `viscoso` (sciroppo d'acero): dicono **com'è il
+prodotto che si compra e si pesa**, e la convenzione «a crudo» su di loro è già soddisfatta — fra la
+confezione e la bilancia non c'è nessuna cottura in mezzo.
+
+E `caldo` / `tiepido` sono cotti, che è il caso simmetrico: lì una cottura c'è.
+
+MA «TOSTATO» NON STA CON GLI ALTRI
+⚠️ Tostare è una **lavorazione che cambia peso e calorie**: mandorle crude e mandorle tostate non
+sono la stessa cosa. Resta «non lo so», si conta e si dichiara — perché nessuno ha ancora detto
+quale dei due valori sia in tabella, e indovinarlo su una frutta secca da 600 kcal/100 g non è una
+cosa da fare per far sparire una riga da un elenco.
+
+⚠️ E c'era un errore anche nel modo in cui l'avevo raccontato: avevo elencato `liquido, fresco,
+viscoso, tostato` sotto «il latte», mentre `viscoso` era lo sciroppo e `tostato` gli anacardi. Un
+elenco che mette insieme quattro cose per comodità di frase è un elenco che nasconde la differenza
+che conta — ed è la differenza che Simone ha visto subito.
+
+FILE
+- backend: `nutrient-facts/stato-alimento.ts` (`STATI_DEL_PRODOTTO`) + spec (3 test nuovi)
+
+237 suite / 3724 test verdi · tre mutazioni provate e tutte e tre fanno fallire i test.
+Nessuna migrazione.

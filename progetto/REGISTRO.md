@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🥛 **«Il latte è sempre liquido»** — correzione di Simone sulla consegna di un'ora
+  prima. ⚠️ **Se ogni latte è liquido, «liquido» non può essere un avviso**: è come scrivere «solido»
+  sul pane, e uno stato che non distingue niente non può mettere in dubbio un numero. Avevo trattato
+  `liquido` come «non lo so», e i quattro latti — oltre settecento ricette — finivano in un elenco di
+  cose da guardare in cui non c'era niente da guardare. Lo stesso per `fresco` (ricotta, yogurt) e
+  `viscoso` (sciroppo): dicono **com'è il prodotto che si compra e si pesa**, e fra la confezione e
+  la bilancia non c'è nessuna cottura. `caldo` e `tiepido` sono invece cotti, che è il caso
+  simmetrico. ⚠️ **Ma `tostato` non sta con gli altri**: tostare cambia peso e calorie — mandorle
+  crude e tostate non sono la stessa cosa — e resta «non lo so», perché indovinare su una frutta
+  secca da 600 kcal/100 g per far sparire una riga da un elenco non si fa. ⚠️ E c'era un errore anche
+  nel racconto: avevo messo `viscoso` e `tostato` sotto «il latte», mentre erano lo sciroppo e gli
+  anacardi — un elenco che unisce quattro cose per comodità di frase nasconde proprio la differenza
+  che conta. 237 suite / **3724 test verdi**, tre mutazioni provate e tutte e tre fanno fallire i test.
+
+
 - `[Sviluppo]` 🥣 **La quinoa bocciata perché il dato era giusto.** Primo giro in produzione di
   `diag:crudo-cotto`, un'ora dopo la consegna: due difetti miei, tutti e due nella prima schermata.
   ⚠️ **1)** In tabella lo stato è scritto al femminile e al plurale (`cruda`, `crude`, `bollite`) e

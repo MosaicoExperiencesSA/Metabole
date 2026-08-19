@@ -154,10 +154,30 @@ describe('scegliPerRicetta', () => {
    * (anacardi). Trattarli come «cotto» bloccava il latte, che crudo o cotto non è: per il latte
    * quella domanda non esiste. Diventano «non lo so»: si contano e si dichiarano.
    */
-  it('⚠️ «liquido», «fresco», «viscoso» non sono stati di cottura: non bloccano niente', () => {
-    expect(scegliPerRicetta([r('liquido')])).toEqual({ tipo: 'stato_ignoto', riga: r('liquido') });
-    expect(scegliPerRicetta([r('fresco')])).toEqual({ tipo: 'stato_ignoto', riga: r('fresco') });
-    expect(scegliPerRicetta([r('viscoso')])).toEqual({ tipo: 'stato_ignoto', riga: r('viscoso') });
+  it('⚠️ «liquido», «fresco», «viscoso» descrivono il prodotto: si pesa com\'è, e va bene', () => {
+    expect(scegliPerRicetta([r('liquido')])).toEqual({ tipo: 'va_bene', riga: r('liquido') });
+    expect(scegliPerRicetta([r('fresco')])).toEqual({ tipo: 'va_bene', riga: r('fresco') });
+    expect(scegliPerRicetta([r('viscoso')])).toEqual({ tipo: 'va_bene', riga: r('viscoso') });
+  });
+
+  /**
+   * ⚠️ IL LATTE, CORRETTO DA SIMONE (19/8): «fresco e freddo sono crudi, caldo o tiepido sono cotti,
+   * e il latte è sempre liquido». L'ultima è quella che decide: se **ogni** latte è liquido, quella
+   * parola non può essere un avviso — è come scrivere «solido» sul pane.
+   */
+  it('⚠️ il latte: fresco e freddo sono crudi, caldo e tiepido sono cotti', () => {
+    expect(scegliPerRicetta([r('freddo')]).tipo).toBe('va_bene');
+    expect(scegliPerRicetta([r('caldo')]).tipo).toBe('solo_cotto');
+    expect(scegliPerRicetta([r('tiepido')]).tipo).toBe('solo_cotto');
+  });
+
+  /**
+   * ⚠️ MA «TOSTATO» NON STA CON GLI ALTRI, e la differenza conta: tostare cambia peso e calorie —
+   * mandorle crude e mandorle tostate non sono la stessa cosa. Resta «non lo so», che è la risposta
+   * onesta finché la nutrizionista non dice quale dei due valori è in tabella.
+   */
+  it('⚠️ «tostato» è una lavorazione, non una consistenza: resta «non lo so»', () => {
+    expect(scegliPerRicetta([r('tostato')])).toEqual({ tipo: 'stato_ignoto', riga: r('tostato') });
   });
 
   it('senza righe non c\'è niente da scegliere', () => {
@@ -182,8 +202,11 @@ describe('normalizzaStato', () => {
   });
 
   /** ⚠️ Quello che non parla di cottura si chiama «altro», e «altro» non è «cotto». */
-  it('⚠️ quello che non è uno stato di cottura si dichiara tale', () => {
-    expect(['liquido', 'fresco', 'viscoso', 'tostato'].map(normalizzaStato)).toEqual(['altro', 'altro', 'altro', 'altro']);
+  it('⚠️ quello che descrive il prodotto vale come crudo; una lavorazione no', () => {
+    expect(['liquido', 'fresco', 'freddo', 'viscoso'].map(normalizzaStato)).toEqual(['crudo', 'crudo', 'crudo', 'crudo']);
+    expect(['caldo', 'tiepido'].map(normalizzaStato)).toEqual(['cotto', 'cotto']);
+    // ⚠️ `tostato` cambia peso e calorie: non è né l'uno né l'altro, e non si finge di saperlo.
+    expect(normalizzaStato('tostato')).toBe('altro');
     expect(normalizzaStato('')).toBe('');
     expect(normalizzaStato(null)).toBe('');
   });

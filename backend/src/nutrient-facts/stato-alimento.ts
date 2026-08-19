@@ -135,6 +135,24 @@ export const STATI_A_CRUDO = ['crudo', 'secco'];
 export const STATI_DA_COTTO = ['cotto', 'bollito'];
 
 /**
+ * GLI STATI CHE DESCRIVONO **COM'È IL PRODOTTO**, NON UNA COTTURA (correzione di Simone, 19/8).
+ *
+ * «Il latte fresco e il latte freddo sono crudi. Caldo o tiepido e sono cotti. Non esiste latte
+ * viscoso o tostato, e il latte è sempre liquido.»
+ *
+ * ⚠️ Il punto vero è l'ultimo: **`liquido` non distingue niente**. Se ogni latte è liquido, quella
+ * parola non può essere un avviso — è come scrivere «solido» sul pane. Lo stesso vale per `viscoso`
+ * (lo sciroppo d'acero) e per `fresco` (ricotta, yogurt): dicono com'è il prodotto **che si compra e
+ * si pesa**, e la convenzione «a crudo» su di loro è già soddisfatta, perché non c'è nessuna cottura
+ * in mezzo fra la confezione e la bilancia.
+ *
+ * ⚠️ **`tostato` no, e la differenza conta**: tostare è una lavorazione che cambia il peso e le
+ * calorie — mandorle e anacardi crudi non sono mandorle e anacardi tostati. Resta «non lo so», che è
+ * la risposta onesta finché la nutrizionista non dice quale dei due valori è in tabella.
+ */
+const STATI_DEL_PRODOTTO = ['liquid', 'fresc', 'freddo', 'viscos', 'refrigerat'];
+
+/**
  * ⚠️ LO STATO SI NORMALIZZA PRIMA DI CONFRONTARLO — e non è un dettaglio di stile.
  *
  * Il primo giro in produzione (19/8) ha bocciato **«quinoa (cruda)»**, **«patata dolce (cruda)»** e
@@ -161,9 +179,16 @@ export function normalizzaStato(v: unknown): string {
     if (t.startsWith(radice)) return radice === 'crud' ? 'crudo' : 'secco';
   }
   for (const radice of ['bollit', 'less']) if (t.startsWith(radice)) return 'bollito';
-  for (const radice of ['cott', 'arrost', 'al forno']) if (t.startsWith(radice)) return 'cotto';
-  // ⚠️ Tutto il resto NON è uno stato di cottura: `liquido`, `fresco`, `viscoso`, `tostato`. Non si
-  // finge di saperlo — vedi `scegliPerRicetta`, dove diventa «non lo so».
+  // ⚠️ «Caldo» e «tiepido» sono cotti: è la correzione di Simone sul latte scaldato.
+  for (const radice of ['cott', 'arrost', 'al forno', 'cald', 'tiepid']) if (t.startsWith(radice)) return 'cotto';
+  /**
+   * ⚠️ Gli stati che descrivono il **prodotto** e non una cottura valgono come crudo: il latte è
+   * sempre liquido, quindi «liquido» non può essere un avviso — si pesa com'è. Vedi `STATI_DEL_PRODOTTO`.
+   */
+  for (const radice of STATI_DEL_PRODOTTO) if (t.startsWith(radice)) return 'crudo';
+  // ⚠️ Quello che resta — `tostato`, e qualunque parola nuova — è una lavorazione che PUÒ cambiare
+  // peso e calorie, e nessuno ha detto quale valore sia in tabella. Non si finge di saperlo: in
+  // `scegliPerRicetta` diventa «non lo so», si conta e si dichiara.
   return 'altro';
 }
 
