@@ -1,4 +1,5 @@
 import { abbina, paroleChe } from './abbinamento-alimenti';
+import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, posizioneDentro } from './nome-dentro-la-domanda';
 import { type EsitoPerRicetta, type EsitoScelta, fraseAmbiguita, scegliPerRicetta, scegliPerStato } from './stato-alimento';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -92,8 +93,19 @@ export class ValoriNutrizionaliService {
    *
    * Non fa ricerca approssimata di proposito. Un errore di battitura che porta all'alimento sbagliato
    * è peggio di un «non lo so»: qui si parla di quello che una persona mangia.
+   *
+   * ⚠️ **`contains` ha però un difetto che si vede solo scrivendo gli esempi giusti**: «melanzane»
+   * contiene «mela», «risotto» contiene «riso», «panettone» contiene «pane» — e Gaia risponde con
+   * le calorie dell'altro alimento, con un numero **plausibile** che nessuno va a controllare.
+   *
+   * ⛔ **Non l'ho cambiato di mia iniziativa.** Lo stesso meccanismo che sbaglia è quello che fa
+   * trovare «pomodori» a chi scrive «pomodorini»: cercare solo parole intere toglie tutti e due,
+   * e da fuori non si distinguono. È una decisione di prodotto,
+   * e la misura per prenderla la fa `npm run diag:ricerca`. Il parametro `modo` serve a **quella
+   * misura** — così la diagnostica prova il cambio vero invece di una sua copia — e il giorno che
+   * Simone sceglie si cambia `MODO_DI_OGGI`, una riga sola.
    */
-  async cerca(termine: string): Promise<ValoreNutrizionale | null> {
+  async cerca(termine: string, modo: ModoDiCercare = MODO_DI_OGGI): Promise<ValoreNutrizionale | null> {
     const t = normalizzaNome(termine);
     if (t.length < 3) return null;
 
@@ -126,7 +138,7 @@ export class ValoriNutrizionaliService {
      * riso bianco — che è lo stesso genere di scambio da cui è nata tutta questa storia.
      */
     const dentro = conNomi
-      .flatMap((c) => c.nomi.filter((n) => t.includes(n)).map((n) => ({ v: c.v, lunghezza: n.length })))
+      .flatMap((c) => c.nomi.filter((n) => nomeDentro(t, n, modo)).map((n) => ({ v: c.v, lunghezza: n.length })))
       .sort((a, b) => b.lunghezza - a.lunghezza);
     return dentro[0]?.v ?? null;
   }
@@ -187,8 +199,15 @@ export class ValoriNutrizionaliService {
     return scegliPerStato(esatti, termine);
   }
 
-  /** Cerca più alimenti in un testo: serve ai confronti («meglio il basmati o l'integrale?»). */
-  async cercaTutti(testo: string, massimo = 3): Promise<ValoreNutrizionale[]> {
+  /**
+   * Cerca più alimenti in un testo: serve ai confronti («meglio il basmati o l'integrale?»).
+   *
+   * ⚠️ **È QUESTA la strada che percorre ogni risposta di Gaia sui numeri**, non `cerca`:
+   * `schedaPerRisposta` chiama qui, e `chat.service` chiama `schedaPerRisposta`. Quindi il difetto
+   * del pezzo di parola — «melanzane» contiene «mela» — vive **qui**, e il `modo` serve a misurarlo
+   * col codice vero (`npm run diag:ricerca`) invece che con una copia.
+   */
+  async cercaTutti(testo: string, massimo = 3, modo: ModoDiCercare = MODO_DI_OGGI): Promise<ValoreNutrizionale[]> {
     const t = normalizzaNome(testo);
     if (t.length < 3) return [];
     const tutti = (await this.prisma.nutrientFact.findMany()) as unknown as ValoreNutrizionale[];
@@ -212,7 +231,7 @@ export class ValoriNutrizionaliService {
       for (const n of nomi) {
         const np = senzaParoline(n);
         if (!np) continue;
-        const pos = tp.indexOf(np);
+        const pos = posizioneDentro(tp, np, modo);
         if (pos < 0) continue;
         if (!migliore || np.length > migliore.lunghezza) migliore = { lunghezza: np.length, posizione: pos };
       }
@@ -311,7 +330,7 @@ export class ValoriNutrizionaliService {
    * (`chat/guardia-risposta-ai.ts`) rifiuta la risposta se ne contiene altri. È così che «può
    * affermarlo ma deve prima verificare» diventa una cosa verificabile e non una raccomandazione.
    */
-  async schedaPerRisposta(testo: string): Promise<{
+  async schedaPerRisposta(testo: string, modo: ModoDiCercare = MODO_DI_OGGI): Promise<{
     trovati: ValoreNutrizionale[];
     righe: string[];
     numeriAmmessi: number[];
@@ -321,7 +340,7 @@ export class ValoriNutrizionaliService {
     /** ⚠️ Alimenti presenti in più stati (crudo/cotto): per questi NON si dice nessun numero. */
     ambigui: string[];
   }> {
-    const trovati = await this.cercaTutti(testo);
+    const trovati = await this.cercaTutti(testo, 3, modo);
     const righe: string[] = [];
     const numeriAmmessi: number[] = [];
     const fonti = new Set<string>();

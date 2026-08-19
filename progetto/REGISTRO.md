@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 📏 **La misura del «pezzo di parola»: `npm run diag:ricerca`.** Ieri sera avevo messo
+  in elenco che la ricerca degli alimenti si incastra dove non deve — «melanzane» contiene «mela»,
+  «risotto» contiene «riso» — e avevo scritto «quello lo misuro io, ma la scelta è di Simone».
+  Questa è la misura, e **non** la correzione: `MODO_DI_OGGI` resta com'è.
+  ⛔ **E la ragione che avevo scritto era falsa.** Avevo detto che non correggevo perché «a parole
+  intere si perdono i plurali»: «le melanzane» non troverebbe più la riga «melanzana». Basta
+  scriverlo per vederlo — **«melanzana» non è dentro «melanzane»**, finiscono diverse; né «mela»
+  dentro «mele», né «carota» dentro «carote». Quei casi oggi non funzionano comunque. ⚠️ *Una
+  ragione falsa fa scegliere per il motivo sbagliato, ed è peggio di una scelta sbagliata: la
+  seconda si corregge, la prima si tramanda.* Corretta nel codice, nei test e nella voce.
+  ✅ **La ragione vera è migliore**: lo stesso meccanismo che sbaglia è quello che salva —
+  «pomodorini» trova «pomodori» esattamente come «melanzane» trova «mela», e da fuori non si
+  distinguono. Quindi la diagnostica ripassa i messaggi veri delle clienti attraverso il codice di
+  produzione **due volte** (com'è oggi e a parole intere) e mette in fila ogni riga che cambia,
+  scritta come coppia «`mela` ⊂ `melanzane`». ⚠️ **E non dice quale sia giusta**: quella differenza
+  la vede una persona in un secondo, mentre un programma che provasse a deciderla da solo
+  sbaglierebbe in silenzio proprio sui casi nuovi. Chiamare «costo» tutta la colonna sarebbe la
+  bugia comoda.
+  ⚠️ **Il modo di cercare è un parametro del codice vero**, non una regola riscritta dentro lo
+  script: una misura che si riscrive la regola misura la propria copia. E c'è un test che tiene in
+  piedi proprio questo — se il parametro non arrivasse fin dentro il confronto, la diagnostica
+  misurerebbe due volte la stessa cosa e direbbe «non cambia niente», che è la più tranquillizzante
+  delle risposte sbagliate. Provato con una mutazione: morde.
+  ⚠️ **Non stampa il testo dei messaggi**: escono i nomi degli alimenti e la singola parola che li
+  conteneva, mai la frase.
+  Trovata strada facendo: **`ValoriNutrizionaliService.cerca` non la chiama più nessuno** — la
+  strada vera di ogni risposta di Gaia sui numeri è `cercaTutti`, da `schedaPerRisposta`. Ieri sera
+  avevo indicato la funzione sbagliata come «quella che sbaglia»; la voce adesso lo dice.
+
 - `[Sviluppo]` 🔍 **Prima di consegnare ho fatto girare due revisori avversariali sul lavoro di
   oggi, e hanno trovato 15 difetti.** ⚠️ La ragione per cui l'ho fatto è che oggi la produzione ne
   ha trovati due miei **entro l'ora dalla consegna**: la quinoa bocciata perché in tabella lo stato

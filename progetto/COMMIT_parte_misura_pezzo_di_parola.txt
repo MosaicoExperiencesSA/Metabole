@@ -1,0 +1,87 @@
+--------------------------------------------------------------------------------
+Parte: la misura del «pezzo di parola» (npm run diag:ricerca) — 19/8 sera
+--------------------------------------------------------------------------------
+
+COSA CHIUDE
+
+Ieri sera ho messo in elenco lavori, priorita bassa, che la ricerca degli alimenti va per pezzo
+di parola: «melanzane» contiene «mela», «risotto» contiene «riso», «panettone» contiene «pane»,
+e Gaia risponde con le calorie dell altro alimento — con un numero plausibile che nessuno
+controlla. E avevo scritto: «quello lo misuro io, ma la scelta e di Simone».
+
+Questa parte e la misura. Non la correzione.
+
+⚠️ E LA RAGIONE CHE AVEVO SCRITTO ERA FALSA
+
+Avevo scritto che non correggevo perche «a parole intere si perdono i plurali»: «le melanzane»
+non troverebbe piu la riga «melanzana». ⛔ E falso, e basta scriverlo per vederlo: «melanzana»
+NON e dentro «melanzane» — finiscono diverse. Ne «mela» dentro «mele», ne «carota» dentro
+«carote». Quei casi oggi non funzionano comunque.
+
+La ragione vera e un altra, ed e migliore: lo stesso meccanismo che sbaglia e quello che salva.
+
+    «pomodorini»  trova la riga  «pomodori»    e va bene
+    «melanzane»   trova la riga  «mela»        e non va bene
+
+In tutti e due i casi il nome della riga e un pezzo della parola scritta dalla cliente, e da
+fuori non si distinguono. ⚠️ Una ragione falsa fa scegliere per il motivo sbagliato, ed e
+peggio di una scelta sbagliata: la seconda si corregge, la prima si tramanda. Corretta nel
+codice, nei test e nella voce in elenco lavori.
+
+COSA FA LA MISURA
+
+  npm run diag:ricerca
+
+1) LE TRAPPOLE DELLA TABELLA — quali nomi si incastrano dentro un altra parola di cibo, e
+   ⚠️ quali possono davvero scattare: se la parola lunga in tabella c e, vince lei e la
+   trappola resta chiusa. Contarle tutte come danno gonfierebbe il numero, ed e il modo piu
+   veloce di far ignorare una diagnostica.
+
+2) LE DOMANDE VERE — ripassa i messaggi veri delle clienti attraverso il codice di produzione
+   DUE volte, com e oggi e a parole intere, e mette in fila ogni riga che cambia. Scritta come
+   coppia:
+
+       ▸   1 volte   «mela»  ⊂  «melanzane»
+
+   ⚠️ E NON DICE quale sia giusta e quale sbagliata. «pomodori ⊂ pomodorini» si legge come
+   giusta, «mela ⊂ melanzane» come sbagliata, e la differenza la vede una persona in un
+   secondo — mentre un programma che provasse a deciderla da solo sbaglierebbe in silenzio
+   proprio sui casi nuovi. Chiamare «costo» tutta la colonna sarebbe la bugia comoda: la
+   maggior parte di quelle righe potrebbero essere proprio gli errori.
+
+⚠️ IL CODICE VERO, NON UNA COPIA
+
+Il modo di cercare e un parametro del codice di produzione (`nome-dentro-la-domanda.ts`,
+`MODO_DI_OGGI`), non una regola riscritta dentro la diagnostica. Una misura che si riscrive la
+regola misura la propria copia, e la copia e sempre un po diversa dall originale — e lo stesso
+motivo per cui un test double che si comporta diversamente non verifica niente.
+
+⚠️ E c e un test che tiene in piedi proprio questo: se il parametro non arrivasse fin dentro il
+confronto, la diagnostica misurerebbe DUE VOLTE LA STESSA COSA e direbbe «non cambia niente» —
+la piu tranquillizzante delle risposte sbagliate. Provato con una mutazione: morde.
+
+⚠️ PRIVACY
+
+Non stampa il testo dei messaggi. Escono i nomi degli alimenti trovati e, dove serve a capire,
+la singola parola che li conteneva («melanzane») — che senza la frase intorno non dice niente
+di nessuno. Mai la frase, mai un nome di persona, mai una data.
+
+⚠️ UNA COSA TROVATA STRADA FACENDO
+
+`ValoriNutrizionaliService.cerca` non la chiama piu nessuno in produzione: la strada vera di
+ogni risposta di Gaia sui numeri e `cercaTutti`, da `schedaPerRisposta`. Non l ho tolta — e
+coperta da test e descrive la stessa regola — ma la voce in elenco lo dice, perche ieri sera
+avevo indicato la funzione sbagliata come «quella che sbaglia».
+
+⛔ NIENTE E CAMBIATO NEL COMPORTAMENTO. `MODO_DI_OGGI` resta «pezzo di parola». Il cambio e una
+riga, e la fa Simone quando ha letto i numeri. Le strade sono quattro e stanno scritte in fondo
+all output della diagnostica.
+
+FILE
+- backend/nutrient-facts: `nome-dentro-la-domanda.ts` + spec (nuovi, 10 test) ·
+  `valori-nutrizionali.service.ts` + spec (3 test nuovi)
+- backend/prisma: `diag-ricerca-alimenti.ts` (nuovo) · `package.json` (`diag:ricerca`)
+- backend/lavori: `voci-iniziali.ts` — la voce corretta, con la ragione vera
+
+241 suite / 3807 test verdi. Due mutazioni provate, tutte e due fanno fallire i test.
+Nessuna migrazione.

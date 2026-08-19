@@ -100,6 +100,36 @@ describe('ValoriNutrizionaliService — quale alimento trova', () => {
     expect(await service.cerca('riso venere')).toBeNull();
   });
 
+  /**
+   * ⚠️ IL DIFETTO DEL PEZZO DI PAROLA, MESSO NERO SU BIANCO (19/8). «Melanzane» contiene «mela», e
+   * `cercaTutti` — che è la strada vera di ogni risposta di Gaia sui numeri — trova la mela.
+   *
+   * ⛔ Il test dice che **oggi succede**: non è un test di ciò che vorrei, è la fotografia di com'è.
+   * Il giorno che Simone sceglie le parole intere, questo test diventa rosso ed è **giusto** che lo
+   * diventi — si cambia l'aspettativa insieme al comportamento, in un posto solo.
+   */
+  it('⚠️ oggi «le melanzane» trovano la MELA: il difetto del pezzo di parola', async () => {
+    const trovati = await service.cercaTutti('quante calorie hanno le melanzane?');
+    expect(trovati.map((t) => t.id)).toEqual(['mela']);
+  });
+
+  /**
+   * ⚠️ E QUESTO È IL TEST CHE TIENE IN PIEDI LA MISURA. `npm run diag:ricerca` prova il cambio vero
+   * passando `parole_intere` al codice di produzione; se il parametro non arrivasse fin dentro il
+   * confronto, la diagnostica misurerebbe **due volte la stessa cosa** e direbbe «non cambia
+   * niente» — la più tranquillizzante delle risposte sbagliate.
+   */
+  it('⚠️ a «parole intere» la melanzana non trova più la mela, e la mela vera sì', async () => {
+    expect((await service.cercaTutti('quante calorie hanno le melanzane?', 3, 'parole_intere')).map((t) => t.id)).toEqual([]);
+    expect((await service.cercaTutti('quante calorie ha la mela?', 3, 'parole_intere')).map((t) => t.id)).toEqual(['mela']);
+  });
+
+  /** Lo stesso sul parametro di `cerca`, che ce l'ha per la stessa ragione. */
+  it('⚠️ anche «cerca» accetta il modo, e cambia risposta', async () => {
+    expect((await service.cerca('quante calorie hanno le melanzane?'))?.id).toBe('mela');
+    expect(await service.cerca('quante calorie hanno le melanzane?', 'parole_intere')).toBeNull();
+  });
+
   it('due alimenti in un confronto, nell\'ordine in cui li ha scritti', async () => {
     const trovati = await service.cercaTutti('meglio il riso basmati o il riso integrale?');
     expect(trovati.map((t) => t.id)).toEqual(['basmati', 'integrale']);
