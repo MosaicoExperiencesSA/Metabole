@@ -124,10 +124,20 @@ export async function applicaProposta(prisma: PrismaService, p: Proposta): Promi
  * cancella l'altra. È lo stesso motivo per cui la restrizione su una cliente è idempotente.
  *
  * ⚠️ Da qui in avanti il piatto non compare più nei menu **nuovi**: il pool non lo propone e la
- * guardia dell'erogazione lo fermerebbe comunque. I **giorni già generati e non ancora aperti** si
- * rifanno in un secondo momento — è la decisione di Simone del 13/8 e il lavoro è in elenco
- * (`vera-regola-dieta-rifai-menu`): rifare adesso, dentro l'approvazione, vorrebbe dire tenere il
- * capo davanti a una pagina che lavora su trecento persone senza potergli dire a che punto è.
+ * guardia dell'erogazione lo fermerebbe comunque. E i **giorni già generati e non ancora aperti**
+ * si rifanno **qui dentro, subito** — decisione di Simone del 13/8: vedi il blocco più sotto, dopo
+ * la scrittura della regola.
+ *
+ * ⚠️ **QUESTO COMMENTO DICEVA IL CONTRARIO FINO AL 19/8 SERA**, e vale la pena tenerne memoria.
+ * Diceva che i giorni si sarebbero rifatti «in un secondo momento» e rimandava a una voce di elenco
+ * lavori — `vera-regola-dieta-rifai-menu` — **che non è mai esistita**. Venti righe più sotto il
+ * codice li rifaceva già, dal 18/8. ⛔ Un commento che descrive un lavoro come da fare, quando è
+ * fatto, non è impreciso: è **una trappola**. Chi legge il file per capire se la voce è aperta legge
+ * il commento, non le settanta righe sotto — e la reimplementa. Ci sono andato vicino io stesso,
+ * cercando proprio quella voce.
+ *
+ * ⚠️ *Il codice non mente mai, i commenti sì*: per questo qui i commenti dicono **perché**, e quando
+ * dicono **cosa** vanno riletti insieme al codice che descrivono, non dopo.
  */
 async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: string[]): Promise<EsitoApplicazione> {
   const puliti = [...new Set(termini.map((t) => (t ?? '').trim().toLowerCase()).filter(Boolean))];

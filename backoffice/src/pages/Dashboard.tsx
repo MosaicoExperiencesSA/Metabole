@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABEL } from '../lib/labels';
 import { Banner, Modal } from '../components/ui';
-import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS, CHART_METRICS, DEFAULT_CHART_KEYS, type DashboardModule } from '../lib/dashboardModules';
+import { DASHBOARD_MODULES, DEFAULT_MODULE_IDS, DEFAULT_SHORTCUT_IDS, CHART_METRICS, DEFAULT_CHART_KEYS, type DashboardModule } from '../lib/dashboardModules';
 import { WalletWidget } from '../components/WalletWidget';
 import { MiniTrend } from '../components/MiniTrend';
 import { ReminderCalendar, type CalReminder } from '../components/ReminderCalendar';
@@ -96,7 +96,12 @@ export const CATALOG: Shortcut[] = [
 ];
 
 // Predefinite se l'utente non ha ancora personalizzato.
-export const DEFAULT_IDS = ['creazione_validazione', 'clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
+/**
+ * ⚠️ Le scorciatoie di fabbrica **vivono in `lib/dashboardModules.ts`** dal 19/8 sera: serve anche a
+ * «Ripristina default», e una libreria che importa da una pagina è il verso sbagliato. Qui resta il
+ * nome di prima, così chi le importava da questo file continua a trovarle.
+ */
+export const DEFAULT_IDS = DEFAULT_SHORTCUT_IDS;
 
 export function Dashboard() {
   const { user, permissions, can } = useAuth();

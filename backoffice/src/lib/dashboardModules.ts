@@ -69,6 +69,58 @@ export const CHART_METRICS: ChartMetric[] = [
 export const DEFAULT_CHART_KEYS = ['kgLost', 'revenueCents', 'newClients'];
 
 /**
+ * LE SCORCIATOIE DI FABBRICA della dashboard admin.
+ *
+ * ⚠️ Stavano dentro `pages/Dashboard.tsx`, che le esporta ancora per chi le importava da lì. Sono
+ * salite qui il 19/8 sera per una ragione sola: **«Ripristina default» deve poterle rimettere**, e
+ * un file di libreria che importa da una pagina è il verso sbagliato — la pagina dipende dalla
+ * libreria, non il contrario.
+ */
+export const DEFAULT_SHORTCUT_IDS = ['creazione_validazione', 'clienti', 'crm_gestione', 'pagamenti', 'agenda', 'utenti', 'permessi'];
+
+/** Le quattro preferenze che compongono l'aspetto della home. */
+export interface HomeDiFabbrica {
+  dashboardModules: string[];
+  dashboardBlocksOff: string[];
+  dashboardCharts: string[];
+  dashboardShortcuts: string[];
+}
+
+/**
+ * COM'ERA LA HOME APPENA CREATO L'ACCOUNT — tutte e quattro le preferenze, non una.
+ *
+ * ⚠️ Nasce da un difetto trovato il 19/8 sera rileggendo la richiesta di Simone: «se un utente si è
+ * perso preme il pulsante (ripristina default) e noi provvediamo». Il pulsante c'era **e rimetteva
+ * solo i moduli**: chi si era perso spegnendo il portafoglio, gli avvisi o la tabella clienti — che
+ * si salvano in `dashboardBlocksOff`, un elenco separato — premeva «Ripristina default» e **non
+ * tornava niente**. ⛔ Un pulsante di soccorso che soccorre un terzo dei casi è peggio di nessun
+ * pulsante: chi lo preme e non vede tornare la sua roba conclude che non si può più recuperare.
+ *
+ * ⚠️ **I moduli si filtrano su quelli che quel ruolo può vedere.** Il default è uno e globale, e
+ * contiene id che un coach non ha il permesso di aprire: rimetterli tutti salverebbe nelle sue
+ * preferenze righe morte — invisibili, ma che restano lì e riemergono il giorno che il permesso
+ * arriva. Chi chiama passa l'elenco di quello che vede.
+ *
+ * ⚠️ **Le scorciatoie si riscrivono per esteso, non si azzerano.** Chi le legge fa
+ * `prefs.dashboardShortcuts ?? DEFAULT`, e un array **vuoto** non è nullo: salvare `[]` vorrebbe
+ * dire una dashboard senza nessuna scorciatoia, cioè l'opposto di «ripristina».
+ *
+ * ⛔ **L'ordine del menu NON è qui, ed è voluto.** Ha il suo pulsante «Reimposta» nel suo riquadro,
+ * a tre centimetri da questo: rimetterlo anche da qui vorrebbe dire che un pulsante fa una cosa che
+ * il suo testo non dice, e la prima volta che succede nessuno capisce perché il menu è cambiato.
+ */
+export function homeDiFabbrica(moduliVisibili?: readonly string[]): HomeDiFabbrica {
+  const visibili = moduliVisibili ? new Set(moduliVisibili) : null;
+  return {
+    dashboardModules: DEFAULT_MODULE_IDS.filter((id) => !visibili || visibili.has(id)),
+    // I blocchi nascono ACCESI e si spengono: «tutti accesi» è l'elenco degli spenti vuoto.
+    dashboardBlocksOff: [],
+    dashboardCharts: [...DEFAULT_CHART_KEYS],
+    dashboardShortcuts: [...DEFAULT_SHORTCUT_IDS],
+  };
+}
+
+/**
  * I BLOCCHI FISSI DELLA HOME — quelli che non sono riquadri-anteprima ma parti scritte nella pagina.
  *
  * Richiesta di Simone dell'11/8: «tutti i moduli della dashboard, anche portafoglio ecc, devono

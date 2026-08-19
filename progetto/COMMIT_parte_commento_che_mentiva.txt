@@ -1,0 +1,56 @@
+--------------------------------------------------------------------------------
+Parte: il commento che mentiva sul rifacimento dei menu, e il tetto senza test — 19/8 sera
+--------------------------------------------------------------------------------
+
+Sono partito per fare la voce «Vera: rifare i giorni futuri non ancora aperti quando il capo
+approva un divieto di dieta» (priorita alta).
+
+⚠️ ERA GIA FATTA DAL 18/8. E ci sono andato vicino a rifarla.
+
+Il motivo e un commento. In `applica-proposta.ts`, venti righe SOPRA il codice che lo fa,
+c era scritto:
+
+    «I giorni già generati e non ancora aperti si rifanno IN UN SECONDO MOMENTO — è la decisione
+     di Simone del 13/8 e il lavoro è in elenco (`vera-regola-dieta-rifai-menu`)»
+
+⛔ Il rifacimento e li sotto, funzionante, dal 18/8. E la voce `vera-regola-dieta-rifai-menu`
+NON E MAI ESISTITA: quella chiave compare in un solo posto in tutto il progetto, dentro quel
+commento.
+
+⚠️ Un commento che descrive un lavoro come DA FARE quando e FATTO non e impreciso: e una
+TRAPPOLA. Chi apre il file per capire se la voce e aperta legge il commento, non le settanta
+righe sotto — e la reimplementa. Il codice non mente mai, i commenti si.
+
+Corretto, e con dentro la memoria di cosa diceva prima: fra un mese qualcuno rileggera questo
+punto e vale la pena che sappia perche c e scritto cosi.
+
+⚠️ E IL TETTO DEI 200 CLIENTI NON AVEVA NESSUN TEST, SUL RAMO CHE CONTA
+
+C era un test sul tetto, ma sul ramo della RESTRIZIONE A UNA CLIENTE. Sul ramo della DIETA —
+quello che decide se migliaia di giornate di menu vengono cancellate o no — non ce n era
+nessuno. Aggiunti tre casi:
+
+  · oltre il tetto: la REGOLA SI SCRIVE, i giorni NON si toccano, e lo dice.
+    ⚠️ Le due meta non si possono scambiare: il divieto sui menu nuovi costa zero ed e il motivo
+    per cui la regola esiste; e il rifacimento che e pesante. Un test che guardasse solo «non ha
+    cancellato» passerebbe anche se il capo avesse approvato un divieto che non vale.
+  · esattamente 200 NON e «oltre»: si rifà.
+    ⚠️ E l errore di uno, e senza questo caso `>` e `>=` sono indistinguibili — la differenza e
+    duecento persone che ricevono o non ricevono il menu giusto.
+  · il tetto conta le PERSONE, non le giornate: 300 giorni di 2 clienti si rifanno.
+    ⚠️ Contando le giornate, il tetto scatterebbe su tre persone con il menu del trimestre gia
+    pronto, e il divieto non arriverebbe mai ai loro piatti.
+
+Tre mutazioni provate su quelle tre righe: tutte e tre fanno fallire i test.
+
+⛔ LA VOCE LA DEVI SPUNTARE TU
+
+«Vera: rifare i giorni futuri…» vive SOLO IN PAGINA, scritta a mano: nel file non c e (ha
+`chiave: null`), quindi nessuna consegna la puo chiudere — nemmeno con `soloSeEsiste`, che
+combacia per chiave. E il secondo caso oggi, dopo «Schermate app 30 e 27-28»: e esattamente
+quello che descrive la voce «Il file e la pagina Lavori divergono».
+
+FILE
+- backend/vera: `applica-proposta.ts` (solo commenti) · `applica-proposta.spec.ts` (3 test nuovi)
+
+245 suite / 3850 test verdi. Tre mutazioni provate: mordono tutte e tre. Nessuna migrazione.

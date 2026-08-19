@@ -246,6 +246,62 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
     expect(esito.riepilogo).toContain('quelle già lette restano come sono');
   });
 
+  /**
+   * ⚠️ IL TETTO SUL RAMO DIETA — non era coperto da nessun test fino al 19/8 sera, e decide se
+   * migliaia di giornate di menu vengono cancellate o no.
+   *
+   * ⛔ Sopra il tetto **la regola resta e il rifacimento si salta**, e i due pezzi non si possono
+   * scambiare: il divieto sui menu nuovi costa zero ed è il motivo per cui la regola esiste; è il
+   * rifacimento che è pesante. Un test che guardasse solo «non ha cancellato» passerebbe anche se
+   * l'approvazione non avesse scritto niente — cioè se il capo avesse approvato un divieto che non
+   * vale.
+   */
+  it('⚠️ oltre il tetto: la regola SI scrive, i giorni NON si toccano, e lo dice', async () => {
+    const molti = Array.from({ length: 201 }, (_, i) => ({
+      id: `g${i}`, clientId: `c${i}`, date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+    }));
+    const { prisma, deleteMany } = prismaCon(molti);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+
+    expect(deleteMany).not.toHaveBeenCalled();
+    // ⚠️ La metà che conta: il divieto vale lo stesso da adesso.
+    expect(prisma.productRule.create).toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('oltre il tetto di 200');
+    // E si dice quante persone restano indietro, invece di far finta di niente.
+    expect(esito.riepilogo).toContain('201 clienti');
+  });
+
+  /**
+   * ⚠️ IL CONFINE, ed è dove vive l'errore di uno. «Oltre il tetto» vuol dire **più di** 200: con
+   * esattamente 200 clienti si rifà. Senza questo caso, `>` e `>=` sono indistinguibili — e la
+   * differenza è duecento persone che ricevono o non ricevono il menu giusto.
+   */
+  it('⚠️ esattamente 200 clienti NON è «oltre»: si rifà', async () => {
+    const esatti = Array.from({ length: 200 }, (_, i) => ({
+      id: `g${i}`, clientId: `c${i}`, date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+    }));
+    const { prisma, deleteMany } = prismaCon(esatti);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(deleteMany).toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('200 clienti');
+    expect(esito.riepilogo).not.toContain('oltre il tetto');
+  });
+
+  /**
+   * ⚠️ E il tetto si conta sulle **persone**, non sulle giornate: una cliente con novanta giorni
+   * preparati è una cliente. Contare le giornate farebbe scattare il tetto su tre persone con il
+   * menu del trimestre già pronto, e il divieto non arriverebbe mai ai loro piatti.
+   */
+  it('⚠️ il tetto conta le persone, non le giornate: 300 giorni di 2 clienti si rifanno', async () => {
+    const tanti = Array.from({ length: 300 }, (_, i) => ({
+      id: `g${i}`, clientId: i % 2 ? 'c1' : 'c2', date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+    }));
+    const { prisma, deleteMany } = prismaCon(tanti);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(deleteMany).toHaveBeenCalled();
+    expect(esito.riepilogo).toContain('2 clienti');
+  });
+
   it('⚠️ un giorno che NON contiene il piatto vietato non si tocca', async () => {
     const { prisma, deleteMany } = prismaCon([
       { id: 'g2', clientId: 'c1', date: domani, viewedAt: null, meals: [{ slot: 'cena', recipeId: 'r-altro' }] },

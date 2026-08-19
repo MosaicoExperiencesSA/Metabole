@@ -20,6 +20,49 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-19
 
+- `[Sviluppo]` 🔁 **«Ripristina default» manteneva un terzo della promessa.** Ero partito per la
+  voce «Moduli fissi in dashboard»: ⚠️ **era già fatta dal 18/8** — terza volta oggi che una voce in
+  pagina risulta aperta su un lavoro chiuso. Ma rileggendo la richiesta fino in fondo («se un utente
+  **si è perso** preme il pulsante e noi provvediamo») è saltato fuori un difetto vero: la home si
+  personalizza in **quattro** posti — i moduli, i blocchi spenti (portafoglio, avvisi, tabella
+  clienti), i grafici e le scorciatoie — e il pulsante rimetteva **solo i moduli**. ⛔ Chi si era
+  perso spegnendo il portafoglio lo premeva e non tornava niente. *Un pulsante di soccorso che
+  soccorre un terzo dei casi è peggio di nessun pulsante*: chi lo preme e non vede tornare la sua
+  roba conclude che non si può più recuperare, e smette di provarci. «Si è perso» non vuol dire «ha
+  spento un modulo».
+  ✅ Ora rimette tutte e quattro, in **una PUT sola** — quattro chiamate separate possono riuscire a
+  metà, e una home ripristinata a metà è esattamente lo stato da cui la persona stava cercando di
+  uscire. ⚠️ Tre dettagli che sembrano pignoleria e non lo sono: **le scorciatoie si riscrivono per
+  esteso** (chi le legge fa `?? DEFAULT`, e un array vuoto non è nullo — salvare `[]` darebbe una
+  dashboard senza scorciatoie, l'opposto di «ripristina»); **i moduli si filtrano** su quelli che
+  quel ruolo vede davvero, o si salverebbero righe morte che riemergono il giorno che il permesso
+  arriva; **si tornano copie**, non le costanti.
+  ⛔ **L'ordine del menu non è dentro, di proposito**: ha il suo pulsante nel suo riquadro, a tre
+  centimetri. Un pulsante che fa una cosa che il suo testo non dice si paga la prima volta che
+  qualcuno non capisce perché il menu è cambiato.
+  ⚠️ E questa zona non aveva **nessun test**: adesso ne ha otto sul pezzo puro, con tre mutazioni
+  che mordono.
+
+- `[Sviluppo]` 🪤 **Un commento che mentiva, e ci sono andato vicino a rifare un lavoro già fatto.**
+  Sono partito per la voce «Vera: rifare i giorni futuri non ancora aperti quando il capo approva un
+  divieto di dieta» (priorità alta). ⚠️ **Era già fatta dal 18/8.** Il motivo per cui non si vedeva
+  è un commento in `applica-proposta.ts`, **venti righe sopra il codice che lo fa**: diceva che i
+  giorni si sarebbero rifatti «in un secondo momento» e rimandava a una voce di elenco lavori,
+  `vera-regola-dieta-rifai-menu`, ⛔ **che non è mai esistita** — quella chiave compare in un solo
+  posto in tutto il progetto, dentro quel commento. ⚠️ *Un commento che descrive un lavoro come da
+  fare quando è fatto non è impreciso: è una trappola.* Chi apre il file per capire se la voce è
+  aperta legge il commento, non le settanta righe sotto. Corretto, e con dentro la memoria di cosa
+  diceva prima: **il codice non mente mai, i commenti sì**.
+  ⚠️ **E il tetto dei 200 clienti non aveva nessun test sul ramo che conta.** Ce n'era uno, ma sul
+  ramo della *restrizione a una cliente*; sul ramo della **dieta** — quello che decide se migliaia
+  di giornate di menu vengono cancellate — nessuno. Tre casi nuovi: *oltre il tetto la regola si
+  scrive e i giorni non si toccano* (le due metà non si possono scambiare: un test che guardasse
+  solo «non ha cancellato» passerebbe anche se il capo avesse approvato un divieto che non vale);
+  *esattamente 200 non è «oltre»* (senza questo caso `>` e `>=` sono indistinguibili, e la
+  differenza è duecento persone); *il tetto conta le persone, non le giornate* (altrimenti
+  scatterebbe su tre clienti con il trimestre già pronto, e il divieto non arriverebbe mai ai loro
+  piatti). Tre mutazioni, tutte e tre mordono.
+
 - `[Sviluppo]` 🗣️ **«Se non sai come prenderle, guarda il video toccando il pulsante» — e il pulsante
   non c'era.** Cercando cosa fossero l'«assaggio menu» e i «video onboarding» di una voce vecchia
   dell'elenco (Simone: «video onboarding cosa intendi? assaggio menu togliamolo da ovunque») ho

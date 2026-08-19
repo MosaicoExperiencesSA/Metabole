@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Toggle } from '../components/ui';
 import { ThemeSelect } from '../theme';
-import { DASHBOARD_BLOCCHI, DASHBOARD_MODULES, DEFAULT_MODULE_IDS } from '../lib/dashboardModules';
+import { DASHBOARD_BLOCCHI, DASHBOARD_MODULES, DEFAULT_MODULE_IDS, homeDiFabbrica } from '../lib/dashboardModules';
 import { MenuOrderCard } from '../components/MenuOrderCard';
 
 /** Riduce un'immagine a un quadrato 256×256 (cover, ritaglio centrato) e la ritorna come data URL JPEG. */
@@ -230,6 +230,32 @@ export function Impostazioni() {
     } catch { setModMsg('Salvataggio non riuscito.'); }
   }
 
+  /**
+   * ⚠️ «RIPRISTINA DEFAULT» RIMETTE TUTTA LA HOME, NON SOLO I MODULI (19/8 sera).
+   *
+   * Prima scriveva `dashboardModules` e basta. Ma la home si personalizza in **quattro** posti — i
+   * moduli, i blocchi spenti, i grafici e le scorciatoie — e chi si era perso spegnendo il
+   * portafoglio o la tabella clienti premeva il pulsante e **non tornava niente**. ⛔ Un pulsante di
+   * soccorso che soccorre un terzo dei casi è peggio di nessun pulsante: chi lo preme e non vede
+   * tornare la sua roba conclude che non si può più recuperare, e smette di provarci.
+   *
+   * ⚠️ È la richiesta di Simone letta fino in fondo: «se un utente si è perso preme il pulsante e
+   * noi provvediamo». *Si è perso* non vuol dire «ha spento un modulo».
+   *
+   * ⚠️ Una PUT sola con le quattro chiavi: quattro chiamate separate possono riuscire a metà, e una
+   * home ripristinata a metà è esattamente lo stato da cui la persona stava cercando di uscire.
+   */
+  async function ripristinaHome() {
+    const fabbrica = homeDiFabbrica(availableModules.map((m) => m.id));
+    setModMsg(null);
+    try {
+      await api('/me/preferences', { method: 'PUT', body: JSON.stringify(fabbrica) });
+      setModules(fabbrica.dashboardModules);
+      setBlocchiOff(fabbrica.dashboardBlocksOff);
+      setModMsg('Home rimessa come appena creato l\'account: moduli, blocchi, grafici e scorciatoie.');
+    } catch { setModMsg('Ripristino non riuscito.'); }
+  }
+
   async function saveEarnings(v: boolean) {
     setShowEarnings(v);
     setModMsg(null);
@@ -412,16 +438,18 @@ export function Impostazioni() {
             */}
           <button
             className="btn ghost sm"
-            onClick={() => { if (confermaRipristino) { void saveModules([...DEFAULT_MODULE_IDS]); setConfermaRipristino(false); } else setConfermaRipristino(true); }}
+            onClick={() => { if (confermaRipristino) { void ripristinaHome(); setConfermaRipristino(false); } else setConfermaRipristino(true); }}
             onBlur={() => setConfermaRipristino(false)}
-            title="Rimette i moduli come erano appena creato l'account"
+            title="Rimette la home come era appena creato l'account: moduli, blocchi, grafici e scorciatoie"
           >
             <i className="ti ti-rotate" /> {confermaRipristino ? 'Sicuro? Premi di nuovo' : 'Ripristina default'}
           </button>
         </div>
         <p className="hint" style={{ marginTop: 4 }}>
           Nessun modulo è fisso: si accendono, si spengono e si trascinano tutti. Quelli con il bordo
-          colorato sono i <b>predefiniti</b>, cioè quelli che rimette «Ripristina default».
+          colorato sono i <b>predefiniti</b>. «Ripristina default» rimette <b>tutta la home</b> —
+          moduli, blocchi, grafici e scorciatoie — non solo questi. L'ordine del menu no: ha il suo
+          pulsante qui sotto.
           {modMsg && <b style={{ color: 'var(--ok-ink)' }}> · {modMsg}</b>}
         </p>
 
