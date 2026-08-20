@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 📋 **Un'attività aperta all'una di notte nasceva già in ritardo.** Sesta tappa del
+  giro sul fuso, e stavolta il difetto aveva una causa strutturale precisa: in
+  `coach-tasks.service.ts` **«oggi» e «una data salvata» erano la stessa funzione**. `day(base, n)`
+  la chiamavano sia chi partiva da adesso («la scadenza è domani») sia chi partiva dall'inizio di
+  una prova o dalla fine di un piano — e questo è il motivo per cui nessuno vedeva il problema:
+  guardando la funzione sembrava una sola domanda.
+  ⛔ Con `setHours(0, 0, 0, 0)` (UTC su Render), fra mezzanotte e le 02:00 in Italia: un'attività
+  aperta all'una di notte prendeva come scadenza **oggi invece di domani** — un giorno di lavoro
+  bruciato prima di cominciare; nella lista della coach un'attività scaduta ieri non risultava «in
+  ritardo» per altre due ore; e l'escalation alla manager (`avvisi-attivita.ts`) guardava le
+  scadenze con lo stesso calendario spostato.
+  Ora sono **due funzioni con due nomi**: `oggiPiu` (il giorno di Roma) e `giornoPiu` (una data
+  salvata, letta in UTC — che resta fermo finché non è misurato). Dal nome si legge quale delle due
+  domande si sta facendo, che era la cosa che mancava.
+  Due mutazioni, tutte e due mordono. 258 suite e **3975 test verdi**.
+
 - `[Sviluppo]` ⏰ **Il fuso, quinta tappa: la revoca, la correzione calorica e il rientro dalla
   pausa.** Tre punti dell'inventario, scelti perché in tutti e tre «oggi» è **adesso** — cioè la
   classe sicura, quella che non rilegge nessuna data già salvata.

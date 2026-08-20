@@ -1,0 +1,24 @@
+Un'attività aperta all'una di notte non nasce già in ritardo
+
+LA CAUSA STRUTTURALE
+In `coach-tasks.service.ts` «oggi» e «una data salvata» erano la STESSA funzione. `day(base, n)` la
+chiamavano sia chi partiva da adesso («la scadenza è domani») sia chi partiva dall'inizio di una
+prova o dalla fine di un piano. È il motivo per cui il difetto non si vedeva: guardando la funzione
+sembrava una sola domanda.
+
+COSA COSTAVA
+Con `setHours(0, 0, 0, 0)` — il fuso del processo, UTC su Render — fra mezzanotte e le 02:00 in
+Italia:
+- un'attività aperta all'una di notte prendeva come scadenza OGGI invece di DOMANI: un giorno di
+  lavoro bruciato prima di cominciare;
+- nella lista della coach, un'attività scaduta ieri non risultava «in ritardo» per altre due ore;
+- l'escalation alla manager (`avvisi-attivita.ts`) guardava le scadenze con lo stesso calendario
+  spostato.
+
+LA REGOLA ADESSO
+Due funzioni con due nomi: `oggiPiu` (il giorno di Roma) e `giornoPiu` (una data salvata, letta in
+UTC — che resta fermo finché non è misurato con `npm run diag:giorno-piani`). Dal nome si legge
+quale delle due domande si sta facendo, che era la cosa che mancava.
+
+Due mutazioni provate, tutte e due mordono.
+Niente migrazioni. 258 suite e 3975 test verdi, type-check a zero errori.

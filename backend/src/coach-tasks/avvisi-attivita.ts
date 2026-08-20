@@ -13,6 +13,7 @@
 import { Logger } from '@nestjs/common';
 import { destinatariManagerCoach } from '../common/avvisa-manager-coach';
 import { notificaUtente, PushMinimo } from '../notifications/notifica-utente';
+import { aGiorno } from '../common/date-only';
 import type { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('AvvisiAttivitaCoach');
@@ -88,8 +89,10 @@ export async function escalateAttivitaScadute(
   push: PushMinimo,
 ): Promise<{ avvisate: number; rimaste: number }> {
   try {
-    const oggi = new Date();
-    oggi.setHours(0, 0, 0, 0);
+    // ⚠️ Il giorno di **Roma**: era `setHours(0,0,0,0)`, cioè UTC su Render. L'escalation guarda le
+    // attività con la scadenza di IERI o prima, e con il giorno spostato mandava alla manager —
+    // nelle due ore dopo mezzanotte — attività che in Italia scadevano *oggi*.
+    const oggi = aGiorno(new Date());
 
     const scadute = (await prisma.coachTask.findMany({
       where: { status: 'todo', dueDate: { lt: oggi } } as never,
