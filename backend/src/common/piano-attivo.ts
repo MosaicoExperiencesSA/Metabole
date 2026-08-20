@@ -35,6 +35,7 @@
 // un'interfaccia ristretta non gli combacia. I test e gli script passano un finto con un cast.
 import type { PrismaService } from '../prisma/prisma.service';
 import { eInCodaPerStato } from '../commerce/stati-abbonamento';
+import { aGiorno } from './date-only';
 
 /**
  * ⚠️ **`in_coda` esiste dal 19/8** (voce 258): un piano comprato che comincia più avanti non è né
@@ -57,7 +58,24 @@ export interface PianoDiCliente {
 const giorno = (d: Date | null | undefined) =>
   d ? `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}` : '—';
 
-const soloData = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+/**
+ * Mezzanotte del giorno di `d`, nel fuso dell'**azienda**.
+ *
+ * ⚠️ Era `Date.UTC(d.getUTCFullYear(), …)`, cioè il giorno UTC: fra mezzanotte e le 02:00 in Italia
+ * rispondeva «ieri», e questo file decide se una cliente **riceve i menu**. Quarta copia della
+ * stessa riga nel sottosistema dei piani (le altre in `abbonamento-in-corso.ts` e due in
+ * `stati-abbonamento.ts`), tutte UTC. Ora la risposta è una sola, quella di `date-only.ts`.
+ *
+ * ⚠️ Applicata anche a `endDate`, che è una colonna DATE (mezzanotte UTC): `aGiorno` la lascia
+ * dov'è, perché Roma è avanti rispetto a Greenwich e mezzanotte UTC cade nello stesso giorno.
+ */
+/**
+ * ⚠️ Vedi la nota lunga in `commerce/stati-abbonamento.ts`: **oggi** è il giorno di Roma, una data
+ * **salvata** si continua a leggere in UTC finché non si è misurato quante righe stanno nella
+ * fascia in cui i due non coincidono (`npm run diag:giorno-piani`).
+ */
+const oggiSolo = (d = new Date()) => aGiorno(d);
+const soloData = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
 /**
  * LA STESSA DOMANDA, ma come filtro da innestare in una query — non come risposta da leggere.
@@ -94,7 +112,7 @@ const soloData = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.get
  * finisce oggi è ancora attivo oggi) e stesso significato di `active`.
  */
 export function filtroClienteConPianoAttivo(adesso = new Date()) {
-  const oggi = soloData(adesso);
+  const oggi = oggiSolo(adesso);
   return {
     subscriptions: {
       some: {
@@ -129,7 +147,7 @@ export function filtroClienteConPianoAttivo(adesso = new Date()) {
  * perché è lenta.
  */
 /** Mezzanotte di oggi: le pause si confrontano per giorno, come tutto il resto qui dentro. */
-const oggiPerPausa = (adesso: Date): Date => soloData(adesso);
+const oggiPerPausa = (adesso: Date): Date => oggiSolo(adesso);
 
 export async function pianiDiClienti(
   prisma: PrismaService,
@@ -183,7 +201,7 @@ export async function pianiDiClienti(
   ]);
   const nonRicevono = new Set([...inPausa.map((p) => p.clientId), ...fermati.map((p) => p.userId)]);
 
-  const oggi = soloData(adesso);
+  const oggi = oggiSolo(adesso);
   for (const s of righe ?? []) {
     // «Finito» conta solo per una riga che dovrebbe essere viva: uno `expired` è già concluso, e
     // chiamarlo «da chiudere» manderebbe qualcuno a sistemare una riga che sta bene.

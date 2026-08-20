@@ -87,7 +87,8 @@
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",
     "diag:ricerca": "ts-node --transpile-only prisma/diag-ricerca-alimenti.ts",
     "converti:code": "ts-node --transpile-only prisma/converti-code-vecchie.ts",
-    "diag:mese-confine": "ts-node --transpile-only prisma/diag-mese-confine.ts"
+    "diag:mese-confine": "ts-node --transpile-only prisma/diag-mese-confine.ts",
+    "diag:giorno-piani": "ts-node --transpile-only prisma/diag-giorno-piani.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

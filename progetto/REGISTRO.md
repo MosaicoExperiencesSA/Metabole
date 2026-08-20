@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🌙 **All'una di notte del giorno in cui il piano parte, il piano non era partito.**
+  Quarta tappa del giro sul fuso, e la prima che tocca chi riceve un menu. «Che giorno è oggi» era
+  `setHours(0, 0, 0, 0)` — il fuso del **processo**, UTC su Render — in **quattro** punti del
+  sottosistema dei piani: due dentro `stati-abbonamento.ts`, una in `abbonamento-in-corso.ts`, una
+  in `piano-attivo.ts`. Fra mezzanotte e le 02:00 in Italia rispondevano tutte «ieri». ⛔ Effetto:
+  una cliente che apre l'app all'una di notte del giorno in cui comincia il percorso si sentiva dire
+  che un piano attivo non ce n'è — `staErogando` falso, `eInCoda` vero — e le schermate dello staff
+  la contavano fra quelle **senza piano**. Simmetricamente, uno `queued` la cui data era arrivata
+  non risultava «in ritardo», cioè il motore non sapeva di doverlo far partire.
+  ⚠️ **La metà che NON ho toccato, e perché.** Il giorno di una data **salvata** si continua a
+  leggere in UTC. `Subscription.startDate` non è una colonna DATE ma un `DateTime`: in banca dati ci
+  sono istanti veri, scritti da punti diversi in momenti diversi. Rileggerli nel fuso di Roma
+  sposterebbe di un giorno **tutte le righe fra le 22:00 e le 24:00 UTC** — cioè una data di fine
+  piano che si muove da sola su un contratto già pagato. ⛔ Non è una cosa che si fa perché
+  «probabilmente sono zero»: si misura. `npm run diag:giorno-piani` (sola lettura) conta quante date
+  hanno un orario diverso da mezzanotte e quante cambierebbero giorno, e se sono poche le stampa
+  con nome e cognome. Se sono zero — cioè se passano tutte da `toDateOnly` — il punto si chiude.
+  ⚠️ **Due test miei erano verdi per la ragione sbagliata**, e me l'hanno detto le mutazioni. Il
+  primo verificava `attivoInCorso` con **una riga sola**: col difetto dentro passava lo stesso,
+  perché l'ultimo ripiego della funzione («non eroga nessuno, ma è l'unica riga che c'è») la
+  restituiva comunque. Riscritto con due righe. Il secondo confrontava col «modo vecchio» usando
+  `setHours`, che su un Mac italiano dà la risposta giusta: riscritto con `getUTC*`, che è quello
+  che il vecchio codice faceva su Render, ovunque lo si lanci.
+  Tre mutazioni provate, una per modulo, tutte e tre mordono. 256 suite e **3969 test verdi**, e
+  stavolta anche `npm run build` di backoffice e app — la regola nuova di stamattina.
+
 - `[Sviluppo]` 🧱 **Un test mio ha tenuto fermo il rilascio del backoffice per un'ora.**
   `backoffice/src/lib/excel.spec.ts` usava `Buffer` per confrontare due esportazioni byte a byte.
   `Buffer` è di Node; il backoffice non ha `@types/node` — tre dipendenze in tutto, e va tenuto

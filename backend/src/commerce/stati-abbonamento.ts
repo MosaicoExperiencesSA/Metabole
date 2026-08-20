@@ -25,6 +25,29 @@
  * tabella.
  */
 
+import { aGiorno } from '../common/date-only';
+
+/**
+ * ⚠️ **DUE DOMANDE DIVERSE, E VANNO TENUTE DIVERSE.**
+ *
+ * 1. **«che giorno è oggi»** → è il giorno di **Roma**. Con `setHours(0,0,0,0)` era quello del
+ *    processo, cioè UTC su Render: fra mezzanotte e le 02:00 in Italia il server rispondeva ancora
+ *    «ieri», e una cliente che apriva l'app all'una di notte del giorno in cui il piano parte si
+ *    sentiva dire che un piano non c'è ancora.
+ * 2. **«di che giorno è questa data salvata»** → resta com'era, **il giorno UTC**. Ed è una scelta,
+ *    non una dimenticanza: `Subscription.startDate` non è una colonna DATE ma un `DateTime`, quindi
+ *    in banca dati ci sono istanti veri, scritti da punti diversi in momenti diversi. Rileggerli in
+ *    un altro fuso vorrebbe dire **spostare di un giorno i piani già venduti** che cadono fra le
+ *    22:00 e le 24:00 UTC — una data di fine piano che si muove da sola, su un contratto pagato,
+ *    senza che nessuno l'abbia chiesto. Quanti siano si misura con `npm run diag:giorno-piani`
+ *    prima di decidere; finché non è misurato non si tocca.
+ *
+ * Il difetto vero era il numero 1, ed è quello che si corregge qui.
+ */
+const oggiGiorno = (d: Date): number => aGiorno(d).getTime();
+/** Il giorno di una data SALVATA: si continua a leggerlo in UTC (vedi sopra). */
+const giornoDelDato = (d: Date): number => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
 export type StatoAbbonamento = 'pending' | 'active' | 'queued' | 'cancelled' | 'expired';
 
 /**
@@ -79,12 +102,7 @@ export const STATI_VIVI: readonly StatoAbbonamento[] = ['pending', 'active', 'qu
 export function eInCodaPerStato(s: { status: string; startDate: Date | null }, oggi: Date): boolean {
   if (s.status === 'queued') return true;
   if (s.status !== 'active' || !s.startDate) return false;
-  const giorno = (d: Date): number => {
-    const x = new Date(d.getTime());
-    x.setHours(0, 0, 0, 0);
-    return x.getTime();
-  };
-  return giorno(s.startDate) > giorno(oggi);
+  return giornoDelDato(s.startDate) > oggiGiorno(oggi);
 }
 
 /**
@@ -94,12 +112,7 @@ export function eInCodaPerStato(s: { status: string; startDate: Date | null }, o
  */
 export function codaInRitardo(s: { status: string; startDate: Date | null }, oggi: Date): boolean {
   if (s.status !== 'queued' || !s.startDate) return false;
-  const giorno = (d: Date): number => {
-    const x = new Date(d.getTime());
-    x.setHours(0, 0, 0, 0);
-    return x.getTime();
-  };
-  return giorno(s.startDate) <= giorno(oggi);
+  return giornoDelDato(s.startDate) <= oggiGiorno(oggi);
 }
 
 /**
