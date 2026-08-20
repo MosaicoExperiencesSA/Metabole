@@ -12,33 +12,11 @@
  * ritoccano da qui: se un numero è sbagliato si corregge dalla pagina Alimenti, dove la correzione
  * resta scritta con chi l'ha fatta.
  */
-export interface RigaAlimento {
-  name: string;
-  synonyms: string[];
-  category: string | null;
-  /** crudo · secco · bollito · cotto · liquido · fresco — vedi `normalizzaStato`. */
-  state: string | null;
-  kcal: number | null;
-  protein: number | null;
-  carbs: number | null;
-  sugars: number | null;
-  fat: number | null;
-  fiber: number | null;
-  source: string | null;
-  /**
-   * ⚠️ L'INDICE GLICEMICO, aggiunto il 20/8 e **opzionale**: le 32 righe del 19/8 non ce l'hanno, e
-   * il foglio nuovo sì. Senza questi campi l'import avrebbe buttato via l'IG di 245 righe — cioè
-   * metà del lavoro di chi ha compilato il foglio — e nessuno se ne sarebbe accorto, perché una
-   * colonna che non arriva non produce nessun errore.
-   */
-  glycemicIndex?: number | null;
-  glycemicIndexMin?: number | null;
-  glycemicIndexMax?: number | null;
-  /** solida | media | debole | non_applicabile — gli unici che il motore legge. */
-  glycemicIndexReliability?: string | null;
-  /** Da quale foglio del file viene: serve solo a raccontarlo nella prova a vuoto. */
-  foglio: string;
-}
+/**
+ * ⚠️ Il tipo vive in `src/nutrient-facts/riga-alimento.ts` e qui si riesporta: `src/` non deve
+ * importare niente da `prisma/` — fuori da `rootDir` `nest build` si ferma (TS6059, 20/8).
+ */
+export type { RigaAlimento } from '../src/nutrient-facts/riga-alimento';
 
 export const ALIMENTI_19_8: RigaAlimento[] = [
   { name: 'aglio', synonyms: [], category: 'Verdura', state: 'crudo', kcal: 41.0, protein: 3.5, carbs: 8.4, sugars: 1.0, fat: 0.6, fiber: 3.1, source: 'BDA / CREA', foglio: 'Da aggiungere' },

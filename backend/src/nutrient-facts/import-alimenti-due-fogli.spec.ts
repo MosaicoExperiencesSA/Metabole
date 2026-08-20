@@ -13,7 +13,7 @@
  * pezzo del lavoro è stato tirarla fuori (`piano-alimenti.ts`), non correggerla.
  */
 import { pianifica, nomeConStato, type Conosciuta } from './piano-alimenti';
-import type { RigaAlimento } from '../../prisma/dati-alimenti';
+import type { RigaAlimento } from './riga-alimento';
 
 const riga = (p: Partial<RigaAlimento> & { name: string }): RigaAlimento =>
   ({

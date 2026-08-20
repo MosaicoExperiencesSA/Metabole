@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **HO ROTTO LA BUILD DEL BACKEND, ed è rimasta rotta un'ora.** Simone ha mandato
+  la schermata di Render: `a59f166` (consegna 60) fallito alle 17:22, `e1f66c3` (consegna 62)
+  fallito alle 17:51. **Le consegne 60, 61 e 62 erano tutte ferme dietro lo stesso errore, e in
+  produzione girava il codice di prima delle 17:22.**
+  L'errore è uno: nella consegna 60 ho spostato `piano-alimenti.ts` dentro `src/` per poterlo
+  provare senza un database — la parte giusta del lavoro — lasciandogli un `import type` che
+  puntava dentro `prisma/`. `TS6059: not under rootDir 'src'`.
+  ⛔ **Perché non l'ho visto, che è la parte che conta.** `tsc --noEmit -p tsconfig.json` verde,
+  4058 test verdi, **`nest build` rosso**: `nest build` usa `tsconfig.build.json`, dove `rootDir` è
+  `src`. Sono due configurazioni diverse e io le trattavo come la stessa cosa.
+  ⚠️ **È la seconda volta in una settimana.** La prima fu il pulsante «Esporta in Excel» del
+  backoffice, e allora adottai la regola «se tocco `app/` o `backoffice/`, lancio la build vera».
+  Non l'avevo estesa al backend. **Da adesso vale su tutti e tre, sempre, prima di consegnare.** E
+  il costo l'ha pagato lui di nuovo: tre push e un'ora di deploy fermo, mentre io scrivevo «4058
+  test verdi».
+  ✅ `riga-alimento.ts` (nuovo) tiene il tipo dentro `src/`, e `prisma/dati-alimenti.ts` lo
+  riesporta: **`src/` non sa che `prisma/` esiste**, gli script sono attrezzi che usano
+  l'applicazione, non il contrario.
+  🧪 `src-non-esce-da-src.spec.ts` (nuovo): un `import` che risale fuori da `src/` diventa rosso in
+  tre secondi qui invece che in dieci minuti su Render. ⚠️ Quali file guardare lo legge da
+  `tsconfig.build.json` a runtime, non da un elenco riscritto a mano — gli `.spec.ts` sono esclusi
+  dalla build e possono importare da `prisma/`, e già lo fanno. Mutazione provata: rimesso l'import
+  colpevole, il test diventa rosso e dice quale file.
+  🔢 `npm run build` verde. 268 suite, 4059 test verdi.
+
 - `[Sviluppo]` 🚪 **«Primo accesso effettuato»: la scheda si muove quando la cliente entra
   davvero.** Richiesta di Simone: la colonna l'ha creata lui dal backoffice, e vuole che la scheda
   ci vada a ogni registrazione e al primo accesso. ✅ **Verificato che «questionario completato»

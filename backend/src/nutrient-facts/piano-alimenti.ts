@@ -15,7 +15,7 @@
  */
 import { normalizzaStato, STATI_A_CRUDO } from './stato-alimento';
 import { normalizzaNome } from './valori-nutrizionali.service';
-import type { RigaAlimento } from '../../prisma/dati-alimenti';
+import type { RigaAlimento } from './riga-alimento';
 
 /** Una riga già in tabella, per quel poco che serve a decidere. */
 export interface Conosciuta {

@@ -1,0 +1,56 @@
+URGENTE — la build del backend era rotta da un mio import, ferma da un'ora — 20/8
+
+Simone ha mandato la schermata di Render: due deploy falliti, `a59f166` (consegna 60) alle 17:22 e
+`e1f66c3` (consegna 62) alle 17:51. **Il backend non si deployava dalle 17:22, e in produzione
+girava il codice di prima.** Le consegne 60, 61 e 62 erano tutte ferme dietro lo stesso errore.
+
+## L'ERRORE, UNO SOLO
+
+    src/nutrient-facts/piano-alimenti.ts:18 - error TS6059:
+    File 'backend/prisma/dati-alimenti.ts' is not under 'rootDir' 'backend/src'
+
+Nella consegna 60 ho spostato `piano-alimenti.ts` dentro `src/` per poterlo provare senza un
+database — la parte giusta del lavoro — e gli ho lasciato un `import type` che puntava dentro
+`prisma/`.
+
+## ⛔ PERCHÉ NON L'HO VISTO, CHE È LA PARTE CHE CONTA
+
+    npx tsc --noEmit -p tsconfig.json   → verde
+    npx jest                            → 4058 verdi
+    npm run build  (nest build)         → TS6059
+
+`nest build` usa **`tsconfig.build.json`**, dove `rootDir` è `src`: un file importato da fuori è un
+errore. `tsconfig.json` no. Sono due configurazioni diverse, e io le trattavo come la stessa cosa.
+
+⚠️ **È la seconda volta in una settimana.** La prima fu il pulsante «Esporta in Excel» del
+backoffice: allora adottai la regola «se tocco `app/` o `backoffice/`, lancio la build vera, non
+`vitest` e non `tsc --noEmit`». Non l'avevo estesa al backend, perché credevo che lì `tsc --noEmit`
+bastasse. **Da adesso la build vera si lancia su tutti e tre, sempre, prima di consegnare.**
+
+E il costo l'hai pagato tu un'altra volta: tre push, un'ora di deploy fermo, e una schermata di
+Render da mandarmi — mentre io scrivevo «267 suite, 4058 test verdi».
+
+## COSA È CAMBIATO
+
+`src/nutrient-facts/riga-alimento.ts` (nuovo) — il tipo `RigaAlimento` vive qui.
+`prisma/dati-alimenti.ts` — lo riesporta, così gli script continuano a scrivere
+`from './dati-alimenti'` come prima. ⚠️ La direzione giusta è questa: **`src/` non sa che `prisma/`
+esiste.** Gli script di `prisma/` sono attrezzi che usano l'applicazione, non il contrario.
+
+## LA PARTE CHE NON DIPENDE DAL FATTO CHE ME NE RICORDI
+
+`src/common/src-non-esce-da-src.spec.ts` (nuovo) — legge ogni file di `src/` e fallisce se un
+`import` risale fuori. Un difetto così diventa rosso in tre secondi qui, invece che in dieci minuti
+su Render.
+⚠️ **Quali file guardare lo dice `tsconfig.build.json`**, letto a runtime, non un elenco riscritto
+qui: gli `.spec.ts` sono esclusi dalla build e possono importare da `prisma/` (lo fanno già, per
+provare il contenuto dei fogli con i dati veri). Se un domani quella riga di `exclude` cambia,
+cambia anche questo controllo — la lista sta in un posto solo.
+⚠️ La prima versione del traduttore glob→regex faceva tre `replace` in fila e il secondo riscriveva
+il risultato del primo: il test restava rosso senza dire perché. Rifatto in un passaggio solo, e c'è
+il commento che dice cos'era.
+
+Mutazione provata: rimesso l'import che ha rotto la build → il test diventa rosso e stampa il file
+e il percorso colpevole.
+
+`npm run build` verde. 268 suite, 4059 test verdi.
