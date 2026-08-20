@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🍽️ **Una giornata ha tre forme, e sono scritte in diciotto posti.** Continuando a
+  cercare la famiglia di difetto trovata tre volte oggi — un elenco a mano che rincorre una verità
+  che sta altrove — ho contato gli elenchi di slot: **9 copie** dei cinque pasti in ordine, **5**
+  dei tre pasti, **4** del digiuno. ✅ **Oggi combaciano tutte**, e i diciotto punti **non** sono
+  stati riscritti: cambiare l'ordine dei pasti dentro il motore per fare ordine vuol dire rischiare
+  la colazione dopo la cena — il danno scritto nel commento di `collega-ricetta.ts`, che nessun test
+  vedrebbe perché la giornata resta giusta a insiemi — in cambio di niente che si veda. ⚠️ Quello
+  che mancava non è l'ordine: è **qualcuno che se ne accorga quando smetteranno di combaciare**.
+  ✅ Le tre forme adesso si dichiarano in `slot-pasto.ts` e `giornata-in-tre-forme.spec.ts` legge i
+  sorgenti veri: ogni elenco di slot dev'essere una delle tre, o un'eccezione dichiarata **col suo
+  file e la sua ragione**. Le eccezioni sono tre: la giornata da quattro in `engine-rules` (che non
+  raggiunge più nessuno, ma toglierla vorrebbe dire decidere che non esisterà mai) e due in
+  `finestre-digiuno`, che non sono giornate ma **pasti saltati**.
+  ⛔ **Una mutazione non mordeva, ed è la quarta volta oggi.** Il test confrontava solo la forma: ho
+  messo la giornata da quattro in `giornate-complete.ts`, dove non c'entra niente, ed è passato —
+  **un permesso dato a un file era un permesso dato a tutti**. Corretto sulla coppia forma+file.
+  🔢 Build verde, 273 suite, 4113 test verdi a cache svuotata.
+
 - `[Sviluppo]` ⛔ **La misura ha bocciato la mia modifica di stamattina: la radice toglieva 721
   ricette in più.** Simone ha lanciato `npm run diag:esclusioni` in produzione. Su «frutta secca» la
   ricerca per radice — aggiunta da me stamattina — toglieva **721 ricette in più**, e a leggerle era

@@ -1,0 +1,53 @@
+Una giornata ha tre forme, e sono scritte in diciotto posti — 20/8
+
+Cercando la stessa famiglia di difetto trovata oggi tre volte — un elenco scritto a mano che deve
+rincorrere una verità che sta altrove — ho contato gli elenchi di slot nel backend:
+
+    9×  breakfast → morning_snack → lunch → afternoon_snack → dinner
+        collega-ricetta, catalog.dto (tre @IsIn), giornate-complete, copertura-catalogo,
+        engine-rules (due volte), giornata-dettata
+    5×  breakfast → lunch → dinner
+    4×  lunch → afternoon_snack → dinner   (il digiuno)
+
+✅ **Oggi combaciano tutte.** Non c'è un difetto aperto.
+
+## PERCHÉ NON HO RISCRITTO I DICIOTTO PUNTI
+
+Sarebbe stata la cosa che viene naturale, e sarebbe stata sbagliata. Cambiare l'ordine dei pasti
+dentro il motore per fare ordine vuol dire rischiare **la colazione dopo la cena, per tutte** — il
+danno è scritto nero su bianco nel commento di `collega-ricetta.ts`, e nessun test se ne
+accorgerebbe perché la giornata resta "giusta a insiemi" — in cambio di niente che si veda.
+
+⚠️ Quello che mancava non è l'ordine: è **qualcuno che se ne accorga quando smetteranno di
+combaciare**.
+
+## COSA È CAMBIATO
+
+`src/common/slot-pasto.ts` — le tre forme si **dichiarano**: `GIORNATA_CINQUE`, `GIORNATA_TRE`,
+`GIORNATA_DIGIUNO`, e `FORME_DI_GIORNATA` che le raccoglie. `MAIN_SLOTS` adesso *è*
+`GIORNATA_TRE` — sono i pasti che ci sono in tutte le strutture tranne il digiuno — ma tiene il suo
+nome, perché risponde a un'altra domanda: «dove si misura la soglia», non «che pasti ha questa
+dieta».
+
+`src/common/giornata-in-tre-forme.spec.ts` — legge i sorgenti veri e pretende che **ogni** elenco di
+slot sia una delle tre forme, o un'eccezione dichiarata **con il suo file e la sua ragione**.
+
+Le tre eccezioni, scritte con il perché accanto:
+ · `engine-rules`, giornata da quattro pasti — il solo posto che la conosce. Non la raggiunge più
+   nessuno (dal 20/8 il DTO accetta 3 e 5, `diag:pasti` dice zero clienti a 4), e resta scritta
+   perché toglierla vorrebbe dire decidere che una giornata da quattro non esisterà mai;
+ · due in `finestre-digiuno`, che non sono giornate ma **elenchi di pasti saltati** — infatti
+   l'ordine lì non è quello del giorno.
+
+## ⛔ UNA MUTAZIONE NON MORDEVA, ED È LA QUARTA VOLTA OGGI
+
+La prima versione confrontava **solo la forma**. Ho provato a mettere la giornata da quattro dentro
+`giornate-complete.ts` — dove non c'entra niente — e il test è passato, perché quella forma era
+ammessa *da qualche parte*. **Un permesso dato a un file diventava un permesso dato a tutti.**
+Corretto: l'eccezione vale per la coppia forma+file. Con la correzione la mutazione morde.
+
+Le altre tre mutazioni mordevano già: colazione spostata in fondo in `collega-ricetta`, una quarta
+forma nuova, un'eccezione dichiarata che non esiste più nel codice (un'eccezione morta è una regola
+più debole per niente).
+
+`npm run build` verde. 273 suite, 4113 test verdi, a cache svuotata.
