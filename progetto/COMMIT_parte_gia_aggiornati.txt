@@ -1,0 +1,55 @@
+--------------------------------------------------------------------------------
+Parte: gli «aggiornamenti grossi» erano gia fatti tutti e quattro — 20/8
+--------------------------------------------------------------------------------
+
+Simone: «c e altro che puoi fare?». Poche righe prima avevo detto che gli aggiornamenti erano
+l unica voce di codice rimasta MIA, e che React e Vite nel backoffice li potevo fare. Sono
+partito.
+
+⛔ SONO GIA TUTTI E QUATTRO ALLA VERSIONE CHIESTA
+
+    la voce chiedeva      c e nel repository
+    React 18          →   18.3.1   (app/ e backoffice/)
+    Vite 5            →   5.4.6
+    Prisma 6          →   6.10.0
+    Capacitor 6       →   6.1.2
+
+Stavo per aggiornare React a una versione su cui e gia.
+
+⚠️ LA VOCE E DEL 13/8, QUANDO QUELLI ERANO I BERSAGLI
+
+Sono stati raggiunti strada facendo, dentro altri lavori, e nessuno e tornato a spuntarla.
+
+⚠️ E LA QUARTA VOLTA IN DUE GIORNI
+
+Dopo «Schermate app 30 e 27-28» (due cose annullate a luglio), «Vera: rifare i giorni futuri»
+(gia fatta dal 18/8, nascosta da un commento che diceva il contrario) e il commento bugiardo in
+`applica-proposta.ts`.
+
+⛔ IL COSTO NON E LA VOCE APERTA: E CHE CI SI METTE A FARLA. Le prime tre le ho scoperte
+rileggendo il codice PRIMA di scrivere. Questa l ho scoperta con `package.json` aperto e le mani
+gia sulla tastiera — cioe il controllo ha funzionato all ultimo momento utile, non perche fossi
+prudente ma perche la prima cosa da guardare era per caso la piu ovvia.
+
+⚠️ NON L HO ALLARGATA AI MAJOR SUCCESSIVI
+
+React 19, Vite 6 e Capacitor 7 esistono. ⛔ Ma sarebbe UN ALTRA DECISIONE, non questa — e la voce
+diceva «una sessione tranquilla, non insieme ad altro», che vale per quella nuova esattamente
+come valeva per questa. Se la si vuole, si apre come voce nuova e si decide quando farla.
+
+RESTANO CINQUE VOCI, E QUATTRO ASPETTANO UNA PERSONA
+
+  · numero WhatsApp (settembre, deciso)
+  · coda «Da validare»: il numero di Nocanty
+  · come si prendono le misure: Simone e Lucia
+  · tabella alimenti: le cinque righe e gli spinaci
+  · kcal-need — l unica di codice, e la decide la nutrizionista: cambiare la base di `kgToLose`
+    cambia quante calorie mangia OGNI cliente
+
+⛔ Di codice che posso scrivere da solo, sulla lista, non c e piu niente. E questa volta l ho
+verificato invece di dirlo.
+
+FILE
+- backend/lavori: `voci-iniziali.ts` — voce chiusa
+
+Nessun codice cambiato. Nessuna migrazione.

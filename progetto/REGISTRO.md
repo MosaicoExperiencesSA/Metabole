@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔁 **Gli «aggiornamenti grossi» erano già fatti tutti e quattro, e stavo per rifarli.**
+  Poche righe prima avevo detto a Simone che erano l'unica voce di codice rimasta **mia**; lui ha
+  chiesto «c'è altro che puoi fare?» e sono partito. ⛔ React è già alla **18.3.1** (in `app/` e in
+  `backoffice/`), Vite alla **5.4.6**, Prisma alla **6.10.0**, Capacitor alla **6.1.2**: la voce è
+  del 13/8, quando quelli erano i bersagli, e sono stati raggiunti strada facendo dentro altri
+  lavori senza che nessuno tornasse a spuntarla.
+  ⚠️ **È la quarta volta in due giorni** — dopo «Schermate app 30 e 27-28», «Vera: rifare i giorni
+  futuri» e il commento bugiardo in `applica-proposta.ts`. ⛔ *Il costo non è la voce aperta: è che
+  ci si mette a farla.* Le prime tre le ho scoperte rileggendo il codice **prima** di scrivere;
+  questa con `package.json` aperto e le mani già sulla tastiera — il controllo ha funzionato
+  all'ultimo momento utile, e non per prudenza: perché la prima cosa da guardare era per caso la più
+  ovvia.
+  ⛔ **Non l'ho allargata ai major successivi** (React 19, Vite 6, Capacitor 7 esistono): sarebbe
+  un'altra decisione, e la voce diceva «una sessione tranquilla, non insieme ad altro» — che vale per
+  quella nuova esattamente come valeva per questa.
+  Restano **cinque** voci, e quattro aspettano una persona. ⛔ Di codice che posso scrivere da solo,
+  sulla lista, non c'è più niente — e questa volta l'ho **verificato** invece di dirlo.
+
 - `[Sviluppo]` ✅ **Il difetto 6 dell'ordine menu è chiuso — e la ragione per cui non lo facevo era
   un'opinione travestita da conclusione.** Simone: «ma i punti aperti di codice perché non li fai?».
   Domanda giusta: delle quattro, due sono ferme su persone davvero (il numero di Nocanty, il

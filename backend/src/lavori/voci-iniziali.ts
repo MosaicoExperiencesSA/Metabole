@@ -272,9 +272,10 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'aggiornamenti-grossi',
     titolo: 'Aggiornamenti grossi: React 18, Vite 5, Prisma 6, Capacitor 6',
-    dettaglio: 'Da fare in una sessione tranquilla, non insieme ad altro.',
+    dettaglio: 'Da fare in una sessione tranquilla, non insieme ad altro. ✅ **Chiusa il 20/8: erano già tutti e quattro fatti.** Simone: «c\'è altro che puoi fare?» — e siccome poche righe prima avevo detto che questa era l\'unica voce di codice rimasta mia, sono partito per aggiornare React. ⛔ **React è già alla 18.3.1**, in `app/` e in `backoffice/`; Vite alla **5.4.6**, Prisma alla **6.10.0**, Capacitor alla **6.1.2**. Stavo per aggiornare una libreria a una versione su cui è già. ⚠️ La voce è del 13/8, quando quelli erano i bersagli: sono stati raggiunti strada facendo, dentro altri lavori, e nessuno è tornato a spuntarla. **È la quarta volta in due giorni** che una voce descrive come da fare un lavoro finito — dopo «Schermate app 30», «Vera: rifare i giorni futuri» e il commento bugiardo in `applica-proposta.ts`. ⚠️ *Il costo non è la voce aperta: è che ci si mette a farla.* Le prime tre le ho scoperte leggendo il codice prima di scrivere; questa l\'ho scoperta con `package.json` aperto e le mani già sulla tastiera. ⛔ **Non l\'ho allargata ai major successivi** (React 19, Vite 6, Capacitor 7 esistono): sarebbe un\'altra decisione, non questa — e la voce diceva «una sessione tranquilla, non insieme ad altro», che vale per quella nuova esattamente come valeva per questa.',
     categoria: MANUTENZIONE,
     ordine: 40,
+    fatta: true,
   },
   /**
    * ⚠️ QUI C'ERA UNA SECONDA COPIA delle voci di Vera, trascritta il 13/8 dall'altra sessione mentre
