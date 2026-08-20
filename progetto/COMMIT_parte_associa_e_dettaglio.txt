@@ -1,0 +1,61 @@
+--------------------------------------------------------------------------------
+Parte: «associa» e «dettaglio» sugli alimenti da correggere — 20/8
+--------------------------------------------------------------------------------
+
+Richiesta di Simone: «oltre al pulsante togli mettimi anche associa (per associare ad altro cibo
+uguale) o dettaglio per inserirti i campi che ti servono».
+
+⚠️ RESTANO DUE PULSANTI, E TENERLI SEPARATI E IL PUNTO
+
+Rispondono a due domande diverse:
+
+  ASSOCIA     «questo nome e un altro modo di chiamare una riga che c e gia»
+              → «olio extravergine», «olio evo», «limone succo»: 6494 ricette
+  DETTAGLIO   «questo alimento in tabella non c e, e lo scrivo adesso»
+              → melanzane, fagiolini, coda di pescatrice
+
+⛔ Un pulsante solo obbligherebbe a decidere DOPO aver cliccato. E qui la scelta sbagliata non e
+un fastidio: UN SINONIMO MESSO DOVE SERVIVA UNA RIGA FA SPARIRE IL BUCO SENZA CHIUDERLO — il
+termine esce dall elenco, il passo notturno non lo riapre, e nessuno sa piu che manca.
+
+ASSOCIA: UNA TENDINA, NON UN CAMPO LIBERO
+
+Si sceglie fra le righe che ci sono davvero, col loro stato accanto. Scrivere il nome a mano
+vorrebbe dire poter scrivere un nome che non esiste — il sinonimo finirebbe attaccato a niente,
+o peggio alla riga sbagliata per un errore di battitura.
+
+⚠️ Il suggerimento automatico resta come pulsante a parte («è "X"»): propone, non applica.
+E vale ancora la guardia del 19/8 sera — non si attacca un sinonimo a una riga che in tabella
+c e solo da cotto.
+
+DETTAGLIO: GLI STESSI CAMPI DELLA MATITA, NON UNA SECONDA MASCHERA
+
+kcal, macro, zuccheri, fibre, IG con min/max e affidabilità, stato, categoria, fonte, nota.
+Due form per la stessa cosa divergono — una impara un campo nuovo e l altra no — e chi le usa
+deve ricordarsi quale ha cosa.
+
+⚠️ IL NOME NON SI SCRIVE: e il termine trovato nelle ricette. Se fosse libero, questa schermata
+diventerebbe un secondo modo di creare alimenti e il termine resterebbe in elenco, scollegato
+dalla riga appena scritta — si chiuderebbe il mancante creando un alimento che con quel mancante
+non c entra niente.
+
+⚠️ Un campo lasciato vuoto resta VUOTO, non diventa zero: «non lo so» e «zero» sono due cose
+diverse, e su un valore nutrizionale la differenza si vede nel piatto. La virgola dei decimali si
+puo scrivere come si scrive in italiano.
+
+⚠️ E se una riga con quel nome c e gia, non se ne fa una seconda: si dice di associare. Due righe
+con lo stesso nome sono l ambiguita che fa rispondere Gaia a caso.
+
+⚠️ E UN FINTO CHE RISPONDEVA UGUALE A QUALUNQUE DOMANDA — LA SESTA VOLTA OGGI
+
+Il test «se una riga con quel nome c e gia» aveva un doppio che tornava sempre la stessa riga,
+qualunque `where` gli arrivasse. Passava anche mutando la query: verificava che l endpoint sa
+leggere una variabile, non che cerca la riga giusta. Corretto, e adesso la mutazione morde.
+
+FILE
+- backend/nutrient-facts: `nutrient-facts.controller.ts` (endpoint `mancanti/:id/crea`) ·
+  `alimento-da-un-mancante.spec.ts` (nuovo, 5 test)
+- backoffice: `ValoriNutrizionali.tsx`
+
+246 suite / 3866 test verdi, 39 nel backoffice, build ok. Tre mutazioni: mordono tutte.
+Nessuna migrazione, nessuna chiave di permesso nuova (stessa pagina, `nutrient_facts`+`manage`).

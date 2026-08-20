@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔗 **«Associa» e «dettaglio» sugli alimenti da correggere** (richiesta di Simone).
+  ⚠️ **Restano due pulsanti, e tenerli separati è il punto**: «associa» dice *«questo nome è un
+  altro modo di chiamare una riga che c'è già»* (l'olio scritto in tre modi, 6494 ricette),
+  «dettaglio» dice *«questo alimento in tabella non c'è»* (melanzane, fagiolini, coda di
+  pescatrice). ⛔ Un pulsante solo obbligherebbe a decidere **dopo** aver cliccato, e la scelta
+  sbagliata qui non è un fastidio: *un sinonimo messo dove serviva una riga fa sparire il buco senza
+  chiuderlo* — il termine esce dall'elenco, il passo notturno non lo riapre, e nessuno sa più che
+  manca.
+  **Associa** è una **tendina**, non un campo libero: si sceglie fra le righe che ci sono davvero,
+  con lo stato accanto — un nome scritto a mano finirebbe attaccato a niente, o alla riga sbagliata
+  per un errore di battitura. **Dettaglio** usa **gli stessi campi della matita**, non una seconda
+  maschera: due form per la stessa cosa divergono. ⚠️ E il **nome non si scrive**, è il termine: se
+  fosse libero si chiuderebbe il mancante creando un alimento che con quel mancante non c'entra
+  niente. ⚠️ Un campo vuoto resta vuoto e non diventa `0`: su un valore nutrizionale la differenza
+  fra «non lo so» e «zero» si vede nel piatto.
+  ⚠️ **E un finto che rispondeva uguale a qualunque domanda — la sesta volta oggi.** Il test «se una
+  riga con quel nome c'è già» aveva un doppio che tornava sempre la stessa riga, qualunque `where`
+  gli arrivasse: passava anche mutando la query, cioè verificava che l'endpoint sa leggere una
+  variabile, non che cerca la riga giusta.
+
 - `[Sviluppo]` 🔎 **La lista della spesa adesso dice come lo scrivono davvero.** La sezione 1 di
   `diag:ricerca` stampava **parole**, non nomi interi — e da «denocciolate → nocciola» non si può
   sapere se serve una **riga nuova** in tabella o basta un **sinonimo**: dipende da com'è scritto

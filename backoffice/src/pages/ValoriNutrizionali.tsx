@@ -217,6 +217,56 @@ export function ValoriNutrizionali() {
     }
   }
 
+  /**
+   * ⚠️ I DUE PANNELLI APERTI SOTTO UNA RIGA, E UNO SOLO ALLA VOLTA — richiesta di Simone (20/8).
+   *
+   * «Associa» e «dettaglio» rispondono a due domande diverse e **restano due pulsanti**: associare
+   * dice «questo nome è un altro modo di chiamare una riga che c'è già», il dettaglio dice «questo
+   * alimento in tabella non c'è e lo scrivo adesso». ⛔ Un pulsante solo obbligherebbe a decidere
+   * *dopo* aver cliccato — e qui la scelta sbagliata non è un fastidio: un sinonimo messo dove
+   * serviva una riga **fa sparire il buco senza chiuderlo**.
+   */
+  const [associo, setAssocio] = useState<string | null>(null);
+  const [rigaScelta, setRigaScelta] = useState('');
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
+  const [nuovo, setNuovo] = useState<Record<string, string>>({});
+
+  function apriAssocia(m: Mancante) {
+    setDettaglio(null);
+    setAssocio(m.id);
+    // ⚠️ Il suggerimento si propone, non si applica: resta una tendina da confermare.
+    setRigaScelta(valori.find((v) => v.name === m.suggerito)?.id ?? '');
+  }
+
+  function apriDettaglio(m: Mancante) {
+    setAssocio(null);
+    setDettaglio(m.id);
+    setNuovo({});
+  }
+
+  async function associa(m: Mancante) {
+    if (!rigaScelta) return;
+    const nome = valori.find((v) => v.id === rigaScelta)?.name ?? '';
+    if (!confirm(`Aggiungere «${m.term}» come altro nome di «${nome}»?\n\nDa quel momento le ricette che scrivono «${m.term}» si contano su quella riga.`)) return;
+    try {
+      await api(`/nutrient-facts/mancanti/${m.id}/sinonimo`, { method: 'POST', body: JSON.stringify({ rigaId: rigaScelta }) });
+      setAssocio(null);
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
+  async function creaDaMancante(m: Mancante) {
+    try {
+      await api(`/nutrient-facts/mancanti/${m.id}/crea`, { method: 'POST', body: JSON.stringify(nuovo) });
+      setDettaglio(null);
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
   async function ignoraMancante(m: Mancante) {
     if (!confirm(`Togliere «${m.term}» dalla lista? Usalo quando non è il nome di un alimento.`)) return;
     try {
@@ -278,6 +328,24 @@ export function ValoriNutrizionali() {
                     {puoModificare && (
                       <button
                         className="btn ghost sm"
+                        title="È un altro modo di chiamare un alimento che in tabella c'è già: scegli quale."
+                        onClick={() => apriAssocia(m)}
+                      >
+                        associa
+                      </button>
+                    )}
+                    {puoModificare && (
+                      <button
+                        className="btn ghost sm"
+                        title="In tabella non c'è: scrivilo adesso, con i suoi valori."
+                        onClick={() => apriDettaglio(m)}
+                      >
+                        dettaglio
+                      </button>
+                    )}
+                    {puoModificare && (
+                      <button
+                        className="btn ghost sm"
                         title="Non è un alimento (o non ci serve): togli dall'elenco"
                         onClick={() => void ignoraMancante(m)}
                       >
@@ -287,6 +355,139 @@ export function ValoriNutrizionali() {
                   </td>
                 </tr>
               );
+            }).flatMap((riga, i) => {
+              const m = righe[i];
+              const sotto: JSX.Element[] = [riga];
+
+              /**
+               * ⚠️ **ASSOCIA: una tendina, non un campo libero.** Scrivere il nome a mano vorrebbe
+               * dire poter scrivere un nome che non esiste — e il sinonimo finirebbe attaccato a
+               * niente, o peggio a una riga sbagliata per un errore di battitura. Qui si sceglie
+               * fra le righe che ci sono davvero.
+               */
+              if (associo === m.id) {
+                sotto.push(
+                  <tr key={`${m.id}-ass`}>
+                    <td colSpan={5} style={{ background: 'var(--chip)' }}>
+                      <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13 }}>
+                          «<b>{m.term}</b>» è un altro modo di dire:
+                        </span>
+                        <select className="select sm" style={{ minWidth: 260 }} value={rigaScelta} onChange={(e) => setRigaScelta(e.target.value)}>
+                          <option value="">— scegli l'alimento —</option>
+                          {[...valori].sort((a, b) => a.name.localeCompare(b.name)).map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}{v.state ? ` (${v.state})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <button className="btn" disabled={!rigaScelta} onClick={() => void associa(m)}>
+                          <i className="ti ti-link" /> Associa
+                        </button>
+                        <button className="btn ghost" onClick={() => setAssocio(null)}>Annulla</button>
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          Da qui in poi le ricette che scrivono «{m.term}» si contano su quella riga.
+                        </span>
+                      </div>
+                    </td>
+                  </tr>,
+                );
+              }
+
+              /**
+               * ⚠️ **DETTAGLIO: gli stessi campi della matita**, non una seconda maschera. Due form
+               * per la stessa cosa divergono — una impara un campo nuovo e l'altra no — e chi le usa
+               * deve ricordarsi quale ha cosa.
+               *
+               * ⚠️ Il **nome non si scrive**: è il termine. Se fosse libero, questa schermata
+               * diventerebbe un secondo modo di creare alimenti e il termine resterebbe in elenco,
+               * scollegato da quello che si è appena scritto.
+               */
+              if (dettaglio === m.id) {
+                sotto.push(
+                  <tr key={`${m.id}-det`}>
+                    <td colSpan={5} style={{ background: 'var(--chip)' }}>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <div style={{ fontSize: 13, width: '100%' }}>
+                          Nuovo alimento: «<b>{m.term}</b>» — il nome è il termine trovato nelle ricette, e non si cambia qui.
+                        </div>
+                        {[
+                          ['kcal', 'kcal'],
+                          ['protein', 'Proteine'],
+                          ['carbs', 'Carboidrati'],
+                          ['sugars', 'Zuccheri'],
+                          ['fat', 'Grassi'],
+                          ['fiber', 'Fibre'],
+                          ['glycemicIndex', 'IG'],
+                          ['glycemicIndexMin', 'IG min'],
+                          ['glycemicIndexMax', 'IG max'],
+                        ].map(([campo, etichetta]) => (
+                          <label key={campo} style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {etichetta}
+                            <input
+                              className="input sm"
+                              style={{ width: 84 }}
+                              inputMode="decimal"
+                              value={nuovo[campo] ?? ''}
+                              onChange={(e) => setNuovo((b) => ({ ...b, [campo]: e.target.value }))}
+                            />
+                          </label>
+                        ))}
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          Stato
+                          <input
+                            className="input sm"
+                            style={{ width: 120 }}
+                            placeholder="crudo / bollito"
+                            title="⚠️ Nelle ricette le grammature sono a CRUDO. Una riga senza stato non si sa come contarla, e una riga solo da cotto il conto la salta."
+                            value={nuovo.state ?? ''}
+                            onChange={(e) => setNuovo((b) => ({ ...b, state: e.target.value }))}
+                          />
+                        </label>
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          Categoria
+                          <input
+                            className="input sm"
+                            style={{ width: 120 }}
+                            value={nuovo.category ?? ''}
+                            onChange={(e) => setNuovo((b) => ({ ...b, category: e.target.value }))}
+                          />
+                        </label>
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          Affidabilità IG
+                          <select
+                            className="select sm"
+                            value={nuovo.glycemicIndexReliability ?? ''}
+                            onChange={(e) => setNuovo((b) => ({ ...b, glycemicIndexReliability: e.target.value }))}
+                            title="Con «debole» Gaia dice il range e non il numero."
+                          >
+                            <option value="">—</option>
+                            <option value="solida">Solida</option>
+                            <option value="media">Media</option>
+                            <option value="debole">Debole</option>
+                            <option value="non_applicabile">Non si applica (niente carboidrati)</option>
+                          </select>
+                        </label>
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 160 }}>
+                          Fonte
+                          <input className="input sm" value={nuovo.source ?? ''} onChange={(e) => setNuovo((b) => ({ ...b, source: e.target.value }))} />
+                        </label>
+                        <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 220 }}>
+                          Nota (la legge Gaia insieme al valore)
+                          <input className="input sm" value={nuovo.note ?? ''} onChange={(e) => setNuovo((b) => ({ ...b, note: e.target.value }))} />
+                        </label>
+                        <div className="row" style={{ gap: 6 }}>
+                          <button className="btn" onClick={() => void creaDaMancante(m)}>
+                            <i className="ti ti-device-floppy" /> Crea l'alimento
+                          </button>
+                          <button className="btn ghost" onClick={() => setDettaglio(null)}>Annulla</button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>,
+                );
+              }
+              return sotto;
             })}
           </tbody>
         </table>

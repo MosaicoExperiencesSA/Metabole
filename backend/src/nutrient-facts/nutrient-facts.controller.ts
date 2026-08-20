@@ -181,6 +181,98 @@ export class NutrientFactsController {
   }
 
   /**
+   * L'ALIMENTO CHE MANCA, SCRITTO DA QUI — richiesta di Simone (20/8): «oltre al pulsante togli
+   * mettimi anche associa o dettaglio, per inserirti i campi che ti servono».
+   *
+   * ⚠️ **I due pulsanti rispondono a due domande diverse, e tenerle separate è il punto.**
+   * «Associa» dice *«questo nome è un altro modo di chiamare una riga che c'è già»* — l'olio
+   * extravergine scritto in tre modi, 6494 ricette. «Dettaglio» dice *«questo alimento in tabella
+   * non c'è e lo scrivo adesso»* — le melanzane, i fagiolini, la coda di pescatrice. Un solo
+   * pulsante che facesse tutt'e due obbligherebbe chi guarda a decidere **dopo** aver cliccato, e
+   * la scelta sbagliata qui non è un fastidio: un sinonimo messo dove serviva una riga fa sparire
+   * il buco senza chiuderlo.
+   *
+   * ⚠️ **Il nome nasce dal termine** e non si può cambiare qui: se il nome fosse libero, questa
+   * schermata diventerebbe un secondo modo di creare alimenti — e il termine resterebbe in elenco,
+   * scollegato da quello che si è appena scritto. Per un alimento che non viene da un mancante c'è
+   * già `POST /nutrient-facts`.
+   *
+   * ⚠️ Nasce **confermato**, come ogni riga scritta a mano: l'ha scritta una persona che sa, e
+   * rimetterla nella coda «da guardare» sarebbe farle rifare il lavoro che ha appena fatto.
+   */
+  @Post('mancanti/:id/crea')
+  @RequirePage('nutrient_facts', 'manage')
+  async creaDaMancante(
+    @Param('id') id: string,
+    @Body() body: Record<string, unknown>,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const miss = (await this.prisma.nutrientLookupMiss.findUnique({ where: { id } })) as
+      | { id: string; term: string; status: string }
+      | null;
+    if (!miss) throw new NotFoundException('Questo termine non è più in elenco.');
+
+    /**
+     * ⚠️ Se una riga con quel nome c'è già, **non se ne fa una seconda**: si dice di associare. Due
+     * righe con lo stesso nome sono precisamente l'ambiguità che fa rispondere Gaia a caso — ed è
+     * la ragione per cui `name` è `@unique` in banca dati. Meglio un errore che si legge che un
+     * vincolo che scatta e lascia chi ha cliccato senza sapere cosa fare.
+     */
+    const gia = await this.prisma.nutrientFact.findFirst({ where: { name: miss.term }, select: { id: true } });
+    if (gia) {
+      throw new BadRequestException(
+        `«${miss.term}» in tabella c'è già: usa «associa» invece di crearne una seconda, o correggi quella riga.`,
+      );
+    }
+
+    const staff = (await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } })) as { id: string } | null;
+    const numero = (k: string): number | null => {
+      const v = body[k];
+      if (v === '' || v === null || v === undefined) return null;
+      const n = Number(String(v).replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    };
+    const testo = (k: string): string | null => {
+      const v = body[k];
+      const t = typeof v === 'string' ? v.trim() : '';
+      return t ? t : null;
+    };
+
+    const creato = (await this.prisma.nutrientFact.create({
+      data: {
+        name: miss.term,
+        synonyms: [],
+        category: testo('category'),
+        state: testo('state'),
+        kcal: numero('kcal'),
+        protein: numero('protein'),
+        carbs: numero('carbs'),
+        sugars: numero('sugars'),
+        fat: numero('fat'),
+        fiber: numero('fiber'),
+        glycemicIndex: numero('glycemicIndex'),
+        glycemicIndexMin: numero('glycemicIndexMin'),
+        glycemicIndexMax: numero('glycemicIndexMax'),
+        glycemicIndexReliability: testo('glycemicIndexReliability'),
+        source: testo('source'),
+        note: testo('note'),
+        verifiedAt: new Date(),
+        verifiedById: staff?.id ?? null,
+      } as never,
+    })) as { id: string; name: string };
+
+    await this.prisma.nutrientLookupMiss.update({ where: { id }, data: { status: 'filled' } as never });
+    await this.audit.log({
+      action: 'nutrient_fact.created_from_miss',
+      actorId: user.sub,
+      entityType: 'nutrient_fact',
+      entityId: creato.id,
+      metadata: { termine: miss.term },
+    });
+    return { ok: true, id: creato.id, nome: creato.name };
+  }
+
+  /**
    * Correggere un valore. Correggere **è** confermare: se una nutrizionista mette le mani su un
    * numero, quel numero è suo — segnarlo come «ancora da guardare» sarebbe una bugia, e lo
    * ributterebbe nella coda che ha appena svuotato.
