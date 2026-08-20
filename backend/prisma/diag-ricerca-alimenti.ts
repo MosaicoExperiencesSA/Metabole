@@ -113,17 +113,42 @@ async function trappoleDellaTabella() {
     select: { ingredients: true } as never,
   })) as { ingredients: unknown }[];
 
-  /** Il vocabolario del cibo che gira davvero: i nomi in tabella + le parole degli ingredienti. */
+  /**
+   * Il vocabolario del cibo che gira davvero: i nomi in tabella + le parole degli ingredienti.
+   *
+   * ⚠️ **E accanto a ogni parola, i nomi INTERI in cui compare** (20/8). Prima si stampava solo la
+   * parola, e per decidere cosa farne bisognava indovinare: leggendo «denocciolate → nocciola» non
+   * si può sapere se serve una **riga nuova** in tabella o basta un **sinonimo** su una riga che c'è
+   * già — dipende da com'è scritto l'ingrediente per intero («olive nere denocciolate» è un'altra
+   * cosa da «prugne denocciolate»).
+   *
+   * ⛔ Ci sono cascato io stamattina: ho ragionato su «denocciolate» come se l'ingrediente fosse
+   * «olive denocciolate», e stavo per proporre una regola su un nome che non ho mai visto. *Una
+   * diagnostica che costringe chi la legge a immaginare il dato è una diagnostica che si legge
+   * male.*
+   */
   const quante = new Map<string, number>();
+  const nomiInteri = new Map<string, Map<string, number>>();
   for (const r of ricette) {
     if (!Array.isArray(r.ingredients)) continue;
     for (const i of r.ingredients as { name?: unknown }[]) {
       if (typeof i?.name !== 'string') continue;
-      for (const p of paroleChe(normalizzaNome(i.name))) {
-        if (p.length >= 4) quante.set(p, (quante.get(p) ?? 0) + 1);
+      const intero = normalizzaNome(i.name);
+      for (const p of paroleChe(intero)) {
+        if (p.length < 4) continue;
+        quante.set(p, (quante.get(p) ?? 0) + 1);
+        const dentro = nomiInteri.get(p) ?? new Map<string, number>();
+        dentro.set(intero, (dentro.get(intero) ?? 0) + 1);
+        nomiInteri.set(p, dentro);
       }
     }
   }
+  /** I due nomi interi più frequenti in cui quella parola compare: bastano a capire di cosa si parla. */
+  const comeLoScrivono = (parola: string): string => {
+    const dentro = [...(nomiInteri.get(parola) ?? new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1]);
+    if (!dentro.length) return '';
+    return dentro.slice(0, 2).map(([n, q]) => `«${n}» ×${q}`).join(' · ');
+  };
   const inTabella = new Set(alimenti.flatMap(nomiDi));
   const paroleInTabella = new Set([...inTabella].flatMap((n) => paroleChe(n)));
   /**
@@ -201,6 +226,8 @@ async function trappoleDellaTabella() {
       ? `→  risponderebbe «${comeSiChiama(t.corto)}»`
       : `(il conto lo salta · somiglia a «${comeSiChiama(t.corto)}»)`;
     console.log(`     ${pericolose ? '⚠️' : ' ·'} ${String(t.quante).padStart(5)} usi   «${t.lungo}»  ${freccia}`);
+    const scritti = comeLoScrivono(t.lungo);
+    if (scritti) console.log(`                    scritto così: ${scritti}`);
   }
   if (scattano.length > QUANTI) console.log(`     … e altre ${scattano.length - QUANTI} (QUANTI=n per vederne di più)`);
   if (!scattano.length) console.log('     Nessuna: ogni parola lunga ha già la sua riga in tabella.');

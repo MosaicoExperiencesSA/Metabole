@@ -20,6 +20,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔎 **La lista della spesa adesso dice come lo scrivono davvero.** La sezione 1 di
+  `diag:ricerca` stampava **parole**, non nomi interi — e da «denocciolate → nocciola» non si può
+  sapere se serve una **riga nuova** in tabella o basta un **sinonimo**: dipende da com'è scritto
+  l'ingrediente per intero. ⛔ Ci sono cascato io: ho ragionato su «denocciolate» come se
+  l'ingrediente fosse «olive denocciolate» e stavo per allargare l'elenco chiuso dei qualificatori
+  per chiudere 450 usi con la regola che abbiamo già — su un nome che **non ho mai visto**. ⚠️ È la
+  seconda volta oggi che ragiono su un dato immaginato invece che letto (la prima è stata «pure»,
+  due ore fa). Ora ogni riga porta i due nomi interi più frequenti in cui la parola compare, e si
+  decide guardando. *Una diagnostica che costringe chi la legge a immaginare il dato si legge male —
+  e la legge peggio chi l'ha scritta, perché crede di sapere già cosa c'è dentro.*
+
 - `[Sviluppo]` 🙈 **La diagnostica mangiava gli accenti, e ho dato la colpa ai dati.** Leggendo
   `diag:ricerca` ho visto «purea → risponderebbe **pure**» e ho scritto a Simone che in tabella c'era
   una riga chiamata «pure», «probabilmente un *purè* a cui è caduto l'accento in fase di import», da

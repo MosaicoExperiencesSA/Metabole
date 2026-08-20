@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Parte: la lista della spesa dice come lo scrivono davvero — 20/8
+--------------------------------------------------------------------------------
+
+La sezione 1 di `diag:ricerca` stampava PAROLE, non nomi interi. E leggendo «denocciolate →
+nocciola» non si puo sapere cosa farne: serve una RIGA NUOVA in tabella, o basta un SINONIMO su
+una riga che c'e gia? Dipende da com'e scritto l'ingrediente per intero — «olive nere
+denocciolate» e un'altra cosa da «prugne denocciolate».
+
+⛔ CI SONO CASCATO IO, STAMATTINA. Ho ragionato su «denocciolate» come se l'ingrediente fosse
+«olive denocciolate», e stavo per proporre di allargare l'elenco chiuso dei qualificatori
+(«denocciolato», «sgranato») per chiudere 450 usi con la regola che abbiamo gia. Poi sono andato
+a cercare se «olive» in tabella c'e — e non lo so, perche la diagnostica non me lo dice: mi dice
+solo che «denocciolate» somiglia a «nocciola».
+
+⚠️ Stavo per scrivere una regola su un nome che non ho mai visto. E la seconda volta oggi che
+ragiono su un dato immaginato invece che letto (la prima e stato «pure», due ore fa).
+
+Adesso ogni riga porta i due nomi interi piu frequenti in cui quella parola compare:
+
+     ·   254 usi   «denocciolate»  (il conto lo salta · somiglia a «nocciola»)
+                   scritto così: «olive nere denocciolate» ×212 · «prugne denocciolate» ×42
+
+Da li si decide guardando, non immaginando: se sono tutte olive, e «olive» in tabella c'e, basta
+un qualificatore; se sono tre cose diverse, servono tre righe.
+
+⚠️ *Una diagnostica che costringe chi la legge a immaginare il dato e una diagnostica che si
+legge male* — e chi la legge peggio e chi l'ha scritta, perche crede di sapere gia cosa c'e
+dentro.
+
+FILE
+- backend/prisma: `diag-ricerca-alimenti.ts`
+
+245 suite / 3861 test verdi. Nessuna migrazione.
