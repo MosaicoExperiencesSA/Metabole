@@ -20,6 +20,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🥕 **245 alimenti pronti da caricare, e un mio errore corretto per strada.** Simone ha
+  compilato il foglio uscito dall'«Esporta in Excel» e ha chiesto di caricarlo. Prima di farne un
+  modulo l'ho controllato riga per riga **con le funzioni vere del motore** (`normalizzaStato`,
+  `scegliPerRicetta`, i limiti del pulsante «dettaglio»), non con una copia scritta per l'occasione.
+  ⛔ **Due cose non passavano.** `Affidabilità IG: «alta»` su **153 righe** — il motore legge solo
+  `solida | media | debole | non_applicabile`, e «alta» non veniva rifiutata: entrava come parola
+  sconosciuta e si comportava come «solida» **per caso**, perché il codice tratta a parte solo
+  «debole». E lo stato `fresco/secco` (20 righe) e `pasta` (1, la consistenza del tahini), che
+  `normalizzaStato` non riconosce: sarebbero entrate «senza stato», cioè sarebbero **tornate
+  nell'elenco da correggere dopo essere state compilate**. Quattro righe si contraddicevano da sole
+  («riso integrale cotto» con stato «fresco/secco») e sono passate a `bollito`.
+  ⚠️ **E ho detto una cosa falsa, per mezz'ora.** Avevo scritto a Simone che anche `liquido` (oli,
+  aceti, brodo) e `fresco` (latticini) non erano riconosciuti, e avevo cambiato 55 righe. **Non è
+  vero**: `normalizzaStato` li porta tutti e due a `crudo`, e il controllo che avevo scritto io non
+  li aveva mai segnalati — diceva 21, io ne ho riportate 201. ⛔ *Ho ragionato invece di leggere
+  l'esito della misura che avevo appena fatto*: è lo stesso errore che passo le giornate a trovare
+  nel codice degli altri, su un foglio che stava per finire in tabella. Corretto, e quelle righe sono
+  tornate come le aveva scritte chi ha compilato il foglio.
+  ⚠️ **L'import avrebbe buttato via l'indice glicemico di 245 righe.** `RigaAlimento` non aveva i
+  campi dell'IG e `datiDi` non li passava: metà del lavoro di chi ha compilato sarebbe sparito senza
+  un errore, perché una colonna che non arriva non se ne lamenta. Ora ci sono, opzionali, così le 32
+  righe del 19/8 restano come sono.
+  ✅ **E la prova a vuoto ha chiuso un cerchio**: il foglio del 19 agosto **non era mai stato
+  caricato**, e contiene proprio le righe a crudo dei sette alimenti pericolosi del foglio nuovo —
+  carote, broccoli, barbabietola, pane di segale, più zucca, spinaci, ceci, lenticchie. L'import
+  carica i due elenchi insieme, il 19/8 per primo: il nome nudo prende il valore **a crudo** e la
+  riga cotta viene rinominata. È anche la chiusura di «spinaci freschi», le 1350 ricette che non si
+  abbinavano.
+  ⚠️ **La prova a vuoto ha mostrato dei nomi storti, e li ho corretti prima che finissero in
+  tabella**: `nomeConStato` incollava la parola dello stato così com'era e usciva «broccoli
+  bollito», «barbabietola bollito», «spinaci bollito», «polenta cotto». In italiano lo stato si
+  accorda con l'alimento, e l'alimento cambia genere e numero: non c'è una regola che ci arrivi da
+  sola. ⛔ E non è eleganza — **quei nomi li legge una persona** nella pagina Alimenti, e Gaia li può
+  citare a una cliente. Ora è `carote (da cotto)`: sempre grammaticale, e **la frase che il prodotto
+  già usa** («Solo da cotto» è l'etichetta dell'elenco).
+
+- `[Sviluppo]` 💰 **«Ricalcola provvigioni» lavora solo sulla rete coach — e non era così.**
+  Rispondendo a un'altra domanda Simone ha descritto il pulsante come «lavora solo sulle provvigioni
+  della rete coach, non su quella dei nutrizionisti». Il codice percorreva **tutte e due** le catene
+  (`finance.service.ts:386` e `:391`). Confermato da lui — «esatto solo catena coach» — e corretto.
+  ⚠️ **Il difetto non era un errore di calcolo: era la differenza fra quello che il proprietario
+  crede che il pulsante faccia e quello che faceva.** Su un pulsante che muove soldi quella
+  differenza è il difetto, quale che sia la versione migliore. Ed è saltata fuori per caso, da una
+  risposta a un'altra domanda.
+  ⚠️ Quello che è già stato pagato ai nutrizionisti resta pagato: questa funzione non ha mai tolto
+  niente a nessuno, e adesso quelle righe semplicemente non le guarda.
+  ⚠️ **La prima mutazione non mordeva**, e mi ha corretto il test: il finto profilo tornava la sola
+  coach, quindi il ramo nutrizionista era un giro a vuoto comunque e rimetterlo non cambiava niente.
+  Con una cliente che ha tutte e due le assegnazioni, adesso si vede. 262 suite e **4017 test verdi**.
+
 - `[Sviluppo]` ✅ **Le allergie entrano nella guardia che compone il menu — dopo aver misurato.**
   Simone ha lanciato `npm run diag:allergeni-piatto` e il numero è arrivato: **9 clienti con
   allergie dichiarate, 8 senza intolleranze** — cioè otto persone per cui `evaluateMeals` usciva

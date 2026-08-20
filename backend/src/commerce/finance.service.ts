@@ -379,18 +379,31 @@ export class FinanceService {
 
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId: pay.clientId },
-      select: { assignedCoachId: true, assignedNutritionistId: true },
-    })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
+      // Solo la coach: la catena nutrizionista questa funzione non la guarda più (vedi sotto).
+      select: { assignedCoachId: true },
+    })) as { assignedCoachId: string | null } | null;
 
+    /**
+     * ⚠️ **SOLO LA CATENA COACH** (Simone, 20/8). Fino a oggi questa funzione guardava anche la
+     * catena nutrizionista — `nutritionist` → `head_nutritionist` — e quindi il pulsante «Ricalcola
+     * provvigioni» aggiungeva quote anche lì.
+     *
+     * ⛔ Non era una scelta: era una riga scritta per simmetria con `generateCommissions`, e nessuno
+     * l'aveva più riletta. È venuta fuori il 20/8 perché Simone, rispondendo a un'altra domanda, ha
+     * descritto il pulsante come «lavora solo sulle provvigioni della rete coach» — e il codice
+     * faceva un'altra cosa. **Su un pulsante che muove soldi, la differenza fra quello che il
+     * proprietario crede che faccia e quello che fa è il difetto**, indipendentemente da quale
+     * delle due versioni sia la migliore.
+     *
+     * ⚠️ Le righe già a registro per i nutrizionisti **non si toccano**: questa funzione non toglie
+     * niente a nessuno (vedi sopra), e adesso semplicemente non le guarda — quindi non le somma né
+     * le segnala come eccesso. Quello che è stato pagato resta pagato.
+     */
     const atteso = new Map<string, { nome: string; ruolo: string; cents: number }>();
     for (const [id, v] of await this.dovutoLungoCatena(profile?.assignedCoachId, [
       { role: 'coach', amountCents: pq.coach },
       { role: 'coach_coordinator', amountCents: pq.coordinator },
       { role: 'sales', amountCents: pq.manager },
-    ])) atteso.set(id, v);
-    for (const [id, v] of await this.dovutoLungoCatena(profile?.assignedNutritionistId, [
-      { role: 'nutritionist', amountCents: pq.nutritionist },
-      { role: 'head_nutritionist', amountCents: pq.headNutritionist },
     ])) atteso.set(id, v);
 
     const righe = (await this.prisma.ledgerEntry.findMany({

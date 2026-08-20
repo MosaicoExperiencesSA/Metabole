@@ -39,6 +39,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { ALIMENTI_19_8, type RigaAlimento } from './dati-alimenti';
+import { ALIMENTI_20_8 } from './dati-alimenti-20-8';
 import { normalizzaStato, STATI_A_CRUDO } from '../src/nutrient-facts/stato-alimento';
 import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
@@ -47,14 +48,41 @@ const CONFERMA = process.env.CONFERMA === '1';
 
 type Riga = RigaAlimento;
 
-/** Il nome che prende la riga vecchia quando le si toglie il nome nudo: «carote» → «carote bollite». */
+/**
+ * Il nome che prende la riga vecchia quando le si toglie il nome nudo: «carote» → «carote (da cotto)».
+ *
+ * ⚠️ **Prima incollava la parola dello stato così com'era**, e la prova a vuoto del 20/8 ha mostrato
+ * cosa ne usciva: «broccoli bollito», «barbabietola bollito», «spinaci bollito», «polenta cotto»,
+ * «fagioli neri bollito», «spaghetti integrali bollito». In italiano lo stato si accorda con
+ * l'alimento, e l'alimento cambia genere e numero: non c'è una regola che ci arrivi da sola, e
+ * indovinarla sbaglierebbe sul primo nome nuovo.
+ *
+ * ⛔ E non è una questione di eleganza: **questi nomi li legge una persona** — stanno nella pagina
+ * Alimenti, e Gaia li può citare a una cliente («le barbabietola bollito hanno…»). Un nome storto
+ * in banca dati si corregge solo con un'altra migrazione.
+ *
+ * `(da cotto)` è sempre grammaticale, per qualunque alimento, ed è **la frase che il prodotto già
+ * usa**: «Solo da cotto» è l'etichetta dell'elenco «Alimenti da correggere». Gli altri stati
+ * restano fra parentesi come sono, che è già corretto perché non si accordano con niente.
+ */
 function nomeConStato(nome: string, stato: string | null): string {
   const s = (stato ?? '').trim().toLowerCase();
-  return s ? `${nome} ${s}` : `${nome} (vecchia)`;
+  if (!s) return `${nome} (vecchia)`;
+  const daCotto = s.startsWith('bollit') || s.startsWith('cott') || s.startsWith('lessat');
+  return daCotto ? `${nome} (da cotto)` : `${nome} (${s})`;
 }
 
 async function main() {
-  const righe = ALIMENTI_19_8;
+  /**
+   * ⚠️ **I DUE ELENCHI INSIEME, e nell'ordine in cui sono stati compilati.**
+   *
+   * Le 32 righe del 19/8 e le 245 del 20/8 si sovrappongono su una ventina di nomi (limone, cipolla,
+   * sedano, carote…) e **con numeri diversi**: il limone è 11 kcal nel primo foglio e 29 nel secondo.
+   * Non è un problema da risolvere qui, ed è il motivo per cui questo script non sovrascrive mai una
+   * riga già a crudo: stampa i due numeri accanto e lascia decidere a una persona. Rilanciarlo non
+   * fa danni — la seconda volta trova tutto già a posto e non scrive niente.
+   */
+  const righe = [...ALIMENTI_19_8, ...ALIMENTI_20_8];
 
   console.log('');
   console.log('==================================================================');
@@ -152,6 +180,12 @@ function datiDi(r: Riga) {
     fat: r.fat,
     fiber: r.fiber,
     source: r.source,
+    // ⚠️ L'indice glicemico c'è solo sul foglio del 20/8: `undefined` non arriva a Prisma, quindi le
+    // righe vecchie restano come sono invece di prendersi dei `null` scritti apposta.
+    ...(r.glycemicIndex !== undefined ? { glycemicIndex: r.glycemicIndex } : {}),
+    ...(r.glycemicIndexMin !== undefined ? { glycemicIndexMin: r.glycemicIndexMin } : {}),
+    ...(r.glycemicIndexMax !== undefined ? { glycemicIndexMax: r.glycemicIndexMax } : {}),
+    ...(r.glycemicIndexReliability !== undefined ? { glycemicIndexReliability: r.glycemicIndexReliability } : {}),
   };
 }
 

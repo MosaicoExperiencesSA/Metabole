@@ -25,6 +25,17 @@ export interface RigaAlimento {
   fat: number | null;
   fiber: number | null;
   source: string | null;
+  /**
+   * ⚠️ L'INDICE GLICEMICO, aggiunto il 20/8 e **opzionale**: le 32 righe del 19/8 non ce l'hanno, e
+   * il foglio nuovo sì. Senza questi campi l'import avrebbe buttato via l'IG di 245 righe — cioè
+   * metà del lavoro di chi ha compilato il foglio — e nessuno se ne sarebbe accorto, perché una
+   * colonna che non arriva non produce nessun errore.
+   */
+  glycemicIndex?: number | null;
+  glycemicIndexMin?: number | null;
+  glycemicIndexMax?: number | null;
+  /** solida | media | debole | non_applicabile — gli unici che il motore legge. */
+  glycemicIndexReliability?: string | null;
   /** Da quale foglio del file viene: serve solo a raccontarlo nella prova a vuoto. */
   foglio: string;
 }

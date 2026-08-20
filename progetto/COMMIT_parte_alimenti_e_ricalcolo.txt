@@ -1,0 +1,55 @@
+245 alimenti pronti da caricare · «Ricalcola provvigioni» solo sulla rete coach
+
+1) IL FOGLIO DEI 245 ALIMENTI, CONTROLLATO PRIMA DI DIVENTARE UN MODULO
+Controllato riga per riga con le funzioni vere del motore (`normalizzaStato`, `scegliPerRicetta`, i
+limiti del pulsante «dettaglio»), non con una copia scritta per l'occasione. Due cose non passavano:
+
+  · `Affidabilità IG: «alta»` su 153 righe. Il motore legge solo solida/media/debole/non_applicabile.
+    «alta» non veniva rifiutata: entrava come parola sconosciuta e si comportava come «solida» PER
+    CASO, perché il codice tratta a parte solo «debole».
+  · Stato `fresco/secco` (20) e `pasta` (1, la consistenza del tahini): `normalizzaStato` non li
+    riconosce, quelle righe sarebbero entrate «senza stato» — cioè sarebbero tornate nell'elenco da
+    correggere dopo essere state compilate. Quattro si contraddicevano da sole («riso integrale
+    cotto» con stato «fresco/secco») e sono passate a `bollito`.
+
+⚠️ E HO DETTO UNA COSA FALSA, PER MEZZ'ORA
+Avevo scritto che anche `liquido` (oli, aceti, brodo) e `fresco` (latticini) non erano riconosciuti,
+e avevo cambiato 55 righe. Non è vero: `normalizzaStato` li porta tutti e due a `crudo`. Il
+controllo che avevo scritto io non li aveva mai segnalati — diceva 21, io ne ho riportate 201. Ho
+ragionato invece di leggere l'esito della misura che avevo appena fatto. Corretto.
+
+⚠️ L'IMPORT AVREBBE BUTTATO VIA L'INDICE GLICEMICO DI 245 RIGHE
+`RigaAlimento` non aveva i campi dell'IG e `datiDi` non li passava: metà del lavoro di chi ha
+compilato sarebbe sparito senza un errore. Ora ci sono, opzionali.
+
+✅ LA PROVA A VUOTO HA CHIUSO UN CERCHIO
+Il foglio del 19 agosto non era mai stato caricato, e contiene proprio le righe A CRUDO dei sette
+alimenti pericolosi del foglio nuovo (carote, broccoli, barbabietola, pane di segale, più zucca,
+spinaci, ceci, lenticchie). L'import carica i due elenchi insieme, il 19/8 per primo: il nome nudo
+prende il valore a crudo e la riga cotta viene rinominata. È anche la chiusura di «spinaci freschi»,
+le 1350 ricette che non si abbinavano.
+
+⚠️ E HA MOSTRATO DEI NOMI STORTI, CORRETTI PRIMA CHE FINISSERO IN TABELLA
+`nomeConStato` incollava la parola dello stato così com'era: «broccoli bollito», «barbabietola
+bollito», «spinaci bollito», «polenta cotto». In italiano lo stato si accorda con l'alimento, e
+l'alimento cambia genere e numero. Quei nomi li legge una persona nella pagina Alimenti, e Gaia li
+può citare a una cliente. Ora è `carote (da cotto)`: sempre grammaticale, e la frase che il prodotto
+già usa.
+
+2) «RICALCOLA PROVVIGIONI» LAVORA SOLO SULLA RETE COACH
+Simone ha descritto il pulsante come «lavora solo sulle provvigioni della rete coach, non su quella
+dei nutrizionisti». Il codice percorreva tutte e due le catene. Confermato — «esatto solo catena
+coach» — e corretto. Il difetto non era un errore di calcolo: era la differenza fra quello che il
+proprietario crede che il pulsante faccia e quello che faceva. Quello che è già stato pagato ai
+nutrizionisti resta pagato.
+
+⚠️ La prima mutazione non mordeva e mi ha corretto il test: il finto profilo tornava la sola coach,
+quindi il ramo nutrizionista era un giro a vuoto comunque.
+
+COME SI CARICA (shell di Render, dopo il deploy)
+  npm run importa:alimenti              → prova a vuoto: 277 righe, va letta
+  CONFERMA=1 npm run importa:alimenti   → scrive
+Le righe nascono NON confermate: «confermato» qui vuol dire «un nutrizionista ha guardato questo
+numero», e non sappiamo chi abbia compilato il foglio.
+
+Niente migrazioni. 262 suite e 4017 test verdi, type-check a zero errori.
