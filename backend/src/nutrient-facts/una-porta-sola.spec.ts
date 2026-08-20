@@ -30,6 +30,32 @@ const PERMESSI = new Set([
   'nutrient-facts/abbinamento-alimenti.ts',
   // I test provano la funzione pura, con tutte le combinazioni: è il loro mestiere.
   'nutrient-facts/abbinamento-alimenti.spec.ts',
+  // La domanda intera («che riga è, e la posso usare?») vive qui e usa l'abbinamento come passo 2.
+  'nutrient-facts/per-la-ricetta.ts',
+]);
+
+/**
+ * ⚠️ **E LA STESSA REGOLA SULLA DECISIONE, NON SOLO SULL'ABBINAMENTO** — 20/8, secondo giro.
+ *
+ * `abbinaPerRicetta` ha chiuso metà del problema: tutti abbinano allo stesso modo. ⛔ Ma poi
+ * restava il **passo 3**, «questa riga si può usare?», e lì i due punti sono divergiti lo stesso —
+ * la produzione guardava le righe con lo stesso `name`, il passo notturno quelle che condividevano
+ * un nome **o un sinonimo**. Insieme diverso, verdetto diverso, e nessuno dei due visibile da fuori.
+ *
+ * Quindi la porta è più grande: chi ha un ingrediente di ricetta e vuole sapere che farne chiama
+ * `esitoPerIngrediente`, e `scegliPerRicetta` resta ai casi in cui le righe **le ha già in mano**.
+ */
+const SCEGLI_PERMESSI = new Set([
+  'nutrient-facts/per-la-ricetta.ts',
+  'nutrient-facts/stato-alimento.ts',
+  'nutrient-facts/stato-alimento.spec.ts',
+  'nutrient-facts/per-la-ricetta.spec.ts',
+  // Ha le righe già in mano: sta decidendo su un elenco che ha appena letto lui.
+  'nutrient-facts/nutrient-facts.controller.ts',
+  'nutrient-facts/ingredienti-scoperti.ts',
+  'nutrient-facts/valori-per-ricetta.spec.ts',
+  'nutrient-facts/ingredienti-scoperti.spec.ts',
+  'vera/vera-chat.service.spec.ts',
 ]);
 
 function fileSorgente(radice: string, base = ''): string[] {
@@ -62,6 +88,19 @@ describe('l\'abbinamento degli ingredienti ha una porta sola', () => {
     const colpevoli = fileSorgente(radice).filter((f) =>
       /\babbina\s*\(/.test(readFileSync(join(radice, f), 'utf8')),
     );
+    expect(colpevoli).toEqual([]);
+  });
+
+  /**
+   * ⚠️ E la decisione «questa riga si può usare?»: chi parte da un **nome di ingrediente** deve
+   * passare da `esitoPerIngrediente`. Chi ha già le righe in mano può usare `scegliPerRicetta`, ed è
+   * dichiarato qui sopra, uno per uno.
+   */
+  it('⚠️ chi parte da un nome non decide da solo se la riga si può usare', () => {
+    const radice = join(__dirname, '..');
+    const colpevoli = fileSorgente(radice)
+      .filter((f) => !SCEGLI_PERMESSI.has(f))
+      .filter((f) => /\bscegliPerRicetta\s*\(/.test(readFileSync(join(radice, f), 'utf8')));
     expect(colpevoli).toEqual([]);
   });
 });

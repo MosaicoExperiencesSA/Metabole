@@ -68,6 +68,29 @@ describe('l\'elenco di lavoro degli ingredienti scoperti', () => {
     expect(x.suggerito).toBe('lenticchie');
   });
 
+  /**
+   * ⚠️ **DUE RIGHE CON LO STESSO NOME: RESTA UN LAVORO, E IL MOTIVO È QUELLO GIUSTO.**
+   *
+   * Avevo scritto questo test aspettandomi il contrario — «ci sono tutte e due, quindi la
+   * convenzione sceglie la crudo e non è un lavoro» — e la mutazione mi ha smentito. ⛔ Quando due
+   * righe portano lo stesso nome, `abbina` **non sceglie**: le vede come due candidati di pari peso
+   * e torna `null`, perché indovinare fra «lenticchie crude» e «lenticchie bollite» vuol dire
+   * scrivere calorie a caso.
+   *
+   * ✅ E resta in elenco **giustamente**: in produzione quel nome non si conta, quindi c'è del lavoro
+   * da fare — sistemare le due righe. L'elenco dice il vero; ero io ad aspettarmi la risposta
+   * sbagliata.
+   */
+  it('⚠️ due righe con lo stesso nome restano un lavoro: l\'abbinamento non sceglie', () => {
+    const righe = [
+      { name: 'lenticchie', synonyms: [], state: 'bollite' },
+      { name: 'lenticchie', synonyms: [], state: 'crudo' },
+    ];
+    const [x] = ingredientiScoperti(new Map([['lenticchie bio', 12]]), righe);
+    expect(x.motivo).toBe('non_in_tabella');
+    expect(x.suggerito).toBeNull();
+  });
+
   /** E quando non si abbinerebbe a niente, non si inventa: la riga va scritta. */
   it('un nome che non porta da nessuna parte non ha suggerimenti', () => {
     const [x] = scoperti([['melanzane', 1025]]);

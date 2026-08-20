@@ -38,6 +38,7 @@
  */
 
 import { abbinaPerRicetta, paroleChe } from './abbinamento-alimenti';
+import { esitoPerIngrediente } from './per-la-ricetta';
 import { scegliPerRicetta } from './stato-alimento';
 import { normalizzaNome } from './valori-nutrizionali.service';
 
@@ -158,8 +159,15 @@ export function ingredientiScoperti(
        * dice con il motivo giusto, che è l'unica cosa che rende l'elenco azionabile.
        */
       if (forse) {
-        const stesse = perNome.get(normalizzaNome(forse.riga.name)) ?? [forse.riga];
-        const via = scegliPerRicetta(stesse);
+        /**
+         * ⚠️ **La decisione la prende `esitoPerIngrediente`, la stessa che usa la produzione.** Qui
+         * prima c'era `perNome.get(...)`, cioè le righe che condividono quel nome **o quel
+         * sinonimo**: un criterio più largo di quello vero (`name` uguale), e su una riga «riso» più
+         * una riga con sinonimo «riso» dava un insieme diverso, quindi un verdetto diverso.
+         * ⛔ Non si sarebbe visto da fuori: il conto sarebbe stato giusto e l'elenco di lavoro
+         * avrebbe raccontato un'altra cosa.
+         */
+        const via = esitoPerIngrediente(nome, righe ?? []);
         if (via.tipo === 'va_bene') continue;
         fuori.push({
           nome,

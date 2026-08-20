@@ -1,0 +1,58 @@
+--------------------------------------------------------------------------------
+Parte: i tre passi in un posto solo — e una mia ragione falsa, fermata prima — 20/8
+--------------------------------------------------------------------------------
+
+«Questo ingrediente di ricetta, che riga e e la posso usare?» la fanno in due: il conto dei macro
+quando la nutrizionista detta, e il passo notturno che riempie l elenco di lavoro. Sono LA STESSA
+domanda, e fino a oggi avevano due risposte scritte in due file.
+
+I passi sono tre, e ognuno e un occasione di divergere:
+  1. il nome esatto (nome o sinonimo, normalizzati)
+  2. se non c e, l abbinamento
+  3. e su quello che si trova, la convenzione del crudo
+
+⛔ Il passo 2 e divergito davvero, stamattina, e ha fatto danno: `diag:crudo-cotto` abbinava senza
+passare lo stato della riga, quindi rispondeva «non si abbina» su nomi che in produzione si
+abbinano — e quella diagnostica e il foglio da cui la nutrizionista decide quali righe scrivere a
+mano. La stava mandando a fare un lavoro che non serve.
+
+Adesso i tre passi stanno in `per-la-ricetta.ts`, e li chiamano tutti e due.
+
+⚠️ E QUI VIENE LA PARTE CHE VALE PIU DEL MODULO
+
+Nel commento avevo scritto che divergeva anche il PASSO 3: il passo notturno raccoglieva le righe
+«con lo stesso nome» dall indice per NOME-O-SINONIMO, la produzione per uguaglianza sul nome.
+L avevo messo nero su bianco come un difetto trovato.
+
+⛔ NON PUO MANIFESTARSI. Se un altra riga porta quel nome — come nome o come sinonimo —
+l abbinamento la vede come un secondo candidato di pari peso e torna `null`: «due righe che vanno
+bene uguale = non lo so». Quindi quando l abbinamento risponde, quella riga e UNICA, e i due
+criteri coincidono sempre.
+
+⚠️ A dirmelo e stata una MUTAZIONE CHE NON MORDEVA, non il ragionamento. Ho scritto un test per
+dimostrare la divergenza, il test e passato anche col codice mutato, e sono andato a verificare
+eseguendo: coincidono. La ragione falsa era gia scritta nel commento, ed era pronta a partire.
+
+*Una ragione falsa in un commento e peggio di nessun commento*: chi legge si fida, e ci
+costruisce sopra. Corretta, con dentro come me ne sono accorto.
+
+⚠️ E UN SECONDO TEST MI HA SMENTITO NELLO STESSO GIRO
+
+Avevo scritto «con la riga a crudo E quella bollita, il nome NON e un lavoro», aspettandomi che la
+convenzione scegliesse la crudo. ⛔ No: due righe con lo stesso nome fanno tornare `null`
+l abbinamento, quindi in produzione quel nome NON SI CONTA — e resta in elenco giustamente, perche
+del lavoro c e (sistemare le due righe). L elenco diceva il vero; ero io ad aspettarmi la risposta
+sbagliata.
+
+⚠️ E LA PORTA ADESSO E PIU GRANDE
+
+`una-porta-sola.spec.ts` guardava chi chiama `abbina`. Adesso guarda anche chi chiama
+`scegliPerRicetta`: chi parte da un NOME DI INGREDIENTE passa da `esitoPerIngrediente`; chi ha gia
+le righe in mano puo decidere da se, ed e dichiarato nel test, uno per uno.
+
+FILE
+- backend/nutrient-facts: `per-la-ricetta.ts` + spec (nuovi, 6 test) ·
+  `valori-nutrizionali.service.ts` · `ingredienti-scoperti.ts` + spec ·
+  `una-porta-sola.spec.ts` (un test in piu)
+
+249 suite / 3909 test verdi. Tre mutazioni: mordono tutte e tre. Nessuna migrazione.

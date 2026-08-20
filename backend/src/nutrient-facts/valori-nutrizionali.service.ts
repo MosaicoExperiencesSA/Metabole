@@ -1,4 +1,5 @@
-import { abbinaPerRicetta, eParolina, paroleChe, paroleDi } from './abbinamento-alimenti';
+import { eParolina, paroleChe, paroleDi } from './abbinamento-alimenti';
+import { esitoPerIngrediente } from './per-la-ricetta';
 import { ingredientiScoperti, usiNegliIngredienti } from './ingredienti-scoperti';
 import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, sequenzaDentro } from './nome-dentro-la-domanda';
 import { type EsitoPerRicetta, type EsitoScelta, fraseAmbiguita, scegliPerRicetta, scegliPerStato } from './stato-alimento';
@@ -163,28 +164,15 @@ export class ValoriNutrizionaliService {
    * invece di 282.
    */
   async cercaPerIngrediente(nome: string): Promise<EsitoPerRicetta<ValoreNutrizionale>> {
-    const t = normalizzaNome(nome);
-    if (t.length < 3) return { tipo: 'niente' };
     const tutti = (await this.prisma.nutrientFact.findMany()) as unknown as ValoreNutrizionale[];
-    // ⚠️ Prima l'uguaglianza esatta: se il nome combacia, non serve nessuna regola di abbinamento.
-    const esatti = tutti.filter((v) => [v.name, ...(v.synonyms ?? [])].map(normalizzaNome).includes(t));
-    if (esatti.length) return scegliPerRicetta(esatti);
     /**
-     * ⚠️ E ANCHE SULL'ABBINAMENTO SI APPLICA LA CONVENZIONE. È il difetto trovato dalla revisione
-     * avversariale del 19/8 sera, ed era **grave**: la convenzione si aggirava con un aggettivo.
-     * «lenticchie» (in tabella solo bollite) veniva bloccata giustamente; **«lenticchie bio» no** —
-     * l'abbinamento trovava la riga bollita e la contava su una grammatura a crudo, scrivendo 93
-     * kcal dove ce ne sono ~282, dentro `Recipe.kcal`. Il controllo saltava **esattamente** nei casi
-     * per cui l'abbinamento è stato scritto.
-     *
-     * ⚠️ Se l'abbinamento trova più righe (nomi diversi che portano allo stesso alimento in stati
-     * diversi) decide `scegliPerRicetta`, non l'ordine del database — che era la seconda metà dello
-     * stesso difetto: `esatti[0]` faceva scegliere alla lettura di Postgres fra crudo e bollito.
+     * ⚠️ **I TRE PASSI STANNO IN `per-la-ricetta.ts`**, e da lì li prende anche il passo notturno che
+     * riempie l'elenco di lavoro. Erano scritti due volte, e il 20/8 ne sono divergiti **due su
+     * tre** in un giorno solo: l'abbinamento senza lo stato della riga, e le «righe con lo stesso
+     * nome» raccolte con un criterio più largo. ⛔ Nessuno dei due si vedeva da fuori — la produzione
+     * contava bene e l'elenco di lavoro raccontava un'altra cosa.
      */
-    const trovato = abbinaPerRicetta(nome, tutti);
-    if (!trovato) return { tipo: 'niente' };
-    const stessoNome = tutti.filter((v) => v.name === trovato.riga.name);
-    return scegliPerRicetta(stessoNome.length ? stessoNome : [trovato.riga]);
+    return esitoPerIngrediente(nome, tutti);
   }
 
   /**

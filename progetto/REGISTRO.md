@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🚪 **I tre passi in un posto solo — e una mia ragione falsa, fermata prima di
+  consegnarla.** «Questo ingrediente che riga è, e la posso usare?» la fanno in due (il conto dei
+  macro e il passo notturno) e aveva due risposte in due file. Il **passo 2** è divergito davvero
+  stamattina e ha fatto danno; ora i tre passi stanno in `per-la-ricetta.ts`.
+  ⚠️ **La parte che vale più del modulo.** Nel commento avevo scritto che divergeva anche il passo 3
+  — l'indice per nome-o-sinonimo contro l'uguaglianza sul nome — e l'avevo messo nero su bianco come
+  un difetto trovato. ⛔ **Non può manifestarsi**: se un'altra riga porta quel nome, l'abbinamento la
+  vede come un secondo candidato di pari peso e torna `null` («due righe che vanno bene uguale = non
+  lo so»), quindi quando risponde quella riga è unica e i due criteri **coincidono sempre**.
+  ⚠️ A dirmelo è stata **una mutazione che non mordeva**, non il ragionamento: avevo scritto un test
+  per dimostrare la divergenza, il test passava anche col codice mutato, sono andato a verificare
+  eseguendo. *Una ragione falsa in un commento è peggio di nessun commento* — chi legge si fida e ci
+  costruisce sopra. Corretta, con dentro come me ne sono accorto.
+  ⚠️ **E un secondo test mi ha smentito nello stesso giro**: «con la riga a crudo e quella bollita il
+  nome non è un lavoro» — no, due righe con lo stesso nome fanno tornare `null` l'abbinamento, quindi
+  in produzione quel nome **non si conta** e resta in elenco giustamente. *L'elenco diceva il vero;
+  ero io ad aspettarmi la risposta sbagliata.*
+  La porta è anche più grande: il test sul sorgente adesso guarda pure chi chiama `scegliPerRicetta`.
+
 - `[Sviluppo]` 🧹 **L'elenco di lavoro conteneva cose già fatte, in due modi diversi.** Trovati
   partendo dalle cinque righe che Simone aveva appena corretto.
   ⛔ **Il lavoro appena fatto non spariva: si spostava nella lista sbagliata.** Un nome che smetteva
