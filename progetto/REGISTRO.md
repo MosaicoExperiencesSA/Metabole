@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 📋 **L'elenco Lavori aggiornato a fine giornata: 11 aperte, 1 bloccante, 128 chiuse.**
+  Tre voci riscritte, **nessuna nuova** — la giornata ne aveva già aperte troppe, e due delle tre
+  correzioni consistono nel dire che una cosa che avevo scritto era falsa.
+  ✅ **L'import è andato**: `diag:crudo-cotto` dice **286 alimenti con la riga a crudo**, ed è la
+  lista che conta. «spinaci freschi» c'è, a 31 kcal crudo.
+  ⚠️ **La coda del difetto del seed è misurata**: in lista 2 («senza stato, usati nelle ricette») ci
+  sono esattamente le undici righe rimesse a posto più l'olio — olio evo 3024 ricette, miele 1333,
+  pane integrale 931, noci 748, burro 295, mandorle 200. Lo stato **esiste ancora** in
+  `dati-alimenti-20-8.ts` com'era stato compilato, e si rimette con uno script e una prova a vuoto;
+  su olio e miele no, lì la risposta è «non si applica» e la scrive una persona. ⛔ E scriverla oggi
+  **non basterebbe**: al primo deploy il seed la cancella.
+  ⚠️ **E una frase falsa stampata a schermo, annotata perché va tolta**: `ripara:alimenti` dice
+  «tolto il doppione **senza firma**» ed erano firmate tutte e due — la firma della nuova gliela
+  aveva messa il seed. Non ha cambiato niente di quello che è successo, ma una ragione falsa a
+  schermo è la stessa malattia del resto.
+  ⚠️ Nota per chi legge `diag:crudo-cotto`: delle 19 righe «solo da cotto», quindici sono **corrette
+  così** — «ceci cotti», «riso integrale cotto», «quinoa cotta»: è la ricetta a dire cotto. Le altre
+  quattro hanno il nome vecchio come sinonimo **apposta**, perché Gaia risponda «dipende».
+
 - `[Sviluppo]` ⛔ **Il seed gira a OGNI deploy e firma quello che non ha guardato nessuno.**
   Controllando l'esito della riparazione ho guardato l'ora di ultima modifica delle undici righe:
   **20:38:39**, mezz'ora prima era 20:12:46. Cambia a ogni giro — il seed non l'ha lanciato una

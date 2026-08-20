@@ -1,0 +1,51 @@
+L'elenco Lavori aggiornato a fine giornata — 20/8
+
+Tre voci riscritte con quello che è successo stasera. Nessuna nuova: la giornata ne aveva già aperte
+troppe, e due delle tre correzioni consistono nel dire che una cosa che avevo scritto era falsa.
+
+## `seed-nutrienti-firma-falsa` (bloccante) — la coda del difetto
+
+`npm run diag:crudo-cotto` a fine serata: in lista 2 («senza stato, e usati nelle ricette») ci sono
+**esattamente le undici righe rimesse a posto**, più l'olio — `olio extravergine di oliva` 3024
+ricette, `miele` 1333, `pane integrale` 931, `noci` 748, `parmigiano` 339, `burro` 295, `mandorle`
+200, `avocado` 177, `mela` 114, `pera` 69, `fragole` 67, `ricotta` 57. Sono senza stato perché il
+seed glielo ha azzerato, e la riga restaurata è quella che lo stato non l'ha mai avuto.
+
+✅ Ma quello stato **esiste ancora** in `dati-alimenti-20-8.ts`, com'era stato compilato. Si rimette
+con uno script e una prova a vuoto. ⚠️ Su olio e miele no: lì la risposta è «non si applica», e la
+scrive una persona.
+
+⚠️ **E una frase falsa stampata a schermo**, annotata perché va tolta: `ripara:alimenti` dice «tolto
+il doppione **senza firma**», e non era vero — erano firmate tutte e due, la firma della nuova
+gliela aveva messa il seed. È rimasta dalla versione precedente della regola. Non ha cambiato niente
+di quello che è successo, ma una ragione falsa stampata a schermo è la stessa malattia del resto.
+
+## `tabella-alimenti-igiene` — ristretta
+
+L'import è andato: **286 alimenti hanno la riga a crudo**, ed è la lista che conta. «spinaci
+freschi» c'è, a 31 kcal crudo — l'ipotesi dello stato vuoto era giusta e non serve più indagarla.
+⛔ Resta il punto 1 (olio, miele, sale, zucchero da dichiarare «non si applica»), e adesso si sa
+**perché** sono vuoti: il seed li azzera a ogni deploy. Quindi scriverlo dalla matita **oggi non
+basta** — al primo deploy tornerebbe vuoto. Questa voce aspetta quella.
+
+⚠️ E una nota per non spaventarsi leggendo la lista 1: delle 19 righe «solo da cotto», quindici sono
+corrette così — «ceci cotti», «riso integrale cotto», «quinoa cotta»: è la **ricetta** a dire cotto.
+Le altre quattro hanno il nome vecchio come sinonimo **apposta**, perché Gaia risponda «dipende».
+
+## `che-giorno-e-oggi-trenta-punti` — chiuso l'ultimo gruppo della prima metà
+
+⛔ E la frase che diceva cosa restava era **sbagliata in cinque punti su sei**, scritta a memoria
+invece che misurata — la stessa cosa che `il-giorno-si-chiede.spec.ts` esiste per impedire.
+`marketing/lifecycle` non cambia un grafico: decide a chi parte una email oggi. `agents` decide se un
+agente ha già girato oggi. `reports/plan-report` aveva due domande in una funzione sola. `dashboard`
+e `crm` non avevano niente. `serie-giornaliera` era già giusto.
+
+⚠️ Resta la metà grossa — il giorno di una data **salvata** — che adesso ha il via libera
+(`diag:giorno-piani`: zero date che cambierebbero giorno) ed è un lavoro normale invece che una
+scommessa.
+
+## IL CONTO
+
+**11 aperte, 1 bloccante, 128 chiuse.**
+
+`npm run build` verde. 274 suite, 4132 test verdi.
