@@ -55,7 +55,15 @@ export class PermissionsService implements OnModuleInit {
         toCreate.push({ role: custom.key, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
       }
     }
-    if (toCreate.length) await this.prisma.rolePagePermission.createMany({ data: toCreate });
+    /**
+     * ⚠️ `skipDuplicates` è la **rete**, non il controllo. `have` è costruita dalla banca dati, non
+     * da `BACKOFFICE_PAGES`: se in quell'elenco una pagina comparisse due volte, i due giri qui
+     * sopra metterebbero in coda la stessa coppia `[role, pageKey]` due volte, e la chiave composta
+     * farebbe fallire la `createMany` — al seed, cioè all'avvio. Il controllo vero sta nei test
+     * (`common/elenchi-senza-doppioni.spec.ts`), che è il momento in cui la riga si incolla; questo
+     * serve perché una riga incollata male non spenga il backoffice.
+     */
+    if (toCreate.length) await this.prisma.rolePagePermission.createMany({ data: toCreate, skipDuplicates: true });
     return { created: toCreate.length };
   }
 

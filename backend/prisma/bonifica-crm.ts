@@ -80,7 +80,17 @@ async function main() {
       const fx = fixEmail(r.email);
       if (fx) {
         emailByPattern[fx.pattern] = (emailByPattern[fx.pattern] ?? 0) + 1;
+        /**
+         * ⚠️ **E l'email appena corretta entra nell'insieme.** `existingEmails` nasce dalle email
+         * già VALIDE: due schede rotte che si correggono nello stesso indirizzo — la stessa casella
+         * scritta una volta con la virgola al posto del punto e una volta con il dominio storpiato
+         * — non venivano contate, perché nessuna delle due
+         * era nell'insieme di partenza. L'avviso diceva zero proprio nel caso in cui il doppione lo
+         * stava creando questo script. Stessa forma del difetto che il 20/8 ha fermato l'import
+         * degli alimenti: un insieme costruito prima del giro che il giro stesso rende vecchio.
+         */
         if (existingEmails.has(fx.value.toLowerCase())) dupWarnings++;
+        existingEmails.add(fx.value.toLowerCase());
         data.email = fx.value;
         emailChanged++;
         if (sampleE.length < 8) sampleE.push(`  «${r.email}» -> «${fx.value}» [${fx.pattern}]`);

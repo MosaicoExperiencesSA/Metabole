@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔎 **La stessa forma cercata altrove: gli elenchi scritti a mano.** Il difetto
+  dell'import ha una forma precisa — un insieme costruito *prima* del giro per dire «questo c'è
+  già», e un giro che crea righe senza mai rimettercele dentro: vede la banca dati, non l'elenco che
+  sta lavorando. Cercata nel resto del backend con uno scanner (16 punti, guardati uno per uno).
+  ⚠️ **Quattro elenchi scritti a mano finiscono tutti in una `create` dietro un insieme del
+  genere**: `BACKOFFICE_PAGES` (62 voci → `rolePagePermission`, chiave `[role, pageKey]`),
+  `VOCI_INIZIALI` (130 → `lavoro.create`, `chiave` è `@unique`), `VIGNETTE_CATALOG` (8 →
+  `socialPost.create`), e i fogli degli alimenti — quello che si è rotto. **Misurati: i primi tre
+  sono puliti oggi, e nessuno li controllava.** Una riga incollata due volte — che è il modo in cui
+  questi file si modificano — non dà segnale fino alla banca dati.
+  ✅ E uno lo faceva già giusto: `crm.service.ts` fa `listByName.set(...)` dentro il giro. La forma
+  corretta era già nel codice, in un punto solo.
+  ✅ **Cosa c'è adesso.** `elenchi-senza-doppioni.ts` + un test per ognuno dei tre elenchi: il
+  controllo sta nei test, perché il momento per accorgersene è quando si incolla la riga, non quando
+  parte il seed. `publisher.service.ts`: `have.add(...)` dentro il giro — era l'unico altro punto
+  con la forma esatta, e `collectionId` non è unico in tabella, quindi due bozze gemelle non
+  le avrebbe viste nessuno. `permissions.service.ts`: `skipDuplicates` come rete, perché una pagina
+  doppia farebbe fallire il seed **all'avvio**. `bonifica-crm.ts`: l'avviso «possibile doppione»
+  contava zero proprio nel caso in cui il doppione lo stava creando quello script.
+  ⚠️ **Due cose su come ho lavorato.** Per provare la mutazione ho ripristinato `pages.ts` con
+  `git checkout` sul file: ha funzionato ed è verificato (md5 identico al Mac), ma se quel file
+  avesse avuto modifiche non committate le avrei buttate via in silenzio. Si copia il file da parte
+  e si rimette a mano. E il controllo «nessuna email nei file versionati» ha preso me: nel commento
+  della correzione avevo scritto un indirizzo di esempio.
+  🔢 265 suite, 4042 test verdi.
+
 - `[Sviluppo]` ⛔ **La prova a vuoto ha fermato l'import, e ha trovato due cose che non avevo
   trovato io.** Simone ha lanciato `npm run importa:alimenti` sui due fogli insieme (32 righe del
   19/8 + 245 del 20/8) e mi ha incollato le 277 righe di esito. **Non si carica.**

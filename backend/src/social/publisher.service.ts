@@ -71,6 +71,16 @@ export class PublisherService {
     let imported = 0;
     for (const v of VIGNETTE_CATALOG) {
       if (have.has(v.collectionId)) continue;
+      /**
+       * ⚠️ **Il catalogo entra nell'insieme mano a mano.** `have` nasce dalla banca dati: vede i
+       * post già importati, non le voci di questo giro. Se il catalogo avesse due voci con lo
+       * stesso `collectionId` — una riga incollata due volte, che è il modo in cui questi file si
+       * modificano — verrebbero create tutte e due, e `collectionId` non è unico in tabella, quindi
+       * non se ne accorgerebbe nessuno. È la stessa forma del difetto che il 20/8 ha fermato
+       * l'import degli alimenti. C'è anche un test sull'elenco
+       * (`common/elenchi-senza-doppioni.spec.ts`): questo è ciò che regge se quel test viene tolto.
+       */
+      have.add(v.collectionId);
       await this.prisma.socialPost.create({
         data: {
           channel: v.channel,

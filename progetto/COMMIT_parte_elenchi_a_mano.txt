@@ -1,0 +1,60 @@
+La stessa forma cercata altrove: gli elenchi scritti a mano — 20/8
+
+Il difetto che ha fermato l'import degli alimenti ha una forma precisa: un insieme costruito PRIMA
+del giro per dire «questo c'è già», e un giro che crea righe senza mai rimettercele dentro. Vede la
+banca dati, non l'elenco che sta lavorando. L'ho cercata nel resto del backend con uno scanner
+(mappa/insieme costruito una volta + giro che la consulta e scrive + nessun `.set`/`.add` dentro):
+16 punti, guardati uno per uno.
+
+## COSA È VENUTO FUORI
+
+Quattro elenchi scritti a mano finiscono tutti nello stesso posto — una `Set` che dice «c'è già» e
+una `create` per ogni voce che non c'era:
+
+  · BACKOFFICE_PAGES   (62 voci)  → rolePagePermission.createMany, chiave composta [role, pageKey]
+  · VOCI_INIZIALI      (130)      → lavoro.create, `chiave` è @unique
+  · VIGNETTE_CATALOG   (8)        → socialPost.create per collectionId
+  · i fogli degli alimenti        → nutrientFact.create, `name` è @unique  ← quello che si è rotto
+
+⚠️ MISURATI: i primi tre sono puliti oggi. Zero doppioni in tutti e tre. E nessuno li controllava.
+Una riga incollata due volte — che è esattamente il modo in cui questi file si modificano, si copia
+la riga sopra e si cambia il testo — non dà nessun segnale finché non arriva in banca dati, dove
+diventa o un errore di chiave duplicata a metà scrittura o due righe gemelle che nessuno ha chiesto.
+
+✅ E uno lo faceva già giusto: `crm.service.ts` fa `listByName.set(...)` dentro il giro quando crea
+una lista nuova. La forma corretta era già nel codice, in un punto solo.
+
+## COSA È CAMBIATO
+
+`src/common/elenchi-senza-doppioni.ts` (nuovo) — `doppioni(voci, chiaveDi)`: le chiavi che
+compaiono più di una volta, e quante volte.
+`src/common/elenchi-senza-doppioni.spec.ts` (nuovo) — un test per ognuno dei tre elenchi veri.
+⚠️ Il controllo sta nei TEST, non a runtime: il momento giusto per accorgersene è quando si incolla
+la riga, non quando parte il seed in produzione.
+
+`src/social/publisher.service.ts` — `have.add(v.collectionId)` dentro il giro. Era l'unico altro
+punto con la forma esatta del difetto: `collectionId` NON è unico in tabella, quindi due voci uguali
+nel catalogo avrebbero creato due bozze e non se ne sarebbe accorto nessuno.
+
+`src/permissions/permissions.service.ts` — `skipDuplicates: true` sulla `createMany`. È la rete,
+non il controllo: se una pagina comparisse due volte in BACKOFFICE_PAGES, i due giri metterebbero
+in coda la stessa coppia `[role, pageKey]` e la chiave composta farebbe fallire il seed **all'avvio**.
+Il test lo prende prima; questo serve perché una riga incollata male non spenga il backoffice.
+
+`prisma/bonifica-crm.ts` — `existingEmails.add(...)` dopo la correzione. L'insieme nasceva dalle
+email già valide, quindi due schede rotte che si correggono nello stesso indirizzo non venivano
+contate: l'avviso «possibile doppione» diceva zero **proprio nel caso in cui il doppione lo stava
+creando questo script**.
+
+## UNA COSA DA DIRE
+
+⚠️ Per provare che il test mordesse ho incollato una pagina due volte in `pages.ts` e poi ho
+ripristinato con `git checkout` sul file. Ha funzionato ed è verificato (md5 identico a quello sul
+Mac), ma è stato un modo sbagliato di farlo: se quel file avesse avuto modifiche non ancora
+committate le avrei buttate via, in silenzio. Per i ripristini dopo una mutazione si copia il file
+da parte prima e si rimette a mano — che è quello che ho fatto in tutte le altre mutazioni di oggi.
+
+⚠️ E il controllo «nessuna email di cliente nei file versionati» ha preso me: nel commento della
+correzione avevo scritto un indirizzo di esempio. Riscritto a parole.
+
+Backend: 265 suite, 4042 test verdi.
