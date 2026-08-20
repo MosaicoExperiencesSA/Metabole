@@ -26,7 +26,7 @@
  * ⚠️ Sola lettura, non tocca niente. `npm run diag:esclusioni`.
  */
 import { PrismaClient } from '@prisma/client';
-import { exclusionKeys, radiceChiave, recipeHaystack } from '../src/menu/exclusions';
+import { exclusionKeys, iniziaUnaParola, radiceChiave, recipeHaystack } from '../src/menu/exclusions';
 
 /** Gli allergeni che una cliente può davvero dichiarare: le chiavi della mappa e gli alias UE. */
 const DA_GUARDARE = [
@@ -45,28 +45,71 @@ async function main() {
 
     const fieno = ricette.map((r) => ({ r, h: recipeHaystack(r.name, r.ingredients) }));
     let totaleInPiu = 0;
+    let totaleDentro = 0;
+
+    /**
+     * ⚠️ **LA PAROLA INTERA, non solo la radice che ha colpito.**
+     *
+     * La prima versione stampava `← radice nocciol` e basta, e a leggere «Filetto di sgombro con
+     * limone e olive ← radice nocciol» non si capiva **da dove** venisse: ho dovuto indovinare che
+     * fosse «olive denocciolate», e indovinare è esattamente la cosa che oggi è già costata quattro
+     * volte. Adesso l'elenco dice la parola del piatto che ha fatto scattare la regola: si legge e
+     * si decide, senza ipotesi.
+     */
+    const parolaChePorta = (testo: string, pezzo: string): string => {
+      const i = testo.indexOf(pezzo);
+      if (i === -1) return pezzo;
+      let a = i; while (a > 0 && /[a-z0-9]/.test(testo[a - 1])) a -= 1;
+      let b = i + pezzo.length; while (b < testo.length && /[a-z0-9]/.test(testo[b])) b += 1;
+      return testo.slice(a, b);
+    };
 
     for (const allergene of DA_GUARDARE) {
       const chiavi = [...exclusionKeys([allergene])];
       const radici = chiavi.map((k) => radiceChiave(k)).filter((x): x is string => !!x);
 
       const prima = fieno.filter(({ h }) => chiavi.some((k) => h.includes(k)));
-      const inPiu = fieno.filter(({ h }) => !chiavi.some((k) => h.includes(k)) && radici.some((r) => h.includes(r)));
+      /** Adesso la radice conta solo se **comincia una parola**: è la correzione del 20/8 sera. */
+      const inPiu = fieno.filter(({ h }) => !chiavi.some((k) => h.includes(k)) && radici.some((r) => iniziaUnaParola(h, r)));
       totaleInPiu += inPiu.length;
 
       const quota = ((prima.length / (ricette.length || 1)) * 100).toFixed(1);
       console.log(`${allergene.padEnd(18)} toglieva ${String(prima.length).padStart(5)} ricette (${quota}%) · in più: ${inPiu.length}`);
       for (const { r, h } of inPiu) {
-        const colpite = radici.filter((x) => h.includes(x));
-        console.log(`      ⚠️  ${r.name}   ← radice ${colpite.join(', ')}`);
+        const colpite = radici.filter((x) => iniziaUnaParola(h, x));
+        const parole = [...new Set(colpite.map((x) => parolaChePorta(h, x)))];
+        console.log(`      ⚠️  ${r.name}   ← «${parole.join('», «')}»  (radice ${colpite.join(', ')})`);
+      }
+
+      /**
+       * ⚠️ **E la stessa domanda sulla chiave INTERA, che non ho toccato.** «uovo» sta dentro
+       * «nuovo»: se succedesse, sarebbe un difetto più vecchio della radice e non l'avrei mai visto,
+       * perché il conto «in più» misura solo quello che la radice aggiunge. Qui si guarda e basta:
+       * correggere anche questo giro vorrebbe dire toccare il comportamento che regge le esclusioni
+       * da mesi, e prima si legge quanto pesa.
+       */
+      for (const { r, h } of fieno) {
+        for (const k of chiavi) {
+          if (k.includes(' ')) continue;
+          const i = h.indexOf(k);
+          if (i <= 0) continue;
+          if (!/[a-z0-9]/.test(h[i - 1])) continue;
+          if (h.split(/[^a-z0-9]+/).includes(k)) continue; // c'è anche da sola: allora è giusta
+          console.log(`      ⛔ CHIAVE INTERA DENTRO UNA PAROLA — ${allergene}: «${k}» dentro «${parolaChePorta(h, k)}»  (${r.name})`);
+          totaleDentro += 1;
+          break;
+        }
       }
     }
 
-    console.log(`\nIn tutto la radice toglie ${totaleInPiu} righe in più.`);
-    console.log(
-      'Vanno lette una per una: se il piatto contiene davvero l\'allergene è un difetto chiuso,\n' +
-        'se non c\'entra niente si alza RADICE_MINIMA in src/menu/exclusions.ts e si rilancia.\n',
-    );
+    console.log(`\nLa radice toglie ${totaleInPiu} righe in più (dopo la correzione «solo a inizio di parola», 20/8 sera).`);
+    console.log('Vanno lette una per una: adesso ognuna dice la PAROLA del piatto che l\'ha fatta scattare.');
+    console.log('Se il piatto contiene davvero l\'allergene è un difetto chiuso; se non c\'entra niente,');
+    console.log('la parola che si vede dice quale regola va rivista — la lunghezza della radice è solo una');
+    console.log('delle possibili leve, e il 20/8 era quella sbagliata.');
+    console.log(`\nChiavi intere che combaciano dentro una parola più lunga: ${totaleDentro}.`);
+    if (totaleDentro > 0) console.log('⛔ Questo è un difetto PIÙ VECCHIO della radice, e non è stato toccato: si legge e si decide.\n');
+    else console.log('✅ Nessuna: il giro della chiave esatta non ha questo problema, almeno su questo catalogo.\n');
   } finally {
     await prisma.$disconnect();
   }

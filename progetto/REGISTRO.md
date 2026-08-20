@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **La misura ha bocciato la mia modifica di stamattina: la radice toglieva 721
+  ricette in più.** Simone ha lanciato `npm run diag:esclusioni` in produzione. Su «frutta secca» la
+  ricerca per radice — aggiunta da me stamattina — toglieva **721 ricette in più**, e a leggerle era
+  sempre la stessa cosa: `⚠️ Filetto di sgombro al forno con limone e olive ← radice nocciol`. La
+  colpevole è **«olive denocciolate»**, che contiene `nocciol`.
+  ⚠️ **Non è mai arrivato un allergene in tavola**: la radice toglie piatti, non ne lascia passare
+  uno sbagliato. Ma a una cliente allergica alla frutta secca spariva **ogni piatto con le olive**, e
+  un pool che si svuota così è un piano che non si riesce più a comporre.
+  ⛔ **E la nota che avevo scritto io indicava la leva sbagliata**: «se toglie roba che non c'entra,
+  alza `RADICE_MINIMA`». `nocciol` è già sette caratteri — alzare la soglia spegnerebbe la radice
+  proprio sulle nocciole, cioè butterebbe via i casi veri. Avevo in mente `polp`/`polpette`, dove il
+  problema era davvero la lunghezza, e ho scambiato quel caso per la regola. **Il difetto non è
+  quanto è lunga la radice: è dove combacia.**
+  ✅ `iniziaUnaParola`: la radice conta solo se comincia una parola. `mandorl` in «latte di mandorla»
+  sì, `nocciol` in «denocciolate» no. ⚠️ `RADICE_MINIMA` **resta**: «polpette» comincia con `polp` a
+  inizio di parola eccome, e il confine da solo non salverebbe le polpette dai molluschi — due
+  regole, due domande diverse. ⚠️ Il giro della **chiave intera** non è stato toccato: se anche lì
+  ci fosse la stessa cosa («uovo» dentro «nuovo») sarebbe un difetto più vecchio, e correggerlo
+  qui dentro sarebbe stato un colpo di mano. La diagnostica adesso lo conta a parte.
+  ⚠️ **E la diagnostica adesso stampa la PAROLA del piatto**, non solo la radice. Prima diceva
+  `← radice nocciol` e basta: per capire da dove venisse **ho dovuto indovinare** che fosse
+  «denocciolate». Un elenco che va letto a mano deve dire il fatto, non il sospetto.
+  🧪 13 test ancorati al caso vero, tre mutazioni, tutte mordono.
+  🔢 Build verde, 272 suite, 4106 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🍽️ **«Quanti pasti ha una giornata»: quattro funzioni, e sul 4 non dicono la stessa
   cosa.** I cinque pasti in ordine sono scritti a mano in **nove punti**, i tre in cinque, quelli del
   digiuno in quattro: tutti d'accordo oggi, e non lo controlla nessuno. Sotto però c'è una cosa più

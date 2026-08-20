@@ -260,12 +260,49 @@ export function recipeHaystack(name: string | null | undefined, ingredients: unk
  * era una delle due ricette che la prima versione della regola toglieva.
  *
  * Con la soglia a {@link RADICE_MINIMA} caratteri, sulle 118 ricette vere del catalogo del repo le
- * righe in più sono **quattro e contengono tutte l'allergene davvero**: zero falsi positivi. ⚠️ Il
- * catalogo di produzione è molto più grande, e questo numero lì non l'ha verificato nessuno: si
- * guarda con `npm run diag:esclusioni` prima di fidarsi. Se togliesse roba che non c'entra, la cosa
- * da girare è questa costante — sta qui da sola apposta.
+ * righe in più erano **quattro e contenevano tutte l'allergene davvero**: zero falsi positivi.
+ *
+ * ## ⛔ E SUL CATALOGO VERO NON ERA VERO — misurato il 20/8 sera
+ *
+ * `npm run diag:esclusioni` in produzione: su «frutta secca» la radice toglieva **721 ricette in
+ * più**, e a leggerle una per una la stessa parola tornava decine di volte:
+ *
+ *     ⚠️  Filetto di sgombro fresco al forno con limone e olive   ← radice nocciol
+ *
+ * Uno sgombro con le olive tolto a chi è allergico alle nocciole. La colpevole è **«olive
+ * denocciolate»**, che contiene `nocciol`. Non era pericoloso — toglie piatti, non ne lascia
+ * passare uno sbagliato — ma a una cliente allergica alla frutta secca spariva **ogni piatto con le
+ * olive**, e un pool che si svuota così è un piano che non si riesce più a comporre.
+ *
+ * ⛔ **E la nota che stava scritta qui diceva la cosa sbagliata**: «se togliesse roba che non
+ * c'entra, la cosa da girare è questa costante». Non funziona. `nocciol` è già **sette** caratteri:
+ * alzare `RADICE_MINIMA` spegnerebbe la radice proprio sulle nocciole, cioè butterebbe via anche
+ * tutti i casi veri per cui la radice esiste. Avevo indicato la leva sbagliata perché avevo in
+ * mente `polp`/`polpette`, dove il problema era davvero la lunghezza.
+ *
+ * ⚠️ **Il difetto non è quanto è lunga la radice: è DOVE combacia.** `mandorl` dentro «latte di
+ * mandorla» comincia una parola, ed è giusto. `nocciol` dentro «denocciolate» sta **in mezzo**, e
+ * non lo è. Da qui {@link iniziaUnaParola}: la radice deve cominciare una parola. La lunghezza
+ * minima resta, perché serve ancora — `polp` all'inizio di «polpette» comincia una parola eccome.
  */
 export const RADICE_MINIMA = 6;
+
+/**
+ * La radice combacia solo se **comincia una parola** del testo.
+ *
+ * ⚠️ Vale per la radice e **non** per la parola chiave intera, di proposito. La chiave esatta si
+ * cerca com'è da sempre: cambiare anche quel giro vorrebbe dire toccare il comportamento che regge
+ * le esclusioni da mesi, per un difetto che non è quello. Se anche lì ci fosse la stessa cosa
+ * — `uovo` dentro `nuovo` è il candidato — è una misura a parte, non un colpo di mano dentro questa.
+ */
+export function iniziaUnaParola(testo: string, radice: string): boolean {
+  let i = testo.indexOf(radice);
+  while (i !== -1) {
+    if (i === 0 || !/[a-z0-9]/.test(testo[i - 1])) return true;
+    i = testo.indexOf(radice, i + 1);
+  }
+  return false;
+}
 
 /** La radice di una parola chiave, o `null` se è troppo corta o composta per fidarsi. */
 export function radiceChiave(k: string): string | null {
@@ -290,10 +327,10 @@ export function hitsExclusion(haystack: string, keys: Iterable<string>): string 
   const elenco = [...keys].filter(Boolean);
   // Primo giro: la parola esatta. Se combacia così, è quella che si riporta.
   for (const k of elenco) if (haystack.includes(k)) return k;
-  // Secondo giro: la radice, per le altre forme della stessa parola.
+  // Secondo giro: la radice, per le altre forme della stessa parola — ma solo a inizio di parola.
   for (const k of elenco) {
     const r = radiceChiave(k);
-    if (r && haystack.includes(r)) return k;
+    if (r && iniziaUnaParola(haystack, r)) return k;
   }
   return null;
 }

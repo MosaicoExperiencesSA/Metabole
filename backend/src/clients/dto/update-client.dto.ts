@@ -31,7 +31,27 @@ export class UpdateClientDto {
    * per questa scrittura, non un dato: non è in `PROFILE_FIELDS` e non finisce mai sul profilo.
    */
   @IsOptional() @IsBoolean() dietChangeKeepDeliveredDays?: boolean;
-  @IsOptional() @IsIn([3, 4, 5]) mealsPerDay?: number;
+  /**
+   * ⛔ **IL «4» È STATO TOLTO IL 20/8, dopo averlo contato.**
+   *
+   * Il DTO accettava `[3, 4, 5]`, ma **nel catalogo una dieta a 4 pasti non è mai esistita**: le
+   * varianti nascono con `fasting ? 3 : meals === '5' ? 5 : 3`. Una cliente messa a 4 non trovava
+   * nessuna variante e `pickDietFor` ricadeva sul «purché sia dello stesso regime», dandole una
+   * dieta a 3 o a 5 — cioè un numero di pasti diverso da quello scritto sulla sua scheda.
+   *
+   * ⚠️ E la stessa domanda («quali pasti ha una giornata») è scritta in quattro posti che sul 4 non
+   * dicono la stessa cosa: `pastiAttesi` e `slotAttesi` lo trattano come un 3, il generatore non lo
+   * conosce e ricade sul 5, e solo `slotsForMeals` sa che ha la merenda. Vedi
+   * `catalog/quattro-pasti.spec.ts`.
+   *
+   * ✅ `npm run diag:pasti` in produzione: **zero clienti a 4 pasti** (24 a tre, 15 a cinque, 17
+   * senza il campo). Nessuno da spostare, nessuna migrazione: bastava smettere di accettarlo.
+   *
+   * ⚠️ Se un giorno servirà davvero una giornata da quattro pasti, il posto da cui ricominciare non
+   * è questa riga: sono le quattro funzioni e le varianti del catalogo. Rimettere il `4` qui e
+   * basta rifarebbe esattamente il buco di prima.
+   */
+  @IsOptional() @IsIn([3, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   /**
    * Quali pasti salta chi fa digiuno intermittente. La stringa vuota è ammessa e significa «la

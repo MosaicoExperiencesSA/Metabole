@@ -63,9 +63,20 @@ describe('⛔ sul 4 no: il catalogo non sa cos\'è una giornata da quattro pasti
 });
 
 describe('il numero di pasti che il DTO accetta', () => {
-  it('⛔ accetta il 4, che nel catalogo non esiste', () => {
+  /**
+   * ⛔ **Prima accettava il 4.** `npm run diag:pasti` in produzione ha detto **zero clienti a 4
+   * pasti** (24 a tre, 15 a cinque, 17 senza il campo): nessuno da spostare, nessuna migrazione —
+   * bastava smettere di accettarlo. Il 20/8 il `4` è uscito dal DTO.
+   *
+   * ⚠️ Il resto della differenza qui sopra **resta**: le quattro funzioni sul 4 continuano a non
+   * dire la stessa cosa. Non è stato sistemato perché adesso non lo raggiunge più nessuno, e
+   * sistemarlo vorrebbe dire scegliere quale delle quattro ha ragione — cioè decidere se una
+   * giornata da quattro pasti esiste. Se un giorno servirà, si ricomincia da lì, non da questa riga.
+   */
+  it('✅ non accetta più il 4: nel catalogo una dieta a 4 pasti non è mai esistita', () => {
     const dto = require('fs').readFileSync(require('path').join(__dirname, '..', 'clients', 'dto', 'update-client.dto.ts'), 'utf8');
-    expect(dto).toContain('@IsIn([3, 4, 5]) mealsPerDay');
+    expect(dto).toContain('@IsIn([3, 5]) mealsPerDay');
+    expect(dto).not.toContain('@IsIn([3, 4, 5]) mealsPerDay');
   });
 
   it('⚠️ mentre il backoffice deduce i pasti dal percorso, e non propone mai il 4', () => {

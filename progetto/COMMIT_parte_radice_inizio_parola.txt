@@ -1,0 +1,83 @@
+La radice vale solo a inizio di parola — la misura ha bocciato la mia modifica di stamattina — 20/8
+
+Simone ha lanciato `npm run diag:esclusioni` sul catalogo di produzione e mi ha incollato l'esito.
+**Dice che la modifica che avevo fatto stamattina è sbagliata.**
+
+    frutta secca   toglieva 5082 ricette (26.3%) · in più: 721
+      ⚠️  Filetto di sgombro fresco al forno con limone e olive   ← radice nocciol
+      ⚠️  Orata grigliata con peperoni crudi e olive nere         ← radice nocciol
+      ⚠️  Polpo bollito con cicoria ripassata e olive taggiasche  ← radice nocciol
+      … e così per decine di righe, sempre piatti con le olive
+
+Uno sgombro con le olive tolto a chi è allergico alle nocciole. La colpevole è una parola sola:
+**«olive denocciolate»**, che contiene `nocciol`.
+
+## COSA NON È SUCCESSO, E VA DETTO PRIMA
+
+⚠️ **Non è mai arrivato un allergene in tavola.** La radice *toglie* piatti, non ne lascia passare
+uno sbagliato: l'errore era per eccesso. Ma a una cliente allergica alla frutta secca spariva **ogni
+piatto con le olive** — 721 ricette su un allergene che già ne toglieva 5082 — e un pool che si
+svuota così è un piano che non si riesce più a comporre.
+
+## ⛔ E LA NOTA CHE AVEVO SCRITTO IO INDICAVA LA LEVA SBAGLIATA
+
+In `exclusions.ts` avevo lasciato scritto: «se togliesse roba che non c'entra, la cosa da girare è
+questa costante» — cioè `RADICE_MINIMA`. **Non funziona.** `nocciol` è già **sette** caratteri:
+alzare la soglia spegnerebbe la radice proprio sulle nocciole, cioè butterebbe via tutti i casi veri
+per cui la radice esiste. Avevo in mente `polp`/`polpette`, dove il problema era davvero la
+lunghezza, e ho scambiato quel caso per la regola.
+
+⚠️ **Il difetto non è quanto è lunga la radice: è DOVE combacia.** `mandorl` dentro «latte di
+mandorla» comincia una parola, ed è giusto. `nocciol` dentro «denocciolate» sta in mezzo, e non lo è.
+
+## COSA È CAMBIATO
+
+`src/menu/exclusions.ts` — `iniziaUnaParola(testo, radice)`: la radice conta solo se comincia una
+parola. `hitsExclusion` la usa nel secondo giro.
+⚠️ **`RADICE_MINIMA` resta**, e non è ridondante: «polpette» comincia con `polp`, a inizio di parola
+eccome — il confine da solo non salverebbe le polpette da chi è allergico ai molluschi. Le due
+regole rispondono a due domande diverse e servono tutte e due.
+⚠️ **Il giro della chiave INTERA non è stato toccato.** Cerca ancora `includes` come da mesi. Se
+anche lì una chiave stesse dentro una parola più lunga — «uovo» dentro «nuovo» — sarebbe un difetto
+più vecchio di questo, e correggerlo dentro questa consegna sarebbe stato un colpo di mano. Adesso
+la diagnostica lo **conta a parte**: si legge il numero e si decide.
+
+`prisma/diag-esclusioni.ts` — due cose.
+⚠️ **Adesso stampa la PAROLA del piatto** che ha fatto scattare la regola, non solo la radice. Prima
+diceva `← radice nocciol` e basta, e per capire da dove venisse **ho dovuto indovinare** che fosse
+«denocciolate». Indovinare è la cosa che oggi è già costata quattro volte: un elenco che va letto a
+mano deve dire il fatto, non il sospetto.
+E conta le chiavi intere che combaciano dentro una parola più lunga, che è la domanda rimasta aperta.
+
+## LE PROVE
+
+`src/menu/radice-a-inizio-parola.spec.ts` (13 test), ancorati al caso vero: «olive denocciolate» non
+è frutta secca, «crema di nocciola» sì. Tre mutazioni provate, tutte mordono: tolto il confine di
+parola, `iniziaUnaParola` che dice sempre sì, `RADICE_MINIMA` a 4 (le polpette tornano molluschi).
+
+## COSA SERVE ADESSO
+
+Rilanciare `npm run diag:esclusioni` dopo il deploy: il numero «in più» deve crollare, e le righe
+che restano devono contenere l'allergene davvero — adesso ognuna dice **quale parola** l'ha fatta
+scattare, quindi si legge invece di doverlo dedurre. E in fondo c'è il conto delle chiavi intere
+dentro una parola: se è zero, quella porta è chiusa; se non lo è, è la prossima cosa da guardare.
+
+`npm run build` verde. 272 suite, 4106 test verdi, a cache svuotata.
+
+--------------------------------------------------------------------------------
+E NELLA STESSA CONSEGNA: il «4» dei pasti, tolto dopo averlo contato
+
+`npm run diag:pasti` in produzione: **zero clienti a 4 pasti** (24 a tre, 15 a cinque, 17 senza il
+campo). Il DTO accettava `@IsIn([3, 4, 5])` mentre il catalogo non ha mai avuto diete a 4 pasti:
+nessuno da spostare, nessuna migrazione — bastava smettere di accettarlo. Adesso è `[3, 5]`, e il
+test in `catalog/quattro-pasti.spec.ts` lo tiene fermo.
+
+⚠️ Il resto della differenza **resta**: le quattro funzioni sul 4 continuano a non dire la stessa
+cosa. Non è stato sistemato perché adesso non lo raggiunge più nessuno, e sistemarlo vorrebbe dire
+scegliere quale delle quattro ha ragione — cioè decidere se una giornata da quattro pasti esiste.
+Se un giorno servirà, si ricomincia da lì, non da quella riga.
+
+⚠️ E una cosa che non avevo chiesto e che il conteggio ha mostrato: **17 clienti su 56 hanno i pasti
+non impostati**. `pickDietFor` con quel campo vuoto si ferma subito e torna «nessuna dieta» — non un
+ripiego, proprio niente. Probabilmente sono clienti che il questionario non l'hanno finito, ed è
+normale che sia così; ma sono un terzo del totale e prima di stasera non lo sapeva nessuno.
