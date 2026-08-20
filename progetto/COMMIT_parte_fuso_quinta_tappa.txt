@@ -1,0 +1,35 @@
+Il fuso, quinta tappa: la revoca, la correzione calorica e il rientro dalla pausa
+
+TRE PUNTI, TUTTI DELLA CLASSE SICURA
+In tutti e tre «oggi» è ADESSO: si corregge quale giorno è, non si rilegge nessuna data già
+salvata. (La metà che rilegge le date salvate resta ferma finché non è misurata —
+`npm run diag:giorno-piani`.)
+
+1) privacy/cancellazione
+Una richiesta di cancellazione inviata all'una di notte veniva datata al GIORNO PRIMA, quindi il
+termine scadeva un giorno prima di quello scritto nella mail alla cliente. È la direzione
+sbagliata: su un impegno preso in un'informativa, cancellare in anticipo è peggio che in ritardo.
+
+2) menu/correzione-kcal
+Sopra la funzione c'è scritto che esiste perché «un menu generato alle 23:50 non si comporti
+diversamente da uno generato alle 8:00 dello stesso giorno». Con il giorno UTC la promessa saltava
+proprio nelle due ore dopo mezzanotte: «riduci del 10% per 7 giorni» scritto all'una di notte ne
+durava SEI, e una correzione in scadenza restava accesa due ore in più.
+
+3) pause.service
+Il giro di sorveglianza guardava ancora ieri: chi la pausa l'aveva appena finita si vedeva
+rimandare il menu di rientro al giro dopo.
+
+DUE TEST MIEI ERANO SCRITTI CON FIXTURE UTC, E CERTIFICAVANO IL DIFETTO
+Uno diceva «l'8 settembre alle 23:00 manca ancora un giorno» su `2026-09-08T23:00:00Z` — che in
+Italia è l'una di notte del 9. L'altro diceva «un menu delle 23:50» su `T23:50:00.000Z`, che in
+Italia è l'una e cinquanta del giorno dopo. Passavano col difetto dentro perché misuravano con lo
+stesso strumento rotto. Corretti tenendo l'intenzione e sistemando l'istante, con i casi di confine
+che prima non c'erano.
+
+Per `pause.service` c'è un test che guarda il `where` della query e non il risultato: lì dentro
+«oggi» non esce mai, e senza quel test la correzione sarebbe una riga cambiata che nessuno tiene
+ferma.
+
+Quattro mutazioni provate, tutte e quattro mordono.
+Niente migrazioni. 257 suite e 3972 test verdi, type-check a zero errori.

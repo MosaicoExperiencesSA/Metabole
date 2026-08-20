@@ -15,6 +15,7 @@ import { toDateOnly } from '../common/date-only';
 import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { codaCheSlitta } from './coda-che-slitta';
+import { aGiorno } from '../common/date-only';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -303,8 +304,11 @@ export class PauseService {
    */
   async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number }> {
     const now = new Date();
-    const oggi = new Date(now);
-    oggi.setHours(0, 0, 0, 0);
+    // ⚠️ Il giorno di Roma, non quello del processo: era `setHours(0,0,0,0)`, che su Render è UTC.
+    // Questo giro decide quali pause sono in corso OGGI e a chi tocca il menu di rientro — nelle
+    // due ore dopo mezzanotte guardava ancora ieri, cioè rimandava di un giro il rientro di chi la
+    // pausa l'aveva appena finita.
+    const oggi = aGiorno(now);
 
     const [askDays, sogliaKg] = await Promise.all([
       this.configParams.getNumber('pause_watch_ask_days', 5),

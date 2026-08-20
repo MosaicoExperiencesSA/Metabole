@@ -152,7 +152,18 @@ describe('correzioneAttiva — «per 7 giorni, e poi si riprende»', () => {
   });
 
   it('⚠️ si confronta per GIORNO, non per istante: un menu delle 23:50 fa come uno delle 8:00', () => {
-    expect(correzioneAttiva(-10, G('2026-08-20'), new Date('2026-08-20T23:50:00.000Z'))).toBe(-10);
+    /**
+     * ⚠️ Le 23:50 **di Roma**, non di Greenwich. Il fixture era `T23:50:00.000Z`, che in Italia è
+     * l'una e cinquanta di notte del giorno DOPO: il test diceva «lo stesso giorno» di un istante
+     * che per la cliente è il giorno dopo, e con il giorno UTC passava — cioè certificava il
+     * difetto invece di trovarlo.
+     */
+    expect(correzioneAttiva(-10, G('2026-08-20'), new Date('2026-08-20T23:50:00+02:00'))).toBe(-10);
+    expect(correzioneAttiva(-10, G('2026-08-20'), new Date('2026-08-20T08:00:00+02:00'))).toBe(-10);
+  });
+
+  it('⚠️ e all\'una di notte del giorno dopo è finita, non due ore più tardi', () => {
+    expect(correzioneAttiva(-10, G('2026-08-20'), new Date('2026-08-21T00:30:00+02:00'))).toBe(0);
   });
 
   it('dopo la scadenza non si applica più: il target torna quello normale, da solo', () => {

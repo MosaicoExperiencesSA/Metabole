@@ -69,9 +69,21 @@ describe('il termine dei 30 giorni', () => {
   });
 
   it('i giorni rimanenti si contano per giorni di calendario, non a ore', () => {
-    // Richiesta il 10, scadenza il 9 settembre: l'8 settembre alle 23:00 manca ancora un giorno.
-    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-08T23:00:00.000Z'))).toBe(1);
-    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-09T00:01:00.000Z'))).toBe(0);
+    // Scadenza il 9 settembre: a mezzogiorno dell'8 manca ancora un giorno, per tutto il giorno.
+    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-08T12:00:00.000Z'))).toBe(1);
+    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-08T20:00:00.000Z'))).toBe(1);
+    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-09T12:00:00.000Z'))).toBe(0);
+  });
+
+  it('⚠️ il giorno è quello di ROMA: all\'una di notte del 9 il termine è oggi, non domani', () => {
+    /**
+     * Il fixture di prima era `2026-09-08T23:00:00Z` con scritto «l'8 alle 23:00 manca un giorno»:
+     * ma alle 23:00 UTC dell'8 in Italia è **l'una di notte del 9**. Il test misurava il giorno UTC
+     * e chiamava «l'8» un istante che per la cliente è il 9 — cioè certificava il difetto.
+     */
+    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-09T00:30:00+02:00'))).toBe(0);
+    // ...e alle 23:50 di Roma dell'8 manca ancora un giorno, come deve essere.
+    expect(giorniRimanenti(g('2026-09-09'), new Date('2026-09-08T23:50:00+02:00'))).toBe(1);
   });
 
   it('non diventano mai negativi', () => {

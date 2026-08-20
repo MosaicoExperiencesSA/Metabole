@@ -30,6 +30,8 @@
  */
 
 /** I giorni di attesa fra la revoca e la cancellazione. */
+import { aGiorno } from '../common/date-only';
+
 export const GIORNI_ATTESA = 30;
 
 /** Quello che la cliente deve scrivere a mano perché il termine parta. */
@@ -59,15 +61,21 @@ export function confermaValida(testo: string | null | undefined): boolean {
  * impegno preso, e cambiarlo sotto è esattamente ciò che rende un'informativa carta straccia.
  */
 export function dataCancellazione(richiestaIl: Date, giorni = GIORNI_ATTESA): Date {
-  const giorno = new Date(
-    Date.UTC(richiestaIl.getUTCFullYear(), richiestaIl.getUTCMonth(), richiestaIl.getUTCDate()),
-  );
-  return new Date(giorno.getTime() + giorni * 86_400_000);
+  /**
+   * ⚠️ **Il giorno della richiesta è quello di Roma**, non quello UTC. Era
+   * `Date.UTC(richiestaIl.getUTC…)`: una revoca inviata all'una di notte veniva datata al giorno
+   * PRIMA, e il termine scadeva **un giorno prima** di quello che le abbiamo promesso. Ed è la
+   * direzione sbagliata: su un impegno scritto in un'informativa, cancellare in anticipo è peggio
+   * che cancellare in ritardo.
+   */
+  return new Date(aGiorno(richiestaIl).getTime() + giorni * 86_400_000);
 }
 
 /** Giorni che restano, mai negativi. `0` = si cancella oggi. */
 export function giorniRimanenti(scadenza: Date, adesso: Date): number {
-  const oggi = Date.UTC(adesso.getUTCFullYear(), adesso.getUTCMonth(), adesso.getUTCDate());
+  // «Oggi» è il giorno di Roma; la scadenza è un valore SALVATO e si legge come è scritto
+  // (mezzanotte UTC, prodotta qui sopra) — la stessa distinzione di `commerce/stati-abbonamento.ts`.
+  const oggi = aGiorno(adesso).getTime();
   const fine = Date.UTC(scadenza.getUTCFullYear(), scadenza.getUTCMonth(), scadenza.getUTCDate());
   return Math.max(0, Math.round((fine - oggi) / 86_400_000));
 }

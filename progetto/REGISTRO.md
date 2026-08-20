@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⏰ **Il fuso, quinta tappa: la revoca, la correzione calorica e il rientro dalla
+  pausa.** Tre punti dell'inventario, scelti perché in tutti e tre «oggi» è **adesso** — cioè la
+  classe sicura, quella che non rilegge nessuna data già salvata.
+  ⛔ **`privacy/cancellazione`**: una richiesta di cancellazione inviata all'una di notte veniva
+  datata al **giorno prima**, quindi il termine scadeva un giorno prima di quello scritto nella mail
+  alla cliente. Ed è la direzione sbagliata: su un impegno preso in un'informativa, cancellare in
+  anticipo è peggio che cancellare in ritardo.
+  ⛔ **`menu/correzione-kcal`**: sopra la funzione c'è scritto che esiste perché «un menu generato
+  alle 23:50 non si comporti diversamente da uno generato alle 8:00 dello stesso giorno». Con il
+  giorno UTC la promessa saltava proprio nelle due ore dopo mezzanotte: «riduci del 10% per 7
+  giorni» scritto all'una di notte ne durava **sei**, e una correzione in scadenza restava accesa
+  due ore in più. Su un target calorico che finisce nel piatto di una persona.
+  ⛔ **`pause.service`**: il giro di sorveglianza guardava ancora ieri, e chi la pausa l'aveva
+  appena finita si vedeva rimandare il menu di rientro al giro dopo.
+  ⚠️ **Due test miei erano scritti con fixture UTC, e certificavano il difetto.** Uno diceva
+  «l'8 settembre alle 23:00 manca ancora un giorno» su `2026-09-08T23:00:00Z` — che in Italia è
+  l'una di notte del **9**. L'altro diceva «un menu delle 23:50» su `T23:50:00.000Z`, che in Italia
+  è l'una e cinquanta del giorno **dopo**. Tutti e due passavano col difetto dentro perché
+  misuravano con lo stesso strumento rotto. Corretti tenendo l'intenzione e sistemando l'istante
+  (`+02:00`), e aggiunti i casi di confine che prima non c'erano.
+  ⚠️ Per `pause.service` ho scritto un test che guarda il **`where` della query** e non il
+  risultato: lì dentro «oggi» non esce mai, e senza quel test la correzione sarebbe una riga
+  cambiata che nessuno tiene ferma.
+  Quattro mutazioni provate, tutte e quattro mordono. 257 suite e **3972 test verdi**.
+
 - `[Sviluppo]` 🌙 **All'una di notte del giorno in cui il piano parte, il piano non era partito.**
   Quarta tappa del giro sul fuso, e la prima che tocca chi riceve un menu. «Che giorno è oggi» era
   `setHours(0, 0, 0, 0)` — il fuso del **processo**, UTC su Render — in **quattro** punti del

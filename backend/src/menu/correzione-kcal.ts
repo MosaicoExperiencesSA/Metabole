@@ -52,6 +52,8 @@
  * `kcal_need_floor_*` e il nutrizionista la può scavalcare di proposito. Questo è il limite oltre
  * il quale il numero **non vuol dire niente**, e nessuno lo scavalca perché nessuno lo intende.
  */
+import { aGiorno } from '../common/date-only';
+
 export const LIMITE_ASSOLUTO_KCAL = 500;
 
 export interface IngressoCalcoloKcal {
@@ -230,9 +232,18 @@ export function correzioneAttiva(
   return giorno(oggi) <= giorno(scadenza) ? pct : 0;
 }
 
-/** La data ridotta al suo giorno (UTC), che è l'unità in cui si ragiona sui menu. */
+/**
+ * La data ridotta al suo giorno, nel fuso dell'**azienda**.
+ *
+ * ⚠️ Era il giorno **UTC**, e poche righe sopra c'è scritto che questa funzione esiste perché «un
+ * menu generato alle 23:50 dell'ultimo giorno non si comporti diversamente da uno generato alle
+ * 8:00 dello stesso giorno». Con il giorno UTC quella promessa saltava proprio nelle due ore dopo
+ * mezzanotte: una correzione scritta all'una di notte veniva datata al giorno prima, quindi «per 7
+ * giorni» ne durava **sei**; e una in scadenza restava accesa due ore in più. Su un target calorico
+ * che finisce nel piatto di una persona.
+ */
 function giorno(d: Date): number {
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return aGiorno(d).getTime();
 }
 
 /**
