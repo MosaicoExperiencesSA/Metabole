@@ -442,7 +442,8 @@ export class ValoriNutrizionaliService {
       >,
     ]);
 
-    const scoperti = ingredientiScoperti(usiNegliIngredienti(ricette), righe);
+    const usi = usiNegliIngredienti(ricette);
+    const scoperti = ingredientiScoperti(usi, righe);
     const daScrivere = scoperti.slice(0, Math.max(1, tetto));
     const fuori = scoperti.length - daScrivere.length;
     if (fuori > 0) {
@@ -481,15 +482,61 @@ export class ValoriNutrizionaliService {
     }
     if (falliti) this.logger.warn(`Alimenti da correggere: ${falliti} righe su ${daScrivere.length} non si sono scritte.`);
 
-    /** Chi non è più usato da nessuna ricetta torna a zero: l'elenco deve poter calare. */
-    const daAzzerare = (await this.prisma.nutrientLookupMiss.findMany({
-      where: { ricette: { gt: 0 } } as never,
+    /**
+     * ⚠️ **UN TERMINE RISOLTO ESCE DALL'ELENCO, NON SCIVOLA IN QUELLO ACCANTO** — 20/8.
+     *
+     * Prima, quando un nome smetteva di essere un problema — perché qualcuno aveva scritto la riga
+     * o compilato lo stato — questo passo gli metteva `ricette: 0` e lo lasciava `open`. ⛔ E la
+     * pagina divide i due elenchi proprio su `ricette`: quella riga finiva in **«chiesti dalle
+     * clienti e non trovati»**, con «— / —» accanto. Cioè il lavoro appena fatto **non spariva: si
+     * spostava nella lista sbagliata**, e chi l'aveva fatto lo ritrovava lì il giorno dopo.
+     *
+     * ⚠️ Il caso non è teorico: Simone ha appena dichiarato «non si applica» su olio, olio evo,
+     * sale, miele e zucchero. Stanotte quelle cinque righe sarebbero riapparse fra le domande delle
+     * clienti — cinque cose fatte, presentate come cinque cose da fare.
+     *
+     * ⚠️ **E «risolto» non è «filled».** `filled` e `ignored` li scrive **una persona** dalla pagina,
+     * e non si toccano più: è il patto per cui una scorciatoia decisa a mano non torna indietro.
+     * `risolto` lo scrive **questo passo**, quindi questo passo può anche disfarlo — e lo fa, più
+     * sotto, se quel nome torna a essere un problema. *Chi ha chiuso una cosa decide chi può
+     * riaprirla.*
+     */
+    const inTabellaOra = new Set(scoperti.map((x) => x.nome));
+    const aperti = (await this.prisma.nutrientLookupMiss.findMany({
+      where: { ricette: { gt: 0 }, status: 'open' } as never,
       select: { id: true, term: true },
     })) as { id: string; term: string }[];
-    const spenti = daAzzerare.filter((r) => !nomi.has(r.term)).map((r) => r.id);
-    if (spenti.length) {
+
+    /**
+     * ⚠️ Il confronto è con **tutti** gli scoperti, non con i 300 scritti. Prima si confrontava con
+     * `nomi` (il sottoinsieme scritto): un nome ancora problematico ma sotto il tetto veniva
+     * azzerato come se fosse a posto — e ricompariva con «— ricette», che è falso.
+     */
+    const risolti = aperti.filter((r) => !inTabellaOra.has(r.term) && usi.has(r.term)).map((r) => r.id);
+    const nonPiuUsati = aperti.filter((r) => !inTabellaOra.has(r.term) && !usi.has(r.term)).map((r) => r.id);
+
+    if (risolti.length) {
       await this.prisma.nutrientLookupMiss
-        .updateMany({ where: { id: { in: spenti } }, data: { ricette: 0 } as never })
+        .updateMany({ where: { id: { in: risolti } }, data: { status: 'risolto', ricette: 0 } as never })
+        .catch(() => undefined);
+      this.logger.log(`Alimenti da correggere: ${risolti.length} termini non sono più un problema e escono dall'elenco.`);
+    }
+    /** Non più usato da nessuna ricetta: non è «risolto», è «non serve più». Resta, a zero. */
+    if (nonPiuUsati.length) {
+      await this.prisma.nutrientLookupMiss
+        .updateMany({ where: { id: { in: nonPiuUsati } }, data: { ricette: 0 } as never })
+        .catch(() => undefined);
+    }
+
+    /**
+     * ⚠️ **E SE TORNA A ESSERE UN PROBLEMA, TORNA IN ELENCO.** Una riga chiusa da questo passo la
+     * può riaprire questo passo: succede se qualcuno cancella lo stato, o se una generazione nuova
+     * di ricette porta un nome che prima si abbinava e adesso no. ⛔ Le righe chiuse da **una
+     * persona** (`filled`, `ignored`) non si toccano: quella è una decisione, non un calcolo.
+     */
+    if (nomi.size) {
+      await this.prisma.nutrientLookupMiss
+        .updateMany({ where: { term: { in: [...nomi] }, status: 'risolto' } as never, data: { status: 'open' } as never })
         .catch(() => undefined);
     }
 

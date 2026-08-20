@@ -1,0 +1,61 @@
+--------------------------------------------------------------------------------
+Parte: l elenco di lavoro contiene solo lavoro vero — 20/8
+--------------------------------------------------------------------------------
+
+Due difetti nello stesso elenco, trovati partendo dalle cinque righe che Simone ha appena
+corretto. Tutti e due facevano la stessa cosa: MOSTRARE COME DA FARE DELLE COSE FATTE.
+
+⛔ 1. IL LAVORO APPENA FATTO NON SPARIVA: SI SPOSTAVA NELLA LISTA SBAGLIATA
+
+Quando un nome smetteva di essere un problema — perche qualcuno aveva scritto la riga o compilato
+lo stato — il passo notturno gli metteva `ricette: 0` e lo lasciava `open`. E la pagina divide i
+due elenchi proprio su `ricette`: quella riga finiva in «CHIESTI DALLE CLIENTI E NON TROVATI»,
+con «— / —» accanto.
+
+⚠️ Il caso non era teorico: Simone ha appena dichiarato «non si applica» su olio, olio evo, sale,
+miele e zucchero. STANOTTE quelle cinque righe sarebbero riapparse fra le domande delle clienti —
+cinque cose fatte, presentate come cinque cose da fare, in un elenco che non c entrava niente.
+
+Adesso un termine risolto esce con `status: 'risolto'`. ⚠️ E «risolto» NON e «filled»: `filled` e
+`ignored` li scrive una PERSONA dalla pagina e non si toccano piu — e il patto per cui una
+decisione presa a mano non torna indietro. `risolto` lo scrive il passo notturno, quindi il passo
+notturno puo anche disfarlo, e lo fa se quel nome torna a essere un problema.
+*Chi ha chiuso una cosa decide chi puo riaprirla.*
+
+⚠️ E l elenco «chiesti dalle clienti» adesso chiede `times > 0`: una riga che nessuna cliente ha
+chiesto non ci va, per definizione.
+
+⛔ 2. L ELENCO CONTAVA COME «DA FARE» I NOMI CHE IL SISTEMA GIA SA TRATTARE
+
+Un nome fuori tabella finiva in elenco come `non_in_tabella` ANCHE QUANDO L ABBINAMENTO TROVAVA
+UNA RIGA BUONA: il suggerimento veniva calcolato e poi il nome veniva messo in elenco lo stesso.
+
+⚠️ Ma se l abbinamento ci arriva, IL CONTO DELLA RICETTA FUNZIONA GIA — `cercaPerIngrediente` fa
+esattamente quei due passi. Quindi l elenco chiedeva di sistemare cose che nessuno doveva
+sistemare, e le metteva DAVANTI a quelle vere, che restavano sotto.
+
+⚠️ *Un elenco di lavoro che contiene cose gia fatte non e lungo: e falso.* E il costo lo paga chi
+ci lavora, che dopo tre righe inutili smette di fidarsi anche delle altre.
+
+⚠️ MA SOLO SE QUELLA RIGA SI PUO DAVVERO USARE. Se l abbinamento porta a una riga bollita il
+problema c e eccome — ed e QUELLO, non «il nome non c e». Adesso si dice col motivo giusto:
+«aggiungi la riga a crudo» e un istruzione, «non in tabella» su un nome che in tabella ci arriva
+e una caccia al tesoro.
+
+⚠️ E DUE TEST DICEVANO IL CONTRARIO
+
+`⚠️ un nome fuori tabella che si abbinerebbe SUGGERISCE la riga` verificava esattamente il
+comportamento sbagliato, e passava. Non l ho girato in silenzio: c e scritto sopra cosa diceva
+prima e perche era sbagliato.
+
+COSA TI ASPETTI DI VEDERE
+
+L elenco «Usati dalle ricette» dovrebbe SCENDERE parecchio dai 292 di stamattina: ne escono tutti
+i nomi che l abbinamento gia risolve. Quelli che restano sono lavoro vero, e il motivo accanto
+dice cosa fare.
+
+FILE
+- backend/nutrient-facts: `ingredienti-scoperti.ts` + spec · `valori-nutrizionali.service.ts` ·
+  `alimenti-da-correggere.spec.ts` (3 test nuovi) · `nutrient-facts.controller.ts`
+
+248 suite / 3902 test verdi. Quattro mutazioni: mordono tutte. Nessuna migrazione.

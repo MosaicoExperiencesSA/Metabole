@@ -79,11 +79,17 @@ export class NutrientFactsController {
       } as never),
       this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { gt: 0 } } as never }),
       this.prisma.nutrientLookupMiss.findMany({
-        where: { status: 'open', ricette: { lte: 0 } } as never,
+        /**
+         * ⚠️ **`times > 0`, non solo «senza ricette»** — 20/8. Questo elenco si chiama «chiesti dalle
+         * clienti»: una riga che nessuna cliente ha chiesto **non ci va**, per definizione. Senza
+         * questo filtro ci finiva dentro qualunque termine con `ricette: 0` — cioè, dal giorno che
+         * l'elenco ha imparato a calare, tutte le cose appena risolte.
+         */
+        where: { status: 'open', ricette: { lte: 0 }, times: { gt: 0 } } as never,
         orderBy: [{ times: 'desc' }, { lastAskedAt: 'desc' }] as never,
         take: TETTO,
       } as never),
-      this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { lte: 0 } } as never }),
+      this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { lte: 0 }, times: { gt: 0 } } as never }),
     ]);
     return {
       daRicette: { righe: daRicette, quanti: quanteRicette },

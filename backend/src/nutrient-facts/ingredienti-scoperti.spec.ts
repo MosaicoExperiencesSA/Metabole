@@ -39,10 +39,33 @@ describe('l\'elenco di lavoro degli ingredienti scoperti', () => {
   });
 
   /** ⚠️ Il caso che fa risparmiare il lavoro: una riga di sinonimo chiude migliaia di ricette. */
-  it('⚠️ un nome fuori tabella che si abbinerebbe SUGGERISCE la riga: si chiude con un sinonimo', () => {
-    const [x] = scoperti([['olio extravergine d oliva', 2486]]);
-    expect(x.motivo).toBe('non_in_tabella');
-    expect(x.suggerito).toBe('olio extravergine di oliva');
+  /**
+   * ⚠️ **QUESTO TEST DICEVA IL CONTRARIO FINO AL 20/8, E IL CONTRARIO ERA SBAGLIATO.**
+   *
+   * Diceva: «un nome fuori tabella che si abbinerebbe **suggerisce** la riga», e verificava che
+   * finisse in elenco con `motivo: 'non_in_tabella'`. ⛔ Ma se l'abbinamento ci arriva **il conto
+   * della ricetta funziona già** — `cercaPerIngrediente` fa esattamente questi due passi. Quindi
+   * l'elenco chiedeva a una persona di sistemare cose che nessuno doveva sistemare, e le metteva
+   * **davanti** a quelle vere.
+   *
+   * ⚠️ *Un elenco di lavoro che contiene cose già fatte non è lungo: è falso.* E il costo lo paga
+   * chi ci lavora, che dopo tre righe inutili smette di fidarsi anche delle altre.
+   */
+  it('⚠️ un nome che l\'abbinamento risolve NON è un lavoro: esce dall\'elenco', () => {
+    expect(scoperti([['olio extravergine d oliva', 2486]])).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **MA SOLO SE QUELLA RIGA SI PUÒ DAVVERO USARE.** Se l'abbinamento porta a una riga bollita il
+   * problema c'è eccome — ed è **quello**, non «il nome non c'è». Dirlo col motivo giusto è l'unica
+   * cosa che rende l'elenco azionabile: «aggiungi la riga a crudo» è un'istruzione, «non in
+   * tabella» su un nome che in tabella ci arriva è una caccia al tesoro.
+   */
+  it('⚠️ se l\'abbinamento porta a una riga solo da cotto, il motivo è QUELLO', () => {
+    const righe = [{ name: 'lenticchie', synonyms: [], state: 'bollite' }];
+    const [x] = ingredientiScoperti(new Map([['lenticchie bio', 12]]), righe);
+    expect(x.motivo).toBe('solo_da_cotto');
+    expect(x.suggerito).toBe('lenticchie');
   });
 
   /** E quando non si abbinerebbe a niente, non si inventa: la riga va scritta. */

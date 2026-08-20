@@ -139,7 +139,37 @@ export function ingredientiScoperti(
       const candidate = new Set<RigaTabella>();
       for (const p of paroleChe(nome)) for (const r of perPrimaParola.get(p) ?? []) candidate.add(r);
       const forse = candidate.size ? abbinaPerRicetta(nome, [...candidate]) : null;
-      fuori.push({ nome, ricette, motivo: 'non_in_tabella', suggerito: forse?.riga.name ?? null });
+
+      /**
+       * ⚠️ **SE L'ABBINAMENTO CI ARRIVA, NON È UN LAVORO** — corretto il 20/8, ed era il difetto che
+       * gonfiava l'elenco.
+       *
+       * Prima qui finiva `non_in_tabella` **anche quando `abbina` trovava una riga buona**: il
+       * suggerimento veniva calcolato e poi il nome veniva messo in elenco lo stesso. ⛔ Ma se
+       * l'abbinamento ci arriva, **il conto della ricetta funziona già**: `cercaPerIngrediente` fa
+       * esattamente questi due passi. Quindi l'elenco di lavoro chiedeva a una persona di sistemare
+       * cose che nessuno doveva sistemare — e le metteva davanti a quelle vere, che restavano sotto.
+       *
+       * ⚠️ *Un elenco di lavoro che contiene cose già fatte non è lungo: è falso.* E il costo lo paga
+       * chi ci lavora, che dopo tre righe inutili smette di fidarsi anche delle altre.
+       *
+       * ⚠️ **Ma solo se quella riga si può davvero usare.** Se l'abbinamento porta a una riga
+       * bollita, o senza stato, il problema c'è eccome — ed è **quello**, non «il nome non c'è»: si
+       * dice con il motivo giusto, che è l'unica cosa che rende l'elenco azionabile.
+       */
+      if (forse) {
+        const stesse = perNome.get(normalizzaNome(forse.riga.name)) ?? [forse.riga];
+        const via = scegliPerRicetta(stesse);
+        if (via.tipo === 'va_bene') continue;
+        fuori.push({
+          nome,
+          ricette,
+          motivo: via.tipo === 'solo_cotto' ? 'solo_da_cotto' : 'senza_stato',
+          suggerito: forse.riga.name,
+        });
+        continue;
+      }
+      fuori.push({ nome, ricette, motivo: 'non_in_tabella', suggerito: null });
       continue;
     }
     const scelta = scegliPerRicetta(trovate);

@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🧹 **L'elenco di lavoro conteneva cose già fatte, in due modi diversi.** Trovati
+  partendo dalle cinque righe che Simone aveva appena corretto.
+  ⛔ **Il lavoro appena fatto non spariva: si spostava nella lista sbagliata.** Un nome che smetteva
+  di essere un problema prendeva `ricette: 0` e restava `open` — e la pagina divide i due elenchi
+  proprio su `ricette`, quindi finiva in «**chiesti dalle clienti e non trovati**» con «— / —».
+  ⚠️ Non era teorico: le cinque righe «non si applica» sarebbero riapparse **quella notte** fra le
+  domande delle clienti. Ora un termine risolto esce con `status: 'risolto'` — ⚠️ e «risolto» **non
+  è «filled»**: `filled` e `ignored` li scrive una **persona** e non si toccano più; `risolto` lo
+  scrive il passo notturno, quindi il passo notturno può disfarlo se quel nome torna a essere un
+  problema. *Chi ha chiuso una cosa decide chi può riaprirla.* E l'elenco «chiesti dalle clienti»
+  adesso chiede `times > 0`: una riga che nessuna cliente ha chiesto non ci va, per definizione.
+  ⛔ **E l'elenco contava come «da fare» i nomi che il sistema già sa trattare.** Un nome fuori
+  tabella finiva in elenco anche quando l'abbinamento trovava una riga buona — ma se l'abbinamento
+  ci arriva **il conto funziona già**. ⚠️ *Un elenco di lavoro che contiene cose già fatte non è
+  lungo: è falso* — e il costo lo paga chi ci lavora, che dopo tre righe inutili smette di fidarsi
+  anche delle altre. ⚠️ Ma se la riga raggiunta è **bollita**, il problema c'è ed è **quello**:
+  adesso si dice col motivo giusto, perché «aggiungi la riga a crudo» è un'istruzione e «non in
+  tabella» su un nome che in tabella ci arriva è una caccia al tesoro.
+  ⚠️ **Due test dicevano il contrario e passavano.** Non li ho girati in silenzio: sopra c'è scritto
+  cosa dicevano prima e perché era sbagliato.
+
 - `[Sviluppo]` 🚪 **La diagnostica chiamava la regola in modo diverso dalla produzione, e mandava la
   nutrizionista a fare un lavoro inutile.** Simone ha lanciato `NOME='spinaci freschi' npm run
   diag:crudo-cotto` per capire perché 1350 ricette non si abbinano: ha risposto «NON si abbina», e ha

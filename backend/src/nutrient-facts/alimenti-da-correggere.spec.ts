@@ -49,9 +49,15 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
    * volte, con numeri che prima o poi divergono.
    */
   it('⚠️ quando l\'abbinamento saprebbe dove portarlo, lo suggerisce', async () => {
-    const prisma = crea([ric('olio extravergine d oliva')], [{ name: 'olio extravergine di oliva', synonyms: [], state: 'crudo' }]);
+    /**
+     * ⚠️ Il suggerimento si scrive quando serve **a decidere**, non su tutto: dal 20/8 un nome che
+     * l'abbinamento risolve da solo esce dall'elenco (il conto funziona già). Resta in elenco, con
+     * il suggerimento, quello che l'abbinamento raggiunge ma **non può usare** — qui la riga è
+     * bollita e le grammature delle ricette sono a crudo.
+     */
+    const prisma = crea([ric('lenticchie bio')], [{ name: 'lenticchie', synonyms: [], state: 'bollite' }]);
     await (await build(prisma)).aggiornaIngredientiScoperti();
-    expect(scritte(prisma)[0].create).toMatchObject({ suggerito: 'olio extravergine di oliva' });
+    expect(scritte(prisma)[0].create).toMatchObject({ suggerito: 'lenticchie', motivo: 'solo_da_cotto' });
   });
 
   /**
@@ -125,5 +131,61 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
     const esito = await (await build(prisma)).aggiornaIngredientiScoperti();
     expect(esito.scritti).toBe(0);
     expect(esito.falliti).toBe(2);
+  });
+
+  /**
+   * ⚠️ UN TERMINE RISOLTO ESCE DALL'ELENCO, NON SCIVOLA IN QUELLO ACCANTO — 20/8.
+   *
+   * Prima, quando un nome smetteva di essere un problema, questo passo gli metteva `ricette: 0` e lo
+   * lasciava `open`. ⛔ E la pagina divide i due elenchi proprio su `ricette`: quella riga finiva in
+   * **«chiesti dalle clienti e non trovati»**, con «— / —» accanto. Il lavoro appena fatto non
+   * spariva: **si spostava nella lista sbagliata**.
+   *
+   * ⚠️ Il caso non è teorico: Simone aveva appena dichiarato «non si applica» su olio, sale, miele.
+   * Quelle cinque righe sarebbero riapparse quella notte fra le domande delle clienti — cinque cose
+   * fatte, presentate come cinque cose da fare.
+   */
+  it('⚠️ un nome che non è più un problema esce come «risolto», non con «— ricette»', async () => {
+    // «spinaci» adesso è a crudo: «spinaci freschi» si abbina e non è più scoperto.
+    const prisma = crea(
+      [ric('spinaci freschi')],
+      [{ name: 'spinaci', synonyms: [], state: 'crudo' }],
+      [{ id: 'r1', term: 'spinaci freschi' }],
+    );
+    await (await build(prisma)).aggiornaIngredientiScoperti();
+    const chiusure = prisma.nutrientLookupMiss.updateMany.mock.calls.map((c: any[]) => c[0]);
+    expect(chiusure).toContainEqual(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'risolto', ricette: 0 }) }),
+    );
+  });
+
+  /**
+   * ⚠️ **«Risolto» non è «non più usato».** Un nome che nessuna ricetta usa più non è stato risolto
+   * da nessuno: va a zero e **resta in elenco**, perché una cliente potrebbe averlo chiesto in chat.
+   * Confonderli vorrebbe dire chiudere come «fatto» qualcosa che nessuno ha fatto.
+   */
+  it('⚠️ un nome che nessuna ricetta usa più va a zero, ma NON si chiude', async () => {
+    const prisma = crea([ric('altro')], [{ name: 'altro', synonyms: [], state: 'crudo' }], [{ id: 'r1', term: 'sparito' }]);
+    await (await build(prisma)).aggiornaIngredientiScoperti();
+    const chiusure = prisma.nutrientLookupMiss.updateMany.mock.calls.map((c: any[]) => c[0]);
+    const suSparito = chiusure.filter((c: any) => (c.where?.id?.in ?? []).includes('r1'));
+    expect(suSparito).toHaveLength(1);
+    expect(suSparito[0].data).toEqual({ ricette: 0 });
+  });
+
+  /**
+   * ⚠️ **E SE TORNA A ESSERE UN PROBLEMA, TORNA IN ELENCO.** Chi ha chiuso decide chi può riaprire:
+   * `risolto` l'ha scritto questo passo, quindi questo passo lo disfa. ⛔ Le righe chiuse da una
+   * **persona** (`filled`, `ignored`) non si toccano: quella è una decisione, non un calcolo — e la
+   * `where` lo dice, cercando solo `status: 'risolto'`.
+   */
+  it('⚠️ riapre solo quello che aveva chiuso lui, mai quello che ha chiuso una persona', async () => {
+    const prisma = crea([ric('melanzane')], [{ name: 'mela', synonyms: [], state: 'crudo' }]);
+    await (await build(prisma)).aggiornaIngredientiScoperti();
+    const riaperture = prisma.nutrientLookupMiss.updateMany.mock.calls
+      .map((c: any[]) => c[0])
+      .filter((c: any) => c.data?.status === 'open');
+    expect(riaperture).toHaveLength(1);
+    expect(riaperture[0].where.status).toBe('risolto');
   });
 });
