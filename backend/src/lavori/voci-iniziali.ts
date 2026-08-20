@@ -1311,4 +1311,19 @@ export const VOCI_INIZIALI: Voce[] = [
     soloSeEsiste: true,
   },
 
+  /**
+   * ⚠️ UNA VOCE SOLA PER DUE COSE, e non è pigrizia: le fa la stessa persona, sulla stessa tabella,
+   * nella stessa mezz'ora. Due voci separate farebbero crescere l'elenco senza aggiungere una
+   * decisione — e un elenco che cresce a ogni consegna smette di dire quanto lavoro c'è davvero.
+   */
+  {
+    chiave: 'tabella-alimenti-igiene',
+    titolo: 'Tabella alimenti: cinque righe da dichiarare, e 1350 ricette da capire',
+    dettaglio:
+      'Due lavori di mezz\'ora sulla tabella alimenti, tutti e due nati guardando la pagina vera il 20/8. **1) Le cinque righe che non hanno uno stato, e non devono averlo.** In cima all\'elenco «Alimenti da correggere» stanno `olio extravergine di oliva` (3025 ricette), `olio evo` (1706), `miele` (1331), più sale e zucchero: risultano «Senza stato». ⚠️ Ma all\'olio lo stato **non si applica** — crudo o cotto è la stessa cosa, 899 kcal restano 899. ⛔ Finché restano vuote fanno due danni invisibili: ogni ricetta dettata a Vera con l\'olio si porta dietro «la tabella non dice se il valore è a crudo» (*un avviso che compare sempre non è un avviso*, e compare sull\'ingrediente più usato del catalogo), e quelle righe occupano i primi posti dell\'elenco **nascondendo quelle da correggere davvero**. ✅ Dal 20/8 il valore c\'è: matita → campo Stato → «non si applica». Cinque righe. ⚠️ **Non si deduce, si dichiara**: nessuna regola indovina quali alimenti non hanno stato, e una che ci provasse sbaglierebbe sul primo caso nuovo in silenzio. **2) «spinaci freschi»: 1350 ricette che non si abbinano.** In elenco risulta «Non in tabella», e non dovrebbe: la regola dice che «freschi» è innocuo quando la riga è a crudo, e gli spinaci in tabella ci sono. ⚠️ L\'ipotesi è che la riga «spinaci» abbia lo **stato vuoto** — dal 19/8 sera «fresco» si accetta solo se combacia con lo stato della riga, e con lo stato vuoto non combacia niente. ⛔ **Ma è un\'ipotesi, e il 20/8 mi ha già morso due volte ragionare su dati immaginati invece che letti**: si legge con `NOME=\'spinaci freschi\' npm run diag:crudo-cotto`, che spiega passo per passo dove finisce quel nome e perché. Se è lo stato vuoto, è un campo — e lo stesso vale probabilmente per «prezzemolo fresco» (1207), «basilico fresco» (826) e «timo fresco» (670), che però sono aromi e pesano zero: quelli si tolgono dall\'elenco, non si correggono.',
+    categoria: SIMONE,
+    ordine: 615,
+    nata: '2026-08-20T08:10',
+  },
+
 ];

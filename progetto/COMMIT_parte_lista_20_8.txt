@@ -1,0 +1,41 @@
+--------------------------------------------------------------------------------
+Parte: la lista lavori aggiornata — 20/8
+--------------------------------------------------------------------------------
+
+Simone: «aggiorna la lista lavori».
+
+⚠️ Da ieri sera l allineamento gira DA SOLO a ogni deploy: quello che il file dichiara finito si
+spunta senza che nessuno prema niente. Quindi qui non c e da spuntare: c e da scrivere quello
+che oggi e diventato un lavoro per una persona e che finora stava solo nei miei messaggi.
+
+UNA VOCE NUOVA, E UNA SOLA PER DUE COSE
+
+`tabella-alimenti-igiene` — le fa la stessa persona, sulla stessa tabella, nella stessa mezz ora.
+⚠️ Due voci separate avrebbero fatto crescere l elenco senza aggiungere una decisione, e un
+elenco che cresce a ogni consegna smette di dire quanto lavoro c e davvero. (E il primo giorno la
+domanda di Simone era esattamente quella: «pensavo di chiudere la lista lavori ma invece che
+diminuire aumentano».)
+
+  1. LE CINQUE RIGHE CHE NON HANNO UNO STATO E NON DEVONO AVERLO
+     olio (3025 ricette), olio evo (1706), miele (1331), sale, zucchero.
+     Matita → campo Stato → «non si applica». Cinque righe, e tolgono un avviso da 3025 ricette
+     piu i primi quattro posti dell elenco, dove oggi nascondono le righe da correggere davvero.
+
+  2. «SPINACI FRESCHI»: 1350 RICETTE CHE NON SI ABBINANO
+     In elenco risulta «Non in tabella», e non dovrebbe. ⚠️ La mia ipotesi e che la riga «spinaci»
+     abbia lo stato vuoto — ma e un IPOTESI, e oggi ragionare su dati immaginati invece che letti
+     mi ha gia morso due volte (il «pure» che non esisteva, le «olive denocciolate» che non ho mai
+     visto). Si legge con `NOME='spinaci freschi' npm run diag:crudo-cotto`, che spiega passo per
+     passo dove finisce quel nome e perche.
+
+RESTANO SETTE VOCI, E CINQUE ASPETTANO UNA PERSONA
+
+  · numero WhatsApp (settembre, deciso)        · coda «Da validare»: il numero di Nocanty
+  · aggiornamenti grossi (sessione tranquilla) · kcal-need: la nutrizionista
+  · come si prendono le misure: Simone e Lucia · tabella alimenti: le cinque righe e gli spinaci
+  · ordine del menu, difetto 6 — l unica di codice, e la voce spiega perche non conviene ora
+
+FILE
+- backend/lavori: `voci-iniziali.ts`
+
+247 suite / 3892 test verdi. Nessuna migrazione.

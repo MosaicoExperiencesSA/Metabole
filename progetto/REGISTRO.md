@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 📋 **Lista lavori aggiornata.** ⚠️ Da ieri sera l'allineamento gira **da solo** a ogni
+  deploy, quindi qui non c'era da spuntare: c'era da **scrivere** quello che oggi è diventato un
+  lavoro per una persona e che finora stava solo nei miei messaggi. Una voce nuova,
+  `tabella-alimenti-igiene`, e ⚠️ **una sola per due cose**: le fa la stessa persona, sulla stessa
+  tabella, nella stessa mezz'ora — due voci separate avrebbero fatto crescere l'elenco senza
+  aggiungere una decisione, che è precisamente la domanda con cui questa pagina è nata («pensavo di
+  chiudere la lista lavori ma invece che diminuire aumentano»).
+  Dentro: le **cinque righe** che non hanno uno stato e non devono averlo (olio, olio evo, miele,
+  sale, zucchero → «non si applica»), e i **1350 «spinaci freschi»** che non si abbinano. ⚠️ Su
+  quest'ultimo la voce dice che la mia è un'**ipotesi** e come leggerla, invece di darla per buona:
+  oggi ragionare su dati immaginati invece che letti mi ha morso due volte.
+  Restano **sette** voci, cinque delle quali aspettano una persona.
+
 - `[Sviluppo]` 🫒 **Lo stato che «non si applica»: olio, sale, miele.** In cima all'elenco degli
   alimenti da correggere c'erano `olio extravergine di oliva` (3025 ricette), `olio evo` (1706),
   `miele` (1331), tutti «Senza stato». ⚠️ Ma all'olio lo stato **non si applica**: crudo o cotto è la
