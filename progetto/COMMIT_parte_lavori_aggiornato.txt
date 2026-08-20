@@ -1,0 +1,75 @@
+L'elenco Lavori aggiornato con le misure della sera, e lo script che lo carica era rotto — 20/8
+
+Simone ha lanciato le sei diagnostiche in coda e ha chiesto di aggiornare il file della lista.
+
+## ⛔ PRIMA DI TUTTO: `carica-lavori.ts` NON FUNZIONAVA
+
+`datiSpunta` era usato e **non importato**. `ts-node --transpile-only` non guarda i tipi, quindi il
+difetto non usciva alla prova a vuoto: usciva **con `CONFERMA=1`**, e solo sul ramo che spunta una
+voce che il file dichiara finita — cioè esattamente quello che sta per succedere adesso, che il file
+ne dichiara finite tre. Si sarebbe rotto **a metà lavoro**, la prima volta che serviva davvero.
+⚠️ L'ho trovato con `tsc --noEmit`, che su `prisma/` non guardava nessuno: la CI compila `src/`, e
+gli script di `prisma/` girano con `--transpile-only`. Restano due altri file di `prisma/` con
+errori di tipo (`approve-diets`, `dedupe-diets`): sono di prima e non li ho toccati stanotte, ma
+adesso si sa che ci sono.
+
+## LE MISURE, E COSA HANNO DETTO
+
+✅ **`diag:mese-confine` → CHIUSA.** Nessun taglio del tetto («il tetto non ha mai morso») e **zero
+righe** scritte nella fascia spostata, su sei righe di compenso in tutto. La domanda che poteva
+costare soldi a qualcuno è chiusa: il difetto era reale e corretto, ma non ha fatto in tempo a
+colpire nessuno.
+
+✅ **`diag:giorno-piani` → VIA LIBERA alla metà grossa del fuso.** 78 date guardate, 18 con un orario
+diverso da mezzanotte UTC, **zero** che cambierebbero giorno lette a Roma. Era l'unica cosa che
+teneva ferma la seconda metà del lavoro sul fuso: temevo di spostare di un giorno i piani già
+venduti fra le 22:00 e le 24:00 UTC. Non ce n'è nessuno.
+
+✅ **`diag:pipeline-stati` → tutto in ordine.** «Primo accesso effettuato» al posto 1, e nessuna
+colonna automatica sta prima di quella da cui dovrebbe arrivare.
+
+✅ **`allinea:primo-accesso` → innocuo.** 43 clienti con un accesso nel registro, **due** da
+spostare, e si chiamano tutte e due «Test».
+
+⚠️ **`diag:pipeline-indietro` → 2 schede su 58, e NON è stato il codice.** «Acquisito → Prova» e
+«Da Ricontattare → Prova». `avanzaStatoSeIndietro` rifiuta quando la colonna attuale ha un posto
+maggiore o uguale, e «Prova» (4) sta prima di «Acquisito» (6): la porta si è chiusa correttamente.
+L'unica porta che scrive senza guardare (`autoAdvance`) scrive solo `paid`, che è in avanti. Quindi
+le ha spostate **una persona**, ed è legittimo. ⚠️ Quello che la diagnostica non sa dire è **chi**, e
+potrebbe: `stageDates` porta il `byUserId` di ogni passaggio. Finché non lo dice, «due schede
+indietro» suona come un difetto e invece è lavoro di qualcuno.
+
+⚠️ **`diag:esclusioni` → la correzione ha funzionato, e ha scoperto la prossima.** «Frutta secca» da
+**721 a 445** righe in più, e le 445 che restano dicono tutte una parola vera («mandorla»,
+«nocciola», «arachide»): le olive sono sparite. Ma il conto nuovo dice **212 chiavi intere che
+combaciano dentro una parola più lunga**, e le due parole che si vedono spiegano perché non si
+corregge come la radice: «**aceto**» dentro «**sottaceto**» è **giusto** (mettere un confine di
+parola toglierebbe protezione a chi è sensibile ai solfiti), «**vino**» dentro «**bovino**» no.
+La stessa regola darebbe la risposta giusta a una e sbagliata all'altra: è una **lista corta**, non
+una regola.
+
+## COSA È CAMBIATO NEL FILE
+
+`src/lavori/voci-iniziali.ts`: 130 → **138 voci**.
+ · **Chiusa** «Provvigioni: il confine di mese» con l'esito della misura.
+ · **Aggiornata** «Che giorno è oggi» con il via libera di `diag:giorno-piani`.
+ · **Otto voci nuove**: i 173 alimenti coi numeri copiati (⛔ blocca il carico dei 245), la radice a
+   inizio parola (chiusa), «vino dentro bovino» (aspetta una decisione), le due schede indietro,
+   l'allineamento del primo accesso, i 17 clienti senza numero di pasti, chi vede tutte le clienti
+   (marketing/head_marketing: due punti del codice dicono cose diverse), il segmento del funnel
+   (chiusa).
+
+`prisma/diag-esclusioni.ts`: le chiavi intere dentro una parola adesso sono **raggruppate per
+coppia (chiave, parola)** invece di una riga per ricetta. La prima versione ne stampava 212 per far
+scoprire che erano due parole: un elenco che costringe a contare a mano è un elenco che non si legge.
+
+## COME SI CARICA
+
+  npm run carica:lavori              → prova a vuoto, non scrive
+  CONFERMA=1 npm run carica:lavori   → scrive
+
+⚠️ Lo script **non riscrive mai** una voce che esiste già, e **non riapre** mai una voce spuntata a
+mano: può solo aggiungere e chiudere. Le tre voci dichiarate finite (`fatta: true`) verranno
+spuntate se in pagina sono ancora aperte.
+
+`npm run build` verde. 273 suite, 4113 test verdi, a cache svuotata.

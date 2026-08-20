@@ -88,17 +88,28 @@ async function main() {
        * correggere anche questo giro vorrebbe dire toccare il comportamento che regge le esclusioni
        * da mesi, e prima si legge quanto pesa.
        */
-      for (const { r, h } of fieno) {
+      /**
+       * ⚠️ **RAGGRUPPATE, non una riga per ricetta.** La prima versione ne stampava una per piatto:
+       * 212 righe da leggere per scoprire che erano **due parole**. La domanda è «quali parole», non
+       * «quali piatti», e un elenco che costringe a contare a mano è un elenco che non si legge.
+       */
+      const coppie = new Map<string, number>();
+      for (const { h } of fieno) {
         for (const k of chiavi) {
           if (k.includes(' ')) continue;
           const i = h.indexOf(k);
           if (i <= 0) continue;
           if (!/[a-z0-9]/.test(h[i - 1])) continue;
           if (h.split(/[^a-z0-9]+/).includes(k)) continue; // c'è anche da sola: allora è giusta
-          console.log(`      ⛔ CHIAVE INTERA DENTRO UNA PAROLA — ${allergene}: «${k}» dentro «${parolaChePorta(h, k)}»  (${r.name})`);
+          const chiaveCoppia = `${k}|${parolaChePorta(h, k)}`;
+          coppie.set(chiaveCoppia, (coppie.get(chiaveCoppia) ?? 0) + 1);
           totaleDentro += 1;
           break;
         }
+      }
+      for (const [coppia, quante] of [...coppie.entries()].sort((a, b) => b[1] - a[1])) {
+        const [k, parola] = coppia.split('|');
+        console.log(`      ⛔ chiave intera dentro una parola — ${allergene}: «${k}» dentro «${parola}»  ×${quante}`);
       }
     }
 
@@ -108,7 +119,13 @@ async function main() {
     console.log('la parola che si vede dice quale regola va rivista — la lunghezza della radice è solo una');
     console.log('delle possibili leve, e il 20/8 era quella sbagliata.');
     console.log(`\nChiavi intere che combaciano dentro una parola più lunga: ${totaleDentro}.`);
-    if (totaleDentro > 0) console.log('⛔ Questo è un difetto PIÙ VECCHIO della radice, e non è stato toccato: si legge e si decide.\n');
+    if (totaleDentro > 0) {
+      console.log('⛔ Questo è un difetto PIÙ VECCHIO della radice, e non è stato toccato.');
+      console.log('⚠️ E NON si corregge come la radice: qui il confine di parola TOGLIEREBBE protezione.');
+      console.log('   «aceto» dentro «sottaceto» è giusto — il sottaceto l\'aceto ce l\'ha davvero —');
+      console.log('   mentre «vino» dentro «bovino» non lo è. Le due parole si leggono e si decide una');
+      console.log('   per una: è una lista corta, non una regola.\n');
+    }
     else console.log('✅ Nessuna: il giro della chiave esatta non ha questo problema, almeno su questo catalogo.\n');
   } finally {
     await prisma.$disconnect();

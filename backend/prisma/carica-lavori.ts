@@ -23,6 +23,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 import { VOCI_INIZIALI, type Voce } from '../src/lavori/voci-iniziali';
+/**
+ * ⛔ **Questo import mancava, e lo script era rotto.** `datiSpunta` era usato più sotto senza essere
+ * importato: `ts-node --transpile-only` non se ne accorge (i tipi non li guarda), quindi il difetto
+ * non usciva alla prova a vuoto — usciva **con `CONFERMA=1`**, e solo sul ramo che spunta una voce
+ * che il file dichiara finita. Cioè: si rompeva a metà lavoro, la prima volta che serviva davvero.
+ * Trovato il 20/8 sera con `tsc --noEmit`, che sui file di `prisma/` nessuno guardava.
+ */
+import { datiSpunta } from '../src/lavori/lavoro';
 
 /** Una voce dello storico estratta dal REGISTRO: entra già spuntata, con la sua data. */
 type VoceStorica = Voce & { data: string };

@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 📋 **L'elenco Lavori aggiornato con le sei misure della sera — e lo script che lo
+  carica era rotto.** ⛔ **`carica-lavori.ts` non funzionava**: `datiSpunta` usato e **non
+  importato**. `ts-node --transpile-only` non guarda i tipi, quindi non usciva alla prova a vuoto —
+  usciva **con `CONFERMA=1`**, e solo sul ramo che spunta una voce dichiarata finita: cioè si
+  sarebbe rotto **a metà lavoro** la prima volta che serviva. Trovato con `tsc --noEmit`, che su
+  `prisma/` non guardava nessuno.
+  ✅ **`diag:mese-confine` → chiusa**: zero tagli del tetto, zero righe nella fascia spostata. Il
+  difetto era reale e corretto, ma non ha fatto in tempo a colpire nessuno.
+  ✅ **`diag:giorno-piani` → via libera**: 78 date, **zero** cambierebbero giorno lette a Roma. Era
+  l'unica cosa che teneva ferma la metà grossa del lavoro sul fuso.
+  ✅ **`allinea:primo-accesso`**: due schede da spostare, si chiamano tutte e due «Test».
+  ⚠️ **`diag:pipeline-indietro` → 2 schede su 58, e non è stato il codice**: `avanzaStatoSeIndietro`
+  rifiuta correttamente, e l'unica porta che scrive senza guardare scrive solo in avanti. Le ha
+  spostate **una persona**, ed è legittimo. Quello che la diagnostica non sa dire è **chi**, e
+  potrebbe: `stageDates` ha il `byUserId`.
+  ⚠️ **`diag:esclusioni` → la correzione ha funzionato**: «frutta secca» da **721 a 445** righe in
+  più, e le 445 dicono tutte una parola vera. Le olive sono sparite. ⛔ Ma il conto nuovo dice **212
+  chiavi intere dentro una parola più lunga**, e le due parole viste spiegano perché **non** si
+  corregge come la radice: «aceto» dentro «sottaceto» è **giusto** — un confine di parola
+  toglierebbe protezione — «vino» dentro «bovino» no. È una lista corta, non una regola.
+  📋 `voci-iniziali.ts`: 130 → **138 voci**. Chiusa quella del confine di mese, aggiornata quella del
+  fuso, e otto nuove — fra cui i **173 alimenti coi numeri copiati**, che **bloccano** il carico dei
+  245.
+  🔢 Build verde, 273 suite, 4113 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🍽️ **Una giornata ha tre forme, e sono scritte in diciotto posti.** Continuando a
   cercare la famiglia di difetto trovata tre volte oggi — un elenco a mano che rincorre una verità
   che sta altrove — ho contato gli elenchi di slot: **9 copie** dei cinque pasti in ordine, **5**
