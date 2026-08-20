@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { MailboxService } from '../mailbox/mailbox.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
-const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const FINANCE_ROLES = ['admin', 'sales'];
 type Row = {
   a: string;
@@ -64,7 +64,7 @@ export class DashboardService {
   async previews(user: AuthUser): Promise<Record<string, Row[]>> {
     const out: Record<string, Row[]> = {};
     const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
-    const scopeAll = MANAGER_ROLES.includes(user.role);
+    const scopeAll = vedeTutteLeClienti(user.role);
     const clientWhere: Record<string, unknown> = { role: 'client', deletedAt: null };
     if (!scopeAll) {
       if (isCoachLike(user.role) && staff) clientWhere.clientProfile = { assignedCoachId: { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] } };

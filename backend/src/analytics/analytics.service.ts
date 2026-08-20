@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
@@ -15,7 +16,6 @@ import {
   serieDelMese,
 } from './serie-giornaliera';
 
-const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const MONTH_LABELS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 const DEMO_DOMAIN = '@demo.metabole.local';
@@ -39,7 +39,7 @@ export class AnalyticsService {
    */
   private async filtroClienti(user: AuthUser): Promise<{ where: Record<string, unknown>; scopeAll: boolean }> {
     const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
-    const scopeAll = MANAGER_ROLES.includes(user.role);
+    const scopeAll = vedeTutteLeClienti(user.role);
     const where: Record<string, unknown> = { role: 'client', deletedAt: null };
     if (!scopeAll) {
       if (isCoachLike(user.role) && staff) where.clientProfile = { assignedCoachId: { in: (await coachTeamScope(this.prisma, user.sub)) ?? [] } };

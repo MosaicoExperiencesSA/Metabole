@@ -1,0 +1,66 @@
+«Chi vede tutte le clienti» stava scritto in quattro file — 20/8
+
+Continuando a cercare gli elenchi di chiavi scritti a mano (è la famiglia di difetti della giornata),
+uno è saltato fuori nel posto peggiore.
+
+    const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
+
+Copiato **identico** in quattro servizi:
+
+    src/alerts/alerts.service.ts:11
+    src/analytics/analytics.service.ts:18
+    src/dashboard/dashboard.service.ts:8
+    src/chat/conversation-summary.service.ts:8
+
+E in tutti e quattro serve alla stessa cosa: `scopeAll` — se chi guarda vede **tutte** le clienti o
+solo le sue.
+
+⛔ Quattro copie di una decisione di perimetro sono quattro copie della domanda «chi può vedere i
+dati di chi». Il giorno che si decide che la coordinatrice coach, o la responsabile marketing, vede
+tutto (o smette di vederlo), se ne cambiano una, due o tre — e il risultato non è una pagina storta:
+è una persona che vede gli **alert**, le **chat** o i **numeri** di clienti che non sono sue.
+
+⚠️ E la cosa che rende questo caso diverso da un normale copia-incolla: **la porta giusta esisteva
+già.** `src/common/perimetro-clienti.ts` è nato l'11/8 esattamente per questo, e il commento in testa
+lo dice con queste parole: «un perimetro copiato è un perimetro che prima o poi divergerà — con la
+differenza che qui la divergenza non è un difetto grafico, è una coach che vede i pagamenti delle
+clienti di un'altra». Le quattro copie gli stavano accanto da allora.
+
+## COSA È CAMBIATO
+
+`src/common/perimetro-clienti.ts` — `RUOLI_CHE_VEDONO_TUTTE` e `vedeTutteLeClienti(role)`, accanto a
+`perimetroClienti`, con la differenza fra i due scritta in mezzo.
+I quattro servizi ora chiamano quella.
+
+⚠️ **L'elenco è esattamente quello che era nei quattro file: questa consegna sposta, non cambia.**
+Nessun ruolo vede più o meno di prima. C'è un test che lo fissa.
+
+## ⛔ LA DIVERGENZA CHE C'È GIÀ, E CHE NON HO APPIANATO
+
+`perimetroClienti` (stessa cosa, stesso file) risponde «nessun limite» a **tutto ciò che non è
+coach-like e non è nutrizionista** — quindi anche a `marketing` e `head_marketing`.
+`vedeTutteLeClienti` no: sono tre ruoli e basta.
+
+**Le due risposte divergono su quei due ruoli, oggi, non domani.** In pratica, secondo quale delle
+due passa una pagina, la responsabile marketing vede tutte le clienti o nessuna.
+
+⛔ Non l'ho appianata, e non perché sia difficile: **è una decisione su chi vede i dati delle
+clienti, e la prendi tu.** Il test la fissa ruolo per ruolo, così quando si decide si vede nero su
+bianco cosa si sta cambiando, invece di scoprirlo da qualcuno che vede una pagina che non doveva.
+
+## LE PROVE
+
+`src/common/perimetro-una-porta-sola.spec.ts` (15 test).
+ · Nessun altro file elenca a mano quei tre ruoli. Mutazione provata: rimessa la copia in
+   `dashboard.service.ts` → rosso, e dice quale file e quale riga.
+ · ⚠️ Il controllo **salta `@Roles(...)`**, che è una domanda diversa e va tenuta separata: quel
+   decoratore dice **chi può entrare** in una pagina, l'elenco dice **quanto vede** chi è entrato.
+   La prima versione del test non lo sapeva e segnalava 24 controller che stavano facendo il loro
+   mestiere. E salta le righe che nominano anche altri ruoli, perché `common/roles.ts` elenca tutti i
+   ruoli di sistema ed è la sua ragione di esistere, non una copia.
+ · Una riga per **ogni** ruolo di sistema, con un test che verifica che l'elenco dei ruoli provati
+   sia esattamente `ROLES`: nessun ruolo resta implicito, e uno nuovo fa diventare rosso il test
+   finché qualcuno non dice cosa vede.
+ · Un ruolo che non esiste **non** vede tutto: sbagliare per difetto si vede subito, per eccesso no.
+
+`npm run build` verde. 270 suite, 4085 test verdi, a cache svuotata.

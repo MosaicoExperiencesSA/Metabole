@@ -1,11 +1,11 @@
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AiService } from '../ai/ai.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { aGiorno } from '../common/date-only';
 
 const DAY = 86_400_000;
-const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 
 
 
@@ -105,7 +105,7 @@ export class ConversationSummaryService {
     if ((user.role === 'coach' || user.role === 'coach_coordinator') && counterpart === 'nutritionist') {
       throw new ForbiddenException('La coach non accede alle conversazioni col nutrizionista');
     }
-    if (!MANAGER_ROLES.includes(user.role)) {
+    if (!vedeTutteLeClienti(user.role)) {
       const staff = await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } });
       const profile = await this.prisma.clientProfile.findUnique({
         where: { userId: clientId },

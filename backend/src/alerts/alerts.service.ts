@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { coachTeamScope } from '../common/coach-team';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -8,7 +9,6 @@ import { toDateOnly } from '../common/date-only';
 import { PARAMETRO_SOGLIA, SOGLIA_GIORNI_DEFAULT, daRiaprire } from './rinvio-gestito';
 
 const DAY = 86_400_000;
-const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales'];
 const PRIORITY_RANK: Record<string, number> = { high: 0, med: 1, low: 2 };
 
 /** Un alert "desiderato" calcolato dai segnali del cliente. */
@@ -405,7 +405,7 @@ export class AlertsService {
     user: AuthUser,
     opts: { group?: string; priority?: string } = {},
   ): Promise<{ alerts: unknown[] }> {
-    const scopeAll = MANAGER_ROLES.includes(user.role);
+    const scopeAll = vedeTutteLeClienti(user.role);
     // Coordinatrice: vede gli alert di TUTTO il suo team (lei + le sue coach),
     // esattamente con la stessa dashboard/pagina delle coach.
     let coachScope: string[] | null = null;
@@ -455,7 +455,7 @@ export class AlertsService {
     const alert = await this.prisma.alert.findUnique({ where: { id: alertId } });
     if (!alert) throw new NotFoundException('Alert non trovato');
 
-    if (!MANAGER_ROLES.includes(user.role)) {
+    if (!vedeTutteLeClienti(user.role)) {
       // La coordinatrice puo' gestire anche gli alert delle coach del suo team.
       const scope = await coachTeamScope(this.prisma, user.sub);
       if (!scope || !alert.coachId || !scope.includes(alert.coachId)) {

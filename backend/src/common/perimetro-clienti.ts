@@ -37,6 +37,38 @@ export interface PerimetroClienti {
 }
 
 /**
+ * ⚠️ **CHI VEDE TUTTE LE CLIENTI — l'elenco che stava scritto in quattro file.**
+ *
+ * `const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales']` era copiato **identico** in
+ * `alerts.service.ts`, `analytics.service.ts`, `dashboard.service.ts` e
+ * `conversation-summary.service.ts`, e in tutti e quattro serve alla stessa cosa: decidere se chi
+ * guarda vede **tutte** le clienti o solo le sue.
+ *
+ * ⛔ Quattro copie di una decisione di perimetro sono quattro copie della stessa domanda: «chi può
+ * vedere i dati di chi». Il giorno che si decide che la coordinatrice coach, o la responsabile
+ * marketing, vede tutto (o smette di vederlo), se ne cambiano una, due o tre — e il risultato non è
+ * una pagina storta, è una persona che vede gli alert, le chat o i numeri di clienti che non sono
+ * sue. È la ragione per cui questo file esiste, scritta in testa l'11/8: «un perimetro copiato è un
+ * perimetro che prima o poi divergerà».
+ *
+ * ⚠️ **E CON `perimetroClienti` QUI SOPRA NON COMBACIA GIÀ ADESSO.** `perimetroClienti` risponde
+ * «nessun limite» a **tutto ciò che non è coach-like e non è nutrizionista** — quindi anche a
+ * `marketing` e `head_marketing`. Questo elenco no: sono tre ruoli e basta. Le due risposte
+ * divergono su quei due ruoli, e la divergenza è **di oggi, non di domani**.
+ *
+ * ⛔ **Non l'ho appianata**, e non perché sia difficile: perché è una decisione su chi vede i dati
+ * delle clienti, e la prende Simone, non io. Qui sotto l'elenco resta **esattamente quello che era
+ * nei quattro file** — questa consegna sposta e basta, non cambia il comportamento di nessuno. Il
+ * test `perimetro-una-porta-sola.spec.ts` fissa ruolo per ruolo cosa rispondono tutte e due oggi,
+ * così quando si deciderà si vedrà nero su bianco cosa si sta cambiando.
+ */
+export const RUOLI_CHE_VEDONO_TUTTE: readonly string[] = ['admin', 'head_nutritionist', 'sales'];
+
+/** true se chi guarda vede tutte le clienti, non solo le sue. */
+export const vedeTutteLeClienti = (role: string | null | undefined): boolean =>
+  !!role && RUOLI_CHE_VEDONO_TUTTE.includes(role);
+
+/**
  * Il vincolo da applicare per far vedere a `actorUserId` solo le sue clienti.
  * `null` = nessun vincolo (chi guarda non ha un perimetro).
  */

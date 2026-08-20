@@ -20,6 +20,34 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔐 **«Chi vede tutte le clienti» stava scritto in quattro file.**
+  `const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales']`, copiato **identico** in
+  `alerts.service.ts`, `analytics.service.ts`, `dashboard.service.ts` e
+  `conversation-summary.service.ts`, e in tutti e quattro decide `scopeAll`: se chi guarda vede
+  tutte le clienti o solo le sue.
+  ⛔ Quattro copie di una decisione di perimetro sono quattro copie della domanda «chi può vedere i
+  dati di chi». Quando quella risposta cambia se ne aggiornano una, due o tre, e il risultato non è
+  una pagina storta: è una persona che vede gli **alert**, le **chat** o i **numeri** di clienti che
+  non sono sue.
+  ⚠️ **E la porta giusta esisteva già**: `common/perimetro-clienti.ts`, nato l'11/8 con scritto in
+  testa «un perimetro copiato è un perimetro che prima o poi divergerà». Le quattro copie gli
+  stavano accanto da allora.
+  ✅ Adesso c'è `vedeTutteLeClienti(role)` lì dentro, e i quattro servizi la chiamano. ⚠️ **L'elenco
+  è esattamente quello che era: questa consegna sposta, non cambia.** Nessun ruolo vede più o meno di
+  prima, e c'è un test che lo fissa.
+  ⛔ **La divergenza che c'è già, e che NON ho appianato.** `perimetroClienti` risponde «nessun
+  limite» a tutto ciò che non è coach-like e non è nutrizionista — quindi anche a `marketing` e
+  `head_marketing` — mentre `vedeTutteLeClienti` no. Secondo quale delle due passa una pagina, la
+  responsabile marketing vede tutte le clienti o nessuna. È una decisione su chi vede i dati delle
+  clienti e la prende Simone: il test la fissa ruolo per ruolo, così quando si decide si vede cosa
+  si sta cambiando invece di scoprirlo da qualcuno che vede una pagina che non doveva.
+  🧪 15 test. ⚠️ Il controllo salta `@Roles(...)` — quello dice **chi può entrare**, l'elenco dice
+  **quanto vede**: la prima versione non lo sapeva e segnalava 24 controller che facevano il loro
+  mestiere. E c'è una riga per **ogni** ruolo di sistema, con un test che verifica che l'elenco
+  provato sia esattamente `ROLES`: un ruolo nuovo tiene il test rosso finché qualcuno non dice cosa
+  vede.
+  🔢 Build verde, 270 suite, 4085 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🌡️ **Il segmento del funnel si derivava dalle colonne di un altro CRM.** L'elenco
   delle colonne «lead caldo» in `funnel-segment.ts` diceva `contacted, interested, recall,
   appointment, negotiation, trial, paid, won`. ⛔ **Misurato: sei di quelle otto in Metabole non
