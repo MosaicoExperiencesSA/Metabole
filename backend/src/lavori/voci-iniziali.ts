@@ -1377,8 +1377,8 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'seed-nutrienti-firma-falsa',
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: false,
-    titolo: '`seed:nutrienti` riscrive le righe non confermate e le firma: la firma è falsa',
+    blocca: true,
+    titolo: '⛔ Il seed gira a OGNI deploy, riscrive le righe non confermate e le firma: la firma è falsa',
     dettaglio:
       '⛔ **Trovato misurando, il 20/8 sera, mentre cercavo un\'altra cosa.** L\'import degli alimenti aveva '
       + 'creato «burro» con stato `crudo`; un quarto d\'ora dopo in tabella lo stato era `NULL` e la riga '
@@ -1402,8 +1402,17 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'firma la mette una persona; **b)** il seed scrive solo i campi che ha davvero, invece di azzerare '
       + 'quelli che non conosce (`state: r.state ?? null` diventa «se non ce l\'ho non lo scrivo»). ⚠️ Le due '
       + 'non si escludono, e la seconda è quella che vale anche per il prossimo campo che si aggiunge.\n\n'
-      + '⛔ **Fino ad allora `npm run seed:nutrienti` non va lanciato**, e questa voce sta qui perché quella '
-      + 'frase non resti solo in una chat.',
+      + '⛔ **E NON È UNA COSA CHE HA LANCIATO QUALCUNO: gira da sola a ogni deploy.** `render.yaml` riga 57 '
+      + 'ha `preDeployCommand: … && npx prisma db seed && …`, e `prisma/seed.ts` chiama `seedValoriNutrizionali`. '
+      + 'Si vede dall\'ora dell\'ultima modifica delle undici righe, che cambia a ogni giro: 20:12:46, poi '
+      + '20:38:39. ⚠️ Quindi **il prossimo import subirà la stessa cosa al primo deploy successivo**, '
+      + 'qualunque cosa importi: non è l\'incidente di una sera, è il comportamento normale. È il motivo per '
+      + 'cui questa voce blocca: finché sta così, ogni riga caricata da uno script nasce con una firma falsa '
+      + 'e senza lo stato che chi l\'ha compilata aveva scritto.\n\n'
+      + '⚠️ E una conseguenza che vale la pena scrivere: **la coda «da confermare» si svuota da sola**. Quel '
+      + 'campo esiste per decidere quali righe una persona deve ancora guardare; se un deploy le firma, '
+      + 'quelle righe non le guarderà più nessuno. Un lavoro che sparisce dalla lista senza essere stato '
+      + 'fatto è peggio di un lavoro che resta in lista.',
   },
   {
     chiave: 'alimenti-numeri-copiati',

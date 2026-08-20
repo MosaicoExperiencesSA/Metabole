@@ -1,0 +1,40 @@
+Il seed gira a ogni deploy e firma quello che non ha guardato nessuno — 20/8 sera
+
+Controllando l'esito della riparazione ho guardato l'ora di ultima modifica delle undici righe:
+**20:38:39**, mentre nella prova di mezz'ora prima era **20:12:46**. Cambia a ogni giro. Il seed non
+l'ha lanciato una persona.
+
+    render.yaml, riga 57:
+    preDeployCommand: … && npx prisma db seed && …
+
+`prisma/seed.ts` chiama `seedValoriNutrizionali`, e quella funzione, su una riga **non ancora
+confermata**, riscrive **tutti** i campi — `state: r.state ?? null`, sinonimi, macro — e poi **la
+firma**.
+
+⛔ Quindi non è successo una volta stasera: **succede a ogni deploy**. Qualunque riga creata da uno
+script e non ancora confermata, al primo deploy successivo perde lo stato e i sinonimi che aveva, si
+prende i valori del seed, e viene marcata come **verificata da un nutrizionista**.
+
+## PERCHÉ QUESTA VOCE BLOCCA
+
+Non è la perdita dei valori — quelli combaciavano. È **la firma**.
+
+«Confermato» in questa tabella vuol dire una cosa sola: *un nutrizionista ha guardato questo numero*.
+È il campo che decide se una riga resta nella coda «da confermare», cioè **se una persona la
+guarderà mai**. Un deploy che firma svuota quella coda da solo: il lavoro sparisce dalla lista senza
+essere stato fatto, ed è peggio di un lavoro che resta in lista, perché nessuno lo cerca più.
+
+⚠️ E vale in avanti: **il prossimo import subirà la stessa cosa**, qualunque cosa importi. I 245
+alimenti caricati stasera sono nati «non confermati» apposta — perché non so chi abbia compilato il
+foglio — e al primo deploy sono stati firmati lo stesso.
+
+Le due strade, e non si escludono:
+ a) il seed **non firma mai**: la firma la mette una persona, dalla pagina;
+ b) il seed scrive **solo i campi che ha davvero**, invece di azzerare quelli che non conosce —
+    `state: r.state ?? null` diventa «se non ce l'ho, non lo tocco». ⚠️ È quella che vale anche per
+    il prossimo campo che si aggiungerà alla tabella.
+
+⛔ Non l'ho corretta stasera: tocca il seed che gira a ogni deploy, ed è l'ultima cosa da cambiare a
+quest'ora senza guardarla bene. La voce è **bloccante**, ed è l'unica bloccante rimasta.
+
+`npm run build` verde. 274 suite, 4132 test verdi.

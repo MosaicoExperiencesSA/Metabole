@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **Il seed gira a OGNI deploy e firma quello che non ha guardato nessuno.**
+  Controllando l'esito della riparazione ho guardato l'ora di ultima modifica delle undici righe:
+  **20:38:39**, mezz'ora prima era 20:12:46. Cambia a ogni giro — il seed non l'ha lanciato una
+  persona. `render.yaml` riga 57: `preDeployCommand: … && npx prisma db seed && …`, e `seed.ts`
+  chiama `seedValoriNutrizionali`, che su una riga **non ancora confermata** riscrive tutti i campi
+  (`state: r.state ?? null`, sinonimi, macro) e poi **la firma**.
+  ⛔ **Perché blocca: non è la perdita dei valori — quelli combaciavano. È la firma.** «Confermato»
+  vuol dire *un nutrizionista ha guardato questo numero*, ed è il campo che decide se una riga resta
+  nella coda «da confermare», cioè **se una persona la guarderà mai**. Un deploy che firma svuota
+  quella coda da solo: il lavoro sparisce dalla lista senza essere stato fatto, che è peggio di un
+  lavoro che resta in lista. I 245 alimenti di stasera sono nati «non confermati» **apposta**, perché
+  non so chi abbia compilato il foglio, e al primo deploy sono stati firmati lo stesso.
+  ⚠️ E vale in avanti: il prossimo import subirà la stessa cosa. Le due strade — il seed non firma
+  mai, oppure scrive solo i campi che ha davvero invece di azzerare quelli che non conosce — sono nel
+  testo della voce, che è **bloccante** ed è l'unica bloccante rimasta.
+
 - `[Sviluppo]` ⛔ **La mia riparazione andava al contrario: avrebbe cancellato le righe firmate.**
   `npm run ripara:alimenti` in produzione ha detto una cosa che non avevo previsto: le undici coppie
   «X (vecchia)» / «X» hanno **gli stessi identici valori** — parmigiano 397 e 397, burro 758 e 758,
