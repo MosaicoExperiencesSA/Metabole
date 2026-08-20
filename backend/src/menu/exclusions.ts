@@ -232,8 +232,68 @@ export function recipeHaystack(name: string | null | undefined, ingredients: unk
   return `${name ?? ''} ${ing}`.toLowerCase();
 }
 
-/** Vero se il piatto contiene almeno una delle parole chiave escluse. */
+/**
+ * ⚠️ **LA RADICE, perché «mandorla» non contiene «mandorle».**
+ *
+ * Il confronto è sempre stato «la parola chiave dentro il testo del piatto», e le parole chiave
+ * sono scritte in **una forma sola**: `mandorle`, `nocciole`, `gamberi`, `frittata`. Una ricetta
+ * che scrive l'altra forma — e il catalogo le scrive tutte e due — **passa il filtro**. Misurato il
+ * 20/8 sul catalogo keto del repo (118 ricette, `npm run diag:esclusioni`), con l'allergia
+ * dichiarata e il piatto proposto lo stesso:
+ *
+ *   · «Smoothie verde (**mandorla**, avocado, spinaci, lime)» → frutta a guscio
+ *   · «Gelato keto **nocciola**» → frutta a guscio
+ *   · «**Gamberetti** saltati con zucchine» → crostacei *(un diminutivo, non un plurale)*
+ *   · «**Frittatine** al forno» → uova
+ *
+ * ⚠️ È la **quarta volta** che questa riga morde nello stesso modo: `latte` che non espandeva i
+ * derivati (8/8, il burro a Giusy), `frutta_a_guscio` con l'underscore (12/8), «Carne .ceci» in un
+ * tag solo (17/8), e adesso la forma singolare. Il difetto è sempre quello scritto in testa al
+ * file — *una chiave che non combacia si comporta come un'esclusione che non c'è, e non produce
+ * nessun errore*.
+ *
+ * ## Perché la radice ha una lunghezza minima, e non è pignoleria
+ *
+ * Tagliare la vocale finale e cercare il moncone funziona su `mandorl`, `nocciol`, `gamber`,
+ * `frittat`. ⛔ Ma `polpo` diventa `polp`, e `polp` sta dentro **polpette**: chi è allergico ai
+ * molluschi si vedrebbe sparire le polpette di carne. L'ho scoperto misurando, non ragionando —
+ * era una delle due ricette che la prima versione della regola toglieva.
+ *
+ * Con la soglia a {@link RADICE_MINIMA} caratteri, sulle 118 ricette vere del catalogo del repo le
+ * righe in più sono **quattro e contengono tutte l'allergene davvero**: zero falsi positivi. ⚠️ Il
+ * catalogo di produzione è molto più grande, e questo numero lì non l'ha verificato nessuno: si
+ * guarda con `npm run diag:esclusioni` prima di fidarsi. Se togliesse roba che non c'entra, la cosa
+ * da girare è questa costante — sta qui da sola apposta.
+ */
+export const RADICE_MINIMA = 6;
+
+/** La radice di una parola chiave, o `null` se è troppo corta o composta per fidarsi. */
+export function radiceChiave(k: string): string | null {
+  if (!k || k.includes(' ')) return null;
+  const r = /[aeio]$/.test(k) ? k.slice(0, -1) : k;
+  return r.length >= RADICE_MINIMA ? r : null;
+}
+
+/**
+ * ⚠️ **CHI CHIEDE «QUESTO PIATTO CONTIENE UNA COSA ESCLUSA?» PASSA DA QUI.**
+ *
+ * Questa funzione esisteva già, con questo commento, e **non la chiamava nessuno**: motore dei menu
+ * e sostituzioni in chat avevano ognuno il proprio `[...chiavi].some((k) => testo.includes(k))` —
+ * sette copie, più un'ottava dentro il test, con scritto accanto «come lo verifica il codice vero».
+ * ⛔ Che è il motivo per cui la radice qui sopra non si poteva aggiungere in un posto solo: si
+ * sarebbe corretta la funzione che nessuno usa. La tiene ferma `una-porta-per-le-esclusioni.spec.ts`.
+ *
+ * Torna la **chiave** che ha fatto scartare (non la radice): serve a dire *perché*, e «mandorl» in
+ * un messaggio a una cliente non si può leggere.
+ */
 export function hitsExclusion(haystack: string, keys: Iterable<string>): string | null {
-  for (const k of keys) if (k && haystack.includes(k)) return k;
+  const elenco = [...keys].filter(Boolean);
+  // Primo giro: la parola esatta. Se combacia così, è quella che si riporta.
+  for (const k of elenco) if (haystack.includes(k)) return k;
+  // Secondo giro: la radice, per le altre forme della stessa parola.
+  for (const k of elenco) {
+    const r = radiceChiave(k);
+    if (r && haystack.includes(r)) return k;
+  }
   return null;
 }

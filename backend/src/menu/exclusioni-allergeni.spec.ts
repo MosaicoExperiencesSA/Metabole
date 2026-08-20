@@ -16,11 +16,18 @@
  */
 
 import { EU_ALLERGENS } from '../catalog/allergens';
-import { exclusionKeys, expandExclusion, INTOLERANCE_MAP } from './exclusions';
+import { exclusionKeys, expandExclusion, hitsExclusion, INTOLERANCE_MAP } from './exclusions';
 
-/** Come lo verifica il codice vero: la parola chiave dentro il testo dell'alimento. */
+/**
+ * ⚠️ **Chiama la funzione vera, non una copia.** Qui c'era
+ * `[...chiavi].some((k) => alimento.includes(k))` con scritto sopra «come lo verifica il codice
+ * vero»: cioè un doppione della regola di produzione dentro il test. Finché è così, migliorare il
+ * confronto non fa diventare rosso niente e peggiorarlo nemmeno — *un test double che si comporta
+ * diversamente dall'originale non verifica niente*. (E il codice vero, fino al 20/8, quella
+ * funzione non la chiamava affatto: aveva sette copie sue.)
+ */
 const scartato = (chiavi: Set<string>, alimento: string) =>
-  [...chiavi].some((k) => k && alimento.toLowerCase().includes(k));
+  hitsExclusion(alimento.toLowerCase(), chiavi) !== null;
 
 describe('allergeni: derivati e alias', () => {
   it('IL CASO GIUSY: con allergia al «latte» il burro NON si propone', () => {

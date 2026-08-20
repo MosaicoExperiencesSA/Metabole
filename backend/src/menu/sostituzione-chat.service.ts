@@ -41,7 +41,7 @@ import {
   type CandidatoPiatto,
   type GustoColazione,
 } from './cambio-piatto';
-import { exclusionKeys } from './exclusions';
+import { exclusionKeys, hitsExclusion } from './exclusions';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
 import {
   MOTIVI,
@@ -792,12 +792,12 @@ export class SostituzioneChatService {
     });
     const testo = normalizza(candidato);
     const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
-    if ([...allergeni].some((k) => k && testo.includes(k))) return 'allergene';
+    if (hitsExclusion(testo, allergeni)) return 'allergene';
     const altre = exclusionKeys([
       ...((profilo?.intolerances ?? []) as string[]),
       ...((profilo?.dislikedFoods ?? []) as string[]),
     ]);
-    if ([...altre].some((k) => k && testo.includes(k))) return 'escluso';
+    if (hitsExclusion(testo, altre)) return 'escluso';
     // Una variante dello stesso cibo non è un sostituto: vedi `condividonoAlimento`.
     if (condividonoAlimento(nomeIngrediente, candidato)) return 'stesso_alimento';
     return 'ok';
@@ -976,11 +976,11 @@ export class SostituzioneChatService {
     let scartatoPerAllergene = false;
     for (const { nome: c, fonte } of candidati) {
       const testo = normalizza(c);
-      if ([...allergeni].some((k) => k && testo.includes(k))) {
+      if (hitsExclusion(testo, allergeni)) {
         scartatoPerAllergene = true;
         continue;
       }
-      if ([...altreEsclusioni].some((k) => k && testo.includes(k))) continue;
+      if (hitsExclusion(testo, altreEsclusioni)) continue;
       /**
        * IL FILTRO «È LA STESSA COSA» VALE SOLO PER LA MAPPA, NON PER I GRUPPI.
        *

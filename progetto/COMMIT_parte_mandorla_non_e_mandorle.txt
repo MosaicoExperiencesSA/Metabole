@@ -1,0 +1,45 @@
+«Mandorla» non è «mandorle»: quattro piatti col loro allergene passavano il filtro
+
+IL DIFETTO
+Le parole chiave delle esclusioni sono scritte in UNA FORMA SOLA (`mandorle`, `nocciole`,
+`gamberi`, `frittata`) e il confronto è «la chiave dentro il testo del piatto». Il catalogo però le
+scrive tutte e due. Misurato sul catalogo keto del repo — 118 ricette vere, non inventate — con
+l'allergia dichiarata e il piatto proposto lo stesso:
+
+  · «Smoothie verde (mandorla, avocado, spinaci, lime)»  → frutta a guscio
+  · «Gelato keto nocciola (ricotta e cocco)»             → frutta a guscio
+  · «Gamberetti saltati con zucchine»                    → crostacei (un diminutivo, non un plurale)
+  · «Frittatine al forno (egg muffins)»                  → uova
+
+È la QUARTA volta che questa riga morde nello stesso modo: `latte` che non espandeva i derivati
+(8/8, il burro proposto a Giusy), `frutta_a_guscio` con l'underscore (12/8), «Carne .ceci» in un tag
+solo (17/8). La causa è quella scritta in testa al file: una chiave che non combacia si comporta
+come un'esclusione che non c'è, e non produce nessun errore.
+
+IL SECONDO DIFETTO È IL MOTIVO PER CUI IL PRIMO NON SI POTEVA CHIUDERE IN UN POSTO SOLO
+`hitsExclusion` esisteva, con scritto sopra a cosa serve, e NON LA CHIAMAVA NESSUNO: motore dei menu
+e sostituzioni in chat avevano sette copie di `[...chiavi].some((k) => testo.includes(k))`, più
+un'ottava dentro il test con scritto accanto «come lo verifica il codice vero». Adesso passano tutti
+di lì, e lo tiene fermo un test che legge il sorgente.
+
+LA TRAPPOLA, VISTA MISURANDO E NON RAGIONANDO
+Tagliare la vocale finale funziona su `mandorl`, `nocciol`, `gamber`, `frittat` — ma `polpo` diventa
+`polp`, che sta dentro POLPETTE: la prima versione della regola toglieva le polpette di carne a chi
+è allergico ai molluschi. Con la soglia a sei caratteri (`RADICE_MINIMA`) quel caso non entra in
+gioco, e sulle 118 ricette vere le righe in più sono quattro e contengono tutte l'allergene davvero.
+
+⚠️ MA 118 RICETTE NON SONO IL CATALOGO
+In produzione sono migliaia e lì non l'ha misurato nessuno:
+
+  npm run diag:esclusioni     (sola lettura)
+
+Stampa allergene per allergene quali piatti la radice toglie in più. Si leggono in cinque minuti: se
+contengono l'allergene è un difetto chiuso; se non c'entrano si alza `RADICE_MINIMA`, che sta in un
+posto solo apposta.
+
+Lo scanner del sorgente ha trovato un OTTAVO punto che il grep aveva mancato
+(`chat/allergie-chat.service.ts`): guardato, risponde a un'altra domanda — confronta due insiemi di
+chiavi fra loro — e resta come eccezione dichiarata, con un test che controlla che lo sia ancora.
+
+Tre mutazioni provate, tutte e tre mordono.
+Niente migrazioni. 260 suite e 4007 test verdi, type-check a zero errori.

@@ -30,7 +30,7 @@ import { SOLO_STELLE_DATE } from './stelle-che-contano';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
-import { expandExclusion } from './exclusions';
+import { expandExclusion, hitsExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
@@ -1820,9 +1820,7 @@ export class MenuService {
     })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown }[];
     for (const r of recipes) {
       const txt = (r.name + ' ' + (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
-      let blocked = false;
-      for (const k of excluded) { if (k && txt.includes(k)) { blocked = true; break; } }
-      if (blocked) continue;
+      if (hitsExclusion(txt, excluded)) continue;
       if (!out.has(r.mealSlot)) out.set(r.mealSlot, []);
       out.get(r.mealSlot)!.push({ id: r.id, name: r.name, kcal: r.kcal });
     }
@@ -1929,8 +1927,7 @@ export class MenuService {
     type Cand = { id: string; name: string; kcal: number; ingredients: unknown };
     const acceptable = (c: Cand) => {
       const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
-      for (const k of excluded) if (k && txt.includes(k)) return false;
-      return true;
+      return !hitsExclusion(txt, excluded);
     };
     // Due livelli, interrogati solo quando servono: prima la dieta, poi il catalogo.
     const fromDietBySlot = new Map<string, Cand[]>();
@@ -1938,7 +1935,7 @@ export class MenuService {
     const swapped: { from: string; to: string }[] = [];
     for (const m of meals) {
       const hay = ((m.name ?? '') + ' ' + (ingTextById.get(m.recipeId) ?? '')).toLowerCase();
-      if (![...triggerKeys].some((k) => k && hay.includes(k))) continue;
+      if (!hitsExclusion(hay, triggerKeys)) continue;
       // 1) Alternativa DENTRO il pool della dieta. Niente filtro per regime: il pool è già
       //    la volontà del nutrizionista, e filtrarlo per il regime registrato sulla cliente
       //    è proprio ciò che escludeva i piatti di pesce da un piano di pesce.

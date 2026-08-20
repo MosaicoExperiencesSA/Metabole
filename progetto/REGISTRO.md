@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🥜 **«Mandorla» non è «mandorle», e quattro piatti col loro allergene passavano il
+  filtro.** Revisione avversariale del motore menu, primo giro: le esclusioni.
+  ⛔ Le parole chiave sono scritte in **una forma sola** (`mandorle`, `nocciole`, `gamberi`,
+  `frittata`) e il confronto è «la chiave dentro il testo del piatto». Il catalogo però le scrive
+  tutte e due. Misurato sul catalogo keto del repo — **118 ricette vere, non inventate** — con
+  l'allergia dichiarata e il piatto proposto lo stesso: «Smoothie verde (**mandorla**…)», «Gelato
+  keto **nocciola**», «**Gamberetti** saltati» (un diminutivo, non un plurale), «**Frittatine** al
+  forno». ⚠️ È la **quarta volta** che questa riga morde nello stesso modo — `latte` che non
+  espandeva i derivati (8/8, il burro proposto a Giusy), `frutta_a_guscio` con l'underscore (12/8),
+  «Carne .ceci» in un tag solo (17/8) — e ogni volta la causa è quella scritta in testa al file:
+  *una chiave che non combacia si comporta come un'esclusione che non c'è, e non produce nessun
+  errore*.
+  ⛔ **E il secondo difetto è il motivo per cui il primo non si poteva chiudere in un posto solo**:
+  `hitsExclusion` esisteva, con scritto sopra a cosa serve, e **non la chiamava nessuno**. Il motore
+  dei menu e le sostituzioni in chat avevano **sette copie** di
+  `[...chiavi].some((k) => testo.includes(k))`, più un'ottava dentro il test con scritto accanto
+  «come lo verifica il codice vero» — cioè un doppione della regola di produzione dentro la sua
+  verifica. Correggere il confronto nella funzione giusta non avrebbe cambiato niente in produzione.
+  ⚠️ **La trappola l'ho vista misurando, non ragionando.** Tagliare la vocale finale e cercare il
+  moncone funziona su `mandorl`, `nocciol`, `gamber`, `frittat` — ma `polpo` diventa `polp`, che sta
+  dentro **polpette**: la prima versione della regola toglieva le polpette di carne a chi è allergico
+  ai molluschi. Una cosa che può mangiare, sparita dal piatto. Con la soglia a sei caratteri quel
+  caso non entra in gioco, e sulle 118 ricette vere le righe in più sono quattro e contengono tutte
+  l'allergene davvero: **zero falsi positivi**.
+  ⚠️ **Ma 118 ricette non sono il catalogo.** In produzione sono migliaia e lì non l'ha misurato
+  nessuno: `npm run diag:esclusioni` stampa, allergene per allergene, esattamente quali piatti la
+  radice toglie in più. Si leggono in cinque minuti: se contengono l'allergene è un difetto chiuso,
+  se non c'entrano si alza `RADICE_MINIMA` — che sta in un posto solo apposta.
+  ⚠️ E lo scanner del sorgente ha trovato un **ottavo** punto che il mio `grep` aveva mancato
+  (`chat/allergie-chat.service.ts`): guardato, risponde a un'altra domanda — confronta due insiemi
+  di chiavi fra loro, non una chiave col piatto — e resta come eccezione dichiarata, con un test che
+  controlla che continui a essere un'altra domanda.
+  Tre mutazioni provate, tutte e tre mordono. 260 suite e **4007 test verdi**.
+
 - `[Sviluppo]` 🌅 **Il giro sul fuso è finito dove conta: «domani» dettato a Vera all'una di notte
   finiva su oggi.** Sette punti in sei file, tutti della classe sicura («oggi» è adesso, nessuna
   data salvata viene riletta):
