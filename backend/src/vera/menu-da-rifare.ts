@@ -30,8 +30,12 @@
  * ⚠️ E resta la regola vera, che questo confine **non** tocca: un giorno **già aperto** non si rifà
  * mai, perché magari ci ha già fatto la spesa. `viewedAt` è quello che decide, non il calendario.
  */
+import { aGiorno } from '../common/date-only';
+
 export function daQuandoSiPuoRifare(oggi: Date = new Date()): Date {
-  return new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate()));
+  // Il giorno di Roma: era il giorno UTC, e all'una di notte diceva «ieri» — cioè apriva a rifare
+  // una giornata che la cliente ha già davanti.
+  return aGiorno(oggi);
 }
 
 /** «Questo giorno si può ancora rifare?» — mai aperto, e non passato. La risposta è una sola. */

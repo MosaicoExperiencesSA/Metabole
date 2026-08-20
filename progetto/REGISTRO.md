@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🌅 **Il giro sul fuso è finito dove conta: «domani» dettato a Vera all'una di notte
+  finiva su oggi.** Sette punti in sei file, tutti della classe sicura («oggi» è adesso, nessuna
+  data salvata viene riletta):
+  ⛔ **`vera-chat.service`** — una giornata dettata dalla nutrizionista con «domani», scritta dopo
+  mezzanotte, finiva su **oggi**: lei dice domani e la cliente se la trova nel piatto stamattina.
+  ⛔ **`menu/senza-glutine`** e **`vera/menu-da-rifare`** — «quali giornate si possono rifare»
+  partiva da ieri, cioè comprendeva quella che la cliente ha già davanti (e magari già comprato).
+  ⛔ **`vera/applica-proposta`** — la coorte di chi riceve una proposta comprendeva, per due ore,
+  anche chi ha soltanto la giornata di ieri.
+  ⛔ **`monitoring`** (i giorni ricreati «da domani»), **`clients`** (la scheda che dice se un piano
+  è in corso — e doveva rispondere come `abbonamento-in-corso`), **`commerce`** (se un mantenimento
+  è ancora in corso oggi).
+  ⚠️ **`menu/data-inizio-chat` non era da correggere.** L'avevo messo nell'inventario e usa già
+  `toDateOnly()` da prima: l'ho scritto senza guardarlo. Una voce che descrive male la realtà —
+  esattamente la cosa che passo le giornate a trovare nel codice degli altri. Corretta nell'elenco.
+  ⚠️ **E adesso il perimetro lo tiene fermo un test che legge il sorgente**
+  (`common/il-giorno-si-chiede.spec.ts`, diciassette file). Serve perché `setHours(0, 0, 0, 0)` è la
+  formula peggiore delle due: legge il fuso del **processo**, quindi su un Mac italiano dà la
+  risposta giusta e su Render no — *un difetto che si comporta bene sulla macchina di chi lo scrive
+  è un difetto che nessuno trova*. ⛔ `Date.UTC(` invece **non** è vietato, e non è una svista: nei
+  file del perimetro è la risposta giusta all'altra domanda, quella sulle date già salvate.
+  Restano fuori solo i posti dove un giorno spostato cambia un grafico e non quello che una persona
+  riceve: report, marketing, agenti, dashboard, analitica, CRM.
+  259 suite e **3996 test verdi**; mutazione provata sullo scanner (rimesso `setHours` in
+  `clients.service` → rosso).
+
 - `[Sviluppo]` 📋 **Un'attività aperta all'una di notte nasceva già in ritardo.** Sesta tappa del
   giro sul fuso, e stavolta il difetto aveva una causa strutturale precisa: in
   `coach-tasks.service.ts` **«oggi» e «una data salvata» erano la stessa funzione**. `day(base, n)`

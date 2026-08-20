@@ -1,4 +1,5 @@
 import { apriSegnalazione, PrismaPerSegnalazione } from '../escalations/apri-segnalazione';
+import { aGiorno } from '../common/date-only';
 
 /**
  * SENZA GLUTINE: riconoscere la dichiarazione e assegnare la variante giusta.
@@ -226,8 +227,9 @@ export async function assegnaSenzaGlutine(
 
   // Le giornate già erogate da oggi in avanti sono costruite sulla dieta di prima: contarle è
   // l'unico modo per sapere se serve una rigenerazione. Zero = cliente nuova, niente da rifare.
-  const oggi = new Date();
-  oggi.setUTCHours(0, 0, 0, 0);
+  // Il giorno di Roma: con la mezzanotte UTC, all'una di notte questo conto partiva da ieri e
+  // includeva la giornata di oggi — già erogata, già letta, magari già comprata al supermercato.
+  const oggi = aGiorno(new Date());
   const giorniDaRifare = await prisma.menuDay.count({
     where: { clientId, date: { gte: oggi } },
   });

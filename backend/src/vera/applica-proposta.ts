@@ -27,6 +27,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 import { type GiornoDaValutare, clientiColpiti, daQuandoSiPuoRifare, giorniDaRifare } from './menu-da-rifare';
 import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
 import { RicettaDelPool } from './pool-disponibile';
+import { aGiorno } from '../common/date-only';
 
 const logger = new Logger('VeraApplicaProposta');
 
@@ -285,9 +286,11 @@ async function scopertePerDieta(
   }
   if (!slotPool.size) return [];
 
-  const oggi = new Date();
+  // Il giorno di Roma: chi ha giornate da oggi in avanti su questa dieta. Con il giorno UTC, per
+  // due ore la coorte comprendeva anche chi ha solo la giornata di ieri.
+  const oggi = aGiorno(new Date());
   const coorte = ((await prisma.menuDay.findMany({
-    where: { dietId, date: { gte: new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), oggi.getUTCDate())) } } as never,
+    where: { dietId, date: { gte: oggi } } as never,
     select: { clientId: true },
     distinct: ['clientId'] as never,
   })) ?? []) as { clientId: string }[];

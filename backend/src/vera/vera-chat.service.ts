@@ -14,6 +14,7 @@
  * registro smette di raccontare cosa è successo davvero.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { aGiorno } from '../common/date-only';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
@@ -2017,9 +2018,9 @@ export class VeraChatService {
    */
   private async scriviGiornataDettata(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
     const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
-    const domani = new Date();
-    domani.setUTCHours(0, 0, 0, 0);
-    domani.setUTCDate(domani.getUTCDate() + 1);
+    // ⚠️ «Domani» è domani **a Roma**. Con la mezzanotte UTC, una giornata dettata all'una di notte
+    // finiva su OGGI: la nutrizionista dice «domani» e la cliente se la trova nel piatto stamattina.
+    const domani = new Date(aGiorno(new Date()).getTime() + 86_400_000);
 
     const giorno = (await this.prisma.menuDay.findFirst({
       where: { clientId: stato.clienteId!, date: domani, viewedAt: null } as never,
@@ -2285,8 +2286,7 @@ export class VeraChatService {
       return { testo: testi.dietaGiaQuella(stato.clienteNome ?? 'lei', dieta.name), esito: 'annullata' };
     }
 
-    const oggi = new Date();
-    oggi.setUTCHours(0, 0, 0, 0);
+    const oggi = aGiorno(new Date());
     const giorniPreparati = await this.prisma.menuDay.count({
       where: { clientId: stato.clienteId!, date: { gt: oggi } } as never,
     });

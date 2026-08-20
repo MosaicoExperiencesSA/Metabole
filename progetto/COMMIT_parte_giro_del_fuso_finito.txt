@@ -1,0 +1,34 @@
+«Domani» dettato a Vera all'una di notte finiva su oggi — il giro sul fuso, ultima tappa
+
+SETTE PUNTI IN SEI FILE, tutti della classe sicura: «oggi» è ADESSO, e nessuna data salvata viene
+riletta in un fuso diverso.
+
+- vera-chat.service — una giornata dettata dalla nutrizionista con «domani», scritta dopo
+  mezzanotte, finiva su OGGI: lei dice domani e la cliente se la trova nel piatto stamattina.
+- menu/senza-glutine e vera/menu-da-rifare — «quali giornate si possono rifare» partiva da ieri,
+  cioè comprendeva quella che la cliente ha già davanti (e magari già comprato al supermercato).
+- vera/applica-proposta — la coorte di chi riceve una proposta comprendeva, per due ore, anche chi
+  ha soltanto la giornata di ieri.
+- monitoring (i giorni ricreati «da domani»), clients (la scheda che dice se un piano è in corso —
+  e doveva rispondere come `abbonamento-in-corso`), commerce (se un mantenimento è ancora in corso).
+
+UNA VOCE DEL MIO INVENTARIO ERA SBAGLIATA
+`menu/data-inizio-chat` non era da correggere: usa già `toDateOnly()` da prima. L'avevo messo in
+elenco senza guardarlo — una voce che descrive male la realtà, cioè esattamente la cosa che passo
+le giornate a trovare nel codice degli altri. Corretta nell'elenco.
+
+IL PERIMETRO ADESSO LO TIENE FERMO UN TEST CHE LEGGE IL SORGENTE
+`common/il-giorno-si-chiede.spec.ts`, diciassette file. Serve perché `setHours(0, 0, 0, 0)` è la
+formula peggiore delle due: legge il fuso del PROCESSO, quindi su un Mac italiano dà la risposta
+giusta e su Render no. Un difetto che si comporta bene sulla macchina di chi lo scrive è un difetto
+che nessuno trova.
+
+⚠️ `Date.UTC(` invece NON è vietato, e non è una svista: nei file del perimetro è la risposta giusta
+all'altra domanda — quella sulle date già salvate, che resta ferma finché non è misurata
+(`npm run diag:giorno-piani`).
+
+Restano fuori solo i posti dove un giorno spostato cambia un grafico e non quello che una persona
+riceve: report, marketing, agenti, dashboard, analitica, CRM.
+
+Mutazione provata sullo scanner (rimesso `setHours` in `clients.service` -> rosso).
+Niente migrazioni. 259 suite e 3996 test verdi, type-check a zero errori.

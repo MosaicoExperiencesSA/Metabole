@@ -9,6 +9,7 @@ import { STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-a
 import { KcalNeedService } from '../menu/kcal-need.service';
 import { TETTI_PREDEFINITI } from '../menu/porzione-scalata';
 import { riporzionaSulFabbisogno } from '../menu/riporziona-giornata';
+import { aGiorno } from '../common/date-only';
 
 interface Period {
   id: string;
@@ -504,8 +505,9 @@ export class MonitoringService {
     }
 
     // Ricrea i giorni scelti nei prossimi giorni (a partire da domani), saltando date già occupate.
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Il giorno di Roma (era `setHours`, cioè il fuso del processo): questi giorni si ricreano «da
+    // domani», e con il calendario spostato «domani» poteva essere oggi.
+    const today = aGiorno(new Date());
     let createdCount = 0;
     for (let i = 0; i < Math.min(picked.length, giorni); i++) {
       const target = new Date(today.getTime() + (i + 1) * 86_400_000);
@@ -546,9 +548,13 @@ export class MonitoringService {
     return createdCount;
   }
 
+  /**
+   * Il giorno di una data **salvata** (inizio/fine ciclo, misure): si legge in UTC, come sono
+   * scritte. ⚠️ Era `setHours(0,0,0,0)`, che è il fuso del *processo*: su Render dà lo stesso
+   * risultato per caso, ma su una macchina configurata a Roma no. Scriverlo esplicito toglie una
+   * dipendenza da una variabile d'ambiente che nessuno ha impostato.
+   */
   private dayKey(d: Date): number {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x.getTime();
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
 }

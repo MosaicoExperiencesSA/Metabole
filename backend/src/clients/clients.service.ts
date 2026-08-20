@@ -31,6 +31,7 @@ import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 // La matita dice cosa sta per rompere: i piani che lo spostamento farebbe sovrapporre (voce 259).
 import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
+import { aGiorno } from '../common/date-only';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
 const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'allergies', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
@@ -264,8 +265,9 @@ export class ClientsService {
     // per data (chi eroga oggi, non l'ultima creata — caso Lorena, 17/8). Questo cast le buttava
     // via, e con esse la scelta: la scheda mostrava il piano in coda come piano corrente.
     const subs = subscriptions as { status: string; startDate: Date | null; endDate: Date | null }[];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Il giorno di Roma, come `abbonamento-in-corso.ts`: questa è la scheda su cui si guarda se un
+    // piano è in corso, e le due devono rispondere allo stesso modo.
+    const today = aGiorno(new Date());
     const subscription = pickMainSubscription(subs);
     /**
      * Flag per la scheda: c'è un piano comprato ed entro il periodo? Il controllo su `endDate`

@@ -410,7 +410,7 @@ export class CommerceService {
     // Confronto per GIORNO: `endDate` è una data, e un mantenimento che finisce oggi va considerato
     // ancora in corso fino a domani. Usare l'istante farebbe comparire il monitoraggio a mezzanotte
     // e un minuto dell'ultimo giorno pagato.
-    const oggi = new Date(Date.UTC(adesso.getUTCFullYear(), adesso.getUTCMonth(), adesso.getUTCDate()));
+    const oggi = aGiorno(adesso);
     const [concluso, inCorso] = await Promise.all([
       // Un mantenimento la cui fine è già PASSATA: "il giorno dopo che è scaduto" è esattamente
       // `endDate < inizio di oggi`.
