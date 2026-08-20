@@ -1,0 +1,57 @@
+--------------------------------------------------------------------------------
+Parte: il difetto 6 dell ordine menu, chiuso — 20/8
+--------------------------------------------------------------------------------
+
+Simone: «ma i punti aperti di codice perche non li fai?».
+
+Domanda giusta. Delle quattro, due sono ferme su persone davvero (il numero di Nocanty per la
+coda, e il `kcal-need` che cambia quante calorie mangia ogni cliente). Le altre due erano mie:
+gli aggiornamenti grossi, e questo.
+
+⚠️ E LA RAGIONE PER CUI NON LO FACEVO ERA UN OPINIONE TRAVESTITA DA CONCLUSIONE
+
+La voce diceva: «si chiuderebbe riscrivendo indietro l ordine ripulito in lettura, ma e una
+scrittura che nessuno ha chiesto: non ne vale la pena finche il tetto degli 80 non da fastidio».
+
+Il tetto degli 80 non l ho MAI MISURATO. Avevo anche offerto di contarlo, Simone non ha risposto,
+e io ho lasciato cadere. «Non conviene» senza un numero non e una conclusione.
+
+⛔ MA RILEGGENDO IL CODICE IL RIMEDIO ERA UN ALTRO, E L OBIEZIONE SPARISCE
+
+Una rotta salvata che non compare nella vista puo essere DUE COSE DIVERSE, e finivano nello
+stesso mucchio:
+
+  · NASCOSTA — la pagina esiste, questa persona non ha il permesso.
+    ⚠️ Va tenuta dov era: il giorno che il permesso arriva deve ricomparire al suo posto. E il
+    difetto 7, chiuso il 18/8, e `conNascosteAlLoroPosto` esiste per quello.
+  · MORTA — la pagina NON ESISTE PIU. In lettura viene saltata, ma la riga resta salvata e
+    consuma una delle 80 disponibili, per sempre: nessuno la vede e nessuno la toglie.
+
+Distinguendole, la riga morta si toglie NEL MOMENTO IN CUI LA PERSONA SALVA COMUNQUE. Nessuna
+scrittura in piu, e il posto liberato e vero.
+
+⚠️ La voce aveva ragione sul rimedio che proponeva e torto sulla conclusione: aveva guardato una
+sola strada per chiudere il difetto, e da li aveva dedotto che il difetto non si potesse chiudere
+a buon mercato.
+
+⚠️ E LA RETE, CHE VALE PIU DELLA CORREZIONE
+
+Senza l elenco delle rotte che il software ha davvero, NON SI TOGLIE NIENTE. Un difetto li
+cancellerebbe l ordine del menu di tutti, e «non lo so» deve costare meno di «ho indovinato».
+C e un test apposta, ed e quello che pesa di piu dei quattro.
+
+Tre mutazioni provate: togliere anche le nascoste (rompe il difetto 7) → 11 test rossi; far
+cedere la rete → 9 rossi; rimettere dentro la morta → 2 rossi.
+
+RESTA APERTO, DI CODICE
+
+  · gli aggiornamenti grossi (React 18, Vite 5, Prisma 6, Capacitor 6). ⚠️ Su Prisma c e un
+    vincolo vero: in questo contenitore il download del motore e bloccato, quindi un aggiornamento
+    non lo posso verificare. React e Vite nel backoffice si possono fare e verificare con build e
+    test — e quelli non li ho fatti per scelta mia, non per un vincolo.
+
+FILE
+- backoffice: `lib/menuOrder.ts` + spec (4 test nuovi) · `components/MenuOrderCard.tsx`
+- backend/lavori: `voci-iniziali.ts` — voce chiusa
+
+43 test nel backoffice, build ok. Backend invariato. Nessuna migrazione.

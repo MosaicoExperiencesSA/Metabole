@@ -213,3 +213,51 @@ describe('conNascosteAlLoroPosto', () => {
     expect(conNascosteAlLoroPosto(salvate, nuove)).toEqual(nuove);
   });
 });
+/**
+ * ⚠️ IL DIFETTO 6 — l'ultimo dei sette dell'ordine menu, chiuso il 20/8.
+ *
+ * Una rotta salvata che non compare nella vista può essere due cose **diverse**, e finivano nello
+ * stesso mucchio: **nascosta** (la pagina esiste, questa persona non ha il permesso → va tenuta
+ * dov'era, è il difetto 7) e **morta** (la pagina non esiste più → in lettura viene saltata, ma la
+ * riga resta salvata e consuma una delle 80 disponibili, per sempre).
+ *
+ * ⛔ La voce in elenco diceva di chiuderlo «riscrivendo indietro l'ordine ripulito in lettura», e
+ * concludeva che non valeva la pena perché sarebbe stata **una scrittura che nessuno ha chiesto**.
+ * Aveva ragione sul rimedio e torto sulla conclusione: la riga morta si toglie **nel momento in cui
+ * la persona salva comunque**. Nessuna scrittura in più, e il posto liberato è vero.
+ */
+describe('conNascosteAlLoroPosto — nascosta non è morta (difetto 6)', () => {
+  const ESISTONO = ['/clienti', '/crm', '/lead'];
+
+  it('⚠️ una rotta che il software non ha più NON torna nelle preferenze', () => {
+    const salvate = ['#gruppot:Mio', '/clienti', '/pagina-sparita', '/crm'];
+    const vista = ['#gruppot:Mio', '/clienti', '/crm'];
+    expect(conNascosteAlLoroPosto(salvate, vista, ESISTONO)).toEqual(vista);
+  });
+
+  /** ✅ E la nascosta continua a tornare **al suo posto**: il difetto 7 resta chiuso. */
+  it('una rotta che esiste ma non si vede torna dov\'era', () => {
+    const salvate = ['#gruppot:Mio', '/clienti', '/lead', '/crm'];
+    const vista = ['#gruppot:Mio', '/clienti', '/crm'];
+    expect(conNascosteAlLoroPosto(salvate, vista, ESISTONO)).toEqual(['#gruppot:Mio', '/clienti', '/lead', '/crm']);
+  });
+
+  /**
+   * ⚠️ **SENZA L'ELENCO NON SI TOGLIE NIENTE.** Un difetto qui cancellerebbe l'ordine di tutti:
+   * «non lo so» deve costare meno di «ho indovinato». Questo test è la rete, e vale più degli altri
+   * due messi insieme.
+   */
+  it('⚠️ senza l\'elenco delle rotte, il comportamento è quello di prima', () => {
+    const salvate = ['#gruppot:Mio', '/clienti', '/pagina-sparita', '/crm'];
+    const vista = ['#gruppot:Mio', '/clienti', '/crm'];
+    expect(conNascosteAlLoroPosto(salvate, vista)).toContain('/pagina-sparita');
+    expect(conNascosteAlLoroPosto(salvate, vista, [])).toContain('/pagina-sparita');
+  });
+
+  /** Le due cose insieme: la morta esce, la nascosta resta, e l'ordine non si scompiglia. */
+  it('morta e nascosta nello stesso ordine: esce solo la morta', () => {
+    const salvate = ['#gruppot:Mio', '/clienti', '/pagina-sparita', '/lead', '/crm'];
+    const vista = ['#gruppot:Mio', '/clienti', '/crm'];
+    expect(conNascosteAlLoroPosto(salvate, vista, ESISTONO)).toEqual(['#gruppot:Mio', '/clienti', '/lead', '/crm']);
+  });
+});

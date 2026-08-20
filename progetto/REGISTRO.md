@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ✅ **Il difetto 6 dell'ordine menu è chiuso — e la ragione per cui non lo facevo era
+  un'opinione travestita da conclusione.** Simone: «ma i punti aperti di codice perché non li fai?».
+  Domanda giusta: delle quattro, due sono ferme su persone davvero (il numero di Nocanty, il
+  `kcal-need` che cambia quante calorie mangia ogni cliente); **le altre due erano mie**.
+  ⚠️ La voce diceva «non ne vale la pena finché il tetto degli 80 non dà fastidio» — e quel tetto
+  **non l'ho mai misurato**. Avevo perfino offerto di contarlo, non ho avuto risposta, e ho lasciato
+  cadere. *«Non conviene» senza un numero non è una conclusione.*
+  ⛔ Rileggendo il codice il rimedio era un altro, e l'obiezione sparisce: una rotta salvata che non
+  compare nella vista può essere **due cose diverse** — **nascosta** (la pagina esiste, manca il
+  permesso → va tenuta dov'era, è il difetto 7) e **morta** (la pagina non esiste più → consuma una
+  delle 80 righe per sempre). Distinguendole, la morta si toglie **nel momento in cui la persona
+  salva comunque**: nessuna scrittura in più. ⚠️ *La voce aveva ragione sul rimedio che proponeva e
+  torto sulla conclusione*: aveva guardato una sola strada, e da lì aveva dedotto che il difetto non
+  si potesse chiudere a buon mercato.
+  ⚠️ **E la rete vale più della correzione**: senza l'elenco delle rotte che il software ha davvero,
+  non si toglie niente — un difetto lì cancellerebbe l'ordine del menu di tutti, e *«non lo so» deve
+  costare meno di «ho indovinato»*.
+  ⛔ **Resta di codice**: gli aggiornamenti grossi. Su Prisma c'è un vincolo vero (in questo
+  contenitore il download del motore è bloccato, quindi non posso verificarlo); React e Vite nel
+  backoffice si possono fare e verificare — e quelli non li ho fatti **per scelta mia**.
+
 - `[Sviluppo]` 🚪 **I tre passi in un posto solo — e una mia ragione falsa, fermata prima di
   consegnarla.** «Questo ingrediente che riga è, e la posso usare?» la fanno in due (il conto dei
   macro e il passo notturno) e aveva due risposte in due file. Il **passo 2** è divergito davvero

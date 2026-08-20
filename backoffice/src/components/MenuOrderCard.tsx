@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { NAV } from './Layout';
@@ -69,8 +69,17 @@ export function MenuOrderCard() {
    * personalizzazione era rispettata solo di nome. La regola sta in `conNascosteAlLoroPosto`, e
    * lavora sulla **lista salvata** — la vista le voci nascoste non le contiene nemmeno.
    */
+  /**
+   * ⚠️ **Tutte** le rotte che il software ha — non solo quelle che questa persona vede. Servono a
+   * distinguere una voce **nascosta** (da tenere dov'era) da una voce **morta** (da togliere): senza
+   * questo elenco finivano nello stesso mucchio, e le morte restavano a consumare una delle 80
+   * righe disponibili per sempre. È il difetto 6, e si chiude qui — nel momento in cui la persona
+   * salva comunque, senza nessuna scrittura in più.
+   */
+  const rotteEsistenti = useMemo(() => NAV.flatMap((s) => s.items.map((i) => i.to)), []);
+
   const aggiorna = (g: GruppoMenu[]) =>
-    setBozza(conNascosteAlLoroPosto(ordine ?? [], serializzaGruppi(g)));
+    setBozza(conNascosteAlLoroPosto(ordine ?? [], serializzaGruppi(g), rotteEsistenti));
 
   /**
    * Salva e **ricarica**. Il ricaricamento è voluto (Simone, 12/8): è l'unico modo onesto di dire

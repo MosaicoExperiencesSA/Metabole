@@ -167,10 +167,38 @@ export function serializzaGruppi(gruppi: GruppoMenu[]): string[] {
  * lui e la voce torna in cima al suo gruppo; se il gruppo non c'è più (rinominato o sciolto) si
  * continua a risalire, perché «vicino a dov'era» resta meglio che «in fondo a tutto».
  */
-export function conNascosteAlLoroPosto(salvate: readonly string[], nuove: readonly string[]): string[] {
+export function conNascosteAlLoroPosto(
+  salvate: readonly string[],
+  nuove: readonly string[],
+  /**
+   * ⚠️ **LE ROTTE CHE IL SOFTWARE HA DAVVERO** — e con loro si chiude il difetto 6 (20/8).
+   *
+   * Una rotta salvata che non compare nella vista può essere due cose **diverse**, e finora
+   * finivano nello stesso mucchio:
+   *
+   *   · **nascosta** — la pagina esiste, questa persona non ha il permesso. ⚠️ Va tenuta dov'era:
+   *     il giorno che il permesso arriva deve ricomparire al suo posto. È il difetto 7, chiuso il
+   *     18/8, e questa funzione esiste per quello.
+   *   · **morta** — la pagina **non esiste più**. In lettura viene saltata, ma la riga resta salvata
+   *     e consuma una delle 80 disponibili, per sempre: nessuno la vede e nessuno la toglie.
+   *
+   * ⛔ La voce in elenco diceva di chiuderlo «riscrivendo indietro l'ordine ripulito in lettura», e
+   * concludeva che non ne valeva la pena perché sarebbe stata **una scrittura che nessuno ha
+   * chiesto**. Aveva ragione sul rimedio e torto sulla conclusione: la riga morta si può togliere
+   * **nel momento in cui la persona salva comunque**, che è adesso. Nessuna scrittura in più, e il
+   * posto liberato è vero.
+   *
+   * ⚠️ Se l'elenco non arriva (o è vuoto) **non si toglie niente**: un difetto qui cancellerebbe
+   * l'ordine di tutti, e «non lo so» deve costare meno di «ho indovinato».
+   */
+  rotteEsistenti?: readonly string[] | null,
+): string[] {
   if (!salvate.length) return [...nuove];
   const nella = new Set(nuove);
-  const nascoste = salvate.filter((r) => !r.startsWith('#gruppo') && !nella.has(r));
+  const esistono = rotteEsistenti && rotteEsistenti.length ? new Set(rotteEsistenti) : null;
+  const nascoste = salvate.filter(
+    (r) => !r.startsWith('#gruppo') && !nella.has(r) && (!esistono || esistono.has(r)),
+  );
   if (!nascoste.length) return [...nuove];
 
   const out = [...nuove];
