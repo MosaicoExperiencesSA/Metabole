@@ -68,8 +68,8 @@
  *   QUANTI=40 npm run diag:crudo-cotto
  */
 import { PrismaClient } from '@prisma/client';
-import { abbina, paroleChe } from '../src/nutrient-facts/abbinamento-alimenti';
-import { scegliPerRicetta } from '../src/nutrient-facts/stato-alimento';
+import { abbinaPerRicetta, paroleChe } from '../src/nutrient-facts/abbinamento-alimenti';
+import { normalizzaStato, scegliPerRicetta } from '../src/nutrient-facts/stato-alimento';
 import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
 const prisma = new PrismaClient();
@@ -113,7 +113,7 @@ async function spiegaUnNome(nome: string) {
   console.log('   Nessuna: quindi non passa dalla via esatta, e si prova l\'abbinamento.');
   console.log('');
 
-  const trovato = abbina(nome, alimenti, (a) => [a.name, ...(a.synonyms ?? [])]);
+  const trovato = abbinaPerRicetta(nome, alimenti);
   console.log('2) Abbinamento (`abbinamento-alimenti.ts`):');
   if (trovato) {
     console.log(`     ▸ si abbina a «${trovato.riga.name}» con la regola [${trovato.regola}].`);
@@ -142,7 +142,7 @@ async function spiegaUnNome(nome: string) {
       })
       .filter(Boolean)
       .sort((a, b) => b!.comuni - a!.comuni)
-      .slice(0, 5) as { riga: { name: string }; nome: string; comuni: number; inPiuSue: string[] }[];
+      .slice(0, 5) as { riga: { name: string; state: string | null }; nome: string; comuni: number; inPiuSue: string[] }[];
     if (!vicine.length) {
       console.log('     ▸ E in tabella non c\'è niente che condivida nemmeno una parola: l\'alimento');
       console.log('       manca del tutto, e va aggiunto dalla pagina Alimenti.');
@@ -150,9 +150,29 @@ async function spiegaUnNome(nome: string) {
       console.log('     ▸ Le righe più vicine, e cosa manca perché l\'abbinamento scatti:');
       for (const v of vicine) {
         const inPiuMie = [...mie].filter((p) => !paroleChe(v.nome).includes(p));
-        console.log(`         · «${v.riga.name}»  — parole in comune: ${v.comuni}`);
+        const statoRiga = normalizzaStato(v.riga.state);
+        console.log(`         · «${v.riga.name}»  — parole in comune: ${v.comuni}   stato riga: ${v.riga.state ?? '(nessuno)'}`);
         if (v.inPiuSue.length) console.log(`           la tabella ha in più: ${v.inPiuSue.join(', ')}  (parole che DISTINGUONO: non si abbina)`);
-        if (inPiuMie.length) console.log(`           la ricetta ha in più: ${inPiuMie.join(', ')}  (qualificatori innocui? se no, non si abbina)`);
+        /**
+         * ⚠️ **SI DICE PERCHÉ, NON «se no»** — 20/8, dopo che questa riga ha lasciato Simone senza
+         * risposta su «spinaci freschi» (1350 ricette). Diceva «qualificatori innocui? se no, non si
+         * abbina», cioè rimandava la domanda a chi legge: e la risposta ce l'aveva sotto gli occhi.
+         *
+         * Una parola in più passa in due casi: è un **qualificatore innocuo**, oppure è una parola di
+         * **stato che combacia con lo stato della riga**. Tutti e due si sanno qui, e adesso si dicono.
+         */
+        for (const p of inPiuMie) {
+          const suo = normalizzaStato(p);
+          const eStato = suo !== '' && suo !== 'altro';
+          const verdetto = !eStato
+            ? 'non è una parola di stato: passa solo se è un qualificatore innocuo (sgusciate, pelate, bio…)'
+            : statoRiga === ''
+              ? `⚠️ vuol dire «${suo}», ma la riga NON DICHIARA lo stato: non c'è niente con cui combaciare → non si abbina. Basta scrivere lo stato sulla riga.`
+              : suo === statoRiga
+                ? `vuol dire «${suo}» e la riga è «${statoRiga}»: combaciano → questa parola non impedisce l'abbinamento`
+                : `⚠️ vuol dire «${suo}» ma la riga è «${statoRiga}»: sono due prodotti diversi → non si abbina, ed è giusto così`;
+          console.log(`           la ricetta ha in più: «${p}» — ${verdetto}`);
+        }
       }
     }
   }
@@ -274,7 +294,7 @@ async function main() {
   const abbinabili: { nome: string; quante: number; a: string; regola: string }[] = [];
   const restanoFuori: { nome: string; quante: number }[] = [];
   for (const x of fuoriTabella) {
-    const trovato = abbina(x.nome, alimentiPerAbbinare, nomiDi);
+    const trovato = abbinaPerRicetta(x.nome, alimentiPerAbbinare);
     if (trovato) abbinabili.push({ nome: x.nome, quante: x.quante, a: trovato.riga.name, regola: trovato.regola });
     else restanoFuori.push(x);
   }

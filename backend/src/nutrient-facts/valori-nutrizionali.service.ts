@@ -1,4 +1,4 @@
-import { abbina, eParolina, paroleChe, paroleDi } from './abbinamento-alimenti';
+import { abbinaPerRicetta, eParolina, paroleChe, paroleDi } from './abbinamento-alimenti';
 import { ingredientiScoperti, usiNegliIngredienti } from './ingredienti-scoperti';
 import { MODO_DI_OGGI, type ModoDiCercare, nomeDentro, sequenzaDentro } from './nome-dentro-la-domanda';
 import { type EsitoPerRicetta, type EsitoScelta, fraseAmbiguita, scegliPerRicetta, scegliPerStato } from './stato-alimento';
@@ -181,7 +181,7 @@ export class ValoriNutrizionaliService {
      * diversi) decide `scegliPerRicetta`, non l'ordine del database — che era la seconda metà dello
      * stesso difetto: `esatti[0]` faceva scegliere alla lettura di Postgres fra crudo e bollito.
      */
-    const trovato = abbina(nome, tutti, (v) => [v.name, ...(v.synonyms ?? [])], (v) => v.state);
+    const trovato = abbinaPerRicetta(nome, tutti);
     if (!trovato) return { tipo: 'niente' };
     const stessoNome = tutti.filter((v) => v.name === trovato.riga.name);
     return scegliPerRicetta(stessoNome.length ? stessoNome : [trovato.riga]);

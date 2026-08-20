@@ -37,7 +37,7 @@
  * con `['crudo']` al maschile — due risposte alla stessa domanda, e quella sbagliata era la copia.
  */
 
-import { abbina, paroleChe } from './abbinamento-alimenti';
+import { abbinaPerRicetta, paroleChe } from './abbinamento-alimenti';
 import { scegliPerRicetta } from './stato-alimento';
 import { normalizzaNome } from './valori-nutrizionali.service';
 
@@ -138,9 +138,7 @@ export function ingredientiScoperti(
        */
       const candidate = new Set<RigaTabella>();
       for (const p of paroleChe(nome)) for (const r of perPrimaParola.get(p) ?? []) candidate.add(r);
-      const forse = candidate.size
-        ? abbina(nome, [...candidate], (r) => [r.name, ...(r.synonyms ?? [])], (r) => r.state)
-        : null;
+      const forse = candidate.size ? abbinaPerRicetta(nome, [...candidate]) : null;
       fuori.push({ nome, ricette, motivo: 'non_in_tabella', suggerito: forse?.riga.name ?? null });
       continue;
     }

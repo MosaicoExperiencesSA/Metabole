@@ -241,3 +241,38 @@ export function abbina<T>(
   }
   return null;
 }
+
+
+/**
+ * L'ABBINAMENTO **COME LO FA LA PRODUZIONE** — una porta sola, e nasce da un difetto vero (20/8).
+ *
+ * `abbina` prende `nomiDi` e `statoDi` come parametri, e va bene: è una funzione pura e non deve
+ * sapere com'è fatta una riga della tabella. ⛔ Ma i chiamanti allora possono passarli **diversi**, e
+ * l'hanno fatto: `cercaPerIngrediente` passava lo stato, `diag:crudo-cotto` **no**.
+ *
+ * Dalla sera del 19/8 una parola di stato («freschi») si accetta solo se combacia con lo stato della
+ * riga. Senza `statoDi`, lo stato della riga è sempre vuoto, quindi **non combacia mai**: la
+ * diagnostica rispondeva «spinaci freschi NON si abbina» su un nome che in produzione si abbina —
+ * 1350 ricette. E quella diagnostica è il foglio da cui la nutrizionista decide **quali righe
+ * aggiungere a mano**: la stava mandando a scrivere righe che non servono.
+ *
+ * ⚠️ È la stessa specie di errore di un test double che si comporta diversamente dall'originale — mi
+ * ha morso sei volte in due giorni — ma qui la copia sbagliata non faceva passare un test: mandava
+ * una persona a fare un lavoro inutile.
+ *
+ * ✅ Da qui in poi chi vuole sapere «a quale riga si abbina questo ingrediente?» chiama **questa**, e
+ * i due parametri li decide un posto solo. Chi ha bisogno di regole diverse usa `abbina` e dichiara
+ * perché.
+ */
+export interface RigaDiTabella {
+  name: string;
+  synonyms?: string[] | null;
+  state?: string | null;
+}
+
+export function abbinaPerRicetta<T extends RigaDiTabella>(
+  ingrediente: string,
+  righe: readonly T[],
+): Abbinamento<T> | null {
+  return abbina(ingrediente, righe, (r) => [r.name, ...(r.synonyms ?? [])], (r) => r.state);
+}

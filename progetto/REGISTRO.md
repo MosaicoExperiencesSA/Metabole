@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🚪 **La diagnostica chiamava la regola in modo diverso dalla produzione, e mandava la
+  nutrizionista a fare un lavoro inutile.** Simone ha lanciato `NOME='spinaci freschi' npm run
+  diag:crudo-cotto` per capire perché 1350 ricette non si abbinano: ha risposto «NON si abbina», e ha
+  risposto **male**. ⛔ Il difetto non era nei dati, era nello strumento: `abbina` prende `nomiDi` e
+  `statoDi` come parametri — giusto, è una funzione pura — ma allora i chiamanti possono passarli
+  **diversi**, e l'hanno fatto: `cercaPerIngrediente` passava lo stato della riga, `diag:crudo-cotto`
+  **no**. Dal 19/8 sera una parola di stato si accetta solo se combacia con lo stato della riga:
+  senza `statoDi` non combacia **mai**. ⚠️ E quella diagnostica è *il foglio da cui la nutrizionista
+  decide quali righe scrivere a mano*: la stava mandando a scrivere righe che il codice vero sa già
+  trattare. ⚠️ Stessa specie di errore di un test double che diverge dall'originale — sei volte in
+  due giorni — ma **un test double lo scopre una mutazione; questa copia viveva in uno script**, dove
+  nessuna mutazione arriva.
+  ✅ Ora c'è `abbinaPerRicetta`: una porta sola, i due parametri decisi in un posto solo. E un test
+  che **guarda il sorgente** (`una-porta-sola.spec.ts`) verifica che nessuno chiami `abbina` per
+  conto suo, **compresi gli script di `prisma/`** — insolito, e per una ragione precisa: uno script
+  non ha test, quindi è il posto dove una copia sbagliata resta per settimane senza diventare rossa.
+  ⚠️ Il primo colpevole trovato dal test nuovo era **un test double**: le sue righe avevano la forma
+  `{chiave, name}` invece di quella vera. Invece di metterlo in lista bianca gli ho dato la forma
+  giusta — una divergenza tolta, non benedetta.
+  ✅ **E la risposta sugli spinaci**: la riga «spinaci» ha lo **stato vuoto**, quindi «freschi» non ha
+  niente con cui combaciare. Scrivere `crudo` in quel campo chiude 1350 ricette. La diagnostica ora
+  lo **dice**, invece di rimandare la domanda a chi legge con un «qualificatori innocui? se no…».
+
 - `[Sviluppo]` 📋 **Lista lavori aggiornata.** ⚠️ Da ieri sera l'allineamento gira **da solo** a ogni
   deploy, quindi qui non c'era da spuntare: c'era da **scrivere** quello che oggi è diventato un
   lavoro per una persona e che finora stava solo nei miei messaggi. Una voce nuova,

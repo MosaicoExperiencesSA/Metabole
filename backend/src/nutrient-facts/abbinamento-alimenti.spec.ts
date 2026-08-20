@@ -1,4 +1,4 @@
-import { abbina, paroleChe, paroleDi } from './abbinamento-alimenti';
+import { abbina, abbinaPerRicetta, paroleChe, paroleDi } from './abbinamento-alimenti';
 
 /** Una tabella finta con i nomi veri che il primo giro in produzione ha mostrato. */
 const TABELLA = [
@@ -227,5 +227,45 @@ describe('abbina — una parola di stato in più vale solo se combacia con lo st
   /** I qualificatori innocui invece non c'entrano con lo stato e continuano a passare. */
   it('i qualificatori innocui passano anche su una riga secca', () => {
     expect(c('pasta bio')?.riga.name).toBe('pasta');
+  });
+});
+
+/**
+ * ⚠️ **UNA PORTA SOLA** — e questo blocco nasce da un difetto trovato il 20/8 in produzione.
+ *
+ * `abbina` prende `nomiDi` e `statoDi` come parametri, ed è giusto: è una funzione pura. ⛔ Ma i
+ * chiamanti possono passarli **diversi**, e l'hanno fatto: `cercaPerIngrediente` passava lo stato,
+ * `diag:crudo-cotto` **no**. Dalla sera del 19/8 una parola di stato («freschi») si accetta solo se
+ * combacia con lo stato della riga: senza `statoDi` lo stato è sempre vuoto, quindi non combacia
+ * mai, e la diagnostica rispondeva «spinaci freschi NON si abbina» su un nome che in produzione si
+ * abbina — 1350 ricette.
+ *
+ * ⚠️ E quella diagnostica è il foglio da cui la nutrizionista decide **quali righe aggiungere a
+ * mano**: la stava mandando a scrivere righe che non servono. La stessa specie di errore di un test
+ * double che si comporta diversamente dall'originale — solo che qui la copia sbagliata non faceva
+ * passare un test: faceva fare a una persona un lavoro inutile.
+ */
+describe('abbinaPerRicetta — la porta che usano tutti', () => {
+  const righe = [
+    { name: 'spinaci', synonyms: [], state: 'crudo' },
+    { name: 'pasta', synonyms: [], state: 'secco' },
+  ];
+
+  it('⚠️ passa lo STATO della riga: «spinaci freschi» si abbina agli spinaci a crudo', () => {
+    expect(abbinaPerRicetta('spinaci freschi', righe)?.riga.name).toBe('spinaci');
+  });
+
+  /** ⚠️ E continua a rifiutare quello che deve: la porta unica non allarga la regola. */
+  it('⚠️ «pasta fresca» resta fuori: la riga è secca', () => {
+    expect(abbinaPerRicetta('pasta fresca', righe)).toBeNull();
+  });
+
+  /** ⚠️ Con lo stato VUOTO non si abbina: è il caso che la diagnostica vedeva sempre. */
+  it('⚠️ se la riga non dichiara lo stato, «freschi» non basta', () => {
+    expect(abbinaPerRicetta('spinaci freschi', [{ name: 'spinaci', synonyms: [], state: null }])).toBeNull();
+  });
+
+  it('i sinonimi passano come nomi, senza che il chiamante li componga', () => {
+    expect(abbinaPerRicetta('evo', [{ name: 'olio', synonyms: ['evo'], state: null }])?.riga.name).toBe('olio');
   });
 });

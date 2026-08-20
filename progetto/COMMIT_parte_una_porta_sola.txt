@@ -1,0 +1,69 @@
+--------------------------------------------------------------------------------
+Parte: la diagnostica chiamava la regola in modo diverso dalla produzione — 20/8
+--------------------------------------------------------------------------------
+
+Simone ha lanciato `NOME='spinaci freschi' npm run diag:crudo-cotto` per capire perche 1350
+ricette non si abbinano. La diagnostica ha risposto «NON si abbina», e ha risposto MALE.
+
+⛔ IL DIFETTO NON ERA NEI DATI: ERA NELLO STRUMENTO
+
+`abbina` prende `nomiDi` e `statoDi` come parametri, ed e giusto: e una funzione pura e non deve
+sapere com e fatta una riga della tabella. ⚠️ Ma allora i chiamanti possono passarli DIVERSI, e
+l hanno fatto:
+
+    cercaPerIngrediente   passava lo stato della riga
+    diag:crudo-cotto      NO
+
+Dalla sera del 19/8 una parola di stato («freschi») si accetta solo se combacia con lo stato
+della riga. Senza `statoDi` lo stato e sempre vuoto, quindi NON COMBACIA MAI: la diagnostica
+rispondeva «non si abbina» su nomi che in produzione si abbinano.
+
+⛔ E quella diagnostica e IL FOGLIO DA CUI LA NUTRIZIONISTA DECIDE QUALI RIGHE SCRIVERE A MANO.
+La stava mandando a fare un lavoro che non serve, e l elenco 3b era gonfiato di nomi che il
+codice vero sa gia trattare.
+
+⚠️ E la stessa specie di errore di un test double che si comporta diversamente dall originale —
+mi ha morso sei volte in due giorni. Ma un test double lo scopre una mutazione; QUESTA COPIA
+SBAGLIATA VIVEVA IN UNO SCRIPT, dove nessuna mutazione arriva.
+
+UNA PORTA SOLA
+
+`abbinaPerRicetta(nome, righe)` decide `nomiDi` e `statoDi` in un posto solo. La chiamano il
+servizio, il passo notturno e la diagnostica. Chi ha bisogno di regole diverse usa `abbina` e
+dichiara perche.
+
+⚠️ E UN TEST CHE GUARDA IL SORGENTE, non un comportamento
+
+`una-porta-sola.spec.ts` legge i file e verifica che nessuno chiami `abbina` per conto suo —
+⚠️ COMPRESI GLI SCRIPT DI `prisma/`, che e precisamente dove il difetto era nascosto. Un test
+insolito, per una ragione precisa: uno script non ha test, quindi e il posto dove una copia
+sbagliata puo restare per settimane senza che niente diventi rosso. Provato con due mutazioni:
+morde su tutte e due.
+
+⚠️ E il primo colpevole trovato dal test nuovo era un TEST DOUBLE: le sue righe finte avevano la
+forma `{chiave, name}` invece di `{name, synonyms, state}`, quindi doveva chiamare `abbina` con
+un `nomiDi` tutto suo. Invece di metterlo in lista bianca gli ho dato la forma vera: adesso passa
+dalla stessa porta della produzione e non puo piu divergere.
+
+E LA RISPOSTA SUGLI SPINACI, ADESSO CHE LO STRUMENTO LA SA DARE
+
+    · «spinaci»  — parole in comune: 1   stato riga: (nessuno)
+      la ricetta ha in piu: «freschi» — ⚠️ vuol dire «crudo», ma la riga NON DICHIARA lo stato:
+      non c e niente con cui combaciare → non si abbina. Basta scrivere lo stato sulla riga.
+
+Prima quella riga diceva «qualificatori innocui? se no, non si abbina», cioe rimandava la
+domanda a chi legge — e la risposta ce l aveva sotto gli occhi.
+
+⛔ QUINDI: la riga «spinaci» ha lo stato vuoto. Scrivere `crudo` in quel campo chiude 1350
+ricette. ⚠️ E vale la pena guardare con lo stesso comando anche «prezzemolo fresco» (1207),
+«basilico fresco» (826) e «timo fresco» (670) — ma quelli sono aromi e pesano zero: si tolgono
+dall elenco, non si correggono.
+
+FILE
+- backend/nutrient-facts: `abbinamento-alimenti.ts` (`abbinaPerRicetta`) + spec (4 test nuovi) ·
+  `una-porta-sola.spec.ts` (nuovo, 2 test) · `valori-nutrizionali.service.ts` ·
+  `ingredienti-scoperti.ts`
+- backend/vera: `vera-chat.service.spec.ts` (il doppio con la forma vera)
+- backend/prisma: `diag-crudo-cotto.ts` (usa la porta, e dice PERCHE invece di «se no»)
+
+248 suite / 3898 test verdi. Quattro mutazioni: mordono tutte. Nessuna migrazione.

@@ -1,4 +1,4 @@
-import { abbina } from '../nutrient-facts/abbinamento-alimenti';
+import { abbinaPerRicetta } from '../nutrient-facts/abbinamento-alimenti';
 import { scegliPerRicetta } from '../nutrient-facts/stato-alimento';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
@@ -162,10 +162,24 @@ function make(
      */
     cercaPerIngrediente: jest.fn().mockImplementation(async (nome: string) => {
       const tabella = (opzioni.valori ?? {}) as Record<string, { name: string; state?: string | null }>;
-      const righe = Object.entries(tabella).map(([k, v]) => ({ ...v, chiave: k, name: v.name ?? k }));
-      const esatta = righe.find((r) => r.chiave === nome);
+      /**
+       * ⚠️ Le righe finte hanno **la forma di quelle vere** — `name` + `synonyms` + `state` — e la
+       * chiave della tabella di prova entra fra i sinonimi invece di essere un campo suo. Prima
+       * erano `{chiave, name}` e il doppio doveva chiamare `abbina` con un `nomiDi` tutto suo: cioè
+       * era **un secondo modo** di fare l'abbinamento, che è precisamente il difetto trovato il 20/8
+       * in `diag:crudo-cotto` (là mancava lo stato, e la diagnostica mandava la nutrizionista a
+       * scrivere righe che non servivano). Con la forma giusta il doppio passa dalla stessa porta
+       * della produzione, `abbinaPerRicetta`, e non può più divergere.
+       */
+      const righe = Object.entries(tabella).map(([k, v]) => ({
+        ...v,
+        name: v.name ?? k,
+        synonyms: [k],
+        state: v.state ?? null,
+      }));
+      const esatta = righe.find((r) => r.synonyms.includes(nome) || r.name === nome);
       if (esatta) return scegliPerRicetta([esatta]);
-      const trovato = abbina(nome, righe, (r) => [r.chiave, r.name], (r) => r.state ?? null);
+      const trovato = abbinaPerRicetta(nome, righe);
       return trovato ? scegliPerRicetta([trovato.riga]) : { tipo: 'niente' };
     }),
     /**
