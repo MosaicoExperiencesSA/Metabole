@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **La CI l'ha preso e io no.** Dopo la consegna 63 Render riparte, ma la CI di
+  GitHub restava rossa: `prisma/dati-alimenti.ts:21 - TS2304: Cannot find name 'RigaAlimento'`.
+  Avevo scritto `export type { RigaAlimento } from '…'`, che **riesporta** il tipo a chi importa
+  quel file ma **non lo porta dentro quel file**: nello scope locale non esiste. Serve la forma in
+  due pezzi (`import type` + `export type`).
+  ⛔ **Perché in locale era verde.** `nest build` compila solo `src/**`, quindi `prisma/` non lo
+  guarda — giusto, ma vuol dire che la build vera non copre quei file. E `npx jest` diceva 4070
+  verdi **per via della cache**: avevo appena riscritto quel file, e all'unico spec che lo compila
+  jest serviva ancora la versione trasformata di prima. La CI parte da zero e ha visto subito.
+  ⚠️ **Terza regola della giornata: dopo aver spostato o rinominato un file, la verifica finale si
+  fa con `npx jest --clearCache` prima.** Un verde che viene da una cache non è un verde: è la
+  risposta a una domanda vecchia.
+  ⚠️ E la giornata dice una cosa netta: **la CI qui dentro è più affidabile di me** — tre volte ha
+  visto o avrebbe visto prima (l'Excel del backoffice, TS6059, questo). Il numero da guardare prima
+  di dire «è a posto» è quello.
+  🔢 Un file cambiato. Build verde, 269 suite, 4070 test verdi a cache svuotata.
+
 - `[Sviluppo]` ⛔ **HO ROTTO LA BUILD DEL BACKEND, ed è rimasta rotta un'ora.** Simone ha mandato
   la schermata di Render: `a59f166` (consegna 60) fallito alle 17:22, `e1f66c3` (consegna 62)
   fallito alle 17:51. **Le consegne 60, 61 e 62 erano tutte ferme dietro lo stesso errore, e in

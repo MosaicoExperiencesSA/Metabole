@@ -1,0 +1,40 @@
+La CI l'ha preso e io no: `export type … from` non porta il tipo nel file — 20/8
+
+Simone ha mandato la CI di GitHub rossa e il log. Render intanto sta deployando la consegna 63 (la
+build vera passa), ma **«Backend · build + test» falliva**, e la riga è una sola:
+
+    prisma/dati-alimenti.ts:21:29 - error TS2304: Cannot find name 'RigaAlimento'.
+    21 export const ALIMENTI_19_8: RigaAlimento[] = [
+
+## L'ERRORE
+
+Nella consegna 63 ho spostato il tipo in `src/` e in `prisma/dati-alimenti.ts` ho scritto:
+
+    export type { RigaAlimento } from '../src/nutrient-facts/riga-alimento';
+
+Quella riga **riesporta** il tipo a chi importa questo file, ma **non lo porta dentro questo file**:
+nello scope locale `RigaAlimento` non esiste, e la riga sotto non compila. Serve la forma in due
+pezzi, che fa tutte e due le cose:
+
+    import type { RigaAlimento } from '../src/nutrient-facts/riga-alimento';
+    export type { RigaAlimento };
+
+## ⛔ PERCHÉ IN LOCALE ERA VERDE, CHE È LA PARTE IMPORTANTE
+
+`npm run build` non lo vede: `nest build` compila solo `src/**`, e `prisma/` non è incluso. Giusto
+così — ma vuol dire che la build vera **non copre** i file di `prisma/`.
+
+E i test? In locale `npx jest` diceva 4070 verdi. **Era la cache di jest.** Avevo appena riscritto
+`prisma/dati-alimenti.ts`, e per `gemelli-alimenti.spec.ts` — l'unico che lo compila — jest serviva
+ancora la versione trasformata di prima. La CI parte da zero e non ha niente da servire: ha visto
+subito quello che c'era.
+
+⚠️ **Regola nuova, la terza della giornata:** dopo aver spostato o rinominato un file, la verifica
+finale si fa con `npx jest --clearCache` prima. Un verde che viene da una cache non è un verde: è
+la risposta a una domanda vecchia.
+
+⚠️ E c'è una cosa che questa giornata dice chiaramente: **la CI qui dentro è più affidabile di me.**
+Tre volte oggi ha visto o avrebbe visto prima di me — TS6059, questo, e l'Excel della settimana
+scorsa. Il numero da guardare prima di dire «è a posto» è quello, non il mio.
+
+Un file cambiato. `npm run build` verde, 269 suite, 4070 test verdi **con la cache svuotata**.

@@ -16,7 +16,16 @@
  * ⚠️ Il tipo vive in `src/nutrient-facts/riga-alimento.ts` e qui si riesporta: `src/` non deve
  * importare niente da `prisma/` — fuori da `rootDir` `nest build` si ferma (TS6059, 20/8).
  */
-export type { RigaAlimento } from '../src/nutrient-facts/riga-alimento';
+/**
+ * ⚠️ **`import type` + `export type`, non `export type … from …` in una riga.** La riesportazione
+ * diretta rimanda il tipo a chi importa questo file, ma **non lo porta in questo file**: la riga
+ * `ALIMENTI_19_8: RigaAlimento[]` qui sotto diventa `TS2304: Cannot find name 'RigaAlimento'`.
+ * Trovato dalla CI il 20/8, non da me: in locale la cache di jest teneva ancora la versione
+ * compilata di prima e il test passava (vedi `src/common/src-non-esce-da-src.spec.ts`).
+ */
+import type { RigaAlimento } from '../src/nutrient-facts/riga-alimento';
+
+export type { RigaAlimento };
 
 export const ALIMENTI_19_8: RigaAlimento[] = [
   { name: 'aglio', synonyms: [], category: 'Verdura', state: 'crudo', kcal: 41.0, protein: 3.5, carbs: 8.4, sugars: 1.0, fat: 0.6, fiber: 3.1, source: 'BDA / CREA', foglio: 'Da aggiungere' },
