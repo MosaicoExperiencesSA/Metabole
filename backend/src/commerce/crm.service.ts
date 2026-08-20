@@ -384,7 +384,31 @@ export class CrmService {
     return { esaminati: scaduti.length, spostati };
   }
 
-  /** Avanzamento automatico (es. paid all'approvazione). */
+  /**
+   * Avanzamento automatico (es. `paid` all'approvazione del pagamento).
+   *
+   * ⚠️ **QUESTA PORTA SCRIVE SENZA GUARDARE DOV'ERA LA SCHEDA, e l'altra no.** Nel CRM ci sono due
+   * avanzamenti automatici e si comportano al contrario:
+   *
+   *  · `autoAdvanceIfEarlier` → `commerce/avanza-stato.ts`, **non fa mai retrocedere**. La usano il
+   *    questionario, la prova, il percorso concluso e il primo accesso, e il commento che le sta
+   *    sopra dice perché: «riportarla indietro cancellerebbe il lavoro di chi ha spostato la scheda
+   *    a mano, e la coach si ritroverebbe in colonna una cliente che aveva già lavorato».
+   *  · questa, che scrive e basta. La chiama un punto solo — `commerce.service.ts` — a **ogni
+   *    pagamento sopra lo zero**, non solo al primo.
+   *
+   * ⚠️ Quindi il rinnovo del mese riporta la scheda a «Acquisito» anche se era arrivata a «Prima
+   * visita» o a «Follow-up», che sulla board stanno dopo: è la cosa esatta che l'altra porta esiste
+   * per impedire, fatta dal punto che la fa più spesso.
+   *
+   * ⛔ **Non è stato corretto perché non so ancora quanto pesi**, e la differenza fra «l'ho
+   * misurato» e «mi torna» oggi è già costata due volte. `npm run diag:pipeline-indietro` conta le
+   * schede che stanno in una colonna prima di una in cui erano già passate — è scritto in
+   * `stageDates`, non è una stima. Con quel numero in mano si decide: la regola candidata è
+   * «avanza se è indietro, **e risuscita da “Percorso concluso”**», perché una cliente che rinnova
+   * dopo aver concluso deve tornare fra le attive, mentre una a «Prima visita» che rinnova non deve
+   * perdere la visita che ha fatto.
+   */
   async autoAdvance(clientId: string, stage: string, byUserId: string, valueCents?: number): Promise<void> {
     try {
       const record = await this.prisma.crmRecord.findUnique({ where: { clientId } });

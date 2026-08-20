@@ -9,8 +9,42 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 export type FunnelSegment = 'ex_cliente' | 'lead_caldo' | 'lead_freddo';
 
-// Stage di pipeline che indicano un contatto "caldo" (ha interagito davvero).
-const WARM_STAGES = new Set(['contacted', 'interested', 'recall', 'appointment', 'negotiation', 'trial', 'paid', 'won']);
+/**
+ * ⛔ **QUI C'ERA L'ELENCO DELLE COLONNE «CALDE», ED ERA DI UN ALTRO CRM.**
+ *
+ * Diceva: `contacted, interested, recall, appointment, negotiation, trial, paid, won`. Misurato il
+ * 20/8 contro le colonne vere del prodotto: **sei di quelle otto chiavi in Metabole non esistono**
+ * (contacted, interested, recall, appointment, negotiation, won), e **dieci delle dodici colonne
+ * vere l'elenco non le conosceva** — fra cui «Questionario completato», «Coach assegnata», «Call
+ * con la coach», «Prima visita», «Follow-up».
+ *
+ * ⚠️ Il risultato non era un errore: era una risposta, sbagliata, data con sicurezza. Una cliente
+ * che aveva già fatto la prima visita risultava **lead freddo** in ogni evento del funnel e nelle
+ * email del ciclo di vita — cioè riceveva i messaggi pensati per chi non ha mai risposto.
+ *
+ * ## La regola adesso, e perché è al contrario
+ *
+ * Non c'è più un elenco di colonne calde: **freddo è solo «Nuovo contatto»** (`lead_in`), la
+ * colonna in cui una scheda nasce senza che sia successo niente. Tutto il resto è caldo, perché
+ * ogni altra colonna vuol dire che qualcosa è successo.
+ *
+ * ⚠️ Ed è il verso giusto per la ragione che ha prodotto il difetto: con un elenco di colonne
+ * calde, **ogni colonna nuova nasce fredda** e bisogna ricordarsi di aggiungerla. «Primo accesso
+ * effettuato», creata oggi, sarebbe nata fredda. Così invece nasce calda, che è quasi sempre la
+ * verità, e se un giorno servirà una seconda colonna fredda si aggiunge qui — dove chi la aggiunge
+ * sta già leggendo perché.
+ *
+ * Scelte da Simone, 20/8.
+ */
+const STAGE_FREDDI = new Set(['lead_in']);
+
+/**
+ * ⚠️ «Percorso concluso» è un **ex cliente**, non un lead freddo (Simone, 20/8). Prima ci arrivava
+ * solo chi aveva speso soldi *prima* di Metabole (`historicalPaidCents`): una cliente nata qui e
+ * arrivata in fondo al percorso non diventava mai ex cliente, e riceveva le email di chi non ci ha
+ * mai risposto invece di quelle che parlano di tornare.
+ */
+const STAGE_EX_CLIENTE = new Set(['path_ended']);
 
 export function deriveSegment(r: {
   segment?: string | null;
@@ -22,8 +56,14 @@ export function deriveSegment(r: {
   if ((r.historicalPaidCents ?? 0) > 0) return 'ex_cliente';
   const prev = (r.previousStatus ?? '').toLowerCase();
   if (prev.includes('client') || prev.includes('attiv') || prev.includes('acquis')) return 'ex_cliente';
-  if (r.stage && WARM_STAGES.has(r.stage)) return 'lead_caldo';
-  return 'lead_freddo';
+  if (r.stage && STAGE_EX_CLIENTE.has(r.stage)) return 'ex_cliente';
+  /**
+   * ⚠️ **Senza colonna, freddo.** Una scheda senza `stage` non è una scheda «di cui non si sa»:
+   * è una scheda su cui non è successo niente, come «Nuovo contatto». Trattarla come calda vorrebbe
+   * dire mandare le email dei contatti caldi a chi è arrivato da un import e basta.
+   */
+  if (!r.stage || STAGE_FREDDI.has(r.stage)) return 'lead_freddo';
+  return 'lead_caldo';
 }
 
 // ---------- Token firmato per la pagina preferenze (disiscrizione facile) ----------

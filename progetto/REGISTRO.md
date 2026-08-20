@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🌡️ **Il segmento del funnel si derivava dalle colonne di un altro CRM.** L'elenco
+  delle colonne «lead caldo» in `funnel-segment.ts` diceva `contacted, interested, recall,
+  appointment, negotiation, trial, paid, won`. ⛔ **Misurato: sei di quelle otto in Metabole non
+  esistono, e dieci delle dodici colonne vere l'elenco non le conosceva.** Restavano riconosciute
+  `trial` e `paid`; tutto il resto → **lead freddo**. Una cliente che aveva **già fatto la prima
+  visita** risultava lead freddo negli eventi del funnel e nelle email del ciclo di vita: riceveva i
+  messaggi pensati per chi non ci ha mai risposto. Non era un errore che si vedeva — era una
+  risposta, sbagliata, data con sicurezza.
+  ✅ **Due decisioni di Simone.** *Freddo è solo «Nuovo contatto»*: non più un elenco di colonne
+  calde ma una sola colonna fredda, quella in cui una scheda nasce senza che sia successo niente.
+  ⚠️ Ed è il verso giusto per la ragione che ha prodotto il difetto: con un elenco di calde, **ogni
+  colonna nuova nasce fredda** — «Primo accesso effettuato», creata oggi, sarebbe nata fredda e
+  nessuno se ne sarebbe accorto. E *«Percorso concluso» è ex cliente*: prima ci si arrivava solo con
+  i soldi spesi **prima** di Metabole, quindi una cliente nata qui e arrivata in fondo non lo
+  diventava mai. Cambia le email che riceve — quelle «ex cliente» sono le uniche che parlano di
+  tornare.
+  ⚠️ Cambia **da adesso in avanti**: gli eventi già scritti tengono il segmento vecchio, e nel
+  pannello del funnel si vedrà un gradino il giorno del rilascio. Non è un'anomalia dei dati, è la
+  data in cui la domanda ha cominciato a essere fatta bene.
+  🧪 11 test, e le colonne del prodotto le leggono **dal seed** invece di riscriverle — riscriverle
+  sarebbe lo stesso difetto. Quattro mutazioni, tutte mordono.
+  ⛔ **Misurato ma NON corretto:** `crm.service.ts → autoAdvance` scrive lo stato senza guardare
+  dov'era la scheda, e la chiama `commerce.service.ts` a **ogni pagamento**, non solo al primo:
+  il rinnovo del mese riporta a «Acquisito» anche chi era a «Prima visita» o «Follow-up» — la cosa
+  esatta che l'altra porta (`avanza-stato.ts`) esiste per impedire. Non so quanto pesi, e oggi la
+  differenza fra «l'ho misurato» e «mi torna» è già costata tre volte: c'è
+  `npm run diag:pipeline-indietro` che conta le schede tornate indietro (sta scritto in
+  `stageDates`, non è una stima). La regola candidata — «avanza se è indietro, **e risuscita da
+  Percorso concluso**» — è nel docblock di `autoAdvance`, dove la legge chi passa.
+  🔢 Build verde, 269 suite, 4070 test verdi a cache svuotata.
+
 - `[Sviluppo]` ⛔ **La CI l'ha preso e io no.** Dopo la consegna 63 Render riparte, ma la CI di
   GitHub restava rossa: `prisma/dati-alimenti.ts:21 - TS2304: Cannot find name 'RigaAlimento'`.
   Avevo scritto `export type { RigaAlimento } from '…'`, che **riesporta** il tipo a chi importa

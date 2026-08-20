@@ -1,0 +1,75 @@
+Il segmento del funnel si derivava dalle colonne di un altro CRM — 20/8
+
+Rivedendo la pipeline dopo «Primo accesso effettuato», misurato `funnel-segment.ts`. L'elenco delle
+colonne che contano come «lead caldo» era:
+
+    contacted, interested, recall, appointment, negotiation, trial, paid, won
+
+⛔ **Sei di quelle otto in Metabole non esistono** (contacted, interested, recall, appointment,
+negotiation, won), e **dieci delle dodici colonne vere l'elenco non le conosceva**: Nuovo contatto,
+Lavorato, Primo accesso effettuato, Questionario completato, Coach assegnata, Call con la coach,
+Nutrizionista assegnata, Prima visita, Follow-up, Percorso concluso.
+
+Restavano riconosciute due sole colonne: `trial` e `paid`. Tutto il resto → **lead freddo**.
+
+⚠️ Non era un errore che si vedeva. Era una risposta, sbagliata, data con sicurezza: una cliente che
+aveva **già fatto la prima visita** risultava lead freddo in ogni evento del funnel
+(`commerce/funnel-event.ts`) e nelle email del ciclo di vita (`marketing/lifecycle.service.ts`) —
+cioè riceveva i messaggi pensati per chi non ci ha mai risposto.
+
+## LE DUE DECISIONI, DI SIMONE
+
+**1. Freddo è solo «Nuovo contatto».** Non c'è più un elenco di colonne calde: c'è un elenco di
+colonne fredde, e dentro ce n'è una — `lead_in`, la colonna in cui una scheda nasce senza che sia
+successo niente. Tutto il resto è caldo, perché ogni altra colonna vuol dire che qualcosa è
+successo.
+⚠️ **Ed è il verso giusto proprio per la ragione che ha prodotto il difetto**: con un elenco di
+colonne calde, ogni colonna nuova nasce fredda e bisogna ricordarsi di aggiungerla. «Primo accesso
+effettuato», creata oggi, sarebbe nata fredda e nessuno se ne sarebbe accorto. Così nasce calda, che
+è quasi sempre la verità, e se un giorno servirà una seconda colonna fredda si aggiunge lì, dove chi
+la aggiunge sta già leggendo perché.
+
+**2. «Percorso concluso» è un ex cliente.** Prima ci si arrivava solo con `historicalPaidCents`,
+che sono i soldi spesi **prima** di Metabole: una cliente nata qui e arrivata in fondo al percorso
+non diventava mai ex cliente. Adesso sì, e cambia le email che riceve — le campagne «ex cliente»
+sono quelle che parlano di tornare.
+
+⚠️ **Una scheda senza colonna resta fredda**, e non è una svista: non è «non si sa», è «non è
+successo niente», come «Nuovo contatto».
+
+## COSA NON CAMBIA
+
+I filtri dei segmenti del marketing (`SegmentFilters.stages`) non passano di qui: elencano le
+colonne per nome, e restano come sono. Cambia il **tag** che finisce sugli eventi del funnel e sulle
+email del ciclo di vita.
+
+⚠️ **E cambia da adesso in avanti, non all'indietro.** Gli eventi già scritti tengono il segmento
+vecchio: nel pannello del funnel si vedrà un gradino il giorno del rilascio. Non è un'anomalia dei
+dati, è la data in cui la domanda ha cominciato a essere fatta bene.
+
+## LE PROVE
+
+`funnel-segment-colonne.spec.ts` (11 test). ⚠️ Le colonne del prodotto le legge **dal seed**, non le
+riscrive: riscriverle qui sarebbe lo stesso difetto, un secondo elenco che non sa delle colonne
+nuove. C'è un test che dice «nessuna colonna del prodotto, tranne `lead_in`, resta fredda» — e
+quello resta vero anche per le colonne che aggiungeremo.
+Quattro mutazioni provate, tutte mordono: rimesso l'elenco vecchio, «Percorso concluso» di nuovo
+freddo, «senza colonna» diventa caldo, `lead_in` diventa caldo.
+
+## E UNA COSA MISURATA MA NON CORRETTA
+
+`crm.service.ts` → `autoAdvance` scrive lo stato **senza guardare dov'era la scheda**, mentre
+l'altra porta (`avanza-stato.ts`) non fa mai retrocedere. La chiama un punto solo,
+`commerce.service.ts`, a **ogni pagamento sopra lo zero** — non solo il primo. Quindi il rinnovo del
+mese riporta la scheda a «Acquisito» anche se era a «Prima visita» o «Follow-up»: la cosa esatta che
+l'altra porta esiste per impedire, fatta dal punto che la fa più spesso.
+
+⛔ **Non l'ho corretto: non so quanto pesi, e oggi la differenza fra «l'ho misurato» e «mi torna» è
+già costata tre volte.** C'è il conto: `npm run diag:pipeline-indietro` elenca le schede che stanno
+in una colonna PRIMA di una in cui erano già passate — è scritto in `stageDates`, non è una stima.
+La regola candidata, con quel numero in mano, è «avanza se è indietro, **e risuscita da Percorso
+concluso**»: chi rinnova dopo aver concluso deve tornare fra le attive, chi è a «Prima visita» e
+rinnova non deve perdere la visita che ha fatto.
+Il fatto e la regola candidata sono scritti nel docblock di `autoAdvance`, dove li legge chi passa.
+
+`npm run build` verde. 269 suite, 4070 test verdi, **a cache svuotata**.

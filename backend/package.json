@@ -92,7 +92,8 @@
     "diag:esclusioni": "ts-node --transpile-only prisma/diag-esclusioni.ts",
     "diag:allergeni-piatto": "ts-node --transpile-only prisma/diag-allergeni-nel-piatto.ts",
     "diag:pipeline-stati": "ts-node --transpile-only prisma/diag-pipeline-stati.ts",
-    "allinea:primo-accesso": "ts-node --transpile-only prisma/allinea-primo-accesso.ts"
+    "allinea:primo-accesso": "ts-node --transpile-only prisma/allinea-primo-accesso.ts",
+    "diag:pipeline-indietro": "ts-node --transpile-only prisma/diag-pipeline-indietro.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
