@@ -2,7 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { CATEGORIE_COMPENSO, inizioMese, tettoAttivoCents } from '../common/tetto-compensi';
+import { giornoDelMeseLocale } from '../common/date-only';
+import { CATEGORIE_COMPENSO, inizioMese, mesePeriodo, tettoAttivoCents } from '../common/tetto-compensi';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,8 +43,13 @@ export class PayoutsService {
   private monthStart(d = new Date()): Date {
     return inizioMese(d);
   }
+  /**
+   * Il giorno è quello di **Roma**, non quello del server. Con `d.getDate()` (fuso del processo,
+   * su Render UTC) la finestra risultava chiusa nelle prime due ore del giorno 1 e ancora aperta
+   * nelle prime due del giorno 8: «dal 1 al 7» è la frase che questa funzione deve mantenere.
+   */
   private windowOpen(d = new Date()): boolean {
-    const day = d.getDate();
+    const day = giornoDelMeseLocale(d);
     return day >= WINDOW_FROM && day <= WINDOW_TO;
   }
 
@@ -127,7 +133,9 @@ export class PayoutsService {
     if (!staff) return { isStaff: false };
 
     const now = new Date();
-    const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Lo stesso mese sotto cui `creditStaff` scrive i compensi: qui si usa per ESCLUDERE il
+    // mese in corso dallo storico, e un mese sfasato lo mostrerebbe due volte con due numeri.
+    const period = mesePeriodo(now);
     const monthStart = this.monthStart(now);
 
     const entries = (await this.prisma.ledgerEntry.findMany({

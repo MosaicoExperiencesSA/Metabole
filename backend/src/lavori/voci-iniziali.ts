@@ -1328,4 +1328,14 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-08-20T08:10',
   },
 
+  {
+    chiave: 'mese-confine-provvigioni',
+    titolo: 'Provvigioni: controllare se il confine di mese sbagliato è già costato qualcosa',
+    dettaglio:
+      'Il difetto è **chiuso** (20/8): la parte economica prendeva il mese e il giorno nel fuso del **server** — su Render `TZ` non è impostata, quindi UTC — invece che in quello di Roma. Fra mezzanotte e le 02:00 del primo del mese, a Roma è mese nuovo e per il server no. ⛔ Tre conseguenze: **1)** una provvigione accreditata in quelle due ore veniva contata nel **mese precedente**, e per chi ha un tetto di guadagno quel mese era già pieno — l\'importo veniva tagliato e, siccome l\'eccedenza non slitta (decisione dell\'11/8), **perso**, senza una riga a registro e senza un errore; **2)** la finestra prelievi «dal 1 al 7» risultava chiusa nelle prime due ore del giorno 1 e aperta in quelle del giorno 8; **3)** la pagina «Compensi staff» filtrava il mese con un confine diverso da quello con cui il tetto aveva contato le stesse righe. ⚠️ È **lo stesso difetto già chiuso il 7/8 sulle misure** (la pesata delle 00:30 che sovrascriveva quella del giorno prima): sulle date delle clienti era stato corretto, sui soldi no — e il fuso giusto stava già in `common/date-only.ts`. ⛔ **Quello che resta è una misura, non un lavoro**: sapere se è già successo a qualcuno. Un comando, sola lettura, dalla shell di Render: `npm run diag:mese-confine`. Dice quante provvigioni sono nate nella fascia spostata e — la domanda che conta — se il tetto ha mai tagliato qualcosa lì vicino (lo legge dall\'audit, l\'unico posto dove un taglio lascia traccia). Se stampa zero tagli, il punto si chiude in trenta secondi; se ne stampa qualcuno, quei soldi si recuperano con «Ricalcola provvigioni» sul pagamento indicato.',
+    categoria: SIMONE,
+    ordine: 616,
+    nata: '2026-08-20T10:40',
+  },
+
 ];

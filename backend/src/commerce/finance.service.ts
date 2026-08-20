@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { CATEGORIE_COMPENSO, euroCents, inizioMese, quotaSottoTetto, tettoAttivoCents } from '../common/tetto-compensi';
+import { CATEGORIE_COMPENSO, euroCents, inizioMese, mesePeriodo, quotaSottoTetto, tettoAttivoCents } from '../common/tetto-compensi';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -23,8 +23,9 @@ export class FinanceService {
     private readonly audit: AuditService,
   ) {}
 
+  // Il mese di Roma, non quello del server: vedi `mesePeriodo` in `common/tetto-compensi.ts`.
   private period(date = new Date()): string {
-    return date.toISOString().slice(0, 7); // YYYY-MM
+    return mesePeriodo(date);
   }
 
   async recordIncome(input: {
@@ -749,7 +750,9 @@ export class FinanceService {
     if (!entry || entry.category !== 'sales_commission') {
       throw new NotFoundException('Provvigione non trovata.');
     }
-    const period = entry.date.toISOString().slice(0, 7);
+    // Stesso mese con cui la riga era stata scritta: se qui si usasse il mese UTC, una
+    // provvigione accreditata a mese nuovo verrebbe scalata dal periodo sbagliato.
+    const period = mesePeriodo(entry.date);
 
     await this.prisma.$transaction(async (tx: PrismaTx) => {
       await tx.ledgerEntry.delete({ where: { id: ledgerId } });
@@ -757,6 +760,14 @@ export class FinanceService {
         const comp = (await tx.staffCompensation.findUnique({
           where: { staffId_period: { staffId: entry.staffId, period } },
         })) as { amountCents: number; items: unknown } | null;
+        if (!comp) {
+          // Vedi la stessa nota in `commerce.service.ts`: la riga di ledger sparisce comunque —
+          // è lei la verità — ma il contatore aggregato del mese resta indietro, e «Storico mesi»
+          // mostrerà un numero più alto del vero. Meglio saperlo dal log che dal sospetto.
+          this.logger.warn(
+            `[provvigione eliminata] compenso aggregato assente: staff=${entry.staffId} periodo=${period} ledger=${ledgerId} — contatore del mese non allineato.`,
+          );
+        }
         if (comp) {
           const items = (Array.isArray(comp.items) ? comp.items : []) as { kind?: string; amountCents?: number; ref?: string }[];
           const idx = items.findIndex((it) => it.kind === 'sales_commission' && it.amountCents === entry.amountCents && it.ref === entry.ref);

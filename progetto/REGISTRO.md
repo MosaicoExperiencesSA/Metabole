@@ -20,6 +20,85 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 💰 **Il mese dei soldi era quello del server, non quello di Roma — ed è lo stesso
+  difetto già chiuso il 7/8 sulle misure.** Revisione avversariale dell'area **provvigioni**, la
+  prima delle tre direzioni proposte a Simone («è l'area dove un difetto costa soldi veri e nessuno
+  se ne accorge da fuori»). Su Render `TZ` non è impostata da nessuna parte: il processo sta a UTC.
+  D'estate l'Italia è avanti di due ore, quindi **fra mezzanotte e le 02:00 del primo del mese, a
+  Roma è mese nuovo e per il server no**. Sei punti prendevano il confine da soli, con **quattro
+  formule diverse** — `new Date(y, m, 1)`, `toISOString().slice(0, 7)`, `Date.UTC(y, m - 1, 1)`,
+  `getDate()` — e finché il server è a UTC sbagliavano **tutte insieme**: nessun confronto fra due
+  di loro poteva rivelarlo.
+  ⛔ Tre conseguenze, in ordine di quanto costano. **1)** Una provvigione accreditata in quelle due
+  ore veniva contata nel **mese precedente**; per chi ha un tetto di guadagno mensile quel mese era
+  già pieno, quindi l'importo veniva tagliato e — l'eccedenza non slitta, decisione dell'11/8 —
+  **perso**. Nessuna riga a registro (a tetto saturo `creditStaff` esce prima di scrivere), nessun
+  errore: solo l'audit, che non guarda nessuno. **2)** La finestra dei prelievi «dal 1 al 7»
+  risultava **chiusa** nelle prime due ore del giorno 1 e **aperta** in quelle del giorno 8 — e
+  «dal 1 al 7» è una frase scritta nel messaggio d'errore che la persona legge. **3)** La pagina
+  «Compensi staff», quella il cui commento dice «è la pagina dove un mese strano si guarda»,
+  filtrava il mese con un confine diverso da quello con cui il tetto aveva contato le stesse righe.
+  ⚠️ **Il fuso giusto stava già in casa.** `common/date-only.ts` esiste dal 7/8 proprio per questo:
+  lo aveva aperto la pesata delle 00:30 che **sovrascriveva** la misura del giorno prima. Sulle
+  date delle clienti il difetto era stato chiuso; sui soldi no, e nessuno aveva collegato le due
+  cose. Ora il mese e il giorno dei soldi si **chiedono** (`inizioMeseLocale`, `meseLocale`,
+  `giornoDelMeseLocale`, `confineMese`), non si calcolano.
+  ⚠️ **`inizioDelGiorno` non è `…T00:00:00Z`**: `LedgerEntry.date` è un timestamp, non una colonna
+  DATE, e mezzanotte di Roma dell'1 settembre sono le **22:00 UTC del 31 agosto**. Confrontarlo con
+  la mezzanotte UTC sposta il confine di due ore, che è esattamente il difetto. Due passate per
+  l'offset, perché spostandosi si può attraversare il cambio dell'ora legale — e ci sono i test sui
+  due ultimi weekend di marzo e ottobre.
+  ⚠️ **Un test che misurava con lo strumento rotto.** `tetto-provvigioni.spec.ts` verificava «il
+  primo del mese» con `where.date.gte.getDate()).toBe(1)`, cioè con la formula stessa che si è
+  rivelata sbagliata: era **verde sul difetto**. Ora chiede il giorno di Roma e confronta l'istante
+  esatto con `inizioMese()`.
+  ⚠️ **E i confronti col «modo vecchio» nei test nuovi sono scritti con `getUTC*`**, non con
+  `getDate()`: su un Mac italiano `getDate()` darebbe la risposta giusta e i test passerebbero
+  senza dimostrare niente. *Un test che diventa verde per il fuso di chi lo lancia è peggio di
+  nessun test.*
+  ⚠️ **Due elenchi di categorie in più.** Il commento in testa a `tetto-compensi.ts` dice che le
+  categorie di compenso «erano scritte due volte e ora sono qui»: erano scritte **quattro** volte —
+  `coach.service.ts` e `nutritionist.service.ts` avevano la loro copia, saltata dalla riunificazione
+  dell'11/8, e sono le due dashboard che mostrano alla persona il proprio guadagno del mese.
+  ⚠️ Aggiunto `mese-uno-solo.spec.ts`, che **guarda il sorgente** come `una-porta-sola.spec.ts`: nel
+  perimetro dei soldi il mese si chiede e non si calcola. Serve perché il difetto non stava dentro
+  una funzione — stava nei sei chiamanti, dove nessuna mutazione arriva.
+  ⚠️ Fatto parlare uno **skip silenzioso** già esistente: nei tre punti che stornano una provvigione,
+  se la riga aggregata del periodo non c'è si passava oltre senza dire niente. Il registro resta la
+  verità e viene stornato lo stesso, ma «Storico mesi» mostra un numero più alto — ora si legge nel
+  log invece di sospettarlo.
+  ⛔ **Quello che resta è una misura, non un lavoro**: `npm run diag:mese-confine` (sola lettura)
+  dice quante provvigioni sono nate nella fascia spostata e — la domanda che conta — se il tetto ha
+  mai tagliato qualcosa lì vicino. Voce aperta in elenco.
+  Verifica: 251 suite e **3930 test verdi** (contate tutte e due le righe), type-check a zero errori,
+  e due mutazioni che mordono — `inizioMese` riportata a `getFullYear()/getMonth()` fa cadere due
+  test, `getDate()` rimesso in `payouts` fa cadere lo scanner del sorgente.
+
+- `[Sviluppo]` 📗 **«Alimenti da correggere»: esporta in Excel.** Richiesta di Simone del 20/8 («un
+  esporta in excel con i campi nutrizionali necessari»). Un foglio con **tutti** gli alimenti da
+  correggere e le colonne da riempire: stato, categoria, kcal, proteine, carboidrati, zuccheri,
+  grassi, fibre, IG, IG min, IG max, affidabilità, fonte, note — **le stesse del pulsante
+  «dettaglio», nello stesso ordine**, perché un foglio compilato che non si può ricopiare nel form è
+  lavoro buttato.
+  ⚠️ **Esporta tutto, non quello che si vede.** La pagina ne mostra 100 per elenco e ce ne sono
+  trecento: un foglio con dentro un terzo del problema, senza dirlo, manderebbe la nutrizionista a
+  finire un lavoro che non è finito. Endpoint suo (`mancanti/esporta`) **senza tetto**, che passa
+  però dallo stesso metodo della pagina — se le condizioni divergessero, il foglio e la schermata
+  risponderebbero due cose diverse alla stessa domanda, e quella su cui si lavora davvero è la meno
+  guardata.
+  ⚠️ **Le righe che in tabella ci sono già arrivano con i loro valori.** I motivi non sono tutti
+  «manca la riga»: `senza_stato` e `solo_da_cotto` sono righe che **esistono** e non si possono
+  usare. Mandarle vuote vorrebbe dire farle riscrivere da zero, mentre quello che serve è una parola
+  («crudo») o la colonna a crudo accanto a quella da cotto.
+  ⚠️ **Un foglio solo, ma i due elenchi non si mescolano**: prima colonna «Elenco», ordine a blocchi,
+  nessun ordinamento comune. Mischiarli è la stessa cosa che sommare «usato in 1025 ricette» e
+  «chiesto 40 volte», cioè il difetto del 19/8.
+  ⚠️ E `lib/excel.ts` — 300 righe di zip e XML scritti a mano — **ha finalmente dei test**: il modo
+  in cui si rompe non è un'eccezione ma un file che Excel rifiuta, cioè un errore che arriva a chi
+  sta cercando di lavorare e non a chi ha scritto il codice. Sette test, due mutazioni che mordono
+  (tolto l'escape della `&`, e i numeri scritti come testo).
+
+
 - `[Sviluppo]` 🔁 **Gli «aggiornamenti grossi» erano già fatti tutti e quattro, e stavo per rifarli.**
   Poche righe prima avevo detto a Simone che erano l'unica voce di codice rimasta **mia**; lui ha
   chiesto «c'è altro che puoi fare?» e sono partito. ⛔ React è già alla **18.3.1** (in `app/` e in

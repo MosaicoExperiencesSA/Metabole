@@ -1,0 +1,70 @@
+Provvigioni: il mese dei soldi è quello di Roma, non quello del server (+ esporta in Excel degli alimenti da correggere)
+
+IL DIFETTO
+Su Render `TZ` non è impostata da nessuna parte: il processo sta a UTC. D'estate l'Italia è avanti
+di due ore, quindi fra mezzanotte e le 02:00 del primo del mese, a Roma è mese nuovo e per il
+server no. Sei punti della parte economica prendevano il confine da soli, con quattro formule
+diverse (`new Date(y, m, 1)`, `toISOString().slice(0, 7)`, `Date.UTC(y, m - 1, 1)`, `getDate()`) —
+e finché il server è a UTC sbagliavano tutte insieme: nessun confronto fra due di loro poteva
+rivelarlo.
+
+COSA COSTAVA, IN ORDINE
+1) Una provvigione accreditata in quelle due ore veniva contata nel MESE PRECEDENTE. Per chi ha un
+   tetto di guadagno mensile quel mese era già pieno: l'importo veniva tagliato e — l'eccedenza non
+   slitta, decisione dell'11/8 — perso. A tetto saturo `creditStaff` esce prima di scrivere, quindi
+   non resta nemmeno una riga a registro: solo l'audit.
+2) La finestra dei prelievi risultava CHIUSA nelle prime due ore del giorno 1 e APERTA in quelle
+   del giorno 8. «Dal 1 al 7» è la frase che la persona legge nel messaggio d'errore.
+3) La pagina «Compensi staff» filtrava il mese con un confine diverso da quello con cui il tetto
+   aveva contato le stesse righe.
+
+È LO STESSO DIFETTO DEL 7/8, SULLE MISURE
+`common/date-only.ts` esiste dal 7/8 proprio per questo: lo aveva aperto la pesata delle 00:30 che
+sovrascriveva la misura del giorno prima. Sulle date delle clienti era chiuso; sui soldi no.
+
+LA REGOLA ADESSO
+Il mese e il giorno dei soldi si CHIEDONO, non si calcolano: `inizioMeseLocale`, `meseLocale`,
+`giornoDelMeseLocale`, `confineMese` in `date-only.ts`; `inizioMese` e `mesePeriodo` in
+`tetto-compensi.ts` per il lato economico. `inizioDelGiorno` restituisce l'ISTANTE vero (mezzanotte
+di Roma dell'1 settembre = 22:00 UTC del 31 agosto), perché `LedgerEntry.date` è un timestamp e non
+una colonna DATE.
+
+ALTRO TROVATO STRADA FACENDO
+- Un test che misurava con lo strumento rotto: `tetto-provvigioni.spec.ts` verificava «il primo del
+  mese» con `getDate()`, cioè con la formula sbagliata. Era verde sul difetto.
+- Le categorie di compenso erano scritte QUATTRO volte, non due come dice il commento della
+  riunificazione dell'11/8: `coach.service.ts` e `nutritionist.service.ts` avevano la loro copia, e
+  sono le due dashboard che mostrano alla persona il proprio guadagno del mese.
+- Uno skip silenzioso nei tre punti che stornano una provvigione: se la riga aggregata del periodo
+  non c'è si passava oltre senza dire niente. Ora lo scrive nel log.
+
+TEST
+- `common/mese-dei-soldi.spec.ts` (13): i confini a Roma, d'estate e d'inverno, il giorno 1 e il
+  giorno 8, dicembre che scavalca l'anno, i due cambi dell'ora legale. I confronti col «modo
+  vecchio» sono scritti con `getUTC*`: su un Mac italiano `getDate()` darebbe la risposta giusta e i
+  test passerebbero senza dimostrare niente.
+- `common/mese-uno-solo.spec.ts` (8): guarda il SORGENTE, come `una-porta-sola.spec.ts` — nel
+  perimetro dei soldi il mese si chiede e non si calcola. Serve perché il difetto stava nei sei
+  chiamanti, dove nessuna mutazione arriva.
+- Mutazioni provate: `inizioMese` riportata a `getFullYear()/getMonth()` → due test rossi;
+  `getDate()` rimesso in `payouts` → scanner rosso.
+
+RESTA UNA MISURA, NON UN LAVORO
+`npm run diag:mese-confine` (sola lettura, dalla shell di Render): quante provvigioni sono nate
+nella fascia spostata, e se il tetto ha mai tagliato qualcosa lì vicino. Voce aperta in elenco.
+
+------------------------------------------------------------------------------
+
+ESPORTA IN EXCEL — «ALIMENTI DA CORREGGERE» (richiesta di Simone, 20/8)
+Un foglio con TUTTI gli alimenti da correggere e le colonne da riempire (stato, categoria, kcal,
+proteine, carboidrati, zuccheri, grassi, fibre, IG, IG min, IG max, affidabilità, fonte, note): le
+stesse del pulsante «dettaglio», nello stesso ordine.
+- Esporta tutto, non i 100 a schermo: endpoint suo (`mancanti/esporta`) senza tetto, che passa però
+  dallo stesso metodo della pagina.
+- Le righe che in tabella ci sono già (`senza_stato`, `solo_da_cotto`) arrivano con i loro valori:
+  quello che manca è una parola o una colonna, non tutta la riga.
+- Un foglio solo, ma i due elenchi non si mescolano: colonna «Elenco» e ordine a blocchi.
+- `lib/excel.ts` ha finalmente dei test (7): il modo in cui si rompe è un file che Excel rifiuta,
+  cioè un errore che arriva a chi sta lavorando e non a chi ha scritto il codice.
+
+Niente migrazioni. 251 suite e 3930 test verdi, type-check a zero errori.

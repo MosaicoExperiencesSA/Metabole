@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
+import { oggiIso, scaricaExcel, type Cella } from '../lib/excel';
 
 /**
  * VALORI NUTRIZIONALI — la tabella da cui Gaia prende i numeri, e l'unico posto dove si correggono.
@@ -112,6 +113,7 @@ export function ValoriNutrizionali() {
    */
   const [daRicette, setDaRicette] = useState<{ righe: Mancante[]; quanti: number }>({ righe: [], quanti: 0 });
   const [chieste, setChieste] = useState<{ righe: Mancante[]; quanti: number }>({ righe: [], quanti: 0 });
+  const [esporto, setEsporto] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -314,6 +316,68 @@ export function ValoriNutrizionali() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
+  /**
+   * ESPORTA L'ELENCO DA CORREGGERE IN EXCEL — richiesta di Simone del 20/8.
+   *
+   * ⚠️ **Non esporta quello che si vede: esporta tutto.** La pagina ne mostra 100 per elenco e ce
+   * ne sono trecento; un foglio con dentro un terzo del lavoro, senza dirlo, è peggio di nessun
+   * foglio — chi lo finisce crede di aver finito. Per questo c'è un endpoint suo (`mancanti/esporta`)
+   * che non ha tetto, e non si riusa l'array già in pagina.
+   *
+   * ⚠️ **Un foglio solo, ma i due elenchi non si mescolano**: la prima colonna dice da quale
+   * elenco viene la riga, e l'ordine è a blocchi — prima le ricette, poi le domande delle clienti.
+   * Ordinarli insieme è la stessa cosa che sommare «usato in 1025 ricette» e «chiesto 40 volte»,
+   * cioè il difetto del 19/8. In Excel il filtro automatico è già acceso: chi vuole un elenco solo
+   * lo filtra.
+   *
+   * ⚠️ **Le colonne da riempire sono quelle del pulsante «dettaglio»**, nello stesso ordine. Se un
+   * giorno il form impara un campo e il foglio no, la nutrizionista compila un foglio che non si
+   * può ricopiare — ed è il genere di disallineamento che nessuno vede finché non ha già lavorato.
+   */
+  async function esportaMancanti() {
+    setEsporto(true);
+    setError(null);
+    try {
+      type Attuale = Partial<Record<string, string | number | null>>;
+      const r = await api<{ quanti: { daRicette: number; chieste: number }; righe: (Mancante & { elenco: string; attuale: Attuale | null })[] }>(
+        '/nutrient-facts/mancanti/esporta',
+      );
+      const intestazioni = [
+        'Elenco', 'Alimento', 'Ricette che lo usano', 'Volte chiesto', 'Perché', 'Riga già in tabella',
+        'Stato', 'Categoria', 'kcal', 'Proteine', 'Carboidrati', 'Zuccheri', 'Grassi', 'Fibre',
+        'IG', 'IG min', 'IG max', 'Affidabilità IG', 'Fonte', 'Note',
+      ];
+      const campi = [
+        'state', 'category', 'kcal', 'protein', 'carbs', 'sugars', 'fat', 'fiber',
+        'glycemicIndex', 'glycemicIndexMin', 'glycemicIndexMax', 'glycemicIndexReliability', 'source', 'note',
+      ];
+      const righe: Cella[][] = r.righe.map((m) => [
+        m.elenco,
+        m.term,
+        m.ricette,
+        m.times,
+        (m.motivo && MOTIVO[m.motivo]?.etichetta) || m.motivo || '',
+        m.suggerito ?? '',
+        // I valori che la riga raggiunta ha GIÀ: vuoti quando la riga non esiste (`non_in_tabella`),
+        // pieni quando manca solo lo stato o mancano i valori a crudo.
+        ...campi.map((c) => (m.attuale?.[c] ?? '') as Cella),
+      ]);
+      scaricaExcel(`alimenti-da-correggere-${oggiIso()}`, {
+        nome: 'Da correggere',
+        intestazioni,
+        righe,
+      });
+      setNotice(
+        `Esportati ${righe.length} alimenti (${r.quanti.daRicette} usati dalle ricette, ${r.quanti.chieste} chiesti dalle clienti). ` +
+          'Le colonne da riempire sono le stesse del pulsante «dettaglio».',
+      );
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Non sono riuscito a esportare l\'elenco.');
+    } finally {
+      setEsporto(false);
     }
   }
 
@@ -623,6 +687,20 @@ export function ValoriNutrizionali() {
             i due numeri non si sommano, perché «usato in mille ricette» e «chiesto tre volte in
             chat» non sono la stessa unità.
           </p>
+
+          <div className="row" style={{ gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+            <button
+              className="btn ghost sm"
+              onClick={() => void esportaMancanti()}
+              disabled={esporto}
+              title="Scarica TUTTI gli alimenti da correggere (non solo i primi 100 che vedi qui) con le colonne da riempire: stato, categoria, kcal, macro, indice glicemico, fonte. Le righe che in tabella ci sono già arrivano con i valori che hanno."
+            >
+              <i className="ti ti-file-type-xls" /> {esporto ? 'Preparo il file…' : 'Esporta in Excel'}
+            </button>
+            <span className="muted" style={{ fontSize: 12, alignSelf: 'center' }}>
+              Tutti e {daRicette.quanti + chieste.quanti} in un foglio solo, non solo quelli a schermo.
+            </span>
+          </div>
 
           {puoModificare && (
             <div style={{ marginBottom: 10 }}>

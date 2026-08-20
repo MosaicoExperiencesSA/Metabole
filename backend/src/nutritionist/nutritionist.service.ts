@@ -19,9 +19,14 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { KcalNeedService } from '../menu/kcal-need.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CATEGORIE_COMPENSO, inizioMese } from '../common/tetto-compensi';
 
 const DAY = 86_400_000;
-const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
+// Le categorie e il confine di mese vengono da `common/tetto-compensi.ts`, non da una copia
+// locale: questa dashboard mostra alla coach lo stesso numero che le mostra il portafoglio, e
+// due elenchi che rispondono alla stessa domanda prima o poi divergono. (Qui la copia c'era: la
+// riunificazione dell'11/8 aveva raccolto `payouts` e `compensation` e saltato queste due.)
+const COMMISSION_CATEGORIES = CATEGORIE_COMPENSO;
 const OPEN_ESC = ['open', 'in_progress'];
 
 interface ProfileRow {
@@ -280,7 +285,7 @@ export class NutritionistService {
     const profiles = await this.patientIds(staffId);
     const ids = profiles.map((p) => p.userId);
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = inizioMese(now);
 
     const [pendingDocuments, openEscalations, protocolsToValidate, upcomingVisits, monthAgg, totalAgg] =
       await Promise.all([

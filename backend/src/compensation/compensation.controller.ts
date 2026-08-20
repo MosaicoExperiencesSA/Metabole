@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { Roles } from '../common/decorators/roles.decorator';
+import { confineMese } from '../common/date-only';
 import { CATEGORIE_COMPENSO, tettoAttivoCents } from '../common/tetto-compensi';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -20,8 +21,10 @@ export class CompensationController {
   async list(@Query('period') period?: string) {
     let dateFilter: Record<string, unknown> = {};
     if (period && /^\d{4}-\d{2}$/.test(period)) {
-      const [y, m] = period.split('-').map(Number);
-      dateFilter = { date: { gte: new Date(Date.UTC(y, m - 1, 1)), lt: new Date(Date.UTC(y, m, 1)) } };
+      // Il mese di Roma, cioè lo STESSO confine con cui il tetto ha contato queste righe: con
+      // `Date.UTC(...)` la pagina che risponde «ha toccato il tetto» sommava un mese spostato di
+      // due ore rispetto a quello su cui il tetto aveva deciso.
+      dateFilter = { date: confineMese(period) };
     }
 
     const entries = (await this.prisma.ledgerEntry.findMany({

@@ -88,3 +88,104 @@ export function toDateOnly(input?: string): Date {
 export function aGiorno(d: Date): Date {
   return new Date(`${giornoLocale(d)}T00:00:00.000Z`);
 }
+
+/**
+ * ## Lo stesso difetto delle misure, ma sui soldi
+ *
+ * Tutto quello che sta scritto in testa a questo file — «fra mezzanotte e le 02:00 in Italia è
+ * già domani mentre per UTC è ancora ieri» — vale identico per il MESE, e il mese è l'unità di
+ * misura di tutta la parte economica: il tetto di guadagno è mensile, la finestra dei prelievi
+ * va dal 1 al 7, i compensi si aggregano per `YYYY-MM`.
+ *
+ * Fino al 20/8 quei confini erano presi con `new Date(d.getFullYear(), d.getMonth(), 1)` e
+ * `d.getDate()`, cioè **nel fuso del server** — che su Render è UTC, perché `TZ` non è impostata
+ * da nessuna parte. Alle 00:30 dell'1 settembre a Roma il server risponde «31 agosto»:
+ *
+ *  - una provvigione accreditata in quel momento veniva contata nel **mese precedente**, e per
+ *    chi ha un tetto di guadagno quel mese era già pieno: l'importo veniva tagliato e — per
+ *    decisione esplicita, l'eccedenza non slitta — **perso**. Nessuna riga a registro, nessun
+ *    errore: solo l'audit, che non guarda nessuno;
+ *  - la finestra dei prelievi risultava **chiusa** nelle prime due ore del giorno 1 e **aperta**
+ *    nelle prime due ore del giorno 8. «Dal 1 al 7» è una promessa scritta nel messaggio d'errore;
+ *  - il portafoglio mostrava il mese appena chiuso ancora «in maturazione» invece che prelevabile.
+ *
+ * Da qui in avanti il mese dei soldi è il mese di **Roma**, come il giorno delle misure.
+ */
+
+let orologio: Intl.DateTimeFormat | null | undefined;
+function orologioFuso(): Intl.DateTimeFormat | null {
+  if (orologio !== undefined) return orologio;
+  try {
+    orologio = new Intl.DateTimeFormat('en-CA', {
+      timeZone: FUSO,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    // Stesso comportamento di `fmt()`: fuso irriconoscibile → si torna a UTC invece di far
+    // fallire ogni richiesta.
+    // eslint-disable-next-line no-console
+    console.error(`[date-only] fuso "${FUSO}" non riconosciuto: i confini di mese tornano a UTC.`);
+    orologio = null;
+  }
+  return orologio;
+}
+
+/** I campi di calendario di un istante, letti nel fuso, riscritti come se fossero UTC. */
+function comeSeUTC(f: Intl.DateTimeFormat, d: Date): number {
+  const p: Record<string, string> = {};
+  for (const x of f.formatToParts(d)) if (x.type !== 'literal') p[x.type] = x.value;
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second));
+}
+
+/**
+ * L'ISTANTE in cui comincia il giorno `YYYY-MM-DD` nel fuso dell'azienda.
+ *
+ * Non è `…T00:00:00Z`: mezzanotte a Roma dell'1 settembre sono le 22:00 UTC del 31 agosto. Serve
+ * l'istante vero perché `LedgerEntry.date` è un timestamp, non una colonna DATE — confrontarlo
+ * con la mezzanotte UTC sposta il confine di due ore, che è esattamente il difetto.
+ *
+ * Le due passate non sono superstizione: l'offset dipende dall'istante, e spostandosi si può
+ * attraversare il cambio dell'ora legale. La prima passata trova l'offset del punto di partenza,
+ * la seconda quello del punto di arrivo.
+ */
+export function inizioDelGiorno(giorno: string): Date {
+  const nominale = Date.parse(`${giorno}T00:00:00.000Z`);
+  const f = orologioFuso();
+  if (!f || Number.isNaN(nominale)) return new Date(nominale);
+  let istante = nominale;
+  for (let i = 0; i < 2; i++) istante = nominale - (comeSeUTC(f, new Date(istante)) - istante);
+  return new Date(istante);
+}
+
+/** Il mese di calendario di un istante, nel fuso dell'azienda. Formato `YYYY-MM`. */
+export function meseLocale(d: Date): string {
+  return giornoLocale(d).slice(0, 7);
+}
+
+/** Il giorno del mese (1–31) nel fuso dell'azienda — quello che intende chi legge «dal 1 al 7». */
+export function giornoDelMeseLocale(d: Date): number {
+  return Number(giornoLocale(d).slice(8, 10));
+}
+
+/** L'istante in cui è cominciato il mese in corso, nel fuso dell'azienda. */
+export function inizioMeseLocale(d = new Date()): Date {
+  return inizioDelGiorno(`${meseLocale(d)}-01`);
+}
+
+/**
+ * I due estremi di un mese `YYYY-MM` come li vuole Prisma: `{ gte, lt }`.
+ * Esiste perché la pagina «Compensi staff» filtrava per mese con `Date.UTC(...)`, cioè con un
+ * confine diverso da quello con cui il tetto aveva contato le stesse righe: due mesi diversi che
+ * si chiamano tutti e due «settembre».
+ */
+export function confineMese(period: string): { gte: Date; lt: Date } {
+  const [y, m] = period.split('-').map(Number);
+  const dopo = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+  return { gte: inizioDelGiorno(`${period}-01`), lt: inizioDelGiorno(`${dopo}-01`) };
+}

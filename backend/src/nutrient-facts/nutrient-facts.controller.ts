@@ -56,7 +56,16 @@ export class NutrientFactsController {
   @Get('mancanti')
   @RequirePage('nutrient_facts')
   async mancanti() {
-    const TETTO = 100;
+    return this.elenchiMancanti(100);
+  }
+
+  /**
+   * I due elenchi, con il tetto che decide il chiamante — la pagina ne mostra 100, l'esportazione
+   * li vuole **tutti**. ⚠️ Un metodo solo e non due query copiate: se le condizioni divergessero,
+   * il foglio Excel e la pagina risponderebbero due cose diverse alla stessa domanda, e quella su
+   * cui si lavora davvero (il foglio) sarebbe la meno guardata.
+   */
+  private async elenchiMancanti(TETTO: number | null) {
     /**
      * ⚠️ **DUE ELENCHI, NON UNO ORDINATO SU DUE UNITÀ** — corretto il 19/8 sera dopo la revisione
      * avversariale, ed era un difetto che aveva sepolto la ragione per cui questa tabella esiste.
@@ -75,7 +84,7 @@ export class NutrientFactsController {
       this.prisma.nutrientLookupMiss.findMany({
         where: { status: 'open', ricette: { gt: 0 } } as never,
         orderBy: [{ ricette: 'desc' }, { term: 'asc' }] as never,
-        take: TETTO,
+        ...(TETTO === null ? {} : { take: TETTO }),
       } as never),
       this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { gt: 0 } } as never }),
       this.prisma.nutrientLookupMiss.findMany({
@@ -87,13 +96,56 @@ export class NutrientFactsController {
          */
         where: { status: 'open', ricette: { lte: 0 }, times: { gt: 0 } } as never,
         orderBy: [{ times: 'desc' }, { lastAskedAt: 'desc' }] as never,
-        take: TETTO,
+        ...(TETTO === null ? {} : { take: TETTO }),
       } as never),
       this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { lte: 0 }, times: { gt: 0 } } as never }),
     ]);
     return {
       daRicette: { righe: daRicette, quanti: quanteRicette },
       chieste: { righe: chieste, quanti: quanteChieste },
+    };
+  }
+
+  /**
+   * L'ELENCO DA LAVORARE IN EXCEL — richiesta di Simone del 20/8: «un esporta in excel con i campi
+   * nutrizionali necessari».
+   *
+   * ⚠️ **Senza tetto, ed è il punto.** La pagina ne mostra 100 per elenco perché è una schermata;
+   * il foglio è il posto dove il lavoro si fa davvero, e un foglio che ne contiene 100 su 300
+   * senza dirlo manderebbe la nutrizionista a lavorare su un terzo del problema credendo di averlo
+   * finito. `quanti` viaggia comunque insieme, così il conto si può ricontrollare.
+   *
+   * ⚠️ **Per le righe che in tabella CI SONO GIÀ i valori attuali vengono con loro.** I motivi non
+   * sono tutti «manca la riga»: `senza_stato` e `solo_da_cotto` sono righe che esistono e non si
+   * possono usare. Mandarle nel foglio vuote significherebbe farle riscrivere da zero — mentre
+   * quello che serve è una parola («crudo») o la colonna a crudo accanto a quella da cotto.
+   */
+  @Get('mancanti/esporta')
+  @RequirePage('nutrient_facts')
+  async mancantiDaEsportare() {
+    const { daRicette, chieste } = await this.elenchiMancanti(null);
+    const righe = [
+      ...daRicette.righe.map((r) => ({ elenco: 'Usati dalle ricette' as const, ...(r as object) })),
+      ...chieste.righe.map((r) => ({ elenco: 'Chiesti dalle clienti' as const, ...(r as object) })),
+    ] as ({ elenco: string; term: string; suggerito: string | null } & Record<string, unknown>)[];
+
+    // I valori già in tabella delle righe raggiunte (`suggerito`), in una query sola.
+    const nomi = Array.from(new Set(righe.map((r) => r.suggerito).filter((n): n is string => Boolean(n))));
+    const esistenti = nomi.length
+      ? ((await this.prisma.nutrientFact.findMany({
+          where: { name: { in: nomi } },
+          select: {
+            name: true, state: true, category: true, kcal: true, protein: true, carbs: true,
+            sugars: true, fat: true, fiber: true, glycemicIndex: true, glycemicIndexMin: true,
+            glycemicIndexMax: true, glycemicIndexReliability: true, source: true, note: true,
+          },
+        } as never)) as Record<string, unknown>[])
+      : [];
+    const perNome = new Map(esistenti.map((v) => [v.name as string, v]));
+
+    return {
+      quanti: { daRicette: daRicette.quanti, chieste: chieste.quanti },
+      righe: righe.map((r) => ({ ...r, attuale: (r.suggerito && perNome.get(r.suggerito)) || null })),
     };
   }
 

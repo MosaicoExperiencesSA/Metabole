@@ -1,3 +1,5 @@
+import { inizioMeseLocale, meseLocale } from './date-only';
+
 /**
  * IL TETTO DI GUADAGNO MENSILE (§16.8) — la regola sta QUI, l'aritmetica è pura e testabile.
  *
@@ -40,9 +42,28 @@ export const CATEGORIE_COMPENSO = ['sales_commission', 'visit_compensation'];
  * L'inizio del mese in corso — lo stesso confine che usa il portafoglio staff
  * (`payouts.service.ts`), per la stessa ragione di sopra: il mese del tetto e il mese del
  * portafoglio devono essere lo stesso mese.
+ *
+ * ⚠️ È il mese di **Roma**, non quello del server. Era `new Date(d.getFullYear(), d.getMonth(), 1)`,
+ * cioè il fuso del processo: su Render è UTC, e alle 00:30 dell'1 settembre a Roma quel confine
+ * diceva ancora agosto. Chi ha un tetto si vedeva tagliare — e perdere per sempre — una
+ * provvigione arrivata a mese nuovo. La spiegazione lunga sta in `common/date-only.ts`.
  */
 export function inizioMese(d = new Date()): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+  return inizioMeseLocale(d);
+}
+
+/**
+ * Il periodo `YYYY-MM` sotto cui va scritto un compenso — **una sola risposta** alla domanda
+ * «di che mese è questa riga».
+ *
+ * Era calcolato a mano in cinque punti (`finance.service`, due storni in `commerce.service`,
+ * `payouts.service`) con due formule diverse, `toISOString().slice(0, 7)` e `getMonth()`. Finché
+ * il server è a UTC le due coincidono fra loro e sbagliano insieme; la riga che le smaschera è
+ * quella accreditata a mese nuovo, che veniva scritta nel periodo precedente — e stornata da un
+ * altro ancora.
+ */
+export function mesePeriodo(d = new Date()): string {
+  return meseLocale(d);
 }
 
 /**

@@ -7,9 +7,14 @@ import { vociCalendario, type VoceCalendario } from '../agenda/calendario';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { avanzamentoPeso } from '../signals/percentuale-obiettivo';
+import { CATEGORIE_COMPENSO, inizioMese } from '../common/tetto-compensi';
 
 const DAY = 86_400_000;
-const COMMISSION_CATEGORIES = ['sales_commission', 'visit_compensation'];
+// Le categorie e il confine di mese vengono da `common/tetto-compensi.ts`, non da una copia
+// locale: questa dashboard mostra alla coach lo stesso numero che le mostra il portafoglio, e
+// due elenchi che rispondono alla stessa domanda prima o poi divergono. (Qui la copia c'era: la
+// riunificazione dell'11/8 aveva raccolto `payouts` e `compensation` e saltato queste due.)
+const COMMISSION_CATEGORIES = CATEGORIE_COMPENSO;
 const APPOINTMENT_TYPES = ['call', 'televisit', 'in_person'];
 
 interface ApptRow {
@@ -272,7 +277,7 @@ export class CoachService {
     const expiringDays = await this.configParams.getNumber('expiring_plan_days', 14);
     const now = new Date();
     const horizon = new Date(now.getTime() + expiringDays * DAY);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthStart = inizioMese(now);
 
     const [clientsCount, expiring, openAlerts, monthAgg, totalAgg] = await Promise.all([
       this.prisma.clientProfile.count({ where: { assignedCoachId: { in: scope } } }),

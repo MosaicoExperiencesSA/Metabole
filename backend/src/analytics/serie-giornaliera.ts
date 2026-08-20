@@ -23,7 +23,7 @@
  * database e senza aspettare la mezzanotte.
  */
 
-import { giornoLocale } from '../common/date-only';
+import { giornoLocale, meseLocale } from '../common/date-only';
 
 /** `2026-08` → l'anno e il mese, o `null` se la stringa non è un mese. */
 export function leggiMese(mese: string | undefined | null): { anno: number; mese: number } | null {
@@ -35,8 +35,13 @@ export function leggiMese(mese: string | undefined | null): { anno: number; mese
   return { anno, mese: numero };
 }
 
-/** `2026-08` del mese in cui cade quell'istante, nel fuso dell'azienda. */
-export const meseDi = (d: Date): string => giornoLocale(d).slice(0, 7);
+/**
+ * `2026-08` del mese in cui cade quell'istante, nel fuso dell'azienda.
+ * Chiama `meseLocale` invece di rifare il taglio: la stessa domanda la fa anche la parte
+ * economica (`mesePeriodo`), e due tagli identici scritti in due file sono due tagli che un
+ * giorno smettono di essere identici.
+ */
+export const meseDi = (d: Date): string => meseLocale(d);
 
 /** Il mese prima (o dopo, con `passo` positivo) di `2026-08`. */
 export function meseSpostato(mese: string, passo: number): string {

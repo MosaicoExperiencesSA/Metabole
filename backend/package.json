@@ -86,7 +86,8 @@
     "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",
     "diag:ricerca": "ts-node --transpile-only prisma/diag-ricerca-alimenti.ts",
-    "converti:code": "ts-node --transpile-only prisma/converti-code-vecchie.ts"
+    "converti:code": "ts-node --transpile-only prisma/converti-code-vecchie.ts",
+    "diag:mese-confine": "ts-node --transpile-only prisma/diag-mese-confine.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

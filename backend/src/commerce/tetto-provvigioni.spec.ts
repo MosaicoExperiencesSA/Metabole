@@ -8,6 +8,8 @@
  * nutrizionisti oggi, ed è quello che non deve cambiare comportamento.
  */
 import { Test } from '@nestjs/testing';
+import { giornoDelMeseLocale } from '../common/date-only';
+import { inizioMese } from '../common/tetto-compensi';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -123,7 +125,12 @@ describe('FinanceService — tetto di guadagno mensile (§16.8)', () => {
     expect(where.staffId).toBe('staff-n');
     expect(where.category).toEqual({ in: ['sales_commission', 'visit_compensation'] });
     expect(where.date.gte).toBeInstanceOf(Date);
-    expect(where.date.gte.getDate()).toBe(1); // il primo del mese in corso
+    // Il primo del mese **a Roma**, non nel fuso del processo. La riga era
+    // `where.date.gte.getDate()).toBe(1)`, che è la formula stessa che il 20/8 si è rivelata
+    // sbagliata: mezzanotte di Roma dell'1 settembre sono le 22:00 UTC del 31 agosto, e su Render
+    // `getDate()` risponde 31. Un test che misura con lo strumento rotto certifica il difetto.
+    expect(giornoDelMeseLocale(where.date.gte)).toBe(1);
+    expect(where.date.gte.getTime()).toBe(inizioMese().getTime());
   });
 
   it('uno storno libera spazio sotto il tetto: il maturato negativo conta', async () => {

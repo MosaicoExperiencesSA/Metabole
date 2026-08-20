@@ -28,6 +28,7 @@ import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { coachTeamScope } from '../common/coach-team';
 import { aGiorno } from '../common/date-only';
+import { mesePeriodo } from '../common/tetto-compensi';
 import { avanzamentoPeso, FINESTRA_MASSIMA } from '../signals/percentuale-obiettivo';
 import { emettiEventoFunnel } from './funnel-event';
 import { assicuraProvaIniziata } from './prova-attivata';
@@ -2955,10 +2956,20 @@ export class CommerceService {
       for (const c of commissions) {
         await tx.ledgerEntry.delete({ where: { id: c.id } });
         if (c.staffId) {
-          const period = c.date.toISOString().slice(0, 7);
+          const period = mesePeriodo(c.date);
           const comp = (await tx.staffCompensation.findUnique({
             where: { staffId_period: { staffId: c.staffId, period } },
           })) as { amountCents: number; items: unknown } | null;
+          if (!comp) {
+            // Non è un caso impossibile e non deve passare in silenzio: la riga aggregata del
+            // periodo può mancare (righe storiche scritte con il mese UTC, o compenso già
+            // ripulito a mano). Il registro contabile resta la verità e viene stornato lo stesso;
+            // qui si perde solo l'allineamento del contatore, e chi legge «Storico mesi» vedrà un
+            // numero più alto del dovuto senza sapere perché.
+            this.logger.warn(
+              `[storno] compenso aggregato assente: staff=${c.staffId} periodo=${period} ref=${paymentId} — il registro è stornato, il contatore del mese no.`,
+            );
+          }
           if (comp) {
             const items = (Array.isArray(comp.items) ? comp.items : []) as { kind?: string; amountCents?: number; ref?: string }[];
             const idx = items.findIndex((it) => it.kind === 'sales_commission' && it.amountCents === c.amountCents && it.ref === c.ref);
@@ -3079,10 +3090,20 @@ export class CommerceService {
           } as never,
         });
         if (c.staffId) {
-          const period = new Date(c.date).toISOString().slice(0, 7);
+          const period = mesePeriodo(new Date(c.date));
           const comp = (await tx.staffCompensation.findUnique({
             where: { staffId_period: { staffId: c.staffId, period } },
           })) as { amountCents: number; items: unknown } | null;
+          if (!comp) {
+            // Non è un caso impossibile e non deve passare in silenzio: la riga aggregata del
+            // periodo può mancare (righe storiche scritte con il mese UTC, o compenso già
+            // ripulito a mano). Il registro contabile resta la verità e viene stornato lo stesso;
+            // qui si perde solo l'allineamento del contatore, e chi legge «Storico mesi» vedrà un
+            // numero più alto del dovuto senza sapere perché.
+            this.logger.warn(
+              `[storno] compenso aggregato assente: staff=${c.staffId} periodo=${period} ref=${paymentId} — il registro è stornato, il contatore del mese no.`,
+            );
+          }
           if (comp) {
             const items = (Array.isArray(comp.items) ? comp.items : []) as Record<string, unknown>[];
             items.push({ kind: 'sales_commission_refund', amountCents: -share, ref: paymentId });
