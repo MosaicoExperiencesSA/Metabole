@@ -16,7 +16,23 @@
  * Modulo **puro**: la regola vive in un posto, la usano il gate e l'erogazione.
  */
 
-/** Gli slot che una giornata deve avere, secondo la struttura della dieta. */
+/**
+ * Gli slot che una giornata deve avere, secondo la struttura della dieta.
+ *
+ * ⚠️ **LA STESSA DOMANDA È SCRITTA IN QUATTRO POSTI** (misurato il 20/8), e sul 3, sul 5 e sul
+ * digiuno rispondono uguale — c'è un test che lo tiene fermo (`catalog/quattro-pasti.spec.ts`):
+ *
+ *   · qui, `pastiAttesi` — il gate di completezza e l'erogazione;
+ *   · `engine-rules/copertura-catalogo.ts` → `slotAttesi` — la copertura del catalogo;
+ *   · `engine-rules.service.ts` riga ~341, in linea — il generatore;
+ *   · `engine-rules.service.ts` → `slotsForMeals` — il wizard di creazione.
+ *
+ * ⛔ **Sul 4 no.** Solo `slotsForMeals` sa cos'è una giornata da quattro pasti (colazione, pranzo,
+ * merenda, cena); qui e in `slotAttesi` il 4 viene trattato come un 3, e il generatore il 4 non lo
+ * conosce affatto e ricade sul 5. `update-client.dto.ts` intanto accetta `mealsPerDay` fra 3, 4 e 5.
+ * Non è stato corretto: prima serve sapere quante clienti abbiano 4 pasti in scheda —
+ * `npm run diag:pasti`.
+ */
 export function pastiAttesi(diet: { mealsPerDay?: number | null; fasting?: boolean | null }): string[] {
   if (diet.fasting) return ['lunch', 'afternoon_snack', 'dinner'];
   return diet.mealsPerDay === 5

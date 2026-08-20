@@ -1,0 +1,68 @@
+«Quanti pasti ha una giornata»: quattro funzioni, e sul 4 non dicono la stessa cosa — 20/8
+
+Continuando a misurare gli elenchi di slot (stessa famiglia della giornata), i cinque pasti in
+ordine risultano scritti a mano in **nove punti**, i tre pasti in **cinque**, quelli del digiuno in
+**quattro**. Sono tutti d'accordo, oggi, e non lo controlla nessuno.
+
+Ma sotto c'è una cosa più concreta.
+
+## LA STESSA DOMANDA IN QUATTRO POSTI
+
+«Quali pasti ha una giornata, data la struttura della dieta»:
+
+  · `catalog/giornate-complete.ts` → `pastiAttesi`      il gate di completezza e l'erogazione
+  · `engine-rules/copertura-catalogo.ts` → `slotAttesi` la copertura del catalogo
+  · `engine-rules.service.ts` riga ~341, in linea       il generatore
+  · `engine-rules.service.ts` → `slotsForMeals`         il wizard di creazione
+
+Sul **3**, sul **5** e sul **digiuno** rispondono uguale.
+
+⛔ **Sul 4 no.**
+
+  `pastiAttesi(4)`    → colazione, pranzo, cena              (tre)
+  `slotAttesi(4)`     → colazione, pranzo, cena              (tre)
+  generatore          → il 4 non lo conosce: ricade sul 5    (cinque)
+  `slotsForMeals(4)`  → colazione, pranzo, MERENDA, cena     (quattro)
+
+## E IL 4 SI PUÒ SCRIVERE
+
+`clients/dto/update-client.dto.ts` accetta `@IsIn([3, 4, 5]) mealsPerDay`. Il catalogo invece non ha
+mai diete a 4 pasti: le varianti nascono con `fasting ? 3 : meals === '5' ? 5 : 3`.
+
+Una cliente con 4 pasti in scheda: `pickDietFor` non trova nessuna variante a 4, e ricade sul
+«purché sia dello stesso regime» — le dà una dieta a 3 o a 5. ⚠️ Il fatto non è del tutto invisibile
+(lo scostamento «chiesto / servito» sulla scheda lo mostra), ma nessuno lo va a cercare se non sa
+che c'è da cercarlo.
+
+✅ **Perché non è un incendio:** il backoffice non propone mai il 4 — la scheda deduce i pasti dal
+percorso (`classic3 → 3`, `five → 5`, digiuno → 3). Il 4 può arrivare solo da uno script, da una
+chiamata all'API, o da un dato vecchio.
+
+## ⛔ NON HO CORRETTO NIENTE, E IL MOTIVO È SEMPRE QUELLO
+
+Quanto pesi dipende da **quante clienti abbiano 4 pasti in scheda**, ed è un numero che sta in banca
+dati. Oggi la differenza fra «l'ho misurato» e «mi torna» è già costata quattro volte.
+
+`npm run diag:pasti` (nuovo) conta le clienti per numero di pasti e, per quelle fuori da 3 e 5,
+dice **che dieta stanno ricevendo davvero** — letta dal menu vero, non rifacendo la scelta adesso
+(rifarla risponderebbe a una domanda diversa, e in modo diverso se il catalogo è cambiato).
+
+  · **Se è zero:** si toglie il 4 dal DTO e la questione è chiusa in una riga.
+  · **Se non è zero:** sono clienti che ricevono un piano con un numero di pasti diverso da quello
+    scritto sulla loro scheda, e va deciso cosa fare — o si aggiungono le varianti a 4 pasti al
+    catalogo, o si riportano a 3/5 dicendoglielo.
+
+## LE PROVE
+
+`src/catalog/quattro-pasti.spec.ts` (8 test): fissa che sul 3, sul 5 e sul digiuno le due funzioni
+combaciano, e **fissa la differenza sul 4** invece di lasciarla implicita.
+⚠️ Il verde di questi test non vuol dire che va bene: vuol dire che la differenza è ancora quella
+misurata, e che nessuno l'ha cambiata per sbaglio nel frattempo.
+⚠️ Un test copia la riga di `slotsForMeals` (che è privato). Di solito è la cosa da non fare — un
+test double che si comporta diversamente dall'originale non verifica niente — ma qui **la differenza
+È l'oggetto del test**, e la riga è annotata con il punto esatto da cui viene.
+
+E il commento su `pastiAttesi` e su `slotAttesi` adesso nomina tutte e quattro, così chi legge una
+sa delle altre tre.
+
+`npm run build` verde. 271 suite, 4093 test verdi, a cache svuotata.

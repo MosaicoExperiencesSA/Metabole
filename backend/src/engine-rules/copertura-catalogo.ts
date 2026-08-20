@@ -163,7 +163,15 @@ export async function coperturaCatalogo(
   return out;
 }
 
-/** I pasti che una variante DOVREBBE avere, dalla sua struttura: gli altri non sono buchi. */
+/**
+ * I pasti che una variante DOVREBBE avere, dalla sua struttura: gli altri non sono buchi.
+ *
+ * ⚠️ **Stessa domanda di `catalog/giornate-complete.ts → pastiAttesi`**, e di altre due in
+ * `engine-rules.service.ts` (il generatore in linea, e `slotsForMeals` del wizard). Sul 3, sul 5 e
+ * sul digiuno combaciano — `catalog/quattro-pasti.spec.ts` lo tiene fermo. ⛔ Sul **4** no: qui il 4
+ * diventa un 3, mentre `slotsForMeals` conosce una giornata da quattro pasti con la merenda.
+ * Vedi il commento esteso su `pastiAttesi` e `npm run diag:pasti`.
+ */
 export function slotAttesi(mealsPerDay: number, fasting: boolean): Slot[] {
   if (fasting) return ['lunch', 'afternoon_snack', 'dinner'];
   if (mealsPerDay >= 5) return [...SLOT_ORDINE];

@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🍽️ **«Quanti pasti ha una giornata»: quattro funzioni, e sul 4 non dicono la stessa
+  cosa.** I cinque pasti in ordine sono scritti a mano in **nove punti**, i tre in cinque, quelli del
+  digiuno in quattro: tutti d'accordo oggi, e non lo controlla nessuno. Sotto però c'è una cosa più
+  concreta: la domanda «quali pasti ha una giornata» è scritta in quattro posti — `pastiAttesi` (il
+  gate e l'erogazione), `slotAttesi` (la copertura), il generatore in linea, e `slotsForMeals` (il
+  wizard). Sul 3, sul 5 e sul digiuno combaciano. ⛔ **Sul 4 no**: le prime due lo trattano come un
+  3, il generatore non lo conosce e ricade sul 5, e solo `slotsForMeals` sa che una giornata da
+  quattro pasti ha la merenda.
+  ⛔ **E il 4 si può scrivere**: `update-client.dto.ts` accetta `@IsIn([3, 4, 5])`, mentre il
+  catalogo non ha mai diete a 4 pasti. Una cliente messa a 4 non trova nessuna variante e
+  `pickDietFor` ricade sul «purché sia dello stesso regime»: le dà una dieta a 3 o a 5. ⚠️ Non è del
+  tutto invisibile — lo scostamento «chiesto / servito» sulla scheda lo mostra — ma nessuno lo va a
+  cercare se non sa che c'è da cercarlo.
+  ✅ **Perché non è un incendio**: il backoffice il 4 non lo propone mai, deduce i pasti dal percorso
+  (`classic3 → 3`, `five → 5`, digiuno → 3). Il 4 può arrivare solo da uno script, dall'API o da un
+  dato vecchio.
+  ⛔ **Non ho corretto niente**, e il motivo è sempre quello: quanto pesi dipende da quante clienti
+  abbiano 4 pasti in scheda, ed è un numero che sta in banca dati. `npm run diag:pasti` (nuovo) le
+  conta e, per quelle fuori da 3 e 5, dice **che dieta stanno ricevendo davvero** — letta dal menu
+  vero, non rifacendo la scelta adesso. Se è zero si toglie il 4 dal DTO in una riga; se non è zero
+  sono clienti che ricevono un piano diverso da quello scritto sulla loro scheda.
+  🧪 8 test che fissano la differenza invece di lasciarla implicita. ⚠️ Il loro verde non vuol dire
+  che va bene: vuol dire che la differenza è ancora quella misurata.
+  🔢 Build verde, 271 suite, 4093 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🔐 **«Chi vede tutte le clienti» stava scritto in quattro file.**
   `const MANAGER_ROLES = ['admin', 'head_nutritionist', 'sales']`, copiato **identico** in
   `alerts.service.ts`, `analytics.service.ts`, `dashboard.service.ts` e
