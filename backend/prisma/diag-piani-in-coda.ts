@@ -51,8 +51,27 @@ async function main() {
     console.log('');
     console.log(`Righe con un piano (active + queued): ${righe.length}`);
     console.log(`In coda (partenza nel futuro):        ${inCoda.length}`);
-    console.log(`  · nella forma VECCHIA (active):     ${formaVecchia.length}  ← le convertirà la consegna dopo`);
+    console.log(`  · nella forma VECCHIA (active):     ${formaVecchia.length}${formaVecchia.length ? '  ← da convertire: CONFERMA=1 npm run converti:code' : ''}`);
     console.log(`  · con lo stato nuovo (queued):      ${formaNuova.length}`);
+    /**
+     * ⚠️ **LA FORMA VECCHIA NON È SOTTO LA RETE DI SICUREZZA NUOVA** — scritto il 20/8 leggendo la
+     * fotografia vera, dove sono ancora 4 (la riga qui sopra diceva «le convertirà la consegna
+     * dopo», e la consegna è passata: un testo che descrive un futuro già arrivato smette di essere
+     * un promemoria e diventa una scusa).
+     *
+     * Dal 19/8 sera `promuoviCodeArrivate` **rifiuta** di far partire una coda che finirebbe addosso
+     * a un piano ancora in corso, e apre una segnalazione. ⛔ Ma cerca `status: 'queued'`: le righe
+     * nella forma vecchia — `active` con la partenza nel futuro — **non le vede**. Quel giorno
+     * partono da sole, perché bastano le date, e nessuno controlla niente.
+     */
+    if (formaVecchia.length) {
+      console.log('');
+      console.log('⚠️ Le code nella forma VECCHIA non passano dal lavoro notturno: cercando `queued`, lui');
+      console.log('   non le vede. Partiranno da sole alla loro data — senza il controllo che dal 19/8');
+      console.log('   impedisce a una coda di finire addosso a un piano ancora in corso, e senza finire');
+      console.log('   nel registro né fra i piani in ritardo. `CONFERMA=1 npm run converti:code` le porta');
+      console.log('   sotto la stessa rete di tutte le altre. ⚠️ Va fatto PRIMA della loro data di partenza.');
+    }
     if (formaNuova.length) {
       console.log('');
       console.log('⚠️ Ci sono già righe `queued` e in questa consegna NESSUNO le scrive.');

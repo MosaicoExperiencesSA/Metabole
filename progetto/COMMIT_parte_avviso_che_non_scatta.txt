@@ -1,0 +1,57 @@
+--------------------------------------------------------------------------------
+Parte: un avviso che non poteva piu scattare, e quattro code fuori dalla rete — 20/8
+--------------------------------------------------------------------------------
+
+Le due diagnostiche girate in produzione stamattina. Tutte e due dicono che il lavoro di ieri
+regge — e tutte e due hanno mostrato una cosa che non andava, nel modo in cui la RACCONTANO.
+
+1) «⚠️ DI QUESTE NE POSSONO SCATTARE 40» — NON ERA PIU VERO
+
+`diag:ricerca` apriva con quella riga. Era giusta finche il modo era il pezzo di parola. Dalla
+sera del 19/8 il modo e `parole_intere`: nessuna di quelle quaranta trappole puo piu scattare —
+e la riga continuava a gridare quaranta, VENTI RIGHE SOPRA un'altra riga dello stesso programma
+che diceva «il modo in produzione adesso e: parole_intere».
+
+⛔ Un avviso che non puo piu scattare fa credere che stia proteggendo qualcosa. E la stessa
+regola per cui il 19/8 sera ho tolto un controllo morto da `abbinamento-alimenti.ts` — qui era
+peggio, perche il numero era grosso e allarmante.
+
+Adesso la frase DIPENDE DAL MODO, che e l'unica cosa che la rende vera in tutti e due i casi:
+col pezzo di parola grida, a parole intere dice quello che quelle righe sono davvero — la
+LISTA DELLA SPESA della tabella alimenti. Il giorno che il modo tornasse indietro, tornerebbe
+indietro anche l'avviso.
+
+⚠️ E il contenuto di quella lista, adesso che si legge per quello che e, e piu interessante di
+prima. Coi 60 nomi si vedono cose che a 20 non si vedevano:
+
+    «sottolio»   →  «olio»       il tonno sott'olio contato come olio d'oliva
+    «paneer»     →  «pane»       il formaggio indiano contato come pane
+    «rapanelli»  →  «pane»
+    «papera»     →  «pera»
+    «purea»      →  «pure»       ⚠️ c'e una riga in tabella che si chiama «pure»: da guardare
+
+E fra quelle GIUSTE, tre nuove che prima non si vedevano: broccolini→broccoli,
+cetriolini→cetrioli, spinacini→spinaci.
+
+2) QUATTRO CODE SONO FUORI DALLA RETE DI SICUREZZA NUOVA, E DUE PARTONO IL 22/08
+
+`diag:coda` e pulita — zero sovrapposizioni, zero code fermate, zero code scadute — ma dice
+anche: quattro piani in coda sono ancora nella FORMA VECCHIA (`active` con la partenza nel
+futuro). Due partono il 22/08, due il 31/08.
+
+⛔ Dal 19/8 sera `promuoviCodeArrivate` rifiuta di far partire una coda che finirebbe addosso a
+un piano ancora in corso, e apre una segnalazione. Ma cerca `status: 'queued'`: quelle quattro
+righe NON LE VEDE. Il giorno della loro data partono da sole, perche bastano le date, e nessuno
+controlla niente — ne finiscono nel registro, ne fra i piani in ritardo.
+
+`CONFERMA=1 npm run converti:code` le porta sotto la stessa rete di tutte le altre. ⚠️ Va fatto
+PRIMA della loro data di partenza, quindi entro il 21/08.
+
+⚠️ E la riga della diagnostica diceva ancora «← le convertira la consegna dopo». La consegna e
+passata. Un testo che descrive un futuro gia arrivato smette di essere un promemoria e diventa
+una scusa: adesso dice il comando da lanciare, e spiega cosa succede se non si lancia.
+
+FILE
+- backend/prisma: `diag-ricerca-alimenti.ts` · `diag-piani-in-coda.ts`
+
+245 suite / 3861 test verdi. Nessuna migrazione.

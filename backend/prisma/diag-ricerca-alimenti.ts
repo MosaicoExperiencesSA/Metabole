@@ -126,6 +126,30 @@ async function trappoleDellaTabella() {
   }
   const inTabella = new Set(alimenti.flatMap(nomiDi));
   const paroleInTabella = new Set([...inTabella].flatMap((n) => paroleChe(n)));
+  /**
+   * ⚠️ **COME SI CHIAMA DAVVERO** — e questa riga nasce da un mio errore del 20/8 mattina.
+   *
+   * Qui si lavora su nomi **normalizzati** (senza accenti né apostrofi), perché è così che si
+   * confrontano. Ma stampare la forma normalizzata fa sembrare **rotta** una riga che è giusta: ho
+   * letto «purea → risponderebbe **pure**» e ho scritto a Simone che in tabella c'era una riga
+   * chiamata «pure», «probabilmente un *purè* a cui è caduto l'accento in fase di import».
+   *
+   * ⛔ Non era vero: l'import scrive il nome **verbatim**, `normalizzaNome` serve solo ai confronti.
+   * Quel «pure» era la stampa di un «purè» perfettamente in ordine — cioè **la diagnostica aveva
+   * mangiato l'accento e io ho dato la colpa ai dati**. Gli ho fatto cercare un fantasma.
+   *
+   * ⚠️ *Una diagnostica che mostra i nomi storpiati manda le persone a caccia di errori che non ci
+   * sono, e ci va per prima chi l'ha scritta.* Adesso si stampa il nome vero, e la forma
+   * normalizzata resta dov'è: dentro i confronti, dove serve.
+   */
+  const nomeVero = new Map<string, string>();
+  for (const a of alimenti) {
+    for (const n of [a.name, ...(a.synonyms ?? [])]) {
+      const k = normalizzaNome(n);
+      if (k && !nomeVero.has(k)) nomeVero.set(k, n);
+    }
+  }
+  const comeSiChiama = (n: string) => (nomeVero.get(n) === n ? n : `${nomeVero.get(n) ?? n}`);
 
   const trappole: { corto: string; lungo: string; quante: number; scatta: boolean }[] = [];
   for (const corto of inTabella) {
@@ -145,20 +169,47 @@ async function trappoleDellaTabella() {
   trappole.sort((a, b) => Number(b.scatta) - Number(a.scatta) || b.quante - a.quante);
 
   const scattano = trappole.filter((t) => t.scatta);
-  console.log(`   Coppie trovate: ${trappole.length}. ⚠️ Di queste ne possono scattare ${scattano.length}.`);
-  console.log('   («scatta» = la parola lunga in tabella NON c\'è, quindi non può vincere lei)');
+  /**
+   * ⚠️ **QUESTA INTESTAZIONE MENTIVA DAL 19/8 SERA, E L'HO VISTA SOLO RILEGGENDO L'OUTPUT VERO.**
+   *
+   * Diceva «⚠️ di queste ne possono scattare 40», ed era giusto **finché il modo era il pezzo di
+   * parola**. Dalla sera del 19/8 il modo è `parole_intere`: nessuna di quelle trappole può più
+   * scattare, e la riga continuava a gridare — venti righe sopra un'altra riga dello stesso
+   * programma che diceva «il modo in produzione adesso è: parole_intere».
+   *
+   * ⛔ *Un avviso che non può più scattare fa credere che stia proteggendo qualcosa*, ed è la stessa
+   * regola per cui il 19/8 sera ho tolto un controllo morto da `abbinamento-alimenti.ts`. Qui era
+   * peggio, perché il numero era grosso e allarmante: 40.
+   *
+   * ✅ Adesso la frase **dipende dal modo**, che è l'unica cosa che la rende vera in tutti e due i
+   * casi — e il giorno che il modo tornasse indietro, tornerebbe indietro anche l'avviso.
+   */
+  const pericolose = MODO_DI_OGGI === 'pezzo_di_parola';
+  console.log(`   Coppie trovate: ${trappole.length}, di cui ${scattano.length} su una parola che in tabella NON c'è.`);
+  if (pericolose) {
+    console.log(`   ⚠️ Il modo è «${MODO_DI_OGGI}»: tutte e ${scattano.length} POSSONO SCATTARE — Gaia`);
+    console.log('      risponderebbe con le calorie dell\'alimento a destra.');
+  } else {
+    console.log(`   ✅ Il modo è «${MODO_DI_OGGI}»: nessuna di queste può scattare — su questi nomi Gaia`);
+    console.log('      dice «non ce l\'ho», che è la risposta giusta finché la riga non c\'è.');
+    console.log('   ⚠️ Resta però la LISTA DELLA SPESA: ogni riga qui sotto è un alimento vero, usato');
+    console.log('      nelle ricette, che in tabella manca — e finché manca il conto lo salta.');
+  }
   console.log('');
   for (const t of scattano.slice(0, QUANTI)) {
-    console.log(`     ⚠️ ${String(t.quante).padStart(5)} usi   «${t.lungo}»  →  risponderebbe «${t.corto}»`);
+    const freccia = pericolose
+      ? `→  risponderebbe «${comeSiChiama(t.corto)}»`
+      : `(il conto lo salta · somiglia a «${comeSiChiama(t.corto)}»)`;
+    console.log(`     ${pericolose ? '⚠️' : ' ·'} ${String(t.quante).padStart(5)} usi   «${t.lungo}»  ${freccia}`);
   }
   if (scattano.length > QUANTI) console.log(`     … e altre ${scattano.length - QUANTI} (QUANTI=n per vederne di più)`);
   if (!scattano.length) console.log('     Nessuna: ogni parola lunga ha già la sua riga in tabella.');
   console.log('');
 
   const chiuse = trappole.filter((t) => !t.scatta);
-  console.log(`   Le altre ${chiuse.length} sono chiuse: la parola lunga è in tabella e vince lei.`);
+  console.log(`   Le altre ${chiuse.length} hanno la parola lunga già in tabella: lì non manca niente.`);
   for (const t of chiuse.slice(0, Math.min(5, QUANTI))) {
-    console.log(`        ${String(t.quante).padStart(5)} usi   «${t.lungo}» contiene «${t.corto}» — ma «${t.lungo}» c'è`);
+    console.log(`        ${String(t.quante).padStart(5)} usi   «${t.lungo}» contiene «${comeSiChiama(t.corto)}» — ma «${t.lungo}» c'è`);
   }
   console.log('');
 }

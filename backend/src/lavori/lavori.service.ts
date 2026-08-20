@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { eViolazioneUnicita } from '../common/violazione-unicita';
 import { PrismaService } from '../prisma/prisma.service';
 import { DatiLavoro, datiRisposta, datiSpunta, normalizzaLavoro, ordinaLavori, testoPerClaude } from './lavoro';
 import { VOCI_INIZIALI } from './voci-iniziali';
@@ -13,6 +15,8 @@ import { VOCI_INIZIALI } from './voci-iniziali';
 
 @Injectable()
 export class LavoriService {
+  private readonly logger = new Logger(LavoriService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -273,9 +277,31 @@ export class LavoriService {
         const { fatta, soloSeEsiste: _soloSeEsiste, nata, priorita, ...campi } = v;
         const nataIl = nata && !Number.isNaN(new Date(nata).getTime()) ? new Date(nata) : null;
         const dati = { ...campi, ...(nataIl ? { nataIl } : {}), ...(priorita ? { priorita } : {}) };
-        await this.prisma.lavoro.create({
-          data: fatta ? { ...dati, ...datiSpunta(true, null, new Date()) } : dati,
-        });
+        try {
+          await this.prisma.lavoro.create({
+            data: fatta ? { ...dati, ...datiSpunta(true, null, new Date()) } : dati,
+          });
+        } catch (e) {
+          /**
+           * ⚠️ **UNA VOCE GIÀ CREATA DA QUALCUN ALTRO NON DEVE FAR SALTARE LE SPUNTE** — 20/8.
+           *
+           * Da ieri questo caricamento gira **da solo** a ogni deploy, e il passaggio da pulsante ad
+           * automatismo cambia cosa vuol dire un errore: davanti al pulsante c'era una persona che
+           * lo leggeva e rilanciava. Qui no.
+           *
+           * `chiave` è `@unique`, e due deploy ravvicinati sono un caso **già visto e documentato**
+           * in `render.yaml` (il retry sul lock delle migrazioni nasce da lì). Se il secondo giro
+           * incontra una voce che il primo ha appena creato, senza questo `catch` l'eccezione
+           * abortiva **tutto l'allineamento** — comprese le spunte, che vengono dopo. ⛔ Cioè il caso
+           * più innocuo possibile («c'era già») produceva il danno che questo script esiste per
+           * evitare: una lista che non dice la verità.
+           *
+           * ⚠️ Solo la violazione di unicità si ingoia. Un errore diverso è un guasto, e un guasto
+           * che si ingoia diventa un automatismo che non fa niente e dice che è andato tutto bene.
+           */
+          if (!eViolazioneUnicita(e)) throw e;
+          this.logger.warn(`Lavori: «${v.titolo}» c'era già (creata da un altro giro): vado avanti.`);
+        }
       }
       for (const d of daDatare) {
         await this.prisma.lavoro.update({ where: { id: d.id }, data: { nataIl: d.nataIl } });

@@ -1,0 +1,41 @@
+--------------------------------------------------------------------------------
+Parte: l allineamento automatico non si fa fermare da una voce gia creata — 20/8
+--------------------------------------------------------------------------------
+
+Ieri sera ho consegnato uno script che gira DA SOLO a ogni deploy sulla lista Lavori, e non l
+avevo mai fatto girare. Fatto girare stamattina, e ha mostrato un difetto vero — che non e nel
+codice di ieri, ma nel PASSAGGIO da pulsante ad automatismo.
+
+⛔ IL CASO PIU INNOCUO POSSIBILE PRODUCEVA IL DANNO CHE LO SCRIPT ESISTE PER EVITARE
+
+`chiave` e `@unique`. Due deploy ravvicinati sono un caso GIA VISTO E DOCUMENTATO in
+`render.yaml` — il retry sul lock delle migrazioni nasce esattamente da li. Se il secondo giro
+incontrava una voce che il primo aveva appena creato, l eccezione abortiva TUTTO l allineamento:
+e le spunte vengono DOPO le creazioni.
+
+Cioe: «questa voce c era gia» — la cosa piu innocua che possa succedere — lasciava la lista a
+raccontare come aperto un lavoro finito. Che e precisamente la cosa che ieri Simone mi ha
+chiesto di smettere di fargli fare a mano.
+
+⚠️ Davanti al pulsante c era una persona che leggeva l errore e rilanciava. Qui no: un automatismo
+che gira senza nessuno davanti deve resistere ai casi normali, non solo a quelli ideali.
+
+⚠️ E SI INGOIA SOLO LA VIOLAZIONE DI UNICITA
+
+Un errore diverso risale. Un guasto che si ingoia diventa un automatismo che non fa niente e
+dice che e andato tutto bene — su un passo che gira da solo, di notte, e la cosa peggiore che
+possa fare.
+
+LO SCRIPT, PER LANCIARLO A MANO
+
+  npm run allinea:lavori              # dice cosa farebbe, non scrive
+  CONFERMA=1 npm run allinea:lavori   # scrive
+
+Stampa i TITOLI di quello che chiude, non i numeri: «3 voci spuntate» non si puo verificare,
+«ho chiuso *Moduli fissi in dashboard*» si — e se ho chiuso la voce sbagliata si vede leggendo.
+E l unico modo in cui un automatismo che tocca l elenco di qualcun altro si puo controllare.
+
+FILE
+- backend/lavori: `lavori.service.ts` + spec (2 test nuovi)
+
+245 suite / 3861 test verdi. Due mutazioni provate: mordono tutte e due. Nessuna migrazione.

@@ -18,6 +18,57 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-20
+
+- `[Sviluppo]` 🙈 **La diagnostica mangiava gli accenti, e ho dato la colpa ai dati.** Leggendo
+  `diag:ricerca` ho visto «purea → risponderebbe **pure**» e ho scritto a Simone che in tabella c'era
+  una riga chiamata «pure», «probabilmente un *purè* a cui è caduto l'accento in fase di import», da
+  guardare. ⛔ **Non era vero**: l'import scrive il nome verbatim, `normalizzaNome` serve solo ai
+  confronti. Quel «pure» era la stampa di un «purè» perfettamente in ordine. ⚠️ Gli ho fatto cercare
+  un fantasma — e l'ho fatto nello stesso messaggio in cui gli spiegavo che un avviso che non può
+  scattare fa credere di proteggere qualcosa: **la stessa specie di errore, in mano mia, due
+  paragrafi più sotto.** Ora la sezione lavora sui nomi normalizzati (deve: è così che si
+  confrontano) ma **stampa il nome vero**. *Una diagnostica che mostra i nomi storpiati manda le
+  persone a caccia di errori che non ci sono, e ci va per prima chi l'ha scritta.*
+
+- `[Sviluppo]` 📢 **Un avviso che non poteva più scattare, e continuava a gridare quaranta.**
+  `diag:ricerca` apriva con «⚠️ di queste ne possono scattare 40» — vero finché il modo era il pezzo
+  di parola, **falso dalla sera del 19/8**, quando il modo è passato a `parole_intere`. E la riga
+  stava venti righe sopra un'altra riga dello stesso programma che diceva «il modo in produzione
+  adesso è: parole_intere». ⛔ *Un avviso che non può più scattare fa credere che stia proteggendo
+  qualcosa* — la stessa regola per cui il 19/8 sera ho tolto un controllo morto da
+  `abbinamento-alimenti.ts`; qui era peggio, perché il numero era grosso e allarmante. ✅ Adesso la
+  frase **dipende dal modo**: col pezzo di parola grida, a parole intere dice quello che quelle righe
+  sono davvero — la **lista della spesa** della tabella alimenti.
+  ⚠️ E letta per quello che è, con 60 nomi invece di 20, dice cose nuove: «sottolio»→olio (il tonno
+  sott'olio contato come olio d'oliva), «paneer»→pane, «rapanelli»→pane, «papera»→pera, e
+  «purea»→**«pure»**, che vuol dire che in tabella c'è una riga chiamata così: da guardare.
+
+- `[Sviluppo]` ⏳ **Quattro code sono fuori dalla rete di sicurezza nuova, e due partono il 22/08.**
+  `diag:coda` è pulita (zero sovrapposizioni, zero code fermate, zero scadute), ma dice anche che
+  quattro piani in coda sono ancora nella **forma vecchia** — `active` con la partenza nel futuro.
+  ⛔ Dal 19/8 sera il lavoro notturno rifiuta di far partire una coda che finirebbe addosso a un
+  piano ancora in corso e apre una segnalazione — ma cerca `status: 'queued'` e **quelle quattro non
+  le vede**: partiranno da sole alla loro data, senza che nessuno controlli niente.
+  `CONFERMA=1 npm run converti:code` le porta sotto la stessa rete, e va fatto **entro il 21/08**.
+  ⚠️ La diagnostica diceva ancora «← le convertirà la consegna dopo», e la consegna è passata: *un
+  testo che descrive un futuro già arrivato smette di essere un promemoria e diventa una scusa*.
+
+- `[Sviluppo]` 🧯 **L'allineamento automatico della lista non si fa più fermare da una voce già
+  creata.** Ieri sera ho consegnato uno script che gira **da solo** a ogni deploy e non l'avevo mai
+  fatto girare — è esattamente il genere di cosa che ieri mi ha morso cinque volte. Fatto girare
+  stamattina: il difetto non è nel codice, è nel **passaggio da pulsante ad automatismo**.
+  ⛔ `chiave` è `@unique`, e due deploy ravvicinati sono un caso **già visto e documentato** in
+  `render.yaml` (il retry sul lock delle migrazioni nasce da lì). Se il secondo giro incontrava una
+  voce che il primo aveva appena creato, l'eccezione **abortiva tutto l'allineamento** — e le spunte
+  vengono dopo le creazioni. Cioè «questa voce c'era già», la cosa più innocua che possa succedere,
+  lasciava la lista a raccontare come aperto un lavoro finito: precisamente ciò che Simone mi aveva
+  chiesto di smettere di fargli fare a mano. ⚠️ *Davanti al pulsante c'era una persona che leggeva
+  l'errore e rilanciava. Qui no.*
+  ⚠️ E si ingoia **solo** la violazione di unicità: un guasto che si ingoia diventa un automatismo
+  che non fa niente e dice che è andato tutto bene — su un passo che gira senza nessuno davanti, è
+  la cosa peggiore che possa fare.
+
 ## 2026-08-19
 
 - `[Sviluppo]` 🤖 **La lista si allinea da sola a ogni rilascio** (Simone: «non devo spuntare io le

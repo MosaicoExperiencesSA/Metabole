@@ -1,0 +1,33 @@
+--------------------------------------------------------------------------------
+Parte: la diagnostica mangiava gli accenti, e io ho dato la colpa ai dati — 20/8
+--------------------------------------------------------------------------------
+
+Stamattina, leggendo l'output di `diag:ricerca`, ho visto:
+
+    ⚠️  14 usi   «purea»  →  risponderebbe «pure»
+
+e ho scritto a Simone che in tabella c'era una riga chiamata «pure», «probabilmente un purè a cui
+e caduto l'accento in fase di import», e che era da guardare.
+
+⛔ NON ERA VERO. L'import scrive il nome VERBATIM: `normalizzaNome` in quello script serve solo ai
+confronti, non entra mai nella colonna. Quel «pure» era la stampa di un «purè» perfettamente in
+ordine — cioe LA DIAGNOSTICA AVEVA MANGIATO L'ACCENTO E IO HO DATO LA COLPA AI DATI.
+
+⚠️ Gli ho fatto cercare un fantasma. E l'ho fatto nello stesso messaggio in cui gli spiegavo che
+un avviso che non puo scattare fa credere di proteggere qualcosa: la stessa specie di errore, in
+mano mia, due paragrafi piu sotto.
+
+Correzione: la sezione 1 lavora sui nomi normalizzati (deve: e cosi che si confrontano) ma
+STAMPA IL NOME VERO. La forma normalizzata resta dov'e, dentro i confronti, dove serve.
+
+⚠️ *Una diagnostica che mostra i nomi storpiati manda le persone a caccia di errori che non ci
+sono, e ci va per prima chi l'ha scritta.*
+
+Adesso quella riga dice:
+
+     ·   14 usi   «purea»  (il conto lo salta · somiglia a «purè»)
+
+FILE
+- backend/prisma: `diag-ricerca-alimenti.ts`
+
+245 suite / 3861 test verdi. Nessuna migrazione.

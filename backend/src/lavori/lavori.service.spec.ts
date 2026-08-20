@@ -430,3 +430,56 @@ describe('chiudere per titolo le voci scritte a mano', () => {
     expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
   });
 });
+/**
+ * ⚠️ DA IERI QUESTO CARICAMENTO GIRA DA SOLO A OGNI DEPLOY, e il passaggio da pulsante ad
+ * automatismo cambia cosa vuol dire un errore: davanti al pulsante c'era una persona che lo leggeva
+ * e rilanciava. Qui no.
+ */
+describe('l\'allineamento automatico non si fa fermare da una voce già creata', () => {
+  const violazione = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+
+  const prismaCon = (createImpl: jest.Mock) => ({
+    lavoro: {
+      findMany: jest.fn().mockImplementation((args: any) => {
+        const w = args?.where ?? {};
+        if ('chiave' in w && w.chiave === null) return Promise.resolve([]);
+        // In pagina c'è solo una voce, e il file ne dichiara una finita: la spunta è quella.
+        return Promise.resolve([
+          { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false, nataIl: null },
+        ]);
+      }),
+      count: jest.fn().mockResolvedValue(0),
+      create: createImpl,
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+  });
+
+  /**
+   * ⛔ Il caso più innocuo possibile — «c'era già», due deploy ravvicinati — produceva il danno che
+   * lo script esiste per evitare: l'eccezione abortiva tutto, **spunte comprese**, e la lista
+   * restava a raccontare come aperto un lavoro finito.
+   */
+  it('⚠️ una voce duplicata non impedisce le SPUNTE, che sono la parte che serve', async () => {
+    const create = jest.fn().mockRejectedValue(violazione);
+    const prisma = prismaCon(create);
+    const service = new LavoriService(prisma as never);
+    jest.spyOn((service as never as { logger: { warn: jest.Mock } }).logger, 'warn').mockImplementation(() => undefined);
+
+    await expect(service.caricaVociIniziali(true)).resolves.toBeDefined();
+    expect(prisma.lavoro.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'l1' } }),
+    );
+  });
+
+  /**
+   * ⚠️ E un errore DIVERSO risale. Un guasto che si ingoia diventa un automatismo che non fa niente
+   * e dice che è andato tutto bene — che su un passo che gira senza nessuno davanti è la cosa
+   * peggiore che possa fare.
+   */
+  it('⚠️ un guasto vero NON si ingoia: risale', async () => {
+    const create = jest.fn().mockRejectedValue(new Error('Neon ha chiuso la connessione'));
+    const service = new LavoriService(prismaCon(create) as never);
+    await expect(service.caricaVociIniziali(true)).rejects.toThrow('Neon ha chiuso');
+  });
+});
