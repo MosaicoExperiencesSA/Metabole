@@ -20,6 +20,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🥕 **I 173 alimenti rifatti, caricati — e un numero sbagliato scritto da me.**
+  ⛔ **Nella consegna 71 avevo scritto «da 11 a 9 voci aperte». Erano 11.** Le avevo contate *prima*
+  delle ultime due chiusure e poi ho scritto il risultato che mi aspettavo invece di ricontarle: è
+  esattamente la cosa che passo la giornata a trovare nel codice, fatta da me su un numero in un
+  messaggio di commit. Il conto vero: la 71 è andata da **13 a 11**, questa da **11 a 10**.
+  ✅ **Il foglio rifatto è passato a SEI controlli invece che a uno.** La prima volta ne avevo fatto
+  uno — la coerenza Atwater — e avevo detto che era buono mentre 173 righe su 245 erano copiate.
+  Adesso: **guardia dei gemelli → zero riempimenti** (restano 13 gruppi di valori identici, tutti lo
+  stesso alimento scritto in modi diversi: «pomodorini / pomodoro ciliegia», «filetto di merluzzo /
+  merluzzo filetto»); Atwater → sei righe fuori tolleranza, tutte e sei spiegate dall'alcol (vino,
+  tre aceti: 7 kcal/g, nei macro non c'è) o dalla fibra; stati tutti riconosciuti; affidabilità IG
+  tutte ammesse; nessun nome doppio; nessun valore impossibile. I valori distinti di kcal passano da
+  **50 a 127** su 245 righe.
+  ⚠️ **Due cose misurate e non corrette.** La colonna dei **carboidrati** non usa sempre la stessa
+  convenzione: 22 righe hanno più fibra che carboidrati (fibra esclusa, come il CREA), ma tre —
+  `tahina`, `lievito nutrizionale`, `burro di arachidi naturale` — sommano oltre 100 g su 100, cioè
+  lì la fibra è **dentro**. Sono 9, 20 e 6 g su alimenti che si usano a cucchiai: non sposta un
+  piano, e non sono numeri miei da aggiustare. E la colonna **`category`** è rimasta quella del
+  riempimento: **19 alimenti sopra le 150 kcal** sono etichettati «verdura» (tahina, miele, ghee,
+  sesamo, tempeh, cacao). ✅ Non blocca: `category` serve solo a ordinare l'elenco nella pagina
+  Alimenti, non entra nei macro né nel menu. ⛔ E non le ho indovinate io.
+  🧪 Il test che diceva «il foglio non si può caricare» adesso dice il contrario, **e il numero
+  vecchio resta nel commento**: è il motivo per cui la guardia esiste. Mutazione provata.
+  🕐 **E nella stessa consegna, il fuso: il gruppo che credevo «solo grafici».** La voce diceva
+  «restano l'analitica, i report, il marketing e gli agenti — dove un giorno spostato cambia un
+  grafico». ⛔ **Guardandoli davvero era sbagliata in cinque punti su sei**, ed era scritta a memoria
+  invece che misurata. **`marketing/lifecycle`** decide **a chi parte una email oggi**: alle 00:30
+  italiane una cliente la riceveva con un giorno di ritardo. **`agents`** decide se un agente
+  giornaliero ha già girato oggi: alle 00:30 rispondeva di no e lo rimetteva in coda.
+  **`reports/plan-report`** aveva **due domande in una funzione sola** (`day0`, chiamata sia su
+  `new Date()` sia su `sub.startDate`) — lo stesso miscuglio di `coach-tasks.day()` di stamattina, e
+  il motivo per cui il difetto non si vedeva. ✅ Tutti e tre corretti. ⚠️ **`dashboard` e `crm` non
+  avevano niente**: li avevo elencati senza guardarli. **`serie-giornaliera` era già giusto.**
+  ✅ `date-only.ts` ha ora `giornoDelDato(d)`, l'altra metà di `aGiorno`: il giorno di una data
+  **salvata**, in UTC di proposito — e che non dipende da come è configurata la macchina.
+  🔢 Build verde, 274 suite, 4128 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🧹 **«Continuano ad aumentare invece che chiudersi.»** Simone ha ragione, e **tre
   delle voci che avevo aperto stasera non erano lavori**: erano cose che potevo decidere io.
   ⛔ **«vino» dentro «bovino» — corretto, non chiesto.** Avevo aperto una voce per farglielo

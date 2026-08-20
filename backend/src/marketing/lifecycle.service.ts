@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { aGiorno } from '../common/date-only';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
@@ -173,12 +174,22 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
     return this.config.get<string>('PUBLIC_API_URL') ?? 'https://metabole-backend.onrender.com';
   }
 
+  /**
+   * ⚠️ **«Oggi più N giorni» — e «oggi» è quello di Roma, dal 20/8 sera.**
+   *
+   * Prima era `new Date()` + `setHours(0,0,0,0)`, cioè la mezzanotte del fuso del **processo**: su
+   * Render `TZ` non è impostata, quindi UTC. Fra mezzanotte e le 02:00 in Italia questa funzione
+   * rispondeva **ieri**.
+   *
+   * ⛔ E qui non è un grafico storto: questi intervalli decidono **a chi parte una email oggi** —
+   * il giorno 3, il giorno 6, il richiamo del giorno 14. Una cliente che entra nella finestra alle
+   * 00:30 la riceveva con un giorno di ritardo, o due volte se il cron ripassava. È lo stesso
+   * difetto delle misure e dei soldi, sul canale che parla alle clienti.
+   */
   private dayRange(offsetDays: number): { gte: Date; lt: Date } {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() + offsetDays);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    const oggi = aGiorno(new Date());
+    const start = new Date(oggi.getTime() + offsetDays * 86_400_000);
+    const end = new Date(start.getTime() + 86_400_000);
     return { gte: start, lt: end };
   }
 

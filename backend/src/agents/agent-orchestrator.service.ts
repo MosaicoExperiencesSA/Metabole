@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { aGiorno } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentRunnerService, CRON_INPUT_PREFIX } from './agent-runner.service';
 
@@ -94,8 +95,13 @@ export class AgentOrchestratorService implements OnModuleInit, OnModuleDestroy {
       where: { enabled: true, archivedAt: null },
       select: { id: true, key: true, tools: true, engine: true },
     })) as { id: string; key: string; tools: unknown; engine: string }[];
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    /**
+     * ⚠️ **«Ha già girato OGGI?» — e «oggi» è quello di Roma, dal 20/8 sera.**
+     * Prima era la mezzanotte del fuso del processo (UTC su Render): fra mezzanotte e le 02:00 in
+     * Italia un agente giornaliero risultava **non ancora partito oggi** e veniva rimesso in coda —
+     * cioè girava due volte nella stessa giornata italiana, e mai nella prima.
+     */
+    const todayStart = aGiorno(new Date());
     let enqueued = 0;
     let skipped = 0;
     for (const a of agents) {

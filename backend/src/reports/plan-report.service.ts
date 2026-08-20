@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { aGiorno, giornoDelDato } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -118,10 +119,24 @@ export class PlanReportService {
 
   // ---------- Generazione ----------
 
+  /**
+   * ⚠️ **QUI C'ERANO DUE DOMANDE IN UNA FUNZIONE SOLA, ed è per questo che il difetto non si vedeva.**
+   *
+   * `day0` veniva chiamata sia su `new Date()` — «che giorno è oggi» — sia su `sub.startDate` e
+   * `sub.endDate` — «di che giorno è questa data salvata». Sono due domande **diverse** con due
+   * risposte diverse, e `setHours(0,0,0,0)` rispondeva a tutte e due nel fuso del processo: su
+   * Render è UTC, quindi fra mezzanotte e le 02:00 in Italia «oggi» era **ieri**.
+   *
+   * È lo stesso miscuglio già trovato in `coach-tasks.day()` il 20/8, e la stessa correzione: due
+   * funzioni con due nomi, così al punto di chiamata si vede quale domanda si sta facendo.
+   */
+  private oggiGiorno(): Date {
+    return aGiorno(new Date());
+  }
+
+  /** Il giorno di una data SALVATA: resta in UTC — vedi il commento su `giornoDelDato`. */
   private day0(d: Date): Date {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x;
+    return giornoDelDato(d);
   }
 
   /** Prezzo effettivo del piano: promo attiva finché listino presente e scadenza non passata. */
@@ -575,7 +590,7 @@ export class PlanReportService {
    * la notifica in app contiene solo l'avviso).
    */
   async generateMonthly(): Promise<{ created: number }> {
-    const today = this.day0(new Date());
+    const today = this.oggiGiorno();
     const subs = (await this.prisma.subscription.findMany({
       where: {
         status: 'active',

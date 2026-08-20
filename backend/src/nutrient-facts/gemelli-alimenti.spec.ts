@@ -59,12 +59,24 @@ describe('le radici dei nomi', () => {
 });
 
 describe('i due fogli veri', () => {
-  it('⛔ il foglio del 20/8 non si può caricare: 173 righe hanno i valori di un altro alimento', () => {
-    const copiati = riempimenti(trovaGemelli(ALIMENTI_20_8));
-    expect(copiati.length).toBeGreaterThan(0);
-    expect(copiati.reduce((s, g) => s + g.nomi.length, 0)).toBe(173);
-    expect(copiati[0].nomi).toHaveLength(99);
-    expect(copiati[0].valori).toBe('25/1.5/3.5/2.5/0.3/2.2');
+  /**
+   * ⚠️ **Questo test diceva il contrario fino alla sera del 20/8**, e la riga era:
+   * «il foglio del 20/8 non si può caricare: 173 righe hanno i valori di un altro alimento» —
+   * un gruppo da 99 tutti a `25/1.5/3.5/2.5/0.3/2.2`. Le 173 righe sono state rifatte e ricaricate,
+   * e adesso il foglio passa. Il numero vecchio resta scritto qui perché è **il motivo per cui
+   * questa guardia esiste**: senza, quelle 99 righe sarebbero entrate in tabella e Gaia le
+   * avrebbe citate a una cliente come se fossero misurate.
+   */
+  it('✅ il foglio del 20/8, rifatto, non ha più riempimenti', () => {
+    expect(riempimenti(trovaGemelli(ALIMENTI_20_8))).toEqual([]);
+  });
+
+  it('⚠️ e i gruppi di valori identici che restano sono lo stesso alimento scritto in modi diversi', () => {
+    const gruppi = trovaGemelli(ALIMENTI_20_8);
+    expect(gruppi.length).toBeGreaterThan(0);
+    for (const g of gruppi) expect(g.radiceComune).not.toBeNull();
+    // Il gruppo più grosso è quello degli oli: stesso alimento, undici modi di scriverlo.
+    expect(gruppi[0].nomi.length).toBeGreaterThanOrEqual(3);
   });
 
   it('✅ il foglio del 19/8 passa pulito — la guardia non grida sul foglio giusto', () => {

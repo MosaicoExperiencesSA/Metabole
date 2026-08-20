@@ -12,9 +12,25 @@ import { join } from 'path';
  * sbagliavano insieme.
  *
  * ⚠️ **L'elenco qui sotto NON è tutto il progetto**: è quello che è stato corretto e verificato, un
- * pezzo per volta. Restano fuori l'analitica, i report, il marketing e gli agenti — dove un giorno
- * spostato cambia un grafico, non quello che una persona riceve. Aggiungere un file qui è il modo
- * di dichiarare «questo l'ho guardato», e va fatto **dopo** averlo guardato, non prima.
+ * pezzo per volta. Aggiungere un file qui è il modo di dichiarare «questo l'ho guardato», e va
+ * fatto **dopo** averlo guardato, non prima.
+ *
+ * ⛔ **E la frase che stava qui era sbagliata in due modi**, corretta il 20/8 sera. Diceva
+ * «restano fuori l'analitica, i report, il marketing e gli agenti — dove un giorno spostato cambia
+ * un grafico, non quello che una persona riceve». Guardandoli davvero:
+ *  · **`marketing/lifecycle`** non cambia un grafico: decide **a chi parte una email oggi**. Una
+ *    cliente che entrava nella finestra alle 00:30 la riceveva con un giorno di ritardo.
+ *  · **`agents/agent-orchestrator`** decide se un agente giornaliero **ha già girato oggi**: alle
+ *    00:30 italiane rispondeva di no, e lo rimetteva in coda.
+ *  · **`reports/plan-report`** aveva **due domande in una funzione sola** (`day0`), chiamata sia su
+ *    `new Date()` sia su `sub.startDate` — lo stesso miscuglio di `coach-tasks.day()`.
+ *  · **`dashboard` e `crm` non avevano niente da correggere**: li avevo elencati senza guardarli.
+ *  · **`analytics/serie-giornaliera`** era **già giusto**, e con il commento che lo spiega: prende
+ *    la finestra larga un giorno per lato e filtra sul giorno locale.
+ *  · Resta un solo `setHours(0,0,0,0)` in `analytics.service.ts`, ed è dentro il **generatore dei
+ *    dati dimostrativi**: lì il giorno esatto non lo legge nessuno.
+ * ⚠️ Cioè: l'elenco di quello che restava fuori era scritto a memoria, non misurato — la stessa cosa
+ * che questo file esiste per impedire.
  *
  * ⛔ E resta fuori, di proposito, l'altra metà del problema: il giorno di una data **salvata** si
  * continua a leggere in UTC. Quelle sono istanti veri in banca dati, e rileggerli in un altro fuso
@@ -44,6 +60,10 @@ const PERIMETRO = [
   'menu/senza-glutine.ts',
   'vera/menu-da-rifare.ts',
   'monitoring/monitoring.service.ts',
+  // Aggiunti il 20/8 sera, dopo averli guardati uno per uno (vedi il commento qui sopra).
+  'marketing/lifecycle.service.ts',
+  'agents/agent-orchestrator.service.ts',
+  'reports/plan-report.service.ts',
 ];
 
 /**

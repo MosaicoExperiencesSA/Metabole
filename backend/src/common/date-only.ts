@@ -90,6 +90,29 @@ export function aGiorno(d: Date): Date {
 }
 
 /**
+ * ⚠️ **IL GIORNO DI UNA DATA SALVATA — letto in UTC, e di proposito.**
+ *
+ * È l'altra metà di `aGiorno`, e la differenza è tutta nella domanda:
+ *   · «che giorno è **oggi**?» → `aGiorno(new Date())`, e la risposta è il giorno di **Roma**;
+ *   · «di che giorno è **questa data salvata**?» → qui, e la risposta resta quella **UTC**.
+ *
+ * ⛔ Non è pigrizia: `Subscription.startDate` e `endDate` sono `DateTime` con istanti veri dentro,
+ * scritti in mesi diversi da punti diversi. Rileggerli nel fuso di Roma sposterebbe di un giorno i
+ * piani venduti fra le 22:00 e le 24:00 UTC — cioè cambierebbe la data di un contratto già pagato.
+ * ✅ `npm run diag:giorno-piani` (20/8) dice che **oggi non ce n'è nessuno**: 78 date, zero che
+ * cambierebbero giorno. Ma «zero oggi» non è «zero per sempre», e il giorno che si vorrà unificare
+ * si farà con quella misura in mano, non per simmetria.
+ *
+ * ⚠️ Rispetto a `setHours(0,0,0,0)` — che era la riga scritta a mano in `plan-report`, `lifecycle` e
+ * `agent-orchestrator` — il risultato su Render è **lo stesso**, perché lì il processo sta a UTC. La
+ * differenza è che questo non dipende da come è configurata la macchina: la stessa riga sul portatile
+ * di chi sviluppa dava un giorno diverso, ed è il modo in cui un difetto di fuso non si riproduce.
+ */
+export function giornoDelDato(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/**
  * ## Lo stesso difetto delle misure, ma sui soldi
  *
  * Tutto quello che sta scritto in testa a questo file — «fra mezzanotte e le 02:00 in Italia è

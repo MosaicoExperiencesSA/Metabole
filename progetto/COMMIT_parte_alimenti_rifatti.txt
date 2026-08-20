@@ -1,0 +1,108 @@
+I 173 alimenti rifatti, caricati — e un numero sbagliato che avevo scritto io — 20/8
+
+Simone ha rifatto le 173 righe del foglio e le ha rimandate: «fatto, caricalo e non richiedermelo
+più». Caricate.
+
+## ⛔ PRIMA: UN NUMERO SBAGLIATO NELLA CONSEGNA DI PRIMA
+
+Nel messaggio della consegna 71 ho scritto «da 11 a 9 voci aperte». **Non è vero: erano 11.** Le
+avevo contate *prima* delle ultime due chiusure e poi ho scritto il risultato che mi aspettavo invece
+di ricontarle. È esattamente la cosa che passo la giornata a trovare nel codice, fatta da me su un
+numero in un messaggio di commit. Il conto vero: la 71 ha portato le aperte da **13 a 11**, e questa
+consegna le porta da **11 a 10**.
+
+## IL FOGLIO, PASSATO A SEI CONTROLLI INVECE CHE A UNO
+
+La prima volta ne avevo fatto **uno** — la coerenza Atwater — e avevo detto che il foglio era buono
+mentre 173 righe su 245 erano copiate. Un controllo che guarda una riga per volta non può vedere un
+riempimento. Questa volta:
+
+ 1. **la guardia dei gemelli** (`gemelli-alimenti.ts`, la funzione vera del motore, non una copia
+    scritta per l'occasione) → **zero riempimenti**. Restano 13 gruppi di valori identici e sono
+    tutti lo stesso alimento scritto in modi diversi: «pomodorini / pomodoro ciliegia / pomodoro
+    ciliegino», «broccoli freschi / broccolo», «filetto di merluzzo / merluzzo filetto»;
+ 2. **coerenza Atwater** → sei righe fuori tolleranza, tutte e sei con una spiegazione nota:
+    l'alcol (vino bianco secco, tre aceti) porta 7 kcal/g e nei macro non c'è; i lamponi hanno 7,4 g
+    di fibra su 6,5 di carboidrati. ⚠️ È una spiegazione, non una misura: le sei righe sono lì
+    scritte, e se un giorno qualcuno le vuole ricontrollare sa quali sono;
+ 3. **stati riconosciuti da `normalizzaStato`** → tutti;
+ 4. **affidabilità IG** → tutte fra `solida | media | debole | non_applicabile`;
+ 5. **nomi doppi nel foglio** → nessuno;
+ 6. **valori impossibili** (somme sopra i 100 g, zuccheri sopra i carboidrati, kcal sopra 900) →
+    nessuno oltre alle tre righe di convenzione qui sotto.
+
+I valori distinti di kcal passano da **50 a 127** su 245 righe. Le 277 righe totali (19/8 + 20/8)
+passano la guardia.
+
+## ⚠️ DUE COSE MISURATE E NON CORRETTE
+
+**1) La colonna dei carboidrati non usa sempre la stessa convenzione.** 22 righe hanno **più fibra
+che carboidrati** — cioè i carboidrati sono quelli disponibili, fibra esclusa, come fa il CREA
+(spinaci 0,4 e 2,2; cacao amaro 11,5 e 33,2). Ma **tre righe** sommano proteine + carboidrati +
+grassi + fibra sopra i 100 g su 100 — `tahina` (101,2), `lievito nutrizionale` (109,0), `burro di
+arachidi naturale` (101,0) — e questo è possibile solo se lì la fibra è **dentro** i carboidrati,
+come sulle etichette americane. ⛔ Non l'ho aggiustato: sono numeri di chi ha compilato il foglio, e
+la differenza (9, 20 e 6 g su 100) su alimenti che si usano a cucchiai non sposta un piano.
+
+**2) La colonna `category` è rimasta quella del riempimento.** Tutte le 99 righe del primo gruppo
+portano `verdura`: **19 alimenti sopra le 150 kcal** sono etichettati verdura — tahina, miele, ghee,
+sesamo, tempeh, cacao, paprika — e una verdura cruda da 595 kcal non esiste. ✅ Non blocca niente:
+nel backend `category` serve **solo a ordinare l'elenco** nella pagina Alimenti
+(`orderBy: [{ category: 'asc' }]`), non entra nei macro né nel menu. Si correggono dalla matita.
+⛔ E non le ho indovinate io: dedurre la categoria dal nome sbaglierebbe sul primo caso nuovo, in
+silenzio, ed è la stessa cosa che ha prodotto il foglio.
+
+## LE PROVE
+
+`gemelli-alimenti.spec.ts` — il test che diceva «il foglio non si può caricare: 173 righe copiate»
+adesso dice il contrario, e **il numero vecchio resta scritto nel commento**: è il motivo per cui
+quella guardia esiste. Aggiunto un test che pretende che ogni gruppo di valori identici abbia una
+radice comune nel nome. Mutazione provata: rimesse tre righe copiate (tahina, ghee, paprika a
+«25 kcal») → tutti e due i test diventano rossi.
+
+## COSA RESTA DA FARE
+
+  npm run importa:alimenti              → prova a vuoto
+  CONFERMA=1 npm run importa:alimenti   → scrive
+
+⚠️ Le righe nascono **non confermate**: «confermato» in questa tabella vuol dire «un nutrizionista ha
+guardato questo numero», e chi ha compilato il foglio non lo so. Finiscono nella coda «da confermare».
+
+`npm run build` verde. 274 suite, 4128 test verdi, a cache svuotata.
+
+--------------------------------------------------------------------------------
+E NELLA STESSA CONSEGNA: il fuso, il gruppo che credevo «solo grafici»
+
+La voce sul fuso diceva: «restano fuori l'analitica, i report, il marketing e gli agenti — dove un
+giorno spostato cambia un grafico, non quello che una persona riceve». ⛔ **Guardandoli davvero,
+quella frase era sbagliata in cinque punti su sei**, ed era scritta a memoria invece che misurata —
+la stessa cosa che il file `il-giorno-si-chiede.spec.ts` esiste per impedire.
+
+ · **`marketing/lifecycle`** non cambia un grafico: `dayRange(offset)` decide **a chi parte una
+   email oggi** — il giorno 3, il giorno 6, il richiamo del giorno 14. Era la mezzanotte del fuso del
+   processo (UTC su Render): una cliente che entrava nella finestra alle 00:30 italiane la riceveva
+   con un giorno di ritardo. **Corretto: adesso è il giorno di Roma.**
+ · **`agents/agent-orchestrator`** decide se un agente giornaliero **ha già girato oggi**: alle 00:30
+   italiane rispondeva di no e lo rimetteva in coda — cioè girava due volte nella stessa giornata
+   italiana, e mai nella prima. **Corretto.**
+ · **`reports/plan-report`** aveva **due domande in una funzione sola**: `day0()` era chiamata sia su
+   `new Date()` («che giorno è oggi») sia su `sub.startDate` («di che giorno è questa data salvata»).
+   È lo stesso miscuglio di `coach-tasks.day()` trovato la mattina, ed è **il motivo per cui il
+   difetto non si vedeva**: finché le due domande passano dalla stessa funzione, correggere l'una
+   rompe l'altra. **Sdoppiata**: `oggiGiorno()` (Roma) e `day0()` → `giornoDelDato()` (UTC).
+ · **`dashboard` e `crm` non avevano niente da correggere**: li avevo elencati senza guardarli.
+ · **`analytics/serie-giornaliera` era già giusto**, e col commento che lo spiega: prende la finestra
+   larga un giorno per lato e filtra sul giorno locale.
+ · Resta un solo `setHours(0,0,0,0)` in `analytics.service.ts`, dentro il **generatore dei dati
+   dimostrativi**: lì il giorno esatto non lo legge nessuno.
+
+`common/date-only.ts` ha ora `giornoDelDato(d)`, l'altra metà di `aGiorno`: il giorno di una data
+**salvata**, letto in UTC di proposito. ⚠️ Rispetto a `setHours(0,0,0,0)` il risultato su Render è
+lo stesso, perché lì il processo sta a UTC — la differenza è che **non dipende da come è configurata
+la macchina**, ed è il modo in cui un difetto di fuso smette di non riprodursi sul portatile.
+
+I tre file entrano nel perimetro di `il-giorno-si-chiede.spec.ts`, che legge il sorgente e vieta di
+riscrivere `setHours(0,0,0,0)`. Mutazione provata su `lifecycle`: il test diventa rosso.
+Nuovo `reports/due-domande-nel-report.spec.ts` (5 test): sull'istante delle 23:30 UTC — l'01:30 a
+Roma — le due risposte devono essere **diverse**, ed è tutto il difetto; fuori da quella fascia
+coincidono, ed è per questo che di giorno non si vedeva niente.
