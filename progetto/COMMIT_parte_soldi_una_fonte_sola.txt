@@ -1,0 +1,52 @@
+Provvigioni, secondo giro: una fonte sola per «quanto ho guadagnato», e l'IBAN controllato davvero
+
+1) STORICO MESI E SALDO PRELEVABILE VENIVANO DA DUE CONTABILITÀ DIVERSE
+Nella schermata Guadagni dell'app dello staff, «Storico mesi» leggeva `StaffCompensation` mentre il
+totale del mese in corso (sopra) e il saldo prelevabile (sotto) vengono dal registro contabile.
+Il caso che li fa divergere è ordinario: un RIMBORSO A CAVALLO DI DUE MESI. Lo storno scrive a
+registro una riga negativa datata OGGI (settembre) e insieme decrementa il contatore del mese
+ORIGINALE (agosto). Registro: agosto 100, settembre −40. Contatore: agosto 60. La coach vede il
+saldo calcolato su 100 e, due centimetri sotto, «Agosto € 60,00».
+Secondo modo, già scritto in casa: il contatore si decrementa con `Math.max(0, …)`, quindi uno
+storno più grande del residuo perde l'informazione — è il commento di `quotaConsentita`, che per
+questo il maturato del tetto lo legge dal registro.
+Ora lo storico si somma dal registro, per mese di Roma, sei mesi indietro. `StaffCompensation`
+resta per il suo `items` (il dettaglio di COSA ha composto un mese): la risposta a «quanto» è una
+sola.
+
+2) L'IBAN DEI PRELIEVI ERA CONTROLLATO SOLO NELLA LUNGHEZZA
+`iban.length < 15 || > 34` lascia passare qualunque refuso: una cifra sbagliata, due invertite, una
+`O` al posto di uno `0` danno un IBAN lungo giusto. Quello che succede dopo non è un errore a
+schermo: è un operatore che fa un bonifico.
+Ora c'è la cifra di controllo mod-97 (ISO 13616) — intercetta ogni errore di una cifra sola e quasi
+tutte le inversioni di due adiacenti — più la lunghezza per paese DOVE LA SAPPIAMO: fuori
+dall'elenco resta il solo mod-97, perché rifiutare un IBAN legittimo per ignoranza nostra è peggio.
+Il messaggio dice COSA non va: chi legge «IBAN non valido» ridigita lo stesso numero, perché a
+occhio è giusto.
+Corretto anche l'ordine: l'IBAN diventa il predefinito DOPO che la richiesta è nata, non prima.
+
+3) DUE COSE LASCIATE SCRITTE INVECE CHE DECISE
+- `compensationDashboard` (`GET /admin/dashboards/compensation`, documentato ma non chiamato da
+  nessuna schermata) risponde a una domanda diversa da `/admin/compensation`: il dettaglio per
+  periodo, non il totale. Documentato quale delle due risponde a cosa.
+- Il RICALCOLO PROVVIGIONI può ripagare quello che il tetto aveva tolto: il tetto si misura sul mese
+  in cui si preme il pulsante, quindi una quota tagliata ad agosto viene pagata se il ricalcolo gira
+  a settembre. Non è un errore — è cosa vuol dire «aggiungi il mancante» — ma è una decisione di
+  prodotto che si disfa con un clic. Non l'ho scelto io: voce aperta per Simone, e intanto sta nel
+  docblock.
+
+ALTRO
+`meseSpostato` (l'aritmetica dei mesi) è passata in `common/date-only.ts`: la usano l'analitica e
+ora anche il portafoglio, e due implementazioni della stessa aritmetica divergono su dicembre.
+
+TEST
+- `common/iban.spec.ts` (15): IBAN costruiti davvero (esempi ufficiali ISO), non plausibili a
+  occhio — uno scritto a mano avrebbe una probabilità su 97 di passare il mod-97 per caso.
+- `payouts/storico-dal-registro.spec.ts` (6): il rimborso a cavallo dei mesi, lo storico che somma
+  al saldo prelevabile, i sei mesi, il mese in corso escluso.
+  ⚠️ Il finto Prisma FILTRA davvero per staffId, categoria e intervallo di date: al primo giro
+  avevo stubbato `aggregate` a zero e il test è diventato rosso su una cosa vera.
+- Mutazioni provate: storico riportato a `StaffCompensation` → 5 test rossi su 6; mod-97 a pezzi
+  troppo lunghi → 2 rossi; lunghezza per paese tolta → 1 rosso.
+
+Niente migrazioni. 253 suite e 3951 test verdi, type-check a zero errori.

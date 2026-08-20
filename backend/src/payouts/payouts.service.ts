@@ -2,7 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
-import { giornoDelMeseLocale } from '../common/date-only';
+import { confineMese, giornoDelMeseLocale, meseLocale, meseSpostato } from '../common/date-only';
+import { controllaIban } from '../common/iban';
 import { CATEGORIE_COMPENSO, inizioMese, mesePeriodo, tettoAttivoCents } from '../common/tetto-compensi';
 import { decryptBuffer, deriveKey, encryptBuffer } from '../health-area/crypto.util';
 import { MailService } from '../mail/mail.service';
@@ -211,14 +212,43 @@ export class PayoutsService {
       }))
       .sort((a, b) => b.amountCents - a.amountCents);
 
-    // Storico mesi (mesi precedenti) dalle compensazioni già aggregate per periodo.
-    const comps = (await this.prisma.staffCompensation.findMany({
-      where: { staffId: staff.id, period: { not: period } },
-      orderBy: { period: 'desc' },
-      take: 6,
-      select: { period: true, amountCents: true },
-    })) as { period: string; amountCents: number }[];
-    const history = comps.map((c) => ({ period: c.period, amountCents: c.amountCents }));
+    /**
+     * ⚠️ **LO STORICO SI LEGGE DAL REGISTRO, come tutto il resto di questa schermata.**
+     *
+     * Fino al 20/8 «Storico mesi» arrivava da `StaffCompensation`, mentre il totale del mese in
+     * corso qui sopra e il saldo prelevabile qui accanto arrivano dal registro contabile: **due
+     * fonti, sulla stessa schermata, per la stessa domanda**. E divergono davvero.
+     *
+     * ⛔ Il caso che le fa divergere è ordinario — **un rimborso a cavallo di due mesi**. Lo storno
+     * scrive a registro una riga negativa **datata oggi** (settembre) e insieme *decrementa il
+     * contatore del mese ORIGINALE* (agosto). Da quel momento: il registro dice agosto 100 e
+     * settembre −40, il contatore dice agosto 60. La coach vede «Saldo prelevabile» calcolato su
+     * 100 e «Storico mesi → Agosto € 60,00» **nello stesso schermo**, e nessuno dei due è
+     * sbagliato: sono due contabilità diverse messe una sotto l'altra.
+     *
+     * ⛔ E c'è un secondo modo: il contatore si decrementa con `Math.max(0, …)`, quindi uno storno
+     * più grande del residuo del mese gli fa **perdere l'informazione** — è testualmente quello che
+     * dice il commento di `quotaConsentita` in `finance.service.ts`, che per questa ragione il
+     * maturato del tetto lo legge dal registro. Lo stesso motivo vale qui.
+     *
+     * `StaffCompensation` resta: il suo `items` è il dettaglio di **cosa** ha composto un mese, che
+     * il registro non ha in quella forma. Ma la risposta a «quanto», per la persona, è una sola.
+     */
+    const daMese = meseSpostato(period, -6);
+    const storiche = (await this.prisma.ledgerEntry.findMany({
+      where: {
+        staffId: staff.id,
+        type: 'expense' as never,
+        category: { in: COMMISSION_CATEGORIES },
+        date: { gte: confineMese(daMese).gte, lt: monthStart },
+      },
+      select: { amountCents: true, date: true },
+    })) as { amountCents: number; date: Date }[];
+    const perMese = new Map<string, number>();
+    for (const r of storiche) perMese.set(meseLocale(r.date), (perMese.get(meseLocale(r.date)) ?? 0) + r.amountCents);
+    const history = [...perMese.entries()]
+      .map(([p, amountCents]) => ({ period: p, amountCents }))
+      .sort((a, b) => (a.period < b.period ? 1 : -1));
 
     return { isStaff: true, period, totalCents, byCategory, byClient, history };
   }
@@ -236,8 +266,15 @@ export class PayoutsService {
     const existing = await this.prisma.commissionWithdrawal.findFirst({ where: { staffId: staff.id, status: 'requested' } });
     if (existing) throw new BadRequestException('Hai già una richiesta di prelievo in corso.');
 
-    const iban = (input.iban ?? '').replace(/\s+/g, '').toUpperCase();
-    if (iban.length < 15 || iban.length > 34) throw new BadRequestException('IBAN non valido.');
+    /**
+     * ⚠️ **La cifra di controllo, non la lunghezza.** Qui c'era `iban.length < 15 || > 34`, che
+     * lascia passare qualunque refuso: una cifra sbagliata, due invertite, una `O` al posto di uno
+     * `0` danno un IBAN lungo giusto. E quello che succede dopo non è un errore a schermo — è un
+     * operatore che fa un bonifico. Il mod-97 (ISO 13616) esiste esattamente per questo.
+     */
+    const esito = controllaIban(input.iban ?? '');
+    if (!esito.valido) throw new BadRequestException(esito.perche);
+    const iban = esito.iban;
 
     const [earnedBefore, paid, pending] = await Promise.all([
       this.sumLedger(staff.id, true),
@@ -261,12 +298,15 @@ export class PayoutsService {
       receiptName = input.receipt.fileName;
     }
 
-    // Salva l'IBAN sul profilo staff per le prossime volte.
-    await this.prisma.staff.update({ where: { id: staff.id }, data: { iban } });
-
     const withdrawal = await this.prisma.commissionWithdrawal.create({
       data: { staffId: staff.id, amountCents: amount, iban, status: 'requested', receiptData: receiptData as never, receiptMime, receiptName },
     });
+    /**
+     * L'IBAN diventa quello predefinito **dopo** che la richiesta è nata, non prima: se la
+     * scrittura qui sotto fallisse, la persona si ritroverebbe sul profilo un IBAN che non ha mai
+     * finito di usare — e la volta dopo il campo si presenta già compilato con quello.
+     */
+    await this.prisma.staff.update({ where: { id: staff.id }, data: { iban } });
     await this.audit.log({ action: 'payout.request', actorId: userId, entityType: 'commission_withdrawal', entityId: withdrawal.id, metadata: { amountCents: amount } });
     return this.publicWithdrawal(withdrawal);
   }

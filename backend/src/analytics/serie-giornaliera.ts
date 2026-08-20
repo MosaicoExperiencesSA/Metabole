@@ -23,7 +23,7 @@
  * database e senza aspettare la mezzanotte.
  */
 
-import { giornoLocale, meseLocale } from '../common/date-only';
+import { giornoLocale, meseLocale, meseSpostato as spostaMese } from '../common/date-only';
 
 /** `2026-08` → l'anno e il mese, o `null` se la stringa non è un mese. */
 export function leggiMese(mese: string | undefined | null): { anno: number; mese: number } | null {
@@ -43,14 +43,14 @@ export function leggiMese(mese: string | undefined | null): { anno: number; mese
  */
 export const meseDi = (d: Date): string => meseLocale(d);
 
-/** Il mese prima (o dopo, con `passo` positivo) di `2026-08`. */
+/**
+ * Il mese prima (o dopo, con `passo` positivo) di `2026-08`.
+ * L'aritmetica sta in `common/date-only.ts`, perché la usa anche il portafoglio staff; qui resta
+ * il controllo di validità di questo file (anno fra 2000 e 2100, mese fra 1 e 12), che è più
+ * stretto e serve ai mesi che arrivano dalla querystring.
+ */
 export function meseSpostato(mese: string, passo: number): string {
-  const letto = leggiMese(mese);
-  if (!letto) return mese;
-  const totale = letto.anno * 12 + (letto.mese - 1) + passo;
-  const anno = Math.floor(totale / 12);
-  const numero = (totale % 12) + 1;
-  return `${anno}-${String(numero).padStart(2, '0')}`;
+  return leggiMese(mese) ? spostaMese(mese, passo) : mese;
 }
 
 /** Quanti giorni ha `2026-02`. */

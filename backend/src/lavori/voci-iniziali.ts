@@ -1338,4 +1338,14 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-08-20T10:40',
   },
 
+  {
+    chiave: 'ricalcolo-e-tetto-mensile',
+    titolo: 'Il ricalcolo provvigioni può ripagare quello che il tetto aveva tolto: va deciso',
+    dettaglio:
+      'Una domanda, non un difetto — ma è una decisione tua e finché non la prendi il codice ne applica una implicita. Il **tetto di guadagno** è mensile e l\'eccedenza **si perde** (decisione dell\'11/8: non slitta, non diventa accantonamento). ⛔ Il pulsante **«Ricalcola provvigioni»** però misura il tetto sul mese **in cui lo premi**, non su quello del pagamento: una quota tagliata ad agosto, se il ricalcolo gira a settembre, **viene pagata** sotto il tetto di settembre. Non è un errore di programmazione — è letteralmente cosa vuol dire «aggiungi il mancante» — ma è il modo in cui una decisione di prodotto si disfa con un clic, senza che chi clicca lo sappia. ⚠️ Le due strade: **a)** lasciarlo così (il ricalcolo è un\'azione volontaria di un admin, e se la preme è perché vuole pagare), e allora basta che il messaggio del pulsante lo dica; **b)** far escludere al ricalcolo le quote già tagliate da un tetto di un mese ormai chiuso — si può fare, l\'audit `provvigione.tetto_mensile` tiene la traccia di ogni taglio con importo, mese e `ref`. ⚠️ Non l\'ho scelto io: togliere o dare soldi a una persona non è una decisione di chi scrive il codice. Per intanto sta scritto nel docblock di `ricalcolaProvvigioni`.',
+    categoria: SIMONE,
+    ordine: 617,
+    nata: '2026-08-20T11:20',
+  },
+
 ];

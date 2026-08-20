@@ -336,6 +336,16 @@ export class FinanceService {
    *  - se qualcuno ha preso **più** del dovuto non gli toglie niente: lo riporta e basta.
    *    Togliere soldi a una persona non è un'operazione da bottone.
    * Rilanciarlo non raddoppia: la seconda volta la differenza è zero.
+   *
+   * ⚠️ **DOMANDA APERTA (20/8), scritta qui perché è una decisione e non una svista.** Il tetto di
+   * guadagno è MENSILE e si misura sul mese in cui si preme il pulsante, non su quello del
+   * pagamento. Quindi: una quota tagliata dal tetto ad agosto — e perduta, perché l'eccedenza non
+   * slitta — se il ricalcolo gira a settembre **viene pagata**, sotto il tetto di settembre. Non è
+   * un difetto del codice: è quello che «aggiungi il mancante» significa, letteralmente. Ma è
+   * anche il modo in cui una decisione di prodotto («l'eccedenza si perde») si può disfare con un
+   * clic, senza che chi clicca lo sappia. Va deciso da Simone se il ricalcolo debba escludere le
+   * quote già tagliate da un tetto di un mese chiuso; finché non è deciso, resta così e sta
+   * scritto.
    */
   async ricalcolaProvvigioni(paymentId: string): Promise<{
     aggiunte: { staff: string; ruolo: string; importoCents: number }[];
@@ -694,6 +704,24 @@ export class FinanceService {
     };
   }
 
+  /**
+   * ⚠️ **CHE DOMANDA RISPONDE, e quale no.** Questa restituisce le righe `StaffCompensation`, cioè
+   * il **dettaglio** di cosa ha composto un mese (`items`: ogni accredito con data, tipo e `ref`) —
+   * una cosa che il registro contabile non ha in quella forma.
+   *
+   * ⛔ Il suo `amountCents`, però, è un contatore mantenuto a parte: si decrementa con un
+   * `Math.max(0, …)` quando si storna, e un rimborso a cavallo di due mesi lo scala dal mese
+   * ORIGINALE mentre il registro scrive la riga negativa nel mese CORRENTE. Per «quanto ha
+   * guadagnato questa persona» la risposta buona è una sola ed è il registro: la dà
+   * `GET /admin/compensation` (`CompensationController`), che è anche quello che la pagina
+   * «Compensi staff» usa davvero. Dal 20/8 lo legge dal registro anche lo «Storico mesi» nell'app
+   * dello staff, che prima leggeva questo contatore e mostrava un numero diverso dal saldo
+   * prelevabile stampato due centimetri sotto.
+   *
+   * ⚠️ Oggi nessuna schermata chiama questo endpoint (è documentato nel README e nella specifica):
+   * resta perché il dettaglio per periodo è una domanda legittima, non perché serva a qualcuno
+   * adesso. Se un giorno lo si usa per mostrare un totale, il totale va preso dal registro.
+   */
   async compensationDashboard(period?: string) {
     return this.prisma.staffCompensation.findMany({
       where: period ? { period } : {},

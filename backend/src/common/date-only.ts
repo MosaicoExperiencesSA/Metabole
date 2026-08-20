@@ -189,3 +189,22 @@ export function confineMese(period: string): { gte: Date; lt: Date } {
   const dopo = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
   return { gte: inizioDelGiorno(`${period}-01`), lt: inizioDelGiorno(`${dopo}-01`) };
 }
+
+/**
+ * Il mese prima (`passo` negativo) o dopo di `2026-08`.
+ *
+ * Sta qui e non in `analytics/serie-giornaliera.ts` — dove è nato — perché serve anche alla parte
+ * economica: lo «Storico mesi» del portafoglio deve andare indietro di sei mesi con la stessa
+ * aritmetica con cui l'analitica ci va. L'analitica continua a esportarlo, ma chiamando questo:
+ * due implementazioni della stessa aritmetica sono due implementazioni che un giorno divergono su
+ * dicembre.
+ *
+ * Un mese scritto male torna com'è: qui non si indovina.
+ */
+export function meseSpostato(mese: string, passo: number): string {
+  const m = /^(\d{4})-(\d{2})$/.exec((mese ?? '').trim());
+  if (!m) return mese;
+  const totale = Number(m[1]) * 12 + (Number(m[2]) - 1) + passo;
+  if (totale < 0) return mese;
+  return `${Math.floor(totale / 12)}-${String((totale % 12) + 1).padStart(2, '0')}`;
+}

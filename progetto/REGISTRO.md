@@ -20,6 +20,60 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 💶 **Nella schermata Guadagni due numeri sullo stesso mese venivano da due contabilità
+  diverse.** Secondo giro sull'area provvigioni. «Storico mesi» leggeva `StaffCompensation`, mentre
+  il totale del mese in corso — due centimetri sopra — e il saldo prelevabile — due centimetri sotto
+  — vengono dal **registro contabile**. ⛔ Il caso che li fa divergere non è esotico: **un rimborso a
+  cavallo di due mesi**. Lo storno scrive a registro una riga negativa **datata oggi** (settembre) e
+  insieme decrementa il contatore del mese **originale** (agosto). Da lì in avanti il registro dice
+  agosto 100 e settembre −40, il contatore dice agosto 60, e la coach vede il saldo calcolato su 100
+  con sotto «Agosto € 60,00». Nessuno dei due è sbagliato: sono due contabilità messe una sotto
+  l'altra.
+  ⚠️ E c'è un secondo modo, già scritto in casa: il contatore si decrementa con `Math.max(0, …)`,
+  quindi uno storno più grande del residuo **perde l'informazione**. È testualmente il commento di
+  `quotaConsentita`, che per questo il maturato del tetto lo legge dal registro — e la stessa
+  ragione vale per quello che la persona guarda.
+  Ora lo storico si somma dal registro, per mese di Roma, sei mesi indietro. `StaffCompensation`
+  resta per il suo `items` (il dettaglio di **cosa** ha composto un mese, che il registro non ha in
+  quella forma): la risposta a «quanto» è una sola.
+  ⚠️ **Il finto Prisma del test mi ha corretto mentre lo scrivevo.** Avevo stubbato `aggregate` a
+  zero, e il test è diventato rosso su una cosa vera — il portafoglio legge da lì. Ora il doppione
+  filtra davvero per `staffId`, categoria e intervallo di date, che è l'unico modo in cui un test
+  sui mesi verifica qualcosa. *Un test double che si comporta diversamente dall'originale non
+  verifica niente* — settima volta in tre giorni, ma la prima in cui l'ha detto il test e non un
+  difetto in produzione.
+
+- `[Sviluppo]` 🏦 **L'IBAN dei prelievi era controllato solo nella lunghezza.** `iban.length < 15 ||
+  > 34`: passa qualunque refuso. Una cifra sbagliata, due invertite, una `O` al posto di uno `0`
+  danno un IBAN lungo giusto — e quello che succede dopo non è un errore a schermo, è un operatore
+  che **fa un bonifico**. Nel caso migliore la banca lo respinge dopo giorni; nel caso peggiore
+  l'IBAN esiste ed è di qualcun altro. ⚠️ È la stessa specie di problema delle kcal scritte `8OO`:
+  *un dato che sembra buono costa più di un dato che manca*, perché nessuno lo ricontrolla.
+  Ora c'è la cifra di controllo **mod-97** (ISO 13616), che intercetta ogni errore di una cifra sola
+  e quasi tutte le inversioni di due adiacenti, più la lunghezza per paese **dove la sappiamo** —
+  fuori dall'elenco resta il solo mod-97, perché rifiutare un IBAN legittimo per ignoranza nostra è
+  peggio: *«non lo so» deve costare meno di «ho indovinato»*. ⚠️ E il messaggio dice **cosa** non
+  va: chi legge «IBAN non valido» ricontrolla e ridigita lo stesso identico numero, perché a occhio
+  è giusto. 15 test, con IBAN costruiti davvero (esempi ufficiali ISO) e non plausibili a occhio —
+  uno scritto a mano avrebbe una probabilità su 97 di passare il mod-97 per caso.
+  ⚠️ Corretto anche l'ordine: l'IBAN diventa quello predefinito **dopo** che la richiesta è nata,
+  non prima. Se la creazione fallisse, la persona si ritroverebbe sul profilo un IBAN che non ha mai
+  finito di usare, già compilato la volta dopo.
+
+- `[Sviluppo]` 📌 **Due cose lasciate scritte invece che decise da me.** (1) `compensationDashboard`
+  (`GET /admin/dashboards/compensation`, documentato ma **non chiamato da nessuna schermata**)
+  risponde a una domanda diversa da `/admin/compensation`: il dettaglio per periodo, non il totale.
+  Il totale, se un giorno lo si mostra, va preso dal registro. (2) ⚠️ **Il ricalcolo provvigioni può
+  ripagare quello che il tetto aveva tolto**: il tetto si misura sul mese in cui si preme il
+  pulsante, quindi una quota tagliata ad agosto viene pagata se il ricalcolo gira a settembre. Non è
+  un errore — è cosa vuol dire «aggiungi il mancante» — ma è una decisione di prodotto che si disfa
+  con un clic senza che chi clicca lo sappia. ⛔ **Non l'ho scelto io**: togliere o dare soldi a una
+  persona non è una decisione di chi scrive il codice. Voce aperta per Simone, e intanto sta nel
+  docblock.
+  Verifica: 253 suite e **3951 test verdi**, type-check a zero errori, mutazioni che mordono (storico
+  riportato a `StaffCompensation` → 5 test rossi su 6; mod-97 a pezzi troppo lunghi → 2 rossi;
+  lunghezza per paese tolta → 1 rosso).
+
 - `[Sviluppo]` 💰 **Il mese dei soldi era quello del server, non quello di Roma — ed è lo stesso
   difetto già chiuso il 7/8 sulle misure.** Revisione avversariale dell'area **provvigioni**, la
   prima delle tre direzioni proposte a Simone («è l'area dove un difetto costa soldi veri e nessuno
