@@ -489,7 +489,8 @@ export function ValoriNutrizionali() {
                             className="input sm"
                             style={{ width: 120 }}
                             placeholder="crudo / bollito"
-                            title="⚠️ Nelle ricette le grammature sono a CRUDO. Una riga senza stato non si sa come contarla, e una riga solo da cotto il conto la salta."
+                            list="stati-alimento"
+                            title="⚠️ Nelle ricette le grammature sono a CRUDO. Una riga senza stato non si sa come contarla, e una riga solo da cotto il conto la salta. «non si applica» è per olio, sale, miele."
                             value={nuovo.state ?? ''}
                             onChange={(e) => setNuovo((b) => ({ ...b, state: e.target.value }))}
                           />
@@ -574,6 +575,28 @@ export function ValoriNutrizionali() {
 
   return (
     <>
+      {/**
+        * ⚠️ **UN SUGGERIMENTO, NON UNA REGOLA.** Chi decide cosa vuol dire uno stato è
+        * `normalizzaStato` nel backend: questa è solo la tendina che evita di far indovinare le
+        * parole a chi compila. Se qui mancasse una voce, scriverla a mano continua a funzionare —
+        * ed è di proposito, perché gli stati sono aperti («tostato», «essiccato», «al vapore»).
+        *
+        * ⚠️ **«non si applica»** è la voce che vale la pena conoscere: all'olio, al sale, al miele
+        * lo stato non si applica davvero, e lasciarli vuoti li tiene per sempre in cima all'elenco
+        * degli alimenti da correggere, dove nascondono le righe che vanno corrette davvero.
+        */}
+      <datalist id="stati-alimento">
+        <option value="crudo" />
+        <option value="secco" />
+        <option value="bollito" />
+        <option value="cotto" />
+        <option value="al vapore" />
+        <option value="arrostito" />
+        <option value="tostato" />
+        <option value="fresco" />
+        <option value="liquido" />
+        <option value="non si applica" />
+      </datalist>
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
@@ -798,6 +821,8 @@ export function ValoriNutrizionali() {
                                 className="input sm"
                                 style={{ width: 110 }}
                                 placeholder="crudo / bollito"
+                                list="stati-alimento"
+                                title="⚠️ Nelle ricette le grammature sono a CRUDO. «non si applica» è per l'olio, il sale, il miele: crudi o cotti sono la stessa cosa, e dichiararlo li toglie dall'elenco da correggere."
                                 value={bozza.state ?? ''}
                                 onChange={(e) => setBozza((b) => ({ ...b, state: e.target.value }))}
                               />

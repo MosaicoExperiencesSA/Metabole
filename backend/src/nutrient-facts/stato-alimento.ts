@@ -181,6 +181,23 @@ export function normalizzaStato(v: unknown): string {
    * ⚠️ E «crudo o cotto» **non** è crudo: è una riga che dichiara la propria ambiguità, e
    * `startsWith('crud')` la prendeva per buona. Va trattata come «non lo so».
    */
+  /**
+   * ⚠️ **«NON SI APPLICA» NON È «NON LO SO»** — 20/8, e non è una sfumatura.
+   *
+   * All'olio, al sale, al miele, allo zucchero lo stato **non si applica**: crudi o cotti sono la
+   * stessa cosa, e 899 kcal restano 899. ⛔ Ma in tabella quelle righe hanno `state` vuoto, cioè
+   * finiscono in «non lo so» — e da lì si portano dietro **per sempre** due cose: la frase «la
+   * tabella non dice se il valore è a crudo» attaccata a 3025 ricette d'olio, e un posto fisso in
+   * cima all'elenco degli alimenti da correggere, dove nascondono le righe che vanno corrette
+   * davvero. *Un avviso che compare sempre non è un avviso*, e questo compariva sull'ingrediente
+   * più usato del catalogo.
+   *
+   * ⚠️ È lo stesso identico patto già in uso su `glycemicIndexReliability: 'non_applicabile'`, e per
+   * la stessa ragione: **una persona dichiara** che quel dato non esiste per quell'alimento, invece
+   * di lasciarlo vuoto e far credere a tutti che manchi qualcosa. Vuoto = nessuno l'ha guardato;
+   * «non si applica» = qualcuno l'ha guardato e ha detto che non c'è.
+   */
+  if (t === 'non_applicabile' || t === 'non applicabile' || t.startsWith('non si applica')) return 'non_applicabile';
   if (/^(?:a\s+)?crud[oaie]?$/.test(t)) return 'crudo';
   if (t.includes(' o ') || t.includes('/')) return 'altro';
   for (const radice of ['crud', 'secc', 'essicc', 'disidrat']) {
@@ -236,7 +253,12 @@ export function scegliPerRicetta<T extends RigaConStato>(candidati: readonly T[]
   if (!righe.length) return { tipo: 'niente' };
   const stato = (r: RigaConStato) => normalizzaStato(r.state);
 
-  const aCrudo = righe.find((r) => STATI_A_CRUDO.includes(stato(r)));
+  /**
+   * ⚠️ **`non_applicabile` vale come «va bene»**, e senza nessuna dichiarazione: se qualcuno ha detto
+   * che per quell'alimento lo stato non esiste, non c'è niente da avvertire. È la differenza fra
+   * «non lo so» e «non c'è», ed è la ragione per cui il valore esiste.
+   */
+  const aCrudo = righe.find((r) => STATI_A_CRUDO.includes(stato(r)) || stato(r) === 'non_applicabile');
   if (aCrudo) return { tipo: 'va_bene', riga: aCrudo };
 
   /**

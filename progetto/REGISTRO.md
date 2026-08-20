@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🫒 **Lo stato che «non si applica»: olio, sale, miele.** In cima all'elenco degli
+  alimenti da correggere c'erano `olio extravergine di oliva` (3025 ricette), `olio evo` (1706),
+  `miele` (1331), tutti «Senza stato». ⚠️ Ma all'olio lo stato **non si applica**: crudo o cotto è la
+  stessa cosa, 899 kcal restano 899. ⛔ Il danno era doppio e invisibile: ogni ricetta dettata a Vera
+  con l'olio si portava dietro «la tabella non dice se il valore è a crudo» — *un avviso che compare
+  sempre non è un avviso*, e compariva sull'ingrediente più usato del catalogo — e quelle righe
+  occupavano i primi posti dell'elenco, **dove nascondevano le righe da correggere davvero**.
+  ✅ La correzione è un patto che in quella tabella c'è già: `glycemicIndexReliability:
+  'non_applicabile'`, dal 18/8, con scritto accanto «"non si applica" non è "non lo so"». Lo stesso,
+  applicato allo stato: *vuoto = nessuno l'ha guardato; «non si applica» = qualcuno l'ha guardato e
+  ha detto che non c'è.* ⚠️ **Non si deduce, si dichiara**: nessuna regola indovina quali alimenti
+  non hanno stato — una regola così sbaglierebbe sul primo caso nuovo, in silenzio, ed è esattamente
+  la scorciatoia che stamattina ha fatto uscire il limone come aroma. E una riga **bollita** resta
+  «solo da cotto» qualunque cosa: il valore nuovo non è una scappatoia per far passare quello che
+  non passa.
+  In pagina una tendina di suggerimento sui due campi «Stato» — ⚠️ un **suggerimento**, non una
+  regola: chi decide resta `normalizzaStato`, e scrivere a mano continua a funzionare.
+  ⛔ **Resta da fare a mano, ed è lavoro di persone**: aprire la matita su olio, olio evo, sale,
+  miele, zucchero e scrivere «non si applica». Cinque righe.
+
 - `[Sviluppo]` 🔍 **Revisione avversariale sul lavoro di stamattina: 13 rilievi, e il primo l'ho
   confermato in un secondo provando la funzione sui nomi veri.**
   ⛔ **«Limone» usciva come aroma — 3146 ricette, per sempre.** L'elenco chiuso conteneva `limone`,

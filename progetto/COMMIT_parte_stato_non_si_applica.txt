@@ -1,0 +1,62 @@
+--------------------------------------------------------------------------------
+Parte: lo stato che non si applica (olio, sale, miele) — 20/8
+--------------------------------------------------------------------------------
+
+Guardando lo screenshot della pagina Alimenti: in cima all elenco «da correggere» ci sono
+
+    olio extravergine di oliva   3025 ricette   — Senza stato
+    olio evo                     1706           — Senza stato
+    miele                        1331           — Senza stato
+    pane integrale                931           — Senza stato
+
+⚠️ Ma all olio lo stato NON SI APPLICA. Crudo o cotto e la stessa cosa: 899 kcal restano 899.
+Idem sale, zucchero, miele.
+
+⛔ IL DANNO E DOPPIO, E TUTTO E DUE INVISIBILI
+
+  1. La riga con `state` vuoto finisce in «non lo so», quindi ogni ricetta dettata a Vera che usa
+     l olio si porta dietro la frase «la tabella non dice se il valore e a crudo». Su
+     3025 RICETTE. ⚠️ Un avviso che compare sempre non e un avviso — e questo compare sull
+     ingrediente piu usato del catalogo.
+  2. E quelle righe occupano i primi posti dell elenco da correggere, DOVE NASCONDONO LE RIGHE
+     CHE VANNO CORRETTE DAVVERO (le melanzane, i fagiolini, la carota solo da cotto).
+
+LA CORREZIONE E UN PATTO CHE IN QUESTA TABELLA C E GIA
+
+`glycemicIndexReliability: 'non_applicabile'` esiste dal 18/8, con scritto accanto: «"non si
+applica" non e "non lo so"». Lo stesso identico patto, applicato allo stato:
+
+    vuoto            nessuno l ha guardato          → si conta, e si dichiara
+    non si applica   qualcuno l ha guardato e ha
+                     detto che per questo alimento
+                     lo stato non esiste             → si conta, e basta
+
+⚠️ NON SI DEDUCE, SI DICHIARA. Nessuna regola indovina che l olio non ha stato: lo scrive una
+persona, come per l indice glicemico. Una regola che decidesse da sola quali alimenti «non hanno
+stato» sbaglierebbe sul primo caso nuovo, in silenzio — ed e esattamente la scorciatoia che
+stamattina ha fatto uscire il limone come aroma.
+
+⚠️ E una riga BOLLITA resta «solo da cotto» qualunque cosa: il valore nuovo non e una scappatoia
+per far passare quello che non passa.
+
+IN PAGINA
+
+Una tendina di suggerimento sui due campi «Stato» (la matita e il pannello «dettaglio»), con
+dentro anche «non si applica». ⚠️ E un SUGGERIMENTO, non una regola: chi decide cosa vuol dire
+uno stato resta `normalizzaStato` nel backend, e scrivere a mano continua a funzionare — gli
+stati sono aperti («tostato», «essiccato», «al vapore»).
+
+⚠️ La tendina era finita dentro una funzione renderizzata DUE volte — id duplicato nel DOM, e
+assente quando le due liste sono vuote. Spostata nel return principale.
+
+COSA FARE ADESSO, ED E LAVORO DI PERSONE
+
+Aprire la matita su olio, olio evo, sale, miele, zucchero e scrivere «non si applica». Sono
+cinque righe, e tolgono un avviso da 3025 ricette piu i primi quattro posti dell elenco.
+
+FILE
+- backend/nutrient-facts: `stato-alimento.ts` + spec (4 test nuovi)
+- backoffice: `ValoriNutrizionali.tsx`
+
+247 suite / 3892 test verdi, 39 nel backoffice, build ok. Tre mutazioni: mordono tutte e tre.
+Nessuna migrazione.

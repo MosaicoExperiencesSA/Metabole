@@ -247,3 +247,41 @@ describe('normalizzaStato — i modi di dire «cotto» che mancavano', () => {
     expect(normalizzaStato('crudo/cotto')).toBe('altro');
   });
 });
+/**
+ * ⚠️ «NON SI APPLICA» NON È «NON LO SO» — 20/8, e non è una sfumatura.
+ *
+ * All'olio, al sale, al miele lo stato **non si applica**: crudi o cotti sono la stessa cosa. Ma in
+ * tabella quelle righe hanno `state` vuoto, cioè finiscono in «non lo so» — e da lì si portano
+ * dietro per sempre la frase «la tabella non dice se il valore è a crudo» attaccata a 3025 ricette
+ * d'olio, più un posto fisso in cima all'elenco da correggere, dove nascondono le righe vere.
+ *
+ * ⚠️ Stesso patto già in uso su `glycemicIndexReliability`: *vuoto = nessuno l'ha guardato; «non si
+ * applica» = qualcuno l'ha guardato e ha detto che non c'è.*
+ */
+describe('lo stato che non si applica', () => {
+  it('si riconosce, scritto nei modi in cui lo scriverebbe una persona', () => {
+    for (const v of ['non_applicabile', 'non applicabile', 'Non si applica', 'non si applica a questo alimento']) {
+      expect([v, normalizzaStato(v)]).toEqual([v, 'non_applicabile']);
+    }
+  });
+
+  /** ✅ Per una ricetta va bene, e **senza dichiarazione**: non c'è niente da avvertire. */
+  it('⚠️ per la ricetta è «va bene», non «non lo so»', () => {
+    expect(scegliPerRicetta([{ state: 'non_applicabile' }]).tipo).toBe('va_bene');
+  });
+
+  /**
+   * ⚠️ IL CONFRONTO CHE DÀ SENSO AL VALORE: la riga **vuota** resta «non lo so» — si conta, ma
+   * dichiarando. Se le due cose finissero nello stesso posto, il campo nuovo non servirebbe a
+   * niente e sarebbe solo un modo in più di scrivere «boh».
+   */
+  it('⚠️ mentre lo stato VUOTO resta «non lo so»', () => {
+    expect(scegliPerRicetta([{ state: null }]).tipo).toBe('stato_ignoto');
+    expect(scegliPerRicetta([{ state: '' }]).tipo).toBe('stato_ignoto');
+  });
+
+  /** ⛔ E non salva una riga cotta: «non si applica» si dichiara, non si deduce. */
+  it('⚠️ una riga BOLLITA resta «solo da cotto», qualunque cosa ci sia accanto', () => {
+    expect(scegliPerRicetta([{ state: 'bollito' }]).tipo).toBe('solo_cotto');
+  });
+});
