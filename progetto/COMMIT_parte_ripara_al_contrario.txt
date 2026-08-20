@@ -1,0 +1,55 @@
+La riparazione andava al contrario: si toglie la copia, non la firma — 20/8 sera
+
+`npm run ripara:alimenti` in produzione ha detto una cosa che non avevo previsto, e che cambia il
+verso di tutta la riparazione.
+
+Le undici coppie hanno **gli stessi identici valori**:
+
+    parmigiano reggiano   397 e 397      burro       758 e 758
+    noci                  702 e 702      mandorle    628 e 628
+    miele                 304 e 304      mela         44 e 44
+    pane integrale        224 e 224      pera         43 e 43
+    avocado               238 e 238      fragole      30 e 30
+    ricotta di vacca      146 e 146
+
+E la riga **vecchia** è quella **confermata da un nutrizionista**; la nuova no.
+
+⛔ Quindi l'import su quelle undici righe non ha aggiunto niente: ha preso righe che una persona
+aveva **firmato**, le ha spostate via dal loro nome, e al loro posto ha messo una copia **non
+firmata** con gli stessi numeri. Il valore non è cambiato — quello che si è perso è **la firma sul
+nome nudo**, cioè l'unica cosa che distingue «un nutrizionista ha guardato questo numero» da «l'ha
+scritto un foglio».
+
+## ⛔ E LA MIA RIPARAZIONE FACEVA ESATTAMENTE LA COSA SBAGLIATA
+
+`CANCELLA_VECCHIE=1` cancellava **le righe vecchie**. Cioè avrebbe buttato via le undici righe
+firmate e tenuto le copie senza firma. L'avevo scritta prima di avere questo esito, dando per
+scontato che «vecchia» volesse dire «peggiore» — e non era una misura, era una parola.
+
+✅ Adesso la variabile si chiama `RIMETTI_A_POSTO=1` e fa l'opposto: cancella **la copia nuova**,
+ridà il nome nudo alla riga firmata, e unisce i sinonimi. ⚠️ Il nome della variabile è cambiato
+insieme al comportamento: una variabile che dice una cosa e ne fa un'altra è peggio di nessuna
+variabile.
+
+⛔ E lo fa **solo** dove i valori combaciano campo per campo (kcal, proteine, carboidrati, grassi,
+fibre) **e** la firma ce l'ha la vecchia. In ogni altro caso stampa e non tocca: se i numeri non
+combaciano le due righe dicono cose diverse, e quella è una decisione di una persona.
+
+## LA PROVA A VUOTO ADESSO STAMPA TUTTO
+
+La prima versione stampava nome, kcal e stato, ed è per questo che sono rimasto con una cosa che non
+tornava: l'import aveva scritto `+ e creo «burro» (crudo, 758 kcal)` ma la riga nuova risultava
+**senza stato**. Con tre campi si può solo fare un'ipotesi. Adesso per ogni riga stampa id, stato,
+categoria, tutti i macro, fonte, **se è confermata e da quando**, **data di creazione e di ultima
+modifica**, sinonimi. Da lì si vede chi è chi in due secondi, invece di dedurlo.
+
+⚠️ È la stessa lezione della radice `nocciol` di poche ore fa: un elenco che va letto a mano deve
+dire il fatto, non costringere a indovinarlo.
+
+## COSA FARE, IN ORDINE
+
+  npm run ripara:alimenti                                → legge e stampa tutto, non scrive
+  CONFERMA=1 npm run ripara:alimenti                     → solo lo stato di «carota» (1017 ricette)
+  CONFERMA=1 RIMETTI_A_POSTO=1 npm run ripara:alimenti   → e rimette a posto le undici
+
+`npm run build` verde. 275 suite, 4132 test verdi, a cache svuotata.

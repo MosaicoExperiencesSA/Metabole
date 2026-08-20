@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **La mia riparazione andava al contrario: avrebbe cancellato le righe firmate.**
+  `npm run ripara:alimenti` in produzione ha detto una cosa che non avevo previsto: le undici coppie
+  «X (vecchia)» / «X» hanno **gli stessi identici valori** — parmigiano 397 e 397, burro 758 e 758,
+  mandorle 628 e 628, mela 44 e 44 — e la riga **vecchia** è quella **confermata da un
+  nutrizionista**.
+  ⛔ Quindi su quelle undici l'import non ha aggiunto niente: ha preso righe **firmate**, le ha
+  spostate via dal loro nome, e al loro posto ha messo una copia **non firmata** con gli stessi
+  numeri. Il valore non è cambiato: si è persa **la firma sul nome nudo**, cioè l'unica cosa che
+  distingue «un nutrizionista ha guardato questo numero» da «l'ha scritto un foglio».
+  ⛔ **E `CANCELLA_VECCHIE=1` cancellava le righe vecchie**, cioè avrebbe buttato via le firme e
+  tenuto le copie. L'avevo scritta prima di avere l'esito, dando per scontato che «vecchia»
+  volesse dire «peggiore» — non era una misura, era una parola. ✅ Adesso è `RIMETTI_A_POSTO=1` e fa
+  l'opposto: cancella la copia nuova, ridà il nome nudo alla riga firmata, unisce i sinonimi. Il nome
+  della variabile è cambiato **insieme** al comportamento. ⛔ E agisce solo dove i valori combaciano
+  campo per campo e la firma ce l'ha la vecchia; in ogni altro caso stampa e non tocca.
+  ⚠️ **E la prova a vuoto adesso stampa tutto** — id, stato, categoria, tutti i macro, fonte, se è
+  confermata e da quando, data di creazione e di modifica, sinonimi. La prima versione ne stampava
+  tre, ed è per questo che sono rimasto con una cosa che non tornava (l'import aveva scritto «creo
+  burro (crudo)» ma la riga risultava senza stato) e stavo per spiegarla invece di misurarla. Stessa
+  lezione della radice `nocciol` di poche ore fa.
+  🔢 Build verde, 275 suite, 4132 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🔧 **L'import degli alimenti è passato, e ha lasciato due cose storte — mie.**
   264 righe create, 24 rinominate, tutto in transazione. ⚠️ Ma la prova a vuoto mostrava due
   problemi e **non ho fatto in tempo a segnalarli prima del `CONFERMA=1`**: gliel'ho scritto un

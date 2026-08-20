@@ -31,20 +31,38 @@
  *
  *   npm run ripara:alimenti                    → guarda e stampa, non scrive
  *   CONFERMA=1 npm run ripara:alimenti         → corregge lo stato di «carota»
- *   CONFERMA=1 CANCELLA_VECCHIE=1 npm run ripara:alimenti
- *                                              → e cancella anche le 11 righe «(vecchia)»
+ *   CONFERMA=1 RIMETTI_A_POSTO=1 npm run ripara:alimenti
+ *                                              → e rimette a posto le 11 righe «(vecchia)»
  *
- * ⚠️ `CANCELLA_VECCHIE=1` si usa **solo dopo** aver letto l'elenco qui sotto riga per riga: cancella
- * righe vere, e i loro sinonimi passano alla riga nuova perché nessuna ricerca si rompa.
+ * ⚠️ **«Rimette a posto» vuol dire togliere la COPIA, non l'originale.** L'esito del 20/8 sera ha
+ * mostrato che quelle undici righe hanno gli **stessi identici valori** delle nuove e in più **la
+ * firma di un nutrizionista**: la riga nuova non aggiunge niente, e la sola differenza è che non è
+ * firmata. Quindi si cancella la nuova, la vecchia torna a chiamarsi col nome nudo, e i sinonimi si
+ * uniscono. ⛔ Lo fa **solo** dove i valori combaciano campo per campo e la firma ce l'ha la
+ * vecchia; in tutti gli altri casi stampa e non tocca.
  */
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const CONFERMA = process.env.CONFERMA === '1';
-const CANCELLA = process.env.CANCELLA_VECCHIE === '1';
+/**
+ * ⚠️ Si chiamava `CANCELLA_VECCHIE`, e faceva la cosa sbagliata: cancellava le righe vecchie. L'esito
+ * del 20/8 sera ha mostrato che quelle undici righe hanno **gli stessi identici valori** delle nuove
+ * e in più **la firma di un nutrizionista**: la copia da togliere è quella nuova, non l'originale.
+ * Il nome della variabile è cambiato con il comportamento — una variabile che dice una cosa e ne fa
+ * un'altra è peggio di nessuna variabile.
+ */
+const RIMETTI = process.env.RIMETTI_A_POSTO === '1';
 
 /** Il nome che l'import ha dato quando non sapeva lo stato. */
 const CODA_VECCHIA = ' (vecchia)';
+
+interface Riga {
+  id: string; name: string; synonyms: string[]; state: string | null; category: string | null;
+  kcal: number | null; protein: number | null; carbs: number | null; fat: number | null; fiber: number | null;
+  source: string | null; verifiedById: string | null; verifiedAt: Date | null;
+  createdAt: Date; updatedAt: Date;
+}
 
 async function main() {
   console.log('');
@@ -78,8 +96,12 @@ async function main() {
   // ---------- 2) le righe «(vecchia)» ----------
   console.log('\n2) LE RIGHE CHIAMATE «(vecchia)»\n');
   const tutte = (await prisma.nutrientFact.findMany({
-    select: { id: true, name: true, synonyms: true, state: true, kcal: true, verifiedById: true } as never,
-  })) as { id: string; name: string; synonyms: string[]; state: string | null; kcal: number | null; verifiedById: string | null }[];
+    select: {
+      id: true, name: true, synonyms: true, state: true, category: true, kcal: true, protein: true,
+      carbs: true, fat: true, fiber: true, source: true, verifiedById: true, verifiedAt: true,
+      createdAt: true, updatedAt: true,
+    } as never,
+  })) as Riga[];
 
   const vecchie = tutte.filter((r) => r.name.endsWith(CODA_VECCHIA));
   if (!vecchie.length) {
@@ -87,23 +109,69 @@ async function main() {
   }
   const perNome = new Map(tutte.map((r) => [r.name, r]));
 
+  /**
+   * ⚠️ **TUTTI I CAMPI DELLE DUE RIGHE, non solo le kcal.**
+   *
+   * La prima versione stampava nome, kcal e stato, e l'esito del 20/8 sera ha mostrato una cosa che
+   * non tornava: l'import aveva scritto `+ e creo «burro» (crudo, 758 kcal)` ma la riga nuova
+   * risultava **senza stato**. Con tre campi si può solo fare un'ipotesi; con tutti i campi e la
+   * **data di creazione** si legge chi è chi. Un elenco che costringe a indovinare è un elenco che
+   * non ha misurato niente — è la stessa lezione della radice `nocciol` di stasera.
+   */
+  const quando = (d: Date | null) => (d ? d.toISOString().replace('T', ' ').slice(0, 19) : '—');
+  const descrivi = (r: Riga | undefined, etichetta: string) => {
+    if (!r) { console.log(`      ${etichetta}: ⚠️  NON C'È`); return; }
+    console.log(`      ${etichetta}`);
+    console.log(`         id ${r.id}`);
+    console.log(`         stato «${r.state ?? 'NULL'}» · categoria «${r.category ?? 'NULL'}»`);
+    console.log(`         ${r.kcal ?? '?'} kcal · prot ${r.protein ?? '?'} · carb ${r.carbs ?? '?'} · gras ${r.fat ?? '?'} · fibr ${r.fiber ?? '?'}`);
+    console.log(`         fonte: ${r.source ?? 'NULL'}`);
+    console.log(`         confermata: ${r.verifiedById ? `SÌ, il ${quando(r.verifiedAt)}` : 'no'}`);
+    console.log(`         creata il ${quando(r.createdAt)} · modificata il ${quando(r.updatedAt)}`);
+    console.log(`         sinonimi: ${r.synonyms.length ? r.synonyms.join(', ') : '(nessuno)'}`);
+  };
+
   for (const v of vecchie) {
     const nudo = v.name.slice(0, -CODA_VECCHIA.length);
     const nuova = perNome.get(nudo);
-    console.log(`   «${v.name}»  ${v.kcal ?? '?'} kcal, stato «${v.state ?? 'senza stato'}»${v.verifiedById ? ' · CONFERMATA da un nutrizionista' : ''}`);
-    console.log(`      la nuova «${nudo}»: ${nuova ? `${nuova.kcal ?? '?'} kcal, stato «${nuova.state ?? 'senza stato'}»` : '⚠️  NON C\'È'}`);
-    console.log(`      sinonimi della vecchia: ${v.synonyms.length ? v.synonyms.join(', ') : '(nessuno)'}`);
-    if (v.verifiedById) console.log('      ⛔ questa riga l\'ha CONFERMATA una persona: non si cancella senza chiederglielo.');
-    if (!CANCELLA || !CONFERMA || !nuova || v.verifiedById) { console.log(''); continue; }
+    console.log(`   ── ${nudo} ${'─'.repeat(Math.max(0, 56 - nudo.length))}`);
+    descrivi(v, `VECCHIA — «${v.name}»`);
+    descrivi(nuova, `NUOVA   — «${nudo}»`);
     /**
-     * ⚠️ I sinonimi della vecchia passano alla nuova **prima** di cancellare: sono i modi in cui
-     * qualcuno cerca quell'alimento, e perderli vorrebbe dire che una ricerca che funzionava smette
-     * di funzionare senza che nessuno se ne accorga.
+     * ⚠️ Il consiglio si stampa solo quando i numeri **combaciano davvero**, campo per campo: se
+     * combaciano, la riga nuova non porta niente che la vecchia non avesse già, e l'unica differenza
+     * è che la vecchia ha la firma di un nutrizionista. Se non combaciano, non c'è un consiglio
+     * automatico: le due righe dicono cose diverse e le guarda una persona.
      */
-    const uniti = [...new Set([...(nuova.synonyms ?? []), ...v.synonyms, v.name])].filter((s) => s !== nudo);
-    await prisma.nutrientFact.update({ where: { id: nuova.id }, data: { synonyms: uniti } as never });
-    await prisma.nutrientFact.delete({ where: { id: v.id } });
-    console.log(`      ✍️  cancellata; i suoi ${v.synonyms.length} sinonimi sono passati a «${nudo}».`);
+    if (nuova) {
+      const ugualiValori = ['kcal', 'protein', 'carbs', 'fat', 'fiber'].every((c) => (v as never)[c] === (nuova as never)[c]);
+      if (ugualiValori && v.verifiedById && !nuova.verifiedById) {
+        console.log('      ⛔ STESSI VALORI, e la firma ce l\'ha la VECCHIA: la nuova non aggiunge niente.');
+        console.log('         Il verso giusto è tenere la vecchia e togliere il doppione, non il contrario.');
+      } else if (!ugualiValori) {
+        console.log('      ⚠️  I valori NON combaciano: le due righe dicono cose diverse, decide una persona.');
+      }
+    }
+    if (v.verifiedById) console.log('      ⛔ questa riga l\'ha CONFERMATA una persona: non si cancella con una variabile d\'ambiente.');
+    if (!RIMETTI || !CONFERMA || !nuova) { console.log(''); continue; }
+    const ugualiValori = ['kcal', 'protein', 'carbs', 'fat', 'fiber'].every((c) => (v as never)[c] === (nuova as never)[c]);
+    if (!ugualiValori) { console.log('      · valori diversi: non tocco niente.\n'); continue; }
+    if (!v.verifiedById || nuova.verifiedById) { console.log('      · non è il caso «firma sulla vecchia»: non tocco niente.\n'); continue; }
+    /**
+     * ⚠️ **SI TOGLIE LA COPIA, NON L'ORIGINALE.** I valori sono identici campo per campo: la riga
+     * nuova non porta niente che la vecchia non avesse già, e l'unica differenza è che la vecchia ha
+     * la firma di un nutrizionista. Rimettere a posto vuol dire cancellare **la nuova** e ridare il
+     * nome nudo alla vecchia — l'opposto di quello che faceva la prima versione di questo script,
+     * che avrebbe buttato via la firma e tenuto la copia.
+     *
+     * I sinonimi si uniscono prima: sono i modi in cui qualcuno cerca quell'alimento.
+     */
+    const uniti = [...new Set([...v.synonyms, ...(nuova.synonyms ?? [])])].filter((x) => x !== nudo);
+    await prisma.$transaction(async (tx) => {
+      await tx.nutrientFact.delete({ where: { id: nuova.id } });
+      await tx.nutrientFact.update({ where: { id: v.id }, data: { name: nudo, synonyms: uniti } as never });
+    });
+    console.log(`      ✍️  tolto il doppione senza firma; «${v.name}» è tornata a chiamarsi «${nudo}» e tiene la sua conferma.`);
     console.log('');
   }
 
@@ -111,10 +179,10 @@ async function main() {
   if (!CONFERMA) {
     console.log('Prova a vuoto: non ho scritto niente.');
     console.log('  CONFERMA=1 npm run ripara:alimenti                        → sistema lo stato di «carota»');
-    console.log('  CONFERMA=1 CANCELLA_VECCHIE=1 npm run ripara:alimenti     → e cancella le righe «(vecchia)»');
+    console.log('  CONFERMA=1 RIMETTI_A_POSTO=1 npm run ripara:alimenti     → e rimette a posto le righe «(vecchia)»');
     console.log('⚠️ La seconda dopo aver letto l\'elenco qui sopra riga per riga.\n');
-  } else if (!CANCELLA && vecchie.length) {
-    console.log(`⚠️ Le ${vecchie.length} righe «(vecchia)» sono ancora lì: decidi tu, poi CANCELLA_VECCHIE=1.\n`);
+  } else if (!RIMETTI && vecchie.length) {
+    console.log(`⚠️ Le ${vecchie.length} righe «(vecchia)» sono ancora lì: decidi tu, poi RIMETTI_A_POSTO=1.\n`);
   } else {
     console.log('Fatto. ⚠️ Rilancia `npm run diag:crudo-cotto`.\n');
   }
