@@ -20,6 +20,71 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🧱 **Un test mio ha tenuto fermo il rilascio del backoffice per un'ora.**
+  `backoffice/src/lib/excel.spec.ts` usava `Buffer` per confrontare due esportazioni byte a byte.
+  `Buffer` è di Node; il backoffice non ha `@types/node` — tre dipendenze in tutto, e va tenuto
+  così — quindi `tsc -b` si ferma con `Cannot find name 'Buffer'`. ⛔ Vercel non pubblicava e
+  continuava a servire il pacchetto vecchio: Simone ha guardato la pagina tre volte, anche in
+  incognito, e il pulsante «Esporta in Excel» non c'era. Il backend intanto era su (l'endpoint
+  rispondeva 401 e non 404, che è come l'ho stabilito da fuori) — perché si costruisce da
+  `backend/` e quel file non lo vede.
+  ⚠️ **Perché non l'ho preso io**: avevo lanciato `vitest run` (verde) e `tsc --noEmit` (verde), ma
+  **non `npm run build`**, che è `tsc -b && vite build` — un controllo diverso e più severo. È
+  esattamente quello che segnalo nel codice degli altri: *il verde non è una riga sola*, e ho
+  guardato la riga sbagliata. ⛔ E il costo non l'ho pagato io: l'ha pagato chi aspettava il
+  pulsante e ha ricaricato la pagina tre volte credendo che fosse la sua cache.
+  **Regola nuova, e non è un proposito**: se una consegna tocca `app/` o `backoffice/`, si lancia il
+  build vero prima di consegnare. `vitest` e `tsc --noEmit` non sono quel controllo.
+
+- `[Sviluppo]` 🔔 **«Misure non inserite: il menu è fermo» non arrivava alla coach.** Trovato
+  seguendo un commento che diceva una cosa non vera. In testa a `avvisaAttivitaNuova` c'era scritto:
+  «Chiamata da `ensureTask`, **l'unico punto in cui nasce ogni attività**: nessun tipo può
+  sfuggire». ⛔ Due sfuggivano, e uno era muto: il sollecito misure creava l'attività con un
+  `prisma.coachTask.create` scritto a mano dentro `notifications.service.ts`. Alla cliente arrivava
+  la sua notifica; alla coach **niente**. L'attività compariva in elenco, e «a questa cliente il
+  menu è fermo» lo si scopriva solo aprendo la lista — che è testualmente il caso Giusy del 13/8,
+  quello da cui è nata metà di questa roba.
+  ⚠️ L'altro — `pause_regain` in `pause.service.ts` — **non è muto**, e l'ho lasciato dov'è: due
+  righe sotto, `avvisaStaffPausa` avvisa coach *e* nutrizionista, e se la cliente non ha nessuno
+  assegnato ripiega sui capi, cioè copre più della push dell'attività (che senza coach tace).
+  Farlo passare dalla porta vorrebbe dire due notifiche per lo stesso fatto. Resta come
+  **eccezione dichiarata**, scritta con il suo perché.
+  Adesso creare e avvisare sono la stessa funzione (`apriAttivitaCoach`): non si può più fare l'una
+  senza l'altra. E la regola non è più solo scritta — `una-porta-per-le-attivita.spec.ts` guarda il
+  **sorgente**, come per l'abbinamento degli alimenti, perché il difetto viveva nei chiamanti dove
+  nessuna mutazione arriva.
+  ⚠️ **La ricerca giusta al primo colpo non l'avevo.** Cercavo `prisma.coachTask.create` su una riga
+  sola e il grep tornava **un solo risultato**: in `notifications.service.ts` c'era un a capo dopo
+  `.coachTask`. Per due minuti ho creduto che non ci fosse nessun secondo punto. C'è un test apposta
+  che la ricerca trovi anche la forma spezzata — *una ricerca che non trova il caso vero è peggio di
+  nessuna ricerca*.
+  ⚠️ E la scadenza di quell'attività era `setHours(0,0,0,0)`: nel giro delle 22:00 UTC — mezzanotte
+  a Roma — nasceva con la data di **ieri**, cioè già vecchia. Ora è il giorno di Roma.
+  255 suite e **3960 test verdi**; mutazione provata (rimesso il `create` a mano → lo scanner
+  diventa rosso).
+
+- `[Sviluppo]` 📏 **Misurato: «che giorno è oggi» è calcolato a mano in una trentina di punti, e
+  risponde UTC.** Non stimato — `grep` su `setHours(0,0,0,0)` e `Date.UTC(getUTC…)`. ⛔ **Non li ho
+  corretti in blocco, di proposito**: fra quelli ci sono `stati-abbonamento.ts` e `piano-attivo.ts`,
+  che decidono se un piano sta erogando *oggi*, e spostare quel confine tocca chi riceve il menu
+  domattina — non è una cosa da fare a trenta file insieme. ⚠️ Due cron girano dentro la fascia
+  (`reminders` e `genera-catalogo` ogni 10 minuti, `measures-nudge` anche alle 22:00 UTC); il giro
+  giornaliero grosso è alle 05:00 UTC, fuori pericolo. Voce in elenco con l'inventario in ordine di
+  costo, così non resta una cosa che so io e basta.
+
+- `[Sviluppo]` 🎥 **Il video delle misure nel popup delle misure** (Simone, 20/8). Il file arrivava a
+  **15,6 MB** — e `app/public/` finisce dentro l'app iOS e Android, quindi quei MB se li scarica
+  ogni cliente dallo store. Ricompresso a **2,1 MB** (720×1280, 36 s, `+faststart` così parte prima
+  di essere scaricato tutto), con una copertina da 55 KB. ⚠️ Prima di sostituirlo ho confrontato un
+  fotogramma dell'uno e dell'altro: i numeri sul metro si leggono uguali e i sottotitoli pure —
+  *ricomprimere senza guardare il risultato è come mandare in produzione senza aprire la pagina*.
+  ⚠️ La striscia sta **sopra le caselle Vita e Fianchi** e non in cima al riquadro: il peso non lo
+  sbaglia nessuno, si sale sulla bilancia; il dubbio — «dove passo il metro?» — nasce esattamente
+  su quelle due caselle, e una spiegazione due centimetri prima della domanda vale più della stessa
+  spiegazione messa in alto, dove si legge come un'intestazione e si salta. ⚠️ E si apre solo se la
+  tocca: quel riquadro spesso è un **blocco**, il menu è fermo e lei vuole scrivere il peso e
+  andarsene — un video che parte da solo lì dentro è una cosa che si mette in mezzo.
+
 - `[Sviluppo]` 🧪 **I due elenchi e il tetto dichiarato non avevano un test, e sono già stati rotti
   una volta.** Scritto `due-elenchi-e-il-tetto.spec.ts` mentre l'esporta in Excel aspettava il
   rilascio: quella consegna ha rifattorizzato `mancanti()` per condividere le query con il foglio, e

@@ -1,0 +1,60 @@
+Un'attività della coach nasce da una porta sola, e quella porta avvisa (+ il video delle misure)
+
+IL DIFETTO
+In testa a `avvisaAttivitaNuova` c'era scritto: «Chiamata da `ensureTask`, l'unico punto in cui
+nasce ogni attività: nessun tipo può sfuggire». Non era vero. Due sfuggivano, e uno era MUTO:
+`measures_missing` — «Misure non inserite: il menu è fermo» — veniva creata con un
+`prisma.coachTask.create` scritto a mano dentro il sollecito misure. Alla cliente arrivava la sua
+notifica; alla coach NIENTE. L'attività compariva in elenco, e «a questa cliente il menu è fermo»
+lo si scopriva solo aprendo la lista: il caso Giusy del 13/8.
+
+L'ALTRO RESTA DOV'È, DICHIARATO
+`pause_regain` in `pause.service.ts` non è muto: due righe sotto `avvisaStaffPausa` avvisa coach e
+nutrizionista, e senza nessuno assegnato ripiega sui capi — cioè copre più della push dell'attività,
+che senza coach tace. Farlo passare dalla porta vorrebbe dire due notifiche per lo stesso fatto.
+È un'eccezione scritta, con il suo perché, nell'elenco del test.
+
+LA REGOLA ADESSO
+Creare e avvisare sono la stessa funzione (`apriAttivitaCoach`, `porta-delle-attivita.ts`): non si
+può più fare l'una senza l'altra. E non è più solo scritta: `una-porta-per-le-attivita.spec.ts`
+guarda il SORGENTE, come per l'abbinamento degli alimenti, perché il difetto vive nei chiamanti
+dove nessuna mutazione arriva.
+
+⚠️ La ricerca giusta al primo colpo non l'avevo: cercavo `prisma.coachTask.create` su una riga sola
+e il grep tornava UN solo risultato, perché in `notifications.service.ts` c'era un a capo dopo
+`.coachTask`. C'è un test apposta che la ricerca trovi anche la forma spezzata.
+
+⚠️ E la scadenza di quell'attività era `setHours(0,0,0,0)`: nel giro delle 22:00 UTC (mezzanotte a
+Roma) nasceva con la data di IERI. Ora è il giorno di Roma.
+
+MISURATO, NON STIMATO
+«Che giorno è oggi» è calcolato a mano in una trentina di punti e risponde UTC. NON li ho corretti
+in blocco di proposito: fra quelli ci sono `stati-abbonamento.ts` e `piano-attivo.ts`, che decidono
+se un piano sta erogando *oggi*. Inventario in elenco, in ordine di costo.
+
+IL VIDEO DELLE MISURE (richiesta di Simone)
+15,6 MB -> 2,1 MB (720x1280, 36 s, +faststart), copertina da 55 KB. `app/public/` finisce dentro
+l'app iOS e Android: quei MB se li scarica ogni cliente dallo store. Prima di sostituire ho
+confrontato un fotogramma prima/dopo — i numeri sul metro e i sottotitoli si leggono uguali.
+La striscia sta sopra le caselle Vita e Fianchi, non in cima, e si apre solo se la tocca.
+
+⚠️ I due file (`app/public/video/misure.mp4` e `misure-poster.jpg`) sono già sul Mac, non in questo
+pacchetto: vanno committati insieme al resto. L'originale a 1080 sta in `_to_delete/`, che git ignora.
+
+Niente migrazioni. 255 suite e 3960 test verdi, type-check a zero errori.
+
+------------------------------------------------------------------------------
+
+⚠️ CORREZIONE URGENTE INCLUSA: il build del backoffice era rotto da un test mio
+`backoffice/src/lib/excel.spec.ts` usava `Buffer` (di Node). Il backoffice non ha `@types/node`,
+quindi `tsc -b` — cioè `npm run build`, quello che gira su Vercel — si fermava con
+`Cannot find name 'Buffer'`. Vercel non pubblicava e serviva il pacchetto vecchio: il pulsante
+«Esporta in Excel» non compariva, nemmeno in incognito. Il backend invece era su (l'endpoint
+rispondeva 401 e non 404), perché si costruisce da `backend/` e quel file non lo vede.
+Corretto confrontando i byte senza `Buffer`.
+
+Avevo lanciato `vitest run` e `tsc --noEmit`, tutti e due verdi, ma NON `npm run build`, che è un
+controllo diverso e più severo. Da adesso: se una consegna tocca `app/` o `backoffice/`, si lancia
+il build vero prima di consegnare.
+
+Verificato con il comando giusto: `npm run build` del backoffice OK, dell'app OK, 7 test Excel verdi.

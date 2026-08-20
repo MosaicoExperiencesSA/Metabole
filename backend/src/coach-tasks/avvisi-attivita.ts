@@ -33,9 +33,18 @@ export interface AttivitaAppenaCreata {
 }
 
 /**
- * LA PUSH ALLA CREAZIONE. Chiamata da `ensureTask`, l'unico punto in cui nasce ogni attività:
- * nessun tipo può sfuggire. Senza coach assegnata non si manda niente — la vede il responsabile
- * in pagina, come già per «piano in scadenza».
+ * LA PUSH ALLA CREAZIONE. Senza coach assegnata non si manda niente — la vede il responsabile in
+ * pagina, come già per «piano in scadenza».
+ *
+ * ⚠️ **Qui c'era scritto «chiamata da `ensureTask`, l'unico punto in cui nasce ogni attività:
+ * nessun tipo può sfuggire». Non era vero** (trovato il 20/8): `measures_missing` nasceva da un
+ * `coachTask.create` scritto a mano dentro il sollecito misure, e alla coach non arrivava niente —
+ * «a questa cliente il menu è fermo» compariva solo in elenco. La riga sbagliata è la parte che è
+ * costata: la regola era scritta, quindi chi la leggeva non aveva ragione di controllare.
+ *
+ * Adesso creare e avvisare sono la **stessa** funzione (`apriAttivitaCoach` in
+ * `porta-delle-attivita.ts`): non si può più fare l'una senza l'altra. E la regola non è più solo
+ * scritta — la tiene ferma `una-porta-per-le-attivita.spec.ts`, che guarda il sorgente.
  */
 export async function avvisaAttivitaNuova(
   prisma: PrismaService,

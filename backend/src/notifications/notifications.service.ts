@@ -5,8 +5,9 @@ import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { datiPush } from './dati-push';
 import { eUnicoPasto, pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
-import { giornoLocale, toDateOnly } from '../common/date-only';
+import { aGiorno, giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
+import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
 import { notificaUtente, staffDisabledTypes } from './notifica-utente';
 import { PushService } from './push.service';
 import { Role } from '../common/roles';
@@ -682,30 +683,29 @@ export class NotificationsService {
         });
         if (fatta) sollecitate++;
 
-        // Avviso alla coach: una volta per ciclo (refId = data del ciclo).
+        /**
+         * Avviso alla coach: una volta per ciclo (refId = data del ciclo).
+         *
+         * ⚠️ **Passa da `apriAttivitaCoach`, e prima no** (20/8). Qui c'era un
+         * `prisma.coachTask.create` scritto a mano: l'attività compariva in elenco e alla coach non
+         * arrivava **niente**. Cioè «a questa cliente il menu è fermo» lo scopriva solo se apriva
+         * la lista — che è il caso Giusy del 13/8, quello da cui è nata metà di questa roba.
+         *
+         * ⚠️ E il giorno è quello di **Roma**: con `setHours(0,0,0,0)` su un server a UTC, il giro
+         * delle 22:00 UTC (mezzanotte a Roma) scriveva la scadenza di **ieri**, e l'attività
+         * nasceva già vecchia.
+         */
         const rif = gate.cycleDate ?? 'iniziali';
-        const esiste = await this.prisma.coachTask.findUnique({
-          where: { clientId_kind_refId: { clientId, kind: 'measures_missing', refId: rif } } as never,
-          select: { id: true },
-        });
-        if (!esiste) {
-          const oggi = new Date();
-          oggi.setHours(0, 0, 0, 0);
-          await this.prisma.coachTask
-            .create({
-              data: {
-                clientId,
-                kind: 'measures_missing',
-                refId: rif,
-                title: 'Misure non inserite: il menu è fermo',
-                description:
-                  'Senza le misure di questo ciclo il menu non parte. Sentila per capire il motivo: se serve, puoi sbloccarle l\'app dalla sua scheda.',
-                dueDate: oggi,
-              },
-            })
-            .catch(() => undefined);
-          coachAvvisate++;
-        }
+        const esito = await apriAttivitaCoach(this.prisma, this.push, {
+          clientId,
+          kind: 'measures_missing',
+          refId: rif,
+          title: 'Misure non inserite: il menu è fermo',
+          description:
+            'Senza le misure di questo ciclo il menu non parte. Sentila per capire il motivo: se serve, puoi sbloccarle l\'app dalla sua scheda.',
+          dueDate: aGiorno(new Date()),
+        }).catch(() => 'gia-presente' as const);
+        if (esito === 'creata') coachAvvisate++;
       } catch {
         /* una cliente che va storta non ferma le altre */
       }

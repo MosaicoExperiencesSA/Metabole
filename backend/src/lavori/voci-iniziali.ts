@@ -1348,4 +1348,14 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-08-20T11:20',
   },
 
+  {
+    chiave: 'che-giorno-e-oggi-trenta-punti',
+    titolo: '«Che giorno è oggi» è ancora calcolato a mano in una trentina di punti, e risponde UTC',
+    dettaglio:
+      'Misurato il 20/8, non stimato: `grep` su `setHours(0,0,0,0)` e `Date.UTC(d.getUTCFullYear(), …)` trova **una trentina di punti** che si calcolano «oggi» per conto loro. Su Render il processo sta a UTC, quindi fra mezzanotte e le 02:00 in Italia tutti rispondono **ieri**. ⚠️ È lo stesso difetto chiuso il 7/8 sulle misure (la pesata delle 00:30 che sovrascriveva quella del giorno prima) e il 20/8 sui soldi: `common/date-only.ts` esiste apposta, e la maggior parte di questi punti è di prima e non è mai stata ricontrollata. ⛔ **Non li ho corretti tutti in blocco, di proposito**: fra questi ci sono `commerce/stati-abbonamento.ts` e `common/piano-attivo.ts`, che decidono se un piano sta erogando **oggi** — cambiare quel confine tocca chi riceve il menu domattina, e non è una cosa da fare a trenta file insieme senza guardarli uno per uno. ⚠️ Due cron girano dentro la fascia: `reminders` e `genera-catalogo` (ogni 10 minuti) e `measures-nudge` (ogni 2 ore, quindi anche alle 22:00 UTC = mezzanotte a Roma). Il giro giornaliero grosso invece è alle 05:00 UTC, fuori pericolo. ✅ Già corretti: il mese dei soldi (consegna del 20/8), la scadenza dell\'attività «Misure non inserite» (nasceva con la data di ieri). ⛔ Restano da guardare, in ordine di quanto costano: gli stati abbonamento e `piano-attivo` (chi riceve il menu), `pause.service` e `menu/data-inizio-chat` (date che la cliente legge), `coach-tasks` (scadenze e «in ritardo»), `privacy/cancellazione` (il termine di legge), `menu/senza-glutine` e `vera/*` (quali giorni si rifanno). Il resto è analitica e non sposta niente.',
+    categoria: CODICE,
+    ordine: 618,
+    nata: '2026-08-20T12:10',
+  },
+
 ];

@@ -63,6 +63,16 @@ export default function MeasuresGate() {
    * come prima. Una richiesta senza il modo di soddisfarla è un rimprovero, non una richiesta.
    */
   const [promemoria, setPromemoria] = useState(false);
+  /**
+   * IL VIDEO DELLE MISURE (20/8, Simone). Chiuso finché non lo tocca, e non è pigrizia di
+   * interfaccia: questo riquadro spesso è un **blocco** — il menu è fermo e lei vuole scrivere il
+   * peso e andarsene. Un video che parte da solo, lì dentro, è qualcosa che si mette in mezzo.
+   *
+   * ⚠️ Il file pesa 2 MB e con `preload="none"` non si scarica finché non lo apre: fino ad allora
+   * costano solo i 55 KB della copertina. È il genere di dettaglio che non si vede da Milano col
+   * wi-fi e si vede benissimo da un telefono in giro con pochi giga.
+   */
+  const [videoAperto, setVideoAperto] = useState(false);
 
   async function check() {
     try {
@@ -166,6 +176,45 @@ export default function MeasuresGate() {
 
         <label className="muted" style={{ fontSize: 12 }}>Peso (kg)</label>
         <input className="input" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="es. 68,4" style={{ marginBottom: 8 }} />
+
+        {/*
+          ⚠️ **Sta QUI, sopra vita e fianchi, e non in cima al riquadro.** Il peso non lo sbaglia
+          nessuno: si sale sulla bilancia. Il dubbio — «dove passo il metro?» — nasce esattamente
+          su queste due caselle, e una spiegazione che arriva due centimetri prima della domanda
+          vale più della stessa spiegazione messa in alto, dove si legge come un'intestazione e si
+          salta.
+        */}
+        <div style={{ marginTop: 10, marginBottom: 8 }}>
+          {videoAperto ? (
+            <video
+              src="/video/misure.mp4"
+              poster="/video/misure-poster.jpg"
+              controls
+              autoPlay
+              playsInline
+              preload="auto"
+              style={{ width: '100%', borderRadius: 12, display: 'block', background: '#000' }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => { setVideoAperto(true); track('measures_video_open'); }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: 8, textAlign: 'left' }}
+            >
+              <img
+                src="/video/misure-poster.jpg"
+                alt=""
+                style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, flex: 'none' }}
+              />
+              <span style={{ flex: 1, lineHeight: 1.25 }}>
+                <b style={{ fontSize: 13 }}>Come si prendono le misure</b>
+                <span className="muted" style={{ display: 'block', fontSize: 11 }}>Video di 36 secondi</span>
+              </span>
+              <i className="ti ti-player-play" style={{ flex: 'none' }} />
+            </button>
+          )}
+        </div>
 
         <div className="row" style={{ gap: 8 }}>
           <div style={{ flex: 1 }}>

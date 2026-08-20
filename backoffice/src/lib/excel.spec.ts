@@ -94,8 +94,13 @@ describe('creaExcel — un .xlsx che si apre', () => {
   });
 
   it('due esportazioni identiche danno byte identici (data DOS fissa)', async () => {
+    // ⚠️ Niente `Buffer` qui dentro: è di Node, il backoffice non ha `@types/node` (tre dipendenze
+    // in tutto, e va tenuto così) e `tsc -b` — cioè il build vero, quello che gira su Vercel —
+    // si ferma su `Cannot find name 'Buffer'`. `vitest` invece passava, perché non fa quel
+    // controllo: *il verde non è una riga sola*, ed è costato un rilascio del backoffice.
     const a = new Uint8Array(await creaExcel(FOGLIO).arrayBuffer());
     const b = new Uint8Array(await creaExcel(FOGLIO).arrayBuffer());
-    expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
+    expect(a.length).toBe(b.length);
+    expect(Array.from(a)).toEqual(Array.from(b));
   });
 });

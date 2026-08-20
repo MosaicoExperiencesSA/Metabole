@@ -12,7 +12,8 @@ import {
   serveChiedereLaFinestra,
   testoFinestraMaiChiesta,
 } from './finestra-mai-chiesta';
-import { avvisaAttivitaNuova, escalateAttivitaScadute } from './avvisi-attivita';
+import { escalateAttivitaScadute } from './avvisi-attivita';
+import { apriAttivitaCoach } from './porta-delle-attivita';
 import { STATI_CON_UN_PIANO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
 import { frasiDaChiarire, impronta, TIPO_ESCLUSIONI_DA_CHIARIRE, testoEsclusioniDaChiarire } from './esclusioni-da-chiarire';
 
@@ -191,23 +192,17 @@ export class CoachTasksService {
     return 'gia-presente';
   }
 
-  /** Crea il task se non esiste già (unicità cliente+tipo+riferimento). Ritorna 1 se creato. */
+  /**
+   * Crea il task se non esiste già (unicità cliente+tipo+riferimento). Ritorna 1 se creato.
+   *
+   * ⚠️ La creazione e la push alla coach stanno insieme in `apriAttivitaCoach`
+   * (`porta-delle-attivita.ts`) e non più qui: fino al 20/8 il commento diceva «questo è l'unico
+   * punto in cui nasce ogni attività, quindi nessun tipo può sfuggire» — e due tipi sfuggivano
+   * davvero. La spiegazione lunga sta in quel file.
+   */
   private async ensureTask(clientId: string, kind: string, refId: string, title: string, description: string, dueDate: Date): Promise<number> {
-    const exists = await this.prisma.coachTask.findUnique({
-      where: { clientId_kind_refId: { clientId, kind, refId } } as never,
-      select: { id: true },
-    });
-    if (exists) return 0;
-    const creata = (await this.prisma.coachTask.create({
-      data: { clientId, kind, refId, title, description, dueDate },
-    })) as unknown as { id: string };
-    /**
-     * L'ATTIVITÀ NUOVA ARRIVA ALLA COACH ANCHE VIA PUSH (Simone, 14/8). Qui e non nei singoli
-     * rami di `generateDaily`: questo è l'unico punto in cui nasce ogni attività, quindi nessun
-     * tipo può sfuggire. `avvisaAttivitaNuova` non lancia mai e senza coach assegnata tace.
-     */
-    await avvisaAttivitaNuova(this.prisma, this.push, { id: creata.id, clientId, title, description, dueDate });
-    return 1;
+    const esito = await apriAttivitaCoach(this.prisma, this.push, { clientId, kind, refId, title, description, dueDate });
+    return esito === 'creata' ? 1 : 0;
   }
 
   /**
