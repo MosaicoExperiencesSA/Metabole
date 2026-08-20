@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🚨 **Le allergie non entrano nella guardia che compone il menu — e non l'ho corretto
+  io, di proposito.** Secondo giro sul motore menu, e questo non è un difetto da chiudere con una
+  riga: è una decisione che deve prendere Simone.
+  ⛔ **Il fatto.** `evaluateMeals` — la funzione che i commenti del motore chiamano «la sicurezza»
+  (§2/§7) — costruisce l'elenco delle esclusioni da **intolleranze** (bloccanti) e **cibi non
+  graditi** (sostituibili). Le **allergie** non ci sono: si leggono solo per la regola del
+  delattosato. E la prima riga è `if (!intolerances.length && !dislikes.length) return …`: una
+  cliente che ha dichiarato **soltanto allergie** esce di lì senza che si sia guardato niente.
+  ⚠️ Le allergie **sono** controllate in tre punti su quattro — le sostituzioni di Gaia («su questo
+  non si media»), il pool delle ricette semplici, la base personale. Quello che manca è proprio la
+  composizione del menu, cioè il piatto che arriva da solo la mattina.
+  ⚠️ **E i tag allergene confermati** (`Recipe.allergens`, quelli che un nutrizionista ha guardato
+  uno per uno, con `allergensReviewed`) **il motore dei menu non li legge affatto**: li legge solo
+  `personal-base.service.ts`. Lo schema dice «una ricetta non revisionata NON è considerata sicura»
+  — ed è vero in un posto su tre.
+  ⛔ **Perché non ho corretto.** `violations` fa **fermare l'erogazione** (`return []` più
+  escalation). Aggiungere le allergie all'elenco bloccante significa che, se una dieta assegnata
+  contiene l'allergene di una cliente, da domattina quella cliente **non riceve il menu** invece di
+  riceverne uno sbagliato. Può darsi che sia giusto. Ma è una decisione clinica con un effetto
+  immediato su persone vere, e chi scrive il codice non la prende da solo — è la stessa riga che mi
+  sono dato stamattina sul ricalcolo delle provvigioni e sulle date dei piani già venduti.
+  ✅ **Quello che ho fatto è il numero da cui si decide**: `npm run diag:allergeni-piatto` (sola
+  lettura) dice quante clienti e quali piatti, negli ultimi 14 giorni e a venire, sia per parola
+  chiave sia per tag confermato. Se è **zero**, le diete assegnate sono già scelte bene e la rete di
+  sicurezza si aggiunge senza cambiare niente a nessuno. Se **non è zero**, quelle righe sono piatti
+  che stanno arrivando adesso a chi ha dichiarato un'allergia — e si parte da lì.
+  Voce **rossa** in elenco: finché non è deciso, dietro c'è una fila ferma.
+  ⚠️ Nota di metodo: l'ipotesi con cui ero partito — «il filtro testuale perde quello che i tag
+  vedono» — **misurata sul catalogo del repo è falsa**: l'unico scarto era un falso positivo del
+  riconoscitore («Pancake cheto **senza farina**»). Il difetto vero era un altro e stava più in
+  basso. Misurare prima di scrivere ha cambiato la consegna.
+
 - `[Sviluppo]` 🥜 **«Mandorla» non è «mandorle», e quattro piatti col loro allergene passavano il
   filtro.** Revisione avversariale del motore menu, primo giro: le esclusioni.
   ⛔ Le parole chiave sono scritte in **una forma sola** (`mandorle`, `nocciole`, `gamberi`,

@@ -1349,6 +1349,17 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'allergie-fuori-dalla-guardia',
+    titolo: '⚠️ Le allergie non entrano nella guardia che compone il menu: da decidere come chiuderla',
+    dettaglio:
+      '⛔ **Il fatto.** `evaluateMeals` — la funzione che i commenti del motore chiamano «la sicurezza» (§2/§7) — costruisce l\'elenco delle esclusioni da **intolleranze** (bloccanti) e **cibi non graditi** (sostituibili). Le **allergie** non ci sono: si leggono solo per la regola del delattosato. E la prima riga della funzione è `if (!intolerances.length && !dislikes.length) return …`, cioè una cliente che ha dichiarato **soltanto allergie** esce di lì senza che si sia guardato niente. ⚠️ Le allergie SONO controllate altrove — nelle sostituzioni di Gaia («su questo non si media»), nel pool delle ricette semplici, e nella base personale, che usa perfino i tag confermati dal nutrizionista. Tre punti su quattro: quello che manca è proprio la composizione del menu. ⚠️ **E i tag allergene confermati** (`Recipe.allergens`, quelli che un nutrizionista ha guardato uno per uno) **il motore dei menu non li legge affatto**: li legge solo la base personale. ⛔ **Perché non l\'ho corretto io.** Aggiungere le allergie all\'elenco bloccante non è una riga: `violations` fa **fermare l\'erogazione** (`return []` più escalation). Se una dieta assegnata contiene l\'allergene di una cliente, da domattina quella cliente **non riceve il menu** invece di riceverne uno sbagliato. Può darsi che sia giusto — ma è una decisione clinica, e chi scrive il codice non la prende da solo. ✅ **Il numero da cui si decide**: `npm run diag:allergeni-piatto` (sola lettura) dice quante clienti e quali piatti, negli ultimi 14 giorni e a venire, per parola chiave **e** per tag. Se è **zero**, le diete assegnate sono già scelte bene e la rete di sicurezza si aggiunge senza cambiare niente a nessuno. Se **non è zero**, quelle righe sono piatti che stanno arrivando adesso a persone che hanno dichiarato un\'allergia.',
+    categoria: SIMONE,
+    ordine: 600,
+    blocca: true,
+    nata: '2026-08-20T17:40',
+  },
+
+  {
     chiave: 'che-giorno-e-oggi-trenta-punti',
     titolo: '«Che giorno è oggi» è ancora calcolato a mano in una trentina di punti, e risponde UTC',
     dettaglio:

@@ -89,7 +89,8 @@
     "converti:code": "ts-node --transpile-only prisma/converti-code-vecchie.ts",
     "diag:mese-confine": "ts-node --transpile-only prisma/diag-mese-confine.ts",
     "diag:giorno-piani": "ts-node --transpile-only prisma/diag-giorno-piani.ts",
-    "diag:esclusioni": "ts-node --transpile-only prisma/diag-esclusioni.ts"
+    "diag:esclusioni": "ts-node --transpile-only prisma/diag-esclusioni.ts",
+    "diag:allergeni-piatto": "ts-node --transpile-only prisma/diag-allergeni-nel-piatto.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

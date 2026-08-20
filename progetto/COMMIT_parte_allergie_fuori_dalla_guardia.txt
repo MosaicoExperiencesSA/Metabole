@@ -1,0 +1,44 @@
+Le allergie non entrano nella guardia che compone il menu: la misura, non la correzione
+
+IL FATTO
+`evaluateMeals` — la funzione che i commenti del motore chiamano «la sicurezza» (§2/§7) —
+costruisce l'elenco delle esclusioni da INTOLLERANZE (bloccanti) e CIBI NON GRADITI (sostituibili).
+Le ALLERGIE non ci sono: si leggono solo per la regola del delattosato. E la prima riga è
+
+    if (!intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
+
+cioè una cliente che ha dichiarato SOLTANTO allergie esce di lì senza che si sia guardato niente.
+
+Le allergie sono controllate in tre punti su quattro — sostituzioni di Gaia («su questo non si
+media»), pool delle ricette semplici, base personale. Quello che manca è proprio la composizione del
+menu, cioè il piatto che arriva da solo la mattina.
+
+E I TAG CONFERMATI NON LI LEGGE NESSUNO, NEL MOTORE
+`Recipe.allergens` / `allergensReviewed` — quelli che un nutrizionista ha guardato uno per uno — li
+usa solo `personal-base.service.ts`. Lo schema dice «una ricetta non revisionata NON è considerata
+sicura»: è vero in un posto su tre.
+
+PERCHÉ NON HO CORRETTO
+`violations` fa FERMARE L'EROGAZIONE (`return []` più escalation). Aggiungere le allergie all'elenco
+bloccante significa che, se una dieta assegnata contiene l'allergene di una cliente, da domattina
+quella cliente NON RICEVE IL MENU invece di riceverne uno sbagliato. Può darsi che sia giusto, ma è
+una decisione clinica con un effetto immediato su persone vere.
+
+QUELLO CHE HO FATTO È IL NUMERO DA CUI SI DECIDE
+
+    npm run diag:allergeni-piatto     (sola lettura)
+
+Dice quante clienti e quali piatti, negli ultimi 14 giorni e a venire, sia per parola chiave sia per
+tag confermato. Zero → le diete assegnate sono già scelte bene, e la rete di sicurezza si aggiunge
+senza cambiare niente a nessuno. Non zero → quelle righe sono piatti che stanno arrivando adesso a
+chi ha dichiarato un'allergia.
+
+Voce ROSSA in elenco: finché non è deciso, dietro c'è una fila ferma.
+
+NOTA DI METODO
+L'ipotesi con cui ero partito — «il filtro testuale perde quello che i tag vedono» — misurata sul
+catalogo del repo è FALSA: l'unico scarto era un falso positivo del riconoscitore («Pancake cheto
+senza farina»). Il difetto vero era un altro e stava più in basso. Misurare prima di scrivere ha
+cambiato la consegna.
+
+Solo diagnostica e una voce. Nessun comportamento cambiato. 260 suite e 4007 test verdi.
