@@ -113,6 +113,35 @@ export function pianifica(righe: RigaAlimento[], esistenti: Conosciuta[]): Piano
     }
 
     /**
+     * ⛔ **SE LA RIGA VECCHIA NON HA UNO STATO, NON SI TOCCA.**
+     *
+     * Fino alla sera del 20/8 lo script trattava «senza stato» come «da cotto»: rinominava la riga
+     * in «X (vecchia)» e dava il nome nudo a quella nuova. L'import in produzione ha prodotto così
+     * **undici** righe chiamate `burro (vecchia)`, `mandorle (vecchia)`, `noci (vecchia)`,
+     * `mela (vecchia)`, `pera (vecchia)`, `fragole (vecchia)`, `avocado (vecchia)`,
+     * `parmigiano reggiano (vecchia)`, `miele (vecchia)`, `pane integrale (vecchia)`,
+     * `ricotta di vacca (vecchia)`.
+     *
+     * ⚠️ **«Non lo so» non è «cotto».** Una riga senza stato può essere a crudo, e in quel caso
+     * spostarla è l'esatto contrario di quello che serve. Lo script stava **indovinando**, e il
+     * prezzo è un nome che legge una persona: quelle righe stanno nella pagina Alimenti, e Gaia le
+     * può citare a una cliente. È lo stesso motivo per cui `(da cotto)` esiste al posto di
+     * «barbabietola bollito» — l'avevo scritto la mattina stessa, e poi ho lasciato il ripiego
+     * `(vecchia)` a fare quello che quel commento vietava.
+     *
+     * Adesso si salta e si dice, che costa meno di indovinare.
+     */
+    if (!normalizzaStato(esistente.state)) {
+      mosse.push({
+        tipo: 'salta',
+        riga: r,
+        messaggio: `⚠️  SALTO «${r.name}»: la riga in tabella non ha uno stato, e «senza stato» non vuol dire «da cotto». Guardala a mano (in tabella ${esistente.kcal ?? '?'} kcal, in questa riga ${r.kcal}).`,
+      });
+      saltati += 1;
+      continue;
+    }
+
+    /**
      * ⚠️ IL CASO CHE VALE LO SCRIPT: la riga esiste **da cotto** e occupa il nome nudo. Si rinomina
      * («carote» → «carote (da cotto)»), il nome vecchio le resta come **sinonimo**, e il nome nudo
      * va alla riga a crudo — perché è quello che scrivono le ricette, e le ricette sono a crudo.

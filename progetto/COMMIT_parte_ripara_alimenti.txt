@@ -1,0 +1,60 @@
+Ripara l'import: «carota» da cotto e undici righe «(vecchia)» — 20/8 sera
+
+L'import è andato: 264 righe create, 24 rinominate, 13 saltate, tutto in transazione. ⚠️ Ma la prova
+a vuoto mostrava due cose, e **non ho fatto in tempo a segnalarle prima del `CONFERMA=1`**: gliele
+ho scritte un minuto dopo che aveva lanciato. La responsabilità è mia — la prova a vuoto esiste per
+essere letta *insieme*, e io l'ho letta troppo lentamente.
+
+⚠️ **Non è stato perso niente**: le righe vecchie sono state **rinominate**, non cancellate, e il
+nome vecchio è rimasto come sinonimo. Nessun valore è stato sovrascritto. Le due cose sono
+**etichette**, e si riparano con un `update`.
+
+## 1) «carota» ha lo stato `bollite`, e sono 1017 ricette
+
+Il foglio portava «carota» con `bollite`, ereditato dall'export originale dove quella riga *era* la
+carota cotta. Il valore è giusto — 35 kcal è anche il valore a crudo, e nel foglio «carota cruda» ha
+esattamente 35 — ma lo stato no. ⛔ E il **nome esatto vince sul sinonimo**: prima le ricette che
+scrivono «carota» la trovavano come sinonimo di «carote» (crudo), adesso trovano una riga propria
+«solo da cotto». Su 1017 ricette, e la convenzione dice che le grammature sono a crudo.
+
+## 2) Undici righe si chiamano «X (vecchia)»
+
+`burro`, `mandorle`, `noci`, `mela`, `pera`, `fragole`, `avocado`, `parmigiano reggiano`, `miele`,
+`pane integrale`, `ricotta di vacca`.
+
+⛔ **Difetto mio nello script, e della specie peggiore: stava indovinando.** Quelle righe in tabella
+non avevano uno stato, e `pianifica` trattava «senza stato» come «da cotto» — le spostava e dava il
+nome nudo alla riga nuova. **Ma «non lo so» non è «cotto»**: una riga senza stato può benissimo
+essere a crudo, e in quel caso spostarla fa l'opposto di quello che serve.
+
+⚠️ E la cosa che brucia: il commento su `nomeConStato` — scritto da me **la mattina stessa** — dice
+esattamente questo, «questi nomi li legge una persona, un nome storto in banca dati si corregge solo
+con un'altra migrazione». Ho messo la regola e poi ho lasciato lì un ripiego che la viola.
+
+## COSA È CAMBIATO
+
+`src/nutrient-facts/piano-alimenti.ts` — se la riga in tabella **non ha uno stato**, non si tocca:
+si salta e si dice perché, con i due numeri accanto. Non succederà più.
+
+`prisma/ripara-import-alimenti.ts` (nuovo) + `npm run ripara:alimenti`:
+ · corregge lo stato di «carota» → `crudo` (il valore non si tocca);
+ · mette le undici righe «(vecchia)» **in colonna col loro valore accanto a quello nuovo**, e i loro
+   sinonimi, e lascia decidere. ⛔ Cancellare righe di banca dati non è una decisione di chi scrive
+   il codice: serve `CANCELLA_VECCHIE=1`, esplicito, dopo aver letto l'elenco.
+ · ⚠️ Se una riga vecchia è **confermata da un nutrizionista** lo dice e **non la cancella comunque**:
+   una firma di una persona non si butta via con una variabile d'ambiente.
+ · ⚠️ Quando cancella, i sinonimi della vecchia **passano prima alla nuova**: sono i modi in cui
+   qualcuno cerca quell'alimento, e perderli vorrebbe dire una ricerca che smette di funzionare
+   senza che nessuno se ne accorga.
+
+## LE PROVE
+
+4 test nuovi in `import-alimenti-due-fogli.spec.ts`, ancorati al caso vero («burro» con stato nullo
+non diventa «burro (vecchia)»), più lo stato vuoto e fatto di spazi. Mutazione provata: la guardia
+che non scatta mai → 3 test rossi.
+
+⚠️ La prima mutazione che ho provato (`if (false)`) non era valida — codice irraggiungibile, la suite
+non compilava e diceva «0 test». **Zero test non è verde**, e una mutazione che non compila non ha
+provato niente. Rifatta in modo valido.
+
+`npm run build` verde. 275 suite, 4132 test verdi, a cache svuotata.

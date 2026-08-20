@@ -58,6 +58,7 @@
     "chiedi:allergie": "ts-node --transpile-only prisma/chiedi-allergie.ts",
     "avvisa:allergie": "ts-node --transpile-only prisma/avvisa-allergie-app.ts",
     "importa:ig": "ts-node --transpile-only prisma/importa-ig.ts",
+    "ripara:alimenti": "ts-node --transpile-only prisma/ripara-import-alimenti.ts",
     "importa:alimenti": "ts-node --transpile-only prisma/importa-alimenti.ts",
     "prisma:tipi": "node scripts/prisma-generate-reale.mjs",
     "carica:lavori": "ts-node --transpile-only prisma/carica-lavori.ts",

@@ -105,3 +105,52 @@ describe('quello che deve continuare a funzionare', () => {
     expect(nomeConStato('miele', null)).toBe('miele (vecchia)');
   });
 });
+
+/**
+ * «SENZA STATO» NON VUOL DIRE «DA COTTO» — 20/8 sera, dopo l'import vero.
+ *
+ * L'import in produzione ha rinominato **undici** righe in «X (vecchia)»: burro, mandorle, noci,
+ * mela, pera, fragole, avocado, parmigiano reggiano, miele, pane integrale, ricotta di vacca. Tutte
+ * righe che in tabella non avevano uno stato — e lo script le trattava come se fossero cotte, le
+ * spostava, e dava il nome nudo alla riga nuova.
+ *
+ * ⛔ È un difetto mio, e della specie peggiore: **stava indovinando**. Una riga senza stato può
+ * essere benissimo a crudo, e in quel caso spostarla fa l'opposto di quello che serve. Il prezzo si
+ * legge nella pagina Alimenti, dove «burro (vecchia)» sta scritto per una persona.
+ *
+ * ⚠️ E la cosa che brucia è che il commento su `nomeConStato` — scritto da me la mattina stessa —
+ * dice esattamente questo: «questi nomi li legge una persona, un nome storto in banca dati si
+ * corregge solo con un'altra migrazione». Ho messo la regola e poi ho lasciato un ripiego che la
+ * viola.
+ */
+describe('la riga vecchia senza stato', () => {
+  const SENZA_STATO: Conosciuta[] = [{ id: 'b1', name: 'burro', synonyms: [], state: null, kcal: 760 }];
+
+  it('⛔ NON si rinomina in «burro (vecchia)»', () => {
+    const piano = pianifica([riga({ name: 'burro', state: 'crudo', kcal: 758 })], SENZA_STATO);
+    expect(piano.mosse.map((m) => m.tipo)).toEqual(['salta']);
+    expect(piano.rinominati).toBe(0);
+    expect(piano.mosse[0].messaggio).not.toContain('(vecchia)');
+  });
+
+  it('e il messaggio dice PERCHÉ, con i due numeri accanto', () => {
+    const piano = pianifica([riga({ name: 'burro', state: 'crudo', kcal: 758 })], SENZA_STATO);
+    expect(piano.mosse[0].messaggio).toContain('non ha uno stato');
+    expect(piano.mosse[0].messaggio).toContain('760');
+    expect(piano.mosse[0].messaggio).toContain('758');
+  });
+
+  it('lo stesso per lo stato vuoto o fatto di spazi: sono tutti «non lo so»', () => {
+    for (const stato of ['', '   ']) {
+      const piano = pianifica([riga({ name: 'burro' })], [{ id: 'b1', name: 'burro', synonyms: [], state: stato, kcal: 760 }]);
+      expect(piano.mosse.map((m) => m.tipo)).toEqual(['salta']);
+    }
+  });
+
+  it('✅ mentre una riga con uno stato da cotto si rinomina come prima', () => {
+    const piano = pianifica([riga({ name: 'carote' })], [
+      { id: 'c1', name: 'carote', synonyms: [], state: 'bollite', kcal: 35 },
+    ]);
+    expect(piano.mosse[0].tipo).toBe('rinomina-e-crea');
+  });
+});

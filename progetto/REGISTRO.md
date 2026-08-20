@@ -20,6 +20,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔧 **L'import degli alimenti è passato, e ha lasciato due cose storte — mie.**
+  264 righe create, 24 rinominate, tutto in transazione. ⚠️ Ma la prova a vuoto mostrava due
+  problemi e **non ho fatto in tempo a segnalarli prima del `CONFERMA=1`**: gliel'ho scritto un
+  minuto dopo. La prova a vuoto esiste per essere letta *insieme*, e l'ho letta troppo lentamente.
+  ✅ **Non è stato perso niente**: le righe vecchie sono state *rinominate*, non cancellate, col nome
+  vecchio rimasto come sinonimo, e nessun valore è stato sovrascritto. Sono due **etichette**.
+  ⛔ **1) «carota» ha lo stato `bollite`, e sono 1017 ricette.** Il valore è giusto (35 kcal è anche
+  il valore a crudo), lo stato se l'è portato dall'export originale. E il **nome esatto vince sul
+  sinonimo**: prima quelle ricette trovavano «carote» (crudo), adesso trovano una riga propria «solo
+  da cotto».
+  ⛔ **2) Undici righe si chiamano «X (vecchia)»** — burro, mandorle, noci, mela, pera, fragole,
+  avocado, parmigiano, miele, pane integrale, ricotta di vacca. È un difetto mio, e della specie
+  peggiore: lo script trattava «senza stato» come «da cotto» e le spostava. **«Non lo so» non è
+  «cotto».** ⚠️ E il commento su `nomeConStato`, scritto da me **la mattina stessa**, dice
+  esattamente questo: «questi nomi li legge una persona». Ho messo la regola e poi ho lasciato lì un
+  ripiego che la viola.
+  ✅ `piano-alimenti.ts`: se la riga in tabella non ha uno stato, **non si tocca** — si salta e si
+  dice perché. ✅ `npm run ripara:alimenti` (prova a vuoto): corregge lo stato di «carota» e mette le
+  undici righe in colonna col valore vecchio accanto al nuovo. ⛔ Non le cancella: serve
+  `CANCELLA_VECCHIE=1` esplicito, e **mai** su una riga confermata da un nutrizionista — una firma
+  di una persona non si butta via con una variabile d'ambiente. Quando cancella, i sinonimi passano
+  prima alla riga nuova.
+  🧪 4 test ancorati al caso vero, mutazione che morde. ⚠️ La prima mutazione che ho provato non
+  compilava e la suite diceva «0 test»: **zero test non è verde**, e una mutazione che non compila
+  non ha provato niente. Rifatta.
+  🔢 Build verde, 275 suite, 4132 test verdi a cache svuotata.
+
 - `[Sviluppo]` 🥕 **I 173 alimenti rifatti, caricati — e un numero sbagliato scritto da me.**
   ⛔ **Nella consegna 71 avevo scritto «da 11 a 9 voci aperte». Erano 11.** Le avevo contate *prima*
   delle ultime due chiusure e poi ho scritto il risultato che mi aspettavo invece di ricontarle: è
