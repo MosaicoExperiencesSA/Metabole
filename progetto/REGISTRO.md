@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🧂 **«Togli gli aromi», con la lista davanti** (scelta di Simone fra quattro strade).
+  Metà dei primi venti posti dell'elenco «Alimenti da correggere» sono aglio (3886 ricette), sale
+  (3296), pepe, acqua, prezzemolo, basilico: pesano **zero** nel conto e occupano lo spazio delle
+  righe che servono davvero. ⚠️ **Prima si guardano, poi si scrivono**, e la separazione è la
+  richiesta: due endpoint, uno dice *cosa* toglierebbe e non tocca niente. E il pulsante manda gli
+  id che l'operatrice ha **visto**, ma il server **ricontrolla ognuno** contro l'elenco chiuso —
+  fidarsi degli id vorrebbe dire che una pagina rimasta aperta da ieri può togliere un alimento
+  vero, e nessuno lo rimette.
+  ⛔ **Dire «è un aroma» vuol dire dire «le sue calorie non contano»**, e per questo l'elenco è
+  chiuso, corto e scritto a mano. ⚠️ **Chi è rimasto fuori è la parte che conta**: cipolla (40
+  kcal/100 g e in una ricetta ce ne va un etto), «limone» da solo (quasi sempre è il succo, ma «un
+  limone» è un frutto — entrano solo «succo di limone» e «scorza di limone»), brodo vegetale (in un
+  risotto ce ne vanno 500 ml), sedano e carota. *Sbagliare per prudenza costa un clic; sbagliare per
+  comodità toglie un alimento vero e non se ne accorge nessuno.*
+  ⚠️ **E il test ha bocciato la prima versione per una lettera**: avevo messo `mele`, `vino` e `riso`
+  fra le parole innocue (per «aceto di mele»), e così «riso al curry» e «succo di **mele**»
+  diventavano aromi — mentre «succo di **mela**», al singolare, no. Due piatti veri tolti dall'elenco
+  per una `e` finale. Una terza mutazione ha poi mostrato che un nome fatto **solo** di parole di
+  contorno («tritato fresco», «q.b.») passava per aroma: non lo è, è un nome storto — ed è
+  esattamente quello che questa lista serve a scoprire.
+
 - `[Sviluppo]` 🔗 **«Associa» e «dettaglio» sugli alimenti da correggere** (richiesta di Simone).
   ⚠️ **Restano due pulsanti, e tenerli separati è il punto**: «associa» dice *«questo nome è un
   altro modo di chiamare una riga che c'è già»* (l'olio scritto in tre modi, 6494 ricette),

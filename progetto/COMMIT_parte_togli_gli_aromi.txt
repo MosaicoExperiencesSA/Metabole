@@ -1,0 +1,64 @@
+--------------------------------------------------------------------------------
+Parte: «togli gli aromi», con la lista davanti — 20/8
+--------------------------------------------------------------------------------
+
+Scelta di Simone fra quattro strade. Meta dei primi venti posti dell elenco «Alimenti da
+correggere» sono aglio (3886 ricette), sale (3296), sale e pepe (2755), pepe nero (1754), sale
+marino (1537), acqua (816), prezzemolo, basilico, timo, cannella: pesano zero nel conto delle
+calorie e la tabella non li avra mai tutti, ma occupano lo spazio delle righe che servono
+davvero. Toglierli uno alla volta e un centinaio di clic.
+
+⚠️ PRIMA SI GUARDANO, POI SI SCRIVONO — E LA SEPARAZIONE E LA RICHIESTA
+
+Sono DUE endpoint: uno dice cosa toglierebbe e non tocca niente, l altro toglie. Una scrittura in
+blocco che nessuno ha visto prima e la cosa che in questo progetto non si fa — stessa forma della
+conferma allergeni in blocco.
+
+⚠️ E il pulsante manda gli id che l operatrice ha VISTO, ma il server RICONTROLLA OGNUNO contro l
+elenco chiuso. Fidarsi degli id e basta vorrebbe dire che una pagina rimasta aperta da ieri puo
+togliere dall elenco un alimento vero — e nessuno lo rimette, perche il passo notturno non riapre
+una riga chiusa a mano. Se ne salta qualcuno, lo dice.
+
+⛔ DIRE «E UN AROMA» VUOL DIRE DIRE «LE SUE CALORIE NON CONTANO»
+
+Per questo l elenco e chiuso, corto e scritto a mano. Un nome entra solo se non ha calorie
+(acqua, sale, aceto) o se si usa in quantita che non spostano niente (un cucchiaino di cannella,
+uno spicchio d aglio: 3 g, 4 kcal).
+
+⚠️ CHI E RIMASTO FUORI, ED E LA PARTE CHE CONTA
+
+  cipolla / cipolla rossa   1690 + 739   40 kcal/100 g, e in una ricetta ce ne va un etto
+  limone (da solo)          3146         quasi sempre e il succo, ma «un limone» e un frutto e
+                                         da qui non si distingue. Entrano «succo di limone» e
+                                         «scorza di limone», che sono scritti
+  brodo vegetale            1449         pochissime calorie per 100 ml, ma in un risotto ce ne
+                                         vanno 500: la somma smette di essere zero
+  sedano / carota            709 + 1017  soffritto o no, sono verdure con una grammatura
+
+Restare fuori non e un errore: vuol dire che quella riga la guarda una persona. ⚠️ *Sbagliare per
+prudenza costa un clic; sbagliare per comodita toglie un alimento vero e non se ne accorge
+nessuno.*
+
+⚠️ E IL TEST HA BOCCIATO LA PRIMA VERSIONE PER UNA LETTERA
+
+Avevo messo `mele`, `vino` e `riso` fra le parole innocue, per «aceto di mele» e «aceto di riso».
+Cosi:
+
+    «riso al curry»   →  riso (innocua) + curry (aroma)  →  ARO MA     e invece e un piatto
+    «succo di mele»   →  succo (aroma) + mele (innocua)  →  ARO MA     e invece e succo di frutta
+
+mentre «succo di **mela**», al singolare, no. Due piatti veri tolti dall elenco per una `e`
+finale. Adesso nessun nome di alimento sta fra le parole innocue, e gli aceti aromatizzati
+restano in elenco: li guarda una persona.
+
+⚠️ E una terza mutazione ha mostrato che mancava un caso: un nome fatto SOLO di parole di
+contorno («tritato fresco», «q.b.», «foglie») passava per aroma. Non lo e: e un pezzo di nome o
+un errore di scrittura nella ricetta — e i nomi storti sono esattamente quello che questa lista
+serve a scoprire.
+
+FILE
+- backend/nutrient-facts: `aromi.ts` + spec (nuovi, 11 test) · `nutrient-facts.controller.ts`
+- backoffice: `ValoriNutrizionali.tsx`
+
+247 suite / 3877 test verdi, 39 nel backoffice, build ok. Tre mutazioni: mordono tutte.
+Nessuna migrazione, nessuna chiave di permesso nuova.

@@ -267,6 +267,46 @@ export function ValoriNutrizionali() {
     }
   }
 
+  /**
+   * ⚠️ **GLI AROMI: PRIMA SI GUARDANO, POI SI SCRIVONO** — richiesta di Simone (20/8), e la
+   * separazione è la richiesta, non un dettaglio.
+   *
+   * Metà dei primi venti posti dell'elenco sono aglio, sale, pepe, acqua, prezzemolo: pesano zero
+   * nel conto e occupano lo spazio delle righe che servono davvero. ⛔ Ma una scrittura in blocco
+   * che nessuno ha visto prima è la cosa che qui non si fa: il pulsante **chiede l'elenco**, lo
+   * mostra per intero, e solo dopo si conferma. È la stessa forma della conferma allergeni in
+   * blocco.
+   */
+  const [aromi, setAromi] = useState<Mancante[] | null>(null);
+
+  async function guardaAromi() {
+    try {
+      const r = await api<{ righe: Mancante[]; quanti: number }>('/nutrient-facts/mancanti/aromi');
+      setAromi(r.righe ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
+  async function togliAromi() {
+    if (!aromi?.length) return;
+    try {
+      const r = await api<{ tolti: number; saltati: number }>('/nutrient-facts/mancanti/aromi', {
+        method: 'POST',
+        body: JSON.stringify({ ids: aromi.map((m) => m.id) }),
+      });
+      setAromi(null);
+      /**
+       * ⚠️ Se il server ne ha **saltati** qualcuno lo si dice: ricontrolla ogni id contro l'elenco
+       * chiuso, e un silenzio qui vorrebbe dire far credere che siano usciti tutti.
+       */
+      if (r.saltati) setError(`Tolti ${r.tolti}. ⚠️ ${r.saltati} non erano aromi e sono rimasti in elenco.`);
+      await carica();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Non riuscito.');
+    }
+  }
+
   async function ignoraMancante(m: Mancante) {
     if (!confirm(`Togliere «${m.term}» dalla lista? Usalo quando non è il nome di un alimento.`)) return;
     try {
@@ -550,6 +590,43 @@ export function ValoriNutrizionali() {
             i due numeri non si sommano, perché «usato in mille ricette» e «chiesto tre volte in
             chat» non sono la stessa unità.
           </p>
+
+          {puoModificare && (
+            <div style={{ marginBottom: 10 }}>
+              {aromi === null ? (
+                <button
+                  className="btn ghost sm"
+                  onClick={() => void guardaAromi()}
+                  title="Sale, pepe, acqua, aglio, erbe e spezie: nel conto delle calorie pesano zero e la tabella non li avrà mai tutti. Ti mostro l'elenco prima di togliere."
+                >
+                  <i className="ti ti-eye" /> Vedi gli aromi da togliere
+                </button>
+              ) : (
+                <div className="card" style={{ padding: 10, background: 'var(--chip)' }}>
+                  <b style={{ fontSize: 14 }}>Aromi da togliere: {aromi.length}</b>
+                  <p className="muted" style={{ fontSize: 12, margin: '4px 0' }}>
+                    Nel conto delle calorie pesano zero, e la tabella non li avrà mai tutti. ⚠️ Restano
+                    fuori cipolla, brodo, sedano e carota: hanno una grammatura vera e li guardi tu.
+                    Guarda l'elenco prima di confermare — dopo non tornano in lista da soli.
+                  </p>
+                  <div style={{ maxHeight: 180, overflow: 'auto', fontSize: 13, lineHeight: 1.7 }}>
+                    {aromi.map((m) => (
+                      <span key={m.id} className="chip" style={{ marginRight: 6 }}>
+                        {m.term} <span className="muted">×{m.ricette || m.times}</span>
+                      </span>
+                    ))}
+                    {!aromi.length && <span className="muted">Nessuno: l'elenco è già pulito.</span>}
+                  </div>
+                  <div className="row" style={{ gap: 6, marginTop: 8 }}>
+                    <button className="btn" disabled={!aromi.length} onClick={() => void togliAromi()}>
+                      <i className="ti ti-eraser" /> Togli questi {aromi.length}
+                    </button>
+                    <button className="btn ghost" onClick={() => setAromi(null)}>Annulla</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {daRicette.righe.length > 0 && (
             <>

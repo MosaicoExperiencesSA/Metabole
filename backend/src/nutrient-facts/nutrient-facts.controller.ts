@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { eAroma } from './aromi';
 import { scegliPerRicetta } from './stato-alimento';
 import { normalizzaNome } from './valori-nutrizionali.service';
 
@@ -178,6 +179,63 @@ export class NutrientFactsController {
       metadata: { termine: miss.term, riga: riga.name, giaPresente: gia },
     });
     return { ok: true, riga: riga.name, termine: miss.term };
+  }
+
+  /**
+   * GLI AROMI DA TOGLIERE IN BLOCCO — **prima si guardano, poi si scrivono** (Simone, 20/8).
+   *
+   * Metà dei primi venti posti dell'elenco sono aglio, sale, pepe, acqua, prezzemolo, basilico:
+   * pesano zero nel conto delle calorie e la tabella non li avrà mai tutti, ma occupano lo spazio
+   * delle righe che servono davvero. Toglierli uno alla volta è un centinaio di clic.
+   *
+   * ⚠️ **Sono due endpoint e non uno**, e la separazione è la richiesta di Simone: questo dice
+   * *cosa* toglierebbe, e non tocca niente. Una scrittura in blocco che nessuno ha visto prima è la
+   * cosa che in questo progetto non si fa — è la stessa forma della conferma allergeni in blocco.
+   */
+  @Get('mancanti/aromi')
+  @RequirePage('nutrient_facts')
+  async aromiDaTogliere() {
+    const aperti = (await this.prisma.nutrientLookupMiss.findMany({
+      where: { status: 'open' } as never,
+      orderBy: [{ ricette: 'desc' }, { times: 'desc' }] as never,
+    })) as unknown as { id: string; term: string; ricette: number; times: number }[];
+    const righe = aperti.filter((m) => eAroma(m.term));
+    return { righe, quanti: righe.length };
+  }
+
+  /**
+   * E questo li toglie. ⚠️ **Riceve gli id che l'operatrice ha visto, ma ricontrolla ognuno**: quello
+   * che si approva è quello che succede, e niente fuori dall'elenco chiuso degli aromi può uscire
+   * dalla lista nemmeno se la pagina lo chiede. ⛔ Fidarsi degli id e basta vorrebbe dire che un
+   * bottone sbagliato — o una pagina rimasta aperta da ieri — può cancellare dall'elenco un
+   * alimento vero, e nessuno lo rimette: il passo notturno non riapre una riga chiusa a mano.
+   */
+  @Post('mancanti/aromi')
+  @RequirePage('nutrient_facts', 'manage')
+  async togliAromi(@Body() body: { ids?: string[] }, @CurrentUser() user: AuthUser) {
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
+    if (!ids.length) return { tolti: 0, saltati: 0 };
+
+    const righe = (await this.prisma.nutrientLookupMiss.findMany({
+      where: { id: { in: ids }, status: 'open' } as never,
+    })) as { id: string; term: string }[];
+    const aromi = righe.filter((m) => eAroma(m.term));
+    const saltati = righe.length - aromi.length;
+
+    if (aromi.length) {
+      await this.prisma.nutrientLookupMiss.updateMany({
+        where: { id: { in: aromi.map((m) => m.id) } },
+        data: { status: 'ignored' } as never,
+      });
+      await this.audit.log({
+        action: 'nutrient_fact.aromi_ignored',
+        actorId: user.sub,
+        entityType: 'nutrient_lookup_miss',
+        /** ⚠️ I TERMINI, non solo il numero: «ho tolto 87 righe» non si può verificare a posteriori. */
+        metadata: { quanti: aromi.length, termini: aromi.map((m) => m.term), saltati },
+      });
+    }
+    return { tolti: aromi.length, saltati };
   }
 
   /**
