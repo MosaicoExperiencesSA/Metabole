@@ -30,6 +30,7 @@ import { SOLO_STELLE_DATE } from './stelle-che-contano';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
+import { EU_ALLERGEN_CODES, allergenLabel } from '../catalog/allergens';
 import { expandExclusion, hitsExclusion } from './exclusions';
 import { KcalNeedService } from './kcal-need.service';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
@@ -2480,13 +2481,38 @@ export class MenuService {
   ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]> }> {
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      // `allergies` serve alla regola del lattosio: il delattosato NON va a chi è allergica alle
-      // proteine del latte (l'idrolisi toglie lo zucchero, l'allergene resta). Vedi `lattosio.ts`.
       select: { intolerances: true, dislikedFoods: true, allergies: true },
     });
+    /**
+     * ⚠️ **LE ALLERGIE ENTRANO QUI, e fino al 20/8 non c'erano.**
+     *
+     * Questa funzione è quella che i commenti del motore chiamano «la sicurezza» (§2/§7), e
+     * costruiva l'elenco delle esclusioni da **intolleranze** e **cibi non graditi**. Le allergie si
+     * leggevano solo per la regola del delattosato — e la riga di uscita rapida qui sotto era
+     * `if (!intolerances.length && !dislikes.length) return …`, cioè una cliente che ha dichiarato
+     * **soltanto allergie** usciva senza che si fosse guardato niente. In produzione, il 20/8, erano
+     * **otto clienti su nove**.
+     *
+     * ⚠️ Le allergie erano già controllate negli altri tre punti — le sostituzioni di Gaia («su
+     * questo non si media»), il pool delle ricette semplici, la base personale. Mancava proprio la
+     * composizione del menu, cioè il piatto che arriva da solo la mattina.
+     *
+     * ⛔ **Si è potuto fare perché è stato misurato prima.** `npm run diag:allergeni-piatto` ha
+     * detto **zero clienti e zero pasti**: le diete assegnate erano già scelte bene, quindi questa
+     * è una rete di sicurezza che oggi non cambia niente a nessuno. Se avesse detto un altro numero,
+     * quelle righe erano piatti in arrivo a persone allergiche, e prima si sistemavano quelli —
+     * perché una violazione qui **ferma l'erogazione** del menu.
+     *
+     * ⚠️ **Sono trattate come le intolleranze**, cioè: se l'ingrediente ha una sostituzione sicura il
+     * piatto si eroga con la sostituzione annotata, altrimenti si blocca. È la scelta simmetrica e
+     * minima. La variante più severa — «un allergene non si sostituisce mai, il piatto salta e
+     * basta» — è una decisione di prodotto che non è stata presa: se la si vuole, si toglie
+     * `SUBSTITUTION_MAP` dal ramo `allergia`.
+     */
+    const allergie = ((profile?.allergies ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
     const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
     const dislikes = [...new Set([...((profile?.dislikedFoods ?? []) as string[]), ...extraDisliked].map((s) => s.toLowerCase().trim()).filter(Boolean))];
-    if (!intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
+    if (!allergie.length && !intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
     // Intollerante al lattosio E non allergica al latte: si usano i delattosati (`lattosio.ts`).
     const delattosati = usaDelattosati({
       intolerances,
@@ -2495,6 +2521,11 @@ export class MenuService {
 
     // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
     const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
+    // Le allergie per prime: se lo stesso ingrediente ricade sotto due esclusioni, il motivo scritto
+    // sul pasto e nell'escalation dev'essere quello che pesa di più.
+    for (const a of allergie) {
+      for (const kw of expandExclusion(a)) excluded.push({ keyword: kw, reason: `allergia: ${a}`, blocking: true });
+    }
     for (const intol of intolerances) {
       for (const kw of expandExclusion(intol)) excluded.push({ keyword: kw, reason: intol, blocking: true });
     }
@@ -2508,19 +2539,39 @@ export class MenuService {
     if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: recipeIds } },
-      select: { id: true, name: true, ingredients: true },
-    })) as { id: string; name: string; ingredients: unknown }[];
+      select: { id: true, name: true, ingredients: true, allergens: true },
+    })) as { id: string; name: string; ingredients: unknown; allergens: string[] }[];
 
     const violations = new Set<string>();
     const subsByRecipe: Record<string, Substitution[]> = {};
 
+    /**
+     * ⚠️ **I TAG ALLERGENE DELLA RICETTA, che qui non si leggevano.**
+     *
+     * `Recipe.allergens` sono i codici UE che un nutrizionista ha confermato guardando la ricetta —
+     * l'informazione più affidabile che abbiamo, e l'unica che vede quello che gli ingredienti non
+     * dicono a parole (il sedano dentro un brodo, il pesce dentro il surimi). Fino al 20/8 li
+     * leggeva **solo** `personal-base.service.ts`: il motore dei menu no.
+     *
+     * ⛔ Un tag che scatta **blocca e basta**: dice che il piatto contiene l'allergene, non quale
+     * ingrediente — quindi non c'è niente da sostituire. ⚠️ Non si richiede `allergensReviewed`: un
+     * tag che c'è è un'informazione comunque, e pretendere la conferma vorrebbe dire ignorare
+     * l'avviso proprio sulle ricette che nessuno ha ancora guardato.
+     */
+    const codiciAllergene = new Set(allergie.filter((a) => EU_ALLERGEN_CODES.includes(a)));
+
     for (const r of recipes) {
+      const perTag = codiciAllergene.size ? (r.allergens ?? []).find((a) => codiciAllergene.has(a)) : undefined;
+      if (perTag) violations.add(`${r.name}: contiene ${allergenLabel(perTag)} (allergene dichiarato)`);
       const ings = ((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').filter(Boolean);
       const subs: Substitution[] = [];
       for (const ing of ings) {
         const low = ing.toLowerCase();
         for (const ex of excluded) {
-          if (!low.includes(ex.keyword)) continue;
+          // ⚠️ Nona copia del confronto, trovata il 20/8: era `low.includes(ex.keyword)` a mano,
+          // quindi qui dentro «mandorla» continuava a non combaciare con «mandorle». Passa dalla
+          // porta come tutti gli altri.
+          if (!hitsExclusion(low, [ex.keyword])) continue;
           /**
            * REGOLA DEL LATTOSIO (11/8), prima della mappa generica.
            *

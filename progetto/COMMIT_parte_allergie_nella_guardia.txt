@@ -1,0 +1,31 @@
+Le allergie entrano nella guardia che compone il menu — dopo aver misurato
+
+IL NUMERO CHE HA DECISO
+`npm run diag:allergeni-piatto` in produzione: 9 clienti con allergie dichiarate, 8 SENZA
+intolleranze — cioè otto persone per cui `evaluateMeals` usciva alla prima riga senza guardare
+niente — e ZERO pasti con il loro allergene negli ultimi 14 giorni e a venire.
+
+Zero è la risposta che rendeva la correzione una cosa da fare e basta: le diete assegnate erano già
+scelte bene, quindi la rete di sicurezza non toglie il menu a nessuno oggi. Con un numero diverso
+sarebbero stati piatti in arrivo a persone allergiche, e prima si sistemavano quelli — perché una
+violazione qui FERMA L'EROGAZIONE.
+
+COSA CAMBIA
+- Le allergie entrano nell'elenco BLOCCANTE, come le intolleranze.
+- I TAG ALLERGENE CONFERMATI sulla ricetta (`Recipe.allergens`) adesso li legge anche il motore:
+  prima solo `personal-base`. Un tag blocca da solo, perché dice CHE il piatto contiene l'allergene,
+  non quale ingrediente — quindi non c'è niente da sostituire. È il caso per cui i tag esistono: il
+  sedano dentro un brodo, il pesce dentro il surimi.
+
+NONA COPIA DEL CONFRONTO
+Dentro il ciclo sugli ingredienti c'era `low.includes(ex.keyword)` scritto a mano, quindi la radice
+della consegna precedente — quella che fa combaciare «mandorla» con «mandorle» — non arrivava fin
+lì. Ora passa dalla porta come le altre otto.
+
+UNA SCELTA DI PRODOTTO NON PRESA, E STA SCRITTA NEL CODICE
+Un allergene con una sostituzione sicura fa erogare il piatto con la sostituzione annotata,
+esattamente come per un'intolleranza. La variante più severa — «un allergene non si sostituisce mai,
+il piatto salta» — si fa togliendo una riga, ma è una decisione clinica.
+
+Quattro mutazioni provate, tutte e quattro mordono.
+Niente migrazioni. 261 suite e 4014 test verdi, type-check a zero errori.

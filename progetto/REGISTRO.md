@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ✅ **Le allergie entrano nella guardia che compone il menu — dopo aver misurato.**
+  Simone ha lanciato `npm run diag:allergeni-piatto` e il numero è arrivato: **9 clienti con
+  allergie dichiarate, 8 senza intolleranze** — cioè otto persone per cui `evaluateMeals` usciva
+  alla prima riga senza guardare niente — e **zero pasti** con il loro allergene negli ultimi 14
+  giorni e a venire.
+  ⛔ Zero è la risposta che rendeva la correzione una cosa da fare e basta: le diete assegnate erano
+  già scelte bene, quindi aggiungere la rete di sicurezza **non toglie il menu a nessuno oggi**. Con
+  un numero diverso sarebbero stati piatti in arrivo a persone allergiche, e prima si sistemavano
+  quelli — perché una violazione qui **ferma l'erogazione**. È la stessa disciplina delle date dei
+  piani già venduti e del ricalcolo provvigioni: la differenza è che stavolta la misura è tornata, e
+  ha detto di procedere.
+  Cosa cambia: le allergie entrano nell'elenco **bloccante** come le intolleranze; i **tag allergene
+  confermati** sulla ricetta (`Recipe.allergens`) adesso li legge anche il motore — prima solo la
+  base personale — e bloccano da soli, perché un tag dice *che* il piatto contiene l'allergene, non
+  quale ingrediente, quindi non c'è niente da sostituire. È il caso per cui i tag esistono: il
+  sedano dentro un brodo, il pesce dentro il surimi.
+  ⚠️ **Nona copia del confronto**, trovata mentre correggevo: dentro il ciclo sugli ingredienti
+  c'era `low.includes(ex.keyword)` scritto a mano, quindi la radice della consegna precedente —
+  quella che fa combaciare «mandorla» con «mandorle» — **non arrivava fin lì**. Ora passa dalla
+  porta come le altre otto.
+  ⚠️ **Una scelta di prodotto NON presa, e sta scritta nel codice**: un allergene con una
+  sostituzione sicura fa erogare il piatto con la sostituzione annotata, esattamente come per
+  un'intolleranza. La variante più severa — «un allergene non si sostituisce mai, il piatto salta» —
+  si fa togliendo una riga, ma è una decisione clinica e non l'ho presa io.
+  Quattro mutazioni provate, tutte e quattro mordono. 261 suite e **4014 test verdi**.
+
 - `[Sviluppo]` 🚨 **Le allergie non entrano nella guardia che compone il menu — e non l'ho corretto
   io, di proposito.** Secondo giro sul motore menu, e questo non è un difetto da chiudere con una
   riga: è una decisione che deve prendere Simone.
