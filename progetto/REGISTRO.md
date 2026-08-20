@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🧪 **I due elenchi e il tetto dichiarato non avevano un test, e sono già stati rotti
+  una volta.** Scritto `due-elenchi-e-il-tetto.spec.ts` mentre l'esporta in Excel aspettava il
+  rilascio: quella consegna ha rifattorizzato `mancanti()` per condividere le query con il foglio, e
+  rifattorizzare un endpoint che Simone apre ogni giorno senza un test sotto è la cosa che il 19/8
+  era già costata mezza giornata. ⛔ Le tre cose che ora sono ferme: **1)** i due elenchi restano
+  separati — con un elenco solo e un tetto solo, «tempeh chiesto 40 volte» non arriva più in pagina,
+  perché le prime cento righe sono sempre ingredienti di ricette; **2)** `quanti` conta il totale
+  VERO e non le righe tornate (il tetto si dichiara: prima c'era `take: 200` e basta, e chi guardava
+  non poteva sapere se erano tutti); **3)** il foglio Excel **non ha tetto** — la pagina ne mostra
+  100, il foglio è dove il lavoro si fa davvero.
+  ⚠️ Il finto Prisma **applica il `take`** e distingue le due `where`: un doppione che ignora il
+  `take` restituisce sempre tutto, e il test passerebbe identico con e senza il tetto — cioè
+  precisamente la cosa da verificare. Le proporzioni sono quelle vere di produzione (250 righe da
+  ricette, 40 chieste in chat), perché con dieci righe finte il tetto da 100 non morde e il test
+  sembra verde per la ragione sbagliata.
+  Mutazioni: foglio con `take: 100` → 2 rossi; pagina senza tetto → 1 rosso. 254 suite e **3957 test
+  verdi**.
+
 - `[Sviluppo]` 💶 **Nella schermata Guadagni due numeri sullo stesso mese venivano da due contabilità
   diverse.** Secondo giro sull'area provvigioni. «Storico mesi» leggeva `StaffCompensation`, mentre
   il totale del mese in corso — due centimetri sopra — e il saldo prelevabile — due centimetri sotto

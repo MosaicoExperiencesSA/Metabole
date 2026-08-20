@@ -1,0 +1,26 @@
+I due elenchi degli alimenti da correggere, il tetto dichiarato e il foglio senza tetto: ora hanno un test
+
+PERCHÉ ADESSO
+La consegna dell'esporta in Excel ha rifattorizzato `mancanti()` per condividere le query con il
+foglio (un metodo solo, `elenchiMancanti(tetto)`, così pagina e foglio non possono divergere).
+Rifattorizzare un endpoint che si apre ogni giorno senza un test sotto è la cosa che il 19/8 era
+già costata mezza giornata.
+
+LE TRE COSE CHE ORA SONO FERME
+1) I DUE ELENCHI RESTANO SEPARATI. Con un elenco solo e un tetto solo, «tempeh chiesto 40 volte»
+   non arriva più in pagina: il passo notturno scrive trecento righe con `ricette >= 1`, quindi le
+   prime cento sono sempre e solo ingredienti di ricette. È il difetto del 19/8.
+2) `quanti` CONTA IL TOTALE VERO, non le righe tornate. Prima c'era `take: 200` e basta, e chi
+   guardava la pagina non poteva sapere se erano tutti.
+3) IL FOGLIO EXCEL NON HA TETTO. La pagina ne mostra 100 per elenco; il foglio è dove il lavoro si
+   fa davvero, e uno che ne contiene 100 su 300 senza dirlo manda chi lo finisce a credere di aver
+   finito.
+
+IL FINTO PRISMA APPLICA IL `take`
+Un doppione che lo ignora restituisce sempre tutto: il test passerebbe identico con e senza il
+tetto, cioè precisamente la cosa da verificare. E le proporzioni sono quelle vere di produzione
+(250 righe da ricette, 40 chieste in chat): con dieci righe finte il tetto da 100 non morde e il
+test sembrerebbe verde per la ragione sbagliata.
+
+Mutazioni provate: foglio con `take: 100` -> 2 test rossi; pagina senza tetto -> 1 rosso.
+Solo test. Niente migrazioni. 254 suite e 3957 test verdi.
