@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🧹 **«Continuano ad aumentare invece che chiudersi.»** Simone ha ragione, e **tre
+  delle voci che avevo aperto stasera non erano lavori**: erano cose che potevo decidere io.
+  ⛔ **«vino» dentro «bovino» — corretto, non chiesto.** Avevo aperto una voce per farglielo
+  decidere: «bovino» è una parola, non una decisione di prodotto. `PAROLE_CHE_NON_SONO` in
+  `exclusions.ts`, prima riga `vino → bovino/bovina/bovini/bovine`. ⚠️ Resta vero che qui il confine
+  di parola **non** è la correzione: «aceto» dentro «sottaceto» è giusto e toglierebbe protezione.
+  ⛔ Ogni riga di quella lista **toglie** un'esclusione, quindi si scrive solo dopo aver letto la
+  parola in un esito vero — e c'è un test che dice che non deve mai nascondere un'esclusione vera.
+  ⚠️ E «biscotti» **non è un difetto**: è una delle due voci larghe dei solfiti dichiarate a mano il
+  13/8 dalla tabella di Lucia. Stavo per contarla fra i falsi positivi.
+  ⛔ **«Come si prendono le misure» → chiusa.** Il video Simone me l'aveva caricato **stamattina** e
+  l'avevo messo nel popup delle misure; **la voce è rimasta scritta come se non fosse successo
+  niente per dodici ore**, e me l'ha dovuto dire due volte. È lo stesso difetto che la voce racconta
+  — un testo che promette una cosa che il prodotto non ha più — fatto da me sull'elenco dei lavori.
+  ⛔ **«Due schede indietro» → ristretta.** Avevo scritto io stesso che non era stato il codice, e poi
+  l'ho lasciata aperta lo stesso. Resta solo la cosa vera: il rinnovo che riporta la scheda a
+  «Acquisito» anche se era più avanti.
+  ✅ **«Primo accesso, due schede» → chiusa**: è un comando, e le due schede si chiamano «Test».
+  📋 Da **11 a 9 voci aperte** (138 in tutto, 129 dichiarate finite).
+  🔢 Build verde, 273 suite, 4119 test verdi a cache svuotata.
+
 - `[Sviluppo]` 📋 **L'elenco Lavori aggiornato con le sei misure della sera — e lo script che lo
   carica era rotto.** ⛔ **`carica-lavori.ts` non funzionava**: `datiSpunta` usato e **non
   importato**. `ts-node --transpile-only` non guarda i tipi, quindi non usciva alla prova a vuoto —

@@ -28,7 +28,7 @@
  * sbagliato: l'errore era per eccesso. Ma a una cliente allergica alla frutta secca spariva ogni
  * piatto con le olive, e un pool che si svuota così è un piano che non si riesce più a comporre.
  */
-import { hitsExclusion, iniziaUnaParola, radiceChiave, RADICE_MINIMA } from './exclusions';
+import { hitsExclusion, iniziaUnaParola, PAROLE_CHE_NON_SONO, radiceChiave, RADICE_MINIMA } from './exclusions';
 
 describe('il caso vero, quello che ha fatto scattare tutto', () => {
   it('⛔ «olive denocciolate» NON è frutta secca', () => {
@@ -92,5 +92,45 @@ describe('⚠️ la chiave INTERA non è stata toccata', () => {
    */
   it('resta il comportamento di prima, e questo test lo dice invece di lasciarlo implicito', () => {
     expect(hitsExclusion('un piatto nuovo di zecca', ['uovo'])).toBe('uovo');
+  });
+});
+
+/**
+ * «VINO» DENTRO «BOVINO» — 20/8 sera, corretto invece che chiesto.
+ *
+ * `npm run diag:esclusioni` ha contato 212 casi in cui la chiave **intera** combacia dentro una
+ * parola più lunga. Avevo aperto una voce in elenco per farlo decidere a Simone; era sbagliato
+ * aprirla — «bovino» è una parola, non una decisione di prodotto.
+ *
+ * ⚠️ E resta vero che qui il confine di parola NON è la correzione: «aceto» dentro «sottaceto» è
+ * giusto, e un confine lo toglierebbe. Per questo la correzione è una **lista corta** di parole
+ * omonime, non una regola — e ogni riga di quella lista **toglie** un'esclusione, quindi si scrive
+ * solo dopo aver letto la parola in un esito vero.
+ */
+describe('le parole che contengono una chiave senza esserla', () => {
+  it('⛔ «bovino» non è «vino»', () => {
+    expect(hitsExclusion('stracetti di bovino magro al pepe con orzo perlato', ['vino'])).toBeNull();
+  });
+
+  it('e nemmeno «bovina», «bovini», «bovine»', () => {
+    for (const t of ['carne bovina', 'allevamenti bovini', 'razze bovine']) {
+      expect(hitsExclusion(t, ['vino'])).toBeNull();
+    }
+  });
+
+  it('✅ ma il vino vero continua a scattare', () => {
+    expect(hitsExclusion('risotto al vino bianco', ['vino'])).toBe('vino');
+  });
+
+  it('⚠️ e se ci sono tutti e due, vince il vino: una riga di questa lista non deve mai NASCONDERE un\'esclusione vera', () => {
+    expect(hitsExclusion('bovino magro sfumato al vino rosso', ['vino'])).toBe('vino');
+  });
+
+  it('⚠️ «sottaceto» resta escluso: l\'aceto ce l\'ha davvero, e qui il confine di parola toglierebbe protezione', () => {
+    expect(hitsExclusion('orata in carpaccio con verdure sottaceto', ['aceto'])).toBe('aceto');
+  });
+
+  it('una chiave senza omonime dichiarate si comporta come sempre', () => {
+    expect(hitsExclusion('pane integrale tostato', ['pane'])).toBe('pane');
   });
 });

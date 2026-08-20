@@ -323,10 +323,45 @@ export function radiceChiave(k: string): string | null {
  * Torna la **chiave** che ha fatto scartare (non la radice): serve a dire *perché*, e «mandorl» in
  * un messaggio a una cliente non si può leggere.
  */
+/**
+ * ⛔ **LE PAROLE CHE CONTENGONO UNA CHIAVE SENZA ESSERLA.**
+ *
+ * `npm run diag:esclusioni` in produzione (20/8 sera) ha contato **212** casi in cui la parola
+ * chiave **intera** combacia dentro una parola più lunga. E le prime due che si vedono dicono
+ * perché qui **non** si può mettere un confine di parola come si è fatto per la radice:
+ *
+ *   · «aceto» dentro «**sottaceto**» → **giusto**. Il sottaceto l'aceto ce l'ha davvero, e un
+ *     confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti.
+ *   · «vino» dentro «**bovino**» → **sbagliato**. Uno stracetto di bovino magro non c'entra niente.
+ *
+ * ⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all'altra. Quindi non è una
+ * regola: è una **lista corta**, e si allunga solo quando la diagnostica nomina una parola nuova —
+ * mai per analogia. ⛔ Ogni riga qui **toglie** un'esclusione: si scrive solo dopo aver letto la
+ * parola in un esito vero, perché sbagliare qui vuol dire lasciar passare qualcosa.
+ */
+export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
+  // «bovino» contiene «vino» e non ha niente a che fare con i solfiti del vino.
+  vino: ['bovino', 'bovina', 'bovini', 'bovine'],
+};
+
+/** La chiave combacia solo dentro parole che non sono nella sua lista di omonime. */
+function chiaveVale(haystack: string, k: string): boolean {
+  const escluse = PAROLE_CHE_NON_SONO[k];
+  if (!escluse) return haystack.includes(k);
+  let i = haystack.indexOf(k);
+  while (i !== -1) {
+    let a = i; while (a > 0 && /[a-z0-9]/.test(haystack[a - 1])) a -= 1;
+    let b = i + k.length; while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
+    if (!escluse.includes(haystack.slice(a, b))) return true;
+    i = haystack.indexOf(k, i + 1);
+  }
+  return false;
+}
+
 export function hitsExclusion(haystack: string, keys: Iterable<string>): string | null {
   const elenco = [...keys].filter(Boolean);
   // Primo giro: la parola esatta. Se combacia così, è quella che si riporta.
-  for (const k of elenco) if (haystack.includes(k)) return k;
+  for (const k of elenco) if (chiaveVale(haystack, k)) return k;
   // Secondo giro: la radice, per le altre forme della stessa parola — ma solo a inizio di parola.
   for (const k of elenco) {
     const r = radiceChiave(k);

@@ -1,0 +1,61 @@
+Chiudere invece di aprire: quattro voci sistemate e «bovino» corretto — 20/8 sera
+
+Simone: «continuano ad aumentare invece che chiudersi». Ha ragione, e tre delle voci che avevo
+aperto stasera non erano lavori: erano cose che potevo decidere io.
+
+## ⛔ «VINO» DENTRO «BOVINO» — CORRETTO, NON CHIESTO
+
+Avevo aperto una voce per farlo decidere a lui. Era sbagliato: **«bovino» è una parola, non una
+decisione di prodotto.** In `exclusions.ts` c'è ora `PAROLE_CHE_NON_SONO`, e la prima riga è
+`vino → bovino, bovina, bovini, bovine`.
+
+⚠️ **E resta vero il motivo per cui non si può usare la stessa regola della radice**: «aceto» dentro
+«sottaceto» è **giusto** — il sottaceto l'aceto ce l'ha davvero — e un confine di parola
+toglierebbe protezione a chi è sensibile ai solfiti. Per questo la correzione è una **lista corta**
+di parole omonime, non una regola.
+
+⛔ **Ogni riga di quella lista TOGLIE un'esclusione.** Si scrive solo dopo aver letto la parola in un
+esito vero, mai per analogia: `bovino` l'ha nominata la diagnostica. E c'è un test che dice
+esplicitamente che una riga di quella lista non deve mai **nascondere** un'esclusione vera —
+«bovino magro sfumato al vino rosso» resta escluso.
+
+Due mutazioni, tutte e due mordono: tolta `bovino` dalla lista, e `chiaveVale` che rifiuta sempre.
+
+⚠️ E una cosa letta invece che dedotta: **«biscotti» non è un difetto**. È una delle **due voci
+larghe** dei solfiti — insieme ad «aceto» — dichiarate a mano nel codice il 13/8 dalla tabella di
+Lucia, con scritto accanto che si tolgono se sono eccessive. Stavo per contarla fra i falsi positivi.
+
+## LE VOCI SISTEMATE
+
+⛔ **«Come si prendono le misure» → CHIUSA.** Il video Simone me l'aveva caricato stamattina, l'ho
+compresso (15,6 MB → 2,1 MB) e messo nel popup delle misure. **La voce è rimasta scritta come se non
+fosse successo niente per dodici ore**, e me l'ha dovuto dire due volte. È lo stesso difetto che la
+voce racconta — un testo che promette una cosa che il prodotto non ha più — fatto da me sull'elenco
+dei lavori invece che sul questionario. Una voce che descrive male la realtà è peggio di una voce
+che non c'è: la prima fa perdere tempo a chi la legge.
+
+⛔ **«Due schede indietro» → RISTRETTA.** Avevo scritto io stesso nel testo che **non è stato il
+codice** — le ha spostate una persona, ed è legittimo — e poi l'ho lasciata aperta lo stesso. Un
+elenco di lavori che contiene cose che non sono lavori smette di essere un elenco di lavori. Resta
+solo la cosa vera, e il titolo adesso la dice: **«Il rinnovo riporta la scheda a Acquisito anche se
+era più avanti»**.
+
+✅ **«Primo accesso, due schede da spostare» → CHIUSA.** Non è un lavoro: è un comando che sposta due
+schede che si chiamano tutte e due «Test».
+
+## DOVE SIAMO
+
+Il file passa da **11 a 9 voci aperte** (138 in tutto, 129 dichiarate finite). Le nove:
+ · 🔴 i 173 alimenti coi numeri copiati — blocca il carico dei 245, aspetta chi ha compilato il foglio
+ · il fuso, seconda metà (adesso con il via libera della misura)
+ · l'ultimo punto sull'ultima pesata (`kcal-need`, decisione clinica)
+ · la coda «Da validare» parte C (numero di Nocanty)
+ · il ricalcolo provvigioni e il tetto (decisione di Simone)
+ · la tabella alimenti, cinque righe da dichiarare
+ · le chiavi dentro una parola: «bovino» fatto, il resto da leggere
+ · il rinnovo che riporta la scheda indietro
+ · i 17 clienti senza numero di pasti
+ · marketing e responsabile marketing: chi vede tutte le clienti
+ · il numero WhatsApp (settembre)
+
+`npm run build` verde. 273 suite, 4119 test verdi, a cache svuotata.
