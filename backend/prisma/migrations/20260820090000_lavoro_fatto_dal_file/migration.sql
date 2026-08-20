@@ -1,0 +1,12 @@
+-- Una voce riaperta a mano non si richiude da sola (20/8).
+--
+-- Dal 19/8 l'allineamento della pagina Lavori gira da solo a ogni deploy e chiude per TITOLO anche
+-- le voci scritte a mano dal backoffice. La revisione avversariale ha trovato il seguito: la query
+-- cerca `fatto = false`, quindi una voce RIAPERTA A MANO ricombaciava al rilascio dopo e si
+-- riprendeva la spunta — un automatismo che disfa un gesto di una persona, e in silenzio.
+--
+-- Additiva e con un default: nessuna riga esistente cambia significato. Le voci chiuse PRIMA di
+-- oggi restano a `false`, quindi la prima riapertura a mano dopo questo rilascio verrebbe ancora
+-- richiusa una volta sola — e poi mai più. Riempirlo all'indietro vorrebbe dire indovinare chi ha
+-- chiuso cosa, e una data inventata è peggio di una colonna a `false`.
+ALTER TABLE "lavoro" ADD COLUMN "fatto_dal_file" BOOLEAN NOT NULL DEFAULT false;

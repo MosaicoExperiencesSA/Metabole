@@ -5,7 +5,7 @@ describe('gli aromi: quello che in una ricetta pesa zero', () => {
   it('i nomi veri dell\'elenco in produzione', () => {
     for (const n of ['aglio', 'sale', 'sale e pepe', 'pepe nero', 'sale marino', 'acqua',
       'prezzemolo fresco', 'basilico fresco', 'timo fresco', 'cannella', 'succo di limone',
-      'limone succo', 'scorza di limone', 'aceto balsamico', 'noce moscata', 'lievito in polvere']) {
+      'limone succo', 'scorza di limone', 'noce moscata', 'lievito in polvere']) {
       expect([n, eAroma(n)]).toEqual([n, true]);
     }
   });
@@ -18,6 +18,38 @@ describe('gli aromi: quello che in una ricetta pesa zero', () => {
   it('⚠️ la cipolla NON è un aroma: 40 kcal/100 g, e in una ricetta ce ne va un etto', () => {
     expect(eAroma('cipolla')).toBe(false);
     expect(eAroma('cipolla rossa')).toBe(false);
+  });
+
+  /**
+   * ⛔ IL DIFETTO CHE HA FATTO RIFARE L'ELENCO POCHE ORE DOPO AVERLO SCRITTO.
+   *
+   * La prima versione aveva `limone` fra le parole-aroma, messo lì per far funzionare «succo di
+   * limone». Risultato: `eAroma('limone')` → **true**, e il limone (3146 ricette, un frutto da 11
+   * kcal) sarebbe uscito **per sempre** dall'elenco di lavoro al primo «Togli questi N» — il passo
+   * notturno non riapre una riga chiusa a mano.
+   *
+   * ⚠️ *Una parola aggiunta per far passare un caso ne fa passare cento.* Adesso nessun nome di
+   * alimento sta fra le parole, e i nomi composti si scrivono per intero.
+   */
+  it('⚠️ nessun NOME DI ALIMENTO passa come parola-aroma', () => {
+    for (const n of ['limone', 'lime', 'noce', 'aceto', 'aceto balsamico', 'lievito']) {
+      expect([n, eAroma(n)]).toEqual([n, false]);
+    }
+  });
+
+  /** ⚠️ E i frammenti di nome nemmeno: «succo» di cosa? «scorza» di cosa? */
+  it('⚠️ un frammento di nome non è un aroma', () => {
+    for (const n of ['succo', 'scorza', 'buccia', 'estratto', 'spicchio', 'erba', 'chiodi']) {
+      expect([n, eAroma(n)]).toEqual([n, false]);
+    }
+  });
+
+  /** ✅ Ma i nomi INTERI che sono davvero aromi continuano a passare, scritti per esteso. */
+  it('i nomi composti che sono aromi si scrivono per intero, e passano', () => {
+    for (const n of ['succo di limone', 'scorza di limone', 'noce moscata', 'lievito in polvere',
+      'estratto di vaniglia', 'erba cipollina', 'chiodi di garofano', 'spicchio di aglio']) {
+      expect([n, eAroma(n)]).toEqual([n, true]);
+    }
   });
 
   it('⚠️ nemmeno il brodo, il sedano e la carota', () => {

@@ -169,16 +169,50 @@ export class LavoriService {
      * due lavori diversi, e spuntarne una a caso è esattamente il genere di errore silenzioso che
      * questo progetto passa le giornate a togliere. Se sono due, non si tocca niente.
      */
+    const titoliNonTrovati: string[] = [];
+    const titoliAmbigui: string[] = [];
+    const titoliRiaperti: string[] = [];
     const perTitolo = VOCI_INIZIALI.filter((v) => v.soloSeEsiste && v.fatta === true && v.titolo);
     if (perTitolo.length) {
       const aMano = (await this.prisma.lavoro.findMany({
         where: { chiave: null, fatto: false, titolo: { in: perTitolo.map((v) => v.titolo) } } as never,
-        select: { id: true, chiave: true, fatto: true, titolo: true },
-      })) as { id: string; chiave: string | null; fatto: boolean; titolo: string }[];
+        select: { id: true, chiave: true, fatto: true, titolo: true, fattoDalFile: true } as never,
+      })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; fattoDalFile: boolean }[];
       for (const v of perTitolo) {
-        const combacianti = aMano.filter((r) => r.titolo === v.titolo);
-        if (combacianti.length !== 1) continue;
-        daSpuntare.push({ voce: v, riga: combacianti[0] });
+        const combacianti = aMano.filter((r) => r.titolo.trim() === v.titolo.trim());
+        /**
+         * ⚠️ **NON TROVATA E AMBIGUA SONO DUE COSE DIVERSE, E TUTT'E DUE VANNO DETTE** — revisione
+         * avversariale del 20/8. Prima finivano nello stesso `continue`, e **da nessuna parte**: né
+         * nel valore di ritorno né nell'output dello script.
+         *
+         * ⛔ Il confronto è per stringa esatta: basta un `–` al posto di `-`, uno spazio in più, o un
+         * titolo troncato, e non combacia. Il risultato è identico a «era già chiusa» — cioè lo
+         * strumento nato per evitare tre indagini su lavori già fatti tacerebbe **esattamente** nel
+         * caso in cui non sta funzionando. Uno strumento che dice solo quello che è riuscito a fare
+         * racconta sempre una giornata perfetta.
+         */
+        if (!combacianti.length) { titoliNonTrovati.push(v.titolo); continue; }
+        if (combacianti.length > 1) { titoliAmbigui.push(v.titolo); continue; }
+        /**
+         * ⚠️ **UNA VOCE RIAPERTA A MANO NON SI RICHIUDE DA SOLA** — revisione avversariale del 20/8,
+         * ed era il difetto peggiore di questa funzione.
+         *
+         * La query cerca `fatto: false`, quindi una riga **riaperta** ricombaciava al deploy dopo e
+         * si riprendeva la spunta, con `fattoIl` all'ora del rilascio. ⛔ Il patto scritto in testa
+         * allo script — «la pagina è lo stato vivo, una spunta messa a mano non si discute da un
+         * file» — valeva sulle spunte messe e **non su quelle tolte**: cioè su un gesto di Simone
+         * che dice «questo lavoro non è finito», che è l'unico modo che ha di contraddirmi.
+         *
+         * ⚠️ E c'è il seguito: i titoli sono generici («Moduli fissi in dashboard»). Senza questo
+         * controllo, **qualunque** voce riscritta con quello stesso titolo per il seguito del lavoro
+         * nascerebbe già spuntata al primo deploy.
+         *
+         * Adesso una riga che è già stata chiusa una volta da un rilascio non si tocca più: se è
+         * aperta, qualcuno l'ha riaperta apposta. E si dice, invece di tacere.
+         */
+        const riga = combacianti[0];
+        if (riga.fattoDalFile) { titoliRiaperti.push(v.titolo); continue; }
+        daSpuntare.push({ voce: v, riga });
       }
     }
 
@@ -307,7 +341,14 @@ export class LavoriService {
         await this.prisma.lavoro.update({ where: { id: d.id }, data: { nataIl: d.nataIl } });
       }
       for (const { riga } of daSpuntare) {
-        await this.prisma.lavoro.update({ where: { id: riga.id }, data: datiSpunta(true, null, new Date()) });
+        /**
+         * ⚠️ `fattoDalFile` non si azzera mai: da qui in poi, se questa riga la si trova aperta,
+         * vuol dire che l'ha riaperta una persona — e allora non si tocca più.
+         */
+        await this.prisma.lavoro.update({
+          where: { id: riga.id },
+          data: { ...datiSpunta(true, null, new Date()), fattoDalFile: true } as never,
+        });
       }
       for (const r of daRiscrivere) {
         // ⚠️ Solo titolo e dettaglio: `categoria` e `ordine` restano dove qualcuno li ha messi in
@@ -336,6 +377,10 @@ export class LavoriService {
       fileIndietro,
       /** ⚠️ Quante voci vivono **solo in pagina** (scritte a mano): il file non le vedrà mai. */
       soloInPagina,
+      /** ⚠️ I titoli che il file voleva chiudere e non ha chiuso: il silenzio qui era il difetto. */
+      titoliNonTrovati,
+      titoliAmbigui,
+      titoliRiaperti,
       /**
        * ⚠️ Voci il cui testo nel file è cambiato ma che qualcuno ha corretto **a mano** dalla
        * pagina: NON vengono riscritte, e si dicono — perché il file ha qualcosa di nuovo da

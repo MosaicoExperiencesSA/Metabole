@@ -73,6 +73,33 @@ async function main() {
     console.log('  ⚠️ Il file le crede aperte, la pagina le ha già chiuse (il file è indietro):');
     for (const v of e.fileIndietro) console.log(`     · ${v.titolo}`);
   }
+  /**
+   * ⚠️ **QUELLO CHE NON HA CHIUSO, non solo quello che ha chiuso** — revisione avversariale del 20/8.
+   *
+   * Lo script stampava in bella evidenza le voci spuntate e **taceva** su quelle che non era
+   * riuscito a spuntare: un titolo che non combacia per un trattino diverso dava un output identico
+   * a «era già chiusa». ⛔ Cioè lo strumento nato per evitare tre indagini su lavori già fatti
+   * taceva **esattamente** nel caso in cui non stava funzionando. *Uno strumento che dice solo
+   * quello che è riuscito a fare racconta sempre una giornata perfetta.*
+   */
+  if (e.titoliNonTrovati.length) {
+    console.log('');
+    console.log('  ⚠️ Il file voleva chiudere queste, e in pagina NON le ha trovate (il titolo non');
+    console.log('     combacia: un trattino diverso, uno spazio in più, il testo riscritto a mano):');
+    for (const t of e.titoliNonTrovati) console.log(`     · ${t}`);
+  }
+  if (e.titoliAmbigui.length) {
+    console.log('');
+    console.log('  ⚠️ E queste combaciano con PIÙ righe: non tocco niente, perché due voci intitolate');
+    console.log('     uguale sono due lavori diversi e spuntarne una a caso è peggio di non spuntare.');
+    for (const t of e.titoliAmbigui) console.log(`     · ${t}`);
+  }
+  if (e.titoliRiaperti.length) {
+    console.log('');
+    console.log('  ✋ Queste il file le aveva già chiuse una volta, e qualcuno le ha RIAPERTE a mano.');
+    console.log('     Non le richiudo: chi le ha riaperte sta dicendo che il lavoro non è finito.');
+    for (const t of e.titoliRiaperti) console.log(`     · ${t}`);
+  }
   if (e.soloInPagina) {
     console.log('');
     console.log(`  ⚠️ Voci scritte a mano in pagina e aperte: ${e.soloInPagina}.`);

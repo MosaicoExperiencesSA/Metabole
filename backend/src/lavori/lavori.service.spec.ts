@@ -378,7 +378,7 @@ describe('LavoriService.caricaVociIniziali — il file e la pagina che divergono
  * anche quando il lavoro era finito. Oggi è costato tre indagini su tre voci già fatte.
  */
 describe('chiudere per titolo le voci scritte a mano', () => {
-  const conPagina = (aMano: { id: string; titolo: string }[]) => ({
+  const conPagina = (aMano: { id: string; titolo: string; fatto?: boolean; fattoDalFile?: boolean }[]) => ({
     lavoro: {
       /**
        * ⚠️ Il finto distingue le due letture dal `where`, come farebbe il database: quella per
@@ -389,11 +389,24 @@ describe('chiudere per titolo le voci scritte a mano', () => {
       findMany: jest.fn().mockImplementation((args: any) => {
         const w = args?.where ?? {};
         if ('chiave' in w && w.chiave === null) {
-          return Promise.resolve(aMano.filter((r) => (w.titolo?.in ?? [r.titolo]).includes(r.titolo)).map((r) => ({ ...r, chiave: null, fatto: false, dettaglio: null, testoAMano: false, nataIl: null })));
+          /**
+           * ⚠️ Il finto onora anche `fatto` e restituisce `fattoDalFile`, come farebbe il database.
+           * Il doppio di prima li ignorava: togliere `fatto: false` dalla query non faceva fallire
+           * nessun test, e in produzione avrebbe voluto dire riscrivere `fattoIl` su righe già
+           * chiuse a ogni deploy.
+           */
+          return Promise.resolve(
+            aMano
+              .filter((r) => (w.titolo?.in ?? [r.titolo]).includes(r.titolo))
+              .filter((r) => (w.fatto === undefined ? true : !!r.fatto === w.fatto))
+              .map((r) => ({ chiave: null, fatto: false, fattoDalFile: false, dettaglio: null, testoAMano: false, nataIl: null, ...r })),
+          );
         }
         return Promise.resolve([]);
       }),
       count: jest.fn().mockResolvedValue(aMano.length),
+      /** ⚠️ Il ramo che SCRIVE ha bisogno di `create`: senza, il test con `conferma: true` non gira. */
+      create: jest.fn().mockResolvedValue({}),
       createMany: jest.fn().mockResolvedValue({ count: 0 }),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       update: jest.fn().mockResolvedValue({}),
@@ -428,6 +441,57 @@ describe('chiudere per titolo le voci scritte a mano', () => {
     const esito = await service.caricaVociIniziali(false);
     expect(esito.titoli.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
     expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⛔ IL DIFETTO PEGGIORE DI QUESTA FUNZIONE, trovato dalla revisione avversariale del 20/8.
+   *
+   * La query cerca `fatto: false`, quindi una voce **riaperta a mano** ricombaciava al deploy dopo e
+   * si riprendeva la spunta. ⚠️ Il patto scritto in testa allo script — «la pagina è lo stato vivo,
+   * una spunta messa a mano non si discute da un file» — valeva sulle spunte **messe** e non su
+   * quelle **tolte**: cioè su un gesto di Simone che dice «questo lavoro non è finito», che è
+   * l'unico modo che ha di contraddirmi.
+   */
+  it('⚠️ una voce già chiusa dal file e RIAPERTA a mano non si richiude', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard', fattoDalFile: true }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+    expect(esito.titoliRiaperti).toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⚠️ NON TROVATA E AMBIGUA VANNO DETTE. Prima finivano nello stesso `continue` e da nessuna parte:
+   * il risultato era identico a «era già chiusa» — cioè lo strumento nato per evitare tre indagini
+   * su lavori già fatti taceva **esattamente** nel caso in cui non stava funzionando.
+   */
+  it('⚠️ un titolo che non combacia si dice, invece di sparire in silenzio', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard — seguito' }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.titoliNonTrovati).toContain('Moduli fissi in dashboard');
+  });
+
+  it('⚠️ e due titoli uguali finiscono negli «ambigui», non nel silenzio', async () => {
+    const prisma = conPagina([
+      { id: 'l1', titolo: 'Moduli fissi in dashboard' },
+      { id: 'l2', titolo: 'Moduli fissi in dashboard' },
+    ]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.titoliAmbigui).toContain('Moduli fissi in dashboard');
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+  });
+
+  /** ⚠️ E chiudendo davvero si scrive il segno, altrimenti il controllo qui sopra non può esistere. */
+  it('⚠️ chiudendo per titolo si scrive «chiusa dal file»', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard' }]);
+    const service = new LavoriService(prisma as never);
+    await service.caricaVociIniziali(true);
+    const chiamata = prisma.lavoro.update.mock.calls.find((c: any) => c[0].where.id === 'l1');
+    expect(chiamata).toBeDefined();
+    expect(chiamata[0].data.fattoDalFile).toBe(true);
+    expect(chiamata[0].data.fatto).toBe(true);
   });
 });
 /**
@@ -481,5 +545,6 @@ describe('l\'allineamento automatico non si fa fermare da una voce già creata',
     const create = jest.fn().mockRejectedValue(new Error('Neon ha chiuso la connessione'));
     const service = new LavoriService(prismaCon(create) as never);
     await expect(service.caricaVociIniziali(true)).rejects.toThrow('Neon ha chiuso');
-  });
+  
+});
 });

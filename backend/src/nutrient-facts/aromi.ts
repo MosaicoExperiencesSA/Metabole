@@ -35,22 +35,54 @@
 import { paroleChe } from './abbinamento-alimenti';
 import { normalizzaNome } from './valori-nutrizionali.service';
 
-/** Le parole che, da sole o combinate fra loro, fanno un aroma. */
+/**
+ * ⚠️ **QUESTO ELENCO È STATO RIFATTO POCHE ORE DOPO AVERLO SCRITTO, E VALE LA PENA SAPERE PERCHÉ.**
+ *
+ * La prima versione conteneva `limone`, `lime`, `succo`, `scorza`, `buccia`, `noce`, `estratto`,
+ * `spicchio`, `erba`, `lievito`, `aceto`. ⛔ Risultato, provato sui nomi veri della produzione:
+ *
+ *     eAroma('limone')  →  true          3146 ricette, ed è un FRUTTO da 11 kcal
+ *     eAroma('noce')    →  true          654 kcal/100 g
+ *     eAroma('succo')   →  true          «succo» di cosa?
+ *
+ * Cioè: premendo «Togli questi N», il limone sarebbe uscito **per sempre** dall'elenco di lavoro —
+ * il passo notturno non riapre una riga chiusa a mano — e per accorgersene sarebbe servita una
+ * query fatta a mano sulla tabella.
+ *
+ * ⚠️ **E il commento di venti righe sopra diceva già che il limone doveva restare fuori.** L'errore
+ * non è stato di distrazione: `limone` era stato messo in AROMI per far funzionare «succo di
+ * limone», cioè *una parola aggiunta per far passare un caso, che ne fa passare cento*. È la stessa
+ * forma dell'errore delle `mele` di stamattina, alla riga sotto quella che lo raccontava.
+ *
+ * ✅ Adesso: nessun **nome di alimento** sta fra le parole — né in AROMI né in ACCOMPAGNANO. I nomi
+ * composti che sono davvero aromi si scrivono **per intero** in `NOMI_ESATTI`, dove si leggono uno
+ * per uno.
+ */
+
+/**
+ * I nomi **interi** che sono aromi anche se contengono un alimento. ⚠️ Si scrivono per esteso di
+ * proposito: «succo di limone» è un aroma, «limone» no, e la differenza sta tutta nelle due parole
+ * che ci sono in mezzo. Un elenco di parole non sa dirlo; un elenco di nomi sì.
+ */
+const NOMI_ESATTI = new Set([
+  'succo di limone', 'succo di lime', 'scorza di limone', 'scorza di lime',
+  'buccia di limone', 'limone succo', 'noce moscata', 'lievito in polvere',
+  'lievito per dolci', 'estratto di vaniglia', 'semi di finocchio',
+]);
+
+/** Le parole che, da sole o combinate fra loro, fanno un aroma. *//** Le parole che, da sole o combinate fra loro, fanno un aroma. */
 const AROMI = new Set([
   // niente calorie
-  'acqua', 'ghiaccio', 'sale', 'aceto',
+  'acqua', 'ghiaccio', 'sale',
   // si usano a pizzichi
-  'pepe', 'peperoncino', 'aglio', 'spicchio', 'spicchi',
+  'pepe', 'peperoncino', 'aglio',
   // erbe
   'prezzemolo', 'basilico', 'timo', 'rosmarino', 'origano', 'salvia', 'alloro', 'menta',
-  'erba', 'cipollina', 'aneto', 'maggiorana', 'dragoncello', 'coriandolo',
+  'cipollina', 'aneto', 'maggiorana', 'dragoncello', 'coriandolo',
   // spezie
-  'cannella', 'noce', 'moscata', 'curcuma', 'paprika', 'cumino', 'curry', 'chiodi', 'garofano',
-  'zafferano', 'anice', 'cardamomo', 'spezie', 'spezia',
-  // lievitanti e aromi da forno
-  'lievito', 'bicarbonato', 'vanillina', 'vaniglia', 'estratto',
-  // le parti del limone che sono aroma (il limone da solo NO: vedi il commento sopra)
-  'scorza', 'buccia', 'succo', 'limone', 'lime',
+  'cannella', 'curcuma', 'paprika', 'cumino', 'curry', 'garofano',
+  'zafferano', 'anice', 'cardamomo', 'spezie', 'spezia', 'vaniglia', 'vanillina',
+  'bicarbonato',
 ]);
 
 /**
@@ -62,9 +94,9 @@ const ACCOMPAGNANO = new Set([
   'secco', 'secca', 'secchi', 'secche', 'essiccato', 'essiccata', 'essiccati', 'essiccate',
   'macinato', 'macinata', 'macinati', 'macinate', 'tritato', 'tritata', 'tritati', 'tritate',
   'polvere', 'grani', 'foglie', 'foglia', 'rametto', 'rametti', 'pizzico', 'qb',
+  'chiodi', 'spicchio', 'spicchi', 'erba', 'estratto',
   'nero', 'nera', 'neri', 'nere', 'bianco', 'bianca', 'bianchi', 'bianche', 'rosa', 'verde', 'verdi',
-  'marino', 'grosso', 'fino', 'iodato', 
-  'balsamico',
+  'marino', 'grosso', 'fino', 'iodato',
   'naturale', 'frizzante', 'tiepida', 'calda', 'fredda',
 ]);
 
@@ -95,7 +127,9 @@ const ACCOMPAGNANO = new Set([
  * aroma vero fra le parole — «succo di limone» sì, e la parola che lo salva è «limone».
  */
 export function eAroma(nome: string): boolean {
-  const parole = paroleChe(normalizzaNome(nome));
+  const intero = normalizzaNome(nome);
+  if (NOMI_ESATTI.has(intero)) return true;
+  const parole = paroleChe(intero);
   if (!parole.length) return false;
   if (!parole.every((p) => AROMI.has(p) || ACCOMPAGNANO.has(p))) return false;
   return parole.some((p) => AROMI.has(p));

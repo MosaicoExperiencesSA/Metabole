@@ -2969,6 +2969,22 @@ model Lavoro {
   fatto    Boolean   @default(false)
   /** ⚠️ Si azzerano insieme alla spunta: una voce riaperta che dice ancora «fatta il 13/8» è una riga che fa perdere fiducia in tutta la lista. */
   fattoIl  DateTime? @map("fatto_il")
+  /**
+   * ⚠️ QUESTA VOCE È GIÀ STATA CHIUSA UNA VOLTA DA UN RILASCIO (20/8).
+   *
+   * Da ieri l'allineamento gira **da solo** a ogni deploy e può chiudere per **titolo** anche le
+   * voci scritte a mano dal backoffice. ⛔ La revisione avversariale ha trovato il seguito: la query
+   * cerca `fatto: false`, quindi una voce **riaperta a mano** ricombaciava al deploy dopo e si
+   * riprendeva la spunta — cioè un automatismo disfaceva un gesto di Simone, che con quel gesto sta
+   * dicendo «questo lavoro non è finito». È l'unico modo che ha di contraddirmi.
+   *
+   * ⚠️ E i titoli sono generici («Moduli fissi in dashboard»): senza questo segno, qualunque voce
+   * riscritta con lo stesso titolo per il **seguito** del lavoro nascerebbe già spuntata.
+   *
+   * Il campo non si azzera mai: una volta che il file ha chiuso quella riga, se la trova aperta
+   * vuol dire che l'ha riaperta una persona, e non si tocca più.
+   */
+  fattoDalFile Boolean @default(false) @map("fatto_dal_file")
   fattoDaId String?  @map("fatto_da_id")
   fattoDa   Staff?   @relation("LavoroFattoDa", fields: [fattoDaId], references: [id], onDelete: SetNull)
 

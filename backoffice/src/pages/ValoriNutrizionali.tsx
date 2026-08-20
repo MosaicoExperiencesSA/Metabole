@@ -296,12 +296,22 @@ export function ValoriNutrizionali() {
         body: JSON.stringify({ ids: aromi.map((m) => m.id) }),
       });
       setAromi(null);
-      /**
-       * ⚠️ Se il server ne ha **saltati** qualcuno lo si dice: ricontrolla ogni id contro l'elenco
-       * chiuso, e un silenzio qui vorrebbe dire far credere che siano usciti tutti.
-       */
-      if (r.saltati) setError(`Tolti ${r.tolti}. ⚠️ ${r.saltati} non erano aromi e sono rimasti in elenco.`);
       await carica();
+      /**
+       * ⚠️ **IL MESSAGGIO VA DOPO `carica()`, E NON È UN DETTAGLIO** — revisione avversariale del
+       * 20/8. Prima stava prima, e `carica()` azzera l'avviso quando va a buon fine: con il batching
+       * di React lo stato finale era `null` e **il banner non compariva mai**. Su una scrittura in
+       * blocco che non si torna indietro, l'unica riga che dice cos'è successo spariva prima di
+       * comparire — un dato che agisce e non si vede, in tre righe di codice.
+       *
+       * ⚠️ E si dice **sempre**, non solo quando qualcosa è andato storto: «ho tolto 87 righe» è la
+       * ricevuta di quello che si è appena approvato.
+       */
+      setNotice(
+        r.saltati
+          ? `Tolti ${r.tolti} aromi. ⚠️ ${r.saltati} non erano aromi e sono rimasti in elenco.`
+          : `Tolti ${r.tolti} aromi dall'elenco.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Non riuscito.');
     }

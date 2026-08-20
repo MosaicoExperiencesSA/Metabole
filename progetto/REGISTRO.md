@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🔍 **Revisione avversariale sul lavoro di stamattina: 13 rilievi, e il primo l'ho
+  confermato in un secondo provando la funzione sui nomi veri.**
+  ⛔ **«Limone» usciva come aroma — 3146 ricette, per sempre.** L'elenco chiuso conteneva `limone`,
+  `noce`, `succo`, `scorza`, `aceto`: premendo «Togli questi N» il limone (un frutto da 11 kcal)
+  sarebbe uscito dall'elenco di lavoro e nessuno l'avrebbe rimesso. ⚠️ E il commento venti righe
+  sopra diceva già che doveva restare fuori: `limone` l'avevo messo per far funzionare «succo di
+  limone». *Una parola aggiunta per far passare un caso ne fa passare cento* — la stessa forma
+  dell'errore delle `mele` di due ore prima, alla riga sotto quella che lo raccontava.
+  ⛔ **`creaDaMancante` poteva creare due righe che rispondono allo stesso nome**: il controllo
+  guardava `name` (che è `@unique`) e non i **sinonimi**, dove sta la collisione vera. Cioè la voce
+  228 rimessa in piedi da un endpoint il cui commento dice di esistere per impedirla.
+  ⛔ **«8OO» diventava «non lo so», in silenzio**: una riga nasceva senza calorie, confermata — e da
+  quel momento il termine spariva dalla lista di lavoro mentre il conto continuava a saltarlo. *Una
+  scorciatoia che nasconde un buco è peggio del buco*, la stessa frase scritta venti righe sopra
+  sull'altro pulsante. E `kcal: -500` passava, **sottraendo** dal totale di una ricetta.
+  ⛔ **Il rilascio richiudeva una voce riaperta a mano.** Il patto «una spunta messa a mano non si
+  discute da un file» valeva sulle spunte **messe** e non su quelle **tolte** — cioè su un gesto che
+  dice «questo lavoro non è finito», l'unico modo che Simone ha di contraddirmi. Ora una riga chiusa
+  una volta dal file porta il segno e non si tocca più.
+  ⛔ **I titoli che non combaciano sparivano nel silenzio**, e **il messaggio sulla scrittura in
+  blocco veniva cancellato prima di comparire** (`setError` seguito da `carica()`, che azzera). *Uno
+  strumento che dice solo quello che è riuscito a fare racconta sempre una giornata perfetta.*
+  ⚠️ **E un errore mio nel leggere i test**: per tre giri ho letto «Tests: 28 passed» su una suite
+  che **non compilava**, senza guardare la riga sopra — «Test Suites: 1 failed». I quattro test nuovi
+  non stavano girando affatto. *Il verde non è una riga sola.*
+
 - `[Sviluppo]` 🧂 **«Togli gli aromi», con la lista davanti** (scelta di Simone fra quattro strade).
   Metà dei primi venti posti dell'elenco «Alimenti da correggere» sono aglio (3886 ricette), sale
   (3296), pepe, acqua, prezzemolo, basilico: pesano **zero** nel conto e occupano lo spazio delle

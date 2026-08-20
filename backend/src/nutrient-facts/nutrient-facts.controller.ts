@@ -276,19 +276,73 @@ export class NutrientFactsController {
      * la ragione per cui `name` è `@unique` in banca dati. Meglio un errore che si legge che un
      * vincolo che scatta e lascia chi ha cliccato senza sapere cosa fare.
      */
-    const gia = await this.prisma.nutrientFact.findFirst({ where: { name: miss.term }, select: { id: true } });
+    /**
+     * ⚠️ **QUALCUN ALTRO PUÒ AVERLO GIÀ CHIUSO** — trovato dalla revisione avversariale del 20/8.
+     * `miss.status` veniva letto e mai guardato: una pagina aperta da ieri poteva creare una riga
+     * per un termine che nel frattempo era già stato associato a un'altra. Il risultato del punto
+     * sotto — due righe che rispondono allo stesso nome — nasceva proprio così.
+     */
+    if (miss.status !== 'open') {
+      throw new BadRequestException(
+        `«${miss.term}» l'ha già chiuso qualcun altro: ricarica la pagina prima di scrivere.`,
+      );
+    }
+
+    /**
+     * ⚠️ **SI GUARDANO ANCHE I SINONIMI, NON SOLO I NOMI** — revisione avversariale del 20/8, ed è
+     * il difetto che rimetteva in piedi la voce 228.
+     *
+     * Il controllo era `findFirst({ name: miss.term })`, e `name` è `@unique`: sembrava blindato.
+     * ⛔ Ma la collisione vera è **nome contro sinonimo**: se qualcuno ha già associato «olio
+     * extravergine» come sinonimo di «olio extravergine di oliva», creare una riga *chiamata* «olio
+     * extravergine» non viola nessun vincolo — e da lì in poi due righe rispondono a quel nome. Con
+     * lo stesso stato, `scegliPerStato` prende la prima che restituisce Postgres: **quale delle due
+     * risponde lo decide l'ordine di lettura del database**, che è testualmente il difetto da cui è
+     * nata tutta questa storia.
+     */
+    const gia = (await this.prisma.nutrientFact.findFirst({
+      where: { OR: [{ name: miss.term }, { synonyms: { has: miss.term } }] } as never,
+      select: { id: true, name: true } as never,
+    })) as { id: string; name: string } | null;
     if (gia) {
       throw new BadRequestException(
-        `«${miss.term}» in tabella c'è già: usa «associa» invece di crearne una seconda, o correggi quella riga.`,
+        `«${miss.term}» in tabella c'è già${gia.name === miss.term ? '' : `, come altro nome di «${gia.name}»`}: ` +
+          'usa «associa» invece di crearne una seconda, o correggi quella riga.',
       );
     }
 
     const staff = (await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } })) as { id: string } | null;
+    /**
+     * ⚠️ **«NON LO SO» E «ILLEGGIBILE» NON SONO LA STESSA COSA** — revisione avversariale del 20/8.
+     *
+     * Prima qualunque cosa non numerica diventava `null`, in silenzio. ⛔ Caso vero: si scrive `8OO`
+     * (la O maiuscola al posto dello zero) nelle kcal delle melanzane, e nasce una riga **senza
+     * calorie**, confermata, con lo stato a crudo. Da quel momento il termine non è più «scoperto»
+     * — la riga c'è ed è usabile — quindi **sparisce dalla lista di lavoro**, mentre il conto della
+     * ricetta continua a saltarlo. Una scorciatoia che *nasconde* un buco è peggio del buco, ed è la
+     * stessa frase scritta venti righe sopra, sull'altro pulsante.
+     *
+     * ⚠️ E i valori assurdi passavano: `kcal: -500` **sottrae** dal totale di una ricetta, e la
+     * guardia in uscita ammette quel numero perché viene dalla tabella. Un limite si può discutere;
+     * nessun limite no.
+     */
+    const LIMITI: Record<string, number> = {
+      kcal: 900, protein: 100, carbs: 100, sugars: 100, fat: 100, fiber: 100,
+      glycemicIndex: 150, glycemicIndexMin: 150, glycemicIndexMax: 150,
+    };
     const numero = (k: string): number | null => {
       const v = body[k];
       if (v === '' || v === null || v === undefined) return null;
-      const n = Number(String(v).replace(',', '.'));
-      return Number.isFinite(n) ? n : null;
+      const n = Number(String(v).replace(',', '.').trim());
+      if (!Number.isFinite(n)) {
+        throw new BadRequestException(`«${String(v)}» non è un numero: controlla il campo ${k}.`);
+      }
+      if (n < 0) throw new BadRequestException(`${k} non può essere negativo (${n}).`);
+      const max = LIMITI[k];
+      if (max !== undefined && n > max) {
+        throw new BadRequestException(`${k} = ${n} è fuori scala: per 100 g il massimo sensato è ${max}.`);
+      }
+      return n;
     };
     const testo = (k: string): string | null => {
       const v = body[k];
@@ -296,13 +350,14 @@ export class NutrientFactsController {
       return t ? t : null;
     };
 
+    const kcal = numero('kcal');
     const creato = (await this.prisma.nutrientFact.create({
       data: {
         name: miss.term,
         synonyms: [],
         category: testo('category'),
         state: testo('state'),
-        kcal: numero('kcal'),
+        kcal,
         protein: numero('protein'),
         carbs: numero('carbs'),
         sugars: numero('sugars'),
@@ -314,8 +369,14 @@ export class NutrientFactsController {
         glycemicIndexReliability: testo('glycemicIndexReliability'),
         source: testo('source'),
         note: testo('note'),
-        verifiedAt: new Date(),
-        verifiedById: staff?.id ?? null,
+        /**
+         * ⚠️ **SENZA CALORIE NON È CONFERMATA.** Una riga nasce confermata perché l'ha scritta una
+         * persona che sa — ma se le kcal mancano, quella riga **non serve al conto** e insieme
+         * **toglie il termine dalla lista di lavoro**: il buco resta e nessuno lo vede più. Senza
+         * kcal resta «da confermare», che è il solo posto da cui può tornare sotto gli occhi.
+         */
+        verifiedAt: kcal === null ? null : new Date(),
+        verifiedById: kcal === null ? null : (staff?.id ?? null),
       } as never,
     })) as { id: string; name: string };
 

@@ -1,0 +1,104 @@
+--------------------------------------------------------------------------------
+Parte: le correzioni della revisione avversariale sul lavoro di stamattina — 20/8
+--------------------------------------------------------------------------------
+
+Revisione avversariale sulle consegne di oggi, che avevano visto solo i miei occhi. Tredici
+rilievi. Le sei che contano — e la prima l ho confermata in un secondo provando la funzione sui
+nomi veri della produzione.
+
+⛔ 1. «LIMONE» USCIVA COME AROMA. 3146 RICETTE, PER SEMPRE.
+
+L elenco chiuso degli aromi conteneva `limone`, `lime`, `noce`, `succo`, `scorza`, `buccia`,
+`estratto`, `spicchio`, `erba`, `lievito`, `aceto`. Provato sui nomi veri:
+
+    eAroma('limone')  →  true      3146 ricette, ed e un FRUTTO da 11 kcal
+    eAroma('noce')    →  true      654 kcal/100 g
+    eAroma('succo')   →  true      «succo» di cosa?
+
+Premendo «Togli questi N», il limone sarebbe uscito DALL ELENCO DI LAVORO PER SEMPRE — il passo
+notturno non riapre una riga chiusa a mano — e per accorgersene sarebbe servita una query fatta
+a mano sulla tabella.
+
+⚠️ E il commento venti righe sopra diceva gia che il limone doveva restare fuori. L errore non e
+di distrazione: `limone` l avevo messo per far funzionare «succo di limone». UNA PAROLA AGGIUNTA
+PER FAR PASSARE UN CASO NE FA PASSARE CENTO. E la stessa forma dell errore delle `mele` di due
+ore prima, alla riga sotto quella che lo raccontava.
+
+Adesso nessun nome di alimento sta fra le parole, e i nomi composti che sono davvero aromi si
+scrivono PER INTERO in un elenco a parte, dove si leggono uno per uno.
+
+⛔ 2. `creaDaMancante` POTEVA CREARE DUE RIGHE CHE RISPONDONO ALLO STESSO NOME
+
+Il controllo era `findFirst({ name: miss.term })`, e `name` e `@unique`: sembrava blindato. Ma la
+collisione vera e NOME CONTRO SINONIMO. Se qualcuno ha gia associato «olio extravergine» come
+sinonimo di «olio extravergine di oliva», creare una riga CHIAMATA «olio extravergine» non viola
+niente — e da li in poi due righe rispondono a quel nome. Con lo stesso stato, quale delle due
+risponde LO DECIDE L ORDINE DI LETTURA DEL DATABASE.
+
+⚠️ Cioe la voce 228, rimessa in piedi da un endpoint il cui commento dice di esistere per
+impedirla. Adesso si guardano anche i sinonimi. E si guarda `miss.status`, che veniva letto e mai
+usato: una pagina aperta da ieri poteva scrivere su un termine gia chiuso da qualcun altro.
+
+⛔ 3. «8OO» DIVENTAVA «NON LO SO», IN SILENZIO
+
+Qualunque cosa non numerica diventava `null`. Si scrive `8OO` (la O maiuscola al posto dello
+zero) nelle kcal delle melanzane e nasce una riga SENZA CALORIE, confermata, a crudo. Da quel
+momento il termine non e piu «scoperto» — la riga c e ed e usabile — quindi SPARISCE DALLA LISTA
+DI LAVORO, mentre il conto della ricetta continua a saltarlo.
+
+⚠️ Una scorciatoia che NASCONDE un buco e peggio del buco: e la stessa frase scritta venti righe
+sopra, sull altro pulsante, e qui mancava.
+
+E i valori assurdi passavano: `kcal: -500` SOTTRAE dal totale di una ricetta, e la guardia in
+uscita ammette quel numero perche viene dalla tabella. Adesso: il refuso si ferma e lo dice, i
+negativi e i fuori scala pure, e ⚠️ SENZA KCAL LA RIGA RESTA «DA CONFERMARE» — e il solo posto da
+cui puo tornare sotto gli occhi.
+
+⛔ 4. IL RILASCIO RICHIUDEVA UNA VOCE CHE SIMONE AVEVA RIAPERTO A MANO
+
+Da ieri l allineamento gira da solo a ogni deploy e chiude per TITOLO anche le voci scritte a
+mano. La query cerca `fatto: false`, quindi una voce RIAPERTA ricombaciava al deploy dopo e si
+riprendeva la spunta.
+
+⚠️ Il patto scritto in testa allo script — «la pagina e lo stato vivo, una spunta messa a mano non
+si discute da un file» — valeva sulle spunte MESSE e non su quelle TOLTE. Cioe su un gesto che
+dice «questo lavoro non e finito»: l unico modo che Simone ha di contraddirmi.
+
+⚠️ E il seguito: i titoli sono generici. Qualunque voce riscritta con lo stesso titolo per il
+SEGUITO del lavoro sarebbe nata gia spuntata al primo deploy.
+
+Adesso una riga chiusa una volta dal file porta il segno (`fatto_dal_file`, migrazione additiva):
+se la si trova aperta, l ha riaperta una persona, e non si tocca piu.
+
+⛔ 5. I TITOLI CHE NON COMBACIANO SPARIVANO NEL SILENZIO
+
+«Non trovata» e «ambigua» finivano nello stesso `continue`, e da nessuna parte: ne nel valore di
+ritorno ne nell output. Il confronto e per stringa esatta — basta un `–` al posto di `-`.
+⚠️ Cioe lo strumento nato per evitare tre indagini su lavori gia fatti taceva ESATTAMENTE nel
+caso in cui non stava funzionando. *Uno strumento che dice solo quello che e riuscito a fare
+racconta sempre una giornata perfetta.*
+
+⛔ 6. L UNICO MESSAGGIO SULLA SCRITTURA IN BLOCCO VENIVA CANCELLATO PRIMA DI COMPARIRE
+
+`setError(...)` seguito da `await carica()`, che azzera l avviso quando va a buon fine: con il
+batching di React lo stato finale era `null` e IL BANNER NON COMPARIVA MAI. Su una scrittura che
+non si torna indietro, l unica riga che dice cos e successo spariva prima di comparire — un dato
+che agisce e non si vede, in tre righe di codice. Adesso va dopo, e si dice SEMPRE, non solo
+quando qualcosa e andato storto.
+
+⚠️ E UN ERRORE MIO NEL LEGGERE L OUTPUT DEI TEST
+
+Per tre giri ho letto «Tests: 28 passed» su una suite che NON COMPILAVA, senza guardare la riga
+sopra: «Test Suites: 1 failed». I quattro test nuovi non stavano girando affatto. Il colore
+verde non e una riga sola.
+
+FILE
+- backend/nutrient-facts: `aromi.ts` + spec (3 test nuovi) · `nutrient-facts.controller.ts` ·
+  `alimento-da-un-mancante.spec.ts` (5 test nuovi, finto corretto)
+- backend/lavori: `lavori.service.ts` + spec (4 test nuovi, finto corretto) ·
+  migrazione `20260820090000_lavoro_fatto_dal_file` · `prisma/schema.prisma`
+- backend/prisma: `allinea-lavori.ts` (dice anche cosa NON ha chiuso)
+- backoffice: `ValoriNutrizionali.tsx`
+
+247 suite / 3888 test verdi, 39 nel backoffice, build ok. Sei mutazioni: mordono tutte e sei.
+⚠️ UNA MIGRAZIONE: additiva, una colonna booleana con default `false` su `lavoro`.
