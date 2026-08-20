@@ -1581,20 +1581,29 @@ async function seedPipelineStages(): Promise<void> {
     // Il questionario si compila PRIMA di scegliere il piano: sta fra "Lavorato" e "Prova".
     // È di sistema perché lo scrive l'automazione (fine questionario) e le coach lo usano per
     // sapere chi è pronta per la chiamata.
-    { key: 'questionnaire_done', label: 'Questionario completato', color: '#3a6ea5', order: 2, isSystem: true },
+    /**
+     * «Primo accesso effettuato» (20/8): la cliente è entrata nell'app — si è registrata o ha fatto
+     * l'accesso. Sta fra «Lavorato» e «Questionario completato»: prima c'è il contatto che
+     * abbiamo, qui chi è entrato, dopo chi ha finito il questionario.
+     * ⚠️ È **di sistema** per la stessa ragione di `questionnaire_done`: lo scrive l'automazione
+     * (`commerce/primo-accesso.ts`), quindi se sparisce l'automazione smette di funzionare in
+     * silenzio. Etichetta, colore e posizione restano dell'admin: il seed non li tocca.
+     */
+    { key: 'primo_accesso_effettuato', label: 'Primo accesso effettuato', color: '#3a6ea5', order: 2, isSystem: true },
+    { key: 'questionnaire_done', label: 'Questionario completato', color: '#3a6ea5', order: 3, isSystem: true },
     // "Prova": cliente che ha attivato un prodotto GRATUITO (checkout a 0). Al primo
     // pagamento vero passa ad "Acquisito" (key 'paid', usata dalle query di sistema).
-    { key: 'trial', label: 'Prova', color: '#b8863b', order: 3, isSystem: true },
-    { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 3, isSystem: true },
-    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 4, isSystem: false },
-    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 5, isSystem: false },
-    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 6, isSystem: false },
-    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 7, isSystem: false },
-    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 8, isSystem: false },
+    { key: 'trial', label: 'Prova', color: '#b8863b', order: 4, isSystem: true },
+    { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 4, isSystem: true },
+    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 5, isSystem: false },
+    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 6, isSystem: false },
+    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 7, isSystem: false },
+    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 8, isSystem: false },
+    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 9, isSystem: false },
     // Ultima colonna: il percorso è finito (piano scaduto da una settimana senza rinnovo).
     // Sta DOPO "Acquisito", quindi nelle statistiche resta contata fra le convertite — perché
     // lo è stata: ha comprato e ha finito.
-    { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 9, isSystem: true },
+    { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 10, isSystem: true },
   ];
   const existing = await prisma.pipelineStage.count();
   if (existing === 0) {

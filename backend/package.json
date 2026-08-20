@@ -90,7 +90,9 @@
     "diag:mese-confine": "ts-node --transpile-only prisma/diag-mese-confine.ts",
     "diag:giorno-piani": "ts-node --transpile-only prisma/diag-giorno-piani.ts",
     "diag:esclusioni": "ts-node --transpile-only prisma/diag-esclusioni.ts",
-    "diag:allergeni-piatto": "ts-node --transpile-only prisma/diag-allergeni-nel-piatto.ts"
+    "diag:allergeni-piatto": "ts-node --transpile-only prisma/diag-allergeni-nel-piatto.ts",
+    "diag:pipeline-stati": "ts-node --transpile-only prisma/diag-pipeline-stati.ts",
+    "allinea:primo-accesso": "ts-node --transpile-only prisma/allinea-primo-accesso.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

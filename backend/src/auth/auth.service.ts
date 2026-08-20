@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { AuditService } from '../audit/audit.service';
+import { segnaPrimoAccesso } from '../commerce/primo-accesso';
 import { CrmService } from '../commerce/crm.service';
 import { LeadAssignmentService } from '../commerce/lead-assignment.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -145,6 +146,14 @@ export class AuthService {
     if (trimmedRef && refKind === 'client') {
       await this.referral.linkOnRegister(user.id, trimmedRef);
     }
+    /**
+     * PIPELINE: la registrazione È un primo accesso (richiesta di Simone, 20/8). La scheda l'ha
+     * appena creata `ensureLead` in «Nuovo contatto»; da qui passa a «Primo accesso effettuato»,
+     * e «Nuovo contatto» resta per i contatti importati o inseriti a mano che nell'app non sono
+     * mai entrati. La chiave dello stato sta in `commerce/primo-accesso.ts`, non qui.
+     */
+    await segnaPrimoAccesso(this.prisma as never, user.id).catch(() => undefined);
+
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
   }
@@ -223,6 +232,17 @@ export class AuthService {
       entityId: user.id,
       ipAddress: ip,
     });
+    /**
+     * PIPELINE: primo accesso della cliente. Si chiama a OGNI accesso e va bene così — dal secondo
+     * in poi la scheda è già lì o più avanti e non succede niente (vedi `commerce/avanza-stato.ts`).
+     * ⛔ **Non con la master password**: se entra l'assistenza, sulla board comparirebbe che è
+     * entrata lei, e chi telefona si fiderebbe di una cosa falsa.
+     * ⛔ **Solo le clienti**: la board CRM è delle clienti, lo staff lì dentro non c'è.
+     */
+    if (user.role === 'client' && !isMasterLogin) {
+      await segnaPrimoAccesso(this.prisma as never, user.id).catch(() => undefined);
+    }
+
     const tokens = await this.issueTokenPair(user);
     return { user: this.toPublicUser(user), ...tokens };
   }

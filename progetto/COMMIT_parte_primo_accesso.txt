@@ -1,0 +1,77 @@
+«Primo accesso effettuato»: la scheda si muove quando la cliente entra — 20/8
+
+Richiesta di Simone: «ho aggiunto nella pipeline "primo accesso effettuato": tutte le volte che un
+cliente accede la prima volta o registra account lo spostiamo lì. Poi quando termina il questionario
+passa in questionario completato (dovrebbe già essere così)».
+
+✅ VERIFICATO: sì, «questionario completato» funziona già. `onboarding.service.ts` chiama
+`avanzaStatoSeIndietro(..., 'questionnaire_done', ...)` alla fine del questionario, dall'8/8.
+Non è stato toccato niente lì.
+
+## ⚠️ LA COSA CHE POTEVA ROMPERSI IN SILENZIO
+
+L'avanzamento automatico **non fa mai retrocedere** una scheda: il confronto è sull'`order` della
+colonna (`commerce/avanza-stato.ts`). E una colonna creata dal backoffice nasce **in fondo**
+(`order = max + 1`). Appoggiarci un'automazione senza spostarla prima fa due danni insieme, tutti e
+due muti:
+
+ · le schede ci finiscono dentro **anche da «Acquisito» o «Percorso concluso»**, perché in fondo si
+   va sempre: sulla board una cliente che ha comprato scivolerebbe in ultima colonna al primo
+   accesso;
+ · e da lì non escono più da sole, perché ogni altro stato ha un `order` più basso — **il
+   questionario non riuscirebbe più a spostarla**, che è esattamente la cosa che Simone dava per
+   funzionante.
+
+Chiesto a Simone dove va la colonna. Risposta: **fra «Lavorato» e «Questionario completato»**.
+
+## COSA È CAMBIATO
+
+`src/commerce/primo-accesso.ts` (nuovo) — la porta sola. La chiave dello stato
+(`primo_accesso_effettuato`, da `slug('Primo accesso effettuato')`) sta scritta **una volta**, e un
+test controlla che `AuthService` non la scriva a mano.
+⚠️ **Non serve sapere se è davvero il primo accesso.** L'avanzamento non retrocede, quindi dal
+secondo in poi la chiamata non fa niente: niente colonna `firstLoginAt`, niente migrazione, niente
+secondo posto dove sta scritta la stessa cosa. E la data resta comunque registrata, in
+`stageDates.primo_accesso_effettuato.at`.
+
+`src/auth/auth.service.ts` — due chiamate: registrazione e accesso.
+⛔ **Non con la master password.** Se l'assistenza entra nell'account di una cliente, sulla board
+comparirebbe «ha fatto il primo accesso» e non l'ha fatto lei. Una ragione falsa in mano a chi
+telefona è peggio di una colonna vuota.
+⛔ **Solo `role === 'client'`**: la board CRM è delle clienti.
+⛔ **Non sul refresh del token** (non è un accesso nuovo, ed è una strada calda) **né sul cambio di
+utenza collegata** (`switch_account`): lì chi preme è l'altra utenza della stessa persona, e non so
+dire se «è entrata la cliente». È un caso lasciato fuori apposta, scritto nel file, non dimenticato.
+
+`prisma/seed.ts` — la colonna entra fra i default, `order: 2`, e questionario/prova/acquisito
+scalano di uno. È **di sistema** per la stessa ragione di `questionnaire_done`: la scrive
+l'automazione, quindi se sparisce l'automazione smette di funzionare in silenzio. ⚠️ Su
+un'installazione già avviata il seed **non tocca** etichetta, colore e posizione scelti dall'admin:
+la colonna che Simone ha creato resta la sua, il seed la marca solo come di sistema.
+
+`prisma/diag-pipeline-stati.ts` (nuovo) — `npm run diag:pipeline-stati`. Stampa le colonne
+nell'ordine vero con chiave, quante schede ci sono dentro e quale automazione le scrive; segnala le
+schede rimaste in una colonna eliminata; e soprattutto **controlla l'ordine fra i passaggi
+automatici**, che è la cosa che si rompe senza dare errore.
+
+`prisma/allinea-primo-accesso.ts` (nuovo) — `npm run allinea:primo-accesso`. Da sola l'automazione
+scatterebbe solo ai prossimi accessi, e la colonna resterebbe quasi vuota per settimane.
+⚠️ **Il danno non è la colonna vuota, è la colonna vuota che sembra piena**: tre schede lì dentro
+quando le clienti entrate sono duecento non dicono «l'automazione è nuova», dicono «solo tre sono
+entrate». Il passato è già scritto nel registro (`auth.login`, `auth.register`): si legge, non si
+deduce. ⛔ `auth.master_login` escluso, per la stessa ragione di sopra.
+
+## LE PROVE
+
+`primo-accesso.spec.ts` (9) e `una-porta-per-il-primo-accesso.spec.ts` (7). Quattro mutazioni
+provate, tutte mordono: tolta la guardia della master password, tolta quella del ruolo, colonna
+spostata dopo il questionario nel seed, e tolto il confronto sull'ordine dentro l'avanzamento.
+
+## ⚠️ COSA DEVI FARE TU, IN QUEST'ORDINE
+
+1. Trascina «Primo accesso effettuato» fra «Lavorato» e «Questionario completato» sulla board.
+   Adesso è in fondo, ed è lì che nasce ogni colonna creata a mano.
+2. `npm run diag:pipeline-stati` → deve finire con «Nessun problema».
+3. `npm run allinea:primo-accesso` (prova a vuoto) → incollamelo prima del `CONFERMA=1`.
+
+Backend: 267 suite, 4058 test verdi.

@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` 🚪 **«Primo accesso effettuato»: la scheda si muove quando la cliente entra
+  davvero.** Richiesta di Simone: la colonna l'ha creata lui dal backoffice, e vuole che la scheda
+  ci vada a ogni registrazione e al primo accesso. ✅ **Verificato che «questionario completato»
+  funzionava già** come credeva: `onboarding.service.ts` chiama `avanzaStatoSeIndietro` dall'8/8,
+  e lì non è stato toccato niente.
+  ⚠️ **La cosa che poteva rompersi in silenzio.** L'avanzamento automatico non fa mai retrocedere:
+  il confronto è sull'`order` della colonna. E una colonna creata dal backoffice nasce **in fondo**
+  (`order = max + 1`). Appoggiarci l'automazione senza spostarla faceva due danni muti insieme: le
+  schede ci sarebbero finite **anche da «Acquisito» o «Percorso concluso»** — una cliente che ha
+  comprato scivolata in ultima colonna al primo accesso — e da lì non sarebbero più uscite, cioè
+  **il questionario non avrebbe più potuto spostarle**, che è proprio la cosa che Simone dava per
+  funzionante. Chiesto dove va: **fra «Lavorato» e «Questionario completato»**.
+  ✅ **Cosa c'è adesso.** `commerce/primo-accesso.ts`: una porta sola, la chiave scritta una volta,
+  e un test che controlla che `AuthService` non la scriva a mano. ⚠️ Non serve sapere se è davvero
+  il primo accesso — l'avanzamento non retrocede, quindi dal secondo in poi la chiamata non fa
+  niente: niente `firstLoginAt`, niente migrazione, e la data resta comunque in
+  `stageDates.primo_accesso_effettuato.at`.
+  ⛔ **Chi non lo segna, e perché.** La **master password**: se entra l'assistenza, la board direbbe
+  che è entrata la cliente — una ragione falsa in mano a chi telefona è peggio di una colonna vuota.
+  Il **ruolo diverso da `client`**: la board CRM è delle clienti. Il **refresh del token** (non è un
+  accesso nuovo, ed è una strada calda) e il **cambio di utenza collegata** (lì chi preme è l'altra
+  utenza della stessa persona, e non so dire se è entrata la cliente): casi lasciati fuori apposta e
+  scritti nel file, non dimenticati.
+  🔧 `npm run diag:pipeline-stati` (nuovo): le colonne nell'ordine vero, con quante schede ci sono
+  dentro e quale automazione le scrive — e il controllo sull'**ordine fra i passaggi automatici**,
+  che è la cosa che si rompe senza dare errore. `npm run allinea:primo-accesso` (nuovo): il passato
+  è già scritto nel registro (`auth.login`, `auth.register`), si legge invece di dedurlo. ⚠️ Senza
+  questo la colonna resterebbe quasi vuota per settimane, e **una colonna vuota che sembra piena**
+  non dice «l'automazione è nuova», dice «solo tre clienti sono entrate».
+  🧪 16 test nuovi, quattro mutazioni provate e tutte mordono.
+  ⚠️ **Da fare a mano, in quest'ordine:** trascinare la colonna al posto giusto, `diag:pipeline-stati`
+  fino a «Nessun problema», poi la prova a vuoto di `allinea:primo-accesso`.
+  🔢 267 suite, 4058 test verdi.
+
 - `[Sviluppo]` 🔎 **La stessa forma cercata altrove: gli elenchi scritti a mano.** Il difetto
   dell'import ha una forma precisa — un insieme costruito *prima* del giro per dire «questo c'è
   già», e un giro che crea righe senza mai rimettercele dentro: vede la banca dati, non l'elenco che
