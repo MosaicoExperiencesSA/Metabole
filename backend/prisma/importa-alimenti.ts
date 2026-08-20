@@ -40,37 +40,15 @@
 import { PrismaClient } from '@prisma/client';
 import { ALIMENTI_19_8, type RigaAlimento } from './dati-alimenti';
 import { ALIMENTI_20_8 } from './dati-alimenti-20-8';
-import { normalizzaStato, STATI_A_CRUDO } from '../src/nutrient-facts/stato-alimento';
-import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
+import { trovaGemelli, riempimenti } from '../src/nutrient-facts/gemelli-alimenti';
+import { pianifica, type Conosciuta } from '../src/nutrient-facts/piano-alimenti';
 
 const prisma = new PrismaClient();
 const CONFERMA = process.env.CONFERMA === '1';
 
 type Riga = RigaAlimento;
 
-/**
- * Il nome che prende la riga vecchia quando le si toglie il nome nudo: «carote» → «carote (da cotto)».
- *
- * ⚠️ **Prima incollava la parola dello stato così com'era**, e la prova a vuoto del 20/8 ha mostrato
- * cosa ne usciva: «broccoli bollito», «barbabietola bollito», «spinaci bollito», «polenta cotto»,
- * «fagioli neri bollito», «spaghetti integrali bollito». In italiano lo stato si accorda con
- * l'alimento, e l'alimento cambia genere e numero: non c'è una regola che ci arrivi da sola, e
- * indovinarla sbaglierebbe sul primo nome nuovo.
- *
- * ⛔ E non è una questione di eleganza: **questi nomi li legge una persona** — stanno nella pagina
- * Alimenti, e Gaia li può citare a una cliente («le barbabietola bollito hanno…»). Un nome storto
- * in banca dati si corregge solo con un'altra migrazione.
- *
- * `(da cotto)` è sempre grammaticale, per qualunque alimento, ed è **la frase che il prodotto già
- * usa**: «Solo da cotto» è l'etichetta dell'elenco «Alimenti da correggere». Gli altri stati
- * restano fra parentesi come sono, che è già corretto perché non si accordano con niente.
- */
-function nomeConStato(nome: string, stato: string | null): string {
-  const s = (stato ?? '').trim().toLowerCase();
-  if (!s) return `${nome} (vecchia)`;
-  const daCotto = s.startsWith('bollit') || s.startsWith('cott') || s.startsWith('lessat');
-  return daCotto ? `${nome} (da cotto)` : `${nome} (${s})`;
-}
+
 
 async function main() {
   /**
@@ -91,80 +69,94 @@ async function main() {
   console.log('==================================================================');
   console.log('');
 
+  if (!primaGuardaSeSonoInventati(righe)) return;
+
   const tutti = (await prisma.nutrientFact.findMany({
     select: { id: true, name: true, synonyms: true, state: true, kcal: true } as never,
-  })) as { id: string; name: string; synonyms: string[]; state: string | null; kcal: number | null }[];
-  const perNome = new Map(tutti.map((a) => [normalizzaNome(a.name), a]));
+  })) as Conosciuta[];
 
-  let creati = 0; let rinominati = 0; let saltati = 0;
-  const daFare: (() => Promise<void>)[] = [];
-
-  for (const r of righe) {
-    if (r.kcal === null) {
-      console.log(`⚠️  SALTO «${r.name}»: senza kcal non si carica (è l'unico campo che non si può indovinare).`);
-      saltati += 1;
-      continue;
-    }
-    const esistente = perNome.get(normalizzaNome(r.name));
-
-    if (!esistente) {
-      console.log(`+ nuova   «${r.name}»  (${r.state ?? 'senza stato'}, ${r.kcal} kcal)  [${r.foglio}]`);
-      creati += 1;
-      daFare.push(async () => {
-        await prisma.nutrientFact.create({ data: { ...datiDi(r) } as never });
-      });
-      continue;
-    }
-
-    const statoVecchio = normalizzaStato(esistente.state);
-    if (STATI_A_CRUDO.includes(statoVecchio)) {
-      /**
-       * ⚠️ Esiste già ed è già a crudo: i valori NON si toccano. Sono dati verificati, e
-       * sovrascriverli con un file nuovo vorrebbe dire perdere in silenzio una correzione fatta a
-       * mano. Si dice, e decide una persona.
-       */
-      console.log(`· c'è già a crudo, non tocco  «${esistente.name}»  (in tabella ${esistente.kcal ?? '?'} kcal, nel foglio ${r.kcal})`);
-      saltati += 1;
-      continue;
-    }
-
-    /**
-     * ⚠️ IL CASO CHE VALE LO SCRIPT: la riga esiste **da cotto** e occupa il nome nudo. Si rinomina
-     * («carote» → «carote bollite»), il nome vecchio le resta come **sinonimo**, e il nome nudo va
-     * alla riga a crudo — perché è quello che scrivono le ricette, e le ricette sono a crudo.
-     */
-    const nuovoNome = nomeConStato(esistente.name, esistente.state);
-    if (perNome.has(normalizzaNome(nuovoNome))) {
-      console.log(`⚠️  SALTO «${r.name}»: «${nuovoNome}» esiste già, e rinominare creerebbe un doppione. Guardala a mano.`);
-      saltati += 1;
-      continue;
-    }
-    console.log(`~ rinomino  «${esistente.name}» → «${nuovoNome}»  (resta come sinonimo)`);
-    console.log(`+ e creo    «${r.name}»  (${r.state ?? 'senza stato'}, ${r.kcal} kcal)`);
-    rinominati += 1; creati += 1;
-    daFare.push(async () => {
-      await prisma.nutrientFact.update({
-        where: { id: esistente.id },
-        data: {
-          name: nuovoNome,
-          // ⚠️ Il nome vecchio diventa un sinonimo: chi chiedeva «carote» continua a trovarla, e
-          // adesso trova DUE righe con stati diversi — che è ciò che fa dire «dipende» a Gaia.
-          synonyms: [...new Set([...(esistente.synonyms ?? []), esistente.name])],
-        } as never,
-      });
-      await prisma.nutrientFact.create({ data: { ...datiDi(r) } as never });
-    });
-  }
+  const piano = pianifica(righe, tutti);
+  for (const m of piano.mosse) console.log(m.messaggio);
 
   console.log('');
-  console.log(`Righe nel foglio: ${righe.length} · da creare: ${creati} · da rinominare: ${rinominati} · saltate: ${saltati}`);
+  console.log(`Righe nel foglio: ${righe.length} · da creare: ${piano.creati} · da rinominare: ${piano.rinominati} · saltate: ${piano.saltati}`);
 
   if (!CONFERMA) {
     console.log('\nProva a vuoto: non ho scritto niente. Rileggi l\'elenco riga per riga, poi CONFERMA=1.\n');
     return;
   }
-  for (const f of daFare) await f();
+
+  /**
+   * ⚠️ **Tutto o niente.** Prima le scritture partivano una dopo l'altra, e la prova a vuoto del
+   * 20/8 ha mostrato che ce n'era una destinata a fallire (un nome duplicato, per via della mappa
+   * che non si aggiornava): senza transazione sarebbe morta a metà, lasciando in tabella righe
+   * rinominate senza la loro riga a crudo — cioè ricette che puntano a un nome che non c'è più.
+   * Una tabella a metà è peggio di una tabella vecchia, perché non si sa più a che punto era.
+   */
+  await prisma.$transaction(async (tx) => {
+    for (const m of piano.mosse) {
+      if (m.tipo === 'salta') continue;
+      if (m.tipo === 'rinomina-e-crea') {
+        await tx.nutrientFact.update({
+          where: { id: m.id },
+          data: { name: m.nuovoNome, synonyms: m.sinonimi } as never,
+        });
+      }
+      await tx.nutrientFact.create({ data: { ...datiDi(m.riga) } as never });
+    }
+  }, { timeout: 120_000 });
   console.log('\nFatto. ⚠️ Rilancia `npm run diag:crudo-cotto`: le liste 1 e 3b devono essersi accorciate.\n');
+}
+
+/**
+ * ⛔ **PRIMA DI GUARDARE LA TABELLA: il foglio si è inventato dei numeri?**
+ *
+ * Il 20/8 il foglio delle 245 righe è arrivato con 173 righe che sono la copia esatta di un'altra
+ * riga — 99 alimenti diversi (tahina, ghee, miele, tempeh, branzino, fichi secchi, patate dolci…)
+ * tutti a «25 kcal, 1.5 proteine, 3.5 carboidrati, 2.5 zuccheri, 0.3 grassi, 2.2 fibre». Il
+ * controllo di coerenza che avevo fatto passare al foglio ne aveva segnalata **una**: guardava una
+ * riga per volta, e una riga vera copiata resta coerente con sé stessa. La copia si vede solo
+ * mettendo le righe accanto, ed è quello che fa `trovaGemelli`.
+ *
+ * ⚠️ Si guarda **prima** di leggere la tabella, non dopo: un import che parte e poi si accorge è un
+ * import che ha già scritto.
+ *
+ * Torna `false` se c'è da fermarsi.
+ */
+function primaGuardaSeSonoInventati(righe: RigaAlimento[]): boolean {
+  const gruppi = trovaGemelli(righe);
+  for (const g of gruppi) {
+    if (g.radiceComune) {
+      console.log(`· stessi valori ma è lo stesso alimento («${g.radiceComune}…»), va bene: ${g.nomi.join(', ')}`);
+    }
+  }
+  const copiati = riempimenti(gruppi);
+  if (copiati.length === 0) return true;
+
+  const coinvolte = copiati.reduce((s, g) => s + g.nomi.length, 0);
+  console.log('');
+  console.log('⛔ MI FERMO: nel foglio ci sono valori copiati da una riga all\'altra.');
+  console.log(`   ${coinvolte} righe su ${righe.length} hanno i valori identici a quelli di un altro alimento.`);
+  console.log('');
+  for (const g of copiati) {
+    console.log(`   ${g.nomi.length} alimenti a «${g.valori}» (kcal/proteine/carboidrati/zuccheri/grassi/fibre):`);
+    console.log(`     ${g.nomi.join(', ')}`);
+    console.log('');
+  }
+  console.log('   Questi numeri non descrivono questi alimenti: sono un riempimento. Caricarli');
+  console.log('   vorrebbe dire che Gaia li cita a una cliente come se fossero misurati.');
+  console.log('   Il foglio va rifatto su queste righe. Poi si rilancia.');
+  if (process.env.CARICA_ANCHE_I_COPIATI === '1') {
+    console.log('');
+    console.log('   ⚠️ CARICA_ANCHE_I_COPIATI=1: vado avanti lo stesso, e resta scritto qui che è stato fatto.');
+    console.log('');
+    return true;
+  }
+  console.log('');
+  console.log('   (Se sai che è un falso allarme: CARICA_ANCHE_I_COPIATI=1.)');
+  console.log('');
+  process.exitCode = 1;
+  return false;
 }
 
 function datiDi(r: Riga) {

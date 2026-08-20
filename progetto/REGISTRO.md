@@ -20,6 +20,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-20
 
+- `[Sviluppo]` ⛔ **La prova a vuoto ha fermato l'import, e ha trovato due cose che non avevo
+  trovato io.** Simone ha lanciato `npm run importa:alimenti` sui due fogli insieme (32 righe del
+  19/8 + 245 del 20/8) e mi ha incollato le 277 righe di esito. **Non si carica.**
+  ⛔ **Primo: `~ rinomino «broccoli»` compariva due volte.** Non era un doppione di stampa. La mappa
+  dei nomi era costruita una volta sola prima del giro e non si aggiornava mai: i due fogli hanno
+  una ventina di nomi in comune, e alla riga del secondo foglio la mappa rispondeva ancora con la
+  riga *da cotto*, come se il primo foglio non fosse passato. Uscivano `+ e creo «broccoli»
+  (bollito, 34 kcal)`, `«carote» (bollite, 35)`, `«barbabietola» (bollito, 43)`, `«pane di segale»
+  (cotto, 217)` — **il nome nudo col valore da cotto**, l'esatto contrario del motivo per cui lo
+  script esiste, visto che le ricette scrivono «carote» e le grammature sono a crudo. E con
+  `NutrientFact.name` unico la seconda `create` sarebbe morta a metà lavoro, senza transazione,
+  lasciando righe rinominate senza la loro riga a crudo.
+  ⛔ **E nel commento di `dati-alimenti-20-8.ts` avevo scritto io che quei quattro «vengono saltati
+  con un messaggio, è il comportamento giusto, non una fortuna».** Non era vero: l'avevo dedotto
+  dall'ordine degli elenchi invece di leggerlo in un esito. Stesso errore degli stati `liquido` e
+  `fresco` di stamattina — ragionare al posto di misurare, e poi scrivere il ragionamento come se
+  fosse una misura.
+  ⛔ **Secondo: 173 righe su 245 del foglio del 20/8 hanno i valori copiati da un altro alimento.**
+  99 alimenti diversi — tahina, ghee, miele, tempeh, branzino, polpo, fichi secchi, patate dolci,
+  sesamo, olive nere, pangrattato, stevia — tutti a «25 kcal, 1,5 proteine, 3,5 carboidrati, 2,5
+  zuccheri, 0,3 grassi, 2,2 fibre». È **una riga vera copiata novantanove volte**. Altri sette
+  gruppi: 19 farine e cereali a 250, 15 latticini a 150, 14 fra frutta secca e semi a 600 (compreso
+  «latte di mandorla non zuccherato», che è ~13), 8 pesci e carni a 120, 7 legumi cotti a 130, 7
+  frutti a 45, 4 legumi secchi a 320.
+  ⚠️ **Il mio controllo Atwater ne aveva segnalata una, e io avevo detto che il foglio era buono.**
+  Il controllo non aveva sbagliato: guarda una riga per volta, e una riga vera copiata resta
+  coerente con sé stessa ovunque la si incolli. **Nessun controllo di plausibilità interna può
+  vedere un riempimento** — la copia si vede solo mettendo le righe accanto. Era una misura che non
+  misurava quello che credevo.
+  ✅ **Cosa c'è adesso.** `piano-alimenti.ts` (nuovo): la decisione «creo / rinomino / salto» tirata
+  fuori da `main()`, dove stava fra una `findMany` e una `create` e per provarla ci voleva un
+  database — cioè non era mai stata provata, ed è per questo che il difetto è arrivato fin qui.
+  `gemelli-alimenti.ts` (nuovo): la domanda che l'Atwater non poteva fare, «queste righe sono uguali
+  fra loro?», che sa distinguere «pomodoro fresco / pomodori freschi / pomodoro pelato» (stessa cosa
+  scritta in tre modi, passa) da «tahina / peperone rosso» (riempimento, ferma). La guardia gira
+  **prima** della `findMany` — un import che parte e poi si accorge è un import che ha già scritto —
+  e le scritture stanno in `$transaction`: tutto o niente.
+  🧪 19 test nuovi, **cinque mutazioni provate e tutte e cinque mordono**. ⚠️ Una non mordeva: «il
+  nome nudo resta alla riga a crudo» cercava la *prima* mossa con `find`, e la prima è quella del
+  19/8, che è a crudo anche col difetto. `find` risponde a «ce n'è una giusta?», la domanda vera era
+  «ce n'è una sbagliata?». Terza volta oggi che il test sbagliato sono io.
+  📤 Alle 173 righe da rifare è partito l'Excel `alimenti_da_rifare_20-8.xlsx`, raggruppate per
+  valore copiato. Le altre 72 restano in attesa: si carica tutto insieme o niente.
+  🔢 264 suite, 4036 test verdi.
+
 - `[Sviluppo]` 🥕 **245 alimenti pronti da caricare, e un mio errore corretto per strada.** Simone ha
   compilato il foglio uscito dall'«Esporta in Excel» e ha chiesto di caricarlo. Prima di farne un
   modulo l'ho controllato riga per riga **con le funzioni vere del motore** (`normalizzaStato`,

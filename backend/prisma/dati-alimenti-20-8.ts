@@ -27,10 +27,17 @@
  * ⛔ **Resta aperto: sette righe hanno il nome nudo e il valore da cotto** — «carota» (1017
  * ricette), «carote», «broccoli», «pane di segale integrale», «pane di segale», «barbabietola
  * rossa», «barbabietola». Nelle ricette le grammature sono a crudo, quindi una riga «carota» col
- * valore della carota bollita non chiude quelle 1017 ricette. ✅ **Per quattro di questi alimenti la
- * riga a crudo c'è già nel foglio del 19/8** (`ALIMENTI_19_8`: carote, broccoli, barbabietola, pane
- * di segale), e `importa-alimenti.ts` carica quell'elenco **per primo**: il nome nudo va alla riga a
- * crudo e queste vengono saltate con un messaggio. È il comportamento giusto, non una fortuna.
+ * valore della carota bollita non chiude quelle 1017 ricette.
+ *
+ * ⛔ **QUI SOTTO C'ERA UNA COSA FALSA, SCRITTA DA ME.** Diceva: «per quattro di questi alimenti la
+ * riga a crudo c'è già nel foglio del 19/8, e `importa-alimenti.ts` carica quell'elenco per primo:
+ * il nome nudo va alla riga a crudo e queste vengono saltate con un messaggio. È il comportamento
+ * giusto, non una fortuna». Non era vero, e non l'avevo misurato: l'avevo **dedotto dall'ordine
+ * degli elenchi**. La prova a vuoto sui due fogli insieme ha mostrato l'opposto — la mappa dei nomi
+ * non si aggiornava, queste righe venivano lavorate **due volte**, e il nome nudo finiva a
+ * prendersi il valore **da cotto**. Adesso lo fa davvero, e c'è un test che lo tiene fermo
+ * (`import-alimenti-due-fogli.spec.ts`); ma la frase di prima era una misura inventata, e resta
+ * scritto qui che lo era.
  *
  * ⚠️ **Queste righe nascono NON confermate.** «Confermato» in questa tabella vuol dire «un
  * nutrizionista ha guardato questo numero», e io non so chi abbia compilato il foglio: scriverlo

@@ -1,0 +1,102 @@
+La prova a vuoto ha fermato l'import: numeri copiati e una riga lavorata due volte — 20/8
+
+Simone ha lanciato `npm run importa:alimenti` sui due fogli insieme (32 righe del 19/8 + 245 del
+20/8) e mi ha incollato le 277 righe di esito. Non si carica. La prova a vuoto ha fatto esattamente
+il lavoro per cui esiste, e ha trovato due cose che io non avevo trovato.
+
+⛔ 1. LA MAPPA DEI NOMI NON SI AGGIORNAVA, E IL NOME NUDO FINIVA A PRENDERSI IL VALORE DA COTTO
+
+Nell'esito `~ rinomino «broccoli»` compariva DUE volte. Non era un doppione di stampa: `perNome`
+era costruita una volta sola prima del giro e non veniva mai aggiornata. I due fogli hanno una
+ventina di nomi in comune — broccoli, carote, barbabietola, pane di segale — e alla riga del
+secondo foglio la mappa rispondeva ancora con la riga *da cotto*, come se il passaggio del primo
+foglio non fosse mai avvenuto. Uscivano due rinomine della stessa riga, e poi:
+
+    + e creo «broccoli» (bollito, 34 kcal)
+    + e creo «carote» (bollite, 35 kcal)
+    + e creo «barbabietola» (bollito, 43 kcal)
+    + e creo «pane di segale» (cotto, 217 kcal)
+
+cioè il nome nudo con il valore DA COTTO. È l'esatto contrario del motivo per cui questo script
+esiste: le ricette scrivono «carote», la convenzione dice che le grammature sono a crudo, quindi il
+nome nudo deve portare al valore a crudo. E siccome `NutrientFact.name` è unico, la seconda `create`
+sarebbe morta con un errore — senza transazione, a metà lavoro, lasciando righe rinominate senza la
+loro riga a crudo, cioè ricette che puntano a un nome che non c'è più.
+
+⛔ Nel commento che ho scritto io in `dati-alimenti-20-8.ts` c'era: «per quattro di questi alimenti
+la riga a crudo c'è già nel foglio del 19/8, e l'import carica quell'elenco per primo: queste
+vengono saltate con un messaggio. È il comportamento giusto, non una fortuna». Non era vero.
+L'avevo dedotto dall'ordine degli elenchi invece di leggerlo in un esito. È lo stesso errore che ho
+già fatto una volta oggi, sugli stati `liquido` e `fresco`: ragionare al posto di misurare, e poi
+scrivere il ragionamento come se fosse una misura.
+
+⛔ 2. IL FOGLIO DEL 20/8 HA 173 RIGHE SU 245 CON I VALORI COPIATI DA UN ALTRO ALIMENTO
+
+99 alimenti diversi — tahina, ghee, miele, tempeh, branzino, polpo, fichi secchi, patate dolci,
+sesamo, olive nere, pangrattato, cacao amaro, stevia — hanno tutti esattamente
+«25 kcal, 1,5 proteine, 3,5 carboidrati, 2,5 zuccheri, 0,3 grassi, 2,2 fibre». Non sono numeri a
+caso: è UNA riga vera (un ortaggio a foglia) copiata novantanove volte. Altri sette gruppi uguali:
+19 fra farine e cereali tutti a 250, 15 latticini tutti a 150, 14 fra frutta secca e semi tutti a
+600 (compreso «latte di mandorla non zuccherato», che è ~13), 8 pesci/carni a 120, 7 legumi cotti a
+130, 7 frutti a 45, 4 legumi secchi a 320.
+
+Prima di farne un modulo avevo passato le 245 righe a un controllo di coerenza (Atwater:
+4·proteine + 4·carboidrati + 9·grassi ≈ kcal). Ne segnalò UNA, e io dissi che il foglio era buono.
+Il controllo non aveva sbagliato: guarda una riga per volta, e una riga vera copiata resta coerente
+con sé stessa ovunque la si incolli. ⚠️ Nessun controllo di plausibilità interna può vedere un
+riempimento: la copia si vede solo mettendo le righe accanto.
+
+## COSA È CAMBIATO
+
+`src/nutrient-facts/piano-alimenti.ts` (nuovo) — la decisione «creo / rinomino / salto» tirata
+fuori da `main()`. Stava fra una `findMany` e una `create`: per provarla ci voleva un database,
+quindi non era mai stata provata, ed è per questo che il difetto è arrivato fino alla produzione
+del foglio. Qui dentro non c'è Prisma: entrano due elenchi, esce un piano. La mappa si aggiorna
+dentro il giro, e ogni riga messa in coda occupa il suo nome da subito.
+⚠️ `origine: 'tabella' | 'foglio'` esiste per non dire una bugia nel messaggio: «in tabella 35 kcal»
+su una riga che in tabella non c'è ancora — l'ha messa in coda il foglio di prima — è una ragione
+falsa, e una ragione falsa è peggio di un ordine sbagliato.
+
+`src/nutrient-facts/gemelli-alimenti.ts` (nuovo) — la domanda che il controllo Atwater non poteva
+fare: «queste righe sono uguali FRA LORO?». Raggruppa per macro identici (da tre righe in su) e
+distingue i due casi che sembrano lo stesso:
+ · «pomodoro fresco», «pomodori freschi», «pomodoro pelato» SONO la stessa cosa scritta in tre
+   modi, ed è giusto che abbiano gli stessi numeri — una parola ricorre in tutti i nomi
+   («pomo…»), e il gruppo passa dicendolo;
+ · «tahina» e «peperone rosso» non hanno niente in comune tranne un numero: è un riempimento.
+⚠️ Fuori le righe a zero kcal: lo zero non è un numero copiato, è l'assenza, e sale, sale marino e
+acqua hanno davvero zero di tutto. Sul foglio del 19/8 quei tre facevano scattare l'avviso ed era
+falso. Un avviso che grida sul foglio giusto insegna a ignorarlo sul foglio sbagliato.
+⚠️ Non è infallibile e non finge di esserlo: «olio di oliva» e «pomodori secchi sott'olio»
+condividono «olio» e passano insieme. Prende il caso grosso, che è quello che è successo.
+
+`prisma/importa-alimenti.ts` — la guardia gira PRIMA della `findMany`, non dopo: un import che
+parte e poi si accorge è un import che ha già scritto. Se trova un riempimento stampa i gruppi per
+intero, dice cosa vuol dire caricarli, ed esce con codice 1. Si può forzare con
+`CARICA_ANCHE_I_COPIATI=1`, che è scritto a schermo e resta nel log di chi l'ha fatto.
+E le scritture stanno in `$transaction`: tutto o niente. Una tabella a metà è peggio di una tabella
+vecchia, perché non si sa più a che punto era.
+
+## LE PROVE
+
+`src/nutrient-facts/import-alimenti-due-fogli.spec.ts` (9 test) e
+`src/nutrient-facts/gemelli-alimenti.spec.ts` (10 test). Cinque mutazioni provate, tutte e cinque
+mordono: mappa che non si aggiorna (4 test rossi), confronto solo su kcal/proteine/carboidrati,
+radice comune mai trovata, zero rimesso nel conteggio, minimo a 2 righe, radice a 2 lettere.
+
+⚠️ UNA MUTAZIONE NON MORDEVA, ED È COLPA DEL TEST. «Il nome nudo resta alla riga a crudo» cercava
+la PRIMA mossa sul nome nudo con `find`, e la prima è quella del 19/8, che è a crudo anche col
+difetto: passava prima e dopo la correzione. Il difetto sta nella SECONDA mossa. `find` risponde a
+«ce n'è una giusta?», e la domanda vera era «ce n'è una sbagliata?». Corretto in `filter` +
+`toHaveLength(1)`. È la terza volta oggi che una mutazione non morde e il test sbagliato sono io.
+
+Due test tengono fermi i numeri veri dei due fogli: il 20/8 deve dare 173 righe copiate e un gruppo
+da 99; il 19/8 deve passare pulito.
+
+## COSA SERVE ADESSO
+
+Le 173 righe vanno rifatte da chi ha compilato il foglio — è partito l'Excel
+`alimenti_da_rifare_20-8.xlsx`, raggruppato per valore copiato, con le colonne da riempire.
+Le altre 72 righe restano in attesa: lo script carica tutto insieme o niente.
+
+Backend: 264 suite, 4036 test verdi.
