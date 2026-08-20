@@ -53,3 +53,36 @@ dire il fatto, non costringere a indovinarlo.
   CONFERMA=1 RIMETTI_A_POSTO=1 npm run ripara:alimenti   → e rimette a posto le undici
 
 `npm run build` verde. 275 suite, 4132 test verdi, a cache svuotata.
+
+--------------------------------------------------------------------------------
+SECONDA PROVA A VUOTO: la causa dello stato sparito, misurata
+
+La prova a vuoto con tutti i campi ha risposto alla domanda che avevo lasciato aperta. Le date della
+riga nuova di «burro»:
+
+    creata il      2026-08-20 19:43:36   ← l'import, con stato «crudo»
+    confermata il  2026-08-20 19:58:07
+    modificata il  2026-08-20 20:12:46
+
+⛔ Fra le due prove è passato `npm run seed:nutrienti`. `prisma/seed-valori-nutrizionali.ts` riga
+301 scrive `state: r.state ?? null`, e su una riga **non ancora confermata** riscrive **tutti** i
+campi — stato, sinonimi, macro — e poi **la firma**.
+
+Ha la guardia giusta per le righe già confermate («un deploy non deve disfare una decisione
+clinica») e **nessuna guardia per i dati più freschi dei suoi**: una riga creata quindici minuti
+prima da un import, con uno stato che il seed non ha, viene appiattita e timbrata come verificata.
+⚠️ E quella firma è **falsa**: quelle undici righe non le ha guardate nessuno. Aperta come voce a
+sé (`seed-nutrienti-firma-falsa`), non aggiustata di nascosto dentro la riparazione.
+
+## LA CONDIZIONE DELLA RIPARAZIONE ERA DIVENTATA SBAGLIATA
+
+`RIMETTI_A_POSTO` agiva solo se la vecchia era firmata **e la nuova no**. Dopo il passaggio del seed
+sono firmate tutte e due: lo script avrebbe saltato tutte e undici, non fatto niente, e nessuno
+avrebbe capito perché. ⚠️ È il difetto peggiore di una guardia — non sbagliare, ma tacere.
+
+✅ La condizione vera è una sola e non riguarda la firma: **i valori combaciano campo per campo**. E
+combaciano, in tutte e undici le coppie. La vecchia in più porta i **sinonimi**, che sono i modi in
+cui qualcuno cerca quell'alimento — e il seed li aveva sostituiti coi suoi (la nuova «noci» non ne
+ha nessuno, la nuova «ricotta di vacca» ne ha uno solo invece di due).
+
+La prova a vuoto adesso stampa anche **quali sinonimi si perderebbero** tenendo la copia.

@@ -1374,6 +1374,38 @@ export const VOCI_INIZIALI: Voce[] = [
   /* ─────────────────  20/8 sera — la revisione delle misure  ───────────────── */
 
   {
+    chiave: 'seed-nutrienti-firma-falsa',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    titolo: '`seed:nutrienti` riscrive le righe non confermate e le firma: la firma è falsa',
+    dettaglio:
+      '⛔ **Trovato misurando, il 20/8 sera, mentre cercavo un\'altra cosa.** L\'import degli alimenti aveva '
+      + 'creato «burro» con stato `crudo`; un quarto d\'ora dopo in tabella lo stato era `NULL` e la riga '
+      + 'risultava **confermata**. Le date lo dicono senza margine: creata 19:43:36, confermata 19:58:07, '
+      + 'modificata 20:12:46. In mezzo è passato `npm run seed:nutrienti`.\n\n'
+      + '⚠️ `prisma/seed-valori-nutrizionali.ts` riga 301 scrive `state: r.state ?? null`, e su una riga '
+      + '**non ancora confermata** riscrive **tutti** i campi — stato, sinonimi, macro — e poi **la firma**. '
+      + 'Ha la guardia giusta per le righe già confermate («un deploy non deve disfare una decisione clinica») '
+      + 'e **nessuna guardia per i dati più freschi dei suoi**: una riga creata quindici minuti prima da un '
+      + 'import, con uno stato che il seed non ha, viene appiattita e timbrata come verificata.\n\n'
+      + '⛔ **E quella firma è falsa.** «Confermato» in questa tabella vuol dire «un nutrizionista ha guardato '
+      + 'questo numero». Nessuno ha guardato quelle undici righe: le ha firmate un seed. È lo stesso difetto '
+      + 'di famiglia di tutta la giornata — qualcosa che dichiara di sapere una cosa che non sa — e qui è '
+      + 'peggio del solito, perché la firma è il campo che decide se la riga esce dalla coda «da confermare», '
+      + 'cioè se una persona la guarderà mai.\n\n'
+      + '⚠️ **Danno vero, oggi:** undici alimenti comuni (burro, mandorle, noci, mela, pera, fragole, avocado, '
+      + 'parmigiano, miele, pane integrale, ricotta) hanno perso lo stato che il foglio aveva compilato, e '
+      + 'sono usciti dalla coda senza essere stati guardati. I sinonimi sono stati sostituiti con quelli del '
+      + 'seed: la nuova «noci» non ne ha nessuno.\n\n'
+      + 'Le due strade: **a)** il seed non tocca una riga più recente del suo elenco, e non firma mai — la '
+      + 'firma la mette una persona; **b)** il seed scrive solo i campi che ha davvero, invece di azzerare '
+      + 'quelli che non conosce (`state: r.state ?? null` diventa «se non ce l\'ho non lo scrivo»). ⚠️ Le due '
+      + 'non si escludono, e la seconda è quella che vale anche per il prossimo campo che si aggiunge.\n\n'
+      + '⛔ **Fino ad allora `npm run seed:nutrienti` non va lanciato**, e questa voce sta qui perché quella '
+      + 'frase non resti solo in una chat.',
+  },
+  {
     chiave: 'alimenti-numeri-copiati',
     titolo: '⛔ 173 righe su 245 del foglio alimenti hanno i valori copiati da un altro alimento',
     dettaglio:

@@ -40,6 +40,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   tre, ed è per questo che sono rimasto con una cosa che non tornava (l'import aveva scritto «creo
   burro (crudo)» ma la riga risultava senza stato) e stavo per spiegarla invece di misurarla. Stessa
   lezione della radice `nocciol` di poche ore fa.
+  ⛔ **E la seconda prova a vuoto ha trovato la causa dello stato sparito — misurata, non dedotta.**
+  Le date della riga nuova di «burro»: creata 19:43:36 (l'import, con stato «crudo»), confermata
+  19:58:07, modificata 20:12:46. In mezzo è passato **`npm run seed:nutrienti`**:
+  `seed-valori-nutrizionali.ts` riga 301 scrive `state: r.state ?? null` e su una riga **non ancora
+  confermata** riscrive tutti i campi — stato, sinonimi, macro — e poi **la firma**. Ha la guardia
+  per le righe confermate e **nessuna per i dati più freschi dei suoi**. ⛔ E quella firma è
+  **falsa**: quelle undici righe non le ha guardate nessuno, e la firma è il campo che decide se una
+  riga esce dalla coda «da confermare», cioè se una persona la guarderà mai. Aperta come voce a sé.
+  ⚠️ **E la mia condizione era diventata sbagliata**: `RIMETTI_A_POSTO` agiva solo se la vecchia era
+  firmata e la nuova no — dopo il seed lo sono tutte e due, quindi avrebbe saltato tutte e undici
+  **senza fare niente e senza dire perché**, che è il difetto peggiore di una guardia. La condizione
+  vera è una sola: i valori combaciano campo per campo. E combaciano.
   🔢 Build verde, 275 suite, 4132 test verdi a cache svuotata.
 
 - `[Sviluppo]` 🔧 **L'import degli alimenti è passato, e ha lasciato due cose storte — mie.**

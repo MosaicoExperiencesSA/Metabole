@@ -34,6 +34,21 @@
  *   CONFERMA=1 RIMETTI_A_POSTO=1 npm run ripara:alimenti
  *                                              → e rimette a posto le 11 righe «(vecchia)»
  *
+ * ## ⛔ E UNA COSA TROVATA MISURANDO, che è un difetto a sé
+ *
+ * Fra la prima e la seconda prova a vuoto le undici righe nuove sono passate da «non confermate» a
+ * **confermate**, con i valori riscritti e lo **stato azzerato**: l'import aveva scritto
+ * `«burro» (crudo, 758)` e in tabella lo stato è `NULL`. La causa è misurata, non dedotta:
+ * `prisma/seed-valori-nutrizionali.ts` riga 301 scrive `state: r.state ?? null`, e su una riga
+ * **non ancora confermata** riscrive tutti i campi e **la firma**.
+ *
+ * ⛔ Quel seed ha la guardia giusta per le righe confermate — «un deploy non deve disfare una
+ * decisione clinica» — e **nessuna guardia per i dati più freschi dei suoi**: una riga creata
+ * quindici minuti prima da un import, con uno stato che il seed non ha, viene appiattita e
+ * timbrata come verificata. ⚠️ E la firma è falsa: quella riga non l'ha guardata nessuno. È lo
+ * stesso difetto di famiglia di tutta la giornata — qualcosa che dichiara di sapere una cosa che
+ * non sa. Va aperta come voce a sé, non aggiustata di nascosto qui dentro.
+ *
  * ⚠️ **«Rimette a posto» vuol dire togliere la COPIA, non l'originale.** L'esito del 20/8 sera ha
  * mostrato che quelle undici righe hanno gli **stessi identici valori** delle nuove e in più **la
  * firma di un nutrizionista**: la riga nuova non aggiunge niente, e la sola differenza è che non è
@@ -145,8 +160,10 @@ async function main() {
      */
     if (nuova) {
       const ugualiValori = ['kcal', 'protein', 'carbs', 'fat', 'fiber'].every((c) => (v as never)[c] === (nuova as never)[c]);
-      if (ugualiValori && v.verifiedById && !nuova.verifiedById) {
-        console.log('      ⛔ STESSI VALORI, e la firma ce l\'ha la VECCHIA: la nuova non aggiunge niente.');
+      if (ugualiValori) {
+        console.log('      ⛔ STESSI VALORI campo per campo: la riga nuova non aggiunge niente.');
+        const persi = v.synonyms.filter((x) => !(nuova.synonyms ?? []).includes(x) && x !== nudo);
+        if (persi.length) console.log(`         E la vecchia porta sinonimi che la nuova non ha: ${persi.join(', ')}`);
         console.log('         Il verso giusto è tenere la vecchia e togliere il doppione, non il contrario.');
       } else if (!ugualiValori) {
         console.log('      ⚠️  I valori NON combaciano: le due righe dicono cose diverse, decide una persona.');
@@ -156,7 +173,19 @@ async function main() {
     if (!RIMETTI || !CONFERMA || !nuova) { console.log(''); continue; }
     const ugualiValori = ['kcal', 'protein', 'carbs', 'fat', 'fiber'].every((c) => (v as never)[c] === (nuova as never)[c]);
     if (!ugualiValori) { console.log('      · valori diversi: non tocco niente.\n'); continue; }
-    if (!v.verifiedById || nuova.verifiedById) { console.log('      · non è il caso «firma sulla vecchia»: non tocco niente.\n'); continue; }
+    /**
+     * ⚠️ **QUI C'ERA UNA CONDIZIONE SULLA FIRMA, ed è caduta il 20/8 sera.**
+     *
+     * La prima versione agiva solo se la vecchia era confermata e la nuova no. Il secondo esito ha
+     * mostrato che **tutte e due sono confermate**: fra le due prove qualcuno ha lanciato
+     * `npm run seed:nutrienti`, che su una riga non ancora confermata la riscrive tutta e **la
+     * firma** (vedi il difetto annotato nel commento in testa). Con quella condizione lo script
+     * avrebbe saltato tutte e undici e non fatto niente, senza che si capisse perché.
+     *
+     * La condizione vera è una sola, e non riguarda la firma: **i valori combaciano campo per
+     * campo**. Se combaciano, la riga nuova non porta niente che la vecchia non avesse — e la
+     * vecchia porta i **sinonimi**, che sono i modi in cui qualcuno cerca quell'alimento.
+     */
     /**
      * ⚠️ **SI TOGLIE LA COPIA, NON L'ORIGINALE.** I valori sono identici campo per campo: la riga
      * nuova non porta niente che la vecchia non avesse già, e l'unica differenza è che la vecchia ha
