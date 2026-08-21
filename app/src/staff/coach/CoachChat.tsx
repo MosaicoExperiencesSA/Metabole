@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CancellaMessaggio, useCancellaMessaggio } from '../../components/cancellaMessaggio';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { fullName, hourOnly, relDays } from '../format';
@@ -20,6 +21,8 @@ interface Thread {
 interface Msg {
   id: string;
   senderRole: string;
+  /** Chi l'ha scritto: decide se mostrare la ✕. ⚠️ Gaia non ce l'ha, e non si cancella. */
+  senderUserId?: string | null;
   body: string;
   sentAt: string;
 }
@@ -109,6 +112,12 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+  /**
+   * ⛔ **«Chi scrive può cancellare»** (Simone, 21/8), in tutte e quattro le chat. Qui la ricarica è
+   * già pronta: `state.reload()` è la stessa che usa il giro ogni dodici secondi, quindi quello che
+   * si legge dopo la cancellazione è quello che il server ha davvero.
+   */
+  const canc = useCancellaMessaggio({ threadId, ricarica: () => state.reload() });
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'auto' });
@@ -145,7 +154,15 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
             {msgs.map((m) => {
               const mine = m.senderRole !== 'client';
               return (
-                <div key={m.id} className={'sf-bubble ' + (mine ? 'out' : 'in')}>
+                <div
+                  key={m.id}
+                  className={'sf-bubble ' + (mine ? 'out' : 'in')}
+                  // ⚠️ Serve alla ✕, che si posiziona sull'angolo della bolla.
+                  style={{ position: 'relative' }}
+                >
+                  {/* ⚠️ `mine` guarda il RUOLO (non è la cliente), il gancio guarda la PERSONA: il
+                      messaggio di un collega è «mine» per chi legge, ma non è suo. */}
+                  <CancellaMessaggio messaggio={m} gancio={canc} />
                   {m.body}
                   <div style={{ fontSize: 9, opacity: 0.6, marginTop: 3, textAlign: 'right' }}>
                     {hourOnly(m.sentAt)}

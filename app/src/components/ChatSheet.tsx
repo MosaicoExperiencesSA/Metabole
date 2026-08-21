@@ -1,9 +1,17 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
+import { CancellaMessaggio, useCancellaMessaggio } from './cancellaMessaggio';
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
-interface Msg { id: string; senderRole: string; body: string; sentAt: string }
+interface Msg {
+  id: string;
+  senderRole: string;
+  /** Chi l'ha scritto: decide se mostrare la ✕. ⚠️ Gaia non ce l'ha, e non si cancella. */
+  senderUserId?: string | null;
+  body: string;
+  sentAt: string;
+}
 
 /** Chat reale: thread con assistente AI e con la coach/nutrizionista (se assegnate). */
 export default function ChatSheet() {
@@ -11,6 +19,16 @@ export default function ChatSheet() {
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
+  /**
+   * ⛔ **«Chi scrive può cancellare»** (Simone, 21/8), in tutte le chat. La regola, la conferma e la
+   * chiamata stanno in `cancellaMessaggio`: quattro chat in questo prodotto, e la ✕ ne aveva una.
+   */
+  const canc = useCancellaMessaggio({
+    threadId: thread?.id,
+    ricarica: async () => {
+      if (thread) setMessages(await api<Msg[]>(`/threads/${thread.id}/messages`));
+    },
+  });
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
@@ -73,7 +91,13 @@ export default function ChatSheet() {
             return (
               <Fragment key={m.id}>
                 {giorno && <div className="chat-giorno">{giorno}</div>}
-                <div className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>
+                <div
+                  className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}
+                  // ⚠️ Serve alla ✕, che si posiziona sull'angolo della bolla.
+                  style={{ position: 'relative' }}
+                >
+                  {/* «Chi scrive può cancellare» (Simone, 21/8): compare solo sui propri. */}
+                  <CancellaMessaggio messaggio={m} gancio={canc} />
                   {m.body}
                   {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                   <span className="bubble-ora">{oraBreve(m.sentAt)}</span>

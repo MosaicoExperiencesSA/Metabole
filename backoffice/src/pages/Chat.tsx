@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import {
+  BottoneCancellaMessaggio,
+  ConfermaCancellaMessaggio,
+  useCancellaMessaggio,
+} from '../components/cancellaMessaggio';
 
 interface Thread {
   id: string;
@@ -14,6 +20,8 @@ interface Thread {
 interface Msg {
   id: string;
   senderRole: string;
+  /** Chi l'ha scritto davvero: decide se mostrare la ✕ per cancellarlo. Vedi `cancellaMessaggio`. */
+  senderUserId?: string | null;
   body: string;
   sentAt: string;
 }
@@ -22,6 +30,7 @@ const nameOf = (t: Thread) => t.client?.clientProfile?.name || t.client?.email |
 
 /** Chat staff ↔ cliente (coach/nutrizionista). Legge le API staff/threads + threads/:id/messages. */
 export function Chat() {
+  const { user: me } = useAuth();
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [sel, setSel] = useState<Thread | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -90,6 +99,19 @@ export function Chat() {
     }
   }
 
+  /**
+   * ⛔ **LA ✕ ANCHE QUI** (Simone, 21/8). C'era solo nella scheda cliente, dall'11/8: la stessa
+   * conversazione, letta da due schermate, e da questa non si poteva cancellare niente. La regola,
+   * la conferma e la chiamata stanno in `components/cancellaMessaggio` — una sola, così le due
+   * schermate non possono più dire due cose diverse sullo stesso gesto.
+   */
+  const canc = useCancellaMessaggio({
+    threadId: sel?.id ?? null,
+    ioSono: me?.id,
+    ricarica: async () => { if (sel) setMsgs(await api<Msg[]>(`/threads/${sel.id}/messages`)); },
+    onErrore: setError,
+  });
+
   if (threads === null) return <Spinner />;
 
   return (
@@ -146,6 +168,8 @@ export function Chat() {
                   <div
                     key={m.id}
                     style={{
+                      // ⚠️ Serve alla ✕, che si posiziona sull'angolo della bolla.
+                      position: 'relative',
                       alignSelf: mine ? 'flex-end' : 'flex-start',
                       maxWidth: '75%',
                       background: mine ? '#12A386' : '#F2EFE8',
@@ -154,6 +178,15 @@ export function Chat() {
                       borderRadius: 12,
                     }}
                   >
+                    {/* ⚠️ `mine` guarda il RUOLO (è staff?), `canc.mio` guarda la PERSONA. Sono due
+                        domande diverse: un messaggio del capo nutrizionista è «mine» per la coach
+                        che legge, ma non è suo e non deve poterlo cancellare. */}
+                    {canc.mio(m) && (
+                      <BottoneCancellaMessaggio
+                        disabilitato={canc.inCorso === m.id}
+                        onClick={() => canc.setDaCancellare(m)}
+                      />
+                    )}
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body}</div>
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{new Date(m.sentAt).toLocaleString('it-IT')}</div>
                   </div>
@@ -162,20 +195,42 @@ export function Chat() {
               <div ref={endRef} />
             </div>
             {error && <div style={{ padding: '0 16px 8px' }}><Banner kind="err">{error}</Banner></div>}
-            <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #eee' }}>
-              <input
+            {/*
+              ⛔ **QUATTRO RIGHE, NON UNA** (Simone, 21/8). Era un `<input>` a riga singola: chi
+              risponde a una domanda clinica scrive dieci righe, e le rileggeva **due parole alla
+              volta** dentro una feritoia che scorre. Un campo che non fa vedere quello che si è
+              scritto è un campo che fa mandare messaggi non riletti.
+
+              ⛔ **E con quattro righe l'Invio non può più spedire.** Prima `Enter` mandava, ed era
+              coerente con una riga sola. Su un campo che serve ad andare a capo, mandare a capo
+              spedirebbe il messaggio a metà — e in una conversazione con una paziente il mezzo
+              messaggio resta lì, letto. Adesso `Invio` va a capo, e si spedisce col bottone o con
+              **⌘/Ctrl + Invio**, che è la scorciatoia che chi scrive molto conosce già.
+            */}
+            <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #eee', alignItems: 'flex-end' }}>
+              <textarea
                 className="input"
-                style={{ flex: 1 }}
+                rows={4}
+                style={{ flex: 1, resize: 'vertical', minHeight: 88, lineHeight: 1.45, fontFamily: 'inherit' }}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void send(); }}
-                placeholder="Scrivi un messaggio…"
+                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void send(); } }}
+                placeholder="Scrivi un messaggio…  (⌘/Ctrl + Invio per inviare)"
               />
-              <button className="btn" onClick={() => void send()} disabled={busy}>{busy ? '…' : 'Invia'}</button>
+              <button className="btn" onClick={() => void send()} disabled={busy || !text.trim()}>{busy ? '…' : 'Invia'}</button>
             </div>
           </>
         )}
       </div>
+
+      {canc.daCancellare && (
+        <ConfermaCancellaMessaggio
+          messaggio={canc.daCancellare}
+          inCorso={!!canc.inCorso}
+          onAnnulla={() => canc.setDaCancellare(null)}
+          onConferma={() => void canc.cancella(canc.daCancellare!)}
+        />
+      )}
     </div>
   );
 }

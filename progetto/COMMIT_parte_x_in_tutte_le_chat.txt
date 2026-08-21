@@ -1,0 +1,95 @@
+La ✕ in tutte le chat, il campo a quattro righe, e l'attività a chi può chiuderla
+
+Tre richieste di Simone del 21/8, e una decisione presa insieme.
+
+LA ✕ IN TUTTE LE CHAT — «chi scrive può cancellare»
+
+È la TERZA volta che questa regola viene chiesta, e le tre volte raccontano il
+difetto meglio di qualunque spiegazione:
+
+- 11/8: «chi scrive il messaggio deve poterlo cancellare» → scritta nella scheda
+  cliente del backoffice, dov'era nata la richiesta;
+- 21/8 mattina: «metti la x piccola per cancellare i messaggi» → perché la stessa
+  conversazione si legge ANCHE dalla pagina Chat, e là non c'era;
+- 21/8 poco dopo: «allora in tutte le chat mettiamo la x» → perché di chat, in
+  questo prodotto, ce ne sono CINQUE.
+
+Nessuna delle tre volte Simone aveva cambiato idea: la regola era sempre la
+stessa, e ogni volta era stata scritta solo dove era stata chiesta. Il difetto
+non è la ✕ mancante: è che una regola sul prodotto viveva in un pezzo di prodotto
+solo, e non c'è nessuna schermata da cui si vedano tutte e cinque le chat.
+
+Perciò questa volta non si copia: il gesto è estratto — la regola, la conferma,
+le parole e la chiamata — e ogni schermata lo usa. Due ganci, uno per progetto
+(`backoffice/src/components/cancellaMessaggio.tsx`, `app/src/components/…`), con
+grafiche diverse di proposito: sul telefono la conferma non è un modale, perché
+coprirebbe proprio il messaggio che si sta decidendo di cancellare.
+
+⚠️ LA QUINTA CHAT L'HA TROVATA IL TEST, NON IO. Avevo censito quattro schermate;
+il test ne ha trovata una quinta — la conversazione con Gaia in `Assistente.tsx`
+— che avevo dimenticato. È esattamente il difetto che il test doveva impedire, e
+l'ha impedito a me per primo.
+
+La regola vera resta nel backend (`eliminaMessaggio`: solo l'autore, 403 per gli
+altri): la ✕ è la sua faccia. Gaia non si cancella — i suoi messaggi non hanno un
+autore — ed è giusto: toglierli lascerebbe le risposte senza le domande.
+
+IL CAMPO DI SCRITTURA A QUATTRO RIGHE
+
+Era un `<input>` a riga singola. Chi risponde a una domanda clinica scrive dieci
+righe, e le rileggeva due parole alla volta dentro una feritoia che scorre: un
+campo che non fa vedere quello che si è scritto è un campo che fa mandare
+messaggi non riletti.
+
+⚠️ E con quattro righe l'Invio NON può più spedire, che è la metà che si
+dimentica: su un campo che serve ad andare a capo, mandare a capo spedirebbe il
+messaggio a metà — e in una conversazione con una paziente il mezzo messaggio
+resta lì, letto. Adesso Invio va a capo, si spedisce col bottone o con
+⌘/Ctrl + Invio. Le due cose vanno insieme, o la seconda fa danno.
+
+LA VARIANTE A 5 PASTI SI PUÒ FINALMENTE GENERARE (decisione di Simone)
+
+Il backoffice bloccava le strutture 3 e 5 per ogni famiglia col nome «digiuno».
+Era vero finché il digiuno voleva dire una finestra sola. Da quando la cliente
+sposta il suo orologio non lo è più: la 14:10 promette quattro pasti, colazione
+compresa, e il catalogo digiuno la colazione non ce l'ha — il motore chiede la
+struttura da 5. Risultato: il rimedio esisteva, era scritto nella diagnostica, e
+non era raggiungibile da nessuna schermata.
+
+Adesso su una famiglia di digiuno si scelgono DUE strutture: la sua e i 5 pasti.
+I 3 restano bloccati, e non è una dimenticanza: il motore non li chiede mai.
+
+⚠️ Il riconoscimento resta sul NOME della dieta, che è fragile e lo era già — una
+dieta chiamata «Mediterranea 16:8» finisce lì dentro senza essere niente del
+genere. Non l'ho cambiato oggi perché è un'altra decisione, ma sta scritto invece
+che lasciato credere solido.
+
+L'ATTIVITÀ A CHI PUÒ CHIUDERLA (decisione di Simone)
+
+Quando una cliente riceve meno pasti di quelli promessi, il motore se ne accorge
+dal 18/8 e lo scrive in un log e in un evento di analytics CHE NESSUNA SCHERMATA
+LEGGE. Il difetto era misurato, registrato, e invisibile.
+
+Adesso apre un'attività. Una per cliente, non una per giornata composta: il
+riferimento sono i pasti che mancano, quindi il punto che passa a ogni erogazione
+la apre la prima volta e poi trova che c'è già. Se le manca qualcos'altro, quella
+è un'altra situazione e nasce un'altra attività.
+
+⛔ E QUI HO TROVATO CHE L'AVVISO ANDAVA ALLA PERSONA SBAGLIATA. La push di
+un'attività andava SOLO alla coach — per tutte. Ma tre tipi sono nati addosso
+alla nutrizionista (digiuno estremo, finestra non traducibile, e adesso i pasti
+non serviti): i loro testi chiedono valutazioni cliniche e la generazione di una
+variante a catalogo, e arrivavano a qualcuno che non può farle. La nutrizionista
+le scopriva solo aprendo l'elenco di sua iniziativa.
+
+Adesso si avvisano tutte e due — non si sposta l'avviso: la coach parla con la
+cliente ogni giorno ed è giusto che sappia. Quello che non andava era che
+sapesse solo lei. Senza nutrizionista assegnata si ripiega sul capo, lo stesso
+destinatario che sceglie `apri-segnalazione`; senza nemmeno un capo l'avviso non
+parte e non si inventa nessuno.
+
+Aprire un'attività che nessuno vede è lo stesso lavoro di non aprirla, con in
+più l'illusione di averlo fatto.
+
+4536 test su 4536 nel backend, 160 su 160 nell'app, 63 su 63 nel backoffice,
+build verde su tutti e tre. Sette mutazioni provate una per una.

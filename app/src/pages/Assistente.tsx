@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { CancellaMessaggio, useCancellaMessaggio } from '../components/cancellaMessaggio';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
@@ -21,7 +22,14 @@ import AppHeader from '../components/AppHeader';
  */
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
-interface Msg { id: string; senderRole: string; body: string; sentAt: string }
+interface Msg {
+  id: string;
+  senderRole: string;
+  /** Chi l'ha scritto: decide se mostrare la ✕. ⚠️ Gaia non ce l'ha, e non si cancella. */
+  senderUserId?: string | null;
+  body: string;
+  sentAt: string;
+}
 
 const POLL_MS = 12_000;
 
@@ -33,6 +41,20 @@ export default function Assistente() {
   const giorno = /^\d{4}-\d{2}-\d{2}$/.test(params.get('giorno') ?? '') ? params.get('giorno') : null;
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
+  /**
+   * ⛔ **«Chi scrive può cancellare»** (Simone, 21/8), in tutte le chat — e questa è la **quinta**,
+   * quella che avevo dimenticato: l'ha trovata il test, non io. È la conversazione con Gaia, dove la
+   * cliente scrive di pancia e più spesso che altrove — cioè proprio dove serve poter rimediare.
+   *
+   * ⚠️ I messaggi di Gaia non si cancellano: non hanno un autore, e la ✕ non compare. Giusto così —
+   * toglierli lascerebbe le risposte senza le domande.
+   */
+  const canc = useCancellaMessaggio({
+    threadId: thread?.id,
+    ricarica: async () => {
+      if (thread) setMessages(await api<Msg[]>(`/threads/${thread.id}/messages`));
+    },
+  });
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -137,7 +159,12 @@ export default function Assistente() {
               return (
                 <Fragment key={m.id}>
                   {giorno && <div className="chat-giorno">{giorno}</div>}
-                  <div className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}>
+                  <div
+                    className={m.senderRole === 'client' ? 'bubble-out' : 'bubble-in'}
+                    // ⚠️ Serve alla ✕, che si posiziona sull'angolo della bolla.
+                    style={{ position: 'relative' }}
+                  >
+                    <CancellaMessaggio messaggio={m} gancio={canc} />
                     {m.body}
                     {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                     <span className="bubble-ora">{oraBreve(m.sentAt)}</span>

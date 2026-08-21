@@ -71,6 +71,9 @@ export async function apriAttivitaCoach(
   await avvisaAttivitaNuova(prisma, push, {
     id: creata.id,
     clientId: dati.clientId,
+    // ⚠️ **Il `kind` passa di qui**: è quello che decide se l'avviso deve raggiungere anche la
+    // nutrizionista (`TIPI_DELLA_NUTRIZIONISTA`). Senza, le sue attività la aspettavano in elenco.
+    kind: dati.kind,
     title: dati.title,
     description: dati.description,
     dueDate: dati.dueDate,

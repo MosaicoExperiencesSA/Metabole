@@ -2,6 +2,11 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import {
+  BottoneCancellaMessaggio,
+  ConfermaCancellaMessaggio,
+  useCancellaMessaggio,
+} from '../components/cancellaMessaggio';
 import { Banner, Modal, Spinner } from '../components/ui';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
@@ -2820,8 +2825,7 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
    * letto quel messaggio, quindi cancellarlo non lo fa sparire dalla sua testa — è un gesto che
    * vale la pena fare apposta e non per un dito scivolato sulla ✕.
    */
-  const [daCancellare, setDaCancellare] = useState<MsgRow | null>(null);
-  const [cancello, setCancello] = useState<string | null>(null);
+
 
   /**
    * `client_conversations` e non `chat`, ed è il senso della richiesta di Simone dell'11/8 («la
@@ -2943,30 +2947,21 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   }
 
   /**
-   * Cancella un proprio messaggio, dopo la conferma. Il backend accetta solo l'autore, quindi anche
-   * se la ✕ comparisse dove non deve non succederebbe niente: la regola sta di là, questa è la
-   * porta. Si ricarica l'elenco invece di togliere la bolla a mano — quello che si legge dev'essere
-   * quello che è stato salvato davvero.
+   * ⛔ **LA ✕ NON È PIÙ SCRITTA QUI** (21/8). Era nata in questa schermata l'11/8, su richiesta di
+   * Simone; il 21/8 l'ha richiesta di nuovo — perché la stessa conversazione si legge **anche** dalla
+   * pagina Chat, e là non c'era. Adesso la regola, la conferma e la chiamata stanno in
+   * `components/cancellaMessaggio`, e le due schermate la chiamano: due copie dello stesso gesto su
+   * una cosa che cancella dei messaggi sono due copie che prima o poi dicono cose diverse.
+   *
+   * ⚠️ Le bolle restano disegnate da ognuna a modo suo: quello che deve essere identico è la regola
+   * e le parole, non i pixel.
    */
-  async function cancellaMessaggio(m: MsgRow) {
-    if (!sel) return;
-    setCancello(m.id);
-    setErr(null);
-    try {
-      await api(`/threads/${sel}/messages/${m.id}`, { method: 'DELETE' });
-      const ms = await api<MsgRow[]>(`/threads/${sel}/messages`);
-      setMessaggi(ms);
-      setDaCancellare(null);
-    } catch (e) {
-      setErr(
-        e instanceof ApiError && e.status === 403
-          ? 'Si può cancellare solo un messaggio scritto da sé.'
-          : e instanceof Error ? e.message : 'Messaggio non cancellato.',
-      );
-    } finally {
-      setCancello(null);
-    }
-  }
+  const canc = useCancellaMessaggio({
+    threadId: sel,
+    ioSono: me?.id,
+    ricarica: async () => { if (sel) setMessaggi(await api<MsgRow[]>(`/threads/${sel}/messages`)); },
+    onErrore: setErr,
+  });
 
   useEffect(() => {
     if (!sel) { setMessaggi([]); return; }
@@ -3238,7 +3233,7 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                   senso è rimediare a quello che si è scritto per sbaglio, non moderare quello che
                   ha scritto un altro. Il backend applica la stessa regola, questa è la sua faccia.
                 */
-                const mio = !!m.senderUserId && m.senderUserId === me?.id;
+                const mio = canc.mio(m);
                 return (
                   <div
                     key={m.id}
@@ -3255,21 +3250,10 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                     }}
                   >
                     {mio && (
-                      <button
-                        type="button"
-                        title="Cancella questo messaggio"
-                        aria-label="Cancella questo messaggio"
-                        disabled={cancello === m.id}
-                        onClick={() => setDaCancellare(m)}
-                        style={{
-                          position: 'absolute', top: -6, right: -6, width: 18, height: 18,
-                          borderRadius: '50%', border: '1px solid #E4B4B6', background: '#fff',
-                          color: '#B4232A', fontSize: 11, lineHeight: '15px', padding: 0,
-                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        <i className="ti ti-x" />
-                      </button>
+                      <BottoneCancellaMessaggio
+                        disabilitato={canc.inCorso === m.id}
+                        onClick={() => canc.setDaCancellare(m)}
+                      />
                     )}
                     {m.body}
                     <div className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
@@ -3351,32 +3335,13 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
         e la finestra mostra il testo perché si veda QUALE messaggio sta per sparire — la ✕ è
         piccola e le bolle si somigliano.
       */}
-      {daCancellare && (
-        <Modal title="Cancellare questo messaggio?" onClose={() => setDaCancellare(null)}>
-          <p style={{ marginTop: 0, fontSize: 13 }}>
-            Sparisce dalla conversazione, per te e per la cliente. Se l'aveva già letto, però, quello
-            che ha letto resta: se serve, scrivile anche una rettifica.
-          </p>
-          <div style={{
-            background: '#F2EFE8', borderRadius: 10, padding: '9px 12px', fontSize: 13,
-            whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto',
-          }}>
-            {daCancellare.body}
-          </div>
-          <div className="row" style={{ gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-            <button className="btn ghost sm" disabled={!!cancello} onClick={() => setDaCancellare(null)}>
-              Lascia com'è
-            </button>
-            <button
-              className="btn sm"
-              style={{ background: '#B4232A', borderColor: '#B4232A' }}
-              disabled={!!cancello}
-              onClick={() => void cancellaMessaggio(daCancellare)}
-            >
-              {cancello ? 'Cancello…' : 'Sì, cancella'}
-            </button>
-          </div>
-        </Modal>
+      {canc.daCancellare && (
+        <ConfermaCancellaMessaggio
+          messaggio={canc.daCancellare}
+          inCorso={!!canc.inCorso}
+          onAnnulla={() => canc.setDaCancellare(null)}
+          onConferma={() => void canc.cancella(canc.daCancellare!)}
+        />
       )}
     </div>
   );

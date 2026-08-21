@@ -1,6 +1,13 @@
 import { randomUUID } from 'crypto';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
-import { giornateComplete } from '../catalog/giornate-complete';
+import { giornateComplete, NOME_PASTO } from '../catalog/giornate-complete';
+import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
+import {
+  TIPO_PASTI_NON_SERVITI,
+  riferimentoPastiNonServiti,
+  scadenzaPastiNonServiti,
+  testoPastiNonServiti,
+} from '../coach-tasks/pasti-non-serviti';
 import { riparaGiornate } from './ripara-giornata';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -668,6 +675,36 @@ export class MenuService {
             `Digiuno: evento fasting_meals_missing NON scritto per ${clientId}: ${e instanceof Error ? e.message : e}`,
           ),
         );
+
+      /**
+       * ⛔ **E ADESSO QUALCUNO LO SA** (decisione di Simone, 21/8).
+       *
+       * Il log e l'evento qui sopra esistono dal 18/8, e **nessuna schermata li legge**: il difetto
+       * era misurato, registrato, e invisibile. Una cliente riceveva meno pasti di quelli che l'app
+       * le aveva scritto, e l'unico modo di scoprirlo era lanciare una diagnostica a mano.
+       *
+       * ⚠️ **Alla nutrizionista**, perché il rimedio è generare la variante mancante a catalogo: non
+       * lo può fare la cliente (lei ha solo l'orologio) e non lo può fare la coach.
+       *
+       * ⚠️ **Una per cliente, non una per giornata**: il riferimento sono i pasti che mancano, quindi
+       * questo punto — che passa a ogni erogazione — apre l'attività la prima volta e poi trova che
+       * c'è già. Se un giorno le manca qualcos'altro, quella è un'altra situazione e nasce un'altra
+       * attività.
+       *
+       * ⚠️ **Non lancia e non blocca**: `apriAttivitaCoach` non lancia mai, e l'erogazione non deve
+       * fermarsi perché un avviso non parte. Tre pasti su quattro sono meglio di nessun menu.
+       */
+      await apriAttivitaCoach(this.prisma, this.push, {
+        clientId,
+        kind: TIPO_PASTI_NON_SERVITI,
+        refId: riferimentoPastiNonServiti(pastiMancanti),
+        ...testoPastiNonServiti(
+          (profile as { name?: string | null }).name,
+          pastiMancanti.map((slot) => NOME_PASTO[slot] ?? slot),
+          diet.name,
+        ),
+        dueDate: scadenzaPastiNonServiti(new Date()),
+      });
     }
 
     // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
