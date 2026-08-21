@@ -231,3 +231,37 @@ export function meseSpostato(mese: string, passo: number): string {
   if (totale < 0) return mese;
   return `${Math.floor(totale / 12)}-${String((totale % 12) + 1).padStart(2, '0')}`;
 }
+
+/**
+ * ⛔ **CHE ORA È ADESSO, IN MINUTI DA MEZZANOTTE, NEL FUSO DELL'AZIENDA.**
+ *
+ * Nasce con l'orologio del digiuno (21/8), e sta **qui** e non là per la stessa ragione di tutto il
+ * resto del file: su Render `TZ` non è impostata, quindi `d.getHours()` risponde l'ora **UTC** —
+ * d'estate due ore indietro rispetto a Roma.
+ *
+ * ⚠️ Perché lì quelle due ore non sono un dettaglio: decidono se la finestra di oggi **si è già
+ * aperta**, e da quella risposta dipende se lo spostamento della finestra vale da oggi o da domani.
+ * Alle 12:30 di Roma, con una finestra che apre a mezzogiorno, un server a UTC direbbe «sono le
+ * 10:30, non è ancora aperta» e sposterebbe la finestra **oggi** a una cliente che ha già pranzato:
+ * cioè le racconterebbe una giornata che non ha fatto.
+ *
+ * ⚠️ Se il fuso non è riconosciuto si ripiega su UTC **e lo si scrive**, come `giornoLocale`: un
+ * ripiego silenzioso su un dato che decide cosa mangia qualcuno è il difetto peggiore dei due.
+ */
+export function oraLocaleInMinuti(d = new Date()): number {
+  try {
+    const parti = new Intl.DateTimeFormat('en-GB', {
+      timeZone: FUSO,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(d);
+    const ore = Number(parti.find((p) => p.type === 'hour')?.value ?? NaN);
+    const minuti = Number(parti.find((p) => p.type === 'minute')?.value ?? NaN);
+    if (!Number.isInteger(ore) || !Number.isInteger(minuti)) throw new Error('parti mancanti');
+    return ore * 60 + minuti;
+  } catch {
+    console.error(`[date-only] fuso "${FUSO}" non riconosciuto: l'ora del giorno torna a UTC.`);
+    return d.getUTCHours() * 60 + d.getUTCMinutes();
+  }
+}

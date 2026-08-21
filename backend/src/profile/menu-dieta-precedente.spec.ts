@@ -29,7 +29,7 @@ function creaServizio(opts: { ultimo?: unknown; inArrivo?: unknown[] } = {}) {
     },
     diet: { findFirst: jest.fn().mockResolvedValue(NUOVA) },
   };
-  return { service: new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never), prisma };
+  return { service: new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never, {} as never), prisma };
 }
 
 describe('l\'avviso alla cliente sui menu della dieta precedente', () => {

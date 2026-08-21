@@ -27,7 +27,7 @@ function creaServizio(pastiEsclusi: string[] | null) {
     },
     diet: { findFirst: jest.fn().mockResolvedValue(DIETA), findMany: jest.fn().mockResolvedValue([DIETA]) },
   };
-  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never);
+  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never, {} as never);
 }
 
 type Nutrizione = { pastiEsclusi: string[] };
@@ -74,7 +74,7 @@ function conVincoli(over: Record<string, unknown>) {
     menuDay: { findFirst: jest.fn().mockResolvedValue({ diet: DIETA }), findMany: jest.fn().mockResolvedValue([]) },
     diet: { findFirst: jest.fn().mockResolvedValue(DIETA), findMany: jest.fn().mockResolvedValue([DIETA]) },
   };
-  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never);
+  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never, {} as never);
 }
 
 type Vincoli = { allergies: string[]; intolerances: string[]; allergieDichiarateIl: string | null };

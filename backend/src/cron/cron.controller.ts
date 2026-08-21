@@ -28,6 +28,7 @@ import { PlanReportService } from '../reports/plan-report.service';
 import { SignalsService } from '../signals/signals.service';
 import { VisitsService } from '../health-area/visits.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { ProfileService } from '../profile/profile.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 
 /**
@@ -61,6 +62,8 @@ export class CronController {
     private readonly pause: PauseService,
     private readonly crm: CrmService,
     private readonly privacy: PrivacyService,
+    /** Il passo notturno dell'orologio del digiuno: cambi rimandati e piano graduale. */
+    private readonly profile: ProfileService,
     /** L'elenco degli alimenti da correggere a mano: si ricalcola di notte. */
     private readonly valori: ValoriNutrizionaliService,
   ) {}
@@ -108,6 +111,14 @@ export class CronController {
      * cos'è un piano in coda (`menu.service.ts`).
      */
     await step('codeArrivate', () => this.commerce.promuoviCodeArrivate());
+    /**
+     * ⚠️ **PRIMA DEL MOTORE, e non è un dettaglio d'ordine.** Qui entrano in vigore i cambi di
+     * finestra rimandati a stanotte (la cliente li ha chiesti a finestra già aperta) e i passi del
+     * piano graduale. `engine.runBatch()` e la composizione dei menu leggono `fastingWindow`: una
+     * finestra aggiornata **dopo** che l'hanno letta varrebbe da dopodomani invece che da domani —
+     * cioè il rinvio di un giorno diventerebbe di due, e in silenzio.
+     */
+    await step('digiunoPassoNotturno', () => this.profile.passoNotturnoDigiuno());
     await step('engine', () => this.engine.runBatch());
     await step('notifications', () => this.notifications.generateDailyBatch());
     await step('alerts', () => this.alerts.recomputeAllBatch());

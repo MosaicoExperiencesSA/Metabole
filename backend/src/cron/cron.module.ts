@@ -15,10 +15,11 @@ import { HealthAreaModule } from '../health-area/health-area.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReportsModule } from '../reports/reports.module';
 import { SignalsModule } from '../signals/signals.module';
+import { ProfileModule } from '../profile/profile.module';
 import { CronController } from './cron.controller';
 
 @Module({
-  imports: [EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule],
+  imports: [EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule, ProfileModule],
   controllers: [CronController],
 })
 export class CronModule {}

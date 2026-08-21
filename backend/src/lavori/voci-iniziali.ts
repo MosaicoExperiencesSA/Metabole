@@ -1799,58 +1799,110 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
-    chiave: 'esclusioni-fuori-dal-pool',
-    titolo: 'Il motore metteva il polpo nel piatto a un\'allergica ai molluschi, poi si fermava da solo — corretto',
+    chiave: 'allergia-solfiti-sostituzioni',
+    titolo: 'Allergia ai solfiti: il tag c\'è, ma il dizionario ne riconosce quattro parole su una dozzina — e le sostituzioni non ci sono',
     dettaglio:
-      'Dalla domanda del 21/8: «Sonia non riceve i menu». `diag:cliente` in produzione: sei allergie dichiarate (crostacei, pesce, solfiti, lupini, molluschi, soia), **zero giornate erogate**, e una segnalazione «Piano bloccato» aperta lo stesso giorno con dentro «Polpo grigliato: contiene Molluschi» e «Bresaola: incompatibile con allergia solfiti».\n\n⛔ **Il blocco ha fatto il suo mestiere: sbagliata era la scelta.** Il filtro a monte esisteva già — `buildScoringContext` toglie dal pool le ricette vietate **sulla dieta** da Vera, «così non vengono nemmeno prese in considerazione» — ma le allergie e le intolleranze **della cliente** in quel filtro non c\'erano: entravano solo nel veto finale, dove una violazione ferma **tutta** la giornata (`return []`). Il motore pescava il polpo mentre nel pool c\'erano altri piatti.\n\n✅ Adesso ci passano anche loro, con **una funzione sola** per il filtro e per la guardia (`menu/esclusioni-della-cliente.ts`, puro): due copie vorrebbero dire un filtro che toglie un insieme di piatti e una guardia che ne vieta un altro, e la differenza fra i due sarebbe una cliente ferma senza che nessuno capisca perché — c\'è un test che verifica proprio che dicano la stessa cosa su ogni ricetta. ⚠️ Escono solo le ricette con una **violazione**: quelle sostituibili restano, e il piatto si eroga con la sostituzione annotata. ⚠️ **Uno slot che resterebbe vuoto non si svuota** (regola dell\'11/8): a fermare la giornata dev\'essere la guardia, che sa dire cosa e perché.\n\n⛔ **E il rimedio a mano non poteva funzionare:** la nutrizionista le ha dato una sostituzione la mattina del 21/8 e «non è stata comunque applicata» — con zero giornate erogate non c\'è nessun piatto su cui applicarla, e la composizione dopo ricadeva sul piatto successivo. Un piatto per volta contro un pool intero.\n\n⚠️ **Da verificare dopo il deploy**, ed è l\'unico pezzo che il codice non può decidere: `npm run diag:cliente` sulla sua email (che in questo repository non si scrive: `email-nei-file.spec.ts`). Se «Piano bloccato» è ancora aperta, il suo pool non ha alternative sicure per quel pasto — e allora il rimedio è il **catalogo**, o le due voci larghe dei solfiti (`aceto` e `biscotti`, dichiarate a parte in `exclusions.ts` apposta per poterle togliere se Lucia dice che sono eccessive).',
-    categoria: CODICE,
+      'Simone, 21/8: «dobbiamo integrare l\'allergia ai solfiti, la nutrizionista mi ha mandato il file con i '
+      + 'cibi da sostituire e come sostituirli». **Lavoro in coda, non da fare oggi.** Il file sta in '
+      + '`Documents/Metabole/Allergia_Solfiti/Guida_Completa_Allergia_Solfiti.pdf`.\n\n'
+      + '## Cosa c\'è già, misurato (21/8)\n\n'
+      + '✅ Il tag esiste ed è uno dei 14 UE: `catalog/allergens.ts` riga 25, codice `solfiti`, etichetta '
+      + '«Anidride solforosa e solfiti». Quindi la nutrizionista può già taggare una ricetta, e una cliente '
+      + 'che dichiara l\'allergia è già protetta **su quello che è taggato**.\n\n'
+      + '⛔ **Ma il dizionario che SUGGERISCE il tag ha quattro parole**: `solfiti`, `solfito`, `vino`, '
+      + '`aceto di vino`. La guida ne nomina una dozzina di portatori veri, e nessuno di questi verrebbe '
+      + 'suggerito: frutta secca disidratata (albicocche, prugne, uvetta), pomodori secchi industriali, '
+      + 'patate disidratate, **crostacei** (immersi in bisolfiti contro la melanosi), salsicce e insaccati, '
+      + 'carne macinata confezionata, salse pronte (maionese, ketchup, senape), dadi da brodo, aceto '
+      + 'balsamico, sidro, birra, succhi da concentrato, conserve di pesce. ⚠️ Il pre-tag **suggerisce** e '
+      + 'la nutrizionista conferma (nessun tag automatico): quindi il difetto non è un piatto sbagliato '
+      + 'servito in automatico, è che **a chi tagga non viene proposto niente** su una ricetta con l\'uvetta '
+      + 'o coi gamberi, e il tag manca in silenzio.\n\n'
+      + '## Cosa manca davvero: le SOSTITUZIONI\n\n'
+      + '⛔ Il pezzo che la nutrizionista ha mandato non è un elenco di divieti, è un **prontuario di '
+      + 'sostituzioni** — e per quello il progetto ha già la forma giusta: `menu/lattosio.ts`, dove '
+      + 'l\'intolleranza al lattosio non toglie il latte ma lo sostituisce col delattosato, con scritto '
+      + '**perché**. Le sette righe della guida:\n\n'
+      + '| con solfiti | al posto |\n|---|---|\n'
+      + '| aceto di vino / balsamico | succo di limone fresco, o aceto di mele «senza solfiti aggiunti» |\n'
+      + '| vino per sfumare | brodo vegetale casalingo acidulato con limone, o succo di mela acerba |\n'
+      + '| dado da brodo industriale | dado vegetale casalingo, o brodo fresco |\n'
+      + '| frutta secca industriale | frutta fresca essiccata in casa a bassa temperatura |\n'
+      + '| salsicce e insaccati | carne macinata al momento dal macellaio, sale pepe erbe |\n'
+      + '| crostacei surgelati | pesce fresco di lisca locale, o crostacei garantiti non trattati |\n\n'
+      + '⚠️ **Due di queste sostituzioni cambiano il piatto, non l\'ingrediente** (crostacei → pesce di '
+      + 'lisca; insaccati → macinato fresco): non sono equivalenze come il delattosato, e vanno decise da '
+      + 'Lucia prima di scriverle. Le altre quattro sono condimenti e si sostituiscono senza toccare il '
+      + 'bilanciamento della giornata.\n\n'
+      + '⚠️ E **una di esse cade dentro un altro allergene**: «senape» è uno dei 14, e la guida la nomina '
+      + 'fra le salse pronte da evitare per i solfiti. Chi tocca questa parte guardi che le due regole non '
+      + 'si contraddicano.\n\n'
+      + '## Cosa NON è di questo pezzo\n\n'
+      + '⛔ La guida parla anche di farmaci (colliri, anestetici con adrenalina, sciroppi col metabisolfito) '
+      + 'e di ristorazione. **Fuori perimetro**: qui si decide cosa finisce nel piatto che eroghiamo noi. '
+      + 'Metterlo in un menu vorrebbe dire dare un consiglio medico da un\'app di nutrizione.\n\n'
+      + '⚠️ Soglia di legge, per chi ci lavorerà: l\'obbligo di dichiarazione in etichetta scatta sopra i '
+      + '**10 mg/kg o 10 mg/l** espressi come SO₂ (Reg. UE 1169/2011). Sotto quella soglia i solfiti ci '
+      + 'possono essere e **non essere scritti**: è il motivo per cui «leggi l\'etichetta» non basta come '
+      + 'risposta, e serve una lista nostra.',
+    categoria: DATI,
     ordine: 629,
-    nata: '2026-08-21T09:10',
-    fatta: true,
+    nata: '2026-08-21T11:20',
+    priorita: 'neutra',
   },
 
   {
-    chiave: 'blocco-piano-non-si-zittisce',
-    titolo: 'Chiudere «Piano bloccato» ne spegneva il cartello per quattordici giorni — corretto',
+    chiave: 'digiuno-due-porte-per-la-finestra',
+    titolo: 'La finestra del digiuno la scrivono in due: la scheda staff a mano, l\'orologio per derivazione — e una disfa l\'altra',
     dettaglio:
-      'Trovato leggendo il codice il 21/8, e **non è il caso di Sonia** (la sua riga era aperta): è il caso di chiunque venga sbloccata mentre il motore ancora non compone.\n\nLa tregua dell\'11/8 («se ha risolto, basta fino a nuova segnalazione») è giusta per gli allarmi clinici: un avviso che ritorna da solo insegna a chiuderlo senza leggerlo. Ma la riga «Piano bloccato» **non è un avviso**: è ciò che `dietBlock` legge per dire all\'app `blocked`. Zittirla non toglieva un fastidio, toglieva lo **stato** — cliente ancora senza menu, nessuna riga in elenco, e in app «Menu in preparazione, arriverà a breve», che è falso. ⚠️ E `diet_blocked` non ha `severity`, quindi l\'eccezione «si riapre se peggiora» non la salvava mai.\n\n✅ `statoNonAvviso` in `apri-segnalazione.ts`: dentro la tregua non nasce un doppione — quello è il rumore che la tregua evita, giustamente — ma si **riapre la riga risolta** riscrivendoci il motivo di adesso. Lo usano i due punti che aprono il blocco: `menu.service` e `personal-base`. ⚠️ Sì: se la si richiude e il motore ancora non compone, tornerà. È il punto — il rimedio è far comporre il motore, non spegnere l\'unica cosa che lo dice.',
-    categoria: CODICE,
+      '⛔ **Trovato in revisione il 21/8, e va deciso prima che qualcuno ci si scotti.**\n\n'
+      + 'Da quando c\'è l\'orologio, `fastingWindow` — cioè **quali pasti riceve** — si **deriva** da '
+      + 'protocollo e orario. Ma la scheda cliente del backoffice continua a scriverla **a mano** dalla '
+      + 'tendina «Pasti che salta», che era la porta di prima e serve ancora alla nutrizionista.\n\n'
+      + '⚠️ Le due porte non convivono: la correzione fatta dalla scheda dura **fino al primo spostamento '
+      + 'della cliente**, che ricalcola la finestra dai suoi orari e la riscrive. E non se ne accorge '
+      + 'nessuno — il riferimento dell\'attività di verifica non cambia per una traslazione di un\'ora, '
+      + 'quindi non nasce nemmeno una segnalazione nuova. *Se due punti rispondono alla stessa domanda, '
+      + 'uno dei due deve chiamare l\'altro.*\n\n'
+      + '✅ **Intanto i testi delle attività non mentono più**: dicevano «la finestra si corregge dalla '
+      + 'scheda», e adesso dicono che i pasti li decide l\'orologio della cliente. Una ragione falsa è '
+      + 'peggio di un ordine sbagliato — ma la contraddizione sotto resta.\n\n'
+      + '⛔ **Le strade, e la scelta è tua e di Lucia.** *(a)* La scheda staff smette di scrivere la '
+      + 'finestra e scrive **protocollo e orario** (le stesse due leve della cliente): una porta sola, e '
+      + 'la nutrizionista continua a poter intervenire. *(b)* La scheda resta com\'è e la sua scrittura '
+      + '**vince**: allora serve un modo di dire all\'orologio «questa cliente ce l\'ha impostata a mano», '
+      + 'o si torna al punto di partenza. ⚠️ La (a) costa meno e toglie una tendina; la (b) tiene alla '
+      + 'nutrizionista una leva che l\'orologio non ha (prescrivere una finestra che l\'orologio non sa '
+      + 'disegnare, come «salta la cena»), e quella leva oggi serve a una cliente vera.\n\n'
+      + '⚠️ Legata alla decisione già in elenco sulle tre finestre ancora scegliibili che l\'orologio non '
+      + 'sa riprodurre: è la stessa domanda vista dall\'altra parte.',
+    categoria: SIMONE,
     ordine: 630,
-    nata: '2026-08-21T09:12',
-    fatta: true,
+    nata: '2026-08-21T11:40',
+    priorita: 'bassa',
   },
-
   {
-    chiave: 'clienti-nuove-al-capo-nutrizionista',
-    titolo: 'Le clienti nuove le prende il capo nutrizionista, finché è una sola — fatto',
+    chiave: 'digiuno-resta-corta-non-la-guarda-nessuno',
+    titolo: 'La terza condizione della verifica digiuno — quella che guarda le calorie vere — non la calcola nessuno',
     dettaglio:
-      'Richiesta di Simone del 21/8, e Sonia ne è la prova: questionario del **7/8** con sei allergie dichiarate, e al 21/8 `diag:cliente` stampava ancora «Nutrizionista: — nessuna —».\n\n⛔ **E QUI AVEVO SCRITTO UNA COSA SBAGLIATA, smentita dalla misura poche ore dopo.** Avevo scritto che le sue segnalazioni cliniche erano «nate senza destinatario»: non l\'avevo misurato, l\'avevo dedotto dal codice. `npm run assegna:nutrizionista` in produzione dice **zero** segnalazioni aperte e orfane su **39** clienti, perché `apriSegnalazione` instrada già al **capo** quando il ruolo non è assegnato. Resta scritta invece che cancellata: *non spacciare un ragionamento per una misura*.\n\n⚠️ Quello che manca davvero è la **presa in carico della cliente**: senza nutrizionista in scheda, nelle liste, nella chat e nei perimetri quella persona non è di nessuno — e delle 39 **sei** hanno lo screening acceso, cioè un percorso in cui il menu parte *dopo la visita col nutrizionista*. ⛔ Resta anche un buco più piccolo, questo sì letto nel codice: le due `escalation.create` **dirette** in `onboarding.service` (screening e obiettivo irreale) non passano da `apriSegnalazione` e nascerebbero orfane; oggi non ce n\'è nessuna aperta.\n\n⚠️ «Il team non si assegna in automatico» resta la regola giusta quando le nutrizioniste sono più d\'una: distribuire i pazienti è una decisione. Con **una sola** non è una decisione, è un passaggio a mano — e quando salta, la cliente resta senza nessuno che risponda di lei.\n\n✅ Chi finisce il questionario senza nutrizionista sul lead va al **capo** (lo stesso destinatario che sceglie già `apri-segnalazione` quando il ruolo non è assegnato), **la coach no**, e mai sovrascrivendo un\'assegnazione esistente. Vale anche per chi **rifà** il questionario, che finiva nel ramo `update` dove l\'assegnazione non c\'era: «non sovrascrivere» e «non riempire il vuoto» sono due cose diverse.\n\n⚠️ Si spegne con `assign_head_nutritionist_by_default`, e la funzione **conta le altre nutrizioniste**: quando quel numero non è più zero la regola ha fatto il suo tempo e lo scrive nell\'audit, invece di restare accesa per sempre. ✅ `npm run assegna:nutrizionista` (sola lettura; `CONFERMA=1` applica) recupera chi è **già** rimasta senza — al 21/8 sono **39** — e riassegna anche le eventuali segnalazioni aperte e orfane. ⚠️ La prima passata dice anche che **«Dr.ssa Bini» esiste già**: la premessa «finché è una sola» è già scaduta, e la decisione se dividere le clienti è di Simone.',
+      '⚠️ **Dichiarato invece che lasciato credere** (revisione del 21/8). Il §3 del foglio decisioni dà '
+      + 'tre condizioni per aprire la verifica alla nutrizionista, e dice che la terza è **la migliore**: '
+      + '`restaCorta`, cioè «anche coi moltiplicatori delle porzioni al tetto, le calorie della giornata '
+      + 'non arrivano al fabbisogno». Le altre due guardano il **nome** del protocollo (20:4, 23:1) e il '
+      + 'numero di pasti; questa guarda quello che quella cliente **riceve davvero**.\n\n'
+      + '⛔ Oggi le prime due ci sono e girano; **la terza non la calcola nessun punto del percorso.** '
+      + 'Tre commenti nel codice dicevano «la aggiunge chi chiama», e chi chiama non la aggiungeva: '
+      + 'adesso quei commenti dicono che manca, così nessuno la dà per coperta.\n\n'
+      + 'Cosa serve per farla: il segnale esiste già — `menu/porzione-scalata.ts` torna `restaCorta`, e da '
+      + 'lì esce `daily_kcal_below_target`. Il pezzo mancante è **collegarlo al momento della scelta**: '
+      + 'quando la cliente imposta l\'orologio serve la sua dieta e il suo fabbisogno per sapere se con '
+      + 'quella finestra ci arriva. ⚠️ In alternativa (forse meglio) la si aggancia **al segnale che già '
+      + 'esiste**, cioè quando il motore compone la giornata e vede che resta corta: è più tardi di un '
+      + 'giorno, ma è misurato sui menu veri invece che su una previsione.',
     categoria: CODICE,
     ordine: 631,
-    nata: '2026-08-21T09:14',
-    fatta: true,
-  },
-
-  {
-    chiave: 'diag-cliente-quattro-buchi',
-    titolo: '`diag:cliente` ha stampato «Nessun piano attivo» a una cliente che un piano ce l\'ha — corretto',
-    dettaglio:
-      'Su Sonia, il 21/8, con «Conosciamoci» in coda dal 22/8. Il verdetto guardava `status === \'active\'` invece di `STATI_CON_UN_PIANO`: la regola di prima del 19/8, da quando un piano che comincia più avanti nasce `queued`. ⚠️ Una diagnostica che risponde diversamente dal codice manda a cercare il difetto dove non c\'è — ed è la **seconda volta** che succede proprio sulla domanda «perché non riceve il menu?» (la prima fu Giusy, il 13/8).\n\n✅ Corretti nella stessa direzione altri tre buchi: la misura di partenza era `misure === 0` («una pesata qualsiasi, in tutta la storia») invece di `mancaMisuraDiPartenza`, cioè quella **di questo piano**; `planHeldAt` veniva stampato ma **non era nella scala del verdetto**, quindi un piano fermato dal nutrizionista usciva come «Menu in preparazione»; e si leggevano solo le segnalazioni **aperte**, mentre nel caso della tregua quella che decide è una **risolta** (adesso stampa anche quelle degli ultimi 14 giorni, con quanti giorni fa).\n\n✅ Aggiunti i due stati che mancavano e che il codice ha da tempo — **Monitoraggio** e **finestra di visibilità** — e corretta la frase «si sblocca CHIUDENDO la segnalazione»: non è vero, il blocco si ricalcola a ogni composizione, ed è esattamente il malinteso da cui è partita la giornata.',
-    categoria: CODICE,
-    ordine: 632,
-    nata: '2026-08-21T09:16',
-    fatta: true,
-  },
-
-  {
-    chiave: 'blocco-che-rientra-e-motivo-aggiornato',
-    titolo: 'Una segnalazione aperta diceva cosa non andava IERI — corretto, e c\'è lo strumento per chiederlo al motore',
-    dettaglio:
-      'Dopo il deploy della correzione del pool, `diag:cliente` su Sonia mostrava ancora «Piano bloccato» con gli stessi due piatti. La lettura naturale è «non ha funzionato». ⛔ **E sarebbe stata sbagliata:** `ensureDietBlockedEscalation` cominciava con `if (already) return`, quindi una riga già aperta **non veniva mai aggiornata** — sarebbe rimasta identica anche a motore riparato — e nessuno la chiudeva quando la causa spariva (l\'unica chiusura automatica sta in `personal-base`, che è un\'altra strada).\n\n✅ **Due correzioni.** Se i motivi cambiano, il **motivo si riscrive** sulla riga che c\'è, senza doppioni: è la stessa scelta di `sbloccaPiano`, torna il motivo nuovo. E se l\'erogazione produce dei giorni, le segnalazioni «Piano bloccato» **di origine menu** si chiudono da sé con `resolvedAt`. ⚠️ Solo quelle di origine menu: il motivo comincia con una costante condivisa (`MOTIVO_BLOCCO_MENU`) usata dai tre punti che devono riconoscere la stessa riga — chi la apre, chi la aggiorna, chi la chiude. Quelle della base personalizzata sono un\'altra causa, e spegnerle da qui vorrebbe dire spegnere un allarme non verificato.\n\n✅ **E lo strumento che mancava: `npm run prova:erogazione -- <email>`.** Non c\'era modo di chiedere al motore **se compone**: c\'era solo la fotografia di una segnalazione, che poteva essere di ieri. Chiama `deliverIfEligible`, cioè la funzione che parte quando la cliente apre l\'app. ⚠️ **Eroga per davvero**, e lo dice in testa, ma non forza niente: se un cancello è chiuso non succede nulla e viene detto quale. Distingue i tre casi che prima si confondevano: giorni erogati · nessun giorno con un blocco (col motivo, e se è stato aggiornato adesso) · nessun giorno senza blocco, cioè fermo a un cancello.\n\n✅ **Confermato da Simone in produzione**: «ho fatto rigenera menu ed è andato». Il motore compone, la riga era vecchia.',
-    categoria: CODICE,
-    ordine: 633,
-    nata: '2026-08-21T10:20',
-    fatta: true,
+    nata: '2026-08-21T11:45',
+    priorita: 'bassa',
   },
 
 ];

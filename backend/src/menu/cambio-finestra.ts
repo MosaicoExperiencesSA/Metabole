@@ -105,6 +105,15 @@ export interface EsitoCambio {
     inizioMin: number;
     /** Il bersaglio del piano graduale, o `null` per azzerarlo (piano finito o mai aperto). */
     bersaglioInizioMin: number | null;
+    /**
+     * ⛔ Il protocollo che entra in vigore **domani**, quando il cambio è stato rimandato perché la
+     * finestra di oggi si era già aperta. `null` = niente da rimandare.
+     *
+     * ⚠️ Usa la colonna `fasting_target_protocol`, che esisteva già ed era dichiarata «ancora nessuno
+     * la scrive». Adesso la scrive questo, e la applica lo stesso cron del piano graduale: un
+     * meccanismo solo per due cose che sono la stessa cosa — «questo vale dalla prossima apertura».
+     */
+    bersaglioProtocollo: string | null;
   };
   /** Da quando vale quello che si scrive adesso: dalla prossima apertura, oggi o domani. */
   daQuando: 'oggi' | 'domani';
@@ -243,7 +252,7 @@ export function decidiCambio(
   const invariato = (): EsitoCambio => ({
     permesso: true,
     metodo: 'nessuno',
-    scrivi: { protocollo: attuale.protocollo, inizioMin: attuale.inizioMin, bersaglioInizioMin: null },
+    scrivi: { protocollo: attuale.protocollo, inizioMin: attuale.inizioMin, bersaglioInizioMin: null, bersaglioProtocollo: null },
     daQuando: 'oggi',
     minutiDigiunoStanotte: minutiFraChiusuraEApertura(attuale.protocollo, attuale.inizioMin, attuale.inizioMin),
     giorniDelPiano: 0,
@@ -284,17 +293,46 @@ export function decidiCambio(
   const conPiano = scarto < 0 && distanza > passo;
 
   /**
-   * ⚠️ L'inizio che sarà in vigore **alla prossima apertura**, che non è sempre quello richiesto:
-   * col piano graduale la prossima apertura è di **un passo** più presto, non al bersaglio.
+   * ⛔ **QUELLO CHE VALE OGGI E QUELLO CHE VALE DA DOMANI** (corretto in revisione, 21/8).
+   *
+   * Prima `daQuando` era una **stringa nell'esito** e basta: chi chiamava scriveva comunque tutto
+   * subito, e a una cliente che aveva già pranzato il sistema diceva «da domani apri alle 16:00»
+   * mentre le disegnava la giornata di **oggi** con il primo pasto alle 16:15. La promessa «un pasto
+   * già fatto non si disfa» viveva in una frase e non in una riga di codice.
+   *
+   * Adesso l'esito **separa le due cose**: `scrivi` è quello che entra in vigore adesso, `bersaglio`
+   * è quello che ci entra domani — ed è lo stesso meccanismo del piano graduale, quindi lo esegue lo
+   * stesso cron notturno invece di un pezzo nuovo tutto suo.
    */
-  const inizioProssimaApertura = conPiano ? dentroLaGiornata(attuale.inizioMin - passo) : inizioNuovo;
-  const minutiStanotte = minutiFraChiusuraEApertura(attuale.protocollo, attuale.inizioMin, inizioProssimaApertura);
+  const rimandato = giaAperta;
+
+  /**
+   * ⛔ **DA DOVE A DOVE VA IL DIGIUNO CHE STA PER FARE.** Le due estremità **non** si prendono dalle
+   * stesse regole, ed è il punto in cui questo conto ha sbagliato tre volte:
+   *
+   * - **la prossima apertura** è quella governata dalle regole nuove: oggi se la finestra non si è
+   *   ancora aperta, domani se si è già aperta o se c'è un piano graduale (che oggi non muove niente);
+   * - **la chiusura prima di quella** è governata dalle regole in vigore per *quella* finestra lì: la
+   *   finestra di ieri se la prossima apertura è oggi, quella di oggi se è domani.
+   *
+   * ⚠️ E il protocollo di oggi **non è sempre quello vecchio**: se la finestra di oggi non si è
+   * ancora aperta, il protocollo nuovo vale già per lei, quindi oggi chiude prima (o dopo).
+   */
+  const aperturaProssima = conPiano || rimandato
+    ? (conPiano ? dentroLaGiornata(attuale.inizioMin - passo) : inizioNuovo)
+    : inizioNuovo;
+  const minutiStanotte = (conPiano || rimandato)
+    // La chiusura che conta è quella di OGGI. Se oggi la finestra non si era ancora aperta, oggi
+    // corre già col protocollo nuovo (l'orario invece resta quello vecchio: col piano non si muove).
+    ? minutiFraChiusuraEApertura(rimandato ? attuale.protocollo : protocolloNuovo, attuale.inizioMin, aperturaProssima)
+    // La prossima apertura è oggi: il digiuno in corso è cominciato IERI SERA, con le regole vecchie.
+    : minutiFraChiusuraEApertura(attuale.protocollo, attuale.inizioMin, aperturaProssima);
   const minutiDiPrima = minutiFraChiusuraEApertura(attuale.protocollo, attuale.inizioMin, attuale.inizioMin);
 
-  const quando: 'oggi' | 'domani' = giaAperta ? 'domani' : 'oggi';
+  const quando: 'oggi' | 'domani' = rimandato || conPiano ? 'domani' : 'oggi';
   const chiusuraNuova = oraDelGiorno(chiusuraFinestra(inizioNuovo, oreFinestraNuova));
   /** ⚠️ Il protocollo entra nella frase solo se cambia: nominarlo sempre lo renderebbe rumore. */
-  const pezzoProtocollo = cambiaProtocollo ? ` Passi al ${protocolloNuovo}.` : '';
+  const pezzoProtocollo = cambiaProtocollo ? ` Passi al ${protocolloNuovo}${rimandato ? ' da domani' : ''}.` : '';
   /**
    * ⚠️ Le ore di stanotte si nominano **solo se cambiano**. «Venti invece di venti» è una frase che
    * fa fermare a rileggere, e prima usciva ogni volta che si allargava il protocollo senza spostare
@@ -320,16 +358,22 @@ export function decidiCambio(
     return {
       ...base,
       /**
-       * ⚠️ Col piano, oggi **l'orario non si muove**: il primo passo lo fa il cron stanotte. Quindi
-       * «da oggi» sarebbe falso — a meno che cambi anche il protocollo, che invece vale già dalla
-       * prossima apertura. Sono due cose diverse scritte insieme, e questa riga dice quale delle due
-       * la cliente vede per prima.
+       * ⚠️ Col piano l'orario **oggi non si muove** — il primo passo lo fa il cron stanotte — quindi
+       * «da oggi» sarebbe falso. A meno che cambi anche il protocollo e la finestra di oggi non si
+       * sia ancora aperta: quello vale già da adesso, e questa riga dice quale delle due cose la
+       * cliente vede per prima.
        */
-      daQuando: cambiaProtocollo && !giaAperta ? 'oggi' : 'domani',
+      daQuando: cambiaProtocollo && !rimandato ? ('oggi' as const) : ('domani' as const),
       metodo: 'graduale',
       // ⚠️ L'inizio NON si tocca: il primo passo lo fa il cron stanotte, così il digiuno di oggi
-      // non si accorcia di sorpresa. Si scrive solo il bersaglio.
-      scrivi: { protocollo: protocolloNuovo, inizioMin: attuale.inizioMin, bersaglioInizioMin: inizioNuovo },
+      // non si accorcia di sorpresa. Il protocollo invece vale già da oggi se la finestra non si è
+      // ancora aperta — e se si è aperta va nel bersaglio come tutto il resto.
+      scrivi: {
+        protocollo: rimandato ? attuale.protocollo : protocolloNuovo,
+        inizioMin: attuale.inizioMin,
+        bersaglioInizioMin: inizioNuovo,
+        bersaglioProtocollo: rimandato && cambiaProtocollo ? protocolloNuovo : null,
+      },
       giorniDelPiano: giorni,
       spiegazione:
         `Sposto la tua finestra un po' alla volta: ${passoAParole(passo)} al giorno, e in ${giorni} ` +
@@ -339,16 +383,39 @@ export function decidiCambio(
     };
   }
 
-  // ─── Tutto il resto: si scrive e vale dalla prossima apertura ─────────────────────────────
+  // ─── RIMANDATO A DOMANI: oggi non si tocca niente, si scrive il bersaglio ─────────────────
+  if (rimandato) {
+    return {
+      ...base,
+      metodo: scarto > 0 ? 'reset' : scarto < 0 ? 'graduale' : 'subito',
+      scrivi: {
+        protocollo: attuale.protocollo,
+        inizioMin: attuale.inizioMin,
+        bersaglioInizioMin: inizioNuovo,
+        bersaglioProtocollo: cambiaProtocollo ? protocolloNuovo : null,
+      },
+      giorniDelPiano: 0,
+      spiegazione:
+        `Da domani apri alle ${oraDelGiorno(inizioNuovo)} e chiudi alle ${chiusuraNuova}. ` +
+        'Oggi resta com\'è: la tua finestra si è già aperta.' + pezzoProtocollo + pezzoStanotte,
+    };
+  }
+
+  // ─── Vale da OGGI: la finestra non si è ancora aperta ─────────────────────────────────────
   // scarto > 0 è il «reset» del manuale (il digiuno si allunga, permesso subito); scarto < 0 dentro
   // il passo è l'accorciamento che il metodo A concede; scarto === 0 è il solo cambio di protocollo.
   return {
     ...base,
     metodo: scarto > 0 ? 'reset' : scarto < 0 ? 'graduale' : 'subito',
-    scrivi: { protocollo: protocolloNuovo, inizioMin: inizioNuovo, bersaglioInizioMin: null },
+    scrivi: {
+      protocollo: protocolloNuovo,
+      inizioMin: inizioNuovo,
+      bersaglioInizioMin: null,
+      bersaglioProtocollo: null,
+    },
     giorniDelPiano: 0,
     spiegazione:
-      `Da ${quando} apri alle ${oraDelGiorno(inizioNuovo)} e chiudi alle ${chiusuraNuova}.` +
+      `Da oggi apri alle ${oraDelGiorno(inizioNuovo)} e chiudi alle ${chiusuraNuova}.` +
       pezzoProtocollo + pezzoStanotte,
   };
 }
@@ -408,8 +475,12 @@ export function passoDiStanotte(
  *
  * ⛔ La terza condizione del foglio — `restaCorta`, cioè «anche coi moltiplicatori al tetto le
  * calorie non ci arrivano» — **non sta qui**: la calcola `porzione-scalata.ts` sul fabbisogno vero
- * di quella cliente, e serve la sua dieta. Chi chiama la aggiunge. È la migliore delle tre, e
- * dimenticarla qui sarebbe far credere che le due di sopra bastino.
+ * di quella cliente, e serve la sua dieta.
+ *
+ * ⚠️ **E oggi non la aggiunge nessuno**, va detto invece di lasciarlo credere: `impostaDigiuno` non
+ * la calcola. È la migliore delle tre — non guarda il nome del protocollo, guarda le calorie che
+ * quella cliente riceve davvero — ed è in elenco lavori. Finché non c'è, le due qui sotto sono
+ * tutto quello che c'è.
  */
 export function ragioniDaVerificare(protocollo: string, unicoPasto: boolean): string[] {
   const ragioni: string[] = [];
@@ -427,3 +498,58 @@ export function ragioniDaVerificare(protocollo: string, unicoPasto: boolean): st
 export const PROTOCOLLI_DA_VERIFICARE: string[] = PROTOCOLLI_DIGIUNO
   .filter((p) => p.oreFinestra <= 4)
   .map((p) => p.valore);
+
+/**
+ * ⛔ **LA PRIMA SCELTA NON È UN CAMBIO**, e per questo ha una funzione sua.
+ *
+ * Chi sceglie la finestra per la prima volta non ha niente da cui partire: non c'è una direzione da
+ * misurare, non c'è un digiuno in corso da allungare o accorciare, e non c'è nessun «uno al giorno»
+ * da rispettare — sarebbe assurdo fermarla proprio mentre risponde a una domanda che non le era mai
+ * stata fatta.
+ *
+ * ⚠️ `minutiDigiunoStanotte` torna **`null`**, e non un numero: il digiuno che sta per fare va
+ * dall'ultima chiusura, e un'ultima chiusura non c'è. *«Non lo so» deve costare meno di «ho
+ * indovinato»* — e qui il numero indovinato finirebbe in una frase che le si mostra.
+ *
+ * ⚠️ Le ragioni per la nutrizionista invece si calcolano eccome: una che parte **subito** da OMAD è
+ * esattamente il caso che il §3 vuole far guardare.
+ */
+export function primaScelta(
+  richiesta: RichiestaCambio,
+  passoMin: number = PASSO_GRADUALE_PREDEFINITO,
+): EsitoCambio {
+  const passo = passoValido(passoMin);
+  const protocollo = richiesta.protocollo ?? '';
+  const inizioMin = richiesta.inizioMin ?? -1;
+  const fermo = {
+    permesso: false as const,
+    metodo: 'nessuno' as const,
+    scrivi: { protocollo, inizioMin, bersaglioInizioMin: null, bersaglioProtocollo: null },
+    daQuando: 'oggi' as const,
+    minutiDigiunoStanotte: null,
+    giorniDelPiano: 0,
+    passoUsatoMin: passo,
+    daVerificare: [],
+    spiegazione: 'Non cambia niente.',
+  };
+  if (!protocolloDigiuno(protocollo)) {
+    return { ...fermo, rifiuto: 'Quel tipo di digiuno non è fra quelli che possiamo impostare.' };
+  }
+  if (!Number.isInteger(inizioMin) || inizioMin < 0 || inizioMin >= MINUTI_AL_GIORNO) {
+    return { ...fermo, rifiuto: 'Quell\'orario non esiste.' };
+  }
+  const oreFinestra = 24 - oreDigiunoDi(protocollo);
+  return {
+    permesso: true,
+    metodo: 'subito',
+    scrivi: { protocollo, inizioMin, bersaglioInizioMin: null, bersaglioProtocollo: null },
+    daQuando: 'oggi',
+    minutiDigiunoStanotte: null,
+    giorniDelPiano: 0,
+    passoUsatoMin: passo,
+    daVerificare: ragioniDaVerificare(protocollo, unicoPastoCon(protocollo)),
+    spiegazione:
+      `Da oggi apri alle ${oraDelGiorno(inizioMin)} e chiudi alle ` +
+      `${oraDelGiorno(chiusuraFinestra(inizioMin, oreFinestra))}.`,
+  };
+}

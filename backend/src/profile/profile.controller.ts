@@ -7,6 +7,7 @@ import {
   UpdateProfileDto,
   UpdateThemeDto,
 } from './dto/update-profile.dto';
+import { ImpostaDigiunoDto } from './dto/imposta-digiuno.dto';
 import { ProfileService } from './profile.service';
 
 @Controller('me')
@@ -60,6 +61,30 @@ export class ProfileController {
   @Get('nutrition')
   nutrition(@CurrentUser() user: AuthUser) {
     return this.profile.nutrition(user.sub);
+  }
+
+  /**
+   * L'OROLOGIO DEL DIGIUNO — com'è messa adesso, e se le va aperta la pagina.
+   *
+   * ⚠️ Una chiamata sola per tutte e tre le domande dell'app (aprire la pagina, disegnare
+   * l'orologio, il piano in corso): tre chiamate separate potrebbero rispondere su tre istanti
+   * diversi, e il piano graduale cambia ogni notte.
+   */
+  @Get('digiuno')
+  getDigiuno(@CurrentUser() user: AuthUser) {
+    return this.profile.getDigiuno(user.sub);
+  }
+
+  /**
+   * La cliente sposta la sua finestra, o la sceglie per la prima volta.
+   *
+   * ⚠️ Risponde con **la vista aggiornata**, non con un «ok»: col piano graduale quello che ha
+   * chiesto e quello che è in vigore sono diversi apposta, e l'app deve ridisegnare da quello che
+   * il server ha scritto davvero.
+   */
+  @Patch('digiuno')
+  impostaDigiuno(@CurrentUser() user: AuthUser, @Body() dto: ImpostaDigiunoDto) {
+    return this.profile.impostaDigiuno(user.sub, dto);
   }
 
   @Get('objective')

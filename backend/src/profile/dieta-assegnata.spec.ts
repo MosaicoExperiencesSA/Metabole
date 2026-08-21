@@ -56,7 +56,7 @@ function creaServizio(catalogo: RigaDieta[], profilo: Record<string, unknown> = 
       }),
     },
   };
-  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never);
+  return new ProfileService(prisma as unknown as PrismaService, {} as never, {} as never, {} as never, {} as never);
 }
 
 type Nutrizione = {

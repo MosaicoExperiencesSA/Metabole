@@ -42,6 +42,7 @@ describe('ProfileService — la data d\'inizio scelta dalla cliente', () => {
       { getNumber: jest.fn() } as never,
       audit as never,
       {} as never,
+      {} as never,
     );
     return { service, prisma };
   };

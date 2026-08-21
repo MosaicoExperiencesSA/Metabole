@@ -22,6 +22,7 @@ import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { ProfileService } from '../profile/profile.service';
 import { CronController } from './cron.controller';
 
 /**
@@ -54,6 +55,8 @@ describe('CronController (endpoint per Render Cron)', () => {
   let engineRules: { generaProssimoCatalogo: jest.Mock };
   /** Il commercio nel cron: scadenze pagamenti, prove, e la promozione delle code. */
   let commerce: { autoCancelStalePayments: jest.Mock; expireTrialsAndPurge: jest.Mock; promuoviCodeArrivate: jest.Mock };
+  /** Il passo notturno dell'orologio del digiuno: cambi rimandati e piano graduale (21/8). */
+  let profile: { passoNotturnoDigiuno: jest.Mock };
 
   beforeEach(async () => {
     engine = { runBatch: jest.fn().mockResolvedValue({ total: 1, run: 1, flagged: 0, skipped: 0 }) };
@@ -62,6 +65,7 @@ describe('CronController (endpoint per Render Cron)', () => {
       measuresNudgeTick: jest.fn().mockResolvedValue({ inviati: 0 }),
     };
     monitoring = { dailyTick: jest.fn().mockResolvedValue({ ok: true }) };
+    profile = { passoNotturnoDigiuno: jest.fn().mockResolvedValue({ guardati: 0, protocolliApplicati: 0, passiFatti: 0, arrivate: 0, falliti: 0 }) };
     chat = {
       chiudiSostituzioniLasciateAMeta: jest
         .fn()
@@ -120,6 +124,12 @@ describe('CronController (endpoint per Render Cron)', () => {
           provide: ValoriNutrizionaliService,
           useValue: { aggiornaIngredientiScoperti: jest.fn().mockResolvedValue({ scoperti: 0, scritti: 0, fuori: 0 }) },
         },
+        /**
+         * ⚠️ Il passo notturno dell'orologio del digiuno: applica i cambi rimandati a stanotte e i
+         * passi del piano graduale. **Sta prima del motore**, e c'è un test apposta più sotto: se
+         * finisse dopo, una finestra aggiornata varrebbe da dopodomani invece che da domani.
+         */
+        { provide: ProfileService, useValue: profile },
       ],
     }).compile();
     controller = moduleRef.get(CronController);
@@ -166,6 +176,28 @@ describe('CronController (endpoint per Render Cron)', () => {
     expect(commerce.promuoviCodeArrivate.mock.invocationCallOrder[0]).toBeLessThan(
       engine.runBatch.mock.invocationCallOrder[0],
     );
+  });
+
+  /**
+   * ⛔ **L'orologio del digiuno si aggiorna PRIMA del motore** (21/8). Il passo notturno applica i
+   * cambi di finestra rimandati a stanotte e i passi del piano graduale, e scrive `fastingWindow`.
+   * `engine.runBatch()` e la composizione dei menu quella finestra la **leggono**: se il passo
+   * finisse dopo, una cliente che ieri ha spostato la sua finestra vedrebbe il cambio da dopodomani
+   * invece che da domani — e nessuno saprebbe dire perché.
+   */
+  it('⛔ il passo notturno del digiuno gira PRIMA del motore', async () => {
+    await controller.daily('segreto-cron');
+    expect(profile.passoNotturnoDigiuno).toHaveBeenCalledTimes(1);
+    expect(profile.passoNotturnoDigiuno.mock.invocationCallOrder[0]).toBeLessThan(
+      engine.runBatch.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('⚠️ e se esplode, la notte va avanti lo stesso', async () => {
+    profile.passoNotturnoDigiuno.mockRejectedValue(new Error('DB giù'));
+    const res = (await controller.daily('segreto-cron')) as EsitoCron & { digiunoPassoNotturno?: unknown };
+    expect(res.digiunoPassoNotturno).toEqual({ error: 'DB giù' });
+    expect(engine.runBatch).toHaveBeenCalledTimes(1);
   });
 
   /** ⚠️ E se la promozione esplode, la notte va avanti: chi era già attivo non c'entra niente. */

@@ -69,3 +69,42 @@ describe('aGiorno — la copia che stava in due servizi', () => {
     expect(aGiorno(istante).toISOString().slice(0, 10)).toBe('2026-08-08');
   });
 });
+
+describe('⛔ oraLocaleInMinuti — le due ore che decidono cosa mangia qualcuno', () => {
+  const { oraLocaleInMinuti } = require('./date-only');
+
+  /**
+   * ⛔ Il caso per cui questa funzione esiste. Su Render `TZ` non è impostata: `getHours()` risponde
+   * l'ora UTC, che d'estate è **due ore indietro** rispetto a Roma. Con una finestra che apre a
+   * mezzogiorno, alle 12:30 italiane il server direbbe «sono le 10:30, non è ancora aperta» — e
+   * sposterebbe la finestra OGGI a una cliente che ha già pranzato.
+   */
+  it('⛔ le 12:30 di Roma sono 750 minuti, non 630', () => {
+    expect(oraLocaleInMinuti(new Date('2026-08-21T12:30:00+02:00'))).toBe(12 * 60 + 30);
+    // E la riga scritta a mano che si sarebbe usata al posto suo, su un processo a UTC:
+    const aUtc = new Date('2026-08-21T12:30:00+02:00');
+    expect(aUtc.getUTCHours() * 60 + aUtc.getUTCMinutes()).toBe(10 * 60 + 30);
+  });
+
+  it('mezzanotte è zero, e le 23:59 sono l\'ultimo minuto', () => {
+    expect(oraLocaleInMinuti(new Date('2026-08-21T00:00:00+02:00'))).toBe(0);
+    expect(oraLocaleInMinuti(new Date('2026-08-21T23:59:00+02:00'))).toBe(23 * 60 + 59);
+  });
+
+  /**
+   * ⚠️ D'inverno l'Italia è UTC+1, non +2: una funzione che sottraesse due ore fisse sbaglierebbe
+   * per metà anno, ed è il modo in cui un difetto di fuso non si riproduce in agosto.
+   */
+  it('⚠️ vale anche con l\'ora solare, dove lo scarto è di UN\'ora', () => {
+    expect(oraLocaleInMinuti(new Date('2026-01-15T12:30:00+01:00'))).toBe(12 * 60 + 30);
+    expect(oraLocaleInMinuti(new Date('2026-01-15T11:30:00Z'))).toBe(12 * 60 + 30);
+  });
+
+  it('resta dentro la giornata, sempre', () => {
+    for (const iso of ['2026-03-29T02:30:00Z', '2026-10-25T02:30:00Z', '2026-12-31T23:00:00Z']) {
+      const m = oraLocaleInMinuti(new Date(iso));
+      expect(m).toBeGreaterThanOrEqual(0);
+      expect(m).toBeLessThan(24 * 60);
+    }
+  });
+});

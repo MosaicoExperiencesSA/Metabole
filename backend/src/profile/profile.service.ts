@@ -22,6 +22,29 @@ import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
 import { UpdateObjectiveDto, UpdateProfileDto } from './dto/update-profile.dto';
 import { toDateOnly } from '../common/date-only';
 import { dietaMostrataPer, nomePerLaCliente } from '../catalog/dieta-mostrata';
+// ─── L'orologio del digiuno (21/8) ───────────────────────────────────────────────────────────
+import { PushService } from '../notifications/push.service';
+import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
+import {
+  TIPO_DIGIUNO_ESTREMO,
+  TIPO_FINESTRA_NON_TRADUCIBILE,
+  riferimentoDigiunoEstremo,
+  riferimentoNonTraducibile,
+  scadenzaVerifica,
+  testoDigiunoEstremo,
+  testoFinestraNonTraducibile,
+} from '../coach-tasks/verifica-digiuno';
+import {
+  PASSO_GRADUALE_PREDEFINITO,
+  decidiCambio,
+  passoDiStanotte,
+  primaScelta,
+  type EsitoCambio,
+} from '../menu/cambio-finestra';
+import { PROPOSTE_DA_FINESTRA_STORICA, motivoPerLaNutrizionista } from '../menu/chiedi-la-finestra';
+import { derivaDaOrologio, oraDelGiorno, protocolloDigiuno } from '../menu/orologio-digiuno';
+import { vistaOrologio, type ProfiloDigiuno } from '../menu/vista-orologio';
+import { oraLocaleInMinuti } from '../common/date-only';
 
 /** Il client dentro una transazione: stessa forma usata in `commerce` e `finance`. */
 type PrismaTx = Prisma.TransactionClient;
@@ -33,6 +56,9 @@ export class ProfileService {
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
     private readonly personalBase: PersonalBaseService,
+    // ⚠️ L'attività della nutrizionista nasce da `apriAttivitaCoach`, che crea e avvisa insieme:
+    // senza la push l'attività comparirebbe in elenco e basta, cioè nessuno la vedrebbe.
+    private readonly push: PushService,
   ) {}
 
   async getProfile(userId: string) {
@@ -569,4 +595,368 @@ export class ProfileService {
       coachName: profile.assignedCoach?.displayName ?? null,
     };
   }
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+  // L'OROLOGIO DEL DIGIUNO
+  // ───────────────────────────────────────────────────────────────────────────────────────────
+
+  /** I campi del digiuno, in un posto solo: due letture che ne prendono di diversi divergerebbero. */
+  private static readonly CAMPI_DIGIUNO = {
+    pathType: true, fastingWindow: true, fastingProtocol: true, fastingStartMin: true,
+    fastingTargetStartMin: true, fastingTargetProtocol: true, fastingChangedAt: true,
+    fastingSceltoIl: true,
+  } as const;
+
+  /** Il passo dell'adattamento graduale, da `config_param`. ⚠️ Il valore lo controlla chi lo usa. */
+  private passoGraduale(): Promise<number> {
+    return this.configParams.getNumber('digiuno_passo_graduale_min', PASSO_GRADUALE_PREDEFINITO);
+  }
+
+  private async profiloDigiuno(userId: string): Promise<ProfiloDigiuno & { name: string | null }> {
+    const p = (await this.prisma.clientProfile.findUnique({
+      where: { userId },
+      select: { ...ProfileService.CAMPI_DIGIUNO, name: true } as never,
+    })) as unknown as (ProfiloDigiuno & { name: string | null }) | null;
+    if (!p) throw new NotFoundException('Profilo non trovato.');
+    return p;
+  }
+
+  /**
+   * COM'È MESSA ADESSO, e se le va aperta la pagina dell'orologio.
+   *
+   * ⚠️ Una lettura sola per tutte e tre le domande dell'app (aprire la pagina, disegnare
+   * l'orologio, mostrare il piano in corso): tre chiamate separate avrebbero potuto rispondere su
+   * tre istanti diversi, e il piano graduale cambia ogni notte.
+   */
+  async getDigiuno(userId: string) {
+    const profilo = await this.profiloDigiuno(userId);
+    return vistaOrologio(profilo, await this.passoGraduale());
+  }
+
+  /**
+   * LA CLIENTE SPOSTA LA SUA FINESTRA — o la sceglie per la prima volta.
+   *
+   * ⛔ **La prima scelta non è un cambio**, ed è la ragione per cui c'è un ramo apposta. Non ha una
+   * finestra da cui partire, quindi non c'è nessuna direzione da misurare e nessun digiuno in corso
+   * da allungare o accorciare; e soprattutto il limite di «uno al giorno» non deve poterla fermare
+   * proprio mentre risponde a una domanda che non le era mai stata fatta.
+   *
+   * ⚠️ La cliente **non viene mai bloccata** da una scelta impegnativa: parte, e in parallelo si
+   * apre l'attività per la nutrizionista (§3). Gli unici rifiuti sono un valore che non esiste e il
+   * secondo spostamento nello stesso giorno — e tutti e due dicono cosa fare adesso.
+   */
+  async impostaDigiuno(userId: string, dto: { protocollo?: string; inizioMin?: number }) {
+    const profilo = await this.profiloDigiuno(userId);
+    if (profilo.pathType !== 'intermittent_fasting') {
+      throw new BadRequestException(
+        'Questa impostazione vale solo per il digiuno intermittente. Se vuoi passare al digiuno, parlane con la tua nutrizionista.',
+      );
+    }
+    const adesso = new Date();
+    const primaVolta = !profilo.fastingSceltoIl;
+    const passo = await this.passoGraduale();
+
+    const esito = primaVolta
+      ? primaScelta(dto, passo)
+      : decidiCambio(
+          {
+            protocollo: profilo.fastingProtocol ?? '',
+            inizioMin: profilo.fastingStartMin ?? 0,
+            cambiataIl: profilo.fastingChangedAt ?? null,
+          },
+          dto,
+          { adesso, oraMin: oraLocaleInMinuti(adesso) },
+          passo,
+        );
+    if (!esito.permesso) throw new BadRequestException(esito.rifiuto);
+
+    /**
+     * ⛔ **UN TOCCO A VUOTO NON È UNO SPOSTAMENTO** (trovato in revisione, 21/8).
+     *
+     * `PATCH /me/digiuno {}` è valido — i due campi sono facoltativi apposta — e lo mandano il
+     * doppio tocco e il retry dell'app. Prima si scriveva comunque `fastingChangedAt: adesso`, e lo
+     * spostamento **vero** fatto dieci minuti dopo si beccava «puoi rifarlo fra 20 ore»: il limite
+     * si accendeva su un cambio che non c'era stato. E l'audit registrava uno spostamento mai
+     * avvenuto, cioè raccontava una cosa falsa a chi un giorno andrà a leggerlo.
+     */
+    if (esito.metodo === 'nessuno') return { ...vistaOrologio(profilo, passo), esito: { metodo: esito.metodo, daQuando: esito.daQuando, spiegazione: esito.spiegazione, minutiDigiunoStanotte: esito.minutiDigiunoStanotte, giorniDelPiano: esito.giorniDelPiano } };
+
+    /**
+     * ⛔ La finestra si deriva da quello che **entra in vigore**, non da quello che ha chiesto: col
+     * piano graduale l'inizio resta quello di adesso, e derivarla dal bersaglio le cambierebbe i
+     * pasti stasera per un orario a cui arriverà fra quattro giorni.
+     *
+     * ⚠️ **E va detto che oggi nessun test distingue le due versioni**, perché la finestra dipende
+     * solo dalla **durata** — che è la regola d'oro del manuale, «la posizione non dice niente» — e
+     * quindi passare l'orario chiesto invece di quello in vigore darebbe lo stesso valore. La riga
+     * resta scritta così lo stesso: il giorno che le soglie guardassero anche la posizione, questa
+     * sarebbe già giusta invece di essere un difetto da scoprire. *Niente tagli silenziosi: se una
+     * cosa non è coperta, si dice.*
+     */
+    const derivata = derivaDaOrologio(esito.scrivi.inizioMin, esito.scrivi.protocollo);
+    const finestraNuova = derivata?.fastingWindow;
+    // ⛔ Non si scrive **mezza** impostazione: senza `fastingWindow` il motore non saprebbe quali
+    // pasti saltare, e la cliente si troverebbe un orologio impostato e i pasti di prima. Meglio
+    // rifiutare e dirlo che salvare uno stato che nessuno sa leggere.
+    if (!derivata || !finestraNuova) {
+      throw new BadRequestException(
+        'Non riesco a calcolare i pasti di questa finestra. Riprova, e se continua dillo alla tua nutrizionista.',
+      );
+    }
+
+    const finestraPrecedente = profilo.fastingWindow ?? null;
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      /**
+       * ⛔ **SI SCRIVE SOLO SE NESSUNO HA SCRITTO NEL FRATTEMPO** (revisione, 21/8).
+       *
+       * Il profilo l'abbiamo letto **fuori** dalla transazione: due tocchi ravvicinati — l'app che
+       * ritenta, due dispositivi — leggono lo stesso stato, passano tutti e due il limite di «uno al
+       * giorno» e scrivono tutti e due. Nessuno stato mezzo scritto (l'`update` è uno solo), ma il
+       * limite si aggira e l'ultimo vince: un piano graduale appena aperto può sparire, o tornare.
+       *
+       * `updateMany` con la condizione su `fastingChangedAt` fa fallire il secondo, che riceve una
+       * frase che dice cosa fare invece di sovrascrivere in silenzio.
+       */
+      const scritte = (await tx.clientProfile.updateMany({
+        where: { userId, fastingChangedAt: profilo.fastingChangedAt ?? null } as never,
+        data: {
+          fastingProtocol: esito.scrivi.protocollo,
+          fastingStartMin: esito.scrivi.inizioMin,
+          fastingTargetStartMin: esito.scrivi.bersaglioInizioMin,
+          // ⛔ Il protocollo rimandato a domani: lo applica lo stesso cron del piano graduale.
+          fastingTargetProtocol: esito.scrivi.bersaglioProtocollo,
+          fastingWindow: finestraNuova,
+          fastingChangedAt: adesso,
+          // ⚠️ Da qui in poi la pagina non le si riapre più: la domanda gliel'abbiamo fatta.
+          fastingSceltoIl: profilo.fastingSceltoIl ?? adesso,
+        } as never,
+      })) as unknown as { count: number };
+      if (scritte.count === 0) {
+        throw new BadRequestException(
+          'Hai appena cambiato la tua finestra da un\'altra parte. Riapri la pagina per vedere com\'è adesso.',
+        );
+      }
+      await tx.auditLog.create({
+        data: {
+          action: primaVolta ? 'digiuno.prima_scelta' : 'digiuno.finestra_spostata',
+          actorId: userId,
+          entityType: 'client_profile',
+          entityId: userId,
+          metadata: {
+            metodo: esito.metodo,
+            protocollo: esito.scrivi.protocollo,
+            inizioMin: esito.scrivi.inizioMin,
+            bersaglio: esito.scrivi.bersaglioInizioMin,
+            finestraPrima: finestraPrecedente,
+            finestraDopo: finestraNuova,
+            minutiDigiunoStanotte: esito.minutiDigiunoStanotte,
+            // ⚠️ Se il passo configurato era da buttare, resta scritto qui: niente tagli silenziosi.
+            passoUsatoMin: esito.passoUsatoMin,
+            daApp: true,
+          } as never,
+        } as never,
+      });
+    });
+
+    await this.segnalaDigiuno(userId, profilo.name, esito, finestraNuova, primaVolta, finestraPrecedente, adesso);
+
+    /**
+     * ⚠️ Si risponde con **la vista aggiornata**, non con un «ok»: l'app ridisegna l'orologio da
+     * quello che il server ha davvero scritto, invece di fidarsi di quello che aveva chiesto. Col
+     * piano graduale le due cose sono diverse apposta — lei ha chiesto le 08:00, in vigore ci sono
+     * ancora le 12:00 — e un `ok` la lascerebbe a guardare un orologio che nessuno ha impostato.
+     */
+    const aggiornato: ProfiloDigiuno = {
+      ...profilo,
+      fastingProtocol: esito.scrivi.protocollo,
+      fastingStartMin: esito.scrivi.inizioMin,
+      fastingTargetStartMin: esito.scrivi.bersaglioInizioMin,
+      fastingWindow: finestraNuova,
+      fastingChangedAt: adesso,
+      fastingSceltoIl: profilo.fastingSceltoIl ?? adesso,
+    };
+    return {
+      ...vistaOrologio(aggiornato, passo),
+      /** Quello che l'app dice alla cliente subito dopo il tocco: la frase la scrive il modulo. */
+      esito: {
+        metodo: esito.metodo,
+        daQuando: esito.daQuando,
+        spiegazione: esito.spiegazione,
+        minutiDigiunoStanotte: esito.minutiDigiunoStanotte,
+        giorniDelPiano: esito.giorniDelPiano,
+      },
+    };
+  }
+
+  /**
+   * ⛔ **IL PASSO DELLA NOTTE** — quello che fa arrivare davvero i cambi rimandati e i piani graduali.
+   *
+   * Due cose, in un giro solo, perché sono la stessa cosa: **«questo vale dalla prossima apertura»**.
+   *
+   *  - il **protocollo rimandato** (`fastingTargetProtocol`): la cliente l'ha cambiato a finestra già
+   *    aperta, quindi oggi non si è toccato niente. Stanotte entra in vigore, e il campo si azzera;
+   *  - il **piano graduale** (`fastingTargetStartMin`): l'orario si avvicina di un passo per notte
+   *    finché ci arriva, e allora il bersaglio si azzera.
+   *
+   * ⚠️ **Va prima del motore**, nel cron: `engine.runBatch()` e la composizione dei menu leggono
+   * `fastingWindow`, e una finestra aggiornata dopo che l'hanno letta varrebbe da dopodomani invece
+   * che da domani — cioè il rinvio di un giorno diventerebbe di due, in silenzio.
+   *
+   * ⚠️ Non lancia mai per una cliente sola: un profilo storto non deve fermare il giro di tutte le
+   * altre. Quello che salta si conta e si dice — *niente tagli silenziosi*.
+   */
+  async passoNotturnoDigiuno(): Promise<{ guardati: number; protocolliApplicati: number; passiFatti: number; arrivate: number; falliti: number }> {
+    const passo = await this.passoGraduale();
+    const profili = (await this.prisma.clientProfile.findMany({
+      where: {
+        pathType: 'intermittent_fasting',
+        OR: [{ fastingTargetStartMin: { not: null } }, { fastingTargetProtocol: { not: null } }],
+      } as never,
+      select: { ...ProfileService.CAMPI_DIGIUNO, userId: true } as never,
+    })) as unknown as (ProfiloDigiuno & { userId: string })[];
+
+    let protocolliApplicati = 0;
+    let passiFatti = 0;
+    let arrivate = 0;
+    let falliti = 0;
+
+    for (const p of profili) {
+      try {
+        // ⚠️ Il protocollo rimandato entra in vigore PRIMA del passo sull'orario: la finestra si
+        // deriva da tutti e due, e applicarli in ordine inverso darebbe una notte di pasti sbagliati.
+        const protocollo = p.fastingTargetProtocol ?? p.fastingProtocol ?? '';
+        const applicaProtocollo = Boolean(p.fastingTargetProtocol);
+        const inizioOra = p.fastingStartMin ?? null;
+        if (!protocolloDigiuno(protocollo) || inizioOra === null) {
+          // Profilo senza orologio: non c'è niente da avvicinare. Si azzera il bersaglio, o resta
+          // lì per sempre a far ricomparire questa cliente ogni notte.
+          await this.prisma.clientProfile.update({
+            where: { userId: p.userId },
+            data: { fastingTargetStartMin: null, fastingTargetProtocol: null } as never,
+          });
+          continue;
+        }
+
+        const passoStanotte = passoDiStanotte(inizioOra, p.fastingTargetStartMin, passo);
+        const inizioNuovo = passoStanotte ? passoStanotte.inizioMin : inizioOra;
+        const arrivata = !passoStanotte || passoStanotte.arrivata;
+        if (!passoStanotte && !applicaProtocollo) {
+          // Bersaglio già raggiunto e nessun protocollo da applicare: si pulisce e basta.
+          await this.prisma.clientProfile.update({
+            where: { userId: p.userId },
+            data: { fastingTargetStartMin: null, fastingTargetProtocol: null } as never,
+          });
+          continue;
+        }
+
+        const derivata = derivaDaOrologio(inizioNuovo, protocollo);
+        if (!derivata?.fastingWindow) {
+          falliti += 1;
+          continue;
+        }
+
+        await this.prisma.$transaction(async (tx: PrismaTx) => {
+          await tx.clientProfile.update({
+            where: { userId: p.userId },
+            data: {
+              fastingProtocol: protocollo,
+              fastingStartMin: inizioNuovo,
+              fastingWindow: derivata.fastingWindow,
+              fastingTargetProtocol: null,
+              // ⚠️ Il bersaglio si azzera SOLO quando ci si è arrivati: se resta, domani notte si
+              // fa un altro passo. È il piano che si esegue da sé.
+              fastingTargetStartMin: arrivata ? null : p.fastingTargetStartMin,
+            } as never,
+          });
+          await tx.auditLog.create({
+            data: {
+              action: 'digiuno.passo_notturno',
+              actorId: null,
+              entityType: 'client_profile',
+              entityId: p.userId,
+              metadata: {
+                protocollo,
+                protocolloApplicatoOra: applicaProtocollo,
+                da: inizioOra,
+                a: inizioNuovo,
+                bersaglio: p.fastingTargetStartMin,
+                arrivata,
+                finestra: derivata.fastingWindow,
+              } as never,
+            } as never,
+          });
+        });
+
+        if (applicaProtocollo) protocolliApplicati += 1;
+        if (passoStanotte) passiFatti += 1;
+        if (arrivata) arrivate += 1;
+      } catch (e) {
+        falliti += 1;
+        console.error(`[digiuno] passo notturno fallito per ${p.userId}:`, e);
+      }
+    }
+    return { guardati: profili.length, protocolliApplicati, passiFatti, arrivate, falliti };
+  }
+
+  /**
+   * Le due attività per la nutrizionista. ⚠️ **Non lancia mai**: la scelta della cliente è già
+   * salvata, e un avviso che non parte non deve trasformarsi in un errore a schermo per chi ha
+   * appena deciso una cosa sua.
+   */
+  private async segnalaDigiuno(
+    userId: string,
+    nome: string | null,
+    esito: EsitoCambio,
+    finestraNuova: string,
+    primaVolta: boolean,
+    finestraPrecedente: string | null,
+    adesso: Date,
+  ): Promise<void> {
+    try {
+      if (esito.daVerificare.length) {
+        const t = testoDigiunoEstremo(
+          nome,
+          esito.daVerificare,
+          `un digiuno ${esito.scrivi.protocollo} dalle ${oraDelGiorno(esito.scrivi.inizioMin)}`,
+        );
+        await apriAttivitaCoach(this.prisma, this.push, {
+          clientId: userId,
+          kind: TIPO_DIGIUNO_ESTREMO,
+          refId: riferimentoDigiunoEstremo(esito.scrivi.protocollo, finestraNuova),
+          title: t.title,
+          description: t.description,
+          dueDate: scadenzaVerifica(adesso),
+        });
+      }
+      /**
+       * ⛔ La finestra che l'orologio non sapeva riprodurre (§15): si segnala **quando cambia
+       * davvero**, non perché era in elenco. Se per caso la scelta nuova coincide con quella di
+       * prima, non è successo niente e non c'è niente da dire.
+       */
+      const eraTraducibile = Boolean(finestraPrecedente) && Boolean(PROPOSTE_DA_FINESTRA_STORICA[finestraPrecedente as string]);
+      // ⛔ **Solo alla PRIMA scelta** (corretto in revisione, 21/8). Il testo che parte dice «la
+      // pagina le si è aperta vuota e ha scelto…», e quello succede una volta sola. A una cliente a
+      // cui la coach aveva scritto «salta la cena» dalla scheda, e che poi sposta la lancetta, si
+      // sarebbe raccontata una schermata che non ha mai visto: ha solo mosso un orologio.
+      if (primaVolta && finestraPrecedente && !eraTraducibile && finestraPrecedente !== finestraNuova) {
+        const t = testoFinestraNonTraducibile(
+          nome,
+          motivoPerLaNutrizionista(
+            finestraPrecedente,
+            `${esito.scrivi.protocollo} dalle ${oraDelGiorno(esito.scrivi.inizioMin)}`,
+          ),
+        );
+        await apriAttivitaCoach(this.prisma, this.push, {
+          clientId: userId,
+          kind: TIPO_FINESTRA_NON_TRADUCIBILE,
+          refId: riferimentoNonTraducibile(finestraPrecedente),
+          title: t.title,
+          description: t.description,
+          dueDate: scadenzaVerifica(adesso),
+        });
+      }
+    } catch (e) {
+      console.error('[digiuno] la segnalazione alla nutrizionista non è partita:', e);
+    }
+  }
+
 }

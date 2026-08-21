@@ -1,0 +1,115 @@
+Parte: l'orologio del digiuno diventa una porta — l'endpoint, il passo notturno, la verifica — 21/8
+
+================================================================================
+COSA FA
+================================================================================
+
+`GET /me/digiuno` — com'è messa adesso e se le va aperta la pagina. **Una chiamata sola** per le tre
+domande dell'app (aprire la pagina, disegnare l'orologio, il piano in corso): tre chiamate separate
+potrebbero rispondere su tre istanti diversi, e il piano graduale cambia ogni notte.
+
+`PATCH /me/digiuno` — la cliente sposta la sua finestra, o la sceglie per la prima volta. Risponde
+con **la vista aggiornata**, non con un «ok»: col piano graduale quello che ha chiesto e quello che
+è in vigore sono diversi apposta.
+
+Più: il **passo notturno** nel cron (`digiunoPassoNotturno`) e le **due attività** per la
+nutrizionista (scelta estrema · finestra di prima non riproducibile).
+
+⛔ **La prima scelta non è un cambio**, e ha un ramo suo: niente direzione da misurare, niente
+digiuno in corso da allungare, e soprattutto **nessun limite di uno al giorno** — sarebbe assurdo
+fermarla proprio mentre risponde a una domanda che non le era mai stata fatta. E non le si racconta
+un digiuno di stanotte che non si sa calcolare: `null`, non un numero plausibile.
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (otto cose, due gravi)
+================================================================================
+
+⛔ **«VALE DA DOMANI» NON LO FACEVA RISPETTARE NESSUNA RIGA.** Alle 14:00, dopo che ha già pranzato,
+il sistema le diceva «da domani apri alle 16:00» e **intanto scriveva le 16:00**: l'orologio in home
+le disegnava la giornata di oggi col primo pasto alle 16:15. Col protocollo era peggio — passando al
+23:1 si scriveva subito `skip_all_but_dinner`, e da lì il motore avrebbe preso il catalogo a un
+pasto solo. La promessa «un pasto già fatto non si disfa» viveva in una stringa.
+
+→ Adesso l'esito **separa le due cose**: quello che entra in vigore adesso e quello che ci entra
+domani, che va nei campi **bersaglio** (`fasting_target_start_min`, `fasting_target_protocol` — le
+colonne che esistevano già ed erano dichiarate «ancora nessuno le scrive»). Le applica lo **stesso
+cron** del piano graduale: un meccanismo solo per due cose che sono la stessa cosa — *questo vale
+dalla prossima apertura*.
+
+⛔ **UN TOCCO A VUOTO LA BLOCCAVA PER VENTI ORE.** `PATCH {}` è valido — i due campi sono facoltativi
+apposta — e lo mandano il doppio tocco e il retry dell'app. Si scriveva comunque «finestra spostata
+adesso», e lo spostamento **vero** dieci minuti dopo si prendeva «puoi rifarlo fra 20 ore». Il
+limite si accendeva su un cambio che non c'era stato, e l'audit registrava uno spostamento mai
+avvenuto. → il ramo «non cambia niente» non scrive più niente.
+
+⚠️ **«Stanotte il digiuno dura X ore» era falso quando cambiava anche il protocollo.** Il conto
+prendeva sempre la chiusura col protocollo **vecchio**, ma se la finestra di oggi non si è ancora
+aperta il protocollo nuovo vale già per lei — quindi oggi chiude prima. → le due estremità del
+digiuno si prendono dalle regole giuste, ognuna dalla sua, e sta scritto perché.
+
+⚠️ **Alla nutrizionista si raccontava una pagina mai aperta.** Il testo dice «la pagina le si è
+aperta vuota e ha scelto…», ed è vero solo alla **prima** scelta: a una cliente a cui la coach aveva
+scritto «salta la cena» dalla scheda, e che poi sposta la lancetta, si raccontava una schermata che
+non ha mai visto. → la segnalazione parte solo alla prima scelta.
+
+⛔ **E le si dava un'istruzione che il sistema disfa**: «la finestra si corregge dalla scheda». Ma
+`fastingWindow` la deriva l'orologio, e il primo spostamento della cliente riscrive la correzione —
+senza avvisare nessuno. → i testi lo dicono; la contraddizione sotto (due porte per lo stesso dato)
+è una decisione, ed è in elenco lavori.
+
+⚠️ **Due tocchi insieme aggiravano il limite.** Il profilo si legge fuori dalla transazione: due
+richieste ravvicinate leggono lo stesso stato e passano entrambe. → la scrittura è condizionata a
+`fastingChangedAt`, e chi arriva secondo riceve una frase che dice cosa fare invece di sovrascrivere
+in silenzio.
+
+⚠️ **Un test si chiamava «controprova» e non lo era**: derivare la finestra dal bersaglio invece che
+dall'orario in vigore non cambia **nessun valore osservabile**, perché la finestra dipende solo dalla
+durata. Un test che dichiara una rete che non c'è è peggio di un test che manca. → tolto, e al suo
+posto sta scritto — nel codice e qui — che quella scelta è di principio e oggi non è coperta.
+
+⚠️ **E i test dipendevano dall'ora del giorno**: gli stessi test passavano la mattina e fallivano
+dopo pranzo, ed è successo davvero mentre li scrivevo. → l'orologio si ferma (`setSystemTime`), e ci
+sono due casi espliciti: mattina (vale da oggi) e pomeriggio (vale da domani).
+
+================================================================================
+IL FUSO — una funzione nuova in `date-only.ts`
+================================================================================
+
+`oraLocaleInMinuti()`: che ora è **a Roma**, in minuti da mezzanotte. Sta nella porta unica del
+calendario e non nel modulo del digiuno, per la stessa ragione di tutto il resto di quel file: su
+Render `TZ` non è impostata, quindi `getHours()` risponde l'ora UTC — d'estate due ore indietro.
+
+⚠️ Lì quelle due ore non sono un dettaglio: decidono se la finestra si è **già aperta**, e da quella
+risposta dipende se il cambio vale da oggi o da domani. Alle 12:30 di Roma un server a UTC direbbe
+«sono le 10:30, non è ancora aperta» e sposterebbe la finestra oggi a una che ha già pranzato.
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  backend/src/menu/vista-orologio.ts                  quello che l'app vede (+ 21 test)
+  backend/src/coach-tasks/verifica-digiuno.ts         le due attività (+ 14 test)
+  backend/src/profile/dto/imposta-digiuno.dto.ts      due campi, e NON `fastingWindow`
+  backend/src/profile/imposta-digiuno.spec.ts         26 test sulla porta vera
+  backend/src/profile/passo-notturno-digiuno.spec.ts  8 test sul giro della notte
+
+Modificati
+  backend/src/menu/cambio-finestra.ts       oggi/domani separati; `primaScelta`
+  backend/src/profile/profile.service.ts    i tre metodi, la scrittura condizionata
+  backend/src/profile/profile.controller.ts  le due rotte
+  backend/src/profile/profile.module.ts     PushModule
+  backend/src/cron/cron.controller.ts       il passo notturno, PRIMA del motore
+  backend/src/common/date-only.ts           `oraLocaleInMinuti`
+  backend/src/lavori/voci-iniziali.ts       tre voci nuove (due decisioni + i solfiti)
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  suite intera   4374 su 4374, 287 suite (erano 4299 su `origin/main`)
+  mutazioni      ventidue su ventidue mordono, comprese le tre che PRIMA sopravvivevano
+  npm run build  verde su backend, app e backoffice
+
+⛔ Cosa NON c'è ancora: le sei push, l'orologio in React, il widget in home, la scheda staff. E la
+terza condizione della verifica (`restaCorta`), che è in elenco lavori con scritto **che manca**.
