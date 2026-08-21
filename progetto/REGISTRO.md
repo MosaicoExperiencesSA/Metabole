@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🔓 **La segnalazione diceva cosa non andava IERI, e sembrava dire cosa non va oggi.**
+  Dopo il deploy della correzione del pool, `diag:cliente` su Sonia mostrava ancora «Piano bloccato»
+  con gli stessi due piatti. La lettura naturale è «non ha funzionato» — ⛔ e sarebbe stata
+  sbagliata: `ensureDietBlockedEscalation` cominciava con `if (already) return`, quindi una riga già
+  aperta **non veniva mai aggiornata**, e sarebbe rimasta identica anche a motore riparato. E
+  nessuno la chiudeva quando la causa spariva: l'unica chiusura automatica sta in `personal-base`,
+  che è un'altra strada. ✅ Ora, se i motivi cambiano, il **motivo si riscrive** (nessun doppione: è
+  la stessa scelta di `sbloccaPiano`, torna il motivo nuovo); e se l'erogazione produce dei giorni,
+  le segnalazioni «Piano bloccato» **di origine menu** si chiudono da sé con `resolvedAt`.
+  ⚠️ **Solo quelle di origine menu**: il motivo comincia con una costante condivisa
+  (`MOTIVO_BLOCCO_MENU`) che i tre punti usano per riconoscere la stessa riga — chi la apre, chi la
+  aggiorna, chi la chiude. Quelle della base personalizzata sono un'altra causa e le chiude un'altra
+  funzione: spegnerle da qui vorrebbe dire spegnere un allarme non verificato. ⚠️ Le due scritture
+  stanno in `try/catch` e non in `.catch()`: se il client non ha il metodo la chiamata esplode
+  *prima* che esista una promessa. Degradano, ma con un `warn` — altrimenti la cliente riceve il
+  menu e la nutrizionista vede un blocco che non esiste più.
+  ✅ **La conferma è di Simone, non mia**: «ho fatto rigenera menu ed è andato». Il motore compone,
+  la riga era vecchia.
+
+- `[Sviluppo]` ▶️ **`npm run prova:erogazione -- <email>` — lo strumento che mancava.**
+  Non c'era modo di **chiedere al motore** se compone: c'era solo la fotografia di una segnalazione,
+  che come sopra poteva essere di ieri. Lo script chiama `deliverIfEligible`, cioè esattamente la
+  funzione che parte quando la cliente apre l'app o manda le misure. ⚠️ **Eroga per davvero** — e lo
+  dice in testa — ma non forza niente: se il piano non è partito, se manca la pesata del ciclo, se
+  il piano è fermo o in pausa, non succede nulla e viene detto **quale** cancello è. L'uscita
+  distingue i tre casi che prima si confondevano: giorni erogati (e se il blocco è rientrato) ·
+  nessun giorno con un blocco, col motivo e se è stato **aggiornato adesso** · nessun giorno senza
+  blocco, cioè fermo a un cancello, e rimanda a `diag:cliente`. ⚠️ Le dipendenze si costruiscono a
+  mano (sei servizi, costruttori semplici) invece di far partire il modulo Nest:
+  `createApplicationContext` in produzione accenderebbe anche i cron.
+
 - `[Sviluppo]` 🥄 **«Sonia non riceve i menu»: il motore le metteva il polpo nel piatto, poi si
   fermava da solo.** Sei allergie dichiarate (crostacei, pesce, solfiti, lupini, molluschi, soia) e
   **zero giornate erogate**. `diag:cliente` in produzione: segnalazione «Piano bloccato» aperta oggi,

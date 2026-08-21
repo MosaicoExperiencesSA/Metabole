@@ -2,7 +2,7 @@ import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { MenuService } from './menu.service';
+import { MOTIVO_BLOCCO_MENU, MenuService } from './menu.service';
 import { giornoLocale } from '../common/date-only';
 
 // Il "menu a necessità" non è oggetto di questi test: il fabbisogno non è calcolabile
@@ -72,7 +72,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       // Gate misure: misura del ciclo presente → non blocca l'erogazione.
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm1' }), count: jest.fn().mockResolvedValue(1) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       diet: {
         findFirst: jest.fn().mockResolvedValue({ id: 'diet1', name: 'Mediterranea', regime: 'omnivore', mealsPerDay: 5 }),
         // Le gemelle della stessa famiglia: servono al ripiego di §15.4 (giornate incomplete).
@@ -131,6 +131,29 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const created = await service.deliverIfEligible('u1');
     expect(created).toEqual([todayIso, daysFromToday(1)]);
     expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * ⚠️ SE LA GIORNATA ESCE, IL BLOCCO RIENTRA — 21/8.
+   *
+   * `ensureDietBlockedEscalation` apriva e non chiudeva nessuno: la riga «Piano bloccato» nata dal
+   * menu restava aperta anche dopo che il motore aveva ricominciato a comporre, e nell'elenco della
+   * nutrizionista si accumulavano blocchi già passati.
+   */
+  it('quando i giorni escono, la segnalazione «Piano bloccato» del MENU si chiude da sé', async () => {
+    await service.deliverIfEligible('u1');
+    expect(prisma.escalation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: 'u1',
+          // ⚠️ `startsWith` sul motivo di origine MENU: quella della base personalizzata è un'altra
+          // causa, la chiude un'altra funzione, e spegnerla da qui sarebbe spegnere un allarme
+          // che non abbiamo verificato.
+          reason: { startsWith: MOTIVO_BLOCCO_MENU },
+        }),
+        data: expect.objectContaining({ status: 'resolved' }),
+      }),
+    );
   });
 
   /**
@@ -674,7 +697,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -765,7 +788,7 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -846,7 +869,7 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
        * sta verificando.
        */
       recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l1', stars: 4 }, { recipeId: 'l2', stars: 2 }]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -921,7 +944,7 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
       // r1 con efficacia appresa alta → vince lo scoring in entrambi i giorni (base r1,r1).
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', score: 5, samples: 5 }]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -1009,7 +1032,7 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     // Global: penalità 0 (spenta) e finestra 14. L'override deve avere la precedenza.
@@ -1075,7 +1098,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'c1', score: 5, samples: 5 }]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -1161,7 +1184,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       },
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'c1', score: 5, samples: 5 }]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -1267,7 +1290,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
       },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
@@ -1654,7 +1677,7 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
       recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
-      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
       analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
     };

@@ -30,6 +30,16 @@ import { SOLO_STELLE_DATE } from './stelle-che-contano';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
+/**
+ * L'inizio del motivo delle segnalazioni «Piano bloccato» che nascono **dalla composizione del
+ * menu**. È una costante e non una stringa scritta due volte perché tre punti la usano per
+ * riconoscere la stessa riga: chi la apre, chi ne aggiorna il motivo e chi la chiude quando il
+ * blocco rientra. Quelle della **base personalizzata** cominciano diversamente, ed è voluto: sono
+ * un'altra causa e le chiude un'altra funzione.
+ */
+export const MOTIVO_BLOCCO_MENU =
+  'Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente';
+
 import { expandExclusion, hitsExclusion } from './exclusions';
 import {
   EsclusioniCliente,
@@ -1066,6 +1076,45 @@ export class MenuService {
         clientId,
         subscriptionId: (activeSubscription as { id?: string }).id ?? null,
       }).catch(() => undefined);
+    }
+
+    /**
+     * ⚠️ **SE LA GIORNATA È USCITA, IL BLOCCO NON C'È PIÙ: e va detto** (21/8).
+     *
+     * `ensureDietBlockedEscalation` apre, e fin qui non chiudeva **nessuno**: la riga «Piano
+     * bloccato» nata dal menu restava aperta per sempre, anche dopo che il motore aveva ricominciato
+     * a comporre. Nell'elenco della nutrizionista si accumulavano blocchi già passati, e il modo per
+     * sapere se uno era ancora vero era… nessuno.
+     *
+     * ⚠️ Si chiude **solo** quella di origine menu (`MOTIVO_BLOCCO_MENU`), non quella della base
+     * personalizzata: sono due cause diverse e la seconda la chiude `personal-base` quando la sua
+     * condizione è risolta. Chiuderle tutte e due da qui vorrebbe dire spegnere un allarme che non
+     * abbiamo verificato.
+     */
+    if (created.length > 0) {
+      try {
+        const chiuse = (await this.prisma.escalation.updateMany({
+          where: {
+            clientId,
+            source: 'engine' as never,
+            status: { in: ['open', 'in_progress'] as never },
+            reason: { startsWith: MOTIVO_BLOCCO_MENU },
+          },
+          // `resolvedAt`: una chiusura automatica è una chiusura, quindi vale la stessa tregua.
+          data: { status: 'resolved' as never, resolvedAt: new Date() } as never,
+        })) as { count: number } | undefined;
+        if (chiuse?.count) {
+          this.logger.log(
+            `Blocco piano rientrato per ${clientId}: ${chiuse.count} segnalazione/i chiusa/e, la giornata si compone.`,
+          );
+        }
+      } catch (e: unknown) {
+        // Degrada, ma non in silenzio: se questa riga non si chiude, la cliente riceve il menu e
+        // nell'elenco della nutrizionista resta un blocco che non esiste più.
+        this.logger.warn(
+          `Blocco piano: chiusura automatica fallita per ${clientId}: ${e instanceof Error ? e.message : e}`,
+        );
+      }
     }
     return created;
   }
@@ -2581,18 +2630,44 @@ export class MenuService {
 
   /** Apre (una sola volta) un'escalation "piano bloccato" al nutrizionista. */
   private async ensureDietBlockedEscalation(clientId: string, reasons: string[]): Promise<void> {
-    const already = await this.prisma.escalation.findFirst({
+    const motivo = `${MOTIVO_BLOCCO_MENU} (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`;
+    const already = (await this.prisma.escalation.findFirst({
       where: { clientId, source: 'engine' as never, status: { in: ['open', 'in_progress'] as never }, reason: { contains: 'Piano bloccato' } },
-      select: { id: true },
-    });
-    if (already) return;
+      select: { id: true, reason: true },
+    })) as { id: string; reason: string } | null;
+    /**
+     * ⚠️ **UNA RIGA GIÀ APERTA SI AGGIORNA, non si lascia fossilizzata** (21/8).
+     *
+     * Fin qui c'era `if (already) return`, e la conseguenza si è vista lo stesso giorno: la
+     * segnalazione di Sonia continuava a elencare i piatti della **prima** composizione fallita, e
+     * avrebbe continuato a elencarli identici anche se il motore avesse ricominciato a comporre.
+     * Cioè la riga che dovrebbe dire *cosa non va adesso* diceva *cosa non andava allora*, e non
+     * c'era modo di distinguere le due cose guardandola.
+     *
+     * È la stessa scelta già fatta in `sbloccaPiano`: quando il blocco resta, torna il motivo
+     * **nuovo**, non quello vecchio.
+     */
+    if (already) {
+      if (already.reason !== motivo) {
+        // ⚠️ `try/catch` e non `.catch()`: se il client non ha `update` (i finti dei test) la
+        // chiamata esplode PRIMA che esista una promessa, e un `.catch` non la vedrebbe.
+        try {
+          await this.prisma.escalation.update({ where: { id: already.id }, data: { reason: motivo } });
+        } catch (e: unknown) {
+          this.logger.warn(
+            `Blocco piano: motivo non aggiornato per ${clientId}: ${e instanceof Error ? e.message : e}`,
+          );
+        }
+      }
+      return;
+    }
     // `apriSegnalazione` invece della `create` diretta: assegna, avvisa, e se non c'è nessuna
     // nutrizionista sulla cliente la manda al capo nutrizionista invece di lasciarla lì.
     await apriSegnalazione(this.prisma as never, {
       clientId,
       category: 'diet_blocked',
       source: 'engine',
-      reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
+      reason: motivo,
       // ⚠️ Questa riga non è un avviso, è lo STATO che l'app mostra alla cliente: dentro la tregua
       // si riapre invece di tacere. Vedi `statoNonAvviso` in `apri-segnalazione.ts`.
       statoNonAvviso: true,

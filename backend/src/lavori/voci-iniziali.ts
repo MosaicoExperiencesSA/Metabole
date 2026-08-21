@@ -1842,4 +1842,15 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  {
+    chiave: 'blocco-che-rientra-e-motivo-aggiornato',
+    titolo: 'Una segnalazione aperta diceva cosa non andava IERI — corretto, e c\'è lo strumento per chiederlo al motore',
+    dettaglio:
+      'Dopo il deploy della correzione del pool, `diag:cliente` su Sonia mostrava ancora «Piano bloccato» con gli stessi due piatti. La lettura naturale è «non ha funzionato». ⛔ **E sarebbe stata sbagliata:** `ensureDietBlockedEscalation` cominciava con `if (already) return`, quindi una riga già aperta **non veniva mai aggiornata** — sarebbe rimasta identica anche a motore riparato — e nessuno la chiudeva quando la causa spariva (l\'unica chiusura automatica sta in `personal-base`, che è un\'altra strada).\n\n✅ **Due correzioni.** Se i motivi cambiano, il **motivo si riscrive** sulla riga che c\'è, senza doppioni: è la stessa scelta di `sbloccaPiano`, torna il motivo nuovo. E se l\'erogazione produce dei giorni, le segnalazioni «Piano bloccato» **di origine menu** si chiudono da sé con `resolvedAt`. ⚠️ Solo quelle di origine menu: il motivo comincia con una costante condivisa (`MOTIVO_BLOCCO_MENU`) usata dai tre punti che devono riconoscere la stessa riga — chi la apre, chi la aggiorna, chi la chiude. Quelle della base personalizzata sono un\'altra causa, e spegnerle da qui vorrebbe dire spegnere un allarme non verificato.\n\n✅ **E lo strumento che mancava: `npm run prova:erogazione -- <email>`.** Non c\'era modo di chiedere al motore **se compone**: c\'era solo la fotografia di una segnalazione, che poteva essere di ieri. Chiama `deliverIfEligible`, cioè la funzione che parte quando la cliente apre l\'app. ⚠️ **Eroga per davvero**, e lo dice in testa, ma non forza niente: se un cancello è chiuso non succede nulla e viene detto quale. Distingue i tre casi che prima si confondevano: giorni erogati · nessun giorno con un blocco (col motivo, e se è stato aggiornato adesso) · nessun giorno senza blocco, cioè fermo a un cancello.\n\n✅ **Confermato da Simone in produzione**: «ho fatto rigenera menu ed è andato». Il motore compone, la riga era vecchia.',
+    categoria: CODICE,
+    ordine: 633,
+    nata: '2026-08-21T10:20',
+    fatta: true,
+  },
+
 ];
