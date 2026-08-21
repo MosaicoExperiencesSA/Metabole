@@ -50,7 +50,21 @@ export const CAMPO_LABEL: Record<string, string> = {
   allergies: 'Allergie', allergiesOther: 'Allergie da codificare',
   intolerancesOther: 'Intolleranze scritte a mano',
   allergieDichiarateIl: 'Allergie dichiarate il',
-  dislikedFoods: 'Cibi non graditi', fastingWindow: 'Pasti che salta',
+  dislikedFoods: 'Cibi non graditi',
+  /**
+   * ⛔ **LE SETTE COLONNE DELL'OROLOGIO** (21/8). `fastingWindow` c'era già; le altre sei no, e si
+   * vedevano: uscendo dal digiuno si azzerano **tutte e sette insieme**, e la coach leggeva sei
+   * righe come `fastingSceltoIl: 2026-08-21T09:12:33.000Z → — vuoto —`. Un log pieno di nomi di
+   * colonne è un log che si smette di leggere, proprio nel momento in cui spiega perché una cliente
+   * si è ritrovata senza fasce.
+   *
+   * ⚠️ `fastingWindow` si chiama ancora «Pasti che salta» perché è quello che **è**: il dato che il
+   * motore usa per saltarli. Che non si scelga più non cambia cosa fa.
+   */
+  fastingWindow: 'Pasti che salta',
+  fastingProtocol: 'Digiuno: protocollo', fastingStartMin: 'Digiuno: apertura (minuti)',
+  fastingTargetStartMin: 'Digiuno: apertura di arrivo', fastingTargetProtocol: 'Digiuno: protocollo di arrivo',
+  fastingSceltoIl: 'Digiuno: finestra scelta il', fastingChangedAt: 'Digiuno: ultimo spostamento',
   activityLevel: 'Livello di attività', themeColor: 'Colore tema',
   planStartDate: 'Data inizio piano', startDate: 'Inizio', endDate: 'Fine',
   status: 'Stato', locale: 'Lingua', weightKg: 'Peso', waistCm: 'Vita', hipsCm: 'Fianchi',
@@ -150,6 +164,21 @@ export function noteModifica(metadata: Record<string, unknown> | null | undefine
   if (nuovaEmail) out.push(`Nuova email: ${nuovaEmail}`);
   const nota = testo(m.nota);
   if (nota) out.push(`Nota: ${nota}`);
+  /**
+   * ⛔ **LA FRASE CHE LA CLIENTE HA LETTO** (21/8, orologio del digiuno).
+   *
+   * Gli audit del digiuno non hanno né `campi` né `before`/`after`: portano numeri (`inizioMin: 960`,
+   * `protocollo: '16:8'`) e **una frase in chiaro** — la stessa riga che la cliente ha letto sullo
+   * schermo prima di confermare lo spostamento. Senza questa riga il log mostrava «dettaglio dei
+   * campi non registrato per questa modifica» su una modifica che è registrata benissimo: cioè
+   * proprio la bugia che quel messaggio serve a evitare.
+   *
+   * ⚠️ **Senza prefisso**, a differenza di «Motivo:» e «Nota:». Non è un'annotazione su cosa è
+   * successo: *è* cosa è successo, in italiano. «Descrizione: hai spostato…» leggerebbe come un
+   * campo di database messo in mezzo a una frase che sta già in piedi da sola.
+   */
+  const descrizione = testo(m.descrizione);
+  if (descrizione) out.push(descrizione);
   if (m.origine === 'app') out.push('Fatta dall\'app');
   return out;
 }

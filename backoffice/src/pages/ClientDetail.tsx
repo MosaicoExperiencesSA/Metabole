@@ -32,6 +32,26 @@ interface Detail {
   dietaMenuInCorso: string | null;
   menuAncoraSullaDietaPrecedente: boolean;
   /**
+   * ⛔ **LE FASCE DEL DIGIUNO** (21/8). È `vistaOrologio(...).attuale` del backend: la stessa
+   * funzione che risponde all'app su `/me/digiuno`, non un secondo calcolo lato staff.
+   *
+   * ⚠️ `null` in tre casi diversi che qui si leggono uguali ma **si scrivono diversi** nella
+   * schermata: non digiuna, digiuna ma non ha ancora toccato l'orologio, non ha profilo.
+   * ⚠️ `chiusura` non è un campo in banca dati: la calcola il backend dalla durata. Non ricalcolarla
+   * qui — una durata scritta in due posti prima o poi diverge.
+   */
+  digiuno: {
+    protocollo: string;
+    inizioMin: number;
+    apertura: string;
+    chiusuraMin: number;
+    chiusura: string;
+    oreFinestra: number;
+    oreDigiuno: number;
+    fastingWindow?: string;
+    pasti: { slot: string; oraMin: number; ora: string; etichetta: string }[];
+  } | null;
+  /**
    * Quando la variante esatta del profilo non esiste a catalogo e il motore ripiega: cosa è stato
    * chiesto, cosa viene servito, e la frase da mostrare. Null quando le due coincidono.
    */
@@ -106,6 +126,27 @@ const CHANGE_ACTION_LABEL: Record<string, string> = {
   'auth.email_primary_swapped': 'Email principale cambiata',
   'auth.email_secondary_removed': 'Email secondaria rimossa',
   'client.password_reset.trigger': 'Invio reset password',
+  /**
+   * ⚠️ Le due righe del digiuno scritte dallo **staff**, che senza etichetta comparivano col nome
+   * tecnico dell'azione — su un dato che decide quali pasti la cliente riceve.
+   * ⛔ `client.fasting_window.change` non nasce più (dal 21/8 la scheda non scrive la finestra), ma
+   * le righe scritte prima sono la storia e vanno lette. `azzerata` invece nasce eccome: è quello
+   * che succede quando una cliente esce dal digiuno, e porta via **tutto** l'orologio.
+   */
+  'client.fasting_window.change': 'Digiuno: pasti cambiati dalla scheda (fino al 21/8)',
+  'client.fasting_window.azzerata': 'Digiuno: orologio azzerato (uscita dal percorso)',
+  /**
+   * ⛔ **L'orologio del digiuno mosso dalla cliente** (Simone, 21/8: «storicizziamo nel log quando il
+   * cliente le cambia»). Il «(dal cliente)» sta scritto **nell'etichetta** e non solo nella riga
+   * grigia sotto: chi scorre il log cerca con gli occhi la colonna in grassetto, e queste due sono
+   * le uniche voci che nessuno dello staff può aver fatto.
+   *
+   * ⚠️ `digiuno.passo_notturno` non arriva qui: il backend non lo manda (`CHANGE_ACTIONS` in
+   * `clients.service`), perché è il cron che esegue ogni notte un piano che lei ha già confermato —
+   * dodici righe automatiche sotto cui affogherebbero le sue due decisioni vere.
+   */
+  'digiuno.prima_scelta': 'Digiuno: prima scelta della finestra (dal cliente)',
+  'digiuno.finestra_spostata': 'Digiuno: finestra spostata (dal cliente)',
 };
 
 const COMM_ROLE: Record<string, string> = {
@@ -231,7 +272,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 const fldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' };
 
 /** Form di modifica della scheda (anagrafica + questionario). */
-function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockFasting?: boolean; lockAllergie?: boolean }) {
+function EditCard({ form, setForm, lockDietType, lockAllergie }: { form: Record<string, string>; setForm: (u: (p: Record<string, string>) => Record<string, string>) => void; lockDietType?: boolean; lockAllergie?: boolean }) {
   const { regimes, families } = useTaxonomy();
   const up = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
   const T = (k: string, label: string, type = 'text') => (
@@ -269,9 +310,7 @@ function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { 
   );
   // Regime e Stile = TIPO DI DIETA: modificabili solo col permesso "Cambia tipo di dieta".
   const S = (k: string, label: string, opts: [string, string][]) => {
-    // `fastingWindow` ha un permesso SUO («Cambia i pasti del digiuno»): si può dare alla coach
-    // senza darle anche regime e stile, che cambiano il prodotto.
-    const locked = (!!lockDietType && (k === 'regime' || k === 'dietStyle')) || (!!lockFasting && k === 'fastingWindow');
+    const locked = !!lockDietType && (k === 'regime' || k === 'dietStyle');
     return (
       <label style={fldStyle} title={locked ? 'Il tipo di dieta lo cambia chi ha il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).' : undefined}>
         <span>{label}{locked && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}</span>
@@ -336,34 +375,26 @@ function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { 
         </label>
         {S('objective', 'Fase (obiettivo dieta)', [['dimagrimento', 'Dimagrimento'], ['mantenimento', 'Mantenimento']])}
         {S('pathType', 'Pasti / percorso', [['classic3', '3 pasti'], ['five', '5 pasti'], ['intermittent_fasting', 'Digiuno intermittente']])}
-        {/* I pasti del digiuno: si mostra SOLO se il percorso è quello, altrimenti è un campo che
-            non vuol dire niente e invita a compilarlo per sbaglio. Richiesta di Simone del 10/8:
-            lo staff deve poter cambiare quali pasti la cliente salta. */}
-        {/* ⚠️ La tendina propone solo le finestre **scegliibili**; ma se la cliente ne ha un'altra,
-            quella resta come voce in fondo — altrimenti la `select` si presenterebbe vuota, cioè
-            «non impostata» per una cliente che una finestra ce l'ha, e salvare un altro campo
-            qualsiasi gliela cancellerebbe. È la stessa protezione che `dietFamily` ha venti righe
-            più su, e qui il dato è più clinico.
-            ⛔ E il suffisso adesso dice il motivo GIUSTO (revisione del 21/8): prima era fisso
-            «dagli orari, non si sceglie qui» per qualunque valore fuori lista, e a chi ha
-            `skip_lunch` — che è **ritirata**, non derivata — spiegava la sua finestra con un
-            orologio che non l'ha mai decisa. Una ragione falsa è peggio di un ordine sbagliato. */}
-        {form.pathType === 'intermittent_fasting'
-          ? S(
-              'fastingWindow',
-              'Pasti che salta (digiuno)',
-              [
-                ...FASTING_WINDOW_SCEGLIBILI.map((v) => [v, FASTING_WINDOW_LABEL[v]] as [string, string]),
-                ...(form.fastingWindow && !FASTING_WINDOW_SCEGLIBILI.includes(form.fastingWindow as never)
-                  ? ([[
-                      form.fastingWindow,
-                      `${FASTING_WINDOW_LABEL[form.fastingWindow] ?? form.fastingWindow} — ${MOTIVO_FUORI_TENDINA[form.fastingWindow] ?? 'non si sceglie qui'}`,
-                    ]] as [string, string][])
-                  : []),
-              ],
-            )
-          : null}
-        {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
+        {/*
+          ⛔ **QUI C'ERA «PASTI CHE SALTA (DIGIUNO)», ED È SPARITA IL 21/8.**
+
+          Simone: «non ha più senso scegliere i pasti, sono campi che devono proprio sparire». Ha
+          ragione, e la ragione è la Regola d'Oro del manuale: **la durata della finestra dice quanti
+          pasti**. Da quando la cliente trascina il suo orologio, `fastingWindow` non è più una
+          scelta — è il *risultato* di apertura e protocollo, ricalcolato a ogni spostamento.
+
+          ⚠️ Una tendina qui non sarebbe stata «una scelta in più»: sarebbe stata una scelta che dura
+          fino al primo tocco della cliente, e nel frattempo si contraddice con l'orologio che lei
+          vede in home. Due punti che rispondono alla stessa domanda con due risposte diverse.
+
+          ⚠️ **E non basta toglierla di qui**: `fastingWindow` è uscito anche dal DTO e da
+          `PROFILE_FIELDS` di `clients.service` — il ciclo di scrittura è cieco, quindi un campo
+          rimasto in quell'elenco si sarebbe scritto lo stesso da qualunque altro chiamante.
+
+          Le fasce si **leggono** nel questionario qui sotto («Finestra del digiuno»), e ogni loro
+          spostamento è nel log modifiche con la frase che la cliente ha letto.
+        */}
+        {S('coachStyle', 'Stile coach',[['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
         {Allergie()}
         {T('intolerances', 'Intolleranze (virgola)')}{T('dislikedFoods', 'Cibi non graditi (virgola)')}
@@ -1151,7 +1182,6 @@ export function ClientDetail() {
       pathType: pr.pathType ?? '', coachStyle: pr.coachStyle ?? '', character: pr.character ?? '',
       allergies: (pr.allergies ?? []).join(', '),
       intolerances: (pr.intolerances ?? []).join(', '), dislikedFoods: (pr.dislikedFoods ?? []).join(', '),
-      fastingWindow: pr.fastingWindow ?? '',
       themeColor: pr.themeColor ?? '',
     });
     setEditing(true);
@@ -1176,10 +1206,9 @@ export function ClientDetail() {
       // l'elenco è cambiato davvero, quindi non ci sarebbe un 403 — ma mandare un campo che questa
       // schermata non permette di toccare è un modo per mandarlo per sbaglio.
       ...(puoAllergie ? { allergies: list(f.allergies) } : {}),
-      // Si manda SEMPRE (anche vuota): la stringa vuota è «la decide la dieta», e ometterla
-      // renderebbe impossibile togliere una finestra impostata per sbaglio. Il backend la
-      // azzera da sé se il percorso non è più digiuno.
-      fastingWindow: f.fastingWindow ?? '',
+      // ⛔ `fastingWindow` NON si manda più (21/8): la finestra la scrive l'orologio della cliente, e
+      // il DTO adesso la rifiuta. Mandarla vuota — com'era qui — avrebbe cancellato la finestra
+      // derivata a ogni salvataggio di un campo qualsiasi della scheda.
     };
     const age = num(f.age); if (age !== undefined) dto.age = age;
     const h = num(f.heightCm); if (h !== undefined) dto.heightCm = h;
@@ -1498,7 +1527,6 @@ export function ClientDetail() {
             setForm={setForm}
             lockDietType={!can('change_diet_type', 'manage')}
             lockAllergie={!puoAllergie}
-            lockFasting={!can('change_fasting_window', 'manage')}
           />
         )}
 
@@ -1631,20 +1659,57 @@ export function ClientDetail() {
             )}
             <Row label="Fase (obiettivo dieta)" value={lab('objective', p.objective ?? 'dimagrimento')} />
             <Row label="Pasti / percorso" value={lab('pathType', p.pathType)} />
-          {/* Quali pasti salta: prima non compariva da nessuna parte nel backoffice, quindi lo
-              staff non poteva sapere se una cliente in digiuno saltava la colazione o la cena.
-              ⚠️ E la finestra VUOTA non è «li decide la dieta» (18/8, voce 256): è una domanda che
-              non le è mai stata fatta — il questionario la chiede solo da agosto. Detta come prima
-              sembrava una scelta; è un valore di scorta che sta decidendo quali pasti mangia. Sono
-              due stati diversi e vanno letti diversi, come ovunque in questo progetto. La coach se
-              lo trova anche fra le sue attività (`finestra-mai-chiesta.ts`). */}
+          {/*
+            ⛔ **LE FASCE DEL DIGIUNO, IN SOLA LETTURA** (Simone, 21/8: «nella scheda cliente devo
+            leggere le fasce»).
+
+            Qui c'era «Pasti che salta», che diceva il nome della finestra derivata. Non è più la
+            domanda che si fa chi apre questa scheda: da quando la cliente muove il suo orologio, la
+            cosa che serve alla coach è **a che ora mangia** — per sapere se una nausea alle 11 cade
+            in digiuno, o se ha senso proporle una merenda.
+
+            ⚠️ **Non è modificabile qui, e lo dice.** Un riquadro grigio senza quella frase invita a
+            cercare la matita che non c'è; e chi non la trova telefona.
+
+            ⚠️ Il ripiego regge i due casi che non sono «ha scelto»:
+             - **finestra vecchia, orologio mai toccato** — è quello che il motore sta usando davvero
+               per lei, e va letto: *un dato che agisce e non si vede* è il difetto peggiore di
+               questa cartella;
+             - **niente di niente** — non è «li decide la dieta» (18/8, voce 256): è una domanda che
+               non le è mai stata fatta. La coach se lo ritrova anche fra le sue attività
+               (`finestra-mai-chiesta.ts`).
+          */}
           {p.pathType === 'intermittent_fasting' && (
             <Row
-              label="Pasti che salta"
+              label="Finestra del digiuno"
               value={
-                p.fastingWindow
-                  ? FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow
-                  : '⚠️ mai chiesta — intanto riceve tutti i pasti della dieta'
+                d.digiuno ? (
+                  <>
+                    <b>{d.digiuno.apertura} – {d.digiuno.chiusura}</b>
+                    <span className="muted"> · {d.digiuno.protocollo} · {d.digiuno.oreDigiuno}h di digiuno</span>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.55, marginTop: 3 }}>
+                      {d.digiuno.pasti.length}{' '}
+                      {d.digiuno.pasti.length === 1 ? 'pasto' : 'pasti'}:{' '}
+                      {d.digiuno.pasti.map((m) => `${m.etichetta} ${m.ora}`).join(' · ')}
+                    </div>
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                      La sposta la cliente dal suo orologio: da qui non si modifica. Ogni spostamento
+                      è nel log modifiche.
+                    </div>
+                  </>
+                ) : p.fastingWindow ? (
+                  <>
+                    <span>{FASTING_WINDOW_LABEL[p.fastingWindow] ?? p.fastingWindow}</span>
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                      Finestra di prima dell'orologio: non ha ancora impostato i suoi orari, quindi
+                      non ci sono fasce da leggere. Il menu segue questa.
+                    </div>
+                  </>
+                ) : (
+                  <span style={{ color: '#9A5B12' }}>
+                    ⚠️ mai chiesta — intanto riceve tutti i pasti della dieta
+                  </span>
+                )
               }
             />
           )}
@@ -2664,19 +2729,22 @@ interface SostituzioneRow {
 }
 
 /**
- * I pasti che salta chi fa digiuno intermittente. Le stesse tre voci che vede la cliente nel suo
- * profilo: se qui si scrivessero diverse, staff e cliente parlerebbero di due cose con lo stesso
- * nome. Lo spuntino del mattino segue sempre la colazione — è una regola del motore
- * (`menu.service.slotSaltatiPerDigiuno`), non una scelta di questa tendina.
- */
-/**
+ * I pasti che salta chi fa digiuno intermittente — **da leggere, non da scegliere** (21/8).
+ *
+ * ⛔ Fino al 21/8 sotto a questa mappa ce n'erano altre due: `FASTING_WINDOW_SCEGLIBILI` (le quattro
+ * che la tendina proponeva) e `MOTIVO_FUORI_TENDINA` (perché le altre non c'erano). Sono sparite con
+ * la tendina: `fastingWindow` non è più una scelta di nessuno, è quello che l'orologio della cliente
+ * *produce* da apertura e protocollo. Una lista di «scegliibili» in un file dove non si sceglie più
+ * niente è la prossima cosa che qualcuno riattacca a un `<select>` senza sapere perché era lì.
+ *
+ * ⚠️ **Questa invece resta, e resta completa.** Serve alle clienti che l'orologio non l'hanno ancora
+ * toccato: la loro finestra storica *sta decidendo quali pasti mangiano*, e una coach che legge
+ * `skip_all_but_dinner` non sa che quella donna mangia una volta al giorno. Un dato che agisce e non
+ * si vede è il difetto peggiore di questo progetto, e vale anche quando il dato è in uscita.
+ *
  * ⚠️ Copia delle etichette staff di `backend/src/menu/finestre-digiuno.ts` (un frontend non può
  * importare dal backend). **Ci sono TUTTE**: le cinque storiche, le tre derivate dall'orologio e
- * quella ritirata. Questa mappa serve a *leggere* un valore già scritto, e una finestra che la coach
- * vede come `skip_all_but_dinner` è un dato che agisce e non si vede.
- *
- * L'ordine è quello della tabella. Quello che si può **scegliere** è un'altra domanda, e ha la sua
- * lista qui sotto.
+ * quella ritirata. `finestre-nelle-tendine.spec.ts` lo verifica sul sorgente, parola per parola.
  */
 const FASTING_WINDOW_LABEL: Record<string, string> = {
   skip_breakfast: 'Salta la colazione (mangia da pranzo a cena)',
@@ -2687,43 +2755,6 @@ const FASTING_WINDOW_LABEL: Record<string, string> = {
   skip_morning_snack: 'Finestra lunga (colazione, pranzo, merenda, cena)',
   skip_breakfast_and_snacks: 'Finestra stretta (solo pranzo e cena)',
   skip_all_but_dinner: 'Un pasto solo, la sera (OMAD)',
-};
-
-/**
- * Quelle che si possono **scegliere** dalla tendina: quattro. Rispecchia `FINESTRE_SELEZIONABILI`
- * del backend — se le due liste divergono, la tendina offre una cosa e il DTO ne rifiuta un'altra.
- *
- * Fuori restano, per due motivi diversi:
- * - **le tre derivate** (`skip_morning_snack`, `skip_breakfast_and_snacks`, `skip_all_but_dinner`):
- *   le calcola l'orologio dalla durata della finestra. Sceglierle a mano vorrebbe dire scrivere un
- *   dato che il minuto dopo l'orologio ricalcola, e con etichette che rispondono a un'altra domanda.
- * - ⛔ **`skip_lunch`, ritirata il 21/8** (decisione del 19/8): colazione e cena lasciano due pause
- *   corte, non un digiuno. `diag:digiuni` del 21/8: zero clienti in digiuno ce l'hanno.
- *
- * ⚠️ Sopra restano leggibili tutte e otto: una cliente che se la porta dietro deve comparire con
- * una frase, non con un codice — e la tendina tiene il valore già scritto anche se non è in lista.
- */
-const FASTING_WINDOW_SCEGLIBILI = [
-  'skip_breakfast', 'skip_dinner', 'skip_breakfast_lunch', 'skip_dinner_breakfast',
-] as const;
-
-/**
- * ⛔ **PERCHÉ QUELLA FINESTRA NON È IN TENDINA — una riga per motivo, non una frase per tutti.**
- *
- * Fino al 21/8 la voce conservata in fondo alla `select` portava un suffisso fisso: «dagli orari,
- * non si sceglie qui». Vero per le tre che l'orologio calcola. Falso per `skip_lunch`, che è stata
- * **ritirata** — a chi ce l'ha scritta quel suffisso spiegava la sua finestra con un orologio che
- * non l'ha mai decisa, e mandava la coach a cercare un orario da spostare che non esiste.
- *
- * ⚠️ Le chiavi qui sono quelle **fuori** da `FASTING_WINDOW_SCEGLIBILI`: se una finestra esce dalla
- * tendina e non compare qui, il ripiego dice solo «non si sceglie qui» — vero ma muto. Un test in
- * `backend/src/menu/finestre-nelle-tendine.spec.ts` tiene le due liste allineate.
- */
-const MOTIVO_FUORI_TENDINA: Record<string, string> = {
-  skip_morning_snack: 'dagli orari, non si sceglie qui',
-  skip_breakfast_and_snacks: 'dagli orari, non si sceglie qui',
-  skip_all_but_dinner: 'dagli orari, non si sceglie qui',
-  skip_lunch: 'ritirata: non è un digiuno, si può solo cambiarla',
 };
 
 const MOTIVO_LABEL: Record<string, string> = {

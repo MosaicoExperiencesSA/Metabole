@@ -20,6 +20,73 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🗑️ **I pasti del digiuno non si scelgono più da nessuna parte — e nella scheda
+  cliente si leggono le fasce.** Simone, 21/8: *«non ha più senso scegliere i pasti, sono campi che
+  devono proprio sparire, e nella scheda cliente devo leggere le fasce e storicizziamo nel log quando
+  il cliente le cambia»*. È la Regola d'Oro del manuale portata fino in fondo: **la durata della
+  finestra dice quanti pasti**, quindi `fastingWindow` non è più una scelta di nessuno — è quello che
+  l'orologio *produce* da apertura e protocollo.
+  ✅ **Sparite tutte e tre le porte**: la domanda del questionario, la tendina «Pasti che salta» della
+  scheda staff, i pallini nel profilo dell'app (che erano anche **già rotti**: mandavano un campo che
+  il DTO non accetta più). Al loro posto, in scheda cliente, **«Finestra del digiuno» in sola
+  lettura** — apertura, chiusura, protocollo, gli orari dei pasti — dalla stessa funzione che disegna
+  l'orologio nell'app: se cambiano le soglie, la scheda e il telefono cambiano insieme.
+  ✅ **E nel log modifiche** ci sono adesso le due righe della cliente («prima scelta», «finestra
+  spostata») con dentro **la frase che ha letto lei** prima di confermare — non `inizioMin: 960`.
+  ⚠️ Il cron del passo notturno resta fuori dal log: è l'esecuzione di un piano già confermato, e
+  dodici righe automatiche a notte affogherebbero le sue due decisioni vere.
+  ⚠️ **Non bastava togliere il campo dai DTO**: `PROFILE_FIELDS` è il ciclo cieco che scrive sul
+  profilo, e finché il campo era in quell'elenco un chiamante qualsiasi lo scriveva lo stesso. *La
+  guardia sta dove si scrive.*
+  ⛔ **Quello che si è perso, e va detto:** la nutrizionista non può più **prescrivere** una finestra
+  che l'orologio non sa disegnare («salta la cena»). Oggi serve a una cliente vera. Se Lucia la
+  rivuole, la forma è protocollo + orario dalla scheda — non il ritorno della tendina.
+
+- `[Sviluppo]` 🔍 **Due revisioni avversariali, quattordici difetti — e il primo era mio e
+  bloccante.** La scheda staff riceveva `vistaOrologio()` **intera** invece delle sole fasce: un
+  oggetto sempre pieno, quindi sempre `truthy` dentro un campo che il frontend legge come «le fasce
+  oppure niente». Risultato: per **ogni** cliente in digiuno la scheda leggeva `pasti.length` su un
+  `undefined` e portava giù tutto il backoffice a «Qualcosa è andato storto» — e i due ripieghi
+  (finestra storica, mai chiesta) erano codice morto. ⚠️ Nessun compilatore poteva vederlo: la forma
+  è dichiarata a mano nei `.tsx` e prodotta nel backend. ✅ Adesso i due servizi chiamano **una
+  funzione sola** (`fasceDelDigiuno`), e un test si accende se uno dei due ricomincia a comporla per
+  conto suo.
+  ⛔ **L'attività della coach sarebbe nata per ogni cliente nuova.** Tolta la domanda dal
+  questionario, «in digiuno + finestra vuota» è diventato vero per tutte, la notte stessa
+  dell'iscrizione — con dentro l'istruzione di aprire una tendina cancellata. ✅ Adesso guarda
+  `fastingSceltoIl` e lascia **tre giorni di grazia** all'app; ⚠️ e la grazia è ancorata a
+  `onboardingCompletedAt`, non alla nascita del profilo — che è l'assegnazione del lead, mesi prima.
+  ⛔ **Quattro porte toglievano una cliente dal digiuno, e tre erano già divergenti**: lo script
+  azzerava solo la finestra, il profilo della cliente non azzerava niente, la scheda staff aveva
+  l'elenco giusto dietro una guardia che guardava il campo sbagliato. ⚠️ Lo stato peggiore non è
+  «tutto scritto», è **mezzo**: finestra vuota e orologio pieno vuol dire schermo che dice
+  «08:00 – 16:00» e motore che manda tutti i pasti. ✅ Un elenco solo
+  (`menu/uscita-dal-digiuno.ts`), e un test che guarda tutte e quattro le porte.
+  ⛔ **`@IsOptional` non vuol dire «se c'è, validalo»**: salta i controlli anche su `null`. Il
+  cancello nuovo lasciava passare `fastingWindow: null`, che avrebbe svuotato la colonna lasciando
+  protocollo e orario scritti — di nuovo schermo e piatto che dicono due cose diverse.
+  ⛔ **E la correzione stava per essere peggiore del difetto**: `'fastingWindow' in o` è **sempre
+  vero**, perché `plainToInstance` materializza tutte le proprietà dichiarate. Ogni PATCH a quei due
+  endpoint avrebbe preso 400. L'ha trovato il test scritto per il difetto di prima, non io.
+  ⛔ **I due DTO rifiutano il campo, ma con una frase italiana** invece di «property fastingWindow
+  should not exist»: chi lo manda ancora è gente vera — le app non ancora aggiornate, e le schede di
+  backoffice aperte prima del deploy, che senza quella dichiarazione non avrebbero più salvato
+  **niente**, nemmeno un numero di telefono.
+  ⛔ Più: il testo dell'attività diceva «riceve tutti i pasti» anche a chi ha `skip_all_but_dinner` e
+  **mangia una volta al giorno**; l'atterraggio sull'orologio poteva portare via la home **mentre**
+  la cliente dava le stelle o scriveva le sue allergie (adesso i riquadri dicono da soli quando sono
+  a schermo, invece che la home indovinarlo); il profilo dell'app scriveva a mano «Digiuno
+  intermittente **16:8**», falso da quando la durata la sceglie lei; e l'azzeramento dell'orologio
+  non arrivava nel log che la coach legge.
+  ⚠️ **E tre test miei erano aggirabili**: la regex che doveva impedire il ritorno delle tendine
+  riconosceva solo le due righe appena cancellate — `dto.fastingWindow = x`, la scorciatoia
+  `{ fastingWindow }` e `S('fastingWindow', …)` (cioè **il modo in cui la tendina scriveva davvero**)
+  ci passavano davanti. *Un test che riconosce solo il difetto che ha già visto protegge la storia,
+  non il codice.* Adesso sette forme di scrittura mordono e tre letture legittime passano — provato
+  una per una.
+  ✅ **4493 test su 4493** nel backend, 152 su 152 nell'app, build verde su tutti e tre.
+  ⚠️ Il pezzo app serve un OTA; scheda cliente e cancelli sono backend + backoffice.
+
 - `[Sviluppo]` ⏱️ **L'orologio in mano alla cliente: la pagina `/digiuno`, il quadrante che si
   trascina, la scheda in home.** Si sposta **solo l'apertura** — la durata la scelgono i bottoni,
   come vuole la Regola d'Oro del manuale — e la geometria sta in `lib/orologio.ts` con i suoi test,

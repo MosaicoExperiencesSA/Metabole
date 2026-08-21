@@ -431,17 +431,45 @@ describe('OnboardingService', () => {
       expect(audit.log.mock.calls.map((c) => c[0].action)).not.toContain('onboarding.tipo_dieta_ignorato');
     });
 
-    it('la finestra del digiuno guarda il percorso IN VIGORE, non quello riproposto', async () => {
+    /**
+     * ⛔ **RIFARE IL QUESTIONARIO NON DEVE TOCCARE L'OROLOGIO** (21/8). La finestra non si sceglie
+     * più da qui: la imposta la cliente dall'app. Se il reinvio la riscrivesse — anche solo
+     * azzerandola — cancellerebbe quello che lei ha impostato, e non lo saprebbe nessuno.
+     */
+    it('⛔ chi digiuna rifà il questionario e l\'orologio non si tocca', async () => {
       prisma.clientProfile.findUnique.mockResolvedValueOnce({
         onboardingCompletedAt: new Date('2026-07-01'),
         regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea', mealsPerDay: 3,
         // Lo staff l'ha messa a digiuno intermittente.
         pathType: 'intermittent_fasting',
       });
-      // Il reinvio dice «5 pasti»: se si guardasse il DTO, la finestra verrebbe azzerata e la
-      // cliente resterebbe a digiuno senza sapere quali pasti salta.
-      await service.submitAnswers('u1', { ...baseAnswers(), pathType: 'five', fastingWindow: 'skip_breakfast' } as never);
-      expect(ramo('update').fastingWindow).toBe('skip_breakfast');
+      // Il reinvio dice «5 pasti», ma il percorso in vigore è il digiuno.
+      await service.submitAnswers('u1', { ...baseAnswers(), pathType: 'five' } as never);
+      const scritto = ramo('update');
+      for (const campo of ['fastingWindow', 'fastingProtocol', 'fastingStartMin', 'fastingSceltoIl']) {
+        expect(Object.prototype.hasOwnProperty.call(scritto, campo)).toBe(false);
+      }
+    });
+
+    /**
+     * ⛔ **Ma se non digiuna più, l'orologio si azzera tutto.** Lasciare `fastingSceltoIl`
+     * valorizzato a chi non digiuna più vuol dire che il giorno in cui tornasse al digiuno **non le
+     * verrebbe più chiesto niente**: si ritroverebbe la finestra di sei mesi prima, senza che
+     * nessuno gliel'abbia chiesta. È il difetto da cui è nata tutta questa parte.
+     */
+    it('⛔ e chi esce dal digiuno si porta via anche l\'orologio, non solo la finestra', async () => {
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        onboardingCompletedAt: new Date('2026-07-01'),
+        regime: 'omnivore', dietStyle: 'mediterranean', dietFamily: 'Mediterranea', mealsPerDay: 3,
+        pathType: 'five',
+      });
+      await service.submitAnswers('u1', { ...baseAnswers(), pathType: 'five' } as never);
+      const scritto = ramo('update');
+      expect(scritto.fastingWindow).toBeNull();
+      expect(scritto.fastingProtocol).toBeNull();
+      expect(scritto.fastingStartMin).toBeNull();
+      expect(scritto.fastingSceltoIl).toBeNull();
+      expect(scritto.fastingTargetStartMin).toBeNull();
     });
   });
 

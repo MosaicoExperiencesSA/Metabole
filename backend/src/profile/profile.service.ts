@@ -43,7 +43,8 @@ import {
 } from '../menu/cambio-finestra';
 import { PROPOSTE_DA_FINESTRA_STORICA, motivoPerLaNutrizionista } from '../menu/chiedi-la-finestra';
 import { derivaDaOrologio, oraDelGiorno, protocolloDigiuno } from '../menu/orologio-digiuno';
-import { vistaOrologio, type ProfiloDigiuno } from '../menu/vista-orologio';
+import { fasceDelDigiuno, vistaOrologio, type ProfiloDigiuno } from '../menu/vista-orologio';
+import { orologioAzzerato, restaQualcosaDellOrologio } from '../menu/uscita-dal-digiuno';
 import { oraLocaleInMinuti } from '../common/date-only';
 
 /** Il client dentro una transazione: stessa forma usata in `commerce` e `finance`. */
@@ -125,10 +126,33 @@ export class ProfileService {
     if (locale) {
       await this.prisma.user.update({ where: { id: userId }, data: { locale } });
     }
+    /**
+     * ⛔ **LA QUARTA PORTA SUL DIGIUNO — quella che nessuno aveva chiuso** (revisione 21/8).
+     *
+     * Questo DTO accetta `pathType`. Quindi una cliente, **col proprio token**, può uscire dal
+     * digiuno da qui — e fino a oggi si portava dietro protocollo, orario, bersagli e
+     * `fastingSceltoIl` intatti, perché il servizio scrive `...rest` alla cieca.
+     *
+     * ⚠️ Il ritorno al digiuno, poi, era il difetto per intero: `fastingSceltoIl` pieno vuol dire
+     * «gliel'abbiamo già chiesto», quindi la pagina dell'orologio non le si riapriva e si ritrovava
+     * addosso la finestra di sei mesi prima senza che nessuno l'avesse decisa.
+     *
+     * ⚠️ È **la stessa regola** della scheda staff, dell'onboarding e dello script — stesso elenco,
+     * stessa domanda. Quattro porte sullo stesso dato: una guardia messa su tre non è una guardia,
+     * è una statistica.
+     *
+     * ⚠️ Nessun permesso e nessun blocco: cambiare percorso è suo diritto. L'azzeramento è una
+     * **conseguenza**, e resta scritta nell'audit `profile.update` insieme al resto.
+     */
+    const usciraDalDigiuno =
+      rest.pathType !== undefined
+      && rest.pathType !== 'intermittent_fasting'
+      && restaQualcosaDellOrologio(current as unknown as Record<string, unknown>);
     const profile = await this.prisma.clientProfile.update({
       where: { userId },
       data: {
         ...(rest as Record<string, unknown>),
+        ...(usciraDalDigiuno ? orologioAzzerato() : {}),
         ...(lifestyle ? { lifestyle: lifestyle as never } : {}),
         ...(consents ? { consents: consents as never } : {}),
         ...(planStartDate ? { planStartDate: new Date(planStartDate) } : {}),
@@ -429,6 +453,18 @@ export class ProfileService {
       where: { userId },
       select: {
         regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true, pathType: true, fastingWindow: true,
+        /**
+         * ⛔ **L'OROLOGIO, anche qui** (21/8). Il riepilogo del profilo scriveva «Digiuno
+         * intermittente 16:8» a chiunque digiunasse — una costante nel sorgente dell'app, scritta
+         * quando 16:8 era l'unica finestra possibile. Da quando la durata la sceglie la cliente,
+         * quella riga è **falsa** per chi sta sulla 14:10 o sulla 18:6: le dice il suo protocollo
+         * sbagliato nella schermata che esiste per farle leggere il suo piano.
+         *
+         * ⚠️ Non si ricalcola niente a mano: si chiama `vistaOrologio`, la stessa funzione di
+         * `/me/digiuno` e della scheda cliente. Se due punti rispondono alla stessa domanda, uno dei
+         * due deve chiamare l'altro.
+         */
+        fastingProtocol: true, fastingStartMin: true, fastingSceltoIl: true,
         // ⚠️ `objective` serve alla ricerca della dieta (`pick-diet.ts` ci fa sopra due dei sette
         // ripieghi): senza, la cliente e lo staff cercherebbero con due profili diversi — che è
         // esattamente il difetto che questa riga chiude.
@@ -458,6 +494,7 @@ export class ProfileService {
     })) as {
       regime: string | null; dietStyle: string | null; dietFamily: string | null; mealsPerDay: number | null;
       pathType: string | null; fastingWindow: string | null; objective: string | null;
+      fastingProtocol: string | null; fastingStartMin: number | null; fastingSceltoIl: Date | null;
       pastiEsclusi: string[] | null;
       allergies: string[] | null;
       intolerances: string[] | null;
@@ -544,6 +581,13 @@ export class ProfileService {
       mealsPerDay: profile.mealsPerDay,
       fasting: profile.pathType === 'intermittent_fasting',
       fastingWindow: profile.fastingWindow,
+      /**
+       * ⛔ **La finestra in orari, non in nome di pasti.** `attuale` manca finché non ha scelto: in
+       * quel caso l'app ripiega su `fastingWindow`, che è quello che il motore sta usando davvero
+       * per lei. Non si compone una finestra di scorta — mostrarle un orologio che nessuno ha
+       * impostato è la stessa bugia di prima, con più cifre.
+       */
+      digiuno: fasceDelDigiuno(profile),
       /**
        * ⚠️ Sempre un elenco, mai `null`: il campo è nullable in banca dati, e mandare il null
        * costringerebbe l'app a difendersi da un buco che qui costa un `?? []`. «Nessuno escluso» e
@@ -742,6 +786,12 @@ export class ProfileService {
           entityType: 'client_profile',
           entityId: userId,
           metadata: {
+            /**
+             * ⚠️ **La frase in chiaro, dentro il log.** Il resto sono numeri che vanno interpretati;
+             * questa è la stessa riga che la cliente ha letto prima di confermare, e chi apre la sua
+             * scheda fra un mese legge quello che è successo senza dover tradurre `inizioMin: 960`.
+             */
+            descrizione: esito.spiegazione,
             metodo: esito.metodo,
             protocollo: esito.scrivi.protocollo,
             inizioMin: esito.scrivi.inizioMin,

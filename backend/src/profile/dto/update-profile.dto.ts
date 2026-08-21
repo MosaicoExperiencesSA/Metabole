@@ -1,8 +1,6 @@
 import { Transform, Type } from 'class-transformer';
-// I valori ammessi vengono dalla tabella unica delle finestre: vedi `menu/finestre-digiuno.ts`.
-import { VALORI_FINESTRA_DIGIUNO } from '../../menu/finestre-digiuno';
 import { numeroOpzionale, numeroOpzionaleConZero } from '../../common/validazione';
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 
 class LifestylePatchDto {
   @IsOptional()
@@ -64,9 +62,63 @@ export class UpdateProfileDto {
   @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'], { message: 'Tipo di percorso non valido.' })
   pathType?: string;
 
-  @IsOptional()
-  @IsIn(VALORI_FINESTRA_DIGIUNO, { message: 'Finestra del digiuno non valida.' })
-  fastingWindow?: string;
+  /**
+   * ⛔ **`fastingWindow` NON SI SCRIVE PIÙ DA QUI** (Simone, 21/8: «non ha più senso scegliere i
+   * pasti, sono campi che devono proprio sparire»).
+   *
+   * Quali pasti riceve chi digiuna lo **deriva l'orologio** dalla durata della finestra, e la
+   * finestra la imposta la cliente da `PATCH /me/digiuno`. Finché questo campo restava scrivibile,
+   * due porte rispondevano alla stessa domanda: la correzione fatta da qui durava fino al primo
+   * spostamento della cliente, che la riscriveva senza avvisare nessuno.
+   *
+   * ⚠️ La colonna **resta** e resta letta dal motore: è il dato su cui i menu si compongono. A
+   * cambiare è **chi lo scrive**, e adesso è uno solo.
+   *
+   * ## ⛔ Perché il campo è ancora dichiarato qui, se è rifiutato
+   *
+   * Perché **le app già installate lo mandano ancora**. Questa API ha
+   * `forbidNonWhitelisted: true` (`main.ts`): un campo non dichiarato non viene ignorato, fa 400 con
+   * *«property fastingWindow should not exist»* — una frase in inglese, per una cliente che ha solo
+   * toccato un pallino nel suo profilo. L'aggiornamento arriva con l'OTA, ma non nello stesso
+   * istante per tutte, e chi apre l'app durante lo scaricamento vede ancora la schermata vecchia.
+   *
+   * ⚠️ Dichiararlo e **rifiutarlo con una frase sua** è l'unica delle tre strade che non mente:
+   * accettarlo e ignorarlo sarebbe un taglio silenzioso (lei tocca, sembra fatto, il piatto non
+   * cambia), rifiutarlo in inglese è un errore che nessuno sa leggere.
+   *
+   * ⚠️ `IsIn([])` fallisce sempre, di proposito. È il punto: qui non c'è **nessun** valore ammesso.
+   *
+   * ⛔ **`@ValidateIf` E NON `@IsOptional`** (trovato in revisione, 21/8, provato con `class-validator`
+   * vero). `@IsOptional` non vuol dire «se c'è, validalo»: vuol dire «salta i controlli quando il
+   * valore è `undefined` **o `null`**». Con `@IsOptional` addosso, `{"fastingWindow": null}` passava
+   * il cancello e finiva nel `...rest` che il servizio scrive alla cieca: la colonna andava a NULL
+   * mentre protocollo, orario e `fastingSceltoIl` restavano scritti. Le fasce si calcolano da quelli,
+   * quindi lo schermo continuava a dire «20:00 – 21:00 · 1 pasto» e il motore le mandava tutti e
+   * cinque i pasti. Schermo e piatto che dicono due cose diverse — il difetto che questa consegna
+   * esiste per chiudere, rientrato dalla porta del cancello che doveva chiuderlo.
+   *
+   * ⚠️ `ValidateIf` guarda la **presenza** della chiave e non il valore: assente si salta, presente —
+   * `null` compreso — si rifiuta con la frase.
+   */
+  /**
+   * ⛔ **`!== undefined`, e NON `'fastingWindow' in o`** (trovato dal test qui accanto, 21/8 — la
+   * seconda stesura di questa riga, e sarebbe stata molto peggio della prima).
+   *
+   * `ValidationPipe` costruisce l'istanza con `plainToInstance`, che **materializza tutte** le
+   * proprietà dichiarate: quelle che nessuno ha mandato ci sono lo stesso, con dentro `undefined`.
+   * Quindi `'fastingWindow' in o` è **sempre vero** — e il cancello avrebbe rifiutato *ogni*
+   * richiesta a questo endpoint, non solo quelle che mandano la finestra. Un 400 su tutto, con una
+   * frase che parla di un campo che il chiamante non ha nemmeno nominato.
+   *
+   * ⚠️ Con `undefined` si salta, con `null` no: è esattamente la riga che serve, ed è la differenza
+   * che `@IsOptional` non sa fare (lui salta tutti e due).
+   */
+  @ValidateIf((o: Record<string, unknown>) => o.fastingWindow !== undefined)
+  @IsIn([], {
+    message: 'La tua finestra adesso si sposta trascinando l\'orologio nella home dell\'app. '
+      + 'Se non lo vedi, chiudi e riapri l\'app: si aggiorna da sola.',
+  })
+  fastingWindow?: string | null;
 
   @IsOptional()
   @IsIn(['daily', 'when_needed', 'on_request'], { message: 'Scelta non valida per il tipo di seguito della coach.' })

@@ -1,4 +1,3 @@
-import { FINESTRE_SELEZIONABILI } from '../menu/finestre-digiuno';
 
 /**
  * Schema del questionario di onboarding.
@@ -135,22 +134,20 @@ export const ONBOARDING_QUESTIONS = {
           labels: ['Sedentaria', 'Leggera (1-3 volte a settimana)', 'Moderata (3-5)', 'Attiva (6-7)', 'Molto attiva'],
           required: true,
         },
-        {
-          key: 'fastingWindow',
-          type: 'choice',
-          label: 'Quali pasti preferisci saltare?',
-          // Dalla tabella unica: aggiungere una finestra non deve richiedere di ricordarsi del
-          // questionario (mancavano «cena» e «pranzo» fino all'11/8).
-          // ⚠️ Ma solo le **selezionabili** (21/8): le tre finestre nate dall'orologio le calcola la
-          // durata, e le loro etichette nominano i pasti che RESTANO. «Solo cena» sotto la domanda
-          // «quali pasti preferisci saltare?» si legge come «salto solo la cena» e vuol dire
-          // l'opposto — un pasto al giorno. Un elenco che cresce da solo è comodo finché tutte le
-          // righe rispondono alla stessa domanda.
-          options: FINESTRE_SELEZIONABILI.map((f) => f.valore),
-          labels: FINESTRE_SELEZIONABILI.map((f) => f.etichettaBreve),
-          required: true,
-          showIf: { key: 'pathType', equals: 'intermittent_fasting' },
-        },
+        /**
+         * ⛔ **LA DOMANDA «QUALI PASTI PREFERISCI SALTARE?» NON C'È PIÙ** (Simone, 21/8: «non ha più
+         * senso scegliere i pasti, sono campi che devono proprio sparire»).
+         *
+         * Quali pasti riceve chi digiuna lo **deriva la durata della finestra** — è la Regola d'Oro
+         * del manuale, e da qui in avanti la finestra la imposta lei dall'orologio, in un posto solo.
+         * Chiederglielo anche qui vorrebbe dire due porte per la stessa cosa, e una delle due
+         * risponderebbe prima ancora che lei sappia a che ora vuole mangiare.
+         *
+         * ⚠️ **Chi sceglie il digiuno adesso finisce il questionario senza finestra, ed è voluto**:
+         * `fastingSceltoIl` resta NULL, quindi al primo avvio dell'app atterra sulla pagina
+         * dell'orologio e la sceglie lì, vedendo la sua giornata invece di una tendina.
+         * ⚠️ Intanto non le manca niente: senza finestra il motore non salta nessun pasto.
+         */
       ],
     },
     {

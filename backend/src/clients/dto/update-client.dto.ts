@@ -1,5 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { VALORI_FINESTRA_DIGIUNO } from '../../menu/finestre-digiuno';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 /** Aggiornamento scheda cliente: anagrafica (User) + questionario (ClientProfile). Tutti i campi opzionali. */
 export class UpdateClientDto {
@@ -54,13 +53,39 @@ export class UpdateClientDto {
   @IsOptional() @IsIn([3, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   /**
-   * Quali pasti salta chi fa digiuno intermittente. La stringa vuota è ammessa e significa «la
-   * decide la dieta»: è il valore che manda la tendina quando si sceglie di non imporre nulla, e
-   * senza `''` fra i valori validi svuotare il campo dalla scheda restituiva un 400.
+   * ⛔ **`fastingWindow` NON SI SCRIVE PIÙ DA QUI** (Simone, 21/8: «non ha più senso scegliere i
+   * pasti, sono campi che devono proprio sparire»).
+   *
+   * Quali pasti riceve chi digiuna lo **deriva l'orologio** dalla durata della finestra, e la
+   * finestra la imposta la cliente da `PATCH /me/digiuno`. Finché questo campo restava scrivibile,
+   * due porte rispondevano alla stessa domanda: la correzione fatta da qui durava fino al primo
+   * spostamento della cliente, che la riscriveva senza avvisare nessuno.
+   *
+   * ⚠️ La colonna **resta** e resta letta dal motore: è il dato su cui i menu si compongono. A
+   * cambiare è **chi lo scrive**, e adesso è uno solo.
+   *
+   * ## ⛔ Perché è dichiarato e rifiutato, invece che tolto e basta
+   *
+   * Perché questa API ha `forbidNonWhitelisted: true` (`main.ts`): un campo non dichiarato non viene
+   * ignorato, **fa fallire tutta la richiesta** con «property fastingWindow should not exist».
+   * ⚠️ La scheda di prima mandava `fastingWindow: ''` a **ogni** salvataggio. Una nutrizionista con
+   * il backoffice aperto da stamattina — bundle vecchio, nessun motivo di ricaricare — non sarebbe
+   * più riuscita a salvare **niente**, nemmeno un numero di telefono, e l'errore le avrebbe parlato
+   * di un campo che dalla sua schermata non si vede nemmeno.
+   *
+   * ⚠️ `@ValidateIf` e **non** `@IsOptional`: `@IsOptional` salta i controlli anche su `null`, e un
+   * `null` che passa finisce nel profilo. Qui si guarda la **presenza** della chiave.
+   * ⚠️ La frase dice cosa fare (ricaricare), non solo cosa non si può fare.
    */
-  // `''` = svuota («li decide la dieta»), ed è una scelta legittima. I valori vengono dalla
-  // tabella unica: vedi `menu/finestre-digiuno.ts`.
-  @IsOptional() @IsIn([...VALORI_FINESTRA_DIGIUNO, '']) fastingWindow?: string;
+  // ⛔ `!== undefined` e NON `'fastingWindow' in o`: `plainToInstance` materializza tutte le
+  // proprietà dichiarate, quindi `in` è sempre vero e il cancello rifiuterebbe **ogni**
+  // richiesta. Vedi la nota lunga in `profile/dto/update-profile.dto.ts`.
+  @ValidateIf((o: Record<string, unknown>) => o.fastingWindow !== undefined)
+  @IsIn([], {
+    message: 'La finestra del digiuno non si imposta più da qui: la sposta la cliente dal suo '
+      + 'orologio, e in scheda si legge sotto «Finestra del digiuno». Ricarica la pagina.',
+  })
+  fastingWindow?: string | null;
   @IsOptional() @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active']) activityLevel?: string;
   /** Account dei recensori degli store: misure mai bloccanti (voce #6f del 5/8). */
   @IsOptional() @IsBoolean() isStoreReviewer?: boolean;

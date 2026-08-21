@@ -13,6 +13,7 @@ import {
   serveChiedereLaFinestra,
   testoFinestraMaiChiesta,
 } from './finestra-mai-chiesta';
+import { finestraDigiuno } from '../menu/finestre-digiuno';
 import { escalateAttivitaScadute } from './avvisi-attivita';
 import { apriAttivitaCoach } from './porta-delle-attivita';
 import { STATI_CON_UN_PIANO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
@@ -563,21 +564,45 @@ export class CoachTasksService {
       const profili = (await this.prisma.clientProfile.findMany({
         where: {
           pathType: 'intermittent_fasting',
-          OR: [{ fastingWindow: null }, { fastingWindow: '' }],
+          /**
+           * ⛔ **`fastingSceltoIl`, non `fastingWindow`** (21/8). La finestra è *derivata*
+           * dall'orologio: filtrare sul campo derivato vuol dire filtrare sull'effetto invece che
+           * sulla causa. `fastingSceltoIl` dice una cosa sola — gliel'abbiamo chiesto e ha risposto —
+           * e non torna mai indietro.
+           */
+          fastingSceltoIl: null,
           // ⚠️ Anche la coda: la finestra del digiuno si chiede PRIMA che il piano cominci (voce 258),
       // che è proprio il momento in cui serve saperla.
       user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } as never },
         } as never,
-        select: { userId: true, name: true, pathType: true, fastingWindow: true },
+        select: {
+          userId: true, name: true, pathType: true, fastingSceltoIl: true,
+          // ⚠️ `onboardingCompletedAt` e non `createdAt`: la riga del profilo nasce all'assegnazione
+          // del lead, mesi prima del questionario. Vedi `finestra-mai-chiesta.ts`.
+          onboardingCompletedAt: true,
+          // Serve al TESTO, non alla decisione: chi ha una finestra storica non riceve «tutti i
+          // pasti», e la coach non deve telefonarle dicendole il contrario.
+          fastingWindow: true,
+        },
         take: 200,
-      })) as { userId: string; name: string | null; pathType: string | null; fastingWindow: string | null }[];
+      })) as {
+        userId: string; name: string | null; pathType: string | null; fastingSceltoIl: Date | null;
+        onboardingCompletedAt: Date | null; fastingWindow: string | null;
+      }[];
 
       let fatte = 0;
       for (const p of profili) {
-        // La query filtra già, ma la decisione la prende il modulo: è lui il posto dove sta scritta
-        // la regola, e domani potrebbe non essere più «campo vuoto».
-        if (!serveChiedereLaFinestra(p.pathType, p.fastingWindow)) continue;
-        const { title, description } = testoFinestraMaiChiesta(p.name);
+        /**
+         * La query filtra già, ma la decisione la prende il modulo: è lui il posto dove sta scritta
+         * la regola. ⚠️ E qui non è una ripetizione — la **grazia** (chi si è iscritta da meno di tre
+         * giorni: prima gliela chiede l'app) sta solo nel modulo, e questo è il ciclo che la applica.
+         */
+        if (!serveChiedereLaFinestra(p.pathType, p.fastingSceltoIl, p.onboardingCompletedAt, today)) continue;
+        const { title, description } = testoFinestraMaiChiesta(
+          p.name,
+          p.fastingWindow,
+          p.fastingWindow ? finestraDigiuno(p.fastingWindow)?.etichettaStaff ?? null : null,
+        );
         fatte += await this.ensureTask(
           p.userId,
           TIPO_FINESTRA_MAI_CHIESTA,

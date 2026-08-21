@@ -1,19 +1,20 @@
 /**
- * I PASTI DEL DIGIUNO dalla scheda cliente (richiesta di Simone del 10/8).
+ * I PASTI DEL DIGIUNO — e il giorno in cui la scheda cliente ha smesso di poterli scrivere.
  *
- * `fastingWindow` decide quali pasti il motore eroga: cambiarla vuol dire che domani mattina quella
- * cliente ha o non ha una colazione. Fino a oggi era invisibile al backoffice — lo staff non poteva
- * sapere se una cliente in digiuno saltava la colazione o la cena — e modificabile senza alcun
- * permesso dedicato, a differenza di regime e stile.
+ * Fino al 21/8 `fastingWindow` si cambiava da qui, con un permesso suo. Poi è arrivato l'orologio:
+ * quali pasti riceve chi digiuna lo **deriva la durata della finestra**, e la finestra la imposta la
+ * cliente dall'app. Simone, 21/8: *«non ha più senso scegliere i pasti, sono campi che devono
+ * proprio sparire»*.
  *
- * Questi test tengono ferme le tre decisioni che si possono sbagliare in silenzio:
- *  1. serve il permesso **suo** («Cambia i pasti del digiuno»), separato da quello del tipo di dieta:
- *     è il motivo per cui esiste, poterlo dare alla coach senza darle anche regime e stile;
- *  2. il permesso si chiede **solo se il valore cambia davvero** — il form della scheda rimanda
- *     tutti i campi a ogni salvataggio, quindi controllare la presenza invece del cambiamento
- *     bloccherebbe qualunque modifica di anagrafica a chi non ha quel flag;
- *  3. se il percorso non è più digiuno, la finestra si **azzera**: restando scritta, al ritorno al
- *     digiuno riprenderebbe un valore vecchio senza che nessuno l'abbia scelto.
+ * ⛔ **Perché non bastava togliere il campo dal DTO.** `PROFILE_FIELDS` è la porta che decide cosa
+ * la scheda può scrivere sul profilo, e il ciclo la percorre **ciecamente**: finché il campo era in
+ * quell'elenco, bastava un chiamante che lo passasse lo stesso — un altro servizio, uno script, un
+ * DTO cambiato domani — e la finestra finiva in database senza nessun controllo. La guardia sta
+ * dove si scrive.
+ *
+ * ⚠️ E quello che **resta**: uscire dal digiuno azzera l'orologio. Non solo la finestra — anche
+ * `fastingSceltoIl`, o al ritorno al digiuno non le verrebbe chiesto niente e si ritroverebbe la
+ * finestra di sei mesi prima.
  */
 
 import { ForbiddenException } from '@nestjs/common';
@@ -86,52 +87,69 @@ async function crea(opzioni?: { permesso?: boolean; profilo?: Record<string, unk
 /** I dati scritti sul profilo nell'ultima chiamata a `upsert`. */
 const scritto = (prisma: any) => (prisma.clientProfile.upsert.mock.calls.at(-1)?.[0] as any)?.update ?? {};
 
-describe('pasti del digiuno dalla scheda cliente', () => {
-  it('con il permesso si cambia, e resta una riga di log dedicata', async () => {
-    const { service, prisma, audit } = await crea({ permesso: true });
-    await service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_breakfast_lunch' } as never);
-    expect(scritto(prisma).fastingWindow).toBe('skip_breakfast_lunch');
-    expect(audit.log).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'client.fasting_window.change',
-        metadata: { before: 'skip_breakfast', after: 'skip_breakfast_lunch' },
-      }),
-    );
-  });
-
-  it('senza il permesso il cambio è rifiutato, con un messaggio che dice quale flag serve', async () => {
-    const { service } = await crea({ permesso: false });
-    await expect(
-      service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_dinner_breakfast' } as never),
-    ).rejects.toThrow(ForbiddenException);
-    await expect(
-      service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_dinner_breakfast' } as never),
-    ).rejects.toThrow(/Cambia i pasti del digiuno/);
+describe('⛔ la scheda cliente non scrive più i pasti del digiuno', () => {
+  /**
+   * ⛔ Il caso che conta: **anche mandandolo di proposito** il campo non arriva a destinazione.
+   * È la stessa prova che si faceva prima sul permesso, girata dall'altra parte.
+   */
+  it('⛔ mandare `fastingWindow` non scrive niente, con o senza permesso', async () => {
+    for (const permesso of [true, false]) {
+      const { service, prisma } = await crea({ permesso });
+      await expect(
+        service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_breakfast_lunch' } as never),
+      ).resolves.toBeDefined();
+      expect(scritto(prisma).fastingWindow).toBeUndefined();
+    }
   });
 
   /**
-   * Il caso che rompe le schede se si sbaglia: la pagina rimanda TUTTI i campi a ogni salvataggio,
-   * quindi `fastingWindow` arriva sempre. Chiedere il permesso alla presenza del campo, e non al
-   * suo cambiamento, impedirebbe a chi non ce l'ha di correggere anche solo un numero di telefono.
+   * ⛔ **DUE STRATI, E FANNO DUE MESTIERI DIVERSI** (chiarito in revisione, 21/8: qui c'era scritto
+   * «non lancia nemmeno… rifiutare sarebbe peggio», e a livello HTTP **rifiuta**).
+   *
+   * *Alla porta* — `UpdateClientDto` — il campo è dichiarato e **rifiutato con una frase italiana**
+   * che dice cosa fare («ricarica la pagina»). Serve perché l'API ha `forbidNonWhitelisted`: senza
+   * quella dichiarazione, una scheda aperta prima del deploy — che manda `fastingWindow: ''` a ogni
+   * salvataggio — non riuscirebbe più a salvare **niente**, nemmeno un telefono, con un errore in
+   * inglese su un campo che dalla sua schermata non si vede.
+   *
+   * *Nel servizio* — qui — il campo **non esiste**: non è in `PROFILE_FIELDS`, quindi il ciclo di
+   * scrittura non lo vede nemmeno passando. Questi test chiamano il servizio direttamente, cioè
+   * scavalcano la porta di proposito: verificano che se qualcosa la superasse (un altro chiamante,
+   * un DTO cambiato domani) **non arriverebbe comunque in database**. Una guardia sola è una
+   * guardia che qualcuno aggira per sbaglio.
    */
-  it('rimandare lo stesso valore non chiede nessun permesso', async () => {
+  it('⚠️ e non fa fallire il resto del salvataggio', async () => {
     const { service, prisma } = await crea({ permesso: false });
     await expect(
-      service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_breakfast', phone: '333' } as never),
+      service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_dinner', phone: '333' } as never),
     ).resolves.toEqual({ updated: true });
     expect(prisma.user.update).toHaveBeenCalled();
   });
 
-  it('si può svuotare: «li decide la dieta» è una scelta legittima', async () => {
-    const { service, prisma } = await crea({ permesso: true });
-    await service.updateClient('cli-1', 'coach-user', { fastingWindow: '' } as never);
-    expect(scritto(prisma).fastingWindow).toBeNull();
+  it('nessuna riga di log dedicata: non è successo niente da raccontare', async () => {
+    const { service, audit } = await crea({ permesso: true });
+    await service.updateClient('cli-1', 'coach-user', { fastingWindow: 'skip_dinner' } as never);
+    const azioni = audit.log.mock.calls.map((c: any) => c[0].action);
+    expect(azioni).not.toContain('client.fasting_window.change');
   });
 
-  it('cambiando percorso a 5 pasti la finestra si azzera da sé', async () => {
+  /**
+   * ⛔ **USCIRE DAL DIGIUNO PORTA VIA TUTTO L'OROLOGIO.** La finestra si azzerava già; dal 21/8 si
+   * azzerano anche protocollo, orario, bersagli e — la più importante — `fastingSceltoIl`. Se
+   * quella sopravvivesse, il giorno in cui questa cliente tornasse al digiuno **non le verrebbe
+   * chiesto niente**: si ritroverebbe la finestra di sei mesi prima, senza che nessuno gliel'abbia
+   * chiesta. È il difetto da cui è nata tutta questa parte.
+   */
+  it('⛔ cambiando percorso a 5 pasti si azzera l\'orologio intero, non solo la finestra', async () => {
     const { service, prisma } = await crea({ permesso: true });
     await service.updateClient('cli-1', 'coach-user', { pathType: 'five' } as never);
-    expect(scritto(prisma).fastingWindow).toBeNull();
+    const s = scritto(prisma);
+    expect(s.fastingWindow).toBeNull();
+    expect(s.fastingProtocol).toBeNull();
+    expect(s.fastingStartMin).toBeNull();
+    expect(s.fastingSceltoIl).toBeNull();
+    expect(s.fastingTargetStartMin).toBeNull();
+    expect(s.fastingTargetProtocol).toBeNull();
   });
 
   it('restando nel digiuno, cambiare altro non tocca la finestra', async () => {

@@ -308,18 +308,28 @@ export default function Home() {
   const totKcal = (meals ?? []).reduce((a, m) => a + (m.kcal || 0), 0);
 
   /**
-   * ⛔ **UNA INTERRUZIONE PER VOLTA, e la domanda si fa in un posto solo.**
+   * ⛔ **UNA INTERRUZIONE PER VOLTA, e adesso vale per TUTTE E TRE.**
    *
-   * Questa condizione era già scritta due volte a mano — il popup del check-in e quello «com'è
-   * andata ieri?» — e il 21/8 stava per diventare tre. L'orologio del digiuno porta chi non ha
-   * ancora scelto sulla sua pagina al primo avvio: se lo facesse **mentre il check-in è aperto**, la
-   * home si smonterebbe portandosi via quello che la cliente ci aveva già scritto dentro. Vincerebbe
-   * chi arriva ultimo fra due chiamate in parallelo, quindi in modo intermittente e a seconda della
-   * rete — il difetto peggiore da riconoscere.
+   * L'orologio del digiuno porta chi non ha ancora scelto sulla sua pagina al primo avvio: se lo
+   * facesse mentre un riquadro è aperto, la home si smonterebbe portandosi via quello che la cliente
+   * ci aveva già scritto dentro. Vincerebbe chi arriva ultimo fra due chiamate in parallelo, quindi
+   * in modo intermittente e a seconda della rete — il difetto peggiore da riconoscere.
+   *
+   * ⛔ **La prima versione copriva solo il check-in** (corretto in revisione, 21/8), perché il
+   * check-in è l'unico che questa pagina sa da sé. Gli altri due si decidono dentro di loro, dopo
+   * una chiamata al server: «com'è andata ieri?» — dove vivono le **stelle non ancora salvate** — e
+   * la domanda sulle allergie, dove vive un **testo libero su un dato sanitario**. Erano proprio i
+   * due dove perdere quello che si è scritto costa di più.
+   *
+   * ⚠️ Adesso lo dicono loro (`onAschermo`), invece che questa pagina indovinarlo: chi sa una cosa è
+   * chi la decide. La regola resta una sola, e sta scritta una volta sola qui sotto.
    */
+  const [reviewAschermo, setReviewAschermo] = useState(false);
+  const [allergieAschermo, setAllergieAschermo] = useState(false);
   const checkinAschermo = Boolean(
     today && (today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) && !dismissed,
   );
+  const qualcosaAschermo = checkinAschermo || reviewAschermo || allergieAschermo;
 
   return (
     <div className="home">
@@ -331,7 +341,7 @@ export default function Home() {
         vuoto non vuol dire «non ne ho» — vuol dire che non lo sappiamo. Il componente non mostra
         niente a chi ha già risposto: sotto la prima riga si toglie da solo.
       */}
-      <ChiediAllergie />
+      <ChiediAllergie onAschermo={setAllergieAschermo} />
 
       {/*
         ⚠️ L'orologio del digiuno: mostra dove sei adesso, e a chi non ha ancora scelto la finestra
@@ -339,7 +349,7 @@ export default function Home() {
         digiuna, e niente nemmeno se il server non risponde — la home non deve avere un buco al
         posto di una cosa che non la riguarda.
       */}
-      <CardDigiuno atterraggioPermesso={!checkinAschermo} />
+      <CardDigiuno atterraggioPermesso={!qualcosaAschermo} />
 
       {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
       {today?.objective && PHASE_BADGE[today.objective] && (
@@ -505,7 +515,7 @@ export default function Home() {
         <CheckinPopup onSubmit={submitCheckin} onSkip={skipCheckin} busy={checkinBusy} />
       )}
       {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
-      {!checkinAschermo && <MenuReviewPopup />}
+      {!checkinAschermo && <MenuReviewPopup onAschermo={setReviewAschermo} />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
 
       {/*

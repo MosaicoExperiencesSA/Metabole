@@ -10,7 +10,9 @@
  * leggerebbe una promessa che il sistema non mantiene.
  */
 import { PASSO_GRADUALE_PREDEFINITO, passoDiStanotte } from './cambio-finestra';
-import { giorniAlBersaglio, vistaOrologio } from './vista-orologio';
+import { fasceDelDigiuno, giorniAlBersaglio, vistaOrologio } from './vista-orologio';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 const H = (ore: number, minuti = 0): number => ore * 60 + minuti;
 const digiuna = (extra: Record<string, unknown> = {}) => ({
@@ -177,5 +179,92 @@ describe('la finestra che l\'orologio non sa riprodurre', () => {
     const v = vistaOrologio(digiuna({ fastingWindow: null }));
     expect(v.daChiedere).toBe(true);
     expect(v.finestraNonTraducibile).toBe(false);
+  });
+});
+
+
+/**
+ * ⛔ **LE FASCE PER LE DUE SCHEDE — nate da un difetto bloccante, il 21/8.**
+ *
+ * `profile.service` mandava all'app `vistaOrologio(p).attuale`; `clients.service` mandava alla
+ * scheda staff `vistaOrologio(p)` **intero**. Sembra la stessa riga scritta due volte; non lo è. La
+ * vista intera è un oggetto sempre pieno — `digiuna`, `motivo`, `protocolli` ci sono comunque —
+ * quindi **sempre `truthy`** dentro un campo che il frontend legge come «le fasce, oppure niente».
+ *
+ * Effetto: per **ogni** cliente in digiuno la scheda prendeva il ramo «ha scelto», leggeva
+ * `digiuno.pasti.length` su `undefined`, e portava giù tutto il backoffice nell'`ErrorBoundary`. E i
+ * due ripieghi — finestra storica, mai chiesta — erano codice morto, perché quel `null` non arrivava
+ * mai. Nessun compilatore poteva vederlo: la forma è dichiarata a mano nei `.tsx` e prodotta qui.
+ *
+ * ⚠️ Perciò i due punti chiamano la stessa funzione, e questi test guardano **la proprietà che
+ * rompeva**: se `fasceDelDigiuno` torna qualcosa, quel qualcosa ha `pasti` percorribile.
+ */
+describe('⛔ le fasce per la scheda: o ci sono, o è `null`', () => {
+  const conOrologio = digiuna({ fastingProtocol: '16:8', fastingStartMin: H(12), fastingSceltoIl: new Date() });
+
+  it('chi ha impostato l\'orologio manda le sue fasce, con i pasti percorribili', () => {
+    const f = fasceDelDigiuno(conOrologio);
+    expect(f).not.toBeNull();
+    expect(f!.apertura).toBe('12:00');
+    expect(f!.chiusura).toBe('20:00');
+    expect(Array.isArray(f!.pasti)).toBe(true);
+    expect(f!.pasti.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * ⛔ Il caso esatto che rompeva. `vistaOrologio` qui risponde con un oggetto pieno: se la riga del
+   * servizio lo rimandasse così com'è, questo test resterebbe verde solo perché guarda la funzione
+   * giusta — perciò sotto c'è anche quello che legge i due servizi.
+   */
+  it.each([
+    ['digiuna ma non ha ancora toccato l\'orologio', digiuna({ fastingWindow: 'skip_breakfast' })],
+    ['digiuna e non ha proprio niente', digiuna({})],
+    ['non digiuna', { pathType: 'five' }],
+    /**
+     * ⛔ Il caso che la funzione NON copriva finché non gliel'hanno chiesto (revisione 21/8): non
+     * digiuna **e** ha ancora l'orologio scritto addosso. È lo stato che le porte d'uscita dal
+     * digiuno lasciavano prima di `uscita-dal-digiuno.ts`, e qui usciva come una finestra vera.
+     */
+    ['non digiuna ma con l\'orologio ancora scritto', {
+      pathType: 'five', fastingProtocol: '16:8', fastingStartMin: H(12), fastingSceltoIl: new Date(),
+    }],
+    ['non ha profilo', null],
+    ['profilo non definito', undefined],
+  ])('⚠️ %s → `null`, non un oggetto che sembra pieno', (_titolo, profilo) => {
+    expect(fasceDelDigiuno(profilo as never)).toBeNull();
+  });
+
+  /**
+   * ⚠️ `null` e non `undefined`: attraversa JSON, e `undefined` in un JSON **sparisce**. Un campo che
+   * sparisce e un campo che dice «non c'è» si leggono uguali finché qualcuno non prova
+   * `'digiuno' in risposta`.
+   */
+  it('⚠️ è `null`, non `undefined`: deve sopravvivere al JSON', () => {
+    const risposta = JSON.parse(JSON.stringify({ digiuno: fasceDelDigiuno(digiuna({})) }));
+    expect('digiuno' in risposta).toBe(true);
+    expect(risposta.digiuno).toBeNull();
+  });
+
+  /**
+   * ⛔ **E i due servizi la chiamano, invece di ricomporla.** È la parte che il test qui sopra non
+   * può vedere: `fasceDelDigiuno` può essere perfetta mentre un servizio manda un'altra cosa — ed è
+   * esattamente com'è andata. Si guarda il sorgente perché la riga sbagliata non dà errore da
+   * nessuna parte: dà un oggetto, e l'oggetto viaggia.
+   */
+  it('⛔ i due servizi mandano `fasceDelDigiuno`, non la vista intera', () => {
+    const sbagliati: string[] = [];
+    const SERVIZI = [
+      ['clients.service.ts', join(__dirname, '..', 'clients', 'clients.service.ts')],
+      ['profile.service.ts', join(__dirname, '..', 'profile', 'profile.service.ts')],
+    ] as const;
+    for (const [nome, file] of SERVIZI) {
+      const testo = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1 ');
+      const riga = testo.match(/^\s*digiuno:\s*(.+)$/m);
+      if (!riga) { sbagliati.push(`${nome}: nessun campo \`digiuno:\``); continue; }
+      if (!/fasceDelDigiuno\(/.test(riga[1])) sbagliati.push(`${nome}: ${riga[1].trim()}`);
+    }
+    expect(sbagliati).toEqual([]);
   });
 });

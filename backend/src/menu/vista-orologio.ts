@@ -179,3 +179,45 @@ export function giorniAlBersaglio(
   // ⛔ Non ci si arriva mai: non si torna un numero inventato. Chi chiama lo vede e lo dice.
   return 0;
 }
+
+/** Le fasce da mostrare in una scheda: `attuale`, oppure `null`. Vedi `fasceDelDigiuno`. */
+export type FasceDelDigiuno = NonNullable<VistaOrologio['attuale']>;
+
+/**
+ * ⛔ **LE FASCE, COMPOSTE UNA VOLTA SOLA — per la scheda staff e per il profilo dell'app.**
+ *
+ * Due righe di due servizi diversi rispondevano alla stessa domanda («che orari fa questa cliente?»)
+ * e nel giro di un'ora **erano già divergenti**: `profile.service` mandava `vistaOrologio(p).attuale`,
+ * `clients.service` mandava `vistaOrologio(p)` intero. Il secondo è un oggetto sempre pieno, quindi
+ * sempre `truthy` dentro un campo che il frontend legge come «le fasce oppure niente»: la scheda di
+ * ogni cliente in digiuno leggeva `pasti.length` su `undefined` e portava giù tutto il backoffice.
+ *
+ * ⚠️ Nessun compilatore poteva vederlo: la forma è dichiarata a mano nei due `.tsx` e prodotta qui.
+ * L'unico modo di tenerla ferma è che i due punti chiamino **la stessa funzione** — la regola di
+ * casa: *se due punti rispondono alla stessa domanda, uno dei due deve chiamare l'altro*.
+ *
+ * ⚠️ `null` e non `undefined`: attraversa JSON, e `undefined` in un JSON **sparisce**. Un campo che
+ * sparisce e un campo che dice «non c'è» si leggono uguali finché qualcuno non scrive
+ * `'digiuno' in risposta`.
+ *
+ * ⚠️ E `null` copre due situazioni diverse che chi legge deve poter distinguere **da altro**: non
+ * digiuna, oppure digiuna ma l'orologio non l'ha ancora toccato. Qui non si finge una finestra per
+ * nessuna delle due — `pathType` e `fastingWindow` sono lì accanto per dirlo.
+ */
+export function fasceDelDigiuno(profilo: ProfiloDigiuno | null | undefined): FasceDelDigiuno | null {
+  if (!profilo) return null;
+  const vista = vistaOrologio(profilo);
+  /**
+   * ⛔ **E chi non digiuna non ha fasce, anche se le colonne sono ancora scritte** (revisione 21/8).
+   *
+   * `vistaOrologio(...).attuale` guarda solo protocollo e orario: con `pathType: 'five'` e le colonne
+   * dell'orologio rimaste addosso tornava una finestra completa. Uno stato che **esiste** — è quello
+   * che le porte d'uscita dal digiuno lasciavano prima di `uscita-dal-digiuno.ts` — e che qui usciva
+   * come «mangia dalle 12:00 alle 20:00» per una cliente a cinque pasti.
+   *
+   * ⚠️ Il commento qui sopra promette che `null` copre anche «non digiuna». Adesso è vero: prima era
+   * vero solo perché i due chiamanti filtravano per conto loro, cioè per fortuna.
+   */
+  if (!vista.digiuna) return null;
+  return vista.attuale ?? null;
+}

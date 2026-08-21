@@ -26,12 +26,15 @@ function splitPhone(p: string | null): { prefix: string; number: string } {
 }
 
 /**
- * I pasti saltati, a parole. Le stesse voci di `FASTING_OPTIONS` (il selettore qui sotto) e della
- * scheda cliente in backoffice: se divergono, cliente e coach chiamano la stessa scelta con due nomi
- * diversi e al telefono non si capiscono.
+ * I pasti saltati, a parole — **per leggerli, non per sceglierli** (21/8).
+ *
+ * ⚠️ Servono solo a chi l'orologio non l'ha ancora toccato: la sua finestra storica sta decidendo
+ * quali pasti riceve, e senza queste frasi la leggerebbe come `skip_all_but_dinner`. Chi ha
+ * impostato i suoi orari legge invece le fasce, che sono la cosa vera.
  *
  * ⚠️ Copia delle etichette cliente di `backend/src/menu/finestre-digiuno.ts`, che è la tabella
- * unica: un frontend non può importare dal backend. Se lì nasce una finestra, va aggiunta anche qui.
+ * unica: un frontend non può importare dal backend. Ci sono **tutte e otto**, compresa la ritirata e
+ * le tre che l'orologio calcola — `finestre-nelle-tendine.spec.ts` lo verifica sul sorgente.
  */
 const SALTA_LABEL: Record<string, string> = {
   skip_breakfast: 'Salti la colazione — mangi da pranzo a cena',
@@ -53,6 +56,17 @@ const REGIME_LABEL: Record<string, string> = {
 interface Nutrition {
   regime: string | null; dietStyle: string | null; mealsPerDay: number | null;
   fasting: boolean; fastingWindow: string | null; dietName: string | null; coachName: string | null;
+  /**
+   * ⛔ **LE FASCE, quando l'orologio l'ha già impostato** (21/8). È `vistaOrologio(...).attuale` del
+   * backend: la stessa risposta che dà `/me/digiuno`, non un secondo conto fatto qui.
+   * ⚠️ `null` = non l'ha ancora toccato. Non si compone una finestra di scorta: mostrarle orari che
+   * nessuno ha impostato è la stessa bugia del «16:8» scritto a mano, con più cifre.
+   */
+  digiuno?: {
+    protocollo: string; apertura: string; chiusura: string;
+    oreFinestra: number; oreDigiuno: number;
+    pasti: { slot: string; oraMin: number; ora: string; etichetta: string }[];
+  } | null;
   /**
    * Gli spuntini che la nutrizionista ha tolto a lei («togli lo spuntino», azione 3
    * dell'assistente). Il motore li rispetta già da giorni: qui si dicono, che è tutta la voce 235.
@@ -124,8 +138,16 @@ function MyNutrition() {
 
   // ⚠️ Qui prima finiva la stringa tecnica: la cliente leggeva «Digiuno intermittente (finestra
   // skip_breakfast)». Il nome dei pasti saltati ha una riga sua, qui sotto, con le parole vere.
+  /**
+   * ⛔ **QUI C'ERA «Digiuno intermittente 16:8», SCRITTO A MANO** (corretto il 21/8).
+   *
+   * Era vero finché 16:8 era l'unica finestra che il percorso conosceva. Da quando la durata la
+   * sceglie lei, a una cliente sulla 14:10 questa riga diceva il protocollo **di un'altra** — nella
+   * schermata che esiste apposta per farle leggere il suo piano. Una costante nel sorgente non dà
+   * errore quando smette di essere vera: continua a rispondere, con sicurezza.
+   */
   const pasti = n.fasting
-    ? 'Digiuno intermittente 16:8'
+    ? `Digiuno intermittente${n.digiuno ? ` ${n.digiuno.protocollo}` : ''}`
     : n.mealsPerDay
       ? `${n.mealsPerDay} pasti al giorno`
       : null;
@@ -136,6 +158,13 @@ function MyNutrition() {
     vuoto: string,
     // Il «?» come nel questionario: `onInfo` presente = la riga ha una spiegazione da aprire.
     onInfo?: () => void,
+    /**
+     * ⚠️ **Un'altra pagina, non un'altra spiegazione** (21/8). Il «?» apre un foglio che racconta;
+     * questa freccia porta dove la cosa si *cambia*. Sono due gesti diversi e devono avere due segni
+     * diversi: un «?» che invece di spiegare porta via è il modo più rapido per insegnare a non
+     * toccarlo più.
+     */
+    onVai?: { dove: () => void; etichetta: string },
   ) => (
     <div className="row" style={{ gap: 10, alignItems: 'flex-start', padding: '9px 0', borderTop: '1px solid var(--line)' }}>
       <i className={`ti ti-${icona}`} style={{ fontSize: 17, color: 'var(--teal)', flex: 'none', marginTop: 1 }} />
@@ -151,6 +180,19 @@ function MyNutrition() {
           onClick={onInfo}
         >
           ?
+        </button>
+      )}
+      {onVai && (
+        <button
+          type="button"
+          aria-label={onVai.etichetta}
+          onClick={onVai.dove}
+          style={{
+            background: 'none', border: 0, padding: 6, margin: 0, cursor: 'pointer',
+            color: 'var(--teal)', lineHeight: 0, flex: 'none', alignSelf: 'center',
+          }}
+        >
+          <i className="ti ti-chevron-right" style={{ fontSize: 20 }} />
         </button>
       )}
     </div>
@@ -187,21 +229,39 @@ function MyNutrition() {
           servono davvero.
         */}
         {riga('clock-hour-4', 'Pasti', pasti, 'non ancora impostati')}
-        {/* QUALI pasti salta, a parole. Richiesta di Simone del 10/8: la cliente deve vedere cosa
-            ha scelto. Restano modificabili da lei (il selettore è più in basso in questa pagina) e
-            la nota dice anche l'altra strada, la coach — che è quella che serve quando non è una
-            preferenza ma un problema. */}
+        {/*
+          ⛔ **LE SUE FASCE, non il nome dei pasti che salta** (21/8).
+
+          Qui si leggeva «Salti la colazione — mangi da pranzo a cena», e sotto, in fondo alla
+          pagina, c'erano i pallini per cambiarla. Erano la seconda risposta alla stessa domanda:
+          l'orologio in home ne dava un'altra, e le due si contraddicevano a ogni tocco. Adesso c'è
+          una riga sola, dice **gli orari** — che è la cosa che lei guarda quando ha fame — e la
+          freccia porta nell'unico posto dove si sposta.
+
+          ⚠️ I tre stati sono scritti diversi perché **sono diversi**:
+           - ha impostato l'orologio → le sue fasce, e quanti pasti;
+           - finestra vecchia, orologio mai toccato → la frase della sua finestra, senza orari
+             inventati: è quello che il motore sta usando per lei davvero;
+           - niente → «non l'hai ancora impostata», che non è «li decide la tua dieta» (voce 256).
+             Nessuna scelta non è una scelta.
+        */}
         {n.fasting && riga(
-          'tools-kitchen-2-off',
-          'I pasti che salti',
-          n.fastingWindow ? (SALTA_LABEL[n.fastingWindow] ?? n.fastingWindow) : null,
-          'li decide la tua dieta',
+          'clock-play',
+          'La tua finestra',
+          n.digiuno
+            ? `${n.digiuno.apertura} – ${n.digiuno.chiusura} · ${n.digiuno.pasti.length} ${n.digiuno.pasti.length === 1 ? 'pasto' : 'pasti'}`
+            : n.fastingWindow
+              ? (SALTA_LABEL[n.fastingWindow] ?? n.fastingWindow)
+              : null,
+          'non l\'hai ancora impostata',
+          undefined,
+          { dove: () => nav('/digiuno'), etichetta: 'Apri il tuo orologio del digiuno' },
         )}
         {/*
           ⚠️ GLI SPUNTINI TOLTI DALLA NUTRIZIONISTA (voce 235). Il motore li rispetta dal 13/8 e
           nessuna schermata lo diceva: la cliente riceveva giornate senza merenda senza sapere
           perché — lo stesso buco che avevano le allergie. Sola lettura: questo non lo cambia lei,
-          e il selettore del digiuno qui sotto non c'entra.
+          e non c'entra col digiuno: sono spuntini, la finestra riguarda i pasti principali.
         */}
         {spuntiniTolti && riga('circle-minus', 'Tolti dalla tua nutrizionista', spuntiniTolti, '')}
         {riga(
@@ -863,138 +923,23 @@ function ActivityPref() {
 }
 
 /**
- * Finestra del digiuno intermittente: QUALI pasti si saltano (voce #7 del 5/8).
- * Compare solo a chi ha scelto il digiuno: per tutte le altre non avrebbe senso.
- * Cambiarla qui cambia i menu dal ciclo successivo, non quelli già erogati.
- */
-const FASTING_OPTIONS: { value: string; label: string; hint: string }[] = [
-  { value: 'skip_breakfast', label: 'Salto la colazione', hint: 'mangi da pranzo a cena' },
-  { value: 'skip_dinner', label: 'Salto la cena', hint: 'mangi da colazione a pranzo' },
-  // ⛔ «Salto il pranzo» era qui, ed è stata RITIRATA il 21/8 (decisione del 19/8): colazione e cena
-  // lasciano due finestre corte, non un digiuno, e l'orologio non sa produrla. Chi ce l'ha già
-  // scritta continua a vederla — l'etichetta sta in `SALTA_LABEL`, in cima al file — ma non si
-  // sceglie più. ⚠️ Non toglierla da lì: una finestra che agisce e non si vede è peggio di una in
-  // meno da scegliere.
-  { value: 'skip_breakfast_lunch', label: 'Salto colazione e pranzo', hint: 'un solo pasto, la cena' },
-  { value: 'skip_dinner_breakfast', label: 'Salto cena e colazione', hint: 'finestra a metà giornata' },
-];
-
-/**
- * ⛔ **LE DUE RAGIONI PER CUI UNA FINESTRA NON È IN ELENCO — e non sono la stessa.**
+ * ⛔ **QUI C'ERA IL SELETTORE «QUALI PASTI SALTI», ED È SPARITO IL 21/8.**
  *
- * Fino al 21/8 il pannello qui sotto aveva un ramo solo per «valore che non è fra le opzioni», e
- * diceva: *«questa finestra viene dagli orari che hai impostato»*. Vero per le tre che l'orologio
- * calcola. **Falso** per `skip_lunch`, che è stata ritirata: a lei quella frase avrebbe spiegato la
- * sua finestra con un motivo inventato, e mandata a cercare un orologio che non l'ha mai decisa.
+ * Simone: «non ha più senso scegliere i pasti, sono campi che devono proprio sparire». È la Regola
+ * d'Oro del manuale: **la durata della finestra dice quanti pasti**. Da quando la cliente trascina
+ * il suo orologio, `fastingWindow` non è una scelta — è il risultato di apertura e protocollo,
+ * ricalcolato a ogni spostamento.
  *
- * ⚠️ E la differenza non è solo di parole: da una finestra **derivata** non si esce toccando un
- * pallino (lo sovrascriverebbe, e l'orologio direbbe un'altra cosa), da una finestra **ritirata**
- * sì — anzi è l'unico modo che ha di uscirne. Perciò nel primo caso le opzioni si nascondono, nel
- * secondo restano.
+ * ⚠️ **E questa card era già rotta, non solo di troppo**: i suoi pallini facevano
+ * `PATCH /me/client-profile { fastingWindow }`, e `fastingWindow` è uscito dal DTO insieme alla
+ * domanda del questionario. Ogni tocco sarebbe finito in un errore rosso senza motivo.
+ *
+ * ⚠️ E anche funzionando sarebbe stata **la seconda risposta** alla stessa domanda: qui i pasti, in
+ * home l'orologio. Due schermate che si contraddicono a ogni tocco.
+ *
+ * La finestra si legge nel riepilogo qui sopra e si sposta in un posto solo: la pagina
+ * dell'orologio, `/digiuno`, che la riga del riepilogo apre con un tocco.
  */
-const FINESTRE_DALL_OROLOGIO = ['skip_morning_snack', 'skip_breakfast_and_snacks', 'skip_all_but_dinner'];
-
-function FastingWindowPref() {
-  const [pathType, setPathType] = useState<string | null>(null);
-  const [value, setValue] = useState<string>('');
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<{ pathType?: string | null; fastingWindow?: string | null }>('/me/client-profile')
-      .then((p) => { setPathType(p.pathType ?? null); setValue(p.fastingWindow ?? ''); })
-      .catch(() => setPathType(null))
-      .finally(() => setLoaded(true));
-  }, []);
-
-  async function save(next: string) {
-    setBusy(true); setErr(null);
-    const prev = value;
-    setValue(next);
-    try {
-      await api('/me/client-profile', { method: 'PATCH', body: JSON.stringify({ fastingWindow: next }) });
-    } catch (e) {
-      setValue(prev);
-      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!loaded || pathType !== 'intermittent_fasting') return null;
-
-  return (
-    <div className="card">
-      <b style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>La tua finestra di digiuno</b>
-      <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
-        Quali pasti salti. I menu si adeguano dal prossimo ciclo: quelli già consegnati restano come sono.
-      </p>
-      {/* ⚠️ NESSUNA SCELTA NON È UNA SCELTA (18/8, voce 256). Chi si è iscritta prima di agosto
-          questa domanda non se l'è mai sentita fare: la card le compariva con tutti i pallini
-          spenti e nessuna spiegazione, cioè con un dato che decide quali pasti mangia e non si
-          vede. Qui lo diciamo — e diciamo anche che intanto non manca niente, o «non hai scelto»
-          si legge come «ti stiamo togliendo qualcosa». */}
-      {/* ⚠️ FINESTRA DERIVATA DALL'OROLOGIO (21/8). `FASTING_OPTIONS` ha solo le quattro scelte a
-          mano: con una finestra derivata i pallini sarebbero tutti spenti e l'avviso qui sotto non
-          comparirebbe (`value` è pieno) — cioè di nuovo «un dato che decide quali pasti mangia e
-          non si vede», il difetto della voce 256 rifatto da un'altra porta. E un tocco qualsiasi
-          la sovrascriverebbe. Qui si dice cos'è, e le opzioni non si mostrano. */}
-      {value && FINESTRE_DALL_OROLOGIO.includes(value) && (
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#EAF5F1', border: '1px solid #C9E4DA', borderRadius: 10, padding: '8px 10px' }}>
-          <b>{SALTA_LABEL[value] ?? value}</b><br />
-          Questa finestra viene dagli orari che hai impostato, non da una scelta di pasti: per
-          cambiarla sposta la tua finestra di digiuno, o parlane con la tua nutrizionista.
-        </p>
-      )}
-      {/* ⛔ La finestra RITIRATA (21/8): non le si dice che «viene dagli orari», perché non è vero.
-          Le si dice cos'è, che intanto non le cambia niente, e le si lasciano le opzioni sotto —
-          che sono la sua via d'uscita, non un modo di sovrascrivere un orologio. */}
-      {value && !FASTING_OPTIONS.some((o) => o.value === value) && !FINESTRE_DALL_OROLOGIO.includes(value) && (
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#FFF6E8', border: '1px solid #F0DCC0', borderRadius: 10, padding: '8px 10px' }}>
-          <b>{SALTA_LABEL[value] ?? value}</b><br />
-          Questa scelta non è più fra quelle proponibili: colazione e cena lasciano due pause corte,
-          non il digiuno lungo che il percorso promette. <b>Intanto non ti cambia niente</b> — i menu
-          restano questi. Se vuoi passare a una vera finestra di digiuno scegli qui sotto, oppure
-          parlane con la tua nutrizionista.
-        </p>
-      )}
-      {!value && (
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#FFF6E8', border: '1px solid #F0DCC0', borderRadius: 10, padding: '8px 10px' }}>
-          Non l'hai ancora scelta: quando ti sei iscritta questa domanda non c'era. Intanto ricevi
-          <b> tutti i pasti</b> della tua dieta, quindi non ti manca niente — ma se qualche pasto lo
-          salti, dircelo serve: i menu vengono costruiti sui pasti che fai davvero, invece di
-          proporti piatti che poi non mangi.
-        </p>
-      )}
-      {/* ⛔ NON SI NASCONDONO: NON SI DISEGNANO PROPRIO (corretto in revisione, 21/8).
-          Prima c'era `hidden={…}` su un `<div>` con `style={{ display: 'grid' }}` inline. `hidden`
-          nasconde perché il foglio di stile del browser dice `[hidden] { display: none }` — ma uno
-          stile **inline** è dell'autore e vince sempre su quello del browser. Risultato: i pulsanti
-          restavano a schermo, tutti spenti, sotto un riquadro che diceva «per cambiarla sposta la
-          tua finestra» — e un tocco qualsiasi sovrascriveva la finestra derivata dall'orologio.
-          Cioè esattamente il difetto che quel commento prometteva di impedire.
-          ⚠️ Un elemento che non deve essere toccabile non si nasconde: non esiste. Per una finestra
-          RITIRATA invece i pulsanti restano — sono l'unico modo che ha di uscirne. */}
-      {!(value && FINESTRE_DALL_OROLOGIO.includes(value)) && (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {FASTING_OPTIONS.map((o) => {
-            const on = value === o.value;
-            return (
-              <button key={o.value} onClick={() => save(o.value)} disabled={busy}
-                style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
-                  border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? '#EAF5F1' : '#fff', cursor: 'pointer' }}>
-                <i className={`ti ${on ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 20, color: on ? 'var(--teal)' : '#C6CFCB' }} />
-                <span><b style={{ fontSize: 13.5 }}>{o.label}</b> <span className="muted" style={{ fontSize: 12 }}>— {o.hint}</span></span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
-    </div>
-  );
-}
 
 export default function Profilo() {
   const { user, logout, switchAccount } = useAuth();
@@ -1417,7 +1362,6 @@ export default function Profilo() {
       {/* Attività fisica: guida il fabbisogno calorico e le calorie dei menu */}
       <div className="sec" style={{ marginTop: 4 }}>Attività fisica</div>
       <ActivityPref />
-      <FastingWindowPref />
 
       {/* Preferenza ricette semplici / cucina italiana */}
       <div className="sec" style={{ marginTop: 4 }}>Ricette</div>

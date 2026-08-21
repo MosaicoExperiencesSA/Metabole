@@ -20,7 +20,22 @@ const dismissKey = (d: string) => `metabole_menu_review_${d}`;
 
 interface Row { recipeId: string; slot: string; name: string; stars: number; followed: 'yes' | 'no' | null }
 
-export default function MenuReviewPopup() {
+/**
+ * ⛔ **`onAschermo` — dire a chi ospita che questo riquadro sta occupando la home** (21/8).
+ *
+ * Non serve a disegnare niente. Serve perché la home ha una regola sola — *una interruzione per
+ * volta* — e finora la applicava a occhio: sapeva del check-in, che è suo, e non sapeva di questo,
+ * che si decide da solo dopo una chiamata al server. Risultato: l'atterraggio sull'orologio del
+ * digiuno poteva portare via la home **mentre** la cliente stava dando le stelle, e le stelle
+ * vivono qui dentro, non ancora salvate.
+ *
+ * ⚠️ Chi non lo passa non cambia comportamento: è una notifica, non un permesso.
+ */
+export interface MenuReviewPopupProps {
+  onAschermo?: (aschermo: boolean) => void;
+}
+
+export default function MenuReviewPopup({ onAschermo }: MenuReviewPopupProps = {}) {
   const day = yesterdayISO();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,7 +68,24 @@ export default function MenuReviewPopup() {
       .catch(() => setRows([]));
   }, [day]);
 
-  if (!rows || rows.length === 0) return null;
+  const aschermo = !!rows && rows.length > 0;
+  /**
+   * ⚠️ In un effetto e non durante il disegno: chiamare il `setState` di un altro componente mentre
+   * questo si sta disegnando è l'avviso «Cannot update a component while rendering a different
+   * component» — e in produzione un aggiornamento perso.
+   */
+  useEffect(() => { onAschermo?.(aschermo); }, [aschermo, onAschermo]);
+  /**
+   * ⚠️ E allo **smontaggio** si dice che non c'è più. Senza, chi ospita resterebbe con «c'è un
+   * riquadro aperto» addosso per sempre: la home toglie questo componente quando il check-in
+   * prende il suo posto, e da lì l'ultima cosa detta sarebbe stata «sono a schermo».
+   * ⚠️ In un effetto **a parte**: metterlo come pulizia di quello qui sopra farebbe passare un
+   * `false` a ogni cambio di stato, cioè una finestrella in cui la regola non vale.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => onAschermo?.(false), []);
+
+  if (!aschermo) return null;
 
   function set(i: number, patch: Partial<Row>) {
     setRows((rs) => (rs ? rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) : rs));

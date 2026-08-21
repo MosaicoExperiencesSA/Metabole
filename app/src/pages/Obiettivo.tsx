@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import CarouselNav, { scrollCarouselTo } from '../components/CarouselNav';
 import ReportsSection from '../components/ReportsSection';
+import VideoMisure from '../components/VideoMisure';
 import { parseMisura } from '../lib/misure';
 import { esitoPesata, type EsitoPesata, type Traguardo } from '../lib/esitoPesata';
 import { oggiIso } from '../lib/giorno';
@@ -341,7 +342,18 @@ export default function Obiettivo() {
 
       {/* Misure di oggi */}
       <div className="card">
-        <b style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Misure di oggi</b>
+        {/*
+          ⚠️ Il punto interrogativo accanto al titolo, non un riquadro sotto (richiesta di Simone,
+          21/8). Qui il video è un **ripensamento**, non il punto della schermata: chi sa già
+          misurarsi sta scrivendo un numero, e un'anteprima grande in mezzo le occuperebbe lo spazio
+          per una cosa che ha già visto. Nel blocco misure che ferma il menu, invece, il video sta
+          in grande e sopra le caselle di vita e fianchi — lì è la schermata a esistere per quello.
+          ⚠️ È lo **stesso** componente, e lo stesso file video: due copie divergono.
+        */}
+        <div className="row-between" style={{ alignItems: 'center', marginBottom: 10 }}>
+          <b style={{ fontSize: 13 }}>Misure di oggi</b>
+          <VideoMisure forma="punto" origine="obiettivo" />
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => setWeight(e.target.value)} /></div>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} disabled={!inputsEnabled} onChange={(e) => setWaist(e.target.value)} /></div>

@@ -41,7 +41,12 @@ const ALLERGENI: { code: string; label: string }[] = [
   { code: 'molluschi', label: 'Molluschi' },
 ];
 
-export default function ChiediAllergie() {
+/** Vedi `MenuReviewPopup`: la home ha bisogno di sapere se questo riquadro la sta occupando. */
+export interface ChiediAllergieProps {
+  onAschermo?: (aschermo: boolean) => void;
+}
+
+export default function ChiediAllergie({ onAschermo }: ChiediAllergieProps = {}) {
   const [daChiedere, setDaChiedere] = useState(false);
   const [aperto, setAperto] = useState(false);
   const [rimandato, setRimandato] = useState(false);
@@ -60,7 +65,20 @@ export default function ChiediAllergie() {
       .catch(() => setDaChiedere(false));
   }, []);
 
-  if (!daChiedere || rimandato || fatto) return null;
+  const aschermo = daChiedere && !rimandato && !fatto;
+  // ⚠️ In un effetto: vedi la nota in `MenuReviewPopup`.
+  useEffect(() => { onAschermo?.(aschermo); }, [aschermo, onAschermo]);
+  /**
+   * ⚠️ E allo **smontaggio** si dice che non c'è più. Senza, chi ospita resterebbe con «c'è un
+   * riquadro aperto» addosso per sempre: la home toglie questo componente quando il check-in
+   * prende il suo posto, e da lì l'ultima cosa detta sarebbe stata «sono a schermo».
+   * ⚠️ In un effetto **a parte**: metterlo come pulizia di quello qui sopra farebbe passare un
+   * `false` a ogni cambio di stato, cioè una finestrella in cui la regola non vale.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => onAschermo?.(false), []);
+
+  if (!aschermo) return null;
 
   function tocca(code: string) {
     setNessuna(false);

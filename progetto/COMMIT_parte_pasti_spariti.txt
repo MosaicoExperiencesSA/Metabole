@@ -1,0 +1,71 @@
+Digiuno: i pasti non si scelgono più — la scheda legge le fasce, il log le storicizza
+
+Simone, 21/8: «non ha più senso scegliere i pasti, sono campi che devono proprio
+sparire, e nella scheda cliente devo leggere le fasce e storicizziamo nel log
+quando il cliente le cambia». È la Regola d'Oro del manuale portata fino in
+fondo: la DURATA della finestra dice quanti pasti, quindi `fastingWindow` non è
+più una scelta di nessuno — è quello che l'orologio produce da apertura e
+protocollo.
+
+Sparite tutte e tre le porte: la domanda del questionario, la tendina «Pasti che
+salta» della scheda staff, i pallini nel profilo dell'app (che erano anche già
+rotti — mandavano un campo che il DTO non accetta più). Al loro posto, in scheda
+cliente, «Finestra del digiuno» in sola lettura: apertura, chiusura, protocollo,
+gli orari dei pasti, dalla stessa funzione che disegna l'orologio nell'app.
+
+Nel log modifiche arrivano le due righe della cliente — prima scelta e finestra
+spostata — con dentro la frase che ha letto lei prima di confermare, non
+`inizioMin: 960`. Il passo notturno del cron resta fuori: è l'esecuzione di un
+piano già confermato, e dodici righe automatiche a notte affogherebbero le sue
+due decisioni vere.
+
+Non bastava togliere il campo dai DTO: `PROFILE_FIELDS` è il ciclo cieco che
+scrive sul profilo, e finché il campo era in quell'elenco un chiamante qualsiasi
+lo scriveva lo stesso. La guardia sta dove si scrive.
+
+Due revisioni avversariali, quattordici difetti — il primo mio e bloccante:
+
+- La scheda staff riceveva `vistaOrologio()` INTERA invece delle sole fasce: un
+  oggetto sempre pieno, quindi sempre truthy in un campo letto come «le fasce
+  oppure niente». Per ogni cliente in digiuno la scheda leggeva `pasti.length`
+  su un undefined e portava giù tutto il backoffice. Nessun compilatore poteva
+  vederlo. Adesso i due servizi chiamano una funzione sola, `fasceDelDigiuno`.
+- L'attività della coach sarebbe nata per ogni cliente nuova, la notte stessa
+  dell'iscrizione, con dentro l'istruzione di aprire una tendina cancellata. Ora
+  guarda `fastingSceltoIl` e lascia tre giorni di grazia all'app, ancorati a
+  `onboardingCompletedAt` — non alla nascita del profilo, che è l'assegnazione
+  del lead, mesi prima.
+- Quattro porte toglievano una cliente dal digiuno e tre erano già divergenti.
+  Lo stato peggiore non è «tutto scritto», è mezzo: finestra vuota e orologio
+  pieno vuol dire schermo che dice «08:00 – 16:00» e motore che manda tutti i
+  pasti. Un elenco solo: `menu/uscita-dal-digiuno.ts`.
+- `@IsOptional` non vuol dire «se c'è, validalo»: salta i controlli anche su
+  null. Il cancello lasciava passare `fastingWindow: null`.
+- E la correzione stava per essere peggiore del difetto: `'fastingWindow' in o`
+  è sempre vero, perché `plainToInstance` materializza tutte le proprietà
+  dichiarate. Ogni PATCH a quei due endpoint avrebbe preso 400. L'ha trovato il
+  test scritto per il difetto di prima.
+- I due DTO rifiutano il campo, ma con una frase italiana invece di «property
+  fastingWindow should not exist»: chi lo manda ancora è gente vera — le app non
+  aggiornate e le schede di backoffice aperte prima del deploy, che senza quella
+  dichiarazione non avrebbero più salvato niente, nemmeno un telefono.
+- Il testo dell'attività diceva «riceve tutti i pasti» anche a chi ha
+  skip_all_but_dinner e mangia una volta al giorno.
+- L'atterraggio sull'orologio poteva portare via la home mentre la cliente dava
+  le stelle o scriveva le sue allergie: ora i riquadri dicono da soli quando
+  sono a schermo, invece che la home indovinarlo.
+- Il profilo dell'app scriveva a mano «Digiuno intermittente 16:8», falso da
+  quando la durata la sceglie lei.
+- Tre miei test erano aggirabili: la regex che doveva impedire il ritorno delle
+  tendine riconosceva solo le due righe appena cancellate. Un test che riconosce
+  solo il difetto che ha già visto protegge la storia, non il codice.
+
+Quello che si è perso, e va detto: la nutrizionista non può più prescrivere una
+finestra che l'orologio non sa disegnare («salta la cena»). Oggi serve a una
+cliente vera. Se Lucia la rivuole, la forma è protocollo + orario dalla scheda —
+non il ritorno della tendina.
+
+4493 test su 4493 nel backend, 152 su 152 nell'app, build verde su tutti e tre.
+
+In elenco lavori: le frecce di cambio pagina anche IN ALTO nelle tabelle a più
+pagine, su tutte, con un componente solo (richiesta di Simone del 21/8).

@@ -1,6 +1,4 @@
 import { Transform, Type } from 'class-transformer';
-// I valori ammessi vengono dalla tabella unica delle finestre: vedi `menu/finestre-digiuno.ts`.
-import { VALORI_FINESTRA_DIGIUNO } from '../../menu/finestre-digiuno';
 import { numeroOpzionale, numeroOpzionaleConZero } from '../../common/validazione';
 import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
@@ -165,10 +163,18 @@ export class SubmitAnswersDto {
   @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting'], { message: 'Scegli il tipo di percorso.' })
   pathType!: string;
 
-  @IsOptional()
-  @IsIn(VALORI_FINESTRA_DIGIUNO, { message: 'Finestra del digiuno non valida.' })
-  fastingWindow?: string;
-
+  /**
+   * ⛔ **`fastingWindow` NON SI SCRIVE PIÙ DA QUI** (Simone, 21/8: «non ha più senso scegliere i
+   * pasti, sono campi che devono proprio sparire»).
+   *
+   * Quali pasti riceve chi digiuna lo **deriva l'orologio** dalla durata della finestra, e la
+   * finestra la imposta la cliente da `PATCH /me/digiuno`. Finché questo campo restava scrivibile,
+   * due porte rispondevano alla stessa domanda: la correzione fatta da qui durava fino al primo
+   * spostamento della cliente, che la riscriveva senza avvisare nessuno.
+   *
+   * ⚠️ La colonna **resta** e resta letta dal motore: è il dato su cui i menu si compongono. A
+   * cambiare è **chi lo scrive**, e adesso è uno solo.
+   */
   @IsOptional()
   @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active'], { message: 'Livello di attività non valido.' })
   activityLevel?: string;

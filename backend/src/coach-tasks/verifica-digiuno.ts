@@ -32,9 +32,14 @@
  * orario, e il primo spostamento della cliente riscrive quello che la nutrizionista aveva corretto —
  * senza avvisare nessuno, perché il riferimento dell'attività non cambia per una traslazione.
  *
- * ⚠️ Adesso i testi lo dicono. Ma resta una domanda aperta a cui rispondere: **due porte scrivono
- * la stessa cosa** (la scheda staff a mano, l'orologio per derivazione), e finché è così una delle
- * due prima o poi contraddice l'altra. Sta in elenco lavori.
+ * ✅ **E il 21/8 la seconda porta è sparita.** Qui c'era scritto «resta una domanda aperta: due porte
+ * scrivono la stessa cosa (la scheda staff a mano, l'orologio per derivazione)». Simone ha deciso:
+ * *«non ha più senso scegliere i pasti, sono campi che devono proprio sparire»*. La tendina della
+ * scheda non c'è più, la domanda del questionario nemmeno, e la finestra la scrive **solo**
+ * l'orologio della cliente.
+ *
+ * ⚠️ Perciò i due testi qui sotto non offrono più «la scheda» come alternativa peggiore: non è
+ * peggiore, non esiste. Dicono la strada che c'è — la telefonata, e poi lei che sposta l'orologio.
  */
 
 /** La scelta è estrema. ⚠️ Metà della chiave di unicità: `clientId + kind + refId`. */
@@ -101,8 +106,8 @@ export function testoDigiunoEstremo(
       `Perché ti arriva:\n${ragioni.map((r) => `• ${r}`).join('\n')}\n\n` +
       'Se dopo averla sentita va bene così, segna l\'attività fatta: non te la ripropongo finché ' +
       'non cambia protocollo o pasti. Se invece non va bene, **la correzione la deve fare lei ' +
-      'dall\'orologio**, e conviene dirle perché: i suoi pasti adesso li decide la durata della ' +
-      'finestra che ha impostato, quindi cambiarli dalla scheda dura fino al primo spostamento che fa.',
+      'dall\'orologio** — dalla scheda non si può, e non è una mancanza: i suoi pasti li decide la ' +
+      'durata della finestra che imposta lei, quindi non c\'è nessun altro posto da cui cambiarli.',
   };
 }
 
@@ -127,7 +132,7 @@ export function testoFinestraNonTraducibile(
       'che non ha chiesto perché somigliano ai suoi sarebbe stato peggio.\n\n' +
       'Se la scelta che ha fatto ti convince, segna l\'attività fatta. Se no, sentitela: **i pasti ' +
       'adesso li decide l\'orologio che imposta lei**, quindi la correzione va fatta da lì — dalla ' +
-      'scheda durerebbe fino al primo spostamento che fa.',
+      'scheda non si può, e non c\'è nessun altro posto.',
   };
 }
 

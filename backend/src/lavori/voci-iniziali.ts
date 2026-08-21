@@ -1825,9 +1825,17 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'dalle segnalazioni. *Niente tagli silenziosi: se si scarta qualcosa, si dice quanto.*\n\n'
       + '⚠️ Entra **bassa** perché nasce da una revisione mia, come da regola del 19/8 — non perché '
       + 'valga poco: diventa urgente il giorno in cui la pagina dell\'orologio va in mano alle '
-      + 'clienti, cioè prima del rilascio del pezzo React.',
-    categoria: SIMONE,
+      + 'clienti, cioè prima del rilascio del pezzo React.\n\n'
+      + '✅ **DECISO il 21/8: la (a), «escono dalle tendine».** E il 21/8 stesso sono uscite **tutte** '
+      + 'le tendine, non solo quelle tre: la finestra non si sceglie più da nessuna parte, la deriva '
+      + 'l\'orologio. Il caso che questa voce descriveva — la segnalazione a Lucia su una scelta fatta '
+      + 'cinque minuti prima — non può più nascere, perché non c\'è più la scelta che la faceva '
+      + 'nascere.\n\n'
+      + '⚠️ Restano **leggibili** tutte e otto, e vale il costo clinico scritto sopra: «salta la cena» '
+      + 'non è più prescrivibile. Vedi la voce sulle due porte.',
+    categoria: CODICE,
     ordine: 628,
+    fatta: true,
     nata: '2026-08-21T08:55',
     priorita: 'bassa',
   },
@@ -1909,11 +1917,31 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nutrizionista una leva che l\'orologio non ha (prescrivere una finestra che l\'orologio non sa '
       + 'disegnare, come «salta la cena»), e quella leva oggi serve a una cliente vera.\n\n'
       + '⚠️ Legata alla decisione già in elenco sulle tre finestre ancora scegliibili che l\'orologio non '
-      + 'sa riprodurre: è la stessa domanda vista dall\'altra parte.',
-    categoria: SIMONE,
+      + 'sa riprodurre: è la stessa domanda vista dall\'altra parte.\n\n'
+      + '✅ **DECISO E FATTO il 21/8, e più netto della (a).** Simone: «non ha più senso scegliere i '
+      + 'pasti, sono campi che devono proprio sparire, e nella scheda cliente devo leggere le fasce». '
+      + 'La porta adesso è **una sola** — l\'orologio della cliente — e la scheda staff **legge**: '
+      + 'apertura, chiusura, protocollo, gli orari dei pasti, dalla stessa funzione che disegna '
+      + 'l\'orologio in app. Sparita la tendina «Pasti che salta», sparita la domanda del questionario, '
+      + 'spariti i pallini nel profilo dell\'app.\n\n'
+      + '⚠️ **Non bastava togliere il campo dai DTO**: `PROFILE_FIELDS` è il ciclo cieco che scrive sul '
+      + 'profilo, e finché `fastingWindow` era in quell\'elenco un chiamante qualsiasi lo scriveva lo '
+      + 'stesso. La guardia sta dove si scrive. ⚠️ E anche uno **script** lo scriveva '
+      + '(`prisma/sposta-percorso-cliente.ts`): azzerava la finestra e lasciava l\'orologio, che è lo '
+      + 'stato peggiore dei due.\n\n'
+      + '⛔ **Quello che si è perso, e va detto:** la nutrizionista non può più **prescrivere** una '
+      + 'finestra che l\'orologio non sa disegnare («salta la cena»). Era la leva della strada (b), e '
+      + 'oggi serve a una cliente vera. Se Lucia la rivuole, la forma giusta è protocollo + orario '
+      + 'scritti dalla scheda — non il ritorno della tendina.\n\n'
+      + '⚠️ Chi l\'orologio non l\'ha ancora toccato **si legge lo stesso**, in tutte e due le schede: '
+      + 'la sua finestra storica sta decidendo quali pasti riceve, e un dato che agisce e non si vede '
+      + 'è il difetto peggiore di questo progetto.\n\n'
+      + '⚠️ Il permesso «Cambia i pasti del digiuno» non protegge più nessuna porta. Resta nella tabella '
+      + 'dei ruoli: chi ce l\'ha oggi va avvisato prima di toglierglielo.',
+    categoria: CODICE,
     ordine: 642,
     nata: '2026-08-21T11:40',
-    priorita: 'bassa',
+    fatta: true,
   },
   {
     chiave: 'digiuno-resta-corta-non-la-guarda-nessuno',
@@ -1991,6 +2019,31 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 633,
     nata: '2026-08-21T10:20',
     fatta: true,
+  },
+
+  {
+    chiave: 'tabelle-frecce-anche-in-alto',
+    titolo: 'Nelle tabelle a più pagine le frecce stanno solo in fondo: metterle anche in alto — su tutte',
+    dettaglio:
+      'Richiesta di Simone del 21/8: «dove ci sono le tabelle con più pagine mettiamo anche in alto le '
+      + 'frecce per cambio pagina come in basso, metti in nota per dopo da fare su tutte le tabelle».\n\n'
+      + '⚠️ **Perché non è un vezzo.** Su una tabella lunga, per cambiare pagina bisogna scorrere fino '
+      + 'in fondo, cliccare, e poi risalire in cima a leggere — due volte per ogni pagina. Chi sfoglia '
+      + 'venti pagine di clienti fa quaranta viaggi che non servono a niente. E le frecce in fondo si '
+      + 'trovano solo se si sa che ci sono: in cima si vedono.\n\n'
+      + '⚠️ **Su TUTTE le tabelle, ed è la parte che si sbaglia**: farlo su quella che si aveva sotto '
+      + 'mano lascia il backoffice con due comportamenti diversi per la stessa cosa, che è peggio di '
+      + 'nessuno dei due. La strada giusta è **un componente solo** — le frecce, il numero di pagina, '
+      + 'lo stato «prima»/«ultima» — usato in alto e in basso dalla stessa tabella: due copie dello '
+      + 'stesso blocco divergono, e qui divergerebbero **dentro la stessa schermata**.\n\n'
+      + '⚠️ E la barra in alto compare **solo se le pagine sono più d\'una**: due righe di comandi '
+      + 'attorno a una tabella di sei righe sono rumore.\n\n'
+      + '⚠️ Prima di scrivere: censire dove sono le tabelle paginate oggi, perché la paginazione qui non '
+      + 'è un componente ma un pezzo ripetuto a mano — il censimento È metà del lavoro.',
+    categoria: CODICE,
+    ordine: 644,
+    nata: '2026-08-21T13:50',
+    priorita: 'neutra',
   },
 
 ];

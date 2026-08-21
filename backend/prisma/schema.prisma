@@ -469,8 +469,11 @@ model ClientProfile {
   // SOLO sul minimo: il massimo resta della dieta. NULL = vale la banda della sua dieta.
   proteinMinPct          Float?     @map("protein_min_pct")
   // Gli SPUNTINI che questa cliente non vuole (Vera, azione 3 — Decisioni 13/8 §14).
-  // Solo morning_snack/afternoon_snack: i pasti principali passano da fastingWindow, che è una
-  // scelta di percorso col suo permesso. Le kcal del giorno si ridistribuiscono sui pasti rimasti
+  // Solo morning_snack/afternoon_snack: i pasti principali passano da fastingWindow, che dal 21/8
+  // non è più una scelta di nessuno — la deriva l'orologio della cliente, e nessun permesso la
+  // protegge perché non c'è più nessuna porta da proteggere. Sono due dati diversi e restano tali:
+  // questo lo decide la nutrizionista, quella la decide lei.
+  // Le kcal del giorno si ridistribuiscono sui pasti rimasti
   // (stessa strada del digiuno: gli slot esclusi escono PRIMA della composizione).
   pastiEsclusi           String[]   @default([]) @map("pasti_esclusi")
   // --- Gate misure severo (richiesta Simone 5/8, voce #6) ---

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { track } from '../lib/track';
+import VideoMisure from './VideoMisure';
 import { parseMisura } from '../lib/misure';
 import { EVENTO_APRI_MISURE } from './MenuStatusBanner';
 import { frasePausaMenu } from '../lib/da-quanto-fermo';
@@ -72,7 +73,6 @@ export default function MeasuresGate() {
    * costano solo i 55 KB della copertina. È il genere di dettaglio che non si vede da Milano col
    * wi-fi e si vede benissimo da un telefono in giro con pochi giga.
    */
-  const [videoAperto, setVideoAperto] = useState(false);
 
   async function check() {
     try {
@@ -184,37 +184,7 @@ export default function MeasuresGate() {
           vale più della stessa spiegazione messa in alto, dove si legge come un'intestazione e si
           salta.
         */}
-        <div style={{ marginTop: 10, marginBottom: 8 }}>
-          {videoAperto ? (
-            <video
-              src="/video/misure.mp4"
-              poster="/video/misure-poster.jpg"
-              controls
-              autoPlay
-              playsInline
-              preload="auto"
-              style={{ width: '100%', borderRadius: 12, display: 'block', background: '#000' }}
-            />
-          ) : (
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => { setVideoAperto(true); track('measures_video_open'); }}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: 8, textAlign: 'left' }}
-            >
-              <img
-                src="/video/misure-poster.jpg"
-                alt=""
-                style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, flex: 'none' }}
-              />
-              <span style={{ flex: 1, lineHeight: 1.25 }}>
-                <b style={{ fontSize: 13 }}>Come si prendono le misure</b>
-                <span className="muted" style={{ display: 'block', fontSize: 11 }}>Video di 36 secondi</span>
-              </span>
-              <i className="ti ti-player-play" style={{ flex: 'none' }} />
-            </button>
-          )}
-        </div>
+        <VideoMisure forma="riga" origine="blocco-misure" />
 
         <div className="row" style={{ gap: 8 }}>
           <div style={{ flex: 1 }}>

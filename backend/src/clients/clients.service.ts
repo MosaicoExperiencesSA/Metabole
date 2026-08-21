@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { fasceDelDigiuno, type ProfiloDigiuno } from '../menu/vista-orologio';
+import { SELECT_OROLOGIO, orologioAzzerato, restaQualcosaDellOrologio } from '../menu/uscita-dal-digiuno';
 import { AuthService } from '../auth/auth.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
@@ -34,7 +36,20 @@ import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
-const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'allergies', 'intolerances', 'dislikedFoods', 'themeColor', 'fastingWindow', 'activityLevel', 'isStoreReviewer'] as const;
+/**
+ * ⛔ **`fastingWindow` NON È PIÙ IN QUESTO ELENCO** (Simone, 21/8: «non ha più senso scegliere i
+ * pasti, sono campi che devono proprio sparire»).
+ *
+ * Questo elenco è la porta che decide cosa la scheda staff può scrivere sul profilo: il ciclo qui
+ * sotto lo riempie **ciecamente**, quindi togliere il campo dal DTO non bastava — bastava un
+ * chiamante che lo passasse lo stesso e la finestra finiva in database senza nessun controllo.
+ *
+ * Quali pasti riceve chi digiuna lo deriva l'orologio, e l'orologio lo imposta la cliente. ⚠️ Il
+ * permesso «Cambia i pasti del digiuno» (`change_fasting_window`) resta nella tabella dei ruoli ma
+ * da qui non lo guarda più nessuno: non si toglie in questa consegna perché toglierlo è un'altra
+ * decisione — chi ce l'ha oggi va avvisato prima.
+ */
+const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'allergies', 'intolerances', 'dislikedFoods', 'themeColor', 'activityLevel', 'isStoreReviewer'] as const;
 
 /**
  * Scheda cliente per lo staff: aggrega anagrafica, questionario, obiettivo,
@@ -438,6 +453,42 @@ export class ClientsService {
             // motore cercherà quel nome e non lo troverà.
             { id: null, nome: dietFamilyAssegnata, descrizione: null, style: null, status: 'non_in_catalogo', regime: null, mealsPerDay: null }
           : null,
+      /**
+       * ⛔ **LE FASCE DEL DIGIUNO, in chiaro e in sola lettura** (Simone, 21/8: «nella scheda cliente
+       * devo leggere le fasce»).
+       *
+       * Da quando la finestra la deriva l'orologio, `fastingWindow` da sola non dice più niente a
+       * chi legge: `skip_breakfast` non è un orario, e la domanda vera della nutrizionista è **a che
+       * ora mangia**. Qui arriva già composta — apertura, chiusura, protocollo, gli orari dei pasti
+       * — dalla stessa funzione che disegna l'orologio nell'app (`menu/vista-orologio.ts`): se un
+       * giorno le soglie cambiano, la scheda e il telefono cambiano insieme.
+       *
+       * ⚠️ **Sola lettura.** Non c'è nessun campo da scrivere qui: la finestra la imposta la cliente,
+       * e quello che fa resta nel log delle modifiche della sua scheda.
+       * ⚠️ `attuale` manca finché non ha scelto: non si inventa un orologio che nessuno ha impostato.
+       */
+      /**
+       * ⚠️ **`profile` può essere null** — una cliente senza profilo esiste, ed è il caso normale
+       * prima del questionario. La prima versione di questa riga aveva un `as never` addosso, e quel
+       * cast ha zittito il compilatore che lo sapeva: la scheda di quelle clienti sarebbe esplosa
+       * per intero, non solo in questo riquadro.
+       *
+       * ⛔ **`.attuale`, NON la vista intera** (trovato in revisione, 21/8 — non da un test: da un
+       * revisore che ha guardato cosa arriva davvero). Qui c'era `vistaOrologio(profile)` e basta,
+       * che restituisce `{ digiuna, daChiedere, motivo, protocolli, attuale?… }`: un oggetto
+       * **sempre pieno**, quindi sempre `truthy`, dentro un campo che la scheda legge come «le fasce
+       * oppure niente». Risultato: per **ogni** cliente in digiuno la scheda leggeva
+       * `digiuno.pasti.length` su un `undefined` e finiva nell'`ErrorBoundary` — non un riquadro
+       * sbagliato, tutto il backoffice a «Qualcosa è andato storto». E i due ripieghi (finestra
+       * storica, mai chiesta) erano codice morto: quel `null` non arrivava mai.
+       *
+       * ⚠️ Il cast era la seconda metà della stessa storia. `as ProfiloDigiuno` ha zittito il
+       * compilatore sul **tipo di ritorno** come `as never` l'aveva zittito sul null: due volte lo
+       * stesso difetto, due volte lo stesso silenziatore. Adesso non c'è — `profile` è già
+       * strutturalmente un `ProfiloDigiuno`, e il giorno che smette di esserlo si deve accendere
+       * qui, non nel browser di una nutrizionista.
+       */
+      digiuno: fasceDelDigiuno(profile),
       /**
        * IL VIA LIBERA CLINICO, per la scheda. `profile` porta già i campi grezzi; qui si aggiunge la
        * sola cosa che non si può leggere da quelli: **se questa cliente è ancora da valutare**.
@@ -869,7 +920,7 @@ export class ClientsService {
        * ha nemmeno guardato. Cambiare cosa una persona riceve nel piatto come effetto collaterale
        * del salvataggio di un'anagrafica è peggio del difetto che si stava chiudendo.
        *
-       * È la stessa regola che `allergies` e `fastingWindow` applicano qui sotto: **il permesso, e
+       * È la stessa regola che `allergies` applica qui sotto: **il permesso, e
        * la modifica, valgono sul cambiamento — non sul salvataggio**. Le liste già sporche in banca
        * dati le ripulisce `npm run pulisci:spezie`, che è il posto dove quel lavoro si vede.
        */
@@ -1000,56 +1051,67 @@ export class ClientsService {
     }
 
     /**
-     * I PASTI DEL DIGIUNO (`fastingWindow`): permesso dedicato «Cambia i pasti del digiuno».
+     * ⛔ **USCIRE DAL DIGIUNO AZZERA L'OROLOGIO — e questo è tutto quello che resta di quel blocco.**
      *
-     * Sta a parte dal tipo di dieta perché è una decisione di natura diversa — non cambia il
-     * prodotto, cambia **quali pasti la cliente riceve domani mattina** — e Simone ha chiesto un
-     * flag suo per poterla dare alla coach senza dare anche regime e stile.
+     * Fino al 21/8 qui c'era anche la scrittura di `fastingWindow` dalla scheda, col suo permesso
+     * dedicato («Cambia i pasti del digiuno») e col suo caso «svuotala, la decide la dieta». Non
+     * esiste più niente di tutto questo: la tendina è sparita, il campo è uscito dal DTO e da
+     * `PROFILE_FIELDS`, e la finestra la *deriva* l'orologio della cliente. Il permesso resta nella
+     * tabella dei ruoli ma non protegge più nessuna porta — chi ce l'ha oggi va avvisato prima di
+     * toglierglielo, non prima di smettere di usarlo.
      *
-     * Due cose in più che il codice faceva a metà:
-     *  - se il percorso non è più digiuno intermittente, la finestra si **azzera**. Prima restava
-     *    scritta in database (solo l'onboarding la ripuliva): inerte finché il percorso era un
-     *    altro, ma al ritorno al digiuno riprendeva un valore vecchio, in silenzio;
-     *  - la finestra si può **svuotare** («la decide la dieta»): la select manda `''`, che qui è
-     *    già diventato `null` insieme a tutti gli altri campi.
+     * ⚠️ Il commento vecchio prometteva una guardia («permesso dedicato») che non c'è più: lasciarlo
+     * in piedi avrebbe fatto credere al prossimo lettore che qualcosa qui sia ancora controllato.
      */
-    let fastingChange: { before: string | null; after: string | null } | null = null;
     let fastingAzzerata = false;
-    if (profileData.fastingWindow !== undefined || profileData.pathType !== undefined) {
+    if (profileData.pathType !== undefined) {
       const current = (await this.prisma.clientProfile.findUnique({
         where: { userId },
-        select: { fastingWindow: true, pathType: true },
-      })) as { fastingWindow: string | null; pathType: string | null } | null;
+        // ⚠️ `SELECT_OROLOGIO` e non sette righe a mano: è la stessa domanda di `restaQualcosaDell…`,
+        // e sceglierne sei su sette vorrebbe dire rispondere «non c'è niente» a un profilo che ha
+        // ancora una colonna scritta.
+        select: { ...SELECT_OROLOGIO, pathType: true },
+      })) as (Record<string, unknown> & { fastingWindow: string | null; pathType: string | null }) | null;
       const prima = current?.fastingWindow ?? null;
+      /**
+       * ⛔ **`!== undefined`, non `??`** (regressione trovata in revisione, 21/8). Scritto `??`, un
+       * `pathType: null` esplicito — che il DTO accetta — collassava su «campo assente» e ripescava
+       * il percorso di prima: la cliente restava «in digiuno» agli occhi di questa guardia, e
+       * l'orologio non veniva azzerato. `null` e «non l'ho mandato» sono due cose diverse.
+       */
       const percorsoFinale = (profileData.pathType !== undefined ? profileData.pathType : current?.pathType) ?? null;
-
-      if (percorsoFinale !== 'intermittent_fasting') {
-        // Percorso diverso dal digiuno: la finestra non ha più senso e si azzera. È una
-        // CONSEGUENZA, non una scelta: non si chiede il permesso, altrimenti cambiare il percorso
-        // — che è libero — sarebbe bloccato da un flag che parla di un altro campo. Resta l'audit.
-        if (prima !== null) {
-          profileData.fastingWindow = null;
-          fastingAzzerata = true;
-        } else if (profileData.fastingWindow !== undefined) {
-          profileData.fastingWindow = null;
-        }
-      } else if (profileData.fastingWindow !== undefined) {
-        // Cambio ESPLICITO della finestra su una cliente che digiuna: qui sì, serve il permesso.
-        // `undefined` invece vuol dire «non l'ho toccata»: non si scrive e non si chiede niente,
-        // altrimenti un chiamante che manda solo `pathType` la cancellerebbe di straforo.
-        const dopo = (profileData.fastingWindow ?? null) as string | null;
-        if (dopo !== prima) {
-          const attore = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
-          if (!(await this.roleCanManage(attore?.role ?? '', 'change_fasting_window'))) {
-            throw new ForbiddenException(
-              'Cambiare i pasti del digiuno richiede il permesso "Cambia i pasti del digiuno".',
-            );
-          }
-          fastingChange = { before: prima, after: dopo };
-        } else {
-          // Stesso valore rimandato dal form: niente da scrivere.
-          delete profileData.fastingWindow;
-        }
+      /**
+       * ⛔ **«C'è ancora qualcosa dell'orologio», non «la finestra era piena»** (revisione 21/8).
+       *
+       * La condizione era `prima !== null`, cioè guardava **solo** `fastingWindow`. Ma esiste un
+       * modo di arrivare qui con la finestra già vuota e l'orologio ancora tutto scritto: lo script
+       * `prisma/sposta-percorso-cliente.ts` azzerava solo quella. In quello stato questa riparazione
+       * non partiva, `fastingSceltoIl` sopravviveva — e al ritorno al digiuno la cliente non si
+       * vedeva chiedere niente, con lo schermo che le mostrava «08:00 – 16:00» e il motore che le
+       * mandava tutti i pasti. Schermo e piatto che dicono due cose diverse.
+       *
+       * ⚠️ Lo script è stato corretto insieme a questa riga. Ma una riparazione che funziona solo se
+       * nessun altro ha sbagliato prima non è una riparazione: è la stessa fiducia che ha creato il
+       * buco.
+       */
+      if (percorsoFinale !== 'intermittent_fasting' && restaQualcosaDellOrologio(current)) {
+        /**
+         * ⛔ **USCIRE DAL DIGIUNO PORTA VIA TUTTO L'OROLOGIO, non solo la finestra.**
+         *
+         * La finestra si azzerava già (era inerte, ma al ritorno al digiuno riprendeva un valore
+         * vecchio in silenzio). Dal 21/8 vale lo stesso — e di più — per i campi dell'orologio: se
+         * `fastingSceltoIl` sopravvivesse, il giorno in cui questa cliente tornasse al digiuno **non
+         * le verrebbe chiesto niente**, e si ritroverebbe la finestra di sei mesi prima senza che
+         * nessuno gliel'abbia chiesta. È il difetto da cui è nata tutta questa parte.
+         *
+         * ⚠️ È una **conseguenza**, non una scelta: non si chiede nessun permesso, altrimenti
+         * cambiare il percorso — che è libero — sarebbe bloccato da un flag che parla di altro.
+         * Resta l'audit.
+         */
+        // ⚠️ L'elenco sta in `menu/uscita-dal-digiuno.ts`: quattro porte lo scrivevano a mano, e tre
+        // erano già divergenti. Se nasce un'ottava colonna, si aggiunge là e la seguono tutte.
+        Object.assign(profileData, orologioAzzerato());
+        fastingAzzerata = true;
       }
     }
 
@@ -1158,15 +1220,13 @@ export class ClientsService {
         metadata: { motivo: 'percorso diverso dal digiuno intermittente' } as never,
       });
     }
-    if (fastingChange) {
-      await this.audit.log({
-        action: 'client.fasting_window.change',
-        actorId,
-        entityType: 'user',
-        entityId: userId,
-        metadata: fastingChange as never,
-      });
-    }
+    /**
+     * ⛔ Qui c'era `client.fasting_window.change`, la riga di audit di quando la scheda **scriveva**
+     * la finestra. Non può più nascere: `fastingChange` resta `null` per costruzione, perché il
+     * campo è uscito dal DTO e da `PROFILE_FIELDS`. Tolta, invece di lasciarla come ramo morto che
+     * qualcuno un giorno prova a spiegarsi. ⚠️ Le righe **già scritte** restano nel log e restano
+     * leggibili: la loro etichetta è ancora in `CHANGE_ACTION_LABEL` del backoffice.
+     */
     if (dietTypeChange) {
       await this.audit.log({
         action: 'client.diet_type.change',
@@ -1616,7 +1676,16 @@ export class ClientsService {
     ]);
     const ids = [userId, profile?.id, crm?.id].filter((x): x is string => Boolean(x));
     const CHANGE_ACTIONS = [
-      'client.update', 'me.profile.update', 'client.fasting_window.change',
+      /**
+       * ⚠️ `client.fasting_window.change` resta in elenco pur non nascendo più: le righe scritte
+       * fino al 21/8 sono la storia, e la storia si legge.
+       * ⛔ `client.fasting_window.azzerata` invece **mancava**, ed era il difetto: da oggi
+       * quell'azzeramento porta via **tutto** l'orologio, non solo la finestra, ed era l'unica cosa
+       * che poteva spiegare a una coach perché una cliente si è ritrovata senza fasce. Quello che
+       * compariva al suo posto era la riga `client.update` con dentro sette campi tecnici.
+       */
+      'client.update', 'me.profile.update',
+      'client.fasting_window.change', 'client.fasting_window.azzerata',
       // Le modifiche fatte dalla **scheda lead** (telefono, codice fiscale, tag, consenso): sono
       // sugli stessi dati della cliente e mancavano da questo elenco, quindi non comparivano né
       // qui né là. Ora i due log raccontano la stessa storia (richiesta di Simone dell'8/8).
@@ -1626,6 +1695,17 @@ export class ClientsService {
       'auth.email_change_requested', 'auth.email_change_confirmed',
       'auth.email_primary_swapped', 'auth.email_secondary_removed',
       'client.password_reset.trigger',
+      /**
+       * ⛔ **L'OROLOGIO DEL DIGIUNO, quando lo muove la cliente** (Simone, 21/8: «storicizziamo nel
+       * log quando il cliente le cambia»). Sono le sue due azioni: la prima scelta e ogni
+       * spostamento successivo.
+       *
+       * ⚠️ `digiuno.passo_notturno` **non è qui**, ed è una scelta: quello lo fa il cron ogni notte
+       * per eseguire il piano graduale che lei ha già confermato. Metterlo in questo elenco vorrebbe
+       * dire annegare le sue decisioni sotto dodici righe automatiche che dicono tutte la stessa
+       * cosa. Resta nell'audit, dove si va a cercarlo se serve capire una deriva.
+       */
+      'digiuno.prima_scelta', 'digiuno.finestra_spostata',
     ];
     const rows = await this.prisma.auditLog.findMany({
       where: { entityId: { in: ids }, action: { in: CHANGE_ACTIONS } },

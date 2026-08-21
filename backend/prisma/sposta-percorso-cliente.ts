@@ -14,9 +14,14 @@
  *  - **non scrive niente** senza `CONFERMA=1`, e in anteprima mostra il prima e il dopo;
  *  - **non tocca i giorni già erogati**, e dice quanti ne trova da oggi in avanti — quelli restano
  *    costruiti sul percorso vecchio finché non si rigenerano (`npm run diag:rigenera`);
- *  - ⚠️ **azzera `fastingWindow`** quando il percorso nuovo non è il digiuno. Lasciarla lì sarebbe
- *    il difetto di famiglia di questo progetto: un dato che non si vede più da nessuna parte ma che
- *    il giorno che qualcuno rimette il digiuno torna ad agire, con una scelta di mesi prima.
+ *  - ⚠️ **azzera tutto l'orologio del digiuno** quando il percorso nuovo non è il digiuno — la
+ *    finestra *e* protocollo, orario, bersagli, `fastingSceltoIl`, `fastingChangedAt`. Lasciarli lì
+ *    sarebbe il difetto di famiglia di questo progetto: dati che non si vedono più da nessuna parte
+ *    ma che il giorno che qualcuno rimette il digiuno tornano ad agire, con una scelta di mesi
+ *    prima. ⛔ Fino al 21/8 azzerava **solo** la finestra, e lo stato che lasciava — orologio pieno,
+ *    finestra vuota — era il peggiore dei due: al ritorno al digiuno la pagina non le si riapriva
+ *    (`fastingSceltoIl` diceva «già chiesto»), l'app le mostrava le fasce vecchie e il motore le
+ *    mandava tutti i pasti.
  *
  * ## USO (shell di Render, dentro ~/project/src/backend)
  *
@@ -30,6 +35,7 @@
  * senza argomenti non è uno strumento, è una trappola.
  */
 import { PrismaClient } from '@prisma/client';
+import { orologioAzzerato } from '../src/menu/uscita-dal-digiuno';
 
 const prisma = new PrismaClient();
 
@@ -82,10 +88,16 @@ async function main(): Promise<void> {
   for (const u of utenti) {
     const p = (await prisma.clientProfile.findUnique({
       where: { userId: u.id },
-      select: { pathType: true, fastingWindow: true, mealsPerDay: true, dietStyle: true, dietFamily: true, name: true },
+      select: {
+        pathType: true, fastingWindow: true, mealsPerDay: true, dietStyle: true, dietFamily: true, name: true,
+        // ⚠️ Servono all'anteprima: senza, lo script diceva «non c'è niente da azzerare» a una
+        // cliente che l'orologio ce l'ha tutto scritto e la finestra vuota.
+        fastingProtocol: true, fastingSceltoIl: true,
+      },
     })) as {
       pathType: string | null; fastingWindow: string | null; mealsPerDay: number | null;
       dietStyle: string | null; dietFamily: string | null; name: string | null;
+      fastingProtocol: string | null; fastingSceltoIl: Date | null;
     } | null;
     if (!p) {
       console.warn(`⚠️  ${u.firstName ?? u.email}: nessun profilo cliente. Salto.`);
@@ -98,8 +110,13 @@ async function main(): Promise<void> {
     console.log(`\n── ${chi}`);
     console.log(`   percorso : ${p.pathType ?? '—'} → ${percorso} (${scelto.etichetta})`);
     console.log(`   pasti    : ${p.mealsPerDay ?? '—'} → ${pasti}`);
-    if (!scelto.digiuno && p.fastingWindow) {
-      console.log(`   finestra : ${p.fastingWindow} → (azzerata: fuori dal digiuno non vuol dire niente)`);
+    // ⚠️ Si stampa anche quando la finestra è già vuota ma l'orologio no: è proprio quel caso — lo
+    // stato che questo script sapeva creare — che non si vedeva e non si ripuliva.
+    if (!scelto.digiuno && (p.fastingWindow || p.fastingProtocol || p.fastingSceltoIl)) {
+      console.log(
+        `   digiuno  : ${p.fastingWindow ?? '(nessuna finestra)'}${p.fastingProtocol ? ` · ${p.fastingProtocol}` : ''}`
+        + ' → (azzerato tutto l\'orologio: fuori dal digiuno non vuol dire niente)',
+      );
     }
     if (stile) console.log(`   stile    : ${p.dietStyle ?? '—'} → ${stile}`);
     if (famiglia) console.log(`   famiglia : ${p.dietFamily ?? '—'} → ${famiglia}`);
@@ -115,8 +132,20 @@ async function main(): Promise<void> {
       data: {
         pathType: percorso as never,
         mealsPerDay: pasti,
-        // ⚠️ Solo fuori dal digiuno: spostando FRA due finestre non si cancella la scelta.
-        ...(scelto.digiuno ? {} : { fastingWindow: null }),
+        /**
+         * ⛔ **FUORI DAL DIGIUNO SI AZZERA TUTTO L'OROLOGIO, non solo la finestra** (21/8).
+         *
+         * Qui c'era `fastingWindow: null` e basta. `fastingProtocol`, `fastingStartMin`, i due
+         * bersagli e — soprattutto — `fastingSceltoIl` sopravvivevano: al ritorno al digiuno la
+         * cliente non si vedeva chiedere niente (`fastingSceltoIl` dice «gliel'abbiamo già
+         * chiesto»), l'app le mostrava le fasce di sei mesi prima, e il motore le mandava tutti i
+         * pasti perché `fastingWindow` era vuota. **Schermo e piatto che dicono due cose diverse.**
+         *
+         * ⚠️ L'elenco **non è più qui**: sta in `menu/uscita-dal-digiuno.ts`, con le altre tre porte
+         * (scheda staff, questionario, profilo della cliente). Uno script non è meno pericoloso di
+         * una schermata: è solo meno guardato, ed è per questo che deve seguire la stessa riga.
+         */
+        ...(scelto.digiuno ? {} : orologioAzzerato()),
         ...(stile ? { dietStyle: stile } : {}),
         ...(famiglia ? { dietFamily: famiglia } : {}),
       } as never,
