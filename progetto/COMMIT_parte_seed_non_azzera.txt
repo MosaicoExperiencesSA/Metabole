@@ -1,0 +1,61 @@
+Il seed azzerava i campi che non ha — e i test hanno il difetto del fuso — 20/8 sera
+
+## 1) IL SEED (corretto)
+
+`state: r.state ?? null` e `synonyms: r.synonyms ?? []` non vogliono dire «non ho questo campo»:
+vogliono dire **«azzeralo»**. Su una riga non ancora confermata il seed la riscrive tutta, e quel
+`?? null` cancellava lo stato e i sinonimi che l'import aveva appena scritto — «burro» ha perso
+`crudo`, «noci» ha perso `noci sgusciate`. Valeva anche per l'**indice glicemico**, che arriva da
+`importa:ig` e che veniva azzerato su ogni riga senza `gi`.
+
+✅ Adesso l'oggetto si costruisce **solo con i campi che ci sono** (`datiDellaRiga`). Un seed è una
+**fonte**, non una fotografia dello stato finale: se non porta un dato quel dato resta com'era; se lo
+porta, vince lui. `seed-non-azzera.spec.ts`, 8 test, tre mutazioni che mordono — compresa quella che
+confonde «campo assente» con «campo a zero», che su `sale` (0 kcal) sarebbe stata la prossima.
+
+⛔ **E LA MIA VOCE SU QUESTO ERA SBAGLIATA NEL TITOLO.** Avevo scritto «il seed firma righe che non ha
+guardato nessuno: la firma è falsa». Non è vero. Le 57 righe di `VALORI` stanno dentro una funzione
+che si chiama `firmateDalCapo`, e sopra c'è scritto perché: *«TUTTE LE RIGHE QUI DENTRO SONO NELLA
+TABELLA FIRMATA DAL CAPO NUTRIZIONISTA IL 18/8… il confine dev'essere visibile»*. Burro, mandorle,
+noci, mela, pera, fragole, avocado, parmigiano, miele, pane integrale e ricotta sono in quella
+tabella: **il capo nutrizionista le ha guardate davvero**. Avevo letto la riga della firma e non le
+quaranta sopra — lo stesso errore degli stati `liquido` e `fresco` di stamattina, e stavolta l'accusa
+era al lavoro di una persona. La voce è riscritta, non cancellata: una voce sbagliata cancellata è
+una voce che qualcun altro riscriverà uguale.
+
+## 2) UN DIFETTO MIO NELL'ELENCO LAVORI (corretto)
+
+Lo script con cui aggiorno le voci aveva attaccato un pezzo di testo **dentro la `chiave`** invece
+che nel dettaglio — cercava «la fine del campo, subito prima di `categoria`», e in quella voce
+`categoria` viene subito dopo `chiave`. La chiave era diventata lunga 1640 caratteri.
+⛔ `carica:lavori` usa la chiave per decidere se una voce **esiste già**: avrebbe creato un
+**doppione** invece di aggiornare. `chiave-e-una-parola.spec.ts` adesso lo impedisce.
+
+## 3) ⛔ I TEST HANNO IL DIFETTO DEL FUSO — parzialmente corretto, e da finire
+
+Alle **00:02 di Roma** la suite è diventata rossa: 13 test in 6 file.
+
+    Expected: 1787270400000
+    Received: 1787356800000     differenza: esattamente 86.400.000 ms = un giorno
+
+I test calcolano «domani» con `setHours(0,0,0,0)` o `new Date().toISOString().slice(0,10)` — il
+giorno **UTC** — mentre il codice, curato stamattina, risponde col giorno di **Roma**. Fra mezzanotte
+e le 02:00 le due risposte differiscono di un giorno.
+
+⛔ **Cioè la suite era verde 22 ore su 24 e rossa 2**, e nessuno l'avrebbe scoperto se non lanciandola
+all'una di notte. E se un deploy capita in quella fascia, la CI fallisce senza motivo apparente.
+⚠️ È il difetto che ho passato la giornata a togliere dal codice, rimasto **dentro i test che lo
+verificano**. Un test che si ricalcola da sé la cosa che sta verificando non la verifica: la ripete.
+
+✅ Corretti: `coach-tasks/apri-attivita`, `menu/sostituzione-chat.service`,
+`nutritionist/nutritionist.service`. Da 13 rossi a **8**.
+⛔ **Restano tre file**: `privacy/privacy.service`, `menu/data-inizio-chat.service`,
+`coach-tasks/compiti-prova-in-coda`. Non li ho toccati stasera di proposito: sono test su date con
+fixture intrecciate, è l'una di notte, e una correzione frettolosa a un test è il modo di renderlo
+verde smettendo di verificare. Si fanno domani, fuori dalla fascia.
+
+⚠️ **Quindi: questa consegna si pusha dopo le 02:00 di Roma, o domani.** Prima di allora la CI è
+rossa per gli otto test rimasti — che sono rossi *da soli*, non per queste modifiche: alle 23:45 di
+ieri la stessa suite era verde con 4132 test.
+
+`npm run build` verde. 4136 test verdi su 4144.

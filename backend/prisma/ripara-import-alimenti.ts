@@ -200,7 +200,13 @@ async function main() {
       await tx.nutrientFact.delete({ where: { id: nuova.id } });
       await tx.nutrientFact.update({ where: { id: v.id }, data: { name: nudo, synonyms: uniti } as never });
     });
-    console.log(`      ✍️  tolto il doppione senza firma; «${v.name}» è tornata a chiamarsi «${nudo}» e tiene la sua conferma.`);
+    /**
+     * ⚠️ **Questo messaggio diceva «tolto il doppione SENZA FIRMA», e non era vero**: erano firmate
+     * tutte e due. La frase era rimasta dalla versione precedente della regola, quando la condizione
+     * guardava la firma. Non ha cambiato niente di quello che è successo, ma una ragione falsa
+     * stampata a schermo è la stessa malattia che questo script è venuto a riparare.
+     */
+    console.log(`      ✍️  tolto il doppione (stessi valori); «${v.name}» è tornata a chiamarsi «${nudo}» coi sinonimi uniti.`);
     console.log('');
   }
 

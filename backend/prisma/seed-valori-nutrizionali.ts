@@ -276,6 +276,66 @@ export const VALORI: RigaNutriente[] = firmateDalCapo([
   { name: 'zucca', category: 'verdura', state: 'bollita', gi: 51, giMin: 51, giMax: 75, giSource: SYDNEY, giReliability: 'debole', kcal: 18, protein: 0.8, carbs: 3.5, fat: 0.1, fiber: 1.2, source: CAPO, note: 'Il dato è della butternut; in letteratura ci sono voci di zucca fino a 75.' },
 ]);
 
+/**
+ * ⛔ **QUELLO CHE IL SEED NON HA, NON LO CANCELLA — corretto il 20/8 sera.**
+ *
+ * Prima questa costruzione era un blocco di `?? null` e `?? []`:
+ *
+ *     state: r.state ?? null,          synonyms: r.synonyms ?? [],
+ *     glycemicIndex: r.gi ?? null,     note: r.note ?? null,   …
+ *
+ * ⚠️ Su una riga **non ancora confermata** il seed la riscrive tutta, e quel `?? null` non vuol dire
+ * «non ho questo campo»: vuol dire **«azzeralo»**.
+ *
+ * ⛔ **E NON C'ENTRA LA FIRMA.** Per un paio d'ore ho creduto che il difetto fosse che il seed
+ * «firma righe che non ha guardato nessuno», e l'avevo anche scritto in una voce dell'elenco Lavori.
+ * Non è vero: le righe di `VALORI` stanno dentro `firmateDalCapo`, e il commento sopra quella
+ * funzione dice esattamente perché il confine è là e non altrove. La firma è legittima — quelle
+ * righe il capo nutrizionista le ha guardate il 18/8. Avevo letto la riga della firma e non le
+ * quaranta sopra: il difetto era un altro, ed era più stretto. Il 20/8 l'import degli alimenti aveva creato
+ * «burro» con stato `crudo` e i suoi sinonimi; al primo deploy — il seed gira dentro
+ * `preDeployCommand` — lo stato è diventato `NULL` e i sinonimi sono spariti, perché la riga `miele`
+ * e la riga `noci` di questo file non hanno né stato né sinonimi.
+ *
+ * Le righe colpite si contano: **undici alimenti comuni** (burro, mandorle, noci, mela, pera,
+ * fragole, avocado, parmigiano, miele, pane integrale, ricotta) usati in oltre 3.000 ricette, che
+ * dopo il deploy risultavano «senza stato» in `npm run diag:crudo-cotto`.
+ *
+ * ⚠️ **La regola per le righe confermate era già giusta** e non è cambiata: quelle non si toccano —
+ * «un deploy non deve disfare una decisione clinica». Quello che mancava era la regola per i campi:
+ * un seed è una **fonte**, non una fotografia dello stato finale. Se non porta un dato, quel dato
+ * resta com'era; se lo porta, vince lui. La stessa cosa vale per l'IG, che arriva da
+ * `npm run importa:ig` e che il vecchio codice azzerava su ogni riga senza `gi`.
+ *
+ * ⛔ **E lo stesso difetto ha una versione più subdola: il campo che si aggiungerà domani.** Con i
+ * `?? null` scritti a mano, un campo nuovo in tabella non compare qui e quindi non viene azzerato —
+ * finché qualcuno non lo aggiunge «per completezza» e lo azzera per tutti. Costruire l'oggetto solo
+ * con quello che c'è toglie anche quella trappola.
+ */
+export function datiDellaRiga(r: RigaNutriente): Record<string, unknown> {
+  const dati: Record<string, unknown> = { category: r.category };
+  const seCe = (chiave: string, valore: unknown) => {
+    if (valore !== undefined) dati[chiave] = valore;
+  };
+  seCe('synonyms', r.synonyms);
+  seCe('state', r.state);
+  seCe('glycemicIndex', r.gi);
+  seCe('glycemicIndexMin', r.giMin);
+  seCe('glycemicIndexMax', r.giMax);
+  seCe('glycemicIndexSource', r.giSource);
+  seCe('glycemicIndexReliability', r.giReliability);
+  seCe('kcal', r.kcal);
+  seCe('protein', r.protein);
+  seCe('carbs', r.carbs);
+  seCe('sugars', r.sugars);
+  seCe('fat', r.fat);
+  seCe('fiber', r.fiber);
+  seCe('source', r.source);
+  seCe('sourceRef', r.sourceRef);
+  seCe('note', r.note);
+  return dati;
+}
+
 /** Il seed vero e proprio, riusabile da `prisma/seed.ts`. */
 export async function seedValoriNutrizionali(
   prisma: PrismaClient,
@@ -295,25 +355,7 @@ export async function seedValoriNutrizionali(
   const capo = await capoCheConferma(prisma as never);
 
   for (const r of VALORI) {
-    const dati = {
-      synonyms: r.synonyms ?? [],
-      category: r.category,
-      state: r.state ?? null,
-      glycemicIndex: r.gi ?? null,
-      glycemicIndexMin: r.giMin ?? null,
-      glycemicIndexMax: r.giMax ?? null,
-      glycemicIndexSource: r.giSource ?? null,
-      glycemicIndexReliability: r.giReliability ?? null,
-      kcal: r.kcal ?? null,
-      protein: r.protein ?? null,
-      carbs: r.carbs ?? null,
-      sugars: r.sugars ?? null,
-      fat: r.fat ?? null,
-      fiber: r.fiber ?? null,
-      source: r.source ?? null,
-      sourceRef: r.sourceRef ?? null,
-      note: r.note ?? null,
-    };
+    const dati = datiDellaRiga(r);
     /** La firma si aggiunge solo alle righe che il capo ha davvero guardato, e solo se c'è lui. */
     const firma = r.confermato && capo ? { verifiedById: capo.staffId, verifiedAt: new Date() } : {};
 

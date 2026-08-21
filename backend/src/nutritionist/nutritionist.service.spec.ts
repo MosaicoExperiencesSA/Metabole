@@ -1,4 +1,17 @@
+/**
+ * ⚠️ **«OGGI» SI CHIEDE, ANCHE NEI TEST — corretto il 20/8 alle 00:02.**
+ *
+ * Qui il giorno si ricavava da `new Date().toISOString().slice(0, 10)`, cioè il giorno **UTC**,
+ * mentre il codice risponde col giorno di **Roma**. Fra mezzanotte e le 02:00 italiane le due
+ * risposte differiscono di un giorno e questi test diventavano rossi.
+ *
+ * ⛔ Cioè la suite era **verde 22 ore su 24 e rossa 2**, e nessuno l'avrebbe scoperto se non
+ * lanciandola all'una di notte — che è quello che è successo. Un test che si ricalcola da sé la
+ * cosa che sta verificando non la verifica: la ripete, e quando il codice cambia fuso il test resta
+ * indietro **senza dirlo**.
+ */
 import { PrismaService } from '../prisma/prisma.service';
+import { aGiorno } from '../common/date-only';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EngineService } from '../engine/engine.service';
 import { NutritionistService } from './nutritionist.service';
@@ -547,7 +560,7 @@ describe('NutritionistService — la correzione con una durata', () => {
       .impostaKcal(user, 'p1', { correzionePct: -10, perGiorni: 7, motivo: 'settimana di scarico' });
     const dati = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
     expect(dati.kcalAdjustPct).toBe(-10);
-    const atteso = new Date();
+    const atteso = aGiorno(new Date());
     atteso.setUTCHours(0, 0, 0, 0);
     atteso.setUTCDate(atteso.getUTCDate() + 6);
     expect((dati.kcalAdjustUntil as Date).toISOString().slice(0, 10)).toBe(atteso.toISOString().slice(0, 10));

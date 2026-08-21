@@ -1374,11 +1374,88 @@ export const VOCI_INIZIALI: Voce[] = [
   /* ─────────────────  20/8 sera — la revisione delle misure  ───────────────── */
 
   {
-    chiave: 'seed-nutrienti-firma-falsa\n\n⚠️ **LA CODA DEL DIFETTO, misurata a fine serata con `npm run diag:crudo-cotto`.** In lista 2 («senza stato, e usati nelle ricette») ci sono **esattamente le undici righe rimesse a posto**, più l\'olio: `olio extravergine di oliva` 3024 ricette, `miele` 1333, `pane integrale` 931, `noci` 748, `parmigiano reggiano` 339, `burro` 295, `mandorle` 200, `avocado` 177, `mela` 114, `pera` 69, `fragole` 67, `ricotta di vacca` 57. Sono senza stato perché **il seed glielo ha azzerato**, e la riga restaurata è quella che lo stato non l\'ha mai avuto.\n\n✅ **Ma quello stato esiste ancora**, in `prisma/dati-alimenti-20-8.ts`: burro `crudo`, mandorle `secco`, noci `secco`, mela `cruda`, pera `cruda`, fragole `crudo`, avocado `crudo`, parmigiano `fresco`, miele `crudo`, pane integrale `secco`, ricotta `fresco`. Non è una deduzione: è la colonna compilata da chi ha fatto il foglio, cancellata da un `?? null`. Si rimette con uno script, **prova a vuoto prima**, riga per riga — sono 12 campi su alimenti usati in oltre 7.000 ricette. ⚠️ Su olio e miele però la risposta è «non si applica», ed è la voce `tabella-alimenti-igiene`: quella la scrive una persona dalla matita, non uno script.\n\n⚠️ **E una frase falsa stampata a schermo, da correggere.** `ripara:alimenti` dice «tolto il doppione **senza firma**», e non era vero: erano firmate tutte e due — la firma della nuova gliela aveva messa il seed. È rimasta dalla versione precedente della regola. Non ha cambiato niente di quello che è successo, ma **una ragione falsa stampata a schermo è la stessa malattia** di tutto il resto di questa voce, e va tolta insieme.',
+    chiave: 'test-col-difetto-del-fuso',
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: true,
-    titolo: '⛔ Il seed gira a OGNI deploy, riscrive le righe non confermate e le firma: la firma è falsa',
+    titolo: '⛔ La suite è verde 22 ore su 24 e rossa 2: i test hanno il difetto del fuso',
+    dettaglio:
+      '⛔ **Alle 00:02 di Roma del 21/8 la suite è diventata rossa**: 13 test in 6 file, tutti con una '
+      + 'differenza di **esattamente 86.400.000 ms** — un giorno.\n\n'
+      + '    Expected: 1787270400000\n'
+      + '    Received: 1787356800000\n\n'
+      + '⚠️ I test calcolano «domani» con `setHours(0,0,0,0)` o `new Date().toISOString().slice(0,10)` — '
+      + 'il giorno **UTC** — mentre il codice, curato durante il 20/8, risponde col giorno di **Roma**. '
+      + 'Fra mezzanotte e le 02:00 italiane le due risposte differiscono di un giorno.\n\n'
+      + '⛔ **È il difetto che abbiamo passato la giornata a togliere dal codice, rimasto dentro i test '
+      + 'che lo verificano.** Un test che si ricalcola da sé la cosa che sta verificando non la '
+      + 'verifica: la ripete — e quando il codice cambia fuso, il test resta indietro **senza dirlo**.\n\n'
+      + '⚠️ **Perché blocca:** se un deploy capita in quella fascia la CI fallisce senza motivo '
+      + 'apparente, e chi ci sbatte contro perde un\'ora prima di capire che non è colpa sua. È '
+      + 'successo davvero: la consegna 78 è rimasta ferma per questo.\n\n'
+      + '✅ Corretti tre file — `coach-tasks/apri-attivita`, `menu/sostituzione-chat.service`, '
+      + '`nutritionist/nutritionist.service` — e i rossi sono passati da 13 a 8.\n'
+      + '⛔ **Restano tre file**: `privacy/privacy.service`, `menu/data-inizio-chat.service`, '
+      + '`coach-tasks/compiti-prova-in-coda`. Non toccati **di proposito**: sono test su date con '
+      + 'fixture intrecciate, era l\'una di notte, e **rendere verde un test in fretta è il modo di '
+      + 'fargli smettere di verificare**.\n\n'
+      + 'La correzione è sempre la stessa: il test chiede il giorno **alla stessa porta del codice** '
+      + '(`aGiorno`, `giornoLocale`, `toDateOnly` in `src/common/date-only.ts`), non se lo ricalcola. '
+      + '⚠️ E vale la pena aggiungere un controllo che legga i sorgenti dei test come fa '
+      + '`il-giorno-si-chiede.spec.ts` col codice: finché la regola vale solo per metà del progetto, '
+      + 'l\'altra metà la romperà di nuovo.',
+  },
+  {
+    chiave: 'alimenti-da-correggere-senza-data',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    titolo: 'La pagina «Alimenti da correggere» non dice di quando è: sembra vecchia di un minuto ed è di stanotte',
+    dettaglio:
+      'Nato da uno spavento vero, il 21/8 all\'una: dopo aver caricato 277 alimenti la pagina mostrava '
+      + 'ancora `limone`, `cipolla`, `brodo vegetale`, `spinaci freschi` come **«Non in tabella»**, e la '
+      + 'domanda di Simone è stata *«stiamo perdendo pezzi invece di farli?»*.\n\n'
+      + '✅ **Nessun pezzo perso, e la spiegazione è misurata sul codice, non dedotta.** '
+      + '`aggiornaIngredientiScoperti` è un **passo notturno**: calcola l\'elenco e lo **scrive** in '
+      + '`nutrient_lookup_miss`. La pagina legge quelle righe scritte, non un calcolo dal vivo. '
+      + 'L\'import è girato alle 19:43; il passo notturno non era ancora passato. Infatti '
+      + '`npm run diag:crudo-cotto`, che calcola dal vivo, quei quattro non li segnalava già più.\n\n'
+      + '⚠️ E il meccanismo che chiude un termine risolto **esiste già** (`risolto`, scritto il 20/8): '
+      + 'la mia prima ipotesi — «le domande vecchie non si chiudono mai» — era **sbagliata**, e l\'ho '
+      + 'verificata prima di scriverla qui.\n\n'
+      + '⛔ **Quello che manca è una riga di testo**: la pagina non dice **di quando** è l\'elenco. Un '
+      + 'elenco che può avere fino a ventiquattr\'ore e sembra vivo fa credere che il lavoro appena '
+      + 'fatto non sia servito — ed è esattamente quello che è successo. *Un dato che agisce e non si '
+      + 'vede.* Basta la data dell\'ultimo aggiornamento accanto al titolo, e — se si vuole — un '
+      + 'pulsante per rilanciare il passo adesso invece di aspettare la notte.',
+  },
+  {
+    chiave: 'digiuno-pubblicazione',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    titolo: 'Pubblicare il digiuno intermittente',
+    dettaglio:
+      'Chiesto da Simone il 21/8. ⚠️ **Voce aperta prima di aver misurato qualsiasi cosa**: qui c\'è '
+      + 'solo la richiesta, e il primo passo del lavoro è capire cosa manca davvero fra quello che c\'è '
+      + 'già e «pubblicato».\n\n'
+      + 'Quello che c\'è già, e non è poco: `menu/finestre-digiuno.ts` (quali pasti salta ogni '
+      + 'finestra), `catalog/struttura-per-digiuno.ts` (il catalogo servito lo decide la **finestra**, '
+      + 'non il tipo di percorso), le varianti a 3 pasti e digiuno nel catalogo, la scelta della dieta '
+      + 'che passa dalla finestra (`pickDietFor`), l\'attività che chiede la finestra quando manca, le '
+      + 'porzioni che si scalano sul fabbisogno, `npm run diag:digiuni`.\n\n'
+      + '⛔ **Da misurare prima di scrivere codice**, e in quest\'ordine: quante varianti digiuno sono '
+      + '`approved` e complete (`npm run diag:catalogo`, `npm run diag:coda`); quante giornate '
+      + 'escono sotto il fabbisogno (`npm run diag:kcal`); quante clienti sono già su un percorso di '
+      + 'digiuno e con che finestra (`npm run diag:digiuni`). ⚠️ «Pubblicare» senza quei tre numeri '
+      + 'vuol dire accendere un prodotto e scoprire dopo che il catalogo non lo regge.',
+  },
+  {
+    chiave: 'seed-nutrienti-firma-falsa',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    titolo: '✅ Il seed azzerava i campi che non ha — corretto. (E la firma NON era falsa: mi ero sbagliato)',
     dettaglio:
       '⛔ **Trovato misurando, il 20/8 sera, mentre cercavo un\'altra cosa.** L\'import degli alimenti aveva '
       + 'creato «burro» con stato `crudo`; un quarto d\'ora dopo in tabella lo stato era `NULL` e la riga '
@@ -1412,7 +1489,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ E una conseguenza che vale la pena scrivere: **la coda «da confermare» si svuota da sola**. Quel '
       + 'campo esiste per decidere quali righe una persona deve ancora guardare; se un deploy le firma, '
       + 'quelle righe non le guarderà più nessuno. Un lavoro che sparisce dalla lista senza essere stato '
-      + 'fatto è peggio di un lavoro che resta in lista.',
+      + 'fatto è peggio di un lavoro che resta in lista.\n\n⚠️ **LA CODA DEL DIFETTO, misurata a fine serata con `npm run diag:crudo-cotto`.** In lista 2 («senza stato, e usati nelle ricette») ci sono **esattamente le undici righe rimesse a posto**, più l\'olio: `olio extravergine di oliva` 3024 ricette, `miele` 1333, `pane integrale` 931, `noci` 748, `parmigiano reggiano` 339, `burro` 295, `mandorle` 200, `avocado` 177, `mela` 114, `pera` 69, `fragole` 67, `ricotta di vacca` 57. Sono senza stato perché **il seed glielo ha azzerato**, e la riga restaurata è quella che lo stato non l\'ha mai avuto.\n\n✅ **Ma quello stato esiste ancora**, in `prisma/dati-alimenti-20-8.ts`: burro `crudo`, mandorle `secco`, noci `secco`, mela `cruda`, pera `cruda`, fragole `crudo`, avocado `crudo`, parmigiano `fresco`, miele `crudo`, pane integrale `secco`, ricotta `fresco`. Non è una deduzione: è la colonna compilata da chi ha fatto il foglio, cancellata da un `?? null`. Si rimette con uno script, **prova a vuoto prima**, riga per riga — sono 12 campi su alimenti usati in oltre 7.000 ricette. ⚠️ Su olio e miele però la risposta è «non si applica», ed è la voce `tabella-alimenti-igiene`: quella la scrive una persona dalla matita, non uno script.\n\n⚠️ **E una frase falsa stampata a schermo, da correggere.** `ripara:alimenti` dice «tolto il doppione **senza firma**», e non era vero: erano firmate tutte e due — la firma della nuova gliela aveva messa il seed. È rimasta dalla versione precedente della regola. Non ha cambiato niente di quello che è successo, ma **una ragione falsa stampata a schermo è la stessa malattia** di tutto il resto di questa voce, e va tolta insieme.\n\n⛔ **CORREZIONE, la sera stessa: il titolo di questa voce era SBAGLIATO, e la parte sbagliata era l\'accusa.** «La firma è falsa» non è vero. Le 57 righe di `VALORI` stanno dentro una funzione che si chiama `firmateDalCapo`, e sopra c\'è scritto: *«TUTTE LE RIGHE QUI DENTRO SONO NELLA TABELLA FIRMATA DAL CAPO NUTRIZIONISTA IL 18/8. La funzione esiste per una ragione sola: il confine dev\'essere visibile.»* Burro, mandorle, noci, mela, pera, fragole, avocado, parmigiano, miele, pane integrale e ricotta sono in quella tabella: **il capo nutrizionista le ha guardate davvero**. ⚠️ Avevo letto la riga della firma e non le quaranta sopra — lo stesso errore degli stati `liquido` e `fresco` di stamattina, e stavolta l\'accusa era al lavoro di una persona. Resta scritto qui: una voce sbagliata cancellata è una voce che qualcun altro riscriverà uguale.\n\n✅ **IL DIFETTO VERO ERA PIÙ STRETTO, ed è corretto.** `state: r.state ?? null` e `synonyms: r.synonyms ?? []` non vogliono dire «non ho questo campo»: vogliono dire **«azzeralo»**. Un seed è una **fonte**, non una fotografia dello stato finale: se non porta un dato quel dato resta com\'era, se lo porta vince lui. ⚠️ Valeva anche per l\'**indice glicemico**, che arriva da `importa:ig` e che il vecchio codice azzerava su ogni riga senza `gi`. Adesso l\'oggetto si costruisce solo con i campi che ci sono (`datiDellaRiga`), e `seed-non-azzera.spec.ts` lo tiene fermo con 8 test e tre mutazioni che mordono — compresa quella che confonde «campo assente» con «campo a zero», che su `sale` (0 kcal) sarebbe stata la prossima.\n\n⛔ **E UN DIFETTO MIO, trovato subito dopo:** lo script con cui aggiorno queste voci aveva attaccato un pezzo di testo **dentro la `chiave`** invece che nel dettaglio, perché in questa voce `categoria` viene subito dopo `chiave`. La chiave è la colonna su cui `carica:lavori` decide se una voce esiste già: con la chiave storpiata avrebbe creato un **doppione** invece di aggiornare. Corretto, e c\'è un test che pretende che ogni chiave sia una parola sola.',
   },
   {
     chiave: 'alimenti-numeri-copiati',

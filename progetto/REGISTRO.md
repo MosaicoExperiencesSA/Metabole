@@ -18,7 +18,50 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-21
+
+- `[Sviluppo]` ✅ **La prova che il difetto dei test è l'ora, arrivata da sola.** La stessa suite,
+  senza toccare una riga: **00:02 → 13 rossi**, **08:45 → 4144 verdi su 4144**. Non è una modifica ad
+  averla rotta, è l'ora: fra mezzanotte e le 02:00 il giorno UTC e quello di Roma differiscono, e i
+  test che se lo ricalcolano da soli sbagliano. ⚠️ Ed è il motivo per cui è pericoloso — **un difetto
+  che si ripara da solo alle 02:00 non verrà mai indagato da chi lo incontra alle 09:00.**
+- `[Sviluppo]` 📋 **Elenco Lavori allineato: tre voci nuove, 14 aperte, 1 bloccante.**
+  **`test-col-difetto-del-fuso`** (bloccante): restano 8 rossi in tre file, non toccati di proposito
+  stanotte — rendere verde un test in fretta è il modo di fargli smettere di verificare.
+  **`alimenti-da-correggere-senza-data`**: nata dallo spavento di stanotte, «stiamo perdendo pezzi?».
+  ✅ Nessun pezzo perso: `aggiornaIngredientiScoperti` è un **passo notturno** che scrive l'elenco, e
+  la pagina legge quelle righe — l'import era di tre ore prima. ⚠️ **La mia prima ipotesi era
+  sbagliata** («le domande vecchie non si chiudono mai»): quel meccanismo esiste già dal 20/8, e
+  l'ho verificato prima di scriverlo. ⛔ Quello che manca è una riga: **la pagina non dice di quando
+  è l'elenco**. **`digiuno-pubblicazione`**: aperta prima di misurare, e lo dichiara — dentro ci sono
+  i tre numeri da avere prima di scrivere una riga di codice.
+
 ## 2026-08-20
+
+- `[Sviluppo]` ⛔ **I test hanno il difetto del fuso: la suite è verde 22 ore su 24 e rossa 2.**
+  Alle **00:02 di Roma** la suite è diventata rossa — 13 test in 6 file, tutti con una differenza di
+  esattamente 86.400.000 ms. I test calcolano «domani» con `setHours(0,0,0,0)` o
+  `toISOString().slice(0,10)` — il giorno **UTC** — mentre il codice, curato stamattina, risponde col
+  giorno di **Roma**. ⚠️ È il difetto che ho passato la giornata a togliere dal codice, rimasto
+  **dentro i test che lo verificano**: un test che si ricalcola da sé la cosa che verifica non la
+  verifica, la ripete. E se un deploy capita in quella fascia la CI fallisce senza motivo apparente.
+  ✅ Corretti tre file (13 rossi → 8). ⛔ Restano `privacy`, `data-inizio-chat`,
+  `compiti-prova-in-coda`: non toccati **di proposito** — sono test su date con fixture intrecciate,
+  è l'una di notte, e una correzione frettolosa a un test è il modo di renderlo verde smettendo di
+  verificare.
+  ✅ **E il seed è corretto**: `state: r.state ?? null` non vuol dire «non ho questo campo», vuol dire
+  «azzeralo». Ora l'oggetto si costruisce solo con i campi che ci sono. Un seed è una **fonte**, non
+  una fotografia dello stato finale.
+  ⛔ **E la mia voce su questo era sbagliata nel titolo**: avevo scritto «il seed firma righe che non
+  ha guardato nessuno». Non è vero — le 57 righe stanno dentro `firmateDalCapo`, e il commento sopra
+  dice perché il confine è là: il capo nutrizionista le ha guardate il 18/8. Avevo letto la riga
+  della firma e non le quaranta sopra, e stavolta l'accusa era al lavoro di una persona. La voce è
+  **riscritta, non cancellata**: una voce sbagliata cancellata è una voce che qualcun altro
+  riscriverà uguale.
+  ⛔ **E un difetto mio nell'elenco Lavori**: lo script con cui aggiorno le voci aveva attaccato del
+  testo **dentro la `chiave`** — 1640 caratteri — e la chiave è la colonna con cui `carica:lavori`
+  decide se una voce esiste già: avrebbe creato un **doppione**. Corretto, con un test che pretende
+  che ogni chiave sia una parola sola.
 
 - `[Sviluppo]` 📋 **L'elenco Lavori aggiornato a fine giornata: 11 aperte, 1 bloccante, 128 chiuse.**
   Tre voci riscritte, **nessuna nuova** — la giornata ne aveva già aperte troppe, e due delle tre

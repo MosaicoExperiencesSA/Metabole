@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { aGiorno } from '../common/date-only';
 import { CoachTasksService } from './coach-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushService } from '../notifications/push.service';
@@ -73,10 +74,19 @@ describe('CoachTasksService.apriAttivita', () => {
   it('senza scadenza la mette a domani, a mezzanotte', async () => {
     await apri();
     const { dueDate } = prisma.coachTask.create.mock.calls[0][0].data;
-    const domani = new Date();
-    domani.setHours(0, 0, 0, 0);
-    domani.setDate(domani.getDate() + 1);
-    expect(dueDate.getTime()).toBe(domani.getTime());
+    /**
+     * ⚠️ **«Domani» va chiesto alla stessa porta del codice.** Qui c'era
+     * `domani.setHours(0,0,0,0)` + un giorno, cioè il domani del **fuso del processo** — UTC su
+     * Render e in CI. Il codice, dal 20/8, risponde col domani di **Roma**: fra mezzanotte e le
+     * 02:00 italiane le due risposte differiscono di un giorno esatto, e questo test diventava rosso.
+     *
+     * ⛔ Cioè la suite era **verde 22 ore su 24 e rossa 2**, e nessuno l'avrebbe scoperto se non
+     * lanciandola all'una di notte — che è quello che è successo il 20/8 alle 00:02. Un test che
+     * ricalcola da sé la cosa che sta verificando non la verifica: la ripete, e quando il codice
+     * cambia fuso il test resta indietro senza dirlo.
+     */
+    const domaniRoma = new Date(aGiorno(new Date()).getTime() + 86_400_000);
+    expect(dueDate.getTime()).toBe(domaniRoma.getTime());
   });
 
   it('e se gliela si passa, vince quella', async () => {

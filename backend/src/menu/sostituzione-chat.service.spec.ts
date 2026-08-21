@@ -1,4 +1,17 @@
+/**
+ * ⚠️ **«OGGI» SI CHIEDE, ANCHE NEI TEST — corretto il 20/8 alle 00:02.**
+ *
+ * Qui il giorno si ricavava da `new Date().toISOString().slice(0, 10)`, cioè il giorno **UTC**,
+ * mentre il codice risponde col giorno di **Roma**. Fra mezzanotte e le 02:00 italiane le due
+ * risposte differiscono di un giorno e questi test diventavano rossi.
+ *
+ * ⛔ Cioè la suite era **verde 22 ore su 24 e rossa 2**, e nessuno l'avrebbe scoperto se non
+ * lanciandola all'una di notte — che è quello che è successo. Un test che si ricalcola da sé la
+ * cosa che sta verificando non la verifica: la ripete, e quando il codice cambia fuso il test resta
+ * indietro **senza dirlo**.
+ */
 import { Test } from '@nestjs/testing';
+import { giornoLocale } from '../common/date-only';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MealSnapshot } from './pasto-giornata';
@@ -12,7 +25,7 @@ import { SostituzioneChatService } from './sostituzione-chat.service';
  */
 
 const OGGI = new Date();
-const oggiIso = () => OGGI.toISOString().slice(0, 10);
+const oggiIso = () => giornoLocale(OGGI);
 
 const RICETTA_PRANZO = {
   id: 'r-pranzo',

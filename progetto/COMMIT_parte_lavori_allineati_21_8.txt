@@ -1,0 +1,46 @@
+Elenco Lavori allineato, e la prova che il difetto dei test è quello — 21/8
+
+## LA CONFERMA, arrivata da sola
+
+La stessa suite, **senza toccare una riga**:
+
+    00:02 di Roma → 13 test rossi in 6 file
+    08:45 di Roma → 4144 test verdi su 4144
+
+È la dimostrazione che mancava: non è una modifica ad averla rotta, è **l'ora**. Fra mezzanotte e le
+02:00 il giorno UTC e il giorno di Roma differiscono, e i test che se lo ricalcolano da soli
+sbagliano. Fuori da quella fascia tornano verdi da soli, ed è il motivo per cui nessuno se n'era mai
+accorto.
+
+⚠️ Ed è anche il motivo per cui è pericoloso: **un difetto che si ripara da solo alle 02:00 non
+verrà mai indagato da chi lo incontra alle 09:00.**
+
+## TRE VOCI NUOVE
+
+**`test-col-difetto-del-fuso` (bloccante).** 13 test in 6 file, 8 ancora rossi in tre file —
+`privacy/privacy.service`, `menu/data-inizio-chat.service`, `coach-tasks/compiti-prova-in-coda`.
+Non toccati di proposito la notte scorsa: rendere verde un test in fretta è il modo di fargli
+smettere di verificare. Blocca perché un deploy in quella fascia fallisce senza motivo apparente.
+
+**`alimenti-da-correggere-senza-data`.** Nata dallo spavento di stanotte: dopo aver caricato 277
+alimenti la pagina mostrava ancora `limone`, `cipolla`, `brodo vegetale`, `spinaci freschi` come
+«Non in tabella», e la domanda è stata *«stiamo perdendo pezzi invece di farli?»*.
+✅ Nessun pezzo perso, e la spiegazione è **misurata sul codice**: `aggiornaIngredientiScoperti` è un
+**passo notturno** che *scrive* l'elenco in `nutrient_lookup_miss`; la pagina legge quelle righe, non
+un calcolo dal vivo. L'import è girato alle 19:43, il passo notturno non era ancora passato — e
+infatti `diag:crudo-cotto`, che calcola dal vivo, quei quattro non li segnalava già più.
+⚠️ **La mia prima ipotesi era sbagliata** («le domande vecchie non si chiudono mai»): il meccanismo
+che chiude un termine risolto esiste già dal 20/8. L'ho verificata prima di scriverla nella voce.
+⛔ Quello che manca è una riga di testo: **la pagina non dice di quando è l'elenco.** Un elenco che
+può avere ventiquattr'ore e sembra vivo fa credere che il lavoro appena fatto non sia servito.
+
+**`digiuno-pubblicazione`.** ⚠️ Aperta **prima di aver misurato qualsiasi cosa**, e lo dice: c'è solo
+la richiesta. Elenca cosa esiste già (le finestre, il catalogo per finestra, le varianti, la scelta
+dieta, le porzioni scalate) e i **tre numeri da avere prima di scrivere codice** — quante varianti
+digiuno sono approvate e complete, quante giornate escono sotto il fabbisogno, quante clienti sono
+già in digiuno e con che finestra. «Pubblicare» senza quei tre numeri vuol dire accendere un prodotto
+e scoprire dopo che il catalogo non lo regge.
+
+**14 aperte, 1 bloccante, 128 chiuse.**
+
+`npm run build` verde. 276 suite, 4144 test verdi.

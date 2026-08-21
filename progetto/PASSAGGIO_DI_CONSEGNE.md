@@ -1,6 +1,7 @@
 # Metabole — passaggio di consegne
 
-**Scritto il 21/8/2026 all'01:00, alla fine di una giornata lunga.**
+**Scritto il 21/8/2026 all'01:00, aggiornato alle 09:00 quando Simone ha fermato i lavori per
+passare il testimone.**
 Per chi prende in mano il lavoro dopo di me. Leggi tutto prima di toccare qualcosa: metà di questo
 file è **cosa ho sbagliato**, e serve più dell'altra metà.
 
@@ -98,17 +99,34 @@ misurarlo.
 
 ---
 
-## 4. Dove siamo stasera
+## 4. Dove siamo
 
 ### In volo, da non dimenticare
 
-⚠️ **La consegna 78 è sul Mac e NON è stata pushata.** Contiene la correzione del seed e tre file di
-test sistemati. **Va pushata dopo le 02:00 di Roma o domani**, perché fino ad allora la CI è rossa
-per un motivo che spiego qui sotto.
+**Consegne 78 e 79** sono scompattate sul Mac in `~/Progetti/Metabole`. Verifica su GitHub se sono
+state pushate: quando ho passato il testimone la 78 era pronta e la 79 appena consegnata.
 
-### ⛔ I test hanno il difetto del fuso — la cosa più urgente
+- **78** — la correzione del seed (non azzera più i campi che non ha) + tre file di test del fuso
+  sistemati + la voce Lavori riscritta.
+- **79** — l'elenco Lavori allineato con tre voci nuove.
 
-Alle **00:02 di Roma** la suite è diventata rossa: 13 test in 6 file, tutti con una differenza di
+Il Summary e la Description di ognuna stanno nel loro `progetto/COMMIT_parte_*.txt`.
+
+⚠️ Nel container ci sono **276 file modificati** rispetto a `origin/main`: è normale, è la mia copia
+di lavoro e non è la fonte. La fonte è il Mac.
+
+### ⛔ I test hanno il difetto del fuso — LA COSA PIÙ URGENTE
+
+**✅ E c'è la prova, arrivata da sola la mattina dopo.** La stessa suite, senza toccare una riga:
+
+    00:02 di Roma  →  13 test rossi in 6 file
+    08:45 di Roma  →  4144 test verdi su 4144
+
+Non è una modifica ad averla rotta: **è l'ora.** E questo la rende più insidiosa di come l'avevo
+descritta — *un difetto che si ripara da solo alle 02:00 non verrà mai indagato da chi lo incontra
+alle 09:00.*
+
+Alle **00:02 di Roma** la suite era diventata rossa: 13 test in 6 file, tutti con una differenza di
 **esattamente 86.400.000 ms**.
 
 I test calcolano «domani» con `setHours(0,0,0,0)` o `new Date().toISOString().slice(0,10)` — il
@@ -144,12 +162,16 @@ La giornata è stata quasi tutta qui. Riassunto onesto:
    state riparate con `npm run ripara:alimenti` (stato di «carota», e undici doppioni).
 4. Il seed cancellava i campi che non ha (`state: r.state ?? null`) — corretto nella 78.
 
-**⛔ Aperto e da misurare domani, per primo:** nella pagina Alimenti, `limone`, `cipolla`,
-`brodo vegetale`, `spinaci freschi` risultano **«Non in tabella»** anche se l'import li ha creati.
-Il mio sospetto — **è un sospetto, non una misura** — è che quella colonna guardi lo storico dei
-termini chiesti e non trovati (`nutrient_lookup_miss`): quando una nutrizionista aggiunge un alimento
-**dalla pagina** il codice chiude la riga corrispondente, ma l'**import da script no**. Va verificato
-con un numero davanti prima di scrivere una riga di codice.
+**✅ CHIUSO il 21/8 mattina, e la mia ipotesi era sbagliata.** Nella pagina Alimenti `limone`,
+`cipolla`, `brodo vegetale`, `spinaci freschi` risultavano «Non in tabella» anche dopo l'import, e
+Simone ha chiesto *«stiamo perdendo pezzi invece di farli?»*. **Nessun pezzo perso.**
+`aggiornaIngredientiScoperti` è un **passo notturno** che *scrive* l'elenco in `nutrient_lookup_miss`;
+la pagina legge quelle righe, non un calcolo dal vivo. L'import è girato alle 19:43, il passo
+notturno non era ancora passato — e infatti `diag:crudo-cotto`, che calcola dal vivo, quei quattro
+non li segnalava già più. ⚠️ Il meccanismo che chiude un termine risolto **esiste già** dal 20/8: la
+mia ipotesi («le domande vecchie non si chiudono mai») era falsa, verificata sul codice prima di
+scriverla. ⛔ Quello che manca è **una riga di testo**: la pagina non dice **di quando** è l'elenco.
+Voce `alimenti-da-correggere-senza-data`.
 
 **⚠️ Aperto:** undici alimenti hanno perso lo stato che il foglio aveva compilato (il seed lo
 azzerava). I valori ci sono ancora in `prisma/dati-alimenti-20-8.ts`: burro `crudo`, mandorle `secco`,
@@ -159,7 +181,7 @@ vuoto**. Su olio e miele no: lì la risposta è «non si applica» e la scrive u
 
 ### L'elenco Lavori
 
-**11 aperte, 0 bloccanti, 128 chiuse.** Vive in `src/lavori/voci-iniziali.ts` e si carica con
+**14 aperte, 1 bloccante, 128 chiuse.** Vive in `src/lavori/voci-iniziali.ts` e si carica con
 `CONFERMA=1 npm run carica:lavori`.
 
 ⚠️ **Simone si è lamentato, con ragione, che le voci aumentavano invece di chiudersi.** Tre di quelle
@@ -181,17 +203,65 @@ Le undici aperte, per chi le deve leggere:
 | `pipeline-due-schede-indietro` | il rinnovo riporta la scheda indietro: regola candidata nel docblock |
 | `clienti-senza-numero-di-pasti` | 17 su 56 senza pasti → nessuna dieta scelta. Quante hanno un piano attivo? |
 | `chi-vede-tutte-le-clienti` | decisione: marketing vede tutte le clienti o no? |
+| `test-col-difetto-del-fuso` | **bloccante** — 8 test rossi in tre file, fra mezzanotte e le 02:00 |
+| `alimenti-da-correggere-senza-data` | una riga: dire di quando è l'elenco |
+| `digiuno-pubblicazione` | aperta **prima di misurare**, e lo dichiara |
 
 ---
 
-## 5. Le tre cose da fare domani, in ordine
+## 4-bis. Il digiuno intermittente — dove sono arrivato prima di fermarmi
+
+Simone voleva pubblicarlo, ha chiesto di allineare prima la lista, e poi ha fermato i lavori. Ho
+fatto in tempo a **leggere tutto il sottosistema**, e questo è quello che ho trovato — serve a chi
+riprende, perché la conclusione è controintuitiva.
+
+**Il motore c'è già, e più di quanto pensassi.** Le cose fatte, tutte con la loro voce chiusa:
+
+- **il catalogo servito lo sceglie la FINESTRA**, non il tipo di percorso (`catalog/struttura-per-digiuno.ts`,
+  17/8). Prima chi sceglieva «salta la cena» riceveva **un pasto al giorno** — una cliente vera l'ha
+  subìto senza che nessun controllo lo segnalasse: la rete di sicurezza impediva la giornata *vuota*,
+  non quella *monca*;
+- **le porzioni si scalano sul fabbisogno** (`menu/porzione-scalata.ts`, 18/8, strada C decisa da
+  Simone). Chiude il buco delle calorie: chi saltava la cena riceveva il 65% del suo fabbisogno;
+- **la finestra si chiede** quando manca: si apre un'attività alla coach invece di indovinarla;
+- le varianti a 3 pasti e digiuno sono generate per le famiglie esistenti;
+- lato app la finestra si sceglie dal Profilo, e il percorso è già nell'onboarding.
+
+Le tabelle e i ragionamenti stanno in `progetto/NOTA_Digiuno_E_Riempimento_Varianti.md`, che è scritto
+bene e va letto prima di toccare qualsiasi cosa.
+
+**⛔ Tre cose restano dichiarate come NON risolte**, e sono le candidate a essere «quello che manca»:
+
+1. **La variante `fasting` del catalogo è di fatto «salta la colazione»**, e nessun campo lo dice.
+   Oggi non fa danni perché la finestra dirotta sul catalogo giusto, ma è **un nome che mente**.
+2. **Le porzioni sui cibi «a pezzo»**: ×1,5 di una mela è una mela e mezza. Il modulo *dichiara* di
+   non aver preso quella decisione — va presa con la nutrizionista.
+3. **Le varianti digiuno sono davvero approvate e complete?** Non lo sa nessuno: è il primo dei tre
+   numeri qui sotto.
+
+**⚠️ E la domanda vera è rimasta senza risposta: cosa vuol dire «pubblicare».** Gliel'ho chiesta con
+quattro opzioni (metterlo in vendita / approvare le varianti / chiudere i tre punti / accenderlo per
+chi ce l'ha già) e lui ha fermato i lavori prima di rispondere. **Non tirare a indovinare: chiediglielo.**
+A seconda della risposta il lavoro è completamente diverso.
+
+**I tre numeri da avere prima di scrivere una riga di codice** (leggono e basta):
+
+    npm run diag:catalogo     quante varianti digiuno sono approvate e complete
+    npm run diag:digiuni      quante clienti sono già in digiuno, e con che finestra
+    npm run diag:kcal         quante giornate escono sotto il fabbisogno
+
+---
+
+## 5. Le tre cose da fare, in ordine
 
 1. **I tre file di test del fuso** (`privacy`, `data-inizio-chat`, `compiti-prova-in-coda`). Finché
-   ci sono, ogni deploy fra mezzanotte e le 02:00 fallisce.
-2. **«Non in tabella»** — misurarlo, non spiegarlo.
-3. **I dodici stati da rimettere**, con prova a vuoto.
+   ci sono, ogni deploy fra mezzanotte e le 02:00 fallisce. È l'unica voce **bloccante**.
+2. **Gli undici stati da rimettere** agli alimenti (burro `crudo`, mandorle `secco`, …), con prova a
+   vuoto. I valori sono in `prisma/dati-alimenti-20-8.ts`.
+3. **Il digiuno**, ma solo dopo aver chiesto a Simone cosa intende per «pubblicare» e aver preso i
+   tre numeri della sezione 4-bis.
 
-E prima di tutto: **pushare la 78**, se non è già stata pushata.
+E prima di tutto: **verificare che 78 e 79 siano state pushate.**
 
 ---
 
