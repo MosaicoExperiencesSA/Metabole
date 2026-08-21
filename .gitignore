@@ -48,3 +48,11 @@ marketing/brand/mascotte/
 marketing/brand/nuovo-stile/
 marketing/brand/orb.jpeg
 app/src/pages/Landing.restyle.tsx
+
+# I tarball delle consegne: si scompattano e si spostano in _to_delete/, mai committati.
+# ⚠️ Il 20/8 la consegna 78 è finita nel repo COME ARCHIVIO invece che scompattata — 493 KB, e il
+# codice dentro non è mai arrivato su main: il seed ha continuato ad azzerare gli stati degli
+# alimenti a ogni deploy per un giorno intero. Il rito ha cinque passi e il quarto
+# (`tar xzf --overwrite`) era saltato. Questa riga fa in modo che, se ricapita, almeno il tarball
+# non entri nel commit e la cosa si veda subito.
+consegna*.tar.gz
