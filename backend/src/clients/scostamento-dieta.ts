@@ -30,6 +30,29 @@ export interface DietaChiesta {
   regime: string | null;
   style: string | null;
   mealsPerDay: number | null;
+  /**
+   * ⛔ **I PASTI PROMESSI CHE IL CATALOGO SERVITO NON SA COMPORRE**, già in italiano. Vuoto o assente
+   * = non ne manca nessuno.
+   *
+   * ## ⛔ Perché è un elenco e non un numero (corretto in revisione, 21/8)
+   *
+   * La prima stesura passava «quanti pasti promette l'orologio» e qui li confrontava con
+   * `servito.mealsPerDay`. **Sono due scale diverse**, e il confronto era falso su quattro protocolli
+   * su cinque: `strutturaPerFinestra` mappa i pasti promessi su un catalogo da 3 o da 5, quindi la
+   * 14:10 (4 pasti promessi) servita **correttamente** dal catalogo a 5 dava «4 ≠ 5» e la scheda
+   * scriveva *«le promette 4 pasti … viene servita quella da 5. Riceve meno pasti di quelli che le
+   * abbiamo detto»* — cinque è più di quattro, la frase si contraddiceva nella stessa riga. E la 20:4
+   * (2 promessi) servita dal catalogo digiuno (3) dava lo stesso allarme, mentre pranzo e cena ci
+   * sono entrambi.
+   *
+   * ⚠️ La domanda giusta non è «quanti», è **quali**: `pastiPromessiCheMancano` in
+   * `catalog/struttura-per-digiuno.ts` la risponde già, ed è la stessa funzione che il motore usa per
+   * dirlo nei log. Qui arriva il suo risultato, non un conto rifatto.
+   *
+   * ⚠️ Arriva **già tradotto** perché questo modulo è puro e senza dipendenze: importare il catalogo
+   * per una mappa di nomi vorrebbe dire non poterlo più provare per tabella.
+   */
+  pastiCheMancano?: string[] | null;
 }
 
 /** Quello che il catalogo offre, ridotto agli attributi che distinguono una variante. */
@@ -39,7 +62,7 @@ export interface DietaServita {
   mealsPerDay: number | null;
 }
 
-export type MotivoScostamento = 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo';
+export type MotivoScostamento = 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra';
 
 export interface Scostamento {
   motivo: MotivoScostamento;
@@ -61,6 +84,33 @@ export function scostamentoDieta(
 ): Scostamento | null {
   if (!servito || varianteEsattaEsiste) return null;
   if (!chiesto.regime || !chiesto.mealsPerDay) return null;
+
+  /**
+   * ⛔ **IL DIGIUNO SI MISURA SUI PASTI CHE MANCANO, NON SU UN CONTEGGIO** (21/8, caso di Antonella).
+   *
+   * Per una cliente in digiuno quanti pasti fa lo dice la **durata della finestra** — la Regola d'Oro
+   * del manuale — e il profilo dice sempre `3`. Ma il confronto giusto non è nemmeno fra quel numero
+   * e la struttura servita: è **quali** pasti promessi il catalogo servito non sa comporre. Vedi la
+   * nota su `pastiCheMancano`, che racconta i falsi allarmi della prima stesura.
+   *
+   * ⚠️ Questo ramo esce **prima** degli altri perché è più specifico: quando alla cliente mancano
+   * pasti che le sono stati promessi, quello è il fatto — non «la variante ha un altro numero».
+   */
+  const mancano = (chiesto.pastiCheMancano ?? []).filter((s) => !!s && s.trim());
+  if (mancano.length) {
+    const elenco = mancano.join(', ');
+    return {
+      motivo: 'finestra',
+      chiesto,
+      servito,
+      testo:
+        `⚠️ La sua finestra le promette ${elenco}, ma la dieta che le viene servita non ${mancano.length === 1 ? 'ce l\'ha' : 'li ha'} `
+        + `in catalogo: riceve meno pasti di quelli che le abbiamo scritto in app, e non se ne accorge `
+        + `nessuno finché non lo racconta lei. `
+        + `⛔ Non si chiude cambiandole la finestra — la sposta lei, dall'app — e nemmeno cambiandole il `
+        + `profilo: si chiude generando la variante mancante di «${chiesto.famiglia ?? '—'}».`,
+    };
+  }
 
   const pastiDiversi = servito.mealsPerDay !== chiesto.mealsPerDay;
   const stileDiverso = !!chiesto.style && servito.style !== chiesto.style;

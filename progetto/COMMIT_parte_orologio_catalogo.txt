@@ -1,0 +1,92 @@
+Il digiuno che promette pasti che il catalogo non ha — adesso si vede, e si misura
+
+Indagine partita da una domanda sola: cosa succede a una cliente in digiuno che
+sposta l'orologio su un protocollo che la sua famiglia di diete non sa servire.
+La risposta è peggiore di come me l'aspettavo, ed è per metà colpa di come il
+codice raccontava le cose.
+
+COSA HO TROVATO
+
+Il rischio è più stretto e più cattivo di come l'avevo descritto.
+
+Più stretto: dei cinque protocolli, solo il 14:10 rompe i PASTI. Promette
+quattro pasti — colazione compresa — e il catalogo digiuno ha pranzo, merenda e
+cena: serve la variante a 5 pasti. 18:6, 20:4 e 23:1 hanno tutti i pasti che
+promettono; restano corte di calorie, che è un'altra domanda e ha un'altra
+diagnostica.
+
+Più cattivo: il ramo più probabile non è «riceve meno pasti», è «riceve la dieta
+di un'altra famiglia» — e quel ramo non lasciava una sola traccia. Perché:
+
+`catalog/dieta-mostrata.ts` cercava «la variante esatta» con `mealsPerDay`, che
+per OGNI cliente in digiuno vale 3 (lo scrive l'onboarding, e non ha niente a che
+vedere con l'orologio). Quindi trovava sempre la variante digiuno della sua
+famiglia, quindi «la variante esatta esiste» era sempre vero, quindi
+`scostamentoDieta` tornava sempre null — e la scheda continuava a scrivere
+«Digiuno intermittente (16:8)» mentre il motore serviva altro.
+
+Non era un difetto di quella riga: era che CHI SCEGLIE e CHI RACCONTA usavano due
+regole diverse. Adesso la regola è una: `strutturaChiesta` in `pick-diet.ts`,
+chiamata da entrambi. Se due punti rispondono alla stessa domanda, uno dei due
+deve chiamare l'altro — e qui quello che raccontava stava mentendo su quale dieta
+la cliente sta seguendo.
+
+Effetto collaterale buono: adesso la variante digiuno non si confonde più con
+quella a 3 pasti nemmeno nel verso opposto. A una cliente a 3 pasti si poteva
+mostrare la variante digiuno — una dieta senza colazione, a una che la colazione
+la fa.
+
+COSA DICE ADESSO LA SCHEDA
+
+Nuovo motivo di scostamento, `finestra`: «la sua finestra le promette Colazione,
+ma la dieta servita non ce l'ha in catalogo». Dice anche dove NON si chiude — la
+finestra la sposta lei dall'app, e il profilo non c'entra — perché mandare la
+nutrizionista a cercare un comando che non esiste è peggio che non dirle niente.
+
+E LA MIA PRIMA VERSIONE DI QUEL RAMO ERA UN FALSO ALLARME SU 4 PROTOCOLLI SU 5
+
+Confrontavo «quanti pasti promette la finestra» con `servito.mealsPerDay`. Sono
+due scale diverse: `strutturaPerFinestra` mappa i pasti promessi su un catalogo
+da 3 o da 5, mai su un numero qualsiasi. Quindi la 14:10 servita BENE dal
+catalogo a 5 dava «4 ≠ 5» e la scheda scriveva «le promette 4 pasti, viene
+servita quella da 5, riceve meno pasti di quelli che le abbiamo detto» — cinque è
+più di quattro, la frase si contraddiceva nella stessa riga e mandava la
+nutrizionista a generare una variante che c'era già. E la 20:4 dava lo stesso
+allarme mentre pranzo e cena ci sono entrambi.
+
+La domanda giusta non è «quanti», è «quali», e la risposta esisteva già a due
+file di distanza: `pastiPromessiCheMancano`, la stessa funzione che il motore usa
+per scriverlo nei log. Adesso è quella a decidere.
+
+⚠️ Il test che avrebbe dovuto prendere il caso era vuoto: provava una dieta da
+`mealsPerDay: 4`, una struttura che in questo prodotto non esiste. Verde, e cieco.
+
+`npm run diag:orologio` — CHI SI ROMPE SE SPOSTA L'OROLOGIO
+
+`diag:digiuni` guarda la finestra che la cliente ha ADESSO. Ma da quando c'è
+l'orologio la finestra non è un dato fermo: la sposta lei, con un tocco, senza
+permesso e senza revisione. Una cliente «sana» oggi può rompersi domattina.
+
+Il nuovo script simula tutti e cinque i protocolli su ogni cliente in digiuno e
+stampa, per ciascuna, quali scelte il catalogo sa servire e quali no, più
+l'elenco delle varianti da generare con le clienti che ne dipendono. Usa le
+stesse funzioni del motore, non una copia: una diagnostica che risponde
+diversamente dal codice manda a cercare il difetto dove non c'è, ed è già
+successo due volte su «perché non riceve il menu?».
+
+⚠️ Lo script dice anche una cosa che va decisa: la generazione della variante a
+5 pasti per una famiglia di digiuno è BLOCCATA dal backoffice
+(`CreazioneValidazione`: le strutture 3 e 5 sono disabilitate quando il nome
+contiene «digiuno»). Finché quel blocco c'è, il rimedio non è raggiungibile da
+nessuna schermata.
+
+Altri quattro rilievi della revisione, corretti: il tipo di `motivo` nel
+backoffice non conosceva `finestra` (annotazione a mano, quindi mentiva in
+silenzio); il testo usava `**grassetto**` e capoversi dentro un div che non rende
+né l'uno né l'altro; la guardia dello script leggeva `!derivata` invece di
+`!derivata?.fastingWindow`, e il caso non derivabile si travestiva da «✅ ok»; e
+un commento in `pick-diet.ts` descriveva la regola come «quanti pasti» — cioè
+esattamente la regola sbagliata su cui è nato il falso allarme.
+
+4517 test su 4517 nel backend, build verde su tutti e tre. Tre mutazioni provate
+sul ramo nuovo.

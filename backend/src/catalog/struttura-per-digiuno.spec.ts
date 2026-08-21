@@ -97,3 +97,63 @@ describe('pastiPromessiCheMancano — il buco che resta, detto ad alta voce', ()
     expect(pastiPromessiCheMancano('intermittent_fasting', null, DIGIUNO)).toEqual([]);
   });
 });
+
+/**
+ * ⛔ **I CINQUE PROTOCOLLI CONTRO IL CATALOGO — la tabella che dice chi è servibile e chi no.**
+ *
+ * Da quando c'è l'orologio la finestra la sposta la cliente, con un tocco, dall'app. Quindi «questa
+ * cliente è a posto» non è più una proprietà del suo profilo: è una proprietà di **tutti e cinque i
+ * protocolli** che può scegliere domattina.
+ *
+ * ⚠️ Questa tabella è anche la prova che il ramo «finestra» di `scostamento-dieta.ts` non è un falso
+ * allarme: la prima stesura confrontava *quanti* pasti la finestra promette con la *struttura* del
+ * catalogo servito — due scale diverse — e si accendeva su quattro protocolli su cinque. Qui si
+ * verifica quello che conta davvero: **quali** pasti mancano.
+ */
+describe('⛔ i cinque protocolli contro le due strutture di catalogo', () => {
+  const DIGIUNO = { mealsPerDay: 3, fasting: true };
+  const CINQUE = { mealsPerDay: 5, fasting: false };
+  const mancanti = (finestra: string, dieta: { mealsPerDay: number; fasting: boolean }) =>
+    pastiPromessiCheMancano('intermittent_fasting', finestra, dieta);
+
+  /**
+   * ⛔ La sola 14:10 esce dal catalogo digiuno, e le manca **la colazione**. È il buco di Antonella:
+   * la sua famiglia ha solo la variante `fasting`, e la variante a 5 pasti non è nemmeno generabile
+   * dal backoffice.
+   */
+  it('⛔ 14:10 sul catalogo digiuno: manca la colazione', () => {
+    expect(mancanti('skip_morning_snack', DIGIUNO)).toEqual(['breakfast']);
+  });
+
+  it('⚠️ e con la variante a 5 pasti la 14:10 è servita: non manca niente', () => {
+    expect(mancanti('skip_morning_snack', CINQUE)).toEqual([]);
+  });
+
+  /**
+   * ⛔ **Gli altri tre protocolli NON hanno buchi di pasti**, ed è la cosa che la prima stesura del
+   * confronto sbagliava: 18:6 e 20:4 promettono pranzo e cena, 23:1 la sola cena — e il catalogo
+   * digiuno (pranzo, merenda, cena) le contiene tutte. Che poi il motore ne tolga qualcuna è il suo
+   * mestiere, non una mancanza. ⚠️ Restano corte di **calorie**, che è un'altra domanda e ha un'altra
+   * diagnostica (`diag:kcal`).
+   */
+  it.each([
+    ['16:8', 'skip_breakfast'],
+    ['18:6 e 20:4', 'skip_breakfast_and_snacks'],
+    ['23:1', 'skip_all_but_dinner'],
+  ])('⚠️ %s sul catalogo digiuno: nessun pasto mancante', (_titolo, finestra) => {
+    expect(mancanti(finestra, DIGIUNO)).toEqual([]);
+  });
+
+  /**
+   * ⛔ **Chi non digiuna, e chi la finestra non l'ha impostata, non ha niente che manchi.** Sono i
+   * due `[]` che tolgono di mezzo i falsi allarmi a monte, senza bisogno di guardie sparse nei
+   * chiamanti — una guardia in più è una seconda regola da tenere allineata.
+   */
+  it.each([
+    ['non digiuna', 'classic3', 'skip_breakfast'],
+    ['digiuna ma non ha mai impostato la finestra', 'intermittent_fasting', null],
+    ['finestra sconosciuta', 'intermittent_fasting', 'skip_qualcosa'],
+  ])('⚠️ %s: elenco vuoto', (_titolo, pathType, finestra) => {
+    expect(pastiPromessiCheMancano(pathType, finestra, DIGIUNO)).toEqual([]);
+  });
+});

@@ -47,6 +47,7 @@
     "pulisci:spezie": "ts-node --transpile-only prisma/pulisci-spezie.ts",
     "diag:settimane": "ts-node --transpile-only prisma/diag-settimane.ts",
     "diag:digiuni": "ts-node --transpile-only prisma/diag-digiuni-e-varianti.ts",
+    "diag:orologio": "ts-node --transpile-only prisma/diag-orologio-catalogo.ts",
     "diag:kcal": "ts-node --transpile-only prisma/diag-kcal-sotto-target.ts",
     "sposta:percorso": "ts-node --transpile-only prisma/sposta-percorso-cliente.ts",
     "diag:porzioni": "ts-node --transpile-only prisma/diag-porzioni.ts",

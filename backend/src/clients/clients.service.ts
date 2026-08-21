@@ -22,6 +22,8 @@ import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { filtraSpezie, type EsitoSpezia } from '../menu/spezie';
 import { NON_ALIMENTI } from '../common/allergie';
+import { NOME_PASTO } from '../catalog/giornate-complete';
+import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
@@ -427,6 +429,28 @@ export class ClientsService {
         regime: profiloMatch.regime,
         style: profiloMatch.dietStyle,
         mealsPerDay: profiloMatch.mealsPerDay,
+        /**
+         * ⛔ **QUALI pasti promessi il catalogo servito non sa comporre** — non quanti (21/8).
+         *
+         * `mealsPerDay` qui sopra dice `3` per tutte le clienti in digiuno, e non c'entra niente con
+         * quello che l'orologio ha promesso a questa. Ma nemmeno un conteggio andava bene: la prima
+         * stesura confrontava «pasti promessi» con la struttura servita e sbagliava su quattro
+         * protocolli su cinque, perché sono due scale diverse. Vedi la nota in `scostamento-dieta.ts`.
+         *
+         * ⚠️ La risposta la dà `pastiPromessiCheMancano`, **la stessa funzione che il motore usa** per
+         * scriverlo nei log al momento di comporre la giornata: se le due divergessero, la scheda e il
+         * piatto direbbero due cose diverse — che è esattamente il difetto che questa riga esiste per
+         * far vedere.
+         *
+         * ⚠️ Torna `[]` da sola per chi non digiuna e per chi la finestra non l'ha ancora impostata:
+         * non serve nessuna guardia qui, e una guardia in più sarebbe una seconda regola da tenere
+         * allineata.
+         */
+        pastiCheMancano: pastiPromessiCheMancano(
+          profiloMatch.pathType,
+          profiloMatch.fastingWindow,
+          dietaServita ?? {},
+        ).map((slot) => NOME_PASTO[slot] ?? slot),
       },
       dietaServita
         ? { regime: dietaServita.regime, style: dietaServita.style, mealsPerDay: dietaServita.mealsPerDay }

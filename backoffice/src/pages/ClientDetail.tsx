@@ -56,7 +56,14 @@ interface Detail {
    * chiesto, cosa viene servito, e la frase da mostrare. Null quando le due coincidono.
    */
   scostamentoDieta: {
-    motivo: 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo';
+    /**
+     * ⚠️ **`'finestra'` c'è dal 21/8**, e va tenuto allineato a `MotivoScostamento` del backend:
+     * questa è un'annotazione scritta a mano su una risposta fetchata, quindi TypeScript non
+     * protesta se manca un valore — mente e basta. Il primo `switch` esaustivo che qualcuno ci
+     * scriverà sopra sbaglierebbe in silenzio.
+     * ⚠️ `finestra` = la sua finestra promette pasti che il catalogo servito non ha.
+     */
+    motivo: 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra';
     chiesto: { famiglia: string | null; regime: string | null; style: string | null; mealsPerDay: number | null };
     servito: { regime: string | null; style: string | null; mealsPerDay: number | null };
     testo: string;

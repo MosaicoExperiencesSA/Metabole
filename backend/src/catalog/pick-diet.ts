@@ -53,17 +53,44 @@ export interface DietMatchProfile {
 /** Come si interroga il catalogo. Il chiamante passa Prisma e si tiene i suoi tipi. */
 export type TrovaDieta<T> = (where: Record<string, unknown>) => Promise<T | null>;
 
+/**
+ * ⛔ **QUALE STRUTTURA DI CATALOGO CHIEDE QUESTO PROFILO — la regola, in un posto solo.**
+ *
+ * Piano pasti: digiuno intermittente (`pathType`) → il catalogo che ha i pasti che la **finestra**
+ * promette (`struttura-per-digiuno.ts`); altrimenti match sul numero di pasti (3/5), escludendo le
+ * varianti digiuno.
+ *
+ * ⚠️ **Il criterio non è QUANTI pasti, è QUALI** — e scriverlo male qui è già costato un difetto. Il
+ * catalogo `fasting` ha pranzo, merenda e cena: basta a chi salta la colazione (16:8), a chi mangia
+ * due volte (18:6, 20:4) e a chi ne fa uno solo (23:1), anche se i numeri non coincidono. Serve il
+ * catalogo a 5 pasti solo a chi ha **la colazione** fra i pasti promessi: la 14:10 e chi salta la
+ * cena o il pranzo. Un commento che dice «il 5 pasti per chi ne promette quattro» fa ricavare la
+ * regola sbagliata, ed è esattamente la regola sbagliata su cui è nato il falso allarme dello
+ * scostamento (vedi `clients/scostamento-dieta.ts`).
+ *
+ * ⛔ **Sta qui, e non dentro `pickDietFor`, perché la stessa domanda la fa anche un altro punto**
+ * (trovato in revisione, 21/8): `catalog/dieta-mostrata.ts` cerca «la variante esatta» per dire alla
+ * scheda e all'app **quale dieta stanno seguendo**, e la cercava con `mealsPerDay` — cioè con il
+ * numero scritto in profilo, che per **ogni** cliente in digiuno è `3`.
+ *
+ * ⚠️ Effetto: la variante digiuno della sua famiglia si trovava **sempre**, quindi «la variante
+ * esatta esiste» era sempre vero, quindi `scostamentoDieta` restituiva sempre `null` e la scheda
+ * continuava a scrivere «Digiuno intermittente (16:8)» **mentre il motore stava servendo la dieta di
+ * un'altra famiglia**. Due punti che rispondono alla stessa domanda con due regole diverse: quello
+ * che sceglie e quello che racconta. E quello che racconta mentiva.
+ *
+ * ⚠️ Adesso ne esiste una sola. Se un giorno nasce una terza struttura, nasce qui.
+ */
+export function strutturaChiesta(profile: DietMatchProfile): Record<string, unknown> {
+  return profile.pathType === 'intermittent_fasting'
+    ? strutturaPerFinestra(profile.fastingWindow)
+    : { mealsPerDay: profile.mealsPerDay, fasting: false };
+}
+
 export async function pickDietFor<T>(trova: TrovaDieta<T>, profile: DietMatchProfile): Promise<T | null> {
   if (!profile.regime || !profile.mealsPerDay) return null;
 
-  // Piano pasti: digiuno intermittente (pathType) → il catalogo che ha i pasti che la FINESTRA
-  // promette (`struttura-per-digiuno.ts`: quasi sempre `fasting`, il 5 pasti per chi salta la cena
-  // o il pranzo); altrimenti match sul numero di pasti (3/5), escludendo le varianti digiuno.
-  const wantsFasting = profile.pathType === 'intermittent_fasting';
-  const mealsWhere = wantsFasting
-    ? strutturaPerFinestra(profile.fastingWindow)
-    : { mealsPerDay: profile.mealsPerDay, fasting: false };
-  const base: Record<string, unknown> = { status: 'approved', regime: profile.regime, ...mealsWhere };
+  const base: Record<string, unknown> = { status: 'approved', regime: profile.regime, ...strutturaChiesta(profile) };
 
   const styleWhere = profile.dietStyle ? { style: profile.dietStyle } : {};
   // La famiglia va SEMPRE insieme allo stile: da sola potrebbe agganciare l'omonima di un altro

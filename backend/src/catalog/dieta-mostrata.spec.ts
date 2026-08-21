@@ -12,11 +12,19 @@ import type { PrismaService } from '../prisma/prisma.service';
 type RigaDieta = {
   id: string; name: string; clientName: string | null; clientDescription: string | null;
   style: string | null; status: string; regime: string | null; mealsPerDay: number | null;
+  /**
+   * ⚠️ **Mancava, e non era un dettaglio della finzione** (21/8). In banca dati `Diet.fasting` è
+   * `Boolean @default(false)`: **non è mai null**. Le righe finte senza quel campo hanno fatto
+   * fallire i test nel momento in cui la ricerca ha cominciato a filtrarci sopra — che è il modo
+   * giusto in cui una finzione incompleta si fa notare, ma solo se qualcuno guarda perché.
+   */
+  fasting: boolean;
 };
 
 const dieta = (over: Partial<RigaDieta>): RigaDieta => ({
   id: 'd', name: 'Mediterranea', clientName: null, clientDescription: null,
-  style: 'mediterranean', status: 'approved', regime: 'onnivoro', mealsPerDay: 5, ...over,
+  style: 'mediterranean', status: 'approved', regime: 'onnivoro', mealsPerDay: 5,
+  fasting: false, ...over,
 });
 
 /**
@@ -117,5 +125,75 @@ describe('nomePerLaCliente', () => {
     // ⚠️ Stringa vuota = non compilato: si mostra il nome interno, non una riga bianca.
     expect(nomePerLaCliente(dieta({ clientName: '' }))).toBe('Mediterranea');
     expect(nomePerLaCliente(null)).toBeNull();
+  });
+});
+
+
+/**
+ * ⛔ **LA VARIANTE DIGIUNO NON È LA VARIANTE ESATTA DI CHI NON DIGIUNA — e viceversa.**
+ *
+ * Trovato correggendo il caso di Antonella (21/8). La ricerca della «variante esatta» filtrava su
+ * `name + regime + mealsPerDay + style` e **non su `fasting`**. In una famiglia che ha sia la
+ * variante a 3 pasti sia quella da digiuno — che a catalogo è pure lei `mealsPerDay: 3` — le due
+ * righe sono indistinguibili da quella query: vince chi capita prima.
+ *
+ * ⚠️ E l'errore va nei due sensi, con due danni diversi:
+ *  - a una cliente **a 3 pasti** si poteva mostrare la variante **digiuno** («Dieta assegnata») —
+ *    una dieta senza colazione, a una che la colazione la fa;
+ *  - a una cliente **in digiuno** si mostrava sempre la variante digiuno della sua famiglia, anche
+ *    quando il suo orologio ne chiedeva un'altra e il motore ne stava servendo **un'altra ancora**.
+ *    Ed è il caso peggiore, perché spegneva anche `scostamentoDieta`: la scheda non aveva più
+ *    nessun modo di dire che quella cliente stava mangiando la dieta di un'altra famiglia.
+ */
+describe('⛔ digiuno e non-digiuno non si confondono', () => {
+  const TRE_PASTI = { ...PROFILO, mealsPerDay: 3, pathType: 'classic3' };
+
+  it('⛔ a chi NON digiuna non si mostra la variante digiuno, anche se i pasti coincidono', async () => {
+    const { finto } = catalogo([
+      dieta({ id: 'digiuno', mealsPerDay: 3, fasting: true, clientName: 'Mediterranea digiuno' }),
+      dieta({ id: 'classica', mealsPerDay: 3, fasting: false, clientName: 'Mediterranea 3 pasti' }),
+    ]);
+    const esito = await dietaMostrataPer(finto, TRE_PASTI);
+    expect(esito.varianteEsatta?.id).toBe('classica');
+  });
+
+  /** ⚠️ E il contrario: chi digiuna vede la sua, non quella a tre pasti che le sta accanto. */
+  it('⛔ a chi digiuna si mostra la variante digiuno', async () => {
+    const { finto } = catalogo([
+      dieta({ id: 'classica', mealsPerDay: 3, fasting: false }),
+      dieta({ id: 'digiuno', mealsPerDay: 3, fasting: true }),
+    ]);
+    const esito = await dietaMostrataPer(finto, {
+      ...PROFILO, mealsPerDay: 3, pathType: 'intermittent_fasting', fastingWindow: 'skip_breakfast',
+    });
+    expect(esito.varianteEsatta?.id).toBe('digiuno');
+  });
+
+  /**
+   * ⛔ **IL CASO ANTONELLA.** La 14:10 promette quattro pasti — colazione, pranzo, merenda, cena —
+   * che il catalogo digiuno (pranzo, merenda, cena) non ha: serve la variante a **5 pasti**. Se
+   * quella variante non esiste, «la variante esatta» **non esiste**, e dirlo è tutto il punto:
+   * è quello che accende `scostamentoDieta` e toglie dalla scheda la frase che non è vera.
+   */
+  it('⛔ 14:10 senza la variante a 5 pasti: la variante esatta NON esiste, e si vede', async () => {
+    const { finto } = catalogo([
+      dieta({ id: 'digiuno', mealsPerDay: 3, fasting: true }),
+    ]);
+    const esito = await dietaMostrataPer(finto, {
+      ...PROFILO, mealsPerDay: 3, pathType: 'intermittent_fasting', fastingWindow: 'skip_morning_snack',
+    });
+    expect(esito.varianteEsatta).toBeNull();
+  });
+
+  /** ⚠️ E con la variante a 5 pasti in catalogo, la stessa cliente è servita: nessuno scostamento. */
+  it('⚠️ con la variante a 5 pasti in catalogo, la 14:10 è coperta', async () => {
+    const { finto } = catalogo([
+      dieta({ id: 'digiuno', mealsPerDay: 3, fasting: true }),
+      dieta({ id: 'cinque', mealsPerDay: 5, fasting: false }),
+    ]);
+    const esito = await dietaMostrataPer(finto, {
+      ...PROFILO, mealsPerDay: 3, pathType: 'intermittent_fasting', fastingWindow: 'skip_morning_snack',
+    });
+    expect(esito.varianteEsatta?.id).toBe('cinque');
   });
 });

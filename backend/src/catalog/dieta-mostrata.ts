@@ -34,7 +34,7 @@
  * Alla cliente si mostra `varianteEsatta ?? dietaServita`: mai `null` quando in catalogo c'è
  * qualcosa di servibile, mai una variante a caso.
  */
-import { pickDietFor, type DietMatchProfile } from './pick-diet';
+import { pickDietFor, strutturaChiesta, type DietMatchProfile } from './pick-diet';
 import type { PrismaService } from '../prisma/prisma.service';
 
 /** I campi della dieta che servono a entrambe le schermate. */
@@ -99,7 +99,22 @@ export async function dietaMostrataPer(
           where: {
             name: famiglia,
             regime: profilo.regime,
-            mealsPerDay: profilo.mealsPerDay,
+            /**
+             * ⛔ **`strutturaChiesta`, NON `mealsPerDay`** (corretto in revisione, 21/8).
+             *
+             * Qui c'era `mealsPerDay: profilo.mealsPerDay`, e per **ogni** cliente in digiuno quel
+             * numero è `3` — lo scrive l'onboarding, e non ha niente a che vedere con quanti pasti
+             * il suo orologio le promette. Risultato: la query trovava sempre la variante digiuno
+             * della sua famiglia, quindi «la variante esatta esiste» era sempre vero, quindi
+             * `scostamentoDieta` tornava sempre `null` — e la scheda continuava a scrivere «Digiuno
+             * intermittente (16:8)» **mentre il motore serviva la dieta di un'altra famiglia**.
+             *
+             * ⚠️ Non era un difetto di questa riga: era che **chi sceglie e chi racconta usavano due
+             * regole diverse**. Adesso è la stessa funzione, in `pick-diet.ts`. Se due punti
+             * rispondono alla stessa domanda, uno dei due deve chiamare l'altro — e qui quello che
+             * raccontava stava mentendo su quale dieta la cliente sta seguendo.
+             */
+            ...strutturaChiesta(profilo),
             ...(profilo.dietStyle ? { style: profilo.dietStyle } : {}),
           } as never,
           // Approvata per prima: se esiste anche una bozza con lo stesso nome, è quella approvata
