@@ -1439,6 +1439,13 @@ export const VOCI_INIZIALI: Voce[] = [
       '⚠️ **Questa voce era stata aperta prima di misurare qualsiasi cosa, e lo diceva.** Adesso una '
       + 'parte è misurata e una parte è scritta: il testo di prima resta in fondo, perché una voce '
       + 'superata si riscrive dicendo cos\'è cambiato, non si cancella.\n\n'
+      + '## ✅ IN PRODUZIONE dal 21/8 — backend, backoffice e app (OTA 2.2.2)\n\n'
+      + '⚠️ **Verificato, non dedotto**: il manifest live risponde `"version": "2.2.2"`, e lo zip '
+      + 'su GitHub ha lo stesso md5 di quello costruito (`d611875d…`). Backend e backoffice erano già '
+      + 'saliti col commit precedente.\n\n'
+      + '⛔ **E la scelta dei pasti è sparita del tutto** (Simone, 21/8): non c\'è più né la domanda '
+      + 'del questionario, né la tendina della scheda staff, né i pallini nel profilo dell\'app. La '
+      + 'finestra la scrive **solo** l\'orologio della cliente; in scheda si legge, non si tocca.\n\n'
       + '## ✅ Scritto e verde il 21/8 (consegna «orologio del digiuno»)\n\n'
       + 'Alla cliente non si chiede più **quali pasti salta** — una domanda astratta — ma **a che ora '
       + 'mangia**. `fastingWindow` resta il dato che il motore legge: non lo sceglie più nessuno a '
@@ -2039,11 +2046,39 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ E la barra in alto compare **solo se le pagine sono più d\'una**: due righe di comandi '
       + 'attorno a una tabella di sei righe sono rumore.\n\n'
       + '⚠️ Prima di scrivere: censire dove sono le tabelle paginate oggi, perché la paginazione qui non '
-      + 'è un componente ma un pezzo ripetuto a mano — il censimento È metà del lavoro.',
+      + 'è un componente ma un pezzo ripetuto a mano — il censimento È metà del lavoro.\n\n'
+      + '## ✅ FATTO il 21/8 — e il censimento ha smentito la premessa\n\n'
+      + '⚠️ **«La paginazione è un pezzo ripetuto a mano» era falso**, e l\'avevo scritto senza '
+      + 'guardare. Il componente condiviso c\'era già (`usePagination` + `<Pager>` + `useTabella`), e '
+      + 'sei tabelle su trenta la barra in cima ce l\'avevano dall\'11/8. Il lavoro era molto più '
+      + 'piccolo di come l\'avevo descritto: *misura prima di decidere*, anche quando si decide solo '
+      + 'quanto costa.\n\n'
+      + '✅ **Adesso ce l\'hanno tutte e 27**, più `LeadsTable` — l\'unica paginata lato server, dove '
+      + 'la conversione 0-based → 1-based è stata estratta in un posto solo (`pagerLead`): con due '
+      + 'barre, un `+1` copiato e un `-1` dimenticato le mostrerebbe su pagine diverse.\n\n'
+      + '⛔ **Due difetti veri trovati dal censimento, e non erano cosmetici.** `Agenti` e '
+      + '`CoperturaCatalogo` chiamavano `useTabella` con un tetto (500 e 200 righe) e **non '
+      + 'disegnavano nessuna barra**: le righe oltre il tetto esistevano, si filtravano, finivano '
+      + 'nell\'Excel — e a schermo non c\'erano. Su `CoperturaCatalogo`, che è la schermata che dice '
+      + '*cosa manca a catalogo*, voleva dire una copertura incompleta letta come completa.\n\n'
+      + '⛔ **E la revisione ha trovato che la mia correzione non funzionava.** La card che contiene '
+      + 'una tabella scorre dentro di sé (`theme.css`: `overflow: auto` + `max-height`), quindi una '
+      + 'barra messa lì come primo figlio **se ne va al primo movimento di rotella** — invisibile '
+      + 'proprio per tutto il tempo in cui serve. Avevo cercato l\'`overflow` nel JSX e stava nel '
+      + 'CSS: l\'ho scritto giusto in due file e sbagliato in diciannove. ✅ Corretto in **un posto '
+      + 'solo**: `<Pager sopra>` è `sticky` (`top`, `left` e `zIndex` sopra l\'intestazione '
+      + 'incollata) — e così si sistemano anche le sei di prima, che avevano lo stesso difetto '
+      + 'dall\'11/8 senza che nessuno se ne fosse accorto.\n\n'
+      + '⚠️ La regola sta in un test (`frecce-anche-in-cima.spec.ts`) che guarda il sorgente: le due '
+      + 'barre appaiate, la posizione rispetto alla tabella, e che chi pagina ne disegni una. ⛔ Le '
+      + 'prime due stesure erano aggirabili — una rompeva perfino `npm run build` (leggeva i file con '
+      + '`fs`, e il backoffice non ha i tipi di Node), un\'altra non vedeva i `<Pager>` con una '
+      + 'freccia grassa nelle props, cioè proprio la forma di `LeadsTable`. Sei mutazioni provate una '
+      + 'per una.',
     categoria: CODICE,
     ordine: 644,
     nata: '2026-08-21T13:50',
-    priorita: 'neutra',
+    fatta: true,
   },
 
 ];

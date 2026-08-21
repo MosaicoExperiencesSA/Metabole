@@ -97,6 +97,7 @@ export function Compensi() {
         <Spinner />
       ) : (
         <div className="card" style={{ padding: 0 }}>
+          <Pager {...t.pager} sopra />
           {t.conteggio.mostrate === 0 ? (
             <div className="empty">{rows.length === 0 ? 'Nessun compenso nel periodo.' : 'Nessuna persona con questi filtri.'}</div>
           ) : (

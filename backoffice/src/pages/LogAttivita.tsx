@@ -168,6 +168,7 @@ export function LogAttivita() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessuna attività registrata.' : 'Nessuna azione con questi filtri.'}</div>
         ) : (

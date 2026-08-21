@@ -95,6 +95,7 @@ export function Agenda() {
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessuna visita.' : 'Nessuna visita con questi filtri.'}</div>
         ) : (

@@ -793,6 +793,13 @@ export function ValoriNutrizionali() {
       </div>
 
       <div className="card" style={{ padding: 0, ...stileScorrevole(t.conteggio.mostrate) }}>
+        {/*
+          ⚠️ **Dentro** il riquadro che scorre, non fuori. La prima stesura (21/8) la metteva sopra la
+          card per non farla scorrere via — poi `<Pager sopra>` è diventato `sticky` in `ui.tsx`, che
+          risolve la stessa cosa in un posto solo e per tutte le tabelle. Una barra fuori sarebbe
+          rimasta l'eccezione da spiegare, e senza sfondo né bordo avrebbe anche un altro aspetto.
+        */}
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">Nessun alimento per questi filtri.</div>
         ) : (

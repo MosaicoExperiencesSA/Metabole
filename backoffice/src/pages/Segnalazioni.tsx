@@ -128,6 +128,7 @@ export function Segnalazioni() {
       {error && <Banner kind="err">{error}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessuna segnalazione.' : 'Nessuna segnalazione con questi filtri.'}</div>
         ) : (

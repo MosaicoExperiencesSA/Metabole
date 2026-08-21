@@ -1,0 +1,72 @@
+Le frecce di pagina anche in cima — su tutte le tabelle, e incollate
+
+Richiesta di Simone del 21/8: «dove ci sono le tabelle con più pagine mettiamo
+anche in alto le frecce per cambio pagina come in basso, da fare su tutte le
+tabelle». Su una tabella lunga, per cambiare pagina bisogna scorrere fino in
+fondo, cliccare e risalire in cima a leggere: due viaggi per ogni pagina. E le
+frecce in fondo si trovano solo se si sa che ci sono.
+
+⚠️ LA PREMESSA CHE AVEVO SCRITTO ERA FALSA. In elenco lavori avevo messo «la
+paginazione qui non è un componente ma un pezzo ripetuto a mano». Il censimento
+dice il contrario: il componente condiviso c'era già (`usePagination` +
+`<Pager>` + `useTabella`) e sei tabelle su trenta la barra in cima ce l'avevano
+dall'11/8. Il lavoro era molto più piccolo di come l'avevo descritto — misura
+prima di decidere, anche quando si decide solo quanto costa.
+
+Adesso ce l'hanno tutte e 27, più LeadsTable: l'unica paginata lato server e
+l'unica con la pagina 0-based mentre il `Pager` è 1-based. Lì la conversione è
+stata estratta in un oggetto solo (`pagerLead`) usato da entrambe le barre: con
+due barre, un `+1` copiato e un `-1` dimenticato le mostrerebbe su pagine
+diverse della stessa tabella, senza nessun errore — solo numeri che non tornano.
+
+DUE DIFETTI VERI, TROVATI DAL CENSIMENTO
+
+`Agenti` e `CoperturaCatalogo` chiamavano `useTabella` con un tetto di righe per
+pagina (500 e 200) e non disegnavano nessuna barra. Le righe oltre il tetto
+esistevano, si filtravano, finivano nell'Excel — e a schermo non c'erano, senza
+che niente lo dicesse. Su `CoperturaCatalogo`, che è la schermata che dice cosa
+manca a catalogo, voleva dire una copertura incompleta letta come completa.
+Niente tagli silenziosi.
+
+E LA MIA PRIMA CORREZIONE NON FUNZIONAVA
+
+La card che contiene una tabella scorre dentro di sé: `theme.css` le dà
+`overflow: auto` e `max-height: calc(100vh - 240px)`. Una barra messa lì come
+primo figlio se ne va al primo movimento di rotella — con cento righe per pagina
+resta invisibile per tutto il tempo in cui servirebbe, cioè i due viaggi
+restavano. Avevo cercato l'`overflow` scritto nel JSX, e stava nel CSS: l'ho
+scritto giusto in due file e sbagliato in diciannove.
+
+Corretto in un posto solo: `<Pager sopra>` è `sticky` — `top`, `left` (quei
+riquadri scorrono anche in orizzontale) e `zIndex` sopra il 3 dell'intestazione
+incollata. Così si sistemano anche le sei tabelle di prima, che avevano lo stesso
+difetto dall'11/8 senza che nessuno se ne fosse accorto: sembrava funzionare
+perché chi la provava non scorreva.
+
+IL TEST, E LE TRE VOLTE CHE L'HO SBAGLIATO
+
+`frecce-anche-in-cima.spec.ts` legge il sorgente e pretende: le due barre
+appaiate, la posizione rispetto alla tabella, e che chi pagina ne disegni una.
+
+- la prima stesura leggeva i file con `fs` copiando il modo del backend, e
+  ROMPEVA `npm run build`: qui `tsconfig` include `src` e il backoffice non ha
+  `@types/node`. I test restavano verdi (Vite non controlla i tipi) e il deploy
+  falliva. Un test che rompe il deploy della schermata che protegge è peggio del
+  difetto. Adesso i sorgenti arrivano da `import.meta.glob`.
+- la seconda cercava `<Pager\b[^>]*\/>`: si ferma al primo `>`, quindi un
+  `onPage={(p) => setPage(p - 1)}` — la forma che il repository usava fino a ieri
+  — non veniva contata. Si potevano togliere entrambe le barre di LeadsTable e
+  restare verdi. Adesso il tag si legge contando le graffe.
+- la terza guardava solo chi chiama `useTabella`, e LeadsTable non lo chiama:
+  stesso buco da un'altra porta. Adesso il segnale è «pagina in uno dei tre modi
+  veri», con gli helper esclusi da quello che esportano.
+- e il controllo di posizione chiedeva «prima della PRIMA tabella del file»: si
+  accendeva su quattro schermate che di tabelle ne hanno due, dove a sbagliare
+  era il test. Adesso è a coppie.
+
+Sei mutazioni provate una per una: togliere la barra in cima, togliere quella in
+fondo, toglierle entrambe a LeadsTable, riscrivere le props in linea, spostare la
+barra «sopra» dopo la tabella, togliere lo sticky. Tutte mordono.
+
+56 test su 56 nel backoffice, 4493 su 4493 nel backend, build verde su tutti e
+tre.

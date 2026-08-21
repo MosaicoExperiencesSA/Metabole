@@ -402,6 +402,7 @@ export function Contabilita() {
             />
           </div>
         </div>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{costs.length === 0 ? 'Nessun costo. Registrane uno con "Registra costo".' : 'Nessun costo con questi filtri.'}</div>
         ) : (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
@@ -363,6 +363,14 @@ export function CoperturaCatalogo() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
+        {/*
+          ⛔ **LA BARRA MANCAVA DEL TUTTO, e la tabella paginava lo stesso** (21/8). `useTabella` è
+          impostata a 200 righe per pagina: oltre la duecentesima variante il resto c'era, era
+          filtrabile, finiva nell'Excel — e a schermo non compariva, senza che niente lo dicesse. Su
+          una schermata che esiste per dire *cosa manca a catalogo*, è il difetto peggiore possibile:
+          una copertura incompleta letta come completa. *Niente tagli silenziosi.*
+        */}
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">Nessuna variante per questi filtri.</div>
         ) : (
@@ -405,6 +413,7 @@ export function CoperturaCatalogo() {
             </tbody>
           </table>
         )}
+        <Pager {...t.pager} />
       </div>
     </>
   );

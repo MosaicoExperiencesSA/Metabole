@@ -101,6 +101,7 @@ export function Testimonianze() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...tab.pager} sopra />
         {tab.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessuna testimonianza. Aggiungine una con “Nuova testimonianza”.' : 'Nessuna testimonianza con questi filtri.'}</div>
         ) : (

@@ -88,6 +88,7 @@ export function ModelliEmail() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessun modello.' : 'Nessun modello con questi filtri.'}</div>
         ) : (

@@ -145,6 +145,7 @@ export function Publisher() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessun post. Creane uno con "Nuovo post".' : 'Nessun post con questi filtri.'}</div>
         ) : (

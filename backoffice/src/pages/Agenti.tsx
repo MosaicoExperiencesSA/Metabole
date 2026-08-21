@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
 /**
@@ -273,8 +273,17 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
     { chiave: 'costo', titolo: 'Costo', valore: (r) => r.costCents, esporta: (r) => (r.costCents ?? 0) / 100 },
   ];
 
-  // Lo storico si legge dalla più recente, che è l'ordine del server. Niente `Pager`: il server
-  // manda al massimo 50 righe e stanno in una schermata che scorre.
+  /**
+   * Lo storico si legge dalla più recente, che è l'ordine del server.
+   *
+   * ⛔ **La barra c'è, anche se oggi non si vede** (21/8). Prima la nota diceva «niente `Pager`: il
+   * server manda al massimo 50 righe» — vero oggi, e una promessa su un numero che sta **in un altro
+   * file**. Nel frattempo `useTabella` paginava lo stesso a 500: il giorno che quel tetto si alza,
+   * la riga 501 sparisce e nessuno riceve un errore. *Niente tagli silenziosi.*
+   *
+   * ⚠️ Il `Pager` non costa niente quando non serve: sotto le due pagine si disegna `null`. Metterlo
+   * è più economico che ricordarsi di metterlo.
+   */
   const t = useTabella(rows ?? [], COLONNE, { perPagina: 500, ordineIniziale: { chiave: 'quando', direzione: 'desc' }, testaFissa: true, nomeExcel: `Esecuzioni — ${agent.name}`});
 
   return (
@@ -302,6 +311,7 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
               un'esecuzione più vecchia non compare nemmeno filtrando.
             </Banner>
           )}
+          <Pager {...t.pager} sopra />
           {t.conteggio.mostrate === 0 ? (
             <div className="empty">Nessuna esecuzione con questi filtri.</div>
           ) : (
@@ -325,6 +335,8 @@ function RunsModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
               </table>
             </div>
           )}
+          {/* ⚠️ Fuori dal riquadro che scorre: dentro se ne andrebbe con le righe. */}
+          <Pager {...t.pager} />
         </>
       )}
     </Modal>

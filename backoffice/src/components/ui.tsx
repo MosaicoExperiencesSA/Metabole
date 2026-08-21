@@ -107,16 +107,44 @@ export function Pager({ page, totalPages, total, from, to, onPage, sopra }: {
   page: number; totalPages: number; total: number; from: number; to: number; onPage: (p: number) => void;
   /**
    * `true` quando il selettore sta SOPRA la tabella (dall'11/8 le tabelle lunghe lo hanno da
-   * entrambe le parti). Sposta il filo di separazione dall'alto al basso: sopra, un bordo
-   * superiore si sovrapporrebbe a quello della card e il blocco sembrerebbe staccato dalla tabella
-   * che comanda.
+   * entrambe le parti; dal 21/8 **tutte**). Sposta il filo di separazione dall'alto al basso:
+   * sopra, un bordo superiore si sovrapporrebbe a quello della card e il blocco sembrerebbe
+   * staccato dalla tabella che comanda.
    */
   sopra?: boolean;
 }) {
   if (totalPages <= 1) return null;
   const filo = sopra ? { borderBottom: '1px solid var(--line,#eee)' } : { borderTop: '1px solid var(--line,#eee)' };
+  /**
+   * ⛔ **LA BARRA DI SOPRA È INCOLLATA IN ALTO, E SENZA QUESTO NON SERVIVA A NIENTE** (trovato in
+   * revisione, 21/8 — dopo averla messa su tutte e ventisette le tabelle).
+   *
+   * La card che contiene una tabella **scorre dentro di sé**: `theme.css` le dà `overflow: auto` e
+   * `max-height: calc(100vh - 240px)`. Una barra messa lì come primo figlio se ne va al primo
+   * movimento di rotella — con cento righe per pagina resta invisibile per tutto il tempo in cui
+   * servirebbe, e per cambiare pagina si torna a fare i due viaggi che questa barra doveva togliere.
+   *
+   * ⚠️ Il difetto c'era già dall'11/8 sulle sei tabelle che la barra ce l'avevano: *sembrava*
+   * funzionare perché chi la provava non scorreva. E la mia prima correzione l'ha ripetuto
+   * diciannove volte, perché avevo cercato l'`overflow` scritto nel JSX e quello sta nel **CSS**.
+   *
+   * ✅ Con `sticky` la barra resta dov'è mentre le righe scorrono sotto — dentro la card, senza
+   * toccare nessuna delle ventisette pagine, e sistemando anche le sei di prima. ⚠️ `zIndex: 4`
+   * perché l'intestazione incollata di `tabella.tsx` sta a **3**: sotto, le righe le passerebbero
+   * sopra. E lo sfondo è pieno, o si vedrebbero le righe scorrere attraverso.
+   *
+   * ⚠️ **`left: 0` insieme a `top: 0`**, perché quei riquadri scorrono anche in orizzontale: le
+   * tabelle larghe hanno `min-width: 900px` e preferiscono scorrere invece di comprimersi. Con il
+   * solo `top` i comandi se ne andrebbero di lato appena si guarda una colonna in fondo.
+   *
+   * ⚠️ Quando la barra non ha nessun antenato che scorre, `sticky` non fa niente: si comporta come
+   * una riga normale. Nessuna pagina va adattata.
+   */
+  const incollata: React.CSSProperties = sopra
+    ? { position: 'sticky', top: 0, left: 0, zIndex: 4, background: 'var(--card, #fff)' }
+    : {};
   return (
-    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', gap: 8, ...filo }}>
+    <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', gap: 8, ...incollata, ...filo }}>
       <span className="muted" style={{ fontSize: 13 }}>{from}–{to} di {total}</span>
       <div className="row" style={{ gap: 6, alignItems: 'center' }}>
         <button className="btn ghost sm" onClick={() => onPage(1)} disabled={page <= 1} title="Prima pagina">«</button>

@@ -158,6 +158,7 @@ export function Diete() {
       </div>
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{rows.length === 0 ? 'Nessuna dieta.' : 'Nessuna dieta con questi filtri.'}</div>
         ) : (

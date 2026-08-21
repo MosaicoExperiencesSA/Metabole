@@ -337,6 +337,7 @@ export function LeadDaAccettare() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">
             {inAttesa === 0 && !mostraStorico

@@ -243,6 +243,7 @@ export function Users() {
       {notice && <Banner kind="ok">{notice}</Banner>}
 
       <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
+        <Pager {...t.pager} sopra />
         {loading ? (
           <Spinner />
         ) : t.conteggio.mostrate === 0 ? (

@@ -291,6 +291,7 @@ export function CoachHome() {
             </div>
           </div>
         )}
+        <Pager {...t.pager} sopra />
         {t.conteggio.mostrate === 0 ? (
           <div className="empty">{clients.length === 0 ? 'Nessuna cliente assegnata.' : 'Nessuna cliente con questi filtri.'}</div>
         ) : (

@@ -300,6 +300,7 @@ export function Posta() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...t.pager} sopra />
         {loadingInbox ? (
           <div style={{ padding: 24 }}><Spinner /></div>
         ) : t.conteggio.mostrate === 0 ? (

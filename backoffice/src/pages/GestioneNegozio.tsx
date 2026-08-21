@@ -319,6 +319,7 @@ export function GestioneNegozio() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...tPiani.pager} sopra />
         {tPiani.conteggio.mostrate === 0 ? (
           <div className="empty">{plans.length === 0 ? 'Nessun piano.' : 'Nessun piano con questi filtri.'}</div>
         ) : (
@@ -404,6 +405,7 @@ export function GestioneNegozio() {
       )}
 
       <div className="card" style={{ padding: 0 }}>
+        <Pager {...tProdotti.pager} sopra />
         {tProdotti.conteggio.mostrate === 0 ? (
           <div className="empty">{products.length === 0 ? 'Nessun prodotto.' : 'Nessun prodotto con questi filtri.'}</div>
         ) : (

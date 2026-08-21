@@ -345,6 +345,17 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const fromRow = total === 0 ? 0 : page * pageSize + 1;
   const toRow = Math.min(total, (page + 1) * pageSize);
+  /**
+   * ⛔ **LA CONVERSIONE 0-BASED → 1-BASED, IN UN POSTO SOLO** (21/8).
+   *
+   * Questa è l'unica tabella del backoffice che pagina **lato server** (`?page=&pageSize=` verso
+   * `/crm/leads`) e l'unica che tiene la pagina a partire da **zero**; il `Pager` condiviso parte da
+   * **uno**. Finché la barra era una sola, il `+1` scritto in linea era un dettaglio. Con due barre
+   * diventa la cosa che si sbaglia: basta copiare la riga e dimenticare il `-1` nel `onPage`, e le
+   * due barre mostrano pagine diverse della stessa tabella — senza nessun errore, solo numeri che
+   * non tornano.
+   */
+  const pagerLead = { page: page + 1, totalPages, total, from: fromRow, to: toRow, onPage: (p: number) => setPage(p - 1) };
 
   if (loading) return <Spinner />;
 
@@ -486,6 +497,14 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
           alto (come in Utenti). Con la pagina che scorre invece, la testa finirebbe sotto la barra
           del titolo. Restano fermi anche il totale, la ricerca e il paginatore. */}
       <div className="card" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+          {/*
+            ⚠️ **Le stesse props per tutte e due**, da `pagerLead`: qui la pagina è 0-based e il
+            `Pager` 1-based, e scrivere `page + 1` / `setPage(p - 1)` in due posti è il modo classico
+            di ritrovarsi le due barre su pagine diverse.
+            ⚠️ Questa card è il riquadro che scorre: la barra di sopra resta in vista perché
+            `<Pager sopra>` è `sticky` (vedi `ui.tsx`), non perché stia in un posto particolare.
+          */}
+          <Pager {...pagerLead} sopra />
           <table className="grid" style={{ minWidth: 920 }}>
             <thead>
               <tr ref={ord.rifTesta}>
@@ -711,7 +730,7 @@ export function LeadsTable({ modo = 'lead' }: { modo?: 'lead' | 'clienti' | 'da_
               })}
             </tbody>
           </table>
-        <Pager page={page + 1} totalPages={totalPages} total={total} from={fromRow} to={toRow} onPage={(p) => setPage(p - 1)} />
+        <Pager {...pagerLead} />
       </div>
       {pendingRecall && (
         <AppointmentModal
