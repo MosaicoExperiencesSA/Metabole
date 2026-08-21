@@ -163,3 +163,80 @@ describe('⛔ lo scostamento del digiuno: quali pasti mancano, non quanti', () =
     expect(scostamentoDieta({ ...ANTONELLA, pastiCheMancano: ['Colazione'] }, CATALOGO_DIGIUNO, true)).toBeNull();
   });
 });
+
+/**
+ * ⛔ **IL CASO MISURATO IN PRODUZIONE — la famiglia che cambia in silenzio.**
+ *
+ * `npm run diag:orologio` del 21/8, sette clienti in digiuno: **zero** perdono pasti. Ma due —
+ * Antonella e Lorena, tutte e due sulla famiglia «Digiuno intermittente (16:8)» — se scelgono la
+ * 14:10 vengono servite dalla **Flexitariana**, che ha tutti e quattro i pasti che quella finestra
+ * promette. Nessun pasto manca, quindi il ramo «finestra» tace: giustamente.
+ *
+ * ⛔ **E prima di questa correzione la scheda diceva una cosa falsa.** Cadeva sul confronto dei
+ * pasti — `servito.mealsPerDay` (5) contro `chiesto.mealsPerDay` (3, il valore che l'onboarding
+ * scrive a ogni cliente in digiuno) — e scriveva: *«non c'è la variante a 3 pasti: viene servita
+ * quella da 5»*. Due numeri veri messi insieme a formare una frase falsa, mentre il fatto era un
+ * altro: sta mangiando la dieta di un'altra famiglia.
+ *
+ * ⚠️ Questo è il difetto che si vede **solo misurando**. Il caso non l'avevo immaginato — l'ha
+ * stampato uno script su dati veri, con due nomi dentro.
+ */
+describe('⛔ la famiglia cambiata: il caso di Antonella sulla 14:10', () => {
+  const ANTONELLA = {
+    famiglia: 'Digiuno intermittente (16:8)', regime: 'onnivoro', style: 'flexible',
+    mealsPerDay: 3, pastiCheMancano: [] as string[],
+  };
+  const FLEXITARIANA = {
+    regime: 'onnivoro', style: 'flexible', mealsPerDay: 5, famiglia: 'Flexitariana',
+  };
+
+  it('⛔ lo scostamento dice che è di un\'ALTRA famiglia, non che mancano pasti', () => {
+    const s = scostamentoDieta(ANTONELLA, FLEXITARIANA, false);
+    expect(s?.motivo).toBe('famiglia');
+    expect(s?.testo).toContain('Digiuno intermittente (16:8)');
+    expect(s?.testo).toContain('Flexitariana');
+  });
+
+  /**
+   * ⛔ **La frase falsa non deve tornare.** «3 pasti» è il valore del profilo, e per una cliente in
+   * digiuno non vuol dire niente: la sua 14:10 ne promette quattro.
+   */
+  it('⛔ e non nomina più i «3 pasti» del profilo, che non vogliono dire niente', () => {
+    const t = scostamentoDieta(ANTONELLA, FLEXITARIANA, false)?.testo ?? '';
+    expect(t).not.toContain('3 pasti');
+  });
+
+  it('dice dove si chiude: generando la variante mancante, non cambiando il profilo', () => {
+    const t = scostamentoDieta(ANTONELLA, FLEXITARIANA, false)?.testo ?? '';
+    expect(t).toContain('generando la variante mancante');
+    expect(t).toContain('non cambiandole il');
+  });
+
+  /**
+   * ⛔ **I pasti mancanti restano più importanti.** Se oltre alla famiglia cambiata le manca anche un
+   * pasto, quello è il fatto: il piatto viene prima del nome sull'etichetta.
+   */
+  it('⛔ ma se mancano pasti, vince il ramo dei pasti', () => {
+    const s = scostamentoDieta(
+      { ...ANTONELLA, pastiCheMancano: ['Colazione'] },
+      { ...FLEXITARIANA, mealsPerDay: 3 },
+      false,
+    );
+    expect(s?.motivo).toBe('finestra');
+  });
+
+  /** ⚠️ Stessa famiglia = nessun allarme sulla famiglia: si torna ai confronti di prima. */
+  it('⚠️ servita dalla SUA famiglia: non è uno scostamento di famiglia', () => {
+    const s = scostamentoDieta(ANTONELLA, { ...FLEXITARIANA, famiglia: ANTONELLA.famiglia }, false);
+    expect(s?.motivo).not.toBe('famiglia');
+  });
+
+  /**
+   * ⚠️ **Senza il nome della dieta servita non si indovina.** Un chiamante che non lo passa non deve
+   * far comparire un allarme su una cosa che non sa. *«Non lo so» costa meno di «ho indovinato».*
+   */
+  it('⚠️ senza il nome della dieta servita non si dice niente sulla famiglia', () => {
+    const s = scostamentoDieta(ANTONELLA, { ...FLEXITARIANA, famiglia: null }, false);
+    expect(s?.motivo).not.toBe('famiglia');
+  });
+});

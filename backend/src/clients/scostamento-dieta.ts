@@ -60,9 +60,20 @@ export interface DietaServita {
   regime: string | null;
   style: string | null;
   mealsPerDay: number | null;
+  /**
+   * ⛔ **COME SI CHIAMA LA DIETA CHE LE ARRIVA DAVVERO** (21/8, dalla misura in produzione).
+   *
+   * Mancava, e senza di lei il caso più frequente non si poteva dire. `npm run diag:orologio` del
+   * 21/8: due clienti su sette — Antonella e Lorena, tutte e due sulla famiglia «Digiuno
+   * intermittente (16:8)» — se scelgono la 14:10 vengono servite dalla **Flexitariana**. Non manca
+   * loro nessun pasto (quel catalogo li ha tutti), quindi il ramo «finestra» tace, giustamente. Ma
+   * il fatto vero è che **stanno mangiando la dieta di un'altra famiglia**, e senza il nome qui
+   * dentro questo modulo non aveva modo di dirlo.
+   */
+  famiglia?: string | null;
 }
 
-export type MotivoScostamento = 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra';
+export type MotivoScostamento = 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra' | 'famiglia';
 
 export interface Scostamento {
   motivo: MotivoScostamento;
@@ -109,6 +120,40 @@ export function scostamentoDieta(
         + `nessuno finché non lo racconta lei. `
         + `⛔ Non si chiude cambiandole la finestra — la sposta lei, dall'app — e nemmeno cambiandole il `
         + `profilo: si chiude generando la variante mancante di «${chiesto.famiglia ?? '—'}».`,
+    };
+  }
+
+  /**
+   * ⛔ **LA FAMIGLIA CAMBIATA — il fatto che copriva tutti gli altri** (21/8, dalla misura).
+   *
+   * `pickDietFor` lascia cadere la famiglia dopo l'obiettivo e lo stile: se la variante che serve non
+   * c'è, va a prenderne una di un'altra famiglia col regime giusto. È voluto — una dieta vicina è
+   * meglio di nessun menu — ma è la cosa **più grossa** che possa succedere a una cliente senza che
+   * nessuno gliela dica: apre l'app, legge «la tua dieta: Digiuno intermittente (16:8)», e nel piatto
+   * ha la Flexitariana.
+   *
+   * ⚠️ Esce **prima** del confronto sui pasti, e per una ragione misurata: su una cliente in digiuno
+   * quel confronto usa il `3` del profilo, che non vuol dire niente. Ad Antonella sulla 14:10 la
+   * scheda avrebbe scritto *«non c'è la variante a 3 pasti: viene servita quella da 5»* — due numeri
+   * veri messi insieme a formare una frase falsa, mentre il fatto era un altro.
+   *
+   * ⚠️ `famiglia` assente = non lo sappiamo, e non si dice niente: si passa ai confronti di sotto.
+   * *«Non lo so» deve costare meno di «ho indovinato».*
+   */
+  const famigliaDiversa = !!chiesto.famiglia && !!servito.famiglia && servito.famiglia !== chiesto.famiglia;
+  if (famigliaDiversa) {
+    return {
+      motivo: 'famiglia',
+      chiesto,
+      servito,
+      testo:
+        `⚠️ Sta mangiando la dieta di un'ALTRA famiglia: le è stata assegnata «${chiesto.famiglia}» e `
+        + `il motore le serve «${servito.famiglia}». Succede quando la variante che le serve non c'è a `
+        + `catalogo: il motore preferisce una dieta vicina a nessun menu, ed è giusto — ma lei in app `
+        + `legge il nome di quella assegnata. `
+        + `⛔ Si chiude generando la variante mancante di «${chiesto.famiglia}» `
+        + `(${chiesto.regime ?? '—'}${chiesto.style ? ` · ${chiesto.style}` : ''}), non cambiandole il `
+        + `profilo. Con «npm run diag:orologio» vedi quali finestre sono coperte e quali no.`,
     };
   }
 

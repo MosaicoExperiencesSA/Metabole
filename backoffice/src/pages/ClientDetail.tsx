@@ -68,7 +68,7 @@ interface Detail {
      * scriverà sopra sbaglierebbe in silenzio.
      * ⚠️ `finestra` = la sua finestra promette pasti che il catalogo servito non ha.
      */
-    motivo: 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra';
+    motivo: 'pasti' | 'stile' | 'stile_e_pasti' | 'regime' | 'obiettivo' | 'finestra' | 'famiglia';
     chiesto: { famiglia: string | null; regime: string | null; style: string | null; mealsPerDay: number | null };
     servito: { regime: string | null; style: string | null; mealsPerDay: number | null };
     testo: string;

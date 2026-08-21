@@ -93,3 +93,27 @@ più l'illusione di averlo fatto.
 
 4536 test su 4536 nel backend, 160 su 160 nell'app, 63 su 63 nel backoffice,
 build verde su tutti e tre. Sette mutazioni provate una per una.
+
+E LA MISURA HA TROVATO UN CASO CHE LA SCHEDA RACCONTAVA MALE
+
+`npm run diag:orologio` in produzione, sette clienti in digiuno: ZERO perdono
+pasti. Il rischio che avevo stimato come «una cliente certamente rotta» non
+esiste — nessuna delle cinque finestre lascia scoperto nessuno.
+
+Ma due — Antonella e Lorena, tutte e due sulla famiglia «Digiuno intermittente
+(16:8)» — se scelgono la 14:10 vengono servite dalla FLEXITARIANA, che quei
+quattro pasti li ha tutti. Nessun pasto manca, quindi il ramo «finestra» tace,
+giustamente.
+
+⛔ E lì la scheda diceva una cosa falsa. Cadeva sul confronto dei pasti — 5
+servito contro 3 chiesto, dove il 3 è il valore che l'onboarding scrive a OGNI
+cliente in digiuno — e scriveva «non c'è la variante a 3 pasti: viene servita
+quella da 5». Due numeri veri messi insieme a formare una frase falsa, mentre il
+fatto era un altro: sta mangiando la dieta di un'altra famiglia.
+
+Nuovo motivo `famiglia`, che esce prima del confronto sui pasti e dice la cosa
+grossa: «le è stata assegnata X e il motore le serve Y». ⚠️ Senza il nome della
+dieta servita non si dice niente — non lo sappiamo, e non si indovina.
+
+Questo è il difetto che si vede solo misurando: il caso non l'avevo immaginato,
+l'ha stampato uno script su dati veri, con due nomi dentro.

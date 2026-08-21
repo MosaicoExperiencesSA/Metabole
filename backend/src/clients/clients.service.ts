@@ -453,7 +453,14 @@ export class ClientsService {
         ).map((slot) => NOME_PASTO[slot] ?? slot),
       },
       dietaServita
-        ? { regime: dietaServita.regime, style: dietaServita.style, mealsPerDay: dietaServita.mealsPerDay }
+        ? {
+            regime: dietaServita.regime,
+            style: dietaServita.style,
+            mealsPerDay: dietaServita.mealsPerDay,
+            // ⚠️ Il nome della dieta che le arriva davvero: senza, la scheda non poteva dire la cosa
+            // più grossa che le succede — che sta mangiando la dieta di un'altra famiglia.
+            famiglia: dietaServita.name,
+          }
         : null,
       !!varianteEsatta,
     );
