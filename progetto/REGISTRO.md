@@ -20,6 +20,49 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🕐 **L'orologio del digiuno: la durata dice quanti pasti, la posizione non dice
+  niente.** Alla cliente non si chiede più «quali pasti salti» ma **a che ora mangi**;
+  `fastingWindow` resta il dato del motore, ma lo **deriva** `menu/orologio-digiuno.ts` (nuovo,
+  puro, 39 test). ⚠️ **Il primo modello che avevo scritto era sbagliato**: ancorava i pasti a ore
+  fisse, e provandolo spostare la finestra di un'ora cambiava *cosa* mangi — l'opposto della Regola
+  d'Oro del manuale, e l'adattamento graduale sarebbe stato quattro cambi di dieta di fila. Il test
+  lo prova su **tutte e 96 le posizioni** della giornata. ✅ La prova che il modello regge: 16:8
+  alle 12:00 → **12:15 · 15:55 · 19:30**, contro il **12:00 · 16:00 · 19:30** del piano del manuale
+  — non tarato, esce dalla regola. ✅ E **chi è già sul 16:8 non si muove**: tre occasioni = pranzo,
+  merenda, cena = il catalogo digiuno di oggi. **Tre righe nuove in `FINESTRE_DIGIUNO`**
+  (4 pasti · 2 · 1), accettate da `struttura-per-digiuno` **senza una riga in più**, perché conta i
+  pasti invece di elencare le finestre. ⚠️ La derivazione **cerca dentro la tabella**, non con una
+  seconda mappa; e un gruppo di pasti che non c'è torna `undefined` **senza ripiegare su una
+  finestra vicina** — il difetto che diede un pasto al giorno a una cliente, chiuso dal davanti.
+  ⚠️ `giornata-in-tre-forme` **ha morso**: tre forme nuove ora dichiarate col motivo, nel loro file,
+  e ho corretto la ragione della giornata da quattro che diceva «non la raggiunge più nessuno» — dal
+  21/8 non è più vero. **4175 test verdi su 4175, sei mutazioni su sei mordono.**
+  ⛔ Restano: `diag:digiuni` (serve per `skip_lunch`), le quattro conferme della nutrizionista, e
+  ⚠️ **`pathType` non protetto da `change_diet_type`** — difetto **già in produzione**: una coach
+  può mettere a digiuno chiunque.
+- `[Sviluppo]` ⛔ **La revisione ha trovato sette cose, e il difetto peggiore non era nel modulo
+  nuovo: era nell'averne pubblicato gli effetti senza le cause.** Le tre righe finivano nella
+  **tendina del questionario** con due etichette che dicevano il contrario della domanda — «Solo
+  cena» sotto «quali pasti preferisci saltare?» si legge «salto solo la cena» e vuol dire un pasto
+  al giorno. Il commento della tabella rivendicava già che quelle righe non si scelgono a mano, ma
+  **nessuna riga di codice lo impediva**: era una promessa senza guardia → campo `selezionabile`.
+  ⛔ E nell'app la card tornava **con tutti i pallini spenti e nessuna spiegazione**, cioè la voce
+  256 rifatta da un'altra porta, con un tocco qualsiasi che sovrascriveva la finestra derivata.
+  ⚠️ Nel backoffice la `select` si presentava **vuota** — «non impostata» per chi una finestra ce
+  l'ha — e salvare un campo qualsiasi la cancellava: c'era già la protezione giusta venti righe
+  sopra, su un dato meno clinico. ⚠️ **E un difetto già in produzione**: la mail del primo giorno
+  riempiva «comincia dal tuo **primo** pasto» con `pastoPrincipale`, che è l'**ultimo** — a una
+  16:8 classica dice «comincia dal tuo primo pasto (cena)» → campo `primoPasto` accanto, uno per
+  domanda. ⚠️ La push della 20-4 prometteva «un solo pasto completo» e la finestra ne tiene due.
+  ⛔ **E un mio test non mordeva**: usava una finestra a un pasto solo, dove il ramo protetto non
+  passa. ⚠️ Due mie affermazioni erano false e le ho **corrette invece di cancellarle**: «i nomi si
+  prendono dal fondo della giornata» (a quattro pasti la colazione prende il posto dello spuntino,
+  ed è la scelta che decide il catalogo) e «le clienti che digiunano oggi non si muovono» — vero
+  **solo per `skip_breakfast`**: l'orologio raggiunge **quattro finestre su otto**, e le altre
+  quattro al backfill cambierebbero catalogo e quote. `finestreRaggiungibili()` adesso lo calcola e
+  un test lo dichiara per nome. **4179 verdi su 4179, otto mutazioni su otto mordono, `npm run
+  build` vero verde su app e backoffice.**
+
 - `[Sviluppo]` ✅ **La prova che il difetto dei test è l'ora, arrivata da sola.** La stessa suite,
   senza toccare una riga: **00:02 → 13 rossi**, **08:45 → 4144 verdi su 4144**. Non è una modifica ad
   averla rotta, è l'ora: fra mezzanotte e le 02:00 il giorno UTC e quello di Roma differiscono, e i

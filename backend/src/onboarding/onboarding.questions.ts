@@ -1,4 +1,4 @@
-import { FINESTRE_DIGIUNO } from '../menu/finestre-digiuno';
+import { FINESTRE_SELEZIONABILI } from '../menu/finestre-digiuno';
 
 /**
  * Schema del questionario di onboarding.
@@ -141,8 +141,13 @@ export const ONBOARDING_QUESTIONS = {
           label: 'Quali pasti preferisci saltare?',
           // Dalla tabella unica: aggiungere una finestra non deve richiedere di ricordarsi del
           // questionario (mancavano «cena» e «pranzo» fino all'11/8).
-          options: FINESTRE_DIGIUNO.map((f) => f.valore),
-          labels: FINESTRE_DIGIUNO.map((f) => f.etichettaBreve),
+          // ⚠️ Ma solo le **selezionabili** (21/8): le tre finestre nate dall'orologio le calcola la
+          // durata, e le loro etichette nominano i pasti che RESTANO. «Solo cena» sotto la domanda
+          // «quali pasti preferisci saltare?» si legge come «salto solo la cena» e vuol dire
+          // l'opposto — un pasto al giorno. Un elenco che cresce da solo è comodo finché tutte le
+          // righe rispondono alla stessa domanda.
+          options: FINESTRE_SELEZIONABILI.map((f) => f.valore),
+          labels: FINESTRE_SELEZIONABILI.map((f) => f.etichettaBreve),
           required: true,
           showIf: { key: 'pathType', equals: 'intermittent_fasting' },
         },

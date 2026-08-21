@@ -39,7 +39,10 @@ const AMMESSE: { forma: string; dove: string; perche: string }[] = [
     perche:
       'Il ramo `n === 4` di `slotsForMeals`, il solo posto che conosce una giornata da quattro pasti. ' +
       'Non lo raggiunge più nessuno: dal 20/8 il DTO accetta solo 3 e 5 (diag:pasti → zero clienti a 4). ' +
-      'Resta scritto perché toglierlo vorrebbe dire decidere che una giornata da quattro non esisterà mai.',
+      'Resta scritto perché toglierlo vorrebbe dire decidere che una giornata da quattro non esisterà mai. ' +
+      '⚠️ E dal 21/8 non è più un\'ipotesi: la finestra lunga del digiuno (14:10) produce quella stessa ' +
+      'forma, per un\'altra porta — `orologio-digiuno.ts`, non `mealsPerDay`. Le due strade restano ' +
+      'separate apposta: qui il permesso vale per QUESTO file, e là per quello.',
   },
   {
     forma: 'breakfast,morning_snack,lunch',
@@ -50,6 +53,32 @@ const AMMESSE: { forma: string; dove: string; perche: string }[] = [
     forma: 'breakfast,morning_snack,dinner,afternoon_snack',
     dove: 'menu/finestre-digiuno.ts',
     perche: 'Come sopra: pasti saltati, non una giornata. L\'ordine qui non conta e infatti non è quello del giorno.',
+  },
+  {
+    forma: 'breakfast,morning_snack,afternoon_snack',
+    dove: 'menu/finestre-digiuno.ts',
+    perche:
+      'Pasti SALTATI, non una giornata: è `skip_breakfast_and_snacks`, la finestra stretta che lascia ' +
+      'pranzo e cena. Nata il 21/8 dall\'orologio del digiuno — la durata dice quanti pasti ci stanno, ' +
+      'e sotto le sette ore ce ne stanno due.',
+  },
+  {
+    forma: 'breakfast,morning_snack,lunch,afternoon_snack',
+    dove: 'menu/finestre-digiuno.ts',
+    perche:
+      'Pasti SALTATI: è `skip_all_but_dinner`, l\'OMAD. ⚠️ Da non confondere con ' +
+      '`skip_breakfast_lunch`, che lascia anche la merenda: fra le due c\'è un pasto intero di ' +
+      'differenza, ed è il motivo per cui hanno due righe e non una.',
+  },
+  {
+    forma: 'breakfast,lunch,afternoon_snack,dinner',
+    dove: 'menu/orologio-digiuno.ts',
+    perche:
+      'La giornata da QUATTRO, che dal 21/8 torna a esistere: è la finestra lunga del digiuno (14:10, ' +
+      'dieci ore) in `SOGLIE_PASTI_PREDEFINITE`. ⚠️ Resta un\'eccezione di questo file e NON una quarta ' +
+      'forma dichiarata: la stessa fila di slot dentro `slotsForMeals` risponde a un\'altra domanda ' +
+      '(«che pasti ha una dieta da 4»), e un permesso dato a tutti sarebbe il difetto che questo test ' +
+      'ha già dovuto correggere in sé stesso.',
   },
 ];
 

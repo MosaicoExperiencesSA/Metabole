@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { aGiorno } from '../common/date-only';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
+import { primoPastoDigiuno } from '../menu/finestre-digiuno';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { compleanniDiOggi, parametriCompleanno } from './compleanni';
@@ -447,7 +447,11 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
         const finestra = (p as { fastingWindow?: string | null }).fastingWindow ?? null;
         // Il pasto da cui riparte viene dalla tabella delle finestre: qui c'era un ternario che
         // conosceva due valori su cinque (11/8).
-        const primoPasto = !inDigiuno ? 'colazione' : pastoPrincipaleDigiuno(finestra);
+        // ⚠️ **Ma leggeva il campo sbagliato** (trovato in revisione, 21/8): `pastoPrincipale` è
+        // l'ULTIMO pasto della giornata, e questa frase chiede il PRIMO. A una cliente 16:8
+        // classica — pranzo, merenda, cena — la mail diceva «comincia dal tuo primo pasto (cena)».
+        // Adesso c'è `primoPasto` accanto, nella stessa tabella: un campo per domanda.
+        const primoPasto = !inDigiuno ? 'colazione' : primoPastoDigiuno(finestra);
         const r = await this.sendLifecycle({
           userId: p.userId,
           email: p.user?.email ?? null,

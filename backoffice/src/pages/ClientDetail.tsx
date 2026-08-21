@@ -339,8 +339,22 @@ function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { 
         {/* I pasti del digiuno: si mostra SOLO se il percorso è quello, altrimenti è un campo che
             non vuol dire niente e invita a compilarlo per sbaglio. Richiesta di Simone del 10/8:
             lo staff deve poter cambiare quali pasti la cliente salta. */}
+        {/* ⚠️ La tendina propone solo le finestre **scelte a mano**; ma se la cliente ne ha una
+            **derivata dall'orologio**, quella resta come voce in fondo — altrimenti la `select` si
+            presenterebbe vuota, cioè «non impostata» per una cliente che una finestra ce l'ha, e
+            salvare un altro campo qualsiasi gliela cancellerebbe. È la stessa protezione che
+            `dietFamily` ha venti righe più su, e qui il dato è più clinico. */}
         {form.pathType === 'intermittent_fasting'
-          ? S('fastingWindow', 'Pasti che salta (digiuno)', Object.entries(FASTING_WINDOW_LABEL) as [string, string][])
+          ? S(
+              'fastingWindow',
+              'Pasti che salta (digiuno)',
+              [
+                ...FASTING_WINDOW_SCEGLIBILI.map((v) => [v, FASTING_WINDOW_LABEL[v]] as [string, string]),
+                ...(form.fastingWindow && !FASTING_WINDOW_SCEGLIBILI.includes(form.fastingWindow as never)
+                  ? ([[form.fastingWindow, `${FASTING_WINDOW_LABEL[form.fastingWindow] ?? form.fastingWindow} — dagli orari, non si sceglie qui`]] as [string, string][])
+                  : []),
+              ],
+            )
           : null}
         {S('coachStyle', 'Stile coach', [['daily', 'Quotidiano'], ['when_needed', 'Quando serve'], ['on_request', 'Su richiesta']])}
         {S('character', 'Carattere', [['follows', 'Segue bene'], ['needs_push', 'Va spronata'], ['perseveres', 'Persevera'], ['quits', 'Molla facilmente']])}
@@ -2654,13 +2668,31 @@ interface SostituzioneRow {
  * mancavano «salta la cena» e «salta il pranzo», che il motore avrebbe saputo gestire ma che nessuno
  * poteva scegliere. L'ordine è quello della tabella.
  */
+/**
+ * ⚠️ Copia delle etichette staff di `backend/src/menu/finestre-digiuno.ts` (un frontend non può
+ * importare dal backend). **Ci sono TUTTE, anche le derivate**: questa mappa serve a *leggere* un
+ * valore già scritto, e una finestra che la coach vede come `skip_all_but_dinner` è un dato che
+ * agisce e non si vede.
+ */
 const FASTING_WINDOW_LABEL: Record<string, string> = {
   skip_breakfast: 'Salta la colazione (mangia da pranzo a cena)',
   skip_dinner: 'Salta la cena (mangia da colazione a pranzo)',
   skip_lunch: 'Salta il pranzo (colazione e cena)',
   skip_breakfast_lunch: 'Salta colazione e pranzo (solo cena)',
   skip_dinner_breakfast: 'Salta cena e colazione (finestra al mattino)',
+  skip_morning_snack: 'Finestra lunga (colazione, pranzo, merenda, cena)',
+  skip_breakfast_and_snacks: 'Finestra stretta (solo pranzo e cena)',
+  skip_all_but_dinner: 'Un pasto solo, la sera (OMAD)',
 };
+
+/**
+ * Quelle che si possono **scegliere** dalla tendina: le cinque storiche. Le tre derivate le calcola
+ * l'orologio del digiuno dalla durata della finestra — metterle qui vorrebbe dire far scegliere a
+ * mano un dato che nessuno sceglie, e con etichette che rispondono a un'altra domanda.
+ */
+const FASTING_WINDOW_SCEGLIBILI = [
+  'skip_breakfast', 'skip_dinner', 'skip_lunch', 'skip_breakfast_lunch', 'skip_dinner_breakfast',
+] as const;
 
 const MOTIVO_LABEL: Record<string, string> = {
   non_disponibile: "non ce l'ho in casa",

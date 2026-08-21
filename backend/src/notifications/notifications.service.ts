@@ -371,13 +371,17 @@ export class NotificationsService {
       // Chi è già a un pasto solo la 20-4 la sta già facendo. Le due domande — «è già a un pasto
       // solo?» e «quale pasto resta?» — vengono dalla tabella delle finestre: erano due `if` in due
       // file diversi, e nessuno dei due sapeva delle voci aggiunte l'11/8.
+      // ⚠️ Il testo diceva «un solo pasto completo» (21/8): non è vero. Una finestra di quattro ore
+      // ne tiene **due** (`SOGLIE_PASTI_PREDEFINITE` in `orologio-digiuno.ts`), e prometterne uno a
+      // chi sta per accettare è dirgli una cosa che poi il menu smentisce. Adesso dice quello che
+      // sa davvero: qual è il pasto che **chiude** la finestra.
       if (!eUnicoPasto(finestra)) {
         const quale = `il ${pastoPrincipaleDigiuno(finestra)}`.replace('il colazione', 'la colazione').replace('il cena', 'la cena');
         const fatta = await this.notifyOncePerDay({
           userId: clientId,
           type: 'fasting_204_tip',
           title: 'Una giornata 20-4, se te la senti',
-          body: `Una volta a settimana puoi provare la 20-4: venti ore senza mangiare e un'unica finestra di quattro ore in cui fai un solo pasto completo — per te ${quale}. Non è un digiuno più duro, è lo stesso digiuno concentrato: si beve normalmente (acqua, tè, caffè senza zucchero) e il pasto resta completo, non ridotto. Se ti senti storta, salti e riprovi un'altra settimana. Nel dubbio parlane con la tua nutrizionista.`,
+          body: `Una volta a settimana puoi provare la 20-4: venti ore senza mangiare e un'unica finestra di quattro ore, che si chiude con ${quale}. Non è un digiuno più duro, è lo stesso digiuno concentrato: si beve normalmente (acqua, tè, caffè senza zucchero) e il pasto resta completo, non ridotto. Se ti senti storta, salti e riprovi un'altra settimana. Nel dubbio parlane con la tua nutrizionista.`,
           dedupeWindowMs: 7 * 86_400_000,
         });
         if (fatta) created.push('fasting_204_tip');

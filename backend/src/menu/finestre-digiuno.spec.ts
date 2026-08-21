@@ -22,14 +22,29 @@ import {
 const SLOT_VALIDI = new Set(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']);
 
 describe('la tabella delle finestre', () => {
-  it('contiene le cinque scelte, comprese quelle che mancavano', () => {
+  it('contiene le otto scelte: le cinque della tendina e le tre che nascono dall\'orologio', () => {
     expect(VALORI_FINESTRA_DIGIUNO).toEqual([
+      // Scelte a mano da una tendina (11/8).
       'skip_breakfast',
       'skip_dinner',
       'skip_lunch',
       'skip_breakfast_lunch',
       'skip_dinner_breakfast',
+      // Prodotte dalla durata della finestra (21/8) — vedi `orologio-digiuno.ts`.
+      'skip_morning_snack',
+      'skip_breakfast_and_snacks',
+      'skip_all_but_dinner',
     ]);
+  });
+
+  /**
+   * ⚠️ Due valori che si somigliano e valgono un pasto di differenza: `skip_breakfast_lunch` lascia
+   * merenda e cena, `skip_all_but_dinner` la sola cena. Se qualcuno un giorno li «unifica», questo
+   * test è il posto dove se ne accorge.
+   */
+  it('«solo cena» non è «salta colazione e pranzo»: la merenda li separa', () => {
+    expect(slotSaltati('intermittent_fasting', 'skip_breakfast_lunch')).not.toContain('afternoon_snack');
+    expect(slotSaltati('intermittent_fasting', 'skip_all_but_dinner')).toContain('afternoon_snack');
   });
 
   it.each(FINESTRE_DIGIUNO.map((f) => [f.valore, f] as const))('«%s» è completa', (_v, f) => {
@@ -73,12 +88,25 @@ describe('la tabella delle finestre', () => {
     expect(slotSaltati('intermittent_fasting', 'inventata').size).toBe(0);
   });
 
-  /** Le due finestre a un pasto solo: a loro la 20-4 non si propone, la stanno già facendo. */
-  it('«un solo pasto» è vero solo dove ne resta uno', () => {
+  /**
+   * Le finestre a un pasto solo: a loro la 20-4 non si propone, la stanno già facendo.
+   *
+   * ⚠️ **Il nome del campo mente un po', e va detto invece di lasciarlo scoprire** (21/8).
+   * `skip_breakfast_lunch` ha `unicoPasto: true` ma di pasti ne lascia **due** — merenda e cena:
+   * la regola vera, quella che il test verifica sotto, è «**due pasti principali su tre saltati**»,
+   * e uno spuntino non conta come pasto. Finché quella riga era sola era una convenzione
+   * tollerabile; adesso accanto c'è `skip_all_but_dinner`, che di pasto ne lascia uno davvero, e le
+   * due righe usano lo stesso campo per dire cose diverse.
+   * ⛔ Non lo rinomino qui: `notifications.service.ts:374` ci decide se mandare la push della 20-4,
+   * e cambiargli significato in una consegna che parla d'altro è il modo di romperlo. Ma il campo
+   * andrebbe chiamato `unicoPastoPrincipale`.
+   */
+  it('«un solo pasto» è vero dove restano zero o un pasto principale su tre', () => {
     const unoSolo = FINESTRE_DIGIUNO.filter((f) => f.unicoPasto).map((f) => f.valore);
-    expect(unoSolo).toEqual(['skip_breakfast_lunch', 'skip_dinner_breakfast']);
+    expect(unoSolo).toEqual(['skip_breakfast_lunch', 'skip_dinner_breakfast', 'skip_all_but_dinner']);
     for (const f of FINESTRE_DIGIUNO) {
-      // Coerenza: «un pasto solo» deve corrispondere a tre slot principali saltati su tre.
+      // Coerenza: due pasti principali saltati su tre. ⚠️ Il commento diceva «tre su tre» e il
+      // codice ne chiedeva due: era falso da prima, e l'ho corretto invece di ricopiarlo.
       const pastiPrincipaliSaltati = f.salta.filter((s) => s === 'breakfast' || s === 'lunch' || s === 'dinner').length;
       expect(f.unicoPasto).toBe(pastiPrincipaliSaltati === 2);
     }

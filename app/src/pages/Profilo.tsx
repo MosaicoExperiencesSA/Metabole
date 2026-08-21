@@ -39,6 +39,11 @@ const SALTA_LABEL: Record<string, string> = {
   skip_lunch: 'Salti il pranzo — mangi a colazione e a cena',
   skip_breakfast_lunch: 'Salti colazione e pranzo — solo la cena',
   skip_dinner_breakfast: 'Salti cena e colazione — finestra a metà giornata',
+  // ⚠️ Le tre finestre nate dall'orologio (21/8): NON si scelgono da qui — le calcola la durata
+  // della finestra — ma si devono poter **leggere**, o la cliente vede il codice grezzo.
+  skip_morning_snack: 'Mangi da colazione a cena, senza lo spuntino del mattino',
+  skip_breakfast_and_snacks: 'Mangi due volte al giorno — pranzo e cena',
+  skip_all_but_dinner: 'Un pasto solo al giorno',
 };
 
 const REGIME_LABEL: Record<string, string> = {
@@ -913,6 +918,18 @@ function FastingWindowPref() {
           spenti e nessuna spiegazione, cioè con un dato che decide quali pasti mangia e non si
           vede. Qui lo diciamo — e diciamo anche che intanto non manca niente, o «non hai scelto»
           si legge come «ti stiamo togliendo qualcosa». */}
+      {/* ⚠️ FINESTRA DERIVATA DALL'OROLOGIO (21/8). `FASTING_OPTIONS` ha solo le cinque scelte a
+          mano: con una finestra derivata i pallini sarebbero tutti spenti e l'avviso qui sotto non
+          comparirebbe (`value` è pieno) — cioè di nuovo «un dato che decide quali pasti mangia e
+          non si vede», il difetto della voce 256 rifatto da un'altra porta. E un tocco qualsiasi
+          la sovrascriverebbe. Qui si dice cos'è, e le opzioni non si mostrano. */}
+      {value && !FASTING_OPTIONS.some((o) => o.value === value) && (
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#EAF5F1', border: '1px solid #C9E4DA', borderRadius: 10, padding: '8px 10px' }}>
+          <b>{SALTA_LABEL[value] ?? value}</b><br />
+          Questa finestra viene dagli orari che hai impostato, non da una scelta di pasti: per
+          cambiarla sposta la tua finestra di digiuno, o parlane con la tua nutrizionista.
+        </p>
+      )}
       {!value && (
         <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#FFF6E8', border: '1px solid #F0DCC0', borderRadius: 10, padding: '8px 10px' }}>
           Non l'hai ancora scelta: quando ti sei iscritta questa domanda non c'era. Intanto ricevi
@@ -921,7 +938,7 @@ function FastingWindowPref() {
           proporti piatti che poi non mangi.
         </p>
       )}
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'grid', gap: 8 }} hidden={!!value && !FASTING_OPTIONS.some((o) => o.value === value)}>
         {FASTING_OPTIONS.map((o) => {
           const on = value === o.value;
           return (

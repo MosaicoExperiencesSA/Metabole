@@ -1,0 +1,181 @@
+L'orologio del digiuno: la durata dice quanti pasti, la posizione non dice niente — 21/8
+
+## COSA CAMBIA
+
+Alla cliente in digiuno non si chiede più una cosa astratta — «quali pasti preferisci saltare?» —
+ma una cosa concreta: **a che ora mangi**. `fastingWindow` resta il dato che il motore legge; non
+lo sceglie più nessuno a mano, lo **deriva** un modulo nuovo.
+
+Questa consegna è il **primo pezzo**: il modulo puro, i suoi test, e le righe che mancavano alla
+tabella delle finestre. Niente ancora tocca l'app o il database — di proposito: è il passo che dice
+se il modello regge sul codice vero, e nessun altro pezzo si scrive prima di questo.
+
+## ⚠️ LA REGOLA, E L'ERRORE CHE HO FATTO PRIMA DI TROVARLA
+
+**La DURATA della finestra dice QUANTI pasti. La POSIZIONE non dice niente.**
+
+Il primo modello che avevo scritto ancorava i pasti a ore fisse — colazione 08:00, pranzo 13:00,
+cena 20:00 — e guardava quali cadessero dentro la finestra. Sembrava ovvio. Provandolo nel mockup è
+saltato fuori il difetto: partendo da 12:00-20:00, **spostare la finestra di un'ora cambiava cosa
+mangi** — a 11:00 entrava la merenda, a 10:30 lo spuntino.
+
+⚠️ E il manuale dice l'esatto contrario (pag. 2): *«gli orari della finestra possono essere traslati
+liberamente, a patto che il blocco di digiuno continuativo sia rigorosamente rispettato prima del
+pasto successivo»*. Con quel modello la Regola d'Oro non sarebbe esistita, e l'adattamento graduale
+— spostarsi di un'ora al giorno per quattro giorni — sarebbe stato **quattro cambi di dieta di
+fila**.
+
+Il test non lo prova su tre casi scelti bene: lo prova su **tutte e 96 le posizioni** della
+giornata, per ognuno dei cinque protocolli.
+
+## ✅ LA PROVA CHE IL MODELLO È QUELLO GIUSTO
+
+16:8 aperta alle 12:00 → **12:15 · 15:55 · 19:30**.
+Il piano del manuale (pag. 3) mette i pasti alle **12:00 · 16:00 · 19:30**.
+
+Nessuno di quei numeri è scritto nel modulo: escono dai margini (15 minuti dopo l'apertura, 30 prima
+della chiusura) e dalla spalmatura. Non l'ho tarato — combacia.
+
+## ✅ E CHI DIGIUNA OGGI NON SI MUOVE
+
+Le tre occasioni della 16:8 danno `lunch · afternoon_snack · dinner`, che è **esattamente** il
+catalogo digiuno di oggi (`skip_breakfast`, quote .45/.10/.45). Stessa struttura, stesso catalogo,
+stesso menu. Non c'è niente da migrare per loro.
+
+## COSA C'È DENTRO
+
+**`backend/src/menu/orologio-digiuno.ts`** (nuovo, puro, 39 test).
+I cinque protocolli del manuale (il 5:2 **non** c'è ed è voluto: è un modello a calorie settimanali,
+su un orologio non è disegnabile); la tabella durata → quanti pasti; gli orari spalmati dentro la
+finestra; la derivazione a `fastingWindow`; l'indicatore «quante ore di digiuno passano dormendo».
+
+⚠️ **Il modulo non legge `config_param`**: soglie e margini sono parametri con un default esportato,
+come i `TETTI_PREDEFINITI` di `porzione-scalata.ts`. Così resta puro e si prova senza montare
+niente, e chi ha il `ConfigParamsService` gli passa i valori veri.
+
+⚠️ **La derivazione cerca la riga DENTRO `FINESTRE_DIGIUNO`**, non con una seconda mappa scritta
+qui: il giorno che qualcuno corregge una riga là, `finestraPerPasti` la trova da sé. Una seconda
+mappa sarebbe il classico «due punti che rispondono alla stessa domanda».
+
+⚠️ **E se un gruppo di pasti in tabella non c'è, torna `undefined` senza ripiegare su una finestra
+vicina.** Servire tre pasti a chi ne aspetta due è il difetto che a una cliente ha dato un pasto al
+giorno: qui è chiuso dal davanti, e chi chiama lo dice invece di indovinare.
+
+**`backend/src/menu/finestre-digiuno.ts`** — tre righe nuove:
+`skip_morning_snack` (finestra lunga, 4 pasti) · `skip_breakfast_and_snacks` (finestra stretta, 2) ·
+`skip_all_but_dinner` (OMAD, 1).
+
+⚠️ `struttura-per-digiuno.ts` **conta i pasti** invece di elencare le finestre, e infatti ha
+accettato le righe nuove **senza una riga di codice in più** — il test che gira su tutta la tabella
+era già scritto per questo.
+
+⚠️ **`skip_all_but_dinner` non è `skip_breakfast_lunch`**: fra le due c'è la merenda, cioè un pasto
+intero. Due valori vicini in una colonna sono una trappola, e c'è un test apposta perché nessuno li
+unifichi.
+
+**`etichettaPasto`** — ⚠️ con la finestra 08:00-16:00 il motore chiama `lunch` il pasto delle 08:15,
+ed è giusto che l'etichetta interna resti: è la chiave che catalogo e quote conoscono. Ma alla
+cliente si scrive **«Primo pasto 08:15»**, mai «Pranzo alle 08:15». I nomi esatti li conferma la
+nutrizionista, e stanno tutti in quella funzione apposta.
+
+## ⚠️ IL TEST CHE HA MORSO, E COSA MI HA INSEGNATO
+
+`common/giornata-in-tre-forme.spec.ts` — uno di quelli che leggono il sorgente — è diventato rosso
+appena aggiunte le righe: **tre forme di giornata non dichiarate**. Ha fatto esattamente il suo
+mestiere. Le tre sono ora dichiarate col motivo accanto, **nel loro file**.
+
+⚠️ E una di queste è una notizia: la forma `breakfast, lunch, afternoon_snack, dinner` — la giornata
+da **quattro** — era dichiarata «non la raggiunge più nessuno, il DTO accetta solo 3 e 5». Dal 21/8
+non è più vero: la finestra lunga del digiuno la produce, per un'altra porta. Ho aggiornato quel
+`perche` invece di lasciarlo: **una ragione falsa è peggio di un ordine sbagliato**.
+
+## ⛔ LA REVISIONE HA TROVATO SETTE COSE, E DUE ERANO GRAVI
+
+Fatta prima di dire «fatto», come sempre. **Il difetto peggiore non era nel modulo nuovo: era
+nell'averne pubblicato gli effetti senza le cause.**
+
+**⛔ Le tre righe finivano nella tendina del questionario, con due etichette che dicevano il
+contrario della domanda.** `onboarding.questions.ts` costruisce i pulsanti con
+`FINESTRE_DIGIUNO.map(...)`: aggiungere righe alla tabella le faceva comparire sotto la domanda
+«Quali pasti preferisci saltare?». E «Solo cena» lì sotto si legge *«salto solo la cena»*, mentre
+vuol dire l'opposto — **un pasto al giorno**. Il DTO le accettava senza obiezioni.
+→ Campo nuovo **`selezionabile`** in `FinestraDigiuno`, e `FINESTRE_SELEZIONABILI` accanto a
+`VALORI_FINESTRA_DIGIUNO`: «cosa si accetta» e «cosa si propone» sono due domande. ⚠️ Il commento in
+testa alla tabella rivendicava già che quelle righe «non si scelgono da una tendina», ma **nessuna
+riga di codice lo impediva**: era una promessa senza guardia.
+
+**⛔ Nell'app la card tornava con tutti i pallini spenti e nessuna spiegazione** — parola per parola
+il difetto della voce 256, rifatto da un'altra porta. `FASTING_OPTIONS` ha solo i cinque valori
+scelti a mano: con una finestra derivata nessun pulsante si accendeva, l'avviso giallo non compariva
+(`value` è pieno), e **un tocco qualsiasi la sovrascriveva**. In più `SALTA_LABEL` non aveva le
+chiavi nuove, quindi alla cliente compariva la stringa grezza `skip_all_but_dinner`.
+→ Etichette complete (si **leggono** tutte), opzioni nascoste quando la finestra è derivata, e al
+suo posto una riga che spiega da dove viene.
+
+**⚠️ Nel backoffice la `select` si presentava vuota** — cioè «non impostata» per una cliente che una
+finestra ce l'ha — e salvare un altro campo qualsiasi gliela cancellava. Venti righe più su,
+`dietFamily` ha esattamente la protezione che qui mancava, e questo dato è più clinico.
+→ Stessa protezione, con la voce «— dagli orari, non si sceglie qui».
+
+**⚠️ Un campo che rispondeva a due domande opposte, e il difetto era già in produzione.**
+`marketing/lifecycle.service.ts` riempiva *«comincia dal tuo primo pasto ({{...}})»* con
+`pastoPrincipale`, che la tabella documenta come **«il pasto che resta più tardi»** — l'ultimo. A una
+cliente 16:8 classica (pranzo · merenda · cena) la mail del primo giorno **dice già oggi** «comincia
+dal tuo primo pasto (cena)». E la finestra lunga nuova l'avrebbe peggiorato: `skip_morning_snack`
+tiene la colazione.
+→ Campo **`primoPasto`** accanto a `pastoPrincipale`, e `primoPastoDigiuno()`. Un campo per domanda.
+
+**⚠️ La push della 20-4 prometteva «un solo pasto completo»**, ma una finestra di quattro ore ne
+tiene **due**: due punti del prodotto rispondevano diversamente alla stessa domanda, e uno dei due
+lo scriveva a una cliente prima che accettasse. → Adesso dice quello che sa: qual è il pasto che
+**chiude** la finestra.
+
+**⛔ Un mio test non mordeva.** «Margini più larghi della finestra» usava una finestra a **un solo
+pasto**, e quel ramo non usa né `primo` né `passo`: ho tolto la protezione e i 39 test restavano
+verdi. → Riscritto con due pasti. Rimutato: adesso morde.
+
+**⚠️ Due affermazioni mie erano false, e le ho corrette invece di cancellarle.**
+(1) *«I nomi si prendono dal fondo della giornata»*: vero per tre righe su quattro. A quattro pasti
+la tabella mette la **colazione** al posto dello spuntino del mattino — ed è proprio quella scelta a
+produrre `skip_morning_snack` e quindi il catalogo a 5 pasti. La regola vera adesso è scritta.
+(2) *«Le clienti che digiunano oggi non si muovono»*: vero **solo per `skip_breakfast`**. L'orologio
+raggiunge **quattro finestre su otto**; le altre quattro — `skip_dinner` (il caso Sonia),
+`skip_lunch`, `skip_breakfast_lunch`, `skip_dinner_breakfast` — restano fuori, e chi le ha oggi al
+backfill **cambierebbe catalogo e quote**. *Niente tagli silenziosi: se si scarta qualcosa, si dice
+quanto.* → `finestreRaggiungibili()` lo calcola, e un test lo dichiara: quattro dentro, quattro
+fuori, per nome.
+
+Più tre cose minori: la finestra da 24 ore che contava l'intera giornata come digiuno; il caso «sonno
+e finestra scavalcano **tutti e due** la mezzanotte», che un commento dichiarava «quello che nessuno
+prova» e infatti nessuno provava; e un'asserzione che fissava una costante al suo stesso letterale,
+sostituita da una che verifica una cosa vera (i margini devono stare dentro l'OMAD).
+
+## VERIFICATO
+
+- suite intera: **4179 test verdi su 4179**, 275 suite (con `jest --clearCache` prima);
+- **`npm run build` vero** (`tsc -b && vite build`) su **app e backoffice**: entrambi verdi;
+- **otto mutazioni su otto mordono**: durata che dipende dall'ora · margini spostati di 5 minuti ·
+  `finestraPerPasti` che ripiega sulla prima riga · protocollo sconosciuto che ripiega sul 16:8 ·
+  ordine dei pasti invertito (la cena non più ultima) · OMAD messo all'inizio della finestra ·
+  **la protezione sui margini che sparisce** (era quella che prima non mordeva) · **la guardia
+  sulla finestra da 24 ore**;
+- i cinque chiamanti di `pickDietFor` riletti: nessuno cambia comportamento, perché
+  `fastingWindow` continua a essere il solo dato che leggono.
+
+## ⛔ COSA NON HO FATTO, E VA DETTO
+
+- **Niente migrazione, niente app, niente push.** Sono i pezzi successivi, e stanno in ordine in
+  `Documents/Metabole/Digiuno_Orologio/progetto/04_SI_PARTE.md`.
+- **Le soglie durata → pasti sono una mia proposta**, non un dato del manuale. Stanno in una tabella
+  apposta perché le cambi la nutrizionista senza un rilascio.
+- ⛔ **`npm run diag:digiuni` non è stato lanciato**: serve prima di decidere che fine fa
+  `skip_lunch`, che con l'orologio non è disegnabile (sono due finestre corte, non una).
+- ⚠️ **`pathType` non è protetto da `change_diet_type`** (`clients.service.ts:926`): una coach non
+  può cambiare vegetariana→vegana ma **può mettere a digiuno chiunque**. Difetto **già in
+  produzione**, non introdotto qui, e va chiuso prima di pubblicare.
+
+## RILASCIO
+
+Nessuna migrazione in questa consegna: solo backend, deploy normale.
+Quando arriverà la parte app: **OTA 2.2.1** (sugli store c'è la 2.2, e `app/package.json` a 2.1.8
+non conta — nessuno lo legge a runtime), e il **backend va per primo**.

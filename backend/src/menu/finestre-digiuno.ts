@@ -43,10 +43,40 @@ export interface FinestraDigiuno {
    */
   pastoPrincipale: 'colazione' | 'pranzo' | 'cena';
   /**
+   * ⛔ **IL PRIMO PASTO DELLA GIORNATA — che NON è `pastoPrincipale`** (trovato in revisione, 21/8).
+   *
+   * `pastoPrincipale` è documentato come «il pasto che resta più tardi»: è l'**ultimo**. Ma
+   * `marketing/lifecycle.service.ts` lo usava per riempire *«comincia dal tuo primo pasto ({{...}})»*
+   * nella mail del primo giorno — cioè un campo solo per due domande opposte.
+   *
+   * ⚠️ Il danno era **già in produzione**: a una cliente 16:8 classica (pranzo · merenda · cena) la
+   * mail diceva «comincia dal tuo primo pasto (cena)». E la finestra lunga nata dall'orologio lo
+   * avrebbe peggiorato: `skip_morning_snack` **tiene la colazione**, e le si sarebbe detto lo stesso
+   * di cominciare dalla cena.
+   */
+  primoPasto: 'colazione' | 'pranzo' | 'merenda' | 'cena';
+  /**
    * Vero se è già la finestra più stretta possibile (un pasto solo): a chi la fa non si propone la
    * 20-4, perché la sta già facendo.
    */
   unicoPasto: boolean;
+  /**
+   * ⛔ **SI PUÒ SCEGLIERE A MANO DA UNA TENDINA?** (21/8)
+   *
+   * Le cinque righe storiche sì: nascono da una domanda — «quali pasti preferisci saltare?» — e le
+   * loro etichette nominano il pasto **saltato**. Le tre nate dall'orologio no: nascono dalla
+   * **durata** della finestra, le calcola `orologio-digiuno.ts`, e nessuno le sceglie.
+   *
+   * ⚠️ Senza questo campo ci finivano dentro lo stesso: il questionario costruisce i suoi pulsanti
+   * con `FINESTRE_DIGIUNO.map(...)`, e «Solo cena» sotto la domanda «quali pasti preferisci
+   * saltare?» si legge come *«salto solo la cena»* — mentre vuol dire l'opposto, un pasto al
+   * giorno. Una riga in più nella tabella diventava una risposta sbagliata a una domanda diversa.
+   *
+   * Chi mostra una tendina filtra su questo campo. Chi mostra un valore **già scritto** (la scheda
+   * della cliente, quella dello staff) le deve saper leggere **tutte**: una finestra derivata che
+   * non si vede è un dato che agisce e non si vede.
+   */
+  selezionabile: boolean;
 }
 
 export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
@@ -57,7 +87,9 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     etichettaCliente: 'Salti la colazione — mangi da pranzo a cena',
     etichettaBreve: 'Colazione',
     pastoPrincipale: 'cena',
+    primoPasto: 'pranzo',
     unicoPasto: false,
+    selezionabile: true,
   },
   {
     valore: 'skip_dinner',
@@ -66,7 +98,9 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     etichettaCliente: 'Salti la cena — mangi da colazione a pranzo',
     etichettaBreve: 'Cena',
     pastoPrincipale: 'pranzo',
+    primoPasto: 'colazione',
     unicoPasto: false,
+    selezionabile: true,
   },
   {
     valore: 'skip_lunch',
@@ -77,7 +111,9 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     etichettaCliente: 'Salti il pranzo — mangi a colazione e a cena',
     etichettaBreve: 'Pranzo',
     pastoPrincipale: 'cena',
+    primoPasto: 'colazione',
     unicoPasto: false,
+    selezionabile: true,
   },
   {
     valore: 'skip_breakfast_lunch',
@@ -86,7 +122,9 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     etichettaCliente: 'Salti colazione e pranzo — solo la cena',
     etichettaBreve: 'Colazione e pranzo',
     pastoPrincipale: 'cena',
+    primoPasto: 'merenda',
     unicoPasto: true,
+    selezionabile: true,
   },
   {
     valore: 'skip_dinner_breakfast',
@@ -95,12 +133,78 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     etichettaCliente: 'Salti cena e colazione — finestra a metà giornata',
     etichettaBreve: 'Cena e colazione',
     pastoPrincipale: 'pranzo',
+    primoPasto: 'pranzo',
     unicoPasto: true,
+    selezionabile: true,
+  },
+  /*
+   * ─── LE TRE RIGHE CHE NASCONO DALL'OROLOGIO (21/8) ───────────────────────────────────────────
+   *
+   * Le cinque sopra sono state scelte a mano, una per una, da una tendina. Queste tre no: sono i
+   * gruppi di pasti che `orologio-digiuno.ts` **produce** quando la cliente sposta la durata della
+   * sua finestra — 4 pasti sopra le 9 ore, 2 fra 3,5 e 7, uno sotto. Stanno qui e non là perché il
+   * motore legge `fastingWindow`, e la regola del file vale ancora: **si aggiunge una riga in
+   * questa tabella**, e `finestraPerPasti` la trova da sé senza una seconda mappa.
+   *
+   * ⚠️ La regola 1 in testa (lo spuntino adiacente segue il pasto saltato) qui non è violata, è
+   * **inapplicabile**: non stiamo saltando un pasto principale e lasciando il suo spuntino, stiamo
+   * dicendo quante occasioni di pasto ci stanno in una finestra. Lo spuntino che non c'è è quello
+   * che non ci sta, non quello che riaprirebbe il digiuno.
+   */
+  {
+    valore: 'skip_morning_snack',
+    // Finestra lunga (14:10): ci stanno quattro occasioni. L'unica che salta è quella del mattino,
+    // che cadrebbe a ridosso della colazione.
+    salta: ['morning_snack'],
+    etichettaStaff: 'Finestra lunga (colazione, pranzo, merenda, cena)',
+    etichettaCliente: 'Mangi da colazione a cena, senza lo spuntino del mattino',
+    etichettaBreve: 'Spuntino del mattino',
+    pastoPrincipale: 'cena',
+    primoPasto: 'colazione',
+    unicoPasto: false,
+    selezionabile: false, // la deriva l'orologio: nessuno la sceglie da una tendina
+  },
+  {
+    valore: 'skip_breakfast_and_snacks',
+    // Finestra stretta (18:6, 20:4): due pasti pieni, nessuno spuntino.
+    salta: ['breakfast', 'morning_snack', 'afternoon_snack'],
+    etichettaStaff: 'Finestra stretta (solo pranzo e cena)',
+    etichettaCliente: 'Mangi due volte al giorno — pranzo e cena',
+    etichettaBreve: 'Pranzo e cena',
+    pastoPrincipale: 'cena',
+    primoPasto: 'pranzo',
+    unicoPasto: false,
+    selezionabile: false, // la deriva l'orologio: nessuno la sceglie da una tendina
+  },
+  {
+    valore: 'skip_all_but_dinner',
+    // OMAD (23:1). ⚠️ Diversa da `skip_breakfast_lunch`, che lascia anche la merenda: qui resta la
+    // sola cena. Due valori vicini, e la differenza è un pasto intero.
+    salta: ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack'],
+    etichettaStaff: 'Un pasto solo, la sera (OMAD)',
+    etichettaCliente: 'Un pasto solo al giorno',
+    etichettaBreve: 'Solo cena',
+    pastoPrincipale: 'cena',
+    primoPasto: 'cena',
+    unicoPasto: true,
+    selezionabile: false, // la deriva l'orologio: nessuno la sceglie da una tendina
   },
 ];
 
-/** I valori ammessi, per le `IsIn` dei DTO: uno solo, e non tre elenchi che divergono. */
+/**
+ * I valori ammessi, per le `IsIn` dei DTO: uno solo, e non tre elenchi che divergono.
+ * ⚠️ Ci sono **tutti**, comprese le derivate: un valore che il motore scrive e il DTO rifiuta è un
+ * dato che non si può più correggere dal punto che l'ha creato.
+ */
 export const VALORI_FINESTRA_DIGIUNO: string[] = FINESTRE_DIGIUNO.map((f) => f.valore);
+
+/**
+ * Le finestre che una persona può **scegliere** da una tendina — il questionario e la scheda staff.
+ * ⚠️ È un elenco diverso da `VALORI_FINESTRA_DIGIUNO` apposta: «cosa si accetta» e «cosa si propone»
+ * sono due domande, e confonderle mette in una tendina risposte che nessuno ha voluto scrivere lì.
+ */
+export const FINESTRE_SELEZIONABILI: FinestraDigiuno[] = FINESTRE_DIGIUNO.filter((f) => f.selezionabile);
+export const VALORI_FINESTRA_SELEZIONABILI: string[] = FINESTRE_SELEZIONABILI.map((f) => f.valore);
 
 export const finestraDigiuno = (valore?: string | null): FinestraDigiuno | undefined =>
   FINESTRE_DIGIUNO.find((f) => f.valore === valore);
@@ -143,3 +247,11 @@ export const pastoPrincipaleDigiuno = (fastingWindow?: string | null): 'colazion
 /** Già a un pasto solo: la 20-4 non si propone a chi la sta già facendo. */
 export const eUnicoPasto = (fastingWindow?: string | null): boolean =>
   finestraDigiuno(fastingWindow)?.unicoPasto === true;
+
+/**
+ * Il primo pasto della giornata, per chi deve dire «comincia da…». ⚠️ **Non è
+ * `pastoPrincipaleDigiuno`**, che è l'ultimo: sono due domande, e per mesi hanno avuto una risposta
+ * sola. Il ripiego è la colazione, che è il primo pasto di chi non digiuna.
+ */
+export const primoPastoDigiuno = (fastingWindow?: string | null): 'colazione' | 'pranzo' | 'merenda' | 'cena' =>
+  finestraDigiuno(fastingWindow)?.primoPasto ?? 'colazione';
