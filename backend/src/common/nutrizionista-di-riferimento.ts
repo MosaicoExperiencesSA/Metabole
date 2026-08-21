@@ -4,11 +4,15 @@
  * ## Il fatto (21/8)
  *
  * Sonia ha finito il questionario il 7/8 con sei allergie dichiarate. `diag:cliente`, il 21/8:
- * **«Nutrizionista: — nessuna —»**. Le sue segnalazioni cliniche — screening, «serve la visita»,
- * piano bloccato — sono nate assegnate a `nutritionistId ?? undefined`, cioè **a nessuno**: in
- * elenco ci sono, ma nessuno le riceve. È lo stesso buco descritto in `apri-segnalazione.ts`
- * («una segnalazione senza destinatario non è una segnalazione»), che lì è stato chiuso per le
- * segnalazioni e qui, a monte, era rimasto aperto per le **clienti**.
+ * **«Nutrizionista: — nessuna —»**. E non è un caso isolato: la prima passata di
+ * `npm run assegna:nutrizionista`, lo stesso giorno, ne ha trovate **39** — di cui **sei** con lo
+ * screening acceso, cioè un percorso in cui il menu parte *dopo la visita col nutrizionista*.
+ *
+ * ⚠️ **Le segnalazioni, invece, un destinatario ce l'hanno**: `apriSegnalazione` instrada al capo
+ * quando il ruolo non è assegnato, e la misura dice zero orfane. Quello che manca è la **presa in
+ * carico della cliente** — senza nutrizionista in scheda, nelle liste, nella chat e nei perimetri
+ * quella persona non è di nessuno. (Una frase precedente di questo commento diceva il contrario,
+ * per deduzione invece che per misura: è stata riscritta, non cancellata.)
  *
  * Il commento nel questionario diceva: «coach e nutrizionista NON si assegnano in automatico — li
  * assegna il responsabile dal backoffice». È una regola sensata **quando c'è più di una

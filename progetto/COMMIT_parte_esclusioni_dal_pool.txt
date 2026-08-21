@@ -75,10 +75,22 @@ rimedio è far comporre il motore, non spegnere l'unica cosa che lo dice.
 ================================================================================
 
 Sonia ha finito il questionario il **7/8** con sei allergie dichiarate. Il 21/8: «Nutrizionista: —
-nessuna —». Le sue segnalazioni cliniche — screening, «serve la visita», piano bloccato — sono nate
-con `assignedToId` vuoto: in elenco ci sono, ma **nessuno le riceve**. È lo stesso buco chiuso il
-13/8 per le segnalazioni («una segnalazione senza destinatario non è una segnalazione»), rimasto
-aperto un passo più a monte: sulle **clienti**.
+nessuna —». E non è un caso isolato: la prima passata di `npm run assegna:nutrizionista`, lo stesso
+giorno, ne ha trovate **39** — di cui **sei** con lo screening acceso, cioè un percorso in cui il
+menu parte *dopo la visita col nutrizionista*.
+
+⛔ **E UNA FRASE CHE AVEVO SCRITTO QUI ERA SBAGLIATA, smentita dalla misura due ore dopo.** Avevo
+scritto che le segnalazioni cliniche di Sonia erano «nate senza destinatario». Non l'avevo
+misurato: l'avevo dedotto leggendo il codice. Lo script dice **zero** segnalazioni aperte e orfane
+su 39 clienti, perché `apriSegnalazione` instrada già al **capo** quando il ruolo non è assegnato.
+Resta scritta invece di essere cancellata: è la stessa regola violata due volte nella stessa
+giornata — *non spacciare un ragionamento per una misura*.
+
+⚠️ Quello che manca davvero è la **presa in carico della cliente**, non il recapito della
+segnalazione: senza nutrizionista in scheda, nelle liste, nella chat e nei perimetri quella persona
+non è di nessuno. ⛔ E un buco più piccolo resta, questo sì letto nel codice: le due
+`escalation.create` **dirette** in `onboarding.service` (screening e obiettivo irreale) non passano
+da `apriSegnalazione`, quindi nascerebbero orfane. Oggi non ce n'è nessuna aperta.
 
 Il commento nel questionario diceva «coach e nutrizionista NON si assegnano in automatico». È la
 regola giusta **quando le nutrizioniste sono più d'una**: distribuire i pazienti è una decisione. Con
@@ -99,8 +111,9 @@ il ruolo non è assegnato. Le due strade dicono ora la stessa cosa.
 
 ✅ `npm run assegna:nutrizionista` (sola lettura; `CONFERMA=1` per applicare) recupera **chi è già
 rimasta senza** — il codice nuovo da solo non le ripesca — e riassegna anche le loro **segnalazioni
-aperte e orfane**: assegnare la cliente e lasciare la segnalazione senza destinatario sarebbe fare
-metà del lavoro proprio sulla metà che urge.
+aperte e orfane** — che il 21/8 sono zero, ed è giusto che il conto si veda invece di essere dato
+per scontato: assegnare la cliente e lasciare la segnalazione senza destinatario sarebbe fare metà
+del lavoro proprio sulla metà che urge.
 
 ================================================================================
 4) `diag:cliente` — quattro buchi, e uno l'ha stampato oggi sotto gli occhi

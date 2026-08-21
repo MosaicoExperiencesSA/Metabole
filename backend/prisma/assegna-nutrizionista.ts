@@ -2,16 +2,21 @@
  * LE CLIENTI RIMASTE SENZA NUTRIZIONISTA — elenco, e assegnazione al capo.
  *
  * Nasce dal caso Sonia (21/8): questionario completato il 7/8 con **sei allergie dichiarate**, e il
- * 21/8 `diag:cliente` stampava ancora «Nutrizionista: — nessuna —». Le sue segnalazioni cliniche
- * (screening, «serve la visita», piano bloccato) sono nate con `assignedToId` vuoto: in elenco ci
- * sono, ma nessuno le riceve.
+ * 21/8 `diag:cliente` stampava ancora «Nutrizionista: — nessuna —».
+ *
+ * ⚠️ **Il problema è la presa in carico della CLIENTE, non il recapito della segnalazione.** La
+ * prima passata di questo script, il 21/8, ha smentito una frase che avevo scritto per deduzione:
+ * le segnalazioni un destinatario ce l'hanno, perché `apriSegnalazione` instrada al capo quando il
+ * ruolo non è assegnato — **zero** orfane su 39 clienti. Ma senza nutrizionista in scheda quella
+ * persona, nelle liste e nei perimetri, non è di nessuno: e delle 39 **sei** hanno lo screening
+ * acceso, cioè un percorso in cui il menu parte dopo la visita col nutrizionista.
  *
  * Il codice è corretto da oggi — chi finisce il questionario senza nutrizionista sul lead viene
  * presa in carico dal capo (`common/nutrizionista-di-riferimento.ts`, parametro
  * `assign_head_nutritionist_by_default`) — ma il codice nuovo **non ripesca chi è già passata di
  * lì**. Questo script fa quello, e riassegna anche le **segnalazioni aperte** rimaste orfane di
- * quelle clienti: assegnare la cliente e lasciare la segnalazione senza destinatario vorrebbe dire
- * fare metà del lavoro proprio sulla metà che urge.
+ * quelle clienti — se ce ne sono: il conto si stampa comunque, anche a zero, perché un numero che
+ * non si vede è un numero che si dà per scontato.
  *
  * ⚠️ **Non sposta nessuno.** Chi ha già una nutrizionista non viene toccata: qui si riempie solo il
  * vuoto. Uno spostamento è un atto esplicito, non l'effetto di uno script.

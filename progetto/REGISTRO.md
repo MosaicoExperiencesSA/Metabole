@@ -20,6 +20,77 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🥄 **«Sonia non riceve i menu»: il motore le metteva il polpo nel piatto, poi si
+  fermava da solo.** Sei allergie dichiarate (crostacei, pesce, solfiti, lupini, molluschi, soia) e
+  **zero giornate erogate**. `diag:cliente` in produzione: segnalazione «Piano bloccato» aperta oggi,
+  con dentro «Polpo grigliato: contiene Molluschi» e «Bresaola: incompatibile con allergia solfiti».
+  ⛔ **Il blocco ha fatto il suo mestiere: sbagliata era la scelta.** Il filtro a monte esisteva già —
+  `buildScoringContext` toglie dal pool le ricette vietate **sulla dieta** da Vera, «così non vengono
+  nemmeno prese in considerazione» — ma le allergie e le intolleranze **della cliente** in quel
+  filtro non c'erano: entravano solo nel veto finale, dove una violazione ferma **tutta** la
+  giornata. Il motore pescava il polpo per un'allergica ai molluschi mentre nel pool c'erano altri
+  piatti. ✅ Adesso ci passano anche loro, con **una funzione sola** per il filtro e per la guardia
+  (`menu/esclusioni-della-cliente.ts`, puro): due copie vorrebbero dire un filtro che toglie un
+  insieme di piatti e una guardia che ne vieta un altro — c'è un test che verifica proprio che
+  dicano la stessa cosa su ogni ricetta. ⚠️ Escono solo le ricette con una **violazione**: quelle
+  sostituibili restano e il piatto si eroga con la sostituzione annotata. ⚠️ **Uno slot che resterebbe
+  vuoto non si svuota** (regola dell'11/8): a fermare la giornata dev'essere la guardia, che sa dire
+  cosa e perché, non un pool azzerato in silenzio. ⛔ **E il rimedio a mano non poteva funzionare:**
+  la nutrizionista le ha dato una sostituzione la mattina del 21/8 e «non è stata comunque
+  applicata» — con zero giornate erogate non c'è nessun piatto su cui applicarla, e la composizione
+  dopo ricadeva sul piatto successivo. Un piatto per volta contro un pool intero.
+  ⛔ **Due mie ipotesi, scritte prima di misurare, erano sbagliate**, e restano scritte: che fosse la
+  tregua delle segnalazioni (la riga era **aperta**, di oggi) e che l'avesse sbloccata una
+  nutrizionista (Sonia non ne ha **nessuna**: quello attivo era lo sblocco della **coach**, che
+  riapre l'app e non eroga). *Misura prima di decidere.*
+
+- `[Sviluppo]` 🚧 **Chiudere «Piano bloccato» ne spegneva il cartello per quattordici giorni.**
+  Trovato leggendo il codice, **non** è il caso di Sonia: è il caso di chiunque venga sbloccata
+  mentre il motore ancora non compone. La tregua dell'11/8 è giusta per gli allarmi clinici — un
+  avviso che ritorna da solo insegna a chiuderlo senza leggerlo. Ma quella riga **non è un avviso**:
+  è ciò che `dietBlock` legge per dire all'app `blocked`. Zittirla non toglieva un fastidio, toglieva
+  lo **stato**: cliente ancora senza menu, nessuna riga in elenco, e in app «Menu in preparazione,
+  arriverà a breve» — che è falso. ✅ `statoNonAvviso`: dentro la tregua non nasce un doppione, si
+  **riapre** la riga risolta col motivo di adesso. ⚠️ Sì, se la si richiude e il motore ancora non
+  compone tornerà: è il punto. Il rimedio è far comporre il motore, non spegnere l'unica cosa che lo
+  dice.
+
+- `[Sviluppo]` 👩‍⚕️ **39 clienti non avevano nessuna nutrizionista. Adesso le prende il capo.**
+  Richiesta di Simone del 21/8, e Sonia ne era la prova: questionario del **7/8** con sei allergie, e
+  al 21/8 ancora «Nutrizionista: — nessuna —». Il conto vero l'ha fatto lo script: **39 clienti**, di
+  cui **sei con lo screening acceso** — cioè un percorso in cui il menu parte *dopo la visita col
+  nutrizionista* — e una con **nove allergie dichiarate**. ⚠️ «Il team non si assegna in automatico»
+  resta la regola giusta quando le nutrizioniste sono più d'una: distribuire i pazienti è una
+  decisione. Con **una sola** non è una decisione, è un passaggio a mano, e quando salta la cliente
+  resta senza nessuno che risponda di lei. ✅ Chi finisce il questionario senza nutrizionista sul lead
+  va al **capo** (lo stesso che `apri-segnalazione` sceglie già quando il ruolo non è assegnato),
+  **la coach no**, e mai sovrascrivendo un'assegnazione esistente. Vale anche per chi **rifà** il
+  questionario, che finiva nel ramo `update` dove l'assegnazione non c'era: «non sovrascrivere» e
+  «non riempire il vuoto» sono due cose diverse. ⚠️ Si spegne con
+  `assign_head_nutritionist_by_default`, e la funzione **conta le altre nutrizioniste**: alla prima
+  passata quel numero era **già 1** («Dr.ssa Bini»), cioè la premessa è già scaduta e la decisione se
+  dividere le clienti è di Simone. ✅ `npm run assegna:nutrizionista` ha recuperato le 39 già rimaste
+  senza.
+  ⛔ **E una frase che avevo scritto stamattina era sbagliata**, smentita dalla misura due ore dopo:
+  avevo scritto che le segnalazioni cliniche di Sonia erano «nate senza destinatario». Non l'avevo
+  misurato, l'avevo dedotto dal codice — lo script dice **zero** orfane su 39 clienti, perché
+  `apriSegnalazione` instrada già al capo. Quello che mancava era la **presa in carico della
+  cliente**, non il recapito della segnalazione. Resta un buco più piccolo, letto nel codice: le due
+  `escalation.create` **dirette** in `onboarding.service` non passano da `apriSegnalazione` e
+  nascerebbero orfane; oggi non ce n'è nessuna aperta.
+
+- `[Sviluppo]` 🔍 **`diag:cliente` ha stampato «Nessun piano attivo» a una cliente che un piano ce
+  l'ha.** Sonia: «Conosciamoci», in coda dal 22/8. Il verdetto guardava `status === 'active'` invece
+  di `STATI_CON_UN_PIANO` — la regola di prima del 19/8, da quando un piano che comincia più avanti
+  nasce `queued`. ⚠️ Una diagnostica che risponde diversamente dal codice manda a cercare il difetto
+  dove non c'è, ed è la seconda volta che succede proprio su «perché non riceve il menu?» (la prima
+  fu Giusy, il 13/8). Corretti nella stessa direzione altri tre buchi: la misura di partenza era
+  «una pesata qualsiasi, in tutta la storia» invece che **di questo piano**; `planHeldAt` veniva
+  stampato ma non era nella **scala del verdetto**; e si leggevano solo le segnalazioni **aperte**,
+  mentre nel caso della tregua quella che decide è una **risolta**. Aggiunti i due stati che
+  mancavano (Monitoraggio e finestra di visibilità) e corretta la frase «si sblocca CHIUDENDO la
+  segnalazione», che è esattamente il malinteso da cui è partita la giornata.
+
 - `[Sviluppo]` 🕐 **Spostare la finestra: i due metodi del manuale, e la direzione che decide quale.**
   `menu/cambio-finestra.ts` (nuovo, puro, 55 test). Più **tardi** → il digiuno si allunga → è il
   «reset», permesso subito, e l'app lo dice prima: «stanotte venti ore invece di sedici». Più
