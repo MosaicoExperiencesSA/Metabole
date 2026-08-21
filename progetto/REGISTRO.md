@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` ⏱️ **L'orologio in mano alla cliente: la pagina `/digiuno`, il quadrante che si
+  trascina, la scheda in home.** Si sposta **solo l'apertura** — la durata la scelgono i bottoni,
+  come vuole la Regola d'Oro del manuale — e la geometria sta in `lib/orologio.ts` con i suoi test,
+  perché *un quadrante sbagliato non dà errore: disegna*.
+  ⛔ **La revisione ha trovato otto cose.** Il conto alla rovescia al centro **diceva il falso**:
+  leggeva la finestra in corso di scelta, quindi mentre la cliente trascinava verso le 08:00 le
+  diceva «stai digiunando» a chi poteva mangiare per altre sei ore — e la push le avrebbe detto il
+  contrario. I pallini dei pasti restavano disegnati **nelle ore di digiuno**. Sul telefono toccare
+  la scritta «si chiude alle 20:00» **spostava la finestra**. Il quadrante era `role="img"`, quindi
+  per chi usa un lettore di schermo non era né leggibile né **impostabile**. E l'atterraggio
+  automatico **cancellava il check-in** che stava compilando — il popup è un modale dentro la home,
+  e vinceva chi arrivava ultimo fra due chiamate in parallelo. ✅ Adesso c'è una regola sola, scritta
+  una volta invece che tre: *una interruzione per volta*.
+  ⛔ E **due test che non guardavano niente**: il flag `large-arc` dell'arco SVG veniva letto in
+  posizione 6 — che è la rotazione dell'asse, sempre `0` — e il flag `sweep`, in posizione 8, non lo
+  guardava nessuno. Portandolo a zero l'arco gira al contrario e disegna **le ore in cui non può
+  mangiare**, con la suite tutta verde. ⚠️ E il **fuso**: l'app leggeva l'ora del telefono, il server
+  ragiona in Europe/Rome — due risposte diverse alla stessa domanda nello stesso istante.
+  ✅ **152 test su 152** nell'app, 4430 su 4430 nel backend, build verde ovunque.
+  ⚠️ Questo pezzo è **app**: per vederlo serve un OTA.
+
 - `[Sviluppo]` 🔔 **Le sei push del digiuno — e le tre regole che ne tolgono.** Le quattro chieste da
   Simone più le due metaboliche del manuale, accese di default. ⛔ **Sei tipi non vuol dire sei
   notifiche al giorno**: 14:10 e 16:8 ne mandano **cinque** (le sedici ore non esistono, o cadono

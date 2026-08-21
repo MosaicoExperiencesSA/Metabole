@@ -27,6 +27,7 @@ import Obiettivo from './pages/Obiettivo';
 import Assistente from './pages/Assistente';
 import Negozio from './pages/Negozio';
 import Profilo from './pages/Profilo';
+import Digiuno from './pages/Digiuno';
 import Checkout from './pages/Checkout';
 import Onboarding from './pages/Onboarding';
 import SetPassword from './pages/SetPassword';
@@ -90,6 +91,8 @@ function Shell() {
           <Route path="/negozio" element={<Negozio />} />
           <Route path="/shop" element={<Negozio />} />
           <Route path="/profilo" element={<Profilo />} />
+          {/* L'orologio del digiuno: ci si arriva dalla home, o ci si atterra al primo avvio. */}
+          <Route path="/digiuno" element={<Digiuno />} />
           <Route path="/conferma-email" element={<ConfermaEmail />} />
           <Route path="/verifica-email" element={<VerificaEmail />} />
           {/* La riga era doppia (e con l'indentazione sbagliata): la seconda non serviva a niente. */}

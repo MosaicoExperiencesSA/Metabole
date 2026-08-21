@@ -56,3 +56,13 @@ app/src/pages/Landing.restyle.tsx
 # (`tar xzf --overwrite`) era saltato. Questa riga fa in modo che, se ricapita, almeno il tarball
 # non entri nel commit e la cosa si veda subito.
 consegna*.tar.gz
+
+# ⛔ La cartella di lavoro dei bundle OTA. Lo zip che conta è quello COPIATO in
+# `backend/ota-bundles/` — è da lì che il backend lo serve. Quello in `ota-out/` è la copia di
+# scarto, e il 6/8 ne sono finiti otto in un commit: ~70 MB di doppioni degli stessi bundle,
+# dentro un repository che se li porta dietro per sempre a ogni clone.
+# ⚠️ Chi ha già `ota-out/` tracciata la toglie dall'indice una volta sola:
+#     git rm -r --cached ota-out
+# (i file restano sul disco; smettono solo di essere committati). La cronologia vecchia resta,
+# quella non si tocca — ma da qui in avanti non cresce più.
+ota-out/

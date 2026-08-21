@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import ChiediAllergie from '../components/ChiediAllergie';
+import CardDigiuno from '../components/CardDigiuno';
 import Sheet from '../components/Sheet';
 import CheckinPopup, { type CheckinValori } from '../components/CheckinPopup';
 import ReferralCard from '../components/ReferralCard';
@@ -306,6 +307,20 @@ export default function Home() {
   const frase = fraseDelGiorno(user?.id, now);
   const totKcal = (meals ?? []).reduce((a, m) => a + (m.kcal || 0), 0);
 
+  /**
+   * ⛔ **UNA INTERRUZIONE PER VOLTA, e la domanda si fa in un posto solo.**
+   *
+   * Questa condizione era già scritta due volte a mano — il popup del check-in e quello «com'è
+   * andata ieri?» — e il 21/8 stava per diventare tre. L'orologio del digiuno porta chi non ha
+   * ancora scelto sulla sua pagina al primo avvio: se lo facesse **mentre il check-in è aperto**, la
+   * home si smonterebbe portandosi via quello che la cliente ci aveva già scritto dentro. Vincerebbe
+   * chi arriva ultimo fra due chiamate in parallelo, quindi in modo intermittente e a seconda della
+   * rete — il difetto peggiore da riconoscere.
+   */
+  const checkinAschermo = Boolean(
+    today && (today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) && !dismissed,
+  );
+
   return (
     <div className="home">
       <AppHeader title={`Ciao, ${name}`} />
@@ -317,6 +332,14 @@ export default function Home() {
         niente a chi ha già risposto: sotto la prima riga si toglie da solo.
       */}
       <ChiediAllergie />
+
+      {/*
+        ⚠️ L'orologio del digiuno: mostra dove sei adesso, e a chi non ha ancora scelto la finestra
+        apre la pagina al primo avvio (decisione di Simone, 19/8). Non mostra niente a chi non
+        digiuna, e niente nemmeno se il server non risponde — la home non deve avere un buco al
+        posto di una cosa che non la riguarda.
+      */}
+      <CardDigiuno atterraggioPermesso={!checkinAschermo} />
 
       {/* Fase attuale del percorso (dimagrimento / mantenimento), decisa dallo staff. */}
       {today?.objective && PHASE_BADGE[today.objective] && (
@@ -478,11 +501,11 @@ export default function Home() {
       {/* `checkinDue` arriva dal server e include la regola "solo con un piano attivo" (voce #1):
           a piano scaduto il popup non compare più. Il fallback su checkinDone/checkinSkipped
           serve solo finché un'app vecchia parla con un backend nuovo. */}
-      {today && (today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) && !dismissed && (
+      {checkinAschermo && (
         <CheckinPopup onSubmit={submitCheckin} onSkip={skipCheckin} busy={checkinBusy} />
       )}
       {/* Popup "Com'è andata ieri?" — solo quando il check-in non è a schermo */}
-      {(!today || !(today.checkinDue ?? (!today.checkinDone && !today.checkinSkipped)) || dismissed) && <MenuReviewPopup />}
+      {!checkinAschermo && <MenuReviewPopup />}
       {sheet === 'spesa' && <Sheet onClose={() => setSheet(null)}><SpesaList /></Sheet>}
 
       {/*

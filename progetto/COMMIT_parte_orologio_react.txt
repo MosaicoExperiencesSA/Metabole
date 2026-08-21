@@ -1,0 +1,107 @@
+Parte: l'orologio in mano alla cliente — la pagina, il quadrante, la scheda in home — 21/8
+
+================================================================================
+COSA FA
+================================================================================
+
+`/digiuno`: la pagina dove la cliente sceglie o sposta la sua finestra, con il quadrante da 24 ore
+che si trascina. E la scheda in home, che mostra dove sta adesso e porta lì chi non ha ancora
+scelto — la decisione di Simone del 19/8 («quando pubblichiamo la app aggiornata le facciamo
+atterrare su quella pagina»).
+
+⚠️ **Si sposta solo l'apertura**, cioè tutta la finestra insieme. La durata la scelgono i bottoni.
+È la Regola d'Oro del manuale — *la durata dice quanti pasti, la posizione non dice niente* — e
+lasciar tirare l'estremo inviterebbe a fare l'unica cosa che il modello non permette.
+
+⚠️ La geometria sta in `lib/orologio.ts`, con i suoi test, e non dentro il componente: **un
+quadrante sbagliato non dà errore, disegna.** La lancetta finisce due gradi più in là e nessuno se
+ne accorge finché una cliente non dice «ma io mangio alle 12».
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (otto cose)
+================================================================================
+
+⛔ **IL CONTO ALLA ROVESCIA DICEVA IL FALSO.** Il centro del quadrante leggeva la finestra **in
+corso di scelta**: alle 14:00, mentre la cliente trascinava verso le 08:00, le diceva «stai
+digiunando, si apre alle 08:00» — mentre poteva mangiare per altre sei ore, e la push glielo
+avrebbe confermato. E a chi non aveva mai scelto recitava un conto alla rovescia completo per **una
+finestra che non esiste in nessun database**. → il conto arriva dalla finestra in vigore, e se non
+c'è il centro resta vuoto.
+
+⛔ **I PALLINI DEI PASTI FINIVANO NELLE ORE DI DIGIUNO.** Restavano quelli del server mentre l'arco
+si muoveva: spostando da mezzogiorno alle otto, i tre pasti restavano disegnati a 12:15 · 15:00 ·
+19:45. → si disegnano solo quando sono di quella finestra lì.
+
+⛔ **SUL TELEFONO SI SPOSTAVA LA FINESTRA SENZA VOLERLO.** Il tocco rispondeva su **tutto** l'SVG:
+toccare la scritta «si chiude alle 20:00», o il numero 12 sul bordo, spostava la finestra. → il
+tocco conta solo dentro la fascia dell'anello, le etichette sono state spostate fuori, e la maniglia
+è più grande. *Un comando che si aziona leggendo non è un comando.*
+
+⛔ **IL QUADRANTE ERA UN COMANDO ESPOSTO COME IMMAGINE.** `role="img"` collassa il sottoalbero: chi
+usa VoiceOver o TalkBack non sentiva né lo stato né il conto alla rovescia, e **non aveva nessun
+modo di impostare la finestra** senza un dito preciso. → `role="slider"` con `aria-valuetext`, e le
+frecce della tastiera spostano di cinque minuti (PagSu/PagGiù di un'ora).
+
+⛔ **L'ATTERRAGGIO CANCELLAVA IL CHECK-IN CHE STAVA COMPILANDO.** Il popup del check-in è un modale
+**dentro** la home; il redirect la smontava con dentro quello che aveva già scritto. Vinceva chi
+arrivava ultimo fra due chiamate in parallelo, quindi in modo intermittente e a seconda della rete.
+→ **una interruzione per volta**: la home dice se si può atterrare, ed è la stessa condizione che
+già decideva l'altro popup — adesso scritta una volta sola invece che tre.
+
+⛔ **IL FUSO.** L'app leggeva l'ora del **telefono**, il server ragiona in Europe/Rome. Una cliente
+in viaggio riceve «hai finito di mangiare» mentre lo schermo le dice «puoi mangiare ancora per sei
+ore»: due risposte diverse alla stessa domanda, nello stesso istante, dallo stesso prodotto.
+
+⛔ **E DUE TEST CHE NON GUARDAVANO NIENTE.** Il flag `large-arc` veniva letto in posizione 6 — che è
+la rotazione dell'asse, sempre `0`: cinque casi verdi che non provavano nulla, e se ne è accorto
+solo il sesto. Il flag `sweep` (posizione 8) non lo guardava nessuno: portandolo a zero l'arco gira
+al contrario e disegna **le ore in cui NON può mangiare**, e la suite restava verde. → coperti tutti
+e due, su ogni durata e ogni posizione.
+
+⛔ **IN HOME IL CONTO ALLA ROVESCIA ERA ALTO QUATTRO PIXEL.** La miniatura scala il viewBox di 0,4:
+«6h 20m» diventava illeggibile, cioè spariva proprio la cosa per cui la scheda esiste. → il
+quadrante ha un modo compatto che spegne i testi, e il conto sta accanto in HTML.
+
+Più i minori: «1 ore per mangiare» con la 23:1 · «fra 0 giorni aprirai alle 08:00» quando il piano
+non arriva · un indice nudo che disegnava una durata e ne salvava un'altra · il quadrante
+trascinabile mentre il salvataggio era in volo · e lo schermo bianco senza intestazione a chi ci era
+appena atterrata.
+
+================================================================================
+⚠️ TRE COSE CHE QUESTA PAGINA NON FA, E SONO SCRITTE
+================================================================================
+
+1. **Non blocca.** «Lo faccio dopo» torna in home e la domanda si ripresenta al prossimo avvio.
+   `sessionStorage` e non `localStorage`: rimandare non è rispondere.
+2. **Non decide i pasti.** Li deriva la durata, sul server. Nessuna tendina «quali pasti salti»:
+   sarebbe la seconda porta sulla stessa domanda. Un test legge il **sorgente** e lo impedisce.
+3. **Non anticipa la risposta del server.** Dopo il salvataggio si ridisegna con quello che il
+   server ha scritto davvero — col piano graduale è diverso apposta.
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  app/src/lib/orologio.ts                     geometria e conto alla rovescia (+37 test)
+  app/src/lib/orologio-una-porta-sola.spec.ts 9 test che leggono il sorgente
+  app/src/components/OrologioDigiuno.tsx      il quadrante
+  app/src/components/CardDigiuno.tsx          la scheda in home e l'atterraggio
+  app/src/pages/Digiuno.tsx                   la pagina
+
+Modificati
+  app/src/App.tsx        la rotta /digiuno
+  app/src/pages/Home.tsx la scheda, e «una interruzione per volta» scritta una volta sola
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  app            152 test su 152 (15 file)
+  backend        4430 su 4430, invariato
+  npm run build  verde su app, backoffice e backend
+
+⛔ Cosa NON c'è ancora: la scheda staff (la nutrizionista vede la finestra, non l'orologio), e la
+terza condizione della verifica (`restaCorta`), che resta in elenco lavori con scritto che manca.
+⚠️ E il rilascio: questo pezzo è **app**, quindi serve un OTA — o una pubblicazione sugli store se
+si vuole che lo veda anche chi non aggiorna.
