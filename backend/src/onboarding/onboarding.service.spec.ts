@@ -36,6 +36,8 @@ describe('OnboardingService', () => {
   let service: OnboardingService;
   let prisma: any;
   let audit: { log: jest.Mock } = { log: jest.fn() };
+  // Accessibile ai test: `assign_head_nutritionist_by_default` si deve poter spegnere.
+  let configParams: { getNumber: jest.Mock; getString: jest.Mock; getBool: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -69,11 +71,14 @@ describe('OnboardingService', () => {
         ]),
       },
     };
-    const configParams = {
+    configParams = {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(key === 'sustainable_rate_max_kg_week' ? 0.7 : 1.0),
       ),
       getString: jest.fn().mockResolvedValue('warn'),
+      // `assign_head_nutritionist_by_default` (21/8): il finto deve avere i metodi che il
+      // servizio usa davvero, altrimenti verifica una versione del mondo che non esiste.
+      getBool: jest.fn(async (_k: string, d?: boolean) => d ?? false),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -455,12 +460,50 @@ describe('OnboardingService', () => {
     expect(result.team.coach?.displayName).toBe('Marta');
   });
 
-  it('senza ref code il team NON si assegna in automatico (lo assegna il responsabile)', async () => {
+  it('senza ref code la COACH non si assegna in automatico (la assegna il responsabile)', async () => {
     await service.submitAnswers('u1', baseAnswers());
     const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
     expect(createArgs.assignedCoachId).toBeNull();
+  });
+
+  /**
+   * ⚠️ **QUESTA REGOLA È CAMBIATA IL 21/8, e il test di prima diceva il contrario.**
+   *
+   * Diceva «senza ref code il team NON si assegna», ed era la regola giusta finché le nutrizioniste
+   * sono più d'una: distribuire i pazienti è una decisione. Con **una sola** non è una decisione, è
+   * un passaggio a mano — e Sonia, questionario del 7/8 con sei allergie dichiarate, il 21/8
+   * risultava ancora senza nessuna nutrizionista, con le sue segnalazioni cliniche nate senza
+   * destinatario. La coach resta com'era: cambia solo il ruolo che risponde delle allergie.
+   */
+  it('⚠️ senza nutrizionista sul lead la prende il CAPO (`assign_head_nutritionist_by_default`)', async () => {
+    configParams.getBool.mockResolvedValueOnce(true);
+    prisma.staff.findMany.mockResolvedValueOnce([
+      { id: 's-capo', userId: 'u-capo', user: { role: 'head_nutritionist' } },
+    ]);
+    await service.submitAnswers('u1', baseAnswers());
+    const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+    expect(createArgs.assignedNutritionistId).toBe('s-capo');
+    // La coach no: quella regola non è cambiata.
+    expect(createArgs.assignedCoachId).toBeNull();
+  });
+
+  it('col parametro spento si torna alla regola di prima: nessuno viene assegnato', async () => {
+    configParams.getBool.mockResolvedValueOnce(false);
+    await service.submitAnswers('u1', baseAnswers());
+    const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
     expect(createArgs.assignedNutritionistId).toBeNull();
+    // Spento vuol dire spento: non si va nemmeno a cercare chi sarebbe.
     expect(prisma.staff.findMany).not.toHaveBeenCalled();
+  });
+
+  it('se il capo nutrizionista NON esiste, il campo resta vuoto invece di riempirsi a caso', async () => {
+    configParams.getBool.mockResolvedValueOnce(true);
+    prisma.staff.findMany.mockResolvedValueOnce([
+      { id: 's-altra', userId: 'u-altra', user: { role: 'nutritionist' } },
+    ]);
+    await service.submitAnswers('u1', baseAnswers());
+    const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+    expect(createArgs.assignedNutritionistId).toBeNull();
   });
 
   it('col ref code sul lead, coach e nutrizionista si propagano al profilo', async () => {
@@ -551,6 +594,7 @@ describe('OnboardingService — lo stile non si chiede più', () => {
           useValue: {
             getNumber: jest.fn((key: string) => Promise.resolve(key === 'sustainable_rate_max_kg_week' ? 0.7 : 1.0)),
             getString: jest.fn().mockResolvedValue('warn'),
+            getBool: jest.fn(async (_k: string, d?: boolean) => d ?? false),
           },
         },
         { provide: AuditService, useValue: { log: jest.fn() } },

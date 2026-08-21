@@ -19,6 +19,10 @@
  *   npm run diag:cliente -- cliente@esempio.it
  */
 import { PrismaClient } from '@prisma/client';
+import { FINESTRA_RIAPERTURA_DEFAULT } from '../src/escalations/apri-segnalazione';
+import { attivoInCorso } from '../src/commerce/abbonamento-in-corso';
+import { STATI_CON_UN_PIANO } from '../src/commerce/stati-abbonamento';
+import { mancaMisuraDiPartenza } from '../src/menu/misura-di-partenza';
 
 const prisma = new PrismaClient();
 
@@ -78,9 +82,9 @@ async function main(): Promise<void> {
   // --- Abbonamenti ---
   const subs = (await prisma.subscription.findMany({
     where: { clientId: user.id },
-    select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { name: true, priceCents: true } } },
+    select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { name: true, priceCents: true, period: true } } },
     orderBy: { createdAt: 'desc' },
-  })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string; priceCents: number } | null }[];
+  })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string; priceCents: number; period: string | null } | null }[];
   console.log('\n=== ABBONAMENTI ===');
   if (subs.length === 0) console.log('nessuno');
   else console.table(subs.map((s) => ({
@@ -95,11 +99,44 @@ async function main(): Promise<void> {
     select: { id: true, reason: true, source: true, category: true, status: true, createdAt: true, assignedToId: true },
     orderBy: { createdAt: 'desc' },
   })) as { id: string; reason: string; source: string; category: string; status: string; createdAt: Date; assignedToId: string | null }[];
+  /**
+   * ⚠️ **LE RISOLTE DI RECENTE, che questo strumento non guardava** (21/8).
+   *
+   * Chiudere una segnalazione apre una **tregua** (`escalation_reopen_days`, 14 giorni): dentro
+   * quella finestra la stessa causa non si riapre da sola. Per «Piano bloccato» voleva dire che il
+   * blocco restava e il cartello spariva — e qui sotto sarebbe uscito «idonea, ma le giornate non
+   * sono ancora state erogate», che è la stessa risposta inutile del caso Giusy.
+   *
+   * Dal 21/8 quel blocco si riapre invece di tacere (`statoNonAvviso`), ma la riga risolta va
+   * stampata lo stesso: è l'unico posto da cui si capisce che qualcuno l'aveva chiusa, e quando.
+   */
+  const risolteDiRecente = (await prisma.escalation.findMany({
+    where: {
+      clientId: user.id,
+      status: 'resolved' as never,
+      resolvedAt: { gte: new Date(Date.now() - FINESTRA_RIAPERTURA_DEFAULT * 86_400_000) },
+    },
+    select: { id: true, reason: true, category: true, resolvedAt: true },
+    orderBy: { resolvedAt: 'desc' },
+  })) as { id: string; reason: string; category: string; resolvedAt: Date | null }[];
+
   console.log('\n=== SEGNALAZIONI APERTE ===');
   if (esc.length === 0) console.log('nessuna');
   else for (const e of esc) {
     console.log(`· [${e.category}] ${giorno(e.createdAt)} — ${e.status}${e.assignedToId ? '' : '  ⚠ NON ASSEGNATA A NESSUNO'}`);
     console.log(`  ${e.reason}`);
+  }
+
+  if (risolteDiRecente.length) {
+    console.log(`\n=== CHIUSE NEGLI ULTIMI ${FINESTRA_RIAPERTURA_DEFAULT} GIORNI (la tregua) ===`);
+    for (const e of risolteDiRecente) {
+      const giorniFa = e.resolvedAt ? Math.floor((Date.now() - e.resolvedAt.getTime()) / 86_400_000) : null;
+      console.log(`· [${e.category}] chiusa il ${giorno(e.resolvedAt)}${giorniFa === null ? '' : ` (${giorniFa} giorni fa)`}`);
+      console.log(`  ${e.reason}`);
+    }
+    console.log('  → Dentro la tregua la stessa causa non riapre una riga NUOVA. Per «Piano bloccato»');
+    console.log('    dal 21/8 si riapre quella vecchia col motivo di adesso: se la vedi tornare aperta,');
+    console.log('    non è un doppione — è il motore che ancora non compone.');
   }
 
   // --- Menu ---
@@ -190,9 +227,32 @@ async function main(): Promise<void> {
   }
 
   // --- Il verdetto, nello stesso ordine di menuStatus() ---
-  const attivo = subs.some((s) => s.status === 'active' && (!s.endDate || s.endDate.getTime() >= oggi.getTime()));
+  /**
+   * ⚠️ **`STATI_CON_UN_PIANO`, non `'active'`** (21/8). Qui c'era `s.status === 'active'`, e da
+   * quando un piano che comincia più avanti nasce `queued` questo strumento diceva **«Nessun piano
+   * attivo»** a chi aveva comprato e aspettava la partenza. È esattamente quello che ha stampato su
+   * Sonia — piano «Conosciamoci» in coda dal 22/8 — mentre `menuStatus` diceva un'altra cosa.
+   * Una diagnostica che risponde diversamente dal codice manda a cercare il difetto dove non c'è.
+   */
+  const attivo = subs.some(
+    (s) => (STATI_CON_UN_PIANO as readonly string[]).includes(s.status) && (!s.endDate || s.endDate.getTime() >= oggi.getTime()),
+  );
   const inAttesa = subs.some((s) => s.status === 'pending');
   const bloccata = esc.find((e) => e.source === 'engine' && e.reason.includes('Piano bloccato'));
+  // Il piano che EROGA lo sceglie la stessa funzione dell'erogazione, non un `findFirst` a caso.
+  const pianoDiAdesso = attivoInCorso(subs as never) as { startDate: Date | null; plan: { period: string | null } | null } | null;
+  const inizioDelPiano = pianoDiAdesso?.startDate ?? p?.planStartDate ?? null;
+  const paramFinestra = (await prisma.configParam.findUnique({ where: { key: 'menu_visible_days_before_start' } })) as { value: string } | null;
+  const giorniPrima = Number(paramFinestra?.value ?? 2) || 2;
+  const visibileDal = inizioDelPiano ? new Date(inizioDelPiano.getTime() - giorniPrima * 86_400_000) : null;
+  /**
+   * ⚠️ **LA MISURA DI QUESTO PIANO, non «una misura qualsiasi»** (21/8). Qui c'era `misure === 0`,
+   * cioè la regola di prima dell'11/8: una cliente con pesate di tre settimane fa passava il
+   * controllo mentre il codice la teneva ferma su «Inserisci le misure iniziali».
+   */
+  const mancaPuntoA = attivo && inizioDelPiano
+    ? await mancaMisuraDiPartenza(prisma as never, user.id, inizioDelPiano, giorniPrima)
+    : false;
 
   console.log('\n=== PERCHÉ VEDE QUEL MESSAGGIO ===');
   if (subs.length > 0 && !attivo && !inAttesa) {
@@ -208,15 +268,32 @@ async function main(): Promise<void> {
     );
   } else if (!p?.planStartDate) {
     console.log('STATO: "Menu in preparazione" — non ha ancora scelto la data di inizio piano.');
-  } else if (misure === 0) {
-    console.log('STATO: "Inserisci le misure iniziali" — manca il punto di partenza.');
+  } else if (pianoDiAdesso?.plan?.period === 'monitoring') {
+    console.log('STATO: "Monitoraggio" — qui i menu non arrivano, ed è giusto così: il piano è');
+    console.log('  il peso sotto controllo e la coach raggiungibile. I menu di rientro li eroga');
+    console.log('  `monitoring.service.ts` per conto suo quando il peso risale.');
+  } else if (visibileDal && oggi.getTime() < visibileDal.getTime()) {
+    console.log(`STATO: "Il menu comparirà il ${giorno(visibileDal)}" — il piano parte il ${giorno(inizioDelPiano)}`);
+    console.log(`  e il menu si sblocca ${giorniPrima} giorni prima, per dare tempo alla spesa. Non è un guasto.`);
+  } else if (mancaPuntoA) {
+    console.log('STATO: "Inserisci le misure iniziali" — manca la misura di partenza DI QUESTO PIANO.');
+    console.log(`  ⚠️ Non basta una pesata qualsiasi: dev'essere dentro la finestra del piano che eroga`);
+    console.log(`  (dal ${giorno(visibileDal)}). Misure registrate in tutto: ${misure}.`);
+  } else if (statoProfilo?.planHeldAt) {
+    console.log(`STATO: "Piano fermato" — l'ha fermato il nutrizionista il ${giorno(statoProfilo.planHeldAt)}.`);
+    console.log('  ⚠️ Sta PRIMA di «piano bloccato» anche nel codice: se sono accesi tutti e due, quello');
+    console.log('  che descrive la situazione vera è questo. Si riattiva dalla scheda cliente.');
   } else if (bloccata) {
     console.log(
       'STATO: "Stiamo personalizzando il tuo piano" — PIANO BLOCCATO.\n' +
       `  Segnalazione aperta il ${giorno(bloccata.createdAt)}:\n  ${bloccata.reason}\n` +
       '  Il motore non riesce a comporre un piano sicuro con le sue esclusioni: o mancano\n' +
       '  ricette compatibili, o un\'esclusione non ha sostituto sicuro.\n' +
-      '  Si sblocca CHIUDENDO la segnalazione, dopo aver sistemato il catalogo o le esclusioni.',
+      '  ⚠️ CHIUDERE la segnalazione NON basta e non è il rimedio: il blocco non è uno stato\n' +
+      '  salvato, si ricalcola a ogni composizione del menu. Se il motore ancora non compone, la\n' +
+      '  riga torna aperta col motivo di adesso (dal 21/8; prima restava muta per 14 giorni e la\n' +
+      '  cliente leggeva «Menu in preparazione»). Il rimedio è togliere la causa scritta qui sopra:\n' +
+      '  il piatto dal catalogo della sua dieta, o l\'esclusione se è troppo larga.',
     );
   } else if (mancaPesataCiclo) {
     console.log(

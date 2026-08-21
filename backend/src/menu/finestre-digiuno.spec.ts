@@ -17,6 +17,7 @@ import {
   finestraDigiuno,
   pastoPrincipaleDigiuno,
   slotSaltati,
+  type SlotPasto,
 } from './finestre-digiuno';
 
 const SLOT_VALIDI = new Set(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']);
@@ -125,6 +126,53 @@ describe('la tabella delle finestre', () => {
     expect(pastoPrincipaleDigiuno('skip_breakfast')).toBe('cena');
     // Valore sconosciuto (dato vecchio, o scritto a mano): si ripiega sulla cena invece di esplodere.
     expect(pastoPrincipaleDigiuno('inventata')).toBe('cena');
+  });
+
+  /**
+   * ⛔ **`primoPasto` NON ERA PROTETTO DA NIENTE** (trovato in revisione, 21/8).
+   *
+   * Il campo è nato il 21/8 per un difetto **già in produzione**: la mail del primo giorno riempiva
+   * *«comincia dal tuo primo pasto ({{…}})»* con `pastoPrincipale`, che è l'**ultimo**, e a una
+   * cliente 16:8 diceva «comincia dal tuo primo pasto (cena)». Il campo corregge la mail — ma era
+   * scritto a mano su otto righe, e in revisione si è provato: rimettendo `primoPasto: 'cena'` su
+   * `skip_breakfast` **tutti e 4216 i test restavano verdi**. Cioè il difetto si poteva rifare e la
+   * suite taceva.
+   *
+   * ⚠️ Qui non si ricopia il valore: si **ricalcola** dal solo dato che non può mentire, `salta`.
+   * Un test che riscrive a mano gli stessi otto valori non è una rete, è una seconda copia.
+   */
+  it('⛔ il primo pasto è il primo che RESTA, calcolato da `salta` e non ricopiato', () => {
+    const ORDINE: SlotPasto[] = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];
+    const NOME: Record<SlotPasto, string> = {
+      breakfast: 'colazione', morning_snack: 'merenda', lunch: 'pranzo',
+      afternoon_snack: 'merenda', dinner: 'cena',
+    };
+    const sbagliate: string[] = [];
+    for (const f of FINESTRE_DIGIUNO) {
+      const primo = ORDINE.find((s) => !f.salta.includes(s));
+      // ⚠️ Una finestra che salta tutto non esiste, e non deve nascere per sbaglio.
+      expect(primo).toBeDefined();
+      if (NOME[primo!] !== f.primoPasto) sbagliate.push(`${f.valore}: dice «${f.primoPasto}», resta «${NOME[primo!]}»`);
+    }
+    expect(sbagliate).toEqual([]);
+  });
+
+  /**
+   * ⚠️ E l'altra metà: `pastoPrincipale` è l'**ultimo** pasto principale che resta. Il test qui
+   * sopra chiedeva solo che non fosse fra quelli saltati — vero anche per un valore sbagliato
+   * (`skip_breakfast` con `pastoPrincipale: 'pranzo'` passava, e il pranzo non è l'ultimo).
+   */
+  it('⛔ il pasto principale è l\'ULTIMO che resta, calcolato e non ricopiato', () => {
+    const PRINCIPALI: [SlotPasto, string][] = [['breakfast', 'colazione'], ['lunch', 'pranzo'], ['dinner', 'cena']];
+    const sbagliate: string[] = [];
+    for (const f of FINESTRE_DIGIUNO) {
+      const restano = PRINCIPALI.filter(([s]) => !f.salta.includes(s));
+      // `skip_all_but_dinner` ne lascia uno; nessuna riga li salta tutti e tre.
+      expect(restano.length).toBeGreaterThan(0);
+      const ultimo = restano[restano.length - 1][1];
+      if (ultimo !== f.pastoPrincipale) sbagliate.push(`${f.valore}: dice «${f.pastoPrincipale}», l'ultimo è «${ultimo}»`);
+    }
+    expect(sbagliate).toEqual([]);
   });
 
   it('finestraDigiuno trova per valore e non inventa niente', () => {

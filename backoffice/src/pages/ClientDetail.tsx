@@ -339,11 +339,15 @@ function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { 
         {/* I pasti del digiuno: si mostra SOLO se il percorso è quello, altrimenti è un campo che
             non vuol dire niente e invita a compilarlo per sbaglio. Richiesta di Simone del 10/8:
             lo staff deve poter cambiare quali pasti la cliente salta. */}
-        {/* ⚠️ La tendina propone solo le finestre **scelte a mano**; ma se la cliente ne ha una
-            **derivata dall'orologio**, quella resta come voce in fondo — altrimenti la `select` si
-            presenterebbe vuota, cioè «non impostata» per una cliente che una finestra ce l'ha, e
-            salvare un altro campo qualsiasi gliela cancellerebbe. È la stessa protezione che
-            `dietFamily` ha venti righe più su, e qui il dato è più clinico. */}
+        {/* ⚠️ La tendina propone solo le finestre **scegliibili**; ma se la cliente ne ha un'altra,
+            quella resta come voce in fondo — altrimenti la `select` si presenterebbe vuota, cioè
+            «non impostata» per una cliente che una finestra ce l'ha, e salvare un altro campo
+            qualsiasi gliela cancellerebbe. È la stessa protezione che `dietFamily` ha venti righe
+            più su, e qui il dato è più clinico.
+            ⛔ E il suffisso adesso dice il motivo GIUSTO (revisione del 21/8): prima era fisso
+            «dagli orari, non si sceglie qui» per qualunque valore fuori lista, e a chi ha
+            `skip_lunch` — che è **ritirata**, non derivata — spiegava la sua finestra con un
+            orologio che non l'ha mai decisa. Una ragione falsa è peggio di un ordine sbagliato. */}
         {form.pathType === 'intermittent_fasting'
           ? S(
               'fastingWindow',
@@ -351,7 +355,10 @@ function EditCard({ form, setForm, lockDietType, lockFasting, lockAllergie }: { 
               [
                 ...FASTING_WINDOW_SCEGLIBILI.map((v) => [v, FASTING_WINDOW_LABEL[v]] as [string, string]),
                 ...(form.fastingWindow && !FASTING_WINDOW_SCEGLIBILI.includes(form.fastingWindow as never)
-                  ? ([[form.fastingWindow, `${FASTING_WINDOW_LABEL[form.fastingWindow] ?? form.fastingWindow} — dagli orari, non si sceglie qui`]] as [string, string][])
+                  ? ([[
+                      form.fastingWindow,
+                      `${FASTING_WINDOW_LABEL[form.fastingWindow] ?? form.fastingWindow} — ${MOTIVO_FUORI_TENDINA[form.fastingWindow] ?? 'non si sceglie qui'}`,
+                    ]] as [string, string][])
                   : []),
               ],
             )
@@ -2663,16 +2670,13 @@ interface SostituzioneRow {
  * (`menu.service.slotSaltatiPerDigiuno`), non una scelta di questa tendina.
  */
 /**
- * ⚠️ Copia delle etichette staff di `backend/src/menu/finestre-digiuno.ts` — un frontend non può
- * importare dal backend. Se lì si aggiunge una finestra, va aggiunta anche qui: fino all'11/8
- * mancavano «salta la cena» e «salta il pranzo», che il motore avrebbe saputo gestire ma che nessuno
- * poteva scegliere. L'ordine è quello della tabella.
- */
-/**
  * ⚠️ Copia delle etichette staff di `backend/src/menu/finestre-digiuno.ts` (un frontend non può
- * importare dal backend). **Ci sono TUTTE, anche le derivate**: questa mappa serve a *leggere* un
- * valore già scritto, e una finestra che la coach vede come `skip_all_but_dinner` è un dato che
- * agisce e non si vede.
+ * importare dal backend). **Ci sono TUTTE**: le cinque storiche, le tre derivate dall'orologio e
+ * quella ritirata. Questa mappa serve a *leggere* un valore già scritto, e una finestra che la coach
+ * vede come `skip_all_but_dinner` è un dato che agisce e non si vede.
+ *
+ * L'ordine è quello della tabella. Quello che si può **scegliere** è un'altra domanda, e ha la sua
+ * lista qui sotto.
  */
 const FASTING_WINDOW_LABEL: Record<string, string> = {
   skip_breakfast: 'Salta la colazione (mangia da pranzo a cena)',
@@ -2686,13 +2690,41 @@ const FASTING_WINDOW_LABEL: Record<string, string> = {
 };
 
 /**
- * Quelle che si possono **scegliere** dalla tendina: le cinque storiche. Le tre derivate le calcola
- * l'orologio del digiuno dalla durata della finestra — metterle qui vorrebbe dire far scegliere a
- * mano un dato che nessuno sceglie, e con etichette che rispondono a un'altra domanda.
+ * Quelle che si possono **scegliere** dalla tendina: quattro. Rispecchia `FINESTRE_SELEZIONABILI`
+ * del backend — se le due liste divergono, la tendina offre una cosa e il DTO ne rifiuta un'altra.
+ *
+ * Fuori restano, per due motivi diversi:
+ * - **le tre derivate** (`skip_morning_snack`, `skip_breakfast_and_snacks`, `skip_all_but_dinner`):
+ *   le calcola l'orologio dalla durata della finestra. Sceglierle a mano vorrebbe dire scrivere un
+ *   dato che il minuto dopo l'orologio ricalcola, e con etichette che rispondono a un'altra domanda.
+ * - ⛔ **`skip_lunch`, ritirata il 21/8** (decisione del 19/8): colazione e cena lasciano due pause
+ *   corte, non un digiuno. `diag:digiuni` del 21/8: zero clienti in digiuno ce l'hanno.
+ *
+ * ⚠️ Sopra restano leggibili tutte e otto: una cliente che se la porta dietro deve comparire con
+ * una frase, non con un codice — e la tendina tiene il valore già scritto anche se non è in lista.
  */
 const FASTING_WINDOW_SCEGLIBILI = [
-  'skip_breakfast', 'skip_dinner', 'skip_lunch', 'skip_breakfast_lunch', 'skip_dinner_breakfast',
+  'skip_breakfast', 'skip_dinner', 'skip_breakfast_lunch', 'skip_dinner_breakfast',
 ] as const;
+
+/**
+ * ⛔ **PERCHÉ QUELLA FINESTRA NON È IN TENDINA — una riga per motivo, non una frase per tutti.**
+ *
+ * Fino al 21/8 la voce conservata in fondo alla `select` portava un suffisso fisso: «dagli orari,
+ * non si sceglie qui». Vero per le tre che l'orologio calcola. Falso per `skip_lunch`, che è stata
+ * **ritirata** — a chi ce l'ha scritta quel suffisso spiegava la sua finestra con un orologio che
+ * non l'ha mai decisa, e mandava la coach a cercare un orario da spostare che non esiste.
+ *
+ * ⚠️ Le chiavi qui sono quelle **fuori** da `FASTING_WINDOW_SCEGLIBILI`: se una finestra esce dalla
+ * tendina e non compare qui, il ripiego dice solo «non si sceglie qui» — vero ma muto. Un test in
+ * `backend/src/menu/finestre-nelle-tendine.spec.ts` tiene le due liste allineate.
+ */
+const MOTIVO_FUORI_TENDINA: Record<string, string> = {
+  skip_morning_snack: 'dagli orari, non si sceglie qui',
+  skip_breakfast_and_snacks: 'dagli orari, non si sceglie qui',
+  skip_all_but_dinner: 'dagli orari, non si sceglie qui',
+  skip_lunch: 'ritirata: non è un digiuno, si può solo cambiarla',
+};
 
 const MOTIVO_LABEL: Record<string, string> = {
   non_disponibile: "non ce l'ho in casa",

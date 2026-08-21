@@ -870,12 +870,29 @@ function ActivityPref() {
 const FASTING_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: 'skip_breakfast', label: 'Salto la colazione', hint: 'mangi da pranzo a cena' },
   { value: 'skip_dinner', label: 'Salto la cena', hint: 'mangi da colazione a pranzo' },
-  // Due pasti lontani, non una finestra unica: il suggerimento lo dice, così nessuna crede di stare
-  // facendo un 16:8 che con colazione e cena non c'è.
-  { value: 'skip_lunch', label: 'Salto il pranzo', hint: 'colazione e cena, due pasti' },
+  // ⛔ «Salto il pranzo» era qui, ed è stata RITIRATA il 21/8 (decisione del 19/8): colazione e cena
+  // lasciano due finestre corte, non un digiuno, e l'orologio non sa produrla. Chi ce l'ha già
+  // scritta continua a vederla — l'etichetta sta in `SALTA_LABEL`, in cima al file — ma non si
+  // sceglie più. ⚠️ Non toglierla da lì: una finestra che agisce e non si vede è peggio di una in
+  // meno da scegliere.
   { value: 'skip_breakfast_lunch', label: 'Salto colazione e pranzo', hint: 'un solo pasto, la cena' },
   { value: 'skip_dinner_breakfast', label: 'Salto cena e colazione', hint: 'finestra a metà giornata' },
 ];
+
+/**
+ * ⛔ **LE DUE RAGIONI PER CUI UNA FINESTRA NON È IN ELENCO — e non sono la stessa.**
+ *
+ * Fino al 21/8 il pannello qui sotto aveva un ramo solo per «valore che non è fra le opzioni», e
+ * diceva: *«questa finestra viene dagli orari che hai impostato»*. Vero per le tre che l'orologio
+ * calcola. **Falso** per `skip_lunch`, che è stata ritirata: a lei quella frase avrebbe spiegato la
+ * sua finestra con un motivo inventato, e mandata a cercare un orologio che non l'ha mai decisa.
+ *
+ * ⚠️ E la differenza non è solo di parole: da una finestra **derivata** non si esce toccando un
+ * pallino (lo sovrascriverebbe, e l'orologio direbbe un'altra cosa), da una finestra **ritirata**
+ * sì — anzi è l'unico modo che ha di uscirne. Perciò nel primo caso le opzioni si nascondono, nel
+ * secondo restano.
+ */
+const FINESTRE_DALL_OROLOGIO = ['skip_morning_snack', 'skip_breakfast_and_snacks', 'skip_all_but_dinner'];
 
 function FastingWindowPref() {
   const [pathType, setPathType] = useState<string | null>(null);
@@ -918,16 +935,28 @@ function FastingWindowPref() {
           spenti e nessuna spiegazione, cioè con un dato che decide quali pasti mangia e non si
           vede. Qui lo diciamo — e diciamo anche che intanto non manca niente, o «non hai scelto»
           si legge come «ti stiamo togliendo qualcosa». */}
-      {/* ⚠️ FINESTRA DERIVATA DALL'OROLOGIO (21/8). `FASTING_OPTIONS` ha solo le cinque scelte a
+      {/* ⚠️ FINESTRA DERIVATA DALL'OROLOGIO (21/8). `FASTING_OPTIONS` ha solo le quattro scelte a
           mano: con una finestra derivata i pallini sarebbero tutti spenti e l'avviso qui sotto non
           comparirebbe (`value` è pieno) — cioè di nuovo «un dato che decide quali pasti mangia e
           non si vede», il difetto della voce 256 rifatto da un'altra porta. E un tocco qualsiasi
           la sovrascriverebbe. Qui si dice cos'è, e le opzioni non si mostrano. */}
-      {value && !FASTING_OPTIONS.some((o) => o.value === value) && (
+      {value && FINESTRE_DALL_OROLOGIO.includes(value) && (
         <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#EAF5F1', border: '1px solid #C9E4DA', borderRadius: 10, padding: '8px 10px' }}>
           <b>{SALTA_LABEL[value] ?? value}</b><br />
           Questa finestra viene dagli orari che hai impostato, non da una scelta di pasti: per
           cambiarla sposta la tua finestra di digiuno, o parlane con la tua nutrizionista.
+        </p>
+      )}
+      {/* ⛔ La finestra RITIRATA (21/8): non le si dice che «viene dagli orari», perché non è vero.
+          Le si dice cos'è, che intanto non le cambia niente, e le si lasciano le opzioni sotto —
+          che sono la sua via d'uscita, non un modo di sovrascrivere un orologio. */}
+      {value && !FASTING_OPTIONS.some((o) => o.value === value) && !FINESTRE_DALL_OROLOGIO.includes(value) && (
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, background: '#FFF6E8', border: '1px solid #F0DCC0', borderRadius: 10, padding: '8px 10px' }}>
+          <b>{SALTA_LABEL[value] ?? value}</b><br />
+          Questa scelta non è più fra quelle proponibili: colazione e cena lasciano due pause corte,
+          non il digiuno lungo che il percorso promette. <b>Intanto non ti cambia niente</b> — i menu
+          restano questi. Se vuoi passare a una vera finestra di digiuno scegli qui sotto, oppure
+          parlane con la tua nutrizionista.
         </p>
       )}
       {!value && (
@@ -938,19 +967,30 @@ function FastingWindowPref() {
           proporti piatti che poi non mangi.
         </p>
       )}
-      <div style={{ display: 'grid', gap: 8 }} hidden={!!value && !FASTING_OPTIONS.some((o) => o.value === value)}>
-        {FASTING_OPTIONS.map((o) => {
-          const on = value === o.value;
-          return (
-            <button key={o.value} onClick={() => save(o.value)} disabled={busy}
-              style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
-                border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? '#EAF5F1' : '#fff', cursor: 'pointer' }}>
-              <i className={`ti ${on ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 20, color: on ? 'var(--teal)' : '#C6CFCB' }} />
-              <span><b style={{ fontSize: 13.5 }}>{o.label}</b> <span className="muted" style={{ fontSize: 12 }}>— {o.hint}</span></span>
-            </button>
-          );
-        })}
-      </div>
+      {/* ⛔ NON SI NASCONDONO: NON SI DISEGNANO PROPRIO (corretto in revisione, 21/8).
+          Prima c'era `hidden={…}` su un `<div>` con `style={{ display: 'grid' }}` inline. `hidden`
+          nasconde perché il foglio di stile del browser dice `[hidden] { display: none }` — ma uno
+          stile **inline** è dell'autore e vince sempre su quello del browser. Risultato: i pulsanti
+          restavano a schermo, tutti spenti, sotto un riquadro che diceva «per cambiarla sposta la
+          tua finestra» — e un tocco qualsiasi sovrascriveva la finestra derivata dall'orologio.
+          Cioè esattamente il difetto che quel commento prometteva di impedire.
+          ⚠️ Un elemento che non deve essere toccabile non si nasconde: non esiste. Per una finestra
+          RITIRATA invece i pulsanti restano — sono l'unico modo che ha di uscirne. */}
+      {!(value && FINESTRE_DALL_OROLOGIO.includes(value)) && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {FASTING_OPTIONS.map((o) => {
+            const on = value === o.value;
+            return (
+              <button key={o.value} onClick={() => save(o.value)} disabled={busy}
+                style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
+                  border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? '#EAF5F1' : '#fff', cursor: 'pointer' }}>
+                <i className={`ti ${on ? 'ti-circle-check-filled' : 'ti-circle'}`} style={{ fontSize: 20, color: on ? 'var(--teal)' : '#C6CFCB' }} />
+                <span><b style={{ fontSize: 13.5 }}>{o.label}</b> <span className="muted" style={{ fontSize: 12 }}>— {o.hint}</span></span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
     </div>
   );

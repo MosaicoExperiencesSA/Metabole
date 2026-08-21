@@ -50,6 +50,8 @@ export interface PrismaPerSegnalazione {
       updatedAt?: Date | null;
     } | null>;
     create(args: unknown): Promise<{ id: string }>;
+    /** Serve solo a `statoNonAvviso`: facoltativa, così i test con un finto minimo restano validi. */
+    update?(args: unknown): Promise<unknown>;
   };
   clientProfile: {
     findUnique(args: unknown): Promise<{
@@ -88,6 +90,25 @@ export interface SegnalazioneInput {
    * servizi di Nest.
    */
   riapertura?: { finestraGiorni: number; peggioramentoMinimo?: number | null; adesso?: Date };
+  /**
+   * ⛔ **QUESTA SEGNALAZIONE È UNO STATO, NON UN AVVISO** — e la tregua non deve poterla zittire.
+   *
+   * La tregua dell'11/8 è giusta per gli allarmi clinici: «se ha risolto, basta fino a nuova
+   * segnalazione», perché lì la riga è un **avviso a una persona**, e un avviso che ritorna da solo
+   * insegna a chiuderlo senza leggerlo.
+   *
+   * Per «Piano bloccato» la stessa riga è un'altra cosa: è **lo stato che l'app mostra alla
+   * cliente** (`dietBlock` → `menuStatus: 'blocked'`). Zittirla non toglie un fastidio, toglie il
+   * cartello: la cliente continua a non ricevere menu e l'app le scrive «Menu in preparazione,
+   * arriverà a breve», che è falso. Per quattordici giorni, e senza nessuna riga in elenco.
+   *
+   * Con questo flag, dentro la tregua non si crea una riga nuova — quello sarebbe il rumore che la
+   * tregua evita, giustamente — ma si **riapre quella risolta**, riscrivendoci il motivo di adesso.
+   * Nessun doppione, e lo stato torna a esistere. ⚠️ Se la nutrizionista la richiude e il motore
+   * ancora non compone, si riaprirà: è vero, ed è il punto. Il rimedio è far comporre il motore,
+   * non spegnere l'unica cosa che lo dice.
+   */
+  statoNonAvviso?: boolean;
   /** Chiamata quando NON si apre, col perché: serve a chi vuole scriverlo nei log. */
   alSilenzio?: (motivo: string) => void;
 }
@@ -121,7 +142,16 @@ export async function apriSegnalazione(
       });
       if (!decisione.apri) {
         input.alSilenzio?.(decisione.motivo);
-        return decisione.precedente ? { id: decisione.precedente.id } : null;
+        const prec = decisione.precedente;
+        // Solo se la riga era CHIUSA: se è già aperta non c'è niente da riaprire, e riscriverle
+        // il motivo mentre qualcuno la sta lavorando sarebbe un dispetto.
+        if (input.statoNonAvviso && prec && prec.status === 'resolved' && prisma.escalation.update) {
+          await prisma.escalation.update({
+            where: { id: prec.id },
+            data: { status: 'open', resolvedAt: null, reason: input.reason },
+          });
+        }
+        return prec ? { id: prec.id } : null;
       }
     }
 

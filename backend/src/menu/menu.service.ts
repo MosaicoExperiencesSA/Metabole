@@ -30,13 +30,17 @@ import { SOLO_STELLE_DATE } from './stelle-che-contano';
 import { giornateSottoTarget, laPeggiore } from './giornata-sotto-target';
 import { DayComboService, RecipeInfo } from './day-combo.service';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
-import { EU_ALLERGEN_CODES, allergenLabel } from '../catalog/allergens';
 import { expandExclusion, hitsExclusion } from './exclusions';
+import {
+  EsclusioniCliente,
+  ProfiloConEsclusioni,
+  esclusioniDi,
+  ricetteNonSicure,
+  valutaRicetta,
+} from './esclusioni-della-cliente';
 import { KcalNeedService } from './kcal-need.service';
-import { decisioneLattosio, usaDelattosati } from './lattosio';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
-import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 import { EsitoSpezia, classificaSpezia } from './spezie';
 import { punteggioRicetta, type PesiPunteggio } from './punteggio';
 
@@ -676,8 +680,18 @@ export class MenuService {
         select: { ruleCode: true, enabled: true, params: true },
       })) ?? []) as { ruleCode: string; enabled: boolean; params: unknown }[],
     );
+    /**
+     * LE ESCLUSIONI DELLA CLIENTE, lette una volta e passate al pool (21/8).
+     *
+     * ⚠️ Si costruiscono dal `profile` già caricato in cima a questa funzione: nessuna lettura in
+     * più, e soprattutto **la stessa fonte** che userà la guardia. Non si passano i `vietatiDieta`
+     * perché quelli hanno già il loro filtro qui sotto, e perché non bloccano: mescolarli
+     * cambierebbe la causa scritta sul piatto.
+     */
+    const esclusioniCliente = esclusioniDi(profile as ProfiloConEsclusioni);
+
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides, vietatiDieta);
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente);
     /**
      * ⚠️ IL GIORNO DI CONFORTO DENTRO IL PLATEAU — decisione di Simone (13/8).
      *
@@ -690,7 +704,7 @@ export class MenuService {
      */
     const ctxConforto =
       agentState === 'plateau_conforto'
-        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta)
+        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente)
         : null;
     const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
@@ -1483,6 +1497,12 @@ export class MenuService {
     overrides: Map<string, number | boolean> = new Map(),
     /** I termini vietati SULLA DIETA (Vera §6.2): il pool non li propone proprio. */
     vietatiDieta: string[] = [],
+    /**
+     * Le esclusioni **della cliente** (21/8): stessa idea del filtro qui sopra, altra causa. I
+     * divieti di dieta li decide la nutrizionista sul catalogo, questi li ha dichiarati lei nel
+     * questionario — e fino a oggi non toglievano niente dal pool.
+     */
+    esclusioniCliente: EsclusioniCliente | null = null,
   ): Promise<{
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
@@ -1552,7 +1572,7 @@ export class MenuService {
       // ⚠️ `name` e `ingredients` servono al divieto di dieta: il termine si cerca nel nome E negli
       // ingredienti, come per le esclusioni delle clienti. Senza, «insalata di riso» col tonno dentro
       // passerebbe, e il divieto sarebbe una decorazione.
-      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown }[]>,
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true, allergens: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown; allergens: string[] }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
       // ⚠️ Solo le stelle DATE: il 3 che l'app scrive quando la cliente tocca solo «Seguita / Non
       // seguita» non è un'opinione, e qui deciderebbe cosa riproporle. Vedi `stelle-che-contano.ts`.
@@ -1577,6 +1597,42 @@ export class MenuService {
           // una giornata senza un pasto, che è peggio del piatto che si voleva togliere.
           if (restano.size > 0) slotPool.set(slot, restano);
         }
+      }
+    }
+
+    /**
+     * ⚠️ **LO STESSO FILTRO, PER LE ESCLUSIONI DELLA CLIENTE** — 21/8, il caso Sonia.
+     *
+     * Sei allergie dichiarate (fra cui molluschi e solfiti) e **zero menu**: il motore pescava
+     * «Polpo grigliato» dal pool, e `evaluateMeals` fermava tutta l'erogazione. Il blocco era
+     * giusto; sbagliata era la scelta, perché nel pool c'erano altri piatti e nessuno stava
+     * togliendo quelli che poi avremmo vietato.
+     *
+     * ⚠️ Escono solo le ricette con una **violazione**, cioè quelle che non si potrebbero servire
+     * comunque. Quelle solo **sostituibili** restano: il piatto si eroga con la sostituzione
+     * annotata, ed è quello che la cliente si aspetta di ricevere.
+     *
+     * ⚠️ Uno slot che resterebbe VUOTO non si svuota, identico alla regola qui sopra (Simone,
+     * 13/8): se per un pasto non esiste niente di sicuro la giornata non si compone lo stesso, ma
+     * a fermarla dev'essere la guardia — che sa dire cosa e perché — non un pool azzerato in
+     * silenzio.
+     */
+    if (esclusioniCliente && !esclusioniCliente.vuoto) {
+      const fuori = ricetteNonSicure(recipes, esclusioniCliente);
+      if (fuori.size) {
+        for (const [slot, ids] of slotPool) {
+          const restano = new Set([...ids].filter((id) => !fuori.has(id)));
+          if (restano.size > 0) slotPool.set(slot, restano);
+          else
+            this.logger.warn(
+              `Esclusioni: per lo slot "${slot}" di ${clientId} nessuna ricetta del pool è sicura ` +
+                `(${fuori.size} scartate su ${ids.size}). La giornata la fermerà la guardia.`,
+            );
+        }
+        this.logger.log(
+          `Esclusioni: ${fuori.size} ricette tolte dal pool di ${clientId} prima della composizione ` +
+            `(la prima: ${[...fuori.values()][0]}).`,
+        );
       }
     }
     const kcalOf = new Map(recipes.map((r) => [r.id, r.kcal]));
@@ -2488,52 +2544,23 @@ export class MenuService {
      *
      * Questa funzione è quella che i commenti del motore chiamano «la sicurezza» (§2/§7), e
      * costruiva l'elenco delle esclusioni da **intolleranze** e **cibi non graditi**. Le allergie si
-     * leggevano solo per la regola del delattosato — e la riga di uscita rapida qui sotto era
-     * `if (!intolerances.length && !dislikes.length) return …`, cioè una cliente che ha dichiarato
-     * **soltanto allergie** usciva senza che si fosse guardato niente. In produzione, il 20/8, erano
+     * leggevano solo per la regola del delattosato: una cliente che aveva dichiarato **soltanto
+     * allergie** usciva di qui senza che si fosse guardato niente, e in produzione, il 20/8, erano
      * **otto clienti su nove**.
      *
-     * ⚠️ Le allergie erano già controllate negli altri tre punti — le sostituzioni di Gaia («su
-     * questo non si media»), il pool delle ricette semplici, la base personale. Mancava proprio la
-     * composizione del menu, cioè il piatto che arriva da solo la mattina.
+     * ⚠️ **Sono trattate come le intolleranze**: se l'ingrediente ha una sostituzione sicura il
+     * piatto si eroga con la sostituzione annotata, altrimenti si blocca. La variante più severa —
+     * «un allergene non si sostituisce mai» — è una decisione di prodotto che non è stata presa.
      *
-     * ⛔ **Si è potuto fare perché è stato misurato prima.** `npm run diag:allergeni-piatto` ha
-     * detto **zero clienti e zero pasti**: le diete assegnate erano già scelte bene, quindi questa
-     * è una rete di sicurezza che oggi non cambia niente a nessuno. Se avesse detto un altro numero,
-     * quelle righe erano piatti in arrivo a persone allergiche, e prima si sistemavano quelli —
-     * perché una violazione qui **ferma l'erogazione** del menu.
-     *
-     * ⚠️ **Sono trattate come le intolleranze**, cioè: se l'ingrediente ha una sostituzione sicura il
-     * piatto si eroga con la sostituzione annotata, altrimenti si blocca. È la scelta simmetrica e
-     * minima. La variante più severa — «un allergene non si sostituisce mai, il piatto salta e
-     * basta» — è una decisione di prodotto che non è stata presa: se la si vuole, si toglie
-     * `SUBSTITUTION_MAP` dal ramo `allergia`.
+     * ⚠️ **E dal 21/8 la stessa domanda si fa PRIMA, sul pool** (`buildScoringContext`): questa
+     * guardia resta il punto obbligato — il pool non è l'unica strada da cui un piatto entra in una
+     * giornata — ma non deve più essere il posto in cui si scopre che la giornata è da buttare.
+     * ⚠️ La logica è **una sola**, in `esclusioni-della-cliente.ts`: due copie vorrebbero dire un
+     * filtro che toglie un insieme di piatti e una guardia che ne vieta un altro, e la differenza
+     * fra i due sarebbe una cliente ferma senza che nessuno capisca perché.
      */
-    const allergie = ((profile?.allergies ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
-    const intolerances = ((profile?.intolerances ?? []) as string[]).map((s) => s.toLowerCase().trim()).filter(Boolean);
-    const dislikes = [...new Set([...((profile?.dislikedFoods ?? []) as string[]), ...extraDisliked].map((s) => s.toLowerCase().trim()).filter(Boolean))];
-    if (!allergie.length && !intolerances.length && !dislikes.length) return { violations: [], subsByRecipe: {} };
-    // Intollerante al lattosio E non allergica al latte: si usano i delattosati (`lattosio.ts`).
-    const delattosati = usaDelattosati({
-      intolerances,
-      allergies: (profile?.allergies ?? []) as string[],
-    });
-
-    // Termini esclusi con la loro "causa" e se sono di sicurezza (bloccanti).
-    const excluded: { keyword: string; reason: string; blocking: boolean }[] = [];
-    // Le allergie per prime: se lo stesso ingrediente ricade sotto due esclusioni, il motivo scritto
-    // sul pasto e nell'escalation dev'essere quello che pesa di più.
-    for (const a of allergie) {
-      for (const kw of expandExclusion(a)) excluded.push({ keyword: kw, reason: `allergia: ${a}`, blocking: true });
-    }
-    for (const intol of intolerances) {
-      for (const kw of expandExclusion(intol)) excluded.push({ keyword: kw, reason: intol, blocking: true });
-    }
-    // Cibi non graditi: espansi per CATEGORIA (es. "frutta secca"/"legumi" → noci, ceci…),
-    // così un'esclusione generica intercetta i singoli alimenti. Non bloccano mai (solo sostituzione).
-    for (const d of dislikes) {
-      for (const kw of expandExclusion(d)) excluded.push({ keyword: kw, reason: 'non gradito', blocking: false });
-    }
+    const esclusioni = esclusioniDi(profile as ProfiloConEsclusioni | null, extraDisliked);
+    if (esclusioni.vuoto) return { violations: [], subsByRecipe: {} };
 
     const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
     if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
@@ -2544,64 +2571,10 @@ export class MenuService {
 
     const violations = new Set<string>();
     const subsByRecipe: Record<string, Substitution[]> = {};
-
-    /**
-     * ⚠️ **I TAG ALLERGENE DELLA RICETTA, che qui non si leggevano.**
-     *
-     * `Recipe.allergens` sono i codici UE che un nutrizionista ha confermato guardando la ricetta —
-     * l'informazione più affidabile che abbiamo, e l'unica che vede quello che gli ingredienti non
-     * dicono a parole (il sedano dentro un brodo, il pesce dentro il surimi). Fino al 20/8 li
-     * leggeva **solo** `personal-base.service.ts`: il motore dei menu no.
-     *
-     * ⛔ Un tag che scatta **blocca e basta**: dice che il piatto contiene l'allergene, non quale
-     * ingrediente — quindi non c'è niente da sostituire. ⚠️ Non si richiede `allergensReviewed`: un
-     * tag che c'è è un'informazione comunque, e pretendere la conferma vorrebbe dire ignorare
-     * l'avviso proprio sulle ricette che nessuno ha ancora guardato.
-     */
-    const codiciAllergene = new Set(allergie.filter((a) => EU_ALLERGEN_CODES.includes(a)));
-
     for (const r of recipes) {
-      const perTag = codiciAllergene.size ? (r.allergens ?? []).find((a) => codiciAllergene.has(a)) : undefined;
-      if (perTag) violations.add(`${r.name}: contiene ${allergenLabel(perTag)} (allergene dichiarato)`);
-      const ings = ((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').filter(Boolean);
-      const subs: Substitution[] = [];
-      for (const ing of ings) {
-        const low = ing.toLowerCase();
-        for (const ex of excluded) {
-          // ⚠️ Nona copia del confronto, trovata il 20/8: era `low.includes(ex.keyword)` a mano,
-          // quindi qui dentro «mandorla» continuava a non combaciare con «mandorle». Passa dalla
-          // porta come tutti gli altri.
-          if (!hitsExclusion(low, [ex.keyword])) continue;
-          /**
-           * REGOLA DEL LATTOSIO (11/8), prima della mappa generica.
-           *
-           * Per un'intollerante al lattosio **senza** allergia al latte: i formaggi stagionati non si
-           * toccano (lattosio in milligrammi: sotto qualunque soglia di sintomo), tutto il resto passa
-           * alla versione **delattosata** invece che alla bevanda vegetale — stesso alimento, stesso
-           * profilo nutrizionale, piatto che resta quello che era.
-           *
-           * Il `continue` sul caso «tieni» è la parte che conta: senza, l'ingrediente ricadrebbe nella
-           * mappa generica e il parmigiano diventerebbe «parmigiano ben stagionato» — una sostituzione
-           * che sostituisce una cosa con se stessa, e che alla cliente somiglia a un errore.
-           */
-          if (ex.reason !== 'non gradito' && delattosati) {
-            const scelta = decisioneLattosio(ing);
-            if (scelta?.azione === 'tieni') continue;
-            if (scelta?.azione === 'sostituisci') {
-              subs.push({ from: ing, to: scelta.con, reason: ex.reason });
-              break;
-            }
-          }
-          const repl = SUBSTITUTION_MAP[ex.keyword] ?? SUBSTITUTION_MAP[low];
-          if (repl) {
-            subs.push({ from: ing, to: repl, reason: ex.reason });
-          } else if (ex.blocking) {
-            violations.add(`${r.name}: incompatibile con "${ex.reason}"`);
-          }
-          break; // un solo match per ingrediente
-        }
-      }
-      if (subs.length) subsByRecipe[r.id] = subs;
+      const esito = valutaRicetta(r, esclusioni);
+      for (const v of esito.violations) violations.add(v);
+      if (esito.subs.length) subsByRecipe[r.id] = esito.subs;
     }
     return { violations: [...violations], subsByRecipe };
   }
@@ -2620,6 +2593,9 @@ export class MenuService {
       category: 'diet_blocked',
       source: 'engine',
       reason: `Piano bloccato: i menu contengono ingredienti incompatibili con le esclusioni della cliente (${reasons.slice(0, 4).join('; ')}). Serve una dieta personalizzata.`,
+      // ⚠️ Questa riga non è un avviso, è lo STATO che l'app mostra alla cliente: dentro la tregua
+      // si riapre invece di tacere. Vedi `statoNonAvviso` in `apri-segnalazione.ts`.
+      statoNonAvviso: true,
     });
     await this.audit.log({
       action: 'menu.diet_blocked',

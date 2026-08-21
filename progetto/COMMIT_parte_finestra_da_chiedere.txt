@@ -1,0 +1,186 @@
+Parte: a chi si chiede la finestra — i campi, la regola, e niente backfill — 21/8
+
+================================================================================
+COSA FA
+================================================================================
+
+Otto colonne nuove su `ClientProfile` (tutte additive e nullable) più la migrazione, e la regola
+che decide **a chi si apre la pagina dell'orologio** al primo avvio.
+
+  fasting_protocol          il protocollo scelto (14:10 … 23:1)
+  fasting_start_min         a che ora apre la finestra, minuti da mezzanotte
+  fasting_target_start_min  il bersaglio dell'adattamento graduale — nessuno lo scrive ancora
+  fasting_target_protocol   il bersaglio della rampa d'ingresso — nessuno lo scrive ancora
+  fasting_sleep_start       gli orari di sonno — nessuno li scrive e nessuno li legge ancora
+  fasting_sleep_end
+  fasting_changed_at        l'ultimo spostamento: serve al limite di un cambio al giorno
+  fasting_scelto_il         QUANDO HA SCELTO — e NULL è il meccanismo, vedi sotto
+
+⚠️ La CHIUSURA della finestra non ha una colonna: è `start + ore(protocollo) × 60`, modulo 24 ore.
+Una durata scritta in due posti è una durata che prima o poi diverge.
+
+⚠️ Le quattro colonne che nessuno scrive ancora sono **dichiarate** tali, nello schema e nella
+migrazione. Stanno qui perché una colonna in più oggi costa una riga e una migrazione in più domani
+costa un deploy — ma un campo che sembra attivo e non lo è fa concludere a chi legge fra sei mesi
+che il pezzo c'è già, e non lo scrive.
+
+================================================================================
+⛔ IL BACKFILL NON C'È PIÙ, E NON È UN PEZZO RIMANDATO: È LA DECISIONE
+================================================================================
+
+La specifica prevedeva di **scrivere d'ufficio** protocollo e orario nel profilo di ogni cliente in
+digiuno, dedotti dalla sua finestra storica. Era il punto con più rischio di tutta la consegna: una
+traduzione fatta a tavolino, scritta nel profilo di persone vere mentre dormono, che nessuna di
+loro ha chiesto.
+
+Quella traduzione **esiste ancora** (`menu/chiedi-la-finestra.ts`) ma **non si salva**: è il valore
+con cui la pagina si apre, cioè una proposta a schermo che si conferma o si cambia. La differenza
+fra le due sta tutta in chi tocca il pulsante.
+
+`fasting_scelto_il` nasce **NULL per tutte**, e non è una dimenticanza: NULL vuol dire «non
+gliel'abbiamo ancora chiesto», che è una cosa diversa da «non digiuna». È quel NULL a far atterrare
+sulla pagina dell'orologio, al primo avvio dopo il rilascio, le sei clienti che oggi digiunano.
+
+⚠️ **La regola non guarda il calendario.** Non c'è nessuna data di rilascio nel codice e nessun
+«prima del 21/8»: si guarda se il dato c'è. È quello che le fa servire tutte e tre le porte del §14
+con una riga sola — chi digiuna da prima del rilascio, chi ci passa domani, e chi ci mette lo staff
+fra sei mesi sono lo stesso caso: manca il dato, si chiede.
+
+================================================================================
+⛔ E DOVE NON SO TRADURRE, NON PROPONGO NIENTE
+================================================================================
+
+`npm run diag:digiuni` (21/8): sei clienti in digiuno. **Cinque** su «salta la colazione», che
+l'orologio riproduce esatta — 16:8 dalle 12:00 dà pranzo · merenda · cena, cioè quello che già
+ricevono: per loro confermare non cambia un pasto. **Una** su «salta la cena», che l'orologio non
+sa fare in nessuna posizione di nessuno dei cinque protocolli.
+
+Per lei la pagina si apre **vuota**, come per una cliente nuova, e quando sceglie parte una
+segnalazione alla nutrizionista.
+
+⛔ Nel codice non c'è **nessuna eccezione scritta per lei**: la regola è «se non so tradurla, non la
+propongo, e lo dico a chi di dovere», e vale per tutte — comprese quelle che si troveranno nello
+stesso caso fra sei mesi. Proporle la finestra «più vicina» sarebbe stato il suo stesso difetto
+rifatto da davanti: servire a qualcuno pasti che non ha chiesto perché somigliano ai suoi.
+
+⚠️ E chi non ha **mai** avuto una finestra (il caso di Maria, voce 256) non è una segnalazione: è
+una a cui la domanda non è mai stata fatta. Pagina vuota, ma nessun allarme. Un avviso che compare
+sempre non è un avviso.
+
+================================================================================
+⛔ `skip_lunch` RITIRATA — e ritirata non è cancellata
+================================================================================
+
+Decisione di Simone del 19/8: «salta il pranzo» non è una finestra di digiuno (colazione e cena
+lasciano due pause corte, non una lunga), l'orologio non sa produrla, e offrirla sotto «digiuno
+intermittente» prometteva un digiuno che non c'è. `diag:digiuni`: **zero** clienti in digiuno.
+
+⚠️ Ma quel conteggio guardava **solo chi digiuna**, e non sapeva dire se il valore fosse rimasto
+scritto su un profilo passato a un altro percorso. Quindi la riga **esce dalle tendine e resta
+leggibile** — e `diag:digiuni` adesso conta le finestre su **tutti i percorsi**, con la colonna
+«quante fuori dal digiuno». Se torna zero anche lì, la riga si toglie davvero.
+*Misura prima di decidere, e non spacciare mai un ragionamento per una misura.*
+
+⚠️ Il campo `selezionabile` adesso vale `false` per due motivi diversi, e il commento di ogni riga
+dice quale: le tre dell'orologio **non si scelgono perché si calcolano**, `skip_lunch` **non si
+sceglie più perché è stata ritirata**. Non è pedanteria: portano a due schermate diverse — da una
+finestra derivata non si esce toccando un pallino, da una ritirata sì, ed è l'unico modo che ha.
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (otto cose, tre gravi)
+================================================================================
+
+⛔ **`hidden` non nascondeva niente.** I pulsanti della finestra, nel profilo dell'app, stavano su
+un `<div style={{ display: 'grid' }}>` con `hidden={…}`. `hidden` funziona perché il foglio di
+stile **del browser** dice `[hidden] { display: none }` — ma uno stile inline è dell'autore e vince
+sempre su quello del browser. A una cliente con finestra derivata i pulsanti restavano a schermo,
+tutti spenti, sotto un riquadro che diceva «per cambiarla sposta la tua finestra»; e un tocco
+qualsiasi sovrascriveva la finestra derivata. Esattamente il difetto che il commento sopra
+prometteva di impedire. → non si nasconde: **non si disegna**. E un test sul sorgente vieta
+`hidden={` nei due frontend, perché non è verificabile senza un browser.
+
+⛔ **La ragione falsa era rimasta nel backoffice.** La voce conservata in fondo alla tendina portava
+un suffisso fisso — «dagli orari, non si sceglie qui» — per qualunque valore fuori lista. Vero per
+le tre derivate; falso per `skip_lunch`, e mandava la coach a cercare un orario da spostare che non
+esiste. La stessa correzione l'avevo fatta nell'app e non qui. → `MOTIVO_FUORI_TENDINA`, un motivo
+per finestra, e un test che chiede che le derivate dicano «orari» e la ritirata no.
+
+⛔ **`primoPasto` non era protetto da niente.** Il campo nato ieri per correggere la mail del primo
+giorno era scritto a mano su otto righe: rimettendoci il valore sbagliato, **tutti e 4216 i test
+restavano verdi**. → adesso si **ricalcola** da `salta` (un test che ricopia gli stessi otto valori
+non è una rete, è una seconda copia), e lo stesso per `pastoPrincipale`, che era controllato solo
+per «non è fra quelli saltati» — vero anche per un valore sbagliato.
+
+⚠️ **Due commenti raccontavano cose che il codice non fa.** Le colonne del sonno erano descritte
+come se **da questa consegna** governassero il silenzio delle push: `fastingSleep` non compare da
+nessun'altra parte, e quel silenzio oggi è una finestra **globale** uguale per tutte. E il «default
+23:00/07:00» non esisteva: la colonna nasce NULL apposta, perché «non me l'ha detto» non è «dorme
+dalle 23».
+
+⚠️ **Il test del messaggio alla nutrizionista non poteva fallire**: passava il testo già tradotto e
+poi verificava che non ci fossero codici — vincolava la stringa scritta nel test, non la funzione.
+E l'unico dato che il chiamante avrà in mano è `skip_dinner`. → la funzione prende il **valore** e
+traduce lei; un valore che la tabella non conosce si dice, dichiarandolo come codice. E non dice
+più «la finestra che **aveva**»: può averla scritta la coach cinque minuti prima.
+
+⚠️ **Le etichette dei due frontend erano confrontate solo sulle chiavi**: si poteva cambiare «Un
+pasto solo al giorno» in «Mangi solo a colazione» — falso — e la suite restava verde. Ora si
+confrontano parola per parola con la tabella.
+
+⚠️ **Il ramo che conserva il valore fuori lista, nella tendina staff, non era coperto**: si poteva
+cancellare e nessun test suonava. Cancellandolo la `select` si presenta vuota per una cliente che
+una finestra ce l'ha, e il primo salvataggio di un altro campo gliela azzera.
+
+⚠️ **E una mia giustificazione era già superata**: avevo scritto che una cliente uscita dal digiuno
+«si porta dietro la finestra». Non più — tutte e due le porte di scrittura la azzerano. Quello che
+il conteggio può ancora trovare sono le righe rimaste da **prima** di quella correzione: un motivo
+diverso e più piccolo, ed è scritto così.
+
+================================================================================
+⛔ UNA DECISIONE DA PRENDERE, TENUTA IN VISTA
+================================================================================
+
+Tre finestre si possono **ancora scegliere** — dal questionario e dalla scheda staff — e l'orologio
+non sa riprodurle: «salta la cena», «salta colazione e pranzo», «salta cena e colazione».
+
+Conseguenza concreta: una cliente nuova sceglie oggi «Cena», e al primo avvio la pagina le si apre
+vuota e parte una segnalazione alla nutrizionista **per una scelta fatta cinque minuti prima**.
+Vale anche quando è la coach a scriverla: il sistema segnala a Lucia quello che Lucia ha appena
+deciso — e un avviso che arriva sempre non è un avviso.
+
+⚠️ Non è un difetto del codice, che fa quello che deve. È una scelta con peso clinico: **o** quelle
+tre escono dalle tendine come `skip_lunch`, e allora la nutrizionista non può più prescrivere
+«salta la cena»; **oppure** la segnalazione va ristretta. Fino ad allora il numero è tenuto scritto
+in un test, che chiunque tocchi le tendine deve attraversare. *Niente tagli silenziosi.*
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  backend/src/menu/chiedi-la-finestra.ts          la regola dell'atterraggio, modulo puro
+  backend/src/menu/chiedi-la-finestra.spec.ts     20 test
+  backend/src/menu/finestre-nelle-tendine.spec.ts 12 test — guarda il sorgente dei due frontend
+  backend/prisma/migrations/20260821093000_digiuno_orologio/migration.sql
+
+Modificati
+  backend/prisma/schema.prisma                 otto colonne su ClientProfile
+  backend/prisma/diag-digiuni-e-varianti.ts    conta le finestre su TUTTI i percorsi
+  backend/src/menu/finestre-digiuno.ts         skip_lunch ritirata
+  backend/src/menu/finestre-digiuno.spec.ts    primoPasto e pastoPrincipale ricalcolati
+  backend/src/lavori/voci-iniziali.ts          voce «digiuno-pubblicazione» aggiornata
+  app/src/pages/Profilo.tsx                    due spiegazioni diverse; i pulsanti non si disegnano
+  backoffice/src/pages/ClientDetail.tsx        tendina a quattro; il motivo giusto per ognuna
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  suite intera        4226 su 4226, 279 suite (era 4179)
+  mutazioni           venti su venti mordono, più una controprova (un nome dentro un commento
+                      non deve accendere niente, e infatti non l'accende)
+  npm run build       verde su backend, app e backoffice
+
+⚠️ La migrazione **la applica Render** nel `preDeployCommand`, mai il Mac. Schema e migrazione
+vanno nello stesso commit: se ci finisse solo lo schema, `prisma generate` produrrebbe un client
+con otto campi che nel database non esistono, e la prima `select` futura fallirebbe in produzione.

@@ -1,0 +1,173 @@
+Non si propone quello che poi si vieta — il caso Sonia — 21/8
+
+## 0) LA DOMANDA E LA RISPOSTA
+
+«Sonia Sandri non riceve i menu nonostante la nutrizionista l'abbia sbloccata: scopri perché.»
+
+`npm run diag:cliente -- <l'email di Sonia>`, in produzione:
+
+  Allergie: crostacei, pesce, solfiti, lupini, molluschi, soia
+  Giornate erogate: 0
+  [diet_blocked] 21/8 — open
+    Piano bloccato: … (Bresaola con grana padano e rucola: incompatibile con "allergia: solfiti";
+    Polpo grigliato con orzo perlato e barbabietola: contiene Molluschi (allergene dichiarato); …)
+
+Il motore compone la giornata, ci mette il **polpo** a un'allergica ai molluschi, poi se ne accorge
+e ferma **tutto** (`evaluateMeals` → `return []`). Il blocco ha fatto il suo mestiere: sbagliata era
+la **scelta**.
+
+⛔ E il rimedio a mano non poteva funzionare. La nutrizionista le ha dato una sostituzione la
+mattina del 21/8 e «non è stata comunque applicata»: con **zero giornate erogate** non c'è nessun
+piatto su cui applicarla, e la composizione successiva ricade sul piatto dopo. Un piatto per volta
+contro un pool intero.
+
+⚠️ **Due ipotesi mie, scritte prima di misurare, erano sbagliate**: che fosse la tregua delle
+segnalazioni (la riga era aperta, di oggi) e che l'avesse sbloccata una nutrizionista (Sonia non ne
+ha **nessuna** assegnata: quello attivo era lo sblocco della coach, che riapre l'app e non eroga).
+Restano scritte qui perché la lezione è quella di sempre: *misura prima di decidere*.
+
+================================================================================
+1) LE ESCLUSIONI ESCONO DAL POOL, PRIMA DELLA SCELTA
+================================================================================
+
+Il filtro a monte **esisteva già** — `buildScoringContext` toglie dal pool le ricette vietate sulla
+dieta da Vera, con tanto di commento: *«così non vengono nemmeno prese in considerazione»*. Le
+allergie e le intolleranze **della cliente** in quel filtro non c'erano: entravano solo nel veto
+finale. Adesso passano di lì anche loro.
+
+⚠️ **Una funzione sola per tutti e due i punti** (`menu/esclusioni-della-cliente.ts`, puro, senza
+database): `esclusioniDi` costruisce l'elenco, `valutaRicetta` giudica. Due copie sarebbero la cosa
+peggiore possibile qui: il filtro toglierebbe un insieme di piatti e la guardia ne vieterebbe un
+altro, e la differenza fra i due sarebbe una cliente ferma senza che nessuno capisca perché. C'è un
+test che verifica proprio questo: *il filtro e la guardia dicono la stessa cosa su ogni ricetta*.
+
+⚠️ Escono solo le ricette con una **violazione**. Quelle soltanto **sostituibili** restano: il piatto
+si eroga con la sostituzione annotata, ed è quello che la cliente si aspetta di ricevere.
+
+⚠️ **Uno slot che resterebbe vuoto non si svuota** — identico alla regola dell'11/8 per i divieti di
+dieta. Se per un pasto non esiste niente di sicuro la giornata non si compone lo stesso, ma a
+fermarla dev'essere la guardia, che sa dire cosa e perché, non un pool azzerato in silenzio. In quel
+caso resta un `warn` che nomina lo slot e quante ricette sono state scartate.
+
+================================================================================
+2) IL BLOCCO NON È UN AVVISO: È LO STATO CHE LA CLIENTE LEGGE
+================================================================================
+
+Trovato leggendo il codice per rispondere alla domanda, e **non è il caso di Sonia** — è il caso di
+chiunque venga sbloccata mentre il motore ancora non compone.
+
+La tregua dell'11/8 («se ha risolto, basta fino a nuova segnalazione») è giusta per gli allarmi
+clinici: un avviso che ritorna da solo insegna a chiuderlo senza leggerlo. Applicata a «Piano
+bloccato» faceva un'altra cosa: quella riga è ciò che `dietBlock` legge per dire all'app `blocked`.
+Chiuderla, dentro i 14 giorni, non toglieva un fastidio — **toglieva il cartello**: la cliente
+continuava a non ricevere menu e l'app le scriveva «Menu in preparazione, arriverà a breve», che è
+falso. Senza nessuna riga in elenco, per due settimane.
+
+✅ `statoNonAvviso` in `apri-segnalazione.ts`: dentro la tregua non nasce un doppione — quello è il
+rumore che la tregua evita, giustamente — ma si **riapre la riga risolta**, riscrivendoci il motivo
+di adesso. Lo usano i due punti che aprono «Piano bloccato»: `menu.service` e `personal-base`.
+
+⚠️ Sì: se la nutrizionista la richiude e il motore ancora non compone, si riaprirà. È il punto. Il
+rimedio è far comporre il motore, non spegnere l'unica cosa che lo dice.
+
+================================================================================
+3) L'AUTOMATISMO CHIESTO: LE CLIENTI NUOVE VANNO AL CAPO NUTRIZIONISTA
+================================================================================
+
+Sonia ha finito il questionario il **7/8** con sei allergie dichiarate. Il 21/8: «Nutrizionista: —
+nessuna —». Le sue segnalazioni cliniche — screening, «serve la visita», piano bloccato — sono nate
+con `assignedToId` vuoto: in elenco ci sono, ma **nessuno le riceve**. È lo stesso buco chiuso il
+13/8 per le segnalazioni («una segnalazione senza destinatario non è una segnalazione»), rimasto
+aperto un passo più a monte: sulle **clienti**.
+
+Il commento nel questionario diceva «coach e nutrizionista NON si assegnano in automatico». È la
+regola giusta **quando le nutrizioniste sono più d'una**: distribuire i pazienti è una decisione. Con
+una sola non è una decisione, è un passaggio a mano — e quando salta, la cliente resta senza nessuno
+che risponda di lei.
+
+✅ Chi finisce il questionario **senza** nutrizionista sul lead viene presa in carico dal **capo
+nutrizionista** — la stessa persona che `apri-segnalazione.ts` sceglie già come destinatario quando
+il ruolo non è assegnato. Le due strade dicono ora la stessa cosa.
+
+  · La **coach** non cambia: quella la assegna il responsabile, come prima.
+  · Non sovrascrive mai: se il lead ha già una nutrizionista (ref code, CRM), vince quella.
+  · Vale anche per chi **rifà** il questionario, che finiva nel ramo `update` — dove l'assegnazione
+    non c'era. «Non sovrascrivere» e «non riempire il vuoto» sono due cose diverse.
+  · Si spegne con `assign_head_nutritionist_by_default`, e la funzione **conta le altre
+    nutrizioniste**: quando quel numero non è più zero, la regola ha fatto il suo tempo e lo dice
+    nell'audit invece di restare accesa per sempre.
+
+✅ `npm run assegna:nutrizionista` (sola lettura; `CONFERMA=1` per applicare) recupera **chi è già
+rimasta senza** — il codice nuovo da solo non le ripesca — e riassegna anche le loro **segnalazioni
+aperte e orfane**: assegnare la cliente e lasciare la segnalazione senza destinatario sarebbe fare
+metà del lavoro proprio sulla metà che urge.
+
+================================================================================
+4) `diag:cliente` — quattro buchi, e uno l'ha stampato oggi sotto gli occhi
+================================================================================
+
+Su Sonia ha scritto **«Nessun piano attivo»**. Lei un piano ce l'ha: «Conosciamoci», in coda dal
+22/8. Il verdetto guardava `status === 'active'` invece di `STATI_CON_UN_PIANO`, cioè la regola di
+prima del 19/8 — quando un piano che comincia più avanti nasce `queued`. Una diagnostica che
+risponde diversamente dal codice manda a cercare il difetto dove non c'è.
+
+Gli altri tre, tutti nella stessa direzione:
+
+  · la misura di partenza era `misure === 0` («una pesata qualsiasi, in tutta la storia») invece di
+    `mancaMisuraDiPartenza`, cioè la misura **di questo piano** — la regola dall'11/8;
+  · `planHeldAt` veniva stampato ma **non era nella scala del verdetto**: un piano fermato dal
+    nutrizionista usciva come «Menu in preparazione»;
+  · leggeva solo le segnalazioni **aperte**. Nel caso della tregua la riga che decide è una
+    **risolta**: adesso stampa anche quelle degli ultimi 14 giorni, con quanti giorni fa.
+
+Aggiunti anche i due stati che mancavano e che il codice ha da tempo: **Monitoraggio** (lì i menu non
+arrivano, ed è giusto) e **finestra di visibilità** («il menu comparirà il …»).
+
+⚠️ Corretto anche il testo del blocco: diceva *«si sblocca CHIUDENDO la segnalazione»*. Non è vero, e
+è esattamente il malinteso da cui è partita la giornata.
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  backend/src/menu/esclusioni-della-cliente.ts        l'elenco e il giudizio, modulo puro
+  backend/src/menu/esclusioni-fuori-dal-pool.spec.ts  7 test (pool + coerenza col veto)
+  backend/src/escalations/blocco-non-si-zittisce.spec.ts  4 test sulla tregua
+  backend/src/common/nutrizionista-di-riferimento.ts      chi risponde, finché è una sola
+  backend/src/common/nutrizionista-di-riferimento.spec.ts 4 test
+  backend/prisma/assegna-nutrizionista.ts             recupero + segnalazioni orfane
+
+Modificati
+  backend/src/menu/menu.service.ts                 filtro a monte; `evaluateMeals` usa la porta unica
+  backend/src/escalations/apri-segnalazione.ts     `statoNonAvviso`
+  backend/src/personal-base/personal-base.service.ts   lo usa anche lei
+  backend/src/onboarding/onboarding.service.ts     il capo se non c'è nessuno; il ramo `update`
+  backend/src/onboarding/onboarding.service.spec.ts  il test della regola vecchia, RISCRITTO
+  backend/prisma/diag-cliente.ts                   i quattro buchi
+  backend/prisma/seed.ts                           `assign_head_nutritionist_by_default`
+  backend/package.json                             `assegna:nutrizionista`
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  npm run build       verde (nest build)
+  suite intera        4209 su 4209, 280 suite — nel sandbox, cioè SENZA la consegna
+                      «finestra da chiedere» che sul Mac non è ancora committata
+  18 test nuovi       7 + 4 + 4 + 3 (i tre casi dell'assegnazione)
+  md5                 gli 8 file modificati combaciavano con `HEAD` sui due lati prima di
+                      sovrascrivere: nessuno di loro è toccato dalla consegna in attesa
+  diag                `diag:cliente` e `assegna:nutrizionista` caricati e arrivati alla query
+
+⚠️ Nessuna migrazione. Solo backend → **live al deploy**, nessuna APK, nessuna OTA.
+
+⚠️ **DOPO IL DEPLOY, in quest'ordine:**
+  1. `npm run assegna:nutrizionista`            (guarda l'elenco)
+  2. `CONFERMA=1 npm run assegna:nutrizionista` (applica)
+  3. `npm run diag:cliente -- <l'email di Sonia>`  (l'indirizzo sta in CRM, non qui: in
+     questo repository gli indirizzi delle clienti non ci vanno — `email-nei-file.spec.ts`)
+     Se la segnalazione «Piano bloccato» è ancora aperta, il pool di Sonia non ha alternative
+     sicure per quel pasto: allora il rimedio non è più il codice, è il catalogo — o le due voci
+     larghe dei solfiti (`aceto`, `biscotti`, dichiarate a parte in `exclusions.ts` apposta per
+     poterle togliere se Lucia dice che sono eccessive).

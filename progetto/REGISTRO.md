@@ -20,6 +20,55 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🕐 **Spostare la finestra: i due metodi del manuale, e la direzione che decide quale.**
+  `menu/cambio-finestra.ts` (nuovo, puro, 55 test). Più **tardi** → il digiuno si allunga → è il
+  «reset», permesso subito, e l'app lo dice prima: «stanotte venti ore invece di sedici». Più
+  **presto** → si accorcerebbe → adattamento graduale, un'ora al giorno, e ⚠️ il piano **lo esegue
+  il sistema** — bersaglio in profilo e un passo per notte — invece di scriverlo a schermo come
+  consiglio. ⚠️ La direzione si misura sulla **strada più corta**: le 08:00 sono quattro ore prima
+  delle 12:00, non venti dopo, e le due letture portano a due metodi opposti; a dodici ore esatte il
+  pareggio cade dalla parte che **allunga**, perché il costo dei due errori non è lo stesso.
+  ⛔ **La revisione ha trovato sei difetti, quattro con la mutazione che sopravviveva.** Il peggiore:
+  *rimandare non annulla*. A finestra già aperta lo spostamento in avanti vale da domani — giusto,
+  un pasto già fatto non si disfa — ma le quattro ore in più arrivano lo stesso stanotte, e il
+  sistema rispondeva «sedici ore» a un digiuno di venti. ⚠️ E **il mio test cementava il numero
+  sbagliato**: chi l'avesse corretto avrebbe visto rosso e pensato di aver rotto qualcosa. La causa
+  era che tre rami rispondevano in tre modi diversi alla stessa domanda — adesso c'è **una formula
+  sola**, dall'ultima chiusura (regola vecchia) alla prossima apertura (regola nuova), e da lì esce
+  la proprietà che un test verifica su tutti e cinque i protocolli: **il digiuno in corso lo sposta
+  l'orario, non il protocollo**. ⛔ Altre due: il passo da `config_param` non era controllato — a
+  zero la cliente leggeva «in **Infinity** giorni apri alle 08:00» e il cron riscriveva lo stesso
+  orario ogni notte per sempre; e la frase era cablata su «da domani» mentre il profilo veniva
+  scritto per oggi. ✅ **4281 test su 4281**, tredici mutazioni su tredici mordono, build verde.
+
+- `[Sviluppo]` 🕐 **A chi si chiede la finestra — otto colonne, una regola, e nessuno script di
+  backfill.** `ClientProfile` prende protocollo, orario, i due bersagli dell'adattamento, i due del
+  sonno, l'ultimo cambio e **`fastingSceltoIl`**: tutte additive e nullable, il giorno del deploy in
+  produzione non succede niente di visibile. ⛔ **Il backfill non c'è più, e non è un pezzo
+  rimandato: è la decisione.** La traduzione dalla finestra storica esiste ancora ma **non si
+  salva** — è il valore con cui la pagina si apre. `fastingSceltoIl` NULL vuol dire «non gliel'
+  abbiamo ancora chiesto», ed è quel NULL a far atterrare le sei clienti sulla pagina dell'orologio
+  al primo avvio. ⚠️ La regola **non guarda il calendario**: nessuna data di rilascio nel codice, si
+  guarda se il dato c'è — e così una riga sola serve chi digiuna da prima, chi ci passa domani e chi
+  ci mette lo staff fra sei mesi. ⛔ **Dove non so tradurre, non propongo niente:** cinque clienti su
+  sei sono su «salta la colazione», che l'orologio riproduce esatta; la sesta è su «salta la cena»,
+  che non sa fare, e a lei la pagina si apre **vuota** con segnalazione alla nutrizionista. Nessuna
+  eccezione scritta per lei nel codice — proporle la «più vicina» sarebbe stato il suo stesso
+  difetto rifatto da davanti. ⛔ **`skip_lunch` ritirata** (zero clienti in digiuno) ma **non
+  cancellata**: quel conteggio guardava solo chi digiuna, quindi la riga esce dalle tendine e resta
+  leggibile, e `diag:digiuni` adesso conta le finestre su **tutti i percorsi**. ⛔ **La revisione ha
+  trovato otto cose, tre gravi.** `hidden={…}` su un `<div>` con `display` inline **non nascondeva
+  niente** — lo stile inline vince sul foglio del browser — e i pulsanti restavano toccabili sotto
+  un riquadro che diceva di non toccarli: adesso non si nascondono, non si disegnano. Il suffisso
+  «dagli orari» nel backoffice era **falso** per la finestra ritirata, e mandava la coach a cercare
+  un orario che non esiste. **`primoPasto` non era protetto da niente**: col valore sbagliato tutti
+  e 4216 i test restavano verdi — adesso si ricalcola da `salta`, e con lui `pastoPrincipale`.
+  ⚠️ **Una decisione resta aperta e sta scritta in un test:** tre finestre si possono ancora
+  scegliere e l'orologio non sa riprodurle, quindi una cliente nuova che sceglie «Cena» oggi fa
+  partire una segnalazione per una scelta fatta cinque minuti prima. O escono dalle tendine — e
+  allora Lucia non può più prescrivere «salta la cena» — o la segnalazione va ristretta.
+  ✅ **4226 test su 4226**, venti mutazioni su venti mordono, build verde su backend e due frontend.
+
 - `[Sviluppo]` 🕐 **L'orologio del digiuno: la durata dice quanti pasti, la posizione non dice
   niente.** Alla cliente non si chiede più «quali pasti salti» ma **a che ora mangi**;
   `fastingWindow` resta il dato del motore, ma lo **deriva** `menu/orologio-digiuno.ts` (nuovo,

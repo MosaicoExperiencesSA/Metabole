@@ -1,0 +1,94 @@
+Parte: spostare la finestra — i due metodi del manuale, e quale si applica — 21/8
+
+================================================================================
+COSA FA
+================================================================================
+
+`backend/src/menu/cambio-finestra.ts` (nuovo, puro, 55 test): dato dov'è la finestra adesso e dove
+la cliente la vuole, dice **quale dei due metodi del manuale si applica**, cosa si scrive nel
+profilo, da quando vale, quanto dura il digiuno che sta per fare, e se la nutrizionista deve
+guardare.
+
+⚠️ **Lo decide la direzione, non la distanza** (decisione di Simone del 19/8, §1):
+
+  più TARDI   → il digiuno di stanotte si allunga → è il «reset», permesso subito.
+                12:00 → 16:00 con la 16:8 = venti ore una volta sola, e l'app lo dice PRIMA.
+  più PRESTO  → si accorcerebbe → adattamento graduale: un'ora al giorno.
+                Il piano lo ESEGUE il sistema (bersaglio in profilo + un passo per notte),
+                non è un consiglio scritto a schermo. La cliente conferma il piano, non i passi.
+
+Sotto entrambi: **il digiuno in corso non si accorcia mai di netto.**
+
+⚠️ La direzione si misura sulla **strada più corta**: le 08:00 sono quattro ore prima delle 12:00,
+non venti dopo, e le due letture portano a due metodi opposti — allungare o accorciare il digiuno di
+stanotte. A dodici ore esatte il pareggio cade dalla parte che **allunga**: una parità non deve mai
+cadere dalla parte che accorcia, perché il costo dei due errori non è lo stesso.
+
+Più: il limite di un cambio al giorno (col messaggio che dice **quando** potrà rifarlo), il passo
+del cron, e le ragioni per la nutrizionista del §3 — protocollo 20:4 / 23:1, oppure la finestra
+lascia un pasto solo.
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (sei cose, quattro con la mutazione che sopravviveva)
+================================================================================
+
+⛔ **RIMANDARE NON ANNULLA.** Se sono le 14:00 e la cliente ha già pranzato, spostare la finestra
+avanti vale da domani — giusto, un pasto già fatto non si disfa. Ma le quattro ore in più **arrivano
+lo stesso stanotte**: chiude alle 20:00 con la regola vecchia e riapre alle 16:00 con quella nuova.
+Il sistema rispondeva «sedici ore» a un digiuno di venti, e la cliente confermava credendo di non
+cambiare niente. ⚠️ E il test che avevo scritto **cementava il numero sbagliato**, col commento
+«stanotte non si allunga niente»: chi domani l'avesse corretto avrebbe visto rosso e pensato di aver
+rotto qualcosa. È il ramo che scatta ogni volta che si apre l'app dopo pranzo, cioè quasi sempre.
+
+⛔ **Tre rami, tre risposte diverse alla stessa domanda.** Con un cambio di protocollo + orario
+insieme il conto usava le ore del protocollo **nuovo** per una chiusura avvenuta col **vecchio**:
+«24 ore» su un 20:4, oppure 18 ore promesse dove ne avrebbe fatte 22. → adesso c'è **una formula
+sola**: il digiuno va dall'ultima chiusura (regola vecchia) alla prossima apertura (regola nuova).
+
+✅ E da quella formula esce la proprietà che tiene insieme tutto, con un test su tutti e cinque i
+protocolli: **il digiuno in corso lo sposta l'orario, non il protocollo.** Il protocollo cambia le
+chiusure, che valgono dalla prossima in poi.
+
+⛔ **Il passo da `config_param` non era controllato**, mentre il commento prometteva che si cambia
+senza un rilascio. A zero: alla cliente compariva «Sposto la tua finestra un po' alla volta: 0
+minuti al giorno, e in **Infinity** giorni apri alle 08:00», e il cron riscriveva ogni notte lo
+stesso orario, per sempre — il bersaglio restava in profilo e la finestra non arrivava mai.
+→ controllo in tutte e due le porte (la richiesta e il cron), e `passoUsatoMin` nell'esito, così un
+valore buttato via **si vede** invece di sparire.
+
+⛔ **«Da domani» scritto mentre il profilo veniva scritto per oggi.** Allargando il protocollo senza
+spostare l'orario, la frase era cablata su «Da domani» e `daQuando` diceva «oggi»: la cliente
+credeva di avere ancora la finestra larga e si trovava la cena anticipata.
+
+⚠️ **Il piano graduale scriveva il protocollo nuovo subito senza dirlo.** Chiedendo 20:4 + orario
+più presto, la finestra si accorciava già oggi mentre la frase parlava solo di orario.
+
+⚠️ **«Si apre un'attività di verifica» era una promessa senza guardia**: `ragioniDaVerificare` era
+una funzione a parte che l'endpoint doveva ricordarsi di chiamare. Adesso le ragioni escono
+dall'esito, e `unicoPasto` si **deriva** dal protocollo invece di chiederlo a chi chiama.
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  backend/src/menu/cambio-finestra.ts        i due metodi, modulo puro
+  backend/src/menu/cambio-finestra.spec.ts   55 test
+
+Modificati
+  backend/src/lavori/voci-iniziali.ts        voce «digiuno-pubblicazione» aggiornata
+  progetto/REGISTRO.md
+
+⚠️ Il tarball contiene ANCHE la consegna 81, che non è ancora committata: scompattandolo si ha lo
+stato completo in un colpo solo.
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  suite intera   4281 su 4281, 280 suite
+  mutazioni      tredici su tredici mordono — comprese le quattro che PRIMA sopravvivevano
+  npm run build  verde su backend, app e backoffice
+
+⛔ Cosa NON c'è ancora, e va detto: l'endpoint che usa questo modulo, il cron che esegue il piano,
+e l'attività per la nutrizionista. Qui c'è la regola, provata da sola.

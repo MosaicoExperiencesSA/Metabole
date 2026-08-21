@@ -411,9 +411,59 @@ model ClientProfile {
   objective              String     @default("dimagrimento")
   pathType               PathType?  @map("path_type")
   // Digiuno intermittente: QUALI pasti salta (richiesta Simone 5/8, voce #7).
-  // skip_breakfast | skip_breakfast_lunch | skip_dinner_breakfast. Null = finestra decisa
-  // dalla dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
+  // I valori stanno in UNA tabella sola, `menu/finestre-digiuno.ts`: qui non si elencano, o il
+  // giorno che ne nasce una nuova questo commento diventa una bugia. Null = finestra decisa dalla
+  // dieta, com'era prima. Ha senso solo con pathType = intermittent_fasting.
+  // ⚠️ Dal 21/8 NON lo sceglie più nessuno a mano: lo DERIVA `menu/orologio-digiuno.ts` dagli orari
+  // qui sotto. Resta perché è il dato che tutto il motore legge — cambiarlo avrebbe voluto dire
+  // toccare l'erogazione, il catalogo, Vera, la scheda staff e i test, per la stessa informazione.
   fastingWindow          String?    @map("fasting_window")
+  // --- L'OROLOGIO DEL DIGIUNO (21/8) -------------------------------------------------------
+  // Alla cliente non si chiede più «quali pasti salti» ma «a che ora mangi». La regola:
+  // **la DURATA della finestra dice quanti pasti, la POSIZIONE non dice niente**.
+  //
+  // '14:10' | '16:8' | '18:6' | '20:4' | '23:1'. I valori veri in `PROTOCOLLI_DIGIUNO`.
+  fastingProtocol        String?    @map("fasting_protocol")
+  // Apertura della finestra di pasto, in minuti da mezzanotte (0-1439). 720 = le 12:00.
+  // ⚠️ La CHIUSURA non si salva: è `inizio + ore(protocollo) × 60`, mod 24h. Una durata scritta in
+  // due posti è una durata che prima o poi diverge.
+  fastingStartMin        Int?       @map("fasting_start_min")
+  // Il bersaglio dell'ADATTAMENTO GRADUALE: spostare la finestra più presto accorcia il digiuno di
+  // stanotte, quindi non si fa in un colpo — un'ora al giorno finché `startMin` arriva qui, e poi
+  // questo torna NULL. ⚠️ Lo muove un cron notturno: è un piano che il sistema RICORDA, non un
+  // consiglio scritto a schermo. Ancora nessuno lo scrive: arriva col pezzo `PATCH /me/digiuno`.
+  fastingTargetStartMin  Int?       @map("fasting_target_start_min")
+  // Il gemello del precedente per la RAMPA D'INGRESSO: chi passa a digiuno non parte da sedici ore,
+  // ci arriva un'ora al giorno (12h → 13 → 14 → 15 → 16). Stesso meccanismo applicato alla durata.
+  // Ancora nessuno lo scrive: arriva col pezzo della rampa.
+  fastingTargetProtocol  String?    @map("fasting_target_protocol")
+  // Gli orari di sonno, in minuti da mezzanotte.
+  // ⚠️ **Ancora nessuno li scrive e nessuno li legge**, come i due campi qui sopra: arrivano col
+  // pezzo delle push. (Corretto in revisione, 21/8: il commento diceva «da questa consegna
+  // governano il SILENZIO delle push» ed era falso — `fastingSleep` non compare da nessun'altra
+  // parte, e il silenzio notturno di oggi è la finestra GLOBALE di `notifications.service.ts`,
+  // uguale per tutte. Un commento al presente su un campo che non agisce fa concludere a chi legge
+  // fra sei mesi che il filtro c'è già, e non lo implementa.)
+  // A cosa serviranno: saltare le push che cadono nel sonno invece di accumularle al risveglio, e
+  // l'indicatore del manuale «otto ore di digiuno su sedici le passi dormendo».
+  // ⚠️ Il ripiego 23:00 (1380) / 07:00 (420) **non è un default del database**: la colonna nasce
+  // NULL apposta, perché «non me l'ha detto» e «dorme dalle 23» sono due cose diverse. Il ripiego lo
+  // applicherà chi legge, in un punto solo, e quel punto arriva col pezzo delle push.
+  fastingSleepStart      Int?       @map("fasting_sleep_start")
+  fastingSleepEnd        Int?       @map("fasting_sleep_end")
+  // Quando ha spostato la finestra l'ultima volta: serve al limite di un cambio al giorno.
+  fastingChangedAt       DateTime?  @map("fasting_changed_at")
+  // ⚠️ QUANDO HA SCELTO — e NULL vuol dire «non gliel'abbiamo ancora chiesto», che è una cosa
+  // diversa da «non digiuna». È il gemello di `allergieDichiarateIl`, e la ragione è la stessa: un
+  // campo vuoto non distingue «non ha risposto» da «ha risposto di no», e senza quella differenza
+  // la schermata che chiede o non compare mai o compare per sempre.
+  //
+  // ⚠️ Nasce a NULL per tutte, ed è VOLUTO: è ciò che fa atterrare sulla pagina dell'orologio le
+  // clienti già in digiuno al primo avvio dopo il rilascio (decisione di Simone, §14 porta 3). Per
+  // questo NON c'è nessuno script di backfill: scrivere d'ufficio nel profilo di sei persone una
+  // finestra tradotta a tavolino era il pezzo più rischioso della consegna, e la loro risposta
+  // costa meno del nostro indovinare.
+  fastingSceltoIl        DateTime?  @map("fasting_scelto_il")
   // QUOTA PROTEICA MINIMA DI QUESTA CLIENTE (14/8, terza frase dell'azione 3: «rifai con più
   // proteine»). Frazione 0–1, come `menu_daycombo_protein_min` della dieta, su cui vince — e vince
   // SOLO sul minimo: il massimo resta della dieta. NULL = vale la banda della sua dieta.

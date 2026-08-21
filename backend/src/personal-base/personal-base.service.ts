@@ -348,6 +348,10 @@ export class PersonalBaseService {
         reason: `Piano bloccato: base personalizzata non certificabile in automatico (${reasons
           .slice(0, 4)
           .join('; ')}). Serve la revisione del nutrizionista.`,
+        // ⚠️ Come in `menu.service`: questa riga è lo STATO che la cliente legge al posto del menu,
+        // non un avviso che si ripete. Dentro la tregua si riapre quella risolta, col motivo di
+        // adesso, invece di lasciare la cliente ferma davanti a «Menu in preparazione».
+        statoNonAvviso: true,
       });
       await this.audit.log({
         action: 'personal_base.blocked',

@@ -142,6 +142,13 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Dopo «Autorizza a proseguire»: pesate NUOVE minime prima che l\'allarme possa tornare',
   },
   {
+    key: 'assign_head_nutritionist_by_default',
+    value: 'true',
+    type: 'boolean',
+    description:
+      'Finché è acceso, chi finisce il questionario SENZA una nutrizionista sul lead viene presa in carico dal capo nutrizionista. Serve perché con una sola nutrizionista l\'assegnazione a mano non è una decisione: è un passaggio che qualche volta salta, e la cliente resta senza nessuno che risponda di lei (il caso Sonia, 21/8). Si spegne quando le nutrizioniste diventano più d\'una e distribuire i pazienti torna a essere una scelta.',
+  },
+  {
     key: 'escalation_reopen_days',
     value: '14',
     type: 'number',

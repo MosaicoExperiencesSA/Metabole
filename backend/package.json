@@ -39,6 +39,7 @@
     "cleanup:keto-med": "ts-node --transpile-only prisma/cleanup-keto-mediterranea.ts",
     "diag:parametri": "ts-node --transpile-only prisma/diag-parametri.ts",
     "fix:assegnazioni": "ts-node --transpile-only prisma/fix-assegnazioni.ts",
+    "assegna:nutrizionista": "ts-node --transpile-only prisma/assegna-nutrizionista.ts",
     "fix:diet-family": "ts-node --transpile-only prisma/fix-diet-family.ts",
     "diag:ricorrente": "ts-node --transpile-only prisma/diag-ricorrente.ts",
     "diag:famiglie": "ts-node --transpile-only prisma/diag-famiglie-ambigue.ts",

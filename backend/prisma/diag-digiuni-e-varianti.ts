@@ -34,7 +34,7 @@
  *   npm run diag:digiuni
  */
 import { PrismaClient } from '@prisma/client';
-import { FINESTRE_DIGIUNO, finestraDigiuno, slotEsclusiTotali } from '../src/menu/finestre-digiuno';
+import { FINESTRE_DIGIUNO, VALORI_FINESTRA_DIGIUNO, finestraDigiuno, slotEsclusiTotali } from '../src/menu/finestre-digiuno';
 import { pastiPromessiCheMancano } from '../src/catalog/struttura-per-digiuno';
 import { pickDietFor } from '../src/catalog/pick-diet';
 import { pastiAttesi, NOME_PASTO } from '../src/catalog/giornate-complete';
@@ -75,8 +75,68 @@ const strutturaDi = (d: { mealsPerDay: number; fasting: boolean | null }): strin
 // Parte 1 — i digiuni
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * ⚠️ LE FINESTRE SCRITTE NEI PROFILI, **senza filtrare per percorso**.
+ *
+ * Il resto della parte 1 guarda solo chi ha `pathType: 'intermittent_fasting'`, ed è giusto così:
+ * la finestra agisce solo là. Ma per **togliere una riga** dalla tabella delle finestre quella
+ * misura non basta — dice quante clienti in digiuno ce l'hanno, non quante l'hanno *scritta in
+ * profilo*. E il giorno che una riga sparisce dalla tabella, un valore rimasto scritto da qualche
+ * parte diventa un codice al posto di una frase.
+ *
+ * ⚠️ **Da oggi in avanti quel residuo non si forma più**, e va detto per non spaventare chi legge:
+ * tutte e due le porte di scrittura azzerano la finestra quando il percorso non è il digiuno
+ * (`clients.service.ts`, `onboarding.service.ts`). Quello che questo conteggio può ancora trovare
+ * sono le righe **rimaste da prima** di quella correzione — poche o nessuna, ma «poche o nessuna»
+ * è una previsione, e questo script serve a sostituirla con un numero.
+ *
+ * Questo conteggio è nato il 21/8 per decidere su `skip_lunch`: il primo `diag:digiuni` diceva
+ * «zero clienti», ma diceva zero **fra chi digiuna**. *Misura prima di decidere, e non spacciare
+ * mai un ragionamento per una misura.*
+ */
+async function finestreScritteOvunque(): Promise<void> {
+  // ⚠️ `findMany` e non `groupBy`: i profili sono poche centinaia, il conto in memoria costa niente,
+  // e una query semplice qui vale più di una elegante — questo script gira in produzione a mano.
+  const profili = (await prisma.clientProfile.findMany({
+    where: { fastingWindow: { not: null } } as never,
+    select: { fastingWindow: true, pathType: true } as never,
+  })) as unknown as { fastingWindow: string | null; pathType: string | null }[];
+
+  console.log('Finestre scritte nei profili — TUTTI i percorsi, non solo il digiuno:');
+  if (!profili.length) {
+    console.log('     0  nessun profilo ha una finestra scritta.\n');
+    return;
+  }
+  const conta = new Map<string, number>();
+  const fuoriDigiuno = new Map<string, number>();
+  for (const p of profili) {
+    const v = p.fastingWindow ?? '(null)';
+    conta.set(v, (conta.get(v) ?? 0) + 1);
+    if (p.pathType !== 'intermittent_fasting') fuoriDigiuno.set(v, (fuoriDigiuno.get(v) ?? 0) + 1);
+  }
+  for (const [v, n] of [...conta.entries()].sort((a, b) => b[1] - a[1])) {
+    const riga = finestraDigiuno(v);
+    // ⚠️ «Ritirata» non sta nell'etichetta: si legge da `selezionabile`, che è il punto unico.
+    const etichetta = riga
+      ? `${riga.etichettaStaff}${riga.selezionabile ? '' : '  [non più selezionabile]'}`
+      : '⛔ VALORE CHE LA TABELLA NON CONOSCE';
+    // ⚠️ La colonna che conta per togliere una riga: quante di quelle NON digiunano più, cioè
+    // quante se la portano dietro senza che agisca. Sono invisibili al resto della parte 1.
+    const fuori = fuoriDigiuno.get(v) ?? 0;
+    console.log(`${String(n).padStart(6)}  ${v.padEnd(24)} ${fuori ? `(${fuori} fuori dal digiuno)  ` : ''}${etichetta}`);
+  }
+  const zero = VALORI_FINESTRA_DIGIUNO.filter((v) => !conta.has(v));
+  console.log(
+    `\n     Righe della tabella con ZERO profili sopra: ${zero.length ? zero.join(', ') : 'nessuna'}.\n` +
+    '     ⚠️ Solo queste si possono togliere dalla tabella senza lasciare in giro un valore che\n' +
+    '     nessuno sa più leggere. Le altre, al massimo, si tolgono dalle tendine.\n',
+  );
+}
+
 async function digiuni(diete: DietaRiga[]): Promise<void> {
   console.log('\n════════ 1. CHI HA SCELTO IL DIGIUNO, E COSA RICEVE ════════\n');
+
+  await finestreScritteOvunque();
 
   const profili = (await prisma.clientProfile.findMany({
     where: { pathType: 'intermittent_fasting' } as never,

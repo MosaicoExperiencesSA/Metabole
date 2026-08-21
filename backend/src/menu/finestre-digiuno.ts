@@ -19,8 +19,10 @@
  *    cena, lo spuntino del pomeriggio accorcia il digiuno serale. La regola c'era già per la
  *    colazione, l'ho estesa alla cena: se la nutrizionista la vuole diversa, si cambia **qui**.
  * 2. **`skip_lunch` non è una finestra di digiuno**, ed è dichiarato: colazione e cena lasciano due
- *    finestre corte invece di una lunga. Sta in elenco perché Simone l'ha chiesto e perché è un
- *    modo di mangiare che le clienti usano, ma l'etichetta non promette un 16:8 che non c'è.
+ *    finestre corte invece di una lunga. ⛔ **Dal 21/8 non si sceglie più** (decisione di Simone del
+ *    19/8): l'orologio non sa produrla, e offrirla sotto «digiuno intermittente» prometteva un
+ *    digiuno che con colazione e cena non c'è. La riga **resta**, perché serve a *leggere* i valori
+ *    già scritti — la differenza fra «non si sceglie» e «non esiste» la fa `selezionabile`.
  */
 
 /** Gli slot del motore, nell'ordine della giornata. */
@@ -63,9 +65,15 @@ export interface FinestraDigiuno {
   /**
    * ⛔ **SI PUÒ SCEGLIERE A MANO DA UNA TENDINA?** (21/8)
    *
-   * Le cinque righe storiche sì: nascono da una domanda — «quali pasti preferisci saltare?» — e le
-   * loro etichette nominano il pasto **saltato**. Le tre nate dall'orologio no: nascono dalla
-   * **durata** della finestra, le calcola `orologio-digiuno.ts`, e nessuno le sceglie.
+   * Quattro delle cinque righe storiche sì: nascono da una domanda — «quali pasti preferisci
+   * saltare?» — e le loro etichette nominano il pasto **saltato**. Le tre nate dall'orologio no:
+   * nascono dalla **durata** della finestra, le calcola `orologio-digiuno.ts`, e nessuno le sceglie.
+   *
+   * ⚠️ `false` qui dentro vuol dire **due cose diverse**, e il commento accanto a ogni riga dice
+   * quale: le tre dell'orologio *non si scelgono perché si calcolano*; `skip_lunch` *non si sceglie
+   * più perché è stata ritirata*. Il campo è uno solo perché la conseguenza è una sola — fuori dalle
+   * tendine, dentro alla lettura — ma un campo che vale per due motivi va detto, o fra un anno
+   * qualcuno rimette `skip_lunch` in elenco credendo che l'orologio la produca.
    *
    * ⚠️ Senza questo campo ci finivano dentro lo stesso: il questionario costruisce i suoi pulsanti
    * con `FINESTRE_DIGIUNO.map(...)`, e «Solo cena» sotto la domanda «quali pasti preferisci
@@ -107,13 +115,22 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     // Solo il pranzo: gli spuntini li decide il numero di pasti, non questa scelta. Con due pasti
     // lontani non c'è uno spuntino «adiacente» da togliere.
     salta: ['lunch'],
+    // ⚠️ L'etichetta resta quella che era: descrive come mangia chi ce l'ha scritta, e «ritirata»
+    // non è una cosa che si mangia. Che non si scelga più lo dice `selezionabile`, in un punto solo.
     etichettaStaff: 'Salta il pranzo (colazione e cena)',
     etichettaCliente: 'Salti il pranzo — mangi a colazione e a cena',
     etichettaBreve: 'Pranzo',
     pastoPrincipale: 'cena',
     primoPasto: 'colazione',
     unicoPasto: false,
-    selezionabile: true,
+    // ⛔ RITIRATA il 21/8 (decisione di Simone del 19/8) — e per un motivo diverso dalle tre
+    // dell'orologio: quelle non si scelgono perché si calcolano, questa perché non è un digiuno.
+    // `diag:digiuni` del 21/8: **zero** clienti in digiuno ce l'hanno.
+    // ⚠️ La riga **resta** lo stesso, perché quel conteggio guardava solo chi digiuna: un valore
+    // rimasto scritto su un profilo passato a un altro percorso prima della correzione delle due
+    // porte di scrittura si deve ancora poter leggere come una frase. Il conteggio senza filtro sta
+    // in `diag:digiuni` (parte 1, prima riga): se torna zero anche lì, la riga si toglie davvero.
+    selezionabile: false,
   },
   {
     valore: 'skip_breakfast_lunch',
