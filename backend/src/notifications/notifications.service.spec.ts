@@ -80,9 +80,19 @@ describe('NotificationsService', () => {
       },
     };
     const config = {
-      getNumber: jest.fn((key: string) =>
+      /**
+       * ⛔ **IL FINTO RISPETTA IL VALORE DI SCORTA, come quello vero** (corretto il 21/8).
+       *
+       * Prima tornava `undefined` per ogni chiave non elencata, **ignorando il secondo argomento**.
+       * `ConfigParamsService.getNumber(chiave, scorta)` invece la scorta la usa — e la differenza non
+       * era teorica: la finestra di silenzio dei solleciti (`measures_nudge_end_hour`, scorta 22)
+       * arrivava qui come `undefined`, e `ora >= undefined` è falso. **In ogni test di questo file la
+       * guardia notturna era spenta**, e nessuno poteva accorgersene.
+       */
+      getNumber: jest.fn((key: string, scorta?: number) =>
         Promise.resolve(
-          ({ pause_deviation_trigger: 1.5, stall_days_before_coach_alert: 6, no_checkin_days_before_alert: 4 } as Record<string, number>)[key],
+          ({ pause_deviation_trigger: 1.5, stall_days_before_coach_alert: 6, no_checkin_days_before_alert: 4 } as Record<string, number>)[key]
+            ?? scorta,
         ),
       ),
       getString: jest.fn().mockResolvedValue('false'), // AI composer spento
@@ -163,6 +173,34 @@ describe('NotificationsService', () => {
     menu.measurementGate.mockResolvedValue({ blocking: true, level: 'soft' });
     const esito = await service.measuresNudgeTick();
     expect(esito.controllate).toBe(1);
+  });
+
+  /**
+   * ⛔ **«FRA LE 22 E LE 8 NON SI SUONA IL CAMPANELLO A NESSUNO» — e adesso è vero.**
+   *
+   * Era `new Date().getHours()`, cioè l'ora **del server**: su Render `TZ` non è impostata, quindi
+   * UTC. D'estate il silenzio cadeva fra la **mezzanotte e le dieci** italiane — si suonava alle
+   * 22:30 e si taceva alle 09:00. ⚠️ Difetto **preesistente**, non introdotto dal digiuno: trovato
+   * di rimbalzo mentre scrivevo `oraLocaleInMinuti`.
+   *
+   * ⚠️ E il test ferma l'orologio: senza, passava o falliva a seconda dell'ora in cui girava la
+   * suite — che è il modo in cui un difetto di fuso non si riproduce mai.
+   */
+  describe('⛔ il silenzio notturno è quello italiano', () => {
+    beforeEach(() => { jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }); });
+    afterEach(() => { jest.useRealTimers(); });
+
+    it('⛔ alle 22:30 di Roma NON si sollecita nessuno', async () => {
+      jest.setSystemTime(new Date('2026-08-21T22:30:00+02:00'));
+      expect(await service.measuresNudgeTick()).toEqual({ controllate: 0, sollecitate: 0, coachAvvisate: 0 });
+    });
+
+    it('⚠️ mentre alle 09:00 di Roma si sollecita, e prima non succedeva', async () => {
+      jest.setSystemTime(new Date('2026-08-21T09:00:00+02:00'));
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'u1' }]);
+      menu.measurementGate.mockResolvedValue({ blocking: true, level: 'soft' });
+      expect((await service.measuresNudgeTick()).controllate).toBe(1);
+    });
   });
 
   it('⚠️ col solo piano IN CODA il messaggio quotidiano parte lo stesso', async () => {

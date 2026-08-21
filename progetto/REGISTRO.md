@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-21
 
+- `[Sviluppo]` 🔔 **Le sei push del digiuno — e le tre regole che ne tolgono.** Le quattro chieste da
+  Simone più le due metaboliche del manuale, accese di default. ⛔ **Sei tipi non vuol dire sei
+  notifiche al giorno**: 14:10 e 16:8 ne mandano **cinque** (le sedici ore non esistono, o cadono
+  all'apertura e si fondono), la 23:1 pure — con una finestra di un'ora «fra un'ora si chiude»
+  cadrebbe insieme a «puoi mangiare». Le regole: niente metaboliche **dentro la finestra di pasto**
+  (⚠️ ma il minuto dell'apertura appartiene al digiuno, non al pasto); fusione sotto la mezz'ora;
+  e quello che cade **nel sonno si salta, non si accumula**. ⚠️ Ogni push tolta esce col motivo
+  scritto: un silenzio senza spiegazione è indistinguibile da un guasto.
+  ⛔ **La revisione ha trovato otto cose, e la prima era una regressione mia su una funzione già in
+  produzione**: infilando la rotta nuova nel controller del cron avevo **rubato i decoratori** a
+  `measures-nudge` — in TypeScript si attaccano all'elemento che segue — e il sollecito misure
+  sarebbe rimasto senza `@Public()`, cioè 401 dal cron di Render e sollecito fermo. ⛔ E la rotta
+  nuova **non l'avrebbe chiamata nessuno**: mancava la voce in `render.yaml`, quindi zero push per
+  tutte, con l'endpoint che a mano risponde 200. Adesso due test lo impediscono: uno legge i
+  metadati veri di Nest, l'altro chiede che ogni rotta abbia il suo cron dichiarato. ⛔ Altre:
+  le push continuavano ad arrivare a chi **non ha più un piano** (o è archiviata, che le lascia i
+  token); spegnere «puoi mangiare» faceva sparire **anche** le sedici ore, con la diagnostica che
+  scriveva «te l'ho detto in quel messaggio»; il tic **duplicava a cavallo della mezzanotte**; e
+  spostare la finestra a metà giornata lasciava in mano l'ultimo messaggio, che dopo lo spostamento
+  sbaglia sia l'inizio sia la fine — ora la finestra entra nella chiave del dedup.
+  ⚠️ **E dall'app quei sei tipi non si potevano spegnere**: `NotificationPrefs.tsx` non li aveva in
+  elenco, quindi la regola «spegni le metaboliche e tieni le quattro utili» viveva solo nel backend.
+  ✅ **4430 test su 4430**, diciotto mutazioni su diciotto mordono, build verde.
+
+- `[Sviluppo]` 🕐 **Un difetto preesistente chiuso di rimbalzo: il silenzio notturno dei solleciti
+  era in UTC.** `measuresNudgeTick` leggeva `new Date().getHours()`: su Render `TZ` non è impostata,
+  quindi «fra le 22 e le 8 non si suona il campanello a nessuno» voleva dire in realtà **dalla
+  mezzanotte alle dieci** italiane — si suonava alle 22:30 e si taceva alle 09:00. ⚠️ E il motivo per
+  cui è sopravvissuto tanto: il **finto** `ConfigParamsService` dei test ignorava il valore di
+  scorta, quindi in ogni test di quel file la guardia notturna era spenta. Corretti tutti e due.
+
 - `[Sviluppo]` 🕐 **L'orologio del digiuno diventa una porta: `GET`/`PATCH /me/digiuno`, il passo
   notturno nel cron, e le due attività per la nutrizionista.** La cliente sceglie o sposta la sua
   finestra dall'app; la risposta è **la vista aggiornata** e non un «ok», perché col piano graduale

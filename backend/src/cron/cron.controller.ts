@@ -211,9 +211,40 @@ export class CronController {
   }
 
   /**
+   * ⛔ **LE PUSH DEL DIGIUNO — un tic corto, non il giro della notte.**
+   *
+   * Sei momenti al giorno cadono a ore qualsiasi (l'apertura della finestra, la chiusura, i due
+   * preavvisi, le due metaboliche): un giro notturno potrebbe solo *promettere* una notifica per
+   * l'indomani.
+   *
+   * ⚠️ **Va chiamato ogni dieci minuti**, come `reminders`, ed è dichiarato in `render.yaml`: la
+   * dashboard non è la fonte di verità. La finestra che guarda indietro è larga quanto il tic ed è
+   * **mezza aperta**, così ogni minuto appartiene a un tic solo e nessuna push parte due volte.
+   *
+   * ⛔ Se un giro salta — deploy, riavvio — le push di quei dieci minuti **si perdono**, e va detto
+   * invece di promettere un recupero che non c'è: allargare la finestra le farebbe partire due
+   * volte a cavallo della mezzanotte, dove il dedup «una al giorno» cambia giorno. Il countdown in
+   * home resta la fonte di verità: chi non riceve la notifica non perde l'informazione.
+   */
+  @Public()
+  @HttpCode(200)
+  @Post('digiuno-push')
+  async digiunoPush(@Headers('x-cron-secret') secret?: string) {
+    this.assertSecret(secret);
+    return this.notifications.digiunoPushTick();
+  }
+
+  /**
    * SOLLECITO MISURE (voce #6 del 5/8): va chiamato OGNI DUE ORE, non una volta al giorno.
    * Manda il sollecito a chi ha il menu fermo per le misure mancanti e apre un'attività alla
    * coach la prima volta. Non fa nulla di notte: la finestra oraria è nei parametri.
+   *
+   * ⛔ **⚠️ I DECORATORI STANNO ATTACCATI AL METODO CHE SEGUE — e il 21/8 gliel'ho rubati.**
+   * Avevo infilato `digiuno-push` **fra** `@Public() @HttpCode(200)` e questa firma: i due
+   * decoratori sono passati alla rotta nuova, e `measures-nudge` è rimasta **senza `@Public()`**.
+   * Con la guardia JWT globale il cron di Render — che manda solo `x-cron-secret` — avrebbe preso
+   * 401, `curl -f` sarebbe uscito non-zero, e il sollecito misure avrebbe smesso di partire. Una
+   * funzione già in produzione, rotta da un pezzo che non c'entrava niente.
    */
   @Public()
   @HttpCode(200)

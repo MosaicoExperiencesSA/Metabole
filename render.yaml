@@ -157,3 +157,20 @@ services:
     startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/measures-nudge'
     envVars:
       - fromGroup: metabole-shared
+
+  # ⛔ LE PUSH DEL DIGIUNO INTERMITTENTE: ogni DIECI MINUTI, e non è negoziabile.
+  # I sei momenti della giornata (apertura e chiusura della finestra, i due preavvisi a un'ora, le
+  # due metaboliche) cadono a ore qualsiasi: il giro notturno non li può mandare. La finestra che il
+  # tic guarda indietro è larga quanto il tic — se qui la cadenza si allarga, le push cadute nel buco
+  # NON arrivano a nessuno, e nessuno se ne accorge perché una notifica che non parte non lascia
+  # traccia. Cosa mandare e cosa no lo decide `menu/push-digiuno.ts`, non questa riga.
+  - type: cron
+    name: metabole-cron-digiuno-push
+    runtime: node
+    region: frankfurt
+    schedule: '*/10 * * * *'
+    rootDir: backend
+    buildCommand: 'echo cron pronto'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://metabole-backend.onrender.com/api/v1/internal/cron/digiuno-push'
+    envVars:
+      - fromGroup: metabole-shared

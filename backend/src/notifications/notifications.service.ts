@@ -4,6 +4,8 @@ import { MailService } from '../mail/mail.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { datiPush } from './dati-push';
+import { SONNO_PREDEFINITO, pushDelGiorno } from '../menu/push-digiuno';
+import { oraLocaleInMinuti } from '../common/date-only';
 import { eUnicoPasto, pastoPrincipaleDigiuno } from '../menu/finestre-digiuno';
 import { aGiorno, giornoLocale, toDateOnly } from '../common/date-only';
 import { MessageComposerService, MessageTone } from './message-composer.service';
@@ -644,7 +646,16 @@ export class NotificationsService {
    * Nessun sollecito di notte: fra le 22 e le 8 non si suona il campanello a nessuno.
    */
   async measuresNudgeTick(): Promise<{ controllate: number; sollecitate: number; coachAvvisate: number }> {
-    const ora = new Date().getHours();
+    /**
+     * ⛔ **L'ORA È QUELLA DI ROMA, NON QUELLA DEL SERVER** (corretto il 21/8, difetto **preesistente**
+     * e non introdotto dal digiuno — trovato di rimbalzo scrivendo `oraLocaleInMinuti`).
+     *
+     * Qui c'era `new Date().getHours()`. Su Render `TZ` non è impostata, quindi rispondeva l'ora
+     * **UTC**: d'estate due ore indietro. Il commento qui sopra promette «fra le 22 e le 8 non si
+     * suona il campanello a nessuno», e invece il silenzio cadeva fra la **mezzanotte e le dieci**
+     * italiane — cioè si suonava alle 22:30 e alle 23:30, e si taceva alle 09:00 di mattina.
+     */
+    const ora = Math.floor(oraLocaleInMinuti() / 60);
     const [inizio, fine, oreSollecito] = await Promise.all([
       this.configParams.getNumber('measures_nudge_start_hour', 8),
       this.configParams.getNumber('measures_nudge_end_hour', 22),
@@ -733,6 +744,107 @@ export class NotificationsService {
       }
     }
     return summary;
+  }
+
+  /**
+   * ⛔ **IL GIRO DELLE PUSH DEL DIGIUNO** — gira ogni pochi minuti e manda quelle il cui momento è
+   * appena passato.
+   *
+   * ⚠️ **Non è il cron notturno**: sei momenti al giorno cadono a ore qualsiasi, e un giro che parte
+   * una volta la notte potrebbe solo *promettere* una notifica per l'indomani. Serve un tic corto.
+   *
+   * ⚠️ **La finestra guardata indietro è larga quanto il tic**, ed è **mezza aperta**: ogni minuto
+   * appartiene a un tic solo. ⛔ E va detto quello che NON fa, invece di prometterlo: se un giro
+   * salta — deploy, riavvio — le push di quei dieci minuti **si perdono**. Allargare la finestra
+   * per recuperarle le farebbe partire due volte a cavallo della mezzanotte, dove il dedup «una al
+   * giorno» cambia giorno. Il countdown in home resta la fonte di verità: chi non riceve la
+   * notifica non perde l'informazione.
+   *
+   * ⛔ Quello che questo giro **non** fa è decidere cosa mandare: lo decide `push-digiuno.ts`, che
+   * sa anche cosa NON mandare (le sedici ore a chi digiuna quattordici, le metaboliche dentro la
+   * finestra, tutto quello che cade nel sonno). Qui si guarda solo l'orologio.
+   */
+  async digiunoPushTick(minutiIndietro = 10): Promise<{ guardate: number; inviate: number; tipi: string[] }> {
+    const adesso = new Date();
+    const oraMin = oraLocaleInMinuti(adesso);
+
+    /**
+     * ⛔ **SOLO CHI HA UN PIANO** (corretto in revisione, 21/8). Prima la query prendeva ogni profilo
+     * in digiuno con un orologio impostato, e basta: una cliente col piano finito — o **archiviata
+     * dall'admin**, che le lascia i token push — avrebbe continuato a ricevere fino a sei notifiche
+     * al giorno sulla sua finestra di digiuno, **per sempre**. Tutti gli altri giri di questo file
+     * filtrano così (`measuresNudgeTick`, il messaggio quotidiano); questo no, ed era l'unico.
+     */
+    const conPiano = (await this.prisma.subscription.findMany({
+      where: { status: { in: STATI_CON_UN_PIANO as never } },
+      select: { clientId: true },
+    })) as unknown as { clientId: string }[];
+    const idConPiano = [...new Set(conPiano.map((s) => s.clientId))];
+    if (!idConPiano.length) return { guardate: 0, inviate: 0, tipi: [] };
+
+    const profili = (await this.prisma.clientProfile.findMany({
+      where: {
+        userId: { in: idConPiano },
+        pathType: 'intermittent_fasting',
+        fastingProtocol: { not: null },
+        fastingStartMin: { not: null },
+      } as never,
+      select: {
+        userId: true, fastingProtocol: true, fastingStartMin: true,
+        fastingSleepStart: true, fastingSleepEnd: true,
+      } as never,
+    })) as unknown as {
+      userId: string; fastingProtocol: string | null; fastingStartMin: number | null;
+      fastingSleepStart: number | null; fastingSleepEnd: number | null;
+    }[];
+
+    const tipi: string[] = [];
+    let inviate = 0;
+    for (const p of profili) {
+      try {
+        // ⚠️ Il ripiego del sonno si applica **qui e in un punto solo**: `SONNO_PREDEFINITO`.
+        // NULL vuol dire «non me l'ha detto», e va tradotto una volta, non in ogni chiamante.
+        const sonno = typeof p.fastingSleepStart === 'number' && typeof p.fastingSleepEnd === 'number'
+          ? { inizioMin: p.fastingSleepStart, fineMin: p.fastingSleepEnd }
+          : SONNO_PREDEFINITO;
+        const spente = (await this.getPrefs(p.userId)).disabledTypes ?? [];
+        const giornata = pushDelGiorno(p.fastingStartMin as number, p.fastingProtocol as string, sonno, spente);
+
+        for (const push of giornata.programmate) {
+          // ⚠️ «Appena passato»: da `oraMin - minutiIndietro` compreso, fino a `oraMin` compreso.
+          // Il confronto è sul quadrante, perché un tic all'00:05 guarda anche le 23:55.
+          const quantoFa = (oraMin - push.oraMin + 24 * 60) % (24 * 60);
+          // ⛔ **Mezza aperta**: `[oraMin - minutiIndietro, oraMin]` conterebbe l'estremo due volte —
+          // il tic delle 13:00 e quello delle 13:10 vedrebbero entrambi una push delle 13:00. Dentro
+          // la stessa giornata il dedup regge, ma **a cavallo della mezzanotte no**, perché la
+          // chiave è «una al giorno» e il giorno è cambiato: due notifiche a dieci minuti.
+          if (quantoFa >= minutiIndietro) continue;
+          const fatta = await this.notifyOncePerDay({
+            userId: p.userId,
+            type: push.tipo,
+            title: push.titolo,
+            body: push.corpo,
+            /**
+             * ⛔ **IL DEDUP GUARDA ANCHE LA FINESTRA, non solo il tipo e il giorno.**
+             *
+             * Spostare la finestra a metà giornata è una cosa che la cliente **può fare** (c'è
+             * `fastingChangedAt`, «un cambio al giorno»). Con il dedup sul solo tipo, chi sposta la
+             * finestra alle 19:30 restava con l'ultimo messaggio ricevuto — «da adesso 18 ore, fino
+             * alle 13:00» — che dopo lo spostamento sbaglia **sia** l'ora d'inizio **sia** quella di
+             * fine, e le due push giuste erano zittite fino all'indomani.
+             */
+            payload: { finestra: `${p.fastingProtocol}@${p.fastingStartMin}` },
+            dedupeSuPayload: { finestra: `${p.fastingProtocol}@${p.fastingStartMin}` },
+          });
+          if (fatta) { inviate += 1; tipi.push(push.tipo); }
+        }
+      } catch (e) {
+        // ⚠️ Una cliente storta non ferma le altre: il giro passa ogni pochi minuti, e fermarsi a
+        // metà vorrebbe dire che tutte quelle dopo di lei non ricevono niente per tutto il giorno.
+        console.error(`[digiuno] push non inviate a ${p.userId}:`, e);
+      }
+    }
+    return { guardate: profili.length, inviate, tipi };
   }
 }
 

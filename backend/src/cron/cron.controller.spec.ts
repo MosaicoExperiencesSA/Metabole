@@ -22,6 +22,9 @@ import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { ProfileService } from '../profile/profile.service';
 import { CronController } from './cron.controller';
 
@@ -224,6 +227,62 @@ describe('CronController (endpoint per Render Cron)', () => {
     audit.log.mockRejectedValue(new Error('DB giù'));
     const res = (await controller.daily('segreto-cron')) as EsitoCron;
     expect(res._meta.ok).toBe(true);
+  });
+
+  /**
+   * ⛔ **OGNI ROTTA DEL CRON È PUBBLICA, O IL CRON DI RENDER SI PRENDE UN 401.**
+   *
+   * Nato da un difetto vero del 21/8: aggiungendo `digiuno-push` ho infilato la rotta nuova **fra**
+   * i decoratori `@Public() @HttpCode(200)` e la firma di `measures-nudge`. In TypeScript i
+   * decoratori si attaccano all'elemento che **segue**: sono passati alla rotta nuova, e
+   * `measures-nudge` è rimasta senza. Con la guardia JWT globale il cron — che manda solo
+   * `x-cron-secret` — avrebbe preso 401, `curl -f` sarebbe uscito non-zero, e il sollecito misure
+   * avrebbe smesso di partire. ⚠️ Nessun test lo diceva: si vedeva solo in produzione, e come
+   * assenza.
+   *
+   * Qui si guardano i **metadati veri** di Nest, non il sorgente: è la stessa cosa che legge la
+   * guardia a runtime.
+   */
+  it('⛔ tutte le rotte del cron sono @Public() e rispondono 200', async () => {
+    const proto = CronController.prototype as unknown as Record<string, unknown>;
+    const metodi = Object.getOwnPropertyNames(proto).filter((n) => n !== 'constructor');
+    const senzaPublic: string[] = [];
+    const senza200: string[] = [];
+    for (const nome of metodi) {
+      const fn = proto[nome];
+      if (typeof fn !== 'function') continue;
+      // Solo i metodi che sono davvero una rotta HTTP.
+      if (Reflect.getMetadata('path', fn) === undefined) continue;
+      if (Reflect.getMetadata(IS_PUBLIC_KEY, fn) !== true) senzaPublic.push(nome);
+      if (Reflect.getMetadata('__httpCode__', fn) !== 200) senza200.push(nome);
+    }
+    expect({ senzaPublic, senza200 }).toEqual({ senzaPublic: [], senza200: [] });
+    // ⚠️ E che il test guardi davvero qualcosa: le rotte ci sono.
+    expect(metodi.filter((n) => Reflect.getMetadata('path', proto[n] as never) !== undefined).length)
+      .toBeGreaterThanOrEqual(5);
+  });
+
+  /**
+   * ⛔ **UNA ROTTA CHE NESSUN CRON CHIAMA NON GIRA MAI, E SEMBRA FUNZIONARE.**
+   *
+   * Nato da un difetto vero del 21/8: `digiuno-push` era scritta, provata e verde, e in produzione
+   * non l'avrebbe chiamata nessuno — mancava la voce in `render.yaml`. ⚠️ È il tipo di buco che il
+   * collaudo non trova, perché a mano l'endpoint risponde 200: si vede solo dal fatto che le
+   * notifiche non arrivano, cioè da un'assenza.
+   *
+   * ⚠️ `render.yaml` dice di sé stesso di essere **la fonte di verità**, non la dashboard di Render:
+   * quindi è lì che si guarda.
+   */
+  it('⛔ ogni rotta del cron ha il suo cron dichiarato in render.yaml', () => {
+    const yaml = readFileSync(join(__dirname, '..', '..', '..', 'render.yaml'), 'utf8');
+    const proto = CronController.prototype as unknown as Record<string, unknown>;
+    const rotte = Object.getOwnPropertyNames(proto)
+      .filter((n) => n !== 'constructor' && typeof proto[n] === 'function')
+      .map((n) => Reflect.getMetadata('path', proto[n] as never) as string | undefined)
+      .filter((p): p is string => typeof p === 'string');
+    expect(rotte.length).toBeGreaterThanOrEqual(5);
+    const senzaCron = rotte.filter((r) => !yaml.includes(`/internal/cron/${r}`));
+    expect(senzaCron).toEqual([]);
   });
 
   it('segreto sbagliato o assente → 403', async () => {

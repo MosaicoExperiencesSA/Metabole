@@ -20,7 +20,28 @@ const TYPES: [string, string][] = [
   ['mini_plan', 'Mini-piano dopo gli eventi'],
   ['chat_reply_coach', 'Risposte della coach'],
   ['chat_reply_nutritionist', 'Risposte della nutrizionista'],
+  /**
+   * ⛔ **LE SEI DEL DIGIUNO** (21/8). Senza queste righe la regola «chi si stufa spegne le
+   * metaboliche e tiene le quattro utili» esisteva **solo nel backend**: il parametro c'era, la
+   * funzione lo rispettava, e dall'app non c'era modo di toccarlo. Una preferenza che nessuno può
+   * esprimere non è una preferenza — è un campo che agisce e non si vede.
+   *
+   * ⚠️ Compaiono solo a chi è in digiuno: per tutte le altre sono sei righe che non vogliono dire
+   * niente. Il filtro sta in `visibili` qui sotto.
+   */
+  ['digiuno_puoi_mangiare', 'Quando si apre la tua finestra'],
+  ['digiuno_manca_unora', 'Un\'ora prima che si apra'],
+  ['digiuno_inizia', 'Quando comincia il digiuno'],
+  ['digiuno_chiude_fra_unora', 'Un\'ora prima che si chiuda'],
+  ['digiuno_12_ore', 'Dodici ore di digiuno'],
+  ['digiuno_16_ore', 'Sedici ore di digiuno'],
 ];
+
+/** ⚠️ Le sei del digiuno: si mostrano solo a chi digiuna. */
+const TIPI_DIGIUNO = new Set([
+  'digiuno_puoi_mangiare', 'digiuno_manca_unora', 'digiuno_inizia',
+  'digiuno_chiude_fra_unora', 'digiuno_12_ore', 'digiuno_16_ore',
+]);
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
@@ -37,11 +58,20 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 export default function NotificationPrefs() {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [available, setAvailable] = useState(true);
+  /**
+   * ⚠️ Se digiuna o no: le sei righe del digiuno hanno senso solo per lei. ⛔ E in caso di dubbio
+   * si **nascondono**: mostrarle a chi non digiuna sarebbe offrirle di spegnere notifiche che non
+   * riceverà mai, cioè far sembrare il prodotto pieno di cose che non la riguardano.
+   */
+  const [digiuna, setDigiuna] = useState(false);
 
   useEffect(() => {
     api<Prefs>('/me/notifications/prefs')
       .then((p) => setPrefs({ disabledTypes: p.disabledTypes ?? [], emailEnabled: !!p.emailEnabled }))
       .catch(() => setAvailable(false));
+    api<{ pathType?: string | null }>('/me/client-profile')
+      .then((p) => setDigiuna(p.pathType === 'intermittent_fasting'))
+      .catch(() => setDigiuna(false));
   }, []);
 
   async function save(next: Prefs) {
@@ -55,6 +85,7 @@ export default function NotificationPrefs() {
 
   if (!available || !prefs) return null;
 
+  const visibili = TYPES.filter(([type]) => digiuna || !TIPI_DIGIUNO.has(type));
   const isOn = (type: string) => !prefs.disabledTypes.includes(type);
   function toggleType(type: string) {
     if (!prefs) return;
@@ -75,8 +106,8 @@ export default function NotificationPrefs() {
           </div>
           <Toggle on={prefs.emailEnabled} onClick={() => save({ ...prefs, emailEnabled: !prefs.emailEnabled })} />
         </div>
-        {TYPES.map(([type, label], i) => (
-          <div key={type} className="row-between" style={{ padding: '11px 0', borderBottom: i < TYPES.length - 1 ? '1px solid #F2F5F4' : 'none' }}>
+        {visibili.map(([type, label], i) => (
+          <div key={type} className="row-between" style={{ padding: '11px 0', borderBottom: i < visibili.length - 1 ? '1px solid #F2F5F4' : 'none' }}>
             <span style={{ fontSize: 13 }}>{label}</span>
             <Toggle on={isOn(type)} onClick={() => toggleType(type)} />
           </div>

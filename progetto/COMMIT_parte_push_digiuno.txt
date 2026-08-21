@@ -1,0 +1,129 @@
+Parte: le sei push del digiuno — e le tre che tolgono — 21/8
+
+================================================================================
+COSA FA
+================================================================================
+
+Le quattro chieste da Simone il 19/8 («inizia il tuo digiuno», «ora puoi iniziare a mangiare»,
+«fra un'ora potrai mangiare», «fra un'ora dovrai smettere») più le due metaboliche del manuale —
+dodici ore, sedici ore — accese di default (§12.2).
+
+`menu/push-digiuno.ts` decide **quali**, **a che ora** e soprattutto **quali NO**. Il tic
+(`POST /internal/cron/digiuno-push`, ogni dieci minuti) guarda solo l'orologio e manda.
+
+⛔ **Sei tipi non vuol dire sei notifiche al giorno**, ed è la ragione per cui il modulo esiste
+invece di sei righe sparse:
+
+  14:10 → 5   le sedici ore NON esistono: il digiuno ne dura quattordici
+  16:8  → 5   le sedici ore cadono ALL'APERTURA e si fondono con «puoi mangiare»
+  18:6  → 6
+  20:4  → 6
+  23:1  → 5   «fra un'ora si chiude» cadrebbe insieme a «puoi mangiare»: la finestra dura un'ora
+
+## Le tre regole che tolgono
+
+1. Una metabolica che cadrebbe **dentro la finestra di pasto** non si manda: «autofagia al picco»
+   mentre la cliente sta pranzando dice una cosa falsa. ⚠️ Il **minuto dell'apertura** però
+   appartiene al digiuno, non al pasto: quelle ore le ha appena fatte.
+2. Se le sedici ore cadono a meno di mezz'ora dall'apertura si **fondono** in un messaggio solo.
+3. Quello che cade nel **sonno** si salta, non si accumula. Tre notifiche insieme al risveglio sono
+   il modo più rapido per farsele disattivare tutte — e il countdown in home resta la fonte di
+   verità, quindi chi dorme non perde niente.
+
+⚠️ **Niente tagli silenziosi**: ogni push tolta esce in `saltate` col motivo scritto in chiaro.
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (otto cose, e la prima è una regressione mia)
+================================================================================
+
+⛔ **AVEVO RUBATO I DECORATORI A `measures-nudge`.** Ho infilato la rotta nuova **fra**
+`@Public() @HttpCode(200)` e la firma di `measuresNudge`: in TypeScript i decoratori si attaccano
+all'elemento che **segue**, quindi sono passati alla rotta nuova e il sollecito misure è rimasto
+senza `@Public()`. Con la guardia JWT globale il cron di Render — che manda solo `x-cron-secret` —
+avrebbe preso **401**, `curl -f` sarebbe uscito non-zero, e **il sollecito misure avrebbe smesso di
+partire**: una funzione già in produzione, rotta da un pezzo che non c'entrava niente. → corretto, e
+c'è un test che legge i **metadati veri di Nest** e chiede che ogni rotta del cron sia `@Public()` e
+risponda 200.
+
+⛔ **E la rotta nuova non l'avrebbe chiamata nessuno.** `render.yaml` — che dice di sé stesso di
+essere la fonte di verità, non la dashboard — non aveva la voce. Le push sarebbero state **zero per
+tutte**, e in collaudo sembrava funzionare perché a mano l'endpoint risponde 200. → voce aggiunta, e
+un test chiede che **ogni rotta del cron abbia il suo cron dichiarato**.
+
+⛔ **Le push a chi non ha più un piano.** La query prendeva ogni profilo in digiuno con un orologio,
+e basta. Una cliente col piano finito — o **archiviata dall'admin**, che le lascia i token push —
+avrebbe ricevuto sei notifiche al giorno **per sempre**. Tutti gli altri giri di quel file filtrano
+sull'abbonamento; questo era l'unico che non lo faceva.
+
+⛔ **La 23:1 suonava due volte nello stesso minuto**, su tutte e 288 le posizioni della giornata:
+con una finestra di un'ora «fra un'ora si chiude» cade sull'apertura. E il testo — «se ti manca un
+pasto, è adesso» — arrivava prima che avesse mangiato qualsiasi cosa.
+
+⛔ **Spegnere «puoi mangiare» faceva sparire anche le sedici ore**, e la diagnostica scriveva «te
+l'ho detto in quel messaggio»: una bugia su un silenzio, perché quel messaggio non era partito. →
+si fonde **solo se il messaggio che la ospita arriva davvero**.
+
+⚠️ **La finestra del tic duplicava a cavallo della mezzanotte**: l'estremo apparteneva a due tic, e
+il dedup «una al giorno» alle 00:00 cambia giorno. → mezza aperta. ⚠️ E il commento prometteva un
+recupero che non c'era: adesso dice quello che succede davvero, cioè che una push caduta in un giro
+saltato **si perde**.
+
+⚠️ **Spostare la finestra a metà giornata lasciava in mano l'ultimo messaggio sbagliato.** Il dedup
+guardava tipo e giorno: chi spostava alle 19:30 restava con «da adesso 18 ore, fino alle 13:00», che
+dopo lo spostamento sbaglia sia l'inizio sia la fine, e le due push giuste erano zittite fino
+all'indomani. → **la finestra entra nella chiave del dedup**.
+
+⚠️ **E dall'app quei sei tipi non si potevano spegnere**: `NotificationPrefs.tsx` aveva un elenco
+scritto a mano in cui nessuno dei sei compariva. La regola «chi si stufa spegne le metaboliche e
+tiene le quattro utili» viveva solo nel backend. → aggiunti, visibili **solo a chi digiuna**, con un
+test che guarda il sorgente dell'app.
+
+================================================================================
+UN DIFETTO PREESISTENTE, CHIUSO DI RIMBALZO
+================================================================================
+
+⛔ `measuresNudgeTick` leggeva `new Date().getHours()`, cioè l'ora **del server**. Su Render `TZ`
+non è impostata: il commento prometteva «fra le 22 e le 8 non si suona il campanello a nessuno», e
+il silenzio cadeva invece fra la **mezzanotte e le dieci** italiane — si suonava alle 22:30 e si
+taceva alle 09:00. ⚠️ **Non introdotto dal digiuno**: trovato scrivendo `oraLocaleInMinuti`.
+
+⚠️ E il **finto** `ConfigParamsService` dei test ignorava il valore di scorta, quindi in **ogni**
+test di quel file la guardia notturna era spenta e nessuno poteva accorgersene. Corretto anche
+quello, ed è il motivo per cui il difetto è sopravvissuto tanto.
+
+================================================================================
+⚠️ QUELLO CHE UN TEST NON PUÒ DIRE, DETTO INVECE CHE FINTO
+================================================================================
+
+Con i **cinque protocolli di oggi** lo scarto fra le sedici ore e l'apertura vale **zero oppure
+ore**: quindi la soglia dei trenta minuti non è distinguibile da «solo se coincide», e non esiste un
+caso in cui «puoi mangiare» cade nel sonno e le sedici ore no. Avevo scritto due test che dicevano
+di provarlo: non provavano niente, e li ho sostituiti con la spiegazione. Diventeranno distinguibili
+con la **rampa d'ingresso** già prevista (12h → 13 → 14 → 15 → 16).
+
+================================================================================
+FILE
+================================================================================
+
+Nuovi
+  backend/src/menu/push-digiuno.ts                     quali, quando, e quali no (+33 test)
+  backend/src/notifications/digiuno-push-tick.spec.ts  14 test sul giro che manda
+
+Modificati
+  backend/src/notifications/notifications.service.ts   `digiunoPushTick` + la correzione del fuso
+  backend/src/notifications/notifications.service.spec.ts  il finto rispetta il valore di scorta
+  backend/src/cron/cron.controller.ts                  la rotta, e i decoratori rimessi al loro posto
+  backend/src/cron/cron.controller.spec.ts             due guardie nuove: @Public() e render.yaml
+  app/src/components/NotificationPrefs.tsx             i sei tipi, solo a chi digiuna
+  render.yaml                                          il cron ogni dieci minuti
+
+================================================================================
+VERIFICATO
+================================================================================
+
+  suite intera   4430 su 4430, 290 suite (erano 4429 su `origin/main` + i nuovi)
+  mutazioni      diciotto su diciotto mordono, comprese le due che PRIMA sopravvivevano
+  npm run build  verde su backend, app e backoffice
+
+⛔ Cosa NON c'è ancora: l'orologio in React e il widget in home, la scheda staff, e la terza
+condizione della verifica (`restaCorta`) — che resta in elenco lavori con scritto **che manca**.
