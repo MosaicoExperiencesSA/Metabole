@@ -1,3 +1,5 @@
+import { conOrologioFermo } from '../../test/orologio-fermo';
+import { giornoLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from './profile.service';
 
@@ -11,42 +13,42 @@ import { ProfileService } from './profile.service';
  * ambigua (la stessa parola per «sta erogando» e per «comincia il 9 settembre»), e la produceva dal
  * percorso più battuto di tutti: il questionario.
  */
+const fra = (giorni: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + giorni);
+  return d.toISOString().slice(0, 10);
+};
+
+const crea = (statoIniziale: string) => {
+  const prisma = {
+    clientProfile: {
+      // `planStartDate: null` = è la PRIMA volta che la sceglie, che è l'unico caso in cui
+      // l'abbonamento si riallinea.
+      findUnique: jest.fn().mockResolvedValue({ id: 'p1', userId: 'c1', planStartDate: null }),
+      update: jest.fn().mockResolvedValue({ id: 'p1' }),
+    },
+    subscription: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'sub-1', status: statoIniziale, startDate: null, endDate: null, plan: { period: '3m' } },
+      ]),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    user: { update: jest.fn().mockResolvedValue({}) },
+    // Nessun menu erogato: la data d'inizio è ancora una preferenza, e si può ancora spostare.
+    menuDay: { count: jest.fn().mockResolvedValue(0) },
+  };
+  const audit = { log: jest.fn().mockResolvedValue(undefined) };
+  const service = new ProfileService(
+    prisma as unknown as PrismaService,
+    { getNumber: jest.fn() } as never,
+    audit as never,
+    {} as never,
+    {} as never,
+  );
+  return { service, prisma };
+};
+
 describe('ProfileService — la data d\'inizio scelta dalla cliente', () => {
-  const fra = (giorni: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + giorni);
-    return d.toISOString().slice(0, 10);
-  };
-
-  const crea = (statoIniziale: string) => {
-    const prisma = {
-      clientProfile: {
-        // `planStartDate: null` = è la PRIMA volta che la sceglie, che è l'unico caso in cui
-        // l'abbonamento si riallinea.
-        findUnique: jest.fn().mockResolvedValue({ id: 'p1', userId: 'c1', planStartDate: null }),
-        update: jest.fn().mockResolvedValue({ id: 'p1' }),
-      },
-      subscription: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'sub-1', status: statoIniziale, startDate: null, endDate: null, plan: { period: '3m' } },
-        ]),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      user: { update: jest.fn().mockResolvedValue({}) },
-      // Nessun menu erogato: la data d'inizio è ancora una preferenza, e si può ancora spostare.
-      menuDay: { count: jest.fn().mockResolvedValue(0) },
-    };
-    const audit = { log: jest.fn().mockResolvedValue(undefined) };
-    const service = new ProfileService(
-      prisma as unknown as PrismaService,
-      { getNumber: jest.fn() } as never,
-      audit as never,
-      {} as never,
-      {} as never,
-    );
-    return { service, prisma };
-  };
-
   const statoScritto = (prisma: { subscription: { update: jest.Mock } }) =>
     prisma.subscription.update.mock.calls[0][0].data.status;
 
@@ -88,5 +90,47 @@ describe('ProfileService — la data d\'inizio scelta dalla cliente', () => {
     const { service, prisma } = crea('expired');
     await service.updateProfile('c1', { planStartDate: fra(0) } as never);
     expect(statoScritto(prisma)).toBe('active');
+  });
+});
+
+/**
+ * ⛔ **E ALLE 00:30 «COMINCIO OGGI» VUOL DIRE OGGI** — difetto trovato il 23/8 con `test:notte`.
+ *
+ * La data arriva qui come **giorno** (`new Date('2026-08-23')`, cioè `…T00:00:00.000Z`), e
+ * `toDateOnly` scrive i giorni proprio così: mezzanotte UTC del giorno di **Roma**. Ma mezzanotte
+ * UTC del 23 sono **le 02:00 italiane** del 23: confrontandola con «adesso» come se fosse un
+ * istante, fra la mezzanotte e le due il piano di chi comincia **oggi** risultava «nel futuro» e
+ * nasceva `queued`.
+ *
+ * ⚠️ Conseguenza per la cliente: finisce il questionario all'una di notte, sceglie «comincio oggi»,
+ * e i menu non arrivano — perché a farla partire sarà la passata notturna **della notte dopo**, cioè
+ * un giorno intero più tardi. Il percorso è quello più battuto di tutti, ed è il primo giorno.
+ *
+ * ⚠️ Questo test **scrive l'ora**, invece di prendere quella in cui capita di girare: senza, sarebbe
+ * verde 22 volte su 24, che è come il difetto è vissuto fino a oggi.
+ */
+describe('⛔ ProfileService, alle 00:30 di Roma', () => {
+  /** 00:30 del 23 agosto a Roma. Per UTC è ancora il 22: i due giorni divergono. */
+  conOrologioFermo(new Date('2026-08-22T22:30:00.000Z'));
+
+  /** Il giorno di **Roma**, che è quello che la cliente intende quando dice «oggi». */
+  const oggiARoma = () => giornoLocale(new Date());
+
+  const statoScritto = (prisma: { subscription: { update: jest.Mock } }) =>
+    prisma.subscription.update.mock.calls[0][0].data.status;
+
+  it('⛔ «comincio oggi» scelto all\'una di notte fa partire il piano ADESSO', async () => {
+    const { service, prisma } = crea('queued');
+    await service.updateProfile('c1', { planStartDate: oggiARoma() } as never);
+    expect(statoScritto(prisma)).toBe('active');
+  });
+
+  /** ⚠️ E «domani» resta domani: il confine si sposta di due ore, non sparisce. */
+  it('⚠️ mentre «comincio domani», alla stessa ora, resta IN CODA', async () => {
+    const { service, prisma } = crea('active');
+    const domani = new Date(`${oggiARoma()}T00:00:00.000Z`);
+    domani.setUTCDate(domani.getUTCDate() + 1);
+    await service.updateProfile('c1', { planStartDate: domani.toISOString().slice(0, 10) } as never);
+    expect(statoScritto(prisma)).toBe('queued');
   });
 });

@@ -64,6 +64,23 @@ const PERIMETRO = [
   'marketing/lifecycle.service.ts',
   'agents/agent-orchestrator.service.ts',
   'reports/plan-report.service.ts',
+  /**
+   * Aggiunto il 23/8 dopo averlo guardato riga per riga, correggendone una: la finestra di blocco
+   * contava le ore fino alla mezzanotte **UTC** del giorno d'inizio invece che a quella di Roma, e
+   * il blocco dichiarato di 24 ore ne durava 22 (`istanteDiPartenza`). Trovato con
+   * `npm run test:notte`.
+   *
+   * ⚠️ **Cosa resta e perché**, che è la parte che una prima stesura di questa nota aveva scritto
+   * a memoria — «tutti valori-giorno normalizzati» — e che non era vera:
+   *  · `situazione()` confronta `s.startDate`/`s.endDate` **grezzi** contro `toDateOnly()` per
+   *    decidere se un piano è in corso. Sono istanti salvati contro un giorno, ed è la stessa
+   *    distinzione dichiarata in `date-only.ts`: il giorno di una data salvata si legge in UTC, e
+   *    un piano che finisce a metà giornata sta ancora erogando fino a quell'ora;
+   *  · `inizio` è `startDate.toISOString().slice(0, 10)`, cioè il giorno **UTC** di quell'istante:
+   *    serve per **scriverlo** alla cliente, non per contarci sopra — il conto lo fa
+   *    `istanteDiPartenza` sul valore, non sulla stringa.
+   */
+  'menu/data-inizio-chat.service.ts',
 ];
 
 /**

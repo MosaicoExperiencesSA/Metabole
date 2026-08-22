@@ -27,6 +27,24 @@ import { PrivacyService } from './privacy.service';
 
 const GIORNO = 86_400_000;
 
+/**
+ * ⛔ **UNA SCADENZA SI COSTRUISCE CON LA STESSA FUNZIONE CHE LA SCRIVE IN PRODUZIONE** (23/8).
+ *
+ * Era `new Date(Date.now() + n * GIORNO)`, cioè un **istante**. Ma `scheduledFor` non è un istante:
+ * `revoca()` lo scrive con `dataCancellazione(adesso)`, che rende la **mezzanotte del giorno di
+ * Roma**. E `giorniRimanenti` — la funzione in prova — legge quel campo come un giorno.
+ *
+ * ⚠️ Fra le 22:00 e le 24:00 UTC lo scarto fra le due forme vale un giorno intero, e il test
+ * chiedeva al prodotto di sbagliare: «fra 27 giorni» costruito come istante è, per il giorno di
+ * Roma, fra **26**. Il conto giusto veniva bocciato.
+ *
+ * ⚠️ Costruire la fixture con `dataCancellazione` non rende il test cieco: le due funzioni sono
+ * diverse — una scrive, l'altra rilegge — e messe insieme rispondono alla domanda che conta davvero,
+ * «quello che le abbiamo promesso è quello che poi le contiamo?». Che `dataCancellazione` prenda a
+ * sua volta il giorno giusto lo tiene fermo `cancellazione.spec.ts`, con date scritte a mano.
+ */
+const fraGiorni = (n: number) => dataCancellazione(new Date(), n);
+
 /** Le tabelle che NON devono essere toccate: se una comparisse, il test fallisce. */
 const CONTABILITA = ['payment', 'order', 'subscription', 'ledgerEntry', 'pendingCommission', 'staffCompensation', 'discountRedemption'];
 
@@ -194,7 +212,7 @@ describe('la revoca', () => {
       id: 'req-0',
       clientId: 'cli-1',
       requestedAt: new Date(Date.now() - 5 * GIORNO),
-      scheduledFor: new Date(Date.now() + 25 * GIORNO),
+      scheduledFor: fraGiorni(25),
       status: 'pending',
       warnedAt: null,
     };
@@ -218,7 +236,7 @@ describe('sospendere il termine', () => {
   it('col token giusto il termine si ferma e il consenso torna attivo', async () => {
     const { service, prisma, mail, audit } = await crea();
     prisma.deletionRequest.findUnique.mockResolvedValue({
-      id: 'req-1', clientId: 'cli-1', status: 'pending', scheduledFor: new Date(Date.now() + 10 * GIORNO),
+      id: 'req-1', clientId: 'cli-1', status: 'pending', scheduledFor: fraGiorni(10),
     });
     const esito = await service.sospendi('un-token');
 
@@ -310,7 +328,7 @@ describe('il passo notturno del cron', () => {
   const richiesta = (giorni: number, warnedAt: Date | null = null) => ({
     id: `req-${giorni}`,
     clientId: `cli-${giorni}`,
-    scheduledFor: new Date(Date.now() + giorni * GIORNO),
+    scheduledFor: fraGiorni(giorni),
     warnedAt,
   });
 
@@ -373,7 +391,7 @@ describe('lo stato mostrato nel profilo', () => {
     const aperta = {
       id: 'r', clientId: 'cli-1',
       requestedAt: new Date(Date.now() - 3 * GIORNO),
-      scheduledFor: new Date(Date.now() + 27 * GIORNO),
+      scheduledFor: fraGiorni(27),
       status: 'pending', warnedAt: null,
     };
     const { service } = await crea({ aperta });

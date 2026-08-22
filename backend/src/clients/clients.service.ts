@@ -11,7 +11,7 @@ import { TIPO_VISITA_DA_FISSARE, testoVisitaDaFissare } from './visita-da-fissar
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { statoPerInizio, STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
+import { statoPerGiornoDiInizio, STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { perimetroClienti, type PerimetroClienti } from '../common/perimetro-clienti';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
@@ -1584,7 +1584,8 @@ export class ClientsService {
      * arrivavano il giorno dopo, quando passava il lavoro notturno.
      */
     const daRiscrivere = newEnd.getTime() > now && ['active', 'queued', 'expired'].includes(sub.status);
-    const statoNuovo = statoPerInizio(d, new Date(now));
+    // ⚠️ `d` è un GIORNO (riga 1503: `…T00:00:00.000Z`), non un istante: vedi `statoPerGiornoDiInizio`.
+    const statoNuovo = statoPerGiornoDiInizio(d, new Date(now));
 
     const prevProfile = (await this.prisma.clientProfile.findUnique({
       where: { userId },

@@ -1378,6 +1378,7 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: true,
+    fatta: true, // chiusa il 23/8 — e sotto i test rotti c'erano due difetti di prodotto
     titolo: '⛔ La suite è verde 22 ore su 24 e rossa 2: i test hanno il difetto del fuso',
     dettaglio:
       '⛔ **Alle 00:02 di Roma del 21/8 la suite è diventata rossa**: 13 test in 6 file, tutti con una '
@@ -1403,7 +1404,193 @@ export const VOCI_INIZIALI: Voce[] = [
       + '(`aGiorno`, `giornoLocale`, `toDateOnly` in `src/common/date-only.ts`), non se lo ricalcola. '
       + '⚠️ E vale la pena aggiungere un controllo che legga i sorgenti dei test come fa '
       + '`il-giorno-si-chiede.spec.ts` col codice: finché la regola vale solo per metà del progetto, '
-      + 'l\'altra metà la romperà di nuovo.',
+      + 'l\'altra metà la romperà di nuovo.\n\n'
+      + '---\n\n'
+      + '✅ **CHIUSA il 23/8 — e i test rotti erano la parte piccola.**\n\n'
+      + 'Primo fatto: la misura fatta a mano il 21/8 era **sbagliata**. Rifatta con un orologio finto '
+      + '(`npm run test:notte`, che gira la suite come se fossero le 00:30 di Roma) i file rossi erano '
+      + '**quattro**, non tre: si era aggiunto `notifications/notifications.service`, perché niente '
+      + 'impediva di riscrivere il difetto. ⚠️ E la prima versione dell\'orologio finto contava **8 '
+      + 'file invece di 4**, perché falsificava l\'ora dentro `beforeEach`, cioè dopo che i moduli '
+      + 'erano già caricati: una misura sbagliata manda a correggere codice che funziona.\n\n'
+      + '⛔ **Secondo fatto: due dei quattro non erano test rotti. Era il PRODOTTO.**\n\n'
+      + '· **La finestra di blocco della data d\'inizio, dichiarata di 24 ore, ne durava 22** (23 '
+      + 'd\'inverno). Contava le ore fino alla mezzanotte **UTC** del giorno d\'inizio, ma il piano '
+      + 'parte alla mezzanotte di **Roma**, due ore prima. Sbagliava nel verso che costa: nelle ultime '
+      + 'due ore utili il pulsante nel profilo era acceso e Gaia si offriva di spostare, e la data si '
+      + 'muoveva **dentro** la finestra che il blocco esiste per proteggere — con i menu già sbloccati '
+      + 'e magari la spesa già fatta. E lo stesso conto risponde a `oreMancanti`, il numero che la '
+      + 'cliente **legge**: le diceva due ore in più di quelle che aveva.\n\n'
+      + '· **`statoPerInizio` riceveva un GIORNO e lo confrontava come un ISTANTE.** Quattro dei cinque '
+      + 'punti che scrivono la data d\'inizio le passano `toDateOnly(...)`, cioè la mezzanotte UTC del '
+      + 'giorno di Roma — che sono **le 02:00 italiane**. Fra la mezzanotte e le due, «comincio oggi» '
+      + 'risultava nel futuro e il piano nasceva `queued`: niente menu fino alla passata notturna '
+      + 'dopo, cioè **un giorno intero**. ⚠️ È il difetto che la voce 258 dichiarava chiuso: la porta '
+      + 'era davvero una sola, ma le si passava la cosa sbagliata. Ora c\'è `statoPerGiornoDiInizio` '
+      + 'accanto a `statoPerInizio`, e il confronto per istante resta dov\'è **giusto** (la coda che '
+      + 'eredita l\'ora di scadenza del piano in corso).\n\n'
+      + '· **E un test verde per la ragione sbagliata**: il dedup «una notifica al giorno» era provato '
+      + 'con una riga finta **senza data**, e passava solo perché `Intl.DateTimeFormat.format(undefined)` '
+      + 'formatta *adesso*. Si è visto solo fermando l\'orologio, perché `Intl` legge il clock del '
+      + 'sistema e i finti timer di jest non lo toccano.\n\n'
+      + '⛔ **Il guardiano non è un test che legge i sorgenti: è la CI che gira la suite a quell\'ora.** '
+      + 'Un elenco di file dichiarati «guardati» avrebbe coperto i quattro di ieri, non il quinto di '
+      + 'domani. Il passo `Test · all\'ora pericolosa` nella CI copre tutto, sempre; '
+      + '`common/lora-pericolosa-si-gira.spec.ts` tiene fermo che quel passo ci sia e che l\'orologio '
+      + 'sia puntato su un istante in cui i due giorni divergono **davvero** — lo calcola su quattro '
+      + 'giorni dell\'anno, compresi i due del cambio dell\'ora, invece di cercarlo scritto.\n\n'
+      + '⛔ **E la revisione avversariale ha trovato che la prima stesura era peggio del difetto.** '
+      + 'Quattordici rilievi, di cui due bloccanti:\n\n'
+      + '· `statoPerGiornoDiInizio` rileggeva la data salvata **nel fuso di Roma** — la porta che '
+      + 'quello stesso file vieta centoventi righe più su. Su un valore con dentro un\'ora (e ce ne '
+      + 'sono: il DTO del profilo accetta un ISO completo, e la coda eredita la scadenza del piano in '
+      + 'corso) anticipava **fino a 24 ore**, cioè riapriva la forma ambigua che la voce 258 esiste '
+      + 'per chiudere. Ora la regola sta in un posto solo, `istanteDiPartenza` in `date-only.ts`, e '
+      + 'un valore che **non** è un giorno lo rende com\'è invece di fingere;\n'
+      + '· **quattro dei cinque punti corretti non erano provati da niente.** Mutandoli tutti e '
+      + 'quattro, la suite restava verde su 4729 test su 4730. Adesso ognuno ha il suo caso alle 00:30 '
+      + '— questionario, matita della scheda, «Conosciamoci», approvazione del bonifico — e il quinto '
+      + '(la coda) ha il caso **contrario**, che la coda deve restare in coda fino all\'ora di '
+      + 'scadenza.\n\n'
+      + '⚠️ E tre dei rilievi erano su test che **dichiaravano** di verificare qualcosa e non lo '
+      + 'facevano: il guardiano dell\'orologio restava verde con la riga commentata via e con '
+      + '`doNotFake` tolto del tutto; il test che vietava la «costante −2h» sceglieva l\'unico istante '
+      + 'invernale che non la distingue; e il commento che diceva «ci pensa `cancellazione.spec.ts`» '
+      + 'era falso — quel file non aveva **nessun** caso fra le 22:00 e le 24:00. Tutti e tre corretti '
+      + 'e rimutati.\n\n'
+      + '⚠️ L\'orologio finto sposta **l\'ora, non il calendario**: la prima stesura fissava una data '
+      + 'assoluta, e dal 2 settembre (vedi la voce sotto) avrebbe detto «rotta di giorno, sana di '
+      + 'notte» — il contrario del vero, per sempre.\n\n'
+      + '⛔ **E la seconda ronda ne ha trovati altri tre bloccanti**, tutti sulla parte nuova: '
+      + 'l\'euristica «mezzanotte UTC esatta = un giorno» sbagliava sul caso **più comune di tutti** '
+      + '— `subscriptionEnd` produce proprio mezzanotte UTC esatta, quindi la scadenza che una coda '
+      + 'eredita ci passava dentro; il guardiano non guardava mai il valore di `now`, quindi '
+      + '`test:notte` poteva diventare un doppione di `test` restando verde; e il quinto punto che '
+      + 'scrive (Gaia) era l\'unico rimasto senza una prova che dicesse che ora è. ✅ Corretti: '
+      + 'l\'euristica è stata **tolta** dove la provenienza non si sa (l\'approvazione del bonifico '
+      + 'torna al confronto fra istanti, e il difetto che le resta è scritto in un test e in una voce '
+      + 'a parte), e usata solo dove si sa.\n\n'
+      + '4750 test verdi (301 suite) alle 00:30 e alle 01:59 di Roma; ogni correzione verificata per '
+      + 'mutazione, guardiani compresi. ⚠️ **La suite non è verde a tutte le date**: dal 2 settembre '
+      + 'due file cadono da soli e la notte del 25 ottobre altri tre — sono le due voci qui sotto, '
+      + 'misurate e non corrette. Nessuna migrazione.',
+  },
+  {
+    chiave: 'data-inizio-giorno-o-istante',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T03:20',
+    titolo: '`planStartDate` contiene due cose diverse — un giorno o un istante — e dal valore non si distinguono',
+    dettaglio:
+      '⛔ **Il pezzo che il 23/8 NON si è chiuso, e perché.** Quattro dei cinque punti che scrivono la '
+      + 'data d\'inizio ricevono un **giorno** (`toDateOnly`: mezzanotte UTC del giorno di Roma) e ora '
+      + 'lo traducono correttamente. Il quinto — `finalizeApproval`, l\'approvazione del bonifico — no, '
+      + 'perché lì la data arriva da `clientProfile.planStartDate`, **che contiene due cose diverse**: '
+      + 'il giorno scelto dalla cliente, oppure la scadenza del piano in corso (un istante), scritta '
+      + 'da quella stessa funzione nel ramo della coda.\n\n'
+      + '⛔ **E dal valore non si distinguono.** La prima stesura ci aveva provato — «mezzanotte UTC '
+      + 'esatta = un giorno» — e la revisione ha mostrato che `subscriptionEnd`, partendo da un giorno, '
+      + 'rende **proprio** mezzanotte UTC esatta: l\'euristica sbagliava sul caso più comune di tutti, '
+      + 'e faceva nascere piani `active` con la partenza **nel futuro**. Cioè la forma ambigua della '
+      + 'voce 258, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`. Tolta.\n\n'
+      + '⚠️ **Cosa resta scoperto:** fra la mezzanotte e le 02:00 italiane, una cliente che paga e ha '
+      + 'scelto di cominciare **oggi** nasce `queued`, e i menu arrivano alla passata notturna dopo. '
+      + 'Fissato in un test che dice «difetto noto», così non cambia in silenzio.\n\n'
+      + '⚠️ **La forma della soluzione non è un\'euristica migliore**: è che il campo dica da dove '
+      + 'viene. Due campi diversi (`giornoInizioScelto` e `startDate`), o un campo affiancato che '
+      + 'segni la provenienza. Poi la traduzione si può fare in tutti e cinque i punti, e la regola '
+      + 'diventa una sola. ⚠️ Nota che `menu/data-inizio-chat.service.ts` risolve lo stesso dubbio '
+      + 'con l\'informazione che ha — `status === \'queued\'` — e che è una risposta buona lì e non '
+      + 'esportabile qui, dove lo stato è quello che si sta decidendo.',
+  },
+  {
+    chiave: 'notte-in-cui-le-lancette-tornano-indietro',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    nata: '2026-08-23T02:05',
+    titolo: '⛔ La notte in cui finisce l\'ora legale i menu si spostano di un giorno',
+    dettaglio:
+      '⛔ **Misurato il 23/8 con l\'orologio finto, non temuto.** Girando la suite come se fossero le '
+      + '00:30 del **25 ottobre 2026** — la notte in cui le lancette tornano indietro, cioè un giorno '
+      + 'di **25 ore** — cadono **tre file in più** rispetto a qualunque altra ora:\n\n'
+      + '· `menu/menu.service.spec.ts` — cinque casi di erogazione, tutti con lo stesso scarto: '
+      + '`Expected -1 / Received +1`. Uno dice «buffer: ha già un menu per un giorno futuro → non eroga '
+      + 'altro» e ne eroga **quattro**;\n'
+      + '· `menu/menu-measurement-gate.spec.ts` — «2° giorno del ciclo nel futuro → non bloccante» '
+      + 'risulta **bloccante**: cioè il popup delle misure comparirebbe a chi non lo deve vedere;\n'
+      + '· `menu/data-inizio-chat.service.spec.ts` — i quattro casi della finestra di blocco.\n\n'
+      + '⚠️ **Le prove che dice non sono l\'ora:** alle 10:00 dello stesso giorno tutti e tre sono '
+      + 'verdi, e la notte di **marzo** (quando le lancette vanno avanti) pure. È il giorno da 25 ore a '
+      + 'romperli, e si vede solo in autunno.\n\n'
+      + '⛔ **La forma del difetto è quasi certamente `+ n * 86_400_000`** su una mezzanotte locale: '
+      + 'sommare 24 ore a una mezzanotte di Roma il 25 ottobre non dà la mezzanotte del 26, dà le 23:00 '
+      + 'del 25. È il cugino del difetto chiuso oggi — un giorno trattato come una quantità fissa '
+      + 'invece che come una domanda al fuso — e vive negli stessi file.\n\n'
+      + '⚠️ **Cosa succederebbe davvero, e quando:** i menu della notte del 25 ottobre si spostano di un '
+      + 'giorno, il gate delle misure blocca chi non deve, e la finestra di 24 ore sul cambio data '
+      + 'sbaglia. Non è ipotetico e ha una data: **domenica 25 ottobre 2026**. Non è oggi, ma è segnato '
+      + 'sul calendario.\n\n'
+      + '⚠️ **Non corretto insieme al resto di proposito**: è un\'altra famiglia di casi, dentro '
+      + 'l\'erogazione dei menu, e va guardata sapendo cosa ogni fixture vuol dire. Rendere verde un '
+      + 'test in fretta è il modo di fargli smettere di verificare.\n\n'
+      + 'Si riproduce con `ORA_FINTA=2026-10-24T22:30:00.000Z npm run test:notte`, e il controllo che '
+      + 'dimostra che è l\'ora e non la data è `ORA_FINTA=2026-10-25T10:00:00.000Z npm run test:notte`.',
+  },
+  {
+    chiave: 'giorno-nel-fuso-del-processo-piano-prova',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T01:10',
+    titolo: '`validaDataInizio` calcola il giorno nel fuso del PROCESSO: giusto su Render, sbagliato ovunque altro',
+    dettaglio:
+      '`commerce/piano-prova.ts:34` — `soloGiorno(d) = new Date(d.getFullYear(), d.getMonth(), d.getDate())` '
+      + '— è la mezzanotte del **processo**, non `toDateOnly`. È la stessa formula che '
+      + '`il-giorno-si-chiede.spec.ts` vieta come `setHours(0, 0, 0, 0)`, solo scritta in un altro modo, '
+      + 'e `commerce/piano-prova.ts` non è nel perimetro di quel guardiano.\n\n'
+      + '⚠️ Su Render `TZ` non è impostata, quindi il processo sta a UTC e il risultato è la mezzanotte '
+      + 'UTC — **il giorno UTC**, non quello di Roma. Da lì passano due cose: la data d\'inizio scelta '
+      + 'in fondo al questionario di «Conosciamoci», e il rifiuto «quel giorno è già passato». Fra la '
+      + 'mezzanotte e le 02:00 italiane il giorno UTC è ancora ieri, quindi una cliente che a quell\'ora '
+      + 'sceglie **oggi** sta in realtà scegliendo una data che il sistema considera di ieri.\n\n'
+      + '⚠️ **Non è rotto oggi** e per questo non blocca: `statoPerGiornoDiInizio` (23/8) su un valore '
+      + 'che non è mezzanotte UTC esatta torna al confronto per istanti, cioè al comportamento vecchio, '
+      + 'e su Render il valore mezzanotte UTC lo è. Ma è giusto **per com\'è configurata la macchina**, '
+      + 'non per come è scritto il codice: basta un `TZ` su Render, o girarlo altrove, e cambia. Ed è la '
+      + 'definizione del difetto che non si riproduce.\n\n'
+      + 'Da fare: portare `soloGiorno` su `toDateOnly`/`aGiorno`, misurare quante date esistenti '
+      + 'cambierebbero giorno (come si è fatto con `diag:giorno-piani`), e mettere `commerce/piano-prova.ts` '
+      + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
+  },
+  {
+    chiave: 'test-che-scadono-il-2-settembre',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    nata: '2026-08-23T00:40',
+    titolo: '⛔ Il 2 settembre due suite diventano rosse da sole: dei test hanno la data scritta a mano',
+    dettaglio:
+      '⛔ **Misurato, non temuto.** Con `ORA_FINTA=2026-09-02T10:00:00.000Z npm run test:notte` — cioè '
+      + 'la stessa suite girata come se fosse il 2 settembre, in pieno giorno — **due file sono rossi**:\n\n'
+      + '· `coach/coach.service.spec.ts` — «la scadenza mostrata è quella del piano CHE EROGA»: si '
+      + 'aspetta `2026-09-01`, e da quel giorno riceve `2026-11-01`;\n'
+      + '· `monitoring/monitoraggio-abbonamento.spec.ts` — «alla prima pesata FISSA il riferimento»: il '
+      + 'periodo finto risulta scaduto e il servizio lo chiude invece di fissare il peso.\n\n'
+      + '⚠️ Dal **1 ottobre** se ne aggiunge un terzo, `agenda/agenda.service.spec.ts` («il controllo '
+      + 'arriva fino a SERA dell\'ultimo giorno»), che rifiuta il periodo di ferie come già passato.\n\n'
+      + '⛔ **È un difetto diverso da quello del fuso, ed è peggiore in un modo:** quello si vedeva due '
+      + 'ore al giorno e poi passava; questo, dal 2 settembre, **non passa più**. Una CI rossa per '
+      + 'sempre è una CI che si smette di guardare, e allora il primo difetto vero arriva in produzione '
+      + 'in mezzo al rumore.\n\n'
+      + '⚠️ **Non corretto insieme al fuso di proposito**: sono tre file di test con fixture di date '
+      + 'intrecciate e ognuno chiede di capire cosa la sua data vuol dire prima di spostarla. Rendere '
+      + 'verde un test in fretta è il modo di fargli smettere di verificare — la stessa ragione per cui '
+      + 'il 21/8 questi quattro non erano stati toccati alle due di notte.\n\n'
+      + 'La correzione è la stessa famiglia: la data della fixture si costruisce **da adesso** con la '
+      + 'porta giusta, invece di essere scritta a mano in un giorno che poi arriva. Si verifica con '
+      + '`ORA_FINTA=<data> npm run test:notte`.',
   },
   {
     chiave: 'alimenti-da-correggere-senza-data',

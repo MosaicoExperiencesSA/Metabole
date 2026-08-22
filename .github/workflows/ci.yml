@@ -37,6 +37,31 @@ jobs:
       - name: Test
         run: npm test -- --ci --passWithNoTests
 
+      # ⛔ LA STESSA SUITE ALL'ORA IN CUI SI ROMPE (23/8).
+      #
+      # Fra la mezzanotte e le 02:00 italiane il giorno di Roma e quello UTC non coincidono, ed è la
+      # fascia in cui vive tutta la famiglia di difetti che `src/common/date-only.ts` esiste per
+      # chiudere. La suite era verde 22 ore su 24 e rossa 2 — e la CI pure, perché gira all'ora vera:
+      # quattro file rossi e due difetti di PRODOTTO ci sono stati per giorni senza che nessuno li
+      # vedesse, perché nessuno lancia i test all'una di notte.
+      #
+      # ⚠️ Non basta averli corretti: senza questo passo il quinto file si scrive domani. È lo stesso
+      # ragionamento di `il-giorno-si-chiede.spec.ts` — finché la regola vale solo per metà del
+      # progetto, l'altra metà la rompe di nuovo.
+      #
+      # ⚠️ Gira anche se il passo sopra è **fallito**: sapere se una suite è rotta a tutte le ore o
+      # solo di notte è la differenza fra cercare nel codice e cercare nell'orologio.
+      # ⚠️ `!cancelled()` e non `always()`: con `always()` girerebbe anche a job **annullato**, e
+      # questo workflow ha `cancel-in-progress: true` — ogni push che ne annulla un altro pagherebbe
+      # una suite intera per niente.
+      # ⚠️ Resta vero che se `npm ci` o `prisma generate` falliscono questo passo gira lo stesso e
+      # fallisce per un motivo che non c'entra: `!cancelled()` non lo evita. Si accetta, perché il
+      # caso che conta — «i test sono rossi, e voglio sapere se lo sono a tutte le ore» — è molto più
+      # frequente di una build rotta, e lì il doppio rosso è informazione, non rumore.
+      - name: Test · all'ora pericolosa (00:30 a Roma)
+        if: '!cancelled()'
+        run: npm run test:notte -- --ci --passWithNoTests
+
   backoffice:
     name: Backoffice · build
     runs-on: ubuntu-latest

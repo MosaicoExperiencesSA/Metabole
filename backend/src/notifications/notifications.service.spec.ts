@@ -8,13 +8,43 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MessageComposerService } from './message-composer.service';
 import { NotificationsService } from './notifications.service';
 import { PushService } from './push.service';
-import { toDateOnly } from '../common/date-only';
+import { TIMER_VERI } from '../../test/orologio-fermo';
+import { giornoLocale, inizioDelGiorno, toDateOnly } from '../common/date-only';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let prisma: any;
   let mail: { sendNotificationEmail: jest.Mock };
   let menu: { pendingRatings: jest.Mock; measurementGate: jest.Mock };
+
+  /**
+   * ⛔ **UN TEST SU CHI SUONA IL CAMPANELLO DEVE DIRE CHE ORA È** (23/8).
+   *
+   * Questo servizio ha una regola che dipende dall'**ora**: fra le 22:00 e le 08:00 italiane non si
+   * notifica nessuno. Ce n'è già un gruppo che lo verifica apposta, e quello l'orologio lo ferma.
+   * Tutti gli altri no — e allora l'esito dipendeva da che ora capitava di lanciare la suite: verdi
+   * di giorno, rossi di notte. Due li ha trovati `npm run test:notte`: «il sollecito misure raggiunge
+   * anche chi ha il piano in coda» e «mai due notifiche dello stesso tipo nello stesso giorno», che
+   * alle 00:30 non fallivano per il motivo che verificano ma perché il silenzio notturno,
+   * **giustamente**, non faceva partire niente.
+   *
+   * ⚠️ È il caso peggiore fra i due possibili: un test che passa 22 ore su 24 sembra un test che
+   * funziona, e quando diventa rosso la prima ipotesi di chiunque è che sia rotto lui — cioè si va a
+   * cercare nel posto sbagliato, o peggio lo si «aggiusta» finché torna verde.
+   *
+   * ⛔ **L'ora si sposta, il GIORNO no.** La prima stesura fermava l'orologio a una data assoluta, e
+   * così facendo rendeva questo file — l'unico in cui il passo notturno avesse trovato qualcosa —
+   * **esente dal passo notturno**: `test:notte` lo avrebbe riportato in pieno giorno del 21 agosto
+   * qualunque cosa stesse misurando. Adesso si prende il giorno di *adesso* — vero o finto che sia —
+   * e ci si mette dentro le 10:00 di Roma: l'unica variabile che questo file deve togliere di mezzo è
+   * l'ora, non il calendario.
+   */
+  beforeEach(() => {
+    // 10:00 di Roma del giorno in corso: dentro la fascia in cui si notifica, in ogni stagione.
+    const dieciDelMattino = new Date(inizioDelGiorno(giornoLocale(new Date())).getTime() + 10 * 3_600_000);
+    jest.useFakeTimers({ doNotFake: TIMER_VERI as never, now: dieciDelMattino });
+  });
+  afterEach(() => { jest.useRealTimers(); });
 
   beforeEach(async () => {
     prisma = {
@@ -226,8 +256,28 @@ describe('NotificationsService', () => {
     expect(await service.generateDailyForClient('u1')).toContain('engine_daily');
   });
 
+  /**
+   * ⛔ **E LA NOTIFICA GIÀ MANDATA DEVE AVERE UNA DATA** (23/8).
+   *
+   * La finta riga era `{ id: 'già-esistente' }` — **senza `scheduledFor`**, che è proprio il campo
+   * che il dedup legge. Il test passava lo stesso, e per una ragione che non c'entra niente con
+   * quello che verifica: `Intl.DateTimeFormat.format(undefined)` non è un errore, **formatta
+   * adesso**. Cioè `giornoLocale(undefined) === giornoLocale(adesso)` era vero per costruzione, e
+   * questo test avrebbe continuato a essere verde anche se il confronto dei giorni fosse sparito.
+   *
+   * ⚠️ Si è visto solo fermando l'orologio: `Intl` legge il clock del sistema, che i finti timer di
+   * jest non toccano, quindi «adesso» secondo `Intl` e «adesso» secondo `Date` diventavano due
+   * giorni diversi e il buco è venuto a galla. Un test che passa per la ragione sbagliata è verde
+   * esattamente come uno che funziona: è il motivo per cui vale la pena girare la suite in
+   * condizioni scomode.
+   *
+   * ⚠️ **Cosa tiene ferma questa riga, e cosa no.** Qui la data c'è perché il campo che il dedup
+   * legge deve esserci: è la fixture che diventa onesta. Che il confronto sia poi fatto **per
+   * giorni** lo tengono fermo i due test del gruppo «dedup "una al giorno"», che passano una
+   * notifica di oggi e una di ieri — non questo.
+   */
   it('MAI due notifiche dello stesso tipo nello stesso giorno', async () => {
-    prisma.notification.findFirst.mockResolvedValue({ id: 'già-esistente' });
+    prisma.notification.findFirst.mockResolvedValue({ id: 'già-esistente', scheduledFor: new Date() });
     const created = await service.generateDailyForClient('u1');
     expect(created).toHaveLength(0);
     expect(prisma.notification.create).not.toHaveBeenCalled();

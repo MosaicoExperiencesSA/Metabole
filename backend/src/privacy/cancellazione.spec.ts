@@ -59,6 +59,38 @@ describe('il termine dei 30 giorni', () => {
   });
 
   /**
+   * ⛔ **E IL GIORNO DELLA RICHIESTA È QUELLO DI ROMA, ANCHE ALL'UNA DI NOTTE.**
+   *
+   * ⚠️ Il caso sopra è alle 15:42, dove il giorno di Roma e quello UTC coincidono: **non distingue
+   * niente**. Fra le 22:00 e le 24:00 UTC una revoca inviata all'una di notte veniva datata al
+   * giorno prima, e il termine scadeva **un giorno prima** di quello promesso nella mail — che su
+   * un impegno scritto in un'informativa è la direzione sbagliata: cancellare in anticipo è peggio
+   * che cancellare in ritardo.
+   *
+   * ⛔ Scritto il 23/8, dopo una revisione: `privacy.service.spec.ts` costruisce le sue scadenze con
+   * `dataCancellazione` e diceva in un commento che «ci pensa `cancellazione.spec.ts`, con date
+   * scritte a mano» a tenerla ferma. **Non era vero**: mutando il giorno di Roma in giorno UTC
+   * questo file restava verde. Una rete di sicurezza dichiarata e non tesa è peggio di nessuna
+   * rete, perché il commento fa smettere di cercarla.
+   */
+  it('⛔ una revoca alle 00:30 del 23 si conta dal 23, non dal 22', () => {
+    // 22:30Z del 22 agosto = 00:30 del 23 a Roma. Trenta giorni dopo il 23 agosto: il 22 settembre.
+    expect(dataCancellazione(new Date('2026-08-22T22:30:00.000Z')).toISOString()).toBe(
+      '2026-09-22T00:00:00.000Z',
+    );
+  });
+
+  /** ⚠️ E d'inverno lo scarto è di un'ora: il confine è alle 23:00Z, non alle 22:00Z. */
+  it('⛔ in ora solare il confine è un\'ora dopo', () => {
+    expect(dataCancellazione(new Date('2027-01-14T23:30:00.000Z')).toISOString().slice(0, 10)).toBe(
+      '2027-02-14',
+    );
+    expect(dataCancellazione(new Date('2027-01-14T22:30:00.000Z')).toISOString().slice(0, 10)).toBe(
+      '2027-02-13',
+    );
+  });
+
+  /**
    * Il numero di giorni è un parametro, ma la data si scrive UNA volta e non si ricalcola mai: se
    * domani cambiassimo la soglia, chi ha già revocato non deve vedersi spostare il termine. Quello
    * che le abbiamo scritto nella mail è un impegno preso.

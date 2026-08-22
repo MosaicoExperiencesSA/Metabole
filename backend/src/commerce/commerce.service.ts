@@ -37,7 +37,7 @@ import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
-import { statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
+import { statoPerGiornoDiInizio, statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
 /**
  * ⚠️ La regola «due periodi si sovrappongono?» arriva da `clients/`, dove è nata per la matita della
  * data d'inizio (caso Lorena, voce 259). ⛔ **Non se ne scrive una seconda qui**: due funzioni che
@@ -570,7 +570,8 @@ export class CommerceService {
         // sceglie la cliente in fondo al questionario e può essere fra due settimane. Scrivendo
         // sempre `active` questo punto continuava a produrre la forma vecchia — e due clienti nella
         // stessa identica situazione, una in prova e una a pagamento, vedevano schermate opposte.
-        status: statoPerInizio(inizio) as never,
+        // ⚠️ `inizio` viene da `validaDataInizio`, che rende un GIORNO: vedi `statoPerGiornoDiInizio`.
+        status: statoPerGiornoDiInizio(inizio) as never,
         startDate: inizio,
         endDate: subscriptionEnd(inizio, period),
       },
@@ -2135,6 +2136,27 @@ export class CommerceService {
       // SCELTA dalla cliente nell'onboarding (planStartDate) se è nel futuro (max 60
       // giorni); altrimenti oggi. Così scheda, scadenza e menu raccontano la stessa data.
       let start = activeAhead?.endDate ?? now;
+      /**
+       * ⛔ **QUI LO STATO RESTA UN CONFRONTO FRA ISTANTI, e la ragione va scritta** (23/8).
+       *
+       * `start` cambia natura a seconda del ramo: da `activeAhead.endDate` è un **istante**, dalla
+       * scelta della cliente (`planStartDate`) è quasi sempre un **giorno**. La versione di stamattina
+       * distingueva i due con un flag e traduceva il secondo con `statoPerGiornoDiInizio` — ed è
+       * **stata tolta in revisione**, perché la premessa era falsa: `planStartDate` non è sempre un
+       * giorno. Lo riscrive questa stessa funzione trenta righe più giù (il ramo della coda ci mette
+       * `endDate`), e `profile.service` lo accetta da un DTO `@IsDateString`, che l'ora la ammette.
+       *
+       * ⛔ Su un valore così la traduzione anticipava di un'ora o due, e produceva un piano `active`
+       * con la partenza **nel futuro**: la forma ambigua che la voce 258 esiste per togliere di
+       * mezzo, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`.
+       *
+       * ⚠️ **Quello che resta scoperto, detto:** fra la mezzanotte e le 02:00, una cliente che paga e
+       * ha scelto di cominciare **oggi** nasce ancora `queued`, e i menu arrivano alla passata
+       * notturna dopo. Chiuderlo richiede di sapere **da dove viene** `planStartDate`, non di
+       * indovinarlo dal valore — cioè un campo che lo dica, o due campi diversi. È la voce
+       * `data-inizio-giorno-o-istante`: si fa con la misura in mano, non per simmetria con gli altri
+       * quattro punti.
+       */
       if (!activeAhead?.endDate) {
         const prof = (await this.prisma.clientProfile.findUnique({
           where: { userId: payment.clientId },

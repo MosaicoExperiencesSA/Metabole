@@ -14,6 +14,7 @@ import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
+import { conOrologioFermo } from '../../test/orologio-fermo';
 import { giornoLocale } from '../common/date-only';
 import { MESI_MAX_DATA_INIZIO, isTrialPlan, validaDataInizio } from './piano-prova';
 import { assicuraProvaIniziata, provaAttivata } from './prova-attivata';
@@ -283,6 +284,35 @@ describe('CommerceService.attivaBenvenuto', () => {
   it('⚠️ con la data di oggi la prova nasce ATTIVA', async () => {
     await service.attivaBenvenuto('c1', fra(0));
     expect(prisma.subscription.create.mock.calls[0][0].data.status).toBe('active');
+  });
+
+  /**
+   * ⛔ **E VALE ANCHE ALLE 00:30** — difetto trovato il 23/8 con `test:notte`.
+   *
+   * `validaDataInizio` rende un **giorno**, e i giorni qui si scrivono come mezzanotte UTC del
+   * giorno di Roma. Ma mezzanotte UTC del 23 sono **le 02:00 italiane**: confrontata con «adesso»
+   * come se fosse un istante, fra la mezzanotte e le due la prova di chi comincia **oggi** nasceva
+   * `queued`.
+   *
+   * ⚠️ È il primo minuto del percorso di una cliente nuova: finisce il questionario all'una di
+   * notte, dice «comincio oggi», e la prova non parte fino alla passata notturna della notte dopo.
+   * ⚠️ Il test sopra non lo vedeva perché `fra(0)` prende il giorno del **processo** (UTC nei test e
+   * su Render), che a quell'ora è ancora ieri: una data passata è attiva in tutti e due i modi.
+   */
+  describe('⛔ alle 00:30 di Roma', () => {
+    conOrologioFermo(new Date('2026-08-22T22:30:00.000Z')); // per UTC è ancora il 22
+
+    it('⛔ «comincio oggi» detto all\'una di notte fa nascere la prova ATTIVA', async () => {
+      await service.attivaBenvenuto('c1', giornoLocale(new Date()));
+      expect(prisma.subscription.create.mock.calls[0][0].data.status).toBe('active');
+    });
+
+    it('⚠️ mentre «comincio domani», alla stessa ora, nasce in coda', async () => {
+      const domani = new Date(`${giornoLocale(new Date())}T00:00:00.000Z`);
+      domani.setUTCDate(domani.getUTCDate() + 1);
+      await service.attivaBenvenuto('c1', domani.toISOString().slice(0, 10));
+      expect(prisma.subscription.create.mock.calls[0][0].data.status).toBe('queued');
+    });
   });
 
   /** Conseguenza n.7: senza `planStartDate` `deliverIfEligible` non parte nemmeno. */

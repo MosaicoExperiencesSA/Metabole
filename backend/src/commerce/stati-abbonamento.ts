@@ -25,7 +25,7 @@
  * tabella.
  */
 
-import { aGiorno } from '../common/date-only';
+import { aGiorno, istanteDiPartenza } from '../common/date-only';
 
 /**
  * ⚠️ **DUE DOMANDE DIVERSE, E VANNO TENUTE DIVERSE.**
@@ -135,4 +135,54 @@ export function codaInRitardo(s: { status: string; startDate: Date | null }, ogg
  */
 export function statoPerInizio(inizio: Date | null | undefined, oggi: Date = new Date()): 'active' | 'queued' {
   return inizio && inizio.getTime() > oggi.getTime() ? 'queued' : 'active';
+}
+
+/**
+ * ⛔ **LO STESSO, MA QUANDO LA DATA D'INIZIO È UN GIORNO E NON UN ISTANTE** (23/8).
+ *
+ * `statoPerInizio` confronta due istanti, e sopra c'è scritto perché: la coda che parte alla
+ * scadenza del piano in corso eredita **l'ora** di quella scadenza, e per quel poco di giornata che
+ * resta il piano vecchio sta ancora erogando.
+ *
+ * ⚠️ Ma **quattro dei cinque punti che scrivono non le passano un istante**: le passano un giorno,
+ * nella forma in cui questo progetto scrive i giorni — `toDateOnly`, cioè la mezzanotte **UTC** del
+ * giorno di Roma. E la mezzanotte UTC del 23 agosto sono le **02:00 italiane del 23**: fra la
+ * mezzanotte e le due, una data d'inizio di **oggi** risultava «nel futuro» e il piano veniva
+ * scritto `queued`.
+ *
+ * Conseguenza: la cliente che sceglie «comincio oggi» — in fondo al questionario, dalla matita
+ * della scheda, dal pulsante nel profilo o dicendolo a Gaia — nelle due ore dopo mezzanotte non
+ * riceveva i menu fino alla passata notturna successiva, cioè **un giorno intero dopo**. È lo stesso
+ * difetto che la voce 258 dichiarava chiuso, sopravvissuto per le due ore in cui i due giorni non
+ * coincidono: la correzione era giusta e la porta era una sola, ma le si passava la cosa sbagliata.
+ *
+ * ⚠️ Un giorno non è un istante finché non si dice **in che fuso comincia**: lo dice
+ * `istanteDiPartenza`, la stessa porta con cui il resto del prodotto risponde a «quand'è che
+ * comincia il 23?». Poi la domanda torna a essere quella di sopra, e la risposta la dà una
+ * funzione sola.
+ *
+ * ⛔ **SI CHIAMA SOLO DOVE SI SA DI AVERE UN GIORNO**, e il nome lo dice apposta. I quattro punti
+ * che la usano lo sanno: il questionario, la matita della scheda, la chat con Gaia e «Conosciamoci»
+ * ricevono tutti una data scelta come giorno.
+ *
+ * ⛔ Il **quinto** — l'approvazione del bonifico — **non la chiama**, e non è una dimenticanza: lì
+ * la data viene da `clientProfile.planStartDate`, che contiene due cose diverse (il giorno scelto
+ * dalla cliente, oppure la scadenza del piano in corso, scritta dal ramo della coda) e dal valore
+ * non si distinguono — `subscriptionEnd` produce mezzanotte UTC **esatta**, identica a un
+ * valore-giorno. Una versione di stamattina le distingueva a occhio, e su quella scadenza faceva
+ * nascere piani `active` con la partenza **nel futuro**: la forma ambigua che la voce 258 esiste per
+ * togliere di mezzo, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`. Il
+ * difetto che resta lì è scritto in un test e nella voce `data-inizio-giorno-o-istante`: si chiude
+ * facendo dire al campo da dove viene, non indovinandolo.
+ *
+ * ⚠️ Su un valore che ha un'ora dentro — `@IsDateString` la ammette — `istanteDiPartenza` lo rende
+ * com'è, e qui si torna al confronto fra istanti: il comportamento di prima, che su un istante è
+ * quello giusto. È una rete per il chiamante che si sbaglia, non il modo in cui si decide.
+ */
+export function statoPerGiornoDiInizio(
+  giorno: Date | null | undefined,
+  oggi: Date = new Date(),
+): 'active' | 'queued' {
+  if (!giorno) return 'active';
+  return statoPerInizio(istanteDiPartenza(giorno), oggi);
 }

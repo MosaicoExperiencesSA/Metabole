@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { pickMainSubscription, subscriptionEnd } from '../commerce/commerce.service';
-import { statoPerInizio } from '../commerce/stati-abbonamento';
+import { statoPerGiornoDiInizio } from '../commerce/stati-abbonamento';
 import { ConfigParamsService } from '../config-params/config-params.service';
-import { toDateOnly } from '../common/date-only';
+import { istanteDiPartenza, toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   MAX_GIORNI_AVANTI,
@@ -298,7 +298,8 @@ export class DataInizioChatService {
              * restava `active` con la partenza nel futuro — la forma ambigua — e non sarebbe mai
              * entrato nella promozione, che cerca i `queued`.
              */
-            status: statoPerInizio(d) as never,
+            // ⚠️ `d` è `toDateOnly(data)`, cioè un GIORNO: vedi `statoPerGiornoDiInizio`.
+            status: statoPerGiornoDiInizio(d) as never,
           } as never,
         }),
       );
@@ -490,18 +491,51 @@ export class DataInizioChatService {
     const sub = pickMainSubscription(vivi);
     if (!sub) return { puo: false, perche: 'nessun_piano' };
 
-    const inizio =
-      sub.startDate?.toISOString().slice(0, 10) ?? profilo?.planStartDate?.toISOString().slice(0, 10) ?? null;
+    /** La data d'inizio come valore, prima di diventare una stringa: serve per sapere QUANDO parte. */
+    const quandoInizia = sub.startDate ?? profilo?.planStartDate ?? null;
+    const inizio = quandoInizia?.toISOString().slice(0, 10) ?? null;
 
     /**
      * MANCA TROPPO POCO? Il blocco è in ORE (`plan_start_change_lock_hours`, default 24) e si conta
      * dall'istante, non dal giorno: «manca meno di un giorno» a mezzanotte e alle 23 non è la stessa
      * cosa, e arrotondare al giorno regalerebbe o ruberebbe mezza giornata a seconda dell'ora in cui
      * la cliente apre l'app.
+     *
+     * ⛔ **E l'istante da cui contare lo dice `istanteDiPartenza`, non `toDateOnly`** (23/8). Era
+     * `toDateOnly(inizio)`, che del giorno d'inizio dà le `00:00Z` — cioè **le 02:00 italiane**. Il
+     * piano però parte alla mezzanotte che intende la cliente, due ore prima: il blocco dichiarato
+     * di 24 ore ne durava **22** (23 d'inverno), tutti i giorni dell'anno.
+     *
+     * ⚠️ Sbagliava nel verso che costa: chi apriva l'app nelle ultime due ore utili si sentiva dire
+     * «si può» — dall'app il pulsante era acceso, in chat Gaia se ne occupava — e la data si spostava
+     * dentro la finestra che il blocco esiste per proteggere, cioè **dopo** che i menu erano già
+     * sbloccati e magari la spesa era già fatta. E la stessa riga risponde a `oreMancanti`, il numero
+     * che il testo mostra alla cliente: le diceva due ore in più di quelle che aveva.
+     *
+     * ⚠️ **Si conta sul valore, non sulla stringa.** `inizio` è già passato per
+     * `toISOString().slice(0, 10)`, che di un istante vero butta via l'ora: per una coda che eredita
+     * la scadenza del piano in corso — l'unico caso in cui `startDate` non è un giorno — quel taglio
+     * sposterebbe la partenza indietro fino a mezzanotte, e il numero mostrato alla cliente sarebbe
+     * di quasi un giorno sbagliato. `istanteDiPartenza` rende quell'istante com'è e traduce solo i
+     * valori-giorno. (Trovato in revisione: la prima stesura passava la stringa.)
+     *
+     * ⚠️ Il difetto si vedeva solo fra le 22:00 e le 24:00 UTC, cioè quando il giorno di Roma e
+     * quello UTC divergono: per le altre 22 ore le due mezzanotti cadono dalla stessa parte di
+     * «adesso» e lo scarto di due ore non attraversa mai la soglia. Trovato girando la suite con
+     * `npm run test:notte`.
      */
-    if (inizio) {
+    if (inizio && quandoInizia) {
       const ore = await this.oreDiBlocco();
-      const mancanti = (toDateOnly(inizio).getTime() - Date.now()) / 3_600_000;
+      /**
+       * ⛔ **Una CODA porta un istante vero, e si usa com'è.** `Subscription.startDate` di un piano
+       * in coda è la **scadenza** di quello di prima, ora compresa — e `subscriptionEnd`, partendo da
+       * un giorno, quella scadenza la produce a mezzanotte UTC **esatta**, cioè indistinguibile da un
+       * valore-giorno. ⚠️ Trovato in revisione: senza questo ramo il blocco sarebbe scattato un'ora
+       * (due d'estate) **prima** del dovuto proprio per le code, che è la direzione che toglie tempo
+       * alla cliente. Qui la provenienza si sa — la dice `status` — e sapere batte indovinare.
+       */
+      const partenza = sub.status === 'queued' ? quandoInizia : istanteDiPartenza(quandoInizia);
+      const mancanti = (partenza.getTime() - Date.now()) / 3_600_000;
       if (mancanti <= ore) {
         return { puo: false, perche: 'troppo_tardi', inizio, oreMancanti: Math.max(0, Math.round(mancanti)) };
       }

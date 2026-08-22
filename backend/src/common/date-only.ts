@@ -186,6 +186,48 @@ export function inizioDelGiorno(giorno: string): Date {
   return new Date(istante);
 }
 
+/**
+ * ⛔ **L'ISTANTE IN CUI COMINCIA QUELLO CHE QUESTA DATA INDICA** — 23/8.
+ *
+ * Metà dei campi «data d'inizio» di questo prodotto contengono un **giorno** (scritto da
+ * `toDateOnly`/`aGiorno`: mezzanotte UTC del giorno di Roma), metà contengono un **istante** vero —
+ * `Subscription.endDate` di un piano in corso, che una coda eredita con dentro l'ora di quella
+ * scadenza. I due si assomigliano: sono tutti e due `Date`, e nessun tipo li distingue.
+ *
+ * ⛔ Confondendoli si sbaglia in un verso solo, e di due ore: `2026-08-23T00:00:00.000Z` **non** è
+ * la mezzanotte del 23 a Roma — è **le 02:00**. Chi confronta quel valore con «adesso» sta dicendo
+ * che il 23 comincia alle due del mattino, e fra la mezzanotte e le due «comincia oggi» risponde
+ * «comincia domani». È il difetto che il 23/8 teneva un piano appena pagato in coda per un giorno
+ * intero, e che faceva durare 22 ore un blocco dichiarato di 24.
+ *
+ * ⛔ **QUESTA FUNZIONE NON SA DISTINGUERE UN GIORNO DA UN ISTANTE, E NON DEVE FINGERE DI SAPERLO.**
+ * Va chiamata dove chi chiama **sa** di avere un giorno; il controllo sui millisecondi è una rete,
+ * non una diagnosi.
+ *
+ * ⚠️ La prima stesura diceva il contrario — «mezzanotte UTC esatta = un giorno, nessuno scrive un
+ * istante vero con tutto a zero per caso» — ed **era falso, sul caso più comune di tutti**:
+ * `subscriptionEnd`, partendo da un giorno, produce una scadenza a mezzanotte UTC **esatta**, e
+ * quella scadenza è la `startDate` che ogni piano in coda eredita. Trattandola come un giorno la si
+ * anticipa di un'ora (due d'estate): due piani che erogano insieme, o un piano `active` con la
+ * partenza nel futuro. I due punti in cui quel valore arriva davvero lo sanno e non passano di qui —
+ * `commerce.finalizeApproval` (che confronta istanti) e `data-inizio-chat` (che guarda `status`).
+ *
+ * ⚠️ Quello che il controllo sui millisecondi fa ancora, ed è utile: un valore con dentro un'ora è
+ * **certamente** un istante, e allora si rende com'è invece di spostarlo indietro fino a 24 ore. È
+ * la rete per il chiamante che si sbaglia — `@IsDateString` accetta l'ora — non il modo in cui si
+ * decide.
+ *
+ * ⚠️ E il conto NON è «meno due ore»: lo scarto vale un'ora in ora solare, e `inizioDelGiorno` lo
+ * chiede al fuso invece di sottrarlo. Una costante scritta a mano sarebbe stata giusta da aprile a
+ * ottobre — cioè avrebbe sbagliato nei mesi in cui nessuno la stava guardando.
+ */
+export function istanteDiPartenza(d: Date): Date {
+  const t = d.getTime();
+  if (!Number.isFinite(t)) return d;
+  if (t % 86_400_000 !== 0) return d;
+  return inizioDelGiorno(d.toISOString().slice(0, 10));
+}
+
 /** Il mese di calendario di un istante, nel fuso dell'azienda. Formato `YYYY-MM`. */
 export function meseLocale(d: Date): string {
   return giornoLocale(d).slice(0, 7);

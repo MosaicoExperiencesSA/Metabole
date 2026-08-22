@@ -1,3 +1,5 @@
+import { conOrologioFermo } from '../../test/orologio-fermo';
+import { giornoLocale } from '../common/date-only';
 import { ClientsService } from './clients.service';
 import { pickMainSubscription } from '../commerce/commerce.service';
 
@@ -315,5 +317,36 @@ describe('ClientsService.updatePlanStart', () => {
     const up = prisma.clientProfile.upsert.mock.calls[0][0];
     expect(iso(up.update.planStartDate)).toBe(nuova);
     expect(menu.restartFromPlanStart).toHaveBeenCalledWith('giusy');
+  });
+  /**
+   * ⛔ **ALLE 00:30 «SPOSTA A OGGI» VUOL DIRE OGGI** — difetto trovato il 23/8 con `test:notte`.
+   *
+   * `d` qui è un **giorno** (`…T00:00:00.000Z`), che è come questo progetto scrive i giorni:
+   * mezzanotte UTC del giorno di **Roma**. Ma mezzanotte UTC del 23 sono **le 02:00 italiane** del
+   * 23. Confrontandola con «adesso» come se fosse un istante, fra la mezzanotte e le due la matita
+   * scriveva `queued` su un piano spostato a **oggi**.
+   *
+   * ⚠️ Conseguenza per chi sta al telefono con la cliente: sposta la data, la scheda mostra la data
+   * giusta, e i menu non arrivano — fino alla passata notturna della notte **dopo**. È esattamente il
+   * difetto che la voce 258 dichiarava chiuso, sopravvissuto nelle due ore in cui i due giorni
+   * divergono.
+   */
+  describe('⛔ alle 00:30 di Roma', () => {
+    conOrologioFermo(new Date('2026-08-22T22:30:00.000Z')); // per UTC è ancora il 22
+
+    /** Il giorno di **Roma**: quello che intende chi dice «oggi» al telefono. */
+    const oggiARoma = () => giornoLocale(new Date());
+
+    it('⛔ spostata a OGGI la prova scaduta torna ATTIVA, non in coda', async () => {
+      await service.updatePlanStart('giusy', 'admin', oggiARoma());
+      expect(prisma.subscription.update.mock.calls[0][0].data.status).toBe('active');
+    });
+
+    it('⚠️ mentre spostata a DOMANI, alla stessa ora, resta in coda', async () => {
+      const domani = new Date(`${oggiARoma()}T00:00:00.000Z`);
+      domani.setUTCDate(domani.getUTCDate() + 1);
+      await service.updatePlanStart('giusy', 'admin', domani.toISOString().slice(0, 10));
+      expect(prisma.subscription.update.mock.calls[0][0].data.status).toBe('queued');
+    });
   });
 });

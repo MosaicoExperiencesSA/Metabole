@@ -17,6 +17,7 @@
  */
 
 import { Test } from '@nestjs/testing';
+import { conOrologioFermo } from '../../test/orologio-fermo';
 import { AuditService } from '../audit/audit.service';
 import { subscriptionEnd } from '../commerce/commerce.service';
 import { toDateOnly } from '../common/date-only';
@@ -453,5 +454,125 @@ describe('data di inizio dal profilo dell\'app', () => {
     const { service } = await crea();
     const r = await service.spostaDaApp('cli-1', traIso(1));
     expect(r.inizio).toBe(traIso(1));
+  });
+});
+
+/**
+ * ⛔ **LE 24 ORE DI BLOCCO SONO 24, ANCHE ALLE 00:30** — difetto trovato il 23/8 con `test:notte`.
+ *
+ * Il piano parte alla mezzanotte che intende la cliente, cioè quella di **Roma**. Il conto delle ore
+ * che mancavano partiva invece da `toDateOnly(inizio)`, che di quel giorno dà le `00:00Z` — **le
+ * 02:00 italiane**. Il blocco dichiarato di 24 ore ne durava **22** (23 d'inverno), tutti i giorni.
+ *
+ * ⚠️ Sbagliava nel verso che costa: nelle ultime due ore utili l'app mostrava il pulsante acceso e
+ * Gaia si offriva di spostare, e la data si muoveva **dentro** la finestra che il blocco esiste per
+ * proteggere — con i menu già sbloccati e magari la spesa già fatta. E lo stesso conto risponde a
+ * `oreMancanti`, il numero che la cliente **legge**: le diceva due ore in più di quelle che aveva.
+ *
+ * ⚠️ Perché non si vedeva: per 22 ore su 24 le due mezzanotti cadono dalla stessa parte di «adesso»
+ * e lo scarto non attraversa mai la soglia. Questi test **scrivono l'ora**, invece di prendere quella
+ * in cui capita di girare la suite: un test che dipende dall'ora è verde 22 volte su 24, ed è così
+ * che questo difetto è vissuto per due settimane.
+ */
+describe('⛔ il blocco si conta dalla mezzanotte di ROMA', () => {
+  /** 00:30 del 23 agosto a Roma. Per UTC è ancora il 22: è la fascia in cui i due giorni divergono. */
+  const NOTTE = new Date('2026-08-22T22:30:00.000Z');
+
+  conOrologioFermo(NOTTE);
+
+  /** Il piano comincia domani: alle 00:30 mancano 23 ore e mezza, cioè meno di 24. Si è dentro. */
+  const domani = () => ({
+    subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
+    planStartDate: fra(1),
+  });
+
+  it('⛔ alle 00:30 del giorno prima si è GIÀ dentro il blocco (mancano 23:30, non 25:30)', async () => {
+    const { service } = await crea(domani());
+    const stato = await service.statoPerApp('cli-1');
+    expect(stato.puo).toBe(false);
+    expect(stato.perche).toBe('troppo_tardi');
+  });
+
+  /**
+   * ⛔ **E il numero che la cliente legge è quello vero.** 23.5 arrotondate fanno 24; contando dalla
+   * mezzanotte UTC ne uscivano 26 — due ore che non esistono, dette a chi sta decidendo se fare la
+   * spesa.
+   */
+  it('⛔ `oreMancanti` conta fino alla mezzanotte italiana: 24, non 26', async () => {
+    const { service } = await crea({ ...domani(), oreBlocco: 30 });
+    const stato = await service.statoPerApp('cli-1');
+    expect(stato.perche).toBe('troppo_tardi');
+    expect(stato.oreMancanti).toBe(24);
+  });
+
+  /**
+   * ⛔ **UNA CODA PORTA UN ISTANTE VERO, E IL CONTO LO RISPETTA.**
+   *
+   * `Subscription.startDate` di un piano in coda è la **scadenza** di quello di prima. E
+   * `subscriptionEnd`, partendo da un giorno, quella scadenza la produce a mezzanotte UTC **esatta**:
+   * indistinguibile, guardando solo il valore, da un giorno scritto da `toDateOnly`.
+   *
+   * ⛔ Una versione di stamattina li distingueva così — «mezzanotte UTC esatta = un giorno» — e per
+   * le code faceva scattare il blocco **un'ora prima** (due d'estate) di quando doveva, togliendo
+   * tempo alla cliente e mostrandole un `oreMancanti` più basso del vero. L'ha trovato la revisione.
+   * Adesso la provenienza si **sa** invece di indovinarla: la dice `status`.
+   *
+   * Qui la coda parte a mezzanotte UTC del 24, cioè fra 25 ore e mezza: si può ancora spostare.
+   */
+  it('⛔ una CODA che parte a mezzanotte UTC esatta si conta sull\'istante, non sul giorno di Roma', async () => {
+    const { service } = await crea({
+      subs: [{
+        id: 'sub-coda', status: 'queued',
+        startDate: new Date('2026-08-24T00:00:00.000Z'), // ereditata da `endDate` del piano di prima
+        endDate: new Date('2026-11-24T00:00:00.000Z'),
+        plan: { period: '3m' }, createdAt: new Date(),
+      }],
+      planStartDate: new Date('2026-08-24T00:00:00.000Z'),
+    });
+    const stato = await service.statoPerApp('cli-1');
+    expect(stato.puo).toBe(true);
+  });
+
+  /** ⚠️ Il confine si sposta, non sparisce: a due giorni si può ancora, anche a quell'ora. */
+  it('⚠️ a due giorni dall\'inizio, alle 00:30, si può ancora spostare', async () => {
+    const { service } = await crea({
+      subs: [{ id: 'sub-1', status: 'active', startDate: fra(2), endDate: fra(92), plan: { period: '3m' }, createdAt: new Date() }],
+      planStartDate: fra(2),
+    });
+    expect((await service.statoPerApp('cli-1')).puo).toBe(true);
+  });
+
+  /**
+   * ⛔ **E LO STATO SCRITTO, che è l'altra metà della correzione** (aggiunto in revisione: il quinto
+   * punto che scrive la data d'inizio era l'unico rimasto senza una prova che dicesse **che ora è**).
+   *
+   * `d` qui è `toDateOnly(data)`, cioè un **giorno**: mezzanotte UTC del giorno di Roma, che sono le
+   * 02:00 italiane. Confrontata con «adesso» come un istante, alle 00:30 una data spostata a **oggi**
+   * lasciava il piano `queued` — e i menu arrivavano alla passata notturna dopo, cioè un giorno più
+   * tardi di quello che Gaia aveva appena confermato in chat.
+   */
+  it('⛔ spostata a OGGI alle 00:30, il piano risulta ATTIVO — non alla passata notturna', async () => {
+    const { service, prisma } = await crea();
+    await service.avanza('cli-1', { passo: 'conferma', data: traIso(0) }, 'sì');
+    expect(prisma.subscription.update.mock.calls.at(-1)?.[0].data.status).toBe('active');
+  });
+
+  it('⚠️ mentre spostata a DOMANI, alla stessa ora, va in coda', async () => {
+    const { service, prisma } = await crea();
+    await service.avanza('cli-1', { passo: 'conferma', data: traIso(1) }, 'sì');
+    expect(prisma.subscription.update.mock.calls.at(-1)?.[0].data.status).toBe('queued');
+  });
+
+  /**
+   * ⛔ **E la stessa risposta dalle due strade.** Il difetto stava in un punto solo, ma quel punto lo
+   * leggono sia il pulsante dell'app sia Gaia: se una delle due avesse risposto diverso, sarebbe
+   * ricomparso «Gaia me la sposta e dall'app non si può».
+   */
+  it('⛔ Gaia dice la stessa cosa del pulsante, alla stessa ora', async () => {
+    const { service, prisma } = await crea(domani());
+    const esito = await service.apriDaTesto('cli-1', 'posso spostare la data di inizio?');
+    expect(esito.esito).toBe('arresa');
+    expect(esito.inoltraA).toBe('coach');
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
   });
 });

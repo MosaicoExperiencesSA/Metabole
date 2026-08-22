@@ -10,6 +10,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReferralService } from '../referral/referral.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
+import { conOrologioFermo } from '../../test/orologio-fermo';
+import { giornoLocale } from '../common/date-only';
 import { CommerceService } from './commerce.service';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
@@ -293,6 +295,64 @@ describe('CommerceService (flusso bonifico)', () => {
       expect(prisma.subscription.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: 'queued' }) }),
       );
+    });
+
+    /**
+     * ⛔ **QUI IL DIFETTO DELLE 00:30 È ANCORA APERTO, E QUESTO TEST LO SCRIVE.**
+     *
+     * Gli altri quattro punti che scrivono la data d'inizio ricevono un **giorno** e da oggi lo
+     * traducono (`statoPerGiornoDiInizio`). Questo no, e non per dimenticanza: qui `start` viene da
+     * `planStartDate`, che **non è sempre un giorno** — lo riscrive questa stessa funzione col ramo
+     * della coda, che ci mette un `endDate`, e `profile.service` lo accetta da un DTO
+     * `@IsDateString`. Una versione di stamattina distingueva i due casi «a occhio», dalla mezzanotte
+     * UTC esatta: la revisione ha mostrato che `subscriptionEnd` produce **proprio** mezzanotte UTC
+     * esatta, quindi l'euristica sbagliava sul caso più comune di tutti e faceva nascere piani
+     * `active` con la partenza **nel futuro** — la forma ambigua che la voce 258 esiste per togliere
+     * di mezzo, e per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`. È stata tolta.
+     *
+     * ⚠️ Quello che resta, detto: fra la mezzanotte e le 02:00 una cliente che paga e ha scelto di
+     * cominciare **oggi** nasce `queued`, e i menu arrivano alla passata notturna dopo. Questo test
+     * fissa il comportamento di **oggi** perché non cambi in silenzio, e la voce
+     * `data-inizio-giorno-o-istante` dice cosa serve per chiuderlo: sapere da dove viene quel campo,
+     * non indovinarlo dal valore.
+     */
+    describe('⛔ alle 00:30 di Roma', () => {
+      conOrologioFermo(new Date('2026-08-22T22:30:00.000Z')); // per UTC è ancora il 22
+
+      /** Il giorno di **Roma** scritto come lo scrive `toDateOnly`: mezzanotte UTC. */
+      const oggiComeGiorno = () => new Date(`${giornoLocale(new Date())}T00:00:00.000Z`);
+
+      it('⛔ DIFETTO NOTO: con la data d\'inizio di OGGI il piano nasce ancora in coda', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: oggiComeGiorno(), consents: {} });
+        await service.approvePayment(operator, 'pay-1');
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // ⚠️ E la data scelta dalla cliente viene comunque scritta: se un giorno sparisse,
+            // «nasce in coda» resterebbe vero per il motivo sbagliato.
+            data: expect.objectContaining({ status: 'queued', startDate: oggiComeGiorno() }),
+          }),
+        );
+      });
+
+      /**
+       * ⛔ **Mentre la CODA si conta sull'istante, ed è il motivo per cui i due casi non si possono
+       * unificare.** La coda parte alla scadenza del piano in corso e ne eredita **l'ora**:
+       * trattandola come un giorno partirebbe fino a due ore prima, e per quelle due ore i due piani
+       * erogherebbero **insieme**.
+       */
+      it('⛔ la coda che eredita l\'ora di scadenza resta in coda fino a quell\'ora', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        const fraUnOraEMezza = new Date(Date.now() + 90 * 60_000);
+        prisma.subscription.findFirst.mockResolvedValue({ endDate: fraUnOraEMezza });
+        await service.approvePayment(operator, 'pay-1');
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ status: 'queued', startDate: fraUnOraEMezza }),
+          }),
+        );
+      });
     });
 
     it('anche senza contabile si può approvare (operatore ha visto il bonifico in banca)', async () => {

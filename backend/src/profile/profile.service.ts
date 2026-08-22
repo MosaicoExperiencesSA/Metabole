@@ -15,7 +15,7 @@ import { apriServeVisita } from '../clients/serve-visita';
 import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
-import { statoPerInizio } from '../commerce/stati-abbonamento';
+import { statoPerGiornoDiInizio } from '../commerce/stati-abbonamento';
 import { campiCambiati } from '../common/diff-campi';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
 import { EsitoSpezia, filtraSpezie } from '../menu/spezie';
@@ -233,7 +233,8 @@ export class ProfileService {
      * due cose.
      */
     const daRiscrivere = newEnd.getTime() > Date.now() && ['active', 'queued', 'expired'].includes(sub.status);
-    const statoNuovo = statoPerInizio(d);
+    // ⚠️ `d` è un GIORNO (`new Date('2026-08-23')`), non un istante: vedi `statoPerGiornoDiInizio`.
+    const statoNuovo = statoPerGiornoDiInizio(d);
     await this.prisma.subscription.update({
       where: { id: sub.id },
       data: { startDate: d, endDate: newEnd, ...(daRiscrivere ? { status: statoNuovo as never } : {}) },

@@ -1,4 +1,5 @@
 import { CoachTasksService } from './coach-tasks.service';
+import { aGiorno } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -16,7 +17,24 @@ import { PrismaService } from '../prisma/prisma.service';
  * i soli `active`, cioè non verificherebbe niente.
  */
 describe('CoachTasksService.generateDaily — i compiti della prova in coda', () => {
-  const giorno = (n: number) => new Date(Date.now() + n * 86_400_000);
+  /**
+   * ⛔ **«N GIORNI DA OGGI» SI CHIEDE ALLA STESSA PORTA DEL CODICE** (23/8).
+   *
+   * Era `new Date(Date.now() + n * 86_400_000)`: un **istante**, spostato di n giorni a partire da
+   * adesso. Ma `generateDaily` non confronta istanti — confronta giorni: `aGiorno(new Date())`, che
+   * è il giorno di **Roma**, contro `giornoPiu(startDate, 0)`, che è il giorno **UTC** della data
+   * salvata.
+   *
+   * ⚠️ Fra le 22:00 e le 24:00 UTC i due non coincidono, e il conto si spostava di uno: alle 00:30
+   * italiane una prova che «comincia domani» ha come giorno UTC **oggi**, quindi `dayN` valeva 0 e
+   * il test «la prova che deve ancora cominciare non apre nessun compito» trovava
+   * `trial_g0_measures`. Il prodotto era a posto: era la **domanda** a essere fatta a un'altra porta.
+   *
+   * Partendo da `aGiorno(new Date())` — mezzanotte del giorno di Roma — l'aritmetica è la stessa che
+   * fa il codice, e la fixture assomiglia anche al dato vero: `startDate` è una data scelta, non un
+   * istante qualunque della giornata.
+   */
+  const giorno = (n: number) => new Date(aGiorno(new Date()).getTime() + n * 86_400_000);
 
   const vuoto = () => ({
     findMany: jest.fn().mockResolvedValue([]),

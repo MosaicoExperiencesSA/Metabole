@@ -82,6 +82,7 @@
     "diag:percorsi-conclusi": "ts-node --transpile-only prisma/diag-percorsi-conclusi.ts",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
+    "test:notte": "jest --setupFilesAfterEnv=\"<rootDir>/../test/orario-pericoloso.ts\"",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "rinomina:prodotto": "ts-node --transpile-only prisma/rinomina-prodotto.ts",
     "seed:nutrienti": "ts-node --transpile-only prisma/seed-valori-nutrizionali.ts",
