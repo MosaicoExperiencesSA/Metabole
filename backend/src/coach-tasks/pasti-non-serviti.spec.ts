@@ -12,6 +12,7 @@ import {
   testoPastiNonServiti,
 } from './pasti-non-serviti';
 import { TIPI_DELLA_NUTRIZIONISTA } from './avvisi-attivita';
+import { TIPO_DIGIUNO_ESTREMO, TIPO_FINESTRA_NON_TRADUCIBILE } from './verifica-digiuno';
 
 describe('⛔ il riferimento: una per cliente, non una per giornata composta', () => {
   /**
@@ -116,11 +117,24 @@ describe('⛔ l\'avviso arriva a chi può chiuderla', () => {
    * ⚠️ E con lui gli altri due del digiuno, che avevano lo stesso difetto da prima: i loro testi
    * chiedono valutazioni cliniche, e la push andava alla coach.
    */
+  /**
+   * ⛔ **Le COSTANTI, non le stringhe** (corretto il 22/8). Qui c'era scritto a mano
+   * `'finestra_digiuno_non_traducibile'` — con le prime due parole scambiate rispetto al tipo vero.
+   * Cioè questo test, che esisteva per accorgersi di una stringa sbagliata, **certificava la stringa
+   * sbagliata come giusta**. Un test che ricopia il valore invece di importarlo non prova niente:
+   * prova solo che chi l'ha scritto e chi ha scritto il codice hanno sbagliato insieme.
+   */
   it.each([
-    ['digiuno estremo', 'digiuno_estremo_da_verificare'],
-    ['finestra non traducibile', 'finestra_digiuno_non_traducibile'],
+    ['digiuno estremo', TIPO_DIGIUNO_ESTREMO],
+    ['finestra non traducibile', TIPO_FINESTRA_NON_TRADUCIBILE],
   ])('⚠️ anche «%s» è della nutrizionista', (_titolo, kind) => {
     expect(TIPI_DELLA_NUTRIZIONISTA.has(kind)).toBe(true);
+  });
+
+  /** ⛔ E il tipo vero è quello, non quello con le parole al contrario. */
+  it('⛔ la finestra non traducibile si chiama «digiuno_finestra_non_traducibile»', () => {
+    expect(TIPO_FINESTRA_NON_TRADUCIBILE).toBe('digiuno_finestra_non_traducibile');
+    expect(TIPI_DELLA_NUTRIZIONISTA.has('finestra_digiuno_non_traducibile')).toBe(false);
   });
 
   /** ⚠️ E non tutte lo sono: le attività della coach restano della coach. */
@@ -132,10 +146,14 @@ describe('⛔ l\'avviso arriva a chi può chiuderla', () => {
   );
 
   /**
-   * ⛔ **I tipi si scrivono uguali da tutte e due le parti.** L'elenco dei destinatari usa delle
-   * stringhe, e la costante che le produce sta in un altro file: se una delle due cambiasse, la
-   * nutrizionista smetterebbe di essere avvisata **senza che niente si accenda** — è il difetto
-   * peggiore possibile su un elenco fatto di stringhe.
+   * ⚠️ **Questo test oggi è quasi una tautologia, e va detto.** Fino al 22/8 `TIPI_DELLA_NUTRIZIONISTA`
+   * era un elenco di **stringhe scritte a mano**, e una era sbagliata: qui si verificava che la
+   * costante e la stringa combaciassero. Da quando l'insieme si costruisce **dalle costanti**, le
+   * due cose non possono più divergere e questo test non può più fallire.
+   *
+   * ⛔ Resta perché il valore letterale è un contratto con la **banca dati**: le righe di
+   * `coach_task` già scritte hanno quel `kind`, e rinominare la costante le renderebbe orfane. È
+   * quello che prova la prima riga; la seconda è il residuo storico.
    */
   it('⛔ la costante del tipo e la stringa nell\'elenco sono la stessa cosa', () => {
     expect(TIPO_PASTI_NON_SERVITI).toBe('digiuno_pasti_non_serviti');

@@ -78,7 +78,7 @@ describe('le attività della coach usano il giorno di Roma', () => {
     jest.useFakeTimers().setSystemTime(UNA_DI_NOTTE);
     let righe: { title: string; overdue: boolean }[];
     try {
-      righe = (await service.list('u1')) as { title: string; overdue: boolean }[];
+      righe = (await service.list('u1', 'coach')) as { title: string; overdue: boolean }[];
     } finally {
       jest.useRealTimers();
     }

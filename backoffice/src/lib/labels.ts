@@ -61,7 +61,9 @@ export const PAGE_LABEL: Record<string, string> = {
   testimonials: 'Testimonianze',
   publisher: 'Publisher social',
   agents: 'Agenti AI',
-  coach_tasks: 'Attività coach',
+  // ⚠️ Non «Attività coach»: dal 22/8 la stessa pagina la apre anche la nutrizionista, coi suoi
+  // quattro tipi. Il nome sta in tre posti (menu, titolo pagina, pagina Permessi) e vanno insieme.
+  coach_tasks: 'Attività da fare',
   equivalence_groups: 'Gruppi di equivalenza',
   food_swaps: 'Sostituzioni',
   nutri_assistant: 'Assistente (Vera)',

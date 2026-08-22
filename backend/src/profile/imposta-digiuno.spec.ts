@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 /**
  * LA CLIENTE SPOSTA IL SUO OROLOGIO — i test della porta vera.
  *
@@ -392,12 +393,22 @@ describe('⛔ la segnalazione alla nutrizionista', () => {
   it('⛔ un\'attività che fallisce non fa fallire il salvataggio', async () => {
     const { service, scritture, prisma } = creaServizio(inDigiuno());
     prisma.coachTask.findUnique.mockRejectedValue(new Error('database via'));
-    const errore = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    /**
+     * ⚠️ **Si guarda il FATTO, non il canale** (aggiornato il 22/8). Prima questa riga spiava
+     * `console.error`, perché l'errore risaliva fin qui e lo prendeva il `catch` di `segnalaDigiuno`.
+     * Adesso lo cattura `apriAttivitaCoach` — che finalmente mantiene il «non lancia mai» che
+     * prometteva — e lo scrive col logger di Nest.
+     *
+     * ⛔ Il comportamento che conta non è cambiato di una virgola: la scelta della cliente resta
+     * salvata, e il guasto **non è silenzioso**. Un test legato al canale invece del fatto si accende
+     * su una correzione, e insegna a spostare l'asserzione invece di leggere cosa è successo.
+     */
+    const avviso = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     await service.impostaDigiuno('u1', { protocollo: '23:1', inizioMin: H(19) });
     expect(scritture).toHaveLength(1);
     // ⚠️ Ma non in silenzio: resta scritto nei log, o è un avviso che sparisce e nessuno lo sa.
-    expect(errore).toHaveBeenCalled();
-    errore.mockRestore();
+    expect(avviso).toHaveBeenCalled();
+    avviso.mockRestore();
   });
 });
 

@@ -5,6 +5,7 @@ import { fasceDelDigiuno, type ProfiloDigiuno } from '../menu/vista-orologio';
 import { SELECT_OROLOGIO, orologioAzzerato, restaQualcosaDellOrologio } from '../menu/uscita-dal-digiuno';
 import { AuthService } from '../auth/auth.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
+import type { EsitoApertura } from '../coach-tasks/porta-delle-attivita';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { TIPO_VISITA_DA_FISSARE, testoVisitaDaFissare } from './visita-da-fissare';
 import { MenuService } from '../menu/menu.service';
@@ -723,9 +724,20 @@ export class ClientsService {
         const esito = await this.apriLaVisitaDaFissare(userId);
         // ⚠️ «C'era già» è un successo, non un errore: l'attività c'è. Confonderli vuol dire dire a
         // chi ha appena deciso che non è partito niente (revisione della notte del 18/8).
-        attivitaAperta = true;
+        //
+        // ⛔ **E «non riuscita» non è «c'era già»** (22/8): da quando `apriAttivitaCoach` non lancia
+        // più, un guasto torna come terzo esito invece che come eccezione — e questo `try` non lo
+        // vedrebbe. Senza questa riga la scheda direbbe «l'attività c'era già» a proposito di
+        // un'attività che non esiste, e la visita non la fisserebbe nessuno.
+        attivitaAperta = esito.esito !== 'non-riuscita';
         attivitaGiaPresente = esito.esito === 'gia-presente';
         attivitaSenzaCoach = esito.senzaCoach;
+        if (esito.esito === 'non-riuscita') {
+          this.logger.error(
+            `Via libera clinico: decisione salvata per ${userId}, ma l'attività «fissa la visita» NON è ` +
+              'stata aperta (la porta ha degradato) — la visita resta da fissare a mano.',
+          );
+        }
       } catch (e) {
         this.logger.error(
           `Via libera clinico: decisione salvata per ${userId}, ma l'attività «fissa la visita» non è ` +
@@ -765,7 +777,7 @@ export class ClientsService {
    */
   private async apriLaVisitaDaFissare(
     clientId: string,
-  ): Promise<{ esito: 'creata' | 'gia-presente'; senzaCoach: boolean }> {
+  ): Promise<{ esito: EsitoApertura; senzaCoach: boolean }> {
     const cliente = (await this.prisma.user.findUnique({
       where: { id: clientId },
       // ⚠️ Solo il nome di battesimo: è la regola scritta oggi con la bonifica delle email — nei

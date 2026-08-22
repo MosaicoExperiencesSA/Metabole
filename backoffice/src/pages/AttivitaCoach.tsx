@@ -8,13 +8,28 @@ import { Banner, Spinner } from '../components/ui';
  * momenti chiave della prova (G0 misure, G1 benvenuto, G4 aderenza, G7 chiusura,
  * +7 ultima chiamata) e di ogni fine piano. "La coach deve vedere cosa fare e
  * quando, non ricordarselo." Stato: da fare / fatto / saltato.
+ *
+ * ## ⚠️ E dal 22/8 non è più solo della coach
+ *
+ * Quattro tipi nascono addosso alla **nutrizionista** — digiuno estremo, finestra non traducibile,
+ * pasti non serviti, calorie che restano corte — e questa pagina è l'unico posto da cui può
+ * chiuderli. Fino al 22/8 la push le diceva «la trovi in Dashboard» e la Dashboard rispondeva 403.
+ *
+ * ⚠️ Lei vede **solo i suoi quattro tipi, sulle sue clienti**: il filtro è nel backend
+ * (`coach-tasks.service.ts`, `filtroNutrizionista`), non qui — una pagina non è un permesso.
  */
 
 interface Task {
   id: string; clientId: string; kind: string; title: string; description: string | null;
   dueDate: string; overdue: boolean; status: string; clientName: string;
 }
-interface Summary { openTasks: number; overdueTasks: number; trialsActive: number; expiringToday: number; expiringTomorrow: number; notConverted: number }
+/**
+ * ⚠️ `mostraCommerciale` (22/8): da quando questa pagina la apre anche la nutrizionista, quattro dei
+ * sei numeri non sono suoi — prove attive, in scadenza, non convertite sono il lavoro della coach.
+ * ⛔ Per lei il backend **non li manda proprio** (non li calcola nemmeno): sono opzionali, non
+ * zeri. ⚠️ `mostraCommerciale` mancante (server vecchio) = si disegnano, che è com'era prima.
+ */
+interface Summary { openTasks: number; overdueTasks: number; trialsActive?: number; expiringToday?: number; expiringTomorrow?: number; notConverted?: number; mostraCommerciale?: boolean }
 
 const KIND_ICON: Record<string, string> = {
   trial_g0_measures: 'ti-ruler-measure', trial_g1_welcome: 'ti-heart-handshake',
@@ -25,6 +40,30 @@ const KIND_ICON: Record<string, string> = {
   pause_regain: 'ti-beach',
   // Misure non inserite: il menu è fermo e l'app si blocca (voce #6 del 5/8).
   measures_missing: 'ti-ruler-measure',
+  /**
+   * ⚠️ I quattro tipi della NUTRIZIONISTA (22/8): senza icona propria uscivano tutti col segnaposto
+   * «ti-checklist», cioè identici alle telefonate della prova in una colonna che ora vede anche lei.
+   *
+   * ⛔ **Solo nomi già in uso IN QUESTO BACKOFFICE** (corretto in revisione, 22/8). Il font qui è
+   * pinnato a `@tabler/icons-webfont@**2.47.0**` da CDN, e un nome che in quella versione non esiste
+   * non dà nessun errore: disegna un **quadratino vuoto**, cioè peggio del segnaposto che volevamo
+   * togliere — una casella vuota si legge come «riga rotta».
+   *
+   * ⚠️ E «lo usa l'app» **non è una prova**: l'app carica `tabler-icons@3.17.0`, una major diversa,
+   * dove i nomi non sono gli stessi. La prima stesura ne aveva quattro presi così: tre erano in uso
+   * solo nell'app e uno (`ti-clock-question`) da nessuna parte.
+   *
+   * ⚠️ Adesso ognuno di questi sei compare già in un'altra pagina di **questo** backoffice. Non è
+   * una dimostrazione — se anche quelle fossero quadratini vuoti nessuno se ne sarebbe accorto — ma
+   * è la migliore evidenza raggiungibile senza l'elenco dei glifi della 2.47.0. `attivita-che-arrivano.spec.ts`
+   * verifica intanto che ogni tipo abbia **un'icona sua**, cioè che nessuno finisca col segnaposto.
+   */
+  digiuno_estremo_da_verificare: 'ti-alert-triangle',
+  digiuno_finestra_non_traducibile: 'ti-clock',
+  digiuno_pasti_non_serviti: 'ti-tools-kitchen-2',
+  kcal_restano_corte: 'ti-alert-circle',
+  finestra_digiuno_mai_chiesta: 'ti-hourglass',
+  esclusioni_da_chiarire: 'ti-message-question',
 };
 
 export function AttivitaCoach() {
@@ -57,9 +96,13 @@ export function AttivitaCoach() {
         <div className="card" style={{ padding: '12px 16px', marginBottom: 14 }}>
           <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
             <b style={{ fontSize: 13 }}><i className="ti ti-checklist" /> {summary.openTasks} da fare{summary.overdueTasks > 0 && <span style={{ color: '#B3261E' }}> · {summary.overdueTasks} in ritardo</span>}</b>
-            <span className="muted" style={{ fontSize: 12 }}>Prove attive: <b>{summary.trialsActive}</b></span>
-            <span className="muted" style={{ fontSize: 12 }}>In scadenza oggi: <b style={{ color: summary.expiringToday > 0 ? '#B3261E' : undefined }}>{summary.expiringToday}</b> · domani: <b>{summary.expiringTomorrow}</b></span>
-            <span className="muted" style={{ fontSize: 12 }}>Non convertite: <b>{summary.notConverted}</b></span>
+            {summary.mostraCommerciale !== false && (
+              <>
+                <span className="muted" style={{ fontSize: 12 }}>Prove attive: <b>{summary.trialsActive}</b></span>
+                <span className="muted" style={{ fontSize: 12 }}>In scadenza oggi: <b style={{ color: (summary.expiringToday ?? 0) > 0 ? '#B3261E' : undefined }}>{summary.expiringToday}</b> · domani: <b>{summary.expiringTomorrow}</b></span>
+                <span className="muted" style={{ fontSize: 12 }}>Non convertite: <b>{summary.notConverted}</b></span>
+              </>
+            )}
           </div>
         </div>
       )}

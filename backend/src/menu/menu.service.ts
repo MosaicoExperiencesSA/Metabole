@@ -3,6 +3,14 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { giornateComplete, NOME_PASTO } from '../catalog/giornate-complete';
 import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
 import {
+  TIPO_KCAL_CORTE,
+  decisioneKcalCorte,
+  laPiuCorta,
+  riferimentoKcalCorte,
+  scadenzaKcalCorte,
+  testoKcalCorte,
+} from '../coach-tasks/kcal-restano-corte';
+import {
   TIPO_PASTI_NON_SERVITI,
   riferimentoPastiNonServiti,
   scadenzaPastiNonServiti,
@@ -29,7 +37,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
-import { slotEsclusiTotali } from './finestre-digiuno';
+import { finestraCheAgisce, slotEsclusiTotali, spuntiniTolti } from './finestre-digiuno';
 // Il controllo che mancava: una giornata sotto il fabbisogno oggi esce identica a una giusta.
 import { TETTI_PREDEFINITI, porzioniScalate } from './porzione-scalata';
 import { aggregaSpesa, conservaSpuntati, stessaLista } from './lista-della-spesa';
@@ -1000,7 +1008,15 @@ export class MenuService {
       if (esito.restaCorta) {
         restateCorte.push({
           data: giorno.date.toISOString().slice(0, 10),
-          quota: Math.round(esito.quota * 100) / 100,
+          /**
+           * ⛔ **NON arrotondata** (corretto in revisione, 22/8). Qui c'era
+           * `Math.round(esito.quota * 100) / 100`, e su quel numero decideva `meritaUnAvviso`: con
+           * tolleranza al 15%, una quota reale di **0,8451** — fuori tolleranza, l'attività andava
+           * aperta — diventava `0,85` e il log diceva «dentro la tolleranza, è l'arrotondamento».
+           * Falso, e per tutta la banda [0,845 ; 0,850). L'arrotondamento serve al testo e al log,
+           * non alla decisione: si fa dove si scrive, non dove si sceglie.
+           */
+          quota: esito.quota,
           alTetto: esito.alTetto,
         });
       }
@@ -1021,6 +1037,120 @@ export class MenuService {
           `per ${clientId} ANCHE col moltiplicatore al tetto (target ${Math.round(targetKcal)} kcal). ` +
           restateCorte.map((r) => `${r.data}: ${Math.round(r.quota * 100)}% (al tetto: ${r.alTetto.join(', ') || 'nessuno'})`).join(' · '),
       );
+      /**
+       * ⛔ **LA TERZA CONDIZIONE DEL §3, che per tre giorni nessuno ha calcolato** (22/8).
+       *
+       * Il foglio decisioni la chiama **la migliore delle tre**: le altre due guardano il *nome* del
+       * protocollo (20:4, 23:1) e quanti pasti restano; questa guarda le **calorie che quella cliente
+       * riceve davvero**. Il codice lo diceva in tre punti — `cambio-finestra.ts`,
+       * `verifica-digiuno.ts`, l'elenco lavori — dichiarando che mancava invece di lasciarla credere
+       * coperta. Da qui in poi non manca più.
+       *
+       * ⚠️ **Nasce qui e non alla scelta della finestra**, ed è la ragione per cui prima non c'era:
+       * `impostaDigiuno` non ha in mano né la dieta né il fabbisogno, e per dirlo dovrebbe rifare il
+       * conto del motore. Due conti sulla stessa domanda divergono — è già successo due volte fra il
+       * motore e `diag:digiuni`. Qui il conto è già fatto, sui pasti veri, dopo la scalatura.
+       *
+       * ⚠️ **Non blocca niente**, come `fasting_meals_missing`: una giornata leggera è meglio di
+       * nessun menu, e il rimedio non è nelle mani di chi apre l'app.
+       *
+       * ⚠️ `apriAttivitaCoach` non lancia mai e dedupla su `clientId+kind+refId`: il riferimento è la
+       * **situazione**, non la data — `deliverIfEligible` gira a ogni apertura dell'app, e una data lì
+       * dentro farebbe nascere un'attività al giorno per la stessa identica cosa.
+       */
+      const peggioreCorta = laPiuCorta(restateCorte);
+      /**
+       * ⚠️ **«Lo dice già l'altra» vale solo finché l'altra è aperta.** Anche
+       * `digiuno_pasti_non_serviti` si deduplica senza guardare lo stato: chiusa quella, il rinvio
+       * diventerebbe un silenzio definitivo su una cliente che riceve meno calorie di quante le
+       * servono. Una riga in più solo quando i pasti mancano davvero.
+       */
+      const altraAttivitaAperta = pastiMancanti.length > 0 && !!(await this.prisma.coachTask.findFirst({
+        where: {
+          clientId,
+          kind: TIPO_PASTI_NON_SERVITI,
+          refId: riferimentoPastiNonServiti(pastiMancanti),
+          status: 'todo',
+        } as never,
+        select: { id: true },
+      }).catch(() => null));
+      const decisione = decisioneKcalCorte({
+        peggiore: peggioreCorta,
+        tolleranzaPct: kcalTolPct,
+        pastiMancanti,
+        altraAttivitaAperta,
+      });
+      if (!decisione.apri) {
+        /**
+         * ⚠️ *Se degradi, dillo* — ma **al livello giusto** (corretto in revisione, 22/8).
+         *
+         * Il 12,4% delle giornate risulta `restaCorta` per il solo arrotondamento dei pasti: un
+         * `warn` su quel ramo sarebbe comparso a ogni erogazione di quasi ogni cliente scalata,
+         * cioè lo stesso difetto che questa consegna combatte, spostato dal cruscotto ai log — e
+         * avrebbe affogato l'unico caso che vale la pena leggere. «L'arrotondamento non merita
+         * un'attività» non è una degradazione: è il funzionamento normale, e va in `debug`.
+         *
+         * ⛔ Il ramo dei **pasti mancanti** invece è un avviso vero: lì taciamo di proposito su una
+         * cliente che riceve meno calorie, perché lo dice un'altra attività. Se un giorno quell'altra
+         * smettesse di nascere, questo `warn` è l'unico posto in cui il silenzio si vede.
+         */
+        /**
+         * ⚠️ *Se degradi, dillo* — ma **solo dove è una degradazione**. Il ramo della tolleranza non
+         * è degradare: il 12,4% delle giornate risulta «corta» per il solo arrotondamento dei pasti,
+         * e scriverne una riga a ogni erogazione di quasi ogni cliente scalata sarebbe lo stesso
+         * difetto che questa consegna combatte, spostato dal cruscotto ai log — dove per giunta
+         * affogherebbe l'unico caso da leggere. ⛔ E `debug` non basterebbe a evitarlo: in questo
+         * progetto non c'è nessun `setLogLevels`, quindi `debug` **si stampa come `warn`**.
+         *
+         * ⛔ Il ramo dei pasti mancanti invece è un rinvio vero: lì taciamo di proposito su una
+         * cliente che riceve meno calorie. Se un giorno l'altra attività smettesse di nascere,
+         * questa riga è l'unico posto in cui quel silenzio si vede.
+         */
+        if (altraAttivitaAperta) {
+          this.logger.warn(`Porzioni: attività «${TIPO_KCAL_CORTE}» NON aperta per ${clientId} — ${decisione.perche}.`);
+        }
+      } else if (peggioreCorta) {
+        /**
+         * ⛔ **LA SITUAZIONE È QUELLA CHE IL MOTORE HA APPLICATO, non quella scritta in colonna**
+         * (revisione del 22/8). Prima qui passavano `profile.fastingWindow` e `profile.pastiEsclusi`
+         * grezzi, e sono due cose diverse da quello che è successo nel piatto:
+         *
+         *  - la finestra vale **solo se `pathType` è digiuno** — `slotSaltati` lo sa e torna vuoto,
+         *    ma il testo avrebbe detto «è la sua finestra di digiuno» a una cliente che digiuna solo
+         *    in banca dati (le colonne dell'orologio possono restare scritte: `uscita-dal-digiuno.ts`);
+         *  - da `pastiEsclusi` il motore ascolta **solo i due spuntini**: una riga con «cena» dentro
+         *    non toglie niente a nessuno, e raccontarla come causa è mandare la nutrizionista a
+         *    rimettere un pasto che non è mai stato tolto.
+         *
+         * ⚠️ E la situazione è anche **il riferimento**: dirla sbagliata non sbaglia solo il testo,
+         * sbaglia l'unicità — due clienti identiche con una riga di colonna diversa avrebbero avuto
+         * due attività, e la stessa cliente ne avrebbe avuta una nuova a ogni pulizia della colonna.
+         */
+        const situazione = {
+          finestra: finestraCheAgisce(
+            (profile as { pathType?: string | null }).pathType,
+            (profile as { fastingWindow?: string | null }).fastingWindow,
+          ),
+          pastiEsclusi: spuntiniTolti((profile as { pastiEsclusi?: string[] }).pastiEsclusi),
+        };
+        const t = testoKcalCorte(
+          (profile as { name?: string | null }).name ?? null,
+          peggioreCorta,
+          restateCorte.length,
+          situazione,
+          // ⚠️ `targetSource`, non solo il numero: «il 68% del suo fabbisogno» è falso quando il
+          // target sono le kcal del livello della dieta. Vedi `TargetDellaGiornata`.
+          { kcal: targetKcal, fonte: targetSource },
+        );
+        await apriAttivitaCoach(this.prisma, this.push, {
+          clientId,
+          kind: TIPO_KCAL_CORTE,
+          refId: riferimentoKcalCorte(situazione),
+          title: t.title,
+          description: t.description,
+          dueDate: scadenzaKcalCorte(new Date()),
+        });
+      }
     }
 
     const sottoTarget = giornateSottoTarget(daySnapshots, targetKcal, kcalTolPct);

@@ -242,6 +242,14 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     purchases: { view: true }, // gli acquisti del suo perimetro: lei + le coach del suo team
   },
   nutritionist: {
+    /**
+     * ⛔ **LE ATTIVITÀ CHE SOLO LEI PUÒ CHIUDERE** (22/8). Quattro tipi nascono addosso alla
+     * nutrizionista — digiuno estremo, finestra non traducibile, pasti non serviti, calorie corte —
+     * e dal 21/8 le arriva la push, con scritto «la trovi in Dashboard». Questa riga era spenta:
+     * cliccava e prendeva 403. ⚠️ Vede **solo i suoi quattro tipi**, non l'elenco della coach: il
+     * filtro è in `coach-tasks.service.ts`, non qui.
+     */
+    coach_tasks: { view: true, manage: true },
     dashboard: { view: true },
     notifications: { view: true },
     posta: { view: true },
@@ -272,6 +280,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     health_documents: { view: true, manage: true },
   },
   head_nutritionist: {
+    // Come per la nutrizionista: le attività dei suoi quattro tipi. Vedi la nota qui sopra.
+    coach_tasks: { view: true, manage: true },
     dashboard: { view: true },
     notifications: { view: true },
     posta: { view: true },

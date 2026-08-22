@@ -1967,11 +1967,30 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'quando la cliente imposta l\'orologio serve la sua dieta e il suo fabbisogno per sapere se con '
       + 'quella finestra ci arriva. ⚠️ In alternativa (forse meglio) la si aggancia **al segnale che già '
       + 'esiste**, cioè quando il motore compone la giornata e vede che resta corta: è più tardi di un '
-      + 'giorno, ma è misurato sui menu veri invece che su una previsione.',
+      + 'giorno, ma è misurato sui menu veri invece che su una previsione.'
+      + '\n\n## ✅ FATTA il 22/8 — agganciata al segnale che esisteva già\n\n'
+      + '⚠️ **Non al momento della scelta**, che era la strada che avevo scritto per prima: '
+      + '`impostaDigiuno` non ha in mano né la dieta né il fabbisogno, e per dirlo dovrebbe rifare '
+      + 'il conto del motore. Due conti sulla stessa domanda divergono — è già successo due volte '
+      + 'fra il motore e `diag:digiuni`. ✅ Nasce invece **all\'erogazione**, dove `porzione-scalata` '
+      + 'torna già `restaCorta` sui pasti veri, dopo la scalatura: costa un giorno di ritardo e in '
+      + 'cambio è **misurata** invece che prevista.\n\n'
+      + '⚠️ Il riferimento dell\'attività è la **situazione** (finestra + spuntini tolti + dieta + '
+      + 'quota arrotondata al 5%), non la data: `deliverIfEligible` gira a ogni apertura dell\'app, e '
+      + 'una data lì dentro avrebbe fatto nascere un\'attività al giorno per la stessa identica cosa.\n\n'
+      + '⚠️ **Non solo il digiuno**: una giornata corta col moltiplicatore al tetto è corta anche per '
+      + 'chi ha degli spuntini tolti, o quando è il catalogo a non avere giornate sostanziose. Il '
+      + 'testo dice **quale delle tre**, perché si chiudono in tre modi diversi — e nel terzo caso le '
+      + 'porzioni non c\'entrano niente e manda a `diag:varieta`.\n\n'
+      + '⛔ **E agganciandola è saltato fuori un difetto più grosso**: `apriAttivitaCoach` dichiarava '
+      + 'da sempre «non lancia mai», e dentro **non aveva nessun `try`**. Mettendola nell\'erogazione '
+      + 'del menu, un intoppo su `coachTask` avrebbe fatto fallire la consegna del menu della cliente '
+      + '— cioè proprio il lavoro vero che quella funzione dice di non voler fermare. Adesso la '
+      + 'promessa è mantenuta, torna `non-riuscita`, e lo scrive: se degradi, dillo.',
     categoria: CODICE,
     ordine: 643,
     nata: '2026-08-21T11:45',
-    priorita: 'bassa',
+    fatta: true,
   },
   {
     chiave: 'esclusioni-fuori-dal-pool',
@@ -2079,6 +2098,62 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 644,
     nata: '2026-08-21T13:50',
     fatta: true,
+  },
+
+  {
+    chiave: 'attivita-nutrizionista-in-app',
+    titolo: 'App staff: la nutrizionista non vede le sue attività nella sua dashboard',
+    dettaglio:
+      '⛔ **La push le arriva, la sua schermata non ce l\'ha.** Dal 21/8 quattro tipi di attività '
+      + 'nascono addosso alla nutrizionista (digiuno estremo, finestra non traducibile, pasti non '
+      + 'serviti, calorie che restano corte) e la push le arriva davvero. Il 22/8 le abbiamo aperto '
+      + 'la pagina **del backoffice** — prima rispondeva 403 — ma l\'app staff no: `NutriDashboard` '
+      + 'chiama `/nutritionist/dashboard`, `validation-queue` ed `escalations`, e `/staff/coach-tasks` '
+      + 'non lo chiama nessuno. Il pallino sul tab è dietro `isCoachSide`, che non la comprende.\n\n'
+      + '⚠️ Nel frattempo la push per i suoi tipi **dice dove si trova davvero** («in CRM › Attività '
+      + 'da fare», nel backoffice) invece di «La trovi in Dashboard», che era falso: *se degradi, '
+      + 'dillo*. Ma è un ripiego — lei sul telefono ci lavora.\n\n'
+      + 'Da fare: una sezione «le tue attività» in `NutriDashboard` che legge `/staff/coach-tasks` '
+      + '(l\'endpoint la serve già filtrata ai suoi quattro tipi e alle sue clienti), il pallino sul '
+      + 'tab, e poi rimettere «La trovi in Dashboard» nella push.',
+    categoria: CODICE,
+    ordine: 660,
+    nata: '2026-08-22T09:30',
+  },
+  {
+    chiave: 'descrizioni-diete-tabella',
+    titolo: 'Nutrizionista: tabella per leggere e correggere le descrizioni delle diete (quelle che la cliente legge in app)',
+    dettaglio:
+      'Richiesta di Simone del 22/8: *«nella parte del nutrizionista manca una tabella dove si '
+      + 'vedono e si possono modificare le descrizioni delle diete, che sono poi quelle che si '
+      + 'leggono in app come spiegazione»*.\n\n'
+      + '⚠️ Prima di scrivere: **censire dove sta oggi quel testo** e chi lo mostra — la stessa '
+      + 'spiegazione potrebbe arrivare da più di un campo, e in quel caso la tabella deve dire quale '
+      + 'sta correggendo. Il censimento è metà del lavoro (lezione delle frecce, 21/8: la premessa '
+      + 'scritta senza guardare era falsa).\n\n'
+      + 'Da decidere con Simone: se la modifica è libera o passa dall\'approvazione del capo, come '
+      + 'per le diete a catalogo; e se il cambio va storicizzato nel log (probabile sì: è un testo '
+      + 'che la cliente legge).',
+    categoria: CODICE,
+    ordine: 661,
+    nata: '2026-08-22T10:10',
+  },
+  {
+    chiave: 'perimetro-nutrizionista-senza-assegnazione',
+    titolo: 'Decisione: la nutrizionista deve vedere anche le clienti SENZA nutrizionista assegnata?',
+    dettaglio:
+      'Emerso il 22/8 aprendo la pagina Attività alla nutrizionista. Oggi `perimetroClienti` le dà '
+      + '**solo le clienti assegnate a lei**; le clienti senza nutrizionista assegnata sono di fatto '
+      + 'del **capo** (`nutrizionistaDiRiferimento`), che vede tutto.\n\n'
+      + '⚠️ Finché la nutrizionista è una sola, la domanda non morde: il capo copre il vuoto. Con '
+      + 'due o più, «le clienti di nessuno» diventano un buco che nessuno guarda per mestiere — ed è '
+      + 'lo stesso momento in cui va spento `assign_head_nutritionist_by_default`.\n\n'
+      + '⛔ Non l\'ho deciso io: è una decisione su chi vede i dati clinici di chi. Quando si '
+      + 'decide, il posto da cambiare è **uno** (`common/perimetro-clienti.ts`) e tutte le pagine '
+      + 'seguono.',
+    categoria: SIMONE,
+    ordine: 662,
+    nata: '2026-08-22T10:15',
   },
 
 ];

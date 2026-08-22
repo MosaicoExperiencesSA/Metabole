@@ -499,9 +499,16 @@ export function LeadDetail() {
               {(lead.historicalPaidCents ?? 0) > 0 && (
                 <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>Storico: {euro(lead.historicalPaidCents)}</span>
               )}
+              {/*
+                ⚠️ «Lista», non l'icona dell'etichetta (22/8, chiesto da Simone guardando una scheda).
+                Queste sono le LISTE da cui il contatto è stato importato (`crm_list`), e nella scheda
+                c'è anche una riga «Etichette» che è un'altra cosa (`tags`, scritte a mano). Con
+                l'icona `ti-tag` sembravano la stessa cosa: sopra due chip pieni, sotto «—», e la
+                scheda si legge come «i dati sono spariti». Due cose diverse si scrivono diverse.
+              */}
               {lead.lists.map((l) => (
                 <span key={l.id} className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff', fontSize: 11 }}>
-                  <i className="ti ti-tag" style={{ fontSize: 12, marginRight: 3 }} />{l.name}
+                  <i className="ti ti-list-details" style={{ fontSize: 12, marginRight: 3 }} />Lista: {l.name}
                 </span>
               ))}
             </div>

@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import type { PushMinimo } from '../notifications/notifica-utente';
 import type { PrismaService } from '../prisma/prisma.service';
 import { avvisaAttivitaNuova } from './avvisi-attivita';
+
+const logger = new Logger('PortaDelleAttivita');
 
 /**
  * ⚠️ **LA PORTA DA CUI NASCE UN'ATTIVITÀ DELLA COACH.**
@@ -38,15 +41,53 @@ export interface AttivitaDaAprire {
 }
 
 /**
- * Crea l'attività se non c'è già, e in quel caso avvisa la coach. Non lancia mai: chi chiama sta
- * facendo il lavoro vero (il giro notturno, un sollecito) e un avviso che non parte non deve
- * fermarlo.
+ * Crea l'attività se non c'è già, e in quel caso avvisa la coach.
  *
- * Ritorna `'creata'` o `'gia-presente'` — **non un booleano**. Con un booleano chi chiama traduce
- * `false` in «non è riuscita» e lo dice a chi ha appena deciso, mentre vuol dire che c'era già,
- * cioè che è tutto a posto (trovato il 18/8).
+ * Ritorna `'creata'`, `'gia-presente'` o `'non-riuscita'` — **non un booleano**. Con un booleano chi
+ * chiama traduce `false` in «non è riuscita» e lo dice a chi ha appena deciso, mentre `gia-presente`
+ * vuol dire che è tutto a posto (trovato il 18/8).
+ *
+ * ## ⛔ «NON LANCIA MAI» — adesso è vero (22/8)
+ *
+ * Questo docstring diceva *«Non lancia mai: chi chiama sta facendo il lavoro vero (il giro notturno,
+ * un sollecito) e un avviso che non parte non deve fermarlo»*. **Era una promessa e basta**: dentro
+ * non c'era nessun `try`, e le due query su `coachTask` propagavano qualunque errore a chi chiamava.
+ *
+ * ⚠️ Si è visto agganciando la terza condizione del §3 all'erogazione del menu: da lì in poi un
+ * intoppo su `coachTask` **avrebbe fatto fallire la consegna del menu della cliente** — cioè
+ * esattamente il lavoro vero che questa funzione dichiara di non voler fermare. E lo stesso valeva
+ * già per il chiamante di `menu.service:704`, il cui commento ripeteva la promessa in buona fede.
+ *
+ * ⚠️ Il commento sbagliato è la parte che costa: chi leggeva «non lancia mai» non aveva ragione di
+ * mettere un `try` attorno. È lo stesso difetto del 20/8 su «nessun tipo può sfuggire».
+ *
+ * ⛔ E se non riesce **si scrive**: un'attività che non nasce in silenzio è indistinguibile da una
+ * situazione che non c'è. *Se degradi, dillo.*
  */
+/**
+ * I tre esiti. ⛔ **Sono tre e non due**: `'non-riuscita'` non è `'gia-presente'`, e chi lo confonde
+ * dice a una persona che l'attività c'è quando non c'è. Vedi `apriAttivita` in
+ * `coach-tasks.service.ts`, dove è successo.
+ */
+export type EsitoApertura = 'creata' | 'gia-presente' | 'non-riuscita';
+
 export async function apriAttivitaCoach(
+  prisma: PrismaService,
+  push: PushMinimo,
+  dati: AttivitaDaAprire,
+): Promise<EsitoApertura> {
+  try {
+    return await apriDavvero(prisma, push, dati);
+  } catch (err) {
+    logger.warn(
+      `Attività NON aperta (cliente=${dati.clientId}, tipo=${dati.kind}, rif=${dati.refId}): `
+      + `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return 'non-riuscita';
+  }
+}
+
+async function apriDavvero(
   prisma: PrismaService,
   push: PushMinimo,
   dati: AttivitaDaAprire,

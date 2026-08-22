@@ -44,7 +44,10 @@ export const NAV: NavSection[] = [
       { key: 'crm_pipeline', label: 'Pipeline', to: '/crm/pipeline', icon: 'ti-layout-kanban' },
       { key: 'lead_acceptance', label: 'Lead da accettare', to: '/crm/da-accettare', icon: 'ti-user-check' },
       { key: 'crm_calendar', label: 'Calendario', to: '/crm/calendario', icon: 'ti-calendar-event' },
-      { key: 'coach_tasks', label: 'Attività coach', to: '/attivita-coach', icon: 'ti-checklist' },
+      // ⚠️ «Attività da fare» e non «Attività coach» (22/8): da oggi questa pagina la apre anche la
+      // nutrizionista, con i suoi quattro tipi. Una voce che si chiama col nome di un altro ruolo si
+      // legge come «non è roba mia», ed è l'unico posto da cui può chiudere quelle attività.
+      { key: 'coach_tasks', label: 'Attività da fare', to: '/attivita-coach', icon: 'ti-checklist' },
     ],
   },
   {

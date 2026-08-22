@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+import { apriAttivitaCoach } from './porta-delle-attivita';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
@@ -75,5 +77,82 @@ describe('le attività della coach nascono da una porta sola', () => {
     for (const rel of PERMESSI.keys()) {
       expect(readFileSync(join(radice, rel), 'utf8').length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * ⛔ **«NON LANCIA MAI» — la promessa che il docstring faceva a vuoto** (22/8).
+ *
+ * `apriAttivitaCoach` dichiarava, da quando esiste: *«Non lancia mai: chi chiama sta facendo il
+ * lavoro vero (il giro notturno, un sollecito) e un avviso che non parte non deve fermarlo»*. Dentro
+ * non c'era **nessun `try`**: le due query su `coachTask` propagavano tutto a chi chiamava.
+ *
+ * ⛔ Si è visto agganciando la terza condizione del §3 all'**erogazione del menu**: da lì in poi un
+ * intoppo su `coachTask` avrebbe fatto fallire la consegna del menu della cliente — cioè esattamente
+ * il lavoro vero che questa funzione dichiara di non voler fermare. E lo stesso valeva già per
+ * l'altro chiamante dentro `menu.service`, il cui commento ripeteva la promessa in buona fede.
+ *
+ * ⚠️ Il commento sbagliato è la parte che costa: chi leggeva «non lancia mai» non aveva ragione di
+ * mettere un `try` attorno. È lo stesso difetto del 20/8 su «nessun tipo può sfuggire» — una regola
+ * scritta e non tenuta, in un posto dove nessuno andava a controllare.
+ */
+describe('⛔ la porta non lancia mai — e adesso è vero', () => {
+  const DATI = {
+    clientId: 'c1', kind: 'prova', refId: 'r1',
+    title: 't', description: 'd', dueDate: new Date('2026-08-29T00:00:00Z'),
+  };
+  const push = {} as never;
+
+  it.each([
+    ['la lettura', { findUnique: jest.fn().mockRejectedValue(new Error('db via')), create: jest.fn() }],
+    ['la scrittura', { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockRejectedValue(new Error('db via')) }],
+  ])('⛔ se %s fallisce, non lancia: torna «non-riuscita»', async (_titolo, coachTask) => {
+    const prisma = { coachTask } as never;
+    await expect(apriAttivitaCoach(prisma, push, DATI)).resolves.toBe('non-riuscita');
+  });
+
+  /**
+   * ⛔ E **non in silenzio**: un'attività che non nasce senza dirlo è indistinguibile da una
+   * situazione che non c'è. *Se degradi, dillo.*
+   */
+  it('⛔ e lo scrive: un guasto muto sembra «non c\'era niente da aprire»', async () => {
+    const avviso = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const prisma = { coachTask: { findUnique: jest.fn().mockRejectedValue(new Error('db via')), create: jest.fn() } } as never;
+    await apriAttivitaCoach(prisma, push, DATI);
+    expect(avviso).toHaveBeenCalled();
+    // ⚠️ Con dentro cliente e tipo: un log che dice «non riuscita» e basta non si può inseguire.
+    expect(String(avviso.mock.calls[0]?.[0])).toContain('c1');
+    expect(String(avviso.mock.calls[0]?.[0])).toContain('prova');
+    avviso.mockRestore();
+  });
+
+  /**
+   * ⚠️ E quando va bene, **tutti e due** gli esiti di prima non sono cambiati.
+   *
+   * ⛔ Qui il test si intitolava «i due esiti buoni restano quelli» e ne provava **uno**
+   * (`gia-presente`) — trovato in revisione il 22/8. Il ramo mancante era proprio quello che conta:
+   * `'creata'` è l'unico che esegue `avvisaAttivitaNuova` **dentro** il `try` nuovo, cioè l'unico in
+   * cui un avviso che non parte potrebbe fermare il menu della cliente. Un titolo che promette due
+   * casi e ne prova uno è peggio di un titolo che ne promette uno: chi legge non torna a guardare.
+   */
+  it('⚠️ già presente: non ricrea e non avvisa', async () => {
+    const gia = { coachTask: { findUnique: jest.fn().mockResolvedValue({ id: 'x' }), create: jest.fn() } } as never;
+    await expect(apriAttivitaCoach(gia, push, DATI)).resolves.toBe('gia-presente');
+    expect((gia as unknown as { coachTask: { create: jest.Mock } }).coachTask.create).not.toHaveBeenCalled();
+  });
+
+  it('⛔ creata: torna «creata», e un avviso che non parte NON fa saltare l\'erogazione', async () => {
+    const avviso = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const nuova = {
+      coachTask: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 't-nuova', ...DATI }),
+      },
+      // ⚠️ `avvisaAttivitaNuova` legge il profilo per sapere a chi mandare: qui esplode di proposito.
+      clientProfile: { findUnique: jest.fn().mockRejectedValue(new Error('db giù')) },
+    } as never;
+    await expect(apriAttivitaCoach(nuova, push, DATI)).resolves.toBe('creata');
+    expect((nuova as unknown as { coachTask: { create: jest.Mock } }).coachTask.create).toHaveBeenCalled();
+    avviso.mockRestore();
   });
 });

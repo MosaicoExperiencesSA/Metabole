@@ -151,7 +151,8 @@ export interface EsitoCambio {
    * ⚠️ Le calcola **questa funzione**, non il chiamante: prima erano una funzione a parte che
    * l'endpoint doveva ricordarsi di chiamare, ed è la stessa forma di difetto già corretta in
    * `chiedi-la-finestra.ts` — una regola che dipende dalla disciplina del prossimo che scrive.
-   * ⚠️ La terza condizione del foglio (`restaCorta`) **non può stare qui** perché serve la dieta:
+   * ⚠️ La terza condizione del foglio (`restaCorta`) **non sta qui** perché serve la dieta — dal 22/8
+   * la calcola l'erogazione, vedi `coach-tasks/kcal-restano-corte.ts`:
    * chi chiama la aggiunge a questo elenco.
    */
   daVerificare: string[];
@@ -477,10 +478,14 @@ export function passoDiStanotte(
  * calorie non ci arrivano» — **non sta qui**: la calcola `porzione-scalata.ts` sul fabbisogno vero
  * di quella cliente, e serve la sua dieta.
  *
- * ⚠️ **E oggi non la aggiunge nessuno**, va detto invece di lasciarlo credere: `impostaDigiuno` non
- * la calcola. È la migliore delle tre — non guarda il nome del protocollo, guarda le calorie che
- * quella cliente riceve davvero — ed è in elenco lavori. Finché non c'è, le due qui sotto sono
- * tutto quello che c'è.
+ * ✅ **E dal 22/8 la calcola qualcuno**: non `impostaDigiuno` — non ha in mano né la dieta né il
+ * fabbisogno, e per dirlo dovrebbe rifare il conto del motore — ma **l'erogazione**, dove il conto è
+ * già fatto sui pasti veri, dopo la scalatura delle porzioni. Nasce di lì un'attività a parte
+ * (`coach-tasks/kcal-restano-corte.ts`), col suo tipo e le sue parole.
+ *
+ * ⚠️ Costa un giorno di ritardo — si sa quando il menu si compone, non quando lei tocca l'orologio —
+ * e vale la pena: *una previsione che sbaglia è peggio di una misura che arriva domani.* Le due qui
+ * sotto restano quello che si può dire **subito**, nel momento della scelta.
  */
 export function ragioniDaVerificare(protocollo: string, unicoPasto: boolean): string[] {
   const ragioni: string[] = [];

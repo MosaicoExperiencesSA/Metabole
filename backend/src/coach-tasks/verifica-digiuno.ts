@@ -12,10 +12,14 @@
  * ## Due situazioni diverse, due attività diverse
  *
  * 1. **La scelta è estrema** (`digiuno_estremo_da_verificare`). Protocollo 20:4 o 23:1 — il manuale
- *    li dà per chi ha già esperienza — oppure una finestra che lascia **un pasto solo**. ⚠️ La terza
- *    condizione del §3 la aggiunge chi chiama: `restaCorta`, cioè «anche coi moltiplicatori al tetto
- *    le calorie non ci arrivano». È la migliore delle tre perché non guarda il nome del protocollo,
- *    guarda quello che quella cliente riceve davvero — ma serve la sua dieta, e qui la dieta non c'è.
+ *    li dà per chi ha già esperienza — oppure una finestra che lascia **un pasto solo**. ⚠️ Sono le
+ *    due cose che si possono dire **subito**, nel momento in cui lei sceglie.
+ *
+ * 1b. ✅ **La terza condizione del §3 non sta qui, e dal 22/8 non manca più**: `restaCorta` — «anche
+ *    coi moltiplicatori delle porzioni al tetto le calorie non ci arrivano» — serve la dieta e il
+ *    fabbisogno, che qui non ci sono. La calcola l'erogazione, dove il conto è già fatto sui pasti
+ *    veri, e apre un'attività sua (`kcal-restano-corte.ts`). È la migliore delle tre perché non
+ *    guarda il nome del protocollo: guarda quello che quella cliente riceve davvero nel piatto.
  *
  * 2. **La finestra di prima non era riproducibile** (`digiuno_finestra_non_traducibile`). Il caso
  *    della cliente su «salta la cena»: l'orologio non sa fare quella finestra, la pagina le si è

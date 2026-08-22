@@ -15,6 +15,13 @@ import { nutrizionistaDiRiferimento, type PrismaPerRiferimento } from '../common
 import { destinatariManagerCoach } from '../common/avvisa-manager-coach';
 import { notificaUtente, PushMinimo } from '../notifications/notifica-utente';
 import { aGiorno } from '../common/date-only';
+/**
+ * ⛔ **LE COSTANTI, NON LE STRINGHE** (corretto in revisione il 22/8, ed era già costato).
+ * Vedi la nota su `TIPI_DELLA_NUTRIZIONISTA`.
+ */
+import { TIPO_DIGIUNO_ESTREMO, TIPO_FINESTRA_NON_TRADUCIBILE } from './verifica-digiuno';
+import { TIPO_PASTI_NON_SERVITI } from './pasti-non-serviti';
+import { TIPO_KCAL_CORTE } from './kcal-restano-corte';
 import type { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('AvvisiAttivitaCoach');
@@ -39,19 +46,52 @@ export interface AttivitaAppenaCreata {
 /**
  * ⛔ **LE ATTIVITÀ CHE SOLO LA NUTRIZIONISTA PUÒ CHIUDERE.**
  *
- * Tutte e tre nascono dal digiuno, e tutte e tre chiedono una cosa che la coach non può fare:
- * valutare una scelta clinica estrema, guardare una finestra che l'orologio non sapeva riprodurre,
- * generare una variante mancante a catalogo.
+ * Tutte e quattro nascono dal digiuno, e tutte e quattro chiedono una cosa che la coach non può
+ * fare: valutare una scelta clinica estrema, guardare una finestra che l'orologio non sapeva
+ * riprodurre, generare una variante mancante a catalogo, decidere se una cliente che riceve il 70%
+ * del suo target va spostata di livello.
  *
- * ⚠️ L'elenco sta **qui**, dove si decide chi avvisare, e non dentro i tre moduli: la domanda «di
- * chi è questa attività» è una sola, e sparsa in tre file diventa tre risposte. Chi aggiunge un
- * quarto tipo della nutrizionista lo aggiunge qui — e se se ne dimentica, l'attività nasce lo stesso
- * e resta in elenco: si perde l'avviso, non il lavoro.
+ * ⚠️ L'elenco sta **qui**, dove si decide chi avvisare, e non dentro i quattro moduli: la domanda
+ * «di chi è questa attività» è una sola, e sparsa in quattro file diventa quattro risposte. Chi
+ * aggiunge un quinto tipo della nutrizionista lo aggiunge qui — e se se ne dimentica, l'attività
+ * nasce lo stesso e resta in elenco: si perde l'avviso, non il lavoro.
+ *
+ * ## ⛔ E questo elenco DA SOLO non basta — la porta era chiusa
+ *
+ * Qui si decide **a chi mandare la push**, non **chi può aprire la pagina**. Fino al 22/8 le due
+ * cose non combaciavano: la push diceva «la trovi in Dashboard», e la Dashboard rispondeva **403**.
+ * La nutrizionista non era fra i ruoli di `coach-tasks.controller.ts` e non aveva il permesso
+ * `coach_tasks` in `permissions/pages.ts`. Cioè dal 21/8 abbiamo avvisato una persona mandandola
+ * davanti a una porta chiusa — che è peggio di non avvisarla: lei sa che c'è qualcosa e non può
+ * vederlo.
+ *
+ * ## ⛔ E UNA DELLE QUATTRO STRINGHE ERA SCRITTA AL CONTRARIO
+ *
+ * Fino al 22/8 qui c'era scritto `'finestra_digiuno_non_traducibile'`. Il tipo vero — quello che
+ * `profile.service.ts` scrive in banca dati — è **`digiuno_finestra_non_traducibile`**: le prime due
+ * parole erano scambiate. Quattro punti ricopiavano la stringa a mano invece di usare la costante, e
+ * tutti e quattro la ricopiavano sbagliata, **compreso il test che doveva accorgersene**.
+ *
+ * ⚠️ Finché l'elenco decideva solo la push, costava un avviso mancato. Da quando decide anche **cosa
+ * la nutrizionista vede in elenco** (`coach-tasks.service.ts`) costava molto di più: quell'attività
+ * sparirebbe dalla sua pagina e `setStatus` le risponderebbe «è della coach, non tua». Invisibile e
+ * inchiudibile per l'unica persona che può chiuderla.
+ *
+ * ⛔ Perciò l'insieme si costruisce dalle **costanti dei quattro moduli**, non da stringhe: una
+ * parola scritta al contrario adesso non compila.
+ *
+ * ⚠️ `attivita-che-arrivano.spec.ts` guarda insieme le quattro condizioni che devono valere perché
+ * un'attività arrivi davvero (tipo in elenco · ruolo nel controller · permesso di pagina · icona in
+ * pagina). ⛔ **Non è però una rete automatica per un tipo NUOVO**: aggiungendone uno, l'unico test
+ * che si accende è quello che conta i tipi, e si «aggiusta» aggiungendo una riga. Chi lo fa deve
+ * ripassare le quattro condizioni a mano — sta scritto lì in testa, invece di essere lasciato
+ * credere coperto.
  */
 export const TIPI_DELLA_NUTRIZIONISTA = new Set<string>([
-  'digiuno_estremo_da_verificare',
-  'finestra_digiuno_non_traducibile',
-  'digiuno_pasti_non_serviti',
+  TIPO_DIGIUNO_ESTREMO,
+  TIPO_FINESTRA_NON_TRADUCIBILE,
+  TIPO_PASTI_NON_SERVITI,
+  TIPO_KCAL_CORTE,
 ]);
 
 /**
@@ -122,12 +162,29 @@ export async function avvisaAttivitaNuova(
 
     const cliente = profilo?.name ?? 'una tua cliente';
     const scadenza = attivita.dueDate.toLocaleDateString('it-IT');
+    /**
+     * ⛔ **«LA TROVI IN DASHBOARD» NON VALE PER TUTTI** (corretto in revisione, 22/8).
+     *
+     * La coach lavora dall'app staff, e lì la Dashboard le attività ce le ha. La **nutrizionista**
+     * no: `NutriDashboard` chiama `/nutritionist/dashboard`, `validation-queue` ed `escalations` —
+     * `/staff/coach-tasks` non lo chiama nessuno. Le mandavamo una notifica sul telefono che
+     * indicava una schermata dove non c'era niente da vedere: non più un 403, ma un vuoto, che è
+     * peggio perché non le dice nemmeno che una porta esiste.
+     *
+     * ⚠️ Finché la sezione nell'app staff non c'è (è a elenco lavori), la push dice **dove si trova
+     * davvero**: il backoffice. *Se degradi, dillo* vale anche per una frase.
+     */
+    const perLaNutrizionista_dove = perLaNutrizionista
+      // ⚠️ Il percorso vero: la voce si chiama «Attività da fare» e sta nel gruppo CRM, che è
+      // richiudibile. «Sezione Attività» — com'era scritto prima — non esiste da nessuna parte.
+      ? 'La trovi nel backoffice, in CRM › Attività da fare.'
+      : 'La trovi in Dashboard.';
     for (const userId of destinatari) {
       await notificaUtente(prisma, push, {
         userId,
         type: 'coach_task_new',
         title: 'Nuova attività per te 📋',
-        body: `${attivita.title} — ${cliente} (entro il ${scadenza}). La trovi in Dashboard.`,
+        body: `${attivita.title} — ${cliente} (entro il ${scadenza}). ${perLaNutrizionista_dove}`,
         payload: { taskId: attivita.id, clientId: attivita.clientId },
       });
     }
@@ -165,15 +222,26 @@ export async function escalateAttivitaScadute(
           select: {
             firstName: true,
             lastName: true,
-            clientProfile: { select: { name: true, assignedCoach: { select: { displayName: true, userId: true } } } },
+            clientProfile: {
+              select: {
+                name: true,
+                assignedCoach: { select: { displayName: true, userId: true } },
+                // ⚠️ Serve per l'attribuzione dei tipi della nutrizionista: vedi `A CHI SCADE`.
+                assignedNutritionist: { select: { displayName: true, userId: true } },
+              },
+            },
           },
         },
       },
     })) as {
-      id: string; clientId: string; title: string; dueDate: Date;
+      id: string; clientId: string; kind: string | null; title: string; dueDate: Date;
       client: {
         firstName: string | null; lastName: string | null;
-        clientProfile: { name: string | null; assignedCoach: { displayName: string | null; userId: string } | null } | null;
+        clientProfile: {
+          name: string | null;
+          assignedCoach: { displayName: string | null; userId: string } | null;
+          assignedNutritionist: { displayName: string | null; userId: string } | null;
+        } | null;
       } | null;
     }[];
     if (!scadute.length) return { avvisate: 0, rimaste: 0 };
@@ -184,28 +252,68 @@ export async function escalateAttivitaScadute(
       return { avvisate: 0, rimaste: scadute.length };
     }
 
+    /**
+     * ⚠️ Il capo nutrizionista, una volta sola: serve solo se fra le scadute c'è un tipo suo, e non
+     * dipende da quale. `null` se non esiste — e allora non si aggiunge nessuno.
+     */
+    const capoNutri = scadute.some((t) => TIPI_DELLA_NUTRIZIONISTA.has(t.kind ?? ''))
+      ? (await nutrizionistaDiRiferimento(prisma as unknown as PrismaPerRiferimento))?.userId ?? null
+      : null;
+
     let avvisate = 0;
     let daFare = 0;
     for (const t of scadute) {
-      if (avvisate >= MAX_ESCALATION_PER_GIRO) { daFare++; continue; }
       // La notifica già mandata È la memoria: una per attività, per sempre.
       const giaMandata = await prisma.notification.findFirst({
         where: { type: 'coach_task_escalation', payload: { path: ['taskId'], equals: t.id } } as never,
         select: { id: true },
       });
       if (giaMandata) continue;
+      /**
+       * ⚠️ **Il tetto si conta DOPO l'idempotenza** (corretto nella seconda revisione del 22/8).
+       * Prima veniva prima, quindi `daFare` comprendeva anche attività già escalate che non
+       * sarebbero partite mai: il messaggio «N rimandate al prossimo giro» prometteva invii che non
+       * ci sarebbero stati, e al giro dopo li riprometteva uguali. *Niente tagli silenziosi* vale
+       * anche per il numero con cui si dichiara il taglio.
+       */
+      if (avvisate >= MAX_ESCALATION_PER_GIRO) { daFare++; continue; }
 
-      const coach = t.client?.clientProfile?.assignedCoach?.displayName ?? 'coach non assegnata';
+      /**
+       * ⛔ **A CHI SCADE — e per un mese sarebbe scaduta addosso alla persona sbagliata** (trovato in
+       * revisione, 22/8).
+       *
+       * L'escalation non guardava il `kind`: dopo sette giorni un'attività della **nutrizionista**
+       * arrivava alla **manager delle coach** con il corpo «*Laura*: "Maria: riceve il 68% del suo
+       * fabbisogno" scadeva il 29/8 ed è ancora da fare» — dove Laura è una coach che quell'attività
+       * non può chiuderla e che non è nemmeno mai stata avvisata. E per una cliente senza coach
+       * usciva «coach non assegnata: …». *Una ragione falsa è peggio di un ordine sbagliato.*
+       *
+       * ⚠️ Finché i tipi della nutrizionista erano tre e rari si vedeva poco. Col quarto —
+       * `kcal_restano_corte`, che è il più frequente — sarebbe diventata routine settimanale.
+       *
+       * ⚠️ Il destinatario resta la manager coach **più** il capo nutrizionista, non al posto suo:
+       * chi sorveglia le scadenze le sorveglia tutte. Quello che cambia è **il nome davanti**, che
+       * adesso è di chi quell'attività ce l'ha in mano.
+       */
+      const dellaNutrizionista = TIPI_DELLA_NUTRIZIONISTA.has(t.kind ?? '');
+      const dichi = dellaNutrizionista
+        ? t.client?.clientProfile?.assignedNutritionist?.displayName ?? 'nutrizionista non assegnata'
+        : t.client?.clientProfile?.assignedCoach?.displayName ?? 'coach non assegnata';
       const cliente = t.client?.clientProfile?.name
         ?? [t.client?.firstName, t.client?.lastName].filter(Boolean).join(' ')
         ?? 'una cliente';
       const scadenza = t.dueDate.toLocaleDateString('it-IT');
-      for (const userId of destinatari) {
+      // ⚠️ Il capo nutrizionista si aggiunge solo per i suoi tipi, e solo se esiste: un avviso a un
+      // destinatario inventato è peggio di nessun avviso (stessa regola di `avvisaAttivitaNuova`).
+      // ⚠️ Letto UNA volta prima del ciclo: non dipende dall'attività, e qui dentro era una
+      // `staff.findMany` ripetuta fino a venti volte per giro.
+      const aChi = [...new Set([...destinatari, ...(dellaNutrizionista && capoNutri ? [capoNutri] : [])])];
+      for (const userId of aChi) {
         await notificaUtente(prisma, push, {
           userId,
           type: 'coach_task_escalation',
-          title: 'Attività coach rimasta aperta ⏰',
-          body: `${coach}: «${t.title}» per ${cliente} scadeva il ${scadenza} ed è ancora da fare.`,
+          title: dellaNutrizionista ? 'Attività nutrizionista rimasta aperta ⏰' : 'Attività coach rimasta aperta ⏰',
+          body: `${dichi}: «${t.title}» per ${cliente} scadeva il ${scadenza} ed è ancora da fare.`,
           payload: { taskId: t.id, clientId: t.clientId },
         });
       }

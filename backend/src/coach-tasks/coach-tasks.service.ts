@@ -14,8 +14,10 @@ import {
   testoFinestraMaiChiesta,
 } from './finestra-mai-chiesta';
 import { finestraDigiuno } from '../menu/finestre-digiuno';
-import { escalateAttivitaScadute } from './avvisi-attivita';
-import { apriAttivitaCoach } from './porta-delle-attivita';
+import { TIPI_DELLA_NUTRIZIONISTA, escalateAttivitaScadute } from './avvisi-attivita';
+import { eNutrizionista } from '../common/ruoli-nutrizionista';
+import { clienteNelPerimetro, filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
+import { apriAttivitaCoach, type EsitoApertura } from './porta-delle-attivita';
 import { STATI_CON_UN_PIANO, STATI_QUALCOSA_IN_BALLO } from '../commerce/stati-abbonamento';
 import { frasiDaChiarire, impronta, TIPO_ESCLUSIONI_DA_CHIARIRE, testoEsclusioniDaChiarire } from './esclusioni-da-chiarire';
 
@@ -41,14 +43,77 @@ export class CoachTasksService {
     return coachTeamScope(this.prisma, actorUserId);
   }
 
+  /**
+   * ⛔ **QUELLO CHE LA NUTRIZIONISTA VEDE: i suoi quattro tipi, sulle sue clienti.** (22/8)
+   *
+   * Da oggi questa pagina la può aprire — prima le arrivava la push e la pagina rispondeva 403, vedi
+   * la nota nel controller. Ma «può entrare» non vuol dire «vede tutto», e servono **due** filtri,
+   * non uno:
+   *
+   *  - ⛔ **per tipo**, perché `coachTeamScope` per un ruolo che non è coach-like torna `null`, cioè
+   *    nessun filtro: senza questo si sarebbe trovata davanti le chiamate della prova, i rinnovi e i
+   *    solleciti misure di tutta l'azienda. Il modo più rapido di insegnarle a non leggere quella
+   *    colonna — che esiste per dirle le quattro cose che **solo lei** può chiudere.
+   *  - ⛔ **per cliente** (trovato in revisione, 22/8, dopo che la prima stesura aveva filtrato solo
+   *    per tipo, scrivendo pure che era voluto). Filtrare solo per tipo le avrebbe messo in elenco
+   *    **le clienti di un'altra nutrizionista**, con nome e frase clinica («riceve il 68% del suo
+   *    fabbisogno»); e cliccando il nome avrebbe preso 403, perché `perimetroClienti` la ferma lì.
+   *    Cioè: dati che non sono suoi da leggere, e un link che non porta da nessuna parte.
+   *
+   * ⚠️ Non nasconde niente di cui sia stata avvisata: la push di questi tipi va alla nutrizionista
+   * **assegnata** oppure, se non c'è, a `nutrizionistaDiRiferimento`, che è il **capo** — e il capo
+   * è in `RUOLI_CHE_VEDONO_TUTTE`, quindi per lei il perimetro è `null` e vede tutto.
+   *
+   * ⚠️ Il perimetro è quello di casa (`perimetroClienti`), non uno scritto qui: *se due punti
+   * rispondono alla stessa domanda, uno dei due deve chiamare l'altro*. Così il giorno che si
+   * decide che una nutrizionista vede anche le clienti senza assegnazione, si cambia in un posto e
+   * questa pagina segue.
+   *
+   * ⛔ **Il ruolo si legge dalla RIGA, non dal token** (corretto nella seconda revisione del 22/8).
+   *
+   * La prima stesura lo prendeva da `u.role` del JWT «per non fare una query in più». Ma
+   * `coachTeamScope` e `perimetroClienti`, che lavorano nello stesso `where`, lo leggono dalla
+   * riga: due sorgenti per la stessa domanda, e il token dura tre ore. Con un cambio di ruolo
+   * dentro quelle tre ore i due filtri si sganciavano nel **verso pericoloso**: promossa a
+   * `nutritionist` in banca dati e ancora `coach` nel token, `filtroNutrizionista` non filtrava
+   * niente **e** `coachTeamScope` non filtrava niente — `where` restava `{ status }`, cioè le
+   * attività di tutta l'azienda.
+   *
+   * ⚠️ La query in più c'è, ed è il prezzo giusto: *se due punti rispondono alla stessa domanda,
+   * uno dei due deve chiamare l'altro* — e qui la risposta di riferimento è quella che usano già i
+   * perimetri.
+   */
+  private async filtroNutrizionista(actorUserId: string): Promise<Record<string, unknown> | null> {
+    const u = (await this.prisma.user.findUnique({
+      where: { id: actorUserId }, select: { role: true },
+    })) as { role: string } | null;
+    if (!eNutrizionista(u?.role)) return null;
+    const perimetro = await perimetroClienti(this.prisma, actorUserId);
+    // ⚠️ `filtroPerimetroSuCliente` e non un `where` scritto a mano: la forma di quel filtro è già
+    // definita una volta, e ricopiarla qui sarebbe la stessa domanda con due risposte.
+    return { kind: { in: [...TIPI_DELLA_NUTRIZIONISTA] }, ...filtroPerimetroSuCliente(perimetro) };
+  }
+
   /** Task aperti (da fare) visibili all'attore, dal più urgente. */
-  async list(actorUserId: string, opts?: { status?: string; limit?: number }) {
+  async list(actorUserId: string, _ruolo?: string | null, opts?: { status?: string; limit?: number }) {
     const scopeId = await this.coachScope(actorUserId);
+    // ⚠️ Vedi `filtroNutrizionista`: entra, ma vede i suoi quattro tipi sulle sue clienti.
+    const suoi = await this.filtroNutrizionista(actorUserId);
     const status = opts?.status && ['todo', 'done', 'skipped'].includes(opts.status) ? opts.status : 'todo';
     const rows = await this.prisma.coachTask.findMany({
       where: {
         status,
-        ...(scopeId ? { client: { clientProfile: { assignedCoachId: { in: scopeId } } } } : {}),
+        /**
+         * ⚠️ `AND` e non due spread: tutti e due i rami producono la chiave `client`, e con lo
+         * spread il secondo cancellerebbe il primo in silenzio. Oggi non succede perché
+         * `isCoachLike` ed `eNutrizionista` sono disgiunti — ma è una condizione che vive in due
+         * file lontani, e il giorno che un ruolo entra in tutti e due gli elenchi il difetto sarebbe
+         * un perimetro che sparisce, cioè quello che non si vede.
+         */
+        AND: [
+          ...(scopeId ? [{ client: { clientProfile: { assignedCoachId: { in: scopeId } } } }] : []),
+          ...(suoi ? [suoi] : []),
+        ],
       } as never,
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
       take: Math.min(200, Math.max(1, opts?.limit ?? 100)),
@@ -79,10 +144,56 @@ export class CoachTasksService {
   }
 
   /** Cambia lo stato di un task (fatto / saltato / da fare). Scope coach rispettato. */
-  async setStatus(actorUserId: string, taskId: string, status: string) {
+  async setStatus(actorUserId: string, taskId: string, status: string, ruolo?: string | null) {
     if (!['todo', 'done', 'skipped'].includes(status)) throw new BadRequestException('Stato non valido.');
-    const task = await this.prisma.coachTask.findUnique({ where: { id: taskId }, select: { id: true, clientId: true } });
+    const task = (await this.prisma.coachTask.findUnique({
+      where: { id: taskId }, select: { id: true, clientId: true, kind: true },
+    })) as { id: string; clientId: string; kind: string } | null;
     if (!task) throw new NotFoundException('Task non trovato.');
+    /**
+     * ⚠️ **La guardia in lettura non basta**: `list` le mostra i suoi quattro tipi, ma l'id di
+     * un'attività della coach si può scrivere a mano nella chiamata. Senza questa riga la
+     * nutrizionista potrebbe chiudere «chiama la cliente al giorno 4» — che non è suo e che la
+     * coach non ritroverebbe più in elenco.
+     */
+    /**
+     * ⛔ **«SOLO LA NUTRIZIONISTA PUÒ CHIUDERLE» dev'essere vero anche dall'altro lato** (trovato in
+     * revisione, 22/8).
+     *
+     * `TIPI_DELLA_NUTRIZIONISTA` si intitola così dal 21/8, e fino a oggi era una frase: la guardia
+     * esisteva solo nel verso «lei non tocca le attività della coach». Nell'altro verso niente — e
+     * la coach quelle attività le vede in elenco, sulle sue clienti, col pulsante «Fatto» accanto.
+     *
+     * ⚠️ Cosa succedeva: «Maria riceve il 68% del suo fabbisogno» compare alla coach, che non può
+     * né alzarle il livello della dieta né generare una variante a catalogo. Preme Fatto in buona
+     * fede — è quello che si fa con una riga che non ti riguarda — e l'attività sparisce dalla
+     * colonna della nutrizionista, che non l'ha mai letta. *Un dato che agisce e non si vede.*
+     *
+     * ⚠️ **L'admin resta fuori dalla regola**: è il superutente ovunque nel progetto
+     * (`page.guard.ts` lo fa passare prima di qualunque controllo), e un'attività bloccata per
+     * sempre perché la nutrizionista è in ferie è un problema peggiore di quello che si risolve.
+     */
+    // ⛔ Dalla riga, non dal token: vedi `filtroNutrizionista`.
+    const attore = (await this.prisma.user.findUnique({
+      where: { id: actorUserId }, select: { role: true },
+    })) as { role: string } | null;
+    const ruoloVero = attore?.role ?? ruolo ?? null;
+    if (TIPI_DELLA_NUTRIZIONISTA.has(task.kind) && !eNutrizionista(ruoloVero) && ruoloVero !== 'admin') {
+      throw new ForbiddenException('Questa attività la può chiudere solo la nutrizionista.');
+    }
+    if (eNutrizionista(ruoloVero)) {
+      if (!TIPI_DELLA_NUTRIZIONISTA.has(task.kind)) {
+        throw new ForbiddenException('Questa attività è della coach, non tua.');
+      }
+      /**
+       * ⚠️ **Filtrare l'elenco non basta**: l'id di una riga fuori elenco si può sempre chiedere a
+       * mano. È la ragione per cui `clienteNelPerimetro` esiste, ed è scritta nel suo docstring.
+       */
+      const perimetro = await perimetroClienti(this.prisma, actorUserId);
+      if (!(await clienteNelPerimetro(this.prisma, perimetro, task.clientId))) {
+        throw new ForbiddenException('Questa cliente non è assegnata a te.');
+      }
+    }
     const scopeId = await this.coachScope(actorUserId);
     if (scopeId) {
       const prof = (await this.prisma.clientProfile.findUnique({ where: { userId: task.clientId }, select: { assignedCoachId: true } })) as { assignedCoachId: string | null } | null;
@@ -103,13 +214,35 @@ export class CoachTasksService {
   /**
    * Contatori per la dashboard: task aperti, prove attive, in scadenza oggi/domani,
    * prove scadute non convertite (per l'ultima chiamata).
+   *
+   * ⛔ **`mostraCommerciale` — perché quattro numeri su sei non sono suoi** (22/8). Da oggi questa
+   * pagina la apre anche la nutrizionista, e prove attive / in scadenza / non convertite sono il
+   * lavoro della coach. Metterglieli davanti non è solo rumore: sono numeri che sembrano parlare di
+   * lei e parlano di qualcun altro. ⚠️ Non si mandano **zeri** — uno zero è una risposta, e sarebbe
+   * falsa: si dice «questi non riguardarti» e la pagina non li disegna.
+   *
+   * ⛔ **E non si calcolano nemmeno** (corretto in revisione, 22/8). La prima stesura li calcolava e
+   * li metteva nella risposta con accanto `mostraCommerciale:false`, lasciando alla pagina il
+   * compito di non disegnarli. Due difetti in uno: i numeri commerciali **di tutta l'azienda**
+   * (per lei `scopeId` è `null`) uscivano lo stesso nel JSON — *un dato che agisce e non si vede* —
+   * e ogni caricamento pagava quattro conteggi più un `findFirst` per ogni prova scaduta di sempre,
+   * per poi buttarli. I campi ora **non ci sono proprio**.
    */
-  async summary(actorUserId: string) {
+  async summary(actorUserId: string, _ruolo?: string | null) {
     const scopeId = await this.coachScope(actorUserId);
+    const suoi = await this.filtroNutrizionista(actorUserId);
     const clientWhere = scopeId ? { clientProfile: { assignedCoachId: { in: scopeId } } } : {};
     const today = aGiorno(new Date()); // il giorno di Roma: vedi la nota su `oggiPiu`
     const tomorrow = new Date(today.getTime() + 86_400_000);
     const dayAfter = new Date(today.getTime() + 2 * 86_400_000);
+
+    if (suoi) {
+      const [openTasks, overdueTasks] = await Promise.all([
+        this.prisma.coachTask.count({ where: { status: 'todo', ...suoi } as never }),
+        this.prisma.coachTask.count({ where: { status: 'todo', dueDate: { lt: today }, ...suoi } as never }),
+      ]);
+      return { openTasks, overdueTasks, mostraCommerciale: false };
+    }
 
     const [openTasks, overdueTasks, trialsActive, expiringToday, expiringTomorrow, expiredTrials] = await Promise.all([
       this.prisma.coachTask.count({ where: { status: 'todo', ...(scopeId ? { client: clientWhere } : {}) } as never }),
@@ -142,7 +275,7 @@ export class CoachTasksService {
       });
       if (!active) notConverted++;
     }
-    return { openTasks, overdueTasks, trialsActive, expiringToday, expiringTomorrow, notConverted };
+    return { openTasks, overdueTasks, trialsActive, expiringToday, expiringTomorrow, notConverted, mostraCommerciale: true };
   }
 
   // ---------- Generazione automatica (cron giornaliero) ----------
@@ -200,10 +333,24 @@ export class CoachTasksService {
     description: string;
     /** Entro quando. Default: domani — chi apre un'attività a mano ha di solito fretta. */
     dueDate?: Date;
-  }): Promise<'creata' | 'gia-presente'> {
+  }): Promise<EsitoApertura> {
     const scadenza = p.dueDate ?? this.oggiPiu(1);
-    const creata = (await this.ensureTask(p.clientId, p.kind, p.refId, p.title, p.description, scadenza)) === 1;
-    if (creata) return 'creata';
+    /**
+     * ⛔ **IL TERZO ESITO NON SI PUÒ PERDERE QUI** (trovato in revisione, 22/8).
+     *
+     * Il 21/8 `apriAttivitaCoach` ha smesso di lanciare e ha cominciato a tornare `'non-riuscita'`:
+     * era giusto — un avviso che non parte non deve far fallire il menu di una cliente. Ma questo
+     * punto passava per `ensureTask`, che schiaccia tutto su `1 | 0`, e quindi traduceva **guasto**
+     * in **`'gia-presente'`**.
+     *
+     * ⚠️ Cosa vedeva una persona: la nutrizionista salva «serve la visita», il database ha un
+     * intoppo di due secondi, e la scheda le scrive *«L'attività alla coach c'era già da oggi:
+     * l'ho aggiornata»*. L'attività non esiste, e nessuno andrà a fissare quella visita. Prima del
+     * `try` l'eccezione risaliva e la pagina diceva la verità («NON risulta aperta: avvisala tu»):
+     * la correzione del 21/8 aveva spento l'unico segnale che c'era. *Se degradi, dillo.*
+     */
+    const esito = await this.apriUna(p.clientId, p.kind, p.refId, p.title, p.description, scadenza);
+    if (esito !== 'gia-presente') return esito;
     await this.prisma.coachTask
       .updateMany({
         where: { clientId: p.clientId, kind: p.kind, refId: p.refId, NOT: { description: p.description } } as never,
@@ -221,9 +368,19 @@ export class CoachTasksService {
    * punto in cui nasce ogni attività, quindi nessun tipo può sfuggire» — e due tipi sfuggivano
    * davvero. La spiegazione lunga sta in quel file.
    */
+  private async apriUna(clientId: string, kind: string, refId: string, title: string, description: string, dueDate: Date): Promise<EsitoApertura> {
+    return apriAttivitaCoach(this.prisma, this.push, { clientId, kind, refId, title, description, dueDate });
+  }
+
+  /**
+   * Il conteggio per il cron, che vuole solo sapere **quante ne sono nate**.
+   *
+   * ⚠️ Qui `'gia-presente'` e `'non-riuscita'` valgono tutti e due zero, ed è corretto **per questo
+   * uso**: il cron conta le nuove. ⛔ Ma chi deve *dire a una persona* com'è andata non può passare
+   * di qui — schiaccerebbe un guasto su «c'era già». Vedi `apriAttivita`.
+   */
   private async ensureTask(clientId: string, kind: string, refId: string, title: string, description: string, dueDate: Date): Promise<number> {
-    const esito = await apriAttivitaCoach(this.prisma, this.push, { clientId, kind, refId, title, description, dueDate });
-    return esito === 'creata' ? 1 : 0;
+    return (await this.apriUna(clientId, kind, refId, title, description, dueDate)) === 'creata' ? 1 : 0;
   }
 
   /**

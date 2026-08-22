@@ -251,10 +251,48 @@ export function slotEsclusiTotali(
   pastiEsclusi?: readonly string[] | null,
 ): Set<string> {
   const esclusi = slotSaltati(pathType, fastingWindow);
-  for (const p of pastiEsclusi ?? []) {
-    if (p === 'morning_snack' || p === 'afternoon_snack') esclusi.add(p);
-  }
+  for (const p of spuntiniTolti(pastiEsclusi)) esclusi.add(p);
   return esclusi;
+}
+
+/**
+ * ⛔ **I DUE SPUNTINI CHE SI POSSONO TOGLIERE — l'elenco, non la regola scritta due volte.**
+ *
+ * Estratti il 22/8, in revisione. Il filtro viveva dentro `slotEsclusiTotali` come due confronti
+ * scritti a mano, e `kcal-restano-corte.ts` doveva sapere **quali spuntini agiscono davvero** per
+ * dire alla nutrizionista perché quella cliente resta corta. Ricopiare i due nomi lì voleva dire due
+ * elenchi che divergono il giorno in cui se ne aggiunge un terzo — e il secondo elenco avrebbe
+ * mentito su una causa clinica.
+ */
+export const SPUNTINI_TOGLIBILI: readonly string[] = ['morning_snack', 'afternoon_snack'];
+
+/** Gli spuntini che il motore toglie davvero: quello che c'è scritto in colonna e che lui ascolta. */
+export function spuntiniTolti(pastiEsclusi?: readonly string[] | null): string[] {
+  return (pastiEsclusi ?? []).filter((p) => SPUNTINI_TOGLIBILI.includes(p));
+}
+
+/**
+ * ⛔ **LA FINESTRA CHE AGISCE — non quella scritta in colonna.**
+ *
+ * `fastingWindow` può restare scritto addosso a una cliente che **non è più in digiuno**: le colonne
+ * dell'orologio si azzerano da quattro porte (vedi `uscita-dal-digiuno.ts`) e una riga vecchia può
+ * sopravvivere. `slotSaltati` lo sa già e torna un insieme vuoto; chi deve **raccontare** una causa
+ * alla nutrizionista deve saperlo allo stesso modo, o le dice «è la sua finestra di digiuno» a
+ * proposito di una cliente che digiuna solo in banca dati.
+ *
+ * ⛔ **«Allo stesso modo» vuol dire DUE controlli, non uno** (corretto in revisione, 22/8). La prima
+ * stesura guardava solo il `pathType` e tornava la stringa grezza. Ma `slotSaltati` guarda anche
+ * `finestraDigiuno(fastingWindow)`, che per un valore **non in tabella** — un dato storico, una riga
+ * scritta a mano — torna `undefined`, quindi insieme vuoto: nessun pasto tolto. Con un controllo
+ * solo, quella cliente riceveva *«La sua finestra di digiuno le toglie dei pasti»*, che è falso,
+ * invece di essere mandata su `diag:varieta` dove il problema è davvero. E il valore fantasma
+ * finiva pure nella chiave di deduplica. *Una ragione falsa è peggio di un ordine sbagliato.*
+ */
+export function finestraCheAgisce(pathType?: string | null, fastingWindow?: string | null): string | null {
+  if (pathType !== 'intermittent_fasting') return null;
+  if (!fastingWindow?.trim()) return null;
+  // ⛔ Solo quello che il motore riconosce e applica davvero: vedi `slotSaltati`.
+  return finestraDigiuno(fastingWindow) ? fastingWindow : null;
 }
 
 /** Il pasto che resta più tardi: per la 20-4 e per la mail del primo giorno. */
