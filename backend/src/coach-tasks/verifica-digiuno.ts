@@ -94,6 +94,19 @@ const chiamala = (nome?: string | null): string => (nome ?? '').trim() || 'la cl
  * ⚠️ E le ragioni arrivano **in chiaro dall'esterno**, una per riga: sono la stessa frase che
  * `cambio-finestra.ts` ha calcolato, e passarle di mano invece di riscriverle qui evita che fra sei
  * mesi le due versioni dicano cose diverse.
+ *
+ * ⛔ **NIENTE MARKDOWN NEI TESTI DELLE ATTIVITÀ** (visto in pagina il 22/8, non dedotto).
+ *
+ * `AttivitaCoach.tsx` disegna la descrizione come **testo semplice**: `{t.description}` dentro un
+ * `<div>`. Un `**grassetto**` esce con gli asterischi in mezzo alla frase, e la nutrizionista li
+ * legge così — «⚠️ \*\*È già partita, ed è voluto\*\*: la scelta della finestra è libera».
+ *
+ * ⚠️ Era in produzione da ieri, ed è uscito guardando **la pagina vera**: nessun test lo vedeva
+ * perché nessun test guardava il testo con gli occhi di chi lo legge. Adesso `niente-markdown.spec.ts`
+ * lo tiene fermo su **tutti** i testi delle attività, non solo su questo.
+ *
+ * ⚠️ Gli `\n\n` invece restano: la pagina da oggi li rispetta (`whiteSpace: pre-wrap`), e servono —
+ * l'elenco dei motivi va a capo.
  */
 export function testoDigiunoEstremo(
   nome: string | null | undefined,
@@ -104,13 +117,13 @@ export function testoDigiunoEstremo(
   return {
     title: `Verifica il digiuno di ${chi}: la scelta è impegnativa`,
     description:
-      `${chi} ha impostato ${finestraLeggibile}. ⚠️ **È già partita, ed è voluto**: la scelta della ` +
+      `${chi} ha impostato ${finestraLeggibile}. ⚠️ È già partita, ed è voluto: la scelta della ` +
       'finestra è libera e non la blocchiamo mai — questa è una verifica, non un blocco, e intanto ' +
       'i menu le arrivano regolarmente.\n\n' +
       `Perché ti arriva:\n${ragioni.map((r) => `• ${r}`).join('\n')}\n\n` +
       'Se dopo averla sentita va bene così, segna l\'attività fatta: non te la ripropongo finché ' +
-      'non cambia protocollo o pasti. Se invece non va bene, **la correzione la deve fare lei ' +
-      'dall\'orologio** — dalla scheda non si può, e non è una mancanza: i suoi pasti li decide la ' +
+      'non cambia protocollo o pasti. Se invece non va bene, la correzione la deve fare lei ' +
+      'dall\'orologio — dalla scheda non si può, e non è una mancanza: i suoi pasti li decide la ' +
       'durata della finestra che imposta lei, quindi non c\'è nessun altro posto da cui cambiarli.',
   };
 }
@@ -130,12 +143,12 @@ export function testoFinestraNonTraducibile(
   return {
     title: `${chi}: i pasti del digiuno sono cambiati, valeva la pena dirtelo`,
     description:
-      `${motivo}\n\n⚠️ **Non è un errore e non c'è niente da riparare**: è successo perché la sua ` +
+      `${motivo}\n\n⚠️ Non è un errore e non c'è niente da riparare: è successo perché la sua ` +
       'vecchia finestra non era una di quelle che l\'orologio sa disegnare, quindi la pagina le si è ' +
       'aperta vuota come a una cliente nuova invece di proporle qualcosa di simile — servirle pasti ' +
       'che non ha chiesto perché somigliano ai suoi sarebbe stato peggio.\n\n' +
-      'Se la scelta che ha fatto ti convince, segna l\'attività fatta. Se no, sentitela: **i pasti ' +
-      'adesso li decide l\'orologio che imposta lei**, quindi la correzione va fatta da lì — dalla ' +
+      'Se la scelta che ha fatto ti convince, segna l\'attività fatta. Se no, sentitela: i pasti ' +
+      'adesso li decide l\'orologio che imposta lei, quindi la correzione va fatta da lì — dalla ' +
       'scheda non si può, e non c\'è nessun altro posto.',
   };
 }

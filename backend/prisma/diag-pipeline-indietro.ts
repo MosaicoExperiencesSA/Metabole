@@ -38,6 +38,14 @@ const prisma = new PrismaClient();
 
 type Tappa = { at?: string; byUserId?: string | null };
 
+/**
+ * ⚠️ **COSA VUOL DIRE OGGI QUESTO NUMERO** (22/8). Il rinnovo che riporta la scheda ad «Acquisito»
+ * è **deciso e voluto** («il rinnovo è comunque un acquisto, va bene così»): quindi questo conteggio
+ * cresce a ogni rinnovo di una cliente arrivata più avanti, ed è una **fotografia**, non un allarme.
+ * ⛔ Chi lo legge cercando un difetto non lo trova: le schede spostate a mano da una persona e quelle
+ * riportate indietro da un rinnovo finiscono nello stesso numero, e distinguerle vorrebbe dire
+ * guardare `byUserId` in `stageDates` — che è il prossimo miglioramento di questo script.
+ */
 async function main() {
   const stati = (await prisma.pipelineStage.findMany({ orderBy: { order: 'asc' } })) as {
     key: string; label: string; order: number;
@@ -79,7 +87,7 @@ async function main() {
   }
 
   if (tornate.length === 0) {
-    console.log('✅ Nessuna scheda è tornata indietro. La porta che scrive senza guardare non ha ancora fatto danni.');
+    console.log('✅ Nessuna scheda sta in una colonna precedente a una già attraversata.');
     console.log('');
     return;
   }

@@ -173,7 +173,15 @@ export const DASHBOARD_BLOCCHI: DashboardBlocco[] = [
   { id: 'b_invito', label: 'Il mio link d\'invito', descrizione: 'Il tuo ref code e il link di registrazione da condividere.', home: ['coach'] },
   { id: 'b_scadenze', label: 'Piani in scadenza', descrizione: 'Chi arriva a fine percorso nei prossimi giorni.', home: ['coach'] },
   { id: 'b_clienti', label: 'Le mie clienti', descrizione: 'La tabella con piano, ultima misura e avvisi.', home: ['coach'] },
-  { id: 'b_da_validare', label: 'Da validare', descrizione: 'Decisioni del motore, diete e protocolli in attesa della tua approvazione.', home: ['nutritionist'] },
+  /**
+   * ⛔ **`b_da_validare` NON C'È PIÙ** (22/8). Il riquadro «Da validare» è stato spostato dalla home
+   * alla pagina **Attività da fare** (richiesta di Simone), quindi un interruttore per accenderlo o
+   * spegnerlo qui non comanderebbe niente. ⚠️ Un interruttore che non fa niente è peggio di un
+   * interruttore che manca: chi lo spegne crede di aver spento qualcosa.
+   *
+   * ⚠️ La preferenza salvata di chi l'aveva già spento resta scritta e viene semplicemente ignorata:
+   * i blocchi funzionano a esclusione (`dashboardBlocksOff`), quindi un id sconosciuto non fa danno.
+   */
   { id: 'b_pazienti', label: 'Pazienti', descrizione: 'I pazienti che richiedono attenzione, con escalation e documenti aperti.', home: ['nutritionist'] },
   { id: 'b_regole_motore', label: 'Regole del motore', descrizione: 'Il collegamento alle regole del motore (solo capo nutrizioniste).', home: ['nutritionist'] },
   /**

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner } from '../components/ui';
+import { TestoConGrassetto } from '../components/TestoConGrassetto';
 
 /**
  * LA PAGINA «LAVORI» — cosa manca, cosa è fatto, e cosa tiene ferme le altre cose.
@@ -624,7 +625,13 @@ rispondi: (l: Lavoro, testo: string) => void;
           <>
             <div style={{ fontWeight: 700, textDecoration: l.fatto ? 'line-through' : 'none', lineHeight: 1.35 }}>{l.titolo}</div>
             {l.dettaglio && (
-              <div className="muted" style={{ fontSize: 12.5, marginTop: 3, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{l.dettaglio}</div>
+              /*
+               * ⚠️ `TestoConGrassetto` (22/8): le voci sono scritte in markdown da mesi — 103 su 155
+               * usano il grassetto — e questa riga le disegnava come testo semplice, quindi gli
+               * asterischi si leggevano. ⛔ Non è un renderer markdown e non è HTML: costruisce
+               * elementi React, perché questo campo si scrive dalla pagina ed è testo di una persona.
+               */
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 3, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}><TestoConGrassetto testo={l.dettaglio} /></div>
             )}
             {/*
               LA RISPOSTA — quello che si è saputo, scritto man mano (richiesta di Simone, 13/8).

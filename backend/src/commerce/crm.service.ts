@@ -401,13 +401,31 @@ export class CrmService {
    * visita» o a «Follow-up», che sulla board stanno dopo: è la cosa esatta che l'altra porta esiste
    * per impedire, fatta dal punto che la fa più spesso.
    *
-   * ⛔ **Non è stato corretto perché non so ancora quanto pesi**, e la differenza fra «l'ho
-   * misurato» e «mi torna» oggi è già costata due volte. `npm run diag:pipeline-indietro` conta le
-   * schede che stanno in una colonna prima di una in cui erano già passate — è scritto in
-   * `stageDates`, non è una stima. Con quel numero in mano si decide: la regola candidata è
-   * «avanza se è indietro, **e risuscita da “Percorso concluso”**», perché una cliente che rinnova
-   * dopo aver concluso deve tornare fra le attive, mentre una a «Prima visita» che rinnova non deve
-   * perdere la visita che ha fatto.
+   * ## ✅ DECISO DA SIMONE IL 22/8: si lascia com'è
+   *
+   * *«Sì, il rinnovo è comunque un acquisto, va bene così.»* Quindi **questo non è un difetto in
+   * attesa di correzione**: è il comportamento voluto. Una scheda che torna ad «Acquisito» quando la
+   * cliente paga di nuovo sta dicendo una cosa vera — ha appena comprato.
+   *
+   * ⚠️ Resta la conseguenza, e va saputa invece che scoperta: chi rinnova da «Prima visita» o
+   * «Follow-up» **perde quella posizione sulla board**, e la coach se la ritrova fra le acquisite.
+   *
+   * ⛔ **E il passaggio precedente NON resta**, contro quello che questa nota diceva nella sua prima
+   * stesura (corretta in revisione lo stesso giorno). `stageDates` conserva le tappe *diverse*, ma
+   * qui sotto si riscrive `[stage]: { at, byUserId }` con `stage = 'paid'` **a ogni rinnovo**:
+   * quindi la data e l'autore del **primo acquisto** vengono sovrascritti. E `valueCents` viene
+   * **rimpiazzato** con l'ultimo pagamento, non sommato.
+   *
+   * ⚠️ Cosa vede una persona: la coach cerca «quando è diventata cliente» su una che rinnova da otto
+   * mesi e legge la data di ieri; il valore in board è l'ultima ricevuta, non quello che quella
+   * cliente ha portato. Sta scritto qui perché il comportamento si è deciso di tenerlo — ma
+   * «va bene così» deve valere su quello che succede davvero, non su una versione più gentile.
+   *
+   * ⛔ La regola candidata che stava scritta qui («avanza se è indietro, e risuscita da *Percorso
+   * concluso*») **è stata scartata**, e resta scritta solo per non farla riproporre a qualcun altro
+   * fra sei mesi come se fosse nuova. `npm run diag:pipeline-indietro` continua a contare le schede
+   * che stanno in una colonna precedente a una già attraversata: da oggi quel numero è una
+   * fotografia, non un allarme.
    */
   async autoAdvance(clientId: string, stage: string, byUserId: string, valueCents?: number): Promise<void> {
     try {

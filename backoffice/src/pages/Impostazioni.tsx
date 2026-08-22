@@ -5,6 +5,7 @@ import { Banner, Toggle } from '../components/ui';
 import { ThemeSelect } from '../theme';
 import { DASHBOARD_BLOCCHI, DASHBOARD_MODULES, DEFAULT_MODULE_IDS, homeDiFabbrica } from '../lib/dashboardModules';
 import { MenuOrderCard } from '../components/MenuOrderCard';
+import { eNutrizionista } from '../lib/ruoliNutrizionista';
 
 /** Riduce un'immagine a un quadrato 256×256 (cover, ritaglio centrato) e la ritorna come data URL JPEG. */
 function fileToAvatarDataUrl(file: File): Promise<string> {
@@ -164,7 +165,7 @@ export function Impostazioni() {
   /** Quali blocchi esistono nella MIA home: a una nutrizionista non si elencano quelli della coach. */
   const homeMia: 'coach' | 'nutritionist' | null =
     user?.role === 'coach' || user?.role === 'coach_coordinator' ? 'coach'
-      : user?.role === 'nutritionist' || user?.role === 'head_nutritionist' ? 'nutritionist'
+      : eNutrizionista(user?.role) ? 'nutritionist'
         : null;
   const blocchiMiei = homeMia ? DASHBOARD_BLOCCHI.filter((b) => b.home.includes(homeMia)) : [];
 

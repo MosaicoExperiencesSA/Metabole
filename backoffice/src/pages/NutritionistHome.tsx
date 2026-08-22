@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import { Banner, Modal, Spinner } from '../components/ui';
+import { Banner, Spinner } from '../components/ui';
 import { DashboardShortcuts, DashboardModules } from '../components/DashboardBlocks';
 import { WalletWidget } from '../components/WalletWidget';
 import { usePreferenzeHome } from '../lib/preferenzeHome';
@@ -40,62 +40,12 @@ interface Patient {
   pendingDocuments: number;
   nextVisit: { datetime: string; type: string } | null;
 }
-interface Decision {
-  id: string;
-  clientId: string;
-  patientName: string | null;
-  date: string;
-  flagReason: string | null;
-  /** La causa (`calo_rapido_energia`, `energia_bassa_cronica`, …) e la sua etichetta breve. */
-  causa: string | null;
-  causaEtichetta: string | null;
-  rule: { id: string; name: string } | null;
-  action: unknown;
-}
-
-/**
- * Cosa si può fare su una riga della coda: arriva dal backend, perché **quali azioni siano
- * ammesse dipende dalla causa** ed è una regola clinica, non una scelta di interfaccia. Se la
- * tabella vivesse qui, una POST fatta a mano la scavalcherebbe.
- */
-interface AzioniDecisione {
-  decisionId: string;
-  clientId: string;
-  causa: string | null;
-  causaEtichetta: string | null;
-  flagReason: string | null;
-  pianoGiaFermo: boolean;
-  calcoloGiaAzzeratoIl: string | null;
-  azioni: { azione: string; etichetta: string; cosaFa: string; eseguitaDalServer: boolean }[];
-}
-interface Queue {
-  engineDecisions: Decision[];
-  dietsInReview: { id: string; name: string; regime: string; style: string }[];
-  protocolsPending: { id: string; name: string; type: string }[];
-  /** Quante ce ne sono nel database (da `count()`), non quante righe sono nell'elenco. */
-  counts: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
-  /** Quante righe sono arrivate: se è meno di `counts`, l'elenco è troncato e va detto. */
-  mostrati?: { engineDecisions: number; dietsInReview: number; protocolsPending: number };
-}
-
-/**
- * Il numero fra parentesi nei titoli della coda.
- *
- * Prima era `elenco.length`, cioè la lunghezza di un array troncato a 100: nel giorno in cui il
- * motore segnala più di cento clienti — quello in cui il numero serve — diceva «100» qualunque fosse
- * la verità. Adesso `totale` viene dal database e, quando l'elenco è più corto, si dice entrambi.
- */
-const conteggio = (totale: number, mostrati: number): string =>
-  mostrati < totale ? `${mostrati} di ${totale}` : String(totale);
-
 export function NutritionistHome() {
   const { user, can } = useAuth();
   const [dash, setDash] = useState<Dash | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [queue, setQueue] = useState<Queue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [showEarnings, setShowEarnings] = useState(false);
   const pref = usePreferenzeHome();
 
@@ -103,15 +53,13 @@ export function NutritionistHome() {
     setLoading(true);
     setError(null);
     try {
-      const [d, p, q, prefs] = await Promise.all([
+      const [d, p, prefs] = await Promise.all([
         api<Dash>('/nutritionist/dashboard'),
         api<{ patients: Patient[] }>('/nutritionist/patients'),
-        api<Queue>('/nutritionist/validation-queue'),
         api<{ showEarnings?: boolean }>('/me/preferences').catch(() => ({ showEarnings: false })),
       ]);
       setDash(d);
       setPatients(p.patients ?? []);
-      setQueue(q);
       setShowEarnings(!!(prefs as { showEarnings?: boolean }).showEarnings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -124,63 +72,6 @@ export function NutritionistHome() {
     void load();
   }, []);
 
-  async function reviewDecision(id: string, outcome: 'confirm' | 'correct') {
-    setQueue((q) => (q ? { ...q, engineDecisions: q.engineDecisions.filter((x) => x.id !== id) } : q));
-    try {
-      await api(`/nutritionist/decisions/${id}/${outcome}`, { method: 'POST', body: JSON.stringify({}) });
-      setNotice(outcome === 'confirm' ? 'Decisione confermata.' : 'Decisione segnata da correggere.');
-      void load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
-      void load();
-    }
-  }
-
-  /**
-   * «CORREGGI» apre le azioni della causa, non un modulo generico (§15.2 punto 2).
-   *
-   * La domanda di Nocanty era «cosa fanno questi due pulsanti?», e la risposta onesta era
-   * «niente»: scrivevano l'esito e nessun altro pezzo di codice leggeva quel campo. Ora
-   * «Correggi» chiede al backend cosa si può fare **per quella causa** e lo mostra con scritto
-   * cosa succede: un pulsante che cambia il piano di una persona deve dirlo prima di essere
-   * premuto, non dopo.
-   */
-  const [azioni, setAzioni] = useState<AzioniDecisione | null>(null);
-  const [azioneInCorso, setAzioneInCorso] = useState(false);
-  const [notaAzione, setNotaAzione] = useState('');
-
-  async function apriAzioni(id: string) {
-    setError(null);
-    try {
-      setAzioni(await api<AzioniDecisione>(`/nutritionist/decisions/${id}/azioni`));
-      setNotaAzione('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Non riesco a leggere le azioni disponibili.');
-    }
-  }
-
-  async function eseguiAzione(azione: string) {
-    if (!azioni) return;
-    setAzioneInCorso(true);
-    try {
-      await api(`/nutritionist/decisions/${azioni.decisionId}/azione`, {
-        method: 'POST',
-        body: JSON.stringify({ azione, note: notaAzione.trim() || undefined }),
-      });
-      setNotice(
-        azione === 'blocca_piano'
-          ? 'Piano messo in pausa: i giorni nuovi non partono, quelli già ricevuti restano alla cliente.'
-          : 'Autorizzazione registrata: il calcolo del calo riparte da adesso.',
-      );
-      setAzioni(null);
-      void load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Operazione non riuscita.');
-    } finally {
-      setAzioneInCorso(false);
-    }
-  }
-
   if (loading) return <Spinner />;
 
   const hello = (user?.firstName && user.firstName.trim()) || 'Dottoressa';
@@ -189,7 +80,6 @@ export function NutritionistHome() {
     <>
       <h1 style={{ marginTop: 0 }}>Ciao {hello} 👋</h1>
       {error && <Banner kind="err">{error}</Banner>}
-      {notice && <Banner kind="ok">{notice}</Banner>}
 
       {pref.attivo('b_assistente') && can('nutri_assistant') && <AssistenteWidget />}
 
@@ -215,85 +105,47 @@ export function NutritionistHome() {
       </>
       )}
 
-      <div className="card-row" style={{ marginTop: 16, alignItems: 'flex-start' }}>
-        {/* Coda di validazione */}
-        {pref.attivo('b_da_validare') && (
-        <div className="card" style={{ margin: 0, flex: 1.3 }}>
-          <h2 style={{ marginTop: 0 }}>Da validare</h2>
+      {/*
+        ⚠️ **Niente più `card-row` qui** (revisione, 22/8). Erano due carte affiancate, `flex: 1.3` e
+        `flex: 1`; tolta la prima, l'unica rimasta si stirava su tutta la larghezza — e con `.spread`
+        dentro, su un monitor largo il nome della paziente finiva a sinistra e la sua etichetta a
+        milleduecento pixel di distanza, con il vuoto in mezzo. ⚠️ E con `b_pazienti` spento restava
+        un contenitore vuoto che portava comunque i suoi margini.
+      */}
+      <div style={{ marginTop: 16 }}>
+        {/*
+          ⛔ **IL RIQUADRO «DA VALIDARE» NON STA PIÙ QUI** (22/8, richiesta di Simone: «togliamo il
+          da validare in dashboard che non mi piace ed unifichiamolo con questo»).
 
-          <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '4px 0' }}>Decisioni del motore ({conteggio(queue?.counts.engineDecisions ?? 0, queue?.mostrati?.engineDecisions ?? queue?.engineDecisions.length ?? 0)})</h3>
-          {/*
-            ⚠️ COSA FANNO DAVVERO QUESTI DUE PULSANTI — la domanda di Nocanty, risposta il 19/8.
-            «Presa visione» e «Correggi…» scrivono la stessa cosa: `reviewOutcome`, chi e quando, e una
-            riga di registro. ⚠️ **La proposta del motore non viene applicata**, nemmeno confermata:
-            `reviewDecision` non azzera `flaggedForReview`, e il menu legge solo le decisioni non
-            segnalate. Il pulsante si chiamava «Conferma», che è la parola con cui si dice «fallo»:
-            chi lo premeva credeva di aver applicato qualcosa. ⛔ Farlo applicare davvero è bloccato
-            sul numero di Nocanty — di quanto si alzano le calorie — e non è una decisione di software.
-          */}
-          {queue && queue.engineDecisions.length > 0 && (
-            <div className="muted" style={{ fontSize: 11, margin: '0 0 6px', lineHeight: 1.4 }}>
-              Questi due pulsanti <b>registrano che l'hai letta</b>: la proposta del motore non viene
-              applicata al piano in nessuno dei due casi. Per cambiare davvero il piano si passa dalla
-              scheda della cliente.
-            </div>
-          )}
-          {(!queue || queue.engineDecisions.length === 0) ? (
-            <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>Nessuna decisione da rivedere.</div>
-          ) : (
-            queue.engineDecisions.slice(0, 8).map((d) => (
-              <div key={d.id} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <b style={{ fontSize: 14 }}>
-                    {d.patientName ? <Link to={`/clienti/${d.clientId}`} className="link">{d.patientName}</Link> : 'Paziente'}
-                  </b>
-                  <div className="muted" style={{ fontSize: 12 }}>
-                    {d.date}
-                    {d.causaEtichetta && ` · ${d.causaEtichetta}`}
-                    {d.rule?.name && ` · ${d.rule.name}`}
-                    {d.flagReason && ` · ${d.flagReason}`}
-                  </div>
-                </div>
-                <div className="row" style={{ gap: 6 }}>
-                  <button className="btn sm" onClick={() => reviewDecision(d.id, 'confirm')}>Presa visione</button>
-                  <button className="btn ghost sm" onClick={() => void apriAzioni(d.id)}>Correggi…</button>
-                </div>
-              </div>
-            ))
-          )}
+          Vive in `components/CodaDaValidare.tsx` e si disegna in **Attività da fare** — la pagina
+          che dal 22/8 la nutrizionista può finalmente aprire. ⚠️ La ragione è più forte del gusto:
+          fino a ieri il suo lavoro stava in due posti che non si guardavano — tre code qui e
+          quattro tipi di attività in una pagina a cui non aveva accesso. Due elenchi di «cosa devo
+          fare» sono due elenchi che si leggono a metà.
 
-          {queue && queue.dietsInReview.length > 0 && (
-            <>
-              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Diete in revisione ({conteggio(queue.counts.dietsInReview, queue.mostrati?.dietsInReview ?? queue.dietsInReview.length)})</h3>
-              {queue.dietsInReview.map((d) => (
-                <div key={d.id} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                  {/* Lo stile è stato tolto l'11/8: qui accanto al nome non aggiungeva niente
-                      («Pescetariana · mediterranean») e ripeteva un dato che non identifica la
-                      dieta. Il regime invece sì: dice se è onnivora, vegetariana o vegana. */}
-                  <span><b>{d.name}</b> <span className="muted" style={{ fontSize: 12 }}>({d.regime})</span></span>
-                  <Link className="btn ghost sm" to="/diete">Apri</Link>
-                </div>
-              ))}
-            </>
-          )}
+          ⚠️ È stato **estratto, non ricopiato**: se un giorno lo si rivolesse anche qui, si mette
+          `<CodaDaValidare />` e basta. Due copie divergono.
 
-          {queue && queue.protocolsPending.length > 0 && (
-            <>
-              <h3 style={{ fontSize: 13, color: 'var(--muted)', margin: '14px 0 4px' }}>Protocolli in attesa ({conteggio(queue.counts.protocolsPending, queue.mostrati?.protocolsPending ?? queue.protocolsPending.length)})</h3>
-              {queue.protocolsPending.map((p) => (
-                <div key={p.id} className="spread" style={{ padding: '6px 0', borderBottom: '1px solid var(--line)' }}>
-                  <span><b>{p.name}</b> <span className="muted" style={{ fontSize: 12 }}>({p.type})</span></span>
-                  <Link className="btn ghost sm" to="/protocolli">Apri</Link>
-                </div>
-              ))}
-            </>
-          )}
+          ⛔ **Resta però il rimando, e non è cortesia** (revisione del 22/8). La pagina di
+          destinazione è protetta dal permesso `coach_tasks`, che su un ambiente già vivo va acceso
+          a mano (`npm run apri:attivita-nutrizionista`) e che lo script **non tocca** se qualcuno
+          l'aveva già impostato. Togliendo il riquadro senza lasciare traccia, una nutrizionista con
+          quel permesso ancora chiuso si troverebbe la coda clinica sparita da ogni schermata, senza
+          un errore e senza un messaggio. *Niente tagli silenziosi.*
+        */}
+        <div className="card" style={{ margin: 0, marginBottom: 12 }}>
+          <div className="spread" style={{ gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13.5 }}>
+              <i className="ti ti-clipboard-check" style={{ verticalAlign: '-2px', marginRight: 6, color: 'var(--teal)' }} />
+              Le decisioni del motore, le diete e i protocolli <b>da validare</b> stanno in «Attività da fare».
+            </span>
+            <Link className="btn ghost sm" to="/attivita-coach">Aprile</Link>
+          </div>
         </div>
-        )}
 
         {/* Pazienti che richiedono attenzione */}
         {pref.attivo('b_pazienti') && (
-        <div className="card" style={{ margin: 0, flex: 1 }}>
+        <div className="card" style={{ margin: 0 }}>
           <div className="spread">
             <h2 style={{ margin: 0 }}>Pazienti</h2>
             <Link className="muted" style={{ fontSize: 13 }} to="/clienti">Tutti →</Link>
@@ -340,83 +192,6 @@ export function NutritionistHome() {
       )}
       <DashboardModules />
 
-      {/*
-        LA FINESTRA DI «CORREGGI». Le azioni arrivano dal backend perché dipendono dalla causa.
-        «Apri la scheda» e «Scrivi in chat» sono rimandi: portano dove quelle cose vivono già, coi
-        loro permessi. Non si reimplementano qui — una seconda strada per cambiare la dieta, con
-        controlli diversi, è il modo in cui nascono i buchi.
-      */}
-      {azioni && (
-        <Modal title={azioni.causaEtichetta ?? 'Cosa vuoi fare'} onClose={() => setAzioni(null)}>
-          {azioni.flagReason && (
-            <p style={{ fontSize: 13.5, lineHeight: 1.55, marginTop: 0, color: 'var(--ink)' }}>{azioni.flagReason}</p>
-          )}
-          {azioni.pianoGiaFermo && (
-            <Banner kind="info">
-              Il piano di questa cliente è <b>già fermo</b>: i giorni nuovi non partono. Si riattiva dalla
-              sua scheda.
-            </Banner>
-          )}
-          {azioni.calcoloGiaAzzeratoIl && (
-            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
-              Il calcolo del calo è già stato azzerato il{' '}
-              {new Date(azioni.calcoloGiaAzzeratoIl).toLocaleDateString('it-IT')}.
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-            {azioni.azioni.map((a) => (
-              <div key={a.azione} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 11 }}>
-                <div className="spread" style={{ gap: 10, alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <b style={{ fontSize: 14 }}>{a.etichetta}</b>
-                    <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 3 }}>{a.cosaFa}</div>
-                  </div>
-                  {a.eseguitaDalServer ? (
-                    <button
-                      className={a.azione === 'blocca_piano' ? 'btn ghost sm' : 'btn sm'}
-                      disabled={azioneInCorso || (a.azione === 'blocca_piano' && azioni.pianoGiaFermo)}
-                      onClick={() => void eseguiAzione(a.azione)}
-                    >
-                      {a.azione === 'blocca_piano' && azioni.pianoGiaFermo ? 'Già fermo' : 'Fai questo'}
-                    </button>
-                  ) : (
-                    <Link
-                      className="btn ghost sm"
-                      to={a.azione === 'apri_scheda' ? `/clienti/${azioni.clientId}` : `/chat?cliente=${azioni.clientId}`}
-                      onClick={() => setAzioni(null)}
-                    >
-                      Vai
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/*
-            La nota è facoltativa ma sta SOPRA i pulsanti: se fosse dopo, si scriverebbe dopo aver
-            già premuto. Finisce nell'audit e, per il blocco, è il motivo che resta scritto sul
-            piano — cioè quello che leggerà chi troverà quel piano fermo fra tre giorni.
-          */}
-          <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
-            Nota (facoltativa, resta nello storico)
-            <textarea
-              className="input"
-              rows={2}
-              value={notaAzione}
-              maxLength={1000}
-              onChange={(e) => setNotaAzione(e.target.value)}
-              placeholder="Es. la sento domani in televisita"
-              style={{ marginTop: 4 }}
-            />
-          </label>
-
-          <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
-            <button className="btn ghost" onClick={() => setAzioni(null)}>Chiudi</button>
-          </div>
-        </Modal>
-      )}
     </>
   );
 }

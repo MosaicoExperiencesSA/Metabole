@@ -2,6 +2,7 @@ import { useAuth } from '../auth/AuthContext';
 import { CoachHome } from './CoachHome';
 import { Dashboard } from './Dashboard';
 import { NutritionistHome } from './NutritionistHome';
+import { eNutrizionista } from '../lib/ruoliNutrizionista';
 
 /**
  * Home role-adattiva del backoffice/app staff: a seconda del ruolo effettivo mostra
@@ -17,6 +18,6 @@ export function Home() {
   // vedono tutte la home Coach (clienti, link d'invito/ref code, piani in scadenza).
   const role = user?.role ?? permissions?.role;
   if (role === 'coach' || role === 'coach_coordinator' || role === 'sales') return <CoachHome />;
-  if (role === 'nutritionist' || role === 'head_nutritionist') return <NutritionistHome />;
+  if (eNutrizionista(role)) return <NutritionistHome />;
   return <Dashboard />;
 }

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
+import { CodaDaValidare } from '../components/CodaDaValidare';
+import { useAuth } from '../auth/AuthContext';
+import { eNutrizionista } from '../lib/ruoliNutrizionista';
 
 /**
  * Attività coach (handoff lancio, punto 5): i task generati in automatico sui
@@ -90,8 +93,35 @@ export function AttivitaCoach() {
 
   const fmt = (s: string) => new Date(s).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
 
+  /**
+   * ⛔ **LA CODA «DA VALIDARE» VIVE QUI DAL 22/8**, e non nella dashboard: richiesta di Simone,
+   * «togliamo il da validare in dashboard e unifichiamolo con questo». Il perché sta nel docstring
+   * di `CodaDaValidare`.
+   *
+   * ⚠️ **Solo a chi quella coda appartiene.** `/nutritionist/validation-queue` è
+   * `@Roles('nutritionist', 'head_nutritionist', 'admin')`: alla coach risponderebbe 403, e un
+   * riquadro rosso «non riesco a leggere la coda» in cima alla sua pagina sarebbe un errore vero su
+   * una cosa che non è mai stata sua. ⛔ L'admin è ammesso dal backend ma qui non lo si disegna: non
+   * gli è stato tolto niente dalla dashboard, e la coda clinica non è lavoro suo.
+   */
+  const { user } = useAuth();
+  /**
+   * ⚠️ **E solo nella scheda «Da fare»** (revisione, 22/8). Il riquadro elenca cose **ancora da
+   * fare**: in cima a «Fatti» o «Saltati» sarebbe una contraddizione — si apre quella scheda per
+   * guardare indietro.
+   */
+  const suaLaCoda = eNutrizionista(user?.role) && tab === 'todo';
+
   return (
     <>
+      {/*
+        ⚠️ Nessun `onCambiata`: «Presa visione» e le azioni sulla coda non creano né chiudono nessuna
+        attività (`nutritionist.service.ts` scrive `reviewOutcome` e i campi del piano, mai un
+        `coach_task`). Ricaricare l'elenco sotto sarebbe due richieste per clic che non possono
+        cambiare niente. *Misura prima di decidere.*
+      */}
+      {suaLaCoda && <CodaDaValidare perTutte={user?.role === 'head_nutritionist'} />}
+
       {summary && (
         <div className="card" style={{ padding: '12px 16px', marginBottom: 14 }}>
           <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
@@ -131,7 +161,17 @@ export function AttivitaCoach() {
                     {t.overdue && t.status === 'todo' ? `in ritardo · ${fmt(t.dueDate)}` : fmt(t.dueDate)}
                   </span>
                 </div>
-                {t.description && <div className="muted" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.5 }}>{t.description}</div>}
+                {t.description && (
+                  /*
+                   * ⚠️ `pre-wrap` (22/8, guardando la pagina vera): i testi delle attività mandano a
+                   * capo l'elenco dei motivi con dei `\n`, e senza questa proprietà diventavano
+                   * spazi — un muro di testo. ⛔ Il markdown invece NON si interpreta, ed è voluto:
+                   * una descrizione che arriva dal backend e viene letta come HTML sarebbe un
+                   * problema molto più grosso di un grassetto mancante. Sono i testi a non doverne
+                   * scrivere, e `niente-markdown.spec.ts` lo tiene fermo su tutti.
+                   */
+                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{t.description}</div>
+                )}
               </div>
               <div className="row" style={{ gap: 6, flex: 'none' }}>
                 {t.status === 'todo' ? (
