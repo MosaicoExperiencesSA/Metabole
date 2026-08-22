@@ -24,6 +24,7 @@ export const DASHBOARD_MODULES: DashboardModule[] = [
   { id: 'm_agenda', pageKey: 'visits_agenda', to: '/agenda', icon: 'ti-calendar', label: 'Agenda visite', preview: 'Televisite e appuntamenti in programma.' },
   { id: 'm_segnalazioni', pageKey: 'escalations', to: '/segnalazioni', icon: 'ti-alert-triangle', label: 'Segnalazioni', preview: 'Situazioni del motore da gestire.' },
   { id: 'm_diete', pageKey: 'diets_catalog', to: '/diete', icon: 'ti-salad', label: 'Catalogo diete', preview: 'Diete e ricette approvate.' },
+  { id: 'm_descrizioni_diete', pageKey: 'diets_catalog', to: '/descrizioni-diete', icon: 'ti-file-description', label: 'Descrizioni diete', preview: 'Il testo che la cliente legge come spiegazione della sua dieta.' },
   { id: 'm_acquisti', pageKey: 'purchases', to: '/acquisti', icon: 'ti-shopping-cart', label: 'Acquisti', preview: 'Storico acquisti e ricevute.' },
   { id: 'm_compensi', pageKey: 'compensation', to: '/compensi', icon: 'ti-coin', label: 'Compensi staff', preview: 'Provvigioni e compensi del team.' },
   { id: 'm_chat', pageKey: 'chat', to: '/chat', icon: 'ti-messages', label: 'Chat', preview: 'Ultimi messaggi dei clienti.' },

@@ -18,7 +18,7 @@ import { ArrayMaxSize, IsArray } from 'class-validator';
 import { CatalogService } from './catalog.service';
 import { ConfermaAllergeniInBloccoDto, SetRecipeAllergensDto } from './dto/allergens.dto';
 import { ConfermaColazioniDto, SetColazioneDto } from './dto/colazioni.dto';
-import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto, CollegaRicettaDto } from './dto/catalog.dto';
+import { CreateDietDto, CreateRecipeDto, UpdateRecipeDto, RejectDietDto, SetDayTemplatesDto, UpdateDietDto, UpdateDietProductDto, UpdateFamilyProductDto, SetProductRulesDto, RuleProposalDto, RenameDietDto, CollegaRicettaDto } from './dto/catalog.dto';
 
 /** Diete: il nutrizionista propone, il capo approva. */
 @Controller('diets')
@@ -62,14 +62,29 @@ export class DietsController {
   }
 
   /**
-   * Modifica la sola scheda cliente (schermo 16), anche su diete approvate.
-   * Visibilità clienti/sito riservata al CAPO nutrizionista: coerente con l'approvazione
-   * (anch'essa solo del capo), è lui a decidere cosa va in vetrina a clienti e sito.
+   * ⛔ **LA FAMIGLIA INTERA — e sta PRIMA di `:id/product`, non è uno stile: è necessità.**
+   *
+   * Nest cerca le rotte nell'ordine in cui sono dichiarate, e `:id/product` combacia anche con
+   * `famiglia/product` (leggendo `famiglia` come un id). Dichiarata dopo, questa rotta non verrebbe
+   * mai raggiunta: risponderebbe l'altra, con un 404 su una dieta che si chiama «famiglia».
    */
-  @Roles('head_nutritionist')
+  @Patch('famiglia/product')
+  updateFamilyProduct(@Body() dto: UpdateFamilyProductDto, @CurrentUser() user: AuthUser) {
+    return this.catalog.updateFamilyProduct(user.sub, dto);
+  }
+
+  /**
+   * ⛔ **APERTA ANCHE ALLA NUTRIZIONISTA** (deciso da Simone il 22/8: «la nutrizionista scrive il
+   * testo, il capo la visibilità»).
+   *
+   * Era `@Roles('head_nutritionist')` intera, mentre il pulsante «Scheda cliente» in pagina Diete si
+   * mostrava anche alla nutrizionista semplice: apriva, scriveva, salvava e prendeva **403**. La
+   * guardia adesso è **per campo** e sta nel service (`soloIlCapoAccendeLaVetrina`), perché la stessa
+   * rotta accetta il testo da tutte e due e la vetrina solo dal capo.
+   */
   @Patch(':id/product')
   updateProduct(@Param('id') id: string, @Body() dto: UpdateDietProductDto, @CurrentUser() user: AuthUser) {
-    return this.catalog.updateDietProduct(user.sub, id, dto);
+    return this.catalog.updateDietProduct(user.sub, id, dto, user.role);
   }
 
   /** Regole del motore attivate per il prodotto (Fase F). */

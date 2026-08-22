@@ -212,13 +212,17 @@ export function Diete() {
 
       {createOpen && <CreateDietModal onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); void load(); }} />}
       {daysId && <DayEditorModal dietId={daysId} onClose={() => setDaysId(null)} onSaved={() => { setDaysId(null); void load(); }} />}
-      {productId && <ProductCardModal dietId={productId} onClose={() => setProductId(null)} onSaved={() => { setProductId(null); void load(); }} />}
+      {productId && <ProductCardModal dietId={productId} soloIlCapo={isHead} onClose={() => setProductId(null)} onSaved={() => { setProductId(null); void load(); }} />}
     </>
   );
 }
 
 /** Modifica la "scheda cliente" (schermo 16) di una dieta esistente, anche approvata. */
-function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClose: () => void; onSaved: () => void }) {
+/**
+ * ⚠️ `soloIlCapo` arriva dal chiamante e non si ricalcola qui: il ruolo è una domanda sola, e la
+ * pagina l'ha già fatta (`isHead`). Vedi la nota su `save`.
+ */
+function ProductCardModal({ dietId, onClose, onSaved, soloIlCapo }: { dietId: string; onClose: () => void; onSaved: () => void; soloIlCapo: boolean }) {
   const [f, setF] = useState({ clientName: '', clientDescription: '', highlights: '', objective: 'dimagrimento', seasonalTag: '', clientVisible: false, recommended: false });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -248,10 +252,14 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
         clientName: f.clientName.trim() || null,
         clientDescription: f.clientDescription.trim() || null,
         highlights,
-        objective: f.objective,
         seasonalTag: f.seasonalTag || null,
-        clientVisible: f.clientVisible,
-        recommended: f.recommended,
+        /**
+         * ⚠️ I campi che **solo il capo** può cambiare si mandano solo se è lui: la nutrizionista
+         * che salva un refuso nella descrizione non deve rimandare indietro anche la visibilità.
+         * ⛔ Il backend rifiuta comunque solo quelli che CAMBIANO — questa è la seconda rete, non la
+         * prima: una form che manda campi che chi la usa non può toccare è una form scritta male.
+         */
+        ...(soloIlCapo ? { objective: f.objective, clientVisible: f.clientVisible, recommended: f.recommended } : {}),
       }) });
       onSaved();
     } catch (e) {
@@ -270,7 +278,17 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
             <textarea className="input" rows={2} value={f.clientDescription} onChange={(e) => setF({ ...f, clientDescription: e.target.value })} /></label>
           <label><span className="muted" style={{ fontSize: 12 }}>Caratteristiche principali (una per riga, max 6)</span>
             <textarea className="input" rows={3} value={f.highlights} onChange={(e) => setF({ ...f, highlights: e.target.value })} /></label>
-          <label><span className="muted" style={{ fontSize: 12 }}>Obiettivo</span>
+          {/*
+            ⛔ **I TRE CAMPI CHE NON SONO TESTO si disegnano SOLO al capo** (22/8). Obiettivo,
+            visibilità e «consigliata» non sono la scheda cliente: `objective` decide **a chi il
+            motore assegna** questa dieta (`pick-diet.ts` ci filtra sopra), gli altri due sono la
+            vetrina. ⚠️ Prima si mostravano a tutte e si mandavano sempre — quindi la nutrizionista
+            che correggeva un refuso si vedeva rifiutare il salvataggio per due booleani che non
+            aveva toccato. Un campo che si vede e non si può salvare è un campo scritto male.
+          */}
+          {soloIlCapo && (
+            <>
+<label><span className="muted" style={{ fontSize: 12 }}>Obiettivo</span>
             <select className="select" value={f.objective} onChange={(e) => setF({ ...f, objective: e.target.value })}>
               <option value="dimagrimento">Dimagrimento</option>
               <option value="mantenimento">Mantenimento</option>
@@ -281,6 +299,8 @@ function ProductCardModal({ dietId, onClose, onSaved }: { dietId: string; onClos
           <label className="row" style={{ gap: 8, alignItems: 'center' }}>
             <input type="checkbox" checked={f.recommended} onChange={(e) => setF({ ...f, recommended: e.target.checked })} />
             <span style={{ fontSize: 13 }}>Consigliato <span className="muted" style={{ fontSize: 11 }}>(in evidenza nella sezione "Consigliati")</span></span></label>
+            </>
+          )}
         </div>
       )}
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>

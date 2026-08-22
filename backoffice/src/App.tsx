@@ -15,6 +15,7 @@ import { Clienti } from './pages/Clienti';
 import { LeadDaAssegnare } from './pages/LeadDaAssegnare';
 import { Compensi } from './pages/Compensi';
 import { Diete } from './pages/Diete';
+import { DescrizioniDiete } from './pages/DescrizioniDiete';
 import { GestioneDieta } from './pages/GestioneDieta';
 import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
@@ -122,6 +123,11 @@ export default function App() {
       <Route path="/attivita-coach" element={<Protected title="Attività da fare" pageKey="coach_tasks"><AttivitaCoach /></Protected>} />
       <Route path="/provvigioni" element={<Protected title="Provvigioni" pageKey="commissions"><Provvigioni /></Protected>} />
       <Route path="/compensi" element={<Protected title="Compensi staff" pageKey="compensation"><Compensi /></Protected>} />
+      {/*
+        ⚠️ Stesso permesso del catalogo diete (`diets_catalog`): è lo stesso oggetto, guardato da
+        un'altra angolazione — chi può entrare nel catalogo può scriverne le descrizioni.
+      */}
+      <Route path="/descrizioni-diete" element={<Protected title="Descrizioni diete" pageKey="diets_catalog"><DescrizioniDiete /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />

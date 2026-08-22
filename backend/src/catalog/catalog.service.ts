@@ -27,7 +27,9 @@ import {
   CreateRecipeDto,
   SetDayTemplatesDto,
   UpdateDietDto,
+  CAMPI_NON_TESTO,
   UpdateDietProductDto,
+  UpdateFamilyProductDto,
   UpdateRecipeDto,
 } from './dto/catalog.dto';
 
@@ -303,12 +305,41 @@ export class CatalogService {
 
   /** Aggiorna SOLO la scheda cliente (schermo 16). Consentito anche su diete approvate:
    *  non tocca i menu, solo come il prodotto viene mostrato/scelto dalla cliente. */
-  async updateDietProduct(userId: string, id: string, dto: UpdateDietProductDto) {
+  async updateDietProduct(userId: string, id: string, dto: UpdateDietProductDto, ruolo?: string | null) {
     await this.getDiet(id); // 404 se non esiste
+    /**
+     * ⛔ **COSA C'ERA PRIMA, o il testo vecchio non torna più** (22/8).
+     *
+     * `catalog.diet.product.update` si registrava **senza metadata**: sapevamo che qualcuno aveva
+     * toccato la scheda cliente di una dieta, non **cosa** aveva toccato né cosa c'era scritto
+     * prima. Su un campo che legge la cliente — e che si sovrascrive con una `textarea` — vuol dire
+     * che una descrizione cancellata per sbaglio è persa: nessuno la può rimettere perché nessuno
+     * sa più com'era.
+     *
+     * ⚠️ Si salvano **solo i campi che questo PATCH tocca**, col valore precedente: un `metadata`
+     * che porta l'intera riga sarebbe un doppione della tabella dentro il registro.
+     */
+    const prima = (await this.prisma.diet.findUnique({
+      where: { id },
+      select: { clientName: true, clientDescription: true, highlights: true, seasonalTag: true, objective: true, clientVisible: true, siteVisible: true, recommended: true },
+    })) as Record<string, unknown> | null;
+    /**
+     * ⛔ **LA GUARDIA GUARDA COSA CAMBIA, non cosa è stato mandato** (corretto in revisione, 22/8, e
+     * la prima stesura non correggeva il difetto: lo spostava).
+     *
+     * La modale «Scheda cliente» manda **sempre** tutti i suoi campi, compresi `clientVisible` e
+     * `recommended`, anche quando la nutrizionista ha toccato solo la descrizione. Una guardia su
+     * «il campo è presente» li vedeva e rifiutava: lei correggeva un refuso e leggeva *«la
+     * visibilità la decide il capo… il testo lo puoi scrivere tu»* — un messaggio che le dice che
+     * può fare esattamente la cosa che le è appena stata negata. Peggio del 403 generico di prima,
+     * perché quello almeno non mentiva.
+     */
+    this.soloIlCapoAccendeLaVetrina(ruolo, dto as Record<string, unknown>, prima ?? {});
     // Gate R8: si può rendere visibile ai clienti solo un prodotto "sicuro".
-    if ((dto as { clientVisible?: boolean }).clientVisible === true) {
+    if ((dto as { clientVisible?: boolean }).clientVisible === true && prima?.clientVisible !== true) {
       await this.assertActivatable(id);
     }
+    const campi = Object.keys(dto as Record<string, unknown>);
     const updated = await this.prisma.diet.update({
       where: { id },
       data: { ...(dto as Record<string, unknown>) } as never,
@@ -318,8 +349,129 @@ export class CatalogService {
       actorId: userId,
       entityType: 'diet',
       entityId: id,
+      metadata: { campi, prima: Object.fromEntries(campi.map((k) => [k, prima?.[k] ?? null])) },
     });
     return updated;
+  }
+
+  /**
+   * ⛔ **CHI SCRIVE COSA: il testo è della nutrizionista, la vetrina del capo** (deciso da Simone il
+   * 22/8).
+   *
+   * Fino a oggi questa rotta era `@Roles('head_nutritionist')` intera, e il pulsante «Scheda
+   * cliente» in pagina Diete si mostrava **anche alla nutrizionista semplice**: lei apriva, scriveva
+   * la descrizione, premeva Salva e prendeva **403**. Un pulsante che si vede e non funziona è
+   * peggio di un pulsante che non c'è — chi lo preme non impara che non può, impara che il sistema
+   * si rompe.
+   *
+   * ⚠️ La guardia sta **qui e non nel decoratore** perché non è per ruolo, è per **campo**: la
+   * stessa rotta accetta il testo da tutte e due e la vetrina solo dal capo. Un secondo endpoint
+   * avrebbe voluto dire due strade per scrivere la stessa riga, con due controlli da tenere allineati.
+   *
+   * ⚠️ E si dice **quale** campo ha fermato la richiesta: «non hai il permesso» su una form con sei
+   * campi manda a indovinare.
+   */
+  private soloIlCapoAccendeLaVetrina(
+    ruolo: string | null | undefined,
+    dto: Record<string, unknown>,
+    prima: Record<string, unknown>,
+  ) {
+    if (ruolo === 'head_nutritionist') return;
+    /**
+     * ⚠️ **Solo i campi che CAMBIANO davvero.** Rimandare indietro lo stesso valore che c'era non è
+     * «accendere la vetrina»: è una form che si salva intera. Vedi la nota in `updateDietProduct`.
+     */
+    const chiesti = CAMPI_NON_TESTO.filter((c) => dto[c] !== undefined && dto[c] !== prima[c]);
+    if (!chiesti.length) return;
+    throw new ForbiddenException(
+      `Questi campi li decide il capo nutrizionista: ${chiesti.join(', ')}. `
+      + 'Il testo della scheda cliente — nome, descrizione, punti chiave, tag — lo puoi scrivere tu.',
+    );
+  }
+
+  /**
+   * ⛔ **LA SCHEDA CLIENTE SU TUTTA LA FAMIGLIA, in una transazione.**
+   *
+   * Vedi `UpdateFamilyProductDto` per il perché: una famiglia è fino a 18 varianti, il profilo della
+   * cliente legge **la sua** — e quando manca ripiega sulla descrizione dell'ultimo menu
+   * consegnato, cioè le mostra la spiegazione di un'altra dieta. Una tabella per variante produce
+   * diciassette righe vuote e una persona convinta di aver finito.
+   *
+   * ⚠️ **Transazione, non un giro di `PATCH` dal browser.** Diciotto chiamate separate falliscono a
+   * metà e lasciano la famiglia con due testi diversi — ed è esattamente quello che succedeva a
+   * «pubblica la famiglia» in `GestioneDieta.tsx`. Qui o si scrivono tutte o non si scrive niente.
+   *
+   * ⚠️ **Anche sulle diete approvate**, come la rotta per id: il testo della scheda non tocca i menu,
+   * e una dieta pubblicata deve poter correggere un refuso senza tornare in bozza.
+   *
+   * ⛔ Se la famiglia non esiste si dice, invece di rispondere «fatto» avendo scritto su zero righe:
+   * *«non lo so» deve costare meno di «ho indovinato»*.
+   */
+  async updateFamilyProduct(userId: string, dto: UpdateFamilyProductDto) {
+    const { famiglia, stile } = dto;
+    /**
+     * ⛔ **I campi si PRENDONO, non si prendono «tutto il resto»** (trovato dal test, 22/8). La
+     * prima stesura faceva `const { famiglia, stile, ...testo } = dto` e scriveva `testo`: con quel
+     * codice un `siteVisible` arrivato nel corpo finiva **dritto nella `update`**.
+     *
+     * ⚠️ In produzione lo fermerebbe la `whitelist` della `ValidationPipe` — ma appoggiare una
+     * regola di permessi a un pezzo che sta in un altro file è la definizione di regola che si
+     * rompe da sola: basta che qualcuno chiami questa funzione da un cron, da uno script o da un
+     * altro service e la porta non c'è più. L'elenco dei campi che questa rotta scrive è qui.
+     */
+    const testo: Record<string, unknown> = {};
+    for (const c of ['clientName', 'clientDescription', 'seasonalTag'] as const) {
+      if (dto[c] !== undefined) testo[c] = dto[c];
+    }
+    const campi = Object.keys(testo);
+    if (!campi.length) throw new BadRequestException('Non hai cambiato niente.');
+
+    /**
+     * ⛔ **Le varianti RIFIUTATE/archiviate non si toccano** (revisione, 22/8). `archiveDiet` non ha
+     * uno stato suo: archivia mettendo `status: 'rejected'`. Scriverci sopra vorrebbe dire spendere
+     * il lavoro di una persona su righe che nessuna cliente raggiunge — e, dall'altra parte, farle
+     * contare come «scoperte» nella tabella, con un rosso che non si spegne mai. *Un avviso che
+     * compare sempre non è un avviso.*
+     *
+     * ⚠️ `orderBy` non è estetica: senza, la riga di registro sotto si aggancerebbe a una variante
+     * scelta da Postgres a caso, e non sarebbe la stessa fra due esecuzioni.
+     */
+    const varianti = (await this.prisma.diet.findMany({
+      where: { name: famiglia, style: stile, status: { not: 'rejected' } } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, clientName: true, clientDescription: true, highlights: true, seasonalTag: true },
+    })) as { id: string }[];
+    if (!varianti.length) {
+      throw new NotFoundException(
+        `Nessuna dieta «${famiglia}» con stile «${stile}» da scrivere: o è stata rinominata, o sono tutte archiviate.`,
+      );
+    }
+
+    await this.prisma.$transaction(
+      varianti.map((v) => this.prisma.diet.update({ where: { id: v.id }, data: testo as never })),
+    );
+    /**
+     * ⛔ **UNA RIGA DI REGISTRO PER VARIANTE, non una per famiglia** (revisione, 22/8).
+     *
+     * La prima stesura ne scriveva **una sola**, agganciata a `varianti[0].id`: chi apre il log
+     * filtrando sulla dieta #7 — quella su cui è arrivata la segnalazione — non trovava niente, e
+     * diciotto diete risultavano cambiate da nessuno. *Un dato che agisce e non si vede.*
+     *
+     * ⚠️ **L'audit sta FUORI dalla transazione, ed è un ripiego dichiarato**: `AuditService.log`
+     * assorbe i propri errori di proposito (una riga di registro che non passa non deve far fallire
+     * un salvataggio clinico). Quindi le diciotto scritture possono riuscire e il «prima» perdersi.
+     * È il verso giusto in cui sbagliare, ma è un best-effort e va detto invece che promesso.
+     */
+    for (const v of varianti) {
+      await this.audit.log({
+        action: 'catalog.diet.product.famiglia',
+        actorId: userId,
+        entityType: 'diet',
+        entityId: v.id,
+        metadata: { famiglia, stile, campi, varianti: varianti.length, prima: v },
+      });
+    }
+    return { famiglia, stile, aggiornate: varianti.length, campi };
   }
 
   /**

@@ -305,7 +305,7 @@ async function varianti(diete: DietaRiga[]): Promise<void> {
 
   const famiglie = new Map<string, DietaRiga[]>();
   for (const d of diete) {
-    const k = `${d.name} ${d.style ?? ''}`;
+    const k = `${d.name}\u0000${d.style ?? ''}`;
     if (!famiglie.has(k)) famiglie.set(k, []);
     famiglie.get(k)!.push(d);
   }
