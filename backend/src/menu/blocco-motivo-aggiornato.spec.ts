@@ -30,7 +30,7 @@ describe('il motivo del «Piano bloccato» si aggiorna, la riga no', () => {
       prisma as unknown as PrismaService,
       { getNumber: jest.fn(async (_k: string, d?: number) => d ?? 0), getString: jest.fn() } as unknown as ConfigParamsService,
       { log: jest.fn() } as unknown as AuditService,
-      { activePausePeriod: jest.fn().mockResolvedValue(null) } as never,
+      { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) } as never,
       { stateFor: jest.fn().mockResolvedValue('normale') } as never,
       new DayComboService(),
       { computeTargetKcal: jest.fn().mockResolvedValue(null) } as never,

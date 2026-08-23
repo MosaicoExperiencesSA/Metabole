@@ -157,6 +157,22 @@ export const BACKOFFICE_PAGES = [
    */
   'cancel_subscription',
   /**
+   * ⛔ **LA MODALITÀ VIAGGIO — da quando sospende, sposta soldi** (23/8).
+   *
+   * Fino a stamattina quella card scriveva tre campi sul profilo, e `@Roles` di classe bastava.
+   * Da oggi crea una sospensione vera: ferma i menu **e allunga la scadenza del piano** dei giorni
+   * sospesi, riordinando anche la fila dei piani comprati in coda (`coda-che-slitta.ts`).
+   *
+   * ⚠️ Spostare la data di **inizio** di un piano ha una chiave sua (`change_plan_start`) e perfino
+   * una conferma obbligatoria. Spostare la **fine** non ne aveva nessuna, e lo poteva fare chiunque
+   * vedesse la scheda — `sales` compreso. Il cancello mancava dove c'è l'effetto.
+   *
+   * **Di default solo l'admin**: gli altri li abilita Simone dalla tabella dei permessi, senza un
+   * rilascio. ⚠️ Vuol dire che al deploy la card sparisce a chi la usava: è voluto, ed è la prima
+   * cosa da fare in Permessi dopo la pubblicazione.
+   */
+  'travel_mode',
+  /**
    * LA PAGINA «LAVORI» — l'elenco di cosa manca, con la spunta (13/8, richiesta di Simone).
    *
    * ⚠️ Chiave della matrice e non `@Roles('admin')` scritto nel codice, per la ragione raccontata in
@@ -390,6 +406,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // Annullare un abbonamento: di default solo admin. Il capo nutrizionista lo abilita Simone
     // dalla tabella, ed è il motivo per cui questa chiave esiste (prima era `@Roles('admin')`).
     cancel_subscription: { view: true, manage: true },
+    // La modalità viaggio: da quando sospende e allunga il piano, chiave sua. Solo admin di default.
+    travel_mode: { view: true, manage: true },
     // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
     dev_backlog: { view: true, manage: true },
   },

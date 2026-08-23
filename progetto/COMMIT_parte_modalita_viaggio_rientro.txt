@@ -1,0 +1,42 @@
+Summary:
+La modalità viaggio sospende davvero, le date si vedono in scheda, e il rientro arriva con un giorno d'anticipo
+
+Description:
+Richiesta di Simone (23/8): «io da back office dove vedo le date delle sospensioni e delle
+modalità viaggio?» e «se la modalità viaggio termina il 24, il 23 le deve chiedere le misure
+ed erogare il menu per il 24 — il primo menu, come all'inizio, va erogato con un giorno
+d'anticipo».
+
+La card «Modalità viaggio» era un equivoco: scriveva tre campi sul profilo e non fermava
+niente, mentre l'app chiama «modalità viaggio» il pause_period creato da altre porte. E le
+date delle sospensioni non comparivano in nessuna schermata dello staff.
+
+- pause/giorno-di-rientro.ts: la porta unica per «quando riprende». In tabella resta
+  l'ultimo giorno sospeso; l'interfaccia parla di «Riprende il» = primo giorno di dieta.
+- Finestra di rientro (menu_visible_days_before_return, default 1): il giorno prima del
+  rientro si chiede la pesata — in app e dal giro notturno della sorveglianza, su TUTTE le
+  sospensioni — e si eroga il menu del giorno di rientro, composto con lo stato dell'agente
+  di quel giorno. Il cancello sopravvive al giorno del rientro (pausaAppenaFinita) e riusa
+  lo stato awaiting_cycle_measure, che le app già installate sanno mostrare; returnDate
+  porta la data a chi ha l'app nuova.
+- La card sospende davvero: crea il pause_period, allunga la scadenza dei soli giorni
+  futuri, e un registro (pauseRequest con l'etichetta della card, date mai riscritte
+  all'indietro) impedisce di regalare due volte gli stessi giorni. Una vacanza già passata
+  è rifiutata; il piano fermato si guarda prima della pausa; setTravel sospende PRIMA di
+  scrivere il profilo.
+- Elenco in scheda (GET /admin/clients/:id/sospensioni): periodi veri con l'origine,
+  richieste di pausa anche decise, storico della card dal registro (con le date, da oggi),
+  periodi dichiarati nel questionario.
+- Regole di Simone: massimo 20 giorni dall'interfaccia; tregua di 15 giorni fra due vacanze
+  (pause_min_gap_days) che ferma le porte della cliente e avvisa la coach in back office.
+- Permesso nuovo travel_mode (solo admin di default: va acceso in Permessi a chi usa la
+  card). npm run sblocca:sospensione chiude una sospensione dalla shell di Render. Il kit
+  «Bentornata» non sovrascrive più giornate già erogate.
+
+Due giri di revisione avversariale (16 rilievi al primo, 7 al secondo, tutti chiusi).
+4798 test verdi in 305 suite; build vero di app e backoffice. Nessuna migrazione: i due
+parametri nuovi arrivano dal seed.
+
+Resta aperto: il Calendario in app crea sospensioni che non allungano la scadenza (stessa
+vacanza, soldi diversi a seconda della porta); e il motore esce muto quando la dieta non ha
+giornate al livello richiesto (caso Lorena, 23/8).

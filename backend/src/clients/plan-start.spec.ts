@@ -121,7 +121,7 @@ describe('ClientsService.updatePlanStart', () => {
     };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
     menu = { restartFromPlanStart: jest.fn().mockResolvedValue({ removed: 3, delivered: [] }) };
-    service = new ClientsService(prisma, {} as never, audit, {} as never, menu, {} as never, {} as never);
+    service = new ClientsService(prisma, {} as never, audit, {} as never, menu, {} as never, {} as never, {} as never);
   });
 
   it('sposta la PROVA SCADUTA, non il checkout annullato più recente', async () => {

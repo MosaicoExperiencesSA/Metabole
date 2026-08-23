@@ -128,3 +128,93 @@ describe('vociCalendario', () => {
     expect(p.appointment.findMany.mock.calls[0][0].where.status).toBe('scheduled');
   });
 });
+
+/**
+ * ⛔ **LE SCADENZE DELLE VISITE IN CALENDARIO** — richiesta di Simone, 23/8.
+ *
+ * Quando la nutrizionista scrive «serve una visita entro il 30», dal giorno dopo l'erogazione della
+ * cliente si ferma **da sola**. Finché quella data viveva solo in una nota e in un'attività in
+ * elenco, il giorno del blocco arrivava addosso alla coach nello stesso momento in cui arrivava
+ * addosso alla cliente.
+ *
+ * ⛔ **La prima stesura non ha mai funzionato, e i suoi test erano verdi.** Leggeva le attività
+ * filtrando `status: { in: ['open', 'in_progress'] }` — gli stati veri sono `todo | done | skipped`,
+ * quindi zero righe, sempre. E il test asseriva **la stessa stringa da cui il filtro era stato
+ * copiato**: un test che verifica che il codice contenga il suo stesso errore. Questi qui sotto
+ * guardano **quello che esce**, con un finto che risponde alla query giusta e a nessun'altra.
+ */
+describe('⛔ le scadenze delle visite compaiono in calendario', () => {
+  /** Risponde SOLO alla domanda giusta: profili `serve_visita` con la scadenza nella finestra. */
+  const finto = (profili: unknown[]) => ({
+    visit: { findMany: jest.fn().mockResolvedValue([]) },
+    appointment: { findMany: jest.fn().mockResolvedValue([]) },
+    staff: { findMany: jest.fn().mockResolvedValue([]) },
+    clientProfile: {
+      findMany: jest.fn(({ where }: { where: Record<string, unknown> }) =>
+        Promise.resolve(where.idoneita === 'serve_visita' && where.idoneitaVisitaEntro ? profili : []),
+      ),
+    },
+  });
+
+  const profilo = (over: Record<string, unknown> = {}) => ({
+    userId: 'c1',
+    idoneitaVisitaEntro: new Date('2026-09-30T00:00:00.000Z'),
+    ...over,
+  });
+
+  it('⛔ una scadenza diventa una riga di tutto il giorno, nel giorno giusto', async () => {
+    const voci = await vociCalendario(finto([profilo()]) as never, { dal: new Date('2026-09-01'), scadenzeVisite: true });
+    expect(voci).toHaveLength(1);
+    expect(voci[0].fonte).toBe('scadenza');
+    expect(voci[0].tuttoIlGiorno).toBe(true);
+    expect(voci[0].datetime.slice(0, 10)).toBe('2026-09-30');
+    // ⚠️ Un testo scritto per un calendario, non il titolo interno dell'attività.
+    expect(voci[0].note).toContain('da domani i menu si fermano');
+  });
+
+  /**
+   * ⛔ **SENZA IL FLAG NON ESCE NIENTE — ed è il cancello che tiene la riga fuori dall'agenda della
+   * CLIENTE.** `vociCalendario` la chiamano anche `clientAgenda` e l'app: senza questo, la cliente
+   * avrebbe letto «Fissa la visita…» alle 02:00 come prossimo appuntamento. Trovato in revisione
+   * prima che si vedesse, solo perché l'altro difetto teneva la query a zero righe.
+   */
+  it('⛔ senza `scadenzeVisite` la query non parte proprio', async () => {
+    const prisma = finto([profilo()]);
+    const voci = await vociCalendario(prisma as never, { dal: new Date('2026-09-01') });
+    expect(voci).toEqual([]);
+    expect(prisma.clientProfile.findMany).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ **Si legge il PROFILO, non l'attività** — e la differenza è quando la riga sparisce.
+   * L'attività si chiude quando la visita è **fissata**; il blocco cade solo quando la nutrizionista
+   * **rivaluta**. Fra i due momenti la scadenza è ancora vera, e deve restare in calendario. Il
+   * finto qui risponde solo alla domanda sul profilo: se il codice tornasse a chiedere le attività,
+   * questi test vedrebbero il vuoto.
+   */
+  it('⚠️ le decisioni senza data (prima del 23/8) non entrano: niente giorni inventati', async () => {
+    const voci = await vociCalendario(finto([profilo({ idoneitaVisitaEntro: null })]) as never, {
+      dal: new Date('2026-09-01'),
+      scadenzeVisite: true,
+    });
+    expect(voci).toEqual([]);
+  });
+
+  /**
+   * ⛔ **E una visita fissata PROPRIO quel giorno non fa sparire il promemoria.** Sono due
+   * informazioni diverse — «ci vediamo giovedì» e «se giovedì non si fa, i menu si fermano» — e la
+   * seconda è quella con la conseguenza automatica.
+   */
+  it('⛔ convive con una visita fissata nello stesso giorno', async () => {
+    const prisma = finto([profilo()]);
+    prisma.visit.findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'vis-1', clientId: 'c1', nutritionistId: 'n1', type: 'in_person',
+        datetime: new Date('2026-09-30T00:00:00.000Z'), endsAt: null, videoRoomId: null,
+        nutritionist: { displayName: 'Lucia' },
+      },
+    ]);
+    const voci = await vociCalendario(prisma as never, { dal: new Date('2026-09-01'), scadenzeVisite: true });
+    expect(voci.map((v) => v.fonte).sort()).toEqual(['scadenza', 'visita']);
+  });
+});

@@ -8,6 +8,7 @@ import {
   useCancellaMessaggio,
 } from '../components/cancellaMessaggio';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { giornoIso, giornoItaliano } from '../lib/giorno';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
 import { useTaxonomy } from '../lib/taxonomy';
@@ -23,7 +24,7 @@ interface Detail {
    * Il via libera clinico (13/8). `esito: null` + `daValutare: true` = nessuno l'ha ancora guardata.
    * ⚠️ `serve_visita` NON è «da valutare»: qualcuno l'ha guardata e ha deciso che la visita serve.
    */
-  idoneita?: { esito: string | null; decisaIl: string | null; daValutare: boolean };
+  idoneita?: { esito: string | null; decisaIl: string | null; daValutare: boolean; visitaEntro?: string | null };
   /**
    * La dieta COLLEGATA alla cliente, con la descrizione per esteso. Lo stile («Mediterranea») non
    * basta a dire quale sia: tre diete diverse hanno `style = mediterranean`. Vedi il commento in
@@ -762,12 +763,54 @@ export function ClientDetail() {
       '',
     );
     if (nota === null) return;
+
+    /**
+     * ⛔ **«SERVE UNA VISITA» VUOLE LA DATA ENTRO CUI FARLA** — richiesta di Simone del 23/8.
+     *
+     * È ciò che rende la decisione una cosa che **succede**: fino a quel giorno compreso la cliente
+     * riceve i menu, dal giorno dopo il percorso si ferma da solo. Senza, si torna al mondo di prima
+     * — la valutazione scritta sulla scheda che non cambia niente per nessuno.
+     *
+     * ⚠️ **Non c'è un valore già scritto nel campo**, ed è voluto: una scadenza clinica proposta dal
+     * software è una scadenza che quasi nessuno cambia, e diventerebbe una regola che non ha deciso
+     * nessuno. La domanda va fatta, e la risposta la dà chi sta valutando.
+     *
+     * ⚠️ Si accettano tutte e due le forme, `30/09/2026` e `2026-09-30`: chi scrive una data in un
+     * riquadro la scrive come la scrive, e rifiutarla per il formato è il modo di far ripetere tre
+     * volte un lavoro già fatto.
+     */
+    let visitaEntro: string | undefined;
+    if (esito === 'serve_visita') {
+      const risposta = prompt(
+        'Entro quale giorno va fatta la visita?\n\nFino a quel giorno compreso la cliente continua a ricevere i menu. Dal giorno dopo il percorso si ferma.\n\nScrivi la data come 30/09/2026 oppure 2026-09-30.',
+        '',
+      );
+      if (risposta === null) {
+        /**
+         * ⚠️ **L'annullamento si dice.** Qui la nutrizionista ha già scritto la nota (minimo dieci
+         * caratteri): tornare in silenzio gliela butta senza una parola, e un eventuale banner
+         * vecchio resterebbe a schermo a raccontare tutt'altro. Non è un errore suo — è la verità
+         * su cosa è successo.
+         */
+        setNotice(null);
+        setError('Valutazione NON salvata: senza la data entro cui fare la visita non si registra. La nota scritta non è stata salvata — rifai quando hai la data.');
+        return;
+      }
+      const letta = giornoIso(risposta);
+      if (!letta) {
+        setNotice(null);
+        setError('Valutazione NON salvata — non ho capito la data della visita: scrivila come 30/09/2026 oppure 2026-09-30, e rifai da capo (anche la nota).');
+        return;
+      }
+      visitaEntro = letta;
+    }
+
     setError(null);
     setNotice(null);
     try {
       const esitoRisposta = await api<{ segnalazioniChiuse: number; attivitaAperta?: boolean; attivitaGiaPresente?: boolean; attivitaSenzaCoach?: boolean }>(`/admin/clients/${id}/idoneita`, {
         method: 'POST',
-        body: JSON.stringify({ esito, nota: nota.trim() }),
+        body: JSON.stringify({ esito, nota: nota.trim(), ...(visitaEntro ? { visitaEntro } : {}) }),
       });
       const coda = esitoRisposta.segnalazioniChiuse
         ? ` ${esitoRisposta.segnalazioniChiuse} segnalazione/i clinica/e chiusa/e.`
@@ -795,7 +838,13 @@ export function ClientDetail() {
                    adesso), il testo è aggiornato ma la push non riparte, e va detto. */
                 ? ' L\'attività alla coach c\'era già da oggi: l\'ho aggiornata. ⚠️ Una nuova notifica però non parte: se hai appena assegnato la coach, avvisala tu.'
                 : ' Ho aperto un\'attività alla coach: «Fissa la visita».';
-      setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${coda}${attivita}`);
+      /**
+       * ⚠️ **La conferma ripete la data**, e non per gentilezza: è il momento in cui un `09` battuto
+       * al posto di un `10` si vede ancora. Dopo, quella data vive dentro una nota e dentro
+       * un'attività, e chi la rilegge non ha modo di sapere che non era quella intesa.
+       */
+      const quando = visitaEntro ? ` La visita va fatta entro il ${giornoItaliano(visitaEntro)}: da lì in poi i menu si fermano.` : '';
+      setNotice(`Valutazione registrata: ${esito === 'idonea' ? 'può proseguire' : 'serve una visita'}.${quando}${coda}${attivita}`);
       /**
        * ⚠️ Il banner (di esito o di errore) sta IN CIMA alla pagina, e questo pulsante sta in fondo
        * alla scheda. Il 13/8 la rotta era sbagliata e il 404 finiva in un banner tre schermate più
@@ -1749,7 +1798,13 @@ export function ClientDetail() {
                 d?.idoneita?.esito === 'idonea'
                   ? `Può proseguire${d.idoneita.decisaIl ? ` · ${date(d.idoneita.decisaIl)}` : ''}${p.idoneitaDecisaDa?.displayName ? ` · ${p.idoneitaDecisaDa.displayName}` : ''}`
                   : d?.idoneita?.esito === 'serve_visita'
-                    ? `Serve una visita${d.idoneita.decisaIl ? ` · ${date(d.idoneita.decisaIl)}` : ''}${p.idoneitaDecisaDa?.displayName ? ` · ${p.idoneitaDecisaDa.displayName}` : ''}`
+                    /* ⛔ **La scadenza si legge qui, non solo nella nota** (23/8): è l'unico dato di
+                       questa riga che ha una conseguenza automatica — passato quel giorno i menu si
+                       fermano da soli. Chi apre la scheda deve saperlo senza andare a cercarlo.
+                       ⚠️ Senza data (le decisioni salvate prima del 23/8) non si scrive «entro —»:
+                       si tace. Un trattino dove dovrebbe esserci un giorno fa sembrare rotta la
+                       riga invece che vecchia. */
+                    ? `Serve una visita${d.idoneita.visitaEntro ? ` · visita entro il ${date(d.idoneita.visitaEntro)}` : ''}${d.idoneita.decisaIl ? ` · decisa il ${date(d.idoneita.decisaIl)}` : ''}${p.idoneitaDecisaDa?.displayName ? ` · ${p.idoneitaDecisaDa.displayName}` : ''}`
                     // ⚠️ «Da valutare» e «nessuno deve valutarla» sono due cose diverse: la prima è
                     // una cosa da fare, la seconda è il silenzio giusto.
                     : d?.idoneita?.daValutare

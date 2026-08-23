@@ -285,6 +285,16 @@ export default function Menu() {
         </div>
       )}
 
+      {/*
+        ⛔ **Il promemoria della visita si mostra a chi il menu CE L'HA** (corretto in revisione).
+        La prima stesura lo aveva appeso al ramo `!selDay` — che è vero solo quando non c'è nessun
+        giorno da mostrare, cioè quando lo stato non può essere `available`: il ramo era
+        irraggiungibile, e chi era nella finestra (che i menu li ha davanti) non vedeva niente.
+        `MenuStatusBanner` con lo stato `available` rende solo l'avviso: è il componente a sapere
+        cosa mostrare, qui si decide solo QUANDO farlo comparire.
+      */}
+      {selDay && status?.visitaDaFareEntro && <MenuStatusBanner status={status} />}
+
       {!selDay ? (
         status && status.state !== 'available' ? (
           <MenuStatusBanner status={status} />

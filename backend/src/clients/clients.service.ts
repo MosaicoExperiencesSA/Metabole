@@ -533,6 +533,9 @@ export class ClientsService {
       idoneita: {
         esito: (profile as { idoneita?: string | null } | null)?.idoneita ?? null,
         decisaIl: (profile as { idoneitaDecisaIl?: Date | null } | null)?.idoneitaDecisaIl ?? null,
+        // ⚠️ La scadenza della visita esce nella scheda: è l'unico campo di questa riga che ha una
+        // conseguenza automatica (passato quel giorno i menu si fermano), e va letta senza cercarla.
+        visitaEntro: (profile as { idoneitaVisitaEntro?: Date | null } | null)?.idoneitaVisitaEntro ?? null,
         daValutare: daValutare({
           allergies: (profile as { allergies?: string[] } | null)?.allergies ?? [],
           idoneita: (profile as { idoneita?: string | null } | null)?.idoneita ?? null,
@@ -654,7 +657,7 @@ export class ClientsService {
    * ⚠️ NESSUN BLOCCO: percorso e menu continuano comunque. Bloccare l'erogazione vorrebbe dire
    * sospendere piani attivi a clienti paganti per un campo introdotto oggi.
    */
-  async decidiIdoneita(userId: string, actorId: string, esitoGrezzo: unknown, notaGrezza: unknown) {
+  async decidiIdoneita(userId: string, actorId: string, esitoGrezzo: unknown, notaGrezza: unknown, visitaEntroGrezza?: unknown) {
     await this.assertClientAccess(actorId, userId);
     const attore = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
     if (!(await this.roleCanManage(attore?.role ?? '', 'clinical_clearance'))) {
@@ -666,9 +669,9 @@ export class ClientsService {
     if (!user) throw new NotFoundException('Utente non trovato.');
     if (user.role !== 'client') throw new ForbiddenException('L\'idoneità si decide solo per i clienti.');
 
-    let decisione: { esito: Idoneita; nota: string };
+    let decisione: { esito: Idoneita; nota: string; visitaEntro: string | null };
     try {
-      decisione = validaDecisione(esitoGrezzo, notaGrezza);
+      decisione = validaDecisione(esitoGrezzo, notaGrezza, visitaEntroGrezza);
     } catch (e) {
       // `NotaMancante` porta già la frase giusta per chi sta guardando la scheda: si traduce nel
       // 400 senza riscriverla, o si finirebbe con due versioni dello stesso messaggio.
@@ -679,7 +682,7 @@ export class ClientsService {
     const nota = await this.prisma.clientNote.create({
       data: {
         clientId: userId,
-        body: testoNota(decisione.esito, decisione.nota).slice(0, 5000),
+        body: testoNota(decisione.esito, decisione.nota, decisione.visitaEntro).slice(0, 5000),
         authorId: staff?.id,
       },
       select: { id: true, body: true, createdAt: true, author: { select: { displayName: true } } },
@@ -692,6 +695,13 @@ export class ClientsService {
         idoneitaDecisaIl: new Date(),
         idoneitaDecisaDaId: staff?.id ?? null,
         idoneitaNotaId: nota.id,
+        /**
+         * ⚠️ **Si scrive SEMPRE, anche quando è `null`.** Su «Può proseguire» la scadenza va
+         * cancellata: una cliente valutata «serve visita entro il 30» e poi rivalutata «può
+         * proseguire» si porterebbe dietro una data che, il primo di ottobre, la bloccherebbe di
+         * nuovo — con una decisione che dice il contrario scritta sulla stessa riga.
+         */
+        idoneitaVisitaEntro: decisione.visitaEntro ? new Date(`${decisione.visitaEntro}T00:00:00.000Z`) : null,
       } as never,
     });
 
@@ -721,7 +731,7 @@ export class ClientsService {
     let attivitaSenzaCoach = false;
     if (decisione.esito === 'serve_visita') {
       try {
-        const esito = await this.apriLaVisitaDaFissare(userId);
+        const esito = await this.apriLaVisitaDaFissare(userId, decisione.visitaEntro);
         // ⚠️ «C'era già» è un successo, non un errore: l'attività c'è. Confonderli vuol dire dire a
         // chi ha appena deciso che non è partito niente (revisione della notte del 18/8).
         //
@@ -751,7 +761,7 @@ export class ClientsService {
       actorId,
       entityType: 'user',
       entityId: userId,
-      metadata: { esito: decisione.esito, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta, attivitaGiaPresente, attivitaSenzaCoach },
+      metadata: { esito: decisione.esito, visitaEntro: decisione.visitaEntro, notaId: nota.id, segnalazioniChiuse: chiuse.count, attivitaAperta, attivitaGiaPresente, attivitaSenzaCoach },
     });
 
     return {
@@ -777,6 +787,7 @@ export class ClientsService {
    */
   private async apriLaVisitaDaFissare(
     clientId: string,
+    visitaEntro: string | null,
   ): Promise<{ esito: EsitoApertura; senzaCoach: boolean }> {
     const cliente = (await this.prisma.user.findUnique({
       where: { id: clientId },
@@ -813,6 +824,7 @@ export class ClientsService {
       nutrizionista: cliente?.clientProfile?.assignedNutritionist?.displayName,
       visiteDisponibili: disponibili,
       coach,
+      visitaEntro,
     });
     /**
      * ⚠️ `refId` È IL GIORNO DELLA DECISIONE, non l'id della nota — corretto rileggendo, la sera
@@ -830,6 +842,17 @@ export class ClientsService {
       refId: `serve_visita:${giornoLocale(new Date())}`,
       title,
       description,
+      /**
+       * ⚠️ **La `dueDate` dell'attività resta «domani» (il default), NON la scadenza della visita** —
+       * corretto in revisione. La prima stesura le metteva la scadenza clinica (fino a 180 giorni),
+       * e sembrava elegante: una data sola dappertutto. Ma la `dueDate` è «entro quando la COACH deve
+       * muoversi», e fissare una visita è una telefonata da fare domani, non fra sei mesi. Con la
+       * scadenza lunga: l'escalation al manager (`dueDate < oggi`) sarebbe scattata **il giorno dopo
+       * che i menu della cliente si erano già fermati** invece del giorno dopo l'inerzia della coach,
+       * e l'ordinamento per scadenza (`list`) avrebbe seppellito l'attività in fondo all'elenco.
+       * La scadenza della VISITA viaggia nel titolo, nella nota, in scheda e in calendario — che
+       * legge il profilo, non questa attività.
+       */
     });
     return { esito, senzaCoach: !coach };
   }

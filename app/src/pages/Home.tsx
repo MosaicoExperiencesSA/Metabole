@@ -374,7 +374,18 @@ export default function Home() {
       <PendingBankTransfers />
 
       {/* Menu non ancora visibile: spiega perché e quando arriva (niente banner se c'è già il menu di oggi). */}
-      {menuStatus && (!meals || meals.length === 0) && <MenuStatusBanner status={menuStatus} />}
+      {/*
+        ⚠️ **`|| visitaDaFareEntro`, e senza è come non averlo scritto** (23/8). Il promemoria della
+        visita («va fatta entro il 30, dopo i menu si fermano») serve proprio a chi i menu li sta
+        **ricevendo**: è l'unico momento in cui è utile. Con la sola condizione «nessun pasto» lo
+        avrebbe visto solo chi era già fermo per un altro motivo — cioè quasi nessuno, e il blocco le
+        sarebbe arrivato addosso lo stesso senza preavviso.
+        ⚠️ Il componente sa già stare zitto da solo (`menuStatusView` rende `null` su `available`):
+        questa riga è una seconda copia della stessa decisione, e va tenuta d'accordo con quella.
+      */}
+      {menuStatus && (!meals || meals.length === 0 || menuStatus.visitaDaFareEntro) && (
+        <MenuStatusBanner status={menuStatus} />
+      )}
 
       {/* IL MENU DI OGGI */}
       {meals && meals.length > 0 && (

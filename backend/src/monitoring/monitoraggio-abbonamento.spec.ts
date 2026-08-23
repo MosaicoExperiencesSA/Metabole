@@ -43,10 +43,26 @@ function makeService(prisma: Record<string, unknown>) {
   return { service, notifications, audit };
 }
 
+const GIORNO = 86_400_000;
+
+/**
+ * Un periodo di Monitoraggio **in corso**: cominciato tre settimane fa, finisce fra otto giorni.
+ *
+ * ⛔ **La finestra si conta da ADESSO, non è scritta a mano** — 23/8. Qui c'era
+ * `2026-08-01 → 2026-09-01`, e dal **2 settembre** quel periodo sarebbe risultato finito da solo:
+ * `dailyTick` lo avrebbe chiuso (`status: 'expired'`) invece di fissare il peso di riferimento, e il
+ * test sarebbe diventato rosso **per sempre**. ⚠️ Una CI rossa per sempre è una CI che si smette di
+ * guardare, e allora il primo difetto vero arriva in produzione in mezzo al rumore.
+ *
+ * ⚠️ E `Date.now() + n` qui è la porta **giusta**, mentre altrove in questa consegna è stata tolta:
+ * `endsAt` non è un giorno di calendario — il servizio lo scrive con `Date.now() + giorni * 86_400_000`
+ * e lo confronta con `p.endsAt.getTime() <= now.getTime()`. La regola non è «mai `Date.now()`»: è che
+ * il test chieda alla **stessa porta del codice**.
+ */
 const periodo = (over: Record<string, unknown> = {}) => ({
   id: 'per-1', clientId: 'cli-1', status: 'active',
-  startedAt: new Date('2026-08-01T00:00:00.000Z'),
-  endsAt: new Date('2026-09-01T00:00:00.000Z'),
+  startedAt: new Date(Date.now() - 22 * GIORNO),
+  endsAt: new Date(Date.now() + 8 * GIORNO),
   referenceWeightKg: 70, regainOfferedAt: null, frozenAt: null, closedAt: null,
   convertedTo: null, lastMeasureAskAt: null,
   ...over,

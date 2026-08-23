@@ -55,7 +55,21 @@ export class DietAgentService {
     private readonly configParams: ConfigParamsService,
   ) {}
 
-  async stateFor(clientId: string): Promise<AgentState> {
+  /**
+   * ⛔ **`giornoServito`: lo stato è quello del giorno CHE SI STA COMPONENDO, non di oggi** (23/8).
+   *
+   * Nasce dal rientro dalla sospensione: l'ultimo giorno di vacanza si compone il menu del **primo
+   * giorno di dieta**, quello dopo. Guardando «oggi» — che è ancora vacanza — questa funzione
+   * rispondeva `vacanza`, e il motore componeva la giornata della ripartenza con i pesi del
+   * gradimento invece che dell'efficacia: cioè «tieni il peso» proprio nel giorno in cui la cliente
+   * ricomincia a cercare il calo. Il contrario di quello che serve.
+   *
+   * ⚠️ Vale **solo per la modalità viaggio**, che ha le sue date e quindi una risposta diversa a
+   * seconda del giorno. Gli altri segnali (plateau, conforto, eventi, rientro) restano misurati su
+   * oggi: sono letture dello stato attuale della cliente, e spostarle di un giorno non le
+   * migliorerebbe.
+   */
+  async stateFor(clientId: string, giornoServito?: Date): Promise<AgentState> {
     const [preDays, postDays, plateauPesate, comfortMax, reentryDays, travelMaxDays, returnDays] = await Promise.all([
       this.configParams.getNumber('agent_pre_event_days', 3),
       this.configParams.getNumber('agent_post_event_days', 3),
@@ -72,7 +86,7 @@ export class DietAgentService {
       where: { userId: clientId },
       select: { travelState: true, travelStart: true, travelEnd: true },
     })) as { travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null;
-    const viaggio = statoViaggioAttivo(profilo, new Date(), travelMaxDays);
+    const viaggio = statoViaggioAttivo(profilo, giornoServito ?? new Date(), travelMaxDays);
     // In vacanza: menu che mangerà davvero. È il senso di «Vacanze in Serenità» — si tiene il
     // peso, non si cerca il calo — e vince anche su plateau e conforto.
     if (viaggio === 'in_vacanza') return 'vacanza';

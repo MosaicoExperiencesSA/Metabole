@@ -81,6 +81,14 @@ const PERIMETRO = [
    *    `istanteDiPartenza` sul valore, non sulla stringa.
    */
   'menu/data-inizio-chat.service.ts',
+  /**
+   * Aggiunti il 23/8 col via libera clinico. `via-libera-clinico.ts` è la riga in cui la distinzione
+   * fra le due domande costa un giorno di menu a una persona: «oggi» si chiede a `aGiorno` (Roma), la
+   * scadenza salvata si rilegge con `giornoDelDato` (UTC, com'è scritta). `idoneita.ts` valida la
+   * data nuova contro l'oggi di Roma.
+   */
+  'clients/via-libera-clinico.ts',
+  'clients/idoneita.ts',
 ];
 
 /**

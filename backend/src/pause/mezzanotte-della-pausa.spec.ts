@@ -16,7 +16,10 @@ describe('surveillanceTick — il giorno è quello di Roma', () => {
   it('all’una di notte del 19 cerca le pause del 19, non del 18', async () => {
     const pauseRequest = { findMany: jest.fn().mockResolvedValue([]) };
     const subscription = { findMany: jest.fn().mockResolvedValue([]) };
-    const prisma = { pauseRequest, subscription } as never;
+    // ⚠️ `event` serve al passo 3-bis (la pesata del rientro, 23/8): qui nessuna sospensione in
+    // finestra, il test misura solo il giorno della query sulle pause.
+    const event = { findMany: jest.fn().mockResolvedValue([]) };
+    const prisma = { pauseRequest, subscription, event } as never;
     const configParams = { getNumber: jest.fn(async (_k: string, d: number) => d) } as never;
     const service = new PauseService(prisma, {} as never, {} as never, configParams, {} as never);
 

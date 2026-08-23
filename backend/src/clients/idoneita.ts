@@ -23,6 +23,8 @@
  */
 
 /** `null` = nessuno l'ha ancora valutata. È lo stato in cui si trova oggi chiunque. */
+import { aGiorno } from '../common/date-only';
+
 export type Idoneita = 'idonea' | 'serve_visita';
 
 export const IDONEITA_VALIDE: readonly Idoneita[] = ['idonea', 'serve_visita'];
@@ -44,10 +46,30 @@ export class NotaMancante extends Error {
   }
 }
 
+/**
+ * Quanto in là può stare la scadenza della visita. Non è una regola clinica: è il freno al refuso.
+ * Un anno battuto male («2027» al posto di «2026») produrrebbe una finestra aperta per dodici mesi
+ * su una persona che qualcuno ha appena giudicato da visitare — cioè il contrario della decisione.
+ */
+export const MAX_GIORNI_VISITA_ENTRO = 180;
+
 /** Il testo che finisce nella lista note, dove la coach le cerca già. */
-export function testoNota(esito: Idoneita, nota: string): string {
+export function testoNota(esito: Idoneita, nota: string, visitaEntro?: string | null): string {
   const intestazione = esito === 'idonea' ? 'Può proseguire' : 'Serve una visita';
-  return `Valutazione clinica — ${intestazione}: ${nota.trim()}`;
+  /**
+   * ⚠️ **La scadenza va nella nota**, non solo nel campo: la nota è quello che la coach legge in
+   * elenco e quello che resta se un domani il campo cambia nome. E soprattutto è la riga che dice
+   * *da quando* i menu si fermano — un blocco senza una data accanto è un blocco che nessuno sa
+   * spiegare alla cliente che telefona.
+   */
+  const scadenza = esito === 'serve_visita' && visitaEntro ? ` (visita entro il ${dataItaliana(visitaEntro)})` : '';
+  return `Valutazione clinica — ${intestazione}${scadenza}: ${nota.trim()}`;
+}
+
+/** `2026-09-30` → `30/09/2026`. Per i testi che leggono le persone. */
+export function dataItaliana(giorno: string): string {
+  const [a, m, g] = giorno.split('-');
+  return `${g}/${m}/${a}`;
 }
 
 /**
@@ -56,7 +78,12 @@ export function testoNota(esito: Idoneita, nota: string): string {
  * Solleva `NotaMancante` con una frase che dice **cosa fare**, non quale campo manca: chi la legge
  * è una nutrizionista davanti a una scheda, non chi ha scritto l'endpoint.
  */
-export function validaDecisione(esito: unknown, nota: unknown): { esito: Idoneita; nota: string } {
+export function validaDecisione(
+  esito: unknown,
+  nota: unknown,
+  visitaEntro?: unknown,
+  oggi: Date = new Date(),
+): { esito: Idoneita; nota: string; visitaEntro: string | null } {
   if (!IDONEITA_VALIDE.includes(esito as Idoneita)) {
     throw new NotaMancante('Scegli se la cliente può proseguire o se serve una visita.');
   }
@@ -66,8 +93,45 @@ export function validaDecisione(esito: unknown, nota: unknown): { esito: Idoneit
       'Scrivi una nota che spieghi la decisione: la leggerà anche la coach, e fra un mese sarà l’unica cosa che dice perché hai deciso così.',
     );
   }
-  return { esito: esito as Idoneita, nota: testo };
+
+  /**
+   * ⛔ **«Può proseguire» non porta scadenze**, e se ne arriva una si butta invece di salvarla:
+   * un campo scritto che nessuno legge è il posto da cui un giorno esce una regola che nessuno ha
+   * deciso. La cliente è libera e basta.
+   */
+  if (esito === 'idonea') return { esito: 'idonea', nota: testo, visitaEntro: null };
+
+  /**
+   * ⛔ **E «serve una visita» SENZA data non si salva** (decisione di Simone, 23/8). La data è ciò
+   * che rende la decisione una cosa che succede: senza, si torna al mondo di prima, in cui la
+   * valutazione restava scritta sulla scheda e non cambiava niente per nessuno.
+   */
+  const giorno = typeof visitaEntro === 'string' ? visitaEntro.trim().slice(0, 10) : '';
+  if (!SOLO_DATA.test(giorno)) {
+    throw new NotaMancante('Scrivi entro quando va fatta la visita: da quel giorno in poi i menu si fermano.');
+  }
+  const scelto = new Date(`${giorno}T00:00:00.000Z`);
+  if (Number.isNaN(scelto.getTime())) {
+    throw new NotaMancante('Quella data non esiste: controlla il giorno della visita.');
+  }
+  /**
+   * ⚠️ Il confronto è fra **giorni**, e «oggi» è il giorno di Roma: una scadenza messa a oggi è
+   * legittima (la visita è stasera) e non deve essere rifiutata perché in UTC è già domani.
+   */
+  const oggiGiorno = aGiorno(oggi).getTime();
+  if (scelto.getTime() < oggiGiorno) {
+    throw new NotaMancante('La data della visita è già passata: metti il giorno entro cui va fatta.');
+  }
+  if (scelto.getTime() - oggiGiorno > MAX_GIORNI_VISITA_ENTRO * 86_400_000) {
+    throw new NotaMancante(
+      `La visita non può essere rimandata di più di ${MAX_GIORNI_VISITA_ENTRO} giorni: controlla l’anno.`,
+    );
+  }
+  return { esito: 'serve_visita', nota: testo, visitaEntro: giorno };
 }
+
+/** `2026-09-30`, e nient'altro. */
+const SOLO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * «Questa cliente ha bisogno di essere valutata?» — il flag derivato del §8 dell'handoff, in sola

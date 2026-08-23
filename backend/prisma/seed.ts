@@ -199,6 +199,18 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni prima dell\'inizio piano in cui il menu diventa visibile',
   },
   {
+    key: 'pause_min_gap_days',
+    value: '15',
+    type: 'number',
+    description: 'Giorni che devono passare dal rientro prima che la cliente possa chiedere un\'altra sospensione (dal back office la coach la attiva comunque)',
+  },
+  {
+    key: 'menu_visible_days_before_return',
+    value: '1',
+    type: 'number',
+    description: 'Giorni prima del rientro da una sospensione in cui si chiede la pesata e si eroga il menu del rientro',
+  },
+  {
     key: 'plan_start_change_lock_hours',
     value: '24',
     type: 'number',

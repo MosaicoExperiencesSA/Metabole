@@ -25,7 +25,7 @@ function makeService(prisma: unknown, parametri: Record<string, number> = {}) {
     getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
   };
   const audit = { log: jest.fn() };
-  const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+  const events = { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) };
   const dietAgent = { stateFor: jest.fn().mockResolvedValue('normale') };
   return new MenuService(
     prisma as PrismaService,

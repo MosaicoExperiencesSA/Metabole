@@ -18,6 +18,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-23
+
+- `[Sviluppo]` ✈️ **La modalità viaggio sospende davvero, le sue date si leggono in scheda, e il
+  rientro arriva con un giorno d'anticipo.** Due richieste di Simone dalla card «Modalità viaggio»:
+  *«dove vedo le date delle sospensioni?»* (risposta di prima: da nessuna parte) e *«se la vacanza
+  finisce il 24, il 23 le chiedo le misure ed erogo il menu del 24»*. Sotto c'era un equivoco: la
+  card scriveva tre campi sul profilo e **non fermava niente**, mentre l'app chiama «modalità
+  viaggio» il `pause_period` creato da altre porte.
+  ✅ Porta unica del rientro (`pause/giorno-di-rientro.ts`): salvato = ultimo giorno sospeso,
+  scritto/letto = «Riprende il», il primo giorno di dieta. ✅ Finestra di rientro
+  (`menu_visible_days_before_return`, 1): il giorno prima si chiede la pesata — in app **e dal giro
+  notturno**, su tutte le sospensioni, Calendario compreso — e si eroga il menu **del giorno di
+  rientro**, con lo stato dell'agente di quel giorno; il cancello sopravvive al giorno del rientro
+  (`pausaAppenaFinita`) e il banner riusa `awaiting_cycle_measure` (le app vecchie non restano a
+  schermo vuoto), con la data in `returnDate`. ✅ La card **sospende davvero** e allunga la scadenza
+  dei soli giorni **futuri**; il registro dei giorni concessi (`pauseRequest` etichettata, date mai
+  riscritte all'indietro) impedisce il doppio regalo — **due giri di revisione avversariale hanno
+  buttato giù le prime due stesure proprio qui** (vacanza passata salvata dalla card precompilata,
+  togli-e-rimetti che azzerava la memoria, riuso dell'evento su date nuove). ✅ Elenco in scheda
+  (`GET /admin/clients/:id/sospensioni`): periodi veri con l'origine, richieste anche decise,
+  storico della card (con le date, da oggi), periodi dichiarati in onboarding. ✅ Le regole di
+  Simone: **massimo 20 giorni** dall'interfaccia; **tregua di 15 giorni** fra due vacanze
+  (`pause_min_gap_days`) che ferma le porte della cliente («parlane con la tua coach») e in back
+  office avvisa senza fermare. ✅ Permesso nuovo `travel_mode` — ⚠️ **solo admin di default: va
+  acceso in Permessi a chi usa la card**. ✅ `npm run sblocca:sospensione` per chiudere una
+  sospensione dalla shell. ✅ Il kit «Bentornata» non sovrascrive più giornate già erogate
+  (`update: {}`). 4798 test in 305 suite, build veri di app e backoffice. Nessuna migrazione.
+  ⚠️ **Aperte**: il Calendario in app crea sospensioni che NON allungano la scadenza (stessa
+  vacanza, soldi diversi per porta — decisione di prodotto); e il motore esce **muto** quando la
+  dieta non ha giornate al livello richiesto (caso Lorena, 23/8: «Digiuno 16:8» approvata a 4
+  settimane, zero erogazione, zero log — sbloccata passandola a Mediterranea).
+
 ## 2026-08-21
 
 - `[Sviluppo]` 🗑️ **I pasti del digiuno non si scelgono più da nessuna parte — e nella scheda

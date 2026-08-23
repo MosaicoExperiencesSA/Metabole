@@ -357,6 +357,10 @@ export class CoachService {
       clientIds: ids,
       dal: startToday,
       nomiCliente: new Map(profiles.map((p) => [p.userId, p.name])),
+      // ⛔ Le scadenze delle visite (23/8): SOLO qui, nel calendario dello staff. `clientAgenda`
+      // non passa il flag, e non deve: per la cliente quella riga sarebbe un appuntamento che non
+      // esiste, a un'ora inventata.
+      scadenzeVisite: true,
     });
 
     return {

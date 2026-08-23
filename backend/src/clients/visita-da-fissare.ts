@@ -43,12 +43,16 @@ export const TIPO_VISITA_DA_FISSARE = 'visita_da_fissare';
  * ⚠️ E non si scrive che la cliente «deve» comprare qualcosa: si dice alla coach cosa c'è e cosa
  * manca. Quello che si dice alla cliente lo decide lei, che ha la nota davanti.
  */
+import { dataItaliana } from './idoneita';
+
 export function testoVisitaDaFissare(p: {
   nome?: string | null;
   nutrizionista?: string | null;
   visiteDisponibili?: number | null;
   /** ⚠️ Chi riceve l'attività. Assente = **nessuno la riceve**, e va detto. */
   coach?: string | null;
+  /** Il giorno entro cui la visita va fatta, `AAAA-MM-GG`. Dal giorno dopo i menu si fermano. */
+  visitaEntro?: string | null;
 }): { title: string; description: string } {
   const chi = (p.nome ?? '').trim() || 'la cliente';
   const conChi = (p.nutrizionista ?? '').trim();
@@ -72,10 +76,27 @@ export function testoVisitaDaFissare(p: {
         ? `Ha ${p.visiteDisponibili} visit${p.visiteDisponibili === 1 ? 'a' : 'e'} già disponibil${p.visiteDisponibili === 1 ? 'e' : 'i'}: può prenotare da sola dall'app, o fissatela insieme.`
         : '⚠️ NON ha visite disponibili: dall\'app non riesce a prenotare («serve prima acquistarla dal negozio»). Prima di proporle un orario, vedete insieme come fare.';
 
+  /**
+   * ⛔ **LA SCADENZA STA NEL TITOLO, non solo nel testo** (23/8). È l'unico dato di questa attività
+   * che ha una conseguenza automatica: passato quel giorno i menu della cliente **si fermano da
+   * soli**. Una coach che scorre l'elenco vede prima i titoli, e «Fissa la visita per Anna» senza
+   * data assomiglia a tutte le altre cose da fare — mentre questa ha una data oltre la quale
+   * qualcuno smette di mangiare secondo il piano.
+   *
+   * ⚠️ Senza data si tace invece di scrivere «entro —». Sono le decisioni salvate prima che la data
+   * esistesse: mettere un trattino dove dovrebbe esserci un giorno fa sembrare rotta l'attività
+   * invece che vecchia la riga.
+   */
+  const entro = (p.visitaEntro ?? '').trim();
+  const scadenza = entro ? ` (entro il ${dataItaliana(entro)})` : '';
+
   return {
-    title: `Fissa la visita per ${chi}`,
+    title: `Fissa la visita per ${chi}${scadenza}`,
     description:
       `La nutrizionista ha deciso che ${chi} deve fare una visita prima di proseguire. ` +
+      (entro
+        ? `⚠️ Va fatta **entro il ${dataItaliana(entro)}**: fino a quel giorno compreso ${chi} continua a ricevere i menu, dal giorno dopo il percorso si ferma. `
+        : '') +
       'Il motivo è nella sua nota, in cima alla lista note della scheda: leggila prima di chiamarla. ' +
       `${credito}` +
       (conChi ? ` La sua nutrizionista è ${conChi}.` : ' ⚠️ Non ha una nutrizionista assegnata: senza, non ci sono orari da scegliere.') +

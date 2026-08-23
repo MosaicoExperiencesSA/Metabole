@@ -13,15 +13,22 @@ interface Appointment {
    * le sue clienti, non solo quelli che ha preso lei. Va detto quale è quale, o fissa la chiamata
    * mezz'ora prima di una visita credendo la giornata libera.
    */
-  fonte?: 'visita' | 'appuntamento';
+  fonte?: 'visita' | 'appuntamento' | 'scadenza';
   staffRole?: string;
   staffName?: string | null;
-  type: 'call' | 'televisit' | 'in_person';
+  type: 'call' | 'televisit' | 'in_person' | 'scadenza_visita';
   datetime: string;
   note: string | null;
+  /** Riga di tutto il giorno (le scadenze): l'orario dentro `datetime` non vuol dire niente. */
+  tuttoIlGiorno?: boolean;
 }
 
-const TYPE: Record<Appointment['type'], [string, string]> = {
+/** Il giorno senza l'ora: per le scadenze, dove l'orario è un artefatto del salvataggio. */
+function soloGiorno(iso: string): string {
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+}
+
+const TYPE: Partial<Record<Appointment['type'], [string, string]>> = {
   call: ['ti-phone', 'Chiamata'],
   televisit: ['ti-video', 'Televisita'],
   in_person: ['ti-map-pin', 'In presenza'],
@@ -43,6 +50,27 @@ export default function CoachAgenda() {
               {d.appointments.map((a) => {
                 const t = TYPE[a.type] ?? ['ti-calendar', 'Appuntamento'];
                 const visita = a.fonte === 'visita';
+                /**
+                 * ⛔ **Una SCADENZA non è un appuntamento, e non ha un'ora** (23/8). È l'ultimo
+                 * giorno utile per la visita di una cliente: da domani i suoi menu si fermano.
+                 * Senza questo ramo la riga usciva come «30 set · 02:00 · Appuntamento» — un
+                 * incontro che non esiste, a un'ora inventata da un fuso, che qualcuno avrebbe
+                 * provato a disdire.
+                 */
+                if (a.fonte === 'scadenza') {
+                  return (
+                    <div key={a.id} className="sf-row" style={{ cursor: 'default' }}>
+                      <Avatar name={a.clientName} />
+                      <div className="sf-row-main">
+                        <div className="sf-row-name">{fullName(a.clientName)}</div>
+                        <div className="sf-row-sub">
+                          <i className="ti ti-alarm" /> Scadenza visita · {soloGiorno(a.datetime)} · tutto il giorno
+                        </div>
+                        {a.note && <div className="sf-row-sub">{a.note}</div>}
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={a.id} className="sf-row" style={{ cursor: 'default' }}>
                     <Avatar name={a.clientName} />

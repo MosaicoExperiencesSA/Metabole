@@ -184,7 +184,16 @@ export async function avvisaAttivitaNuova(
         userId,
         type: 'coach_task_new',
         title: 'Nuova attività per te 📋',
-        body: `${attivita.title} — ${cliente} (entro il ${scadenza}). ${perLaNutrizionista_dove}`,
+        /**
+         * ⚠️ **Un solo «entro» per messaggio** (23/8). Il titolo della visita da fissare porta già la
+         * scadenza CLINICA («…(entro il 30/09/2026)»), e qui si appendeva anche la scadenza
+         * dell'ATTIVITÀ (domani): «…(entro il 30/09/2026) — Anna (entro il 24/08/2026)», due date con
+         * due significati diversi e nessuna spiegazione. Se il titolo una scadenza ce l'ha già, è
+         * quella che conta per chi legge: la data amministrativa dell'attività resta nell'elenco.
+         */
+        body: attivita.title.includes('(entro il ')
+          ? `${attivita.title} — ${cliente}. ${perLaNutrizionista_dove}`
+          : `${attivita.title} — ${cliente} (entro il ${scadenza}). ${perLaNutrizionista_dove}`,
         payload: { taskId: attivita.id, clientId: attivita.clientId },
       });
     }

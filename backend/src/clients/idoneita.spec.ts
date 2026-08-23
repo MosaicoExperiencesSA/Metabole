@@ -33,6 +33,58 @@ describe('la nota è obbligatoria', () => {
     expect(validaDecisione('idonea', '  Valutata in visita il 12/8, nessuna controindicazione.  ')).toEqual({
       esito: 'idonea',
       nota: 'Valutata in visita il 12/8, nessuna controindicazione.',
+      visitaEntro: null,
+    });
+  });
+
+  /**
+   * ⛔ **«SERVE UNA VISITA» SENZA UNA DATA NON SI SALVA** — decisione di Simone, 23/8.
+   *
+   * La data è ciò che rende la decisione una cosa che **succede**: fino a quel giorno compreso la
+   * cliente riceve i menu, dal giorno dopo il percorso si ferma. Senza, si torna al mondo di prima —
+   * la valutazione scritta sulla scheda che non cambia niente per nessuno, che è il difetto del
+   * caso Gianluca.
+   */
+  describe('⛔ «serve una visita» porta con sé la data entro cui farla', () => {
+    const OGGI = new Date('2026-08-23T10:00:00.000Z');
+    const NOTA = 'Pressione alta dichiarata, la voglio vedere.';
+
+    it('⛔ senza data non passa, e lo dice con la conseguenza', () => {
+      expect(() => validaDecisione('serve_visita', NOTA, undefined, OGGI)).toThrow(/i menu si fermano/);
+      expect(() => validaDecisione('serve_visita', NOTA, '', OGGI)).toThrow();
+      expect(() => validaDecisione('serve_visita', NOTA, 'giovedì', OGGI)).toThrow();
+    });
+
+    it('⛔ una data già passata non passa', () => {
+      expect(() => validaDecisione('serve_visita', NOTA, '2026-08-22', OGGI)).toThrow(/già passata/);
+    });
+
+    /** ⚠️ **Oggi è valido**: la visita può essere stasera, e rifiutarla sarebbe una crudeltà inutile. */
+    it('⚠️ oggi si può: la visita può essere stasera', () => {
+      expect(validaDecisione('serve_visita', NOTA, '2026-08-23', OGGI).visitaEntro).toBe('2026-08-23');
+    });
+
+    it('⛔ e un anno battuto male si ferma qui', () => {
+      expect(() => validaDecisione('serve_visita', NOTA, '2027-08-23', OGGI)).toThrow(/l’anno/);
+    });
+
+    it('con la data passa, e la porta con sé', () => {
+      expect(validaDecisione('serve_visita', NOTA, '2026-09-30', OGGI)).toEqual({
+        esito: 'serve_visita',
+        nota: NOTA,
+        visitaEntro: '2026-09-30',
+      });
+    });
+
+    /**
+     * ⛔ **E «può proseguire» BUTTA la data invece di salvarla.** Una cliente valutata «serve visita
+     * entro il 30» e poi rivalutata «può proseguire» si porterebbe dietro quella data, e il primo di
+     * ottobre verrebbe bloccata di nuovo — con la decisione che dice il contrario scritta sulla
+     * stessa riga. Un campo scritto che nessuno legge è il posto da cui esce una regola che nessuno
+     * ha deciso.
+     */
+    it('⛔ «può proseguire» non si porta dietro nessuna scadenza', () => {
+      expect(validaDecisione('idonea', NOTA, '2026-09-30', OGGI).visitaEntro).toBeNull();
     });
   });
 
@@ -50,6 +102,24 @@ describe('il testo che finisce nella lista note', () => {
     );
     expect(testoNota('serve_visita', 'Allergia grave, la vedo giovedì.')).toBe(
       'Valutazione clinica — Serve una visita: Allergia grave, la vedo giovedì.',
+    );
+  });
+
+  /**
+   * ⛔ **La scadenza va nella NOTA, non solo nel campo.** La nota è quello che la coach legge in
+   * elenco, ed è la riga che dice *da quando* i menu si fermano: un blocco senza una data accanto è
+   * un blocco che nessuno sa spiegare alla cliente che telefona.
+   */
+  it('⛔ e con «serve una visita» la nota porta la data, scritta come la leggono le persone', () => {
+    expect(testoNota('serve_visita', 'Pressione alta.', '2026-09-30')).toBe(
+      'Valutazione clinica — Serve una visita (visita entro il 30/09/2026): Pressione alta.',
+    );
+  });
+
+  /** ⚠️ Su «può proseguire» non compare, anche se per sbaglio gliela si passasse: non vuol dire niente. */
+  it('⚠️ mentre su «può proseguire» non c\'è nessuna scadenza da scrivere', () => {
+    expect(testoNota('idonea', 'Tutto a posto.', '2026-09-30')).toBe(
+      'Valutazione clinica — Può proseguire: Tutto a posto.',
     );
   });
 });

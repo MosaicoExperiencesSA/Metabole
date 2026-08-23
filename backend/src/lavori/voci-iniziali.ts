@@ -1476,6 +1476,185 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'misurate e non corrette. Nessuna migrazione.',
   },
   {
+    chiave: 'via-libera-non-arrivava-al-cliente',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: true,
+    nata: '2026-08-23T14:05',
+    titolo: '⛔ «Può proseguire» non arrivava al cliente: il menu restava fermo per sempre',
+    dettaglio:
+      '⛔ **Trovato su una persona vera, il 23/8.** Sulla scheda di Gianluca: «Valutazione clinica — '
+      + 'Può proseguire · 23/08/2026», con la nota della nutrizionista. Nella sua app, nello stesso '
+      + 'momento: «Menu dopo la visita — il menu sarà pronto dopo la visita con il nutrizionista».\n\n'
+      + '⛔ **La decisione e il blocco erano due campi diversi, e nessuno dei due chiamava l\'altro.** '
+      + 'Il pulsante scrive `idoneita`; il gate del menu, il popup misure e la card leggevano **solo** '
+      + '`screeningFlag`, che lo mette il questionario in registrazione. E `screeningFlag` **non lo '
+      + 'riazzerava nessuno** — non la valutazione, non la visita, non uno script: cercato in tutto il '
+      + 'backend e in `prisma/`. Quindi il via libera clinico, per il cliente, non cambiava '
+      + '**assolutamente niente**, e sarebbe restato così per sempre.\n\n'
+      + '⚠️ È il caso peggiore fra i possibili: non un errore, non un avviso — due schermate che '
+      + 'raccontano due cose diverse alla stessa ora, e quella che il cliente vede è quella sbagliata. '
+      + 'Lui aspetta una visita che non serve più; la nutrizionista pensa di aver fatto. Nessuno dei due '
+      + 'ha modo di accorgersene se non parlandosi. ⚠️ E la card non aveva **nessun** test: il ramo '
+      + '`awaiting_visit` di `menuStatus` non era toccato da niente. È il motivo per cui il difetto è '
+      + 'arrivato a una persona invece che a una suite rossa.\n\n'
+      + '✅ **La regola adesso sta in un posto solo** (`clients/via-libera-clinico.ts`), e il blocco lo '
+      + 'crea lo screening ma a toglierlo è la decisione:\n'
+      + '· nessuna decisione → bloccato, non l\'ha guardato nessuno;\n'
+      + '· **«Può proseguire»** → libero, e resta libero;\n'
+      + '· **«Serve una visita»** → la nutrizionista scrive **entro quando** (campo nuovo, obbligatorio). '
+      + 'Fino a quel giorno **compreso** i menu arrivano; dal giorno dopo il percorso si ferma.\n\n'
+      + '⚠️ `screeningFlag` **non si tocca**: è un fatto sanitario dichiarato in registrazione, non uno '
+      + 'stato da cancellare. Quello che cambia è la risposta alla domanda, non la storia clinica.\n\n'
+      + '✅ **E la data arriva a tutti quelli che devono saperla**: nel titolo dell\'attività della coach '
+      + '(quindi dentro la push, che parte quando la nutrizionista salva), come **riga di calendario** '
+      + 'della coach nel giorno della scadenza (di tutto il giorno, non un appuntamento a un\'ora '
+      + 'inventata), nella nota clinica, in scheda cliente, e **al cliente**: un avviso con la data '
+      + 'prima che scada, e una card che dice **da quando** e **perché** dopo. Un blocco che non si '
+      + 'spiega sembra un guasto.\n\n'
+      + '⛔ **La seconda revisione avversariale ha trovato che la prima stesura prometteva e non '
+      + 'faceva** — due bloccanti e sei rilievi seri, tutti chiusi:\n'
+      + '· il blocco fermava **la card ma non l\'erogazione**: i giorni continuavano a generarsi, il '
+      + 'menu restava visibile e nemmeno la card compariva. Ora `deliverIfEligible` si ferma a visita '
+      + 'scaduta (i giorni già consegnati non si ritirano: può averci fatto la spesa);\n'
+      + '· la riga di calendario **non è mai comparsa**: filtrava le attività per stati che non '
+      + 'esistono (`open/in_progress`; i veri sono `todo/done/skipped`) e il test asseriva la stessa '
+      + 'stringa sbagliata. Ora legge il **profilo** (`serve_visita` + data), che è anche più giusto: '
+      + 'l\'attività si chiude quando la visita è fissata, il blocco cade solo quando la nutrizionista '
+      + 'rivaluta, e fra i due momenti la scadenza è ancora vera;\n'
+      + '· le scadenze sarebbero finite **nell\'agenda della cliente** («Fissa la visita per Anna» '
+      + 'alle 02:00, come prossimo appuntamento): ora entrano solo col flag che passa il calendario '
+      + 'dello staff;\n'
+      + '· la `dueDate` dell\'attività era diventata la scadenza clinica (fino a 180 giorni): '
+      + 'l\'escalation al manager sarebbe scattata **dopo** il blocco dei menu invece del giorno dopo '
+      + 'l\'inerzia, e l\'attività finiva in fondo all\'elenco. Tornata a «domani»; la scadenza della '
+      + 'visita viaggia nel titolo e in calendario;\n'
+      + '· l\'avviso in app sulla pagina Menu stava in un ramo **irraggiungibile**; il promemoria '
+      + 'usciva anche su piani scaduti («i menu arrivano normalmente» sotto «il tuo piano è '
+      + 'terminato»); la scadenza salvata si rileggeva nel fuso invece che com\'è scritta (un giorno '
+      + 'di scarto con un `APP_TIMEZONE` a ovest); e i due campi nuovi non erano provati da niente — '
+      + 'due mutazioni sopravvivevano a 4783 test. Tutto chiuso e rimutato.\n\n'
+      + '⚠️ **Lo script-toppa è stato buttato**: per lanciarlo su Render serviva comunque un rilascio, '
+      + 'cioè non faceva risparmiare niente — e spegnendo `screeningFlag` avrebbe **zittito anche il '
+      + 'guardrail del motore**, prendendo da solo la decisione clinica che la voce '
+      + '`motore-dopo-il-via-libera` lascia a Lucia. Il caso urgente si è risolto con una riga di SQL '
+      + 'dalla shell (Gianluca, 23/8) — con lo stesso effetto collaterale sul motore, segnato per il '
+      + 'ripristino post-rilascio.\n\n'
+      + '⚠️ **Il confine è un GIORNO, letto nel fuso di Roma.** «Entro il 30» vuol dire che il 30 si '
+      + 'mangia (scelta di Simone). Con un confronto fra istanti — la scadenza salvata `…T00:00:00Z` '
+      + 'contro adesso — il blocco sarebbe scattato **due ore prima** della mezzanotte vera, cioè un '
+      + 'giorno di menu tolto a qualcuno. Provato alle 00:30 e in ora solare.\n\n'
+      + '⚠️ **Cosa resta fuori, e perché**: il guardrail del motore (voce `motore-dopo-il-via-libera`, '
+      + 'domanda per Lucia) e le `serve_visita` scritte prima di oggi, che senza data restano bloccanti '
+      + '— dare loro una finestra aperta vorrebbe dire sbloccare a posteriori delle persone che nessuno '
+      + 'ha più guardato.\n\n'
+      + '4791 test verdi (303 suite) alle due ore, 113 backoffice, 165 app; ogni pezzo verificato per '
+      + 'mutazione — compresi i due che alla prima stesura non lo erano. ⚠️ **Porta una migrazione** '
+      + '(`idoneita_visita_entro`, additiva). ⚠️ **Dopo il rilascio**: rimettere `screening_flag = true` '
+      + 'al cliente sbloccato a mano il 23/8.',
+  },
+  {
+    chiave: 'mai-valutata-eroga-lo-stesso',
+    categoria: 'Da fare — prodotto',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T16:40',
+    titolo: 'Una cliente in screening MAI valutata riceve i menu lo stesso: è voluto? (domanda per Lucia)',
+    dettaglio:
+      'Scoperto per caso chiudendo il via libera clinico (23/8): il cancello sull\'**erogazione** per '
+      + 'il percorso supervisionato **non è mai esistito**. `deliverIfEligible` non ha mai guardato '
+      + '`screeningFlag`: il «Menu dopo la visita» viveva solo nella card dell\'app, e i giorni si '
+      + 'generavano comunque — la card compariva di rado proprio perché i menu c\'erano.\n\n'
+      + '⚠️ Il 23/8 il cancello è stato aggiunto **solo per la visita scaduta** (una data che una '
+      + 'nutrizionista ha scritto). Per chi è in screening e non è mai stata valutata NO, di '
+      + 'proposito: chiuderlo di rimbalzo avrebbe fermato, in silenzio e in un giorno qualunque, '
+      + 'persone che stanno già mangiando — un blocco nuovo deciso mentre se ne correggeva un altro.\n\n'
+      + 'La domanda per Lucia è: una cliente che ha dichiarato farmaci o condizioni e che nessuno ha '
+      + 'ancora guardato deve ricevere i menu? Se no, il cancello è una riga (`mai_valutata` in '
+      + '`deliverIfEligible`) — ma va acceso **sapendo quante sono adesso**, con una diagnostica '
+      + 'prima, e con un avviso alle nutrizioniste, non con un rilascio muto.',
+  },
+  {
+    chiave: 'motore-dopo-il-via-libera',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T15:10',
+    titolo: 'Dopo il «può proseguire», il motore può decidere da solo? (domanda per Lucia)',
+    dettaglio:
+      'Col via libera clinico del 23/8 il gate del menu ora chiede **la decisione** e non lo screening: '
+      + 'una cliente con «Può proseguire» riceve i menu. ⚠️ Ma `engine.service.checkGuardrails` è '
+      + 'rimasto com\'era: legge `screeningFlag` da solo, quindi per quella cliente il motore continua '
+      + 'a non decidere in autonomia e ogni variazione passa dalla nutrizionista.\n\n'
+      + '⚠️ **Non è una svista: è una domanda clinica che non tocca a me.** «Può proseguire» vuol dire '
+      + 'che la cliente può fare il percorso — non necessariamente che un motore possa cambiarle le '
+      + 'calorie senza che una persona guardi. Le due cose sbagliano in versi opposti: un gate chiuso '
+      + 'di troppo le costa **tutto il servizio**, un guardrail chiuso di troppo costa una decisione in '
+      + 'più alla nutrizionista.\n\n'
+      + 'Da chiedere a Lucia. Se la risposta è sì, la correzione è una riga: `checkGuardrails` chiama '
+      + '`attendeIlViaLiberaClinico` invece di leggere il flag, e il collettore le passa anche '
+      + '`idoneita` e `idoneitaVisitaEntro`.',
+  },
+  {
+    chiave: 'chat-si-aprono-sull-ultimo-messaggio',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T14:30',
+    titolo: 'Tutte le chat, Gaia e Vera comprese, all\'apertura devono andare all\'ultimo messaggio',
+    dettaglio:
+      'Richiesta di Simone, 23/8: aprendo una conversazione si parte dal **primo** messaggio e bisogna '
+      + 'scorrere fino in fondo per vedere l\'ultimo. Vale per tutte: la chat con la coach, quella con '
+      + 'la nutrizionista, Gaia nell\'app e Vera nel backoffice.\n\n'
+      + '⚠️ È il difetto che si nota di più man mano che una conversazione cresce: alla decima riga è '
+      + 'un fastidio, alla centesima la chat sembra ferma a mesi fa. E chi risponde da telefono si '
+      + 'trova a scorrere prima di poter leggere la domanda a cui deve rispondere.\n\n'
+      + '⚠️ Da fare in **un posto solo** se possibile: oggi le liste di messaggi sono almeno quattro '
+      + 'componenti diversi, e quattro copie della stessa riga di scorrimento sono quattro punti in cui '
+      + 'domani una si comporta diversamente dalle altre.',
+  },
+  {
+    chiave: 'orologio-numeri-tagliati',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T08:05',
+    titolo: 'Nell\'orologio del digiuno i numeri delle ore si vedono a metà',
+    dettaglio:
+      'Segnalato dalla capo nutrizionista il 23/8 alle 08:05, con la schermata: *«non si vedono i numeri '
+      + 'dell\'orologio»*. Nello screenshot il **00** in cima è tagliato a metà, il **12** in basso '
+      + 'idem, e quelli ai lati (`6`, `18`) escono solo in parte — si legge «8» e «0(».\n\n'
+      + '⚠️ Non è solo estetica: i numeri sono l\'unica cosa che dice **a che ora** corrisponde il punto '
+      + 'del cerchio in cui si trova la lancetta. Senza, il disegno mostra «quanto manca» ma non «quando», '
+      + 'e la finestra 12:00–20:00 scritta sotto resta l\'unico riferimento vero — cioè l\'orologio non '
+      + 'sta facendo il suo lavoro.\n\n'
+      + 'Probabilmente è il `viewBox` dell\'SVG che sta stretto sul cerchio senza lasciare margine alle '
+      + 'etichette, oppure un `overflow: hidden` del contenitore. Si guarda in `app/src/components/OrologioDigiuno.tsx`.',
+  },
+  {
+    chiave: 'digiuno-ore-troppo-facili-da-cambiare',
+    categoria: 'Da fare — prodotto',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-23T08:05',
+    titolo: 'Cambiare le ore del digiuno è troppo facile: oggi si può ogni giorno',
+    dettaglio:
+      'Segnalato dalla capo nutrizionista il 23/8: *«dovrebbe essere più difficile modificare le ore per '
+      + 'digiunare, così puoi ogni giorno modificarlo»*. Oggi le cinque durate (14:10, 16:8, 18:6, 20:4, '
+      + '23:1) sono cinque pulsanti nella schermata del digiuno, e la cliente può passare dall\'una '
+      + 'all\'altra quando vuole.\n\n'
+      + '⚠️ **È una richiesta clinica, non di interfaccia**: un protocollo cambiato ogni giorno non è un '
+      + 'protocollo, e i numeri che la nutrizionista guarda per capire se sta funzionando diventano la '
+      + 'media di cinque cose diverse. ⚠️ Ma è anche il tipo di attrito che, messo male, fa sembrare '
+      + 'l\'app una cosa che non ti lascia fare — e chi ha una giornata storta smette di aprirla invece '
+      + 'di adattare la finestra.\n\n'
+      + '**Da decidere con Lucia prima di scrivere una riga**, e sono tre domande diverse: ogni quanto si '
+      + 'può cambiare (una volta a settimana? al ciclo?); chi può farlo fuori da quella regola (la '
+      + 'nutrizionista sempre, immagino); e cosa legge la cliente quando non può — che è la parte in cui '
+      + 'un divieto diventa una spiegazione o un muro.',
+  },
+  {
     chiave: 'data-inizio-giorno-o-istante',
     categoria: 'Da fare — codice',
     ordine: 0,

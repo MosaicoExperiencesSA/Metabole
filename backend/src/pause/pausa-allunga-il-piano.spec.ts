@@ -40,7 +40,8 @@ describe('PauseService — la pausa allunga il piano comprato', () => {
         create: jest.fn().mockResolvedValue({ id: 'req-1', status: 'auto_approved' }),
       },
       measurement: { findFirst: jest.fn().mockResolvedValue({ weightKg: 70 }) },
-      event: { create: jest.fn().mockResolvedValue({ id: 'ev-1' }) },
+      // ⚠️ `findFirst` serve alla tregua fra due vacanze (23/8): nessuna pausa precedente.
+      event: { create: jest.fn().mockResolvedValue({ id: 'ev-1' }), findFirst: jest.fn().mockResolvedValue(null) },
       subscription: {
         findMany: jest.fn(({ where }: { where: { status?: unknown } }) => {
           const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];

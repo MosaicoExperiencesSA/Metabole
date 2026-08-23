@@ -16,6 +16,7 @@ import {
   scadenzaPastiNonServiti,
   testoPastiNonServiti,
 } from '../coach-tasks/pasti-non-serviti';
+import { attendeIlViaLiberaClinico, statoSupervisione, type ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
 import { riparaGiornate } from './ripara-giornata';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -132,6 +133,17 @@ function pickBoolOverride(overrides: Map<string, number | boolean>, code: string
   return typeof v === 'boolean' ? v : global;
 }
 
+/** Quello che l'app legge in cima alla schermata del menu. */
+export interface StatoMenu {
+  state: string;
+  availableFrom: string | null;
+  planStartDate: string | null;
+  /** Solo a visita **scaduta**: il giorno entro cui andava fatta, `AAAA-MM-GG`. Dice da quando si è fermato. */
+  visitaEntro?: string;
+  /** Visita ancora da fare, ma **non** scaduta: la cliente riceve i menu, e questo è il promemoria. */
+  visitaDaFareEntro?: string;
+}
+
 @Injectable()
 export class MenuService {
   private readonly logger = new Logger(MenuService.name);
@@ -244,15 +256,71 @@ export class MenuService {
    * - `blocked`         → piano in sistemazione col nutrizionista (esclusioni);
    * - `preparing`       → idoneo ora / data non ancora impostata: menu in preparazione.
    */
-  async menuStatus(
+  async menuStatus(clientId: string, hasVisibleMenu?: boolean): Promise<StatoMenu> {
+    const stato = await this.componiStatoMenu(clientId, hasVisibleMenu);
+
+    /**
+     * ⛔ **LA VISITA DA FARE SI DICE ANCHE PRIMA CHE SCADA** (23/8, richiesta di Simone).
+     *
+     * In quella finestra la cliente riceve i menu normalmente — quindi legge «il tuo menu è pronto»,
+     * o niente — e non sa che c'è una data oltre la quale si ferma tutto. Il blocco le arriverebbe
+     * addosso come un guasto.
+     *
+     * ⚠️ **Non è uno stato: è un campo accanto.** Farne uno stato vorrebbe dire togliere di mezzo la
+     * frase che la cliente sta già leggendo — «il tuo piano parte il 3», «serve la tua pesata» — per
+     * sostituirla con un promemoria. Sono due cose vere insieme, e chi disegna l'app decide come
+     * metterle vicine.
+     *
+     * ⚠️ E si aggiunge **dopo**, in un posto solo: `componiStatoMenu` ha otto uscite, e appendere il
+     * campo su ognuna sarebbe stato il modo di dimenticarlo su una — quella che poi capita.
+     */
+    const supervisione = statoSupervisione(await this.profiloSupervisione(clientId));
+    /**
+     * ⚠️ **Solo dove i menu scorrono.** La prima stesura appendeva il campo a qualunque stato, e su
+     * un piano scaduto l'app mostrava — una sopra l'altra — «fino a quel giorno i menu arrivano
+     * normalmente» e «il tuo piano è terminato». Il promemoria dice una cosa vera solo per chi i
+     * menu li sta ricevendo o li sta per ricevere: sugli altri stati è una frase falsa con una data
+     * dentro.
+     */
+    const MENU_SCORRONO = ['available', 'scheduled', 'preparing', 'awaiting_measures', 'awaiting_cycle_measure'];
+    if (supervisione.motivo === 'visita_da_fare' && MENU_SCORRONO.includes(stato.state)) {
+      return { ...stato, visitaDaFareEntro: supervisione.visitaEntro };
+    }
+    return stato;
+  }
+
+  /**
+   * Il profilo che serve a `via-libera-clinico`.
+   *
+   * ⚠️ È la **seconda** lettura del profilo in questa richiesta (`componiStatoMenu` fa la sua): due
+   * query piccole sulla stessa riga, per non far viaggiare il profilo attraverso le otto uscite di
+   * `componiStatoMenu`. Possono divergere solo se la decisione cambia **durante** la richiesta, e il
+   * danno massimo è una card e un avviso in disaccordo per il tempo di un refresh.
+   */
+  private async profiloSupervisione(clientId: string) {
+    return (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      /**
+       * ⚠️ `as never` su `select`, come in mezzo file: il client Prisma si rigenera nella pipeline
+       * (`npx prisma generate` prima di `npm run build`), quindi in sandbox la colonna nuova non
+       * esiste ancora nei tipi. È la CI a fare il controllo vero su questa riga.
+       */
+      select: { screeningFlag: true, idoneita: true, idoneitaVisitaEntro: true } as never,
+    })) as { screeningFlag: boolean | null; idoneita: string | null; idoneitaVisitaEntro: Date | null } | null;
+  }
+
+  private async componiStatoMenu(
     clientId: string,
     hasVisibleMenu?: boolean,
-  ): Promise<{ state: string; availableFrom: string | null; planStartDate: string | null }> {
+  ): Promise<StatoMenu> {
     const today = toDateOnly();
-    const profile = await this.prisma.clientProfile.findUnique({
+    const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { planStartDate: true, screeningFlag: true, planHeldAt: true },
-    });
+      select: { planStartDate: true, screeningFlag: true, idoneita: true, idoneitaVisitaEntro: true, planHeldAt: true } as never,
+    })) as {
+      planStartDate: Date | null; screeningFlag: boolean | null; idoneita: string | null;
+      idoneitaVisitaEntro: Date | null; planHeldAt: Date | null;
+    } | null;
     const planStartDate = profile?.planStartDate ? profile.planStartDate.toISOString().slice(0, 10) : null;
 
     /**
@@ -301,8 +369,30 @@ export class MenuService {
       );
     if (visible) return { state: 'available', availableFrom: null, planStartDate };
 
-    // 2) Percorso supervisionato: il menu dipende dalla visita col nutrizionista.
-    if (profile?.screeningFlag) return { state: 'awaiting_visit', availableFrom: null, planStartDate };
+    /**
+     * 2) Percorso supervisionato: il menu dipende dalla visita col nutrizionista.
+     *
+     * ⛔ **E lo dice `attendeIlViaLiberaClinico`, non `screeningFlag` da solo** (23/8). Questa riga
+     * guardava lo screening della registrazione e basta: una cliente con «Può proseguire» scritto
+     * sulla scheda continuava a leggere «il menu sarà pronto dopo la visita», **per sempre**, perché
+     * `screeningFlag` non lo riazzera nessuno. Trovato su Gianluca, con le due schermate aperte
+     * nello stesso momento che dicevano due cose diverse.
+     */
+    const supervisione = statoSupervisione(profile);
+    /**
+     * ⚠️ **E la card dice DA QUANDO e PERCHÉ.** Un blocco che non si spiega sembra un guasto, e la
+     * cliente che telefona si sente rispondere «non lo so» anche da chi le risponde. `visitaEntro`
+     * porta il giorno: sotto è il termine da rispettare, sopra è il giorno da cui il percorso si è
+     * fermato. È la stessa data, e le due frasi la usano in due modi diversi.
+     */
+    if (supervisione.bloccata) {
+      return {
+        state: 'awaiting_visit',
+        availableFrom: null,
+        planStartDate,
+        ...(supervisione.motivo === 'visita_scaduta' ? { visitaEntro: supervisione.visitaEntro } : {}),
+      };
+    }
 
     // 3) Senza data di inizio piano non c'è ancora una data da mostrare.
     if (!profile?.planStartDate) return { state: 'preparing', availableFrom: null, planStartDate: null };
@@ -419,6 +509,28 @@ export class MenuService {
     ]);
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile?.planStartDate) return []; // senza data di inizio niente menu
+
+    /**
+     * ⛔ **LA SCADENZA DELLA VISITA FERMA L'EROGAZIONE, NON SOLO LA CARD** (23/8, seconda revisione).
+     *
+     * La prima stesura aveva messo il controllo solo in `menuStatus`: la card diceva «i menu sono in
+     * pausa» ma QUI nessuno lo sapeva, e i giorni continuavano a generarsi — quindi il menu restava
+     * visibile, lo stato restava `available`, e **nemmeno la card compariva mai**. La frase scritta
+     * nella nota clinica, nella scheda, nell'attività e nell'app era falsa da cima a fondo.
+     *
+     * ⚠️ **Solo `visita_scaduta`, e non `mai_valutata` — di proposito.** Questo cancello non c'è mai
+     * stato: le clienti in screening senza decisione hanno sempre ricevuto i menu da qui (il blocco
+     * viveva solo nella card). Chiuderlo anche per loro fermerebbe **oggi, in silenzio**, persone che
+     * stanno mangiando — un blocco nuovo deciso di rimbalzo. Se va chiuso, lo decide Simone con
+     * Lucia: voce `mai-valutata-eroga-lo-stesso`.
+     *
+     * ⚠️ I giorni **già consegnati non si ritirano**: può averci fatto la spesa. Si smette di
+     * generarne di nuovi — al massimo due giorni di coda, poi la card con la data.
+     */
+    if (statoSupervisione(profile as ProfiloDaSupervisionare).motivo === 'visita_scaduta') {
+      this.logger.warn(`Erogazione ferma per ${clientId}: la visita col nutrizionista è scaduta senza rivalutazione.`);
+      return [];
+    }
 
     /**
      * Il piano alimentare si genera SOLO con abbonamento attivo (approvazione bonifico).
@@ -1463,13 +1575,16 @@ export class MenuService {
   private async needsInitialMeasures(clientId: string): Promise<boolean> {
     const profile = (await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { planStartDate: true, screeningFlag: true, travelState: true, travelStart: true, travelEnd: true },
+      select: { planStartDate: true, screeningFlag: true, idoneita: true, idoneitaVisitaEntro: true, travelState: true, travelStart: true, travelEnd: true } as never,
     })) as {
-      planStartDate: Date | null; screeningFlag: boolean | null;
+      planStartDate: Date | null; screeningFlag: boolean | null; idoneita: string | null; idoneitaVisitaEntro: Date | null;
       travelState: string | null; travelStart: Date | null; travelEnd: Date | null;
     } | null;
     if (!profile?.planStartDate) return false;
-    if (profile.screeningFlag) return false; // percorso supervisionato: dipende dalla visita
+    // ⚠️ Percorso supervisionato: dipende dalla visita — ma il via libera clinico lo scioglie. Stessa
+    // porta di `menuStatus`: se le due divergessero, il popup misure comparirebbe a chi non ha menu
+    // (o non comparirebbe a chi li ha).
+    if (attendeIlViaLiberaClinico(profile)) return false;
     /**
      * LA VACANZA NON ESENTA PIÙ DALLE MISURE (decisione di Simone, 11/8).
      *

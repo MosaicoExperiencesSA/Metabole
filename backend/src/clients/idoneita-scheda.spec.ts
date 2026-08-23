@@ -18,12 +18,21 @@ import { AuthService } from '../auth/auth.service';
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { aGiorno } from '../common/date-only';
 import { ClientsService } from './clients.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { TIPO_VISITA_DA_FISSARE } from './visita-da-fissare';
 
 const NOTA = 'Valutata in visita il 12/8: allergia al latte, nessuna controindicazione al percorso.';
+
+/**
+ * ⛔ **Da oggi «serve una visita» vuole la data entro cui farla** (23/8): la decisione senza un
+ * termine è quella che non cambiava niente per nessuno — il caso Gianluca. Si calcola da adesso alla
+ * stessa porta del codice (`aGiorno`, il giorno di Roma), non si scrive a mano: una data fissa
+ * scadrebbe da sola e questi test diventerebbero rossi in un giorno qualunque.
+ */
+const ENTRO = () => new Date(aGiorno(new Date()).getTime() + 21 * 86_400_000).toISOString().slice(0, 10);
 
 async function crea(opzioni?: { permesso?: boolean }) {
   const permesso = opzioni?.permesso ?? true;
@@ -119,7 +128,7 @@ describe('la nutrizionista dice «può proseguire»', () => {
   it('⚠️ anche «serve una visita» è una decisione: chiude le segnalazioni e si registra', async () => {
     // Non è un «no»: è «l'ho guardata, e serve la visita». La coda non deve riproporgliela.
     const { service, prisma } = await crea();
-    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(prisma.clientProfile.update.mock.calls[0][0].data.idoneita).toBe('serve_visita');
     expect(prisma.escalation.updateMany).toHaveBeenCalled();
   });
@@ -164,7 +173,7 @@ describe('quando NON si decide', () => {
 describe('la nutrizionista dice «serve una visita»', () => {
   it('apre l\'attività della coach, con il riferimento a QUESTA decisione', async () => {
     const { service, coachTasks } = await crea();
-    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(coachTasks.apriAttivita).toHaveBeenCalledWith(
       expect.objectContaining({ clientId: 'cli-1', kind: TIPO_VISITA_DA_FISSARE }),
     );
@@ -179,8 +188,8 @@ describe('la nutrizionista dice «serve una visita»', () => {
    */
   it('⚠️ due salvataggi nello stesso giorno hanno lo STESSO riferimento', async () => {
     const { service, coachTasks } = await crea();
-    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
-    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     const [primo, secondo] = coachTasks.apriAttivita.mock.calls.map((c: any) => c[0].refId);
     expect(primo).toBe(secondo);
     expect(primo).toMatch(/^serve_visita:\d{4}-\d{2}-\d{2}$/);
@@ -199,7 +208,7 @@ describe('la nutrizionista dice «serve una visita»', () => {
           : { id: where?.id, role: 'nutritionist' },
       ),
     );
-    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(esito.attivitaSenzaCoach).toBe(true);
   });
 
@@ -212,7 +221,7 @@ describe('la nutrizionista dice «serve una visita»', () => {
           : { id: where?.id, role: 'nutritionist' },
       ),
     );
-    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(esito.attivitaSenzaCoach).toBe(false);
     expect(coachTasks.apriAttivita.mock.calls[0][0].description).not.toContain('COACH assegnata');
   });
@@ -225,7 +234,7 @@ describe('la nutrizionista dice «serve una visita»', () => {
   it('⚠️ se l\'attività c\'era già, per chi decide è aperta lo stesso', async () => {
     const { service, coachTasks } = await crea();
     coachTasks.apriAttivita.mockResolvedValue('gia-presente');
-    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(esito.attivitaAperta).toBe(true);
     expect(esito.attivitaGiaPresente).toBe(true);
   });
@@ -246,7 +255,7 @@ describe('la nutrizionista dice «serve una visita»', () => {
     const { service, coachTasks, prisma } = await crea();
     coachTasks.apriAttivita.mockRejectedValue(new Error('coda non raggiungibile'));
     const log = jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
-    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    const esito: any = await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     expect(esito.idoneita).toBe('serve_visita');
     expect(esito.attivitaAperta).toBe(false);
     expect(prisma.clientProfile.update).toHaveBeenCalled();
@@ -261,7 +270,7 @@ describe('la nutrizionista dice «serve una visita»', () => {
   it('⚠️ il credito non calcolabile non ferma niente, e non diventa zero', async () => {
     const { service, coachTasks, prenotazioni } = await crea();
     prenotazioni.credito.mockRejectedValue(new Error('ordini non leggibili'));
-    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA);
+    await service.decidiIdoneita('cli-1', 'nutri-user', 'serve_visita', NOTA, ENTRO());
     const passato = coachTasks.apriAttivita.mock.calls[0][0];
     expect(passato.description).toContain('Non sono riuscito a contare');
     expect(passato.description).not.toContain('NON ha visite disponibili');

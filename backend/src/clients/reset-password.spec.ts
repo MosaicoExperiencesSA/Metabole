@@ -54,6 +54,8 @@ describe('ClientsService.sendPasswordReset — chi può, su chi', () => {
       {} as unknown as MenuService,
       {} as never,
       {} as never,
+      // ⚠️ `PauseService`: la modalità viaggio sospende davvero (23/8). Non è l'oggetto di questi test.
+      {} as never,
     );
     return { service, prisma, requestPasswordReset };
   }

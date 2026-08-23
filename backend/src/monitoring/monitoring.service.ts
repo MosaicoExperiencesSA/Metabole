@@ -525,13 +525,20 @@ export class MonitoringService {
             status: 'planned',
             visibleFrom: today,
           } as never,
-          update: {
-            dietId: src.dietId,
-            level: src.level,
-            meals: pasti as never,
-            status: 'planned',
-            visibleFrom: today,
-          } as never,
+          /**
+           * ⛔ **UN GIORNO GIÀ EROGATO NON SI SOVRASCRIVE** (corretto il 23/8, in revisione).
+           *
+           * Il commento due righe sopra diceva «saltando date già occupate», e questo `update`
+           * faceva il contrario: riscriveva sopra. Difetto silenzioso fino a ieri, **quasi certo**
+           * da oggi — al rientro da una sospensione la pesata è obbligatoria, quindi il confronto
+           * con `refWeightKg` c'è sempre, e il kit del cron notturno riscriveva sopra il menu del
+           * rientro appena promesso alla cliente. Le cambiava sotto la giornata per cui aveva
+           * appena fatto la spesa.
+           *
+           * È la stessa regola di `deliverIfEligible` (`update: {}`): un menu che è già in mano a
+           * qualcuno non si tocca.
+           */
+          update: {} as never,
         });
         createdCount++;
       } catch {

@@ -62,10 +62,29 @@ describe('MonitoringService · le giornate del kit di rientro', () => {
     expect(pasti.reduce((a: number, m: any) => a + m.kcal, 0)).toBeGreaterThan(795);
   });
 
-  it('⚠️ e le stesse kcal finiscono nel ramo `update`: un giorno già occupato non torna al catalogo', async () => {
+  /**
+   * ⛔ **CAMBIATO IL 23/8, e questo test diceva prima il contrario.**
+   *
+   * Chiedeva che il ramo `update` scrivesse le stesse kcal del ramo `create`: nato per impedire che
+   * un giorno già occupato tornasse al catalogo **non scalato**, e per quello era giusto. Ma
+   * scrivendo `update` il kit **sovrascrive** giornate già erogate, e il commento due righe sopra
+   * la `upsert` diceva da sempre «saltando date già occupate»: il codice e la sua descrizione si
+   * contraddicevano, e vinceva il codice.
+   *
+   * Fino a ieri era un difetto silenzioso. Da oggi no: al rientro da una sospensione la pesata è
+   * obbligatoria, quindi il confronto con `refWeightKg` c'è sempre, e il kit del cron notturno
+   * riscriveva sopra **il menu del rientro appena promesso alla cliente** — le cambiava sotto la
+   * giornata per cui aveva appena fatto la spesa.
+   *
+   * La regola nuova è quella di `deliverIfEligible`: un menu che è già in mano a qualcuno non si
+   * tocca. Il kit riempie i giorni vuoti, che è quello che serve.
+   */
+  it('⛔ un giorno già erogato NON si sovrascrive: il ramo `update` è vuoto', async () => {
     await service.generateRientroMenus('c1');
     const chiamata = prisma.menuDay.upsert.mock.calls[0][0];
-    expect(chiamata.update.meals).toEqual(chiamata.create.meals);
+    expect(chiamata.update).toEqual({});
+    // E il ramo `create` resta quello scalato: la protezione originale non si perde.
+    expect(chiamata.create.meals[0].kcalBase).toBe(300);
   });
 
   /**

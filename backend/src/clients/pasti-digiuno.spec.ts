@@ -26,6 +26,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
+import { PauseService } from '../pause/pause.service';
 import { ClientsService } from './clients.service';
 
 const PROFILO = { fastingWindow: 'skip_breakfast', pathType: 'intermittent_fasting' };
@@ -79,6 +80,18 @@ async function crea(opzioni?: { permesso?: boolean; profilo?: Record<string, unk
       { provide: MenuService, useValue: { restartFromPlanStart: jest.fn(), regenerateFromToday: jest.fn() } },
       { provide: CoachTasksService, useValue: { apriAttivita: jest.fn().mockResolvedValue(true) } },
       { provide: PrenotazioniService, useValue: { credito: jest.fn().mockResolvedValue({ disponibili: 0, concesse: 0, usate: 0 }) } },
+      /**
+       * ⚠️ `PauseService` è entrato nel costruttore il 23/8: la modalità viaggio adesso crea una
+       * sospensione vera. Qui non è l'oggetto del test, ma i due metodi vanno esposti — la scheda
+       * li chiama a ogni salvataggio della card viaggio.
+       */
+      {
+        provide: PauseService,
+        useValue: {
+          sospendiPerViaggio: jest.fn().mockResolvedValue({ giorni: 0, nuovaScadenza: null, avviso: null }),
+          togliSospensioneDaViaggio: jest.fn().mockResolvedValue({ tolta: false, avviso: null }),
+        },
+      },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit };

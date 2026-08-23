@@ -52,6 +52,8 @@ describe('ClientsService.getDetail — chi ha comprato ha un piano', () => {
       {} as never,
       {} as never,
       {} as never,
+      // ⚠️ `PauseService`: la modalità viaggio sospende davvero (23/8). Non è l'oggetto di questi test.
+      {} as never,
     );
   };
 

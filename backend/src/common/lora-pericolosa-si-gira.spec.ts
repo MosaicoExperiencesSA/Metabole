@@ -105,16 +105,24 @@ describe('⛔ la suite si gira anche all\'ora pericolosa', () => {
    * una verifica che in quel giro non può fare.
    */
   it('⛔ sotto `test:notte` i due giorni divergono DAVVERO (e sotto `test` non si finge)', () => {
-    const setup: string[] = ((global as unknown as { __OROLOGIO_NOTTURNO__?: boolean }).__OROLOGIO_NOTTURNO__
-      ? ['acceso']
-      : []) as string[];
-    if (!setup.length) {
-      // Giro normale: l'orologio notturno non è caricato, e non c'è niente da controllare.
-      expect(iGiorniDivergono(oraPericolosa(new Date(), SENZA_OVERRIDE))).toBe(true);
+    const orologioNotturno = !!(global as unknown as { __OROLOGIO_NOTTURNO__?: boolean }).__OROLOGIO_NOTTURNO__;
+
+    /**
+     * ⚠️ **`ORA_FINTA` non è una violazione: è la manopola.** Chi la usa sta andando a guardare
+     * un'altra ora o un altro giorno di proposito — è così che si è misurato che dal 2 settembre due
+     * suite cadono da sole, e che la notte del 25 ottobre ne cadono altre tre. La prima stesura di
+     * questo controllo non la distingueva e diventava **rossa a ogni misura**, aggiungendo un falso
+     * allarme in mezzo ai veri. ⛔ È lo stesso difetto che questo file esiste per raccontare, in
+     * miniatura e a mie spese: uno strumento di misura che sbaglia manda a cercare dove non c'è
+     * niente. Trovato usandolo, il giorno dopo averlo scritto.
+     */
+    if (orologioNotturno && !process.env.ORA_FINTA) {
+      // Giro notturno vero: «adesso» deve essere già dentro la fascia, non solo scritto nel file.
+      expect(iGiorniDivergono(new Date())).toBe(true);
       return;
     }
-    // Giro notturno: «adesso» deve essere già dentro la fascia.
-    expect(iGiorniDivergono(new Date())).toBe(true);
+    // Giro normale (o ora scelta a mano): si controlla il conto, che è tutto ciò che si può vedere.
+    expect(iGiorniDivergono(oraPericolosa(new Date(), SENZA_OVERRIDE))).toBe(true);
   });
 
   /**

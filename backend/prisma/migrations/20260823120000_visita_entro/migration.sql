@@ -1,0 +1,12 @@
+-- «Serve una visita»: il giorno ENTRO cui va fatta.
+--
+-- Richiesta di Simone del 23/8, nata dal caso Gianluca: la valutazione clinica non arrivava alla
+-- cliente, e «serve una visita» non aveva un termine. Da qui in poi:
+--   · fino a questo giorno COMPRESO la cliente riceve i menu;
+--   · dal giorno dopo il percorso si ferma.
+-- La regola sta in `src/clients/via-libera-clinico.ts`, in un posto solo.
+--
+-- Nullable, e resta nullo per le righe già scritte: una `serve_visita` senza data continua a
+-- bloccare, che è il comportamento di oggi. Dare loro una finestra aperta vorrebbe dire sbloccare a
+-- posteriori delle persone che nessuno ha più guardato.
+ALTER TABLE "client_profile" ADD COLUMN IF NOT EXISTS "idoneita_visita_entro" TIMESTAMP(3);

@@ -513,6 +513,9 @@ model ClientProfile {
    */
   idoneita               String?    @map("idoneita")
   idoneitaDecisaIl       DateTime?  @map("idoneita_decisa_il")
+  /// Solo per `serve_visita`: il GIORNO entro cui la visita va fatta. Fino a quel giorno compreso la
+  /// cliente riceve i menu; dal giorno dopo il percorso si ferma. Vedi `clients/via-libera-clinico.ts`.
+  idoneitaVisitaEntro    DateTime?  @map("idoneita_visita_entro")
   idoneitaDecisaDaId     String?    @map("idoneita_decisa_da_id")
   idoneitaDecisaDa       Staff?     @relation("IdoneitaDecisaDa", fields: [idoneitaDecisaDaId], references: [id], onDelete: SetNull)
   /**

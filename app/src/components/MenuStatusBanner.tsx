@@ -5,6 +5,22 @@ export interface MenuStatus {
   state: 'available' | 'scheduled' | 'awaiting_visit' | 'awaiting_measures' | 'awaiting_cycle_measure' | 'paused' | 'blocked' | 'plan_held' | 'preparing' | 'expired' | 'monitoring';
   availableFrom: string | null; // yyyy-mm-dd in cui il menu diventa visibile
   planStartDate: string | null;
+  /**
+   * Solo a visita **scaduta**: il giorno entro cui andava fatta (`aaaa-mm-gg`).
+   *
+   * ⛔ Serve a dire **da quando** il percorso si è fermato. Un blocco che non si spiega sembra un
+   * guasto, e la cliente che telefona si sente rispondere «non lo so» anche da chi le risponde.
+   */
+  visitaEntro?: string;
+  /**
+   * Visita ancora da fare ma **non** scaduta: la cliente riceve i menu normalmente, e questo è il
+   * promemoria.
+   *
+   * ⚠️ Non è uno stato: è un campo accanto. Farne uno stato vorrebbe dire togliere di mezzo la frase
+   * che sta già leggendo — «il tuo piano parte il 3», «serve la tua pesata» — per sostituirla con un
+   * promemoria. Sono due cose vere insieme.
+   */
+  visitaDaFareEntro?: string;
 }
 
 /**
@@ -64,7 +80,25 @@ export function menuStatusView(
         text: `${testo} Se vuoi cambiare la data di inizio, chiedi a Gaia in chat.`,
       };
     }
+    /**
+     * ⛔ **E QUANDO C'È UNA DATA, LA DATA SI DICE.**
+     *
+     * Dal 23/8 «serve una visita» ha un termine: fino a quel giorno compreso i menu arrivano, dal
+     * giorno dopo il percorso si ferma. Se il blocco è scattato per quello, la frase generica —
+     * «sarà pronto dopo la visita» — è vera ma inutile: non dice **da quando**, quindi non dice
+     * nemmeno che è successo qualcosa oggi che ieri non era successo. Con la data, la cliente sa
+     * cos'è cambiato e cosa deve chiedere quando chiama.
+     */
     case 'awaiting_visit':
+      if (s.visitaEntro) {
+        return {
+          icon: 'ti-stethoscope',
+          title: 'Manca la visita',
+          text:
+            `I menu sono in pausa: la visita con il nutrizionista andava fatta entro il ${itDate(s.visitaEntro)}. ` +
+            'Scrivi alla tua coach per fissarla — appena è fatta si riparte da dove eri.',
+        };
+      }
       return {
         icon: 'ti-stethoscope',
         title: 'Menu dopo la visita',
@@ -142,11 +176,56 @@ export function menuStatusView(
   }
 }
 
+/**
+ * ⛔ **IL PROMEMORIA DELLA VISITA, PRIMA CHE SCADA** — 23/8.
+ *
+ * In quella finestra la cliente riceve i menu normalmente: legge «il tuo menu è pronto», o niente. E
+ * non sa che c'è una data oltre la quale si ferma tutto — il blocco le arriverebbe addosso come un
+ * guasto, in un giorno qualunque, senza che nessuno gliel'abbia detto.
+ *
+ * ⚠️ **È un avviso a parte, non uno stato**: si affianca a quello che sta già leggendo invece di
+ * sostituirlo. E ha un colore diverso dal banner verde: quello dice «tutto sta arrivando», questo
+ * dice «c'è una cosa da fare entro una data». Due frasi con la stessa faccia si leggono come una
+ * sola, e quella che si perde è la seconda.
+ */
+function AvvisoVisita({ entro }: { entro: string }) {
+  return (
+    <div
+      className="card"
+      style={{ background: '#FDF6E7', border: '1px solid #EED9A8', display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}
+    >
+      <span className="event-ic" style={{ background: '#C9922B', color: '#fff', flex: 'none' }}>
+        <i className="ti ti-stethoscope" />
+      </span>
+      <div>
+        <b style={{ fontSize: 14, color: '#5C4410' }}>Ti aspettiamo per la visita</b>
+        <div style={{ fontSize: 13, color: '#6E5A2B', marginTop: 2 }}>
+          Va fatta <b>entro il {itDate(entro)}</b> con il nutrizionista. Fino a quel giorno i menu
+          arrivano normalmente; dopo si fermano finché non l’hai fatta. Se non l’hai ancora fissata,
+          scrivi alla tua coach.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Banner informativo mostrato quando il menu non è ancora visibile. */
 export default function MenuStatusBanner({ status }: { status: MenuStatus }) {
   const v = menuStatusView(status);
-  if (!v) return null;
+  /**
+   * ⚠️ **Il promemoria esce anche quando non c'è nessun banner** (`available`, cioè menu pronto): è
+   * proprio quello il caso normale in questa finestra. Con un `if (!v) return null` prima, l'avviso
+   * lo avrebbe visto solo chi era già fermo per un altro motivo — cioè quasi nessuno.
+   */
+  if (!v) return status.visitaDaFareEntro ? <AvvisoVisita entro={status.visitaDaFareEntro} /> : null;
+  /**
+   * ⚠️ E quando ci sono tutti e due si mostrano tutti e due: «il tuo piano parte il 3» e «la visita
+   * va fatta entro il 30» sono due cose diverse, e sceglierne una vorrebbe dire nascondere l'altra.
+   * Il promemoria sta **sopra**, perché è quello con una scadenza.
+   */
   return (
+    <>
+      {status.visitaDaFareEntro && <AvvisoVisita entro={status.visitaDaFareEntro} />}
     <div
       className="card"
       style={{ background: '#F1F7F5', border: '1px solid #D6E7E1', display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}
@@ -168,5 +247,6 @@ export default function MenuStatusBanner({ status }: { status: MenuStatus }) {
         )}
       </div>
     </div>
+    </>
   );
 }

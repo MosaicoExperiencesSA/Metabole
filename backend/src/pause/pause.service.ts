@@ -16,6 +16,10 @@ import { destinatariStaffDellaCliente } from '../common/avvisa-nutrizionista';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { codaCheSlitta } from './coda-che-slitta';
 import { aGiorno } from '../common/date-only';
+import { giorniSospesi, giornoDiRientro, rientroInArrivo, ultimoGiornoSospeso } from './giorno-di-rientro';
+import { TIPO_PESATA_DEL_RIENTRO, testoPesataDelRientro } from '../menu/pesata-del-rientro';
+import { giornoDelDato } from '../common/date-only';
+import { fraseDellaTregua, treguaFraVacanze } from './tregua-fra-vacanze';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -30,6 +34,12 @@ import { aGiorno } from '../common/date-only';
  *    si crea una richiesta `pending` e si avvisano coach e nutrizionista;
  *  - oltre 90 giorni → non consentito da qui (va gestito manualmente).
  */
+/**
+ * L'etichetta con cui si riconosce la sospensione nata dalla card «Modalità viaggio».
+ * ⚠️ È un dato, non un testo da mostrare: cambiarla scollega le sospensioni già create.
+ */
+export const ETICHETTA_VIAGGIO = 'Modalità viaggio';
+
 const FREEZE_AUTO_MAX_DAYS = 20;
 const FREEZE_ABS_MAX_DAYS = 90;
 
@@ -69,6 +79,10 @@ export class PauseService {
         `Una pausa può durare al massimo ${FREEZE_ABS_MAX_DAYS} giorni: per periodi più lunghi contatta il tuo staff.`,
       );
     }
+
+    // ⛔ La tregua fra due vacanze (23/8): qui si ferma, e si dice a chi rivolgersi.
+    const tregua = await treguaFraVacanze(this.prisma, (k, d) => this.configParams.getNumber(k, d), clientId, startDate);
+    if (tregua.mancano > 0) throw new BadRequestException(fraseDellaTregua(tregua));
 
     // Niente due richieste/pause sovrapposte in attesa.
     const overlapping = await this.prisma.pauseRequest.findFirst({
@@ -387,6 +401,15 @@ export class PauseService {
           coachAvvisate++;
         }
 
+        /**
+         * ⚠️ Dentro la finestra di rientro il promemoria «da vacanza» NON parte: «sei in pausa e
+         * va benissimo così, nessun compito» e «si riparte, pesati» a poche ore di distanza sono
+         * due messaggi che si smentiscono. La push della pesata del rientro la manda il passo
+         * 3-bis qui sotto, che gira sugli EVENT — così copre anche le pause senza richiesta.
+         */
+        const anticipoRientro = await this.configParams.getNumber('menu_visible_days_before_return', 1);
+        if (rientroInArrivo({ startDate: p.startDate, endDate: p.endDate }, now, anticipoRientro)) continue;
+
         // 3) Promemoria misure, con tono da vacanza e senza insistere.
         const misuraVecchia = !ultima || now.getTime() - ultima.date.getTime() >= askDays * 86_400_000;
         const chiestoDaPoco =
@@ -408,6 +431,59 @@ export class PauseService {
         }
       } catch {
         // Una pausa che va storta non deve fermare le altre né il cron.
+      }
+    }
+
+    /**
+     * ⛔ **3-bis) LA PESATA DEL RIENTRO, DAL GIRO NOTTURNO — su TUTTE le sospensioni** (23/8).
+     *
+     * Due correzioni di revisione insieme:
+     *  - la richiesta nasceva solo dentro `deliverIfEligible`, che gira quando la cliente **apre
+     *    l'app**: la push che serve a riportarla in app partiva solo verso chi era già in app. Chi
+     *    in vacanza l'app non la apre — giustamente: le abbiamo detto che non ha compiti — si
+     *    svegliava il giorno del rientro senza menu e senza spesa;
+     *  - e girare sulle `pauseRequest` non basta: il Calendario in app crea **solo l'`event`**, e
+     *    quelle clienti non avrebbero mai ricevuto la push. Il cancello del rientro guarda gli
+     *    event, e questo passo guarda gli stessi event.
+     *
+     * Stesso tipo e stesso testo della richiesta in-app (`pesata-del-rientro.ts`): le due porte si
+     * vedono nel throttle e non mandano due push per la stessa cosa.
+     */
+    const anticipoRientroNotturno = await this.configParams.getNumber('menu_visible_days_before_return', 1);
+    const finestraEvento = new Date(oggi.getTime() - 3 * 86_400_000);
+    const inRientro = (await this.prisma.event.findMany({
+      where: {
+        mode: 'pause_period' as never,
+        endDate: { gte: finestraEvento, lte: new Date(oggi.getTime() + Math.max(0, Math.floor(anticipoRientroNotturno)) * 86_400_000) },
+      } as never,
+      select: { clientId: true, startDate: true, endDate: true },
+    })) as { clientId: string; startDate: Date; endDate: Date }[];
+    for (const e of inRientro) {
+      try {
+        const rientro = rientroInArrivo(e, now, anticipoRientroNotturno);
+        if (!rientro) continue; // finestra non ancora aperta
+        if (rientro.getTime() < oggi.getTime()) continue; // rientro già passato: tocca al ciclo
+        const daQuando = new Date(now.getTime() - Math.max(1, askDays) * 86_400_000);
+        const giaChiesto = await this.prisma.notification.findFirst({
+          where: { userId: e.clientId, type: TIPO_PESATA_DEL_RIENTRO, createdAt: { gte: daQuando } } as never,
+          select: { id: true },
+        });
+        if (giaChiesto) continue;
+        const pesataCiSta = await this.prisma.measurement.findFirst({
+          where: {
+            clientId: e.clientId,
+            date: { gte: new Date(rientro.getTime() - Math.max(0, Math.floor(anticipoRientroNotturno)) * 86_400_000) },
+          },
+          select: { id: true },
+        });
+        if (pesataCiSta) continue;
+        const testo = testoPesataDelRientro(rientro);
+        await this.notifications
+          .notify({ userId: e.clientId, type: TIPO_PESATA_DEL_RIENTRO, title: testo.titolo, body: testo.corpo })
+          .catch(() => undefined);
+        misureChieste++;
+      } catch {
+        // Una cliente che va storta non ferma le altre.
       }
     }
 
@@ -631,6 +707,387 @@ export class PauseService {
         .catch(() => undefined);
     }
     return newEnd;
+  }
+
+  // ---------- Modalità viaggio (staff) ----------
+
+  /**
+   * ⛔ **LA MODALITÀ VIAGGIO ADESSO SOSPENDE DAVVERO** — decisione di Simone, 23/8.
+   *
+   * ## Cosa faceva prima, e perché era un equivoco
+   *
+   * La card «Modalità viaggio» in back office scriveva tre campi sul profilo
+   * (`travel_state/start/end`) e **nient'altro**: nessun periodo di sospensione, nessun menu
+   * fermato, nessuna scadenza spostata. Serviva solo a `DietAgentService` per scegliere piatti da
+   * vacanza. Intanto l'app, quando una cliente è in un `pause_period` vero, le scrive **«Sei in
+   * modalità viaggio»** — che è un'altra cosa, creata da un'altra porta.
+   *
+   * Due oggetti con lo stesso nome: chi metteva «In vacanza» dal back office credeva di aver
+   * fermato i menu, e i menu continuavano ad arrivare.
+   *
+   * ## La regola nuova
+   *
+   * «In vacanza» con le date **crea una sospensione vera**: i menu si fermano, la sorveglianza del
+   * peso parte, e la scadenza del piano slitta dei giorni sospesi — perché i giorni pagati non si
+   * perdono, che è la stessa promessa della richiesta di pausa.
+   *
+   * ⚠️ **Non riapre il caso Gioia (11/8).** Quella decisione dice: *o ricevi menu, e allora le
+   * misure valgono come per tutte; oppure sei in pausa, e allora non ricevi menu ma entri nel
+   * protocollo di monitoraggio.* Questa è **esattamente** la seconda strada. La terza — menu che
+   * arrivano e nessuno che chiede il peso — resta chiusa.
+   *
+   * ## `rientro` è il PRIMO GIORNO DI DIETA
+   *
+   * L'operatrice scrive «riprende il 24»; in tabella si salva il 23. La conversione la fa
+   * `ultimoGiornoSospeso` e non questa funzione: vedi il riquadro in `giorno-di-rientro.ts`.
+   */
+  async sospendiPerViaggio(
+    clientId: string,
+    actorUserId: string,
+    input: { start: Date; rientro: Date },
+  ): Promise<{ giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null }> {
+    const startDate = aGiorno(input.start);
+    const endDate = ultimoGiornoSospeso(input.rientro);
+    if (endDate.getTime() < startDate.getTime()) {
+      throw new BadRequestException(
+        'Il rientro deve essere almeno il giorno dopo la partenza: una vacanza di zero giorni non sospende niente.',
+      );
+    }
+    const giorni = giorniSospesi({ startDate, endDate });
+    /**
+     * ⛔ **VENTI GIORNI, NON NOVANTA** (Simone, 23/8: «l'intervallo massimo previsto
+     * dall'interfaccia resta di 20 giorni»). Venti è la soglia oltre la quale, su tutte le altre
+     * porte, una sospensione vuole una seconda persona: da qui una coach può congelare venti
+     * giorni; oltre, si passa dalla richiesta di pausa, che una collega approva.
+     */
+    if (giorni > FREEZE_AUTO_MAX_DAYS) {
+      throw new BadRequestException(
+        `Da qui una sospensione può durare al massimo ${FREEZE_AUTO_MAX_DAYS} giorni (questa ne dura ${giorni}). ` +
+          'Per un periodo più lungo serve una richiesta di pausa approvata da una collega.',
+      );
+    }
+
+    const oggi = aGiorno(new Date());
+    const rientro = giornoDiRientro({ startDate, endDate });
+
+    /**
+     * ⛔ **UNA VACANZA GIÀ FINITA NON SI SOSPENDE** (aggiunto in revisione, 23/8).
+     *
+     * Sui profili c'è gente con `travel_state = 'in_vacanza'` e le date di **luglio**, mai
+     * ripulite — è il caso che `stato-viaggio.ts` racconta di aver dovuto tappare con la scadenza
+     * a trenta giorni. La card si precompila con quei valori: bastava che una coach aprisse la
+     * scheda e premesse Salva per creare una sospensione retroattiva e allungare il piano di venti
+     * giorni, per una vacanza in cui la cliente i menu li aveva ricevuti tutti.
+     */
+    if (rientro.getTime() < oggi.getTime()) {
+      throw new BadRequestException(
+        'Questa vacanza è già finita: la card serve a FERMARE i menu, e su un periodo passato non c\'è più niente da fermare. Svuota le date, oppure scrivi il rientro da oggi in avanti.',
+      );
+    }
+
+    // La sospensione della card che tocca QUESTO periodo (anche già chiusa: si riusa e si riapre).
+    const esistente = await this.sospensioneDaViaggio(clientId, startDate, endDate);
+
+    /**
+     * ⛔ **UNA SOLA MODALITÀ VIAGGIO APERTA PER VOLTA** (seconda revisione, 23/8).
+     *
+     * La prima stesura, davanti a una modalità viaggio aperta su ALTRE date, la **riscriveva** con
+     * le date nuove: sembrava una comodità, ed era il buco peggiore — la memoria dei giorni già
+     * concessi è legata al periodo, e spostare il periodo la azzerava. Vacanza di settembre messa
+     * e pagata (+10 sulla scadenza), riscritta su ottobre: altri +5, nessun avviso, e la
+     * sorveglianza che continua a trattare settembre come pausa. Qui ci si ferma: prima si toglie
+     * quella (stato a «nessuna», che la chiude tenendo la memoria), poi si scrive la nuova.
+     */
+    const altraViaggio = (await this.prisma.event.findFirst({
+      where: {
+        clientId,
+        mode: 'pause_period' as never,
+        label: ETICHETTA_VIAGGIO,
+        endDate: { gte: oggi },
+        ...(esistente ? { id: { not: esistente.id } } : { id: { not: '' } }),
+      } as never,
+      select: { id: true, startDate: true, endDate: true },
+    })) as { id: string; startDate: Date; endDate: Date } | null;
+    if (altraViaggio && !esistente) {
+      const da = altraViaggio.startDate.toLocaleDateString('it-IT', { timeZone: 'UTC' });
+      const a = giornoDiRientro(altraViaggio).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+      throw new BadRequestException(
+        `Questa cliente ha già una modalità viaggio dal ${da} (riprende il ${a}). Prima riporta lo stato a «— nessuna —» e salva (quella si chiude), poi scrivi le date nuove: così i giorni già aggiunti alla scadenza non si contano due volte.`,
+      );
+    }
+    if (altraViaggio && esistente) {
+      // Due periodi della card che si toccano entrambi con le date nuove: stato rotto, non si
+      // indovina quale sia «quello vero».
+      throw new BadRequestException(
+        'Questa cliente ha DUE sospensioni della modalità viaggio che toccano queste date: va sistemato a mano prima di salvarne una terza.',
+      );
+    }
+
+    /**
+     * ⚠️ Una pausa nata da un'ALTRA porta (richiesta dall'app, Calendario) che si accavalla:
+     * creare la seconda vorrebbe dire allungare il piano due volte per la stessa vacanza.
+     */
+    const accavallato = (await this.prisma.event.findFirst({
+      where: {
+        clientId,
+        mode: 'pause_period' as never,
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+        NOT: { label: ETICHETTA_VIAGGIO },
+      } as never,
+      select: { id: true, startDate: true, endDate: true },
+    })) as { id: string; startDate: Date; endDate: Date } | null;
+    if (accavallato) {
+      const da = accavallato.startDate.toLocaleDateString('it-IT', { timeZone: 'UTC' });
+      const a = giornoDiRientro(accavallato).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+      throw new BadRequestException(
+        `Questa cliente ha già una sospensione dal ${da} (riprende il ${a}), messa da un'altra strada — la richiesta di pausa dall'app o il suo Calendario. ` +
+          'Non la sovrascrivo da qui: se le date sono sbagliate vanno corrette là, altrimenti il piano le si allungherebbe due volte per la stessa vacanza.',
+      );
+    }
+
+    /**
+     * ⚠️ **LA TREGUA QUI NON FERMA, AVVISA.** Il back office è l'attivazione a mano che la regola
+     * dei quindici giorni prevede («va chiesto alla coach, che attiva lei»): bloccarla qui vorrebbe
+     * dire non lasciare nessuna strada. Ma il numero si dice, perché il senso della tregua è che
+     * qualcuno la guardi in faccia prima di concedere la seconda vacanza in un mese.
+     */
+    let avvisoTregua: string | null = null;
+    if (!esistente) {
+      const tregua = await treguaFraVacanze(this.prisma, (k, d) => this.configParams.getNumber(k, d), clientId, startDate);
+      if (tregua.mancano > 0) {
+        const rientroPrec = tregua.ultimoRientro?.toLocaleDateString('it-IT', { timeZone: 'UTC' }) ?? '?';
+        avvisoTregua =
+          `⚠️ Questa cliente è rientrata da un'altra sospensione il ${rientroPrec}: fra due vacanze devono passare ` +
+          `${tregua.minimo} giorni e ne mancano ${tregua.mancano}. L'ho attivata lo stesso, perché dal back office ` +
+          'la decisione è tua — ma resta scritta nel registro con il tuo nome.';
+      }
+    }
+
+    /**
+     * ⛔ **IL REGISTRO DEI GIORNI CONCESSI** — la memoria che la prima stesura non aveva.
+     *
+     * L'`event` dice quando i menu sono fermi, e si tronca o si cancella quando la vacanza si
+     * chiude. La `pauseRequest` con l'etichetta della card è un'altra cosa: è il **registro di
+     * quanto è già stato aggiunto alla scadenza**, e le sue date NON si riscrivono mai all'indietro
+     * — `endDate` del registro è «fin dove ho già concesso». Senza questa separazione, togliere e
+     * rimettere la vacanza azzerava la memoria e i giorni si regalavano una seconda volta.
+     */
+    const registro = (await this.prisma.pauseRequest.findFirst({
+      where: {
+        clientId,
+        staffNote: ETICHETTA_VIAGGIO,
+        startDate: { lte: endDate },
+        endDate: { gte: startDate },
+      } as never,
+      orderBy: { endDate: 'desc' },
+      select: { id: true, startDate: true, endDate: true, days: true },
+    })) as { id: string; startDate: Date; endDate: Date; days: number } | null;
+
+    /**
+     * ⛔ **SI CONCEDONO SOLO I GIORNI FUTURI E NON ANCORA COPERTI DAL REGISTRO.**
+     *
+     * «Futuri» perché un giorno già passato non è un giorno perso: fino a un istante fa la
+     * sospensione non c'era, e i menu di quel giorno sono arrivati. «Non ancora coperti» perché
+     * ogni salvataggio ripassa di qui: allungare una vacanza in corso deve aggiungere i giorni in
+     * più e basta, e risalvarla uguale non deve aggiungere niente — nemmeno se nel frattempo la
+     * vacanza è stata tolta e rimessa.
+     */
+    const daOggi = new Date(Math.max(giornoDelDato(startDate).getTime(), oggi.getTime()));
+    const futuri = endDate.getTime() >= daOggi.getTime() ? giorniSospesi({ startDate: daOggi, endDate }) : 0;
+    let coperti = 0;
+    if (registro) {
+      const da = new Date(Math.max(daOggi.getTime(), giornoDelDato(registro.startDate).getTime()));
+      const a = new Date(Math.min(endDate.getTime(), giornoDelDato(registro.endDate).getTime()));
+      coperti = a.getTime() >= da.getTime() ? giorniSospesi({ startDate: da, endDate: a }) : 0;
+    }
+    const nuovi = Math.max(0, futuri - coperti);
+    const accorciata = registro ? endDate.getTime() < giornoDelDato(registro.endDate).getTime() : false;
+
+    // Il peso di riferimento della sorveglianza vale per il periodo che sta per cominciare.
+    const ultimaMisura = (await this.prisma.measurement.findFirst({
+      where: { clientId },
+      orderBy: { date: 'desc' },
+      select: { weightKg: true },
+    })) as { weightKg: number } | null;
+
+    let eventoId: string;
+    if (esistente) {
+      await this.prisma.event.update({
+        where: { id: esistente.id },
+        data: { startDate, endDate, label: ETICHETTA_VIAGGIO, startWeightKg: ultimaMisura?.weightKg ?? null },
+      });
+      eventoId = esistente.id;
+    } else {
+      const evento = await this.createPauseEvent(clientId, startDate, endDate);
+      await this.prisma.event.update({ where: { id: evento.id }, data: { label: ETICHETTA_VIAGGIO } });
+      eventoId = evento.id;
+    }
+
+    let avviso: string | null = null;
+    let nuovaScadenza: Date | null = null;
+    let concessiOra = 0;
+    if (nuovi > 0) {
+      nuovaScadenza = await this.freezeSubscription(clientId, nuovi);
+      /**
+       * ⚠️ **`null` non vuol dire «fatto»**: `freezeSubscription` torna `null` anche quando il
+       * piano non è ancora partito o non ha scadenza, e lì i giorni NON sono stati concessi — e
+       * NON vanno scritti a registro, così un salvataggio futuro riprova invece di darli per dati.
+       */
+      if (nuovaScadenza) {
+        concessiOra = nuovi;
+      } else {
+        avviso =
+          'I menu si fermano, ma la scadenza del piano NON è stata spostata: il piano non è ancora partito ' +
+          'o non ha una data di fine. Se i giorni vanno recuperati, va fatto a mano sul piano.';
+      }
+    }
+    /**
+     * ⚠️ Quando la sospensione si **accorcia** la scadenza NON si riporta indietro: `freezeSubscription`
+     * sposta anche la fila dei piani in coda (`coda-che-slitta.ts`), e disfare quello spostamento
+     * può ricreare le sovrapposizioni che quel file esiste per evitare. Si dice, e basta.
+     */
+    if (accorciata) {
+      avviso = [
+        avviso,
+        'La vacanza è più corta di quella già concessa: la scadenza del piano NON è stata riportata indietro, i giorni già aggiunti restano alla cliente.',
+      ].filter(Boolean).join(' ');
+      this.logger.warn(`Modalità viaggio accorciata su ${clientId}: scadenza non riportata indietro.`);
+    }
+
+    /**
+     * Il registro si aggiorna SOLO in avanti: `endDate` è «fin dove ho già concesso» e non torna
+     * mai indietro, `days` è il totale concesso. Si scrive DOPO il congelamento: se
+     * `freezeSubscription` esplode, il totale resta quello vecchio e risalvare riprova.
+     */
+    if (registro) {
+      await this.prisma.pauseRequest.update({
+        where: { id: registro.id },
+        data: {
+          startDate: new Date(Math.min(giornoDelDato(registro.startDate).getTime(), startDate.getTime())),
+          endDate: new Date(Math.max(giornoDelDato(registro.endDate).getTime(), endDate.getTime())),
+          days: (registro.days ?? 0) + concessiOra,
+          status: 'auto_approved',
+          eventId: eventoId,
+          refWeightKg: ultimaMisura?.weightKg ?? null,
+          decidedByStaffId: actorUserId,
+          decidedAt: new Date(),
+        } as never,
+      });
+    } else {
+      await this.prisma.pauseRequest.create({
+        data: {
+          clientId, startDate, endDate, days: concessiOra,
+          status: 'auto_approved', eventId: eventoId,
+          decidedByStaffId: actorUserId, decidedAt: new Date(),
+          refWeightKg: ultimaMisura?.weightKg ?? null,
+          staffNote: ETICHETTA_VIAGGIO,
+        } as never,
+      });
+    }
+
+    await this.audit.log({
+      action: 'client.travel.suspend',
+      actorId: actorUserId,
+      entityType: 'user',
+      entityId: clientId,
+      metadata: {
+        dal: startDate.toISOString().slice(0, 10),
+        riprendeIl: rientro.toISOString().slice(0, 10),
+        giorni,
+        giorniAggiunti: concessiOra,
+        nuovaScadenza: nuovaScadenza ? nuovaScadenza.toISOString().slice(0, 10) : null,
+      } as never,
+    });
+    return {
+      giorni,
+      giorniCongelati: concessiOra,
+      nuovaScadenza,
+      avviso: [avvisoTregua, avviso].filter(Boolean).join(' ') || null,
+    };
+  }
+
+  /**
+   * Chiude la sospensione nata dalla modalità viaggio.
+   *
+   * ⛔ **L'evento si chiude, il registro NO** (seconda revisione, 23/8). Due oggetti, due sorti:
+   *  - l'`event` (quello che ferma i menu): se la vacanza era **in corso** si tronca a ieri — è la
+   *    verità, fino a ieri è stata sospesa, e il rientro vuole la sua pesata; se **non era ancora
+   *    cominciata** si CANCELLA — troncarla a ieri fabbricava una pausa di un giorno mai esistita,
+   *    che armava il cancello della pesata del rientro e faceva scattare la tregua dei quindici
+   *    giorni su una vacanza mai fatta;
+   *  - la `pauseRequest` (il registro dei giorni concessi): resta con le sue date, passa a
+   *    `closed`. È la memoria che impedisce di regalare gli stessi giorni rimettendo la vacanza —
+   *    e la riga che l'elenco in scheda continua a mostrare.
+   */
+  async togliSospensioneDaViaggio(
+    clientId: string,
+    actorUserId: string,
+  ): Promise<{ tolta: boolean; eraInCorso: boolean; avviso: string | null }> {
+    const oggi = aGiorno(new Date());
+    const esistente = await this.sospensioneDaViaggio(clientId);
+    if (!esistente) return { tolta: false, eraInCorso: false, avviso: null };
+    const eraInCorso = giornoDelDato(esistente.startDate).getTime() <= oggi.getTime();
+
+    if (eraInCorso) {
+      const nuovaFine = new Date(oggi.getTime() - 86_400_000);
+      await this.prisma.event.update({ where: { id: esistente.id }, data: { endDate: nuovaFine } });
+    } else {
+      await this.prisma.event.delete({ where: { id: esistente.id } });
+    }
+    // Il registro non si riscrive: si chiude soltanto, così la sorveglianza smette di trattarla
+    // come in pausa e i giorni concessi restano scritti.
+    await this.prisma.pauseRequest.updateMany({
+      where: { eventId: esistente.id } as never,
+      data: { status: 'closed' } as never,
+    });
+    await this.audit.log({
+      action: 'client.travel.resume',
+      actorId: actorUserId,
+      entityType: 'user',
+      entityId: clientId,
+      metadata: {
+        dal: giornoDelDato(esistente.startDate).toISOString().slice(0, 10),
+        riprendeIl: giornoDiRientro(esistente).toISOString().slice(0, 10),
+        chiusaIl: oggi.toISOString().slice(0, 10),
+        eraInCorso,
+      } as never,
+    });
+    return {
+      tolta: true,
+      eraInCorso,
+      avviso: eraInCorso
+        ? 'Ho chiuso la sospensione che era in corso: il menu riparte appena la cliente inserisce la pesata del rientro (gliela chiediamo noi). I giorni già aggiunti alla scadenza restano suoi.'
+        : 'Sospensione annullata prima che cominciasse. I giorni eventualmente già aggiunti alla scadenza restano alla cliente.',
+    };
+  }
+
+  /**
+   * La sospensione della card: con le date, quella che **tocca quel periodo** (anche già chiusa —
+   * riscriverla la riapre, e il registro impedisce il doppio conteggio); senza date, quella ancora
+   * aperta (per toglierla).
+   *
+   * ⚠️ Si riconosce dall'etichetta e non da una colonna nuova: aggiungere `origine` a `event`
+   * vorrebbe dire una migrazione su una tabella viva per una domanda che una stringa già risponde.
+   */
+  private async sospensioneDaViaggio(
+    clientId: string,
+    dal?: Date,
+    al?: Date,
+  ): Promise<{ id: string; startDate: Date; endDate: Date } | null> {
+    const oggi = aGiorno(new Date());
+    return (await this.prisma.event.findFirst({
+      where: {
+        clientId,
+        mode: 'pause_period' as never,
+        label: ETICHETTA_VIAGGIO,
+        ...(dal && al
+          ? { startDate: { lte: al }, endDate: { gte: dal } }
+          : { endDate: { gte: oggi } }),
+      } as never,
+      orderBy: { startDate: 'desc' },
+      select: { id: true, startDate: true, endDate: true },
+    })) as { id: string; startDate: Date; endDate: Date } | null;
   }
 
   /** Avvisa coach e nutrizionista assegnate della richiesta in attesa. */

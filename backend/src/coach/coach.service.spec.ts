@@ -1,9 +1,33 @@
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { aGiorno } from '../common/date-only';
 import { CoachService } from './coach.service';
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
+
+/**
+ * ⛔ **UNA DATA CHE VUOL DIRE «FRA N GIORNI» NON SI SCRIVE A MANO** — 23/8.
+ *
+ * Tre fixture di questo file dicevano `2026-09-01` per intendere «un piano che sta erogando adesso
+ * e scade fra poco». Il 2 settembre quel significato si sarebbe rovesciato da solo: il piano diventa
+ * finito, `attivoInCorso` cade nel ramo dei piani scaduti, e i test diventano **rossi per sempre**.
+ * ⚠️ Non è un rosso qualunque: una CI rossa per sempre è una CI che si smette di guardare, e allora
+ * il primo difetto vero arriva in produzione in mezzo al rumore.
+ *
+ * ⛔ E uno di loro era **già** verde per la ragione sbagliata, dal primo agosto: `endDate:
+ * D('2026-08-01')` con `planActive: true` atteso. Quel piano era finito — passava perché
+ * `attivoInCorso`, quando non c'è più niente che eroga, rende comunque l'ultimo scaduto (di
+ * proposito: farlo sparire dalla scheda sarebbe peggio). Cioè il test diceva «una cliente con un
+ * piano attivo» e misurava il **ripiego** per una cliente senza. ⚠️ E siccome `planActive` è vero in
+ * tutti e due i casi, spostare la data non basta a farlo mordere: adesso il test guarda anche la
+ * **scadenza mostrata**, che è l'unica cosa che cambia fra i due mondi.
+ *
+ * ⚠️ Il giorno si conta **alla stessa porta del codice**: `aGiorno(new Date())` è il giorno di Roma,
+ * ed è esattamente quello contro cui `staErogando` confronta `giornoDelDato(startDate)`.
+ */
+const fra = (giorni: number) => new Date(aGiorno(new Date()).getTime() + giorni * 86_400_000);
+const isoFra = (giorni: number) => fra(giorni).toISOString().slice(0, 10);
 const user = { sub: 'u-coach', role: 'coach' } as AuthUser;
 
 function makeService(prisma: Record<string, unknown>, expiringDays = 14) {
@@ -76,18 +100,28 @@ describe('CoachService.clients', () => {
           { userId: 'c2', name: 'Bea', planStartDate: null },
         ]),
       },
-      subscription: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', status: 'active', endDate: D('2026-08-01') }]) },
+      // ⚠️ Un piano che eroga DAVVERO: scade fra un mese. Vedi la nota su `fra`.
+      subscription: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', status: 'active', startDate: fra(-60), endDate: fra(30) }]) },
       measurement: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c1', date: D('2026-07-10'), weightKg: 70 }]) },
       alert: { findMany: jest.fn().mockResolvedValue([{ clientId: 'c2' }, { clientId: 'c2' }]) },
       // La lista clienti porta anche l'obiettivo corrente di ognuna.
       objective: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const res = (await makeService(prisma).clients(user)) as { clients: { clientId: string; openAlerts: number; planActive: boolean }[] };
+    const res = (await makeService(prisma).clients(user)) as {
+      clients: { clientId: string; openAlerts: number; planActive: boolean; planEndDate: string | null }[];
+    };
     expect(res.clients).toHaveLength(2);
     expect(res.clients[0].clientId).toBe('c2'); // più alert → primo
     expect(res.clients[0].openAlerts).toBe(2);
     const anna = res.clients.find((c) => c.clientId === 'c1')!;
     expect(anna.planActive).toBe(true);
+    /**
+     * ⚠️ **E la data, che è la parte che distingue.** `planActive` è vero anche per una cliente il
+     * cui piano è finito — di proposito: `attivoInCorso` rende comunque l'ultimo scaduto, perché
+     * farla sparire dalla scheda sarebbe peggio. Quindi `planActive` da solo non dice mai se il
+     * piano **eroga**, e un test che si ferma lì è verde in tutti i casi. La scadenza mostrata sì.
+     */
+    expect(anna.planEndDate).toBe(isoFra(30));
   });
 
   it('nessuno staff → lista vuota', async () => {
@@ -305,10 +339,10 @@ describe('CoachService — agenda/appuntamenti', () => {
       staff: { findMany: jest.fn().mockResolvedValue([]) },
       // ⚠️ `findMany` e non più `findFirst` (voce 258): la scelta fra le righe la fa
       // `attivoInCorso`, perché ora la lista comprende anche i piani in coda.
-      subscription: { findMany: jest.fn().mockResolvedValue([{ status: 'active', startDate: D('2026-07-01'), endDate: D('2026-09-01') }]) },
+      subscription: { findMany: jest.fn().mockResolvedValue([{ status: 'active', startDate: fra(-60), endDate: fra(10) }]) },
     };
     const res = (await makeService(prisma).clientAgenda('c1', false)) as { appointments: unknown[]; planEndDate: string | null };
-    expect(res.planEndDate).toBe('2026-09-01');
+    expect(res.planEndDate).toBe(isoFra(10));
     expect(res.appointments).toEqual([]);
   });
 
@@ -322,13 +356,13 @@ describe('CoachService — agenda/appuntamenti', () => {
       staff: { findMany: jest.fn().mockResolvedValue([]) },
       subscription: {
         findMany: jest.fn().mockResolvedValue([
-          { status: 'queued', startDate: D('2026-09-02'), endDate: D('2026-11-01') },
-          { status: 'active', startDate: D('2026-07-01'), endDate: D('2026-09-01') },
+          { status: 'queued', startDate: fra(11), endDate: fra(100) },
+          { status: 'active', startDate: fra(-60), endDate: fra(10) },
         ]),
       },
     };
     const res = (await makeService(prisma).clientAgenda('c1', false)) as { planEndDate: string | null };
-    expect(res.planEndDate).toBe('2026-09-01');
+    expect(res.planEndDate).toBe(isoFra(10));
   });
 
   it('se l\'unico piano è in coda, la scadenza è la sua: la cliente NON è senza piano', async () => {
@@ -338,10 +372,10 @@ describe('CoachService — agenda/appuntamenti', () => {
       visit: { findMany: jest.fn().mockResolvedValue([]) },
       staff: { findMany: jest.fn().mockResolvedValue([]) },
       subscription: {
-        findMany: jest.fn().mockResolvedValue([{ status: 'queued', startDate: D('2026-09-02'), endDate: D('2026-11-01') }]),
+        findMany: jest.fn().mockResolvedValue([{ status: 'queued', startDate: fra(11), endDate: fra(100) }]),
       },
     };
     const res = (await makeService(prisma).clientAgenda('c1', false)) as { planEndDate: string | null };
-    expect(res.planEndDate).toBe('2026-11-01');
+    expect(res.planEndDate).toBe(isoFra(100));
   });
 });

@@ -31,6 +31,20 @@ class IdoneitaDto {
   @MinLength(10)
   @MaxLength(5000)
   nota!: string;
+
+  /**
+   * Solo per `serve_visita`: il giorno entro cui la visita va fatta, `AAAA-MM-GG`.
+   *
+   * ⚠️ **`@IsOptional` qui e obbligatoria in `idoneita.ts`**, non il contrario: la regola «senza
+   * data la decisione non si salva» è una regola di dominio, e la frase che la nutrizionista deve
+   * leggere («da quel giorno in poi i menu si fermano») non è una frase che sappia scrivere un
+   * decoratore. ⛔ E `ValidationPipe` è in `forbidNonWhitelisted`: senza questo campo dichiarato,
+   * l'app riceverebbe un **400** invece della data salvata.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  visitaEntro?: string;
 }
 
 class TravelDto {
@@ -114,7 +128,7 @@ export class ClientsController {
   @HttpCode(200)
   @Post(':id/idoneita')
   decidiIdoneita(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: IdoneitaDto) {
-    return this.clients.decidiIdoneita(id, user.sub, dto.esito, dto.nota);
+    return this.clients.decidiIdoneita(id, user.sub, dto.esito, dto.nota, dto.visitaEntro);
   }
 
   /** Elimina una nota dal log: solo admin. */

@@ -82,6 +82,7 @@ export const PAGE_LABEL: Record<string, string> = {
   set_client_password: 'Imposta password cliente',
   impersonate: 'Entra come cliente (sola lettura)',
   cancel_subscription: 'Annulla un abbonamento (× sulla pastiglia del piano)',
+  travel_mode: 'Modalità viaggio (sospende i menu e allunga il piano)',
   dev_backlog: 'Lavori (elenco e storico)',
 };
 

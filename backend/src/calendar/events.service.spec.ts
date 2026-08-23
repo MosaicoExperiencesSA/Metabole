@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from './events.service';
 
@@ -29,6 +30,12 @@ describe('EventsService (segnale Agenda)', () => {
         EventsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: { log: jest.fn() } },
+        /**
+         * ⚠️ `ConfigParamsService` è entrato nel costruttore il 23/8: serve a leggere
+         * `pause_min_gap_days`, la tregua fra due vacanze. Qui vale 0 (= tregua spenta), così
+         * questi test continuano a misurare quello per cui sono nati.
+         */
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (k: string, d?: number) => (k === 'pause_min_gap_days' ? 0 : (d ?? 0))) } },
       ],
     }).compile();
     service = moduleRef.get(EventsService);

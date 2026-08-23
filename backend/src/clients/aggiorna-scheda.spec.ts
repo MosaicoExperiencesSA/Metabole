@@ -32,7 +32,7 @@ function servizio(prismaExtra: Record<string, unknown> = {}) {
   } as never;
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const menu = { redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 0, delivered: [] }) };
-  const s = new ClientsService(prisma, {} as never, audit as never, {} as never, menu as never, {} as never, {} as never);
+  const s = new ClientsService(prisma, {} as never, audit as never, {} as never, menu as never, {} as never, {} as never, {} as never);
   // Il perimetro e il permesso non sono l'oggetto di questi test.
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
   (s as unknown as { roleCanManage: () => Promise<boolean> }).roleCanManage = () => Promise.resolve(true);

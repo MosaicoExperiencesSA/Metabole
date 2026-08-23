@@ -115,7 +115,7 @@ describe('Pesata del ciclo: lo sblocco riapre l\'app, non eroga il menu', () => 
       ),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
-    const events = { activePausePeriod: jest.fn().mockResolvedValue(null) };
+    const events = { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) };
     const moduleRef = await Test.createTestingModule({
       providers: [
         MenuService,

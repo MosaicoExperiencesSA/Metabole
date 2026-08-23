@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { fraseDellaTregua, treguaFraVacanze } from '../pause/tregua-fra-vacanze';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 
@@ -24,6 +26,8 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    // ⚠️ Solo per leggere `pause_min_gap_days`: `ConfigParamsModule` è una foglia, nessun anello.
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   async list(clientId: string) {
@@ -45,6 +49,24 @@ export class EventsService {
     const durationDays = (endDate.getTime() - startDate.getTime()) / 86_400_000 + 1;
     if (input.mode === 'pause_period' && durationDays > 30) {
       throw new BadRequestException('Un periodo di pausa può durare al massimo 30 giorni');
+    }
+
+    /**
+     * ⛔ **LA TREGUA FRA DUE VACANZE VALE ANCHE DA QUI** (23/8).
+     *
+     * Questa è la seconda porta della cliente: il suo Calendario, dove «Periodo (più giorni)» crea
+     * lo stesso `pause_period` che ferma i menu. Senza il controllo qui la regola dei quindici
+     * giorni si aggira scrivendo la vacanza da un'altra schermata — ed è già successo con l'altra
+     * differenza fra queste due porte (questa non allunga la scadenza del piano, quella sì).
+     */
+    if (input.mode === 'pause_period') {
+      const tregua = await treguaFraVacanze(
+        this.prisma,
+        (k, d) => this.configParams.getNumber(k, d),
+        clientId,
+        startDate,
+      );
+      if (tregua.mancano > 0) throw new BadRequestException(fraseDellaTregua(tregua));
     }
 
     // Peso di riferimento per il mini-piano: ultima misura nota all'inizio pausa.
@@ -135,6 +157,32 @@ export class EventsService {
       },
     });
     return count > 0;
+  }
+
+  /**
+   * ⛔ **UNA SOSPENSIONE APPENA FINITA** — e perché serve saperlo (23/8, in revisione).
+   *
+   * Il cancello della pesata del rientro stava solo dentro «c'è una pausa attiva?». Ma il giorno
+   * del rientro la pausa **non è più attiva** (`endDate` è ieri): chi il giorno prima ignorava la
+   * richiesta trovava il menu comunque, tarato sulla pesata di metà vacanza che la sorveglianza le
+   * aveva chiesto. Cioè il difetto che la consegna esiste per chiudere si riapriva da sé in
+   * ventiquattr'ore, e la richiesta diventava un consiglio.
+   *
+   * La finestra è corta di proposito — un ciclo di erogazione — perché dopo quella il cancello
+   * ordinario (`cycleNeedsMeasure`) prende il suo posto e chiede la pesata comunque: due cancelli
+   * che si sovrappongono per sempre sarebbero due ragioni diverse per lo stesso blocco.
+   */
+  async pausaAppenaFinita(clientId: string, entroGiorni: number) {
+    const today = toDateOnly();
+    const da = new Date(today.getTime() - Math.max(1, entroGiorni) * 86_400_000);
+    return this.prisma.event.findFirst({
+      where: {
+        clientId,
+        mode: 'pause_period',
+        endDate: { gte: da, lt: today },
+      },
+      orderBy: { endDate: 'desc' },
+    });
   }
 
   /** Periodo di pausa attivo oggi (se esiste). */
