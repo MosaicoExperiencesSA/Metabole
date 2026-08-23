@@ -76,6 +76,70 @@ export const DATI = 'Dati e catalogo';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'diagnostica-erogazione-muta',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T09:00',
+    titolo: 'La diagnostica dell\'erogazione smette di tacere: le sospensioni in scheda, e un verdetto per ognuna delle 19 uscite',
+    dettaglio:
+      '⛔ **Il 23/8 una cliente vera è rimasta ferma per ore**, e i due strumenti che dovevano dirlo '
+      + 'hanno taciuto tutti e due:\n\n'
+      + '· `npm run diag:cliente` rispondeva «idonea» mentre il cancello era una **richiesta di pausa '
+      + '17→23/8 auto-approvata**: le sospensioni non le mostrava affatto;\n'
+      + '· `npm run prova:erogazione` stampava nove cancelli e poi «NESSUN giorno erogato», senza che '
+      + 'niente lo spiegasse. `deliverIfEligible` ha **diciannove** uscite a mano vuota, molte '
+      + 'silenziose: il tabulato ne guardava nove, e si fermava proprio dove stava la risposta.\n\n'
+      + '✅ **Le sospensioni si leggono una volta sola** (`clients/sospensioni-di-una-cliente.ts`) e la '
+      + 'usano in due: la scheda in back office e lo script. Periodi veri con l\'origine, richieste '
+      + 'anche già decise con chi ha deciso, storico della card, periodi dichiarati tenuti separati.\n\n'
+      + '✅ **E il verdetto li guarda**: rami nuovi per «sospesa» e «visita clinica scaduta». ⛔ La prima '
+      + 'stesura aggiungeva la tabella e lasciava la conclusione a «idonea» — cioè il difetto dov\'era, '
+      + 'creduto chiuso. ⚠️ E «in corso» non vuol dire «ferma»: nell\'ultimo giorno sospeso la finestra '
+      + 'di rientro è aperta e il motore eroga il menu del giorno di rientro.\n\n'
+      + '✅ **Un verdetto ✓/⛔ per ognuna delle 19 uscite**, con i numeri e con il valore **grezzo** dei '
+      + 'tre parametri. Le domande passano dalle stesse porte del motore: il cancello della pausa '
+      + 'confrontava `end_date` con l\'**istante**, quindi dalle 00:00 rispondeva diversamente dal '
+      + 'servizio. Sentinella: `menu/una-porta-per-i-cancelli.spec.ts`.\n\n'
+      + '⛔ **`Number(\'\')` fa ZERO, non NaN**: una casella svuotata diventava uno zero silenzioso, e '
+      + 'su `menu_days_delivered` lo zero spegne l\'erogazione **per tutte** da un\'uscita muta. Ora si '
+      + 'ripiega e lo si scrive; `update` rifiuta il vuoto e i soli spazi. Stesso silenzio su '
+      + '`getBool`, dove costa di più (una casella vuota su `payment_method_card_enabled` toglie un '
+      + 'metodo di pagamento dal carrello).\n\n'
+      + '⛔ **Una diagnosi mia ritirata**: avevo scritto che con `menu_visible_days_before_return` a '
+      + 'zero «la finestra non si apre mai» e che era la forma del giallo del 23/8. Misurato in '
+      + 'revisione: falso — il giorno del rientro `pausaAppenaFinita` eroga lo stesso, quindi si perde '
+      + 'un giorno d\'anticipo, non il menu. La correzione resta, la diagnosi è scritta come ipotesi '
+      + 'ritirata invece che cancellata.',
+  },
+  {
+    chiave: 'giallo-finestra-di-rientro',
+    categoria: 'Da decidere con Simone',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-24T09:30',
+    titolo: 'Il giallo del 23/8: la finestra di rientro era aperta e l\'erogazione è uscita vuota — non riprodotto',
+    dettaglio:
+      '⚠️ **Fatti misurati il 23/8 (~9:04 UTC)**: codice nuovo deployato, cliente con piano IN CODA '
+      + 'che partiva il 24/8, pausa 17→23/8, pesata del 23/8, anticipo 1. Tutti i cancelli stampati ✓ '
+      + 'tranne «pausa attiva ⛔», erogazione uscita VUOTA, zero log, zero blocchi. Subito dopo, '
+      + 'troncando la pausa a ieri, la **stessa** `deliverIfEligible` ha erogato 24 e 25.\n\n'
+      + '⛔ **Non è spiegato, e non si spiega a tavolino**: su questo caso due ipotesi ragionate sono '
+      + 'già andate a vuoto il 23/8, e una terza (il parametro dell\'anticipo a zero) l\'ha smontata la '
+      + 'revisione il 24/8 misurandola — con l\'anticipo a zero si perde un giorno d\'anticipo, non il '
+      + 'menu, perché il giorno del rientro `pausaAppenaFinita` eroga lo stesso.\n\n'
+      + '✅ **Quello che è cambiato è che adesso si legge**: `npm run prova:erogazione -- <email>` dà '
+      + 'un verdetto ✓/⛔ per ognuna delle 19 uscite, con i numeri e con il valore grezzo dei '
+      + 'parametri. **Se ricapita, la riga ⛔ dice quale.** E se sono tutte ✓, allora è il tabulato a '
+      + 'essere incompleto, e va esteso prima di cercare altrove.\n\n'
+      + 'Spiegazioni ancora sul tavolo, nessuna esclusa: la finestra di rientro non ancora in '
+      + 'produzione in quel momento; `mancaLaPesataDelRientro` (che però manda una push, quindi una '
+      + 'traccia la lascia); `menu_days_delivered` a zero o vuoto (uscita davvero muta); date '
+      + 'dell\'evento e della richiesta di pausa in disaccordo — che è proprio quello che la sezione '
+      + 'SOSPENSIONI nuova renderebbe visibile.',
+  },
+  {
     chiave: 'tabella-ig-import',
     nata: '2026-08-13',
     titolo: 'Indice glicemico: trascrizione VERIFICATA contro la tabella vera — resta solo da lanciare',

@@ -102,53 +102,243 @@ async function main(): Promise<void> {
    * verdetto. Se un giorno i cancelli del servizio cambiano, questa lista va aggiornata a mano —
    * è il prezzo, e vale il giorno in cui una cliente aspetta la spesa.
    */
+  /**
+   * ⛔ **I DICIANNOVE MODI IN CUI L'EROGAZIONE ESCE A MANO VUOTA — uno per uno, con i numeri.**
+   *
+   * Il 23/8, sul caso Lorena, questo script è uscito con «NESSUN giorno erogato» e **nessun cancello
+   * stampato lo spiegava**: la caccia è durata un'ora, per esclusione, sui log che non c'erano. Il
+   * tabulato si fermava alla pausa attiva e non guardava oltre — proprio dove stava la risposta.
+   *
+   * ⛔ **La promessa di questa lista è una sola**: se l'erogazione esce vuota, il colpevole DEVE
+   * essere una riga ⛔ qui sotto. Se un giorno esce vuota con tutte le righe ✓, allora è questa
+   * lista a essere incompleta — e va estesa prima di cercare altrove.
+   *
+   * ⚠️ Le domande si fanno con le **stesse porte** del servizio (`activePausePeriod`,
+   * `rientroInArrivo`, `mancaLaPesataDelRientro`, `pausaAppenaFinita`, `cycleNeedsMeasure`…), non
+   * con query riscritte a mano: una diagnostica che risponde a una domanda leggermente diversa da
+   * quella del motore è peggio di nessuna diagnostica, perché la si crede. Il cancello 3 era
+   * esattamente così — confrontava `end_date` con **l'istante** invece che col giorno, quindi dalle
+   * 00:00 in poi diceva «nessuna pausa» mentre il servizio ne vedeva una.
+   *
+   * ⚠️ `una-porta-per-i-cancelli.spec.ts` tiene il conto: se in `deliverIfEligible` nasce un
+   * `return []` nuovo, quel test diventa rosso e questa lista va aggiornata.
+   */
   console.log('\n--- i cancelli, in ordine ---');
-  const profilo = (await prisma.clientProfile.findUnique({
-    where: { userId: user.id },
-    select: { planStartDate: true, planHeldAt: true, regime: true, mealsPerDay: true, dietFamily: true, dietStyle: true, objective: true, pathType: true, fastingWindow: true },
-  })) as { planStartDate: Date | null; planHeldAt: Date | null; regime: string | null; mealsPerDay: number | null; dietFamily: string | null; dietStyle: string | null; objective: string | null; pathType: string | null; fastingWindow: string | null } | null;
-  console.log(`1. planStartDate sul profilo: ${giorno(profilo?.planStartDate)} ${profilo?.planStartDate ? '✓' : '⛔ SENZA data niente menu'}`);
+  const { toDateOnly, aGiorno } = await import('../src/common/date-only');
+  const { statoSupervisione } = await import('../src/clients/via-libera-clinico');
+  const { rientroInArrivo, periodoLeggibile, giornoDiRientro } = await import('../src/pause/giorno-di-rientro');
+  const { mancaLaPesataDelRientro, inizioFinestraRientro } = await import('../src/menu/pesata-del-rientro');
+  const { mancaMisuraDiPartenza } = await import('../src/menu/misura-di-partenza');
   const { attivoInCorso } = await import('../src/commerce/abbonamento-in-corso');
   const { STATI_CON_UN_PIANO } = await import('../src/commerce/stati-abbonamento');
+
+  const oggiG = toDateOnly();
+  const eventi = new EventsService(prisma as never, audit as never, configParams);
+
+  /** I due parametri che comandano tutto il resto: si stampa il valore GREZZO, non solo il numero. */
+  const grezzo = async (chiave: string, ripiego: number) => {
+    const riga = (await prisma.configParam.findUnique({ where: { key: chiave } })) as { value: string } | null;
+    const letto = await configParams.getNumber(chiave, ripiego);
+    const nota = !riga
+      ? `⚠️ la riga NON esiste in Parametri → ripiego ${ripiego}`
+      : riga.value.trim() === ''
+        ? `⛔ la riga è VUOTA in Parametri → ripiego ${ripiego} (fino al 24/8 valeva ZERO, in silenzio)`
+        : `riga = "${riga.value}"`;
+    return { letto, nota };
+  };
+  const giorniCiclo = await grezzo('menu_days_delivered', 2);
+  const anteprima = await grezzo('menu_visible_days_before_start', 2);
+  const anticipoRientro = await grezzo('menu_visible_days_before_return', 1);
+  console.log(`0. parametri: menu_days_delivered=${giorniCiclo.letto} (${giorniCiclo.nota}) · menu_visible_days_before_start=${anteprima.letto} (${anteprima.nota})`);
+  console.log(`   menu_visible_days_before_return=${anticipoRientro.letto} (${anticipoRientro.nota})`);
+
+  const profilo = (await prisma.clientProfile.findUnique({
+    where: { userId: user.id },
+    select: {
+      planStartDate: true, planHeldAt: true, regime: true, mealsPerDay: true, dietFamily: true,
+      dietStyle: true, objective: true, pathType: true, fastingWindow: true,
+      screeningFlag: true, idoneita: true, idoneitaVisitaEntro: true,
+    },
+  })) as {
+    planStartDate: Date | null; planHeldAt: Date | null; regime: string | null; mealsPerDay: number | null;
+    dietFamily: string | null; dietStyle: string | null; objective: string | null; pathType: string | null;
+    fastingWindow: string | null; screeningFlag: boolean | null; idoneita: string | null; idoneitaVisitaEntro: Date | null;
+  } | null;
+
+  console.log(`1. planStartDate sul profilo: ${giorno(profilo?.planStartDate)} ${profilo?.planStartDate ? '✓' : '⛔ SENZA data niente menu'}`);
+
+  const supervisione = statoSupervisione(profilo as never);
+  console.log(
+    `2. via libera clinico: ${supervisione.motivo}${supervisione.visitaEntro ? ` (visita entro ${supervisione.visitaEntro})` : ''} `
+      + `${supervisione.motivo === 'visita_scaduta' ? '⛔ VISITA SCADUTA: erogazione ferma' : '✓'}`,
+  );
+
   const righeSub = (await prisma.subscription.findMany({
     where: { clientId: user.id, status: { in: STATI_CON_UN_PIANO as never } },
     include: { plan: { select: { name: true, period: true } } },
   })) as ({ id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { name: string | null; period: string | null } | null })[];
   const pianoScelto = attivoInCorso(righeSub);
-  console.log(`2. attivoInCorso: ${pianoScelto ? `"${pianoScelto.plan?.name}" (${pianoScelto.status}, ${giorno(pianoScelto.startDate)} → ${giorno(pianoScelto.endDate)}) ✓` : '⛔ NESSUNO: niente da erogare'}`);
-  if (pianoScelto?.plan?.period === 'monitoring') console.log('   ⛔ È un Monitoraggio: i menu non passano di qui.');
-  const pausaAttiva = await prisma.event.findFirst({ where: { clientId: user.id, mode: 'pause_period' as never, startDate: { lte: new Date() }, endDate: { gte: new Date() } } as never, select: { id: true, endDate: true } });
-  console.log(`3. pausa attiva: ${pausaAttiva ? `⛔ SÌ (fino al ${giorno((pausaAttiva as { endDate: Date }).endDate)})` : 'no ✓'}`);
-  console.log(`4. piano fermato (planHeldAt): ${profilo?.planHeldAt ? '⛔ SÌ' : 'no ✓'}`);
-  const anteprima = await configParams.getNumber('menu_visible_days_before_start', 2);
+  console.log(`3. attivoInCorso fra ${righeSub.length} righe: ${pianoScelto ? `"${pianoScelto.plan?.name}" (${pianoScelto.status}, ${giorno(pianoScelto.startDate)} → ${giorno(pianoScelto.endDate)}) ✓` : '⛔ NESSUNO: niente da erogare'}`);
+  for (const r of righeSub) {
+    console.log(`   · ${r.status} "${r.plan?.name ?? '—'}" ${giorno(r.startDate)} → ${giorno(r.endDate)}${pianoScelto && r.id === pianoScelto.id ? '   ← è questo che eroga' : ''}`);
+  }
+  console.log(`4. tipo di piano: ${pianoScelto?.plan?.period ?? '—'} ${pianoScelto?.plan?.period === 'monitoring' ? '⛔ È un Monitoraggio: i menu non passano di qui' : '✓'}`);
+  const finito = !!pianoScelto?.endDate && pianoScelto.endDate.getTime() < oggiG.getTime();
+  console.log(`5. fine piano: ${giorno(pianoScelto?.endDate)} vs oggi ${giorno(oggiG)} ${finito ? '⛔ GIÀ FINITO' : '✓'}`);
+  console.log(`6. piano fermato (planHeldAt): ${profilo?.planHeldAt ? `⛔ SÌ, dal ${giorno(profilo.planHeldAt)}` : 'no ✓'}`);
+
+  /**
+   * ⛔ **LA PAUSA E LA FINESTRA DI RIENTRO — le tre uscite che nel 23/8 nessuno poteva leggere.**
+   *
+   * `activePausePeriod` è la stessa porta del servizio: confronta il **giorno**, non l'istante.
+   */
+  const pausa = (await eventi.activePausePeriod(user.id)) as { id: string; startDate: Date; endDate: Date } | null;
+  let rientro: Date | null = null;
+  if (pausa) {
+    const leggibile = periodoLeggibile(pausa);
+    console.log(`7. sospensione ATTIVA: ${giorno(pausa.startDate)} → ultimo giorno sospeso ${giorno(pausa.endDate)}${leggibile ? '' : ' ⛔ DATE ILLEGGIBILI: erogazione tenuta ferma'}`);
+    if (leggibile) {
+      const giornoRientro = giornoDiRientro(pausa);
+      rientro = rientroInArrivo(pausa, new Date(), anticipoRientro.letto);
+      const siApre = new Date(giornoRientro.getTime() - Math.max(0, Math.floor(anticipoRientro.letto)) * 86_400_000);
+      console.log(
+        `8. finestra di rientro: riprende il ${giorno(giornoRientro)}, anticipo ${anticipoRientro.letto}g → si apre il ${giorno(siApre)}; `
+          + `oggi (Roma) ${giorno(aGiorno(new Date()))} ${rientro ? '✓ APERTA' : '⛔ CHIUSA: sospensione piena, esce senza erogare e SENZA log'}`,
+      );
+      if (!rientro && anticipoRientro.letto <= 0) {
+        console.log('   ⛔⛔ E l\'anticipo è ZERO: con questo valore la finestra non si apre MAI, nemmeno il giorno prima del rientro.');
+      }
+    }
+  } else {
+    console.log('7. sospensione attiva: nessuna ✓');
+    const appenaFinita = (await eventi.pausaAppenaFinita(user.id, giorniCiclo.letto)) as { startDate: Date; endDate: Date } | null;
+    if (appenaFinita && periodoLeggibile(appenaFinita)) {
+      rientro = giornoDiRientro(appenaFinita);
+      console.log(`8. pausa APPENA FINITA (${giorno(appenaFinita.startDate)} → ${giorno(appenaFinita.endDate)}): il cancello della pesata del rientro vale ancora, rientro ${giorno(rientro)}`);
+    } else {
+      console.log('8. pausa appena finita: nessuna ✓');
+    }
+  }
+
+  if (rientro) {
+    const manca = await mancaLaPesataDelRientro(prisma as never, user.id, rientro, anticipoRientro.letto);
+    const da = inizioFinestraRientro(rientro, anticipoRientro.letto);
+    const ultima = (await prisma.measurement.findFirst({
+      where: { clientId: user.id }, orderBy: { date: 'desc' }, select: { date: true },
+    })) as { date: Date } | null;
+    console.log(
+      `9. pesata del rientro: vale da ${giorno(da)} in poi; ultima misura ${giorno(ultima?.date)} `
+        + `${manca ? '⛔ MANCA: menu trattenuto, parte la richiesta' : '✓'}`,
+    );
+  } else {
+    console.log('9. pesata del rientro: non richiesta (nessun rientro in vista) ✓');
+  }
+
   const inizioPiano = pianoScelto?.startDate ?? profilo?.planStartDate ?? null;
   if (inizioPiano) {
-    const { toDateOnly } = await import('../src/common/date-only');
     const start = toDateOnly(inizioPiano.toISOString());
-    const visibileDal = new Date(start.getTime() - anteprima * 86_400_000);
-    const oggiG = toDateOnly();
-    console.log(`5. finestra: inizio ${giorno(start)}, anteprima ${anteprima}g → visibile dal ${giorno(visibileDal)}, oggi ${giorno(oggiG)} ${oggiG.getTime() >= visibileDal.getTime() ? '✓' : '⛔ TROPPO PRESTO'}`);
-    const { mancaMisuraDiPartenza } = await import('../src/menu/misura-di-partenza');
-    const mancaMisura = await mancaMisuraDiPartenza(prisma as never, user.id, inizioPiano, anteprima);
-    console.log(`6. misura di partenza nella finestra: ${mancaMisura ? '⛔ MANCA (il menu resta trattenuto e si chiede)' : 'c\'è ✓'}`);
+    const visibileDal = new Date(start.getTime() - anteprima.letto * 86_400_000);
+    console.log(`10. finestra del piano: inizio ${giorno(start)}, anteprima ${anteprima.letto}g → visibile dal ${giorno(visibileDal)}, oggi ${giorno(oggiG)} ${oggiG.getTime() >= visibileDal.getTime() ? '✓' : '⛔ TROPPO PRESTO'}`);
+    const mancaMisura = await mancaMisuraDiPartenza(prisma as never, user.id, inizioPiano, anteprima.letto);
+    console.log(`11. misura di partenza di QUESTO piano: ${mancaMisura ? '⛔ MANCA (il menu resta trattenuto e si chiede)' : 'c\'è ✓'}`);
+  } else {
+    console.log('10. finestra del piano: ⛔ nessuna data di inizio');
   }
-  console.log(`7. profilo per la scelta dieta: regime=${profilo?.regime ?? '⛔ NULL'} · pasti=${profilo?.mealsPerDay ?? '⛔ NULL'} · famiglia=${profilo?.dietFamily ?? '—'} · stile=${profilo?.dietStyle ?? '—'} · obiettivo=${profilo?.objective ?? '— (→ dimagrimento)'} · percorso=${profilo?.pathType ?? '—'} · finestra=${profilo?.fastingWindow ?? '—'}`);
+
+  /**
+   * ⛔ **IL BUFFER E IL CANCELLO DEL CICLO** — due uscite mute, e la seconda è quella che dopo una
+   * vacanza guarda un ciclo cominciato **prima** della partenza.
+   */
+  const ultimo = (await prisma.menuDay.findFirst({
+    where: { clientId: user.id }, orderBy: { date: 'desc' }, select: { id: true, date: true },
+  })) as { id: string; date: Date } | null;
+  if (!ultimo) {
+    console.log('12. ultimo giorno in calendario: nessuno → prima erogazione, si parte dall\'inizio piano ✓');
+  } else {
+    const oltreOggi = ultimo.date.getTime() > oggiG.getTime();
+    console.log(`12. buffer in avanti: ultimo giorno in calendario ${giorno(ultimo.date)} vs oggi ${giorno(oggiG)} ${oltreOggi ? '⛔ È OLTRE OGGI: non eroga altro finché non passa' : '✓'}`);
+    const serve = await (menu as never as { cycleNeedsMeasure(c: string, u: { date: Date }, n: number): Promise<boolean> })
+      .cycleNeedsMeasure(user.id, ultimo, giorniCiclo.letto);
+    console.log(`13. misure del ciclo: ${serve ? '⛔ MANCANO: il ciclo successivo resta trattenuto' : 'a posto ✓'}`);
+  }
+
+  console.log(`14. profilo per la scelta dieta: regime=${profilo?.regime ?? '⛔ NULL'} · pasti=${profilo?.mealsPerDay ?? '⛔ NULL'} · famiglia=${profilo?.dietFamily ?? '—'} · stile=${profilo?.dietStyle ?? '—'} · obiettivo=${profilo?.objective ?? '— (→ dimagrimento)'} · percorso=${profilo?.pathType ?? '—'} · finestra=${profilo?.fastingWindow ?? '—'}`);
   const { pickDietFor } = await import('../src/catalog/pick-diet');
   const dietaScelta = (await pickDietFor(
     (where) => prisma.diet.findFirst({ where: where as never, orderBy: { approvedAt: 'desc' }, select: { id: true, name: true, style: true, regime: true, mealsPerDay: true, fasting: true } }) as never,
     profilo as never,
   )) as { id: string; name: string | null; style: string | null; mealsPerDay: number | null; fasting: boolean } | null;
-  console.log(`8. pickDiet: ${dietaScelta ? `"${dietaScelta.name}" (${dietaScelta.style}, ${dietaScelta.fasting ? 'fasting' : `${dietaScelta.mealsPerDay} pasti`}, id ${dietaScelta.id}) ✓` : '⛔ NESSUNA DIETA TROVATA — è questo il cancello muto'}`);
+  console.log(`15. pickDiet: ${dietaScelta ? `"${dietaScelta.name}" (${dietaScelta.style}, ${dietaScelta.fasting ? 'fasting' : `${dietaScelta.mealsPerDay} pasti`}, id ${dietaScelta.id}) ✓` : '⛔ NESSUNA DIETA TROVATA — è questo il cancello muto'}`);
   if (dietaScelta) {
     const perLivello = (await prisma.dietDayTemplate.groupBy({ by: ['level'], where: { dietId: dietaScelta.id }, _count: { _all: true } }).catch(() => null)) as { level: number; _count: { _all: number } }[] | null;
     if (perLivello) {
       const righe = perLivello.map((r) => `livello ${r.level}: ${r._count._all} giornate`).join(' · ') || '⛔ ZERO GIORNATE';
-      console.log(`9. giornate della dieta scelta: ${righe}${perLivello.some((r) => r.level === 1 && r._count._all > 0) ? ' ✓' : ' ⛔ NIENTE AL LIVELLO 1: il motore esce muto qui'}`);
+      console.log(`16. giornate della dieta scelta: ${righe}${perLivello.some((r) => r.level === 1 && r._count._all > 0) ? ' ✓' : ' ⛔ NIENTE AL LIVELLO 1: il motore esce muto qui'}`);
     } else {
       const n = await prisma.dietDayTemplate.count({ where: { dietId: dietaScelta.id, level: 1 } });
-      console.log(`9. giornate della dieta scelta al livello 1: ${n} ${n > 0 ? '✓' : '⛔ ZERO: il motore esce muto qui'}`);
+      console.log(`16. giornate della dieta scelta al livello 1: ${n} ${n > 0 ? '✓' : '⛔ ZERO: il motore esce muto qui'}`);
     }
+    /**
+     * ⛔ **LA COMPLETEZZA SI CHIEDE ALLA PORTA DEL MOTORE** (`giornateComplete`/`pastiAttesi`).
+     *
+     * La prima stesura contava `meals.length < mealsPerDay`, che è **una domanda diversa** e sbaglia
+     * in tutti e due i versi: su una dieta `fasting` con `mealsPerDay` nullo non trovava mai niente
+     * (`length < 0`); su una da 4 pasti dava ⛔ su giornate che il motore serve (qui il 4 è trattato
+     * come un 3, ed è dichiarato); un pasto con lo slot ma senza ricetta lo contava come pieno; due
+     * pranzi e nessuna cena passavano per completi.
+     *
+     * ⚠️ **E il numero non è l'uscita**: il motore esce solo se **tutte** le giornate sono monche e
+     * nessuna gemella della stessa famiglia ne ha di complete. Quindi qui si dice il numero e si dice
+     * che la gemella esiste — non si finge un verdetto che questo script non può dare.
+     */
+    const { giornateComplete } = await import('../src/catalog/giornate-complete');
+    const delLivello = (await prisma.dietDayTemplate.findMany({
+      where: { dietId: dietaScelta.id, level: 1 }, select: { dayIndex: true, meals: true },
+    })) as { dayIndex: number; meals: unknown }[];
+    const esito = giornateComplete(delLivello, dietaScelta as never);
+    console.log(
+      `17. giornate complete (attesi: ${esito.attesi.join(', ')}): ${esito.complete.length} su ${delLivello.length}`
+        + `${esito.complete.length ? ' ✓' : ' ⛔ TUTTE MONCHE: il motore cerca una gemella completa, e se non c\'è esce muto'}`
+        + `${esito.monche && esito.complete.length ? ` (⚠️ ${esito.monche} monche, quelle sì vengono saltate)` : ''}`,
+    );
   }
+
+  /**
+   * ⛔ **LE TRE USCITE DOPO LA COMPOSIZIONE** — quelle che il tabulato non aveva mai guardato,
+   * perché arrivano dopo il punto in cui si smette di leggere.
+   *
+   * ⚠️ La terza (le violazioni) è l'unica che lascia una traccia: apre la segnalazione «Piano
+   * bloccato», che questo script stampa in fondo. Le altre due escono in silenzio.
+   */
+  if (inizioPiano) {
+    const start = toDateOnly(inizioPiano.toISOString());
+    /**
+     * ⚠️ L'override del rientro vale **anche** senza giornate in calendario: nel motore
+     * `firstNewDate = start` e subito dopo `if (giornoDelRientro > today) firstNewDate = rientro`.
+     * La prima stesura lo applicava solo al ramo con giornate — divergeva sul confronto col fine
+     * piano qui sotto, in un caso raro ma vero (nessun menu + rientro in vista).
+     */
+    const base = ultimo ? new Date(Math.max(ultimo.date.getTime() + 86_400_000, oggiG.getTime())) : start;
+    const primoNuovo = rientro && rientro.getTime() > oggiG.getTime() ? rientro : base;
+    const finePiano = pianoScelto?.endDate ? toDateOnly(pianoScelto.endDate.toISOString()) : null;
+    console.log(
+      `18. primo giorno da comporre ${giorno(primoNuovo)} vs fine piano ${giorno(finePiano)} `
+        + `${finePiano && primoNuovo.getTime() > finePiano.getTime() ? '⛔ OLTRE LA FINE: non si eroga niente' : '✓'}`,
+    );
+    /**
+     * ⛔ **QUESTA USCITA È RAGGIUNGIBILE SOLO DA UN PARAMETRO A ZERO** — tracciata nel motore in
+     * revisione. Dopo il cancello 18 la prima giornata del ciclo è `firstNewDate`, quindi il `break`
+     * per fine piano non può scattare al primo giro e almeno una giornata entra sempre. L'unico modo
+     * di uscire con `daySnapshots` vuoto è avere `menu_days_delivered` a **zero**: ciclo vuoto,
+     * nessuna giornata composta, `return []` senza una riga da nessuna parte, **per tutte le
+     * clienti**. È la forma esatta del difetto che questo tabulato esiste per non far più cercare.
+     */
+    console.log(
+      `19. giornate del ciclo da comporre: ${giorniCiclo.letto} `
+        + `${giorniCiclo.letto >= 1 ? '✓' : '⛔ ZERO: non si compone niente e non si scrive niente — è `menu_days_delivered` a zero'}`,
+    );
+  }
+  console.log('20. esclusioni non sostituibili: se ce ne sono, apre «Piano bloccato» e non eroga — il motivo è stampato qui sopra e qui sotto.');
 
   console.log('\n--- erogazione ---');
   const creati = await menu.deliverIfEligible(user.id);
@@ -174,9 +364,11 @@ async function main(): Promise<void> {
       console.log('\n→ Il motore ha provato e si è fermato sui piatti qui sopra: quelli sono i');
       console.log('  piatti da togliere dal catalogo della sua dieta, o l\'esclusione da rivedere.');
     } else {
-      console.log('→ E nessun blocco: allora si è fermato PRIMA di comporre, a un cancello.');
-      console.log('  Quale, lo dice `npm run diag:cliente -- <email>`: piano non ancora partito,');
-      console.log('  misura del ciclo mancante, piano fermato dal nutrizionista, pausa, fine piano.');
+      console.log('→ E nessun blocco: si è fermato PRIMA di comporre, a un cancello.');
+      console.log('  ⛔ Quale, lo dice il TABULATO qui sopra: cerca la prima riga con ⛔.');
+      console.log('  Se sono tutte ✓, allora è il tabulato a essere incompleto — e va esteso prima di');
+      console.log('  cercare altrove. (Fino al 24/8 mandava a `diag:cliente`, che le pause non le');
+      console.log('  mostrava nemmeno: è così che il 23/8 se n\'è andata un\'ora.)');
     }
   }
 }

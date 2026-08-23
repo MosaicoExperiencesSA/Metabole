@@ -23,8 +23,39 @@ import { FINESTRA_RIAPERTURA_DEFAULT } from '../src/escalations/apri-segnalazion
 import { attivoInCorso } from '../src/commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../src/commerce/stati-abbonamento';
 import { mancaMisuraDiPartenza } from '../src/menu/misura-di-partenza';
+import { sospensioniDiUnaCliente } from '../src/clients/sospensioni-di-una-cliente';
+import { statoSupervisione } from '../src/clients/via-libera-clinico';
+import { giornoDiRientro, periodoLeggibile, rientroInArrivo } from '../src/pause/giorno-di-rientro';
+import { mancaLaPesataDelRientro } from '../src/menu/pesata-del-rientro';
 
 const prisma = new PrismaClient();
+
+/**
+ * ⛔ **UN PARAMETRO SI LEGGE COME LO LEGGE IL MOTORE.**
+ *
+ * Qui c'era `Number(riga?.value ?? 2) || 2`: su una casella **vuota** faceva 2 (per caso, via `||`),
+ * ma su uno **zero scritto apposta** faceva ancora 2 — cioè rispondeva un numero diverso da quello
+ * che usa `deliverIfEligible`. Erano quattro risposte diverse alla stessa domanda sparse nel
+ * progetto; questa adesso è la stessa di `ConfigParamsService.getNumber`: vuoto o non numerico →
+ * ripiego **e lo si dice**, zero scritto → zero.
+ *
+ * ⚠️ Non si riusa `ConfigParamsService` perché tirerebbe dentro Nest e l'audit per leggere una riga.
+ * Ma la regola dev'essere la stessa, e `una-porta-per-i-cancelli.spec.ts` tiene fermo che lo sia.
+ */
+async function leggiNumero(chiave: string, ripiego: number): Promise<number> {
+  const riga = (await prisma.configParam.findUnique({ where: { key: chiave } })) as { value: string } | null;
+  const grezzo = riga?.value;
+  if (typeof grezzo !== 'string' || grezzo.trim() === '') {
+    console.log(`⚠️ Parametro ${chiave} ${riga ? 'VUOTO' : 'assente'} in Parametri: uso il ripiego ${ripiego}.`);
+    return ripiego;
+  }
+  const n = Number(grezzo);
+  if (Number.isNaN(n)) {
+    console.log(`⚠️ Parametro ${chiave} non numerico ("${grezzo}"): uso il ripiego ${ripiego}.`);
+    return ripiego;
+  }
+  return n;
+}
 
 function giorno(d: Date | null | undefined): string {
   return d ? d.toISOString().slice(0, 10) : '—';
@@ -92,6 +123,69 @@ async function main(): Promise<void> {
     prezzo: s.plan ? `€${(s.plan.priceCents / 100).toFixed(2)}` : '—',
     stato: s.status, dal: giorno(s.startDate), al: giorno(s.endDate),
   })));
+
+  /**
+   * ⛔ **LE SOSPENSIONI — il buco che il 23/8 ha tenuto ferma una cliente per ore.**
+   *
+   * Questo script diceva «idonea» mentre il menu non arrivava, e il cancello era una **richiesta di
+   * pausa 17→23/8 auto-approvata**: le pause non le mostrava, quindi la diagnostica rispondeva a una
+   * domanda più stretta di quella che si sta facendo chi la lancia. Due ipotesi ragionate a tavolino
+   * sono andate a vuoto prima che qualcuno andasse a guardare in tabella.
+   *
+   * ⚠️ Si stampa la **stessa** risposta della scheda in back office
+   * (`sospensioniDiUnaCliente`), non una query riscritta qui: due letture della stessa cosa
+   * divergono, e divergono proprio mentre le si confronta per capire perché una cliente non mangia.
+   *
+   * ⚠️ **«Riprende il» è il primo giorno di dieta**, non l'ultimo sospeso: se in tabella c'è scritto
+   * «fino al 23», qui si legge «riprende il 24». È la convenzione della card, e la conversione la fa
+   * `giornoDiRientro` una volta sola.
+   */
+  const sosp = await sospensioniDiUnaCliente(prisma as never, user.id);
+  console.log('\n=== SOSPENSIONI ===');
+  if (!sosp.periodi.length) {
+    console.log('nessun periodo di sospensione (né passato né futuro)');
+  } else {
+    console.log('periodi VERI (sono questi che fermano i menu):');
+    console.table(sosp.periodi.map((p) => ({
+      stato: p.stato, dal: p.dal, 'riprende il': p.riprendeIl, giorni: p.giorni, origine: p.origine,
+    })));
+    const inCorso = sosp.periodi.filter((p) => p.stato === 'in_corso');
+    for (const p of inCorso) {
+      // ⚠️ Il verdetto in fondo distingue «ferma» da «finestra di rientro aperta»: qui si dice solo
+      // il fatto, senza aggiungere una conseguenza che dal 23/8 non è più sempre vera.
+      console.log(`⛔ SOSPENSIONE IN CORSO dal ${p.dal} (origine: ${p.origine}), riprende il ${p.riprendeIl} — vedi il verdetto in fondo.`);
+    }
+    const future = sosp.periodi.filter((p) => p.stato === 'futura');
+    for (const p of future) console.log(`⚠️ sospensione FUTURA dal ${p.dal}: da quel giorno i menu si fermano.`);
+  }
+  if (sosp.richieste.length) {
+    console.log('richieste di pausa (anche già decise):');
+    console.table(sosp.richieste.map((r) => ({
+      stato: r.stato, dal: r.dal, 'riprende il': r.riprendeIl, giorni: r.giorni,
+      'decisa da': r.decisaDa ?? '—', 'decisa il': giorno(r.decisaIl),
+      // ⚠️ `staffNote` è testo libero: intero allargherebbe la tabella oltre il terminale, e una
+      // tabella che va a capo non la legge nessuno. Il testo intero sta in scheda.
+      nota: (r.nota ?? '—').slice(0, 40),
+    })));
+  }
+  if (sosp.adesso?.stato && sosp.adesso.stato !== 'none') {
+    console.log(`modalità viaggio sul profilo adesso: ${sosp.adesso.stato} (dal ${sosp.adesso.dal ?? '—'}, riprende il ${sosp.adesso.riprendeIl ?? '—'})`);
+  }
+  if (sosp.viaggio.length) {
+    /**
+     * ⚠️ Lo storico della card «Modalità viaggio»: chi l'ha messa, quando, e con che date. Veniva
+     * calcolato e buttato via — una query in più per niente, e l'unica delle quattro cose che il
+     * brief chiedeva di mostrare e che non compariva.
+     */
+    console.log('storico modalità viaggio (dal registro):');
+    console.table(sosp.viaggio.slice(0, 10).map((v) => ({
+      quando: giorno(v.quando), stato: v.stato ?? '—', dal: v.dal ?? '—',
+      'riprende il': v.riprendeIl ?? '—', giorni: v.giorni ?? '—', chi: v.chi ?? '—',
+    })));
+  }
+  if (sosp.dichiarati.length) {
+    console.log(`⚠️ periodi DICHIARATI nel questionario (non fermano niente, e non l'hanno mai fatto): ${sosp.dichiarati.map((d) => `${d.dal ?? '?'}→${d.al ?? '?'}`).join(', ')}`);
+  }
 
   // --- Segnalazioni aperte ---
   const esc = (await prisma.escalation.findMany({
@@ -163,8 +257,7 @@ async function main(): Promise<void> {
     orderBy: { date: 'desc' },
     select: { date: true },
   })) as { date: Date } | null;
-  const paramGiorni = (await prisma.configParam.findUnique({ where: { key: 'menu_days_delivered' } })) as { value: string } | null;
-  const giorniPerCiclo = Number(paramGiorni?.value ?? 2) || 2;
+  const giorniPerCiclo = await leggiNumero('menu_days_delivered', 2);
   /**
    * Lo stato del profilo che cambia le regole: sblocco misure, modalità viaggio, piano fermato.
    *
@@ -254,6 +347,29 @@ async function main(): Promise<void> {
     ? await mancaMisuraDiPartenza(prisma as never, user.id, inizioDelPiano, giorniPrima)
     : false;
 
+  /**
+   * ⚠️ I dati dei due rami nuovi si preparano qui, con le **stesse porte del motore**: la
+   * sospensione in corso da `sospensioniDiUnaCliente`, la finestra da `rientroInArrivo`, la pesata
+   * da `mancaLaPesataDelRientro`. Riscriverne una a mano vorrebbe dire una diagnostica che risponde
+   * a una domanda leggermente diversa da quella del servizio — cioè la si crede e sbaglia.
+   */
+  const sospesaOra = sosp.periodi.find((x) => x.stato === 'in_corso') ?? null;
+  const anticipoRientro = await leggiNumero('menu_visible_days_before_return', 1);
+  const eventoInCorso = sospesaOra
+    ? ((await prisma.event.findFirst({ where: { id: sospesaOra.id }, select: { startDate: true, endDate: true } })) as { startDate: Date; endDate: Date } | null)
+    : null;
+  const giornoRientro = eventoInCorso && periodoLeggibile(eventoInCorso) ? giornoDiRientro(eventoInCorso) : null;
+  const rientroAperto = eventoInCorso && periodoLeggibile(eventoInCorso)
+    ? rientroInArrivo(eventoInCorso, new Date(), anticipoRientro) !== null
+    : false;
+  const aperturaFinestra = giornoRientro
+    ? new Date(giornoRientro.getTime() - Math.max(0, Math.floor(anticipoRientro)) * 86_400_000)
+    : null;
+  const mancaPesataRientro = rientroAperto && giornoRientro
+    ? await mancaLaPesataDelRientro(prisma as never, user.id, giornoRientro, anticipoRientro)
+    : false;
+  const supervisione = statoSupervisione(p as never);
+
   console.log('\n=== PERCHÉ VEDE QUEL MESSAGGIO ===');
   if (subs.length > 0 && !attivo && !inAttesa) {
     console.log('STATO: "Nessun piano attivo" — non ha un abbonamento attivo entro il periodo.');
@@ -266,6 +382,42 @@ async function main(): Promise<void> {
       '  parte dopo la visita col nutrizionista. NON è un guasto: è la regola di sicurezza.\n' +
       '  Si sblocca fissando e svolgendo la visita.',
     );
+  } else if (supervisione.motivo === 'visita_scaduta') {
+    /**
+     * ⛔ Cancello del 23/8 che questa catena non aveva: `deliverIfEligible` si ferma su
+     * `visita_scaduta`, e senza questo ramo il verdetto sarebbe stato «idonea».
+     */
+    console.log(`STATO: "Menu dopo la visita" — la VISITA È SCADUTA (era entro il ${supervisione.visitaEntro}).`);
+    console.log('  L\'erogazione è ferma da quel giorno. Si sblocca con una valutazione clinica nuova dalla scheda.');
+  } else if (sospesaOra) {
+    /**
+     * ⛔ **IL RAMO CHE MANCAVA — ed è il caso Lorena, 23/8.**
+     *
+     * La sezione SOSPENSIONI qui sopra c'era già in questa consegna, ma il **verdetto** — la riga che
+     * una persona legge e su cui decide — non la guardava: si finiva nell'`else` finale, «idonea, ma
+     * le giornate non sono ancora state erogate». Identico a prima della correzione. Aggiungere una
+     * tabella duecento righe più su e non toccare la conclusione vuol dire lasciare il difetto dov'era
+     * e crederlo chiuso: chi lancia lo script legge la conclusione.
+     *
+     * ⚠️ **E «in corso» non vuol dire «ferma»**: dal 23/8, nell'ultimo giorno sospeso la finestra di
+     * rientro è aperta e il motore eroga **il menu del giorno di rientro**. Dire «l'erogazione è ferma»
+     * proprio quel giorno — che è il giorno in cui serve di più — sarebbe il contrario di quello che
+     * fa il motore, e i due strumenti si contraddirebbero.
+     */
+    if (rientroAperto) {
+      console.log(`STATO: SOSPESA fino a oggi, ma la FINESTRA DI RIENTRO È APERTA: riprende il ${sospesaOra.riprendeIl}.`);
+      console.log(`  Il motore deve erogare il menu del ${sospesaOra.riprendeIl}${mancaPesataRientro ? ', ma prima serve la PESATA DEL RIENTRO — ed è quella che manca ⛔' : ' ✓'}.`);
+      if (!mancaPesataRientro) {
+        console.log('  ⚠️ Pesata c\'è e finestra aperta: se il menu non è arrivato lo stesso, il cancello è più');
+        console.log('     avanti — `npm run prova:erogazione -- <email>` lo stampa uno per uno.');
+      }
+    } else {
+      console.log(`STATO: SOSPESA — sospensione in corso dal ${sospesaOra.dal} (origine: ${sospesaOra.origine}).`);
+      console.log(`  L'erogazione è ferma di proposito e riprende il ${sospesaOra.riprendeIl}; la finestra di`);
+      console.log(`  rientro si apre ${anticipoRientro} giorn${anticipoRientro === 1 ? 'o' : 'i'} prima, cioè il ${giorno(aperturaFinestra)}.`);
+      console.log('  ⚠️ Questo è il cancello che il 23/8 è rimasto invisibile per ore: fino a oggi lo script');
+      console.log('     le sospensioni non le mostrava, e il verdetto diceva «idonea».');
+    }
   } else if (!p?.planStartDate) {
     console.log('STATO: "Menu in preparazione" — non ha ancora scelto la data di inizio piano.');
   } else if (pianoDiAdesso?.plan?.period === 'monitoring') {

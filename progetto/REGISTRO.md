@@ -50,6 +50,53 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   dieta non ha giornate al livello richiesto (caso Lorena, 23/8: «Digiuno 16:8» approvata a 4
   settimane, zero erogazione, zero log — sbloccata passandola a Mediterranea).
 
+## 2026-08-24
+
+- `[Sviluppo]` 🔦 **La diagnostica dell'erogazione smette di tacere — e la casella vuota che valeva
+  zero.** Il 23/8 una cliente vera è rimasta ferma per ore, e i due strumenti che dovevano dirlo
+  hanno taciuto tutti e due: `diag:cliente` rispondeva «idonea» mentre il cancello era una
+  **richiesta di pausa 17→23/8 auto-approvata** — le sospensioni non le mostrava affatto — e
+  `prova:erogazione` stampava nove cancelli e poi «NESSUN giorno erogato», senza che niente lo
+  spiegasse. `deliverIfEligible` ha **diciannove** uscite a mano vuota, molte silenziose: il
+  tabulato ne guardava nove e si fermava proprio dove stava la risposta.
+  ✅ **Le sospensioni si leggono una volta sola** (`clients/sospensioni-di-una-cliente.ts`, estratta
+  dal servizio) e la usano in due: la scheda in back office, che ci mette davanti il controllo dei
+  permessi, e lo script, che quel controllo non ha. Ricopiarla sarebbe stata la seconda lettura
+  della stessa cosa — e due letture della stessa cosa divergono proprio mentre le si confronta per
+  capire perché una cliente non mangia.
+  ✅ **E il verdetto le guarda**: due rami nuovi, «sospesa» e «visita clinica scaduta» (un cancello
+  del 23/8 che quella catena non aveva mai avuto). ⛔ La prima stesura di questa consegna aggiungeva
+  la tabella e **lasciava la conclusione a «idonea»**: cioè il difetto restava dov'era e lo si
+  credeva chiuso. Chi lancia lo script legge la conclusione, non risale di duecento righe.
+  ⚠️ **«In corso» non vuol dire «ferma»**: dal 23/8, nell'ultimo giorno sospeso la finestra di
+  rientro è aperta e il motore eroga il menu **del giorno di rientro**. Dirlo fermo proprio quel
+  giorno sarebbe il contrario di quello che fa il motore.
+  ✅ **Un verdetto ✓/⛔ per ognuna delle 19 uscite**, con i numeri usati per decidere e il valore
+  **grezzo** dei tre parametri che comandano l'erogazione. Le domande passano dalle **stesse porte**
+  del motore: il cancello della pausa confrontava `end_date` con l'**istante** invece che col
+  giorno, quindi dalle 00:00 in poi diceva «nessuna pausa» mentre il servizio ne vedeva una. *Una
+  diagnostica che risponde a una domanda leggermente diversa da quella del motore è peggio di
+  nessuna diagnostica, perché la si crede.*
+  ⚠️ `menu/una-porta-per-i-cancelli.spec.ts` conta le uscite: se ne nasce una nuova, diventa rosso.
+  ⛔ **`Number('')` fa ZERO, non NaN.** Una riga di `config_param` svuotata diventava in silenzio uno
+  zero credibilissimo, e su questi parametri **lo zero è un interruttore**: `menu_days_delivered` a
+  zero fa comporre zero giornate e uscire da `daySnapshots.length === 0` — un `return []` che non
+  scrive niente, per tutte le clienti insieme. Ora si ripiega **e lo si scrive**, e `update` rifiuta
+  il vuoto e i soli spazi. ⛔ Lo stesso silenzio c'era su `getBool`, dove costa di più: una casella
+  vuota su `payment_method_card_enabled` toglie un metodo di pagamento dal carrello, e chi non
+  riesce a pagare non scrive — se ne va.
+  ⛔ **E UNA DIAGNOSI MIA DA RITIRARE.** Avevo scritto, in un commento e in un test, che con
+  `menu_visible_days_before_return` a zero «la finestra non si apre mai» e che quella era la forma
+  del giallo del 23/8. **Misurato in revisione: falso.** Il giorno del rientro la pausa non è più
+  attiva e il ramo `pausaAppenaFinita` eroga lo stesso: il costo di quello zero è un giorno
+  d'anticipo perso, non una cliente ferma. Falsa anche la seconda metà — dal back office il DTO ha
+  già `@MinLength(1)`, quindi la stringa vuota era già rifiutata; quello che passava sono i **soli
+  spazi**. La correzione resta giusta, la diagnosi è scritta come ipotesi ritirata invece che
+  cancellata: *una ragione falsa è peggio di un ordine sbagliato*.
+  ⚠️ **Il giallo resta aperto**, e questa consegna non prova a spiegarlo — lo rende leggibile.
+
+---
+
 ## 2026-08-21
 
 - `[Sviluppo]` 🗑️ **I pasti del digiuno non si scelgono più da nessuna parte — e nella scheda

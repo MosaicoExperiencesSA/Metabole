@@ -30,9 +30,9 @@ import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
 import { PauseService } from '../pause/pause.service';
 import { giorniSospesi, giornoDiRientro, ultimoGiornoSospeso } from '../pause/giorno-di-rientro';
-import { ETICHETTA_VIAGGIO } from '../pause/pause.service';
+import { sospensioniDiUnaCliente } from './sospensioni-di-una-cliente';
 import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
-import { giornoDelDato, giornoLocale, toDateOnly } from '../common/date-only';
+import { giornoLocale, toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 // Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
 import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
@@ -1863,140 +1863,15 @@ export class ClientsService {
    */
   async sospensioni(userId: string, actorId: string) {
     await this.assertClientAccess(actorId, userId);
-    const oggi = toDateOnly();
-
-    const [eventi, richieste, profilo] = await Promise.all([
-      this.prisma.event.findMany({
-        where: { clientId: userId, mode: 'pause_period' as never } as never,
-        orderBy: { startDate: 'desc' },
-        take: 50,
-        select: { id: true, startDate: true, endDate: true, label: true, createdAt: true },
-      }) as Promise<{ id: string; startDate: Date; endDate: Date; label: string | null; createdAt: Date }[]>,
-      this.prisma.pauseRequest.findMany({
-        where: { clientId: userId } as never,
-        orderBy: { startDate: 'desc' },
-        take: 50,
-        select: {
-          id: true, startDate: true, endDate: true, days: true, status: true,
-          eventId: true, decidedByStaffId: true, decidedAt: true, staffNote: true, createdAt: true,
-        },
-      }) as Promise<{
-        id: string; startDate: Date; endDate: Date; days: number; status: string;
-        eventId: string | null; decidedByStaffId: string | null; decidedAt: Date | null;
-        staffNote: string | null; createdAt: Date;
-      }[]>,
-      this.prisma.clientProfile.findUnique({
-        where: { userId },
-        select: { consents: true, travelState: true, travelStart: true, travelEnd: true },
-      }) as Promise<{ consents: unknown; travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null>,
-    ]);
-
-    /** Chi ha deciso: i nomi si leggono in blocco, non uno per riga. */
-    const idsStaff = [...new Set(richieste.map((r) => r.decidedByStaffId).filter((x): x is string => Boolean(x)))];
-    const nomi = new Map<string, string>();
-    if (idsStaff.length) {
-      const persone = (await this.prisma.user.findMany({
-        where: { id: { in: idsStaff } },
-        select: { id: true, email: true, firstName: true, lastName: true },
-      })) as { id: string; email: string; firstName: string | null; lastName: string | null }[];
-      for (const p of persone) {
-        nomi.set(p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email);
-      }
-    }
-    const perEvento = new Map(richieste.filter((r) => r.eventId).map((r) => [r.eventId as string, r]));
-
-    const giorno = (d: Date) => d.toISOString().slice(0, 10);
-    const quandoSiamo = (dal: Date, ultimoSospeso: Date): 'futura' | 'in_corso' | 'passata' => {
-      if (oggi.getTime() < giornoDelDato(dal).getTime()) return 'futura';
-      return oggi.getTime() <= giornoDelDato(ultimoSospeso).getTime() ? 'in_corso' : 'passata';
-    };
-
-    const periodi = eventi.map((e) => ({
-      id: e.id,
-      dal: giorno(e.startDate),
-      riprendeIl: giorno(giornoDiRientro(e)),
-      giorni: giorniSospesi(e),
-      stato: quandoSiamo(e.startDate, e.endDate),
-      /**
-       * Da dove è nata. ⚠️ Le tre porte non valgono uguale in €: la richiesta di pausa e la
-       * modalità viaggio allungano la scadenza del piano, il Calendario in app **no** (difetto
-       * aperto, segnalato a Simone il 23/8). Chi legge la scheda deve poterlo distinguere.
-       */
-      origine:
-        e.label === ETICHETTA_VIAGGIO
-          ? 'Modalità viaggio'
-          : perEvento.has(e.id)
-            ? 'Richiesta di pausa'
-            : 'Calendario in app',
-      creataIl: e.createdAt,
-    }));
-
-    return {
-      periodi,
-      richieste: richieste.map((r) => ({
-        id: r.id,
-        dal: giorno(r.startDate),
-        riprendeIl: giorno(giornoDiRientro(r)),
-        giorni: r.days,
-        stato: r.status,
-        decisaDa: r.decidedByStaffId ? (nomi.get(r.decidedByStaffId) ?? null) : null,
-        decisaIl: r.decidedAt,
-        nota: r.staffNote,
-        chiestaIl: r.createdAt,
-      })),
-      viaggio: await this.storicoModalitaViaggio(userId),
-      /** Lo stato scritto adesso sul profilo, per far vedere la card e l'elenco d'accordo. */
-      adesso: profilo
-        ? {
-            stato: profilo.travelState,
-            dal: profilo.travelStart ? giorno(profilo.travelStart) : null,
-            riprendeIl: profilo.travelEnd ? giorno(new Date(giornoDelDato(profilo.travelEnd).getTime() + 86_400_000)) : null,
-          }
-        : null,
-      dichiarati: Array.isArray((profilo?.consents as { pausePeriods?: unknown })?.pausePeriods)
-        ? ((profilo?.consents as { pausePeriods: { start?: string; end?: string }[] }).pausePeriods).map((p) => ({
-            dal: p.start ?? null,
-            al: p.end ?? null,
-          }))
-        : [],
-    };
-  }
-
-  /**
-   * Lo storico della card «Modalità viaggio», dal registro.
-   *
-   * ⚠️ Le voci scritte **prima del 23/8** hanno `metadata: { state }` e basta: da quel giorno ci
-   * finiscono anche `dal`, `riprendeIl` e i giorni sospesi. Le vecchie restano con le date a
-   * `null` — che è la verità, e si vede — invece di essere riempite indovinando.
-   */
-  private async storicoModalitaViaggio(userId: string) {
-    const righe = (await this.prisma.auditLog.findMany({
-      where: {
-        entityId: userId,
-        action: { in: ['client.travel.update', 'client.travel.suspend', 'client.travel.resume'] },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-      include: { actor: { select: { email: true, firstName: true, lastName: true } } },
-    })) as {
-      id: string; action: string; createdAt: Date; metadata: unknown;
-      actor: { email: string; firstName: string | null; lastName: string | null } | null;
-    }[];
-    return righe.map((r) => {
-      const m = (r.metadata ?? {}) as { state?: string | null; dal?: string | null; riprendeIl?: string | null; giorni?: number | null; giorniSospesi?: number | null };
-      return {
-        id: r.id,
-        azione: r.action,
-        quando: r.createdAt,
-        stato: m.state ?? null,
-        dal: m.dal ?? null,
-        riprendeIl: m.riprendeIl ?? null,
-        giorni: m.giorniSospesi ?? m.giorni ?? null,
-        chi: r.actor
-          ? [r.actor.firstName, r.actor.lastName].filter(Boolean).join(' ') || r.actor.email
-          : null,
-      };
-    });
+    /**
+     * ⚠️ **La lettura sta in `sospensioni-di-una-cliente.ts`** (24/8), e qui resta solo il controllo
+     * dei permessi. Il motivo è uno script: `diag:cliente` non mostrava le pause — è il buco che il
+     * 23/8 ha nascosto per ore il vero cancello di una cliente ferma — e per mostrarle serviva questa
+     * stessa risposta, senza il controllo dei permessi che una riga di comando non ha. Ricopiarla
+     * sarebbe stata la seconda lettura della stessa cosa, e due letture della stessa cosa divergono
+     * proprio mentre qualcuno le confronta per capire perché una cliente non mangia.
+     */
+    return sospensioniDiUnaCliente(this.prisma, userId);
   }
 
   /**

@@ -1,0 +1,155 @@
+Parte: la diagnostica dell'erogazione smette di tacere — sospensioni in scheda, verdetto per ognuna delle 19 uscite, e il parametro vuoto che valeva zero — 24/8
+
+================================================================================
+DA DOVE NASCE
+================================================================================
+
+Il 23/8 una cliente vera è rimasta ferma per ore, e i due strumenti che dovevano dirlo hanno
+taciuto tutti e due:
+
+· `npm run diag:cliente` rispondeva «idonea, ma le giornate non sono ancora state erogate»
+  mentre il cancello era una **richiesta di pausa 17→23/8 auto-approvata**. Le sospensioni non le
+  mostrava affatto.
+· `npm run prova:erogazione` stampava nove cancelli, tutti ✓ tranne «pausa attiva ⛔», e poi
+  «NESSUN giorno erogato» senza che niente lo spiegasse. `deliverIfEligible` ha **diciannove**
+  uscite a mano vuota, molte silenziose: il tabulato ne guardava nove e si fermava proprio dove
+  stava la risposta.
+
+Prima di misurare, due ipotesi ragionate a tavolino erano già andate a vuoto. Questa consegna non
+prova a spiegare il caso: fa in modo che la prossima volta si legga invece di dedurre.
+
+================================================================================
+1. `diag:cliente` — LE SOSPENSIONI, E IL VERDETTO CHE LE GUARDA
+================================================================================
+
+La lettura è uscita da `clients.service.sospensioni()` ed è diventata
+`clients/sospensioni-di-una-cliente.ts`, usata da **due** chiamanti: la scheda in back office (che
+ci mette davanti il controllo dei permessi) e lo script (che quel controllo non ha e non deve
+avere). Ricopiarla sarebbe stata la seconda lettura della stessa cosa — e due letture della stessa
+cosa divergono proprio mentre qualcuno le confronta per capire perché una cliente non mangia.
+
+Lo script stampa: i periodi VERI (quelli che fermano i menu) con dal / riprende il / origine, le
+richieste di pausa anche già decise con chi ha deciso, lo storico della card, e i periodi
+dichiarati nel questionario — tenuti separati, perché quelli non fermano niente e non l'hanno mai
+fatto.
+
+⛔ **E DUE RAMI NUOVI NEL VERDETTO.** La prima stesura di questa consegna aggiungeva la tabella e
+non toccava la conclusione: il verdetto continuava a dire «idonea», cioè il difetto restava dov'era
+e lo si credeva chiuso. Chi lancia lo script legge la conclusione, non risale di duecento righe.
+Adesso ci sono il ramo «sospesa» e il ramo «visita clinica scaduta» (un cancello del 23/8 che
+questa catena non aveva mai avuto).
+
+⚠️ **«In corso» non vuol dire «ferma».** Dal 23/8, nell'ultimo giorno sospeso la finestra di
+rientro è aperta e il motore eroga il menu **del giorno di rientro**. Dirlo fermo proprio quel
+giorno — che è il giorno in cui serve di più — sarebbe il contrario di quello che fa il motore. Il
+verdetto distingue i due casi e, a finestra aperta, dice se manca la pesata del rientro.
+
+================================================================================
+2. `prova:erogazione` — UN VERDETTO PER OGNUNA DELLE 19 USCITE
+================================================================================
+
+Il tabulato adesso percorre tutte le uscite nell'ordine del servizio, con **i numeri usati per
+decidere**: via libera clinico, quale piano eroga fra due attivi, tipo di piano, fine piano, piano
+fermato, sospensione, **finestra di rientro** (con il giorno in cui si apre e l'anticipo letto),
+**pesata del rientro** (con la data della finestra e dell'ultima misura), pausa appena finita,
+finestra del piano, misura di partenza, **buffer in avanti**, **misure del ciclo**, scelta della
+dieta, giornate del livello, **completezza**, `planEnd` contro il primo giorno da comporre,
+**giornate del ciclo**, esclusioni non sostituibili.
+
+⛔ **La promessa è una sola**: se l'erogazione esce vuota, il colpevole DEVE essere una riga ⛔ del
+tabulato. Se sono tutte ✓, è il tabulato a essere incompleto, e va esteso prima di cercare altrove.
+
+⚠️ **Le domande si fanno alle stesse porte del motore** — `activePausePeriod`, `rientroInArrivo`,
+`mancaLaPesataDelRientro`, `pausaAppenaFinita`, `cycleNeedsMeasure`, `giornateComplete` — non con
+query riscritte a mano. Il cancello della pausa era esattamente così: confrontava `end_date` con
+**l'istante** invece che col giorno, quindi dalle 00:00 in poi diceva «nessuna pausa» mentre il
+servizio ne vedeva una attiva. Una diagnostica che risponde a una domanda leggermente diversa da
+quella del motore è peggio di nessuna diagnostica, perché la si crede.
+
+⚠️ **E si stampa il valore GREZZO dei tre parametri** che comandano l'erogazione, non solo il
+numero che esce dopo il ripiego: leggere «riga = ""» invece di «anticipo 1» è la differenza fra un
+minuto e un'ora.
+
+`menu/una-porta-per-i-cancelli.spec.ts` conta le uscite: se in `deliverIfEligible` ne nasce una
+nuova, quel test diventa rosso e il tabulato va aggiornato.
+
+================================================================================
+3. UNA CASELLA VUOTA NON È UNO ZERO
+================================================================================
+
+`Number('')` fa **0**, non NaN. Quindi in `ConfigParamsService.getNumber` il ripiego non scattava,
+il `throw` nemmeno, e una riga di `config_param` svuotata diventava in silenzio uno zero
+perfettamente credibile.
+
+⚠️ Su questi parametri lo zero **non è un valore neutro, è un interruttore**. Il caso che costa di
+più è `menu_days_delivered`: a zero il ciclo è vuoto, il motore compone zero giornate ed esce da
+`daySnapshots.length === 0` — un `return []` che non scrive niente da nessuna parte, per tutte le
+clienti insieme. È l'unica uscita che è insieme silenziosa, raggiungibile solo da un parametro, e
+fino a oggi non diagnosticata.
+
+Adesso: vuoto o non numerico → ripiego **e lo si scrive nei log**, con il nome della chiave; senza
+ripiego si solleva. E `update()` rifiuta di salvare una casella vuota o di soli spazi.
+
+⛔ **Lo stesso silenzio c'era su `getBool`, e lì costava di più.** `raw === 'true' || raw === '1'`
+vuol dire che tutto il resto è `false`, senza una riga da nessuna parte: una casella vuota, `TRUE`,
+`si`, `yes`. Su ogni parametro il cui ripiego è acceso è un interruttore che si spegne da solo —
+`payment_method_card_enabled` toglie un metodo di pagamento dal carrello, e chi non riesce a pagare
+non scrive, se ne va. Ora si normalizza, si accettano le forme che una persona scrive davvero, e su
+una casella vuota si ripiega dicendolo.
+
+================================================================================
+⛔ COSA HA TROVATO LA REVISIONE (e una diagnosi mia da ritirare)
+================================================================================
+
+⛔ **IL DIFETTO DEL 23/8 NON ERA CHIUSO.** La sezione SOSPENSIONI c'era, il verdetto non la
+guardava: si finiva nell'`else` finale, «idonea». Aggiungere una tabella e non toccare la
+conclusione è esattamente il modo di credere chiuso un difetto che è dov'era.
+
+⛔ **«L'EROGAZIONE È FERMA» ERA FALSO** proprio nel giorno del caso Lorena: nell'ultimo giorno
+sospeso la finestra di rientro è aperta e il motore eroga. I due strumenti si contraddicevano.
+
+⛔ **LA MIA DIAGNOSI DEL GIALLO NON REGGEVA.** Avevo scritto — in un commento e in un test — che
+con `menu_visible_days_before_return` a zero «la finestra non si apre mai», e che quella era la
+forma del giallo del 23/8. Misurato: **falso**. Il giorno del rientro la pausa non è più attiva, il
+ramo `pausaAppenaFinita` la ripesca ed eroga. Il costo di quello zero è **un giorno d'anticipo
+perso**, non una cliente ferma. E la seconda metà della ragione era falsa pure lei: dal back office
+`UpdateConfigDto.value` ha già `@MinLength(1)`, quindi la stringa vuota era già rifiutata — quello
+che passava sono i **soli spazi**. La correzione resta giusta; la diagnosi che le avevo attaccato
+no, ed è scritta come ipotesi ritirata invece che cancellata.
+
+⛔ **IL CANCELLO DELLA COMPLETEZZA CHIEDEVA UN'ALTRA COSA.** Contava `meals.length < mealsPerDay`
+invece di passare da `giornateComplete`/`pastiAttesi`: sbagliava in tutti e due i versi — su una
+dieta in digiuno non trovava mai niente, su una da quattro pasti dava ⛔ su giornate che il motore
+serve, e un pasto senza ricetta lo contava come pieno.
+
+⛔ **UN CANCELLO SENZA VERDETTO.** Il 19 stampava una frase e nessun ✓/⛔ — l'unica riga che rompeva
+la promessa del tabulato — e ripeteva la ragione sbagliata scritta nel motore.
+
+⚠️ Più: il messaggio d'errore nuovo consigliava di «scrivere 0», che su `menu_days_delivered`
+spegne l'erogazione per tutte; due import morti lasciati dall'estrazione; lo storico della card
+calcolato e mai stampato; il consiglio in fondo che rimandava allo strumento che aveva mentito; e i
+due pezzi più fragili dell'estrazione (lo storico e i nomi di chi ha deciso) senza un test.
+
+================================================================================
+COSA NON È CHIUSO
+================================================================================
+
+⚠️ **Il giallo del 23/8 resta aperto.** Non è spiegato, e questa consegna non prova a spiegarlo:
+lo rende leggibile. La prossima volta che capita, `npm run prova:erogazione -- <email>` dice quale
+riga è ⛔.
+
+⚠️ **`engine-rules.service.ts` ha ancora `Number(raw)` sul valore grezzo**: la schermata «Regole
+motore» mostrerebbe `0` dove il motore usa il ripiego. Voce aperta.
+
+⚠️ Da verificare sulla shell di Render: `menu_visible_days_before_return` deve valere 1 e
+`pause_min_gap_days` 15. E `grep -c "sblocca:sospensione" package.json`: sul repo la riga c'è da
+`8c003be` (23/8, riga 44) — se là dice 0, è il deploy a essere vecchio, non il commit a mancare.
+
+================================================================================
+PROVE
+================================================================================
+
+313 suite, 4997 test, verdi — e verdi anche a `npm run test:notte` (la suite girata alle 00:30 di
+Roma). `nest build` verde con i tipi Prisma veri. Ogni pezzo rotto apposta e visto diventare rosso:
+il ripiego sul parametro vuoto, la guardia su `update`, «riprende il» riportato all'ultimo giorno
+sospeso, la somma a mano rimessa, l'ultimo giorno sospeso dichiarato «passata».
