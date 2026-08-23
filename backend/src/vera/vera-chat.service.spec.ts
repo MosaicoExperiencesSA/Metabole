@@ -478,6 +478,248 @@ describe('VeraChatService — la scrittura', () => {
     expect(ultimoAgente(messaggioCreate).testo).toContain('Ho tolto dai suoi menu: tonno');
   });
 
+  /**
+   * ⛔ **IL CASO LORENA POLIDORO (23/8): la regola vale anche sui giorni già preparati.**
+   *
+   * «Niente pesce» scriveva sul profilo e basta: i giorni futuri già composti restavano lì col
+   * branzino dentro, la nutrizionista leggeva «ho tolto dai suoi menu» — vero solo a metà — e alla
+   * cliente il pesce continuava ad arrivare. Richiesta di Simone: «se Vera crea la regola, va
+   * applicata su tutto, perché è del nutrizionista assegnato».
+   */
+  it('⛔ «niente pesce» rifà i giorni già preparati che lo contengono — e solo quelli', async () => {
+    const GIORNO = 86_400_000;
+    const fra = (n: number) => new Date(Date.now() + n * GIORNO);
+    const pasto = (recipeId: string, name: string) => [{ slot: 'lunch', recipeId, name, kcal: 500 }];
+    const { service, prisma, messaggioCreate } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(4),
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'r-branzino', name: 'Branzino al forno', ingredients: [] },
+            { id: 'r-triglie', name: 'Triglie al pomodoro', ingredients: [] },
+            { id: 'r-pollo', name: 'Pollo ai ferri', ingredients: [] },
+            // ⛔ La trappola: «carpa» sta dentro «carpaccio». Con un confronto a mano (senza le
+            // omonime di `hitsExclusion`) questo giorno verrebbe rifatto per una regola sul pesce.
+            { id: 'r-carpaccio', name: 'Carpaccio di manzo con rucola', ingredients: [] },
+          ]),
+        },
+      },
+      {
+        statoAperto: statoAmbito({
+          frase: 'a Lorena niente pesce',
+          clienteNome: 'Lorena',
+          intento: { tipo: 'restrizione', cliente: 'Lorena', vietati: ['pesce'], tenuti: [] },
+        }),
+        giorniMenu: [
+          // ⚠️ GIÀ APERTO, e PRIMA di quello colpito: resta suo, e non impedisce di rifare la coda.
+          { id: 'g-visto', clientId: 'c1', date: fra(1), viewedAt: new Date(), meals: pasto('r-branzino', 'Branzino al forno') },
+          { id: 'g-branzino', clientId: 'c1', date: fra(2), viewedAt: null, meals: pasto('r-branzino', 'Branzino al forno') },
+          // ⚠️ «Triglie» al plurale: lo prende la RADICE di «triglia». Con un `includes` nudo no.
+          { id: 'g-triglie', clientId: 'c1', date: fra(3), viewedAt: null, meals: pasto('r-triglie', 'Triglie al pomodoro') },
+          { id: 'g-pollo', clientId: 'c1', date: fra(4), viewedAt: null, meals: pasto('r-pollo', 'Pollo ai ferri') },
+          { id: 'g-carpaccio', clientId: 'c1', date: fra(6), viewedAt: null, meals: pasto('r-carpaccio', 'Carpaccio di manzo') },
+        ],
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+
+    /**
+     * ⛔ **Si cancella dal primo giorno colpito IN AVANTI, non i singoli giorni** — bloccante trovato
+     * in revisione. `deliverIfEligible` si ferma se in calendario c'è già un giorno più avanti di
+     * oggi, e appende i nuovi **dopo l'ultimo**: cancellare un giorno in mezzo lascia un buco che
+     * non si richiude **mai**, e la cliente in quel giorno trova «menu in preparazione» per sempre.
+     * Quindi qui spariscono anche `g-pollo` e `g-carpaccio`, che il pesce non ce l'hanno: è il
+     * prezzo, e si paga volentieri — un menu rimescolato è un fastidio, un giorno che non torna è
+     * una persona senza cena.
+     */
+    const cancellati = (prisma.menuDay.deleteMany as jest.Mock).mock.calls[0][0].where.id.in as string[];
+    expect(cancellati.sort()).toEqual(['g-branzino', 'g-carpaccio', 'g-pollo', 'g-triglie']);
+    // ⚠️ E il giorno GIÀ APERTO non è fra questi: resta suo.
+    expect(cancellati).not.toContain('g-visto');
+
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Ho tolto dai suoi menu: pesce');
+    expect(testo).toContain('Ho rifatto anche 4 giornate');
+  });
+
+  /**
+   * ⛔ **IL CASO LORENA VERO: la parola c'era GIÀ sul profilo.** È quello che Simone ha sistemato a
+   * mano il 23/8, ed è la strada che Lucia prenderebbe per rimediare — ridettare la regola. La
+   * prima stesura usciva subito con «erano già tutti esclusi» **senza guardare i giorni**: l'unica
+   * strada che non ripuliva niente era quella che si sarebbe usata per ripulire.
+   */
+  it('⛔ se la parola c\'era già, i giorni si guardano lo stesso', async () => {
+    const GIORNO = 86_400_000;
+    const { service, prisma, profileUpdate, messaggioCreate } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(1),
+          findMany: jest.fn().mockResolvedValue([{ id: 'r-branzino', name: 'Branzino al forno', ingredients: [] }]),
+        },
+      },
+      {
+        statoAperto: statoAmbito({
+          intento: { tipo: 'restrizione', cliente: 'Lorena', vietati: ['pesce'], tenuti: [] },
+        }),
+        // Il profilo ce l'ha già: sul profilo non c'è niente da scrivere.
+        profilo: { dislikedFoods: ['pesce'], allergies: [], intolerances: [], name: 'Lorena' },
+        giorniMenu: [
+          {
+            id: 'g-branzino', clientId: 'c1', date: new Date(Date.now() + 2 * GIORNO), viewedAt: null,
+            meals: [{ slot: 'lunch', recipeId: 'r-branzino', name: 'Branzino al forno', kcal: 500 }],
+          },
+        ],
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    expect(profileUpdate).not.toHaveBeenCalled(); // niente da scrivere: giusto
+    expect((prisma.menuDay.deleteMany as jest.Mock)).toHaveBeenCalled(); // ma il branzino sparisce
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('sul profilo non ho cambiato niente');
+    expect(testo).toContain('Ho rifatto anche 1 giornata');
+  });
+
+  /**
+   * ⛔ **E se in mezzo c'è un giorno GIÀ APERTO non si tocca niente, e lo si DICE.** Un giorno letto
+   * resta suo, ma se sta dopo quello colpito resta lui l'ultimo del calendario e il buco si
+   * riaprirebbe. Fingere di aver fatto sarebbe la bugia da cui nasce questo lavoro.
+   */
+  it('⛔ un giorno già aperto DOPO quello colpito ferma tutto, e la risposta lo dice', async () => {
+    const GIORNO = 86_400_000;
+    const pasto = (recipeId: string) => [{ slot: 'lunch', recipeId, name: 'x', kcal: 500 }];
+    const { service, prisma, messaggioCreate } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(2),
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'r-branzino', name: 'Branzino al forno', ingredients: [] },
+            { id: 'r-pollo', name: 'Pollo ai ferri', ingredients: [] },
+          ]),
+        },
+      },
+      {
+        statoAperto: statoAmbito({
+          intento: { tipo: 'restrizione', cliente: 'Lorena', vietati: ['pesce'], tenuti: [] },
+        }),
+        giorniMenu: [
+          { id: 'g-branzino', clientId: 'c1', date: new Date(Date.now() + 2 * GIORNO), viewedAt: null, meals: pasto('r-branzino') },
+          // ⚠️ Aperto, e DOPO: non si può cancellare, e resterebbe lui l'ultimo.
+          { id: 'g-letto', clientId: 'c1', date: new Date(Date.now() + 3 * GIORNO), viewedAt: new Date(), meals: pasto('r-pollo') },
+        ],
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    expect((prisma.menuDay.deleteMany as jest.Mock)).not.toHaveBeenCalled();
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('ne ha già aperto uno');
+    expect(testo).toContain('Rigenera menu');
+  });
+
+  /**
+   * ⚠️ **Solo le ricette dei giorni candidati.** La prima stesura leggeva l'INTERO catalogo a ogni
+   * frase detta in chat: qui si guarda che la query porti un `where` sugli id.
+   */
+  it('⚠️ non si rilegge tutto il catalogo: solo le ricette di quei giorni', async () => {
+    const GIORNO = 86_400_000;
+    const recipeFindMany = jest.fn().mockResolvedValue([{ id: 'r-1', name: 'Pollo', ingredients: [] }]);
+    const { service } = make(
+      { recipe: { count: jest.fn().mockResolvedValue(1), findMany: recipeFindMany } },
+      {
+        statoAperto: statoAmbito(),
+        giorniMenu: [
+          { id: 'g-1', clientId: 'c1', date: new Date(Date.now() + GIORNO), viewedAt: null, meals: [{ slot: 'lunch', recipeId: 'r-1', name: 'Pollo', kcal: 400 }] },
+        ],
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    expect(recipeFindMany.mock.calls[0][0].where.id.in).toEqual(['r-1']);
+  });
+
+  /**
+   * ⚠️ **E la nutrizionista sa COSA ha appena vietato**: per il motore «pesce» non è una parola ma
+   * un elenco — tonno, branzino, nasello, aringa, i derivati. Senza questa riga, l'unico modo di
+   * scoprire quanto è largo il divieto è vedere cosa sparisce dai piatti.
+   */
+  it('⚠️ la risposta spiega che «pesce» è un elenco, non una parola', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: statoAmbito({
+          intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['pesce'], tenuti: [] },
+        }),
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('«pesce» per il motore vuol dire');
+    /**
+     * ⚠️ **Il taglio è pinnato**: sei voci mostrate, il resto contato. Senza questa riga il numero
+     * si poteva cambiare senza che nessun test se ne accorgesse — ed è il numero che decide quanto
+     * è leggibile la frase che la nutrizionista si trova davanti.
+     */
+    const mostrate = testo.split('vuol dire ')[1].split(' e altre ')[0].split(', ');
+    expect(mostrate).toHaveLength(6);
+    expect(testo).toMatch(/e altre \d+ voci/);
+  });
+
+  /**
+   * ⚠️ **«e un'altra voce», non «e altre 1 voci».** Lo legge una persona. `crostacei` ha esattamente
+   * sette membri, cioè uno oltre il taglio: è il caso che fa comparire il singolare.
+   */
+  it('⚠️ con una voce sola oltre il taglio la frase è al singolare', async () => {
+    const { service, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: statoAmbito({
+          intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['crostacei'], tenuti: [] },
+        }),
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('e un\'altra voce');
+    expect(testo).not.toContain('altre 1');
+  });
+
+  /** ⚠️ E una parola che non è una categoria non si spiega: «tonno» è tonno e basta. */
+  it('⚠️ una parola sola non porta nessuna spiegazione', async () => {
+    const { service, messaggioCreate } = make({}, { statoAperto: statoAmbito() });
+    await service.parla('lucia', 'solo per lei');
+    expect(ultimoAgente(messaggioCreate).testo).not.toContain('per il motore vuol dire');
+  });
+
+  /**
+   * ⚠️ **Se il controllo dei giorni si rompe, la regola resta scritta e il guasto SI DICE.**
+   * Rispondere «fatto» su giorni mai controllati è esattamente la bugia da cui nasce questo lavoro;
+   * perdere la scrittura per un rifacimento fallito sarebbe il danno peggiore. Né l'una né l'altro.
+   */
+  it('⚠️ giorni non controllabili: la regola vale, e lo dice', async () => {
+    const { service, profileUpdate, messaggioCreate } = make(
+      {
+        recipe: {
+          count: jest.fn().mockResolvedValue(1),
+          findMany: jest.fn().mockRejectedValue(new Error('database giù')),
+        },
+      },
+      {
+        statoAperto: statoAmbito(),
+        // ⚠️ Serve una giornata: senza candidati il catalogo non si legge nemmeno, e il guasto che
+        // questo test vuole provare non arriverebbe mai.
+        giorniMenu: [
+          {
+            id: 'g-1', clientId: 'c1', date: new Date(Date.now() + 86_400_000), viewedAt: null,
+            meals: [{ slot: 'lunch', recipeId: 'r-1', name: 'Tonno e fagioli', kcal: 400 }],
+          },
+        ],
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    expect(profileUpdate).toHaveBeenCalled(); // la scrittura non si perde
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Ho tolto dai suoi menu: tonno');
+    expect(testo).toContain('non sono riuscita a intervenire');
+  });
+
   it('non raddoppia una regola già scritta', async () => {
     const { service, profileUpdate, messaggioCreate } = make(
       {},

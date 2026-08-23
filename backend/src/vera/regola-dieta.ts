@@ -26,7 +26,7 @@
  *    persona; bloccare tutto vorrebbe dire che una cliente con un catalogo povero ferma una regola
  *    giusta per le altre trecento.
  */
-import { exclusionKeys, expandExclusion } from '../menu/exclusions';
+import { exclusionKeys, expandExclusion, hitsExclusion } from '../menu/exclusions';
 import { calcolaPool, RicettaDelPool as RicettaPerPool } from './pool-disponibile';
 
 /** Il codice della regola dentro `ProductRule`. Uno solo, e non uno per termine. */
@@ -88,8 +88,16 @@ export function ricetteVietate(ricette: readonly RicettaDaFiltrare[], termini: r
   const fuori = new Set<string>();
   if (!parole.length) return fuori;
   for (const r of ricette) {
-    const testo = testoDi(r);
-    if (parole.some((p) => testo.includes(p))) fuori.add(r.id);
+    /**
+     * ⛔ **`hitsExclusion`, non un `includes` scritto qui** (23/8). Questa era la nona copia del
+     * confronto — quella che la voce «una porta sola» non aveva trovato — e divergeva nei due
+     * versi: senza la **radice** un divieto sulla «mandorla» lasciava passare «mandorle», e senza
+     * le **omonime** un divieto sulla «carpa» avrebbe fatto rifare i giorni col carpaccio di manzo
+     * e uno su l'«orata» quelli con una torta decorata. Trovata allargando l'elenco del pesce: le
+     * chiavi nuove avrebbero avuto due comportamenti diversi a seconda della porta da cui entrava
+     * lo stesso divieto.
+     */
+    if (hitsExclusion(testoDi(r), parole)) fuori.add(r.id);
   }
   return fuori;
 }

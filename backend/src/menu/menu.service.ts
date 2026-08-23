@@ -2122,6 +2122,24 @@ export class MenuService {
           // nell'elenco di chi va guardata (decisione di Simone, 13/8). Svuotarlo qui vorrebbe dire
           // una giornata senza un pasto, che è peggio del piatto che si voleva togliere.
           if (restano.size > 0) slotPool.set(slot, restano);
+          else
+            /**
+             * ⛔ **E LO SI DICE** (23/8, trovato in revisione). Questo ramo taceva: lo slot si
+             * teneva il pool intero — ricette vietate comprese — e la cliente si vedeva servito
+             * esattamente il piatto che la regola doveva toglierle, senza una riga da nessuna
+             * parte. ⚠️ La guardia non rimedia: i termini di dieta arrivano come «non graditi»,
+             * quindi non bloccano, e la sostituzione salta in silenzio se non trova un tier.
+             * L'elenco delle scoperte esiste ma si calcola **solo** quando il capo approva: da lì
+             * in poi, se il catalogo si assottiglia, nessuno lo sa più.
+             * ⚠️ Il ramo gemello venti righe sotto (le esclusioni della cliente) questo avviso ce
+             * l'ha da sempre: due rami che fanno la stessa cosa e solo uno che la racconta è il
+             * modo in cui una regola smette di valere senza che nessuno se ne accorga.
+             */
+            this.logger.warn(
+              `Divieto di dieta: per lo slot "${slot}" di ${clientId} resterebbero ZERO ricette ` +
+                `(${fuori.size} vietate su ${ids.size}): il divieto NON si applica a questo pasto e ` +
+                'la cliente riceve il piatto vietato. Va guardata (`npm run diag:esclusioni`).',
+            );
         }
       }
     }

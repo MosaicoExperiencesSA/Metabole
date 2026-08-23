@@ -74,6 +74,16 @@ describe('la radice: «mandorla» e «mandorle» sono la stessa cosa', () => {
 const PERMESSI = new Set<string>([
   'menu/exclusions.ts', // è la porta
   /**
+   * ⚠️ **Dichiarato il 23/8, dopo averlo guardato**: la sentinella allargata alla *forma* lo pesca
+   * per due `.some(…includes…)`, e nessuno dei due confronta chiavi escluse col testo di un piatto:
+   *  · riga ~354 — `STATI_CON_UN_PIANO.includes(s.status)`, cioè gli stati di un abbonamento;
+   *  · riga ~1989 — «questo alimento appartiene a questo gruppo di equivalenza?», che è la domanda
+   *    del trova-gemella, non «questo piatto contiene una cosa esclusa».
+   * Il filtro delle esclusioni, in questo file, passa da `ricetteNonSicure` e `ricetteVietate` —
+   * che a loro volta chiamano la porta.
+   */
+  'menu/menu.service.ts',
+  /**
    * ⚠️ **Eccezione vera, non una scorciatoia.** `cosaSiPerde` non confronta le chiavi con il testo
    * di un piatto: confronta **due insiemi di chiavi fra loro** — «quello che escludeva prima è
    * ancora coperto da quello che escluderà dopo?». È un'altra domanda, e `hitsExclusion` non la
@@ -84,8 +94,28 @@ const PERMESSI = new Set<string>([
   'chat/allergie-chat.service.ts',
 ]);
 
-/** `[...chiavi].some((k) => testo.includes(k))` e le sue forme, anche spezzate su più righe. */
-const A_MANO = /(?:allergeni|altre|altreEsclusioni|excluded|chiavi|triggerKeys|keys)\s*\]?[\s\S]{0,40}?\.(?:some|every)\s*\([\s\S]{0,80}?\.includes\s*\(/;
+/**
+ * `[...chiavi].some((k) => testo.includes(k))` e le sue forme, anche spezzate su più righe.
+ *
+ * ⛔ **La prima versione elencava i NOMI DI VARIABILE** (`allergeni|chiavi|keys|…`), e per questo la
+ * **nona copia le è passata davanti**: in `vera/regola-dieta.ts` la variabile si chiamava `parole`.
+ * Una sentinella che riconosce i nomi invece della forma è una sentinella che il prossimo la chiama
+ * in un altro modo — e la decima copia sarebbe passata dallo stesso buco.
+ *
+ * ⚠️ Adesso guarda la **forma** — un `.some(...)`/`.every(...)` che dentro fa `.includes(` — e la
+ * cerca **solo nei file che maneggiano le esclusioni**, cioè quelli che importano da
+ * `menu/exclusions`. È la firma esatta della nona copia: prendi le chiavi dalla porta giusta e poi
+ * il confronto te lo riscrivi.
+ *
+ * ⚠️ Guardare la forma **ovunque** l'avevo provato, e costava dieci file da dichiarare — stati di
+ * abbonamento, slot del digiuno, rete dello staff — tutti `.some(…includes…)` che con le
+ * esclusioni non c'entrano niente. Un guardiano che grida su dieci cose innocenti è un guardiano
+ * che si impara a zittire: la precisione qui non è eleganza, è la condizione perché qualcuno lo
+ * ascolti l'undicesima volta.
+ */
+const A_MANO = /\.(?:some|every)\s*\([\s\S]{0,80}?\.includes\s*\(/;
+/** Chi prende le chiavi dalla porta giusta è anche chi può essere tentato di rifarsi il confronto. */
+const TOCCA_LE_ESCLUSIONI = /from '[^']*exclusions'/;
 
 function tuttiIFile(radice: string): string[] {
   const out: string[] = [];
@@ -105,10 +135,16 @@ describe('nessuno si riscrive il confronto per conto suo', () => {
 
   it('il confronto fra chiavi escluse e piatto passa da `hitsExclusion`', () => {
     const colpevoli = tuttiIFile(radice)
-      .filter((f) => A_MANO.test(readFileSync(f, 'utf8')))
+      .filter((f) => {
+        const src = readFileSync(f, 'utf8');
+        return TOCCA_LE_ESCLUSIONI.test(src) && A_MANO.test(src);
+      })
       .map((f) => f.slice(radice.length + 1).replace(/\\/g, '/'))
       .filter((rel) => !PERMESSI.has(rel));
     expect(colpevoli).toEqual([]);
+    // ⚠️ E la prova che la sentinella riconoscerebbe la forma della NONA copia, che si chiamava
+    // `parole` — nessun nome di variabile fra quelli che il controllo cercava prima del 23/8.
+    expect(A_MANO.test('if (parole.some((p) => testo.includes(p))) fuori.add(r.id);')).toBe(true);
   });
 
   it('l’eccezione dichiarata risponde davvero a un’altra domanda', () => {

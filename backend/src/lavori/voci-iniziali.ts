@@ -1476,6 +1476,114 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'misurate e non corrette. Nessuna migrazione.',
   },
   {
+    chiave: 'giorno-cancellato-che-non-torna',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    nata: '2026-08-23T18:30',
+    titolo: '⛔ Un giorno di menu cancellato «per rifarlo» può non tornare MAI: la cliente trova «menu in preparazione» per sempre',
+    dettaglio:
+      '⛔ **Trovato in revisione il 23/8, ed è in produzione dal 13/8.** La regola di dieta di Vera '
+      + '(«nella mediterranea niente tonno») rifà i menu già preparati **cancellandoli**, contando '
+      + 'che l\'erogazione li ricomponga al giro dopo. Non è vero:\n\n'
+      + '`deliverIfEligible` (`menu/menu.service.ts:771-786`) legge l\'**ultimo** giorno in calendario '
+      + 'e, se è più avanti di oggi, **esce**: `if (last.date > today) return [];`. E i giorni nuovi li '
+      + 'appende **dopo l\'ultimo**. Quindi un giorno cancellato **in mezzo** non viene ricomposto né '
+      + 'oggi né mai: resta un buco, e quel giorno la cliente apre l\'app e trova «menu in '
+      + 'preparazione».\n\n'
+      + '⚠️ **Come ci si arriva:** `giorniDaRifare` cancella un **sottoinsieme** (solo i giorni che '
+      + 'contengono davvero il piatto vietato, decisione giusta del 13/8) — ed è proprio il '
+      + 'sottoinsieme che lascia in piedi un giorno più avanti. Gli altri percorsi di Vera che toccano '
+      + 'i menu (proteine, pasti) cancellano **tutta** la coda non aperta e quindi non ci sbattono.\n\n'
+      + '✅ **Il modo giusto è già scritto**, con il commento che descrive questo identico guasto: '
+      + '`menu.service.redeliverFutureDays` cancella, **rieroga subito** e **rimette i giorni com\'erano** '
+      + 'se la rierogazione non produce niente («un menu vecchio è meglio di nessun menu»), dicendo a '
+      + 'chi chiama che la modifica non è arrivata nel piatto.\n\n'
+      + '⚠️ **Nella regola per la singola cliente è già chiuso** (23/8): si cancella dal primo giorno '
+      + 'colpito **in avanti**, e se in mezzo c\'è un giorno già aperto non si tocca niente e lo si '
+      + 'dice. Ma `vera/applica-proposta.ts:200` — la regola di **dieta**, che tocca molte clienti in '
+      + 'una volta — ha ancora il difetto originale. ⛔ Lì la toppa della coda non basta: bisogna '
+      + 'passare dal motore, e `applica-proposta.ts` prende `prisma` e basta **di proposito** (non '
+      + 'deve poter far fallire un\'approvazione). Va deciso come: o `MenuModule` esportato a Vera con '
+      + 'gli occhi aperti, o un passo notturno che ricompone i buchi.\n\n'
+      + '⚠️ **Da guardare anche all\'indietro**: chi ha già approvato una regola di dieta dal 13/8 '
+      + 'potrebbe avere clienti con un giorno mancante in calendario. Si trova cercando i `MenuDay` '
+      + 'con un salto di data nel futuro.',
+  },
+  {
+    chiave: 'niente-pesce-vuol-dire-niente-pesce',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-23T16:40',
+    titolo: '«Niente pesce» ora vuol dire niente pesce: 67 voci, i giorni già preparati si rifanno, e Vera spiega cosa ha vietato',
+    dettaglio:
+      '⛔ **Il caso Lorena Polidoro (23/8)**: regola «niente pesce», e le arrivano un branzino e poi un '
+      + 'tonno. Tre difetti diversi sotto lo stesso sintomo:\n\n'
+      + '1. **La regola non era mai arrivata al profilo** (campo «Cibi non graditi» vuoto: risolto a '
+      + 'mano da Simone). ⚠️ Da capire ancora DOVE si è persa nel dialogo con Vera — il percorso '
+      + '«solo per lei» scrive subito, quindi o il dialogo si è fermato alla domanda sull\'ambito, o '
+      + 'la risposta è finita in coda approvazioni: si vede dal registro di Vera.\n\n'
+      + '2. **L\'elenco del motore per «pesce» aveva 12 voci** — con la tabella delle specie passata '
+      + 'da Simone ne mancavano trenta che nei menu si chiamano col loro nome (aringa, nasello, '
+      + 'cernia, spigola, verdesca, storione…) più i derivati che non si chiamano pesce (stoccafisso, '
+      + 'bottarga, surimi, colatura). Ora sono **67**, controllate parola per parola: «carpa» ha '
+      + 'l\'omonima «carpaccio», «razza» ha «terrazza», «rombo» ha «stromboli»; «cappone» (è anche il '
+      + 'pollo), «fragolino» (radice = fragoline), «sarda» (alla sarda), «carpione» (marinatura di '
+      + 'verdure) sono rimasti FUORI col motivo scritto. ⚠️ E il test dei piatti innocenti ha trovato '
+      + 'un falso positivo **preesistente**: «orata» sta dentro ogni participio in «-orata» — una '
+      + '«torta decorata», una «cipolla dorata» sparivano da settimane a chiunque escludesse il '
+      + 'pesce. Ora ha le sue omonime.\n\n'
+      + '3. **La regola per la singola cliente non toccava i giorni già preparati**: scriveva sul '
+      + 'profilo e valeva solo per i menu futuri, mentre il branzino già in calendario restava lì. '
+      + 'Richiesta di Simone: *«se Vera crea la regola, va applicata su tutto, perché è del '
+      + 'nutrizionista assegnato»*. Ora usa la STESSA regola della regola di dieta (`giorniDaRifare`): '
+      + 'si rifanno solo i giorni futuri, mai aperti, che contengono davvero un piatto vietato — e la '
+      + 'risposta di Vera dice quanti. ⚠️ E se il controllo si rompe, la regola resta scritta e il '
+      + 'guasto si dice.\n\n'
+      + '⛔ **Trovata anche la NONA copia del confronto**: `ricetteVietate` (regola di dieta, pool, '
+      + 'scoperte, rifacimento) usava un `includes` a mano — senza radice né omonime. Con l\'elenco '
+      + 'nuovo avrebbe rifatto i giorni col carpaccio di manzo e lasciato passare «triglie» al '
+      + 'plurale. Ora passa da `hitsExclusion`, la porta unica: un divieto si comporta uguale da '
+      + 'qualunque strada entri.\n\n'
+      + '⚠️ **E Vera adesso SPIEGA cosa ha vietato**: «\"pesce\" per il motore vuol dire tonno, '
+      + 'salmone, branzino, orata, merluzzo, sgombro e altre 60 voci». Vale per ogni categoria (latte, '
+      + 'legumi…): senza, l\'unico modo di scoprire quanto è largo un divieto era vedere cosa '
+      + 'sparisce dai piatti.\n\n'
+      + '⛔ **E la revisione avversariale ha trovato un bloccante mio, più vecchio della consegna.** '
+      + '«Rifare un giorno» voleva dire solo cancellarlo, contando che l\'erogazione lo ricomponesse. '
+      + 'Ma `deliverIfEligible` si ferma se in calendario c\'è già un giorno **più avanti di oggi**, e '
+      + 'i nuovi li appende **dopo l\'ultimo**: cancellare un giorno in mezzo lascia un buco che **non '
+      + 'si richiude mai** — la cliente apre l\'app in quel giorno e trova «menu in preparazione», per '
+      + 'sempre. ⚠️ È un difetto che la **regola di dieta ha dal 13/8**: voce '
+      + '`giorno-cancellato-che-non-torna`, da chiudere lì con `redeliverFutureDays`, che esiste già e '
+      + 'sa rimettere i giorni com\'erano se la rierogazione non produce niente. Qui si cancella dal '
+      + 'primo giorno colpito **in avanti** (come già fanno le proteine e i pasti di Vera), così '
+      + 'l\'ultimo torna indietro e l\'erogazione riparte; e se in mezzo c\'è un giorno **già aperto** '
+      + 'non si tocca niente **e lo si dice**, con la strada da prendere.\n\n'
+      + '⛔ **E il caso Lorena vero non era coperto**: con «pesce» già sul profilo (come l\'ha messo '
+      + 'Simone a mano) ridettare la regola usciva subito con «erano già tutti esclusi» **senza '
+      + 'guardare i giorni** — cioè l\'unica strada per rimediare era l\'unica che non ripuliva niente. '
+      + 'Ora i giorni si guardano sempre.\n\n'
+      + '⚠️ **Tre voci tolte o corrette in revisione**, con lo stesso criterio con cui ne erano già '
+      + 'state scartate altre: **«razza»** (razza chianina/piemontese: chi esclude il pesce perdeva la '
+      + 'bistecca), **«sarde»** (prefisso di «Sardegna»), e le omonime di **«orata»** — otto parole '
+      + 'contro una famiglia **aperta** («insaporata», «odorata», «ristorata»…). Da lì la regola '
+      + 'nuova `SOLO_A_INIZIO_PAROLA`, che chiude la famiglia intera invece di rincorrerla. ⛔ E il '
+      + 'giro della **radice** non consultava le omonime: erano **strutturalmente impossibili** per '
+      + '`trigli`, `palomb`, `gallinell`, `ricciol` — e un mio commento indicava proprio quella come '
+      + 'la via d\'uscita. Adesso esiste.\n\n'
+      + '⚠️ E la composizione **taceva**: uno slot che resterebbe a zero per un divieto di dieta si '
+      + 'teneva il pool intero — piatti vietati compresi — senza una riga da nessuna parte, mentre il '
+      + 'ramo gemello delle esclusioni della cliente lo scrive da sempre.\n\n'
+      + '⚠️ Da misurare in produzione dopo il rilascio: `npm run diag:esclusioni` dice quante ricette '
+      + 'l\'elenco nuovo toglie davvero — e va chiesto su **triglia, palombo, gallinella, ricciola**, '
+      + 'non solo su «riccioli». ✅ Sui 273 piatti dei cataloghi del repo toglie **una ricetta in più** '
+      + 'e **zero** falsi positivi. 49 test nuovi sull\'elenco + 6 su Vera; ogni pezzo verificato per '
+      + 'mutazione. Nessuna migrazione.',
+  },
+  {
     chiave: 'via-libera-non-arrivava-al-cliente',
     categoria: 'Da fare — codice',
     ordine: 0,

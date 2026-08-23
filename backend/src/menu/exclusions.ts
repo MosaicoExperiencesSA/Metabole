@@ -39,7 +39,70 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
   'frutta a guscio': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'pinoli', 'macadamia', 'pecan'],
   legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'fave', 'lupini', 'borlotti', 'cannellini', 'cicerchie', 'edamame'],
   uova: ['uovo', 'uova', 'frittata', 'maionese', 'albume', 'tuorlo', 'omelette'],
-  pesce: ['pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe', 'alici', 'trota', 'sogliola', 'baccal'],
+  /**
+   * ✅ PESCE — l'elenco arriva dalla tabella delle specie passata da Simone (23/8), non da chi
+   * scrive il codice: stessa regola di provenienza dei solfiti.
+   *
+   * ⛔ Il caso che l'ha fatto allungare è Lorena Polidoro: regola «niente pesce», e le sono
+   * arrivati branzino e tonno. Quei due QUI c'erano già — il suo problema era un altro (la regola
+   * non era arrivata al profilo) — ma guardando l'elenco con la tabella davanti mancavano
+   * trenta specie che nei menu si scrivono col loro nome: un'aringa, un nasello o una spigola
+   * passavano il filtro di chiunque avesse escluso «pesce». Da 12 voci a **67**.
+   *
+   * ⚠️ **Le assenze sono decisioni, non dimenticanze:**
+   *  · «cappone» — è anche il pollo di Natale: escluderlo toglierebbe carne a chi ha escluso pesce.
+   *    La gallinella/cappone di mare resta coperta da «gallinella»;
+   *  · «fragolino» (il pagello) — la radice `fragolin` prenderebbe le **fragoline** di bosco.
+   *    Resta coperto da «pagello»;
+   *  · «sarda» e «sarde» — la prima sta dentro «alla sarda» (malloreddus, agnello…), la seconda è un
+   *    **prefisso di «Sardegna»**: pane della Sardegna, culurgiones di Sardegna. ⚠️ Contro un
+   *    prefisso non possono niente né le omonime né l'inizio di parola: resta «sardina/sardine»;
+   *  · «razza» — **tolta in revisione**: «razza chianina», «razza piemontese» sono carne, e chi
+   *    esclude il pesce ci perderebbe la bistecca. Non è una parola che *contiene* la chiave, è la
+   *    chiave con un altro significato — lo stesso caso di «cappone», e senza rimedio possibile.
+   *    La razza di mare resta scoperta: è il prezzo, ed è il verso giusto;
+   *  · «carpione» — «in carpione» è anche una marinatura di verdure e il pesce di lago non arriva
+   *    nei menu; ⚠️ se un giorno arriva, va aggiunto CON la sua omonima;
+   *  · «orate» al plurale — sta dentro «decorate»; il singolare c'è;
+   *  · «barbo» — mai nei menu, e il rischio di collisioni non paga niente;
+   *  · «pesce spada», «pesce gatto», «pesce san pietro», «pesce azzurro» — li prende già «pesce».
+   *
+   * ⚠️ E una voce è **larga di proposito, e va saputa**: «ricciola» ha radice `ricciol`, che a
+   * inizio parola prende anche i «riccioli» (la pasta, i riccioli di burro). Toglie piatti
+   * innocenti a chi esclude il pesce — nel verso sicuro, mai il contrario — e la ricciola è fra i
+   * pesci più comuni nei menu: tenerla fuori sarebbe il buco più probabile. Se il catalogo vero ha
+   * tanti «riccioli» (si misura con `npm run diag:esclusioni`), la strada è insegnare le omonime
+   * anche alla radice — non togliere la ricciola.
+   */
+  pesce: [
+    'pesce', 'tonno', 'salmone', 'branzino', 'orata', 'merluzzo', 'sgombro', 'acciughe', 'alici',
+    'trota', 'trote', 'sogliola', 'baccal',
+    // ⚠️ I singolari che la RADICE non recupera: `acciughe` → `acciugh`, e «acciuga» non comincia
+    // per «acciugh» (la *h* è del plurale); `alici` è troppo corta per avere una radice. Sono la
+    // stessa lezione di «mandorla/mandorle», su due parole che nei menu si scrivono al singolare
+    // («burro all'acciuga», «salsa d'acciuga»).
+    'acciuga', 'alice',
+    // Mare, dalla tabella del 23/8.
+    'aguglia', 'aringa', 'aringhe', 'cefalo', 'muggine', 'barracuda', 'palamita', 'ricciola',
+    'sardina', 'sardine', 'alalunga', 'spada',
+    // Fondale e scoglio.
+    'cernia', 'dentice', 'gallinella', 'nasello', 'mormora', 'pagello', 'rombo', 'sarago',
+    'scorfano', 'spigola', 'triglia',
+    // Cartilaginei.
+    'gattuccio', 'palombo', 'smeriglio', 'verdesca',
+    // Acqua dolce.
+    'anguilla', 'capitone', 'carpa', 'coregone', 'lavarello', 'luccio', 'persico', 'salmerino',
+    'siluro', 'storione', 'tinca',
+    // Il banco del supermercato: nella tabella non ci sono, nei piatti sì («e simili», Simone 23/8).
+    'platessa', 'halibut', 'pangasio', 'tilapia',
+    // Derivati e conserve: il pesce che non si chiama pesce.
+    'stoccafisso', 'bottarga', 'surimi', 'colatura', 'caviale', 'paranza',
+    // ⚠️ Il pesce dentro un piatto che non lo nomina: «vitello tonnato» è vitello, e la salsa è
+    // tonno. Chi esclude il pesce e si vede arrivare un tonnato ha ragione lui.
+    'tonnato', 'tonnata',
+    // ⚠️ Il crudo giapponese: quasi sempre pesce, e nel nome del piatto il pesce non compare.
+    'sushi', 'sashimi',
+  ],
   crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle', 'astice'],
   molluschi: ['calamari', 'cozze', 'vongole', 'polpo', 'seppia', 'ostriche', 'capesante', 'totano'],
   soia: ['soia', 'tofu', 'edamame', 'tempeh', 'miso'],
@@ -124,6 +187,9 @@ const ALIAS: Record<string, string> = {
   eggs: 'uova',
   egg: 'uova',
   fish: 'pesce',
+  pesci: 'pesce',
+  'pesce azzurro': 'pesce',
+  'pesce bianco': 'pesce',
   soy: 'soia',
   soya: 'soia',
   shellfish: 'crostacei',
@@ -342,17 +408,85 @@ export function radiceChiave(k: string): string | null {
 export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
   // «bovino» contiene «vino» e non ha niente a che fare con i solfiti del vino.
   vino: ['bovino', 'bovina', 'bovini', 'bovine'],
+  /**
+   * ⚠️ Le tre righe sotto NASCONO insieme alle loro chiavi (l'elenco del pesce, 23/8) e non dalla
+   * diagnostica — ed è una deroga dichiarata alla regola qui sopra, con una differenza che la
+   * giustifica: la regola vieta di TOGLIERE per analogia un'esclusione che già lavora; qui la
+   * chiave e la sua omonima entrano nello stesso momento, quindi non si toglie niente — si evita
+   * di creare un falso che il primo giro di diagnostica avrebbe nominato comunque.
+   * ⚠️ E il carpaccio DI PESCE resta escluso lo stesso: si chiama sempre col nome del pesce
+   * («carpaccio di branzino», «di spada»), e quella parola lo prende.
+   */
+  // ⚠️ «scarpaccia» è la torta di zucchine viareggina: contiene «carpa» e non è pesce.
+  // ⚠️ `carpa` è anche in `SOLO_A_INIZIO_PAROLA`: le due cose lavorano insieme — l'inizio di parola
+  // scarta «scarpaccia», le omonime scartano «carpaccio», che invece comincia una parola.
+  carpa: ['carpaccio', 'carpacci'],
+  // ⚠️ Le omonime della RADICE (`palomb`, `trigli`, `ricciol`, `gallinell`): da oggi si possono
+  // dichiarare, e queste sono quelle che la revisione ha nominato leggendo piatti veri.
+  palombo: ['palombaccio', 'palombacci', 'palomba', 'palombella', 'palombelle'],
+  triglia: ['trigliceridi', 'trigliceride'],
+  gallinella: ['gallinelle'], // il songino/valerianella, che in alcune regioni si chiama così
+  smeriglio: ['smerigliato', 'smerigliata', 'smerigliate'],
+  persico: ['persica', 'persiche'], // «pesca persica»
+  rombo: ['stromboli'],
+  colatura: ['scolatura', 'scolature'],
+  luccio: ['lucciole', 'lucciola'],
 };
 
-/** La chiave combacia solo dentro parole che non sono nella sua lista di omonime. */
+/**
+ * ⛔ **LE CHIAVI CHE VALGONO SOLO A INIZIO DI PAROLA.**
+ *
+ * `PAROLE_CHE_NON_SONO` è un elenco chiuso: si scrive una parola alla volta, e va bene finché le
+ * omonime sono poche e note («bovino» per «vino»). ⛔ Su **«orata» non funziona**, e la prima
+ * stesura del 23/8 fingeva di sì: ogni participio femminile in «-orata» la contiene — decorata,
+ * dorata, colorata, **insaporata**, marinata e insaporata, odorata, ristorata… È una famiglia
+ * **aperta**, e un elenco chiuso contro una famiglia aperta è un elenco che sarà sempre incompleto.
+ * Ne avevo scritte otto e dichiarato il caso chiuso: l'ha smontato la revisione con «insaporata»,
+ * che in cucina si scrive davvero.
+ *
+ * La regola giusta è un'altra: **questi nomi cominciano una parola**. «Orata alla griglia» sì,
+ * «insaporata» no. È la stessa regola che dal 20/8 vale per la radice (`iniziaUnaParola`), portata
+ * dove serve anche sulla chiave intera.
+ *
+ * ⚠️ **Non si applica a tutte le chiavi**, ed è scritto in `PAROLE_CHE_NON_SONO` perché: «aceto»
+ * dentro «sottaceto» è **giusto** — il sottaceto l'aceto ce l'ha — e un confine di parola
+ * toglierebbe protezione a chi è sensibile ai solfiti. La stessa regola dà la risposta giusta a una
+ * e sbagliata all'altra: quindi è una scelta per chiave, non una legge.
+ *
+ * ⚠️ Si dichiara qui **solo** una chiave che, dentro una parola più lunga, non c'entra mai niente.
+ * Nel dubbio si lascia fuori: restare larghi toglie un piatto di troppo, restringere lascia passare
+ * l'alimento — e i due errori non costano uguale.
+ */
+export const SOLO_A_INIZIO_PAROLA: ReadonlySet<string> = new Set([
+  // I pesci il cui nome è anche un pezzo di parola comune.
+  'orata', 'spada', 'carpa', 'rombo', 'alice', 'alici', 'trota', 'trote', 'sarago', 'tinca',
+  // «cefalo» sta dentro «cefalopode» — che è un mollusco, non un pesce, e ha la sua chiave.
+  'cefalo',
+]);
+
+/**
+ * La chiave combacia dentro il testo? Due filtri, e **si applicano insieme**.
+ *
+ * ⛔ La prima stesura del 23/8 li teneva alternativi (`if (inizioParola) return …` prima delle
+ * omonime), e su «carpa» le due regole servivano tutte e due: «scarpaccia» la scarta l'inizio di
+ * parola, «carpaccio» — che una parola la comincia eccome — la scartano le omonime. Con il ritorno
+ * anticipato il carpaccio di manzo tornava a sparire dal piatto di chi esclude il pesce, cioè il
+ * falso che le omonime erano state scritte per chiudere.
+ */
 function chiaveVale(haystack: string, k: string): boolean {
+  // ⚠️ `SOLO_A_INIZIO_PAROLA` è la risposta alle famiglie APERTE («-orata»), dove un elenco di
+  // omonime non basterebbe mai; le omonime restano la risposta ai casi singoli e noti.
+  const soloInizio = SOLO_A_INIZIO_PAROLA.has(k);
   const escluse = PAROLE_CHE_NON_SONO[k];
-  if (!escluse) return haystack.includes(k);
+  if (!soloInizio && !escluse) return haystack.includes(k);
   let i = haystack.indexOf(k);
   while (i !== -1) {
-    let a = i; while (a > 0 && /[a-z0-9]/.test(haystack[a - 1])) a -= 1;
-    let b = i + k.length; while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
-    if (!escluse.includes(haystack.slice(a, b))) return true;
+    const inizioParola = i === 0 || !/[a-z0-9]/.test(haystack[i - 1]);
+    if (!soloInizio || inizioParola) {
+      let a = i; while (a > 0 && /[a-z0-9]/.test(haystack[a - 1])) a -= 1;
+      let b = i + k.length; while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
+      if (!escluse || !escluse.includes(haystack.slice(a, b))) return true;
+    }
     i = haystack.indexOf(k, i + 1);
   }
   return false;
@@ -365,7 +499,34 @@ export function hitsExclusion(haystack: string, keys: Iterable<string>): string 
   // Secondo giro: la radice, per le altre forme della stessa parola — ma solo a inizio di parola.
   for (const k of elenco) {
     const r = radiceChiave(k);
-    if (r && iniziaUnaParola(haystack, r)) return k;
+    if (r && iniziaUnaParola(haystack, r) && radiceVale(haystack, k, r)) return k;
   }
   return null;
+}
+
+/**
+ * ⛔ **ANCHE LA RADICE CONSULTA LE OMONIME** — trovato in revisione, 23/8.
+ *
+ * Questo giro le ignorava del tutto: per ogni chiave la cui radice sopravvive, le omonime erano
+ * **strutturalmente impossibili** — nessuno avrebbe mai potuto insegnare a `trigli`, `palomb`,
+ * `gallinell`, `ricciol`. ⚠️ E in un commento avevo indicato proprio quella come la via d'uscita
+ * per il costo noto dei «riccioli»: era una via che **non esisteva**, cioè un'istruzione che manda
+ * a sbattere chi la segue.
+ *
+ * Le omonime si dichiarano sulla **chiave** e valgono per tutte le sue forme: chi scrive
+ * `palombo: ['palombaccio']` non deve anche sapere che la radice è `palomb`.
+ */
+function radiceVale(haystack: string, chiave: string, radice: string): boolean {
+  const escluse = PAROLE_CHE_NON_SONO[chiave];
+  if (!escluse) return true;
+  let i = haystack.indexOf(radice);
+  while (i !== -1) {
+    if (i === 0 || !/[a-z0-9]/.test(haystack[i - 1])) {
+      let b = i + radice.length;
+      while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
+      if (!escluse.includes(haystack.slice(i, b))) return true;
+    }
+    i = haystack.indexOf(radice, i + 1);
+  }
+  return false;
 }

@@ -28,7 +28,8 @@ import { AiService } from '../ai/ai.service';
 import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
   IntentoEquivalenza,
 } from './capisci';
-import { daQuandoSiPuoRifare } from './menu-da-rifare';
+import { type GiornoDaValutare, daQuandoSiPuoRifare, giorniDaRifare, ricetteDelGiorno } from './menu-da-rifare';
+import { ricetteVietate } from './regola-dieta';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
 import { conflittiDiPromozione, raccontaConflitti } from './conflitti-dizionario';
@@ -120,6 +121,10 @@ interface ClienteTrovata {
 const MAX_PROPOSTI = 20;
 
 const logger = new Logger('VeraChat');
+
+/** Da quante voci in su una categoria si spiega, e quante se ne mostrano. Pinnate da un test. */
+const SPIEGA_DA = 3;
+const SPIEGA_QUANTE = 6;
 
 /** I tipi di notifica che il quadro della giornata conta già dalle tabelle di origine. */
 const AVVISI_GIA_CONTATI = new Set(['vera_richiesta', 'vera_proposta_in_coda']);
@@ -2548,9 +2553,118 @@ export class VeraChatService {
         data: { dislikedFoods: [...attuali, ...nuovi] } as never,
       });
     }
-    return nuovi.length
+
+    /**
+     * ⛔ **I GIORNI SI GUARDANO SEMPRE, anche se la parola c'era già** — trovato in revisione, 23/8.
+     *
+     * La prima stesura usciva subito su «erano già tutti esclusi». Ma è **esattamente** il caso
+     * Lorena: la regola era stata messa a mano sul profilo, il branzino era già in calendario, e
+     * ridettare «niente pesce» — la cosa più naturale da fare per rimediare — sarebbe stata l'unica
+     * strada che non ripuliva niente. Si guarda su TUTTO quello che ha appena detto (`spezzati`),
+     * non solo sulle parole nuove: lei ha chiesto che quella regola sia vera adesso.
+     */
+    const esito = await this.rifaiGiorniConVietati(clientId, spezzati);
+
+    /**
+     * ⚠️ **COSA VUOL DIRE la parola che ha appena vietato** — richiesta di Simone del 23/8, nata
+     * proprio da «niente pesce»: la nutrizionista deve sapere che per il motore «pesce» non è una
+     * parola ma un elenco di **67 voci** (tonno, salmone, branzino, orata, merluzzo, sgombro… più i
+     * derivati che pesce non si chiamano: stoccafisso, bottarga, surimi, tonnato). Senza questa
+     * riga, l'unico modo di scoprire quanto è largo il divieto è vedere cosa sparisce dai piatti.
+     */
+    const spiegazioni = spezzati
+      .map((t) => {
+        const membri = expandExclusion(t).filter((k) => k !== t.toLowerCase());
+        if (membri.length < SPIEGA_DA) return null;
+        const mostrati = membri.slice(0, SPIEGA_QUANTE).join(', ');
+        const resto = membri.length - SPIEGA_QUANTE;
+        // ⚠️ «e altre 1 voci» era il testo di ieri: il singolare c'è perché lo legge una persona.
+        const coda = resto <= 0 ? '' : resto === 1 ? ' e un\'altra voce' : ` e altre ${resto} voci`;
+        return `«${t}» per il motore vuol dire ${mostrati}${coda}`;
+      })
+      .filter(Boolean);
+    const codaSpiegazione = spiegazioni.length ? ` ${spiegazioni.join('; ')}.` : '';
+
+    const testa = nuovi.length
       ? `Ho tolto dai suoi menu: ${nuovi.join(', ')}.`
-      : 'Erano già tutti esclusi: non ho cambiato niente.';
+      : 'Erano già tutti esclusi: sul profilo non ho cambiato niente.';
+    return `${testa}${codaSpiegazione}${esito}`;
+  }
+
+  /**
+   * ⛔ **LA REGOLA VALE ANCHE SUI GIORNI GIÀ PREPARATI — il caso Lorena Polidoro, 23/8.**
+   *
+   * «Niente pesce» scriveva sul profilo e basta: valeva per i menu che sarebbero nati DOPO, mentre i
+   * giorni futuri già composti restavano lì col branzino dentro. La nutrizionista leggeva «ho tolto
+   * dai suoi menu» — vero solo a metà — e la cliente continuava a vedere il pesce nel calendario.
+   *
+   * ## ⛔ Perché si cancella una CODA e non i singoli giorni
+   *
+   * «Rifare» qui vuol dire **cancellare**: ricompone l'erogazione al giro dopo. Ma `deliverIfEligible`
+   * si ferma se in calendario c'è già un giorno **più avanti di oggi** (è il buffer che impedisce di
+   * generare cicli all'infinito) e i giorni nuovi li appende **dopo l'ultimo**. ⛔ Quindi cancellare
+   * un giorno in mezzo lascia un **buco che non si richiude mai**: la cliente apre l'app in quel
+   * giorno e trova «menu in preparazione», per sempre. L'ha trovato la revisione, ed è un difetto
+   * che la regola di dieta ha **dal 13/8** — lì il rischio è lo stesso e va chiuso allo stesso modo
+   * (voce `giorno-cancellato-che-non-torna`).
+   *
+   * Quindi si cancella dal primo giorno colpito **in avanti**, come già fanno gli altri due percorsi
+   * di Vera che toccano i menu (le proteine e i pasti): così l'ultimo giorno torna indietro e
+   * l'erogazione riparte da sola. ⚠️ Il prezzo è che qualche giornata innocente dopo quella colpita
+   * viene ricomposta. È un prezzo, e si paga volentieri: un menu rimescolato è un fastidio, un
+   * giorno che non torna più è una persona senza cena.
+   *
+   * ## ⚠️ E se in mezzo c'è un giorno GIÀ APERTO, non si tocca niente
+   *
+   * Un giorno letto resta suo — magari ci ha fatto la spesa — quindi non si può cancellare; ma se
+   * sta **dopo** quello colpito, resta lui l'ultimo e il buco si riaprirebbe. In quel caso non si
+   * cancella niente **e lo si dice**, con la strada da prendere (la rigenerazione dalla scheda, che
+   * passa dal motore e sa rimettere le cose a posto). Fingere di aver fatto sarebbe la bugia da cui
+   * nasce tutto questo lavoro.
+   */
+  private async rifaiGiorniConVietati(clientId: string, termini: string[]): Promise<string> {
+    if (!termini.length) return '';
+    try {
+      const oggi = new Date();
+      const giorni = ((await this.prisma.menuDay.findMany({
+        where: { clientId, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
+        select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+      })) ?? []) as GiornoDaValutare[];
+      if (!giorni.length) return '';
+
+      /**
+       * ⚠️ **Solo le ricette che stanno DAVVERO in quei giorni.** La prima stesura leggeva l'intero
+       * catalogo (id + nome + ingredienti) a ogni frase detta in chat: qui i candidati sono al
+       * massimo una manciata di giornate, e le loro ricette si contano sulle dita.
+       */
+      const idRicette = [...new Set(giorni.flatMap((g) => ricetteDelGiorno(g.meals)))];
+      if (!idRicette.length) return '';
+      const ricette = ((await this.prisma.recipe.findMany({
+        where: { id: { in: idRicette } } as never,
+        select: { id: true, name: true, ingredients: true },
+      })) ?? []) as { id: string; name: string | null; ingredients: unknown }[];
+
+      const fuori = ricetteVietate(ricette, termini);
+      const colpiti = giorniDaRifare(giorni, fuori, oggi);
+      if (!colpiti.length) return ' Nei giorni già preparati non ce n’era: non ho toccato niente.';
+
+      const daQuando = Math.min(...colpiti.map((g) => new Date(g.date).getTime()));
+      const coda = giorni.filter((g) => new Date(g.date).getTime() >= daQuando);
+      const aperto = coda.find((g) => g.viewedAt);
+      if (aperto) {
+        return (
+          ' ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: ne ha già aperto uno e quello resta suo. ' +
+          'Per rifarli usa «Rigenera menu» dalla sua scheda.'
+        );
+      }
+
+      await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.map((g) => g.id) } } });
+      const quante = coda.length;
+      return ` Ho rifatto anche ${quante} ${quante === 1 ? 'giornata già preparata' : 'giornate già preparate'}: le ricompone il motore al prossimo giro.`;
+    } catch (err) {
+      logger.warn(`Restrizione scritta ma giorni non rifatti (cliente=${clientId}): ${err instanceof Error ? err.message : String(err)}`);
+      return ' ⚠️ La regola vale da adesso, ma sui giorni già preparati non sono riuscita a intervenire: dai un’occhiata al suo calendario.';
+    }
   }
 
   /**
