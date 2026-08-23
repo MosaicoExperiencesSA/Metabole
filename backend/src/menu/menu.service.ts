@@ -26,6 +26,8 @@ import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { statoViaggioAttivo } from '../common/stato-viaggio';
+import { giornoDiRientro, periodoLeggibile, rientroInArrivo } from '../pause/giorno-di-rientro';
+import { TIPO_PESATA_DEL_RIENTRO, mancaLaPesataDelRientro, testoPesataDelRientro } from './pesata-del-rientro';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { eGiornoDiConforto } from './plateau';
@@ -142,6 +144,8 @@ export interface StatoMenu {
   visitaEntro?: string;
   /** Visita ancora da fare, ma **non** scaduta: la cliente riceve i menu, e questo è il promemoria. */
   visitaDaFareEntro?: string;
+  /** Il primo giorno di dieta dopo una sospensione (modalità viaggio). Solo negli stati di sospensione. */
+  returnDate?: string | null;
 }
 
 @Injectable()
@@ -397,9 +401,79 @@ export class MenuService {
     // 3) Senza data di inizio piano non c'è ancora una data da mostrare.
     if (!profile?.planStartDate) return { state: 'preparing', availableFrom: null, planStartDate: null };
 
-    // 4) Periodo senza dieta (modalità viaggio) attivo.
+    /**
+     * 4) PERIODO SENZA DIETA ATTIVO — e da oggi il banner dice **quando si riprende** (23/8).
+     *
+     * Prima qui usciva `paused` e basta, e l'app scriveva «il menu riprende automaticamente al tuo
+     * rientro»: vero, e inutile. La cliente in vacanza la domanda che si fa è *quando*, e la
+     * risposta ce l'avevamo in mano — è la data che l'operatrice ha scritto nella casella.
+     *
+     * `availableFrom` qui è **il giorno in cui il menu compare**, non il giorno di rientro: con
+     * l'anticipo di un giorno sono due date diverse (il menu arriva il 23, la dieta riprende il
+     * 24), ed è la stessa distinzione che il passo 5 fa alla partenza di un piano. `returnDate` è
+     * il rientro vero.
+     *
+     * ⚠️ E se la finestra è già aperta ma manca la pesata, lo stato **non** è `paused`: sarebbe la
+     * stessa bugia gentile del 13/8 su Giusy («in preparazione» a chi è trattenuta da un cancello).
+     * Il menu non arriva finché non si pesa, e va detto con le sue parole.
+     */
     const pause = await this.events.activePausePeriod(clientId);
-    if (pause) return { state: 'paused', availableFrom: null, planStartDate };
+    if (pause) {
+      // Stesso ripiego dell'erogazione: se le date non si leggono lo stato resta «in pausa», senza
+      // le due date, invece di far fallire la schermata.
+      if (!periodoLeggibile(pause)) return { state: 'paused', availableFrom: null, planStartDate };
+      const anticipoRientro = await this.configParams.getNumber('menu_visible_days_before_return', 1);
+      const rientro = giornoDiRientro(pause);
+      // ⚠️ `Math.floor` come in `rientroInArrivo`: il parametro è modificabile dal pannello, e con
+      // un 1,5 il banner annuncerebbe un giorno di sblocco diverso da quello in cui il menu arriva.
+      const siSblocca = new Date(rientro.getTime() - Math.max(0, Math.floor(anticipoRientro)) * 86_400_000);
+      const inFinestra = Boolean(rientroInArrivo(pause, new Date(), anticipoRientro));
+      const base = {
+        availableFrom: siSblocca.toISOString().slice(0, 10),
+        planStartDate,
+        returnDate: rientro.toISOString().slice(0, 10),
+      };
+      /**
+       * ⛔ **`awaiting_cycle_measure` E NON UNO STATO NUOVO** (23/8, corretto in revisione).
+       *
+       * Uno stato che l'app non conosce cade nel suo `default: return null`, cioè **nessun
+       * banner**: la cliente avrebbe aperto una schermata vuota, senza il motivo e senza il
+       * pulsante per inserire la pesata. E le modifiche all'app arrivano solo con una
+       * pubblicazione o una OTA, quindi ci sarebbe stato un ordine di rilascio obbligato — cioè
+       * un difetto che aspetta il primo che pubblica al contrario.
+       *
+       * Questo stato invece l'app lo conosce già («Serve la tua pesata», col pulsante). Il testo
+       * specifico del rientro lo fa `returnDate`: chi ha l'app nuova legge la data, chi ha la
+       * vecchia legge la frase generica — che è vera lo stesso.
+       */
+      if (inFinestra && (await mancaLaPesataDelRientro(this.prisma, clientId, rientro, anticipoRientro))) {
+        return { state: 'awaiting_cycle_measure', ...base };
+      }
+      return { state: 'paused', ...base };
+    }
+    /**
+     * ⛔ **IL GIORNO DEL RIENTRO, SENZA PESATA** (seconda revisione, 23/8). La sospensione non è
+     * più attiva, quindi il ramo qui sopra non si attraversa — ma il cancello della pesata del
+     * rientro in `deliverIfEligible` sì, e senza questo ramo la cliente cadeva su «Menu in
+     * preparazione»: la stessa bugia gentile del caso Giusy, mentre le push le dicono «pesati e
+     * trovi subito il menu». Stesso stato del ramo sopra, con la data.
+     */
+    {
+      const giorniPerCicloRientro = await this.configParams.getNumber('menu_days_delivered', 2);
+      const appenaFinita = await this.events.pausaAppenaFinita(clientId, giorniPerCicloRientro);
+      if (appenaFinita && periodoLeggibile(appenaFinita)) {
+        const anticipoRientro = await this.configParams.getNumber('menu_visible_days_before_return', 1);
+        const rientro = giornoDiRientro(appenaFinita);
+        if (await mancaLaPesataDelRientro(this.prisma, clientId, rientro, anticipoRientro)) {
+          return {
+            state: 'awaiting_cycle_measure',
+            availableFrom: null,
+            planStartDate,
+            returnDate: rientro.toISOString().slice(0, 10),
+          };
+        }
+      }
+    }
 
     // 4-bis) MONITORAGGIO: qui i menu non arrivano, e va detto — non lasciato intendere.
     // Senza questo ramo la cliente restava su «Menu in preparazione», che è una bugia gentile:
@@ -575,10 +649,15 @@ export class MenuService {
     // niente erogazione. Coerente con menuStatus, così non compaiono menu di un percorso finito.
     if (activeSubscription.endDate && activeSubscription.endDate.getTime() < toDateOnly().getTime()) return [];
 
-    // Periodo senza dieta attivo: erogazione sospesa (il monitoraggio continua).
-    const pause = await this.events.activePausePeriod(clientId);
-    if (pause) return [];
-
+    /**
+     * ⚠️ **IL PIANO FERMATO SI GUARDA PRIMA DELLA SOSPENSIONE** (23/8, in revisione).
+     *
+     * Erano nell'ordine opposto, e il difetto che ne usciva era tutto nel rientro: a una cliente
+     * col piano fermato dalla nutrizionista partiva comunque la push «pesati e trovi subito il menu
+     * del primo giorno». Si pesava, riapriva l'app, e il menu non c'era — trattenuto due righe più
+     * sotto da un cancello che nessuno le aveva nominato. Una promessa che il codice non poteva
+     * mantenere.
+     */
     /**
      * PIANO FERMATO DAL NUTRIZIONISTA (§15.2 punto 4, decisione dell'11/8).
      *
@@ -593,6 +672,62 @@ export class MenuService {
      * finché una persona non ha guardato.
      */
     if ((profile as { planHeldAt?: Date | null }).planHeldAt) return [];
+
+    /**
+     * ⛔ **PERIODO SENZA DIETA ATTIVO — E LA FINESTRA DI RIENTRO** (23/8, richiesta di Simone).
+     *
+     * Qui c'era `if (pause) return []`, punto: l'erogazione restava ferma **fino all'ultimo minuto**
+     * della sospensione, e il primo menu dopo la vacanza arrivava il giorno stesso del rientro —
+     * cioè la cliente si svegliava il 24 senza sapere cosa mangiare, e senza aver fatto la spesa.
+     * All'inizio di un piano non succede: lì il menu si sblocca `menu_visible_days_before_start`
+     * giorni prima, e nessuno si è mai chiesto perché il rientro dovesse essere trattato peggio.
+     *
+     * Adesso, l'ultimo giorno di sospensione (anticipo = 1) si fa quello che si fa alla partenza:
+     * **si chiede la pesata e si eroga il menu del giorno di rientro.**
+     *
+     * ⚠️ Il giorno da erogare è il **rientro**, non oggi: `rientroInArrivo` torna quella data e non
+     * un `boolean` proprio per questo. Erogare «oggi» il 23 vorrebbe dire mandarle un menu per un
+     * giorno che è ancora vacanza — e quel menu poi conta come giorno del piano.
+     *
+     * ⚠️ E la pesata è una **pesata del rientro**, non una qualsiasi: durante la pausa la
+     * sorveglianza ne chiede una ogni due giorni, quindi il cancello di ciclo risulterebbe già
+     * soddisfatto da un peso di metà vacanza. Il perché sta in `pesata-del-rientro.ts` — è il caso
+     * Gioia spostato di qualche giorno.
+     */
+    const anticipoRientro = await this.configParams.getNumber('menu_visible_days_before_return', 1);
+    const pause = await this.events.activePausePeriod(clientId);
+    let giornoDelRientro: Date | null = null;
+    if (pause) {
+      /**
+       * ⚠️ Sospensione con date illeggibili: si resta fermi **e lo si scrive**. Tacere qui
+       * vorrebbe dire o far ripartire i menu durante una vacanza, o lasciare una cliente sospesa
+       * per sempre senza che il motivo compaia da nessuna parte.
+       */
+      if (!periodoLeggibile(pause)) {
+        this.logger.error(
+          `Sospensione ${(pause as { id?: string }).id ?? '?'} di ${clientId} senza date leggibili: erogazione tenuta ferma.`,
+        );
+        return [];
+      }
+      giornoDelRientro = rientroInArrivo(pause, new Date(), anticipoRientro);
+      if (!giornoDelRientro) return []; // sospensione piena: non si eroga niente
+    } else {
+      /**
+       * ⛔ **IL CANCELLO NON SCADE COL GIORNO DEL RIENTRO** (23/8, in revisione).
+       *
+       * Il giorno del rientro la sospensione non è più attiva, quindi il ramo qui sopra non veniva
+       * nemmeno attraversato: chi ieri aveva ignorato la richiesta trovava il menu comunque, e
+       * tarato sulla pesata di metà vacanza — cioè esattamente il caso Gioia, con un giorno di
+       * ritardo. La pesata del rientro resta obbligatoria finché non arriva, per un ciclo; dopo,
+       * la chiede `cycleNeedsMeasure` con le sue parole.
+       */
+      const appenaFinita = await this.events.pausaAppenaFinita(clientId, daysPerDelivery);
+      if (appenaFinita && periodoLeggibile(appenaFinita)) giornoDelRientro = giornoDiRientro(appenaFinita);
+    }
+    if (giornoDelRientro && (await mancaLaPesataDelRientro(this.prisma, clientId, giornoDelRientro, anticipoRientro))) {
+      await this.chiediLaPesataDelRientro(clientId, giornoDelRientro).catch(() => undefined);
+      return [];
+    }
 
     const today = toDateOnly();
     /**
@@ -661,6 +796,19 @@ export class MenuService {
       }
       firstNewDate = nextDate.getTime() > today.getTime() ? nextDate : today;
     }
+
+    /**
+     * ⛔ **IL MENU DEL RIENTRO PARTE DAL GIORNO DI RIENTRO.**
+     *
+     * Senza questa riga il calcolo qui sopra farebbe la cosa di sempre — «riparti da domani, o da
+     * oggi se sei rimasta indietro» — e il 23 comporrebbe il menu **del 23**, che è ancora vacanza:
+     * un giorno di piano bruciato per una giornata che la cliente non seguirà, e il 24 di nuovo
+     * senza niente in mano. Il giorno da servire l'ha già deciso `rientroInArrivo`.
+     *
+     * ⚠️ **Solo in avanti** (corretto in revisione): se la cliente si pesa il giorno del rientro o
+     * dopo, quel giorno è già passato e forzarlo qui vorrebbe dire comporle un menu per ieri.
+     */
+    if (giornoDelRientro && giornoDelRientro.getTime() > today.getTime()) firstNewDate = giornoDelRientro;
 
     // `let`: se le giornate di questa variante sono monche si scende sulla gemella completa
     // della stessa famiglia (§15.4), e da lì in poi la dieta servita è quella.
@@ -830,7 +978,15 @@ export class MenuService {
     // Stato dell'agente (Metabole_Agente_AI_Dieta): modula la selezione (conforto →
     // gradimento, plateau → efficacia, pre-evento → proteine). Sicurezza e bilanciamento
     // restano prioritari.
-    const agentState = await this.dietAgent.stateFor(clientId);
+    /**
+     * ⚠️ **Lo stato si chiede per il giorno CHE SI COMPONE, non per oggi** (23/8, in revisione).
+     *
+     * Il 23 si compone il menu del 24, e il 23 è ancora vacanza: chiedendolo per «oggi» usciva
+     * `vacanza`, e il motore componeva la giornata della ripartenza col peso del **gradimento**
+     * invece che dell'efficacia — «tieni il peso» proprio nel giorno in cui ricomincia a cercare
+     * il calo.
+     */
+    const agentState = await this.dietAgent.stateFor(clientId, firstNewDate);
     // Override PER DIETA (ProductRule): il capo nutrizionista può sovrascrivere i valori
     // globali per una singola dieta dalla pagina "Regole motore". Caricati una volta e
     // applicati ai parametri del motore, con il globale come fallback.
@@ -1681,6 +1837,45 @@ export class MenuService {
     // fermata proprio perché non le arrivava niente. Silenziosa se le push non sono configurate.
     await this.push
       .sendToUser(clientId, titolo, corpo, { type: 'measures_required' })
+      .catch(() => undefined);
+  }
+
+  /**
+   * CHIEDE la pesata del rientro, in app e sul telefono, finché il menu del rientro resta
+   * trattenuto. È la gemella di `chiediMisureDiPartenza`, e per la stessa ragione: un cancello che
+   * sa solo bloccare produce una cliente ferma che non sa perché.
+   *
+   * ⚠️ Il testo dice **la data**. Al rientro da una vacanza «inserisci la pesata» da solo non
+   * spiega niente: quello che la fa alzare e prendere la bilancia è sapere che domani ricomincia e
+   * che il menu è già pronto dall'altra parte del gesto.
+   *
+   * Si ripete a distanza come l'altra (`measures_ask_repeat_days`) e si spegne da sé: appena la
+   * misura arriva il menu non è più trattenuto e questa funzione non viene più chiamata.
+   */
+  private async chiediLaPesataDelRientro(clientId: string, rientro: Date): Promise<void> {
+    const giorni = await this.configParams.getNumber('measures_ask_repeat_days', 2);
+    const da = new Date(Date.now() - Math.max(1, giorni) * 86_400_000);
+    const giaChiesto = await this.prisma.notification.findFirst({
+      where: { userId: clientId, type: TIPO_PESATA_DEL_RIENTRO, createdAt: { gte: da } } as never,
+      select: { id: true },
+    });
+    if (giaChiesto) return;
+
+    const { titolo, corpo } = testoPesataDelRientro(rientro);
+    await this.prisma.notification
+      .create({
+        data: {
+          userId: clientId,
+          type: TIPO_PESATA_DEL_RIENTRO,
+          payload: { title: titolo, body: corpo } as never,
+          channel: 'inapp',
+          scheduledFor: new Date(),
+          sentAt: new Date(),
+        },
+      })
+      .catch(() => undefined);
+    await this.push
+      .sendToUser(clientId, titolo, corpo, { type: TIPO_PESATA_DEL_RIENTRO })
       .catch(() => undefined);
   }
 

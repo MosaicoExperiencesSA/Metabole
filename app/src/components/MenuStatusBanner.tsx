@@ -21,6 +21,14 @@ export interface MenuStatus {
    * promemoria. Sono due cose vere insieme.
    */
   visitaDaFareEntro?: string;
+  /**
+   * Il primo giorno di dieta dopo una sospensione — c'è solo negli stati di sospensione (23/8).
+   *
+   * ⚠️ Non è `availableFrom`: il menu del rientro si sblocca **un giorno prima** del rientro, come
+   * il primo menu di un piano si sblocca due giorni prima della partenza. Sono due date, e dirle
+   * tutt'e due è tutto il punto — «riprendi il 24, il menu ce l'hai il 23».
+   */
+  returnDate?: string | null;
 }
 
 /**
@@ -117,19 +125,50 @@ export function menuStatusView(
      * arriva finché la pesata non c'è, e per una cliente a cui la coach ha appena riaperto l'app
      * (quindi senza popup) era l'unica informazione disponibile — sbagliata.
      */
-    case 'awaiting_cycle_measure':
+    /**
+     * ⛔ **LO STESSO STATO DICE DUE COSE, E LE DISTINGUE `returnDate`** (23/8).
+     *
+     * Il rientro da una sospensione è una ripartenza e vuole il suo punto A: il giorno prima si
+     * chiede la pesata e il menu del primo giorno arriva subito. Poteva essere uno stato nuovo, e
+     * **non lo è di proposito**: un'app pubblicata prima di questa modifica cadrebbe nel
+     * `default: null` qui sotto, cioè mostrerebbe una schermata **vuota** proprio nel momento in
+     * cui deve spiegare perché il menu non c'è. Riusando uno stato che tutte le app conoscono,
+     * chi non si è ancora aggiornata legge la frase generica — vera comunque — e ha il pulsante.
+     */
+    case 'awaiting_cycle_measure': {
+      const rientro = s.returnDate ? itDate(s.returnDate) : null;
       return {
         icon: 'ti-scale',
-        title: 'Serve la tua pesata',
-        text: 'I prossimi giorni si sbloccano con la pesata di questo ciclo: inseriscila e arrivano subito. Meglio al mattino, a digiuno.',
+        title: rientro ? 'Si riparte: serve la tua pesata' : 'Serve la tua pesata',
+        text: rientro
+          ? `Il ${rientro} riprendi con la dieta. Inserisci la pesata adesso e trovi subito il menu del primo giorno, così fai la spesa con calma.`
+          : 'I prossimi giorni si sbloccano con la pesata di questo ciclo: inseriscila e arrivano subito. Meglio al mattino, a digiuno.',
         azione: { etichetta: 'Inserisci la pesata' },
       };
-    case 'paused':
+    }
+    /**
+     * ⛔ **LA PAUSA ADESSO DICE QUANDO FINISCE** (23/8).
+     *
+     * Il testo di prima era «il menu riprende automaticamente al tuo rientro»: vero, e inutile.
+     * La domanda che si fa una cliente in vacanza è *quando*, e la risposta ce l'avevamo — è la
+     * data che l'operatrice ha scritto quando ha messo la sospensione. Dirla cambia anche cosa fa:
+     * sapere che il menu arriva il giorno prima è quello che le fa trovare il frigo pieno.
+     *
+     * Se il backend non manda le date — una sospensione vecchia, un'app aggiornata prima del
+     * server — resta la frase di sempre invece di una mezza frase con un buco.
+     */
+    case 'paused': {
+      const rientro = s.returnDate ? itDate(s.returnDate) : null;
+      const menuIl = s.availableFrom ? itDate(s.availableFrom) : null;
       return {
         icon: 'ti-plane',
         title: 'Menu in pausa',
-        text: 'Sei in modalità viaggio: il menu riprende automaticamente al tuo rientro.',
+        text: rientro
+          ? `Sei in modalità viaggio: riprendi con la dieta il ${rientro}` +
+            (menuIl ? `, e il menu del primo giorno ti arriva il ${menuIl} — così fai la spesa con calma.` : '.')
+          : 'Sei in modalità viaggio: il menu riprende automaticamente al tuo rientro.',
       };
+    }
     case 'blocked':
       return {
         icon: 'ti-heart-handshake',

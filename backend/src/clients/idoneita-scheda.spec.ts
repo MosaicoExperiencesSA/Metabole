@@ -22,6 +22,7 @@ import { aGiorno } from '../common/date-only';
 import { ClientsService } from './clients.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
+import { PauseService } from '../pause/pause.service';
 import { TIPO_VISITA_DA_FISSARE } from './visita-da-fissare';
 
 const NOTA = 'Valutata in visita il 12/8: allergia al latte, nessuna controindicazione al percorso.';
@@ -83,6 +84,18 @@ async function crea(opzioni?: { permesso?: boolean }) {
       { provide: MenuService, useValue: {} },
       { provide: CoachTasksService, useValue: coachTasks },
       { provide: PrenotazioniService, useValue: prenotazioni },
+      /**
+       * ⚠️ `PauseService` è entrato nel costruttore il 23/8: la modalità viaggio adesso crea una
+       * sospensione vera. Qui non è l'oggetto del test, ma i due metodi vanno esposti — la scheda
+       * li chiama a ogni salvataggio della card viaggio.
+       */
+      {
+        provide: PauseService,
+        useValue: {
+          sospendiPerViaggio: jest.fn().mockResolvedValue({ giorni: 0, nuovaScadenza: null, avviso: null }),
+          togliSospensioneDaViaggio: jest.fn().mockResolvedValue({ tolta: false, avviso: null }),
+        },
+      },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit, coachTasks, prenotazioni };

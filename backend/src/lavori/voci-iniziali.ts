@@ -2558,4 +2558,45 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-08-22T11:30',
   },
 
+  {
+    // ⚠️ Chiave accorciata in fusione (23/8): quella originale era di 46 caratteri e il guardiano
+    // `chiave-e-una-parola.spec.ts` la rifiuta. Si può ancora rinominare senza doppioni perché la
+    // versione lunga NON è mai arrivata a un deploy: viveva solo nel file della sessione viaggio,
+    // che la collisione delle consegne aveva tenuto fuori dal commit.
+    chiave: 'viaggio-sospende-e-rientro',
+    titolo: 'Modalità viaggio: sospende davvero, elenca le date, e il rientro arriva con un giorno d\'anticipo',
+    dettaglio:
+      'Richiesta di Simone del 23/8, dalla card «Modalità viaggio»: *dove vedo le date delle '
+      + 'sospensioni?* e *se la vacanza finisce il 24, il 23 le chiedo le misure ed erogo il menu del '
+      + '24*. La risposta alla prima domanda era: da nessuna parte — e la card stessa era un equivoco: '
+      + 'scriveva tre campi sul profilo e NON fermava niente, mentre l\'app chiama «modalità viaggio» '
+      + 'il `pause_period` creato da tutt\'altre porte.\n\n'
+      + '✅ **Consegnato**: (1) la porta unica del rientro (`pause/giorno-di-rientro.ts`): in tabella '
+      + 'resta l\'ultimo giorno sospeso, l\'interfaccia parla di «Riprende il» = primo giorno di '
+      + 'dieta; (2) la **finestra di rientro** (`menu_visible_days_before_return`, 1): il giorno prima '
+      + 'si chiede la pesata (in app, e dal giro notturno per chi l\'app non la apre) e si eroga il '
+      + 'menu DEL giorno di rientro, composto con lo stato dell\'agente di QUEL giorno; il cancello '
+      + 'sopravvive al giorno del rientro (`pausaAppenaFinita`) e il banner dice la data; (3) la card '
+      + '**sospende davvero**: crea il periodo, allunga la scadenza dei soli giorni FUTURI, e un '
+      + 'registro (`pauseRequest` con l\'etichetta della card, date mai riscritte all\'indietro) '
+      + 'impedisce di regalare due volte gli stessi giorni — due giri di revisione avversariale hanno '
+      + 'buttato giù le prime due stesure proprio qui; (4) l\'elenco in scheda '
+      + '(`GET /admin/clients/:id/sospensioni`): periodi veri con l\'origine, richieste anche decise, '
+      + 'storico della card dal registro (con le date, da oggi), periodi dichiarati in onboarding; '
+      + '(5) le regole di Simone: **massimo 20 giorni** dall\'interfaccia, **tregua di 15 giorni** fra '
+      + 'due vacanze (`pause_min_gap_days`) che FERMA le porte della cliente e AVVISA la coach in back '
+      + 'office; (6) permesso nuovo `travel_mode` (solo admin di default: ⚠️ va acceso in Permessi a '
+      + 'chi deve usare la card); (7) `npm run sblocca:sospensione` per chiudere una sospensione '
+      + 'dalla shell; (8) il kit «Bentornata» non sovrascrive più giornate già erogate.\n\n'
+      + '⚠️ **Restano aperte**: il Calendario in app crea sospensioni che NON allungano la scadenza '
+      + '(stessa vacanza, soldi diversi a seconda della porta — da decidere); e il motore esce **muto** '
+      + 'quando la dieta scelta non ha giornate al livello richiesto (caso Lorena, 23/8: «Digiuno '
+      + '16:8» con la variante fasting a 4 settimane ma nessuna erogazione e nessun log — risolto '
+      + 'spostandola su Mediterranea, ma il silenzio è un difetto suo).',
+    categoria: CODICE,
+    ordine: 664,
+    nata: '2026-08-23T10:30',
+    fatta: true,
+  },
+
 ];

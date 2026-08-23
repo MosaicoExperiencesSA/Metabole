@@ -60,7 +60,12 @@ function makeService(profilo: Record<string, unknown>, opzioni: { pianoScaduto?:
     prisma as unknown as PrismaService,
     config as unknown as ConfigParamsService,
     { log: jest.fn() } as unknown as AuditService,
-    { activePausePeriod: jest.fn().mockResolvedValue(null) } as unknown as EventsService,
+    {
+      activePausePeriod: jest.fn().mockResolvedValue(null),
+      // ⚠️ Arrivato con la fusione della modalità viaggio (23/8): `componiStatoMenu` ora chiede
+      // anche se una pausa è appena finita. Qui non ce ne sono.
+      pausaAppenaFinita: jest.fn().mockResolvedValue(null),
+    } as unknown as EventsService,
     { stateFor: jest.fn().mockResolvedValue('normale') } as unknown as DietAgentService,
     new DayComboService(),
     { computeTargetKcal: jest.fn().mockResolvedValue(null) } as never,

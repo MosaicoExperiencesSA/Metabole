@@ -28,8 +28,11 @@ import { pastiPromessiCheMancano } from '../catalog/struttura-per-digiuno';
 import { dietaMostrataPer } from '../catalog/dieta-mostrata';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { scostamentoDieta } from './scostamento-dieta';
+import { PauseService } from '../pause/pause.service';
+import { giorniSospesi, giornoDiRientro, ultimoGiornoSospeso } from '../pause/giorno-di-rientro';
+import { ETICHETTA_VIAGGIO } from '../pause/pause.service';
 import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
-import { giornoLocale, toDateOnly } from '../common/date-only';
+import { giornoDelDato, giornoLocale, toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 // Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
 import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
@@ -70,6 +73,13 @@ export class ClientsService {
     // (`apriAttivita`), e il credito visite lo conta chi già lo conta per l'app.
     private readonly coachTasks: CoachTasksService,
     private readonly prenotazioni: PrenotazioniService,
+    /**
+     * ⚠️ La sospensione da modalità viaggio passa dal **punto unico** che sospende già le pause
+     * chieste dalle clienti: crea l'`event`, allunga la scadenza e sposta la coda. Una seconda
+     * strada che scrive `pause_period` per conto suo sarebbe la stessa cosa che ha prodotto due
+     * porte con due effetti economici diversi.
+     */
+    private readonly pause: PauseService,
   ) {}
 
   private readonly logger = new Logger(ClientsService.name);
@@ -1706,8 +1716,29 @@ export class ClientsService {
     return r;
   }
 
-  /** Modalità viaggio/estate (staff): imposta lo stato e le date; al rientro emette un evento per il CRM/marketing. */
-  async setTravel(userId: string, actorId: string, input: { state?: string; start?: string; end?: string }) {
+  /**
+   * ⛔ **MODALITÀ VIAGGIO — e da oggi ferma i menu davvero** (23/8).
+   *
+   * Fin qui questo metodo scriveva tre campi sul profilo e basta: nessun menu fermato, nessuna
+   * scadenza spostata. Chi metteva «In vacanza» dal back office credeva di aver sospeso il
+   * percorso, e i menu continuavano ad arrivare — mentre l'app, a chi è in un `pause_period` vero
+   * (creato da tutt'altra porta), scrive «Sei in modalità viaggio». Due oggetti, lo stesso nome.
+   * Il perché e la regola stanno in `pause.service.sospendiPerViaggio`.
+   *
+   * ⚠️ **Sospendono sia `in_partenza` sia `in_vacanza`**, non solo il secondo: la sospensione ha le
+   * sue date e comincia da sé il giorno giusto. Legandola al solo «In vacanza» servirebbe qualcuno
+   * che torna sulla scheda la mattina della partenza a cambiare la tendina — cioè non succederebbe.
+   * È la stessa coppia di stati che `statoViaggioAttivo` considera viva.
+   *
+   * ⚠️ **`travelEnd` continua a contenere l'ULTIMO GIORNO DI VACANZA**, come prima: è quello che
+   * `statoViaggioAttivo` confronta (`oggi <= travelEnd`). Quello che cambia è la casella che si
+   * scrive — «Riprende il» — e la conversione la fa `ultimoGiornoSospeso`, una volta sola.
+   */
+  async setTravel(
+    userId: string,
+    actorId: string,
+    input: { state?: string; start?: string; rientro?: string; end?: string },
+  ) {
     await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user) throw new NotFoundException('Cliente non trovato.');
@@ -1715,17 +1746,257 @@ export class ClientsService {
     const VALID = ['in_partenza', 'in_vacanza', 'rientrato'];
     const state = input.state && VALID.includes(input.state) ? input.state : null;
     const toDate = (v?: string) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v) : null);
-    const data = { travelState: state, travelStart: toDate(input.start), travelEnd: toDate(input.end) };
+
+    const start = toDate(input.start);
+    /**
+     * ⚠️ Le due forme della seconda data, e la precedenza. `rientro` (primo giorno di dieta) è
+     * quello che manda la card da oggi; `end` (ultimo giorno di vacanza) è la forma vecchia, che
+     * arriva ancora da un backoffice con il bundle in cache. Leggere `end` come «rientro»
+     * sposterebbe la vacanza di un giorno in silenzio — vedi `TravelDto`.
+     */
+    const rientroScritto = toDate(input.rientro);
+    const ultimoGiorno = rientroScritto ? ultimoGiornoSospeso(rientroScritto) : toDate(input.end);
+
+    /**
+     * ⛔ **PRIMA SI SOSPENDE, POI SI SCRIVE IL PROFILO** (ordine corretto in revisione, 23/8).
+     *
+     * Era il contrario, e non c'è transazione: `sospendiPerViaggio` **lancia** in quattro casi
+     * (rientro non dopo la partenza, oltre il tetto, sovrapposizione, vacanza già passata). Con
+     * l'ordine vecchio l'operatrice leggeva «Salvataggio non riuscito» e in banca dati restavano
+     * `travel_state = 'in_vacanza'` e le date, **senza nessuna sospensione**: cioè esattamente
+     * l'equivoco che questa consegna esiste per chiudere — la card che sembra aver fermato i menu
+     * mentre i menu continuano ad arrivare — rimesso in piedi sul percorso d'errore.
+     *
+     * Nell'ordine giusto un errore lascia tutto com'era, e la card lo dice.
+     *
+     * ⚠️ Senza date non si sospende niente, e non si inventa una durata: un periodo senza fine è il
+     * difetto che `stato-viaggio.ts` racconta di aver dovuto tappare («un "in vacanza" di luglio
+     * valeva ancora a novembre»).
+     */
+    const sospende = state === 'in_partenza' || state === 'in_vacanza';
+    let sospensione: { giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null } | null = null;
+    let avviso: string | null = null;
+    if (sospende && start && ultimoGiorno) {
+      sospensione = await this.pause.sospendiPerViaggio(userId, actorId, {
+        start,
+        rientro: new Date(ultimoGiorno.getTime() + 86_400_000),
+      });
+      avviso = sospensione.avviso;
+    } else {
+      const tolta = await this.pause.togliSospensioneDaViaggio(userId, actorId);
+      if (tolta.tolta) avviso = tolta.avviso;
+      /**
+       * ⚠️ Il caso che in revisione era muto: stato di vacanza con una casella **svuotata**. Si
+       * finisce qui, la sospensione in corso viene chiusa — i menu ripartono in mezzo alla vacanza
+       * — e prima l'unica cosa che l'operatrice leggeva era «senza le due date i menu non si
+       * fermano», che non le diceva la cosa appena successa. Ora l'avviso della chiusura resta e
+       * questo si aggiunge in coda.
+       */
+      if (sospende && (!start || !ultimoGiorno)) {
+        avviso = [
+          avviso,
+          'Stato salvato, ma senza le due date i menu NON si fermano: scrivi «Dal» e «Riprende il» perché la sospensione esista.',
+        ].filter(Boolean).join(' ');
+      }
+    }
+
+    const data = { travelState: state, travelStart: start, travelEnd: ultimoGiorno };
     await this.prisma.clientProfile.upsert({
       where: { userId },
       update: data as never,
       create: { userId, ...data } as never,
     });
+
     if (state === 'rientrato') {
       await this.prisma.analyticsEvent.create({ data: { eventId: randomUUID(), name: 'travel_return', userId, phase: 'app', data: {} as never } as never });
     }
-    await this.audit.log({ action: 'client.travel.update', actorId, entityType: 'user', entityId: userId, metadata: { state } });
-    return { state };
+    /**
+     * ⚠️ **Nel registro finiscono anche le DATE**, non il solo stato. Prima c'era `metadata: { state }`:
+     * lo storico diceva «qualcuno ha messo "in vacanza"» e non da quando a quando — cioè non
+     * rispondeva alla domanda per cui qualcuno va a leggerlo. Le voci più vecchie di oggi restano
+     * senza date: non si inventano.
+     */
+    await this.audit.log({
+      action: 'client.travel.update',
+      actorId,
+      entityType: 'user',
+      entityId: userId,
+      metadata: {
+        state,
+        dal: start ? start.toISOString().slice(0, 10) : null,
+        riprendeIl: ultimoGiorno ? new Date(ultimoGiorno.getTime() + 86_400_000).toISOString().slice(0, 10) : null,
+        giorniSospesi: sospensione?.giorni ?? null,
+        giorniCongelati: sospensione?.giorniCongelati ?? null,
+      } as never,
+    });
+    return {
+      state,
+      giorniSospesi: sospensione?.giorni ?? null,
+      giorniCongelati: sospensione?.giorniCongelati ?? null,
+      nuovaScadenza: sospensione?.nuovaScadenza ? sospensione.nuovaScadenza.toISOString() : null,
+      avviso: avviso || null,
+    };
+  }
+
+  /**
+   * ⛔ **LE DATE DELLE SOSPENSIONI E DELLA MODALITÀ VIAGGIO** — richiesta di Simone, 23/8:
+   * *«io da back office dove vedo le date delle sospensioni e delle modalità viaggio?»*
+   *
+   * Risposta, prima di questa consegna: **da nessuna parte**. La card mostrava tre caselle da
+   * riempire e nessuno storico; la card «Richieste di pausa» mostrava solo quelle **in attesa**; i
+   * periodi veri — le righe `event` con `mode = pause_period`, quelle che fermano davvero i menu —
+   * non comparivano in nessuna schermata del back office. Una coach che voleva sapere «perché a
+   * questa cliente non arriva il menu?» non aveva un posto dove guardarlo.
+   *
+   * Qui si mettono insieme le quattro cose che rispondono a quella domanda, e restano **quattro**
+   * invece di diventare un elenco unico perché non hanno lo stesso peso:
+   *
+   *  1. `periodi` — i periodi VERI. Sono questi che fermano l'erogazione; gli altri tre no.
+   *  2. `richieste` — le richieste di pausa, **anche già decise**: dicono chi ha approvato e quando.
+   *  3. `viaggio` — lo storico della card, dal registro. ⚠️ Le voci scritte **prima del 23/8**
+   *     hanno solo lo stato e non le date: allora nel registro non ci finivano. Non si inventano.
+   *  4. `dichiarati` — i periodi che la cliente ha scritto nel questionario. Non fermano niente e
+   *     non l'hanno mai fatto: servono a capire se quello che sta succedendo era previsto.
+   *
+   * ⚠️ `riprendeIl` è ovunque il **primo giorno di dieta**, non l'ultimo di vacanza: è la
+   * convenzione della card, e la conversione la fa `giornoDiRientro` una volta sola.
+   */
+  async sospensioni(userId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
+    const oggi = toDateOnly();
+
+    const [eventi, richieste, profilo] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { clientId: userId, mode: 'pause_period' as never } as never,
+        orderBy: { startDate: 'desc' },
+        take: 50,
+        select: { id: true, startDate: true, endDate: true, label: true, createdAt: true },
+      }) as Promise<{ id: string; startDate: Date; endDate: Date; label: string | null; createdAt: Date }[]>,
+      this.prisma.pauseRequest.findMany({
+        where: { clientId: userId } as never,
+        orderBy: { startDate: 'desc' },
+        take: 50,
+        select: {
+          id: true, startDate: true, endDate: true, days: true, status: true,
+          eventId: true, decidedByStaffId: true, decidedAt: true, staffNote: true, createdAt: true,
+        },
+      }) as Promise<{
+        id: string; startDate: Date; endDate: Date; days: number; status: string;
+        eventId: string | null; decidedByStaffId: string | null; decidedAt: Date | null;
+        staffNote: string | null; createdAt: Date;
+      }[]>,
+      this.prisma.clientProfile.findUnique({
+        where: { userId },
+        select: { consents: true, travelState: true, travelStart: true, travelEnd: true },
+      }) as Promise<{ consents: unknown; travelState: string | null; travelStart: Date | null; travelEnd: Date | null } | null>,
+    ]);
+
+    /** Chi ha deciso: i nomi si leggono in blocco, non uno per riga. */
+    const idsStaff = [...new Set(richieste.map((r) => r.decidedByStaffId).filter((x): x is string => Boolean(x)))];
+    const nomi = new Map<string, string>();
+    if (idsStaff.length) {
+      const persone = (await this.prisma.user.findMany({
+        where: { id: { in: idsStaff } },
+        select: { id: true, email: true, firstName: true, lastName: true },
+      })) as { id: string; email: string; firstName: string | null; lastName: string | null }[];
+      for (const p of persone) {
+        nomi.set(p.id, [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email);
+      }
+    }
+    const perEvento = new Map(richieste.filter((r) => r.eventId).map((r) => [r.eventId as string, r]));
+
+    const giorno = (d: Date) => d.toISOString().slice(0, 10);
+    const quandoSiamo = (dal: Date, ultimoSospeso: Date): 'futura' | 'in_corso' | 'passata' => {
+      if (oggi.getTime() < giornoDelDato(dal).getTime()) return 'futura';
+      return oggi.getTime() <= giornoDelDato(ultimoSospeso).getTime() ? 'in_corso' : 'passata';
+    };
+
+    const periodi = eventi.map((e) => ({
+      id: e.id,
+      dal: giorno(e.startDate),
+      riprendeIl: giorno(giornoDiRientro(e)),
+      giorni: giorniSospesi(e),
+      stato: quandoSiamo(e.startDate, e.endDate),
+      /**
+       * Da dove è nata. ⚠️ Le tre porte non valgono uguale in €: la richiesta di pausa e la
+       * modalità viaggio allungano la scadenza del piano, il Calendario in app **no** (difetto
+       * aperto, segnalato a Simone il 23/8). Chi legge la scheda deve poterlo distinguere.
+       */
+      origine:
+        e.label === ETICHETTA_VIAGGIO
+          ? 'Modalità viaggio'
+          : perEvento.has(e.id)
+            ? 'Richiesta di pausa'
+            : 'Calendario in app',
+      creataIl: e.createdAt,
+    }));
+
+    return {
+      periodi,
+      richieste: richieste.map((r) => ({
+        id: r.id,
+        dal: giorno(r.startDate),
+        riprendeIl: giorno(giornoDiRientro(r)),
+        giorni: r.days,
+        stato: r.status,
+        decisaDa: r.decidedByStaffId ? (nomi.get(r.decidedByStaffId) ?? null) : null,
+        decisaIl: r.decidedAt,
+        nota: r.staffNote,
+        chiestaIl: r.createdAt,
+      })),
+      viaggio: await this.storicoModalitaViaggio(userId),
+      /** Lo stato scritto adesso sul profilo, per far vedere la card e l'elenco d'accordo. */
+      adesso: profilo
+        ? {
+            stato: profilo.travelState,
+            dal: profilo.travelStart ? giorno(profilo.travelStart) : null,
+            riprendeIl: profilo.travelEnd ? giorno(new Date(giornoDelDato(profilo.travelEnd).getTime() + 86_400_000)) : null,
+          }
+        : null,
+      dichiarati: Array.isArray((profilo?.consents as { pausePeriods?: unknown })?.pausePeriods)
+        ? ((profilo?.consents as { pausePeriods: { start?: string; end?: string }[] }).pausePeriods).map((p) => ({
+            dal: p.start ?? null,
+            al: p.end ?? null,
+          }))
+        : [],
+    };
+  }
+
+  /**
+   * Lo storico della card «Modalità viaggio», dal registro.
+   *
+   * ⚠️ Le voci scritte **prima del 23/8** hanno `metadata: { state }` e basta: da quel giorno ci
+   * finiscono anche `dal`, `riprendeIl` e i giorni sospesi. Le vecchie restano con le date a
+   * `null` — che è la verità, e si vede — invece di essere riempite indovinando.
+   */
+  private async storicoModalitaViaggio(userId: string) {
+    const righe = (await this.prisma.auditLog.findMany({
+      where: {
+        entityId: userId,
+        action: { in: ['client.travel.update', 'client.travel.suspend', 'client.travel.resume'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      include: { actor: { select: { email: true, firstName: true, lastName: true } } },
+    })) as {
+      id: string; action: string; createdAt: Date; metadata: unknown;
+      actor: { email: string; firstName: string | null; lastName: string | null } | null;
+    }[];
+    return righe.map((r) => {
+      const m = (r.metadata ?? {}) as { state?: string | null; dal?: string | null; riprendeIl?: string | null; giorni?: number | null; giorniSospesi?: number | null };
+      return {
+        id: r.id,
+        azione: r.action,
+        quando: r.createdAt,
+        stato: m.state ?? null,
+        dal: m.dal ?? null,
+        riprendeIl: m.riprendeIl ?? null,
+        giorni: m.giorniSospesi ?? m.giorni ?? null,
+        chi: r.actor
+          ? [r.actor.firstName, r.actor.lastName].filter(Boolean).join(' ') || r.actor.email
+          : null,
+      };
+    });
   }
 
   /**

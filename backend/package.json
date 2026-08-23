@@ -41,6 +41,7 @@
     "fix:assegnazioni": "ts-node --transpile-only prisma/fix-assegnazioni.ts",
     "assegna:nutrizionista": "ts-node --transpile-only prisma/assegna-nutrizionista.ts",
     "prova:erogazione": "ts-node --transpile-only prisma/prova-erogazione.ts",
+    "sblocca:sospensione": "ts-node --transpile-only prisma/sblocca-sospensione.ts",
     "fix:diet-family": "ts-node --transpile-only prisma/fix-diet-family.ts",
     "diag:ricorrente": "ts-node --transpile-only prisma/diag-ricorrente.ts",
     "diag:famiglie": "ts-node --transpile-only prisma/diag-famiglie-ambigue.ts",

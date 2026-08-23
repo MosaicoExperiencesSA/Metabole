@@ -742,6 +742,10 @@ export function ClientDetail() {
   // `isAdmin`, che in questa pagina vuol dire «vede la pagina Permessi» — e teneva il × nascosto
   // proprio a chi gestisce i piani, il capo nutrizionista.
   const canCancelSubscription = can('cancel_subscription', 'manage');
+  // La modalità viaggio: da quando sospende e allunga il piano ha una chiave sua (23/8), di
+  // default solo admin. Senza permesso la card non si mostra: mostrarla e far morire ogni Salva
+  // in un 403 sarebbe peggio che non averla.
+  const canTravelMode = can('travel_mode', 'manage');
   // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
   const puoAllergie = can('change_allergies', 'manage');
   // Il via libera clinico: lo dà chi ha «Idoneità a proseguire» (13/8).
@@ -1492,7 +1496,7 @@ export function ClientDetail() {
         </div>
       </div>
 
-      <TravelCard clientId={id ?? ''} profile={p} />
+      {canTravelMode && <TravelCard clientId={id ?? ''} profile={p} />}
 
       <PauseRequestsCard clientId={id ?? ''} clientName={p?.name ?? d.user.email} />
 
@@ -2509,29 +2513,115 @@ function PauseRequestsCard({ clientId, clientName }: { clientId: string; clientN
   );
 }
 
+interface Sospensioni {
+  periodi: { id: string; dal: string; riprendeIl: string; giorni: number; stato: 'futura' | 'in_corso' | 'passata'; origine: string }[];
+  richieste: { id: string; dal: string; riprendeIl: string; giorni: number; stato: string; decisaDa: string | null; decisaIl: string | null; nota: string | null; chiestaIl: string }[];
+  viaggio: { id: string; azione: string; quando: string; stato: string | null; dal: string | null; riprendeIl: string | null; giorni: number | null; chi: string | null }[];
+  adesso: { stato: string | null; dal: string | null; riprendeIl: string | null } | null;
+  dichiarati: { dal: string | null; al: string | null }[];
+}
+
+const STATO_PERIODO: Record<string, { testo: string; colore: string }> = {
+  in_corso: { testo: 'in corso', colore: '#0e7c66' },
+  futura: { testo: 'futura', colore: '#8a6d3b' },
+  passata: { testo: 'passata', colore: '#6b7772' },
+};
+
+const STATO_RICHIESTA: Record<string, string> = {
+  pending: 'in attesa',
+  auto_approved: 'approvata in automatico',
+  approved: 'approvata',
+  rejected: 'rifiutata',
+};
+
+/**
+ * ⛔ **MODALITÀ VIAGGIO — e l'elenco che nello spazio vuoto non c'era** (richiesta di Simone, 23/8).
+ *
+ * Due cose sono cambiate qui dentro, e la seconda è la più facile da sbagliare rileggendo:
+ *
+ * 1. **La card adesso sospende davvero.** Prima scriveva tre campi sul profilo e nient'altro: i
+ *    menu continuavano ad arrivare. La frase sotto il titolo diceva «in vacanza il popup misure si
+ *    sospende», che era **falso dall'11/8** (caso Gioia: quell'esenzione è stata tolta, perché otto
+ *    giornate erano state tarate su una pesata di quattro giorni prima).
+ *
+ * 2. ⚠️ **La casella si chiama «Riprende il» e vuole il PRIMO GIORNO DI DIETA**, non l'ultimo di
+ *    vacanza. In banca dati resta scritto l'ultimo giorno sospeso — è quello che `travelEnd` ha
+ *    sempre contenuto e che `statoViaggioAttivo` confronta — e la conversione la fa il backend con
+ *    `ultimoGiornoSospeso`. Qui si somma un giorno per **mostrare** il valore salvato: se un giorno
+ *    questa riga sparisse, la card comincerebbe a raccontare una vacanza più corta di un giorno
+ *    senza che nessuno se ne accorga.
+ */
 function TravelCard({ clientId, profile }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null }) {
+  /** Da «ultimo giorno sospeso» (salvato) a «riprende il» (mostrato). Vedi il riquadro sopra. */
+  const aRientro = (v?: string | null): string => {
+    if (!v) return '';
+    const d = new Date(`${String(v).slice(0, 10)}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return '';
+    return new Date(d.getTime() + 86_400_000).toISOString().slice(0, 10);
+  };
+
   const [state, setState] = useState<string>(profile?.travelState ?? '');
   const [start, setStart] = useState<string>(profile?.travelStart ? String(profile.travelStart).slice(0, 10) : '');
-  const [end, setEnd] = useState<string>(profile?.travelEnd ? String(profile.travelEnd).slice(0, 10) : '');
+  const [rientro, setRientro] = useState<string>(aRientro(profile?.travelEnd));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [avviso, setAvviso] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [dati, setDati] = useState<Sospensioni | null>(null);
+
+  const data = (v?: string | null) =>
+    v ? new Date(`${String(v).slice(0, 10)}T00:00:00.000Z`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
+  const quando = (v?: string | null) => (v ? new Date(v).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: '2-digit' }) : '—');
+
+  async function carica() {
+    try {
+      setDati(await api<Sospensioni>(`/admin/clients/${clientId}/sospensioni`));
+    } catch { /* l'elenco è un di più: se non arriva, la card resta usabile */ }
+  }
+  useEffect(() => { carica(); }, [clientId]);
 
   async function save() {
-    setSaving(true); setErr(null); setMsg(null);
+    setSaving(true); setErr(null); setMsg(null); setAvviso(null);
     try {
-      await api(`/admin/clients/${clientId}/travel`, { method: 'PATCH', body: JSON.stringify({ state, start, end }) });
-      setMsg(state === 'in_vacanza' ? 'In vacanza: il popup misure è sospeso fino al rientro.' : state === 'rientrato' ? 'Rientro registrato: evento inviato al CRM/marketing.' : 'Modalità viaggio aggiornata.');
+      const esito = await api<{ giorniSospesi: number | null; nuovaScadenza: string | null; avviso: string | null }>(
+        `/admin/clients/${clientId}/travel`,
+        { method: 'PATCH', body: JSON.stringify({ state, start, rientro }) },
+      );
+      /**
+       * ⚠️ Il messaggio dice **quanti giorni** e **la nuova scadenza**: è l'unico momento in cui chi
+       * salva vede l'effetto in € di quello che ha appena fatto. Prima diceva solo «aggiornata».
+       */
+      setMsg(
+        esito.giorniSospesi
+          ? `Sospensione di ${esito.giorniSospesi} giorni: i menu si fermano e riprendono il ${data(rientro)}.`
+            + (esito.nuovaScadenza ? ` La scadenza del piano è stata spostata al ${data(esito.nuovaScadenza)}.` : '')
+          : state === 'rientrato'
+            ? 'Rientro registrato: i menu ripartono e parte l\'evento verso il CRM/marketing.'
+            : 'Modalità viaggio aggiornata.',
+      );
+      setAvviso(esito.avviso);
+      await carica();
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setSaving(false); }
   }
 
+  const periodi = dati?.periodi ?? [];
+  const richieste = dati?.richieste ?? [];
+  const storico = dati?.viaggio ?? [];
+  const dichiarati = dati?.dichiarati ?? [];
+  const nienteDaMostrare = !periodi.length && !richieste.length && !storico.length && !dichiarati.length;
+
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Modalità viaggio (piani estate)</h2>
-      <p className="hint" style={{ marginTop: 0 }}>In vacanza il popup misure si sospende; al rientro parte un evento verso il CRM/marketing (campagna di rientro).</p>
+      <p className="hint" style={{ marginTop: 0 }}>
+        Con le due date i menu <b>si fermano davvero</b> e la scadenza del piano slitta dei giorni sospesi.
+        Il giorno prima del rientro le si chiede la pesata e le arriva il menu del primo giorno. Al rientro
+        parte un evento verso il CRM/marketing (campagna di rientro).
+      </p>
       {err && <Banner kind="err">{err}</Banner>}
       {msg && <Banner kind="ok">{msg}</Banner>}
+      {avviso && <Banner kind="err">{avviso}</Banner>}
       <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <label className="field" style={{ minWidth: 180 }}>
           <span>Stato</span>
@@ -2543,8 +2633,103 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
           </select>
         </label>
         <label className="field" style={{ maxWidth: 160 }}><span>Dal</span><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-        <label className="field" style={{ maxWidth: 160 }}><span>Al</span><input className="input" type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></label>
+        <label className="field" style={{ maxWidth: 170 }}>
+          <span title="Il primo giorno in cui torna a seguire la dieta">Riprende il</span>
+          <input className="input" type="date" value={rientro} onChange={(e) => setRientro(e.target.value)} />
+        </label>
         <button className="btn" onClick={save} disabled={saving}><i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}</button>
+      </div>
+      <p className="hint" style={{ marginTop: 6, marginBottom: 0 }}>
+        «Riprende il» è il <b>primo giorno di dieta</b>: se scrivi 24, il 23 è ancora vacanza.
+        Da qui al massimo <b>20 giorni</b>; oltre serve una richiesta di pausa approvata da una collega.
+      </p>
+
+      {/* ── Lo spazio che era vuoto: le date, tutte e quattro le sorgenti ───────────────────── */}
+      <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Sospensioni e storico</h3>
+        {nienteDaMostrare ? (
+          <p className="hint" style={{ margin: 0 }}>Nessuna sospensione, né richiesta, né periodo dichiarato.</p>
+        ) : (
+          <>
+            {!!periodi.length && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                  <b>Periodi senza menu</b> — sono questi che fermano l'erogazione.
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="grid" style={{ fontSize: 13 }}>
+                    <thead><tr><th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Stato</th><th>Origine</th></tr></thead>
+                    <tbody>
+                      {periodi.map((r) => (
+                        <tr key={r.id}>
+                          <td>{data(r.dal)}</td>
+                          <td>{data(r.riprendeIl)}</td>
+                          <td>{r.giorni}</td>
+                          <td style={{ color: STATO_PERIODO[r.stato]?.colore }}>{STATO_PERIODO[r.stato]?.testo ?? r.stato}</td>
+                          <td>{r.origine}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!!richieste.length && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}><b>Richieste di pausa</b> — anche quelle già decise.</div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="grid" style={{ fontSize: 13 }}>
+                    <thead><tr><th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Esito</th><th>Decisa da</th></tr></thead>
+                    <tbody>
+                      {richieste.map((r) => (
+                        <tr key={r.id}>
+                          <td>{data(r.dal)}</td>
+                          <td>{data(r.riprendeIl)}</td>
+                          <td>{r.giorni}</td>
+                          <td>{STATO_RICHIESTA[r.stato] ?? r.stato}</td>
+                          <td>{r.decisaDa ?? '—'}{r.decisaIl ? ` · ${quando(r.decisaIl)}` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!!storico.length && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>
+                  <b>Storico modalità viaggio</b> — chi l'ha cambiata e quando.
+                  {storico.some((r) => !r.dal) && ' Le voci più vecchie del 23/8 non hanno le date: allora non venivano registrate.'}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="grid" style={{ fontSize: 13 }}>
+                    <thead><tr><th>Quando</th><th>Stato</th><th>Dal</th><th>Riprende il</th><th>Chi</th></tr></thead>
+                    <tbody>
+                      {storico.map((r) => (
+                        <tr key={r.id}>
+                          <td>{quando(r.quando)}</td>
+                          <td>{r.stato ?? (r.azione === 'client.travel.resume' ? 'sospensione tolta' : '—')}</td>
+                          <td>{r.dal ? data(r.dal) : '—'}</td>
+                          <td>{r.riprendeIl ? data(r.riprendeIl) : '—'}</td>
+                          <td>{r.chi ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!!dichiarati.length && (
+              <div className="muted" style={{ fontSize: 12 }}>
+                <b>Dichiarati nel questionario</b> (non fermano niente):{' '}
+                {dichiarati.map((r, i) => <span key={i}>{i > 0 ? ' · ' : ''}{data(r.dal)} – {data(r.al)}</span>)}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

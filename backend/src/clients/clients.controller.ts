@@ -47,9 +47,19 @@ class IdoneitaDto {
   visitaEntro?: string;
 }
 
+/**
+ * ⚠️ **`rientro` e `end` NON sono la stessa data**, ed è di proposito che convivono.
+ *
+ * `rientro` è quello che la card manda da oggi: il **primo giorno di dieta** («riprende il 24»).
+ * `end` è la forma vecchia — l'**ultimo giorno di vacanza** — e resta accettata perché un
+ * backoffice aperto da ieri, con il bundle in cache, continua a mandarla: leggerla come «rientro»
+ * sposterebbe di un giorno la vacanza di qualcuno senza che nessuno se ne accorga. Chi manda
+ * tutt'e due vince `rientro`. Vedi `pause/giorno-di-rientro.ts`.
+ */
 class TravelDto {
   @IsOptional() @IsString() @MaxLength(20) state?: string;
   @IsOptional() @IsString() @MaxLength(40) start?: string;
+  @IsOptional() @IsString() @MaxLength(40) rientro?: string;
   @IsOptional() @IsString() @MaxLength(40) end?: string;
 }
 
@@ -214,6 +224,20 @@ export class ClientsController {
   }
 
   /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */
+  /**
+   * L'elenco delle sospensioni e dello storico modalità viaggio, per la scheda cliente.
+   * ⚠️ Solo lettura: il permesso è quello della scheda (`assertClientAccess` dentro il servizio).
+   */
+  @Get(':id/sospensioni')
+  sospensioni(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.clients.sospensioni(id, user.sub);
+  }
+
+  /**
+   * ⚠️ `@RequirePage('travel_mode','manage')`: questa PATCH allunga la scadenza di un piano pagato.
+   * La chiave è nata insieme alla guardia che la legge — vedi il riquadro in `permissions/pages.ts`.
+   */
+  @RequirePage('travel_mode', 'manage')
   @Patch(':id/travel')
   setTravel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: TravelDto) {
     return this.clients.setTravel(id, user.sub, dto);
