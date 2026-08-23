@@ -1479,7 +1479,8 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'giorno-cancellato-che-non-torna',
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
+    blocca: false,
+    fatta: true,
     nata: '2026-08-23T18:30',
     titolo: '⛔ Un giorno di menu cancellato «per rifarlo» può non tornare MAI: la cliente trova «menu in preparazione» per sempre',
     dettaglio:
@@ -1508,7 +1509,101 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'gli occhi aperti, o un passo notturno che ricompone i buchi.\n\n'
       + '⚠️ **Da guardare anche all\'indietro**: chi ha già approvato una regola di dieta dal 13/8 '
       + 'potrebbe avere clienti con un giorno mancante in calendario. Si trova cercando i `MenuDay` '
-      + 'con un salto di data nel futuro.',
+      + 'con un salto di data nel futuro.\n\n'
+      + '---\n\n'
+      + '✅ **CHIUSA IL 24/8, ed era più larga di così.** Misurando i punti che cancellano `MenuDay` '
+      + 'sono venuti fuori **sei**: tre sono code per costruzione (le rigenerazioni intere del '
+      + 'motore), e **tre** erano rotti, non uno:\n\n'
+      + '· la **regola di dieta** — quella scritta qui sopra, dal 13/8;\n'
+      + '· **«togli lo spuntino»** — cancellava i giorni che contengono lo spuntino, sparsi;\n'
+      + '· **«cambia le proteine»** — cancellava i giorni `viewedAt: null` e lasciava in piedi quelli '
+      + 'letti: oltre al buco, l\'erogazione restava ferma **del tutto** finché quel giorno non '
+      + 'passava. Era il peggiore dei tre.\n\n'
+      + '⛔ **E la riga qui sopra che dice «le proteine e i pasti cancellano tutta la coda e quindi non '
+      + 'ci sbattono» era FALSA** — l\'avevo scritta io il 23/8 senza verificarla, ed è finita anche '
+      + 'in un commento nel codice consegnato. Il codice era giusto, la ragione scritta accanto no: '
+      + 'chi legge una ragione falsa ci costruisce sopra invece di andare a guardare.\n\n'
+      + 'Adesso la regola sta scritta **una volta sola** (`vera/menu-da-rifare.ts`, `codaDaRifare`): '
+      + 'si cancella dal primo giorno colpito in avanti, tutto; se dentro la coda c\'è un giorno già '
+      + 'aperto non si tocca niente **e si dice quale giorno**. I colpiti arrivano come **predicato** '
+      + 'e non come secondo elenco, così sono un sottoinsieme per costruzione: la prima stesura, con '
+      + 'due array, davanti a un universo incompleto rispondeva «coda vuota, fatto» — la risposta più '
+      + 'tranquillizzante possibile davanti al difetto che deve chiudere.\n\n'
+      + '⚠️ **Non è servito esportare `MenuModule` a Vera**, che era la strada temuta: la coda si '
+      + 'calcola con una query in più (i calendari **interi** delle sole clienti colpite — quella '
+      + 'filtrata per dieta e per «mai aperto» non vede né i giorni letti né quelli rimasti da una '
+      + 'dieta precedente, cioè proprio le righe che restano in fondo). `applica-proposta.ts` continua '
+      + 'a prendere `prisma` e basta.\n\n'
+      + '⚠️ **Guardia**: `menu/una-porta-per-i-giorni.spec.ts` — ogni file che cancella `MenuDay` va '
+      + 'dichiarato con la ragione per cui è una coda, e la forma esatta del difetto (`deleteMany` con '
+      + '`viewedAt: null` dentro) è vietata senza eccezioni.\n\n'
+      + '⛔ **RESTA APERTO IL PASSATO** — voce `buchi-gia-aperti-nei-menu`.\n\n'
+      + '⚠️ **E UNA CORREZIONE A QUELLO CHE HO SCRITTO IO IERI.** Sopra è scritto «un buco, e quel '
+      + 'giorno la cliente apre l\'app e trova menu in preparazione», come se fosse successo a molte. '
+      + 'Non l\'avevo misurato. Le cancellazioni sparse toccavano **solo i giorni non ancora "visti"**, '
+      + 'e `viewedAt` viene messo dall\'app su tutti i giorni futuri appena la cliente la apre (voce '
+      + '`visto-non-vuol-dire-aperto`): quindi con ogni probabilità quei percorsi **non hanno quasi '
+      + 'mai cancellato niente**, e i buchi veri sono pochi. Il difetto era reale e andava chiuso — '
+      + 'ma l\'allarme era più grande del danno, e l\'ho scritto in tre file prima di contarlo. '
+      + '«Misura prima di decidere» vale anche quando la misura fa scendere il numero.',
+  },
+  {
+    chiave: 'visto-non-vuol-dire-aperto',
+    categoria: 'Da decidere con Simone',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-24T13:00',
+    titolo: '⛔ «Visto» vuol dire «gliel\'abbiamo mostrato», non «l\'ha aperto»: «rifai i giorni già preparati» non trova quasi mai niente',
+    dettaglio:
+      '⛔ **Trovato in revisione il 24/8, leggendo il motore.** `MenuDay.viewedAt` si chiama «visto» e '
+      + 'in tutto il progetto viene letto come «l\'ha aperto». Non è quello che ci scrive dentro:\n\n'
+      + '· `MenuService.getMenu` restituisce all\'app gli ultimi 30 giorni **visibili**, futuri '
+      + 'compresi, e subito dopo chiama `segnaVisti`, che li marca **tutti**;\n'
+      + '· i giorni nuovi, dal **secondo ciclo in poi**, nascono `visibleFrom: today` — visibili '
+      + 'subito (`visibleFrom: last ? today : visibleFrom`).\n\n'
+      + '⛔ Quindi **appena la cliente apre l\'app, tutti i suoi giorni futuri risultano «visti»**. '
+      + 'Non perché li abbia guardati: perché erano nella lista.\n\n'
+      + '⚠️ **La conseguenza è che «rifai i giorni già preparati» è di fatto morto** su ogni percorso '
+      + 'che filtra `viewedAt` (i divieti dettati a Vera — compresa la correzione del caso Lorena del '
+      + '23/8 — gli spuntini, le proteine, la regola di dieta). Fra la generazione dei giorni e la '
+      + 'prima apertura dell\'app passano minuti: dopo, la nutrizionista detta «niente pesce» e legge '
+      + '«Nei giorni già preparati non ce n\'era: non ho toccato niente» mentre il branzino è nel menu '
+      + 'di domani. La frase è falsa e non lo sembra — il modo peggiore in cui una funzione può '
+      + 'essere rotta.\n\n'
+      + '**IL NUMERO PRIMA DELLA DECISIONE**: `npm run diag:visto` dice quanti giorni futuri risultano '
+      + 'già «visti», su quante clienti, e in particolare quanti menu **di domani**. In sola lettura.\n\n'
+      + '**Deciso da Simone il 24/8 — per adesso non si tocca la semantica**, e le frasi si '
+      + 'correggono: Vera non dice più «ha già aperto il menu del 25» ma «il menu del 25 le è già '
+      + 'arrivato in app», e indica «Rigenera menu» dicendo che quello rifà **anche** il giorno già '
+      + 'ricevuto. Nessun rischio di togliere un menu di mano a nessuno; il prezzo è che il '
+      + 'rifacimento automatico resta quasi sempre a vuoto, e va fatto a mano dalla scheda.\n\n'
+      + '⚠️ **Le due strade che restano aperte, quando ci sarà il numero:**\n'
+      + '1. proteggere solo i giorni **già arrivati** (oggi e passati) e tornare a rifare i futuri: '
+      + 'la funzione riprende a funzionare, ma si rischia di cambiare il menu di domani a chi l\'aveva '
+      + 'letto e ci aveva fatto la spesa;\n'
+      + '2. un segnale vero «ha aperto QUESTO giorno», che è la cosa giusta ma tocca anche l\'app.',
+  },
+  {
+    chiave: 'buchi-gia-aperti-nei-menu',
+    categoria: 'Da decidere con Simone',
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-24T11:00',
+    titolo: 'I buchi già aperti nei calendari dal 13/8: quanti sono, e come si riparano',
+    dettaglio:
+      '⛔ Il codice è a posto da oggi (`giorno-cancellato-che-non-torna`), ma **i buchi già aperti non '
+      + 'si richiudono da soli**: chi ha una giornata vuota davanti continuerà a vedere «menu in '
+      + 'preparazione» quel giorno, e chi ha l\'ultimo giorno oltre oggi non riceve più niente finché '
+      + 'quella data non passa.\n\n'
+      + '**Il numero prima della decisione**: `npm run diag:buchi-menu` sul database vero elenca le '
+      + 'clienti con un salto di data nel calendario da oggi in avanti, le sospensioni escluse (lì i '
+      + 'giorni mancano di proposito), e mette per prime quelle con l\'erogazione ferma. È in sola '
+      + 'lettura. Il conto dei buchi ha i suoi test (`menu/buchi-nel-calendario.spec.ts`): uno script '
+      + 'che sbagliando risponde «nessun buco» chiuderebbe la domanda invece di aprirla.\n\n'
+      + '⚠️ **La riparazione non è automatica di proposito**: rimettere a posto un buco vuol dire '
+      + 'cancellare la coda dal buco in avanti, cioè rimescolare giornate che qualcuna potrebbe già '
+      + 'aver letto — magari dopo la spesa. Con pochi nomi si fa a mano dalla scheda («Rigenera '
+      + 'menu»); se sono tanti serve una decisione di Simone e Lucia su cosa si accetta di perdere.',
   },
   {
     chiave: 'niente-pesce-vuol-dire-niente-pesce',

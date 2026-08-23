@@ -17,7 +17,7 @@
  * giornata diversa da quella che voleva.
  */
 
-import { siPuoRifare } from './menu-da-rifare';
+import { type GiornoDaValutare, siPuoRifare } from './menu-da-rifare';
 
 export type Spuntino = 'morning_snack' | 'afternoon_snack';
 export const SPUNTINI: readonly Spuntino[] = ['morning_snack', 'afternoon_snack'];
@@ -89,13 +89,13 @@ export function etichettaSpuntino(slot: Spuntino): string {
   return slot === 'morning_snack' ? 'lo spuntino del mattino' : 'la merenda del pomeriggio';
 }
 
-export interface GiornoConPasti {
-  id: string;
-  clientId: string;
-  date: Date;
-  viewedAt: Date | null;
-  meals: unknown;
-}
+/**
+ * ⚠️ **È lo stesso `GiornoDaValutare`** (24/8): erano due interfacce identiche con due nomi, e la
+ * differenza — `viewedAt` obbligatorio di qua, facoltativo di là — non voleva dire niente sul dato,
+ * voleva dire solo che erano state scritte in due momenti. Due tipi per la stessa riga sono due tipi
+ * che un giorno divergono, e la riga è quella che decide se una cliente domani mangia.
+ */
+export type GiornoConPasti = GiornoDaValutare;
 
 const slotDelGiorno = (meals: unknown): string[] =>
   Array.isArray(meals)

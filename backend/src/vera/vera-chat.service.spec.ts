@@ -20,6 +20,24 @@ import { StatoVera } from './vera-chat';
 
 const CLIENTE = { id: 'c1', email: 'giulia@x.it', firstName: 'Giulia', lastName: 'Rossi', clientProfile: { name: 'Giulia' } };
 
+/**
+ * ⛔ **UN GIORNO DI MENU COME LO SALVA IL DATABASE: mezzanotte UTC del giorno di Roma.**
+ *
+ * ⚠️ Nato da un test **verde di giorno e rosso alle 00:30** (24/8, trovato da `npm run test:notte`).
+ * I finti scrivevano `new Date(Date.now() + n * 86_400_000)`, cioè un **istante**, dove `MenuDay.date`
+ * è un **giorno di calendario**. Fra la mezzanotte e le 02:00 italiane il giorno di Roma e quello UTC
+ * non coincidono: alle 00:30 del 23 a Roma sono ancora le 22:30 del 22 in UTC, quindi «oggi + 0» era
+ * un giorno **prima** del confine e il test non trovava più niente da rifare.
+ *
+ * ⚠️ Era un difetto del finto, non del prodotto — ma è il tipo di finto che nasconde i difetti veri:
+ * un dato che non somiglia a quello vero fa passare per verdi comportamenti mai provati. Ora tutti i
+ * giorni dei test di questo file passano di qui.
+ */
+const giornoSalvato = (fraQuanti: number): Date => {
+  const oggiARoma = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
+  return new Date(new Date(`${oggiARoma}T00:00:00.000Z`).getTime() + fraQuanti * 86_400_000);
+};
+
 /** L'ultimo messaggio scritto dall'agente, con il suo stato. */
 function ultimoAgente(create: jest.Mock): { testo: string; stato?: StatoVera } {
   const chiamate = create.mock.calls.map((c) => c[0].data).filter((d: { ruolo: string }) => d.ruolo === 'agente');
@@ -488,7 +506,7 @@ describe('VeraChatService — la scrittura', () => {
    */
   it('⛔ «niente pesce» rifà i giorni già preparati che lo contengono — e solo quelli', async () => {
     const GIORNO = 86_400_000;
-    const fra = (n: number) => new Date(Date.now() + n * GIORNO);
+    const fra = (n: number) => giornoSalvato(n);
     const pasto = (recipeId: string, name: string) => [{ slot: 'lunch', recipeId, name, kcal: 500 }];
     const { service, prisma, messaggioCreate } = make(
       {
@@ -565,7 +583,7 @@ describe('VeraChatService — la scrittura', () => {
         profilo: { dislikedFoods: ['pesce'], allergies: [], intolerances: [], name: 'Lorena' },
         giorniMenu: [
           {
-            id: 'g-branzino', clientId: 'c1', date: new Date(Date.now() + 2 * GIORNO), viewedAt: null,
+            id: 'g-branzino', clientId: 'c1', date: giornoSalvato(2), viewedAt: null,
             meals: [{ slot: 'lunch', recipeId: 'r-branzino', name: 'Branzino al forno', kcal: 500 }],
           },
         ],
@@ -602,16 +620,27 @@ describe('VeraChatService — la scrittura', () => {
           intento: { tipo: 'restrizione', cliente: 'Lorena', vietati: ['pesce'], tenuti: [] },
         }),
         giorniMenu: [
-          { id: 'g-branzino', clientId: 'c1', date: new Date(Date.now() + 2 * GIORNO), viewedAt: null, meals: pasto('r-branzino') },
+          { id: 'g-branzino', clientId: 'c1', date: giornoSalvato(2), viewedAt: null, meals: pasto('r-branzino') },
           // ⚠️ Aperto, e DOPO: non si può cancellare, e resterebbe lui l'ultimo.
-          { id: 'g-letto', clientId: 'c1', date: new Date(Date.now() + 3 * GIORNO), viewedAt: new Date(), meals: pasto('r-pollo') },
+          { id: 'g-letto', clientId: 'c1', date: giornoSalvato(3), viewedAt: new Date(), meals: pasto('r-pollo') },
         ],
       },
     );
     await service.parla('lucia', 'solo per lei');
     expect((prisma.menuDay.deleteMany as jest.Mock)).not.toHaveBeenCalled();
     const { testo } = ultimoAgente(messaggioCreate);
-    expect(testo).toContain('ne ha già aperto uno');
+    /**
+     * ⚠️ **E dice QUALE giorno** (24/8): prima diceva «ne ha già aperto uno», che è vero e
+     * inservibile — la nutrizionista deve poter andare a guardare **quel** giorno, non ripassarsi
+     * tutto il calendario per trovarlo.
+     *
+     * ⛔ **E dice «le è arrivato in app», non «l'ha aperto»**: `viewedAt` lo mette `getMenu` a ogni
+     * apertura dell'app su **tutti** i giorni della finestra, futuri compresi. «L'ha aperto» era una
+     * cosa che il dato non sostiene, scritta nella frase che una professionista legge per decidere.
+     * Voce `visto-non-vuol-dire-aperto`.
+     */
+    const [a, m, g] = giornoSalvato(3).toISOString().slice(0, 10).split('-');
+    expect(testo).toContain(`il menu del ${g}/${m}/${a} le è già arrivato in app`);
     expect(testo).toContain('Rigenera menu');
   });
 
@@ -627,7 +656,7 @@ describe('VeraChatService — la scrittura', () => {
       {
         statoAperto: statoAmbito(),
         giorniMenu: [
-          { id: 'g-1', clientId: 'c1', date: new Date(Date.now() + GIORNO), viewedAt: null, meals: [{ slot: 'lunch', recipeId: 'r-1', name: 'Pollo', kcal: 400 }] },
+          { id: 'g-1', clientId: 'c1', date: giornoSalvato(1), viewedAt: null, meals: [{ slot: 'lunch', recipeId: 'r-1', name: 'Pollo', kcal: 400 }] },
         ],
       },
     );
@@ -707,7 +736,7 @@ describe('VeraChatService — la scrittura', () => {
         // questo test vuole provare non arriverebbe mai.
         giorniMenu: [
           {
-            id: 'g-1', clientId: 'c1', date: new Date(Date.now() + 86_400_000), viewedAt: null,
+            id: 'g-1', clientId: 'c1', date: giornoSalvato(1), viewedAt: null,
             meals: [{ slot: 'lunch', recipeId: 'r-1', name: 'Tonno e fagioli', kcal: 400 }],
           },
         ],
@@ -1227,7 +1256,7 @@ describe('VeraChatService — le ricette', () => {
 });
 
 describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
-  const DOMANI = new Date(Date.now() + 86_400_000);
+  const DOMANI = giornoSalvato(1);
   const GIORNO_CON_MERENDA = { id: 'g1', clientId: 'c1', date: DOMANI, viewedAt: null, meals: [{ slot: 'breakfast', recipeId: 'r1' }, { slot: 'afternoon_snack', recipeId: 'r2' }] };
 
   it('«lo spuntino» secco: chiede QUALE, non indovina', async () => {
@@ -1264,6 +1293,111 @@ describe('VeraChatService — i pasti (azione 3, Decisioni 13/8 §14)', () => {
     const { testo, stato: dopo } = ultimoAgente(messaggioCreate);
     expect(dopo?.passo).toBeUndefined(); // giro chiuso: niente domanda sull'ambito
     expect(testo).not.toContain('per tutte');
+  });
+
+  /**
+   * ⛔ **E SI CANCELLA LA CODA, NON I GIORNI CON LA MERENDA** (24/8, voce
+   * `giorno-cancellato-che-non-torna`).
+   *
+   * Domani ha la merenda, dopodomani no. Prima si cancellava **solo domani** — e dopodomani restava
+   * l'ultimo giorno in calendario, quindi il motore ripartiva da lì in avanti e **domani non tornava
+   * mai**: la cliente apriva l'app e trovava «menu in preparazione», per sempre, su quel giorno solo.
+   */
+  it('⛔ cancella anche la giornata SENZA merenda che sta dopo: è una coda, non un colabrodo', async () => {
+    const senzaMerenda = {
+      id: 'g2', clientId: 'c1', date: giornoSalvato(2), viewedAt: null,
+      meals: [{ slot: 'breakfast', recipeId: 'r1' }],
+    };
+    const { service, prisma } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'conferma' as const,
+          frase: 'togli la merenda a Giulia',
+          intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'] },
+          clienteId: 'c1',
+          clienteNome: 'Giulia',
+        },
+        giorniMenu: [GIORNO_CON_MERENDA, senzaMerenda],
+      },
+    );
+    await service.parla('lucia', 'sì');
+    expect(prisma.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g2'] } } });
+  });
+
+  /**
+   * ⛔ **E se in coda c'è un giorno GIÀ APERTO non si tocca niente, e lo si dice.** Quel giorno resta
+   * suo — magari ci ha fatto la spesa — ma resterebbe anche l'ultimo, e il buco si riaprirebbe.
+   */
+  it('⛔ un giorno già aperto dopo quello colpito ferma la cancellazione, con la data', async () => {
+    const letto = {
+      id: 'g2', clientId: 'c1', date: giornoSalvato(2), viewedAt: new Date(),
+      meals: [{ slot: 'breakfast', recipeId: 'r1' }],
+    };
+    const { service, prisma, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'conferma' as const,
+          frase: 'togli la merenda a Giulia',
+          intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'] },
+          clienteId: 'c1',
+          clienteNome: 'Giulia',
+        },
+        giorniMenu: [GIORNO_CON_MERENDA, letto],
+      },
+    );
+    await service.parla('lucia', 'sì');
+    expect(prisma.menuDay.deleteMany).not.toHaveBeenCalled();
+    const [a, m, g] = letto.date.toISOString().slice(0, 10).split('-');
+    expect(ultimoAgente(messaggioCreate).testo).toContain(`il menu del ${g}/${m}/${a} le è già arrivato in app`);
+  });
+
+  /**
+   * ⛔ **LA QUERY NON DEVE FILTRARE `viewedAt`** — ed è il difetto che rendeva il caso qui sopra
+   * impossibile da vedere: filtrandolo, questo punto non sapeva nemmeno che quel giorno letto
+   * esistesse. Il finto dei test ignora il `where`, quindi senza questo controllo il filtro potrebbe
+   * tornare domani e tutti i test resterebbero verdi.
+   */
+  it('⛔ i giorni si leggono TUTTI, anche quelli già aperti', async () => {
+    const { service, prisma } = make({}, { giorniMenu: [GIORNO_CON_MERENDA] });
+    await service.parla('lucia', 'togli la merenda a Giulia');
+    const dove = (prisma.menuDay.findMany as jest.Mock).mock.calls.map((c) => c[0]?.where ?? {});
+    expect(dove.length).toBeGreaterThan(0);
+    for (const w of dove) expect(w).not.toHaveProperty('viewedAt');
+  });
+
+  /**
+   * ⛔ **SE LA CANCELLAZIONE VA STORTA, NON SI SPARISCE** (24/8, seconda revisione).
+   *
+   * `pastiEsclusi` è già scritto sul profilo quando si arriva a cancellare i giorni, e la riga di
+   * registro si scrive dopo. Un'eccezione qui risaliva fino a `parla()`, che non ha `try/catch`:
+   * 500, nessuna risposta dell'agente, spuntino tolto dal profilo, giorni col vecchio, e **nel
+   * registro nemmeno la riga** — cioè nemmeno l'annulla.
+   */
+  it('⛔ se il database non cancella, la risposta arriva lo stesso e lo dice', async () => {
+    const { service, prisma, messaggioCreate, registro } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'conferma' as const,
+          frase: 'togli la merenda a Giulia',
+          intento: { tipo: 'pasti', cliente: 'Giulia', azione: 'togli', slots: ['afternoon_snack'] },
+          clienteId: 'c1',
+          clienteNome: 'Giulia',
+        },
+        giorniMenu: [GIORNO_CON_MERENDA],
+      },
+    );
+    (prisma.menuDay.deleteMany as jest.Mock).mockRejectedValue(new Error('database giù'));
+    await service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('non sono riuscita a intervenire');
+    // ⚠️ E la riga di registro c'è: senza, non ci sarebbe nemmeno l'annulla.
+    expect(registro.scrivi).toHaveBeenCalled();
+    expect((registro.scrivi as jest.Mock).mock.calls[0][0].dettaglio).toMatchObject({
+      esitoGiorni: 'non_riuscita', giorniRifatti: 0,
+    });
   });
 
   it('se era già così, lo dice e non tocca niente', async () => {
@@ -1720,12 +1854,18 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
   });
 
   it('al sì scrive la SUA quota e rifà i giorni non ancora aperti', async () => {
-    const over = conProfilo(null, [{ id: 'g1', date: new Date() }]);
+    // ⚠️ `giornoSalvato(0)` e non `new Date()`: la colonna è un giorno, non un istante — vedi il
+    // commento sull'helper. Con l'istante questo test era verde di giorno e rosso alle 00:30.
+    const over = conProfilo(null, [{ id: 'g1', clientId: 'c1', date: giornoSalvato(0), viewedAt: null, meals: [] }]);
     const made = make(over);
     const { service, messaggioCreate } = made;
-    // La regola dell'annulla: i giorni da rifare li dice il registro, che è l'unico posto in cui
-    // quella domanda ha una risposta sola.
-    (made.registro.menuDaRifare as jest.Mock).mockResolvedValue(['2026-08-15', '2026-08-16']);
+    /**
+     * ⚠️ **Il registro non c'entra più** (24/8): fino a ieri questo percorso chiedeva a
+     * `registro.menuDaRifare` **se** c'erano giorni da rifare e poi cancellava per conto suo con un
+     * `where` diverso — due domande diverse su due strade diverse. Adesso i giorni li guarda una
+     * volta sola, e la coda la decide `codaDaRifare`. Il finto qui era rimasto a puntellare una
+     * chiamata che non esiste più: un puntello così è un test che sembra dire qualcosa e non lo dice.
+     */
     await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
     await service.parla('lucia', 'sì');
     expect((over.clientProfile.update as jest.Mock).mock.calls[0][0].data.proteinMinPct).toBeCloseTo(0.3, 5);
@@ -1755,6 +1895,71 @@ describe('VeraChatService — «più proteine» per una cliente', () => {
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).toContain('30%');
     expect(testo).toContain('40%');
+  });
+
+  /**
+   * ⛔ **IL PEGGIORE DEI TRE PUNTI, chiuso il 24/8** (voce `giorno-cancellato-che-non-torna`).
+   *
+   * Qui c'era `deleteMany({ viewedAt: null, date: { gte: oggi } })`: cancellava i giorni non aperti e
+   * **lasciava in piedi quelli letti**. Se lei aveva già aperto un menu più avanti — basta un tocco
+   * sul calendario — quel giorno restava l'ultimo, i giorni cancellati prima di lui non tornavano
+   * **mai**, e l'erogazione restava ferma **del tutto** finché quella data non passava: nessun menu
+   * nuovo per giorni, per una modifica fatta con tutt'altra intenzione.
+   */
+  const giorno = (id: string, fra: number, viewedAt: Date | null = null) => ({
+    id, clientId: 'c1', date: giornoSalvato(fra), viewedAt, meals: [],
+  });
+
+  it('⛔ con un giorno già aperto DOPO, non cancella niente — e lo dice con la data', async () => {
+    const over = conProfilo(null, [giorno('g1', 1), giorno('g-letto', 3, new Date())]);
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await service.parla('lucia', 'sì');
+    expect(over.menuDay.deleteMany).not.toHaveBeenCalled();
+    const [a, m, g] = giornoSalvato(3).toISOString().slice(0, 10).split('-');
+    expect(ultimoAgente(messaggioCreate).testo).toContain(`il menu del ${g}/${m}/${a} le è già arrivato in app`);
+  });
+
+  /** ⚠️ E un giorno aperto PRIMA non ferma niente: non sta nella coda, quindi non c'entra. */
+  it('⚠️ un giorno già aperto PRIMA di quelli da rifare non blocca la coda', async () => {
+    const over = conProfilo(null, [giorno('g-letto', 0, new Date()), giorno('g1', 1), giorno('g2', 2)]);
+    const { service } = make(over);
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await service.parla('lucia', 'sì');
+    expect(over.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g2'] } } });
+  });
+
+  /**
+   * ⛔ **E se la cancellazione non riesce, NON si dice «ho rifatto»** (24/8, seconda revisione).
+   * C'era un `.catch(() => undefined)` e il conteggio si prendeva dalla coda invece che dall'esito:
+   * col database in difficoltà la nutrizionista leggeva «Ho rifatto 3 giornate», il registro scriveva
+   * `giorniRifatti: 3`, e i menu con la quota vecchia restavano tutti lì.
+   */
+  it('⛔ se il database non cancella, non dice «ho rifatto» — e il registro lo scrive', async () => {
+    const over = conProfilo(null, [giorno('g1', 1), giorno('g2', 2)]);
+    (over.menuDay.deleteMany as jest.Mock).mockRejectedValue(new Error('database giù'));
+    const made = make(over);
+    await made.service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    await made.service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(made.messaggioCreate);
+    expect(testo).toContain('non sono riuscita a intervenire');
+    expect(testo).not.toContain('Ho rifatto');
+    const riga = (made.registro.scrivi as jest.Mock).mock.calls[0][0];
+    expect(riga.dettaglio.proteine).toMatchObject({ giorniRifatti: 0, esitoGiorni: 'non_riuscita' });
+  });
+
+  /**
+   * ⛔ **L'ANTEPRIMA DICE QUELLO CHE SUCCEDERÀ.** Prometteva «i giorni futuri che non ha ancora
+   * aperto si rifanno con la nuova quota», sempre — anche quando poi non ne rifaceva nessuno. Una
+   * conferma data su una promessa falsa è una firma su una cosa non letta.
+   */
+  it('⛔ l\'anteprima non promette di rifare i giorni se poi non li rifà', async () => {
+    const over = conProfilo(null, [giorno('g1', 1), giorno('g-letto', 3, new Date())]);
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'a Giulia Rossi rifai con più proteine');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('Rigenera menu');
+    expect(testo).not.toMatch(/i giorni futuri che non ha ancora aperto si rifanno/);
   });
 });
 

@@ -24,7 +24,7 @@ import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
-import { type GiornoDaValutare, clientiColpiti, daQuandoSiPuoRifare, giorniDaRifare } from './menu-da-rifare';
+import { type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniDaRifare } from './menu-da-rifare';
 import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
 import { RicettaDelPool } from './pool-disponibile';
 import { aGiorno } from '../common/date-only';
@@ -46,7 +46,14 @@ export interface Proposta {
 
 export interface EsitoApplicazione {
   riepilogo: string;
-  /** Quante clienti sono state toccate davvero. */
+  /**
+   * Quante clienti sono state toccate davvero.
+   *
+   * ⚠️ **Per la regola di dieta vuol dire «a quante ho rifatto i menu»**, e può essere `0` mentre la
+   * regola è stata scritta e vale da subito su tutte le clienti di quella dieta (sopra il tetto, o
+   * quando sono tutte bloccate). Il riepilogo lo dice a parole; questo campo conta i calendari
+   * toccati, che è l'unica cosa reversibile e quindi l'unica che serva ricostruire dall'audit.
+   */
   toccate: number;
   /**
    * Chi resterebbe SENZA UN PASTO e per cui il divieto di dieta non vale (voce
@@ -179,34 +186,27 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * divieto sui menu nuovi costa zero ed è il motivo per cui la regola esiste; è il rifacimento che
    * è pesante. E si dice quante persone sono rimaste indietro, invece di far finta di niente.
    */
-  const ricetteFuori = ricetteVietate(
-    ((await prisma.recipe.findMany({ select: { id: true, name: true, ingredients: true } })) ?? []) as {
-      id: string; name: string; ingredients: unknown;
-    }[],
-    tutti,
-  );
+  /**
+   * ⚠️ **Il catalogo si legge UNA volta** (24/8): `scopertePerDieta` lo rileggeva per conto suo, e
+   * fra le due letture c'era la cancellazione dei menu — cioè due giri completi sul catalogo per
+   * ogni approvazione, e una finestra più larga in cui i giorni potevano cambiare sotto i piedi.
+   */
+  const catalogo = ((await prisma.recipe.findMany({ select: { id: true, name: true, ingredients: true } })) ?? []) as {
+    id: string; name: string; ingredients: unknown;
+  }[];
+  const ricetteFuori = ricetteVietate(catalogo, tutti);
   const oggi = new Date();
-  const giorni = giorniDaRifare(
+  const dal = daQuandoSiPuoRifare(oggi);
+  const colpiti = giorniDaRifare(
     ((await prisma.menuDay.findMany({
-      where: { dietId, viewedAt: null, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
+      where: { dietId, viewedAt: null, date: { gte: dal } } as never,
       select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
     })) ?? []) as GiornoDaValutare[],
     ricetteFuori,
     oggi,
   );
-  const persone = clientiColpiti(giorni);
+  const persone = clientiColpiti(colpiti);
   const troppe = persone.length > MAX_CLIENTI_IN_UNA_VOLTA;
-  if (giorni.length && !troppe) {
-    await prisma.menuDay.deleteMany({ where: { id: { in: giorni.map((g) => g.id) } } });
-  }
-
-  const coda = !giorni.length
-    ? ' Nessun menu già preparato conteneva quel piatto: non ho toccato niente.'
-    : troppe
-      ? ` ⚠️ I menu già preparati sarebbero ${giorni.length} su ${persone.length} clienti, oltre il tetto di ` +
-        `${MAX_CLIENTI_IN_UNA_VOLTA}: la regola vale lo stesso da adesso, ma quei giorni li ho lasciati come sono.`
-      : ` Ho rifatto ${giorni.length} ${giorni.length === 1 ? 'giornata' : 'giornate'} non ancora aperte ` +
-        `(${persone.length} ${persone.length === 1 ? 'cliente' : 'clienti'}); quelle già lette restano come sono.`;
 
   /**
    * L'ELENCO DELLE SCOPERTE (decisione di Simone, 13/8; voce `vera-regola-dieta-scoperte`).
@@ -215,6 +215,15 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * com'era. Finché quell'elenco non arriva al capo, la regola *sembra* applicata a tutte — quindi
    * si calcola QUI, nel momento in cui lui approva, e finisce nel messaggio che sta leggendo.
    *
+   * ⛔ **E si calcola PRIMA della cancellazione** (24/8, trovato in revisione). `scopertePerDieta`
+   * costruisce la coorte da chi ha **menu in calendario da oggi in poi**: cancellando prima, le
+   * clienti a cui si è appena portata via tutta la coda **sparivano dall'elenco**. E sono proprio
+   * quelle giuste — chi ha più giorni colpiti è chi mangia più spesso il piatto vietato, cioè chi ha
+   * più probabilità di restare senza un pasto. Il capo leggeva «fatto, 3 giornate rifatte» e non
+   * sapeva che per Anna il divieto era stato saltato; il motore ricomponeva le stesse tre giornate
+   * **col piatto vietato dentro**, e nessuno l'avrebbe più guardata. Il messaggio si contraddiceva
+   * da solo, in silenzio.
+   *
    * ⚠️ Se il conto si rompe non si finge un elenco vuoto: si scrive nei log e si DICE («non lo so»
    * ≠ «nessuno»). La regola vale comunque: perdere la scrittura per un conteggio non partito
    * sarebbe il guasto peggiore.
@@ -222,11 +231,95 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
   let scoperte: ClienteScoperta[] = [];
   let contoScoperteRotto = false;
   try {
-    scoperte = await scopertePerDieta(prisma, dietId, ricetteFuori);
+    scoperte = await scopertePerDieta(prisma, dietId, ricetteFuori, catalogo);
   } catch (err) {
     contoScoperteRotto = true;
     logger.warn(`Scoperte non calcolate (dieta=${dietId}): ${err instanceof Error ? err.message : String(err)}`);
   }
+
+  /**
+   * ⛔ **SI CANCELLA UNA CODA, E LA CODA SI GUARDA SU TUTTO IL CALENDARIO DI OGNUNA.**
+   *
+   * Difetto in produzione **dal 13/8**, chiuso il 24/8. Qui si cancellavano i giorni che contengono
+   * il piatto vietato, **sparsi**: chi aveva più avanti una giornata senza quel piatto se la ritrovava
+   * come ultima in calendario, e i giorni cancellati prima di lei **non tornavano mai** — «menu in
+   * preparazione», per sempre, su un giorno solo. Il perché sta in `codaDaRifare`.
+   *
+   * ⚠️ E la query qui sopra, che cerca i colpiti, **non basta a calcolare la coda**: filtra per
+   * `dietId` e per `viewedAt: null`, quindi non vede né i giorni già letti né quelli rimasti da una
+   * dieta precedente — cioè proprio le righe che possono restare in fondo e riaprire il buco. Si
+   * rileggono i calendari **interi** delle sole clienti colpite: sono poche, ed è una query in più
+   * contro una giornata senza cena.
+   */
+  const calendari = troppe || !colpiti.length
+    ? []
+    : (((await prisma.menuDay.findMany({
+        where: { clientId: { in: persone }, date: { gte: dal } } as never,
+        select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+      })) ?? []) as GiornoDaValutare[]);
+  /**
+   * ⚠️ Il predicato è «questo giorno è fra i colpiti che ho appena trovato»: gli id arrivano dalla
+   * query filtrata, la coda si calcola sul **calendario intero**. Sono due letture diverse della
+   * stessa riga, ed è l'id a tenerle insieme.
+   */
+  const idColpiti = new Set(colpiti.map((g) => g.id));
+  const { daCancellare, bloccate } = codePerCliente(calendari, (g) => idColpiti.has(g.id));
+  /** Chi ha avuto i menu rifatti **davvero**: non chi era colpita, non chi è rimasta bloccata. */
+  const rifatte = clientiColpiti(daCancellare);
+  if (daCancellare.length) {
+    await prisma.menuDay.deleteMany({ where: { id: { in: daCancellare.map((g) => g.id) } } });
+  }
+
+  /**
+   * ⚠️ **Le bloccate si dicono per nome-numero, non si tacciono.** Sono clienti per cui la regola
+   * vale sui menu nuovi ma i giorni già in calendario restano col piatto vietato dentro: se non
+   * compaiono qui, nessuno le guarderà mai — e il messaggio direbbe «fatto» anche per loro.
+   */
+  const codaBloccate = bloccate.length
+    ? ` ⚠️ A ${bloccate.length} ${bloccate.length === 1 ? 'cliente è già arrivato in app' : 'clienti è già arrivato in app'} ` +
+      `un menu più avanti: per ${bloccate.length === 1 ? 'lei' : 'loro'} i giorni già preparati li ho lasciati ` +
+      'come sono (rifarli lascerebbe un buco che non si richiude). Si rifanno con «Rigenera menu» dalla scheda, ' +
+      'che però rifà anche il giorno che ha già ricevuto.'
+    : '';
+
+  const coda =
+    (!colpiti.length
+      /**
+       * ⛔ **«NON NE HO TROVATI FRA QUELLI CHE POSSO RIFARE», non «non ce n'erano»** (24/8, seconda
+       * revisione). Qui c'era «Nessun menu già preparato conteneva quel piatto» — un'affermazione sul
+       * **contenuto dei menu**, mentre il conto è su quello che si può ancora rifare: i giorni già
+       * arrivati in app non entrano nei colpiti, e siccome `getMenu` li marca tutti alla prima
+       * apertura, questo è **il ramo che scatta quasi sempre**. Il capo leggeva «non ce n'erano»
+       * mentre il tonno era nel pranzo di domani. Vedi la voce `visto-non-vuol-dire-aperto`.
+       */
+      ? ' Fra i menu già preparati che posso ancora rifare non ce n\'era nessuno con quel piatto: ' +
+        'non ho toccato niente. ⚠️ Quelli già arrivati in app non li conto — se il piatto è lì, si ' +
+        'rifanno con «Rigenera menu» dalla scheda.'
+      : troppe
+        ? ` ⚠️ I menu già preparati riguarderebbero ${persone.length} clienti, oltre il tetto di ` +
+          `${MAX_CLIENTI_IN_UNA_VOLTA}: la regola vale lo stesso da adesso, ma quei giorni li ho lasciati come sono. ` +
+          // ⚠️ «Almeno»: per ognuna si rifà dal primo giorno colpito **in avanti**, quindi le giornate
+          // toccate sono sempre di più di quelle che contengono davvero il piatto. Dire il numero
+          // secco farebbe sottostimare la portata proprio a chi deve decidere se procedere a mano.
+          `Sarebbero almeno ${colpiti.length} giornate.`
+        : daCancellare.length
+          /**
+           * ⛔ **«Quelle già ARRIVATE IN APP», non «già passate»** (24/8, seconda revisione). Avevo
+           * riscritto così togliendo «già lette», e la frase nuova nomina l'insieme sbagliato: il
+           * giorno che resta col piatto vietato dentro può benissimo essere **domani**. È
+           * un'affermazione sui menu, smentibile con una query — peggio della parola sbagliata su
+           * `viewedAt` che stavo correggendo.
+           */
+          ? ` Ho rifatto ${daCancellare.length} ${daCancellare.length === 1 ? 'giornata' : 'giornate'} ` +
+            `(${rifatte.length} ${rifatte.length === 1 ? 'cliente' : 'clienti'}); quelle già arrivate ` +
+            'in app restano come sono.'
+          : bloccate.length
+            // ⚠️ Sono tutte bloccate: la ragione la dice `codaBloccate` qui sotto, e ripeterla con
+            // altre parole vorrebbe dire darne due — di cui una inventata.
+            ? ''
+            : ' ⚠️ Non ho potuto rifare nessuna giornata: quelle colpite non ci sono più (le avrà rifatte ' +
+              'qualcos\'altro nel frattempo). La regola vale lo stesso da adesso.') + codaBloccate;
+
   const MAX_NOMI = 10;
   const elenco = scoperte
     .slice(0, MAX_NOMI)
@@ -241,7 +334,13 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
       : '';
 
   return {
-    toccate: persone.length,
+    /**
+     * ⚠️ **Chi è stata toccata DAVVERO** (24/8): qui c'era `persone.length`, che conta anche le
+     * bloccate — per cui non si è fatto niente — e, sopra il tetto, tutte le duecento e passa clienti
+     * di un'azione che non ha toccato un solo giorno. Finisce nell'audit, cioè nell'unico posto in
+     * cui fra un mese si ricostruisce cosa è successo.
+     */
+    toccate: rifatte.length,
     riepilogo:
       `Fatto: su ${p.soggettoNome ?? 'questa dieta'} ${nuovi.length > 1 ? 'i piatti con' : 'il piatto con'} ` +
       `${nuovi.join(', ')} non entreranno più nei menu nuovi.` + coda + codaScoperte,
@@ -255,12 +354,15 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
  * lei il pool filtrato scatterà alla prima generazione, con la stessa regola del «non svuotare».
  *
  * Il pool si legge dai `DietDayTemplate` di livello 1 come fa `PoolDisponibileService.poolPerSlot`
- * (il livello 2 non esiste: 315 diete a livello 1), e le ricette arrivano già lette dal chiamante.
+ * (il livello 2 non esiste: 315 diete a livello 1), e le ricette **arrivano già lette dal
+ * chiamante** — cosa che la docstring diceva da sempre e il codice non faceva: rileggeva l'intero
+ * catalogo per conto suo (corretto il 24/8, seconda revisione).
  */
 async function scopertePerDieta(
   prisma: PrismaService,
   dietId: string,
   vietate: ReadonlySet<string>,
+  ricette: readonly { id: string; name: string; ingredients: unknown }[],
 ): Promise<ClienteScoperta[]> {
   if (!vietate.size) return [];
   const templates = ((await prisma.dietDayTemplate.findMany({
@@ -269,9 +371,6 @@ async function scopertePerDieta(
   })) ?? []) as { meals: unknown }[];
   if (!templates.length) return [];
 
-  const ricette = ((await prisma.recipe.findMany({ select: { id: true, name: true, ingredients: true } })) ?? []) as {
-    id: string; name: string; ingredients: unknown;
-  }[];
   const perId = new Map(ricette.map((r) => [r.id, r]));
   const slotPool = new Map<string, RicettaDelPool[]>();
   for (const t of templates) {

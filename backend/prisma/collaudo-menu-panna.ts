@@ -38,6 +38,8 @@
  * `MenuDay.dietId` è obbligatorio e inventare una dieta sarebbe peggio.
  */
 import { PrismaClient } from '@prisma/client';
+import { aGiorno } from '../src/common/date-only';
+import { type GiornoDaValutare, codaDaRifare, ricetteDelGiorno } from '../src/vera/menu-da-rifare';
 import { toDateOnly } from '../src/common/date-only';
 
 const prisma = new PrismaClient();
@@ -149,35 +151,99 @@ async function main(): Promise<void> {
   if (pulisci) {
     const ricetta = await prisma.recipe.findFirst({ where: { name: NOME_RICETTA }, select: { id: true } });
     const gruppo = await prisma.equivalenceGroup.findFirst({ where: { name: NOME_GRUPPO }, select: { id: true } });
-    // Le giornate da togliere sono quelle che contengono la ricetta di collaudo, a QUALUNQUE data:
-    // il primo giro ne ha creata una col giorno sbagliato (UTC invece di Europe/Rome), e cercare
-    // solo «oggi» l'avrebbe lasciata lì per sempre.
-    const ultime = (await prisma.menuDay.findMany({
+    /**
+     * ⛔ **SI CANCELLA UNA CODA, non le giornate col piatto di collaudo dentro** (24/8).
+     *
+     * Qui si cancellavano i giorni che contengono la ricetta di collaudo, **sparsi**, su una cliente
+     * vera. Il motore riparte dall'**ultimo** giorno in calendario e appende da lì: ogni giorno
+     * cancellato che ne lasciava uno più avanti restava vuoto **per sempre** — «menu in
+     * preparazione», su una persona, per aver ripulito un collaudo. La regola sta in
+     * `src/vera/menu-da-rifare.ts`, con il perché per esteso.
+     *
+     * ⚠️ La coda si taglia **solo da oggi in avanti**: cancellare una giornata già passata
+     * riscriverebbe la storia di una cliente e sposterebbe il conteggio dei giorni di piano.
+     *
+     * ⚠️ **Ma le giornate passate si CONTANO lo stesso**, e questa è la ragione che il commento
+     * vecchio di questo blocco portava con sé: il primo giro ne aveva creata una col giorno sbagliato
+     * (UTC invece di Europe/Rome), quindi una giornata di collaudo può stare **ieri**. Guardando solo
+     * il futuro sarebbe rimasta lì per sempre — e senza la sua ricetta (vedi sotto), che è peggio.
+     */
+    const oggi = aGiorno(new Date());
+    const tutte = (await prisma.menuDay.findMany({
       where: { clientId: user.id },
-      orderBy: { date: 'desc' },
-      take: 20,
-      select: { id: true, date: true, meals: true },
-    })) as { id: string; date: Date; meals: unknown }[];
-    const daCancellare = ricetta
-      ? ultime.filter((g) => ((g.meals as { recipeId?: string }[]) ?? []).some((m) => m?.recipeId === ricetta.id))
-      : [];
+      orderBy: { date: 'asc' },
+      select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+    })) as GiornoDaValutare[];
+    const haLaRicetta = (g: GiornoDaValutare) => !!ricetta && ricetteDelGiorno(g.meals).includes(ricetta.id);
+    const futuri = tutte.filter((g) => g.date.getTime() >= oggi.getTime());
+    const passateColPiatto = tutte.filter((g) => g.date.getTime() < oggi.getTime() && haLaRicetta(g));
+    const esito = ricetta ? codaDaRifare(futuri, haLaRicetta) : ({ esito: 'niente' } as const);
+    const daCancellare = esito.esito === 'coda' ? esito.giorni : [];
+
+    /**
+     * ⛔ **LA RICETTA SI TOGLIE SOLO SE NON LA CONTIENE PIÙ NESSUN GIORNO** (24/8, seconda revisione).
+     *
+     * Prima della correzione della coda questo caso non poteva esistere: le giornate col piatto di
+     * collaudo si cancellavano **sempre** per prime. Adesso possono restare in piedi (ramo bloccato,
+     * o una giornata passata) — e cancellare la ricetta lasciandole lì significa un `MenuDay` con
+     * dentro il `recipeId` di una ricetta che non esiste più. `MenuDay.meals` è JSON, non c'è nessuna
+     * chiave esterna: il `delete` passa liscio.
+     *
+     * ⚠️ Cosa vede la cliente: **il piatto nell'app c'è** (nome e kcal stanno nello snapshot), ma la
+     * lista della spesa lo salta **in silenzio** — `aggregaSpesa` non trova gli ingredienti e mette
+     * `[]`. Un piatto senza spesa, senza una riga che lo dica, per aver ripulito un collaudo.
+     */
+    const restaAppesa = passateColPiatto.length > 0 || esito.esito === 'bloccata';
 
     console.log(`  ricetta di collaudo: ${ricetta ? 'presente' : 'assente'}`);
     console.log(`  gruppo di collaudo:  ${gruppo ? 'presente' : 'assente'}`);
     console.log(
-      `  giornate di collaudo: ${daCancellare.length ? daCancellare.map((g) => g.date.toISOString().slice(0, 10)).join(', ') : 'nessuna'}`,
+      `  giornate da rifare:   ${daCancellare.length ? daCancellare.map((g) => g.date.toISOString().slice(0, 10)).join(', ') : 'nessuna'}`,
     );
+    if (passateColPiatto.length) {
+      console.log(
+        `  ⚠️ giornate PASSATE col piatto di collaudo: ${passateColPiatto.map((g) => g.date.toISOString().slice(0, 10)).join(', ')}` +
+          ' — non le tocco (riscriverei la storia della cliente e sposterei il conteggio dei giorni di piano).',
+      );
+    }
+    if (esito.esito === 'bloccata') {
+      console.log(
+        `  ⚠️ NON cancello i giorni futuri: il menu del ${esito.apertoIl.toISOString().slice(0, 10)} le è già arrivato ` +
+          'in app, e cancellare la coda lasciandolo lì aprirebbe un buco che non si richiude. ' +
+          'Da rifare con «Rigenera menu» dalla scheda, che però rifà anche quel giorno.',
+      );
+    }
+    if (restaAppesa) {
+      console.log(
+        '  ⚠️ Quindi la RICETTA di collaudo NON la cancello: resta referenziata da una giornata che non ' +
+          'ho potuto togliere, e cancellarla la farebbe sparire dalla lista della spesa in silenzio. ' +
+          'La disattivo (`active: false`), così non entra più in nessun menu nuovo e resta leggibile.',
+      );
+    }
     if (!conferma) {
       console.log('\nProva: non ho scritto niente. Rilancia con PULISCI=1 CONFERMA=1.\n');
       return;
     }
-    for (const g of daCancellare) await prisma.menuDay.delete({ where: { id: g.id } });
+    if (daCancellare.length) {
+      await prisma.menuDay.deleteMany({ where: { id: { in: daCancellare.map((g) => g.id) } } });
+    }
     if (gruppo) await prisma.equivalenceGroup.delete({ where: { id: gruppo.id } });
-    if (ricetta) await prisma.recipe.delete({ where: { id: ricetta.id } }).catch(() => {
-      console.log('  (la ricetta ha valutazioni collegate: la disattivo invece di cancellarla)');
-      return prisma.recipe.update({ where: { id: ricetta.id }, data: { active: false } });
-    });
-    console.log('\nFatto: ambiente di collaudo rimosso. Il menu vero si rigenera dal backoffice con «Rigenera menu».\n');
+    if (ricetta) {
+      if (restaAppesa) {
+        await prisma.recipe.update({ where: { id: ricetta.id }, data: { active: false } });
+      } else {
+        await prisma.recipe.delete({ where: { id: ricetta.id } }).catch(() => {
+          console.log('  (la ricetta ha valutazioni collegate: la disattivo invece di cancellarla)');
+          return prisma.recipe.update({ where: { id: ricetta.id }, data: { active: false } });
+        });
+      }
+    }
+    console.log(
+      restaAppesa
+        ? '\nFatto in parte: gruppo rimosso e ricetta disattivata. Le giornate elencate qui sopra restano ' +
+          'com\'erano — vanno guardate a mano.\n'
+        : '\nFatto: ambiente di collaudo rimosso. Il menu vero si rigenera dal backoffice con «Rigenera menu».\n',
+    );
     return;
   }
 

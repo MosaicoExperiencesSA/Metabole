@@ -515,10 +515,18 @@ export class RegistroVeraService {
   }
 
   /**
-   * I giorni futuri che la cliente non ha ancora aperto: gli unici che si possono rifare.
+   * I giorni futuri che la cliente non ha ancora ricevuto in app: gli unici che si possono rifare.
    *
    * Esposta anche da sola perché serve **prima** di scrivere, non solo dopo: è il numero che Vera
    * mostra quando chiede «i menu di domani li rifaccio o parto da dopodomani?».
+   *
+   * ⚠️ **È un conteggio, non l'elenco di quello che una cancellazione toccherebbe** (24/8): chi rifà
+   * davvero cancella una **coda** — dal primo giorno colpito in avanti, giornate innocenti comprese —
+   * e quel calcolo sta in `codaDaRifare`. Qui il numero serve solo a dire «ce ne sono», e sarà
+   * sempre minore o uguale.
+   *
+   * ⚠️ E «non ha ancora aperto» sarebbe una frase falsa: `viewedAt` lo mette `getMenu` su tutti i
+   * giorni della finestra a ogni apertura dell'app, futuri compresi. Voce `visto-non-vuol-dire-aperto`.
    */
   async menuDaRifare(clientId: string): Promise<string[]> {
     // ⚠️ Il confine è scritto in un posto solo (`daQuandoSiPuoRifare`): fino al 19/8 era ricopiato

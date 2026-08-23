@@ -101,7 +101,9 @@
     "diag:pipeline-stati": "ts-node --transpile-only prisma/diag-pipeline-stati.ts",
     "allinea:primo-accesso": "ts-node --transpile-only prisma/allinea-primo-accesso.ts",
     "diag:pipeline-indietro": "ts-node --transpile-only prisma/diag-pipeline-indietro.ts",
-    "diag:pasti": "ts-node --transpile-only prisma/diag-pasti-quattro.ts"
+    "diag:pasti": "ts-node --transpile-only prisma/diag-pasti-quattro.ts",
+    "diag:buchi-menu": "ts-node --transpile-only prisma/diag-buchi-nei-menu.ts",
+    "diag:visto": "ts-node --transpile-only prisma/diag-visto-non-aperto.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

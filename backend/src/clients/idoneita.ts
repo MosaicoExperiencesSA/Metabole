@@ -23,7 +23,7 @@
  */
 
 /** `null` = nessuno l'ha ancora valutata. È lo stato in cui si trova oggi chiunque. */
-import { aGiorno } from '../common/date-only';
+import { aGiorno, giornoItaliano } from '../common/date-only';
 
 export type Idoneita = 'idonea' | 'serve_visita';
 
@@ -66,11 +66,15 @@ export function testoNota(esito: Idoneita, nota: string, visitaEntro?: string | 
   return `Valutazione clinica — ${intestazione}${scadenza}: ${nota.trim()}`;
 }
 
-/** `2026-09-30` → `30/09/2026`. Per i testi che leggono le persone. */
-export function dataItaliana(giorno: string): string {
-  const [a, m, g] = giorno.split('-');
-  return `${g}/${m}/${a}`;
-}
+/**
+ * `2026-09-30` → `30/09/2026`. Per i testi che leggono le persone.
+ *
+ * ⚠️ **Il conto sta in `common/date-only.ts`** (spostato il 24/8): la stessa frase serve adesso anche
+ * ai messaggi di Vera sui menu, e una seconda copia sarebbe la copia che un giorno diverge — in due
+ * schermate che la stessa persona legge nello stesso pomeriggio. Il nome resta esportato da qui,
+ * perché è da qui che lo importano la scheda e l'attività della coach.
+ */
+export const dataItaliana = giornoItaliano;
 
 /**
  * Controlla la richiesta e restituisce la nota ripulita.

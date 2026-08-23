@@ -410,19 +410,25 @@ export const testi = {
    * ⚠️ Anche qui si mostra il NUMERO: «la sua quota proteica minima passa dal 20% al 30%». «Più
    * proteine» da solo non si può né confermare né controllare dopo.
    */
-  anteprimaProteine: (cliente: string, prima: number, dopo: number) =>
+  /**
+   * ⚠️ **`giorni` è una FRASE, non un numero** (24/8). Qui c'era scritto, sempre, «i giorni futuri
+   * che non ha ancora aperto si rifanno con la nuova quota» — e poteva finire col non rifarne
+   * nessuno: quando in calendario c'era un giorno già letto più avanti, rifarli avrebbe lasciato un
+   * buco permanente, quindi adesso non si tocca niente. La frase la compone `raccontaCoda`, ed è la
+   * stessa in anteprima e dopo la conferma: due frasi scritte in due punti divergono, e chi conferma
+   * si ritrova ad aver firmato una cosa che non è successa.
+   */
+  anteprimaProteine: (cliente: string, prima: number, dopo: number, giorni: string) =>
     `Per **${cliente}** alzo la quota proteica minima della giornata ` +
     `da **${Math.round(prima * 100)}%** a **${Math.round(dopo * 100)}%** dei macro.\n\n` +
-    'Vale solo per lei — la sua dieta non cambia — e i giorni futuri che non ha ancora aperto si ' +
-    'rifanno con la nuova quota.\n\n**Confermi?**',
+    `Vale solo per lei — la sua dieta non cambia. ${giorni}\n\n**Confermi?**`,
 
   proteineGiaCosi: (cliente: string, valore: number) =>
     `${cliente} ha già la quota proteica minima al ${Math.round(valore * 100)}%: non tocco niente.`,
 
-  proteineFatte: (cliente: string, valore: number, giorni: number) =>
-    `Fatto: per ${cliente} la quota proteica minima è al **${Math.round(valore * 100)}%**` +
-    `${giorni ? `, e rifaccio ${giorni === 1 ? 'la giornata' : `le ${giorni} giornate`} che non ha ancora aperto.` : '.'} ` +
-    'Lo trovi nel registro.',
+  proteineFatte: (cliente: string, valore: number, giorni: string) =>
+    `Fatto: per ${cliente} la quota proteica minima è al **${Math.round(valore * 100)}%**. ` +
+    `${giorni} Lo trovi nel registro.`,
 
   // ── le calorie scritte a mano, dettate (Nocanty via Vera, 14/8) ────────────
 

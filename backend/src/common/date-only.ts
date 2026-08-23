@@ -228,6 +228,29 @@ export function istanteDiPartenza(d: Date): Date {
   return inizioDelGiorno(d.toISOString().slice(0, 10));
 }
 
+/**
+ * **UN GIORNO SALVATO, SCRITTO COME LO LEGGE UNA PERSONA**: `2026-09-30` → `30/09/2026`.
+ *
+ * Sta qui, e non in `clients/idoneita.ts` dov'è nata, perché la stessa frase serve adesso anche ai
+ * messaggi di Vera sui menu: due copie di questa riga sarebbero due copie che un giorno divergono
+ * sul separatore o sull'ordine, in due schermate che la stessa persona legge nello stesso pomeriggio.
+ *
+ * ⚠️ **Legge il giorno COM'È SCRITTO, senza passare da un fuso** — è la distinzione dichiarata in
+ * cima a questo file: `MenuDay.date` e `idoneitaVisitaEntro` sono giorni di calendario salvati a
+ * mezzanotte UTC, e riformattarli attraverso `Europe/Rome` li farebbe scivolare al giorno prima
+ * ovunque il fuso sia a ovest di Greenwich.
+ *
+ * ⚠️ **Non è la stessa funzione di `dataItaliana` in `food-swaps/impara-dal-nutrizionista.ts`**, e
+ * per questo non l'ho unita a quella: là si parte da un **istante** (quando è stato scritto un
+ * messaggio) e la si porta nel fuso dell'azienda, che è la domanda opposta. Due nomi uguali su due
+ * domande diverse sono un rischio; unirle sarebbe stato il rischio vero.
+ */
+export function giornoItaliano(giorno: string | Date): string {
+  const iso = typeof giorno === 'string' ? giorno : giorno.toISOString().slice(0, 10);
+  const [a, m, g] = iso.slice(0, 10).split('-');
+  return g && m && a ? `${g}/${m}/${a}` : iso;
+}
+
 /** Il mese di calendario di un istante, nel fuso dell'azienda. Formato `YYYY-MM`. */
 export function meseLocale(d: Date): string {
   return giornoLocale(d).slice(0, 7);

@@ -14,7 +14,7 @@
  * registro smette di raccontare cosa è successo davvero.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { aGiorno } from '../common/date-only';
+import { aGiorno, giornoItaliano } from '../common/date-only';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
@@ -28,7 +28,7 @@ import { AiService } from '../ai/ai.service';
 import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
   IntentoEquivalenza,
 } from './capisci';
-import { type GiornoDaValutare, daQuandoSiPuoRifare, giorniDaRifare, ricetteDelGiorno } from './menu-da-rifare';
+import { type CodaDaRifare, type GiornoDaValutare, codaDaRifare, daQuandoSiPuoRifare, giorniDaRifare, ricetteDelGiorno, siPuoRifare } from './menu-da-rifare';
 import { ricetteVietate } from './regola-dieta';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
@@ -1111,17 +1111,66 @@ export class VeraChatService {
 
   // ──────────────────────────────────────────────── i pasti (azione 3, Decisioni §14) ──
 
-  /** I giorni futuri MAI aperti toccati dalla decisione sugli spuntini (regola dell'annulla, §6.2). */
+  /**
+   * I giorni futuri toccati dalla decisione sugli spuntini (regola dell'annulla, §6.2) — e insieme a
+   * loro **tutti** i giorni futuri, che servono per calcolare la coda.
+   *
+   * ⚠️ **La query non filtra più `viewedAt: null`** (24/8). Filtrandolo, questo punto non poteva
+   * nemmeno *vedere* un giorno già aperto più avanti: cancellava i giorni toccati, quello letto
+   * restava l'ultimo in calendario, e l'erogazione si fermava lì — buco permanente sui giorni
+   * cancellati e nessun menu nuovo finché quella data non passava. Il filtro «mai aperto» resta, ma
+   * dove è una **decisione** (`siPuoRifare`, dentro `giorniDaRifarePerPasti`), non dove nasconde
+   * metà del calendario a chi deve decidere.
+   */
   private async giorniPastiDaRifare(clientId: string, slots: Spuntino[], azione: 'togli' | 'rimetti') {
     const oggi = new Date();
-    const giorni = (await this.prisma.menuDay.findMany({
-      // ⚠️ `gte` dalla mezzanotte di oggi, non `gt: adesso`: `MenuDay.date` è una data senza ora, e
-      // confrontarla con l'istante corrente fa sparire la giornata di oggi appena passa mezzanotte.
-      // Il confine è uno solo per tutti e tre i punti — vedi `daQuandoSiPuoRifare`.
-      where: { clientId, viewedAt: null, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
+    const tutti = await this.giorniFuturi(clientId, oggi);
+    const colpiti = new Set(giorniDaRifarePerPasti(tutti, slots, oggi, azione).map((g) => g.id));
+    return { tutti, colpito: (g: GiornoDaValutare) => colpiti.has(g.id) };
+  }
+
+  /**
+   * **Tutti** i giorni della cliente da oggi in avanti — quelli già aperti compresi.
+   *
+   * ⚠️ `gte` dalla mezzanotte di oggi, non `gt: adesso`: `MenuDay.date` è una data senza ora, e
+   * confrontarla con l'istante corrente fa sparire la giornata di oggi appena passa mezzanotte. Il
+   * confine è scritto una volta sola — `daQuandoSiPuoRifare`.
+   *
+   * ⚠️ E **non** filtra `viewedAt: null`, di proposito: chi deve calcolare una coda ha bisogno di
+   * vedere anche i giorni letti, altrimenti calcola una coda che coda non è. Il filtro «mai aperto»
+   * resta dov'è una decisione (`siPuoRifare`), non dove nasconde metà del calendario.
+   */
+  private async giorniFuturi(clientId: string, oggi: Date): Promise<GiornoDaValutare[]> {
+    return ((await this.prisma.menuDay.findMany({
+      where: { clientId, date: { gte: daQuandoSiPuoRifare(oggi) } } as never,
       select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
-    })) as { id: string; clientId: string; date: Date; viewedAt: Date | null; meals: unknown }[];
-    return giorniDaRifarePerPasti(giorni, slots, oggi, azione);
+    })) ?? []) as GiornoDaValutare[];
+  }
+
+  /**
+   * La stessa frase in anteprima e dopo la conferma — perché siano **la stessa frase**.
+   *
+   * ⚠️ Scritte in due punti diverse divergono, e chi conferma legge una promessa che poi non trova
+   * nel messaggio di riepilogo: è successo con «le giornate da rifare sono N», che l'anteprima
+   * contava sui giorni toccati e l'esecuzione su una coda intera.
+   */
+  private raccontaCoda(coda: CodaDaRifare, quando: 'prima' | 'dopo' = 'prima'): string {
+    const fatto = quando === 'dopo';
+    if (coda.esito === 'niente') {
+      return fatto ? 'Nessuna giornata già preparata era da rifare.' : 'Nessuna giornata già preparata da rifare.';
+    }
+    if (coda.esito === 'bloccata') {
+      return (
+        `⚠️ Le giornate già preparate ${fatto ? 'non le ho toccate' : 'NON le rifaccio'}: il menu ` +
+        `del ${giornoItaliano(coda.apertoIl)} le è già arrivato in app e quello resta suo. Per rifarle c'è ` +
+        '«Rigenera menu» dalla sua scheda, che però rifà anche il giorno che ha già ricevuto.'
+      );
+    }
+    const n = coda.giorni.length;
+    return (
+      `${fatto ? 'Ho rifatto' : 'Rifaccio'} ${n} giornat${n === 1 ? 'a' : 'e'} dal ${giornoItaliano(coda.daQuando)} ` +
+      'in poi; quelle prima restano come sono.'
+    );
   }
 
   private async anteprimaPasti(stato: StatoVera, intento: IntentoPasti): Promise<EsitoVera> {
@@ -1147,7 +1196,15 @@ export class VeraChatService {
       return { testo: `Era già così: per **${cliente}** non cambia niente (${quali}). Non tocco nulla.`, esito: 'annullata' };
     }
 
-    const giorni = await this.giorniPastiDaRifare(stato.clienteId!, intento.slots, intento.azione);
+    const { tutti, colpito } = await this.giorniPastiDaRifare(stato.clienteId!, intento.slots, intento.azione)
+      .catch(() => ({ tutti: [] as GiornoDaValutare[], colpito: () => false }));
+    /**
+     * ⚠️ **L'anteprima dice quello che succederà davvero** (24/8). Diceva «le giornate da rifare sono
+     * N» contando i giorni *toccati*, mentre la cancellazione ne prende una coda intera — e nel caso
+     * bloccato non ne prende nessuna. Un'anteprima che conta diversamente da quello che poi fa è il
+     * modo in cui una conferma diventa una firma su una cosa non letta.
+     */
+    const coda = codaDaRifare(tutti, colpito);
     const righe = [
       intento.azione === 'togli'
         ? `Per **${cliente}** tolgo ${quali}: il motore non ${intento.slots.length === 1 ? 'lo' : 'li'} eroga più.`
@@ -1156,9 +1213,7 @@ export class VeraChatService {
       // PRIMA della composizione (stessa strada del digiuno), quindi il target del giorno si
       // ridistribuisce sui pasti rimasti.
       'Le kcal della giornata non si perdono: si ridistribuiscono sui pasti rimasti.',
-      giorni.length
-        ? `Le giornate future non ancora aperte da rifare sono ${giorni.length}; quelle già lette restano come sono.`
-        : 'Nessuna giornata già preparata da rifare.',
+      this.raccontaCoda(coda),
       'Confermi?',
     ];
     return { testo: righe.join('\n\n'), esito: 'in_corso', stato: { ...stato, passo: 'conferma' } };
@@ -1202,11 +1257,39 @@ export class VeraChatService {
       data: { pastiEsclusi: dopo } as never,
     });
 
-    // La regola dell'annulla (§6.2): si rifanno solo i giorni futuri MAI aperti toccati davvero.
-    const giorni = await this.giorniPastiDaRifare(clienteId, slots, intento.azione);
-    if (giorni.length) {
-      await this.prisma.menuDay.deleteMany({ where: { id: { in: giorni.map((g) => g.id) } } });
+    /**
+     * La regola dell'annulla (§6.2): si rifanno solo i giorni futuri MAI aperti toccati davvero.
+     *
+     * ⛔ **E si cancella una CODA** (24/8): qui si cancellavano i giorni che contengono lo spuntino,
+     * sparsi. Chi aveva già una giornata senza quello spuntino più avanti in calendario si ritrovava
+     * quel giorno come ultimo, e i giorni cancellati prima di lui **non tornavano mai**. Il perché,
+     * col meccanismo del motore misurato, sta in `codaDaRifare`.
+     */
+    /**
+     * ⛔ **E se qui va storto qualcosa, non si sparisce** (24/8, seconda revisione). `pastiEsclusi` è
+     * **già scritto** sul profilo tre righe sopra, e la riga di registro si scrive dopo: un'eccezione
+     * qui risaliva fino a `parla()`, che non ha `try/catch`. Risultato: 500, la nutrizionista vede il
+     * suo messaggio senza risposta, lo spuntino è tolto dal profilo, i giorni sono rimasti col
+     * vecchio, e nel registro **non c'è la riga** — cioè non c'è nemmeno l'annulla. Degli altri due
+     * percorsi di Vera uno degradava bene da sempre e l'altro l'avevo appena sistemato: questo era
+     * rimasto indietro, sulla stessa identica decisione.
+     */
+    const { tutti, colpito } = await this.giorniPastiDaRifare(clienteId, slots, intento.azione).catch(() => null)
+      ?? { tutti: [] as GiornoDaValutare[], colpito: () => false };
+    let coda: CodaDaRifare = { esito: 'niente' };
+    let riuscita = true;
+    try {
+      coda = codaDaRifare(tutti, colpito);
+      if (coda.esito === 'coda') {
+        await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } });
+      }
+    } catch (err) {
+      riuscita = false;
+      logger.warn(
+        `Pasti scritti ma giorni non rifatti (cliente=${clienteId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
+    const rifatte = coda.esito === 'coda' && riuscita ? coda.giorni.length : 0;
 
     const riga = (await this.registro.scrivi({
       nutrizionistaId,
@@ -1216,16 +1299,19 @@ export class VeraChatService {
       soggettoTipo: 'user',
       soggettoId: clienteId,
       soggettoNome: stato.clienteNome ?? null,
-      dettaglio: { azione: intento.azione, slots, giorniRifatti: giorni.length },
+      // ⚠️ `bloccata` finisce nel registro: è il caso in cui la decisione vale sui menu nuovi ma i
+      // giorni già in calendario restano com'erano — chi rilegge la riga fra un mese deve saperlo.
+      dettaglio: { azione: intento.azione, slots, giorniRifatti: rifatte, esitoGiorni: riuscita ? coda.esito : 'non_riuscita' },
     })) as { id: string };
 
     const riepilogo =
       (intento.azione === 'togli'
         ? `per ${cliente} ho tolto ${quali} — le kcal si ridistribuiscono sui pasti rimasti`
         : `per ${cliente} ho rimesso ${quali}`) +
-      (giorni.length
-        ? `. Ho rifatto ${giorni.length} ${giorni.length === 1 ? 'giornata' : 'giornate'} non ancora aperte.`
-        : '. Nessuna giornata già preparata era da rifare.');
+      `. ${riuscita
+        ? this.raccontaCoda(coda, 'dopo')
+        : '⚠️ Sui giorni già preparati non sono riuscita a intervenire: restano con lo spuntino di prima, '
+          + 'dai un\'occhiata al suo calendario.'}`;
     return { testo: testi.scritta(riepilogo), esito: 'scritta', azioneId: riga.id };
   }
 
@@ -2086,10 +2172,33 @@ export class VeraChatService {
       return { testo: testi.proteineGiaCosi(stato.clienteNome ?? 'lei', prima), esito: 'annullata' };
     }
     return {
-      testo: testi.anteprimaProteine(stato.clienteNome ?? 'lei', prima, dopo),
+      // ⚠️ L'anteprima promette quello che poi succede davvero: prometteva «i giorni futuri che non
+      // ha ancora aperto si rifanno», e poteva finire col non rifarne nessuno (vedi `applicaProteine`).
+      testo: testi.anteprimaProteine(
+        stato.clienteNome ?? 'lei',
+        prima,
+        dopo,
+        this.raccontaCoda(await this.codaProteine(stato.clienteId!)),
+      ),
       esito: 'in_corso',
       stato: { ...stato, passo: 'conferma', proteinePrima: prima, proteineDopo: dopo },
     };
+  }
+
+  /**
+   * ⛔ **CAMBIARE LE PROTEINE TOCCA OGNI GIORNATA**, quindi «i colpiti» sono tutti i giorni che si
+   * possono ancora rifare — e da lì in poi vale la regola della coda come per tutti gli altri.
+   *
+   * ⛔ Prima qui c'era `deleteMany({ viewedAt: null, date: { gte: oggi } })`: cancellava i giorni non
+   * aperti e **lasciava in piedi quelli letti**. Se lei aveva già aperto un menu più avanti — basta
+   * un tocco sul calendario — quel giorno restava l'ultimo, i giorni cancellati prima di lui non
+   * tornavano **mai**, e l'erogazione restava ferma **del tutto** finché quella data non passava.
+   * Era il peggiore dei tre punti, ed era quello con la frase più sicura di sé in anteprima.
+   */
+  private async codaProteine(clientId: string): Promise<CodaDaRifare> {
+    const oggi = new Date();
+    const tutti = await this.giorniFuturi(clientId, oggi);
+    return codaDaRifare(tutti, (g) => siPuoRifare(g, oggi));
   }
 
   private async applicaProteine(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
@@ -2098,13 +2207,31 @@ export class VeraChatService {
       where: { userId: stato.clienteId! },
       data: { proteinMinPct: valore } as never,
     });
-    // La regola dell'annulla: si rifanno SOLO i giorni futuri che non ha ancora aperto.
-    const daRifare = await this.registro.menuDaRifare(stato.clienteId!);
-    if (daRifare.length) {
-      await this.prisma.menuDay
-        .deleteMany({ where: { clientId: stato.clienteId!, viewedAt: null, date: { gte: daQuandoSiPuoRifare() } } as never })
-        .catch(() => undefined);
+    // La regola dell'annulla: si rifanno SOLO i giorni futuri che non ha ancora aperto — e si
+    // cancella una CODA, non i giorni sparsi (`codaProteine` qui sopra per il perché).
+    const coda = await this.codaProteine(stato.clienteId!);
+    /**
+     * ⛔ **E se la cancellazione non riesce, NON si dice «ho rifatto»** (24/8, in revisione). Qui
+     * c'era un `.catch(() => undefined)` e poi il conteggio si prendeva dalla **coda**, non
+     * dall'esito: con il database in difficoltà la nutrizionista leggeva «Ho rifatto 3 giornate», il
+     * registro scriveva `giorniRifatti: 3`, e i menu col valore vecchio restavano tutti lì. Il
+     * silenzio è ancora peggio del solito quando finisce scritto in un registro che qualcuno
+     * rileggerà per capire cosa è successo.
+     */
+    let riuscita = coda.esito !== 'coda';
+    if (coda.esito === 'coda') {
+      riuscita = await this.prisma.menuDay
+        .deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } })
+        .then(() => true)
+        .catch((err: unknown) => {
+          logger.warn(
+            `Proteine scritte ma giorni non rifatti (cliente=${stato.clienteId}): ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+          );
+          return false;
+        });
     }
+    const rifatte = coda.esito === 'coda' && riuscita ? coda.giorni.length : 0;
     const riga = (await this.registro.scrivi({
       nutrizionistaId,
       frase: stato.frase,
@@ -2113,10 +2240,22 @@ export class VeraChatService {
       soggettoTipo: 'user',
       soggettoId: stato.clienteId ?? null,
       soggettoNome: stato.clienteNome ?? null,
-      dettaglio: { proteine: { prima: stato.proteinePrima ?? null, dopo: valore, giorniRifatti: daRifare.length } },
+      dettaglio: {
+        proteine: {
+          prima: stato.proteinePrima ?? null, dopo: valore, giorniRifatti: rifatte,
+          esitoGiorni: riuscita ? coda.esito : 'non_riuscita',
+        },
+      },
     })) as { id: string };
     return {
-      testo: testi.proteineFatte(stato.clienteNome ?? 'lei', valore, daRifare.length),
+      testo: testi.proteineFatte(
+        stato.clienteNome ?? 'lei',
+        valore,
+        riuscita
+          ? this.raccontaCoda(coda, 'dopo')
+          : '⚠️ Sui giorni già preparati non sono riuscita a intervenire: restano con la quota vecchia, ' +
+            'dai un\'occhiata al suo calendario.',
+      ),
       esito: 'scritta',
       azioneId: riga.id,
     };
@@ -2600,27 +2739,18 @@ export class VeraChatService {
    *
    * ## ⛔ Perché si cancella una CODA e non i singoli giorni
    *
-   * «Rifare» qui vuol dire **cancellare**: ricompone l'erogazione al giro dopo. Ma `deliverIfEligible`
-   * si ferma se in calendario c'è già un giorno **più avanti di oggi** (è il buffer che impedisce di
-   * generare cicli all'infinito) e i giorni nuovi li appende **dopo l'ultimo**. ⛔ Quindi cancellare
-   * un giorno in mezzo lascia un **buco che non si richiude mai**: la cliente apre l'app in quel
-   * giorno e trova «menu in preparazione», per sempre. L'ha trovato la revisione, ed è un difetto
-   * che la regola di dieta ha **dal 13/8** — lì il rischio è lo stesso e va chiuso allo stesso modo
-   * (voce `giorno-cancellato-che-non-torna`).
+   * La regola sta scritta una volta sola, in `codaDaRifare` (`menu-da-rifare.ts`): si cancella dal
+   * primo giorno colpito **in avanti**, tutto, e se dentro quella coda c'è un giorno **già aperto**
+   * non si tocca niente e lo si dice. Il perché è là.
    *
-   * Quindi si cancella dal primo giorno colpito **in avanti**, come già fanno gli altri due percorsi
-   * di Vera che toccano i menu (le proteine e i pasti): così l'ultimo giorno torna indietro e
-   * l'erogazione riparte da sola. ⚠️ Il prezzo è che qualche giornata innocente dopo quella colpita
-   * viene ricomposta. È un prezzo, e si paga volentieri: un menu rimescolato è un fastidio, un
-   * giorno che non torna più è una persona senza cena.
-   *
-   * ## ⚠️ E se in mezzo c'è un giorno GIÀ APERTO, non si tocca niente
-   *
-   * Un giorno letto resta suo — magari ci ha fatto la spesa — quindi non si può cancellare; ma se
-   * sta **dopo** quello colpito, resta lui l'ultimo e il buco si riaprirebbe. In quel caso non si
-   * cancella niente **e lo si dice**, con la strada da prendere (la rigenerazione dalla scheda, che
-   * passa dal motore e sa rimettere le cose a posto). Fingere di aver fatto sarebbe la bugia da cui
-   * nasce tutto questo lavoro.
+   * ⚠️ **UNA RAGIONE FALSA, MIA, DEL 23/8.** Qui c'era scritto «come già fanno gli altri due percorsi
+   * di Vera che toccano i menu (le proteine e i pasti)». **Non era vero**, e l'ho verificato solo il
+   * giorno dopo: «togli lo spuntino» cancellava i giorni che contengono lo spuntino, sparsi, e
+   * «cambia le proteine» cancellava quelli non ancora aperti — lasciando in piedi un giorno letto più
+   * avanti, che oltre al buco fermava l'erogazione finché quella data non passava. Il codice
+   * consegnato era giusto, la ragione scritta accanto no: e una ragione falsa è peggio di un ordine
+   * sbagliato, perché chi legge ci costruisce sopra invece di andare a guardare. Adesso quei due
+   * punti passano di qui davvero, ed è la sentinella `una-porta-per-i-giorni.spec.ts` a tenerli.
    */
   private async rifaiGiorniConVietati(clientId: string, termini: string[]): Promise<string> {
     if (!termini.length) return '';
@@ -2645,21 +2775,21 @@ export class VeraChatService {
       })) ?? []) as { id: string; name: string | null; ingredients: unknown }[];
 
       const fuori = ricetteVietate(ricette, termini);
-      const colpiti = giorniDaRifare(giorni, fuori, oggi);
-      if (!colpiti.length) return ' Nei giorni già preparati non ce n’era: non ho toccato niente.';
-
-      const daQuando = Math.min(...colpiti.map((g) => new Date(g.date).getTime()));
-      const coda = giorni.filter((g) => new Date(g.date).getTime() >= daQuando);
-      const aperto = coda.find((g) => g.viewedAt);
-      if (aperto) {
+      // ⚠️ Il predicato si costruisce dagli STESSI `giorni`: i colpiti sono un sottoinsieme per
+      // costruzione, e la coda non può essere calcolata su un universo diverso da quello guardato.
+      const colpiti = new Set(giorniDaRifare(giorni, fuori, oggi).map((g) => g.id));
+      const coda = codaDaRifare(giorni, (g) => colpiti.has(g.id));
+      if (coda.esito === 'niente') return ' Nei giorni già preparati non ce n’era: non ho toccato niente.';
+      if (coda.esito === 'bloccata') {
         return (
-          ' ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: ne ha già aperto uno e quello resta suo. ' +
-          'Per rifarli usa «Rigenera menu» dalla sua scheda.'
+          ` ⚠️ Nei giorni già preparati c’è, ma non li ho toccati: il menu del ${giornoItaliano(coda.apertoIl)} ` +
+          'le è già arrivato in app e quello resta suo. Per rifarli c\'è «Rigenera menu» dalla sua scheda, ' +
+          'che però rifà anche il giorno che ha già ricevuto.'
         );
       }
 
-      await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.map((g) => g.id) } } });
-      const quante = coda.length;
+      await this.prisma.menuDay.deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } });
+      const quante = coda.giorni.length;
       return ` Ho rifatto anche ${quante} ${quante === 1 ? 'giornata già preparata' : 'giornate già preparate'}: le ricompone il motore al prossimo giro.`;
     } catch (err) {
       logger.warn(`Restrizione scritta ma giorni non rifatti (cliente=${clientId}): ${err instanceof Error ? err.message : String(err)}`);
