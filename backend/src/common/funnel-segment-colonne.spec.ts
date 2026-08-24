@@ -26,6 +26,27 @@ const COLONNE: string[] = (() => {
   return [...blocco.matchAll(/key: '([a-z_]+)'/g)].map((m) => m[1]);
 })();
 
+/**
+ * Ordine e `isSystem` letti dallo stesso blocco `defaults` del seed. ⚠️ Si leggono **per chiave**, e
+ * non per posizione nel testo: la posizione non è quella che il motore guarda.
+ */
+const { ORDINE, DI_SISTEMA } = (() => {
+  const seed = readFileSync(join(__dirname, '..', '..', 'prisma', 'seed.ts'), 'utf8');
+  const i = seed.indexOf('async function seedPipelineStages');
+  const blocco = seed.slice(i, seed.indexOf('const existing', i));
+  const ordine = new Map<string, number>();
+  const sistema = new Map<string, boolean>();
+  for (const riga of blocco.split('\n')) {
+    const k = /key: '([a-z_]+)'/.exec(riga);
+    if (!k) continue;
+    const o = /order: (\d+)/.exec(riga);
+    const sy = /isSystem: (true|false)/.exec(riga);
+    if (o) ordine.set(k[1], Number(o[1]));
+    if (sy) sistema.set(k[1], sy[1] === 'true');
+  }
+  return { ORDINE: ordine, DI_SISTEMA: sistema };
+})();
+
 describe('le colonne del prodotto sono quelle che credo', () => {
   it('il seed ne dichiara dodici, e ci sono quelle che contano', () => {
     expect(COLONNE.length).toBeGreaterThanOrEqual(12);
@@ -71,6 +92,35 @@ describe('«Percorso concluso» è un ex cliente', () => {
 
   it('⚠️ e ci arriva anche senza `historicalPaidCents`: quello sono i soldi spesi PRIMA di Metabole', () => {
     expect(deriveSegment({ stage: 'path_ended', historicalPaidCents: 0 })).toBe('ex_cliente');
+  });
+});
+
+describe('«Non ha seguito» è un ex cliente anche lei (24/8)', () => {
+  it('⛔ ha PAGATO e il piano è finito: le email da mandarle sono quelle di chi torna', () => {
+    // Lasciarla fuori la farebbe scivolare in `lead_caldo`, cioè le manderebbe le email di chi non
+    // ha ancora comprato — a una che ha già pagato e non è mai partita. È il caso peggiore dei due.
+    expect(deriveSegment({ stage: 'non_seguita' })).toBe('ex_cliente');
+    expect(deriveSegment({ stage: 'non_seguita', historicalPaidCents: 0 })).toBe('ex_cliente');
+  });
+
+  /**
+   * ⛔ **LE DUE PROPRIETÀ DA CUI DIPENDE TUTTO, E CHE NIENTE TENEVA FERME** (trovate in revisione il
+   * 24/8: rompendo il seed la suite restava verde su 5013 test).
+   *
+   *  1. `order` **maggiore** di `path_ended`: `avanzaStatoSeIndietro` non retrocede e si ferma anche
+   *     al pareggio, quindi con un ordine più basso o uguale la colonna resta **vuota per sempre** —
+   *     e una colonna vuota si legge come «non è successo a nessuno», non come «è rotta».
+   *  2. `isSystem: true`: il seed ricrea le colonne solo alla **prima** installazione; su un
+   *     database già avviato — cioè in produzione — arrivano soltanto quelle di sistema. Senza,
+   *     questa colonna non nascerebbe mai e nessuno se ne accorgerebbe.
+   *
+   * ⚠️ Il test di prima guardava `COLONNE[length-1]`, cioè la posizione **nel testo del file**: è
+   * l'asserzione che dà sicurezza senza darne, e infatti non vedeva né l'una né l'altra.
+   */
+  it('⛔ nel seed sta DOPO «Percorso concluso» ed è di sistema', () => {
+    expect(COLONNE).toContain('non_seguita');
+    expect(ORDINE.get('non_seguita')).toBeGreaterThan(ORDINE.get('path_ended') as number);
+    expect(DI_SISTEMA.get('non_seguita')).toBe(true);
   });
 });
 

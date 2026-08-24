@@ -2011,10 +2011,117 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'modifica-ricetta-dagli-allergeni',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T10:30',
+    titolo: '✅ «Allergeni ricette»: si può correggere il piatto prima di confermarlo',
+    dettaglio:
+      'Richiesta di Simone (24/8): «prima di approvare, il nutrizionista può anche correggerla». '
+      + 'Nella colonna Azioni compare **«Modifica ricetta»**, che apre lo stesso popup del catalogo '
+      + '(nome, regime, pasto, kcal, difficoltà, stagioni, ingredienti, cottura, «Dove è usata»).\n\n'
+      + '⚠️ **Il pulsante di prima si chiama adesso «Allergeni», e non è cosmesi**: si chiamava '
+      + '«Modifica» quando la ricetta era già confermata e «Rivedi» quando no — due nomi per lo '
+      + 'stesso riquadro, e uno dei due era proprio la parola che serviva al popup nuovo.\n\n'
+      + '⛔ **Un difetto trovato in revisione, e non era del pulsante nuovo.** Dentro il popup, '
+      + '«Dove è usata → Collega a una dieta» chiedeva dieta, settimana e giorno e poi **falliva**: '
+      + 'il server rifiuta di collegare una ricetta archiviata o con gli allergeni non confermati — '
+      + 'cioè praticamente **ogni riga di quella pagina**. E il messaggio d\'errore rimandava ad '
+      + '«Allergeni ricette», che è la pagina in cui si è già. Adesso il divieto si legge **prima**, '
+      + 'al posto del pulsante, e dice quale delle due condizioni manca. ⚠️ Vale anche nel catalogo: '
+      + 'era rotto anche lì, su qualunque bozza.\n\n'
+      + '⚠️ Altri due rilievi della stessa revisione: salvando dal popup si può cambiare **regime** e '
+      + '**attiva/archiviata**, quindi la riga può uscire dall\'elenco — e la sua spunta restava, '
+      + 'facendo confermare in blocco (e **entrare in catalogo**) una ricetta che nessuno vedeva più. '
+      + 'Ora la spunta si toglie al salvataggio. E i due tipi «ricetta» delle due pagine sono '
+      + 'diventati uno solo.\n\n'
+      + 'Nessuna chiave di permesso nuova: il popup chiede `recipes.manage`, che quella pagina già '
+      + 'usava per il cestino e per la conferma in blocco.',
+  },
+  {
+    chiave: 'pipeline-non-ha-seguito',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T11:00',
+    titolo: '✅ Pipeline: chi non ha mai inserito una misura non è «Percorso concluso»',
+    dettaglio:
+      'Richiesta di Simone (24/8): «se una persona attiva un piano e non inserisce le misure nemmeno '
+      + 'una volta, a piano scaduto non deve andare in Piano concluso, ma in **Non ha seguito**, una '
+      + 'colonna nuova in fondo». Le due colonne rispondono a due domande diverse, ed è la ragione '
+      + 'per cui vale la pena separarle: chi ha finito si richiama per rinnovare, chi non ha mai '
+      + 'messo un peso non ha finito niente — non ha nemmeno cominciato — e la telefonata è un\'altra.\n\n'
+      + '⛔ **La prima stesura era verde e non sarebbe servita a niente.** Diceva «la misura scritta '
+      + 'dal questionario non salva nessuno, perché è di prima che il piano cominci»: **falso nel '
+      + 'caso normale**, perché chi finisce il questionario attiva «Conosciamoci» lo stesso giorno. '
+      + 'Con la finestra più larga su tutti i piani, quella riga automatica copriva anche i mesi '
+      + 'dopo: una cliente che aveva cominciato subito **non sarebbe mai più** potuta finire in '
+      + 'questa colonna, nemmeno dopo tre mesi pagati senza una pesata. La colonna si sarebbe '
+      + 'riempita solo con chi aveva **posticipato** l\'inizio, cioè per un fatto che non c\'entra '
+      + 'niente con l\'aver seguito. Trovato in revisione avversariale, misurato.\n\n'
+      + '**La regola vera** (decisa da Simone il 24/8): nessuna misura fra `menu_visible_days_before_start` '
+      + 'giorni **prima** dell\'inizio e la fine del piano, **esclusa** quella datata al giorno di '
+      + '`onboardingCompletedAt` (è quella scritta dal questionario). La finestra comincia prima '
+      + 'perché è la stessa di `menu/misura-di-partenza.ts`, quella in cui il prodotto *chiede* la '
+      + 'pesata per sbloccare i menu: accusare chi si è pesata il giorno che gliel\'abbiamo chiesto '
+      + 'sarebbe stato l\'errore peggiore dei due. ⛔ **Il prezzo, scritto perché si sappia**: se una '
+      + 'cliente si è pesata *davvero* il giorno del questionario e mai più, quella pesata non la '
+      + 'salva — sotto è la stessa riga, e nessun campo distingue le due cose.\n\n'
+      + '⚠️ **Retroattivo entro la finestra dei 7–120 giorni** (scelta di Simone): chi era già in '
+      + '«Percorso concluso» e non ha misure si sposta la prima notte. È il motivo per cui la colonna '
+      + 'sta in FONDO — `avanzaStatoSeIndietro` non retrocede mai. ⛔ **Ma non scavalca una persona**: '
+      + 'se in «Percorso concluso» ce l\'ha messa una coach (`stageDates.byUserId` diverso da '
+      + '`sistema`), la scheda resta dov\'è.\n\n'
+      + '⚠️ Altri due rilievi accolti dalla stessa revisione. **1)** L\'`order: 11` scritto a mano '
+      + 'poteva **pareggiare** con una colonna aggiunta dall\'admin (che nasce a `max+1`, cioè 11 su '
+      + 'una board di default) o finire prima di `path_ended` dopo un riordino: un pareggio blocca lo '
+      + 'spostamento **in silenzio**, e la colonna sarebbe rimasta vuota per sempre. Ora il seed la '
+      + 'crea in fondo alla board di *adesso* se il posto è occupato, e due test tengono ferme le due '
+      + 'proprietà (ordine dopo `path_ended`, `isSystem: true`) — prima rompendole la suite restava '
+      + 'verde su 5013 test. **2)** Quando si ripiega su «Percorso concluso», avviso alla coach e '
+      + 'audit seguono **dove la scheda è finita davvero**, non dove volevamo mandarla: prima una '
+      + 'push mandava a cercare una cliente in una colonna che su quella board non c\'era.\n\n'
+      + '⚠️ Aggiunti anche al catalogo degli avvisi staff `client_path_ended` (che dall\'8/8 non '
+      + 'c\'era, quindi la coach lo riceveva e **non poteva spegnerlo**) e `client_path_not_followed`. '
+      + 'E `npm run diag:percorsi-conclusi` adesso dice quale delle due colonne, chiedendolo alla '
+      + 'stessa funzione del motore.\n\n'
+      + '⛔ **Al deploy**: il seed crea la colonna da sé (è di sistema). Poi `npm run diag:pipeline-stati` '
+      + 'per controllare che sia davvero **dopo** «Percorso concluso» sulla board vera.',
+  },
+  {
+    chiave: 'grassi-fattore-conversione-nocanty',
+    categoria: NOCANTY,
+    ordine: 0,
+    blocca: false,
+    nata: '2026-08-24T12:00',
+    titolo: '⛔ I grassi nei cambi in chat: manca la risposta di Nocanty (Q1 e Q3)',
+    dettaglio:
+      '⚠️ **Questa voce non esisteva, e la domanda è aperta dal 20/8.** Il 24/8 Nocanty ha rimandato '
+      + 'a Simone `progetto/Metabole_Grammature_Grassi_Domande.md` e il PDF **identici byte per byte** '
+      + 'a quelli che gli avevamo mandato (nel repo da `1477795`): nessuna risposta dentro.\n\n'
+      + 'Il difetto misurato: Gaia propone i cambi **a pari grammatura**, e sui grassi non regge — '
+      + '70 ml di panna → 70 g di olio portano un piatto da 500 kcal a ~890 (**+77%**), su una '
+      + 'cliente in deficit. ⚠️ Il controllo che c\'è (`grammaturaAmmessa`, un terzo/il triplo) '
+      + 'guarda il **rapporto fra le quantità**, non le calorie: 70 → 70 è un rapporto di 1 e passa '
+      + 'senza dire niente. È cieco esattamente sul caso che conta.\n\n'
+      + '⛔ **E il codice non può calcolarselo**: gli ingredienti hanno nome, quantità e unità, e '
+      + '**nessuna tabella di composizione**. O il numero lo dà Nocanty, o i grassi escono dai cambi '
+      + 'automatici. Non c\'è una terza strada che non passi dal costruire una banca dati alimentare.\n\n'
+      + 'Le due bloccanti: **Q1** (A = i grassi escono dall\'automatico · B = un fattore di '
+      + 'conversione per gruppo) e **Q3** (la tabella: un numero per alimento, «quanti grammi '
+      + 'equivalgono a 100 g del riferimento»). Proposta già scritta nel documento: **B sul solo '
+      + 'gruppo «grassi da condimento», A su tutti gli altri** — quattro righe, ed è il gruppo che fa '
+      + 'il 90% dei casi. ⚠️ Nessuna migrazione: il campo `members` dei gruppi è già libero.',
+  },
+  {
     chiave: 'test-che-scadono-il-2-settembre',
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: true,
+    fatta: true,
     nata: '2026-08-23T00:40',
     titolo: '⛔ Il 2 settembre due suite diventano rosse da sole: dei test hanno la data scritta a mano',
     dettaglio:
@@ -2036,7 +2143,28 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'il 21/8 questi quattro non erano stati toccati alle due di notte.\n\n'
       + 'La correzione è la stessa famiglia: la data della fixture si costruisce **da adesso** con la '
       + 'porta giusta, invece di essere scritta a mano in un giorno che poi arriva. Si verifica con '
-      + '`ORA_FINTA=<data> npm run test:notte`.',
+      + '`ORA_FINTA=<data> npm run test:notte`.\n\n'
+      + '✅ **CHIUSA il 24/8.** I primi due file erano già stati corretti in `e3b7412`; il terzo '
+      + '(`agenda/agenda.service.spec.ts`) lo è adesso: il periodo di ferie non è più `2026-09-10 → '
+      + '2026-09-20` ma `fra(20) → fra(30)`, contati da `aGiorno(new Date())`, cioè dalla stessa '
+      + 'porta che `creaFerie` usa per decidere se un periodo è passato. La suite intera è verde a '
+      + '`ORA_FINTA` del 2/9, 1/10, 15/11, 15/3/2027, 1/9/2027, 1/6/2028 e 5/5/2031.\n\n'
+      + '⚠️ **E ce n\'era un QUARTO, che la voce non conosceva**: spingendo l\'orologio finto a un '
+      + 'anno è saltato fuori `clients/plan-start.spec.ts` («il messaggio dice la data di fine '
+      + 'calcolata»), che chiedeva di spostare un piano al `2026-07-11`. Dal **12 luglio 2027** quella '
+      + 'data supera il tetto dei 366 giorni e il servizio risponde «Data fuori intervallo (max un '
+      + 'anno da oggi)» — cioè il test sarebbe diventato rosso **segnalando un controllo che non è '
+      + 'quello che voleva verificare**, che è il modo peggiore di scadere. Corretto allo stesso modo. '
+      + '⚠️ La lezione per la prossima volta: la scadenza si cerca spingendo l\'orologio **avanti di '
+      + 'anni**, non fino alla prima data nota.\n\n'
+      + '⛔ **E la revisione ha trovato che la correzione, da sola, non bastava** — misurato, non '
+      + 'temuto: con `TZ=Europe/Rome` (ogni portatile del team; su Render `TZ` non è impostata) i due '
+      + 'test sarebbero tornati rossi **otto giorni all\'anno**, perché il codice di produzione somma '
+      + 'i giorni con `setDate`/`setMonth`, che lavorano nel fuso del processo e conservano l\'ora di '
+      + 'parete. Il 28 marzo 2027 `setDate(+1)` su una mezzanotte UTC rende ancora il 28. Corretti i '
+      + 'due punti: `agenda.service.creaFerie` (`+ 86_400_000`) e `commerce.subscriptionEnd` (le '
+      + 'varianti `setUTC*`). ⚠️ Era anche un difetto **vero**, non solo dei test: la durata di un '
+      + 'piano dipendeva da come è configurata la macchina che la calcola.',
   },
   {
     chiave: 'alimenti-da-correggere-senza-data',

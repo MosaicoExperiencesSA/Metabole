@@ -225,8 +225,16 @@ export class AgendaService {
      * fermarsi alla sua mezzanotte vorrebbe dire non vedere l'appuntamento delle 18 dell'ultimo
      * giorno — cioè chiudere per ferie proprio il giorno che aveva un appuntamento.
      */
-    const fineInclusa = new Date(al);
-    fineInclusa.setDate(fineInclusa.getDate() + 1);
+    /**
+     * ⚠️ **`+ 86_400_000`, non `setDate`** (24/8): `al` è una mezzanotte UTC scritta da `toDateOnly`,
+     * e `setDate` somma il giorno nel fuso del **processo** conservando l'ora di parete. Su Render
+     * `TZ` non è impostata e i due conti coincidono; con `TZ=Europe/Rome` — cioè su ogni portatile
+     * del team — il **28 marzo 2027** `setDate` su `2027-03-28T00:00:00Z` rende ancora il 28, non il
+     * 29: la finestra si accorcia di un giorno e l'ultimo giorno di ferie smette di essere guardato.
+     * Misurato il 24/8 in revisione, un giorno all'anno, per sempre. Su una mezzanotte UTC la somma
+     * in millisecondi è esatta perché UTC non ha cambi d'ora.
+     */
+    const fineInclusa = new Date(al.getTime() + 86_400_000);
     const tutte = (await this.prisma.visit.findMany({
       where: {
         nutritionistId: staff.id,

@@ -44,7 +44,13 @@ const STAGE_FREDDI = new Set(['lead_in']);
  * arrivata in fondo al percorso non diventava mai ex cliente, e riceveva le email di chi non ci ha
  * mai risposto invece di quelle che parlano di tornare.
  */
-const STAGE_EX_CLIENTE = new Set(['path_ended']);
+/**
+ * ⚠️ **E «Non ha seguito» pure** (24/8). È l'altra faccia della stessa cosa: ha comprato, il piano è
+ * finito. Lasciarla fuori di qui la farebbe scivolare in `lead_caldo` — cioè le manderebbe le email
+ * di chi non ha ancora comprato, a una che ha già pagato e non è mai partita. È il caso peggiore dei
+ * due che questo insieme esiste per evitare.
+ */
+const STAGE_EX_CLIENTE = new Set(['path_ended', 'non_seguita']);
 
 export function deriveSegment(r: {
   segment?: string | null;

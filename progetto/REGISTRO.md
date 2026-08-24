@@ -52,6 +52,112 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 🍽️ **In «Allergeni ricette» si può correggere il piatto prima di confermarlo.**
+  Richiesta di Simone: «prima di approvare, il nutrizionista può anche correggerla». Nella colonna
+  Azioni compare **«Modifica ricetta»**, che apre lo stesso popup del catalogo. ⚠️ Il pulsante di
+  prima si chiama adesso **«Allergeni»**, e non è cosmesi: si chiamava «Modifica» quando la ricetta
+  era già confermata e «Rivedi» quando no — due nomi per lo stesso riquadro, e uno dei due era
+  proprio la parola che serviva al popup nuovo. Un'etichetta che cambia da sola e che vuol dire
+  un'altra cosa è il modo più facile per aprire la finestra sbagliata su un catalogo da rivedere.
+  ⛔ **E la revisione ha trovato un difetto che non era del pulsante nuovo.** Dentro il popup, «Dove
+  è usata → Collega a una dieta» chiedeva dieta, settimana e giorno e poi **falliva**: il server
+  rifiuta di collegare una ricetta archiviata o con gli allergeni non confermati, cioè praticamente
+  **ogni riga di quella pagina** — e il messaggio d'errore rimandava ad «Allergeni ricette», che è
+  la pagina in cui si è già. Un divieto che si conosce solo dopo aver fatto il lavoro è la forma
+  peggiore di divieto. Adesso si legge **prima**, al posto del pulsante, e dice quale delle due
+  condizioni manca. ⚠️ Era rotto anche nel catalogo, su qualunque bozza: la consegna lo chiude lì.
+  ⚠️ Altri due rilievi accolti: salvando dal popup si può cambiare **regime** e **attiva/archiviata**,
+  quindi la riga può uscire dall'elenco — e la sua spunta restava, facendo confermare in blocco (e
+  **entrare in catalogo**) una ricetta che nessuno vedeva più; e i due tipi «ricetta» delle due
+  pagine sono diventati uno solo. Nessuna chiave di permesso nuova: il popup chiede
+  `recipes.manage`, che quella pagina già usava per il cestino e per la conferma in blocco.
+
+- `[Sviluppo]` 📉 **Pipeline: chi non ha mai inserito una misura non è «Percorso concluso».**
+  Richiesta di Simone: «se una persona attiva un piano e non inserisce le misure nemmeno una volta,
+  a piano scaduto non deve andare in Piano concluso, ma in **Non ha seguito**». Le due colonne
+  rispondono a due domande diverse, ed è la ragione per cui vale la pena separarle: chi ha finito si
+  richiama per rinnovare, chi non ha mai messo un peso non ha finito niente — non ha nemmeno
+  cominciato — e la telefonata che le si fa è un'altra.
+  ⛔ **La prima stesura era verde e non sarebbe servita a niente, ed è un difetto mio.** Avevo
+  scritto che la misura che il sistema si scrive da solo alla fine del questionario non salva
+  nessuno «perché è di prima che il piano cominci». È **falso nel caso normale**: chi finisce il
+  questionario attiva «Conosciamoci» lo stesso giorno, quindi quella riga cade dentro il piano — e
+  siccome la finestra è la più larga su tutti i suoi piani, copriva anche i mesi dopo. Una cliente
+  che aveva cominciato subito **non sarebbe mai più** potuta finire in quella colonna, nemmeno dopo
+  tre mesi pagati senza una pesata: si sarebbe riempita solo con chi aveva posticipato l'inizio,
+  cioè per un fatto che non c'entra niente con l'aver seguito. L'ha trovato la revisione
+  avversariale, misurandolo.
+  ✅ **La regola vera**, decisa da Simone: nessuna misura fra `menu_visible_days_before_start`
+  giorni **prima** dell'inizio e la fine del piano, **esclusa** quella datata al giorno di
+  `onboardingCompletedAt`. La finestra comincia prima perché è la stessa di
+  `menu/misura-di-partenza.ts`, quella in cui il prodotto *chiede* la pesata per sbloccare i menu:
+  accusare di non aver seguito proprio chi si è pesata il giorno che gliel'abbiamo chiesto sarebbe
+  stato l'errore peggiore dei due. ⛔ Il prezzo, scritto perché si sappia: se una cliente si è pesata
+  **davvero** il giorno del questionario e mai più, quella pesata non la salva — sotto è la stessa
+  riga, e nessun campo distingue le due cose.
+  ⚠️ **Retroattivo entro la finestra dei 7–120 giorni** (scelta di Simone): chi era già in «Percorso
+  concluso» e non ha misure si sposta la prima notte, ed è il motivo per cui la colonna sta in
+  FONDO. ⛔ **Ma non scavalca una persona**: se in «Percorso concluso» ce l'ha messa una coach, la
+  scheda resta dov'è — `stageDates` distingue `sistema` da un id vero, ed è la prima volta che un
+  automatismo potrebbe tirare una scheda fuori dall'ultima colonna scelta da qualcuno.
+  ⚠️ Altri due rilievi della stessa revisione. **1)** L'`order: 11` scritto a mano poteva
+  **pareggiare** con una colonna aggiunta dall'admin (che nasce a `max+1`, cioè 11 su una board di
+  default) o finire prima di `path_ended` dopo un riordino: un pareggio blocca lo spostamento **in
+  silenzio**, e la colonna sarebbe rimasta visibile e vuota per sempre — che si legge come «non è
+  successo a nessuno», non come «è rotta». Ora il seed la crea in fondo alla board di *adesso* se il
+  posto è occupato, e due test tengono ferme le due proprietà (ordine dopo `path_ended`,
+  `isSystem: true`): prima, rompendo il seed, la suite restava verde su 5013 test. **2)** Quando si
+  ripiega su «Percorso concluso», avviso alla coach e audit seguono **dove la scheda è finita
+  davvero** e non dove volevamo mandarla: prima una push mandava a cercare una cliente in una
+  colonna che su quella board non c'era.
+  ✅ Aggiunti al catalogo degli avvisi staff `client_path_ended` — che dall'8/8 non c'era, quindi la
+  coach lo riceveva e **non poteva spegnerlo** — e `client_path_not_followed`. E
+  `npm run diag:percorsi-conclusi` adesso dice quale delle due colonne, chiedendolo alla stessa
+  funzione del motore invece che a una copia che le somiglia.
+  ✅ Verificato: build pulito su backend e backoffice, **5018 test in 314 suite** verdi con `TZ` a
+  UTC e con `TZ=Europe/Rome`. Ogni assert nuovo provato alla mutazione.
+
+- `[Prodotto]` 🥑 **I grassi nei cambi in chat: la domanda a Nocanty è ancora senza risposta.**
+  Il 24/8 ha rimandato a Simone `progetto/Metabole_Grammature_Grassi_Domande.md` e il PDF
+  **identici byte per byte** a quelli che gli avevamo mandato (nel repo da `1477795`): nessuna
+  risposta dentro. ⚠️ E la domanda **non era in nessuna voce dei lavori** — le sette `Aspetta
+  Nocanty` sono tutte chiuse dal 13/8 — quindi era aperta dal 20/8 e non la sorvegliava niente.
+  Adesso c'è: `grassi-fattore-conversione-nocanty`. Restano bloccanti Q1 (i grassi escono
+  dall'automatico, oppure un fattore di conversione per gruppo) e Q3 (la tabella, un numero per
+  alimento).
+
+- `[Sviluppo]` ⏳ **Quattro test avevano una data scritta a mano e sarebbero diventati rossi da
+  soli.** Non era un timore: `ORA_FINTA=2026-10-01T10:00:00.000Z npm run test:notte` mostrava
+  `agenda.service.spec.ts` («il controllo arriva fino a SERA dell'ultimo giorno») rosso con «Quel
+  periodo è già passato» — perché chiedeva le ferie dal `2026-09-10` al `2026-09-20`, e da ottobre
+  quel periodo è alle spalle. Identico a novembre, dicembre e marzo: non un caso limite di una
+  data, la data scritta a mano. Adesso il periodo si conta **da adesso** con `aGiorno(new Date())`,
+  cioè la stessa porta che `creaFerie` usa per decidere se un periodo è passato.
+  ⚠️ **E ce n'era un quarto che la voce non conosceva.** Spingendo l'orologio finto avanti di un
+  anno invece che fino alla prima data nota è saltato fuori `clients/plan-start.spec.ts`, che
+  spostava un piano al `2026-07-11`: dal **12 luglio 2027** quella data supera il tetto dei 366
+  giorni e il servizio risponde «Data fuori intervallo (max un anno da oggi)». Cioè il test sarebbe
+  diventato rosso **segnalando un controllo diverso da quello che voleva verificare**, che è il modo
+  peggiore di scadere — manda a correggere codice che funziona.
+  ⛔ **E la revisione avversariale ha trovato che la correzione, da sola, non bastava.** Misurato,
+  non dedotto: con `TZ=Europe/Rome` — ogni portatile del team; su Render `TZ` non è impostata — i due
+  test sarebbero tornati rossi **otto giorni all'anno, per sempre**, perché il codice di produzione
+  somma i giorni con `setDate`/`setMonth`, che lavorano nel fuso del **processo** e conservano l'ora
+  di parete: il 28 marzo 2027 `setDate(+1)` su una mezzanotte UTC rende ancora il 28. Corretti i due
+  punti veri — `agenda.service.creaFerie` (`+ 86_400_000`) e `commerce.subscriptionEnd` (le varianti
+  `setUTC*`). ⚠️ Non era un difetto dei soli test: **la durata di un piano dipendeva da come è
+  configurata la macchina che la calcola**, ed è esattamente il difetto di fuso che non si riproduce
+  in CI. La stessa revisione ha anche bocciato due ragioni scritte nei commenti nuovi — «dall'11
+  luglio» (è il 12: il tetto è a 366 giorni, non 365) e «il giorno in cui le lancette tornano
+  indietro» (lo scarto si vede in **primavera**, non in autunno) — e ha mostrato che il confine
+  sinistro della finestra delle ferie non era coperto: spostando `gte` da `dal` ad `al` il test
+  restava verde, cioè le ferie si sarebbero chiuse sopra tutti gli appuntamenti dei giorni in mezzo
+  senza che niente lo dicesse. Adesso è inchiodato alla mezzanotte romana di `dal`.
+  ✅ Verificato: `npm run build` pulito, **4997 test in 313 suite** verdi con `TZ` a UTC e con
+  `TZ=Europe/Rome`, e con `ORA_FINTA` al 2/9, 1/10, 15/11, 26/2/2027, 15/3/2027, 20/4/2027,
+  27/4/2027, 12/7/2027, 1/9/2027, 25/2/2028, 26/3/2028, 1/6/2028 e 5/5/2031. Ogni assert nuovo è
+  stato provato alla mutazione: rompendo apposta il servizio diventa rosso.
+
 - `[Sviluppo]` 🔦 **La diagnostica dell'erogazione smette di tacere — e la casella vuota che valeva
   zero.** Il 23/8 una cliente vera è rimasta ferma per ore, e i due strumenti che dovevano dirlo
   hanno taciuto tutti e due: `diag:cliente` rispondeva «idonea» mentre il cancello era una

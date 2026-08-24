@@ -212,8 +212,11 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       },
       crmListMember: { deleteMany: jest.fn(), upsert: jest.fn() },
       subscription: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+      // ⚠️ Servono alla regola «Non ha seguito»: senza, la scelta fra le due colonne non si può provare.
+      measurement: { findFirst: jest.fn().mockResolvedValue(null) },
       pipelineStage: { findUnique: jest.fn().mockResolvedValue({ order: 9 }) },
-      // Serve all'avviso alla coach: da qui si ricava chi segue quella cliente.
+      // Serve all'avviso alla coach (chi segue quella cliente) E alla regola «Non ha seguito»
+      // (`onboardingCompletedAt`, il giorno della misura scritta dal questionario).
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
       staff: {
         findMany: jest.fn().mockResolvedValue([{ id: 'staff-c', refCode: 'VOLPEA01' }]),
@@ -249,7 +252,17 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
         { provide: MailService, useValue: { sendLeadCredentials: jest.fn().mockResolvedValue(undefined) } },
         { provide: NotificationsService, useValue: notifiche },
         // Serve a `sendCredentials`: legge `lead_credentials_link_days` per la scadenza del link.
-        { provide: ConfigParamsService, useValue: { getNumber: jest.fn().mockResolvedValue(7) } },
+        {
+          // ⚠️ Risponde PER CHIAVE: `chiudiPercorsiConclusi` ne legge due — i giorni dopo la scadenza
+          // e la finestra della misura di partenza — e un finto che risponde sempre lo stesso numero
+          // darebbe una finestra di 7 giorni prima dell'inizio invece di 2, cioè misurerebbe un
+          // comportamento che il prodotto non ha.
+          provide: ConfigParamsService,
+          useValue: {
+            getNumber: jest.fn((chiave: string) =>
+              Promise.resolve(chiave === 'menu_visible_days_before_start' ? 2 : 7)),
+          },
+        },
       ],
     }).compile();
     service = moduleRef.get(CrmService);
@@ -503,6 +516,168 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
       const res = await service.chiudiPercorsiConclusi();
 
       expect(res.spostati).toBe(0);
+    });
+
+    /**
+     * ⛔ **«NON HA SEGUITO» (richiesta di Simone, 24/8).** Chi ha comprato e non si è mai pesata
+     * mentre il piano correva non ha «concluso il percorso»: non l'ha nemmeno cominciato, e la
+     * telefonata che le si fa è un'altra da quella del rinnovo.
+     *
+     * ⚠️ `subscription.findMany` viene chiamata **due volte** per ogni giro: la prima dà le
+     * candidate (i piani scaduti nella finestra), la seconda — dentro `nonHaMaiSeguito` — dà i piani
+     * di quella cliente con le loro date. Sono due domande diverse allo stesso metodo, ed è il motivo
+     * per cui qui si usa `mockResolvedValueOnce` invece di una risposta sola.
+     */
+    describe('«Non ha seguito»', () => {
+      const G = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+      const PIANO = [{ startDate: G('2026-05-01'), endDate: G('2026-06-01') }];
+
+      /** Le due colonne, con `non_seguita` in fondo: è l'ordine che la fa scrivere. */
+      const colonne = (map: Record<string, number | null>) =>
+        prisma.pipelineStage.findUnique.mockImplementation(({ where }: any) => {
+          const o = map[where.key];
+          return Promise.resolve(o == null ? null : { order: o });
+        });
+
+      it('nessuna misura per tutta la durata del piano → «Non ha seguito», non «Percorso concluso»', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+        colonne({ non_seguita: 11, path_ended: 10, follow_up: 9 });
+
+        const res = await service.chiudiPercorsiConclusi();
+
+        expect(res).toEqual({ esaminati: 1, spostati: 1 });
+        expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ stage: 'non_seguita' }) }),
+        );
+      });
+
+      it('una pesata dentro il piano → resta «Percorso concluso»', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue({ id: 'mis-1' });
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+        colonne({ non_seguita: 11, path_ended: 10, follow_up: 9 });
+
+        await service.chiudiPercorsiConclusi();
+
+        expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ stage: 'path_ended' }) }),
+        );
+      });
+
+      /**
+       * ⚠️ **IL RETROATTIVO, deciso da Simone il 24/8.** Chi era già finita in «Percorso concluso»
+       * nelle notti scorse e non ha misure si sposta la prima notte. È il motivo per cui la colonna
+       * nuova sta in FONDO: `avanzaStatoSeIndietro` non retrocede mai, quindi solo un ordine più alto
+       * di `path_ended` le permette di muoversi ancora.
+       */
+      it('⚠️ chi era già in «Percorso concluso» e non ha misure ci passa lo stesso', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'path_ended', stageDates: {} });
+        colonne({ non_seguita: 11, path_ended: 10 });
+
+        const res = await service.chiudiPercorsiConclusi();
+
+        expect(res.spostati).toBe(1);
+        expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ stage: 'non_seguita' }) }),
+        );
+      });
+
+      /**
+       * ⛔ **SE LA COLONNA NON C'È, SI RIPIEGA — e la scheda si muove lo stesso.**
+       * `avanzaStatoSeIndietro` risponde `false` in silenzio quando la colonna di destinazione non
+       * esiste. Senza il ripiego, su un'installazione in cui l'admin avesse cancellato `non_seguita`
+       * le schede di chi non ha seguito **smetterebbero di muoversi del tutto**, e la colonna vuota
+       * si leggerebbe come «non è successo a nessuno».
+       */
+      it('⛔ colonna «Non ha seguito» mancante → ripiega su «Percorso concluso», non lascia ferma la scheda', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+        colonne({ non_seguita: null, path_ended: 10, follow_up: 9 });
+
+        const res = await service.chiudiPercorsiConclusi();
+
+        expect(res.spostati).toBe(1);
+        expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ stage: 'path_ended' }) }),
+        );
+      });
+
+      /**
+       * ⛔ **IL RETROATTIVO NON SCAVALCA UNA PERSONA** (rilievo della revisione, 24/8). Una scheda in
+       * «Percorso concluso» può ancora muoversi perché la colonna nuova sta più avanti — ma se ce
+       * l'ha messa una coach, quella è una decisione, non un residuo del giro notturno. È la prima
+       * volta che un automatismo potrebbe tirare una scheda fuori dall'ultima colonna scelta da
+       * qualcuno, e `stageDates` distingue i due casi da sempre.
+       */
+      it('⛔ se in «Percorso concluso» ce l\'ha messa una PERSONA, il giro notturno non la sposta', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({
+          stage: 'path_ended',
+          stageDates: { path_ended: { at: 'x', byUserId: 'u-coach' } },
+        });
+        colonne({ non_seguita: 11, path_ended: 10 });
+
+        const res = await service.chiudiPercorsiConclusi();
+
+        expect(res.spostati).toBe(0);
+        expect(prisma.crmRecord.update).not.toHaveBeenCalled();
+      });
+
+      /**
+       * ⛔ **QUANDO SI RIPIEGA, L'AVVISO SEGUE DOVE LA SCHEDA È FINITA DAVVERO.** La prima stesura
+       * diceva «è passata in «Non ha seguito»» a una coach la cui board quella colonna non ce
+       * l'aveva: una push che manda a cercare qualcuno in un posto che non esiste, e un audit che
+       * conta spostamenti mai avvenuti.
+       */
+      it('⛔ col ripiego l\'avviso NON nomina una colonna che non c\'è', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+        colonne({ non_seguita: null, path_ended: 10, follow_up: 9 });
+        prisma.clientProfile.findUnique.mockResolvedValue({ name: 'Anna Lisa', assignedCoachId: 'staff-c' });
+        prisma.staff.findUnique.mockResolvedValue({ userId: 'u-coach' });
+
+        await service.chiudiPercorsiConclusi();
+
+        expect(prisma.crmRecord.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ stage: 'path_ended' }) }),
+        );
+        expect(notifiche.notify).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: 'u-coach', type: 'client_path_ended' }),
+        );
+        expect(notifiche.notify.mock.calls[0][0].body).not.toContain('Non ha seguito');
+      });
+
+      it('la coach riceve un avviso che dice la cosa GIUSTA: non ha seguito, non «ha finito»', async () => {
+        prisma.subscription.findMany.mockResolvedValueOnce([{ clientId: 'cli-1' }]).mockResolvedValueOnce(PIANO);
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.measurement.findFirst.mockResolvedValue(null);
+        prisma.crmRecord.findUnique.mockResolvedValue({ stage: 'follow_up', stageDates: {} });
+        colonne({ non_seguita: 11, path_ended: 10, follow_up: 9 });
+        prisma.clientProfile.findUnique.mockResolvedValue({ name: 'Anna Lisa', assignedCoachId: 'staff-c' });
+        prisma.staff.findUnique.mockResolvedValue({ userId: 'u-coach' });
+
+        await service.chiudiPercorsiConclusi();
+
+        expect(notifiche.notify).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: 'u-coach', type: 'client_path_not_followed' }),
+        );
+        expect(notifiche.notify.mock.calls[0][0].body).toContain('non ha mai inserito una misura');
+        // ⚠️ E NON quello del percorso concluso: due avvisi diversi per due telefonate diverse.
+        expect(notifiche.notify.mock.calls[0][0].body).not.toContain('non ha rinnovato');
+      });
     });
   });
 });

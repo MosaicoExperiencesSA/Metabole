@@ -25,6 +25,7 @@
  *   EMAIL=<email> npm run diag:percorsi-conclusi     → una cliente sola
  */
 import { PrismaClient } from '@prisma/client';
+import { nonHaMaiSeguito, STAGE_NON_SEGUITA } from '../src/commerce/non-ha-seguito';
 
 const prisma = new PrismaClient();
 const EMAIL = (process.env.EMAIL ?? '').trim().toLowerCase();
@@ -35,6 +36,8 @@ const giorno = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10)
 async function main() {
   const soglia = await prisma.configParam.findUnique({ where: { key: 'path_ended_days' } });
   const giorniSoglia = Math.max(1, Number(soglia?.value ?? 7) || 7);
+  const primaDellInizio = await prisma.configParam.findUnique({ where: { key: 'menu_visible_days_before_start' } });
+  const giorniPrima = Number(primaDellInizio?.value ?? 2) || 2;
   const oggi = Date.now();
 
   const stati = (await prisma.pipelineStage.findMany({ select: { key: true, label: true, order: true } })) as {
@@ -47,6 +50,19 @@ async function main() {
   if (ordinePathEnded === undefined) {
     console.log('⚠️  Lo stato «path_ended» non esiste più nella pipeline: l\'automazione non ha dove spostare le schede.');
     return;
+  }
+
+  /**
+   * ⚠️ **Dal 24/8 le destinazioni sono DUE**, e questa diagnostica deve dirle tutte e due: chi non
+   * ha mai inserito una misura mentre il piano correva va in «Non ha seguito», non in «Percorso
+   * concluso». Una diagnostica che risponde a una domanda leggermente diversa da quella del motore è
+   * peggio di nessuna diagnostica, perché la si crede.
+   */
+  const ordineNonSeguita = ordine.get(STAGE_NON_SEGUITA);
+  if (ordineNonSeguita === undefined) {
+    console.log(`⚠️  La colonna «${STAGE_NON_SEGUITA}» non esiste: chi non ha mai inserito una misura finirà comunque in «Percorso concluso» (ripiego dichiarato).`);
+  } else if (ordineNonSeguita <= ordinePathEnded) {
+    console.log(`⛔ «Non ha seguito» sta al posto ${ordineNonSeguita} e «Percorso concluso» al ${ordinePathEnded}: NON è dopo, quindi nessuna scheda ci arriverà mai e la colonna resterà vuota. Si sistema trascinandola in fondo alla board.`);
   }
 
   const abbonamenti = (await prisma.subscription.findMany({
@@ -97,7 +113,7 @@ async function main() {
   const stageDi = new Map((schede as { clientId: string | null; stage: string }[]).map((r) => [r.clientId ?? '', r.stage]));
 
   const gruppi: Record<string, string[]> = {
-    daSpostare: [], troppoPresto: [], rinnovoInCorso: [], troppoVecchia: [], giaAvanti: [], senzaScheda: [],
+    daSpostare: [], nonHaSeguito: [], troppoPresto: [], rinnovoInCorso: [], troppoVecchia: [], giaAvanti: [], senzaScheda: [],
   };
 
   for (const [clientId, a] of perCliente) {
@@ -115,9 +131,23 @@ async function main() {
     }
     if (giorniScaduto < giorniSoglia) { gruppi.troppoPresto.push(`${riga} → mancano ${giorniSoglia - giorniScaduto} gg alla soglia`); continue; }
     if (giorniScaduto > 120) { gruppi.troppoVecchia.push(riga); continue; }
+    /**
+     * ⚠️ La domanda si fa **alla stessa funzione del motore**, non a una copia che le somiglia: se
+     * un giorno la regola cambia, questa riga cambia con lei o non dice più la verità.
+     */
+    const nonSeguita = await nonHaMaiSeguito(prisma as never, clientId, giorniPrima).catch(() => null);
+    const destinazione = nonSeguita === true && ordineNonSeguita !== undefined ? STAGE_NON_SEGUITA : 'path_ended';
+    const ordineDestinazione = destinazione === STAGE_NON_SEGUITA ? (ordineNonSeguita as number) : ordinePathEnded;
+
     const suo = ordine.get(stage);
-    if (suo !== undefined && suo >= ordinePathEnded) { gruppi.giaAvanti.push(riga); continue; }
-    gruppi.daSpostare.push(riga);
+    if (suo !== undefined && suo >= ordineDestinazione) { gruppi.giaAvanti.push(riga); continue; }
+    if (destinazione === STAGE_NON_SEGUITA) {
+      gruppi.nonHaSeguito.push(`${riga} → nessuna misura fra ${giorniPrima} gg prima dell'inizio e la fine del piano`);
+    } else if (nonSeguita === true) {
+      gruppi.daSpostare.push(`${riga} → non ha misure, ma la colonna «${STAGE_NON_SEGUITA}» non c'è: ripiego`);
+    } else {
+      gruppi.daSpostare.push(riga);
+    }
   }
 
   const blocco = (titolo: string, spiegazione: string, righe: string[]) => {
@@ -148,7 +178,12 @@ async function main() {
     'Non si toccano più: spostarle adesso farebbe comparire decine di «concluse» tutte insieme. Si spostano a mano, se serve.',
     gruppi.troppoVecchia,
   );
-  blocco('Già in «Percorso concluso» o oltre', 'Niente da fare: l\'automazione non retrocede mai una scheda.', gruppi.giaAvanti);
+  blocco(
+    'DA SPOSTARE in «Non ha seguito»',
+    'Hanno comprato e non hanno mai inserito una misura mentre il piano correva. ⚠️ La misura scritta dal questionario NON conta: è automatica.',
+    gruppi.nonHaSeguito,
+  );
+  blocco('Già alla destinazione o oltre', 'Niente da fare: l\'automazione non retrocede mai una scheda.', gruppi.giaAvanti);
   blocco('Senza scheda nel CRM', 'Un piano scaduto senza scheda CRM: non c\'è niente da spostare. Vale la pena capire come è nata.', gruppi.senzaScheda);
 
   console.log(`\nSoglia in configurazione: path_ended_days = ${giorniSoglia} giorni.`);

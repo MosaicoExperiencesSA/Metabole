@@ -1,0 +1,54 @@
+In «Allergeni ricette» si puo' correggere il piatto prima di confermarlo
+
+Richiesta di Simone (24/8): «prima di approvare, il nutrizionista puo' anche correggerla».
+
+COSA CAMBIA
+Nella colonna Azioni compare «Modifica ricetta», che apre lo STESSO popup del catalogo (nome,
+regime, pasto, kcal, difficolta', stagioni, ingredienti, metodi di cottura, «Dove e' usata»).
+`RecipeModal` era privato di `Ricette.tsx` e non lo usava nessun altro: ora e' esportato.
+
+⚠️ IL PULSANTE DI PRIMA SI CHIAMA ADESSO «ALLERGENI», E NON E' COSMESI
+Si chiamava «Modifica» quando la ricetta era gia' confermata e «Rivedi» quando no: due nomi per lo
+stesso riquadro, e uno dei due era proprio la parola che serve al popup nuovo. Un'etichetta che
+cambia da sola e che vuol dire un'altra cosa e' il modo piu' facile per aprire la finestra sbagliata
+su un catalogo da rivedere.
+
+⛔ UN DIFETTO TROVATO IN REVISIONE, E NON ERA DEL PULSANTE NUOVO
+Dentro il popup, «Dove e' usata → Collega a una dieta» chiedeva dieta, settimana e giorno e poi
+FALLIVA: `collegaRicetta` rifiuta una ricetta archiviata o con gli allergeni non confermati — cioe'
+praticamente OGNI riga di quella pagina, che apre filtrata su «da rivedere» e chiede
+`includeInactive=true` proprio perche' sono quasi tutte bozze. E il messaggio d'errore rimandava ad
+«Allergeni ricette», che e' la pagina in cui si e' gia'.
+Un divieto che si conosce solo dopo aver fatto il lavoro e' la forma peggiore di divieto. Adesso si
+legge PRIMA, al posto del pulsante, e dice quale delle due condizioni manca.
+⚠️ Era rotto anche nel catalogo, su qualunque bozza: la correzione vale li' allo stesso modo.
+
+ALTRI DUE RILIEVI DELLA STESSA REVISIONE, ACCOLTI
+- Salvando dal popup si puo' cambiare REGIME e ATTIVA/ARCHIVIATA, quindi la riga puo' uscire
+  dall'elenco (dentro «Gestione dieta» e' filtrato per regime). La sua spunta restava, il pulsante
+  diceva ancora «Conferma le N selezionate», e la conferma in blocco l'avrebbe confermata — facendola
+  ENTRARE IN CATALOGO — senza che nessuno la vedesse piu'. Ora la spunta si toglie al salvataggio.
+- I due tipi «ricetta» delle due pagine sono diventati uno solo: quello di TagAllergeni ne aveva sei
+  campi e ne servono di piu'. Due tipi per la stessa riga sono due tipi che un giorno divergono.
+- Tre ragioni scritte nei commenti erano false e sono state corrette (il conteggio dei campi, il
+  motivo del reload, e a quale simbolo era attaccato il blocco).
+
+⚠️ L'avviso «la conferma degli allergeni non vale piu'» adesso cambia frase quando lo si legge
+dentro «Allergeni ricette»: dire «ricontrolla gli allergeni in «Allergeni ricette»» a chi ci sta
+dentro manda a cercare un posto in cui si e' gia'.
+
+PERMESSI
+Nessuna chiave nuova, nessuna rotta nuova, nessuna voce di menu nuova. Il popup salva con
+`PATCH /recipes/:id` → `recipes.manage`, che questa pagina gia' usava per il cestino e per la
+conferma in blocco.
+
+VERIFICATO
+`cd backoffice && npm run build` (tsc -b && vite build) pulito. Il bundle cresce di 0,5 kB: le due
+pagine erano gia' nello stesso chunk.
+
+FILE NEL COMMIT
+- backoffice/src/pages/Ricette.tsx
+- backoffice/src/pages/TagAllergeni.tsx
+
+Nessuna migrazione, nessuna variabile d'ambiente, nessuna dipendenza. ⚠️ E' backoffice: arriva con
+il deploy su Vercel, non serve OTA.

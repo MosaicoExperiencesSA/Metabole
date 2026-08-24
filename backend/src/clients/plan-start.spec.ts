@@ -1,5 +1,5 @@
 import { conOrologioFermo } from '../../test/orologio-fermo';
-import { giornoLocale } from '../common/date-only';
+import { giornoItaliano, giornoLocale } from '../common/date-only';
 import { ClientsService } from './clients.service';
 import { pickMainSubscription } from '../commerce/commerce.service';
 
@@ -219,11 +219,26 @@ describe('ClientsService.updatePlanStart', () => {
       expect(audit.log).not.toHaveBeenCalled();
     });
 
+    /**
+     * ⛔ **ANCHE QUI LA DATA ERA SCRITTA A MANO** — trovato il 24/8 spingendo l'orologio finto avanti
+     * di un anno, mentre si chiudeva la voce `test-che-scadono-il-2-settembre`.
+     *
+     * Diceva `2026-07-11`, fine attesa `19/07/2026`. Dal **12 luglio 2027** quella data è più vecchia
+     * del massimo consentito — il controllo è a **366** giorni, non 365, e la prima ora rossa è
+     * `2027-07-12T00:00:00.001Z`: `updatePlanStart` risponde «Data fuori intervallo (max un anno da oggi)»
+     * — un controllo diverso, che scatta prima — e il test diventa rosso per sempre senza che
+     * l'avviso della matita abbia niente che non va. ⚠️ Ed è il modo peggiore: il test avrebbe
+     * segnalato un difetto **in un punto che non è quello rotto**.
+     *
+     * Adesso l'inizio si conta da adesso (30 giorni fa: dentro l'anno, e con la fine — 8 giorni di
+     * prova — comunque nel passato, che è la condizione dell'avviso) e la fine attesa si calcola.
+     */
     it('il messaggio dice la data di fine calcolata e cosa vedrà la cliente', async () => {
-      const errore = await service.updatePlanStart('giusy', 'admin', '2026-07-11').catch((e: Error) => e);
+      const inizio = inDays(-30);
+      const errore = await service.updatePlanStart('giusy', 'admin', iso(inizio)).catch((e: Error) => e);
       const testo = (errore as Error).message;
-      // 11/07 + 8 giorni = 19/07: è il numero che fa capire all'operatore che ha sbagliato mese.
-      expect(testo).toContain('19/07/2026');
+      // Inizio + 8 giorni: è il numero che fa capire all'operatore che ha sbagliato mese.
+      expect(testo).toContain(giornoItaliano(iso(inDays(-22))));
       expect(testo).toContain('Nessun piano attivo');
       expect(testo).toContain('Prova Gratuita');
     });

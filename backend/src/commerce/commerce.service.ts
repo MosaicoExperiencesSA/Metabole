@@ -71,20 +71,25 @@ export function subscriptionEnd(start: Date, period: string): Date {
   // Senza il secondo, il monitoraggio finiva nel fallback muto qui sotto e ogni mese pagato
   // sarebbe valso 3 mesi di servizio.
   if (isMaintenancePlan(period) || isMonitoringPlan(period)) {
-    end.setMonth(end.getMonth() + 1);
+    end.setUTCMonth(end.getUTCMonth() + 1);
     return end;
   }
   const m = String(period ?? '').trim().toLowerCase().match(/^(\d+)\s*([dwmy]?)$/);
   const n = m ? parseInt(m[1], 10) : NaN;
   const unit = m ? m[2] : '';
   if (!m || !Number.isFinite(n) || n <= 0) {
-    end.setMonth(end.getMonth() + 3);
+    end.setUTCMonth(end.getUTCMonth() + 3);
     return end;
   }
-  if (unit === 'd') end.setDate(end.getDate() + n);
-  else if (unit === 'w') end.setDate(end.getDate() + n * 7);
-  else if (unit === 'y') end.setFullYear(end.getFullYear() + n);
-  else end.setMonth(end.getMonth() + n);
+  // ⚠️ **Le varianti UTC, non quelle locali** (24/8): `setDate`/`setMonth`/`setFullYear` sommano nel
+  // fuso del **processo** conservando l'ora di parete, quindi la durata di un piano dipendeva da come
+  // è configurata la macchina. Su Render `TZ` non è impostata e non cambia niente; con
+  // `TZ=Europe/Rome` un piano che parte fra il 21 e il 28 marzo finiva **un giorno prima** — otto
+  // giorni all'anno, e solo su un portatile. È il modo in cui un difetto di fuso non si riproduce.
+  if (unit === 'd') end.setUTCDate(end.getUTCDate() + n);
+  else if (unit === 'w') end.setUTCDate(end.getUTCDate() + n * 7);
+  else if (unit === 'y') end.setUTCFullYear(end.getUTCFullYear() + n);
+  else end.setUTCMonth(end.getUTCMonth() + n);
   return end;
 }
 

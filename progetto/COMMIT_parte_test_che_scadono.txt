@@ -1,0 +1,37 @@
+I test con la data scritta a mano smettono di scadere — e la durata di un piano smette di dipendere dal fuso della macchina
+
+Quattro test avevano una data di calendario scritta a mano e sarebbero diventati rossi da soli, senza che il prodotto avesse niente che non va. Una CI rossa per sempre e' una CI che si smette di guardare, e allora il primo difetto vero arriva in produzione in mezzo al rumore.
+
+MISURATO, NON TEMUTO
+- `ORA_FINTA=2026-10-01T10:00:00.000Z npm run test:notte` → `agenda/agenda.service.spec.ts` («il controllo arriva fino a SERA dell'ultimo giorno») rosso con «Quel periodo e' gia' passato»: chiedeva le ferie dal 2026-09-10 al 2026-09-20. Identico a novembre, dicembre e marzo — non un caso limite di una data, la data scritta a mano.
+- Spingendo l'orologio finto avanti di un ANNO invece che fino alla prima data nota e' saltato fuori un quarto file che la voce non conosceva: `clients/plan-start.spec.ts` spostava un piano al 2026-07-11, e dal 12 luglio 2027 quella data supera il tetto dei 366 giorni. Il servizio avrebbe risposto «Data fuori intervallo (max un anno da oggi)»: il test sarebbe diventato rosso segnalando un controllo diverso da quello che voleva verificare, che e' il modo peggiore di scadere.
+
+LA CORREZIONE
+Le date delle fixture si costruiscono da adesso, alla stessa porta del codice (`aGiorno` / `giornoItaliano` in `src/common/date-only.ts`), invece di essere scritte a mano in un giorno che poi arriva.
+
+⛔ MA LA CORREZIONE DA SOLA NON BASTAVA — trovato in revisione avversariale
+Con `TZ=Europe/Rome` (ogni portatile del team; su Render `TZ` non e' impostata) i due test sarebbero tornati rossi otto giorni all'anno, per sempre: il codice di PRODUZIONE somma i giorni con `setDate`/`setMonth`, che lavorano nel fuso del processo e conservano l'ora di parete. Il 28 marzo 2027 `setDate(+1)` su una mezzanotte UTC rende ancora il 28.
+Non era un difetto dei soli test: la durata di un piano dipendeva da come e' configurata la macchina che la calcola. Corretti i due punti veri:
+- `agenda.service.creaFerie`: il confine di destra e' `al.getTime() + 86_400_000`, non `setDate(+1)`;
+- `commerce.subscriptionEnd`: le varianti `setUTC*` per giorni, settimane, mesi e anni.
+
+ALTRI TRE RILIEVI DELLA REVISIONE, TUTTI ACCOLTI
+- «dall'11 luglio 2027» era falso: il tetto e' a 366 giorni, non 365, quindi e' dal 12 luglio.
+- «il giorno in cui le lancette tornano indietro» era invertito: partendo da una mezzanotte UTC lo scarto si vede in PRIMAVERA, non in autunno (misurato: le uniche date con scarto sono il 28/3/2027 e il 26/3/2028).
+- Il confine SINISTRO della finestra delle ferie non era coperto: spostando `gte` da `dal` ad `al` il test restava verde, cioe' le ferie si sarebbero chiuse sopra tutti gli appuntamenti dei giorni in mezzo senza che niente lo dicesse. Adesso e' inchiodato alla mezzanotte romana di `dal`.
+
+VERIFICATO
+- `npm run build` pulito.
+- 4997 test in 313 suite verdi, con `TZ` a UTC e con `TZ=Europe/Rome`.
+- `npm run test:notte` verde con `ORA_FINTA` al 2/9, 1/10, 15/11, 26/2/2027, 15/3/2027, 20/4/2027, 27/4/2027, 12/7/2027, 1/9/2027, 25/2/2028, 26/3/2028, 1/6/2028 e 5/5/2031.
+- Ogni assert nuovo provato alla mutazione: rompendo apposta il servizio diventa rosso.
+
+FILE NEL COMMIT
+- backend/src/agenda/agenda.service.spec.ts
+- backend/src/agenda/agenda.service.ts
+- backend/src/clients/plan-start.spec.ts
+- backend/src/commerce/commerce.service.ts
+- backend/src/lavori/voci-iniziali.ts  (voce `test-che-scadono-il-2-settembre` → `fatta: true`, con dentro cosa e' stato trovato in piu')
+- progetto/REGISTRO.md
+
+Nessuna migrazione, nessuna variabile d'ambiente, nessuna dipendenza nuova. Niente OTA: e' tutto backend.

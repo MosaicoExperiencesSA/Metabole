@@ -1,0 +1,89 @@
+Pipeline: chi non ha mai inserito una misura non e' «Percorso concluso», e' «Non ha seguito»
+
+Richiesta di Simone (24/8): «se una persona attiva un piano e non inserisce le misure nemmeno una
+volta, a piano scaduto non deve andare in Piano concluso, ma in "non ha seguito", una colonna nuova
+messa in fondo».
+
+PERCHE' DUE COLONNE
+Rispondono a due domande diverse. «Percorso concluso» vuol dire HA FINITO, e chi ha finito si
+richiama per rinnovare. Chi non ha mai messo un peso non ha finito niente — non ha nemmeno
+cominciato — e la telefonata che le si fa e' un'altra. Tenerle insieme vuol dire fare a tutte e due
+la stessa telefonata.
+
+⛔ LA PRIMA STESURA ERA VERDE E NON SAREBBE SERVITA A NIENTE (difetto mio, trovato in revisione)
+Avevo scritto che la misura che il sistema si scrive DA SOLO alla fine del questionario non salva
+nessuno «perche' e' di prima che il piano cominci». E' FALSO nel caso normale: chi finisce il
+questionario attiva «Conosciamoci» lo stesso giorno (`attivaBenvenuto`, e `piano-prova` accetta
+«oggi»), quindi quella riga cade DENTRO il piano. E siccome la finestra e' la piu' larga su tutti i
+suoi piani, copriva anche i mesi dopo: una cliente che aveva cominciato subito NON sarebbe MAI PIU'
+potuta finire in quella colonna, nemmeno dopo tre mesi pagati senza una pesata. Si sarebbe riempita
+solo con chi aveva POSTICIPATO l'inizio, cioe' per un fatto che non c'entra niente con l'aver
+seguito.
+
+LA REGOLA VERA (decisa da Simone il 24/8)
+Non ha seguito = nessuna misura fra `menu_visible_days_before_start` giorni PRIMA dell'inizio e la
+fine del piano, ESCLUSA quella datata al giorno di `onboardingCompletedAt` (e' quella scritta dal
+questionario: si riconosce dalla data, perche' nessun campo la marca).
+La finestra comincia prima perche' e' la stessa di `menu/misura-di-partenza.ts`, quella in cui il
+prodotto CHIEDE la pesata per sbloccare i menu: accusare di non aver seguito proprio chi si e' pesata
+il giorno che gliel'abbiamo chiesto sarebbe stato l'errore peggiore dei due.
+⛔ Il prezzo, scritto perche' si sappia: se una cliente si e' pesata DAVVERO il giorno del
+questionario e mai piu', quella pesata non la salva. Sotto e' la stessa riga.
+
+RETROATTIVO, MA NON SOPRA UNA PERSONA
+Entro la finestra dei 7–120 giorni gia' esistente, chi era in «Percorso concluso» e non ha misure si
+sposta la prima notte (scelta di Simone). E' il motivo per cui la colonna sta IN FONDO:
+`avanzaStatoSeIndietro` non retrocede mai.
+⛔ Ma se in «Percorso concluso» ce l'ha messa una coach — `stageDates.byUserId` diverso da `sistema`
+— la scheda resta dov'e'. E' la prima volta che un automatismo potrebbe tirare una scheda fuori
+dall'ultima colonna scelta da qualcuno.
+
+ALTRI DUE RILIEVI DELLA REVISIONE, ACCOLTI
+1) L'`order: 11` scritto a mano poteva PAREGGIARE con una colonna aggiunta dall'admin (che nasce a
+   `max(order)+1`, cioe' 11 su una board di default) o finire prima di `path_ended` dopo un riordino
+   per trascinamento. Un pareggio blocca lo spostamento IN SILENZIO: la colonna sarebbe rimasta
+   visibile e vuota per sempre, e una colonna vuota si legge come «non e' successo a nessuno». Ora il
+   seed la crea in fondo alla board di ADESSO se il posto e' occupato o non viene dopo `path_ended`,
+   e lo scrive a log.
+   ⚠️ E niente teneva ferme le due proprieta' da cui dipende tutto: rompendo il seed (`order: 5`,
+   oppure `isSystem: false`) la suite restava VERDE su 5013 test. Adesso ci sono due test che le
+   guardano per chiave, non per posizione nel testo.
+2) Quando si ripiega su «Percorso concluso», avviso alla coach e audit seguono DOVE LA SCHEDA E'
+   FINITA DAVVERO, non dove volevamo mandarla: prima una push mandava a cercare una cliente in una
+   colonna che su quella board non c'era, e l'audit contava spostamenti mai avvenuti. Il ripiego
+   adesso si scrive anche nei log.
+
+ALTRE DUE COSE CHIUSE PER STRADA
+- `client_path_ended` non era nel catalogo degli avvisi staff dall'8/8: la coach lo riceveva e NON
+  POTEVA SPEGNERLO (`setStaffPrefs` scarta le chiavi che non sono in elenco), e nella tabella
+  «avvisi» del profilo la voce non compariva. Aggiunto insieme a `client_path_not_followed`.
+- `npm run diag:percorsi-conclusi` diceva «passera' in Percorso concluso» anche per chi ora finira'
+  altrove. Adesso dice quale delle due colonne, chiedendolo alla STESSA funzione del motore, e
+  avvisa se `non_seguita` manca o non sta dopo `path_ended`. Anche `diag:pipeline-stati` la conosce.
+
+VERIFICATO
+- `npm run build` pulito (backend) e `npm run build` pulito (backoffice, non toccato ma ricompilato).
+- 5018 test in 314 suite verdi, con `TZ` a UTC e con `TZ=Europe/Rome`.
+- Ogni assert nuovo provato alla mutazione: rompendo apposta il codice diventa rosso (finestra senza
+  i 2 giorni prima, misura del questionario che torna a contare, `lte`→`lt`, scavalco di chi ha
+  spostato a mano, avviso che segue l'intenzione invece della destinazione, ripiego tolto, e le due
+  mutazioni sul seed).
+
+FILE NEL COMMIT
+- backend/src/commerce/non-ha-seguito.ts        (nuovo — la regola)
+- backend/src/commerce/non-ha-seguito.spec.ts   (nuovo — 12 test)
+- backend/src/commerce/crm.service.ts
+- backend/src/commerce/finance-crm.spec.ts
+- backend/prisma/seed.ts
+- backend/prisma/diag-pipeline-stati.ts
+- backend/prisma/diag-percorsi-conclusi.ts
+- backend/src/common/funnel-segment.ts
+- backend/src/common/funnel-segment-colonne.spec.ts
+- backend/src/notifications/staff-notifications.ts
+- backend/src/lavori/voci-iniziali.ts   (le voci di TUTTE E DUE le consegne di oggi, piu' quella dei grassi)
+- progetto/REGISTRO.md
+
+NESSUNA MIGRAZIONE: `crm_record.stage` e' TEXT dall'11/7, non un enum. La colonna nuova arriva dal
+seed, che gira a ogni deploy.
+⛔ AL DEPLOY: lanciare `npm run diag:pipeline-stati` e controllare che «Non ha seguito» stia davvero
+DOPO «Percorso concluso» sulla board vera. Se non ci sta, si trascina in fondo dalla board.

@@ -1623,6 +1623,21 @@ async function seedPipelineStages(): Promise<void> {
     // Sta DOPO "Acquisito", quindi nelle statistiche resta contata fra le convertite — perché
     // lo è stata: ha comprato e ha finito.
     { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 10, isSystem: true },
+    /**
+     * ⛔ **«Non ha seguito» (24/8, richiesta di Simone)** — in FONDO, dopo «Percorso concluso»: ha
+     * comprato il piano e non ha mai inserito una misura mentre correva. Non è la stessa cosa di
+     * aver finito, e la telefonata che le si fa è un'altra.
+     *
+     * ⚠️ **`isSystem: true` non è un dettaglio**: il seed ricrea le colonne solo alla prima
+     * installazione, e su un'installazione già avviata arrivano **soltanto** quelle di sistema
+     * (l'`upsert` qui sotto). Senza, in produzione questa colonna non esisterebbe, l'automazione la
+     * cercherebbe e non la troverebbe, e le schede resterebbero ferme — in silenzio.
+     *
+     * ⚠️ **L'ORDINE dopo `path_ended` non è cosmesi**: `avanzaStatoSeIndietro` non retrocede mai.
+     * Con l'ordine 11 una scheda già finita in «Percorso concluso» nelle notti scorse può ancora
+     * passare di qui; con un ordine più basso il giro notturno la sovrascriverebbe ogni volta.
+     */
+    { key: 'non_seguita', label: 'Non ha seguito', color: '#a35c5c', order: 11, isSystem: true, dopoDi: 'path_ended' },
   ];
   const existing = await prisma.pipelineStage.count();
   if (existing === 0) {
@@ -1631,13 +1646,36 @@ async function seedPipelineStages(): Promise<void> {
     return;
   }
   // Installazione già avviata: NON ricreo gli stati eliminati dall'admin.
-  // Verifico solo che i 3 di sistema esistano ancora e siano marcati tali.
-  for (const s of defaults.filter((d) => d.isSystem)) {
-    await prisma.pipelineStage.upsert({
-      where: { key: s.key },
-      create: s,
-      update: { isSystem: true }, // non tocca label/color/order scelti dall'admin
-    });
+  // Verifico solo che quelli di sistema esistano ancora e siano marcati tali.
+  for (const { dopoDi, ...s } of defaults.filter((d) => d.isSystem)) {
+    const esiste = await prisma.pipelineStage.findUnique({ where: { key: s.key } });
+    if (esiste) {
+      // non tocca label/color/order scelti dall'admin
+      if (!esiste.isSystem) await prisma.pipelineStage.update({ where: { key: s.key }, data: { isSystem: true } });
+      continue;
+    }
+    /**
+     * ⛔ **L'ORDINE SCRITTO QUI SOPRA VALE SOLO SULLA BOARD DI DEFAULT** (24/8, trovato in
+     * revisione). Su un'installazione vera gli ordini se li riscrive l'admin: una colonna aggiunta a
+     * mano nasce a `max(order) + 1` (cioè **11** su una board di default), e il riordino per
+     * trascinamento riscrive tutto come `0..n-1`. Quindi il literal poteva **pareggiare** con una
+     * colonna esistente o finire prima di quella che deve seguire.
+     *
+     * ⚠️ Un pareggio non dà errore: `avanzaStatoSeIndietro` confronta `attuale.order >= target.order`
+     * e si ferma. La colonna nuova sarebbe rimasta visibile sulla board e **vuota per sempre** — che
+     * è la lettura peggiore possibile, perché si legge come «non è successo a nessuno».
+     */
+    const occupato = await prisma.pipelineStage.findFirst({ where: { order: s.order } });
+    const precedente = dopoDi ? await prisma.pipelineStage.findUnique({ where: { key: dopoDi } }) : null;
+    const deveStareDopo = precedente?.order;
+    let order = s.order;
+    if (occupato || (deveStareDopo !== undefined && order <= deveStareDopo)) {
+      const max = await prisma.pipelineStage.aggregate({ _max: { order: true } });
+      order = (max._max.order ?? -1) + 1;
+      console.log(`Seed: «${s.label}» nasce al posto ${order} invece di ${s.order} (quel posto era già occupato o non veniva dopo «${dopoDi}»).`);
+    }
+    await prisma.pipelineStage.create({ data: { ...s, order } });
+    console.log(`Seed: creata la colonna di sistema mancante «${s.label}» (${s.key}).`);
   }
   // Rinomina una tantum: se lo stato 'paid' ha ancora l'etichetta di default "Pagato",
   // diventa "Acquisito" (se l'admin l'ha già personalizzata, non si tocca).

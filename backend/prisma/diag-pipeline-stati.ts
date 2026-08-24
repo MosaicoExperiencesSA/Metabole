@@ -28,6 +28,7 @@ const SCRITTI_DAL_CODICE: { key: string; da: string }[] = [
   { key: 'trial', da: 'attivazione di un prodotto gratuito' },
   { key: 'paid', da: 'primo pagamento' },
   { key: 'path_ended', da: 'piano scaduto da una settimana' },
+  { key: 'non_seguita', da: 'piano scaduto da una settimana, e nemmeno una misura mentre correva' },
 ];
 
 async function main() {
@@ -79,7 +80,7 @@ async function main() {
    * perché l'avanzamento non torna indietro. Nessun errore, nessun log: la colonna si riempie e
    * l'altra resta vuota.
    */
-  const ordineGiusto = [ 'lead_in', STATO_PRIMO_ACCESSO, 'questionnaire_done', 'trial', 'path_ended' ];
+  const ordineGiusto = [ 'lead_in', STATO_PRIMO_ACCESSO, 'questionnaire_done', 'trial', 'path_ended', 'non_seguita' ];
   console.log('');
   console.log('L\'ORDINE FRA I PASSAGGI AUTOMATICI (questo è quello che si rompe in silenzio)');
   console.log('─────────────────────────────────────────────────────────────────────');

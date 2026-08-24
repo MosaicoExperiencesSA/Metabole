@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
+/**
+ * ⚠️ **Il tipo della riga arriva da `Ricette.tsx`, non ce n'è più uno qui** (24/8). Questa pagina ne
+ * aveva uno suo con sei campi, e bastava finché guardava solo nome, pasto, allergeni e stato. Da
+ * quando apre «Modifica ricetta» servono anche regime, kcal, ingredienti e metodi di cottura — che
+ * il server manda già, perché `listRecipes` fa `findMany` **senza `select`** e sono tutte colonne
+ * non-null. Due tipi per la stessa riga sarebbero due tipi che un giorno divergono su un campo che
+ * nessuna delle due pagine sta guardando in quel momento.
+ */
+import { RecipeModal, type Recipe } from './Ricette';
 
 // I 14 allergeni UE (allineati al backend src/catalog/allergens.ts).
 const EU_ALLERGENS: { code: string; label: string }[] = [
@@ -26,15 +35,6 @@ const MEAL: Record<string, string> = {
   breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena',
 };
 
-interface Recipe {
-  id: string;
-  name: string;
-  mealSlot: string;
-  allergens?: string[];
-  allergensReviewed?: boolean;
-  /** ⚠️ Le ricette generate nascono bozze: è il motivo per cui questa pagina le chiedeva e non le vedeva. */
-  active?: boolean;
-}
 interface Suggestion { allergen: string; label: string; matched: string[] }
 interface SuggestResp { recipeId: string; name: string; current: string[]; reviewed: boolean; suggestions: Suggestion[] }
 
@@ -45,6 +45,8 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Recipe | null>(null);
+  /** La ricetta aperta in «Modifica ricetta» (il popup pieno), separata da quella aperta in allergeni. */
+  const [modificando, setModificando] = useState<Recipe | null>(null);
   const [totale, setTotale] = useState(0);
   const [troncato, setTroncato] = useState(false);
   /**
@@ -338,7 +340,16 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div className="row" style={{ gap: 6, justifyContent: 'flex-end' }}>
-                      <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing(r); }}>{r.allergensReviewed ? 'Modifica' : 'Rivedi'}</button>
+                      {/*
+                        ⚠️ **Due pulsanti, due nomi che dicono cosa aprono** (24/8). Prima questo si
+                        chiamava «Modifica» quando la ricetta era già confermata e «Rivedi» quando
+                        no: due nomi per lo stesso riquadro, e uno dei due — «Modifica» — è proprio
+                        quello che adesso serve al popup della ricetta. Un'etichetta che cambia da
+                        sola e che vuol dire un'altra cosa è il modo più facile per aprire la
+                        finestra sbagliata su un catalogo da rivedere.
+                      */}
+                      <button className="btn ghost sm" title="Rivedi e conferma i 14 allergeni" onClick={(e) => { e.stopPropagation(); setEditing(r); }}>Allergeni</button>
+                      <button className="btn ghost sm" title="Correggi nome, kcal, ingredienti e cottura prima di confermare" onClick={(e) => { e.stopPropagation(); setModificando(r); }}><i className="ti ti-edit" /> Modifica ricetta</button>
                       <button className="btn ghost sm" title="Elimina ricetta" style={{ color: 'var(--danger)' }} onClick={(e) => { e.stopPropagation(); del(r); }}><i className="ti ti-trash" /></button>
                     </div>
                   </td>
@@ -349,6 +360,36 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
         )}
         <Pager {...t.pager} />
       </div>
+
+      {/*
+        ⚠️ **Dopo il salvataggio si RICARICA, non si aggiorna la riga a mano.** Il riquadro allergeni
+        può permetterselo perché sa esattamente cosa ha scritto; qui no: il server può aver toccato
+        campi che il modulo non ha mandato — in particolare **fa decadere** `allergensReviewed`
+        quando cambiano gli ingredienti. Ritoccare la riga in memoria lascerebbe a schermo uno stato
+        che il server ha già smentito, e su questa pagina quello stato è proprio la colonna che si
+        sta lavorando.
+
+        ⚠️ E si toglie la riga dalle SCELTE: il popup può cambiare regime e `active`, cioè può far
+        uscire la ricetta dall'elenco che questa pagina sta chiedendo (dentro «Gestione dieta»
+        l'elenco è filtrato per regime). La spunta resterebbe, il pulsante direbbe ancora «Conferma
+        le N selezionate», e la conferma in blocco confermerebbe — facendola entrare in catalogo —
+        una ricetta che nessuno vede più.
+      */}
+      {modificando && (
+        <RecipeModal
+          recipe={modificando}
+          contesto="allergeni"
+          onClose={() => setModificando(null)}
+          onSaved={(avviso) => {
+            const id = modificando.id;
+            setModificando(null);
+            setScelte((s0) => { const n = new Set(s0); n.delete(id); return n; });
+            setError(null);
+            setNotice(avviso ?? `«${modificando.name}» salvata.`);
+            void load();
+          }}
+        />
+      )}
 
       {editing && (
         <TagModal

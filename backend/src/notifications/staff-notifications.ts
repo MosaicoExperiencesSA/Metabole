@@ -56,6 +56,17 @@ export const STAFF_NOTIFICATION_TYPES: StaffNotifType[] = [
   // quell'invito la manderebbe a bussare a una porta chiusa. `CARE` e non solo `COACHES` perché
   // senza coach assegnata l'avviso ripiega sulla nutrizionista, che deve poterlo ricevere.
   { key: 'cambi_frequenti', label: 'Cambia il menu quasi ogni giorno', description: 'Una tua cliente ha cambiato qualcosa nel menu in almeno 3 giorni su 7: forse il tipo di alimentazione non le sta bene.', roles: CARE },
+  /**
+   * ⚠️ **I due esiti di fine percorso** (24/8). `client_path_ended` esisteva dall'8/8 e non è mai
+   * stato messo in questo elenco: la coach lo riceveva e **non poteva spegnerlo** — `setStaffPrefs`
+   * scarta le chiavi che qui non ci sono, quindi la spunta non sarebbe nemmeno stata salvata — e
+   * nella tabella «avvisi» del profilo la voce non compariva affatto. È lo stesso difetto delle
+   * chiavi di permesso dichiarate e non lette: un interruttore che non accende niente, al contrario.
+   * Aggiungendo il secondo avviso si chiudono tutti e due, invece di raddoppiare il buco.
+   * `CARE` e non solo `COACHES` perché senza coach assegnata l'avviso ripiega sulla nutrizionista.
+   */
+  { key: 'client_path_ended', label: 'Percorso concluso', description: 'Una tua cliente ha il piano finito da una settimana e non ha rinnovato.', roles: CARE },
+  { key: 'client_path_not_followed', label: 'Non ha seguito', description: 'Una tua cliente ha il piano finito e non ha mai inserito una misura mentre era in corso.', roles: CARE },
   // --- Responsabile coach (assegnazioni lead) ---
   { key: 'lead_accepted', label: 'Lead accettato', description: 'Una coach ha accettato un lead che le hai assegnato.', roles: RESP },
   { key: 'lead_rejected', label: 'Lead rifiutato', description: 'Una coach ha rifiutato un lead: va riassegnato.', roles: RESP },

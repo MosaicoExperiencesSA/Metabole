@@ -6,9 +6,21 @@ import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
 import { BottoneExcel, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
 
-interface Ingredient { name: string; qty?: number | null; unit?: string | null }
+export interface Ingredient { name: string; qty?: number | null; unit?: string | null }
 interface CookingMethod { type: string; steps: string[] }
-interface Recipe {
+/**
+ * ⚠️ **Un solo tipo «ricetta» per le due pagine che la mostrano** (24/8). Prima «Allergeni ricette»
+ * ne aveva uno suo, stretto — `id, name, mealSlot, allergens, allergensReviewed, active` — perché
+ * quella tabella non guardava altro. Da quando anche lì si apre «Modifica ricetta» servono gli
+ * stessi campi, e due tipi per la stessa riga sono due tipi che un giorno divergono su un campo che
+ * nessuna delle due pagine sta guardando in quel momento.
+ *
+ * ⚠️ I campi ci sono davvero, tutti: `listRecipes` (`catalog.service.ts`) fa `findMany` **senza
+ * `select`**, quindi ogni riga arriva con tutte le colonne di `Recipe` più `utilizzo` e `settimane`.
+ * `allergens` e `allergensReviewed` sono opzionali perché nel catalogo non si guardano, non perché
+ * possano mancare.
+ */
+export interface Recipe {
   id: string;
   name: string;
   regime: string;
@@ -40,6 +52,9 @@ interface Recipe {
    * giornate: non lo sappiamo, ed è una cosa diversa da «nessuna».
    */
   utilizzo?: { dieta: string; settimane: number[] }[] | null;
+  /** I 14 allergeni UE confermati o suggeriti. Li guarda «Allergeni ricette», non il catalogo. */
+  allergens?: string[];
+  allergensReviewed?: boolean;
 }
 
 /** I nomi delle diete che usano la ricetta. `null` (server muto) si legge come elenco vuoto qui. */
@@ -655,7 +670,23 @@ function GeneratoreWidget() {
   );
 }
 
-function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Recipe | null; defaultRegime?: string; onClose: () => void; onSaved: (avviso?: string | null) => void }) {
+/**
+ * ⚠️ **Esportato il 24/8** perché lo apre anche «Allergeni ricette»: la nutrizionista che sta per
+ * confermare gli allergeni deve poter correggere il piatto senza cambiare pagina (richiesta di
+ * Simone). Restava privato di questo file e non lo usava nessun altro.
+ */
+export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onClose, onSaved }: {
+  recipe: Recipe | null;
+  defaultRegime?: string;
+  /**
+   * Da dove è stato aperto. ⚠️ Serve a una cosa sola, e non è cosmesi: l'avviso della conferma
+   * allergeni decaduta diceva «ricontrolla gli allergeni in «Allergeni ricette»», e detto **dentro**
+   * quella pagina manda qualcuno a cercare il posto dove si trova già.
+   */
+  contesto?: 'catalogo' | 'allergeni';
+  onClose: () => void;
+  onSaved: (avviso?: string | null) => void;
+}) {
   const { regimes, cookingMethods } = useTaxonomy();
   const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
   const [busy, setBusy] = useState(false);
@@ -712,8 +743,11 @@ function RecipeModal({ recipe, defaultRegime, onClose, onSaved }: { recipe: Reci
           avviso =
             `«${body.name}»: hai cambiato gli ingredienti, quindi la conferma degli allergeni non ` +
             'vale più — era stata data su un piatto diverso. ⚠️ Da adesso la ricetta NON entra nei ' +
-            'menu nuovi finché non ricontrolli gli allergeni in «Allergeni ricette». I menu già ' +
-            'consegnati non cambiano.';
+            'menu nuovi ' +
+            (contesto === 'allergeni'
+              ? 'e la riga qui sotto è tornata «Da rivedere»: ricontrolla gli allergeni e conferma.'
+              : 'finché non ricontrolli gli allergeni in «Allergeni ricette».') +
+            ' I menu già consegnati non cambiano.';
         }
       } else {
         await api('/recipes', { method: 'POST', body: JSON.stringify(body) });
@@ -967,6 +1001,28 @@ function DoveUsata({ recipe, slotNelModulo }: { recipe: Recipe; slotNelModulo: s
     } finally { setBusy(false); }
   }
 
+  /**
+   * ⛔ **QUANDO IL COLLEGAMENTO NON PASSA, E PERCHÉ SI DICE PRIMA** (24/8, trovato in revisione).
+   *
+   * `collegaRicetta` ha due rifiuti secchi lato server: una ricetta **archiviata** non si collega, e
+   * una con gli **allergeni non confermati** nemmeno. Finché questa finestra si apriva solo dal
+   * catalogo era un caso raro. Da quando la apre anche «Allergeni ricette» è il caso **normale**: lì
+   * dentro le ricette sono quasi tutte bozze in attesa di conferma, cioè entrambe le condizioni.
+   *
+   * Prima si scopriva premendo: si apriva il modulo, si sceglieva dieta, settimana e giorno, e alla
+   * fine arrivava un banner rosso. Un divieto che si conosce solo dopo aver fatto il lavoro è la
+   * forma peggiore di divieto — e il messaggio del server rimandava a «Allergeni ricette», che è la
+   * pagina in cui si è già.
+   *
+   * ⚠️ Si guarda `recipe`, non il modulo: il server valuterà lo stato **salvato**, non l'interruttore
+   * appena mosso qui dentro. Per questo la frase dice di salvare.
+   */
+  const motivoNonCollegabile = !recipe.active
+    ? 'è ancora una bozza. Riattivala qui sotto e salva, oppure conferma i suoi allergeni: anche quella la fa entrare in catalogo.'
+    : !recipe.allergensReviewed
+      ? 'i suoi allergeni non sono ancora confermati, e senza conferma il motore non la usa.'
+      : null;
+
   const occupante = giorniDellaSettimana.find((g) => g.dayIndex === dayIndex)?.occupatoDa ?? null;
   // Il collegamento scrive nello slot SALVATO. Se nel modulo il pasto è stato cambiato e non ancora
   // salvato, collegare adesso metterebbe il piatto nello slot vecchio: meglio fermarsi e dirlo.
@@ -1015,7 +1071,12 @@ function DoveUsata({ recipe, slotNelModulo }: { recipe: Recipe; slotNelModulo: s
         </table>
       )}
 
-      {!apri ? (
+      {motivoNonCollegabile ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          ⚠️ Non si può ancora collegare a una dieta: {motivoNonCollegabile}
+          {' '}Le righe qui sopra si possono togliere lo stesso.
+        </p>
+      ) : !apri ? (
         <button className="btn ghost sm" style={{ marginTop: 8 }} onClick={() => setApri(true)} disabled={slotCambiato}>
           <i className="ti ti-plus" /> Collega a una dieta
         </button>

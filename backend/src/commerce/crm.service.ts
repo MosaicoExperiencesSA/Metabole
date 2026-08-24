@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
 import { AuditService } from '../audit/audit.service';
@@ -12,6 +12,7 @@ import { daValutare, filtroDaValutare } from '../clients/idoneita';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
+import { nonHaMaiSeguito, STAGE_NON_SEGUITA, STAGE_PERCORSO_CONCLUSO } from './non-ha-seguito';
 import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
 import { avvisaCoachDellaCliente } from '../common/avvisa-coach';
@@ -36,6 +37,8 @@ function genTempPassword(): string {
  */
 @Injectable()
 export class CrmService {
+  private readonly logger = new Logger(CrmService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -353,7 +356,64 @@ export class CrmService {
           select: { id: true },
         });
         if (vivo) continue;
-        if (await avanzaStatoSeIndietro(this.prisma as never, s.clientId, 'path_ended', 'sistema')) {
+
+        /**
+         * ⛔ **DUE DESTINAZIONI, NON UNA** (24/8, richiesta di Simone). Chi ha comprato il piano e
+         * non si è **mai** pesata mentre correva non ha «concluso il percorso»: non l'ha nemmeno
+         * cominciato. Va in «Non ha seguito», che è l'ultima colonna della board, e la telefonata
+         * che le si fa è un'altra da quella del rinnovo. La regola sta in `non-ha-seguito.ts`.
+         *
+         * ⚠️ `null` = **non lo so** (nessun piano con date leggibili): si va in «Percorso concluso»,
+         * che è il comportamento di ieri. Qui indovinare vuol dire accusare qualcuno di non aver
+         * seguito, e questo deve costare più che tacere.
+         */
+        const giorniPrima = await this.configParams.getNumber('menu_visible_days_before_start', 2);
+        const nonSeguita = await nonHaMaiSeguito(this.prisma as never, s.clientId, giorniPrima).catch(() => null);
+        /**
+         * ⚠️ **CHI L'HA MESSA LÌ: il retroattivo non scavalca una PERSONA.** Una scheda già in
+         * «Percorso concluso» può passare a «Non ha seguito» perché la colonna nuova sta più avanti
+         * (decisione di Simone, 24/8) — ma se in «Percorso concluso» ce l'ha messa una coach, non è
+         * un residuo del giro notturno: è una decisione. `stageDates` distingue i due casi da sempre
+         * (`byUserId: 'sistema'` contro l'id vero), e questa è la prima volta che un automatismo
+         * potrebbe tirare una scheda fuori dall'ultima colonna scelta da qualcuno.
+         */
+        const scheda = (await this.prisma.crmRecord.findUnique({
+          where: { clientId: s.clientId },
+          select: { stage: true, stageDates: true },
+        })) as { stage: string; stageDates: Record<string, { byUserId?: string | null }> } | null;
+        const messaAManoInConcluso =
+          scheda?.stage === STAGE_PERCORSO_CONCLUSO &&
+          (scheda.stageDates?.[STAGE_PERCORSO_CONCLUSO]?.byUserId ?? 'sistema') !== 'sistema';
+
+        /**
+         * ⛔ **LA DESTINAZIONE VERA, NON QUELLA VOLUTA.** `avanzaStatoSeIndietro` risponde `false` in
+         * silenzio quando la colonna non esiste **o quando il suo ordine non permette lo
+         * spostamento** — e il secondo caso è tutt'altro che teorico: gli ordini li può riscrivere
+         * l'admin trascinando le colonne sulla board. Senza il ripiego, le schede di chi non ha
+         * seguito smetterebbero di muoversi del tutto e la colonna vuota si leggerebbe come «non è
+         * successo a nessuno».
+         *
+         * ⚠️ E quando si ripiega, **l'avviso alla coach e l'audit seguono dove la scheda è finita
+         * davvero**, non dove volevamo mandarla. La prima stesura diceva «Non ha seguito» a una
+         * coach la cui board quella colonna non ce l'aveva: una push che manda a cercare qualcuno in
+         * un posto che non esiste, e un audit che conta spostamenti mai avvenuti.
+         */
+        const provate = nonSeguita === true && !messaAManoInConcluso
+          ? [STAGE_NON_SEGUITA, STAGE_PERCORSO_CONCLUSO]
+          : [STAGE_PERCORSO_CONCLUSO];
+        let finita: string | null = null;
+        for (const dove of provate) {
+          if (await avanzaStatoSeIndietro(this.prisma as never, s.clientId, dove, 'sistema')) { finita = dove; break; }
+        }
+        if (finita === STAGE_PERCORSO_CONCLUSO && nonSeguita === true && !messaAManoInConcluso) {
+          // Se degradi, dillo: `npm run diag:pipeline-stati` spiega perché non ci è andata.
+          this.logger.warn(
+            `[percorsi] ${s.clientId} non ha mai inserito una misura, ma la colonna «${STAGE_NON_SEGUITA}» non l'ha accettata `
+            + '(assente, o con un ordine non successivo a «path_ended»): ripiegato su «Percorso concluso».',
+          );
+        }
+        const eNonHaSeguito = finita === STAGE_NON_SEGUITA;
+        if (finita) {
           spostati += 1;
           /**
            * LA COACH DEVE SAPERLO (richiesta di Simone dell'11/8: «e soprattutto che mandavamo
@@ -365,16 +425,23 @@ export class CrmService {
            * piano è finito da una settimana e nessuno ha comprato niente.
            */
           await avvisaCoachDellaCliente(this.prisma, this.notifications, s.clientId, {
-            type: 'client_path_ended',
-            title: 'Percorso concluso',
+            type: eNonHaSeguito ? 'client_path_not_followed' : 'client_path_ended',
+            title: eNonHaSeguito ? 'Non ha seguito' : 'Percorso concluso',
             body: (nome) =>
-              `${nome} ha il piano finito da ${giorni} giorni e non ha rinnovato: la scheda è passata in «Percorso concluso».`,
+              eNonHaSeguito
+                ? `${nome} ha il piano finito da ${giorni} giorni e non ha mai inserito una misura mentre era in corso: la scheda è passata in «Non ha seguito».`
+                : `${nome} ha il piano finito da ${giorni} giorni e non ha rinnovato: la scheda è passata in «Percorso concluso».`,
           });
           await this.audit.log({
-            action: 'crm.lead.path_ended',
+            action: eNonHaSeguito ? 'crm.lead.path_not_followed' : 'crm.lead.path_ended',
             entityType: 'crm_record',
             entityId: s.clientId,
-            metadata: { motivo: `piano finito da almeno ${giorni} giorni, nessun rinnovo` },
+            metadata: {
+              motivo:
+                eNonHaSeguito
+                  ? `piano finito da almeno ${giorni} giorni, nessuna misura per tutta la sua durata`
+                  : `piano finito da almeno ${giorni} giorni, nessun rinnovo`,
+            },
           }).catch(() => undefined);
         }
       } catch {
