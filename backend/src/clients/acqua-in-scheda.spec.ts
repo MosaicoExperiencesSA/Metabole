@@ -61,44 +61,50 @@ function schedaCon(acqua: unknown[]) {
 
 const riga = (glasses: number, unit: string | null) => ({ id: `w-${unit ?? 'x'}`, date: new Date(), glasses, goal: 8, unit });
 
-describe('l\'acqua in scheda dice anche COME la contava lei', () => {
-  it('12 bicchieri contati a bottiglie da 1 L si leggono anche «3 bottiglie da 1 L»', async () => {
+describe('l\'acqua in scheda si legge come la legge lei', () => {
+  /**
+   * Simone, 24/8: «la vera unità la mettiamo in una colonna, il titolo non è più bicchieri ma
+   * quantità, e anche l'obiettivo si deve aggiornare con quello mostrato in app che varia in
+   * funzione dell'unità di misura scelta».
+   */
+  it('12 bicchieri contati a bottiglie da 1 L si leggono «3», unità «bottiglie da 1 L»', async () => {
     const { service } = schedaCon([riga(12, 'bottle1')]);
     const scheda = (await service.getDetail('c1', 'admin')) as unknown as {
-      waterLogs: { glasses: number; unitaDetta: string | null; comeContati: string | null }[];
+      waterLogs: { glasses: number; goal: number; quantita: string; unitaDetta: string | null; obiettivoDetto: string }[];
     };
-    // ⚠️ Il numero resta in bicchieri: è quello su cui il motore misura l'aderenza, ed è l'unico
-    // confrontabile fra due giornate contate in modi diversi.
-    expect(scheda.waterLogs[0].glasses).toBe(12);
-    expect(scheda.waterLogs[0].comeContati).toBe('3 bottiglie da 1 L');
-    expect(scheda.waterLogs[0].unitaDetta).toBe('bottiglie da 1 L');
-    // ⚠️ E la riga porta ancora con sé quello che serve a disegnarla: senza `date` la colonna Data
-    // direbbe «Invalid Date», senza `id` la chiave di React sarebbe `undefined`. Un `map` che
-    // «ripulisce» i campi è il modo più facile di perderli — e nessun altro test li guarda.
-    expect(scheda.waterLogs[0]).toMatchObject({ id: expect.any(String), date: expect.any(Date), goal: 8 });
+    const r = scheda.waterLogs[0];
+    expect(r.quantita).toBe('3');
+    expect(r.unitaDetta).toBe('bottiglie da 1 L');
+    // ⚠️ L'obiettivo è quello dell'app: 8 bicchieri sono 2 bottiglie da 1 L, intere.
+    expect(r.obiettivoDetto).toBe('2');
+    // ⛔ E i due numeri veri restano in bicchieri: sono quelli su cui il motore valuta l'aderenza,
+    // e gli unici confrontabili fra due giornate contate in modi diversi.
+    expect(r.glasses).toBe(12);
+    expect(r.goal).toBe(8);
+    expect(scheda.waterLogs[0]).toMatchObject({ id: expect.any(String), date: expect.any(Date) });
   });
 
   /**
-   * ⛔ LA GIORNATA MISTA: otto bicchieri la mattina, poi lei passa alle bottiglie e tocca una volta.
-   * Dodici bicchieri, unità `bottle1`. La prima stesura scriveva «3 bottiglie da 1 L» — di bottiglie
-   * ne ha bevuta una. Vedi il riquadro su `comeLiHaContati`.
+   * ⚠️ **La giornata mista non si arrotonda**: otto bicchieri la mattina, poi lei passa alle
+   * bottiglie e ne tocca una. Sono 2,5 bottiglie — ed è esattamente quello che le ha mostrato
+   * l'app. Scrivere 2 racconterebbe mezzo litro come se non l'avesse bevuto.
    */
-  it('⛔ una giornata a unità miste non racconta bottiglie che non ci sono state', async () => {
+  it('⚠️ una giornata a unità miste resta a mezzi: 2,5, come in app', async () => {
     const { service } = schedaCon([riga(10, 'bottle1')]);
-    const scheda = (await service.getDetail('c1', 'admin')) as unknown as {
-      waterLogs: { comeContati: string | null }[];
-    };
-    expect(scheda.waterLogs[0].comeContati).toBe('a fine giornata contava in bottiglie da 1 L');
+    const scheda = (await service.getDetail('c1', 'admin')) as unknown as { waterLogs: { quantita: string }[] };
+    expect(scheda.waterLogs[0].quantita).toBe('2,5');
   });
 
-  it('⛔ e una giornata senza unità NON diventa «bicchieri»: resta senza, ed è la verità', async () => {
+  it('⛔ e una giornata senza unità NON diventa «bicchieri»: la colonna resta vuota, ed è la verità', async () => {
     const { service } = schedaCon([riga(9, null)]);
     const scheda = (await service.getDetail('c1', 'admin')) as unknown as {
-      waterLogs: { glasses: number; unitaDetta: string | null; comeContati: string | null }[];
+      waterLogs: { glasses: number; quantita: string; unitaDetta: string | null; obiettivoDetto: string }[];
     };
-    expect(scheda.waterLogs[0].glasses).toBe(9);
+    // Il valore salvato è in bicchieri: si mostra com'è, e l'unità è `null` — chi disegna la riga
+    // ci mette un trattino, non la parola «bicchieri» (che sarebbe una cosa che non sappiamo).
+    expect(scheda.waterLogs[0].quantita).toBe('9');
+    expect(scheda.waterLogs[0].obiettivoDetto).toBe('8');
     expect(scheda.waterLogs[0].unitaDetta).toBeNull();
-    expect(scheda.waterLogs[0].comeContati).toBeNull();
   });
 
   it('⚠️ la colonna `unit` viene CHIESTA al database: senza, la riga non potrebbe dirlo', async () => {

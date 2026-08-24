@@ -52,8 +52,10 @@ export class MePauseController {
  * Perché non si è agganciata anche questa: `travel_mode` di default ce l'ha **solo l'admin**, quindi
  * metterci la stessa chiave chiuderebbe da domani le approvazioni a tutte le coach che le fanno
  * oggi. *Un cancello chiuso costa a una cliente tutto il servizio*: si dichiara e si decide, non si
- * chiude di nascosto dentro un'altra consegna. ⛔ Da chiedere a Simone: chi deve poter approvare una
- * pausa richiesta dall'app — le stesse persone che possono metterla dalla scheda, o anche altre?
+ * chiude di nascosto dentro un'altra consegna.
+ *
+ * ✅ **Chiesto e deciso il 24/8: l'approvazione resta come oggi** — questi ruoli, senza passare da
+ * `travel_mode`. Chi cambierà idea cambi questa riga e il suo commento insieme.
  */
 @Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class StaffPauseController {

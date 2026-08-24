@@ -66,8 +66,12 @@ async function crea() {
   return { service: moduleRef.get(ClientsService) as ClientsService, prisma, audit, pause };
 }
 
+/**
+ * ⚠️ **Niente `state`**: dal 24/8 la tendina non c'è più (Simone: «va tolto il campo stato che crea
+ * confusione») e lo stato sul profilo lo ricava il servizio dalle due date. Quello che rende una
+ * sospensione una sospensione sono le date, ed è quello che questi test mandano.
+ */
 const vacanza = (motivo?: string) => ({
-  state: 'in_vacanza',
   start: fra(3),
   rientro: fra(10),
   ...(motivo !== undefined ? { motivo } : {}),
@@ -110,27 +114,75 @@ describe('il motivo della sospensione', () => {
    * spiegare perché i menu si sono fermati; chiederlo a chi li fa ripartire è attrito senza
    * contenuto, e l'attrito senza contenuto insegna a scrivere «x» per superare il modulo.
    */
-  it('⚠️ registrare il rientro non chiede nessun motivo', async () => {
-    const { service, prisma } = await crea();
-    await expect(service.setTravel('cli-1', 'coach-user', { state: 'rientrato' })).resolves.toBeDefined();
-    expect(prisma.clientProfile.upsert).toHaveBeenCalled();
-  });
-
-  it('⚠️ e nemmeno svuotare lo stato', async () => {
-    const { service, prisma } = await crea();
-    await expect(service.setTravel('cli-1', 'coach-user', { state: '' })).resolves.toBeDefined();
+  it('⚠️ TOGLIERE la sospensione (date svuotate) non chiede nessun motivo', async () => {
+    const { service, prisma, pause } = await crea();
+    await expect(service.setTravel('cli-1', 'coach-user', {})).resolves.toBeDefined();
+    expect(pause.togliSospensioneDaViaggio).toHaveBeenCalled();
     expect(prisma.clientProfile.upsert).toHaveBeenCalled();
   });
 
   /**
-   * ⚠️ **Stato di vacanza SENZA le due date**: qui non si sospende niente — la card lo dice già con
-   * un avviso suo — quindi non si pretende nemmeno il motivo. Chiederlo vorrebbe dire bloccare il
-   * salvataggio di uno stato che non ferma nessun menu.
+   * ⚠️ **UNA SOLA DATA non sospende niente**, quindi non si pretende nemmeno il motivo: si finisce
+   * nel ramo che toglie la sospensione, e chiedere una motivazione per non fare niente sarebbe
+   * attrito senza contenuto.
    */
-  it('⚠️ «in vacanza» senza le date non chiede il motivo: lì non si sospende niente', async () => {
+  it('⚠️ con una sola data non si chiede il motivo: lì non si sospende niente', async () => {
     const { service, prisma } = await crea();
-    await expect(service.setTravel('cli-1', 'coach-user', { state: 'in_vacanza' })).resolves.toBeDefined();
+    await expect(service.setTravel('cli-1', 'coach-user', { start: fra(3) })).resolves.toBeDefined();
     expect(prisma.clientProfile.upsert).toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **LO STATO LO DICONO LE DATE** (24/8). Prima lo sceglieva chi salvava, e le due metà potevano
+   * contraddirsi: una vacanza di luglio salvata «in partenza» ad agosto scriveva sul profilo uno
+   * stato falso, e uno stato senza date non fermava niente pur sembrando di sì.
+   */
+  it('⛔ una vacanza che comincia fra tre giorni scrive «in partenza»: lo stato lo dicono le date', async () => {
+    const { service, prisma } = await crea();
+    await service.setTravel('cli-1', 'coach-user', vacanza('viaggio di lavoro'));
+    expect(prisma.clientProfile.upsert.mock.calls[0][0].update).toMatchObject({ travelState: 'in_partenza' });
+  });
+
+  /**
+   * ⛔ **IL BUNDLE VECCHIO SI FERMA, NON FA L'OPPOSTO** — rilievo della revisione del 24/8, ed era
+   * il difetto più grave della consegna. Il back office è un sito a parte: una scheda aperta
+   * stamattina manda ancora `state`, e nella card vecchia scegliere «Rientrato/a» **lasciando le due
+   * date piene** era il modo documentato di chiudere una vacanza. Ignorando il campo, quella stessa
+   * mossa confermava la sospensione: menu fermi, scadenza allungata, e nessuno che sapesse perché.
+   */
+  it('⛔ un back office col bundle vecchio che manda ancora `state` si becca un errore parlante, e NON si sospende niente', async () => {
+    const { service, pause, prisma } = await crea();
+    await expect(
+      service.setTravel('cli-1', 'coach-user', { ...vacanza('viaggio di lavoro'), state: 'rientrato' } as never),
+    ).rejects.toThrow(/Ricarica la pagina/);
+    expect(pause.sospendiPerViaggio).not.toHaveBeenCalled();
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e vale anche per lo stato VUOTO: nella card vecchia «— nessuna —» con le date piene toglieva la sospensione', async () => {
+    const { service, pause } = await crea();
+    await expect(
+      service.setTravel('cli-1', 'coach-user', { ...vacanza('viaggio'), state: '' } as never),
+    ).rejects.toThrow(/Ricarica la pagina/);
+    expect(pause.sospendiPerViaggio).not.toHaveBeenCalled();
+  });
+
+  it('⛔ e una già cominciata scrive «in vacanza»', async () => {
+    const { service, prisma } = await crea();
+    await service.setTravel('cli-1', 'coach-user', { start: fra(-2), rientro: fra(5), motivo: 'ricovero' });
+    expect(prisma.clientProfile.upsert.mock.calls[0][0].update).toMatchObject({ travelState: 'in_vacanza' });
+  });
+
+  /**
+   * ⛔ **IL RIENTRO NON SI SCRIVE PIÙ DA QUI.** L'evento `travel_return` accende la campagna di
+   * rientro del marketing e il tono «bentornata» di Gaia: nasceva solo se qualcuno tornava sulla
+   * scheda a cambiare la tendina — e per le sospensioni nate dall'app o dal Calendario non nasceva
+   * mai. Adesso lo segna il giro notturno il giorno del rientro (`PauseService.surveillanceTick`).
+   */
+  it('⛔ salvare NON emette più il `travel_return`: quello è del giro notturno', async () => {
+    const { service, prisma } = await crea();
+    await service.setTravel('cli-1', 'coach-user', vacanza('viaggio di lavoro'));
+    expect(prisma.analyticsEvent.create).not.toHaveBeenCalled();
   });
 });
 

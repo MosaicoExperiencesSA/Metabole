@@ -93,18 +93,24 @@ export class DietAgentService {
     // In partenza: è un evento a tutti gli effetti, e ha lo stesso trattamento (più proteico).
     if (viaggio === 'in_partenza') return 'pre_evento';
 
-    // 0-bis. RIENTRO dal viaggio («Ritorno in Equilibrio»): spinta al recupero, ma per pochi
-    // giorni. La durata si conta dall'evento `travel_return`, non dal campo sul profilo: lo
-    // stato `rientrato` resta scritto per sempre, l'evento invece ha una data.
-    if (profilo?.travelState === 'rientrato') {
-      const rientro = (await this.prisma.analyticsEvent.findFirst({
-        where: { userId: clientId, name: 'travel_return' },
-        orderBy: { receivedAt: 'desc' },
-        select: { receivedAt: true },
-      })) as { receivedAt: Date } | null;
-      if (rientro && aGiorno(rientro.receivedAt).getTime() >= today.getTime() - returnDays * DAY) {
-        return 'post_evento';
-      }
+    /**
+     * 0-bis. RIENTRO dal viaggio («Ritorno in Equilibrio»): spinta al recupero, ma per pochi
+     * giorni. La durata si conta dall'evento `travel_return`, che ha una data.
+     *
+     * ⛔ **Non c'è più la precondizione `travelState === 'rientrato'`** (24/8). Quel campo lo scrive
+     * solo la card in scheda cliente: per una sospensione nata dall'app o dal Calendario resta
+     * `null` per sempre, quindi il rientro non si accendeva **mai** — proprio per le porte da cui
+     * passa la maggior parte delle pause. Il campo era una seconda condizione per la stessa cosa, e
+     * la seconda condizione era quella sbagliata: l'evento c'era e non veniva guardato. Ora comanda
+     * l'evento, che è anche quello che il commento qui sopra diceva già di voler usare.
+     */
+    const rientro = (await this.prisma.analyticsEvent.findFirst({
+      where: { userId: clientId, name: 'travel_return' },
+      orderBy: { receivedAt: 'desc' },
+      select: { receivedAt: true },
+    })) as { receivedAt: Date } | null;
+    if (rientro && aGiorno(rientro.receivedAt).getTime() >= today.getTime() - returnDays * DAY) {
+      return 'post_evento';
     }
 
     // 1. Pre-evento: evento del cliente in arrivo entro N giorni.

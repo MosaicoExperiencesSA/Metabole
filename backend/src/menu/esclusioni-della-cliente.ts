@@ -1,7 +1,7 @@
 import { EU_ALLERGEN_CODES, allergenLabel } from '../catalog/allergens';
 import { expandExclusion, hitsExclusion } from './exclusions';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
-import { ALLERGENE_SOLFITI, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
+import { ALLERGENE_SOLFITI, TESTO_SI_TOGLIE, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
 import { Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 
@@ -205,6 +205,31 @@ export function valutaRicetta(
         }
         if (scelta?.azione === 'sostituisci') {
           subs.push({ from: ing, to: scelta.con, reason: ex.reason });
+          break;
+        }
+        /**
+         * ⚠️ **«Si toglie» viaggia sulla stessa riga di una sostituzione**, e non è un ripiego: la
+         * cliente deve vedere che quell'ingrediente non va messo, e l'unico posto dove lo vedrà è
+         * l'elenco dei cambi del pasto — in app, in scheda e nel PDF si legge «vino bianco → si
+         * toglie (niente al suo posto)». Trattarlo come «niente da dire» lo farebbe cadere nella
+         * mappa generica, e il piatto tornerebbe fuori dal catalogo per un ingrediente che basta
+         * non mettere (decisione di Simone, 24/8).
+         */
+        if (scelta?.azione === 'togli') {
+          /**
+           * ⛔ **SE IL VINO È NEL NOME DEL PIATTO, il piatto esce** — rilievo della revisione del
+           * 24/8. Togliere il vino da un risotto lascia un risotto; toglierlo da «Pere al vino
+           * rosso» lascia delle pere bollite con un nome che promette altro. La cliente avrebbe
+           * ricevuto un piatto che si chiama così, con la riga «vino rosso → si toglie» sotto, e le
+           * kcal del dolce col vino: una contraddizione che tocca a lei sciogliere.
+           * ⚠️ `hitsExclusion` sul nome passa dalle stesse omonime degli ingredienti, quindi
+           * «straccetti di bovino» non finisce qui dentro.
+           */
+          if (hitsExclusion(r.name.toLowerCase(), [ex.keyword])) {
+            violations.push(`${r.name}: ${ex.reason} — il vino è nel nome del piatto, e senza non sarebbe più quel piatto`);
+            break;
+          }
+          subs.push({ from: ing, to: TESTO_SI_TOGLIE, reason: ex.reason });
           break;
         }
       }

@@ -16,38 +16,50 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CreateWaterDto } from './dto/signals.dto';
 import { SignalsService } from './signals.service';
-import { CHIAVI_UNITA_ACQUA, comeLiHaContati, eUnitaAcqua, etichettaUnitaAcqua, UNITA_ACQUA } from '../common/unita-acqua';
+import { CHIAVI_UNITA_ACQUA, eUnitaAcqua, etichettaUnitaAcqua, obiettivoNellaUnita, quantitaNellaUnita, UNITA_ACQUA } from '../common/unita-acqua';
 
-describe('unità dell\'acqua — le parole e la conversione', () => {
-  it('le bottiglie si scrivono con il loro nome e il loro numero', () => {
-    expect(comeLiHaContati(12, 'bottle1')).toBe('3 bottiglie da 1 L');
-    expect(comeLiHaContati(4, 'bottle05')).toBe('2 bottiglie da 0,5 L');
-    expect(comeLiHaContati(6, 'bottle15')).toBe('1 bottiglia da 1,5 L'); // singolare, non «1 bottiglie»
+describe('unità dell\'acqua — la quantità e l\'obiettivo come li legge lei', () => {
+  it('la quantità è quella dell\'app: 12 bicchieri contati a bottiglie da 1 L sono «3»', () => {
+    expect(quantitaNellaUnita(12, 'bottle1')).toBe('3');
+    expect(quantitaNellaUnita(4, 'bottle05')).toBe('2');
+    expect(quantitaNellaUnita(6, 'bottle15')).toBe('1');
+    expect(quantitaNellaUnita(8, 'glass')).toBe('8');
   });
 
   /**
-   * ⛔ **LA GIORNATA MISTA — il rilievo più grave della revisione del 24/8.** L'unità è una
-   * preferenza di profilo: la cliente conta otto bicchieri la mattina, alle 19 passa alle bottiglie
-   * da 1 L e tocca una volta. La riga è 12 bicchieri con unità `bottle1`, e la prima stesura
-   * scriveva «3 bottiglie da 1 L» — di bottiglie ne ha bevuta **una**. La coach avrebbe letto una
-   * giornata che non è mai esistita, e ci avrebbe ragionato sopra al check settimanale.
+   * ⚠️ **I MEZZI SI SCRIVONO.** L'unità è una preferenza di profilo e la riga si ricorda quella
+   * dell'ultimo tap: chi conta otto bicchieri la mattina e poi passa alle bottiglie chiude a «2,5».
+   * È il numero che le ha mostrato l'app; arrotondarlo a 2 racconterebbe mezzo litro come se non
+   * l'avesse bevuto.
    */
-  it('⛔ una giornata a unità MISTE non si converte: si dice come contava alla fine', () => {
-    expect(comeLiHaContati(10, 'bottle1')).toBe('a fine giornata contava in bottiglie da 1 L');
-    expect(comeLiHaContati(3, 'bottle05')).toBe('a fine giornata contava in bottiglie da 0,5 L');
+  it('⚠️ una giornata a unità miste resta a mezzi: 2,5 e non 2', () => {
+    expect(quantitaNellaUnita(10, 'bottle1')).toBe('2,5');
+    expect(quantitaNellaUnita(3, 'bottle05')).toBe('1,5');
   });
 
-  it('col bicchiere si dice il bicchiere, senza rifare il numero della colonna accanto', () => {
-    expect(comeLiHaContati(8, 'glass')).toBe('contati in bicchieri');
-  });
-
-  it('⛔ e con l\'unità NON registrata nemmeno: NULL non vuol dire «bicchieri», vuol dire «non lo so»', () => {
-    // È il caso di tutte le giornate prima del 24/8 e di chi tocca il tile da un'app non aggiornata.
-    expect(comeLiHaContati(8, null)).toBeNull();
-    expect(comeLiHaContati(8, undefined)).toBeNull();
-    expect(comeLiHaContati(8, 'pinta')).toBeNull();
+  it('⛔ senza unità registrata si legge il dato com\'è salvato: in bicchieri', () => {
+    // Chi mostra la riga dice nella colonna dell'unità che non la sa. Qui non si indovina.
+    expect(quantitaNellaUnita(9, null)).toBe('9');
+    expect(quantitaNellaUnita(9, 'damigiana')).toBe('9');
     expect(etichettaUnitaAcqua(null)).toBeNull();
     expect(etichettaUnitaAcqua('bottle05')).toBe('bottiglie da 0,5 L');
+  });
+
+  /**
+   * ⛔ **L'OBIETTIVO IN BOTTIGLIE INTERE** (richiesta di Simone, 24/8: «anche l'obiettivo si deve
+   * aggiornare con quello mostrato in app»). L'obiettivo arriva in bicchieri ed è calcolato sul peso
+   * (~33 ml/kg), quindi in bottiglie non torna quasi mai tondo: 11 bicchieri sono 1,83 bottiglie da
+   * 1,5 L, e «1,8» accanto a «bottiglie da 1,5 L» si legge come la misura della bottiglia, non come
+   * l'obiettivo. La regola è quella di `waterGoalValue` in app: arrotonda, mai sotto una.
+   */
+  it('l\'obiettivo si dice in unità intere, mai sotto una', () => {
+    expect(obiettivoNellaUnita(8, 'bottle1')).toBe('2');
+    expect(obiettivoNellaUnita(11, 'bottle15')).toBe('2');
+    expect(obiettivoNellaUnita(11, 'glass')).toBe('11');
+    expect(obiettivoNellaUnita(9, null)).toBe('9');
+    // ⛔ Mai zero: «obiettivo 0 bottiglie» si legge come «non devi bere».
+    expect(obiettivoNellaUnita(2, 'bottle15')).toBe('1');
+    expect(obiettivoNellaUnita(0, 'bottle1')).toBe('1');
   });
 
   it('le quattro unità sono quelle e solo quelle', () => {

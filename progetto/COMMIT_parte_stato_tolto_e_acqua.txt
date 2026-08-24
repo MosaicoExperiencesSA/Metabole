@@ -1,0 +1,67 @@
+Via la tendina «Stato»: comandano le date · l'acqua si legge nell'unita' di lei · il rientro si segna da solo
+
+Due richieste di Simone (24/8 sera).
+
+1) «VA TOLTO IL CAMPO STATO CHE CREA CONFUSIONE»
+La tendina aveva tre voci — in partenza / in vacanza / rientrato — e chiedeva a chi salva una cosa
+che il calendario sa gia'. Peggio: le due meta' potevano CONTRADDIRSI (una vacanza di luglio salvata
+«in partenza» ad agosto scriveva sul profilo uno stato falso; e uno stato senza date non fermava
+niente pur sembrando di si'). Adesso si sospende QUANDO CI SONO LE DUE DATE, lo stato sul profilo si
+ricava da quelle, e per togliere una sospensione si svuotano le date (la card lo dice).
+
+⚠️ E IL RIENTRO NON SI DICHIARA PIU' A MANO
+L'evento `travel_return` — quello che accende la campagna di rientro del marketing e il tono
+«bentornata» di Gaia — nasceva SOLO se qualcuno tornava sulla scheda giorni dopo a cambiare la
+tendina. Per le sospensioni nate dall'app o dal Calendario non nasceva MAI. Ora lo segna il giro
+notturno il giorno del rientro, per tutte le porte.
+
+2) L'ACQUA IN SCHEDA SI LEGGE COME LA LEGGE LEI
+Via il commentino sotto ogni numero. Colonne DATA · QUANTITA' · UNITA' · OBIETTIVO, con quantita' e
+obiettivo nell'unita' di QUEL giorno e le stesse regole dell'app: obiettivo in bottiglie INTERE,
+quantita' a mezzi se la giornata e' mista (otto bicchieri la mattina e poi una bottiglia = 2,5).
+⚠️ La spunta ✓ continua a confrontare i BICCHIERI, che sono il dato salvato: i due numeri accanto
+possono sembrare in disaccordo (obiettivo 9 bicchieri, lei ne beve 8 contando a bottiglie da 1 L →
+«2 · bottiglie da 1 L · 2» senza spunta), e il `title` di ogni cella porta i numeri veri.
+
+⛔ LA REVISIONE HA BOCCIATO LA PRIMA STESURA IN QUATTRO PUNTI
+- `input.state` veniva IGNORATO. Il back office e' un sito a parte: una scheda aperta stamattina
+  manda ancora quel campo, e nella card vecchia scegliere «Rientrato/a» LASCIANDO LE DATE PIENE era
+  il modo documentato di chiudere una vacanza. Ignorandolo, quella stessa mossa faceva l'OPPOSTO:
+  sospensione confermata, menu fermi, scadenza del piano allungata, e nessuno che sapesse perche'.
+  Adesso quel salvataggio si ferma e dice «ricarica la pagina».
+- Il giro notturno guardava TUTTI i `pause_period`: un ricovero segnato come «Altro» dal Calendario
+  sarebbe diventato un rientro dalle vacanze, e una sospensione ANNULLATA (che non si cancella: si
+  accorcia a ieri) avrebbe fatto partire la mail «Bentornata» da una vacanza mai fatta. Ora si
+  guardano solo i periodi di tipo `vacation` e si saltano quelli annullati.
+- Il tono «bentornata» di Gaia era legato al campo sul profilo, che solo la card scrive: si accendeva
+  SOLO per le pause della card — cioe' non per quelle che questa consegna dice di coprire. Ora
+  comanda l'evento, che e' quello che il commento nel codice diceva gia' di voler usare.
+- Le date sul profilo non le azzerava nessuno: la card restava precompilata con la vacanza di agosto
+  per sempre, e ogni Salva finiva contro «questa vacanza e' gia' finita». Ora si azzerano, ma solo
+  per il viaggio davvero finito (chi ne ha uno gia' programmato per la settimana prossima non se lo
+  vede cancellare).
+
+VERIFICATO
+- Build puliti su backend e backoffice; 5167 test in 320 suite verdi con TZ UTC e TZ=Europe/Rome;
+  117 test del backoffice verdi.
+- Mutazioni: guardia sullo `state` disattivata (2 rossi), filtro `vacation` tolto (1), pausa
+  annullata non saltata (1), date non azzerate (1), stato dedotto sempre «in vacanza» (1).
+- ⚠️ Il build dell'app non e' stato eseguito in sandbox (mancano le dipendenze), ma l'app non e'
+  toccata da questa consegna.
+
+FILE NEL COMMIT
+- backend/src/clients/clients.service.ts
+- backend/src/clients/motivo-sospensione.spec.ts
+- backend/src/clients/acqua-in-scheda.spec.ts
+- backend/src/common/unita-acqua.ts
+- backend/src/signals/unita-acqua.spec.ts
+- backend/src/pause/pause.service.ts
+- backend/src/pause/rientro-si-segna-da-solo.spec.ts   (nuovo)
+- backend/src/diet-agent/diet-agent.service.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/pages/ClientDetail.tsx
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE.
+⚠️ AL RILASCIO: chi ha il backoffice aperto col bundle vecchio prende l'errore «ricarica la pagina»
+finche' non ricarica. E' voluto: meglio di un Salva che fa il contrario di quello che dice.

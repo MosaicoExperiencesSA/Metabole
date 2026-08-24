@@ -68,7 +68,7 @@ import {
 } from './esclusioni-della-cliente';
 import { KcalNeedService } from './kcal-need.service';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
-import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
+import { IngredienteRicetta, MealSnapshot, SOSTITUTO_ASSENTE, Substitution } from './pasto-giornata';
 import { EsitoSpezia, classificaSpezia } from './spezie';
 import { punteggioRicetta, type PesiPunteggio } from './punteggio';
 
@@ -2741,12 +2741,22 @@ export class MenuService {
            * di sicurezza vorrebbe dire invitare a riflettere una cliente allergica sulle
            * sostituzioni che la tengono al sicuro.
            */
-          for (const s of subs) s.origine = 'app';
-          for (const s of subs) applied.push({ day: dayKey, from: s.from, to: s.to });
+          /**
+           * ⛔ **LE «ASSENZE» NON SONO CAMBI DELLA CLIENTE** — rilievo della revisione del 24/8.
+           * `evaluateMeals` torna **tutte** le sostituzioni della ricetta, non solo quella chiesta:
+           * su una cliente allergica ai solfiti, dentro c'è anche «vino bianco → si toglie», che è
+           * una sostituzione di **sicurezza**. Marcandola `origine: 'app'` diventava un cambio
+           * chiesto da lei — e finiva in `FoodSwap` come sostituzione riutilizzabile, nella coda di
+           * Vera, e perfino promuovibile a gruppo di equivalenza «vino rosso ↔ si toglie (niente al
+           * suo posto)». Un'assenza non si concorda e non si impara: si applica e basta.
+           */
+          const chiestiDaLei = subs.filter((s) => s.to !== SOSTITUTO_ASSENTE);
+          for (const s of chiestiDaLei) s.origine = 'app';
+          for (const s of chiestiDaLei) applied.push({ day: dayKey, from: s.from, to: s.to });
           // Anche quello che la cliente chiede dal PULSANTE del menu, non solo quello che concorda
           // con Gaia: è la stessa richiesta fatta con due dita invece che con una frase, e la
           // memoria non deve dipendere da quale schermata ha aperto.
-          for (const s of subs) {
+          for (const s of chiestiDaLei) {
             daRegistrare.set(`${m.recipeId}|${s.from}|${s.to}`, {
               from: s.from,
               to: s.to,

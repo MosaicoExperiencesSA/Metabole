@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -323,7 +324,7 @@ export class PauseService {
    *    pausa no — lì i menu sono sospesi per definizione, e mandarglieli mentre è in vacanza
    *    sarebbe il contrario del punto di avere una pausa.
    */
-  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number }> {
+  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number; rientriSegnati: number }> {
     const now = new Date();
     // ⚠️ Il giorno di Roma, non quello del processo: era `setHours(0,0,0,0)`, che su Render è UTC.
     // Questo giro decide quali pause sono in corso OGGI e a chi tocca il menu di rientro — nelle
@@ -494,12 +495,106 @@ export class PauseService {
       }
     }
 
+    /**
+     * ⛔ **5) IL RIENTRO SI SEGNA DA SOLO** — 24/8, con la tendina «Stato» tolta dalla card.
+     *
+     * Fino a oggi `travel_return` — l'evento che accende la **campagna di rientro** del marketing
+     * (`lifecycle.service.ts`) e il tono «bentornata» di Gaia (`DietAgentService`) — nasceva in un
+     * punto solo: qualcuno tornava sulla scheda e sceglieva «Rientrato/a» nella tendina. Cioè
+     * dipendeva dal fatto che una coach si ricordasse, giorni dopo, di riaprire una scheda per
+     * cambiare un campo che non serviva a nient'altro. Per le sospensioni nate dall'app o dal
+     * Calendario non succedeva **mai**.
+     *
+     * Adesso lo segna il giro notturno il giorno del rientro, per tutte le porte, e la tendina non
+     * serve più. ⚠️ Si guardano gli `event` (`pause_period`) e non le `pauseRequest`, per la stessa
+     * ragione del passo 3-bis: il Calendario in app crea solo l'evento.
+     *
+     * ⚠️ **Tre reti, tutte necessarie**: (1) la finestra di 3 giorni prende le pause finite mentre il
+     * cron era fermo, senza ripescare quelle di mesi fa; (2) chi ha **un'altra sospensione ancora
+     * in corso** non è rientrato — le pause attaccate esistono, e un «bentornata» in mezzo alla
+     * seconda vacanza è un messaggio che dice il falso; (3) l'evento non si riscrive se ce n'è già
+     * uno dopo la fine di quella pausa — la campagna del marketing si deduplica sui 7 giorni, ma
+     * Gaia conta i giorni **dall'evento**, e riscriverlo la farebbe ricominciare da capo.
+     */
+    let rientriSegnati = 0;
+    const daTreGiorni = new Date(oggi.getTime() - 3 * 86_400_000);
+    /**
+     * ⛔ **`type: 'vacation'`, e la prima stesura non ce l'aveva.** `pause_period` non vuol dire
+     * «vacanza»: dal Calendario in app una cliente può segnare un matrimonio, una cena, un
+     * «Altro» — e un ricovero segnato come «Altro» sarebbe diventato un rientro dalle vacanze, con
+     * la mail «Bentornata, ripartiamo con dolcezza» il giorno dopo.
+     */
+    const appenaFinite = (await this.prisma.event.findMany({
+      where: { mode: 'pause_period' as never, type: 'vacation' as never, endDate: { gte: daTreGiorni, lt: oggi } } as never,
+      select: { id: true, clientId: true, endDate: true },
+    })) as { id: string; clientId: string; endDate: Date }[];
+    for (const e of appenaFinite) {
+      try {
+        /**
+         * ⛔ **UNA PAUSA ANNULLATA NON È UNA PAUSA FINITA**, e da fuori si somigliano: togliendo una
+         * sospensione in corso l'evento non si cancella, si **accorcia a ieri**
+         * (`togliSospensioneDaViaggio`, e lo stesso fa `npm run sblocca:sospensione`). Cioè cade
+         * esattamente dentro questa finestra. Senza questo controllo, la coach che si accorge di un
+         * errore e lo corregge farebbe partire la notte dopo una mail di rientro da una vacanza che
+         * non c'è mai stata — e il rimedio diventerebbe un secondo sbaglio.
+         */
+        const annullata = await this.prisma.pauseRequest.findFirst({
+          where: { eventId: e.id, status: 'closed' } as never,
+          select: { id: true },
+        });
+        if (annullata) continue;
+        const ancoraSospesa = await this.prisma.event.findFirst({
+          where: {
+            clientId: e.clientId,
+            mode: 'pause_period' as never,
+            startDate: { lte: oggi } as never,
+            endDate: { gte: oggi } as never,
+          } as never,
+          select: { id: true },
+        });
+        if (ancoraSospesa) continue;
+        const giaSegnato = await this.prisma.analyticsEvent.findFirst({
+          where: { name: 'travel_return', userId: e.clientId, receivedAt: { gte: e.endDate } },
+          select: { id: true },
+        });
+        if (giaSegnato) continue;
+        await this.prisma.analyticsEvent.create({
+          data: { eventId: randomUUID(), name: 'travel_return', userId: e.clientId, phase: 'app', data: {} as never } as never,
+        });
+        /**
+         * ⚠️ E si spegne lo stato sul profilo, **date comprese**. Due correzioni della revisione:
+         *
+         *  · `travelEnd: { lte: e.endDate }` — si spegne solo il viaggio che è **davvero finito**.
+         *    Senza, una cliente con una pausa dal Calendario finita ieri e una modalità viaggio già
+         *    programmata per la settimana prossima si vedeva cancellare quella futura: niente
+         *    giornata più proteica prima di partire, e il tono sbagliato per giorni.
+         *  · le due date si azzerano — altrimenti la card resta precompilata con la vacanza di
+         *    agosto per sempre, e ogni Salva finisce contro «questa vacanza è già finita». Con
+         *    `rientrato` quelle due colonne non le legge più nessuno (`statoViaggioAttivo` torna
+         *    `null` comunque).
+         */
+        await this.prisma.clientProfile
+          .updateMany({
+            where: {
+              userId: e.clientId,
+              travelState: { in: ['in_partenza', 'in_vacanza'] },
+              travelEnd: { lte: e.endDate },
+            } as never,
+            data: { travelState: 'rientrato', travelStart: null, travelEnd: null } as never,
+          })
+          .catch(() => undefined);
+        rientriSegnati++;
+      } catch {
+        // Una cliente che va storta non ferma le altre.
+      }
+    }
+
     // 4) PAUSE APPENA FINITE: se torna con qualche chilo in più, i menu di rientro sono già lì.
     //    Erano un prodotto a €29 fino al 7/8; chiedere soldi a chi rientra da una vacanza con
     //    tre chili addosso era il momento peggiore per farlo. Ora si erogano e basta.
     const menuDiRientro = await this.erogaRientriDiFinePausa(oggi, sogliaKg);
 
-    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro };
+    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro, rientriSegnati };
   }
 
   /**

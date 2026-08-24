@@ -8,7 +8,7 @@
  */
 import { suggestAllergens } from '../catalog/allergens';
 import { esclusioniDi, valutaRicetta } from './esclusioni-della-cliente';
-import { ALLERGENE_SOLFITI, CAMBIANO_IL_PIATTO, SOSTITUTI_SENZA_SOLFITI, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
+import { ALLERGENE_SOLFITI, CAMBIANO_IL_PIATTO, SI_TOLGONO_E_BASTA, SOSTITUTI_SENZA_SOLFITI, TESTO_SI_TOGLIE, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
 
 const ricetta = (nome: string, ingredienti: string[]) => ({
   id: `r-${nome}`,
@@ -19,15 +19,47 @@ const ricetta = (nome: string, ingredienti: string[]) => ({
 
 const conSolfiti = () => esclusioniDi({ allergies: [ALLERGENE_SOLFITI] });
 
-describe('decisioneSolfiti — le quattro che si sostituiscono', () => {
+describe('decisioneSolfiti — tre si sostituiscono, il vino si toglie', () => {
   it('⛔ l\'ACETO non toglie più il piatto: arriva il succo di limone', () => {
     expect(decisioneSolfiti('aceto di vino')).toEqual({ azione: 'sostituisci', con: 'succo di limone fresco' });
     expect(decisioneSolfiti('aceto balsamico')).toEqual({ azione: 'sostituisci', con: 'succo di limone fresco' });
   });
 
-  it('il vino da sfumare diventa brodo vegetale acidulato', () => {
-    expect(decisioneSolfiti('vino bianco')).toEqual({ azione: 'sostituisci', con: 'brodo vegetale casalingo con un goccio di limone' });
-    expect(decisioneSolfiti('marsala')).toEqual({ azione: 'sostituisci', con: 'brodo vegetale casalingo con un goccio di limone' });
+  /**
+   * ⛔ **IL VINO SI TOGLIE E BASTA** (Simone, 24/8: «dove è previsto vino semplicemente togliamo il
+   * vino»). Prima diventava «brodo vegetale casalingo con un goccio di limone», che è la riga della
+   * guida per il vino **da sfumare** — ma la parola «vino» in un ingrediente non dice se serve a
+   * sfumare una padella o se **è il piatto**: su «pere al vino rosso» venivano fuori pere nel brodo
+   * vegetale. Una proposta così non fa perdere solo quel piatto: fa smettere di fidarsi anche delle
+   * sostituzioni giuste.
+   */
+  it('⛔ il vino non si sostituisce: si toglie', () => {
+    expect(decisioneSolfiti('vino bianco')).toEqual({ azione: 'togli' });
+    expect(decisioneSolfiti('vino rosso')).toEqual({ azione: 'togli' });
+    expect(decisioneSolfiti('marsala')).toEqual({ azione: 'togli' });
+  });
+
+  /**
+   * ⚠️ **L'elenco è scritto a mano, e non è pigrizia al contrario**: iterando la costante il test
+   * girerebbe su se stesso — cancellando `spumante`, `prosecco` e `sidro` resterebbe verde, e un
+   * piatto sfumato al prosecco arriverebbe a un'allergica. Misurato in revisione il 24/8.
+   */
+  it.each(['vino', 'marsala', 'spumante', 'prosecco', 'sidro'])('⚠️ «%s» si toglie', (voce) => {
+    expect(decisioneSolfiti(voce)).toEqual({ azione: 'togli' });
+  });
+
+  it('e la lista è esattamente quella: se qualcuno ne cancella una, qui diventa rosso', () => {
+    expect(SI_TOLGONO_E_BASTA).toEqual(['vino', 'marsala', 'spumante', 'prosecco', 'sidro']);
+    expect(JSON.stringify(SOSTITUTI_SENZA_SOLFITI)).not.toContain('brodo vegetale casalingo');
+  });
+
+  /**
+   * ⚠️ **La frase che legge la cliente è fissata qui.** È una decisione di prodotto e la mostrano
+   * tre punti (app, back office, PDF): senza un assert letterale si poteva cambiare in «xxx» e
+   * 1309 test restavano verdi, perché ognuno la importava come costante.
+   */
+  it('⚠️ e la frase è quella, parola per parola', () => {
+    expect(TESTO_SI_TOGLIE).toBe('si toglie (niente al suo posto)');
   });
 
   it('il dado industriale diventa dado casalingo', () => {
@@ -54,7 +86,7 @@ describe('decisioneSolfiti — le quattro che si sostituiscono', () => {
    * l'ha (170 mg/kg), ed è la dicitura in etichetta a fare la differenza.
    */
   it('⚠️ nessun sostituto manda a comprare la cosa sbagliata: il limone è fresco, la frutta si essicca in casa', () => {
-    const tutte = ['aceto', 'vino', 'dado', 'uvetta'].map((i) => decisioneSolfiti(i));
+    const tutte = ['aceto', 'dado', 'uvetta'].map((i) => decisioneSolfiti(i));
     for (const s of tutte) {
       expect(s).toMatchObject({ azione: 'sostituisci' });
       expect((s as { con: string }).con).not.toMatch(/^aceto di mele$/);
@@ -171,11 +203,41 @@ describe('la cliente allergica ai solfiti, sul piatto vero', () => {
     expect(subs).toEqual([]);
   });
 
-  it('il risotto sfumato al vino si serve col brodo acidulato', () => {
+  it('il risotto sfumato al vino si serve senza il vino, e il piatto resta', () => {
     const r = ricetta('Risotto ai funghi', ['riso', 'funghi champignon', 'vino bianco', 'burro']);
     const { violations, subs } = valutaRicetta(r, conSolfiti());
     expect(violations).toEqual([]);
-    expect(subs.map((s) => s.to)).toContain('brodo vegetale casalingo con un goccio di limone');
+    expect(subs).toEqual([expect.objectContaining({ from: 'vino bianco', to: TESTO_SI_TOGLIE })]);
+  });
+
+  /**
+   * ⛔ **IL CASO CHE HA CAMBIATO LA REGOLA**: «pere al vino rosso». Col sostituto diventavano pere
+   * nel brodo vegetale. Togliendo il vino e basta diventavano pere bollite **con un nome che
+   * promette altro**, e con le kcal del dolce col vino: la contraddizione la scioglieva la cliente.
+   * Quando il vino è nel NOME del piatto, il piatto esce — come per ogni altro allergene senza
+   * sostituto (rilievo della revisione del 24/8).
+   */
+  it('⛔ «pere al vino rosso» esce dal catalogo: senza il vino non è più quel piatto', () => {
+    const { violations, subs } = valutaRicetta(ricetta('Pere al vino rosso', ['pere', 'vino rosso', 'zucchero', 'cannella']), conSolfiti());
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('nel nome del piatto');
+    expect(subs).toEqual([]);
+  });
+
+  it('⛔ e lo stesso lo zabaione al marsala', () => {
+    const { violations } = valutaRicetta(ricetta('Zabaione al marsala', ['uova', 'zucchero', 'marsala']), conSolfiti());
+    expect(violations).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ **Ma il nome NON è una scorciatoia per escludere tutto**: «straccetti di bovino» contiene
+   * «vino», ed è il falso positivo di riferimento di questo progetto. Il controllo sul nome passa
+   * dalle stesse omonime degli ingredienti.
+   */
+  it('⚠️ «straccetti di bovino» non esce: «bovino» non è «vino»', () => {
+    const { violations, subs } = valutaRicetta(ricetta('Straccetti di bovino', ['straccetti di bovino', 'rucola']), conSolfiti());
+    expect(violations).toEqual([]);
+    expect(subs).toEqual([]);
   });
 
   it('⚠️ a chi NON ha dichiarato i solfiti non cambia niente: l\'aceto resta aceto', () => {
@@ -234,11 +296,19 @@ describe('⛔ quello che la revisione ha trovato, e che adesso è coperto', () =
    * una cosa e non ne fa nessuna. `dado` era esattamente così — c'erano `dado da brodo` e
    * `dado vegetale` in `exclusions.ts`, e le chiavi con lo spazio non hanno radice.
    */
-  it.each(Object.keys(SOSTITUTI_SENZA_SOLFITI))('⚠️ «%s» arriva davvero a una sostituzione', (chiave) => {
-    const { violations, subs } = valutaRicetta(ricetta(`Piatto con ${chiave}`, [chiave, 'olio evo']), conSolfiti());
-    expect(violations).toEqual([]);
-    expect(subs).toHaveLength(1);
-  });
+  /**
+   * ⚠️ Il nome del piatto è **neutro** di proposito: se ci finisse dentro la parola chiave
+   * scatterebbe la regola del nome (le «pere al vino rosso»), e questo test misurerebbe quella
+   * invece della riga della tabella.
+   */
+  it.each([...Object.keys(SOSTITUTI_SENZA_SOLFITI), ...SI_TOLGONO_E_BASTA])(
+    '⚠️ «%s» arriva davvero a una sostituzione',
+    (chiave) => {
+      const { violations, subs } = valutaRicetta(ricetta('Piatto del giorno', [chiave, 'olio evo']), conSolfiti());
+      expect(violations).toEqual([]);
+      expect(subs).toHaveLength(1);
+    },
+  );
 
   it('⛔ «dado granulare» e «brodo di dado» passavano intatti: adesso no', () => {
     for (const ing of ['dado granulare', 'brodo di dado', 'dado di carne']) {

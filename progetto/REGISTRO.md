@@ -52,6 +52,68 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 🍷 **Solfiti: dove c'è il vino si toglie il vino — e il piatto che si chiama col vino
+  esce.** Decisione di Simone, 24/8: *«dove è previsto vino semplicemente togliamo il vino»*. Prima
+  il vino da sfumare veniva **sostituito** col brodo vegetale acidulato (la riga della guida della
+  capo nutrizionista), ma la parola «vino» in un ingrediente non dice se serve a sfumare una padella
+  o se **è** il piatto: su «pere al vino rosso» il motore proponeva pere nel brodo vegetale. Adesso
+  vino, marsala, spumante, prosecco e sidro escono dal piatto e la riga dice «vino bianco → si toglie
+  (niente al suo posto)»; «aceto di vino» continua a prendere il succo di limone.
+  ⛔ **E la revisione ha trovato che così quel testo diventava un INGREDIENTE.** Il campo `to` di una
+  sostituzione non è solo testo da mostrare: `ingredientiEffettivi` lo scrive dentro l'elenco degli
+  ingredienti. Misurato su «Pere al vino rosso»: nella **lista della spesa** una riga da comprare
+  chiamata «si toglie (niente al suo posto) — 150 ml», nella **scheda ricetta** la stessa frase
+  scalata ×1,8, e **Gaia** la offriva fra gli alimenti da cambiare. È il difetto del 18/8 («Riso e
+  lenticchie» nel carrello) rientrato da una porta nuova: ora la costante vive accanto al tipo
+  `Substitution` e l'ingrediente si **toglie** invece di cambiare nome.
+  ⛔ **E finiva in tabella come sostituzione riutilizzabile**: il pulsante «Sostituisci» dell'app
+  marcava come chieste da lei *tutte* le sostituzioni della ricetta, vino compreso — registrato in
+  `FoodSwap`, in coda a Vera, promuovibile a gruppo di equivalenza «vino rosso ↔ si toglie». Un'assenza
+  non si concorda e non si impara.
+  ⛔ **E il piatto che si chiama col vino adesso esce**: togliere il vino da un risotto lascia un
+  risotto, toglierlo dalle «Pere al vino rosso» lascia pere bollite con un nome che promette altro e
+  le kcal del dolce col vino. ⚠️ «Straccetti di bovino» non esce: il controllo sul nome passa dalle
+  stesse omonime degli ingredienti.
+  ⚠️ Accolti anche: l'**ordine delle chiavi** non era provato (si poteva cancellare il `sort` e i test
+  restavano verdi) — corretto cambiando l'ordine dei due elenchi, non il commento; `it.each` girava
+  sulla costante che stava provando (cancellando `spumante`, `prosecco` e `sidro` restava verde); e la
+  frase che legge la cliente non era fissata da nessun test. ⚠️ Detto e non risolto: le **kcal** dello
+  snapshot non si ricalcolano (150 ml di rosso ~125 kcal) — non è una regressione, ed è anche la
+  ragione per cui i piatti dove il vino pesa escono invece di essere corretti.
+
+- `[Sviluppo]` 🧭 **Via la tendina «Stato»: comandano le date · l'acqua si legge nell'unità di lei · il
+  rientro si segna da solo.** Due richieste di Simone del 24/8 sera.
+  ✅ **1)** *«Va tolto il campo stato che crea confusione.»* La tendina chiedeva a chi salva una cosa
+  che il calendario sa già, e le due metà potevano **contraddirsi**: una vacanza di luglio salvata «in
+  partenza» ad agosto scriveva sul profilo uno stato falso, e uno stato senza date non fermava niente
+  pur sembrando di sì. Adesso si sospende **quando ci sono le due date**, lo stato si ricava da
+  quelle, e per togliere una sospensione si svuotano le date.
+  ✅ **E il rientro non si dichiara più a mano**: `travel_return` — l'evento che accende la campagna di
+  rientro del marketing e il tono «bentornata» di Gaia — nasceva **solo** se qualcuno tornava sulla
+  scheda giorni dopo a cambiare la tendina, quindi per le sospensioni nate dall'app o dal Calendario
+  non nasceva **mai**. Ora lo segna il giro notturno il giorno del rientro, per tutte le porte.
+  ✅ **2) L'acqua in scheda si legge come la legge lei**: via il commentino sotto ogni numero, colonne
+  **Data · Quantità · Unità · Obiettivo**, con quantità e obiettivo nell'unità di quel giorno e le
+  stesse regole dell'app (obiettivo in bottiglie intere, quantità a mezzi se la giornata è mista).
+  ⚠️ La spunta ✓ continua a confrontare i **bicchieri**, che sono il dato salvato: i due numeri accanto
+  possono sembrare in disaccordo, e il `title` di ogni cella porta i numeri veri.
+  ⛔ **La revisione ha bocciato la prima stesura in quattro punti.** (a) `input.state` veniva
+  **ignorato**: il back office è un sito a parte, una scheda aperta stamattina manda ancora quel
+  campo, e nella card vecchia scegliere «Rientrato/a» *lasciando le date piene* era il modo
+  documentato di chiudere una vacanza — ignorandolo, quella mossa faceva l'**opposto** (sospensione
+  confermata, menu fermi, scadenza allungata). Adesso quel salvataggio si ferma e dice «ricarica la
+  pagina». (b) Il giro notturno guardava **tutti** i `pause_period`: un ricovero segnato come «Altro»
+  sarebbe diventato un rientro dalle vacanze, e una sospensione **annullata** (che non si cancella: si
+  accorcia a ieri) avrebbe fatto partire la mail «Bentornata» da una vacanza mai fatta. (c) Il tono
+  «bentornata» di Gaia era legato al campo sul profilo, che solo la card scrive: si accendeva **solo**
+  per le pause della card, cioè non per quelle che questa consegna dice di coprire. (d) Le date sul
+  profilo non le azzerava nessuno: la card restava precompilata con la vacanza di agosto e ogni Salva
+  finiva contro «questa vacanza è già finita».
+  🔍 5167 test in 320 suite verdi (TZ UTC e Roma), 117 nel backoffice, build veri; ogni pezzo nuovo
+  provato alla mutazione. Nessuna migrazione. ⚠️ **Al rilascio**: chi ha il backoffice aperto col
+  bundle vecchio prende l'errore «ricarica la pagina» finché non ricarica — è voluto, ed è meglio di
+  un Salva che fa il contrario di quello che dice.
+
 - `[Sviluppo]` 💧 **Le sospensioni: anche «Vede» accende qualcosa · l'acqua dice in che unità · le
   quattro tabelle della scheda alte dieci righe.** Tre richieste urgenti di Simone, 24/8.
   ✅ **1) Il permesso.** «La visualizzazione e gestione della modalità viaggio deve essere

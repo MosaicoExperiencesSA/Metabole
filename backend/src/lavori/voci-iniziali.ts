@@ -2077,6 +2077,52 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'stato-tolto-e-acqua-per-unita',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T19:30',
+    titolo: '✅ Via la tendina «Stato»: comandano le date · l\'acqua si legge nell\'unità di lei · il rientro si segna da solo',
+    dettaglio:
+      'Due richieste di Simone (24/8 sera).\n\n'
+      + '**1) «Va tolto il campo stato che crea confusione.»** La tendina aveva tre voci — in '
+      + 'partenza / in vacanza / rientrato — e chiedeva a chi salva una cosa che il calendario sa '
+      + 'già. Peggio: le due metà potevano **contraddirsi** (una vacanza di luglio salvata «in '
+      + 'partenza» ad agosto scriveva sul profilo uno stato falso, e uno stato senza date non '
+      + 'fermava niente pur sembrando di sì). Adesso si sospende **quando ci sono le due date**, lo '
+      + 'stato sul profilo si ricava da quelle, e per togliere una sospensione si svuotano le date.\n\n'
+      + '⚠️ **E il rientro non si dichiara più a mano.** L\'evento `travel_return` — quello che accende '
+      + 'la campagna di rientro del marketing e il tono «bentornata» di Gaia — nasceva SOLO se '
+      + 'qualcuno tornava sulla scheda giorni dopo a cambiare la tendina: per le sospensioni nate '
+      + 'dall\'app o dal Calendario non nasceva **mai**. Ora lo segna il giro notturno il giorno del '
+      + 'rientro, per tutte le porte (`PauseService.surveillanceTick`).\n\n'
+      + '**2) L\'acqua in scheda si legge come la legge lei**: via il commentino sotto ogni numero, '
+      + 'colonne **DATA · QUANTITÀ · UNITÀ · OBIETTIVO**, e quantità e obiettivo nell\'unità di quel '
+      + 'giorno con le stesse regole dell\'app (obiettivo in bottiglie **intere**, quantità a mezzi se '
+      + 'la giornata è mista). ⚠️ La spunta ✓ continua a confrontare i **bicchieri**, che sono il dato '
+      + 'salvato: i due numeri accanto possono sembrare in disaccordo con lei (obiettivo 9 bicchieri, '
+      + 'lei ne beve 8 contando a bottiglie da 1 L → «2 · bottiglie da 1 L · 2» senza spunta), e il '
+      + '`title` di ogni cella porta i numeri veri.\n\n'
+      + '⛔ **La revisione ha bocciato la prima stesura in quattro punti, tutti corretti.** (a) '
+      + '`input.state` veniva **ignorato**: un back office con la pagina aperta da stamattina manda '
+      + 'ancora quel campo, e nella card vecchia scegliere «Rientrato/a» **lasciando le date piene** '
+      + 'era il modo documentato di chiudere una vacanza — ignorandolo, quella stessa mossa faceva '
+      + 'l\'**opposto** (sospensione confermata, menu fermi, scadenza allungata). Adesso quel '
+      + 'salvataggio si ferma e dice «ricarica la pagina». (b) Il giro notturno guardava **tutti** i '
+      + '`pause_period`: un ricovero segnato come «Altro» dal Calendario sarebbe diventato un rientro '
+      + 'dalle vacanze, e una sospensione **annullata** (che non si cancella, si accorcia a ieri) '
+      + 'avrebbe fatto partire la mail di rientro da una vacanza mai fatta. (c) Il tono «bentornata» '
+      + 'di Gaia era legato al campo sul profilo, che solo la card scrive: si accendeva **solo** per '
+      + 'le pause della card, cioè non per quelle nuove — ora comanda l\'evento. (d) Le date sul '
+      + 'profilo non le azzerava nessuno: la card restava precompilata con la vacanza di agosto e '
+      + 'ogni Salva finiva contro «questa vacanza è già finita».\n\n'
+      + '🔍 5167 test in 320 suite verdi (TZ UTC e Roma), 117 nel backoffice, build veri; ogni pezzo '
+      + 'nuovo provato alla mutazione. ⚠️ **Al rilascio**: chi ha il backoffice aperto col bundle '
+      + 'vecchio prende l\'errore «ricarica la pagina» finché non ricarica — è voluto, ed è meglio di '
+      + 'un Salva che fa il contrario di quello che dice.',
+  },
+  {
     chiave: 'acqua-unita-e-tabelle-a-dieci-righe',
     categoria: 'Da fare — codice',
     ordine: 0,
@@ -2135,8 +2181,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **Una porta che questo permesso NON copre, dichiarata**: le *richieste* di pausa che '
       + 'arrivano dall\'app si approvano dalla card sotto, che resta sui suoi ruoli (`sales` compreso). '
       + 'Agganciarla a `travel_mode` — che di default ce l\'ha solo l\'admin — chiuderebbe da domani le '
-      + 'approvazioni a tutte le coach che le fanno oggi. ⛔ **Da decidere con Simone**: chi deve poter '
-      + 'approvare una pausa richiesta dall\'app?\n\n'
+      + 'approvazioni a tutte le coach che le fanno oggi. ✅ **Simone, 24/8: l\'approvazione resta come '
+      + 'oggi.** Scritto nel codice, così chi guarda quella rotta sa che è una scelta e non una svista.\n\n'
       + '⛔ **Al deploy**: la migrazione la applica Render. ⚠️ L\'unità si registra **dai tap fatti con '
       + 'l\'app aggiornata**: sui telefoni con la versione vecchia le giornate continuano ad arrivare '
       + 'senza unità (e quella già scritta non viene cancellata). ⚠️ E dopo il rilascio va acceso in '
@@ -2833,7 +2879,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + '✅ **CHIUSA il 24/8, con quattro decisioni di Simone.** **1)** Il dizionario dei suggerimenti passa da 4 parole a ~35 (tutti i portatori della guida): prima, su una ricetta con l\'uvetta o i gamberi, a chi tagga non veniva proposto **niente** e il tag mancava in silenzio su 3111 ricette. **2)** Le quattro sostituzioni di condimento — aceto → succo di limone fresco, vino da sfumare → brodo vegetale acidulato, dado industriale → dado casalingo, frutta essiccata industriale → essiccata in casa — si applicano **da sole**, come il delattosato (`menu/solfiti.ts`, sul modello di `lattosio.ts`). **3)** Le due che cambiano il piatto — crostacei e insaccati — **non** si sostituiscono: quei piatti escono, perché un gambero non è un branzino. **4)** `biscotti` è uscita dalle esclusioni (i solfiti nei biscotti dipendono dal produttore, non dal biscotto); `aceto` è **rimasta**, ma ha cambiato mestiere — non toglie più il piatto, lo fa **riconoscere** perché arrivi il limone al posto suo.\n\n'
       + '⛔ **E la revisione avversariale ha trovato undici cose, fra cui che la consegna PEGGIORAVA i casi che diceva di risolvere.** Il difetto peggiore era mio e si annullava da sé: `engine-rules` scrive i tag **suggeriti** su ogni ricetta appena generata, e il motore blocca su un tag anche non confermato — quindi allargando il dizionario nella stessa consegna il tag `solfiti` finiva **proprio sulle ricette che le sostituzioni dovevano salvare**, la sostituzione veniva calcolata e buttata via, e l\'insalata spariva lo stesso. Adesso, e **solo per i solfiti**, il tag non blocca da solo dove la regola per ingrediente sa cosa sostituire — e torna a bloccare se non sappiamo dire niente. ⚠️ Il commento che diceva «suggeriscono e basta, nessun auto-tag» era falso, ed è corretto invece che cancellato.\n\n'
       + '⚠️ Gli altri dieci, tutti misurati: **otto voci su diciassette** della lista che esclude non escludevano niente (astice, aragosta, granchio, «würstel» con la dieresi che è la grafia normale in etichetta, insaccati, macinato confezionato) perché non erano in `exclusions.ts`, e la regola non veniva mai interrogata; **`dado` non scattava su nessuna scrittura realistica** («dado granulare», «brodo di dado»); **i singolari passavano intatti** («albicocca secca», sulla categoria a 2000 mg/kg); **`sulphites` e `sulfites`** — gli alias con cui l\'allergia arriva dagli import — non accendevano la regola, quindi la consegna era spenta proprio per quelle clienti; il **sostituto dell\'aceto era esso stesso nell\'elenco dei vietati** (il succo di limone: la tabella parla dei succhi **concentrati**, non dello spremuto); **«bovino» faceva suggerire i solfiti** perché contiene «vino», e le omonime esistevano da giorni in `exclusions.ts` ma questa strada le ignorava; `birra` era l\'unica parola dell\'elenco senza una riga a monte che la sostenesse, ed è uscita; e **quattro mutazioni restavano verdi**, fra cui quella che riportava il dizionario alle quattro parole di prima — 31 parole nuove senza un test.\n\n'
-      + '⛔ **RESTA UNA DECISIONE, e la lascio in vista invece di prenderla io**: la chiave `vino` è incondizionata, quindi «pere al vino rosso» diventano pere al brodo vegetale e lo zabaione al marsala pure. È esattamente il caso che la decisione 3 voleva evitare, passato per la porta dei condimenti. Il vino **da sfumare** si sostituisce; il vino **come ingrediente di un dolce** probabilmente no — ma dove passa quella riga non lo decide il codice.\n\n'
+      + '✅ **DECISA da Simone il 24/8 sera: «dove è previsto vino semplicemente togliamo il vino».** La domanda era: la chiave `vino` è incondizionata, quindi «pere al vino rosso» diventavano pere al brodo vegetale e lo zabaione al marsala pure — il caso che la decisione 3 voleva evitare, passato per la porta dei condimenti. Adesso il vino (e marsala, spumante, prosecco, sidro) **non si sostituisce**: esce dal piatto, e la riga dice «vino bianco → si toglie (niente al suo posto)». ⚠️ La ragione per cui togliere è più sicuro che sostituire: la parola «vino» in un ingrediente non dice se serve a sfumare una padella o se **è** il piatto, e una proposta assurda su un dolce fa perdere fiducia anche nelle sostituzioni giuste. ⚠️ «Aceto di vino» continua a prendere il limone: sostituti e «si toglie» si guardano nello stesso giro, ordinati per lunghezza della chiave.\n\n'
       + '✅ Verificato: build pulito, **5107 test in 315 suite** verdi con `TZ` a UTC e a Roma, e ogni assert nuovo provato alla mutazione. ⚠️ Fuori perimetro di proposito: la guida parla anche di farmaci e ristorazione — lì si darebbe un consiglio medico da un\'app di nutrizione.',
     fatta: true,
     categoria: DATI,

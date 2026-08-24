@@ -18,6 +18,21 @@
  * al nutrizionista per verificare i grammi dalla scheda cliente senza rileggere le chat
  * (`stato: 'da_verificare'` è ciò che rende la verifica una cosa che si può davvero fare).
  */
+/**
+ * ⛔ **QUANDO UN INGREDIENTE SI TOGLIE E BASTA.** Una sostituzione con questo `to` non è un
+ * alimento: è l'assenza di un alimento — nasce dai solfiti (Simone, 24/8: «dove è previsto vino
+ * semplicemente togliamo il vino»), e la riga si legge «vino bianco → si toglie (niente al suo
+ * posto)».
+ *
+ * ⚠️ **Sta qui e non in `menu/solfiti.ts`** perché non la legge solo chi la scrive: la deve
+ * riconoscere **chiunque trasformi una sostituzione in un ingrediente**. Senza,
+ * `ingredientiEffettivi` la scriveva nel piatto come se fosse un cibo, e la cliente si ritrovava
+ * nella lista della spesa una riga «si toglie (niente al suo posto) — 150 ml» e nella scheda
+ * ricetta la stessa frase scalata ×1,8. È lo stesso difetto del 18/8 («Riso e lenticchie» nel
+ * carrello), rientrato da una porta nuova — e l'ha trovato la revisione del 24/8.
+ */
+export const SOSTITUTO_ASSENTE = 'si toglie (niente al suo posto)';
+
 export interface Substitution {
   from: string;
   to: string;

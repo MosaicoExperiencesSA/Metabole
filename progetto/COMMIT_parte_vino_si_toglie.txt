@@ -1,0 +1,67 @@
+Solfiti: dove c'e' il vino si toglie il vino — e il piatto che si chiama col vino esce
+
+Decisione di Simone (24/8): «dove e' previsto vino semplicemente togliamo il vino».
+
+Prima il vino da sfumare veniva SOSTITUITO con «brodo vegetale casalingo con un goccio di limone»,
+che e' la riga della guida della capo nutrizionista. Il difetto: la parola «vino» in un ingrediente
+non dice se serve a sfumare una padella o se E' il piatto — su «pere al vino rosso» il motore
+proponeva pere nel brodo vegetale. Una proposta cosi' non fa perdere solo quel piatto: fa smettere di
+fidarsi anche delle sostituzioni giuste.
+Adesso vino, marsala, spumante, prosecco e sidro NON si sostituiscono: escono dal piatto, e la riga
+dice «vino bianco → si toglie (niente al suo posto)». «Aceto di vino» continua a prendere il succo di
+limone: sostituti e «si toglie» si guardano nello stesso giro, ordinati per lunghezza della chiave.
+
+⛔ E LA REVISIONE HA TROVATO CHE COSI' IL TESTO DIVENTAVA UN INGREDIENTE
+«si toglie (niente al suo posto)» viaggia nel campo `to` di una sostituzione, e quel campo non e'
+solo testo da mostrare: `ingredientiEffettivi` lo scrive DENTRO l'elenco degli ingredienti. Misurato
+su «Pere al vino rosso»: nella LISTA DELLA SPESA compariva una riga da comprare chiamata «si toglie
+(niente al suo posto) — 150 ml»; nella SCHEDA RICETTA la stessa frase con la grammatura scalata ×1,8;
+e GAIA la offriva fra gli alimenti da cambiare. E' lo stesso difetto del 18/8 («Riso e lenticchie» nel
+carrello), rientrato da una porta nuova.
+Ora la costante vive accanto al tipo `Substitution` e chi trasforma una sostituzione in ingrediente la
+riconosce: l'ingrediente si TOGLIE invece di cambiare nome.
+
+⛔ E FINIVA IN TABELLA COME SOSTITUZIONE RIUTILIZZABILE
+Il pulsante «Sostituisci» dell'app marca `origine: 'app'` TUTTE le sostituzioni della ricetta, non
+solo quella chiesta. Su una cliente allergica ai solfiti ci finiva dentro anche il vino: veniva
+registrata in `FoodSwap` come cambio chiesto da lei, entrava nella coda di Vera ed era promuovibile a
+gruppo di equivalenza «vino rosso ↔ si toglie (niente al suo posto)». Un'assenza non si concorda e non
+si impara: adesso le assenze restano fuori da `origine: 'app'` e dalla registrazione.
+
+⛔ E IL PIATTO CHE SI CHIAMA COL VINO ADESSO ESCE
+Togliere il vino da un risotto lascia un risotto; toglierlo da «Pere al vino rosso» lascia pere
+bollite con un nome che promette altro e le kcal del dolce col vino. Quando la parola e' nel NOME del
+piatto, il piatto esce — come per ogni altro allergene senza sostituto. ⚠️ «Straccetti di bovino» non
+esce: il controllo sul nome passa dalle stesse omonime degli ingredienti.
+
+ALTRI TRE RILIEVI ACCOLTI
+- L'ORDINE DELLE CHIAVI non era provato: si poteva cancellare il `sort` e i test restavano verdi.
+  Non e' stato riscritto il commento, e' stato cambiato l'ORDINE dei due elenchi, cosi' togliere il
+  `sort` fa diventare rossi tre test («aceto di vino prende il limone» per primo).
+- `it.each(SI_TOLGONO_E_BASTA)` girava sulla costante che stava provando: cancellando `spumante`,
+  `prosecco` e `sidro` restava verde. Adesso l'elenco nel test e' scritto a mano.
+- La frase che legge la cliente non era fissata da nessun test: cambiandola in «xxx» 1309 test
+  restavano verdi. Adesso c'e' un assert letterale.
+- ⚠️ Detto e non risolto: le kcal dello snapshot NON si ricalcolano (150 ml di rosso sono ~125 kcal).
+  Non e' una regressione — col brodo vegetale il buco era lo stesso — ed e' anche la ragione per cui i
+  piatti dove il vino PESA escono invece di essere corretti. E i nomi commerciali («Barolo»,
+  «Vermouth») non sono agganciati nemmeno dalle esclusioni: nel catalogo di oggi non compaiono, ma e'
+  una fotografia, non una garanzia.
+
+VERIFICATO
+- Build pulito; 5167 test in 320 suite verdi (99 nel solo file dei solfiti), TZ UTC e Roma.
+- Mutazioni: ramo «togli» tolto (7 rossi), vino rimesso fra i sostituti (3), comparatore
+  capovolto (3), conversione su giornata mista (2).
+
+FILE NEL COMMIT
+- backend/src/menu/solfiti.ts
+- backend/src/menu/solfiti.spec.ts
+- backend/src/menu/esclusioni-della-cliente.ts
+- backend/src/menu/pasto-giornata.ts
+- backend/src/menu/ingredienti-effettivi.ts
+- backend/src/menu/menu.service.ts
+- backend/src/pause/pause.controller.ts   (solo la decisione annotata: l'approvazione delle richieste
+  di pausa resta com'e' oggi)
+- backend/src/lavori/voci-iniziali.ts
+
+⛔ NESSUNA MIGRAZIONE.

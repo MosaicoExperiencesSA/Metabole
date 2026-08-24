@@ -1,5 +1,5 @@
 import { combaciaAlimento } from '../common/nomi-alimento';
-import type { IngredienteRicetta, Substitution } from './pasto-giornata';
+import { SOSTITUTO_ASSENTE, type IngredienteRicetta, type Substitution } from './pasto-giornata';
 
 /**
  * GLI INGREDIENTI COME STANNO NEL PIATTO OGGI — ricetta di catalogo più le sostituzioni concordate.
@@ -27,6 +27,19 @@ export function ingredientiEffettivi(
   let out = ingredientiRicetta.map((i) => ({ ...i }));
   for (const s of pasto.substitutions ?? []) {
     let sostituito = false;
+    /**
+     * ⛔ **«Si toglie» non è un sostituto: è un'assenza.** L'ingrediente esce dall'elenco invece di
+     * cambiare nome — altrimenti la spesa avrebbe una riga da comprare che si chiama «si toglie
+     * (niente al suo posto)», la scheda ricetta la stessa frase con una grammatura accanto, e Gaia
+     * la offrirebbe fra gli alimenti da cambiare. Trovato in revisione il 24/8, sui solfiti.
+     */
+    if (s.to === SOSTITUTO_ASSENTE) {
+      const prima = out.length;
+      out = out.filter((i) => !i?.name || !combaciaAlimento(i.name, s.from));
+      // Se l'origine non c'era, non c'è niente da togliere e niente da aggiungere: si passa oltre.
+      if (out.length !== prima) continue;
+      continue;
+    }
     out = out.map((i) => {
       if (sostituito || !i?.name || !combaciaAlimento(i.name, s.from)) return i;
       sostituito = true;

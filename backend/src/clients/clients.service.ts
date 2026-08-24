@@ -40,7 +40,7 @@ import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
-import { comeLiHaContati, etichettaUnitaAcqua } from '../common/unita-acqua';
+import { etichettaUnitaAcqua, obiettivoNellaUnita, quantitaNellaUnita } from '../common/unita-acqua';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
 /**
@@ -577,8 +577,20 @@ export class ClientsService {
       // che nessun controllo se ne accorga (rilievo della revisione del 24/8).
       waterLogs: waterLogs.map((w) => ({
         ...w,
+        /**
+         * La riga si legge come la legge LEI (Simone, 24/8: «la vera unità la mettiamo in una
+         * colonna, il titolo non è più bicchieri ma quantità, e anche l'obiettivo si deve aggiornare
+         * con quello mostrato in app»). Quindi tre campi, e le regole sono le stesse dell'app:
+         *  · `quantita` — il numero nell'unità di quel giorno (2,5 se la giornata è mista);
+         *  · `unitaDetta` — come si chiama quell'unità, `null` se non registrata (prima del 24/8);
+         *  · `obiettivoDetto` — l'obiettivo in bottiglie **intere**, come glielo mostra l'app.
+         * ⚠️ `glasses` e `goal` restano nella risposta e restano in bicchieri: sono i due numeri
+         * confrontabili fra giornate contate in modi diversi, ed è su quelli che il motore valuta
+         * l'aderenza. Qui si aggiunge come si leggono, non si sostituisce cosa valgono.
+         */
+        quantita: quantitaNellaUnita(w.glasses, w.unit),
         unitaDetta: etichettaUnitaAcqua(w.unit),
-        comeContati: comeLiHaContati(w.glasses, w.unit),
+        obiettivoDetto: obiettivoNellaUnita(w.goal, w.unit),
       })),
       stepLogs,
       subscription,
@@ -1762,8 +1774,6 @@ export class ClientsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!user) throw new NotFoundException('Cliente non trovato.');
     if (user.role !== 'client') throw new BadRequestException('Solo per i clienti.');
-    const VALID = ['in_partenza', 'in_vacanza', 'rientrato'];
-    const state = input.state && VALID.includes(input.state) ? input.state : null;
     const toDate = (v?: string) => (v && !Number.isNaN(Date.parse(v)) ? new Date(v) : null);
 
     const start = toDate(input.start);
@@ -1792,7 +1802,46 @@ export class ClientsService {
      * difetto che `stato-viaggio.ts` racconta di aver dovuto tappare («un "in vacanza" di luglio
      * valeva ancora a novembre»).
      */
-    const sospende = state === 'in_partenza' || state === 'in_vacanza';
+    /**
+     * ⛔ **LO STATO NON SI SCEGLIE PIÙ: LO DICONO LE DATE** (Simone, 24/8: «va tolto il campo stato
+     * che crea confusione»).
+     *
+     * La tendina aveva tre voci — «in partenza», «in vacanza», «rientrato/a» — e chiedeva a chi
+     * salva una cosa che il calendario sa già. Peggio: le due metà potevano **contraddirsi**. Una
+     * vacanza dal 30/7 al 7/8 salvata con lo stato «in partenza» a metà agosto scriveva sul profilo
+     * uno stato falso; e uno stato senza date non fermava niente pur sembrando di sì — è il difetto
+     * che questa card si porta dietro da mesi, e la tendina era l'ultimo posto da cui poteva
+     * rientrare.
+     *
+     * Adesso **si sospende quando ci sono le due date**, e lo stato sul profilo si ricava da esse:
+     * `in_partenza` se comincia domani o più in là, `in_vacanza` se è già cominciata. Svuotare le
+     * date è il modo di togliere la sospensione — la card lo dice sotto le caselle.
+     *
+     * ⛔ **`input.state` si RIFIUTA, e la prima stesura lo ignorava — un difetto grave, trovato in
+     * revisione.** Il back office è un sito a parte: una scheda aperta stamattina continua a mandare
+     * `state`, e nella card vecchia scegliere «Rientrato/a» o «— nessuna —» **lasciando le due date
+     * piene** era il modo documentato di chiudere una vacanza. Ignorando il campo, quella stessa
+     * mossa faceva l'**opposto**: due date presenti = sospensione confermata, menu fermi, scadenza
+     * del piano allungata. La cliente restava senza menu e nessuno sapeva perché.
+     * Un Salva che si ferma e spiega è molto meno grave di un Salva che fa il contrario.
+     *
+     * ⚠️ E `rientrato` non lo scrive più nessuno da qui: lo mette il giro notturno il giorno del
+     * rientro, per TUTTE le porte (vedi `PauseService.surveillanceTick`) — prima dipendeva dal fatto
+     * che qualcuno si ricordasse di tornare sulla scheda a cambiare la tendina, e se non lo faceva
+     * la campagna di rientro non partiva.
+     */
+    if (input.state !== undefined) {
+      throw new BadRequestException(
+        'Ricarica la pagina: il campo «Stato» non esiste più. Adesso comandano le due date — '
+        + 'per togliere una sospensione svuotale e salva.',
+      );
+    }
+    const sospende = !!(start && ultimoGiorno);
+    const state: string | null = !sospende
+      ? null
+      : aGiorno(start as Date).getTime() > aGiorno(new Date()).getTime()
+        ? 'in_partenza'
+        : 'in_vacanza';
 
     /**
      * ⛔ **IL MOTIVO SI SCRIVE, E QUI SI PRETENDE** (Simone, 24/8).
@@ -1808,7 +1857,7 @@ export class ClientsService {
      * differenza fra un campo compilato e uno riempito con uno spazio per superare il modulo.
      */
     const motivo = (input.motivo ?? '').trim();
-    if (sospende && start && ultimoGiorno && motivo.length < 3) {
+    if (start && ultimoGiorno && motivo.length < 3) {
       throw new BadRequestException(
         'Scrivi il motivo della sospensione: resta salvato sulla scheda e lo legge chi la aprirà fra tre mesi '
         + '(o chi dovrà decidere sulla prossima vacanza). Bastano poche parole — «viaggio di lavoro», «ricovero».',
@@ -1816,7 +1865,7 @@ export class ClientsService {
     }
     let sospensione: { giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null } | null = null;
     let avviso: string | null = null;
-    if (sospende && start && ultimoGiorno) {
+    if (start && ultimoGiorno) {
       sospensione = await this.pause.sospendiPerViaggio(userId, actorId, {
         start,
         rientro: new Date(ultimoGiorno.getTime() + 86_400_000),
@@ -1824,21 +1873,15 @@ export class ClientsService {
       });
       avviso = sospensione.avviso;
     } else {
+      /**
+       * ⚠️ **Una casella svuotata TOGLIE la sospensione**, e l'avviso di `togliSospensioneDaViaggio`
+       * è l'unica cosa che lo dice a chi ha appena salvato: i menu ripartono, magari in mezzo a una
+       * vacanza. Prima qui si aggiungeva anche «senza le due date i menu non si fermano», che
+       * accompagnava lo stato salvato da solo: con la tendina tolta quel caso non esiste più —
+       * senza date non c'è niente da salvare se non la cancellazione.
+       */
       const tolta = await this.pause.togliSospensioneDaViaggio(userId, actorId);
       if (tolta.tolta) avviso = tolta.avviso;
-      /**
-       * ⚠️ Il caso che in revisione era muto: stato di vacanza con una casella **svuotata**. Si
-       * finisce qui, la sospensione in corso viene chiusa — i menu ripartono in mezzo alla vacanza
-       * — e prima l'unica cosa che l'operatrice leggeva era «senza le due date i menu non si
-       * fermano», che non le diceva la cosa appena successa. Ora l'avviso della chiusura resta e
-       * questo si aggiunge in coda.
-       */
-      if (sospende && (!start || !ultimoGiorno)) {
-        avviso = [
-          avviso,
-          'Stato salvato, ma senza le due date i menu NON si fermano: scrivi «Dal» e «Riprende il» perché la sospensione esista.',
-        ].filter(Boolean).join(' ');
-      }
     }
 
     const data = { travelState: state, travelStart: start, travelEnd: ultimoGiorno };
@@ -1848,9 +1891,12 @@ export class ClientsService {
       create: { userId, ...data } as never,
     });
 
-    if (state === 'rientrato') {
-      await this.prisma.analyticsEvent.create({ data: { eventId: randomUUID(), name: 'travel_return', userId, phase: 'app', data: {} as never } as never });
-    }
+    /**
+     * ⚠️ **Il `travel_return` non nasce più qui**: da questa porta lo stato `rientrato` non si può
+     * più scrivere (la tendina è stata tolta il 24/8), e l'evento — quello che accende la campagna
+     * di rientro del marketing e il tono di Gaia — lo emette il giro notturno il giorno del rientro,
+     * per tutte le porte. Vedi `PauseService.surveillanceTick`.
+     */
     /**
      * ⚠️ **Nel registro finiscono anche le DATE**, non il solo stato. Prima c'era `metadata: { state }`:
      * lo storico diceva «qualcuno ha messo "in vacanza"» e non da quando a quando — cioè non

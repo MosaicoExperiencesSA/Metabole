@@ -79,11 +79,13 @@ interface Detail {
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
   /**
-   * `unitaDetta` e `comeContati` li scrive il BACKEND (`common/unita-acqua.ts`): l'elenco delle
-   * unità e la conversione erano già in due copie (app e backend), e una terza qui sarebbe la copia
-   * che diverge. `null` = unità non registrata, cioè le giornate prima del 24/8 — non «bicchieri».
+   * `quantita`, `unitaDetta` e `obiettivoDetto` li scrive il BACKEND (`common/unita-acqua.ts`):
+   * l'elenco delle unità e le due conversioni erano già in due copie (app e backend), e una terza
+   * qui sarebbe la copia che diverge. `unitaDetta` a `null` = unità **non registrata**, cioè le
+   * giornate prima del 24/8 — non «bicchieri». ⚠️ `glasses` e `goal` restano e restano in bicchieri:
+   * sono i due numeri confrontabili fra giornate contate in modi diversi.
    */
-  waterLogs: { id: string; date: string; glasses: number; goal: number; unit?: string | null; unitaDetta?: string | null; comeContati?: string | null }[];
+  waterLogs: { id: string; date: string; glasses: number; goal: number; unit?: string | null; unitaDetta?: string | null; quantita?: string; obiettivoDetto?: string }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
   /** Tutti i piani del cliente (recenti prima): serve per aprire i menu di un piano finito. */
@@ -2024,16 +2026,14 @@ export function ClientDetail() {
         <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: '18px 20px 4px' }}>
             <h2 style={{ margin: 0 }}>Acqua bevuta</h2>
-            {/* ⚠️ La riga dice ANCHE in che unità contava lei quel giorno (Simone, 24/8). Il numero
-                grande resta in bicchieri: è quello su cui il motore misura l'aderenza, ed è l'unico
-                confrontabile fra due giornate contate in modi diversi. */}
-            {/* ⚠️ Il giorno del rilascio NESSUNA riga ha l'unità (si registra dai tap fatti da qui in
-                avanti): promettere «sotto, come li contava lei» sopra sessanta righe grigie farebbe
-                sembrare rotta una cosa che sta solo aspettando i primi dati. */}
+            {/*
+              ⚠️ Una riga sola, e serve: il giorno del rilascio NESSUNA giornata ha l'unità (si
+              registra dai tap fatti con l'app aggiornata), quindi la colonna «Unità» è tutta
+              trattini — e senza questa frase quei numeri non si sa in che cosa siano.
+            */}
             <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
-              {d.waterLogs.some((w) => w.comeContati)
-                ? <>Il numero è sempre in <b>bicchieri da 250 ml</b>; sotto, come li contava lei quel giorno.</>
-                : <>Il numero è sempre in <b>bicchieri da 250 ml</b>. Come li contava lei si registra dalle giornate contate col telefono aggiornato: prima non veniva salvato.</>}
+              Le giornate senza unità sono in <b>bicchieri da 250 ml</b>: l'unità si registra dai tap
+              fatti con l'app aggiornata. La spunta ✓ confronta i bicchieri, che sono il dato salvato.
             </p>
           </div>
           {d.waterLogs.length === 0 ? (
@@ -2041,26 +2041,42 @@ export function ClientDetail() {
           ) : (
             <TabellaScorrevole quante={d.waterLogs.length} etichetta="Acqua bevuta">
               <table className="grid">
-                <thead><tr><th>Data</th><th>Bicchieri</th><th>Obiettivo</th></tr></thead>
+                {/*
+                  ⚠️ **La riga si legge come la legge lei** (Simone, 24/8): la quantità e l'obiettivo
+                  nell'unità di QUEL giorno, e l'unità in una colonna sua — non un commentino sotto
+                  ogni numero, che raddoppiava l'altezza di ogni riga per dire una parola.
+                  ⚠️ I numeri li scrive il backend (`common/unita-acqua.ts`), con le stesse regole
+                  dell'app: bottiglie intere per l'obiettivo, mezzi per la quantità.
+                */}
+                <thead><tr><th>Data</th><th>Quantità</th><th>Unità</th><th>Obiettivo</th></tr></thead>
                 <tbody>
                   {d.waterLogs.map((w) => (
                     <tr key={w.id}>
                       <td>{date(w.date)}</td>
-                      <td>
-                        <b>{w.glasses}</b>
-                        {w.glasses >= w.goal && w.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
-                        {/* ⚠️ «unità non registrata» e non «bicchieri»: per le giornate prima del 24/8
-                            l'unità non l'abbiamo mai salvata, e scrivere «bicchieri» sarebbe inventare
-                            una cosa che non sappiamo — su una cliente che magari beveva a bottiglie. */}
-                        <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-                          {w.comeContati ?? (
-                            <span title="Prima del 24/8 l'unità scelta in app non veniva salvata sulla giornata. Il valore resta corretto: è in bicchieri.">
-                              unità non registrata
-                            </span>
-                          )}
-                        </div>
+                      {/*
+                        ⚠️ **La ✓ confronta i BICCHIERI, i due numeri sono nell'unità di lei**, e le
+                        due cose possono sembrare in disaccordo: obiettivo 9 bicchieri, lei ne beve
+                        8 contando a bottiglie da 1 L → la riga dice «2 · bottiglie da 1 L · 2»
+                        **senza** spunta, perché l'obiettivo vero (9) non è stato raggiunto. È
+                        l'arrotondamento dell'app, che dice l'obiettivo in bottiglie intere. Il
+                        `title` porta i numeri veri, così chi legge non deve indovinare.
+                      */}
+                      <td title={`${w.glasses} bicchieri su ${w.goal} — la spunta guarda questi`}>
+                        <b>{w.quantita ?? w.glasses}</b>
+                        {w.glasses >= w.goal && w.goal > 0 && (
+                          <span className="chip" style={{ marginLeft: 8, fontSize: 10 }} title="Obiettivo raggiunto: si misura in bicchieri.">✓</span>
+                        )}
                       </td>
-                      <td className="muted">{w.goal}</td>
+                      {/* ⛔ Trattino e non «bicchieri» quando l'unità non è registrata (giornate prima
+                          del 24/8): il valore lì è comunque in bicchieri, ma scriverlo vorrebbe dire
+                          affermare una cosa che non sappiamo — su una cliente che magari beveva a
+                          bottiglie. Il trattino dice «non lo so», che è la verità. */}
+                      <td className="muted">
+                        {w.unitaDetta ?? (
+                          <span title="Prima del 24/8 l'unità scelta in app non veniva salvata sulla giornata: il valore è in bicchieri da 250 ml.">—</span>
+                        )}
+                      </td>
+                      <td className="muted" title={`${w.goal} bicchieri — in bottiglie si arrotonda all'intero, come in app`}>{w.obiettivoDetto ?? w.goal}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2598,7 +2614,7 @@ const STATO_RICHIESTA: Record<string, string> = {
  * Ora «Vede» mostra la card in **sola lettura** (le date, il motivo, lo storico: le cose che servono
  * a capire perché a una cliente non arriva il menu) e «Gestisce» apre il modulo.
  */
-function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null; puoGestire: boolean }) {
+function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profile: { travelStart?: string | null; travelEnd?: string | null } | null; puoGestire: boolean }) {
   /** Da «ultimo giorno sospeso» (salvato) a «riprende il» (mostrato). Vedi il riquadro sopra. */
   const aRientro = (v?: string | null): string => {
     if (!v) return '';
@@ -2607,7 +2623,6 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
     return new Date(d.getTime() + 86_400_000).toISOString().slice(0, 10);
   };
 
-  const [state, setState] = useState<string>(profile?.travelState ?? '');
   const [start, setStart] = useState<string>(profile?.travelStart ? String(profile.travelStart).slice(0, 10) : '');
   const [rientro, setRientro] = useState<string>(aRientro(profile?.travelEnd));
   const [saving, setSaving] = useState(false);
@@ -2667,19 +2682,25 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
     try {
       const esito = await api<{ giorniSospesi: number | null; nuovaScadenza: string | null; avviso: string | null }>(
         `/admin/clients/${clientId}/travel`,
-        { method: 'PATCH', body: JSON.stringify({ state, start, rientro, motivo }) },
+        // ⚠️ `state` non si manda più: lo ricava il backend dalle date (24/8). Mandarlo sarebbe
+        // rimettere in piedi la contraddizione che si è appena tolta, da una porta che non si vede.
+        { method: 'PATCH', body: JSON.stringify({ start, rientro, motivo }) },
       );
       /**
        * ⚠️ Il messaggio dice **quanti giorni** e **la nuova scadenza**: è l'unico momento in cui chi
        * salva vede l'effetto in € di quello che ha appena fatto. Prima diceva solo «aggiornata».
        */
+      /**
+       * ⚠️ Il messaggio dice **quanti giorni** e **la nuova scadenza**, oppure — quando le date sono
+       * vuote — che la sospensione è stata TOLTA: è l'unico momento in cui chi salva vede l'effetto
+       * di quello che ha appena fatto. Il ramo «rientro registrato» è sparito con la tendina: il
+       * rientro non si dichiara più a mano, lo segna il giro notturno il giorno giusto.
+       */
       setMsg(
         esito.giorniSospesi
           ? `Sospensione di ${esito.giorniSospesi} giorni: i menu si fermano e riprendono il ${data(rientro)}.`
             + (esito.nuovaScadenza ? ` La scadenza del piano è stata spostata al ${data(esito.nuovaScadenza)}.` : '')
-          : state === 'rientrato'
-            ? 'Rientro registrato: i menu ripartono e parte l\'evento verso il CRM/marketing.'
-            : 'Modalità viaggio aggiornata.',
+          : 'Salvato: senza le due date non c\'è nessuna sospensione, e i menu arrivano regolarmente.',
       );
       setAvviso(esito.avviso);
       await carica();
@@ -2720,16 +2741,15 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
         </p>
       ) : (
       <>
+      {/*
+        ⛔ **LA TENDINA «STATO» NON C'È PIÙ** (Simone, 24/8: «va tolto il campo stato che crea
+        confusione»). Chiedeva a chi salva una cosa che il calendario sa già, e le due metà potevano
+        contraddirsi: una vacanza del 30/7 salvata «in partenza» a fine agosto scriveva sul profilo
+        uno stato falso, e uno stato senza date non fermava niente pur sembrando di sì. Adesso
+        comandano le due date: il backend ricava lo stato da quelle, e svuotarle toglie la
+        sospensione.
+      */}
       <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <label className="field" style={{ minWidth: 180 }}>
-          <span>Stato</span>
-          <select className="select" value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="">— nessuna —</option>
-            <option value="in_partenza">In partenza</option>
-            <option value="in_vacanza">In vacanza</option>
-            <option value="rientrato">Rientrato/a</option>
-          </select>
-        </label>
         <label className="field" style={{ maxWidth: 160 }}><span>Dal</span><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
         <label className="field" style={{ maxWidth: 170 }}>
           <span title="Il primo giorno in cui torna a seguire la dieta">Riprende il</span>
@@ -2758,6 +2778,7 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
       <p className="hint" style={{ marginTop: 6, marginBottom: 0 }}>
         «Riprende il» è il <b>primo giorno di dieta</b>: se scrivi 24, il 23 è ancora vacanza.
         Da qui al massimo <b>20 giorni</b>; oltre serve una richiesta di pausa approvata da una collega.
+        Per <b>togliere</b> una sospensione svuota le due date e salva.
       </p>
       </>
       )}
