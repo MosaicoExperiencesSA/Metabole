@@ -437,9 +437,16 @@ describe('ChatService', () => {
      * «non lo trovo fra gli ingredienti di oggi», con la FAQ giusta a un centimetro di distanza,
      * e alla seconda domanda il dialogo si arrendeva girandola alla coach.
      */
-    it('una FAQ vera non viene dirottata dal dialogo aperto', async () => {
+    /**
+     * ⛔ **E vale per TUTTI i primi passi, non solo per `cibo`** (25/8). Dal 24/8 il dialogo comincia
+     * da «su quale menu vuoi lavorare?» e passa da «di quale pasto parliamo?»: questo test cablava
+     * `'cibo'` — cioè un passo che il pulsante non produce più — e restava verde mentre la valvola
+     * era spenta proprio dove serve. La cliente toccava «Sostituisci», cambiava idea, e alla domanda
+     * vera si sentiva rispondere «non ho capito, la mia domanda è…».
+     */
+    it.each(['cibo', 'giorno', 'pasto'])('una FAQ vera non viene dirottata dal dialogo aperto (passo «%s»)', async (passo) => {
       prisma.message.findFirst.mockResolvedValue({
-        meta: { sost: { passo: 'cibo', tentativi: 0 } },
+        meta: { sost: { passo, tentativi: 0 } },
         sentAt: new Date(),
       });
       const res: any = await service.postMessage(client, 't-ai', 'quando si sblocca il nuovo menu?');

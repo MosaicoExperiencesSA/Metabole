@@ -1,0 +1,67 @@
+Gaia non si perde piu': tre domande a numeri (menu → pasto → alimento)
+
+Richiesta di Simone (24/8), guardando una chat vera: «questa domanda non funziona, Gaia si perde,
+miglioriamola cosi': (domanda uno) su quale menu vuoi lavorare? 1 oggi 2 domani 3 dopodomani
+(ovviamente in base a quanti ne vede); (domanda due) di quale pasto parliamo? 1 Colazione 2 spuntino
+3 Pranzo 4 Merenda 5 Cena (anche qui in funzione del numero di pasti); e con lo stesso principio
+mettiamo l'elenco dei cibi, in modo che la cliente scriva dei numeri».
+
+COSA C'ERA PRIMA
+Una domanda sola, con tutta la giornata incollata sotto — «colazione: Ricotta fresca con prugne
+secche reidratate e pane di segale · pranzo: Pasta integrale al branzino e pomodorini · cena: …» — e
+«scrivimi solo il nome dell'alimento». Tre piatti, quindici alimenti, e la cliente doveva scriverne
+uno a mano: una parola diversa da quella della ricetta («il pane di segale» invece di «pane»), o il
+nome del piatto al posto dell'ingrediente, e si ricominciava. Al secondo tentativo si passava alla
+coach.
+
+COSA C'E' ADESSO
+Tre domande corte, ognuna con l'elenco VERO di quella cliente: i giorni che vede, i pasti che ha
+quel giorno, gli alimenti di quel piatto (sostituzioni gia' concordate comprese).
+⚠️ LE DOMANDE CON UNA RISPOSTA SOLA NON SI FANNO: chi vede solo il menu di oggi non si sente chiedere
+«su quale menu», e chi ha un pasto solo va dritto agli alimenti. Un passaggio in piu' prima della
+domanda vera e' l'attrito che fa abbandonare la chat.
+⚠️ LE PAROLE CONTINUANO A FUNZIONARE: «domani», «a pranzo», «le carote» portano avanti come prima. I
+numeri sono la strada facile, non l'unica — e l'elenco lo dice.
+
+⛔ LA REVISIONE HA TROVATO OTTO DIFETTI, TRE GRAVI
+1. IL NUMERO SI RISOLVEVA CERCANDO IL NOME IN TUTTA LA GIORNATA. Con l'olio evo (o il pane, o i
+   pomodorini) in due pasti, il «3» scelto sull'elenco del PRANZO faceva scrivere la sostituzione
+   SULLA COLAZIONE — e alla conferma la cliente si vedeva cambiare un piatto di cui non si parlava.
+   Adesso si risolve per POSIZIONE dentro il pasto scelto.
+2. AL PASSO DEL PASTO SI ERA PERSO IL FILTRO DEL PASTO NOMINATO — la riga nata dalla conversazione
+   girata da Simone il 12/8 — e «a pranzo vorrei cambiare le carote» rispondeva della colazione.
+3. UN NUMERO FUORI ELENCO SCIVOLAVA NELLA RICERCA PER PAROLE: «non trovo «7» fra gli ingredienti», e
+   alla seconda LA RICHIESTA PASSAVA ALLA COACH. A una cliente che aveva solo sbagliato a contare.
+
+ALTRI CINQUE RILIEVI ACCOLTI
+- La valvola che lascia passare una FAQ VERA durante il dialogo era rimasta appesa al passo vecchio:
+  chi toccava «Sostituisci», cambiava idea e chiedeva «quando si sblocca il prossimo menu?» si
+  sentiva rispondere «non ho capito, la mia domanda e'…». E il test che la copriva cablava il passo
+  vecchio, quindi restava verde.
+- LE SPEZIE finivano in elenco come opzioni valide, per poi essere rifiutate dal loro cancello — e
+  quel rifiuto CHIUDE la conversazione. Adesso non si elencano: proporre quello che poi si rifiuta e'
+  peggio che non proporlo.
+- Un ingrediente ripetuto nello stesso piatto compariva due volte, con due numeri per la stessa cosa.
+- Il taglio a dieci alimenti non era dichiarato: chi cercava l'undicesimo non aveva via d'uscita.
+  Adesso l'elenco dice sempre che si puo' rispondere anche col nome.
+- I finti dei test ignoravano il `where`, quindi della query che decide «i giorni che vede davvero»
+  non era provato niente: ne' la finestra, ne' `visibleFrom`, ne' le giornate senza pasti.
+
+VERIFICATO
+- Build pulito; 5222 test in 322 suite verdi con TZ UTC e TZ=Europe/Rome.
+- Mutazioni: slot del pasto non salvato (2 rossi), numero risolto per nome (2), filtro del pasto
+  nominato tolto (1), numero fuori elenco che scivola oltre (1), spezie rimesse in elenco (1),
+  valvola FAQ di nuovo sul solo passo vecchio (2).
+
+FILE NEL COMMIT
+- backend/src/menu/sostituzione-chat.ts
+- backend/src/menu/sostituzione-chat.service.ts
+- backend/src/menu/sostituzione-chat.service.spec.ts
+- backend/src/chat/chat.service.ts
+- backend/src/chat/chat.service.spec.ts
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE e nessun dato nuovo: lo stato del dialogo vive nel messaggio di Gaia e scade in
+un'ora. Al deploy l'unica esposizione sono le conversazioni in volo, che con uno stato vecchio si
+comportano esattamente come prima.

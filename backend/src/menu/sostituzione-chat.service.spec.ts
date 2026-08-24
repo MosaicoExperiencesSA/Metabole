@@ -190,12 +190,50 @@ describe('SostituzioneChatService', () => {
 
   // ---------- Apertura ----------
 
-  it('apre il dialogo elencando i piatti di oggi', async () => {
+  /**
+   * ⛔ **L'APERTURA È CAMBIATA IL 24/8** (Simone: «questa domanda non funziona, Gaia si perde»).
+   * Prima era una domanda sola con tutta la giornata incollata sotto e «scrivimi il nome
+   * dell'alimento»; adesso è una domanda per volta, numerata. Qui la cliente vede **un solo giorno**,
+   * quindi la domanda uno non si fa: si parte dal pasto.
+   */
+  it('apre chiedendo di quale PASTO parliamo, coi pasti numerati', async () => {
     const esito = await service.apri('client-1');
     expect(esito.esito).toBe('aperto');
-    expect(esito.stato?.passo).toBe('cibo');
-    expect(esito.testo).toContain('Insalata di farro');
-    expect(esito.testo).toContain('Yogurt e avena');
+    expect(esito.stato?.passo).toBe('pasto');
+    expect(esito.testo).toContain('1) Colazione — Yogurt e avena');
+    expect(esito.testo).toContain('2) Pranzo — Insalata di farro');
+    expect(esito.testo).toContain('Rispondi col numero');
+  });
+
+  it('e col numero del pasto arriva l\'elenco degli alimenti, numerato', async () => {
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato as StatoSostituzione, '2');
+    expect(dopo.stato?.passo).toBe('cibo');
+    expect(dopo.testo).toContain('«Insalata di farro»');
+    expect(dopo.testo).toContain('1) farro');
+    expect(dopo.stato?.cibiPerScelta).toContain('carote');
+  });
+
+  /**
+   * ⛔ **E il numero dell'alimento chiude il giro**: è la parte che prima non c'era, e per cui la
+   * cliente doveva scrivere a mano una parola fra quindici.
+   */
+  it('⛔ «2» sull\'elenco degli alimenti sceglie il secondo, senza scrivere niente', async () => {
+    const apertura = await service.apri('client-1');
+    const dopoPasto = await service.avanza('client-1', apertura.stato as StatoSostituzione, '2');
+    const dopoCibo = await service.avanza('client-1', dopoPasto.stato as StatoSostituzione, '2');
+    expect(dopoCibo.stato?.proposta?.da).toBe('carote');
+    expect(dopoCibo.stato?.passo).toBe('motivo');
+  });
+
+  /**
+   * ⚠️ **Le parole continuano a funzionare**: i numeri sono la strada facile, non l'unica. Chi
+   * scrive «le carote» salta la domanda del pasto — ha già detto quello che vuole.
+   */
+  it('⚠️ chi risponde a parole va avanti come prima', async () => {
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'le carote');
+    expect(dopo.stato?.proposta?.da).toBe('carote');
   });
 
   it('senza menu di oggi non apre un dialogo che non porterebbe da nessuna parte', async () => {
@@ -212,9 +250,21 @@ describe('SostituzioneChatService', () => {
     expect(esito.stato?.proposta?.slot).toBe('lunch');
   });
 
-  it('se dal testo l\'alimento non si capisce, chiede quale', async () => {
+  /**
+   * ⚠️ Dal 24/8 non si ripete «scrivimi il nome dell'alimento» a chi ha appena scritto una frase che
+   * non abbiamo capito: si passa alle domande a numeri, che sono fatte apposta per lei.
+   */
+  it('se dal testo l\'alimento non si capisce, si passa alle domande a numeri', async () => {
     const esito = await service.apriDaTesto('client-1', 'vorrei sostituire qualcosa');
+    expect(esito.stato?.passo).toBe('pasto');
+    expect(esito.testo).toContain('1) Colazione');
+  });
+
+  it('⚠️ e se aveva nominato il pasto si salta anche quella domanda: elenco degli alimenti', async () => {
+    const esito = await service.apriDaTesto('client-1', 'vorrei cambiare qualcosa a pranzo');
     expect(esito.stato?.passo).toBe('cibo');
+    expect(esito.testo).toContain('«Insalata di farro»');
+    expect(esito.testo).toContain('1) farro');
   });
 
   // ---------- Riconoscimento dell'alimento ----------
@@ -242,16 +292,37 @@ describe('SostituzioneChatService', () => {
     expect(esito.stato?.proposta?.a).toBe('skyr');
   });
 
-  it('se scrive il nome del PIATTO glielo spiega, invece di arrendersi', async () => {
+  /**
+   * ⚠️ **Il nome del piatto adesso è una risposta buona al passo del pasto**: dal 24/8 «insalata»
+   * non è più un equivoco da spiegare — è il modo in cui una persona indica il pranzo, e le si
+   * risponde con gli alimenti di quel piatto. Il vecchio messaggio «è il nome del piatto» resta al
+   * passo dell'alimento, dove serve ancora (il test qui sotto).
+   */
+  it('al passo del pasto, il nome del piatto porta ai suoi alimenti', async () => {
     const apertura = await service.apri('client-1');
     const esito = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'insalata');
+    expect(esito.stato?.passo).toBe('cibo');
+    expect(esito.testo).toContain('«Insalata di farro»');
+  });
+
+  it('al passo dell\'ALIMENTO, se scrive il nome del piatto glielo spiega, invece di arrendersi', async () => {
+    const esito = await service.avanza(
+      'client-1',
+      { passo: 'cibo', tentativi: 0, data: oggiIso() } as StatoSostituzione,
+      'insalata',
+    );
     expect(esito.esito).toBe('in_corso');
     expect(esito.testo).toContain('è il nome del piatto');
     expect(esito.stato?.passo).toBe('cibo');
   });
 
+  /**
+   * ⚠️ Si parte dal passo dell'ALIMENTO: al passo del pasto due risposte non capite non passano più
+   * alla coach ma ripiegano sulla domanda a parole (24/8) — la mano si passa qui, dove la cliente ha
+   * già davanti l'elenco e continua a non farsi capire.
+   */
   it('dopo due tentativi a vuoto passa la mano alla coach', async () => {
-    const apertura = await service.apri('client-1');
+    const apertura = { stato: { passo: 'cibo', tentativi: 0, data: oggiIso() } as StatoSostituzione };
     const primo = await service.avanza('client-1', apertura.stato as StatoSostituzione, 'zzzqqq');
     expect(primo.esito).toBe('in_corso');
     const secondo = await service.avanza('client-1', primo.stato as StatoSostituzione, 'wwwkkk');
@@ -1339,10 +1410,30 @@ describe('SostituzioneChatService — ascoltare meglio (12/8)', () => {
     expect(risposta.testo).toContain(domanda);
   });
 
-  it('e se aveva nominato un pasto, ripete la domanda MIRATA su quel pasto', async () => {
+  /**
+   * ⚠️ **Dal 24/8 chi nomina il pasto non si sente più dire «non ho capito»**: «a pranzo qualcosa
+   * che non ricordo» è una risposta che il pasto lo dice eccome, e la si prende — arriva l'elenco
+   * numerato degli alimenti di quel piatto, che è esattamente quello che «non ricordo» chiedeva.
+   * La domanda mirata ripetuta resta al passo dell'alimento (il test qui sotto).
+   */
+  it('chi nomina il pasto riceve gli alimenti di QUEL pasto, non un «non ho capito»', async () => {
     const { service } = await creaServizio();
     const apertura = await service.apri('client-1');
     const risposta = await service.avanza('client-1', apertura.stato!, 'a pranzo qualcosa che non ricordo');
+
+    expect(risposta.stato?.passo).toBe('cibo');
+    expect(risposta.testo).toContain('Insalata di farro');
+    expect(risposta.testo).toContain('1) farro');
+    expect(risposta.testo).not.toContain('Yogurt e avena');
+  });
+
+  it('e al passo dell\'ALIMENTO, se aveva nominato un pasto, ripete la domanda MIRATA su quel pasto', async () => {
+    const { service } = await creaServizio();
+    const risposta = await service.avanza(
+      'client-1',
+      { passo: 'cibo', tentativi: 0, data: oggiIso() } as StatoSostituzione,
+      'a pranzo qualcosa che non ricordo',
+    );
 
     expect(risposta.testo).toContain('non ho capito');
     expect(risposta.testo).toContain('Insalata di farro'); // il piatto del pranzo
@@ -1356,6 +1447,303 @@ describe('SostituzioneChatService — ascoltare meglio (12/8)', () => {
     const risposta = await service.avanza('client-1', apertura.stato!, 'a pranzo vorrei togliere le carote');
     expect(risposta.stato?.proposta?.slot).toBe('lunch');
     expect(risposta.stato?.proposta?.da).toBe('carote');
+  });
+});
+
+/**
+ * ⛔ **LE TRE DOMANDE A NUMERI** — Simone, 24/8, guardando una chat vera: *«questa domanda non
+ * funziona, Gaia si perde, miglioriamola così: (domanda uno) su quale menu vuoi lavorare? 1 oggi
+ * 2 domani 3 dopodomani (ovviamente in base a quanti ne vede); (domanda due) di quale pasto
+ * parliamo? 1 Colazione 2 spuntino… (anche qui in funzione del numero di pasti); e con lo stesso
+ * principio mettiamo l'elenco dei cibi, in modo che la cliente scriva dei numeri»*.
+ *
+ * Il difetto era di forma, ma costava conversazioni: una domanda sola, tutta la giornata incollata
+ * sotto («colazione: … · pranzo: … · cena: …») e la richiesta di **scrivere a mano** il nome di uno
+ * fra quindici alimenti. Una parola sbagliata e si ricominciava; alla seconda si passava alla coach.
+ */
+describe('SostituzioneChatService — le tre domande a numeri (24/8)', () => {
+  const piu = (n: number) => {
+    const d = new Date(`${oggiIso()}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d;
+  };
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  /** Tre giornate visibili, ognuna coi suoi pasti: è il caso dell'esempio di Simone. */
+  async function conTreGiorni(pastiPerGiorno?: MealSnapshot[][]) {
+    const giorni = [0, 1, 2].map((n) => ({
+      id: `day-${n}`,
+      date: piu(n),
+      dietId: 'diet-onnivora',
+      meals: (pastiPerGiorno?.[n] ?? pastiDiOggi).map((m) => ({ ...m })),
+    }));
+    const creato = await creaServizio((prisma: any) => {
+      prisma.menuDay.findMany = jest.fn().mockResolvedValue(giorni);
+      prisma.menuDay.findFirst = jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(giorni.find((g) => iso(g.date) === iso(where.date)) ?? null));
+    });
+    return creato;
+  }
+
+  /**
+   * ⛔ **«In base a quanti ne vede»** (Simone). La query che decide l'elenco dei giorni è l'unica
+   * cosa che tiene quella promessa, e la revisione del 25/8 ha misurato che nessun test la copriva:
+   * i finti rispondevano sempre le stesse giornate, qualunque `where`. Qui il finto **onora il
+   * where**, e le tre condizioni si vedono una per una.
+   */
+  it('⛔ propone solo le giornate VISIBILI, non passate e con dei pasti dentro', async () => {
+    const dentro = { id: 'ok', date: piu(1), dietId: 'd', meals: pastiDiOggi, visibleFrom: piu(-1) };
+    const tutte = [
+      { id: 'ieri', date: piu(-1), dietId: 'd', meals: pastiDiOggi, visibleFrom: piu(-2) },
+      dentro,
+      { id: 'nonvisibile', date: piu(2), dietId: 'd', meals: pastiDiOggi, visibleFrom: piu(2) },
+      { id: 'vuota', date: piu(2), dietId: 'd', meals: [], visibleFrom: piu(-1) },
+      { id: 'lontana', date: piu(9), dietId: 'd', meals: pastiDiOggi, visibleFrom: piu(-1) },
+    ];
+    const { service } = await creaServizio((prisma: any) => {
+      prisma.menuDay.findMany = jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(tutte.filter((g) =>
+          g.date >= where.date.gte && g.date <= where.date.lte && g.visibleFrom <= where.visibleFrom.lte)));
+      prisma.menuDay.findFirst = jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(tutte.find((g) => iso(g.date) === iso(where.date) && g.meals.length) ?? null));
+    });
+
+    const apertura = await service.apri('client-1');
+    // Resta una sola giornata proponibile: la domanda uno non si fa nemmeno, si va al pasto.
+    expect(apertura.stato?.passo).toBe('pasto');
+    expect(apertura.stato?.data).toBe(iso(piu(1)));
+    expect(apertura.testo).toContain('per il menu di domani');
+  });
+
+  it('domanda uno: i giorni che vede, numerati', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    expect(apertura.stato?.passo).toBe('giorno');
+    expect(apertura.testo).toContain('Su quale menu vuoi lavorare?');
+    expect(apertura.testo).toContain('1) oggi');
+    expect(apertura.testo).toContain('2) domani');
+    expect(apertura.testo).toContain('3) dopodomani');
+  });
+
+  it('«2» sceglie domani, e la conversazione si porta dietro quella data', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato!, '2');
+    expect(dopo.stato?.data).toBe(iso(piu(1)));
+    expect(dopo.stato?.passo).toBe('pasto');
+    expect(dopo.testo).toContain('per il menu di domani');
+  });
+
+  it('⚠️ e le parole funzionano lo stesso: «dopodomani» vale come «3»', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato!, 'dopodomani');
+    expect(dopo.stato?.data).toBe(iso(piu(2)));
+  });
+
+  /**
+   * ⛔ **Un giorno che non ha non si prende per buono.** «Fra una settimana» il menu non c'è ancora:
+   * portarla avanti su una giornata vuota vorrebbe dire farle scegliere un pasto che non esiste, e
+   * scoprirlo due domande dopo.
+   */
+  it('⛔ un giorno FUORI dall\'elenco non passa: si ripete la domanda', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    // Un giorno della settimana che cade **oltre** i tre proposti: riconosciuto come giorno, ma il
+    // menu non c'è. È il caso che conta — «fra una settimana» non lo capirebbe nessuno dei due, e
+    // un test che passa comunque non protegge niente.
+    const nomeGiorni = ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'];
+    const oltre = new Date(`${oggiIso()}T00:00:00.000Z`).getUTCDay();
+    const dopo = await service.avanza('client-1', apertura.stato!, nomeGiorni[(oltre + 4) % 7]);
+    expect(dopo.stato?.passo).toBe('giorno');
+    expect(dopo.testo).toContain('non ho capito');
+  });
+
+  /**
+   * ⚠️ **Alla seconda risposta non capita si va avanti sul primo giorno**, invece di arrendersi:
+   * quasi sempre è oggi, ed è la giornata che sta guardando. Passare alla coach una cliente che
+   * voleva togliere le carote perché non ha scritto «1» sarebbe sproporzionato.
+   */
+  it('⚠️ due risposte non capite non passano alla coach: si prosegue sul primo giorno', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    const primo = await service.avanza('client-1', apertura.stato!, 'zzzqqq');
+    const secondo = await service.avanza('client-1', primo.stato!, 'wwwkkk');
+    expect(secondo.stato?.passo).toBe('pasto');
+    expect(secondo.stato?.data).toBe(oggiIso());
+  });
+
+  /**
+   * ⛔ **Una domanda con una risposta sola non si fa.** Se quel giorno ha un pasto solo, si salta
+   * direttamente agli alimenti: un passaggio in più prima della domanda vera è l'attrito che fa
+   * abbandonare la chat.
+   */
+  it('⛔ con un pasto solo si salta la domanda due', async () => {
+    const solaCena: MealSnapshot[] = [{ slot: 'lunch', recipeId: 'r-pranzo', name: 'Insalata di farro', kcal: 500 }];
+    const { service } = await conTreGiorni([solaCena, solaCena, solaCena]);
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato!, '1');
+    expect(dopo.stato?.passo).toBe('cibo');
+    expect(dopo.testo).toContain('1) farro');
+  });
+
+  /**
+   * ⛔ **IL NUMERO SI RISOLVE DENTRO IL PASTO SCELTO, non cercando il nome nella giornata** —
+   * rilievo della revisione del 25/8, il più grave. Con l'olio evo (o il pane, o i pomodorini) in
+   * due pasti, il «3» scelto sull'elenco del pranzo faceva scrivere la sostituzione **sulla
+   * colazione**: alla conferma la cliente si vedeva cambiare un piatto di cui non si parlava.
+   */
+  it('⛔ con lo stesso alimento in due pasti, il numero cambia quello del pasto SCELTO', async () => {
+    const duePasti: MealSnapshot[] = [
+      { slot: 'breakfast', recipeId: 'r-col-carote', name: 'Pane e carote', kcal: 300 },
+      { slot: 'lunch', recipeId: 'r-pranzo', name: 'Insalata di farro', kcal: 500 },
+    ];
+    const giorni = [0, 1, 2].map((n) => ({ id: `day-${n}`, date: piu(n), dietId: 'diet-onnivora', meals: duePasti.map((m) => ({ ...m })) }));
+    const { service } = await creaServizio((prisma: any) => {
+      prisma.menuDay.findMany = jest.fn().mockResolvedValue(giorni);
+      prisma.menuDay.findFirst = jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(giorni.find((g) => iso(g.date) === iso(where.date)) ?? null));
+      const originale = prisma.recipe.findMany;
+      prisma.recipe.findMany = jest.fn().mockImplementation(async (args: any) => {
+        const dal = await originale(args);
+        const chiede = (args?.where?.id?.in ?? null) as string[] | null;
+        if (!chiede || !chiede.includes('r-col-carote')) return dal;
+        return [
+          ...dal,
+          {
+            id: 'r-col-carote', name: 'Pane e carote', mealSlot: 'breakfast', kcal: 300,
+            macros: { protein_g: 8 }, difficulty: 'semplice',
+            ingredients: [{ name: 'pane', qty: 60, unit: 'g' }, { name: 'carote', qty: 30, unit: 'g' }],
+          },
+        ];
+      });
+    });
+
+    const apertura = await service.apri('client-1');
+    const dopoGiorno = await service.avanza('client-1', apertura.stato!, '1');
+    const dopoPasto = await service.avanza('client-1', dopoGiorno.stato!, '2'); // il PRANZO
+    expect(dopoPasto.stato?.cibiPerScelta).toEqual(['farro', 'carote', 'olio evo']);
+    const dopoCibo = await service.avanza('client-1', dopoPasto.stato!, '2'); // le carote del pranzo
+
+    expect(dopoCibo.stato?.proposta?.slot).toBe('lunch');
+    expect(dopoCibo.stato?.proposta?.qtaDa).toBe(100); // quelle del pranzo, non i 30 g della colazione
+  });
+
+  /**
+   * ⛔ **«A pranzo» restringe anche qui** — è la riga nata dalla conversazione del 12/8 («a pranzo» e
+   * Gaia rispondeva della cena), che la prima stesura di questo passo aveva perso.
+   */
+  it('⛔ «a pranzo, le carote» al passo del pasto non guarda la colazione', async () => {
+    const duePasti: MealSnapshot[] = [
+      { slot: 'breakfast', recipeId: 'r-col-carote', name: 'Pane e carote', kcal: 300 },
+      { slot: 'lunch', recipeId: 'r-pranzo', name: 'Insalata di farro', kcal: 500 },
+    ];
+    const giorni = [{ id: 'day-0', date: piu(0), dietId: 'diet-onnivora', meals: duePasti.map((m) => ({ ...m })) }];
+    const { service } = await creaServizio((prisma: any) => {
+      prisma.menuDay.findMany = jest.fn().mockResolvedValue(giorni);
+      prisma.menuDay.findFirst = jest.fn().mockResolvedValue(giorni[0]);
+      const originale = prisma.recipe.findMany;
+      prisma.recipe.findMany = jest.fn().mockImplementation(async (args: any) => {
+        const dal = await originale(args);
+        return [
+          ...dal,
+          {
+            id: 'r-col-carote', name: 'Pane e carote', mealSlot: 'breakfast', kcal: 300,
+            macros: { protein_g: 8 }, difficulty: 'semplice',
+            ingredients: [{ name: 'pane', qty: 60, unit: 'g' }, { name: 'carote', qty: 30, unit: 'g' }],
+          },
+        ];
+      });
+    });
+
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato!, 'a pranzo vorrei cambiare le carote');
+    expect(dopo.stato?.proposta?.slot).toBe('lunch');
+  });
+
+  /**
+   * ⛔ **Un numero fuori elenco NON passa alla coach.** Prima scivolava nella ricerca per parole:
+   * «non trovo «7» fra gli ingredienti», e alla seconda «ho girato la richiesta alla tua coach» —
+   * a una cliente che aveva solo sbagliato a contare.
+   */
+  it('⛔ «7» su tre alimenti dice che quel numero non c\'è, e resta lì', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    const dopoGiorno = await service.avanza('client-1', apertura.stato!, '1');
+    const dopoPasto = await service.avanza('client-1', dopoGiorno.stato!, '2');
+    const fuori = await service.avanza('client-1', dopoPasto.stato!, '7');
+    expect(fuori.esito).toBe('in_corso');
+    expect(fuori.stato?.passo).toBe('cibo');
+    expect(fuori.inoltraA).toBeUndefined();
+    // ⚠️ Dice che quel NUMERO non c'è, non che non trova un alimento chiamato «7»: è la differenza
+    // fra una risposta e uno scivolamento nel ramo sbagliato.
+    expect(fuori.testo).toContain('rispondi con un numero da 1 a 3');
+    expect(fuori.testo).not.toContain('Non trovo');
+    // E l'elenco resta in mano: al giro dopo «2» funziona ancora.
+    const poi = await service.avanza('client-1', fuori.stato!, '2');
+    expect(poi.stato?.proposta?.da).toBe('carote');
+  });
+
+  /**
+   * ⛔ **Le spezie non si elencano**: hanno un cancello loro (Gaia non le sostituisce) e la risposta
+   * CHIUDE la conversazione. Elencarle come opzione numerata voleva dire proporgliele noi, per poi
+   * rifiutarle e farle ricominciare tutto da capo.
+   */
+  it('⛔ sale e pepe restano fuori dall\'elenco numerato', async () => {
+    const unPasto: MealSnapshot[] = [{ slot: 'lunch', recipeId: 'r-speziato', name: 'Pollo alle spezie', kcal: 500 }];
+    const giorni = [{ id: 'day-0', date: piu(0), dietId: 'diet-onnivora', meals: unPasto }];
+    const { service } = await creaServizio((prisma: any) => {
+      prisma.menuDay.findMany = jest.fn().mockResolvedValue(giorni);
+      prisma.menuDay.findFirst = jest.fn().mockResolvedValue(giorni[0]);
+      prisma.recipe.findMany = jest.fn().mockResolvedValue([
+        {
+          id: 'r-speziato', name: 'Pollo alle spezie', mealSlot: 'lunch', kcal: 500,
+          macros: { protein_g: 40 }, difficulty: 'semplice',
+          ingredients: [
+            { name: 'pollo', qty: 150, unit: 'g' },
+            { name: 'sale', qty: 1, unit: 'g' },
+            { name: 'pepe nero', qty: 1, unit: 'g' },
+            { name: 'pollo', qty: 20, unit: 'g' },
+          ],
+        },
+      ]);
+    });
+
+    const apertura = await service.apri('client-1');
+    // ⚠️ E senza doppioni: «pollo» compare due volte nella ricetta, una sola nell'elenco.
+    // ⚠️ Il SALE resta: non è nel vocabolario delle spezie del prodotto (`menu/spezie.ts`), e
+    // inventarsi qui una seconda idea di «cosa è una spezia» vorrebbe dire due elenchi che
+    // divergono. Se un giorno il sale deve uscire, esce da lì — dove sta scritto per tutti.
+    expect(apertura.stato?.cibiPerScelta).toEqual(['pollo', 'sale']);
+    expect(apertura.testo).not.toContain('pepe');
+  });
+
+  it('⚠️ e l\'elenco dice sempre che si può rispondere anche a parole', async () => {
+    const { service } = await conTreGiorni();
+    const apertura = await service.apri('client-1');
+    const dopoGiorno = await service.avanza('client-1', apertura.stato!, '1');
+    const dopoPasto = await service.avanza('client-1', dopoGiorno.stato!, '2');
+    expect(dopoPasto.testo).toContain('scrivimi il suo nome');
+  });
+
+  /**
+   * ⛔ **Gli alimenti elencati sono quelli che ha DAVANTI**, sostituzioni già concordate comprese:
+   * se ieri ha concordato «carote → biete», l'elenco dice biete. Elencare il catalogo le farebbe
+   * scegliere un alimento che nel suo piatto non c'è più — ed è il difetto che
+   * `ingredientiEffettivi` esiste per chiudere.
+   */
+  it('⛔ l\'elenco degli alimenti tiene conto delle sostituzioni già concordate', async () => {
+    const conSostituzione: MealSnapshot[] = [
+      {
+        slot: 'lunch', recipeId: 'r-pranzo', name: 'Insalata di farro', kcal: 500,
+        substitutions: [{ from: 'carote', to: 'biete', reason: 'non gradito' }],
+      } as MealSnapshot,
+    ];
+    const { service } = await conTreGiorni([conSostituzione, conSostituzione, conSostituzione]);
+    const apertura = await service.apri('client-1');
+    const dopo = await service.avanza('client-1', apertura.stato!, '1');
+    expect(dopo.testo).toContain('biete');
+    expect(dopo.testo).not.toContain('carote');
   });
 });
 
@@ -1377,7 +1765,9 @@ describe('SostituzioneChatService — la giornata di cui si parla (§16.2)', () 
     const apertura = await service.apri('client-1', domaniIso());
 
     expect(apertura.stato?.data).toBe(domaniIso());
-    expect(apertura.testo).toContain('Domani hai');
+    // ⚠️ Il giorno si ripete nella domanda del pasto: la domanda uno è stata saltata (la data
+    // arriva dal pulsante), e senza questa riga non si saprebbe di quale giornata si parla.
+    expect(apertura.testo).toContain('per il menu di domani');
     const where = prisma.menuDay.findFirst.mock.calls[0][0].where;
     expect(where.date.toISOString().slice(0, 10)).toBe(domaniIso());
     // ⚠️ Solo le giornate che la cliente VEDE: è la condizione che Simone ha messo lui nella
@@ -1418,11 +1808,16 @@ describe('SostituzioneChatService — la giornata di cui si parla (§16.2)', () 
     expect(prisma.menuDay.findFirst).not.toHaveBeenCalled();
   });
 
-  it('per la giornata di OGGI le frasi restano identiche a prima', async () => {
-    // È la rete di sicurezza di tutta §16.2: il giorno predefinito non cambia una parola.
+  /**
+   * ⚠️ **Fino al 24/8 questo test diceva «le frasi restano identiche a prima»**, ed era la rete di
+   * sicurezza di §16.2: il giorno predefinito non doveva cambiare una parola. Quella promessa è
+   * stata sciolta da Simone quando ha chiesto le domande a numeri — ma la metà che conta resta, ed è
+   * questa: **si dice sempre di quale giornata si sta parlando**, oggi compreso.
+   */
+  it('anche per OGGI si dice di quale giornata si parla, dall\'apertura fino alla conferma', async () => {
     const { service } = await creaServizio();
     const apertura = await service.apri('client-1');
-    expect(apertura.testo).toContain('Oggi hai —');
+    expect(apertura.testo).toContain('per il menu di oggi');
     const dopoCibo = await service.avanza('client-1', apertura.stato!, 'le carote');
     const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
     expect(dopoMotivo.testo).toContain('solo per oggi: domani torna come prima');

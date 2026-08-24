@@ -2077,6 +2077,48 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'gaia-domande-a-numeri',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-25T15:00',
+    titolo: '✅ Gaia non si perde più: tre domande a numeri (menu → pasto → alimento)',
+    dettaglio:
+      'Richiesta di Simone (24/8), guardando una chat vera: *«questa domanda non funziona, Gaia si '
+      + 'perde, miglioriamola così: (domanda uno) su quale menu vuoi lavorare? 1 oggi 2 domani 3 '
+      + 'dopodomani (in base a quanti ne vede); (domanda due) di quale pasto parliamo? 1 Colazione 2 '
+      + 'spuntino… (in funzione del numero di pasti); e con lo stesso principio l\'elenco dei cibi, in '
+      + 'modo che la cliente scriva dei numeri»*.\n\n'
+      + 'Prima l\'apertura era **una** domanda con tutta la giornata incollata sotto — «colazione: '
+      + 'Ricotta fresca con prugne secche reidratate e pane di segale · pranzo: … · cena: …» — e la '
+      + 'richiesta di **scrivere a mano** il nome di uno fra quindici alimenti. Una parola diversa da '
+      + 'quella della ricetta e si ricominciava; al secondo tentativo si passava alla coach. ✅ Adesso '
+      + 'sono tre domande corte, ognuna con l\'elenco vero di quella cliente. ⚠️ **Le domande con una '
+      + 'risposta sola non si fanno**: chi vede solo il menu di oggi non si sente chiedere «su quale '
+      + 'menu», e chi ha un pasto solo va dritto agli alimenti. ⚠️ **Le parole continuano a '
+      + 'funzionare**: «domani», «a pranzo», «le carote» portano avanti come prima — i numeri sono la '
+      + 'strada facile, non l\'unica.\n\n'
+      + '⛔ **La revisione ha trovato otto difetti, tre gravi.** (1) Il numero si risolveva cercando '
+      + 'il **nome** in tutta la giornata: con l\'olio evo (o il pane, o i pomodorini) in due pasti, il '
+      + '«3» scelto sul pranzo faceva scrivere la sostituzione **sulla colazione**. Ora si risolve per '
+      + '**posizione dentro il pasto scelto**. (2) Al passo del pasto si era perso `soloIlPastoNominato` '
+      + '— la riga nata dalla conversazione del 12/8 — e «a pranzo vorrei cambiare le carote» '
+      + 'rispondeva della colazione. (3) Un numero **fuori elenco** scivolava nella ricerca per parole: '
+      + '«non trovo «7» fra gli ingredienti», e alla seconda **la richiesta passava alla coach** — a '
+      + 'chi aveva solo sbagliato a contare.\n\n'
+      + '⚠️ Accolti anche: la valvola che lascia passare una **FAQ vera** durante il dialogo era '
+      + 'rimasta appesa al passo vecchio (chi toccava «Sostituisci» e poi chiedeva «quando si sblocca '
+      + 'il prossimo menu?» si sentiva rispondere «non ho capito»); le **spezie** finivano in elenco '
+      + 'come opzioni valide per poi essere rifiutate (e il rifiuto CHIUDE la conversazione); un '
+      + 'ingrediente ripetuto compariva due volte; e il taglio a dieci alimenti non era dichiarato — '
+      + 'ora l\'elenco dice sempre che si può rispondere anche a parole.\n\n'
+      + '🔍 5222 test in 322 suite verdi (TZ UTC e Roma), build pulito, ogni pezzo nuovo provato alla '
+      + 'mutazione. Nessuna migrazione, nessun dato nuovo: lo stato del dialogo vive nel messaggio e '
+      + 'scade in un\'ora, quindi al deploy l\'unica esposizione sono le conversazioni in volo — che '
+      + 'con uno stato vecchio si comportano come prima.',
+  },
+  {
     chiave: 'colonna-in-sospensione',
     categoria: 'Da fare — codice',
     ordine: 0,

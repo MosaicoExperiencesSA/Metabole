@@ -56,6 +56,13 @@ const MASSIMO_CHIUSURE_PER_GIRO = 100;
  * subito da filtro deterministico; coach e nutrizionista rispondono nei loro
  * thread. Temi sensibili → escalation automatica al nutrizionista.
  */
+/**
+ * I passi del dialogo di sostituzione in cui una FAQ vera **non** viene dirottata: sono quelli in
+ * cui Gaia ha appena fatto una domanda lunga, e la cliente può ancora cambiare argomento senza che
+ * sembri una risposta. Vedi il commento nel punto che la legge.
+ */
+const PASSI_CON_USCITA_FAQ = new Set(['giorno', 'pasto', 'cibo']);
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -764,8 +771,14 @@ export class ChatService {
       // questa uscita, «quando si sblocca il prossimo menu?» al passo dell'alimento riceveva
       // «non lo trovo fra gli ingredienti di oggi» — con la FAQ giusta a un centimetro di
       // distanza — e alla seconda domanda il dialogo si arrendeva girandola alla coach.
-      // Vale solo al primo passo: dopo, le risposte sono brevi e non somigliano a domande.
-      if (kind === 'faq' && stato.passo === 'cibo') return null;
+      // Vale solo ai PRIMI passi: dopo, le risposte sono brevi e non somigliano a domande.
+      //
+      // ⛔ Dal 24/8 i primi passi sono TRE — il dialogo comincia da «su quale menu vuoi lavorare?»
+      // e passa da «di quale pasto parliamo?». Restando appesa al solo `cibo`, questa valvola si era
+      // spenta proprio dove serve di più: la cliente tocca «Sostituisci», cambia idea, chiede
+      // «quando si sblocca il prossimo menu?» e si sentiva rispondere «non ho capito, la mia domanda
+      // è…». Trovato in revisione il 25/8, insieme al test che la copriva e che cablava `'cibo'`.
+      if (kind === 'faq' && PASSI_CON_USCITA_FAQ.has(stato.passo)) return null;
       esito = await this.sostituzione.avanza(clientId, stato, body);
     } else if (rilevaIntentoSostituzione(body)) {
       esito = await this.sostituzione.apriDaTesto(clientId, body);

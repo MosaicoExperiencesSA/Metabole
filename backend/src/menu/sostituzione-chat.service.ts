@@ -7,7 +7,7 @@ import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
 import { CHIAVE_GAIA } from '../vera/risposta-alla-cliente';
 import { nonHoCapito, pastoNominato, proponeUnPastoIntero } from './ascolto';
-import { distanzaGiorni, etichettaGiorno, giornoDellaConversazione } from './giorno-conversazione';
+import { distanzaGiorni, etichettaGiorno, giornoDalTesto, giornoDellaConversazione } from './giorno-conversazione';
 import {
   FINESTRA_GIORNI,
   PAUSA_FRA_INVITI_GIORNI,
@@ -65,6 +65,11 @@ import {
   testoAltroSostituto,
   testoAnnullato,
   testoChiediCibo,
+  testoChiediCiboNumerato,
+  testoChiediGiorno,
+  testoChiediPasto,
+  giornoDaNumero,
+  ciboDaNumero,
   testoChiediMotivo,
   testoChiediPercheNo,
   testoCiboNonTrovato,
@@ -222,6 +227,23 @@ const normalizza = (testo: string): string =>
  * - **non chiude niente da sola quando è insicura**: se non ha un sostituto che regge, o se
  *   c'è di mezzo un allergene, passa la mano a una persona.
  */
+/**
+ * Quanti giorni si propongono al passo «su quale menu vuoi lavorare?».
+ *
+ * ⚠️ Tre, come nell'esempio di Simone (oggi · domani · dopodomani), ed è un **tetto**, non una
+ * promessa: si mostrano solo le giornate che esistono e sono già visibili. Alzarlo vorrebbe dire un
+ * elenco che si legge peggio proprio nel passo che serve a decidere in fretta.
+ */
+const GIORNI_DA_PROPORRE = 2; // oggi + 2
+
+/**
+ * ⚠️ Gli alimenti elencati per un piatto si fermano a dieci: sopra, la cliente smette di leggere e
+ * comincia a cercare — che è il difetto per cui questa consegna esiste. Nei piatti veri sono
+ * quattro-sei; il taglio serve alle ricette con l'elenco lungo (soffritti, spezie), dove le voci in
+ * fondo sono anche le meno probabili.
+ */
+const MAX_ALIMENTI_ELENCATI = 10;
+
 @Injectable()
 export class SostituzioneChatService {
   private readonly logger = new Logger(SostituzioneChatService.name);
@@ -279,6 +301,20 @@ export class SostituzioneChatService {
    * `data` arriva dall'app quando la cliente sta guardando il menu di un giorno diverso da oggi
    * (§16.2): il pulsante sa quale giornata ha aperto, e finora quell'informazione si perdeva.
    */
+  /**
+   * ⛔ **L'APERTURA A NUMERI** — Simone, 24/8: *«questa domanda non funziona, Gaia si perde,
+   * miglioriamola così: (domanda uno) su quale menu vuoi lavorare? … (domanda due) di quale pasto
+   * parliamo? … e con lo stesso principio l'elenco dei cibi»*.
+   *
+   * Prima si apriva con **una** domanda e sotto l'intera giornata incollata, chiedendo di scrivere a
+   * mano il nome di uno fra quindici alimenti. Adesso sono tre domande corte, ognuna con l'elenco
+   * vero di quella cliente: i giorni che vede, i pasti che ha quel giorno, gli alimenti di quel
+   * piatto.
+   *
+   * ⚠️ **Le domande con una risposta sola non si fanno**: chi vede solo il menu di oggi non si sente
+   * chiedere «su quale menu», e chi ha un pasto solo non sceglie fra uno. Un passaggio in più prima
+   * della domanda vera è esattamente il tipo di attrito che fa abbandonare la chat.
+   */
   async apri(clientId: string, data?: string | null): Promise<EsitoSostituzione> {
     const oggi = this.oggiIso();
     // ⚠️ Un giorno PASSATO non si ripiega su oggi in silenzio: rispondere di una giornata diversa
@@ -292,18 +328,115 @@ export class SostituzioneChatService {
         esito: 'rifiutata',
       };
     }
-    const giorno = giornoDellaConversazione({ statoData: data, oggiIso: oggi });
-    const quando = etichettaGiorno(giorno, oggi);
-    const [pasti, nome] = await Promise.all([this.pastiDelGiorno(clientId, giorno), this.nomeDi(clientId)]);
-    const elenco = pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome }));
-    if (!elenco.length) {
-      return { testo: testoChiediCibo([], nome, quando), esito: 'rifiutata' };
-    }
+    const nome = await this.nomeDi(clientId);
+    // La giornata già decisa da chi apre (il pulsante su un menu, un deep link): la domanda uno
+    // sarebbe una domanda a cui ha già risposto.
+    if (data) return this.ricorda(await this.chiediPasto(clientId, giornoDellaConversazione({ statoData: data, oggiIso: oggi }), nome));
+
+    const giorni = await this.giorniConMenu(clientId);
+    if (!giorni.length) return { testo: testoChiediCibo([], nome, 'oggi'), esito: 'rifiutata' };
+    if (giorni.length === 1) return this.ricorda(await this.chiediPasto(clientId, giorni[0], nome));
+
+    const etichette = giorni.map((g) => etichettaGiorno(g, oggi));
+    const testo = testoChiediGiorno(etichette, nome);
     return this.ricorda({
-      testo: testoChiediCibo(elenco, nome, quando),
-      stato: { passo: 'cibo', tentativi: 0, data: giorno },
+      testo,
+      stato: { passo: 'giorno', tentativi: 0, giorniPerScelta: giorni, ultimaDomanda: testo },
       esito: 'aperto',
     });
+  }
+
+  /**
+   * I GIORNI CHE LA CLIENTE VEDE DAVVERO, oggi compreso.
+   *
+   * ⚠️ Non «i prossimi tre»: si guarda quali giornate esistono e sono **già visibili** (la stessa
+   * condizione di `pastiDelGiorno`). Chiederle di scegliere «2) domani» quando domani non ce l'ha
+   * ancora sarebbe offrire una porta che non si apre — ed è il difetto di forma che questa consegna
+   * sta togliendo, rifatto un passo più in là.
+   */
+  private async giorniConMenu(clientId: string): Promise<string[]> {
+    const oggi = toDateOnly();
+    const fine = new Date(oggi.getTime() + GIORNI_DA_PROPORRE * 86_400_000);
+    const giorni = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { gte: oggi, lte: fine }, visibleFrom: { lte: oggi } } as never,
+      orderBy: { date: 'asc' },
+      select: { date: true, meals: true },
+    })) as { date: Date; meals: unknown }[];
+    return giorni
+      .filter((g) => ((g.meals as MealSnapshot[]) ?? []).filter(Boolean).length > 0)
+      .map((g) => g.date.toISOString().slice(0, 10));
+  }
+
+  /** Domanda due: di quale pasto parliamo. Con un pasto solo si salta e si va agli alimenti. */
+  private async chiediPasto(clientId: string, giorno: string, nome: string | null): Promise<EsitoSostituzione> {
+    const oggi = this.oggiIso();
+    const quando = etichettaGiorno(giorno, oggi);
+    const pasti = await this.pastiDelGiorno(clientId, giorno);
+    if (!pasti.length) return { testo: testoChiediCibo([], nome, quando), esito: 'rifiutata' };
+    if (pasti.length === 1) return this.chiediCibo(pasti[0], giorno, nome);
+    const elenco = pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome }));
+    const testo = testoChiediPasto(elenco, nome, quando);
+    return {
+      testo,
+      stato: { passo: 'pasto', tentativi: 0, data: giorno, pastiPerScelta: elenco, ultimaDomanda: testo },
+      esito: 'aperto',
+    };
+  }
+
+  /**
+   * Domanda tre: quale alimento, numerato.
+   *
+   * ⚠️ Se il piatto non ha ingredienti leggibili si torna alla domanda di prima (a parole): un
+   * elenco vuoto numerato sarebbe una domanda senza risposte possibili.
+   */
+  private chiediCibo(pasto: PastoConRicetta, giorno: string, nome: string | null): EsitoSostituzione {
+    const oggi = this.oggiIso();
+    const quando = etichettaGiorno(giorno, oggi);
+    const tutti = this.alimentiElencabili(pasto);
+    const alimenti = tutti.slice(0, MAX_ALIMENTI_ELENCATI);
+    if (!alimenti.length) {
+      const testo = testoChiediCibo([{ slot: pasto.pasto.slot, piatto: pasto.nome }], nome, quando);
+      return { testo, stato: { passo: 'cibo', tentativi: 0, data: giorno, ultimaDomanda: testo }, esito: 'aperto' };
+    }
+    const testo = testoChiediCiboNumerato(pasto.nome, alimenti, nome, quando, tutti.length > alimenti.length);
+    return {
+      testo,
+      /**
+       * ⚠️ **`slotPiatto` nello stato**, e senza è un difetto grave (trovato in revisione il 25/8):
+       * il numero si risolve per **posizione dentro QUESTO pasto**, non cercando il nome in tutta la
+       * giornata. Con l'olio evo a colazione e a pranzo, «3» sul pranzo faceva scrivere la
+       * sostituzione **sulla colazione** — e alla conferma la cliente si vedeva cambiare un piatto
+       * di cui non si stava parlando.
+       */
+      stato: { passo: 'cibo', tentativi: 0, data: giorno, cibiPerScelta: alimenti, slotPiatto: pasto.pasto.slot, ultimaDomanda: testo },
+      esito: 'aperto',
+    };
+  }
+
+  /**
+   * Gli alimenti di un piatto **elencabili a numeri**: senza doppioni e senza spezie.
+   *
+   * ⛔ **Le spezie fuori** (rilievo della revisione del 25/8): sale, pepe e origano hanno un cancello
+   * loro — Gaia non le sostituisce, e risponde con una frase che **chiude** la conversazione. Prima
+   * il pepe la cliente doveva scriverlo lei; elencandolo come opzione numerata saremmo stati noi a
+   * proporglielo per poi rifiutarlo, e a farle ricominciare tutto da capo.
+   *
+   * ⚠️ **Senza doppioni**: un piatto con «carote 100 g … carote 30 g» darebbe un elenco che si legge
+   * male («1) carote … 3) carote») e due numeri per la stessa scelta.
+   */
+  private alimentiElencabili(pasto: PastoConRicetta): string[] {
+    const visti = new Set<string>();
+    const fuori: string[] = [];
+    for (const i of pasto.ingredienti) {
+      const nome = i?.name?.trim();
+      if (!nome) continue;
+      if (classificaSpezia(nome).tipo !== 'nessuna') continue;
+      const chiave = nome.toLowerCase();
+      if (visti.has(chiave)) continue;
+      visti.add(chiave);
+      fuori.push(nome);
+    }
+    return fuori;
   }
 
   /**
@@ -325,14 +458,20 @@ export class SostituzioneChatService {
 
     const pasti = this.soloIlPastoNominato(tutti, testoCliente);
     const trovato = this.trovaIngrediente(pasti, testoCliente);
-    if (!trovato) {
-      return this.ricorda({
-        testo: testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome })), nome, quando),
-        stato: { passo: 'cibo', tentativi: 0, data: giorno },
-        esito: 'aperto',
-      });
-    }
-    return this.ricorda(await this.proponi(clientId, trovato, giorno));
+    if (trovato) return this.ricorda(await this.proponi(clientId, trovato, giorno));
+
+    /**
+     * ⚠️ **Se l'alimento non si riconosce, si passa alle domande a numeri** (24/8) invece di
+     * ripetere «scrivimi il nome dell'alimento»: chi ha appena scritto una frase che non abbiamo
+     * capito è la persona a cui serve di più un elenco da cui scegliere.
+     *
+     * ⚠️ Se aveva nominato un pasto («vorrei cambiare il pranzo»), si salta anche la domanda due e
+     * si va dritti agli alimenti di quel piatto.
+     */
+    const slotDetto = pastoNominato(testoCliente);
+    const soloQuello = slotDetto ? tutti.find((p) => p.pasto.slot === slotDetto) : undefined;
+    if (soloQuello) return this.ricorda(this.chiediCibo(soloQuello, giorno, nome));
+    return this.ricorda(await this.chiediPasto(clientId, giorno, nome));
   }
 
   /** Passo successivo del dialogo, a partire dallo stato appeso all'ultimo messaggio di Gaia. */
@@ -357,6 +496,8 @@ export class SostituzioneChatService {
     if (secco && stato.passo !== 'conferma' && stato.passo !== 'rifiuto') {
       return { testo: testoAnnullato(await this.nomeDi(clientId), etichettaGiorno(stato.data, oggi)), esito: 'annullata' };
     }
+    if (stato.passo === 'giorno') return this.ricorda(await this.passoGiorno(clientId, stato, testoCliente));
+    if (stato.passo === 'pasto') return this.ricorda(await this.passoPasto(clientId, stato, testoCliente));
     if (stato.passo === 'pasto_intero') return this.ricorda(await this.passoPastoIntero(clientId, stato, testoCliente));
     if (stato.passo === 'cibo') return this.ricorda(await this.passoCibo(clientId, stato, testoCliente));
     if (stato.passo === 'motivo') return this.ricorda(await this.passoMotivo(clientId, stato, testoCliente));
@@ -480,6 +621,114 @@ export class SostituzioneChatService {
     };
   }
 
+  /**
+   * ⛔ **DOMANDA UNO — su quale menu** (Simone, 24/8).
+   *
+   * ⚠️ Il numero è la strada facile, **le parole restano**: chi risponde «domani» o «sabato» va
+   * avanti uguale, e la lettura la fa `giornoDellaConversazione` — l'unico posto del progetto dove
+   * sta scritto cosa vuol dire «domani». Qui non si reinterpreta niente.
+   *
+   * ⚠️ E se ha scritto un giorno che **non è fra quelli proposti** (un menu che non ha ancora, o già
+   * passato), non lo si prende per buono: si ripete la domanda. Portarla avanti su una giornata
+   * vuota sarebbe farle scegliere un pasto che non esiste.
+   */
+  private async passoGiorno(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    const oggi = this.oggiIso();
+    const giorni = stato.giorniPerScelta ?? [];
+    const nome = await this.nomeDi(clientId);
+
+    const dalNumero = giornoDaNumero(testoCliente, giorni);
+    const dalleParole = giornoDalTesto(testoCliente, oggi);
+    const scelto = dalNumero ?? (dalleParole && giorni.includes(dalleParole) ? dalleParole : null);
+    if (scelto) return this.chiediPasto(clientId, scelto, nome);
+
+    const tentativi = (stato.tentativi ?? 0) + 1;
+    if (tentativi >= 2) {
+      /**
+       * ⚠️ Alla seconda si va avanti sul PRIMO giorno invece di arrendersi: quasi sempre è oggi, ed
+       * è la giornata che sta guardando. Passare alla coach una cliente che voleva togliere le
+       * carote perché non ha scritto «1» sarebbe sproporzionato.
+       */
+      return this.chiediPasto(clientId, giorni[0] ?? oggi, nome);
+    }
+    return {
+      testo: nonHoCapito(stato.ultimaDomanda ?? testoChiediGiorno(giorni.map((g) => etichettaGiorno(g, oggi)), nome), nome),
+      stato: { ...stato, passo: 'giorno', tentativi },
+      esito: 'in_corso',
+    };
+  }
+
+  /**
+   * ⛔ **DOMANDA DUE — di quale pasto** (Simone, 24/8). La risposta la legge `slotDaRisposta`, la
+   * stessa del ramo «voglio un altro piatto»: capisce il numero, il nome del pasto e anche il nome
+   * del piatto.
+   */
+  private async passoPasto(
+    clientId: string,
+    stato: StatoSostituzione,
+    testoCliente: string,
+  ): Promise<EsitoSostituzione> {
+    const oggi = this.oggiIso();
+    const giorno = stato.data ?? oggi;
+    const nome = await this.nomeDi(clientId);
+    const elenco = stato.pastiPerScelta ?? [];
+    const pasti = await this.pastiDelGiorno(clientId, giorno);
+    const eUnNumero = /^\(?[1-9]\)?[.)]?$/.test((testoCliente ?? '').trim());
+
+    /**
+     * ⚠️ **L'ORDINE: numero, poi alimento, poi parole.**
+     *
+     * Il numero è la risposta alla domanda che abbiamo appena fatto, e vince su tutto. Se invece ha
+     * risposto a parole, si guarda **prima se ha nominato un alimento** («lo yogurt greco»): chi ha
+     * già detto quello che vuole non deve rispondere a una domanda che ha superato da sola — è la
+     * scorciatoia che l'apertura da testo libero ha sempre avuto. Solo dopo si prova a capire il
+     * pasto, che `slotDaRisposta` riconosce anche dal nome del piatto: quel riconoscimento è largo
+     * per costruzione, e messo per primo si mangerebbe le risposte più precise.
+     */
+    /**
+     * ⚠️ **Il bivio del pasto intero resta valido anche qui** («voglio cambiare tutto il pranzo con
+     * verdure e tonno»): è una richiesta che, provando a cavarne un ingrediente o un numero, produce
+     * la risposta a caso — il difetto del 12/8. Va guardato prima di tutto il resto.
+     */
+    if (!eUnNumero && proponeUnPastoIntero(testoCliente)) {
+      return this.chiediPastoIntero(pasti, testoCliente, nome, giorno, etichettaGiorno(giorno, oggi));
+    }
+
+    if (!eUnNumero) {
+      /**
+       * ⚠️ `soloIlPastoNominato` **anche qui**, e la prima stesura l'aveva perso: è la riga nata
+       * dalla conversazione girata da Simone il 12/8 («a pranzo» e Gaia trovava l'alimento nella
+       * cena). Riprodotto in revisione il 25/8: «a pranzo vorrei cambiare le carote», con le carote
+       * anche a colazione, rispondeva della colazione.
+       */
+      const trovato = this.trovaIngrediente(this.soloIlPastoNominato(pasti, testoCliente), testoCliente);
+      if (trovato) return this.proponi(clientId, trovato, giorno);
+    }
+
+    const slot = slotDaRisposta(testoCliente, elenco);
+    if (slot) {
+      const pasto = pasti.find((p) => p.pasto.slot === slot);
+      if (pasto) return this.chiediCibo(pasto, giorno, nome);
+    }
+
+    const tentativi = (stato.tentativi ?? 0) + 1;
+    if (tentativi >= 2) {
+      // Alla seconda si torna alla domanda a parole su tutta la giornata: è quella di prima del
+      // 24/8, e da lì la cliente può scrivere l'alimento come le viene.
+      const testo = testoChiediCibo(pasti.map((p) => ({ slot: p.pasto.slot, piatto: p.nome })), nome, etichettaGiorno(giorno, oggi));
+      return { testo, stato: { passo: 'cibo', tentativi: 0, data: giorno, ultimaDomanda: testo }, esito: 'in_corso' };
+    }
+    return {
+      testo: `${nonHoCapito(stato.ultimaDomanda ?? '', nome)}\n\n${testoSceltaNonValida(elenco.length)}`,
+      stato: { ...stato, passo: 'pasto', tentativi },
+      esito: 'in_corso',
+    };
+  }
+
   private async passoCibo(
     clientId: string,
     stato: StatoSostituzione,
@@ -496,6 +745,41 @@ export class SostituzioneChatService {
     // produceva la risposta a caso.
     if (proponeUnPastoIntero(testoCliente)) {
       return this.chiediPastoIntero(tutti, testoCliente, nome, giorno, quando);
+    }
+
+    /**
+     * ⛔ **IL NUMERO DELL'ELENCO, PRIMA DI TUTTO** (24/8), e risolto **per posizione dentro il pasto
+     * di cui si stava parlando** — non cercando il nome in tutta la giornata.
+     *
+     * ⛔ Cercare il nome era un difetto grave, trovato in revisione il 25/8: con l'olio evo a
+     * colazione e a pranzo, il «3» scelto sull'elenco del pranzo faceva scrivere la sostituzione
+     * **sulla colazione**. E con un ingrediente che `combaciaAlimento` non fa combaciare con sé
+     * stesso (un nome di due lettere, «Tè») il numero non si risolveva affatto: la cliente aveva
+     * fatto esattamente quello che le avevamo chiesto e si sentiva rispondere «non trovo «1»».
+     *
+     * ⚠️ Se il numero non sta nell'elenco (fuori intervallo) **non si scivola nella ricerca per
+     * parole**: si dice che quel numero non c'è e si resta qui. Passare oltre voleva dire, in due
+     * mosse, «ho girato la richiesta alla tua coach» a chi aveva solo sbagliato a contare.
+     */
+    const elenco = stato.cibiPerScelta ?? [];
+    const eUnNumeroSecco = /^\(?([1-9]|1[0-9])\)?[.)]?$/.test((testoCliente ?? '').trim());
+    if (elenco.length && eUnNumeroSecco) {
+      const daNumero = ciboDaNumero(testoCliente, elenco);
+      const pastoDetto = stato.slotPiatto ? tutti.find((p) => p.pasto.slot === stato.slotPiatto) : undefined;
+      const ingrediente = daNumero && pastoDetto
+        ? pastoDetto.ingredienti.find((i) => !!i?.name && i.name.trim().toLowerCase() === daNumero.toLowerCase())
+        : undefined;
+      if (daNumero && pastoDetto && ingrediente) {
+        return this.proponi(clientId, { pasto: pastoDetto, ingrediente, termine: daNumero }, giorno);
+      }
+      const tentativiNumero = (stato.tentativi ?? 0) + 1;
+      if (tentativiNumero < 2) {
+        return {
+          testo: `${testoSceltaNonValida(elenco.length)}\n\n${stato.ultimaDomanda ?? ''}`.trim(),
+          stato: { ...stato, passo: 'cibo', tentativi: tentativiNumero },
+          esito: 'in_corso',
+        };
+      }
     }
 
     const pasti = this.soloIlPastoNominato(tutti, testoCliente);

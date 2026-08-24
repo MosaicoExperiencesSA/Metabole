@@ -173,7 +173,29 @@ export type PassoSostituzione =
    * Cambio della COLAZIONE senza una preferenza detta: «la vuoi dolce o salata?» (Simone, 14/8).
    * La risposta filtra le alternative per i tag di Lucia (`piatto:dolce`/`piatto:salato`).
    */
-  | 'colazione_gusto';
+  | 'colazione_gusto'
+  /**
+   * ⛔ **LE DUE DOMANDE A NUMERI, PRIMA DELL'ALIMENTO** — Simone, 24/8: *«questa domanda non
+   * funziona, Gaia si perde, miglioriamola così: (domanda uno) su quale menu vuoi lavorare? 1 oggi
+   * 2 domani 3 dopodomani; (domanda due) di quale pasto parliamo? 1 Colazione 2 spuntino…; e con lo
+   * stesso principio mettiamo l'elenco dei cibi, in modo che la cliente scriva dei numeri»*.
+   *
+   * Prima Gaia apriva con **una** domanda sola — «quale alimento vuoi cambiare?» — e sotto ci
+   * incollava l'intera giornata: «colazione: Ricotta fresca con prugne secche reidratate e pane di
+   * segale · pranzo: Pasta integrale al branzino e pomodorini · cena: Filetto di salmone con
+   * asparagi e limone». Tre piatti, quindici alimenti, e alla cliente si chiedeva di **scriverne uno
+   * a mano**: se sbagliava una parola («il pane di segale» invece di «pane»), o nominava il piatto,
+   * la conversazione ripartiva — e al secondo tentativo passava alla coach.
+   *
+   * ⚠️ Un numero non si scrive male. E ogni elenco è quello **vero** di quella cliente: i giorni che
+   * vede davvero (chi ha solo oggi non si sente chiedere «1 oggi»), i pasti che ha quel giorno,
+   * gli alimenti di **quel** piatto — sostituzioni già concordate comprese.
+   *
+   * ⚠️ **Le parole continuano a funzionare** in tutti e tre i passi: chi scrive «domani», «a pranzo»
+   * o «le carote» va avanti come prima. I numeri sono la strada facile, non l'unica.
+   */
+  | 'giorno'
+  | 'pasto';
 
 export interface PropostaSostituzione {
   /** Giornata su cui si scrive (YYYY-MM-DD): quella di oggi. */
@@ -240,6 +262,17 @@ export interface StatoSostituzione {
    * quel messaggio. Rileggerli dal database al giro dopo darebbe un ordine che nessuno ha visto.
    */
   pastiPerScelta?: { slot: string; piatto: string }[];
+  /**
+   * I GIORNI proposti al passo «su quale menu vuoi lavorare?», in ISO e **nell'ordine mostrato**:
+   * «2» vuol dire la seconda riga di quel messaggio. Stessa ragione di `pastiPerScelta` — rileggerli
+   * al giro dopo darebbe un ordine che nessuno ha visto.
+   */
+  giorniPerScelta?: string[];
+  /**
+   * Gli ALIMENTI elencati al passo «quale vuoi cambiare?», nell'ordine mostrato. Sono i nomi veri
+   * degli ingredienti del piatto, sostituzioni già concordate comprese.
+   */
+  cibiPerScelta?: string[];
   /**
    * La giornata di cui si sta parlando, `YYYY-MM-DD` (§16.2). Assente = oggi, che è il caso di
    * tutte le conversazioni aperte prima e il valore predefinito di tutte le altre.
@@ -501,6 +534,91 @@ export function conNome(nome?: string | null): string {
  * — è quello che garantisce che una conversazione sulla giornata di oggi suoni esattamente come
  * prima, parola per parola. Il giorno diverso cambia le frasi solo quando c'è davvero.
  */
+/**
+ * ⛔ **DOMANDA UNO: SU QUALE MENU** (Simone, 24/8). Numerata, e **solo sui giorni che vede davvero**:
+ * chi ha in mano soltanto oggi non si sente chiedere di scegliere fra tre.
+ *
+ * ⚠️ Con un giorno solo questa domanda non si fa affatto — la fa saltare chi chiama. Una domanda con
+ * una risposta sola non è una domanda: è un passaggio in più prima di quella vera.
+ */
+export function testoChiediGiorno(etichette: string[], nome?: string | null): string {
+  const righe = etichette.map((e, i) => `${i + 1}) ${e}`).join('\n');
+  return (
+    `Ciao${conNome(nome)}! Su quale menu vuoi lavorare?\n\n${righe}\n\n` +
+    'Rispondi col numero (o scrivimi il giorno, se preferisci).'
+  );
+}
+
+/**
+ * La risposta alla domanda del giorno: il numero della riga, oppure il giorno scritto a parole
+ * («domani», «dopodomani», «sabato»). `null` = non capita.
+ *
+ * ⚠️ Le parole le riconosce chi chiama, con `giornoDellaConversazione`, che è già l'unico posto dove
+ * sta scritto cosa vuol dire «domani»: qui si legge **solo il numero**. Due letture della stessa
+ * cosa divergono, e su una data divergono in silenzio.
+ */
+export function giornoDaNumero(testo: string, giorni: string[]): string | null {
+  const t = (testo ?? '').trim();
+  const numero = t.match(/^\(?([1-9])\)?[.)]?$/);
+  if (!numero) return null;
+  return giorni[Number(numero[1]) - 1] ?? null;
+}
+
+/**
+ * ⛔ **DOMANDA DUE: DI QUALE PASTO** (Simone, 24/8). Le righe sono i pasti che ha **quel giorno**,
+ * col piatto accanto: il numero basta, ma il piatto le dice di cosa stiamo parlando.
+ *
+ * ⚠️ La risposta la legge `slotDaRisposta` (in `cambio-piatto.ts`), che già capisce il numero, il
+ * nome del pasto e perfino il nome del piatto — ed è la stessa funzione che serve al ramo «voglio un
+ * altro piatto». Una seconda copia qui vorrebbe dire due modi diversi di capire «2».
+ */
+export function testoChiediPasto(pasti: { slot: string; piatto: string }[], nome?: string | null, quando = 'oggi'): string {
+  const righe = pasti.map((p, i) => `${i + 1}) ${maiuscola(etichettaSlot(p.slot))} — ${p.piatto}`).join('\n');
+  // ⚠️ Il giorno si RIPETE qui, e non è una ridondanza: la domanda uno può essere stata saltata
+  // (un giorno solo, o il pulsante dell'app che porta la data con sé), e senza questa riga la
+  // cliente non saprebbe di quale giornata stiamo parlando — §16.2.
+  return (
+    `${apreFrase(nome, `per il menu di ${quando}: di quale pasto parliamo?`)}\n\n${righe}\n\n` +
+    'Rispondi col numero.'
+  );
+}
+
+/**
+ * ⛔ **DOMANDA TRE: QUALE ALIMENTO**, numerato — la parte che Simone ha visto rompersi: «scrivimi
+ * solo il nome dell'alimento» su quindici alimenti di tre piatti.
+ *
+ * ⚠️ Gli alimenti sono quelli di **quel** piatto e nell'ordine della ricetta, sostituzioni già
+ * concordate comprese: è l'elenco che la cliente ha davanti quando apre il menu.
+ */
+export function testoChiediCiboNumerato(
+  piatto: string,
+  alimenti: string[],
+  nome?: string | null,
+  quando = 'oggi',
+  tagliato = false,
+): string {
+  const righe = alimenti.map((a, i) => `${i + 1}) ${a}`).join('\n');
+  /**
+   * ⚠️ **La porta per le parole si dice sempre** (rilievo della revisione del 25/8). Serve a due
+   * casi che senza questa riga finiscono male: l'elenco **tagliato** — il suo alimento è l'undicesimo
+   * e non lo vede — e quello che nel piatto c'è ma nell'elenco non compare (le spezie, che Gaia non
+   * sostituisce). La strada a parole esiste ancora nel codice; se non gliela diciamo, per lei non
+   * esiste.
+   */
+  const coda = tagliato
+    ? 'Quale vuoi cambiare? Rispondi col numero — o scrivimi il nome, se quello che cerchi non è in elenco (ce ne sono altri).'
+    : 'Quale vuoi cambiare? Rispondi col numero, oppure scrivimi il suo nome.';
+  return `${apreFrase(nome, `${quando} in «${piatto}» ci sono questi:`)}\n\n${righe}\n\n${coda}`;
+}
+
+/** Il numero della riga scelta fra gli alimenti elencati. `null` = non è un numero valido. */
+export function ciboDaNumero(testo: string, alimenti: string[]): string | null {
+  const t = (testo ?? '').trim();
+  const numero = t.match(/^\(?([1-9]|1[0-9])\)?[.)]?$/);
+  if (!numero) return null;
+  return alimenti[Number(numero[1]) - 1] ?? null;
+}
+
 export function testoChiediCibo(pasti: { slot: string; piatto: string }[], nome?: string | null, quando = 'oggi'): string {
   if (!pasti.length) {
     return apreFrase(

@@ -20,6 +20,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🔢 **Gaia non si perde più: tre domande a numeri (menu → pasto → alimento).**
+  Richiesta di Simone (24/8), guardando una chat vera: *«questa domanda non funziona, Gaia si perde,
+  miglioriamola così: (domanda uno) su quale menu vuoi lavorare? 1 oggi 2 domani 3 dopodomani; …»*.
+  Prima l'apertura era **una** domanda con tutta la giornata incollata sotto — «colazione: Ricotta
+  fresca con prugne secche reidratate e pane di segale · pranzo: … · cena: …» — e «scrivimi solo il
+  nome dell'alimento»: quindici alimenti, e una parola diversa da quella della ricetta faceva
+  ricominciare; al secondo tentativo si passava alla coach.
+  ✅ Adesso sono tre domande corte, ognuna con l'elenco **vero** di quella cliente: i giorni che vede,
+  i pasti di quel giorno, gli alimenti di quel piatto (sostituzioni già concordate comprese).
+  ⚠️ **Le domande con una risposta sola non si fanno** (un giorno solo, un pasto solo: si salta), e
+  ⚠️ **le parole continuano a funzionare** — «domani», «a pranzo», «le carote» vanno avanti come prima.
+  ⛔ **La revisione ha trovato otto difetti, tre gravi.** (1) Il numero si risolveva cercando il
+  **nome** in tutta la giornata: con l'olio evo in due pasti, il «3» scelto sul pranzo faceva scrivere
+  la sostituzione **sulla colazione**. Ora si risolve per posizione dentro il pasto scelto. (2) Al
+  passo del pasto si era perso il filtro del pasto nominato — la riga nata dalla conversazione del
+  12/8 — e «a pranzo, le carote» rispondeva della colazione. (3) Un numero **fuori elenco** scivolava
+  nella ricerca per parole e in due mosse **passava alla coach**, a chi aveva solo sbagliato a contare.
+  ⚠️ Accolti anche: la valvola che lascia passare una **FAQ vera** durante il dialogo era rimasta
+  appesa al passo vecchio (e il test che la copriva cablava quel passo, quindi restava verde); le
+  **spezie** venivano elencate come opzioni valide per poi essere rifiutate — e il rifiuto chiude la
+  conversazione; un ingrediente ripetuto compariva due volte; il taglio a dieci alimenti non era
+  dichiarato.
+  🔍 5222 test in 322 suite verdi (TZ UTC e Roma), build pulito, ogni pezzo nuovo provato alla
+  mutazione. Nessuna migrazione: lo stato del dialogo vive nel messaggio e scade in un'ora, quindi al
+  deploy l'unica esposizione sono le conversazioni in volo — che con uno stato vecchio si comportano
+  come prima.
+
 - `[Sviluppo]` 🅿️ **Pipeline: la colonna «In sospensione», dove sostano le clienti mentre i menu sono
   fermi.** Richiesta di Simone (24/8): *«creiamo in pipeline, tra acquisto e senza possibilità
   economiche, un nuovo stato "In sospensione" dove sostiamo i clienti durante la sospensione e li
