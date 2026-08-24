@@ -137,10 +137,22 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
    * (100-500), crostacei freschi e congelati (150-300), pesce essiccato e salato (200), patate
    * disidratate (400), succhi concentrati (350), senape (250-500).
    *
-   * ⚠️ **DUE VOCI SONO LARGHE, e vanno sapute.** `aceto` toglie quasi ogni insalata condita e buona
-   * parte dei sughi; `biscotti` — che la tabella dà a 50 mg/kg, il limite più basso di tutti — toglie
-   * l'intera colazione dolce. Sono nella tabella e quindi ci sono, ma se Lucia dice che sono
-   * eccessive **si tolgono queste due righe e basta**: sono scritte a parte apposta.
+   * ✅ **LE DUE VOCI LARGHE, chiuse da Simone il 24/8 — e le due risposte sono diverse.**
+   *
+   * · **`biscotti` è uscita.** La tabella la dà a 50 mg/kg, il limite più basso di tutti, e toglieva
+   *   l'intera colazione dolce. ⚠️ E soprattutto: nei biscotti i solfiti dipendono dal **produttore**,
+   *   non dal biscotto — un divieto che non si può nemmeno verificare in etichetta è un divieto che
+   *   fa smettere di fidarsi dell'elenco.
+   * · **`aceto` è RIMASTA qui, e non è una mezza risposta.** Simone ha deciso che l'aceto non deve
+   *   più far sparire il piatto — ma perché arrivi il **succo di limone** al posto suo, l'aceto va
+   *   prima riconosciuto: è questa riga che lo riconosce. A cambiare è cosa succede dopo, in
+   *   `menu/solfiti.ts`: c'è un sostituto, quindi il piatto si serve col limone invece di essere
+   *   scartato. Togliere la parola da qui avrebbe fatto arrivare l'aceto **così com'è** a una persona
+   *   allergica: il contrario di quello che chiedeva.
+   *
+   * ⚠️ Vale per tutte e quattro le righe che `solfiti.ts` sa sostituire — aceto, vino, dado, frutta
+   * essiccata: **restano in questo elenco**, e il divieto diventa una sostituzione. Le due che non si
+   * sostituiscono (crostacei, insaccati) restano divieti veri, ed è la decisione del 24/8.
    *
    * ⚠️ Restano fuori i termini generici che prenderebbero anche l'alimento fresco: «uva» (l'uva
    * fresca non ha solfiti, l'uvetta sì), «patate», «pomodoro», «limone». Un divieto che toglie
@@ -161,12 +173,42 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
     // Prodotti della pesca: crostacei freschi/congelati (150-300) e pesce essiccato o salato (200).
     'gamberi', 'gamberetti', 'mazzancolle', 'scampi', 'baccal', 'stoccafisso',
     // Patate trasformate (400 mg/kg) e succhi concentrati (350 mg/l).
-    'purè di patate', 'patate disidratate', 'succo di limone', 'succo di lime',
+    'purè di patate', 'patate disidratate',
+    /**
+     * ⚠️ **CONCENTRATI, non spremuti** — corretto il 24/8. Qui c'erano `succo di limone` e
+     * `succo di lime` secchi, e la tabella parla dei **succhi concentrati** (350 mg/l). Il limone
+     * spremuto non è un portatore — ed è il sostituto che `solfiti.ts` propone al posto dell'aceto:
+     * lo stesso prodotto dichiarava vietato ciò che proponeva come rimedio.
+     */
+    'succo concentrato', 'succo da concentrato', 'succo di limone concentrato', 'succo di lime concentrato',
     // Senape (250-500 mg/kg): c'è già la sua chiave, ma chi dichiara i solfiti non dichiara la senape.
     'senape', 'mostarda',
-    // ⚠️ LE DUE LARGHE — vedi il commento qui sopra: si tolgono da qui se Lucia dice che è troppo.
-    'aceto',
-    'biscotti',
+    // ⚠️ `aceto` RESTA, e serve a farlo riconoscere: il sostituto è in `solfiti.ts`. Vedi sopra.
+    'aceto', 'balsamico',
+    /**
+     * ⛔ **I SINGOLARI, e non è pedanteria.** Le chiavi di più parole **non hanno radice**
+     * (`radiceChiave` torna `null` appena c'è uno spazio), quindi il salvagente che prende
+     * «mandorla» da «mandorle» qui non esiste: `albicocca secca` al singolare passava intatta.
+     * Trovato in revisione il 24/8, sulla categoria col limite più alto della tabella (2000 mg/kg).
+     */
+    'albicocca secca', 'albicocca disidratata', 'prugna secca', 'fico secco',
+    'pomodoro secco', 'fungo secco', 'frutta secca disidratata',
+    // Insaccati e macinato confezionato: NON si sostituiscono, il piatto esce (Simone, 24/8).
+    'salsiccia', 'salsicce', 'wurstel', 'würstel', 'salame', 'mortadella', 'insaccati',
+    'macinato confezionato', 'carne macinata confezionata',
+    // Crostacei: il resto della famiglia, che `solfiti.ts` sapeva escludere e non veniva mai chiamata.
+    'astice', 'aragosta', 'granchio',
+    // Conserve di pesce.
+    'tonno in scatola', 'sgombro in scatola',
+    /**
+     * ⚠️ `dado` **da solo**: `dado da brodo` e `dado vegetale` non prendono «dado granulare» né
+     * «brodo di dado», e le chiavi con lo spazio non hanno radice. La sostituzione c'era e non
+     * scattava su nessuna scrittura realistica. Le omonime stanno in `PAROLE_CHE_NON_SONO`.
+     */
+    'dado', 'dado da brodo', 'dado vegetale',
+    // Salse pronte.
+    'maionese', 'ketchup',
+    // ⛔ `biscotti` TOLTA il 24/8: vedi il commento qui sopra.
   ],
 };
 
@@ -178,7 +220,12 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
  * non riconosce si comporta esattamente come un'esclusione che non c'è — e non produce nessun
  * errore, quindi nessuno se ne accorge finché non lo racconta una cliente.
  */
-const ALIAS: Record<string, string> = {
+/**
+ * ⚠️ **Esportato il 24/8**: la regola dei solfiti deve riconoscere `sulphites` e `sulfites` con la
+ * STESSA tabella, non con un secondo elenco. Un alias che una porta conosce e l'altra no è il modo
+ * in cui una consegna resta spenta proprio per le clienti arrivate da un import.
+ */
+export const ALIAS: Record<string, string> = {
   lactose: 'lattosio',
   milk: 'latte',
   dairy: 'latticini',
@@ -408,6 +455,8 @@ export function radiceChiave(k: string): string | null {
 export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
   // «bovino» contiene «vino» e non ha niente a che fare con i solfiti del vino.
   vino: ['bovino', 'bovina', 'bovini', 'bovine'],
+  // «dadolata di verdure» comincia con «dado» e non è un dado da brodo (24/8, insieme alla chiave).
+  dado: ['dadolata', 'dadolate', 'dadolato'],
   /**
    * ⚠️ Le tre righe sotto NASCONO insieme alle loro chiavi (l'elenco del pesce, 23/8) e non dalla
    * diagnostica — ed è una deroga dichiarata alla regola qui sopra, con una differenza che la

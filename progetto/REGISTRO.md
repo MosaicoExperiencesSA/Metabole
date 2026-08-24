@@ -52,6 +52,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 🧂 **Allergia ai solfiti: quattro condimenti si sostituiscono, due piatti escono — e
+  la mia prima stesura peggiorava proprio i casi che diceva di risolvere.** Quattro decisioni di
+  Simone, sulle righe della guida della capo nutrizionista. ✅ Il dizionario dei suggerimenti passa da
+  **4 parole a ~35**: prima, su una ricetta con l'uvetta o i gamberi, a chi tagga non veniva proposto
+  **niente**, e il tag mancava in silenzio su 3111 ricette da rivedere. ✅ Le quattro sostituzioni di
+  condimento — aceto → succo di limone fresco, vino da sfumare → brodo vegetale acidulato, dado
+  industriale → dado casalingo, frutta essiccata industriale → essiccata in casa — si applicano da
+  sole (`menu/solfiti.ts`, sul modello di `lattosio.ts`). ⛔ Le due che **cambiano il piatto** —
+  crostacei e insaccati — non si sostituiscono: quei piatti escono, perché un gambero non è un
+  branzino. ✅ E le due esclusioni larghe ferme dal 13/8: **`biscotti` è uscita** (nei biscotti i
+  solfiti dipendono dal produttore, e un divieto che non si verifica in etichetta fa smettere di
+  fidarsi dell'elenco); **`aceto` è rimasta ma ha cambiato mestiere** — non toglie più il piatto, lo
+  fa *riconoscere* perché arrivi il limone al posto suo.
+  ⛔ **Poi la revisione ha misurato che la consegna, così, faceva più danni di prima.** Il difetto era
+  mio e si annullava da sé: `engine-rules` scrive i tag **suggeriti** su ogni ricetta appena generata,
+  e il motore blocca su un tag anche non confermato — quindi allargare il dizionario nella stessa
+  consegna faceva finire il tag `solfiti` **proprio sulle ricette che le sostituzioni dovevano
+  salvare**. La sostituzione veniva calcolata e buttata via, e l'insalata spariva lo stesso. Adesso,
+  **solo per i solfiti**, il tag non blocca da solo dove la regola per ingrediente sa cosa
+  sostituire, e torna a bloccare se dagli ingredienti non sappiamo dire niente — lì la nutrizionista
+  sa una cosa che noi non sappiamo, e vince lei. ⚠️ Il commento che diceva «suggeriscono e basta,
+  nessun auto-tag» era **falso**, ed è corretto invece che cancellato.
+  ⚠️ **Altri dieci rilievi, tutti misurati.** Otto voci su diciassette della lista che esclude non
+  escludevano niente — astice, aragosta, granchio, «würstel» **con la dieresi**, che è la grafia
+  normale in etichetta — perché non erano in `exclusions.ts`, e la regola non veniva mai interrogata:
+  la lista sapeva, e non le veniva chiesto. `dado` non scattava su nessuna scrittura vera («dado
+  granulare», «brodo di dado»). I **singolari** passavano intatti («albicocca secca»), sulla categoria
+  col limite più alto della tabella. ⛔ **`sulphites` e `sulfites`** — gli alias con cui l'allergia
+  arriva dagli import — non accendevano la regola: per quelle clienti le esclusioni si espandevano
+  lo stesso e la sostituzione non arrivava **mai**, cioè la consegna era spenta proprio per chi non
+  se lo sarebbe potuto spiegare. Il **sostituto dell'aceto era esso stesso fra i vietati** (il succo
+  di limone: la tabella parla dei succhi **concentrati**, non dello spremuto). E «bovino» faceva
+  suggerire i solfiti perché contiene «vino» — le omonime esistevano da giorni in `exclusions.ts` e
+  questa strada le ignorava: adesso la lista è una sola.
+  ⚠️ E **quattro mutazioni restavano verdi**, fra cui quella che riportava il dizionario alle quattro
+  parole di prima: 31 parole nuove e nessun test. Adesso i test girano su **tutte** le voci delle due
+  costanti passando dal motore, così le liste non possono più crescere senza effetto — e una
+  protezione che il test non può provare è **dichiarata come tale** invece di essere spacciata per
+  coperta.
+  ⛔ **Resta una decisione, e la lascio in vista**: la chiave `vino` è incondizionata, quindi «pere al
+  vino rosso» diventano pere al brodo vegetale. È il caso che la decisione sui crostacei voleva
+  evitare, passato dalla porta dei condimenti. Il vino **da sfumare** si sostituisce; il vino dentro
+  un dolce probabilmente no — ma dove passa quella riga non lo decide il codice.
+  ✅ Verificato: build pulito, **5107 test in 315 suite** verdi con `TZ` a UTC e a Roma.
+
 - `[Sviluppo]` 🕰️ **La notte del 25 ottobre: il difetto era nei TEST, non nel prodotto — e la voce
   che lo diceva era mia e sbagliata.** Il 23/8 avevo scritto che quella notte «i menu si spostano di
   un giorno, il gate delle misure blocca chi non deve». Misurato caso per caso — e in due file su

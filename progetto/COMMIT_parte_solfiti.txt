@@ -1,0 +1,86 @@
+Allergia ai solfiti: quattro condimenti si sostituiscono, due piatti escono
+
+Quattro decisioni di Simone (24/8), sulle righe della guida della capo nutrizionista.
+
+1) IL DIZIONARIO DEI SUGGERIMENTI: da 4 parole a ~35
+Erano `solfiti`, `solfito`, `vino`, `aceto di vino`. Su una ricetta con l'uvetta, i gamberi o il dado
+da brodo a chi tagga non veniva proposto NIENTE, e il tag mancava in silenzio su 3111 ricette da
+rivedere: lo metteva solo chi se lo ricordava a memoria.
+
+2) LE QUATTRO SOSTITUZIONI DI CONDIMENTO, IN AUTOMATICO
+aceto → succo di limone fresco · vino da sfumare → brodo vegetale acidulato · dado industriale →
+dado casalingo · frutta essiccata industriale → essiccata in casa. Vivono in `menu/solfiti.ts`, sul
+modello di `menu/lattosio.ts`: il piatto resta quello che era, cambia cosa ci si mette dentro.
+
+3) LE DUE CHE CAMBIANO IL PIATTO NON SI SOSTITUISCONO
+Crostacei e insaccati: quei piatti ESCONO, come per ogni altro allergene. Un gambero non e' un
+branzino — kcal, cottura e sapore sono altri, e la cliente leggerebbe una ricetta che non e' quella
+che aveva scelto.
+
+4) LE DUE ESCLUSIONI LARGHE
+`biscotti` e' USCITA: la tabella la da' a 50 mg/kg, toglieva l'intera colazione dolce, e nei biscotti
+i solfiti dipendono dal produttore — un divieto che non si puo' nemmeno verificare in etichetta fa
+smettere di fidarsi dell'elenco.
+`aceto` e' RIMASTA, e ha cambiato mestiere: non toglie piu' il piatto, lo fa RICONOSCERE perche'
+arrivi il limone al posto suo. Togliendo la parola, l'aceto balsamico sarebbe arrivato cosi' com'e' a
+una persona allergica — il contrario di quello che si chiedeva. C'e' un test che lo tiene fermo.
+
+⛔ E LA REVISIONE HA TROVATO CHE LA CONSEGNA PEGGIORAVA I CASI CHE DICEVA DI RISOLVERE
+Difetto mio, e si annullava da se': `engine-rules` scrive i tag SUGGERITI su ogni ricetta appena
+generata (`allergensReviewed: false`), e il motore blocca su un tag anche non confermato. Allargando
+il dizionario nella stessa consegna, il tag `solfiti` finiva PROPRIO sulle ricette che le
+sostituzioni dovevano salvare: la sostituzione veniva calcolata e buttata via, e l'insalata spariva
+lo stesso. Misurato.
+Adesso, e SOLO per i solfiti, il tag non blocca da solo dove la regola per ingrediente sa cosa
+sostituire — e torna a bloccare se dagli ingredienti non sappiamo dire niente (li' la nutrizionista
+sa una cosa che noi non sappiamo, e vince lei). Per gli altri tredici allergeni niente cambia: il tag
+dice che il piatto contiene l'allergene e non quale ingrediente, quindi blocca e basta.
+⚠️ Il commento che diceva «suggeriscono e basta, nessun auto-tag» era FALSO: corretto, non cancellato.
+
+GLI ALTRI DIECI RILIEVI, TUTTI MISURATI E TUTTI ACCOLTI
+- OTTO voci su diciassette della lista che esclude non escludevano niente: astice, aragosta,
+  granchio, «würstel» con la dieresi (la grafia normale in etichetta), insaccati, carne macinata
+  confezionata. `decisioneSolfiti` viene consultata solo se `hitsExclusion` ha gia' agganciato
+  l'ingrediente, e `exclusions.ts` non le conosceva. La lista SAPEVA e non le veniva mai chiesto.
+- `dado` non scattava su nessuna scrittura realistica («dado granulare», «brodo di dado»): le chiavi
+  con lo spazio non hanno radice. Aggiunta `dado` da sola, con `dadolata` fra le omonime.
+- I SINGOLARI passavano intatti: «albicocca secca», «prugna secca», «pomodoro secco». E' la categoria
+  a 2000 mg/kg, il limite piu' alto della tabella.
+- `sulphites` e `sulfites` — gli alias con cui l'allergia arriva dagli import — non accendevano la
+  regola: le esclusioni si espandevano (l'insalata spariva come prima) e la sostituzione non arrivava
+  mai. Cioe' la consegna era spenta proprio per le clienti che non se lo sarebbero potute spiegare.
+  Adesso `dichiaraSolfiti` passa dalla stessa tabella `ALIAS`, e guarda anche le intolleranze.
+- IL SOSTITUTO DELL'ACETO ERA ESSO STESSO FRA I VIETATI: `succo di limone` era nell'elenco dei
+  solfiti. La tabella parla dei succhi CONCENTRATI (350 mg/l), non dello spremuto. Corretto.
+- «bovino» faceva suggerire i solfiti, perche' contiene «vino». Le omonime (`PAROLE_CHE_NON_SONO`)
+  esistevano da giorni in `exclusions.ts` e questa strada le ignorava: adesso la lista e' una sola.
+- `birra` era l'unica parola dell'elenco senza una riga a monte che la sostenesse: uscita.
+- `aceto` da solo mancava fra i suggerimenti, quindi «aceto di mele» — che la tabella nomina
+  esplicitamente — non proponeva niente.
+- QUATTRO MUTAZIONI RESTAVANO VERDI, fra cui quella che riportava il dizionario alle quattro parole
+  di prima: 31 parole nuove e nessun test. Adesso i test girano su TUTTE le voci delle due costanti
+  passando dal motore, cosi' le liste non possono piu' crescere senza effetto.
+- ⚠️ E una protezione che il test NON puo' provare e' dichiarata come tale invece di essere spacciata
+  per coperta (l'ordinamento delle chiavi per lunghezza).
+
+⛔ RESTA UNA DECISIONE, lasciata in vista invece di prenderla io
+La chiave `vino` e' incondizionata: «pere al vino rosso» diventano pere al brodo vegetale, e lo
+zabaione al marsala pure. E' il caso che la decisione 3 voleva evitare, passato per la porta dei
+condimenti. Il vino DA SFUMARE si sostituisce; il vino come ingrediente di un dolce probabilmente no
+— ma dove passa quella riga non lo decide il codice.
+
+VERIFICATO
+- `npm run build` pulito.
+- 5107 test in 315 suite verdi, con `TZ` a UTC e con `TZ=Europe/Rome`.
+- Ogni assert nuovo provato alla mutazione.
+
+FILE NEL COMMIT
+- backend/src/menu/solfiti.ts        (nuovo — la regola)
+- backend/src/menu/solfiti.spec.ts   (nuovo — 89 test)
+- backend/src/menu/esclusioni-della-cliente.ts
+- backend/src/menu/exclusions.ts
+- backend/src/catalog/allergens.ts
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+Nessuna migrazione, nessuna variabile d'ambiente, nessuna dipendenza. Solo backend: nessuna OTA.

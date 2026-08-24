@@ -1,6 +1,7 @@
 import { EU_ALLERGEN_CODES, allergenLabel } from '../catalog/allergens';
 import { expandExclusion, hitsExclusion } from './exclusions';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
+import { ALLERGENE_SOLFITI, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
 import { Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 
@@ -54,6 +55,8 @@ export interface EsclusioniCliente {
   excluded: EsclusioneAttiva[];
   /** Intollerante al lattosio E non allergica al latte: si usano i delattosati (`lattosio.ts`). */
   delattosati: boolean;
+  /** Allergica ai solfiti: quattro condimenti si sostituiscono, due piatti escono (`solfiti.ts`). */
+  solfiti: boolean;
   /** I codici UE dichiarati: si confrontano coi tag allergene confermati sulla ricetta. */
   codiciAllergene: Set<string>;
   /** Vero se non c'è niente da controllare: chi chiama può saltare tutto il giro. */
@@ -96,7 +99,7 @@ export function esclusioniDi(
   const nonGraditi = [...new Set([...pulisci(profilo?.dislikedFoods), ...pulisci(extraDisliked)])];
 
   if (!allergie.length && !intolleranze.length && !nonGraditi.length) {
-    return { excluded: [], delattosati: false, codiciAllergene: new Set(), vuoto: true };
+    return { excluded: [], delattosati: false, solfiti: false, codiciAllergene: new Set(), vuoto: true };
   }
 
   const excluded: EsclusioneAttiva[] = [];
@@ -115,6 +118,9 @@ export function esclusioniDi(
   return {
     excluded,
     delattosati: usaDelattosati({ intolerances: intolleranze, allergies: allergie }),
+    // ⚠️ Anche le intolleranze: `dichiaraSolfiti` guarda tutti e due i campi, e passargliene uno
+    // solo lo rendeva cieco su chi li ha scritti nel posto sbagliato. Trovato dal test, 24/8.
+    solfiti: dichiaraSolfiti({ allergies: allergie, intolerances: intolleranze }),
     codiciAllergene: new Set(allergie.filter((a) => EU_ALLERGEN_CODES.includes(a))),
     vuoto: false,
   };
@@ -136,8 +142,30 @@ export function valutaRicetta(
   const subs: Substitution[] = [];
   if (e.vuoto) return { violations, subs };
 
-  const perTag = e.codiciAllergene.size
-    ? (r.allergens ?? []).find((a) => e.codiciAllergene.has(a))
+  /**
+   * ⛔ **IL TAG DEI SOLFITI SI GUARDA DOPO GLI INGREDIENTI, E SOLO SE NON SI È SOSTITUITO NIENTE.**
+   *
+   * Trovato in revisione il 24/8, ed era il difetto peggiore della consegna: **annullava la consegna
+   * stessa**. `engine-rules.service.ts` scrive i tag **suggeriti** su ogni ricetta appena generata
+   * (`allergensReviewed: false`), e questo controllo blocca su un tag senza chiedere la conferma —
+   * di proposito, perché su un allergene un avviso non confermato vale comunque. Allargando il
+   * dizionario dei suggerimenti nella stessa consegna, il tag `solfiti` è finito **proprio sulle
+   * ricette che le quattro sostituzioni dovevano salvare**: l'insalata con l'aceto balsamico nasceva
+   * taggata, il tag bloccava, e la sostituzione veniva calcolata e buttata via.
+   *
+   * ⚠️ La regola nuova vale **solo per i solfiti**, e per una ragione che non si estende agli altri:
+   * per i solfiti esiste una regola per **ingrediente** che sa quale ingrediente è e cosa metterci al
+   * posto. Su «contiene glutine» non c'è niente del genere — il tag dice che il piatto contiene
+   * l'allergene e non quale ingrediente, quindi lì blocca e basta, come prima.
+   *
+   * ⛔ **E il tag NON viene ignorato**: se la regola per ingrediente non ha trovato niente da
+   * sostituire, il tag blocca esattamente come prima. Cioè si perde il blocco solo dove abbiamo
+   * saputo dire, ingrediente per ingrediente, cosa cambiare — e dove uno degli ingredienti richiede
+   * di togliere il piatto (`'fuori'`), il piatto si toglie comunque.
+   */
+  const codiciDaGuardare = [...e.codiciAllergene].filter((c) => !(c === ALLERGENE_SOLFITI && e.solfiti));
+  const perTag = codiciDaGuardare.length
+    ? (r.allergens ?? []).find((a) => codiciDaGuardare.includes(a))
     : undefined;
   if (perTag) violations.push(`${r.name}: contiene ${allergenLabel(perTag)} (allergene dichiarato)`);
 
@@ -157,6 +185,29 @@ export function valutaRicetta(
        * l'ingrediente ricadrebbe nella mappa generica e il parmigiano diventerebbe «parmigiano ben
        * stagionato» — una sostituzione che sostituisce una cosa con se stessa.
        */
+      /**
+       * REGOLA DEI SOLFITI (24/8), prima di quella del lattosio e della mappa generica.
+       *
+       * ⚠️ **Prima**, e non è un dettaglio di stile: i due elenchi si toccano su «panna», «burro» e
+       * sui formaggi solo per caso, ma su **aceto** e **vino** la mappa generica non ha niente e il
+       * piatto sparirebbe. Chi dichiara i solfiti ha un'allergia; chi è intollerante al lattosio no.
+       *
+       * ⛔ `'fuori'` è la metà che conta: crostacei e insaccati **non si sostituiscono**, e il
+       * `violations.push` qui sotto è quello che li toglie dal catalogo di quella cliente. Lasciarli
+       * cadere nella mappa generica vorrebbe dire proporle un pesce al posto di un gambero — cioè un
+       * piatto diverso da quello che aveva scelto (decisione di Simone, 24/8).
+       */
+      if (ex.reason !== 'non gradito' && e.solfiti) {
+        const scelta = decisioneSolfiti(ing);
+        if (scelta?.azione === 'fuori') {
+          violations.push(`${r.name}: incompatibile con "${ex.reason}" (non c'è un sostituto: cambierebbe il piatto)`);
+          break;
+        }
+        if (scelta?.azione === 'sostituisci') {
+          subs.push({ from: ing, to: scelta.con, reason: ex.reason });
+          break;
+        }
+      }
       if (ex.reason !== 'non gradito' && e.delattosati) {
         const scelta = decisioneLattosio(ing);
         if (scelta?.azione === 'tieni') continue;
@@ -174,6 +225,16 @@ export function valutaRicetta(
       break; // un solo match per ingrediente
     }
   }
+  /**
+   * ⚠️ **Il ripiego del tag solfiti**: se la cliente li dichiara, la ricetta porta il tag, e passando
+   * per gli ingredienti **non abbiamo saputo dire niente** — nessuna sostituzione e nessun `fuori` —
+   * allora il tag torna a bloccare. È il caso della ricetta taggata a mano dalla nutrizionista su un
+   * ingrediente che il nostro elenco non nomina: lì lei sa una cosa che noi non sappiamo, e vince lei.
+   */
+  if (e.solfiti && !violations.length && !subs.length && (r.allergens ?? []).includes(ALLERGENE_SOLFITI)) {
+    violations.push(`${r.name}: contiene ${allergenLabel(ALLERGENE_SOLFITI)} (allergene dichiarato)`);
+  }
+
   return { violations, subs };
 }
 
