@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { parcheggiaInSospensione, riportaDallaSospensione, STAGE_IN_SOSPENSIONE } from '../commerce/sospensione-in-pipeline';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -324,7 +325,7 @@ export class PauseService {
    *    pausa no — lì i menu sono sospesi per definizione, e mandarglieli mentre è in vacanza
    *    sarebbe il contrario del punto di avere una pausa.
    */
-  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number; rientriSegnati: number }> {
+  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number; rientriSegnati: number; parcheggiate: number; riportate: number }> {
     const now = new Date();
     // ⚠️ Il giorno di Roma, non quello del processo: era `setHours(0,0,0,0)`, che su Render è UTC.
     // Questo giro decide quali pause sono in corso OGGI e a chi tocca il menu di rientro — nelle
@@ -516,6 +517,75 @@ export class PauseService {
      * uno dopo la fine di quella pausa — la campagna del marketing si deduplica sui 7 giorni, ma
      * Gaia conta i giorni **dall'evento**, e riscriverlo la farebbe ricominciare da capo.
      */
+    /**
+     * ⛔ **4-bis) LE SCHEDE DI CHI È FERMA VANNO IN «IN SOSPENSIONE»** — Simone, 24/8: «un nuovo
+     * stato dove sostiamo i clienti durante la sospensione».
+     *
+     * ⚠️ Si guardano gli **event**, non le `pauseRequest`: il Calendario in app crea solo l'evento,
+     * ed è la porta da cui passano le pause che nessuno in azienda ha deciso — cioè proprio quelle
+     * che chi apre la pipeline non sa spiegarsi.
+     *
+     * ⚠️ Gira **ogni notte** su tutte le sospensioni in corso, non solo su quelle appena nate: è
+     * quello che rende il parcheggio riparabile da solo se una notte il cron non gira, e quello che
+     * copre le pause create prima di questa consegna.
+     */
+    let parcheggiate = 0;
+    const sospeseOggi = (await this.prisma.event.findMany({
+      where: {
+        mode: 'pause_period' as never,
+        type: 'vacation' as never,
+        startDate: { lte: oggi } as never,
+        endDate: { gte: oggi } as never,
+      } as never,
+      select: { clientId: true },
+    })) as { clientId: string }[];
+    for (const e of [...new Set(sospeseOggi.map((x) => x.clientId))]) {
+      if (await parcheggiaInSospensione(this.prisma as never, e, 'sistema')) parcheggiate++;
+    }
+
+    /**
+     * ⛔ **4-ter) E LA SPAZZATA DEL RIENTRO** — rilievo della revisione del 25/8, il più grave.
+     *
+     * Il parcheggio si riparava da solo (ripassa ogni notte su tutte le sospensioni in corso); il
+     * rientro no: stava attaccato al passo 5, cioè **dopo** i controlli scritti per l'evento del
+     * marketing. Tre strade normali lasciavano la scheda parcheggiata **per sempre**: lo script
+     * `sblocca:sospensione` (che tronca l'evento e chiude la richiesta), la cliente che si cancella
+     * l'evento dal Calendario in app (evento sparito, nessuna fine da trovare), e un cron fermo più
+     * di tre giorni a cavallo del rientro. Chi apriva la board vedeva ferma una cliente che i menu
+     * li stava ricevendo da settimane.
+     *
+     * Qui la domanda è l'unica che conta e non dipende da come è finita la pausa: **c'è ancora una
+     * sospensione in corso oggi?** Se no, la scheda torna dove stava.
+     */
+    let riportate = 0;
+    // ⚠️ Anche la lettura sta sotto `catch`: la board non deve poter far cadere il resto del giro
+    // notturno — le pesate e i menu di rientro contano più di una colonna.
+    const parcheggiate_ora = (await this.prisma.crmRecord
+      .findMany({
+        where: { stage: STAGE_IN_SOSPENSIONE as never, clientId: { not: null } } as never,
+        select: { clientId: true },
+      })
+      .catch(() => [])) as { clientId: string | null }[];
+    for (const r of parcheggiate_ora) {
+      if (!r.clientId) continue;
+      try {
+        const ancora = await this.prisma.event.findFirst({
+          where: {
+            clientId: r.clientId,
+            mode: 'pause_period' as never,
+            type: 'vacation' as never,
+            startDate: { lte: oggi } as never,
+            endDate: { gte: oggi } as never,
+          } as never,
+          select: { id: true },
+        });
+        if (ancora) continue;
+        if (await riportaDallaSospensione(this.prisma as never, r.clientId, 'sistema')) riportate++;
+      } catch {
+        // Una scheda che va storta non ferma le altre.
+      }
+    }
+
     let rientriSegnati = 0;
     const daTreGiorni = new Date(oggi.getTime() - 3 * 86_400_000);
     /**
@@ -583,6 +653,7 @@ export class PauseService {
             data: { travelState: 'rientrato', travelStart: null, travelEnd: null } as never,
           })
           .catch(() => undefined);
+        // ⚠️ La scheda l'ha già rimessa a posto il passo 4-ter: qui si registra solo il rientro.
         rientriSegnati++;
       } catch {
         // Una cliente che va storta non ferma le altre.
@@ -594,7 +665,7 @@ export class PauseService {
     //    tre chili addosso era il momento peggiore per farlo. Ora si erogano e basta.
     const menuDiRientro = await this.erogaRientriDiFinePausa(oggi, sogliaKg);
 
-    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro, rientriSegnati };
+    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro, rientriSegnati, parcheggiate, riportate };
   }
 
   /**
@@ -1085,6 +1156,15 @@ export class PauseService {
     }
 
     /**
+     * ⚠️ **La scheda si parcheggia subito se la sospensione è già in corso oggi**; se comincia fra
+     * tre giorni ci pensa il giro notturno del giorno giusto — parcheggiarla adesso vorrebbe dire
+     * mostrare come ferma una cliente che i menu li sta ancora ricevendo.
+     */
+    if (giornoDelDato(startDate).getTime() <= oggi.getTime() && giornoDelDato(endDate).getTime() >= oggi.getTime()) {
+      await parcheggiaInSospensione(this.prisma as never, clientId, actorUserId);
+    }
+
+    /**
      * Il registro si aggiorna SOLO in avanti: `endDate` è «fin dove ho già concesso» e non torna
      * mai indietro, `days` è il totale concesso. Si scrive DOPO il congelamento: se
      * `freezeSubscription` esplode, il totale resta quello vecchio e risalvare riprova.
@@ -1170,6 +1250,28 @@ export class PauseService {
       where: { eventId: esistente.id } as never,
       data: { status: 'closed' } as never,
     });
+    /**
+     * ⚠️ **La pipeline si aggiorna SUBITO, non domani notte.** Chi toglie una sospensione sta
+     * guardando la scheda in quel momento: lasciarla in «In sospensione» fino al giro notturno gli
+     * farebbe credere che il salvataggio non abbia funzionato — ed è il tipo di dubbio che si
+     * risolve rifacendo la stessa operazione tre volte.
+     *
+     * ⛔ **Ma solo se non è ferma per un'ALTRA sospensione** (rilievo della revisione del 25/8):
+     * annullando la vacanza di settembre, la scheda usciva dalla sospensione di agosto ancora in
+     * corso — e rientrava da sola la notte dopo, lasciando due passaggi finti nello storico.
+     */
+    const altraInCorso = await this.prisma.event.findFirst({
+      where: {
+        clientId,
+        mode: 'pause_period' as never,
+        type: 'vacation' as never,
+        startDate: { lte: oggi } as never,
+        endDate: { gte: oggi } as never,
+        NOT: { id: esistente.id },
+      } as never,
+      select: { id: true },
+    });
+    if (!altraInCorso) await riportaDallaSospensione(this.prisma as never, clientId, actorUserId);
     await this.audit.log({
       action: 'client.travel.resume',
       actorId: actorUserId,

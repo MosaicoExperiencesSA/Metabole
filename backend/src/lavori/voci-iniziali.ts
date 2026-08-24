@@ -2077,6 +2077,58 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'colonna-in-sospensione',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-25T10:00',
+    titolo: '✅ Pipeline: la colonna «In sospensione», dove sostano le clienti mentre i menu sono fermi',
+    dettaglio:
+      'Richiesta di Simone (24/8): «creiamo in pipeline, tra acquisto e senza possibilità economiche, '
+      + 'un nuovo stato "In sospensione" dove sostiamo i clienti durante la sospensione e li '
+      + 'riportiamo in Acquisto una volta che riprendono il percorso».\n\n'
+      + 'Prima una cliente in vacanza per venti giorni restava in «Acquisito», in mezzo a chi sta '
+      + 'seguendo: chi apre la board non vedeva la differenza fra chi è ferma di sua volontà e chi è '
+      + 'sparita — e sono due telefonate diverse. ✅ Adesso la scheda si parcheggia da sola quando la '
+      + 'sospensione **è in corso** (subito, se comincia oggi; dal giro notturno se comincia più in '
+      + 'là) e torna **esattamente dove stava** quando i menu ripartono. ⚠️ Non genericamente in '
+      + '«Acquisito»: chi era in «Prima visita» non deve retrocedere di quattro colonne per essere '
+      + 'andata in ferie — il ripiego su «Acquisito» c\'è solo se quella colonna non esiste più. E se '
+      + 'nel frattempo una coach l\'ha trascinata altrove, **quella mano vince**.\n\n'
+      + '⛔ **La revisione ha trovato otto difetti, tre gravi.** (1) Il rientro **non aveva rete**: '
+      + 'era attaccato al passo del `travel_return`, cioè dopo tre controlli scritti per il '
+      + 'marketing, quindi lo script `sblocca:sospensione`, la cliente che si cancella l\'evento dal '
+      + 'Calendario e un cron fermo tre giorni lasciavano la scheda parcheggiata **per sempre**. Ora '
+      + 'c\'è una spazzata notturna che fa la domanda giusta: «c\'è ancora una sospensione oggi?». '
+      + '(2) Su una board vera la colonna nasce **in fondo** (il seed la mette dopo l\'ultima quando '
+      + 'il posto è occupato), e lì `avanzaStatoSeIndietro` **rifiutava** di archiviare una scheda '
+      + 'parcheggiata: il piano scade davvero anche in vacanza, e la coach non avrebbe mai ricevuto '
+      + '«piano finito da 7 giorni senza rinnovo» — la telefonata che fa rinnovare. (3) Si '
+      + 'parcheggiava **chiunque**, prova gratuita compresa: un periodo senza menu lo può creare '
+      + 'qualunque cliente dal Calendario, e parcheggiata quella scheda diventava una «cliente» — '
+      + 'contatore pubblico, conversione del cruscotto e **campagne di chi ha comprato**. Ora si '
+      + 'parcheggia solo da «Acquisito» in poi.\n\n'
+      + '⚠️ Accolti anche: il parcheggio **a mano** (trascinamento sulla board) non si ricordava da '
+      + 'dove veniva; la memoria non si azzerava al rinnovo; annullando una vacanza **futura** si '
+      + 'sparcheggiava chi era ferma per un\'altra; nel back office la scheda in sospensione portava '
+      + 'il badge ambra **«Lead»** e perdeva il chip «giorni alla fine del piano»; e due script di '
+      + 'diagnostica dicevano il falso (`diag:acquisti-pipeline` segnalava ogni vacanza come «ha '
+      + 'incassato ma non è acquisito»).\n\n'
+      + '⛔ **E una cosa che si rompeva in silenzio**: in quattro punti «cliente» voleva dire '
+      + '**letteralmente** `stage === \'paid\'` — il contatore pubblico delle clienti seguite, il '
+      + 'badge cliente/lead, i filtri delle campagne, l\'elenco Clienti. Parcheggiando una scheda '
+      + 'altrove, una cliente che paga diventava **un lead** per il marketing: le email di chi non ha '
+      + 'ancora comprato, mandate a una in ferie col piano pagato. Adesso «cliente» è un elenco '
+      + '(`STAGE_DA_CLIENTE`) e sta in un posto solo.\n\n'
+      + '🔍 5201 test in 322 suite verdi (TZ UTC e Roma), build veri di backend e backoffice, ogni '
+      + 'pezzo nuovo provato alla mutazione. ⚠️ **Al rilascio**: la migrazione la applica Render; la '
+      + 'colonna la crea il seed all\'avvio e nasce **in fondo alla board** — va trascinata dove la '
+      + 'vuoi (fra «Acquisto» e «Senza possibilità economiche»): nessun automatismo legge quell\'ordine. '
+      + '⚠️ Le sospensioni **già in corso** al momento del rilascio si parcheggiano da sole al primo '
+      + 'giro notturno.',
+  },
+  {
     chiave: 'stato-tolto-e-acqua-per-unita',
     categoria: 'Da fare — codice',
     ordine: 0,

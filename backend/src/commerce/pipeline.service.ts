@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope } from '../common/coach-team';
+import { STAGE_DA_CLIENTE } from './sospensione-in-pipeline';
 
 export interface StageInfo {
   key: string;
@@ -210,7 +211,14 @@ export class PipelineService {
     for (const s of stages) byStage[s.key] = [];
     const orphans: typeof cards = [];
     for (const c of cards) (byStage[c.stage] ?? orphans).push(c);
-    for (const k of Object.keys(byStage)) byStage[k] = k === 'trial' || k === 'paid' ? sortByPlanEnd(byStage[k]) : sortCol(byStage[k]);
+    /**
+     * ⚠️ Anche «In sospensione» si ordina per scadenza del piano (25/8): lì dentro ci sono clienti
+     * con un piano che corre — la sospensione lo allunga, non lo ferma — e la domanda di chi guarda
+     * quella colonna è la stessa delle altre due: **a chi sta per scadere il piano**.
+     */
+    for (const k of Object.keys(byStage)) {
+      byStage[k] = k === 'trial' || STAGE_DA_CLIENTE.includes(k) ? sortByPlanEnd(byStage[k]) : sortCol(byStage[k]);
+    }
 
     /**
      * `totali` è il conteggio VERO per colonna, `cards` quello che si disegna. Sono due numeri

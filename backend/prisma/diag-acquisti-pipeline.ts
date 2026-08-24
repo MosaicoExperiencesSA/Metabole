@@ -30,6 +30,7 @@
  *   EMAIL=<email> npm run diag:acquisti-pipeline      → il dettaglio di una cliente sola
  */
 import { PrismaClient } from '@prisma/client';
+import { STAGE_DA_CLIENTE } from '../src/commerce/sospensione-in-pipeline';
 
 const prisma = new PrismaClient();
 const EMAIL = (process.env.EMAIL ?? '').trim().toLowerCase();
@@ -124,8 +125,11 @@ async function main() {
 
   // --- I tre disallineamenti, ognuno con il suo perché ---
 
-  const acquisitoSenzaIncasso = righe.filter((r) => r.stage === 'paid' && incassato(r) === 0);
-  const incassoSenzaAcquisito = righe.filter((r) => r.stage !== 'paid' && incassato(r) > 0);
+  // ⚠️ «Acquisito» sono DUE colonne dal 25/8: chi è in vacanza sta in «In sospensione» e ha pagato
+  // eccome. Col confronto vecchio ogni vacanza finiva nell'elenco «ha incassato ma in pipeline NON è
+  // acquisito» — cioè un allarme falso, sullo script che serve a fidarsi dei numeri.
+  const acquisitoSenzaIncasso = righe.filter((r) => STAGE_DA_CLIENTE.includes(r.stage) && incassato(r) === 0);
+  const incassoSenzaAcquisito = righe.filter((r) => !STAGE_DA_CLIENTE.includes(r.stage) && incassato(r) > 0);
   const valoreDiverso = righe.filter((r) => incassato(r) > 0 && (r.valueCents ?? 0) !== incassato(r));
 
   console.log('\n=== «Acquisito» in pipeline, ma nessun incasso registrato ===');

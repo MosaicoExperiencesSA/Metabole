@@ -17,6 +17,7 @@ import { campiCambiati } from '../common/diff-campi';
 import { PrismaService } from '../prisma/prisma.service';
 import { avvisaCoachDellaCliente } from '../common/avvisa-coach';
 import { PipelineService } from './pipeline.service';
+import { STAGE_DA_CLIENTE, STAGE_IN_SOSPENSIONE } from './sospensione-in-pipeline';
 
 /** Password provvisoria leggibile: niente caratteri ambigui, con cifre (come users.service). */
 function genTempPassword(): string {
@@ -402,7 +403,38 @@ export class CrmService {
           ? [STAGE_NON_SEGUITA, STAGE_PERCORSO_CONCLUSO]
           : [STAGE_PERCORSO_CONCLUSO];
         let finita: string | null = null;
-        for (const dove of provate) {
+        /**
+         * ⛔ **UNA SCHEDA PARCHEGGIATA NON PASSA DA `avanzaStatoSeIndietro`** — rilievo della
+         * revisione del 25/8, e il difetto era grosso: «In sospensione» su una board vera nasce in
+         * **fondo** (il seed la mette dopo l'ultima colonna quando il posto è occupato, ed è quasi
+         * sempre occupato), quindi `avanzaStatoSeIndietro` — che confronta gli `order` e non
+         * retrocede mai — **rifiutava** di spostarla, in silenzio. Il piano scade davvero anche
+         * durante una vacanza (quella dal Calendario non allunga la scadenza): la coach non avrebbe
+         * mai ricevuto «piano finito da 7 giorni senza rinnovo», cioè la telefonata che fa rinnovare.
+         *
+         * La sospensione è una **parentesi**, non una posizione nel funnel: da lì si scrive diretto,
+         * e la memoria del parcheggio si azzera perché quella parentesi è finita.
+         */
+        if (scheda?.stage === STAGE_IN_SOSPENSIONE) {
+          for (const dove of provate) {
+            const colonna = await this.prisma.pipelineStage.findUnique({ where: { key: dove }, select: { key: true } });
+            if (!colonna) continue;
+            await this.prisma.crmRecord.update({
+              where: { clientId: s.clientId },
+              data: {
+                stage: dove as never,
+                stageDates: {
+                  ...((scheda.stageDates as Record<string, unknown>) ?? {}),
+                  [dove]: { at: new Date().toISOString(), byUserId: 'sistema' },
+                } as never,
+                stagePrimaSospensione: null,
+              } as never,
+            });
+            finita = dove;
+            break;
+          }
+        }
+        for (const dove of finita ? [] : provate) {
           if (await avanzaStatoSeIndietro(this.prisma as never, s.clientId, dove, 'sistema')) { finita = dove; break; }
         }
         if (finita === STAGE_PERCORSO_CONCLUSO && nonSeguita === true && !messaAManoInConcluso) {
@@ -507,8 +539,15 @@ export class CrmService {
           data: {
             stage: stage as never,
             stageDates: stageDates as never,
+            /**
+             * ⚠️ **La parentesi della sospensione si chiude anche qui.** Questa funzione la chiama il
+             * pagamento: una cliente che rinnova mentre è in ferie torna in «Acquisito», e se la
+             * memoria del parcheggio restasse scritta, alla vacanza dell'anno dopo il rientro la
+             * manderebbe nella colonna di allora (rilievo della revisione del 25/8).
+             */
+            ...(stage !== STAGE_IN_SOSPENSIONE ? { stagePrimaSospensione: null } : {}),
             ...(valueCents !== undefined ? { valueCents } : {}),
-          },
+          } as never,
         });
       } else {
         // Cliente che paga senza essere passata dai lead: la inserisco nel CRM,
@@ -594,9 +633,14 @@ export class CrmService {
      * sembra completa. C'è un test che le tiene ferme insieme.
      */
     if (filter.daValutare) AND.push({ client: { clientProfile: filtroDaValutare() } });
-    if (filter.tipo === 'client') AND.push({ stage: 'paid' });
-    else if (filter.tipo === 'historical') AND.push({ stage: { not: 'paid' }, historicalPaidCents: { gt: 0 } });
-    else if (filter.tipo === 'lead') AND.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
+    /**
+     * ⚠️ «Cliente» sono DUE colonne dal 25/8: «Acquisito» e «In sospensione» (dove le schede sostano
+     * mentre i menu sono fermi). Con la sola `paid`, una cliente in vacanza col piano pagato
+     * compariva nel filtro **lead** — cioè nell'elenco di chi non ha ancora comprato.
+     */
+    if (filter.tipo === 'client') AND.push({ stage: { in: STAGE_DA_CLIENTE } });
+    else if (filter.tipo === 'historical') AND.push({ stage: { notIn: STAGE_DA_CLIENTE }, historicalPaidCents: { gt: 0 } });
+    else if (filter.tipo === 'lead') AND.push({ stage: { notIn: STAGE_DA_CLIENTE }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
     if (filter.valueMin != null || filter.valueMax != null) {
       const range: Record<string, number> = {};
       if (filter.valueMin != null) range.gte = filter.valueMin;
@@ -1297,9 +1341,26 @@ export class CrmService {
       data: {
         stage: input.stage as never,
         stageDates: stageDates as never,
+        /**
+         * ⛔ **Chi sposta a mano cancella la memoria della sospensione.** `stagePrimaSospensione`
+         * dice «da dove è stata parcheggiata»: se una coach trascina la scheda fuori da «In
+         * sospensione» e mesi dopo la cliente va di nuovo in vacanza, quel valore vecchio la
+         * riporterebbe in una colonna scelta per un'altra storia. La memoria dura quanto la
+         * parentesi, e la parentesi la chiude anche una mano.
+         */
+        ...(input.stage === STAGE_IN_SOSPENSIONE
+          /**
+           * ⛔ **Anche il parcheggio A MANO si ricorda da dove viene** (rilievo della revisione del
+           * 25/8): il trascinamento sulla board passa da qui, ed è il modo in cui Simone userà una
+           * colonna che ha chiesto come colonna. Senza questa riga, la coach che parcheggia a mano
+           * una cliente di «Prima visita» se la ritrovava in «Acquisito» al rientro — quattro
+           * colonne indietro, cioè il danno che questa consegna dice di evitare.
+           */
+          ? { stagePrimaSospensione: record.stage === STAGE_IN_SOSPENSIONE ? record.stagePrimaSospensione : record.stage }
+          : { stagePrimaSospensione: null }),
         ...(input.ownerStaffId ? { ownerId: input.ownerStaffId } : {}),
         ...(input.valueCents !== undefined ? { valueCents: input.valueCents } : {}),
-      },
+      } as never,
     });
     await this.audit.log({
       action: 'crm.lead.advance',

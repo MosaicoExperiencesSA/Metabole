@@ -81,9 +81,23 @@ describe('crm.list — perimetro di chi guarda', () => {
     expect(testo).not.toContain('assignedCoachId');
   });
 
-  it('il filtro «tipo=client» dell\'elenco Clienti è lo stadio «pagato»', async () => {
+  /**
+   * ⚠️ **«Cliente» sono DUE colonne dal 25/8**: «Acquisito» e «In sospensione», dove le schede
+   * sostano mentre i menu sono fermi (vacanza, ricovero, esami). Con il confronto vecchio — la sola
+   * `paid` — una cliente in vacanza col piano pagato spariva dall'elenco Clienti e compariva fra i
+   * **lead**, cioè fra chi non ha ancora comprato.
+   */
+  it('il filtro «tipo=client» dell\'elenco Clienti prende «Acquisito» E «In sospensione»', async () => {
     const { prisma, catturato } = prismaFinto('admin');
     await servizio(prisma).list({ tipo: 'client' }, 'u-admin');
-    expect(condizioni(catturato.where)).toContainEqual({ stage: 'paid' });
+    expect(condizioni(catturato.where)).toContainEqual({ stage: { in: ['paid', 'in_sospensione'] } });
+  });
+
+  it('⛔ e chi è in sospensione NON finisce fra i lead', async () => {
+    const { prisma, catturato } = prismaFinto('admin');
+    await servizio(prisma).list({ tipo: 'lead' }, 'u-admin');
+    const testo = JSON.stringify(condizioni(catturato.where));
+    expect(testo).toContain('notIn');
+    expect(testo).toContain('in_sospensione');
   });
 });

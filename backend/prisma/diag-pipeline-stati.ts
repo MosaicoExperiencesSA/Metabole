@@ -27,6 +27,9 @@ const SCRITTI_DAL_CODICE: { key: string; da: string }[] = [
   { key: 'questionnaire_done', da: 'fine del questionario' },
   { key: 'trial', da: 'attivazione di un prodotto gratuito' },
   { key: 'paid', da: 'primo pagamento' },
+  // ⚠️ Senza questa colonna le schede di chi è in vacanza restano dove sono, e il giro notturno non
+  // lo dice a nessuno: è il primo posto dove guardare se «In sospensione» resta vuota (25/8).
+  { key: 'in_sospensione', da: 'sospensione in corso (card, richiesta dall\'app, Calendario)' },
   { key: 'path_ended', da: 'piano scaduto da una settimana' },
   { key: 'non_seguita', da: 'piano scaduto da una settimana, e nemmeno una misura mentre correva' },
 ];

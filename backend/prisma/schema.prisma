@@ -849,6 +849,10 @@ model CrmRecord {
   name       String?
   stage      String   @default("lead_in") // chiave di pipeline_stage (gestita da admin)
   stageDates Json     @default("{}") @map("stage_dates") // {stage: {at, byUserId}}
+  /// Da quale colonna è stata parcheggiata in «In sospensione», per rimetterla lì al rientro.
+  /// NULL = non è in sospensione (o la sospensione è nata prima del 25/8). Vedi
+  /// `commerce/sospensione-in-pipeline.ts`.
+  stagePrimaSospensione String? @map("stage_prima_sospensione")
   ownerId    String?  @map("owner_id")
   owner      Staff?   @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   valueCents Int?     @map("value_cents")

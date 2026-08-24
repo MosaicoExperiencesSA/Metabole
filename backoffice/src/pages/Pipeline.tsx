@@ -223,7 +223,10 @@ export function Pipeline() {
                       </b>
                     )}
                     {!c.isClient && <span className="chip amber" style={{ fontSize: 10 }}>lead</span>}
-                    {(c.stage === 'trial' || c.stage === 'paid') && c.planDaysLeft != null && (
+                    {/* ⚠️ Anche «In sospensione» (25/8): il backend ordina quella colonna per
+                        scadenza del piano — la sospensione lo allunga, non lo ferma — e senza il
+                        chip quell'ordinamento diventa invisibile, cioè sembra casuale. */}
+                    {(c.stage === 'trial' || c.stage === 'paid' || c.stage === 'in_sospensione') && c.planDaysLeft != null && (
                       <span
                         className={`chip ${c.planDaysLeft <= 3 ? 'red' : c.planDaysLeft <= 7 ? 'amber' : ''}`}
                         style={{ fontSize: 10 }}

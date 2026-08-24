@@ -1,0 +1,93 @@
+Pipeline: la colonna «In sospensione», dove sostano le clienti mentre i menu sono fermi
+
+Richiesta di Simone (24/8): «creiamo in pipeline, tra acquisto e senza possibilita' economiche, un
+nuovo stato "In sospensione" dove sostiamo i clienti durante la sospensione e li riportiamo in
+Acquisto una volta che riprendono il percorso».
+
+COSA CAMBIA
+Prima una cliente in vacanza per venti giorni restava in «Acquisito», in mezzo a chi sta seguendo il
+percorso: chi apriva la board non vedeva la differenza fra chi e' ferma di sua volonta' e chi e'
+sparita — e sono due telefonate diverse.
+Adesso la scheda si parcheggia da sola quando la sospensione E' IN CORSO (subito, se comincia oggi;
+dal giro notturno se comincia piu' in la') e torna ESATTAMENTE DOVE STAVA quando i menu ripartono.
+⚠️ Non genericamente in «Acquisito»: chi era in «Prima visita» non deve retrocedere di quattro colonne
+per essere andata in ferie — il ripiego su «Acquisito» c'e' solo se quella colonna non esiste piu'.
+⚠️ E se nel frattempo una coach l'ha trascinata altrove, QUELLA MANO VINCE.
+⚠️ Solo le VACANZE: un «Altro» segnato dal Calendario ferma i menu e non sposta la scheda — la
+colonna dice «e' in pausa e tornera'», e su un «Altro» non lo sappiamo.
+
+⛔ E QUATTRO PUNTI DOVE «CLIENTE» VOLEVA DIRE LETTERALMENTE `stage === 'paid'`
+Il contatore pubblico delle clienti seguite, il badge cliente/lead, i filtri delle campagne e
+l'elenco Clienti. Parcheggiando una scheda altrove, una cliente che paga diventava UN LEAD per il
+marketing: le email di chi non ha ancora comprato, mandate a una in ferie col piano pagato. Adesso
+«cliente» e' un elenco (`STAGE_DA_CLIENTE`) e sta in un posto solo.
+
+⛔ LA REVISIONE HA TROVATO OTTO DIFETTI, TRE GRAVI
+1. IL RIENTRO NON AVEVA RETE. Era attaccato al passo che scrive l'evento di rientro del marketing,
+   cioe' dopo tre controlli scritti per un'altra cosa: lo script `sblocca:sospensione`, la cliente
+   che si cancella l'evento dal Calendario e un cron fermo tre giorni lasciavano la scheda
+   parcheggiata PER SEMPRE — e chi apriva la board vedeva ferma una che i menu li stava ricevendo da
+   settimane. Ora c'e' una spazzata notturna che fa la domanda giusta e una sola: «c'e' ancora una
+   sospensione in corso oggi?».
+2. SU UNA BOARD VERA LA COLONNA NASCE IN FONDO (il seed la mette dopo l'ultima quando il posto e'
+   occupato, e su una board riordinata lo e' sempre). Li' `avanzaStatoSeIndietro` — che confronta gli
+   ordini e non retrocede mai — RIFIUTAVA di archiviare una scheda parcheggiata, in silenzio. Il
+   piano scade davvero anche durante una vacanza (quella dal Calendario non allunga la scadenza), e
+   la coach non avrebbe mai ricevuto «piano finito da 7 giorni senza rinnovo»: la telefonata che fa
+   rinnovare. Adesso da quella colonna si scrive diretto.
+3. SI PARCHEGGIAVA CHIUNQUE, prova gratuita compresa: un periodo senza menu lo puo' creare qualunque
+   cliente dal Calendario, e parcheggiata quella scheda entrava fra le «clienti» — contatore
+   pubblico, conversione del cruscotto e campagne di chi ha comprato. Una settimana di ferie non e'
+   un acquisto: ora si parcheggia solo da «Acquisito» in poi.
+
+ALTRI CINQUE RILIEVI ACCOLTI
+- Il parcheggio A MANO (il trascinamento sulla board, che e' il modo in cui la colonna verra' usata)
+  non si ricordava da dove veniva: al rientro la cliente retrocedeva.
+- La memoria non si azzerava al RINNOVO: alla vacanza dell'anno dopo la scheda sarebbe tornata nella
+  colonna di allora.
+- Annullando una vacanza FUTURA si sparcheggiava chi era ferma per un'altra, e rientrava da sola la
+  notte dopo lasciando due passaggi finti nello storico.
+- Nel back office la scheda in sospensione portava il badge ambra «Lead» («nessun pagamento
+  registrato», su una che ha pagato) e perdeva il chip «giorni alla fine del piano» — proprio nella
+  colonna che il backend ordina per scadenza.
+- Due script di diagnostica dicevano il falso: `diag:acquisti-pipeline` segnalava ogni vacanza come
+  «ha incassato ma in pipeline non e' Acquisito», e `diag:pipeline-stati` non sapeva che la colonna
+  nuova la scrive un'automazione.
+
+VERIFICATO
+- Build puliti su backend e backoffice; 5201 test in 322 suite verdi con TZ UTC e TZ=Europe/Rome;
+  117 test del backoffice verdi.
+- Mutazioni: memoria non scritta (3 rossi), memoria vecchia che vince (1), ritorno a chiunque (1),
+  colonne terminali non escluse (2), «cliente» di nuovo la sola `paid` (3), spazzata senza il
+  controllo «e' ancora sospesa» (1), scrittura diretta dell'archiviazione disattivata (1), le due
+  chiamate immediate tolte (2).
+
+FILE NEL COMMIT
+- backend/prisma/schema.prisma
+- backend/prisma/migrations/20260825090000_stage_in_sospensione/migration.sql   (nuova)
+- backend/prisma/seed.ts
+- backend/prisma/diag-pipeline-stati.ts
+- backend/prisma/diag-acquisti-pipeline.ts
+- backend/src/commerce/sospensione-in-pipeline.ts   (nuovo)
+- backend/src/commerce/sospensione-in-pipeline.spec.ts   (nuovo)
+- backend/src/commerce/crm.service.ts
+- backend/src/commerce/pipeline.service.ts
+- backend/src/commerce/finance-crm.spec.ts
+- backend/src/commerce/crm-perimetro-lista.spec.ts
+- backend/src/commerce/crm-filtro-da-valutare.spec.ts
+- backend/src/marketing/marketing.service.ts
+- backend/src/catalog/catalog.service.ts
+- backend/src/catalog/catalog.service.spec.ts
+- backend/src/pause/pause.service.ts
+- backend/src/pause/rientro-si-segna-da-solo.spec.ts
+- backend/src/pause/modalita-viaggio-sospende.spec.ts
+- backend/src/pause/mezzanotte-della-pausa.spec.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/pages/LeadsTable.tsx
+- backoffice/src/pages/Pipeline.tsx
+- progetto/REGISTRO.md
+
+⛔ MIGRAZIONE: la applica Render al deploy. Additiva e nullable, nessun backfill.
+⚠️ AL RILASCIO: (1) la colonna la crea il seed all'avvio e nasce IN FONDO alla board — va trascinata
+dove la vuoi (fra «Acquisto» e «Senza possibilita' economiche»): nessun automatismo legge
+quell'ordine; (2) le sospensioni gia' in corso si parcheggiano da sole al primo giro notturno.

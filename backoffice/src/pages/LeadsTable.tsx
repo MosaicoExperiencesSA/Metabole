@@ -67,6 +67,15 @@ function cognomeDi(l: Lead): string {
 }
 // Classificazione persona coerente col marketing: cliente attivo, cliente storico (pre-Metabole) o lead.
 function classify(l: Lead): { label: string; chip: string; title: string } {
+  /**
+   * ⚠️ **«Cliente» sono DUE colonne dal 25/8**: «Acquisito» e «In sospensione», dove le schede
+   * sostano mentre i menu sono fermi. Col confronto vecchio, una cliente in vacanza compariva
+   * nell'elenco Clienti — il backend ora la include — con addosso il badge ambra **«Lead»** e il
+   * titolo «nessun pagamento registrato». Su una che ha pagato.
+   */
+  if (l.stage === 'in_sospensione') {
+    return { label: 'Cliente', chip: '', title: 'Cliente attivo Metabole, in sospensione (menu fermi)' };
+  }
   if (l.stage === 'paid') return { label: 'Cliente', chip: '', title: 'Cliente attivo Metabole' };
   if ((l.historicalPaidCents ?? 0) > 0) return { label: 'Storico', chip: 'violet', title: 'Cliente storico (pagamenti pre-Metabole)' };
   return { label: 'Lead', chip: 'amber', title: 'Lead: nessun pagamento registrato' };

@@ -18,6 +18,7 @@ import { ingredientiScalati, pastoDelGiorno, porzioneDelGiorno } from '../menu/p
 import { sostituzioniDaSapere } from '../menu/sostituzioni-nei-passi';
 import { giornateComplete, pastiAttesi } from './giornate-complete';
 import { settimaneDiTutte, utilizzoDelleRicette, type UsoInDieta } from './utilizzo-ricette';
+import { STAGE_DA_CLIENTE } from '../commerce/sospensione-in-pipeline';
 import {
   GIORNI_PER_SETTIMANA, conRicettaNelloSlot, giorniDi, giornoNellaSettimana, pastiDi, senzaRicetta,
   settimanaDi,
@@ -183,13 +184,16 @@ export class CatalogService {
    */
   async publicStats() {
     // Persone RAGGIUNTE = tutte le schede CRM (lead + clienti + clienti storici).
-    // Clienti SEGUITI = clienti (acquisto con Metabole → stage 'paid') + clienti storici
-    //   (pagamento pregresso, historicalPaidCents > 0). L'OR deduplica in automatico.
+    // Clienti SEGUITI = clienti (acquisto con Metabole) + clienti storici (pagamento pregresso,
+    //   historicalPaidCents > 0). L'OR deduplica in automatico.
+    // ⚠️ «Cliente» non è più la sola chiave `paid`: dal 25/8 c'è anche «In sospensione», dove le
+    //   schede sostano mentre i menu sono fermi. Con il confronto vecchio, il numero pubblico delle
+    //   clienti seguite CALAVA a ogni vacanza (`commerce/sospensione-in-pipeline.ts`).
     const [paths, realReached, realClients] = await Promise.all([
       this.publicPaths(),
       this.prisma.crmRecord.count(),
       this.prisma.crmRecord.count({
-        where: { OR: [{ stage: 'paid' }, { historicalPaidCents: { gt: 0 } }] },
+        where: { OR: [{ stage: { in: STAGE_DA_CLIENTE } }, { historicalPaidCents: { gt: 0 } }] },
       }),
     ]);
 

@@ -460,6 +460,36 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
     });
 
     /**
+     * ⛔ **UNA SCHEDA PARCHEGGIATA IN «IN SOSPENSIONE» DEVE POTER USCIRE** — rilievo della revisione
+     * del 25/8, ed era il difetto più insidioso della colonna nuova.
+     *
+     * Su una board vera «In sospensione» nasce **in fondo** (il seed la mette dopo l'ultima colonna
+     * quando il posto è occupato, e su una board riordinata lo è sempre): `avanzaStatoSeIndietro`
+     * confronta gli `order` e non retrocede mai, quindi **rifiutava** lo spostamento, in silenzio.
+     * Il piano scade davvero anche durante una vacanza — quella segnata dal Calendario non allunga
+     * la scadenza — e la coach non avrebbe mai ricevuto «piano finito da 7 giorni senza rinnovo»,
+     * cioè la telefonata che fa rinnovare.
+     */
+    it('⛔ una scheda in «In sospensione» va comunque in «Percorso concluso», anche se quella colonna sta in fondo', async () => {
+      prisma.subscription.findMany.mockResolvedValue([{ clientId: 'cli-1' }]);
+      prisma.subscription.findFirst.mockResolvedValue(null);
+      prisma.crmRecord.findUnique.mockResolvedValue({
+        stage: 'in_sospensione', stageDates: {}, stagePrimaSospensione: 'follow_up',
+      });
+      // La colonna della sospensione sta DOPO «Percorso concluso»: con `avanzaStatoSeIndietro` non
+      // si sarebbe mossa niente.
+      prisma.pipelineStage.findUnique.mockResolvedValue({ key: 'path_ended', order: 9 });
+
+      const res = await service.chiudiPercorsiConclusi();
+
+      expect(res.spostati).toBe(1);
+      const scritta = prisma.crmRecord.update.mock.calls.at(-1)[0].data;
+      expect(scritta.stage).toBe('path_ended');
+      // ⚠️ E la memoria della parentesi si azzera: quella parentesi è finita col percorso.
+      expect(scritta.stagePrimaSospensione).toBeNull();
+    });
+
+    /**
      * L'AVVISO ALLA COACH (richiesta di Simone dell'11/8: «e soprattutto che mandavamo notifiche alla
      * sua coach? dello spostamento?»). Prima lo spostamento lasciava solo una riga di audit: la scheda
      * cambiava colonna di notte, e la coach lo scopriva guardando la board — se la guardava. È

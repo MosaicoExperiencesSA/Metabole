@@ -19,7 +19,10 @@ describe('surveillanceTick — il giorno è quello di Roma', () => {
     // ⚠️ `event` serve al passo 3-bis (la pesata del rientro, 23/8): qui nessuna sospensione in
     // finestra, il test misura solo il giorno della query sulle pause.
     const event = { findMany: jest.fn().mockResolvedValue([]) };
-    const prisma = { pauseRequest, subscription, event } as never;
+    // ⚠️ Il parcheggio in «In sospensione» (25/8) chiede anche le schede CRM: qui nessuna, il test
+    // misura solo il giorno della query sulle pause.
+    const crmRecord = { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() };
+    const prisma = { pauseRequest, subscription, event, crmRecord, pipelineStage: { findUnique: jest.fn().mockResolvedValue({ order: 5 }) } } as never;
     const configParams = { getNumber: jest.fn(async (_k: string, d: number) => d) } as never;
     const service = new PauseService(prisma, {} as never, {} as never, configParams, {} as never);
 

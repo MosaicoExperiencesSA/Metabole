@@ -113,6 +113,15 @@ describe('PauseService — sospensione da modalità viaggio', () => {
         update: jest.fn().mockResolvedValue({}),
       },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ assignedCoachId: null, assignedNutritionistId: null }) },
+      // La scheda CRM e la board: servono al parcheggio in «In sospensione» (25/8). Di default una
+      // cliente in «Acquisito», cioè il caso normale di chi va in vacanza.
+      crmRecord: {
+        findUnique: jest.fn().mockResolvedValue({ stage: 'paid', stageDates: {}, stagePrimaSospensione: null }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      pipelineStage: {
+        findUnique: jest.fn(async ({ where }: any) => ({ order: where.key === 'paid' ? 4 : 5 })),
+      },
       staff: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
       notification: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
     };
@@ -400,3 +409,109 @@ describe('PauseService — sospensione da modalità viaggio', () => {
     });
   });
 });
+
+/**
+ * ⛔ **LA PIPELINE SI MUOVE SUBITO, NON DOMANI NOTTE** — Simone, 24/8: «un nuovo stato dove sostiamo
+ * i clienti durante la sospensione». Chi salva sta guardando la scheda in quel momento: se la card
+ * restasse dov'era fino al giro notturno, penserebbe che il salvataggio non ha funzionato.
+ *
+ * ⚠️ Questi test sono nati da un rilievo della revisione del 25/8: le due chiamate immediate si
+ * potevano cancellare **tutte e due** e 283 test restavano verdi.
+ */
+describe('PauseService — la scheda si sposta insieme alla sospensione', () => {
+  const crea2 = (opzioni: Parameters<typeof creaPerPipeline>[0] = {}) => creaPerPipeline(opzioni);
+
+  it('una vacanza che comincia OGGI parcheggia subito la scheda', async () => {
+    const { service, prisma } = crea2();
+    await service.sospendiPerViaggio('c1', 'staff1', { start: giorno(0), rientro: giorno(10) });
+    expect(prisma.crmRecord.update).toHaveBeenCalled();
+    expect(prisma.crmRecord.update.mock.calls[0][0].data.stage).toBe('in_sospensione');
+  });
+
+  /**
+   * ⚠️ **Una vacanza FUTURA no**: la cliente i menu li sta ancora ricevendo, e mostrarla ferma
+   * sarebbe raccontare una cosa che non è ancora successa. Ci pensa il giro notturno del giorno
+   * giusto.
+   */
+  it('⚠️ una vacanza che comincia fra cinque giorni NON sposta niente adesso', async () => {
+    const { service, prisma } = crea2();
+    await service.sospendiPerViaggio('c1', 'staff1', { start: giorno(5), rientro: giorno(19) });
+    expect(prisma.crmRecord.update).not.toHaveBeenCalled();
+  });
+
+  it('e togliere la sospensione riporta subito la scheda dov\'era', async () => {
+    const { service, prisma } = crea2({
+      eventoAperto: { id: 'ev-1', startDate: giorno(-2), endDate: giorno(8) },
+      schedaCrm: { stage: 'in_sospensione', stageDates: {}, stagePrimaSospensione: 'first_visit' },
+    });
+    await service.togliSospensioneDaViaggio('c1', 'staff1');
+    const ultima = prisma.crmRecord.update.mock.calls.at(-1)[0];
+    expect(ultima.data).toMatchObject({ stage: 'first_visit', stagePrimaSospensione: null });
+  });
+
+  /**
+   * ⛔ **Ma non se è ferma per un'ALTRA sospensione**: annullando la vacanza di settembre, la scheda
+   * usciva dalla sospensione di agosto ancora in corso — e rientrava da sola la notte dopo,
+   * lasciando due passaggi finti nello storico.
+   */
+  it('⛔ annullando una vacanza futura, chi è ferma per un\'altra resta parcheggiata', async () => {
+    const { service, prisma } = crea2({
+      eventoAperto: { id: 'ev-futura', startDate: giorno(10), endDate: giorno(20) },
+      altraInCorso: { id: 'ev-adesso' },
+      schedaCrm: { stage: 'in_sospensione', stageDates: {}, stagePrimaSospensione: 'paid' },
+    });
+    await service.togliSospensioneDaViaggio('c1', 'staff1');
+    expect(prisma.crmRecord.update).not.toHaveBeenCalled();
+  });
+});
+
+/** Finto ridotto: qui interessano solo la scheda CRM e le due porte che la muovono. */
+function creaPerPipeline(opzioni: {
+  eventoAperto?: { id: string; startDate: Date; endDate: Date } | null;
+  altraInCorso?: { id: string } | null;
+  schedaCrm?: { stage: string; stageDates: unknown; stagePrimaSospensione: string | null };
+} = {}) {
+  const crmRecord = {
+    findUnique: jest.fn().mockResolvedValue(opzioni.schedaCrm ?? { stage: 'paid', stageDates: {}, stagePrimaSospensione: null }),
+    update: jest.fn().mockResolvedValue({}),
+  };
+  const prisma = {
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
+    event: {
+      findFirst: jest.fn(({ where }: any) => {
+        // La domanda «c'è un'ALTRA sospensione in corso adesso?» esclude l'evento che si sta togliendo.
+        if (where?.NOT?.id) return Promise.resolve(opzioni.altraInCorso ?? null);
+        if (where?.label === ETICHETTA_VIAGGIO) return Promise.resolve(opzioni.eventoAperto ?? null);
+        return Promise.resolve(null);
+      }),
+      create: jest.fn(({ data }: any) => Promise.resolve({ id: 'ev-nuovo', ...data })),
+      update: jest.fn().mockResolvedValue({}),
+      delete: jest.fn().mockResolvedValue({}),
+    },
+    pauseRequest: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'req' }),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    measurement: { findFirst: jest.fn().mockResolvedValue({ weightKg: 70 }) },
+    subscription: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'sub-1', status: 'active', startDate: giorno(-200), endDate: giorno(100) }]),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    clientProfile: { findUnique: jest.fn().mockResolvedValue({ assignedCoachId: null, assignedNutritionistId: null }) },
+    staff: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
+    notification: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
+    crmRecord,
+    pipelineStage: { findUnique: jest.fn(async ({ where }: any) => ({ order: where.key === 'paid' ? 4 : 5 })) },
+  };
+  const service = new PauseService(
+    prisma as unknown as PrismaService,
+    { log: jest.fn().mockResolvedValue(undefined) } as never,
+    { notify: jest.fn().mockResolvedValue(undefined) } as never,
+    { getNumber: jest.fn(async (k: string, d?: number) => (k === 'pause_min_gap_days' ? 15 : (d ?? 0))) } as never,
+    {} as never,
+  );
+  return { service, prisma };
+}

@@ -1614,15 +1614,39 @@ async function seedPipelineStages(): Promise<void> {
     // pagamento vero passa ad "Acquisito" (key 'paid', usata dalle query di sistema).
     { key: 'trial', label: 'Prova', color: '#b8863b', order: 4, isSystem: true },
     { key: 'paid', label: 'Acquisito', color: '#0e7c66', order: 4, isSystem: true },
-    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 5, isSystem: false },
-    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 6, isSystem: false },
-    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 7, isSystem: false },
-    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 8, isSystem: false },
-    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 9, isSystem: false },
+    /**
+     * ⛔ **«In sospensione» (24/8, richiesta di Simone)**: qui sostano le clienti mentre i menu sono
+     * fermi — vacanza, ricovero, esami — e al rientro tornano da sole dove stavano. Senza questa
+     * colonna una cliente in ferie e una sparita stanno nello stesso posto, e sono due telefonate
+     * diverse.
+     *
+     * ⚠️ **Subito dopo «Acquisito», e non è cosmesi**: il cruscotto vendite conta come «convertite»
+     * le schede con `order >= order('paid')` — una colonna prima dell'acquisto farebbe *calare* la
+     * conversione ogni volta che una cliente va in vacanza.
+     *
+     * ⛔ **Ma su una board già riordinata questo `order` NON vale**: il ramo qui sotto la crea a
+     * `max(order) + 1`, cioè in fondo, dopo «Percorso concluso». Il parcheggio non se ne accorge
+     * (sposta per chiave), e nemmeno il cruscotto — in fondo resta comunque dopo «Acquisito». Se ne
+     * accorgeva invece il giro che archivia i percorsi conclusi, che passava da
+     * `avanzaStatoSeIndietro` e con quell'ordine si rifiutava di muovere una scheda parcheggiata:
+     * corretto il 25/8 in `crm.service.chiudiPercorsiConclusi`, che da lì scrive diretto.
+     * ⚠️ Resta vero che **Simone può trascinarla dove vuole** — fra «Acquisto» e «Senza possibilità
+     * economiche», come ha chiesto: nessuno degli automatismi legge quell'ordine.
+     *
+     * ⚠️ `isSystem: true`: su un'installazione già avviata il seed crea **solo** le colonne di
+     * sistema. Senza, in produzione non esisterebbe, e il parcheggio non troverebbe dove mettere le
+     * schede — in silenzio.
+     */
+    { key: 'in_sospensione', label: 'In sospensione', color: '#8a7f6a', order: 5, isSystem: true, dopoDi: 'paid' },
+    { key: 'coach_assigned', label: 'Coach assegnata', color: '#12a386', order: 6, isSystem: false },
+    { key: 'coach_call', label: 'Call con la coach', color: '#12a386', order: 7, isSystem: false },
+    { key: 'nutritionist_assigned', label: 'Nutrizionista assegnata', color: '#6c5ab7', order: 8, isSystem: false },
+    { key: 'first_visit', label: 'Prima visita', color: '#6c5ab7', order: 9, isSystem: false },
+    { key: 'follow_up', label: 'Follow-up', color: '#b8863b', order: 10, isSystem: false },
     // Ultima colonna: il percorso è finito (piano scaduto da una settimana senza rinnovo).
     // Sta DOPO "Acquisito", quindi nelle statistiche resta contata fra le convertite — perché
     // lo è stata: ha comprato e ha finito.
-    { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 10, isSystem: true },
+    { key: 'path_ended', label: 'Percorso concluso', color: '#7c8c88', order: 11, isSystem: true },
     /**
      * ⛔ **«Non ha seguito» (24/8, richiesta di Simone)** — in FONDO, dopo «Percorso concluso»: ha
      * comprato il piano e non ha mai inserito una misura mentre correva. Non è la stessa cosa di
@@ -1637,7 +1661,7 @@ async function seedPipelineStages(): Promise<void> {
      * Con l'ordine 11 una scheda già finita in «Percorso concluso» nelle notti scorse può ancora
      * passare di qui; con un ordine più basso il giro notturno la sovrascriverebbe ogni volta.
      */
-    { key: 'non_seguita', label: 'Non ha seguito', color: '#a35c5c', order: 11, isSystem: true, dopoDi: 'path_ended' },
+    { key: 'non_seguita', label: 'Non ha seguito', color: '#a35c5c', order: 12, isSystem: true, dopoDi: 'path_ended' },
   ];
   const existing = await prisma.pipelineStage.count();
   if (existing === 0) {

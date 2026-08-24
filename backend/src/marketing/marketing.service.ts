@@ -14,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { deriveSegment, prefsToken, verifyPrefsToken } from '../common/funnel-segment';
+import { STAGE_DA_CLIENTE } from '../commerce/sospensione-in-pipeline';
 
 export type SegmentFilters = {
   stages?: string[];
@@ -288,10 +289,15 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
     if (f.historicalPaidMinCents != null && f.historicalPaidMinCents > 0) c.push({ historicalPaidCents: { gte: Math.round(f.historicalPaidMinCents) } });
     if (f.historicalPaidMaxCents != null && f.historicalPaidMaxCents > 0) c.push({ historicalPaidCents: { lte: Math.round(f.historicalPaidMaxCents) } });
     // Classificazione persona (cliente / storico / lead), coerente con il badge CRM.
-    if (f.segment === 'client') c.push({ stage: 'paid' });
-    if (f.segment === 'historical') c.push({ historicalPaidCents: { gt: 0 }, stage: { not: 'paid' } });
+    /**
+     * ⛔ Qui il confronto con la sola `paid` costava caro: dal 25/8 una cliente in vacanza sta in «In
+     * sospensione», e sarebbe entrata nelle campagne per i **lead** — le email di chi non ha ancora
+     * comprato, mandate a una che ha pagato ed è in ferie.
+     */
+    if (f.segment === 'client') c.push({ stage: { in: STAGE_DA_CLIENTE } });
+    if (f.segment === 'historical') c.push({ historicalPaidCents: { gt: 0 }, stage: { notIn: STAGE_DA_CLIENTE } });
     if (f.segment === 'lead')
-      c.push({ stage: { not: 'paid' }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
+      c.push({ stage: { notIn: STAGE_DA_CLIENTE }, OR: [{ historicalPaidCents: null }, { historicalPaidCents: { lte: 0 } }] });
     if (f.city && f.city.trim()) c.push({ address: { contains: f.city.trim(), mode: 'insensitive' } });
     if (f.coachId) c.push({ assignedCoachId: f.coachId });
     // Esclusioni: utile con l'azione post-invio (es. non rimandare a chi ha già l'etichetta della campagna precedente).

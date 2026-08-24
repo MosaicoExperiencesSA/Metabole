@@ -77,7 +77,9 @@ describe('CatalogService (flusso approvazione diete)', () => {
     expect(s.reached).toBe(12); // base 0 + tutte le schede CRM
     expect(s.years).toBeUndefined(); // config 0 → campo omesso
     expect(prisma.crmRecord.count).toHaveBeenCalledWith({
-      where: { OR: [{ stage: 'paid' }, { historicalPaidCents: { gt: 0 } }] },
+      // ⚠️ «Cliente» sono DUE colonne dal 25/8: «Acquisito» e «In sospensione». Con la sola `paid` il
+      // numero pubblico delle clienti seguite CALAVA a ogni vacanza.
+      where: { OR: [{ stage: { in: ['paid', 'in_sospensione'] } }, { historicalPaidCents: { gt: 0 } }] },
     });
   });
 

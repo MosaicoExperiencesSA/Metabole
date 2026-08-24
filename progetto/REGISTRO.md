@@ -18,6 +18,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-25
+
+- `[Sviluppo]` 🅿️ **Pipeline: la colonna «In sospensione», dove sostano le clienti mentre i menu sono
+  fermi.** Richiesta di Simone (24/8): *«creiamo in pipeline, tra acquisto e senza possibilità
+  economiche, un nuovo stato "In sospensione" dove sostiamo i clienti durante la sospensione e li
+  riportiamo in Acquisto una volta che riprendono il percorso»*. Prima una cliente in vacanza per
+  venti giorni restava in «Acquisito», in mezzo a chi sta seguendo: chi apriva la board non vedeva la
+  differenza fra chi è ferma di sua volontà e chi è sparita — e sono due telefonate diverse.
+  ✅ La scheda si parcheggia da sola quando la sospensione **è in corso** (subito se comincia oggi,
+  dal giro notturno se comincia più in là) e torna **esattamente dove stava** quando i menu
+  ripartono: chi era in «Prima visita» non retrocede di quattro colonne per essere andata in ferie —
+  il ripiego su «Acquisito» c'è solo se quella colonna non esiste più. ⚠️ Se nel frattempo una coach
+  l'ha trascinata altrove, **quella mano vince**. ⚠️ Solo le **vacanze**: un «Altro» segnato dal
+  Calendario ferma i menu e non sposta la scheda.
+  ⛔ **E in quattro punti «cliente» voleva dire letteralmente `stage === 'paid'`** — il contatore
+  pubblico delle clienti seguite, il badge cliente/lead, i filtri delle campagne, l'elenco Clienti.
+  Parcheggiando una scheda altrove, una cliente che paga diventava **un lead** per il marketing: le
+  email di chi non ha ancora comprato, mandate a una in ferie col piano pagato. Adesso «cliente» è un
+  elenco (`STAGE_DA_CLIENTE`) e sta in un posto solo.
+  ⛔ **La revisione ha trovato otto difetti, tre gravi.** (1) Il **rientro non aveva rete**: era
+  attaccato al passo che scrive l'evento di rientro del marketing, quindi lo script
+  `sblocca:sospensione`, la cliente che si cancella l'evento dal Calendario e un cron fermo tre
+  giorni lasciavano la scheda parcheggiata **per sempre**; ora c'è una spazzata notturna che fa la
+  domanda giusta e una sola («c'è ancora una sospensione oggi?»). (2) Su una board vera la colonna
+  nasce **in fondo**, e lì `avanzaStatoSeIndietro` **rifiutava** di archiviare una scheda
+  parcheggiata: il piano scade davvero anche in vacanza, e la coach non avrebbe mai ricevuto «piano
+  finito da 7 giorni senza rinnovo» — la telefonata che fa rinnovare. (3) Si parcheggiava
+  **chiunque**, prova gratuita compresa: un periodo senza menu lo può creare qualunque cliente dal
+  Calendario, e quella scheda diventava una «cliente» a tutti gli effetti. Una settimana di ferie non
+  è un acquisto.
+  ⚠️ Accolti anche: il parcheggio **a mano** non si ricordava da dove veniva; la memoria non si
+  azzerava al rinnovo; annullando una vacanza **futura** si sparcheggiava chi era ferma per un'altra;
+  in back office la scheda in sospensione portava il badge ambra **«Lead»** e perdeva il chip «giorni
+  alla fine del piano»; e due script di diagnostica dicevano il falso.
+  🔍 5201 test in 322 suite verdi (TZ UTC e Roma), 117 nel backoffice, build veri, ogni pezzo nuovo
+  provato alla mutazione. ⚠️ **Al rilascio**: la migrazione la applica Render; la colonna nasce **in
+  fondo alla board** e va trascinata dove serve (nessun automatismo legge quell'ordine); le
+  sospensioni già in corso si parcheggiano da sole al primo giro notturno.
+
+---
+
 ## 2026-08-23
 
 - `[Sviluppo]` ✈️ **La modalità viaggio sospende davvero, le sue date si leggono in scheda, e il

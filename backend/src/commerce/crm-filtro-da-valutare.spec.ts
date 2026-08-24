@@ -69,7 +69,8 @@ describe('crm.list — il filtro «solo da valutare»', () => {
     await servizio(prisma).list({ tipo: 'client', daValutare: true, search: 'bianchi' }, 'u-admin');
     const c = condizioni(catturato.where);
     expect(c).toContainEqual({ client: { clientProfile: filtroDaValutare() } });
-    expect(c).toContainEqual({ stage: 'paid' });
+    // ⚠️ «Cliente» = «Acquisito» + «In sospensione» dal 25/8 (vedi `sospensione-in-pipeline.ts`).
+    expect(c).toContainEqual({ stage: { in: ['paid', 'in_sospensione'] } });
     expect(JSON.stringify(c)).toContain('bianchi');
   });
 });
