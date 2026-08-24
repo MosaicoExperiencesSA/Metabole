@@ -52,6 +52,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 🕰️ **La notte del 25 ottobre: il difetto era nei TEST, non nel prodotto — e la voce
+  che lo diceva era mia e sbagliata.** Il 23/8 avevo scritto che quella notte «i menu si spostano di
+  un giorno, il gate delle misure blocca chi non deve». Misurato caso per caso — e in due file su
+  cinque riscrivendo le fixture con date a mano, senza orologio — **è falso**: quella notte il motore
+  eroga i giorni giusti, il gate blocca chi deve, il rientro dalla sospensione cade nel giorno
+  giusto. **Nessuna cliente rischiava niente il 25 ottobre.** Una voce sbagliata non si cancella: si
+  riscrive dicendo che era sbagliata.
+  ⚠️ **E i file erano cinque, non tre**: si sono aggiunti `rientro-dalla-sospensione` e
+  `modalita-viaggio-sospende`, nati con le consegne del 23/8 — la stessa riga copiata in un file
+  nuovo, che è il modo in cui una famiglia di difetti si allarga mentre la si sta guardando.
+  **La forma vera**: `Date.now() + n * 86_400_000` su un **istante**, non su una mezzanotte locale
+  come diceva l'ipotesi. Alle 00:30 di un giorno da 25 ore, sommare ventiquattr'ore non arriva a
+  domani. Adesso si parte da `aGiorno(new Date())` e si somma in UTC, dove i cambi d'ora non
+  esistono: provata su **526.080 istanti** e quattro fusi di processo, zero errori contro 1.664.
+  ⚠️ Il quinto file è un caso diverso: lì l'helper era già giusto, e quattro fixture **deducevano**
+  «dentro le 24 ore» da «domani». Quella notte domani dista 24 ore e mezza e il servizio rispondeva
+  «si può ancora spostare» — **letteralmente vero**, il blocco è in ore. Adesso il blocco si
+  **dichiara** (`oreBlocco: 25`) invece di dedurlo, e dieci mutazioni dimostrano che l'insieme dei
+  test uccisi è identico a prima.
+  ⛔ **E la revisione ha bocciato la mia prima stesura, per il difetto stesso che questa consegna
+  chiude**: ci avevo aggiunto un `oreMancanti > 0` che rendeva il file rosso **mezz'ora al giorno,
+  tutti i giorni** — dopo le 23:30 quella distanza si arrotonda a zero. Il file *vecchio*, alla
+  stessa ora, era verde. Tolto. Più tre ragioni false nei commenti, corrette invece che cancellate.
+  ⛔ **Cercando questa famiglia sono usciti otto punti VERI, che sbagliano già adesso** — e non ho
+  aperto una voce nuova: stanno in `che-giorno-e-oggi-trenta-punti`, che li raccoglie da agosto. Il
+  peggiore: chi finisce il questionario fra mezzanotte e le due si vede il **peso di partenza
+  archiviato al giorno prima**, e se per quel giorno una misura esiste già l'`upsert` non sovrascrive:
+  **il peso dichiarato sparisce in silenzio**. Poi l'agenda dello staff e il calendario della coach
+  che partono da ieri, le prenotazioni che offrono 29 giorni invece di 30, la data d'inizio già
+  passata che si può scegliere, e nella prima ora del mese il tetto di spesa degli agenti, la
+  dashboard commerciale e due contatori fermi al mese scorso.
+  ✅ Verificato: build pulito, **5018 test in 314 suite** verdi con `TZ` a UTC e a Roma, e
+  `test:notte` verde alle 00:30 del 25/10, a mezzogiorno dello stesso giorno, alle 00:30 del 29/3/2027,
+  il 31/12, il 29/2/2028 e a **ogni ora** di un giorno qualunque.
+
 - `[Sviluppo]` 🍽️ **In «Allergeni ricette» si può correggere il piatto prima di confermarlo.**
   Richiesta di Simone: «prima di approvare, il nutrizionista può anche correggerla». Nella colonna
   Azioni compare **«Modifica ricetta»**, che apre lo stesso popup del catalogo. ⚠️ Il pulsante di

@@ -2,7 +2,7 @@ import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietAgentService } from '../diet-agent/diet-agent.service';
-import { giornoLocale } from '../common/date-only';
+import { aGiorno, giornoLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { DayComboService } from './day-combo.service';
 import { MenuService } from './menu.service';
@@ -11,7 +11,29 @@ import { MenuService } from './menu.service';
 // col giorno ITALIANO (`common/date-only.ts`). Con `toISOString()` — cioè il giorno UTC — fra le
 // 22:00 e le 24:00 UTC il test «2° giorno nel futuro» diventava «oggi» e falliva. Non è mai
 // successo solo perché la CI non ha ancora girato a quell'ora.
-const dayIso = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
+/**
+ * ⛔ **N GIORNI DI CALENDARIO, NON N×24 ORE** — 24/8.
+ *
+ * Questa riga faceva `Date.now() + n * 86_400_000`. Sembra la stessa cosa e non lo è: la notte del
+ * **25 ottobre 2026** le lancette tornano indietro e il giorno dura **25 ore**, quindi alle 00:30
+ * di Roma sommare ventiquattro ore **non arriva a domani** — resta lo stesso giorno.
+ *
+ * ⚠️ Il difetto era **qui, non nel prodotto**: misurato il 24/8 con `ORA_FINTA`, quella notte il
+ * motore erogava i giorni giusti e il gate bloccava chi doveva. Erano queste fixture a dire una cosa
+ * e a prepararne un'altra. Un test che mente sulla propria premessa manda a correggere codice che
+ * funziona, ed è più caro di un test che manca.
+ *
+ * ⚠️ Il caso caduto qui: «2° giorno del ciclo **nel futuro** → non bloccante». La fixture
+ * preparava un ciclo che finiva **oggi**, e il gate bloccava a ragione: il popup delle misure
+ * sarebbe comparso giustamente, non per un difetto del prodotto.
+ *
+ * Adesso si parte da una **mezzanotte UTC** (`aGiorno`, la stessa porta del prodotto) e si somma lì:
+ * in UTC non ci sono cambi d'ora, quindi `+ n` giorni è esatto in tutte le stagioni e in tutti i
+ * fusi del **processo** — provato su 526.080 istanti. ⚠️ Il giro completo torna al giorno giusto
+ * finché il fuso dell'**azienda** (`APP_TIMEZONE`) è a est di Greenwich, come Roma: è una proprietà
+ * di `aGiorno`, non di questa riga, ma vale saperlo perché quel fuso si cambia da Render.
+ */
+const dayIso = (n: number) => giornoLocale(new Date(aGiorno(new Date()).getTime() + n * 86_400_000));
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
 /** Ultima push inviata dal servizio costruito da `makeService`, per i test dello sblocco. */

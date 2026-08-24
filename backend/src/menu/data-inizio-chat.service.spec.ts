@@ -316,16 +316,38 @@ describe('Gaia sposta la data di inizio', () => {
  * Le 48 ore non sono un numero a caso: sono la finestra con cui il menu si sblocca. Prima, spostare
  * la data non costa niente; dopo, la cliente ha già i menu davanti e magari ha fatto la spesa.
  */
-describe('Gaia dentro le 24 ore dall\'inizio', () => {
+describe('Gaia dentro la finestra di blocco prima dell\'inizio', () => {
   /**
    * Il blocco è in ORE e si conta dall'istante, non dal giorno: «manca meno di un giorno» alle 23:00
    * e a mezzanotte non è la stessa cosa, e arrotondare regalerebbe o ruberebbe mezza giornata a
    * seconda di quando la cliente apre l'app.
    */
+  /**
+   * ⛔ **IL BLOCCO SI DICHIARA, NON SI DEDUCE DA «DOMANI»** — 24/8.
+   *
+   * Queste fixture usavano `fra(1)` come sinonimo di «dentro il blocco di 24 ore», e per 364 giorni
+   * l'anno è vero: alle 00:30 la mezzanotte di domani è a 23 ore e mezza. ⛔ Ma la notte del **25
+   * ottobre 2026** le lancette tornano indietro, il giorno dura **25 ore**, e domani è a **24 ore e
+   * mezza**: fuori dal blocco. Il servizio rispondeva «si può ancora spostare», ed era **letteralmente
+   * vero** — il blocco è in ORE e si conta dall'istante, come dice il commento qui sopra. Era la
+   * fixture a dire 24 e a prepararne 24 e mezza.
+   *
+   * `oreBlocco: 25` dichiara quello che il caso vuole dire — «siamo dentro la finestra» — invece di
+   * dedurlo da una distanza che due volte l'anno cambia. È lo stesso modo del caso a due giorni, che
+   * scrive `oreBlocco: 72` accanto a `fra(2)`.
+   *
+   * ⚠️ Una cosa vera e voluta, scritta perché non sembri un difetto: quella notte, fra le 00:00 e
+   * l'01:00 di Roma, **nessun giorno d'inizio è dentro le 24 ore** — la mezzanotte di oggi è passata,
+   * quella di domani è a 24:30. Per un'ora il blocco è aperto. Alla cliente non succede niente di
+   * male: ha davvero ventiquattr'ore e mezza davanti, e a due giorni il prodotto lascia spostare
+   * comunque. Se un giorno la regola dovesse voler dire «dalla mezzanotte del giorno prima» invece
+   * che «24 ore», è una riga che cambia — e non la decide un test.
+   */
   it('a poche ore dall\'inizio non sposta più niente e passa alla coach', async () => {
     const { service, prisma, menu } = await crea({
       subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
       planStartDate: fra(1),
+      oreBlocco: 25,
     });
     const esito = await service.apriDaTesto('cli-1', 'posso spostare la data di inizio?');
     expect(esito.esito).toBe('arresa');
@@ -369,6 +391,7 @@ describe('Gaia dentro le 24 ore dall\'inizio', () => {
     const { service, prisma } = await crea({
       subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
       planStartDate: fra(1),
+      oreBlocco: 25,
     });
     const esito = await service.avanza('cli-1', { passo: 'conferma', data: traIso(20) }, 'sì');
     expect(esito.esito).toBe('arresa');
@@ -408,15 +431,30 @@ describe('data di inizio dal profilo dell\'app', () => {
     expect(stato.perche).toBe('gia_partito');
   });
 
-  it('dentro le 24 ore dice «troppo tardi» e quante ore mancano davvero', async () => {
+  it('dentro la finestra dice «troppo tardi» e quante ore mancano davvero', async () => {
     const { service } = await crea({
       subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
       planStartDate: fra(1),
+      oreBlocco: 25,
     });
     const stato = await service.statoPerApp('cli-1');
     expect(stato.puo).toBe(false);
     expect(stato.perche).toBe('troppo_tardi');
-    expect(stato.oreMancanti).toBeLessThanOrEqual(24);
+    /**
+     * ⚠️ 25 e non 24: la mezzanotte di domani dista **da 0 a 25 ore**, e non dipende dalla stagione —
+     * dipende dall'**ora** in cui gira la suite. A mezzogiorno sono 12, alle 23:45 sono 15 minuti; le
+     * 25 sono il caso alto, la notte in cui le lancette tornano indietro.
+     *
+     * ⛔ **E per questo non c'è nessun limite INFERIORE da mettere qui.** La prima stesura di questa
+     * correzione ci aveva aggiunto `toBeGreaterThan(0)`, e l'ha bocciata la revisione misurandolo:
+     * dopo le **23:30** di Roma quella distanza scende sotto la mezz'ora, `Math.round` fa **0**, e il
+     * file diventava rosso — **mezz'ora al giorno, tutti i giorni**. Cioè la consegna che chiude i
+     * test che dipendono dall'ora ne creava uno nuovo, in un file che nella sua stessa intestazione
+     * racconta quel difetto. Il numero esatto lo difende il caso a orologio fermo qui sotto
+     * (`oreMancanti conta fino alla mezzanotte italiana: 24, non 26`), che è il posto giusto: senza
+     * orologio fermo, un'asserzione su un numero che cambia ogni minuto non è una rete.
+     */
+    expect(stato.oreMancanti).toBeLessThanOrEqual(25);
   });
 
   it('spostando dall\'app scrive le STESSE tre cose della chat', async () => {
@@ -437,6 +475,7 @@ describe('data di inizio dal profilo dell\'app', () => {
     const { service, prisma } = await crea({
       subs: [{ id: 'sub-1', status: 'active', startDate: fra(1), endDate: fra(91), plan: { period: '3m' }, createdAt: new Date() }],
       planStartDate: fra(1),
+      oreBlocco: 25,
     });
     await expect(service.spostaDaApp('cli-1', traIso(20))).rejects.toMatchObject({ status: 409 });
     expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();

@@ -3,7 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MOTIVO_BLOCCO_MENU, MenuService } from './menu.service';
-import { giornoLocale } from '../common/date-only';
+import { aGiorno, giornoLocale } from '../common/date-only';
 
 // Il "menu a necessità" non è oggetto di questi test: il fabbisogno non è calcolabile
 // (null) e il target kcal resta quello del livello della dieta (comportamento storico).
@@ -23,7 +23,30 @@ const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
  * `common/date-only.ts` racconta per le misure: usare l'helper del prodotto, non ricalcolare.
  */
 const todayIso = giornoLocale(new Date());
-const daysFromToday = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
+/**
+ * ⛔ **N GIORNI DI CALENDARIO, NON N×24 ORE** — 24/8.
+ *
+ * Questa riga faceva `Date.now() + n * 86_400_000`. Sembra la stessa cosa e non lo è: la notte del
+ * **25 ottobre 2026** le lancette tornano indietro e il giorno dura **25 ore**, quindi alle 00:30
+ * di Roma sommare ventiquattro ore **non arriva a domani** — resta lo stesso giorno.
+ *
+ * ⚠️ Il difetto era **qui, non nel prodotto**: misurato il 24/8 con `ORA_FINTA`, quella notte il
+ * motore erogava i giorni giusti e il gate bloccava chi doveva. Erano queste fixture a dire una cosa
+ * e a prepararne un'altra. Un test che mente sulla propria premessa manda a correggere codice che
+ * funziona, ed è più caro di un test che manca.
+ *
+ * ⚠️ Il caso caduto qui: «buffer: ha già un menu per un giorno **FUTURO** → non eroga altro».
+ * La fixture credeva di aver messo un menu **domani** e ne aveva messo uno **oggi**, quindi il
+ * motore aveva ragione a erogare — e il test si stupiva.
+ *
+ * Adesso si parte da una **mezzanotte UTC** (`aGiorno`, la stessa porta del prodotto) e si somma lì:
+ * in UTC non ci sono cambi d'ora, quindi `+ n` giorni è esatto in tutte le stagioni e in tutti i
+ * fusi del **processo** — provato su 526.080 istanti. ⚠️ Il giro completo torna al giorno giusto
+ * finché il fuso dell'**azienda** (`APP_TIMEZONE`) è a est di Greenwich, come Roma: è una proprietà
+ * di `aGiorno`, non di questa riga, ma vale saperlo perché quel fuso si cambia da Render.
+ */
+const giornoDaOggi = (n: number) => new Date(aGiorno(new Date()).getTime() + n * 86_400_000);
+const daysFromToday = (n: number) => giornoLocale(giornoDaOggi(n));
 
 describe('MenuService (erogazione 2 giorni alla volta)', () => {
   let service: MenuService;
@@ -1359,7 +1382,8 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
     // toccati è una conseguenza del codice e non del mock.
     const allDays = [0, 1, 2].map((n) => ({
       id: `md${n}`,
-      date: new Date(Date.now() + n * 86_400_000),
+      // ⚠️ Giorni di CALENDARIO: vedi la nota su `daysFromToday`.
+      date: giornoDaOggi(n),
       meals: meal(),
     }));
     const prisma: any = {

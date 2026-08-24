@@ -1,0 +1,76 @@
+La notte del 25 ottobre: il difetto era nei TEST, non nel prodotto
+
+⛔ LA VOCE DICEVA UNA COSA SBAGLIATA, E LA PARTE SBAGLIATA ERA L'ACCUSA
+`notte-in-cui-le-lancette-tornano-indietro` (23/8) diceva: «i menu della notte del 25 ottobre si
+spostano di un giorno, il gate delle misure blocca chi non deve, la finestra di 24 ore sbaglia».
+NON E' VERO. Misurato caso per caso, e in due file su cinque riscrivendo le fixture con date scritte
+a mano senza orologio: quella notte il motore eroga i giorni GIUSTI, il gate blocca chi DEVE, il
+rientro dalla sospensione cade nel giorno GIUSTO. Nessuna cliente rischiava niente il 25 ottobre.
+Una voce sbagliata non si cancella: si riscrive dicendo che era sbagliata.
+
+⚠️ E I FILE ERANO CINQUE, NON TRE
+Si sono aggiunti `menu/rientro-dalla-sospensione.spec.ts` e `pause/modalita-viaggio-sospende.spec.ts`,
+nati con le consegne del 23/8: la stessa riga copiata in un file nuovo. E' il modo in cui una
+famiglia di difetti si allarga mentre la si sta guardando.
+
+LA FORMA VERA DEL DIFETTO
+`Date.now() + n * 86_400_000` su un ISTANTE — non su una mezzanotte locale, come diceva l'ipotesi.
+Alle 00:30 di un giorno da 25 ore, sommare ventiquattr'ore non arriva a domani: resta lo stesso
+giorno. Quindi «un menu per un giorno FUTURO» ne preparava uno per OGGI, e il test si stupiva che il
+motore erogasse.
+Correzione: si parte da `aGiorno(new Date())` (mezzanotte UTC) e si somma lì, dove i cambi d'ora non
+esistono. Provata su 526.080 istanti e quattro fusi di processo: ZERO errori, contro 1.664 della
+versione vecchia.
+
+⚠️ IL QUINTO FILE E' UN CASO DIVERSO
+In `data-inizio-chat.service.spec.ts` l'helper era gia' giusto. Li' quattro fixture DEDUCEVANO
+«dentro le 24 ore» da «domani», e quella notte domani dista 24 ore e mezza: il servizio rispondeva
+«si puo' ancora spostare» ed era LETTERALMENTE VERO — il blocco e' in ore e si conta dall'istante.
+Adesso il blocco si DICHIARA (`oreBlocco: 25`) invece di dedurlo, come gia' fa il caso a due giorni
+con `oreBlocco: 72`.
+⚠️ Verificato con dieci mutazioni del prodotto che l'insieme dei test uccisi e' IDENTICO a prima
+all'ora ordinaria, e piu' grande alle 00:30: il morso non e' stato tolto.
+
+⛔ E LA REVISIONE HA BOCCIATO LA PRIMA STESURA — per il difetto che questa consegna esiste per chiudere
+Ci avevo aggiunto un `expect(oreMancanti).toBeGreaterThan(0)` che rendeva il file rosso MEZZ'ORA AL
+GIORNO, TUTTI I GIORNI: dopo le 23:30 di Roma la mezzanotte di domani dista meno di mezz'ora e
+`Math.round` fa 0. Misurato: `ORA_FINTA=2026-09-15T21:45Z` → 1 rosso, e il file VECCHIO alla stessa
+ora era verde. Cioe' la consegna che chiude i test dipendenti dall'ora ne creava uno nuovo, in un
+file che nella sua intestazione racconta proprio quel difetto. Tolto.
+Piu' tre ragioni false nei commenti, corrette: «fra 23 e 25 ore a seconda della STAGIONE» (dipende
+dall'ORA, ed e' fra 0 e 25); lo stesso esempio copiato in quattro file, dove tre volte descriveva il
+caso di un altro file; e «esatto in tutte le stagioni» che vale finche' `APP_TIMEZONE` e' a est di
+Greenwich.
+
+⛔ CENSIMENTO: OTTO PUNTI VERI, CHE SBAGLIANO GIA' ADESSO (aggiunti alla voce che li raccoglie)
+Cercando questa famiglia sono usciti otto punti di PRODUZIONE che sbagliano ogni notte fra mezzanotte
+e le due, o nella prima ora del mese. Il peggiore: `onboarding.service.ts:595` — chi finisce il
+questionario in quella fascia si vede il PESO DI PARTENZA archiviato al giorno prima, e se per quel
+giorno una misura esiste gia' l'`upsert` non sovrascrive: il peso dichiarato SPARISCE IN SILENZIO.
+Poi: l'agenda dello staff parte da ieri, il calendario della coach idem, le prenotazioni offrono 29
+giorni invece di 30, la cliente puo' scegliere una data d'inizio gia' passata, e nella prima ora del
+mese il tetto di spesa degli agenti, la dashboard commerciale e due contatori mostrano il mese
+scorso. Piu' cinque punti che sbagliano solo sul portatile — fra cui `agenda.service.ts:300`, che e'
+la copia non corretta di `creaFerie` settanta righe piu' su nello stesso file.
+⚠️ NON ho aperto una voce nuova: sono finiti in `che-giorno-e-oggi-trenta-punti`, che e' la voce che
+questa famiglia la raccoglie da agosto.
+
+VERIFICATO
+- `npm run build` pulito.
+- 5018 test in 314 suite verdi con `TZ` a UTC e con `TZ=Europe/Rome`.
+- `npm run test:notte` verde alle 00:30 del 25/10/2026 (giorno da 25 ore), a mezzogiorno dello stesso
+  giorno, alle 00:30 del 29/3/2027 (giorno da 23 ore), il 31/12, il 29/2/2028, e a OGNI ORA del
+  giorno su un giorno qualunque (sweep ogni tre ore piu' le 22:45 e le 23:45).
+- Tutti e 14 i casi che cadevano sono ancora uccisi da almeno una mutazione del codice di produzione.
+
+FILE NEL COMMIT
+- backend/src/menu/menu.service.spec.ts
+- backend/src/menu/menu-measurement-gate.spec.ts
+- backend/src/menu/rientro-dalla-sospensione.spec.ts
+- backend/src/menu/data-inizio-chat.service.spec.ts
+- backend/src/pause/modalita-viaggio-sospende.spec.ts
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+Solo file di test e la lista lavori: nessuna migrazione, nessuna variabile, nessuna OTA. Il
+comportamento del prodotto non cambia di una riga — ed e' il punto della consegna.

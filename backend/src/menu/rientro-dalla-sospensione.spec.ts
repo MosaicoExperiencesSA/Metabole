@@ -3,7 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from './menu.service';
-import { giornoLocale } from '../common/date-only';
+import { aGiorno, giornoLocale } from '../common/date-only';
 
 /**
  * ⛔ **IL RIENTRO DALLA SOSPENSIONE** — richiesta di Simone, 23/8.
@@ -27,7 +27,28 @@ import { giornoLocale } from '../common/date-only';
  */
 
 const D = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
-const giorniDaOggi = (n: number) => giornoLocale(new Date(Date.now() + n * 86_400_000));
+/**
+ * ⛔ **N GIORNI DI CALENDARIO, NON N×24 ORE** — 24/8.
+ *
+ * Questa riga faceva `Date.now() + n * 86_400_000`. Sembra la stessa cosa e non lo è: la notte del
+ * **25 ottobre 2026** le lancette tornano indietro e il giorno dura **25 ore**, quindi alle 00:30
+ * di Roma sommare ventiquattro ore **non arriva a domani** — resta lo stesso giorno.
+ *
+ * ⚠️ Il difetto era **qui, non nel prodotto**: misurato il 24/8 con `ORA_FINTA`, quella notte il
+ * motore erogava i giorni giusti e il gate bloccava chi doveva. Erano queste fixture a dire una cosa
+ * e a prepararne un'altra. Un test che mente sulla propria premessa manda a correggere codice che
+ * funziona, ed è più caro di un test che manca.
+ *
+ * ⚠️ I casi caduti qui sono i tre del **giorno di rientro**: «sospesa fino al 25 → riprende il
+ * 26» è la regola, e il prodotto la applicava giusta. Era il test ad aspettarsi il **25**.
+ *
+ * Adesso si parte da una **mezzanotte UTC** (`aGiorno`, la stessa porta del prodotto) e si somma lì:
+ * in UTC non ci sono cambi d'ora, quindi `+ n` giorni è esatto in tutte le stagioni e in tutti i
+ * fusi del **processo** — provato su 526.080 istanti. ⚠️ Il giro completo torna al giorno giusto
+ * finché il fuso dell'**azienda** (`APP_TIMEZONE`) è a est di Greenwich, come Roma: è una proprietà
+ * di `aGiorno`, non di questa riga, ma vale saperlo perché quel fuso si cambia da Render.
+ */
+const giorniDaOggi = (n: number) => giornoLocale(new Date(aGiorno(new Date()).getTime() + n * 86_400_000));
 const oggiIso = giorniDaOggi(0);
 
 const SLOT_5 = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'];

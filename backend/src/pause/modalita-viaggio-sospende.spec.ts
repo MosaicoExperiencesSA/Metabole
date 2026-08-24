@@ -1,6 +1,6 @@
 import { PauseService, ETICHETTA_VIAGGIO } from './pause.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { giornoLocale } from '../common/date-only';
+import { aGiorno, giornoLocale } from '../common/date-only';
 
 /**
  * ⛔ **LA MODALITÀ VIAGGIO SOSPENDE DAVVERO** — decisione di Simone, 23/8.
@@ -20,7 +20,29 @@ import { giornoLocale } from '../common/date-only';
  */
 
 const D = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
-const giorno = (n: number) => D(giornoLocale(new Date(Date.now() + n * 86_400_000)));
+/**
+ * ⛔ **N GIORNI DI CALENDARIO, NON N×24 ORE** — 24/8.
+ *
+ * Questa riga faceva `Date.now() + n * 86_400_000`. Sembra la stessa cosa e non lo è: la notte del
+ * **25 ottobre 2026** le lancette tornano indietro e il giorno dura **25 ore**, quindi alle 00:30
+ * di Roma sommare ventiquattro ore **non arriva a domani** — resta lo stesso giorno.
+ *
+ * ⚠️ Il difetto era **qui, non nel prodotto**: misurato il 24/8 con `ORA_FINTA`, quella notte il
+ * motore erogava i giorni giusti e il gate bloccava chi doveva. Erano queste fixture a dire una cosa
+ * e a prepararne un'altra. Un test che mente sulla propria premessa manda a correggere codice che
+ * funziona, ed è più caro di un test che manca.
+ *
+ * ⚠️ Il caso caduto qui: «una vacanza cominciata ieri congela solo i giorni da OGGI in poi». È
+ * un conteggio di giorni di vacanza — qui di menu non ce n'è nessuno — e l'helper perdeva un
+ * giorno solo per `n` positivo, cioè proprio sul rientro.
+ *
+ * Adesso si parte da una **mezzanotte UTC** (`aGiorno`, la stessa porta del prodotto) e si somma lì:
+ * in UTC non ci sono cambi d'ora, quindi `+ n` giorni è esatto in tutte le stagioni e in tutti i
+ * fusi del **processo** — provato su 526.080 istanti. ⚠️ Il giro completo torna al giorno giusto
+ * finché il fuso dell'**azienda** (`APP_TIMEZONE`) è a est di Greenwich, come Roma: è una proprietà
+ * di `aGiorno`, non di questa riga, ma vale saperlo perché quel fuso si cambia da Render.
+ */
+const giorno = (n: number) => D(giornoLocale(new Date(aGiorno(new Date()).getTime() + n * 86_400_000)));
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 describe('PauseService — sospensione da modalità viaggio', () => {
