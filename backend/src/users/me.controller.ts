@@ -3,6 +3,7 @@ import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { RIGHE_AMMESSE, UsersService } from './users.service';
+import { CHIAVI_UNITA_ACQUA } from '../common/unita-acqua';
 
 class UpdatePrefsDto {
   @IsOptional()
@@ -60,7 +61,7 @@ class UpdatePrefsDto {
   // Unità di visualizzazione dell'acqua in dashboard (solo display: il dato resta
   // in bicchieri). glass = bicchieri · bottle05/1/15 = bottiglie da 0,5/1/1,5 L.
   @IsOptional()
-  @IsIn(['glass', 'bottle05', 'bottle1', 'bottle15'])
+  @IsIn(CHIAVI_UNITA_ACQUA)
   waterUnit?: string;
 }
 

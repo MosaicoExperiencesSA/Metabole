@@ -12,6 +12,7 @@ import { giornoIso, giornoItaliano } from '../lib/giorno';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
 import { useTaxonomy } from '../lib/taxonomy';
+import { TabellaScorrevole } from '../components/tabella-scorrevole';
 
 interface Detail {
   user: {
@@ -77,7 +78,12 @@ interface Detail {
   objective: any | null;
   measurements: { id: string; date: string; weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm: number | null; replacedSnapshot?: { weightKg: number; waistCm: number | null; hipsCm: number | null; thighsCm?: number | null; replacedAt?: string } | null }[];
   checkins: { id: string; date: string; mood: string; energy: number | null; hunger: number | null; stress: number | null }[];
-  waterLogs: { id: string; date: string; glasses: number; goal: number }[];
+  /**
+   * `unitaDetta` e `comeContati` li scrive il BACKEND (`common/unita-acqua.ts`): l'elenco delle
+   * unità e la conversione erano già in due copie (app e backend), e una terza qui sarebbe la copia
+   * che diverge. `null` = unità non registrata, cioè le giornate prima del 24/8 — non «bicchieri».
+   */
+  waterLogs: { id: string; date: string; glasses: number; goal: number; unit?: string | null; unitaDetta?: string | null; comeContati?: string | null }[];
   stepLogs: { id: string; date: string; steps: number; goal: number }[];
   subscription: any | null;
   /** Tutti i piani del cliente (recenti prima): serve per aprire i menu di un piano finito. */
@@ -742,10 +748,13 @@ export function ClientDetail() {
   // `isAdmin`, che in questa pagina vuol dire «vede la pagina Permessi» — e teneva il × nascosto
   // proprio a chi gestisce i piani, il capo nutrizionista.
   const canCancelSubscription = can('cancel_subscription', 'manage');
-  // La modalità viaggio: da quando sospende e allunga il piano ha una chiave sua (23/8), di
-  // default solo admin. Senza permesso la card non si mostra: mostrarla e far morire ogni Salva
-  // in un 403 sarebbe peggio che non averla.
+  // Le sospensioni: da quando fermano i menu e allungano il piano hanno una chiave loro (23/8), di
+  // default solo admin. «Gestisce» apre il modulo — senza, il modulo non si mostra: mostrarlo e far
+  // morire ogni Salva in un 403 sarebbe peggio che non averlo.
   const canTravelMode = can('travel_mode', 'manage');
+  // «Vede» da sola mostra la card in sola lettura: è l'altra metà dell'interruttore, che fino al
+  // 24/8 non accendeva niente (vedi il riquadro su `TravelCard`).
+  const vedeSospensioni = can('travel_mode', 'view');
   // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
   const puoAllergie = can('change_allergies', 'manage');
   // Il via libera clinico: lo dà chi ha «Idoneità a proseguire» (13/8).
@@ -1496,7 +1505,7 @@ export function ClientDetail() {
         </div>
       </div>
 
-      {canTravelMode && <TravelCard clientId={id ?? ''} profile={p} />}
+      {vedeSospensioni && <TravelCard clientId={id ?? ''} profile={p} puoGestire={canTravelMode} />}
 
       <PauseRequestsCard clientId={id ?? ''} clientName={p?.name ?? d.user.email} />
 
@@ -1918,35 +1927,37 @@ export function ClientDetail() {
         {d.measurements.length === 0 ? (
           <div className="empty">Nessuna pesata registrata.</div>
         ) : (
-          <table className="grid">
-            <thead><tr><th>Data</th><th>Peso</th><th>Vita</th><th>Fianchi</th>{canFixMeasures && <th />}</tr></thead>
-            <tbody>
-              {d.measurements.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    {date(m.date)}
-                    {m.replacedSnapshot && (
-                      <div className="muted" style={{ fontSize: 11, marginTop: 2, color: '#B4491F' }} title="La cliente ha corretto la misura di questo giorno. Il valore sostituito NON viene conteggiato in grafici e report.">
-                        <i className="ti ti-replace" style={{ fontSize: 12, verticalAlign: '-1px' }} /> sostituita · era {m.replacedSnapshot.weightKg} kg
-                        {m.replacedSnapshot.waistCm ? ` · ${m.replacedSnapshot.waistCm} cm vita` : ''}
-                        {m.replacedSnapshot.hipsCm ? ` · ${m.replacedSnapshot.hipsCm} cm fianchi` : ''}
-                      </div>
-                    )}
-                  </td>
-                  <td><b>{m.weightKg} kg</b></td>
-                  <td className="muted">{m.waistCm ? `${m.waistCm} cm` : '—'}</td>
-                  <td className="muted">{m.hipsCm ? `${m.hipsCm} cm` : '—'}</td>
-                  {canFixMeasures && (
-                    <td style={{ textAlign: 'right' }}>
-                      <button className="btn ghost sm" title="Correggi la misura (se inserita male dal cliente)" onClick={() => setFixing(m)}>
-                        <i className="ti ti-pencil" />
-                      </button>
+          <TabellaScorrevole quante={d.measurements.length} etichetta="Pesate">
+            <table className="grid">
+              <thead><tr><th>Data</th><th>Peso</th><th>Vita</th><th>Fianchi</th>{canFixMeasures && <th />}</tr></thead>
+              <tbody>
+                {d.measurements.map((m) => (
+                  <tr key={m.id}>
+                    <td>
+                      {date(m.date)}
+                      {m.replacedSnapshot && (
+                        <div className="muted" style={{ fontSize: 11, marginTop: 2, color: '#B4491F' }} title="La cliente ha corretto la misura di questo giorno. Il valore sostituito NON viene conteggiato in grafici e report.">
+                          <i className="ti ti-replace" style={{ fontSize: 12, verticalAlign: '-1px' }} /> sostituita · era {m.replacedSnapshot.weightKg} kg
+                          {m.replacedSnapshot.waistCm ? ` · ${m.replacedSnapshot.waistCm} cm vita` : ''}
+                          {m.replacedSnapshot.hipsCm ? ` · ${m.replacedSnapshot.hipsCm} cm fianchi` : ''}
+                        </div>
+                      )}
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <td><b>{m.weightKg} kg</b></td>
+                    <td className="muted">{m.waistCm ? `${m.waistCm} cm` : '—'}</td>
+                    <td className="muted">{m.hipsCm ? `${m.hipsCm} cm` : '—'}</td>
+                    {canFixMeasures && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button className="btn ghost sm" title="Correggi la misura (se inserita male dal cliente)" onClick={() => setFixing(m)}>
+                          <i className="ti ti-pencil" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TabellaScorrevole>
         )}
       </div>
 
@@ -1986,23 +1997,25 @@ export function ClientDetail() {
         {d.checkins.length === 0 ? (
           <div className="empty">Nessun check-in registrato.</div>
         ) : (
-          <table className="grid">
-            <thead><tr><th>Data</th><th>Umore</th><th>Energia</th><th>Fame</th><th>Stress</th></tr></thead>
-            <tbody>
-              {d.checkins.map((c) => {
-                const m = MOOD[c.mood];
-                return (
-                  <tr key={c.id}>
-                    <td>{date(c.date)}</td>
-                    <td><span className={`chip ${m?.chip ?? 'gray'}`}>{m?.label ?? c.mood}</span></td>
-                    <td className="muted">{c.energy != null ? `${c.energy}/5` : '—'}</td>
-                    <td className="muted">{c.hunger != null ? `${c.hunger}/5` : '—'}</td>
-                    <td className="muted">{c.stress != null ? `${c.stress}/5` : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <TabellaScorrevole quante={d.checkins.length} etichetta="Umori e check-in">
+            <table className="grid">
+              <thead><tr><th>Data</th><th>Umore</th><th>Energia</th><th>Fame</th><th>Stress</th></tr></thead>
+              <tbody>
+                {d.checkins.map((c) => {
+                  const m = MOOD[c.mood];
+                  return (
+                    <tr key={c.id}>
+                      <td>{date(c.date)}</td>
+                      <td><span className={`chip ${m?.chip ?? 'gray'}`}>{m?.label ?? c.mood}</span></td>
+                      <td className="muted">{c.energy != null ? `${c.energy}/5` : '—'}</td>
+                      <td className="muted">{c.hunger != null ? `${c.hunger}/5` : '—'}</td>
+                      <td className="muted">{c.stress != null ? `${c.stress}/5` : '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TabellaScorrevole>
         )}
       </div>
 
@@ -2011,25 +2024,48 @@ export function ClientDetail() {
         <div className="card" style={{ padding: 0 }}>
           <div style={{ padding: '18px 20px 4px' }}>
             <h2 style={{ margin: 0 }}>Acqua bevuta</h2>
+            {/* ⚠️ La riga dice ANCHE in che unità contava lei quel giorno (Simone, 24/8). Il numero
+                grande resta in bicchieri: è quello su cui il motore misura l'aderenza, ed è l'unico
+                confrontabile fra due giornate contate in modi diversi. */}
+            {/* ⚠️ Il giorno del rilascio NESSUNA riga ha l'unità (si registra dai tap fatti da qui in
+                avanti): promettere «sotto, come li contava lei» sopra sessanta righe grigie farebbe
+                sembrare rotta una cosa che sta solo aspettando i primi dati. */}
+            <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
+              {d.waterLogs.some((w) => w.comeContati)
+                ? <>Il numero è sempre in <b>bicchieri da 250 ml</b>; sotto, come li contava lei quel giorno.</>
+                : <>Il numero è sempre in <b>bicchieri da 250 ml</b>. Come li contava lei si registra dalle giornate contate col telefono aggiornato: prima non veniva salvato.</>}
+            </p>
           </div>
           {d.waterLogs.length === 0 ? (
             <div className="empty">Nessuna registrazione.</div>
           ) : (
-            <table className="grid">
-              <thead><tr><th>Data</th><th>Bicchieri</th><th>Obiettivo</th></tr></thead>
-              <tbody>
-                {d.waterLogs.map((w) => (
-                  <tr key={w.id}>
-                    <td>{date(w.date)}</td>
-                    <td>
-                      <b>{w.glasses}</b>
-                      {w.glasses >= w.goal && w.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
-                    </td>
-                    <td className="muted">{w.goal}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TabellaScorrevole quante={d.waterLogs.length} etichetta="Acqua bevuta">
+              <table className="grid">
+                <thead><tr><th>Data</th><th>Bicchieri</th><th>Obiettivo</th></tr></thead>
+                <tbody>
+                  {d.waterLogs.map((w) => (
+                    <tr key={w.id}>
+                      <td>{date(w.date)}</td>
+                      <td>
+                        <b>{w.glasses}</b>
+                        {w.glasses >= w.goal && w.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
+                        {/* ⚠️ «unità non registrata» e non «bicchieri»: per le giornate prima del 24/8
+                            l'unità non l'abbiamo mai salvata, e scrivere «bicchieri» sarebbe inventare
+                            una cosa che non sappiamo — su una cliente che magari beveva a bottiglie. */}
+                        <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                          {w.comeContati ?? (
+                            <span title="Prima del 24/8 l'unità scelta in app non veniva salvata sulla giornata. Il valore resta corretto: è in bicchieri.">
+                              unità non registrata
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="muted">{w.goal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TabellaScorrevole>
           )}
         </div>
 
@@ -2040,21 +2076,23 @@ export function ClientDetail() {
           {d.stepLogs.length === 0 ? (
             <div className="empty">Nessuna registrazione.</div>
           ) : (
-            <table className="grid">
-              <thead><tr><th>Data</th><th>Passi</th><th>Obiettivo</th></tr></thead>
-              <tbody>
-                {d.stepLogs.map((s) => (
-                  <tr key={s.id}>
-                    <td>{date(s.date)}</td>
-                    <td>
-                      <b>{s.steps.toLocaleString('it-IT')}</b>
-                      {s.steps >= s.goal && s.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
-                    </td>
-                    <td className="muted">{s.goal.toLocaleString('it-IT')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TabellaScorrevole quante={d.stepLogs.length} etichetta="Passi">
+              <table className="grid">
+                <thead><tr><th>Data</th><th>Passi</th><th>Obiettivo</th></tr></thead>
+                <tbody>
+                  {d.stepLogs.map((s) => (
+                    <tr key={s.id}>
+                      <td>{date(s.date)}</td>
+                      <td>
+                        <b>{s.steps.toLocaleString('it-IT')}</b>
+                        {s.steps >= s.goal && s.goal > 0 && <span className="chip" style={{ marginLeft: 8, fontSize: 10 }}>✓</span>}
+                      </td>
+                      <td className="muted">{s.goal.toLocaleString('it-IT')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TabellaScorrevole>
           )}
         </div>
       </div>
@@ -2551,7 +2589,16 @@ const STATO_RICHIESTA: Record<string, string> = {
  *    questa riga sparisse, la card comincerebbe a raccontare una vacanza più corta di un giorno
  *    senza che nessuno se ne accorga.
  */
-function TravelCard({ clientId, profile }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null }) {
+/**
+ * ⚠️ **`puoGestire` è la METÀ MANCANTE dell'interruttore** (Simone, 24/8: «la visualizzazione e
+ * gestione della modalità viaggio deve essere configurabile dalla pagina permessi»). La chiave
+ * `travel_mode` esiste dal 23/8 con le sue DUE caselle, ma la card leggeva solo «Gestisce»: dare a
+ * una coach la sola lettura delle sospensioni non accendeva niente, e una casella che non accende
+ * niente è peggio di una casella che non c'è — perché chi la spunta crede di aver concesso qualcosa.
+ * Ora «Vede» mostra la card in **sola lettura** (le date, il motivo, lo storico: le cose che servono
+ * a capire perché a una cliente non arriva il menu) e «Gestisce» apre il modulo.
+ */
+function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profile: { travelState?: string | null; travelStart?: string | null; travelEnd?: string | null } | null; puoGestire: boolean }) {
   /** Da «ultimo giorno sospeso» (salvato) a «riprende il» (mostrato). Vedi il riquadro sopra. */
   const aRientro = (v?: string | null): string => {
     if (!v) return '';
@@ -2575,6 +2622,8 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
    * leggere clicca; chi deve solo mettere una vacanza non le vede nemmeno.
    */
   const [storicoAperto, setStoricoAperto] = useState(false);
+  /** Il server ha detto 403: l'elenco non è vuoto, è **non leggibile**. Vedi il riquadro in `carica`. */
+  const [nonLeggibile, setNonLeggibile] = useState(false);
 
   const data = (v?: string | null) =>
     v ? new Date(`${String(v).slice(0, 10)}T00:00:00.000Z`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
@@ -2596,7 +2645,20 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
        */
       const vivo = d.periodi.find((p) => p.origine === 'Modalità viaggio' && p.stato !== 'passata');
       setMotivo((m) => m || vivo?.motivo || '');
-    } catch { /* l'elenco è un di più: se non arriva, la card resta usabile */ }
+      setNonLeggibile(false);
+    } catch (e) {
+      /**
+       * ⛔ **UN 403 NON SI INGOIA** — rilievo della revisione del 24/8, e vale doppio per i ruoli
+       * PERSONALIZZATI: il menu del backoffice si costruisce con `customRoleKey ?? role`, mentre la
+       * guardia del server cerca la riga del ruolo **base** (è scritto in
+       * `backend/src/common/ruoli-nutrizionista.ts`). Quindi «Coach senior» può avere il permesso
+       * acceso sul suo ruolo, vedere la card, e prendersi un 403 dal server. Ingoiando l'errore la
+       * card diceva «Nessuna sospensione» su una cliente **sospesa in questo momento**: non un
+       * errore, una bugia — e la coach avrebbe cercato altrove il motivo per cui non le arriva il menu.
+       */
+      if (e instanceof ApiError && e.status === 403) setNonLeggibile(true);
+      /* Altrimenti l'elenco è un di più: se non arriva, la card resta usabile. */
+    }
   }
   useEffect(() => { carica(); }, [clientId]);
 
@@ -2639,9 +2701,25 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
         Il giorno prima del rientro le si chiede la pesata e le arriva il menu del primo giorno. Al rientro
         parte un evento verso il CRM/marketing (campagna di rientro).
       </p>
+      {nonLeggibile && (
+        <Banner kind="err">
+          Il tuo ruolo non ha il permesso di <b>leggere</b> le sospensioni: qui sotto non compare niente,
+          e <b>non vuol dire che non ce ne siano</b>. Si accende in <b>Permessi</b>, riga «Sospensioni».
+        </Banner>
+      )}
       {err && <Banner kind="err">{err}</Banner>}
       {msg && <Banner kind="ok">{msg}</Banner>}
       {avviso && <Banner kind="err">{avviso}</Banner>}
+      {!puoGestire ? (
+        /* Sola lettura: si dice ANCHE dove si concede il resto, altrimenti chi legge pensa che la
+           card sia rotta e apre una segnalazione per un permesso. */
+        <p className="hint" style={{ marginTop: 0 }}>
+          <i className="ti ti-lock" aria-hidden="true" /> <b>Sola lettura.</b> Qui vedi le sospensioni
+          e il loro motivo; per metterne o toglierne una serve il permesso «Sospensioni: gestisce»
+          (pagina <b>Permessi</b>).
+        </p>
+      ) : (
+      <>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <label className="field" style={{ minWidth: 180 }}>
           <span>Stato</span>
@@ -2681,6 +2759,8 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
         «Riprende il» è il <b>primo giorno di dieta</b>: se scrivi 24, il 23 è ancora vacanza.
         Da qui al massimo <b>20 giorni</b>; oltre serve una richiesta di pausa approvata da una collega.
       </p>
+      </>
+      )}
 
       {/* ── Lo spazio che era vuoto: le date, tutte e quattro le sorgenti ───────────────────── */}
       <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
@@ -2723,7 +2803,9 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
           </button>
         </h3>
         <div id="storico-sospensioni">
-        {!storicoAperto ? null : nienteDaMostrare ? (
+        {!storicoAperto ? null : nonLeggibile ? (
+          <p className="hint" style={{ margin: 0 }}>Elenco non leggibile con questo ruolo: vedi l'avviso qui sopra.</p>
+        ) : nienteDaMostrare ? (
           <p className="hint" style={{ margin: 0 }}>Nessuna sospensione, né richiesta, né periodo dichiarato.</p>
         ) : (
           <>

@@ -40,6 +40,7 @@ import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
+import { comeLiHaContati, etichettaUnitaAcqua } from '../common/unita-acqua';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
 /**
@@ -246,7 +247,9 @@ export class ClientsService {
         where: { clientId: userId },
         orderBy: { date: 'desc' },
         take: 60,
-        select: { id: true, date: true, glasses: true, goal: true },
+        // `unit` = come li contava lei quel giorno (bicchieri o bottiglie): la scheda lo scrive
+        // sotto il numero. NULL sulle giornate prima del 24/8 — vedi `common/unita-acqua.ts`.
+        select: { id: true, date: true, glasses: true, goal: true, unit: true },
       }),
       this.prisma.stepLog.findMany({
         where: { clientId: userId },
@@ -560,7 +563,23 @@ export class ClientsService {
       objective,
       measurements,
       checkins,
-      waterLogs,
+      /**
+       * L'acqua con l'unità di QUEL giorno già scritta a parole (richiesta di Simone, 24/8:
+       * «nella riga va inserito se è un valore in bicchiere, bottiglia da 0,5, da 1 o da 1,5»).
+       *
+       * ⚠️ Le parole le mette il backend, non la pagina: l'elenco delle unità e la conversione
+       * stanno in `common/unita-acqua.ts`, e sono già in due (app e backend). Una terza copia nel
+       * back office sarebbe la copia che diverge — e divergerebbe proprio sulla riga che serve a
+       * capire quanto ha bevuto una persona.
+       */
+      // ⚠️ Niente cast: il client Prisma conosce già `unit`, e un cast qui restringerebbe il tipo di
+      // ritorno a quattro campi — il prossimo che «ripulisce» perderebbe `id`, `date` e `goal` senza
+      // che nessun controllo se ne accorga (rilievo della revisione del 24/8).
+      waterLogs: waterLogs.map((w) => ({
+        ...w,
+        unitaDetta: etichettaUnitaAcqua(w.unit),
+        comeContati: comeLiHaContati(w.glasses, w.unit),
+      })),
       stepLogs,
       subscription,
       // Storico dei piani, per aprire i menu di un piano anche finito da mesi: senza questo

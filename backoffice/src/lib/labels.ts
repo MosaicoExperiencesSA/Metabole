@@ -82,7 +82,10 @@ export const PAGE_LABEL: Record<string, string> = {
   set_client_password: 'Imposta password cliente',
   impersonate: 'Entra come cliente (sola lettura)',
   cancel_subscription: 'Annulla un abbonamento (× sulla pastiglia del piano)',
-  travel_mode: 'Modalità viaggio (sospende i menu e allunga il piano)',
+  // Il nome che ha la card in scheda cliente dal 24/8: «Sospensioni». Nella tabella dei permessi
+  // deve leggersi lo stesso nome che si legge nella pagina, altrimenti si concede una cosa
+  // credendo di concederne un'altra.
+  travel_mode: 'Sospensioni (fermano i menu e allungano il piano)',
   dev_backlog: 'Lavori (elenco e storico)',
 };
 

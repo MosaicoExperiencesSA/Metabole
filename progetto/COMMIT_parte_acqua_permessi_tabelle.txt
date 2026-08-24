@@ -1,0 +1,104 @@
+Sospensioni: anche «Vede» accende qualcosa · l'acqua dice in che unita' · quattro tabelle alte dieci righe
+
+Tre richieste urgenti di Simone (24/8), tutte sulla scheda cliente.
+
+1) «LA VISUALIZZAZIONE E GESTIONE DELLA MODALITA' VIAGGIO DEVE ESSERE CONFIGURABILE DAI PERMESSI»
+La chiave `travel_mode` c'era gia' dal 23/8, con le sue DUE caselle in Permessi — ma aveva una
+guardia sola (`manage` sulla PATCH) e la card leggeva solo quella: «Vede» spuntato da solo NON
+accendeva niente, quindi dare a una coach la sola lettura delle sospensioni era impossibile. E' lo
+stesso difetto raccontato in testa a `permissions/pages.ts` (`assignments`), ricomparso dentro una
+chiave che quel difetto lo cita.
+Adesso «Vede» apre la card in SOLA LETTURA — date, motivo, storico: quello che serve per rispondere
+a «perche' a questa cliente non arriva il menu?» — con `@RequirePage('travel_mode','view')` sul
+`GET :id/sospensioni`; «Gestisce» apre il modulo. L'etichetta in Permessi diventa «Sospensioni»,
+come si chiama la card dal 24/8.
+
+2) L'UNITA' DELL'ACQUA, SULLA RIGA
+La premessa della richiesta («e' personalizzabile dalla cliente per ogni giornata») non era esatta:
+il selettore in app (dal 17/7) e' una PREFERENZA DI PROFILO, vale per tutte le giornate e si cambia
+quando si vuole; il dato salvato e' sempre in bicchieri da 250 ml. Leggere il passato con la
+preferenza di OGGI avrebbe raccontato in bottiglie giornate contate a bicchieri.
+Ora l'unita' si scrive SULLA RIGA DEL GIORNO (`water_log.unit`, migrazione additiva e nullable) al
+momento del tap, come si fa gia' con l'obiettivo dei passi. In scheda si legge «12» con sotto «3
+bottiglie da 1 L». Le giornate di prima dicono «unita' non registrata», NON «bicchieri»: non
+gliel'abbiamo mai chiesto. L'elenco delle unita' sta in `common/unita-acqua.ts` (era copiato a mano
+in tre punti di `users.service.ts`), e un test lo confronta con la copia dell'app.
+
+3) QUATTRO TABELLE ALTE DIECI RIGHE (acqua, passi, pesate, umori)
+Fino a 60 righe l'una spingevano fuori pagina tutto quello che sta sotto.
+`components/tabella-scorrevole.tsx` MISURA le prime dieci righe vere invece di scrivere un'altezza a
+occhio: nelle pesate una riga corretta dalla cliente ne porta con se' una seconda, e un numero fisso
+avrebbe tagliato a meta' l'ultima. Se le righe ci stanno tutte: nessun limite e nessuna barra.
+L'intestazione resta in cima mentre si scorre.
+
+⛔ E LA REVISIONE HA BOCCIATO LA PRIMA STESURA IN TRE PUNTI
+- LA RIGA DELL'ACQUA RACCONTAVA GIORNATE MAI ESISTITE. L'unita' e' di profilo e la riga si ricorda
+  quella dell'ULTIMO tap: otto bicchieri la mattina piu' un tap serale a bottiglie diventavano «3
+  bottiglie da 1 L» — di bottiglie ne aveva bevuta UNA. Ora la conversione si fa solo quando i conti
+  tornano; se la giornata e' mista si dice «a fine giornata contava in bottiglie da 1 L».
+- IL 403 VENIVA INGOIATO. Un ruolo personalizzato (il menu si costruisce su `customRoleKey`, la
+  guardia cerca il ruolo BASE) avrebbe letto «Nessuna sospensione» su una cliente sospesa in quel
+  momento: non un errore, una bugia. Ora c'e' l'avviso che dice dove si accende.
+- LA TABELLA NON ERA RAGGIUNGIBILE DA TASTIERA (niente `tabIndex`: dieci pesate su sessanta e nessun
+  modo di arrivare alle altre) e NON RIMISURAVA quando una riga cambiava altezza senza cambiare
+  numero — cioe' la pesata corretta dalla cliente, la riga che il componente cita come motivo per
+  esistere. Adesso si osserva la TABELLA, non il contenitore a cui l'altezza gliela pinziamo noi.
+
+ALTRI QUATTRO RILIEVI ACCOLTI
+- La `min-width` della regola dell'11/8 riportata a mano: incapsulando la tabella,
+  `.card:has(> table.grid)` non la prende piu' e le quattro tabelle avrebbero perso la meta'
+  «perfettamente leggibile» di quella richiesta.
+- Il filetto sotto l'intestazione incollata: con `border-collapse` il bordo lo disegna la tabella e
+  non viaggia con la riga sticky. Ora e' un'ombra interna.
+- App OTA che arriva prima del backend: il `ValidationPipe` rifiuta i campi sconosciuti, quindi il
+  tap avrebbe preso un 400 e il bicchiere sarebbe tornato giu' IN SILENZIO. Ora si riprova una volta
+  senza `unit`.
+- Il conto delle dieci righe estratto in `lib/altezza-righe.ts` perche' fosse provabile (4 test): i
+  test del backoffice girano senza DOM, dentro il componente quella formula non l'avrebbe eseguita
+  nessuno.
+
+⚠️ UNA PORTA CHE QUESTO PERMESSO NON COPRE, DICHIARATA
+Le RICHIESTE di pausa che arrivano dall'app si approvano dalla card sotto, che resta sui suoi ruoli
+(`sales` compreso). Agganciarla a `travel_mode` — che di default ce l'ha solo l'admin — chiuderebbe
+da domani le approvazioni a tutte le coach che le fanno oggi. ⛔ Da decidere: chi deve poter
+approvare una pausa richiesta dall'app?
+
+VERIFICATO
+- `npm run build` pulito su backend e backoffice; 5146 test in 318 suite verdi, con TZ UTC e con
+  TZ=Europe/Rome; 117 test del backoffice verdi (4 nuovi).
+- Provati alla mutazione: unita' non scritta (1 rosso), campo vuoto che cancella (2 rossi),
+  conversione su giornata mista (2 rossi), `select` senza `unit` (non compila), mappatura tolta
+  (2 rossi), guardia `view` tolta (1 rosso), formula dell'altezza sbagliata (2 rossi), soglia delle
+  dieci righe spostata (1 rosso), bottiglia da 1 L cambiata solo in app (1 rosso).
+- ⚠️ Il build dell'app NON e' stato eseguito: in sandbox mancano le sue dipendenze. La modifica e'
+  una riga piu' un ritentativo dentro `addWater`.
+
+FILE NEL COMMIT
+- backend/prisma/schema.prisma
+- backend/prisma/migrations/20260824170000_unita_acqua/migration.sql   (nuova)
+- backend/src/common/unita-acqua.ts   (nuovo)
+- backend/src/signals/dto/signals.dto.ts
+- backend/src/signals/signals.service.ts
+- backend/src/signals/unita-acqua.spec.ts   (nuovo)
+- backend/src/clients/clients.service.ts
+- backend/src/clients/clients.controller.ts
+- backend/src/clients/acqua-in-scheda.spec.ts   (nuovo)
+- backend/src/pause/pause.controller.ts
+- backend/src/permissions/pages.ts
+- backend/src/users/me.controller.ts
+- backend/src/users/users.service.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/components/tabella-scorrevole.tsx   (nuovo)
+- backoffice/src/lib/altezza-righe.ts   (nuovo)
+- backoffice/src/lib/altezza-righe.spec.ts   (nuovo)
+- backoffice/src/lib/labels.ts
+- backoffice/src/pages/ClientDetail.tsx
+- backoffice/src/theme.css
+- app/src/pages/Home.tsx
+- progetto/REGISTRO.md
+
+⛔ MIGRAZIONE: la applica Render al deploy. Additiva e nullable, nessun backfill.
+⚠️ AL RILASCIO: (1) l'unita' si registra dai tap fatti con l'app aggiornata — sui telefoni con la
+versione vecchia le giornate continuano ad arrivare senza unita', e quella gia' scritta non viene
+cancellata; (2) va acceso in Permessi il «Vede» a chi deve leggere le sospensioni senza poterle
+cambiare; (3) meglio pubblicare il backend PRIMA dell'OTA dell'app.

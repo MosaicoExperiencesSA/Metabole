@@ -18,6 +18,7 @@ import { slopePerDay, weeklyLossRate } from './stats';
 import { MIN_GIORNI_DEFAULT, MIN_PESATE_DEFAULT, statoAllarmeCalo } from './allarme-calo';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
+import { eUnitaAcqua } from '../common/unita-acqua';
 import { toDateOnly } from '../common/date-only';
 import { bicchieriObiettivo } from '../common/obiettivo-acqua';
 import { obiettivoPassi } from '../common/obiettivo-passi';
@@ -625,13 +626,21 @@ export class SignalsService {
     return bicchieriObiettivo(weight, mlPerKg) ?? fallback;
   }
 
+  /**
+   * ⚠️ L'UNITÀ SI SCRIVE SULLA RIGA, come l'obiettivo (vedi `upsertSteps` qui sotto): la
+   * preferenza in `prefs.waterUnit` dice come conta ADESSO, e la cliente può cambiarla stasera —
+   * leggendo il passato con la preferenza di oggi si racconterebbero in bottiglie giornate contate
+   * a bicchieri. Se il tap arriva da un'app che l'unità non la manda, quella già scritta **resta**:
+   * cancellarla vorrebbe dire perdere l'unica cosa che quel giorno sapeva di sé.
+   */
   async upsertWater(clientId: string, dto: CreateWaterDto) {
     const date = toDateOnly(dto.date);
     const goal = await this.waterGoalFor(clientId);
+    const unit = eUnitaAcqua(dto.unit) ? dto.unit : undefined;
     return this.prisma.waterLog.upsert({
       where: { clientId_date: { clientId, date } },
-      create: { clientId, date, glasses: dto.glasses, goal },
-      update: { glasses: dto.glasses },
+      create: { clientId, date, glasses: dto.glasses, goal, ...(unit ? { unit } : {}) },
+      update: { glasses: dto.glasses, ...(unit ? { unit } : {}) },
     });
   }
 

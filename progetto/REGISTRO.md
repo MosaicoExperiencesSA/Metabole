@@ -52,6 +52,51 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 💧 **Le sospensioni: anche «Vede» accende qualcosa · l'acqua dice in che unità · le
+  quattro tabelle della scheda alte dieci righe.** Tre richieste urgenti di Simone, 24/8.
+  ✅ **1) Il permesso.** «La visualizzazione e gestione della modalità viaggio deve essere
+  configurabile dalla pagina permessi.» La chiave `travel_mode` c'era dal 23/8 con le sue **due**
+  caselle — ma aveva una guardia sola (`manage` sulla PATCH) e la card leggeva solo quella: ⛔ **«Vede»
+  spuntato da solo non accendeva niente**, quindi dare a una coach la sola lettura delle sospensioni
+  era impossibile. È il difetto raccontato in testa a `permissions/pages.ts` (`assignments`),
+  ricomparso dentro una chiave che quel difetto lo cita. Ora «Vede» apre la card in **sola lettura**
+  (`@RequirePage('travel_mode','view')` sul `GET :id/sospensioni`) e «Gestisce» apre il modulo;
+  l'etichetta in Permessi diventa **«Sospensioni»**, come si chiama la card.
+  ✅ **2) L'unità dell'acqua, sulla riga del giorno** (`water_log.unit`, migrazione additiva e
+  nullable). ⚠️ La premessa della richiesta non era esatta: il selettore in app (17/7) è una
+  **preferenza di profilo**, non una scelta per giornata, e il dato salvato è sempre in bicchieri da
+  250 ml — leggere il passato con la preferenza di **oggi** avrebbe raccontato in bottiglie giornate
+  contate a bicchieri. Ora l'unità si scrive al momento del tap, come già si fa con l'obiettivo dei
+  passi. ⛔ Le giornate di prima dicono **«unità non registrata»**, non «bicchieri»: non gliel'abbiamo
+  mai chiesto. L'elenco delle unità sta in `common/unita-acqua.ts` (era copiato a mano in tre punti di
+  `users.service.ts`) e un test lo confronta con la copia dell'app: se là la bottiglia da 1 L valesse
+  5 bicchieri, la stessa giornata si leggerebbe in due modi.
+  ✅ **3) Dieci righe e poi si scorre**, su acqua, passi, pesate e umori: erano fino a **60** righe
+  l'una e spingevano fuori pagina tutto quello che sta sotto. L'altezza si **misura**
+  (`components/tabella-scorrevole.tsx` + `lib/altezza-righe.ts`), non si scrive: nelle pesate una
+  riga corretta dalla cliente ne porta con sé una seconda, e un numero fisso taglierebbe a metà
+  l'ultima. Se le righe ci stanno tutte, nessun limite e nessuna barra.
+  ⛔ **E la revisione ha bocciato la prima stesura in tre punti.** (a) La riga dell'acqua
+  **raccontava giornate mai esistite**: otto bicchieri la mattina più un tap serale a bottiglie
+  diventavano «3 bottiglie da 1 L» — di bottiglie ne aveva bevuta una. Ora la conversione si fa solo
+  quando i conti tornano, e la giornata mista dice «a fine giornata contava in bottiglie da 1 L».
+  (b) Il **403 veniva ingoiato**: con un ruolo personalizzato (menu su `customRoleKey`, guardia sul
+  ruolo **base**) la card avrebbe detto «Nessuna sospensione» su una cliente sospesa in quel momento
+  — non un errore, una bugia. (c) La tabella **non era raggiungibile da tastiera** e **non
+  rimisurava** quando una riga cambiava altezza senza cambiare numero: cioè proprio la pesata
+  corretta dalla cliente, la riga che il componente cita come motivo per esistere.
+  ⚠️ Accolti anche: la `min-width` della regola dell'11/8 riportata a mano (incapsulando la tabella,
+  `.card:has(> table.grid)` non la prende più), il filetto sotto l'intestazione incollata
+  (`border-collapse` non lo porta con sé), e il **ritentativo senza `unit`** se l'app OTA arriva prima
+  del backend — altrimenti il tap prendeva un 400 e il bicchiere tornava giù in silenzio.
+  ⚠️ **Una porta che questo permesso NON copre, dichiarata**: le *richieste* di pausa dall'app si
+  approvano dalla card sotto, che resta sui suoi ruoli (`sales` compreso). Agganciarla a
+  `travel_mode` — di default solo admin — chiuderebbe da domani le approvazioni a tutte le coach.
+  ⛔ Da decidere con Simone.
+  🔍 5146 test in 318 suite verdi (TZ UTC e Europe/Rome), 117 nel backoffice, build veri di backend e
+  backoffice; ogni pezzo nuovo provato alla mutazione. ⚠️ Il build dell'**app** non è stato eseguito
+  in sandbox (mancano le sue dipendenze): la modifica è una riga dentro `addWater` più il ritentativo.
+
 - `[Sviluppo]` 📝 **Una sospensione dice anche PERCHÉ, la card si chiama «Sospensioni» e lo storico
   nasce chiuso.** Tre richieste di Simone, 24/8: *«quando la coach o la nutrizionista inseriscono una
   pausa facciamo mettere anche una motivazione così ci resta salvata»*, *«cambiamo il titolo da

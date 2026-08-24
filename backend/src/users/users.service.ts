@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { parseCodiceFiscale } from '../common/codice-fiscale.util';
 import { randomBytes } from 'crypto';
 import { puliscoOrdineMenu, RIGHE_MASSIME } from './ordine-menu';
+import { eUnitaAcqua, UNITA_ACQUA_DEFAULT } from '../common/unita-acqua';
 
 /** Password provvisoria leggibile: niente caratteri ambigui (0/O/1/l/I), con cifre. */
 function genTempPassword(): string {
@@ -286,7 +287,9 @@ export class UsersService {
       dashboardCharts: arr(prefs.dashboardCharts),
       menuOrder: arr(prefs.menuOrder),
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
-      waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
+      // L'elenco delle unità sta in un posto solo (`common/unita-acqua.ts`): era scritto a mano in
+      // tre punti di questo file, e un elenco copiato è un elenco che prima o poi diverge.
+      waterUnit: eUnitaAcqua(prefs.waterUnit) ? prefs.waterUnit : UNITA_ACQUA_DEFAULT,
       /**
        * I blocchi fissi della home SPENTI, non quelli accesi.
        *
@@ -317,7 +320,7 @@ export class UsersService {
      */
     if (input.menuOrder !== undefined) prefs.menuOrder = puliscoOrdineMenu(input.menuOrder, RIGHE_MASSIME);
     if (input.showEarnings !== undefined) prefs.showEarnings = !!input.showEarnings;
-    if (input.waterUnit !== undefined && ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(input.waterUnit)) prefs.waterUnit = input.waterUnit;
+    if (input.waterUnit !== undefined && eUnitaAcqua(input.waterUnit)) prefs.waterUnit = input.waterUnit;
     if (input.dashboardBlocksOff !== undefined) prefs.dashboardBlocksOff = clean(input.dashboardBlocksOff);
     // Solo i quattro valori del selettore: un numero arbitrario dall'API diventerebbe una pagina da
     // diecimila righe, che è un modo di far sembrare lento il backoffice senza toccare il server.
@@ -329,7 +332,9 @@ export class UsersService {
       dashboardCharts: (prefs.dashboardCharts as string[]) ?? null,
       menuOrder: (prefs.menuOrder as string[]) ?? null,
       showEarnings: typeof prefs.showEarnings === 'boolean' ? prefs.showEarnings : false,
-      waterUnit: ['glass', 'bottle05', 'bottle1', 'bottle15'].includes(prefs.waterUnit as string) ? (prefs.waterUnit as string) : 'glass',
+      // L'elenco delle unità sta in un posto solo (`common/unita-acqua.ts`): era scritto a mano in
+      // tre punti di questo file, e un elenco copiato è un elenco che prima o poi diverge.
+      waterUnit: eUnitaAcqua(prefs.waterUnit) ? prefs.waterUnit : UNITA_ACQUA_DEFAULT,
       dashboardBlocksOff: (prefs.dashboardBlocksOff as string[]) ?? [],
       righePerPagina: RIGHE_AMMESSE.includes(prefs.righePerPagina as number) ? (prefs.righePerPagina as number) : RIGHE_DEFAULT,
     };

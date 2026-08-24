@@ -170,6 +170,13 @@ export const BACKOFFICE_PAGES = [
    * **Di default solo l'admin**: gli altri li abilita Simone dalla tabella dei permessi, senza un
    * rilascio. ⚠️ Vuol dire che al deploy la card sparisce a chi la usava: è voluto, ed è la prima
    * cosa da fare in Permessi dopo la pubblicazione.
+   *
+   * ⛔ **E le due caselle vogliono dire due cose diverse, dal 24/8.** Fino a ieri questa chiave
+   * aveva una guardia sola (`manage` sulla PATCH) e la card in scheda si mostrava solo con
+   * «Gestisce»: «Vede» spuntato da solo non accendeva niente — cioè esattamente il difetto
+   * raccontato in testa a questo file, dentro una chiave che quel difetto lo citava. Adesso «Vede»
+   * apre l'elenco delle sospensioni in **sola lettura** (`GET :id/sospensioni`, la domanda «perché a
+   * questa cliente non arriva il menu?») e «Gestisce» apre il modulo che le crea e le toglie.
    */
   'travel_mode',
   /**

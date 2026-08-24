@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import Gaia from '../components/Gaia';
 import ChiediAllergie from '../components/ChiediAllergie';
@@ -295,7 +295,23 @@ export default function Home() {
     const next = prev + waterStep(waterUnit); // +1 bicchiere, o l'equivalente in bottiglie
     setToday((t) => (t ? { ...t, water: { ...t.water, glasses: next } } : t));
     try {
-      await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses: next }) });
+      // `unit` viaggia col dato: il salvato resta in bicchieri, ma la riga del giorno si ricorda
+      // COME li stava contando lei — altrimenti in back office quel giorno si leggerebbe con la
+      // preferenza di oggi, che può essere cambiata stasera (backend/common/unita-acqua.ts).
+      try {
+        await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses: next, unit: waterUnit }) });
+      } catch (e) {
+        /**
+         * ⛔ **BUNDLE NUOVO SU BACKEND VECCHIO.** L'app si aggiorna da sola (OTA) e può arrivare
+         * prima del deploy del backend — o restarci davanti se il backend torna indietro. Il
+         * `ValidationPipe` rifiuta i campi che non conosce (`forbidNonWhitelisted`), quindi il tap
+         * prenderebbe un 400 e il bicchiere tornerebbe giù **in silenzio**. Qui si riprova una volta
+         * senza l'unità: il dato dell'acqua vale più di come lo si contava.
+         */
+        if (e instanceof ApiError && e.status === 400) {
+          await api('/me/water', { method: 'POST', body: JSON.stringify({ glasses: next }) });
+        } else throw e;
+      }
     } catch {
       setToday((t) => (t ? { ...t, water: { ...t.water, glasses: prev } } : t));
     }

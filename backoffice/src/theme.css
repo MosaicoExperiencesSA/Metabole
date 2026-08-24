@@ -449,6 +449,45 @@ table.grid tr:hover td {
   min-width: 0;
 }
 
+/* ---------- DIECI RIGHE E POI SI SCORRE (24/8) ----------
+
+   Richiesta di Simone: le quattro tabelle della scheda cliente (acqua, passi, pesate, umori) sono
+   lunghe fino a sessanta righe e spingevano fuori pagina tutto quello che sta sotto. L'altezza vera
+   la misura `components/tabella-scorrevole.tsx` (dieci righe VERE, non un numero a occhio): qui c'è
+   solo il contenitore che scorre e l'intestazione che resta in cima mentre si scorre — senza,
+   dopo tre righe non si sa più quale colonna si sta leggendo.
+
+   ⚠️ Lo sfondo pieno sull'intestazione non è decorazione: `position: sticky` non stacca la riga dal
+   flusso, quindi con lo sfondo trasparente le righe le passerebbero SOTTO e si leggerebbero i due
+   testi sovrapposti. */
+.tabella-scorrevole {
+  overflow: auto;
+}
+/* ⚠️ La larghezza minima è quella della regola dell'11/8, riportata a mano: incapsulando la tabella
+   in `TabellaScorrevole` la `<table>` non è più figlia diretta della card, quindi
+   `.card:has(> table.grid)` non la prende più. Senza questa riga le quattro tabelle della scheda
+   cliente perderebbero la metà «perfettamente leggibile» di quella richiesta — su finestra stretta
+   le Pesate (cinque colonne più la matita) si schiacciano e la data va a capo. Il `max-height` di
+   quella regola invece NON serve più: lo sostituisce la misura a dieci righe, che è più stretta. */
+.tabella-scorrevole > table.grid {
+  min-width: 900px;
+}
+.modal .tabella-scorrevole > table.grid,
+.card .card .tabella-scorrevole > table.grid {
+  min-width: 0;
+}
+.tabella-scorrevole > table.grid > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+  /* ⚠️ Il filetto sotto i titoli va disegnato con un'ombra interna: `table.grid` ha
+     `border-collapse: collapse`, e con i bordi collassati il `border-bottom` lo disegna la TABELLA,
+     non la cella — quindi non viaggia con l'intestazione incollata, e scorrendo le righe passerebbero
+     sotto un titolo senza linea di separazione. */
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
 .chip {
   display: inline-block;
   padding: 3px 10px;

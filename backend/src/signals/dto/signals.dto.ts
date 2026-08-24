@@ -1,5 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { numeroOpzionale } from '../../common/validazione';
+import { CHIAVI_UNITA_ACQUA } from '../../common/unita-acqua';
 import {
   IsDateString,
   IsIn,
@@ -95,6 +96,16 @@ export class CreateWaterDto {
   @Min(0, { message: 'I bicchieri non possono essere un numero negativo.' })
   @Max(30, { message: 'Più di 30 bicchieri in un giorno: controlla il numero.' })
   glasses!: number;
+
+  /**
+   * Come li stava contando: bicchieri o bottiglie (`common/unita-acqua.ts`). Facoltativo — le app
+   * già installate non lo mandano, e una registrazione dell'acqua non si rifiuta per questo.
+   * Assente = si tiene quella già scritta sulla riga, NON si cancella: chi ha toccato il tile da
+   * un'app vecchia non deve far perdere l'unità al giorno che l'aveva.
+   */
+  @IsOptional()
+  @IsIn(CHIAVI_UNITA_ACQUA, { message: 'Unità dell\'acqua non riconosciuta.' })
+  unit?: string;
 }
 
 export class CreateStepsDto {

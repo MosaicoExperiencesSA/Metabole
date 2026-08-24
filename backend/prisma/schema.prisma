@@ -1931,6 +1931,9 @@ model WaterLog {
   date     DateTime @db.Date
   glasses  Int
   goal     Int
+  /// Come la cliente contava quel giorno: glass | bottle05 | bottle1 | bottle15 (common/unita-acqua.ts).
+  /// NULL = non registrata (giornate prima del 24/8, o app non aggiornata): il valore resta in bicchieri.
+  unit     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

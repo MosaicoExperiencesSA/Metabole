@@ -2077,6 +2077,72 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'acqua-unita-e-tabelle-a-dieci-righe',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T17:30',
+    titolo: '✅ Sospensioni: anche «Vede» accende qualcosa · l\'acqua dice in che unità · quattro tabelle alte dieci righe',
+    dettaglio:
+      'Tre richieste urgenti di Simone (24/8), tutte sulla scheda cliente.\n\n'
+      + '**1) «La visualizzazione e gestione della modalità viaggio deve essere configurabile dalla '
+      + 'pagina permessi.»** La chiave `travel_mode` c\'era già dal 23/8, con le sue **due** caselle in '
+      + 'Permessi — ma aveva una guardia sola (`manage` sulla PATCH) e la card leggeva solo quella: '
+      + '⛔ **«Vede» spuntato da solo non accendeva niente**, quindi dare a una coach la sola lettura '
+      + 'delle sospensioni era impossibile. È lo stesso difetto raccontato in testa a '
+      + '`permissions/pages.ts` (`assignments`), ricomparso dentro una chiave che quel difetto lo '
+      + 'cita. Adesso «Vede» apre la card in **sola lettura** — le date, il motivo, lo storico: quello '
+      + 'che serve per rispondere a «perché a questa cliente non arriva il menu?» — con '
+      + '`@RequirePage(\'travel_mode\',\'view\')` sul `GET :id/sospensioni`, e «Gestisce» apre il modulo. '
+      + 'L\'etichetta in Permessi diventa **«Sospensioni»**, come si chiama la card dal 24/8.\n\n'
+      + '**2) L\'unità dell\'acqua, sulla riga.** ⚠️ La premessa della richiesta («è personalizzabile '
+      + 'dalla cliente per ogni giornata») non era esatta: il selettore in app (dal 17/7) è **una '
+      + 'preferenza del profilo**, che vale per tutte le giornate e si può cambiare quando si vuole. '
+      + 'Il dato salvato è sempre in bicchieri da 250 ml. Quindi leggere il passato con la preferenza '
+      + 'di **oggi** avrebbe raccontato in bottiglie giornate contate a bicchieri, il giorno in cui lei '
+      + 'tocca il selettore. Ora l\'unità si scrive **sulla riga del giorno** (`water_log.unit`, '
+      + 'migrazione additiva e nullable) al momento del tap, come si fa già con l\'obiettivo dei passi: '
+      + 'da oggi ogni giornata sa come è stata contata, e in scheda si legge «12» con sotto «3 '
+      + 'bottiglie da 1 L». ⛔ Le giornate di prima dicono **«unità non registrata»**, non «bicchieri»: '
+      + 'non gliel\'abbiamo mai chiesto, e scriverlo sarebbe inventare. L\'elenco delle unità sta in '
+      + '`common/unita-acqua.ts` (era copiato a mano in tre punti di `users.service.ts`), e un test '
+      + 'confronta quella tabella con la copia dell\'app: se domani là la bottiglia da 1 L valesse 5 '
+      + 'bicchieri, la stessa giornata si leggerebbe in due modi diversi.\n\n'
+      + '**3) Quattro tabelle alte dieci righe** (acqua, passi, pesate, umori): fino a **60** righe '
+      + 'l\'una spingevano fuori pagina tutto quello che sta sotto. `components/tabella-scorrevole.tsx` '
+      + '**misura** le prime dieci righe vere invece di scrivere un\'altezza a occhio — nelle pesate una '
+      + 'riga corretta dalla cliente ne porta con sé una seconda, e un numero fisso avrebbe tagliato a '
+      + 'metà l\'ultima. Se le righe ci stanno tutte, nessun limite e nessuna barra; l\'intestazione '
+      + 'resta in cima mentre si scorre.\n\n'
+      + '⛔ **E la revisione ha bocciato la prima stesura in tre punti.** (1) La riga dell\'acqua '
+      + '**raccontava giornate mai esistite**: l\'unità è una preferenza di profilo e la riga si '
+      + 'ricorda quella dell\'ultimo tap, quindi otto bicchieri la mattina più un tap serale a '
+      + 'bottiglie diventavano «3 bottiglie da 1 L» — di bottiglie ne aveva bevuta una. Ora la '
+      + 'conversione si fa **solo quando i conti tornano**; se la giornata è mista si dice «a fine '
+      + 'giornata contava in bottiglie da 1 L». (2) Il 403 sull\'elenco veniva **ingoiato**: un ruolo '
+      + 'personalizzato (menu costruito su `customRoleKey`, guardia sul ruolo **base**) avrebbe letto '
+      + '«Nessuna sospensione» su una cliente sospesa in quel momento — non un errore, una bugia. Ora '
+      + 'c\'è l\'avviso che dice dove si accende. (3) La tabella scorrevole **non era raggiungibile da '
+      + 'tastiera** (niente `tabIndex`: dieci pesate su sessanta e nessun modo di arrivare alle altre) '
+      + 'e **non rimisurava** quando una riga cambiava altezza senza cambiare numero — cioè la pesata '
+      + 'corretta dalla cliente, la riga che il componente cita come motivo per esistere. ⚠️ Accolti '
+      + 'anche: la `min-width` della regola dell\'11/8 riportata a mano (incapsulando la tabella, '
+      + '`.card:has(> table.grid)` non la prende più), il filetto sotto l\'intestazione incollata '
+      + '(`border-collapse` non lo porta con sé), il ritentativo senza `unit` se l\'app OTA arriva '
+      + 'prima del backend, e il conto delle dieci righe estratto in `lib/altezza-righe.ts` perché '
+      + 'fosse provabile (4 test).\n\n'
+      + '⚠️ **Una porta che questo permesso NON copre, dichiarata**: le *richieste* di pausa che '
+      + 'arrivano dall\'app si approvano dalla card sotto, che resta sui suoi ruoli (`sales` compreso). '
+      + 'Agganciarla a `travel_mode` — che di default ce l\'ha solo l\'admin — chiuderebbe da domani le '
+      + 'approvazioni a tutte le coach che le fanno oggi. ⛔ **Da decidere con Simone**: chi deve poter '
+      + 'approvare una pausa richiesta dall\'app?\n\n'
+      + '⛔ **Al deploy**: la migrazione la applica Render. ⚠️ L\'unità si registra **dai tap fatti con '
+      + 'l\'app aggiornata**: sui telefoni con la versione vecchia le giornate continuano ad arrivare '
+      + 'senza unità (e quella già scritta non viene cancellata). ⚠️ E dopo il rilascio va acceso in '
+      + 'Permessi il «Vede» a chi deve leggere le sospensioni senza poterle cambiare.',
+  },
+  {
     chiave: 'motivo-della-sospensione',
     categoria: 'Da fare — codice',
     ordine: 0,

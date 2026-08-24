@@ -42,6 +42,19 @@ export class MePauseController {
 
 /** Approvazione richieste di pausa lato staff (backoffice). */
 @Controller('staff/pause-requests')
+/**
+ * ⚠️ **QUESTA PORTA NON PASSA DA `travel_mode`, ed è una scelta dichiarata (24/8).**
+ *
+ * Il permesso `travel_mode` regola la card «Sospensioni» in scheda cliente: quella con cui la coach
+ * *mette* una vacanza. Le RICHIESTE di pausa sono l'altra porta — le apre la cliente dall'app, e una
+ * collega le approva — e restano sui ruoli qui sotto, `sales` compreso.
+ *
+ * Perché non si è agganciata anche questa: `travel_mode` di default ce l'ha **solo l'admin**, quindi
+ * metterci la stessa chiave chiuderebbe da domani le approvazioni a tutte le coach che le fanno
+ * oggi. *Un cancello chiuso costa a una cliente tutto il servizio*: si dichiara e si decide, non si
+ * chiude di nascosto dentro un'altra consegna. ⛔ Da chiedere a Simone: chi deve poter approvare una
+ * pausa richiesta dall'app — le stesse persone che possono metterla dalla scheda, o anche altre?
+ */
 @Roles('coach', 'coach_coordinator', 'nutritionist', 'head_nutritionist', 'sales', 'admin')
 export class StaffPauseController {
   constructor(private readonly pause: PauseService) {}

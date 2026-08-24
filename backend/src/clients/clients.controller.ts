@@ -232,8 +232,15 @@ export class ClientsController {
   /** Modalità viaggio/estate: in vacanza il popup misure si sospende; al rientro scatta un evento CRM/marketing. */
   /**
    * L'elenco delle sospensioni e dello storico modalità viaggio, per la scheda cliente.
-   * ⚠️ Solo lettura: il permesso è quello della scheda (`assertClientAccess` dentro il servizio).
+   *
+   * ⚠️ `@RequirePage('travel_mode','view')` dal 24/8. Prima il permesso era solo quello della
+   * scheda (`assertClientAccess` dentro il servizio), e la metà «vede» dell'interruttore
+   * `travel_mode` non accendeva niente: la card compariva **solo** con «Gestisce», quindi dare a
+   * una coach la sola lettura delle sospensioni era impossibile. Ora «Vede» mostra la card in sola
+   * lettura e «Gestisce» apre il modulo — che è quello che chiede la tabella dei permessi quando
+   * mostra due caselle. `assertClientAccess` resta dov'è: dice se QUESTA cliente è sua.
    */
+  @RequirePage('travel_mode', 'view')
   @Get(':id/sospensioni')
   sospensioni(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.clients.sospensioni(id, user.sub);
