@@ -2077,6 +2077,46 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
   },
   {
+    chiave: 'motivo-della-sospensione',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-24T15:00',
+    titolo: '✅ Una sospensione adesso dice anche PERCHÉ, la card si chiama «Sospensioni» e lo storico nasce chiuso',
+    dettaglio:
+      'Tre richieste di Simone (24/8) sulla card in scheda cliente. **1)** «Quando la coach o la '
+      + 'nutrizionista inseriscono una pausa facciamo mettere anche una motivazione così ci resta '
+      + 'salvata»: fino a oggi una sospensione diceva **da quando a quando** e **da quale porta era '
+      + 'nata**, e non perché — chi apriva la scheda tre mesi dopo, o doveva decidere sulla vacanza '
+      + 'successiva (la «tregua»), leggeva venti giorni di menu fermi senza sapere se era un viaggio '
+      + 'di lavoro, un ricovero o un esame. Colonna `note` su `Event` (migrazione additiva e '
+      + 'nullable), obbligatoria **solo quando si sospende davvero**: non per il rientro, non per '
+      + 'svuotare lo stato, non per uno stato senza date. **2)** Il titolo passa da «Modalità viaggio '
+      + '(piani estate)» a **«Sospensioni»**. **3)** Lo storico è comprimibile e **nasce chiuso**: '
+      + 'sono fino a quattro tabelle, e aperte spingevano fuori schermo la parte che si usa tutti i '
+      + 'giorni.\n\n'
+      + '⛔ **La revisione ha trovato che così la card si ROMPEVA per chi la usa di più.** Stato e date '
+      + 'si precompilano dal profilo, il motivo no: la coach che riapriva la scheda per **allungare** '
+      + 'una vacanza — o che ripremeva Salva senza toccare niente — si prendeva un 400 «scrivi il '
+      + 'motivo», e al secondo tentativo scriveva qualcosa di nuovo che **sovrascriveva** quello di '
+      + 'prima. Cioè l\'opposto di «così ci resta salvata». Adesso il campo si precompila da quello '
+      + 'già salvato.\n\n'
+      + '⚠️ Altri cinque rilievi accolti: **la persistenza non aveva nessun test** — togliendo del '
+      + 'tutto la scrittura di `note` la suite restava verde su 5114 — e adesso ce ne sono tre che '
+      + 'mordono; una **ragione scritta era falsa** («questa funzione la chiamano anche altre strade»: '
+      + '`setTravel` è l\'unico chiamante); i commenti dicevano che `NULL` = «prima del 24/8», mentre '
+      + 'restano senza motivo **anche le pause nate dalle altre porte** (app, approvazione, '
+      + 'Calendario); ✅ e il **Calendario in app un motivo ce l\'ha già** — la cliente scrive un testo '
+      + 'libero che finisce in `label` — e nessuno lo leggeva: adesso la scheda lo mostra. Infine '
+      + 'l\'accordion aveva un `<h3>` dentro un `<button>` (HTML non valido, e il modello è '
+      + 'l\'inverso), e da chiuso contava «N periodi» invece di dire la cosa per cui quella sezione '
+      + 'esiste: **se è sospesa adesso**.\n\n'
+      + '⛔ **Al deploy**: la migrazione la applica Render. ⚠️ Chi ha il backoffice aperto col bundle '
+      + 'vecchio manda il salvataggio **senza** motivo e riceve l\'errore finché non ricarica la '
+      + 'pagina — l\'errore è parlante, ma il giorno del rilascio succede.',
+  },
+  {
     chiave: 'modifica-ricetta-dagli-allergeni',
     categoria: 'Da fare — codice',
     ordine: 0,

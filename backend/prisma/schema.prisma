@@ -1371,6 +1371,14 @@ model Event {
   client         User      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   type           EventType
   label          String?
+  /// ⛔ IL MOTIVO di una sospensione, scritto da chi la inserisce (Simone, 24/8). Sta qui e non sul
+  /// profilo perché il profilo tiene UNA vacanza e gli eventi sono la storia.
+  /// ⚠️ NULL vuol dire «non gliel'abbiamo chiesto», non «non c'era»: restano senza le sospensioni
+  /// scritte prima del 24/8 **e quelle che nascono dalle altre porte** (richiesta dall'app,
+  /// approvazione di una collega, Calendario) — il campo lo chiede solo la card.
+  /// ⚠️ La colonna è su TUTTI gli `Event`, non solo sulle pause: il nome è generico apposta, ma oggi
+  /// la scrive e la legge un solo flusso. Chi la userà per altro lo scriva qui.
+  note           String?
   startDate      DateTime  @map("start_date") @db.Date
   endDate        DateTime  @map("end_date") @db.Date
   mode           EventMode

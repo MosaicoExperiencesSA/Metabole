@@ -38,6 +38,13 @@ import { fraseDellaTregua, treguaFraVacanze } from './tregua-fra-vacanze';
  * L'etichetta con cui si riconosce la sospensione nata dalla card «Modalità viaggio».
  * ⚠️ È un dato, non un testo da mostrare: cambiarla scollega le sospensioni già create.
  */
+/**
+ * L'etichetta delle pause nate dalle ALTRE porte (richiesta dall'app, approvazione di una collega).
+ * ⚠️ Esportata il 24/8: la scheda deve poter distinguere un'etichetta di sistema dal testo libero che
+ * la cliente scrive nel Calendario — quello è la sua motivazione, e prima non lo leggeva nessuno.
+ */
+export const ETICHETTA_PAUSA = 'Pausa (vacanza)';
+
 export const ETICHETTA_VIAGGIO = 'Modalità viaggio';
 
 const FREEZE_AUTO_MAX_DAYS = 20;
@@ -612,7 +619,7 @@ export class PauseService {
       data: {
         clientId,
         type: 'vacation' as never,
-        label: 'Pausa (vacanza)',
+        label: ETICHETTA_PAUSA,
         startDate,
         endDate,
         mode: 'pause_period' as never,
@@ -744,7 +751,19 @@ export class PauseService {
   async sospendiPerViaggio(
     clientId: string,
     actorUserId: string,
-    input: { start: Date; rientro: Date },
+    /**
+     * ⛔ `motivo` — richiesta di Simone, 24/8: «quando la coach o la nutrizionista inseriscono una
+     * pausa facciamo mettere anche una motivazione così ci resta salvata».
+     *
+     * ⚠️ **Non è obbligatorio QUI, ed è voluto.** La guardia sta alla porta che riceve la card
+     * (`clients.service.setTravel`), dove si sa che dall'altra parte c'è una persona davanti a un
+     * modulo che può leggere l'errore e correggersi. Qui no: un servizio non sa chi lo chiama, e un
+     * `throw` su un campo di testo fermerebbe una sospensione legittima chiamata da uno script.
+     * ⚠️ **E la ragione che avevo scritto prima — «questa funzione la chiamano anche altre strade» —
+     * era FALSA**: `setTravel` è l'unico chiamante di produzione. Corretta in revisione il 24/8: la
+     * regola è buona, la ragione no, e una ragione falsa è quella su cui il prossimo ci costruisce.
+     */
+    input: { start: Date; rientro: Date; motivo?: string | null },
   ): Promise<{ giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null }> {
     const startDate = aGiorno(input.start);
     const endDate = ultimoGiornoSospeso(input.rientro);
@@ -911,16 +930,31 @@ export class PauseService {
       select: { weightKg: true },
     })) as { weightKg: number } | null;
 
+    /**
+     * ⚠️ **Il motivo si riscrive solo se ne arriva uno nuovo.** Risalvare la card con il campo
+     * svuotato non deve cancellare quello che qualcuno aveva scritto: `undefined` non tocca la
+     * colonna, una stringa la sostituisce. È la stessa regola del seed sui valori nutrizionali —
+     * «se non ce l'ho non lo scrivo» — e nasce dallo stesso difetto.
+     */
+    const motivo = input.motivo?.trim() ? input.motivo.trim().slice(0, 500) : undefined;
+
     let eventoId: string;
     if (esistente) {
       await this.prisma.event.update({
         where: { id: esistente.id },
-        data: { startDate, endDate, label: ETICHETTA_VIAGGIO, startWeightKg: ultimaMisura?.weightKg ?? null },
+        data: {
+          startDate, endDate, label: ETICHETTA_VIAGGIO,
+          startWeightKg: ultimaMisura?.weightKg ?? null,
+          ...(motivo ? { note: motivo } : {}),
+        } as never,
       });
       eventoId = esistente.id;
     } else {
       const evento = await this.createPauseEvent(clientId, startDate, endDate);
-      await this.prisma.event.update({ where: { id: evento.id }, data: { label: ETICHETTA_VIAGGIO } });
+      await this.prisma.event.update({
+        where: { id: evento.id },
+        data: { label: ETICHETTA_VIAGGIO, ...(motivo ? { note: motivo } : {}) } as never,
+      });
       eventoId = evento.id;
     }
 

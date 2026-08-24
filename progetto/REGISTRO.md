@@ -52,6 +52,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-24
 
+- `[Sviluppo]` 📝 **Una sospensione dice anche PERCHÉ, la card si chiama «Sospensioni» e lo storico
+  nasce chiuso.** Tre richieste di Simone, 24/8: *«quando la coach o la nutrizionista inseriscono una
+  pausa facciamo mettere anche una motivazione così ci resta salvata»*, *«cambiamo il titolo da
+  modalità viaggio a sospensioni»*, *«lo storico facciamolo comprimibile, di default compresso»*.
+  Fino a oggi una sospensione diceva **da quando a quando** e **da quale porta era nata**, e non
+  **perché**: chi apre la scheda tre mesi dopo — o deve decidere sulla vacanza successiva, che è la
+  domanda della «tregua» — leggeva venti giorni di menu fermi senza sapere se era un viaggio di
+  lavoro, un ricovero o un esame.
+  ✅ Colonna `note` su `Event` (migrazione **additiva e nullable**, nessun backfill), scritta da
+  `sospendiPerViaggio` e riletta da `sospensioni-di-una-cliente.ts`, più il motivo nel registro di
+  audit. ⚠️ **Si chiede solo quando si sospende davvero**: non per registrare il rientro, non per
+  svuotare lo stato, non per uno stato «in vacanza» senza le due date — lì non si ferma nessun menu, e
+  *l'attrito senza contenuto insegna a scrivere «x» per superare il modulo*. Rifiutati anche `x` e
+  `ok` (meno di 3 caratteri), e il testo si tronca a 500.
+  ⛔ **La revisione ha misurato che così la card si rompeva proprio per chi la usa di più.** Stato e
+  date si precompilano dal profilo, il motivo no: la coach che riapriva la scheda per **allungare**
+  una vacanza — o che ripremeva Salva senza toccare niente — si prendeva un 400 «scrivi il motivo», e
+  al secondo tentativo scriveva qualcosa di nuovo che **sovrascriveva** quello di prima. Cioè
+  l'opposto di «così ci resta salvata». Ora il campo si precompila dal periodo vivo.
+  ⛔ **E la persistenza non aveva nessun test**: togliendo del tutto la scrittura di `note`, o
+  facendo cancellare il motivo da un salvataggio col campo vuoto, la suite restava **verde** su 5114
+  test — lo spec mockava `PauseService` per intero, quindi verificava che il motivo venisse *passato*,
+  non che arrivasse in banca dati. Ora ci sono tre test che mordono.
+  ⛔ **Una ragione scritta era falsa** («questa funzione la chiamano anche altre strade»): `setTravel`
+  è l'unico chiamante di produzione. La regola era buona, la ragione no — corretta, non cancellata.
+  ✅ **E il Calendario in app un motivo ce l'aveva già**: la cliente ci scrive un testo libero che
+  finisce in `label`, ed era perfino già selezionato dalla query. Nessuno lo leggeva, e la card
+  stampava «non indicato» sopra un motivo scritto da lei. Adesso lo mostra.
+  ⚠️ `NULL` non vuol dire solo «sospensione prima del 24/8»: restano senza motivo anche quelle nate
+  dalle **altre porte** (richiesta dall'app, approvazione di una collega, Calendario), perché il campo
+  lo chiede la card. ✅ L'accordion dello storico (fino a quattro tabelle, che aperte spingevano fuori
+  schermo le due date e Salva) da chiuso dice la cosa per cui esiste: **se è sospesa adesso e da
+  quando riprende**, non «N periodi».
+  🔍 5119 test in 316 suite verdi, build veri di backend e backoffice, ogni pezzo nuovo provato alla
+  mutazione. ⚠️ **Al rilascio**: chi ha il backoffice aperto col bundle vecchio manda il salvataggio
+  senza motivo e prende l'errore finché non ricarica.
+
 - `[Sviluppo]` 🧂 **Allergia ai solfiti: quattro condimenti si sostituiscono, due piatti escono — e
   la mia prima stesura peggiorava proprio i casi che diceva di risolvere.** Quattro decisioni di
   Simone, sulle righe della guida della capo nutrizionista. ✅ Il dizionario dei suggerimenti passa da

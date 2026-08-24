@@ -357,4 +357,46 @@ describe('PauseService — sospensione da modalità viaggio', () => {
       expect(prisma.event.delete).not.toHaveBeenCalled();
     });
   });
+  /**
+   * ⛔ **IL MOTIVO FINISCE DAVVERO SULL'EVENTO** — richiesta di Simone del 24/8, «così ci resta
+   * salvata».
+   *
+   * ⚠️ Questi test nascono da una revisione: la persistenza — cioè **il cuore della richiesta** — non
+   * era coperta da niente. Togliendo del tutto la scrittura di `note`, o facendo cancellare il motivo
+   * a un salvataggio col campo vuoto, la suite restava verde su 5114 test. Lo spec che c'era verificava
+   * che il motivo *venisse passato* al servizio, non che arrivasse in banca dati.
+   */
+  describe('il motivo della sospensione, sull\'evento', () => {
+    const VACANZA = { start: giorno(5), rientro: giorno(19) };
+
+    const scritto = (prisma: any) =>
+      (prisma.event.update.mock.calls as any[][]).map((c) => c[0]?.data ?? {});
+
+    it('⛔ il motivo scritto arriva su `note`', async () => {
+      const { service, prisma } = crea();
+      await service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, motivo: 'ricovero programmato' });
+      expect(scritto(prisma).some((d) => d.note === 'ricovero programmato')).toBe(true);
+    });
+
+    /**
+     * ⛔ **Risalvare col campo vuoto NON cancella quello che c'era.** È la differenza fra «se non ce
+     * l'ho non lo scrivo» e «azzeralo» — lo stesso difetto che il seed dei valori nutrizionali ha
+     * pagato il 20/8, e che qui costerebbe la motivazione scritta tre settimane prima da un'altra
+     * persona.
+     */
+    it.each([[''], ['   '], [undefined]])('⛔ col motivo «%s» la chiave `note` non si scrive', async (vuoto) => {
+      const { service, prisma } = crea();
+      await service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, motivo: vuoto as string | undefined });
+      for (const d of scritto(prisma)) {
+        expect(Object.prototype.hasOwnProperty.call(d, 'note')).toBe(false);
+      }
+    });
+
+    it('⚠️ un motivo lunghissimo si tronca invece di far fallire la scrittura', async () => {
+      const { service, prisma } = crea();
+      await service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, motivo: 'x'.repeat(900) });
+      const conNote = scritto(prisma).find((d) => typeof d.note === 'string');
+      expect(conNote.note).toHaveLength(500);
+    });
+  });
 });

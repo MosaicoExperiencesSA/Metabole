@@ -1737,7 +1737,7 @@ export class ClientsService {
   async setTravel(
     userId: string,
     actorId: string,
-    input: { state?: string; start?: string; rientro?: string; end?: string },
+    input: { state?: string; start?: string; rientro?: string; end?: string; motivo?: string },
   ) {
     await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
@@ -1774,12 +1774,34 @@ export class ClientsService {
      * valeva ancora a novembre»).
      */
     const sospende = state === 'in_partenza' || state === 'in_vacanza';
+
+    /**
+     * ⛔ **IL MOTIVO SI SCRIVE, E QUI SI PRETENDE** (Simone, 24/8).
+     *
+     * Fino a oggi una sospensione diceva da quando a quando e da quale porta era nata, e **non
+     * perché**. Chi apre la scheda tre mesi dopo — o chi deve decidere se concedere la seconda
+     * vacanza in un mese, che è la domanda della «tregua» — leggeva venti giorni di menu fermi
+     * senza sapere se era un viaggio di lavoro, un ricovero o un esame.
+     *
+     * ⚠️ **Si chiede solo quando si sospende davvero**, non quando si registra il rientro o si
+     * svuota lo stato: pretendere una motivazione per *togliere* una sospensione sarebbe un attrito
+     * senza contenuto. E la soglia è di tre caratteri, che non è un controllo di qualità — è la
+     * differenza fra un campo compilato e uno riempito con uno spazio per superare il modulo.
+     */
+    const motivo = (input.motivo ?? '').trim();
+    if (sospende && start && ultimoGiorno && motivo.length < 3) {
+      throw new BadRequestException(
+        'Scrivi il motivo della sospensione: resta salvato sulla scheda e lo legge chi la aprirà fra tre mesi '
+        + '(o chi dovrà decidere sulla prossima vacanza). Bastano poche parole — «viaggio di lavoro», «ricovero».',
+      );
+    }
     let sospensione: { giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null } | null = null;
     let avviso: string | null = null;
     if (sospende && start && ultimoGiorno) {
       sospensione = await this.pause.sospendiPerViaggio(userId, actorId, {
         start,
         rientro: new Date(ultimoGiorno.getTime() + 86_400_000),
+        motivo,
       });
       avviso = sospensione.avviso;
     } else {
@@ -1827,6 +1849,8 @@ export class ClientsService {
         riprendeIl: ultimoGiorno ? new Date(ultimoGiorno.getTime() + 86_400_000).toISOString().slice(0, 10) : null,
         giorniSospesi: sospensione?.giorni ?? null,
         giorniCongelati: sospensione?.giorniCongelati ?? null,
+        // ⚠️ Nel registro finisce anche il MOTIVO: è la riga che risponde a «perché» fra tre mesi.
+        motivo: motivo || null,
       } as never,
     });
     return {

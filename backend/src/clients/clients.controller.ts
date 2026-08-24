@@ -61,6 +61,12 @@ class TravelDto {
   @IsOptional() @IsString() @MaxLength(40) start?: string;
   @IsOptional() @IsString() @MaxLength(40) rientro?: string;
   @IsOptional() @IsString() @MaxLength(40) end?: string;
+  /**
+   * ⛔ Il MOTIVO della sospensione (Simone, 24/8). ⚠️ `@IsOptional()` qui, e obbligatorio nel
+   * servizio: la regola è «serve **quando si sospende davvero**», e un decoratore non conosce lo
+   * stato. Pretenderlo qui vorrebbe dire chiederlo anche a chi sta *togliendo* una sospensione.
+   */
+  @IsOptional() @IsString() @MaxLength(500) motivo?: string;
 }
 
 class PlanStartDto {

@@ -1,0 +1,69 @@
+Una sospensione dice anche PERCHE', la card si chiama «Sospensioni» e lo storico nasce chiuso
+
+Tre richieste di Simone (24/8) sulla card in scheda cliente.
+
+1) IL MOTIVO, E RESTA SALVATO
+«Quando la coach o la nutrizionista inseriscono una pausa facciamo mettere anche una motivazione
+cosi' ci resta salvata.» Fino a oggi una sospensione diceva DA QUANDO A QUANDO e DA QUALE PORTA era
+nata, e non PERCHE': chi apriva la scheda tre mesi dopo — o doveva decidere sulla vacanza successiva,
+che e' la domanda della «tregua» — leggeva venti giorni di menu fermi senza sapere se era un viaggio
+di lavoro, un ricovero o un esame.
+Colonna `note` su `Event` (migrazione additiva e nullable), obbligatoria SOLO quando si sospende
+davvero: non per il rientro, non per svuotare lo stato, non per uno stato senza date. Pretenderla li'
+sarebbe attrito senza contenuto, e l'attrito senza contenuto insegna a scrivere «x» per superare il
+modulo. Il motivo finisce anche nel registro.
+
+2) IL TITOLO
+Da «Modalità viaggio (piani estate)» a «Sospensioni».
+
+3) LO STORICO NASCE CHIUSO
+Sono fino a quattro tabelle: aperte spingevano fuori schermo la parte che si usa tutti i giorni — le
+due date e Salva. Si apre con un clic.
+
+⛔ E LA REVISIONE HA TROVATO CHE COSI' LA CARD SI ROMPEVA PROPRIO PER CHI LA USA DI PIU'
+Stato e date si precompilano dal profilo, il motivo no: la coach che riapriva la scheda per ALLUNGARE
+una vacanza — o che ripremeva Salva senza toccare niente — si prendeva un 400 «scrivi il motivo», e
+al secondo tentativo scriveva qualcosa di nuovo che SOVRASCRIVEVA quello di prima. Cioe' l'opposto di
+«cosi' ci resta salvata». Adesso il campo si precompila da quello gia' salvato.
+
+ALTRI CINQUE RILIEVI, TUTTI ACCOLTI
+- LA PERSISTENZA NON AVEVA NESSUN TEST: togliendo del tutto la scrittura di `note`, o facendo
+  cancellare il motivo da un salvataggio col campo vuoto, la suite restava VERDE su 5114 test. Lo
+  spec mockava `PauseService` per intero, quindi verificava che il motivo venisse PASSATO, non che
+  arrivasse in banca dati. Adesso ci sono tre test che mordono.
+- UNA RAGIONE SCRITTA ERA FALSA: «questa funzione la chiamano anche altre strade». `setTravel` e'
+  l'unico chiamante di produzione. La regola era buona, la ragione no.
+- I commenti dicevano che `NULL` = «sospensioni prima del 24/8». Incompleto: restano senza motivo
+  anche quelle che nascono dalle ALTRE porte — richiesta dall'app, approvazione di una collega,
+  Calendario — perche' il campo lo chiede solo la card.
+- ✅ E IL CALENDARIO IN APP UN MOTIVO CE L'HA GIA': la cliente ci scrive un testo libero che finisce
+  in `label`, ed era gia' selezionato dalla query. Nessuno lo leggeva, e la card stampava «non
+  indicato» su un motivo scritto da lei. Adesso lo mostra.
+- L'accordion aveva un `<h3>` dentro un `<button>` (HTML non valido, e il modello accordion e'
+  l'inverso), e da chiuso contava «N periodi» invece di dire la cosa per cui quella sezione esiste:
+  SE E' SOSPESA ADESSO, e da quando riprende.
+
+VERIFICATO
+- `npm run build` pulito su backend e backoffice.
+- 5119 test in 316 suite verdi.
+- Ogni pezzo nuovo provato alla mutazione: il motivo non scritto, il campo vuoto che cancella, il
+  troncamento tolto, la guardia disattivata, il motivo che non arriva al registro.
+
+FILE NEL COMMIT
+- backend/prisma/schema.prisma
+- backend/prisma/migrations/20260824150000_motivo_sospensione/migration.sql   (nuova)
+- backend/src/pause/pause.service.ts
+- backend/src/pause/modalita-viaggio-sospende.spec.ts
+- backend/src/clients/clients.service.ts
+- backend/src/clients/clients.controller.ts
+- backend/src/clients/sospensioni-di-una-cliente.ts
+- backend/src/clients/motivo-sospensione.spec.ts   (nuovo)
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/pages/ClientDetail.tsx
+- progetto/REGISTRO.md
+
+⛔ MIGRAZIONE: la applica Render al deploy. Additiva e nullable, nessun backfill, nessuna riga
+riscritta.
+⚠️ AL RILASCIO: chi ha il backoffice aperto col bundle vecchio manda il salvataggio SENZA motivo e
+riceve l'errore finche' non ricarica la pagina. L'errore e' parlante, ma il giorno del rilascio
+succede.

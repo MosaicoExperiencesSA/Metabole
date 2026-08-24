@@ -1,0 +1,14 @@
+-- ⛔ IL MOTIVO DI UNA SOSPENSIONE — richiesta di Simone, 24/8:
+-- «quando la coach o la nutrizionista inseriscono una pausa facciamo mettere anche una
+-- motivazione così ci resta salvata».
+--
+-- Fino a oggi una sospensione diceva DA QUANDO A QUANDO e da quale porta era nata, e non
+-- PERCHÉ. Chi apriva la scheda tre mesi dopo — o chi decideva se concedere la seconda
+-- vacanza in un mese — leggeva venti giorni di menu fermi senza sapere se era un viaggio di
+-- lavoro, un ricovero o un esame. La colonna sta sull'EVENT, cioè sul periodo che ferma
+-- davvero l'erogazione, e non sul profilo: il profilo tiene una vacanza sola, gli eventi
+-- sono la storia.
+--
+-- ⚠️ ADDITIVA E NULLABLE: le sospensioni gia scritte restano senza motivo, e non se ne
+-- inventa uno. NULL vuol dire «non gliel'abbiamo chiesto», che è diverso da «non c'era».
+ALTER TABLE "event" ADD COLUMN "note" TEXT;

@@ -2514,7 +2514,7 @@ function PauseRequestsCard({ clientId, clientName }: { clientId: string; clientN
 }
 
 interface Sospensioni {
-  periodi: { id: string; dal: string; riprendeIl: string; giorni: number; stato: 'futura' | 'in_corso' | 'passata'; origine: string }[];
+  periodi: { id: string; dal: string; riprendeIl: string; giorni: number; stato: 'futura' | 'in_corso' | 'passata'; origine: string; motivo: string | null }[];
   richieste: { id: string; dal: string; riprendeIl: string; giorni: number; stato: string; decisaDa: string | null; decisaIl: string | null; nota: string | null; chiestaIl: string }[];
   viaggio: { id: string; azione: string; quando: string; stato: string | null; dal: string | null; riprendeIl: string | null; giorni: number | null; chi: string | null }[];
   adesso: { stato: string | null; dal: string | null; riprendeIl: string | null } | null;
@@ -2568,6 +2568,13 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
   const [avviso, setAvviso] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [dati, setDati] = useState<Sospensioni | null>(null);
+  const [motivo, setMotivo] = useState('');
+  /**
+   * ⚠️ **Lo storico nasce chiuso** (Simone, 24/8). Sono fino a quattro tabelle: aperte spingono la
+   * card che si usa tutti i giorni — le due date e Salva — fuori dallo schermo. Chi le vuole
+   * leggere clicca; chi deve solo mettere una vacanza non le vede nemmeno.
+   */
+  const [storicoAperto, setStoricoAperto] = useState(false);
 
   const data = (v?: string | null) =>
     v ? new Date(`${String(v).slice(0, 10)}T00:00:00.000Z`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
@@ -2575,7 +2582,20 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
 
   async function carica() {
     try {
-      setDati(await api<Sospensioni>(`/admin/clients/${clientId}/sospensioni`));
+      const d = await api<Sospensioni>(`/admin/clients/${clientId}/sospensioni`);
+      setDati(d);
+      /**
+       * ⛔ **IL MOTIVO SI PRECOMPILA, e senza questa riga la card si rompeva.** Trovato in revisione
+       * il 24/8: stato e date si precompilano dal profilo, il motivo no — quindi la coach che
+       * riapriva la scheda per **allungare** una vacanza (o che ripremeva Salva senza toccare
+       * niente) si prendeva un 400 «scrivi il motivo», e al secondo tentativo scriveva qualcosa di
+       * nuovo che **sovrascriveva** quello di prima. Cioè il contrario di «così ci resta salvata».
+       *
+       * ⚠️ `m || …`: quello che si sta scrivendo adesso non si tocca mai. Questa funzione gira anche
+       * dopo un salvataggio.
+       */
+      const vivo = d.periodi.find((p) => p.origine === 'Modalità viaggio' && p.stato !== 'passata');
+      setMotivo((m) => m || vivo?.motivo || '');
     } catch { /* l'elenco è un di più: se non arriva, la card resta usabile */ }
   }
   useEffect(() => { carica(); }, [clientId]);
@@ -2585,7 +2605,7 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
     try {
       const esito = await api<{ giorniSospesi: number | null; nuovaScadenza: string | null; avviso: string | null }>(
         `/admin/clients/${clientId}/travel`,
-        { method: 'PATCH', body: JSON.stringify({ state, start, rientro }) },
+        { method: 'PATCH', body: JSON.stringify({ state, start, rientro, motivo }) },
       );
       /**
        * ⚠️ Il messaggio dice **quanti giorni** e **la nuova scadenza**: è l'unico momento in cui chi
@@ -2613,7 +2633,7 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
 
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>Modalità viaggio (piani estate)</h2>
+      <h2 style={{ marginTop: 0 }}>Sospensioni</h2>
       <p className="hint" style={{ marginTop: 0 }}>
         Con le due date i menu <b>si fermano davvero</b> e la scadenza del piano slitta dei giorni sospesi.
         Il giorno prima del rientro le si chiede la pesata e le arriva il menu del primo giorno. Al rientro
@@ -2639,6 +2659,24 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
         </label>
         <button className="btn" onClick={save} disabled={saving}><i className="ti ti-device-floppy" /> {saving ? 'Salvo…' : 'Salva'}</button>
       </div>
+      {/*
+        ⛔ **IL MOTIVO** (Simone, 24/8): «così ci resta salvata». Fino a oggi una sospensione diceva
+        da quando a quando e da quale porta era nata, e NON perché — e chi apre la scheda tre mesi
+        dopo, o deve decidere sulla vacanza successiva, leggeva venti giorni di menu fermi senza
+        sapere se era un viaggio di lavoro, un ricovero o un esame.
+        ⚠️ Sta su una riga sua e non accanto alle date: è un campo di testo, e in mezzo alle due
+        date strette diventerebbe la casella che si salta.
+      */}
+      <label className="field" style={{ display: 'block', marginTop: 10 }}>
+        <span>Motivo della sospensione</span>
+        <input
+          className="input"
+          value={motivo}
+          maxLength={500}
+          placeholder="Es. viaggio di lavoro · ricovero · sessione d'esami"
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+      </label>
       <p className="hint" style={{ marginTop: 6, marginBottom: 0 }}>
         «Riprende il» è il <b>primo giorno di dieta</b>: se scrivi 24, il 23 è ancora vacanza.
         Da qui al massimo <b>20 giorni</b>; oltre serve una richiesta di pausa approvata da una collega.
@@ -2646,8 +2684,46 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
 
       {/* ── Lo spazio che era vuoto: le date, tutte e quattro le sorgenti ───────────────────── */}
       <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Sospensioni e storico</h3>
-        {nienteDaMostrare ? (
+        {/*
+          ⚠️ **Il pulsante sta DENTRO l'heading, non il contrario.** La prima stesura aveva un `<h3>`
+          dentro un `<button>`: HTML non valido (un bottone accetta solo contenuto di frase) e
+          l'inverso del modello accordion. Corretto in revisione il 24/8 — funzionava, ma «funziona»
+          non è «è scritto giusto», e il prossimo che copia questo pezzo copia anche l'errore.
+        */}
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>
+          <button
+            type="button"
+            aria-expanded={storicoAperto}
+            aria-controls="storico-sospensioni"
+            style={{ padding: 0, background: 'none', border: 0, font: 'inherit', color: 'inherit', cursor: 'pointer' }}
+            onClick={() => setStoricoAperto((v) => !v)}
+          >
+            <i className={`ti ti-chevron-${storicoAperto ? 'down' : 'right'}`} aria-hidden="true" /> Storico delle sospensioni
+            {/*
+              ⛔ **Da chiuso si dice la cosa per cui questa sezione esiste: se è sospesa ADESSO.**
+              La prima stesura contava «N periodi, M richieste» — un numero che non risponde alla
+              domanda che porta qualcuno qui («perché a questa cliente non arriva il menu?»), e che
+              prima si vedeva a colpo d'occhio dal colore della riga «in corso».
+              ⚠️ E il conteggio di ripiego somma **tutte e quattro** le fonti: contando solo periodi e
+              richieste, una cliente con solo voci di storico leggeva «0 periodi», che si legge come
+              «qui non c'è niente» mentre dietro c'era roba.
+            */}
+            {!nienteDaMostrare && !storicoAperto && (() => {
+              const inCorso = periodi.find((p) => p.stato === 'in_corso');
+              return inCorso ? (
+                <span style={{ fontWeight: 400, fontSize: 13, color: STATO_PERIODO.in_corso?.colore }}>
+                  {' '}— sospesa ora, riprende il {data(inCorso.riprendeIl)}
+                </span>
+              ) : (
+                <span className="muted" style={{ fontWeight: 400, fontSize: 13 }}>
+                  {' '}— {periodi.length + richieste.length + storico.length + dichiarati.length} voci
+                </span>
+              );
+            })()}
+          </button>
+        </h3>
+        <div id="storico-sospensioni">
+        {!storicoAperto ? null : nienteDaMostrare ? (
           <p className="hint" style={{ margin: 0 }}>Nessuna sospensione, né richiesta, né periodo dichiarato.</p>
         ) : (
           <>
@@ -2658,7 +2734,7 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="grid" style={{ fontSize: 13 }}>
-                    <thead><tr><th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Stato</th><th>Origine</th></tr></thead>
+                    <thead><tr><th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Stato</th><th>Origine</th><th>Motivo</th></tr></thead>
                     <tbody>
                       {periodi.map((r) => (
                         <tr key={r.id}>
@@ -2667,6 +2743,10 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
                           <td>{r.giorni}</td>
                           <td style={{ color: STATO_PERIODO[r.stato]?.colore }}>{STATO_PERIODO[r.stato]?.testo ?? r.stato}</td>
                           <td>{r.origine}</td>
+                          {/* ⚠️ «non indicato» e non una cella vuota: una riga vuota si legge come
+                              «non c'era un motivo», e per le sospensioni di prima del 24/8 la verità
+                              è che non gliel'abbiamo chiesto. */}
+                          <td>{r.motivo ?? <span className="muted">non indicato</span>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2730,6 +2810,7 @@ function TravelCard({ clientId, profile }: { clientId: string; profile: { travel
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );

@@ -25,7 +25,7 @@
  * ⚠️ `riprendeIl` è ovunque il **primo giorno di dieta**, non l'ultimo di vacanza, e la conversione
  * la fa `giornoDiRientro` — mai una somma di 86.400.000 scritta a mano.
  */
-import { ETICHETTA_VIAGGIO } from '../pause/pause.service';
+import { ETICHETTA_PAUSA, ETICHETTA_VIAGGIO } from '../pause/pause.service';
 import { giorniSospesi, giornoDiRientro } from '../pause/giorno-di-rientro';
 import { giornoDelDato, toDateOnly } from '../common/date-only';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -38,8 +38,8 @@ export async function sospensioniDiUnaCliente(prisma: PrismaService, userId: str
       where: { clientId: userId, mode: 'pause_period' as never } as never,
       orderBy: { startDate: 'desc' },
       take: 50,
-      select: { id: true, startDate: true, endDate: true, label: true, createdAt: true },
-    }) as Promise<{ id: string; startDate: Date; endDate: Date; label: string | null; createdAt: Date }[]>,
+      select: { id: true, startDate: true, endDate: true, label: true, note: true, createdAt: true },
+    }) as Promise<{ id: string; startDate: Date; endDate: Date; label: string | null; note: string | null; createdAt: Date }[]>,
     prisma.pauseRequest.findMany({
       where: { clientId: userId } as never,
       orderBy: { startDate: 'desc' },
@@ -96,6 +96,20 @@ export async function sospensioniDiUnaCliente(prisma: PrismaService, userId: str
         : perEvento.has(e.id)
           ? 'Richiesta di pausa'
           : 'Calendario in app',
+    /**
+     * ⛔ Il MOTIVO scritto da chi l'ha inserita (24/8).
+     *
+     * ⚠️ `null` vuol dire «non gliel'abbiamo chiesto», non «non c'era un motivo» — e la scheda lo
+     * scrive così. Restano senza: le sospensioni **scritte prima del 24/8**, e **quelle che nascono
+     * dalle altre porte** — la richiesta di pausa dall'app, l'approvazione di una collega, il
+     * Calendario. Il campo lo chiede solo la card, e quelle strade non sono state toccate. ⚠️ La
+     * prima stesura dei commenti diceva «prima del 24/8» e basta: falso, e l'ha corretto la revisione.
+     *
+     * ✅ **Il Calendario in app un motivo però ce l'ha già**, e nessuno lo leggeva: la cliente ci
+     * scrive un testo libero e finisce in `label`. Se non c'è `note` e l'etichetta non è una delle
+     * due di sistema, quella è la sua motivazione — scritta da lei.
+     */
+    motivo: e.note ?? (e.label && e.label !== ETICHETTA_VIAGGIO && e.label !== ETICHETTA_PAUSA ? e.label : null),
     creataIl: e.createdAt,
   }));
 
