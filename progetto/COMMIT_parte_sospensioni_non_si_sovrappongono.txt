@@ -1,0 +1,87 @@
+Le sospensioni non si sovrappongono piu', e la coach le puo' incatenare
+
+Richieste di Simone del 25/8: «se c'e' gia' una sospensione in corso o programmata il sistema deve
+dare come data inizio della nuova sospensione il primo giorno utile, e non far sovrapporre le
+sospensioni», «il giorno di rientro in modo che la coach (non la cliente) possa fare le sospensioni
+continue», «se si forza rifiuta e dici il primo giorno utile», «dalla tabella storico togliamo stato
+e mettiamo motivo».
+
+⛔ IL BUCO VERO ERA DALL'APP, E NON LO GUARDAVA NESSUNO
+`requestPause` controllava solo se c'era una richiesta `pending`, e la tregua dei 15 giorni cerca per
+costruzione le vacanze finite PRIMA della nuova. Quindi una sospensione IN CORSO o GIA' PROGRAMMATA
+era invisibile a tutti e due i controlli: la cliente poteva sovrapporne una, e il piano le si
+allungava DUE VOLTE per la stessa vacanza. Stessa cosa dal «Periodo (piu' giorni)» del Calendario.
+
+⛔ E DAL BACK OFFICE IL PROBLEMA ERA L'OPPOSTO
+Si rifiutava QUALUNQUE modalita' viaggio ancora aperta, anche su date che non si toccano: la guardia
+guardava l'ESISTENZA, non la sovrapposizione. E' per questo che la coach non poteva incatenarle.
+
+✅ ADESSO
+`pause/primo-giorno-utile.ts` risponde a «da quando si puo' cominciare» per tutte e quattro le porte,
+con un parametro solo: zero giorni di tregua per la coach (consecutive permesse), i quindici del
+parametro per la cliente. Ogni rifiuto DICE LA DATA da cui si puo' partire.
+La card mostra una riga «la prossima puo' cominciare dal …» con il pulsante «Aggiungine un'altra»; i
+campi continuano a mostrare la sospensione in corso, che resta l'unico modo per correggerla o
+toglierla.
+Nello storico la colonna «Stato» — tutta «—» da quando la tendina e' stata tolta — diventa «Motivo»,
+che nel registro c'era dal 24/8 e nessuno leggeva.
+
+⛔ LA REVISIONE HA TROVATO TRE BLOCCANTI, TUTTI APERTI DA QUESTA CONSEGNA
+1. SPOSTARE UNA VACANZA NE CREAVA UNA SECONDA. La card si precompila con le date in corso, quindi
+   cambiarle e' il gesto naturale per spostarla: aperte le consecutive, quel gesto AGGIUNGEVA.
+   Riprodotto: vacanza 4→13 settembre spostata a ottobre = due eventi, due registri, +20 GIORNI di
+   scadenza per una vacanza di dieci, nessun avviso. ✅ La distinzione la fa adesso chi preme
+   (`aggiungi`, che manda solo il pulsante), perche' e' l'unico che la sa; senza quel campo vale la
+   regola di sempre e il messaggio spiega tutte e due le strade.
+2. «AGGIUNGINE UN'ALTRA» + SALVA A VUOTO TOGLIEVA LA SOSPENSIONE IN CORSO. Il pulsante svuota
+   «Riprende il», e senza quella data il salvataggio cadeva nel ramo «togli»: menu ripartiti in mezzo
+   alla vacanza, con un banner verde che diceva «nessuna sospensione» accanto all'avviso rosso.
+3. IL MESSAGGIO ALLA CLIENTE PROMETTEVA UNA DATA CHE IL CONTROLLO POI RIFIUTAVA. Proponeva con la
+   tregua della coach (zero) e rifiutava con quella della cliente (quindici): «puoi cominciare dal
+   31/08» → chiedi il 31/08 → «ne mancano 15». Un vicolo cieco costruito da noi.
+
+✅ E QUATTRO COSE GRAVI CHE C'ERANO GIA'
+- L'APPROVAZIONE di una richiesta lunga non aveva nessuna guardia: richiesta in attesa (che non ha
+  ancora un evento, quindi la card non la vede) + modalita' viaggio messa nel frattempo, poi
+  l'approvazione → +36 giorni per 25 di vacanza, due periodi sovrapposti, due «bentornata».
+- LA TREGUA GUARDAVA SOLO INDIETRO, quindi si aggirava mettendo la nuova PRIMA di una gia'
+  programmata: quattro giorni fra le due invece di quindici. La regola non ha un verso.
+- IL PROFILO rispecchiava l'ultima sospensione scritta invece di quella che ferma i menu: aggiunta la
+  seconda, `statoViaggioAttivo` rispondeva «in partenza» durante la vacanza in corso, e da li' Gaia
+  dava il menu PRE-EVENTO a una cliente che doveva avere il mantenimento.
+- Dall'app si poteva chiedere una pausa NEL PASSATO: non ferma nessun menu (quei giorni sono gia'
+  stati mangiati) e allunga la scadenza di giorni che la cliente non ha saltato.
+
+⚠️ E TRE TEST CANCELLATI PER COLLATERALITA' riscrivendo un gruppo — il ripiego quando la scadenza non
+si muove, il tetto dei 20 giorni, il rientro non dopo la partenza — rimessi. Un test cancellato per
+sbaglio non lascia traccia: la suite resta verde.
+
+⚠️ IL MOTIVO OBBLIGATORIO era gia' a posto: quattro test lo coprivano gia' (`motivo-sospensione.spec.ts`),
+e il messaggio del server arriva in pagina attraverso `ApiError`. Verificato, non riscritto.
+
+⚠️ QUELLO CHE NON E' CAMBIATO, e va saputo: la cliente vede le sospensioni della coach nella sua
+Agenda (elenco pause e «giorni no-diet») CON IL CESTINO accanto — puo' cancellare quella messa dalla
+coach, e restano il profilo e i giorni gia' aggiunti alla scadenza. E quando la coach la toglie, la
+cliente legge la parola inglese «closed» in una pastiglia. Due difetti veri, misurati oggi e non
+toccati qui perche' non erano la richiesta.
+
+VERIFICATO
+- 5382 test backend in 323 suite verdi in TRE modi: TZ a UTC, TZ=Europe/Rome, `npm run test:notte`.
+  Backoffice: build verde, 120 test.
+- Mutazioni, tutte rosse: la guardia `aggiungi` spenta; `siSovrappone` con gli estremi esclusi; il
+  salvataggio a vuoto che torna a togliere; `aggiungi` sempre vero; l'approvazione senza guardia; la
+  tregua in avanti spenta; lo specchio riportato alle date scritte; `sospensioneDaViaggio` da `asc` a
+  `desc`; la pausa nel passato riammessa dalle due porte; lo stato dello specchio fissato.
+
+FILE NEL COMMIT
+- backend/src/pause/primo-giorno-utile.ts + .spec.ts   (nuovi)
+- backend/src/pause/pause.service.ts · tregua-fra-vacanze.ts
+- backend/src/pause/modalita-viaggio-sospende.spec.ts · pausa-allunga-il-piano.spec.ts
+- backend/src/calendar/events.service.ts
+- backend/src/clients/clients.service.ts · clients.controller.ts
+- backend/src/clients/sospensioni-di-una-cliente.ts · motivo-sospensione.spec.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/pages/ClientDetail.tsx
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE. Backend + backoffice; l'app non cambia.

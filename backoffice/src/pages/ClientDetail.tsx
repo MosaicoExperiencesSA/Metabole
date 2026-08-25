@@ -2572,8 +2572,18 @@ function PauseRequestsCard({ clientId, clientName }: { clientId: string; clientN
 interface Sospensioni {
   periodi: { id: string; dal: string; riprendeIl: string; giorni: number; stato: 'futura' | 'in_corso' | 'passata'; origine: string; motivo: string | null }[];
   richieste: { id: string; dal: string; riprendeIl: string; giorni: number; stato: string; decisaDa: string | null; decisaIl: string | null; nota: string | null; chiestaIl: string }[];
-  viaggio: { id: string; azione: string; quando: string; stato: string | null; dal: string | null; riprendeIl: string | null; giorni: number | null; chi: string | null }[];
+  viaggio: { id: string; azione: string; quando: string; stato: string | null; motivo: string | null; dal: string | null; riprendeIl: string | null; giorni: number | null; chi: string | null }[];
   adesso: { stato: string | null; dal: string | null; riprendeIl: string | null } | null;
+  /**
+   * ⛔ Da quando può cominciare la PROSSIMA sospensione, e cosa lo impedisce (25/8).
+   * ⚠️ `null` quando non c'è niente che sposti la data: si può cominciare oggi, e non è una notizia.
+   */
+  prossimaSospensione: {
+    primoGiornoUtile: string;
+    bloccanteDal: string;
+    bloccanteRiprendeIl: string;
+    bloccanteEtichetta: string | null;
+  } | null;
   dichiarati: { dal: string | null; al: string | null }[];
 }
 
@@ -2639,6 +2649,14 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
    * leggere clicca; chi deve solo mettere una vacanza non le vede nemmeno.
    */
   const [storicoAperto, setStoricoAperto] = useState(false);
+  /**
+   * ⛔ **«Sto aggiungendone una seconda», e il server deve saperlo.** Cambiare le date su questa card
+   * vuol dire **spostare** la sospensione che mostra; premere «Aggiungine un'altra» vuol dire
+   * crearne una nuova. Le due cose arrivano al server identiche — due date e un motivo — e senza
+   * questo campo il gesto di spostare avrebbe creato una seconda sospensione, concedendo i giorni
+   * due volte (trovato in revisione, 25/8).
+   */
+  const [aggiungo, setAggiungo] = useState(false);
   /** Il server ha detto 403: l'elenco non è vuoto, è **non leggibile**. Vedi il riquadro in `carica`. */
   const [nonLeggibile, setNonLeggibile] = useState(false);
 
@@ -2686,7 +2704,7 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
         `/admin/clients/${clientId}/travel`,
         // ⚠️ `state` non si manda più: lo ricava il backend dalle date (24/8). Mandarlo sarebbe
         // rimettere in piedi la contraddizione che si è appena tolta, da una porta che non si vede.
-        { method: 'PATCH', body: JSON.stringify({ start, rientro, motivo }) },
+        { method: 'PATCH', body: JSON.stringify({ start, rientro, motivo, ...(aggiungo ? { aggiungi: true } : {}) }) },
       );
       /**
        * ⚠️ Il messaggio dice **quanti giorni** e **la nuova scadenza**: è l'unico momento in cui chi
@@ -2705,6 +2723,9 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
           : 'Salvato: senza le due date non c\'è nessuna sospensione, e i menu arrivano regolarmente.',
       );
       setAvviso(esito.avviso);
+      // ⚠️ Finito l'inserimento si torna al modo normale: da qui in poi cambiare le date vuol dire
+      // di nuovo **spostare**, che è quello che la card mostra.
+      setAggiungo(false);
       await carica();
     } catch (e) { setErr(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.'); }
     finally { setSaving(false); }
@@ -2782,6 +2803,53 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
         Da qui al massimo <b>20 giorni</b>; oltre serve una richiesta di pausa approvata da una collega.
         Per <b>togliere</b> una sospensione svuota le due date e salva.
       </p>
+
+      {/*
+        ⛔ **LA PROSSIMA SOSPENSIONE, E DA QUANDO** (Simone, 25/8: «se c'è già una sospensione in
+        corso o programmata il sistema deve dare come data inizio della nuova sospensione il primo
+        giorno utile, e non far sovrapporre le sospensioni»).
+
+        ⚠️ **I campi sopra continuano a mostrare la sospensione in corso**, e non si precompilano col
+        giorno utile: quella è l'unica strada per correggerla o toglierla, e sostituirla con una data
+        nuova vorrebbe dire nasconderla. Il giorno utile sta qui sotto, con un pulsante che riempie i
+        campi — così le due cose convivono invece di scacciarsi.
+
+        ⚠️ Compare **solo** se c'è qualcosa che sposta la data. «Puoi cominciare da oggi» è il
+        comportamento normale, e un avviso che compare sempre non è un avviso.
+      */}
+      {!!dati?.prossimaSospensione && (
+        <div
+          style={{
+            marginTop: 12, padding: '10px 12px', borderRadius: 8,
+            background: 'var(--bg-soft, #f4f1ea)', border: '1px solid var(--line)',
+            display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 260, fontSize: 13 }}>
+            C'è già {dati.prossimaSospensione.bloccanteEtichetta
+              ? <>«{dati.prossimaSospensione.bloccanteEtichetta}»</>
+              : 'una sospensione'} dal <b>{data(dati.prossimaSospensione.bloccanteDal)}</b>, riprende
+            il <b>{data(dati.prossimaSospensione.bloccanteRiprendeIl)}</b>.
+            {' '}La prossima può cominciare dal <b>{data(dati.prossimaSospensione.primoGiornoUtile)}</b>:
+            {' '}consecutive va bene, sovrapposte no — sullo stesso giorno il piano si allungherebbe due volte.
+          </div>
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() => {
+              // ⚠️ Si riempie solo «Dal» e si svuota «Riprende il»: la durata la decide lei, e
+              // indovinarla vorrebbe dire scrivere una vacanza che nessuno ha chiesto.
+              setStart(dati.prossimaSospensione!.primoGiornoUtile);
+              setRientro('');
+              setMotivo('');
+              setAggiungo(true);
+              setErr(null); setMsg(null); setAvviso(null);
+            }}
+          >
+            <i className="ti ti-plus" /> Aggiungine un'altra
+          </button>
+        </div>
+      )}
       </>
       )}
 
@@ -2890,12 +2958,21 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="grid" style={{ fontSize: 13 }}>
-                    <thead><tr><th>Quando</th><th>Stato</th><th>Dal</th><th>Riprende il</th><th>Chi</th></tr></thead>
+                    <thead><tr><th>Quando</th><th>Motivo</th><th>Dal</th><th>Riprende il</th><th>Chi</th></tr></thead>
                     <tbody>
                       {storico.map((r) => (
                         <tr key={r.id}>
                           <td>{quando(r.quando)}</td>
-                          <td>{r.stato ?? (r.azione === 'client.travel.resume' ? 'sospensione tolta' : '—')}</td>
+                          {/*
+                            ⛔ «Motivo» al posto di «Stato» (Simone, 25/8). La colonna Stato era tutta
+                            «—» da quando la tendina è stata tolta dalla card: mostrava un campo che
+                            non si scrive più, accanto al dato che risponde davvero alla domanda per
+                            cui questo storico si guarda.
+                            ⚠️ Le righe che TOLGONO la sospensione non hanno un motivo, e dicono
+                            quello che facevano prima: è l'unica cosa che la colonna Stato portava, e
+                            non si perde.
+                          */}
+                          <td>{r.motivo ?? (r.azione === 'client.travel.resume' ? 'sospensione tolta' : '—')}</td>
                           <td>{r.dal ? data(r.dal) : '—'}</td>
                           <td>{r.riprendeIl ? data(r.riprendeIl) : '—'}</td>
                           <td>{r.chi ?? '—'}</td>

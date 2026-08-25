@@ -5,9 +5,22 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
-import { fraseDellaTregua, treguaFraVacanze } from '../pause/tregua-fra-vacanze';
+import {
+  fraseDellaTregua,
+  fraseTreguaInAvanti,
+  giorniDiTregua,
+  treguaFraVacanze,
+  treguaVersoLaProssima,
+} from '../pause/tregua-fra-vacanze';
+import { giornoDiRientro } from '../pause/giorno-di-rientro';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../common/date-only';
+import { aGiorno, giornoDelDato, toDateOnly } from '../common/date-only';
+import {
+  fraseNonSiSovrappone,
+  primoGiornoUtile,
+  sovrapposti,
+  type PeriodoOccupato,
+} from '../pause/primo-giorno-utile';
 
 export interface CreateEventInput {
   type: string;
@@ -60,6 +73,41 @@ export class EventsService {
      * differenza fra queste due porte (questa non allunga la scadenza del piano, quella sì).
      */
     if (input.mode === 'pause_period') {
+      // ⛔ Nemmeno da qui si mette una pausa nel passato: non ferma niente e sposta la scadenza di
+      // giorni che la cliente ha già mangiato (25/8, revisione). Oggi è permesso.
+      if (giornoDelDato(startDate).getTime() < aGiorno(new Date()).getTime()) {
+        throw new BadRequestException(
+          'Quel periodo è già passato: un periodo senza dieta si segna da oggi in avanti. 💚',
+        );
+      }
+      /**
+       * ⛔ **NIENTE SOVRAPPOSIZIONI, e da qui non si guardavano affatto** — 25/8, richiesta di
+       * Simone. È la stessa aggiunta fatta a `pause.service.requestPause`, e per la stessa ragione:
+       * la tregua cerca solo le vacanze **finite prima** della nuova, quindi una sospensione in
+       * corso o già programmata era invisibile. Da questa porta il piano non si allunga — ma i menu
+       * si fermano lo stesso, e due periodi sovrapposti sono due «bentornata» e due rientri.
+       *
+       * ⚠️ Il conto è quello di `primo-giorno-utile.ts`, lo stesso delle altre due porte: tre
+       * schermate che dicono alla stessa persona tre date diverse sarebbero peggio del difetto.
+       */
+      const periodi = (await this.prisma.event.findMany({
+        where: { clientId, mode: 'pause_period' as never } as never,
+        select: { startDate: true, endDate: true, label: true },
+      })) as PeriodoOccupato[];
+      const collisioni = sovrapposti({ startDate, endDate }, periodi);
+      if (collisioni.length) {
+        // ⛔ La tregua VERA, non zero: chi propone la data e chi la rifiuta devono fare lo stesso
+        // conto, se no si costruisce un vicolo cieco (revisione 25/8).
+        const tregua = await giorniDiTregua((k, d) => this.configParams.getNumber(k, d));
+        throw new BadRequestException(
+          fraseNonSiSovrappone(
+            primoGiornoUtile(aGiorno(new Date()), periodi, tregua),
+            'cliente',
+            collisioni[0],
+          ),
+        );
+      }
+
       const tregua = await treguaFraVacanze(
         this.prisma,
         (k, d) => this.configParams.getNumber(k, d),
@@ -67,6 +115,14 @@ export class EventsService {
         startDate,
       );
       if (tregua.mancano > 0) throw new BadRequestException(fraseDellaTregua(tregua));
+
+      // ⛔ E anche verso la prossima: guardando solo indietro la tregua si aggirava mettendo la
+      // nuova PRIMA di una già programmata (25/8, revisione).
+      const avanti = await treguaVersoLaProssima(
+        this.prisma, (k, d) => this.configParams.getNumber(k, d), clientId,
+        giornoDiRientro({ startDate, endDate }),
+      );
+      if (avanti.mancano > 0) throw new BadRequestException(fraseTreguaInAvanti(avanti));
     }
 
     // Peso di riferimento per il mini-piano: ultima misura nota all'inizio pausa.

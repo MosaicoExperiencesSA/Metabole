@@ -21,7 +21,19 @@ import { aGiorno } from '../common/date-only';
 import { giorniSospesi, giornoDiRientro, rientroInArrivo, ultimoGiornoSospeso } from './giorno-di-rientro';
 import { TIPO_PESATA_DEL_RIENTRO, testoPesataDelRientro } from '../menu/pesata-del-rientro';
 import { giornoDelDato, giornoPiu } from '../common/date-only';
-import { fraseDellaTregua, treguaFraVacanze } from './tregua-fra-vacanze';
+import {
+  fraseDellaTregua,
+  fraseTreguaInAvanti,
+  giorniDiTregua,
+  treguaFraVacanze,
+  treguaVersoLaProssima,
+} from './tregua-fra-vacanze';
+import {
+  fraseNonSiSovrappone,
+  primoGiornoUtile,
+  sovrapposti,
+  type PeriodoOccupato,
+} from './primo-giorno-utile';
 
 /**
  * Congelamento abbonamento per vacanza ("pausa").
@@ -82,6 +94,25 @@ export class PauseService {
     if (endDate.getTime() < startDate.getTime()) {
       throw new BadRequestException('La fine non può precedere l\'inizio.');
     }
+    /**
+     * ⛔ **UNA PAUSA NON SI CHIEDE ALL'INDIETRO** — trovato in revisione, 25/8.
+     *
+     * I campi data del Calendario in app non hanno `min`, e qui non c'era nessun controllo: una
+     * cliente poteva chiedere una pausa per la settimana **scorsa**. Non ferma nessun menu (quei
+     * giorni sono già stati erogati) e allunga la scadenza del piano di giorni che non ha saltato.
+     *
+     * ⚠️ È anche la causa dell'unico caso in cui la frase del rifiuto scriveva delle date nulle: la
+     * sovrapposizione con un periodo tutto nel passato. Si chiude qui, dove nasce, invece che nella
+     * frase — che resta difesa lo stesso, ma non è il posto dove si corregge un difetto di dominio.
+     *
+     * ⚠️ Il giorno di **oggi** è permesso: «mi fermo da oggi» è una richiesta legittima.
+     */
+    if (giornoDelDato(startDate).getTime() < aGiorno(new Date()).getTime()) {
+      throw new BadRequestException(
+        'Quel periodo è già passato: una pausa si può chiedere da oggi in avanti. 💚',
+      );
+    }
+
     const days = this.daysInclusive(startDate, endDate);
     if (days > FREEZE_ABS_MAX_DAYS) {
       throw new BadRequestException(
@@ -89,11 +120,60 @@ export class PauseService {
       );
     }
 
-    // ⛔ La tregua fra due vacanze (23/8): qui si ferma, e si dice a chi rivolgersi.
+    /**
+     * ⛔ **LA SOVRAPPOSIZIONE, che da questa porta non si controllava affatto** — 25/8, richiesta di
+     * Simone: *«non far sovrapporre le sospensioni»*.
+     *
+     * Qui c'erano due guardie e nessuna delle due guardava i **periodi** della cliente: la tregua,
+     * che per costruzione cerca solo le vacanze finite **prima** della nuova (`endDate < inizio`), e
+     * il controllo sulle richieste `pending`. ⛔ Quindi una sospensione **già in corso** o **già
+     * programmata nel futuro** era invisibile a tutte e due, e la cliente poteva chiederne una
+     * sopra: due `pause_period` sullo stesso giorno vogliono dire che il piano le si allunga **due
+     * volte per la stessa vacanza**. Nessun errore, nessun avviso — solo una scadenza più in là del
+     * dovuto.
+     *
+     * ⚠️ Si guardano gli `event`, non le `pauseRequest`: il Calendario in app crea solo l'evento, ed
+     * è la stessa ragione per cui i passi notturni guardano quelli.
+     */
+    const periodi = await this.periodiDiSospensione(clientId);
+    const collisioni = sovrapposti({ startDate, endDate }, periodi);
+    if (collisioni.length) {
+      /**
+       * ⛔ **LA TREGUA VERA, non zero** — corretto in revisione, 25/8. La prima stesura proponeva la
+       * data con la tregua della **coach** (zero) e poi la rifiutava con quella della cliente
+       * (quindici): il sistema diceva «puoi cominciare dal 31/08», lei chiedeva il 31/08, e si
+       * sentiva rispondere «ne mancano 15». Chi propone e chi rifiuta devono fare lo stesso conto.
+       */
+      const tregua = await giorniDiTregua((k, d) => this.configParams.getNumber(k, d));
+      throw new BadRequestException(
+        fraseNonSiSovrappone(
+          primoGiornoUtile(aGiorno(new Date()), periodi, tregua),
+          'cliente',
+          collisioni[0],
+        ),
+      );
+    }
+
+    /**
+     * ⛔ **LA TREGUA FRA DUE VACANZE** (23/8): qui ferma, e dice a chi rivolgersi. ⚠️ Adesso il
+     * conto lo fa `primoGiornoUtile` come per tutte le altre porte — `treguaFraVacanze` gli passa il
+     * periodo precedente e i giorni in vigore. Il messaggio resta quello di prima, che è già scritto
+     * per una cliente.
+     */
     const tregua = await treguaFraVacanze(this.prisma, (k, d) => this.configParams.getNumber(k, d), clientId, startDate);
     if (tregua.mancano > 0) throw new BadRequestException(fraseDellaTregua(tregua));
 
-    // Niente due richieste/pause sovrapposte in attesa.
+    /**
+     * ⛔ **E LA TREGUA VALE ANCHE VERSO LA PROSSIMA** (25/8, revisione): guardando solo indietro, la
+     * si aggirava mettendo la nuova **prima** di una già programmata. La regola non ha un verso.
+     */
+    const avanti = await treguaVersoLaProssima(
+      this.prisma, (k, d) => this.configParams.getNumber(k, d), clientId,
+      giornoDiRientro({ startDate, endDate }),
+    );
+    if (avanti.mancano > 0) throw new BadRequestException(fraseTreguaInAvanti(avanti));
+
+    // Niente due richieste in attesa: una decisa vale, due si contraddicono.
     const overlapping = await this.prisma.pauseRequest.findFirst({
       where: {
         clientId,
@@ -246,6 +326,35 @@ export class PauseService {
     const staff = (await this.prisma.staff.findUnique({ where: { userId: actorUserId }, select: { id: true } })) as { id: string } | null;
 
     if (approve) {
+      /**
+       * ⛔ **LA QUARTA PORTA, che la «guardia unica» non guardava** — trovato in revisione, 25/8.
+       *
+       * Fra la richiesta e l'approvazione passano dei giorni, e in mezzo può essere nata un'altra
+       * sospensione: la richiesta `pending` non ha ancora un `event`, quindi `sospendiPerViaggio`
+       * non la vede e la coach può mettere una modalità viaggio sopra. Poi la collega approva, e
+       * l'evento nasce **sovrapposto**.
+       *
+       * ⚠️ Riprodotto dalla revisione: richiesta 1→25 settembre in attesa, modalità viaggio 5→15
+       * messa nel frattempo, poi l'approvazione → **+36 giorni** di scadenza per 25 giorni di
+       * vacanza, due periodi sovrapposti e due «bentornata».
+       *
+       * ⚠️ Qui si **rifiuta l'approvazione** invece di approvare a metà: chi decide deve poter
+       * guardare le due sospensioni e scegliere, e un'approvazione che silenziosamente non congela
+       * niente sarebbe la cosa peggiore delle due.
+       */
+      const periodi = await this.periodiDiSospensione(request.clientId);
+      const collisioni = sovrapposti({ startDate: request.startDate, endDate: request.endDate }, periodi);
+      if (collisioni.length) {
+        const c = collisioni[0];
+        const da = giornoDelDato(c.startDate).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+        const a = giornoDiRientro(c).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+        throw new BadRequestException(
+          `Nel frattempo questa cliente ha già una sospensione dal ${da} (riprende il ${a}) che si sovrappone ` +
+            'a quella richiesta: approvandola i giorni si aggiungerebbero due volte alla scadenza. ' +
+            'Guarda le due dalla scheda e decidi quale tenere, poi torna qui.',
+        );
+      }
+
       const event = await this.createPauseEvent(request.clientId, request.startDate, request.endDate);
       const newEnd = await this.freezeSubscription(request.clientId, request.days);
       const updated = await this.prisma.pauseRequest.update({
@@ -948,7 +1057,7 @@ export class PauseService {
      * era FALSA**: `setTravel` è l'unico chiamante di produzione. Corretta in revisione il 24/8: la
      * regola è buona, la ragione no, e una ragione falsa è quella su cui il prossimo ci costruisce.
      */
-    input: { start: Date; rientro: Date; motivo?: string | null },
+    input: { start: Date; rientro: Date; motivo?: string | null; aggiungi?: boolean },
   ): Promise<{ giorni: number; giorniCongelati: number; nuovaScadenza: Date | null; avviso: string | null }> {
     const startDate = aGiorno(input.start);
     const endDate = ultimoGiornoSospeso(input.rientro);
@@ -993,61 +1102,73 @@ export class PauseService {
     const esistente = await this.sospensioneDaViaggio(clientId, startDate, endDate);
 
     /**
-     * ⛔ **UNA SOLA MODALITÀ VIAGGIO APERTA PER VOLTA** (seconda revisione, 23/8).
+     * ⛔ **NIENTE SOVRAPPOSIZIONI — ma le CONSECUTIVE sì.** Riscritta il 25/8 su richiesta di
+     * Simone: *«se c'è già una sospensione in corso o programmata il sistema deve dare come data
+     * inizio della nuova sospensione il primo giorno utile, e non far sovrapporre le sospensioni»*,
+     * e *«il giorno di rientro in modo che la coach (non la cliente) possa fare le sospensioni
+     * continue»*.
      *
-     * La prima stesura, davanti a una modalità viaggio aperta su ALTRE date, la **riscriveva** con
-     * le date nuove: sembrava una comodità, ed era il buco peggiore — la memoria dei giorni già
-     * concessi è legata al periodo, e spostare il periodo la azzerava. Vacanza di settembre messa
-     * e pagata (+10 sulla scadenza), riscritta su ottobre: altri +5, nessun avviso, e la
-     * sorveglianza che continua a trattare settembre come pausa. Qui ci si ferma: prima si toglie
-     * quella (stato a «nessuna», che la chiude tenendo la memoria), poi si scrive la nuova.
+     * ⛔ **Cosa c'era prima, e perché era la cosa sbagliata.** Due guardie separate: una rifiutava
+     * *qualunque* modalità viaggio ancora aperta — anche su date che non si toccano — e l'altra
+     * rifiutava le pause nate dalle porte della cliente che si accavallavano. La prima guardava
+     * l'**esistenza**, non la **sovrapposizione**: è per questo che una coach non poteva mettere
+     * due periodi consecutivi, e la ragione scritta accanto («la memoria dei giorni concessi è
+     * legata al periodo») giustificava il divieto di **riscrivere** un periodo, non quello di
+     * aggiungerne uno che non lo tocca.
+     *
+     * ⚠️ La ragione vera resta valida e resta coperta: due periodi che si **sovrappongono** fanno
+     * contare due volte gli stessi giorni sulla scadenza del piano. Quello è il danno, e quello si
+     * ferma — da qualunque porta venga l'altro periodo, che è il motivo per cui adesso la guardia è
+     * **una sola** invece di due.
      */
-    const altraViaggio = (await this.prisma.event.findFirst({
-      where: {
-        clientId,
-        mode: 'pause_period' as never,
-        label: ETICHETTA_VIAGGIO,
-        endDate: { gte: oggi },
-        ...(esistente ? { id: { not: esistente.id } } : { id: { not: '' } }),
-      } as never,
-      select: { id: true, startDate: true, endDate: true },
-    })) as { id: string; startDate: Date; endDate: Date } | null;
-    if (altraViaggio && !esistente) {
-      const da = altraViaggio.startDate.toLocaleDateString('it-IT', { timeZone: 'UTC' });
-      const a = giornoDiRientro(altraViaggio).toLocaleDateString('it-IT', { timeZone: 'UTC' });
-      throw new BadRequestException(
-        `Questa cliente ha già una modalità viaggio dal ${da} (riprende il ${a}). Prima riporta lo stato a «— nessuna —» e salva (quella si chiude), poi scrivi le date nuove: così i giorni già aggiunti alla scadenza non si contano due volte.`,
-      );
-    }
-    if (altraViaggio && esistente) {
-      // Due periodi della card che si toccano entrambi con le date nuove: stato rotto, non si
-      // indovina quale sia «quello vero».
-      throw new BadRequestException(
-        'Questa cliente ha DUE sospensioni della modalità viaggio che toccano queste date: va sistemato a mano prima di salvarne una terza.',
-      );
-    }
+    const altri = (await this.periodiDiSospensione(clientId)).filter((p) => p.id !== esistente?.id);
 
     /**
-     * ⚠️ Una pausa nata da un'ALTRA porta (richiesta dall'app, Calendario) che si accavalla:
-     * creare la seconda vorrebbe dire allungare il piano due volte per la stessa vacanza.
+     * ⛔ **SPOSTARE UNA VACANZA NON DEVE CREARNE UNA SECONDA** — riscritto in revisione, 25/8, ed è
+     * il difetto peggiore che questa consegna ha aperto e richiuso.
+     *
+     * La card si precompila con `travelStart`/`travelEnd`, quindi **cambiare le date è il gesto
+     * naturale per spostare** una vacanza rimandata. Aperte le sospensioni consecutive, quel gesto
+     * non modificava più niente: **aggiungeva**. Riprodotto dalla revisione — vacanza 4→13 settembre
+     * spostata a 4→13 ottobre, esito: due eventi, due registri, **+20 giorni** di scadenza per una
+     * vacanza di dieci, e nessun avviso.
+     *
+     * ✅ La distinzione la fa **chi preme**, perché è l'unico che la sa: il pulsante «Aggiungine
+     * un'altra» manda `aggiungi: true`. Senza quel campo vale la regola di sempre — una sola
+     * modalità viaggio aperta per volta — e il messaggio dice tutte e due le strade.
+     *
+     * ⚠️ Questa è anche la guardia che tiene in piedi la ragione del divieto vecchio, che la prima
+     * stesura aveva perso: «la memoria dei giorni concessi è legata al periodo». Due periodi che non
+     * si toccano hanno due registri distinti, quindi il registro **non protegge** da questo caso.
      */
-    const accavallato = (await this.prisma.event.findFirst({
-      where: {
-        clientId,
-        mode: 'pause_period' as never,
-        startDate: { lte: endDate },
-        endDate: { gte: startDate },
-        NOT: { label: ETICHETTA_VIAGGIO },
-      } as never,
-      select: { id: true, startDate: true, endDate: true },
-    })) as { id: string; startDate: Date; endDate: Date } | null;
-    if (accavallato) {
-      const da = accavallato.startDate.toLocaleDateString('it-IT', { timeZone: 'UTC' });
-      const a = giornoDiRientro(accavallato).toLocaleDateString('it-IT', { timeZone: 'UTC' });
-      throw new BadRequestException(
-        `Questa cliente ha già una sospensione dal ${da} (riprende il ${a}), messa da un'altra strada — la richiesta di pausa dall'app o il suo Calendario. ` +
-          'Non la sovrascrivo da qui: se le date sono sbagliate vanno corrette là, altrimenti il piano le si allungherebbe due volte per la stessa vacanza.',
+    if (!input.aggiungi) {
+      const altraViaggio = altri.find(
+        (p) => p.label === ETICHETTA_VIAGGIO && giornoDelDato(p.endDate).getTime() >= oggi.getTime(),
       );
+      if (altraViaggio) {
+        const da = giornoDelDato(altraViaggio.startDate).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+        const a = giornoDiRientro(altraViaggio).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+        throw new BadRequestException(
+          `Questa cliente ha già una modalità viaggio dal ${da} (riprende il ${a}). ` +
+            'Per SPOSTARLA cambia le date sulla card che la mostra e salva; per AGGIUNGERNE UNA SECONDA ' +
+            'usa il pulsante «Aggiungine un\'altra», che parte dal primo giorno utile. ' +
+            'Così i giorni già aggiunti alla scadenza non si contano due volte.',
+        );
+      }
+    }
+
+    const collisioni = sovrapposti({ startDate, endDate }, altri);
+    if (collisioni.length) {
+      const primo = primoGiornoUtile(oggi, altri, 0);
+      /**
+       * ⚠️ **Due periodi che toccano le date nuove sono uno stato da sistemare, non una data da
+       * spostare**: non si indovina quale sia «quello vero». Era già così prima, e resta.
+       */
+      const coda =
+        collisioni.length > 1
+          ? ' ⚠️ E qui i periodi che si toccano sono DUE: prima va sistemato quello, poi si scrive una data nuova.'
+          : '';
+      throw new BadRequestException(fraseNonSiSovrappone(primo, 'coach', collisioni[0]) + coda);
     }
 
     /**
@@ -1335,9 +1456,67 @@ export class PauseService {
           ? { startDate: { lte: al }, endDate: { gte: dal } }
           : { endDate: { gte: oggi } }),
       } as never,
-      orderBy: { startDate: 'desc' },
+      /**
+       * ⛔ **`asc` senza date, e conta da quando le consecutive sono permesse** (25/8). Era `desc`,
+       * e con una sola sospensione aperta le due cose coincidono. Da oggi però possono essercene
+       * **due** (una in corso e una già programmata dopo), e questa forma della funzione la usa
+       * `togliSospensioneDaViaggio`: con `desc` avrebbe tolto quella **futura** lasciando in piedi
+       * quella che sta fermando i menu adesso — cioè il contrario di quello che chiede chi preme
+       * «togli». `asc` rende quella in corso, o la più imminente: la stessa che la card mostra.
+       *
+       * ⚠️ Con le date invece `desc` non c'entra niente: là si cerca il periodo che tocca quelle
+       * date, e per costruzione ce n'è al massimo uno (le sovrapposizioni non si creano più).
+       */
+      orderBy: { startDate: dal && al ? 'desc' : 'asc' },
       select: { id: true, startDate: true, endDate: true },
     })) as { id: string; startDate: Date; endDate: Date } | null;
+  }
+
+  /**
+   * ⛔ **TUTTI I PERIODI DI SOSPENSIONE DELLA CLIENTE, DA QUALUNQUE PORTA** — 25/8.
+   *
+   * Sono le righe `event` con `mode = 'pause_period'`: la card del back office, la richiesta di
+   * pausa dall'app e il «Periodo (più giorni)» del suo Calendario scrivono **tutte e tre** qui, ed è
+   * la ragione per cui la sovrapposizione si può controllare in un posto solo.
+   *
+   * ⚠️ Rende anche quelli **già finiti**: la tregua si conta dal rientro dell'ultimo, e filtrarli
+   * qui vorrebbe dire che chi chiama deve sapere quale regola si applica — cioè sapere già la
+   * risposta. Chi vuole solo i vivi filtra lui, e si vede nel punto di chiamata.
+   */
+  private async periodiDiSospensione(
+    clientId: string,
+  ): Promise<(PeriodoOccupato & { id: string })[]> {
+    return (await this.prisma.event.findMany({
+      where: { clientId, mode: 'pause_period' as never } as never,
+      orderBy: { startDate: 'asc' },
+      select: { id: true, startDate: true, endDate: true, label: true },
+    })) as (PeriodoOccupato & { id: string })[];
+  }
+
+  /**
+   * ⛔ **QUALE SOSPENSIONE DEVE RISPECCHIARE IL PROFILO** — 25/8, dopo la revisione.
+   *
+   * `ClientProfile.travelStart/travelEnd/travelState` ne contiene **una sola**, e da oggi ce ne
+   * possono essere due (una in corso e una consecutiva). La risposta è: **quella che sta fermando i
+   * menu adesso**; se nessuna è cominciata, la **più imminente**. È la stessa che la card mostra e
+   * che «togli» rimuove — se le tre divergessero, la coach guarderebbe una vacanza e ne toglierebbe
+   * un'altra.
+   *
+   * ⚠️ Lo **stato** si ricava dalle date, come fa `setTravel`: `in_vacanza` se è già cominciata,
+   * `in_partenza` se comincia più avanti. Due posti che lo deducono in due modi sono due posti che
+   * un giorno dicono cose diverse sulla stessa persona.
+   */
+  async sospensioneDaRispecchiare(
+    clientId: string,
+  ): Promise<{ startDate: Date; endDate: Date; stato: 'in_vacanza' | 'in_partenza' } | null> {
+    const oggi = aGiorno(new Date());
+    const aperta = await this.sospensioneDaViaggio(clientId);
+    if (!aperta) return null;
+    return {
+      startDate: aperta.startDate,
+      endDate: aperta.endDate,
+      stato: giornoDelDato(aperta.startDate).getTime() <= oggi.getTime() ? 'in_vacanza' : 'in_partenza',
+    };
   }
 
   /** Avvisa coach e nutrizionista assegnate della richiesta in attesa. */

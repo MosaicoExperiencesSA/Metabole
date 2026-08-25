@@ -49,6 +49,14 @@ async function crea() {
   const pause = {
     sospendiPerViaggio: jest.fn().mockResolvedValue({ giorni: 7, giorniCongelati: 7, nuovaScadenza: null, avviso: null }),
     togliSospensioneDaViaggio: jest.fn().mockResolvedValue({ tolta: false, avviso: null }),
+    /**
+     * ⚠️ **Lo specchio del profilo si ricalcola dai periodi veri** (25/8): con due sospensioni
+     * aperte, `travelStart/travelEnd` devono puntare a quella che ferma i menu **adesso**, non
+     * all'ultima scritta. Qui il finto risponde `null` — «non c'è niente di aperto» — e in quel caso
+     * il servizio scrive le date appena inserite, che è quello che questi test verificano. Un finto
+     * che rispondesse un periodo qualsiasi renderebbe ciechi i due test sullo stato.
+     */
+    sospensioneDaRispecchiare: jest.fn().mockResolvedValue(null),
   };
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -85,6 +93,95 @@ describe('il motivo della sospensione', () => {
     // difetto che l'ordine «prima si sospende, poi si scrive il profilo» esiste per chiudere.
     expect(pause.sospendiPerViaggio).not.toHaveBeenCalled();
     expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **«AGGIUNGINE UN'ALTRA» + SALVA A VUOTO NON TOGLIE QUELLA IN CORSO** — trovato in revisione,
+   * 25/8, ed è il secondo bloccante di questa consegna.
+   *
+   * Il pulsante riempie «Dal» col primo giorno utile e **svuota** «Riprende il», perché la durata la
+   * sceglie la coach. Premendo Salva prima di sceglierla, `setTravel` cadeva nel ramo «togli»: la
+   * sospensione in corso veniva troncata a ieri, i menu ripartivano in mezzo alla vacanza, e il
+   * banner diceva «Salvato: senza le due date non c'è nessuna sospensione» — un verde che
+   * contraddiceva l'avviso rosso accanto. Il controllo sul motivo non lo fermava, perché sta dentro
+   * `if (start && ultimoGiorno)`.
+   */
+  it('⛔ con «aggiungi» e il rientro vuoto NON si toglie niente: si chiede la data', async () => {
+    const { service, pause, prisma } = await crea();
+    await expect(
+      service.setTravel('cli-1', 'coach-user', { start: fra(3), aggiungi: true }),
+    ).rejects.toThrow(/scrivi anche il giorno in cui riprende/);
+    expect(pause.togliSospensioneDaViaggio).not.toHaveBeenCalled();
+    expect(pause.sospendiPerViaggio).not.toHaveBeenCalled();
+    expect(prisma.clientProfile.upsert).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ E la frase dice anche come togliere davvero, che è l'altra cosa che si poteva volere. */
+  it('⚠️ e spiega come TOGLIERE una sospensione, se era quello che si voleva', async () => {
+    const { service } = await crea();
+    await expect(
+      service.setTravel('cli-1', 'coach-user', { start: fra(3), aggiungi: true }),
+    ).rejects.toThrow(/svuota anche il campo «Dal»/);
+  });
+
+  /** ⚠️ Senza il campo, svuotare le date continua a togliere: il comportamento di sempre non cambia. */
+  it('⚠️ senza «aggiungi» le date svuotate tolgono ancora la sospensione', async () => {
+    const { service, pause } = await crea();
+    await service.setTravel('cli-1', 'coach-user', {});
+    expect(pause.togliSospensioneDaViaggio).toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ E il campo arriva al servizio **con il valore giusto nei due versi**: se arrivasse sempre
+   * `true`, ogni salvataggio della card diventerebbe un'aggiunta — cioè il bloccante di ritorno,
+   * dalla porta opposta.
+   */
+  it('⚠️ «aggiungi» arriva a chi decide se è uno spostamento o una seconda', async () => {
+    const { service, pause } = await crea();
+    await service.setTravel('cli-1', 'coach-user', { ...vacanza('viaggio di lavoro'), aggiungi: true });
+    expect(pause.sospendiPerViaggio.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ aggiungi: true }),
+    );
+  });
+
+  it('⛔ e senza il campo arriva FALSO: un salvataggio normale è uno spostamento, non un\'aggiunta', async () => {
+    const { service, pause } = await crea();
+    await service.setTravel('cli-1', 'coach-user', vacanza('viaggio di lavoro'));
+    expect(pause.sospendiPerViaggio.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ aggiungi: false }),
+    );
+  });
+
+  /**
+   * ⛔ **IL PROFILO RISPECCHIA QUELLA CHE FERMA I MENU ADESSO, non l'ultima scritta** — trovato in
+   * revisione, 25/8.
+   *
+   * `travelStart/travelEnd/travelState` ne contiene **una sola**, e da oggi ce ne possono essere due
+   * (una in corso e una consecutiva già programmata). Scrivendo sempre le date appena inserite,
+   * aggiungendo la seconda il profilo puntava a **quella futura** mentre la prima stava ancora
+   * fermando i menu: `statoViaggioAttivo` rispondeva `in_partenza` durante la vacanza, e da lì Gaia
+   * dava il segnale `pre_evento` — menu «più proteico» — a una cliente che era in vacanza.
+   */
+  describe('⛔ lo specchio sul profilo', () => {
+    it('⛔ punta alla sospensione IN CORSO, non a quella appena aggiunta', async () => {
+      const { service, pause, prisma } = await crea();
+      const inCorso = { startDate: new Date('2026-08-20T00:00:00.000Z'), endDate: new Date('2026-08-28T00:00:00.000Z') };
+      pause.sospensioneDaRispecchiare.mockResolvedValue({ ...inCorso, stato: 'in_vacanza' });
+      await service.setTravel('cli-1', 'coach-user', { ...vacanza('seconda vacanza'), aggiungi: true });
+      const scritto = prisma.clientProfile.upsert.mock.calls[0][0].update;
+      expect(scritto.travelState).toBe('in_vacanza');
+      expect((scritto.travelStart as Date).toISOString()).toBe('2026-08-20T00:00:00.000Z');
+      expect((scritto.travelEnd as Date).toISOString()).toBe('2026-08-28T00:00:00.000Z');
+    });
+
+    /** ⚠️ E quando non c'è più niente di aperto, si scrive quello che questa porta ha appena fatto. */
+    it('⚠️ senza niente di aperto restano le date di questa operazione', async () => {
+      const { service, pause, prisma } = await crea();
+      pause.sospensioneDaRispecchiare.mockResolvedValue(null);
+      await service.setTravel('cli-1', 'coach-user', vacanza('viaggio di lavoro'));
+      const scritto = prisma.clientProfile.upsert.mock.calls[0][0].update;
+      expect(scritto.travelState).toBe('in_partenza');
+    });
   });
 
   it('⛔ e nemmeno con uno spazio o una lettera: è la casella riempita per passare oltre', async () => {

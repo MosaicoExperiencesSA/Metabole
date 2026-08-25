@@ -1768,7 +1768,7 @@ export class ClientsService {
   async setTravel(
     userId: string,
     actorId: string,
-    input: { state?: string; start?: string; rientro?: string; end?: string; motivo?: string },
+    input: { state?: string; start?: string; rientro?: string; end?: string; motivo?: string; aggiungi?: boolean },
   ) {
     await this.assertClientAccess(actorId, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
@@ -1856,6 +1856,27 @@ export class ClientsService {
      * senza contenuto. E la soglia è di tre caratteri, che non è un controllo di qualità — è la
      * differenza fra un campo compilato e uno riempito con uno spazio per superare il modulo.
      */
+    /**
+     * ⛔ **«AGGIUNGINE UN'ALTRA» NON PUÒ TOGLIERE QUELLA IN CORSO** — trovato in revisione, 25/8.
+     *
+     * Il pulsante riempie «Dal» col primo giorno utile e **svuota** «Riprende il», perché la durata
+     * la sceglie la coach. Se lei preme Salva prima di sceglierla, `ultimoGiorno` è `null` e questa
+     * funzione cadeva nel ramo «togli»: la sospensione **in corso** veniva troncata a ieri, i menu
+     * ripartivano in mezzo alla vacanza, la scheda usciva da «In sospensione» — e il banner diceva
+     * «Salvato: senza le due date non c'è nessuna sospensione», cioè un verde che contraddiceva
+     * l'avviso rosso accanto. Il controllo sul motivo non lo fermava, perché sta dentro
+     * `if (start && ultimoGiorno)`.
+     *
+     * ⚠️ Si chiede la data mancante invece di indovinare una durata: una vacanza scritta da noi è
+     * una vacanza che nessuno ha chiesto.
+     */
+    if (input.aggiungi && !(start && ultimoGiorno)) {
+      throw new BadRequestException(
+        'Per aggiungere una sospensione servono tutte e due le date: scrivi anche il giorno in cui riprende. '
+        + 'Se invece volevi TOGLIERE quella in corso, svuota anche il campo «Dal» e salva.',
+      );
+    }
+
     const motivo = (input.motivo ?? '').trim();
     if (start && ultimoGiorno && motivo.length < 3) {
       throw new BadRequestException(
@@ -1870,6 +1891,8 @@ export class ClientsService {
         start,
         rientro: new Date(ultimoGiorno.getTime() + 86_400_000),
         motivo,
+        // ⛔ «Sto aggiungendone una seconda», non «sto correggendo questa»: solo il pulsante lo manda.
+        aggiungi: input.aggiungi === true,
       });
       avviso = sospensione.avviso;
     } else {
@@ -1884,7 +1907,30 @@ export class ClientsService {
       if (tolta.tolta) avviso = tolta.avviso;
     }
 
-    const data = { travelState: state, travelStart: start, travelEnd: ultimoGiorno };
+    /**
+     * ⛔ **IL PROFILO RISPECCHIA LA SOSPENSIONE CHE STA FERMANDO I MENU, non l'ultima scritta** —
+     * corretto in revisione, 25/8.
+     *
+     * `travelStart`/`travelEnd`/`travelState` possono contenere **una** sospensione sola, e da oggi
+     * ce ne possono essere due (una in corso e una consecutiva già programmata). Scrivendo sempre le
+     * date appena inserite, aggiungendo la seconda il profilo finiva a puntare a **quella futura**
+     * mentre la prima stava ancora fermando i menu. Conseguenze misurate dalla revisione:
+     * `statoViaggioAttivo` rispondeva `in_partenza` durante la vacanza in corso, e da lì
+     * `DietAgentService` dava il segnale **`pre_evento`** — menu «più proteico», anticipo evento —
+     * a una cliente che era in vacanza e doveva avere il mantenimento. E la card si precompilava
+     * con la sospensione sbagliata.
+     *
+     * ✅ Adesso lo specchio si **ricalcola** dai periodi veri: quello in corso oggi, altrimenti il
+     * più imminente. È la stessa sospensione che la card mostra e che «togli» rimuove — tre cose che
+     * devono dire lo stesso nome.
+     *
+     * ⚠️ Quando non c'è più niente di aperto lo specchio si svuota, com'era: `sospende` falso
+     * significa che questa porta ha appena tolto l'unica che c'era.
+     */
+    const specchio = await this.pause.sospensioneDaRispecchiare(userId);
+    const data = specchio
+      ? { travelState: specchio.stato, travelStart: specchio.startDate, travelEnd: specchio.endDate }
+      : { travelState: state, travelStart: start, travelEnd: ultimoGiorno };
     await this.prisma.clientProfile.upsert({
       where: { userId },
       update: data as never,

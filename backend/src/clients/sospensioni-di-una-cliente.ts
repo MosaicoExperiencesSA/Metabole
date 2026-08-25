@@ -27,7 +27,8 @@
  */
 import { ETICHETTA_PAUSA, ETICHETTA_VIAGGIO } from '../pause/pause.service';
 import { giorniSospesi, giornoDiRientro } from '../pause/giorno-di-rientro';
-import { giornoDelDato, toDateOnly } from '../common/date-only';
+import { primoGiornoUtile } from '../pause/primo-giorno-utile';
+import { aGiorno, giornoDelDato, toDateOnly } from '../common/date-only';
 import type { PrismaService } from '../prisma/prisma.service';
 
 export async function sospensioniDiUnaCliente(prisma: PrismaService, userId: string) {
@@ -79,6 +80,15 @@ export async function sospensioniDiUnaCliente(prisma: PrismaService, userId: str
     return oggi.getTime() <= giornoDelDato(ultimoSospeso).getTime() ? 'in_corso' : 'passata';
   };
 
+  /**
+   * ⚠️ I periodi che **occupano ancora dei giorni**: quelli in corso oggi e quelli programmati. Sono
+   * questi che spostano in avanti la prossima sospensione — su una vacanza già finita non c'è niente
+   * da non sovrapporre.
+   */
+  const periodiVivi = eventi.filter(
+    (e) => giornoDelDato(e.endDate).getTime() >= oggi.getTime(),
+  ) as { startDate: Date; endDate: Date; label: string | null }[];
+
   const periodi = eventi.map((e) => ({
     id: e.id,
     dal: giorno(e.startDate),
@@ -127,6 +137,30 @@ export async function sospensioniDiUnaCliente(prisma: PrismaService, userId: str
       chiestaIl: r.createdAt,
     })),
     viaggio: await storicoModalitaViaggio(prisma, userId),
+    /**
+     * ⛔ **DA QUANDO PUÒ COMINCIARE LA PROSSIMA** — 25/8, richiesta di Simone: *«se c'è già una
+     * sospensione in corso o programmata il sistema deve dare come data inizio della nuova
+     * sospensione il primo giorno utile»*.
+     *
+     * ⚠️ La tregua qui è **zero**, e non è una dimenticanza: dalla card decide la coach, e Simone ha
+     * scelto che lei le sospensioni le possa fare **continue** (*«il giorno di rientro in modo che la
+     * coach (non la cliente) possa fare le sospensioni continue»*). Sulle porte della cliente lo
+     * stesso conto gira con i quindici giorni.
+     *
+     * ⚠️ `null` quando non c'è niente che sposti la data: la card non scrive una riga che dice
+     * «puoi cominciare da oggi», che è il comportamento normale e non è una notizia.
+     */
+    prossimaSospensione: (() => {
+      const e = primoGiornoUtile(aGiorno(new Date()), periodiVivi, 0);
+      return e.bloccante
+        ? {
+            primoGiornoUtile: giorno(e.giorno),
+            bloccanteDal: giorno(e.bloccante.startDate),
+            bloccanteRiprendeIl: giorno(giornoDiRientro(e.bloccante)),
+            bloccanteEtichetta: e.bloccante.label ?? null,
+          }
+        : null;
+    })(),
     /** Lo stato scritto adesso sul profilo, per far vedere la card e l'elenco d'accordo. */
     adesso: profilo
       ? {
@@ -172,12 +206,28 @@ export async function storicoModalitaViaggio(prisma: PrismaService, userId: stri
     actor: { email: string; firstName: string | null; lastName: string | null } | null;
   }[];
   return righe.map((r) => {
-    const m = (r.metadata ?? {}) as { state?: string | null; dal?: string | null; riprendeIl?: string | null; giorni?: number | null; giorniSospesi?: number | null };
+    const m = (r.metadata ?? {}) as {
+      state?: string | null; dal?: string | null; riprendeIl?: string | null;
+      giorni?: number | null; giorniSospesi?: number | null; motivo?: string | null;
+    };
     return {
       id: r.id,
       azione: r.action,
       quando: r.createdAt,
       stato: m.state ?? null,
+      /**
+       * ⛔ **IL MOTIVO, che nel registro c'era e nessuno leggeva** — 25/8, richiesta di Simone:
+       * *«dalla tabella storico togliamo stato e mettiamo motivo»*.
+       *
+       * `client.travel.update` lo scrive in `metadata.motivo` dal 24/8, ma questa funzione non lo
+       * esponeva: la colonna «Stato» in pagina era tutta «—» da quando la tendina è stata tolta, e
+       * accanto c'era il dato che risponde alla domanda per cui uno storico si guarda — **perché**.
+       *
+       * ⚠️ `stato` **resta nella risposta** anche se la pagina non lo disegna più: è il dato delle
+       * voci vecchie, e toglierlo dalla API vorrebbe dire cancellare la storia invece di smettere di
+       * mostrarla. Le righe di prima del 24/8 hanno `motivo: null`, che è la verità.
+       */
+      motivo: m.motivo ?? null,
       dal: m.dal ?? null,
       riprendeIl: m.riprendeIl ?? null,
       giorni: m.giorniSospesi ?? m.giorni ?? null,

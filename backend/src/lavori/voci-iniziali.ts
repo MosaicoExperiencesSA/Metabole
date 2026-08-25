@@ -2139,6 +2139,62 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'casi che cadevano sono ancora uccisi da almeno una mutazione del prodotto.',
   },
   {
+    chiave: 'sospensioni-non-si-sovrappongono',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-25T11:00',
+    titolo: '✅ Le sospensioni non si sovrappongono più, e la coach le può incatenare',
+    dettaglio:
+      'Richiesta di Simone (25/8): *«se c\'è già una sospensione in corso o programmata il sistema deve '
+      + 'dare come data inizio della nuova sospensione il primo giorno utile, e non far sovrapporre le '
+      + 'sospensioni»*, e *«il giorno di rientro in modo che la coach (non la cliente) possa fare le '
+      + 'sospensioni continue»*.\n\n'
+      + '⛔ **Il buco vero era dall\'app, e non lo guardava nessuno.** `requestPause` controllava solo se '
+      + 'c\'era una richiesta `pending`, e la tregua dei 15 giorni cerca solo le vacanze finite **prima** '
+      + 'della nuova: una sospensione **in corso** o **già programmata** era invisibile a tutti e due. La '
+      + 'cliente poteva sovrapporne una, e il piano le si allungava **due volte per la stessa vacanza**. '
+      + 'Stessa cosa dal «Periodo (più giorni)» del suo Calendario.\n\n'
+      + '⛔ **E dal back office il problema era l\'opposto**: si rifiutava *qualunque* modalità viaggio '
+      + 'ancora aperta, anche su date che non si toccano — la guardia guardava l\'**esistenza**, non la '
+      + 'sovrapposizione. È per questo che la coach non poteva incatenarle.\n\n'
+      + '✅ **Adesso**: `pause/primo-giorno-utile.ts` risponde a «da quando si può cominciare» per tutte e '
+      + 'quattro le porte, con un parametro solo — zero giorni di tregua per la coach (consecutive '
+      + 'permesse), i quindici del parametro per la cliente. Ogni rifiuto **dice la data** da cui si può '
+      + 'partire, invece del solo «ce n\'è già una». La card mostra una riga «la prossima può cominciare '
+      + 'dal …» con il pulsante «Aggiungine un\'altra», e i campi continuano a mostrare la sospensione in '
+      + 'corso — che resta l\'unico modo per correggerla o toglierla.\n\n'
+      + '⛔ **La revisione ha trovato tre BLOCCANTI, tutti aperti da questa consegna**, e valgono da '
+      + 'raccontare:\n'
+      + '· **spostare una vacanza ne creava una seconda.** La card si precompila con le date in corso, '
+      + 'quindi cambiarle è il gesto naturale per spostarla: aperte le consecutive, quel gesto '
+      + '**aggiungeva**. Riprodotto: vacanza 4→13 settembre spostata a ottobre = due eventi, due '
+      + 'registri, **+20 giorni** di scadenza per una vacanza di dieci, nessun avviso. ✅ La distinzione '
+      + 'la fa adesso chi preme (`aggiungi`), perché è l\'unico che la sa; senza quel campo vale la regola '
+      + 'di sempre.\n'
+      + '· **«Aggiungine un\'altra» + Salva a vuoto TOGLIEVA la sospensione in corso**: il pulsante svuota '
+      + '«Riprende il», e senza quella data il salvataggio cadeva nel ramo «togli» — menu ripartiti in '
+      + 'mezzo alla vacanza, con un banner verde che diceva «nessuna sospensione».\n'
+      + '· **il messaggio alla cliente prometteva una data che il controllo poi rifiutava**: proponeva con '
+      + 'la tregua della coach (zero) e rifiutava con quella della cliente (quindici). «Puoi cominciare '
+      + 'dal 31/08» → chiedi il 31/08 → «ne mancano 15». Un vicolo cieco costruito da noi.\n\n'
+      + '✅ **E quattro cose gravi che c\'erano già**: l\'**approvazione** di una richiesta lunga non aveva '
+      + 'nessuna guardia (richiesta in attesa + modalità viaggio messa nel frattempo = **+36 giorni** per '
+      + '25 di vacanza); la **tregua guardava solo indietro**, quindi si aggirava mettendo la nuova PRIMA '
+      + 'di una già programmata; il **profilo** rispecchiava l\'ultima sospensione scritta invece di '
+      + 'quella che ferma i menu — e da lì Gaia dava il menu «pre-evento» a una cliente in vacanza; e '
+      + 'dall\'app si poteva chiedere una pausa **nel passato**, che non ferma niente e allunga il piano.\n\n'
+      + '⚠️ E **tre test cancellati per collateralità** riscrivendo un gruppo — il ripiego quando la '
+      + 'scadenza non si muove, il tetto dei 20 giorni, il rientro non dopo la partenza — rimessi. Un test '
+      + 'cancellato per sbaglio non lascia traccia: la suite resta verde.\n\n'
+      + '⚠️ **Quello che NON è cambiato**, e va saputo: la cliente vede le sospensioni della coach in '
+      + 'Agenda (elenco pause e «giorni no-diet»), **col cestino accanto** — può cancellare quella messa '
+      + 'dalla coach, e restano il profilo e i giorni già aggiunti alla scadenza. E quando la coach la '
+      + 'toglie, la cliente legge la parola inglese «closed» in una pastiglia. Sono due difetti veri, '
+      + 'misurati il 25/8 e non toccati qui perché non erano la richiesta.',
+  },
+  {
     chiave: 'giorno-nel-fuso-del-processo-piano-prova',
     categoria: 'Da fare — codice',
     ordine: 0,

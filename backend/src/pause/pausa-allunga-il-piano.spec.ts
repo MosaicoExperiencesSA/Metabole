@@ -41,7 +41,17 @@ describe('PauseService — la pausa allunga il piano comprato', () => {
       },
       measurement: { findFirst: jest.fn().mockResolvedValue({ weightKg: 70 }) },
       // ⚠️ `findFirst` serve alla tregua fra due vacanze (23/8): nessuna pausa precedente.
-      event: { create: jest.fn().mockResolvedValue({ id: 'ev-1' }), findFirst: jest.fn().mockResolvedValue(null) },
+      /**
+       * ⚠️ `findMany` aggiunto il 25/8 con la guardia sulle sovrapposizioni: `requestPause` legge i
+       * periodi della cliente per rifiutare quelli che si accavallano. Qui la cliente non ne ha
+       * nessuno — è quello che questi test presuppongono, e adesso lo **dicono** invece di lasciarlo
+       * decidere a un finto che non c'era.
+       */
+      event: {
+        create: jest.fn().mockResolvedValue({ id: 'ev-1' }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       subscription: {
         findMany: jest.fn(({ where }: { where: { status?: unknown } }) => {
           const ammessi: string[] = (where.status as { in?: string[] })?.in ?? [where.status as string];

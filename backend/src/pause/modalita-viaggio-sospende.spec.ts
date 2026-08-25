@@ -64,6 +64,34 @@ describe('PauseService — sospensione da modalità viaggio', () => {
       $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
       event: {
         /**
+         * ⛔ **`findMany` — tutti i periodi di sospensione, aggiunto il 25/8 con la regola delle
+         * sovrapposizioni.**
+         *
+         * `periodiDiSospensione` legge le righe `pause_period` **tutte insieme**, ed è su quelle che
+         * si contano la sovrapposizione e il primo giorno utile. ⚠️ Il finto le **compone dalle
+         * fixture che già ci sono** invece di rendere una lista vuota: una lista vuota avrebbe
+         * lasciato passare tutto, e i test sulle collisioni sarebbero diventati verdi senza provare
+         * niente — che è il modo in cui un finto smette di essere una prova.
+         */
+        findMany: jest.fn(() => {
+          const righe: { id: string; startDate: Date; endDate: Date; label: string | null }[] = [];
+          const aggiungi = (
+            r: { id?: string; startDate: Date; endDate: Date } | null | undefined,
+            label: string | null,
+            idFinto: string,
+          ) => {
+            if (!r) return;
+            const id = r.id ?? idFinto;
+            if (righe.some((x) => x.id === id)) return;
+            righe.push({ id, startDate: r.startDate, endDate: r.endDate, label });
+          };
+          aggiungi(opzioni.eventoDelPeriodo, ETICHETTA_VIAGGIO, 'ev-periodo');
+          aggiungi(opzioni.eventoAperto, ETICHETTA_VIAGGIO, 'ev-aperto');
+          aggiungi(opzioni.altraPausa, 'Pausa (vacanza)', 'ev-altra');
+          aggiungi(opzioni.vacanzaPrecedente, ETICHETTA_VIAGGIO, 'ev-precedente');
+          return Promise.resolve(righe);
+        }),
+        /**
          * ⚠️ Il finto distingue le QUATTRO domande dalla `where`: la vacanza precedente per la
          * tregua (`endDate.lt`), la sospensione della card sul periodo (label + overlap), quella
          * ancora aperta (label + `endDate.gte`), e la pausa di un'altra porta (`NOT label`). Un
@@ -253,21 +281,26 @@ describe('PauseService — sospensione da modalità viaggio', () => {
   });
 
   /**
-   * ⛔ Il buco peggiore della seconda revisione: una modalità viaggio aperta su ALTRE date veniva
-   * riusata e riscritta, azzerando la memoria. Ora si rifiuta e si spiega la strada.
+   * ⛔ **RISCRITTI IL 25/8: QUELLO CHE SI FERMA È LA SOVRAPPOSIZIONE, NON L'ESISTENZA.**
+   *
+   * Il test di prima pretendeva che una modalità viaggio aperta su date **diverse** facesse
+   * rifiutare la nuova, e citava il messaggio «riporta lo stato a "— nessuna —"». Era il
+   * comportamento vero, e Simone lo ha cambiato il 25/8: *«il giorno di rientro in modo che la coach
+   * (non la cliente) possa fare le sospensioni continue»*.
+   *
+   * ⚠️ La ragione scritta accanto al vecchio divieto — «la memoria dei giorni concessi è legata al
+   * periodo» — giustificava il divieto di **riscrivere** un periodo esistente, non quello di
+   * aggiungerne uno che non lo tocca. Quel pezzo resta coperto dai test del registro qui sopra.
    */
-  it('con un\'altra modalità viaggio aperta su date diverse si ferma e spiega come fare', async () => {
-    const { service, prisma } = crea({
-      eventoAperto: { id: 'ev-set', startDate: giorno(20), endDate: giorno(28) },
-    });
-    await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(
-      /riporta lo stato a «— nessuna —»/,
-    );
-    expect(prisma.event.create).not.toHaveBeenCalled();
-    expect(prisma.event.update).not.toHaveBeenCalled();
-    expect(prisma.subscription.update).not.toHaveBeenCalled();
-  });
 
+  /**
+   * ⛔ **RIMESSI IL 25/8**: la revisione ha trovato che riscrivendo il gruppo delle sovrapposizioni
+   * avevo cancellato, per collateralità, tre test che non c'entravano niente con quella regola —
+   * il ripiego quando la scadenza non si muove, il tetto dei 20 giorni e il rientro non dopo la
+   * partenza. Tre guardie di prodotto rimaste scoperte senza che nessuno lo decidesse.
+   * ⚠️ Un test cancellato per sbaglio non lascia traccia: la suite resta verde, ed è la ragione per
+   * cui questa nota resta scritta.
+   */
   it('se la scadenza non si è mossa, lo dice invece di far credere il contrario', async () => {
     const { service } = crea({ scadenzaPiano: null });
     const esito = await service.sospendiPerViaggio('c1', 'staff1', VACANZA);
@@ -292,15 +325,104 @@ describe('PauseService — sospensione da modalità viaggio', () => {
     });
   });
 
-  it('non si sovrappone a una pausa nata da un\'altra porta', async () => {
-    const { service, prisma } = crea({
-      altraPausa: { id: 'ev-altra', startDate: giorno(10), endDate: giorno(25) },
+  describe('⛔ le sovrapposizioni si fermano, le consecutive no', () => {
+    /**
+     * ⛔ **SENZA `aggiungi` VALE LA REGOLA DI SEMPRE, e non è prudenza: è il difetto peggiore che
+     * questa consegna ha aperto e richiuso** (revisione del 25/8).
+     *
+     * La card si precompila con le date della sospensione in corso, quindi **cambiare le date è il
+     * gesto naturale per spostarla**. Se le consecutive fossero permesse senza chiederlo, quel gesto
+     * creerebbe una SECONDA sospensione: riprodotto dalla revisione — vacanza 4→13 settembre
+     * spostata a ottobre, esito **due eventi, due registri, +20 giorni** di scadenza per una vacanza
+     * di dieci, e nessun avviso.
+     */
+    it('⛔ senza «aggiungi» una modalità viaggio già aperta ferma ancora: spostare non deve duplicare', async () => {
+      const { service, prisma } = crea({
+        eventoAperto: { id: 'ev-set', startDate: giorno(20), endDate: giorno(28) },
+      });
+      await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(
+        /Aggiungine un'altra/,
+      );
+      expect(prisma.event.create).not.toHaveBeenCalled();
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
     });
-    await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(
-      /messa da un'altra strada/s,
-    );
-    expect(prisma.event.create).not.toHaveBeenCalled();
-    expect(prisma.subscription.update).not.toHaveBeenCalled();
+
+    /** ⚠️ E il messaggio dice tutte e due le strade, non solo che ce n'è già una. */
+    it('⚠️ e la frase spiega come spostarla E come aggiungerne una seconda', async () => {
+      const { service } = crea({
+        eventoAperto: { id: 'ev-set', startDate: giorno(20), endDate: giorno(28) },
+      });
+      await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(/SPOSTARLA/);
+    });
+
+    it('⛔ con «aggiungi» invece passa, se le date non si toccano', async () => {
+      const { service, prisma } = crea({
+        // La nuova va dal giorno 5 al 18; questa comincia il 20: fra le due c'è il 19, libero.
+        eventoAperto: { id: 'ev-set', startDate: giorno(20), endDate: giorno(28) },
+      });
+      const esito = await service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, aggiungi: true });
+      expect(esito.giorni).toBe(14);
+      expect(prisma.event.create).toHaveBeenCalled();
+    });
+
+    /** ⛔ E attaccate davvero: la nuova finisce il 18, l'altra comincia il 19. Zero giorni in mezzo. */
+    it('⛔ e attaccate davvero: comincia il giorno esatto del rientro', async () => {
+      const { service, prisma } = crea({
+        eventoAperto: { id: 'ev-set', startDate: giorno(19), endDate: giorno(28) },
+      });
+      await service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, aggiungi: true });
+      expect(prisma.event.create).toHaveBeenCalled();
+    });
+
+    /** ⛔ Un giorno in comune invece ferma anche con «aggiungi»: allungherebbe la scadenza due volte. */
+    it('⛔ un solo giorno in comune si rifiuta anche con «aggiungi», e dice da quando si può partire', async () => {
+      const { service, prisma } = crea({
+        eventoAperto: { id: 'ev-set', startDate: giorno(18), endDate: giorno(28) },
+      });
+      await expect(
+        service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, aggiungi: true }),
+      ).rejects.toThrow(/primo giorno da cui puoi far partire questa/);
+      expect(prisma.event.create).not.toHaveBeenCalled();
+      expect(prisma.event.update).not.toHaveBeenCalled();
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+    });
+
+    /** ⚠️ E la data nella frase è quella giusta: il rientro dell'altra, cioè il giorno dopo la sua fine. */
+    it('⚠️ la data proposta è il rientro dell’altra sospensione', async () => {
+      const { service } = crea({
+        eventoAperto: { id: 'ev-set', startDate: giorno(18), endDate: giorno(28) },
+      });
+      const atteso = giorno(29).toLocaleDateString('it-IT', { timeZone: 'UTC' });
+      await expect(
+        service.sospendiPerViaggio('c1', 'staff1', { ...VACANZA, aggiungi: true }),
+      ).rejects.toThrow(atteso);
+    });
+
+    /**
+     * ⚠️ **Vale anche per le pause nate dalle porte della CLIENTE**, ed è il punto per cui la
+     * guardia adesso è una sola invece di due: il danno — gli stessi giorni contati due volte sulla
+     * scadenza — non dipende da quale schermata ha creato l'altro periodo.
+     */
+    it('⚠️ una pausa nata da un’altra porta che si accavalla ferma lo stesso', async () => {
+      const { service, prisma } = crea({
+        altraPausa: { id: 'ev-altra', startDate: giorno(10), endDate: giorno(25) },
+      });
+      await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(
+        /si sovrappongono/,
+      );
+      expect(prisma.event.create).not.toHaveBeenCalled();
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+    });
+
+    /** ⚠️ …e la frase la nomina, così si sa in quale schermata andarla a correggere. */
+    it('⚠️ e la frase dice di quale sospensione si tratta', async () => {
+      const { service } = crea({
+        altraPausa: { id: 'ev-altra', startDate: giorno(10), endDate: giorno(25) },
+      });
+      await expect(service.sospendiPerViaggio('c1', 'staff1', VACANZA)).rejects.toThrow(
+        /Pausa \(vacanza\)/,
+      );
+    });
   });
 
   describe('la tregua fra due vacanze', () => {
@@ -478,6 +600,11 @@ function creaPerPipeline(opzioni: {
   const prisma = {
     $transaction: jest.fn((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
     event: {
+      findMany: jest.fn(() => Promise.resolve(
+        opzioni.eventoAperto
+          ? [{ ...opzioni.eventoAperto, label: ETICHETTA_VIAGGIO }]
+          : [],
+      )),
       findFirst: jest.fn(({ where }: any) => {
         // La domanda «c'è un'ALTRA sospensione in corso adesso?» esclude l'evento che si sta togliendo.
         if (where?.NOT?.id) return Promise.resolve(opzioni.altraInCorso ?? null);

@@ -20,6 +20,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🛑 **Le sospensioni non si sovrappongono più, e la coach le può incatenare.** Quattro
+  richieste di Simone in un colpo: il primo giorno utile proposto, niente sovrapposizioni, il rifiuto
+  che dice **quale data** mettere, e nello storico «Motivo» al posto di «Stato».
+  ⛔ **Il buco vero era dall'app.** `requestPause` guardava solo le richieste `pending`, e la tregua
+  dei 15 giorni cerca per costruzione le vacanze finite **prima** della nuova: una sospensione in
+  corso o **già programmata** era invisibile a tutti e due. La cliente poteva sovrapporne una, e il
+  piano le si allungava **due volte per la stessa vacanza**. ⛔ Dal back office il problema era
+  l'opposto: si rifiutava *qualunque* modalità viaggio aperta, anche su date che non si toccano — la
+  guardia guardava l'**esistenza**, non la sovrapposizione, ed è per questo che la coach non poteva
+  incatenarle.
+  ✅ Adesso `pause/primo-giorno-utile.ts` risponde per tutte e quattro le porte con un parametro solo:
+  zero giorni di tregua per la coach (consecutive permesse), i quindici del parametro per la cliente.
+  La card mostra «la prossima può cominciare dal …» con il pulsante «Aggiungine un'altra», e i campi
+  continuano a mostrare la sospensione in corso — che resta l'unico modo per correggerla o toglierla.
+  ⛔ **La revisione ha trovato tre bloccanti, tutti aperti da questa consegna.** (1) **Spostare una
+  vacanza ne creava una seconda**: la card si precompila con le date in corso, quindi cambiarle è il
+  gesto naturale per spostarla, e con le consecutive aperte quel gesto **aggiungeva** — vacanza di
+  dieci giorni spostata da settembre a ottobre, **+20 giorni** di scadenza, nessun avviso. (2)
+  **«Aggiungine un'altra» + Salva a vuoto toglieva la sospensione in corso**, con un banner verde che
+  diceva «nessuna sospensione». (3) **Il messaggio alla cliente prometteva una data che il controllo
+  poi rifiutava**: proponeva con la tregua della coach e rifiutava con quella della cliente — «puoi
+  cominciare dal 31/08», e il 31/08 «ne mancano 15». Un vicolo cieco costruito da noi.
+  ✅ **E quattro cose gravi che c'erano già**: l'**approvazione** di una richiesta lunga non aveva
+  nessuna guardia (+36 giorni per 25 di vacanza); la **tregua guardava solo indietro**, quindi si
+  aggirava mettendo la nuova prima di una già programmata; il **profilo** rispecchiava l'ultima
+  sospensione scritta invece di quella che ferma i menu — e da lì Gaia dava il menu «pre-evento» a
+  una cliente in vacanza; e dall'app si poteva chiedere una pausa **nel passato**.
+  ⚠️ **Tre test cancellati per collateralità** riscrivendo un gruppo (il ripiego sulla scadenza, il
+  tetto dei 20 giorni, il rientro non dopo la partenza): rimessi. Un test cancellato per sbaglio non
+  lascia traccia — la suite resta verde.
+  ⚠️ **Quello che NON è cambiato, e va saputo**: la cliente vede le sospensioni della coach nella sua
+  Agenda **col cestino accanto**, quindi le può cancellare; e quando la coach la toglie legge la
+  parola inglese «closed». Due difetti veri, misurati oggi e non toccati perché non erano la richiesta.
+  🧪 5382 test in 323 suite verdi in tre modi (UTC, Europe/Rome, `test:notte`), backoffice verde, dieci
+  mutazioni su dieci mordono. Nessuna migrazione.
+
 - `[Sviluppo]` 🕐 **«Che giorno è oggi»: diciassette punti che se lo calcolavano da soli, e il
   guardiano che adesso vieta la causa.** Due voci dell'elenco lavori chiuse insieme — il censimento
   del 24/8 e `giorno-nel-fuso-del-processo-piano-prova`. Su Render `TZ` non è impostata, quindi il

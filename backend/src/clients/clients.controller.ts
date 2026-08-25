@@ -67,6 +67,20 @@ class TravelDto {
    * stato. Pretenderlo qui vorrebbe dire chiederlo anche a chi sta *togliendo* una sospensione.
    */
   @IsOptional() @IsString() @MaxLength(500) motivo?: string;
+  /**
+   * ⛔ **«STO AGGIUNGENDONE UNA SECONDA», non «sto correggendo questa»** — 25/8, dopo la revisione.
+   *
+   * Le due cose arrivano qui con la stessa forma — due date e un motivo — e il server non può
+   * distinguerle: la card si precompila con la sospensione in corso, quindi **cambiare le date è il
+   * gesto naturale per spostarla**. Senza questo campo, aperte le sospensioni consecutive, quel
+   * gesto avrebbe creato una SECONDA sospensione e concesso i giorni **due volte**, in silenzio:
+   * riprodotto dalla revisione, +20 giorni di scadenza per una vacanza di 10.
+   *
+   * ⚠️ Lo manda **solo** il pulsante «Aggiungine un'altra». Assente = comportamento di sempre: se
+   * c'è già una modalità viaggio aperta su altre date, si rifiuta e si spiega come fare. Il caso
+   * pericoloso resta chiuso di default, e la capacità nuova si chiede.
+   */
+  @IsOptional() @IsBoolean() aggiungi?: boolean;
 }
 
 class PlanStartDto {
