@@ -1,0 +1,139 @@
+================================================================================
+CONSEGNA «i buchi si riempiono, e l'elenco dice di quando è» — 25/8/2026
+================================================================================
+
+TRE COSE, TRE VOCI CHIUSE (una resta aperta di proposito).
+
+1) I BUCHI NEI CALENDARI SI RIEMPIONO CON LE GIORNATE NUOVE
+   Richiesta di Simone: «i buchi si riempiono con le nuove». Chiude
+   `buchi-gia-aperti-nei-menu`.
+
+   Prima l'erogazione accodava dopo l'ULTIMA data e si fermava con
+   `if (ultima.date > oggi) return []`. Due conseguenze sulla stessa persona:
+   · un buco in mezzo non si richiudeva MAI — quel giorno leggeva «menu in
+     preparazione», per sempre;
+   · e se dopo il buco restava un giorno oltre oggi, l'erogazione si fermava del
+     TUTTO finché quella data non passava. Una riga in fondo al calendario
+     valeva come «ha già il menu»: un cancello chiuso che costa il servizio.
+
+   Adesso `corsaDiGiornate` conta le giornate CONSECUTIVE da oggi (i giorni in
+   sospensione si scavalcano senza contarli: durante una vacanza il menu manca
+   di proposito) e `dateDaComporre` sceglie QUALI date comporre, saltando quelle
+   che ci sono già, quelle sospese e quelle oltre la fine del piano.
+   ⚠️ Non si cancella e non si rimescola niente: si scrive solo dove non c'è.
+   ⚠️ E la prima erogazione di un piano cominciato nel passato parte da OGGI,
+      non dalla data d'inizio: prima componeva giornate per giorni già passati,
+      che occupavano il posto di quelle vere.
+
+   ⛔ TRE DIFETTI TROVATI DALLA REVISIONE AVVERSARIALE, tutti misurati:
+   · IL CANCELLO DELLE MISURE SI APRIVA DA SOLO. `cycleNeedsMeasure` guarda
+     «oggi è ancora dentro il ciclo» usando la data più alta del calendario.
+     Finché il buffer guardava la stessa data i due erano d'accordo; aprendo il
+     buffer sui buchi il cancello è diventato un no-op ESATTAMENTE nel caso
+     nuovo: buco oggi + riga domani + nessuna pesata = due giornate erogate
+     senza che nessuno chiedesse il peso. È il caso Gioia da un'altra porta.
+     Adesso il ciclo finisce all'ultima giornata DI SEGUITO da oggi — e mai
+     dopo l'ultima in calendario, così chi è rimasta indietro non ci rimette.
+   · IL BUCO DELL'ULTIMO GIORNO DI PIANO NON SI RIEMPIVA. La guardia «oltre la
+     fine del piano non si compone» leggeva ancora «ultima data + 1» e usciva
+     prima di guardare le date da comporre. Le date adesso si decidono in cima,
+     e `firstNewDate` È la prima data che si compone, per costruzione — che
+     rimette in riga anche lo stato della dieta e la finestra della varietà, che
+     si chiedevano per un giorno diverso da quello composto.
+   · IL BUFFER NON SI LEGA A `menu_days_delivered`. Con quel parametro a 1 (si
+     cambia dal backoffice, senza deploy) «ha una giornata di seguito» sarebbe
+     vera col solo menu di OGGI, e la cliente non avrebbe mai quello di domani:
+     niente spesa la sera prima. Costante dichiarata: due giornate — che è la
+     vecchia regola `ultima > oggi` riscritta in modo che una data sparsa in
+     fondo al calendario non possa più imbrogliarla.
+   · e `giornateDiSeguito` con tutti i giorni sospesi girava all'infinito: la
+     rete contava le giornate TROVATE, che sui giorni scavalcati non crescono.
+
+2) «ALIMENTI DA CORREGGERE» DICE DI QUANDO È, E SI PUÒ RIFARE IL CONTO
+   Chiude `alimenti-da-correggere-senza-data`. Nato dallo spavento del 21/8
+   all'una: 277 alimenti caricati alle 19:43 e la pagina che mostrava ancora
+   `limone` fra i mancanti — «stiamo perdendo pezzi invece di farli?». Nessun
+   pezzo perso: quell'elenco lo scrive un passo notturno, e non era passato.
+
+   · il passo lascia una riga di registro (`nutrient_facts.scoperti_aggiornati`)
+     coi conti del giro, e la pagina la legge. ⚠️ Il REGISTRO, non `updatedAt`
+     sulle righe: quella cambia anche quando una cliente chiede un termine a
+     Gaia, e la pagina direbbe «aggiornato due minuti fa» per un elenco vecchio
+     di un giorno;
+   · «Elenco rifatto oggi alle 03:12» / «ieri alle…» / «il 23/08 alle…», e oltre
+     le 26 ore avvisa che quello che hai caricato dopo non è ancora contato;
+   · pulsante «Rifai il conto adesso», che chiama LO STESSO passo del cron e
+     torna gli esiti veri («11 righe aggiornate, 1 non si è scritta»).
+
+   ⛔ CINQUE DIFETTI DALLA REVISIONE, tutti corretti:
+   · con il backend giù la pagina diceva «Questo elenco non è mai stato
+     calcolato» — un'affermazione positiva e falsa su un lavoro che nessuno
+     aveva guardato, e senza nemmeno un errore a schermo;
+   · la lettura del registro stava nel `Promise.all` senza rete: `audit_log` in
+     difficoltà portava giù TUTTA la pagina degli alimenti;
+   · un giro finito con tutte le scritture fallite lasciava comunque la sua riga,
+     e la mattina dopo la pagina diceva «rifatto stanotte» per un elenco fermo:
+     adesso i conti del giro viaggiano col resto e la pagina lo dice;
+   · «vuoto» e «mai calcolato» erano separati, ma «vuoto E calcolato» non
+     accendeva niente: né data né pulsante, cioè proprio la persona che ha appena
+     pubblicato quaranta ricette restava senza il pulsante che le serve;
+   · una data nel futuro (orologi scordati) faceva stampare «sono passate 72
+     ore» sotto la data di dopodomani.
+   · e nessun indice su `audit_log(action)`: la domanda costava una scansione di
+     tutto il registro proprio quando la riga non c'è. MIGRAZIONE, additiva.
+
+3) LO SCRIPT CHE RIMETTE GLI STATI AZZERATI DAL SEED — `npm run ripara:stati`
+   Voce `seed-nutrienti-firma-falsa`: RESTA APERTA di proposito, perché lo
+   script c'è ma NON è ancora stato lanciato sul database vero.
+
+   ⛔ La prima versione è stata buttata, e la ragione vale più dello script:
+   leggeva i due fogli del repo e rimetteva lo stato a CHIUNQUE non ce l'avesse,
+   accoppiando sul nome. Avrebbe scritto `secco` su `ceci`, che in tabella ha i
+   valori DA BOLLITO (132 kcal contro 334): 80 g sarebbero diventati 106 kcal
+   invece di 267, e l'avviso «stato ignoto» che oggi lo ferma sarebbe sparito.
+   E la colonna `state` del foglio 20/8 non è affidabile (`aceto di riso` →
+   `secco`): quel foglio dichiara esso stesso che 173 righe su 245 nascono da un
+   riempimento automatico.
+   ✅ Adesso sono UNDICI righe nominate una per una, e scrive solo se valgono
+   tutte e tre le condizioni: nome esatto, stato vuoto (NULL o stringa vuota) e
+   KCAL CHE COMBACIANO — se «burro» non fa più 758 kcal non è la riga che lo
+   script conosce. Prova a vuoto di default.
+
+MISURATO, NON DEDOTTO
+- 5611 test verdi in tutte e quattro le modalità (normale, TZ=Europe/Rome,
+  test:notte, e il typecheck) + 149 nel backoffice.
+- 15 mutazioni provate sui punti nuovi: 13 uccise, 2 equivalenti. Le tre
+  correzioni gravi sono state confermate reintroducendo il difetto e vedendo il
+  test diventare rosso.
+- `menu.service.spec.ts` aveva otto apparecchi che calcolavano «oggi» in UTC
+  mentre il servizio lo legge a Roma: fra mezzanotte e le 02:00 dichiaravano un
+  piano «cominciato oggi» e ne preparavano uno cominciato ieri. Trovato da
+  `test:notte`, corretto.
+
+FILE NEL COMMIT
+- backend/prisma/migrations/20260825190000_registro_per_azione/  (nuova)
+- backend/prisma/schema.prisma
+- backend/prisma/rimetti-gli-stati.ts                            (nuovo)
+- backend/package.json                                           (`ripara:stati`)
+- backend/src/menu/buchi-nel-calendario.ts + .spec.ts
+- backend/src/menu/menu.service.ts + .spec.ts
+- backend/src/menu/menu-measurement-gate.spec.ts
+- backend/src/menu/rientro-dalla-sospensione.spec.ts
+- backend/src/nutrient-facts/valori-nutrizionali.service.ts
+- backend/src/nutrient-facts/nutrient-facts.controller.ts
+- backend/src/nutrient-facts/passo-notturno.finto.ts             (nuovo)
+- backend/src/nutrient-facts/una-porta-che-scrive-vuole-manage.spec.ts (nuovo)
+- backend/src/nutrient-facts/{alimenti-da-correggere,due-elenchi-e-il-tetto,
+  alimento-da-un-mancante,aromi}.spec.ts
+- backend/src/common/le-migrazioni-nominano-tabelle-vere.spec.ts
+- backend/src/vera/giorno-che-non-torna.spec.ts
+- backend/src/lavori/voci-iniziali.ts
+- backend/tsconfig.build.json
+- backoffice/src/lib/elenco-di-quando.ts + .spec.ts              (nuovi)
+- backoffice/src/pages/ValoriNutrizionali.tsx
+- progetto/REGISTRO.md
+
+⚠️ **C'È UNA MIGRAZIONE** (indice, additiva): va girata.
+⛔ **DA LANCIARE A MANO, quando vuoi**: `npm run ripara:stati` sulla shell di
+   Render — prima la prova a vuoto, poi `CONFERMA=1`. Finché non gira, undici
+   alimenti restano senza stato e la voce resta aperta.

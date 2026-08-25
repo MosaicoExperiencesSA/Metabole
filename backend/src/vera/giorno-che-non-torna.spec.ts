@@ -188,29 +188,57 @@ describe('⛔ una cliente per volta', () => {
 });
 
 /**
- * ⛔ **LA PREMESSA STA IN UN ALTRO FILE, QUINDI SI CONTROLLA.**
+ * ⛔ **LA PREMESSA STA IN UN ALTRO FILE, QUINDI SI CONTROLLA — e il 25/8 è CAMBIATA.**
  *
- * Tutto questo ha senso solo finché `deliverIfEligible` si comporta come misurato: guarda l'ultimo
- * giorno, esce se è oltre oggi, e compone da lì in avanti. Se un giorno qualcuno insegnasse al
- * motore a **riempire i buchi**, la regola della coda diventerebbe una prudenza inutile che rimescola
- * menu per niente — e nessuno collegherebbe le due cose.
+ * Questo blocco è nato il 24/8 con una promessa scritta a mano: *«se un giorno qualcuno insegnasse
+ * al motore a riempire i buchi, questo test diventa rosso e qualcuno rilegge questo file invece di
+ * scoprirlo fra sei mesi»*. È successo il giorno dopo, e il test ha fatto esattamente quello.
  *
- * ⚠️ Questo test non prova il motore (lo provano i suoi): tiene ferma **la ragione**. Se il motore
- * cambia, qui diventa rosso e qualcuno rilegge questo file invece di scoprirlo fra sei mesi.
+ * ## Cos'è cambiato
+ *
+ * Richiesta di Simone, 25/8: *«i buchi si riempiono con le nuove»*. `deliverIfEligible` non appende
+ * più dopo l'ultimo giorno: guarda **quante giornate di seguito** ha davanti da oggi, e compone
+ * **le date che mancano** (`buchi-nel-calendario.ts`). Un buco quindi si richiude da solo al primo
+ * giro utile, senza cancellare né rimescolare niente.
+ *
+ * ## Cosa vuol dire per la regola della coda
+ *
+ * ⚠️ **La coda resta**, e il motivo non è più «se no il buco è permanente»: adesso è che cancellare
+ * **solo il giorno colpito** e lasciare che il motore lo ricomponga è una cosa che si può fare, ma è
+ * una decisione diversa da questa — tocca le tre strade di scrittura di Vera (regola di dieta,
+ * spuntini, proteine), e ognuna ha le sue conseguenze su giornate che una cliente può aver già
+ * letto. ⛔ **Restringerla è il passo che resta**, ed è misurato: con i buchi che si riempiono, la
+ * coda cancella più giorni di quanti servano — giorni che erano a posto. Finché non si decide, si
+ * sbaglia dalla parte prudente: la coda tocca **solo i giorni non ancora aperti**, quindi nessuna
+ * cliente perde un menu che aveva in mano.
+ *
+ * ⚠️ Questi test non provano il motore (lo provano i suoi): tengono ferma **la ragione**. Se il
+ * motore torna ad appendere e basta, qui diventa rosso.
  */
-describe('⚠️ la ragione per cui la coda serve è ancora vera', () => {
+describe('⚠️ la ragione per cui la coda serve, riscritta il 25/8', () => {
   const MOTORE = readFileSync(join(__dirname, '..', 'menu', 'menu.service.ts'), 'utf8');
 
-  it('⚠️ il motore guarda l\'ULTIMO giorno, non i buchi', () => {
-    // `findFirst` sui giorni della cliente ordinati per data decrescente: è «l'ultimo in calendario».
-    expect(MOTORE).toMatch(/const last = await this\.prisma\.menuDay\.findFirst\(\{[\s\S]{0,120}orderBy: \{ date: 'desc' \}/);
+  it('⛔ il motore adesso RIEMPIE i buchi: compone le date che mancano', () => {
+    expect(MOTORE).toMatch(/const daComporre = dateDaComporre\(\{/);
+    expect(MOTORE).toMatch(/for \(const istante of daComporre\)/);
   });
 
-  it('⛔ e se l\'ultimo è oltre oggi non eroga niente: il buffer che rende il buco permanente', () => {
-    expect(MOTORE).toMatch(/if \(last\.date\.getTime\(\) > today\.getTime\(\)\) \{\s*\n\s*return \[\];/);
+  it('⛔ e il buffer conta le giornate DI SEGUITO, non guarda l\'ultima data', () => {
+    expect(MOTORE).toMatch(/const corsa = corsaDiGiornate\(inCalendario, daOggi, sospesoOggi\)/);
+    expect(MOTORE).toMatch(/corsa\.quante >= GIORNATE_DAVANTI_CHE_BASTANO/);
+    // ⛔ E la vecchia uscita — «l'ultimo è oltre oggi, non erogo niente» — non c'è più.
+    expect(MOTORE).not.toContain('if (last.date.getTime() > today.getTime()) {');
   });
 
-  it('⛔ e i giorni nuovi li appende DOPO l\'ultimo', () => {
-    expect(MOTORE).toMatch(/const nextDate = new Date\(last\.date\.getTime\(\) \+ 86_400_000\)/);
+  /**
+   * ⚠️ La coda continua a toccare **solo i giorni non ancora aperti**: è la parte della regola che
+   * non dipende dal motore, e quella che protegge una cliente che ha già fatto la spesa.
+   */
+  it('⚠️ e la coda resta prudente: un giorno già aperto la ferma', () => {
+    const conAperto = [
+      g({ id: '24', date: '2026-08-24' }),
+      g({ id: '25', date: '2026-08-25', viewedAt: new Date('2026-08-25T08:00:00.000Z') }),
+    ];
+    expect(codaDaRifare(conAperto, sono([conAperto[0]])).esito).toBe('bloccata');
   });
 });

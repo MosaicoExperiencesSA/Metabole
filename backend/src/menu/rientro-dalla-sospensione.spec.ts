@@ -95,7 +95,20 @@ describe('Menu — la finestra di rientro dalla sospensione', () => {
       },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue({ id: 'md1', date: ultimaGiornata, level: 1 }),
-        findMany: jest.fn().mockResolvedValue([]),
+        /**
+         * ⛔ **IL DOPPIO SEGUE L'ORIGINALE** (25/8). Dal 25/8 l'erogazione conta **le giornate di
+         * seguito** che la cliente ha davanti (i buchi si riempiono con le nuove): un finto che
+         * risponde sempre `[]` racconta un calendario vuoto a un test che ha appena dichiarato una
+         * giornata con `findFirst`, e allora il motore compone di nuovo — non perché sbagli, ma
+         * perché il finto gli ha mentito. ⚠️ Qui l'elenco si **deriva** da quello che il test dice.
+         */
+        findMany: jest.fn().mockImplementation(async (arg: any) => {
+          if (!arg?.select?.date) return [];
+          const ultimo = await prisma.menuDay.findFirst();
+          if (!ultimo?.date) return [];
+          // Le giornate erogate insieme sono `menu_days_delivered`: il test ne dichiara l'ultima.
+          return [{ date: new Date(ultimo.date.getTime() - 86_400_000) }, { date: ultimo.date }];
+        }),
         upsert: jest.fn().mockResolvedValue({}),
       },
       /**

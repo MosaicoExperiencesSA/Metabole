@@ -2193,6 +2193,11 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([createdAt])
+  // ⛔ «Di quando è l'elenco degli alimenti da correggere» si chiede a ogni apertura della pagina, e
+  // si chiede per `action`. Senza questo indice la domanda costa una scansione di TUTTO il registro
+  // (login, letture di dati sanitari, pagamenti) proprio quando la riga **non c'è** — cioè nello
+  // stato che quella domanda esiste per raccontare. 25/8, dalla revisione avversariale.
+  @@index([action, createdAt])
   @@map("audit_log")
 }
 

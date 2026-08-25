@@ -37,7 +37,7 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
 import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
-import { toDateOnly } from '../common/date-only';
+import { giornoDelDato, toDateOnly } from '../common/date-only';
 import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { finestraCheAgisce, slotEsclusiTotali, spuntiniTolti } from './finestre-digiuno';
@@ -69,6 +69,7 @@ import {
 import { KcalNeedService } from './kcal-need.service';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { combaciaAlimento } from '../common/nomi-alimento';
+import { corsaDiGiornate, dateDaComporre } from './buchi-nel-calendario';
 import {
   GRUPPO_GRASSI,
   comeConvertire,
@@ -155,6 +156,24 @@ export interface StatoMenu {
   /** Il primo giorno di dieta dopo una sospensione (modalità viaggio). Solo negli stati di sospensione. */
   returnDate?: string | null;
 }
+
+/**
+ * ⛔ **QUANTE GIORNATE DAVANTI BASTANO PERCHÉ NON SE NE COMPONGANO ALTRE.**
+ *
+ * Due: oggi e domani. ⚠️ Non è un numero scelto a occhio — è **esattamente** la vecchia regola
+ * `if (ultima.date > oggi) return []` riscritta in modo che non si possa più imbrogliare con una
+ * data sparsa in fondo al calendario: «ha almeno un giorno oltre oggi» e «ha due giornate di
+ * seguito da oggi» sono la stessa frase, finché il calendario non ha buchi.
+ *
+ * ⚠️ **E NON si lega a `menu_days_delivered`** — la revisione avversariale del 25/8 ha misurato
+ * cosa succede se lo si fa: con quel parametro a 1 (sta in `config_param`, si cambia dal backoffice
+ * senza deploy) «ha una giornata di seguito» sarebbe vera già col solo menu di **oggi**, e la
+ * cliente non avrebbe mai il menu del giorno dopo — niente spesa la sera prima. La regola vecchia
+ * non guardava quel parametro, e cambiarne il significato di nascosto non è quello che è stato
+ * chiesto: qui si riempiono i buchi, il resto della cadenza resta com'era.
+ */
+const GIORNATE_DAVANTI_CHE_BASTANO = 2;
+
 
 @Injectable()
 export class MenuService {
@@ -781,15 +800,120 @@ export class MenuService {
       orderBy: { date: 'desc' },
     });
 
-    let firstNewDate: Date;
-    if (!last) {
-      firstNewDate = start; // prima erogazione: dal giorno di inizio piano
-    } else {
-      const nextDate = new Date(last.date.getTime() + 86_400_000);
-      // Buffer in avanti: se la cliente ha GIÀ un menu per un giorno FUTURO (oltre oggi)
-      // non eroghiamo altro. Così teniamo al massimo il ciclo corrente + i prossimi
-      // giorni e non generiamo cicli all'infinito.
-      if (last.date.getTime() > today.getTime()) {
+    /**
+     * ⛔ **I BUCHI SI RIEMPIONO CON LE NUOVE** — richiesta di Simone, 25/8, che chiude la voce
+     * `buchi-gia-aperti-nei-menu`.
+     *
+     * Fino a oggi l'erogazione appendeva dopo l'**ultimo** giorno, e il buffer in avanti guardava la
+     * **data più alta**. Due conseguenze, tutte e due sulla stessa persona:
+     *  · un buco in mezzo **non si richiudeva mai** — quel giorno la cliente leggeva «menu in
+     *    preparazione», per sempre;
+     *  · e se dopo il buco restava un giorno oltre oggi, **l'erogazione si fermava del tutto**
+     *    finché quella data non passava: una riga con la sua data sopra, in fondo al calendario,
+     *    valeva come «ha già il menu».
+     *
+     * ✅ Adesso si guardano le **giornate vere davanti a lei**, e le nuove vanno **nei buchi** prima
+     * di accodarsi. ⚠️ Non si cancella e non si rimescola niente — la voce diceva *«la riparazione
+     * non è automatica di proposito»* perché rigenerare vuol dire rifare giornate che qualcuna può
+     * aver già letto, magari dopo la spesa. Qui non si tocca nessun giorno esistente: si scrive solo
+     * dove non c'è niente.
+     */
+    // Fine piano: non si erogano MAI giorni oltre la data di fine dell'abbonamento. Il piano
+    // include fino a `endDate` compresa; i giorni successivi (domani/dopodomani a piano finito)
+    // non vanno consegnati (bug: la cliente vedeva menu oltre la fine del percorso).
+    /**
+     * ⚠️ **Sta qui e non più in fondo** (25/8): il limite del piano è una delle cose che decidono
+     * **quali date** comporre, e `dateDaComporre` lo vuole in mano. Prima era una guardia sola
+     * (`firstNewDate > planEnd`), e la revisione avversariale ha misurato che con un buco
+     * nell'ultimo giorno di piano quella guardia usciva **prima** di riempirlo: la cliente
+     * all'ultimo giorno del percorso, col menu di oggi cancellato, non riceveva più niente.
+     */
+    const planEnd = activeSubscription.endDate ? toDateOnly(activeSubscription.endDate.toISOString()) : null;
+    const daOggi = Math.max(today.getTime(), start.getTime());
+    /**
+     * ⚠️ **Un giorno in sospensione non è un buco**: durante una vacanza l'erogazione si ferma di
+     * proposito. Serve in tutti e due i punti — quante giornate ha davvero davanti, e quali date
+     * comporre — e una sola definizione evita che i due si contraddicano.
+     */
+    const sospesoOggi = (t: number): boolean =>
+      !!pause &&
+      periodoLeggibile(pause) &&
+      t >= giornoDelDato(pause.startDate).getTime() &&
+      t <= giornoDelDato(pause.endDate).getTime();
+    const inCalendario = (
+      (await this.prisma.menuDay.findMany({
+        where: { clientId, date: { gte: new Date(daOggi) } },
+        select: { date: true },
+      })) as { date: Date }[]
+    ).map((g) => g.date.getTime());
+
+    /**
+     * ⛔ **IL MENU DEL RIENTRO PARTE DAL GIORNO DI RIENTRO.**
+     *
+     * Senza questa riga si farebbe la cosa di sempre — «riparti da domani, o da oggi se sei rimasta
+     * indietro» — e il 23 si comporrebbe il menu **del 23**, che è ancora vacanza: un giorno di
+     * piano bruciato per una giornata che la cliente non seguirà, e il 24 di nuovo senza niente in
+     * mano. Il giorno da servire l'ha già deciso `rientroInArrivo`.
+     *
+     * ⚠️ **Solo in avanti**: se la cliente si pesa il giorno del rientro o dopo, quel giorno è già
+     * passato e forzarlo qui vorrebbe dire comporle un menu per ieri.
+     */
+    const daPartire =
+      giornoDelRientro && giornoDelRientro.getTime() > today.getTime()
+        ? Math.max(daOggi, giornoDelRientro.getTime())
+        : daOggi;
+
+    /**
+     * ⛔ **LE DATE SI DECIDONO QUI, PRIMA DI TUTTO IL RESTO** — spostato dalla revisione
+     * avversariale del 25/8, che ha misurato due difetti nati proprio dall'averle decise dopo.
+     *
+     * `firstNewDate` era ancora «l'ultima data + 1», mentre le giornate composte erano altre: due
+     * risposte diverse alla stessa domanda, a quattrocento righe di distanza. Le conseguenze,
+     * misurate:
+     *  · **il buco dell'ultimo giorno di piano non si riempiva mai** — la guardia `firstNewDate >
+     *    planEnd` usciva prima ancora di guardare le date da comporre;
+     *  · lo **stato della dieta** e la **finestra della varietà** si chiedevano per un giorno che
+     *    non era quello che si stava componendo: per la giornata-buco la varietà guardava i giorni
+     *    **dopo** invece di quelli prima, e il piatto di ieri poteva tornare oggi.
+     *
+     * Adesso `firstNewDate` **è** la prima data che si compone, per costruzione.
+     */
+    const daComporre = dateDaComporre({
+      presenti: inCalendario,
+      /**
+       * ⛔ **Si guarda da OGGI, non da «dopo l'ultimo»** — è la riga che riempie i buchi.
+       *
+       * ⚠️ E nei casi normali non cambia niente, misurato caso per caso: se le giornate in
+       * calendario sono `oggi … oggi+k`, `dateDaComporre` le salta tutte e comincia da `oggi+k+1`,
+       * cioè esattamente il «dopo l'ultimo» di prima. Se è rimasta indietro, si parte da oggi. Se
+       * il piano comincia fra due giorni, si parte dall'inizio del piano. E dentro una sospensione
+       * i giorni sospesi li salta `sospeso`, quindi la prima data buona è il giorno di rientro.
+       */
+      da: daPartire,
+      quante: daysPerDelivery,
+      finePiano: planEnd ? planEnd.getTime() : null,
+      sospeso: sospesoOggi,
+    });
+    /** Niente da comporre: o il piano è finito, o le giornate che servivano ci sono già tutte. */
+    if (daComporre.length === 0) return [];
+    const firstNewDate = new Date(daComporre[0]);
+
+    /**
+     * ⚠️ **La corsa si conta da OGGI, non dal giorno di rientro.** La domanda è «fino a quando può
+     * aprire l'app e trovare il menu», e la risposta parte da dove lei è, non da dove si ricomincia
+     * a comporre. Misurato: contandola dal rientro, la cliente che ha già il menu del rientro ne
+     * riceveva altri due lo stesso giorno — un ciclo bruciato a ogni apertura dell'app.
+     * ⚠️ I giorni sospesi li scavalca `sospesoOggi`, quindi durante la vacanza la corsa arriva
+     * comunque al giorno di rientro.
+     */
+    const corsa = corsaDiGiornate(inCalendario, daOggi, sospesoOggi);
+
+    if (last) {
+      /**
+       * Buffer in avanti: se ha già abbastanza giornate **di seguito** non se ne compongono altre.
+       * ⚠️ Di seguito, non sparse, e non «l'ultima data»: vedi `corsaDiGiornate`.
+       */
+      if (corsa.quante >= GIORNATE_DAVANTI_CHE_BASTANO) {
         return [];
       }
       // Siamo all'ULTIMO giorno del ciclo corrente (last.date === oggi) oppure la cliente
@@ -799,24 +923,27 @@ export class MenuService {
       // Gate misure (Tracciamento_Dati §5): al 2° giorno di ogni ciclo le misure sono
       // obbligatorie; finché non arrivano il ciclo successivo resta "held" (l'avviso alla
       // coach lo genera l'Alert engine: missing_measurements).
-      if (await this.cycleNeedsMeasure(clientId, last, daysPerDelivery)) {
+      /**
+       * ⛔ **IL CICLO FINISCE ALL'ULTIMA GIORNATA DI SEGUITO, NON ALL'ULTIMA DEL CALENDARIO** —
+       * difetto trovato e misurato dalla revisione avversariale del 25/8, ed era il più grave.
+       *
+       * `cycleNeedsMeasure` esce subito con `if (oggi < fineCiclo) return false`. Finché il buffer
+       * guardava la data più alta, i due erano d'accordo: con una data futura in calendario si
+       * usciva **prima**, a `return []`. Aprendo il buffer sui buchi, quella porta è rimasta aperta
+       * e il cancello delle misure è diventato un no-op **esattamente nel caso nuovo**: cliente con
+       * un buco oggi e una riga domani, nessuna pesata di ciclo → riceveva due giornate senza
+       * pesarsi. È il caso Gioia da un'altra porta.
+       *
+       * ⚠️ E si prende **la più indietro fra le due**: per chi è rimasta indietro il ciclo vero è
+       * ancora quello della sua ultima giornata, e ancorarlo a ieri gli stringerebbe la finestra
+       * della pesata senza che nessuno l'abbia chiesto.
+       */
+      const fineDellaCorsa = new Date(corsa.ultima ?? daOggi - 86_400_000);
+      const fineDelCiclo = last.date.getTime() < fineDellaCorsa.getTime() ? last.date : fineDellaCorsa;
+      if (await this.cycleNeedsMeasure(clientId, { date: fineDelCiclo }, daysPerDelivery)) {
         return [];
       }
-      firstNewDate = nextDate.getTime() > today.getTime() ? nextDate : today;
     }
-
-    /**
-     * ⛔ **IL MENU DEL RIENTRO PARTE DAL GIORNO DI RIENTRO.**
-     *
-     * Senza questa riga il calcolo qui sopra farebbe la cosa di sempre — «riparti da domani, o da
-     * oggi se sei rimasta indietro» — e il 23 comporrebbe il menu **del 23**, che è ancora vacanza:
-     * un giorno di piano bruciato per una giornata che la cliente non seguirà, e il 24 di nuovo
-     * senza niente in mano. Il giorno da servire l'ha già deciso `rientroInArrivo`.
-     *
-     * ⚠️ **Solo in avanti** (corretto in revisione): se la cliente si pesa il giorno del rientro o
-     * dopo, quel giorno è già passato e forzarlo qui vorrebbe dire comporle un menu per ieri.
-     */
-    if (giornoDelRientro && giornoDelRientro.getTime() > today.getTime()) firstNewDate = giornoDelRientro;
 
     // `let`: se le giornate di questa variante sono monche si scende sulla gemella completa
     // della stessa famiglia (§15.4), e da lì in poi la dieta servita è quella.
@@ -1086,12 +1213,6 @@ export class MenuService {
     // target (in automatico). Se non trova una giornata nella banda → fallback al selettore.
     const useDayCombo = (daycomboEnabled || targetSource === 'need') && !!ctx && targetKcal > 0;
 
-    // Fine piano: non si erogano MAI giorni oltre la data di fine dell'abbonamento. Il piano
-    // include fino a `endDate` compresa; i giorni successivi (domani/dopodomani a piano finito)
-    // non vanno consegnati (bug: la cliente vedeva menu oltre la fine del percorso).
-    const planEnd = activeSubscription.endDate ? toDateOnly(activeSubscription.endDate.toISOString()) : null;
-    if (planEnd && firstNewDate.getTime() > planEnd.getTime()) return [];
-
     // Storico recente per slot (giorni già erogati): serve al guard di varietà per non
     // riproporre lo stesso piatto a ridosso di quando è già stato servito.
     const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
@@ -1106,10 +1227,19 @@ export class MenuService {
       (profile as { pastiEsclusi?: string[] }).pastiEsclusi,
     );
 
+    /**
+     * ⛔ **LE DATE, non un inizio più un contatore** (25/8). Il ciclo faceva `firstNewDate + i
+     * giorni`: date consecutive per costruzione, quindi i buchi restavano. L'elenco lo decide
+     * `dateDaComporre` (calcolato in cima, insieme a `firstNewDate`), che salta quelle che ci sono
+     * già e quelle in sospensione.
+     *
+     * ⚠️ `daysSinceStart` continua a calcolarsi **dalla data**, non dall'indice del ciclo: è quello
+     * che sceglie il template del giorno, e con le date non consecutive l'indice direbbe un'altra
+     * cosa. Era già così, ed è la riga che rende questo cambio possibile senza toccare il resto.
+     */
     const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
-    for (let i = 0; i < daysPerDelivery; i++) {
-      const date = new Date(firstNewDate.getTime() + i * 86_400_000);
-      if (planEnd && date.getTime() > planEnd.getTime()) break; // niente giorni oltre la fine piano
+    for (const istante of daComporre) {
+      const date = new Date(istante);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
       const template = templates[((daysSinceStart % templates.length) + templates.length) % templates.length];
       /**

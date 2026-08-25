@@ -6,7 +6,7 @@
  * sbagliasse, lo script di diagnosi direbbe «tutto a posto» — e quella frase, non essendo un errore,
  * non la verificherebbe più nessuno.
  */
-import { buchiFra, senzaIlMenuDiOggi } from './buchi-nel-calendario';
+import { buchiFra, senzaIlMenuDiOggi, dateDaComporre, giornateDiSeguito } from './buchi-nel-calendario';
 
 const G = 86_400_000;
 const giorno = (n: number) => Date.UTC(2026, 7, n); // agosto 2026, mezzanotte UTC
@@ -154,5 +154,129 @@ describe('⛔ senza il menu di oggi', () => {
 
   it('nessun giorno in calendario: niente da dire', () => {
     expect(senzaIlMenuDiOggi([], OGGI, partito)).toBe(false);
+  });
+});
+
+/**
+ * ⛔ **I BUCHI SI RIEMPIONO CON LE NUOVE** — richiesta di Simone, 25/8.
+ *
+ * Fino a oggi l'erogazione appendeva **dopo l'ultimo** giorno e il buffer guardava la **data più
+ * alta**: un buco in mezzo non si richiudeva mai, e se dopo il buco restava un giorno oltre oggi
+ * l'erogazione si fermava del tutto finché quella data non passava. Una riga in fondo al calendario
+ * valeva come «ha il menu».
+ */
+describe('⛔ le date da comporre: prima i buchi, poi il seguito', () => {
+  const G = 86_400_000;
+  const g = (iso: string) => new Date(`${iso}T00:00:00.000Z`).getTime();
+  const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+  it('⛔ con un buco in mezzo, le nuove giornate ci vanno dentro', () => {
+    const fuori = dateDaComporre({
+      presenti: [g('2026-08-25'), g('2026-08-28')],
+      da: g('2026-08-25'),
+      quante: 2,
+    });
+    expect(fuori.map(iso)).toEqual(['2026-08-26', '2026-08-27']);
+  });
+
+  it('⛔ e quando i buchi finiscono si riprende ad accodare', () => {
+    const fuori = dateDaComporre({
+      presenti: [g('2026-08-25'), g('2026-08-27')],
+      da: g('2026-08-25'),
+      quante: 3,
+    });
+    expect(fuori.map(iso)).toEqual(['2026-08-26', '2026-08-28', '2026-08-29']);
+  });
+
+  /** ⚠️ Senza buchi si comporta esattamente come prima: accoda e basta. */
+  it('⚠️ senza buchi accoda dopo l’ultima, come sempre', () => {
+    const fuori = dateDaComporre({
+      presenti: [g('2026-08-25'), g('2026-08-26')],
+      da: g('2026-08-25'),
+      quante: 2,
+    });
+    expect(fuori.map(iso)).toEqual(['2026-08-27', '2026-08-28']);
+  });
+
+  /** ⛔ I giorni in sospensione non sono buchi: riempirli regalerebbe giornate di piano. */
+  it('⛔ i giorni sospesi si saltano, non si riempiono', () => {
+    const sospeso = (t: number) => t >= g('2026-08-26') && t <= g('2026-08-27');
+    const fuori = dateDaComporre({
+      presenti: [g('2026-08-25')],
+      da: g('2026-08-25'),
+      quante: 2,
+      sospeso,
+    });
+    expect(fuori.map(iso)).toEqual(['2026-08-28', '2026-08-29']);
+  });
+
+  it('⚠️ e oltre la fine del piano non si compone niente', () => {
+    const fuori = dateDaComporre({
+      presenti: [],
+      da: g('2026-08-25'),
+      quante: 5,
+      finePiano: g('2026-08-26'),
+    });
+    expect(fuori.map(iso)).toEqual(['2026-08-25', '2026-08-26']);
+  });
+
+  it('⚠️ e con un numero di giornate assurdo non si compone niente, invece di un ciclo infinito', () => {
+    expect(dateDaComporre({ presenti: [], da: g('2026-08-25'), quante: 0 })).toEqual([]);
+    expect(dateDaComporre({ presenti: [], da: g('2026-08-25'), quante: Number.NaN })).toEqual([]);
+  });
+});
+
+/**
+ * ⛔ **QUANTE GIORNATE HA DAVANTI DI SEGUITO** — la domanda che il buffer faceva male.
+ */
+describe('⛔ giornateDiSeguito', () => {
+  const g = (iso: string) => new Date(`${iso}T00:00:00.000Z`).getTime();
+
+  it('⛔ si ferma al primo buco: due giorni sparsi non sono due giornate davanti', () => {
+    expect(giornateDiSeguito([g('2026-08-25'), g('2026-09-15')], g('2026-08-25'))).toBe(1);
+  });
+
+  it('⚠️ e di seguito le conta tutte', () => {
+    expect(giornateDiSeguito([g('2026-08-25'), g('2026-08-26')], g('2026-08-25'))).toBe(2);
+  });
+
+  /**
+   * ⛔ **Chi ha solo domani ha ZERO giornate davanti**, perché oggi non ha niente. È il caso che la
+   * vecchia regola leggeva come «ha già il menu» e su cui si fermava.
+   */
+  it('⛔ chi ha solo domani non ha nessuna giornata davanti', () => {
+    expect(giornateDiSeguito([g('2026-08-26')], g('2026-08-25'))).toBe(0);
+  });
+
+  /** ⚠️ Un giorno sospeso non è una giornata, ma nemmeno un buco: si scavalca. */
+  it('⚠️ i giorni sospesi si scavalcano senza contarli e senza fermare il conto', () => {
+    const sospeso = (t: number) => t === g('2026-08-25');
+    expect(giornateDiSeguito([g('2026-08-26'), g('2026-08-27')], g('2026-08-25'), sospeso)).toBe(2);
+  });
+
+  it('⚠️ e un calendario vuoto risponde zero', () => {
+    expect(giornateDiSeguito([], g('2026-08-25'))).toBe(0);
+  });
+
+  /**
+   * ⛔ **UNA SOSPENSIONE CHE NON FINISCE NON DEVE DIVENTARE UN CICLO CHE NON FINISCE** — trovato
+   * dalla revisione avversariale del 25/8, misurando: la rete contava le **giornate trovate**, e sui
+   * giorni scavalcati quel contatore non cresce mai. Il ciclo passava i duecentomila giri.
+   */
+  it('⛔ con tutti i giorni in sospensione non gira all\'infinito: torna zero e si ferma', () => {
+    const inizio = Date.now();
+    expect(giornateDiSeguito([], giorno(25), () => true)).toBe(0);
+    // Se la rete non c'è, questo non arriva mai qui: il tetto è dieci anni di giri, non l'eternità.
+    expect(Date.now() - inizio).toBeLessThan(2000);
+  });
+
+  /**
+   * ⚠️ E il caso di mezzo: una vacanza lunghissima con una giornata dopo. Si scavalca la vacanza e
+   * la giornata si conta — ma il conto si ferma comunque al tetto, non prova all'infinito.
+   */
+  it('scavalca una sospensione lunga e conta quello che c\'è dopo', () => {
+    const rientro = giorno(25) + 40 * G;
+    const inVacanza = (t: number) => t >= giorno(25) && t < rientro;
+    expect(giornateDiSeguito([rientro], giorno(25), inVacanza)).toBe(1);
   });
 });

@@ -7,6 +7,23 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DayComboService } from './day-combo.service';
 import { MenuService } from './menu.service';
 
+/**
+ * ⛔ **IL DOPPIO DI `menuDay` SEGUE L'ORIGINALE** (25/8).
+ *
+ * Dal 25/8 l'erogazione non guarda più «l'ultima data» ma **quante giornate di seguito** la cliente
+ * ha davanti, e per saperlo chiede anche **le date** in calendario (`select: { date: true }`). Un
+ * finto che quel metodo non ce l'ha fa esplodere il motore; uno che risponde sempre `[]` gli
+ * racconta un calendario **vuoto** mentre il test ne ha appena dichiarato una giornata — e allora la
+ * prova passa (o fallisce) per la ragione sbagliata.
+ *
+ * ⚠️ Qui le due risposte vengono dallo **stesso** valore: quello che il test dichiara.
+ */
+const menuDayFinto = (ultimo: { date: Date } | null) => ({
+  findFirst: jest.fn().mockResolvedValue(ultimo),
+  findMany: jest.fn().mockImplementation(async (arg: { select?: { date?: boolean } } | undefined) =>
+    arg?.select?.date && ultimo?.date ? [{ date: ultimo.date }] : []),
+});
+
 // Il giorno va calcolato come lo calcola il codice sotto test: `cycleNeedsMeasure` confronta
 // col giorno ITALIANO (`common/date-only.ts`). Con `toISOString()` — cioè il giorno UTC — fra le
 // 22:00 e le 24:00 UTC il test «2° giorno nel futuro» diventava «oggi» e falliva. Non è mai
@@ -73,7 +90,7 @@ describe('MenuService — gate misure', () => {
       // Il gate ora chiede anche QUALE piano è attivo: nel Monitoraggio (€19) il peso si
       // chiede e basta, quindi non blocca mai. Qui nessun abbonamento → comportamento di sempre.
       subscription: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      menuDay: menuDayFinto(null),
       clientProfile: { findUnique: jest.fn().mockResolvedValue(null) }, // nessun piano → nessun popup
     };
     const res = await makeService(prisma).measurementGate('c1');
@@ -263,7 +280,7 @@ describe('MenuService — misura di partenza del piano', () => {
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      menuDay: menuDayFinto(null),
       // Il finto risponde `null`: nessuna misura dal giorno di visibilità in poi. Le pesate di
       // luglio esistono ma cadono fuori dalla finestra, ed è tutto il punto.
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -284,7 +301,7 @@ describe('MenuService — misura di partenza del piano', () => {
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      menuDay: menuDayFinto(null),
       measurement: { findFirst: jest.fn().mockResolvedValue(null) },
       notification: { findFirst: jest.fn().mockResolvedValue({ id: 'giaChiesto' }), create: creaNotifica },
     };
@@ -295,13 +312,140 @@ describe('MenuService — misura di partenza del piano', () => {
     expect(pushInviate).toHaveLength(0);
   });
 
+  /**
+   * ⛔ **UN BUCO NEL CALENDARIO NON APRE IL CANCELLO DELLE MISURE** — difetto trovato e misurato
+   * dalla revisione avversariale del 25/8, il più grave della consegna dei buchi.
+   *
+   * `cycleNeedsMeasure` esce subito con «oggi è ancora dentro il ciclo» guardando la data più alta
+   * del calendario. Finché il buffer guardava la stessa data, i due erano d'accordo: con una riga
+   * nel futuro si usciva **prima**, senza erogare. Riempendo i buchi quella porta si è aperta, e il
+   * cancello è diventato un no-op **proprio nel caso nuovo**: buco oggi, riga domani, nessuna
+   * pesata di ciclo → due giornate erogate senza che nessuno abbia chiesto il peso.
+   *
+   * ⚠️ È il caso Gioia da un'altra porta: *«o ricevi menu e ti pesi, o non ricevi menu»*. Adesso il
+   * ciclo finisce all'ultima giornata **di seguito da oggi**, e con un buco oggi quella corsa non
+   * esiste nemmeno.
+   */
+  it('⛔ buco oggi e una riga domani, senza pesata di ciclo: NON eroga', async () => {
+    const domani = D(dayIso(1));
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
+      /** In calendario c'è **solo domani**: oggi è un buco. */
+      menuDay: {
+        findFirst: jest.fn().mockResolvedValue({ date: domani }),
+        findMany: jest.fn().mockImplementation(async (arg: { select?: { date?: boolean } } | undefined) =>
+          (arg?.select?.date ? [{ date: domani }] : [])),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      /**
+       * ⚠️ Il finto distingue le due domande dalla finestra, perché è così che si distinguono nel
+       * prodotto: la misura **di partenza** guarda dall'inizio del piano (tre giorni fa) e c'è; la
+       * pesata **del ciclo** guarda gli ultimi due giorni e non c'è. Un finto che rispondesse la
+       * stessa cosa a tutte e due misurerebbe un'altra cosa.
+       */
+      measurement: {
+        count: jest.fn().mockResolvedValue(1),
+        findFirst: jest.fn().mockImplementation(async (arg: { where?: { date?: { gte?: Date } } }) => {
+          const da = arg?.where?.date?.gte;
+          const dueGiorniFa = new Date(D(dayIso(0)).getTime() - 2 * 86_400_000);
+          return da && da.getTime() >= dueGiorniFa.getTime() ? null : { id: 'm-partenza' };
+        }),
+      },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    };
+    expect(await makeService(prisma).deliverIfEligible('c1')).toEqual([]);
+    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
+    /**
+     * ⚠️ **E la finestra della pesata è quella giusta**: senza nessuna giornata da oggi in avanti la
+     * corsa non esiste, quindi il ciclo è finito **al più tardi ieri** — e la finestra di due giorni
+     * parte da ieri, non da oggi. Un giorno di differenza qui vuol dire chiedere una pesata che
+     * c'era già, o non chiederne una che manca.
+     */
+    const finestre = prisma.measurement.findFirst.mock.calls.map((c: any) => c[0]?.where?.date?.gte?.getTime());
+    expect(finestre).toContain(D(dayIso(-2)).getTime());
+  });
+
+  /**
+   * ⛔ **E il buco IN MEZZO fa la stessa cosa.** Variante del caso qui sopra, e serve perché prende
+   * un pezzo diverso del conto: qui la corsa da oggi **esiste** (oggi c'è) ma finisce subito, e il
+   * ciclo deve finire con lei — non con la riga di dopodomani, che sta oltre il buco.
+   */
+  it('⛔ oggi c\'è, domani è un buco, dopodomani c\'è: senza pesata di ciclo non eroga', async () => {
+    const oggi = D(dayIso(0));
+    const dopodomani = D(dayIso(2));
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
+      menuDay: {
+        findFirst: jest.fn().mockResolvedValue({ date: dopodomani }),
+        findMany: jest.fn().mockImplementation(async (arg: { select?: { date?: boolean } } | undefined) =>
+          (arg?.select?.date ? [{ date: oggi }, { date: dopodomani }] : [])),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      measurement: {
+        count: jest.fn().mockResolvedValue(1),
+        findFirst: jest.fn().mockImplementation(async (arg: { where?: { date?: { gte?: Date } } }) => {
+          const da = arg?.where?.date?.gte;
+          const dueGiorniFa = new Date(oggi.getTime() - 2 * 86_400_000);
+          return da && da.getTime() >= dueGiorniFa.getTime() ? null : { id: 'm-partenza' };
+        }),
+      },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    };
+    expect(await makeService(prisma).deliverIfEligible('c1')).toEqual([]);
+    expect(prisma.menuDay.upsert).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ **E LA CLIENTE RIMASTA INDIETRO NON DEVE PAGARE LA CORREZIONE.** L'altra metà del cancello:
+   * chi non apre l'app da giorni ha il suo ultimo ciclo **nel passato**, e la finestra della pesata
+   * è quella del suo ciclo, non gli ultimi due giorni. Ancorare tutto a «ieri» le stringerebbe la
+   * finestra senza che nessuno l'abbia chiesto — un cancello che si chiude di più è un cancello
+   * sbagliato quanto uno che si apre.
+   */
+  it('⚠️ rimasta indietro di cinque giorni: la pesata del SUO ciclo basta ancora', async () => {
+    const cinqueGiorniFa = D(dayIso(-5));
+    const prisma = {
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
+      /** Nessuna giornata da oggi in avanti: l'ultima è di cinque giorni fa. */
+      menuDay: {
+        findFirst: jest.fn().mockResolvedValue({ date: cinqueGiorniFa }),
+        findMany: jest.fn().mockResolvedValue([]),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+      /** La pesata c'è, ma è di sei giorni fa: dentro il suo ciclo, fuori dagli ultimi due giorni. */
+      measurement: {
+        count: jest.fn().mockResolvedValue(1),
+        findFirst: jest.fn().mockImplementation(async (arg: { where?: { date?: { gte?: Date } } }) => {
+          const da = arg?.where?.date?.gte;
+          const setteGiorniFa = new Date(D(dayIso(0)).getTime() - 7 * 86_400_000);
+          return da && da.getTime() >= setteGiorniFa.getTime() && da.getTime() <= cinqueGiorniFa.getTime()
+            ? { id: 'm-ciclo' }
+            : da && da.getTime() > cinqueGiorniFa.getTime()
+              ? null
+              : { id: 'm-partenza' };
+        }),
+      },
+      diet: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+      notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    };
+    await makeService(prisma).deliverIfEligible('c1');
+    /**
+     * Il cancello non l'ha fermata: si vede da dove è arrivata — senza dieta si ferma più avanti,
+     * ma `diet.findFirst` viene interrogata solo **dopo** il gate.
+     */
+    expect(prisma.diet.findFirst).toHaveBeenCalled();
+  });
+
   it('con la pesata del piano il gate non trattiene e non chiede niente', async () => {
     pushInviate = [];
     const creaNotifica = jest.fn();
     const prisma = {
       clientProfile: { findUnique: jest.fn().mockResolvedValue(profiloConPiano) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      menuDay: menuDayFinto(null),
       measurement: { findFirst: jest.fn().mockResolvedValue({ id: 'm-oggi' }) },
       notification: { findFirst: jest.fn(), create: creaNotifica },
       // Oltre il gate il resto della catena non è oggetto di questo test: senza dieta si ferma lì.
@@ -328,7 +472,7 @@ describe('MenuService — gate misure nel Monitoraggio', () => {
   it('nessun menu mai erogato → NON blocca (il popup misure non compare)', async () => {
     const prisma = {
       ...inMonitoraggio,
-      menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+      menuDay: menuDayFinto(null),
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: D(dayIso(-10)), travelState: null }) },
       measurement: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
       subscription2: null,
@@ -428,7 +572,7 @@ describe('MenuService — la vacanza NON esenta più dalle misure (11/8)', () =>
   const prismaSenzaMisure = (profilo: Record<string, unknown> = inVacanzaDa40Giorni) => ({
     clientProfile: { findUnique: jest.fn().mockResolvedValue(profilo) },
     subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
-    menuDay: { findFirst: jest.fn().mockResolvedValue(null) },
+    menuDay: menuDayFinto(null),
     measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
   });

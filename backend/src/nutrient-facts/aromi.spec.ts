@@ -1,5 +1,6 @@
 import { eAroma } from './aromi';
 import { NutrientFactsController } from './nutrient-facts.controller';
+import { passoFinto } from './passo-notturno.finto';
 
 describe('gli aromi: quello che in una ricetta pesa zero', () => {
   it('i nomi veri dell\'elenco in produzione', () => {
@@ -132,7 +133,7 @@ describe('togliere gli aromi in blocco', () => {
       },
     };
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
-    return { prisma, audit, controller: new NutrientFactsController(prisma, audit as never) };
+    return { prisma, audit, controller: new NutrientFactsController(prisma, audit as never, passoFinto() as never) };
   };
 
   it('toglie gli aromi e lo scrive nel registro coi termini, non col numero', async () => {

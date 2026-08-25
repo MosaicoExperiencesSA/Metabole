@@ -20,6 +20,49 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🛑 **I buchi nei calendari si riempiono con le giornate nuove.** Richiesta di Simone:
+  *«i buchi si riempiono con le nuove»*. Prima l'erogazione accodava dopo l'**ultima** data e si
+  fermava con `if (ultima.date > oggi) return []`: un buco in mezzo non si richiudeva mai — quel
+  giorno la cliente leggeva «menu in preparazione», per sempre — e se dopo il buco restava un giorno
+  oltre oggi **l'erogazione si fermava del tutto** finché quella data non passava. *Un cancello
+  chiuso costa a una cliente tutto il servizio.* Adesso `corsaDiGiornate` conta le giornate
+  **consecutive da oggi** (i giorni in sospensione si scavalcano senza contarli) e `dateDaComporre`
+  sceglie **quali** date comporre. ⚠️ Non si cancella e non si rimescola niente: si scrive solo dove
+  non c'è. ⚠️ E la prima erogazione di un piano cominciato nel passato parte da **oggi**, non dalla
+  data d'inizio.
+  ⛔ **Tre difetti trovati dalla revisione avversariale, tutti misurati.** *(a)* Il **cancello delle
+  misure si apriva da solo**: `cycleNeedsMeasure` guarda la data più alta del calendario, e finché il
+  buffer guardava la stessa data i due erano d'accordo — aprendo il buffer sui buchi è diventato un
+  no-op **esattamente nel caso nuovo**, cioè due giornate erogate senza che nessuno chiedesse il
+  peso. È il caso Gioia da un'altra porta. *(b)* Il **buco dell'ultimo giorno di piano non si
+  riempiva**: la guardia della fine piano leggeva ancora «ultima data + 1». *(c)* Il buffer legato a
+  `menu_days_delivered`: con quel parametro a 1 la cliente non avrebbe mai avuto il menu del giorno
+  dopo. Le date adesso si decidono in cima, e `firstNewDate` **è** la prima data che si compone.
+  Chiude `buchi-gia-aperti-nei-menu`.
+
+- `[Sviluppo]` 🛑 **«Alimenti da correggere» dice di quando è, e si può rifare il conto senza
+  aspettare la notte.** Nato dallo spavento del 21/8 all'una: 277 alimenti caricati alle 19:43 e la
+  pagina che mostrava ancora `limone` fra i mancanti — *«stiamo perdendo pezzi invece di farli?»*.
+  Nessun pezzo perso: quell'elenco lo scrive un passo notturno, e non era ancora passato. Il passo
+  lascia una riga di **registro** coi conti del giro (non `updatedAt` sulle righe: quella cambia
+  anche quando una cliente chiede un termine a Gaia), la pagina la legge, e oltre le 26 ore avvisa
+  che quello che hai caricato dopo non è ancora contato.
+  ⛔ **Cinque difetti dalla revisione**, corretti: col backend giù la pagina diceva «Questo elenco
+  non è mai stato calcolato» — un'affermazione positiva e **falsa**; la lettura del registro senza
+  rete portava giù tutta la pagina; un giro con tutte le scritture fallite sembrava un elenco fresco;
+  lo stato «vuoto **e** calcolato» non accendeva né la data né il pulsante; una data nel futuro
+  faceva stampare «sono passate 72 ore» sotto la data di dopodomani. ⚠️ **Migrazione**: indice su
+  `audit_log(action, created_at)` — senza, la domanda costava una scansione di tutto il registro
+  proprio quando la riga non c'è. Chiude `alimenti-da-correggere-senza-data`.
+
+- `[Sviluppo]` **Lo script che rimette gli stati azzerati dal seed: `npm run ripara:stati`** — c'è,
+  ma **va ancora lanciato**, quindi la voce `seed-nutrienti-firma-falsa` resta aperta. ⛔ La prima
+  versione è stata buttata e la ragione vale più dello script: rimetteva lo stato a **chiunque** non
+  ce l'avesse accoppiando sul nome, e avrebbe scritto `secco` su `ceci`, che in tabella ha i valori
+  **da bollito** — 80 g sarebbero passati da 267 a 106 kcal, **con l'avviso che oggi lo ferma
+  sparito**. Adesso sono undici righe nominate una per una, e scrive solo se il nome combacia, lo
+  stato è vuoto **e le kcal combaciano**: se «burro» non fa più 758 kcal non è la riga che conosce.
+
 - `[Sviluppo]` 🛑 **Le ore del digiuno si cambiano una volta a settimana — e la nutrizionista può
   correggerle da Vera.** Richiesta della capo nutrizionista il 23/8 (*«dovrebbe essere più difficile
   modificare le ore per digiunare, così puoi ogni giorno modificarlo»*), decisa da Simone il 25/8:

@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { NutrientFactsController } from './nutrient-facts.controller';
+import { passoFinto } from './passo-notturno.finto';
 
 /**
  * L'ALIMENTO CHE MANCA, SCRITTO DALLA PAGINA — richiesta di Simone (20/8): «oltre al pulsante togli
@@ -27,7 +28,7 @@ describe('creare un alimento da un termine mancante', () => {
       ...over,
     };
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
-    return { prisma, audit, controller: new NutrientFactsController(prisma, audit as never) };
+    return { prisma, audit, controller: new NutrientFactsController(prisma, audit as never, passoFinto() as never) };
   };
 
   it('scrive la riga col nome del termine e chiude il mancante', async () => {

@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
-import { ValoriNutrizionaliService } from './valori-nutrizionali.service';
+import { AZIONE_SCOPERTI_AGGIORNATI, ValoriNutrizionaliService } from './valori-nutrizionali.service';
 
 /**
  * L'ELENCO DEGLI ALIMENTI DA CORREGGERE A MANO — il passo notturno che lo riempie.
@@ -20,6 +20,9 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
         findMany: jest.fn().mockResolvedValue(gia),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      // Il passo, alla fine, scrive una riga di registro con la data del giro: senza questo finto
+      // il doppio direbbe di sì a tutto tranne che a quello che il codice fa davvero.
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
     };
     return prisma;
   };
@@ -187,5 +190,37 @@ describe('aggiornaIngredientiScoperti — il passo notturno', () => {
       .filter((c: any) => c.data?.status === 'open');
     expect(riaperture).toHaveLength(1);
     expect(riaperture[0].where.status).toBe('risolto');
+  });
+
+  /**
+   * ⚠️ **QUANDO È GIRATO QUESTO PASSO** — 25/8. Simone, aprendo «Alimenti da correggere»: «ma questo
+   * elenco è di quando?». La pagina mostrava dei nomi senza dire di quale notte fossero, e un elenco
+   * senza data si guarda con sospetto: non si sa se manca qualcosa o se il passo non è ancora
+   * passato. Il passo lascia una riga di registro, e la pagina la legge.
+   */
+  it('lascia nel registro la data del giro, con i conti di cosa ha fatto', async () => {
+    const prisma = crea([ric('melanzane')], [{ name: 'mela', synonyms: [], state: 'crudo' }]);
+    await (await build(prisma)).aggiornaIngredientiScoperti();
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+    const riga = prisma.auditLog.create.mock.calls[0][0].data;
+    expect(riga.action).toBe(AZIONE_SCOPERTI_AGGIORNATI);
+    expect(riga.metadata).toMatchObject({ scoperti: 1, scritti: 1 });
+  });
+
+  /**
+   * ⚠️ **SE IL REGISTRO NON SI SCRIVE, IL PASSO NON MUORE.** La riga di registro serve a raccontare,
+   * non a lavorare: se cade, il degrado giusto è che la pagina non dica la data — non che tutti gli
+   * alimenti da correggere restino non aggiornati. *Se degradi, dillo*: infatti lo scrive nel log.
+   */
+  it('⚠️ se la riga di registro non si scrive, il passo finisce lo stesso', async () => {
+    const prisma = crea([ric('melanzane')], [{ name: 'mela', synonyms: [], state: 'crudo' }]);
+    prisma.auditLog.create = jest.fn().mockRejectedValue(new Error('registro giù'));
+    const servizio = await build(prisma);
+    const avvisi = jest
+      .spyOn((servizio as never as { logger: { warn: jest.Mock } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    const esito = await servizio.aggiornaIngredientiScoperti();
+    expect(esito.scritti).toBe(1);
+    expect(avvisi).toHaveBeenCalled();
   });
 });

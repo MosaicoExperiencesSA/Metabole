@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
+import { AZIONE_SCOPERTI_AGGIORNATI, ValoriNutrizionaliService } from './valori-nutrizionali.service';
 import { AuditService } from '../audit/audit.service';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -22,12 +23,31 @@ import { normalizzaNome } from './valori-nutrizionali.service';
  * la tabella cresce guidata dalle domande vere delle clienti invece che da un elenco deciso a
  * tavolino. «Tempeh chiesto 40 volte» è la prossima riga da scrivere, e non serve indovinarlo.
  */
+/**
+ * I conti dell'ultimo giro, letti dal `metadata` della riga di registro.
+ *
+ * ⚠️ Il `metadata` è un JSON scritto da un'altra versione del codice: qui non si dà per scontato
+ * niente. Quello che non è un numero non esiste, e la pagina non mostrerà nessun conto — meglio non
+ * dire, che dire «0 falliti» perché il campo mancava.
+ */
+export function contiDelGiro(metadata: unknown): { scoperti: number; scritti: number; falliti: number } | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const m = metadata as Record<string, unknown>;
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const scoperti = num(m.scoperti);
+  const scritti = num(m.scritti);
+  const falliti = num(m.falliti);
+  if (scoperti === null || scritti === null || falliti === null) return null;
+  return { scoperti, scritti, falliti };
+}
+
 @Controller('nutrient-facts')
 @Roles('admin', 'nutritionist', 'head_nutritionist')
 export class NutrientFactsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly valori: ValoriNutrizionaliService,
   ) {}
 
   /** Tutti i valori. `daConfermare=1` per la coda di chi deve ancora guardarli. */
@@ -60,6 +80,33 @@ export class NutrientFactsController {
   }
 
   /**
+   * RIFAI IL CONTO ADESSO, INVECE DI ASPETTARE LA NOTTE (25/8).
+   *
+   * L'altra metà della voce `alimenti-da-correggere-senza-data`. Dire *di quando* è l'elenco toglie
+   * il sospetto; questo bottone toglie l'attesa: chi ha appena caricato duecento alimenti vuole
+   * vedere **subito** che sono usciti dall'elenco, non domani mattina.
+   *
+   * ⚠️ **È lo stesso passo del cron, chiamato dallo stesso posto.** Non una copia più veloce che
+   * guarda meno righe: due punti che rispondono alla stessa domanda devono essere lo stesso punto,
+   * o la pagina e la notte direbbero due elenchi diversi e nessuno saprebbe quale credere.
+   *
+   * ⚠️ Torna i conti veri del giro (`scritti`, `falliti`), non un `ok: true`: se il database cade a
+   * metà, chi ha premuto deve vederlo. *Se degradi, dillo.*
+   */
+  @Post('mancanti/ricalcola')
+  @RequirePage('nutrient_facts', 'manage')
+  async ricalcolaMancanti(@CurrentUser() user: AuthUser) {
+    const esito = await this.valori.aggiornaIngredientiScoperti();
+    await this.audit.log({
+      action: 'nutrient_fact.miss_recalculated',
+      actorId: user.sub,
+      entityType: 'nutrient_lookup_miss',
+      metadata: esito,
+    });
+    return esito;
+  }
+
+  /**
    * I due elenchi, con il tetto che decide il chiamante — la pagina ne mostra 100, l'esportazione
    * li vuole **tutti**. ⚠️ Un metodo solo e non due query copiate: se le condizioni divergessero,
    * il foglio Excel e la pagina risponderebbero due cose diverse alla stessa domanda, e quella su
@@ -80,7 +127,7 @@ export class NutrientFactsController {
      * ⚠️ È lo stesso motivo per cui i due numeri non si sommano: **sono unità diverse**. Ordinarle
      * insieme è sommarle di nascosto. Quindi due domande, due elenchi, due tetti.
      */
-    const [daRicette, quanteRicette, chieste, quanteChieste] = await Promise.all([
+    const [daRicette, quanteRicette, chieste, quanteChieste, aggiornato] = await Promise.all([
       this.prisma.nutrientLookupMiss.findMany({
         where: { status: 'open', ricette: { gt: 0 } } as never,
         orderBy: [{ ricette: 'desc' }, { term: 'asc' }] as never,
@@ -99,10 +146,55 @@ export class NutrientFactsController {
         ...(TETTO === null ? {} : { take: TETTO }),
       } as never),
       this.prisma.nutrientLookupMiss.count({ where: { status: 'open', ricette: { lte: 0 }, times: { gt: 0 } } as never }),
+      /**
+       * ⛔ **DI QUANDO È QUESTO ELENCO** (25/8, voce `alimenti-da-correggere-senza-data`).
+       *
+       * Nato da uno spavento vero, il 21/8 all'una: dopo aver caricato 277 alimenti la pagina
+       * mostrava ancora `limone`, `cipolla`, `brodo vegetale` come «Non in tabella», e la domanda di
+       * Simone è stata *«stiamo perdendo pezzi invece di farli?»*. Nessun pezzo perso:
+       * `aggiornaIngredientiScoperti` è un **passo notturno** che calcola l'elenco e lo **scrive**;
+       * la pagina legge le righe scritte, non un calcolo dal vivo. L'import era girato alle 19:43,
+       * il passo notturno non era ancora passato.
+       *
+       * ⚠️ **Un elenco che può avere fino a ventiquattr'ore e sembra vivo fa credere che il lavoro
+       * appena fatto non sia servito.** *Un dato che agisce e non si vede.* Basta dire di quando è.
+       *
+       * ⚠️ **Si guarda quando il PASSO è girato, non quando una riga è stata toccata.** Sono due
+       * domande diverse: una riga cambia anche quando una cliente chiede quel termine a Gaia, e
+       * allora la pagina direbbe «aggiornato due minuti fa» per un elenco vecchio di un giorno.
+       */
+      /**
+       * ⚠️ **Se il registro non si legge, l'elenco esce lo stesso.** Corretto in revisione: questa
+       * riga stava dentro il `Promise.all` **senza rete**, e il servizio è asimmetrico apposta —
+       * la *scrittura* della riga è protetta con tanto di commento («un registro che non si scrive
+       * non deve far fallire il passo»), la *lettura*, che è ancora più accessoria, non lo era. Con
+       * `audit_log` in difficoltà l'intera pagina rispondeva 500: un accessorio che porta giù la
+       * cosa principale.
+       */
+      (
+        this.prisma.auditLog.findFirst({
+          where: { action: AZIONE_SCOPERTI_AGGIORNATI } as never,
+          orderBy: { createdAt: 'desc' } as never,
+          select: { createdAt: true, metadata: true } as never,
+        } as never) as Promise<{ createdAt: Date | null; metadata?: unknown } | null>
+      ).catch(() => null),
     ]);
     return {
       daRicette: { righe: daRicette, quanti: quanteRicette },
       chieste: { righe: chieste, quanti: quanteChieste },
+      /**
+       * Quando il passo notturno ha rifatto il conto. `null` vuol dire **non è mai girato** (o la
+       * riga di registro non si è scritta, o non si è potuta leggere): non «adesso». La pagina lo
+       * dice con parole sue, invece di mostrare una data finta o di tacere.
+       */
+      aggiornatoIl: aggiornato?.createdAt ? aggiornato.createdAt.toISOString() : null,
+      /**
+       * ⛔ **Com'è andato l'ultimo giro.** Senza questo, un giro in cui **tutte** le scritture sono
+       * fallite lasciava comunque la sua riga di registro, e la mattina dopo la pagina diceva
+       * «Elenco rifatto stanotte alle 03:12» — fresco, nessun avviso — per un elenco fermo da due
+       * giorni. *Se degradi, dillo*: il degrado era scritto nel `metadata` e non lo leggeva nessuno.
+       */
+      ultimoGiro: contiDelGiro(aggiornato?.metadata),
     };
   }
 

@@ -83,3 +83,126 @@ export function senzaIlMenuDiOggi(
   if (inizio === null || inizio === undefined || inizio > oggi) return false;
   return true;
 }
+
+/**
+ * ⛔ **LE DATE CHE L'EROGAZIONE DEVE COMPORRE: prima i buchi, poi il seguito.**
+ *
+ * Richiesta di Simone, 25/8: *«i buchi si riempiono con le nuove»*. Fino a oggi l'erogazione
+ * appendeva i giorni **dopo l'ultimo** (`ultimo + 1`), quindi:
+ *  · un buco in mezzo **non si richiudeva mai**: quel giorno la cliente vedeva «menu in
+ *    preparazione» per sempre;
+ *  · e se il buco era tale che l'ultimo giorno restava **oltre oggi**, l'erogazione si fermava del
+ *    tutto — *«non riceve più niente finché quella data non passa»* — perché il buffer in avanti
+ *    guarda la **data più alta**, non quante giornate ci sono davvero.
+ *
+ * ✅ Adesso le giornate nuove vanno **nei buchi**, in ordine di data, e solo quando i buchi sono
+ * finiti si riprende ad accodare. Non è una riparazione a parte: è la stessa erogazione di sempre
+ * che sceglie date diverse, quindi non rimescola niente e non tocca un giorno già scritto — che è la
+ * ragione per cui la voce diceva *«la riparazione non è automatica di proposito»*. Qui non si
+ * cancella nulla: si scrive solo dove non c'è niente.
+ *
+ * ⚠️ **I giorni in sospensione restano vuoti**, e non sono buchi: durante una vacanza l'erogazione
+ * si ferma di proposito, e riempirli vorrebbe dire regalare giornate di piano.
+ */
+/**
+ * Quanti giorni di calendario si è disposti a scorrere prima di dire basta. Dieci anni: nessun piano
+ * vero ci arriva, e una data di partenza sbagliata (un `NaN`, un inizio piano nel 1970, una vacanza
+ * che non finisce mai) non diventa un ciclo che non finisce.
+ */
+const TETTO_GIORNI_GUARDATI = 3650;
+
+export function dateDaComporre(opzioni: {
+  /** Le date già in calendario (mezzanotte UTC). */
+  presenti: readonly number[];
+  /** Da dove si comincia a guardare: di norma il massimo fra oggi e l'inizio del piano. */
+  da: number;
+  /** Quante giornate compone questa erogazione. */
+  quante: number;
+  /** L'ultimo giorno del piano, oltre il quale non si compone. `null` = nessun limite. */
+  finePiano?: number | null;
+  sospeso?: InSospensione;
+}): number[] {
+  const { presenti, da, quante, finePiano = null } = opzioni;
+  const sospeso = opzioni.sospeso ?? (() => false);
+  if (!Number.isFinite(quante) || quante < 1) return [];
+
+  const gia = new Set(presenti);
+  const fuori: number[] = [];
+  /**
+   * ⚠️ **Il tetto è quante giornate servono, non quanti giorni si guardano.** Il ciclo scorre le
+   * date una per una finché non ne ha trovate abbastanza; il limite di sicurezza qui sotto esiste
+   * perché una data di partenza sbagliata (un `NaN`, un piano con l'inizio nel 1970) non diventi un
+   * ciclo che non finisce mai — e allora si esce con quello che si è trovato, che è meno di quello
+   * che serviva ma non è un'applicazione ferma.
+   */
+  let t = da;
+  for (let i = 0; fuori.length < quante && i < TETTO_GIORNI_GUARDATI; i += 1, t += GIORNO) {
+    if (finePiano !== null && t > finePiano) break;
+    if (gia.has(t) || sospeso(t)) continue;
+    fuori.push(t);
+  }
+  return fuori;
+}
+
+/**
+ * ⛔ **QUANTE GIORNATE HA DAVANTI DI SEGUITO, da oggi — senza saltare buchi.**
+ *
+ * È la domanda che il buffer in avanti faceva male in due modi diversi:
+ *  · guardava `ultimo.date > oggi`, cioè **la data più alta**: una riga in fondo al calendario
+ *    valeva come «ha il menu», e l'erogazione si fermava del tutto finché quella data non passava;
+ *  · e contare le giornate **sparse** non basta: chi ha oggi e poi un giorno fra tre settimane ne ha
+ *    due, ma domani non ha niente. La domanda vera è *«fino a quando può aprire l'app e trovare il
+ *    menu?»*, e la risposta si ferma al primo buco.
+ *
+ * ⚠️ **I giorni in sospensione contano come coperti**: durante una vacanza il menu non c'è di
+ * proposito, e trattarli da buco farebbe erogare in mezzo alle ferie.
+ *
+ * ⚠️ La cadenza di sempre non cambia, misurata: dopo un'erogazione di due giorni ne ha due di
+ * seguito e ci si ferma; il giorno dopo ne resta uno e se ne compongono altri due. È esattamente
+ * quello che faceva la regola vecchia quando il calendario era intero.
+ */
+export function giornateDiSeguito(
+  presenti: readonly number[],
+  oggi: number,
+  sospeso: InSospensione = () => false,
+): number {
+  return corsaDiGiornate(presenti, oggi, sospeso).quante;
+}
+
+/**
+ * ⛔ **LA CORSA DELLE GIORNATE DAVANTI: quante sono e DOVE FINISCE.**
+ *
+ * `giornateDiSeguito` risponde alla prima metà; questa risponde a tutte e due, e la prima la chiama.
+ * La seconda metà serve al **cancello delle misure**, che deve sapere dove finisce il ciclo in
+ * corso: la data più alta del calendario non lo dice più, perché fra oggi e quella data ci può
+ * essere un buco — ed è esattamente il caso in cui il cancello, misurato, si apriva da solo.
+ *
+ * ⚠️ `ultima` è `null` quando **oggi stesso** manca: non c'è nessuna corsa, e chi legge deve
+ * trattarlo come «il ciclo è finito», non come «finisce oggi».
+ */
+export function corsaDiGiornate(
+  presenti: readonly number[],
+  oggi: number,
+  sospeso: InSospensione = () => false,
+): { quante: number; ultima: number | null } {
+  const gia = new Set(presenti);
+  let quante = 0;
+  let ultima: number | null = null;
+  /**
+   * ⚠️ **La rete si conta sui GIRI, non sulle giornate trovate** — corretto dalla revisione
+   * avversariale del 25/8, che l'ha misurato: con `sospeso` sempre vero `quante` non cresce **mai**,
+   * il `break` non scatta e il ciclo passava i 200.000 giri. Il commento diceva «rete: un calendario
+   * assurdo non deve diventare un ciclo infinito» e la rete non c'era: proteggeva dai giorni
+   * *presenti*, non da quelli *scavalcati*. È lo stesso tetto che `dateDaComporre` ha già, e lì era
+   * fatto giusto — due punti che rispondono alla stessa domanda e non si somigliavano.
+   */
+  for (let t = oggi, giri = 0; giri < TETTO_GIORNI_GUARDATI; t += GIORNO, giri += 1) {
+    if (gia.has(t)) {
+      quante += 1;
+      ultima = t;
+    }
+    // ⚠️ Un giorno sospeso non è una giornata, ma nemmeno un buco: si scavalca senza contarlo.
+    else if (!sospeso(t)) break;
+  }
+  return { quante, ultima };
+}

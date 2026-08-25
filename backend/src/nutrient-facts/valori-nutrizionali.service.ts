@@ -83,6 +83,13 @@ export interface DaDire {
 /** Oltre questa larghezza il range non si riassume in un numero: si dice il range. */
 const RANGE_LARGO = 8;
 
+/**
+ * L'azione con cui il passo notturno registra di essere girato. ⚠️ Sta qui e la legge il controller:
+ * una stringa scritta a mano in due posti è due stringhe che un giorno divergono, e allora la pagina
+ * smette di dire la data senza che nessuno se ne accorga.
+ */
+export const AZIONE_SCOPERTI_AGGIORNATI = 'nutrient_facts.scoperti_aggiornati';
+
 @Injectable()
 export class ValoriNutrizionaliService {
   private readonly logger = new Logger(ValoriNutrizionaliService.name);
@@ -526,6 +533,49 @@ export class ValoriNutrizionaliService {
       await this.prisma.nutrientLookupMiss
         .updateMany({ where: { term: { in: [...nomi] }, status: 'risolto' } as never, data: { status: 'open' } as never })
         .catch(() => undefined);
+    }
+
+    /**
+     * ⛔ **QUANDO IL CONTO È STATO RIFATTO — scritto, perché la pagina lo dica** (25/8, voce
+     * `alimenti-da-correggere-senza-data`).
+     *
+     * L'elenco che la nutrizionista legge non è un calcolo dal vivo: è quello che questo passo ha
+     * **scritto**, e può avere fino a ventiquattr'ore. Il 21/8 all'una questo ha prodotto uno
+     * spavento vero — 277 alimenti appena caricati e la pagina che li mostrava ancora come «non in
+     * tabella», con la domanda *«stiamo perdendo pezzi invece di farli?»*. Non si perdeva niente: il
+     * passo notturno non era ancora passato.
+     *
+     * ⚠️ **Una riga di registro e non una colonna nuova.** La domanda è «quando è girato questo
+     * passo», e la risposta è un fatto avvenuto: il registro è il posto dove i fatti avvenuti stanno
+     * già. Una colonna `updatedAt` sulle righe risponderebbe a un'altra domanda — «quando è stata
+     * toccata questa riga» — che cambia anche quando una cliente chiede un termine, e allora la
+     * pagina direbbe «aggiornato due minuti fa» per un elenco vecchio di un giorno.
+     *
+     * ⚠️ Non lancia: un registro che non si scrive non deve far fallire il passo notturno. Al massimo
+     * la pagina non dice la data, che è il degrado giusto.
+     */
+    /**
+     * ⚠️ **`try/catch` e non solo `.catch`** — corretto in revisione: `.catch` prende la promessa
+     * rifiutata, non un `TypeError` lanciato **prima** che la promessa esista (un `auditLog` che non
+     * c'è, in un doppio incompleto). Le due metà dello stesso guasto, e una sola era coperta.
+     *
+     * ⚠️ **I conti del giro viaggiano nel `metadata`**, e la pagina li legge: un giro finito con
+     * duecento scritture fallite lascia comunque la sua riga — è successo davvero — ma chi guarda
+     * deve vedere che è andato male, invece di leggere «elenco rifatto stanotte» e stare tranquillo.
+     */
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          action: AZIONE_SCOPERTI_AGGIORNATI,
+          entityType: 'nutrient_lookup_miss',
+          metadata: { scoperti: scoperti.length, scritti, falliti, fuori } as never,
+        } as never,
+      });
+    } catch (err: unknown) {
+      this.logger.warn(
+        `Alimenti da correggere: giro fatto ma non registrato (${err instanceof Error ? err.message : String(err)}): ` +
+          'la pagina non potrà dire di quando è l\'elenco.',
+      );
     }
 
     return { scoperti: scoperti.length, scritti, falliti, fuori };

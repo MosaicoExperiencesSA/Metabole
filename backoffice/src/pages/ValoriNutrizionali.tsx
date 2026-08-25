@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
 import { oggiIso, scaricaExcel, type Cella } from '../lib/excel';
+import { etaDellElenco } from '../lib/elenco-di-quando';
 
 /**
  * VALORI NUTRIZIONALI — la tabella da cui Gaia prende i numeri, e l'unico posto dove si correggono.
@@ -112,8 +113,26 @@ export function ValoriNutrizionali() {
    * insieme è sommarle di nascosto.
    */
   const [daRicette, setDaRicette] = useState<{ righe: Mancante[]; quanti: number }>({ righe: [], quanti: 0 });
+  /**
+   * Quando il passo notturno ha rifatto questo elenco. `null` = non è mai girato — e la pagina lo
+   * dice con parole sue, invece di lasciar credere che l'elenco sia di adesso (voce
+   * `alimenti-da-correggere-senza-data`, dallo spavento del 21/8).
+   */
+  const [aggiornatoIl, setAggiornatoIl] = useState<string | null>(null);
+  /**
+   * ⛔ **«L'elenco non si è caricato» NON è «l'elenco non è mai stato calcolato»** — corretto dopo
+   * la revisione avversariale del 25/8, che l'aveva misurato: con il backend giù la pagina mostrava
+   * due elenchi vuoti **e** la frase «Questo elenco non è mai stato calcolato», senza nessun
+   * errore. È una bugia peggiore di quella che questa consegna toglie, perché è un'affermazione
+   * positiva su un lavoro che nessuno ha guardato.
+   */
+  const [elencoLetto, setElencoLetto] = useState(false);
+  /** Com'è andato l'ultimo giro del passo notturno: `falliti > 0` vuol dire elenco incompleto. */
+  const [ultimoGiro, setUltimoGiro] = useState<{ scoperti: number; scritti: number; falliti: number } | null>(null);
   const [chieste, setChieste] = useState<{ righe: Mancante[]; quanti: number }>({ righe: [], quanti: 0 });
   const [esporto, setEsporto] = useState(false);
+  /** Sta girando il passo notturno lanciato a mano: il pulsante resta fermo finché non torna. */
+  const [ricalcolo, setRicalcolo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -127,13 +146,32 @@ export function ValoriNutrizionali() {
     try {
       const [v, m] = await Promise.all([
         api<Valore[]>(`/nutrient-facts${soloDaConfermare ? '?daConfermare=1' : ''}`),
-        api<{ daRicette: { righe: Mancante[]; quanti: number }; chieste: { righe: Mancante[]; quanti: number } }>(
-          '/nutrient-facts/mancanti',
-        ).catch(() => ({ daRicette: { righe: [], quanti: 0 }, chieste: { righe: [], quanti: 0 } })),
+        api<{
+          daRicette: { righe: Mancante[]; quanti: number };
+          chieste: { righe: Mancante[]; quanti: number };
+          aggiornatoIl?: string | null;
+          ultimoGiro?: { scoperti: number; scritti: number; falliti: number } | null;
+        }>('/nutrient-facts/mancanti')
+          .then((r) => ({ ...r, letto: true }))
+          /**
+           * ⚠️ Il ripiego resta — un elenco che non si carica non deve portare giù la pagina dei
+           * valori — ma dice **che è un ripiego** (`letto: false`), invece di travestirsi da
+           * risposta.
+           */
+          .catch(() => ({
+            daRicette: { righe: [] as Mancante[], quanti: 0 },
+            chieste: { righe: [] as Mancante[], quanti: 0 },
+            aggiornatoIl: null,
+            ultimoGiro: null,
+            letto: false,
+          })),
       ]);
       setValori(v);
       setDaRicette(m.daRicette ?? { righe: [], quanti: 0 });
       setChieste(m.chieste ?? { righe: [], quanti: 0 });
+      setAggiornatoIl(m.aggiornatoIl ?? null);
+      setUltimoGiro(m.ultimoGiro ?? null);
+      setElencoLetto(m.letto);
       setError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Il tuo ruolo non può vedere i valori nutrizionali.');
@@ -394,6 +432,116 @@ export function ValoriNutrizionali() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Non riuscito.');
     }
+  }
+
+  /**
+   * RIFAI IL CONTO ADESSO — l'altra metà della voce `alimenti-da-correggere-senza-data`.
+   *
+   * Dire di quando è l'elenco toglie il sospetto; questo toglie l'attesa. Chi ha appena caricato
+   * duecento alimenti vuole vedere subito che sono usciti, non domani mattina.
+   *
+   * ⚠️ Racconta gli **esiti** del giro, non «fatto»: se il database cade a metà, `falliti` lo dice.
+   */
+  async function rifaiIlConto() {
+    setRicalcolo(true);
+    setNotice(null);
+    try {
+      const r = await api<{ scoperti: number; scritti: number; falliti: number; fuori: number }>(
+        '/nutrient-facts/mancanti/ricalcola',
+        { method: 'POST' },
+      );
+      await carica();
+      setNotice(
+        r.falliti > 0
+          ? `Conto rifatto: ${r.scritti} righe aggiornate, ma ${r.falliti} non si sono scritte. L'elenco è incompleto.`
+          : `Conto rifatto: ${r.scoperti} alimenti da correggere${r.fuori > 0 ? ` (altri ${r.fuori} oltre il tetto del giro)` : ''}.`,
+      );
+    } catch (err) {
+      /**
+       * ⚠️ **Si ricarica lo stesso** — dalla revisione avversariale del 25/8. Il giro dura qualche
+       * secondo e passa da un proxy: se questo taglia la connessione, il server **continua** e
+       * finisce. Uscire senza ricaricare lascerebbe a schermo la data vecchia sotto la frase «non è
+       * ripartito» — due bugie in una. Ricaricando, la data dice come sono andate le cose davvero.
+       */
+      await carica().catch(() => undefined);
+      setError(
+        err instanceof Error
+          ? `${err.message} — se il giro era già partito può essere finito lo stesso: guarda la data qui sotto.`
+          : 'Il conto non è ripartito.',
+      );
+    } finally {
+      setRicalcolo(false);
+    }
+  }
+
+  /**
+   * DI QUANDO È QUESTO ELENCO (25/8).
+   *
+   * ⛔ Nato dallo spavento del 21/8 all'una: 277 alimenti caricati alle 19:43, e la pagina che
+   * mostrava ancora `limone` fra i mancanti — *«stiamo perdendo pezzi invece di farli?»*. Non si
+   * perdeva niente: questo elenco lo scrive un passo notturno, e non era ancora passato. ⚠️ Un
+   * elenco vecchio di ore che sembra vivo fa credere che il lavoro appena fatto non sia servito.
+   */
+  function rigaDiQuando() {
+    const eta = etaDellElenco(aggiornatoIl, new Date());
+    return (
+      <p className="muted" style={{ fontSize: 12, marginTop: 0, marginBottom: 8 }}>
+        <i className="ti ti-clock-hour-4" />{' '}
+        {!elencoLetto ? (
+          /**
+           * ⛔ Il caso che la revisione ha trovato: se l'elenco non si è caricato, di quando sia
+           * non lo sappiamo. Dire «mai calcolato» sarebbe inventare una risposta su un lavoro che
+           * non abbiamo guardato.
+           */
+          <b>L'elenco non si è caricato: non posso dire di quando è.</b>
+        ) : eta.stato === 'mai' ? (
+          <b>Questo elenco non è mai stato calcolato.</b>
+        ) : eta.stato === 'illeggibile' ? (
+          <b>Il passo è girato, ma la data dell'ultimo giro non si legge.</b>
+        ) : eta.stato === 'orologio' ? (
+          <>
+            <b>L'ultimo giro risulta {eta.quando}</b>, cioè nel futuro: un orologio fra questo
+            computer e il server è indietro o avanti, e la data non si può leggere così com'è.
+          </>
+        ) : eta.stato === 'vecchio' ? (
+          <>
+            <b>Elenco rifatto {eta.quando}</b> — sono passate più di {Math.floor(eta.ore)} ore: quello
+            che hai caricato dopo <b>non è ancora contato</b>.
+          </>
+        ) : (
+          <>Elenco rifatto {eta.quando}.</>
+        )}{' '}
+        Non è un conto dal vivo: lo riscrive un passo notturno.
+        {/**
+         * ⛔ **Un giro andato male non deve sembrare un elenco fresco.** La riga di registro si
+         * scrive comunque — il giro c'è stato — ma se metà delle scritture sono fallite l'elenco è
+         * fermo, e la data da sola direbbe il contrario. *Se degradi, dillo.*
+         */}
+        {elencoLetto && ultimoGiro && ultimoGiro.falliti > 0 && (
+          <>
+            {' '}
+            <b>
+              ⚠️ L'ultimo giro non è riuscito a scrivere {ultimoGiro.falliti} righe su{' '}
+              {ultimoGiro.scritti + ultimoGiro.falliti}: l'elenco è incompleto.
+            </b>
+          </>
+        )}
+        {puoModificare && (
+          <>
+            {' '}
+            <button
+              className="btn ghost sm"
+              style={{ marginLeft: 4 }}
+              onClick={() => void rifaiIlConto()}
+              disabled={ricalcolo}
+              title="Rilancia adesso lo stesso passo che gira di notte: rilegge tutte le ricette attive e riscrive l'elenco. Può metterci qualche secondo."
+            >
+              <i className="ti ti-refresh" /> {ricalcolo ? 'Sto rifacendo il conto…' : 'Rifai il conto adesso'}
+            </button>
+          </>
+        )}
+      </p>
+    );
   }
 
   /** La tabella di un elenco di mancanti. Due elenchi, una sola forma: se divergessero, chi guarda
@@ -679,9 +827,34 @@ export function ValoriNutrizionali() {
         </p>
       </div>
 
+      {/**
+       * ⛔ **L'elenco vuoto e l'elenco mai calcolato non sono la stessa cosa** (25/8). Se il passo
+       * non è mai girato, qui non c'è «niente da correggere»: c'è una domanda a cui nessuno ha
+       * ancora risposto — e senza questa riga la pagina la spaccerebbe per un risultato.
+       */}
+      {/**
+       * ⛔ **L'elenco vuoto ha comunque una data e un pulsante** — corretto dopo la revisione
+       * avversariale del 25/8, che aveva trovato lo stato scoperto: «vuoto **e** calcolato» non
+       * accendeva nessun riquadro, quindi chi pubblicava quaranta ricette nuove alle 11 non vedeva
+       * niente, non sapeva di quando fosse quel niente, **e non aveva il pulsante** per rifare il
+       * conto: doveva aspettare la notte, che è l'attesa che il pulsante toglie.
+       */}
+      {daRicette.righe.length === 0 && chieste.righe.length === 0 && !loading && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0, fontSize: 16 }}>Alimenti da correggere</h3>
+          {rigaDiQuando()}
+          {elencoLetto && aggiornatoIl !== null && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 0 }}>
+              Nessun alimento da correggere: l'ultimo giro non ha trovato niente che il conto non sappia contare.
+            </p>
+          )}
+        </div>
+      )}
+
       {(daRicette.righe.length > 0 || chieste.righe.length > 0) && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h3 style={{ marginTop: 0, fontSize: 16 }}>Alimenti da correggere</h3>
+          {rigaDiQuando()}
           <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
             Quello che il conto non sa contare. Sono <b>due elenchi diversi</b> e restano separati:
             i due numeri non si sommano, perché «usato in mille ricette» e «chiesto tre volte in

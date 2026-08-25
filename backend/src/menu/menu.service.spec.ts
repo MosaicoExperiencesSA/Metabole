@@ -85,7 +85,25 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([]),
+        /**
+         * ⛔ **IL DOPPIO SEGUE L'ORIGINALE, o non verifica niente** (25/8).
+         *
+         * Dal 25/8 l'erogazione non guarda più «l'ultima data» ma **quante giornate ci sono davanti**
+         * (i buchi si riempiono con le nuove). Rispondendo sempre `[]`, questo finto raccontava un
+         * calendario **vuoto** a test che avevano appena dichiarato una giornata con `findFirst`:
+         * ogni prova sul buffer in avanti sarebbe passata per la ragione sbagliata.
+         *
+         * ⚠️ Qui il finto **deriva** l'elenco da quello che il test ha dichiarato con `findFirst`:
+         * un giorno solo, quello. I test che vogliono un calendario più ricco lo dicono con
+         * `conCalendario`, che è la stessa cosa scritta per esteso.
+         */
+        findMany: jest.fn().mockImplementation(async (arg: any) => {
+          // ⚠️ Solo la domanda «quali date ci sono»: l'altra (le giornate recenti, per la penalità)
+          // vuole i pasti, e mescolarle è il modo di far esplodere l'una o mentire all'altra.
+          if (!arg?.select?.date) return [];
+          const ultimo = await prisma.menuDay.findFirst();
+          return ultimo?.date ? [{ date: ultimo.date }] : [];
+        }),
         upsert: jest.fn().mockResolvedValue({}),
         // Serve ai test di rigenerazione: `regenerateFromToday` cancella prima di rierogare, e il
         // punto del test col piano fermo è proprio che questa NON venga chiamata.
@@ -134,6 +152,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     };
     const events = { activePausePeriod: jest.fn().mockResolvedValue(null), pausaAppenaFinita: jest.fn().mockResolvedValue(null) };
     (globalThis as any).__eventsMock = events;
+    (globalThis as any).__configMock = config;
     const moduleRef = await Test.createTestingModule({
       providers: [
         MenuService,
@@ -141,7 +160,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         { provide: ConfigParamsService, useValue: config },
         { provide: AuditService, useValue: { log: jest.fn() } },
         { provide: require('../calendar/events.service').EventsService, useValue: events },
-        { provide: require('../diet-agent/diet-agent.service').DietAgentService, useValue: { stateFor: jest.fn().mockResolvedValue('normale') } },
+        { provide: require('../diet-agent/diet-agent.service').DietAgentService, useValue: ((globalThis as any).__dietAgentMock = { stateFor: jest.fn().mockResolvedValue('normale') }) },
         { provide: require('./day-combo.service').DayComboService, useValue: new (require('./day-combo.service').DayComboService)() },
         { provide: require('./kcal-need.service').KcalNeedService, useValue: kcalNeedStub() },
         { provide: require('../notifications/push.service').PushService, useValue: pushStub() },
@@ -495,9 +514,116 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     expect(created).toEqual([daysFromToday(2), daysFromToday(3)]);
   });
 
-  it('buffer: ha già un menu per un giorno FUTURO → non eroga altro', async () => {
+  /**
+   * ⛔ **IL BUFFER CONTA LE GIORNATE, NON GUARDA L'ULTIMA DATA** — cambiato il 25/8 su richiesta di
+   * Simone: *«i buchi si riempiono con le nuove»*.
+   *
+   * Questo test diceva: «ha un menu per domani → non erogare». Ma una cliente che ha **solo** domani
+   * non ha il menu di **oggi**: quella è la definizione di buco, e la vecchia regola gliela lasciava
+   * lì per sempre — guardava la data più alta, quindi una riga in fondo al calendario valeva come
+   * «ha già il menu». Adesso si compone il giorno che manca.
+   */
+  it('⛔ ha SOLO il menu di domani: oggi è un buco, e si riempie', async () => {
     prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
+    const erogati = await service.deliverIfEligible('u1');
+    // ⚠️ Oggi (il buco) e dopodomani (il seguito): domani c'è già e non si tocca.
+    expect(erogati).toEqual([todayIso, daysFromToday(2)]);
+  });
+
+  it('⚠️ ma con le giornate davanti già complete non si eroga niente: il buffer c\'è ancora', async () => {
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
+    // Oggi e domani ci sono tutti e due: due giornate davanti, quante ne compone un'erogazione.
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) =>
+      arg?.select?.date ? [{ date: D(todayIso) }, { date: D(daysFromToday(1)) }] : []);
     expect(await service.deliverIfEligible('u1')).toEqual([]);
+  });
+
+  /**
+   * ⛔ **Il buco in mezzo si richiude, e i giorni esistenti non si toccano.** È la ragione per cui la
+   * voce diceva *«la riparazione non è automatica di proposito»*: rigenerare vuol dire rifare
+   * giornate che qualcuna può aver già letto, magari dopo la spesa. Qui non si cancella niente —
+   * si scrive solo dove non c'è.
+   */
+  it('⛔ il buco in mezzo si riempie prima di accodare', async () => {
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(3)) });
+    // Ha oggi e fra tre giorni: mancano domani e dopodomani.
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) =>
+      arg?.select?.date ? [{ date: D(todayIso) }, { date: D(daysFromToday(3)) }] : []);
+    expect(await service.deliverIfEligible('u1')).toEqual([daysFromToday(1), daysFromToday(2)]);
+  });
+
+  /**
+   * ⛔ **PRIMA EROGAZIONE DI UN PIANO COMINCIATO NEL PASSATO: si parte da OGGI** (25/8).
+   *
+   * Prima si partiva sempre dalla data d'inizio del piano, anche se era di tre giorni fa: la
+   * cliente apriva l'app e trovava il menu di lunedì e martedì scorsi, e **niente per oggi**. ⚠️ Un
+   * menu per un giorno già passato non è un menu: è un posto occupato che impedisce a quello vero
+   * di essere composto. `daOggi = max(oggi, inizio)` è la riga che lo dice.
+   *
+   * ⚠️ E il template resta ancorato all'**inizio del piano**, non al primo giorno composto:
+   * `daysSinceStart` si calcola dalla data, quindi un piano cominciato tre giorni fa riparte dal
+   * giorno 4 del ciclo, non dal giorno 1.
+   */
+  it('⛔ piano cominciato tre giorni fa e mai erogato: si comincia da oggi, non dal passato', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      planStartDate: D(daysFromToday(-3)),
+      regime: 'omnivore',
+      dietStyle: 'mediterranean',
+      mealsPerDay: 5,
+      intolerances: [],
+      dislikedFoods: [],
+    });
+    prisma.menuDay.findFirst.mockResolvedValue(null);
+    expect(await service.deliverIfEligible('u1')).toEqual([todayIso, daysFromToday(1)]);
+  });
+
+  /**
+   * ⛔ **IL BUCO DELL'ULTIMO GIORNO DI PIANO SI RIEMPIE** — difetto trovato dalla revisione
+   * avversariale del 25/8, misurato: la guardia «oltre la fine del piano non si compone» leggeva
+   * ancora `ultima data + 1`, quindi con l'ultima riga **sull'**ultimo giorno di piano usciva prima
+   * ancora di guardare le date da comporre. La cliente all'ultimo giorno del percorso, col menu di
+   * oggi cancellato, non riceveva più niente: proprio il caso che questa consegna chiude.
+   */
+  it('⛔ piano che finisce domani e buco oggi: oggi si riempie lo stesso', async () => {
+    prisma.subscription.findMany.mockResolvedValue([
+      { id: 'sub1', status: 'active', startDate: null, endDate: D(daysFromToday(1)) },
+    ]);
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) =>
+      (arg?.select?.date ? [{ date: D(daysFromToday(1)) }] : []));
+    // Solo oggi: domani c'è già, e dopodomani è oltre la fine del piano.
+    expect(await service.deliverIfEligible('u1')).toEqual([todayIso]);
+  });
+
+  /**
+   * ⛔ **IL BUFFER NON SI LEGA A `menu_days_delivered`** — difetto trovato dalla revisione
+   * avversariale del 25/8. Con quel parametro a 1 (sta in `config_param`, si cambia dal backoffice
+   * senza deploy) «ha una giornata di seguito» sarebbe vera col solo menu di **oggi**, e la cliente
+   * non avrebbe mai il menu del giorno dopo: niente spesa la sera prima. La regola vecchia
+   * (`ultima > oggi`) quel parametro non lo guardava, e questa consegna non doveva cambiarlo.
+   */
+  /**
+   * ⛔ **LO STATO DELLA DIETA E LA VARIETÀ SI CHIEDONO PER IL GIORNO CHE SI COMPONE** — la revisione
+   * avversariale del 25/8 ha mostrato che con i buchi `firstNewDate` («ultima data + 1») e la prima
+   * data composta erano diventate due cose diverse, a quattrocento righe di distanza: per la
+   * giornata-buco lo stato veniva chiesto per **dopodomani**, e la finestra della varietà guardava i
+   * giorni **dopo** invece di quelli prima — il piatto di ieri poteva tornare oggi.
+   */
+  it('⛔ col buco di oggi, lo stato della dieta si chiede per OGGI (non per dopo l\'ultima riga)', async () => {
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(daysFromToday(1)) });
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) =>
+      (arg?.select?.date ? [{ date: D(daysFromToday(1)) }] : []));
+    await service.deliverIfEligible('u1');
+    const chiesto = (globalThis as any).__dietAgentMock.stateFor.mock.calls[0][1] as Date;
+    expect(chiesto.toISOString().slice(0, 10)).toBe(todayIso);
+  });
+
+  it('⛔ con menu_days_delivered = 1 il menu di domani arriva lo stesso', async () => {
+    (globalThis as any).__configMock.getNumber.mockImplementation((k: string, def?: number) =>
+      Promise.resolve(({ menu_days_delivered: 1, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def));
+    prisma.menuDay.findFirst.mockResolvedValue({ date: D(todayIso) });
+    prisma.menuDay.findMany.mockImplementation(async (arg: any) => (arg?.select?.date ? [{ date: D(todayIso) }] : []));
+    expect(await service.deliverIfEligible('u1')).toEqual([daysFromToday(1)]);
   });
 
   it('ultimo giorno del ciclo (menu di oggi presente) + misura inviata → eroga SUBITO i 2 successivi', async () => {
@@ -679,7 +805,10 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
 });
 
 describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   // Pool: 2 candidati per slot; target livello 1400 kcal (±15% = [1190,1610]).
   const recipes = [
@@ -767,7 +896,10 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
 });
 
 describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const recipes = [
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
@@ -797,10 +929,22 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: { findUnique: jest.fn().mockResolvedValue({ planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5, intolerances: [], dislikedFoods: [], assignedNutritionistId: null }) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
-      // findMany qui è consumata SOLO dalla penalità (le giornate recenti); ne conto le ripetizioni di l1.
+      /**
+       * ⛔ **DUE DOMANDE DIVERSE ALLA STESSA PORTA, e il finto deve saperle distinguere** (25/8).
+       *
+       * `menuDay.findMany` la usano **due** punti dell'erogazione: la penalità di ripetizione, che
+       * chiede le giornate recenti coi loro pasti, e — dal 25/8 — il calendario da oggi in avanti,
+       * che chiede **solo le date** (`select: { date: true }`) per sapere dove sono i buchi.
+       * Rispondendo la stessa cosa a tutti e due, il finto dava righe senza `date` al secondo e lo
+       * faceva esplodere. In produzione sono due query distinte: qui si distinguono dal `select`,
+       * che è esattamente ciò che le distingue là.
+       */
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue(recentLunch.map((r) => ({ meals: [{ slot: 'lunch', recipeId: r }] }))),
+        findMany: jest.fn().mockImplementation(async (arg: any) =>
+          arg?.select?.date
+            ? [] // nessuna giornata futura in calendario: questi test partono da zero
+            : recentLunch.map((r) => ({ meals: [{ slot: 'lunch', recipeId: r }] }))),
         upsert: jest.fn().mockResolvedValue({}),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -842,7 +986,10 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
 });
 
 describe('MenuService — R12 modulazione da objective (mantenimento = efficacia neutra)', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const recipes = [
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
@@ -924,7 +1071,10 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
 });
 
 describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days)', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   // r1 e r2: stesso slot, stesse kcal, alimenti principali diversi (orata/branzino).
   // menuWeight su r1 → r1 vince lo scoring per ENTRAMBI i giorni (base = r1, r1).
@@ -1006,7 +1156,10 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
 });
 
 describe('MenuService — override PER DIETA (ProductRule) letto dal motore', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const recipes = [
     { id: 'l1', name: 'Pranzo A', kcal: 500, macros: { protein_g: 30, carbs_g: 55, fat_g: 15 } },
@@ -1044,7 +1197,9 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue(recentLunch.map((r) => ({ meals: [{ slot: 'lunch', recipeId: r }] }))),
+        // ⚠️ Due domande diverse alla stessa porta: il calendario chiede le DATE, la penalità i pasti.
+        findMany: jest.fn().mockImplementation(async (arg: any) =>
+          arg?.select?.date ? [] : recentLunch.map((r) => ({ meals: [{ slot: 'lunch', recipeId: r }] }))),
         upsert: jest.fn().mockResolvedValue({}),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -1086,7 +1241,10 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
 });
 
 describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   // Due colazioni equivalenti come kcal: il pool offre sempre un'alternativa.
   const recipes = [
@@ -1110,7 +1268,9 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', status: 'active' }), findMany: jest.fn().mockResolvedValue([{ id: 'sub', status: 'active', startDate: null, endDate: null }]) },
       menuDay: {
         findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue(recentBreakfast.map((r) => ({ meals: [{ slot: 'breakfast', recipeId: r }] }))),
+        // ⚠️ Due domande diverse alla stessa porta: il calendario chiede le DATE, la penalità i pasti.
+        findMany: jest.fn().mockImplementation(async (arg: any) =>
+          arg?.select?.date ? [] : recentBreakfast.map((r) => ({ meals: [{ slot: 'breakfast', recipeId: r }] }))),
         upsert: jest.fn().mockResolvedValue({}),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -1165,7 +1325,10 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
 // banda kcal resta UNA sola ricetta, `dayIndex % 1` la ripropone ogni giorno e la garanzia di
 // varietà applicata a monte viene annullata.
 describe('MenuService — ricette semplici senza annullare la varietà', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
   // Pool della dieta: due colazioni equivalenti (il guard può alternarle).
@@ -1258,7 +1421,10 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
 // non gradito ("avena"), un pool di dieta con due alternative buone e un catalogo che offre
 // un'alternativa PIÙ VICINA in kcal — che però non deve mai essere scelta.
 describe('MenuService — sostituzione dei non graditi dentro il pool della dieta', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // ⚠️ Il giorno di ROMA, come lo legge il servizio (`toDateOnly`). Con `.toISOString()` questi
+  // apparecchi dicevano il giorno UTC: fra mezzanotte e le 02:00 è il giorno PRIMA, e il piano
+  // «cominciato oggi» risultava cominciato ieri. Trovato da `npm run test:notte` il 25/8.
+  const today = giornoLocale(new Date());
   const DD = (iso: string) => new Date(iso + 'T00:00:00.000Z');
   const macros = { protein_g: 25, carbs_g: 35, fat_g: 14 };
   const R = (id: string, name: string, kcal: number) => ({ id, name, kcal, macros, mealSlot: 'breakfast', ingredients: [], active: true, difficulty: 'media' });

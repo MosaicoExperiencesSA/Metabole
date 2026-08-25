@@ -51,7 +51,17 @@ describe('⛔ le migrazioni nominano tabelle che esistono', () => {
     const fuori: string[] = [];
     for (const f of fileDiMigrazione()) {
       const sql = readFileSync(f, 'utf8');
-      for (const m of sql.matchAll(/ALTER TABLE\s+(?:IF EXISTS\s+)?"([^"]+)"/gi)) {
+      /**
+       * ⚠️ **Anche `CREATE INDEX … ON "tabella"`** (25/8): sbagliare il nome lì rompe il deploy
+       * esattamente come in un `ALTER TABLE`, e il primo indice nuovo dopo questo guardiano sarebbe
+       * passato senza che nessuno lo guardasse. Un guardiano che copre una porta sola invita a
+       * usare l'altra.
+       */
+      const nomi = [
+        ...sql.matchAll(/ALTER TABLE\s+(?:IF EXISTS\s+)?"([^"]+)"/gi),
+        ...sql.matchAll(/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF NOT EXISTS\s+)?"[^"]+"\s+ON\s+"([^"]+)"/gi),
+      ];
+      for (const m of nomi) {
         /**
          * ⚠️ I nomi con un punto (`public.x`) e i vincoli (`"x_fkey"`) non sono tabelle: il primo è
          * qualificato, il secondo è il secondo argomento di un `RENAME CONSTRAINT`.
