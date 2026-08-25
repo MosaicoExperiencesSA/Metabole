@@ -123,6 +123,13 @@ async function creaServizio(tocca?: (prisma: any) => void) {
         findMany: jest.fn().mockResolvedValue([
           { productId: null, members: { items: ['carote', 'biete', 'spinaci'] } },
         ]),
+        /**
+         * ⚠️ **Il gruppo dei GRASSI, cercato per nome** (25/8): Gaia lo interroga per sapere quanti
+         * grammi del sostituto scrivere. Qui non c'è — questi test parlano di carote e biete, dove
+         * la pari grammatura regge — e il finto lo dice rendendo `null`, invece di far esplodere il
+         * servizio con «findFirst is not a function».
+         */
+        findFirst: jest.fn().mockResolvedValue(null),
       },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'esc-1' }) },
       staff: {
@@ -983,8 +990,21 @@ describe('SostituzioneChatService — l\'unità del sostituto arriva fino al men
       prisma.recipe.findMany = jest.fn().mockResolvedValue([
         { ...RICETTA_PRANZO, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] },
       ]);
+      /**
+       * ⚠️ **I pesi ci sono, e dal 25/8 devono esserci**: panna e burro sono tutti e due grassi, e
+       * senza numeri Gaia passa la mano invece di proporre (vedi `comeConvertire`). Questo test
+       * guarda l'**unità**, non la quantità, quindi i pesi servono solo ad arrivare in fondo — e
+       * la quantità che ne esce, 70 × 120 / 285 = 29 g, è quella giusta.
+       */
       prisma.equivalenceGroup.findMany = jest.fn().mockResolvedValue([
-        { productId: null, members: { items: ['panna fresca', 'burro'] } },
+        { name: 'Latticini', productId: null, members: { items: ['panna fresca', 'burro'] } },
+        // ⚠️ La TABELLA sta sul gruppo che si chiama come l'ha chiamato Nocanty, ed è un gruppo a
+        // parte: quello dei pesi non propone sostituti (vedi `candidati`).
+        {
+          name: 'Oli e grassi da condimento',
+          productId: null,
+          members: { items: ['panna fresca', 'burro'], fattori: { riferimento: 'olio evo', pesi: { 'panna fresca': 285, burro: 120 } } },
+        },
       ]);
     });
 
@@ -994,7 +1014,7 @@ describe('SostituzioneChatService — l\'unità del sostituto arriva fino al men
     expect(aperto.stato?.proposta?.unitaA).toBe('g');
 
     const conferma = await service.avanza('client-1', aperto.stato!, '2');
-    expect(conferma.testo).toContain('70 g di burro');
+    expect(conferma.testo).toContain('29 g di burro');
     expect(conferma.testo).toContain('70 ml di panna fresca');
 
     const fatto = await service.avanza('client-1', conferma.stato!, 'sì');
@@ -1267,8 +1287,17 @@ describe('SostituzioneChatService — la nutrizionista verifica', () => {
       prisma.recipe.findMany = jest.fn().mockResolvedValue([
         { ...RICETTA_PRANZO, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] },
       ]);
+      // ⚠️ Tre grassi: senza i pesi il cambio non parte nemmeno (vedi `comeConvertire`).
       prisma.equivalenceGroup.findMany = jest.fn().mockResolvedValue([
-        { productId: null, members: { items: ['panna fresca', 'burro', 'olio evo'] } },
+        { name: 'Condimenti', productId: null, members: { items: ['panna fresca', 'burro', 'olio evo'] } },
+        {
+          name: 'Oli e grassi da condimento',
+          productId: null,
+          members: {
+            items: ['panna fresca', 'burro', 'olio evo'],
+            fattori: { riferimento: 'olio evo', pesi: { 'panna fresca': 285, burro: 120, 'olio evo': 100 } },
+          },
+        },
       ]);
     });
     const aperto = await service.apriDaTesto('client-1', 'vorrei sostituire la panna');
@@ -1912,5 +1941,578 @@ describe('SostituzioneChatService — cambio colazione: «dolce o salata?» (14/
     const { service } = await creaServizio(conTag);
     const esito = await service.proponiAltroPiatto('cli-1', 'voglio cambiare il pranzo');
     expect(esito.stato?.passo).not.toBe('colazione_gusto');
+  });
+});
+
+/**
+ * ⛔ **I GRASSI IN CHAT: la quantità si converte, o non si propone niente.**
+ *
+ * Il difetto è del 9 agosto, su una cliente vera: Gaia ha proposto **70 ml di panna → 70 g di olio**,
+ * e un piatto da 500 kcal ne diventa ~890. Il controllo che c'era guardava il rapporto fra le
+ * QUANTITÀ (un terzo/il triplo): 70 → 70 è un rapporto di 1, e passava senza dire niente.
+ *
+ * I numeri li ha dati Nocanty il 24/8 (fonte CREA / USDA), riferimento olio EVO = 100.
+ */
+describe('⛔ SostituzioneChatService — i grassi non si cambiano a pari grammatura', () => {
+  const PESI = {
+    'olio evo': 100, 'olio extravergine di oliva': 100, burro: 120,
+    'panna fresca': 285, margarina: 122, mascarpone: 212,
+  };
+  /**
+   * ⚠️ **Il gruppo dei PESI si chiama come l'ha chiamato Nocanty**, e da lì il servizio lo cerca per
+   * nome (normalizzato). ⛔ Ed è un gruppo a parte da quelli che propongono i sostituti: una tabella
+   * di conversione non è la frase «questi alimenti si scambiano» — vedi `candidati`.
+   */
+  const GRUPPO_FATTORI = {
+    name: 'Oli e grassi da condimento',
+    productId: null,
+    members: {
+      items: Object.keys(PESI),
+      fattori: { riferimento: 'olio extravergine di oliva', fonte: 'CREA / USDA', pesi: PESI },
+    },
+  };
+
+  /**
+   * Il pranzo del finto ha «olio evo» a 10 g: è l'ingrediente su cui si lavora.
+   *
+   * ⚠️ Il gruppo dei grassi si **aggiunge** a quello delle carote, non lo sostituisce: togliendolo,
+   * i cambi sulle verdure non troverebbero più nessun candidato e i test direbbero «passa la mano»
+   * per la ragione sbagliata.
+   */
+  const conGrassi = async (opzioni: { ricettaPranzo?: Record<string, unknown>; soloItems?: string[] } = {}) => {
+    const creato = await creaServizio();
+    const { prisma } = creato;
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Verdure', productId: null, members: { items: ['carote', 'biete', 'spinaci'] } },
+      // ⚠️ `soloItems` restringe i candidati: serve a scegliere QUALE sostituto Gaia propone, che
+      // altrimenti è il primo in ordine alfabetico (il burro) e non l'olio dell'esempio di Nocanty.
+      // ⚠️ E ha un NOME DIVERSO da quello della tabella: i pesi non propongono sostituti.
+      {
+        name: 'Condimenti della nutrizionista',
+        productId: null,
+        members: { items: opzioni.soloItems ?? Object.keys(PESI) },
+      },
+      GRUPPO_FATTORI,
+    ]);
+    if (opzioni.ricettaPranzo) {
+      const originale = prisma.recipe.findMany.getMockImplementation();
+      prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+        const righe = await originale(arg);
+        return righe.map((r: { id: string }) => (r.id === 'r-pranzo' ? { ...r, ...opzioni.ricettaPranzo } : r));
+      });
+    }
+    return creato;
+  };
+
+  /** Dall'apertura fino al cambio SCRITTO, come fa la chat: cibo → motivo → «sì». */
+  const cambia = async (srv: any, cibo: string, motivo = '1') => {
+    const apertura = await srv.apri('client-1');
+    const dopoCibo = await srv.avanza('client-1', apertura.stato, cibo);
+    if (!dopoCibo.stato) return dopoCibo;
+    const dopoMotivo = await srv.avanza('client-1', dopoCibo.stato, motivo);
+    if (!dopoMotivo.stato) return dopoMotivo;
+    return srv.avanza('client-1', dopoMotivo.stato, 'sì');
+  };
+
+  /**
+   * ⛔ **Il caso della Strada B**: olio evo (peso 100) → burro (peso 120). Dieci grammi di olio
+   * diventano **12 g di burro**, non 10. È la proporzione sui lipidi, con i numeri di Nocanty.
+   */
+  it('⛔ dieci grammi di olio diventano dodici di burro, non dieci', async () => {
+    const { service, giorno } = await conGrassi();
+    await cambia(service, 'olio evo', '1');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    const riga = sost.find((x: { from: string }) => /olio/.test(x.from))!;
+    expect(riga).toBeTruthy();
+    expect(riga.toQty).toBe(12);
+    expect(riga.fromQty).toBe(10);
+  });
+
+  /**
+   * ⛔ **La Strada A**: un grasso di cui non abbiamo il numero non si cambia da soli. Qui il gruppo
+   * conosce l'olio ma NON il sostituto — quindi non si propone niente e la richiesta va alla
+   * nutrizionista, che è quello che Nocanty ha scelto per «le altre categorie di grassi».
+   */
+  it('⛔ senza il peso del sostituto non si propone niente: si passa la mano', async () => {
+    const { service, prisma } = await conGrassi();
+    // Un gruppo che rende l'olio scambiabile con lo strutto, ma lo strutto non ha peso.
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items: ['olio evo', 'strutto'] } },
+      GRUPPO_FATTORI,
+    ]);
+    const esito = await cambia(service, 'olio evo', '1');
+    expect(esito.inoltraA).toBe('nutritionist');
+    expect(esito.testo).toMatch(/non decidere io/);
+  });
+
+  /** ⚠️ E il testo è quello che Nocanty ha approvato parola per parola: dice PERCHÉ. */
+  it('⚠️ e il testo spiega perché, invece di dire solo «non posso»', async () => {
+    const { service, prisma } = await conGrassi();
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items: ['olio evo', 'strutto'] } },
+      GRUPPO_FATTORI,
+    ]);
+    const esito = await cambia(service, 'olio evo', '1');
+    expect(esito.testo).toMatch(/cambia le calorie del piatto/);
+  });
+
+  /**
+   * ⛔ **La coppia che in cucina non regge**: panna → olio in una vellutata. Sui numeri il cambio si
+   * farebbe; nel piatto no. Regola di Nocanty, 24/8.
+   */
+  it('⛔ in una vellutata la panna non diventa olio da sola', async () => {
+    const { service } = await conGrassi({
+      soloItems: ['panna fresca', 'olio extravergine di oliva'],
+      ricettaPranzo: {
+        name: 'Vellutata di zucca',
+        ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }],
+      },
+    });
+    const esito = await cambia(service, 'panna fresca', '1');
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+
+  /** ⚠️ E fuori dalla vellutata la stessa coppia si fa: 70 ml di panna → 25 g di olio. */
+  it('⚠️ nello stesso cambio, ma in un piatto normale, la conversione si fa', async () => {
+    const { service, giorno } = await conGrassi({
+      soloItems: ['panna fresca', 'olio extravergine di oliva'],
+      ricettaPranzo: { ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] },
+    });
+    await cambia(service, 'panna fresca', '1');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    const riga = sost.find((x: { from: string }) => /panna/.test(x.from))!;
+    expect(riga).toBeTruthy();
+    expect(riga.toQty).toBe(25);
+  });
+
+  /**
+   * ⚠️ **La controprova, ed è quella che conta**: sulle verdure la pari grammatura regge e non deve
+   * cambiare niente. Senza questo test il difetto nuovo sarebbe «tutti i cambi passano a mano».
+   */
+  it('⚠️ sulle carote la pari grammatura resta: cento grammi restano cento', async () => {
+    const { service, giorno } = await conGrassi();
+    await cambia(service, 'carote', '1');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    const riga = sost.find((x: { from: string }) => /carot/.test(x.from))!;
+    expect(riga).toBeTruthy();
+    expect(riga.toQty).toBe(100);
+  });
+
+  /**
+   * ⚠️ **E senza il gruppo dei grassi affatto, il prodotto si comporta come prima.** ⛔ Il test si
+   * guarda la **quantità scritta**, non solo che una riga esista: prima asseriva `length > 0`, e
+   * sarebbe passato anche con la conversione rotta — rilievo della revisione, 25/8.
+   */
+  it('⚠️ senza il gruppo dei fattori i cambi non grassi funzionano come sempre', async () => {
+    const creato = await creaServizio();
+    const { service, giorno } = creato;
+    await cambia(service, 'carote', '1');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    const riga = sost.find((x: { from: string }) => /carot/.test(x.from));
+    expect(riga).toBeTruthy();
+    expect(riga!.fromQty).toBe(100);
+    expect(riga!.toQty).toBe(100);
+  });
+});
+
+/**
+ * ⛔ **I DUE GIRI DOPO IL PRIMO** — quello che la revisione del 25/8 ha trovato rotto.
+ *
+ * `proponi` faceva bene i conti. Poi il secondo giro (`altroSostituto`) e la controproposta della
+ * cliente scrivevano `{ ...proposta, a: nuovoSostituto }`, cioè cambiavano l'alimento **tenendo la
+ * quantità di quello di prima**. Sui grassi è esattamente l'errore che questo lavoro toglie, e in
+ * due sapori: nel secondo giro il numero detto era sbagliato; nella controproposta era sbagliato in
+ * un modo peggiore, perché `applica` i conti li rifà — e allora **testo e menu divergevano**.
+ */
+describe('⛔ SostituzioneChatService — la quantità si rifà a ogni giro, non solo al primo', () => {
+  const PESI = {
+    'olio evo': 100, 'olio extravergine di oliva': 100, burro: 120,
+    'panna fresca': 285, margarina: 122, mascarpone: 212,
+  };
+  const FATTORI = { riferimento: 'olio extravergine di oliva', fonte: 'CREA / USDA', pesi: PESI };
+
+  const conPanna = async (items: string[]) => {
+    const creato = await creaServizio();
+    const { prisma } = creato;
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items, fattori: FATTORI } },
+    ]);
+    const originale = prisma.recipe.findMany.getMockImplementation();
+    prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+      const righe = await originale(arg);
+      return righe.map((r: { id: string }) =>
+        r.id === 'r-pranzo' ? { ...r, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] } : r,
+      );
+    });
+    return creato;
+  };
+
+  /**
+   * ⛔ **Il secondo giro.** La cliente dice no al burro; Gaia propone l'olio. Il numero giusto è
+   * 70 × 100 / 285 = **25 g**, non i 84 del burro e nemmeno i 70 della panna.
+   */
+  it('⛔ al secondo sostituto la quantità si ricalcola: 25 g di olio, non quella del burro', async () => {
+    const { service } = await conPanna(['panna fresca', 'burro', 'olio extravergine di oliva']);
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    // Il primo suggerimento è il burro (ordine alfabetico): 70 × 120 / 285 = 29 g.
+    expect(dopoMotivo.testo).toContain('29 g di burro');
+    // ⚠️ Il «no» apre le tre strade; «1» è «proponimene un altro», cioè il secondo giro.
+    const treStrade = await service.avanza('client-1', dopoMotivo.stato!, 'no');
+    const secondo = await service.avanza('client-1', treStrade.stato!, '1');
+    // ⚠️ «g» e non «ml»: la tabella di Nocanty è in GRAMMI, e dopo una conversione coi pesi
+    // l'unità è il grammo anche per un liquido — vedi `unitaDopoLaConversione`.
+    expect(secondo.testo).toContain('25 g di olio extravergine di oliva');
+    expect(secondo.stato!.proposta!.qtaA).toBe(25);
+  });
+
+  /**
+   * ⛔ **La controproposta della cliente, e il difetto peggiore**: il testo diceva un numero e
+   * `applica` — che i conti li rifà da sé — ne scriveva un altro sul menu. Qui si guardano tutti e
+   * due, perché è la loro **differenza** il difetto, non il valore di uno dei due.
+   */
+  it('⛔ il sostituto scelto da lei: quello che le si dice è quello che finisce sul menu', async () => {
+    const { service, giorno } = await conPanna(['panna fresca', 'burro', 'olio extravergine di oliva']);
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    const sua = await service.avanza('client-1', dopoMotivo.stato!, 'posso usare l\'olio extravergine di oliva?');
+    // ⚠️ «g» e non «ml»: la conversione è per peso, e l'unità la segue (`unitaDopoLaConversione`).
+    expect(sua.testo).toContain('25 g di olio extravergine di oliva');
+    await service.avanza('client-1', sua.stato!, 'sì');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    const riga = sost.find((x: { from: string }) => /panna/.test(x.from))!;
+    expect(riga.toQty).toBe(25);
+  });
+});
+
+/**
+ * ⛔ **UNA TABELLA DI PESI NON È UN ELENCO DI EQUIVALENZE** — trovato in revisione, 25/8.
+ *
+ * Il gruppo dei grassi è approvato e globale, perché i suoi numeri devono valere per tutte. Ma un
+ * gruppo approvato, per il resto del motore, è anche la frase «questi alimenti si scambiano»: e
+ * questo gruppo non la dice. Lasciandolo fra i candidati, chi chiedeva di cambiare l'olio si sentiva
+ * proporre **burro o panna** con l'aria di una scelta approvata dalla nutrizionista.
+ */
+describe('⛔ SostituzioneChatService — il gruppo dei pesi non propone sostituti', () => {
+  const PESI = { 'olio evo': 100, burro: 120, 'panna fresca': 285 };
+
+  it('⛔ dal gruppo «Oli e grassi da condimento» non esce nessun candidato', async () => {
+    const { service, prisma } = await creaServizio();
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      {
+        name: 'Oli e grassi da condimento',
+        productId: null,
+        members: {
+          items: Object.keys(PESI),
+          fattori: { riferimento: 'olio evo', pesi: PESI },
+        },
+      },
+    ]);
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'olio evo');
+    // Nessun candidato → si passa la mano, invece di proporre il burro a chi non l'ha mai chiesto.
+    expect(dopoCibo.inoltraA).toBe('nutritionist');
+  });
+
+  /** ⚠️ La controprova: lo stesso gruppo con un altro nome è un gruppo normale e propone. */
+  it('⚠️ un gruppo qualsiasi con dentro gli stessi alimenti propone come sempre', async () => {
+    const { service, prisma } = await creaServizio();
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti della nutrizionista', productId: null, members: { items: ['olio evo', 'burro'] } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items: Object.keys(PESI), fattori: { riferimento: 'olio evo', pesi: PESI } } },
+    ]);
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'olio evo');
+    // Il sostituto si legge dopo il motivo: prima Gaia chiede PERCHÉ (la risposta cambia la durata).
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    expect(dopoMotivo.testo).toContain('burro');
+  });
+});
+
+/**
+ * ⛔ **QUANDO NON SI SCRIVE NIENTE, LA RAGIONE DEVE ESSERE QUELLA VERA.**
+ *
+ * `saltatiPerCucina` era incrementato e **mai letto**. Quindi, quando l'unico pasto toccabile era
+ * una vellutata, la cliente riceveva «il menu di oggi è cambiato e «panna fresca» non c'è più: non
+ * ho toccato niente» — che è **falso**: la panna c'è ancora, ed è il sistema ad aver deciso di non
+ * toccarla. E non partiva nessun inoltro: il cambio spariva.
+ *
+ * ⚠️ Regola di casa: *una ragione falsa è peggio di un ordine sbagliato*.
+ */
+describe('⛔ SostituzioneChatService — il pasto saltato non diventa «il menu è cambiato»', () => {
+  const PESI = { 'panna fresca': 285, 'olio extravergine di oliva': 100 };
+
+  it('⛔ se l\'unico piatto è una vellutata, si dice la verità e si passa la mano', async () => {
+    const { service, prisma } = await creaServizio();
+    const items = ['panna fresca', 'olio extravergine di oliva'];
+    const fattori = { riferimento: 'olio extravergine di oliva', pesi: PESI };
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items, fattori } },
+    ]);
+    const originale = prisma.recipe.findMany.getMockImplementation();
+    /**
+     * ⚠️ La ricetta si chiama «Vellutata» SOLO al momento di scrivere, non alla proposta: è il caso
+     * che la prima stesura non copriva — la regola della cucina scatta su una giornata futura, dove
+     * il piatto è un altro. Con «non mi piace» il cambio si propaga, e lì può esserci una vellutata.
+     */
+    let scrittura = false;
+    prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+      const righe = await originale(arg);
+      return righe.map((r: { id: string }) =>
+        r.id === 'r-pranzo'
+          ? {
+              ...r,
+              name: scrittura ? 'Vellutata di zucca' : 'Filetto ai funghi',
+              ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }],
+            }
+          : r,
+      );
+    });
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    scrittura = true;
+    const esito = await service.avanza('client-1', dopoMotivo.stato!, 'sì');
+    expect(esito.testo).not.toMatch(/non c'è più/);
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+});
+
+/**
+ * ⛔ **LE TRE PROVE CHE MANCAVANO** — trovate dalla prova delle mutazioni, 25/8: senza di loro tre
+ * modifiche che riportano il difetto passavano tutti i test.
+ */
+describe('⛔ SostituzioneChatService — le reti che devono restare accese', () => {
+  const PESI = { 'panna fresca': 285, 'olio extravergine di oliva': 100 };
+  const FATTORI = { riferimento: 'olio extravergine di oliva', pesi: PESI };
+
+  const conPanna = async (nomePiatto: string) => {
+    const creato = await creaServizio();
+    const { prisma } = creato;
+    const items = ['panna fresca', 'olio extravergine di oliva'];
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items, fattori: FATTORI } },
+    ]);
+    const originale = prisma.recipe.findMany.getMockImplementation();
+    prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+      const righe = await originale(arg);
+      return righe.map((r: { id: string }) =>
+        r.id === 'r-pranzo'
+          ? { ...r, name: nomePiatto, ingredients: [{ name: 'panna fresca', qty: 70, unit: 'ml' }] }
+          : r,
+      );
+    });
+    return creato;
+  };
+
+  /**
+   * ⛔ **La vellutata si ferma alla PROPOSTA, non alla scrittura.** Il test che c'era guardava
+   * l'esito finale, e quello resta `nutritionist` anche togliendo il controllo dalla proposta —
+   * perché la rete dentro `applica` lo riprende. Due reti sono giuste; un test che non sa quale
+   * delle due ha funzionato non è un test.
+   */
+  it('⛔ in una vellutata il cambio non viene NEMMENO proposto', async () => {
+    const { service } = await conPanna('Vellutata di zucca');
+    const apertura = await service.apri('client-1');
+    // ⚠️ Il sostituto si sceglie **al passo del cibo**, non dopo il motivo: è lì che la regola
+    // della cucina deve fermare tutto, e lì che si guarda.
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    expect(dopoCibo.inoltraA).toBe('nutritionist');
+    // Nessuna proposta da confermare: la conversazione non arriva nemmeno alla domanda sul motivo.
+    expect(dopoCibo.stato).toBeUndefined();
+    expect(dopoCibo.testo).not.toContain('olio');
+  });
+
+  /**
+   * ⛔ **Se i pesi spariscono fra la proposta e la scrittura, non si scrive la pari grammatura.**
+   * Succede davvero: con «non mi piace» il cambio si propaga ai giorni futuri, e nel frattempo il
+   * gruppo può essere rimesso in bozza per correggere un numero. La prima stesura diceva «non può
+   * capitare» e, nel caso, scriveva 70 g di olio al posto di 70 ml di panna: il difetto di partenza,
+   * ricomparso proprio quando la tabella era in manutenzione.
+   */
+  it('⛔ se la tabella sparisce fra la proposta e il «sì», non si scrive niente', async () => {
+    const { service, prisma, giorno } = await conPanna('Filetto ai funghi');
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    expect(dopoMotivo.stato?.proposta?.qtaA).toBe(25);
+    // Il gruppo viene rimesso in bozza mentre lei sta rispondendo: fra gli approvati non c'è più.
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items: ['panna fresca', 'olio extravergine di oliva'] } },
+    ]);
+    const esito = await service.avanza('client-1', dopoMotivo.stato!, 'sì');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    expect(sost.find((x: { from: string }) => /panna/.test(x.from))).toBeUndefined();
+    expect(esito.inoltraA).toBe('nutritionist');
+  });
+});
+
+/**
+ * ⛔ **LA CORREZIONE DELLA NUTRIZIONISTA NON REINTRODUCE LA PARI GRAMMATURA** — revisione, 25/8.
+ *
+ * Questa è la porta da cui lei **sistema** un cambio di Gaia, e prima teneva la quantità vecchia:
+ * correggere «12 g di burro» in «panna fresca» senza toccare i grammi metteva nel piatto 12 g di
+ * panna, cioè un terzo dei lipidi. Il difetto reintrodotto dallo strumento che serve a toglierlo,
+ * per mano di chi credeva di star sistemando le cose.
+ */
+describe('⛔ SostituzioneChatService — la nutrizionista cambia il sostituto, la quantità la seguo io', () => {
+  const PESI = { 'olio evo': 100, burro: 120, 'panna fresca': 285 };
+  const FATTORI = { riferimento: 'olio evo', pesi: PESI };
+
+  const conGrassi = async () => {
+    const creato = await creaServizio();
+    const { prisma } = creato;
+    const items = ['olio evo', 'burro', 'panna fresca'];
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items, fattori: FATTORI } },
+    ]);
+    // Il pranzo del finto ha «olio evo» a 10 g: il primo sostituto in ordine alfabetico è il burro.
+    const apertura = await creato.service.apri('client-1');
+    const dopoCibo = await creato.service.avanza('client-1', apertura.stato!, 'olio evo');
+    const dopoMotivo = await creato.service.avanza('client-1', dopoCibo.stato!, '1');
+    await creato.service.avanza('client-1', dopoMotivo.stato!, 'sì');
+    return creato;
+  };
+
+  const riga = (giorno: () => any) =>
+    giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions?.find((s: { from: string }) => /olio/.test(s.from));
+
+  it('⛔ cambiando il sostituto senza scrivere i grammi, i grammi si riconvertono', async () => {
+    const { service, giorno } = await conGrassi();
+    expect(riga(giorno).toQty).toBe(12); // 10 g di olio → 12 g di burro
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'olio evo',
+      stato: 'corretta',
+      to: 'panna fresca',
+      // ⚠️ Nessun `toQty`: è il caso che prima teneva i 12 g del burro.
+    });
+    // 10 × 285 / 100 = 28,5 → 29 g di panna.
+    expect(riga(giorno).toQty).toBe(29);
+  });
+
+  it('⚠️ ma se i grammi li scrive lei, vincono i suoi: è la sua correzione', async () => {
+    const { service, giorno } = await conGrassi();
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'olio evo',
+      stato: 'corretta',
+      to: 'panna fresca',
+      toQty: 40,
+    });
+    expect(riga(giorno).toQty).toBe(40);
+  });
+
+  /**
+   * ⛔ **E se il numero non c'è, si chiede invece di indovinare.** Lei è davanti alla schermata e il
+   * campo dei grammi ce l'ha lì: chiederglielo costa un secondo, indovinare costa un piatto.
+   */
+  it('⛔ su un grasso senza peso si rifiuta e si spiega, invece di scrivere un numero inventato', async () => {
+    const { service, giorno } = await conGrassi();
+    await expect(
+      service.correggiCambioInChat('client-1', 'nutri-1', {
+        data: giorno().date.toISOString().slice(0, 10),
+        slot: 'lunch',
+        tipo: 'ingrediente',
+        from: 'olio evo',
+        stato: 'corretta',
+        to: 'strutto',
+      }),
+    ).rejects.toThrow(/Scrivi tu i grammi/);
+    expect(riga(giorno).toQty).toBe(12); // niente è stato scritto
+  });
+
+  /**
+   * ⚠️ **La controprova, ed è quella che conta.** Sulle verdure la quantità NON si tocca: la pari
+   * grammatura lì regge, e un ricalcolo che scatta su tutto sarebbe un difetto nuovo al posto di
+   * quello vecchio.
+   */
+  it('⚠️ e su un cambio che non è di grassi la quantità resta quella', async () => {
+    const { service, giorno } = await creaServizio();
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'carote');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    await service.avanza('client-1', dopoMotivo.stato!, 'sì');
+    const prima = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions
+      ?.find((s: { from: string }) => /carot/.test(s.from));
+    expect(prima!.toQty).toBe(100);
+
+    await service.correggiCambioInChat('client-1', 'nutri-1', {
+      data: giorno().date.toISOString().slice(0, 10),
+      slot: 'lunch',
+      tipo: 'ingrediente',
+      from: 'carote',
+      stato: 'corretta',
+      to: 'spinaci',
+    });
+    const dopo = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions
+      ?.find((s: { from: string }) => /carot/.test(s.from));
+    expect(dopo!.to).toBe('spinaci');
+    expect(dopo!.toQty).toBe(100);
+  });
+});
+
+/**
+ * ⛔ **IL PESO SI CERCA COL NOME DELL'INGREDIENTE DI QUELLA GIORNATA, non con quello della proposta.**
+ *
+ * L'ingrediente da cambiare si trova con `combaciaAlimento`, che è **per parola**: «panna fresca»
+ * combacia anche con «panna fresca vegetale». Cercando il peso su `proposta.da` si applicava il 285
+ * della panna fresca a un prodotto vegetale che di lipidi ne ha la metà — proprio quello che il seed
+ * vieta a parole («panna vegetale: PRODOTTI DIVERSI, non si ereditano dalla panna fresca»).
+ *
+ * ⚠️ Capita sui **giorni futuri**: con «non mi piace» il cambio si propaga, e là dentro l'ingrediente
+ * può chiamarsi in un altro modo. Trovato al secondo giro di revisione, 25/8.
+ */
+describe('⛔ SostituzioneChatService — il peso del nome vero, non di quello somigliante', () => {
+  const PESI = { 'panna fresca': 285, 'olio extravergine di oliva': 100 };
+  const FATTORI = { riferimento: 'olio extravergine di oliva', pesi: PESI };
+
+  it('⛔ «panna fresca vegetale» non eredita il peso della panna fresca: il pasto si salta', async () => {
+    const { service, prisma, giorno } = await creaServizio();
+    const items = ['panna fresca', 'olio extravergine di oliva'];
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { name: 'Condimenti', productId: null, members: { items } },
+      { name: 'Oli e grassi da condimento', productId: null, members: { items, fattori: FATTORI } },
+    ]);
+    const originale = prisma.recipe.findMany.getMockImplementation();
+    /**
+     * ⚠️ Alla proposta l'ingrediente è «panna fresca» (peso 285, si converte); al momento di
+     * scrivere è «panna fresca vegetale», che la tabella non nomina. È lo scarto che il difetto
+     * non vedeva.
+     */
+    let scrittura = false;
+    prisma.recipe.findMany.mockImplementation(async (arg: any) => {
+      const righe = await originale(arg);
+      return righe.map((r: { id: string }) =>
+        r.id === 'r-pranzo'
+          ? {
+              ...r,
+              ingredients: [
+                { name: scrittura ? 'panna fresca vegetale' : 'panna fresca', qty: 70, unit: 'ml' },
+              ],
+            }
+          : r,
+      );
+    });
+    const apertura = await service.apri('client-1');
+    const dopoCibo = await service.avanza('client-1', apertura.stato!, 'panna fresca');
+    const dopoMotivo = await service.avanza('client-1', dopoCibo.stato!, '1');
+    expect(dopoMotivo.stato?.proposta?.qtaA).toBe(25);
+    scrittura = true;
+    const esito = await service.avanza('client-1', dopoMotivo.stato!, 'sì');
+    const sost = giorno().meals.find((m: { slot: string }) => m.slot === 'lunch')?.substitutions ?? [];
+    // Niente scritto: 25 g di olio al posto di 70 ml di panna VEGETALE sarebbe un numero inventato.
+    expect(sost.find((x: { from: string }) => /panna/.test(x.from))).toBeUndefined();
+    expect(esito.inoltraA).toBe('nutritionist');
   });
 });

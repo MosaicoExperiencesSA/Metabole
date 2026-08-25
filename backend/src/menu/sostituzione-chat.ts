@@ -231,6 +231,64 @@ export interface PropostaSostituzione {
   fattore?: number;
 }
 
+/**
+ * ⚠️ **Quanti motivi al massimo in una riga sola.** Oltre, si smette di accodare e lo si scrive.
+ */
+export const TETTO_MOTIVI = 5;
+
+/**
+ * Il testo nuovo di una segnalazione a cui si accoda un motivo, o `null` se non c'è niente da
+ * scrivere (motivo già presente, oppure tetto raggiunto e già dichiarato).
+ *
+ * ⚠️ **`null` e non il testo invariato**: chi chiama fa una `update` sul database, e una scrittura
+ * che non cambia niente è comunque una scrittura — con il suo rischio di corsa e la sua riga di
+ * log. Distinguere «non c'è niente da fare» da «ecco cosa scrivere» è il modo di non farla.
+ */
+export function accodaMotivo(attuale: string, motivo: string): string | null {
+  const nuovo = (motivo ?? '').trim();
+  if (!nuovo) return null;
+  const testo = (attuale ?? '').trim();
+  if (!testo) return nuovo;
+  const righe = testo.split('\n').filter((r) => r.trim());
+  /**
+   * Già scritto: la stessa richiesta ripetuta non si accoda due volte.
+   *
+   * ⚠️ **Il confronto è sulla RIGA INTERA, non `includes`** — corretto in revisione, 25/8. Con
+   * `testo.includes(nuovo)` un motivo che fosse **sottostringa** di uno già scritto spariva senza
+   * traccia: «Cambio in chat: «panna»» dentro «Cambio in chat: «panna» → «olio»». Sono due
+   * richieste diverse, e la seconda non sarebbe arrivata a nessuno.
+   */
+  const gia = (r: string) => r.replace(/^·\s*/, '').trim() === nuovo;
+  if (righe.some(gia)) return null;
+  /**
+   * ⚠️ **Il tetto conta i motivi ACCODATI DA NOI**, non le righe del testo — corretto in revisione,
+   * 25/8. Una segnalazione di categoria «other» può portare il testo di un altro sottosistema, che
+   * di righe ne ha le sue: contandole tutte, il tetto scattava a caso e la stessa cliente si vedeva
+   * troncata sulla segnalazione e non su Vera, dove il testo è vergine. I due tavoli divergevano.
+   */
+  const nostri = righe.filter((r) => r.trimStart().startsWith('·')).length;
+  if (nostri >= TETTO_MOTIVI) {
+    const avviso = "· … e altre richieste della cliente in chat: aprile dalla sua scheda.";
+    return testo.includes(avviso) ? null : `${testo}\n${avviso}`;
+  }
+  return `${testo}\n· ${nuovo}`;
+}
+
+/**
+ * La proposta **senza il sostituto**: quello che resta uguale quando l'alimento cambia.
+ *
+ * ⚠️ Serve a rifare una proposta con un altro sostituto passando dall'unico punto che sa costruirla
+ * (`conSostituto`). Toglie i quattro campi che **dipendono dal sostituto** — nome, quantità, unità
+ * e il flag della grammatura corretta — perché tenerne anche uno solo vuol dire riportarsi dietro
+ * il numero dell'alimento di prima: è così che 70 ml di panna diventavano «52 g di olio».
+ */
+export function senzaSostituto(
+  p: PropostaSostituzione,
+): Omit<PropostaSostituzione, 'a' | 'qtaA' | 'unitaA' | 'grammaturaCorretta'> {
+  const { a: _a, qtaA: _qtaA, unitaA: _unitaA, grammaturaCorretta: _corretta, ...resto } = p;
+  return resto;
+}
+
 export interface StatoSostituzione {
   passo: PassoSostituzione;
   /** Come l'ha scritto la cliente. */
@@ -420,9 +478,21 @@ export function terminiCandidati(testo: string): string[] {
  * fuori scala — meno di un terzo o più del triplo della quantità di partenza — non entra da
  * sola. Un errore di battitura non deve diventare una porzione tripla.
  */
-export function grammaturaAmmessa(qtaDa: number, qtaA: number): boolean {
+export function grammaturaAmmessa(qtaDa: number, qtaA: number, minimo = 1 / 3): boolean {
   if (!Number.isFinite(qtaDa) || !Number.isFinite(qtaA) || qtaDa <= 0 || qtaA <= 0) return false;
-  return qtaA >= qtaDa / 3 && qtaA <= qtaDa * 3;
+  /**
+   * ⚠️ **La soglia inferiore si può allargare, quella superiore no** (25/8, risposta di Nocanty).
+   *
+   * Lui ha chiesto **0,20** al posto di un terzo *«per tutti i prodotti in cui il numero di
+   * equivalenza è esplicitamente dichiarato»*, e la ragione è che questo controllo, scattando,
+   * **ripiega su pari grammatura** — cioè sull'errore che i fattori esistono per togliere. Un limite
+   * che quando morde riporta al difetto è peggio di nessun limite.
+   *
+   * ⚠️ Il tetto resta il triplo per tutti: là il difetto è una porzione tripla in tavola, e nessun
+   * numero di equivalenza lo giustifica.
+   */
+  const sotto = Number.isFinite(minimo) && minimo > 0 ? minimo : 1 / 3;
+  return qtaA >= qtaDa * sotto && qtaA <= qtaDa * 3;
 }
 
 /**
@@ -433,10 +503,11 @@ export function grammaturaAmmessa(qtaDa: number, qtaA: number): boolean {
 export function correggiGrammatura(
   qtaDa: number | undefined,
   qtaProposta: number | undefined,
+  minimo?: number,
 ): { qta: number | undefined; corretta: boolean } {
   if (qtaDa === undefined || !Number.isFinite(qtaDa) || qtaDa <= 0) return { qta: undefined, corretta: false };
   if (qtaProposta === undefined) return { qta: qtaDa, corretta: false };
-  if (grammaturaAmmessa(qtaDa, qtaProposta)) return { qta: qtaProposta, corretta: false };
+  if (grammaturaAmmessa(qtaDa, qtaProposta, minimo)) return { qta: qtaProposta, corretta: false };
   return { qta: qtaDa, corretta: true };
 }
 
@@ -938,6 +1009,82 @@ export function testoGiaFatto(p: PropostaSostituzione): string {
 export function testoNessunSostituto(cibo: string): string {
   return `Su «${cibo}» preferisco non decidere da sola: non ho un'alternativa che mi convinca del tutto. Ho girato la richiesta alla tua nutrizionista, che ti risponde nel vostro thread. 🩺`;
 }
+
+/**
+ * ⛔ **DOPO UNA CONVERSIONE COI PESI, L'UNITÀ È IL GRAMMO** — secondo giro di revisione, 25/8.
+ *
+ * La tabella di Nocanty dice *«i grammi di alimento necessari per ottenere la stessa quantità di
+ * lipidi contenuta in 100 g di olio EVO»*: `quantitaEquivalente` rende **grammi**, sempre. Ma
+ * `unitaPerSostituto` guarda il tipo di alimento, e l'olio è un liquido: partendo da 70 **ml** di
+ * panna la proposta usciva come «25 **ml** di olio».
+ *
+ * Venticinque millilitri di olio d'oliva sono **22,8 g** (densità ~0,91): −9% sull'ingrediente, e
+ * ogni commento del lavoro — questo file, il seed, l'esempio di Nocanty — scrive «25 g». Il numero
+ * detto e il numero calcolato erano due cose diverse: un troncamento silenzioso in mezzo a un lavoro
+ * che esiste per togliere i troncamenti silenziosi.
+ *
+ * ⚠️ Vale **solo** quando la quantità viene dalla conversione. Se il cambio è a pari grammatura
+ * l'unità resta quella naturale del sostituto, che è la scelta giusta di sempre («70 ml di burro»
+ * non esiste, e nemmeno «2 g di uova»).
+ */
+export function unitaDopoLaConversione(unita: string | undefined, convertita: boolean): string | undefined {
+  return convertita ? 'g' : unita;
+}
+
+/**
+ * ⛔ **IL TESTO DEI GRASSI** — approvato da Nocanty parola per parola, 24/8: *«Il testo del messaggio
+ * automatico proposto è perfetto e chiaro.»*
+ *
+ * ⚠️ Dice **perché**, che è la parte che evita il «ma allora a cosa servi»: cambiare un grasso con un
+ * altro cambia le calorie del piatto più di quanto sembri, e la cliente non ha modo di saperlo.
+ *
+ * ⛔ **E vale solo per il caso in cui è vero** — corretto al secondo giro di revisione, 25/8. La
+ * prima stesura dava questa frase a **tre** situazioni diverse: manca il numero (vera), la coppia
+ * non regge in cucina (falsa: i numeri tornano benissimo, è la consistenza del piatto a rompersi),
+ * e la conversione è fuori dal limite di sicurezza (falsa allo stesso modo). Il lavoro ha appena
+ * tolto una ragione falsa — il «il menu è cambiato» che nascondeva i pasti saltati — e ne lasciava
+ * in piedi un'altra della stessa famiglia. Alla nutrizionista il motivo vero arrivava; alla cliente
+ * no, ed è lei quella che non ha modo di verificarlo.
+ */
+export function testoGrassoSenzaNumero(cibo: string): string {
+  return (
+    `Su «${cibo}» preferisco non decidere io: cambiare un grasso con un altro cambia le calorie del `
+    + 'piatto più di quanto sembri. L\'ho chiesto alla tua nutrizionista, che ti risponde lei. 💚'
+  );
+}
+
+/**
+ * ⚠️ **Quando il cambio si potrebbe fare sui numeri ma rovina il piatto** (vellutate, salse: regola
+ * di Nocanty del 24/8). Non è «non ho il numero»: il numero c'è, ed è giusto. Dirle la frase
+ * sbagliata la lascerebbe a credere che manchi un dato quando manca il senso del piatto.
+ */
+export function testoGrassoInCucina(cibo: string, piatto: string): string {
+  return (
+    `Su «${cibo}» in un piatto come «${piatto}» preferisco non decidere io: sui numeri il cambio si `
+    + 'potrebbe fare, ma in una preparazione così cambia la consistenza e la riuscita del piatto. '
+    + 'L\'ho chiesto alla tua nutrizionista, che ti risponde lei. 💚'
+  );
+}
+
+/**
+ * ⚠️ **Quando il numero c'è ma porta troppo lontano dalla quantità del piano.** Terzo caso, terza
+ * frase: qui non manca niente e non c'entra la cucina — è la distanza fra le due quantità a essere
+ * troppa perché la decida un sistema.
+ */
+export function testoGrassoTroppoLontano(cibo: string): string {
+  return (
+    `Su «${cibo}» il conto mi porta a una quantità troppo lontana da quella del tuo piano, e quella `
+    + 'differenza non me la sento di deciderla io. L\'ho chiesto alla tua nutrizionista, che ti '
+    + 'risponde lei. 💚'
+  );
+}
+
+/**
+ * ⚠️ **Il vecchio nome**, tenuto perché lo chiamano i punti che non sanno distinguere fra i tre casi
+ * (la coda di `applica`, dove il motivo può essere più d'uno). ⛔ Non usarlo in un punto nuovo: se
+ * sai perché ti stai fermando, dillo con la frase che lo dice.
+ */
+export const testoGrassoDaDecidere = testoGrassoSenzaNumero;
 
 export function testoAllergene(cibo: string): string {
   return `Non posso proporti un sostituto per «${cibo}» senza rischiare di toccare una cosa a cui sei allergica, e su questo non si media. Ne ho scritto alla tua nutrizionista: decide lei. 🩺`;

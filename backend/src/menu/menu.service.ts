@@ -68,6 +68,14 @@ import {
 } from './esclusioni-della-cliente';
 import { KcalNeedService } from './kcal-need.service';
 import { mancaMisuraDiPartenza } from './misura-di-partenza';
+import { combaciaAlimento } from '../common/nomi-alimento';
+import {
+  GRUPPO_GRASSI,
+  comeConvertire,
+  leggiFattori,
+  quantitaEquivalente,
+  type FattoriGrassi,
+} from './grassi-equivalenti';
 import { IngredienteRicetta, MealSnapshot, SOSTITUTO_ASSENTE, Substitution } from './pasto-giornata';
 import { EsitoSpezia, classificaSpezia } from './spezie';
 import { punteggioRicetta, type PesiPunteggio } from './punteggio';
@@ -3084,6 +3092,32 @@ export class MenuService {
    * - `subsByRecipe`: sostituzioni sicure da annotare sui pasti (per recipeId).
    * I cibi "non graditi" (dislikedFoods) si sostituiscono se possibile, ma non bloccano mai.
    */
+  /**
+   * ⛔ **I PESI DEI GRASSI, per il motore.** Stessa domanda che si fa la chat, stesso gruppo, stesse
+   * tre correzioni (ordinamento, nome normalizzato, solo approvato) — vedi `fattoriDeiGrassi` in
+   * `sostituzione-chat.service.ts`.
+   *
+   * ⚠️ **Non lancia mai**: se questa lettura fallisce il menu di domani non deve fermarsi. Senza i
+   * pesi si torna alla pari grammatura di prima, che è quello che il prodotto faceva fino al 25/8 —
+   * peggiorativo, ma non un cancello chiuso in faccia a una cliente.
+   */
+  private async pesiDeiGrassi(): Promise<{ fattori: FattoriGrassi | null }> {
+    try {
+      const gruppi = (await this.prisma.equivalenceGroup.findMany({
+        where: { status: 'approved' } as never,
+        orderBy: { createdAt: 'asc' },
+        select: { name: true, members: true },
+        take: 500,
+      })) as { name: string; members: unknown }[];
+      const cercato = GRUPPO_GRASSI.trim().toLowerCase();
+      const g = gruppi.find((x) => (x.name ?? '').trim().toLowerCase() === cercato);
+      return { fattori: g ? leggiFattori(g.members) : null };
+    } catch (err) {
+      this.logger.warn(`Pesi dei grassi non letti: ${err instanceof Error ? err.message : String(err)}`);
+      return { fattori: null };
+    }
+  }
+
   private async evaluateMeals(
     clientId: string,
     meals: MealSnapshot[],
@@ -3123,12 +3157,69 @@ export class MenuService {
       select: { id: true, name: true, ingredients: true, allergens: true },
     })) as { id: string; name: string; ingredients: unknown; allergens: string[] }[];
 
+    /**
+     * ⛔ **ANCHE LE SOSTITUZIONI DI SICUREZZA SONO A PARI GRAMMATURA, E SUI GRASSI NON REGGE.**
+     *
+     * Trovato al secondo giro di revisione del lavoro sui grassi, 25/8. `SUBSTITUTION_MAP` contiene
+     * `burro → olio evo`: `valutaRicetta` scrive la sostituzione **senza quantità**, e
+     * `ingredienti-effettivi.ts` fa `qty: s.toQty ?? i.qty`, cioè pari grammatura piena. Trenta
+     * grammi di burro diventavano trenta di olio: il numero giusto è **venticinque** (120 e 100 nella
+     * tabella di Nocanty), quindi **+20% di lipidi** su quell'ingrediente, ogni giorno, su ogni
+     * cliente intollerante al lattosio a cui il motore applica la sostituzione — e senza che nessuno
+     * l'abbia chiesto, perché questa è la strada automatica.
+     *
+     * ⚠️ Due porte rispondevano in modo diverso alla stessa domanda («quanti grammi del sostituto?»):
+     * la chat convertiva, il motore no. E quella che rispondeva male è quella che tocca più persone.
+     * Regola di casa: *se due punti rispondono alla stessa domanda, uno deve chiamare l'altro*.
+     *
+     * ⛔ **Ma qui NON si passa la mano.** In chat, un grasso senza numero fa fermare la proposta; qui
+     * la sostituzione esiste per **rendere sicuro** un piatto che contiene un'intolleranza. Toglierla
+     * perché non sappiamo convertire vorrebbe dire servire il lattosio a chi non lo tollera — *un
+     * cancello chiuso costa a una cliente tutto il servizio*, e questo sarebbe anche peggio: un
+     * cancello aperto. Quindi: si converte dove il numero c'è, e dove non c'è resta la pari
+     * grammatura di prima, **contata e scritta nel log** invece che taciuta.
+     */
+    const { fattori } = await this.pesiDeiGrassi();
+    let grassiSenzaNumero = 0;
+
     const violations = new Set<string>();
     const subsByRecipe: Record<string, Substitution[]> = {};
     for (const r of recipes) {
       const esito = valutaRicetta(r, esclusioni);
       for (const v of esito.violations) violations.add(v);
-      if (esito.subs.length) subsByRecipe[r.id] = esito.subs;
+      if (!esito.subs.length) continue;
+      const ingredienti = ((r.ingredients as IngredienteRicetta[]) ?? []).filter(Boolean);
+      for (const sub of esito.subs) {
+        // ⚠️ «Si toglie» è un'assenza, non un sostituto: non c'è niente da convertire.
+        if (sub.to === SOSTITUTO_ASSENTE) continue;
+        const modo = comeConvertire(fattori, sub.from, sub.to);
+        if (modo.modo === 'pari') continue;
+        const ing = ingredienti.find((i) => !!i?.name && combaciaAlimento(i.name, sub.from));
+        const qtaDa = typeof ing?.qty === 'number' ? ing.qty : undefined;
+        if (modo.modo === 'passa_la_mano' || qtaDa === undefined) {
+          grassiSenzaNumero += 1;
+          continue;
+        }
+        const convertita = quantitaEquivalente(qtaDa, modo.pesoDa, modo.pesoA);
+        if (convertita === null) {
+          grassiSenzaNumero += 1;
+          continue;
+        }
+        sub.fromQty = qtaDa;
+        sub.toQty = convertita;
+        sub.unit = ing?.unit ?? sub.unit;
+        // La tabella è in grammi: dopo una conversione coi pesi l'unità è il grammo, anche per un
+        // liquido. Vedi `unitaDopoLaConversione` in `sostituzione-chat.ts`.
+        sub.unitA = 'g';
+      }
+      subsByRecipe[r.id] = esito.subs;
+    }
+    if (grassiSenzaNumero) {
+      this.logger.warn(
+        `Grassi: ${grassiSenzaNumero} sostituzioni di sicurezza scritte a pari grammatura perché ` +
+          `manca il peso di uno dei due alimenti (gruppo «${GRUPPO_GRASSI}»). ` +
+          'Le calorie del piatto possono scostarsi: `npm run diag:grassi` dice quali nomi mancano.',
+      );
     }
     return { violations: [...violations], subsByRecipe };
   }

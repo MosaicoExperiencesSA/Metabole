@@ -3489,4 +3489,50 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  {
+    chiave: 'grassi-non-a-pari-grammatura',
+    titolo: 'I grassi non si cambiano più a pari grammatura: i numeri di Nocanty dentro il motore e dentro Gaia',
+    dettaglio:
+      'Il difetto è del **9 agosto**, su una cliente vera: Gaia ha proposto **70 ml di panna → 70 g '
+      + 'di olio evo**, e un piatto da 500 kcal ne diventa ~890 — **+77%**, su una cliente in '
+      + 'deficit. Il controllo che c\'era guarda il rapporto fra le QUANTITÀ (un terzo/il triplo): '
+      + '70 → 70 è un rapporto di 1, e passava senza dire niente. E il codice non poteva '
+      + 'calcolarselo: degli ingredienti conosce nome, quantità e unità, e in tutto il prodotto non '
+      + 'esiste nessuna tabella di composizione degli alimenti.\n\n'
+      + '⛔ Il **24/8 il capo nutrizionista ha risposto** (PDF del 24/8): *«Strada B per il gruppo '
+      + '"Oli e grassi da condimento" e Strada A (gestione manuale con inoltro al nutrizionista) per '
+      + 'tutte le altre categorie di grassi più complesse o disomogenee»*, con la tabella dei grammi '
+      + 'equivalenti a 100 g di olio EVO (fonte **CREA / USDA**) e il suo esempio: 70 g di panna '
+      + '(285) → **25 g di olio** (100).\n\n'
+      + '✅ **Consegnato**: (1) `menu/grassi-equivalenti.ts`, puro e provato sui suoi numeri — legge '
+      + 'i pesi, converte, e con `sembraUnGrasso` riconosce un grasso **anche senza la tabella**, '
+      + 'così un gruppo in bozza o rinominato fa passare la mano invece di tornare in silenzio alla '
+      + 'pari grammatura; (2) i numeri vivono **sul gruppo di equivalenza** (`members.fattori`, '
+      + 'nessuna migrazione) e li mantiene lui dal back office, riga «nome = grammi», con la colonna '
+      + '«Pesi» in elenco; (3) **Gaia** converte in un punto solo (`conSostituto`), che vale per la '
+      + 'prima proposta, per il secondo giro e per il sostituto scelto dalla cliente; (4) le coppie '
+      + 'che in cucina non reggono (panna → olio in vellutate e salse, regola sua) non si fanno da '
+      + 'sole; (5) **anche il motore e il pulsante dell\'app**: `burro → olio evo` per le '
+      + 'intolleranti al lattosio era a pari grammatura, 30 g diventavano 30 invece di 25 — lì la '
+      + 'sostituzione **resta comunque** (serve a rendere sicuro il piatto) ma la quantità si '
+      + 'converte dove il numero c\'è, e dove non c\'è si conta e si scrive nel log; (6) '
+      + '`npm run diag:grassi` dice **quali nomi del catalogo** restano senza peso e in quante '
+      + 'ricette: è la lista da dare a Nocanty invece di chiedergli sessanta numeri a caso.\n\n'
+      + '⚠️ **Due giri di revisione avversariale**, dieci difetti veri chiusi: fra questi la '
+      + 'richiesta girata che spariva quando esisteva una segnalazione già **risolta** (Gaia diceva '
+      + '«l\'ho girata alla tua nutrizionista» e non arrivava niente da nessuna delle due porte), il '
+      + 'secondo giro che teneva la quantità dell\'alimento di prima (52 g di olio invece di 25), la '
+      + 'correzione della nutrizionista che reintroduceva la pari grammatura, e l\'unità che restava '
+      + '«ml» su una conversione fatta in grammi.\n\n'
+      + '⚠️ **Resta a Nocanty**: la tabella ha **13 righe** e il catalogo nomina più grassi. Ogni '
+      + 'nome senza peso è un cambio che Gaia non fa e che finisce sul suo tavolo — `npm run '
+      + 'diag:grassi` dice quali sono. ⛔ E i nomi ambigui (**panna da cucina, panna leggera, panna '
+      + 'vegetale**) sono prodotti diversi: o hanno un numero loro, o restano fuori. Non si ereditano '
+      + 'dalla panna fresca.',
+    categoria: CODICE,
+    ordine: 665,
+    nata: '2026-08-25T09:00',
+    fatta: true,
+  },
+
 ];

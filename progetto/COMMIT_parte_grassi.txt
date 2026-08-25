@@ -1,0 +1,108 @@
+================================================================================
+LAVORO: i grassi non si cambiano a pari grammatura (25/8) — consegna 92
+================================================================================
+
+I GRASSI NON SI CAMBIANO PIÙ A PARI GRAMMATURA
+
+Il difetto è del 9 agosto, su una cliente vera: Gaia ha proposto 70 ml di panna
+fresca → 70 g di olio evo, e un piatto da 500 kcal ne diventa ~890 (+77%), su una
+cliente in deficit. Il controllo che c'era guarda il rapporto fra le QUANTITÀ (un
+terzo/il triplo): 70 → 70 è un rapporto di 1, e passava senza dire niente. E il
+codice non poteva calcolarselo: degli ingredienti conosce nome, quantità e unità,
+e in tutto il prodotto non esiste una tabella di composizione degli alimenti.
+
+Il 24/8 il capo nutrizionista ha risposto: «Strada B per il gruppo "Oli e grassi
+da condimento" e Strada A (gestione manuale con inoltro al nutrizionista) per
+tutte le altre categorie di grassi più complesse o disomogenee», con la tabella
+dei grammi equivalenti a 100 g di olio EVO (fonte CREA / USDA). Suo esempio:
+70 g di panna (285) → 25 g di olio (100).
+
+COSA C'È DENTRO
+
+1. `menu/grassi-equivalenti.ts` (nuovo, puro, 33 test sui numeri di Nocanty):
+   legge i pesi dal gruppo, converte con la proporzione sui lipidi, e con
+   `sembraUnGrasso` riconosce un grasso ANCHE SENZA la tabella — così un gruppo in
+   bozza, rinominato o non ancora seminato fa passare la mano invece di tornare in
+   silenzio alla pari grammatura. Il peso si cerca per NOME ESATTO: «burro di
+   arachidi» non eredita il 120 del burro.
+
+2. I numeri stanno SUL GRUPPO DI EQUIVALENZA (`members.fattori`, campo Json già
+   esistente: nessuna migrazione) e li mantiene Nocanty dal back office, scrivendo
+   «nome = grammi» nella stessa casella degli alimenti. In elenco c'è la colonna
+   «Pesi» («N su M · rif. X»). Il seed crea il gruppo approvato e globale con le
+   sue 13 righe, e non tocca niente se esiste già.
+
+3. GAIA converte in un punto solo (`conSostituto`), che vale per la prima
+   proposta, per il secondo giro e per il sostituto scelto dalla cliente. Le
+   coppie che in cucina non reggono (panna → olio in vellutate e salse, regola
+   sua) non si fanno da sole. Senza il numero non si propone niente e la richiesta
+   va alla nutrizionista, con il motivo VERO: manca il peso / non regge in cucina /
+   il conto porta troppo lontano sono tre frasi diverse.
+
+4. ANCHE IL MOTORE E IL PULSANTE DELL'APP. `SUBSTITUTION_MAP` ha `burro → olio
+   evo` per le intolleranti al lattosio, e quella sostituzione era scritta senza
+   quantità: 30 g di burro diventavano 30 g di olio invece di 25 — +20% di lipidi,
+   ogni giorno, su ogni cliente a cui il motore la applica, senza che nessuno
+   l'avesse chiesto. Lì la sostituzione RESTA comunque (serve a rendere sicuro il
+   piatto: toglierla vorrebbe dire servire il lattosio a chi non lo tollera) ma la
+   quantità si converte dove il numero c'è, e dove non c'è si conta e si scrive nel
+   log.
+
+5. `npm run diag:grassi` dice quali nomi del catalogo restano senza peso e in
+   quante ricette compaiono: è la lista da dare a Nocanty, invece di chiedergli
+   sessanta numeri a caso. Non inventa nessun numero.
+
+DUE GIRI DI REVISIONE AVVERSARIALE, DIECI DIFETTI VERI CHIUSI
+
+- La richiesta girata SPARIVA quando esisteva una segnalazione già RISOLTA nella
+  tregua di riapertura: il motivo finiva in coda a una riga chiusa e su Vera non
+  arrivava niente, dopo che Gaia aveva detto alla cliente «l'ho girata alla tua
+  nutrizionista». Adesso: se la riga è aperta il motivo si accoda, se è chiusa se
+  ne apre una nuova.
+- Il secondo giro e la controproposta tenevano la quantità dell'alimento di prima
+  («52 g di olio evo» invece di 25) — e nella controproposta testo e menu
+  divergevano, perché la scrittura i conti li rifà.
+- I pasti saltati per la cucina erano contati e mai letti: la cliente riceveva «il
+  menu è cambiato e la panna non c'è più», che è falso, e il cambio spariva.
+- La correzione della nutrizionista reintroduceva la pari grammatura: cambiando il
+  sostituto senza toccare i grammi restavano quelli di prima.
+- L'unità restava «ml» su una conversione fatta in GRAMMI (25 ml di olio sono
+  22,8 g).
+- Il gruppo dei pesi era anche una sorgente di candidati: una vegana che chiedeva
+  di cambiare l'olio si sarebbe sentita proporre burro o panna.
+- Promuovere una sostituzione a regola cancellava i `fattori` del gruppo.
+- Nel back office cancellare o RINOMINARE il gruppo dei pesi passava in silenzio;
+  e i pesi «orfani» sparivano alla prima matita.
+- In scrittura il peso si cercava col nome della proposta: «panna fresca vegetale»
+  ereditava il 285 della panna fresca.
+- La lettura del gruppo non ordinava, confrontava il nome per stringa esatta e non
+  distingueva «il gruppo non c'è» da «questa coppia non ha un peso».
+
+RESTA A NOCANTY
+
+La tabella ha 13 righe e il catalogo nomina più grassi: ogni nome senza peso è un
+cambio che Gaia non fa e che finisce sul suo tavolo. `npm run diag:grassi` dice
+quali sono e quanto valgono. E i nomi ambigui (panna da cucina, panna leggera,
+panna vegetale) sono PRODOTTI DIVERSI: o hanno un numero loro, o restano fuori.
+Non si ereditano dalla panna fresca.
+
+FILE NEL COMMIT
+- backend/src/menu/grassi-equivalenti.ts + .spec.ts                      (nuovi)
+- backend/src/menu/grassi-anche-nel-motore.spec.ts                       (nuovo)
+- backend/src/menu/richiesta-girata-non-sparisce.spec.ts                 (nuovo)
+- backend/src/food-swaps/promuovi-non-cancella-i-pesi.spec.ts            (nuovo)
+- backend/src/equivalence/pesi-dei-grassi.spec.ts                        (nuovo)
+- backend/prisma/diag-grassi-senza-peso.ts + package.json (diag:grassi)  (nuovo)
+- backend/src/menu/sostituzione-chat.service.ts · sostituzione-chat.ts
+- backend/src/menu/sostituzione-chat.service.spec.ts · sostituzione-chat.spec.ts
+- backend/src/menu/menu.service.ts
+- backend/src/equivalence/equivalence.service.ts · dto/equivalence.dto.ts
+- backend/src/food-swaps/food-swaps.service.ts
+- backend/prisma/seed.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/pages/GruppiEquivalenza.tsx · gruppi-pesi.spec.ts (nuovo)
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE (`members` è già Json). Backend + backoffice; l'app non cambia.
+⚠️ Il seed va girato in produzione per creare il gruppo «Oli e grassi da condimento»:
+   finché non c'è, Gaia passa la mano su tutti i cambi di grasso (comportamento sicuro).

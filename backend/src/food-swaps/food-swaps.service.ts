@@ -228,10 +228,22 @@ export class FoodSwapsService {
       gruppoId = scelta.gruppoId;
       const attuale = candidati.find((g) => g.id === scelta.gruppoId)!;
       const items = [...attuale.items, ...scelta.daAggiungere];
-      const prev = (gruppi.find((g) => g.id === scelta.gruppoId)?.members ?? {}) as { note?: string };
+      /**
+       * ⛔ **QUELLO CHE C'ERA DENTRO `members` NON SI PERDE** — corretto in revisione, 25/8.
+       *
+       * `members` è un JSON e ci vive più di una cosa: gli `items`, la `note` con la provenienza e —
+       * dal 25/8 — i **`fattori`**, cioè i pesi dei grassi firmati dal capo nutrizionista. Questa
+       * riga li riscriveva tutti da capo tenendo solo `items` e `note`: promuovere una sostituzione
+       * qualsiasi dentro il gruppo dei condimenti ne avrebbe **cancellato la tabella**, e da lì in
+       * poi Gaia sarebbe tornata alla pari grammatura senza che nessuno l'avesse deciso.
+       *
+       * ⚠️ Si copia il resto e si sovrascrivono solo gli `items`: chi scrive un campo di un oggetto
+       * condiviso deve partire da quello che c'è, non da quello che si ricorda.
+       */
+      const prev = (gruppi.find((g) => g.id === scelta.gruppoId)?.members ?? {}) as Record<string, unknown>;
       await this.prisma.equivalenceGroup.update({
         where: { id: scelta.gruppoId },
-        data: { members: { items, ...(prev.note ? { note: prev.note } : {}) } as never },
+        data: { members: { ...prev, items, ...(prev.note ? { note: prev.note } : {}) } as never },
       });
       messaggio = scelta.daAggiungere.length
         ? `Aggiunto ${scelta.daAggiungere.map((s) => `«${s}»`).join(' e ')} al gruppo in bozza «${scelta.nomeGruppo}».`

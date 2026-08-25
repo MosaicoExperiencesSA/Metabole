@@ -1209,6 +1209,101 @@ async function seedEquivalenceGroups(): Promise<void> {
 }
 
 /**
+ * ⛔ **IL GRUPPO DEI GRASSI, CON I PESI FIRMATI DA NOCANTY (24/8).**
+ *
+ * Gaia proponeva i cambi **a pari grammatura**, e sui grassi non regge: 70 ml di panna → 70 g di
+ * olio portano un piatto da 500 kcal a ~890 (+77%), su una cliente in deficit. Il codice non poteva
+ * calcolarselo — degli ingredienti conosce nome, quantità e unità, e non c'è nessuna tabella di
+ * composizione — quindi il numero doveva darlo un nutrizionista. L'ha dato lui.
+ *
+ * *«Confermo la proposta: Strada B per il gruppo "Oli e grassi da condimento" e Strada A (gestione
+ * manuale con inoltro al nutrizionista) per tutte le altre categorie di grassi più complesse o
+ * disomogenee.»* I valori sono **i grammi necessari per ottenere la stessa quantità di lipidi
+ * contenuta in 100 g di olio EVO**, fonte **CREA / USDA**.
+ *
+ * ⚠️ **Nasce `approved`, ed è voluto**: gli altri gruppi nascono `draft` perché nessuno li ha ancora
+ * guardati, questo lo ha scritto il capo nutrizionista. La firma è la sua risposta, non un timbro
+ * nostro. ⚠️ E nasce **globale** (`productId: null`): i grassi da condimento non sono di una dieta.
+ *
+ * ⛔ **NON SI RISCRIVE SE C'È GIÀ**, e non è prudenza generica: è la lezione del 20/8
+ * (`seed-non-azzera.spec.ts`). Un seed è una fonte, non una fotografia dello stato finale — da qui
+ * in poi i numeri li mantiene Nocanty dal backoffice, e un deploy che glieli riscrivesse
+ * cancellerebbe il suo lavoro senza dirlo a nessuno.
+ */
+async function seedGrassiDaCondimento(): Promise<void> {
+  const NOME = 'Oli e grassi da condimento';
+  /**
+   * ⚠️ **`orderBy` anche su una ricerca che dovrebbe dare una riga sola** — corretto in revisione,
+   * 25/8. `EquivalenceGroup.name` **non ha un vincolo di unicità**: due gruppi con lo stesso nome
+   * si possono creare dal back office, e allora `findFirst` senza ordinamento pesca quello che
+   * capita. Qui serve solo a decidere «c'è già?», ma il servizio che legge i pesi fa la stessa
+   * domanda per davvero — e due risposte diverse alla stessa domanda sono il modo di avere una
+   * cliente con la conversione e una senza, senza che nessuno sappia perché.
+   */
+  const esistente = await prisma.equivalenceGroup.findFirst({
+    where: { name: NOME },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (esistente) return;
+
+  /**
+   * Nome → grammi equivalenti a 100 g di olio EVO. Tabella di Nocanty, 24/8.
+   *
+   * ⚠️ **«olio evo» E «olio extravergine di oliva» sono due righe, non una.** Nocanty ha scritto
+   * «Olio EVO»; il catalogo usa tutte e due le forme — `diag:crudo-cotto` conta **3024** ricette con
+   * «olio extravergine di oliva» e 1706 con «olio evo» — e il confronto fra nomi di alimento in
+   * questo progetto è **per parola** («pepe» ⊄ «peperoni»), quindi «olio evo» non combacia con
+   * «olio extravergine di oliva». Senza tutte e due, metà delle ricette resterebbe senza peso e
+   * Gaia passerebbe la mano su cambi che invece sa fare.
+   */
+  const PESI: Record<string, number> = {
+    'olio evo': 100,
+    'olio extravergine di oliva': 100,
+    'olio di sesamo': 100,
+    ghee: 100,
+    'olio di cocco': 101,
+    burro: 120,
+    'panna fresca': 285,
+    'olio di avocado': 100,
+    margarina: 122,
+    mascarpone: 212,
+    /**
+     * ⚠️ **Le tre righe qui sotto sono ALTRI NOMI DEGLI STESSI PRODOTTI**, non numeri nuovi: il
+     * peso è quello che Nocanty ha già dato alla riga gemella, e servono perché il confronto è per
+     * **nome esatto** (vedi `pesoDi`) e il catalogo scrive lo stesso alimento in più modi.
+     *  · «olio extravergine» è «olio extravergine di oliva» accorciato;
+     *  · «olio di oliva» ha lo stesso contenuto lipidico dell'extravergine (100 g di grasso su 100);
+     *  · «burro chiarificato» **è** il ghee, e senza questa riga prendeva 120 invece di 100.
+     *
+     * ⛔ **Quello che NON si aggiunge, e apposta**: «panna» da sola, «panna da cucina», «panna
+     * leggera», «panna vegetale». Sembrano varianti della panna fresca e sono **prodotti diversi**,
+     * con lipidi che vanno da 15 a 35 grammi per cento — indovinare qui vorrebbe dire sbagliare la
+     * quantità nel piatto di una persona con l'aria della precisione. Restano senza peso, quindi
+     * `sembraUnGrasso` le riconosce lo stesso e Gaia **passa la mano**: è la Strada A, ed è il verso
+     * giusto in cui sbagliare finché quei numeri non li scrive lui dal back office.
+     */
+    'olio extravergine': 100,
+    'olio di oliva': 100,
+    'burro chiarificato': 100,
+  };
+
+  await prisma.equivalenceGroup.create({
+    data: {
+      name: NOME,
+      productId: null,
+      members: {
+        items: Object.keys(PESI),
+        note: 'Pesi firmati dal capo nutrizionista il 24/8. Panna → olio NON si cambia da sola nelle vellutate e nelle salse: la consistenza del piatto cambia.',
+        fattori: { riferimento: 'olio extravergine di oliva', fonte: 'CREA / USDA', pesi: PESI },
+      } as never,
+      status: 'approved',
+      version: 1,
+    },
+  });
+  console.log(`Seed: gruppo «${NOME}» inserito con ${Object.keys(PESI).length} pesi (approvato, globale).`);
+}
+
+/**
  * Regole BASE suggerite per tipo di nutrizione (letteratura), flag `suggested=true`.
  * Idempotente: semina SOLO se la tabella è vuota, così non sovrascrive le modifiche
  * fatte dal capo nutrizionista ai preset.
@@ -1387,6 +1482,7 @@ async function main(): Promise<void> {
   await seedMonitoringSubscriptionPlan(); // «Monitoraggio Metabole» €19/mese, solo abbonamento
   await seedPermissions();
   await seedEquivalenceGroups();
+  await seedGrassiDaCondimento();
   await seedRulePresets();
   await seedProtocols();
   // --- Dati DEMO/esempio: solo se SEED_DEMO non è "false" (vedi interruttore in alto) ---

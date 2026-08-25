@@ -1,5 +1,8 @@
 import {
+  TETTO_MOTIVI,
+  accodaMotivo,
   apreFrase,
+  senzaSostituto,
   contropropostaDaTesto,
   testoContropropostaAllergene,
   testoContropropostaEsclusa,
@@ -724,5 +727,104 @@ describe('l\'apostrofo non nasconde l\'alimento', () => {
 
   it('e l\'abbinamento con l\'ingrediente vero funziona', () => {
     expect(terminiCandidati("vorrei togliere l'olio").some((t) => combaciaAlimento('olio evo', t))).toBe(true);
+  });
+});
+
+/**
+ * ⛔ **`senzaSostituto` deve togliere TUTTI E QUATTRO i campi che dipendono dal sostituto.**
+ *
+ * Prova delle mutazioni, 25/8: lasciandone dentro uno i test passavano lo stesso, perché
+ * `conSostituto` li riscrive tutti — oggi. Domani basta cambiare l'ordine di uno spread e il numero
+ * dell'alimento di prima torna nel piatto. Qui la promessa si scrive dove si può rileggere.
+ */
+describe('⛔ senzaSostituto — quello che resta quando l’alimento cambia', () => {
+  const PIENA = {
+    data: '2026-08-25',
+    slot: 'lunch',
+    recipeId: 'r-1',
+    piatto: 'Filetto ai funghi',
+    da: 'panna fresca',
+    a: 'olio evo',
+    qtaDa: 70,
+    qtaA: 25,
+    unita: 'ml',
+    unitaA: 'ml',
+    grammaturaCorretta: true,
+    fattore: 1.2,
+  };
+
+  it('⛔ toglie nome, quantità, unità e il flag della grammatura corretta', () => {
+    const resto = senzaSostituto(PIENA) as Record<string, unknown>;
+    expect(Object.keys(resto).sort()).toEqual(
+      ['da', 'data', 'fattore', 'piatto', 'qtaDa', 'recipeId', 'slot', 'unita'],
+    );
+  });
+
+  it('⚠️ e non tocca niente di quello che resta uguale', () => {
+    expect(senzaSostituto(PIENA)).toEqual({
+      data: '2026-08-25',
+      slot: 'lunch',
+      recipeId: 'r-1',
+      piatto: 'Filetto ai funghi',
+      da: 'panna fresca',
+      qtaDa: 70,
+      unita: 'ml',
+      fattore: 1.2,
+    });
+  });
+});
+
+/**
+ * ⛔ **ACCODARE UN MOTIVO A UNA RIGA GIÀ APERTA** — il difetto: `dedupe` teneva una riga sola e
+ * buttava via la seconda domanda della cliente, dopo averle detto «l'ho girata alla nutrizionista».
+ */
+describe('⛔ accodaMotivo', () => {
+  it('⛔ su una riga vuota scrive il motivo, senza pallino', () => {
+    expect(accodaMotivo('', 'la panna a pranzo')).toBe('la panna a pranzo');
+  });
+
+  it('⛔ e su una riga piena lo accoda: la seconda domanda non sparisce', () => {
+    expect(accodaMotivo('la panna a pranzo', 'il burro a cena')).toBe('la panna a pranzo\n· il burro a cena');
+  });
+
+  it('⚠️ la stessa domanda ripetuta non si accoda due volte', () => {
+    expect(accodaMotivo('la panna a pranzo', 'la panna a pranzo')).toBeNull();
+    expect(accodaMotivo('a\n· la panna a pranzo', 'la panna a pranzo')).toBeNull();
+  });
+
+  it('⚠️ e un motivo vuoto non scrive niente', () => {
+    expect(accodaMotivo('a', '   ')).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Il tetto si dichiara nel testo, non si tace.** Una riga che smette di crescere senza dirlo
+   * è una coda che si accorcia da sola — e la nutrizionista non ha modo di saperlo.
+   */
+  it('⛔ arrivati al tetto lo dice, e poi smette davvero', () => {
+    const piena = Array.from({ length: TETTO_MOTIVI }, (_, i) => `· motivo ${i}`).join('\n');
+    const conAvviso = accodaMotivo(piena, 'uno in più')!;
+    expect(conAvviso).toContain('aprile dalla sua scheda');
+    expect(accodaMotivo(conAvviso, 'un altro ancora')).toBeNull();
+  });
+
+  /**
+   * ⚠️ **E il tetto conta i MOTIVI NOSTRI, non le righe del testo.** Una segnalazione «other» può
+   * portare il testo di un altro sottosistema: contandone le righe il tetto scattava a caso, e la
+   * stessa cliente veniva troncata sulla segnalazione ma non su Vera, dove il testo è vergine.
+   */
+  it('⛔ un testo lungo scritto da qualcun altro non consuma il tetto', () => {
+    const altrui = Array.from({ length: 20 }, (_, i) => `riga ${i} di un altro sottosistema`).join('\n');
+    expect(accodaMotivo(altrui, 'la panna a pranzo')).toBe(`${altrui}\n· la panna a pranzo`);
+  });
+
+  /**
+   * ⛔ **Un motivo che è SOTTOSTRINGA di uno già scritto non è lo stesso motivo.** Con `includes`
+   * spariva senza traccia: «Cambio in chat: «panna»» dentro «Cambio in chat: «panna» → «olio»».
+   */
+  it('⛔ una richiesta più corta di una già scritta si accoda lo stesso', () => {
+    const primo = 'Cambio in chat: «panna fresca» → «olio evo».';
+    expect(accodaMotivo(primo, 'Cambio in chat: «panna fresca».')).toBe(
+      `${primo}\n· Cambio in chat: «panna fresca».`,
+    );
   });
 });

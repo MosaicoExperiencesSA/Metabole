@@ -20,6 +20,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🛑 **I grassi non si cambiano più a pari grammatura: i numeri di Nocanty dentro Gaia
+  e dentro il motore.** Il difetto è del **9 agosto**, su una cliente vera: Gaia ha proposto **70 ml
+  di panna → 70 g di olio evo**, e un piatto da 500 kcal ne diventa ~890 — **+77%**, su una cliente
+  in deficit. Il controllo che c'era guarda il rapporto fra le **quantità** (un terzo/il triplo):
+  70 → 70 è un rapporto di 1, e passava senza dire niente. E il codice non poteva calcolarselo: degli
+  ingredienti conosce nome, quantità e unità, e in tutto il prodotto non esiste una tabella di
+  composizione degli alimenti. O il numero lo dà un nutrizionista, o i grassi escono dai cambi
+  automatici.
+  ⛔ **Il 24/8 Nocanty ha risposto** (PDF): *«Strada B per il gruppo "Oli e grassi da condimento" e
+  Strada A (gestione manuale con inoltro al nutrizionista) per tutte le altre categorie di grassi più
+  complesse o disomogenee»*, con i grammi equivalenti a 100 g di olio EVO (fonte **CREA / USDA**).
+  Suo esempio: 70 g di panna (285) → **25 g di olio** (100).
+  ✅ **Consegnato**: `menu/grassi-equivalenti.ts`, puro e provato sui suoi numeri, che legge i pesi e
+  converte — e con `sembraUnGrasso` riconosce un grasso **anche senza la tabella**, così un gruppo in
+  bozza o rinominato fa passare la mano invece di tornare in silenzio alla pari grammatura. I numeri
+  vivono **sul gruppo di equivalenza** (`members.fattori`: campo Json già esistente, **nessuna
+  migrazione**) e li mantiene lui dal back office, scrivendo «nome = grammi» nella stessa casella
+  degli alimenti. Gaia converte in **un punto solo**, che vale per la prima proposta, per il secondo
+  giro e per il sostituto scelto dalla cliente; le coppie che in cucina non reggono (panna → olio in
+  vellutate e salse, regola sua) non si fanno da sole; senza il numero non si propone niente e la
+  richiesta va a lei **col motivo vero**, che sono tre frasi diverse e non una.
+  ⛔ **E anche il motore e il pulsante dell'app**, che il primo giro aveva lasciato fuori:
+  `burro → olio evo` per le intolleranti al lattosio era scritto **senza quantità**, cioè 30 g di
+  burro diventavano 30 g di olio invece di 25 — **+20% di lipidi ogni giorno**, senza che nessuno
+  l'avesse chiesto, perché quella è la strada automatica. Lì la sostituzione **resta comunque** (serve
+  a rendere sicuro il piatto: toglierla vorrebbe dire servire il lattosio a chi non lo tollera) ma la
+  quantità si converte dove il numero c'è, e dove non c'è **si conta e si scrive nel log**.
+  ⚠️ **Due giri di revisione avversariale, dieci difetti veri chiusi**, fra cui: la richiesta girata
+  che **spariva** quando esisteva una segnalazione già *risolta* nella tregua di riapertura — Gaia
+  diceva «l'ho girata alla tua nutrizionista» e non arrivava niente da nessuna delle due porte; il
+  secondo giro che teneva la quantità dell'alimento di prima («52 g di olio» invece di 25); i pasti
+  saltati per la cucina **contati e mai letti**, con la cliente che riceveva «il menu è cambiato e la
+  panna non c'è più» — falso; la correzione della nutrizionista che reintroduceva la pari grammatura;
+  l'unità che restava «ml» su una conversione fatta in **grammi**.
+  ⚠️ **Resta a Nocanty**: la tabella ha 13 righe e il catalogo nomina più grassi. `npm run
+  diag:grassi` dice **quali nomi** restano senza peso e in quante ricette — la lista da dargli, invece
+  di chiedergli sessanta numeri a caso. ⛔ E i nomi ambigui (**panna da cucina, panna leggera, panna
+  vegetale**) sono prodotti diversi: o hanno un numero loro, o restano fuori.
+  ⚠️ **Il seed va girato in produzione** per creare il gruppo: finché non c'è, Gaia passa la mano su
+  tutti i cambi di grasso (comportamento sicuro, ma è lavoro non fatto).
+
 - `[Sviluppo]` 🛑 **Le sospensioni non si sovrappongono più, e la coach le può incatenare.** Quattro
   richieste di Simone in un colpo: il primo giorno utile proposto, niente sovrapposizioni, il rifiuto
   che dice **quale data** mettere, e nello storico «Motivo» al posto di «Stato».

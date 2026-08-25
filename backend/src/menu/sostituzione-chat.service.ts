@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { avvisaCoachDellaCliente, avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
 import { giornoPiu, istantePiuGiorni, toDateOnly } from '../common/date-only';
@@ -45,6 +45,7 @@ import { exclusionKeys, hitsExclusion } from './exclusions';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
 import {
   MOTIVI,
+  accodaMotivo,
   Motivo,
   MotivoKey,
   PropostaSostituzione,
@@ -62,6 +63,10 @@ import {
   sensoDelNo,
   terminiCandidati,
   testoAllergene,
+  testoGrassoDaDecidere,
+  testoGrassoInCucina,
+  testoGrassoSenzaNumero,
+  testoGrassoTroppoLontano,
   testoAltroSostituto,
   testoAnnullato,
   testoChiediCibo,
@@ -85,10 +90,41 @@ import {
   testoNessunSostituto,
   testoNienteAltroSostituto,
   testoRifiutoNonCapito,
+  senzaSostituto,
+  unitaDopoLaConversione,
   unitaPerSostituto,
 } from './sostituzione-chat';
+import {
+  GRUPPO_GRASSI,
+  TOLLERANZA_CON_FATTORE,
+  comeConvertire,
+  coppiaDaNonPermettere,
+  leggiFattori,
+  quantitaEquivalente,
+  type FattoriGrassi,
+} from './grassi-equivalenti';
 import { sostitutoSicuro } from './sostituzioni-sicure';
 import { classificaSpezia } from './spezie';
+
+/**
+ * Gli stati in cui una segnalazione è ancora **sul tavolo di qualcuno**. Sono gli stessi che usa
+ * `escalations/riapertura.ts` per decidere se ce n'è già una viva: se un giorno lì se ne aggiunge
+ * uno, va aggiunto anche qui — se no si accoda un motivo a una riga che nessuno sta più guardando.
+ */
+const SEGNALAZIONE_APERTA = ['open', 'in_progress'];
+
+/**
+ * Il risultato della ricerca dei pesi, **col perché quando non ci sono**.
+ *
+ * ⚠️ `null` da solo non basta: «il gruppo non l'ho trovato» e «questa coppia non ha un peso» sono
+ * due degradi diversi, e la nutrizionista deve sapere quale dei due le sta capitando — nel primo i
+ * numeri esistono e il problema è altrove (bozza, rinomina, seed non girato), nel secondo tocca a
+ * lei scriverli. Dare la stessa frase a tutti e due manda una professionista a cercare una cosa che
+ * ha già davanti.
+ */
+type EsitoFattori =
+  | { fattori: FattoriGrassi }
+  | { fattori: null; perche: 'gruppo_assente' | 'gruppo_senza_pesi' };
 
 /**
  * Un possibile sostituto, con la sua provenienza.
@@ -1032,12 +1068,15 @@ export class SostituzioneChatService {
     }
 
     const motivo = MOTIVI.find((m) => m.key === stato.motivo) ?? MOTIVI.find((m) => m.key === 'non_piace')!;
-    const nuova: PropostaSostituzione = {
-      ...proposta,
-      a: scelto,
-      // L'unità va ricalcolata sul suo alimento: «70 ml di burro» non esiste (vedi `unitaPerSostituto`).
-      unitaA: unitaPerSostituto(proposta.unita, scelto),
-    };
+    /**
+     * ⛔ **Anche il sostituto scelto da LEI passa da `conSostituto`.** Prima qui si ricalcolava solo
+     * l'unità, e la quantità restava quella del nostro suggerimento: le si diceva «50 g» e `applica`
+     * — che i conti li rifà — ne scriveva 143 sul menu. Testo e piatto divergevano, e nessuno dei
+     * due era sbagliato in modo visibile.
+     */
+    const rifatta = await this.conSostituto(clientId, senzaSostituto(proposta), scelto);
+    if (!rifatta.ok) return rifatta.esito;
+    const nuova = rifatta.proposta;
     await this.audit.log({
       action: 'menu.sostituzione.controproposta',
       actorId: clientId,
@@ -1123,7 +1162,14 @@ export class SostituzioneChatService {
     }
 
     const motivo = MOTIVI.find((m) => m.key === stato.motivo) ?? MOTIVI.find((m) => m.key === 'non_piace')!;
-    const nuova: PropostaSostituzione = { ...proposta, a: scelta.sostituto };
+    /**
+     * ⛔ **La proposta si RIFÀ, non si ritocca.** `{ ...proposta, a: scelta.sostituto }` teneva la
+     * quantità dell'alimento di prima: 70 ml di panna diventavano «52 g di olio evo» invece di 25.
+     * Vedi il riquadro su `conSostituto` — e da lì passano anche la regola della cucina e l'unità.
+     */
+    const rifatta = await this.conSostituto(clientId, senzaSostituto(proposta), scelta.sostituto);
+    if (!rifatta.ok) return rifatta.esito;
+    const nuova = rifatta.proposta;
     await this.audit.log({
       action: 'menu.sostituzione.altro_sostituto',
       actorId: clientId,
@@ -1188,35 +1234,43 @@ export class SostituzioneChatService {
     const sostituto = scelta.sostituto;
 
     const qtaDa = typeof trovato.ingrediente.qty === 'number' ? trovato.ingrediente.qty : undefined;
-    // `correggiGrammatura` è già qui, e per ora è inerte: proponiamo pari grammatura, quindi
-    // non c'è niente da correggere. Ci sarà quando i grammi li dirà Gaia (punto 3): meglio il
-    // controllo in posizione e senza effetto che da aggiungere il giorno in cui serve.
-    const { qta: qtaA, corretta } = correggiGrammatura(qtaDa, undefined);
 
-    const proposta: PropostaSostituzione = {
-      // La giornata di cui si sta parlando, non «oggi» per definizione (§16.2). Da qui in poi è
-      // questa la data autorevole: `applica` la rilegge invece di ricalcolarsi il giorno.
-      data: giorno ?? this.oggiIso(),
-      slot: trovato.pasto.pasto.slot,
-      recipeId: trovato.pasto.pasto.recipeId,
-      piatto: trovato.pasto.nome,
-      da: nomeIngrediente,
-      a: sostituto,
-      qtaDa,
-      qtaA,
-      // Non l'unità dell'ingrediente di partenza: «70 ml di burro» non esiste. Vedi
-      // `unitaPerSostituto`.
-      unita: trovato.ingrediente.unit,
-      unitaA: unitaPerSostituto(trovato.ingrediente.unit, sostituto),
-      grammaturaCorretta: corretta,
-      /**
-       * ⚠️ IL FATTORE DEL PIATTO SUO — perché Gaia dica la grammatura che deve mettere nel piatto e
-       * non quella di catalogo (19/8, decisione di Simone). ⚠️ `qtaDa`/`qtaA` restano di catalogo:
-       * sono i numeri che finiscono nella sostituzione scritta sul menu, e il piatto viene scalato
-       * al momento di mostrarlo — salvarli già scalati vorrebbe dire scalarli due volte.
-       */
-      fattore: fattoreDaDire(trovato.pasto.pasto.porzione),
-    };
+    /**
+     * ⛔ **SUI GRASSI LA PARI GRAMMATURA NON REGGE** — e da oggi non si usa più (Nocanty, 24/8).
+     *
+     * 70 ml di panna sostituiti con 70 g di olio portavano un piatto da 500 kcal a ~890: **+77%**,
+     * su una cliente in deficit. Adesso, se il gruppo dei condimenti conosce tutti e due gli
+     * alimenti, la quantità è **la proporzione sui lipidi** — 70 g di panna diventano 25 g di olio.
+     *
+     * ⚠️ La conversione, l'unità del sostituto e la regola della cucina stanno tutte in
+     * `conSostituto`, che è l'**unico** posto che costruisce una proposta: ci passano anche il
+     * secondo giro e la controproposta della cliente, che prima si tenevano la quantità vecchia.
+     */
+    const fatta = await this.conSostituto(
+      clientId,
+      {
+        // La giornata di cui si sta parlando, non «oggi» per definizione (§16.2). Da qui in poi è
+        // questa la data autorevole: `applica` la rilegge invece di ricalcolarsi il giorno.
+        data: giorno ?? this.oggiIso(),
+        slot: trovato.pasto.pasto.slot,
+        recipeId: trovato.pasto.pasto.recipeId,
+        piatto: trovato.pasto.nome,
+        da: nomeIngrediente,
+        qtaDa,
+        unita: trovato.ingrediente.unit,
+        /**
+         * ⚠️ IL FATTORE DEL PIATTO SUO — perché Gaia dica la grammatura che deve mettere nel piatto e
+         * non quella di catalogo (19/8, decisione di Simone). ⚠️ `qtaDa`/`qtaA` restano di catalogo:
+         * sono i numeri che finiscono nella sostituzione scritta sul menu, e il piatto viene scalato
+         * al momento di mostrarlo — salvarli già scalati vorrebbe dire scalarli due volte.
+         */
+        fattore: fattoreDaDire(trovato.pasto.pasto.porzione),
+      },
+      sostituto,
+    );
+    if (!fatta.ok) return fatta.esito;
+    const proposta = fatta.proposta;
+
     return {
       testo: testoChiediMotivo(proposta),
       // ⚠️ `data` va ricopiata nello stato, non solo dentro la proposta: `avanza` ricalcola la
@@ -1334,6 +1388,213 @@ export class SostituzioneChatService {
    * seitan» — finirebbe addosso a una cliente onnivora, che chiederebbe di cambiare il tofu e
    * si vedrebbe proporre il seitan: glutine, per una scelta che nessuno aveva fatto per lei.
    */
+  /**
+   * ⛔ **I PESI DEI GRASSI, dal gruppo che li porta.**
+   *
+   * Sono i numeri firmati dal capo nutrizionista il 24/8 (fonte CREA / USDA) e vivono sul gruppo di
+   * equivalenza `Oli e grassi da condimento`, nel campo `members` che è già JSON. Da lì li mantiene
+   * lui dal backoffice: il codice sa **applicarli**, non conoscerli.
+   *
+   * ⚠️ Si legge **solo il gruppo approvato**, come per tutto il resto: una bozza è un lavoro in
+   * corso, e i grammi che finiscono nel piatto di una persona non si prendono da una bozza.
+   */
+  private async fattoriDeiGrassi(): Promise<EsitoFattori> {
+    /**
+     * ⛔ **TRE CORREZIONI IN UNA RIGA SOLA** — secondo giro di revisione, 25/8.
+     *
+     *  1. **`orderBy`.** `EquivalenceGroup.name` non ha un vincolo di unicità: due gruppi omonimi si
+     *     creano dal back office, e `findFirst` senza ordinamento pesca quello che capita. Il seed e
+     *     la diagnostica si erano già protetti; l'unico dei tre che finisce nel piatto di una
+     *     persona — questo — no. Tre punti, tre risposte alla stessa domanda.
+     *  2. **Il nome si confronta normalizzato**, come fa `candidati()` due schermate più in là.
+     *     Rinominare in «Oli e Grassi da Condimento» escludeva ancora il gruppo dai candidati (bene)
+     *     e **azzerava i pesi** (male): da lì in poi ogni cambio di grasso passava alla
+     *     nutrizionista, in silenzio.
+     *  3. **«Il gruppo non c'è» e «questa coppia non ha un peso» sono due degradi diversi**, e
+     *     prima davano la stessa frase: *«aggiungi i pesi al gruppo Oli e grassi da condimento»*.
+     *     Se il gruppo è in bozza o rinominato i pesi **ci sono già**: lei lo apre, li vede, e non
+     *     capisce. Adesso l'esito porta il perché, e la frase lo dice.
+     *
+     * ⚠️ Si legge **solo il gruppo approvato**: una bozza è un lavoro in corso, e i grammi che
+     * finiscono nel piatto di una persona non si prendono da una bozza.
+     */
+    const gruppi = (await this.prisma.equivalenceGroup.findMany({
+      where: { status: 'approved' } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { name: true, members: true },
+      take: 500,
+    })) as { name: string; members: unknown }[];
+    const cercato = normalizza(GRUPPO_GRASSI);
+    const g = gruppi.find((x) => normalizza(x.name ?? '') === cercato);
+    if (!g) return { fattori: null, perche: 'gruppo_assente' };
+    const fattori = leggiFattori(g.members);
+    return fattori ? { fattori } : { fattori: null, perche: 'gruppo_senza_pesi' };
+  }
+
+  /**
+   * ⛔ **QUANTI GRAMMI DEL SOSTITUTO** — e sui grassi non sono gli stessi di partenza.
+   *
+   * L'aritmetica e la decisione stanno in `comeConvertire` (file `grassi-equivalenti.ts`), che è
+   * puro e provato sui numeri di Nocanty. Qui si traduce la sua risposta in quello che serve a chi
+   * scrive: `null` vuol dire **non si propone niente, si passa la mano**.
+   */
+  /**
+   * ⚠️ **La frase per la nutrizionista cambia a seconda di COSA manca.** «Il gruppo non l'ho
+   * trovato» e «questa coppia non ha un peso» sono due degradi diversi: nel primo i numeri esistono
+   * già e mandarla ad «aggiungere i pesi» la manda a cercare una cosa che ha davanti.
+   */
+  private perchePesiMancanti(esito: EsitoFattori): string {
+    if (esito.fattori) {
+      return (
+        'È un grasso e non ho il numero di equivalenza per tutti e due: a pari grammatura le calorie '
+        + `del piatto cambierebbero molto, quindi non l'ho proposto. Se la coppia ha senso, aggiungi i `
+        + `pesi al gruppo «${GRUPPO_GRASSI}» e da lì in poi lo faccio da solo.`
+      );
+    }
+    if (esito.perche === 'gruppo_senza_pesi') {
+      return (
+        `Il gruppo «${GRUPPO_GRASSI}» c'è ed è approvato, ma non porta nessun peso leggibile: finché `
+        + 'è così passo la mano su TUTTI i cambi di grasso, di tutte le clienti. Controlla i numeri '
+        + 'nel gruppo.'
+      );
+    }
+    return (
+      `Non trovo nessun gruppo approvato che si chiami «${GRUPPO_GRASSI}»: può essere rinominato, `
+      + 'rimesso in bozza, o non ancora creato. Finché è così passo la mano su TUTTI i cambi di '
+      + 'grasso, di tutte le clienti.'
+    );
+  }
+
+  private grammiDelSostituto(
+    fattori: FattoriGrassi | null,
+    da: string,
+    a: string,
+    qtaDa: number | undefined,
+  ): { qta: number | undefined; convertita: boolean } | null {
+    const modo = comeConvertire(fattori, da, a);
+    if (modo.modo === 'passa_la_mano') return null;
+    if (modo.modo === 'pari') return { qta: qtaDa, convertita: false };
+    if (qtaDa === undefined) return { qta: undefined, convertita: false };
+    const convertita = quantitaEquivalente(qtaDa, modo.pesoDa, modo.pesoA);
+    return convertita === null ? null : { qta: convertita, convertita: true };
+  }
+
+  /**
+   * ⛔ **LA PROPOSTA SI COSTRUISCE IN UN POSTO SOLO** — e prima erano tre, che è come sono nati due
+   * difetti gemelli (trovati in revisione, 25/8).
+   *
+   * `proponi` faceva bene i conti. Poi `altroSostituto` e la controproposta della cliente
+   * scrivevano `{ ...proposta, a: nuovoSostituto }` — cioè cambiavano l'alimento **tenendo la
+   * quantità dell'alimento di prima**. Con i grassi questo è esattamente l'errore che il lavoro
+   * toglie, e in due sapori diversi:
+   *  · in `altroSostituto` la cliente si sentiva dire «a pranzo metti **52 g di olio evo**» al posto
+   *    di 70 ml di panna fresca: il numero giusto è 70 × 100 / 285 = **25 g**;
+   *  · nella controproposta era peggio, perché `applica` **ricalcola** la quantità al momento di
+   *    scrivere: le si diceva un numero e sul menu ne finiva un altro. Testo e piatto divergevano.
+   *
+   * ⚠️ Regola di casa: *se due punti rispondono alla stessa domanda, uno deve chiamare l'altro*.
+   * Qui i punti erano tre e nessuno chiamava nessuno. Adesso è questo, e ci passano tutti e tre —
+   * quindi la conversione, l'unità del sostituto e la regola della cucina non possono più valere
+   * solo sul primo giro.
+   *
+   * Rende la proposta pronta, oppure l'esito già confezionato di un **inoltro alla nutrizionista**:
+   * le due strade di uscita sono le stesse di `proponi`, e vivono qui perché sono la stessa domanda.
+   */
+  private async conSostituto(
+    clientId: string,
+    base: Omit<PropostaSostituzione, 'a' | 'qtaA' | 'unitaA' | 'grammaturaCorretta'>,
+    sostituto: string,
+  ): Promise<{ ok: true; proposta: PropostaSostituzione } | { ok: false; esito: EsitoSostituzione }> {
+    const dove =
+      `(${etichettaSlot(base.slot)} di ${base.data}: ${base.piatto}` +
+      (base.qtaDa !== undefined ? `, ${base.qtaDa}${base.unita ? ` ${base.unita}` : ''}` : '') +
+      ')';
+
+    if (coppiaDaNonPermettere(base.da, sostituto, base.piatto)) {
+      /**
+       * ⚠️ La resa in cucina, non l'aritmetica: *«escludere dal cambio automatico diretto la coppia
+       * Panna → Olio EVO nelle preparazioni culinarie come vellutate o salse, dove la sostituzione
+       * altera radicalmente la consistenza e la riuscita del piatto»* (Nocanty, 24/8). Venticinque
+       * grammi di olio in una vellutata sono giusti sui numeri e sbagliati nel piatto.
+       */
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat: «${base.da}» → «${sostituto}» ${dove}. `
+        + 'Sui numeri il cambio si potrebbe fare, ma in una preparazione così cambia la consistenza del '
+        + 'piatto (regola del capo nutrizionista, 24/8): serve la tua parola.',
+      );
+      return {
+        ok: false,
+        esito: { testo: testoGrassoInCucina(base.da, base.piatto), inoltraA: 'nutritionist', esito: 'rifiutata' },
+      };
+    }
+
+    const esitoFattori = await this.fattoriDeiGrassi();
+    const grammi = this.grammiDelSostituto(esitoFattori.fattori, base.da, sostituto, base.qtaDa);
+    if (!grammi) {
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat: «${base.da}» → «${sostituto}» ${dove}. ${this.perchePesiMancanti(esitoFattori)}`,
+      );
+      return {
+        ok: false,
+        esito: { testo: testoGrassoSenzaNumero(base.da), inoltraA: 'nutritionist', esito: 'rifiutata' },
+      };
+    }
+
+    /**
+     * ⚠️ Il controllo di plausibilità resta, e con il fattore ha una soglia più larga: **0,20** invece
+     * di un terzo, chiesto da Nocanty perché il blocco — scattando — **ripiega su pari grammatura**,
+     * cioè sull'errore che questo lavoro toglie. Un limite che quando morde riporta al difetto è
+     * peggio di nessun limite.
+     */
+    const { qta: qtaA, corretta } = correggiGrammatura(
+      base.qtaDa,
+      grammi.convertita ? grammi.qta : undefined,
+      grammi.convertita ? TOLLERANZA_CON_FATTORE : undefined,
+    );
+
+    /**
+     * ⛔ **UNA CONVERSIONE BOCCIATA NON RIPIEGA SULLA PARI GRAMMATURA** — trovato in revisione, 25/8.
+     *
+     * `correggiGrammatura`, quando il numero non le piace, **rimette la quantità di partenza**: è il
+     * ripiego giusto per la pari grammatura di sempre (verdure, cereali), dove il numero proposto era
+     * solo una copia. Sui grassi no: lì la quantità di partenza è **esattamente l'errore** che i
+     * fattori esistono per togliere, e ripiegarci sopra vuol dire che il limite di sicurezza, quando
+     * morde, produce il danno.
+     *
+     * ⚠️ Con i numeri di oggi non capita — il rapporto più alto della tabella è panna/olio = 2,85,
+     * sotto il tetto del triplo. Capiterà quando Nocanty aggiungerà un alimento molto più leggero o
+     * molto più grasso del riferimento, e allora la risposta giusta è **passare la mano**, non
+     * scrivere il numero vecchio.
+     */
+    if (grammi.convertita && corretta) {
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat: «${base.da}» → «${sostituto}» ${dove}. Il numero di equivalenza dà una `
+        + 'quantità troppo lontana da quella del piano (fuori dal limite di sicurezza), quindi non '
+        + 'l\'ho proposto e non ho ripiegato sulla pari grammatura. Serve la tua parola.',
+      );
+      return {
+        ok: false,
+        esito: { testo: testoGrassoTroppoLontano(base.da), inoltraA: 'nutritionist', esito: 'rifiutata' },
+      };
+    }
+
+    return {
+      ok: true,
+      proposta: {
+        ...base,
+        a: sostituto,
+        qtaA,
+        // Non l'unità dell'ingrediente di partenza: «70 ml di burro» non esiste. Vedi
+        // `unitaPerSostituto`.
+        unitaA: unitaDopoLaConversione(unitaPerSostituto(base.unita, sostituto), grammi.convertita),
+        grammaturaCorretta: corretta,
+      },
+    };
+  }
+
   private async candidati(
     nomeIngrediente: string,
     termine: string,
@@ -1343,10 +1604,29 @@ export class SostituzioneChatService {
       where: { status: 'approved', OR: [{ productId: null }, ...(dietId ? [{ productId: dietId }] : [])] },
       orderBy: { name: 'asc' },
       take: 200,
-    })) as { members: unknown; productId: string | null }[];
+    })) as { name: string; members: unknown; productId: string | null }[];
 
     const dalGruppo: string[] = [];
     for (const g of gruppi) {
+      /**
+       * ⛔ **IL GRUPPO DEI GRASSI NON È UNA SORGENTE DI CANDIDATI** — trovato in revisione, 25/8.
+       *
+       * `Oli e grassi da condimento` è **approvato e globale**, perché i suoi numeri devono valere
+       * per tutte. Ma un gruppo approvato è anche, per tutto il resto del motore, la frase «questi
+       * alimenti sono intercambiabili» — e questo gruppo non la dice: dice «ecco quanto pesano».
+       * Lasciandolo dentro, una cliente vegana che chiedeva di cambiare l'olio si sarebbe sentita
+       * proporre **burro o panna fresca**, con l'aria di una scelta approvata dalla nutrizionista.
+       *
+       * ⚠️ Una tabella di conversione e un elenco di equivalenze si somigliano nella forma e non
+       * sono la stessa cosa. Qui si separano, nell'unico punto che legge i gruppi per proporre.
+       *
+       * ⚠️ **E non si perde niente**: prima del 25/8 questo gruppo non esisteva, quindi i sostituti
+       * dei grassi venivano — e continuano a venire — dalla mappa sicura e dai gruppi scritti dalla
+       * nutrizionista. Quello che cambia è che adesso, quando uno di quei cambi capita, la
+       * **quantità** è la proporzione sui lipidi invece della pari grammatura. I pesi servono a
+       * convertire, non a decidere cosa si può proporre a chi.
+       */
+      if (normalizza(g.name ?? '') === normalizza(GRUPPO_GRASSI)) continue;
       const items = (((g.members as { items?: string[] })?.items ?? []) as string[]).filter(Boolean);
       // Il gruppo riguarda questo alimento? Confronto per parola, come tutto il resto.
       if (!items.some((i) => combaciaAlimento(i, nomeIngrediente) || combaciaAlimento(i, termine))) continue;
@@ -1398,6 +1678,20 @@ export class SostituzioneChatService {
     let pastiToccati = 0;
     let giorniToccati = 0;
     let giaPresenti = 0;
+    /**
+     * ⛔ **I PESI DEI GRASSI SERVONO ANCHE QUI, e la prima stesura se l'era dimenticato.**
+     *
+     * La quantità del sostituto si ricalcola **su ogni giornata**, perché con «non mi piace» il
+     * cambio si scrive anche sui giorni futuri e lì la ricetta può avere una grammatura diversa. La
+     * conversione fatta solo al momento della proposta finiva quindi in un testo giusto («a pranzo
+     * trovi 12 g di burro») e in un menu sbagliato: **10 g scritti sulla giornata**. Trovato dal
+     * test di comportamento, non dalla lettura.
+     */
+    const { fattori } = await this.fattoriDeiGrassi();
+    /** I pasti saltati perché in quel piatto la coppia non regge in cucina. Non si tacciono. */
+    let saltatiPerCucina = 0;
+    /** I pasti saltati perché il numero non c'è o non regge il limite di sicurezza. Nemmeno questi. */
+    let saltatiPerNumero = 0;
     // La PRIMA sostituzione scritta davvero, per la tabella §16.9: porta il nome dell'ingrediente
     // com'è nella RICETTA e la grammatura vera, che la proposta non sempre ha.
     // Un oggetto e non un `let … | null`: viene valorizzato dentro una callback, e TypeScript non
@@ -1439,8 +1733,53 @@ export class SostituzioneChatService {
         );
         if (!ingrediente) return pasto;
 
+        /**
+         * ⚠️ **La regola della cucina vale su OGNI piatto toccato**, non solo su quello di cui si è
+         * parlato: con «non mi piace» il cambio si propaga ai giorni futuri, e fra quelli può
+         * esserci una vellutata. Qui si salta, e sotto si dice che si è saltato — un pasto lasciato
+         * indietro in silenzio è peggio di un pasto non cambiato.
+         */
+        if (coppiaDaNonPermettere(proposta.da, proposta.a, ricetta.nome ?? pasto.name ?? '')) {
+          saltatiPerCucina += 1;
+          return pasto;
+        }
+
         const qtaDa = typeof ingrediente.qty === 'number' ? ingrediente.qty : undefined;
-        const { qta: qtaA, corretta } = correggiGrammatura(qtaDa, undefined);
+        /**
+         * ⛔ **Il peso si cerca col nome dell'ingrediente DI QUESTA GIORNATA**, non con quello della
+         * proposta — corretto al secondo giro di revisione, 25/8. L'ingrediente si trova con
+         * `combaciaAlimento`, che è **per parola**: `proposta.da = 'panna fresca'` combacia anche con
+         * un ingrediente chiamato «panna fresca vegetale». Cercando il peso su `proposta.da` si
+         * applicava il 285 della panna fresca a un prodotto vegetale che di lipidi ne ha la metà —
+         * proprio quello che il seed vieta a parole («panna vegetale: PRODOTTI DIVERSI, non si
+         * ereditano dalla panna fresca»). Col nome vero la rete di `sembraUnGrasso` scatta e il
+         * pasto si salta, che è il verso giusto in cui sbagliare.
+         */
+        const nomeVero = (ingrediente.name ?? proposta.da).trim();
+        const grammi = this.grammiDelSostituto(fattori, nomeVero, proposta.a, qtaDa);
+        /**
+         * ⛔ **QUI IL RIPIEGO SILENZIOSO NON C'È PIÙ.** La prima stesura diceva «`null` non può
+         * capitare» e, nel caso, scriveva la pari grammatura. Può capitare: con «non mi piace» si
+         * scrive anche sui giorni futuri, e fra la proposta e l'ultimo giorno la tabella dei pesi
+         * può essere stata rimessa in bozza o rinominata. Scrivere il numero vecchio sarebbe
+         * ripiegare sull'errore proprio nel momento in cui non sappiamo più il numero giusto.
+         *
+         * ⚠️ E vale anche per la conversione **bocciata dal limite di sicurezza** (fuori dal triplo):
+         * stessa ragione, stessa risposta. Il pasto si salta, e sotto si dice che si è saltato.
+         */
+        if (!grammi) {
+          saltatiPerNumero += 1;
+          return pasto;
+        }
+        const { qta: qtaA, corretta } = correggiGrammatura(
+          qtaDa,
+          grammi.convertita ? grammi.qta : undefined,
+          grammi.convertita ? TOLLERANZA_CON_FATTORE : undefined,
+        );
+        if (grammi.convertita && corretta) {
+          saltatiPerNumero += 1;
+          return pasto;
+        }
         const sostituzione: Substitution = {
           from: (ingrediente.name ?? proposta.da).trim(),
           to: proposta.a,
@@ -1449,7 +1788,9 @@ export class SostituzioneChatService {
           toQty: qtaA,
           unit: ingrediente.unit,
           // L'unità del sostituto può non essere quella di partenza: vedi `unitaPerSostituto`.
-          unitA: unitaPerSostituto(ingrediente.unit, proposta.a),
+          // E se la quantità è stata convertita coi pesi, l'unità è il grammo: vedi
+          // `unitaDopoLaConversione`.
+          unitA: unitaDopoLaConversione(unitaPerSostituto(ingrediente.unit, proposta.a), grammi.convertita),
           origine: 'chat',
           motivo: motivo.key,
           // Ogni cambio nasce «da verificare» finché il nutrizionista non lo guarda: è quello
@@ -1502,12 +1843,61 @@ export class SostituzioneChatService {
         giorni: giorniToccati,
         pasti: pastiToccati,
         giaPresenti,
+        saltatiPerCucina,
+        saltatiPerNumero,
       },
     });
 
+    /**
+     * ⛔ **I PASTI SALTATI PER LA CUCINA SI DICONO** — e nella prima stesura si contavano soltanto.
+     *
+     * Il contatore veniva incrementato e non letto **da nessuno**. Quindi quando l'unico pasto
+     * toccabile era una vellutata, la cliente riceveva la frase del menu-cambiato-sotto-i-piedi —
+     * «il menu di oggi è cambiato e «panna fresca» non c'è più: non ho toccato niente» — che è
+     * **falsa**: la panna c'è ancora, ed è il sistema ad aver deciso di non toccarla. E non partiva
+     * nessun inoltro, quindi il cambio non lo faceva né Gaia né la nutrizionista: spariva.
+     *
+     * ⚠️ Regola di casa: *una ragione falsa è peggio di un ordine sbagliato*, e *se degradi, dillo*.
+     * Qui erano tutte e due insieme.
+     */
+    const saltati = saltatiPerCucina + saltatiPerNumero;
+    if (saltati) {
+      const perche = [
+        saltatiPerCucina
+          ? `${saltatiPerCucina} perché in quella preparazione il cambio ne rovina la consistenza (regola del capo nutrizionista, 24/8)`
+          : '',
+        saltatiPerNumero
+          ? `${saltatiPerNumero} perché su quel piatto non ho un numero di equivalenza affidabile per i due grassi, e non ripiego sulla pari grammatura`
+          : '',
+      ].filter(Boolean).join('; ');
+      await this.passaAllaNutrizionista(
+        clientId,
+        `Cambio in chat già concordato con la cliente: «${proposta.da}» → «${proposta.a}» ` +
+          `(${etichettaSlot(proposta.slot)}: ${proposta.piatto}). ` +
+          `${saltati === 1 ? 'Un piatto è stato lasciato' : `${saltati} piatti sono stati lasciati`} ` +
+          `com'era — ${perche}. ` +
+          `${pastiToccati ? 'Gli altri li ho scritti.' : 'Non ho scritto niente.'} Serve la tua parola.`,
+      );
+    }
+
     if (!pastiToccati) {
       // Due «non ho scritto niente» molto diversi, e dirle quello sbagliato è peggio che tacere.
-      if (giaPresenti) return { testo: testoGiaFatto(proposta), esito: 'applicata' };
+      // ⚠️ E `saltati` viene PRIMA: se qualcosa è stato lasciato indietro, dirle «quel cambio c'è
+      // già» sarebbe vero a metà — la metà che le interessa è l'altra. Rilievo della revisione, 25/8.
+      if (giaPresenti && !saltati) return { testo: testoGiaFatto(proposta), esito: 'applicata' };
+      // ⚠️ Il terzo, che prima cadeva nel secondo: non ho scritto perché **ho deciso di non
+      // scrivere**, non perché il menu è cambiato. Vedi il riquadro qui sopra.
+      if (saltati) {
+        // ⚠️ Tre motivi, tre frasi: la ragione che si dice alla cliente è quella vera. Se sono tutti
+        // e due, vince quello che le fa capire di più — il piatto, che lei conosce.
+        return {
+          testo: saltatiPerCucina
+            ? testoGrassoInCucina(proposta.da, proposta.piatto)
+            : testoGrassoSenzaNumero(proposta.da),
+          inoltraA: 'nutritionist',
+          esito: 'rifiutata',
+        };
+      }
       // Il menu è cambiato sotto i piedi fra la proposta e la conferma (rigenerazione,
       // cambio dieta): meglio dirlo che dichiarare un successo che non c'è stato.
       return {
@@ -1543,10 +1933,21 @@ export class SostituzioneChatService {
       { da: proposta.da, a: proposta.a, slot: proposta.slot, motivo: motivo.key, giorni: giorniToccati },
     );
 
+    /**
+     * ⚠️ **Se qualcosa è rimasto indietro, lo sa anche lei.** Con «non mi piace» il cambio si scrive
+     * anche sui giorni futuri, e fra quelli può esserci una vellutata che non si tocca: dirle
+     * «fatto» e basta le lascerebbe credere che la panna sia sparita da tutti i piatti.
+     */
+    const avviso = saltati
+      ? `\n\nUn'ultima cosa: in ${saltati === 1 ? 'un piatto' : `${saltati} piatti`} ` +
+        'questo cambio non me la sono sentita di farlo da sola, quindi lì ho lasciato tutto com\'era e ' +
+        'ho girato la cosa alla tua nutrizionista. 💚'
+      : '';
+
     return {
       // L'invito a riflettere va IN CODA alla conferma, mai al posto: il cambio glielo abbiamo
       // fatto, e un invito che sostituisce la risposta è un ricatto gentile.
-      testo: testoFatto(proposta, motivo, await this.nomeDi(clientId), quando) + (await this.invitoARiflettere(clientId)),
+      testo: testoFatto(proposta, motivo, await this.nomeDi(clientId), quando) + avviso + (await this.invitoARiflettere(clientId)),
       esito: 'applicata',
       applicata: { giorni: giorniToccati, da: proposta.da, a: proposta.a, motivo: motivo.key, pasti: pastiToccati },
     };
@@ -1666,15 +2067,63 @@ export class SostituzioneChatService {
     categoria: 'clinical' | 'other' = 'other',
   ): Promise<void> {
     try {
-      // `apriSegnalazione` e non una create diretta: se sulla cliente non c'è nessuna
-      // nutrizionista, la manda al capo nutrizionista invece di lasciarla lì.
-      const segnalazione = await apriSegnalazione(this.prisma as never, {
-        clientId,
-        category: categoria,
-        source: 'coach',
-        reason: motivo,
-        dedupe: true,
-      });
+      /**
+       * ⛔ **UNA SECONDA RICHIESTA DIVERSA NON DEVE SPARIRE** — trovato in revisione, 25/8.
+       *
+       * `dedupe: true` vuol dire «se c'è già una segnalazione aperta di questa categoria, non
+       * aprirne un'altra», e serve: senza, tre messaggi della stessa cliente in un pomeriggio
+       * diventano tre righe uguali sul tavolo della nutrizionista. Ma dedupare **la riga** stava
+       * anche buttando via **il motivo**: la cliente chiedeva la panna a pranzo, poi il burro a
+       * cena, e la seconda domanda non arrivava da nessuna parte — né in segnalazione (stessa riga,
+       * testo vecchio) né su Vera (la chiave è `gaia:<idSegnalazione>`, quindi anche lì una sola).
+       * Gaia intanto le aveva detto «l'ho girata alla tua nutrizionista». Non era vero.
+       *
+       * ✅ La riga resta una — è giusto che sia una — ma il motivo nuovo si **accoda** al suo testo,
+       * e la stessa cosa succede alla domanda su Vera. Una coda di richieste che si accorcia da sola
+       * è peggio di una coda lunga.
+       */
+      let accodare = false;
+      const apri = (dedupe: boolean) =>
+        apriSegnalazione(this.prisma as never, {
+          clientId,
+          category: categoria,
+          source: 'coach',
+          reason: motivo,
+          dedupe,
+          alSilenzio: () => {
+            accodare = true;
+          },
+        });
+
+      let segnalazione = await apri(true);
+      if (accodare && segnalazione?.id) {
+        /**
+         * ⛔ **E LA RIGA CHE HA FERMATO L'APERTURA POTEVA ESSERE GIÀ CHIUSA** — secondo giro di
+         * revisione, 25/8. `alSilenzio` scatta in **due casi diversi**, e accodare andava bene solo
+         * per il primo:
+         *  · c'è una segnalazione **aperta** → il motivo si accoda al suo testo, ed è giusto;
+         *  · ce n'è una **risolta** dentro la tregua di riapertura (14 giorni, e basta una
+         *    qualunque segnalazione «other» di un altro sottosistema) → `decidiRiapertura` dice «non
+         *    riaprire» e rende quella riga. Il motivo finiva in coda a una segnalazione **chiusa**,
+         *    che nessuno riaprirà; e su Vera nemmeno quello, perché la chiave è
+         *    `gaia:<idSegnalazione>` e la domanda vecchia era chiusa a sua volta. La richiesta
+         *    spariva da tutte e due le porte — dopo che Gaia aveva detto alla cliente «l'ho girata
+         *    alla tua nutrizionista». Una ragione falsa è peggio di un ordine sbagliato.
+         *
+         * ✅ La regola della riapertura è nata per **la stessa condizione che ritorna** (vedi
+         * `escalations/riapertura.ts`), non per una domanda nuova che una persona ha appena fatto.
+         * Qui la domanda è nuova: se la riga di prima è chiusa, se ne apre una.
+         */
+        const prec = (await this.prisma.escalation.findUnique({
+          where: { id: segnalazione.id },
+          select: { status: true },
+        })) as { status: string | null } | null;
+        if (prec && SEGNALAZIONE_APERTA.includes(prec.status ?? '')) {
+          await this.accodaIlMotivo(segnalazione.id, motivo);
+        } else {
+          segnalazione = await apri(false);
+        }
+      }
 
       /**
        * ⚠️ E LA STESSA COSA ARRIVA ANCHE ALL'ASSISTENTE (Simone, 14/8): «anche queste notifiche
@@ -1689,16 +2138,66 @@ export class SostituzioneChatService {
        * una coda che smette di riempirsi in silenzio è peggio di una coda vuota.
        */
       if (segnalazione?.id) {
-        await apriRichiestaVera(this.prisma, {
+        const esito = await apriRichiestaVera(this.prisma, {
           tipo: 'girata_da_gaia',
           clienteId: clientId,
           testo: motivo,
           origine: 'chat-gaia',
           chiave: `${CHIAVE_GAIA}${segnalazione.id}`,
         });
+        // ⚠️ `creata: false` = la chiave c'era già, e `apriRichiestaVera` per costruzione non
+        // riscrive il testo (è la sua idempotenza). Allora lo accodiamo noi: vedi il riquadro sopra.
+        if (!esito.creata && esito.id) await this.accodaSuVera(esito.id, motivo);
       }
     } catch (err) {
       this.logger.error('Segnalazione da cambio piatto in chat non aperta', err instanceof Error ? err.stack : String(err));
+    }
+  }
+
+  /**
+   * Accoda un motivo nuovo al testo di una riga già aperta, senza duplicarlo e senza farla crescere
+   * all'infinito.
+   *
+   * ⚠️ **Il tetto è dichiarato** (`TETTO_MOTIVI`): un campo di testo che cresce a ogni messaggio
+   * diventa illeggibile proprio quando serve, e una colonna che nessuno rilegge è come una colonna
+   * vuota. Arrivati al tetto si smette di accodare e si dice **nel testo stesso** che si è smesso —
+   * *se degradi, dillo*. La riga resta comunque sul tavolo della nutrizionista con la sua domanda.
+   *
+   * ⚠️ Non lancia: la cliente ha già avuto la sua risposta, e un accodamento fallito non deve
+   * togliere la segnalazione che invece c'è.
+   */
+  private async accodaIlMotivo(escalationId: string, motivo: string): Promise<void> {
+    try {
+      const riga = (await this.prisma.escalation.findUnique({
+        where: { id: escalationId },
+        select: { reason: true, status: true },
+      })) as { reason: string | null; status: string | null } | null;
+      // ⚠️ La stessa rete che ha `accodaSuVera`: su una riga chiusa non si scrive di soppiatto.
+      // Chi chiama lo sa già, ma un controllo che sta in un posto solo è un controllo che un giorno
+      // il secondo chiamante non fa.
+      if (!riga || !SEGNALAZIONE_APERTA.includes(riga.status ?? '')) return;
+      const testo = accodaMotivo(riga.reason ?? '', motivo);
+      if (testo === null) return;
+      await this.prisma.escalation.update({ where: { id: escalationId }, data: { reason: testo } });
+    } catch (err) {
+      this.logger.warn(`Motivo non accodato alla segnalazione ${escalationId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /** La stessa cosa sulla domanda di Vera, che è l'altra porta da cui la nutrizionista risponde. */
+  private async accodaSuVera(richiestaId: string, motivo: string): Promise<void> {
+    try {
+      const riga = (await this.prisma.richiestaVera.findUnique({
+        where: { id: richiestaId },
+        select: { testo: true, stato: true },
+      })) as { testo: string | null; stato?: string | null } | null;
+      // Una domanda già chiusa non si riapre di soppiatto: la segnalazione porta comunque il motivo.
+      if (riga?.stato && riga.stato !== 'aperta') return;
+      const testo = accodaMotivo(riga?.testo ?? '', motivo);
+      if (testo === null) return;
+      await this.prisma.richiestaVera.update({ where: { id: richiestaId }, data: { testo } as never });
+    } catch (err) {
+      this.logger.warn(`Motivo non accodato alla domanda Vera ${richiestaId}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -2222,13 +2721,67 @@ export class SostituzioneChatService {
         pasti[indice] = { ...pasto, substitutions: esistenti.filter((_, k) => k !== i) };
         descrizione = `Sostituzione annullata: nel piatto torna «${s.from}».`;
       } else {
+        /**
+         * ⛔ **SE CAMBIA IL SOSTITUTO E NON LA QUANTITÀ, LA QUANTITÀ NON RESTA QUELLA DI PRIMA** —
+         * corretto in revisione, 25/8.
+         *
+         * Questa è la porta da cui la nutrizionista **corregge** un cambio di Gaia, e prima faceva
+         * `{ ...s, to: input.to }`: cioè teneva `toQty`. Correggendo «25 g di olio evo» in «panna
+         * fresca» senza toccare i grammi il piatto diventava **25 g di panna**, un quinto dei
+         * lipidi del piano — la pari grammatura reintrodotta dallo strumento che serve a toglierla,
+         * e per mano di chi credeva di star sistemando le cose.
+         *
+         * Tre risposte, le stesse di Gaia: se i pesi ci sono si **riconverte**; se non è roba da
+         * grassi la quantità resta (verdure, cereali: lì è giusto); se è un grasso e il numero non
+         * c'è **si rifiuta e si dice**, invece di scrivere una quantità che nessuno ha deciso. Lei
+         * è davanti alla schermata e il campo dei grammi ce l'ha lì: chiederglielo costa un secondo,
+         * indovinare costa un piatto.
+         */
+        let qtaCorretta = input.toQty;
+        /** ⚠️ Vedi `unitaDopoLaConversione`: la tabella di Nocanty è in GRAMMI. */
+        let unitaConvertita = false;
+        if (input.to && input.toQty === undefined && normalizza(input.to) !== normalizza(s.to)) {
+          const { fattori } = await this.fattoriDeiGrassi();
+          const modo = comeConvertire(fattori, s.from, input.to);
+          if (modo.modo === 'converti') {
+            /**
+             * ⛔ **E senza la quantità di partenza il conto NON si può fare** — secondo giro di
+             * revisione, 25/8. Qui prima si rendeva `undefined`, che nello spread sotto **non
+             * sovrascrive** `toQty`: restava quello dell'alimento di prima. Cioè, nell'unico ramo in
+             * cui il conto non si può fare, tornava esattamente il difetto che questa porta doveva
+             * chiudere — e `chat.service.ts` manda la descrizione **alla cliente in notifica**, con
+             * il numero mai deciso da nessuno firmato dalla nutrizionista.
+             */
+            const convertita = s.fromQty !== undefined && s.fromQty !== null
+              ? quantitaEquivalente(s.fromQty, modo.pesoDa, modo.pesoA)
+              : null;
+            if (convertita === null) {
+              throw new BadRequestException(
+                `Su questa riga non ho la quantità di partenza, quindi non posso convertire i grammi ` +
+                  `da «${s.from}» a «${input.to}». Scrivi tu i grammi del sostituto.`,
+              );
+            }
+            qtaCorretta = convertita;
+            unitaConvertita = true;
+          } else if (modo.modo === 'passa_la_mano') {
+            throw new BadRequestException(
+              `«${input.to}» è un grasso e non ho il numero di equivalenza per convertire la quantità ` +
+                `da «${s.from}». Scrivi tu i grammi del sostituto, oppure aggiungi i pesi al gruppo ` +
+                `«${GRUPPO_GRASSI}» e da lì in poi lo converto io.`,
+            );
+          }
+        }
         const nuovo: Substitution = {
           ...s,
           ...(input.to ? { to: input.to } : {}),
-          ...(input.toQty !== undefined ? { toQty: input.toQty } : {}),
+          ...(qtaCorretta !== undefined ? { toQty: qtaCorretta } : {}),
           // L'unità si ricalcola sul sostituto nuovo: «70 ml di burro» non esiste (vedi
           // `unitaPerSostituto`). Se la nutrizionista la scrive a mano, vince la sua.
-          ...(input.unitA ? { unitA: input.unitA } : input.to ? { unitA: unitaPerSostituto(s.unit, input.to) } : {}),
+          ...(input.unitA
+            ? { unitA: input.unitA }
+            : input.to
+              ? { unitA: unitaDopoLaConversione(unitaPerSostituto(s.unit, input.to), unitaConvertita) }
+              : {}),
           stato: input.stato,
           verificataIl: adesso,
           verificataDa: actorId,
@@ -2238,8 +2791,10 @@ export class SostituzioneChatService {
         cambiato[i] = nuovo;
         pasti[indice] = { ...pasto, substitutions: cambiato };
         descrizione =
+          // ⚠️ `nuovo.to` e non `s.to`: anche il ramo «verificata» può portare un sostituto cambiato,
+          // e prima le si scriveva «hai confermato il burro» mentre nel piatto era finita la panna.
           input.stato === 'verificata'
-            ? `Sostituzione confermata: «${s.from}» → «${s.to}» va bene.`
+            ? `Sostituzione confermata: «${s.from}» → «${nuovo.to}» va bene.`
             : `Sostituzione corretta dalla nutrizionista: «${s.from}» → «${nuovo.to}»` +
               `${nuovo.toQty ? ` ${nuovo.toQty} ${nuovo.unitA ?? nuovo.unit ?? ''}`.trimEnd() : ''}.`;
       }
