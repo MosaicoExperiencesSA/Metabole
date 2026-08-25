@@ -120,6 +120,13 @@ export function CoachChatThread({ tabs }: { tabs: TabItem[] }) {
   const canc = useCancellaMessaggio({ threadId, ricarica: () => state.reload() });
 
   useEffect(() => {
+    /**
+     * ⚠️ **Qui `scrollIntoView` è quello giusto, e resta** (25/8): questa lista non è una scatola con
+     * la sua barra — è la pagina intera a scorrere, quindi «portare in vista l'ultimo messaggio» è
+     * esattamente quello che serve. Dove invece la lista ha un'altezza sua (la chat in scheda
+     * cliente, quella del back office, il foglio in app) si sposta la SCATOLA: vedi
+     * `lib/scorri-in-fondo.ts`. Sono due primitive diverse per due situazioni diverse.
+     */
     bottom.current?.scrollIntoView({ behavior: 'auto' });
   }, [state.data]);
 

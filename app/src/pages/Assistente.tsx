@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
 import AppHeader from '../components/AppHeader';
+import { TestoConGrassetto } from '../components/TestoConGrassetto';
 
 /**
  * Chat del team — un'unica pagina per Gaia (AI), coach e nutrizionista, sul sistema
@@ -117,6 +118,13 @@ export default function Assistente() {
   }, [thread?.id]);
 
   useEffect(() => {
+    /**
+     * ⚠️ **Qui `scrollIntoView` è quello giusto, e resta** (25/8): questa lista non è una scatola con
+     * la sua barra — è la pagina intera a scorrere, quindi «portare in vista l'ultimo messaggio» è
+     * esattamente quello che serve. Dove invece la lista ha un'altezza sua (la chat in scheda
+     * cliente, quella del back office, il foglio in app) si sposta la SCATOLA: vedi
+     * `lib/scorri-in-fondo.ts`. Sono due primitive diverse per due situazioni diverse.
+     */
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [messages.length]);
 
@@ -165,7 +173,8 @@ export default function Assistente() {
                     style={{ position: 'relative' }}
                   >
                     <CancellaMessaggio messaggio={m} gancio={canc} />
-                    {m.body}
+                    {/* ⚠️ Il grassetto si DISEGNA (25/8): vedi il riquadro in `TestoConGrassetto`. */}
+                    <TestoConGrassetto testo={m.body} />
                     {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                     <span className="bubble-ora">{oraBreve(m.sentAt)}</span>
                   </div>

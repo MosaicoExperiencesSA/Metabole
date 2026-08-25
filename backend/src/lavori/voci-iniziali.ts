@@ -1900,8 +1900,9 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: false,
+    fatta: true,
     nata: '2026-08-23T14:30',
-    titolo: 'Tutte le chat, Gaia e Vera comprese, all\'apertura devono andare all\'ultimo messaggio',
+    titolo: '✅ Tutte le chat, Gaia e Vera comprese, si aprono sull\'ultimo messaggio',
     dettaglio:
       'Richiesta di Simone, 23/8: aprendo una conversazione si parte dal **primo** messaggio e bisogna '
       + 'scorrere fino in fondo per vedere l\'ultimo. Vale per tutte: la chat con la coach, quella con '
@@ -1911,15 +1912,30 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'trova a scorrere prima di poter leggere la domanda a cui deve rispondere.\n\n'
       + '⚠️ Da fare in **un posto solo** se possibile: oggi le liste di messaggi sono almeno quattro '
       + 'componenti diversi, e quattro copie della stessa riga di scorrimento sono quattro punti in cui '
-      + 'domani una si comporta diversamente dalle altre.',
+      + 'domani una si comporta diversamente dalle altre.\n\n'
+      + '✅ **CHIUSA il 25/8, dopo aver misurato invece di supporre**: tre delle sei liste scorrevano '
+      + 'già. Quella che non scorreva **affatto** era la card «Conversazioni» in scheda cliente — cioè '
+      + 'proprio dove una coach apre la chat di una cliente per rispondere, e doveva scorrere tutto per '
+      + 'arrivare alla domanda.\n\n'
+      + '⚠️ **Un posto solo per progetto** (`lib/scorri-in-fondo.ts`, gemelli in app e back office: '
+      + 'sono due build separate, senza un pacchetto in comune). ⛔ E si sposta la **scatola** '
+      + '(`scrollTop = scrollHeight`), non `scrollIntoView` su un segnaposto: quello scorre anche tutti '
+      + 'gli antenati, e dentro una pagina lunga come la scheda cliente avrebbe fatto saltare la pagina '
+      + 'intera. Dove invece è la pagina a scorrere — Gaia a schermo pieno, la chat della coach in app '
+      + '— `scrollIntoView` resta, ed è scritto perché.\n\n'
+      + '⚠️ Due rilievi della revisione: il segnaposto vecchio andava **tolto** (con la stessa ref '
+      + 'attaccata a due nodi, React tiene l\'ultimo — un div alto zero — e lo scorrimento moriva in '
+      + 'silenzio); e nel foglio dell\'app la dipendenza era il **numero** dei messaggi, quindi '
+      + 'passando da Gaia alla coach con dodici messaggi ciascuna la lista restava a metà.',
   },
   {
     chiave: 'orologio-numeri-tagliati',
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: false,
+    fatta: true,
     nata: '2026-08-23T08:05',
-    titolo: 'Nell\'orologio del digiuno i numeri delle ore si vedono a metà',
+    titolo: '✅ Nell\'orologio del digiuno i numeri delle ore si vedono a metà — corretto',
     dettaglio:
       'Segnalato dalla capo nutrizionista il 23/8 alle 08:05, con la schermata: *«non si vedono i numeri '
       + 'dell\'orologio»*. Nello screenshot il **00** in cima è tagliato a metà, il **12** in basso '
@@ -1929,7 +1945,22 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'e la finestra 12:00–20:00 scritta sotto resta l\'unico riferimento vero — cioè l\'orologio non '
       + 'sta facendo il suo lavoro.\n\n'
       + 'Probabilmente è il `viewBox` dell\'SVG che sta stretto sul cerchio senza lasciare margine alle '
-      + 'etichette, oppure un `overflow: hidden` del contenitore. Si guarda in `app/src/components/OrologioDigiuno.tsx`.',
+      + 'etichette, oppure un `overflow: hidden` del contenitore. Si guarda in `app/src/components/OrologioDigiuno.tsx`.\n\n'
+      + '✅ **CHIUSA il 25/8, ed era la prima ipotesi**: il `viewBox` era `0 0 260 260` mentre le '
+      + 'etichette vivono a raggio **128** dal centro. Il «00» in cima cadeva a y = 2, cioè con mezzo '
+      + 'glifo fuori dal riquadro; il «12» in basso a 262; il 6 e il 18 ai lati a x = 2 e 258, tagliati '
+      + 'nel senso della larghezza. Adesso il riquadro ha **14 unità di aria per lato** e la larghezza '
+      + 'sullo schermo cresce con lui, così il cerchio non rimpicciolisce (nella miniatura della home '
+      + 'le etichette non si disegnano nemmeno: sarebbe stato spazio pagato per niente).\n\n'
+      + '⛔ **E la metà che si dimentica**: il quadrante si TRASCINA, e la conversione dito → disegno '
+      + 'partiva da zero. Allargando il riquadro senza toccarla, il dito si sarebbe spostato di 14 '
+      + 'unità su un anello spesso 16 — cioè la cliente trascina e la finestra non si muove, o si '
+      + 'muove storta. ⚠️ Le misure sono state portate in `app/src/lib/orologio.ts` **perché si '
+      + 'possano provare**: i test dell\'app girano senza DOM, e un numero chiuso in un `.tsx` non lo '
+      + 'esegue nessuno — che è esattamente il motivo per cui quel taglio è arrivato a una persona '
+      + 'vera invece che a un test rosso. Adesso 11 test guardano il glifo dentro il riquadro e la '
+      + 'conversione del tocco (quella vera, non una sua copia scritta nel test — lo aveva rilevato la '
+      + 'revisione).',
   },
   {
     chiave: 'digiuno-ore-troppo-facili-da-cambiare',
@@ -3240,7 +3271,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'markdown-nei-testi-alle-clienti',
-    titolo: 'Le clienti leggono «Hai qualche **allergia** alimentare?»: markdown scritto e mai interpretato',
+    titolo: '✅ Le clienti leggevano «Hai qualche **allergia** alimentare?»: il markdown adesso o si disegna o si toglie',
     dettaglio:
       '⛔ **Trovato il 22/8 guardando la pagina vera**, di rimbalzo da un difetto identico sulle '
       + 'attività della nutrizionista. In tutto il progetto **non esiste nessun renderer markdown** — '
@@ -3265,8 +3296,30 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **Serve prima un censimento**, non una stima: un `grep` di `**` dentro le stringhe del '
       + 'backend, diviso per superficie (chat app · notifiche · email · backoffice). Il censimento è '
       + 'metà del lavoro, come per le frecce delle tabelle il 21/8 — dove la premessa scritta senza '
-      + 'guardare si era rivelata falsa.',
+      + 'guardare si era rivelata falsa.\n\n'
+      + '✅ **CHIUSA il 25/8, col censimento fatto davvero**: **755** stringhe contengono `**`, di cui '
+      + '**647 nella pagina Lavori** (che il grassetto lo disegna dal 22/8) e **108 altrove** — quasi '
+      + 'tutte di Vera. Le due strade sono state applicate come dice la voce, una superficie alla '
+      + 'volta.\n\n'
+      + '✅ **Si DISEGNA** dove il testo resta dentro una bolla di chat: nell\'app (`ChatSheet`, '
+      + '`Assistente`) e — rilievo della revisione — anche nelle **due superfici del back office da '
+      + 'cui si leggono le stesse bolle**: la card «Conversazioni» della scheda cliente, che si apre '
+      + 'di default proprio sul thread di Gaia, e la pagina Chat. Senza quelle due, coach e '
+      + 'nutrizioniste avrebbero continuato a leggere «Hai qualche **allergia** alimentare?» con gli '
+      + 'asterischi: la stessa frase della voce, dall\'altra parte del vetro.\n\n'
+      + '✅ **Si TOLGONO** dove il testo viaggia dove nessuno lo disegna: il corpo della notifica '
+      + '«piano senza glutine», il testo dell\'attività «fissa la visita» (che finisce anche nelle '
+      + 'push), il `confirm()` dell\'annullamento abbonamento e — sempre dalla revisione — il **report '
+      + 'mensile di Vera**, che non passa da nessuna bolla: esce dal pulsante «Report del mese» dentro '
+      + 'un riquadro di testo grezzo, e la capo nutrizionista ci leggeva «**12** regole dettate».\n\n'
+      + '⛔ **E adesso c\'è una rete**: `common/asterischi-solo-dove-si-disegnano.spec.ts` elenca i '
+      + 'file autorizzati **con il motivo**, e diventa rosso appena un testo nuovo scrive markdown '
+      + 'altrove. Tre correzioni della revisione l\'hanno resa vera: cercava riga per riga (un '
+      + 'template su più righe — il modo più naturale di scrivere il corpo di una notifica — passava '
+      + 'liscio), sbagliava di 148 righe il punto da correggere, e metteva in bianco l\'intero file '
+      + 'delle campagne per una maschera `$1***$2` (adesso si permette la **forma**, non il file).',
     categoria: CODICE,
+    fatta: true,
     ordine: 663,
     nata: '2026-08-22T11:30',
   },

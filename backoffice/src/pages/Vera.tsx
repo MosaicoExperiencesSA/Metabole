@@ -3,6 +3,8 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, Colonna, ContatoreRighe, useTabella } from '../components/tabella';
+import { TestoConGrassetto } from '../components/TestoConGrassetto';
+import { portaInFondo } from '../lib/scorri-in-fondo';
 
 /**
  * L'ASSISTENTE DELLA NUTRIZIONISTA — la chat sopra, il registro sotto, sulla stessa schermata.
@@ -223,7 +225,17 @@ export function Vera() {
   }
 
   useEffect(() => { void apri(); }, []);
-  useEffect(() => { fine.current?.scrollIntoView({ block: 'end' }); }, [messaggi]);
+  /**
+   * ⛔ **La chat si apre sull'ultimo messaggio** (Simone, 23/8), e si scorre la SCATOLA, non
+   * `scrollIntoView` su un segnaposto: quello scorre anche tutti gli antenati, cioè fa saltare la
+   * pagina. Due giri, perché al primo disegno le altezze non sono ancora quelle vere — vedi
+   * `lib/scorri-in-fondo.ts`.
+   */
+  useEffect(() => {
+    portaInFondo(fine.current);
+    const t = requestAnimationFrame(() => portaInFondo(fine.current));
+    return () => cancelAnimationFrame(t);
+  }, [messaggi]);
 
   /**
    * Manda una frase alla chat senza passare dalla casella. Serve alle pastiglie: quello che una
@@ -433,7 +445,7 @@ export function Vera() {
         className="card"
         style={{ padding: 0, display: 'flex', flexDirection: 'column', height: altezzaChat ?? 'min(72vh, 640px)', minHeight: ALTEZZA_CHAT_MIN }}
       >
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div ref={fine} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messaggi.length === 0 && <div className="empty">Scrivi la prima frase qui sotto.</div>}
           {messaggi.map((m) => {
             const mia = m.ruolo === 'nutrizionista';
@@ -452,12 +464,15 @@ export function Vera() {
                   borderRadius: 12,
                 }}
               >
-                <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{m.testo}</div>
+                {/* ⚠️ Il grassetto si DISEGNA (25/8): i testi di Vera lo scrivono in markdown in
+                    **novantasei** stringhe, e la nutrizionista leggeva gli asterischi in mezzo alle
+                    frasi. Vedi il riquadro in `TestoConGrassetto`. Qui non arriva mai una push:
+                    questa chat vive solo nel back office. */}
+                <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', lineHeight: 1.45 }}><TestoConGrassetto testo={m.testo} /></div>
                 <div style={{ fontSize: 10, opacity: 0.7, marginTop: 3 }}>{data(m.createdAt)}</div>
               </div>
             );
           })}
-          <div ref={fine} />
         </div>
 
         {puoDettare ? (

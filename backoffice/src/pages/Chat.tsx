@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
+import { portaInFondo } from '../lib/scorri-in-fondo';
+import { TestoConGrassetto } from '../components/TestoConGrassetto';
 import {
   BottoneCancellaMessaggio,
   ConfermaCancellaMessaggio,
@@ -66,8 +68,16 @@ export function Chat() {
     if (trovato) void open(trovato);
   }, [threads, cercato, cercataCliente]);
 
+  /**
+   * ⛔ **La chat si apre sull'ultimo messaggio** (Simone, 23/8), e si scorre la SCATOLA, non
+   * `scrollIntoView` su un segnaposto: quello scorre anche tutti gli antenati, cioè fa saltare la
+   * pagina. Due giri, perché al primo disegno le altezze non sono ancora quelle vere — vedi
+   * `lib/scorri-in-fondo.ts`.
+   */
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+    portaInFondo(endRef.current);
+    const t = requestAnimationFrame(() => portaInFondo(endRef.current));
+    return () => cancelAnimationFrame(t);
   }, [msgs]);
 
   async function open(t: Thread) {
@@ -161,7 +171,7 @@ export function Chat() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
               <b>{nameOf(sel)}</b>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div ref={endRef} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {msgs.map((m) => {
                 const mine = m.senderRole !== 'client';
                 return (
@@ -187,12 +197,14 @@ export function Chat() {
                         onClick={() => canc.setDaCancellare(m)}
                       />
                     )}
-                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                    {/* ⚠️ Stesso renderer delle bolle in app (25/8): qui arriva soprattutto testo
+                        scritto da persone, ma la stessa frase non deve leggersi in due modi diversi
+                        a seconda di chi apre la conversazione. */}
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><TestoConGrassetto testo={m.body} /></div>
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{new Date(m.sentAt).toLocaleString('it-IT')}</div>
                   </div>
                 );
               })}
-              <div ref={endRef} />
             </div>
             {error && <div style={{ padding: '0 16px 8px' }}><Banner kind="err">{error}</Banner></div>}
             {/*

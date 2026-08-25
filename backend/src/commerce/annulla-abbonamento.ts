@@ -111,8 +111,10 @@ export function esitoAnnullamento(
   if (restaSenzaPiano) {
     return {
       tipo: 'serve_conferma',
+      // ⚠️ Niente markdown: questo testo finisce in un `confirm()` del browser (`ClientDetail.tsx`),
+      // che disegna testo semplice e basta.
       testo:
-        `Annullando «${bersaglio.piano}» questa cliente resta **senza nessun piano in corso**: da domani ` +
+        `Annullando «${bersaglio.piano}» questa cliente resta senza nessun piano in corso: da domani ` +
         'non riceve menu nuovi e in scheda comparirà «Nessun piano attivo». I giorni già consegnati ' +
         'restano. Se è quello che vuoi, conferma.',
     };

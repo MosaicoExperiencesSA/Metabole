@@ -1,0 +1,90 @@
+Tre difetti che si vedono: gli asterischi nei testi, le chat che si aprivano in cima, i numeri dell'orologio tagliati
+
+Tre voci dell'elenco lavori chiuse insieme. Nessuna e' una richiesta nuova: erano tutte li' da giorni,
+tutte «cose che una persona vede».
+
+1) GLI ASTERISCHI CHE LE CLIENTI LEGGEVANO (voce del 22/8)
+In tutto il progetto non e' mai esistito un renderer markdown — niente `remark`, niente `marked`,
+nessun `dangerouslySetInnerHTML` — eppure decine di testi scrivono `**grassetto**`. In chat si
+leggeva «Hai qualche **allergia** alimentare?», asterischi compresi.
+CENSIMENTO, non stima: 755 stringhe con `**`, di cui 647 nella pagina Lavori (che il grassetto lo
+disegna dal 22/8) e 108 altrove, quasi tutte di Vera.
+✅ SI DISEGNA dove il testo resta dentro una bolla di chat: app (`ChatSheet`, `Assistente`) e le DUE
+superfici del back office da cui si leggono le stesse bolle — la card «Conversazioni» della scheda
+cliente, che si apre di default sul thread di Gaia, e la pagina Chat.
+✅ SI TOLGONO dove il testo viaggia dove nessuno lo disegna: corpo della notifica «piano senza
+glutine», testo dell'attivita' «fissa la visita» (finisce anche nelle push), `confirm()`
+dell'annullamento abbonamento, e il REPORT MENSILE di Vera — che non passa da nessuna bolla: esce dal
+pulsante «Report del mese» in un riquadro di testo grezzo, e la capo nutrizionista ci leggeva
+«**12** regole dettate».
+⛔ E ADESSO C'E' UNA RETE: `common/asterischi-solo-dove-si-disegnano.spec.ts` elenca i file
+autorizzati CON IL MOTIVO, e diventa rosso appena un testo nuovo scrive markdown altrove.
+
+2) LE CHAT SI APRONO SULL'ULTIMO MESSAGGIO (voce del 23/8)
+Misurato invece di supposto: tre delle sei liste scorrevano gia'. Quella che non scorreva AFFATTO era
+la card «Conversazioni» in scheda cliente — cioe' proprio dove una coach apre la chat di una cliente
+per risponderle, e doveva scorrere tutto per arrivare alla domanda.
+⚠️ Un posto solo per progetto (`lib/scorri-in-fondo.ts`, gemelli: app e back office sono due build
+separate). ⛔ E si sposta la SCATOLA (`scrollTop = scrollHeight`), non `scrollIntoView` su un
+segnaposto: quello scorre anche tutti gli antenati, e in una pagina lunga come la scheda cliente
+avrebbe fatto saltare la pagina intera. Dove invece e' la pagina a scorrere — Gaia a schermo pieno,
+la chat della coach in app — `scrollIntoView` resta, ed e' scritto perche'.
+
+3) I NUMERI DELL'OROLOGIO DEL DIGIUNO (segnalato dalla capo nutrizionista il 23/8, 08:05)
+Il `viewBox` era `0 0 260 260` mentre le etichette vivono a raggio 128 dal centro: il «00» in cima
+cadeva a y = 2 (mezzo glifo fuori), il «12» in basso a 262, il 6 e il 18 ai lati tagliati in
+larghezza. Si leggeva «8» e «0(». Adesso il riquadro ha 14 unita' di aria per lato, e la larghezza
+sullo schermo cresce con lui: il cerchio non rimpicciolisce.
+⛔ E LA META' CHE SI DIMENTICA: il quadrante si TRASCINA, e la conversione dito → disegno partiva da
+zero. Allargando il riquadro senza toccarla, il dito si sarebbe spostato di 14 unita' su un anello
+spesso 16 — la cliente trascina e la finestra non si muove, o si muove storta.
+
+⛔ LA REVISIONE HA TROVATO OTTO DIFETTI, DUE GRAVI
+1. LE BOLLE DI GAIA SI LEGGONO IN TRE POSTI, non solo in app: la card «Conversazioni» della scheda
+   cliente e la pagina Chat mostravano ancora il testo grezzo. Il guardiano le autorizzava con la
+   motivazione «bolle dell'app» — cioe' dichiarava coperto un difetto vivo.
+2. IL REPORT MENSILE DI VERA era nell'elenco dei permessi con la motivazione sbagliata: quel testo non
+   passa da nessuna bolla. Tolto dai permessi e ripulito.
+3. Il guardiano cercava RIGA PER RIGA: un template su piu' righe — il modo piu' naturale di scrivere
+   il corpo di una notifica — passava liscio, cioe' il difetto del 22/8 si poteva reintrodurre nel
+   punto esatto in cui era nato senza una riga rossa.
+4. Lo spec dell'orologio RISCRIVEVA la formula del tocco invece di provare quella vera: riportando il
+   componente alla conversione vecchia i test restavano tutti verdi.
+5. Quando il guardiano diventava rosso indicava una riga sbagliata di 148 (i commenti venivano tolti
+   con i loro a capo).
+6. Il permesso piu' pericoloso era quello dato «perche' non e' markdown»: metteva in bianco l'INTERO
+   file delle campagne — il postino di email e SMS — per una maschera `$1***$2`. Adesso si permette la
+   forma, non il file.
+7. Nel foglio della chat in app la dipendenza era il NUMERO dei messaggi: passando da Gaia alla coach
+   con dodici messaggi ciascuna, la lista restava a meta'.
+8. Il quadrante era rimpicciolito del 10% dentro lo stesso spazio, e nella miniatura della home — dove
+   le etichette non si disegnano nemmeno — era spazio pagato per niente.
+
+VERIFICATO
+- Build puliti su backend, backoffice e app (le dipendenze dell'app sono state installate: il build
+  vero girava solo sul tuo Mac).
+- 5225 test backend in 322 suite verdi (TZ UTC e TZ=Europe/Rome), 120 backoffice, 184 app (+14 nuovi).
+- Mutazioni: markdown rimesso in un file non permesso (1 rosso), template su piu' righe (1), maschera
+  trasformata in testo vero (1), margine dell'orologio a zero (5), `viewBox` senza margine (1),
+  formula del tocco riportata a quella vecchia (2).
+
+FILE NEL COMMIT
+- backend/src/common/asterischi-solo-dove-si-disegnano.spec.ts   (nuovo)
+- backend/src/menu/senza-glutine.ts
+- backend/src/clients/visita-da-fissare.ts
+- backend/src/commerce/annulla-abbonamento.ts
+- backend/src/vera/report-mensile.ts
+- backend/src/lavori/voci-iniziali.ts
+- backoffice/src/lib/scorri-in-fondo.ts + .spec.ts   (nuovi)
+- backoffice/src/pages/Chat.tsx · Vera.tsx · ClientDetail.tsx
+- app/src/components/TestoConGrassetto.tsx + testo-con-grassetto.spec.tsx   (nuovi)
+- app/src/lib/scorri-in-fondo.ts + .spec.ts   (nuovi)
+- app/src/lib/orologio-numeri-visibili.spec.ts   (nuovo)
+- app/src/lib/orologio.ts
+- app/src/components/ChatSheet.tsx · OrologioDigiuno.tsx
+- app/src/pages/Assistente.tsx · app/src/staff/coach/CoachChat.tsx
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE.
+⚠️ L'orologio e le chat dell'app cambiano nel BUNDLE dell'app: si vedono dopo l'OTA, non col deploy
+del backend.

@@ -2,6 +2,8 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { oraBreve, separatoreGiorno } from '../lib/oraChat';
 import { CancellaMessaggio, useCancellaMessaggio } from './cancellaMessaggio';
+import { TestoConGrassetto } from './TestoConGrassetto';
+import { portaInFondo } from '../lib/scorri-in-fondo';
 
 interface Thread { id: string; counterpart: string; counterpartName: string }
 interface Msg {
@@ -48,9 +50,20 @@ export default function ChatSheet() {
     api<Msg[]>(`/threads/${thread.id}/messages`).then(setMessages).catch(() => setMessages([]));
   }, [thread?.id]);
 
+  /**
+   * ⛔ **La chat si apre sull'ultimo messaggio** (Simone, 23/8), e si scorre la SCATOLA, non
+   * `scrollIntoView` su un segnaposto: quello scorre anche tutti gli antenati, cioè fa saltare la
+   * pagina. Due giri, perché al primo disegno le altezze non sono ancora quelle vere — vedi
+   * `lib/scorri-in-fondo.ts`.
+   */
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length]);
+    portaInFondo(endRef.current);
+    const t = requestAnimationFrame(() => portaInFondo(endRef.current));
+    return () => cancelAnimationFrame(t);
+    // ⚠️ `thread?.id` e l'ARRAY, non `messages.length` (rilievo del 25/8): adesso la scatola è la
+    // stessa per tutti i thread, e passando da Gaia alla coach con lo stesso numero di messaggi lo
+    // scorrimento restava dov'era — cioè a metà di una conversazione appena aperta.
+  }, [thread?.id, messages]);
 
   async function send() {
     const body = text.trim();
@@ -84,7 +97,7 @@ export default function ChatSheet() {
       <b style={{ fontSize: 15 }}>{thread?.counterpartName ?? 'Chat'}</b>
       {thread?.counterpart === 'ai' && <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>Ti rispondo subito; le domande sanitarie le giro alla nutrizionista.</div>}
 
-      <div className="chat-col" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
+      <div ref={endRef} className="chat-col" style={{ maxHeight: '46vh', overflowY: 'auto' }}>
         {messages.length === 0 && <div className="muted" style={{ fontSize: 13, textAlign: 'center', padding: '10px 0' }}>Scrivi il primo messaggio 👋</div>}
           {messages.map((m, i) => {
             const giorno = separatoreGiorno(messages[i - 1]?.sentAt, m.sentAt);
@@ -98,14 +111,16 @@ export default function ChatSheet() {
                 >
                   {/* «Chi scrive può cancellare» (Simone, 21/8): compare solo sui propri. */}
                   <CancellaMessaggio messaggio={m} gancio={canc} />
-                  {m.body}
+                  {/* ⚠️ Il grassetto si DISEGNA (25/8): i testi di Gaia lo scrivono da mesi in
+                      markdown e la cliente leggeva gli asterischi in mezzo alla frase. Vedi il
+                      riquadro in `TestoConGrassetto`. */}
+                  <TestoConGrassetto testo={m.body} />
                   {/* L'ora dentro la bolla, in fondo: il giorno lo dice il separatore sopra. */}
                   <span className="bubble-ora">{oraBreve(m.sentAt)}</span>
                 </div>
               </Fragment>
             );
           })}
-        <div ref={endRef} />
       </div>
 
       <div className="chat-input">

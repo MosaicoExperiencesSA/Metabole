@@ -20,6 +20,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 👁️ **Tre difetti che si vedono: gli asterischi nei testi, le chat che si aprivano in
+  cima, i numeri dell'orologio tagliati.** Tre voci dell'elenco lavori chiuse insieme — nessuna
+  richiesta nuova: erano lì da giorni, tutte «cose che una persona vede».
+  ✅ **1) Gli asterischi** (voce del 22/8). In tutto il progetto non è mai esistito un renderer
+  markdown, ma decine di testi scrivono `**grassetto**`: in chat si leggeva «Hai qualche **allergia**
+  alimentare?», asterischi compresi. **Censimento, non stima**: 755 stringhe con `**`, di cui 647
+  nella pagina Lavori (già risolta il 22/8) e 108 altrove. Ora il grassetto **si disegna** dove il
+  testo resta in una bolla di chat — app e, dopo la revisione, anche le due superfici del back office
+  da cui si leggono le stesse bolle — e **si toglie** dove il testo viaggia dove nessuno lo disegna:
+  la notifica «piano senza glutine», l'attività «fissa la visita» (che finisce nelle push), il
+  `confirm()` dell'annullamento, e il **report mensile di Vera**, dove la capo nutrizionista leggeva
+  «**12** regole dettate». ⛔ E adesso c'è una **rete**: un test elenca i file autorizzati *con il
+  motivo* e diventa rosso appena un testo nuovo scrive markdown altrove.
+  ✅ **2) Le chat si aprono sull'ultimo messaggio** (voce del 23/8). Misurato invece che supposto: tre
+  liste su sei scorrevano già; quella che non scorreva **affatto** era la card «Conversazioni» in
+  scheda cliente — cioè proprio dove una coach apre la chat di una cliente per risponderle. ⚠️ Un
+  posto solo per progetto, e si sposta la **scatola** invece di «portare in vista» un segnaposto:
+  `scrollIntoView` scorre anche tutti gli antenati, e in una pagina lunga avrebbe fatto saltare la
+  pagina intera. Dove è la pagina a scorrere, resta com'era — ed è scritto perché.
+  ✅ **3) I numeri dell'orologio del digiuno** (segnalati dalla capo nutrizionista il 23/8): il
+  `viewBox` stava stretto sul cerchio mentre le etichette vivono fuori dall'anello — il «00» in cima
+  tagliato a metà, il «12» in basso idem, il 6 e il 18 ai lati. ⛔ E la metà che si dimentica: il
+  quadrante si **trascina**, e la conversione dito → disegno partiva da zero; allargando il riquadro
+  senza toccarla, il dito si sarebbe spostato di 14 unità su un anello spesso 16.
+  ⛔ **La revisione ha trovato otto difetti, due gravi**: le bolle di Gaia si leggono in **tre** posti
+  e due mostravano ancora il testo grezzo (il guardiano le dichiarava coperte); e il report mensile
+  era nell'elenco dei permessi con la motivazione sbagliata. ⚠️ Più: il guardiano cercava riga per
+  riga (un template su più righe passava liscio), indicava una riga sbagliata di 148, e metteva in
+  bianco l'intero file delle campagne per una maschera `$1***$2`; lo spec dell'orologio riscriveva la
+  formula invece di provare quella vera; e nel foglio della chat la dipendenza era il *numero* dei
+  messaggi, quindi cambiando conversazione la lista restava a metà.
+  🔍 5225 test backend verdi (TZ UTC e Roma), 120 backoffice, **184 app** (+14): le dipendenze
+  dell'app sono state installate in sandbox, quindi da oggi il suo build e i suoi test girano anche
+  qui. Nessuna migrazione. ⚠️ Orologio e chat dell'app si vedono **dopo l'OTA**, non col deploy del
+  backend.
+
 - `[Sviluppo]` 🔢 **Gaia non si perde più: tre domande a numeri (menu → pasto → alimento).**
   Richiesta di Simone (24/8), guardando una chat vera: *«questa domanda non funziona, Gaia si perde,
   miglioriamola così: (domanda uno) su quale menu vuoi lavorare? 1 oggi 2 domani 3 dopodomani; …»*.

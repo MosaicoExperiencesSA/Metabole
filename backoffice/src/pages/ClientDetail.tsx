@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -13,6 +13,8 @@ import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
 import { useTaxonomy } from '../lib/taxonomy';
 import { TabellaScorrevole } from '../components/tabella-scorrevole';
+import { portaInFondo } from '../lib/scorri-in-fondo';
+import { TestoConGrassetto } from '../components/TestoConGrassetto';
 
 interface Detail {
   user: {
@@ -3231,6 +3233,16 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
   const [threads, setThreads] = useState<ThreadRow[] | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [messaggi, setMessaggi] = useState<MsgRow[]>([]);
+  /**
+   * ⛔ La lista si apre in fondo (Simone, 23/8). Due giri — subito e dopo il frame — perché al primo
+   * disegno le altezze delle bolle non sono ancora quelle vere: vedi `lib/scorri-in-fondo.ts`.
+   */
+  const fondoConversazione = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    portaInFondo(fondoConversazione.current);
+    const t = requestAnimationFrame(() => portaInFondo(fondoConversazione.current));
+    return () => cancelAnimationFrame(t);
+  }, [messaggi]);
   const [caricaMsg, setCaricaMsg] = useState(false);
   const [sostituzioni, setSostituzioni] = useState<SostituzioneRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -3648,7 +3660,11 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
           ) : messaggi.length === 0 ? (
             <p className="muted" style={{ marginBottom: 0 }}>Nessun messaggio in questa conversazione.</p>
           ) : (
-            <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            /* ⛔ **Si apre sull'ULTIMO messaggio** (Simone, 23/8). Questa card era l'unica delle
+               quattro liste di messaggi del prodotto a partire dal primo: la coach apriva la
+               conversazione di una cliente e doveva scorrere tutto per arrivare alla domanda a cui
+               stava per rispondere. Vedi `lib/scorri-in-fondo.ts`. */
+            <div ref={fondoConversazione} style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
               {messaggi.map((m) => {
                 const dellaCliente = m.senderRole === 'client';
                 /*
@@ -3679,7 +3695,12 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                         onClick={() => canc.setDaCancellare(m)}
                       />
                     )}
-                    {m.body}
+                    {/* ⛔ **Anche qui il grassetto si disegna** (25/8): questa card apre di default il
+                        thread di GAIA, e i suoi testi il markdown lo scrivono. Senza questo
+                        componente, coach e nutrizioniste leggevano «Hai qualche **allergia**
+                        alimentare?» con gli asterischi in mezzo — la stessa frase per cui la voce
+                        del 22/8 esisteva, solo dall'altra parte del vetro. */}
+                    <TestoConGrassetto testo={m.body} />
                     <div className="muted" style={{ fontSize: 10.5, marginTop: 3 }}>
                       {m.senderRole === 'ai' ? 'Gaia' : dellaCliente ? 'cliente' : m.senderRole} · {oraBreve(m.sentAt)}
                       {m.meta?.esitoSostituzione === 'applicata' && ' · cambio applicato al menu'}

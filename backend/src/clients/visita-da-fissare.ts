@@ -94,8 +94,11 @@ export function testoVisitaDaFissare(p: {
     title: `Fissa la visita per ${chi}${scadenza}`,
     description:
       `La nutrizionista ha deciso che ${chi} deve fare una visita prima di proseguire. ` +
+      // ⚠️ Niente markdown: i testi delle attività finiscono anche nel corpo delle push
+      // (`avvisi-attivita.ts`), dove un renderer non ci sarà mai — regola del 22/8, tenuta da
+      // `coach-tasks/niente-markdown.spec.ts`. Questa riga era l'unica rimasta fuori.
       (entro
-        ? `⚠️ Va fatta **entro il ${dataItaliana(entro)}**: fino a quel giorno compreso ${chi} continua a ricevere i menu, dal giorno dopo il percorso si ferma. `
+        ? `⚠️ Va fatta entro il ${dataItaliana(entro)}: fino a quel giorno compreso ${chi} continua a ricevere i menu, dal giorno dopo il percorso si ferma. `
         : '') +
       'Il motivo è nella sua nota, in cima alla lista note della scheda: leggila prima di chiamarla. ' +
       `${credito}` +

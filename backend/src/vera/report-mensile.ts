@@ -173,6 +173,16 @@ export function componiReport(
   };
 }
 
+/**
+ * ⛔ **NIENTE MARKDOWN QUI** (25/8, rilievo della revisione). Questo testo **non passa da nessuna
+ * bolla di chat**: esce dal pulsante «Report del mese» e finisce dentro un `Modal` del back office
+ * (`Vera.tsx`) come testo grezzo. La capo nutrizionista — la stessa che ha segnalato i numeri
+ * dell'orologio — ci leggeva «**12** regole dettate» con gli asterischi in mezzo.
+ *
+ * ⚠️ Restano i `#` e i `##` dei titoli: sono di questo formato da sempre, si leggono come righe di
+ * intestazione e non tagliano nessuna parola. Toglierli vorrebbe dire riscrivere l'impaginazione del
+ * report, che è un'altra decisione — dichiarata, non fatta di nascosto.
+ */
 function scriviTesto(
   anno: number,
   mese: number,
@@ -192,7 +202,7 @@ function scriviTesto(
   }
 
   r.push(
-    `**${totali.scritte}** regole dettate all’assistente. ` +
+    `${totali.scritte} regole dettate all’assistente. ` +
       `${totali.annullate} annullate (${totali.percentualeAnnullate}%), ` +
       `${totali.inApprovazione} ancora da approvare, ${totali.respinte} respinte.`,
     '',
@@ -225,7 +235,7 @@ function scriviTesto(
     r.push('## Per nutrizionista', '');
     for (const v of perNutrizionista) {
       r.push(
-        `- **${v.nome}**: ${v.scritte} regole, ${v.annullate} annullate (${v.percentualeAnnullate}%)` +
+        `- ${v.nome}: ${v.scritte} regole, ${v.annullate} annullate (${v.percentualeAnnullate}%)` +
           (v.conflitti ? `, ⚠️ ${v.conflitti} sopra un vincolo sanitario` : ''),
       );
     }
@@ -252,7 +262,7 @@ function scriviTesto(
     r.push(
       '---',
       '',
-      `⚠️ **Una regola su ${Math.max(2, Math.round(100 / Math.max(totali.percentualeAnnullate, 1)))} è stata annullata.** ` +
+      `⚠️ Una regola su ${Math.max(2, Math.round(100 / Math.max(totali.percentualeAnnullate, 1)))} è stata annullata. ` +
         'Vale la pena rileggere le frasi da cui sono nate: quando questa percentuale sale, di solito ' +
         'l’assistente ha smesso di capire qualcosa che prima capiva.',
     );

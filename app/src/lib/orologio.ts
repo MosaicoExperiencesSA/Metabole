@@ -31,6 +31,41 @@ export const minutiInAngolo = (min: number): number => (dentroLaGiornata(min) / 
 export const angoloInMinuti = (gradi: number): number =>
   dentroLaGiornata((((gradi % 360) + 360) % 360) / 360 * MINUTI_AL_GIORNO);
 
+/**
+ * ⛔ **LE MISURE DEL QUADRANTE, e perché stanno qui e non nel componente** (25/8).
+ *
+ * Il 23/8 la capo nutrizionista ha mandato la schermata: *«non si vedono i numeri dell'orologio»*.
+ * Il `viewBox` stava stretto sul cerchio mentre le etichette delle ore vivono **fuori** dall'anello:
+ * il **00** in cima era tagliato a metà, il **12** in basso pure, il 6 e il 18 ai lati uscivano per
+ * metà larghezza. Si leggeva «8» e «0(».
+ *
+ * ⚠️ Sono qui perché così **si possono provare**: i test dell'app girano senza DOM, e una misura
+ * chiusa dentro un `.tsx` non la esegue nessuno — che è esattamente il motivo per cui quel taglio è
+ * arrivato a una persona vera invece che a un test rosso.
+ */
+export const LATO_QUADRANTE = 260;
+export const CENTRO = LATO_QUADRANTE / 2;
+export const RAGGIO_ANELLO = 96;
+export const RAGGIO_ETICHETTE = RAGGIO_ANELLO + 32;
+/** L'aria attorno al cerchio, per i numeri delle ore. */
+export const MARGINE_QUADRANTE = 14;
+/** Il riquadro vero del disegno: `viewBox="-M -M VISTA VISTA"`. */
+export const VISTA_QUADRANTE = LATO_QUADRANTE + MARGINE_QUADRANTE * 2;
+
+/**
+ * ⛔ **DA DOVE HA TOCCATO A DOVE STA SUL QUADRANTE.**
+ *
+ * `frazione` è quanto è avanti il dito dentro il riquadro sullo schermo (0 = bordo sinistro/alto,
+ * 1 = destro/basso). Il risultato è la coordinata **dal centro** del quadrante.
+ *
+ * ⚠️ Sta qui, e non dentro il componente, per la ragione che ha prodotto il difetto dei numeri
+ * tagliati: una misura chiusa in un `.tsx` non la esegue nessun test. E questa è la metà che si
+ * dimentica — allargando il riquadro senza toccarla, il dito si sposta di quattordici unità su un
+ * anello spesso sedici: la cliente trascina e la finestra non si muove, o si muove storta.
+ */
+export const daSchermoAQuadrante = (frazione: number): number =>
+  frazione * VISTA_QUADRANTE - MARGINE_QUADRANTE - CENTRO;
+
 export interface Punto { x: number; y: number }
 
 /** Il punto sul quadrante a quell'ora. `cx`/`cy` è il centro, `raggio` la distanza. */

@@ -10,6 +10,13 @@ import {
   oraAdesso,
   oraDelGiorno,
   puntoSulQuadrante,
+  CENTRO,
+  LATO_QUADRANTE,
+  daSchermoAQuadrante,
+  MARGINE_QUADRANTE,
+  RAGGIO_ANELLO,
+  RAGGIO_ETICHETTE,
+  VISTA_QUADRANTE,
 } from '../lib/orologio';
 
 /**
@@ -39,11 +46,17 @@ import {
  * di una proposta, non un'informazione sulla sua giornata.
  */
 
-const LATO = 260;
-const C = LATO / 2;
-const R_ARCO = 96;
+/**
+ * Le misure del quadrante stanno in `lib/orologio.ts`, insieme alla geometria: là si possono provare
+ * (i test dell'app girano senza DOM), e il taglio dei numeri delle ore del 23/8 è arrivato a una
+ * persona vera proprio perché una misura chiusa in un `.tsx` non la esegue nessun test.
+ */
+const C = CENTRO;
+const MARGINE = MARGINE_QUADRANTE;
+const VISTA = VISTA_QUADRANTE;
+const R_ARCO = RAGGIO_ANELLO;
 /** ⚠️ Fuori dalla fascia sensibile: toccare un'etichetta non deve spostare la finestra. */
-const R_ETICHETTE = R_ARCO + 32;
+const R_ETICHETTE = RAGGIO_ETICHETTE;
 /** La fascia in cui il tocco conta come «voglio muovere la finestra». */
 const BANDA = 22;
 
@@ -109,8 +122,13 @@ export default function OrologioDigiuno({
     if (!r.width || !r.height) return null;
     // ⚠️ Il riquadro sullo schermo e il `viewBox` non hanno la stessa scala: senza questo rapporto
     // il quadrante risponderebbe giusto solo alla dimensione in cui l'ho disegnato.
-    const x = ((clientX - r.left) / r.width) * LATO - C;
-    const y = ((clientY - r.top) / r.height) * LATO - C;
+    /**
+     * ⚠️ **Il margine entra anche QUI**, ed è la metà che si dimentica: il riquadro parte da
+     * `-MARGINE`, quindi convertire come se partisse da zero sposterebbe il dito di quattordici unità
+     * — su un anello spesso sedici vuol dire un comando che risponde storto, o che non risponde.
+     */
+    const x = daSchermoAQuadrante((clientX - r.left) / r.width);
+    const y = daSchermoAQuadrante((clientY - r.top) / r.height);
     const distanza = Math.hypot(x, y);
     if (Math.abs(distanza - R_ARCO) > BANDA) return null;
     const gradi = (Math.atan2(y, x) * 180) / Math.PI + 90;
@@ -156,8 +174,20 @@ export default function OrologioDigiuno({
   return (
     <svg
       ref={svgRef}
-      viewBox={`0 0 ${LATO} ${LATO}`}
-      style={{ width: '100%', maxWidth: compatto ? 120 : 300, touchAction: 'none', display: 'block', margin: '0 auto' }}
+      viewBox={`${-MARGINE} ${-MARGINE} ${VISTA} ${VISTA}`}
+      /**
+       * ⚠️ **La larghezza segue il riquadro** (25/8): allargando il `viewBox` per far stare i numeri,
+       * a parità di `maxWidth` il cerchio sarebbe rimpicciolito del 10% — e nella miniatura della
+       * home, dove le etichette non si disegnano nemmeno, sarebbe stato un ritaglio pagato per
+       * niente. Così il disegno resta grande come prima e il margine è aria, non spazio rubato.
+       */
+      style={{
+        width: '100%',
+        maxWidth: ((compatto ? 120 : 300) * VISTA) / LATO_QUADRANTE,
+        touchAction: 'none',
+        display: 'block',
+        margin: '0 auto',
+      }}
       role={modificabile ? 'slider' : 'img'}
       tabIndex={modificabile ? 0 : undefined}
       aria-label={modificabile ? 'Ora di apertura della finestra' : descrizione}

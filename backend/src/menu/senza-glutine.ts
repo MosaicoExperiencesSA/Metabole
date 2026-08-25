@@ -97,9 +97,12 @@ export function corpoAvviso(nome?: string | null): string {
   const apertura = n ? `${n}, ` : '';
   return (
     `${apertura}abbiamo letto quello che hai indicato sul glutine: da adesso i tuoi menu sono costruiti ` +
-    'su una **Mediterranea senza glutine** — al posto di pane e pasta di frumento trovi riso, mais, ' +
+    // ⚠️ Niente markdown QUI: questo è il corpo di una notifica, e una notifica si legge dove non
+    // c'è nessun renderer (elenco avvisi, e domani magari una push). Gli asterischi si leggevano.
+    // Il grassetto si disegna solo nelle bolle di chat — vedi `app/src/components/TestoConGrassetto`.
+    'su una Mediterranea senza glutine — al posto di pane e pasta di frumento trovi riso, mais, ' +
     'grano saraceno, quinoa, patate e legumi.\n\n' +
-    'Una cosa importante, detta chiara: noi scegliamo gli **ingredienti** senza glutine, ma non ' +
+    'Una cosa importante, detta chiara: noi scegliamo gli ingredienti senza glutine, ma non ' +
     'possiamo garantire l\'assenza di contaminazione nei prodotti che compri o in cucina. Se sei ' +
     'celiaca usa prodotti certificati e parlane con la tua nutrizionista: la trovi in chat. 💚'
   );
