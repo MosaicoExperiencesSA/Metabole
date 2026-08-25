@@ -900,6 +900,85 @@ describe('VeraChatService — le domande che aspettano lei', () => {
     createdAt: new Date('2026-08-13T08:00:00.000Z'),
   };
 
+  /**
+   * ⛔ **IL PROMEMORIA DI SORVEGLIANZA NON CHIEDE ALIMENTI, E NON NE SCRIVE.**
+   *
+   * Il difetto trovato in revisione il 25/8: il promemoria è una `RichiestaVera` come le altre, e
+   * tutte le altre finivano nel ramo generico che chiede *«quali alimenti tolgo dal piatto?»*.
+   * Lucia leggeva «Giulia è in percorso supervisionato…» seguito da quella domanda, rispondeva
+   * «guardata, può proseguire» — che è quello che il testo stesso le suggeriva — e quelle due
+   * parole finivano **fra le intolleranze alimentari di Giulia**, scritte dal punto unico con tanto
+   * di audit. Il giro dopo Vera chiedeva se valeva «per tutte»: una voce del dizionario di tutte le
+   * clienti, nata da un promemoria di sorveglianza.
+   */
+  describe('⛔ il promemoria sui percorsi supervisionati', () => {
+    const PROMEMORIA = {
+      id: 'rv-1',
+      tipo: 'supervisione_da_guardare',
+      clienteId: 'c9',
+      clienteNome: 'Giulia',
+      termine: 'Può proseguire',
+      testo:
+        "Giulia è in percorso supervisionato (ha dichiarato farmaci o condizioni in registrazione) e "
+        + "nessuno l'ha ancora valutata (da 14 giorni). ⚠️ Nel frattempo RICEVE I MENU: il percorso non "
+        + 'è fermo. Dalla sua scheda puoi scrivere «Può proseguire», oppure «Serve una visita».',
+      origine: 'sorveglianza-supervisione',
+      createdAt: new Date('2026-08-25T02:00:00.000Z'),
+    };
+
+    it('⛔ NON chiede quali alimenti togliere dal piatto', async () => {
+      const { service, messaggioCreate } = make({}, { richieste: [PROMEMORIA] });
+      await service.apri('lucia');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(testo).toContain('Giulia');
+      expect(testo).not.toMatch(/alimenti da togliere|togliere dal suo piatto|separati da virgola/i);
+      expect(stato?.passo).toBe('promemoria_supervisione');
+      // ⛔ E dice dove si decide davvero, invece di lasciar credere che si decida da qui.
+      expect(testo).toContain('scheda');
+    });
+
+    /**
+     * ⛔ **E qualunque cosa risponda, non si scrive niente sul profilo di nessuno.** È la prova che
+     * conta: il difetto non era il testo, era la scrittura che il testo invitava a fare.
+     */
+    it('⛔ rispondendo «guardata, può proseguire» non finisce niente fra le esclusioni', async () => {
+      const { service, richieste, profileUpdate } = make(
+        {},
+        {
+          richieste: [PROMEMORIA],
+          statoAperto: {
+            passo: 'promemoria_supervisione',
+            frase: PROMEMORIA.testo,
+            richiestaId: 'rv-1',
+            clienteId: 'c9',
+            clienteNome: 'Giulia',
+          },
+        },
+      );
+      await service.parla('lucia', 'guardata, può proseguire');
+      expect(richieste.rispondi).not.toHaveBeenCalled();
+      expect(profileUpdate).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⚠️ **Si mette da parte, e questo non archivia la persona**: il giro notturno la ripropone alla
+     * finestra dopo finché la decisione clinica non c'è. È anche il motivo per cui la coda di Vera
+     * non si riempie di promemoria vecchi.
+     */
+    it('⚠️ si chiude senza risposta, e Vera lo dice', async () => {
+      const { service, richieste, messaggioCreate } = make(
+        {},
+        {
+          richieste: [PROMEMORIA],
+          statoAperto: { passo: 'promemoria_supervisione', frase: PROMEMORIA.testo, richiestaId: 'rv-1', clienteId: 'c9', clienteNome: 'Giulia' },
+        },
+      );
+      await service.parla('lucia', 'ok');
+      expect(richieste.chiudiSenzaRisposta).toHaveBeenCalledWith('rv-1', 'lucia', expect.any(String));
+      expect(ultimoAgente(messaggioCreate).testo).toContain('dalla sua scheda');
+    });
+  });
+
   it('porta la domanda ESATTAMENTE com’è stata scritta, senza riformularla', async () => {
     // Il testo lo scrive chi sa cosa manca. Riscriverlo qui vorrebbe dire che quella che legge la
     // nutrizionista è la mia versione — cioè quella di chi non sa cosa manca.

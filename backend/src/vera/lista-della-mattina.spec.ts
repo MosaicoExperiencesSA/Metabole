@@ -6,6 +6,7 @@ import {
   numera,
   testoDellaLista,
   testoDepennata,
+  tronca,
   type VoceDaFare,
 } from './lista-della-mattina';
 
@@ -155,5 +156,32 @@ describe('i testi', () => {
     expect(testoDepennata(6)).toContain('Ne restano 6');
     expect(testoDepennata(1)).toContain('Ne resta una');
     expect(testoDepennata(0)).toContain('finito');
+  });
+});
+
+/**
+ * ⚠️ **UN TITOLO TAGLIATO DEVE DIRE CHE È TAGLIATO.** `slice(0, 90)` e basta lascia una riga che
+ * finisce a metà parola, e chi legge non sa se il testo finisce lì o se manca qualcosa. È la riga su
+ * cui si sceglie «la 3». Rilievo della revisione del 25/8, sul promemoria dei percorsi supervisionati
+ * — che è lungo apposta, perché deve dire cosa fare.
+ */
+describe('⚠️ tronca', () => {
+  it('⚠️ un testo corto non si tocca', () => {
+    expect(tronca('Giulia è da guardare', 90)).toBe('Giulia è da guardare');
+  });
+
+  it('⛔ uno lungo si taglia E lo dice', () => {
+    const lungo = 'a'.repeat(200);
+    const t = tronca(lungo, 90);
+    expect(t).toHaveLength(90);
+    expect(t.endsWith('…')).toBe(true);
+  });
+
+  it('⚠️ e non lascia uno spazio penzoloni prima dei puntini', () => {
+    expect(tronca('parola parola parola', 15)).toBe('parola parola…');
+  });
+
+  it('⚠️ vuoto e spazi non producono puntini dal niente', () => {
+    expect(tronca('   ', 10)).toBe('');
   });
 });

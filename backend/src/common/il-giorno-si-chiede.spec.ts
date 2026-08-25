@@ -53,6 +53,19 @@ const PERIMETRO = [
   'commerce/stati-abbonamento.ts',
   'common/piano-attivo.ts',
   'clients/clients.service.ts',
+  /**
+   * ⛔ **La sorveglianza sui percorsi supervisionati** (25/8): conta i giorni di attesa di una
+   * persona che nessun clinico ha ancora guardato, e da quel conto dipende se e quando la domanda
+   * arriva a chi deve rispondere. Se il giorno slitta, slitta il promemoria.
+   */
+  'clients/promemoria-supervisione.ts',
+  'clients/via-libera-clinico.ts',
+  /**
+   * ⚠️ **`vera/richieste.service.ts` NON è qui, e apposta.** Prende un `oggi = new Date()` e lo
+   * passa: l'istante è il dato grezzo, e il **giorno** lo chiede `promemoriaDovuto` con `aGiorno`.
+   * Metterlo nel perimetro vorrebbe dire importarci `date-only` senza usarlo — un import decorativo
+   * che dice «questo file lo sa» a un file che giustamente non lo sa.
+   */
   // Le attività della coach
   'coach-tasks/coach-tasks.service.ts',
   'coach-tasks/avvisi-attivita.ts',

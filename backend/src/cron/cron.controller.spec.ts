@@ -15,6 +15,7 @@ import { EngineRulesService } from '../engine-rules/engine-rules.service';
 import { VisitsService } from '../health-area/visits.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { RegistroVeraService } from '../vera/registro.service';
+import { RichiesteVeraService } from '../vera/richieste.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PauseService } from '../pause/pause.service';
 import { PlanReportService } from '../reports/plan-report.service';
@@ -60,6 +61,8 @@ describe('CronController (endpoint per Render Cron)', () => {
   let commerce: { autoCancelStalePayments: jest.Mock; expireTrialsAndPurge: jest.Mock; promuoviCodeArrivate: jest.Mock };
   /** Il passo notturno dell'orologio del digiuno: cambi rimandati e piano graduale (21/8). */
   let profile: { passoNotturnoDigiuno: jest.Mock };
+  /** La sorveglianza sui percorsi supervisionati: il promemoria ogni 7 giorni (25/8). */
+  let richiesteVera: { promemoriaSupervisione: jest.Mock };
 
   beforeEach(async () => {
     engine = { runBatch: jest.fn().mockResolvedValue({ total: 1, run: 1, flagged: 0, skipped: 0 }) };
@@ -75,6 +78,11 @@ describe('CronController (endpoint per Render Cron)', () => {
         .mockResolvedValue({ esaminate: 0, chiuse: 0, oreDiSilenzio: 24, troncato: false }),
     };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
+    richiesteVera = {
+      promemoriaSupervisione: jest
+        .fn()
+        .mockResolvedValue({ inScreening: 0, guardati: 0, aperti: 0, giaAperti: 0, falliti: 0 }),
+    };
     engineRules = { generaProssimoCatalogo: jest.fn().mockResolvedValue({ fatto: true, variante: 'Flexitariana · omnivore · dimagrimento · 5 pasti', settimana: 3 }) };
     commerce = {
       autoCancelStalePayments: jest.fn().mockResolvedValue({ cancelled: 0 }),
@@ -111,6 +119,8 @@ describe('CronController (endpoint per Render Cron)', () => {
         { provide: MonitoringService, useValue: monitoring },
         // Il report mensile di Vera: nei test non è mai il 1° del mese.
         { provide: RegistroVeraService, useValue: { spedisciReportMensile: jest.fn().mockResolvedValue({ inviato: false, motivo: 'non è il primo del mese' }) } },
+        // ⚠️ Il finto c'è: un finto che manca non fa fallire niente, fa passare tutto.
+        { provide: RichiesteVeraService, useValue: richiesteVera },
         { provide: PauseService, useValue: { surveillanceTick: jest.fn().mockResolvedValue({ visti: 0 }) } },
         // «Percorso concluso» a +7 giorni dalla fine del piano (richiesta delle coach, 8/8).
         { provide: CrmService, useValue: { chiudiPercorsiConclusi: jest.fn().mockResolvedValue({ esaminati: 0, spostati: 0 }) } },
@@ -152,6 +162,20 @@ describe('CronController (endpoint per Render Cron)', () => {
    * ⚠️ Il passo che chiude le conversazioni di Gaia rimaste senza risposta (18/8). Sta nel `daily`
    * e non fra i `reminders`, che girano ogni dieci minuti: questo SCRIVE alla cliente.
    */
+  /**
+   * ⛔ **LA SORVEGLIANZA SUI PERCORSI SUPERVISIONATI GIRA DAVVERO** (25/8).
+   *
+   * Il finto c'era ma nessuno asseriva che il passo partisse: misurato in revisione, togliendo la
+   * riga `await step('supervisione', …)` la suite del cron restava verde. Una sorveglianza clinica
+   * che si può cancellare in silenzio è la stessa forma di difetto che il resto di questo file
+   * combatte — gli altri passi che contano hanno la loro prova, questo no.
+   */
+  it('⛔ il `daily` fa il giro dei percorsi supervisionati', async () => {
+    const res = (await controller.daily('segreto-cron')) as EsitoCron;
+    expect(richiesteVera.promemoriaSupervisione).toHaveBeenCalledTimes(1);
+    expect(res.supervisione).toEqual({ inScreening: 0, guardati: 0, aperti: 0, giaAperti: 0, falliti: 0 });
+  });
+
   it('⚠️ il `daily` chiude anche le conversazioni di Gaia lasciate a metà', async () => {
     const res = (await controller.daily('segreto-cron')) as EsitoCron & { chiusureGaia?: unknown };
     expect(chat.chiudiSostituzioniLasciateAMeta).toHaveBeenCalledTimes(1);

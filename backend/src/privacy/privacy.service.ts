@@ -73,6 +73,14 @@ const TABELLE_DA_SVUOTARE: { nome: string; modello: string; campo?: string }[] =
   { nome: 'richieste di pausa', modello: 'pauseRequest', campo: 'userId' },
   { nome: 'attività della coach', modello: 'coachTask' },
   { nome: 'report di fine piano', modello: 'clientReport' },
+  /**
+   * ⛔ **LE DOMANDE APERTE SU VERA** — aggiunte in revisione il 25/8. Erano fuori dall'elenco fin
+   * dall'inizio, e la sorveglianza sui percorsi supervisionati ha peggiorato la cosa in volume e in
+   * contenuto: ogni promemoria scrive, **per nome**, «X è in percorso supervisionato (ha dichiarato
+   * farmaci o condizioni in registrazione)». È un dato sanitario esplicito, e sopravviveva alla
+   * cancellazione dell'account.
+   */
+  { nome: 'domande aperte per il nutrizionista', modello: 'richiestaVera', campo: 'clienteId' },
   { nome: 'promemoria CRM', modello: 'crmReminder' },
   { nome: 'scheda CRM', modello: 'crmRecord' },
   { nome: 'profilo cliente', modello: 'clientProfile', campo: 'userId' },

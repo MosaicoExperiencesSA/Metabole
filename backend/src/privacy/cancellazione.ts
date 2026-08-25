@@ -102,7 +102,7 @@ export const COSA_SI_CANCELLA: string[] = [
   'peso, misure, foto e documenti che hai caricato',
   'i menu ricevuti, le valutazioni dei piatti e le liste della spesa',
   'check-in, acqua, passi e obiettivi',
-  'le conversazioni con Gaia, la coach e la nutrizionista, e le note cliniche',
+  'le conversazioni con Gaia, la coach e la nutrizionista, le note cliniche e le domande che il sistema ha aperto sul tuo conto',
   'appuntamenti, visite e promemoria',
   'le notifiche e gli accessi salvati sui tuoi dispositivi',
 ];

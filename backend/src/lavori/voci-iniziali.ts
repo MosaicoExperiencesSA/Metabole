@@ -1916,20 +1916,34 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-23T16:40',
-    titolo: 'Una cliente in screening MAI valutata riceve i menu lo stesso: è voluto? (domanda per Lucia)',
+    fatta: true,
+    titolo: '✅ Una cliente in screening MAI valutata riceve i menu lo stesso — Simone ha deciso: si prosegue, e Vera chiede a Lucia ogni 7 giorni',
     dettaglio:
       'Scoperto per caso chiudendo il via libera clinico (23/8): il cancello sull\'**erogazione** per '
       + 'il percorso supervisionato **non è mai esistito**. `deliverIfEligible` non ha mai guardato '
       + '`screeningFlag`: il «Menu dopo la visita» viveva solo nella card dell\'app, e i giorni si '
-      + 'generavano comunque — la card compariva di rado proprio perché i menu c\'erano.\n\n'
-      + '⚠️ Il 23/8 il cancello è stato aggiunto **solo per la visita scaduta** (una data che una '
-      + 'nutrizionista ha scritto). Per chi è in screening e non è mai stata valutata NO, di '
-      + 'proposito: chiuderlo di rimbalzo avrebbe fermato, in silenzio e in un giorno qualunque, '
-      + 'persone che stanno già mangiando — un blocco nuovo deciso mentre se ne correggeva un altro.\n\n'
-      + 'La domanda per Lucia è: una cliente che ha dichiarato farmaci o condizioni e che nessuno ha '
-      + 'ancora guardato deve ricevere i menu? Se no, il cancello è una riga (`mai_valutata` in '
-      + '`deliverIfEligible`) — ma va acceso **sapendo quante sono adesso**, con una diagnostica '
-      + 'prima, e con un avviso alle nutrizioniste, non con un rilascio muto.',
+      + 'generavano comunque — la card compariva di rado **proprio perché i menu c\'erano** '
+      + '(`menuStatus` risponde «disponibile» appena trova un menu visibile, e il ramo del percorso '
+      + 'supervisionato viene dopo). Quindi: mangia, e nessuno la sta guardando.\n\n'
+      + '✅ **Risposta di Simone, 25/8**: *«Se il cliente è supervisionato va mandata notifica a Lucia '
+      + 'di controllarlo ogni 7 giorni attraverso Vera. Se dichiara patologie il nutrizionista dalla '
+      + 'scheda decide se fissare un appuntamento ed entro quando; se dice, esempio, appuntamento il '
+      + 'mese prossimo, nel frattempo il paziente procede.»* ⛔ Cioè **non si chiude niente**: il '
+      + 'rimedio al «nessuno la sta guardando» non è fermare la cliente — è far arrivare la domanda a '
+      + 'chi deve rispondere, e continuare a farla arrivare finché non risponde.\n\n'
+      + '✅ **Consegnato il 25/8**: `clients/promemoria-supervisione.ts` (puro, 14 test) decide se una '
+      + 'domanda va aperta oggi; il passo notturno `supervisione` del cron la apre su Vera e la '
+      + '**riapre ogni 7 giorni** finché una decisione non c\'è. ⚠️ L\'idempotenza è sulla '
+      + '**finestra** e non sul giorno: il cron può girare due volte la stessa notte e la domanda '
+      + 'resta una, ma la settimana dopo torna — una domanda senza risposta non deve spegnersi. Il '
+      + 'testo dice **da quanti giorni aspetta**, che **nel frattempo la cliente mangia**, e le due '
+      + 'strade concrete («Può proseguire» / «Serve una visita entro il…»): una domanda che dice «c\'è '
+      + 'una cliente in screening» è una notifica, una che dice cosa fare si chiude in trenta secondi. '
+      + 'Il passo è in `config_param` (`supervision_reminder_days`, 7), non nel codice.\n\n'
+      + '⚠️ **`npm run diag:supervisione`** dice quante sono adesso, in che stato, e da quanto aspetta '
+      + 'chi aspetta di più: «ogni 7 giorni una domanda» è un buon rimedio con dieci persone e un '
+      + 'rumore di fondo con duecento, e la differenza non si indovina. ⛔ Se lì compare un numero a '
+      + 'tre cifre, il problema non è il promemoria: è che qualcosa non si sta lavorando.',
   },
   {
     chiave: 'motore-dopo-il-via-libera',
@@ -1937,20 +1951,30 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-23T15:10',
-    titolo: 'Dopo il «può proseguire», il motore può decidere da solo? (domanda per Lucia)',
+    fatta: true,
+    titolo: '✅ Dopo il «può proseguire» il motore prosegue — e ogni 7 giorni Vera ricorda a Lucia di guardare',
     dettaglio:
-      'Col via libera clinico del 23/8 il gate del menu ora chiede **la decisione** e non lo screening: '
-      + 'una cliente con «Può proseguire» riceve i menu. ⚠️ Ma `engine.service.checkGuardrails` è '
-      + 'rimasto com\'era: legge `screeningFlag` da solo, quindi per quella cliente il motore continua '
-      + 'a non decidere in autonomia e ogni variazione passa dalla nutrizionista.\n\n'
-      + '⚠️ **Non è una svista: è una domanda clinica che non tocca a me.** «Può proseguire» vuol dire '
-      + 'che la cliente può fare il percorso — non necessariamente che un motore possa cambiarle le '
-      + 'calorie senza che una persona guardi. Le due cose sbagliano in versi opposti: un gate chiuso '
-      + 'di troppo le costa **tutto il servizio**, un guardrail chiuso di troppo costa una decisione in '
-      + 'più alla nutrizionista.\n\n'
-      + 'Da chiedere a Lucia. Se la risposta è sì, la correzione è una riga: `checkGuardrails` chiama '
-      + '`attendeIlViaLiberaClinico` invece di leggere il flag, e il collettore le passa anche '
-      + '`idoneita` e `idoneitaVisitaEntro`.',
+      'Col via libera clinico del 23/8 il gate del menu chiede **la decisione** e non lo screening: una '
+      + 'cliente con «Può proseguire» riceve i menu. ⚠️ Ma `engine.service.checkGuardrails` era rimasto '
+      + 'com\'era: leggeva `screeningFlag` **da solo**, e quel campo non lo riazzera nessuno — non la '
+      + 'valutazione clinica, non la visita, non uno script (cercato in tutto il backend e in '
+      + '`prisma/`). Quindi per quella cliente il motore continuava a non decidere in autonomia **per '
+      + 'sempre**, e la nutrizionista era convinta di averla sbloccata: lo stesso difetto del 23/8, '
+      + 'visto dall\'altra porta.\n\n'
+      + '✅ **Risposta di Simone, 25/8**: *«il motore prosegue facendo un promemoria ogni 7 giorni a '
+      + 'Lucia di controllare la situazione»*.\n\n'
+      + '✅ **Consegnato il 25/8**: il guardrail passa da `statoSupervisione` invece che dal flag, e si '
+      + 'apre **solo sul via libera**. ⛔ Gli altri due stati restano fermi, di proposito: **mai '
+      + 'valutata** (nessun clinico l\'ha ancora guardata: che i menu vadano avanti non vuol dire che '
+      + 'un motore possa cambiarle le calorie prima che qualcuno legga cosa ha dichiarato) e **serve '
+      + 'una visita** (una nutrizionista ha guardato e ha detto che serve: il motore non prende il '
+      + 'posto della visita che lei ha chiesto). ⚠️ Le due sbagliano in versi opposti, ed è il criterio '
+      + 'con cui è stata scelta la riga: un guardrail chiuso di troppo costa **una decisione in più** '
+      + 'alla nutrizionista, uno aperto di troppo costa un cambio di calorie deciso da un motore su '
+      + 'una persona che nessuno ha valutato.\n\n'
+      + '⚠️ Il promemoria che accompagna la decisione è lo stesso della voce '
+      + '`mai-valutata-eroga-lo-stesso`: un passo del cron notturno che apre una domanda su Vera e la '
+      + 'riapre ogni 7 giorni finché la decisione non c\'è.',
   },
   {
     chiave: 'chat-si-aprono-sull-ultimo-messaggio',
@@ -2564,24 +2588,53 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-24T12:00',
-    titolo: '⛔ I grassi nei cambi in chat: manca la risposta di Nocanty (Q1 e Q3)',
+    fatta: true,
+    titolo: '✅ I grassi nei cambi in chat: Nocanty ha risposto il 24/8, ed è dentro il prodotto dal 25/8',
     dettaglio:
-      '⚠️ **Questa voce non esisteva, e la domanda è aperta dal 20/8.** Il 24/8 Nocanty ha rimandato '
-      + 'a Simone `progetto/Metabole_Grammature_Grassi_Domande.md` e il PDF **identici byte per byte** '
-      + 'a quelli che gli avevamo mandato (nel repo da `1477795`): nessuna risposta dentro.\n\n'
-      + 'Il difetto misurato: Gaia propone i cambi **a pari grammatura**, e sui grassi non regge — '
-      + '70 ml di panna → 70 g di olio portano un piatto da 500 kcal a ~890 (**+77%**), su una '
-      + 'cliente in deficit. ⚠️ Il controllo che c\'è (`grammaturaAmmessa`, un terzo/il triplo) '
-      + 'guarda il **rapporto fra le quantità**, non le calorie: 70 → 70 è un rapporto di 1 e passa '
-      + 'senza dire niente. È cieco esattamente sul caso che conta.\n\n'
-      + '⛔ **E il codice non può calcolarselo**: gli ingredienti hanno nome, quantità e unità, e '
-      + '**nessuna tabella di composizione**. O il numero lo dà Nocanty, o i grassi escono dai cambi '
-      + 'automatici. Non c\'è una terza strada che non passi dal costruire una banca dati alimentare.\n\n'
-      + 'Le due bloccanti: **Q1** (A = i grassi escono dall\'automatico · B = un fattore di '
-      + 'conversione per gruppo) e **Q3** (la tabella: un numero per alimento, «quanti grammi '
-      + 'equivalgono a 100 g del riferimento»). Proposta già scritta nel documento: **B sul solo '
-      + 'gruppo «grassi da condimento», A su tutti gli altri** — quattro righe, ed è il gruppo che fa '
-      + 'il 90% dei casi. ⚠️ Nessuna migrazione: il campo `members` dei gruppi è già libero.',
+      '⚠️ **La domanda era aperta dal 20/8.** Il difetto misurato: Gaia proponeva i cambi **a pari '
+      + 'grammatura**, e sui grassi non regge — 70 ml di panna → 70 g di olio portano un piatto da '
+      + '500 kcal a ~890 (**+77%**), su una cliente in deficit. Il controllo che c\'era '
+      + '(`grammaturaAmmessa`, un terzo/il triplo) guarda il **rapporto fra le quantità**, non le '
+      + 'calorie: 70 → 70 è un rapporto di 1 e passava senza dire niente. Ed era cieco esattamente '
+      + 'sul caso che conta. ⛔ E il codice non poteva calcolarselo: degli ingredienti conosce nome, '
+      + 'quantità e unità, e in tutto il prodotto non esiste nessuna tabella di composizione.\n\n'
+      + '✅ **Risposta di Nocanty, 24/8**: *«Confermo la proposta: Strada B per il gruppo "Oli e '
+      + 'grassi da condimento" (che copre la quasi totalità dei casi) e Strada A (gestione manuale '
+      + 'con inoltro al nutrizionista) per tutte le altre categorie di grassi più complesse o '
+      + 'disomogenee»*, con la tabella dei grammi equivalenti a 100 g di olio EVO (fonte **CREA / '
+      + 'USDA**). Suo esempio: 70 g di panna (285) → **25 g di olio** (100).\n\n'
+      + '✅ **Consegnato il 25/8**: (1) `menu/grassi-equivalenti.ts`, puro e provato sui suoi numeri '
+      + '— legge i pesi, converte, e con `sembraUnGrasso` riconosce un grasso **anche senza la '
+      + 'tabella**, così un gruppo in bozza o rinominato fa passare la mano invece di tornare in '
+      + 'silenzio alla pari grammatura; il peso si cerca per nome **esatto** («burro di arachidi» non '
+      + 'eredita il 120 del burro); (2) i numeri vivono **sul gruppo di equivalenza** '
+      + '(`members.fattori`: campo Json già esistente, **nessuna migrazione**) e li mantiene lui dal '
+      + 'back office, riga «nome = grammi», con la colonna «Pesi» in elenco e una conferma prima di '
+      + 'cancellarli, perderne anche uno solo o rinominare il gruppo; (3) **Gaia** converte in un '
+      + 'punto solo (`conSostituto`): prima proposta, secondo giro e sostituto scelto dalla cliente; '
+      + 'le coppie che in cucina non reggono (panna → olio in vellutate e salse, regola sua) non si '
+      + 'fanno da sole; senza il numero non si propone niente e la richiesta va a lei **col motivo '
+      + 'vero**, che sono tre frasi diverse e non una; (4) **anche il motore e il pulsante dell\'app**: '
+      + '`burro → olio evo` per le intolleranti al lattosio era scritto senza quantità, 30 g '
+      + 'diventavano 30 invece di 25 — **+20% di lipidi ogni giorno**, sulla strada automatica. Lì la '
+      + 'sostituzione **resta comunque** (serve a rendere sicuro il piatto) ma la quantità si '
+      + 'converte dove il numero c\'è, e dove non c\'è si conta e si scrive nel log; (5) '
+      + '`npm run diag:grassi` dice **quali nomi del catalogo** restano senza peso e in quante '
+      + 'ricette.\n\n'
+      + '⚠️ **Due giri di revisione avversariale, dieci difetti veri chiusi**, fra cui: la richiesta '
+      + 'girata che **spariva** quando esisteva una segnalazione già *risolta* (Gaia diceva «l\'ho '
+      + 'girata alla tua nutrizionista» e non arrivava niente da nessuna delle due porte); il secondo '
+      + 'giro che teneva la quantità dell\'alimento di prima (52 g di olio invece di 25); i pasti '
+      + 'saltati per la cucina **contati e mai letti**, con una ragione falsa alla cliente; la '
+      + 'correzione della nutrizionista che reintroduceva la pari grammatura; l\'unità che restava '
+      + '«ml» su una conversione fatta in grammi.\n\n'
+      + '⚠️ **Resta a Nocanty**: la tabella ha **13 righe** e il catalogo nomina più grassi. Ogni '
+      + 'nome senza peso è un cambio che Gaia non fa e che finisce sul suo tavolo — `npm run '
+      + 'diag:grassi` dice quali sono e quanto valgono. ⛔ E i nomi ambigui (**panna da cucina, panna '
+      + 'leggera, panna vegetale**) sono prodotti diversi: o hanno un numero loro, o restano fuori. '
+      + 'Non si ereditano dalla panna fresca. ⚠️ **Il seed va girato in produzione** per creare il '
+      + 'gruppo: finché non c\'è, Gaia passa la mano su tutti i cambi di grasso (sicuro, ma è lavoro '
+      + 'non fatto).',
   },
   {
     chiave: 'test-che-scadono-il-2-settembre',
@@ -3377,20 +3430,37 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'perimetro-nutrizionista-senza-assegnazione',
-    titolo: 'Decisione: la nutrizionista deve vedere anche le clienti SENZA nutrizionista assegnata?',
+    titolo: '✅ La nutrizionista NON vede le clienti senza assegnazione: quelle restano del capo (deciso il 25/8)',
     dettaglio:
-      'Emerso il 22/8 aprendo la pagina Attività alla nutrizionista. Oggi `perimetroClienti` le dà '
-      + '**solo le clienti assegnate a lei**; le clienti senza nutrizionista assegnata sono di fatto '
-      + 'del **capo** (`nutrizionistaDiRiferimento`), che vede tutto.\n\n'
-      + '⚠️ Finché la nutrizionista è una sola, la domanda non morde: il capo copre il vuoto. Con '
-      + 'due o più, «le clienti di nessuno» diventano un buco che nessuno guarda per mestiere — ed è '
-      + 'lo stesso momento in cui va spento `assign_head_nutritionist_by_default`.\n\n'
-      + '⛔ Non l\'ho deciso io: è una decisione su chi vede i dati clinici di chi. Quando si '
-      + 'decide, il posto da cambiare è **uno** (`common/perimetro-clienti.ts`) e tutte le pagine '
-      + 'seguono.',
+      'Emerso il 22/8 aprendo la pagina Attività alla nutrizionista. `perimetroClienti` le dà **solo '
+      + 'le clienti assegnate a lei**; le clienti senza nutrizionista assegnata sono di fatto del '
+      + '**capo**, che vede tutto.\n\n'
+      + '✅ **Decisione di Simone, 25/8**: *«il capo nutrizionista sì li deve vedere tutti, gli altri '
+      + 'nutrizionisti no, vedono solo quelli assegnati a loro»*. È **quello che il codice già '
+      + 'faceva** — e allora perché consegnare qualcosa? Perché finché era solo il comportamento di '
+      + 'oggi, chiunque poteva «migliorarlo» in buona fede («così la nutrizionista vede anche le '
+      + 'orfane, che è più comodo») e nessuno avrebbe saputo che era una decisione presa. Un '
+      + 'comportamento senza una prova che lo tiene è un comportamento in attesa di essere cambiato '
+      + 'per sbaglio.\n\n'
+      + '✅ **Consegnato il 25/8**: quattro prove in `perimetro-una-porta-sola.spec.ts` che fissano '
+      + 'la decisione — il capo senza perimetro, la nutrizionista solo sulle sue, la cliente **senza '
+      + 'assegnazione fuori** dal perimetro di qualunque nutrizionista, e la nutrizionista senza '
+      + 'scheda `Staff` che vede **zero e non tutte** (sbagliare per difetto si vede subito, per '
+      + 'eccesso non si vede affatto).\n\n'
+      + '⚠️ **E la divergenza su marketing è stata misurata invece che appianata**: '
+      + '`perimetroClienti` risponde «nessun limite» anche a `marketing` e `head_marketing`, mentre '
+      + '`vedeTutteLeClienti` no. Ma i punti che chiamano `perimetroClienti` stanno dietro controller '
+      + 'i cui `@Roles` **non nominano marketing**; l\'unico raggiungibile da un ruolo marketing è il '
+      + 'CRM dei lead, dove «vede tutti i lead» è il mestiere della pagina. Quindi è una differenza '
+      + 'di forma, non un accesso in più — e un test lo tiene fermo, così se un domani un endpoint '
+      + 'clinico aggiungesse `marketing` fra i suoi ruoli diventerebbe rosso.\n\n'
+      + '⚠️ **Resta il passo vero**: con due o più nutrizioniste, «le clienti di nessuno» diventano un '
+      + 'buco che nessuno guarda per mestiere — ed è lo stesso momento in cui va spento '
+      + '`assign_head_nutritionist_by_default`. Quello è un lavoro di assegnazione, non di perimetro.',
     categoria: SIMONE,
     ordine: 662,
     nata: '2026-08-22T10:15',
+    fatta: true,
   },
 
   {
@@ -3489,50 +3559,5 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
-  {
-    chiave: 'grassi-non-a-pari-grammatura',
-    titolo: 'I grassi non si cambiano più a pari grammatura: i numeri di Nocanty dentro il motore e dentro Gaia',
-    dettaglio:
-      'Il difetto è del **9 agosto**, su una cliente vera: Gaia ha proposto **70 ml di panna → 70 g '
-      + 'di olio evo**, e un piatto da 500 kcal ne diventa ~890 — **+77%**, su una cliente in '
-      + 'deficit. Il controllo che c\'era guarda il rapporto fra le QUANTITÀ (un terzo/il triplo): '
-      + '70 → 70 è un rapporto di 1, e passava senza dire niente. E il codice non poteva '
-      + 'calcolarselo: degli ingredienti conosce nome, quantità e unità, e in tutto il prodotto non '
-      + 'esiste nessuna tabella di composizione degli alimenti.\n\n'
-      + '⛔ Il **24/8 il capo nutrizionista ha risposto** (PDF del 24/8): *«Strada B per il gruppo '
-      + '"Oli e grassi da condimento" e Strada A (gestione manuale con inoltro al nutrizionista) per '
-      + 'tutte le altre categorie di grassi più complesse o disomogenee»*, con la tabella dei grammi '
-      + 'equivalenti a 100 g di olio EVO (fonte **CREA / USDA**) e il suo esempio: 70 g di panna '
-      + '(285) → **25 g di olio** (100).\n\n'
-      + '✅ **Consegnato**: (1) `menu/grassi-equivalenti.ts`, puro e provato sui suoi numeri — legge '
-      + 'i pesi, converte, e con `sembraUnGrasso` riconosce un grasso **anche senza la tabella**, '
-      + 'così un gruppo in bozza o rinominato fa passare la mano invece di tornare in silenzio alla '
-      + 'pari grammatura; (2) i numeri vivono **sul gruppo di equivalenza** (`members.fattori`, '
-      + 'nessuna migrazione) e li mantiene lui dal back office, riga «nome = grammi», con la colonna '
-      + '«Pesi» in elenco; (3) **Gaia** converte in un punto solo (`conSostituto`), che vale per la '
-      + 'prima proposta, per il secondo giro e per il sostituto scelto dalla cliente; (4) le coppie '
-      + 'che in cucina non reggono (panna → olio in vellutate e salse, regola sua) non si fanno da '
-      + 'sole; (5) **anche il motore e il pulsante dell\'app**: `burro → olio evo` per le '
-      + 'intolleranti al lattosio era a pari grammatura, 30 g diventavano 30 invece di 25 — lì la '
-      + 'sostituzione **resta comunque** (serve a rendere sicuro il piatto) ma la quantità si '
-      + 'converte dove il numero c\'è, e dove non c\'è si conta e si scrive nel log; (6) '
-      + '`npm run diag:grassi` dice **quali nomi del catalogo** restano senza peso e in quante '
-      + 'ricette: è la lista da dare a Nocanty invece di chiedergli sessanta numeri a caso.\n\n'
-      + '⚠️ **Due giri di revisione avversariale**, dieci difetti veri chiusi: fra questi la '
-      + 'richiesta girata che spariva quando esisteva una segnalazione già **risolta** (Gaia diceva '
-      + '«l\'ho girata alla tua nutrizionista» e non arrivava niente da nessuna delle due porte), il '
-      + 'secondo giro che teneva la quantità dell\'alimento di prima (52 g di olio invece di 25), la '
-      + 'correzione della nutrizionista che reintroduceva la pari grammatura, e l\'unità che restava '
-      + '«ml» su una conversione fatta in grammi.\n\n'
-      + '⚠️ **Resta a Nocanty**: la tabella ha **13 righe** e il catalogo nomina più grassi. Ogni '
-      + 'nome senza peso è un cambio che Gaia non fa e che finisce sul suo tavolo — `npm run '
-      + 'diag:grassi` dice quali sono. ⛔ E i nomi ambigui (**panna da cucina, panna leggera, panna '
-      + 'vegetale**) sono prodotti diversi: o hanno un numero loro, o restano fuori. Non si ereditano '
-      + 'dalla panna fresca.',
-    categoria: CODICE,
-    ordine: 665,
-    nata: '2026-08-25T09:00',
-    fatta: true,
-  },
 
 ];

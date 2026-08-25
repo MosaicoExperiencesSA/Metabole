@@ -118,11 +118,32 @@ export const DESCRIZIONE_LISTA: Record<AzioneLista, { etichetta: string; cosaFa:
  * categoria per volta. Finché non ci sono, «Apri la scheda» porta dove quelle leve vivono già coi
  * loro permessi.
  */
+/**
+ * Taglia un titolo alla lunghezza data, e **lo dice** con un'ellissi.
+ *
+ * ⚠️ `slice(0, 90)` e basta produce una riga che finisce a metà parola — «…in percorso
+ * supervisionato (ha dichiarato farmaci o condizioni in registrazi» — e chi legge non sa se il
+ * testo finisce lì o se manca qualcosa. È la riga su cui si sceglie «la 3»: *se degradi, dillo*,
+ * anche quando il degrado è tre caratteri.
+ */
+export function tronca(testo: string, quanti: number): string {
+  const t = (testo ?? '').trim();
+  return t.length <= quanti ? t : `${t.slice(0, quanti - 1).trimEnd()}…`;
+}
+
 export const AZIONI_PER_TIPO: Record<Exclude<TipoVoce, 'da_validare'>, Azione[]> = {
   segnalazione_clinica: [AZIONI.APRI_SCHEDA, AZIONI.SCRIVI_IN_CHAT, AZIONI_LISTA.SEGNA_RISOLTA, AZIONI_LISTA.RIMANDA],
   segnalazione: [AZIONI.APRI_SCHEDA, AZIONI.SCRIVI_IN_CHAT, AZIONI_LISTA.RIFAI_BASE, AZIONI_LISTA.SEGNA_RISOLTA, AZIONI_LISTA.RIMANDA],
   proposta_da_approvare: [AZIONI.APRI_SCHEDA, AZIONI_LISTA.RIMANDA],
-  domanda_aperta: [AZIONI_LISTA.RIMANDA],
+  /**
+   * ⛔ **«Apri la scheda» c'è, e serve** — aggiunta in revisione il 25/8. Dal 25/8 fra le domande
+   * aperte c'è il promemoria sui percorsi supervisionati, e quel testo dice testualmente *«dalla sua
+   * scheda puoi scrivere “Può proseguire”»*: senza questa azione la lista portava la domanda e
+   * offriva **solo** di rimandarla, cioè mandava a cercare a mano la schermata che aveva appena
+   * nominato. ⚠️ Non tocca niente e non decide niente: porta dove le leve vivono già coi loro
+   * permessi, che è la stessa regola delle altre righe di questa tabella.
+   */
+  domanda_aperta: [AZIONI.APRI_SCHEDA, AZIONI_LISTA.RIMANDA],
   sostituzione_da_verificare: [AZIONI.APRI_SCHEDA, AZIONI_LISTA.RIMANDA],
   catalogo_da_approvare: [AZIONI_LISTA.RIMANDA],
   dizionario_invecchiato: [AZIONI_LISTA.RIMANDA],

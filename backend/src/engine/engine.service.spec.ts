@@ -111,12 +111,64 @@ describe('EngineService', () => {
     expect(prisma.engineDecision.create).not.toHaveBeenCalled();
   });
 
-  it('GUARDRAIL screening: il motore non decide, flag per il nutrizionista', async () => {
-    collector.collect.mockResolvedValue({ signals: signals(), screeningFlag: true });
-    const { decision } = await service.runForClient('u1');
-    expect(decision.flaggedForReview).toBe(true);
-    expect(decision.ruleId).toBeNull();
-    expect((decision.action as any).menu).toBe('keep');
+  /**
+   * ⛔ **IL GUARDRAIL DELLA SUPERVISIONE, STATO PER STATO** — riscritto il 25/8.
+   *
+   * Prima leggeva `screeningFlag` **da solo**, e quel campo non lo riazzera nessuno: una cliente
+   * con «Può proseguire» scritto sulla scheda restava per sempre una su cui il motore non decide,
+   * e la nutrizionista era convinta di averla sbloccata. Simone, 25/8: *«il motore prosegue facendo
+   * un promemoria ogni 7 giorni a Lucia di controllare la situazione»*.
+   */
+  describe('⛔ GUARDRAIL supervisione: si apre SOLO sul via libera', () => {
+    /** Gli stessi segnali del «caso normale»: così, senza guardrail, la regola `p5` scatta. */
+    const conProfilo = (supervisione: Record<string, unknown>) =>
+      collector.collect.mockResolvedValue({
+        signals: signals({ adherenceLast7: 1, moodAvg: 4.5, progressPercent: 80 }),
+        screeningFlag: !!supervisione.screeningFlag,
+        supervisione,
+      });
+
+    it('⛔ mai valutata: il motore non decide, flag per il nutrizionista', async () => {
+      conProfilo({ screeningFlag: true, idoneita: null, idoneitaVisitaEntro: null });
+      const { decision } = await service.runForClient('u1');
+      expect(decision.flaggedForReview).toBe(true);
+      expect(decision.ruleId).toBeNull();
+      expect((decision.action as any).menu).toBe('keep');
+      expect((decision.action as any).note).toContain('non ancora valutato');
+    });
+
+    /**
+     * ⛔ **Il caso che chiude la voce `motore-dopo-il-via-libera`**: con «Può proseguire» il motore
+     * torna a decidere da solo. È il difetto vero — Gianluca, 23/8 — visto dall'altra porta.
+     */
+    it('⛔ via libera: il motore prosegue e applica la regola', async () => {
+      conProfilo({ screeningFlag: true, idoneita: 'idonea', idoneitaVisitaEntro: null });
+      const { decision } = await service.runForClient('u1');
+      expect(decision.ruleId).toBe('p5');
+      expect(decision.flaggedForReview).toBe(false);
+    });
+
+    /**
+     * ⚠️ **Ma «serve una visita» resta fermo**, anche dentro la finestra in cui la cliente mangia:
+     * una nutrizionista ha guardato e ha detto che serve una visita, e il motore non prende il posto
+     * della visita che lei ha chiesto. ⚠️ Le due sbagliano in versi opposti: un guardrail chiuso di
+     * troppo costa una decisione in più a lei; uno aperto di troppo costa un cambio di calorie
+     * deciso da un motore su una persona che aspetta una visita.
+     */
+    it('⚠️ visita da fare: il motore resta fermo anche se i menu vanno avanti', async () => {
+      const fraUnMese = new Date(Date.now() + 30 * 86_400_000);
+      conProfilo({ screeningFlag: true, idoneita: 'serve_visita', idoneitaVisitaEntro: fraUnMese });
+      const { decision } = await service.runForClient('u1');
+      expect(decision.flaggedForReview).toBe(true);
+      expect((decision.action as any).note).toContain('visita da fare');
+    });
+
+    it('⚠️ e chi non è supervisionata non è toccata da niente di tutto questo', async () => {
+      conProfilo({ screeningFlag: false, idoneita: null, idoneitaVisitaEntro: null });
+      const { decision } = await service.runForClient('u1');
+      expect(decision.ruleId).toBe('p5');
+      expect(decision.flaggedForReview).toBe(false);
+    });
   });
 
   it('GUARDRAIL calo rapido + energia bassa: flag + escalation al nutrizionista', async () => {

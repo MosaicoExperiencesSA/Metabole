@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { statoSupervisione, type ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,10 +43,10 @@ export class EngineService {
       return { decision: existing, alreadyRun: true };
     }
 
-    const { signals, screeningFlag } = await this.collector.collect(clientId);
+    const { signals, screeningFlag, supervisione } = await this.collector.collect(clientId);
 
     // GUARDRAIL (spec 7.4): stop automatismo → presa in carico umana.
-    const guardrail = this.checkGuardrails(signals, screeningFlag);
+    const guardrail = this.checkGuardrails(signals, supervisione);
     let action: RuleAction;
     let ruleId: string | null = null;
     let explanation: string;
@@ -101,7 +102,14 @@ export class EngineService {
       data: {
         clientId,
         date: today,
-        inputs: { signals, screeningFlag } as never,
+        /**
+         * ⚠️ **E dal 25/8 anche lo stato della supervisione**, non solo il flag grezzo. Da quando il
+         * guardrail si apre sul via libera, una cliente con `screeningFlag: true` può produrre una
+         * decisione **senza** guardrail: chi riapre lo storico per capire perché quel giorno il
+         * motore ha cambiato le calorie a una persona in screening leggeva un input che diceva il
+         * contrario di quello che era successo. Rilievo della revisione del 25/8.
+         */
+        inputs: { signals, screeningFlag, supervisione: statoSupervisione(supervisione).motivo } as never,
         ruleId,
         action: { ...action, explanation } as never,
         flaggedForReview: chiedeRevisione && !causaGiaInCoda,
@@ -182,15 +190,52 @@ export class EngineService {
     return results;
   }
 
+  /**
+   * ⛔ **DOPO IL «PUÒ PROSEGUIRE», IL MOTORE PROSEGUE** — Simone, 25/8: *«il motore prosegue facendo
+   * un promemoria ogni 7 giorni a Lucia di controllare la situazione»*. Chiude la voce
+   * `motore-dopo-il-via-libera`, aperta il 23/8.
+   *
+   * Il difetto: questa riga leggeva `screeningFlag` **da solo**, e quel campo non lo riazzera
+   * nessuno — non la valutazione clinica, non la visita, non uno script (cercato in tutto il backend
+   * e in `prisma/`). Quindi una cliente con «Può proseguire» scritto sulla scheda restava per sempre
+   * una su cui il motore non decide: ogni variazione passava da una persona, per sempre, e la
+   * nutrizionista era convinta di averla sbloccata. È lo stesso difetto che il 23/8 era stato
+   * chiuso sul **menu** e non qui — due porte per la stessa domanda, e una sola sistemata.
+   *
+   * ⛔ **E si apre SOLO sul via libera**, non su tutta la supervisione. Gli altri due stati restano
+   * fermi, di proposito:
+   *  · **mai valutata** → nessun clinico l'ha ancora guardata. Che il percorso vada avanti (i menu
+   *    li riceve, e li ha sempre ricevuti) non vuol dire che un motore possa cambiarle le calorie
+   *    prima che qualcuno abbia letto cosa ha dichiarato. La domanda a Lucia arriva ogni 7 giorni
+   *    (`richieste.service.promemoriaSupervisione`), ed è quello il rimedio;
+   *  · **serve una visita** → una nutrizionista ha guardato e ha detto che serve. Fino a quel giorno
+   *    la cliente mangia, ma il motore non prende il posto della visita che lei ha chiesto.
+   *
+   * ⚠️ Le due sbagliano in versi opposti, ed è il criterio con cui è stata scelta la riga: un
+   * guardrail chiuso di troppo costa **una decisione in più alla nutrizionista**; uno aperto di
+   * troppo costa un cambio di calorie deciso da un motore su una persona che nessuno ha valutato.
+   *
+   * ⚠️ **I due stati fermi condividono `CAUSE.SCREENING`, ed è una scelta.** La deduplica della coda
+   * è per `(cliente, reasonKey)`, quindi una cliente già in coda come «mai valutata» non ci rientra
+   * quando diventa «serve una visita». Va bene: per chi legge la coda **la richiesta è la stessa** —
+   * *guarda questa cliente* — e la sua scheda mostra lo stato di adesso, non quello di quando la
+   * riga è nata. Un secondo codice di causa vorrebbe dire due righe per la stessa persona, più
+   * l'etichetta, le azioni ammesse e il frontend da aggiornare: due righe che chiedono la stessa
+   * cosa sono il modo di far leggere meno la coda. ⚠️ Il motivo preciso non si perde: sta in
+   * `EngineDecision.inputs.supervisione`.
+   */
   private checkGuardrails(
     signals: EngineSignals,
-    screeningFlag: boolean,
+    supervisione: ProfiloDaSupervisionare,
   ): { reasonKey: CausaDecisione; reason: string; escalate: boolean; menu?: RuleAction['menu'] } | null {
-    if (screeningFlag) {
+    const stato = statoSupervisione(supervisione);
+    if (stato.supervisionata && stato.motivo !== 'via_libera') {
       return {
         reasonKey: CAUSE.SCREENING,
         reason:
-          'Percorso supervisionato (screening sanitario): il motore non decide in autonomia, ogni variazione passa dal nutrizionista.',
+          stato.motivo === 'mai_valutata'
+            ? 'Percorso supervisionato non ancora valutato: il motore non decide in autonomia, ogni variazione passa dal nutrizionista.'
+            : 'Percorso supervisionato con visita da fare: il motore non decide in autonomia finché la visita non è stata fatta.',
         escalate: false, // l'escalation di screening esiste già dall'onboarding
       };
     }

@@ -27,6 +27,7 @@ export type PassoVera =
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
+  | 'promemoria_supervisione' // ⛔ un percorso supervisionato da guardare: NON si risponde con alimenti (25/8)
   | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
   | 'allergeni_ricetta'   // ricetta appena approvata: questi sono gli allergeni? (voce 227, 16/8)
   | 'allergeni_conferma'  // …e questo è l'elenco che sto per scrivere. Confermi?
@@ -569,6 +570,33 @@ export const testi = {
     'e ho lasciato la segnalazione aperta. Riprova o scrivile dalla chat.',
 
   laVedoIo: () => 'Va bene: te la lascio. La segnalazione resta aperta finché non la chiudi tu.',
+
+  // ───────────────── i percorsi supervisionati da guardare (25/8) ──
+
+  /**
+   * ⛔ **QUESTA DOMANDA NON SI RISPONDE A VERA, E DIRLO È IL PUNTO.**
+   *
+   * Trovato in revisione il 25/8, ed era il difetto peggiore della consegna. Il promemoria è una
+   * `RichiestaVera` come le altre, e tutte le altre finiscono nel ramo generico che chiede *«quali
+   * alimenti tolgo dal piatto?»*: Lucia leggeva «Giulia è in percorso supervisionato…» seguito da
+   * «(elencami gli alimenti da togliere, separati da virgola)», rispondeva «guardata, può
+   * proseguire» — che è quello che il testo stesso le suggeriva — e quelle due parole finivano
+   * **fra le intolleranze alimentari di Giulia**, scritte da `ClientsService.updateClient` con
+   * tanto di audit. E il giro dopo Vera chiedeva se valeva **per tutte**, cioè proponeva una voce
+   * del dizionario di tutte le clienti nata da un promemoria di sorveglianza.
+   *
+   * ⚠️ La decisione clinica si scrive **dalla scheda della cliente**, e da nessun'altra parte: qui
+   * Vera porta la domanda e si toglie di mezzo. Non c'è nessuna risposta che scriva qualcosa.
+   */
+  promemoriaSupervisione: (restanti: number, cliente: string | null, testo: string) =>
+    `${restanti === 1 ? 'C\'è una cosa' : `Ci sono ${restanti} cose`} da guardare.\n\n` +
+    `**${cliente ?? 'Una cliente'}** — ${testo}\n\n` +
+    '⚠️ Questa **non** te la posso far decidere da qui: la valutazione clinica si scrive dalla sua ' +
+    'scheda. Dimmi «ok» e vado avanti — se non la scrivi, te la ripropongo fra qualche giorno.',
+
+  promemoriaMessoDaParte: (cliente: string | null) =>
+    `Va bene: ${cliente ?? 'la cliente'} resta da guardare. La decisione si scrive dalla sua scheda, ` +
+    'e se non arriva te la ripropongo.',
 
   // ───────────────── i cambi concordati in chat, verificati a voce (voce 245) ──
 

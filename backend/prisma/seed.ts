@@ -205,6 +205,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni che devono passare dal rientro prima che la cliente possa chiedere un\'altra sospensione (dal back office la coach la attiva comunque)',
   },
   {
+    key: 'supervision_reminder_days',
+    value: '7',
+    type: 'number',
+    description: 'Ogni quanti giorni Vera ricorda al nutrizionista di guardare una cliente in percorso supervisionato ancora senza decisione clinica (Simone, 25/8). Il promemoria NON ferma l\'erogazione: serve a far arrivare la domanda a chi deve rispondere.',
+  },
+  {
     key: 'menu_visible_days_before_return',
     value: '1',
     type: 'number',

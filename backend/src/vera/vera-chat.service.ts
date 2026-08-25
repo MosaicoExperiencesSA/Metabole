@@ -14,6 +14,7 @@
  * registro smette di raccontare cosa è successo davvero.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
 import { aGiorno, giornoItaliano } from '../common/date-only';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
@@ -82,6 +83,7 @@ import {
   numera,
   testoDellaLista,
   testoDepennata,
+  tronca,
   type TipoVoce,
   type VoceDaFare,
 } from './lista-della-mattina';
@@ -395,6 +397,8 @@ export class VeraChatService {
         return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
+      case 'promemoria_supervisione':
+        return this.promemoriaVisto(nutrizionistaId, stato);
       case 'approvazione':
         return this.rispostaApprovazione(nutrizionistaId, stato, frase);
       case 'verifica_cambio':
@@ -3151,7 +3155,7 @@ export class VeraChatService {
       return righe.slice(0, 40).map((r) => ({
         tipo: 'domanda_aperta' as TipoVoce,
         id: r.id,
-        titolo: `${r.clienteNome ?? 'una cliente'}: ${(r.testo ?? '').slice(0, 90)}`,
+        titolo: `${r.clienteNome ?? 'una cliente'}: ${tronca(r.testo ?? '', 90)}`,
       }));
     });
 
@@ -3513,6 +3517,31 @@ export class VeraChatService {
     };
   }
 
+  /**
+   * ⛔ **IL PROMEMORIA SI METTE DA PARTE, NON SI «RISPONDE».**
+   *
+   * Qualunque cosa scriva, non si tocca niente: la richiesta si chiude **senza risposta** e la
+   * conversazione va avanti. La decisione clinica ha un posto solo — la scheda della cliente — e
+   * questo passo esiste apposta perché non ne nasca un secondo.
+   *
+   * ⚠️ Chiuderla non vuol dire archiviare la persona: il giro notturno la riapre alla finestra dopo
+   * finché `idoneita` resta vuota. È il motivo per cui qui si può chiudere senza sensi di colpa —
+   * e il motivo per cui la coda di Vera non si riempie di promemoria vecchi.
+   */
+  private async promemoriaVisto(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    if (stato.richiestaId) {
+      await this.richieste
+        .chiudiSenzaRisposta(stato.richiestaId, nutrizionistaId, 'Promemoria di sorveglianza messo da parte.')
+        .catch(() => undefined);
+    }
+    const dopo = await this.cosaTiPorto(nutrizionistaId);
+    return {
+      testo: `${testi.promemoriaMessoDaParte(stato.clienteNome ?? null)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'in_corso',
+      stato: dopo?.stato,
+    };
+  }
+
   /** La prossima domanda aperta, scritta com'era: chi sa cosa manca l'ha già formulata. */
   private async prossimaRichiesta(userId: string, capo: boolean, giro = 0): Promise<EsitoVera | null> {
     const aperte = await this.richieste.aperte(userId, capo);
@@ -3548,6 +3577,33 @@ export class VeraChatService {
         },
       };
     }
+    /**
+     * ⛔ **IL PROMEMORIA SUI PERCORSI SUPERVISIONATI HA LA SUA STRADA** — trovato in revisione, 25/8.
+     *
+     * Senza questo ramo cadeva nel generico qui sotto, che chiede *«quali alimenti tolgo dal
+     * piatto?»*: la risposta di Lucia finiva **fra le intolleranze della cliente** e poteva
+     * diventare una proposta di voce del dizionario per tutte. Vedi il riquadro su
+     * `testi.promemoriaSupervisione`.
+     *
+     * ⚠️ È lo stesso difetto di forma che questo file ha già avuto: un tipo nuovo aggiunto
+     * all'unione `TipoRichiesta` **non rende rosso niente**, perché qui non c'è uno `switch`
+     * esaustivo ma un `if` e un ramo generico. Chi aggiunge un tipo deve aggiungere anche il suo
+     * ramo — e il test `ogni-tipo-ha-la-sua-strada.spec.ts` adesso lo pretende.
+     */
+    if ((r as { tipo?: string }).tipo === TIPO_PROMEMORIA) {
+      return {
+        testo: testi.promemoriaSupervisione(aperte.length, r.clienteNome, r.testo),
+        esito: 'in_corso',
+        stato: {
+          passo: 'promemoria_supervisione',
+          frase: r.testo,
+          richiestaId: r.id,
+          clienteId: r.clienteId,
+          clienteNome: r.clienteNome ?? undefined,
+        },
+      };
+    }
+
     return {
       testo: testi.richiesta(aperte.length, r.testo),
       esito: 'in_corso',

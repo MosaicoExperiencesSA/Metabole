@@ -1,0 +1,116 @@
+================================================================================
+LAVORO: nessuno resta sul tavolo di nessuno (25/8) — consegna 93
+================================================================================
+
+I PERCORSI SUPERVISIONATI, IL MOTORE DOPO IL VIA LIBERA, E IL PERIMETRO
+DELLE NUTRIZIONISTE
+
+Tre voci aperte, tutte sulla stessa domanda: chi guarda chi.
+
+1. UNA CLIENTE IN SCREENING CHE NESSUNO HA MAI VALUTATO RICEVE I MENU
+
+Scoperto il 23/8 chiudendo il via libera clinico: il cancello sull'erogazione per
+il percorso supervisionato NON è mai esistito. Il blocco viveva solo nella card
+dell'app, e quella card compariva di rado PROPRIO PERCHÉ i menu c'erano
+(`menuStatus` risponde «disponibile» appena trova un menu visibile, e il ramo del
+percorso supervisionato viene dopo). Quindi: mangia, e nessuno la sta guardando.
+
+Risposta di Simone, 25/8: «se il cliente è supervisionato va mandata notifica a
+Lucia di controllarlo ogni 7 giorni attraverso Vera. Se dichiara patologie il
+nutrizionista dalla scheda decide se fissare un appuntamento ed entro quando; se
+dice, esempio, appuntamento il mese prossimo, nel frattempo il paziente procede.»
+
+Cioè: non si chiude niente. Il rimedio al «nessuno la sta guardando» non è fermare
+la cliente — è far arrivare la domanda a chi deve rispondere, e continuare a farla
+arrivare finché non risponde.
+
+- `clients/promemoria-supervisione.ts` (puro, 16 test) decide se una domanda va
+  aperta oggi; il passo notturno `supervisione` la apre su Vera e la RIAPRE ogni 7
+  giorni finché una decisione non c'è.
+- L'idempotenza è sulla FINESTRA, non sul giorno: il cron può girare due volte la
+  stessa notte e la domanda resta una, ma la settimana dopo torna. E dentro la
+  chiave c'è anche il PASSO, se no cambiare `supervision_reminder_days` faceva
+  collidere le chiavi — misurato: passando da 3 a 7 giorni, ~40 giorni consecutivi
+  senza nessun promemoria, con l'esito che ogni notte diceva «già aperta».
+- Un promemoria aperto per volta, per cliente: quello vecchio si chiude quando
+  nasce il nuovo. Senza, la coda di Vera (FIFO, tetto 100) si riempiva di
+  promemoria e una domanda vera su un'allergia non compariva più.
+- Il testo dice da quanti giorni aspetta, che NEL FRATTEMPO la cliente mangia, e le
+  due strade concrete. Il passo è in `config_param`, non nel codice.
+- `npm run diag:supervisione` dice quante sono, in che stato, e da quanto aspetta
+  chi aspetta di più.
+
+2. DOPO IL «PUÒ PROSEGUIRE», IL MOTORE PROSEGUE
+
+`engine.service.checkGuardrails` leggeva `screeningFlag` da solo, e quel campo non
+lo riazzera nessuno: una cliente con «Può proseguire» sulla scheda restava per
+sempre una su cui il motore non decide, e la nutrizionista era convinta di averla
+sbloccata. Lo stesso difetto del 23/8, visto dall'altra porta.
+
+Adesso passa da `statoSupervisione` e si apre SOLO sul via libera. Gli altri due
+stati restano fermi, di proposito: «mai valutata» (nessun clinico l'ha guardata) e
+«serve una visita» (una nutrizionista ha detto che serve, e il motore non prende
+il posto della visita che lei ha chiesto).
+
+3. IL PERIMETRO DELLE NUTRIZIONISTE
+
+Decisione di Simone, 25/8: «il capo nutrizionista sì li deve vedere tutti, gli
+altri nutrizionisti no, vedono solo quelli assegnati a loro». È quello che il
+codice già faceva: la consegna sono le prove che lo tengono fermo, perché un
+comportamento senza una prova è un comportamento in attesa di essere cambiato per
+sbaglio. E la divergenza su `marketing` è stata MISURATA invece che appianata: i
+punti che chiamano `perimetroClienti` stanno dietro controller i cui `@Roles` non
+nominano marketing, e un guardiano nuovo se lo ricava da solo dai chiamanti veri —
+risolvendo anche gli spread, che alla prima stesura passavano verdi.
+
+DUE GIRI DI REVISIONE AVVERSARIALE, UNDICI DIFETTI VERI CHIUSI
+
+- BLOCCANTE: il promemoria entrava nella coda di Vera come tutte le altre domande,
+  e la chat chiede «quali alimenti tolgo dal piatto?». Lucia rispondeva «guardata,
+  può proseguire» — che è quello che il testo le suggeriva — e quelle due parole
+  finivano FRA LE INTOLLERANZE ALIMENTARI della cliente, scritte dal punto unico
+  con tanto di audit. Il giro dopo Vera chiedeva se valeva «per tutte»: una voce
+  del dizionario di tutte le clienti, nata da un promemoria di sorveglianza.
+  Adesso ha il suo passo, e nessuna risposta scrive niente. Un guardiano nuovo
+  (`ogni-tipo-ha-la-sua-strada.spec.ts`) pretende che ogni tipo di domanda dichiari
+  dove va: l'unione TypeScript non rendeva rosso niente.
+- Il guardrail del motore falliva APERTO se il dato non arrivava, e il collettore
+  non aveva un test: misurato, sostituendo `supervisione` con `undefined` tutte le
+  332 suite restavano verdi.
+- `apriRichiestaVera` non avvisava nessuno quando la cliente non ha una
+  nutrizionista assegnata — mentre tre commenti promettevano il contrario. Al 21/8
+  erano 39 clienti, di cui 6 con lo screening acceso.
+- `take: 2000` senza un conto a fianco: troncamento silenzioso, adesso si conta e
+  si scrive.
+- `EngineDecision.inputs` scriveva solo `screeningFlag`, quindi lo storico diceva
+  il contrario di quello che era successo.
+- Il passo del cron si poteva cancellare senza far diventare rosso niente.
+- `RichiestaVera` non era nell'elenco della cancellazione GDPR, e questo tipo nuovo
+  ci scrive un dato sanitario esplicito, per nome.
+- La lista della mattina portava la domanda e offriva solo di rimandarla, mentre il
+  testo diceva «dalla sua scheda».
+- Il giorno di inizio si leggeva con `giornoDelDato` (porta delle date salvate) su
+  un istante vero: sbagliato di uno per chi si registra fra le 22 e mezzanotte UTC.
+- Due degradi taciuti (il parametro non letto, la diagnostica che stampava NaN).
+- Il titolo tagliato a 90 caratteri senza dire che era tagliato.
+
+FILE NEL COMMIT
+- backend/src/clients/promemoria-supervisione.ts + .spec.ts               (nuovi)
+- backend/src/vera/sorveglianza-supervisione.spec.ts                      (nuovo)
+- backend/src/vera/ogni-tipo-ha-la-sua-strada.spec.ts                     (nuovo)
+- backend/src/engine/segnali-portano-la-supervisione.spec.ts              (nuovo)
+- backend/prisma/diag-supervisione.ts + package.json (diag:supervisione)  (nuovo)
+- backend/src/vera/richieste.service.ts · apri-richiesta.ts
+- backend/src/vera/vera-chat.service.ts · vera-chat.ts · lista-della-mattina.ts
+- backend/src/vera/vera-chat.service.spec.ts · lista-della-mattina.spec.ts
+- backend/src/engine/engine.service.ts · signals-collector.service.ts
+- backend/src/engine/engine.service.spec.ts
+- backend/src/cron/cron.controller.ts · cron.controller.spec.ts
+- backend/src/privacy/privacy.service.ts · cancellazione.ts
+- backend/src/common/perimetro-una-porta-sola.spec.ts · il-giorno-si-chiede.spec.ts
+- backend/prisma/seed.ts (parametro `supervision_reminder_days`)
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE. Solo backend; backoffice e app non cambiano.
+⚠️ Il seed va girato per creare `supervision_reminder_days` (senza, il passo è 7).

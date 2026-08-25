@@ -16,7 +16,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative, resolve } from 'path';
-import { RUOLI_CHE_VEDONO_TUTTE, vedeTutteLeClienti } from './perimetro-clienti';
+import { RUOLI_CHE_VEDONO_TUTTE, clienteNelPerimetro, perimetroClienti, vedeTutteLeClienti } from './perimetro-clienti';
 import { ROLES } from './roles';
 
 const SRC = resolve(__dirname, '..');
@@ -128,5 +128,189 @@ describe('⚠️ dove le due risposte NON combaciano (oggi)', () => {
   it('marketing e head_marketing: per `perimetroClienti` nessun limite, per `vedeTutteLeClienti` no', () => {
     const diverse = [...ROLES].filter((r) => r !== 'client' && perimetroSarebbeNullo(r) !== vedeTutteLeClienti(r));
     expect(diverse).toEqual(['marketing', 'head_marketing']);
+  });
+});
+
+/**
+ * ⛔ **LA DECISIONE DI SIMONE, 25/8** — e da qui in poi è un test, non un commento.
+ *
+ * La domanda aperta dal 22/8 era: *«la nutrizionista deve vedere anche le clienti SENZA
+ * nutrizionista assegnata?»*. Risposta: *«il capo nutrizionista sì li deve vedere tutti, gli altri
+ * nutrizionisti no, vedono solo quelli assegnati a loro»*.
+ *
+ * ⚠️ È **quello che il codice già faceva**, e allora perché scriverlo? Perché finché era solo il
+ * comportamento di oggi, chiunque poteva «migliorarlo» in buona fede — «così la nutrizionista vede
+ * anche le orfane, che è più comodo» — e nessuno avrebbe saputo che era una decisione presa. Un
+ * comportamento senza una prova che lo tiene è un comportamento in attesa di essere cambiato per
+ * sbaglio.
+ *
+ * ⛔ **Le clienti «di nessuno» restano del capo.** Finché la nutrizionista è una sola la cosa non
+ * morde perché il capo copre il vuoto; con due o più, «le clienti di nessuno» sono un buco che
+ * nessuno guarda per mestiere — ed è lo stesso momento in cui va spento
+ * `assign_head_nutritionist_by_default`. Quello resta il passo da fare, non questo.
+ */
+describe('⛔ il perimetro delle nutrizioniste: la decisione del 25/8', () => {
+  const NESSUNO = '00000000-0000-0000-0000-000000000000';
+
+  /** Il minimo per far rispondere `perimetroClienti`: un utente col suo ruolo e la sua scheda. */
+  const chiede = (ruolo: string, staffId: string | null = 'staff-1') => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: ruolo }) },
+      staff: { findUnique: jest.fn().mockResolvedValue(staffId ? { id: staffId } : null) },
+    };
+    return perimetroClienti(prisma as never, 'u-1');
+  };
+
+  it('⛔ il capo nutrizionista non ha perimetro: le vede tutte', async () => {
+    expect(await chiede('head_nutritionist')).toBeNull();
+    expect(vedeTutteLeClienti('head_nutritionist')).toBe(true);
+  });
+
+  it('⛔ la nutrizionista vede SOLO le clienti assegnate a lei', async () => {
+    expect(await chiede('nutritionist')).toEqual({ field: 'assignedNutritionistId', staffIds: ['staff-1'] });
+    expect(vedeTutteLeClienti('nutritionist')).toBe(false);
+  });
+
+  /**
+   * ⛔ **E una cliente senza nutrizionista assegnata NON è sua.** È la domanda del 22/8 messa alla
+   * prova: il filtro chiede `assignedNutritionistId IN (staff-1)`, e `null` non sta in nessun
+   * elenco. Se un domani qualcuno aggiungesse un `OR: { assignedNutritionistId: null }` «per
+   * comodità», questo test diventerebbe rosso.
+   */
+  it('⛔ una cliente senza nutrizionista assegnata non entra nel perimetro di nessuna nutrizionista', async () => {
+    const perimetro = await chiede('nutritionist');
+    const prisma = {
+      clientProfile: {
+        findUnique: jest.fn().mockResolvedValue({ assignedCoachId: 'staff-c', assignedNutritionistId: null }),
+      },
+    };
+    expect(await clienteNelPerimetro(prisma as never, perimetro, 'cliente-orfana')).toBe(false);
+    // ⚠️ E per il capo sì, perché il capo non ha perimetro affatto.
+    expect(await clienteNelPerimetro(prisma as never, null, 'cliente-orfana')).toBe(true);
+  });
+
+  /**
+   * ⛔ **Senza scheda `Staff` il perimetro è VUOTO, non «tutto».** È la scelta di fondo del file, e
+   * vale la pena tenerla ferma con una prova: in una funzione che decide chi vede i dati clinici di
+   * chi, sbagliare per difetto si vede subito e si aggiusta; sbagliare per eccesso non si vede.
+   */
+  it('⛔ una nutrizionista senza scheda staff non vede nessuno, non tutti', async () => {
+    expect(await chiede('nutritionist', null)).toEqual({ field: 'assignedNutritionistId', staffIds: [NESSUNO] });
+  });
+});
+
+/**
+ * ⚠️ **LA DIVERGENZA SU MARKETING, MISURATA** (25/8) — perché non è un difetto di oggi.
+ *
+ * Il riquadro qui sopra dice che `perimetroClienti` risponde «nessun limite» anche a `marketing` e
+ * `head_marketing`, mentre `vedeTutteLeClienti` no. Vero. ⛔ Ma prima di appianarla è stato misurato
+ * **dove può mordere**, e la risposta è: da nessuna parte che tocchi dati clinici. I punti che
+ * chiamano `perimetroClienti` stanno dietro controller i cui `@Roles` **non nominano marketing**;
+ * l'unico che un ruolo marketing può raggiungere è il CRM dei lead, dove «vede tutti i lead» è
+ * esattamente il mestiere della pagina.
+ *
+ * ⛔ **E il guardiano si costruisce l'elenco da solo** — riscritto al secondo giro di revisione,
+ * 25/8. La prima stesura elencava tre file **a mano**, e proprio i due che il commento della voce
+ * indica come il rischio vero (i controller del commercio) non c'erano: il guardiano non guardava
+ * la porta che il testo accanto nominava. Adesso l'elenco si ricava dai **chiamanti veri** di
+ * `perimetroClienti`, quindi un punto nuovo entra nel controllo senza che nessuno se ne ricordi.
+ *
+ * ⛔ **E un `@Roles` che non è fatto di sole stringhe letterali NON si dichiara sicuro.** Misurato:
+ * la prima stesura leggeva riga per riga cercando `marketing`, quindi
+ * `@Roles('admin', ...RUOLI_MKT)` passava verde — e `coach-tasks.controller.ts` usa già proprio
+ * quella forma (`...RUOLI_NUTRIZIONISTA`). Una lista che non si può leggere non è una lista sicura:
+ * o è tutta letterale, o va dichiarata qui sotto con il motivo.
+ */
+describe('⚠️ la divergenza su marketing non tocca nessun dato clinico', () => {
+
+  /** I file di produzione che chiamano `perimetroClienti`: sono loro a filtrare le clienti. */
+  const chiamanti = (): string[] => {
+    const trovati: string[] = [];
+    for (const f of tuttiITs(SRC)) {
+      const testo = readFileSync(f, 'utf8');
+      if (/\bperimetroClienti\s*\(/.test(testo) && !f.endsWith('perimetro-clienti.ts')) {
+        trovati.push(relative(SRC, f));
+      }
+    }
+    return trovati;
+  };
+
+  /** Il controller che sta davanti a un servizio: `x/y.service.ts` → `x/*.controller.ts`. */
+  const controllerDi = (file: string): string[] => {
+    const cartella = join(SRC, file.split('/').slice(0, -1).join('/'));
+    return tuttiITs(cartella)
+      .filter((f) => f.endsWith('.controller.ts'))
+      .map((f) => relative(SRC, f));
+  };
+
+  it('⚠️ i chiamanti di `perimetroClienti` ci sono, e sono più di tre', () => {
+    // Se un giorno fossero zero, questo file starebbe controllando il nulla senza dirlo.
+    expect(chiamanti().length).toBeGreaterThan(3);
+  });
+
+  it('⛔ nessun `@Roles` davanti a un filtro sulle clienti nomina marketing', () => {
+    const colpevoli: string[] = [];
+    const files = [...new Set(chiamanti().flatMap(controllerDi))];
+    expect(files.length).toBeGreaterThan(0);
+    for (const f of files) {
+      for (const riga of readFileSync(join(SRC, f), 'utf8').split('\n')) {
+        if (riga.includes('@Roles(') && /marketing/.test(riga)) colpevoli.push(`${f}: ${riga.trim()}`);
+      }
+    }
+    expect(colpevoli).toEqual([]);
+  });
+
+  /**
+   * ⛔ Il controllo sopra guarda le stringhe: qui si guarda che **siano stringhe**. Un `@Roles` con
+   * uno spread o una costante non si può leggere riga per riga, quindi non si può dichiarare sicuro.
+   */
+  /**
+   * ⛔ Il controllo sopra guarda le stringhe: qui si guarda che **si possano guardare**. Un `@Roles`
+   * con uno spread non si legge riga per riga — misurato: `@Roles('admin', ...RUOLI_MKT)` passava
+   * verde alla prima stesura, e `coach-tasks.controller.ts` usa già proprio quella forma
+   * (`...RUOLI_NUTRIZIONISTA`). Quindi lo spread **si risolve**: si va a leggere la costante e si
+   * guarda cosa c'è dentro. Se non si trova, è rosso — una lista che non si può leggere non è una
+   * lista che si può dichiarare sicura.
+   */
+  it('⛔ e gli spread dentro quei `@Roles` si risolvono, e nemmeno loro nominano marketing', () => {
+    /** Il contenuto letterale di una costante esportata, cercata in tutto `src`. */
+    const contenutoDi = (nome: string): string | null => {
+      for (const f of tuttiITs(SRC)) {
+        const testo = readFileSync(f, 'utf8');
+        const m = testo.match(new RegExp(`(?:export )?const ${nome}[^=]*=\\s*\\[([^\\]]*)\\]`, 's'));
+        if (m) return m[1];
+      }
+      return null;
+    };
+
+    const problemi: string[] = [];
+    for (const f of [...new Set(chiamanti().flatMap(controllerDi))]) {
+      // ⚠️ I commenti si tolgono prima: possono citare un `@Roles` che non è codice.
+      const testo = readFileSync(join(SRC, f), 'utf8')
+        .split('\n')
+        .filter((r) => !r.trimStart().startsWith('*') && !r.trimStart().startsWith('//'))
+        .join('\n');
+      for (const m of testo.matchAll(/@Roles\(([^)]*)\)/gs)) {
+        for (const pezzo of m[1].split(',')) {
+          const p = pezzo.trim();
+          if (!p || /^'[a-z_]+'$/.test(p)) continue;
+          const spread = p.match(/^\.\.\.([A-Za-z_][A-Za-z0-9_]*)$/);
+          if (!spread) {
+            problemi.push(`${f}: «${p}» dentro @Roles non è né una stringa né uno spread leggibile`);
+            continue;
+          }
+          const dentro = contenutoDi(spread[1]);
+          if (dentro === null) problemi.push(`${f}: non trovo la costante ${spread[1]}`);
+          else if (/marketing/.test(dentro)) problemi.push(`${f}: ${spread[1]} contiene marketing`);
+        }
+      }
+    }
+    expect(
+      problemi.length
+        ? `${problemi.join('\n')}\n→ Questo \`@Roles\` sta davanti a un punto che filtra le clienti: `
+          + 'se ci finisce dentro un ruolo marketing, `perimetroClienti` risponde «nessun limite» e '
+          + 'quel reparto si ritrova l\'intera tabella clienti, in silenzio.'
+        : '',
+    ).toBe('');
   });
 });

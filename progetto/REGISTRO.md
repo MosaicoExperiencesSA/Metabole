@@ -20,6 +20,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🛑 **Nessuno resta sul tavolo di nessuno: i percorsi supervisionati, il motore dopo
+  il via libera, il perimetro delle nutrizioniste.** Tre voci aperte, tutte sulla stessa domanda —
+  chi guarda chi.
+  ⛔ **Il difetto**, scoperto il 23/8 chiudendo il via libera clinico: il cancello sull'erogazione per
+  il percorso supervisionato **non è mai esistito**. Il blocco viveva solo nella card dell'app, e
+  quella card compariva di rado **proprio perché i menu c'erano**. Quindi una cliente che ha
+  dichiarato farmaci o patologie e che **nessuno ha mai valutato** mangia, e nessuno la sta
+  guardando. E dall'altra parte: dopo il «può proseguire» il motore restava comunque muto, perché
+  `checkGuardrails` leggeva `screeningFlag` da solo e quel campo non lo riazzera nessuno.
+  ✅ **Risposta di Simone, 25/8**: *«Se il cliente è supervisionato va mandata notifica a Lucia di
+  controllarlo ogni 7 giorni attraverso Vera. Se dichiara patologie il nutrizionista dalla scheda
+  decide se fissare un appuntamento ed entro quando; se dice, esempio, appuntamento il mese prossimo,
+  nel frattempo il paziente procede.»* Cioè: **non si chiude niente**. Il rimedio al «nessuno la sta
+  guardando» non è fermare la cliente — è far arrivare la domanda a chi deve rispondere, e
+  continuare a farla arrivare finché non risponde.
+  ✅ **Consegnato**: un passo notturno che apre la domanda su Vera e la **riapre ogni 7 giorni**
+  finché una decisione non c'è; il testo dice **da quanti giorni aspetta**, che **nel frattempo la
+  cliente mangia**, e le due strade concrete. Un promemoria aperto per volta (quello vecchio si
+  chiude quando nasce il nuovo: la coda di Vera è FIFO con un tetto di 100, e riempiendola di
+  promemoria una domanda vera su un'allergia non ci sarebbe più entrata). Il guardrail del motore
+  passa da `statoSupervisione` e si apre **solo sul via libera** — «mai valutata» e «serve una
+  visita» restano fermi, di proposito. E `npm run diag:supervisione` dice quante sono e da quanto
+  aspetta chi aspetta di più: «ogni 7 giorni una domanda» è un buon rimedio con dieci persone e un
+  rumore di fondo con duecento.
+  ⛔ **Il bloccante trovato in revisione** — il più grave di tutta la giornata: il promemoria entrava
+  nella coda di Vera come tutte le altre domande, e la chat chiede *«quali alimenti tolgo dal
+  piatto?»*. Lucia avrebbe risposto «guardata, può proseguire» — che è quello che il testo stesso le
+  suggeriva — e quelle due parole sarebbero finite **fra le intolleranze alimentari della cliente**,
+  scritte dal punto unico con tanto di audit; il giro dopo Vera avrebbe chiesto se valeva «per
+  tutte», cioè una voce del dizionario di **tutte** le clienti nata da un promemoria di sorveglianza.
+  Adesso ha il suo passo e nessuna risposta scrive niente, e un guardiano nuovo pretende che ogni
+  tipo di domanda dichiari dove va: l'unione TypeScript non rendeva rosso niente.
+  ⚠️ **Altri dieci difetti veri chiusi** in due giri di revisione: il guardrail che falliva **aperto**
+  se il dato non arrivava (misurato: sostituendo il campo con `undefined`, tutte le 332 suite
+  restavano verdi); `apriRichiestaVera` che **non avvisava nessuno** quando la cliente non ha una
+  nutrizionista assegnata, mentre tre commenti promettevano il contrario — al 21/8 erano 39 clienti,
+  di cui 6 con lo screening acceso; il tetto di 2000 senza un conto a fianco; `RichiestaVera` fuori
+  dall'elenco della cancellazione GDPR, proprio ora che ci si scrive un dato sanitario per nome.
+  ✅ **E il perimetro delle nutrizioniste** (Simone: *«il capo nutrizionista sì li deve vedere tutti,
+  gli altri nutrizionisti no, vedono solo quelli assegnati a loro»*): è quello che il codice già
+  faceva, e la consegna sono le prove che lo tengono fermo — un comportamento senza una prova è un
+  comportamento in attesa di essere cambiato per sbaglio. ⚠️ La divergenza su `marketing` è stata
+  **misurata invece che appianata**, e il guardiano adesso si ricava da solo l'elenco dei controller
+  da guardare, spread compresi.
+  ⚠️ **Il seed va girato** per creare `supervision_reminder_days` (senza, il passo resta 7).
+
 - `[Sviluppo]` 🛑 **I grassi non si cambiano più a pari grammatura: i numeri di Nocanty dentro Gaia
   e dentro il motore.** Il difetto è del **9 agosto**, su una cliente vera: Gaia ha proposto **70 ml
   di panna → 70 g di olio evo**, e un piatto da 500 kcal ne diventa ~890 — **+77%**, su una cliente

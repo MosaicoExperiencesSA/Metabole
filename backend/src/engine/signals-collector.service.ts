@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
 import { SOLO_STELLE_DATE } from '../menu/stelle-che-contano';
 import { EventsService } from '../calendar/events.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -29,7 +30,18 @@ export class SignalsCollectorService {
     private readonly events: EventsService,
   ) {}
 
-  async collect(clientId: string): Promise<{ signals: EngineSignals; screeningFlag: boolean }> {
+  /**
+   * ⚠️ **E dal 25/8 torna anche `supervisione`**, non solo `screeningFlag`. Il guardrail leggeva il
+   * flag da solo: una cliente con «Può proseguire» scritto sulla scheda restava per sempre una che
+   * «il motore non decide in autonomia», perché `screeningFlag` non lo riazzera nessuno. Il flag
+   * resta perché è quello che va scritto in `EngineDecision.inputs` — è il dato grezzo del giorno —
+   * ma la **domanda** la risponde `statoSupervisione`, in un posto solo.
+   */
+  async collect(clientId: string): Promise<{
+    signals: EngineSignals;
+    screeningFlag: boolean;
+    supervisione: ProfiloDaSupervisionare;
+  }> {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile) throw new NotFoundException('Profilo cliente non trovato');
 
@@ -97,6 +109,14 @@ export class SignalsCollectorService {
       avgRating: avg(stars),
       adherenceLast7: Math.round((checkins.length / 7) * 100) / 100,
     };
-    return { signals, screeningFlag: profile.screeningFlag };
+    return {
+      signals,
+      screeningFlag: profile.screeningFlag,
+      supervisione: {
+        screeningFlag: profile.screeningFlag,
+        idoneita: (profile as { idoneita?: string | null }).idoneita ?? null,
+        idoneitaVisitaEntro: (profile as { idoneitaVisitaEntro?: Date | null }).idoneitaVisitaEntro ?? null,
+      },
+    };
   }
 }

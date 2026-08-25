@@ -22,6 +22,7 @@
  */
 import { Logger } from '@nestjs/common';
 import { normalizza } from '../common/nomi-alimento';
+import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import type { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('RichiesteVera');
@@ -31,7 +32,17 @@ const logger = new Logger('RichiesteVera');
  * se l'è sentita di decidere. Si risponde a testo libero e la risposta va alla cliente — quindi il
  * dialogo di Vera la tratta in un modo suo (vedi `NOTA_Vera_Porta_I_Girati_Di_Gaia.md`).
  */
-export type TipoRichiesta = 'allergia_da_tradurre' | 'intolleranza_da_tradurre' | 'girata_da_gaia';
+export type TipoRichiesta =
+  | 'allergia_da_tradurre'
+  | 'intolleranza_da_tradurre'
+  | 'girata_da_gaia'
+  /**
+   * ⚠️ **Il promemoria sui percorsi supervisionati** (25/8). È l'unico tipo che **non nasce da un
+   * fatto della cliente** ma dal fatto che *nessuno l'ha ancora guardata*: lo apre il giro
+   * notturno, e torna ogni N giorni finché una decisione non c'è. Vedi
+   * `clients/promemoria-supervisione.ts`.
+   */
+  | 'supervisione_da_guardare';
 
 export interface RichiestaDaAprire {
   tipo: TipoRichiesta;
@@ -131,9 +142,30 @@ export async function apriRichiestaVera(prisma: PrismaService, dati: RichiestaDa
  *
  * ⚠️ `title` e `body` vivono **dentro `payload`**: la tabella `notification` non ha quelle colonne, e
  * scriverle come campi fa esplodere Prisma a runtime (è già successo con l'avviso senza glutine).
+ *
+ * ⛔ **E SE LA CLIENTE NON HA UNA NUTRIZIONISTA, L'AVVISO VA AI CAPI** — corretto in revisione,
+ * 25/8. Qui c'era `if (!userId) return;` e basta: la riga `RichiestaVera` nasceva con
+ * `nutrizionistaId: null`, quindi **visibile** al capo nell'elenco, ma **nessuna notifica partiva**.
+ * Esisteva solo per chi apriva Vera di propria iniziativa e scorreva la card.
+ *
+ * ⚠️ Non è teorico: al 21/8 c'erano **39 clienti senza nutrizionista assegnata, di cui 6 con lo
+ * screening acceso** — cioè esattamente la popolazione della sorveglianza sui percorsi
+ * supervisionati. Per quelle sei il promemoria nasceva e non avvisava nessuno.
+ *
+ * ⚠️ E tre commenti, in due file diversi, promettevano già questo comportamento («la nutrizionista
+ * assegnata, o il capo se non ce n'è una»). Erano falsi. *Una ragione falsa è peggio di un ordine
+ * sbagliato*: o si cambia il codice o si cambia la frase, e qui la frase diceva la cosa giusta.
  */
 async function avvisa(prisma: PrismaService, userId: string | null, dati: RichiestaDaAprire, richiestaId: string) {
-  if (!userId) return;
+  if (!userId) {
+    await avvisaCapiNutrizionisti(prisma, null, {
+      type: 'vera_richiesta',
+      title: 'Una domanda senza nutrizionista assegnata',
+      body: dati.testo.slice(0, 160),
+      payload: { kind: 'vera_richiesta', richiestaId, senzaAssegnazione: true },
+    }).catch(() => 0);
+    return;
+  }
   await prisma.notification
     .create({
       data: {

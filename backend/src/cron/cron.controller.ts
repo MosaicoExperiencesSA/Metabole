@@ -11,6 +11,7 @@ import { AgentOrchestratorService } from '../agents/agent-orchestrator.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { MonitoringService } from '../monitoring/monitoring.service';
 import { RegistroVeraService } from '../vera/registro.service';
+import { RichiesteVeraService } from '../vera/richieste.service';
 import { PauseService } from '../pause/pause.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { ConversationSummaryService } from '../chat/conversation-summary.service';
@@ -59,6 +60,8 @@ export class CronController {
     private readonly coachTasks: CoachTasksService,
     private readonly monitoring: MonitoringService,
     private readonly registroVera: RegistroVeraService,
+    /** La sorveglianza sui percorsi supervisionati: il promemoria ogni 7 giorni a chi deve guardarli. */
+    private readonly richiesteVera: RichiesteVeraService,
     private readonly pause: PauseService,
     private readonly crm: CrmService,
     private readonly privacy: PrivacyService,
@@ -149,6 +152,20 @@ export class CronController {
     // Il report mensile di Vera: parte SOLO il 1° del mese (il metodo controlla da solo la data
     // ed è idempotente — la notifica del mese fa da marcatore). Notifica in app + email ai capi.
     await step('veraReportMensile', () => this.registroVera.spedisciReportMensile());
+    /**
+     * ⛔ **I PERCORSI SUPERVISIONATI CHE NESSUNO HA ANCORA GUARDATO** (Simone, 25/8: «se il cliente è
+     * supervisionato va mandata notifica a Lucia di controllarlo ogni 7 giorni attraverso Vera»).
+     *
+     * ⚠️ **Non ferma nessuno e non decide niente di clinico**: apre una domanda su Vera, e la
+     * riapre ogni 7 giorni finché una decisione non c'è. Il motivo per cui serve è che una cliente
+     * in screening mai valutata **riceve i menu** — non è mai esistito un cancello sull'erogazione —
+     * e la card dell'app compariva di rado proprio perché i menu c'erano. Vedi
+     * `clients/promemoria-supervisione.ts`.
+     *
+     * ⚠️ Sta fra i passi di sorveglianza e non fra i primi: nessun altro passo lo legge, e se una
+     * notte salta il promemoria arriva la notte dopo.
+     */
+    await step('supervisione', () => this.richiesteVera.promemoriaSupervisione());
     // Sorveglianza durante le pause vacanza: peso di riferimento, promemoria misure e
     // avviso alla coach se il peso sale oltre soglia. Nessuna proposta commerciale.
     await step('pauseWatch', () => this.pause.surveillanceTick());
