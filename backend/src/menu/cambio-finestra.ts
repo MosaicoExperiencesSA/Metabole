@@ -66,12 +66,41 @@ export const PASSO_GRADUALE_PREDEFINITO = 60;
  */
 export const ORE_FRA_DUE_CAMBI = 20;
 
+/**
+ * ⛔ **CAMBIARE LE ORE DEL DIGIUNO SI PUÒ UNA VOLTA A SETTIMANA** — richiesta della capo
+ * nutrizionista (23/8: *«dovrebbe essere più difficile modificare le ore per digiunare, così puoi
+ * ogni giorno modificarlo»*), decisa da Simone il 25/8: *«sì, posso cambiare solo una volta a
+ * settimana; per cambi ulteriori va richiesto al nutrizionista — attraverso Vera il nutrizionista
+ * può correggere»*.
+ *
+ * ⛔ **Vale sul PROTOCOLLO, non sullo spostamento dell'orario**, e la distinzione è tutta la
+ * differenza fra una regola clinica e un muro. Le ore di digiuno (14:10, 16:8, 18:6, 20:4, 23:1)
+ * sono il **protocollo**: cambiarle ogni giorno vuol dire non farne nessuno, e i numeri che la
+ * nutrizionista guarda per capire se sta funzionando diventano la media di cinque cose diverse.
+ * Spostare la **lancetta** — stesse ore, un'ora più tardi perché stasera si cena fuori — non è una
+ * cosa clinica: lì resta il limite di uno al giorno che c'era già, ed è giusto che resti così.
+ *
+ * ⚠️ La voce che questa costante chiude diceva anche il rischio dall'altra parte: *«è il tipo di
+ * attrito che, messo male, fa sembrare l'app una cosa che non ti lascia fare — e chi ha una giornata
+ * storta smette di aprirla invece di adattare la finestra»*. Per questo il rifiuto dice **da quando**
+ * si può rifare **e** che la nutrizionista può farlo subito: un divieto che offre una strada è una
+ * spiegazione, uno che non ne offre è un muro.
+ *
+ * ⚠️ Il valore vero sta in `config_param` (`fasting_protocol_change_days`): questo è il ripiego.
+ */
+export const GIORNI_FRA_DUE_PROTOCOLLI = 7;
+
 export interface FinestraAttuale {
   protocollo: string;
   /** Minuti da mezzanotte. */
   inizioMin: number;
   /** L'ultimo spostamento, per il limite di uno al giorno. `null` = non ne ha mai fatti. */
   cambiataIl?: Date | null;
+  /**
+   * L'ultima volta che ha cambiato **le ore** (il protocollo), per il limite settimanale.
+   * `null` = non l'ha mai cambiato: la prima volta è libera, come è giusto.
+   */
+  protocolloCambiatoIl?: Date | null;
 }
 
 export interface RichiestaCambio {
@@ -239,13 +268,31 @@ export function minutiFraChiusuraEApertura(
  * `chiedi-la-finestra.ts`, e per la stessa ragione — la regola si prova senza database, e il giorno
  * che due porte vorranno spostare la finestra (l'app e la scheda staff) rispondono uguale.
  */
+/** Le soglie che arrivano da `config_param`, e chi sta chiedendo il cambio. */
+export interface RegoleCambio {
+  passoMin?: number;
+  /** Ogni quanti giorni si possono cambiare le ore. Vedi `GIORNI_FRA_DUE_PROTOCOLLI`. */
+  giorniFraProtocolli?: number;
+  /**
+   * ⛔ **`true` quando a chiedere è la nutrizionista**, e allora i limiti non si applicano.
+   *
+   * Non è una scorciatoia: è la strada che la regola stessa promette. Simone, 25/8: *«per cambi
+   * ulteriori va richiesto al nutrizionista»*. Un limite senza una porta che lo scavalca non è un
+   * limite, è un blocco — e la frase che la cliente legge le dice proprio di passare di lì.
+   */
+  perStaff?: boolean;
+}
+
 export function decidiCambio(
   attuale: FinestraAttuale,
   richiesta: RichiestaCambio,
   momento: Momento,
-  passoMin: number = PASSO_GRADUALE_PREDEFINITO,
+  regole: number | RegoleCambio = PASSO_GRADUALE_PREDEFINITO,
 ): EsitoCambio {
-  const passo = passoValido(passoMin);
+  // ⚠️ Il numero nudo resta accettato: è come la chiamavano le tre porte che esistevano prima del
+  // 25/8, e cambiarle tutte insieme a questa regola avrebbe mescolato due lavori.
+  const r: RegoleCambio = typeof regole === 'number' ? { passoMin: regole } : regole;
+  const passo = passoValido(r.passoMin ?? PASSO_GRADUALE_PREDEFINITO);
   const protocolloNuovo = richiesta.protocollo ?? attuale.protocollo;
   const inizioNuovo = richiesta.inizioMin ?? attuale.inizioMin;
 
@@ -275,15 +322,48 @@ export function decidiCambio(
   const cambiaProtocollo = protocolloNuovo !== attuale.protocollo;
   if (scarto === 0 && !cambiaProtocollo) return invariato();
 
-  // ⛔ Un cambio al giorno. Si controlla PRIMA di decidere il metodo, perché il messaggio deve
-  // dire quando potrà rifarlo — non «riprova più tardi», che è un modo di non dire niente.
-  if (attuale.cambiataIl) {
+  /**
+   * ⛔ Un cambio al giorno. Si controlla PRIMA di decidere il metodo, perché il messaggio deve
+   * dire quando potrà rifarlo — non «riprova più tardi», che è un modo di non dire niente.
+   *
+   * ⚠️ **`perStaff` scavalca anche questo**, e non solo il limite settimanale sulle ore (25/8).
+   * Trovato scrivendo i test: se la cliente aveva spostato la lancetta un'ora fa, la nutrizionista
+   * che voleva correggerle **le ore** si sentiva rispondere «puoi rifarlo fra 19 ore» — cioè il
+   * gesto di una persona bloccava quello di un'altra, e la porta promessa alla cliente («scrivilo
+   * alla tua nutrizionista») restava chiusa proprio nel caso in cui serviva.
+   */
+  if (attuale.cambiataIl && !r.perStaff) {
     const oreTrascorse = (momento.adesso.getTime() - attuale.cambiataIl.getTime()) / 3_600_000;
     if (oreTrascorse < ORE_FRA_DUE_CAMBI) {
       const mancano = Math.max(1, Math.ceil(ORE_FRA_DUE_CAMBI - oreTrascorse));
       return no(
         `La tua finestra l'hai già spostata da poco: puoi rifarlo fra ${mancano} ${mancano === 1 ? 'ora' : 'ore'}. ` +
         'Spostarla due volte nello stesso giorno confonde il conto del digiuno.',
+      );
+    }
+  }
+
+  /**
+   * ⛔ **E LE ORE SI CAMBIANO UNA VOLTA A SETTIMANA** (25/8). Vedi il riquadro su
+   * `GIORNI_FRA_DUE_PROTOCOLLI`: qui si guarda **solo** il protocollo, perché spostare la lancetta è
+   * un'altra cosa e ha già il suo limite qui sopra.
+   *
+   * ⚠️ Il messaggio dice **da quando** e **a chi chiedere**: la voce che questa regola chiude
+   * avvertiva che un attrito messo male fa smettere di aprire l'app. Un divieto che offre una strada
+   * è una spiegazione; uno che non ne offre è un muro.
+   */
+  if (cambiaProtocollo && !r.perStaff && attuale.protocolloCambiatoIl) {
+    const ogni = Number.isFinite(r.giorniFraProtocolli ?? NaN) && (r.giorniFraProtocolli as number) > 0
+      ? Math.floor(r.giorniFraProtocolli as number)
+      : GIORNI_FRA_DUE_PROTOCOLLI;
+    const giorni = (momento.adesso.getTime() - attuale.protocolloCambiatoIl.getTime()) / 86_400_000;
+    if (giorni < ogni) {
+      const mancano = Math.max(1, Math.ceil(ogni - giorni));
+      return no(
+        `Le ore del tuo digiuno le hai cambiate da poco: puoi rifarlo fra ${mancano} ` +
+        `${mancano === 1 ? 'giorno' : 'giorni'}. Cambiarle troppo spesso vuol dire non seguirne ` +
+        'nessuno, e i tuoi numeri diventano difficili da leggere anche per chi ti segue. ' +
+        'Se ti serve prima, scrivilo alla tua nutrizionista: lo cambia lei. 💚',
       );
     }
   }

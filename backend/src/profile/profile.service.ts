@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -36,6 +37,7 @@ import {
 } from '../coach-tasks/verifica-digiuno';
 import {
   PASSO_GRADUALE_PREDEFINITO,
+  GIORNI_FRA_DUE_PROTOCOLLI,
   decidiCambio,
   passoDiStanotte,
   primaScelta,
@@ -52,6 +54,8 @@ type PrismaTx = Prisma.TransactionClient;
 
 @Injectable()
 export class ProfileService {
+  private readonly logger = new Logger(ProfileService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -648,12 +652,22 @@ export class ProfileService {
   private static readonly CAMPI_DIGIUNO = {
     pathType: true, fastingWindow: true, fastingProtocol: true, fastingStartMin: true,
     fastingTargetStartMin: true, fastingTargetProtocol: true, fastingChangedAt: true,
+    // ⛔ Il limite settimanale sulle ORE (25/8): colonna sua, vedi `GIORNI_FRA_DUE_PROTOCOLLI`.
+    fastingProtocolChangedAt: true,
     fastingSceltoIl: true,
   } as const;
 
   /** Il passo dell'adattamento graduale, da `config_param`. ⚠️ Il valore lo controlla chi lo usa. */
   private passoGraduale(): Promise<number> {
     return this.configParams.getNumber('digiuno_passo_graduale_min', PASSO_GRADUALE_PREDEFINITO);
+  }
+
+  /**
+   * Ogni quanti giorni si possono cambiare le **ore** del digiuno (25/8). ⚠️ Il valore lo controlla
+   * `decidiCambio`: un parametro svuotato non deve diventare «mai più» né «sempre».
+   */
+  private giorniFraProtocolli(): Promise<number> {
+    return this.configParams.getNumber('fasting_protocol_change_days', GIORNI_FRA_DUE_PROTOCOLLI);
   }
 
   private async profiloDigiuno(userId: string): Promise<ProfiloDigiuno & { name: string | null }> {
@@ -674,7 +688,8 @@ export class ProfileService {
    */
   async getDigiuno(userId: string) {
     const profilo = await this.profiloDigiuno(userId);
-    return vistaOrologio(profilo, await this.passoGraduale());
+    // ⚠️ Anche il limite settimanale sulle ore: l'app deve poterlo dire **prima** che scelga.
+    return vistaOrologio(profilo, await this.passoGraduale(), undefined, undefined, await this.giorniFraProtocolli());
   }
 
   /**
@@ -707,10 +722,13 @@ export class ProfileService {
             protocollo: profilo.fastingProtocol ?? '',
             inizioMin: profilo.fastingStartMin ?? 0,
             cambiataIl: profilo.fastingChangedAt ?? null,
+            protocolloCambiatoIl: profilo.fastingProtocolChangedAt ?? null,
           },
           dto,
           { adesso, oraMin: oraLocaleInMinuti(adesso) },
-          passo,
+          // ⚠️ `perStaff` NON si passa: questa è la porta della cliente. La nutrizionista corregge
+          // da Vera, che è l'altra porta e ha il suo permesso.
+          { passoMin: passo, giorniFraProtocolli: await this.giorniFraProtocolli() },
         );
     if (!esito.permesso) throw new BadRequestException(esito.rifiuto);
 
@@ -749,65 +767,12 @@ export class ProfileService {
     }
 
     const finestraPrecedente = profilo.fastingWindow ?? null;
-    await this.prisma.$transaction(async (tx: PrismaTx) => {
-      /**
-       * ⛔ **SI SCRIVE SOLO SE NESSUNO HA SCRITTO NEL FRATTEMPO** (revisione, 21/8).
-       *
-       * Il profilo l'abbiamo letto **fuori** dalla transazione: due tocchi ravvicinati — l'app che
-       * ritenta, due dispositivi — leggono lo stesso stato, passano tutti e due il limite di «uno al
-       * giorno» e scrivono tutti e due. Nessuno stato mezzo scritto (l'`update` è uno solo), ma il
-       * limite si aggira e l'ultimo vince: un piano graduale appena aperto può sparire, o tornare.
-       *
-       * `updateMany` con la condizione su `fastingChangedAt` fa fallire il secondo, che riceve una
-       * frase che dice cosa fare invece di sovrascrivere in silenzio.
-       */
-      const scritte = (await tx.clientProfile.updateMany({
-        where: { userId, fastingChangedAt: profilo.fastingChangedAt ?? null } as never,
-        data: {
-          fastingProtocol: esito.scrivi.protocollo,
-          fastingStartMin: esito.scrivi.inizioMin,
-          fastingTargetStartMin: esito.scrivi.bersaglioInizioMin,
-          // ⛔ Il protocollo rimandato a domani: lo applica lo stesso cron del piano graduale.
-          fastingTargetProtocol: esito.scrivi.bersaglioProtocollo,
-          fastingWindow: finestraNuova,
-          fastingChangedAt: adesso,
-          // ⚠️ Da qui in poi la pagina non le si riapre più: la domanda gliel'abbiamo fatta.
-          fastingSceltoIl: profilo.fastingSceltoIl ?? adesso,
-        } as never,
-      })) as unknown as { count: number };
-      if (scritte.count === 0) {
-        throw new BadRequestException(
-          'Hai appena cambiato la tua finestra da un\'altra parte. Riapri la pagina per vedere com\'è adesso.',
-        );
-      }
-      await tx.auditLog.create({
-        data: {
-          action: primaVolta ? 'digiuno.prima_scelta' : 'digiuno.finestra_spostata',
-          actorId: userId,
-          entityType: 'client_profile',
-          entityId: userId,
-          metadata: {
-            /**
-             * ⚠️ **La frase in chiaro, dentro il log.** Il resto sono numeri che vanno interpretati;
-             * questa è la stessa riga che la cliente ha letto prima di confermare, e chi apre la sua
-             * scheda fra un mese legge quello che è successo senza dover tradurre `inizioMin: 960`.
-             */
-            descrizione: esito.spiegazione,
-            metodo: esito.metodo,
-            protocollo: esito.scrivi.protocollo,
-            inizioMin: esito.scrivi.inizioMin,
-            bersaglio: esito.scrivi.bersaglioInizioMin,
-            finestraPrima: finestraPrecedente,
-            finestraDopo: finestraNuova,
-            minutiDigiunoStanotte: esito.minutiDigiunoStanotte,
-            // ⚠️ Se il passo configurato era da buttare, resta scritto qui: niente tagli silenziosi.
-            passoUsatoMin: esito.passoUsatoMin,
-            daApp: true,
-          } as never,
-        } as never,
-      });
+    await this.scriviLOrologio(userId, profilo, esito, finestraNuova, {
+      adesso,
+      primaVolta,
+      finestraPrecedente,
+      daApp: true,
     });
-
     await this.segnalaDigiuno(userId, profilo.name, esito, finestraNuova, primaVolta, finestraPrecedente, adesso);
 
     /**
@@ -836,6 +801,247 @@ export class ProfileService {
         giorniDelPiano: esito.giorniDelPiano,
       },
     };
+  }
+
+
+  /**
+   * ⛔ **LA NUTRIZIONISTA CAMBIA LE ORE DEL DIGIUNO DI UNA CLIENTE** (25/8) — la porta che la regola
+   * della cliente promette.
+   *
+   * Dal 25/8 la cliente può cambiare le ore **una volta a settimana**, e la frase che legge quando
+   * non può le dice *«se ti serve prima, scrivilo alla tua nutrizionista: lo cambia lei»*. Questa è
+   * lei. ⛔ Senza questo metodo quella frase manderebbe una persona da qualcuno che non può farci
+   * niente: un cancello chiuso, con in più una promessa falsa.
+   *
+   * ⚠️ **Passa dalle stesse due funzioni della cliente**: `decidiCambio` per decidere (con
+   * `perStaff: true`, che toglie i limiti — è il permesso, non una scorciatoia) e `scriviLOrologio`
+   * per scrivere. Una seconda stesura avrebbe messo le ore nuove e lasciato i pasti di prima.
+   *
+   * ⚠️ **Non lancia**: chi chiama è una chat, e a una nutrizionista che ha appena detto «mettila a
+   * 16:8» si deve poter rispondere *perché* non si è potuto, non un errore rosso.
+   */
+  async impostaPerStaff(
+    clientUserId: string,
+    dati: { protocollo: string },
+    attoreId: string,
+  ): Promise<{ ok: boolean; perche: string; daQuando: 'oggi' | 'domani' }> {
+    try {
+      const profilo = await this.profiloDigiuno(clientUserId);
+      if (profilo.pathType !== 'intermittent_fasting') {
+        return { ok: false, perche: 'non è in digiuno intermittente.', daQuando: 'oggi' };
+      }
+      /**
+       * ⛔ **A CHI NON HA MAI SCELTO LA SUA FINESTRA NON SI SCRIVE DA QUI** — corretto al secondo
+       * giro di revisione, 25/8, e i danni erano tre insieme, tutti su una persona che non è nella
+       * stanza:
+       *  · `decidiCambio` ripiega su `inizioMin: 0`, quindi le si scriveva una finestra **00:00 –
+       *    06:00**: mangia dalla mezzanotte alle sei, perché nessuno le ha mai chiesto a che ora
+       *    mangia;
+       *  · `scriviLOrologio` scrive `fastingSceltoIl`, e da lì in poi la pagina dell'orologio **non
+       *    le si apre più** — il commento dice «la domanda gliel'abbiamo fatta», e non gliel'aveva
+       *    fatta nessuno;
+       *  · l'attività per la nutrizionista «finestra mai chiesta», che nasce proprio da quel campo
+       *    vuoto, non sarebbe mai nata.
+       *
+       * ⚠️ La prima scelta è **sua**, e questa porta serve a *correggere* una scelta fatta, non a
+       * farla al posto suo. Le ore senza l'orario non sono una finestra: sono metà di una decisione.
+       */
+      if (!profilo.fastingProtocol || profilo.fastingStartMin === null || profilo.fastingStartMin === undefined) {
+        return {
+          ok: false,
+          perche: 'non ha ancora scelto la sua finestra dall\'app, quindi non so a che ora mangia: '
+            + 'le ore da sole non bastano. Appena la sceglie lei, gliele posso correggere.',
+          daQuando: 'oggi',
+        };
+      }
+      const adesso = new Date();
+      const esito = decidiCambio(
+        {
+          protocollo: profilo.fastingProtocol ?? '',
+          inizioMin: profilo.fastingStartMin ?? 0,
+          cambiataIl: profilo.fastingChangedAt ?? null,
+          protocolloCambiatoIl: profilo.fastingProtocolChangedAt ?? null,
+        },
+        { protocollo: dati.protocollo },
+        { adesso, oraMin: oraLocaleInMinuti(adesso) },
+        // ⛔ `perStaff`: i limiti valgono per la cliente, non per chi la segue.
+        { passoMin: await this.passoGraduale(), perStaff: true },
+      );
+      if (!esito.permesso) return { ok: false, perche: esito.rifiuto ?? 'non si può fare.', daQuando: 'oggi' };
+      /**
+       * ⚠️ **«Non c'era niente da cambiare» non è «fatto»** — corretto in revisione, 25/8. Qui si
+       * rendeva `ok: true` senza scrivere una riga, e chi chiama scriveva comunque il registro e
+       * diceva «Fatto: è a 18:6, ho rifatto le giornate». Serve una corsa fra anteprima e conferma
+       * — la cliente che cambia le sue ore in quei secondi — ma è lo stesso schema di difetto già
+       * pagato sulle proteine il 24/8, e costa una riga dirlo.
+       */
+      if (esito.metodo === 'nessuno') {
+        return { ok: false, perche: 'era già a quelle ore: non ho toccato niente.', daQuando: esito.daQuando };
+      }
+
+      const derivata = derivaDaOrologio(esito.scrivi.inizioMin, esito.scrivi.protocollo);
+      // ⛔ Come per la cliente: non si scrive mezza impostazione. Meglio dirlo che lasciare uno stato
+      // che nessuno sa leggere — con l'aggravante che qui la persona che lo subisce non c'è.
+      if (!derivata?.fastingWindow) {
+        return { ok: false, perche: 'non riesco a calcolare i pasti di quella finestra.', daQuando: 'oggi' };
+      }
+
+      await this.scriviLOrologio(clientUserId, profilo, esito, derivata.fastingWindow, {
+        adesso,
+        primaVolta: false,
+        finestraPrecedente: profilo.fastingWindow ?? null,
+        daApp: false,
+        attoreId,
+      });
+      return { ok: true, perche: '', daQuando: esito.daQuando };
+    } catch (err) {
+      this.logger.warn(
+        `Ore del digiuno non cambiate per ${clientUserId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      /**
+       * ⚠️ **Il messaggio vero, quando c'è.** Il `catch` generico inghiottiva anche il lock
+       * ottimistico («qualcuno ha scritto nel frattempo») e il profilo mancante, e rispondeva
+       * «qualcosa non ha funzionato»: chi legge non sa se riprovare o chiamare qualcuno. Le
+       * eccezioni **nostre** portano una frase scritta per una persona; il resto no, e allora si
+       * dice che è un guasto — senza fingere di sapere quale.
+       */
+      const nostra = err instanceof BadRequestException || err instanceof NotFoundException;
+      const detto = nostra && err instanceof Error ? err.message : '';
+      return {
+        ok: false,
+        perche: detto || 'qualcosa non ha funzionato mentre scrivevo. Riprova, e se continua dillo a chi segue il sistema.',
+        daQuando: 'oggi',
+      };
+    }
+  }
+
+  /**
+   * ⛔ **SCRIVERE L'OROLOGIO: UN POSTO SOLO, DUE PORTE.**
+   *
+   * Dal 25/8 le porte che possono cambiare una finestra sono due: la **cliente** dall'app (una
+   * volta al giorno la lancetta, una volta a settimana le ore) e la **nutrizionista** da Vera, che
+   * è il permesso che la regola della cliente promette. ⚠️ Regola di casa: *se due punti rispondono
+   * alla stessa domanda, uno deve chiamare l'altro*. Qui la domanda è «cosa si scrive nel profilo
+   * quando la finestra cambia», e la risposta comprende cose che è facile dimenticare: il bersaglio
+   * del piano graduale, il protocollo rimandato a domani, la finestra derivata, la scrittura
+   * condizionata che impedisce a due tocchi di sovrascriversi, e il registro.
+   *
+   * Una seconda stesura per lo staff avrebbe scritto il protocollo e i pasti di prima.
+   */
+  private async scriviLOrologio(
+    userId: string,
+    profilo: ProfiloDigiuno & { name: string | null },
+    esito: EsitoCambio,
+    finestraNuova: string,
+    opzioni: { adesso: Date; primaVolta: boolean; finestraPrecedente: string | null; daApp: boolean; attoreId?: string },
+  ): Promise<void> {
+    const { adesso, primaVolta, finestraPrecedente, daApp } = opzioni;
+    /**
+     * Le **ore** cambiano? Adesso o da domani: quello che conta è la decisione, non quando entra in
+     * vigore. Vedi il riquadro sotto, dentro la `update`.
+     */
+    const oreCambiate =
+      esito.scrivi.protocollo !== profilo.fastingProtocol ||
+      (!!esito.scrivi.bersaglioProtocollo && esito.scrivi.bersaglioProtocollo !== profilo.fastingProtocol);
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      /**
+       * ⛔ **SI SCRIVE SOLO SE NESSUNO HA SCRITTO NEL FRATTEMPO** (revisione, 21/8).
+       *
+       * Il profilo l'abbiamo letto **fuori** dalla transazione: due tocchi ravvicinati — l'app che
+       * ritenta, due dispositivi — leggono lo stesso stato, passano tutti e due il limite di «uno al
+       * giorno» e scrivono tutti e due. Nessuno stato mezzo scritto (l'`update` è uno solo), ma il
+       * limite si aggira e l'ultimo vince: un piano graduale appena aperto può sparire, o tornare.
+       *
+       * `updateMany` con la condizione su `fastingChangedAt` fa fallire il secondo, che riceve una
+       * frase che dice cosa fare invece di sovrascrivere in silenzio.
+       */
+      const scritte = (await tx.clientProfile.updateMany({
+        where: { userId, fastingChangedAt: profilo.fastingChangedAt ?? null } as never,
+        data: {
+          fastingProtocol: esito.scrivi.protocollo,
+          fastingStartMin: esito.scrivi.inizioMin,
+          fastingTargetStartMin: esito.scrivi.bersaglioInizioMin,
+          // ⛔ Il protocollo rimandato a domani: lo applica lo stesso cron del piano graduale.
+          fastingTargetProtocol: esito.scrivi.bersaglioProtocollo,
+          fastingWindow: finestraNuova,
+          /**
+           * ⛔ **Il limite giornaliero sulla lancetta è della CLIENTE, e si segna solo se è lei.**
+           *
+           * ⚠️ Trovato in revisione, 25/8. `scriviLOrologio` scriveva `fastingChangedAt` anche dalla
+           * porta staff: se Lucia correggeva le ore di Giulia alle 13:00, alle 20:00 Giulia che
+           * voleva spostare la finestra di un'ora perché cena fuori leggeva **«La tua finestra
+           * l'hai già spostata da poco: puoi rifarlo fra 19 ore»**. Non l'aveva spostata lei. È la
+           * stessa direzione, al rovescio, del difetto già corretto in `cambio-finestra.ts` — il
+           * gesto di una persona che blocca quello di un'altra, con una frase falsa in mezzo.
+           */
+          ...(daApp ? { fastingChangedAt: adesso } : {}),
+          /**
+           * ⛔ **La data delle ORE si scrive quando le ore CAMBIANO — anche se valgono da domani.**
+           *
+           * ⚠️ La prima stesura guardava solo `esito.scrivi.protocollo`, cioè quello che entra in
+           * vigore **adesso**. Ma quando la finestra di oggi si è già aperta il protocollo nuovo
+           * finisce in `bersaglioProtocollo` e lo applica il cron: `scrivi.protocollo` resta quello
+           * vecchio, la condizione era falsa, e **la data non si scriveva mai**.
+           *
+           * ⛔ Il difetto, misurato in revisione il 25/8: una cliente che tocca l'app **dentro la sua
+           * finestra di alimentazione** poteva cambiare protocollo tutti i giorni, per sempre — cioè
+           * esattamente il «cinque pulsanti, uno al giorno» che questa consegna doveva chiudere. E
+           * per una 16:8 quella finestra è aperta otto ore al giorno, proprio le ore in cui una
+           * persona pensa al cibo e apre l'app.
+           *
+           * ✅ Quello che conta è **la decisione**, e la decisione è di oggi: si guarda se le ore
+           * cambiano, adesso o da domani. Il resto — che la lancetta non consumi il credito
+           * settimanale — resta com'era, perché quello sì dipende dal gesto.
+           *
+           * ⚠️ E **non nella prima scelta**: `primaVolta` non è un cambio (`fastingProtocol` è
+           * `null`), e far partire il credito settimanale mentre lei risponde a una domanda che non
+           * le era mai stata fatta è il muro nel momento peggiore. La migrazione e lo schema dicono
+           * tutti e due «NULL = non l'ha mai cambiato», ed è questa riga che lo rende vero.
+           */
+          ...(!primaVolta && oreCambiate ? { fastingProtocolChangedAt: adesso } : {}),
+          // ⚠️ Da qui in poi la pagina non le si riapre più: la domanda gliel'abbiamo fatta.
+          fastingSceltoIl: profilo.fastingSceltoIl ?? adesso,
+        } as never,
+      })) as unknown as { count: number };
+      if (scritte.count === 0) {
+        throw new BadRequestException(
+          'Hai appena cambiato la tua finestra da un\'altra parte. Riapri la pagina per vedere com\'è adesso.',
+        );
+      }
+      await tx.auditLog.create({
+        data: {
+          action: primaVolta ? 'digiuno.prima_scelta' : 'digiuno.finestra_spostata',
+          // ⚠️ Chi ha agito, non chi ha subito: dal 25/8 può essere la nutrizionista da Vera. Senza
+          // questa riga il registro avrebbe detto che la cliente ha cambiato le sue ore da sola,
+          // proprio nel caso in cui non poteva farlo — cioè avrebbe raccontato il contrario.
+          actorId: opzioni.attoreId ?? userId,
+          entityType: 'client_profile',
+          entityId: userId,
+          metadata: {
+            /**
+             * ⚠️ **La frase in chiaro, dentro il log.** Il resto sono numeri che vanno interpretati;
+             * questa è la stessa riga che la cliente ha letto prima di confermare, e chi apre la sua
+             * scheda fra un mese legge quello che è successo senza dover tradurre `inizioMin: 960`.
+             */
+            descrizione: esito.spiegazione,
+            metodo: esito.metodo,
+            protocollo: esito.scrivi.protocollo,
+            inizioMin: esito.scrivi.inizioMin,
+            bersaglio: esito.scrivi.bersaglioInizioMin,
+            finestraPrima: finestraPrecedente,
+            finestraDopo: finestraNuova,
+            minutiDigiunoStanotte: esito.minutiDigiunoStanotte,
+            // ⚠️ Se il passo configurato era da buttare, resta scritto qui: niente tagli silenziosi.
+            passoUsatoMin: esito.passoUsatoMin,
+            daApp,
+            // ⚠️ `daStaff` accanto a `daApp`: fra sei mesi «chi ha spostato questa finestra» si legge
+            // qui, e le due porte hanno conseguenze diverse (i limiti valgono per una sola).
+            daStaff: !daApp,
+          } as never,
+        } as never,
+      });
+    });
+
   }
 
   /**

@@ -142,6 +142,16 @@ export type CodaDaRifare =
   /** Dentro la coda c'è un giorno già aperto: non si cancella niente, e si dice perché. */
   | { esito: 'bloccata'; daQuando: Date; apertoIl: Date };
 
+/**
+ * Quante giornate ci sono davvero da rifare. ⚠️ `0` quando la coda non c'è o è **bloccata** — e sono
+ * due «zero» diversi che qui collassano apposta: chi chiama vuole sapere *quante ne rifarò*, e la
+ * risposta è zero in tutti e due i casi. ⛔ Chi deve **spiegare perché** guarda `esito`, non questo
+ * numero: è la ragione per cui `raccontaCoda` esiste e questa funzione non lo sostituisce.
+ */
+export function quanteDaRifare(coda: CodaDaRifare): number {
+  return coda.esito === 'coda' ? coda.giorni.length : 0;
+}
+
 /** «Questo giorno è colpito dalla decisione?» — la seconda domanda, che cambia da azione ad azione. */
 export type Colpito = (g: GiornoDaValutare) => boolean;
 

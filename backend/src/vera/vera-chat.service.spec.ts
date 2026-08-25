@@ -66,6 +66,8 @@ function make(
      * accende l'interruttore e si finge la risposta del modello.
      */
     riscritturaModello?: string | null;
+    /** L'esito della porta che cambia le ORE del digiuno (25/8). Assente = riesce. */
+    digiunoEsito?: { ok: boolean; perche: string; daQuando: 'oggi' | 'domani' };
   } = {},
 ) {
   const messaggioCreate = jest.fn().mockResolvedValue({ id: 'm1' });
@@ -256,6 +258,16 @@ function make(
    * nel servizio vero e non si duplicano: qui il doppio deve solo **rifiutare come rifiuta lui**,
    * ed è per questo che `opzioni.decisioneErrore` esiste.
    */
+  /**
+   * ⛔ Le ORE del digiuno (25/8): la porta che la regola della cliente promette. ⚠️ Il finto
+   * risponde **come l'originale** — un esito, non un `throw` — perché a una nutrizionista che ha
+   * appena detto «mettila a 16:8» si deve poter dire *perché* non si è potuto.
+   */
+  const digiuno = {
+    impostaPerStaff: jest.fn().mockResolvedValue(
+      (opzioni as { digiunoEsito?: unknown }).digiunoEsito ?? { ok: true, perche: '', daQuando: 'oggi' },
+    ),
+  };
   const decisioni = {
     eseguiAzione: jest.fn().mockImplementation(async () => {
       const errore = (opzioni as { decisioneErrore?: string }).decisioneErrore;
@@ -265,12 +277,13 @@ function make(
   };
 
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never, decisioni as never),
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never, decisioni as never, digiuno as never),
     valori,
     ricette,
     richieste,
     combinazioni,
     decisioni,
+    digiuno,
     messaggioCreate,
     profileUpdate,
     dizionario,
@@ -2942,5 +2955,156 @@ describe('VeraChatService — «la 3»: aprire una voce della lista', () => {
     await service.parla('lucia', 'a Giulia niente pollo');
     const { testo } = ultimoAgente(messaggioCreate);
     expect(testo).not.toContain('Non ho capito quale');
+  });
+});
+
+/**
+ * ⛔ **LA NUTRIZIONISTA CAMBIA LE ORE DEL DIGIUNO — la porta che la regola della cliente promette.**
+ *
+ * Dal 25/8 la cliente può cambiare le ore una volta a settimana, e la frase che legge quando non può
+ * le dice: *«se ti serve prima, scrivilo alla tua nutrizionista: lo cambia lei»*. ⛔ Quella porta non
+ * esisteva — dal 21/8 la tendina della finestra è fuori dalla scheda staff, e in tutto il backend
+ * nessuno poteva cambiare il protocollo di qualcun altro. Un limite senza la sua porta è un cancello
+ * chiuso, con in più una frase che fa credere il contrario.
+ */
+describe('⛔ VeraChatService — le ore del digiuno', () => {
+  const IN_DIGIUNO = {
+    dislikedFoods: [], allergies: [], intolerances: [], name: 'Giulia', pastiEsclusi: [],
+    pathType: 'intermittent_fasting', fastingProtocol: '16:8', fastingStartMin: 12 * 60,
+  };
+
+  it('⛔ «metti Giulia a 18:6»: anteprima con le ore in chiaro e i pasti, poi conferma', async () => {
+    const { service, messaggioCreate, digiuno } = make({}, { profilo: IN_DIGIUNO });
+    await service.parla('lucia', 'metti Giulia a 18:6');
+    const aperto = ultimoAgente(messaggioCreate);
+    expect(aperto.testo).toContain('18:6');
+    // ⛔ Le ore, non il codice: chi conferma una scrittura sul piano di una persona deve leggere
+    // quante ore digiuna e quanti pasti avrà.
+    expect(aperto.testo).toContain('18 ore di digiuno');
+    expect(aperto.testo).toContain('pasti');
+    expect(aperto.stato?.passo).toBe('conferma');
+
+    await service.parla('lucia', 'sì');
+    expect(digiuno.impostaPerStaff).toHaveBeenCalledWith('c1', { protocollo: '18:6' }, 'lucia');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Fatto');
+  });
+
+  /**
+   * ⛔ **I GIORNI GIÀ PREPARATI SI RIFANNO, E LA FRASE DICE QUANTI.**
+   *
+   * La prima stesura scriveva *«I pasti della sua giornata li ho già rifatti su queste ore»* e non
+   * rifaceva niente: la struttura dei pasti la usa il compositore **al momento di comporre**, quindi
+   * i giorni già in calendario restavano con i pasti vecchi. Passando 16:8 → 23:1 la cliente
+   * continuava a vedere tre pasti mentre l'orologio ne diceva uno, e la nutrizionista leggeva che
+   * erano stati rifatti. È il caso Lorena, e il progetto ha già la sua sentinella.
+   */
+  it('⛔ le giornate future non aperte si rifanno davvero, e il numero si dice', async () => {
+    const oggi = new Date();
+    const domani = new Date(oggi.getTime() + 86_400_000);
+    const dopodomani = new Date(oggi.getTime() + 2 * 86_400_000);
+    const { service, messaggioCreate, prisma } = make(
+      {},
+      {
+        profilo: IN_DIGIUNO,
+        giorniMenu: [
+          { id: 'g1', date: domani, viewedAt: null, meals: [] },
+          { id: 'g2', date: dopodomani, viewedAt: null, meals: [] },
+        ],
+      },
+    );
+    await service.parla('lucia', 'metti Giulia a 23:1');
+    const anteprima = ultimoAgente(messaggioCreate);
+    expect(anteprima.testo).toContain('2');
+    expect(anteprima.stato?.passo).toBe('conferma');
+
+    await service.parla('lucia', 'sì');
+    expect(prisma.menuDay.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1', 'g2'] } } });
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Ho rifatto 2 giornate');
+  });
+
+  /** ⚠️ E senza giornate da rifare lo dice lo stesso: `0` è un numero, non un silenzio. */
+  it('⚠️ senza giornate future la frase non promette niente', async () => {
+    const { service, messaggioCreate } = make({}, { profilo: IN_DIGIUNO, giorniMenu: [] });
+    await service.parla('lucia', 'metti Giulia a 18:6');
+    await service.parla('lucia', 'sì');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('Non c\'erano giornate future da rifare');
+  });
+
+  /**
+   * ⛔ **Chi non è in digiuno non ci si mette da qui.** Passare una cliente al digiuno intermittente
+   * è un cambio di **percorso** — tocca dieta, pasti e catalogo — e ha la sua strada. Scrivere un
+   * protocollo su un profilo senza orologio le lascerebbe uno schermo che dice una cosa e un piatto
+   * che ne dice un'altra.
+   */
+  it('⛔ su chi non è in digiuno non si scrive niente, e si dice perché', async () => {
+    const { service, messaggioCreate, digiuno } = make(
+      {},
+      { profilo: { ...IN_DIGIUNO, pathType: 'standard', fastingProtocol: null, fastingStartMin: null } },
+    );
+    await service.parla('lucia', 'metti Giulia a 18:6');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('percorso');
+    expect(digiuno.impostaPerStaff).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ E se non ha detto a quale, si chiede: non si indovina un numero da mettere in un piano. ⚠️ **E
+   * la domanda si può rispondere**: la prima stesura lasciava lo stato invariato (`quale_cliente`),
+   * quindi «18:6» finiva in `risolviCliente` e Vera diceva «non trovo nessuna cliente che si chiami
+   * 18:6». Una domanda a cui non si può rispondere è peggio di una domanda non fatta.
+   */
+  it('⛔ «cambia il digiuno di Giulia» senza dire a cosa: si chiede, e la risposta arriva', async () => {
+    const { service, messaggioCreate, digiuno } = make({}, { profilo: IN_DIGIUNO });
+    await service.parla('lucia', 'cambia il digiuno di Giulia');
+    const domanda = ultimoAgente(messaggioCreate);
+    expect(domanda.testo).toContain('A quale?');
+    expect(domanda.testo).toContain('16:8');
+    expect(domanda.stato?.passo).toBe('quale_digiuno');
+    expect(digiuno.impostaPerStaff).not.toHaveBeenCalled();
+
+    // ⛔ La risposta secca: niente verbo, niente parola «digiuno» — è il contesto a dire cos'è.
+    await service.parla('lucia', '18:6');
+    const anteprima = ultimoAgente(messaggioCreate);
+    expect(anteprima.testo).toContain('18 ore di digiuno');
+    expect(anteprima.stato?.passo).toBe('conferma');
+
+    await service.parla('lucia', 'sì');
+    expect(digiuno.impostaPerStaff).toHaveBeenCalledWith('c1', { protocollo: '18:6' }, 'lucia');
+  });
+
+  it('⚠️ e se la risposta non si capisce, si dice cosa scrivere invece di ripetere la domanda', async () => {
+    const { service, messaggioCreate } = make({}, { profilo: IN_DIGIUNO });
+    await service.parla('lucia', 'cambia il digiuno di Giulia');
+    await service.parla('lucia', 'boh');
+    const testo = ultimoAgente(messaggioCreate).testo;
+    expect(testo).toContain('Non ho capito quali ore');
+    expect(testo).toContain('Standard');
+  });
+
+  it('⚠️ e se è già a quelle ore non si tocca niente', async () => {
+    const { service, messaggioCreate, digiuno } = make({}, { profilo: IN_DIGIUNO });
+    await service.parla('lucia', 'metti Giulia a 16:8');
+    expect(ultimoAgente(messaggioCreate).testo).toContain('già');
+    expect(digiuno.impostaPerStaff).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **Se la scrittura non riesce, NON si dice «fatto».** È la stessa lezione delle proteine
+   * (24/8): un `catch` silenzioso faceva leggere alla nutrizionista un successo che non c'era.
+   */
+  it('⛔ se la porta rifiuta, si dice perché e non si scrive nel registro', async () => {
+    const { service, messaggioCreate, digiuno } = make(
+      {},
+      {
+        profilo: IN_DIGIUNO,
+        digiunoEsito: { ok: false, perche: 'non riesco a calcolare i pasti di quella finestra.', daQuando: 'oggi' },
+      },
+    );
+    await service.parla('lucia', 'metti Giulia a 18:6');
+    await service.parla('lucia', 'sì');
+    expect(digiuno.impostaPerStaff).toHaveBeenCalled();
+    // ⚠️ E lo stato si chiude: non resta un dialogo appeso su una scrittura che non c'è stata.
+    const finale = ultimoAgente(messaggioCreate);
+    expect(finale.testo).toContain('Non sono riuscita');
+    expect(finale.stato).toBeUndefined();
   });
 });

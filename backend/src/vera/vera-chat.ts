@@ -10,6 +10,8 @@
  * Nessuna riga da ripulire, e un dialogo abbandonato muore da solo.
  */
 import { normalizza } from '../common/nomi-alimento';
+import { PROTOCOLLI_DIGIUNO } from '../menu/orologio-digiuno';
+import { inChiaro } from './digiuno-dettato';
 
 export type PassoVera =
   | 'nome'            // il primo incontro: come vuole chiamarmi
@@ -28,6 +30,7 @@ export type PassoVera =
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
   | 'promemoria_supervisione' // ⛔ un percorso supervisionato da guardare: NON si risponde con alimenti (25/8)
+  | 'quale_digiuno'      // «cambia il digiuno di Giulia»: a quali ore? (25/8)
   | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
   | 'allergeni_ricetta'   // ricetta appena approvata: questi sono gli allergeni? (voce 227, 16/8)
   | 'allergeni_conferma'  // …e questo è l'elenco che sto per scrivere. Confermi?
@@ -53,6 +56,9 @@ export interface StatoVera {
   /** Su chi ricadrà l'azione, una volta risolta l'omonimia. */
   clienteId?: string;
   clienteNome?: string;
+  /** Le ore del digiuno prima e dopo (25/8): servono al riepilogo e al registro. */
+  digiunoPrima?: string | null;
+  digiunoDopo?: string;
   /** La famiglia che sto imparando, e quelle che restano da chiedere. */
   famiglia?: string;
   famiglieDaChiedere?: string[];
@@ -570,6 +576,84 @@ export const testi = {
     'e ho lasciato la segnalazione aperta. Riprova o scrivile dalla chat.',
 
   laVedoIo: () => 'Va bene: te la lascio. La segnalazione resta aperta finché non la chiudi tu.',
+
+  // ───────────────── le ore del digiuno, cambiate dalla nutrizionista (25/8) ──
+
+  /**
+   * ⚠️ **Si chiede, non si indovina.** «Cambia il digiuno di Giulia» non dice a cosa, e scrivere un
+   * protocollo scelto da noi vorrebbe dire mettere nel piano di una persona un numero che nessuno ha
+   * deciso. La domanda elenca le possibilità con le ore in chiaro: «16:8» è un codice, «16 ore di
+   * digiuno» è la cosa che si sta decidendo.
+   */
+  qualeDigiuno: (cliente: string) =>
+    `A quale? Le ore che posso mettere a **${cliente}** sono:\n` +
+    PROTOCOLLI_DIGIUNO.map((p) => `· **${p.valore}** — ${p.nome}, ${24 - p.oreFinestra} ore di digiuno e ${p.oreFinestra} di finestra`).join('\n') +
+    '\n\nDimmi quale e te la scrivo.',
+
+  qualeDigiunoNonCapito: () =>
+    'Non ho capito quali ore. Scrivimi il codice — per esempio **16:8** — oppure il nome: ' +
+    `${PROTOCOLLI_DIGIUNO.map((p) => p.nome).join(', ')}.`,
+
+  nonEInDigiuno: (cliente: string) =>
+    `**${cliente}** non è in digiuno intermittente, quindi non ha un orologio da cambiare. ` +
+    'Se vuoi passarla al digiuno è un cambio di **percorso**: dimmi «spostala sul digiuno» e ne parliamo, ' +
+    'perché tocca anche la dieta e i pasti.',
+
+  digiunoGiaCosi: (cliente: string, protocollo: string) =>
+    `**${cliente}** è già a **${protocollo}**. Non ho toccato niente.`,
+
+  /**
+   * ⛔ **L'anteprima dice quanti PASTI avrà**, non solo il codice del protocollo. È quello che la
+   * cliente vede la mattina dopo, ed è la parte che una nutrizionista deve poter fermare prima che
+   * succeda: passare da 16:8 a 23:1 vuol dire **un pasto solo al giorno**, e dirlo in cifre è
+   * diverso dal farlo leggere dentro «23:1».
+   */
+  anteprimaDigiuno: (cliente: string, prima: string | null, dopo: string, pasti: number, daRifare: number, conPiano: boolean) =>
+    `Sto per mettere **${cliente}** a **${inChiaro(dopo)}**` +
+    `${prima ? `, al posto di ${inChiaro(prima)}` : ''}.\n\n` +
+    `La sua giornata passa a **${pasti} ${pasti === 1 ? 'pasto' : 'pasti'}**. ` +
+    'L\'ora in cui apre la finestra resta la sua: quella la sposta lei dall\'app.\n\n' +
+    /**
+     * ⚠️ **E se la sua finestra di oggi è già aperta, le ore nuove partono da domani.** Dirlo prima
+     * è diverso dal dirlo dopo: chi conferma sta decidendo per la giornata di una persona, e «da
+     * quando» è metà della decisione. La prima stesura scriveva «questo lo scrivo subito», che era
+     * vero solo metà delle volte.
+     */
+    '⚠️ Se la sua finestra di oggi è già aperta le ore nuove partono da domani: un pasto già fatto non si disfa.\n\n' +
+    (daRifare > 0
+      ? `⚠️ Rifaccio anche **${daRifare}** ${daRifare === 1 ? 'giornata già preparata' : 'giornate già preparate'} che non ha ancora aperto, così i pasti seguono le ore nuove.\n\n`
+      : '') +
+    /**
+     * ⚠️ **E se ha un piano graduale in corso, si dice che si chiude.** `decidiCambio` azzera il
+     * bersaglio quando il cambio vale da oggi: una cliente a metà di uno spostamento di quattro ore
+     * — un'ora a notte — si sarebbe ritrovata il piano cancellato senza che né lei né il registro lo
+     * dicessero. *Se degradi, dillo*, anche quando degradi qualcosa di piccolo.
+     */
+    (conPiano ? '⚠️ Ha un adattamento graduale in corso: cambiando le ore quello si chiude.\n\n' : '') +
+    '⚠️ Il limite di «una volta a settimana» vale per lei, non per te.\n\n' +
+    'Confermi?',
+
+  /**
+   * ⛔ **NON SI PROMETTE QUELLO CHE NON SI FA** — corretto al secondo giro di revisione, 25/8. Qui
+   * c'era *«I pasti della sua giornata li ho già rifatti su queste ore»*, e non era vero: cambiare
+   * la finestra scrive `fastingWindow`, ma i **giorni già in calendario** restano com'erano — la
+   * struttura dei pasti la usa il compositore al momento di comporre. Passando 16:8 → 23:1 la
+   * cliente avrebbe continuato a vedere tre pasti nei giorni già preparati, e la nutrizionista
+   * avrebbe letto che erano stati rifatti. *Una ragione falsa è peggio di un ordine sbagliato.*
+   *
+   * ⚠️ La frase adesso dice **quali giorni** sono stati rifatti: il numero glielo passa chi ha fatto
+   * la coda, e `0` è un numero come gli altri — si dice, non si nasconde.
+   */
+  digiunoScritto: (cliente: string, protocollo: string, daQuando: 'oggi' | 'domani', rifatti: number) =>
+    `Fatto: **${cliente}** è a **${protocollo}**, ` +
+    `${daQuando === 'oggi' ? 'da subito' : 'dalla prossima apertura della finestra (domani)'}.\n\n` +
+    (rifatti > 0
+      ? `Ho rifatto ${rifatti} ${rifatti === 1 ? 'giornata' : 'giornate'} già preparate, così i pasti seguono le ore nuove.`
+      : 'Non c\'erano giornate future da rifare: le prossime nasceranno già con queste ore.'),
+
+  digiunoNonScritto: (cliente: string, perche: string) =>
+    `⚠️ Non sono riuscita a cambiare le ore di **${cliente}**: ${perche} ` +
+    'Non ho scritto niente.',
 
   // ───────────────── i percorsi supervisionati da guardare (25/8) ──
 

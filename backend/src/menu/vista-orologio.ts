@@ -34,6 +34,12 @@ export interface ProfiloDigiuno extends ProfiloPerOrologio {
   /** ⚠️ Il protocollo rimandato a domani: lo applica il passo notturno, poi torna `null`. */
   fastingTargetProtocol?: string | null;
   fastingChangedAt?: Date | null;
+  /**
+   * ⛔ Quando ha cambiato le **ore** (il protocollo): il limite settimanale del 25/8. ⚠️ Colonna sua e
+   * non `fastingChangedAt`, che segna anche gli spostamenti della lancetta — che restano liberi una
+   * volta al giorno perché non sono un gesto clinico.
+   */
+  fastingProtocolChangedAt?: Date | null;
 }
 
 export interface PastoInVista {
@@ -58,6 +64,12 @@ export interface VistaOrologio {
   proposta?: { protocollo: string; inizioMin: number; ora: string };
   /** ⚠️ Vero se la sua finestra storica non è riproducibile: da qui nasce la segnalazione (§15). */
   finestraNonTraducibile: boolean;
+  /**
+   * ⛔ **Da quando potrà cambiare le ORE** (ISO), quando il limite settimanale è ancora in corso.
+   * **Assente = può adesso.** Serve all'app per dirlo *prima* che scelga, invece di lasciarle
+   * scoprire il muro dopo aver salvato. Vedi il riquadro in `vistaOrologio`.
+   */
+  oreCambiabiliDal?: string;
   /** Com'è messa adesso. Assente finché non ha scelto: **non si inventa un orologio**. */
   attuale?: {
     protocollo: string;
@@ -100,6 +112,8 @@ export function vistaOrologio(
   passoMin: number = PASSO_GRADUALE_PREDEFINITO,
   soglie?: SogliaPasti[],
   margini?: MarginiPasti,
+  /** Ogni quanti giorni si possono cambiare le ORE. Vedi `GIORNI_FRA_DUE_PROTOCOLLI`. */
+  giorniFraProtocolli: number = 7,
 ): VistaOrologio {
   const atterraggio = atterraggioOrologio(profilo);
   const vista: VistaOrologio = {
@@ -109,6 +123,24 @@ export function vistaOrologio(
     finestraNonTraducibile: atterraggio.finestraNonTraducibile,
     protocolli: CATALOGO_PROTOCOLLI,
   };
+
+  /**
+   * ⛔ **QUANDO POTRÀ CAMBIARE LE ORE, prima di provarci** — aggiunto in revisione, 25/8.
+   *
+   * La colonna del limite settimanale era scritta e **letta da nessuno**: l'app disegnava i cinque
+   * pulsanti tutti attivi, e la cliente scopriva il muro **dopo** aver scelto e salvato. Un limite
+   * che si conosce solo sbattendoci contro è la definizione dell'attrito messo male — proprio quello
+   * di cui la voce avvertiva («fa sembrare l'app una cosa che non ti lascia fare»).
+   *
+   * ⚠️ `null` vuol dire «può adesso», e comprende anche chi non le ha mai cambiate: NULL in tabella
+   * è «non l'ha mai fatto», non «l'ha fatto tanto tempo fa».
+   */
+  const oreDal = profilo.fastingProtocolChangedAt
+    ? new Date(profilo.fastingProtocolChangedAt.getTime() + giorniFraProtocolli * 86_400_000)
+    : null;
+  if (oreDal && oreDal.getTime() > Date.now()) {
+    vista.oreCambiabiliDal = oreDal.toISOString();
+  }
   if (atterraggio.proposta) {
     vista.proposta = { ...atterraggio.proposta, ora: oraDelGiorno(atterraggio.proposta.inizioMin) };
   }

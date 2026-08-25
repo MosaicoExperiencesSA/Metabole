@@ -2049,21 +2049,48 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-23T08:05',
-    titolo: 'Cambiare le ore del digiuno è troppo facile: oggi si può ogni giorno',
+    fatta: true,
+    titolo: '✅ Le ore del digiuno si cambiano una volta a settimana — e la nutrizionista può correggerle da Vera',
     dettaglio:
-      'Segnalato dalla capo nutrizionista il 23/8: *«dovrebbe essere più difficile modificare le ore per '
-      + 'digiunare, così puoi ogni giorno modificarlo»*. Oggi le cinque durate (14:10, 16:8, 18:6, 20:4, '
-      + '23:1) sono cinque pulsanti nella schermata del digiuno, e la cliente può passare dall\'una '
-      + 'all\'altra quando vuole.\n\n'
-      + '⚠️ **È una richiesta clinica, non di interfaccia**: un protocollo cambiato ogni giorno non è un '
-      + 'protocollo, e i numeri che la nutrizionista guarda per capire se sta funzionando diventano la '
-      + 'media di cinque cose diverse. ⚠️ Ma è anche il tipo di attrito che, messo male, fa sembrare '
-      + 'l\'app una cosa che non ti lascia fare — e chi ha una giornata storta smette di aprirla invece '
-      + 'di adattare la finestra.\n\n'
-      + '**Da decidere con Lucia prima di scrivere una riga**, e sono tre domande diverse: ogni quanto si '
-      + 'può cambiare (una volta a settimana? al ciclo?); chi può farlo fuori da quella regola (la '
-      + 'nutrizionista sempre, immagino); e cosa legge la cliente quando non può — che è la parte in cui '
-      + 'un divieto diventa una spiegazione o un muro.',
+      'Segnalato dalla capo nutrizionista il 23/8: *«dovrebbe essere più difficile modificare le ore '
+      + 'per digiunare, così puoi ogni giorno modificarlo»*. Le cinque durate (14:10, 16:8, 18:6, '
+      + '20:4, 23:1) erano cinque pulsanti, e la cliente poteva passare dall\'una all\'altra quando '
+      + 'voleva. ⚠️ Un protocollo cambiato ogni giorno non è un protocollo, e i numeri che la '
+      + 'nutrizionista guarda per capire se sta funzionando diventano la media di cinque cose '
+      + 'diverse.\n\n'
+      + '✅ **Le tre domande, risposte da Simone il 25/8**: *«Sì, posso cambiare solo una volta a '
+      + 'settimana; per cambi ulteriori va richiesto al nutrizionista — attraverso Vera il '
+      + 'nutrizionista può correggere.»*\n\n'
+      + '✅ **Consegnato il 25/8.** (1) Il limite vale sul **protocollo**, non sullo spostamento della '
+      + 'lancetta: le ore sono un fatto clinico, spostare la finestra di un\'ora perché stasera si '
+      + 'cena fuori non lo è, e lì resta il limite di uno al giorno che c\'era già. ⛔ Colonna nuova '
+      + '(`fasting_protocol_changed_at`) e non `fastingChangedAt`: riusando quella, spostare la '
+      + 'finestra di mezz\'ora avrebbe bloccato le ore per una settimana — un limite che scatta su un '
+      + 'gesto che non c\'entra è un limite che nessuno capisce. (2) Il rifiuto dice **da quando** si '
+      + 'può rifare **e** che la nutrizionista lo fa subito: questa voce avvertiva che *«un attrito '
+      + 'messo male fa sembrare l\'app una cosa che non ti lascia fare»*, e un divieto che offre una '
+      + 'strada è una spiegazione, uno che non ne offre è un muro.\n\n'
+      + '⛔ **E la strada è stata costruita, perché non c\'era.** Dal 21/8 la tendina della finestra è '
+      + 'fuori dalla scheda staff — la finestra la deriva l\'orologio della cliente — e in tutto il '
+      + 'backend **nessuno** poteva cambiare il protocollo di qualcun altro. Mettere il limite senza '
+      + 'aprire la porta avrebbe mandato una cliente da una persona che non può farci niente: un '
+      + 'cancello chiuso, con in più una frase che le fa credere il contrario. Adesso da **Vera**: '
+      + '*«metti Giulia a 18:6»*, *«passala su avanzato»*, *«cambia il digiuno di Giulia»* (e se non '
+      + 'dice a quale, si chiede). L\'anteprima mostra **le ore in chiaro e quanti pasti** avrà la '
+      + 'sua giornata — «23:1» è un codice, «un pasto solo al giorno» è la cosa che si sta decidendo '
+      + '— e la scrittura passa dalle **stesse due funzioni** della cliente (`decidiCambio` e '
+      + '`scriviLOrologio`), estratte apposta: una seconda stesura avrebbe messo le ore nuove e '
+      + 'lasciato i pasti di prima.\n\n'
+      + '⚠️ **Quello che la nutrizionista scavalca sono i LIMITI, non la realtà**: se la finestra di '
+      + 'oggi si è già aperta, le ore nuove partono da domani anche per lei — la cliente ha già '
+      + 'mangiato con quelle di stamattina, e disfare un pasto fatto è la cosa che questo modulo '
+      + 'promette di non fare da quando esiste. E l\'audit dice **chi ha agito**: senza, il registro '
+      + 'avrebbe raccontato che la cliente ha cambiato le sue ore da sola proprio nel caso in cui non '
+      + 'poteva farlo.\n\n'
+      + '⚠️ La soglia è in `config_param` (`fasting_protocol_change_days`, 7): Lucia può portarla a 14 '
+      + 'senza un rilascio. ⚠️ **L\'ORARIO non si detta a Vera**, ed è una scelta: dove sta la '
+      + 'finestra nella giornata di una persona — quando lavora, quando cena — lo sa lei, e lo sposta '
+      + 'dall\'app.',
   },
   {
     chiave: 'data-inizio-giorno-o-istante',

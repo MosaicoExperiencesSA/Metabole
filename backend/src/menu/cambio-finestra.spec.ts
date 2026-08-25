@@ -21,6 +21,7 @@ import {
   passoDiStanotte,
   ragioniDaVerificare,
   scartoPiuCorto,
+  GIORNI_FRA_DUE_PROTOCOLLI,
 } from './cambio-finestra';
 import { PROTOCOLLI_DIGIUNO } from './orologio-digiuno';
 
@@ -443,5 +444,136 @@ describe('il passo è un numero solo, e si può cambiare senza un rilascio', () 
     const e = decidiCambio(attuale(), { inizioMin: H(8) }, MATTINA, 120);
     expect(e.giorniDelPiano).toBe(2);
     expect(passoDiStanotte(H(12), H(8), 120)).toEqual({ inizioMin: H(10), arrivata: false });
+  });
+});
+
+/**
+ * ⛔ **LE ORE DEL DIGIUNO SI CAMBIANO UNA VOLTA A SETTIMANA** — richiesta della capo nutrizionista
+ * (23/8: *«dovrebbe essere più difficile modificare le ore per digiunare, così puoi ogni giorno
+ * modificarlo»*), decisa da Simone il 25/8: *«sì, posso cambiare solo una volta a settimana; per
+ * cambi ulteriori va richiesto al nutrizionista — attraverso Vera il nutrizionista può correggere»*.
+ *
+ * ⛔ **Vale sul PROTOCOLLO, non sullo spostamento della lancetta**, ed è tutta la differenza fra una
+ * regola clinica e un muro: le ore sono un fatto clinico, spostare la finestra di un'ora perché
+ * stasera si cena fuori non lo è. La voce che questa regola chiude avvertiva proprio del rischio
+ * dall'altra parte: *«è il tipo di attrito che, messo male, fa sembrare l'app una cosa che non ti
+ * lascia fare»*.
+ */
+describe('⛔ le ore del digiuno: una volta a settimana', () => {
+  const ADESSO = new Date('2026-08-25T10:00:00Z');
+  const momento = { adesso: ADESSO, oraMin: 12 * 60 };
+  const giorniFa = (n: number) => new Date(ADESSO.getTime() - n * 86_400_000);
+
+  const attuale = (protocolloCambiatoIl: Date | null) => ({
+    protocollo: '16:8',
+    inizioMin: 12 * 60,
+    cambiataIl: null,
+    protocolloCambiatoIl,
+  });
+
+  it('⛔ cambiarle due giorni dopo non si può, e la frase dice quando', () => {
+    const e = decidiCambio(attuale(giorniFa(2)), { protocollo: '18:6' }, momento, {});
+    expect(e.permesso).toBe(false);
+    expect(e.rifiuto).toContain('5 giorni');
+  });
+
+  /**
+   * ⛔ **E dice anche a chi chiedere.** Un divieto che offre una strada è una spiegazione; uno che
+   * non ne offre è un muro — e quella strada esiste davvero (`ProfileService.impostaPerStaff`).
+   */
+  it('⛔ e dice che la nutrizionista può farlo', () => {
+    const e = decidiCambio(attuale(giorniFa(1)), { protocollo: '18:6' }, momento, {});
+    expect(e.rifiuto).toContain('nutrizionista');
+  });
+
+  it('⛔ dopo sette giorni si può', () => {
+    expect(decidiCambio(attuale(giorniFa(7)), { protocollo: '18:6' }, momento, {}).permesso).toBe(true);
+  });
+
+  it('⛔ e la PRIMA volta è sempre libera: `null` vuol dire «non l’ha mai cambiato»', () => {
+    expect(decidiCambio(attuale(null), { protocollo: '18:6' }, momento, {}).permesso).toBe(true);
+  });
+
+  /**
+   * ⛔ **LA CONTROPROVA, ed è quella che conta**: spostare la lancetta non è cambiare le ore. Se
+   * questo test fosse rosso, chi sposta la finestra di mezz'ora si vedrebbe bloccare il protocollo
+   * per una settimana — un limite che scatta su un gesto che non c'entra è un limite che nessuno
+   * capisce, ed è il motivo per cui la colonna nel database è una sua e non `fastingChangedAt`.
+   */
+  it('⛔ ma spostare la LANCETTA resta libero: lì vale il limite giornaliero di sempre', () => {
+    const e = decidiCambio(attuale(giorniFa(1)), { inizioMin: 13 * 60 }, momento, {});
+    expect(e.permesso).toBe(true);
+    expect(e.scrivi.protocollo).toBe('16:8');
+  });
+
+  /** ⚠️ E il limite giornaliero sulla lancetta continua a mordere: non è stato allentato. */
+  it('⚠️ due spostamenti della lancetta nello stesso giorno no, come prima', () => {
+    const e = decidiCambio(
+      { ...attuale(null), cambiataIl: new Date(ADESSO.getTime() - 3_600_000) },
+      { inizioMin: 13 * 60 },
+      momento,
+      {},
+    );
+    expect(e.permesso).toBe(false);
+    expect(e.rifiuto).toContain('ore');
+  });
+
+  /**
+   * ⛔ **LA PORTA DELLA NUTRIZIONISTA.** `perStaff` toglie i limiti — tutti e due — ed è il permesso
+   * che la frase della cliente promette, non una scorciatoia.
+   */
+  it('⛔ per la nutrizionista i limiti non valgono, nessuno dei due', () => {
+    const e = decidiCambio(
+      // Ore cambiate ieri E lancetta spostata un'ora fa: per la cliente sarebbero due «no».
+      { ...attuale(giorniFa(1)), cambiataIl: new Date(ADESSO.getTime() - 3_600_000) },
+      { protocollo: '18:6' },
+      // Prima che la finestra di oggi si apra: così il cambio vale da subito.
+      { adesso: ADESSO, oraMin: 9 * 60 },
+      { perStaff: true },
+    );
+    expect(e.permesso).toBe(true);
+    expect(e.scrivi.protocollo).toBe('18:6');
+  });
+
+  /**
+   * ⛔ **Ma la regola dei pasti già fatti vale anche per lei.** Se la finestra di oggi è già aperta,
+   * le ore nuove partono **domani**: la cliente ha già mangiato con quelle di stamattina, e disfare
+   * un pasto fatto è la cosa che questo modulo promette di non fare da quando esiste. La
+   * nutrizionista scavalca i **limiti**, non la realtà della giornata di una persona.
+   */
+  it('⛔ ma a finestra già aperta le ore nuove partono da domani, anche per lei', () => {
+    const e = decidiCambio(
+      attuale(null),
+      { protocollo: '18:6' },
+      { adesso: ADESSO, oraMin: 12 * 60 + 30 }, // la finestra si è aperta mezz'ora fa
+      { perStaff: true },
+    );
+    expect(e.permesso).toBe(true);
+    expect(e.scrivi.protocollo).toBe('16:8');
+    expect(e.scrivi.bersaglioProtocollo).toBe('18:6');
+    expect(e.daQuando).toBe('domani');
+  });
+
+  /** ⚠️ La soglia viene da `config_param`: Lucia può chiedere «ogni 14 giorni» senza un rilascio. */
+  it('⚠️ il passo lo decide `fasting_protocol_change_days`', () => {
+    expect(decidiCambio(attuale(giorniFa(10)), { protocollo: '18:6' }, momento, { giorniFraProtocolli: 14 }).permesso).toBe(false);
+    expect(decidiCambio(attuale(giorniFa(10)), { protocollo: '18:6' }, momento, { giorniFraProtocolli: 3 }).permesso).toBe(true);
+  });
+
+  /**
+   * ⚠️ **Un valore assurdo in tabella non spegne il limite né lo rende eterno.** `0` significherebbe
+   * «sempre», un negativo lo stesso, e con `NaN` il confronto sarebbe sempre falso: tutti e tre
+   * toglierebbero la regola in silenzio, che è il modo peggiore di toglierla.
+   */
+  it('⛔ una soglia a zero, negativa o assurda ricade sui 7 giorni', () => {
+    for (const g of [0, -3, Number.NaN]) {
+      expect(decidiCambio(attuale(giorniFa(2)), { protocollo: '18:6' }, momento, { giorniFraProtocolli: g }).permesso).toBe(false);
+    }
+    expect(GIORNI_FRA_DUE_PROTOCOLLI).toBe(7);
+  });
+
+  /** ⚠️ E il numero nudo continua a funzionare: è come lo chiamavano le porte di prima. */
+  it('⚠️ chiamare con il solo passo graduale, come prima, non cambia niente', () => {
+    expect(decidiCambio(attuale(null), { inizioMin: 13 * 60 }, momento, 30).passoUsatoMin).toBe(30);
   });
 });

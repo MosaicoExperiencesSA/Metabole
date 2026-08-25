@@ -68,7 +68,15 @@ function creaServizio(
     // `avvisaAttivitaNuova` legge la cliente e il suo staff per mandare la push: qui non c'è nessuno.
     user: { findUnique: jest.fn().mockResolvedValue(null) },
   };
-  const configParams = { getNumber: jest.fn().mockResolvedValue(60) };
+  /**
+   * ⚠️ **Il finto risponde per CHIAVE.** Rispondendo 60 a tutto, dal 25/8 il limite settimanale sulle
+   * ore diventava di sessanta giorni e i test dicevano «fra 58 giorni» — cioè il doppio non seguiva
+   * più l'originale, ed è la stessa lezione già pagata su `audit.log` e su `cercaPerIngrediente`.
+   */
+  const configParams = {
+    getNumber: jest.fn(async (chiave: string, predefinito?: number) =>
+      chiave === 'digiuno_passo_graduale_min' ? 60 : (predefinito ?? 60)),
+  };
   const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
   const service = new ProfileService(
     prisma as unknown as PrismaService,
@@ -450,5 +458,209 @@ describe('getDigiuno', () => {
   it('un profilo che non esiste è un 404', async () => {
     const { service } = creaServizio(null);
     await expect(service.getDigiuno('u1')).rejects.toThrow(/Profilo/);
+  });
+});
+
+/**
+ * ⛔ **LE ORE DEL DIGIUNO SI CAMBIANO UNA VOLTA A SETTIMANA, E DALLA PORTA DELLA CLIENTE.**
+ *
+ * Richiesta della capo nutrizionista (23/8), decisa da Simone il 25/8. ⚠️ Qui si guarda il giro
+ * **vero** — la lettura del profilo, la decisione, quello che finisce scritto — perché la regola
+ * pura è già provata in `cambio-finestra.spec.ts` e quello che può ancora rompersi è il cablaggio:
+ * il campo letto, il campo scritto, e il fatto che si scriva **solo quando serve**.
+ */
+describe('⛔ le ore del digiuno: una volta a settimana (dalla porta della cliente)', () => {
+  const GIORNI = 86_400_000;
+  const giorniFa = (n: number) => new Date(MATTINA_ROMA.getTime() - n * GIORNI);
+
+  const conOre = (extra: Profilo = {}): Profilo =>
+    inDigiuno({
+      fastingProtocol: '16:8',
+      fastingStartMin: H(12),
+      fastingWindow: '12-20',
+      fastingSceltoIl: giorniFa(30),
+      ...extra,
+    });
+
+  it('⛔ cambiare le ore due giorni dopo si rifiuta, e la frase dice quando e a chi chiedere', async () => {
+    const { service, scritture } = creaServizio(conOre({ fastingProtocolChangedAt: giorniFa(2) }));
+    await expect(service.impostaDigiuno('u1', { protocollo: '18:6' })).rejects.toThrow(/5 giorni/);
+    await expect(service.impostaDigiuno('u1', { protocollo: '18:6' })).rejects.toThrow(/nutrizionista/);
+    // ⛔ E non si scrive niente: un rifiuto che scrive è peggio di un rifiuto.
+    expect(scritture).toEqual([]);
+  });
+
+  it('⛔ dopo sette giorni si può, e la data delle ore si aggiorna', async () => {
+    const { service, scritture } = creaServizio(conOre({ fastingProtocolChangedAt: giorniFa(8) }));
+    await service.impostaDigiuno('u1', { protocollo: '18:6' });
+    expect(scritture[0].fastingProtocol).toBe('18:6');
+    expect(scritture[0].fastingProtocolChangedAt).toEqual(MATTINA_ROMA);
+  });
+
+  it('⛔ e la PRIMA volta che le cambia è libera', async () => {
+    const { service, scritture } = creaServizio(conOre({ fastingProtocolChangedAt: null }));
+    await service.impostaDigiuno('u1', { protocollo: '18:6' });
+    expect(scritture[0].fastingProtocol).toBe('18:6');
+  });
+
+  /**
+   * ⛔ **IL BUCO PEGGIORE DELLA PRIMA STESURA** (trovato in revisione, 25/8).
+   *
+   * Quando la finestra di oggi si è **già aperta**, il protocollo nuovo va in `bersaglioProtocollo` e
+   * lo applica il cron: `scrivi.protocollo` resta quello vecchio. La condizione guardava solo
+   * quello, quindi la data **non si scriveva mai** — e una cliente che toccava l'app **dentro la sua
+   * finestra di alimentazione** poteva cambiare protocollo tutti i giorni, per sempre. Per una 16:8
+   * sono otto ore al giorno, proprio quelle in cui una persona pensa al cibo e apre l'app.
+   */
+  it('⛔ il cambio rimandato a domani consuma comunque il credito settimanale', async () => {
+    jest.setSystemTime(POMERIGGIO_ROMA); // la finestra apre a mezzogiorno: adesso è aperta
+    const { service, scritture } = creaServizio(conOre({ fastingProtocolChangedAt: null }));
+    await service.impostaDigiuno('u1', { protocollo: '18:6' });
+    // Le ore di oggi restano quelle di prima — un pasto già fatto non si disfa…
+    expect(scritture[0].fastingProtocol).toBe('16:8');
+    expect(scritture[0].fastingTargetProtocol).toBe('18:6');
+    // …ma la DECISIONE è di oggi, e il credito settimanale si consuma adesso.
+    expect(scritture[0].fastingProtocolChangedAt).toEqual(POMERIGGIO_ROMA);
+  });
+
+  it('⛔ e infatti il giorno dopo non le può cambiare di nuovo', async () => {
+    jest.setSystemTime(POMERIGGIO_ROMA);
+    const { service } = creaServizio(conOre({ fastingProtocolChangedAt: new Date(POMERIGGIO_ROMA.getTime() - 86_400_000) }));
+    await expect(service.impostaDigiuno('u1', { protocollo: '20:4' })).rejects.toThrow(/6 giorni/);
+  });
+
+  /**
+   * ⛔ **La PRIMA scelta non consuma il credito.** Migrazione e schema dicono tutti e due «NULL =
+   * non l'ha mai cambiato»; senza questa riga la cliente sceglieva in onboarding la finestra che le
+   * compariva e si trovava il muro per sette giorni — proprio mentre rispondeva a una domanda che
+   * non le era mai stata fatta.
+   */
+  it('⛔ la prima scelta NON scrive la data delle ore', async () => {
+    const { service, scritture } = creaServizio(inDigiuno());
+    await service.impostaDigiuno('u1', { protocollo: '16:8', inizioMin: H(12) });
+    expect(scritture[0].fastingProtocol).toBe('16:8');
+    expect(scritture[0].fastingProtocolChangedAt).toBeUndefined();
+  });
+
+  /**
+   * ⛔ **LA CONTROPROVA, ed è quella che conta.** Spostare la lancetta non è cambiare le ore: se
+   * questo test fosse rosso, chi sposta la finestra di mezz'ora si vedrebbe bloccare il protocollo
+   * per una settimana — un limite che scatta su un gesto che non c'entra è un limite che nessuno
+   * capisce, ed è il motivo per cui la colonna nel database è una sua.
+   */
+  it('⛔ spostare la LANCETTA resta libero, e NON scrive la data delle ore', async () => {
+    const { service, scritture } = creaServizio(conOre({ fastingProtocolChangedAt: giorniFa(1) }));
+    await service.impostaDigiuno('u1', { inizioMin: H(13) });
+    expect(scritture[0].fastingStartMin).toBe(H(13));
+    expect(scritture[0].fastingProtocol).toBe('16:8');
+    expect(scritture[0].fastingProtocolChangedAt).toBeUndefined();
+  });
+});
+
+/**
+ * ⛔ **LA PORTA DELLA NUTRIZIONISTA** — quella che la frase della cliente promette.
+ *
+ * «Se ti serve prima, scrivilo alla tua nutrizionista: lo cambia lei.» ⛔ Fino al 25/8 quella porta
+ * non esisteva: dal 21/8 la tendina della finestra è fuori dalla scheda staff. Un limite senza la
+ * sua porta è un cancello chiuso, con in più una frase che fa credere il contrario.
+ */
+describe('⛔ impostaPerStaff: la nutrizionista cambia le ore', () => {
+  const giorniFa = (n: number) => new Date(MATTINA_ROMA.getTime() - n * 86_400_000);
+
+  const conOre = (extra: Profilo = {}): Profilo =>
+    inDigiuno({
+      fastingProtocol: '16:8',
+      fastingStartMin: H(12),
+      fastingWindow: '12-20',
+      fastingSceltoIl: giorniFa(30),
+      ...extra,
+    });
+
+  /**
+   * ⛔ **E il limite della LANCETTA resta della cliente.** `scriviLOrologio` scriveva
+   * `fastingChangedAt` anche dalla porta staff: se Lucia correggeva le ore alle 13:00, alle 20:00
+   * Giulia che voleva spostare la finestra di un'ora leggeva «l'hai già spostata da poco, puoi
+   * rifarlo fra 19 ore». Non l'aveva spostata lei — è il gesto di una persona che blocca quello di
+   * un'altra, con una frase falsa in mezzo.
+   */
+  it('⛔ quello che scrive la nutrizionista non blocca la lancetta della cliente', async () => {
+    const { service, scritture } = creaServizio(conOre({ fastingChangedAt: null }));
+    await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia');
+    expect(scritture[0].fastingChangedAt).toBeUndefined();
+    // ⚠️ Ma le ore sì: il credito settimanale della cliente si consuma, ed è giusto — le ore sono
+    // cambiate davvero, e riaprirle domani sarebbe un altro cambio.
+    expect(scritture[0].fastingProtocolChangedAt).toEqual(MATTINA_ROMA);
+  });
+
+  it('⛔ i limiti della cliente non valgono per lei', async () => {
+    const { service, scritture } = creaServizio(
+      // Ore cambiate ieri E lancetta spostata un'ora fa: per la cliente sarebbero due «no».
+      conOre({ fastingProtocolChangedAt: giorniFa(1), fastingChangedAt: new Date(MATTINA_ROMA.getTime() - 3_600_000) }),
+    );
+    const esito = await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia');
+    expect(esito.ok).toBe(true);
+    expect(scritture[0].fastingProtocol).toBe('18:6');
+    // ⚠️ E i pasti si riderivano: le ore nuove senza la finestra nuova sarebbero uno stato mezzo scritto.
+    expect(scritture[0].fastingWindow).not.toBe('12-20');
+  });
+
+  /**
+   * ⛔ **Nel registro c'è chi ha agito**, non chi ha subito. Senza, l'audit avrebbe detto che la
+   * cliente ha cambiato le sue ore da sola proprio nel caso in cui non poteva farlo — cioè avrebbe
+   * raccontato il contrario di quello che è successo.
+   */
+  it('⛔ l’audit dice che è stata la nutrizionista', async () => {
+    const { service, audit } = creaServizio(conOre());
+    await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia');
+    expect(audit[0].actorId).toBe('lucia');
+    expect((audit[0].metadata as Record<string, unknown>).daStaff).toBe(true);
+    expect((audit[0].metadata as Record<string, unknown>).daApp).toBe(false);
+  });
+
+  /**
+   * ⛔ **Non lancia mai**: chi chiama è una chat, e a una nutrizionista che ha appena detto «mettila
+   * a 16:8» si deve poter rispondere *perché* non si è potuto, non un errore rosso.
+   */
+  it('⛔ su chi non è in digiuno risponde di no, senza esplodere e senza scrivere', async () => {
+    const { service, scritture } = creaServizio(inDigiuno({ pathType: 'standard' }));
+    const esito = await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia');
+    expect(esito.ok).toBe(false);
+    expect(esito.perche).toContain('digiuno intermittente');
+    expect(scritture).toEqual([]);
+  });
+
+  /**
+   * ⛔ **A CHI NON HA MAI SCELTO LA SUA FINESTRA NON SI SCRIVE DA QUI**, e i danni erano tre insieme:
+   * `decidiCambio` ripiegava su `inizioMin: 0` e le scriveva una finestra **00:00 – 06:00** (mangia
+   * dalla mezzanotte alle sei, perché nessuno le ha mai chiesto a che ora mangia); `fastingSceltoIl`
+   * veniva scritto e la pagina dell'orologio **non le si apriva più**; e l'attività «finestra mai
+   * chiesta» per la nutrizionista non sarebbe mai nata. Tutto su una persona che non è nella stanza.
+   */
+  it('⛔ su chi non ha mai scelto la sua finestra non si scrive: le ore da sole non bastano', async () => {
+    const { service, scritture } = creaServizio(
+      inDigiuno({ fastingProtocol: null, fastingStartMin: null, fastingSceltoIl: null }),
+    );
+    const esito = await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia');
+    expect(esito.ok).toBe(false);
+    expect(esito.perche).toContain('non ha ancora scelto');
+    expect(scritture).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **«Non c'era niente da cambiare» non è «fatto».** Qui si rendeva `ok: true` senza scrivere una
+   * riga, e chi chiama scriveva comunque il registro e diceva «Fatto». Serve una corsa fra anteprima
+   * e conferma, ma è lo stesso schema di difetto già pagato sulle proteine il 24/8.
+   */
+  it('⚠️ mettere le ore che ha già non è un successo', async () => {
+    const { service, scritture } = creaServizio(conOre());
+    const esito = await service.impostaPerStaff('u1', { protocollo: '16:8' }, 'lucia');
+    expect(esito.ok).toBe(false);
+    expect(esito.perche).toContain('già a quelle ore');
+    expect(scritture).toEqual([]);
+  });
+
+  it('⚠️ e su un profilo che non esiste nemmeno', async () => {
+    const { service } = creaServizio(null);
+    expect((await service.impostaPerStaff('u1', { protocollo: '18:6' }, 'lucia')).ok).toBe(false);
   });
 });

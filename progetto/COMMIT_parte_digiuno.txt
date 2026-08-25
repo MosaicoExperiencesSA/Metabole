@@ -1,0 +1,95 @@
+================================================================================
+LAVORO: le ore del digiuno non si cambiano ogni giorno (25/8) — consegna 94
+================================================================================
+
+La capo nutrizionista, 23/8: «dovrebbe essere più difficile modificare le ore per
+digiunare, così puoi ogni giorno modificarlo». Le cinque durate (14:10, 16:8,
+18:6, 20:4, 23:1) erano cinque pulsanti, e la cliente poteva passare dall'una
+all'altra quando voleva. Un protocollo cambiato ogni giorno non è un protocollo, e
+i numeri che la nutrizionista guarda per capire se sta funzionando diventano la
+media di cinque cose diverse.
+
+Simone, 25/8: «Sì, posso cambiare solo una volta a settimana; per cambi ulteriori
+va richiesto al nutrizionista — attraverso Vera il nutrizionista può correggere.»
+
+COSA C'È DENTRO
+
+1. Il limite vale sul PROTOCOLLO, non sullo spostamento della lancetta. Le ore
+   sono un fatto clinico; spostare la finestra di un'ora perché stasera si cena
+   fuori non lo è, e lì resta il limite di uno al giorno che c'era già. Colonna
+   nuova `fasting_protocol_changed_at` (migrazione additiva) e non
+   `fastingChangedAt`: riusando quella, spostare la finestra di mezz'ora avrebbe
+   bloccato le ore per una settimana.
+
+2. Il rifiuto dice DA QUANDO si può rifare e CHE la nutrizionista lo fa subito.
+   La voce avvertiva che «un attrito messo male fa sembrare l'app una cosa che non
+   ti lascia fare»: un divieto che offre una strada è una spiegazione, uno che non
+   ne offre è un muro. E la vista dell'app porta `oreCambiabiliDal`, così il limite
+   si sa PRIMA di provarci, non dopo aver salvato.
+
+3. LA STRADA È STATA COSTRUITA, PERCHÉ NON C'ERA. Dal 21/8 la tendina della
+   finestra è fuori dalla scheda staff, e in tutto il backend nessuno poteva
+   cambiare il protocollo di qualcun altro: mettere il limite senza aprire la porta
+   avrebbe mandato una cliente da una persona che non può farci niente. Adesso da
+   Vera: «metti Giulia a 18:6», «passala al digiuno standard», «cambia il digiuno
+   di Giulia» (e se non dice a quale, si chiede — e la domanda si può rispondere).
+   L'anteprima mostra le ore in chiaro, quanti pasti avrà la giornata, quante
+   giornate già preparate si rifanno, e se un adattamento graduale si chiude.
+
+4. La scrittura passa dalle STESSE due funzioni della cliente (`decidiCambio` e
+   `scriviLOrologio`, estratta apposta): una seconda stesura avrebbe messo le ore
+   nuove e lasciato i pasti di prima. La nutrizionista scavalca i LIMITI, non la
+   realtà: se la finestra di oggi è già aperta, le ore nuove partono da domani
+   anche per lei.
+
+5. Soglia in `config_param` (`fasting_protocol_change_days`, 7).
+
+DUE BLOCCANTI E NOVE DIFETTI VERI, TROVATI IN REVISIONE
+
+- BLOCCANTE: la migrazione diceva `ALTER TABLE "client_profiles"` — al plurale —
+  mentre il modello ha `@@map("client_profile")`. `prisma migrate deploy` sarebbe
+  fallito, la migrazione sarebbe restata *failed* e avrebbe bloccato TUTTE quelle
+  dopo. La suite era verde: 333 suite, 5556 test, e nessuno guardava questo. Adesso
+  c'è un guardiano (`le-migrazioni-nominano-tabelle-vere.spec.ts`) che confronta i
+  nomi di tabella delle migrazioni con quelli dello schema.
+- BLOCCANTE: il limite si aggirava SEMPRE. A finestra già aperta il protocollo
+  nuovo va nel bersaglio e `scrivi.protocollo` resta quello vecchio: la condizione
+  guardava solo quello, quindi la data non si scriveva mai. Una cliente che tocca
+  l'app dentro la sua finestra di alimentazione — otto ore al giorno su una 16:8 —
+  poteva cambiare protocollo tutti i giorni, per sempre.
+- «Metti Giulia a 18:6» con la maiuscola, cioè come si scrive davvero, non trovava
+  la cliente: Vera cercava una persona di nome «Metti Giulia».
+- «Sposta la visita di Giulia al 14/10» apriva un'anteprima «sto per mettere Giulia
+  a 14:10… Confermi?». Le cinque coppie del catalogo sono tutte date plausibili.
+- «Metti la dieta standard a Giulia» diventava l'ordine di portarla a 16:8.
+- La domanda «A quale?» non si poteva rispondere: lo stato restava `quale_cliente`,
+  quindi «18:6» finiva nella ricerca della cliente.
+- Il registro diceva che era stata LA CLIENTE: `attoreId` non arrivava mai.
+- Su una cliente che non ha mai scelto la finestra si scriveva 00:00–06:00, si
+  chiudeva per sempre la pagina dell'orologio e si toglieva l'attività alla
+  nutrizionista. Adesso si rifiuta: le ore da sole non sono una finestra.
+- «I pasti della sua giornata li ho già rifatti» era falso: adesso si rifanno
+  davvero (la coda, come le proteine) e la frase dice quante.
+- La nutrizionista bloccava la lancetta della cliente per 20 ore, con una frase
+  falsa («l'hai già spostata da poco»).
+- La prima scelta consumava il credito settimanale.
+- `metodo: 'nessuno'` diceva «Fatto» e scriveva il registro.
+
+FILE NEL COMMIT
+- backend/prisma/migrations/20260825140000_ore_del_digiuno_una_volta_a_settimana/ (nuova)
+- backend/prisma/schema.prisma · seed.ts
+- backend/src/vera/digiuno-dettato.ts + .spec.ts                         (nuovi)
+- backend/src/vera/scrittura-digiuno.ts                                  (nuovo)
+- backend/src/common/le-migrazioni-nominano-tabelle-vere.spec.ts         (nuovo)
+- backend/src/menu/cambio-finestra.ts + .spec.ts
+- backend/src/menu/vista-orologio.ts · menu-da-rifare.ts
+- backend/src/profile/profile.service.ts · imposta-digiuno.spec.ts
+- backend/src/vera/capisci.ts · vera-chat.ts · vera-chat.service.ts + .spec.ts
+- backend/src/vera/vera.module.ts
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+⚠️ **C'È UNA MIGRAZIONE** (additiva, colonna nullable): va girata.
+⚠️ Il seed va girato per creare `fasting_protocol_change_days` (senza, il passo è 7).
+⚠️ L'app non cambia in questa consegna: legge già il messaggio del server sul
+   rifiuto. `oreCambiabiliDal` è pronto per quando si vorrà spegnere i pulsanti.

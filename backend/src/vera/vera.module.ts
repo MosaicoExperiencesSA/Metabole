@@ -15,9 +15,12 @@ import { RegistroVeraService } from './registro.service';
 import { ClientsService } from '../clients/clients.service';
 import { NutritionistModule } from '../nutritionist/nutritionist.module';
 import { NutritionistService } from '../nutritionist/nutritionist.service';
+import { ProfileModule } from '../profile/profile.module';
+import { ProfileService } from '../profile/profile.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
 import { SCRITTURA_COMBINAZIONE } from './scrittura-combinazione';
 import { SCRITTURA_DECISIONE } from './scrittura-decisione';
+import { SCRITTURA_DIGIUNO } from './scrittura-digiuno';
 import { SCRITTURA_RICETTA } from './scrittura-ricetta';
 import { SCRITTURA_SOSTITUZIONI } from './scrittura-sostituzioni';
 import { VeraChatService } from './vera-chat.service';
@@ -91,7 +94,7 @@ import { VeraController } from './vera.controller';
    * nessuno dei due conosce Vera.
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule, EquivalenceModule],
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule, EquivalenceModule, ProfileModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
@@ -119,6 +122,12 @@ import { VeraController } from './vera.controller';
      * sola») stanno là e non si duplicano in Vera.
      */
     { provide: SCRITTURA_DECISIONE, useExisting: NutritionistService },
+    /**
+     * ⛔ Le ORE del digiuno (25/8): la porta che la regola della cliente promette. `useExisting`
+     * come le altre — è la stessa istanza che serve l'app, quindi la scrittura passa dalle stesse
+     * due funzioni (`decidiCambio` e `scriviLOrologio`) e non da una seconda stesura.
+     */
+    { provide: SCRITTURA_DIGIUNO, useExisting: ProfileService },
   ],
   exports: [PoolDisponibileService, DizionarioService, RegistroVeraService, VeraChatService, RichiesteVeraService],
 })

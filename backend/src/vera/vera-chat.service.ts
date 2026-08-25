@@ -15,6 +15,7 @@
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
+import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
@@ -26,10 +27,10 @@ import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
-import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
+import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoDigiuno, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
   IntentoEquivalenza,
 } from './capisci';
-import { type CodaDaRifare, type GiornoDaValutare, codaDaRifare, daQuandoSiPuoRifare, giorniDaRifare, ricetteDelGiorno, siPuoRifare } from './menu-da-rifare';
+import { type CodaDaRifare, type GiornoDaValutare, codaDaRifare, daQuandoSiPuoRifare, giorniDaRifare, quanteDaRifare, ricetteDelGiorno, siPuoRifare } from './menu-da-rifare';
 import { ricetteVietate } from './regola-dieta';
 import { Spuntino, etichettaSpuntino, giorniDaRifarePerPasti, leggiQualeSpuntino, pastiDopo } from './togli-spuntino';
 import { DizionarioService } from './dizionario.service';
@@ -88,6 +89,8 @@ import {
   type VoceDaFare,
 } from './lista-della-mattina';
 import { SCRITTURA_DECISIONE, ScritturaDecisione } from './scrittura-decisione';
+import { pastiDellaFinestra, protocolloDigiuno } from '../menu/orologio-digiuno';
+import { SCRITTURA_DIGIUNO, ScritturaDigiuno } from './scrittura-digiuno';
 import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
 import {
   bastaPerScrivere,
@@ -183,6 +186,8 @@ export class VeraChatService {
      */
     @Inject(SCRITTURA_COMBINAZIONE) private readonly combinazioni: ScritturaCombinazione,
     @Inject(SCRITTURA_DECISIONE) private readonly decisioni: ScritturaDecisione,
+    /** ⛔ Le ore del digiuno (25/8): la porta che la regola della cliente promette. */
+    @Inject(SCRITTURA_DIGIUNO) private readonly digiuno: ScritturaDigiuno,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -399,6 +404,8 @@ export class VeraChatService {
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
       case 'promemoria_supervisione':
         return this.promemoriaVisto(nutrizionistaId, stato);
+      case 'quale_digiuno':
+        return this.scegliDigiuno(nutrizionistaId, stato, frase);
       case 'approvazione':
         return this.rispostaApprovazione(nutrizionistaId, stato, frase);
       case 'verifica_cambio':
@@ -1014,6 +1021,15 @@ export class VeraChatService {
     // LE CALORIE (14/8, Nocanty via Vera): anteprima col numero VERO, poi conferma, poi la porta.
     if (intento.tipo === 'correzione_kcal') {
       return this.avviaCorrezioneKcal(nutrizionistaId, stato, intento as IntentoCorrezioneKcal);
+    }
+
+    /**
+     * ⛔ **LE ORE DEL DIGIUNO** (25/8): la porta che la regola della cliente promette. Vedi il
+     * riquadro in testa a `digiuno-dettato.ts` — senza di questa, la frase «scrivilo alla tua
+     * nutrizionista» manderebbe la cliente da una persona che non può farci niente.
+     */
+    if (intento.tipo === 'digiuno') {
+      return this.anteprimaDigiuno(stato, intento as IntentoDigiuno);
     }
 
     // IL CAMBIO DI DIETA (azione 3, 14/8) ha il suo giro: dieta dal catalogo, «da quando?», conferma.
@@ -2205,6 +2221,175 @@ export class VeraChatService {
     return codaDaRifare(tutti, (g) => siPuoRifare(g, oggi));
   }
 
+  /**
+   * Quanti pasti tiene la finestra di quel protocollo. ⚠️ Non è un conto: è la **tabella** del
+   * manuale (`pastiDellaFinestra`), la stessa che compone i menu. Un secondo conto qui direbbe alla
+   * nutrizionista un numero e alla cliente ne metterebbe un altro nel piatto.
+   */
+  private pastiDelProtocollo(protocollo: string): number {
+    const p = protocolloDigiuno(protocollo);
+    return p ? pastiDellaFinestra(p.oreFinestra).length : 0;
+  }
+
+  /**
+   * ⛔ **LA RISPOSTA ALLA DOMANDA «A QUALE?»** (25/8).
+   *
+   * ⚠️ Si rilegge con lo **stesso lettore** della frase di partenza, non con un confronto scritto a
+   * mano: «18:6», «avanzato», «il 18:6» devono valere qui come valevano lì. Un secondo modo di
+   * leggere un protocollo è un secondo modo di sbagliarlo.
+   *
+   * ⚠️ E se non si capisce non si insiste all'infinito: si dice cosa scrivere e si lascia la
+   * domanda aperta, come fanno tutti gli altri passi.
+   */
+  private async scegliDigiuno(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    /**
+     * ⚠️ Alla risposta secca — «18:6» — manca il verbo, quindi `leggiDigiunoDettato` da sola non
+     * accetterebbe le forme corte. Qui il contesto **è** la domanda appena fatta: siamo dentro
+     * «quali ore?», e non c'è nient'altro che quella risposta possa essere.
+     */
+    const letto = leggiDigiunoDettato(frase) ?? leggiDigiunoDettato(`digiuno ${frase}`);
+    if (!letto) {
+      return { testo: testi.qualeDigiunoNonCapito(), esito: 'in_corso', stato };
+    }
+    const intento = { ...(stato.intento as IntentoDigiuno), protocollo: letto.protocollo };
+    return this.anteprimaDigiuno({ ...stato, intento }, intento);
+  }
+
+  /**
+   * ⛔ **LE ORE DEL DIGIUNO, VISTE PRIMA DI SCRIVERLE** (25/8).
+   *
+   * ⚠️ **Si mostra cosa cambia davvero**, non «ok fatto»: il protocollo di adesso, quello nuovo, e
+   * **quanti pasti** avrà la sua giornata — perché è quello che una cliente vede la mattina dopo, ed
+   * è la parte che una nutrizionista deve poter fermare prima che succeda. Passare da 16:8 a 23:1
+   * vuol dire un pasto solo al giorno: dirlo in cifre è diverso da farlo leggere in un codice.
+   *
+   * ⚠️ **Se il protocollo non l'ha detto, si chiede.** «Cambia il digiuno di Giulia» non dice a
+   * cosa, e indovinare vorrebbe dire scrivere nel piano di una persona un numero che nessuno ha
+   * scelto.
+   */
+  private async anteprimaDigiuno(stato: StatoVera, intento: IntentoDigiuno): Promise<EsitoVera> {
+    if (!intento.protocollo) {
+      /**
+       * ⛔ **E la domanda si può RISPONDERE** — corretto al secondo giro di revisione, 25/8. Qui si
+       * rendeva lo stato **invariato**, che al passo del cambio dieta ci si ricorda di cambiare
+       * (`passo: 'quale_dieta'`) e qui no: lo stato restava `quale_cliente`, quindi la risposta
+       * «18:6» finiva in `risolviCliente` e Vera diceva *«non trovo nessuna cliente che si chiami
+       * 18:6»*. Una domanda a cui non si può rispondere è peggio di una domanda non fatta.
+       */
+      return {
+        testo: testi.qualeDigiuno(stato.clienteNome ?? 'lei'),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'quale_digiuno' },
+      };
+    }
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: stato.clienteId! },
+      select: { pathType: true, fastingProtocol: true, fastingStartMin: true, fastingTargetStartMin: true } as never,
+    })) as {
+      pathType: string | null; fastingProtocol: string | null;
+      fastingStartMin: number | null; fastingTargetStartMin: number | null;
+    } | null;
+
+    /**
+     * ⛔ **Chi non è in digiuno non ci si mette da qui.** Passare una cliente al digiuno intermittente
+     * è un cambio di **percorso** — tocca la dieta, i pasti, il catalogo — e ha la sua strada
+     * (`cambio_dieta`). Farlo di rimbalzo scrivendo un protocollo su un profilo che non ha
+     * l'orologio le lascerebbe uno schermo che dice una cosa e un piatto che ne dice un'altra.
+     */
+    if (profilo?.pathType !== 'intermittent_fasting') {
+      return { testo: testi.nonEInDigiuno(stato.clienteNome ?? 'lei'), esito: 'annullata' };
+    }
+    if (profilo.fastingProtocol === intento.protocollo) {
+      return { testo: testi.digiunoGiaCosi(stato.clienteNome ?? 'lei', intento.protocollo), esito: 'annullata' };
+    }
+
+    return {
+      testo: testi.anteprimaDigiuno(
+        stato.clienteNome ?? 'lei',
+        profilo.fastingProtocol ?? null,
+        intento.protocollo,
+        this.pastiDelProtocollo(intento.protocollo),
+        /**
+         * ⛔ **Le giornate già preparate vanno rifatte, e l'anteprima lo dice.** La struttura dei
+         * pasti la usa il compositore al momento di comporre: senza rifare la coda, la cliente
+         * continuerebbe a vedere tre pasti nei giorni già in calendario mentre l'orologio ne dice
+         * uno. È il caso Lorena, e il progetto ha già la sua sentinella
+         * (`menu/una-porta-per-i-giorni.spec.ts`): ogni percorso che cambia i menu passa da
+         * `codaDaRifare`. Questo, nella prima stesura, non ci passava — e **dichiarava di averlo
+         * fatto**.
+         */
+        // ⚠️ Una lettura sola: chiamandola due volte si rischierebbe di mostrarne una e rifarne
+        // un'altra — la coda si muove, e sono i menu di una persona.
+        quanteDaRifare(await this.codaProteine(stato.clienteId!)),
+        // Il piano graduale in corso: cambiando le ore si chiude, e chi conferma deve saperlo.
+        typeof profilo.fastingTargetStartMin === 'number'
+          && profilo.fastingTargetStartMin !== profilo.fastingStartMin,
+      ),
+      esito: 'in_corso',
+      stato: { ...stato, passo: 'conferma', digiunoPrima: profilo.fastingProtocol ?? null, digiunoDopo: intento.protocollo },
+    };
+  }
+
+  /**
+   * ⛔ **LA SCRITTURA PASSA DA `decidiCambio`, come quella della cliente.**
+   *
+   * ⚠️ È la regola di casa: *se due punti rispondono alla stessa domanda, uno deve chiamare l'altro*.
+   * Qui la domanda è «che finestra ha, da quando, e quanti pasti» — e ha già una risposta sola, che
+   * sa dei piani graduali, delle finestre già aperte e dei pasti da derivare. Scrivere il protocollo
+   * a mano avrebbe prodotto una cliente con le ore nuove e i pasti di prima.
+   *
+   * ⚠️ `perStaff: true` toglie i limiti — quello settimanale sulle ore e quello giornaliero sulla
+   * lancetta — ed è esattamente il punto: la regola della cliente dice «chiedilo alla tua
+   * nutrizionista», e questa è lei.
+   */
+  private async applicaDigiuno(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
+    const protocollo = stato.digiunoDopo!;
+    const esito = await this.digiuno.impostaPerStaff(stato.clienteId!, { protocollo }, nutrizionistaId);
+    if (!esito.ok) return { testo: testi.digiunoNonScritto(stato.clienteNome ?? 'lei', esito.perche), esito: 'annullata' };
+
+    /**
+     * ⛔ **E I GIORNI GIÀ PREPARATI SI RIFANNO** — la stessa regola delle proteine e del cambio di
+     * dieta: si rifà una **coda**, non i giorni sparsi, e solo quelli che non ha ancora aperto.
+     * ⚠️ Se la cancellazione non riesce **non si dice «ho rifatto»**: è la lezione del 24/8, dove un
+     * `catch` silenzioso faceva leggere alla nutrizionista un successo che non c'era, e il registro
+     * lo scriveva pure.
+     */
+    const coda = await this.codaProteine(stato.clienteId!);
+    let rifatti = 0;
+    if (coda.esito === 'coda') {
+      const fatta = await this.prisma.menuDay
+        .deleteMany({ where: { id: { in: coda.giorni.map((g) => g.id) } } })
+        .then(() => true)
+        .catch((err: unknown) => {
+          logger.warn(
+            `Ore del digiuno scritte ma giorni non rifatti (cliente=${stato.clienteId}): ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+          );
+          return false;
+        });
+      if (fatta) rifatti = quanteDaRifare(coda);
+    }
+
+    const riga = (await this.registro.scrivi({
+      nutrizionistaId,
+      frase: stato.frase,
+      azione: 'variante_cliente',
+      ambito: 'cliente',
+      soggettoTipo: 'user',
+      soggettoId: stato.clienteId ?? null,
+      soggettoNome: stato.clienteNome ?? null,
+      dettaglio: { digiuno: { prima: stato.digiunoPrima ?? null, dopo: protocollo, daQuando: esito.daQuando, giorniRifatti: rifatti } },
+    })) as { id: string };
+
+    const dopo = await this.cosaTiPorto(nutrizionistaId);
+    return {
+      testo: `${testi.digiunoScritto(stato.clienteNome ?? 'lei', protocollo, esito.daQuando, rifatti)}${dopo ? `\n\n${dopo.testo}` : ''}`,
+      esito: 'scritta',
+      azioneId: riga.id,
+      stato: dopo?.stato,
+    };
+  }
+
   private async applicaProteine(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
     const valore = stato.proteineDopo!;
     await this.prisma.clientProfile.update({
@@ -2601,6 +2786,10 @@ export class VeraChatService {
     // Il cambio di dieta è per UNA cliente per costruzione: niente ambito «per tutte».
     if ((stato.intento as Intento).tipo === 'cambio_dieta') {
       return this.applicaCambioDieta(nutrizionistaId, stato);
+    }
+    // ⚠️ E il digiuno lo stesso: le ore di una persona non sono una regola per tutte.
+    if ((stato.intento as Intento).tipo === 'digiuno') {
+      return this.applicaDigiuno(nutrizionistaId, stato);
     }
     return {
       testo: testi.chiediAmbito(stato.clienteNome ?? 'lei'),

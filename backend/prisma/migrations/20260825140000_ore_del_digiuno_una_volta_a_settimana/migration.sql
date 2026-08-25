@@ -1,0 +1,15 @@
+-- ⛔ QUANDO HA CAMBIATO LE ORE DEL DIGIUNO (il protocollo), non la posizione della finestra.
+--
+-- Richiesta della capo nutrizionista (23/8: «dovrebbe essere più difficile modificare le ore per
+-- digiunare, così puoi ogni giorno modificarlo»), decisa da Simone il 25/8: una volta a settimana,
+-- e per i cambi in più si chiede alla nutrizionista.
+--
+-- ⚠️ Serviva una colonna NUOVA e non bastava `fasting_changed_at`: quella segna QUALUNQUE cambio,
+-- compreso lo spostamento della lancetta — che resta libero una volta al giorno perché non è un
+-- gesto clinico. Riusandola, spostare la finestra di mezz'ora avrebbe bloccato le ore per una
+-- settimana: un limite che scatta su un gesto che non c'entra è un limite che nessuno capisce.
+--
+-- ⚠️ NULL per tutte, ed è voluto: significa «non l'ha mai cambiato», quindi il primo cambio è
+-- libero. Nessun backfill — scrivere una data d'ufficio vorrebbe dire far scattare il limite su
+-- persone che non hanno fatto niente.
+ALTER TABLE "client_profile" ADD COLUMN "fasting_protocol_changed_at" TIMESTAMP(3);

@@ -20,6 +20,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🛑 **Le ore del digiuno si cambiano una volta a settimana — e la nutrizionista può
+  correggerle da Vera.** Richiesta della capo nutrizionista il 23/8 (*«dovrebbe essere più difficile
+  modificare le ore per digiunare, così puoi ogni giorno modificarlo»*), decisa da Simone il 25/8:
+  *«sì, posso cambiare solo una volta a settimana; per cambi ulteriori va richiesto al nutrizionista
+  — attraverso Vera il nutrizionista può correggere»*.
+  ⛔ **Il limite vale sul PROTOCOLLO, non sulla lancetta**: le ore sono un fatto clinico, spostare la
+  finestra di un'ora perché stasera si cena fuori non lo è. Colonna sua e non `fastingChangedAt` —
+  riusando quella, mezz'ora di spostamento avrebbe bloccato le ore per una settimana, e *un limite
+  che scatta su un gesto che non c'entra è un limite che nessuno capisce*.
+  ⛔ **E la strada promessa è stata costruita, perché non c'era.** Dal 21/8 la tendina della finestra
+  è fuori dalla scheda staff, e in tutto il backend **nessuno** poteva cambiare il protocollo di
+  qualcun altro: mettere il limite senza aprire la porta avrebbe mandato una cliente da una persona
+  che non può farci niente — un cancello chiuso, con in più una frase che le fa credere il contrario.
+  Adesso da Vera: *«metti Giulia a 18:6»*, *«passala al digiuno standard»*, e se non dice a quale si
+  chiede. L'anteprima dice le ore **in chiaro**, quanti **pasti** avrà la giornata, quante giornate
+  già preparate si rifanno e se un adattamento graduale si chiude. ⚠️ La nutrizionista scavalca i
+  **limiti**, non la realtà: a finestra già aperta le ore nuove partono da domani anche per lei.
+  ⛔ **Due bloccanti trovati in revisione.** Il primo: la migrazione diceva `ALTER TABLE
+  "client_profiles"` — al plurale — mentre il modello ha `@@map("client_profile")`. Il deploy sarebbe
+  fallito e la migrazione sarebbe restata *failed*, bloccando **tutte quelle dopo**; e la suite era
+  verde, 333 suite e 5556 test, con nessuno che guardasse questo. Adesso c'è un guardiano che
+  confronta i nomi di tabella delle migrazioni con quelli dello schema. Il secondo: **il limite si
+  aggirava sempre** — a finestra già aperta il protocollo nuovo va nel bersaglio, la condizione
+  guardava solo quello in vigore, e la data non si scriveva mai. Una cliente che tocca l'app dentro
+  la sua finestra di alimentazione (otto ore al giorno su una 16:8) poteva cambiare protocollo tutti
+  i giorni, per sempre — cioè esattamente quello che questa consegna doveva chiudere.
+  ⚠️ **E altri nove difetti veri**: «Metti Giulia a 18:6» con la maiuscola non trovava la cliente
+  (Vera cercava una persona di nome «Metti Giulia»); *«sposta la visita di Giulia al 14/10»* apriva
+  un'anteprima *«sto per mettere Giulia a 14:10… Confermi?»*, perché le cinque coppie del catalogo
+  sono tutte date plausibili; *«metti la dieta standard a Giulia»* diventava l'ordine di portarla a
+  16:8; la domanda «A quale?» **non si poteva rispondere**; il registro diceva che era stata la
+  cliente; su chi non ha mai scelto la finestra si scriveva **00:00–06:00** e le si chiudeva per
+  sempre la pagina dell'orologio; *«i pasti li ho già rifatti»* era falso (adesso si rifanno davvero,
+  e la frase dice quanti); la nutrizionista bloccava la lancetta della cliente per venti ore con una
+  frase falsa; la prima scelta consumava il credito settimanale.
+  ⚠️ **C'è una migrazione** (additiva) e il seed va girato per `fasting_protocol_change_days`.
+
 - `[Sviluppo]` 🛑 **Nessuno resta sul tavolo di nessuno: i percorsi supervisionati, il motore dopo
   il via libera, il perimetro delle nutrizioniste.** Tre voci aperte, tutte sulla stessa domanda —
   chi guarda chi.

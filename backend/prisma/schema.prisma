@@ -453,6 +453,12 @@ model ClientProfile {
   fastingSleepEnd        Int?       @map("fasting_sleep_end")
   // Quando ha spostato la finestra l'ultima volta: serve al limite di un cambio al giorno.
   fastingChangedAt       DateTime?  @map("fasting_changed_at")
+  // ⛔ Quando ha cambiato le ORE (il protocollo): serve al limite di una volta a settimana, deciso
+  // da Simone il 25/8 su richiesta della capo nutrizionista. ⚠️ È una colonna SUA e non
+  // `fastingChangedAt`: quella segna qualunque cambio, compreso lo spostamento della lancetta — che
+  // resta libero una volta al giorno perché non è un gesto clinico. Riusandola, spostare la finestra
+  // di mezz'ora avrebbe bloccato le ore per una settimana. NULL = non l'ha mai cambiato.
+  fastingProtocolChangedAt DateTime? @map("fasting_protocol_changed_at")
   // ⚠️ QUANDO HA SCELTO — e NULL vuol dire «non gliel'abbiamo ancora chiesto», che è una cosa
   // diversa da «non digiuna». È il gemello di `allergieDichiarateIl`, e la ragione è la stessa: un
   // campo vuoto non distingue «non ha risposto» da «ha risposto di no», e senza quella differenza

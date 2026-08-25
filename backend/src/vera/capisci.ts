@@ -24,6 +24,7 @@
  *   riformularla; una frase capita male costa cibo sbagliato nel piatto di una persona.
  */
 import { leggiEquivalenza } from './equivalenza-dettata';
+import { chiedeUnCambioDiDigiuno, clienteDopoIlVerbo, leggiDigiunoDettato } from './digiuno-dettato';
 import { normalizza } from '../common/nomi-alimento';
 import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
 
@@ -71,6 +72,7 @@ export type Intento =
   | IntentoSostituzioniDaVerificare
   | IntentoApprovazioni
   | IntentoCambioDieta
+  | IntentoDigiuno
   | IntentoCorrezioneKcal
   | IntentoProteine
   | IntentoGiornata
@@ -196,6 +198,24 @@ export interface IntentoCambioDieta {
   tipo: 'cambio_dieta';
   cliente: string | null;
   dieta: string | null;
+}
+
+/**
+ * ⛔ «Metti Giulia a 16:8» — la nutrizionista cambia **le ore** del digiuno di una cliente (25/8).
+ *
+ * ⚠️ Esiste perché dal 25/8 la cliente le può cambiare **una volta a settimana**, e la frase che
+ * legge quando non può le dice di scriverlo alla nutrizionista. Fino a ieri quella porta non c'era:
+ * dal 21/8 la tendina della finestra è fuori dalla scheda staff. Un limite senza la sua porta è un
+ * cancello chiuso, con in più una frase che fa credere il contrario.
+ *
+ * ⚠️ **Solo il protocollo, non l'orario**: dove sta la finestra nella giornata di una persona —
+ * quando lavora, quando cena — lo sa lei, e lo sposta dall'app. Vedi `digiuno-dettato.ts`.
+ */
+export interface IntentoDigiuno {
+  tipo: 'digiuno';
+  cliente: string | null;
+  /** `null` = ha detto «cambia il digiuno di X» senza dire a cosa: si chiede, non si indovina. */
+  protocollo: string | null;
 }
 
 export interface IntentoPasti {
@@ -563,6 +583,38 @@ export function capisci(frase: string): Intento | null {
   //        fuori faceva «non ci arrivo», che per una lista che il dizionario ha è una bugia.
   const creaF = CREA_FAMIGLIA.exec(testo);
   if (creaF) return { tipo: 'famiglia', azione: 'crea', nome: creaF[1].trim().toLowerCase() };
+
+  /**
+   * 3-ter) IL DIGIUNO DETTATO (25/8): «metti Giulia a 16:8», «passala su avanzato».
+   *
+   * ⚠️ **Prima dei pasti e dei divieti**: «cambia la finestra di Giulia» con la parola «finestra»
+   * dentro non deve poter finire in nessuno degli altri riconoscitori, e un protocollo scritto
+   * `16:8` somiglia troppo a un orario per lasciarlo in giro fra le forme generiche.
+   *
+   * ⚠️ Pretende **un verbo di comando insieme alla parola digiuno** (`chiedeUnCambioDiDigiuno`):
+   * senza, «Giulia fa 16:8 da un mese» — una constatazione — diventerebbe un ordine di scrittura sul
+   * profilo di una persona.
+   */
+  if (chiedeUnCambioDiDigiuno(testo)) {
+    const letto = leggiDigiunoDettato(testo);
+    /**
+     * ⛔ **QUI IL LETTORE SPECIFICO VIENE PRIMA DI QUELLO GENERALE** — corretto al secondo giro di
+     * revisione, 25/8. Scritto `cliente ?? clienteDopoIlVerbo(...)`, la forma con la maiuscola —
+     * cioè **come si scrive davvero** — non arrivava mai al secondo: «Metti Giulia a 18:6» sono due
+     * parole maiuscole in apertura, quindi `nomeInTesta` rispondeva **«Metti Giulia»**, e Vera
+     * cercava una cliente che si chiama così. La porta appena costruita era chiusa proprio sulla
+     * frase citata nella specifica.
+     *
+     * ⚠️ Il verso giusto è questo: dentro una frase che parla di digiuno, «il nome dopo il verbo» e
+     * «il nome dopo di/della» sono letture **più informate** di «due maiuscole in apertura», perché
+     * qui il contesto ha già detto di cosa si parla. Fuori di qui il lettore generale resta com'è.
+     */
+    return {
+      tipo: 'digiuno',
+      cliente: clienteDopoIlVerbo(testo) ?? cliente,
+      protocollo: letto?.protocollo ?? null,
+    };
+  }
 
   // 4) I PASTI: «togli lo spuntino», «rimetti la merenda» (azione 3, Decisioni 13/8 §14).
   //    ⚠️ PRIMA dei divieti: altrimenti «togli lo spuntino» diventerebbe il divieto dell'alimento

@@ -205,6 +205,12 @@ const CONFIG_PARAMS: SeedParam[] = [
     description: 'Giorni che devono passare dal rientro prima che la cliente possa chiedere un\'altra sospensione (dal back office la coach la attiva comunque)',
   },
   {
+    key: 'fasting_protocol_change_days',
+    value: '7',
+    type: 'number',
+    description: 'Ogni quanti giorni la cliente può cambiare le ORE del digiuno (il protocollo: 14:10, 16:8, 18:6…). Richiesta della capo nutrizionista, decisa da Simone il 25/8. ⚠️ Non tocca lo spostamento della lancetta, che resta uno al giorno: quello non è un gesto clinico. La nutrizionista può cambiarle quando vuole, da Vera.',
+  },
+  {
     key: 'supervision_reminder_days',
     value: '7',
     type: 'number',
