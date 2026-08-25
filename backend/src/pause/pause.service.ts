@@ -20,7 +20,7 @@ import { codaCheSlitta } from './coda-che-slitta';
 import { aGiorno } from '../common/date-only';
 import { giorniSospesi, giornoDiRientro, rientroInArrivo, ultimoGiornoSospeso } from './giorno-di-rientro';
 import { TIPO_PESATA_DEL_RIENTRO, testoPesataDelRientro } from '../menu/pesata-del-rientro';
-import { giornoDelDato } from '../common/date-only';
+import { giornoDelDato, giornoPiu } from '../common/date-only';
 import { fraseDellaTregua, treguaFraVacanze } from './tregua-fra-vacanze';
 
 /**
@@ -362,10 +362,25 @@ export class PauseService {
         // 1) Peso di riferimento, fissato una volta sola all'inizio della pausa.
         let riferimento = p.refWeightKg;
         if (riferimento == null) {
-          const fineGiornoInizio = new Date(p.startDate);
-          fineGiornoInizio.setHours(23, 59, 59, 999);
+          /**
+           * ⚠️ **«Prima della fine del giorno d'inizio» si scrive come «prima del giorno dopo»** —
+           * 25/8, e la riscrittura **non cambia nessun risultato**, misurato prima di farla.
+           *
+           * Era `setHours(23, 59, 59, 999)`, che muove le lancette nel fuso del **processo**. La
+           * prima stesura di questa nota diceva «su un portatile italiano taglia due ore»: **falso**.
+           * `Measurement.date` è una colonna `@db.Date` (`schema.prisma`), quindi i valori sono
+           * sempre mezzanotte UTC esatta, e le 23:59:59.999 di quel giorno lette in un fuso qualunque
+           * da UTC−11 a UTC+11 cadono comunque fra questa mezzanotte e la prossima: la partizione è
+           * identica. Trovato in revisione, prima della consegna.
+           *
+           * ⚠️ Si riscrive lo stesso, e per una ragione dichiarata: era l'ultimo `setHours` di un
+           * file del perimetro, e un'eccezione «tanto qui non morde» è il posto da cui la formula
+           * ricompare dove morde. Il confronto per estremi (`lt` il giorno dopo) dice anche da sé
+           * cosa intende, che `23:59:59.999` non fa.
+           */
+          const giornoDopoLInizio = giornoPiu(p.startDate, 1);
           const prima = (await this.prisma.measurement.findFirst({
-            where: { clientId: p.clientId, date: { lte: fineGiornoInizio } },
+            where: { clientId: p.clientId, date: { lt: giornoDopoLInizio } },
             orderBy: { date: 'desc' },
             select: { weightKg: true },
           })) as { weightKg: number } | null;
@@ -373,7 +388,7 @@ export class PauseService {
           const dopo = prima
             ? null
             : ((await this.prisma.measurement.findFirst({
-                where: { clientId: p.clientId, date: { gt: fineGiornoInizio } },
+                where: { clientId: p.clientId, date: { gte: giornoDopoLInizio } },
                 orderBy: { date: 'asc' },
                 select: { weightKg: true },
               })) as { weightKg: number } | null);
@@ -677,8 +692,12 @@ export class PauseService {
    * fermo, e non ripescare all'infinito quelle vecchie di mesi.
    */
   private async erogaRientriDiFinePausa(oggi: Date, sogliaKg: number): Promise<number> {
-    const da = new Date(oggi);
-    da.setDate(da.getDate() - 3);
+    /**
+     * ⚠️ **`giornoPiu`, non `setDate`** (25/8, censimento): `oggi` è una mezzanotte UTC e `setDate`
+     * somma nel fuso del **processo**. Su Render coincidono; con `TZ=Europe/Rome` la finestra si
+     * accorcia nella notte del cambio d'ora, e i rientri di quella notte non venivano guardati.
+     */
+    const da = giornoPiu(oggi, -3);
     const finite = (await this.prisma.pauseRequest.findMany({
       where: {
         status: { in: ['auto_approved', 'approved'] },

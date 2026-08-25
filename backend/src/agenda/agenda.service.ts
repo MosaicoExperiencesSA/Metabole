@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
-import { toDateOnly } from '../common/date-only';
+import { giornoPiu, toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { festivita } from './festivi';
 import {
@@ -296,8 +296,13 @@ export class AgendaService {
   async orariLiberi(nutritionistId: string, dalIso: string, alIso: string) {
     const oggi = iso(toDateOnly());
     const dal = dalIso < oggi ? oggi : dalIso;
-    const limite = new Date(toDateOnly(dal));
-    limite.setDate(limite.getDate() + ORIZZONTE_GIORNI);
+    /**
+     * ⚠️ **`giornoPiu`, non `setDate`** (25/8): stessa ragione già scritta per `+ 86_400_000` in
+     * `creaFerie`, settanta righe più su — questa ne era la **copia non corretta**. `setDate` somma
+     * il giorno nel fuso del processo: con `TZ=Europe/Rome`, il 28 marzo 2027 l'orizzonte si accorcia
+     * di un giorno. Due punti che rispondono alla stessa domanda: adesso chiamano la stessa funzione.
+     */
+    const limite = giornoPiu(toDateOnly(dal), ORIZZONTE_GIORNI);
     const al = alIso > iso(limite) ? iso(limite) : alIso;
 
     const [slots, chiusure, prese] = await Promise.all([

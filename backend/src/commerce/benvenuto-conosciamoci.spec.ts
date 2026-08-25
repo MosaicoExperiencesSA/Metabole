@@ -15,6 +15,7 @@ import { DiscountsService } from './discounts.service';
 import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { conOrologioFermo } from '../../test/orologio-fermo';
+import { aGiorno } from '../common/date-only';
 import { giornoLocale } from '../common/date-only';
 import { MESI_MAX_DATA_INIZIO, isTrialPlan, validaDataInizio } from './piano-prova';
 import { assicuraProvaIniziata, provaAttivata } from './prova-attivata';
@@ -29,7 +30,22 @@ import { assicuraProvaIniziata, provaAttivata } from './prova-attivata';
  */
 
 const GIORNO = 86_400_000;
-const oggiSolo = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+/**
+ * ⛔ **ANCHE UN TEST DEVE CHIEDERE CHE GIORNO È** — 25/8, e per un giorno intero questo file è stato
+ * la sola cosa rossa di `npm run test:notte`.
+ *
+ * Qui c'era `new Date(d.getFullYear(), d.getMonth(), d.getDate())`: la formula del fuso del
+ * **processo**, esattamente quella che il prodotto ha appena smesso di usare in tredici punti. Finché
+ * `validaDataInizio` sbagliava allo stesso modo i due errori si annullavano e il file era verde;
+ * corretto il prodotto, alle 00:30 italiane `fra(0)` chiedeva **ieri** e la prova si rifiutava da
+ * sola con «quel giorno è già passato».
+ *
+ * ⚠️ È la lezione di `test/orologio-fermo.ts` girata dall'altra parte: un test che si costruisce
+ * «oggi» per conto suo non prova il prodotto, prova la macchina che lo esegue. ⚠️ E il guardiano
+ * `common/il-giorno-si-chiede.spec.ts` non lo vedeva perché guarda solo i file del prodotto: i
+ * `.spec.ts` non sono nel suo perimetro.
+ */
+const oggiSolo = () => aGiorno(new Date());
 /**
  * ⚠️ IL GIORNO SI LEGGE NEL FUSO DELL'AZIENDA, NON IN UTC.
  *
@@ -52,10 +68,33 @@ describe('validaDataInizio (regola pura)', () => {
     expect(e.ok).toBe(true);
   });
 
-  it('normalizza a GIORNO: l’ora non entra nella data di inizio', () => {
+  /**
+   * ⛔ **RISCRITTO IL 25/8, e il vecchio era sbagliato in due modi.**
+   *
+   * Diceva `e.data.getHours() === 0`: la mezzanotte del **processo**, cioè la stessa domanda posta
+   * nel fuso della macchina che esegue i test. Passava dovunque solo perché `soloGiorno` costruiva
+   * anch'essa una mezzanotte locale — due errori che si annullavano. In questo progetto **un giorno
+   * è la mezzanotte UTC del giorno di Roma** (`date-only.ts`), quindi si guarda `getUTCHours`.
+   *
+   * ⛔ E soprattutto: le **22:45 UTC del 1 settembre** in Italia sono le **00:45 del 2**. Chi ha
+   * scelto quell'istante ha scelto il 2, e prima gli veniva scritto il 1 — un giorno di menu in meno,
+   * deciso dal fuso del server.
+   */
+  it('⛔ normalizza a GIORNO, e il giorno è quello di ROMA', () => {
     const e = validaDataInizio('2026-09-01T22:45:00.000Z', oggi);
-    expect(e.ok && e.data.getHours()).toBe(0);
-    expect(e.ok && e.data.getMinutes()).toBe(0);
+    expect(e.ok && e.data.toISOString()).toBe('2026-09-02T00:00:00.000Z');
+    expect(e.ok && e.data.getUTCHours()).toBe(0);
+    expect(e.ok && e.data.getUTCMinutes()).toBe(0);
+  });
+
+  /**
+   * ⚠️ **E una stringa di sola data resta quella scritta.** È l'altra metà della regola di
+   * `toDateOnly`: `2026-09-01` non contiene un'ora, quindi non c'è niente da convertire —
+   * convertirla la sposterebbe di un giorno in ogni fuso a ovest di Greenwich.
+   */
+  it('⚠️ una data senza orario vale alla lettera, non si converte', () => {
+    const e = validaDataInizio('2026-09-01', oggi);
+    expect(e.ok && e.data.toISOString()).toBe('2026-09-01T00:00:00.000Z');
   });
 
   it('rifiuta una data nel PASSATO', () => {

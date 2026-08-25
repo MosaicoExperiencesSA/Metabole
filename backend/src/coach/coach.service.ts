@@ -8,6 +8,7 @@ import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { avanzamentoPeso } from '../signals/percentuale-obiettivo';
 import { CATEGORIE_COMPENSO, inizioMese } from '../common/tetto-compensi';
+import { inizioDiOggi } from '../common/date-only';
 
 const DAY = 86_400_000;
 // Le categorie e il confine di mese vengono da `common/tetto-compensi.ts`, non da una copia
@@ -344,8 +345,25 @@ export class CoachService {
     if (!ids.length) return { appointments: [] };
     const nameOf = new Map(profiles.map((p) => [p.userId, p.name]));
 
-    const startToday = new Date();
-    startToday.setHours(0, 0, 0, 0);
+    /**
+     * ⛔ **QUI SERVE UN ISTANTE, NON UN GIORNO — e il primo tentativo del 25/8 sbagliava verso.**
+     *
+     * `startToday` finisce in `vociCalendario` come `datetime: { gte: … }` su `Visit.datetime` e
+     * `Appointment.datetime`, che sono **timestamp veri**: un orario a cui una persona si presenta.
+     * Era `new Date()` + `setHours(0, 0, 0, 0)` — il fuso del **processo**, UTC su Render — quindi
+     * fra la mezzanotte e le 02:00 italiane il calendario cominciava da **ieri**.
+     *
+     * ⛔ La prima correzione metteva `toDateOnly()`, che è la risposta alla domanda **sbagliata**:
+     * rende la mezzanotte UTC del giorno di Roma, che a Roma sono **le 02:00**. Girava il difetto
+     * dall'altra parte — un appuntamento all'01:30 di stanotte sparirebbe dal calendario di chi lo
+     * guarda all'01:00. Trovato in revisione, prima della consegna.
+     *
+     * ✅ La domanda giusta è «da quale **istante** comincia oggi a Roma», e adesso ha un nome:
+     * `inizioDiOggi` (`common/date-only.ts`), la stessa risposta che `agenda.service` prende con
+     * `istanteRomano`. Vedi la nota su `istanteDiPartenza`: giorno e istante si assomigliano, e
+     * nessun tipo li distingue — solo il nome della funzione che si chiama.
+     */
+    const startToday = inizioDiOggi();
     /**
      * ⚠️ §16.7, richiesta di Simone del 12/8: «anche la coach deve vedere nel suo calendario gli
      * appuntamenti di tutte le sue clienti». Comprese le **visite** dal nutrizionista, che stanno

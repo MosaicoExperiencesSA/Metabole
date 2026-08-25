@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { aGiorno } from '../common/date-only';
+import { aGiorno, giornoPiu, oggiPiu } from '../common/date-only';
 import { coachTeamScope } from '../common/coach-team';
 import { frasePrezziPercorso, type PianoDaCitare } from '../commerce/prezzo-piano';
 import { PushService } from '../notifications/push.service';
@@ -295,16 +295,12 @@ export class CoachTasksService {
    *    istanti veri scritti in banca dati da punti diversi, e rileggerli in un altro fuso
    *    sposterebbe di un giorno le prove e i piani già venduti. Quello si misura prima
    *    (`npm run diag:giorno-piani`), non si cambia di slancio.
+   *
+   * ⚠️ **E dal 25/8 le due funzioni non stanno più qui**: stanno in `common/date-only.ts` e si
+   * importano (`oggiPiu`, `giornoPiu`). Il censimento di quel giorno ha trovato **sei** punti fuori
+   * da questo file che rispondevano alla stessa domanda con la riga vecchia: tenere qui la copia
+   * buona voleva dire che chi la cercava altrove non la trovava.
    */
-  private oggiPiu(plusDays: number, adesso: Date = new Date()): Date {
-    return new Date(aGiorno(adesso).getTime() + plusDays * 86_400_000);
-  }
-
-  /** Il giorno di una data SALVATA, più `plusDays`. Letto in UTC — vedi la nota qui sopra. */
-  private giornoPiu(base: Date, plusDays: number): Date {
-    const g = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate());
-    return new Date(g + plusDays * 86_400_000);
-  }
 
   /**
    * Apre un'attività **fuori dal giro notturno**, quando succede il fatto che la rende necessaria.
@@ -334,7 +330,7 @@ export class CoachTasksService {
     /** Entro quando. Default: domani — chi apre un'attività a mano ha di solito fretta. */
     dueDate?: Date;
   }): Promise<EsitoApertura> {
-    const scadenza = p.dueDate ?? this.oggiPiu(1);
+    const scadenza = p.dueDate ?? oggiPiu(1);
     /**
      * ⛔ **IL TERZO ESITO NON SI PUÒ PERDERE QUI** (trovato in revisione, 22/8).
      *
@@ -432,7 +428,7 @@ export class CoachTasksService {
 
     for (const t of trials) {
       if (!t.startDate) continue;
-      const start = this.giornoPiu(t.startDate, 0); // data SALVATA: giorno UTC, dichiarato
+      const start = giornoPiu(t.startDate, 0); // data SALVATA: giorno UTC, dichiarato
       const dayN = Math.floor((today.getTime() - start.getTime()) / 86_400_000);
       if (dayN < 0) continue;
       /**
@@ -452,7 +448,7 @@ export class CoachTasksService {
           created += await this.ensureTask(t.clientId, 'trial_g0_measures', t.id,
             'Verifica le misure iniziali (G0)',
             'La prova è partita: controlla che abbia inserito peso e misure del giorno 0. Senza punto A non esiste il report A→B.',
-            this.giornoPiu(start, 0));
+            giornoPiu(start, 0));
         }
       }
       // G1 — benvenuto personale (obbligatorio).
@@ -460,18 +456,18 @@ export class CoachTasksService {
         created += await this.ensureTask(t.clientId, 'trial_g1_welcome', t.id,
           'Messaggio personale di benvenuto (G1) — obbligatorio',
           'È il momento che decide tutto: mandale un messaggio personale (non un template) su come è andato il primo giorno.',
-          this.giornoPiu(start, 1));
+          giornoPiu(start, 1));
       }
       // G4 — solo se aderenza < 70% nei primi 4 giorni (check-in ≤ 2 su 4).
       if (partita && dayN >= 4) {
         const checkins = await this.prisma.dailyCheckin.count({
-          where: { clientId: t.clientId, date: { gte: start, lt: this.giornoPiu(start, 4) } },
+          where: { clientId: t.clientId, date: { gte: start, lt: giornoPiu(start, 4) } },
         });
         if (checkins <= 2) {
           created += await this.ensureTask(t.clientId, 'trial_g4_adherence', t.id,
             'Senti come va: aderenza sotto il 70% (G4)',
             `Solo ${checkins} check-in nei primi 4 giorni: chiamala o scrivile per capire cosa la blocca.`,
-            this.giornoPiu(start, 4));
+            giornoPiu(start, 4));
         }
       }
       // G6 — il codice founding è partito (email automatica): la voce della coach vale di più.
@@ -479,17 +475,17 @@ export class CoachTasksService {
         created += await this.ensureTask(t.clientId, 'trial_g6_code', t.id,
           'Codice founding inviato: sentila (G6)',
           `Oggi le è arrivato il codice personale valido 48h${prezzi ? ` (${prezzi})` : ''}: un tuo messaggio vale più dell'email.`,
-          this.giornoPiu(start, 6));
+          giornoPiu(start, 6));
       }
       // G7 — chiusura: "domani finisce, ti va di continuare?".
       if (partita && dayN >= 7) {
         created += await this.ensureTask(t.clientId, 'trial_g7_closing', t.id,
           'WhatsApp di chiusura prova (G7)',
           '"Domani finisce la prova: ti va di continuare?" — ricordale il codice personale e cosa perde se il profilo si cancella.',
-          this.giornoPiu(start, 7));
+          giornoPiu(start, 7));
       }
       // +7 dopo la scadenza — ultima chiamata (solo se NON convertita).
-      if (t.status === 'expired' && t.endDate && now.getTime() >= this.giornoPiu(new Date(t.endDate), 7).getTime()) {
+      if (t.status === 'expired' && t.endDate && now.getTime() >= giornoPiu(new Date(t.endDate), 7).getTime()) {
         const converted = await this.prisma.subscription.findFirst({
           // 'paused' NON è uno stato di Subscription: l'enum è pending|active|cancelled|expired e le
           // pause vivono nella tabella pause_request. Metterlo qui faceva rifiutare la query da Prisma
@@ -505,7 +501,7 @@ export class CoachTasksService {
           created += await this.ensureTask(t.clientId, 'trial_post7_lastcall', t.id,
             'Ultima chiamata post-prova (+7)',
             'Il profilo personalizzato sta per essere cancellato (o lo è già): ultima proposta, poi si chiude con gentilezza.',
-            this.giornoPiu(new Date(t.endDate), 7));
+            giornoPiu(new Date(t.endDate), 7));
         }
       }
     }
@@ -516,7 +512,7 @@ export class CoachTasksService {
       // passata — è una coda arrivata a scadenza senza mai partire, e il report di fine percorso è
       // l'ultima cosa da mandare a quella cliente. Le vede `promuoviCodeArrivate`, che le grida nei
       // log di proposito invece di promuoverle.
-      where: { endDate: { lte: now, gte: this.oggiPiu(-14) }, status: { in: ['active', 'expired'] as never } } as never,
+      where: { endDate: { lte: now, gte: oggiPiu(-14) }, status: { in: ['active', 'expired'] as never } } as never,
       select: { id: true, clientId: true, endDate: true },
     })) as { id: string; clientId: string; endDate: Date | null }[];
     for (const sub of ended) {
@@ -524,7 +520,7 @@ export class CoachTasksService {
       created += await this.ensureTask(sub.clientId, 'plan_end_report', sub.id,
         'Fine piano: consegna il report e proponi il rinnovo',
         'Il piano è finito: consegnale il report A→B e proponi rinnovo o mantenimento.',
-        this.giornoPiu(new Date(sub.endDate), 0));
+        giornoPiu(new Date(sub.endDate), 0));
     }
 
     // --- SCADENZE IN ARRIVO → CALENDARIO della coach (richiesta 17/07) ---
@@ -539,7 +535,7 @@ export class CoachTasksService {
         // dicono cose diverse non se ne crede più nessuna delle due.
         status: { in: STATI_CON_UN_PIANO as never },
         plan: { priceCents: { gt: 0 } },
-        endDate: { gte: today, lte: this.giornoPiu(today, 7) },
+        endDate: { gte: today, lte: giornoPiu(today, 7) },
       } as never,
       select: {
         id: true, clientId: true, endDate: true,
@@ -556,7 +552,7 @@ export class CoachTasksService {
       const madeNew = await this.ensureTask(sub.clientId, 'plan_expiry_heads_up', sub.id,
         `Piano in scadenza: preparati al rinnovo`,
         `Il piano "${sub.plan.name}" di ${clientName} scade il ${sub.endDate.toLocaleDateString('it-IT')}: sentila PRIMA della scadenza.`,
-        this.giornoPiu(new Date(sub.endDate), 0));
+        giornoPiu(new Date(sub.endDate), 0));
       created += madeNew;
       if (madeNew) {
         // Appunto in Calendario CRM (visibile alla coach: creato a suo nome + legato alla scheda).
@@ -600,7 +596,7 @@ export class CoachTasksService {
     })) as { id: string; clientId: string; startDate: Date | null }[];
     for (const m of maint) {
       if (!m.startDate) continue;
-      const start = this.giornoPiu(new Date(m.startDate), 0);
+      const start = giornoPiu(new Date(m.startDate), 0);
       const [baseline, latest] = await Promise.all([
         this.prisma.measurement.findFirst({ where: { clientId: m.clientId, date: { lte: start } }, orderBy: { date: 'desc' }, select: { weightKg: true } }) as Promise<{ weightKg: number } | null>,
         this.prisma.measurement.findFirst({ where: { clientId: m.clientId }, orderBy: { date: 'desc' }, select: { weightKg: true, date: true } }) as Promise<{ weightKg: number; date: Date } | null>,
@@ -694,7 +690,7 @@ export class CoachTasksService {
           impronta(p.dislikedFoods ?? []),
           title,
           description,
-          this.giornoPiu(today, 3),
+          giornoPiu(today, 3),
         );
       }
       return fatte;
@@ -766,7 +762,7 @@ export class CoachTasksService {
           RIFERIMENTO_UNICO,
           title,
           description,
-          this.giornoPiu(today, 3),
+          giornoPiu(today, 3),
         );
       }
       return fatte;

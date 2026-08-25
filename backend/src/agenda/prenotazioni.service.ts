@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
-import { toDateOnly } from '../common/date-only';
+import { oggiPiu } from '../common/date-only';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgendaService } from './agenda.service';
+import { GIORNI_ANTEPRIMA_AGENDA } from './finestra-agenda';
 import {
   ORE_PER_MODIFICARE,
   creditoVisite,
@@ -98,10 +99,24 @@ export class PrenotazioniService {
         messaggio: 'Non hai ancora una nutrizionista assegnata: scrivi alla tua coach e te la assegna lei. 💚',
       };
     }
-    const oggi = iso(toDateOnly());
-    const fra30 = new Date();
-    fra30.setDate(fra30.getDate() + 30);
-    const orari = await this.agenda.orariLiberi(nutri.id, dal || oggi, al || iso(fra30));
+    /**
+     * ⛔ **I DUE ESTREMI CON DUE DEFINIZIONI DI GIORNO DIVERSE: 29 giorni invece di 30** (25/8).
+     *
+     * `oggi` era già il giorno di Roma (`toDateOnly`), ma `fra30` partiva da `new Date()` e si
+     * sommava 30 giorni nel fuso del processo — UTC su Render. Fra la mezzanotte e le 02:00 italiane
+     * l'estremo destro cadeva sul giorno prima: la finestra prenotabile si accorciava di un giorno e
+     * **l'ultimo giorno disponibile non compariva** — a una cliente che sta cercando quando può.
+     *
+     * ⚠️ Due conti diversi per la stessa domanda: adesso i due estremi vengono dalla stessa funzione
+     * e da **una sola** lettura dell'orologio (a cavallo della mezzanotte sarebbero 29 o 31), e il
+     * numero di giorni è lo stesso che vede il nutrizionista nella sua anteprima.
+     */
+    const adesso = new Date();
+    const orari = await this.agenda.orariLiberi(
+      nutri.id,
+      dal || iso(oggiPiu(0, adesso)),
+      al || iso(oggiPiu(GIORNI_ANTEPRIMA_AGENDA, adesso)),
+    );
     return {
       nutrizionista: { nome: nutri.displayName },
       credito,

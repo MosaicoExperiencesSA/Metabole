@@ -14,6 +14,8 @@
 export const MENU_MAX_GIORNI = 400;
 
 /** Giorni indietro nella finestra di default (senza periodo richiesto). */
+import { oggiPiu } from '../common/date-only';
+
 export const MENU_GIORNI_INDIETRO = 56;
 
 /** Giorni avanti nella finestra di default: i menu dei prossimi giorni sono già generati. */
@@ -41,11 +43,21 @@ function giornoUtc(iso?: string): Date | null {
  */
 export function finestraMenu(periodo?: PeriodoRichiesto, adesso: Date = new Date()): { from: Date; to: Date } {
   if (!periodo?.from && !periodo?.to) {
-    const from = new Date(adesso);
-    from.setDate(from.getDate() - MENU_GIORNI_INDIETRO);
-    const to = new Date(adesso);
-    to.setDate(to.getDate() + MENU_GIORNI_AVANTI);
-    return { from, to };
+    /**
+     * ⛔ **GIORNI, NON ISTANTI — 25/8, trovato allargando il censimento delle date.**
+     *
+     * Erano `new Date(adesso)` più un `setDate(±N)`: due difetti in una riga. Il primo è che
+     * `setDate` somma nel fuso del **processo**; il secondo, peggiore, è che il risultato
+     * **conservava l'ora corrente** e veniva confrontato con `MenuDay.date`, che è una colonna
+     * `@db.Date` (sempre mezzanotte UTC). Alle 09:00 il giorno più vecchio della finestra cadeva
+     * **prima** di `from` e spariva; alle 00:10 c'era. Cioè: la coach apriva i menu della stessa
+     * cliente due volte nella stessa giornata e vedeva 55 giorni la prima e 56 la seconda, senza che
+     * nessuno avesse scritto niente.
+     *
+     * ⚠️ Con `oggiPiu` gli estremi sono mezzanotti UTC del giorno di **Roma**, cioè la stessa forma
+     * dei valori con cui vengono confrontati, e la finestra è larga quello che dice di essere.
+     */
+    return { from: oggiPiu(-MENU_GIORNI_INDIETRO, adesso), to: oggiPiu(MENU_GIORNI_AVANTI, adesso) };
   }
   // Mezzo periodo (solo `from` o solo `to`) è quasi sempre un link costruito male: meglio dirlo
   // che indovinare un estremo e mostrare menu di un intervallo che nessuno ha chiesto.

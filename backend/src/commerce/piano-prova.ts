@@ -7,6 +7,7 @@
  * rifiutato anche a chi arriva con l'id in mano. Nascondere non basta: l'elenco è un suggerimento,
  * l'acquisto è una POST con dentro un `planId`.
  */
+import { aGiorno, toDateOnly } from '../common/date-only';
 
 /** Il piano è la PROVA GRATUITA? (prezzo 0: senza carta per definizione). */
 export function isTrialPlan(plan: { priceCents?: number | null } | null | undefined): boolean {
@@ -31,9 +32,32 @@ export type EsitoData =
   | { ok: true; data: Date }
   | { ok: false; motivo: 'mancante' | 'illeggibile' | 'passato' | 'troppo_lontana' };
 
-/** Mezzanotte locale del giorno di `d`, per confrontare giorni e non istanti. */
-function soloGiorno(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+/**
+ * ⛔ **IL GIORNO SI CHIEDE, NON SI CALCOLA** — 25/8, censimento.
+ *
+ * Qui c'era `soloGiorno(d) = new Date(d.getFullYear(), d.getMonth(), d.getDate())`: la mezzanotte
+ * del **processo**, che è la stessa formula che `common/il-giorno-si-chiede.spec.ts` vieta come
+ * `setHours(0, 0, 0, 0)`, solo scritta in un altro modo — e questo file non era nel perimetro di
+ * quel guardiano. Adesso c'è.
+ *
+ * ⛔ **Cosa sbagliava davvero.** Su Render `TZ` non è impostata, quindi il processo sta a UTC: fra la
+ * mezzanotte e le 02:00 italiane il «primo giorno accettabile» era **ieri**. Una cliente che finiva
+ * «Conosciamoci» a quell'ora poteva scegliere una partenza **già passata** e il controllo «quel
+ * giorno è già passato» non scattava. E la data d'inizio scritta era il giorno UTC, non quello di
+ * Roma: giusta per com'era configurata la macchina, non per com'era scritto il codice.
+ *
+ * ⚠️ **Due funzioni, perché sono due domande** — la distinzione dichiarata in `date-only.ts`:
+ *  · una **stringa di sola data** (`2026-09-01`, quello che manda il calendario) vale **alla
+ *    lettera**: `toDateOnly` non la converte, e convertirla la sposterebbe di un giorno in ogni fuso
+ *    a ovest di Greenwich;
+ *  · un **istante** (`2026-09-01T22:45:00.000Z`, o un `Date` in mano) diventa il giorno di **Roma**,
+ *    che è quello che intende chi lo ha scelto.
+ */
+function giornoScelto(raw: Date | string): Date | null {
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : aGiorno(raw);
+  const testo = String(raw);
+  if (Number.isNaN(new Date(testo).getTime())) return null;
+  return toDateOnly(testo);
 }
 
 /**
@@ -47,15 +71,20 @@ export function validaDataInizio(raw: unknown, oggi: Date = new Date()): EsitoDa
   if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
     return { ok: false, motivo: 'mancante' };
   }
-  const grezza = raw instanceof Date ? raw : new Date(String(raw));
-  if (Number.isNaN(grezza.getTime())) return { ok: false, motivo: 'illeggibile' };
+  const giorno = giornoScelto(raw as Date | string);
+  if (!giorno) return { ok: false, motivo: 'illeggibile' };
 
-  const giorno = soloGiorno(grezza);
-  const primo = soloGiorno(oggi);
+  const primo = aGiorno(oggi);
   if (giorno.getTime() < primo.getTime()) return { ok: false, motivo: 'passato' };
 
-  const limite = soloGiorno(oggi);
-  limite.setMonth(limite.getMonth() + MESI_MAX_DATA_INIZIO);
+  /**
+   * ⚠️ **`setUTCMonth`, non `setMonth`**: `primo` è una mezzanotte **UTC**, e `setMonth` la
+   * sposterebbe leggendo i campi nel fuso del processo — su un portatile italiano il limite cadrebbe
+   * un giorno prima. Il salto di mese resta aritmetica di calendario (31/8 + 12 mesi → 31/8), che è
+   * quello che si intende con «entro dodici mesi».
+   */
+  const limite = new Date(primo);
+  limite.setUTCMonth(limite.getUTCMonth() + MESI_MAX_DATA_INIZIO);
   if (giorno.getTime() > limite.getTime()) return { ok: false, motivo: 'troppo_lontana' };
 
   return { ok: true, data: giorno };

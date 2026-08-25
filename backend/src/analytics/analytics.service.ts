@@ -4,7 +4,15 @@ import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
-import { giornoLocale } from '../common/date-only';
+import {
+  confineMese,
+  confineMeseGiorni,
+  giornoLocale,
+  inizioDelGiorno,
+  inizioMeseLocale,
+  meseLocale,
+  oggiPiu,
+} from '../common/date-only';
 import {
   confrontoAllaGiornata,
   finestraDelMese,
@@ -18,6 +26,21 @@ import {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const MONTH_LABELS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
+/**
+ * ⚠️ **L'ETICHETTA VIENE DAL MESE SCRITTO, NON DA UN `Date`** (25/8). I confini di mese ora sono
+ * istanti di **Roma** (`confineMese`): l'inizio di settembre è il 31 agosto alle 22:00 UTC, quindi
+ * `inizio.getMonth()` su un processo a UTC avrebbe risposto **agosto** e la tendina avrebbe scritto
+ * il nome del mese sbagliato accanto ai numeri giusti. La chiave `AAAA-MM` è già la risposta.
+ */
+export function meseBreve(chiave: string): string {
+  return MONTH_LABELS[Number(chiave.slice(5, 7)) - 1] ?? chiave;
+}
+
+/** Lo stesso nome, con l'anno: la tendina dei periodi arriva indietro di dodici mesi. */
+export function etichettaMese(chiave: string): string {
+  return `${meseBreve(chiave)} ${chiave.slice(0, 4)}`;
+}
 const DEMO_DOMAIN = '@demo.metabole.local';
 const DEMO_NOTE = '__demo_analytics__';
 
@@ -61,7 +84,25 @@ export class AnalyticsService {
     const coachOf = new Map(clients.map((c) => [c.id, c.clientProfile?.assignedCoach?.displayName ?? null]));
 
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    /**
+     * ⛔ **IL MESE È QUELLO DI ROMA** (25/8, censimento). Era `new Date(now.getFullYear(),
+     * now.getMonth(), 1)`, il primo del mese nel fuso del **processo** — UTC su Render. Nella prima
+     * ora del mese nuovo «kg persi questo mese» e «incasso di questo mese» mostravano ancora il mese
+     * scorso; e la tendina dei periodi si chiamava con il mese sbagliato.
+     *
+     * ⚠️ È lo stesso confine che usano il tetto dei compensi e il portafoglio (`confineMese`): due
+     * definizioni di «settembre» nello stesso prodotto sono due numeri che non tornano e nessuno sa
+     * quale guardare.
+     */
+    const monthStart = inizioMeseLocale(now);
+    /**
+     * ⚠️ **Due confini, perché ci sono due tipi di colonna** (25/8, in revisione). `monthStart` è un
+     * **istante** e vale per `Payment.createdAt` e `User.createdAt`; `giornoDelMese.gte` è un
+     * **valore-giorno** e vale per `Measurement.date`, che è una colonna `DATE`. Con Roma i due
+     * partizionano allo stesso modo — con `APP_TIMEZONE` a ovest no, e le misure del primo del mese
+     * scivolerebbero tutte nel mese prima. Vedi `confineMeseGiorni` in `date-only.ts`.
+     */
+    const giornoDelMese = confineMeseGiorni(meseLocale(now));
     const base = {
       scope: scopeAll ? 'all' : 'own',
       clientsCount: ids.length,
@@ -125,7 +166,7 @@ export class AnalyticsService {
     let kgMonth = 0, cmMonth = 0;
     const lossByClient: { id: string; name: string; lossKg: number }[] = [];
     for (const [cid, arr] of byClient) {
-      const monthArr = arr.filter((m) => m.date >= monthStart);
+      const monthArr = arr.filter((m) => m.date >= giornoDelMese.gte);
       if (monthArr.length >= 2) {
         kgMonth += monthArr[0].weightKg - monthArr[monthArr.length - 1].weightKg;
         const wStart = monthArr.find((m) => m.waistCm != null)?.waistCm;
@@ -163,12 +204,13 @@ export class AnalyticsService {
     const perPeriodo: Record<string, { top: { name: string; lossKg: number }[]; bottom: { name: string; lossKg: number }[] }> = {
       tutto: classificaFra(null, null),
     };
+    const meseDiOggi = meseLocale(now);
     for (let i = 0; i < 12; i++) {
-      const inizio = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const fine = new Date(inizio.getFullYear(), inizio.getMonth() + 1, 1);
-      const chiave = `${inizio.getFullYear()}-${String(inizio.getMonth() + 1).padStart(2, '0')}`;
-      periodi.push({ chiave, etichetta: `${MONTH_LABELS[inizio.getMonth()]} ${inizio.getFullYear()}` });
-      perPeriodo[chiave] = classificaFra(inizio, fine);
+      const chiave = meseSpostato(meseDiOggi, -i);
+      // ⚠️ `classificaFra` filtra `Measurement.date`: valori-giorno, quindi confini valori-giorno.
+      const { gte, lt } = confineMeseGiorni(chiave);
+      periodi.push({ chiave, etichetta: etichettaMese(chiave) });
+      perPeriodo[chiave] = classificaFra(gte, lt);
     }
 
     const spendByClient = new Map<string, number>();
@@ -185,10 +227,17 @@ export class AnalyticsService {
     const longest = [...clients].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
 
     // Serie mensile (ultimi 6 mesi) per i grafici con linea di tendenza.
-    const months: { start: Date; end: Date; label: string }[] = [];
+    /**
+     * ⚠️ **Ogni mese porta i suoi DUE confini**: `start`/`end` sono istanti (pagamenti, iscrizioni,
+     * abbonamenti), `giornoDa`/`giornoA` sono valori-giorno (le misure). Erano uno solo, e i grafici
+     * mescolavano le due cose nella stessa passata.
+     */
+    const months: { start: Date; end: Date; giornoDa: Date; giornoA: Date; label: string }[] = [];
     for (let i = 5; i >= 0; i--) {
-      const s = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({ start: s, end: new Date(s.getFullYear(), s.getMonth() + 1, 1), label: MONTH_LABELS[s.getMonth()] });
+      const chiave = meseSpostato(meseDiOggi, -i);
+      const { gte, lt } = confineMese(chiave);
+      const giorni = confineMeseGiorni(chiave);
+      months.push({ start: gte, end: lt, giornoDa: giorni.gte, giornoA: giorni.lt, label: meseBreve(chiave) });
     }
     let cumRevenue = payments
       .filter((p: { createdAt: Date }) => p.createdAt < months[0].start)
@@ -196,7 +245,7 @@ export class AnalyticsService {
     const monthly = months.map((mo) => {
       let kg = 0, cm = 0, withLoss = 0, revenue = 0, newC = 0;
       for (const arr of byClient.values()) {
-        const inMonth = arr.filter((m) => m.date >= mo.start && m.date < mo.end);
+        const inMonth = arr.filter((m) => m.date >= mo.giornoDa && m.date < mo.giornoA);
         if (inMonth.length >= 2) {
           kg += inMonth[0].weightKg - inMonth[inMonth.length - 1].weightKg;
           const ws = inMonth.find((m) => m.waistCm != null)?.waistCm;
@@ -311,6 +360,7 @@ export class AnalyticsService {
     const coach = await this.prisma.staff.findFirst({ where: { user: { role: 'coach' } }, select: { id: true } });
     const nutri = await this.prisma.staff.findFirst({ where: { user: { role: 'nutritionist' } }, select: { id: true } });
     const now = new Date();
+    const meseDiDemo = meseLocale(now);
     const demos = [
       { name: 'Demo Anna', startW: 88, lossKg: 7.5, startWaist: 98, lossCm: 9, tenure: 9, spend: 79700 },
       { name: 'Demo Bruno', startW: 102, lossKg: 9.2, startWaist: 112, lossCm: 11, tenure: 7, spend: 49700 },
@@ -323,7 +373,10 @@ export class AnalyticsService {
     for (let i = 0; i < demos.length; i++) {
       const d = demos[i];
       const email = `demo${i + 1}${DEMO_DOMAIN}`;
-      const createdAt = new Date(now.getFullYear(), now.getMonth() - d.tenure, 5);
+      // ⚠️ Anche qui il mese è quello di Roma (25/8). Sono dati **dimostrativi** e il giorno esatto
+      // non lo legge nessuno — ma restavano l'ultima riga del progetto che si costruiva un mese a
+      // mano, e un'eccezione dichiarata «tanto è finta» è il posto da cui la formula ricompare.
+      const createdAt = inizioDelGiorno(`${meseSpostato(meseDiDemo, -d.tenure)}-05`);
       const user = await this.prisma.user.upsert({
         where: { email },
         update: {},
@@ -337,9 +390,7 @@ export class AnalyticsService {
       // Misure ogni 10 giorni per 6 mesi (peso e vita in calo).
       const points = 18;
       for (let k = 0; k < points; k++) {
-        const date = new Date(now);
-        date.setDate(now.getDate() - (points - 1 - k) * 10);
-        date.setHours(0, 0, 0, 0);
+        const date = oggiPiu(-(points - 1 - k) * 10, now);
         const frac = k / (points - 1);
         await this.prisma.measurement.upsert({
           where: { clientId_date: { clientId: user.id, date } },
@@ -350,7 +401,7 @@ export class AnalyticsService {
       // Pagamento approvato + provvigione coach, distribuiti su questo mese e mesi passati.
       const existingPay = await this.prisma.payment.findFirst({ where: { clientId: user.id, description: 'Abbonamento DEMO' } });
       if (!existingPay) {
-        const payDate = new Date(now.getFullYear(), now.getMonth() - (i % 4), 3);
+        const payDate = inizioDelGiorno(`${meseSpostato(meseDiDemo, -(i % 4))}-03`);
         await this.prisma.payment.create({
           data: { clientId: user.id, amountCents: d.spend, description: 'Abbonamento DEMO', method: 'card' as never, status: 'approved' as never, createdAt: payDate, approvedAt: payDate },
         });

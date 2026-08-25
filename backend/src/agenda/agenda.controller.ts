@@ -3,6 +3,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { oggiPiu } from '../common/date-only';
+import { GIORNI_ANTEPRIMA_AGENDA } from './finestra-agenda';
 import { AgendaService } from './agenda.service';
 import { CreaFerieDto, CreaSlotDto } from './dto/agenda.dto';
 
@@ -77,9 +79,29 @@ export class AgendaController {
   @Get('liberi')
   @RequirePage('visits_agenda')
   liberi(@CurrentUser() user: AuthUser, @Query('dal') dal?: string, @Query('al') al?: string) {
-    const oggi = new Date().toISOString().slice(0, 10);
-    const fra30 = new Date();
-    fra30.setDate(fra30.getDate() + 30);
-    return this.agenda.mieiOrariLiberi(user.sub, dal || oggi, al || fra30.toISOString().slice(0, 10));
+    /**
+     * ⛔ **I DUE ESTREMI CON DUE DEFINIZIONI DI GIORNO: 29 giorni invece di 30** (25/8, censimento).
+     *
+     * Erano `new Date().toISOString().slice(0, 10)` — il giorno **UTC** — e un `setDate(+30)`
+     * sull'istante. Fra la mezzanotte e le 02:00 italiane il primo è ancora **ieri**, e il secondo
+     * parte da lì: la finestra si accorciava di un giorno e **l'ultimo giorno prenotabile non
+     * compariva**. È lo stesso miscuglio di `prenotazioni.service`, sull'altra porta.
+     *
+     * ⚠️ **L'estremo sinistro non arrivava a fare danno**, e va detto invece di prendersi il merito:
+     * `agenda.service.orariLiberi` fa `const dal = dalIso < oggi ? oggi : dalIso` con l'`oggi` di
+     * Roma, quindi un `dal` di ieri veniva già risalito lì. Il difetto vero di questa riga è il
+     * **destro**, che nessuno ricalcola. Il sinistro si corregge lo stesso: due punti che rispondono
+     * alla stessa domanda in due modi diversi sono il modo in cui la prossima riga sbaglia da sola.
+     *
+     * ⚠️ `oggiPiu` somma i giorni su una mezzanotte UTC, in millisecondi, e da **una sola** lettura
+     * dell'orologio: chiamarlo due volte a cavallo della mezzanotte darebbe 29 o 31 giorni.
+     */
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const adesso = new Date();
+    return this.agenda.mieiOrariLiberi(
+      user.sub,
+      dal || iso(oggiPiu(0, adesso)),
+      al || iso(oggiPiu(GIORNI_ANTEPRIMA_AGENDA, adesso)),
+    );
   }
 }

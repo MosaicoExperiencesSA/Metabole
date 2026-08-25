@@ -17,6 +17,7 @@ import { soloSeMandato, unioneSenzaPerdere } from '../common/non-perdere';
 import { assegnaSenzaGlutineEAvvisa } from '../menu/senza-glutine';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { PARAM_CAPO_PREDEFINITO, nutrizionistaDiRiferimento } from '../common/nutrizionista-di-riferimento';
+import { toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { ONBOARDING_QUESTIONS } from './onboarding.questions';
@@ -591,8 +592,24 @@ export class OnboardingService {
     // Così la schermata "I tuoi obiettivi" si popola subito (grafici e progressi)
     // invece di restare vuota. Non sovrascrive eventuali misure già inserite.
     try {
-      const startDate = new Date();
-      startDate.setHours(0, 0, 0, 0);
+      /**
+       * ⛔ **IL GIORNO È QUELLO DI ROMA, e qui costava il peso dichiarato** (25/8, censimento).
+       *
+       * Era `new Date()` + `setHours(0, 0, 0, 0)`: il fuso del **processo**, che su Render è UTC.
+       * Fra la mezzanotte e le 02:00 italiane questa riga rispondeva **ieri**, e chi finiva il
+       * questionario a quell'ora si vedeva il peso di partenza archiviato al giorno prima.
+       *
+       * ⛔ Non era solo un punto spostato sul grafico. `measurement` ha la chiave unica
+       * `(cliente, data)` e qui si scrive in `upsert` con `update: {}`: se per quel giorno una
+       * misura esisteva già, **il peso dichiarato spariva in silenzio**. E sulla stessa colonna
+       * `signals.service` scrive con `toDateOnly()` — cioè c'erano **due definizioni di giorno sulla
+       * stessa chiave unica**, che è il modo in cui due scritture si scambiano il posto senza che
+       * nessuna delle due fallisca.
+       *
+       * ⚠️ Tocca anche «Non ha seguito» (`commerce/non-ha-seguito.ts`), che riconosce la misura del
+       * questionario **dalla sua data**: con la data di ieri non la riconosceva più.
+       */
+      const startDate = toDateOnly();
       await this.prisma.measurement.upsert({
         where: { clientId_date: { clientId: userId, date: startDate } },
         create: {

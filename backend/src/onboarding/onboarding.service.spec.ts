@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
 import { OnboardingService } from './onboarding.service';
+import { conOrologioFermo } from '../../test/orologio-fermo';
 
 const baseAnswers = (): SubmitAnswersDto =>
   ({
@@ -61,6 +62,14 @@ describe('OnboardingService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'o1', status: 'proposed' }),
       },
       escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }) },
+      /**
+       * ⛔ **Mancava, e per questo il difetto del peso di partenza è vissuto fino al 25/8.** La
+       * scrittura della prima misura sta dentro un `try/catch` che inghiotte tutto (è best-effort:
+       * non deve bloccare il questionario), quindi senza questo finto la chiamata falliva in
+       * silenzio a ogni test e **nessuno guardava con che data veniva scritta**. Un finto che manca
+       * non fa fallire niente: fa passare tutto.
+       */
+      measurement: { upsert: jest.fn().mockResolvedValue({ id: 'm1' }) },
       // §16.10: se il questionario manda solo la FAMIGLIA, lo stile si legge dal catalogo.
       diet: { findFirst: jest.fn().mockResolvedValue({ style: 'flexible' }) },
       crmRecord: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -571,6 +580,63 @@ describe('OnboardingService', () => {
     expect((result as any).objectiveValidation.pace).toBe('unreal');
     expect(prisma.objective.create).toHaveBeenCalled();
   });
+  /**
+   * ⛔ **IL PESO DI PARTENZA, E IL GIORNO CON CUI SI ARCHIVIA** — 25/8, censimento delle date.
+   *
+   * Qui c'era `new Date()` + `setHours(0, 0, 0, 0)`: il fuso del **processo**, che su Render è UTC.
+   * Chi finiva il questionario fra la mezzanotte e le 02:00 italiane si vedeva il peso dichiarato
+   * archiviato al **giorno prima**.
+   *
+   * ⛔ E non era un punto spostato su un grafico: `measurement` ha la chiave unica `(cliente, data)`
+   * e qui si scrive in `upsert` con `update: {}`. Se per quel giorno una misura esisteva già — e la
+   * scrive `signals.service`, che il giorno lo prende con `toDateOnly()`, cioè **quello di Roma** —
+   * il peso dichiarato spariva senza un errore. Due definizioni di giorno sulla stessa chiave unica.
+   */
+  describe('⛔ il peso di partenza si archivia al giorno di ROMA', () => {
+    const giornoScritto = () =>
+      (prisma.measurement.upsert.mock.calls[0][0].create.date as Date).toISOString();
+
+    /**
+     * ⚠️ **`conOrologioFermo`, e non `useFakeTimers` dentro il test** — corretto in revisione, 25/8.
+     * Con la chiamata dentro l'`it` e `useRealTimers()` in fondo, **un `expect` che fallisce salta il
+     * ripristino**: l'orologio resta fermo e tutti i test dopo cadono per una ragione che non è la
+     * loro. Un fallimento vero diventa una cascata, e si va a cercare nel posto sbagliato — che è
+     * esattamente quello che `test/orologio-fermo.ts` esiste per impedire (`beforeEach`+`afterEach`).
+     */
+    describe('di giorno', () => {
+      conOrologioFermo(new Date('2026-08-26T10:00:00.000Z'));
+
+      it('il peso dichiarato finisce sulla data di oggi', async () => {
+        await service.submitAnswers('u1', baseAnswers());
+        expect(giornoScritto()).toBe('2026-08-26T00:00:00.000Z');
+      });
+
+      /** ⚠️ Il peso è quello dichiarato: la data giusta su un numero sbagliato non serve a niente. */
+      it('⚠️ e il peso è quello del questionario', async () => {
+        await service.submitAnswers('u1', baseAnswers());
+        expect(prisma.measurement.upsert.mock.calls[0][0].create.weightKg).toBe(68);
+      });
+    });
+
+    describe('⛔ alle 00:30 italiane (per UTC è ancora il 25)', () => {
+      conOrologioFermo(new Date('2026-08-25T22:30:00.000Z'));
+
+      it('⛔ finisce sul 26, non sul 25 come prima', async () => {
+        await service.submitAnswers('u1', baseAnswers());
+        expect(giornoScritto()).toBe('2026-08-26T00:00:00.000Z');
+      });
+
+      /**
+       * ⚠️ E la chiave con cui cerca è la stessa data con cui scrive: se divergessero, l'`upsert`
+       * non troverebbe mai la riga che ha appena creato.
+       */
+      it('⚠️ la chiave dell’upsert e la data scritta sono lo stesso giorno', async () => {
+        await service.submitAnswers('u1', baseAnswers());
+        const arg = prisma.measurement.upsert.mock.calls[0][0];
+        expect((arg.where.clientId_date.date as Date).toISOString()).toBe(giornoScritto());
+      });
+    });
+  });
 });
 
 
@@ -664,4 +730,5 @@ describe('OnboardingService — lo stile non si chiede più', () => {
     prisma.diet.findFirst.mockResolvedValue(null);
     await expect(service.submitAnswers('u1', senzaStile({ dietFamily: 'Non esiste' }))).rejects.toThrow(/tocca una delle diete/);
   });
+
 });

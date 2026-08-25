@@ -4,6 +4,7 @@ import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { nextRuleCode, refCodeBase } from '../common/ref-code';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { istantePiuGiorni } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 
@@ -281,8 +282,14 @@ export class ReferralService {
     // Se la scadenza è già passata i giorni si contano da OGGI: estendere da una data vecchia
     // regalerebbe giorni già consumati.
     const base = sub.endDate && sub.endDate > now ? sub.endDate : now;
-    const newEnd = new Date(base);
-    newEnd.setDate(newEnd.getDate() + days);
+    /**
+     * ⚠️ **`istantePiuGiorni`, non `setDate`** (25/8, censimento). `setDate` somma il giorno nel fuso
+     * del **processo** conservando l'ora di parete: su Render (`TZ` non impostata) coincide con la
+     * somma in millisecondi, ma con `TZ=Europe/Rome` una regalia che attraversa il cambio d'ora di
+     * marzo consegna **un'ora in meno** — e in un caso limite un giorno in meno. Qui il giorno non
+     * si normalizza: `endDate` è un istante vero e la scadenza deve restare all'ora in cui era.
+     */
+    const newEnd = istantePiuGiorni(base, days);
     await this.prisma.subscription.update({ where: { id: sub.id }, data: { endDate: newEnd } });
     await this.prisma.referral.update({ where: { id: referralId }, data: { rewardedAt: new Date() } });
     await this.audit.log({

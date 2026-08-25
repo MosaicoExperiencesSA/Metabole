@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { inizioMeseLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { MailboxService } from '../mailbox/mailbox.service';
@@ -143,8 +144,13 @@ export class DashboardService {
     // Grafici: numeri chiave (scope per ruolo)
     try {
       const ids = ((await this.prisma.user.findMany({ where: clientWhere as never, select: { id: true } })) as { id: string }[]).map((c) => c.id);
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      /**
+       * ⚠️ **«Nuovi questo mese» è il mese di Roma** (25/8, censimento). Era `new
+       * Date(now.getFullYear(), now.getMonth(), 1)`, il fuso del **processo**: nella prima ora del
+       * mese nuovo il contatore mostrava ancora il mese scorso, e chi si era registrato in quelle
+       * due ore risultava del mese precedente.
+       */
+      const monthStart = inizioMeseLocale();
       const newThisMonth = ids.length ? await this.prisma.user.count({ where: { id: { in: ids }, createdAt: { gte: monthStart } } }) : 0;
       // ⚠️ «Quanti hanno un piano», non «quanti stanno erogando»: un piano in coda è un contratto
     // pagato, e un contatore che lo salta racconta meno clienti di quanti ce ne sono (voce 258).

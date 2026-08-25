@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { aGiorno } from '../common/date-only';
+import { istantePiuGiorni, oggiPiu } from '../common/date-only';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { primoPastoDigiuno } from '../menu/finestre-digiuno';
@@ -187,16 +187,24 @@ export class LifecycleService implements OnModuleInit, OnModuleDestroy {
    * difetto delle misure e dei soldi, sul canale che parla alle clienti.
    */
   private dayRange(offsetDays: number): { gte: Date; lt: Date } {
-    const oggi = aGiorno(new Date());
-    const start = new Date(oggi.getTime() + offsetDays * 86_400_000);
-    const end = new Date(start.getTime() + 86_400_000);
-    return { gte: start, lt: end };
+    // ⚠️ **Una lettura dell'orologio, non due** (25/8, in revisione): con due `new Date()` distinti,
+    // una chiamata a cavallo della mezzanotte di Roma renderebbe una finestra larga **due giorni** —
+    // e questa finestra decide a chi parte una email oggi, quindi la coorte raddoppierebbe.
+    const adesso = new Date();
+    return { gte: oggiPiu(offsetDays, adesso), lt: oggiPiu(offsetDays + 1, adesso) };
   }
 
+  /**
+   * «Da N giorni fa a adesso»: una finestra di **istanti**, non di giorni — qui non si normalizza
+   * niente, si guarda indietro di N volte 24 ore.
+   *
+   * ⚠️ Era `setDate(getDate() - n)`, che sposta il calendario nel fuso del **processo** conservando
+   * l'ora di parete: su Render coincide con la sottrazione in millisecondi, con `TZ=Europe/Rome` no —
+   * nella notte del cambio d'ora la finestra si allunga o si accorcia di un'ora. Difetto che si
+   * comporta bene sulla macchina di chi lo scrive (25/8, censimento).
+   */
   private daysAgo(n: number): Date {
-    const d = new Date();
-    d.setDate(d.getDate() - n);
-    return d;
+    return istantePiuGiorni(new Date(), -n);
   }
 
   // ---------- Impostazioni ----------

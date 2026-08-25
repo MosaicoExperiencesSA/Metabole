@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { avvisaCoachDellaCliente, avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
-import { toDateOnly } from '../common/date-only';
+import { giornoPiu, istantePiuGiorni, toDateOnly } from '../common/date-only';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
@@ -1578,9 +1578,14 @@ export class SostituzioneChatService {
    */
   private async invitoARiflettere(clientId: string): Promise<string> {
     try {
+      /**
+       * ⚠️ **`giornoPiu`, non `setDate`** (25/8): `oggi` è una mezzanotte UTC scritta da
+       * `toDateOnly`, e `setDate` somma nel fuso del **processo**. È la stessa riga corretta lo
+       * stesso giorno in `pause.service`, e da qui decide se alla cliente parte «parlane con la tua
+       * coach» e se la coach viene avvisata.
+       */
       const oggi = toDateOnly();
-      const dal = new Date(oggi);
-      dal.setDate(dal.getDate() - (FINESTRA_GIORNI - 1));
+      const dal = giornoPiu(oggi, -(FINESTRA_GIORNI - 1));
       const giornate = (await this.prisma.menuDay.findMany({
         where: { clientId, date: { gte: dal, lte: oggi } },
         select: { date: true, meals: true },
@@ -1597,8 +1602,10 @@ export class SostituzioneChatService {
        * partono insieme di proposito, così la cliente sente «parlane con la tua coach» esattamente
        * quando la coach lo sa. Un contatore separato sarebbe una terza verità da tenere allineata.
        */
-      const dalloUltimo = new Date();
-      dalloUltimo.setDate(dalloUltimo.getDate() - PAUSA_FRA_INVITI_GIORNI);
+      // ⚠️ Qui la base è un **istante** (quando è stato mandato l'avviso precedente), quindi il
+      // giorno non si normalizza: si guarda indietro di N volte 24 ore. `setDate` no, per la ragione
+      // di sempre — somma nel fuso del processo.
+      const dalloUltimo = istantePiuGiorni(new Date(), -PAUSA_FRA_INVITI_GIORNI);
       const gia = await this.prisma.notification.findFirst({
         where: {
           type: 'cambi_frequenti',

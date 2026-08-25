@@ -20,6 +20,54 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` 🕐 **«Che giorno è oggi»: diciassette punti che se lo calcolavano da soli, e il
+  guardiano che adesso vieta la causa.** Due voci dell'elenco lavori chiuse insieme — il censimento
+  del 24/8 e `giorno-nel-fuso-del-processo-piano-prova`. Su Render `TZ` non è impostata, quindi il
+  processo sta a UTC mentre le clienti stanno in Italia: fra la mezzanotte e le 02:00 diciassette
+  punti rispondevano **ieri**, e sbagliavano insieme — è per questo che nessun confronto fra due di
+  loro poteva rivelarlo.
+  ⛔ **Il peggiore: il peso di partenza spariva.** `onboarding` archiviava la prima misura al giorno
+  prima, e `measurement` ha la chiave unica `(cliente, data)` scritta in `upsert … update: {}`: se
+  per quel giorno una misura c'era già — e sulla stessa colonna `signals` scrive con l'**altra**
+  definizione di giorno — il peso dichiarato non entrava. ⚠️ Nessun test lo vedeva perché il finto di
+  `prisma.measurement` **non esisteva**: la scrittura sta in un `try/catch` best-effort e falliva in
+  silenzio a ogni test. Un finto che manca non fa fallire niente, fa passare tutto.
+  ✅ **Gli altri sette che sbagliavano anche su Render**: 29 giorni prenotabili invece di 30 (e
+  l'ultimo giorno non compariva); l'anteprima dell'agenda; il calendario della coach che cominciava
+  da ieri; il primo giorno accettabile della prova, che era ieri — quindi si poteva scegliere una
+  partenza già passata; il tetto di spesa degli agenti fermo al mese scorso; l'incasso del mese e i
+  «Nuovi questo mese» sulla dashboard e nell'analitica.
+  ✅ **Cinque sbagliavano solo sul portatile** (`TZ=Europe/Rome`), che è la forma peggiore perché su
+  Render non si riproduce. ✅ **E quattro punti che il censimento non aveva trovato**, usciti
+  rifacendo il grep con la regola larga: la finestra dei menu della coach mostrava **55 giorni alle
+  09:00 e 56 alle 00:10** (conservava l'ora corrente contro una colonna DATE); la finestra che decide
+  se alla cliente parte «parlane con la tua coach»; la scadenza di un'attività; e il **giorno di
+  conforto** del plateau, cioè in che giorno della settimana una cliente riceve i piatti che ama — un
+  giorno che si dice a voce.
+  ✅ **Sei funzioni in `date-only.ts`**, perché la stessa riga era copiata a mano: `oggiPiu`,
+  `giornoPiu`, `istantePiuGiorni`, `inizioDiOggi`, `confineMeseGiorni`, `meseDopo`. Tutte sommano in
+  millisecondi: `setDate` conserva l'ora di parete, e il 28 marzo 2027 — giorno da 23 ore — su una
+  mezzanotte UTC rende ancora il 28.
+  ⛔ **Il guardiano adesso vieta la causa, non le sue forme.** Vietava solo `setHours(0,0,0,0)`, e per
+  questo non vedeva `new Date(d.getFullYear(), …)`: sette dei tredici punti. La regex specifica
+  scritta al secondo tentativo è stata bucata in cinque modi in dieci minuti dalla revisione. Adesso
+  la regola è una: **dentro il perimetro non si leggono né si scrivono campi di calendario nel fuso
+  del processo**. Perimetro da 24 file a 41, tutti e 41 senza nessuna eccezione dichiarata.
+  ✅ **`npm run diag:giorno-a-mano`** (sola lettura) dice quanto è costato: i pesi archiviati al
+  giorno sbagliato e quanti sono **spariti**, le iscrizioni contate nel mese sbagliato, gli incassi
+  finiti nel mese prima. ⚠️ Zero non vuol dire «non è mai successo»: vuol dire «non è successo alle
+  persone che ci sono adesso».
+  ⛔ **La revisione ha trovato un bloccante e sette difetti**, e due valgono da soli: (a)
+  `npm run test:notte` diventava **rosso**, perché un file di test costruiva «oggi» con la formula
+  vietata e finché anche il prodotto sbagliava i due errori si annullavano; (b) la prima correzione
+  del calendario della coach **girava** il difetto invece di chiuderlo — metteva un giorno dove
+  serviva un istante, e un appuntamento dell'01:30 sarebbe sparito dal calendario di chi lo guarda
+  all'01:00. ✅ E ne sono usciti due difetti veri che col fuso non c'entravano: il ripiego del rinnovo
+  faceva «+1 mese» **traboccando** (31 gennaio → 3 marzo), sommando i giorni regalati a ogni rinnovo;
+  e l'analitica confrontava una colonna DATE con confini di mese a istanti.
+  🧪 5322 test in 322 suite verdi in tre modi (UTC, Europe/Rome, `test:notte`). Nessuna migrazione,
+  solo backend.
+
 - `[Sviluppo]` 👁️ **Tre difetti che si vedono: gli asterischi nei testi, le chat che si aprivano in
   cima, i numeri dell'orologio tagliati.** Tre voci dell'elenco lavori chiuse insieme — nessuna
   richiesta nuova: erano lì da giorni, tutte «cose che una persona vede».

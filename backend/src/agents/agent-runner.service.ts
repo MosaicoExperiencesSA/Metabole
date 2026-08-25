@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuditService } from '../audit/audit.service';
+import { inizioMeseLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -70,8 +71,18 @@ export class AgentRunnerService {
 
   /** Spesa del mese corrente per un agente (somma AgentRun.costCents). */
   async monthlySpentCents(agentId: string): Promise<number> {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    /**
+     * ⛔ **IL MESE È QUELLO DI ROMA** (25/8, censimento). Era `new Date(now.getFullYear(),
+     * now.getMonth(), 1)`, cioè il primo del mese nel fuso del **processo** — UTC su Render. Nella
+     * **prima ora del mese nuovo** (le due d'estate) questo conto rispondeva ancora «mese scorso»:
+     * un agente che aveva esaurito il tetto di spesa restava bloccato anche dopo l'azzeramento, e
+     * l'unica traccia era una spesa sommata al mese sbagliato.
+     *
+     * ⚠️ `inizioMeseLocale` rende l'**istante** in cui il mese è cominciato a Roma (le 22:00 UTC del
+     * 31, d'estate), che è la cosa giusta da confrontare con `startedAt`: un timestamp, non un
+     * giorno.
+     */
+    const monthStart = inizioMeseLocale();
     const agg = await this.prisma.agentRun.aggregate({
       where: { agentId, startedAt: { gte: monthStart } },
       _sum: { costCents: true },

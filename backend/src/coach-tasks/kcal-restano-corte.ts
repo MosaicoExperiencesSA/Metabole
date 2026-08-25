@@ -48,6 +48,7 @@
  * ⛔ **LO SCOSTAMENTO LO CALCOLA IL MOTORE, non questo file** — vedi `meritaUnAvviso`.
  */
 import { scostamentoPct } from '../menu/giornata-sotto-target';
+import { oggiPiu } from '../common/date-only';
 
 export const TIPO_KCAL_CORTE = 'kcal_restano_corte';
 
@@ -346,7 +347,9 @@ export function testoKcalCorte(
 
 /** Fra quanti giorni scade. ⚠️ Non è un'urgenza clinica: è una decisione da prendere, non da correre. */
 export function scadenzaKcalCorte(adesso: Date, giorni = 7): Date {
-  const d = new Date(adesso);
-  d.setDate(d.getDate() + giorni);
-  return d;
+  // ⚠️ È una **scadenza vista da oggi**, quindi il giorno è quello di Roma e la somma è in
+  // millisecondi: `setDate` la faceva nel fuso del processo (25/8). Le altre scadenze delle attività
+  // passano già da `oggiPiu` (`coach-tasks.service`): questa era rimasta fuori perché sta in un file
+  // suo.
+  return oggiPiu(giorni, adesso);
 }

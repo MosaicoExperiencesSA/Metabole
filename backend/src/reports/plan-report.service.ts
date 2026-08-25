@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { aGiorno, giornoDelDato } from '../common/date-only';
+import { aGiorno, giornoDelDato, meseDopo } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { prezzoEffettivo } from '../commerce/prezzo-piano';
 import { ConfigParamsService } from '../config-params/config-params.service';
@@ -150,15 +150,19 @@ export class PlanReportService {
     return prezzoEffettivo(p);
   }
 
-  /** Mese calendario dopo `d` (31/1 + 1 mese → 28/2, non 3/3). */
+  /**
+   * Mese calendario dopo `d` (31/1 + 1 mese → 28/2, non 3/3), a partire dal **giorno** di `d`.
+   *
+   * ⚠️ **L'aritmetica non sta più qui** (25/8): sta in `common/date-only.ts` (`meseDopo`), perché
+   * `commerce.service` rispondeva alla stessa domanda in un altro modo — `setMonth` secco, che sul
+   * 31 gennaio dava il 3 marzo. Due definizioni di «un mese» sui soldi. Qui resta la parte che è di
+   * questo file: che si parte dal **giorno** di una data salvata (`day0`), non dall'istante.
+   *
+   * ⚠️ E `day0`/`meseDopo` lavorano in UTC: `getDate` e `setMonth` leggono il fuso del **processo**,
+   * quindi su Render (UTC) il conto tornava e su ogni portatile italiano no.
+   */
   private addMonths(d: Date, n: number): Date {
-    const x = this.day0(d);
-    const day = x.getDate();
-    x.setDate(1);
-    x.setMonth(x.getMonth() + n);
-    const lastDay = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
-    x.setDate(Math.min(day, lastDay));
-    return x;
+    return meseDopo(this.day0(d), n);
   }
 
   /**
@@ -415,7 +419,10 @@ export class PlanReportService {
         monthsToGoal = monthsLeft;
         if (monthsLeft <= 24) {
           const eta = this.addMonths(end, monthsLeft);
-          etaLabel = `entro ${MONTH_IT[eta.getMonth()]} ${eta.getFullYear()}`;
+          // ⚠️ `getUTCMonth`, non `getMonth` (25/8): `addMonths` rende una mezzanotte **UTC**, e
+          // rileggerla nel fuso del processo la sposta al giorno prima ovunque a ovest di Greenwich
+          // — cioè scriverebbe il mese precedente accanto a una stima che non è cambiata.
+          etaLabel = `entro ${MONTH_IT[eta.getUTCMonth()]} ${eta.getUTCFullYear()}`;
         }
       }
     }

@@ -14,6 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { avanzaStatoSeIndietro } from './avanza-stato';
 import { nonHaMaiSeguito, STAGE_NON_SEGUITA, STAGE_PERCORSO_CONCLUSO } from './non-ha-seguito';
 import { campiCambiati } from '../common/diff-campi';
+import { inizioMeseLocale } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { avvisaCoachDellaCliente } from '../common/avvisa-coach';
 import { PipelineService } from './pipeline.service';
@@ -1379,7 +1380,14 @@ export class CrmService {
       this.prisma.ledgerEntry.aggregate({
         where: {
           type: 'income',
-          date: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+          /**
+           * ⚠️ **Il mese di Roma** (25/8, censimento). Era `new Date(new Date().getFullYear(),
+           * new Date().getMonth(), 1)`: il primo del mese nel fuso del **processo**, UTC su Render.
+           * Nella prima ora del mese nuovo la dashboard commerciale mostrava l'incasso del **mese
+           * scorso** — e `LedgerEntry.date` è un timestamp, quindi il confine giusto è l'istante in
+           * cui il mese è cominciato a Roma, non una mezzanotte UTC.
+           */
+          date: { gte: inizioMeseLocale() },
         },
         _sum: { amountCents: true },
       }),

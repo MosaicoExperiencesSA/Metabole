@@ -1427,7 +1427,8 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'che-giorno-e-oggi-trenta-punti',
-    titolo: '«Che giorno è oggi» è ancora calcolato a mano in una trentina di punti, e risponde UTC',
+    fatta: true,
+    titolo: '✅ «Che giorno è oggi» non si calcola più a mano: diciassette punti chiusi, e il guardiano adesso vieta la causa',
     dettaglio:
       'Misurato il 20/8, non stimato: `grep` su `setHours(0,0,0,0)` e `Date.UTC(d.getUTCFullYear(), …)` trova **una trentina di punti** che si calcolano «oggi» per conto loro. Su Render il processo sta a UTC, quindi fra mezzanotte e le 02:00 in Italia tutti rispondono **ieri**. ⚠️ È lo stesso difetto chiuso il 7/8 sulle misure (la pesata delle 00:30 che sovrascriveva quella del giorno prima) e il 20/8 sui soldi: `common/date-only.ts` esiste apposta, e la maggior parte di questi punti è di prima e non è mai stata ricontrollata. ⛔ **Non li ho corretti tutti in blocco, di proposito**: fra questi ci sono `commerce/stati-abbonamento.ts` e `common/piano-attivo.ts`, che decidono se un piano sta erogando **oggi** — cambiare quel confine tocca chi riceve il menu domattina, e non è una cosa da fare a trenta file insieme senza guardarli uno per uno. ⚠️ Due cron girano dentro la fascia: `reminders` e `genera-catalogo` (ogni 10 minuti) e `measures-nudge` (ogni 2 ore, quindi anche alle 22:00 UTC = mezzanotte a Roma). Il giro giornaliero grosso invece è alle 05:00 UTC, fuori pericolo. ✅ **Già corretti** (20/8, quattro consegne): il mese dei soldi; la scadenza dell\'attività «Misure non inserite», che nasceva con la data di ieri; **gli stati abbonamento e `piano-attivo`** — cioè se una cliente sta ricevendo i menu, il difetto che le diceva «non hai un piano» all\'una di notte del giorno in cui il percorso comincia; **`privacy/cancellazione`**, dove una revoca inviata di notte faceva scadere il termine un giorno prima di quello promesso nella mail; **`menu/correzione-kcal`**, dove «per 7 giorni» ne durava sei se il nutrizionista la scriveva dopo mezzanotte; **`pause.service`**, che rimandava di un giro il menu di rientro. ✅ E **`coach-tasks`** (20/8): «oggi» e «una data salvata» erano mescolati nella stessa funzione `day()` — è il motivo per cui il difetto non si vedeva — e ora sono due, `oggiPiu` e `giornoPiu`; un\'attività aperta all\'una di notte nasceva con la scadenza di oggi invece che di domani, cioè con un giorno di lavoro già bruciato. ✅ E il giro del 20/8 pomeriggio: **`menu/senza-glutine`**, **`vera/*`** (⚠️ «domani» dettato a Vera all\'una di notte finiva su **oggi**: la nutrizionista dice domani e la cliente se lo trova nel piatto stamattina), **`monitoring`**, **`clients`**, **`commerce`**. ⚠️ **`menu/data-inizio-chat` NON era da correggere**: usa già `toDateOnly()` da prima, l\'avevo messo in elenco senza guardarlo — una voce che descrive male la realtà, cioè esattamente la cosa che continuo a trovare negli altri. ⛔ **Restano** solo i posti dove un giorno spostato cambia un grafico e non quello che una persona riceve: `reports`, `marketing/lifecycle`, `agents`, `dashboard`, `analytics`, `crm`. Il perimetro già guardato lo tiene fermo `common/il-giorno-si-chiede.spec.ts`, che legge il sorgente. ⚠️ **E resta la metà grossa**: il giorno di una data **salvata** si continua a leggere in UTC ovunque, di proposito — `Subscription.startDate` è un `DateTime` con istanti veri dentro, e rileggerli a Roma sposterebbe di un giorno i piani già venduti fra le 22:00 e le 24:00 UTC. Si misura con `npm run diag:giorno-piani` e poi si decide.\n\n✅ **20/8 sera — la misura che mancava è arrivata, e dice VIA LIBERA.** `npm run diag:giorno-piani`: 40 abbonamenti, 78 date guardate, **18** con un orario diverso da mezzanotte UTC e **zero** che cambierebbero giorno se lette a Roma. ⚠️ Era l\'unica cosa che teneva ferma la metà grossa del lavoro: temevo che rileggere a Roma spostasse di un giorno i piani già venduti fra le 22:00 e le 24:00 UTC. **Non ce n\'è nessuno.** Quindi la seconda metà — il giorno di una data SALVATA — si può fare, e adesso è un lavoro normale invece che una scommessa. ⚠️ Resta grosso: sono decine di punti, e vanno fatti a gruppi con una misura per gruppo, non tutti insieme. La diagnostica va rilanciata prima di ogni gruppo: zero oggi non è zero fra un mese, perché ogni piano nuovo scrive una data nuova.\n\n✅ **20/8 sera — chiuso anche l\'ultimo gruppo della prima metà, e la frase che diceva cosa restava era sbagliata.** Diceva: «restano fuori l\'analitica, i report, il marketing e gli agenti — dove un giorno spostato cambia un grafico, non quello che una persona riceve». ⛔ Guardandoli davvero era **sbagliata in cinque punti su sei**, ed era scritta a memoria invece che misurata — la stessa cosa che `il-giorno-si-chiede.spec.ts` esiste per impedire.\n · **`marketing/lifecycle`** non cambia un grafico: `dayRange(offset)` decide **a chi parte una email oggi**. Alle 00:30 italiane una cliente la riceveva con un giorno di ritardo. ✅ Corretto.\n · **`agents/agent-orchestrator`** decide se un agente giornaliero **ha già girato oggi**: alle 00:30 rispondeva di no e lo rimetteva in coda. ✅ Corretto.\n · **`reports/plan-report`** aveva **due domande in una funzione sola** (`day0`, chiamata sia su `new Date()` sia su `sub.startDate`) — lo stesso miscuglio di `coach-tasks.day()`, e il motivo per cui il difetto non si vedeva. ✅ Sdoppiata in `oggiGiorno()` e `giornoDelDato()`.\n · **`dashboard` e `crm` non avevano niente da correggere**: li avevo elencati senza guardarli.\n · **`analytics/serie-giornaliera` era già giusto**, col commento che lo spiega.\n · Resta un solo `setHours(0,0,0,0)`, dentro il **generatore dei dati dimostrativi**: lì il giorno esatto non lo legge nessuno.\n⚠️ **Resta la metà grossa** — il giorno di una data **salvata** — che adesso ha il via libera (`diag:giorno-piani`: zero date che cambierebbero giorno) ed è un lavoro normale invece che una scommessa. `common/date-only.ts` ha ora `giornoDelDato(d)`, l\'altra metà di `aGiorno`, che non dipende da come è configurata la macchina. ⚠️ Va fatta a gruppi con una misura per gruppo, e la diagnostica va rilanciata prima di ogni gruppo: zero oggi non è zero fra un mese.'
       + '\n\n⛔ **CENSIMENTO DEL 24/8 — otto punti VERI, che sbagliano già adesso.** Trovati cercando '
@@ -1461,7 +1462,63 @@ export const VOCI_INIZIALI: Voce[] = [
       + '`referral/referral.service.ts:285`, `pause/pause.service.ts:508`.\n\n'
       + '⚠️ Un punto **non risolto**: `signals/stats.ts:60` (`etaDate`) somma giorni a `from`, e il '
       + 'risultato finisce in un\'etichetta mese/anno — ma **nessun chiamante** in `src`. Non so se sia '
-      + 'viva o residua, e non l\'ho dedotto.',
+      + 'viva o residua, e non l\'ho dedotto.\n\n'
+      + '✅ **CHIUSA IL 25/8 — tutti e tredici i punti del censimento, più quattro che il censimento non '
+      + 'aveva trovato.** Ognuno guardato e corretto uno per uno, non a `sed`.\n\n'
+      + '⛔ **Il peggiore era `onboarding.service`**, ed era peggio di come lo raccontava il censimento: '
+      + 'non solo il peso di partenza archiviato al giorno prima, ma **perso**. `measurement` ha la '
+      + 'chiave unica `(cliente, data)` scritta in `upsert … update: {}`, e sulla stessa colonna '
+      + '`signals.service` scrive con `toDateOnly()`: due definizioni di giorno sulla stessa chiave. Se '
+      + 'per il giorno sbagliato una misura c\'era già, il peso dichiarato non entrava e nessuno se ne '
+      + 'accorgeva. ⚠️ **E nessun test lo vedeva** perché il finto di `prisma.measurement` non esisteva: '
+      + 'la scrittura sta in un `try/catch` best-effort, quindi falliva in silenzio a ogni test. Un finto '
+      + 'che manca non fa fallire niente — fa passare tutto.\n\n'
+      + '✅ **I quattro punti in più**, trovati rifacendo il `grep` con la regola larga invece che con le '
+      + 'formule note: `clients/finestra-menu.ts` (la finestra dei menu della coach conservava l\'ora '
+      + 'corrente ed era confrontata con una colonna DATE: **55 giorni alle 09:00, 56 alle 00:10**, lo '
+      + 'stesso menu nella stessa giornata), `menu/sostituzione-chat.service.ts` (la finestra che decide '
+      + 'se alla cliente parte «parlane con la tua coach»), `coach-tasks/kcal-restano-corte.ts` (la '
+      + 'scadenza dell\'attività), `menu/plateau.ts` (`getDay()` decideva **in che giorno della '
+      + 'settimana** una cliente in plateau riceve i piatti che ama — un giorno che si dice a voce).\n\n'
+      + '✅ **Tre funzioni nuove in `date-only.ts`, perché la stessa riga era copiata a mano**: `oggiPiu` '
+      + '(oggi ± N, giorno di Roma), `giornoPiu` (una data salvata ± N, giorno UTC), `istantePiuGiorni` '
+      + '(una scadenza ± N, l\'ora resta quella). Le prime due stavano in `coach-tasks.service` da '
+      + 'agosto: fuori di lì erano riscritte con `setDate` in sei punti. Più `inizioDiOggi` (l\'**istante** '
+      + 'in cui è cominciato oggi, per chi filtra timestamp), `confineMeseGiorni` (i confini di mese per '
+      + 'una colonna DATE) e `meseDopo` («più un mese» con una definizione sola).\n\n'
+      + '⛔ **E il guardiano adesso vieta la causa, non le sue forme.** `il-giorno-si-chiede.spec.ts` '
+      + 'vietava `setHours(0,0,0,0)`, e per questo non vedeva `new Date(d.getFullYear(), …)`: **sette** '
+      + 'dei tredici punti. La seconda stesura aggiungeva una `RegExp` per quella forma, e la revisione '
+      + 'l\'ha bucata in cinque modi in dieci minuti. Adesso la regola è una sola e larga: **dentro il '
+      + 'perimetro non si leggono né si scrivono campi di calendario nel fuso del processo**, mai — '
+      + '`getDate`, `getMonth`, `getFullYear`, `getHours`, `getDay` e i `set*` corrispondenti. Le versioni '
+      + '`…UTC…` restano permesse. Il perimetro è passato da 24 file a 41, e tutti e 41 passano la regola '
+      + '**senza nessuna eccezione dichiarata**. ⚠️ Il buco che resta, dichiarato: `new Date(2026, 8, 1)` '
+      + 'con tre numeri scritti a mano non lo prende nessuna `RegExp`.\n\n'
+      + '✅ **La misura si può fare**: `npm run diag:giorno-a-mano` (sola lettura) conta i pesi di '
+      + 'partenza archiviati al giorno sbagliato — e quanti sono **spariti** — le iscrizioni contate nel '
+      + 'mese sbagliato e gli incassi finiti nel mese prima, con nomi e importi. ⚠️ Zero non vuol dire '
+      + '«non è mai successo»: vuol dire «non è successo alle persone che ci sono adesso».\n\n'
+      + '⚠️ **Quattro cose trovate dalla revisione, prima della consegna, e vale la pena scriverle**: '
+      + '(1) la prima correzione di `coach.service` **girava** il difetto invece di chiuderlo — metteva '
+      + 'un giorno (`toDateOnly`) dove serviva un istante, e un appuntamento dell\'01:30 sarebbe sparito '
+      + 'dal calendario di chi lo guarda all\'01:00; (2) il commento su `agenda.controller` diceva che '
+      + 'l\'anteprima «partiva da ieri», **falso**: `orariLiberi` risaliva già l\'estremo sinistro, il '
+      + 'difetto vero era solo il destro (29 giorni invece di 30); (3) il commento su `pause.service` '
+      + 'dichiarava un difetto che su una colonna DATE non può esistere; (4) `benvenuto-conosciamoci.spec.ts` '
+      + 'costruiva «oggi» **con la formula vietata**, e finché anche il prodotto sbagliava i due errori si '
+      + 'annullavano: corretto il prodotto, `npm run test:notte` è diventato rosso. Un test che si calcola '
+      + 'oggi da solo non prova il prodotto, prova la macchina.\n\n'
+      + '✅ **E due difetti veri usciti dalla revisione, che non c\'entravano col fuso**: il ripiego del '
+      + 'rinnovo in `commerce.service` faceva `+1 mese` **traboccando** (31 gennaio → 3 marzo invece di 28 '
+      + 'febbraio), e siccome ogni rinnovo riparte dalla scadenza precedente i giorni regalati si '
+      + 'sommavano; e l\'analitica confrontava `Measurement.date` (colonna DATE) con confini di mese a '
+      + '**istanti** — invisibile a Roma, ma con `APP_TIMEZONE` a ovest ogni misura del primo del mese '
+      + 'sarebbe finita nel mese prima.\n\n'
+      + '⛔ **Resta aperta la metà grossa, e non è questa voce**: il giorno di una data **salvata** si '
+      + 'continua a leggere in UTC (`giornoDelDato`), di proposito e con la misura in mano '
+      + '(`diag:giorno-piani`: zero date che cambierebbero giorno). E resta `data-inizio-giorno-o-istante`, '
+      + 'che è la voce dove `planStartDate` non dice se contiene un giorno o un istante.',
     categoria: CODICE,
     ordine: 618,
     nata: '2026-08-20T12:10',
@@ -2086,8 +2143,9 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: false,
+    fatta: true,
     nata: '2026-08-23T01:10',
-    titolo: '`validaDataInizio` calcola il giorno nel fuso del PROCESSO: giusto su Render, sbagliato ovunque altro',
+    titolo: '✅ `validaDataInizio` chiede il giorno invece di calcolarlo (e il primo giorno accettabile non è più ieri)',
     dettaglio:
       '`commerce/piano-prova.ts:34` — `soloGiorno(d) = new Date(d.getFullYear(), d.getMonth(), d.getDate())` '
       + '— è la mezzanotte del **processo**, non `toDateOnly`. È la stessa formula che '
@@ -2105,7 +2163,17 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'definizione del difetto che non si riproduce.\n\n'
       + 'Da fare: portare `soloGiorno` su `toDateOnly`/`aGiorno`, misurare quante date esistenti '
       + 'cambierebbero giorno (come si è fatto con `diag:giorno-piani`), e mettere `commerce/piano-prova.ts` '
-      + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.',
+      + 'nel perimetro di `il-giorno-si-chiede.spec.ts`.\n\n'
+      + '✅ **CHIUSA il 25/8**, dentro la consegna che chiude tutto il censimento delle date. '
+      + '`soloGiorno` è diventata `giornoScelto`, che distingue le due domande: una **stringa di sola '
+      + 'data** (quella che manda il calendario dell\'app) vale alla lettera via `toDateOnly`, un '
+      + '**istante** diventa il giorno di Roma via `aGiorno`. Il limite dei dodici mesi si sposta con '
+      + '`setUTCMonth` su una mezzanotte UTC. `commerce/piano-prova.ts` è nel perimetro del guardiano.\n'
+      + '⚠️ **Per il chiamante vero non cambia niente**, verificato in revisione: `Benvenuto.tsx` manda '
+      + '`AAAA-MM-GG` da un `<input type="date">` il cui `min` è già calcolato su Roma, quindi il valore '
+      + 'scritto in `Subscription.startDate` è identico a prima e `statoPerGiornoDiInizio` non cambia '
+      + 'risposta. Quello che cambia è il **rifiuto**: alle 00:30 una partenza di ieri adesso viene '
+      + 'respinta, come si voleva.',
   },
   {
     chiave: 'gaia-domande-a-numeri',

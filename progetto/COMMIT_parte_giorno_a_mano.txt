@@ -1,0 +1,131 @@
+Che giorno e' oggi: diciassette punti che se lo calcolavano da soli, e il guardiano che adesso vieta la causa
+
+Due voci dell'elenco lavori chiuse insieme — il censimento del 24/8 («trenta punti») e
+`giorno-nel-fuso-del-processo-piano-prova`. Nessuna richiesta nuova.
+
+IL DIFETTO, IN UNA RIGA
+Su Render `TZ` non e' impostata, quindi il processo sta a UTC mentre le clienti stanno in Italia.
+Diciassette punti costruivano «oggi» o «questo mese» per conto loro — `setHours(0,0,0,0)`,
+`new Date(d.getFullYear(), d.getMonth(), 1)`, `setDate(+30)` — e fra la mezzanotte e le 02:00
+italiane rispondevano tutti IERI. Sbagliavano insieme, ed e' per questo che nessun confronto fra due
+di loro poteva rivelarlo.
+
+⛔ IL PEGGIORE: IL PESO DI PARTENZA SPARIVA
+`onboarding.service` archiviava la prima misura con la data di ieri. E `measurement` ha la chiave
+unica `(cliente, data)` scritta in `upsert ... update: {}`: se per quel giorno una misura c'era gia'
+— e sulla stessa colonna `signals.service` scrive con `toDateOnly()`, cioe' con l'ALTRA definizione
+di giorno — il peso dichiarato non entrava. Nessun errore, nessun avviso.
+⚠️ E nessun test lo vedeva perche' il finto di `prisma.measurement` NON ESISTEVA: la scrittura sta in
+un `try/catch` best-effort, quindi falliva in silenzio a ogni test. Un finto che manca non fa fallire
+niente — fa passare tutto.
+
+GLI ALTRI SETTE CHE SBAGLIAVANO ANCHE SU RENDER
+- `prenotazioni.service` — i due estremi con due definizioni di giorno: 29 giorni invece di 30, e
+  l'ultimo giorno prenotabile non compariva a una cliente che sta cercando quando puo';
+- `agenda.controller` — stesso miscuglio sull'anteprima del nutrizionista;
+- `coach.service` — il calendario della coach cominciava da IERI;
+- `commerce/piano-prova` — il primo giorno accettabile era ieri: si poteva scegliere una partenza
+  gia' passata e il controllo «quel giorno e' gia' passato» non scattava;
+- `agent-runner` — il tetto di spesa contava il mese scorso: un agente esaurito restava bloccato
+  nella prima ora del mese nuovo;
+- `crm.service` — la dashboard commerciale mostrava l'incasso del mese scorso;
+- `dashboard` e `analytics` — «Nuovi questo mese» e i kg persi nel mese, stesso scarto.
+
+CINQUE CHE SBAGLIAVANO SOLO SUL PORTATILE (`TZ=Europe/Rome`), che e' la forma peggiore perche' su
+Render non si riproduce: `agenda.service` (la copia non corretta di `creaFerie`, settanta righe piu'
+su nello stesso file), `plan-report.addMonths`, il ripiego del rinnovo in `commerce.service`, i
+giorni regalati dal `referral`, la finestra dei rientri in `pause.service`.
+
+✅ QUATTRO PUNTI CHE IL CENSIMENTO NON AVEVA TROVATO, usciti rifacendo il grep con la regola larga
+invece che con le formule note:
+- `clients/finestra-menu` — la finestra dei menu conservava L'ORA CORRENTE ed era confrontata con una
+  colonna DATE: 55 giorni alle 09:00, 56 alle 00:10. Lo stesso menu, la stessa cliente, due risposte
+  nella stessa giornata;
+- `menu/sostituzione-chat` — la finestra che decide se alla cliente parte «parlane con la tua coach»;
+- `coach-tasks/kcal-restano-corte` — la scadenza dell'attivita';
+- `menu/plateau` — `getDay()` decideva IN CHE GIORNO DELLA SETTIMANA una cliente in plateau riceve i
+  piatti che ama. E' un giorno che si dice a voce alla cliente.
+
+✅ SEI FUNZIONI IN `common/date-only.ts`, perche' la stessa riga era copiata a mano
+`oggiPiu` (oggi ± N, giorno di Roma) e `giornoPiu` (una data salvata ± N, giorno UTC) stavano in
+`coach-tasks.service` dal 20/8: fuori di li' erano riscritte con `setDate` in sei punti. Piu'
+`istantePiuGiorni` (una scadenza ± N, l'ora resta quella), `inizioDiOggi` (l'ISTANTE in cui e'
+cominciato oggi, per chi filtra timestamp), `confineMeseGiorni` (i confini di mese per una colonna
+DATE) e `meseDopo` («piu' un mese» con una definizione sola).
+⚠️ Tutte sommano in MILLISECONDI e non con `setDate`: `setDate` conserva l'ora di parete, e il 28
+marzo 2027 — giorno da 23 ore — su una mezzanotte UTC rende ancora il 28.
+
+⛔ IL GUARDIANO ADESSO VIETA LA CAUSA, NON LE SUE FORME
+`il-giorno-si-chiede.spec.ts` vietava solo `setHours(0,0,0,0)`, e per questo non vedeva
+`new Date(d.getFullYear(), ...)`: SETTE dei tredici punti. La seconda stesura aggiungeva una regex
+per quella forma, e la revisione l'ha bucata in cinque modi in dieci minuti.
+Adesso la regola e' una sola e larga: dentro il perimetro non si leggono ne' si scrivono campi di
+calendario nel fuso del processo, mai. Le versioni `...UTC...` restano permesse. Il perimetro e'
+passato da 24 file a 41, e tutti e 41 passano SENZA NESSUNA ECCEZIONE DICHIARATA.
+⚠️ Il buco che resta, dichiarato nel file: `new Date(2026, 8, 1)` con tre numeri scritti a mano non
+lo prende nessuna regex.
+
+✅ LA MISURA SI PUO' FARE: `npm run diag:giorno-a-mano`
+Sola lettura. Conta i pesi di partenza archiviati al giorno sbagliato — e quanti sono SPARITI, che si
+riconoscono perche' la misura su quel giorno e' piu' vecchia del questionario — le iscrizioni contate
+nel mese sbagliato e gli incassi finiti nel mese prima, con nomi e importi.
+⚠️ Zero non vuol dire «non e' mai successo»: vuol dire «non e' successo alle persone che ci sono
+adesso».
+
+⛔ LA REVISIONE HA TROVATO UN BLOCCANTE E SETTE DIFETTI
+1. `npm run test:notte` DIVENTAVA ROSSO. `benvenuto-conosciamoci.spec.ts` costruiva «oggi» CON LA
+   FORMULA VIETATA. Finche' anche il prodotto sbagliava, i due errori si annullavano; corretto il
+   prodotto, alle 00:30 il test chiedeva ieri e la prova si rifiutava da sola. Un test che si calcola
+   oggi da solo non prova il prodotto, prova la macchina che lo esegue.
+2. La prima correzione di `coach.service` GIRAVA il difetto invece di chiuderlo: metteva un GIORNO
+   (`toDateOnly`) dove serviva un ISTANTE, e un appuntamento dell'01:30 sarebbe sparito dal
+   calendario di chi lo guarda all'01:00. Da li' e' nata `inizioDiOggi`.
+3. Il commento su `agenda.controller` diceva che l'anteprima «partiva da ieri»: FALSO. `orariLiberi`
+   risaliva gia' l'estremo sinistro. Il difetto vero era solo il destro. Corretti commento, test e
+   voce dell'elenco lavori.
+4. Il commento su `pause.service` dichiarava un difetto che su una colonna DATE non puo' esistere.
+5. Il ripiego del rinnovo in `commerce.service` faceva «+1 mese» TRABOCCANDO: 31 gennaio → 3 marzo
+   invece di 28 febbraio. E siccome ogni rinnovo riparte dalla scadenza precedente, i giorni regalati
+   si sommavano. `plan-report` dichiarava la regola opposta nel suo commento: due definizioni di «un
+   mese» sui soldi. Adesso una sola (`meseDopo`).
+6. L'analitica confrontava `Measurement.date` (colonna DATE) con confini di mese a ISTANTI:
+   invisibile a Roma, ma con `APP_TIMEZONE` a ovest ogni misura del primo del mese sarebbe finita nel
+   mese prima. Da li' `confineMeseGiorni`.
+7. Il nuovo describe in `onboarding.service.spec.ts` fermava l'orologio senza `afterEach`: un solo
+   `expect` fallito lo lasciava fermo per tutto il resto del file, e un difetto vero sarebbe diventato
+   una cascata di fallimenti falsi.
+8. `dayRange` del marketing leggeva l'orologio DUE volte: a cavallo della mezzanotte la finestra
+   diventava larga due giorni e la coorte email raddoppiava.
+
+VERIFICATO
+- 5322 test backend in 322 suite verdi in TRE modi: `TZ` a UTC, `TZ=Europe/Rome` e `npm run
+  test:notte` (che ferma l'orologio nella fascia pericolosa).
+- Mutazioni, tutte rosse: le sedici correzioni riportate una per una alla formula vecchia; `oggiPiu`,
+  `giornoPiu` e `istantePiuGiorni` con `setDate` (uccise dalla passata a Roma, non da quella a UTC);
+  `meseDopo` senza clamp; `inizioDiOggi` con un giorno al posto dell'istante; l'etichetta del mese
+  ripresa da un `Date` invece che dalla chiave; il confine dell'analitica riportato a istanti.
+
+FILE NEL COMMIT
+- backend/src/common/date-only.ts
+- backend/src/common/il-giorno-a-mano.spec.ts   (nuovo)
+- backend/src/common/il-giorno-si-chiede.spec.ts
+- backend/prisma/diag-giorno-a-mano.ts + backend/package.json   (nuovo comando)
+- backend/src/agenda/finestra-agenda.ts   (nuovo)
+- backend/src/onboarding/onboarding.service.ts + .spec.ts
+- backend/src/coach/coach.service.ts
+- backend/src/agenda/agenda.controller.ts · agenda.service.ts · prenotazioni.service.ts
+- backend/src/commerce/piano-prova.ts · commerce.service.ts · crm.service.ts
+- backend/src/commerce/benvenuto-conosciamoci.spec.ts
+- backend/src/agents/agent-runner.service.ts
+- backend/src/dashboard/dashboard.service.ts · backend/src/analytics/analytics.service.ts
+- backend/src/reports/plan-report.service.ts · backend/src/referral/referral.service.ts
+- backend/src/marketing/lifecycle.service.ts · backend/src/pause/pause.service.ts
+- backend/src/clients/finestra-menu.ts · backend/src/menu/sostituzione-chat.service.ts
+- backend/src/coach-tasks/kcal-restano-corte.ts · coach-tasks.service.ts
+- backend/src/menu/plateau.ts
+- backend/src/lavori/voci-iniziali.ts
+- progetto/REGISTRO.md
+
+⛔ NESSUNA MIGRAZIONE. Solo backend: l'app e il back office non cambiano.
+⚠️ Le righe gia' scritte NON si toccano: questa consegna corregge da qui in avanti. Quello che e'
+gia' successo lo racconta `npm run diag:giorno-a-mano`.

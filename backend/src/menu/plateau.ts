@@ -51,8 +51,15 @@ export function pesoNonScende(pesi: readonly number[], minimo = PESATE_PER_PLATE
  * ⚠️ Vale **solo** quando il conforto sarebbe scattato da solo: non è un premio settimanale per
  * tutte. Chi ha il peso fermo e sta bene di morale non ha nessun giorno di stelle — non gli serve.
  */
-export const GIORNO_CONFORTO = 0; // domenica, come `Date.getDay()`
+export const GIORNO_CONFORTO = 0; // domenica, come `Date.getUTCDay()`
 
+/**
+ * ⚠️ **`getUTCDay`, non `getDay`** (25/8, allargando il censimento delle date). `giorno` è un
+ * **valore-giorno**: mezzanotte UTC del giorno di Roma, come lo scrive `menu.service` sommando
+ * millisecondi a `firstNewDate`. `getDay()` lo rileggerebbe nel fuso del **processo**: a UTC e a Roma
+ * risponde domenica, con `APP_TIMEZONE` a ovest di Greenwich risponde **sabato** — cioè il giorno di
+ * conforto cadrebbe il giorno prima di quello che si è detto a voce alla cliente.
+ */
 export function eGiornoDiConforto(giorno: Date): boolean {
-  return giorno.getDay() === GIORNO_CONFORTO;
+  return giorno.getUTCDay() === GIORNO_CONFORTO;
 }

@@ -187,6 +187,25 @@ export function inizioDelGiorno(giorno: string): Date {
 }
 
 /**
+ * ⛔ **L'ISTANTE IN CUI È COMINCIATO OGGI** — 25/8, e non è `toDateOnly()`.
+ *
+ * Le due si assomigliano e rispondono a due domande diverse, che è il tema di tutto questo file:
+ *  · `toDateOnly()` rende il **giorno**: mezzanotte UTC del giorno di Roma. Si scrive nelle colonne
+ *    `DATE` e si confronta con altri giorni;
+ *  · questa rende l'**istante**: le 22:00 UTC di ieri, d'estate. Si confronta con i timestamp —
+ *    `Visit.datetime`, `Appointment.datetime`, `LedgerEntry.date` — cioè con le ore a cui le persone
+ *    si presentano da qualche parte.
+ *
+ * ⛔ Scambiarle sposta il confine di due ore, e il verso dipende da quale si è messa: `toDateOnly()`
+ * su una query di appuntamenti dice che oggi comincia **alle 02:00**, e un appuntamento dell'01:30
+ * sparisce dal calendario di chi lo sta guardando all'01:00. È il difetto che il 25/8 la prima
+ * correzione di `coach.service` ha introdotto girando quello vecchio, invece di chiuderlo.
+ */
+export function inizioDiOggi(adesso: Date = new Date()): Date {
+  return inizioDelGiorno(giornoLocale(adesso));
+}
+
+/**
  * ⛔ **L'ISTANTE IN CUI COMINCIA QUELLO CHE QUESTA DATA INDICA** — 23/8.
  *
  * Metà dei campi «data d'inizio» di questo prodotto contengono un **giorno** (scritto da
@@ -226,6 +245,83 @@ export function istanteDiPartenza(d: Date): Date {
   if (!Number.isFinite(t)) return d;
   if (t % 86_400_000 !== 0) return d;
   return inizioDelGiorno(d.toISOString().slice(0, 10));
+}
+
+/**
+ * ⛔ **OGGI PIÙ N GIORNI** — e la somma si fa in **millisecondi**, non con `setDate`.
+ *
+ * Nasce in `coach-tasks.service.ts` il 20/8, quando `day(base, n)` fu sdoppiata in due domande. Da
+ * lì è stata copiata a mano, e il 25/8 il censimento ha trovato che **fuori** da quel file la stessa
+ * riga era ancora scritta nel modo vecchio in sei punti. ⚠️ Regola di casa: se due punti rispondono
+ * alla stessa domanda, uno deve chiamare l'altro. Adesso la chiamano tutti.
+ *
+ * ⚠️ **Perché non `setDate`.** `setDate` somma il giorno nel fuso del **processo** conservando l'ora
+ * di parete: su una mezzanotte UTC, con `TZ=Europe/Rome`, il **28 marzo 2027** (giorno da 23 ore)
+ * `setDate(+1)` rende ancora il 28. Su Render `TZ` non è impostata e i due conti coincidono — cioè è
+ * un difetto che sbaglia **solo sul portatile di chi sviluppa**, che è il modo in cui non si
+ * riproduce. Su una mezzanotte UTC la somma in millisecondi è esatta, perché UTC non ha cambi d'ora.
+ * (Stessa ragione, stesse parole, di `+ 86_400_000` in `agenda.service.creaFerie`.)
+ *
+ * ⚠️ **`giorni` è un intero**, e `adesso` un istante valido: con mezzo giorno rende mezzogiorno, con
+ * un `Date` invalido lancia (via `Intl`). Non si arrotonda e non si ripiega in silenzio — chi passa
+ * una di quelle due cose sta facendo un'altra domanda e deve vederlo.
+ *
+ * ⚠️ **Una lettura dell'orologio per finestra.** Chi costruisce un intervallo passa lo **stesso**
+ * `adesso` ai due estremi: due chiamate senza argomento a cavallo della mezzanotte danno una
+ * finestra larga un giorno di più o di meno.
+ */
+export function oggiPiu(giorni: number, adesso: Date = new Date()): Date {
+  return new Date(aGiorno(adesso).getTime() + giorni * 86_400_000);
+}
+
+/**
+ * Il giorno di una data **salvata**, più `giorni`. Letto in UTC — è l'altra domanda, quella di
+ * `giornoDelDato`, e la distinzione è dichiarata più sopra in questo stesso file.
+ */
+export function giornoPiu(base: Date, giorni: number): Date {
+  return new Date(giornoDelDato(base).getTime() + giorni * 86_400_000);
+}
+
+/**
+ * ⛔ **UN ISTANTE PIÙ N GIORNI** — per chi somma giorni a una scadenza, non a un giorno.
+ *
+ * `referral` regala giorni di abbonamento sommandoli a `Subscription.endDate`, che è un **istante**
+ * vero (ore e minuti dentro). Lì il giorno non va normalizzato: la scadenza deve restare all'ora in
+ * cui era. Quello che va tolto è `setDate`, per la ragione scritta sopra — con `TZ=Europe/Rome`,
+ * dieci giorni regalati il 20 marzo ne consegnano nove.
+ */
+export function istantePiuGiorni(base: Date, giorni: number): Date {
+  return new Date(base.getTime() + giorni * 86_400_000);
+}
+
+/**
+ * ⛔ **«PIÙ UN MESE» VUOL DIRE UNA COSA SOLA, E IL 31 GENNAIO LA DECIDE.**
+ *
+ * `31/1 + 1 mese` sono il **28 febbraio**, non il 3 marzo. È la regola che `reports/plan-report`
+ * dichiarava da sempre nel suo `addMonths` — e che `commerce.service`, nel ripiego del rinnovo,
+ * **non** applicava: là c'era `d.setMonth(d.getMonth() + 1)` secco, che su una scadenza al 31
+ * gennaio scriveva il 3 marzo. Due definizioni di «un mese» nello stesso prodotto, tutte e due sui
+ * soldi: la seconda regalava due o tre giorni e li **accumulava** a ogni rinnovo successivo, perché
+ * la scadenza nuova diventa la base di quella dopo.
+ *
+ * ⚠️ Trovato in revisione il 25/8, mentre si correggeva `setMonth` → `setUTCMonth` in tutti e due:
+ * il fuso era il difetto che si cercava, l'aritmetica era quello che c'era sotto.
+ *
+ * ⚠️ **Tutto in UTC**, e non per gusto: `setMonth`/`getDate` leggono il fuso del **processo**, quindi
+ * la stessa scadenza avrebbe due valori a seconda della macchina. Vale sia su un valore-giorno
+ * (mezzanotte UTC) sia su un istante vero, e **l'ora dentro non si tocca**: una scadenza resta
+ * all'ora in cui era.
+ */
+export function meseDopo(d: Date, mesi = 1): Date {
+  const x = new Date(d.getTime());
+  const giorno = x.getUTCDate();
+  // Si va al primo del mese PRIMA di spostarsi, se no il 31 traboccherebbe già qui.
+  x.setUTCDate(1);
+  x.setUTCMonth(x.getUTCMonth() + mesi);
+  // Giorno 0 del mese dopo = l'ultimo giorno di questo.
+  const ultimo = new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth() + 1, 0)).getUTCDate();
+  x.setUTCDate(Math.min(giorno, ultimo));
+  return x;
 }
 
 /**
@@ -276,6 +372,30 @@ export function confineMese(period: string): { gte: Date; lt: Date } {
   const [y, m] = period.split('-').map(Number);
   const dopo = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
   return { gte: inizioDelGiorno(`${period}-01`), lt: inizioDelGiorno(`${dopo}-01`) };
+}
+
+/**
+ * ⛔ **GLI ESTREMI DI UN MESE PER UNA COLONNA `DATE`** — l'altra metà di `confineMese`, e la
+ * distinzione è la stessa che c'è fra `aGiorno` e `giornoDelDato`, applicata al mese.
+ *
+ * `confineMese` rende **istanti**: il momento in cui il mese comincia e finisce a Roma. È giusto per
+ * `LedgerEntry.date`, `Payment.createdAt`, `User.createdAt` — timestamp veri, con dentro un'ora.
+ *
+ * ⛔ Ma `Measurement.date` e `MenuDay.date` sono colonne `@db.Date`: **valori-giorno**, mezzanotte
+ * UTC esatta, senza nessun'ora dentro. Confrontarli con un istante funziona per caso finché il fuso
+ * dell'azienda sta a **est** di Greenwich: l'1 settembre come valore-giorno (`00:00Z`) cade dopo
+ * l'inizio del mese romano (`31/8 22:00Z`), quindi finisce in settembre come deve. ⚠️ Con
+ * `APP_TIMEZONE` a **ovest** — la variabile esiste apposta per essere cambiata da Render, senza
+ * deploy — l'inizio di settembre diventa `1/9 04:00Z`, e **ogni misura del primo del mese finirebbe
+ * nel mese precedente**: in tutte le classifiche e in tutte le serie, senza un errore.
+ *
+ * Qui gli estremi sono valori-giorno come le righe che filtrano, e la domanda torna a essere una
+ * sola: «il giorno scritto su questa riga appartiene a questo mese?».
+ */
+export function confineMeseGiorni(period: string): { gte: Date; lt: Date } {
+  const [y, m] = period.split('-').map(Number);
+  const dopo = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+  return { gte: new Date(`${period}-01T00:00:00.000Z`), lt: new Date(`${dopo}-01T00:00:00.000Z`) };
 }
 
 /**

@@ -27,7 +27,7 @@ import { attivoInCorso } from './abbonamento-in-corso';
 import { CrmService } from './crm.service';
 import { DiscountsService } from './discounts.service';
 import { coachTeamScope } from '../common/coach-team';
-import { aGiorno } from '../common/date-only';
+import { aGiorno, meseDopo } from '../common/date-only';
 import { mesePeriodo } from '../common/tetto-compensi';
 import { avanzamentoPeso, FINESTRA_MASSIMA } from '../signals/percentuale-obiettivo';
 import { emettiEventoFunnel } from './funnel-event';
@@ -1720,7 +1720,19 @@ export class CommerceService {
     const fineStripe = inv.lines?.data?.[0]?.period?.end;
     const nuovaFine = fineStripe
       ? new Date(fineStripe * 1000)
-      : (() => { const d = new Date(sub.endDate ?? new Date()); d.setMonth(d.getMonth() + 1); return d; })();
+      /**
+       * ⚠️ **`meseDopo`, non `setMonth`** (25/8, in revisione). Qui c'era `d.setMonth(d.getMonth() + 1)`:
+       * due difetti in una riga. Leggeva i campi nel fuso del **processo** — quindi la stessa scadenza
+       * valeva un giorno diverso a seconda della macchina — e soprattutto **traboccava**: su una
+       * scadenza al 31 gennaio scriveva il **3 marzo**, non il 28 febbraio. Il ripiego serve solo se
+       * Stripe non manda il periodo fatturato, ma quello che scrive è una scadenza vera, e ogni
+       * rinnovo successivo riparte da lì: i due giorni regalati si sommavano.
+       *
+       * ⚠️ `meseDopo` è la stessa regola che `reports/plan-report` dichiarava da sempre («31/1 + 1
+       * mese → 28/2, non 3/3»). Adesso è una sola: due definizioni di «un mese» sui soldi erano due
+       * numeri che non tornano.
+       */
+      : meseDopo(sub.endDate ?? new Date());
     /** ⚠️ Dove finiva PRIMA di questo rinnovo: serve al controllo delle code, più sotto. */
     const vecchiaFine: Date | null = sub.endDate ?? null;
     await this.prisma.subscription.update({
