@@ -26,7 +26,7 @@
  * ⚠️ Sola lettura, non tocca niente. `npm run diag:esclusioni`.
  */
 import { PrismaClient } from '@prisma/client';
-import { exclusionKeys, iniziaUnaParola, radiceChiave, recipeHaystack } from '../src/menu/exclusions';
+import { coppiaGiaDecisa, exclusionKeys, iniziaUnaParola, radiceChiave, recipeHaystack } from '../src/menu/exclusions';
 
 /** Gli allergeni che una cliente può davvero dichiarare: le chiavi della mappa e gli alias UE. */
 const DA_GUARDARE = [
@@ -46,6 +46,10 @@ async function main() {
     const fieno = ricette.map((r) => ({ r, h: recipeHaystack(r.name, r.ingredients) }));
     let totaleInPiu = 0;
     let totaleDentro = 0;
+    /** Le coppie che una regola già in vigore ha chiuso: si contano, non si ripropongono. */
+    let giaDecise = 0;
+    /** Le coppie ancora da leggere, raccolte da TUTTI gli allergeni per stamparle in fondo insieme. */
+    const daLeggere: { allergene: string; chiave: string; parola: string; quante: number }[] = [];
 
     /**
      * ⚠️ **LA PAROLA INTERA, non solo la radice che ha colpito.**
@@ -103,13 +107,26 @@ async function main() {
           if (h.split(/[^a-z0-9]+/).includes(k)) continue; // c'è anche da sola: allora è giusta
           const chiaveCoppia = `${k}|${parolaChePorta(h, k)}`;
           coppie.set(chiaveCoppia, (coppie.get(chiaveCoppia) ?? 0) + 1);
-          totaleDentro += 1;
           break;
         }
       }
       for (const [coppia, quante] of [...coppie.entries()].sort((a, b) => b[1] - a[1])) {
         const [k, parola] = coppia.split('|');
-        console.log(`      ⛔ chiave intera dentro una parola — ${allergene}: «${k}» dentro «${parola}»  ×${quante}`);
+        /**
+         * ⛔ **LE COPPIE GIÀ DECISE NON TORNANO NELL'ELENCO DA LEGGERE** — corretto dalla revisione
+         * avversariale del 25/8, che l'ha misurato: questo conto era **grezzo** (`indexOf` e basta)
+         * e non guardava né `PAROLE_CHE_NON_SONO` né `SOLO_A_INIZIO_PAROLA`. Quindi «vino» dentro
+         * «bovino» — chiusa il 20/8 — sarebbe tornata in cima all'elenco, e chi la legge l'avrebbe
+         * aggiunta a una lista dove c'è già. *Un elenco di lavoro che contiene lavoro già fatto è un
+         * elenco che si smette di leggere.* La risposta la dà `coppiaGiaDecisa`, che legge le stesse
+         * due liste del motore.
+         */
+        if (coppiaGiaDecisa(k, parola)) {
+          giaDecise += quante;
+          continue;
+        }
+        totaleDentro += quante;
+        daLeggere.push({ allergene, chiave: k, parola, quante });
       }
     }
 
@@ -118,15 +135,35 @@ async function main() {
     console.log('Se il piatto contiene davvero l\'allergene è un difetto chiuso; se non c\'entra niente,');
     console.log('la parola che si vede dice quale regola va rivista — la lunghezza della radice è solo una');
     console.log('delle possibili leve, e il 20/8 era quella sbagliata.');
-    console.log(`\nChiavi intere che combaciano dentro una parola più lunga: ${totaleDentro}.`);
-    if (totaleDentro > 0) {
-      console.log('⛔ Questo è un difetto PIÙ VECCHIO della radice, e non è stato toccato.');
-      console.log('⚠️ E NON si corregge come la radice: qui il confine di parola TOGLIEREBBE protezione.');
-      console.log('   «aceto» dentro «sottaceto» è giusto — il sottaceto l\'aceto ce l\'ha davvero —');
-      console.log('   mentre «vino» dentro «bovino» non lo è. Le due parole si leggono e si decide una');
-      console.log('   per una: è una lista corta, non una regola.\n');
+    /**
+     * ⛔ **L'ELENCO DA LEGGERE STA IN FONDO, TUTTO INSIEME** — corretto dalla revisione avversariale
+     * del 25/8. Prima le righe ⛔ uscivano **dentro** il blocco di ognuno dei sedici allergeni, ognuno
+     * preceduto da un elenco senza tetto: dire a qualcuno «incolla la parte finale» gli faceva
+     * incollare il riepilogo e perdere le righe. Adesso la parte finale **è** l'elenco.
+     */
+    console.log('\n==================================================================');
+    console.log(`  DA LEGGERE UNA PER UNA — ${daLeggere.length} coppie (chiave dentro una parola più lunga)`);
+    console.log('==================================================================');
+    if (giaDecise > 0) {
+      console.log(`  (${giaDecise} occorrenze non sono qui: una regola già in vigore le ha chiuse.)`);
     }
-    else console.log('✅ Nessuna: il giro della chiave esatta non ha questo problema, almeno su questo catalogo.\n');
+    if (daLeggere.length === 0) {
+      console.log('  ✅ Nessuna: il giro della chiave esatta non ha questo problema su questo catalogo.\n');
+    } else {
+      console.log('  La domanda, per ognuna: «questa PAROLA contiene davvero quell\'allergene?»');
+      console.log('    · SÌ  → si lascia com\'è   (come «aceto» dentro «sottaceto»: l\'aceto c\'è davvero,');
+      console.log('             e togliere l\'esclusione toglierebbe protezione a chi è sensibile);');
+      console.log('    · NO  → si scarta          (come «vino» dentro «bovino»: non c\'entra niente).\n');
+      for (const c of [...daLeggere].sort((a, b) => b.quante - a.quante)) {
+        console.log(`      ⛔ ${c.allergene}: «${c.chiave}» dentro «${c.parola}»  ×${c.quante}`);
+      }
+      console.log('');
+      console.log('  ⚠️ Rispondere «NO» NON vuol dire sempre la stessa correzione, e la scelta non è di');
+      console.log('     chi risponde: se le parole omonime sono poche e note si aggiungono a una lista');
+      console.log('     chiusa (`PAROLE_CHE_NON_SONO`); se sono una FAMIGLIA aperta — «orata» dentro');
+      console.log('     decorata, dorata, insaporata, marinata… — nessun elenco basterebbe, e vale la');
+      console.log('     regola «solo a inizio di parola» (`SOLO_A_INIZIO_PAROLA`). Basta il SÌ/NO.\n');
+    }
   } finally {
     await prisma.$disconnect();
   }

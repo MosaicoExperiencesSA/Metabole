@@ -119,9 +119,24 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-24T09:30',
-    titolo: 'Il giallo del 23/8: la finestra di rientro era aperta e l\'erogazione è uscita vuota — non riprodotto',
+    titolo: '👁 In osservazione (deciso il 25/8): il giallo del 23/8 si riguarda se si ripete — la struttura si completa prima',
     dettaglio:
-      '⚠️ **Fatti misurati il 23/8 (~9:04 UTC)**: codice nuovo deployato, cliente con piano IN CODA '
+      '✅ **RISPOSTA DI SIMONE, 25/8: «completiamo tutta la struttura e vediamo se si ripete».** '
+      + 'Questa voce quindi **non aspetta più una decisione**: aspetta un secondo caso, o nessuno.\n\n'
+      + '⚠️ **È la risposta giusta per la forma che ha questo problema.** Un caso solo, non '
+      + 'riprodotto, con tre ipotesi già smontate: continuare a cercarlo a tavolino è il modo in cui '
+      + 'si scrivono correzioni per difetti che non esistono — e il 23 e il 24 due ipotesi ragionate '
+      + 'sono già andate a vuoto proprio così.\n\n'
+      + '⛔ **Quello che rende sicura l\'attesa è che adesso si legge.** `npm run prova:erogazione -- '
+      + '<email>` dà un verdetto ✓/⛔ per **ognuna** delle venti uscite, coi numeri e col valore grezzo '
+      + 'dei parametri: **se ricapita, la riga ⛔ dice quale**. ⚠️ «Ognuna» è vero **dal 25/8**: la '
+      + 'ventesima — le esclusioni non sostituibili — era una frase fissa senza ✓ e senza ⛔, l\'unica '
+      + 'delle venti, e l\'ha trovata la revisione avversariale. Un\'attesa fondata su un tabulato che '
+      + 'ha un buco proprio dove si aspetta è un\'attesa che non finisce. Senza quel tabulato aspettare voleva dire '
+      + 'aspettare di non capire una seconda volta. ⚠️ E se sono tutte ✓, allora è il tabulato a '
+      + 'essere incompleto e si estende prima di cercare altrove.\n\n'
+      + '## I fatti, per chi lo ritrova\n\n'
+      + '⚠️ **Fatti misurati il 23/8 (~9:04 UTC)**: codice nuovo deployato, cliente con piano IN CODA '
       + 'che partiva il 24/8, pausa 17→23/8, pesata del 23/8, anticipo 1. Tutti i cancelli stampati ✓ '
       + 'tranne «pausa attiva ⛔», erogazione uscita VUOTA, zero log, zero blocchi. Subito dopo, '
       + 'troncando la pausa a ieri, la **stessa** `deliverIfEligible` ha erogato 24 e 25.\n\n'
@@ -272,9 +287,14 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'whatsapp-numero',
-    titolo: 'Numero WhatsApp dedicato, verificato su Meta Business',
+    titolo: '📅 Rimandata a settembre da Simone (14/8): numero WhatsApp dedicato, verificato su Meta Business',
     dettaglio:
-      'È la parte lenta delle credenziali via WhatsApp: il passo 1 (link al posto della password) è fatto dal 7/8, il resto aspetta il numero — non il codice.',
+      '📅 **RISPOSTA DI SIMONE, 14/8: «lasciamolo in sospeso per ora, lo affrontiamo a settembre».** '
+      + 'Non aspetta più una decisione: aspetta il mese. Resta in elenco perché il passo 1 senza il '
+      + 'passo 2 è un lavoro **a metà**, e i lavori a metà che escono dall\'elenco tornano come '
+      + 'sorprese.\n\n'
+      + 'È la parte lenta delle credenziali via WhatsApp: il passo 1 (link al posto della password) è '
+      + 'fatto dal 7/8, il resto aspetta il numero — non il codice.',
     categoria: SIMONE,
     ordine: 60,
   },
@@ -1385,9 +1405,41 @@ export const VOCI_INIZIALI: Voce[] = [
    */
   {
     chiave: 'tabella-alimenti-igiene',
-    titolo: 'Tabella alimenti: cinque righe da dichiarare, e 1350 ricette da capire',
+    titolo: '✅ Gli stati mancanti li mette la nutrizionista mano a mano — deciso da Simone il 25/8',
+    fatta: true,
     dettaglio:
-      'Due lavori di mezz\'ora sulla tabella alimenti, tutti e due nati guardando la pagina vera il 20/8. **1) Le cinque righe che non hanno uno stato, e non devono averlo.** In cima all\'elenco «Alimenti da correggere» stanno `olio extravergine di oliva` (3025 ricette), `olio evo` (1706), `miele` (1331), più sale e zucchero: risultano «Senza stato». ⚠️ Ma all\'olio lo stato **non si applica** — crudo o cotto è la stessa cosa, 899 kcal restano 899. ⛔ Finché restano vuote fanno due danni invisibili: ogni ricetta dettata a Vera con l\'olio si porta dietro «la tabella non dice se il valore è a crudo» (*un avviso che compare sempre non è un avviso*, e compare sull\'ingrediente più usato del catalogo), e quelle righe occupano i primi posti dell\'elenco **nascondendo quelle da correggere davvero**. ✅ Dal 20/8 il valore c\'è: matita → campo Stato → «non si applica». Cinque righe. ⚠️ **Non si deduce, si dichiara**: nessuna regola indovina quali alimenti non hanno stato, e una che ci provasse sbaglierebbe sul primo caso nuovo in silenzio. **2) «spinaci freschi»: 1350 ricette che non si abbinano.** In elenco risulta «Non in tabella», e non dovrebbe: la regola dice che «freschi» è innocuo quando la riga è a crudo, e gli spinaci in tabella ci sono. ⚠️ L\'ipotesi è che la riga «spinaci» abbia lo **stato vuoto** — dal 19/8 sera «fresco» si accetta solo se combacia con lo stato della riga, e con lo stato vuoto non combacia niente. ⛔ **Ma è un\'ipotesi, e il 20/8 mi ha già morso due volte ragionare su dati immaginati invece che letti**: si legge con `NOME=\'spinaci freschi\' npm run diag:crudo-cotto`, che spiega passo per passo dove finisce quel nome e perché. Se è lo stato vuoto, è un campo — e lo stesso vale probabilmente per «prezzemolo fresco» (1207), «basilico fresco» (826) e «timo fresco» (670), che però sono aromi e pesano zero: quelli si tolgono dall\'elenco, non si correggono.\n\n✅ **20/8 sera — l\'import è andato, e questa voce si è ristretta.** `npm run diag:crudo-cotto` dopo il caricamento dei 277 alimenti: **286 alimenti hanno la riga a crudo** (lista 4), che è la lista che conta. E **«spinaci freschi» c\'è**, a 31 kcal crudo: l\'ipotesi dello stato vuoto era giusta, ma non serve più indagarla — l\'import ha creato la riga.\n\n⛔ **Resta il punto 1, ed è ancora il primo dell\'elenco**: `olio extravergine di oliva` (3024 ricette) e `miele` (1333) risultano «senza stato», più sale e zucchero. ⚠️ E adesso si sa **perché** sono senza stato — il seed li azzera a ogni deploy, vedi `seed-nutrienti-firma-falsa` — quindi scrivere «non si applica» dalla matita **oggi non basta**: al primo deploy tornerebbe vuoto. Questa voce aspetta quella.\n\n⚠️ Sulla lista 1 di `diag:crudo-cotto` una nota per non spaventarsi: delle 19 righe «solo da cotto», quindici sono corrette così — «ceci cotti», «riso integrale cotto», «quinoa cotta»: è la **ricetta** a dire cotto, quindi il valore da cotto è quello giusto. Le altre quattro — `pane di segale (da cotto)`, `zucca (da cotto)`, `ceci (da cotto)`, `lenticchie (da cotto)` — hanno il nome vecchio come sinonimo **apposta**, perché Gaia risponda «dipende» invece di dare un numero solo.',
+      '✅ **RISPOSTA DI SIMONE, 25/8: «lasciamoli così, li sistema mano a mano che li trova la '
+      + 'nutrizionista. Non è un problema».** ⚠️ Ed è una risposta migliore di quella che stavo per '
+      + 'proporre — un elenco preparato a tavolino da confermare in blocco: così le righe si '
+      + 'correggono quando qualcuno le sta **già guardando**, che è l\'unico momento in cui la '
+      + 'domanda «questo alimento crudo o cotto?» ha davanti la persona che sa rispondere.\n\n'
+      + '✅ **E adesso la matita TIENE.** Era la cosa che bloccava questa voce: scrivere «non si '
+      + 'applica» non bastava perché il seed lo azzerava al primo deploy (`state: r.state ?? null`). '
+      + 'Corretto il 21/8 — il seed scrive solo i campi che ha — e verificato il 25/8 sul database '
+      + 'vero: `npm run ripara:stati` ha rimesso undici stati e il deploy successivo non li ha '
+      + 'toccati.\n\n'
+      + '✅ **Il punto 2 era già caduto il 20/8**: «spinaci freschi» c\'è, a 31 kcal crudo — '
+      + 'l\'ipotesi dello stato vuoto era giusta ma l\'import ha creato la riga.\n\n'
+      + '⚠️ **Cosa resta in giro, scritto perché non spaventi chi legge il diag** (misurato il 25/8 '
+      + 'con `npm run diag:crudo-cotto`): in lista 2 restano diciassette nomi senza stato. Sedici '
+      + 'vengono dal seed e **non hanno mai avuto** uno stato — `latte intero`, `arancia`, `kiwi`, '
+      + '`zucchero`, `bresaola`, `cioccolato fondente` — quindi non è il difetto del `?? null` che si '
+      + 'ripete: si vedevano coperti dagli undici. Il diciassettesimo è `anacardi`, che nel seed e nei '
+      + 'due fogli non c\'è. ⚠️ **Ma «nata da un\'altra parte» era una frase mia senza una misura '
+      + 'sotto**, e la revisione l\'ha ristretta: `anacardi` sta in `prisma/dati-ig.ts` (la tabella IG '
+      + 'del capo del 13/8) **con lo stato `tostato`**, e `importa:ig` le righe mancanti le crea '
+      + 'scrivendo lo stato. Quindi o quella riga non viene da lì, o viene da lì e qualcosa le ha '
+      + 'tolto uno stato che quell\'import scrive: è una domanda aperta, piccola, e sta scritta come '
+      + 'domanda. Si dividono in due famiglie — «non '
+      + 'si applica» (olio, zucchero, latte, yogurt, cioccolato, tonno al naturale) e «crudo e basta» '
+      + '(arancia, kiwi, pesca, ananas, anguria, prosciutto crudo, bresaola) — ma **sono esempi, non '
+      + 'la divisione**: quella la fa la nutrizionista dalla matita, non una regola e non io. *Non si '
+      + 'deduce, si dichiara.*\n\n'
+      + '⚠️ **Il prezzo di questa scelta, detto una volta**: finché nessuno tocca l\'olio (3682 '
+      + 'ricette), la prima riga di «Alimenti da correggere» sarà sempre lui. Non fa danno: è un '
+      + 'posto in cima occupato.\n\n'
+      + '## Il testo di quando la voce è nata\n\n'
+      + 'Due lavori di mezz\'ora sulla tabella alimenti, tutti e due nati guardando la pagina vera il 20/8. **1) Le cinque righe che non hanno uno stato, e non devono averlo.** In cima all\'elenco «Alimenti da correggere» stanno `olio extravergine di oliva` (3025 ricette), `olio evo` (1706), `miele` (1331), più sale e zucchero: risultano «Senza stato». ⚠️ Ma all\'olio lo stato **non si applica** — crudo o cotto è la stessa cosa, 899 kcal restano 899. ⛔ Finché restano vuote fanno due danni invisibili: ogni ricetta dettata a Vera con l\'olio si porta dietro «la tabella non dice se il valore è a crudo» (*un avviso che compare sempre non è un avviso*, e compare sull\'ingrediente più usato del catalogo), e quelle righe occupano i primi posti dell\'elenco **nascondendo quelle da correggere davvero**. ✅ Dal 20/8 il valore c\'è: matita → campo Stato → «non si applica». Cinque righe. ⚠️ **Non si deduce, si dichiara**: nessuna regola indovina quali alimenti non hanno stato, e una che ci provasse sbaglierebbe sul primo caso nuovo in silenzio. **2) «spinaci freschi»: 1350 ricette che non si abbinano.** In elenco risulta «Non in tabella», e non dovrebbe: la regola dice che «freschi» è innocuo quando la riga è a crudo, e gli spinaci in tabella ci sono. ⚠️ L\'ipotesi è che la riga «spinaci» abbia lo **stato vuoto** — dal 19/8 sera «fresco» si accetta solo se combacia con lo stato della riga, e con lo stato vuoto non combacia niente. ⛔ **Ma è un\'ipotesi, e il 20/8 mi ha già morso due volte ragionare su dati immaginati invece che letti**: si legge con `NOME=\'spinaci freschi\' npm run diag:crudo-cotto`, che spiega passo per passo dove finisce quel nome e perché. Se è lo stato vuoto, è un campo — e lo stesso vale probabilmente per «prezzemolo fresco» (1207), «basilico fresco» (826) e «timo fresco» (670), che però sono aromi e pesano zero: quelli si tolgono dall\'elenco, non si correggono.\n\n✅ **20/8 sera — l\'import è andato, e questa voce si è ristretta.** `npm run diag:crudo-cotto` dopo il caricamento dei 277 alimenti: **286 alimenti hanno la riga a crudo** (lista 4), che è la lista che conta. E **«spinaci freschi» c\'è**, a 31 kcal crudo: l\'ipotesi dello stato vuoto era giusta, ma non serve più indagarla — l\'import ha creato la riga.\n\n⛔ **Resta il punto 1, ed è ancora il primo dell\'elenco**: `olio extravergine di oliva` (3024 ricette) e `miele` (1333) risultano «senza stato», più sale e zucchero. ⚠️ E adesso si sa **perché** sono senza stato — il seed li azzera a ogni deploy, vedi `seed-nutrienti-firma-falsa` — quindi scrivere «non si applica» dalla matita **oggi non basta**: al primo deploy tornerebbe vuoto. Questa voce aspetta quella.\n\n⚠️ Sulla lista 1 di `diag:crudo-cotto` una nota per non spaventarsi: delle 19 righe «solo da cotto», quindici sono corrette così — «ceci cotti», «riso integrale cotto», «quinoa cotta»: è la **ricetta** a dire cotto, quindi il valore da cotto è quello giusto. Le altre quattro — `pane di segale (da cotto)`, `zucca (da cotto)`, `ceci (da cotto)`, `lenticchie (da cotto)` — hanno il nome vecchio come sinonimo **apposta**, perché Gaia risponda «dipende» invece di dare un numero solo.',
     categoria: SIMONE,
     ordine: 615,
     nata: '2026-08-20T08:10',
@@ -1406,9 +1458,33 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'ricalcolo-e-tetto-mensile',
-    titolo: 'Il ricalcolo provvigioni può ripagare quello che il tetto aveva tolto: va deciso',
+    titolo: '⛔ Una domanda sola, e serve un sì o un no: il ricalcolo può ripagare quello che il tetto aveva tolto?',
     dettaglio:
-      'Una domanda, non un difetto — ma è una decisione tua e finché non la prendi il codice ne applica una implicita. Il **tetto di guadagno** è mensile e l\'eccedenza **si perde** (decisione dell\'11/8: non slitta, non diventa accantonamento). ⛔ Il pulsante **«Ricalcola provvigioni»** però misura il tetto sul mese **in cui lo premi**, non su quello del pagamento: una quota tagliata ad agosto, se il ricalcolo gira a settembre, **viene pagata** sotto il tetto di settembre. Non è un errore di programmazione — è letteralmente cosa vuol dire «aggiungi il mancante» — ma è il modo in cui una decisione di prodotto si disfa con un clic, senza che chi clicca lo sappia. ⚠️ Le due strade: **a)** lasciarlo così (il ricalcolo è un\'azione volontaria di un admin, e se la preme è perché vuole pagare), e allora basta che il messaggio del pulsante lo dica; **b)** far escludere al ricalcolo le quote già tagliate da un tetto di un mese ormai chiuso — si può fare, l\'audit `provvigione.tetto_mensile` tiene la traccia di ogni taglio con importo, mese e `ref`. ⚠️ Non l\'ho scelto io: togliere o dare soldi a una persona non è una decisione di chi scrive il codice. Per intanto sta scritto nel docblock di `ricalcolaProvvigioni`.',
+      '⚠️ **LA RISPOSTA DEL 20/8 RISPONDEVA A UN\'ALTRA DOMANDA — e quella è già fatta.** Simone ha '
+      + 'scritto: *«il ricalcolo provvigioni lavora solo sulle provvigioni della rete coach, non su '
+      + 'quella dei nutrizionisti»*. ⛔ Il codice invece percorreva **tutte e due** le catene: su un '
+      + 'pulsante che muove soldi, la differenza fra quello che il proprietario crede che faccia e '
+      + 'quello che fa **è** il difetto, quale che sia la versione migliore. ✅ Corretto il 20/8, con '
+      + '`ricalcolo-solo-coach.spec.ts` che lo tiene fermo. ⚠️ Quello che era già stato pagato ai '
+      + 'nutrizionisti **resta pagato**: questa funzione non ha mai tolto niente a nessuno, adesso '
+      + 'quelle righe non le guarda.\n\n'
+      + '⛔ **MA LA DOMANDA APERTA È UN\'ALTRA, e vale anche sulla sola catena coach.** Chiuderla '
+      + 'con quella risposta sarebbe stato darsi ragione da soli.\n\n'
+      + '**La domanda, in una riga:** il tetto di guadagno è mensile e l\'eccedenza **si perde** '
+      + '(decisione dell\'11/8). «Ricalcola provvigioni» però misura il tetto sul mese **in cui lo '
+      + 'premi**: una quota tagliata ad agosto, se il ricalcolo gira a settembre, **viene pagata** '
+      + 'sotto il tetto di settembre.\n\n'
+      + '· **a)** va bene così — è un\'azione volontaria di un admin, e se la preme è perché vuole '
+      + 'pagare. Allora si scrive nel messaggio del pulsante, e la voce si chiude.\n'
+      + '· **b)** no — il ricalcolo deve escludere le quote già tagliate da un tetto di un mese '
+      + 'ormai chiuso. Si può fare: l\'audit `provvigione.tetto_mensile` tiene la traccia di ogni '
+      + 'taglio con importo, mese e `ref`.\n\n'
+      + '⚠️ **Non la scelgo io**, e non per prudenza generica: togliere o dare soldi a una persona '
+      + 'non è una decisione di chi scrive il codice. Finché non è deciso, il codice ne applica una '
+      + 'implicita — la a) — senza che chi clicca lo sappia, ed è il solo motivo per cui questa voce '
+      + 'esiste. Sta scritto anche nel docblock di `ricalcolaProvvigioni`.\n\n'
+      + '## Il testo di quando la voce è nata\n\n'
+      + 'Una domanda, non un difetto — ma è una decisione tua e finché non la prendi il codice ne applica una implicita. Il **tetto di guadagno** è mensile e l\'eccedenza **si perde** (decisione dell\'11/8: non slitta, non diventa accantonamento). ⛔ Il pulsante **«Ricalcola provvigioni»** però misura il tetto sul mese **in cui lo premi**, non su quello del pagamento: una quota tagliata ad agosto, se il ricalcolo gira a settembre, **viene pagata** sotto il tetto di settembre. Non è un errore di programmazione — è letteralmente cosa vuol dire «aggiungi il mancante» — ma è il modo in cui una decisione di prodotto si disfa con un clic, senza che chi clicca lo sappia. ⚠️ Le due strade: **a)** lasciarlo così (il ricalcolo è un\'azione volontaria di un admin, e se la preme è perché vuole pagare), e allora basta che il messaggio del pulsante lo dica; **b)** far escludere al ricalcolo le quote già tagliate da un tetto di un mese ormai chiuso — si può fare, l\'audit `provvigione.tetto_mensile` tiene la traccia di ogni taglio con importo, mese e `ref`. ⚠️ Non l\'ho scelto io: togliere o dare soldi a una persona non è una decisione di chi scrive il codice. Per intanto sta scritto nel docblock di `ricalcolaProvvigioni`.',
     categoria: SIMONE,
     ordine: 617,
     nata: '2026-08-20T11:20',
@@ -1706,9 +1782,37 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-24T13:00',
-    titolo: '⛔ «Visto» vuol dire «gliel\'abbiamo mostrato», non «l\'ha aperto»: «rifai i giorni già preparati» non trova quasi mai niente',
+    titolo: '✅ Deciso il 25/8: serve un segnale vero «ha aperto QUESTO giorno» — tocca anche l\'app',
     dettaglio:
-      '⛔ **Trovato in revisione il 24/8, leggendo il motore.** `MenuDay.viewedAt` si chiama «visto» e '
+      '✅ **RISPOSTA DI SIMONE, 25/8: la strada 2.** Non si allarga la semantica di `viewedAt` '
+      + 'proteggendo solo i giorni già arrivati (strada 1): si fa il **segnale vero**, «questa cliente '
+      + 'ha aperto il menu di QUESTO giorno». ⚠️ È la più cara delle due — tocca l\'app, non solo il '
+      + 'backend — ed è quella giusta: la strada 1 avrebbe rimesso in funzione il rifacimento '
+      + 'automatico **al prezzo** di poter cambiare il menu di domani a chi l\'aveva letto e ci aveva '
+      + 'fatto la spesa. Un guadagno pagato da chi si è organizzato.\n\n'
+      + '⛔ **PRIMA DI SCRIVERE CODICE, IL NUMERO**: `npm run diag:visto` dice quanti giorni futuri '
+      + 'risultano già «visti», su quante clienti, e quanti sono menu **di domani**. In sola lettura. '
+      + 'Serve a sapere quanto vale il rifacimento automatico che oggi non parte, cioè quanto lavoro '
+      + 'a mano questa correzione toglie davvero.\n\n'
+      + '⚠️ **La forma, in tre pezzi.** *(a)* Un campo nuovo — **non** `apertoIl`, che è già preso: '
+      + 'in `vera/menu-da-rifare.ts` vuol dire «la data del giorno già consegnato», e lo leggono '
+      + '`vera-chat.service.ts` e il collaudo, cioè **gli stessi file** che questo lavoro andrebbe a '
+      + 'toccare. Due significati e un nome, nello stesso sottosistema, è il modo in cui questa '
+      + 'correzione ne genererebbe un\'altra. Serve un nome che dica la cosa: `apertoDallaClienteIl`. '
+      + 'E accanto a `viewedAt`, non al posto suo: `viewedAt` continua a voler dire «gliel\'abbiamo mostrato», che è una cosa vera e '
+      + 'che qualcuno legge; **due domande, due campi**. *(b)* L\'app lo scrive quando la cliente apre '
+      + '**quel** giorno, non quando riceve la lista. *(c)* Solo allora i percorsi che oggi filtrano '
+      + '`viewedAt` — i divieti dettati a Vera, gli spuntini, le proteine, la regola di dieta — '
+      + 'passano al campo nuovo. ⚠️ Finché l\'app vecchia gira, `apertoIl` sarà NULL per tutti: il '
+      + 'ripiego deve essere «non lo so» → **non tocco**, che è il comportamento di oggi, non '
+      + '«non aperto» → rifaccio. Il contrario toglierebbe il menu di mano a chi ha una versione '
+      + 'vecchia dell\'app.\n\n'
+      + '✅ **Nel frattempo le frasi sono già corrette** (24/8): Vera non dice più «ha già aperto il '
+      + 'menu del 25» ma «il menu del 25 le è già arrivato in app», e indica «Rigenera menu» dicendo '
+      + 'che quello rifà **anche** il giorno già ricevuto. Il prezzo che stiamo pagando adesso è che '
+      + 'il rifacimento automatico resta quasi sempre a vuoto e si fa a mano dalla scheda.\n\n'
+      + '## Come è nata, il 24/8\n\n'
+      + '⛔ **Trovato in revisione il 24/8, leggendo il motore.** `MenuDay.viewedAt` si chiama «visto» e '
       + 'in tutto il progetto viene letto come «l\'ha aperto». Non è quello che ci scrive dentro:\n\n'
       + '· `MenuService.getMenu` restituisce all\'app gli ultimi 30 giorni **visibili**, futuri '
       + 'compresi, e subito dopo chiama `segnaVisti`, che li marca **tutti**;\n'
@@ -3032,7 +3136,8 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: false,
-    titolo: '✅ Il seed azzerava i campi che non ha — corretto. (E la firma NON era falsa: mi ero sbagliato)',
+    fatta: true,
+    titolo: '✅ Il seed azzerava i campi che non ha — corretto, e gli undici stati rimessi il 25/8. (La firma NON era falsa: mi ero sbagliato)',
     dettaglio:
       '⛔ **Trovato misurando, il 20/8 sera, mentre cercavo un\'altra cosa.** L\'import degli alimenti aveva '
       + 'creato «burro» con stato `crudo`; un quarto d\'ora dopo in tabella lo stato era `NULL` e la riga '
@@ -3052,11 +3157,37 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'parmigiano, miele, pane integrale, ricotta) hanno perso lo stato che il foglio aveva compilato, e '
       + 'sono usciti dalla coda senza essere stati guardati. I sinonimi sono stati sostituiti con quelli del '
       + 'seed: la nuova «noci» non ne ha nessuno.\n\n'
-      + '## ✅ 25/8 — LO SCRIPT CHE RIMETTE GLI STATI C\'È: `npm run ripara:stati`\n\n'
-      + '⛔ **Resta da lanciarlo sul database vero, e la prova a vuoto va guardata prima.** Correggere '
-      + 'la causa non rimette il dato: in tabella lo stato è ancora vuoto.\n\n'
-      + '    npm run ripara:stati                 → guarda e stampa riga per riga, NON scrive\n'
-      + '    CONFERMA=1 npm run ripara:stati      → scrive\n\n'
+      + '## ✅ 25/8 — FATTO SUL DATABASE VERO: `npm run ripara:stati`, undici su undici\n\n'
+      + '✅ **Lanciato da Simone la sera del 25/8: `Scritte 11 · saltate 0 · fallite 0`.** Le tre '
+      + 'condizioni hanno tenuto tutte — nome, stato vuoto e kcal — quindi ogni riga scritta è quella '
+      + 'che lo script conosceva, non un\'omonima.\n\n'
+      + '✅ **E l\'esito ha confermato da sé la correzione del titolo**: tutte e undici sono uscite '
+      + 'con «✍️ confermata dal capo». La firma non era falsa; mancava la colonna, non lo sguardo.\n\n'
+      + '✅ **Verificato dopo, con `npm run diag:crudo-cotto`**: gli undici nomi sono spariti dalla '
+      + 'lista «senza stato» e i «già a posto» sono saliti a 297. Quello che resta in quella lista '
+      + 'sono righe che uno stato non l\'hanno mai avuto — vedi `tabella-alimenti-igiene`, dove sta '
+      + 'la decisione del 25/8 su come si sistemano.\n\n'
+      + '## ⛔ E L\'ALTRA METÀ DEL DANNO — I SINONIMI. Misurata, e la risposta è: NON si rimettono\n\n'
+      + '⚠️ **Stavo per chiudere questa voce lasciandone fuori metà**, e l\'ha visto la revisione '
+      + 'avversariale: il testo qui sopra elencava **due** danni — lo stato azzerato **e i sinonimi '
+      + 'sostituiti — e la chiusura parlava solo di stati. Un lavoro dichiarato finito a metà è '
+      + 'peggio di un lavoro che resta in lista.\n\n'
+      + '✅ **Misurato riga per riga** (fogli del repo contro `VALORI`): i sinonimi persi sono **tre**, '
+      + 'e sono tutti e tre su righe di legumi e verdure **da cotto**:\n'
+      + '· `ceci` — perso «ceci secchi» — riga a **132 kcal**, cioè `bolliti`;\n'
+      + '· `lenticchie` — perso «lenticchie secche» — riga a **109 kcal**, cioè `bollite`;\n'
+      + '· `zucca` — perso «zucca gialla» — riga a **18 kcal**, `bollita`.\n\n'
+      + '⛔ **E rimetterli sarebbe stato un difetto, non una riparazione.** «Ceci secchi» su una riga '
+      + 'con i valori da bollito vuol dire che una ricetta che scrive «ceci secchi» prende **132 '
+      + 'kcal invece di 334**: il numero sbagliato di tre volte, che sembra buono — esattamente il '
+      + 'difetto che `stato-alimento.ts` esiste per impedire, e lo stesso per cui la prima versione '
+      + 'di `ripara:stati` è stata buttata. ⚠️ Quei sinonimi vanno a una riga **a crudo**, che è una '
+      + 'riga diversa: se serve, si aggiunge dalla matita alla riga giusta, e non è un ripristino.\n\n'
+      + '⛔ **E l\'accusa originale era sbagliata**: «i sinonimi sono stati sostituiti con quelli del '
+      + 'seed, la nuova "noci" non ne ha nessuno». Misurato: nel foglio del 20/8 **tutte** le righe in '
+      + 'comune col seed hanno `synonyms: []`, «noci» compresa. Non gliel\'ha tolti il seed: non li ha '
+      + 'mai avuti. Resta scritto perché una voce sbagliata cancellata è una voce che qualcun altro '
+      + 'riscriverà uguale.\n\n'
       + '⛔ **La prima versione dello script è stata buttata, e la ragione vale più dello script.** '
       + 'Leggeva i due fogli del repo e rimetteva lo stato a **chiunque** non ce l\'avesse, '
       + 'accoppiando sul nome. La revisione avversariale l\'ha smontata misurando: avrebbe scritto '
@@ -3127,9 +3258,51 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'esclusioni-chiave-dentro-parola',
-    titolo: 'Le chiavi dentro una parola più lunga: «bovino» è corretto, gli altri casi vanno letti',
+    titolo: '⛔ Serve UN comando e una riga di risposta per parola: quali chiavi dentro una parola più lunga sono sbagliate?',
     dettaglio:
-      '⚠️ **Difetto più vecchio della radice, e più delicato da correggere.** Il primo giro delle esclusioni cerca la parola chiave **intera** dentro il testo del piatto (`includes`), come fa da mesi. `npm run diag:esclusioni` adesso conta a parte quante volte quella chiave combacia **dentro una parola più lunga**: sono **212**.\n\n⛔ **E qui il confine di parola NON è la correzione**, al contrario della radice. Le due parole viste nell\'esito dicono perché:\n · «**aceto**» dentro «**sottaceto**» → **giusto**: il sottaceto l\'aceto ce l\'ha davvero, e mettere un confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti;\n · «**vino**» dentro «**bovino**» → **sbagliato**: uno stracetto di bovino magro non c\'entra niente con i solfiti.\n\n⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all\'altra. Quindi non è una regola: è una **lista corta** di parole da guardare una per una. La diagnostica adesso le raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta — la prima versione ne stampava 212 per far scoprire che erano due parole, e un elenco che costringe a contare a mano è un elenco che non si legge.\n\n⚠️ **Non l\'ho toccato**, e non per prudenza generica: correggere il giro della chiave esatta vuol dire cambiare il comportamento che regge le esclusioni da mesi, e la direzione dell\'errore qui è l\'opposta — si rischia di **togliere** una protezione invece di restituire dei piatti. Si legge l\'elenco raggruppato e si decide parola per parola. ⚠️ È la stessa famiglia di «Gaia trovava mela dentro melanzane», chiusa il 19/8 sulla ricerca: lì la risposta fu «a parole intere», qui non può esserlo.\n\n✅ **CORRETTA il 20/8 sera, invece che chiesta.** Aprire una voce per «bovino» era sbagliato: è una parola, non una decisione di prodotto. In `exclusions.ts` c\'è `PAROLE_CHE_NON_SONO`, una lista corta di parole omonime — `vino` → `bovino, bovina, bovini, bovine` — e «sottaceto» resta escluso com\'era giusto. ⚠️ **Ogni riga di quella lista TOGLIE un\'esclusione**, quindi si scrive solo dopo aver letto la parola in un esito vero, mai per analogia: `bovino` l\'ha nominata la diagnostica. ⛔ **Resta da guardare il resto dei 212**: `npm run diag:esclusioni` adesso li raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta, quindi sono poche righe da leggere. Quelle che sono come «bovino» si aggiungono alla lista; quelle che sono come «sottaceto» si lasciano stare. ⚠️ E «biscotti» non è nessuna delle due: è una delle **due voci larghe** dei solfiti dichiarate nel codice il 13/8 — insieme ad «aceto» — che si tolgono se Lucia dice che sono eccessive.',
+      '⚠️ **RISPOSTA DI SIMONE, 25/8: «fammi una domanda specifica, non capisco cosa ti serve».** '
+      + 'Aveva ragione: la voce raccontava il problema e non chiedeva niente di eseguibile. Ecco la '
+      + 'domanda, in due passi.\n\n'
+      + '**PASSO 1 — un comando, sola lettura, sulla shell di Render:**\n\n'
+      + '    npm run diag:esclusioni\n\n'
+      + 'Serve **l\'ultimo riquadro**, quello intitolato «DA LEGGERE UNA PER UNA»: sono poche righe, '
+      + 'una per coppia (chiave, parola), e vanno incollate così come escono.\n\n'
+      + '⚠️ **Quel riquadro il 25/8 non c\'era**, e la prima stesura di questa voce diceva «incolla la '
+      + 'parte finale» quando in fondo c\'era solo la prosa di riepilogo: le righe stavano dentro il '
+      + 'blocco di ognuno dei sedici allergeni, dopo un elenco senza tetto. L\'ha trovato la revisione '
+      + 'avversariale. Adesso la parte finale **è** l\'elenco.\n\n'
+      + '⛔ **E le coppie già decise non ci sono più.** Il conto era **grezzo** e non guardava le due '
+      + 'liste che il motore usa davvero: «vino» dentro «bovino» — chiusa il 20/8 — sarebbe tornata in '
+      + 'cima all\'elenco, e chi legge l\'avrebbe aggiunta a una lista dove c\'è già. Adesso la '
+      + 'diagnostica chiama `coppiaGiaDecisa`, che legge le **stesse** liste del motore, e quelle si '
+      + 'contano soltanto. Quindi il 212 di prima è un numero vecchio: quante ne restano davvero lo '
+      + 'dice il comando.\n\n'
+      + '**PASSO 2 — per ogni riga, una parola sola: SÌ o NO.** La domanda è sempre la stessa:\n\n'
+      + '    «<parola>» contiene davvero <allergene>?\n\n'
+      + '· **SÌ** → si lascia com\'è (è il caso di «aceto» dentro «sottaceto»: il sottaceto l\'aceto '
+      + 'ce l\'ha davvero, e togliere l\'esclusione toglierebbe protezione a chi è sensibile ai '
+      + 'solfiti).\n'
+      + '· **NO** → si scarta (è il caso di «vino» dentro «bovino»: uno stracetto di bovino magro '
+      + 'non c\'entra niente coi solfiti).\n\n'
+      + '⚠️ **Basta il SÌ/NO: come si scarta lo decide il codice, e non è sempre lo stesso.** Se le '
+      + 'omonime sono poche e note si aggiungono a un elenco chiuso (`PAROLE_CHE_NON_SONO`); se sono '
+      + 'una **famiglia aperta** — «orata» dentro decorata, dorata, insaporata, marinata, e tutte '
+      + 'quelle che nessuno ha ancora scritto — nessun elenco basterebbe, e vale la regola «solo a '
+      + 'inizio di parola» (`SOLO_A_INIZIO_PAROLA`). ⛔ La prima stesura di questa voce offriva **una '
+      + 'destinazione sola**, e mandare una famiglia aperta nell\'elenco chiuso è la correzione che il '
+      + 'codice stesso dichiara sbagliata: ne avevo scritte otto per «orata» e l\'ha smontata '
+      + '«insaporata», che in cucina si scrive davvero.\n\n'
+      + '⚠️ **Perché serve una persona e non una regola.** La stessa regola — il confine di parola — '
+      + 'darebbe la risposta giusta a «bovino» e **sbagliata** a «sottaceto». Non è una regola: è una '
+      + 'lista corta di omonimi, e ogni riga di quella lista **toglie un\'esclusione**. Per questo si '
+      + 'scrive solo dopo aver letto la parola in un esito vero, mai per analogia.\n\n'
+      + '⚠️ **Le due voci larghe dei solfiti NON c\'entrano con questa domanda, e sono già decise** — '
+      + 'lo scrivo perché nella prima stesura di questa voce le avevo tirate dentro, e la revisione '
+      + 'avversariale ha misurato che era **falso da un giorno**: `biscotti` è stata **tolta il 24/8** '
+      + '(`exclusions.ts`: «⛔ `biscotti` TOLTA il 24/8») e `aceto` resta di proposito, perché serve a '
+      + 'far scattare il sostituto. Le ha decise Simone, non aspettano Lucia.\n\n'
+      + '## Il testo di quando la voce è nata\n\n'
+      + '⚠️ **Difetto più vecchio della radice, e più delicato da correggere.** Il primo giro delle esclusioni cerca la parola chiave **intera** dentro il testo del piatto (`includes`), come fa da mesi. `npm run diag:esclusioni` adesso conta a parte quante volte quella chiave combacia **dentro una parola più lunga**: sono **212**.\n\n⛔ **E qui il confine di parola NON è la correzione**, al contrario della radice. Le due parole viste nell\'esito dicono perché:\n · «**aceto**» dentro «**sottaceto**» → **giusto**: il sottaceto l\'aceto ce l\'ha davvero, e mettere un confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti;\n · «**vino**» dentro «**bovino**» → **sbagliato**: uno stracetto di bovino magro non c\'entra niente con i solfiti.\n\n⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all\'altra. Quindi non è una regola: è una **lista corta** di parole da guardare una per una. La diagnostica adesso le raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta — la prima versione ne stampava 212 per far scoprire che erano due parole, e un elenco che costringe a contare a mano è un elenco che non si legge.\n\n⚠️ **Non l\'ho toccato**, e non per prudenza generica: correggere il giro della chiave esatta vuol dire cambiare il comportamento che regge le esclusioni da mesi, e la direzione dell\'errore qui è l\'opposta — si rischia di **togliere** una protezione invece di restituire dei piatti. Si legge l\'elenco raggruppato e si decide parola per parola. ⚠️ È la stessa famiglia di «Gaia trovava mela dentro melanzane», chiusa il 19/8 sulla ricerca: lì la risposta fu «a parole intere», qui non può esserlo.\n\n✅ **CORRETTA il 20/8 sera, invece che chiesta.** Aprire una voce per «bovino» era sbagliato: è una parola, non una decisione di prodotto. In `exclusions.ts` c\'è `PAROLE_CHE_NON_SONO`, una lista corta di parole omonime — `vino` → `bovino, bovina, bovini, bovine` — e «sottaceto» resta escluso com\'era giusto. ⚠️ **Ogni riga di quella lista TOGLIE un\'esclusione**, quindi si scrive solo dopo aver letto la parola in un esito vero, mai per analogia: `bovino` l\'ha nominata la diagnostica. ⛔ **Resta da guardare il resto dei 212**: `npm run diag:esclusioni` adesso li raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta, quindi sono poche righe da leggere. Quelle che sono come «bovino» si aggiungono alla lista; quelle che sono come «sottaceto» si lasciano stare. ⚠️ E «biscotti» non è nessuna delle due: è una delle **due voci larghe** dei solfiti dichiarate nel codice il 13/8 — insieme ad «aceto» — che si tolgono se Lucia dice che sono eccessive.',
     categoria: SIMONE,
     ordine: 622,
     nata: '2026-08-20T19:10',

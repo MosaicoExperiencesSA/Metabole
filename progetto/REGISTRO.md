@@ -20,6 +20,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-25
 
+- `[Sviluppo]` **Le risposte di Simone entrano nell'elenco lavori: sette voci che avevano già una
+  risposta e continuavano a comparire come se aspettassero.** ⚠️ **Chiudere non è la stessa cosa per
+  tutte e sette**, e trattarle uguale avrebbe messo la spunta su lavori non fatti: due chiuse davvero
+  (gli stati mancanti li sistema la nutrizionista mano a mano — e adesso la matita **tiene**, perché
+  il seed non azzera più; e `ripara:stati` girato, 11 su 11); una decisa che diventa lavoro (il
+  segnale vero «ha aperto QUESTO giorno», strada 2); due parcheggiate con un segnale o una data (il
+  giallo del 23/8 si riguarda **se si ripete**; WhatsApp a settembre); due che restano aperte ma
+  adesso chiedono qualcosa di **eseguibile**.
+  ⛔ **E una di queste due è il motivo per cui non si chiude tutto insieme**: la risposta del 20/8
+  sul ricalcolo provvigioni rispondeva a **un'altra domanda** — quella è già fatta, il ricalcolo
+  lavora solo sulla catena coach — mentre la domanda vera, se il ricalcolo possa ripagare quello che
+  il tetto aveva tolto, è ancora lì. Chiuderla con quella risposta sarebbe stato darsi ragione da
+  soli.
+
+- `[Sviluppo]` 🛑 **La diagnostica delle esclusioni non rimanda più a leggere righe già decise.** Il
+  conto delle chiavi che combaciano **dentro** una parola più lunga era grezzo (`indexOf`) e non
+  guardava le due liste che il motore usa davvero: «vino» dentro «bovino», chiusa il 20/8, sarebbe
+  tornata in cima all'elenco da leggere — e chi la legge l'avrebbe aggiunta a una lista dove c'è
+  già. *Un elenco di lavoro che contiene lavoro già fatto è un elenco che si smette di leggere.*
+  → `coppiaGiaDecisa` sta in `exclusions.ts` **accanto alle due liste**, e la diagnostica la chiama.
+  ⛔ E le righe da leggere adesso stanno in un riquadro **in fondo**, tutte insieme, con la domanda
+  scritta sopra: prima uscivano dentro il blocco di ognuno dei sedici allergeni, dopo un elenco
+  senza tetto, e dire «incolla la parte finale» faceva incollare il riepilogo. Trovato dalla
+  revisione avversariale, come il fatto che `biscotti` era data per ancora nel codice ed era stata
+  tolta il 24/8.
+
+- `[Sviluppo]` **`prova:erogazione`: anche la ventesima uscita ha il suo verdetto.** Era una frase
+  fissa, senza ✓ e senza ⛔ — l'unica delle venti — e il tabulato esiste per una cosa sola: *«se
+  ricapita, la riga ⛔ dice quale»*. Un'attesa fondata su un tabulato che ha un buco proprio dove si
+  aspetta è un'attesa che non finisce. ⚠️ Il verdetto si legge **dopo** l'erogazione, perché il
+  blocco lo apre lei, e distingue un blocco aperto adesso da uno che c'era già.
+
+- `[Sviluppo]` ⛔ **I sinonimi che il seed aveva tolto NON si rimettono, ed è la risposta misurata.**
+  Chiudendo `seed-nutrienti-firma-falsa` stavo lasciando fuori metà di quello che la voce stessa
+  elencava. Misurati: i sinonimi persi sono tre — `ceci` → «ceci secchi», `lenticchie` →
+  «lenticchie secche», `zucca` → «zucca gialla». ⛔ E rimetterli sarebbe stato un **difetto**: quelle
+  tre righe hanno i valori **da cotto** (ceci 132 kcal invece di 334), quindi «ceci secchi»
+  attaccato lì darebbe il numero sbagliato di tre volte — lo stesso motivo per cui la prima versione
+  di `ripara:stati` è stata buttata. ⚠️ E l'accusa originale («la nuova noci non ha più sinonimi»)
+  era falsa: nel foglio del 20/8 tutte le righe in comune col seed hanno `synonyms: []`.
+
 - `[Sviluppo]` 🛑 **I buchi nei calendari si riempiono con le giornate nuove.** Richiesta di Simone:
   *«i buchi si riempiono con le nuove»*. Prima l'erogazione accodava dopo l'**ultima** data e si
   fermava con `if (ultima.date > oggi) return []`: un buco in mezzo non si richiudeva mai — quel

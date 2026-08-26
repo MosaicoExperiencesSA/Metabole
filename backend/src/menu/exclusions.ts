@@ -514,6 +514,27 @@ export const SOLO_A_INIZIO_PAROLA: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * ⛔ **QUESTA COPPIA (chiave, parola) È GIÀ STATA DECISA?**
+ *
+ * Serve a `npm run diag:esclusioni`, che elenca le chiavi che combaciano **dentro** una parola più
+ * lunga perché una persona le legga una per una. ⚠️ Senza questa funzione la diagnostica rifaceva
+ * il conto **grezzo** e riproponeva anche le coppie già chiuse — «vino» dentro «bovino» è in
+ * `PAROLE_CHE_NON_SONO` dal 20/8, e sarebbe tornata in cima all'elenco da leggere. *Un elenco di
+ * lavoro che contiene lavoro già fatto è un elenco che si smette di leggere.*
+ *
+ * Sta qui e non nella diagnostica di proposito: *se due punti rispondono alla stessa domanda, uno
+ * deve chiamare l'altro*. Le due liste le legge il motore, e chi le racconta legge le stesse.
+ *
+ * ⚠️ Vale per una occorrenza **dentro** una parola più lunga (`parola` è la parola intera del
+ * piatto): è l'unico caso che la diagnostica raccoglie, ed è il motivo per cui
+ * `SOLO_A_INIZIO_PAROLA` da solo basta a dire «già decisa».
+ */
+export function coppiaGiaDecisa(chiave: string, parola: string): boolean {
+  if (SOLO_A_INIZIO_PAROLA.has(chiave)) return true;
+  return (PAROLE_CHE_NON_SONO[chiave] ?? []).includes(parola);
+}
+
+/**
  * La chiave combacia dentro il testo? Due filtri, e **si applicano insieme**.
  *
  * ⛔ La prima stesura del 23/8 li teneva alternativi (`if (inizioParola) return …` prima delle

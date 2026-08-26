@@ -1,0 +1,105 @@
+================================================================================
+CONSEGNA «le risposte di Simone entrano nell'elenco» — 25/8/2026
+================================================================================
+
+Richiesta di Simone: «chiudi tutti quelli con le risposte di Simone». Sette voci
+che avevano già una risposta e continuavano a comparire come se aspettassero.
+
+⚠️ **Chiudere non è la stessa cosa per tutte e sette**, e trattarle uguale
+avrebbe messo la spunta su lavori non fatti. Quattro esiti diversi:
+
+CHIUSE DAVVERO (2)
+· `tabella-alimenti-igiene` — risposta del 25/8: «lasciamoli così, li sistema
+  mano a mano che li trova la nutrizionista». ✅ E adesso la matita TIENE: era
+  la cosa che bloccava la voce (il seed azzerava lo stato a ogni deploy),
+  corretta il 21/8 e verificata il 25/8 sul database vero.
+· `seed-nutrienti-firma-falsa` — `ripara:stati` girato da Simone: 11 su 11,
+  zero saltate, zero fallite, e tutte e undici uscite «confermata dal capo».
+
+DECISE, DIVENTANO LAVORO (1)
+· `visto-non-vuol-dire-aperto` — risposta «2»: il segnale vero «ha aperto QUESTO
+  giorno». La voce adesso descrive il lavoro in tre pezzi invece della domanda.
+
+PARCHEGGIATE CON UNA DATA O UN SEGNALE (2)
+· `giallo-finestra-di-rientro` — «completiamo la struttura e vediamo se si
+  ripete»: non aspetta più una decisione, aspetta un secondo caso.
+· `whatsapp-numero` — «lo affrontiamo a settembre».
+
+RESTANO APERTE, MA ADESSO CHIEDONO QUALCOSA DI ESEGUIBILE (2)
+· `ricalcolo-e-tetto-mensile` — ⚠️ la risposta del 20/8 rispondeva a UN'ALTRA
+  domanda, e quella è già fatta (il ricalcolo lavora solo sulla catena coach,
+  con `ricalcolo-solo-coach.spec.ts` che lo tiene fermo). La domanda vera —
+  se il ricalcolo può ripagare quello che il tetto aveva tolto — è ancora lì, e
+  chiuderla con quella risposta sarebbe stato darsi ragione da soli. Adesso la
+  voce chiede a) o b) e basta.
+· `esclusioni-chiave-dentro-parola` — Simone: «fammi una domanda specifica».
+  Adesso la voce è un comando e un SÌ/NO per riga.
+
+## ⛔ COSA HA TROVATO LA REVISIONE AVVERSARIALE (cinque cose, due che avrebbero
+   fatto perdere tempo a chi legge, e una chiusura sbagliata)
+
+⛔ **`seed-nutrienti-firma-falsa` la stavo chiudendo con metà del danno non
+   guardato.** La voce elencava DUE danni — lo stato azzerato **e i sinonimi
+   sostituiti** — e la chiusura parlava solo di stati. Misurati: i sinonimi persi
+   sono tre (`ceci` → «ceci secchi», `lenticchie` → «lenticchie secche»,
+   `zucca` → «zucca gialla»). ⛔ E rimetterli sarebbe stato un DIFETTO, non una
+   riparazione: quelle tre righe hanno i valori **da cotto** (ceci 132 kcal
+   invece di 334), quindi «ceci secchi» attaccato lì darebbe il numero sbagliato
+   di tre volte — lo stesso motivo per cui la prima versione di `ripara:stati`
+   era stata buttata. La risposta misurata è: NON si rimettono. ⚠️ E l'accusa
+   originale («la nuova noci non ha più sinonimi») era falsa: nel foglio del
+   20/8 tutte le righe in comune col seed hanno `synonyms: []`, noci compresa.
+
+⛔ **`diag:esclusioni` avrebbe rimandato a Simone righe già decise.** Il conto
+   delle coppie era grezzo (`indexOf`) e non guardava né `PAROLE_CHE_NON_SONO`
+   né `SOLO_A_INIZIO_PAROLA`: «vino» dentro «bovino», chiusa il 20/8, sarebbe
+   tornata in cima all'elenco e lui l'avrebbe aggiunta a una lista dove c'è già.
+   → `coppiaGiaDecisa` in `exclusions.ts`, accanto alle due liste, e la
+   diagnostica la chiama: *se due punti rispondono alla stessa domanda, uno deve
+   chiamare l'altro*. Le già decise si contano e non si ripropongono.
+
+⛔ **E «incolla la parte finale» gli faceva incollare la cosa sbagliata**: le
+   righe ⛔ uscivano dentro il blocco di ognuno dei sedici allergeni, dopo un
+   elenco senza tetto; in fondo c'era solo la prosa. → adesso c'è un riquadro
+   finale «DA LEGGERE UNA PER UNA» con tutte le coppie insieme, la domanda
+   scritta sopra e i due esempi. La parte finale **è** l'elenco.
+
+⛔ **Il PASSO 2 offriva una destinazione sola.** Una risposta «NO» su una
+   famiglia aperta («orata» dentro decorata, dorata, insaporata…) mandata
+   nell'elenco chiuso è la correzione che il codice dichiara sbagliata. La voce
+   adesso dice che basta il SÌ/NO e che come si scarta lo decide il codice.
+
+⚠️ **`prova:erogazione`: la ventesima uscita non aveva verdetto** — una frase
+   fissa, senza ✓ e senza ⛔, l'unica delle venti. E `giallo-finestra-di-rientro`
+   fonda l'attesa proprio su «se ricapita, la riga ⛔ dice quale». → il verdetto
+   c'è, letto dopo l'erogazione (il blocco lo apre lei), e distingue un blocco
+   aperto ADESSO da uno che c'era già.
+
+⚠️ Altre tre correzioni ai testi, tutte per affermazioni non sostenute:
+   `biscotti` era data per ancora nel codice e in attesa di Lucia (tolta il
+   24/8, decisa da Simone); `anacardi` «nata da un'altra parte» era una frase
+   senza misura (sta in `dati-ig.ts` con stato `tostato`); e il campo nuovo
+   proposto per «ha aperto questo giorno» si chiamava `apertoIl`, che è **già
+   preso** in `vera/menu-da-rifare.ts` con un altro significato, negli stessi
+   file che quel lavoro andrebbe a toccare.
+
+MISURATO
+- 5615 test verdi in tutte e quattro le modalità + 149 nel backoffice.
+- 2 mutazioni su `coppiaGiaDecisa`: tutte e due uccise.
+
+FILE NEL COMMIT
+- backend/src/lavori/voci-iniziali.ts
+- backend/src/menu/exclusions.ts                        (`coppiaGiaDecisa`)
+- backend/src/menu/radice-a-inizio-parola.spec.ts       (4 test nuovi)
+- backend/prisma/diag-esclusioni.ts
+- backend/prisma/prova-erogazione.ts
+- progetto/REGISTRO.md
+
+⚠️ Nessuna migrazione. Le voci si allineano da sole al deploy
+   (`allinea:lavori` sta nel preDeployCommand).
+⛔ **LE COLONNE NON LE SPOSTA IL FILE, DI PROPOSITO**: `allinea:lavori` riscrive
+   titolo e dettaglio ma **non** `categoria`, perché spostare le voci sotto gli
+   occhi di chi le sta guardando non è quello che si chiede a un rilascio. Le
+   cinque che restano in elenco si trovano ancora sotto «Aspetta Simone» e «Da
+   decidere con Simone»: le sposti tu dalla pagina. ⚠️ Per questo la decisione
+   sta nel TITOLO — si legge giusto anche dalla colonna sbagliata.

@@ -338,7 +338,16 @@ async function main(): Promise<void> {
         + `${giorniCiclo.letto >= 1 ? '✓' : '⛔ ZERO: non si compone niente e non si scrive niente — è `menu_days_delivered` a zero'}`,
     );
   }
-  console.log('20. esclusioni non sostituibili: se ce ne sono, apre «Piano bloccato» e non eroga — il motivo è stampato qui sopra e qui sotto.');
+  /**
+   * ⛔ **ANCHE LA VENTESIMA HA IL SUO VERDETTO** — corretto dalla revisione avversariale del 25/8.
+   *
+   * Questa riga era una **frase fissa**, senza ✓ e senza ⛔: l'unica delle venti. E il tabulato serve
+   * a una cosa sola — *«se ricapita, la riga ⛔ dice quale»* — quindi un'uscita che non sa dire se è
+   * scattata è un buco proprio nella promessa su cui la voce `giallo-finestra-di-rientro` fonda
+   * l'attesa. ⚠️ Il verdetto qui si legge **dopo** l'erogazione, perché il blocco lo apre lei: si
+   * stampa in fondo, dove il dato c'è, invece di indovinarlo prima.
+   */
+  console.log('20. esclusioni non sostituibili: apre «Piano bloccato» e non eroga — il verdetto è in fondo, dopo l\'erogazione.');
 
   console.log('\n--- erogazione ---');
   const creati = await menu.deliverIfEligible(user.id);
@@ -346,6 +355,16 @@ async function main(): Promise<void> {
 
   const dopo = await prisma.menuDay.count({ where: { clientId: user.id } });
   const bloccoDopo = await blocchi(user.id);
+
+  /** Il verdetto dell'uscita 20, adesso che si può leggere: il blocco l'ha aperto questa erogazione? */
+  const bloccoNuovo = bloccoDopo.filter((b) => !bloccoPrima.some((x) => x.id === b.id));
+  console.log(
+    bloccoNuovo.length
+      ? `20. esclusioni non sostituibili: ⛔ SCATTATA — ha aperto ${bloccoNuovo.length} blocco/i adesso (motivo qui sotto)`
+      : bloccoDopo.length
+        ? '20. esclusioni non sostituibili: ⛔ un blocco c\'è, ma era GIÀ APERTO prima — non è questa erogazione ad averlo aperto'
+        : '20. esclusioni non sostituibili: ✓ nessun blocco aperto',
+  );
 
   if (creati.length) {
     console.log(`✅ EROGATI ${creati.length} giorni: ${creati.join(', ')}`);

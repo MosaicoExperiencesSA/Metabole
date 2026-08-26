@@ -28,7 +28,7 @@
  * sbagliato: l'errore era per eccesso. Ma a una cliente allergica alla frutta secca spariva ogni
  * piatto con le olive, e un pool che si svuota così è un piano che non si riesce più a comporre.
  */
-import { hitsExclusion, iniziaUnaParola, PAROLE_CHE_NON_SONO, radiceChiave, RADICE_MINIMA } from './exclusions';
+import { coppiaGiaDecisa, hitsExclusion, iniziaUnaParola, PAROLE_CHE_NON_SONO, radiceChiave, RADICE_MINIMA } from './exclusions';
 
 describe('il caso vero, quello che ha fatto scattare tutto', () => {
   it('⛔ «olive denocciolate» NON è frutta secca', () => {
@@ -132,5 +132,51 @@ describe('le parole che contengono una chiave senza esserla', () => {
 
   it('una chiave senza omonime dichiarate si comporta come sempre', () => {
     expect(hitsExclusion('pane integrale tostato', ['pane'])).toBe('pane');
+  });
+});
+
+/**
+ * ⛔ **QUELLO CHE È GIÀ DECISO NON TORNA NELL'ELENCO DA LEGGERE** — 25/8, dalla revisione
+ * avversariale.
+ *
+ * `npm run diag:esclusioni` elenca le chiavi che combaciano **dentro** una parola più lunga, perché
+ * una persona le legga una per una. ⛔ Ma quel conto era **grezzo** e non guardava le due liste che
+ * il motore usa davvero: «vino» dentro «bovino» — chiusa il 20/8 — sarebbe tornata in cima
+ * all'elenco, e chi la legge l'avrebbe aggiunta a una lista dove c'è già. *Un elenco di lavoro che
+ * contiene lavoro già fatto è un elenco che si smette di leggere.*
+ *
+ * ⚠️ Questi test non provano la diagnostica: provano **la funzione che risponde alla domanda**, che
+ * sta accanto alle due liste apposta — se domani qualcuno aggiunge una parola, la diagnostica smette
+ * di riproporla senza che nessuno se ne ricordi.
+ */
+describe('⛔ coppiaGiaDecisa — cosa è già stato deciso, e non si richiede', () => {
+  it('⛔ «vino» dentro «bovino» è chiusa dal 20/8: non si richiede', () => {
+    expect(coppiaGiaDecisa('vino', 'bovino')).toBe(true);
+    expect(coppiaGiaDecisa('vino', 'bovine')).toBe(true);
+  });
+
+  /**
+   * ⚠️ Le famiglie **aperte** le chiude la regola «solo a inizio di parola», non un elenco: per
+   * quelle chiavi **qualunque** parola più lunga è già decisa, comprese quelle che nessuno ha mai
+   * scritto — che è tutto il punto di `SOLO_A_INIZIO_PAROLA`.
+   */
+  it('⛔ «orata» dentro una parola qualsiasi è già decisa dalla regola, anche su parole mai viste', () => {
+    for (const parola of ['insaporata', 'decorata', 'ristorata', 'sproporzionata']) {
+      expect(coppiaGiaDecisa('orata', parola)).toBe(true);
+    }
+  });
+
+  /**
+   * ⛔ **E «sottaceto» NON è decisa nel senso di «scartata»**: è decisa nel senso opposto — l'aceto
+   * nel sottaceto c'è davvero. Qui la funzione deve dire **no**, cioè «questa resta da leggere»,
+   * perché finché nessuno la dichiara il motore continua giustamente a escluderla.
+   */
+  it('⚠️ «aceto» dentro «sottaceto» resta da leggere: nessuna delle due liste la nomina', () => {
+    expect(coppiaGiaDecisa('aceto', 'sottaceto')).toBe(false);
+  });
+
+  it('una parola che non c\'è in nessuna delle due liste resta da leggere', () => {
+    expect(coppiaGiaDecisa('uovo', 'nuovo')).toBe(false);
+    expect(coppiaGiaDecisa('vino', 'vinoso')).toBe(false);
   });
 });
