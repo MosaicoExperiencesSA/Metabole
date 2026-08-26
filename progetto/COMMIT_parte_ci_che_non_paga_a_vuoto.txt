@@ -1,0 +1,67 @@
+================================================================================
+CONSEGNA «la CI non paga per i push che non compilano niente» — 26/8/2026
+================================================================================
+
+IL FATTO. Il 26/8 alle 17:05 i job di GitHub Actions hanno smesso di partire
+(«Run failed at startup: No jobs were run») e cinque check sono stati annullati
+in blocco a quindici minuti. Non era il nostro codice: i minuti Actions del mese
+erano finiti, e su GitHub Free il limite di spesa è $0 — quindi i job non
+partono invece di iniziare a costare.
+
+MISURATO sulla pagina di fatturazione, non dedotto:
+· **Copilot $0** — non è Copilot;
+· tutto **Actions**, e **Metabole $22,37 su $32,84**: il 68% del consumo
+  dell'intero account (il resto è un altro repo).
+
+⛔ **E il consumo era in buona parte per niente.** Il push dell'OTA della sera
+stessa — uno **zip da 10 MB** e un numero di versione — ha lanciato tre build
+complete, la compilazione di un **APK Android** e il build di Pages: cinque job
+per file che nessuno di quei job compila.
+
+DUE TAGLI
+
+1) **`Android APK (debug)` non gira più a ogni push.** Era il job più caro di
+   tutti — SDK Android, Gradle, un APK intero — e partiva a ogni push che
+   toccasse `app/**`, compreso un rilascio OTA che con l'APK non c'entra niente.
+   Resta `workflow_dispatch`: l'APK serve **quando lo si vuole provare**, ed è
+   in quel momento che si preme «Run workflow».
+   ⚠️ **Ma non a zero, e la ragione conta**: la CI compila il **web** dell'app,
+   non il progetto **nativo** (`cap add android`, le iniezioni di widget,
+   contapassi, push, icona, e Gradle). Togliendo tutto, un difetto lì resterebbe
+   nascosto fino alla prossima build per lo store — il momento peggiore. →
+   **un giro a settimana** (lunedì 04:00 UTC): ~10 minuti al mese invece di uno
+   a ogni push, e la differenza fra «lo scopro lunedì» e «lo scopro il giorno
+   del rilascio» è tutta.
+
+2) **La CI salta i push che non hanno una riga da compilare**: `progetto/**`,
+   `docs/**`, `backend/ota-bundles/**`, `**.md`.
+   ⚠️ **`paths-ignore` salta il run solo se TUTTI i file cambiati sono in quella
+   lista**: un push che tocca un documento **e** una riga di codice fa girare la
+   CI, com'è giusto. Qui non si sta scegliendo cosa controllare — si sta
+   togliendo il caso in cui non c'è niente da controllare.
+   ⚠️ E la lista contiene **solo cose che nessun compilatore legge**: metterci
+   una cartella di codice vorrebbe dire spegnere la rete di sicurezza senza che
+   nessuno se ne accorga.
+   ⚠️ Sulle **pull request** nessun filtro: lì il conto lo si vuole sempre,
+   perché è il momento in cui qualcuno decide se unire.
+
+COSA NON HO TOCCATO, E PERCHÉ
+· **La doppia suite del backend** (normale + `test:notte`): è cara e vale ogni
+  minuto — è il passo che ha trovato quattro file rossi solo fra la mezzanotte e
+  le 02:00, e senza il quinto si scriverebbe domani.
+· **Pages**: «pages build and deployment» gira a ogni push ed è un altro job
+  pagato, ma spegnerlo è una decisione di Simone — dipende se il sito da lì è
+  ancora pubblicato. Sta scritto qui perché non si perda.
+
+MISURATO
+- I due file passano il parser YAML e i trigger risultanti sono quelli scritti
+  (`workflow_dispatch` + `schedule` per l'APK; `paths-ignore` solo sul `push`
+  per la CI). Nessun codice toccato: nessun test da rifare.
+
+FILE NEL COMMIT
+- .github/workflows/android-apk.yml
+- .github/workflows/ci.yml
+- progetto/REGISTRO.md
+
+⚠️ Il ciclo di fatturazione si chiude il **30 agosto**: fino ad allora la CI non
+   gira comunque. Da settembre riparte, con questi due tagli in vigore.

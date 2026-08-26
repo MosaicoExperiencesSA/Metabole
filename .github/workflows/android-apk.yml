@@ -2,15 +2,33 @@ name: Android APK (debug)
 
 # Compila un APK di debug dell'app Metabole (unica, smistata per ruolo) e lo pubblica
 # come artefatto scaricabile. Utile per provare l'app senza dipendere da un Mac locale.
-# Avvio manuale (Actions → questo workflow → Run) o a ogni push su main che tocca app/.
+#
+# ⛔ **SOLO A MANO** (Actions → questo workflow → Run), dal 26/8. Prima girava anche a ogni push
+# su main che toccasse `app/**`, e il 26/8 i minuti Actions del mese sono finiti: i job hanno
+# smesso di partire («Run failed at startup: No jobs were run») e cinque check sono stati
+# annullati in blocco. Misurato sulla pagina di fatturazione: **Copilot $0**, tutto Actions, e
+# **Metabole $22,37 su $32,84** — il 68% del consumo dell'account.
+#
+# ⚠️ E questo è il job più caro di tutti: SDK Android, Gradle, un APK intero. Girava anche per
+# un push che cambiava **solo il numero di versione** in `app/package.json` — cioè a ogni
+# rilascio OTA, che con l'APK non c'entra niente. Un artefatto che nessuno scarica, pagato ogni
+# volta.
+#
+# ⚠️ Quello che si perde è poco: l'APK serve **quando lo si vuole provare**, e in quel momento
+# si preme «Run workflow». La rete di sicurezza sull'app non è questa — è il job `App · build`
+# della CI, che compila e resta a ogni push.
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - '.github/workflows/android-apk.yml'
+  # ⚠️ **UNA VOLTA A SETTIMANA, E NON PER AVERE L'APK.** Togliendo il push si perde una cosa vera:
+  # la CI compila il **web** dell'app, non il progetto **nativo** — `cap add android`, le iniezioni
+  # (widget, contapassi, push, icona) e Gradle non li attraversa nessuno. Un difetto lì resterebbe
+  # nascosto fino alla prossima build per lo store, cioè nel momento peggiore.
+  # Un giro a settimana costa ~10 minuti al mese invece di uno a ogni push, e la differenza fra
+  # «lo scopro lunedì» e «lo scopro il giorno del rilascio» è tutta.
+  # ⚠️ Lunedì alle 04:00 UTC: fuori dall'orario in cui qualcuno aspetta un runner.
+  schedule:
+    - cron: '0 4 * * 1'
 
 jobs:
   build-apk:

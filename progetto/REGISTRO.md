@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-26
 
+- `[Sviluppo]` **La CI non paga più per i push che non compilano niente.** Il 26/8 i job di GitHub
+  Actions hanno smesso di partire («Run failed at startup: No jobs were run») e cinque check sono
+  stati annullati in blocco: non era il nostro codice, erano i **minuti del mese finiti** — e su
+  GitHub Free il limite di spesa è $0, quindi i job non partono invece di iniziare a costare.
+  ⚠️ **Misurato sulla pagina di fatturazione, non dedotto**: Copilot **$0**, tutto Actions, e
+  **Metabole $22,37 su $32,84** — il 68% del consumo dell'account. ⛔ E in buona parte per niente:
+  il push dell'OTA della sera stessa — uno **zip da 10 MB** e un numero di versione — ha lanciato
+  tre build complete, la compilazione di un APK Android e il build di Pages.
+  ✅ Due tagli: `Android APK (debug)` non gira più a ogni push (era il più caro di tutti: SDK
+  Android, Gradle, un APK intero) ma **una volta a settimana** — perché la CI compila il *web*
+  dell'app e non il progetto **nativo**, e a zero un difetto lì si scoprirebbe il giorno del
+  rilascio; e la CI salta i push fatti solo di documenti, registro e bundle OTA. ⚠️ `paths-ignore`
+  salta il run **solo se tutti** i file cambiati sono in lista: un push che tocca un documento e
+  una riga di codice fa girare la CI. Non si sceglie cosa controllare — si toglie il caso in cui
+  non c'è niente da controllare.
+
 - `[Sviluppo]` 🛑 **Una sospensione la toglie solo lo staff — la cliente poteva cancellarla dal suo
   Calendario, e il sistema non lo diceva a nessuno.** Il caso: una cliente risultava **sospesa fino
   al 31 agosto** in scheda e riceveva i menu lo stesso. `npm run prova:erogazione` ha dato la riga

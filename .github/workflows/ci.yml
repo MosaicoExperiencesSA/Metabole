@@ -6,6 +6,27 @@ name: CI
 on:
   push:
     branches: [main]
+    # ⛔ **I PUSH CHE NON COMPILANO NIENTE NON PAGANO TRE BUILD** (26/8).
+    #
+    # Non c'era nessun filtro: ogni push a main lanciava backend + backoffice + app. Il push
+    # dell'OTA del 26/8 — uno **zip da 10 MB** e un numero di versione — ha lanciato tre build
+    # complete, l'APK Android e il build di Pages. Lo stesso vale per un push di soli documenti
+    # (`progetto/`, `docs/`, i `.md`): non c'è una riga da compilare, e la CI non ha niente da
+    # dire. La sera stessa i minuti del mese sono finiti.
+    #
+    # ⚠️ **`paths-ignore` salta il run solo se TUTTI i file cambiati sono in questa lista.** Un
+    # push che tocca un documento **e** una riga di codice fa girare la CI, com'è giusto: qui non
+    # si sta scegliendo cosa controllare, si sta togliendo il caso in cui non c'è niente da
+    # controllare. ⚠️ Per la stessa ragione la lista contiene solo cose che **nessun compilatore
+    # legge**: aggiungerci una cartella di codice vorrebbe dire spegnere la rete di sicurezza
+    # senza che nessuno se ne accorga.
+    paths-ignore:
+      - 'progetto/**'
+      - 'docs/**'
+      - 'backend/ota-bundles/**'
+      - '**.md'
+  # ⚠️ Sulle pull request nessun filtro: lì il conto lo si vuole SEMPRE, perché è il momento in
+  # cui qualcuno decide se unire.
   pull_request:
 
 concurrency:
