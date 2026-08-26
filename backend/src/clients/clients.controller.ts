@@ -270,6 +270,35 @@ export class ClientsController {
     return this.clients.setTravel(id, user.sub, dto);
   }
 
+  /**
+   * ⛔ **TOGLIERE UNA SOSPENSIONE: solo staff** (Simone, 26/8: *«solo la coach, il nutrizionista e
+   * admin possono cancellare le sospensioni»*).
+   *
+   * ⛔ **NIENTE `@Roles` DI METODO, ed è una correzione della revisione del 26/8.** La prima
+   * stesura ne metteva uno che escludeva `sales`, con la motivazione «è clinica e contabile, non
+   * commerciale». ⚠️ Due cose sbagliate in una riga: `sales` in questo progetto è la **Responsabile
+   * Coach** (`common/roles.ts`), non un commerciale — ed è già fra i ruoli che **approvano le
+   * richieste di pausa**, cioè che le sospensioni le creano; e soprattutto quel confine **non
+   * esisteva**, perché la `PATCH :id/travel` qui accanto toglie la stessa sospensione svuotando le
+   * date, e non ha nessun `@Roles` di metodo. Un divieto che si aggira dal pulsante di fianco non è
+   * un divieto: è una frase.
+   *
+   * ✅ Chi può togliere una sospensione lo decide **`travel_mode: manage`** nella tabella dei
+   * permessi, che è il posto dove Simone lo cambia senza un rilascio — ed è già il guardiano della
+   * porta gemella. Quello che questa consegna chiude davvero è l'unica porta che non era guardata
+   * da niente: quella della **cliente**.
+   */
+  @RequirePage('travel_mode', 'manage')
+  @HttpCode(200)
+  @Delete(':id/sospensioni/:eventId')
+  togliSospensione(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('eventId') eventId: string,
+  ) {
+    return this.clients.togliSospensione(id, eventId, user.sub);
+  }
+
   /** Eliminazione definitiva del cliente/lead e di tutto il collegato: SOLO admin. */
   @Roles('admin')
   @HttpCode(200)

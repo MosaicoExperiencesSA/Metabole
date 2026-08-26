@@ -78,6 +78,7 @@
     "pubblica:tutto": "ts-node --transpile-only prisma/pubblica-tutto.ts",
     "sistema:nomi": "ts-node --transpile-only prisma/sistema-nomi.ts",
     "compatta:menu": "ts-node --transpile-only prisma/compatta-menu.ts",
+    "sposta:menu": "ts-node --transpile-only prisma/sposta-menu.ts",
     "diag:menu-incompleti": "ts-node --transpile-only prisma/diag-menu-incompleti.ts",
     "diag:cancellazioni": "ts-node --transpile-only prisma/diag-cancellazioni.ts",
     "diag:acquisti-pipeline": "ts-node --transpile-only prisma/diag-acquisti-pipeline.ts",

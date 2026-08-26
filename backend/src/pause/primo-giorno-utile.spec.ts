@@ -646,11 +646,63 @@ describe('⛔ due sospensioni aperte: la card, lo specchio e «togli» dicono la
     expect(prisma.event.delete).not.toHaveBeenCalled();
   });
 
-  /** ⚠️ E lo stato si ricava dalle date: una che comincia domani è «in partenza», non «in vacanza». */
+  /**
+   * ⚠️ E lo stato si ricava dalle date: una che comincia domani è «in partenza», non «in vacanza».
+   *
+   * ⚠️ **La premessa si scrive dove il codice la legge** (26/8): questo test forzava
+   * `event.findFirst`, che era la porta di prima. Dal 26/8 lo specchio guarda **tutti** i periodi —
+   * anche quelli nati dal Calendario dell'app e dalle richieste di pausa, che i menu li fermano
+   * uguale — quindi la scena «ne ha solo una futura» si prepara su `findMany`. Lasciando l'override
+   * dov'era, il test continuava a dichiarare una cosa e a prepararne un'altra.
+   */
   it('⚠️ con solo una FUTURA, lo specchio dice «in partenza»', async () => {
     const { service, prisma } = await creaDue();
-    prisma.event.findFirst = jest.fn().mockResolvedValue(PROGRAMMATA_B) as never;
+    prisma.event.findMany = jest.fn().mockResolvedValue([PROGRAMMATA_B]) as never;
     const specchio = await service.sospensioneDaRispecchiare('c1');
     expect(specchio?.stato).toBe('in_partenza');
+    expect(specchio?.startDate.toISOString()).toBe(PROGRAMMATA_B.startDate.toISOString());
+  });
+
+  /**
+   * ⛔ **E UNA PAUSA NATA DAL CALENDARIO DELL'APP CONTA COME LE ALTRE** — il difetto che la
+   * revisione avversariale del 26/8 ha misurato: lo specchio filtrava per l'etichetta della
+   * modalità viaggio, quindi con una pausa viva nata da un'altra porta rispondeva `null`. Chi lo
+   * scrive lo svuotava, e la scheda diceva «nessuna sospensione» mentre i menu erano fermi.
+   */
+  /**
+   * ⛔ **UNA SOSPENSIONE CHE COMINCIA OGGI SI CANCELLA, NON SI TRONCA** — difetto trovato e misurato
+   * dalla revisione avversariale del 26/8.
+   *
+   * «Cominciata» era `<=`, quindi su una che parte **oggi** la troncatura scriveva `endDate = ieri`
+   * su uno `startDate = oggi`: un periodo **rovesciato**, che dura zero giorni e che due punti
+   * trovano e prendono per buono. `pausaAppenaFinita` lo legge come una vacanza appena conclusa e
+   * **arma il cancello della pesata del rientro** — menu fermi finché la cliente non si pesa, per
+   * una vacanza mai esistita — e `treguaFraVacanze` lo prende per l'ultimo rientro e le blocca la
+   * pausa successiva per quindici giorni.
+   *
+   * ⚠️ È lo stesso difetto che il commento di `togliSospensioneDaViaggio` dichiarava di aver
+   * evitato: la guardia copriva «non ancora cominciata» e lasciava fuori «comincia oggi».
+   */
+  it('⛔ tolta il giorno stesso in cui comincia: si CANCELLA, non lascia un periodo rovesciato', async () => {
+    const { service, prisma } = await creaDue();
+    const oggiStesso = { id: 'ev-oggi', startDate: g('2026-08-10'), endDate: g('2026-08-20'), label: null };
+    prisma.event.findFirst = jest.fn().mockResolvedValue(oggiStesso) as never;
+    prisma.event.findMany = jest.fn().mockResolvedValue([]) as never;
+    const esito = await service.togliSospensioneDaViaggio('c1', 'staff1');
+
+    expect(esito.tolta).toBe(true);
+    expect(esito.eraInCorso).toBe(false);
+    expect(prisma.event.delete).toHaveBeenCalledWith({ where: { id: 'ev-oggi' } });
+    /** ⛔ La prova che conta: nessuna scrittura di una `endDate` che finisce PRIMA dell'inizio. */
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('⛔ una pausa senza l\'etichetta della card rispecchia lo stesso: i menu li ferma uguale', async () => {
+    const { service, prisma } = await creaDue();
+    const dalCalendario = { id: 'ev-cal', startDate: new Date('2026-08-09T00:00:00.000Z'), endDate: new Date('2026-08-12T00:00:00.000Z'), label: null };
+    prisma.event.findMany = jest.fn().mockResolvedValue([dalCalendario]) as never;
+    const specchio = await service.sospensioneDaRispecchiare('c1');
+    expect(specchio?.stato).toBe('in_vacanza');
+    expect(specchio?.startDate.toISOString()).toBe(dalCalendario.startDate.toISOString());
   });
 });

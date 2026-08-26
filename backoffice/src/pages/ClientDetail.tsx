@@ -2659,6 +2659,8 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
   const [aggiungo, setAggiungo] = useState(false);
   /** Il server ha detto 403: l'elenco non è vuoto, è **non leggibile**. Vedi il riquadro in `carica`. */
   const [nonLeggibile, setNonLeggibile] = useState(false);
+  /** L'id del periodo che si sta togliendo: il pulsante resta fermo finché il server non risponde. */
+  const [tolgoSospensione, setTolgoSospensione] = useState<string | null>(null);
 
   const data = (v?: string | null) =>
     v ? new Date(`${String(v).slice(0, 10)}T00:00:00.000Z`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '—';
@@ -2696,6 +2698,50 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
     }
   }
   useEffect(() => { carica(); }, [clientId]);
+
+  /**
+   * ⛔ **TOGLIE UN PERIODO — la strada che prima aveva solo la cliente** (26/8).
+   *
+   * Fino a oggi un `pause_period` nato dal Calendario dell'app lo poteva cancellare **solo lei**, e
+   * dal 26/8 non più: senza questo pulsante quei periodi non li toglierebbe più nessuno.
+   *
+   * ⚠️ **La conferma dice cosa succede davvero**, non «sei sicuro?»: i menu ripartono, e su una
+   * sospensione già cominciata si chiude a ieri invece di sparire — perché fino a ieri i menu erano
+   * fermi per davvero, e riscrivere quel pezzo di storia sarebbe una bugia comoda.
+   */
+  async function togliSospensione(r: { id: string; dal: string; riprendeIl: string; stato: string }) {
+    const quandoRiprende = data(r.riprendeIl);
+    if (!confirm(
+      `Togliere la sospensione dal ${data(r.dal)} (riprende il ${quandoRiprende})?\n\n`
+      + (r.stato === 'in_corso'
+        ? 'È in corso: la chiudo a ieri e i menu ripartono appena lei inserisce la pesata del rientro.'
+        : 'Non è ancora cominciata: la annullo del tutto.')
+      + '\nI giorni già aggiunti alla scadenza restano alla cliente.',
+    )) return;
+    setTolgoSospensione(r.id);
+    try {
+      const esito = await api<{ avviso: string | null }>(`/admin/clients/${clientId}/sospensioni/${r.id}`, { method: 'DELETE' });
+      /**
+       * ⛔ **E LE CASELLE SI SVUOTANO** — corretto dalla revisione avversariale del 26/8, ed era il
+       * difetto peggiore di questo pulsante.
+       *
+       * `start` e `rientro` si precompilano dal profilo **una volta sola**, alla nascita della card:
+       * dopo «Togli» la tabella si aggiornava e le due caselle restavano piene con le vecchie date.
+       * Premere «Salva» — il gesto più naturale davanti a una card che sembra non essersi svuotata —
+       * **rimetteva la sospensione appena tolta**, e senza nessun avviso: il registro dei giorni
+       * concessi copriva già quel periodo, quindi «giorni aggiunti: 0» e silenzio.
+       */
+      setStart('');
+      setRientro('');
+      setMotivo('');
+      await carica();
+      if (esito?.avviso) alert(esito.avviso);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Non sono riuscito a togliere la sospensione.');
+    } finally {
+      setTolgoSospensione(null);
+    }
+  }
 
   async function save() {
     setSaving(true); setErr(null); setMsg(null); setAvviso(null);
@@ -2907,7 +2953,12 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table className="grid" style={{ fontSize: 13 }}>
-                    <thead><tr><th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Stato</th><th>Origine</th><th>Motivo</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Dal</th><th>Riprende il</th><th>Giorni</th><th>Stato</th><th>Origine</th><th>Motivo</th>
+                        {puoGestire && <th />}
+                      </tr>
+                    </thead>
                     <tbody>
                       {periodi.map((r) => (
                         <tr key={r.id}>
@@ -2920,6 +2971,31 @@ function TravelCard({ clientId, profile, puoGestire }: { clientId: string; profi
                               «non c'era un motivo», e per le sospensioni di prima del 24/8 la verità
                               è che non gliel'abbiamo chiesto. */}
                           <td>{r.motivo ?? <span className="muted">non indicato</span>}</td>
+                          {/**
+                           * ⛔ **IL PULSANTE CHE PRIMA AVEVA SOLO LA CLIENTE** (26/8). Fino a oggi un
+                           * periodo nato dal suo Calendario lo poteva togliere **solo lei**, dall'app —
+                           * ed è così che una sospensione messa dalla coach è sparita senza che in
+                           * scheda comparisse niente. Adesso quella porta è chiusa per la cliente, e
+                           * questa è la strada dall'altra parte: senza, quei periodi non li potrebbe
+                           * togliere più nessuno.
+                           *
+                           * ⚠️ Solo sui periodi ancora **vivi**: su una vacanza già passata non c'è
+                           * niente da fermare, e un pulsante che riscrive la storia non serve a nessuno.
+                           */}
+                          {puoGestire && (
+                            <td style={{ textAlign: 'right' }}>
+                              {r.stato !== 'passata' && (
+                                <button
+                                  className="btn ghost sm"
+                                  disabled={tolgoSospensione === r.id}
+                                  onClick={() => void togliSospensione(r)}
+                                  title="Toglie questo periodo: i menu ripartono. Se è già cominciato si chiude a ieri, se non è ancora cominciato si annulla. I giorni già aggiunti alla scadenza restano alla cliente."
+                                >
+                                  {tolgoSospensione === r.id ? 'Tolgo…' : 'Togli'}
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

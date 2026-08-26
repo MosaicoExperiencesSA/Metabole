@@ -26,7 +26,9 @@ import { ConfigParamsService } from '../src/config-params/config-params.service'
 import { DietAgentService } from '../src/diet-agent/diet-agent.service';
 import { DayComboService } from '../src/menu/day-combo.service';
 import { KcalNeedService } from '../src/menu/kcal-need.service';
-import { MenuService } from '../src/menu/menu.service';
+import { GIORNATE_DAVANTI_CHE_BASTANO, MenuService } from '../src/menu/menu.service';
+import { corsaDiGiornate, dateDaComporre } from '../src/menu/buchi-nel-calendario';
+import { giornoDelDato } from '../src/common/date-only';
 import { PushService } from '../src/notifications/push.service';
 
 const prisma = new PrismaClient();
@@ -252,14 +254,74 @@ async function main(): Promise<void> {
   const ultimo = (await prisma.menuDay.findFirst({
     where: { clientId: user.id }, orderBy: { date: 'desc' }, select: { id: true, date: true },
   })) as { id: string; date: Date } | null;
+  const inizioPiano2 = pianoScelto?.startDate ?? profilo?.planStartDate ?? null;
+  const startG = inizioPiano2 ? toDateOnly(inizioPiano2.toISOString()) : oggiG;
+  const daOggi = Math.max(oggiG.getTime(), startG.getTime());
+  /** La stessa definizione del motore: un giorno in sospensione non è un buco. */
+  const sospesoOggi = (t: number): boolean =>
+    !!pausa && periodoLeggibile(pausa)
+    && t >= giornoDelDato(pausa.startDate).getTime()
+    && t <= giornoDelDato(pausa.endDate).getTime();
+  const inCalendario = (
+    (await prisma.menuDay.findMany({
+      where: { clientId: user.id, date: { gte: new Date(daOggi) } },
+      select: { date: true },
+    })) as { date: Date }[]
+  ).map((g) => g.date.getTime());
+
   if (!ultimo) {
-    console.log('12. ultimo giorno in calendario: nessuno → prima erogazione, si parte dall\'inizio piano ✓');
+    console.log('12. giornate di seguito da oggi: nessuna giornata in calendario → prima erogazione ✓');
   } else {
-    const oltreOggi = ultimo.date.getTime() > oggiG.getTime();
-    console.log(`12. buffer in avanti: ultimo giorno in calendario ${giorno(ultimo.date)} vs oggi ${giorno(oggiG)} ${oltreOggi ? '⛔ È OLTRE OGGI: non eroga altro finché non passa' : '✓'}`);
-    const serve = await (menu as never as { cycleNeedsMeasure(c: string, u: { date: Date }, n: number): Promise<boolean> })
-      .cycleNeedsMeasure(user.id, ultimo, giorniCiclo.letto);
-    console.log(`13. misure del ciclo: ${serve ? '⛔ MANCANO: il ciclo successivo resta trattenuto' : 'a posto ✓'}`);
+    /**
+     * ⛔ **QUESTA RIGA RACCONTAVA LA REGOLA VECCHIA** — trovato il 26/8 sul caso Moreno, guardando
+     * l'esito insieme a Simone.
+     *
+     * Diceva: «ultimo giorno in calendario X vs oggi Y ⛔ È OLTRE OGGI: non eroga altro finché non
+     * passa». Era vero fino al 24/8; dal 25/8 il buffer conta le **giornate di seguito da oggi**
+     * (`corsaDiGiornate`), perché guardare la data più alta lasciava i buchi aperti per sempre.
+     * ⚠️ Sul caso Moreno l'esito coincideva — non erogava davvero — ma **per un'altra ragione**, e
+     * questo tabulato esiste per una cosa sola: essere creduto quando qualcosa non torna. *Una
+     * ragione falsa è peggio di un ordine sbagliato*, e stampata sullo strumento di misura è il
+     * posto peggiore in cui metterla.
+     *
+     * ✅ Adesso chiama **le funzioni del motore**, non una copia: se la regola cambia di nuovo,
+     * questa riga cambia con lei.
+     */
+    const corsa = corsaDiGiornate(inCalendario, daOggi, sospesoOggi);
+    const bastano = corsa.quante >= GIORNATE_DAVANTI_CHE_BASTANO;
+    console.log(
+      `12. buffer in avanti: ${corsa.quante} giornate DI SEGUITO da oggi`
+        + `${corsa.ultima ? ` (fino al ${giorno(new Date(corsa.ultima))})` : ''}`
+        + ` · ne bastano ${GIORNATE_DAVANTI_CHE_BASTANO} `
+        + `${bastano ? '⛔ NE HA ABBASTANZA: non eroga altro finché non ne resta meno di ' + GIORNATE_DAVANTI_CHE_BASTANO : '✓'}`,
+    );
+    /**
+     * ⚠️ E si dice anche l'**ultima data in calendario**, che non è più il cancello ma resta il
+     * numero che chi guarda ha in mente: se le due divergono, in mezzo c'è un buco.
+     */
+    if (corsa.ultima && ultimo.date.getTime() > corsa.ultima) {
+      console.log(`    ⚠️ l'ultima giornata in calendario è il ${giorno(ultimo.date)}: fra le due c'è un BUCO, e le nuove ci vanno dentro.`);
+    }
+    /**
+     * ⛔ **E il ciclo finisce dove finisce la corsa**, non all'ultima data: è la correzione del 25/8
+     * (un buco apriva il cancello delle misure da solo). Qui si passa lo stesso ancoraggio del
+     * motore, o questa riga direbbe «a posto» dove il motore chiede la pesata.
+     */
+    const fineDellaCorsa = new Date(corsa.ultima ?? daOggi - 86_400_000);
+    const fineDelCiclo = ultimo.date.getTime() < fineDellaCorsa.getTime() ? ultimo : { date: fineDellaCorsa };
+    /**
+     * ⚠️ **Il cancello delle misure sta DENTRO il buffer, e questa riga deve stare dentro come lui**
+     * (revisione del 26/8): con il buffer pieno il motore a `cycleNeedsMeasure` non ci arriva
+     * nemmeno, e stampare un secondo ⛔ manderebbe a cercare una pesata che non ferma niente. Due
+     * ⛔ in un tabulato che promette «il colpevole è la prima riga ⛔» sono un colpevole di troppo.
+     */
+    if (corsa.quante < GIORNATE_DAVANTI_CHE_BASTANO) {
+      const serve = await (menu as never as { cycleNeedsMeasure(c: string, u: { date: Date }, n: number): Promise<boolean> })
+        .cycleNeedsMeasure(user.id, fineDelCiclo, giorniCiclo.letto);
+      console.log(`13. misure del ciclo (ciclo chiuso al ${giorno(fineDelCiclo.date)}): ${serve ? '⛔ MANCANO: il ciclo successivo resta trattenuto' : 'a posto ✓'}`);
+    } else {
+      console.log('13. misure del ciclo: non chiesto — con il buffer pieno il motore non ci arriva.');
+    }
   }
 
   console.log(`14. profilo per la scelta dieta: regime=${profilo?.regime ?? '⛔ NULL'} · pasti=${profilo?.mealsPerDay ?? '⛔ NULL'} · famiglia=${profilo?.dietFamily ?? '—'} · stile=${profilo?.dietStyle ?? '—'} · obiettivo=${profilo?.objective ?? '— (→ dimagrimento)'} · percorso=${profilo?.pathType ?? '—'} · finestra=${profilo?.fastingWindow ?? '—'}`);
@@ -318,12 +380,31 @@ async function main(): Promise<void> {
      * La prima stesura lo applicava solo al ramo con giornate — divergeva sul confronto col fine
      * piano qui sotto, in un caso raro ma vero (nessun menu + rientro in vista).
      */
-    const base = ultimo ? new Date(Math.max(ultimo.date.getTime() + 86_400_000, oggiG.getTime())) : start;
-    const primoNuovo = rientro && rientro.getTime() > oggiG.getTime() ? rientro : base;
+    /**
+     * ⛔ **LE DATE SI CHIEDONO AL MOTORE, non si rifanno qui** — 26/8, insieme alla riga 12.
+     *
+     * Questa riga ricostruiva «l'ultima data + 1», cioè la regola di prima del 25/8, e da allora il
+     * motore compone **le date che mancano** (`dateDaComporre`). ⚠️ E c'era un'uscita che il
+     * tabulato non censiva affatto: `if (daComporre.length === 0) return []`. Caso concreto:
+     * ultimo giorno di piano, con il menu di oggi già in calendario — riga 12 ✓, riga 13 ✓, riga 5
+     * ✓ (il confronto con la fine piano è stretto), e il motore esce a mano vuota **senza una sola
+     * riga ⛔**. Il tabulato promette che il colpevole sia sempre qui dentro: adesso lo è.
+     */
     const finePiano = pianoScelto?.endDate ? toDateOnly(pianoScelto.endDate.toISOString()) : null;
+    const daPartire = rientro && rientro.getTime() > oggiG.getTime()
+      ? Math.max(daOggi, rientro.getTime())
+      : daOggi;
+    const daComporre = dateDaComporre({
+      presenti: inCalendario,
+      da: daPartire,
+      quante: giorniCiclo.letto,
+      finePiano: finePiano ? finePiano.getTime() : null,
+      sospeso: sospesoOggi,
+    });
     console.log(
-      `18. primo giorno da comporre ${giorno(primoNuovo)} vs fine piano ${giorno(finePiano)} `
-        + `${finePiano && primoNuovo.getTime() > finePiano.getTime() ? '⛔ OLTRE LA FINE: non si eroga niente' : '✓'}`,
+      daComporre.length
+        ? `18. date da comporre: ${daComporre.map((t) => giorno(new Date(t))).join(', ')} (fine piano ${giorno(finePiano)}) ✓`
+        : `18. date da comporre: ⛔ NESSUNA — o le giornate che servivano ci sono già tutte, o sono tutte oltre la fine del piano (${giorno(finePiano)}). Il motore esce a mano vuota.`,
     );
     /**
      * ⛔ **QUESTA USCITA È RAGGIUNGIBILE SOLO DA UN PARAMETRO A ZERO** — tracciata nel motore in

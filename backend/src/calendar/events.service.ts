@@ -158,9 +158,42 @@ export class EventsService {
     return event;
   }
 
+  /**
+   * ⛔ **UNA SOSPENSIONE NON LA CANCELLA LA CLIENTE** (Simone, 26/8: *«solo la coach, il
+   * nutrizionista e admin possono cancellare le sospensioni»*).
+   *
+   * ## Il caso da cui nasce, misurato il 26/8
+   *
+   * Una cliente risultava **sospesa fino al 31 agosto** in scheda e riceveva i menu lo stesso.
+   * `npm run prova:erogazione` ha dato la riga che spiega tutto: *«7. sospensione attiva: nessuna
+   * ✓»*. Il periodo che fermava i menu non c'era più — e da questa porta bastava un tocco per
+   * toglierlo: nel Calendario dell'app **ogni** evento aveva il pulsante rosso «Rimuovi», compresi
+   * i `pause_period` che la coach aveva creato con la modalità viaggio.
+   *
+   * ⛔ **E spariva senza lasciare niente dove qualcuno l'avrebbe cercato**: l'audit scriveva
+   * `calendar.event.delete`, che lo Storico delle sospensioni non legge; lo specchio sul profilo
+   * (`travelStart`/`travelEnd`) restava pieno, quindi la scheda continuava a dire «sospesa»; e il
+   * motore, che guarda solo i periodi, ripartiva. Tre punti che raccontavano tre cose diverse, e
+   * nessun errore da nessuna parte.
+   *
+   * ⚠️ **Vale anche per i periodi che ha creato lei** dal suo Calendario, ed è voluto: una
+   * sospensione sposta la scadenza di un piano pagato e ha una memoria dei giorni concessi
+   * (`pauseRequest`). Toglierla è un'operazione contabile, non la cancellazione di un promemoria.
+   * Gli altri eventi — la cena fuori, il matrimonio, il giorno libero — restano suoi: quelli li
+   * cancella come prima.
+   *
+   * ⚠️ Il messaggio dice **a chi chiedere**, non «non puoi»: un divieto senza la strada accanto è
+   * un cancello chiuso, e qui dall'altra parte c'è una persona che vuole solo disdire una vacanza.
+   */
   async remove(clientId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({ where: { id: eventId, clientId } });
     if (!event) throw new NotFoundException('Evento non trovato');
+    if ((event as { mode?: string | null }).mode === 'pause_period') {
+      throw new BadRequestException(
+        'Questo è un periodo di sospensione: ferma i menu e sposta la fine del percorso, quindi lo può togliere solo il tuo staff. '
+          + 'Scrivilo alla tua coach in chat e lo sistema lei.',
+      );
+    }
     await this.prisma.event.delete({ where: { id: eventId } });
     await this.audit.log({
       action: 'calendar.event.delete',

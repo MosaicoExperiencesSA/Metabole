@@ -172,7 +172,7 @@ export interface StatoMenu {
  * non guardava quel parametro, e cambiarne il significato di nascosto non è quello che è stato
  * chiesto: qui si riempiono i buchi, il resto della cadenza resta com'era.
  */
-const GIORNATE_DAVANTI_CHE_BASTANO = 2;
+export const GIORNATE_DAVANTI_CHE_BASTANO = 2;
 
 
 @Injectable()

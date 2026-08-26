@@ -2010,6 +2010,56 @@ export class ClientsService {
   }
 
   /**
+   * ⛔ **TOGLIE UNA SOSPENSIONE DALLA SCHEDA — la porta dello staff** (Simone, 26/8: *«solo la
+   * coach, il nutrizionista e admin possono cancellare le sospensioni»*).
+   *
+   * ⚠️ Nasce **insieme** al divieto messo alla porta della cliente: dal 26/8 lei dal suo Calendario
+   * un `pause_period` non lo toglie più, e quella era l'unica strada per i periodi nati da lì.
+   * Togliere una strada senza aprirne un'altra vuol dire lasciare quei periodi senza nessuno che li
+   * possa togliere.
+   *
+   * ⚠️ **Il lavoro vero lo fa `PauseService`**, che è dove sta già quello della card: l'evento si
+   * tronca se è in corso e si cancella se non è ancora cominciato, il registro dei giorni concessi
+   * si chiude e non si riscrive, e la scheda esce da «In sospensione» solo se non è ferma per
+   * un'altra. Rifarlo qui vorrebbe dire due strade che scrivono la stessa cosa in due modi.
+   */
+  async togliSospensione(userId: string, eventId: string, actorId: string) {
+    await this.assertClientAccess(actorId, userId);
+    const evento = (await this.prisma.event.findFirst({
+      where: { id: eventId, clientId: userId, mode: 'pause_period' as never } as never,
+      select: { id: true, startDate: true, endDate: true },
+    })) as { id: string; startDate: Date; endDate: Date } | null;
+    /**
+     * ⚠️ **«Non è una sospensione» e «non è di questa cliente» si dicono uguale, ed è voluto**: un
+     * messaggio che distingue i due casi racconta a chi prova gli id che quell'id esiste.
+     */
+    if (!evento) throw new NotFoundException('Sospensione non trovata per questa cliente.');
+    const esito = await this.pause.togliUnaSospensione(userId, evento, actorId);
+    /**
+     * ⛔ **E LO SPECCHIO SI RIALLINEA.** È metà del difetto del 26/8: il periodo spariva e
+     * `travelStart`/`travelEnd`/`travelState` restavano pieni, quindi la scheda continuava a dire
+     * «sospesa fino al 31» mentre il motore erogava. Lo specchio si ricalcola dai periodi veri —
+     * quello in corso, altrimenti il più imminente — e se non ce n'è più si svuota.
+     */
+    const specchio = await this.pause.sospensioneDaRispecchiare(userId);
+    const dati = specchio
+      ? { travelState: specchio.stato, travelStart: specchio.startDate, travelEnd: specchio.endDate }
+      : { travelState: null, travelStart: null, travelEnd: null };
+    /**
+     * ⚠️ **`upsert`, come fa `setTravel` dieci righe più su** — corretto dalla revisione del 26/8.
+     * Qui c'era `updateMany`, che su una cliente **senza** `clientProfile` torna `{ count: 0 }` e
+     * lascia rispondere 200: lo specchio non riallineato, e nessuno che lo sappia. Due punti che
+     * scrivono la stessa colonna devono fallire allo stesso modo.
+     */
+    await this.prisma.clientProfile.upsert({
+      where: { userId },
+      update: dati as never,
+      create: { userId, ...dati } as never,
+    });
+    return esito;
+  }
+
+  /**
    * Cronologia delle modifiche al profilo del cliente (chi e quando):
    * anagrafica, assegnazioni coach/nutrizionista, cambio email, reset password.
    * Raccoglie le voci di audit collegate a userId, profilo e record CRM.

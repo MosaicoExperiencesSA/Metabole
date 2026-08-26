@@ -18,6 +18,58 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-26
+
+- `[Sviluppo]` 🛑 **Una sospensione la toglie solo lo staff — la cliente poteva cancellarla dal suo
+  Calendario, e il sistema non lo diceva a nessuno.** Il caso: una cliente risultava **sospesa fino
+  al 31 agosto** in scheda e riceveva i menu lo stesso. `npm run prova:erogazione` ha dato la riga
+  che spiega tutto: *«7. sospensione attiva: nessuna ✓»*. ⛔ `DELETE /me/events/:id` è
+  `@Roles('client')` e cancellava **qualunque** evento: nel Calendario dell'app ogni riga aveva il
+  cestino rosso, compresi i `pause_period` creati dalla coach. E spariva senza lasciare niente dove
+  qualcuno l'avrebbe cercato — l'audit scrive `calendar.event.delete`, che lo Storico delle
+  sospensioni non legge; lo specchio sul profilo restava pieno, quindi la scheda diceva «sospesa»;
+  il motore ripartiva. *Tre punti, tre risposte diverse alla stessa domanda, e nessun errore da
+  nessuna parte.* ⚠️ E tutta la suite era verde: nessuno guardava chi potesse cancellare cosa.
+  ✅ Adesso la porta è chiusa **solo sui periodi di sospensione** (la cena fuori e il matrimonio si
+  cancellano come prima), nell'app il cestino su quelle righe non c'è più e gli errori del server si
+  vedono, e allo staff si apre la strada che prima non esisteva: un pulsante «Togli» per riga nella
+  tabella «Periodi senza menu».
+
+- `[Sviluppo]` ⛔ **Il confine sui ruoli che avevo messo era finto, e la revisione l'ha smontato.**
+  Avevo escluso `sales` dalla rotta nuova chiamandolo «il commerciale»: in questo progetto `sales` è
+  la **Responsabile Coach**, ed è già fra i ruoli che **approvano** le richieste di pausa. E
+  soprattutto il confine non esisteva: la `PATCH :id/travel` accanto toglie la stessa sospensione
+  svuotando le date, e `@Roles` di metodo non ce l'ha. *Un divieto che si aggira dal pulsante di
+  fianco non è un divieto: è una frase.* ✅ Le due porte adesso chiedono la stessa cosa
+  (`travel_mode: manage`) e un test lo tiene fermo.
+
+- `[Sviluppo]` ⛔ **Togliere una sospensione che comincia OGGI fabbricava un periodo rovesciato** —
+  `endDate` di ieri su uno `startDate` di oggi. Due punti lo trovavano e ci credevano:
+  `pausaAppenaFinita` lo leggeva come una vacanza appena finita e **armava il cancello della pesata
+  del rientro** (menu fermi finché la cliente non si pesa, per una vacanza mai esistita), e
+  `treguaFraVacanze` lo prendeva per l'ultimo rientro bloccandole la pausa successiva per quindici
+  giorni. ⚠️ Era il difetto che il commento accanto dichiarava di aver evitato: la guardia copriva
+  «non ancora cominciata» e lasciava fuori «comincia oggi».
+
+- `[Sviluppo]` ⛔ **E lo specchio del profilo si azzerava mentre un'altra pausa era viva** — lo stesso
+  difetto del caso di oggi, girato di centottanta gradi: `sospensioneDaRispecchiare` filtrava per
+  l'etichetta della modalità viaggio, quindi con una pausa nata dal Calendario o da una richiesta
+  rispondeva `null` e chi lo scrive lo svuotava. Adesso guarda **tutti** i periodi, che è quello che
+  il suo commento prometteva già. ⚠️ E il pulsante «Togli» era annullato dal «Salva» accanto: le due
+  caselle restavano piene, e salvare **rimetteva la sospensione appena tolta**, in silenzio.
+
+- `[Sviluppo]` **Il tabulato di `prova:erogazione` raccontava la regola vecchia del buffer** («l'ultimo
+  giorno in calendario è oltre oggi»), sostituita il 25/8 dalle giornate **di seguito**. Sul caso di
+  oggi l'esito coincideva — ma per un'altra ragione, e questo strumento esiste per essere creduto
+  quando qualcosa non torna. ✅ Adesso chiama le funzioni del motore invece di ricopiarne la regola,
+  e censisce anche l'uscita «nessuna data da comporre», che non era in nessuna riga.
+
+- `[Sviluppo]` **`npm run sposta:menu`**: sposta in avanti le **date** delle giornate, non i piatti —
+  rigenerare cambia il menu sotto i piedi a chi ha già fatto la spesa. ⛔ Tre guardie messe dalla
+  revisione: non scrive se il buco che si apre non è coperto da una sospensione (dal 25/8 il motore
+  riempie i buchi, e il piano brucerebbe quei giorni **due volte**), non porta giornate oltre la
+  fine del piano, e dice quali giornate la cliente ha già aperto.
+
 ## 2026-08-25
 
 - `[Sviluppo]` **Le risposte di Simone entrano nell'elenco lavori: sette voci che avevano già una

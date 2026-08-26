@@ -1,0 +1,124 @@
+================================================================================
+CONSEGNA «una sospensione la toglie solo lo staff» — 26/8/2026
+================================================================================
+
+IL CASO. Patricia Moreno risultava SOSPESA fino al 31 agosto in scheda e riceveva
+i menu lo stesso. `npm run prova:erogazione` ha dato la riga che spiega tutto:
+«7. sospensione attiva: nessuna ✓». Il periodo che ferma i menu non c'era più.
+
+⛔ **COME SI ERA PERSO.** `DELETE /me/events/:id` è `@Roles('client')` e
+cancellava QUALUNQUE evento: nel Calendario dell'app ogni riga aveva il cestino
+rosso, compresi i `pause_period` creati dalla coach con la modalità viaggio.
+Tre conseguenze, tutte invisibili:
+· l'audit scriveva `calendar.event.delete`, che lo Storico delle sospensioni non
+  legge: in scheda non compariva niente;
+· lo specchio sul profilo (`travelStart`/`travelEnd`) restava pieno, quindi la
+  scheda continuava a dire «sospesa fino al 31»;
+· il motore, che guarda solo i periodi, ripartiva.
+Tre punti, tre risposte diverse alla stessa domanda, e nessun errore da nessuna
+parte. ⚠️ E tutta la suite era verde: nessuno guardava chi potesse cancellare
+cosa.
+
+COSA CAMBIA (richiesta di Simone: «solo la coach, il nutrizionista e admin
+possono cancellare le sospensioni»)
+
+1) LA PORTA DELLA CLIENTE È CHIUSA sui periodi di sospensione, e solo su quelli:
+   la cena fuori, il matrimonio, il giorno libero li cancella come prima. Il
+   messaggio dice a chi chiedere, non «non puoi».
+   ⚠️ Vale anche per i periodi creati da lei: una sospensione sposta la fine di
+   un piano pagato e ha una memoria dei giorni concessi. È un'operazione
+   contabile, non la cancellazione di un promemoria.
+
+2) NELL'APP IL CESTINO SU QUELLE RIGHE NON C'È PIÙ, e gli errori del server si
+   vedono. ⛔ Era il difetto peggiore trovato dalla revisione: `catch { load() }`
+   buttava il messaggio, quindi il divieto arrivava come un bug muto — la riga
+   spariva, tornava, e niente a schermo. Un rifiuto che si presenta come un
+   guasto è peggio di un rifiuto.
+
+3) LA STRADA DALL'ALTRA PARTE: `DELETE /clients/:id/sospensioni/:eventId` e un
+   pulsante «Togli» per riga nella tabella «Periodi senza menu». Senza, i periodi
+   nati dal Calendario non li avrebbe più tolti nessuno — un cancello chiuso su
+   tutti e due i lati.
+
+## ⛔ COSA HA TROVATO LA REVISIONE AVVERSARIALE (otto cose, e tre più gravi del
+   difetto che stavo chiudendo)
+
+⛔ **IL CONFINE SUI RUOLI ERA FINTO.** Avevo messo un `@Roles` di metodo per
+   escludere `sales`, con la motivazione «è clinica e contabile, non
+   commerciale». Due cose sbagliate: `sales` in questo progetto è la
+   **Responsabile Coach**, ed è già fra i ruoli che APPROVANO le richieste di
+   pausa; e soprattutto quel confine non esisteva, perché la `PATCH :id/travel`
+   accanto toglie la stessa sospensione svuotando le date e `@Roles` di metodo
+   non ce l'ha. Un divieto che si aggira dal pulsante di fianco non è un
+   divieto: è una frase. → le due porte chiedono la stessa cosa
+   (`travel_mode: manage`), e un test lo tiene fermo. Chi può togliere una
+   sospensione si decide dalla tabella dei permessi, senza un rilascio.
+
+⛔ **TOGLIERE UNA SOSPENSIONE CHE COMINCIA OGGI FABBRICAVA UN PERIODO ROVESCIATO**
+   (`endDate` = ieri su `startDate` = oggi). Due punti lo trovavano e ci
+   credevano: `pausaAppenaFinita` lo leggeva come una vacanza appena conclusa e
+   **armava il cancello della pesata del rientro** — menu fermi finché la cliente
+   non si pesa, per una vacanza mai esistita — e `treguaFraVacanze` lo prendeva
+   per l'ultimo rientro, bloccandole la pausa successiva per quindici giorni. Se
+   troncando non resta un giorno vero, la sospensione non è mai stata: si
+   cancella.
+
+⛔ **LO SPECCHIO SI AZZERAVA MENTRE UN'ALTRA PAUSA ERA VIVA** — lo stesso difetto
+   del caso Moreno, girato di 180°. `sospensioneDaRispecchiare` filtrava per
+   l'etichetta della modalità viaggio, quindi con una pausa nata dal Calendario o
+   da una richiesta rispondeva `null` e chi lo scrive lo svuotava: scheda
+   «nessuna sospensione», menu fermi. Adesso guarda TUTTI i periodi, che è
+   quello che il suo commento prometteva già.
+
+⛔ **IL PULSANTE «TOGLI» ERA ANNULLATO DAL «SALVA» ACCANTO, in silenzio.** Le due
+   caselle si precompilano una volta sola: dopo «Togli» restavano piene, e
+   premere Salva — il gesto più naturale davanti a una card che sembra non
+   essersi svuotata — **rimetteva la sospensione appena tolta**, senza avvisi
+   (il registro copriva già quei giorni: «giorni aggiunti: 0»).
+
+⚠️ Altre quattro: `altraInCorso` filtrava `type: 'vacation'`, quindi una pausa
+   con un altro tipo faceva uscire la scheda da «In sospensione» mentre i menu
+   restavano fermi; `updateMany` sul profilo taceva su una cliente senza
+   `clientProfile` (→ `upsert`, come la gemella); e nel tabulato la riga 13
+   gridava anche quando il motore a quel cancello non ci arriva, mentre l'uscita
+   «nessuna data da comporre» non era censita da nessuna riga.
+
+## ALTRI DUE PEZZI DELLA STESSA GIORNATA
+
+⛔ **IL TABULATO RACCONTAVA LA REGOLA VECCHIA.** `prova:erogazione` diceva
+   «ultimo giorno in calendario X: è oltre oggi, non eroga altro»: era vero fino
+   al 24/8. Dal 25/8 il buffer conta le giornate DI SEGUITO. Sul caso Moreno
+   l'esito coincideva — ma per un'altra ragione, e questo strumento esiste per
+   essere creduto quando qualcosa non torna. Adesso chiama le funzioni del
+   motore, non una copia.
+
+✅ **`npm run sposta:menu`** — sposta in avanti le DATE delle giornate, non i
+   piatti (rigenerare cambia il menu sotto i piedi a chi ha già fatto la spesa).
+   Prova a vuoto riga per riga. ⛔ Tre guardie messe dalla revisione: non scrive
+   se il buco che si apre non è coperto da una sospensione (dal 25/8 il motore
+   riempie i buchi: il piano brucerebbe quei giorni due volte), non porta
+   giornate oltre la fine del piano, e dice quali giornate lei ha già aperto o
+   ha un check-in.
+
+MISURATO
+- 5623 test verdi in tutte e quattro le modalità + 149 nel backoffice; `tsc` verde
+  su backend, backoffice e app.
+- 5 mutazioni sui punti nuovi, tutte uccise (una è servita a scoprire che il
+  periodo rovesciato non era coperto: il test è stato scritto per quello).
+
+FILE NEL COMMIT
+- backend/src/calendar/events.service.ts
+- backend/src/calendar/la-sospensione-non-la-cancella-la-cliente.spec.ts (nuovo)
+- backend/src/pause/pause.service.ts · primo-giorno-utile.spec.ts
+- backend/src/clients/clients.service.ts · clients.controller.ts
+- backend/src/menu/menu.service.ts        (esporta la soglia del buffer)
+- backend/prisma/prova-erogazione.ts · sposta-menu.ts (nuovo) · package.json
+- backoffice/src/pages/ClientDetail.tsx
+- app/src/pages/Calendario.tsx
+- progetto/REGISTRO.md
+
+⚠️ Nessuna migrazione.
+⛔ **L'APP VUOLE UN OTA**: il cestino sui periodi e il messaggio d'errore stanno
+   in `app/src/pages/Calendario.tsx`. Finché non sale, il server rifiuta e la
+   cliente vede la riga sparire e tornare senza spiegazione — meglio di prima
+   (la sospensione non si perde più) ma non finito.

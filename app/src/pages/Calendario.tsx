@@ -206,13 +206,26 @@ export default function Calendario() {
     }
   }
 
+  /**
+   * ⛔ **IL MESSAGGIO DEL SERVER NON SI BUTTA** — 26/8, dalla revisione avversariale.
+   *
+   * Qui c'era `catch { load(); }`: la riga spariva (cancellazione ottimistica), il server rifiutava,
+   * la riga **ricompariva da sola** e a schermo non arrivava niente. Un rifiuto che si presenta come
+   * un difetto dell'app è peggio di un rifiuto: chi lo riceve riprova, e poi scrive alla coach per
+   * dire che «l'app non funziona».
+   *
+   * ⚠️ Da oggi il server rifiuta la cancellazione dei **periodi di sospensione** (li toglie lo
+   * staff: fermano i menu e spostano la fine del percorso), e quel rifiuto ha un testo scritto per
+   * essere letto da lei. Se non lo si mostra, tutta la frase non arriva a nessuno schermo.
+   */
   async function remove(id: string) {
     if (!confirm('Rimuovere questo evento?')) return;
     setEvents((es) => es.filter((e) => e.id !== id));
     try {
       await api(`/me/events/${id}`, { method: 'DELETE' });
-    } catch {
+    } catch (e) {
       load();
+      alert(e instanceof Error ? e.message : 'Non sono riuscito a rimuovere questo evento.');
     }
   }
 
@@ -390,9 +403,24 @@ export default function Calendario() {
                 </div>
               </div>
             </div>
-            <button className="home-icon" style={{ color: '#b3261e', width: 32, height: 32 }} onClick={() => remove(e.id)} aria-label="Rimuovi">
-              <i className="ti ti-trash" style={{ fontSize: 16 }} />
-            </button>
+            {/**
+              * ⛔ **SUI PERIODI DI SOSPENSIONE IL CESTINO NON C'È** (26/8). Un pulsante che c'è e
+              * viene sempre rifiutato è un campanello che suona a vuoto: si tocca, la riga sparisce
+              * e torna, e nessuno capisce. ⚠️ Il divieto vero sta sul server — questo toglie il
+              * gesto, non la regola.
+              *
+              * ⚠️ Gli altri eventi restano suoi: la cena fuori, il matrimonio, il giorno libero si
+              * cancellano come sempre.
+              */}
+            {e.mode !== 'pause_period' ? (
+              <button className="home-icon" style={{ color: '#b3261e', width: 32, height: 32 }} onClick={() => remove(e.id)} aria-label="Rimuovi">
+                <i className="ti ti-trash" style={{ fontSize: 16 }} />
+              </button>
+            ) : (
+              <span className="muted" style={{ fontSize: 11, maxWidth: 120, textAlign: 'right' }}>
+                Per cambiarla scrivi alla tua coach
+              </span>
+            )}
           </div>
           <EventPlan eventId={e.id} mode={e.mode} />
         </div>

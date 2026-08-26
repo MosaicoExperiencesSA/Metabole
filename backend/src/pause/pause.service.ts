@@ -1373,10 +1373,48 @@ export class PauseService {
     clientId: string,
     actorUserId: string,
   ): Promise<{ tolta: boolean; eraInCorso: boolean; avviso: string | null }> {
-    const oggi = aGiorno(new Date());
     const esistente = await this.sospensioneDaViaggio(clientId);
     if (!esistente) return { tolta: false, eraInCorso: false, avviso: null };
-    const eraInCorso = giornoDelDato(esistente.startDate).getTime() <= oggi.getTime();
+    return this.togliUnaSospensione(clientId, esistente, actorUserId);
+  }
+
+  /**
+   * ⛔ **TOGLIERE UNA SOSPENSIONE QUALSIASI, indicandola per id** — 26/8, richiesta di Simone:
+   * *«solo la coach, il nutrizionista e admin possono cancellare le sospensioni»*.
+   *
+   * Nasce insieme al divieto messo alla porta della cliente (`EventsService.remove`): finché lei
+   * poteva cancellare dal suo Calendario un `pause_period`, quella era **l'unica** strada per
+   * togliere una sospensione nata da lì. Chiuderla senza aprirne un'altra avrebbe lasciato quei
+   * periodi senza nessuno che li possa togliere — un cancello chiuso su tutti e due i lati.
+   *
+   * ⚠️ **È lo stesso codice della card**, non una seconda copia: `togliSospensioneDaViaggio` trova
+   * QUALE, questa toglie QUELLA. Se le due strade divergessero, togliere una vacanza dal back
+   * office e togliere lo stesso periodo dalla scheda lascerebbero il database in due stati diversi.
+   */
+  async togliUnaSospensione(
+    clientId: string,
+    esistente: { id: string; startDate: Date; endDate: Date },
+    actorUserId: string,
+  ): Promise<{ tolta: boolean; eraInCorso: boolean; avviso: string | null }> {
+    const oggi = aGiorno(new Date());
+    /**
+     * ⛔ **«COMINCIATA» VUOL DIRE PRIMA DI OGGI, NON OGGI** — corretto dalla revisione avversariale
+     * del 26/8, che l'ha misurato.
+     *
+     * Il confronto era `<=`, e su una sospensione che **comincia oggi** — tutte e tre le porte lo
+     * permettono — la troncatura scriveva `endDate = ieri` su uno `startDate = oggi`: un periodo
+     * **rovesciato**, che `periodoLeggibile` accetta e che dura zero giorni. Due punti lo trovano e
+     * ci credono: `pausaAppenaFinita` lo legge come una vacanza appena conclusa e **arma il cancello
+     * della pesata del rientro** — i menu restano fermi finché la cliente non si pesa, per una
+     * vacanza mai esistita — e `treguaFraVacanze` lo prende per l'ultimo rientro e le blocca la
+     * prossima pausa per quindici giorni.
+     *
+     * ⚠️ È esattamente il difetto che il commento qui sopra dichiarava di aver evitato («*troncarla
+     * a ieri fabbricava una pausa di un giorno mai esistita*»): la guardia copriva «non ancora
+     * cominciata» e lasciava fuori «comincia oggi». Se troncando non resta nemmeno un giorno vero,
+     * la sospensione **non è mai stata**: si cancella.
+     */
+    const eraInCorso = giornoDelDato(esistente.startDate).getTime() < oggi.getTime();
 
     if (eraInCorso) {
       const nuovaFine = new Date(oggi.getTime() - 86_400_000);
@@ -1400,11 +1438,20 @@ export class PauseService {
      * annullando la vacanza di settembre, la scheda usciva dalla sospensione di agosto ancora in
      * corso — e rientrava da sola la notte dopo, lasciando due passaggi finti nello storico.
      */
+    /**
+     * ⛔ **QUI NON SI FILTRA PER `type`** — corretto dalla revisione avversariale del 26/8.
+     *
+     * C'era `type: 'vacation'`, ma quello che ferma i menu è `mode: 'pause_period'`: dal Calendario
+     * dell'app una cliente può creare un periodo con `type: 'other'` (il DTO ne accetta sei), e
+     * quella pausa **è viva** per `activePausePeriod`. Filtrandola via, la scheda usciva da «In
+     * sospensione» mentre i menu restavano fermi — la pipeline diceva una cosa e il motore un'altra.
+     * ⚠️ Prima toccava solo la card della modalità viaggio; con la porta nuova qui passano **tutti**
+     * i periodi, quindi il caso raro diventava quello normale.
+     */
     const altraInCorso = await this.prisma.event.findFirst({
       where: {
         clientId,
         mode: 'pause_period' as never,
-        type: 'vacation' as never,
         startDate: { lte: oggi } as never,
         endDate: { gte: oggi } as never,
         NOT: { id: esistente.id },
@@ -1510,7 +1557,30 @@ export class PauseService {
     clientId: string,
   ): Promise<{ startDate: Date; endDate: Date; stato: 'in_vacanza' | 'in_partenza' } | null> {
     const oggi = aGiorno(new Date());
-    const aperta = await this.sospensioneDaViaggio(clientId);
+    /**
+     * ⛔ **TUTTI I PERIODI, NON SOLO LA MODALITÀ VIAGGIO** — corretto dalla revisione avversariale
+     * del 26/8, e questo commento prometteva già la cosa giusta senza farla.
+     *
+     * Qui si chiamava `sospensioneDaViaggio`, che filtra `label = ETICHETTA_VIAGGIO`. Quindi con una
+     * pausa viva nata dal **Calendario dell'app** o da una **richiesta di pausa**, lo specchio
+     * rispondeva `null` — e chi lo scrive lo svuotava: la scheda diceva «nessuna sospensione»
+     * mentre `activePausePeriod`, che le etichette non le guarda, teneva i menu fermi. È lo stesso
+     * specchio disallineato del caso del 26/8, girato di centottanta gradi.
+     *
+     * ⚠️ La domanda a cui questa funzione risponde è **«quale sospensione sta fermando i menu»**, e
+     * i menu li ferma `mode: 'pause_period'` da qualunque porta arrivi. La porta la racconta la
+     * colonna «Origine» dello storico, non lo specchio.
+     */
+    const periodi = (await this.periodiDiSospensione(clientId)).filter(
+      (p) => giornoDelDato(p.endDate).getTime() >= oggi.getTime(),
+    );
+    /**
+     * Quella in corso; se nessuna è cominciata, la più imminente. `periodiDiSospensione` le rende in
+     * ordine di inizio, quindi la prima che comincia oggi o prima è quella in corso, e la prima in
+     * assoluto è la più imminente.
+     */
+    const aperta =
+      periodi.find((p) => giornoDelDato(p.startDate).getTime() <= oggi.getTime()) ?? periodi[0] ?? null;
     if (!aperta) return null;
     return {
       startDate: aperta.startDate,
