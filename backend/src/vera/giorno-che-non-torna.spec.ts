@@ -32,7 +32,14 @@ const g = (o: { id: string; date: string; clientId?: string; viewedAt?: Date | n
   id: o.id,
   clientId: o.clientId ?? 'c1',
   date: new Date(`${o.date}T00:00:00.000Z`),
-  viewedAt: o.viewedAt ?? null,
+  /**
+   * ⚠️ **`viewedAt` qui è il nome VECCHIO della domanda** (26/8): l'apparecchio continua a chiamarlo
+   * così perché è il nome che questi test raccontano, ma il campo che decide adesso è
+   * `apertoDallaClienteIl`, e `apertureTracciate` dice che di questa cliente lo sappiamo. Cambiare
+   * solo il dato senza toccare i casi è il modo di tenere ferma la ragione per cui furono scritti.
+   */
+  apertoDallaClienteIl: o.viewedAt ?? null,
+  apertureTracciate: true,
   meals: [],
 });
 
@@ -129,6 +136,101 @@ describe('⛔ un giorno GIÀ APERTO dentro la coda ferma tutto, e lo si dice', (
   });
 });
 
+/**
+ * ⛔ **IL QUARTO ESITO: «NON LO SO»** — 26/8, voce `visto-non-vuol-dire-aperto`.
+ *
+ * Un giorno composto prima che la sua app mandasse il segnale non dice «non l'ha aperto»: dice che
+ * la domanda non ha risposta. ⛔ Trattarlo come un «già aperto» farebbe raccontare a chi legge un
+ * fatto che non c'è («il menu del 25 le è già arrivato in app»); trattarlo come un «mai aperto»
+ * cambierebbe un menu che magari ha già in mano. Serve un terzo modo di dirlo, e questo file è dove
+ * i tre modi restano distinti.
+ */
+const nonSaputo = (o: { id: string; date: string; clientId?: string }): GiornoDaValutare => ({
+  ...g(o),
+  apertureTracciate: false,
+});
+
+describe('⛔ «non lo so» non è «no», e non è «già aperto»', () => {
+  it('⛔ un giorno non tracciato dentro la coda: `non_lo_so`, e si dice da che giorno', () => {
+    const calendario = [
+      g({ id: '24', date: '2026-08-24' }),
+      nonSaputo({ id: '25', date: '2026-08-25' }),
+      g({ id: '26', date: '2026-08-26' }),
+    ];
+    const esito = codaDaRifare(calendario, sono([calendario[0]]));
+    expect(esito.esito).toBe('non_lo_so');
+    expect(esito.esito === 'non_lo_so' && esito.dalGiorno.toISOString().slice(0, 10)).toBe('2026-08-25');
+  });
+
+  /**
+   * ⛔ **IL GIORNO DEL RILASCIO, che è il caso per cui tutto questo esiste**: nessuna riga è
+   * tracciata, quindi senza il quarto esito la risposta sarebbe stata `niente` — cioè «nei giorni
+   * già preparati non ce n'era», la frase falsa che questa modifica esiste per togliere, identica.
+   */
+  it('⛔ nessun giorno tracciato: `non_lo_so`, non `niente`', () => {
+    const calendario = [nonSaputo({ id: '24', date: '2026-08-24' }), nonSaputo({ id: '25', date: '2026-08-25' })];
+    const esito = codaDaRifare(calendario, sono([calendario[0]]));
+    expect(esito.esito).toBe('non_lo_so');
+  });
+
+  /**
+   * ⚠️ **Fra i due «no» vince quello che è un fatto.** «Questo menu ce l'ha già in mano» si può
+   * verificare; «non lo so» è l'assenza di un fatto. Chi deve decidere se premere «Rigenera menu»
+   * — che rifà anche il giorno già ricevuto — ha bisogno di sapere quale dei due sta leggendo.
+   */
+  it('⚠️ se in mezzo c\'è anche un giorno aperto davvero, si dice quello', () => {
+    const calendario = [
+      g({ id: '24', date: '2026-08-24' }),
+      nonSaputo({ id: '25', date: '2026-08-25' }),
+      g({ id: '26', date: '2026-08-26', viewedAt: new Date('2026-08-24') }),
+    ];
+    const esito = codaDaRifare(calendario, sono([calendario[0]]));
+    expect(esito.esito).toBe('bloccata');
+    expect(esito.esito === 'bloccata' && esito.apertoIl.toISOString().slice(0, 10)).toBe('2026-08-26');
+  });
+
+  /** ⚠️ Un giorno non tracciato PRIMA del colpito non c'entra: non sta nella coda. */
+  it('⚠️ un giorno non tracciato prima del colpito non ferma niente', () => {
+    const calendario = [
+      nonSaputo({ id: '23', date: '2026-08-23' }),
+      g({ id: '24', date: '2026-08-24' }),
+      g({ id: '25', date: '2026-08-25' }),
+    ];
+    const esito = codaDaRifare(calendario, sono([calendario[1]]));
+    expect(esito.esito === 'coda' && esito.giorni.map((x) => x.id)).toEqual(['24', '25']);
+  });
+});
+
+/**
+ * ⛔ **I COLPITI CHE RESTANO INDIETRO SI CONTANO, E SI DICONO** — 26/8.
+ *
+ * Fino al 26/8 non potevano esistere: i colpiti erano già filtrati su «mai aperto», quindi il primo
+ * colpito era per forza cancellabile. Adesso i colpiti sono i giorni che **contengono** davvero la
+ * cosa decisa — già aperti compresi — e il caso normale è questo: lei ha aperto il menu di oggi che
+ * ha il piatto vietato, domani ce l'ha anche. ⚠️ Domani si rifà, oggi no; e se «oggi» sparisse dal
+ * conto, chi legge riceverebbe «fatto» con il piatto vietato ancora nel piatto di stasera.
+ */
+describe('⛔ i colpiti rimasti indietro', () => {
+  it('⛔ colpito il giorno già aperto E quello dopo: si rifà da dopo, e il primo si conta', () => {
+    const calendario = [
+      g({ id: '24', date: '2026-08-24', viewedAt: new Date('2026-08-23') }),
+      g({ id: '25', date: '2026-08-25' }),
+      g({ id: '26', date: '2026-08-26' }),
+    ];
+    const esito = codaDaRifare(calendario, sono([calendario[0], calendario[1]]));
+    expect(esito.esito).toBe('coda');
+    if (esito.esito !== 'coda') return;
+    expect(esito.giorni.map((x) => x.id)).toEqual(['25', '26']);
+    expect(esito.lasciatiIndietro).toBe(1);
+  });
+
+  it('⚠️ senza nessun intoccabile non resta indietro niente', () => {
+    const calendario = [g({ id: '24', date: '2026-08-24' }), g({ id: '25', date: '2026-08-25' })];
+    const esito = codaDaRifare(calendario, sono([calendario[0]]));
+    expect(esito.esito === 'coda' && esito.lasciatiIndietro).toBe(0);
+  });
+});
+
 describe('⛔ più clienti insieme: la coda è di ognuna, e una bloccata non blocca le altre', () => {
   const CALENDARIO = [
     g({ id: 'a24', clientId: 'anna', date: '2026-08-24' }),
@@ -163,6 +265,24 @@ describe('⛔ più clienti insieme: la coda è di ognuna, e una bloccata non blo
   it('⚠️ una cliente non colpita non viene toccata, nemmeno se ha giorni in quelle date', () => {
     const { daCancellare } = codePerCliente(CALENDARIO, sono([CALENDARIO[0]]));
     expect(daCancellare.every((x) => x.clientId === 'anna')).toBe(true);
+  });
+
+  /**
+   * ⛔ **E CHI NON SAPPIAMO STA IN UN TERZO ELENCO** (26/8). Metterla fra le bloccate direbbe al capo
+   * «a questa cliente il menu è già arrivato in app» — un fatto, su una persona di cui non abbiamo
+   * nessun fatto. È lo stesso difetto di sempre, un piano più su: una ragione falsa detta con
+   * sicurezza.
+   */
+  it('⛔ chi ha un giorno non tracciato in mezzo finisce fra le «non sapute», non fra le bloccate', () => {
+    const calendario = [
+      ...CALENDARIO.slice(0, 2),
+      g({ id: 'b24', clientId: 'bea', date: '2026-08-24' }),
+      nonSaputo({ id: 'b25', clientId: 'bea', date: '2026-08-25' }),
+    ];
+    const { daCancellare, bloccate, nonSapute } = codePerCliente(calendario, sono([calendario[0], calendario[2]]));
+    expect(daCancellare.map((x) => x.id)).toEqual(['a24', 'a25']);
+    expect(bloccate).toEqual([]);
+    expect(nonSapute).toEqual(['bea']);
   });
 });
 

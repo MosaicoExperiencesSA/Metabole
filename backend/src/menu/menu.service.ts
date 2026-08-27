@@ -235,24 +235,101 @@ export class MenuService {
   }
 
   /**
-   * SEGNA I GIORNI COME VISTI — la riga che rende possibile annullare una regola senza fare danni.
+   * ⛔ **LA CLIENTE HA APERTO QUESTO GIORNO** — il segnale vero (26/8, voce
+   * `visto-non-vuol-dire-aperto`).
    *
-   * Il dato «questa cliente ha già visto il menu di domani» non esisteva. `MenuDay.status` c'è, ha
-   * default `'planned'` e non lo aggiorna nessuna riga di questo backend: sembrava il posto giusto e
-   * non lo era. Senza, «rigenera solo i menu non ancora visti» non è implementabile, e l'unica
-   * alternativa sarebbe rifare anche quelli che lei ha già letto — magari dopo aver fatto la spesa.
+   * ⚠️ **Fa due cose, e la seconda è quella che rende sicura tutta la correzione.** Scrive
+   * `apertoDallaClienteIl` sul giorno, e la **prima volta in assoluto** scrive `apertureDal` sul
+   * profilo: da quell'istante sappiamo che il suo telefono ce lo dice. Prima di quell'istante un
+   * giorno «non aperto» vuol dire «non lo so», e non si tocca — è il motivo per cui chi ha una
+   * versione vecchia dell'app non rischia di vedersi cambiare un menu che ha già letto.
+   *
+   * ⚠️ **Si scrive solo la PRIMA volta** (`apertoDallaClienteIl: null` nel filtro): serve sapere
+   * quando l'ha aperto, non quante volte. E l'app questa rotta la chiama a ogni cambio di giorno.
+   *
+   * ⚠️ **Non lancia mai.** Se questa scrittura fallisce, la cliente non deve accorgersene: al
+   * massimo un giorno resterà «non lo so» e nessuno lo rifarà — il degrado dalla parte giusta.
+   * L'errore però si scrive nei log: una colonna che smette di popolarsi in silenzio farebbe
+   * tornare il difetto senza che nessuno capisca perché. ⛔ E `PrismaClientValidationError` si
+   * scrive a livello **error**, non warn: vuol dire che la colonna non esiste — migrazione non
+   * applicata, o client generato vecchio — cioè che **nessuna** apertura si sta registrando e la
+   * correzione dei menu è ferma per tutte. Un warn ogni tanto passa inosservato; questo no.
+   *
+   * ## ⚠️ E se una cliente la chiamasse su tutti i suoi giorni?
+   *
+   * Si prenderebbe tutti i suoi menu futuri come «già aperti» e nessuno glieli rifarebbe più da
+   * solo. **Non è un buco di sicurezza ed è la parte innocua del rischio**: sta dichiarando una cosa
+   * sui **suoi** menu, e l'unico effetto è conservativo — «non cambiarmeli». La coach e la
+   * nutrizionista continuano a rifarglieli a mano da «Rigenera menu», che non guarda questo campo.
+   * ⚠️ Il limite vero è `visibleFrom`: si segna solo quello che l'app aveva il permesso di
+   * mostrarle, la stessa condizione di `getMenu`. Un giorno che non ha mai potuto vedere non lo può
+   * dichiarare aperto.
+   */
+  async segnaGiornoAperto(clientId: string, giornoIso: string): Promise<void> {
+    return this.segnaGiorniAperti(clientId, [toDateOnly(giornoIso)], giornoIso);
+  }
+
+  /**
+   * Gli stessi due passi per **più giorni insieme**: due sole andate al database invece di due per
+   * giorno. ⚠️ È la strada della lista della spesa, che di giorni ne consegna sette.
+   */
+  async segnaGiorniAperti(clientId: string, giorni: Date[], perILog = ''): Promise<void> {
+    if (!giorni.length) return;
+    try {
+      await this.prisma.menuDay.updateMany({
+        where: {
+          clientId,
+          date: { in: giorni },
+          apertoDallaClienteIl: null,
+          visibleFrom: { lte: toDateOnly() },
+        } as never,
+        data: { apertoDallaClienteIl: new Date() } as never,
+      });
+      /**
+       * ⚠️ `apertureDal` si scrive **solo se non c'è già**: è la data da cui sappiamo, e una data che
+       * si riscrive a ogni apertura non è una data — sposterebbe in avanti il confine e i giorni
+       * composti ieri tornerebbero «non lo so» per sempre.
+       */
+      await this.prisma.clientProfile.updateMany({
+        where: { userId: clientId, apertureDal: null } as never,
+        data: { apertureDal: new Date() } as never,
+      });
+    } catch (err) {
+      const testo = err instanceof Error ? err.message : String(err);
+      const colonnaMancante = err instanceof Error && err.name === 'PrismaClientValidationError';
+      const quali = perILog || giorni.map((g) => g.toISOString().slice(0, 10)).join(', ');
+      const riga = `Apertura del giorno ${quali} non registrata per ${clientId}: ${testo}`;
+      if (colonnaMancante) {
+        this.logger.error(
+          `${riga} — sembra che le colonne \`aperto_dalla_cliente_il\`/\`aperture_dal\` non ci siano: ` +
+            'migrazione non applicata o client Prisma vecchio. Finché è così NESSUNA apertura viene ' +
+            'registrata e i menu già preparati non si rifanno per nessuna cliente.',
+        );
+      } else {
+        this.logger.warn(riga);
+      }
+    }
+  }
+
+  /**
+   * SEGNA I GIORNI COME **MOSTRATI** (`viewedAt`) — e da qui in poi vuol dire solo quello.
    *
    * Sta QUI perché `getMenu` è l'unico punto in cui i giorni escono verso l'app: un solo posto da
    * ricordare, invece di un evento da emettere da ogni schermata.
    *
+   * ⛔ **NON dice «l'ha aperto», e per un anno è stato letto così** (corretto il 26/8, voce
+   * `visto-non-vuol-dire-aperto`): questa funzione segna **tutti** i giorni della finestra — trenta,
+   * futuri compresi — quindi bastava che la cliente aprisse l'app una volta perché tutto il suo
+   * futuro risultasse «visto». Chi deve sapere se un menu si può ancora rifare guarda
+   * `apertoDallaClienteIl`, che lo scrive `segnaGiornoAperto` qui sotto su un giorno solo. Due
+   * domande, due campi: questo resta perché «gliel'abbiamo mostrato» è vero e qualcuno lo legge.
+   *
    * ⚠️ Tre precauzioni, tutte per lo stesso motivo — questa funzione gira a OGNI apertura dell'app:
-   *  - si scrive solo la PRIMA volta (`viewedAt: null` nel filtro): serve sapere quando l'ha visto,
-   *    non quante volte;
+   *  - si scrive solo la PRIMA volta (`viewedAt: null` nel filtro): serve sapere quando gliel'abbiamo
+   *    mostrato, non quante volte;
    *  - se non c'è niente da segnare non si tocca il database, e nel caso normale non c'è niente;
    *  - un errore qui non deve MAI impedire a una cliente di leggere il suo menu. Il menu è il
-   *    lavoro vero, questa è la cronaca. Ma l'errore si SCRIVE nei log: un catch muto è un mistero,
-   *    e una colonna che smette di popolarsi in silenzio farebbe rigenerare menu già letti senza
-   *    che nessuno capisca perché.
+   *    lavoro vero, questa è la cronaca.
    */
   private async segnaVisti(giorni: { id: string; viewedAt: Date | null }[]): Promise<void> {
     const daSegnare = giorni.filter((g) => !g.viewedAt).map((g) => g.id);
@@ -1615,7 +1692,22 @@ export class MenuService {
           meals: day.meals as never,
           visibleFrom: last ? today : visibleFrom,
           sourceRuleId,
-        },
+          /**
+           * ⛔ **DI QUESTO GIORNO POTREMO SAPERE SE L'HA APERTO?** (26/8, voce
+           * `visto-non-vuol-dire-aperto`.)
+           *
+           * Si copia dal profilo, e si copia **adesso**: `apertureDal` dice da quando il telefono di
+           * questa cliente manda il segnale. Un giorno composto prima di quell'istante non potrà mai
+           * dire «non l'ha aperto» — potrebbe averlo aperto con l'app vecchia, che non lo diceva a
+           * nessuno — e allora resta fuori da tutti i rifacimenti automatici.
+           *
+           * ⚠️ **Sta sulla giornata e non si ricalcola dal profilo al momento della domanda**: le
+           * query che cercano i giorni da rifare girano anche **per dieta**, su molte clienti
+           * insieme, e un `where` diventerebbe un giro di letture. È uno scatto, come lo snapshot
+           * dei pasti nella riga accanto.
+           */
+          apertureTracciate: !!(profile as { apertureDal?: Date | null }).apertureDal,
+        } as never,
         update: {}, // mai sovrascrivere un giorno già erogato
       });
       created.push(day.date.toISOString().slice(0, 10));
@@ -2971,6 +3063,7 @@ export class MenuService {
     const copia = (await this.prisma.menuDay.findMany({ where })) as {
       id: string; clientId: string; date: Date; dietId: string; level: number;
       meals: unknown; status: string; visibleFrom: Date; sourceRuleId: string | null;
+      apertoDallaClienteIl?: Date | null; apertureTracciate?: boolean;
     }[];
     const del = await this.prisma.menuDay.deleteMany({ where });
     const delivered = await this.deliverIfEligible(clientId);
@@ -2979,9 +3072,19 @@ export class MenuService {
       // giorni, quindi meno andate al database ci sono, meno finestre ci sono per restare a metà.
       await this.prisma.menuDay
         .createMany({
+          /**
+           * ⛔ **RIMETTERE UN GIORNO COM'ERA VUOL DIRE ANCHE COM'ERA APERTO** (26/8, voce
+           * `visto-non-vuol-dire-aperto`). Senza queste due colonne il ripristino riscriveva
+           * `apertoDallaClienteIl` a `null` e `apertureTracciate` a `false`: una giornata che la
+           * cliente aveva **aperto davvero** tornava indietro come «non lo so», e la volta dopo un
+           * rifacimento automatico gliel'avrebbe cambiata sotto — il danno esatto che tutto questo
+           * lavoro esiste per impedire. ⚠️ Un ripristino che perde una colonna non è un ripristino:
+           * è una scrittura nuova travestita.
+           */
           data: copia.map((d) => ({
             id: d.id, clientId: d.clientId, date: d.date, dietId: d.dietId, level: d.level,
             meals: d.meals as never, status: d.status, visibleFrom: d.visibleFrom, sourceRuleId: d.sourceRuleId,
+            apertoDallaClienteIl: d.apertoDallaClienteIl ?? null, apertureTracciate: !!d.apertureTracciate,
           })) as never,
           skipDuplicates: true,
         })
@@ -3534,6 +3637,27 @@ export class MenuService {
     }
     const dateFrom = days[0].date;
     const dateTo = days[days.length - 1].date;
+
+    /**
+     * ⛔ **CHI HA LA LISTA DELLA SPESA IN MANO HA APERTO QUEI GIORNI** (26/8, trovato in revisione
+     * della voce `visto-non-vuol-dire-aperto`).
+     *
+     * ⚠️ È il caso che la regola cita per giustificarsi — *«magari ci ha già fatto la spesa»* — e
+     * senza questa riga sarebbe stato **l'unico scoperto**. Il segnale «aperto» lo manda l'app da due
+     * schermate: la Home (il giorno di oggi) e il Menu (il giorno selezionato). La lista della spesa
+     * mette in mano alla cliente il contenuto di **sette giorni futuri** e non ne toccava nessuno:
+     * Giulia apriva la Home, toccava «Lista della spesa», comprava per la settimana e non entrava mai
+     * nella scheda Menu — poi la nutrizionista dettava «niente pesce» e il motore le rifaceva tutti i
+     * giorni comprati.
+     *
+     * ⛔ **È una regressione che prima non c'era**, e va detto: `viewedAt` veniva scritto su tutti i
+     * trenta giorni della finestra a ogni `getMenu`, quindi questo caso era coperto — per sbaglio, ma
+     * coperto. Restringere il segnale al giorno guardato lo scopriva.
+     *
+     * ⚠️ Non blocca la risposta e non fallisce mai in faccia a nessuno: la lista è il lavoro, questa
+     * è la cronaca.
+     */
+    await this.segnaGiorniAperti(clientId, days.map((g: { date: Date }) => g.date));
 
     const recipeIds = [
       ...new Set(days.flatMap((d: { meals: unknown }) => (d.meals as MealSnapshot[]).map((m) => m.recipeId))),

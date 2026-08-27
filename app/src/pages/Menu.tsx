@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, type ApiCiclo, testoPorzione, testoIngredientiScheda } from '../lib/meals';
 import MenuStatusBanner, { type MenuStatus } from '../components/MenuStatusBanner';
+import { segnaGiornoAperto } from '../lib/giorno-aperto';
 
 /**
  * Menu / diario — dati REALI dal backend:
@@ -271,6 +272,15 @@ export default function Menu() {
   const past = days.filter((d) => startOfDay(new Date(d.date)).getTime() < todayMs).reverse();
   // Selezione: la data scelta (anche passata), altrimenti il primo giorno futuro.
   const selDay = (selDate ? days.find((d) => d.date.slice(0, 10) === selDate) : undefined) ?? upcoming[0];
+  /**
+   * ⛔ **QUESTO GIORNO LO STA GUARDANDO** (26/8): è il segnale vero che il server aspetta per sapere
+   * quali menu può ancora rifare senza toglierli di mano a nessuno. Vedi `lib/giorno-aperto.ts`.
+   * ⚠️ Fuori da `useEffect` di proposito: qui `selDay` è già quello che si sta per disegnare, e il
+   * segnale è idempotente e non tocca lo stato — non c'è niente da sincronizzare.
+   * ⚠️ **E solo se ci sono davvero dei pasti da vedere**, come nella Home: una giornata vuota
+   * diventerebbe intoccabile per i rifacimenti senza che la cliente abbia letto una riga.
+   */
+  if (selDay?.meals?.length) segnaGiornoAperto(selDay.date);
   const isPastDay = !!selDay && startOfDay(new Date(selDay.date)).getTime() < todayMs;
   const meals = selDay?.meals ?? [];
 

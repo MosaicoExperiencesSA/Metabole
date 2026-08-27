@@ -15,7 +15,7 @@
  * giusta, ripassato prima di ogni rilascio, e quell'elenco esce da qui: ogni correzione diventa un
  * caso di prova. Il sistema si costruisce il collaudo con gli errori che ha già fatto.
  */
-import { daQuandoSiPuoRifare } from './menu-da-rifare';
+import { CHE_SI_POSSONO_RIFARE, daQuandoSiPuoRifare } from './menu-da-rifare';
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -475,19 +475,24 @@ export class RegistroVeraService {
   /**
    * ANNULLA una riga, e dice quali menu vanno rifatti.
    *
-   * ⚠️ Solo i giorni che la cliente **non ha ancora visto**. La regola l'ha decisa Simone e ha una
-   * ragione precisa: rifare un menu che lei ha già letto — magari dopo aver fatto la spesa — è
-   * esattamente la cosa che fa scrivere «l'app è impazzita» alla coach. Un menu già visto resta
-   * suo; da lì in avanti si riparte puliti.
+   * ⚠️ Solo i giorni che **sappiamo** che la cliente non ha ancora aperto. La regola l'ha decisa
+   * Simone e ha una ragione precisa: rifare un menu che lei ha già letto — magari dopo aver fatto la
+   * spesa — è esattamente la cosa che fa scrivere «l'app è impazzita» alla coach. Un menu già aperto
+   * resta suo; da lì in avanti si riparte puliti.
    *
-   * ⚠️ `viewedAt = null` NON vuol dire «non visto» per i giorni erogati **prima** che la colonna
-   * esistesse: per quelli vuol dire «non lo so». Per questo si guarda solo il FUTURO
-   * (`date >= oggi`): un giorno futuro non ancora aperto è l'unico caso in cui il null è davvero un
-   * no. Vale la regola dei tre stati: «non lo so» non è «nessuno».
+   * ⛔ **E dal 26/8 la domanda si fa a `apertoDallaClienteIl`, non a `viewedAt`** (voce
+   * `visto-non-vuol-dire-aperto`): quest'ultimo lo scrive `getMenu` su tutti i trenta giorni della
+   * finestra a ogni apertura dell'app, quindi diceva «visto» anche di ciò che la cliente non aveva
+   * mai guardato, e questo elenco era quasi sempre vuoto per la ragione sbagliata.
+   *
+   * ⚠️ **Un elenco vuoto non vuol dire «li ha aperti tutti»**: vuol dire «di nessuno di quei giorni
+   * posso dirlo». Restano fuori sia i giorni davvero aperti sia quelli composti prima che la sua app
+   * mandasse il segnale. Vale la regola dei tre stati: «non lo so» non è «nessuno», e chi mostra
+   * questo elenco deve dirlo così — vedi `backoffice/src/pages/Vera.tsx`.
    *
    * La rigenerazione vera non sta qui: questa funzione dice *cosa* va rifatto, e chi eroga lo fa.
    * Tenere separate «la decisione» e «la scrittura» è quello che permette di mostrarle la
-   * conseguenza — «12 clienti hanno già visto il menu di domani» — prima di toccare qualcosa.
+   * conseguenza prima di toccare qualcosa.
    */
   async annulla(attoreId: string, id: string) {
     const riga = (await this.prisma.azioneVera.findUnique({ where: { id } })) as
@@ -515,7 +520,8 @@ export class RegistroVeraService {
   }
 
   /**
-   * I giorni futuri che la cliente non ha ancora ricevuto in app: gli unici che si possono rifare.
+   * I giorni futuri che **sappiamo** che la cliente non ha ancora aperto: gli unici che si possono
+   * rifare da soli.
    *
    * Esposta anche da sola perché serve **prima** di scrivere, non solo dopo: è il numero che Vera
    * mostra quando chiede «i menu di domani li rifaccio o parto da dopodomani?».
@@ -525,14 +531,18 @@ export class RegistroVeraService {
    * e quel calcolo sta in `codaDaRifare`. Qui il numero serve solo a dire «ce ne sono», e sarà
    * sempre minore o uguale.
    *
-   * ⚠️ E «non ha ancora aperto» sarebbe una frase falsa: `viewedAt` lo mette `getMenu` su tutti i
-   * giorni della finestra a ogni apertura dell'app, futuri compresi. Voce `visto-non-vuol-dire-aperto`.
+   * ⚠️ **Dal 26/8 «non ha ancora aperto» è una frase VERA**, e questa query lo può dire: il segnale
+   * lo manda l'app quando la cliente apre **quel** giorno (`apertoDallaClienteIl`). Prima si
+   * guardava `viewedAt`, che `getMenu` scrive su tutti i giorni della finestra a ogni apertura
+   * dell'app — futuri compresi — quindi qui non restava quasi mai niente. Voce
+   * `visto-non-vuol-dire-aperto`. ⚠️ E i giorni di cui **non lo sappiamo** (app vecchia) restano
+   * fuori: si degrada verso «non tocco», mai verso «rifaccio».
    */
   async menuDaRifare(clientId: string): Promise<string[]> {
     // ⚠️ Il confine è scritto in un posto solo (`daQuandoSiPuoRifare`): fino al 19/8 era ricopiato
     // in tre punti e in uno dei tre partiva da domani invece che da oggi.
     const giorni = (await this.prisma.menuDay.findMany({
-      where: { clientId, viewedAt: null, date: { gte: daQuandoSiPuoRifare() } } as never,
+      where: { clientId, ...CHE_SI_POSSONO_RIFARE, date: { gte: daQuandoSiPuoRifare() } } as never,
       orderBy: { date: 'asc' },
       select: { date: true },
     })) as { date: Date }[];

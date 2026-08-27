@@ -1,5 +1,6 @@
 import { applicaProposta, ordinaPerRischio, Proposta } from './applica-proposta';
 import { PrismaService } from '../prisma/prisma.service';
+import { aGiorno } from '../common/date-only';
 
 const D = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -233,9 +234,24 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
    */
   function prismaCon(giorni: unknown[], calendari?: unknown[]) {
     const deleteMany = jest.fn().mockResolvedValue({ count: giorni.length });
-    const findMany = jest.fn().mockImplementation((q: { where?: Record<string, unknown> }) =>
-      Promise.resolve(q?.where && 'clientId' in q.where ? (calendari ?? giorni) : giorni),
-    );
+    /**
+     * ⛔ **IL FINTO RISPETTA I FILTRI SULLE APERTURE, e non è un dettaglio** (26/8). Finché li
+     * ignorava, mettere o togliere `apertureTracciate: true` dalla query **non faceva fallire
+     * niente**: il difetto del 26/8 — la query dei colpiti che il giorno del rilascio rende zero
+     * righe per tutte — poteva tornare sotto un test verde. Un finto che non finge il filtro non
+     * fa fallire niente: fa passare tutto.
+     */
+    const findMany = jest.fn().mockImplementation((q: { where?: Record<string, unknown> }) => {
+      const w = (q?.where ?? {}) as Record<string, unknown>;
+      const righe = ('clientId' in w ? (calendari ?? giorni) : giorni) as Record<string, unknown>[];
+      return Promise.resolve(
+        righe.filter(
+          (r) =>
+            (!('apertureTracciate' in w) || r.apertureTracciate === w.apertureTracciate) &&
+            (!('apertoDallaClienteIl' in w) || (r.apertoDallaClienteIl ?? null) === w.apertoDallaClienteIl),
+        ),
+      );
+    });
     return {
       deleteMany,
       findMany,
@@ -250,17 +266,19 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
 
   it('⚠️ i giorni futuri NON ancora aperti col piatto vietato si rifanno', async () => {
     const { prisma, deleteMany } = prismaCon([
-      { id: 'g1', clientId: 'c1', date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
+      { id: 'g1', clientId: 'c1', date: domani, apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
     ]);
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g1'] } } });
     /**
-     * ⛔ **La frase nomina l'insieme GIUSTO** (24/8, seconda revisione): «già passate» era falsa —
-     * il giorno che resta col piatto vietato dentro può essere **domani**, se le è già arrivato in
-     * app. È un'affermazione sui menu, e si smentisce con una query.
+     * ⛔ **La frase non nomina un insieme che non sa** (26/8). Il 24/8 diceva «già passate» (falso: il
+     * giorno che resta può essere domani), poi «già arrivate in app» — falso a sua volta da oggi,
+     * perché le giornate che restano sono le già aperte **oppure** quelle di cui non sappiamo. Qui
+     * non ne resta nessuna, quindi la frase non deve nominarne.
      */
-    expect(esito.riepilogo).toContain('quelle già arrivate in app restano come sono');
+    expect(esito.riepilogo).toContain('Ho rifatto 1 giornata (1 cliente).');
     expect(esito.riepilogo).not.toContain('già passate');
+    expect(esito.riepilogo).not.toContain('già arrivate in app');
   });
 
   /**
@@ -275,7 +293,7 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
    */
   it('⚠️ oltre il tetto: la regola SI scrive, i giorni NON si toccano, e lo dice', async () => {
     const molti = Array.from({ length: 201 }, (_, i) => ({
-      id: `g${i}`, clientId: `c${i}`, date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+      id: `g${i}`, clientId: `c${i}`, date: domani, apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
     }));
     const { prisma, deleteMany } = prismaCon(molti);
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -303,7 +321,7 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
    */
   it('⚠️ esattamente 200 clienti NON è «oltre»: si rifà', async () => {
     const esatti = Array.from({ length: 200 }, (_, i) => ({
-      id: `g${i}`, clientId: `c${i}`, date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+      id: `g${i}`, clientId: `c${i}`, date: domani, apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
     }));
     const { prisma, deleteMany } = prismaCon(esatti);
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -319,7 +337,7 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
    */
   it('⚠️ il tetto conta le persone, non le giornate: 300 giorni di 2 clienti si rifanno', async () => {
     const tanti = Array.from({ length: 300 }, (_, i) => ({
-      id: `g${i}`, clientId: i % 2 ? 'c1' : 'c2', date: domani, viewedAt: null, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+      id: `g${i}`, clientId: i % 2 ? 'c1' : 'c2', date: domani, apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
     }));
     const { prisma, deleteMany } = prismaCon(tanti);
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -327,21 +345,68 @@ describe('i menu già preparati, quando il divieto entra in vigore', () => {
     expect(esito.riepilogo).toContain('2 clienti');
   });
 
+  /**
+   * ⛔ **I COLPITI CHE RESTANO INDIETRO SI DICONO ANCHE QUI** (26/8, in revisione). `codaDaRifare` li
+   * conta, `codePerCliente` li buttava via, e la regola di dieta non poteva dirlo mentre la chat lo
+   * diceva: il capo leggeva «ho rifatto 1 giornata» con il tonno ancora nel pranzo di oggi.
+   */
+  it('⛔ la giornata già aperta col piatto vietato resta, e il capo lo legge', async () => {
+    /**
+     * ⚠️ **Le due date si costruiscono da `aGiorno`, non da `Date.now()`**: `MenuDay.date` è un
+     * giorno senza ora, e il confine di `daQuandoSiPuoRifare` è la **mezzanotte di Roma**. Con
+     * `Date.now()` questo test era verde di giorno e rosso alle 00:30 — la giornata «di oggi» cadeva
+     * prima del confine e non risultava nemmeno colpita. È la stessa trappola che `menu.service.spec`
+     * racconta per esteso: una fixture che mente sulla propria premessa manda a correggere codice
+     * che funziona.
+     */
+    const oggiG = aGiorno(new Date());
+    const dopo = (n: number) => new Date(oggiG.getTime() + n * 86_400_000);
+    const { prisma, deleteMany } = prismaCon([
+      { id: 'g-oggi', clientId: 'c1', date: dopo(0), apertoDallaClienteIl: new Date(), apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
+      { id: 'g-domani', clientId: 'c1', date: dopo(1), apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
+    ]);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    // ⚠️ Domani si rifà, oggi no: la coda parte dopo l'ultimo intoccabile.
+    expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['g-domani'] } } });
+    expect(esito.riepilogo).toContain('Altre 1 giornata col piatto vietato resta');
+  });
+
   it('⚠️ un giorno che NON contiene il piatto vietato non si tocca', async () => {
     const { prisma, deleteMany } = prismaCon([
-      { id: 'g2', clientId: 'c1', date: domani, viewedAt: null, meals: [{ slot: 'cena', recipeId: 'r-altro' }] },
+      { id: 'g2', clientId: 'c1', date: domani, apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'cena', recipeId: 'r-altro' }] },
     ]);
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(deleteMany).not.toHaveBeenCalled();
     expect(esito.riepilogo).toContain('non ho toccato niente');
     /**
-     * ⛔ **E non dice «non ce n'erano»** (24/8, seconda revisione). Il conto è su quello che si può
-     * ancora rifare: i giorni già arrivati in app non ci entrano, e `getMenu` li marca tutti alla
-     * prima apertura — quindi questo è il ramo che scatta quasi sempre, e «nessun menu conteneva
-     * quel piatto» era falso mentre il tonno stava nel pranzo di domani.
+     * ⛔ **E ADESSO PUÒ DIRLO DAVVERO** (26/8). Il 24/8 questa frase era stata indebolita in «fra
+     * quelli che posso ancora rifare», perché i colpiti erano già filtrati su «mai aperto» e —
+     * con `getMenu` che marcava tutto alla prima apertura — era il ramo che scattava quasi sempre:
+     * «nessun menu conteneva quel piatto» era falso mentre il tonno stava nel pranzo di domani.
+     * Adesso i colpiti sono i giorni che **contengono** il piatto, quindi zero colpiti vuol dire
+     * davvero zero piatti, e la frase è di nuovo un'affermazione che si può firmare.
      */
-    expect(esito.riepilogo).toContain('che posso ancora rifare');
-    expect(esito.riepilogo).not.toMatch(/Nessun menu già preparato conteneva/);
+    expect(esito.riepilogo).toContain('Nessun menu già preparato da oggi in poi conteneva quel piatto');
+  });
+
+  /**
+   * ⛔ **IL GIORNO DEL RILASCIO: NESSUNA CLIENTE È «TRACCIATA», E NON SI PUÒ DIRE «NON CE N'ERA».**
+   *
+   * È il caso che il 26/8 ha fatto riscrivere questo pezzo. La query dei colpiti filtrava
+   * `apertureTracciate: true`, che il giorno del rilascio è falso per **ogni riga esistente**: il
+   * capo avrebbe letto «non ce n'era nessuno con quel piatto» mentre il tonno stava nel pranzo di
+   * domani di tutte. La stessa identica frase del difetto, il primo giorno.
+   */
+  it('⛔ con le aperture non tracciate il capo legge «non so dirlo», non «non ce n\'era»', async () => {
+    const { prisma, deleteMany } = prismaCon([
+      { id: 'g9', clientId: 'c1', date: domani, apertoDallaClienteIl: null, apertureTracciate: false, meals: [{ slot: 'pranzo', recipeId: 'r1' }] },
+    ]);
+    const esito = await applicaProposta(prisma as never, proposta as never);
+    expect(deleteMany).not.toHaveBeenCalled();
+    expect(esito.riepilogo).toMatch(/non so dire se/);
+    expect(esito.riepilogo).not.toMatch(/non ho toccato niente/);
+    // ⚠️ E non le si dà per «già arrivate in app»: di quella cliente non sappiamo niente.
+    expect(esito.riepilogo).not.toMatch(/ha già aperto in app/);
   });
 });
 
@@ -362,11 +427,11 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
   };
   const G = 86_400_000;
   const fra = (n: number) => new Date(Date.now() + n * G);
-  const conTonno = (id: string, clientId: string, n: number, viewedAt: Date | null = null) => ({
-    id, clientId, date: fra(n), viewedAt, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
+  const conTonno = (id: string, clientId: string, n: number, aperto: Date | null = null) => ({
+    id, clientId, date: fra(n), apertoDallaClienteIl: aperto, apertureTracciate: true, meals: [{ slot: 'pranzo', recipeId: 'r1' }],
   });
-  const senzaTonno = (id: string, clientId: string, n: number, viewedAt: Date | null = null) => ({
-    id, clientId, date: fra(n), viewedAt, meals: [{ slot: 'cena', recipeId: 'r-altro' }],
+  const senzaTonno = (id: string, clientId: string, n: number, aperto: Date | null = null) => ({
+    id, clientId, date: fra(n), apertoDallaClienteIl: aperto, apertureTracciate: true, meals: [{ slot: 'cena', recipeId: 'r-altro' }],
   });
 
   function prismaCon(candidati: unknown[], calendari: unknown[]) {
@@ -417,9 +482,9 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
      * menu», e `viewedAt` non vuol dire questo — lo mette `getMenu` a ogni apertura dell'app, su
      * tutti i giorni della finestra, futuri compresi. Vedi la voce `visto-non-vuol-dire-aperto`.
      */
-    expect(esito.riepilogo).toContain('è già arrivato in app');
+    expect(esito.riepilogo).toContain('ha già aperto in app');
     // ⚠️ E il rimedio si dice per quello che fa: «Rigenera menu» cancella anche il giorno ricevuto.
-    expect(esito.riepilogo).toContain('rifà anche il giorno che ha già ricevuto');
+    expect(esito.riepilogo).toContain('rifà anche il giorno che ha già aperto');
     // ⚠️ E la regola vale lo stesso: il divieto sui menu NUOVI è il motivo per cui esiste.
     expect(prisma.productRule.create).toHaveBeenCalled();
   });
@@ -435,7 +500,7 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
     );
     const esito = await applicaProposta(prisma as never, proposta as never);
     expect(cancellati(deleteMany)).toEqual(['a1', 'a2']);
-    expect(esito.riepilogo).toContain('A 1 cliente è già arrivato in app');
+    expect(esito.riepilogo).toContain('1 cliente ha già aperto in app');
     // Le rifatte si contano al netto delle bloccate: dire «2 clienti» sarebbe falso per una delle due.
     expect(esito.riepilogo).toContain('(1 cliente)');
   });
@@ -491,9 +556,13 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
           vivi = vivi.filter((g) => !via.has(g.id));
           return deleteMany(q);
         }),
-        findMany: jest.fn().mockImplementation((q: { where?: Record<string, unknown> }) =>
-          Promise.resolve(q?.where && 'clientId' in q.where ? vivi : vivi.filter((g) => !g.viewedAt)),
-        ),
+        /**
+         * ⚠️ **Il finto non filtra quello che il codice non filtra** (26/8). Qui c'era un filtro fisso
+         * su «non aperto e tracciato», che la query dei colpiti **non fa più**: era un finto che
+         * fingeva una condizione inventata, quindi il caso nuovo — un giorno già aperto che entra
+         * fra i colpiti e conta nel tetto e nei lasciati indietro — non veniva mai esercitato.
+         */
+        findMany: jest.fn().mockImplementation(() => Promise.resolve(vivi)),
       },
     };
     const esito = await applicaProposta(prisma as never, proposta as never);
@@ -510,7 +579,7 @@ describe('⛔ la regola di dieta cancella una CODA, per ogni cliente', () => {
    * filtra per dieta.
    */
   it('⚠️ una giornata di un\'altra dieta, se sta dopo, entra nella coda', async () => {
-    const altraDieta = { id: 'g-vecchia', clientId: 'c1', date: fra(4), viewedAt: null, meals: [{ slot: 'cena', recipeId: 'r-altro' }] };
+    const altraDieta = { id: 'g-vecchia', clientId: 'c1', date: fra(4), apertoDallaClienteIl: null, apertureTracciate: true, meals: [{ slot: 'cena', recipeId: 'r-altro' }] };
     const { prisma, deleteMany } = prismaCon(
       [conTonno('g1', 'c1', 1)],
       [conTonno('g1', 'c1', 1), altraDieta],
@@ -531,7 +600,7 @@ describe('l\'elenco delle scoperte arriva al capo (voce vera-regola-dieta-scoper
       productRule: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
       recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r-tonno', name: 'Insalata di tonno', ingredients: [] }]) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([{ meals: [{ slot: 'dinner', recipeId: 'r-tonno' }] }]) },
-      // Due letture diverse sulla stessa tabella: il rifacimento (viewedAt null) e la coorte (distinct).
+      // Due letture diverse sulla stessa tabella: il rifacimento (non aperto) e la coorte (distinct).
       menuDay: {
         findMany: jest.fn().mockImplementation((args: { distinct?: string[] }) =>
           Promise.resolve(args?.distinct ? [{ clientId: 'c1' }] : [])),

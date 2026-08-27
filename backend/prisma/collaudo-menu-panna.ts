@@ -39,7 +39,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { aGiorno } from '../src/common/date-only';
-import { type GiornoDaValutare, codaDaRifare, ricetteDelGiorno } from '../src/vera/menu-da-rifare';
+import { CAMPI_DEL_GIORNO, type GiornoDaValutare, codaDaRifare, ricetteDelGiorno } from '../src/vera/menu-da-rifare';
 import { toDateOnly } from '../src/common/date-only';
 
 const prisma = new PrismaClient();
@@ -172,7 +172,7 @@ async function main(): Promise<void> {
     const tutte = (await prisma.menuDay.findMany({
       where: { clientId: user.id },
       orderBy: { date: 'asc' },
-      select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+      select: CAMPI_DEL_GIORNO as never,
     })) as GiornoDaValutare[];
     const haLaRicetta = (g: GiornoDaValutare) => !!ricetta && ricetteDelGiorno(g.meals).includes(ricetta.id);
     const futuri = tutte.filter((g) => g.date.getTime() >= oggi.getTime());
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
      * lista della spesa lo salta **in silenzio** — `aggregaSpesa` non trova gli ingredienti e mette
      * `[]`. Un piatto senza spesa, senza una riga che lo dica, per aver ripulito un collaudo.
      */
-    const restaAppesa = passateColPiatto.length > 0 || esito.esito === 'bloccata';
+    const restaAppesa = passateColPiatto.length > 0 || esito.esito === 'bloccata' || esito.esito === 'non_lo_so';
 
     console.log(`  ricetta di collaudo: ${ricetta ? 'presente' : 'assente'}`);
     console.log(`  gruppo di collaudo:  ${gruppo ? 'presente' : 'assente'}`);
@@ -206,9 +206,15 @@ async function main(): Promise<void> {
           ' — non le tocco (riscriverei la storia della cliente e sposterei il conteggio dei giorni di piano).',
       );
     }
+    if (esito.esito === 'non_lo_so') {
+      console.log(
+        `  ⚠️ NON cancello i giorni futuri: dal ${esito.dalGiorno.toISOString().slice(0, 10)} non so dire se ` +
+          'la cliente li ha già aperti (app non aggiornata quando sono stati composti), e nel dubbio non li tocco.',
+      );
+    }
     if (esito.esito === 'bloccata') {
       console.log(
-        `  ⚠️ NON cancello i giorni futuri: il menu del ${esito.apertoIl.toISOString().slice(0, 10)} le è già arrivato ` +
+        `  ⚠️ NON cancello i giorni futuri: il menu del ${esito.apertoIl.toISOString().slice(0, 10)} l'ha già aperto ` +
           'in app, e cancellare la coda lasciandolo lì aprirebbe un buco che non si richiude. ' +
           'Da rifare con «Rigenera menu» dalla scheda, che però rifà anche quel giorno.',
       );

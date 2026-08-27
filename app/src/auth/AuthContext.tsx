@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { Preferences } from '@capacitor/preferences';
 import { api, apiPublic, getRefreshToken, setAccessToken, setOspite, setRefreshToken } from '../api/client';
 import { track, currentRefcod } from '../lib/track';
+import { dimenticaAperture } from '../lib/giorno-aperto';
 
 const WIDGET_TOKEN_KEY = 'metabole_widget_token';
 
@@ -137,6 +138,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(res.accessToken);
     setRefreshToken(res.refreshToken);
     setUser(res.user);
+    /**
+     * ⛔ **Cambia la persona: quello che sapevamo dei suoi giorni non vale più** (26/8). «Passa
+     * all'altro profilo» cambia utente **senza ricaricare la pagina** — madre e figlia sullo stesso
+     * telefono — e l'elenco dei giorni già segnati come aperti vive in un modulo. Senza questa riga
+     * il 27 già mandato per la prima zittiva il segnale della seconda, e i suoi menu restavano «non
+     * lo so» per il server: nessuno glieli avrebbe più rifatti.
+     */
+    dimenticaAperture();
     void syncWidgetToken();
   }
 
@@ -181,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(null);
     setAccessToken(null);
     setUser(null);
+    dimenticaAperture();
     if (Capacitor.isNativePlatform()) { try { await Preferences.remove({ key: WIDGET_TOKEN_KEY }); } catch { /* ignora */ } }
   }
 

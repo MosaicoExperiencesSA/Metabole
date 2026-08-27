@@ -2,7 +2,9 @@
  * QUALI MENU SI RIFANNO QUANDO UN DIVIETO ENTRA IN VIGORE — e quali no.
  *
  * Decisione di Simone (13/8): «si rifanno solo i giorni futuri non ancora visti». È la stessa regola
- * dell'annulla, e `MenuDay.viewedAt` esiste dalla Consegna 1 esattamente per questo.
+ * dell'annulla. ⚠️ Fino al 26/8 il dato letto era `MenuDay.viewedAt`, che dice un'altra cosa
+ * («gliel'abbiamo mostrato nella lista»): adesso decide `apertoDallaClienteIl`, scritto dall'app
+ * quando la cliente sta guardando **quel** giorno. Vedi `siPuoCancellare` qui sotto.
  *
  * ⚠️ **Un menu già letto resta suo.** Rifare un giorno che una cliente ha già aperto — magari dopo
  * aver fatto la spesa — è la cosa che fa scrivere «l'app è impazzita». Il confine non è «da domani»:
@@ -18,8 +20,8 @@
  * Simone: «meglio rifare la giornata di oggi»).
  *
  * ⚠️ Esisteva scritta in **tre posti**, e in uno dei tre il confine era diverso: `menuDaRifare` (per
- * una cliente) e `giorniDaRifare` (per una dieta) includevano oggi, `giorniDaRifarePerPasti` (per
- * gli spuntini) partiva da domani. Su una cliente che non aveva ancora aperto il menu di oggi la
+ * una cliente) e i colpiti di una dieta includevano oggi, i colpiti degli spuntini partivano da
+ * domani. Su una cliente che non aveva ancora aperto il menu di oggi la
  * conseguenza era visibile: toglierle lo spuntino non lo toglieva oggi, vietarle un alimento sì.
  * Nessuno dei due era scritto come scelta — erano due `where` scritti in momenti diversi.
  *
@@ -28,7 +30,8 @@
  * cioè sempre. È lo stesso errore che il progetto ha già pagato altrove sui confronti fra date.
  *
  * ⚠️ E resta la regola vera, che questo confine **non** tocca: un giorno **già aperto** non si rifà
- * mai, perché magari ci ha già fatto la spesa. `viewedAt` è quello che decide, non il calendario.
+ * mai, perché magari ci ha già fatto la spesa. Quella domanda la risponde `siPuoCancellare`, non il
+ * calendario — e dove la risposta è «non lo so», non si tocca lo stesso.
  */
 import { aGiorno } from '../common/date-only';
 
@@ -38,20 +41,118 @@ export function daQuandoSiPuoRifare(oggi: Date = new Date()): Date {
   return aGiorno(oggi);
 }
 
-/** «Questo giorno si può ancora rifare?» — mai aperto, e non passato. La risposta è una sola. */
-export function siPuoRifare(g: { date: Date; viewedAt?: Date | null }, oggi: Date = new Date()): boolean {
-  if (g.viewedAt) return false;
+/**
+ * ⛔ **«QUESTO GIORNO SI PUÒ ANCORA CANCELLARE?» — e la risposta cambia il 26/8** (voce
+ * `visto-non-vuol-dire-aperto`, strada 2 scelta da Simone il 25/8).
+ *
+ * ## Cosa c'era, e perché non funzionava
+ *
+ * `if (g.viewedAt) return false`. Sembrava la regola giusta — «un menu già letto resta suo» — e
+ * leggeva un campo che dice **un'altra cosa**: `getMenu` rende all'app gli ultimi trenta giorni
+ * **visibili**, futuri compresi, e subito dopo li segna tutti come visti. Bastava che una cliente
+ * aprisse l'app una volta perché **tutto il suo futuro** risultasse letto. ⛔ Conseguenza: il
+ * rifacimento dei giorni già preparati era di fatto morto. La nutrizionista dettava «niente pesce»
+ * e leggeva «nei giorni già preparati non ce n'era: non ho toccato niente» **mentre il branzino era
+ * nel menu di domani**. La frase era falsa e non lo sembrava — il modo peggiore in cui una funzione
+ * può essere rotta.
+ *
+ * ## La regola nuova, in una riga: **si tocca solo quello che SAPPIAMO non essere stato aperto**
+ *
+ * ⚠️ E «sappiamo» è la parola che regge tutto. Il segnale vero lo manda l'app quando la cliente
+ * apre **quel** giorno; finché il suo telefono non l'ha mandato mai, `apertoDallaClienteIl` nullo
+ * vuol dire **«non lo so»**, non «non l'ha aperto». Trattare quel nulla come un no vorrebbe dire
+ * cambiare il menu di domani a chi ha una versione vecchia dell'app e l'ha già letto e ci ha fatto
+ * la spesa — cioè fare, in nome della correzione, il danno che la regola esisteva per impedire.
+ * `apertureTracciate` è il dato che lo distingue: si scrive alla nascita della giornata.
+ *
+ * ⛔ **E «non lo so» non è «no»: è un TERZO stato, e va detto a voce.** Se sparisse dentro un
+ * booleano, chi legge riceverebbe di nuovo «non ce n'era» al posto di «non lo posso sapere» — la
+ * stessa frase falsa, con un campo nuovo sotto. È il motivo per cui `codaDaRifare` ha quattro esiti
+ * e non tre, e per cui queste due domande hanno due funzioni invece di una.
+ *
+ * ⚠️ **`viewedAt` non si guarda più qui**, e non è stato tolto: continua a voler dire «gliel'abbiamo
+ * mostrato», che è vero e che altri leggono. Due domande, due campi.
+ *
+ * ⚠️ **Il degrado è dalla parte giusta**: chi non ha ancora l'app nuova si comporta come ieri —
+ * niente si rifà da solo, e la coach lo fa a mano dalla scheda. Si perde un automatismo, non un
+ * menu.
+ */
+export interface Aperture {
+  apertoDallaClienteIl?: Date | null;
+  apertureTracciate?: boolean;
+}
+
+/** L'ha aperto **davvero**: il suo telefono ce l'ha detto per quel giorno. */
+export function laClienteLHaAperto(g: Aperture): boolean {
+  return !!g.apertoDallaClienteIl;
+}
+
+/**
+ * Di questo giorno **non possiamo saperlo**: quando è stato composto la sua app non mandava ancora
+ * il segnale. ⚠️ Non vuol dire «non l'ha aperto» — vuol dire che la domanda non ha risposta.
+ */
+export function nonSappiamoSeLHaAperto(g: Aperture): boolean {
+  return !g.apertureTracciate;
+}
+
+/**
+ * ⛔ **L'UNICA risposta a «questo giorno lo posso cancellare?»** — e sono due no diversi che qui
+ * collassano apposta, perché la conseguenza è la stessa (non si tocca). ⚠️ Chi deve **spiegare
+ * perché** non guarda questo booleano: guarda l'esito di `codaDaRifare`, che i due no li tiene
+ * separati fino alla frase.
+ */
+export function siPuoCancellare(g: Aperture): boolean {
+  return !laClienteLHaAperto(g) && !nonSappiamoSeLHaAperto(g);
+}
+
+/** Dal confine di `daQuandoSiPuoRifare` in avanti — la giornata di oggi compresa. */
+export function daOggiInPoi(g: { date: Date }, oggi: Date = new Date()): boolean {
   return new Date(g.date).getTime() >= daQuandoSiPuoRifare(oggi).getTime();
 }
 
-export interface GiornoDaValutare {
+/**
+ * ⛔ **LA STESSA REGOLA DI `siPuoCancellare`, SCRITTA COME `where`** — per le query che non possono
+ * caricare tutto e filtrare in memoria.
+ *
+ * ⚠️ È l'**unica** seconda forma della regola, e vive **qui accanto** apposta: due `where` sparsi
+ * nei servizi sono il modo in cui una regola cambia in un posto e resta vecchia negli altri.
+ * `una-regola-una-riga.spec.ts` tiene ferme le due forme insieme, campo per campo.
+ *
+ * ⚠️ **Non è il filtro di chi cancella.** Chi cancella deve vedere anche i giorni che NON può
+ * toccare — sono quelli che decidono dove finisce la coda — e infatti `codaDaRifare` vuole il
+ * calendario intero. Questo `where` serve a chi deve solo **contare** quanti se ne potrebbero
+ * rifare (`RegistroService.menuDaRifare`) o a chi scrive su un giorno preciso e vuole sbagliare
+ * verso il «non scrivo» (`scriviGiornataDettata`).
+ */
+export const CHE_SI_POSSONO_RIFARE = { apertureTracciate: true, apertoDallaClienteIl: null } as const;
+
+export interface GiornoDaValutare extends Aperture {
   id: string;
   clientId: string;
   date: Date;
-  viewedAt?: Date | null;
   /** Lo snapshot dei pasti: `[{slot, recipeId, name, kcal}]`. */
   meals: unknown;
 }
+
+/**
+ * ⛔ **I CAMPI CHE SERVONO A DECIDERE, SCRITTI UNA VOLTA SOLA.**
+ *
+ * ⚠️ Le query che caricano i giorni passano da `as never` — il client Prisma generato in sandbox non
+ * conosce le colonne nuove finché non gira `prisma generate`, e quel cast **spegne ogni controllo
+ * sul contenuto del `select`**. Copiato in cinque punti, bastava dimenticarne uno perché
+ * `apertureTracciate` arrivasse `undefined` e quel giorno diventasse «non lo so» per sempre, senza
+ * un errore. Scritto qui una volta, i cinque punti non possono più divergere e
+ * `una-regola-una-riga.spec.ts` controlla che i campi siano esattamente quelli che le decisioni
+ * leggono.
+ */
+export const CAMPI_DEL_GIORNO = {
+  id: true,
+  clientId: true,
+  date: true,
+  apertoDallaClienteIl: true,
+  apertureTracciate: true,
+  meals: true,
+} as const;
 
 /** Gli id delle ricette dentro lo snapshot di un giorno, comunque sia fatto. */
 export function ricetteDelGiorno(meals: unknown): string[] {
@@ -62,19 +163,24 @@ export function ricetteDelGiorno(meals: unknown): string[] {
 }
 
 /**
- * I giorni da rifare: futuri, **non ancora aperti**, e che contengono almeno una ricetta vietata.
+ * I giorni **colpiti** da un divieto: futuri e che contengono almeno una ricetta vietata.
+ *
+ * ⛔ **NON dice se si possono rifare, e fino al 26/8 lo diceva.** Chiedeva anche `siPuoRifare`, e le
+ * due domande insieme producevano la bugia peggiore del giro: nel giorno del rilascio nessun giorno
+ * è ancora «tracciato», quindi i colpiti erano **zero** e chi chiama leggeva «non ce n'era» —
+ * testualmente la frase che questa modifica esiste per togliere. Le due domande adesso stanno in due
+ * posti: «è colpito?» qui, «lo posso cancellare?» dentro `codaDaRifare`, che sa anche dire **«non lo
+ * so»**.
  *
  * @param oggi la data di riferimento (iniettabile: un test non deve dipendere da che giorno è).
  */
-export function giorniDaRifare(
+export function giorniColpitiDaiVietati(
   giorni: readonly GiornoDaValutare[],
   vietate: ReadonlySet<string>,
   oggi: Date,
 ): GiornoDaValutare[] {
   if (!vietate.size) return [];
-  // ⚠️ «Si può ancora rifare?» ha **una** risposta: `siPuoRifare`. Qui si aggiunge solo la seconda
-  // domanda, che è di questa funzione e non delle altre: «contiene davvero il piatto vietato?».
-  return giorni.filter((g) => siPuoRifare(g, oggi) && ricetteDelGiorno(g.meals).some((id) => vietate.has(id)));
+  return giorni.filter((g) => daOggiInPoi(g, oggi) && ricetteDelGiorno(g.meals).some((id) => vietate.has(id)));
 }
 
 /** Quante persone diverse tocca. È il numero da confrontare col tetto, non quello dei giorni. */
@@ -113,12 +219,22 @@ export function clientiColpiti(giorni: readonly GiornoDaValutare[]): string[] {
  * prezzo, e si paga volentieri: un menu rimescolato è un fastidio, un giorno che non torna più è una
  * persona senza cena.
  *
- * ## ⚠️ E se dentro la coda c'è un giorno GIÀ APERTO, non si tocca niente
+ * ## ⚠️ E i giorni che NON si possono cancellare tagliano la coda: si parte dopo l'ultimo
  *
- * Un giorno letto resta suo — magari ci ha fatto la spesa — quindi non si può cancellare; ma se sta
- * **dopo** quello colpito resta lui l'ultimo, e il buco si riaprirebbe identico. In quel caso questa
- * funzione dice **`bloccata`**, e sta al chiamante dirlo a chi sta guardando invece di fingere di
- * aver fatto. Fingere è il difetto da cui nasce tutto questo file.
+ * Un giorno già aperto resta suo — magari ci ha fatto la spesa — e un giorno di cui **non sappiamo**
+ * vale uguale: nel dubbio si tiene fermo. Nessuno dei due si può cancellare, e nessuno dei due si
+ * può lasciare **dentro** la coda: resterebbe lui l'ultimo in calendario e il buco si riaprirebbe
+ * identico. Quindi la coda parte **dal primo giorno colpito che sta dopo l'ultimo intoccabile**.
+ *
+ * ⚠️ **I colpiti che restano prima non si cancellano, e si dicono.** È il caso normale, non un
+ * angolo: lei ha aperto il menu di oggi che contiene il piatto vietato, domani ce l'ha anche —
+ * domani si rifà, oggi no. Contarli e tacerli farebbe leggere «fatto» a chi ha ancora il piatto
+ * vietato nel piatto di stasera: `lasciatiIndietro` esiste per questo.
+ *
+ * ⚠️ Se **nessun** colpito sta dopo l'ultimo intoccabile non si cancella niente, e i due «no» si
+ * separano: **`bloccata`** quando il giorno che blocca lei l'ha aperto davvero, **`non_lo_so`**
+ * quando semplicemente non possiamo saperlo. ⛔ Collassarli in uno solo è come sono nati i difetti
+ * di questo file: «non ce n'era» detto al posto di «non lo posso sapere».
  *
  * ## ⚠️ Chi chiama deve passare TUTTI i giorni, non solo i candidati
  *
@@ -135,19 +251,23 @@ export function clientiColpiti(giorni: readonly GiornoDaValutare[]): string[] {
  * sbagliare non esiste più. Le regole che si possono solo rispettare valgono più di quelle scritte.
  */
 export type CodaDaRifare =
-  /** Nessun giorno colpito: non c'è niente da cancellare. */
+  /** Nessun giorno colpito: non c'è niente da cancellare, e stavolta è vero per tutti i giorni. */
   | { esito: 'niente' }
-  /** Da cancellare, tutti insieme: è una coda vera. */
-  | { esito: 'coda'; giorni: GiornoDaValutare[]; daQuando: Date }
-  /** Dentro la coda c'è un giorno già aperto: non si cancella niente, e si dice perché. */
-  | { esito: 'bloccata'; daQuando: Date; apertoIl: Date };
+  /**
+   * Da cancellare, tutti insieme: è una coda vera. ⚠️ `lasciatiIndietro` sono i giorni colpiti che
+   * stanno **prima** e che non si toccano (già aperti, o non sappiamo): chi racconta l'esito li deve
+   * nominare, altrimenti dice «fatto» a chi ha ancora il piatto vietato davanti.
+   */
+  | { esito: 'coda'; giorni: GiornoDaValutare[]; daQuando: Date; lasciatiIndietro: number }
+  /** Non si cancella niente: il giorno che blocca la cliente **l'ha aperto davvero**. */
+  | { esito: 'bloccata'; daQuando: Date; apertoIl: Date }
+  /**
+   * Non si cancella niente e **non è un no**: del giorno che blocca non possiamo sapere se l'ha
+   * aperto (app vecchia, o giornata composta prima che il suo telefono mandasse il segnale). ⛔ Chi
+   * racconta questo esito deve dire «non lo so», mai «non ce n'era».
+   */
+  | { esito: 'non_lo_so'; daQuando: Date; dalGiorno: Date };
 
-/**
- * Quante giornate ci sono davvero da rifare. ⚠️ `0` quando la coda non c'è o è **bloccata** — e sono
- * due «zero» diversi che qui collassano apposta: chi chiama vuole sapere *quante ne rifarò*, e la
- * risposta è zero in tutti e due i casi. ⛔ Chi deve **spiegare perché** guarda `esito`, non questo
- * numero: è la ragione per cui `raccontaCoda` esiste e questa funzione non lo sostituisce.
- */
 export function quanteDaRifare(coda: CodaDaRifare): number {
   return coda.esito === 'coda' ? coda.giorni.length : 0;
 }
@@ -173,21 +293,40 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
     throw new Error('codaDaRifare: giorni di più clienti insieme. La coda è di una persona sola — usa `codePerCliente`.');
   }
 
+  const quando = (g: { date: Date }) => new Date(g.date).getTime();
   const colpiti = tuttiIGiorni.filter(colpito);
   if (!colpiti.length) return { esito: 'niente' };
-
-  const quando = Math.min(...colpiti.map((g) => new Date(g.date).getTime()));
-  const daQuando = new Date(quando);
-  const coda = tuttiIGiorni.filter((g) => new Date(g.date).getTime() >= quando);
+  const primoColpito = Math.min(...colpiti.map(quando));
 
   /**
-   * ⚠️ Il giorno aperto **più vicino**, non il primo che capita nell'array: l'ordine con cui arrivano
-   * i giorni dipende dalla query, e la data che si mostra a chi legge dev'essere sempre la stessa.
+   * ⚠️ Gli intoccabili si cercano su **tutto** il calendario passato, non solo fra i colpiti: quello
+   * che chiude la coda può benissimo essere un giorno che col divieto non c'entra niente.
    */
-  const aperti = coda.filter((g) => g.viewedAt).map((g) => new Date(g.date).getTime());
-  if (aperti.length) return { esito: 'bloccata', daQuando, apertoIl: new Date(Math.min(...aperti)) };
+  const intoccabili = tuttiIGiorni.filter((g) => !siPuoCancellare(g));
+  const ultimoIntoccabile = intoccabili.length ? Math.max(...intoccabili.map(quando)) : -Infinity;
 
-  return { esito: 'coda', giorni: coda, daQuando };
+  const daRifare = colpiti.filter((g) => quando(g) > ultimoIntoccabile);
+  if (!daRifare.length) {
+    /**
+     * ⚠️ **Il giorno che blocca è il più VICINO fra quelli in mezzo**, non il primo che capita
+     * nell'array: l'ordine con cui arrivano i giorni dipende dalla query, e la data che si mostra a
+     * chi legge dev'essere sempre la stessa.
+     *
+     * ⚠️ E fra i due «no» vince **`bloccata`**: «questo menu ce l'ha già in mano» è un fatto, «non lo
+     * so» è l'assenza di un fatto — chi deve decidere se premere «Rigenera menu» ha bisogno di
+     * sapere quale dei due sta leggendo.
+     */
+    const inMezzo = intoccabili.filter((g) => quando(g) >= primoColpito);
+    const aperti = inMezzo.filter(laClienteLHaAperto).map(quando);
+    if (aperti.length) {
+      return { esito: 'bloccata', daQuando: new Date(primoColpito), apertoIl: new Date(Math.min(...aperti)) };
+    }
+    return { esito: 'non_lo_so', daQuando: new Date(primoColpito), dalGiorno: new Date(Math.min(...inMezzo.map(quando))) };
+  }
+
+  const daQuando = new Date(Math.min(...daRifare.map(quando)));
+  const coda = tuttiIGiorni.filter((g) => quando(g) >= daQuando.getTime());
+  return { esito: 'coda', giorni: coda, daQuando, lasciatiIndietro: colpiti.length - daRifare.length };
 }
 
 /**
@@ -198,11 +337,15 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
  * colpita per prima, e alle altre cancellerebbe giornate che nessun divieto tocca. E una bloccata
  * **non blocca le altre**: chi ha un giorno già aperto in mezzo resta indietro da sola, e viene
  * contata a parte perché qualcuno possa guardarla.
+ *
+ * ⚠️ **Tre elenchi e non due**: `nonSapute` sono le clienti di cui non possiamo sapere se hanno
+ * aperto (app vecchia). Metterle insieme alle bloccate direbbe al capo una cosa falsa — «il menu le
+ * è già arrivato» — su una persona di cui non sappiamo niente. È lo stesso errore, un piano più su.
  */
 export function codePerCliente(
   tuttiIGiorni: readonly GiornoDaValutare[],
   colpito: Colpito,
-): { daCancellare: GiornoDaValutare[]; bloccate: string[] } {
+): { daCancellare: GiornoDaValutare[]; bloccate: string[]; nonSapute: string[]; lasciatiIndietro: number } {
   const perCliente = new Map<string, GiornoDaValutare[]>();
   for (const g of tuttiIGiorni) {
     const suoi = perCliente.get(g.clientId);
@@ -212,10 +355,21 @@ export function codePerCliente(
 
   const daCancellare: GiornoDaValutare[] = [];
   const bloccate: string[] = [];
+  const nonSapute: string[] = [];
+  /**
+   * ⚠️ **I colpiti rimasti indietro si sommano anche qui** (26/8, in revisione): `codaDaRifare` li
+   * conta e questa funzione li buttava via, quindi la regola di dieta non poteva dire «per alcune la
+   * giornata più vicina col piatto vietato resta» mentre la chat lo diceva. Due punti che rispondono
+   * alla stessa domanda, e uno dei due aveva perso il dato per strada.
+   */
+  let lasciatiIndietro = 0;
   for (const [clientId, suoi] of perCliente) {
     const esito = codaDaRifare(suoi, colpito);
-    if (esito.esito === 'coda') daCancellare.push(...esito.giorni);
-    else if (esito.esito === 'bloccata') bloccate.push(clientId);
+    if (esito.esito === 'coda') {
+      daCancellare.push(...esito.giorni);
+      lasciatiIndietro += esito.lasciatiIndietro;
+    } else if (esito.esito === 'bloccata') bloccate.push(clientId);
+    else if (esito.esito === 'non_lo_so') nonSapute.push(clientId);
   }
-  return { daCancellare, bloccate };
+  return { daCancellare, bloccate, nonSapute, lasciatiIndietro };
 }

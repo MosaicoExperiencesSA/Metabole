@@ -17,15 +17,23 @@
  *
  * ## Perché conta
  *
- * Ogni percorso che «rifà i giorni non ancora aperti» (i divieti dettati a Vera, gli spuntini, le
- * proteine, la regola di dieta) filtra su `viewedAt`. Se è valorizzato ovunque, quei percorsi
- * **non trovano mai niente da rifare** — e la nutrizionista legge «Nei giorni già preparati non ce
- * n'era: non ho toccato niente» mentre il piatto vietato è nel menu di domani. La frase è falsa e
- * non lo sembra: è il modo peggiore in cui una funzione può essere rotta.
+ * Fino al 26/8 ogni percorso che «rifà i giorni non ancora aperti» (i divieti dettati a Vera, gli
+ * spuntini, le proteine, la regola di dieta) filtrava su `viewedAt`. Essendo valorizzato ovunque,
+ * quei percorsi **non trovavano mai niente da rifare** — e la nutrizionista leggeva «Nei giorni già
+ * preparati non ce n'era: non ho toccato niente» mentre il piatto vietato era nel menu di domani. La
+ * frase era falsa e non lo sembrava: è il modo peggiore in cui una funzione può essere rotta.
  *
- * ⚠️ **Questo script non ripara e non decide: conta.** Cosa debba voler dire «aperto» è una scelta
- * di prodotto (voce `visto-non-vuol-dire-aperto`), e va fatta con questo numero davanti invece che
- * sulla parola di chi ha letto il codice — compresa la mia.
+ * ## ⚠️ COSA È CAMBIATO IL 26/8, e perché questo script serve ancora — anzi, di più
+ *
+ * La decisione è stata presa (voce `visto-non-vuol-dire-aperto`): adesso decide
+ * `aperto_dalla_cliente_il`, che scrive l'app quando la cliente sta guardando **quel** giorno, e
+ * `aperture_tracciate` dice se di quel giorno possiamo saperlo. ⛔ **Quindi la prima metà di questo
+ * script misura ormai la STORIA** (quanto era rotto), e la seconda misura la cosa viva: quante righe
+ * sono ancora «non lo so», cioè quanto manca perché la correzione automatica riparta davvero. Chi
+ * lancia questo strumento il giorno dopo il rilascio deve leggere la seconda metà, non la prima.
+ *
+ * ⚠️ **Questo script non ripara e non decide: conta.** *Misurare prima di decidere* vale anche
+ * dopo — soprattutto dopo, perché è così che si sa se una correzione è arrivata nel piatto.
  *
  *   npm run diag:visto
  */
@@ -39,8 +47,14 @@ async function main() {
 
   const futuri = (await prisma.menuDay.findMany({
     where: { date: { gte: oggi } },
-    select: { clientId: true, date: true, viewedAt: true, visibleFrom: true },
-  })) as { clientId: string; date: Date; viewedAt: Date | null; visibleFrom: Date }[];
+    select: {
+      clientId: true, date: true, viewedAt: true, visibleFrom: true,
+      apertoDallaClienteIl: true, apertureTracciate: true,
+    } as never,
+  })) as {
+    clientId: string; date: Date; viewedAt: Date | null; visibleFrom: Date;
+    apertoDallaClienteIl: Date | null; apertureTracciate: boolean;
+  }[];
 
   if (!futuri.length) {
     console.log('Nessun giorno di menu da oggi in avanti: non c\'è niente da contare.');
@@ -96,8 +110,35 @@ async function main() {
   console.log(
     `\nCosa vuol dire: su ${pct(conTuttoVisto.length, clienti.size)} delle clienti (${conTuttoVisto.length} su ` +
       `${clienti.size}) il comando «rifai i giorni già preparati» NON troverà niente da rifare, ` +
-      'qualunque cosa detti la nutrizionista. Per loro Vera risponde «non ce n\'era» — che è la frase ' +
-      'che stiamo correggendo — e il piatto vietato resta nei menu già in calendario.',
+      'qualunque cosa detti la nutrizionista, SE si guardasse ancora `viewedAt`. È la misura di ' +
+      'quanto era rotto prima del 26/8, e serve a non dimenticarlo.',
+  );
+
+  /**
+   * ⛔ **LA MISURA VIVA: QUANTO PESA ANCORA «NON LO SO»** (26/8).
+   *
+   * Dal 26/8 la domanda è un'altra: non «quanti risultano visti» ma «di quanti **possiamo** dirlo».
+   * `aperture_tracciate` nasce `false` su ogni riga esistente e diventa `true` solo sulle giornate
+   * composte **dopo** che il telefono di quella cliente ha mandato il primo segnale. ⚠️ Finché questo
+   * numero è alto, i rifacimenti automatici sono fermi — e Vera lo dice a voce, il che è il punto
+   * della correzione; ma chi guarda i numeri deve poter vedere se sta scendendo o no. Se dopo una
+   * settimana non scende, il segnale dall'app non sta arrivando e va guardato lì.
+   */
+  const nonSappiamo = futuri.filter((g) => !g.apertureTracciate);
+  const apertiDavvero = futuri.filter((g) => g.apertoDallaClienteIl);
+  const rifacibili = futuri.filter((g) => g.apertureTracciate && !g.apertoDallaClienteIl);
+  const profiliConSegnale = await prisma.clientProfile.count({ where: { apertureDal: { not: null } } as never });
+  const profiliTotali = await prisma.clientProfile.count();
+
+  console.log('\n─────────── e adesso la misura che conta (dal 26/8) ───────────\n');
+  console.log(`Giorni futuri di cui NON possiamo sapere se li ha aperti: ${nonSappiamo.length} (${pct(nonSappiamo.length, futuri.length)})`);
+  console.log(`Giorni futuri che la cliente ha APERTO davvero:           ${apertiDavvero.length} (${pct(apertiDavvero.length, futuri.length)})`);
+  console.log(`Giorni futuri che si possono ancora rifare da soli:       ${rifacibili.length} (${pct(rifacibili.length, futuri.length)})`);
+  console.log(`Clienti la cui app manda il segnale:                     ${profiliConSegnale} su ${profiliTotali} (${pct(profiliConSegnale, profiliTotali)})`);
+  console.log(
+    '\n⚠️ «Non lo so» non è «non l\'ha aperto»: quei giorni non si toccano, e Vera lo dice invece di ' +
+      'far finta che non ci fosse niente da rifare. Il numero da guardare nel tempo è l\'ultimo: ' +
+      'finché le app non sono aggiornate, il primo resta alto per forza.',
   );
 }
 

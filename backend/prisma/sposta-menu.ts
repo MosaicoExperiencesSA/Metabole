@@ -23,9 +23,14 @@
  * ⛔ **Non va all'indietro.** Uno spostamento verso il passato riscriverebbe giorni già vissuti e
  * potrebbe finire sopra giornate che ci sono già. Se serve, è un'altra operazione e va guardata in
  * faccia — non un segno meno in un argomento.
- * ⛔ **Non tocca `viewedAt`.** Se una giornata le era già arrivata in app, quel fatto è successo:
- * cancellarlo vorrebbe dire dire che non è mai stato mostrato. Lo script lo **stampa**, perché
- * spostare un giorno che lei ha già aperto è una decisione di chi preme, non dello script.
+ * ⛔ **Non tocca né `viewedAt` né `aperto_dalla_cliente_il`.** Se una giornata le era già arrivata
+ * in app, o se l'ha davvero aperta, quei fatti sono successi: cancellarli vorrebbe dire dire che non
+ * sono mai accaduti. Lo script li **stampa**, perché spostare un giorno che lei ha già aperto è una
+ * decisione di chi preme, non dello script.
+ * ⚠️ **E il segno che conta è «l'ha aperto», non «gliel'abbiamo mostrato»** (26/8, voce
+ * `visto-non-vuol-dire-aperto`): `viewedAt` lo scrive `getMenu` su tutti i trenta giorni della
+ * finestra, futuri compresi, quindi comparirebbe su quasi ogni riga ed è rumore. Si stampano tutti e
+ * due, distinti — uno è un fatto sulla cliente, l'altro un fatto sull'app.
  * ⛔ **Non tocca i check-in, le pesate, i voti sui piatti.** Sono il racconto di quello che è
  * successo in quel giorno: spostare il menu non sposta la giornata che una persona ha vissuto. ⚠️ Se
  * su una giornata da spostare c'è un check-in, lo script lo dice: è il segno che quel giorno lei
@@ -62,6 +67,8 @@ interface Giornata {
   date: Date;
   visibleFrom: Date;
   viewedAt: Date | null;
+  apertoDallaClienteIl?: Date | null;
+  apertureTracciate?: boolean;
   status: string;
 }
 
@@ -97,7 +104,7 @@ async function main(): Promise<void> {
   const daSpostare = (await prisma.menuDay.findMany({
     where: { clientId: user.id, date: { gte: da } },
     orderBy: { date: 'asc' },
-    select: { id: true, date: true, visibleFrom: true, viewedAt: true, status: true },
+    select: { id: true, date: true, visibleFrom: true, viewedAt: true, apertoDallaClienteIl: true, apertureTracciate: true, status: true } as never,
   })) as unknown as Giornata[];
 
   if (daSpostare.length === 0) {
@@ -199,7 +206,11 @@ async function main(): Promise<void> {
   for (const g of daSpostare) {
     const nuova = new Date(g.date.getTime() + passo);
     const note = [
-      g.viewedAt ? '👁 già arrivata in app' : null,
+      // ⚠️ Prima: solo `viewedAt`, cioè «gliel'abbiamo mostrata» — vera su quasi tutte, quindi
+      // inservibile per decidere. Il dato che serve a chi preme è il primo dei tre.
+      g.apertoDallaClienteIl ? '⛔ L\'HA APERTA lei: spostarla è una tua decisione' : null,
+      !g.apertoDallaClienteIl && g.apertureTracciate === false ? '❔ non so dire se l\'ha aperta (app non aggiornata)' : null,
+      g.viewedAt ? '👁 gliel\'abbiamo mostrata nella lista' : null,
       checkin.has(giorno(g.date)) ? '⚠️ ha il check-in di quel giorno: forse l\'ha vissuto davvero' : null,
       g.status !== 'planned' ? `stato: ${g.status}` : null,
     ].filter(Boolean);

@@ -133,7 +133,10 @@ describe('RegistroVeraService.menuDaRifare', () => {
     const giorni = await service.menuDaRifare('c1');
 
     const where = findMany.mock.calls[0][0].where;
-    expect(where.viewedAt).toBeNull();
+    // ⚠️ 26/8: la domanda è la stessa, il campo no — «non aperto» E «di questa cliente lo sappiamo».
+    expect(where.apertoDallaClienteIl).toBeNull();
+    expect(where.apertureTracciate).toBe(true);
+    expect(where).not.toHaveProperty('viewedAt');
     // ⚠️ `date: { gte: oggi }`: per i giorni erogati PRIMA che la colonna esistesse, `viewedAt`
     // null non vuol dire «non visto» — vuol dire «non lo so». Rifarli sarebbe cambiare sotto i
     // piedi un menu che la cliente può aver già letto e su cui ha fatto la spesa.

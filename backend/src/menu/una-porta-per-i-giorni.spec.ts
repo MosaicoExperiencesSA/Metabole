@@ -78,10 +78,18 @@ function tuttiIFile(radice: string): string[] {
 }
 
 /**
- * ⛔ La forma esatta del difetto delle proteine: `deleteMany` con `viewedAt: null` dentro il `where`.
- * Cancella i giorni non ancora arrivati e lascia in piedi quelli già mandati all'app.
+ * ⛔ La forma esatta del difetto delle proteine: `deleteMany` con «solo i non aperti» dentro il
+ * `where`. Cancella i giorni non ancora arrivati e lascia in piedi quelli già mandati all'app.
+ *
+ * ⚠️ **E il difetto ha tre nomi, non uno** (26/8): fino al 26/8 la riga sbagliata si scriveva
+ * `viewedAt: null`; dalla voce `visto-non-vuol-dire-aperto` la stessa cosa si scrive
+ * `apertoDallaClienteIl: null` oppure, in forma abbreviata, `...CHE_SI_POSSONO_RIFARE`. ⛔ Una
+ * sentinella che pinza il nome vecchio resta verde per sempre mentre il difetto torna sotto il nome
+ * nuovo — che è **esattamente** l'errore che questa consegna ha corretto altrove, e che qui stava
+ * per ripetersi nel guardiano.
  */
-const CANCELLA_I_NON_APERTI = /\.delete(?:Many)?\s*\(\s*\{[\s\S]{0,200}?viewedAt:\s*null/;
+const CANCELLA_I_NON_APERTI =
+  /\.delete(?:Many)?\s*\(\s*\{[\s\S]{0,200}?(viewedAt:\s*null|apertoDallaClienteIl:\s*null|CHE_SI_POSSONO_RIFARE)/;
 
 describe('⛔ nessuno cancella un giorno di menu senza dichiarare perché è una coda', () => {
   /**
@@ -156,5 +164,19 @@ describe('⛔ nessuno cancella un giorno di menu senza dichiarare perché è una
       ".deleteMany({ where: { clientId: stato.clienteId!, viewedAt: null, date: { gte: daQuandoSiPuoRifare() } } })";
     expect(CANCELLA_I_NON_APERTI.test(com_era)).toBe(true);
     expect(CANCELLA.test('await this.prisma.menuDay.deleteMany({ where: { clientId } });')).toBe(true);
+  });
+
+  /**
+   * ⛔ **E RICONOSCE ANCHE I DUE NOMI NUOVI** (26/8). Dopo `visto-non-vuol-dire-aperto` la stessa
+   * riga sbagliata si scrive con il campo nuovo, o con la scorciatoia `CHE_SI_POSSONO_RIFARE`: senza
+   * questa prova la sentinella sarebbe rimasta verde per sempre sorvegliando un nome morto.
+   */
+  it('⛔ e riconosce la stessa riga scritta coi nomi del 26/8', () => {
+    expect(CANCELLA_I_NON_APERTI.test(
+      ".deleteMany({ where: { clientId, apertoDallaClienteIl: null, date: { gte: daQuandoSiPuoRifare() } } })",
+    )).toBe(true);
+    expect(CANCELLA_I_NON_APERTI.test(
+      ".deleteMany({ where: { clientId, ...CHE_SI_POSSONO_RIFARE, date: { gte: daQuandoSiPuoRifare() } } })",
+    )).toBe(true);
   });
 });

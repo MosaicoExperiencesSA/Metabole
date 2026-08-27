@@ -508,6 +508,20 @@ export class MonitoringService {
     // Il giorno di Roma (era `setHours`, cioè il fuso del processo): questi giorni si ricreano «da
     // domani», e con il calendario spostato «domani» poteva essere oggi.
     const today = aGiorno(new Date());
+    /**
+     * ⛔ **ANCHE QUESTE GIORNATE DEVONO SAPERE SE POSSIAMO SAPERLO** (26/8, voce
+     * `visto-non-vuol-dire-aperto`). Il kit di rientro crea `MenuDay` per conto suo, e senza questa
+     * riga nascevano con `apertureTracciate` a `false` — cioè «non lo so» **per sempre**, anche per
+     * una cliente il cui telefono manda il segnale da mesi. Conseguenza: i suoi giorni di rientro
+     * non si sarebbero mai potuti rifare da soli, e — peggio — avrebbero bloccato la coda di tutti
+     * quelli dopo. Un campo dimenticato in un secondo punto di creazione è il modo classico in cui
+     * una regola nuova smette di valere senza che nessuno se ne accorga.
+     */
+    const profiloAperture = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { apertureDal: true } as never,
+    })) as { apertureDal?: Date | null } | null;
+    const apertureTracciate = !!profiloAperture?.apertureDal;
     let createdCount = 0;
     for (let i = 0; i < Math.min(picked.length, giorni); i++) {
       const target = new Date(today.getTime() + (i + 1) * 86_400_000);
@@ -524,6 +538,7 @@ export class MonitoringService {
             meals: pasti as never,
             status: 'planned',
             visibleFrom: today,
+            apertureTracciate,
           } as never,
           /**
            * ⛔ **UN GIORNO GIÀ EROGATO NON SI SOVRASCRIVE** (corretto il 23/8, in revisione).

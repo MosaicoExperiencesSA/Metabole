@@ -1,0 +1,90 @@
+«Visto» non voleva dire «aperto»: adesso c'è il segnale vero, e «non lo so» si dice
+
+IL DIFETTO
+`MenuDay.viewedAt` si chiama «visto» e in tutto il progetto veniva letto come
+«l'ha aperto». Non è quello che ci scrive dentro: `getMenu` rende all'app gli
+ultimi trenta giorni VISIBILI — futuri compresi — e subito dopo li segna tutti.
+Bastava che una cliente aprisse l'app una volta perché tutto il suo futuro
+risultasse letto, quindi «rifai i giorni già preparati» non trovava mai niente:
+la nutrizionista dettava «niente pesce» e leggeva «nei giorni già preparati non
+ce n'era: non ho toccato niente» MENTRE il branzino era nel menu di domani. Una
+frase falsa che non sembra falsa.
+
+COSA C'È ADESSO
+Due colonne su `menu_day`:
+· `aperto_dalla_cliente_il` — il segnale vero, che l'app manda quando la cliente
+  sta guardando QUEL giorno;
+· `aperture_tracciate` — se di quel giorno POSSIAMO saperlo (si copia da
+  `client_profile.aperture_dal` alla nascita della giornata).
+E una colonna su `client_profile`: `aperture_dal`, scritta alla prima chiamata.
+
+⛔ MA LA COSA CHE CHIUDE IL DIFETTO NON È LA COLONNA: È IL QUARTO ESITO.
+`codaDaRifare` risponde `niente` / `coda` / `bloccata` / **`non_lo_so`**, e ogni
+percorso che parla lo racconta. Senza quel quarto esito questa correzione
+avrebbe SPOSTATO il difetto invece di chiuderlo: il giorno del rilascio nessuna
+riga è tracciata, quindi Vera avrebbe detto «nei giorni già preparati non ce
+n'era» — testualmente la frase del bug, falsa nello stesso identico caso, con un
+campo nuovo sotto.
+
+LE DUE DOMANDE, SEPARATE
+«Questo giorno è colpito?» (contiene il piatto vietato / lo spuntino / è toccato
+dalle proteine) e «lo posso cancellare?» (l'ha aperto, o non lo sappiamo).
+Erano una sola, e filtrare i colpiti su «mai aperto» faceva sparire proprio i
+giorni di cui bisognava parlare.
+⚠️ E la coda adesso PARTE DOPO l'ultimo giorno intoccabile invece di bloccarsi:
+se lei ha aperto il menu di oggi che ha il piatto vietato e domani ce l'ha
+anche, domani si rifà e oggi si DICE (`lasciatiIndietro`).
+
+I PUNTI CHE LA PRIMA STESURA AVEVA DIMENTICATO (revisione avversariale)
+· **La lista della spesa**: mette in mano alla cliente il contenuto di SETTE
+  giorni futuri e non ne segnava nessuno — cioè il caso che la regola cita per
+  giustificarsi, «magari ci ha già fatto la spesa», ed era l'unico scoperto.
+  Prima `viewedAt` lo copriva per sbaglio; restringere il segnale al giorno
+  guardato lo scopriva. Adesso li segna, in una sola andata al database.
+· **Il kit di rientro** e il **ripristino di `redeliverFutureDays`**: creavano e
+  rimettevano righe senza le due colonne. Giornate «non lo so» per sempre, e un
+  giorno davvero aperto che tornava indietro come non aperto — cioè il danno
+  esatto che questo lavoro esiste per impedire.
+· **Le ore del digiuno**: riducevano la coda a un numero, e un numero non sa dire
+  «non lo so». Con `0` la riga spariva dall'anteprima e il messaggio finale
+  diceva «non c'erano giornate future da rifare»: il caso Lorena, di nuovo, il
+  giorno del rilascio, per tutte.
+· **La giornata dettata per domani**: rispondeva «potrebbe averla già vista, o
+  non essere ancora stata preparata» quando la ragione vera era «non lo so».
+  Adesso i tre motivi si dicono separati.
+· **Il messaggio di annulla nel backoffice**: «quelli che ha già visto restano
+  come sono» era un fatto su una persona di cui non avevamo nessun fatto.
+· **La sentinella** `una-porta-per-i-giorni.spec.ts` sorvegliava solo il nome
+  vecchio (`viewedAt: null`): sarebbe rimasta verde per sempre mentre il difetto
+  tornava sotto `apertoDallaClienteIl: null`.
+· **«Entra come»**: una coach che dà un'occhiata al menu di Anna gliel'avrebbe
+  reso intoccabile. Adesso l'app non manda il segnale in sessione ospite.
+
+MISURATO
+- 5654 test backend verdi in quattro modalità (normale, `TZ=Europe/Rome`,
+  `test:notte`, e le due insieme); app 192; backoffice 149.
+- Mutazioni provate, tutte uccise: togliere «non lo so» da `siPuoCancellare`;
+  spostare il confine della coda (`>` → `>=`); azzerare `lasciatiIndietro`;
+  rimettere il filtro «si può rifare» nella query dei colpiti e nei predicati;
+  togliere `apertureTracciate` dall'erogazione, dal kit di rientro e dal
+  ripristino; togliere il freno dopo errore, il reset al cambio profilo e il
+  controllo «Entra come» dall'app.
+- Due finti sono stati corretti perché non facessero passare tutto: quello di
+  `applica-proposta.spec.ts` filtrava una condizione che il codice non fa più, e
+  `menu.service.spec.ts` non aveva `updateMany` (la scrittura sarebbe fallita e
+  il `catch` l'avrebbe ingoiata, con il test verde su un segnale che non parte).
+
+COSA RESTA, E VA DETTO
+⚠️ Per un paio di giorni dopo il rilascio — e per ogni cliente, per la durata del
+   suo cuscinetto di giornate DOPO che la sua app si è aggiornata — la risposta è
+   «non lo so» e i rifacimenti automatici non partono. Si degrada sempre verso
+   «non tocco»: nessuno perde un menu, si perde un automatismo, e la coach lo fa
+   a mano da «Rigenera menu». `npm run diag:visto` adesso misura anche questo
+   (righe non tracciate, clienti che mandano il segnale): è il numero da guardare
+   per sapere se sta ripartendo.
+⚠️ Il segnale arriva solo con l'app aggiornata: SERVE L'OTA.
+
+MIGRAZIONE
+`20260826200000_aperto_questo_giorno` — tre `ALTER TABLE`, additive. Nessun
+indice nuovo, ed è una scelta scritta nella migrazione: le query che filtrano su
+queste colonne partono sempre da cliente e data, e `(client_id, date)` c'è già.

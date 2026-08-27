@@ -296,8 +296,13 @@ export class VeraController {
   }
 
   /**
-   * Quanti menu futuri questa cliente NON ha ancora visto.
+   * Quanti menu futuri **sappiamo** che questa cliente non ha ancora aperto.
    * Si chiede PRIMA di scrivere, per mostrarle la conseguenza invece di farle indovinare.
+   *
+   * ⚠️ **Un elenco vuoto non vuol dire «li ha aperti tutti»** (26/8, voce
+   * `visto-non-vuol-dire-aperto`): vuol dire «di nessuno di quei giorni posso dirlo», e finché le
+   * app non sono aggiornate è la risposta normale. Chi mostra questo numero deve dirlo così, o
+   * ricomincia da capo il difetto che quella voce ha chiuso: un'assenza raccontata come un fatto.
    */
   @Get('menu-da-rifare/:clientId')
   @RequirePage('nutri_assistant')

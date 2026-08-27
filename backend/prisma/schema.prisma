@@ -459,6 +459,12 @@ model ClientProfile {
   // resta libero una volta al giorno perché non è un gesto clinico. Riusandola, spostare la finestra
   // di mezz'ora avrebbe bloccato le ore per una settimana. NULL = non l'ha mai cambiato.
   fastingProtocolChangedAt DateTime? @map("fasting_protocol_changed_at")
+  // ⛔ DA QUANDO IL SUO TELEFONO SA DIRE «HO APERTO QUESTO GIORNO» (26/8, voce
+  // `visto-non-vuol-dire-aperto`). `null` = non ce l'ha ancora detto mai, e allora su di lei
+  // «non risulta aperto» vuol dire «non lo so», non «non l'ha aperto». Lo scrive da sé la prima
+  // volta che l'app chiama `POST /me/menu/aperto`: nessuna versione da confrontare, nessuna data
+  // di rilascio scritta nel codice — si guarda se il dato c'è.
+  apertureDal            DateTime?  @map("aperture_dal")
   // ⚠️ QUANDO HA SCELTO — e NULL vuol dire «non gliel'abbiamo ancora chiesto», che è una cosa
   // diversa da «non digiuna». È il gemello di `allergieDichiarateIl`, e la ragione è la stessa: un
   // campo vuoto non distingue «non ha risposto» da «ha risposto di no», e senza quella differenza
@@ -1820,11 +1826,29 @@ model MenuDay {
   level        Int      @default(1)
   meals        Json // snapshot [{slot, recipeId, name, kcal}]
   status       String   @default("planned")
-  // §Vera: PRIMA volta che l'app ha restituito questo giorno alla cliente. `null` = non l'ha
-  // ancora visto, ed è l'unico dato che permette di rifare un menu senza cambiarlo sotto i piedi
-  // a chi l'ha gia letto. NON riusare `status`: esiste, ha default "planned" e non lo aggiorna
+  // §Vera: PRIMA volta che l'app ha restituito questo giorno alla cliente, cioè «gliel'abbiamo
+  // mostrato nella lista». ⛔ NON vuol dire «l'ha aperto», e fino al 26/8 tutto il progetto lo
+  // leggeva così: `getMenu` rende trenta giorni e li segna TUTTI, futuri compresi. Chi deve sapere
+  // se un menu si può ancora rifare guarda `aperto_dalla_cliente_il` qui sotto. Questo resta
+  // perché la domanda «gliel'abbiamo mostrato?» è vera e la legge qualcun altro.
+  // NON riusare `status`: esiste, ha default "planned" e non lo aggiorna
   // nessuno — sembra un flag di stato e non lo e.
   viewedAt     DateTime? @map("viewed_at")
+  // ⛔ QUANDO LA CLIENTE HA APERTO **QUESTO** GIORNO (26/8, voce `visto-non-vuol-dire-aperto`).
+  // ⚠️ Sta ACCANTO a `viewedAt`, non al posto suo: quello continua a voler dire «gliel'abbiamo
+  // mostrato nella lista», che è una cosa vera e che qualcuno legge. Erano due domande diverse
+  // sotto un nome solo, ed è per questo che «rifai i giorni già preparati» non trovava mai niente:
+  // `getMenu` rende trenta giorni e li segna TUTTI visti, quindi bastava che lei aprisse l'app una
+  // volta perché tutto il suo futuro risultasse «letto».
+  apertoDallaClienteIl DateTime? @map("aperto_dalla_cliente_il")
+  // ⛔ E QUESTO DICE SE DI QUESTO GIORNO POSSIAMO SAPERLO. Si scrive alla nascita della giornata,
+  // copiando `ClientProfile.apertureDal`: `false` = la sua app, quando questo menu è stato
+  // composto, non sapeva ancora dirlo → `apertoDallaClienteIl` nullo vuol dire «non lo so» e il
+  // giorno **non si tocca**. ⚠️ Sta sulla GIORNATA e non solo sul profilo perché le query che
+  // cercano i giorni da rifare girano anche **per dieta**, su molte clienti insieme: senza questa
+  // colonna ognuna vorrebbe il suo profilo, e una domanda che oggi è un `where` diventerebbe un
+  // giro di letture.
+  apertureTracciate Boolean @default(false) @map("aperture_tracciate")
   visibleFrom  DateTime @map("visible_from") @db.Date
   sourceRuleId String?  @map("source_rule_id") // valorizzato dal motore (M5)
   createdAt    DateTime @default(now()) @map("created_at")

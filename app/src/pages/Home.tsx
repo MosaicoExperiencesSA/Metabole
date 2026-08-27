@@ -20,6 +20,7 @@ import AppHeader from '../components/AppHeader';
 import { slotInfo, type ApiMeal, type ApiMenuDay } from '../lib/meals';
 import { TypeText } from '../components/TypeText';
 import { oggiIso } from '../lib/giorno';
+import { segnaGiornoAperto } from '../lib/giorno-aperto';
 
 interface Today {
   checkinDone: boolean;
@@ -228,6 +229,14 @@ export default function Home() {
         : (r.days ?? []).find((d) => d.date.slice(0, 10) === iso);
       setMeals(day?.meals ?? []);
       setMenuStatus(r.status ?? null);
+      /**
+       * ⛔ **Il menu di oggi è sullo schermo: è aperto** (26/8). Solo se c'è davvero **e ha dei
+       * pasti dentro**: a piano concluso, in attesa, o con una giornata vuota qui non si vede
+       * niente, e segnare un'apertura che non è avvenuta sarebbe lo stesso difetto che questo
+       * segnale esiste per togliere — con la conseguenza peggiore, perché quel giorno diventerebbe
+       * intoccabile per i rifacimenti senza che lei abbia visto una riga.
+       */
+      if (day?.meals?.length) segnaGiornoAperto(day.date);
     }).catch(() => setMeals([]));
   }, []);
 

@@ -7,7 +7,7 @@
  */
 import {
   etichettaSpuntino,
-  giorniDaRifarePerPasti,
+  giorniColpitiDaiPasti,
   leggiPasti,
   leggiQualeSpuntino,
   pastiDopo,
@@ -72,13 +72,20 @@ describe('etichettaSpuntino', () => {
   });
 });
 
-describe('giorniDaRifarePerPasti', () => {
+describe('giorniColpitiDaiPasti', () => {
   const oggi = new Date('2026-08-13T12:00:00Z');
-  const giorno = (id: string, date: string, slots: string[], visto = false) => ({
+  /**
+   * ⚠️ **`apertureTracciate: true` è la premessa, e va detta** (26/8): dal 26/8 «aperto» lo dichiara
+   * l'app della cliente, e su un giorno di cui non lo sappiamo la risposta è sempre «non si tocca».
+   * Qui si misura cosa succede **quando lo sappiamo**; l'altro caso ha i suoi test in
+   * `menu-da-rifare.spec.ts`.
+   */
+  const giorno = (id: string, date: string, slots: string[], aperto = false) => ({
     id,
     clientId: 'c1',
     date: new Date(date),
-    viewedAt: visto ? new Date(date) : null,
+    apertoDallaClienteIl: aperto ? new Date(date) : null,
+    apertureTracciate: true,
     meals: slots.map((slot) => ({ slot, recipeId: `r-${slot}` })),
   });
 
@@ -92,23 +99,29 @@ describe('giorniDaRifarePerPasti', () => {
    */
   it('⚠️ la giornata di OGGI, se non l\'ha ancora aperta, si rifà', () => {
     const giorni = [giorno('oggi', '2026-08-13', ['breakfast', 'afternoon_snack'])];
-    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['oggi']);
+    expect(giorniColpitiDaiPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['oggi']);
   });
 
-  /** ⚠️ Ma se l'ha già aperta no, e su questo il confine non c'entra: magari ha già fatto la spesa. */
-  it('⚠️ la giornata di oggi GIÀ APERTA resta sua', () => {
+  /**
+   * ⛔ **UNA GIORNATA GIÀ APERTA È COLPITA LO STESSO** (26/8). Fino a ieri qui la risposta era `[]`,
+   * e quel vuoto arrivava alla nutrizionista come «nessuna giornata già preparata da rifare» —
+   * mentre la merenda in quel giorno c'era. «È colpita?» e «la posso cancellare?» sono due domande:
+   * la seconda la risponde `codaDaRifare`, che sulla giornata già aperta dice «bloccata» e lo
+   * spiega. Mescolarle è come è nato il difetto che questa modifica chiude.
+   */
+  it('⛔ la giornata di oggi GIÀ APERTA è colpita: a non toccarla ci pensa la coda', () => {
     const giorni = [giorno('oggi', '2026-08-13', ['breakfast', 'afternoon_snack'], true)];
-    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'togli')).toEqual([]);
+    expect(giorniColpitiDaiPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['oggi']);
   });
 
-  it('togli: solo i giorni futuri non aperti che CONTENGONO lo spuntino', () => {
+  it('togli: i giorni da oggi in poi che CONTENGONO lo spuntino', () => {
     const giorni = [
       giorno('ieri', '2026-08-12', ['breakfast', 'afternoon_snack']),          // passato: no
-      giorno('visto', '2026-08-14', ['breakfast', 'afternoon_snack'], true),   // già aperto: no
+      giorno('visto', '2026-08-14', ['breakfast', 'afternoon_snack'], true),   // colpito: lo decide la coda
       giorno('si', '2026-08-15', ['breakfast', 'afternoon_snack']),            // sì
       giorno('senza', '2026-08-16', ['breakfast', 'lunch']),                   // non lo contiene: no
     ];
-    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['si']);
+    expect(giorniColpitiDaiPasti(giorni, ['afternoon_snack'], oggi, 'togli').map((g) => g.id)).toEqual(['visto', 'si']);
   });
 
   it('rimetti: il criterio si ribalta — i giorni a cui MANCA', () => {
@@ -116,6 +129,6 @@ describe('giorniDaRifarePerPasti', () => {
       giorno('manca', '2026-08-15', ['breakfast', 'lunch']),
       giorno('ce-l-ha', '2026-08-16', ['breakfast', 'afternoon_snack']),
     ];
-    expect(giorniDaRifarePerPasti(giorni, ['afternoon_snack'], oggi, 'rimetti').map((g) => g.id)).toEqual(['manca']);
+    expect(giorniColpitiDaiPasti(giorni, ['afternoon_snack'], oggi, 'rimetti').map((g) => g.id)).toEqual(['manca']);
   });
 });

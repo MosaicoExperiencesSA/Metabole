@@ -33,6 +33,9 @@ describe('MonitoringService · le giornate del kit di rientro', () => {
   beforeEach(async () => {
     prisma = {
       menuDay: { findMany: jest.fn().mockResolvedValue([giornataVecchia]), upsert: jest.fn().mockResolvedValue({}) },
+      // ⚠️ Il kit di rientro legge `apertureDal` per scrivere `apertureTracciate` sulle giornate che
+      // crea (26/8): senza questo finto la lettura esplode, e un finto che manca fa passare tutto.
+      clientProfile: { findUnique: jest.fn().mockResolvedValue({ apertureDal: new Date('2026-08-01') }) },
       cycleFeedback: { findMany: jest.fn().mockResolvedValue([]) },
       measurement: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -79,6 +82,24 @@ describe('MonitoringService · le giornate del kit di rientro', () => {
    * La regola nuova è quella di `deliverIfEligible`: un menu che è già in mano a qualcuno non si
    * tocca. Il kit riempie i giorni vuoti, che è quello che serve.
    */
+  /**
+   * ⛔ **IL KIT DI RIENTRO È IL SECONDO POSTO CHE CREA `MenuDay`** (26/8, voce
+   * `visto-non-vuol-dire-aperto`). Senza copiare `apertureTracciate` dal profilo, queste giornate
+   * nascevano «non lo so» **per sempre** — anche per una cliente il cui telefono manda il segnale da
+   * mesi. Conseguenza: non si sarebbero mai potute rifare da sole, e avrebbero bloccato la coda di
+   * tutte quelle dopo. È così che una regola nuova smette di valere senza che nessuno se ne accorga.
+   */
+  it('⛔ le giornate del kit dicono se di loro possiamo saperlo', async () => {
+    await service.generateRientroMenus('c1');
+    expect(prisma.menuDay.upsert.mock.calls[0][0].create.apertureTracciate).toBe(true);
+  });
+
+  it('⚠️ e se la sua app non manda ancora il segnale, restano «non lo so»', async () => {
+    prisma.clientProfile.findUnique.mockResolvedValue({ apertureDal: null });
+    await service.generateRientroMenus('c1');
+    expect(prisma.menuDay.upsert.mock.calls[0][0].create.apertureTracciate).toBe(false);
+  });
+
   it('⛔ un giorno già erogato NON si sovrascrive: il ramo `update` è vuoto', async () => {
     await service.generateRientroMenus('c1');
     const chiamata = prisma.menuDay.upsert.mock.calls[0][0];

@@ -20,6 +20,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-26
 
+- `[Sviluppo]` **«Visto» non voleva dire «aperto»: adesso c'è il segnale vero, e «non lo so» si
+  dice.** `MenuDay.viewedAt` si chiama «visto» e in tutto il progetto veniva letto come «l'ha
+  aperto». Non è quello che ci scrive dentro: `getMenu` rende all'app gli ultimi trenta giorni
+  **visibili** — futuri compresi — e subito dopo li segna tutti. Bastava che una cliente aprisse
+  l'app una volta perché tutto il suo futuro risultasse letto, quindi «rifai i giorni già
+  preparati» non trovava mai niente: la nutrizionista dettava «niente pesce» e leggeva «nei giorni
+  già preparati non ce n'era: non ho toccato niente» **mentre il branzino era nel menu di domani**.
+  Una frase falsa che non sembra falsa. Adesso due colonne su `menu_day` —
+  `aperto_dalla_cliente_il` (il segnale che l'app manda quando la cliente sta guardando **quel**
+  giorno) e `aperture_tracciate` (se di quel giorno **possiamo** saperlo) — più `aperture_dal` sul
+  profilo.
+  ⛔ **Ma la cosa che chiude il difetto non è la colonna: è il QUARTO ESITO.** `codaDaRifare`
+  risponde `niente` / `coda` / `bloccata` / **`non_lo_so`**, e ogni percorso che parla lo racconta.
+  Senza, il giorno del rilascio — quando nessuna riga è ancora tracciata — Vera avrebbe detto «non
+  ce n'era»: *testualmente la frase del bug*, falsa nello stesso caso, con un campo nuovo sotto. La
+  correzione avrebbe **spostato** il difetto invece di chiuderlo.
+  ⚠️ **Le due domande sono state separate**: «è colpito?» e «lo posso cancellare?». Erano una sola,
+  e filtrare i colpiti su «mai aperto» faceva sparire proprio i giorni di cui bisognava parlare. E
+  la coda adesso **parte dopo l'ultimo giorno intoccabile** invece di bloccarsi: se ha aperto il
+  menu di oggi col piatto vietato e domani ce l'ha anche, domani si rifà e oggi si **dice**.
+  ⚠️ **Quello che la prima stesura aveva dimenticato**, trovato in revisione avversariale: la
+  **lista della spesa** metteva in mano alla cliente sette giorni futuri senza segnarne nessuno —
+  cioè **il caso che la regola cita per giustificarsi** («magari ci ha già fatto la spesa»), e
+  l'unico scoperto; il **kit di rientro** e il **ripristino** di `redeliverFutureDays` creavano
+  righe senza le due colonne; le **ore del digiuno** riducevano la coda a un numero e dicevano «non
+  c'erano giornate da rifare» (il caso Lorena, di nuovo); la **giornata dettata** dava una ragione
+  inventata; il messaggio di **annulla nel backoffice** dava per visto ciò che non sapeva; la
+  **sentinella** sorvegliava solo il nome vecchio; e chi guarda con **«Entra come»** apriva i giorni
+  di una cliente al posto suo.
+  ⚠️ **Cosa resta:** per un paio di giorni — e per ogni cliente per la durata del suo cuscinetto,
+  **dopo** che la sua app si è aggiornata — la risposta è «non lo so» e i rifacimenti automatici non
+  partono. Si degrada sempre verso «non tocco»: nessuno perde un menu, si perde un automatismo, e la
+  coach lo fa a mano da «Rigenera menu». `npm run diag:visto` adesso misura anche questo. **Serve
+  l'OTA**: il segnale lo manda l'app.
+  5654 test backend verdi in quattro modalità (+ app 192, backoffice 149); undici mutazioni provate,
+  tutte uccise; due finti corretti perché non facessero passare tutto. Migrazione
+  `20260826200000_aperto_questo_giorno` (tre `ALTER TABLE`, additive; nessun indice nuovo, e il
+  perché è scritto lì).
+
 - `[Sviluppo]` **La CI non paga più per i push che non compilano niente.** Il 26/8 i job di GitHub
   Actions hanno smesso di partire («Run failed at startup: No jobs were run») e cinque check sono
   stati annullati in blocco: non era il nostro codice, erano i **minuti del mese finiti** — e su

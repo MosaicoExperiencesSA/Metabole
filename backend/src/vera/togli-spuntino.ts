@@ -17,7 +17,7 @@
  * giornata diversa da quella che voleva.
  */
 
-import { type GiornoDaValutare, siPuoRifare } from './menu-da-rifare';
+import { type GiornoDaValutare, daOggiInPoi } from './menu-da-rifare';
 
 export type Spuntino = 'morning_snack' | 'afternoon_snack';
 export const SPUNTINI: readonly Spuntino[] = ['morning_snack', 'afternoon_snack'];
@@ -103,11 +103,16 @@ const slotDelGiorno = (meals: unknown): string[] =>
     : [];
 
 /**
- * I giorni da rifare: futuri, MAI aperti (`viewedAt` nullo — la regola dell'annulla del §6.2), e
- * toccati davvero dalla decisione. Per il «togli» sono quelli che CONTENGONO lo spuntino; per il
- * «rimetti» il criterio si ribalta — quelli a cui MANCA, perché vanno ricomposti per riaverlo.
+ * I giorni **colpiti** dalla decisione sugli spuntini: futuri e toccati davvero. Per il «togli» sono
+ * quelli che CONTENGONO lo spuntino; per il «rimetti» il criterio si ribalta — quelli a cui MANCA,
+ * perché vanno ricomposti per riaverlo.
+ *
+ * ⛔ **Non chiede più «si può rifare?», e fino al 26/8 lo chiedeva.** Quella è la seconda domanda e
+ * la risponde `codaDaRifare`, che sui giorni di cui non sappiamo niente sa dire **«non lo so»**
+ * invece di far sparire i colpiti e lasciare al chiamante la frase «non ce n'era». Un filtro che
+ * nasconde i colpiti non protegge nessuno: fa solo raccontare una cosa falsa.
  */
-export function giorniDaRifarePerPasti(
+export function giorniColpitiDaiPasti(
   giorni: readonly GiornoConPasti[],
   slots: readonly Spuntino[],
   oggi: Date,
@@ -115,13 +120,13 @@ export function giorniDaRifarePerPasti(
 ): GiornoConPasti[] {
   return giorni.filter((g) => {
     /**
-     * ⚠️ **La giornata di oggi si rifà** (19/8, decisione di Simone), e la risposta a «si può ancora
-     * rifare?» adesso è **una sola** (`siPuoRifare`). Qui il confine era «da domani» mentre negli
-     * altri due punti era «da oggi»: su una cliente che non aveva ancora aperto il menu di oggi,
-     * toglierle lo spuntino non lo toglieva oggi ma vietarle un alimento sì — due comportamenti
-     * diversi, nessuno dei due scritto come scelta.
+     * ⚠️ **La giornata di oggi si rifà** (19/8, decisione di Simone), e il confine è scritto in un
+     * posto solo (`daOggiInPoi` → `daQuandoSiPuoRifare`). Qui era «da domani» mentre negli altri due
+     * punti era «da oggi»: su una cliente che non aveva ancora aperto il menu di oggi, toglierle lo
+     * spuntino non lo toglieva oggi ma vietarle un alimento sì — due comportamenti diversi, nessuno
+     * dei due scritto come scelta.
      */
-    if (!siPuoRifare(g, oggi)) return false;
+    if (!daOggiInPoi(g, oggi)) return false;
     const presenti = slotDelGiorno(g.meals);
     return azione === 'togli'
       ? slots.some((s) => presenti.includes(s))

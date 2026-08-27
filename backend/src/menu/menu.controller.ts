@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   IsArray,
   IsBoolean,
@@ -17,6 +17,15 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { DataInizioChatService } from './data-inizio-chat.service';
 import { MenuService } from './menu.service';
+
+/**
+ * ⚠️ **La data è obbligatoria e si valida.** «Segna aperto il giorno che stai guardando» senza dire
+ * quale sarebbe di nuovo la domanda sbagliata — quella a cui `viewedAt` rispondeva.
+ */
+class GiornoApertoDto {
+  @IsDateString({}, { message: 'Giorno non valido.' })
+  giorno!: string;
+}
 
 class RateRecipeDto {
   @IsString({ message: 'Ricetta non riconosciuta: riprova dal menu.' })
@@ -108,6 +117,33 @@ export class MenuController {
   @Patch('plan-start')
   spostaInizio(@CurrentUser() user: AuthUser, @Body() dto: SpostaInizioDto) {
     return this.dataInizio.spostaDaApp(user.sub, dto.data.trim());
+  }
+
+  /**
+   * ⛔ **«HO APERTO QUESTO GIORNO»** — il segnale vero, dal 26/8 (voce `visto-non-vuol-dire-aperto`,
+   * strada 2 scelta da Simone il 25/8).
+   *
+   * ## Perché serviva
+   *
+   * `viewedAt` si chiama «visto» e in tutto il progetto veniva letto come «l'ha aperto». Non è
+   * quello che ci scrive dentro: `getMenu` rende all'app gli **ultimi trenta giorni visibili**,
+   * futuri compresi, e subito dopo li segna tutti. Bastava che una cliente aprisse l'app una volta
+   * perché tutto il suo futuro risultasse letto — e il rifacimento dei giorni già preparati, che su
+   * quel campo si regge, non trovava più niente. La nutrizionista dettava «niente pesce» e leggeva
+   * «non ho toccato niente» mentre il branzino era nel menu di domani.
+   *
+   * ⚠️ **Questa rotta la chiama l'app quando la cliente sta GUARDANDO quel giorno**, non quando lo
+   * riceve nella lista. È la differenza fra «gliel'abbiamo mostrato» e «l'ha aperto», e sono due
+   * domande che meritavano due campi.
+   *
+   * ⚠️ **È idempotente e non fallisce mai in faccia a nessuno**: si scrive solo la prima volta, e un
+   * errore qui non deve impedire a una cliente di leggere il menu. Il menu è il lavoro, questa è la
+   * cronaca.
+   */
+  @Post('menu/aperto')
+  @HttpCode(204)
+  segnaAperto(@CurrentUser() user: AuthUser, @Body() dto: GiornoApertoDto) {
+    return this.menu.segnaGiornoAperto(user.sub, dto.giorno);
   }
 
   /** Menu visibile (eroga automaticamente i giorni successivi se spetta). */

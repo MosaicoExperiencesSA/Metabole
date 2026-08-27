@@ -129,6 +129,7 @@ describe('dailyTick — peso di riferimento mancante', () => {
       monitoringPeriod: { findMany: jest.fn().mockResolvedValue([periodo({ referenceWeightKg: 0 })]), update: jest.fn().mockResolvedValue({}) },
       measurement: { findFirst: jest.fn().mockResolvedValue({ weightKg: 71.4, date: new Date() }) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn() },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
       analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
       cycleFeedback: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -153,6 +154,7 @@ describe('generateRientroMenus — una settimana, non otto giorni', () => {
     }));
     const prisma = {
       menuDay: { findMany: jest.fn().mockResolvedValue(storico), upsert: jest.fn().mockResolvedValue({}) },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
       cycleFeedback: { findMany: jest.fn().mockResolvedValue([]) },
       measurement: { findMany: jest.fn().mockResolvedValue([]) },
       analyticsEvent: { create: jest.fn().mockResolvedValue({}) },

@@ -74,6 +74,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: D(todayIso),
           regime: 'omnivore',
@@ -108,6 +109,10 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         // Serve ai test di rigenerazione: `regenerateFromToday` cancella prima di rierogare, e il
         // punto del test col piano fermo è proprio che questa NON venga chiamata.
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        // ⚠️ La lista della spesa segna «aperti» i giorni che consegna (26/8): senza questo finto la
+        // scrittura fallirebbe, il `catch` la ingoierebbe, e il test resterebbe verde su un segnale
+        // che non parte. Un finto che manca non fa fallire niente: fa passare tutto.
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       dailyCheckin: { findUnique: jest.fn().mockResolvedValue(null) },
       // Gate misure: misura del ciclo presente → non blocca l'erogazione.
@@ -173,6 +178,30 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
     const created = await service.deliverIfEligible('u1');
     expect(created).toEqual([todayIso, daysFromToday(1)]);
     expect(prisma.menuDay.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * ⛔ **OGNI GIORNATA NASCE SAPENDO SE DI LEI POTREMO SAPERLO** — 26/8, voce
+   * `visto-non-vuol-dire-aperto`.
+   *
+   * `apertureTracciate` si copia da `ClientProfile.apertureDal` **alla nascita** della giornata: dice
+   * se il telefono di questa cliente, quando il menu è stato composto, mandava già il segnale «ho
+   * aperto questo giorno». ⛔ Questo è **il punto da cui nasce il 99% delle righe**, e finché non
+   * c'era questo test toglierlo — o leggere il profilo con un `select` che non chiede `apertureDal`,
+   * cosa che il cast `as never` non segnala — avrebbe fatto nascere ogni giornata «non lo so» per
+   * sempre: la correzione automatica dei menu morta per tutte, e tutti gli altri test verdi.
+   */
+  it('⛔ le giornate erogate dicono se di loro possiamo saperlo', async () => {
+    await service.deliverIfEligible('u1');
+    expect(prisma.menuDay.upsert.mock.calls[0][0].create.apertureTracciate).toBe(false);
+
+    prisma.menuDay.upsert.mockClear();
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      ...(await prisma.clientProfile.findUnique()),
+      apertureDal: new Date('2026-08-01'),
+    });
+    await service.deliverIfEligible('u1');
+    expect(prisma.menuDay.upsert.mock.calls[0][0].create.apertureTracciate).toBe(true);
   });
 
   /**
@@ -834,6 +863,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 3,
           intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
@@ -1350,6 +1380,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: DD(today), regime: 'pescetarian', dietStyle: 'mediterranean', mealsPerDay: 5,
           allergies: [], intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
@@ -1453,6 +1484,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
       productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: DD(today), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
           allergies: [], intolerances: [], dislikedFoods: ['Avena'], assignedNutritionistId: null,
@@ -1554,6 +1586,7 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
     }));
     const prisma: any = {
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({ regime: 'omnivore', intolerances: [], dislikedFoods: [] }),
         update: jest.fn().mockResolvedValue({}),
       },
@@ -1693,6 +1726,7 @@ describe('MenuService — giornate incomplete (§15.4)', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: D2(oggi), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 5,
           intolerances: [], dislikedFoods: [], assignedNutritionistId: null,
@@ -1849,6 +1883,7 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
       productRule: { findUnique: jest.fn().mockResolvedValue(null) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       clientProfile: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         findUnique: jest.fn().mockResolvedValue({
           planStartDate: D(todayIso), regime: 'omnivore', dietStyle: 'mediterranean', mealsPerDay: 3,
           intolerances: [], dislikedFoods: [], assignedNutritionistId: null,

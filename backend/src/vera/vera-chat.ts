@@ -608,7 +608,7 @@ export const testi = {
    * succeda: passare da 16:8 a 23:1 vuol dire **un pasto solo al giorno**, e dirlo in cifre è
    * diverso dal farlo leggere dentro «23:1».
    */
-  anteprimaDigiuno: (cliente: string, prima: string | null, dopo: string, pasti: number, daRifare: number, conPiano: boolean) =>
+  anteprimaDigiuno: (cliente: string, prima: string | null, dopo: string, pasti: number, raccontoCoda: string, conPiano: boolean) =>
     `Sto per mettere **${cliente}** a **${inChiaro(dopo)}**` +
     `${prima ? `, al posto di ${inChiaro(prima)}` : ''}.\n\n` +
     `La sua giornata passa a **${pasti} ${pasti === 1 ? 'pasto' : 'pasti'}**. ` +
@@ -620,9 +620,16 @@ export const testi = {
      * vero solo metà delle volte.
      */
     '⚠️ Se la sua finestra di oggi è già aperta le ore nuove partono da domani: un pasto già fatto non si disfa.\n\n' +
-    (daRifare > 0
-      ? `⚠️ Rifaccio anche **${daRifare}** ${daRifare === 1 ? 'giornata già preparata' : 'giornate già preparate'} che non ha ancora aperto, così i pasti seguono le ore nuove.\n\n`
-      : '') +
+    /**
+     * ⛔ **LA CODA LA RACCONTA CHI LA RACCONTA A TUTTI GLI ALTRI** (26/8). Qui arrivava un **numero**,
+     * e un numero non sa dire «non lo so»: con le aperture non ancora tracciate — cioè per tutte, il
+     * giorno del rilascio — `0` faceva sparire la riga dall'anteprima e faceva scrivere «non c'erano
+     * giornate da rifare» al messaggio finale. La nutrizionista metteva Lorena a OMAD, confermava
+     * credendo che non ci fosse niente da rifare, e Lorena restava con tre pasti in calendario e
+     * un'ora di finestra. Adesso arriva la frase di `raccontaCoda`, la stessa delle proteine e degli
+     * spuntini: quattro esiti, e nessuno dei quattro è muto.
+     */
+    `${raccontoCoda}\n\n` +
     /**
      * ⚠️ **E se ha un piano graduale in corso, si dice che si chiude.** `decidiCambio` azzera il
      * bersaglio quando il cambio vale da oggi: una cliente a metà di uno spostamento di quattro ore
@@ -644,12 +651,12 @@ export const testi = {
    * ⚠️ La frase adesso dice **quali giorni** sono stati rifatti: il numero glielo passa chi ha fatto
    * la coda, e `0` è un numero come gli altri — si dice, non si nasconde.
    */
-  digiunoScritto: (cliente: string, protocollo: string, daQuando: 'oggi' | 'domani', rifatti: number) =>
+  digiunoScritto: (cliente: string, protocollo: string, daQuando: 'oggi' | 'domani', raccontoCoda: string) =>
     `Fatto: **${cliente}** è a **${protocollo}**, ` +
     `${daQuando === 'oggi' ? 'da subito' : 'dalla prossima apertura della finestra (domani)'}.\n\n` +
-    (rifatti > 0
-      ? `Ho rifatto ${rifatti} ${rifatti === 1 ? 'giornata' : 'giornate'} già preparate, così i pasti seguono le ore nuove.`
-      : 'Non c\'erano giornate future da rifare: le prossime nasceranno già con queste ore.'),
+    // ⚠️ La stessa frase dell'anteprima, dalla stessa funzione: promettere con una scrittura e
+    // raccontare con un'altra è come le due si mettono a dire cose diverse.
+    raccontoCoda,
 
   digiunoNonScritto: (cliente: string, perche: string) =>
     `⚠️ Non sono riuscita a cambiare le ore di **${cliente}**: ${perche} ` +

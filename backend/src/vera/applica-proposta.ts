@@ -24,7 +24,7 @@ import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
-import { type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniDaRifare } from './menu-da-rifare';
+import { CAMPI_DEL_GIORNO, type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniColpitiDaiVietati } from './menu-da-rifare';
 import { type ClienteScoperta, RULE_CODE_ESCLUSIONI, clientiScoperte, ricetteVietate, terminiVietati } from './regola-dieta';
 import { RicettaDelPool } from './pool-disponibile';
 import { aGiorno } from '../common/date-only';
@@ -197,10 +197,20 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
   const ricetteFuori = ricetteVietate(catalogo, tutti);
   const oggi = new Date();
   const dal = daQuandoSiPuoRifare(oggi);
-  const colpiti = giorniDaRifare(
+  /**
+   * ⛔ **QUI NON SI FILTRA PIÙ SU «SI PUÒ RIFARE»** (26/8, voce `visto-non-vuol-dire-aperto`).
+   *
+   * La query aveva dentro `CHE_SI_POSSONO_RIFARE`, e il giorno del rilascio avrebbe reso **zero
+   * righe** per tutte: nessun giorno è ancora «tracciato». Il capo avrebbe letto «fra i menu già
+   * preparati non ce n'era nessuno con quel piatto» — la frase falsa che questa modifica esiste per
+   * togliere, identica, il primo giorno. I colpiti sono i giorni che **contengono** il piatto; se
+   * poi si possano cancellare lo decide `codePerCliente` sul calendario intero, e sa dire anche
+   * «non lo so».
+   */
+  const colpiti = giorniColpitiDaiVietati(
     ((await prisma.menuDay.findMany({
-      where: { dietId, viewedAt: null, date: { gte: dal } } as never,
-      select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+      where: { dietId, date: { gte: dal } } as never,
+      select: CAMPI_DEL_GIORNO as never,
     })) ?? []) as GiornoDaValutare[],
     ricetteFuori,
     oggi,
@@ -246,16 +256,15 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * preparazione», per sempre, su un giorno solo. Il perché sta in `codaDaRifare`.
    *
    * ⚠️ E la query qui sopra, che cerca i colpiti, **non basta a calcolare la coda**: filtra per
-   * `dietId` e per `viewedAt: null`, quindi non vede né i giorni già letti né quelli rimasti da una
-   * dieta precedente — cioè proprio le righe che possono restare in fondo e riaprire il buco. Si
-   * rileggono i calendari **interi** delle sole clienti colpite: sono poche, ed è una query in più
-   * contro una giornata senza cena.
+   * `dietId`, quindi non vede i giorni rimasti da una dieta precedente — cioè proprio le righe che
+   * possono restare in fondo e riaprire il buco. Si rileggono i calendari **interi** delle sole
+   * clienti colpite: sono poche, ed è una query in più contro una giornata senza cena.
    */
   const calendari = troppe || !colpiti.length
     ? []
     : (((await prisma.menuDay.findMany({
         where: { clientId: { in: persone }, date: { gte: dal } } as never,
-        select: { id: true, clientId: true, date: true, viewedAt: true, meals: true },
+        select: CAMPI_DEL_GIORNO as never,
       })) ?? []) as GiornoDaValutare[]);
   /**
    * ⚠️ Il predicato è «questo giorno è fra i colpiti che ho appena trovato»: gli id arrivano dalla
@@ -263,7 +272,7 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * stessa riga, ed è l'id a tenerle insieme.
    */
   const idColpiti = new Set(colpiti.map((g) => g.id));
-  const { daCancellare, bloccate } = codePerCliente(calendari, (g) => idColpiti.has(g.id));
+  const { daCancellare, bloccate, nonSapute, lasciatiIndietro } = codePerCliente(calendari, (g: GiornoDaValutare) => idColpiti.has(g.id));
   /** Chi ha avuto i menu rifatti **davvero**: non chi era colpita, non chi è rimasta bloccata. */
   const rifatte = clientiColpiti(daCancellare);
   if (daCancellare.length) {
@@ -276,25 +285,43 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
    * compaiono qui, nessuno le guarderà mai — e il messaggio direbbe «fatto» anche per loro.
    */
   const codaBloccate = bloccate.length
-    ? ` ⚠️ A ${bloccate.length} ${bloccate.length === 1 ? 'cliente è già arrivato in app' : 'clienti è già arrivato in app'} ` +
+    ? ` ⚠️ ${bloccate.length} ${bloccate.length === 1 ? 'cliente ha già aperto in app' : 'clienti hanno già aperto in app'} ` +
       `un menu più avanti: per ${bloccate.length === 1 ? 'lei' : 'loro'} i giorni già preparati li ho lasciati ` +
       'come sono (rifarli lascerebbe un buco che non si richiude). Si rifanno con «Rigenera menu» dalla scheda, ' +
-      'che però rifà anche il giorno che ha già ricevuto.'
+      'che però rifà anche il giorno che ha già aperto.'
+    : '';
+
+  /**
+   * ⛔ **LE «NON SAPUTE» SONO UN ELENCO A PARTE, e dirle bloccate sarebbe una bugia** (26/8).
+   *
+   * Di queste clienti non sappiamo se hanno aperto quei giorni: l'app che avevano quando il menu è
+   * stato composto non lo diceva. Scriverle insieme alle bloccate direbbe al capo «il menu le è già
+   * arrivato» — un fatto, su una persona di cui non abbiamo nessun fatto. ⚠️ Il giorno del rilascio
+   * sono **tutte**: è la frase che racconta il periodo di passaggio.
+   *
+   * ⚠️ E il passaggio **non finisce quando l'app si aggiorna**: `apertureDal` si scrive alla prima
+   * chiamata del segnale, ma le giornate già in calendario in quel momento sono nate `false` e
+   * restano così — l'erogazione ne compone di nuove solo quando la corsa davanti scende sotto
+   * `GIORNATE_DAVANTI_CHE_BASTANO`. Per ogni cliente il «non lo so» dura ancora quanto il suo
+   * cuscinetto di giorni, **dopo** l'aggiornamento.
+   */
+  const codaNonSapute = nonSapute.length
+    ? ` ⚠️ Di ${nonSapute.length} ${nonSapute.length === 1 ? 'cliente' : 'clienti'} non so dire se ` +
+      `${nonSapute.length === 1 ? 'ha' : 'hanno'} già aperto i giorni preparati (app non ancora aggiornata): ` +
+      'nel dubbio li ho lasciati come sono. Si rifanno con «Rigenera menu» dalla scheda.'
     : '';
 
   const coda =
     (!colpiti.length
       /**
-       * ⛔ **«NON NE HO TROVATI FRA QUELLI CHE POSSO RIFARE», non «non ce n'erano»** (24/8, seconda
-       * revisione). Qui c'era «Nessun menu già preparato conteneva quel piatto» — un'affermazione sul
-       * **contenuto dei menu**, mentre il conto è su quello che si può ancora rifare: i giorni già
-       * arrivati in app non entrano nei colpiti, e siccome `getMenu` li marca tutti alla prima
-       * apertura, questo è **il ramo che scatta quasi sempre**. Il capo leggeva «non ce n'erano»
-       * mentre il tonno era nel pranzo di domani. Vedi la voce `visto-non-vuol-dire-aperto`.
+       * ⛔ **E ADESSO QUESTA FRASE È UN'AFFERMAZIONE VERA SUI MENU** (26/8). Il 24/8 l'avevo dovuta
+       * indebolire in «fra quelli che posso ancora rifare», perché i colpiti erano già filtrati su
+       * «mai aperto» e — con `getMenu` che marcava tutto alla prima apertura — questo era **il ramo
+       * che scattava quasi sempre**: il capo leggeva «non ce n'erano» mentre il tonno era nel pranzo
+       * di domani. Adesso i colpiti sono i giorni che **contengono** il piatto, e se sono zero il
+       * piatto non c'è. Chi non si può toccare lo raccontano `codaBloccate` e `codaNonSapute`.
        */
-      ? ' Fra i menu già preparati che posso ancora rifare non ce n\'era nessuno con quel piatto: ' +
-        'non ho toccato niente. ⚠️ Quelli già arrivati in app non li conto — se il piatto è lì, si ' +
-        'rifanno con «Rigenera menu» dalla scheda.'
+      ? ' Nessun menu già preparato da oggi in poi conteneva quel piatto: non ho toccato niente.'
       : troppe
         ? ` ⚠️ I menu già preparati riguarderebbero ${persone.length} clienti, oltre il tetto di ` +
           `${MAX_CLIENTI_IN_UNA_VOLTA}: la regola vale lo stesso da adesso, ma quei giorni li ho lasciati come sono. ` +
@@ -304,21 +331,26 @@ async function applicaRegolaDieta(prisma: PrismaService, p: Proposta, termini: s
           `Sarebbero almeno ${colpiti.length} giornate.`
         : daCancellare.length
           /**
-           * ⛔ **«Quelle già ARRIVATE IN APP», non «già passate»** (24/8, seconda revisione). Avevo
-           * riscritto così togliendo «già lette», e la frase nuova nomina l'insieme sbagliato: il
-           * giorno che resta col piatto vietato dentro può benissimo essere **domani**. È
-           * un'affermazione sui menu, smentibile con una query — peggio della parola sbagliata su
-           * `viewedAt` che stavo correggendo.
+           * ⛔ **NON SI NOMINA UN INSIEME PIÙ PICCOLO DI QUELLO CHE RESTA.** Il 24/8 qui c'era «quelle
+           * già passate», che era falso — il giorno che resta col piatto vietato dentro può benissimo
+           * essere **domani**. Poi «quelle già arrivate in app», che dal 26/8 è falso a sua volta: le
+           * giornate che restano sono quelle **già aperte** *oppure* quelle di cui **non sappiamo**, e
+           * dare per fatto il primo caso su una cliente del secondo è inventare un fatto. Adesso la
+           * frase dice quante ne restano e non pretende di sapere perché.
            */
           ? ` Ho rifatto ${daCancellare.length} ${daCancellare.length === 1 ? 'giornata' : 'giornate'} ` +
-            `(${rifatte.length} ${rifatte.length === 1 ? 'cliente' : 'clienti'}); quelle già arrivate ` +
-            'in app restano come sono.'
-          : bloccate.length
-            // ⚠️ Sono tutte bloccate: la ragione la dice `codaBloccate` qui sotto, e ripeterla con
-            // altre parole vorrebbe dire darne due — di cui una inventata.
+            `(${rifatte.length} ${rifatte.length === 1 ? 'cliente' : 'clienti'}).` +
+            (lasciatiIndietro
+              ? ` ⚠️ Altre ${lasciatiIndietro} ${lasciatiIndietro === 1 ? 'giornata col piatto vietato resta' : 'giornate col piatto vietato restano'} ` +
+                'come ' + (lasciatiIndietro === 1 ? 'è' : 'sono') + ': o le hanno già aperte, o non so dirlo.'
+              : '')
+          : bloccate.length || nonSapute.length
+            // ⚠️ Sono tutte bloccate o non sapute: la ragione la dicono `codaBloccate` e
+            // `codaNonSapute` qui sotto, e ripeterla con altre parole vorrebbe dire darne due — di
+            // cui una inventata.
             ? ''
             : ' ⚠️ Non ho potuto rifare nessuna giornata: quelle colpite non ci sono più (le avrà rifatte ' +
-              'qualcos\'altro nel frattempo). La regola vale lo stesso da adesso.') + codaBloccate;
+              'qualcos\'altro nel frattempo). La regola vale lo stesso da adesso.') + codaBloccate + codaNonSapute;
 
   const MAX_NOMI = 10;
   const elenco = scoperte

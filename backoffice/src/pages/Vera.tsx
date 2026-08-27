@@ -279,19 +279,34 @@ export function Vera() {
     }
   }
 
+  /**
+   * ⛔ **«NON NE HO TROVATI» NON È «NON CE N'ERANO»** — 26/8, voce `visto-non-vuol-dire-aperto`.
+   *
+   * `daRifare` è l'elenco dei giorni che **sappiamo** non aperti. Fino al 26/8 il conto si faceva su
+   * `viewedAt`, che `getMenu` scrive su tutti i trenta giorni della finestra a ogni apertura
+   * dell'app: quindi era quasi sempre vuoto, e qui si leggeva «quelli che ha già visto restano come
+   * sono» — un'affermazione su un fatto (li ha visti) che il dato non sosteneva.
+   *
+   * ⚠️ Adesso il dato è vero, ma **un elenco vuoto resta ambiguo**: può voler dire «li ha aperti
+   * tutti» oppure «della sua app non lo sappiamo ancora», che è la risposta normale finché gli
+   * aggiornamenti non sono arrivati a tutte. Si dice così — l'assenza di un fatto non si racconta
+   * come un fatto. È il difetto che questa voce esiste per chiudere, e questa schermata è l'ultimo
+   * posto in cui poteva sopravvivere.
+   */
   async function annulla(a: Azione) {
     if (!confirm(
       `Annullare «${AZIONE[a.azione] ?? a.azione}» su ${a.soggettoNome ?? 'questa cliente'}?\n\n` +
-      'La regola smette di valere. I menu che la cliente ha GIÀ VISTO restano come sono: si rifanno ' +
-      'solo i giorni futuri che non ha ancora aperto.',
+      'La regola smette di valere. I menu che la cliente ha GIÀ APERTO restano come sono: si rifanno ' +
+      'solo i giorni futuri che sappiamo non aver ancora aperto.',
     )) return;
     setError(null);
     try {
       const r = await api<{ daRifare: string[] }>(`/vera/registro/${a.id}/annulla`, { method: 'POST' });
       setNotice(
         r.daRifare.length
-          ? `Annullata. Si possono rifare ${r.daRifare.length} giorn${r.daRifare.length === 1 ? 'o' : 'i'} di menu che non ha ancora visto.`
-          : 'Annullata. Non ci sono menu futuri da rifare: quelli che ha già visto restano come sono.',
+          ? `Annullata. Si possono rifare ${r.daRifare.length} giorn${r.daRifare.length === 1 ? 'o' : 'i'} di menu che sappiamo non aver ancora aperto.`
+          : 'Annullata. Nessun giorno futuro risulta rifacibile: o li ha già aperti, o la sua app non ce lo dice ancora. '
+            + 'Per rifarli comunque c\'è «Rigenera menu» dalla sua scheda.',
       );
       await caricaRegistro();
     } catch (err) {
