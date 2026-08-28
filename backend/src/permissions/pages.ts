@@ -104,7 +104,9 @@ export const BACKOFFICE_PAGES = [
   'creation_validation', // Pagina guidata Creazione e validazione
   'diet_workspace',      // Gestione dieta: hub ricette/allergeni/gruppi per dieta (da diets_catalog)
   'fix_measures',        // Correzione misure del cliente dalla scheda (flag dedicato, richiesta Simone)
-  'change_diet_type',    // Cambio del TIPO DI DIETA (regime + stile) dalla scheda cliente (flag dedicato)
+  // ⚠️ Dal 28/8 copre anche `pathType` e `mealsPerDay`: erano scoperti, e una coach poteva mettere
+  // una cliente a digiuno intermittente pur non potendola passare da vegetariana a vegana.
+  'change_diet_type',    // Cambio del TIPO DI DIETA (regime, stile, famiglia, pasti, percorso/digiuno)
   /**
    * Modifica delle ALLERGIE dalla scheda cliente e dalla scheda lead (richiesta di Simone, 13/8).
    *
@@ -219,7 +221,10 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // cioè per fare il suo lavoro dipendeva da una persona che non conosce quella cliente.
     // La portata («solo le mie») è applicata nei servizi, non qui.
     clients: { view: true, manage: true },
-    // Regime (onnivora/vegetariana/vegana) e stile alimentare: stesso motivo.
+    // Regime, stile, dieta — e dal 28/8 anche **pasti e percorso/digiuno**, che erano fuori dalla
+    // guardia: è lo stesso motivo scritto qui sopra («per spostare una cliente da 3 a 5 pasti doveva
+    // chiedere a qualcun altro»), quindi il default resta acceso. ⚠️ Chi invece questa casella non ce
+    // l'ha, da oggi quei due campi non li tocca più — ed è il buco che si chiude.
     change_diet_type: { view: true, manage: true },
     // I pasti del digiuno: la coach li vede e li corregge, come il resto della scheda.
     change_fasting_window: { view: true, manage: true },

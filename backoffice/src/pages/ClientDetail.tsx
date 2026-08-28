@@ -331,9 +331,16 @@ function EditCard({ form, setForm, lockDietType, lockAllergie }: { form: Record<
       </small>
     </label>
   );
-  // Regime e Stile = TIPO DI DIETA: modificabili solo col permesso "Cambia tipo di dieta".
+  /**
+   * Regime, Stile e — dal 28/8 — **Pasti / percorso** = TIPO DI DIETA: modificabili solo col
+   * permesso «Cambia tipo di dieta».
+   *
+   * ⚠️ `pathType` era rimasto fuori da questo lucchetto: la tendina restava aperta, si sceglieva
+   * «Digiuno intermittente», si premeva Salva e arrivava un 403. Un campo che si lascia toccare e poi
+   * rifiuta è la stessa bugia dello schermo-che-dice-una-cosa-e-il-piatto-un'altra.
+   */
   const S = (k: string, label: string, opts: [string, string][]) => {
-    const locked = !!lockDietType && (k === 'regime' || k === 'dietStyle');
+    const locked = !!lockDietType && (k === 'regime' || k === 'dietStyle' || k === 'pathType');
     return (
       <label style={fldStyle} title={locked ? 'Il tipo di dieta lo cambia chi ha il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).' : undefined}>
         <span>{label}{locked && <i className="ti ti-lock" style={{ marginLeft: 4, fontSize: 11 }} />}</span>
@@ -1338,9 +1345,29 @@ export function ClientDetail() {
     const w = num(f.startWeightKg); if (w !== undefined) dto.startWeightKg = w;
     const wa = num(f.startWaistCm); if (wa !== undefined) dto.startWaistCm = wa;
     const hi = num(f.startHipsCm); if (hi !== undefined) dto.startHipsCm = hi;
-    // Pasti dedotti dall'unica scelta "Pasti / percorso": classic3 e digiuno → 3, five → 5.
+    /**
+     * ⛔ **I PASTI SI DEDUCONO SOLO SE IL PERCORSO È STATO CAMBIATO DAVVERO** (28/8).
+     *
+     * Questa riga ricalcolava `mealsPerDay` dal percorso **a ogni Salva**, anche quando nessuno
+     * aveva toccato quel menu. Finché il campo non era protetto non si vedeva. Dal 28/8 `mealsPerDay`
+     * sta sotto il permesso «Cambia tipo di dieta», e senza questa condizione:
+     *
+     *  - chi **non** ha il permesso prendeva **403 salvando il numero di telefono** di una cliente il
+     *    cui `mealsPerDay` in banca dati non coincide con quello dedotto — e non se ne usciva più;
+     *  - chi **ce l'ha** faceva rigenerare i menu futuri e scrivere «cambio tipo di dieta» nel
+     *    registro per una modifica che non aveva fatto.
+     *
+     * ⚠️ E quelle clienti esistono per costruzione: l'onboarding **preferisce** il numero di pasti
+     * risposto a quello dedotto dal percorso (`app/src/pages/Onboarding.tsx`), la vecchia schermata
+     * «Quanti pasti» è esistita, e `supplements` non è nemmeno in questa tendina.
+     *
+     * ⛔ **E la deduzione stessa era una scrittura silenziosa**: sovrascriveva la risposta della
+     * cliente col valore dedotto ogni volta che qualcuno salvava l'indirizzo. Adesso succede solo
+     * quando il percorso cambia, che è l'unico momento in cui dedurlo vuol dire qualcosa.
+     */
     const mealsByPath: Record<string, number> = { classic3: 3, five: 5, intermittent_fasting: 3, supplements: 5 };
-    if (f.pathType && mealsByPath[f.pathType]) dto.mealsPerDay = mealsByPath[f.pathType];
+    const percorsoCambiato = (f.pathType || null) !== (d?.profile?.pathType ?? null);
+    if (percorsoCambiato && f.pathType && mealsByPath[f.pathType]) dto.mealsPerDay = mealsByPath[f.pathType];
     try {
       /**
        * ⚠️ LA RISPOSTA SI LEGGE — prima si buttava via.

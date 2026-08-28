@@ -75,7 +75,9 @@ export const PAGE_LABEL: Record<string, string> = {
   charts: 'Grafici',
   withdrawals: 'Richieste prelievo',
   fix_measures: 'Correggi misure cliente',
-  change_diet_type: 'Cambia tipo di dieta',
+  // ⚠️ L'etichetta nomina i pasti e il digiuno dal 28/8: chi assegna i permessi deve sapere che
+  // dietro questa casella c'è anche «mettere una cliente a digiuno intermittente».
+  change_diet_type: 'Cambia tipo di dieta (regime, stile, pasti, digiuno)',
   change_allergies: 'Modifica allergie',
   change_plan_start: 'Cambia data inizio piano',
   change_fasting_window: 'Cambia i pasti del digiuno',

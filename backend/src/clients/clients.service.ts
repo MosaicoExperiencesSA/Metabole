@@ -10,6 +10,7 @@ import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { TIPO_VISITA_DA_FISSARE, testoVisitaDaFissare } from './visita-da-fissare';
 import { MenuService } from '../menu/menu.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { statoPerGiornoDiInizio, STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
@@ -57,6 +58,19 @@ const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city
  * da qui non lo guarda più nessuno: non si toglie in questa consegna perché toglierlo è un'altra
  * decisione — chi ce l'ha oggi va avvisato prima.
  */
+/**
+ * Come si chiamano, per chi legge il rifiuto. ⚠️ Stanno qui e non dentro il messaggio: il messaggio
+ * si compone dai campi che sono cambiati davvero, e un elenco scritto dentro una stringa è un elenco
+ * che il giorno che nasce un campo nuovo dice «undefined».
+ */
+const ETICHETTA_TIPO_DIETA: Record<string, string> = {
+  regime: 'il regime',
+  dietStyle: 'lo stile alimentare',
+  dietFamily: 'la dieta',
+  pathType: 'il percorso (pasti / digiuno)',
+  mealsPerDay: 'il numero di pasti',
+};
+
 const PROFILE_FIELDS = ['name', 'age', 'sex', 'heightCm', 'startWeightKg', 'startWaistCm', 'startHipsCm', 'regime', 'dietStyle', 'dietFamily', 'mealsPerDay', 'objective', 'pathType', 'coachStyle', 'character', 'allergies', 'intolerances', 'dislikedFoods', 'themeColor', 'activityLevel', 'isStoreReviewer'] as const;
 
 /**
@@ -1088,33 +1102,90 @@ export class ClientsService {
       }
     }
 
-    // TIPO DI DIETA (regime + stile): cambiarlo richiede il permesso dedicato
-    // "change_diet_type" (default: nutrizionisti e admin). Il resto della scheda
-    // resta modificabile da chi ha accesso, come prima.
-    // La FAMIGLIA è tipo di dieta quanto lo stile: sceglie il prodotto vero (Vegana o
-    // Vegetariana, che condividono lo stile `flexible`). Cambiarla richiede lo stesso permesso.
-    const DIET_TYPE_FIELDS = ['regime', 'dietStyle', 'dietFamily'] as const;
+    /**
+     * TIPO DI DIETA: cambiarlo richiede il permesso dedicato `change_diet_type`. Il resto della
+     * scheda resta modificabile da chi ha accesso.
+     *
+     * ⚠️ **Chi ce l'ha dipende dai Permessi, non da questa riga.** Il commento diceva «default:
+     * nutrizionisti e amministrazione»: **falso** dal 9/8, quando la casella è stata data anche a
+     * coach e coordinatrice su richiesta delle coach (`permissions/pages.ts`). ⛔ E i default valgono
+     * solo per le righe che non esistono: `syncDefaults` non tocca mai quelle già scritte, quindi in
+     * un ambiente vecchio la coach può averla spenta e in uno nuovo accesa. Chi legge qui non deve
+     * dedurre il perimetro da un commento: si guarda la tabella dei Permessi.
+     *
+     * La FAMIGLIA è tipo di dieta quanto lo stile: sceglie il prodotto vero (Vegana o Vegetariana,
+     * che condividono lo stile `flexible`).
+     *
+     * ⛔ **E DAL 28/8 CI SONO ANCHE `pathType` E `mealsPerDay`, che erano scoperti.**
+     *
+     * L'elenco conteneva solo regime, stile e famiglia. `pathType` — che decide il **digiuno
+     * intermittente** — e `mealsPerDay` erano nel DTO e in `PROFILE_FIELDS`, quindi scrivibili, ma
+     * fuori da questa guardia: **chiunque potesse aprire la scheda li cambiava**, permesso o no. Ed è
+     * la modifica più clinica delle cinque, perché cambia quanti pasti mangia al giorno e il digiuno
+     * ha controindicazioni che regime e stile non hanno.
+     *
+     * ⚠️ **Non è che «la coach non poteva cambiare la dieta ma poteva mettere a digiuno»**: il
+     * default del 9/8 dà `change_diet_type` anche a coach e coordinatrice, proprio perché la coach i
+     * pasti li deve poter spostare. Il buco riguarda chi quella casella **non** ce l'ha — e riguarda
+     * tutti quanti per le altre due conseguenze qui sotto, che non c'erano per nessuno.
+     *
+     * ⚠️ I due campi vanno insieme: chiudere solo il digiuno sarebbe chiudere metà porta e scrivere
+     * «fatto».
+     *
+     * ⚠️ **Due conseguenze volute, non effetti collaterali.** Da oggi cambiare pasti o percorso (a) è
+     * un cambio di tipo di dieta anche nel **registro** (`client.diet_type.change`), e (b) fa
+     * **rigenerare i giorni futuri** come gli altri tre campi. La seconda è una correzione a sé: una
+     * cliente portata da cinque pasti a tre si teneva i menu a cinque già consegnati, cioè lo schermo
+     * diceva una cosa e il piatto un'altra.
+     *
+     * ⛔ **L'elenco è UNO SOLO per le tre cose che stanno QUI DENTRO** — il controllo, la lettura del
+     * profilo e il prima/dopo del registro. Erano tre elenchi scritti a mano che dovevano restare
+     * d'accordo, ed è la forma in cui i buchi come questo sopravvivono.
+     *
+     * ⚠️ **Ma restano fuori due elenchi che non si possono unire da qui**: il DTO
+     * (`update-client.dto.ts`) e `PROFILE_FIELDS`. Un campo nuovo aggiunto là e non qui sarebbe
+     * scoperto **esattamente come lo era `pathType`**. Non fingo di averlo impedito: c'è un test che
+     * tiene almeno la direzione che conta (tutto quello che è protetto dev'essere anche scrivibile),
+     * e un rimando nel DTO. Il resto è attenzione, e va detto invece che dichiarato risolto.
+     */
+    /**
+     * ⛔ **TIPATO CONTRO IL MODELLO, e non è pignoleria** (aggiunto in revisione, 28/8).
+     *
+     * La `select` di prima era un letterale, quindi Prisma la controllava: scrivere `pathTypo`
+     * dava un errore di compilazione. Derivandola da un array di stringhe con un `as never` quel
+     * controllo spariva — e un nome sbagliato in questo elenco non farebbe fallire niente: renderebbe
+     * la guardia **silenziosamente inerte** per quel campo. Cioè esattamente il difetto che questa
+     * consegna sta chiudendo, reintrodotto un livello più in basso.
+     *
+     * `satisfies` tiene le due cose insieme: i nomi restano controllati contro il profilo, e l'elenco
+     * resta uno solo.
+     */
+    const DIET_TYPE_FIELDS = ['regime', 'dietStyle', 'dietFamily', 'pathType', 'mealsPerDay'] as const satisfies readonly (keyof Prisma.ClientProfileSelect)[];
     let dietTypeChange: { before: Record<string, unknown>; after: Record<string, unknown> } | null = null;
     if (DIET_TYPE_FIELDS.some((k) => profileData[k] !== undefined)) {
       const current = (await this.prisma.clientProfile.findUnique({
         where: { userId },
-        select: { regime: true, dietStyle: true, dietFamily: true },
-      })) as { regime: string | null; dietStyle: string | null; dietFamily: string | null } | null;
+        select: Object.fromEntries(DIET_TYPE_FIELDS.map((k) => [k, true])) as Prisma.ClientProfileSelect,
+      })) as Record<string, unknown> | null;
       const changedKeys = DIET_TYPE_FIELDS.filter(
         (k) => profileData[k] !== undefined && (profileData[k] ?? null) !== (current?.[k] ?? null),
       );
       if (changedKeys.length > 0) {
         const actor = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
         if (!(await this.roleCanManage(actor?.role ?? '', 'change_diet_type'))) {
-          throw new ForbiddenException('Cambiare il tipo di dieta richiede il permesso "Cambia tipo di dieta" (nutrizionista o amministrazione).');
+          throw new ForbiddenException(
+            // ⚠️ Dice **cosa** stava cambiando, e le nomina **tutte**: «Cambiare il tipo di dieta»
+            // davanti a chi ha appena spostato i pasti sembra un errore del sistema, non un
+            // permesso — e nominarne una sola quando ne ha toccate due nasconde metà del gesto.
+            `Per cambiare ${changedKeys.map((k) => ETICHETTA_TIPO_DIETA[k]).join(', ')} serve il permesso ` +
+              '"Cambia tipo di dieta". Chiedilo a chi gestisce i permessi.',
+          );
         }
         dietTypeChange = {
-          before: { regime: current?.regime ?? null, dietStyle: current?.dietStyle ?? null, dietFamily: current?.dietFamily ?? null },
-          after: {
-            regime: profileData.regime ?? current?.regime ?? null,
-            dietStyle: profileData.dietStyle ?? current?.dietStyle ?? null,
-            dietFamily: profileData.dietFamily ?? current?.dietFamily ?? null,
-          },
+          before: Object.fromEntries(DIET_TYPE_FIELDS.map((k) => [k, current?.[k] ?? null])),
+          after: Object.fromEntries(
+            DIET_TYPE_FIELDS.map((k) => [k, (profileData[k] !== undefined ? profileData[k] : current?.[k]) ?? null]),
+          ),
         };
       }
     }

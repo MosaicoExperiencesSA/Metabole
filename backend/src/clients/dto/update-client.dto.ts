@@ -50,6 +50,13 @@ export class UpdateClientDto {
    * è questa riga: sono le quattro funzioni e le varianti del catalogo. Rimettere il `4` qui e
    * basta rifarebbe esattamente il buco di prima.
    */
+  /**
+   * ⚠️ **Questi due sono TIPO DI DIETA**: stanno in `DIET_TYPE_FIELDS` (`clients.service.ts`) e
+   * cambiarli richiede il permesso «Cambia tipo di dieta». Dal 28/8 — prima erano scrivibili da
+   * chiunque potesse aprire la scheda, perché erano qui e in `PROFILE_FIELDS` ma non lì.
+   * ⛔ Un campo nuovo che tocca il tipo di dieta va aggiunto **anche** a quell'elenco: sono due liste
+   * che il compilatore non tiene d'accordo, ed è così che è nato il buco.
+   */
   @IsOptional() @IsIn([3, 5]) mealsPerDay?: number;
   @IsOptional() @IsIn(['classic3', 'five', 'supplements', 'intermittent_fasting']) pathType?: string;
   /**

@@ -1,0 +1,109 @@
+I pasti e il digiuno stanno sotto un permesso, come il resto del tipo di dieta
+
+IL BUCO
+Il cambio del «tipo di dieta» dalla scheda cliente è protetto dal permesso
+`change_diet_type` dal 18/7. L'elenco dei campi protetti conteneva però solo
+`regime`, `dietStyle` e `dietFamily`. Restavano fuori:
+
+  · `pathType`    — decide se una cliente fa 3 pasti, 5, o DIGIUNO INTERMITTENTE
+  · `mealsPerDay` — decide 3 o 5
+
+Erano nel DTO e in `PROFILE_FIELDS`, quindi scrivibili: li cambiava chiunque
+potesse aprire la scheda, permesso o no. Ed è la modifica più clinica delle
+cinque — cambia quanti pasti mangia al giorno, e il digiuno ha controindicazioni
+che regime e stile non hanno.
+
+⚠️ LA PREMESSA DELLA VOCE ERA IMPRECISA, E L'HA TROVATO LA REVISIONE
+La voce diceva «una coach non può cambiare vegetariana→vegana ma può mettere a
+digiuno chiunque». Falso: il default del 9/8 dà `change_diet_type` **anche a
+coach e coordinatrice**, proprio perché la coach i pasti li deve poter spostare
+(«per spostare una cliente da 3 a 5 pasti doveva chiedere a qualcun altro»). Il
+buco vero era un altro, ed è più largo: quei due campi stavano fuori dalla
+guardia per TUTTI.
+
+COSA CAMBIA
+`DIET_TYPE_FIELDS` ha cinque campi, e quell'unico elenco governa tutte e tre le
+cose che stanno in quel punto: il controllo del permesso, la lettura del profilo
+e il prima/dopo del registro. Erano tre liste scritte a mano che dovevano restare
+d'accordo — è la forma in cui i buchi come questo sopravvivono.
+
+⚠️ Due conseguenze volute, e valgono per tutti, permesso o no:
+  (a) cambiare pasti o percorso finisce nel REGISTRO come cambio di tipo di dieta;
+  (b) fa RIGENERARE i giorni futuri. È una correzione a sé: una cliente portata da
+      cinque pasti a tre si teneva i menu a cinque già consegnati — lo schermo
+      diceva una cosa e il piatto un'altra.
+
+⛔ IL BLOCCANTE DELLA REVISIONE: LA SCHEDA DEDUCEVA I PASTI A OGNI SALVA
+`ClientDetail.tsx` ricalcolava `mealsPerDay` dal percorso **a ogni salvataggio**,
+anche quando nessuno aveva toccato quel menu. Finché il campo non era protetto non
+si vedeva. Da oggi, per ogni cliente il cui `mealsPerDay` in banca dati non
+coincide con quello dedotto:
+
+  · chi NON ha il permesso prendeva 403 SALVANDO IL NUMERO DI TELEFONO — e non se
+    ne usciva più: quella scheda non la salvava più nessuno senza il permesso;
+  · chi ce l'ha faceva rigenerare i menu futuri e scrivere «cambio tipo di dieta»
+    nel registro per una modifica che non aveva fatto.
+
+⚠️ E quelle clienti esistono per costruzione: l'onboarding PREFERISCE il numero di
+pasti risposto a quello dedotto dal percorso, la vecchia schermata «Quanti pasti»
+è esistita, e `supplements` non è nemmeno nella tendina della scheda.
+
+⛔ La deduzione era anche una scrittura silenziosa: sovrascriveva la risposta della
+cliente ogni volta che qualcuno salvava l'indirizzo. Adesso avviene solo quando il
+percorso cambia davvero, che è l'unico momento in cui dedurre vuol dire qualcosa.
+
+E LA TENDINA ADESSO SI CHIUDE A CHIAVE
+«Pasti / percorso» non era fra i campi bloccati: chi non ha il permesso vedeva il
+menu abilitato, sceglieva «Digiuno intermittente», premeva Salva e prendeva un
+403. Un campo che si lascia toccare e poi rifiuta è la stessa bugia dello
+schermo-contro-piatto. Ora ha il lucchetto come regime e stile.
+
+IL CAST CHE SPEGNEVA IL COMPILATORE
+La `select` derivata dall'elenco era passata a Prisma con `as never`: un nome
+sbagliato in `DIET_TYPE_FIELDS` non avrebbe dato nessun errore, e avrebbe reso la
+guardia **silenziosamente inerte** per quel campo — cioè lo stesso difetto che
+questa consegna chiude, un livello più in basso. Ora è `satisfies keyof
+Prisma.ClientProfileSelect`: i nomi tornano controllati, e l'elenco resta uno solo.
+⚠️ E c'è un test che legge la `select` chiesta davvero a Prisma: rimettendo quella
+vecchia a tre campi, prima la suite restava verde — e in produzione avrebbe
+significato «pathType sempre diverso», cioè un 403 a ogni salvataggio.
+
+⛔ UNA COSA DA GUARDARE PRIMA DI CONSIDERARLA FINITA — serve una risposta di Simone
+`syncDefaults` crea solo le righe che mancano e **non tocca mai quelle esistenti**.
+Quindi in produzione la riga della coach può essere ferma al default del 18/7
+(*spenta*), e da oggi la coach i pasti non li sposta più — mentre il 9/8 era stato
+deciso il contrario, su richiesta delle coach.
+
+  npm run diag:permesso-tipo-dieta
+
+Sola lettura. Dice chi ce l'ha davvero, dove il database non è d'accordo col
+codice, e quante clienti hanno i pasti scritti diversi da quelli dedotti (cioè
+quanto era grosso il rischio evitato al punto sopra).
+
+QUATTRO AFFERMAZIONI FALSE CORRETTE, TUTTE TROVATE DALLA REVISIONE
+1. «default: nutrizionisti e amministrazione» — no: dal 9/8 anche coach e
+   coordinatrice. E i default valgono solo per le righe che non esistono.
+2. «una coach non poteva cambiare la dieta ma poteva mettere a digiuno» — vedi
+   sopra.
+3. «qualcuno ha aggiunto `pathType` al DTO e non a questo elenco» — una storia
+   che git non conferma: la guardia è NATA a due campi. Tolta.
+4. «il questionario passa da `profile.service`» — no, scrive il profilo per conto
+   suo in `onboarding.service`. La conclusione («non può bloccare l'onboarding»)
+   resta giusta, ma la ragione era sbagliata — ed è quella che il prossimo copia.
+
+E UNA PROMESSA RIDIMENSIONATA
+«L'elenco è UNO SOLO» vale per le tre cose che stanno in quel punto. Restano fuori
+il DTO e `PROFILE_FIELDS`, che da lì non si possono unire: un campo nuovo aggiunto
+là e non qui sarebbe scoperto uguale. C'è un test che tiene almeno la direzione che
+conta — tutto quello che è protetto dev'essere anche scrivibile — e un rimando
+scritto nel DTO, accanto ai due campi, per chi ne aggiunge un terzo. Il resto è
+attenzione, e va detto invece che dichiarato risolto.
+
+MISURATO
+- 5767 test backend verdi in quattro modalità; backoffice 150; app 192.
+- Sei mutazioni provate e uccise: l'elenco senza i due campi, il prima/dopo con
+  `??` (che faceva risultare «invariato» un `null` mandato apposta), il messaggio
+  del rifiuto, la `select` derivata, il prima/dopo senza `dietFamily`, e
+  `changedKeys.length`.
+
+Nessuna migrazione.

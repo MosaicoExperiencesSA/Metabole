@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-28
 
+- `[Sviluppo]` **I pasti e il digiuno stanno sotto un permesso, come il resto del tipo di dieta.**
+  Il cambio del «tipo di dieta» è protetto da `change_diet_type` dal 18/7, ma l'elenco dei campi
+  protetti conteneva solo regime, stile e famiglia: restavano fuori **`pathType`** (che decide il
+  digiuno intermittente) e **`mealsPerDay`**. Erano nel DTO e in `PROFILE_FIELDS`, quindi scrivibili
+  da chiunque potesse aprire la scheda — ed è la modifica più clinica delle cinque.
+  ⚠️ **La premessa della voce era imprecisa, e l'ha trovato la revisione**: diceva «una coach non può
+  cambiare vegetariana→vegana ma può mettere a digiuno chiunque». Falso — il default del 9/8 dà la
+  casella anche a coach e coordinatrice, proprio perché la coach i pasti li deve poter spostare. Il
+  buco vero era più largo: quei due campi stavano fuori dalla guardia per **tutti**.
+  **Due conseguenze volute**, che valgono per tutti: cambiare pasti o percorso adesso finisce nel
+  **registro** e fa **rigenerare i giorni futuri** — una cliente portata da cinque pasti a tre si
+  teneva i menu a cinque già consegnati.
+  ⛔ **Il bloccante della revisione**: la scheda **deduceva** `mealsPerDay` dal percorso a ogni
+  salvataggio, anche senza toccare quel menu. Da oggi avrebbe significato **403 salvando il numero di
+  telefono** per chi non ha il permesso, e menu rigenerati per una modifica mai fatta per chi ce
+  l'ha. E quelle clienti esistono per costruzione (l'onboarding preferisce il numero risposto a
+  quello dedotto). Adesso si deduce **solo** se il percorso cambia davvero.
+  ⛔ **E il cast spegneva il compilatore**: la `select` derivata dall'elenco passava a Prisma con
+  `as never`, quindi un nome sbagliato non avrebbe dato errore e avrebbe reso la guardia
+  silenziosamente inerte — lo stesso difetto, un livello più in basso. Ora è tipata, e c'è un test
+  che legge la `select` chiesta davvero.
+  ⚠️ **Il lucchetto anche in pagina**: «Pasti / percorso» restava una tendina aperta che poi
+  rifiutava con un 403.
+  ⛔ **Una cosa da guardare prima di considerarla finita**: `syncDefaults` non tocca mai le righe già
+  scritte, quindi in produzione la riga della coach può essere ferma al default vecchio (spenta) — e
+  allora da oggi la coach i pasti non li sposta più, mentre il 9/8 era stato deciso il contrario.
+  `npm run diag:permesso-tipo-dieta` (sola lettura) dice chi ce l'ha davvero e quante clienti hanno i
+  pasti scritti diversi da quelli dedotti.
+  **Misurato**: 5767 test backend verdi in quattro modalità, backoffice 150, app 192; sei mutazioni
+  uccise. Quattro affermazioni false nei commenti, tutte trovate dalla revisione e corrette. Nessuna
+  migrazione.
+
 - `[Sviluppo]` **L'aumento delle calorie lo autorizza il nutrizionista, e resta scritto in scheda.**
   Decisione di Simone del 27/8: *«Vera lo chiede al nutrizionista che risponde, e la sua risposta si
   salva nelle note della scheda cliente (aumento calorie autorizzato da… il…)»*. Chiude
