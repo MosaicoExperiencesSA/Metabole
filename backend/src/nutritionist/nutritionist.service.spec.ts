@@ -328,6 +328,187 @@ describe('NutritionistService — azioni sulla decisione', () => {
     expect(engine.reviewDecision).toHaveBeenCalled();
   });
 
+  /**
+   * ⛔ **«ALZA LE CALORIE»: LA COSA CHE QUESTA CODA NON SAPEVA FARE** (28/8, decisione di Simone del
+   * 27/8: *«Vera lo chiede al nutrizionista che risponde, e la sua risposta si salva nelle note
+   * della scheda cliente»*).
+   *
+   * Il motore **proponeva** di alzarle (`menu: 'increase_calories'`) e quella proposta non la
+   * leggeva nessuno; i due pulsanti registravano soltanto «l'ho letta». Da oggi il nutrizionista
+   * scrive di quanto, e il numero arriva nel piatto passando dalla **stessa porta** della scheda.
+   */
+  describe('⛔ alza le calorie', () => {
+    const prismaKcal = (over: Record<string, unknown> = {}, profilo: Record<string, unknown> = {}) =>
+      prismaCon({
+        // ⚠️ Col `displayName`: senza, la nota si firmava «staff» e il test che dice di verificare
+        // «chi» passava lo stesso — cioè non verificava la metà della richiesta di Simone.
+        staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1', displayName: 'Dr.ssa Bini' }) },
+        clientProfile: {
+          findUnique: jest.fn().mockResolvedValue({
+            assignedNutritionistId: 'nut-1', planHeldAt: null, rapidLossBaselineAt: null,
+            kcalDeficitOverride: null, kcalAdjustPct: null, kcalAdjustUntil: null, name: 'Anna', ...profilo,
+          }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }) },
+        clientNote: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+        escalation: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+        user: { findMany: jest.fn().mockResolvedValue([]) },
+        notification: { create: jest.fn() },
+        ...over,
+        // ⚠️ Il tipo si allarga qui e non a ogni uso: `prismaCon` restituisce la forma dei suoi
+        // default, e i modelli aggiunti dallo spread TypeScript non li vede.
+      }) as unknown as Record<string, Record<string, jest.Mock>>;
+    const stima = (target: number) => ({
+      bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900, target, deficit: 0,
+      floored: false, objective: 'dimagrimento', weightKg: 70, pesoIncoerente: null,
+      fonteDeficit: 'nessuno', deficitCalcolato: 0, calcoloDeficit: 'nessuno', correzionePct: 0,
+      sottoSoglia: false, tettoApplicato: false, correzioneFinoAl: null, correzioneScaduta: false,
+      spiegazione: `${target} kcal/giorno`,
+    });
+    const kcalNeed = () => makeKcalNeed({
+      estimate: jest.fn().mockImplementation((_c: string, sim?: { correzionePct?: number }) =>
+        Promise.resolve(stima(sim?.correzionePct ? 1760 : 1600)),
+      ),
+    });
+
+    it('⛔ è offerta sul calo rapido e sull\'energia bassa, e il server la esegue', async () => {
+      const res = await make(prismaKcal()).azioniDecisione(user, 'dec1');
+      const alza = res.azioni.find((a) => a.azione === 'alza_calorie');
+      expect(alza).toBeDefined();
+      expect(alza!.eseguitaDalServer).toBe(true);
+      expect(alza!.chiedeUnNumero).toBe(true);
+    });
+
+    /**
+     * ⛔ **UNA CORREZIONE SCADUTA NON È UNA CORREZIONE IN CORSO.** Il campo non si cancella alla
+     * scadenza: si **spegne**, e il valore resta scritto. Mostrandolo grezzo, la finestra avrebbe
+     * detto «c'è già un −15%, quello che scrivi la sostituisce» su qualcosa che non tocca il piatto
+     * da una settimana — cioè avrebbe fatto esitare qualcuno davanti a un fantasma.
+     */
+    it('⛔ mostra la correzione in corso, e NON quella già scaduta', async () => {
+      const ieri = new Date(Date.now() - 2 * 86_400_000);
+      const domani = new Date(Date.now() + 2 * 86_400_000);
+      const scaduta = await make(prismaKcal({}, { kcalAdjustPct: -15, kcalAdjustUntil: ieri })).azioniDecisione(user, 'dec1');
+      expect(scaduta.correzioneAttualePct).toBeNull();
+      const viva = await make(prismaKcal({}, { kcalAdjustPct: -15, kcalAdjustUntil: domani })).azioniDecisione(user, 'dec1');
+      expect(viva.correzioneAttualePct).toBe(-15);
+      const senzaScadenza = await make(prismaKcal({}, { kcalAdjustPct: -15 })).azioniDecisione(user, 'dec1');
+      expect(senzaScadenza.correzioneAttualePct).toBe(-15);
+    });
+
+    it('⚠️ ma NON sullo screening: lì non è una domanda sulle calorie', async () => {
+      const prisma = prismaKcal({
+        engineDecision: { findUnique: jest.fn().mockResolvedValue({ id: 'dec1', clientId: 'p1', reasonKey: 'screening', flagReason: 'x' }) },
+      });
+      const res = await make(prisma).azioniDecisione(user, 'dec1');
+      expect(res.azioni.map((a) => a.azione)).not.toContain('alza_calorie');
+      await expect(make(prisma).eseguiAzione(user, 'dec1', 'alza_calorie', 'perché sì', { correzionePct: 10 }))
+        .rejects.toThrow('non prevista');
+    });
+
+    /**
+     * ⛔ **LA PROPOSTA DEL MOTORE ARRIVA DAVANTI A CHI DECIDE.** `menu: 'increase_calories'` finiva
+     * soltanto nel payload della notifica quotidiana — viaggiava e non cambiava niente. ⚠️ «Non lo
+     * leggeva nessuno», come diceva la prima stesura di questa nota, era falso.
+     */
+    it('⛔ dice che il motore proponeva proprio quello', async () => {
+      const prisma = prismaKcal({
+        engineDecision: { findUnique: jest.fn().mockResolvedValue({
+          id: 'dec1', clientId: 'p1', reasonKey: 'calo_rapido_energia', flagReason: 'x',
+          action: { menu: 'increase_calories', tone: 'supportive' },
+        }) },
+      });
+      expect((await make(prisma).azioniDecisione(user, 'dec1')).motoreProponeAumento).toBe(true);
+      expect((await make(prismaKcal()).azioniDecisione(user, 'dec1')).motoreProponeAumento).toBe(false);
+    });
+
+    it('⛔ senza il numero non parte, e lo dice a parole', async () => {
+      const prisma = prismaKcal();
+      await expect(make(prisma).eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra'))
+        .rejects.toThrow('serve di quanto');
+      await expect(make(prisma).eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra', { correzionePct: 0 }))
+        .rejects.toThrow('serve di quanto');
+      // ⚠️ E nemmeno in negativo: da questa porta si ALZA. Per ridurre c'è la scheda.
+      await expect(make(prisma).eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra', { correzionePct: -10 }))
+        .rejects.toThrow('serve di quanto');
+      expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+    });
+
+    it('⛔ e senza motivo nemmeno: è l\'unica cosa che fra tre mesi spiega il numero', async () => {
+      const prisma = prismaKcal();
+      await expect(make(prisma).eseguiAzione(user, 'dec1', 'alza_calorie', '  ', { correzionePct: 10 }))
+        .rejects.toThrow('Scrivi il motivo');
+      expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+    });
+
+    it('⛔ scrive la correzione, la durata, e chiude la riga in coda', async () => {
+      const prisma = prismaKcal();
+      const engine = makeEngine();
+      const res = await make(prisma, engine, makePersonalBase(), makeAudit(), kcalNeed())
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia bassa da due settimane', { correzionePct: 10, perGiorni: 7 });
+      const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+      expect(data.kcalAdjustPct).toBe(10);
+      expect(data.kcalAdjustUntil).toBeInstanceOf(Date);
+      expect(engine.reviewDecision).toHaveBeenCalled();
+      expect(res.ok).toBe(true);
+    });
+
+    /**
+     * ⛔ **IL DEFICIT SCRITTO A MANO NON DEVE SPARIRE.** `impostaKcal` normalizza a `null` quello che
+     * non riceve: passando solo la percentuale, un deficit imposto settimane prima svanirebbe in
+     * silenzio — cioè «alza del 10%» ne alzerebbe **molte** di più, senza che nessuno l'abbia
+     * chiesto. È il difetto più insidioso di questa consegna, e vive in una riga.
+     */
+    it('⛔ e NON cancella il deficit che il nutrizionista aveva già scritto', async () => {
+      const prisma = prismaKcal({}, { kcalDeficitOverride: 400 });
+      await make(prisma, makeEngine(), makePersonalBase(), makeAudit(), kcalNeed())
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia bassa', { correzionePct: 10, perGiorni: 7 });
+      expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data.kcalDeficitOverride).toBe(400);
+    });
+
+    /**
+     * ⛔ **LA CONFERMA SOTTO SOGLIA ARRIVA FINO IN FONDO.** Alzando le calorie il target sale, quindi
+     * la soglia può mordere solo se mordeva già — ed è proprio il caso in cui rifiutare senza dare
+     * modo di confermare sarebbe un vicolo cieco con l'aria di un divieto. La mutazione che toglieva
+     * `confermaSottoSoglia` dal passaggio restava verde: adesso no.
+     */
+    it('⛔ la conferma sotto soglia passa dalla coda fino a `impostaKcal`', async () => {
+      const sotto = makeKcalNeed({
+        estimate: jest.fn().mockImplementation((_c: string, sim?: { correzionePct?: number }) =>
+          Promise.resolve({ ...stima(sim?.correzionePct ? 1100 : 1000), sottoSoglia: true }),
+        ),
+      });
+      const prisma = prismaKcal();
+      // Senza la spunta il server rifiuta, e il rifiuto porta dentro il numero.
+      await expect(
+        make(prisma, makeEngine(), makePersonalBase(), makeAudit(), sotto)
+          .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra', { correzionePct: 10 }),
+      ).rejects.toThrow('soglia minima');
+      expect(prisma.clientProfile.update).not.toHaveBeenCalled();
+      // Con la spunta passa: il clinico è lui.
+      await make(prismaKcal(), makeEngine(), makePersonalBase(), makeAudit(), sotto)
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra', { correzionePct: 10, confermaSottoSoglia: true });
+    });
+
+    /** ⚠️ E la riga in scheda nasce: è la richiesta di Simone, non un di più. */
+    it('⛔ lascia la nota in scheda, con chi, quando, di quanto e perché', async () => {
+      const prisma = prismaKcal();
+      await make(prisma, makeEngine(), makePersonalBase(), makeAudit(), kcalNeed())
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia bassa da due settimane', { correzionePct: 10, perGiorni: 7 });
+      const nota = (prisma.clientNote.create as jest.Mock).mock.calls[0][0].data;
+      expect(nota.clientId).toBe('p1');
+      expect(nota.body).toMatch(/^Aumento calorie autorizzato da /);
+      // ⛔ Il NOME di chi ha deciso: è metà della richiesta («autorizzato da… il…»), e senza questa
+      // riga il test passava anche con la nota firmata «staff».
+      expect(nota.body).toContain('Dr.ssa Bini');
+      expect(nota.authorId).toBe('nut-1');
+      expect(nota.body).toContain('+10% per 7 giorni');
+      expect(nota.body).toContain('da 1600 a 1760 kcal/giorno');
+      expect(nota.body).toContain('energia bassa da due settimane');
+    });
+  });
+
   it('riattivare: chi NON ha messo il blocco non può toglierlo', async () => {
     const prisma = {
       staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1' }) },
@@ -389,6 +570,9 @@ describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
       update: jest.fn().mockResolvedValue({}),
     },
     kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }), findMany: jest.fn().mockResolvedValue([]) },
+    // ⚠️ Dal 28/8 ogni cambio di calorie lascia una riga nelle note della scheda: è la porta da cui
+    // la coach guarda cos'è successo a una cliente, e senza questo finto il salvataggio esplode.
+    clientNote: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
     escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }), findFirst: jest.fn().mockResolvedValue(null) },
     user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
     notification: { create: jest.fn().mockResolvedValue({}) },
@@ -530,6 +714,71 @@ describe('NutritionistService — le calorie scritte a mano (§15.5)', () => {
  * LA CORREZIONE A TERMINE (risposta di Nocanty, 13/8): «riduci le kcal del 10% per 7 giorni e poi
  * riprendi col normale ritmo». Decisione in progetto/NOTA_Correzione_Kcal_A_Termine.md.
  */
+/**
+ * ⛔ **«NON L'HO SCRITTO» NON È «TOGLILO»** — la regola trovata in revisione il 28/8, e il difetto
+ * che ha scoperto: ogni volta che la nutrizionista dettava a Vera «aumenta le calorie del 10%», un
+ * **deficit imposto** scritto a mano settimane prima spariva in silenzio, perché `impostaKcal`
+ * normalizzava a `null` tutto quello che non riceveva.
+ *
+ * ⚠️ I due test qui sotto tengono ferme **tutte e due** le leve, e la seconda non è teoria: è la
+ * stessa trappola dall'altro verso, e la prossima porta che chiamerà questo metodo con una leva sola
+ * la troverebbe uguale.
+ */
+describe('⛔ le leve che non vengono nominate restano come sono', () => {
+  const stima = (target: number) => ({
+    bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900, target, deficit: 0,
+    floored: false, objective: 'dimagrimento', weightKg: 70, pesoIncoerente: null,
+    fonteDeficit: 'nessuno', deficitCalcolato: 0, calcoloDeficit: 'nessuno', correzionePct: 0,
+    sottoSoglia: false, tettoApplicato: false, correzioneFinoAl: null, correzioneScaduta: false,
+    spiegazione: `${target} kcal/giorno`,
+  });
+  const prismaCon2 = (profilo: Record<string, unknown>) => ({
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1', displayName: 'Dr.ssa Bini' }) },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        assignedNutritionistId: 'nut-1', kcalDeficitOverride: null, kcalAdjustPct: null,
+        kcalAdjustUntil: null, name: 'Anna', ...profilo,
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }) },
+    clientNote: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    escalation: { create: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    notification: { create: jest.fn() },
+  });
+  const servizio = (prisma: Record<string, unknown>) =>
+    make(prisma, makeEngine(), makePersonalBase(), makeAudit(), makeKcalNeed({
+      estimate: jest.fn().mockResolvedValue(stima(1600)),
+    }));
+
+  it('⛔ scrivendo SOLO la percentuale, il deficit imposto resta dov\'è', async () => {
+    const prisma = prismaCon2({ kcalDeficitOverride: 400 });
+    await servizio(prisma).impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' });
+    expect((prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data.kcalDeficitOverride).toBe(400);
+  });
+
+  it('⛔ e scrivendo SOLO il deficit, la percentuale e la sua scadenza restano dove sono', async () => {
+    const fino = new Date('2026-09-04T00:00:00.000Z');
+    const prisma = prismaCon2({ kcalAdjustPct: -10, kcalAdjustUntil: fino });
+    await servizio(prisma).impostaKcal(user, 'p1', { deficitKcal: 300, motivo: 'ricalibro' });
+    const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(data.kcalAdjustPct).toBe(-10);
+    // ⚠️ **E la scadenza con lei.** Ricalcolarla da `perGiorni` assente trasformerebbe in silenzio
+    // una correzione a termine in una permanente — cioè la differenza fra una settimana di scarico
+    // e un cambio di piano.
+    expect(data.kcalAdjustUntil).toEqual(fino);
+  });
+
+  it('⚠️ mentre chi la nomina la cambia davvero: `null` toglie', async () => {
+    const prisma = prismaCon2({ kcalDeficitOverride: 400, kcalAdjustPct: -10 });
+    await servizio(prisma).impostaKcal(user, 'p1', { deficitKcal: null, correzionePct: -10, motivo: 'tolgo il deficit' });
+    const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
+    expect(data.kcalDeficitOverride).toBeNull();
+    expect(data.kcalAdjustPct).toBe(-10);
+  });
+});
+
 describe('NutritionistService — la correzione con una durata', () => {
   const stima = (target: number) => ({
     bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900,
@@ -548,6 +797,9 @@ describe('NutritionistService — la correzione con una durata', () => {
       update: jest.fn().mockResolvedValue({}),
     },
     kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }), findMany: jest.fn().mockResolvedValue([]) },
+    // ⚠️ Dal 28/8 ogni cambio di calorie lascia una riga nelle note della scheda: è la porta da cui
+    // la coach guarda cos'è successo a una cliente, e senza questo finto il salvataggio esplode.
+    clientNote: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
     escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }), findFirst: jest.fn().mockResolvedValue(null) },
     user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
     notification: { create: jest.fn().mockResolvedValue({}) },

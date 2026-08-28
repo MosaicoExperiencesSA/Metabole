@@ -1,11 +1,13 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { AuditService } from '../audit/audit.service';
-import { scadenzaDaGiorni } from '../menu/correzione-kcal';
+import { correzioneAttiva, scadenzaDaGiorni } from '../menu/correzione-kcal';
 import { EngineService } from '../engine/engine.service';
 import { PersonalBaseService } from '../personal-base/personal-base.service';
 import {
   AZIONI,
+  AZIONI_CON_NUMERO,
+  AZIONI_ESEGUIBILI,
   AzioneDecisione,
   DESCRIZIONE_AZIONE,
   ETICHETTA_CAUSA,
@@ -20,6 +22,7 @@ import { KcalNeedService } from '../menu/kcal-need.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CATEGORIE_COMPENSO, inizioMese } from '../common/tetto-compensi';
+import { CHI_SCONOSCIUTO, testoNotaKcal } from './nota-kcal';
 
 const DAY = 86_400_000;
 // Le categorie e il confine di mese vengono da `common/tetto-compensi.ts`, non da una copia
@@ -73,6 +76,8 @@ export class NutritionistService {
     private readonly kcalNeed: KcalNeedService,
     private readonly menu: MenuService,
   ) {}
+
+  private readonly logger = new Logger(NutritionistService.name);
 
   private isSupervisor(user: AuthUser): boolean {
     return user.role === 'head_nutritionist' || user.role === 'admin';
@@ -479,7 +484,7 @@ export class NutritionistService {
    * può revisionare solo le decisioni dei propri pazienti (il capo/admin qualsiasi).
    * Delega poi la scrittura all'EngineService (idempotenza + audit già lì).
    */
-  // ---------- «Correggi»: le azioni ammesse per la causa, e le due che il backend esegue ----------
+  // ---------- «Correggi»: le azioni ammesse per la causa, e quelle che il backend esegue ----------
 
   /**
    * Cosa si può fare su questa riga della coda. È quello che riempie la finestra di «Correggi»
@@ -494,8 +499,13 @@ export class NutritionistService {
     const causa = isCausa(decision.reasonKey) ? decision.reasonKey : null;
     const profilo = (await this.prisma.clientProfile.findUnique({
       where: { userId: decision.clientId },
-      select: { planHeldAt: true, rapidLossBaselineAt: true },
-    })) as { planHeldAt: Date | null; rapidLossBaselineAt: Date | null } | null;
+      select: { planHeldAt: true, rapidLossBaselineAt: true, kcalAdjustPct: true, kcalAdjustUntil: true },
+    })) as {
+      planHeldAt: Date | null;
+      rapidLossBaselineAt: Date | null;
+      kcalAdjustPct: number | null;
+      kcalAdjustUntil: Date | null;
+    } | null;
 
     return {
       decisionId: decision.id,
@@ -503,6 +513,31 @@ export class NutritionistService {
       causa,
       causaEtichetta: causa ? ETICHETTA_CAUSA[causa] : null,
       flagReason: decision.flagReason,
+      /**
+       * ⛔ **IL PRIMO LETTORE CHE NE FA QUALCOSA PER CHI DECIDE.**
+       *
+       * Il motore scrive `menu: 'increase_calories'` sulle decisioni in cui propone di alzare le
+       * calorie. ⚠️ **Non era vero che non lo leggeva nessuno** — la prima stesura di questo
+       * commento lo diceva, e la revisione l'ha smentito: `notifications.service` lo infila nel
+       * payload della notifica quotidiana. Ma lì è un dato che viaggia e non cambia niente; qui è la
+       * prima volta che quella proposta arriva **davanti alla persona che deve decidere**.
+       * ⚠️ Non la esegue e non la preseleziona: la decisione resta di chi guarda.
+       */
+      motoreProponeAumento:
+        (decision.action as { menu?: string } | null)?.menu === 'increase_calories',
+      /**
+       * ⚠️ **Quello che c'è già scritto E CHE STA ANCORA AGENDO**, perché «alza del 10%» su una
+       * cliente che ha già un −15% in corso non è la stessa cosa che su una senza niente — e chi
+       * preme deve vederlo prima, non scoprirlo dallo storico dopo.
+       *
+       * ⛔ **`correzioneAttiva` e non il campo grezzo** (28/8, in revisione). La correzione non si
+       * cancella alla scadenza: si **spegne**, e il valore resta scritto. Mostrando `kcalAdjustPct`
+       * così com'è, la finestra avrebbe detto «c'è già un −15%, quello che scrivi la sostituisce» su
+       * una correzione che non tocca il piatto da una settimana — cioè avrebbe fatto esitare
+       * qualcuno davanti a un fantasma.
+       */
+      correzioneAttualePct: correzioneAttiva(profilo?.kcalAdjustPct ?? null, profilo?.kcalAdjustUntil ?? null) || null,
+      correzioneFinoAl: profilo?.kcalAdjustUntil ? profilo.kcalAdjustUntil.toISOString().slice(0, 10) : null,
       // Lo stato attuale: offrire «Blocca il piano» a un piano già bloccato è il modo più rapido
       // di far dubitare che il pulsante di prima abbia funzionato.
       pianoGiaFermo: !!profilo?.planHeldAt,
@@ -512,20 +547,33 @@ export class NutritionistService {
         etichetta: DESCRIZIONE_AZIONE[a].etichetta,
         cosaFa: DESCRIZIONE_AZIONE[a].cosaFa,
         /** `false` = è un rimando (chat, scheda): lo esegue il frontend, non passa da qui. */
-        eseguitaDalServer: a === AZIONI.AUTORIZZA_PROSEGUIRE || a === AZIONI.BLOCCA_PIANO,
+        // ⚠️ Dall'elenco e non da un `||` scritto a mano: era già una copia della regola, e con la
+        // terza azione eseguibile sarebbe diventata una copia SBAGLIATA — «Alza le calorie» avrebbe
+        // avuto l'aspetto di un rimando e il frontend non l'avrebbe mandata al server.
+        eseguitaDalServer: (AZIONI_ESEGUIBILI as string[]).includes(a),
+        /** Chiede un numero prima di partire (la percentuale, per «Alza le calorie»). */
+        chiedeUnNumero: (AZIONI_CON_NUMERO as string[]).includes(a),
       })),
     };
   }
 
   /**
-   * Esegue una delle due azioni che toccano il piano, e chiude la riga in coda.
+   * Esegue una delle azioni che toccano il piano — autorizza a proseguire, blocca il piano, alza le
+   * calorie — e chiude la riga in coda.
    *
    * L'azione viene **verificata contro la causa** (`azioneAmmessa`): la tabella delle azioni non è
    * un suggerimento per l'interfaccia, è la regola. Un client che chiedesse «blocca il piano» su una
    * riga di screening otterrebbe un rifiuto, perché altrimenti la tabella descriverebbe solo quello
    * che i pulsanti mostrano, e le regole che vivono solo nei pulsanti si aggirano con una POST.
    */
-  async eseguiAzione(user: AuthUser, decisionId: string, azione: string, note?: string) {
+  async eseguiAzione(
+    user: AuthUser,
+    decisionId: string,
+    azione: string,
+    note?: string,
+    /** I numeri che un'azione può chiedere. Oggi solo «Alza le calorie». */
+    dati?: { correzionePct?: number | null; perGiorni?: number | null; confermaSottoSoglia?: boolean },
+  ) {
     const decision = await this.decisionePermessa(user, decisionId);
     const causa = isCausa(decision.reasonKey) ? decision.reasonKey : null;
     if (!azioneAmmessa(causa, azione)) {
@@ -564,7 +612,48 @@ export class NutritionistService {
     }
 
     const adesso = new Date();
-    if (azione === AZIONI.AUTORIZZA_PROSEGUIRE) {
+    /**
+     * ⚠️ Quello che `impostaKcal` ha da dire su come è andata: serve a `codaChiusa` più in basso, e
+     * a chi ha premuto — «i menu futuri NON sono stati rigenerati» è un fatto che non si tace.
+     */
+    type EsitoKcal = { menu?: { ripristinati?: number; delivered?: string[] }; notaInScheda?: boolean };
+    let esitoKcal: EsitoKcal | null = null;
+    /**
+     * ⛔ **«ALZA LE CALORIE» NON SCRIVE NIENTE DI SUO: chiama la porta che esiste già.**
+     *
+     * `impostaKcal` porta con sé il controllo di perimetro, la soglia minima di sicurezza con la
+     * conferma esplicita, lo storico `kcal_override`, l'audit, l'avviso ai capi quando si scende
+     * sotto soglia, la rigenerazione dei giorni futuri e — da oggi — la nota in scheda. ⚠️ Rifare
+     * qui anche solo la scrittura del profilo vorrebbe dire avere **due strade con controlli
+     * diversi** per la stessa modifica clinica: è la cosa che questo file dice di non fare, tre
+     * righe più su, a proposito dei cambi dieta.
+     *
+     * ⚠️ **E il deficit scritto a mano resta dov'è.** Qui si manda **solo** la percentuale, e
+     * `impostaKcal` tiene quello che non gli viene nominato: era il difetto più insidioso di questa
+     * consegna — «alza del 10%» che ne alzava molte di più cancellando un deficit imposto — e la
+     * revisione ha mostrato che viveva anche nella porta di Vera. Per questo la regola sta **là**,
+     * in un posto solo, e non ricopiata qui.
+     */
+    if (azione === AZIONI.ALZA_CALORIE) {
+      const pct = dati?.correzionePct ?? null;
+      if (pct == null || !(pct > 0)) {
+        throw new BadRequestException(
+          'Per alzare le calorie serve di quanto: scrivi una percentuale maggiore di zero (es. 10).',
+        );
+      }
+      const motivo = note?.trim() ?? '';
+      // ⚠️ Il motivo è obbligatorio anche qui, e non per simmetria: è quello che finisce nello
+      // storico e nella nota in scheda, cioè l'unica cosa che fra tre mesi spiega il numero.
+      if (motivo.length < 3) {
+        throw new BadRequestException('Scrivi il motivo dell’aumento: resta nello storico e nella scheda.');
+      }
+      esitoKcal = (await this.impostaKcal(user, decision.clientId, {
+        correzionePct: pct,
+        perGiorni: dati?.perGiorni ?? null,
+        motivo,
+        confermaSottoSoglia: dati?.confermaSottoSoglia,
+      })) as EsitoKcal;
+    } else if (azione === AZIONI.AUTORIZZA_PROSEGUIRE) {
       await this.prisma.clientProfile.update({
         where: { userId: decision.clientId },
         // Si scrive SOLO il baseline: nessun altro campo, e soprattutto nessuna cancellazione di
@@ -605,14 +694,35 @@ export class NutritionistService {
       codaChiusa = false;
     }
 
+    /**
+     * ⛔ **QUELLO CHE `impostaKcal` HA DA DIRE NON SI BUTTA VIA** (28/8, in revisione).
+     *
+     * La prima stesura faceva `await this.impostaKcal(...)` e ignorava il risultato, mentre la
+     * pagina scriveva comunque «i giorni futuri si rigenerano, e resta scritto in scheda». ⚠️ Due
+     * affermazioni che possono essere **false nello stesso invio**: se la cliente non è idonea o il
+     * piano è fermo, `redeliverFutureDays` rimette i giorni com'erano (`ripristinati > 0`) e le
+     * calorie nuove nel piatto **non arrivano**; e la nota in scheda è best-effort. La card in scheda
+     * questo lo dice già da settimane — questa porta no. *Se degradi, dillo.*
+     */
+    const avvisi: string[] = [];
+    if (!codaChiusa) {
+      avvisi.push('Azione eseguita sul piano, ma la riga non è uscita dalla coda: ricarica e chiudila a mano.');
+    }
+    if ((esitoKcal?.menu?.ripristinati ?? 0) > 0) {
+      avvisi.push(
+        'I menu futuri NON sono stati rigenerati (la cliente non è idonea adesso): restano quelli di prima, con le calorie vecchie.',
+      );
+    }
+    if (esitoKcal && esitoKcal.notaInScheda === false) {
+      avvisi.push('La riga nelle note della scheda non è stata scritta: le calorie sono cambiate lo stesso.');
+    }
+
     return {
       ok: true,
       azione,
       eseguitaIl: adesso.toISOString(),
       codaChiusa,
-      ...(codaChiusa
-        ? {}
-        : { avviso: 'Azione eseguita sul piano, ma la riga non è uscita dalla coda: ricarica e chiudila a mano.' }),
+      ...(avvisi.length ? { avviso: avvisi.join(' ') } : {}),
     };
   }
 
@@ -730,9 +840,22 @@ export class NutritionistService {
   async simulaKcal(user: AuthUser, clientId: string, deficitKcal?: number | null, correzionePct?: number | null) {
     await this.clientePermesso(user, clientId);
     const prima = await this.kcalNeed.estimate(clientId);
+    /**
+     * ⛔ **L'ANTEPRIMA DEVE SIMULARE QUELLO CHE SUCCEDEREBBE DAVVERO** (28/8, in revisione).
+     *
+     * `undefined` qui diventava `null`, cioè «togli il deficit»: Vera chiama
+     * `simulaKcal(user, id, undefined, pct)` per mostrare il prima e il dopo, e il «dopo» usciva
+     * **senza il deficit imposto** — un numero più alto del vero, mostrato per farlo confermare,
+     * proprio sulle clienti che un deficit scritto a mano ce l'hanno. ⚠️ La regola è la stessa di
+     * `impostaKcal`: chi non nomina una leva se la tiene com'è.
+     */
+    const profilo = (await this.prisma.clientProfile.findUnique({
+      where: { userId: clientId },
+      select: { kcalDeficitOverride: true, kcalAdjustPct: true },
+    })) as { kcalDeficitOverride: number | null; kcalAdjustPct: number | null } | null;
     const dopo = await this.kcalNeed.estimate(clientId, {
-      deficitImposto: deficitKcal ?? null,
-      correzionePct: correzionePct ?? null,
+      deficitImposto: deficitKcal !== undefined ? deficitKcal : profilo?.kcalDeficitOverride ?? null,
+      correzionePct: correzionePct !== undefined ? correzionePct : profilo?.kcalAdjustPct ?? null,
     });
     return { prima, dopo };
   }
@@ -781,17 +904,49 @@ export class NutritionistService {
     } | null;
     if (!profilo) throw new NotFoundException('Profilo non trovato');
 
-    // 0 e null vogliono dire la stessa cosa — «non impostato» — e tenerli entrambi sarebbe un modo
-    // per farli divergere: si normalizza qui, una volta, invece che in ogni lettura.
-    const deficitKcal = input.deficitKcal != null && input.deficitKcal > 0 ? Math.round(input.deficitKcal) : null;
-    const correzionePct = input.correzionePct != null && input.correzionePct !== 0 ? input.correzionePct : null;
+    /**
+     * ⛔ **«NON L'HO SCRITTO» NON È «TOGLILO»** (trovato in revisione, 28/8, ed è lo stesso difetto
+     * che `kcal-need.service.estimate` aveva già pagato il 27/8 con `simulazione`).
+     *
+     * `impostaKcal` normalizzava a `null` tutto quello che non riceveva. Le tre porte però non
+     * mandano le stesse cose: la card in scheda manda **sempre tutt'e due** le leve (anche vuote,
+     * come `null` esplicito), mentre **Vera** manda solo la percentuale — e la coda, da oggi, pure.
+     * Conseguenza: ogni volta che la nutrizionista dettava a Vera *«aumenta le calorie del 10% per 7
+     * giorni»*, un **deficit imposto** scritto a mano settimane prima **spariva in silenzio**. Cioè
+     * «alza del 10%» ne alzava molte di più, senza che nessuno l'avesse chiesto e senza una riga
+     * che lo dicesse.
+     *
+     * ⚠️ Adesso il confine è la **presenza della chiave**, non il valore: chi vuole togliere manda
+     * `null` (o `0`) e lo toglie; chi non la nomina si tiene quello che c'era. ⛔ È il confine giusto
+     * anche perché è **verificabile da chi chiama**: `{ correzionePct: 10 }` dice una cosa sola, e
+     * prima ne diceva due.
+     *
+     * ⚠️ Dentro la chiave, invece, `0` e `null` restano la stessa cosa — «non impostato» — e si
+     * normalizzano qui una volta sola, invece che in ogni lettura.
+     */
+    const deficitScritto = 'deficitKcal' in input;
+    const pctScritta = 'correzionePct' in input;
+    const deficitKcal = deficitScritto
+      ? input.deficitKcal != null && input.deficitKcal > 0
+        ? Math.round(input.deficitKcal)
+        : null
+      : profilo.kcalDeficitOverride;
+    const correzionePct = pctScritta
+      ? input.correzionePct != null && input.correzionePct !== 0
+        ? input.correzionePct
+        : null
+      : profilo.kcalAdjustPct;
 
     /**
      * LA DURATA (14/8, Nocanty). ⚠️ La scadenza vive **solo** insieme alla correzione: togliendo la
      * percentuale si toglie anche la data, altrimenti resterebbe una scadenza appesa a niente —
      * pronta a spegnere la prossima correzione scritta, senza che nessuno capisca perché.
      */
-    const scadenza = correzionePct !== null ? scadenzaDaGiorni(input.perGiorni ?? 0) : null;
+    // ⚠️ E la scadenza segue la stessa regola: se la percentuale non è stata nominata, resta quella
+    // che c'era — ricalcolarla da `perGiorni` assente vorrebbe dire trasformare in silenzio una
+    // correzione a termine in una permanente.
+    const scadenza =
+      correzionePct === null ? null : pctScritta ? scadenzaDaGiorni(input.perGiorni ?? 0) : profilo.kcalAdjustUntil;
     const scadenzaPrima = profilo.kcalAdjustUntil ? profilo.kcalAdjustUntil.toISOString().slice(0, 10) : null;
     const scadenzaDopo = scadenza ? scadenza.toISOString().slice(0, 10) : null;
 
@@ -848,6 +1003,60 @@ export class NutritionistService {
       } as never,
     });
 
+    /**
+     * ⛔ **E LA RIGA RESTA IN SCHEDA** (Simone, 27/8: *«la sua risposta si salva nelle note della
+     * scheda cliente — aumento calorie autorizzato da… il…»*).
+     *
+     * ⚠️ **Qui e non nella coda del motore**, ed è la scelta che conta. La richiesta nasceva da una
+     * riga della coda «Da validare», e la strada corta era scrivere la nota solo lì. Ma le porte che
+     * cambiano le calorie di una persona sono **tre** — questa card in scheda, Vera che detta la
+     * correzione, e da oggi l'azione della coda — e tutte e tre passano da `impostaKcal`. Scrivendo
+     * la nota solo su una, la stessa decisione presa da un'altra porta non lascerebbe traccia dove
+     * la coach la cerca: *se due punti rispondono alla stessa domanda, uno deve chiamare l'altro*.
+     *
+     * ⚠️ **Best-effort, e lo dico**: se la nota non riesce a nascere, le calorie sono già cambiate e
+     * far fallire tutto rimetterebbe in discussione una scrittura clinica già avvenuta. Ma non in
+     * silenzio — resta un `warn`, perché una decisione senza la sua traccia è metà del lavoro.
+     */
+    /**
+     * ⚠️ **La lettura del nome sta DENTRO il best-effort** (28/8, in revisione). Fuori, un errore su
+     * questa query — che serve solo alla nota — avrebbe fatto fallire `impostaKcal` **dopo** aver
+     * già scritto il profilo e lo storico e **prima** dell'audit, della segnalazione sotto soglia e
+     * della rigenerazione dei menu: scrittura clinica avvenuta, nessuna traccia, menu vecchi.
+     */
+    const notaScritta = await (async () => {
+      const chiHaDeciso = staffId
+        ? ((await this.prisma.staff.findUnique({ where: { id: staffId }, select: { displayName: true } })) as {
+            displayName: string | null;
+          } | null)
+        : null;
+      return this.prisma.clientNote.create({
+        data: {
+          clientId,
+          authorId: staffId,
+          body: testoNotaKcal({
+            targetPrima: prima?.target ?? null,
+            targetDopo: dopo?.target ?? null,
+            deficitKcal,
+            correzionePct,
+            fino: scadenza,
+            perGiorni: scadenza && input.perGiorni ? Math.floor(input.perGiorni) : null,
+            chi: chiHaDeciso?.displayName ?? CHI_SCONOSCIUTO,
+            quando: new Date(),
+            motivo: input.motivo,
+            // ⚠️ Stesso tetto degli altri due punti che scrivono note (`clients.service`): il motivo
+            // può arrivare da Vera come frase di chat intera, e una nota illimitata in una lista di
+            // note è il modo in cui una schermata diventa illeggibile per una riga sola.
+          }).slice(0, 5000),
+        } as never,
+      });
+    })()
+      .then(() => true)
+      .catch((e) => {
+        this.logger.warn(`Calorie cambiate per ${clientId} ma la nota in scheda NON è stata scritta: ${String(e)}`);
+        return false;
+      });
+
     await this.audit.log({
       action: 'nutritionist.kcal.set',
       actorId: user.sub,
@@ -860,6 +1069,11 @@ export class NutritionistService {
         targetPrima: prima?.target ?? null,
         targetDopo: dopo?.target ?? null,
         sottoSoglia: !!dopo?.sottoSoglia,
+        // ⚠️ Anche la durata, che prima non c'era: «−10% per sempre» e «−10% per 7 giorni» sono due
+        // prescrizioni diverse, e l'audit le raccontava identiche.
+        perGiorni: scadenza && input.perGiorni ? Math.floor(input.perGiorni) : null,
+        finoAl: scadenzaDopo,
+        notaInScheda: notaScritta,
       },
     });
 
@@ -900,6 +1114,8 @@ export class NutritionistService {
 
     return {
       ok: true,
+      // ⚠️ Esce: chi chiama deve poter dire «le calorie sono cambiate ma la traccia in scheda no».
+      notaInScheda: notaScritta,
       valori: { deficitKcal, correzionePct },
       targetPrima: prima?.target ?? null,
       targetDopo: dopo?.target ?? null,
@@ -913,9 +1129,12 @@ export class NutritionistService {
   private async decisionePermessa(user: AuthUser, decisionId: string) {
     const decision = (await this.prisma.engineDecision.findUnique({
       where: { id: decisionId },
-      select: { id: true, clientId: true, reasonKey: true, flagReason: true, reviewedAt: true },
+      // ⚠️ Anche `action`: da lì si legge `menu: 'increase_calories'`, cioè la proposta del motore —
+      // il campo che questa consegna ha finalmente messo davanti a qualcuno.
+      select: { id: true, clientId: true, reasonKey: true, flagReason: true, reviewedAt: true, action: true },
     })) as {
       id: string; clientId: string; reasonKey: string | null; flagReason: string | null; reviewedAt: Date | null;
+      action: unknown;
     } | null;
     if (!decision) throw new NotFoundException('Decisione non trovata');
     if (!this.isSupervisor(user)) {

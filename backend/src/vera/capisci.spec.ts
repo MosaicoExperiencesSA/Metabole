@@ -1,4 +1,4 @@
-import { capisci, IntentoRestrizione, IntentoSostituzione, separaCitazione } from './capisci';
+import { capisci, esempioCorrezioneKcal, IntentoCorrezioneKcal, IntentoRestrizione, IntentoSostituzione, separaCitazione } from './capisci';
 
 /**
  * ⚠️ Questo file è l'elenco di frasi vere di cui parla la specifica: è il collaudo di Vera.
@@ -542,5 +542,36 @@ describe('capisci — la domanda che fa la pastiglia dei cambi', () => {
     // «a Giulia sostituisci la panna col latte» contiene «sostituisci» ed è un ordine da eseguire.
     // Aprire la coda al posto di eseguire sarebbe capire male con l'aria di aver capito.
     expect(capisci('a Giulia sostituisci la panna col latte')?.tipo).not.toBe('sostituzioni');
+  });
+});
+
+/**
+ * ⛔ **LA FRASE CHE VERA SUGGERISCE DEVE ESSERE UNA CHE VERA SA LEGGERE** (28/8, trovata in
+ * revisione: suggeriva «aumenta del 10% per 7 giorni», che senza la parola «calorie» questo file
+ * non riconosce — e chi la copiava alla lettera si sentiva rispondere «non ho capito»).
+ *
+ * ⚠️ Il test fa il **giro completo**: prende la stringa dal generatore e la dà al parser. È l'unico
+ * modo per cui una riscrittura delle espressioni regolari, o del suggerimento, si accorga di aver
+ * rotto l'altro.
+ */
+describe('⛔ l\'esempio della correzione kcal passa da `capisci`', () => {
+  it('⛔ col nome: si capisce chi, di quanto e per quanti giorni', () => {
+    const intento = capisci(esempioCorrezioneKcal('Anna')) as IntentoCorrezioneKcal | null;
+    expect(intento).not.toBeNull();
+    expect(intento!.tipo).toBe('correzione_kcal');
+    expect(intento!.cliente).toBe('Anna');
+    expect(intento!.pct).toBe(10);
+    expect(intento!.giorni).toBe(7);
+  });
+
+  it('⚠️ e senza nome resta comunque una correzione leggibile', () => {
+    const intento = capisci(esempioCorrezioneKcal(null)) as IntentoCorrezioneKcal | null;
+    expect(intento?.tipo).toBe('correzione_kcal');
+    expect(intento?.pct).toBe(10);
+  });
+
+  /** ⚠️ Il segno viene dal verbo: l'esempio è un AUMENTO, e deve restare tale. */
+  it('⚠️ è un aumento, non una riduzione', () => {
+    expect((capisci(esempioCorrezioneKcal('Anna')) as IntentoCorrezioneKcal).pct).toBeGreaterThan(0);
   });
 });

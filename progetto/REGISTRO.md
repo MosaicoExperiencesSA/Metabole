@@ -20,6 +20,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-28
 
+- `[Sviluppo]` **L'aumento delle calorie lo autorizza il nutrizionista, e resta scritto in scheda.**
+  Decisione di Simone del 27/8: *«Vera lo chiede al nutrizionista che risponde, e la sua risposta si
+  salva nelle note della scheda cliente (aumento calorie autorizzato da… il…)»*. Chiude
+  `coda-da-validare-b-c`, aperta dal 13/8 e ferma su un numero che doveva dare Nocanty — «di quanto
+  si alzano le calorie». Quel numero non serve più: lo scrive chi ha davanti il caso.
+  **(1) La nota**: ogni cambio di calorie lascia una riga nelle note della scheda — *«Aumento calorie
+  autorizzato da Dr.ssa Bini il 28/08/2026: da 1600 a 1760 kcal/giorno (+10% per 7 giorni, fino al
+  04/09/2026). Motivo: «…»»*. ⚠️ Scritta in `impostaKcal` e non nella coda: le porte che cambiano le
+  calorie sono **tre** — card in scheda, Vera, coda — e passano tutte di lì.
+  ⛔ **Il verso lo dice il target, non il segno della percentuale**: togliere 200 kcal di deficit alza
+  il piatto senza nessuna percentuale positiva. La nota legge `targetPrima → targetDopo`, cioè il
+  numero che arriva nel piatto.
+  **(2) L'aumento arriva davvero nel piano** — il difetto vecchio, quello per cui «Presa visione»
+  scriveva `reviewOutcome`, un campo che nessuno leggeva. Nella finestra di «Correggi…» c'è ora
+  **«Alza le calorie»**: si scrive di quanto e per quanti giorni, e la percentuale passa da
+  `impostaKcal`, con perimetro, soglia di sicurezza, storico, audit, avviso ai capi e rigenerazione
+  dei giorni futuri. ⚠️ Non reimplementa niente: è la stessa porta della scheda, chiamata da dove la
+  decisione si prende davvero.
+  ⛔ **Il difetto più insidioso era già vivo, e l'ha trovato la revisione.** `impostaKcal` azzerava
+  quello che non riceveva: ogni volta che la nutrizionista dettava a Vera «aumenta le calorie del
+  10%», un **deficit imposto a mano** spariva in silenzio — cioè ne alzava molte di più. Avevo messo
+  la difesa dentro la coda; adesso la regola sta in un posto solo: **«non l'ho scritto» non è
+  «toglilo»**, il confine è la presenza della chiave. Vale anche per la scadenza e per l'anteprima
+  che Vera mostra prima di far confermare.
+  ⚠️ **Il cartello in pagina è cambiato col codice**: diceva che «in nessuno dei due casi» il piano
+  veniva toccato — vero fino a ieri. Lasciarlo avrebbe fatto premere un pulsante a chi ha appena
+  letto che non fa niente.
+  **Quattro cose trovate dalla revisione**: Vera suggeriva una frase che il suo stesso parser non
+  riconosce («aumenta del 10%» senza la parola «calorie») e rispondeva «non ho capito» a chi la
+  copiava; «7 giorni» scritto nel campo giorni diventava un aumento **permanente** senza errore; il
+  motivo, obbligatorio, era chiamato «facoltativa» e stava **sotto** i pulsanti; e la coda buttava
+  via la risposta di `impostaKcal`, scrivendo «i giorni futuri si rigenerano» anche quando non era
+  vero.
+  **Misurato**: 5757 test backend verdi in quattro modalità, backoffice 150, app 192; diciotto
+  mutazioni, di cui **tre sopravvissute** che hanno fatto scrivere i test mancanti — la conferma
+  sotto soglia, la data della nota alle 00:30 di Roma, e il **nome** di chi ha deciso, che nessun
+  test verificava. Nessuna migrazione.
+
 - `[Sviluppo]` **Un peso che non può essere vero non decide più cosa mangia.** Richiesta di Simone
   dopo la prima passata di `diag:fabbisogno-media` in produzione, che aveva trovato quattro clienti
   con la media mobile lontana 12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata: *«non considerare

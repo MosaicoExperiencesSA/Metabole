@@ -828,6 +828,29 @@ function leggiGiorni(testo: string): number | null {
   return null;
 }
 
+/**
+ * ⛔ **LA FRASE DA SUGGERIRE — e deve essere una che questo file sa leggere davvero** (28/8, trovata
+ * in revisione).
+ *
+ * Vera suggeriva *«aumenta del 10% per 7 giorni»*, e `CORREZIONE_KCAL` **pretende la parola
+ * kcal/calorie** (vedi sopra: senza, «togli il 10% di formaggio» sarebbe una correzione calorica).
+ * Chi seguiva l'esempio alla lettera si sentiva rispondere «non ho capito»: peggio di «non posso»,
+ * perché era Vera stessa ad averglielo dettato.
+ *
+ * ⚠️ E il **nome** ci sta dentro: uscendo dalla lista la frase riparte da zero, quindi una frase
+ * senza nome fa chiedere «di quale cliente?» a chi ha appena aperto la riga di quella cliente.
+ *
+ * ⚠️ L'esempio si genera **qui**, accanto alle espressioni che lo devono riconoscere, e c'è un test
+ * che lo fa passare da `capisci`: un suggerimento scritto lontano dal parser è un suggerimento che
+ * smette di funzionare alla prima riscrittura di una regexp, e nessuno se ne accorge.
+ */
+export function esempioCorrezioneKcal(nome?: string | null): string {
+  const chi = (nome ?? '').trim();
+  return chi
+    ? `Per ${chi} aumenta le calorie del 10% per 7 giorni`
+    : 'aumenta le calorie del 10% per 7 giorni';
+}
+
 function leggiCorrezioneKcal(testo: string): IntentoCorrezioneKcal | null {
   const m = CORREZIONE_KCAL.exec(testo) ?? CORREZIONE_KCAL_INVERSA.exec(testo);
   if (!m) return null;

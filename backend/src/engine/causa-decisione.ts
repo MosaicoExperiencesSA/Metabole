@@ -60,13 +60,35 @@ export function isCausa(v: string | null | undefined): v is CausaDecisione {
  *
  * Per questo `apri_scheda` **non è un'azione del motore**: è un rimando a dove i cambi dieta vivono
  * già, coi loro permessi (`change_diet_type`, «Rigenera menu»). Lo stesso vale per `scrivi_in_chat`.
- * Le due che il backend esegue davvero sono `autorizza_proseguire` e `blocca_piano`.
+ * ⚠️ Quelle che il backend esegue davvero stanno in `AZIONI_ESEGUIBILI` — **tre** dal 28/8 — e chi
+ * ha bisogno di saperlo legge quell'elenco invece di ricopiarne i nomi: era già una copia, e con la
+ * terza sarebbe diventata una copia sbagliata.
  */
 export const AZIONI = {
   /** Azzera il punto di partenza del calcolo del calo: la cliente prosegue, l'allarme si ri-arma dopo. */
   AUTORIZZA_PROSEGUIRE: 'autorizza_proseguire',
   /** Ferma i giorni NUOVI. I giorni già ricevuti, incluso oggi, restano suoi. */
   BLOCCA_PIANO: 'blocca_piano',
+  /**
+   * ⛔ **ALZA LE CALORIE, per davvero** (28/8, decisione di Simone del 27/8).
+   *
+   * È l'azione che chiude il buco vecchio di questa coda: il motore **propone** di alzare le
+   * calorie (`menu: 'increase_calories'`, `engine.service.ts`), quella proposta non la leggeva
+   * nessuno, e i due pulsanti registravano soltanto «l'ho letta». Da oggi il nutrizionista scrive
+   * **di quanto**, e il numero arriva nel piatto.
+   *
+   * ⚠️ **Non reimplementa niente**: chiama `impostaKcal`, la stessa porta della card in scheda e di
+   * Vera, con il suo controllo di perimetro, la sua soglia di sicurezza, il suo storico
+   * `kcal_override`, il suo audit, l'avviso ai capi e la rigenerazione dei giorni futuri. La regola
+   * di casa di questo file — *«non si reimplementano qui: una seconda strada per la stessa modifica,
+   * con controlli diversi, è il modo in cui nascono i buchi»* — vale anche per le calorie: per
+   * questo `apri_scheda` resta, e questa azione **non** è una scorciatoia che scrive per conto suo.
+   *
+   * ⚠️ Perché allora esiste, se c'è già `apri_scheda`? Perché la decisione si prende **qui**, davanti
+   * alla riga che la motiva, e mandare a un'altra pagina significa perdere per strada il motivo per
+   * cui si stava alzando. La differenza con «apri la scheda» non è cosa scrive, è **dove si decide**.
+   */
+  ALZA_CALORIE: 'alza_calorie',
   /** Rimando alla chat con la cliente. Nessuna scrittura sul piano. */
   SCRIVI_IN_CHAT: 'scrivi_in_chat',
   /** Rimando alla scheda cliente, dove i cambi dieta vivono già coi loro permessi. */
@@ -76,7 +98,18 @@ export const AZIONI = {
 export type AzioneDecisione = (typeof AZIONI)[keyof typeof AZIONI];
 
 /** Le azioni che il **backend esegue**: le altre due sono navigazione, e non passano di qui. */
-export const AZIONI_ESEGUIBILI: AzioneDecisione[] = [AZIONI.AUTORIZZA_PROSEGUIRE, AZIONI.BLOCCA_PIANO];
+export const AZIONI_ESEGUIBILI: AzioneDecisione[] = [
+  AZIONI.AUTORIZZA_PROSEGUIRE,
+  AZIONI.BLOCCA_PIANO,
+  AZIONI.ALZA_CALORIE,
+];
+
+/**
+ * ⚠️ Le azioni che chiedono **un numero** prima di partire: il frontend deve saperlo senza
+ * conoscerne l'elenco a memoria, altrimenti la prossima azione con un parametro finisce eseguita
+ * a vuoto perché nessuno si è ricordato di aggiungere il campo.
+ */
+export const AZIONI_CON_NUMERO: AzioneDecisione[] = [AZIONI.ALZA_CALORIE];
 
 /**
  * La tabella decisa con Nocanty. L'ordine conta: è quello in cui le azioni compaiono, dalla più
@@ -90,11 +123,24 @@ export const AZIONI_ESEGUIBILI: AzioneDecisione[] = [AZIONI.AUTORIZZA_PROSEGUIRE
 export const AZIONI_PER_CAUSA: Record<CausaDecisione, AzioneDecisione[]> = {
   [CAUSE.CALO_RAPIDO_ENERGIA]: [
     AZIONI.AUTORIZZA_PROSEGUIRE,
+    // ⚠️ **Seconda e non prima**, di proposito: la frase del motore per questa causa dice «alzare le
+    // calorie e rallentare», quindi metterla in cima sarebbe difendibile — ma «autorizza a
+    // proseguire» è il gesto che il nutrizionista fa più spesso, e spostargli il primo pulsante
+    // sotto il naso è il modo in cui si preme quello sbagliato. L'ordine di questa tabella si cambia
+    // con Nocanty, non di iniziativa.
+    AZIONI.ALZA_CALORIE,
     AZIONI.SCRIVI_IN_CHAT,
     AZIONI.APRI_SCHEDA,
     AZIONI.BLOCCA_PIANO,
   ],
-  [CAUSE.ENERGIA_BASSA_CRONICA]: [AZIONI.SCRIVI_IN_CHAT, AZIONI.APRI_SCHEDA, AZIONI.BLOCCA_PIANO],
+  // ⚠️ Qui invece **prima**: l'energia bassa cronica è la causa in cui l'ipotesi «sta mangiando
+  // troppo poco» è la prima da guardare, e non c'è nessun «autorizza a proseguire» da premere.
+  [CAUSE.ENERGIA_BASSA_CRONICA]: [
+    AZIONI.ALZA_CALORIE,
+    AZIONI.SCRIVI_IN_CHAT,
+    AZIONI.APRI_SCHEDA,
+    AZIONI.BLOCCA_PIANO,
+  ],
   [CAUSE.SCREENING]: [AZIONI.APRI_SCHEDA, AZIONI.SCRIVI_IN_CHAT],
   // Una regola scritta dal nutrizionista può dire qualunque cosa: si offrono i due rimandi, che
   // non modificano niente. Proporre «blocca il piano» per una regola di cui non sappiamo il
@@ -113,6 +159,11 @@ export const DESCRIZIONE_AZIONE: Record<AzioneDecisione, { etichetta: string; co
     etichetta: 'Blocca il piano',
     cosaFa:
       'Si fermano i giorni NUOVI. Quelli già ricevuti, incluso oggi, restano suoi. La cliente vede scritto che il piano è in pausa in attesa del nutrizionista — non una scusa.',
+  },
+  [AZIONI.ALZA_CALORIE]: {
+    etichetta: 'Alza le calorie',
+    cosaFa:
+      'Scrive una correzione percentuale sul totale, come dalla scheda cliente: i giorni futuri già consegnati si rigenerano sulle calorie nuove. Se indichi i giorni vale per quelli e poi il piano torna da solo al ritmo normale; se li lasci vuoti vale finché non la togli. Resta scritto nello storico delle calorie e nelle note della scheda, con chi l’ha decisa e la data.',
   },
   [AZIONI.SCRIVI_IN_CHAT]: {
     etichetta: 'Scrivi in chat',

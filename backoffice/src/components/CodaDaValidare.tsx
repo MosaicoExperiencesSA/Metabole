@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { Banner, Modal } from './ui';
+// ⚠️ Un giorno di calendario si scrive senza passare da `new Date().toLocaleDateString`, che lo
+// riformatta attraverso il fuso: a ovest di Greenwich «fino al 04/09» diventerebbe il 03/09.
+import { giornoItaliano } from '../lib/giorno';
 
 /**
  * ⛔ **LA CODA «DA VALIDARE» — spostata dalla dashboard alla pagina delle Attività (22/8).**
@@ -73,7 +76,16 @@ interface AzioniDecisione {
   flagReason: string | null;
   pianoGiaFermo: boolean;
   calcoloGiaAzzeratoIl: string | null;
-  azioni: { azione: string; etichetta: string; cosaFa: string; eseguitaDalServer: boolean }[];
+  azioni: { azione: string; etichetta: string; cosaFa: string; eseguitaDalServer: boolean; chiedeUnNumero: boolean }[];
+  /**
+   * ⛔ Il motore proponeva **proprio** di alzare le calorie (`menu: 'increase_calories'`). Fino al
+   * 28/8 quel campo finiva soltanto nel payload della notifica quotidiana: viaggiava e non cambiava
+   * niente per chi doveva decidere.
+   */
+  motoreProponeAumento: boolean;
+  /** Quello che c'è già scritto sulle calorie di questa cliente, per non sovrascriverlo alla cieca. */
+  correzioneAttualePct: number | null;
+  correzioneFinoAl: string | null;
 }
 
 export interface Queue {
@@ -139,6 +151,27 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
   const [azioni, setAzioni] = useState<AzioniDecisione | null>(null);
   const [azioneInCorso, setAzioneInCorso] = useState(false);
   const [notaAzione, setNotaAzione] = useState('');
+  /** I numeri di «Alza le calorie»: di quanto, e per quanti giorni. */
+  const [pctAumento, setPctAumento] = useState('');
+  const [giorniAumento, setGiorniAumento] = useState('');
+  /**
+   * ⛔ **«7 giorni» scritto nel campo giorni non è 7** (28/8, in revisione). `Number('7 giorni')` è
+   * `NaN`, `JSON.stringify` lo manda come `null`, e `@IsOptional()` sul DTO lascia passare `null`
+   * come «non l'ho scritto»: risultato, un aumento **permanente** al posto di uno di sette giorni,
+   * senza nessun errore e sotto una riga che dice «se lasci vuoti i giorni vale finché non lo
+   * togli». Il backend non può distinguere i due casi — arrivano identici — quindi il controllo va
+   * fatto qui, prima di spedire.
+   */
+  const giorniScritti = giorniAumento.trim();
+  const giorniValidi = giorniScritti === '' || /^[1-9]\d{0,2}$/.test(giorniScritti);
+  /**
+   * ⚠️ Compare **solo dopo** che il backend ha rifiutato per la soglia minima: chiedere una conferma
+   * prima, a una che sta alzando le calorie, vorrebbe dire mettere in pagina un avviso che nel 99%
+   * dei casi non riguarda nessuno — e gli avvisi che non riguardano nessuno si imparano a ignorare.
+   */
+  const [confermaSottoSoglia, setConfermaSottoSoglia] = useState(false);
+  /** Il backend ha rifiutato per la soglia: da qui in poi la casella di conferma esiste. */
+  const [serveConferma, setServeConferma] = useState(false);
 
   /**
    * ⚠️ **Un errore qui NON è «coda vuota».** Se la chiamata non riesce si dice, invece di disegnare
@@ -199,6 +232,10 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
     try {
       setAzioni(await api<AzioniDecisione>(`/nutritionist/decisions/${id}/azioni`));
       setNotaAzione('');
+      setPctAumento('');
+      setGiorniAumento('');
+      setConfermaSottoSoglia(false);
+      setServeConferma(false);
     } catch (err) {
       setErroreAzione(err instanceof Error ? err.message : 'Non riesco a leggere le azioni disponibili.');
     }
@@ -220,14 +257,46 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
        */
       const esito = await api<{ codaChiusa?: boolean; avviso?: string }>(
         `/nutritionist/decisions/${azioni.decisionId}/azione`,
-        { method: 'POST', body: JSON.stringify({ azione, note: notaAzione.trim() || undefined }) },
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            azione,
+            note: notaAzione.trim() || undefined,
+            // ⚠️ I numeri partono **solo** per l'azione che li chiede: mandarli sempre vorrebbe dire
+            // spedire una percentuale insieme a «blocca il piano», e il giorno che qualcuno li
+            // leggesse per sbaglio sarebbe un cambio di calorie non voluto.
+            ...(azione === 'alza_calorie'
+              ? {
+                  correzionePct: Number(pctAumento.replace(',', '.')),
+                  perGiorni: giorniScritti ? Number(giorniScritti) : undefined,
+                  confermaSottoSoglia: confermaSottoSoglia || undefined,
+                }
+              : {}),
+          }),
+        },
       );
-      const fatto = azione === 'blocca_piano'
-        ? 'Piano messo in pausa: i giorni nuovi non partono, quelli già ricevuti restano alla cliente.'
-        : 'Autorizzazione registrata: il calcolo del calo riparte da adesso.';
+      const fatto =
+        azione === 'blocca_piano'
+          ? 'Piano messo in pausa: i giorni nuovi non partono, quelli già ricevuti restano alla cliente.'
+          : azione === 'alza_calorie'
+            // ⚠️ **La frase cambia se c'è un avviso.** Il backend dice quando i menu NON sono stati
+            // rigenerati o la nota non è stata scritta: scrivere lo stesso «i giorni futuri si
+            // rigenerano e resta scritto in scheda» e poi appiccicarci l'avviso vorrebbe dire dire
+            // una cosa e la sua smentita nella stessa riga.
+            ? esito?.avviso
+              ? `Calorie alzate del ${pctAumento}%.`
+              : `Calorie alzate del ${pctAumento}%: i giorni futuri si rigenerano, e resta scritto in scheda con chi l'ha decisa e la data.`
+            : 'Autorizzazione registrata: il calcolo del calo riparte da adesso.';
       setNotice(esito?.avviso ? `${fatto} ⚠️ ${esito.avviso}` : fatto);
       setAzioni(null);
     } catch (err) {
+      /**
+       * ⚠️ **La soglia minima si conferma, non si subisce.** Il backend rifiuta il primo tentativo
+       * che lascerebbe il target sotto la soglia di sicurezza, **col numero dentro il messaggio**.
+       * Senza questa riga il nutrizionista leggeva «puoi farlo, ma la conferma va data in modo
+       * esplicito» e non aveva **nessun modo** di darla: un vicolo cieco con l'aria di un divieto.
+       */
+      if (err instanceof Error && /soglia minima/i.test(err.message)) setServeConferma(true);
       /**
        * ⚠️ E l'errore tipico è «Questa decisione è già stata lavorata: **ricarica la coda**»: prima
        * il `catch` non ricaricava, cioè la pagina chiedeva a una persona di fare a mano una cosa che
@@ -290,18 +359,23 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
             </h3>
             {/*
               ⚠️ COSA FANNO DAVVERO QUESTI DUE PULSANTI — la domanda di Nocanty, risposta il 19/8.
-              «Presa visione» e «Correggi…» scrivono la stessa cosa: `reviewOutcome`, chi e quando, e
-              una riga di registro. ⚠️ **La proposta del motore non viene applicata**, nemmeno
-              confermata: `reviewDecision` non azzera `flaggedForReview`, e il menu legge solo le
-              decisioni non segnalate. Il pulsante si chiamava «Conferma», che è la parola con cui si
-              dice «fallo»: chi lo premeva credeva di aver applicato qualcosa. ⛔ Farlo applicare
-              davvero è bloccato sul numero di Nocanty — di quanto si alzano le calorie — e non è una
-              decisione di software.
+              «Presa visione» registra una lettura: `reviewOutcome`, chi e quando. ⚠️ **La proposta
+              del motore non viene applicata da sola**, nemmeno confermando: `reviewDecision` non
+              azzera `flaggedForReview`, e il menu legge solo le decisioni non segnalate. Il pulsante
+              si chiamava «Conferma», che è la parola con cui si dice «fallo»: chi lo premeva credeva
+              di aver applicato qualcosa.
+
+              ⛔ **CAMBIATO IL 28/8, e il cartello è cambiato con lui.** Fino a ieri la frase diceva
+              che «in nessuno dei due casi» il piano veniva toccato, ed era vera. Adesso dentro
+              «Correggi…» c'è **«Alza le calorie»**, che il piano lo cambia davvero — passando dalla
+              stessa porta della scheda cliente. Lasciare la frase vecchia avrebbe voluto dire far
+              premere un pulsante a chi ha appena letto che non fa niente: *una ragione falsa è
+              peggio di un ordine sbagliato*, e qui sarebbe stata falsa nel verso più pericoloso.
             */}
             <div className="muted" style={{ fontSize: 11, margin: '0 0 6px', lineHeight: 1.4 }}>
-              Questi due pulsanti <b>registrano che l'hai letta</b>: la proposta del motore non viene
-              applicata al piano in nessuno dei due casi. Per cambiare davvero il piano si passa dalla
-              scheda della cliente.
+              <b>Presa visione</b> registra che l'hai letta: la proposta del motore non viene
+              applicata al piano. <b>Correggi…</b> apre le azioni ammesse per quella causa — e una di
+              quelle, <b>Alza le calorie</b>, il piano lo cambia davvero.
             </div>
             {queue.engineDecisions.slice(0, IN_VISTA).map((d) => (
               <div key={d.id} className="spread" style={{ padding: '8px 0', borderBottom: '1px solid var(--line)', gap: 8, flexWrap: 'wrap' }}>
@@ -380,6 +454,53 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
               {new Date(azioni.calcoloGiaAzzeratoIl).toLocaleDateString('it-IT')}.
             </div>
           )}
+          {/*
+            ⛔ La proposta del motore, **detta**: `menu: 'increase_calories'` esisteva da sempre e
+            arrivava soltanto dentro il payload di una notifica, cioè da nessuna parte utile a chi
+            decide. ⚠️ Si dice e basta — non si preseleziona niente: la decisione resta di chi guarda,
+            e un modulo che parte già compilato è un modulo che si conferma senza leggere.
+          */}
+          {azioni.motoreProponeAumento && (
+            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              <i className="ti ti-arrow-up-right" /> Il motore proponeva di <b>alzare le calorie</b>.
+            </div>
+          )}
+          {azioni.correzioneAttualePct != null && (
+            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              ⚠️ Su questa cliente c'è già una correzione del <b>{azioni.correzioneAttualePct > 0 ? '+' : ''}
+              {azioni.correzioneAttualePct}%</b>
+              {azioni.correzioneFinoAl ? ` fino al ${giornoItaliano(azioni.correzioneFinoAl)}` : ' senza scadenza'}
+              : quello che scrivi qui la <b>sostituisce</b>.
+            </div>
+          )}
+
+          {/*
+            ⛔ **LA NOTA STA DAVVERO SOPRA I PULSANTI** (rimessa a posto il 28/8).
+
+            Il commento che stava qui prometteva esattamente questo — «se fosse dopo, si scriverebbe
+            dopo aver già premuto» — ma i pulsanti «Fai questo» sono **dentro le card delle azioni**,
+            quindi il campo, che veniva dopo l'elenco, stava sotto tutti quanti. Il difetto che il
+            commento dichiarava di evitare era proprio quello che c'era.
+
+            ⚠️ E non è più «facoltativa» per tutti: per «Alza le calorie» il motivo è **obbligatorio**
+            — lo rifiuta il server, e finisce nello storico delle calorie e nella nota in scheda.
+            Per il blocco è il motivo che resta scritto sul piano, cioè quello che leggerà chi
+            troverà quel piano fermo fra tre giorni.
+          */}
+          <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
+            {azioni.azioni.some((a) => a.chiedeUnNumero)
+              ? 'Motivo (obbligatorio per «Alza le calorie», resta nello storico e in scheda)'
+              : 'Nota (facoltativa, resta nello storico)'}
+            <textarea
+              className="input"
+              rows={2}
+              value={notaAzione}
+              maxLength={1000}
+              onChange={(e) => setNotaAzione(e.target.value)}
+              placeholder="Es. la sento domani in televisita"
+              style={{ marginTop: 4 }}
+            />
+          </label>
 
           <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
             {azioni.azioni.map((a) => (
@@ -388,11 +509,85 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
                   <div style={{ flex: 1 }}>
                     <b style={{ fontSize: 14 }}>{a.etichetta}</b>
                     <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 3 }}>{a.cosaFa}</div>
+                    {/*
+                      ⚠️ I campi stanno **dentro la card dell'azione**, non in fondo alla finestra:
+                      un numero scritto lontano dal pulsante che lo usa è un numero che si compila
+                      per un'azione e si spedisce con un'altra. ⚠️ E `chiedeUnNumero` viene dal
+                      backend: la pagina non tiene un elenco suo di quali azioni hanno un modulo,
+                      altrimenti la prossima nascerebbe senza campi e nessuno se ne accorgerebbe.
+                    */}
+                    {a.chiedeUnNumero && (
+                      <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <label style={{ fontSize: 12 }}>
+                          Di quanto (%)
+                          <input
+                            className="input sm"
+                            inputMode="decimal"
+                            value={pctAumento}
+                            onChange={(e) => setPctAumento(e.target.value)}
+                            placeholder="10"
+                            style={{ marginTop: 3, width: 80 }}
+                          />
+                        </label>
+                        <label style={{ fontSize: 12 }}>
+                          Per quanti giorni
+                          <input
+                            className="input sm"
+                            inputMode="numeric"
+                            value={giorniAumento}
+                            onChange={(e) => setGiorniAumento(e.target.value)}
+                            placeholder="7"
+                            style={{ marginTop: 3, width: 90 }}
+                          />
+                        </label>
+                        {/*
+                          ⚠️ Detto qui e non solo nel testo dell'azione: «vuoto = per sempre» è la
+                          differenza fra una settimana di scarico e un cambio di piano, e il silenzio
+                          le fa sembrare uguali.
+                        */}
+                        <span className="muted" style={{ fontSize: 11.5, flexBasis: '100%' }}>
+                          Se lasci vuoti i giorni, l'aumento vale finché non lo togli.
+                        </span>
+                        {!giorniValidi && (
+                          <span style={{ fontSize: 11.5, flexBasis: '100%', color: '#b3261e' }}>
+                            I giorni vanno scritti come numero: <b>7</b>, non «7 giorni».
+                          </span>
+                        )}
+                        {notaAzione.trim().length < 3 && (
+                          <span style={{ fontSize: 11.5, flexBasis: '100%', color: '#9a6a00' }}>
+                            Per questa azione il <b>motivo qui sopra è obbligatorio</b>: finisce nello storico
+                            delle calorie e nella nota in scheda.
+                          </span>
+                        )}
+                        {serveConferma && (
+                          <label style={{ fontSize: 11.5, flexBasis: '100%', color: '#b3261e' }}>
+                            <input
+                              type="checkbox"
+                              checked={confermaSottoSoglia}
+                              onChange={(e) => setConfermaSottoSoglia(e.target.checked)}
+                            />{' '}
+                            Confermo anche se il target resta <b>sotto la soglia minima di sicurezza</b>.
+                          </label>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {a.eseguitaDalServer ? (
                     <button
                       className={a.azione === 'blocca_piano' ? 'btn ghost sm' : 'btn sm'}
-                      disabled={azioneInCorso || (a.azione === 'blocca_piano' && azioni.pianoGiaFermo)}
+                      disabled={
+                        azioneInCorso ||
+                        (a.azione === 'blocca_piano' && azioni.pianoGiaFermo) ||
+                        // ⚠️ Spento finché **tutte e tre** le condizioni del server non sono
+                        // soddisfatte: premerlo a vuoto significherebbe farsi dire dal server una
+                        // cosa che la pagina sapeva già. ⛔ Il motivo è obbligatorio per questa
+                        // azione (lo rifiuta `eseguiAzione`), e prima la guardia guardava solo il
+                        // numero: la pagina lasciava premere e il server rispondeva picche.
+                        (a.chiedeUnNumero &&
+                          (!(Number(pctAumento.replace(',', '.')) > 0) ||
+                            !giorniValidi ||
+                            notaAzione.trim().length < 3))
+                      }
                       onClick={() => void eseguiAzione(a.azione)}
                     >
                       {a.azione === 'blocca_piano' && azioni.pianoGiaFermo ? 'Già fermo' : 'Fai questo'}
@@ -410,24 +605,6 @@ export function CodaDaValidare({ onCambiata, perTutte }: {
               </div>
             ))}
           </div>
-
-          {/*
-            La nota è facoltativa ma sta SOPRA i pulsanti: se fosse dopo, si scriverebbe dopo aver
-            già premuto. Finisce nell'audit e, per il blocco, è il motivo che resta scritto sul
-            piano — cioè quello che leggerà chi troverà quel piano fermo fra tre giorni.
-          */}
-          <label style={{ display: 'block', marginTop: 12, fontSize: 13 }}>
-            Nota (facoltativa, resta nello storico)
-            <textarea
-              className="input"
-              rows={2}
-              value={notaAzione}
-              maxLength={1000}
-              onChange={(e) => setNotaAzione(e.target.value)}
-              placeholder="Es. la sento domani in televisita"
-              style={{ marginTop: 4 }}
-            />
-          </label>
 
           <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
             <button className="btn ghost" onClick={() => setAzioni(null)}>Chiudi</button>

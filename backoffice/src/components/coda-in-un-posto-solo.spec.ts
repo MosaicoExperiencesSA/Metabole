@@ -121,10 +121,25 @@ describe('⛔ i pulsanti non hanno cambiato nome nel trasloco', () => {
     expect(sorgente('CodaDaValidare.tsx')).toContain(etichetta);
   });
 
-  /** ⛔ E la riga che dice che quei pulsanti NON applicano niente non si è persa per strada. */
-  it('⛔ resta scritto che i due pulsanti non applicano la proposta', () => {
+  /**
+   * ⛔ E la riga che dice cosa fanno quei pulsanti non si è persa per strada.
+   *
+   * ⚠️ **Riscritta il 28/8, e il test con lei.** Prima diceva che «in nessuno dei due casi» il piano
+   * veniva toccato: era vero, e ha smesso di esserlo quando dentro «Correggi…» è nata **«Alza le
+   * calorie»**, che il piano lo cambia davvero. Un test che si limitasse a cercare le parole vecchie
+   * avrebbe tenuto in pagina una frase falsa — e falsa nel verso peggiore, perché avrebbe fatto
+   * premere un pulsante a chi ha appena letto che non fa niente. Adesso il test chiede tutt'e due le
+   * metà: che «Presa visione» non applichi, e che si dica che una delle azioni sì.
+   */
+  it('⛔ resta scritto che «Presa visione» non applica la proposta', () => {
     expect(sorgente('CodaDaValidare.tsx')).toContain('non viene');
     expect(sorgente('CodaDaValidare.tsx')).toContain('applicata al piano');
+  });
+
+  it('⛔ e che una delle azioni di «Correggi…» il piano lo cambia davvero', () => {
+    const src = sorgente('CodaDaValidare.tsx');
+    expect(src).toContain('Alza le calorie');
+    expect(src).toContain('il piano lo cambia davvero');
   });
 });
 

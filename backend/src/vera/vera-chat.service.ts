@@ -27,7 +27,7 @@ import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
-import { daScartare, capisci, Intento, IntentoCambioDieta, IntentoDigiuno, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
+import { daScartare, capisci, esempioCorrezioneKcal, Intento, IntentoCambioDieta, IntentoDigiuno, IntentoCorrezioneKcal, IntentoGiornata, IntentoProteine, IntentoFamiglia, IntentoPasti, IntentoRestrizione, IntentoRicetta, IntentoSostituzione, separaCitazione,
   IntentoEquivalenza,
 } from './capisci';
 import { CAMPI_DEL_GIORNO, type CodaDaRifare, type GiornoDaValutare, codaDaRifare, daQuandoSiPuoRifare, giorniColpitiDaiVietati, laClienteLHaAperto, nonSappiamoSeLHaAperto, quanteDaRifare, ricetteDelGiorno } from './menu-da-rifare';
@@ -3416,6 +3416,7 @@ export class VeraChatService {
         tipo: 'da_validare' as TipoVoce,
         id: r.id,
         causa: r.reasonKey,
+        cliente: nomeDi(r.client),
         titolo: `${nomeDi(r.client)}: ${isCausa(r.reasonKey) ? ETICHETTA_CAUSA[r.reasonKey] : 'decisione del motore da guardare'}`,
       }));
     });
@@ -3606,6 +3607,33 @@ export class VeraChatService {
         return { testo: `Non l'ho fatto: ${err instanceof Error ? err.message : 'errore'}`, esito: 'in_corso', stato: { ...stato, passo: 'lista_aperta' } };
       }
       return this.dopoIlDepennamento(stato, voce, `${d.etichetta}: fatto su ${voce.titolo}.`, 'scritta');
+    }
+
+    /**
+     * ⛔ **«ALZA LE CALORIE» CHIEDE UN NUMERO, e la risposta giusta non è «non posso»** (28/8).
+     *
+     * Questa azione è nata insieme alla nota in scheda, ed è eseguibile dal server come le altre
+     * due — ma solo con la percentuale e i giorni, che un numero scelto da una lista non contiene.
+     * ⚠️ Dire qui «non la faccio io da qui» sarebbe **falso**: la correzione delle calorie Vera la
+     * sa dettare da settimane (`avviaCorrezioneKcal`), con anteprima e conferma. Quello che manca è
+     * il numero, e la cosa utile è chiederlo.
+     *
+     * ⚠️ E si dice che la riga **resta in elenco**: applicare la correzione non chiude la decisione,
+     * e far sparire la voce lasciando la coda piena è il difetto già trovato il 19/8.
+     */
+    if (voce.tipo === 'da_validare' && azione === AZIONI_MOTORE.ALZA_CALORIE) {
+      return {
+        testo: [
+          `**${d.etichetta}** — ${d.cosaFa}`,
+          '',
+          `⚠️ Mi serve **di quanto**: dimmelo a parole, per esempio «${esempioCorrezioneKcal(voce.cliente)}».`,
+          'Ti faccio vedere il prima e il dopo, e applico solo se confermi.',
+          '',
+          'La riga resta in elenco finché non la chiudi: la correzione e la presa in carico sono due cose.',
+        ].join('\n'),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'lista_aperta' },
+      };
     }
 
     /**

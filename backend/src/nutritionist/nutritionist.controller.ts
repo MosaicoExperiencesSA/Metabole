@@ -27,6 +27,31 @@ class AzioneDecisioneDto {
   @IsString()
   @MaxLength(1000, { message: 'La nota non può superare i 1000 caratteri.' })
   note?: string;
+
+  /**
+   * ⚠️ **Il numero di «Alza le calorie»**: la percentuale in più sul totale. Il limite superiore è
+   * quello del §15.5 (`ValoriKcalDto`) e per la stessa ragione — oltre il +50% non è una
+   * correzione, è un obiettivo da rivedere. Il minimo è **maggiore di zero** e lo controlla il
+   * servizio con un messaggio suo: qui `0` è un valore scritto per sbaglio, e dirlo con «deve essere
+   * almeno 1» sarebbe più oscuro di «serve di quanto».
+   */
+  @IsOptional()
+  @IsNumber({}, { message: 'La percentuale va scritta come numero (es. 10).' })
+  @Min(-50, { message: 'Oltre il −50% non è una correzione: se serve tagliare così, si scrive il deficit.' })
+  @Max(50, { message: 'Oltre il +50% non è una correzione: se serve dare così tanto, si rivede l’obiettivo.' })
+  correzionePct?: number;
+
+  /** Per quanti giorni vale l'aumento. Assente = finché non lo tolgono. Stessi limiti del §15.5. */
+  @IsOptional()
+  @IsInt({ message: 'I giorni vanno scritti come numero intero.' })
+  @Min(1, { message: 'La durata parte da un giorno.' })
+  @Max(90, { message: 'Oltre i 90 giorni non è una correzione a termine: usa il deficit.' })
+  perGiorni?: number;
+
+  /** Conferma esplicita se il target finisse sotto la soglia minima di sicurezza. */
+  @IsOptional()
+  @IsBoolean()
+  confermaSottoSoglia?: boolean;
 }
 
 /**
@@ -153,11 +178,18 @@ export class NutritionistController {
     return this.nutritionist.azioniDecisione(user, id);
   }
 
-  /** Esegue l'azione scelta (autorizza a proseguire / blocca il piano) e chiude la riga in coda. */
+  /**
+   * Esegue l'azione scelta — autorizza a proseguire, blocca il piano, **alza le calorie** — e chiude
+   * la riga in coda.
+   */
   @HttpCode(200)
   @Post('decisions/:id/azione')
   azione(@Param('id') id: string, @Body() dto: AzioneDecisioneDto, @CurrentUser() user: AuthUser) {
-    return this.nutritionist.eseguiAzione(user, id, dto.azione, dto.note);
+    return this.nutritionist.eseguiAzione(user, id, dto.azione, dto.note, {
+      correzionePct: dto.correzionePct,
+      perGiorni: dto.perGiorni,
+      confermaSottoSoglia: dto.confermaSottoSoglia,
+    });
   }
 
   /**

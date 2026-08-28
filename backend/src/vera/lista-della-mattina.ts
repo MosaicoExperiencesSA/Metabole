@@ -157,6 +157,13 @@ export interface VoceDaFare {
   titolo: string;
   /** La causa, per le decisioni del motore: decide le azioni. */
   causa?: string | null;
+  /**
+   * ⚠️ Il nome della cliente **come dato**, non solo dentro `titolo` (28/8). Serve a comporre la
+   * frase da suggerire per «Alza le calorie»: estrarlo dal titolo a colpi di `split(':')` vorrebbe
+   * dire che il giorno che cambia la forma del titolo si attribuisce una correzione calorica alla
+   * persona sbagliata.
+   */
+  cliente?: string | null;
   /** Il numero assegnato dalla lista. Lo scrive `numera`. */
   n?: number;
 }

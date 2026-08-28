@@ -1,0 +1,124 @@
+L'aumento delle calorie lo autorizza il nutrizionista, e resta scritto in scheda
+
+LA DECISIONE
+Simone, 27/8: «Vera lo chiede al nutrizionista che risponde, e la sua risposta si
+salva nelle note della scheda cliente (aumento calorie autorizzato da… il…)».
+Chiude `coda-da-validare-b-c`, aperta dal 13/8 e ferma da settimane su un numero
+che doveva dare Nocanty — «di quanto si alzano le calorie». Quel numero non serve
+più: lo scrive chi ha davanti il caso.
+
+⚠️ Perché è meglio di una percentuale fissa: una regola decisa una volta per
+tutte sarebbe stata la stessa per una cliente ferma da tre settimane e per una
+che ha saltato due check-in. Così invece la decide chi guarda, e resta scritta
+col nome di chi l'ha presa e la data.
+
+LA VOCE CONTENEVA DUE COSE. SONO CHIUSE TUTTE E DUE.
+
+(1) LA NOTA IN SCHEDA
+Ogni cambio di calorie lascia una riga nelle note della scheda:
+
+  Aumento calorie autorizzato da Dr.ssa Bini il 28/08/2026: da 1600 a 1760
+  kcal/giorno (+10% per 7 giorni, fino al 04/09/2026). Motivo: «…».
+
+⚠️ Scritta in `impostaKcal` e NON nell'azione della coda. Le porte che cambiano
+le calorie di una persona sono TRE — la card in scheda, Vera che detta la
+correzione, e da oggi la coda — e passano tutte di lì. Scrivendola solo su una,
+la stessa decisione presa da un'altra porta non lascerebbe traccia dove la coach
+la cerca.
+
+⛔ IL VERSO LO DICE IL TARGET, NON IL SEGNO DELLA PERCENTUALE
+Le leve sono due e tirano in direzioni opposte: togliere 200 kcal di deficit alza
+il piatto senza nessuna percentuale positiva, e scrivere +5% mentre si aggiunge
+un deficit di 400 lo abbassa. Chi rilegge la nota non vuole sapere quale leva è
+stata mossa: vuole sapere se quella persona ha cominciato a mangiare di più o di
+meno. La nota legge `targetPrima → targetDopo`, che è il numero che arriva nel
+piatto. Quando uno dei due non si sa, dice «Calorie corrette», che è vero sempre.
+
+(2) L'AUMENTO ARRIVA DAVVERO NEL PIANO — il difetto vecchio
+«Presa visione» scriveva `reviewOutcome`, un campo che in tutto il backend aveva
+una sola occorrenza: quella scrittura. Nessuno lo leggeva. Era un registro di «ho
+letto» con l'aspetto di un'azione.
+
+Nella finestra di «Correggi…» c'è ora **«Alza le calorie»**: il nutrizionista
+scrive di quanto e per quanti giorni, e la percentuale passa da `impostaKcal` —
+con il perimetro, la soglia minima di sicurezza, lo storico `kcal_override`,
+l'audit, l'avviso ai capi e la rigenerazione dei giorni futuri.
+
+⚠️ Non reimplementa niente: è la stessa porta della scheda, chiamata da dove la
+decisione si prende davvero. La differenza con «Apri la scheda» non è cosa
+scrive, è DOVE si decide — mandare a un'altra pagina significa perdere per strada
+il motivo per cui si stava alzando.
+
+⚠️ Offerta sul calo rapido (seconda, dopo «autorizza a proseguire», che è il
+gesto più frequente) e sull'energia bassa cronica (prima: lì «sta mangiando
+troppo poco» è la prima ipotesi). NON su screening e regola: della prima non
+sappiamo che sia una questione di calorie, della seconda non sappiamo cosa dica,
+e offrire una leva clinica al buio è peggio che non offrirla.
+
+⛔ IL DIFETTO PIÙ INSIDIOSO — E LA REVISIONE HA MOSTRATO CHE ERA GIÀ VIVO
+`impostaKcal` normalizzava a `null` tutto quello che non riceveva. La card manda
+sempre tutt'e due le leve; Vera manda solo la percentuale. Conseguenza: OGNI
+VOLTA che la nutrizionista dettava a Vera «aumenta le calorie del 10% per 7
+giorni», un deficit imposto a mano settimane prima SPARIVA IN SILENZIO — cioè
+«alza del 10%» ne alzava molte di più, senza che nessuno l'avesse chiesto.
+
+Avevo scritto la difesa dentro la coda (rileggere e riscrivere il deficit). La
+revisione ha fatto notare che così restava un difetto per ogni porta. Adesso la
+regola sta in un posto solo, dentro `impostaKcal`: **«non l'ho scritto» non è
+«toglilo»** — il confine è la presenza della chiave, non il valore. Chi vuole
+togliere manda `null`; chi non la nomina si tiene quello che c'era. È lo stesso
+confine che `kcal-need.service` aveva già dovuto imparare il 27/8 su `simulazione`.
+
+⚠️ Vale anche per la scadenza: senza, «−10% per 7 giorni» sarebbe diventata in
+silenzio «−10% per sempre». E vale per `simulaKcal`: l'anteprima che Vera mostra
+PRIMA di far confermare calcolava il «dopo» senza il deficit esistente — un
+numero più alto del vero, mostrato proprio per farlo confermare.
+
+`action.menu` ARRIVA DAVANTI A CHI DECIDE
+Il motore scrive `menu: 'increase_calories'` sulle decisioni in cui propone di
+alzare le calorie. Finiva soltanto nel payload di una notifica: viaggiava e non
+cambiava niente. Ora la finestra lo dice — e lo dice soltanto: non preseleziona
+niente, perché un modulo che parte già compilato è un modulo che si conferma
+senza leggere.
+⚠️ La prima stesura dei commenti diceva «non lo leggeva nessuno»: falso, e l'ha
+smentito la revisione leggendo `notifications.service`.
+
+IL CARTELLO IN PAGINA È CAMBIATO CON IL CODICE
+Diceva che «in nessuno dei due casi» il piano veniva toccato. Era vero fino a
+ieri. Lasciarlo avrebbe fatto premere un pulsante a chi ha appena letto che non
+fa niente — una ragione falsa nel verso più pericoloso. Ora dice che «Presa
+visione» registra la lettura e che una delle azioni di «Correggi…» il piano lo
+cambia davvero. Il test strutturale chiede tutt'e due le metà.
+
+QUATTRO COSE TROVATE DALLA REVISIONE E CORRETTE
+1. ⛔ Vera suggeriva «aumenta del 10% per 7 giorni» — una frase che `capisci` NON
+   riconosce (pretende la parola «calorie»). Chi la copiava alla lettera si
+   sentiva rispondere «non ho capito»: peggio di «non posso», perché gliel'aveva
+   dettata lei. Ora l'esempio si genera accanto alle espressioni che lo devono
+   riconoscere, col nome della cliente dentro, e c'è un test che lo fa passare
+   dal parser.
+2. ⛔ «7 giorni» scritto nel campo giorni faceva `NaN` → `null` → un aumento
+   PERMANENTE, senza errore, sotto una riga che dice «se lasci vuoti i giorni
+   vale finché non lo togli». Il backend non può distinguere i due casi: il
+   controllo è in pagina, prima di spedire.
+3. ⛔ Il motivo è obbligatorio per questa azione, e la pagina lo chiamava
+   «facoltativa» e lo metteva SOTTO i pulsanti — con accanto un commento che
+   prometteva di non farlo. Spostato sopra, etichetta che cambia, pulsante spento
+   finché non c'è.
+4. ⛔ La coda buttava via la risposta di `impostaKcal` e scriveva comunque «i
+   giorni futuri si rigenerano e resta scritto in scheda»: due affermazioni che
+   possono essere false nello stesso invio (cliente non idonea → i menu restano
+   quelli vecchi; la nota è best-effort). Adesso gli avvisi arrivano fino a chi
+   ha premuto. *Se degradi, dillo.*
+
+MISURATO
+- 5757 test backend verdi in quattro modalità (normale, TZ=Europe/Rome, notte con
+  l'orologio alle 00:30, e le due insieme); backoffice 150; app 192.
+- Diciotto mutazioni provate. Tre sono SOPRAVVISSUTE e hanno fatto scrivere i
+  test che mancavano: la conferma sotto soglia che non arrivava fino in fondo, il
+  `giornoLocale` della data della nota (una decisione dell'una di notte a Roma
+  finiva col giorno prima), e il NOME di chi ha deciso — il test si chiamava «con
+  chi, quando, di quanto e perché» e il «chi» non lo verificava nessuno, perché
+  il finto non aveva `displayName`.
+
+Nessuna migrazione: `ClientNote` esiste già con `authorId` nullable.
