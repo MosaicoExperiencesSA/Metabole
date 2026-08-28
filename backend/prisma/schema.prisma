@@ -552,6 +552,13 @@ model ClientProfile {
   lifestyle              Json?      // lavoro, tempo per cucinare, pranzo feriali (segnale "Vita")
   themeColor             String?    @map("theme_color")
   planStartDate          DateTime?  @map("plan_start_date")
+  /// ⛔ DA DOVE VIENE `planStartDate`: `giorno` (scelto da qualcuno) oppure `coda` (la scadenza del
+  /// piano in corso, che è un istante). Il campo conteneva due cose diverse e dal valore non si
+  /// distinguevano — l'euristica «mezzanotte UTC esatta = un giorno» è stata provata e buttata,
+  /// perché la scadenza di un piano partito da un giorno produce proprio mezzanotte UTC esatta.
+  /// ⚠️ `null` sulle righe scritte prima del 28/8: vuol dire «non lo so», e su «non lo so» si tiene
+  /// il comportamento di prima. Vedi `commerce/origine-data-inizio.ts`.
+  planStartOrigine       String?    @map("plan_start_origine")
   assignedCoachId        String?    @map("assigned_coach_id")
   assignedCoach          Staff?     @relation("AssignedCoach", fields: [assignedCoachId], references: [id], onDelete: SetNull)
   assignedNutritionistId String?    @map("assigned_nutritionist_id")

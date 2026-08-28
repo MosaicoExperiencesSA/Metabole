@@ -228,8 +228,12 @@ export function inizioDiOggi(adesso: Date = new Date()): Date {
  * `subscriptionEnd`, partendo da un giorno, produce una scadenza a mezzanotte UTC **esatta**, e
  * quella scadenza è la `startDate` che ogni piano in coda eredita. Trattandola come un giorno la si
  * anticipa di un'ora (due d'estate): due piani che erogano insieme, o un piano `active` con la
- * partenza nel futuro. I due punti in cui quel valore arriva davvero lo sanno e non passano di qui —
- * `commerce.finalizeApproval` (che confronta istanti) e `data-inizio-chat` (che guarda `status`).
+ * partenza nel futuro.
+ *
+ * ✅ **Dal 28/8 chi decide non deve più indovinarlo**: `clientProfile.planStartOrigine` dice se
+ * quella data è un giorno scelto o la scadenza di un piano in coda, e `commerce.approvePayment`
+ * passa di qui **solo** quando la provenienza dice «giorno» (`commerce/origine-data-inizio.ts`).
+ * `data-inizio-chat` continua a rispondere con quello che ha, cioè `status`.
  *
  * ⚠️ Quello che il controllo sui millisecondi fa ancora, ed è utile: un valore con dentro un'ora è
  * **certamente** un istante, e allora si rende com'è invece di spostarlo indietro fino a 24 ore. È

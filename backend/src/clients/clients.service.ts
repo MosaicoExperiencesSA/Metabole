@@ -41,6 +41,7 @@ import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
+import { ORIGINE_INIZIO, spiegaOrigine } from '../commerce/origine-data-inizio';
 import { SignalsService } from '../signals/signals.service';
 import { etichettaUnitaAcqua, obiettivoNellaUnita, quantitaNellaUnita } from '../common/unita-acqua';
 
@@ -1780,8 +1781,9 @@ export class ClientsService {
       }),
       this.prisma.clientProfile.upsert({
         where: { userId },
-        update: { planStartDate: d } as never,
-        create: { userId, planStartDate: d } as never,
+        // ⚠️ `d` è un GIORNO scelto dallo staff: si dichiara (`origine-data-inizio.ts`).
+        update: { planStartDate: d, planStartOrigine: ORIGINE_INIZIO.GIORNO } as never,
+        create: { userId, planStartDate: d, planStartOrigine: ORIGINE_INIZIO.GIORNO } as never,
       }),
     ] as never);
 
@@ -1798,7 +1800,15 @@ export class ClientsService {
           endDate: sub.endDate?.toISOString().slice(0, 10) ?? null,
           planStartDate: prevProfile?.planStartDate?.toISOString().slice(0, 10) ?? null,
         },
-        after: { startDate: d.toISOString().slice(0, 10), endDate: newEnd.toISOString().slice(0, 10), ...(daRiscrivere ? { status: statoNuovo, reactivated: statoNuovo === 'active' } : {}) },
+        after: {
+          startDate: d.toISOString().slice(0, 10),
+          endDate: newEnd.toISOString().slice(0, 10),
+          // ⚠️ **Da dove viene**, anche nel registro: qui è un giorno scelto dallo staff, e la
+          // distinzione fra un giorno e un istante è quella che il campo `planStartOrigine` esiste
+          // per togliere di mezzo. Un audit che non la porta la fa perdere a chi rilegge.
+          origineDataInizio: spiegaOrigine(ORIGINE_INIZIO.GIORNO),
+          ...(daRiscrivere ? { status: statoNuovo, reactivated: statoNuovo === 'active' } : {}),
+        },
         /**
          * ⚠️ CHI HA CONFERMATO LA SOVRAPPOSIZIONE, e su cosa (voce 259). L'`actorId` c'era già; qui
          * si scrive **che l'avviso c'era ed è stato superato**, coi piani coinvolti. Senza questa

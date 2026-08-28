@@ -1719,8 +1719,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'sarebbe finita nel mese prima.\n\n'
       + '⛔ **Resta aperta la metà grossa, e non è questa voce**: il giorno di una data **salvata** si '
       + 'continua a leggere in UTC (`giornoDelDato`), di proposito e con la misura in mano '
-      + '(`diag:giorno-piani`: zero date che cambierebbero giorno). E resta `data-inizio-giorno-o-istante`, '
-      + 'che è la voce dove `planStartDate` non dice se contiene un giorno o un istante.',
+      + '(`diag:giorno-piani`: zero date che cambierebbero giorno). ✅ Mentre '
+      + '`data-inizio-giorno-o-istante` — dove `planStartDate` non diceva se conteneva un giorno o un '
+      + 'istante — è chiusa dal 28/8: il campo adesso lo dichiara (`planStartOrigine`).',
     categoria: CODICE,
     ordine: 618,
     nata: '2026-08-20T12:10',
@@ -2470,16 +2471,33 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 6,
     nata: '2026-08-28T12:10',
+    fatta: true, // chiusa il 28/8
     titolo: 'Il dimensionamento del catalogo non distingue «non lo so» da «non mi fido»',
     dettaglio:
-      'Aperta il 28/8 in revisione. `engine-rules.service.tagliaPerIlCatalogo` (~120) chiama '
-      + '`computeTargetKcal` su tutte le clienti di quella taglia e ne fa la mediana; i `null` cadono '
-      + 'fuori. ⚠️ Da oggi un `null` vuol dire **due cose diverse**: «mancano sesso, età, altezza o '
-      + 'peso» oppure «le sue pesate non stanno in piedi». `fraseTaglia` non le distingue e non dice '
-      + 'quante ne sono cadute per quale motivo.\n\n'
-      + '⚠️ Con poche clienti per taglia la mediana si sposta, e nessuno lo sa. Non è urgente — il '
-      + 'ripiego è la taglia del preset, che è un numero sensato — ma è un altro caso di *un dato che '
-      + 'agisce e non si vede*.',
+      '✅ **CHIUSA il 28/8, il giorno stesso in cui è nata.** `tagliaPerIlCatalogo` chiama il fabbisogno '
+      + 'su tutte le clienti di quella taglia e ne fa la **mediana**; le risposte vuote cadevano fuori in '
+      + 'silenzio. ⚠️ E da oggi le ragioni sono **due**: mancano sesso, età, altezza o un peso da cui '
+      + 'partire, oppure le pesate di quella cliente non stanno in piedi fra loro e il fabbisogno è '
+      + '**sospeso**. Con poche clienti per taglia la mediana si sposta e nessuno lo sa — *un dato che '
+      + 'agisce e non si vede*.\n\n'
+      + '✅ Adesso il log dice le due cose **separate** («2 senza i dati del profilo, 1 con le pesate da '
+      + 'verificare, su 14»), perché portano a due gesti diversi: completare un profilo, oppure andare a '
+      + 'correggere una pesata. Un numero solo manda a fare la cosa sbagliata su metà delle clienti. ⚠️ E '
+      + 'quando non cade fuori nessuno non si scrive niente: *un avviso che compare sempre non è un '
+      + 'avviso*.\n\n'
+      + '⛔ **E qui la prima stesura di questa voce diceva una cosa falsa, smentita dalla revisione.** '
+      + 'Diceva «la cliente col fabbisogno sospeso non pesa **più** sulla mediana»: non ci pesava già '
+      + 'prima, perché `computeTargetKcal` rispondeva `null` anche su di lei. **La mediana non cambia di un '
+      + 'kcal**, e l\'unica cosa che questa voce cambia davvero è la riga di log. ⚠️ Spacciare per '
+      + 'correzione un comportamento che c\'era già è il modo in cui un verbale di lavoro smette di valere. '
+      + 'La regola di escluderle però adesso è **riscritta qui** (passando da `computeTargetKcal` a '
+      + '`estimate`), quindi qui va tenuta ferma: c\'è un test che lo fa.\n\n'
+      + '⚠️ E un **errore di lettura** si conta a parte, non fra i profili incompleti: mandare qualcuno a '
+      + 'completare un profilo che è già completo è una ragione falsa proprio nella riga che esiste per '
+      + 'dare la ragione giusta.\n\n'
+      + '⚠️ **Non costa una query in più**: si chiama `estimate` invece di `computeTargetKcal`, che è lo '
+      + 'stesso metodo più due controlli. Cambia solo che la risposta si legge intera, invece di buttarne '
+      + 'via la metà che dice perché.'
   },
   {
     chiave: 'pesate-lontane-buco-del-ritmo',
@@ -2593,28 +2611,35 @@ export const VOCI_INIZIALI: Voce[] = [
     ordine: 0,
     blocca: false,
     nata: '2026-08-23T03:20',
+    fatta: true, // chiusa il 28/8
     titolo: '`planStartDate` contiene due cose diverse — un giorno o un istante — e dal valore non si distinguono',
     dettaglio:
-      '⛔ **Il pezzo che il 23/8 NON si è chiuso, e perché.** Quattro dei cinque punti che scrivono la '
-      + 'data d\'inizio ricevono un **giorno** (`toDateOnly`: mezzanotte UTC del giorno di Roma) e ora '
-      + 'lo traducono correttamente. Il quinto — `finalizeApproval`, l\'approvazione del bonifico — no, '
-      + 'perché lì la data arriva da `clientProfile.planStartDate`, **che contiene due cose diverse**: '
-      + 'il giorno scelto dalla cliente, oppure la scadenza del piano in corso (un istante), scritta '
-      + 'da quella stessa funzione nel ramo della coda.\n\n'
-      + '⛔ **E dal valore non si distinguono.** La prima stesura ci aveva provato — «mezzanotte UTC '
-      + 'esatta = un giorno» — e la revisione ha mostrato che `subscriptionEnd`, partendo da un giorno, '
-      + 'rende **proprio** mezzanotte UTC esatta: l\'euristica sbagliava sul caso più comune di tutti, '
-      + 'e faceva nascere piani `active` con la partenza **nel futuro**. Cioè la forma ambigua della '
-      + 'voce 258, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`. Tolta.\n\n'
-      + '⚠️ **Cosa resta scoperto:** fra la mezzanotte e le 02:00 italiane, una cliente che paga e ha '
-      + 'scelto di cominciare **oggi** nasce `queued`, e i menu arrivano alla passata notturna dopo. '
-      + 'Fissato in un test che dice «difetto noto», così non cambia in silenzio.\n\n'
-      + '⚠️ **La forma della soluzione non è un\'euristica migliore**: è che il campo dica da dove '
-      + 'viene. Due campi diversi (`giornoInizioScelto` e `startDate`), o un campo affiancato che '
-      + 'segni la provenienza. Poi la traduzione si può fare in tutti e cinque i punti, e la regola '
-      + 'diventa una sola. ⚠️ Nota che `menu/data-inizio-chat.service.ts` risolve lo stesso dubbio '
-      + 'con l\'informazione che ha — `status === \'queued\'` — e che è una risposta buona lì e non '
-      + 'esportabile qui, dove lo stato è quello che si sta decidendo.',
+      '✅ **CHIUSA il 28/8, e non con un\'euristica migliore: facendo dire al campo da dove viene.**\n\n'
+      + '⚠️ `planStartDate` conteneva **il giorno scelto** («comincio il 23», dal questionario, dalla matita '
+      + 'della scheda, dalla chat con Gaia, da «Conosciamoci») oppure **la scadenza del piano in corso** — un '
+      + 'istante, scritto dal ramo della coda dell\'approvazione bonifico. ⛔ L\'euristica del 23/8 '
+      + '(«mezzanotte UTC esatta = un giorno») era stata **provata e buttata**: la scadenza di un piano '
+      + 'partito da un giorno produce **proprio** mezzanotte UTC esatta, quindi sbagliava sul caso più '
+      + 'comune di tutti e faceva nascere piani `active` con la partenza nel futuro — invisibili al giro '
+      + 'che promuove le code, che cerca i `queued`.\n\n'
+      + '✅ **Adesso c\'è `planStartOrigine`**: `giorno` o `coda`, scritto in **tutti e cinque** i punti. Una '
+      + 'colonna accanto e non due colonne di date, perché `planStartDate` la leggono venti punti e '
+      + 'sdoppiarla vorrebbe dire venti letture da tenere d\'accordo: chi legge la data e non gliene importa '
+      + 'continua come prima, chi deve **decidere** legge anche da dove viene. ⚠️ Si valorizza anche nel ramo '
+      + 'della coda, dove il valore è un istante: un campo che si dichiara solo dove fa comodo torna ambiguo '
+      + 'alla prima riga scritta dal ramo che se ne dimentica.\n\n'
+      + '✅ **Il difetto delle due ore è chiuso**: fra la mezzanotte e le 02:00 italiane una cliente che '
+      + 'pagava avendo scelto di cominciare **oggi** nasceva `queued`, e i menu le arrivavano alla passata '
+      + 'notturna dopo — un giorno intero più tardi. Il test che lo fissava come «difetto noto» adesso dice '
+      + 'il contrario, e la suite gira anche con l\'orologio fermo alle 00:30 di Roma, cioè **dentro** quella '
+      + 'finestra.\n\n'
+      + '⚠️ **Le righe vecchie non hanno la provenienza, e non si indovina**: `null` vuol dire «non lo so», e '
+      + 'su «non lo so» resta il confronto fra istanti — il comportamento di prima. Nessuna data già scritta '
+      + 'cambia significato il giorno del deploy, e il buco si chiude man mano che le date vengono '
+      + 'riscritte. ⛔ Se «non lo so» valesse «giorno», la migrazione trasformerebbe anche le **scadenze dei '
+      + 'piani in coda**, che partirebbero fino a due ore prima: per quelle due ore due piani '
+      + 'erogherebbero insieme.\n\n'
+      + '⚠️ Migrazione additiva senza default: `20260828120000_da_dove_viene_la_data_di_inizio`.'
   },
   {
     chiave: 'notte-in-cui-le-lancette-tornano-indietro',

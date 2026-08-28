@@ -161,19 +161,18 @@ export function statoPerInizio(inizio: Date | null | undefined, oggi: Date = new
  * comincia il 23?». Poi la domanda torna a essere quella di sopra, e la risposta la dà una
  * funzione sola.
  *
- * ⛔ **SI CHIAMA SOLO DOVE SI SA DI AVERE UN GIORNO**, e il nome lo dice apposta. I quattro punti
- * che la usano lo sanno: il questionario, la matita della scheda, la chat con Gaia e «Conosciamoci»
- * ricevono tutti una data scelta come giorno.
+ * ⛔ **SI CHIAMA SOLO DOVE SI SA DI AVERE UN GIORNO**, e il nome lo dice apposta. Quattro dei
+ * cinque punti lo sanno per costruzione — il questionario, la matita della scheda, la chat con Gaia
+ * e «Conosciamoci» ricevono tutti una data scelta come giorno.
  *
- * ⛔ Il **quinto** — l'approvazione del bonifico — **non la chiama**, e non è una dimenticanza: lì
- * la data viene da `clientProfile.planStartDate`, che contiene due cose diverse (il giorno scelto
- * dalla cliente, oppure la scadenza del piano in corso, scritta dal ramo della coda) e dal valore
- * non si distinguono — `subscriptionEnd` produce mezzanotte UTC **esatta**, identica a un
- * valore-giorno. Una versione di stamattina le distingueva a occhio, e su quella scadenza faceva
- * nascere piani `active` con la partenza **nel futuro**: la forma ambigua che la voce 258 esiste per
- * togliere di mezzo, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`. Il
- * difetto che resta lì è scritto in un test e nella voce `data-inizio-giorno-o-istante`: si chiude
- * facendo dire al campo da dove viene, non indovinandolo.
+ * ✅ **E dal 28/8 anche il quinto**, l'approvazione del bonifico, che fino a ieri non poteva
+ * chiamarla: lì la data viene da `clientProfile.planStartDate`, che conteneva due cose diverse — il
+ * giorno scelto, oppure la scadenza del piano in corso — e dal valore non si distinguevano, perché
+ * `subscriptionEnd` produce mezzanotte UTC **esatta**, identica a un valore-giorno. Adesso non si
+ * indovina: `planStartOrigine` lo dichiara (`commerce/origine-data-inizio.ts`), e questa funzione si
+ * chiama **solo** quando la provenienza dice «giorno». ⚠️ Su una riga senza provenienza — scritta
+ * prima del 28/8 — resta il confronto fra istanti: su «non lo so» si tiene il comportamento di
+ * prima, e nessuna data già scritta cambia significato.
  *
  * ⚠️ Su un valore che ha un'ora dentro — `@IsDateString` la ammette — `istanteDiPartenza` lo rende
  * com'è, e qui si torna al confronto fra istanti: il comportamento di prima, che su un istante è

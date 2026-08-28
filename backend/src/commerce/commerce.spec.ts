@@ -316,23 +316,110 @@ describe('CommerceService (flusso bonifico)', () => {
      * `data-inizio-giorno-o-istante` dice cosa serve per chiuderlo: sapere da dove viene quel campo,
      * non indovinarlo dal valore.
      */
+    /**
+     * ⛔ **LE DUE ORE IN CUI UN GIORNO E UN ISTANTE NON COINCIDONO.**
+     *
+     * L'orologio è fermo alle 00:30 di Roma (22:30 UTC del giorno prima): è la finestra in cui un
+     * giorno — mezzanotte UTC, cioè le 02:00 di Roma — risulta «nel futuro» rispetto a un `now` che a
+     * Roma è già oggi. ⚠️ Questi test **erano il difetto noto** e adesso sono la sua chiusura: dal
+     * 28/8 `planStartOrigine` dice da dove viene la data, e su un giorno dichiarato lo stato lo
+     * decide `statoPerGiornoDiInizio`.
+     *
+     * ⛔ I tre casi stanno insieme apposta: quello che si è chiuso, quello che **non** deve cambiare
+     * (la riga vecchia senza provenienza) e quello che non deve cambiare **mai** (la coda, che è un
+     * istante e che trattata come giorno partirebbe fino a due ore prima, erogando insieme al piano
+     * ancora in corso).
+     */
     describe('⛔ alle 00:30 di Roma', () => {
       conOrologioFermo(new Date('2026-08-22T22:30:00.000Z')); // per UTC è ancora il 22
 
       /** Il giorno di **Roma** scritto come lo scrive `toDateOnly`: mezzanotte UTC. */
       const oggiComeGiorno = () => new Date(`${giornoLocale(new Date())}T00:00:00.000Z`);
 
-      it('⛔ DIFETTO NOTO: con la data d\'inizio di OGGI il piano nasce ancora in coda', async () => {
+      /**
+       * ✅ **CHIUSO IL 28/8, e questo test era il «difetto noto».**
+       *
+       * Diceva: «con la data d'inizio di OGGI il piano nasce **ancora in coda**». Succedeva perché
+       * un giorno è mezzanotte UTC — cioè le 02:00 di Roma — e a mezzanotte e mezza di Roma
+       * risultava «nel futuro». La cliente che pagava in quelle due ore avendo scelto di cominciare
+       * oggi riceveva i menu alla passata notturna **dopo**, un giorno intero più tardi.
+       *
+       * ⛔ Non si è chiuso con un'euristica migliore — quella era stata provata e buttata il 23/8 —
+       * ma facendo **dire al campo da dove viene** (`planStartOrigine`). Su un giorno dichiarato lo
+       * stato lo decide `statoPerGiornoDiInizio`, che sa in che fuso comincia un giorno.
+       */
+      it('✅ con la data d\'inizio di OGGI *dichiarata come giorno* il piano nasce ATTIVO', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.clientProfile.findUnique.mockResolvedValue({
+          planStartDate: oggiComeGiorno(),
+          planStartOrigine: 'giorno',
+          consents: {},
+        });
+        await service.approvePayment(operator, 'pay-1');
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // ⚠️ E la data scelta dalla cliente resta quella: se sparisse, «nasce attivo» sarebbe
+            // vero per il motivo sbagliato — cioè perché la data è stata buttata via.
+            data: expect.objectContaining({ status: 'active', startDate: oggiComeGiorno() }),
+          }),
+        );
+      });
+
+      /**
+       * ⛔ **E SENZA LA PROVENIENZA RESTA COM'ERA, di proposito.** Le righe scritte prima del 28/8
+       * hanno `planStartOrigine` a `null`, cioè «non lo so»: su «non lo so» si tiene il confronto fra
+       * istanti. ⚠️ Se qui rispondesse `active`, la migrazione cambierebbe il significato di **ogni**
+       * data già scritta — comprese le scadenze dei piani in coda, che sono istanti e che diventando
+       * «giorni» partirebbero fino a due ore prima, erogando insieme al piano ancora in corso.
+       */
+      it('⛔ ma una riga vecchia, senza provenienza, resta in coda: non si indovina', async () => {
         prisma.payment.findUnique.mockResolvedValue(paymentReady());
         prisma.subscription.findFirst.mockResolvedValue(null);
         prisma.clientProfile.findUnique.mockResolvedValue({ planStartDate: oggiComeGiorno(), consents: {} });
         await service.approvePayment(operator, 'pay-1');
         expect(prisma.subscription.update).toHaveBeenCalledWith(
-          expect.objectContaining({
-            // ⚠️ E la data scelta dalla cliente viene comunque scritta: se un giorno sparisse,
-            // «nasce in coda» resterebbe vero per il motivo sbagliato.
-            data: expect.objectContaining({ status: 'queued', startDate: oggiComeGiorno() }),
-          }),
+          expect.objectContaining({ data: expect.objectContaining({ status: 'queued' }) }),
+        );
+      });
+
+      /**
+       * ⛔ **UNA SCADENZA DI CODA RIMASTA IN SCHEDA NON DIVENTA UN GIORNO.**
+       *
+       * Scenario raggiungibile: il piano precedente è `cancelled` con la scadenza nel futuro, quindi
+       * `activeAhead` è `null` (i cancellati non sono fra gli stati con un piano) — ma il profilo si
+       * tiene ancora quella scadenza, scritta dal ramo della coda come `origine: 'coda'`. ⚠️ Se qui
+       * bastasse «la provenienza c'è» invece di «la provenienza dice giorno», quel piano partirebbe
+       * fino a **due ore prima**. Provato per mutazione: senza questo test, `eGiornoScelto(...)`
+       * sostituito con `origine != null` restava verde.
+       */
+      it('⛔ una data che viene dalla CODA resta un istante, anche senza un piano davanti', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        prisma.clientProfile.findUnique.mockResolvedValue({
+          planStartDate: oggiComeGiorno(),
+          planStartOrigine: 'coda',
+          consents: {},
+        });
+        await service.approvePayment(operator, 'pay-1');
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status: 'queued' }) }),
+        );
+      });
+
+      /** ⚠️ E «domani» resta domani: il confine si sposta di due ore, non sparisce. */
+      it('⚠️ un giorno dichiarato ma FUTURO resta in coda', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        prisma.subscription.findFirst.mockResolvedValue(null);
+        const domani = new Date(oggiComeGiorno().getTime() + 86_400_000);
+        prisma.clientProfile.findUnique.mockResolvedValue({
+          planStartDate: domani,
+          planStartOrigine: 'giorno',
+          consents: {},
+        });
+        await service.approvePayment(operator, 'pay-1');
+        expect(prisma.subscription.update).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ status: 'queued', startDate: domani }) }),
         );
       });
 
@@ -352,6 +439,26 @@ describe('CommerceService (flusso bonifico)', () => {
             data: expect.objectContaining({ status: 'queued', startDate: fraUnOraEMezza }),
           }),
         );
+      });
+
+      /**
+       * ⛔ **E LA CODA SI DICHIARA PER QUELLO CHE È: un ISTANTE.**
+       *
+       * Questo ramo riscrive `planStartDate` del profilo con la scadenza del piano in corso. Se lo
+       * dichiarasse «giorno», la prossima volta che qualcuno legge quella data per decidere uno
+       * stato la tradurrebbe nel fuso di Roma e il piano partirebbe **fino a due ore prima**: per
+       * quelle due ore i due piani erogherebbero **insieme**. ⚠️ È il motivo per cui il campo si
+       * valorizza in tutti e cinque i punti e non solo dove fa comodo — uno che se ne dimentica
+       * rimette il campo nell'ambiguità da cui l'abbiamo tirato fuori.
+       */
+      it('⛔ e scrive che quella data è la SCADENZA del piano in corso, non un giorno', async () => {
+        prisma.payment.findUnique.mockResolvedValue(paymentReady());
+        prisma.subscription.findFirst.mockResolvedValue({ endDate: new Date(Date.now() + 90 * 60_000) });
+        await service.approvePayment(operator, 'pay-1');
+        const scritte = prisma.clientProfile.updateMany.mock.calls.map((c: unknown[]) => (c[0] as { data: Record<string, unknown> }).data);
+        const conOrigine = scritte.find((d: Record<string, unknown>) => 'planStartOrigine' in d);
+        expect(conOrigine).toBeDefined();
+        expect(conOrigine!.planStartOrigine).toBe('coda');
       });
     });
 

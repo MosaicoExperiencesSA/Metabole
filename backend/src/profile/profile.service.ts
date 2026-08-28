@@ -16,6 +16,7 @@ import { apriServeVisita } from '../clients/serve-visita';
 import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
+import { ORIGINE_INIZIO } from '../commerce/origine-data-inizio';
 import { statoPerGiornoDiInizio } from '../commerce/stati-abbonamento';
 import { campiCambiati } from '../common/diff-campi';
 import { fraseAiutoEsclusioni, problemiEsclusioni } from '../common/esclusioni-scritte-bene';
@@ -159,7 +160,14 @@ export class ProfileService {
         ...(usciraDalDigiuno ? orologioAzzerato() : {}),
         ...(lifestyle ? { lifestyle: lifestyle as never } : {}),
         ...(consents ? { consents: consents as never } : {}),
-        ...(planStartDate ? { planStartDate: new Date(planStartDate) } : {}),
+        ...(planStartDate
+          ? {
+              planStartDate: new Date(planStartDate),
+              // ⚠️ **E da dove viene**: la sceglie lei, quindi è un GIORNO. Senza questa riga la data
+              // resta ambigua per chi la deve trasformare in uno stato (`origine-data-inizio.ts`).
+              planStartOrigine: ORIGINE_INIZIO.GIORNO,
+            }
+          : {}),
       } as never,
     });
     /**

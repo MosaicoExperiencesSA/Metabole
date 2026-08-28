@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { pickMainSubscription, subscriptionEnd } from '../commerce/commerce.service';
+import { ORIGINE_INIZIO } from '../commerce/origine-data-inizio';
 import { statoPerGiornoDiInizio } from '../commerce/stati-abbonamento';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { istanteDiPartenza, toDateOnly } from '../common/date-only';
@@ -273,8 +274,9 @@ export class DataInizioChatService {
     const scritture: unknown[] = [
       this.prisma.clientProfile.upsert({
         where: { userId: clientId },
-        update: { planStartDate: d } as never,
-        create: { userId: clientId, planStartDate: d } as never,
+        // ⚠️ `d` è `toDateOnly(data)`: un GIORNO, e lo si dichiara invece di lasciarlo indovinare.
+        update: { planStartDate: d, planStartOrigine: ORIGINE_INIZIO.GIORNO } as never,
+        create: { userId: clientId, planStartDate: d, planStartOrigine: ORIGINE_INIZIO.GIORNO } as never,
       }),
     ];
     // L'abbonamento si tocca solo se ha già delle date. Su un `pending` (pagamento non ancora

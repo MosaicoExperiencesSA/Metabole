@@ -29,6 +29,16 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { DEFAULT_PERMISSIONS } from '../src/permissions/pages';
+import { isCoachLike } from '../src/common/coach-team';
+/**
+ * ⚠️ **La stessa condizione di `perimetroClienti`, chiamata e non ricopiata.** Quella funzione mette
+ * un limite ai ruoli «tipo coach» e al nutrizionista, e a nessun altro. ⛔ Non si usa
+ * `vedeTutteLeClienti`, che risponde a un'**altra** domanda e diverge di proposito su marketing e
+ * capo marketing (lo dice `perimetro-clienti.ts`): con quella, questa colonna scriverebbe «solo le
+ * sue» per due ruoli che le vedono tutte — una diagnostica che sottostima proprio il raggio che
+ * serve a misurare.
+ */
+const haUnPerimetro = (role: string): boolean => isCoachLike(role) || role === 'nutritionist';
 
 const prisma = new PrismaClient();
 
@@ -52,19 +62,76 @@ async function main(): Promise<void> {
   } else {
     console.table(
       righe.map((r) => {
-        const perDefault = (DEFAULT_PERMISSIONS as Record<string, Record<string, { manage?: boolean }>>)[r.role]
-          ?.change_diet_type?.manage;
+        const suo = (DEFAULT_PERMISSIONS as Record<string, Record<string, { manage?: boolean }>>)[r.role];
+        const perDefault = suo?.change_diet_type?.manage;
+        /**
+         * ⛔ **«IL CODICE NON LO PREVEDE» È UNA DIVERGENZA, e la prima stesura la taceva** (28/8,
+         * corretta dopo la prima passata in produzione).
+         *
+         * La colonna confrontava solo quando il default esisteva: per un ruolo a cui `pages.ts` la
+         * casella **non la dà affatto** — `undefined` — restava vuota. È esattamente la riga che
+         * andava guardata: in produzione `sales` risulta acceso, e nel codice non compare da nessuna
+         * parte. Un confronto che sta zitto proprio sul caso che non hai previsto è un confronto che
+         * ti fa leggere la tabella con sollievo.
+         */
+        const divergenza =
+          perDefault === undefined
+            ? r.canManage
+              ? '⛔ ACCESO E NON PREVISTO'
+              : ''
+            : perDefault !== r.canManage
+              ? // ⛔ **NEI DUE VERSI.** La prima correzione di questa colonna aveva messo un
+                // `r.canManage ? … : ''` davanti a tutto, e così spegneva proprio il caso opposto:
+                // «il codice gliela dà, il database gliel'ha tolta» — un ruolo che dovrebbe poter
+                // cambiare il tipo di dieta e non può, sparito dalla colonna. Nella stessa modifica
+                // che diceva «un confronto che sta zitto sul caso che non hai previsto ti fa leggere
+                // la tabella con sollievo».
+                `⛔ DIVERSO DAL CODICE (il codice dice ${perDefault ? 'sì' : 'no'})`
+              : '';
         return {
           ruolo: r.role,
           'può cambiare': r.canManage ? 'sì' : 'NO',
-          'default del codice': perDefault === undefined ? '—' : perDefault ? 'sì' : 'no',
-          // ⚠️ La colonna che conta: dove il database dice il contrario del codice, il codice non è
-          // la risposta — e chiunque legga solo `pages.ts` si farà l'idea sbagliata.
-          diverso: perDefault !== undefined && perDefault !== r.canManage ? '⛔ SÌ' : '',
+          'default del codice': perDefault === undefined ? '— (mai dato)' : perDefault ? 'sì' : 'no',
+          /**
+           * ⚠️ **E su quante clienti**, perché il permesso da solo non dice il danno: chi non ha un
+           * perimetro apre la scheda di **qualunque** cliente, non solo delle sue. Una casella clinica
+           * accesa su un ruolo senza perimetro vale su tutte.
+           *
+           * ⛔ **La domanda è «ha un perimetro?», e la risposta la dà `perimetroClienti`**, non
+           * `vedeTutteLeClienti`: le due divergono di proposito (lo dice `perimetro-clienti.ts`) su
+           * marketing e capo marketing, che nella prima non hanno limiti e nella seconda non
+           * compaiono. Usando la seconda, questa colonna avrebbe scritto «solo le sue» per due ruoli
+           * che le vedono **tutte** — cioè una diagnostica che sottostima il raggio proprio nella
+           * colonna che serve a misurarlo.
+           */
+          'su quali clienti': haUnPerimetro(r.role) ? 'solo le sue' : 'TUTTE',
+          'apre la scheda': suo?.clients ? 'sì' : '— (non previsto)',
+          diverso: divergenza,
         };
       }),
     );
   }
+  /**
+   * ⛔ Le righe accese che il codice non prevede: sono quelle che nessuno ha deciso di proposito, o
+   * che qualcuno ha acceso una volta e nessuno ha più guardato. Si dicono per nome, non si lasciano
+   * dentro una tabella da leggere riga per riga.
+   */
+  const impreviste = righe.filter(
+    (r) =>
+      r.canManage &&
+      (DEFAULT_PERMISSIONS as Record<string, Record<string, { manage?: boolean }>>)[r.role]?.change_diet_type
+        ?.manage === undefined,
+  );
+  if (impreviste.length) {
+    console.log(
+      `\n⛔ ACCESA su ${impreviste.length} ruol${impreviste.length === 1 ? 'o' : 'i'} a cui il codice non la dà: ` +
+        `${impreviste.map((r) => r.role).join(', ')}.\n` +
+        '   Vuol dire che qualcuno l\'ha accesa a mano, o che viene da un default vecchio che non esiste più.\n' +
+        '   ⚠️ Da oggi quella casella copre anche i pasti e il DIGIUNO INTERMITTENTE, ed è una decisione\n' +
+        '   clinica: va guardata riga per riga, non lasciata com\'è perché «c\'era già».',
+    );
+  }
+
   const coach = righe.find((r) => r.role === 'coach');
   if (coach && !coach.canManage) {
     console.log(

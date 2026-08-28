@@ -37,6 +37,7 @@ import { FinanceService } from './finance.service';
 import { StripeService } from './stripe.service';
 import { prezzoEffettivo } from './prezzo-piano';
 import { esitoAnnullamento, raccontaAnnullamento, type AbbonamentoLetto } from './annulla-abbonamento';
+import { eGiornoScelto, ORIGINE_INIZIO, spiegaOrigine } from './origine-data-inizio';
 import { statoPerGiornoDiInizio, statoPerInizio, STATI_CON_UN_PIANO, STATI_GIA_COMPRATO, STATI_QUALCOSA_IN_BALLO } from './stati-abbonamento';
 /**
  * ⚠️ La regola «due periodi si sovrappongono?» arriva da `clients/`, dove è nata per la matita della
@@ -586,7 +587,9 @@ export class CommerceService {
     // `deliverIfEligible` non parte nemmeno.
     await this.prisma.clientProfile.updateMany({
       where: { userId: clientId },
-      data: { planStartDate: inizio },
+      // ⚠️ `inizio` viene da `validaDataInizio`, che rende un GIORNO — la stessa cosa che dice il
+      // commento sullo `status` qui sopra. Si dichiara invece di lasciarlo indovinare al valore.
+      data: { planStartDate: inizio, planStartOrigine: ORIGINE_INIZIO.GIORNO } as never,
     });
 
     // «Porta un'amica» e monitoraggio: le stesse due chiamate dell'attivazione a pagamento. Non
@@ -2154,34 +2157,48 @@ export class CommerceService {
       // giorni); altrimenti oggi. Così scheda, scadenza e menu raccontano la stessa data.
       let start = activeAhead?.endDate ?? now;
       /**
-       * ⛔ **QUI LO STATO RESTA UN CONFRONTO FRA ISTANTI, e la ragione va scritta** (23/8).
+       * ⛔ **LO STATO SI DECIDE SAPENDO DA DOVE VIENE LA DATA** (chiuso il 28/8; fino a ieri qui
+       * c'era la ragione per cui **non** si poteva fare).
        *
        * `start` cambia natura a seconda del ramo: da `activeAhead.endDate` è un **istante**, dalla
-       * scelta della cliente (`planStartDate`) è quasi sempre un **giorno**. La versione di stamattina
-       * distingueva i due con un flag e traduceva il secondo con `statoPerGiornoDiInizio` — ed è
-       * **stata tolta in revisione**, perché la premessa era falsa: `planStartDate` non è sempre un
-       * giorno. Lo riscrive questa stessa funzione trenta righe più giù (il ramo della coda ci mette
-       * `endDate`), e `profile.service` lo accetta da un DTO `@IsDateString`, che l'ora la ammette.
+       * scelta di qualcuno (`planStartDate`) è un **giorno**. ⛔ Il 23/8 i due erano stati distinti a
+       * occhio — «mezzanotte UTC esatta = un giorno» — e l'euristica è stata **provata e buttata**,
+       * perché la scadenza di un piano partito da un giorno produce *proprio* mezzanotte UTC esatta:
+       * sbagliava sul caso più comune di tutti e faceva nascere piani `active` con la partenza nel
+       * futuro, invisibili a `promuoviCodeArrivate`, che cerca i `queued`.
        *
-       * ⛔ Su un valore così la traduzione anticipava di un'ora o due, e produceva un piano `active`
-       * con la partenza **nel futuro**: la forma ambigua che la voce 258 esiste per togliere di
-       * mezzo, per giunta invisibile a `promuoviCodeArrivate`, che cerca i `queued`.
+       * ✅ Dal 28/8 non si indovina: `planStartOrigine` **lo dice** (`origine-data-inizio.ts`), e
+       * tutti e cinque i punti che scrivono la data dichiarano da dove viene. Quando è un giorno lo
+       * stato lo decide `statoPerGiornoDiInizio`, che sa in che fuso comincia un giorno; su un
+       * istante — e su una riga senza provenienza, cioè scritta prima del 28/8 — resta il confronto
+       * fra istanti, che su un istante è quello giusto.
        *
-       * ⚠️ **Quello che resta scoperto, detto:** fra la mezzanotte e le 02:00, una cliente che paga e
-       * ha scelto di cominciare **oggi** nasce ancora `queued`, e i menu arrivano alla passata
-       * notturna dopo. Chiuderlo richiede di sapere **da dove viene** `planStartDate`, non di
-       * indovinarlo dal valore — cioè un campo che lo dica, o due campi diversi. È la voce
-       * `data-inizio-giorno-o-istante`: si fa con la misura in mano, non per simmetria con gli altri
-       * quattro punti.
+       * ✅ **Quello che si chiude**: fra la mezzanotte e le 02:00 italiane, una cliente che pagava
+       * avendo scelto di cominciare **oggi** nasceva `queued` e i menu le arrivavano alla passata
+       * notturna dopo — un giorno intero più tardi. Il test che lo fissava come «difetto noto» adesso
+       * dice il contrario, e la suite gira anche con l'orologio fermo alle 00:30 di Roma.
        */
+      let startEUnGiorno = false;
       if (!activeAhead?.endDate) {
         const prof = (await this.prisma.clientProfile.findUnique({
           where: { userId: payment.clientId },
-          select: { planStartDate: true },
-        })) as { planStartDate: Date | null } | null;
+          select: { planStartDate: true, planStartOrigine: true } as never,
+        })) as { planStartDate: Date | null; planStartOrigine: string | null } | null;
         const chosen = prof?.planStartDate ?? null;
         if (chosen && chosen.getTime() > now.getTime() && chosen.getTime() - now.getTime() <= 60 * 86_400_000) {
           start = chosen;
+          /**
+           * ⛔ **QUI SI CHIUDONO LE DUE ORE.** Se quella data è un **giorno dichiarato**, lo stato lo
+           * decide `statoPerGiornoDiInizio`, che sa in che fuso comincia un giorno. Senza,
+           * `statoPerInizio` confrontava mezzanotte UTC con «adesso»: fra le 00:00 e le 02:00 di Roma
+           * una cliente che aveva scelto **oggi** risultava «nel futuro» e nasceva `queued`, coi menu
+           * alla passata notturna dopo — un giorno intero più tardi.
+           *
+           * ⚠️ E su `null` (le righe scritte prima del 28/8) resta il confronto fra istanti, cioè il
+           * comportamento di prima: la migrazione non cambia il significato di nessuna data già
+           * scritta.
+           */
+          startEUnGiorno = eGiornoScelto(prof?.planStartOrigine);
         }
       } else {
         /**
@@ -2196,7 +2213,13 @@ export class CommerceService {
          * 10/8: «non le chiedo la data, glielo dico»).
          */
         await this.prisma.clientProfile
-          .updateMany({ where: { userId: payment.clientId }, data: { planStartDate: start } })
+          // ⚠️ Qui `start` è la **scadenza** del piano in corso, cioè un istante: dichiararlo è la
+          // metà che rende utile l'altra. Un campo che si valorizza solo quando fa comodo torna a
+          // essere ambiguo alla prima riga scritta dal ramo che se ne dimentica.
+          .updateMany({
+            where: { userId: payment.clientId },
+            data: { planStartDate: start, planStartOrigine: ORIGINE_INIZIO.CODA } as never,
+          })
           .catch(() => undefined);
         await this.audit
           .log({
@@ -2204,7 +2227,14 @@ export class CommerceService {
             actorId: byUserId,
             entityType: 'subscription',
             entityId: payment.subscriptionId,
-            metadata: { inizioEffettivo: start.toISOString(), motivo: 'in coda al piano attivo' },
+            metadata: {
+              inizioEffettivo: start.toISOString(),
+              motivo: 'in coda al piano attivo',
+              // ⚠️ **Anche nel registro**: chi rilegge questa riga fra tre mesi deve poter sapere che
+              // quella data è un ISTANTE e non un giorno — è la distinzione che l'audit non aveva, e
+              // che è costata l'euristica sbagliata del 23/8.
+              origineDataInizio: spiegaOrigine(ORIGINE_INIZIO.CODA),
+            },
           })
           .catch(() => undefined);
       }
@@ -2254,7 +2284,17 @@ export class CommerceService {
        */
       await this.prisma.subscription.update({
         where: { id: payment.subscriptionId },
-        data: { status: statoPerInizio(start, now) as never, startDate: start, endDate: end },
+        data: {
+          /**
+           * ⛔ **DUE DOMANDE DIVERSE, e adesso si sa quale delle due si sta facendo.** Su un giorno
+           * dichiarato si usa `statoPerGiornoDiInizio`, che sa in che fuso comincia un giorno; su un
+           * istante — la scadenza di un piano in coda — e su una riga senza provenienza resta il
+           * confronto fra istanti, che su un istante è quello giusto.
+           */
+          status: (startEUnGiorno ? statoPerGiornoDiInizio(start, now) : statoPerInizio(start, now)) as never,
+          startDate: start,
+          endDate: end,
+        },
       });
       // "Porta un'amica": alla prima attivazione dell'invitata premia chi l'ha
       // invitata (idempotente sull'invito; non deve mai far fallire il pagamento).

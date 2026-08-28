@@ -1,0 +1,134 @@
+La data di inizio dice da dove viene, e il catalogo dice chi è caduto fuori
+
+DUE VOCI, LE ULTIME DELLA LISTA.
+
+════════════════════════════════════════════════════════════════════════
+A) `data-inizio-giorno-o-istante`
+════════════════════════════════════════════════════════════════════════
+
+IL PROBLEMA
+`clientProfile.planStartDate` conteneva DUE COSE DIVERSE:
+  · un GIORNO scelto — «comincio il 23» — dal questionario, dalla matita della
+    scheda, dalla chat con Gaia, dall'attivazione gratuita;
+  · un ISTANTE — la scadenza del piano in corso — scritto dal ramo della coda
+    dell'approvazione bonifico, perché un piano in coda parte quando finisce
+    l'altro.
+
+E dal valore non si distinguevano.
+
+⛔ L'EURISTICA ERA STATA PROVATA E BUTTATA, IL 23/8
+«Mezzanotte UTC esatta = un giorno» sembrava reggere. Non regge: `subscriptionEnd`,
+partendo da un giorno, produce PROPRIO mezzanotte UTC esatta. Sbagliava sul caso
+più comune di tutti, e faceva nascere piani `active` con la partenza nel futuro —
+invisibili al giro che promuove le code, che cerca i `queued`.
+
+COSA COSTAVA
+Fra le 00:00 e le 02:00 italiane, una cliente che pagava avendo scelto di
+cominciare OGGI nasceva `queued`: il suo giorno è mezzanotte UTC, cioè le 02:00 di
+Roma, quindi «nel futuro» rispetto a un `now` che a Roma è già oggi. I menu le
+arrivavano alla passata notturna DOPO — un giorno intero più tardi. Due ore su
+ventiquattro, ma è la finestra in cui finiscono i pagamenti di chi compra la sera.
+
+LA SOLUZIONE: IL CAMPO LO DICE
+Nuova colonna `planStartOrigine` (`giorno` | `coda`), scritta in TUTTI E CINQUE i
+punti — anche nel ramo della coda, dove il valore è un istante. Un campo che si
+dichiara solo dove fa comodo torna ambiguo alla prima riga scritta dal ramo che se
+ne dimentica.
+
+⚠️ Una colonna accanto e non due colonne di date: `planStartDate` la leggono venti
+punti, e sdoppiarla vorrebbe dire venti letture da tenere d'accordo. Chi legge la
+data e non gliene importa continua come prima; chi deve DECIDERE legge anche da
+dove viene.
+
+⚠️ LE RIGHE VECCHIE RESTANO `null`, e non si indovina. «Non lo so» vale come
+prima — il confronto fra istanti — e nessuna data già scritta cambia significato il
+giorno del deploy. ⛔ Se «non lo so» valesse «giorno», la migrazione trasformerebbe
+anche le scadenze dei piani in coda: partirebbero fino a due ore prima, e per
+quelle due ore due piani erogherebbero INSIEME.
+
+Il test che fissava il difetto come «noto» adesso dice il contrario, e la suite
+gira anche con l'orologio fermo alle 00:30 di Roma — cioè DENTRO quella finestra.
+
+════════════════════════════════════════════════════════════════════════
+B) `taglia-catalogo-due-silenzi`
+════════════════════════════════════════════════════════════════════════
+
+Il catalogo si dimensiona sulla mediana dei fabbisogni delle clienti di quella
+dieta. Chi non ha un fabbisogno cade fuori dal conto — e da oggi le ragioni sono
+DUE: manca il profilo, oppure le pesate non stanno in piedi e il fabbisogno è
+sospeso. Portano a due gesti diversi («completa il profilo», «vai a correggere una
+pesata»), e un numero solo manda a fare la cosa sbagliata su metà delle clienti.
+
+⛔ E QUI LA MIA PRIMA STESURA DICEVA UNA COSA FALSA
+Avevo scritto «la cliente col fabbisogno sospeso non pesa PIÙ sulla mediana». Non
+ci pesava già prima: `computeTargetKcal` rispondeva `null` anche su di lei. LA
+MEDIANA NON CAMBIA DI UN KCAL. L'unica cosa che questa voce cambia davvero è la
+riga di log — e spacciare per correzione un comportamento che c'era già è il modo
+in cui un verbale di lavoro smette di valere.
+⚠️ La regola di escluderle però adesso è riscritta a mano qui (passando da
+`computeTargetKcal` a `estimate` per leggere il motivo), quindi qui va tenuta
+ferma: c'è un test che lo fa.
+
+⚠️ E un errore di lettura si conta a parte, non fra i profili incompleti: mandare
+qualcuno a completare un profilo già completo è una ragione falsa proprio nella
+riga che esiste per dare la ragione giusta.
+
+════════════════════════════════════════════════════════════════════════
+OTTO BLOCCANTI DALLA REVISIONE
+════════════════════════════════════════════════════════════════════════
+
+1-3. ⛔ TRE COMMENTI CHE DICEVANO IL CONTRARIO DEL CODICE. Il peggiore è il
+   docblock sopra la funzione corretta: spiegava, in ogni frase, perché NON si può
+   fare la cosa che le venti righe sotto fanno. Più il gruppo di test («il difetto
+   è ancora aperto» sopra il test che lo dichiara chiuso), `statoPerGiornoDiInizio`
+   («i quattro punti che la usano»: sono cinque) e `date-only.ts`.
+
+4. ⛔ TRE DEI CINQUE PUNTI DI SCRITTURA NON ERANO GUARDATI DA NIENTE. La revisione
+   ha tolto la provenienza dal questionario, dalla matita della scheda e dalla chat
+   con Gaia: 379 test verdi. Passano da un `as never`, quindi nemmeno il
+   compilatore li vede. Il difetto delle due ore si sarebbe riaperto IN SILENZIO,
+   con la voce marcata «fatta» e un test che dice «nasce ATTIVO» per un'altra
+   strada. Adesso c'è un test strutturale: *ogni scrittura di quella data dichiara
+   da dove viene* — e vale anche per il sesto punto, quello che non esiste ancora.
+   ⚠️ La prima stesura di quel test guardava una finestra di righe, e su un
+   `upsert` bastava che una delle due metà ce l'avesse: provato per mutazione,
+   corretto.
+
+5. ⛔ ANCHE IL PUNTO DI DECISIONE ERA SCOPERTO: sostituendo «la provenienza dice
+   giorno» con «la provenienza c'è», 428 test restavano verdi — cioè trattare una
+   scadenza di coda come un giorno. Lo scenario è raggiungibile (piano precedente
+   `cancelled` con scadenza futura), e il danno è due piani che erogano insieme.
+
+6. ⛔ La bugia sulla mediana, qui sopra.
+
+7. ⛔ I DUE CONTEGGI SI POTEVANO SCAMBIARE e il test restava verde, perché la
+   fixture aveva «1 e 1». Adesso è 2 e 1.
+
+8. ⛔ E UNA REGRESSIONE NELLA MIA DIAGNOSTICA DI IERI: correggendo la colonna
+   «diverso» perché tacesse sul caso non previsto, l'avevo fatta tacere sul verso
+   opposto — «il codice gliela dà, il database gliel'ha tolta». Nella stessa
+   modifica che diceva «un confronto che sta zitto sul caso che non hai previsto ti
+   fa leggere la tabella con sollievo». E la colonna «su quali clienti» usava
+   `vedeTutteLeClienti`, che risponde a un'altra domanda e diverge su marketing:
+   sottostimava il raggio proprio nella colonna che serve a misurarlo.
+
+ALTRE TRE COSE SISTEMATE
+· `spiegaOrigine` non aveva chiamatori: adesso la provenienza finisce nei due audit
+  che scrivono quella data. Un campo che toglie l'ambiguità e non si vede da nessuna
+  parte non la toglie a nessuno.
+· Il log del catalogo elencava «0 senza i dati del profilo» quando la ragione era
+  una sola: uno zero in un elenco di problemi si legge come un problema.
+· «(su 300)» si legge come la popolazione intera: adesso dice «su 300 guardate».
+
+LA MIGRAZIONE
+`20260828120000_da_dove_viene_la_data_di_inizio` — additiva, `TEXT` nullable, senza
+default. ⚠️ Nell'intestazione è scritto anche il caso storto: se il codice arrivasse
+PRIMA della colonna (uno staging indietro, una `migrate deploy` saltata) la `select`
+di `approvePayment` non degrada, lancia — e l'approvazione bonifico va in 500. Non
+succede nel deploy normale di Render; è la cosa da sapere se va storto a metà.
+
+MISURATO
+- 5804 test backend verdi in quattro modalità; backoffice 150; app 192.
+- Sedici mutazioni provate. Cinque sono SOPRAVVISSUTE al primo giro — le tre
+  scritture non guardate, il punto di decisione, e i due conteggi scambiabili — e
+  hanno fatto scrivere i test che mancavano.

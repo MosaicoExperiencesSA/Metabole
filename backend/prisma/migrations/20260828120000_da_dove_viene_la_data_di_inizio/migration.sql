@@ -1,0 +1,28 @@
+-- `plan_start_date` conteneva DUE COSE DIVERSE e dal valore non si distinguevano: il giorno scelto
+-- da qualcuno («comincio il 23») oppure la scadenza del piano in corso, che è un istante. Questa
+-- colonna dice quale delle due.
+--
+-- ⛔ L'euristica è stata provata e buttata il 23/8: «mezzanotte UTC esatta = un giorno» sembrava
+-- reggere, ma la scadenza di un piano che è partito da un giorno produce PROPRIO mezzanotte UTC
+-- esatta. Sbagliava sul caso più comune di tutti, e faceva nascere piani `active` con la partenza
+-- nel futuro — invisibili al giro che promuove le code, che cerca i `queued`.
+--
+-- ⚠️ ADDITIVA E SENZA DEFAULT, di proposito. Ogni riga esistente nasce `NULL`, cioè «non lo so», e
+-- su «non lo so» il codice tiene il comportamento di prima (il confronto fra istanti). Nessuna data
+-- già scritta cambia significato il giorno del deploy: il difetto che questa colonna chiude — la
+-- cliente che paga fra mezzanotte e le 02:00 avendo scelto di cominciare OGGI, e nasce `queued` —
+-- si chiude man mano che le date vengono riscritte, non all'indietro su dati che nessuno ha
+-- dichiarato.
+--
+-- ⚠️ NESSUN INDICE: questa colonna non si cerca mai: si legge insieme alla riga del profilo, che si
+-- prende sempre per `user_id`.
+--
+-- ⛔ L'ORDINE DI DEPLOY CONTA IN UN VERSO SOLO, E VA DETTO. Su Render `preDeployCommand` gira prima
+-- che il traffico passi alle istanze nuove, quindi il codice nuovo non vede mai la colonna mancante;
+-- e il codice VECCHIO con la colonna già presente non se ne accorge (Prisma elenca sempre le colonne,
+-- non fa `SELECT *`), quindi un rollback è innocuo. ⚠️ Ma su un ambiente dove il codice arrivasse
+-- PRIMA della migrazione — uno staging indietro, una `migrate deploy` saltata — la `select` di
+-- `approvePayment` non degrada: lancia un errore di validazione Prisma, e lì intorno non c'è nessun
+-- `catch`. L'approvazione del bonifico andrebbe in 500. Non è una possibilità del deploy normale: è
+-- la cosa da sapere se qualcosa va storto a metà.
+ALTER TABLE "client_profile" ADD COLUMN "plan_start_origine" TEXT;

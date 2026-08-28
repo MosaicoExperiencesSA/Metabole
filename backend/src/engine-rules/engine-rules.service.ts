@@ -116,11 +116,56 @@ export class EngineRulesService {
         take: MASSIMO_CLIENTI_PER_TAGLIA,
       })) as { userId: string }[];
 
-      const fabbisogni = await Promise.all(
-        profili.map((p) => this.kcalNeed.computeTargetKcal(p.userId).catch(() => null)),
+      /**
+       * ⛔ **DUE SILENZI DIVERSI SOTTO LO STESSO `null`** (voce `taglia-catalogo-due-silenzi`, 28/8).
+       *
+       * `computeTargetKcal` risponde `null` per **due ragioni**: mancano sesso, età, altezza o un
+       * peso da cui partire — oppure le pesate di quella cliente non stanno in piedi fra loro e il
+       * fabbisogno è **sospeso**. Le righe cadevano fuori dalla mediana in silenzio, e con poche
+       * clienti per taglia la mediana si sposta senza che nessuno lo sappia.
+       *
+       * ⚠️ **Si chiama `estimate` e non `computeTargetKcal`, e non costa niente**: il secondo è il
+       * primo più due controlli, quindi la domanda al database è la stessa. Cambia solo che qui la
+       * risposta si legge intera invece di buttarne via la metà che dice perché.
+       */
+      /**
+       * ⚠️ **Un errore di database non è «senza i dati del profilo»** (aggiunto in revisione). Il
+       * `catch` rendeva `null` come il profilo incompleto, e le due cose sarebbero finite nello
+       * stesso numero: *una ragione falsa è peggio di nessuna ragione*, e qui la ragione è proprio
+       * quello che si sta stampando.
+       */
+      const stime = await Promise.all(
+        profili.map((p) => this.kcalNeed.estimate(p.userId).catch(() => 'errore' as const)),
       );
+      const rotte = stime.filter((s) => s === 'errore').length;
+      const senzaDati = stime.filter((s) => s === null).length;
+      const sospese = stime.filter((s) => s && s !== 'errore' && s.pesoIncoerente).length;
+      /**
+       * ⚠️ **La scelta di escludere le sospese vive QUI, adesso.** Prima stava dentro
+       * `computeTargetKcal`, che rispondeva `null` su di loro: la mediana non cambia di un kcal
+       * rispetto a ieri. Passando a `estimate` per leggere il motivo, però, la decisione è stata
+       * riscritta a mano — e c'è un test che la tiene ferma, perché adesso si può perdere qui.
+       */
+      const fabbisogni = stime.map((s) => (s && s !== 'errore' && !s.pesoIncoerente ? s.target : null));
       const taglia = tagliaDalFabbisogno(fabbisogni, tagliaPreset, tolleranzaPct);
-      this.logger.log(`Catalogo «${preset.style ?? '—'}»: ${fraseTaglia(taglia)}`);
+      /**
+       * ⚠️ **Si elencano solo le ragioni che ci sono davvero.** La prima stesura le stampava tutte e
+       * due appena una era diversa da zero, e usciva «0 senza i dati del profilo, 1 con le pesate da
+       * verificare»: uno zero in un elenco di problemi si legge come un problema.
+       *
+       * ⚠️ Ma quando ce n'è più d'una si dicono **separate**, perché portano a gesti diversi —
+       * «completa il profilo», «vai a correggere una pesata», «guarda i log» — e un numero solo manda
+       * a fare la cosa sbagliata su una parte delle clienti.
+       */
+      const motivi = [
+        senzaDati ? `${senzaDati} senza i dati del profilo` : null,
+        sospese ? `${sospese} con le pesate da verificare` : null,
+        rotte ? `${rotte} non lette per un errore` : null,
+      ].filter(Boolean);
+      // ⚠️ «guardate» e non «clienti»: l'elenco è tagliato a `MASSIMO_CLIENTI_PER_TAGLIA`, e su una
+      // dieta popolosa «su 300» si leggerebbe come la popolazione intera.
+      const cadute = motivi.length ? ` ⚠️ Fuori dal conto: ${motivi.join(', ')} (su ${profili.length} guardate).` : '';
+      this.logger.log(`Catalogo «${preset.style ?? '—'}»: ${fraseTaglia(taglia)}${cadute}`);
       return { targetKcal: taglia.taglia, taglia };
     } catch (e) {
       this.logger.warn(`Taglia dal fabbisogno NON calcolata: ${String(e)}. Uso quella del preset (${tagliaPreset}).`);

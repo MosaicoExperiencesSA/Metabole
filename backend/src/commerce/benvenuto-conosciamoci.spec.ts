@@ -359,7 +359,16 @@ describe('CommerceService.attivaBenvenuto', () => {
     const quando = fra(4);
     await service.attivaBenvenuto('c1', quando);
     expect(prisma.clientProfile.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { planStartDate: expect.any(Date) } }),
+      expect.objectContaining({
+        data: expect.objectContaining({
+          planStartDate: expect.any(Date),
+          // ⛔ **E da dove viene** (28/8): questa è una data scelta, cioè un GIORNO. Senza la
+          // provenienza il campo torna ambiguo per chi lo deve trasformare in uno stato — ed è la
+          // ragione per cui fra la mezzanotte e le 02:00 una cliente che sceglieva «oggi» nasceva
+          // `queued`. Vedi `commerce/origine-data-inizio.ts`.
+          planStartOrigine: 'giorno',
+        }),
+      }),
     );
     const scritta: Date = prisma.clientProfile.updateMany.mock.calls[0][0].data.planStartDate;
     expect(iso(scritta)).toBe(quando);

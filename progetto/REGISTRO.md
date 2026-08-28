@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-28
 
+- `[Sviluppo]` **La data di inizio dice da dove viene, e il catalogo dice chi è caduto fuori.** Le
+  ultime due voci della lista.
+  **A)** `clientProfile.planStartDate` conteneva due cose diverse — un **giorno** scelto («comincio
+  il 23») o un **istante** (la scadenza del piano in corso, per chi compra in coda) — e dal valore
+  non si distinguevano. ⛔ L'euristica «mezzanotte UTC esatta = un giorno» era stata provata e
+  buttata il 23/8: la scadenza di un piano partito da un giorno produce *proprio* mezzanotte UTC
+  esatta. **Costava** che fra le 00:00 e le 02:00 italiane una cliente che pagava avendo scelto di
+  cominciare **oggi** nasceva `queued`, e i menu le arrivavano alla passata notturna dopo — un giorno
+  intero più tardi. ✅ Adesso c'è `planStartOrigine`, scritta in **tutti e cinque** i punti (anche nel
+  ramo della coda: un campo dichiarato solo dove fa comodo torna ambiguo alla prima riga scritta da
+  chi se ne dimentica). ⚠️ Le righe vecchie restano `null` = «non lo so» = comportamento di prima:
+  se «non lo so» valesse «giorno», la migrazione farebbe partire le code fino a due ore prima, con
+  due piani che erogano insieme. Il test che fissava il difetto come «noto» adesso dice il contrario,
+  e la suite gira con l'orologio fermo alle 00:30 di Roma — dentro quella finestra.
+  **B)** Il dimensionamento del catalogo non distingueva «non lo so» da «non mi fido»: ora il log dice
+  le due ragioni separate, perché portano a due gesti diversi.
+  ⛔ **E qui la mia prima stesura diceva una cosa falsa**: «la sospesa non pesa **più** sulla
+  mediana» — non ci pesava già prima. La mediana non cambia di un kcal, e l'unica cosa che quella
+  voce cambia davvero è la riga di log. Spacciare per correzione un comportamento che c'era già è il
+  modo in cui un verbale di lavoro smette di valere.
+  ⛔ **Otto bloccanti dalla revisione**: tre commenti che dicevano il contrario del codice (il
+  peggiore sopra la funzione corretta, dove spiegava perché *non* si può fare quello che fa); **tre
+  dei cinque punti di scrittura non guardati da nessun test** — tolta la provenienza, 379 test
+  restavano verdi, e il difetto si sarebbe riaperto in silenzio con la voce marcata «fatta»; il
+  **punto di decisione** scoperto (trattare una scadenza di coda come un giorno restava verde su 428
+  test); i due conteggi scambiabili; e **una regressione nella diagnostica di ieri**, dove
+  correggendo la colonna perché non tacesse su un caso l'avevo fatta tacere sul verso opposto.
+  **Misurato**: 5804 test backend verdi in quattro modalità, backoffice 150, app 192; sedici
+  mutazioni, **cinque sopravvissute** al primo giro. Migrazione additiva
+  `20260828120000_da_dove_viene_la_data_di_inizio`.
+
 - `[Sviluppo]` **Un target che il motore non sta usando non si mostra, non si scrive e non decide.**
   Chiude `target-sospeso-chi-non-lo-sa`, nata stamattina col blocco sulle pesate incoerenti: da lì il
   fabbisogno può essere **sospeso** (i menu usano il livello della dieta), ma il calcolo continua a
