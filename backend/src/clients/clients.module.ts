@@ -6,6 +6,9 @@ import { MenuModule } from '../menu/menu.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 // ⚠️ Nessun anello: `PauseModule` importa notifiche e monitoraggio, e non conosce i clienti.
 import { PauseModule } from '../pause/pause.module';
+// ⚠️ Le pesate corrette dallo staff devono far scattare gli stessi segnali di quelle inserite dalla
+// cliente (28/8). Nessun anello: `SignalsModule` non importa i clienti.
+import { SignalsModule } from '../signals/signals.module';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
 
@@ -15,7 +18,7 @@ import { ClientsService } from './clients.service';
    * calendario»): l'attività si apre dal punto unico che manda anche la push, e il credito visite
    * lo conta chi lo conta già per l'app. Nessun anello: nessuno dei due importa noi.
    */
-  imports: [AuthModule, MenuModule, NotificationsModule, CoachTasksModule, AgendaModule, PauseModule],
+  imports: [AuthModule, MenuModule, NotificationsModule, CoachTasksModule, AgendaModule, PauseModule, SignalsModule],
   controllers: [ClientsController],
   providers: [ClientsService],
   /**

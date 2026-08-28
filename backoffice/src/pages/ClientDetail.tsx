@@ -436,6 +436,14 @@ interface KcalNeed {
   activityFactor: number; activitySource: 'activity' | 'work' | 'default'; objective: string; weightKg: number;
   fonteDeficit?: 'imposto' | 'calcolato' | 'nessuno';
   deficitCalcolato?: number; correzionePct?: number; sottoSoglia?: boolean; spiegazione?: string;
+  /**
+   * ⛔ **Due pesate che non possono essere della stessa persona** (28/8). Quando c'è, i numeri qui
+   * accanto sono **quelli che uscirebbero**, non quelli che la cliente sta mangiando: il fabbisogno
+   * è sospeso e in tavola va il livello della sua dieta. Va detto forte, perché un target preciso al
+   * kcal che nessuno sta servendo è il modo più elegante di far prendere una decisione clinica su un
+   * numero che non esiste.
+   */
+  pesoIncoerente?: { dal: string; al: string; daKg: number; aKg: number; giorni: number; salto: number; ritmo: number; frase: string } | null;
 }
 /** Una riga dello storico: chi ha cambiato le calorie, quando, da quanto a quanto e perché. */
 interface KcalStorico {
@@ -562,7 +570,36 @@ function KcalNeedCard({ clientId }: { clientId: string }) {
         <p className="muted" style={{ margin: '10px 0 0', fontSize: 13 }}>Dati insufficienti per la stima (servono sesso, età, altezza e peso).</p>
       ) : (
         <>
-          <div className="row" style={{ gap: 20, flexWrap: 'wrap', marginTop: 10 }}>
+          {/*
+            * ⛔ **IN CIMA, NON IN FONDO** (28/8). Questo riquadro dice che i numeri qui sotto non
+            * sono quelli nel piatto della cliente: metterlo dopo vorrebbe dire lasciar leggere il
+            * target, formarsi un'idea, e solo poi scoprire che non vale. ⚠️ E nomina le **due
+            * pesate per intero**, così chi guarda vede da sé quale delle due andare a correggere.
+            */}
+          {data.pesoIncoerente && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, background: '#fdecea', border: '1px solid #f3c7c2' }}>
+              <b style={{ color: '#b3261e', fontSize: 13 }}>
+                <i className="ti ti-alert-triangle" /> Pesate incoerenti: il fabbisogno è sospeso
+              </b>
+              {/*
+                * ⛔ **LA FRASE LA SCRIVE IL BACKEND** (`spiegaSalto`), non questa pagina. La prima
+                * stesura la ricomponeva qui — date comprese — e le date uscivano in **ISO**
+                * (`2026-08-14`), cioè proprio il formato che questa stessa consegna ha tolto dai
+                * testi per le persone: la coach leggeva «14/08/2026» nella sua coda e lo staff
+                * «2026-08-14» in scheda, sulla stessa cliente e nello stesso pomeriggio. E il
+                * plurale «giorno/giorni» era scritto due volte in due posti.
+                */}
+              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: '#7a1d16' }}>
+                Pesate: {data.pesoIncoerente.frase}. O una delle due è sbagliata, oppure è successo
+                qualcosa da guardare.
+              </p>
+              <p style={{ margin: '6px 0 0', fontSize: 12.5, color: '#7a1d16' }}>
+                Finché non sono verificate, <b>i numeri qui sotto non sono quelli che il motore sta
+                usando</b>: i menu usano il livello della sua dieta.
+              </p>
+            </div>
+          )}
+          <div className="row" style={{ gap: 20, flexWrap: 'wrap', marginTop: 10, opacity: data.pesoIncoerente ? 0.55 : 1 }}>
             <div>
               <div className="muted" style={{ fontSize: 12 }}>Target menu</div>
               <b style={{ fontSize: 22, color: data.sottoSoglia ? '#b3261e' : undefined }}>{data.target} kcal</b>

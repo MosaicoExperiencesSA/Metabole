@@ -163,6 +163,22 @@ const CONFIG_PARAMS: SeedParam[] = [
       'Di quanto deve peggiorare il calo (kg/settimana) perché una segnalazione «Calo rapido» già risolta si riapra DURANTE la tregua. Es. 0,5: chiusa a 1,8 kg/settimana, torna solo se supera 2,3. È la valvola di sicurezza: un peggioramento vero non è la stessa segnalazione che ritorna.',
   },
   {
+    key: 'weight_jump_impossible_kg',
+    value: '10',
+    type: 'number',
+    // ⛔ Le due caselle vanno **in E**: serve il salto in chili E il ritmo. Da sole non funzionano —
+    // il perché, con i due controesempi, sta in `signals/peso-incoerente.ts`.
+    description:
+      'Di quanti chili devono differire due pesate consecutive perché non ci si possa più fidare del dato. Vale INSIEME al ritmo qui sotto: servono tutt\'e due, cioè dieci chili in dieci giorni. ⚠️ Non è il calo rapido (quello è 1,5 kg/settimana e parla di un corpo che cala davvero): sotto queste soglie c\'è tutta la fisiologia vera — prima settimana di piano su una persona molto pesante, ritenzione, diuretici, rientro dalle vacanze — e abbassarle vuol dire suonare su clienti normali, cioè spegnere l\'avviso. Quando scatta, quella cliente mangia il livello della sua dieta invece del suo fabbisogno, e la cosa arriva alla coach e al nutrizionista.',
+  },
+  {
+    key: 'weight_jump_impossible_kg_week',
+    value: '7',
+    type: 'number',
+    description:
+      'Il ritmo implicito (kg/settimana) fra due pesate consecutive oltre il quale, INSIEME al salto in chili qui sopra, il dato non è più affidabile. Senza questa condizione dieci chili in due mesi — un percorso riuscito — suonerebbero come errore. ⚠️ Quando scattano TUTTE E DUE le condizioni l\'allarme «calo rapido» tace e parla questo: se il calo è vero, il nutrizionista lo legge da qui. Superare da sola questa casella non zittisce niente.',
+  },
+  {
     key: 'moving_average_window',
     value: '3',
     type: 'number',

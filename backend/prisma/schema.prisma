@@ -1441,7 +1441,10 @@ model Alert {
   clientId  String    @map("client_id")
   coachId   String?   @map("coach_id")
   group     String    @map("alert_group") // corpo_misure | aderenza_vita | gusto_mente | agenda_op
-  type      String // missing_measurements | weight_gain | plateau | inactive | checkin_skipped | water_low | low_ratings | dropout_risk | event_incoming | escalation_open | milestone
+  // ⚠️ `weight_incoherent` (28/8) non è un avviso su come sta andando: è un avviso che i numeri
+  // su cui poggiano gli altri due (`weight_gain`, `plateau`) potrebbero essere falsi. Vedi
+  // `signals/peso-incoerente.ts`.
+  type      String // missing_measurements | weight_gain | plateau | weight_incoherent | inactive | checkin_skipped | water_low | low_ratings | dropout_risk | event_incoming | escalation_open | milestone
   priority  String // high | med | low
   title     String
   detail    String?

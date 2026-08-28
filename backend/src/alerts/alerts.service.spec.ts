@@ -51,8 +51,14 @@ function basePrisma(over: Partial<Record<string, unknown>> = {}): PrismaMock {
   } as PrismaMock;
 }
 
-function makeService(prisma: PrismaMock, gate = { blocking: false, cycleDate: null as string | null }) {
-  const config = { getNumber: jest.fn((_k: string, d?: number) => Promise.resolve(d ?? 0)) };
+function makeService(
+  prisma: PrismaMock,
+  gate = { blocking: false, cycleDate: null as string | null },
+  // ⚠️ Le soglie normalmente sono i default; questo terzo argomento serve a un test solo, dove la
+  // finestra dell'aumento e quella dello stallo devono essere DIVERSE fra loro in modo netto.
+  soglie: Record<string, number> = {},
+) {
+  const config = { getNumber: jest.fn((k: string, d?: number) => Promise.resolve(k in soglie ? soglie[k] : d ?? 0)) };
   const menu = { measurementGate: jest.fn().mockResolvedValue({ required: gate.blocking, blocking: gate.blocking, cycleDate: gate.cycleDate }) };
   return new AlertsService(
     prisma as unknown as PrismaService,
@@ -130,6 +136,95 @@ describe('AlertsService.recompute', () => {
     const svc = makeService(prisma); // getNumber restituisce il default (weightGainDays=7)
     await svc.recompute('c1');
     expect(createdTypes(prisma)).toContain('weight_gain');
+  });
+
+  /**
+   * ⛔ **PESATE CHE NON POSSONO ESSERE DELLA STESSA PERSONA** (28/8, richiesta di Simone).
+   *
+   * ⚠️ Il secondo test è il più importante dei due: senza di lui la coda della coach avrebbe
+   * mostrato *«+20 kg negli ultimi 7 giorni»* — una frase su un corpo, costruita su un numero
+   * digitato male. **Una ragione falsa è peggio di un ordine sbagliato.**
+   */
+  describe('⛔ pesate incoerenti', () => {
+    const ROTTE = [
+      { date: D(dayIso(-5)), weightKg: 70 },
+      { date: D(dayIso(-1)), weightKg: 90 },
+    ];
+
+    it('⛔ apre l\'avviso quando due pesate consecutive non stanno in piedi', async () => {
+      const prisma = basePrisma();
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      await makeService(prisma).recompute('c1');
+      expect(createdTypes(prisma)).toContain('weight_incoherent');
+    });
+
+    it('⛔ e in quella finestra NON racconta un aumento di peso che non è mai avvenuto', async () => {
+      const prisma = basePrisma();
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      await makeService(prisma).recompute('c1');
+      expect(createdTypes(prisma)).not.toContain('weight_gain');
+      expect(createdTypes(prisma)).not.toContain('plateau');
+    });
+
+    /**
+     * ⚠️ **Ogni finestra si controlla per conto suo.** Un salto di due mesi fa sospende il
+     * fabbisogno (novanta giorni), ma non deve zittire l'aumento di peso di questa settimana — che
+     * è vero e la coach lo deve vedere.
+     */
+    it('⚠️ un salto vecchio non zittisce l\'aumento di peso di questa settimana', async () => {
+      const prisma = basePrisma();
+      const righe = [
+        { date: D(dayIso(-60)), weightKg: 60 },
+        { date: D(dayIso(-55)), weightKg: 95 },
+        { date: D(dayIso(-5)), weightKg: 70 },
+        { date: D(dayIso(-1)), weightKg: 71.2 },
+      ];
+      prisma.measurement.findMany.mockImplementation(({ where }: never) => {
+        const gte = (where as { date?: { gte?: Date } })?.date?.gte;
+        return Promise.resolve(gte ? righe.filter((r) => r.date.getTime() >= gte.getTime()) : righe);
+      });
+      await makeService(prisma).recompute('c1');
+      expect(createdTypes(prisma)).toContain('weight_incoherent');
+      expect(createdTypes(prisma)).toContain('weight_gain');
+    });
+
+    /**
+     * ⚠️ **UNA CONSEGUENZA DELL'`else if`, e va tenuta ferma perché non è ovvia** (trovata in
+     * revisione). Se il salto sta **solo** nella finestra dell'aumento (7 giorni) e non in quella
+     * dello stallo (6), sopprimere l'aumento fa **cadere nel ramo dello stallo**, che prima non
+     * veniva nemmeno valutato: dove compariva «Peso in aumento» adesso compare «Peso fermo».
+     *
+     * ⛔ È giusto così — «fermo da sei giorni» è calcolato su numeri puliti, quindi è una frase
+     * vera — ma è un cambio di comportamento che nessuno aveva chiesto, e senza questo test la
+     * prossima persona lo scoprirebbe da una segnalazione della coach.
+     */
+    it('⚠️ se il salto sta solo nella finestra dell\'aumento, resta lo stallo (che è vero)', async () => {
+      const prisma = basePrisma();
+      prisma.measurement.findMany.mockResolvedValue([
+        { date: D(dayIso(-12)), weightKg: 70 },
+        { date: D(dayIso(-10)), weightKg: 85 },
+        { date: D(dayIso(-5)), weightKg: 85 },
+        { date: D(dayIso(-1)), weightKg: 85 },
+      ]);
+      // ⚠️ Finestre volutamente distanti (14 e 6 giorni): il salto sta a −10, cioè dentro l'aumento e
+      // fuori dallo stallo. Coi default (7 e 6) l'unico giorno buono sarebbe stato il **bordo** della
+      // finestra dell'aumento, e un test appoggiato a un bordo diventa rosso a mezzanotte — è già
+      // successo in questo repo, ed è il motivo per cui la suite gira anche col calendario alle 00:30.
+      await makeService(prisma, { blocking: false, cycleDate: null }, { alert_weight_gain_days: 14, stall_days_before_coach_alert: 6 }).recompute('c1');
+      expect(createdTypes(prisma)).toContain('weight_incoherent');
+      expect(createdTypes(prisma)).not.toContain('weight_gain');
+      expect(createdTypes(prisma)).toContain('plateau');
+    });
+
+    it('⚠️ con pesate normali non compare nessun avviso di incoerenza', async () => {
+      const prisma = basePrisma();
+      prisma.measurement.findMany.mockResolvedValue([
+        { date: D(dayIso(-5)), weightKg: 70 },
+        { date: D(dayIso(-1)), weightKg: 71.2 },
+      ]);
+      await makeService(prisma).recompute('c1');
+      expect(createdTypes(prisma)).not.toContain('weight_incoherent');
+    });
   });
 
   it('segnala inattività se non ci sono attività da N giorni', async () => {

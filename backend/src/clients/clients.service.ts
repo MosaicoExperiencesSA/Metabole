@@ -40,6 +40,7 @@ import { eInCoda, staErogando } from '../commerce/abbonamento-in-corso';
 import { fraseSovrapposizione, pianiSovrapposti } from './sovrapposizione-piani';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
+import { SignalsService } from '../signals/signals.service';
 import { etichettaUnitaAcqua, obiettivoNellaUnita, quantitaNellaUnita } from '../common/unita-acqua';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
@@ -81,6 +82,17 @@ export class ClientsService {
      * porte con due effetti economici diversi.
      */
     private readonly pause: PauseService,
+    /**
+     * ⛔ **PERCHÉ I SEGNALI ARRIVANO FIN QUI** (28/8, trovato in revisione). Quando è lo **staff** a
+     * correggere una pesata non passa da `POST /me/measurements` — passa da qui, e qui non girava
+     * niente: né la segnalazione clinica al nutrizionista né il controllo sulle pesate incoerenti.
+     * Cioè il canale che la consegna del blocco dichiara indispensabile non scattava proprio nel
+     * punto in cui una pesata sbagliata può **nascere** dalle mani di chi la sta sistemando.
+     *
+     * ⚠️ Nessun anello fra i moduli: `SignalsModule` importa menu, learning e segnalazioni, e
+     * nessuno dei tre importa i clienti.
+     */
+    private readonly signals: SignalsService,
   ) {}
 
   private readonly logger = new Logger(ClientsService.name);
@@ -1532,6 +1544,21 @@ export class ClientsService {
     if (Object.keys(data).length === 0) throw new BadRequestException('Nessuna modifica indicata.');
 
     const updated = await this.prisma.measurement.update({ where: { id: m.id }, data: data as never });
+    /**
+     * ⚠️ **Dopo la scrittura, non prima**: il controllo deve vedere i numeri come sono adesso, non
+     * come erano. Vale nei due versi — se lo staff ha appena **introdotto** una pesata impossibile
+     * la segnalazione nasce subito, e se l'ha appena **corretta** il giro rilegge i numeri buoni e
+     * non ne apre una nuova. ⛔ La segnalazione già aperta però **non si chiude da sé**, ed è
+     * voluto: è la traccia che per qualche giorno abbiamo servito un fabbisogno costruito su un
+     * dato sbagliato, e la chiude chi ha guardato.
+     *
+     * Best-effort con un log: una correzione di misura non deve fallire perché è caduto un
+     * guardrail — ma non deve nemmeno cadere in silenzio.
+     */
+    const pesoIncoerente = await this.signals.controllaPesoIncoerente(userId, actorId).catch((e) => {
+      this.logger.warn(`Controllo pesate incoerenti fallito per ${userId} dopo una correzione staff: ${String(e)}`);
+      return null;
+    });
     await this.audit.log({
       action: 'client.measurement.fix',
       actorId,
@@ -1544,7 +1571,9 @@ export class ClientsService {
         after: data,
       },
     });
-    return updated;
+    // ⚠️ Esce nella risposta: chi ha appena digitato è ancora davanti allo schermo, ed è il momento
+    // in cui la correzione costa meno.
+    return { ...updated, pesoIncoerente };
   }
 
   /**

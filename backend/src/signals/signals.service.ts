@@ -16,6 +16,14 @@ import {
 } from './dto/signals.dto';
 import { slopePerDay, weeklyLossRate } from './stats';
 import { MIN_GIORNI_DEFAULT, MIN_PESATE_DEFAULT, statoAllarmeCalo } from './allarme-calo';
+import {
+  FINESTRA_GIORNI,
+  SALTO_KG_DEFAULT,
+  SALTO_RITMO_DEFAULT,
+  SaltoImpossibile,
+  saltoPeggiore,
+  spiegaSalto,
+} from './peso-incoerente';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { eUnitaAcqua } from '../common/unita-acqua';
@@ -93,20 +101,48 @@ export class SignalsService {
     // avviene ora nell'Alert engine: al prossimo recompute (lettura coda coach o cron)
     // la condizione non vale più e l'alert passa a "resolved".
 
+    /**
+     * ⛔ **IL CONTROLLO VA PRIMA DI TUTTO QUELLO CHE PARLA DI QUESTO CORPO** (28/8, secondo giro di
+     * revisione — e qui la prima stesura aveva sbagliato l'ordine).
+     *
+     * Stava sotto ai traguardi. ⚠️ **I traguardi si scrivono una volta sola e restano**: è scritto
+     * quaranta righe più giù, in `evaluateMilestones`, insieme al caso peggiore — *«Obiettivo
+     * raggiunto! 🎉» dato su una pesata sotto il target*. Con una pesata digitata male (113 al posto
+     * di 73) la media crolla sotto il traguardo e quella frase parte: una notifica alla cliente, un
+     * avviso alla coach, e nessun modo di tornare indietro. Sarebbe stata *«una frase su un corpo,
+     * costruita su un numero digitato male»* — la ragione per cui esiste tutta questa consegna —
+     * nell'unico posto **irreversibile** che la consegna toccava senza saperlo.
+     *
+     * ⚠️ E **prima del calo rapido**, che invece da sé si spegne (vedi lì): la segnalazione che
+     * resta è quella che dice la cosa vera.
+     */
+    const pesoIncoerente = await this.controllaPesoIncoerente(clientId).catch((e) => {
+      // ⚠️ **Non in silenzio.** Gli altri `catch` qui attorno sono best-effort su cose che possono
+      // mancare; questo è il canale che la consegna dichiara indispensabile — se salta, deve
+      // restare scritto da qualche parte che è saltato.
+      this.logger.warn(`Controllo pesate incoerenti fallito per ${clientId}: ${String(e)}`);
+      return null;
+    });
+
     // Learning motore: la misura chiude un ciclo → calcola esito peso/cm e aggiorna i
     // pesi delle ricette. Non deve mai rompere il salvataggio della misura.
-    try {
-      await this.dietLearning.onCycleClose(clientId, {
-        date: measurement.date,
-        weightKg: measurement.weightKg,
-        waistCm: measurement.waistCm,
-        hipsCm: measurement.hipsCm,
-      });
-    } catch {
-      /* learning best-effort */
+    // ⚠️ Salta se le pesate non stanno in piedi: l'esito di un ciclo misurato su un peso sbagliato
+    // insegna al motore la cosa sbagliata. Si ripara (i pesi si riaggiornano), ma intanto sposta i
+    // piatti proposti a quella cliente.
+    if (!pesoIncoerente) {
+      try {
+        await this.dietLearning.onCycleClose(clientId, {
+          date: measurement.date,
+          weightKg: measurement.weightKg,
+          waistCm: measurement.waistCm,
+          hipsCm: measurement.hipsCm,
+        });
+      } catch {
+        /* learning best-effort */
+      }
     }
 
-    const newMilestones = await this.evaluateMilestones(clientId);
+    const newMilestones = pesoIncoerente ? [] : await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);
     await this.checkNoProgress(clientId).catch(() => undefined);
     await this.maybeTrackTrialMeasures(clientId).catch(() => undefined);
@@ -117,7 +153,17 @@ export class SignalsService {
     // riapre il menu/dashboard. Best-effort: non deve mai rompere il salvataggio della misura.
     await this.menu.deliverIfEligible(clientId).catch(() => undefined);
 
-    return { measurement, newMilestones, rapidLossAlert: alert };
+    /**
+     * ⚠️ `pesoIncoerente` esce **anche di qui**, non solo nella coda della coach: questa è la rotta
+     * della cliente (`@Controller('me')`, `@Roles('client')`), e chi la chiama è l'app. Oggi l'app
+     * non lo legge — la voce `pesata-strana-chiedi-conferma` è lì per quello — ma il dato esce già,
+     * così quando il riquadro si scriverà non servirà toccare il backend.
+     *
+     * ⛔ **Lo staff non passa di qui**: quando è il backoffice a correggere una misura passa da
+     * `ClientsService.updateMeasurement`, che chiama `controllaPesoIncoerente` per conto suo. La
+     * prima stesura di questo commento diceva il contrario, ed era falsa.
+     */
+    return { measurement, newMilestones, rapidLossAlert: alert, pesoIncoerente };
   }
 
   /**
@@ -176,6 +222,10 @@ export class SignalsService {
       },
     });
     // Stessi effetti a valle di un salvataggio misura (learning, milestone, erogazione menu).
+    // ⚠️ Il learning resta qui sopra il controllo per una ragione sola: qui la misura di oggi è
+    // stata appena **corretta**, quindi il numero nuovo è quello buono per definizione. Se anche
+    // così le pesate non stanno in piedi, è una coppia più vecchia — e quella il learning non la
+    // guarda, perché `onCycleClose` chiude il ciclo su questa misura.
     try {
       await this.dietLearning.onCycleClose(clientId, {
         date: measurement.date,
@@ -186,10 +236,19 @@ export class SignalsService {
     } catch {
       /* learning best-effort */
     }
-    await this.evaluateMilestones(clientId).catch(() => undefined);
+    // ⚠️ **Stesso ordine del salvataggio, e per la stessa ragione**: prima «questi numeri stanno in
+    // piedi?», perché sotto ci sono i traguardi, che si scrivono una volta sola.
+    const pesoIncoerente = await this.controllaPesoIncoerente(clientId).catch((e) => {
+      this.logger.warn(`Controllo pesate incoerenti fallito per ${clientId}: ${String(e)}`);
+      return null;
+    });
+    if (!pesoIncoerente) await this.evaluateMilestones(clientId).catch(() => undefined);
     await this.checkRapidLossGuardrail(clientId).catch(() => undefined);
     await this.menu.deliverIfEligible(clientId).catch(() => undefined);
-    return { measurement };
+    // ⚠️ Esce anche di qui: è la rotta con cui la cliente corregge la pesata di oggi, cioè il
+    // momento in cui un refuso si ripara da solo — e l'asimmetria con l'altra porta non avrebbe
+    // nessuna ragione.
+    return { measurement, pesoIncoerente };
   }
 
   /**
@@ -214,6 +273,124 @@ export class SignalsService {
     });
   }
 
+  /** Le due soglie del salto impossibile, dai Parametri: sono cliniche, non nostre. */
+  private async soglieSalto(): Promise<[number, number]> {
+    return Promise.all([
+      this.configParams.getNumber('weight_jump_impossible_kg', SALTO_KG_DEFAULT),
+      this.configParams.getNumber('weight_jump_impossible_kg_week', SALTO_RITMO_DEFAULT),
+    ]);
+  }
+
+  /**
+   * ⛔ **DUE PESATE CHE NON POSSONO ESSERE DELLA STESSA PERSONA: QUALCUNO DEVE GUARDARE** (28/8).
+   *
+   * Richiesta di Simone, dopo che `diag:fabbisogno-media` aveva trovato quattro clienti con la media
+   * mobile lontana 12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata: *«se succede una cosa simile arriva il
+   * blocco e deve intervenire la coach o il nutrizionista»*. Quelle quattro erano account di prova,
+   * ⚠️ ma il codice non sapeva distinguerle da una cliente vera — e non deve saperlo: deve reggere
+   * anche quando sono vere.
+   *
+   * **I due canali, e perché tutti e due.** La coach lo vede nella sua coda (avviso «Pesate
+   * incoerenti», che si chiude da solo quando i numeri tornano a posto) perché è lei che ha il
+   * telefono della cliente ed è quasi sempre un numero digitato male. Il nutrizionista lo riceve
+   * come segnalazione clinica perché **il cibo è cambiato**: da adesso quella cliente mangia il
+   * livello della sua dieta invece del suo fabbisogno, e «cosa mangia» è roba sua. ⚠️ Se il numero
+   * è invece **vero**, allora è successo qualcosa al corpo di quella persona in pochi giorni, e
+   * allora è ancora più roba sua.
+   *
+   * ⚠️ **Non si chiude da sola quando il numero viene corretto**, ed è voluto: la segnalazione è la
+   * traccia che per qualche giorno abbiamo servito un fabbisogno sbagliato — o che non l'abbiamo
+   * servito affatto. Chi corregge la pesata la chiude a mano, e così resta scritto chi ha guardato.
+   */
+  async controllaPesoIncoerente(clientId: string, attore?: string): Promise<SaltoImpossibile | null> {
+    const [sogliaKg, sogliaRitmo] = await this.soglieSalto();
+    const daQuando = new Date(Date.now() - FINESTRA_GIORNI * 86_400_000);
+    // ⚠️ **La stessa finestra del fabbisogno** (`FINESTRA_GIORNI`, `FINESTRA_MASSIMA`, novanta
+    // giorni): se guardassimo righe diverse da quelle che decidono le calorie, esisterebbe una
+    // pesata capace di sporcare il piatto senza far suonare niente.
+    const pesate = (await this.prisma.measurement.findMany({
+      where: { clientId, date: { gte: daQuando } },
+      orderBy: { date: 'desc' },
+      take: FINESTRA_MASSIMA,
+      select: { date: true, weightKg: true },
+    })) as { date: Date; weightKg: number }[];
+
+    const salto = saltoPeggiore(pesate, sogliaKg, sogliaRitmo);
+    if (!salto) return null;
+
+    const [finestraGiorni, peggioramentoMinimo] = await Promise.all([
+      this.configParams.getNumber('escalation_reopen_days', 14),
+      this.configParams.getNumber('rapid_loss_reopen_worsening_kg', 0.5),
+    ]);
+    // Stessa forma del calo rapido: la decisione di riaprire guarda il MOTIVO, non la categoria —
+    // altrimenti una qualunque altra segnalazione clinica aperta zittirebbe questa.
+    const decisione = await decidiRiapertura(this.prisma as never, {
+      clientId,
+      motivoContiene: 'Pesate incoerenti',
+      gravita: salto.salto,
+      finestraGiorni,
+      peggioramentoMinimo,
+    });
+    if (!decisione.apri) {
+      this.logger.log(`Pesate incoerenti per ${clientId}: non riaperta — ${decisione.motivo}`);
+      return salto;
+    }
+
+    const aperta = await apriSegnalazione(this.prisma as never, {
+      clientId,
+      category: 'clinical',
+      /**
+       * ⛔ **LE PAROLE DICONO TUTT'E DUE LE POSSIBILITÀ, non la più probabile** (corretto in
+       * revisione, 28/8). La prima stesura scriveva «Una delle due misure non può essere vera»:
+       * ⚠️ è un **fatto che questo codice non sa**. Sa che il ritmo implicito è oltre soglia, e quel
+       * dominio contiene sia gli errori di tastiera (quasi sempre) sia gli eventi clinici veri
+       * (raramente). Detta così, davanti a una diuresi vera avrebbe mandato il nutrizionista a
+       * cercare un errore di battitura.
+       *
+       * ⚠️ E dice anche **che il calo rapido non suonerà**, perché sopra queste soglie viene spento
+       * apposta: se quel calo è vero, questa è l'unica segnalazione che glielo dice, e deve essere
+       * leggibile come tale.
+       */
+      reason:
+        `Pesate incoerenti: ${spiegaSalto(salto)}. O una delle due misure è sbagliata, ` +
+        'oppure è successo qualcosa che va guardato: in tutt\'e due i casi, finché non sono verificate, ' +
+        'il fabbisogno non viene personalizzato e i menu usano il livello della sua dieta. ' +
+        '⚠️ Sopra questo scarto l\'allarme «calo rapido» non suona: se il calo è vero, è questa la segnalazione che lo dice.',
+      source: 'engine',
+      // La gravità è il salto in chili: è il numero con cui il prossimo controllo capirà se la cosa
+      // è peggiorata (un salto più grosso è una storia nuova, non la stessa che ritorna).
+      gravita: salto.salto,
+      dedupe: false,
+    });
+    /**
+     * ⛔ **SE NON È NATA, L'AUDIT NON DEVE DIRE CHE È NATA** (secondo giro di revisione, 28/8).
+     *
+     * `apriSegnalazione` ha un `catch { return null }` dentro: la `escalation.create` che va giù —
+     * cioè il modo di fallire più probabile — non lancia niente. Il `catch` di chi mi chiama non
+     * scatta, quindi la promessa «se salta resta scritto» era vuota proprio nel caso previsto, e
+     * subito dopo l'audit scriveva `signals.weight_incoherent` come se fosse andato tutto bene.
+     * ⚠️ Un registro che racconta un'apertura mai avvenuta è peggio di nessun registro: lo si legge
+     * proprio quando qualcosa non torna.
+     */
+    if (!aperta) {
+      this.logger.warn(
+        `Pesate incoerenti per ${clientId}: la segnalazione al nutrizionista NON è stata aperta — ${spiegaSalto(salto)}.`,
+      );
+      return salto;
+    }
+    await this.audit.log({
+      action: 'signals.weight_incoherent',
+      // ⚠️ Chi ha innescato il controllo, che non è sempre la cliente: dal backoffice la pesata la
+      // tocca lo staff, e attribuirle un'azione partita da un'altra scrivania rende l'audit inutile
+      // proprio sulle righe che qualcuno andrà a rileggere.
+      actorId: attore ?? clientId,
+      entityType: 'escalation',
+      entityId: aperta.id,
+      metadata: { ...salto, dal: salto.dal.toISOString(), al: salto.al.toISOString(), sogliaKg, sogliaRitmo, clientId },
+    });
+    return salto;
+  }
+
   /**
    * Guardrail (spec 7.4): se il ritmo di calo sulle ultime 2 settimane supera
    * max_weight_change_alert_kg_week, apre un'escalation verso il nutrizionista
@@ -232,6 +409,33 @@ export class SignalsService {
       select: { date: true, weightKg: true },
     });
     if (recent.length < 3) return false;
+
+    /**
+     * ⛔ **UN CALO CHE NON È MAI AVVENUTO NON È UN CALO RAPIDO** (28/8).
+     *
+     * Senza questa riga, la prima cliente con una pesata sbagliata riceveva una segnalazione clinica
+     * che diceva *«Calo rapido: 40 kg/settimana sulle ultime rilevazioni. Verificare calorie ed
+     * energia»* — una frase su un corpo, costruita su un numero digitato male. ⚠️ È esattamente il
+     * difetto che la casa chiama per nome: **una ragione falsa è peggio di un ordine sbagliato**. Il
+     * nutrizionista avrebbe cercato un problema clinico dove c'era un problema di tastiera, e la
+     * volta dopo avrebbe creduto un po' meno a queste segnalazioni.
+     *
+     * ⚠️ Si guarda **solo dentro le due settimane su cui si calcola la pendenza**: un salto più
+     * vecchio non entra in questo conto e non deve poterlo zittire. E non si torna `false` in
+     * silenzio — `controllaPesoIncoerente` ha già aperto la segnalazione giusta, che dice la cosa vera.
+     */
+    const [saltoKg, saltoRitmo] = await this.soglieSalto();
+    const incoerente = saltoPeggiore(
+      recent.map((m: { date: Date; weightKg: number }) => ({ date: m.date, weightKg: m.weightKg })),
+      saltoKg,
+      saltoRitmo,
+    );
+    if (incoerente) {
+      this.logger.log(
+        `Calo rapido per ${clientId}: non calcolato, le pesate non stanno in piedi — ${spiegaSalto(incoerente)}.`,
+      );
+      return false;
+    }
 
     /**
      * «AUTORIZZA A PROSEGUIRE» VALE ANCHE QUI, e questo è il punto in cui contava di più.

@@ -516,9 +516,24 @@ export class MonitoringService {
       // ⚠️ Detto e non dedotto: senza fabbisogno le giornate restano com'erano — che è la scelta
       // prudente (riportarle al catalogo le rimpicciolirebbe in silenzio), ma chi legge i log deve
       // sapere che quelle porzioni sono quelle di allora.
+      /**
+       * ⚠️ **IL MOTIVO NON È PIÙ UNO SOLO** (28/8). Questa riga diceva «Mancano sesso, età, altezza
+       * o peso nel profilo»: dal 28/8 il fabbisogno risponde `null` **anche** quando le pesate della
+       * cliente non stanno in piedi fra loro (`peso-incoerente.ts`), e quella frase sarebbe
+       * diventata una bugia scritta nei log — cioè la peggior specie di log, quella che manda a
+       * cercare nel posto sbagliato.
+       *
+       * ⚠️ Il motivo preciso — quale dei due — lo scrive `KcalNeedService` in **tutt'e due** i rami,
+       * col `clientId` dentro la frase. La prima stesura scriveva «il motivo è nella riga sopra»:
+       * ⛔ falso, perché quel logger scriveva solo il ramo delle pesate incoerenti, e perché questo
+       * giro passa su più clienti da due logger diversi. Il cliente nel messaggio è ciò che lega le
+       * due righe senza promettere che siano adiacenti.
+       */
       this.logger.warn(
-        `Kit di rientro per ${clientId}: fabbisogno non calcolabile, le giornate copiate tengono ` +
-          'le porzioni che avevano. Mancano sesso, età, altezza o peso nel profilo.',
+        `Kit di rientro per ${clientId}: fabbisogno non disponibile — mancano sesso, età, altezza o ` +
+          'un peso da cui partire, oppure le sue pesate non stanno in piedi fra loro (in quel secondo ' +
+          `caso KcalNeedService ha scritto il dettaglio per lo stesso cliente). Le giornate copiate ` +
+          'tengono le porzioni che avevano.',
       );
     }
 

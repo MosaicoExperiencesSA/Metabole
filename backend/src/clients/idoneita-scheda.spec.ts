@@ -23,6 +23,8 @@ import { ClientsService } from './clients.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { PauseService } from '../pause/pause.service';
+// ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff passano dallo stesso guardrail.
+import { SignalsService } from '../signals/signals.service';
 import { TIPO_VISITA_DA_FISSARE } from './visita-da-fissare';
 
 const NOTA = 'Valutata in visita il 12/8: allergia al latte, nessuna controindicazione al percorso.';
@@ -96,6 +98,7 @@ async function crea(opzioni?: { permesso?: boolean }) {
           togliSospensioneDaViaggio: jest.fn().mockResolvedValue({ tolta: false, avviso: null }),
         },
       },
+      { provide: SignalsService, useValue: { controllaPesoIncoerente: jest.fn().mockResolvedValue(null) } },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit, coachTasks, prenotazioni };

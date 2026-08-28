@@ -7,6 +7,8 @@ import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { toDateOnly } from '../common/date-only';
 import { PARAMETRO_SOGLIA, SOGLIA_GIORNI_DEFAULT, daRiaprire } from './rinvio-gestito';
+import { FINESTRA_MASSIMA } from '../signals/percentuale-obiettivo';
+import { FINESTRA_GIORNI, SALTO_KG_DEFAULT, SALTO_RITMO_DEFAULT, saltoPeggiore, spiegaSalto } from '../signals/peso-incoerente';
 
 const DAY = 86_400_000;
 const PRIORITY_RANK: Record<string, number> = { high: 0, med: 1, low: 2 };
@@ -131,6 +133,8 @@ export class AlertsService {
       noCheckinDays,
       lowRatingStars,
       waterGoal,
+      saltoKg,
+      saltoRitmo,
     ] = await Promise.all([
       this.configParams.getNumber('alert_inactive_days', 3),
       this.configParams.getNumber('alert_water_low_days', 3),
@@ -141,17 +145,38 @@ export class AlertsService {
       this.configParams.getNumber('no_checkin_days_before_alert', 4),
       this.configParams.getNumber('low_rating_threshold_stars', 2),
       this.configParams.getNumber('water_goal_glasses', 8),
+      this.configParams.getNumber('weight_jump_impossible_kg', SALTO_KG_DEFAULT),
+      this.configParams.getNumber('weight_jump_impossible_kg_week', SALTO_RITMO_DEFAULT),
     ]);
 
     const today = toDateOnly();
     const since = (days: number) => new Date(today.getTime() - days * DAY);
 
-    const [gate, measures, checkins, ratings, waterLogs, upcomingEvent, escalation, milestone, lastEvent] =
+    const [gate, measures, pesateFabbisogno, checkins, ratings, waterLogs, upcomingEvent, escalation, milestone, lastEvent] =
       await Promise.all([
         this.menu.measurementGate(clientId),
         this.prisma.measurement.findMany({
           where: { clientId, date: { gte: since(30) } },
           orderBy: { date: 'asc' },
+          select: { date: true, weightKg: true },
+        }),
+        /**
+         * ⚠️ **Una seconda lettura, e non è uno spreco.** Le pesate qui sopra sono trenta giorni
+         * senza limite di righe; il fabbisogno guarda **le ultime trenta righe entro novanta
+         * giorni** (`FINESTRA_GIORNI`, `FINESTRA_MASSIMA`), che per chi si pesa di rado è una
+         * finestra molto più lunga. Se l'avviso alla coach guardasse una finestra più stretta di
+         * quella che decide le calorie, esisterebbe una pesata capace di far mangiare male una
+         * cliente **senza comparire in nessuna coda**: il guardrail direbbe di sì al silenzio
+         * proprio nel caso in cui serve.
+         */
+        this.prisma.measurement.findMany({
+          // ⚠️ `Date.now()` e non `since()`: quello parte da **mezzanotte** e allargherebbe la
+          // finestra fino a un giorno. Basta a creare il giorno di bordo in cui la coach legge «la
+          // cliente mangia il livello della sua dieta» mentre il fabbisogno esce normalmente — cioè
+          // a smentire, una volta ogni tanto, l'invariante che questa consegna dichiara.
+          where: { clientId, date: { gte: new Date(Date.now() - FINESTRA_GIORNI * DAY) } },
+          orderBy: { date: 'desc' },
+          take: FINESTRA_MASSIMA,
           select: { date: true, weightKg: true },
         }),
         this.prisma.dailyCheckin.findMany({
@@ -203,10 +228,48 @@ export class AlertsService {
       });
     }
 
+    /**
+     * ⛔ **1-BIS. PESATE CHE NON POSSONO ESSERE DELLA STESSA PERSONA** (28/8, richiesta di Simone:
+     * *«se succede una cosa simile arriva il blocco e deve intervenire la coach o il
+     * nutrizionista»*).
+     *
+     * ⚠️ Priorità alta e **prima delle altre due** perché non è un avviso su come sta andando: è un
+     * avviso che **quello che stiamo raccontando su questa cliente potrebbe essere falso**. Finché
+     * c'è, il suo fabbisogno non viene personalizzato (`kcal-need.service`), e la coach è quella che
+     * può risolverlo in due minuti — quasi sempre è un numero digitato male, e lei ha il telefono.
+     *
+     * ⚠️ Questo avviso **si chiude da solo** quando i numeri tornano a posto: è la coda del lavoro
+     * da fare, non la traccia di quello che è successo. La traccia è la segnalazione clinica che
+     * `signals.service` apre alla pesata, e quella la chiude una persona.
+     */
+    const saltoImpossibile = saltoPeggiore(pesateFabbisogno as MeasRow[], saltoKg, saltoRitmo);
+    if (saltoImpossibile) {
+      desired.push({
+        type: 'weight_incoherent',
+        group: 'corpo_misure',
+        priority: 'high',
+        title: 'Pesate incoerenti',
+        // ⚠️ **Tutt'e due le possibilità**, come nella segnalazione al nutrizionista: quasi sempre è
+        // un numero digitato male, ma non sempre, e il testo non deve decidere al posto di chi guarda.
+        detail:
+          `${spiegaSalto(saltoImpossibile)}. O una delle due è sbagliata, oppure è successo qualcosa ` +
+          'da guardare: finché non sono verificate, i menu usano il livello della sua dieta invece del suo fabbisogno.',
+      });
+    }
+
     // 2/3. Corpo & misure — aumento peso / plateau.
     const gainWindow = measures.filter((m: MeasRow) => m.date.getTime() >= since(weightGainDays).getTime());
     const stallWindow = measures.filter((m: MeasRow) => m.date.getTime() >= since(stallDays).getTime());
-    if (gainWindow.length >= 2 && gainWindow[gainWindow.length - 1].weightKg > gainWindow[0].weightKg + 0.05) {
+    /**
+     * ⛔ **E DENTRO UNA FINESTRA SPORCA NON SI RACCONTA NIENTE.** «+40 kg negli ultimi 7 giorni» e
+     * «Peso fermo da 6 giorni» sono due frasi su un corpo: se in quella finestra c'è un salto
+     * impossibile, sono due frasi **false**, e la coach andrebbe a cercare un problema che non c'è.
+     * ⚠️ Ogni finestra si controlla per conto suo — un errore di venticinque giorni fa non deve
+     * poter zittire lo stallo di questa settimana.
+     */
+    const gainSporca = !!saltoPeggiore(gainWindow, saltoKg, saltoRitmo);
+    const stallSporca = !!saltoPeggiore(stallWindow, saltoKg, saltoRitmo);
+    if (!gainSporca && gainWindow.length >= 2 && gainWindow[gainWindow.length - 1].weightKg > gainWindow[0].weightKg + 0.05) {
       const delta = Math.round((gainWindow[gainWindow.length - 1].weightKg - gainWindow[0].weightKg) * 10) / 10;
       desired.push({
         type: 'weight_gain',
@@ -215,7 +278,7 @@ export class AlertsService {
         title: 'Peso in aumento',
         detail: `+${delta} kg negli ultimi ${weightGainDays} giorni.`,
       });
-    } else if (stallWindow.length >= 2 && stallWindow[stallWindow.length - 1].weightKg >= stallWindow[0].weightKg - 0.05) {
+    } else if (!stallSporca && stallWindow.length >= 2 && stallWindow[stallWindow.length - 1].weightKg >= stallWindow[0].weightKg - 0.05) {
       desired.push({
         type: 'plateau',
         group: 'corpo_misure',

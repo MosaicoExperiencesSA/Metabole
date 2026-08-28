@@ -28,6 +28,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { PauseService } from '../pause/pause.service';
+// ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff passano dallo stesso guardrail.
+import { SignalsService } from '../signals/signals.service';
 import { ClientsService } from './clients.service';
 
 const PROFILO = {
@@ -97,6 +99,7 @@ async function crea(opzioni?: { permesso?: boolean; profilo?: Record<string, unk
           togliSospensioneDaViaggio: jest.fn().mockResolvedValue({ tolta: false, avviso: null }),
         },
       },
+      { provide: SignalsService, useValue: { controllaPesoIncoerente: jest.fn().mockResolvedValue(null) } },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit };

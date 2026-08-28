@@ -2367,6 +2367,95 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'dall\'app.',
   },
   {
+    chiave: 'pesata-strana-chiedi-conferma',
+    categoria: 'Da fare — prodotto',
+    ordine: 4,
+    nata: '2026-08-28T11:40',
+    titolo: 'Quando digita un peso che non torna, l\'app non le chiede niente',
+    dettaglio:
+      'Aperta il 28/8 chiudendo il blocco sulle pesate incoerenti. ⚠️ **Il guardrail c\'è, ma agisce dopo**: '
+      + 'la pesata impossibile viene salvata, il fabbisogno si sospende, e la cosa arriva alla coach e al '
+      + 'nutrizionista. Funziona — solo che nel frattempo per qualche ora quella cliente mangia il livello '
+      + 'della sua dieta invece del suo fabbisogno, e qualcuno deve spendere una telefonata per un tasto '
+      + 'premuto male.\n\n'
+      + '⚠️ **Il posto dove costa meno è il momento in cui digita**: «l\'ultima volta pesavi 73,0 kg — hai '
+      + 'scritto 113. È giusto?», con **Sì** e **Correggi**. ⛔ Non un blocco: se dice sì il numero si salva '
+      + 'lo stesso e il guardrail fa il suo giro come adesso. Una cliente che ha davvero quel peso non deve '
+      + 'restare fuori dalla sua app perché noi non ci crediamo — *un cancello chiuso costa a una cliente '
+      + 'tutto il servizio*.\n\n'
+      + '⚠️ La regola è già scritta e provata (`backend/src/signals/peso-incoerente.ts`, soglie in Parametri): '
+      + 'serve una rotta di sola lettura che risponda «l\'ultima pesata è X del giorno Y» e il riquadro in '
+      + 'app. ⚠️ Vale **anche nel backoffice**, dove a digitare è lo staff: `PATCH /admin/clients/:id/'
+      + 'measurements/:id` risponde già `pesoIncoerente` (e quella rotta accetta 25–400 kg, più larga '
+      + 'del DTO della cliente), e nessuno lo legge ancora.',
+  },
+  {
+    chiave: 'target-sospeso-chi-non-lo-sa',
+    categoria: 'Da fare — codice',
+    ordine: 4,
+    nata: '2026-08-28T12:10',
+    titolo: 'Tre punti mostrano un target calorico che il motore non sta usando',
+    dettaglio:
+      'Aperta il 28/8 in revisione, insieme al blocco sulle pesate incoerenti. ⚠️ Da quel giorno il '
+      + 'fabbisogno può essere **sospeso**: `computeTargetKcal` risponde `null` e la cliente mangia il '
+      + 'livello della sua dieta. Il campo `pesoIncoerente` esce da `estimate()` e lo legge **solo** la '
+      + 'scheda del backoffice.\n\n'
+      + '⛔ **Gli altri tre lo ignorano, e sono i tre in cui si decide:**\n'
+      + '1. `vera-chat.service.ts` (~2121) giudica una giornata dettata contro `prima.target` di '
+      + '`simulaKcal` — cioè contro un numero che il motore non sta usando;\n'
+      + '2. `anteprimaCorrezioneKcal` (~2591) dice alla nutrizionista «il suo target passa da X a Y» '
+      + 'sulla stessa base;\n'
+      + '3. `nutritionist.service.impostaKcal` (~809) decide il rifiuto «sotto soglia» e scrive '
+      + '`targetPrima`/`targetDopo` nello storico `kcal_override` a partire dallo stesso target sospeso;\n'
+      + '4. e la **cliente stessa**: `progress.service` / `percentuale-obiettivo` calcolano la barra '
+      + '«verso il tuo obiettivo» e il «−X kg dal via» sulla stessa media sporca. Non decide il cibo, '
+      + 'ma è la frase che legge lei.\n\n'
+      + '⚠️ Il terzo è il più serio: quello **scrive**, e lascia nello storico clinico due numeri che '
+      + 'nessuno ha mai servito. Non è un difetto nato adesso — è la stessa cosa che succedeva prima a '
+      + 'chi non aveva pesate — ma adesso capita a clienti che le pesate ce le hanno.\n\n'
+      + 'Il lavoro: far leggere `pesoIncoerente` ai tre punti e dirlo in faccia a chi guarda, invece di '
+      + 'mostrare un numero preciso al kcal che non vale.',
+  },
+  {
+    chiave: 'taglia-catalogo-due-silenzi',
+    categoria: 'Da fare — codice',
+    ordine: 6,
+    nata: '2026-08-28T12:10',
+    titolo: 'Il dimensionamento del catalogo non distingue «non lo so» da «non mi fido»',
+    dettaglio:
+      'Aperta il 28/8 in revisione. `engine-rules.service.tagliaPerIlCatalogo` (~120) chiama '
+      + '`computeTargetKcal` su tutte le clienti di quella taglia e ne fa la mediana; i `null` cadono '
+      + 'fuori. ⚠️ Da oggi un `null` vuol dire **due cose diverse**: «mancano sesso, età, altezza o '
+      + 'peso» oppure «le sue pesate non stanno in piedi». `fraseTaglia` non le distingue e non dice '
+      + 'quante ne sono cadute per quale motivo.\n\n'
+      + '⚠️ Con poche clienti per taglia la mediana si sposta, e nessuno lo sa. Non è urgente — il '
+      + 'ripiego è la taglia del preset, che è un numero sensato — ma è un altro caso di *un dato che '
+      + 'agisce e non si vede*.',
+  },
+  {
+    chiave: 'pesate-lontane-buco-del-ritmo',
+    categoria: 'Da decidere con Simone',
+    ordine: 5,
+    nata: '2026-08-28T12:45',
+    titolo: 'Chi rientra dopo un mese senza pesarsi può sbagliare venti chili e non far suonare niente',
+    dettaglio:
+      'Trovata in revisione il 28/8, chiudendo il blocco sulle pesate incoerenti — e detta subito '
+      + 'invece che scoperta dopo.\n\n'
+      + '⚠️ Il guardrail chiede **due condizioni insieme**: salto ≥ 10 kg **e** ritmo ≥ 7 kg/settimana. '
+      + 'La seconda equivale a «le due pesate distano meno giorni di quanti sono i chili». Quindi '
+      + 'venti chili sbagliati dopo **venticinque giorni** senza pesarsi fanno 5,6 kg/settimana e **non '
+      + 'scattano**: il fabbisogno si calcola su una media sporca e nessuno se ne accorge.\n\n'
+      + '⛔ **Ed è proprio la cliente del kit di rientro**: quella che sospende, sta ferma un mese e '
+      + 'torna — il caso che `kcal-need.service.ts` descrive come «quello che faceva il danno più '
+      + 'grosso». La condizione sul ritmo, che serve a non suonare su un percorso normale, qui lavora '
+      + 'contro di noi.\n\n'
+      + 'La strada è un **secondo ramo**: un salto enorme vale a qualunque distanza. Tre righe in '
+      + '`peso-incoerente.ts` e un parametro nuovo. ⚠️ **La soglia però è clinica e non la scegliamo '
+      + 'noi**: venti chili in tre mesi senza pesarsi sono possibili per una persona molto pesante che '
+      + 'ha fatto sul serio, e metterla troppo bassa vorrebbe dire sospendere il fabbisogno proprio a '
+      + 'chi sta riuscendo. Serve un numero da Nocanty.',
+  },
+  {
     chiave: 'kit-rientro-quale-peso',
     categoria: 'Da decidere con Simone',
     ordine: 6,

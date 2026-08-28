@@ -29,6 +29,7 @@ import { PrismaClient } from '@prisma/client';
 import { AuditService } from '../src/audit/audit.service';
 import { ConfigParamsService } from '../src/config-params/config-params.service';
 import { KcalNeedService } from '../src/menu/kcal-need.service';
+import { spiegaSalto } from '../src/signals/peso-incoerente';
 
 const prisma = new PrismaClient();
 const SOLO = process.env.SOLO?.trim().toLowerCase() || null;
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
     scarto: string;
     deficit: string;
     tetto: string;
+    pesate: string;
   }[] = [];
   let nonStimabili = 0;
   let senzaPesate = 0;
@@ -97,8 +99,31 @@ async function main(): Promise<void> {
       'kcal prima': prima.target,
       'kcal dopo': dopo.target,
       scarto: `${scarto > 0 ? '+' : ''}${scarto}`,
-      deficit: dopo.fonteDeficit,
+      /**
+       * ⛔ **«CALCOLATO» ERANO DUE COSE, E LA TABELLA LE CHIAMAVA CON LO STESSO NOME** (corretto il
+       * 28/8, dopo che Simone aveva letto la prima passata in produzione).
+       *
+       * Il deficit dedotto nasce dal **ritmo dell'obiettivo** oppure da una **percentuale fissa del
+       * TDEE**, e le due hanno derivata di segno **opposto** rispetto al peso. Con un'etichetta sola
+       * la tabella mostrava righe con lo stesso regime dichiarato e lo scarto con segni contrari:
+       * chi la leggeva non poteva che concludere che il conto fosse sbagliato. Non lo era — era
+       * questa colonna a mettere insieme due regimi diversi.
+       */
+      deficit:
+        dopo.fonteDeficit === 'calcolato'
+          ? dopo.calcoloDeficit === 'ritmo'
+            ? 'ritmo'
+            : 'default %'
+          : dopo.fonteDeficit,
       tetto: dopo.tettoApplicato ? 'sì' : '—',
+      /**
+       * ⚠️ **E se le pesate non stanno in piedi, questa riga non è un confronto fra due regole**
+       * (28/8): è il confronto fra due numeri costruiti su un dato sbagliato. Erano le quattro righe
+       * in cima alla passata del 27/8 — media mobile lontana 12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata —
+       * ed era la tabella a non saperlo dire. Ora lo dice, e da queste clienti il fabbisogno **non
+       * esce affatto**: mangiano il livello della loro dieta.
+       */
+      pesate: dopo.pesoIncoerente ? `⛔ ${spiegaSalto(dopo.pesoIncoerente)}` : 'ok',
     });
   }
 
@@ -124,9 +149,23 @@ async function main(): Promise<void> {
       'si può dedurre dai due pesi: il peso entra sia nel metabolismo basale (più pesante → più ' +
       'calorie) sia nel ritmo di calo verso l\'obiettivo (più pesante → più deficit → meno calorie), ' +
       'e quale dei due domina dipende da quante settimane mancano al traguardo e da se il tetto ha ' +
-      'morso. Le colonne «deficit» e «tetto» servono a quello: nelle righe con deficit «calcolato» e ' +
-      'tetto «—» domina il secondo termine, e il segno sorprende.',
+      'morso. Le colonne «deficit» e «tetto» servono a quello: nelle righe con deficit «ritmo» e ' +
+      'tetto «—» domina il secondo termine, e il segno sorprende. ⚠️ «ritmo» e «default %» NON sono ' +
+      'la stessa cosa e non si leggono allo stesso modo: «ritmo» viene dall\'obiettivo e ha derivata ' +
+      'negativa (più pesante → meno calorie), «default %» è una percentuale del mantenimento e ha ' +
+      'derivata positiva (più pesante → più calorie). Fino al 27/8 questa colonna diceva «calcolato» ' +
+      'per tutt\'e due, e la tabella sembrava contraddirsi.',
   );
+  const rotte = righe.filter((r) => r.pesate !== 'ok');
+  if (rotte.length) {
+    console.log(
+      `\n⛔ ${rotte.length} client${rotte.length === 1 ? 'e ha' : 'i hanno'} pesate che non stanno in piedi fra loro. ` +
+        'Per loro le due colonne kcal NON sono un confronto fra due regole: sono due numeri costruiti su un ' +
+        'dato sbagliato, e dal 28/8 il fabbisogno non esce affatto — mangiano il livello della loro dieta ' +
+        'finché qualcuno non verifica le misure. La coach le ha in coda («Pesate incoerenti») e il ' +
+        'nutrizionista come segnalazione clinica.',
+    );
+  }
   console.log(
     '⚠️ E non c\'è una conversione fissa fra kcal di scarto e chili: dipende dalle settimane che ' +
       'restano a quella cliente. Guardare le due colonne dei pesi accanto allo scarto dice più di ' +

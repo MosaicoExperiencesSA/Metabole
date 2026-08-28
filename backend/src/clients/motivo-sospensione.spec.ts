@@ -22,6 +22,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CoachTasksService } from '../coach-tasks/coach-tasks.service';
 import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { PauseService } from '../pause/pause.service';
+// ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff passano dallo stesso guardrail.
+import { SignalsService } from '../signals/signals.service';
 import { aGiorno } from '../common/date-only';
 import { ClientsService } from './clients.service';
 
@@ -69,6 +71,7 @@ async function crea() {
       { provide: CoachTasksService, useValue: { apriAttivita: jest.fn() } },
       { provide: PrenotazioniService, useValue: {} },
       { provide: PauseService, useValue: pause },
+      { provide: SignalsService, useValue: { controllaPesoIncoerente: jest.fn().mockResolvedValue(null) } },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService) as ClientsService, prisma, audit, pause };

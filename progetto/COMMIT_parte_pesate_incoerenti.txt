@@ -1,0 +1,153 @@
+Un peso che non può essere vero non decide più cosa mangia
+
+LA RICHIESTA
+Simone, 28/8, dopo aver letto in produzione la prima passata di
+`diag:fabbisogno-media`: quattro clienti avevano la media mobile lontana
+12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata. Erano account di prova —
+«non considerare questi account; se succede una cosa simile arriva il blocco e
+deve intervenire la coach o il nutrizionista».
+
+⚠️ Il fatto che questa volta le righe fossero finte non è una difesa: è
+fortuna. Il codice non sapeva distinguerle da una cliente vera, e non deve
+saperlo — deve reggere anche quando sono vere.
+
+LA REGOLA (backend/src/signals/peso-incoerente.ts, modulo puro)
+Due pesate CONSECUTIVE non stanno in piedi quando valgono INSIEME:
+  · il salto in chili        ≥ 10   (`weight_jump_impossible_kg`)
+  · il ritmo in kg/settimana ≥ 7    (`weight_jump_impossible_kg_week`)
+cioè dieci chili in dieci giorni. Le due soglie sono nei Parametri: sono
+cliniche, le deve poter spostare Nocanty senza un rilascio.
+
+Si guarda la COPPIA e non lo scostamento fra media e ultima pesata, che è il
+numero che si era visto nella tabella: quello è il sintomo, dipende da quanto è
+larga la finestra della media (un parametro che col corpo della cliente non
+c'entra) e soprattutto NON dice quali due righe guardare. La coppia sì.
+
+⛔ LE SOGLIE ERANO 5 E 4, E LE AVREBBE FATTE SUONARE SU CLIENTI VERE
+La prima stesura metteva 5 kg / 4 kg-settimana. La revisione ha tirato fuori i
+controesempi, e sono clienti normali e frequenti:
+  · 130 kg, prima settimana di piano: 130 → 124,5 in 7 giorni (glicogeno e acqua)
+  · post-parto: 78 → 71 in nove giorni
+  · avvio di diuretico su edema: 95 → 89 in cinque
+  · malattia con inappetenza: 92 → 82 in due settimane
+  · rientro da due settimane di vacanza: +8 kg
+Tutte bloccate. Un guardrail che suona su un terzo delle clienti non è severo:
+è SPENTO, perché chi lo riceve impara a chiuderlo senza leggerlo. Con 10 e 7
+passano tutte, e i cinque casi sono adesso un test.
+
+CHE COSA VUOL DIRE «IL BLOCCO», ESATTAMENTE
+Non è un cancello. La cliente non resta senza menu, non le compare un popup, non
+deve fare niente. `computeTargetKcal` risponde `null` e `menu.service` tiene il
+LIVELLO DELLA SUA DIETA — lo stesso numero che mangia chi non si è mai pesata.
+Si blocca solo la personalizzazione, cioè l'unico pezzo che dipende dal dato di
+cui non ci fidiamo.
+
+  ⚠️ La regola di casa dice che un cancello chiuso costa a una cliente tutto il
+  servizio: fermarle il menu perché NOI abbiamo un numero sbagliato in banca dati
+  sarebbe farle pagare un nostro problema. E l'alternativa opposta — tirare avanti
+  con la media di due pesate che si contraddicono — mette in tavola cento o
+  duecento kcal sbagliate al giorno senza che nessuno lo sappia. Il livello della
+  dieta è l'unica delle tre strade che non inventa niente.
+
+CHI SE NE ACCORGE
+  · la COACH, in coda: avviso «Pesate incoerenti», priorità alta, si chiude da
+    solo quando i numeri tornano a posto. È lei che ha il telefono della cliente,
+    ed è quasi sempre un numero digitato male;
+  · il NUTRIZIONISTA, come segnalazione clinica alla pesata, con la tregua e la
+    riapertura per peggioramento già usate dal calo rapido. Perché il cibo è
+    cambiato, e «cosa mangia» è roba sua — e se il numero è VERO, allora è
+    successo qualcosa a quella persona in pochi giorni, e allora è ancora più
+    roba sua;
+  · in SCHEDA, un riquadro rosso sopra il fabbisogno, che dice che i numeri sotto
+    non sono quelli che il motore sta usando.
+
+⛔ E TACCIONO LE FRASI CHE SAREBBERO FALSE
+Su una pesata digitata male, prima di questa consegna il sistema avrebbe detto:
+  · «Calo rapido: 40 kg/settimana. Verificare calorie ed energia» al nutrizionista
+  · «+20 kg negli ultimi 7 giorni» alla coach
+  · «Peso fermo da 6 giorni» alla coach
+Tre frasi su un corpo, costruite su un errore di tastiera. Ora il calo rapido non
+si calcola quando dentro le sue due settimane c'è un salto impossibile, e
+l'aumento e lo stallo tacciono ognuno se la PROPRIA finestra è sporca (un errore
+di venticinque giorni fa non deve zittire lo stallo di questa settimana).
+
+⛔ IL BLOCCANTE PIÙ GRAVE, TROVATO AL SECONDO GIRO DI REVISIONE
+I TRAGUARDI. `evaluateMilestones` girava PRIMA del controllo, calcola sulla media
+mobile e scrive una volta sola. Con 113 al posto di 73 la media crolla sotto il
+peso obiettivo e parte «Obiettivo raggiunto! 🎉»: notifica alla cliente, avviso
+alla coach, PER SEMPRE. Era «una frase su un corpo costruita su un numero
+digitato male» — la ragione per cui esiste tutta questa consegna — nell'unico
+posto irreversibile che la consegna toccava senza saperlo. Ora il controllo gira
+per primo, e con le pesate rotte non si scrive nessun traguardo e non si insegna
+niente al motore.
+
+LE PAROLE
+⛔ I testi NON dicono «una delle due misure è sbagliata»: è un fatto che il codice
+non sa. Dicono «o una delle due è sbagliata, oppure è successo qualcosa da
+guardare», e dicono anche che sopra soglia il calo rapido non suona — perché se
+il calo è vero, questa è l'unica segnalazione che glielo dice. Una ragione falsa
+è peggio di un ordine sbagliato.
+
+ANCHE DAL BACKOFFICE (secondo giro di revisione)
+Il controllo era solo su `POST /me/measurements`, che è la rotta DELLA CLIENTE.
+Lo staff passa da `PATCH /admin/clients/:id/measurements/:id` — che accetta
+25–400 kg, più largo del 35–250 della cliente — e lì non girava niente: la
+segnalazione al nutrizionista non partiva proprio nel punto in cui una pesata
+sbagliata può NASCERE dalle mani di chi la sta sistemando. Ora `ClientsService`
+chiama lo stesso controllo dopo la scrittura, e l'audit registra che l'ha
+innescato lo staff, non la cliente.
+
+LA CORREZIONE PROMESSA IL 27/8
+La colonna «deficit» di `diag:fabbisogno-media` diceva «calcolato» per due cose
+diverse: il deficit dal RITMO dell'obiettivo (derivata NEGATIVA rispetto al peso:
+più pesante ⇒ meno calorie) e il deficit di DEFAULT come percentuale del
+mantenimento (derivata POSITIVA). Con un'etichetta sola la tabella mostrava righe
+con lo stesso regime e lo scarto con segni opposti, e sembrava contraddirsi. Ora
+la colonna dice «ritmo» oppure «default %», e la tabella ha una colonna «pesate»
+che dice quando le due colonne kcal non sono un confronto fra due regole ma due
+numeri costruiti su un dato sbagliato.
+
+QUELLO CHE NON FA, DETTO INVECE CHE SCOPERTO DOPO
+⚠️ Chi rientra da un mese senza pesarsi può sbagliare venti chili e non far
+suonare niente: venti chili dopo venticinque giorni fanno 5,6 kg/settimana, sotto
+la soglia del ritmo. È proprio la cliente del kit di rientro. Serve un secondo
+ramo (un salto enorme a qualunque distanza), ma la soglia è clinica e la deve
+dare Nocanty: venti chili in tre mesi senza pesarsi sono possibili per una
+persona molto pesante che ha fatto sul serio, e metterla bassa vorrebbe dire
+sospendere il fabbisogno proprio a chi sta riuscendo. In elenco come
+`pesate-lontane-buco-del-ritmo`.
+⚠️ E tre punti mostrano ancora un target che il motore non sta usando (Vera
+quando giudica una giornata dettata, l'anteprima della correzione kcal, e
+`impostaKcal` che SCRIVE `targetPrima`/`targetDopo` nello storico clinico), più
+la barra «verso il tuo obiettivo» che vede la cliente. In elenco come
+`target-sospeso-chi-non-lo-sa`.
+⚠️ E l'app non chiede ancora «l'ultima volta pesavi 73, hai scritto 113: è
+giusto?» al momento in cui digita, che è il posto dove la correzione costa meno.
+In elenco come `pesata-strana-chiedi-conferma`.
+
+MISURATO
+- 5723 test backend verdi in quattro modalità (normale, TZ=Europe/Rome, notte
+  con l'orologio congelato alle 00:30, e le due insieme); backoffice 149; app 192.
+- Diciotto mutazioni provate, tutte uccise: l'AND al posto dell'OR fra le due
+  soglie, `Math.abs` via (che spegneva il verso in DISCESA, cioè quello vero), il
+  `*7` del ritmo, il `Math.max(1, giorni)`, il `sort`, il tie-break, i due bordi
+  `<`→`<=`, i tre `if` di attivazione, la soppressione dell'aumento e dello
+  stallo, il `motivoContiene`, la soppressione dei traguardi, il learning, il
+  controllo sull'audit, l'`actorId`, e la finestra ristretta a quella della media.
+- ⚠️ Una nota di mutazione era FALSA e la revisione l'ha misurata: avevo scritto
+  che senza il test in discesa «la suite resta verde». Resta verde quella del
+  modulo; la suite intera cade, per la fixture di un altro file. Corretta.
+
+DUE GIRI DI REVISIONE AVVERSARIALE, NOVE BLOCCANTI
+Primo giro: le soglie che suonavano su clienti vere; il testo che affermava un
+fatto che il codice non sa; il commento falso su chi chiama la rotta (col buco
+funzionale del backoffice dietro); un log che rimandava a una riga inesistente.
+Secondo giro: i traguardi irreversibili; la descrizione del parametro che diceva
+il falso sul calo rapido; l'audit che registrava un'apertura che poteva non
+essere avvenuta (`apriSegnalazione` ha un `catch` che non rilancia); due elenchi
+diversi degli stessi quattro numeri nello stesso file; il riquadro del backoffice
+che riscriveva a mano la frase e stampava le date in ISO — proprio il formato che
+questa consegna aveva appena tolto dai testi per le persone.
+
+Nessuna migrazione (`Alert.type` è testo, i due parametri nuovi hanno il default
+nel codice). Il seed li scrive alla prossima `prisma db seed`.

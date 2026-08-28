@@ -26,9 +26,11 @@ const PROFILO = {
   activityLevel: 'sedentary',
 };
 
-const config = (finestra = 3) => ({
+const config = (finestra = 3, extra: Record<string, number> = {}) => ({
   getNumber: jest.fn().mockImplementation((chiave: string, dato: number) =>
-    Promise.resolve(chiave === 'moving_average_window' ? finestra : dato),
+    Promise.resolve(
+      chiave === 'moving_average_window' ? finestra : chiave in extra ? extra[chiave] : dato,
+    ),
   ),
 });
 
@@ -68,8 +70,8 @@ const conPesate = (
   };
 };
 
-const servizio = (prisma: unknown, finestra = 3) =>
-  new KcalNeedService(prisma as never, config(finestra) as never);
+const servizio = (prisma: unknown, finestra = 3, extra: Record<string, number> = {}) =>
+  new KcalNeedService(prisma as never, config(finestra, extra) as never);
 
 describe('⛔ il peso del fabbisogno è la media mobile, non l\'ultima pesata', () => {
   const RECENTI = [{ kg: 70, giorniFa: 14 }, { kg: 70, giorniFa: 7 }, { kg: 69, giorniFa: 0 }];
@@ -97,7 +99,14 @@ describe('⛔ il peso del fabbisogno è la media mobile, non l\'ultima pesata', 
 
   /** ⚠️ La finestra è quella dei Parametri, e si ritaglia: le pesate più vecchie non entrano. */
   it('⚠️ guarda solo le ultime `moving_average_window` pesate', async () => {
-    const con100 = [{ kg: 100, giorniFa: 30 }, { kg: 100, giorniFa: 21 }, ...RECENTI];
+    /**
+     * ⚠️ **Le due pesate vecchie sono 74 e 72, non 100 e 100** (cambiate il 28/8). Con un 100
+     * seguito da un 70 a sette giorni di distanza questa fixture conteneva un **salto impossibile**,
+     * e dal 28/8 avrebbe fatto scattare il guardrail delle pesate incoerenti: un test che si chiama
+     * «guarda solo le ultime N pesate» non deve accendere per strada un'altra regola. Il segnale
+     * resta netto lo stesso — con una finestra a 5 la media sarebbe 71, non 69,67.
+     */
+    const con100 = [{ kg: 74, giorniFa: 30 }, { kg: 72, giorniFa: 21 }, ...RECENTI];
     const est = await servizio(conPesate(con100)).estimate('c1');
     expect(est!.weightKg).toBeCloseTo(69.67, 2);
   });
@@ -218,5 +227,129 @@ describe('⛔ chiedere «con quale peso sarebbe uscito» non spegne la prescrizi
     const prisma = conPesate([{ kg: 70, giorniFa: 0 }], CON_DEFICIT);
     const est = await servizio(prisma).estimate('c1', { deficitImposto: 100 });
     expect(est!.deficit).toBe(100);
+  });
+});
+
+/**
+ * ⛔ **QUANDO LE PESATE NON STANNO IN PIEDI, IL FABBISOGNO NON RISPONDE** (28/8).
+ *
+ * Richiesta di Simone, il giorno dopo aver letto la prima passata di `diag:fabbisogno-media` in
+ * produzione: quattro clienti avevano la media mobile lontana 12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata.
+ * Erano account di prova — *«non considerare questi account; se succede una cosa simile arriva il
+ * blocco e deve intervenire la coach o il nutrizionista»*.
+ *
+ * ⚠️ **«Blocco» qui vuol dire una cosa precisa e stretta**: `computeTargetKcal` risponde `null`, e
+ * `menu.service` tiene il livello della dieta. La cliente **non** resta senza menu. Questi test
+ * tengono ferme tutt'e due le metà: che il fabbisogno si spenga, e che la scheda continui a dire
+ * cosa sarebbe uscito e perché non lo stiamo usando.
+ */
+describe('⛔ pesate incoerenti: il fabbisogno si sospende, il servizio no', () => {
+  // Da 73 a 113 in sette giorni: 40 kg, 40 kg/settimana. Nessuna delle due soglie di default regge.
+  const ROTTE = [{ kg: 73, giorniFa: 14 }, { kg: 113, giorniFa: 7 }, { kg: 113, giorniFa: 0 }];
+  const SANE = [{ kg: 73, giorniFa: 14 }, { kg: 72.4, giorniFa: 7 }, { kg: 72, giorniFa: 0 }];
+
+  it('⛔ `computeTargetKcal` risponde null: il generatore menu terrà il livello della dieta', async () => {
+    expect(await servizio(conPesate(ROTTE)).computeTargetKcal('c1')).toBeNull();
+  });
+
+  /** ⚠️ E la stessa cliente, con pesate che stanno in piedi, il fabbisogno ce l'ha eccome. */
+  it('⚠️ con pesate normali il fabbisogno esce come sempre', async () => {
+    const target = await servizio(conPesate(SANE)).computeTargetKcal('c1');
+    expect(typeof target).toBe('number');
+    expect(target).toBeGreaterThan(0);
+  });
+
+  /**
+   * ⛔ **La scheda non diventa vuota.** Una card senza numeri è indistinguibile da un guasto, ed è
+   * il modo in cui un guardrail passa inosservato per settimane.
+   */
+  it('⛔ `estimate` risponde lo stesso, e dice qual è la coppia che non torna', async () => {
+    const est = await servizio(conPesate(ROTTE)).estimate('c1');
+    expect(est).not.toBeNull();
+    expect(est!.target).toBeGreaterThan(0);
+    expect(est!.pesoIncoerente).not.toBeNull();
+    expect(est!.pesoIncoerente!.daKg).toBe(73);
+    expect(est!.pesoIncoerente!.aKg).toBe(113);
+    expect(est!.spiegazione).toContain('Pesate incoerenti');
+    expect(est!.spiegazione).toContain('NON viene usato');
+    // ⚠️ «i menu usano», non «la cliente mangia»: con `menu_kcal_need_enabled` spento per quella
+    // dieta il livello lo mangiava già, e la seconda frase sarebbe falsa.
+    expect(est!.spiegazione).toContain('i menu usano il livello della sua dieta');
+  });
+
+  it('⚠️ con pesate normali `pesoIncoerente` è null e la frase non spaventa nessuno', async () => {
+    const est = await servizio(conPesate(SANE)).estimate('c1');
+    expect(est!.pesoIncoerente).toBeNull();
+    expect(est!.spiegazione).not.toContain('Pesate incoerenti');
+  });
+
+  /**
+   * ⚠️ **Le soglie sono cliniche e stanno nei Parametri**: se un giorno 5 kg si rivelasse troppo
+   * stretto, si sposta senza un rilascio. Un guardrail che per cambiare vuole un deploy è un
+   * guardrail che si spegne del tutto.
+   */
+  it('⚠️ le soglie arrivano dai Parametri, non sono cablate qui', async () => {
+    const alte = { weight_jump_impossible_kg: 99, weight_jump_impossible_kg_week: 99 };
+    const est = await servizio(conPesate(ROTTE), 3, alte).estimate('c1');
+    expect(est!.pesoIncoerente).toBeNull();
+    expect(await servizio(conPesate(ROTTE), 3, alte).computeTargetKcal('c1')).not.toBeNull();
+  });
+
+  /**
+   * ⛔ **La finestra del controllo NON è quella della media.** Il salto qui sta fra la quarta e la
+   * terza pesata: nella media a tre non entra, ma il fabbisogno si sospende lo stesso — perché
+   * altrimenti cambiare `moving_average_window` per un altro motivo accenderebbe e spegnerebbe un
+   * guardrail clinico, e la coach vedrebbe una cosa diversa da quella che decide il piatto.
+   */
+  it('⛔ un salto fuori dalla media a tre sospende comunque il fabbisogno', async () => {
+    const fuori = [{ kg: 60, giorniFa: 40 }, { kg: 95, giorniFa: 35 }, { kg: 95, giorniFa: 14 }, { kg: 94, giorniFa: 7 }, { kg: 94, giorniFa: 0 }];
+    const est = await servizio(conPesate(fuori)).estimate('c1');
+    // La media a tre è pulita: 95, 94, 94.
+    expect(est!.weightKg).toBeCloseTo(94.33, 2);
+    expect(est!.pesoIncoerente).not.toBeNull();
+    expect(await servizio(conPesate(fuori)).computeTargetKcal('c1')).toBeNull();
+  });
+
+  /** ⚠️ E le pesate più vecchie della finestra non contano nemmeno qui: sono già uscite dal conto. */
+  it('⚠️ un salto più vecchio di novanta giorni non blocca niente', async () => {
+    const vecchio = [{ kg: 60, giorniFa: 200 }, { kg: 95, giorniFa: 195 }, ...SANE];
+    const est = await servizio(conPesate(vecchio)).estimate('c1');
+    expect(est!.pesoIncoerente).toBeNull();
+  });
+});
+
+/**
+ * ⛔ **«CALCOLATO» ERANO DUE REGIMI CON LA DERIVATA DI SEGNO OPPOSTO** — la correzione promessa a
+ * Simone il 27/8, dopo che aveva letto in produzione una tabella in cui due righe con la stessa
+ * etichetta di regime avevano lo scarto con segni contrari.
+ */
+describe('⛔ da dove viene il deficit dedotto: dal ritmo o da una percentuale fissa', () => {
+  const inCalo = { objective: 'dimagrimento' };
+  const OBIETTIVO = { targetWeightKg: 65, targetDate: new Date(Date.now() + 140 * GIORNO) };
+  const PESI = [{ kg: 74, giorniFa: 14 }, { kg: 73.5, giorniFa: 7 }, { kg: 73, giorniFa: 0 }];
+
+  it('⛔ con obiettivo e data è «ritmo»: derivata negativa, più pesante ⇒ meno calorie', async () => {
+    const est = await servizio(conPesate(PESI, inCalo, OBIETTIVO)).estimate('c1');
+    expect(est!.fonteDeficit).toBe('calcolato');
+    expect(est!.calcoloDeficit).toBe('ritmo');
+  });
+
+  it('⛔ senza obiettivo utile è «default»: percentuale del mantenimento, derivata positiva', async () => {
+    const est = await servizio(conPesate(PESI, inCalo, null)).estimate('c1');
+    expect(est!.fonteDeficit).toBe('calcolato');
+    expect(est!.calcoloDeficit).toBe('default');
+  });
+
+  /** ⚠️ Anche un obiettivo con la data già passata ricade nel default: non è un ritmo, è un ripiego. */
+  it('⚠️ un obiettivo scaduto non è un ritmo', async () => {
+    const scaduto = { targetWeightKg: 65, targetDate: new Date(Date.now() - 10 * GIORNO) };
+    const est = await servizio(conPesate(PESI, inCalo, scaduto)).estimate('c1');
+    expect(est!.calcoloDeficit).toBe('default');
+  });
+
+  it('⚠️ in mantenimento non c\'è nessun deficit da spiegare', async () => {
+    const est = await servizio(conPesate(PESI)).estimate('c1');
+    expect(est!.calcoloDeficit).toBe('nessuno');
+    expect(est!.deficit).toBe(0);
   });
 });

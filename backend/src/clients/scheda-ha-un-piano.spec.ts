@@ -54,6 +54,8 @@ describe('ClientsService.getDetail — chi ha comprato ha un piano', () => {
       {} as never,
       // ⚠️ `PauseService`: la modalità viaggio sospende davvero (23/8). Non è l'oggetto di questi test.
       {} as never,
+      // ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff fanno scattare gli stessi segnali.
+      {} as never,
     );
   };
 

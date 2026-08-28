@@ -1,8 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcolaTargetKcal, spiegaTargetKcal, correzioneAttiva } from './correzione-kcal';
 import { FINESTRA_MASSIMA, pesoDiAdesso } from '../signals/percentuale-obiettivo';
+import {
+  FINESTRA_GIORNI,
+  SALTO_KG_DEFAULT,
+  SALTO_RITMO_DEFAULT,
+  SaltoImpossibile,
+  saltoPeggiore,
+  spiegaSalto,
+} from '../signals/peso-incoerente';
 
 /**
  * Fabbisogno calorico giornaliero della cliente (kcal/giorno), stimato dal profilo.
@@ -54,11 +62,37 @@ export interface KcalEstimate {
    * che il progetto ha già pagato in quattro punti.
    */
   weightKg: number;
+  /**
+   * ⛔ **DUE PESATE CHE NON POSSONO ESSERE DELLA STESSA PERSONA** (28/8, richiesta di Simone: *«se
+   * succede una cosa simile arriva il blocco e deve intervenire la coach o il nutrizionista»*).
+   *
+   * Quando è valorizzato, `computeTargetKcal` risponde **`null`** e la cliente mangia il livello
+   * della sua dieta: il fabbisogno personalizzato è sospeso finché una persona non guarda. ⚠️ Qui
+   * dentro invece `target`, `deficit` e `tdee` restano **calcolati**, perché la scheda deve poter
+   * mostrare *cosa uscirebbe* accanto al motivo per cui non lo stiamo usando — una card vuota è
+   * indistinguibile da un guasto, e un guardrail che non si vede è un guardrail spento.
+   */
+  pesoIncoerente: (SaltoImpossibile & { frase: string }) | null;
   // --- §15.5: cosa ha scritto il nutrizionista, e cosa ne è uscito ---
   /** Da dove viene il deficit: scritto a mano, dedotto dal motore, o nessuno. */
   fonteDeficit: 'imposto' | 'calcolato' | 'nessuno';
   /** Il deficit che il motore avrebbe usato da solo: serve a mostrare il «prima» accanto al «dopo». */
   deficitCalcolato: number;
+  /**
+   * ⛔ **DUE COSE DIVERSE CHE `fonteDeficit: 'calcolato'` CHIAMAVA CON LO STESSO NOME** (28/8).
+   *
+   * Il deficit dedotto nasce in due modi che **hanno derivata di segno opposto** rispetto al peso:
+   *  - `'ritmo'`   → viene dall'obiettivo: `(P − obiettivo)·7700/settimane`, quindi ∂/∂P **negativa**
+   *                  e dominante (vedi il docblock qui sotto): più pesante ⇒ **meno** calorie;
+   *  - `'default'` → è una percentuale del TDEE, che dal peso dipende **solo** via il TDEE: ∂/∂P
+   *                  **positiva**. Più pesante ⇒ più calorie.
+   *
+   * ⚠️ Fino al 28/8 `diag:fabbisogno-media` stampava «calcolato» per entrambi, e la tabella mostrava
+   * righe con la stessa etichetta di regime e lo scarto con segni opposti: chi la leggeva non poteva
+   * che concludere che il conto fosse sbagliato. Non lo era — era l'etichetta a mettere insieme due
+   * regimi. *Una ragione falsa è peggio di un ordine sbagliato.*
+   */
+  calcoloDeficit: 'ritmo' | 'default' | 'nessuno';
   /** La correzione percentuale sul totale, 0 se non impostata. */
   correzionePct: number;
   /** Il target sta SOTTO la soglia minima, per scelta esplicita del nutrizionista. */
@@ -80,10 +114,68 @@ export class KcalNeedService {
     private readonly configParams: ConfigParamsService,
   ) {}
 
-  /** Solo il target in kcal/giorno (o null se mancano i dati minimi). Usato dal generatore menu. */
+  private readonly logger = new Logger(KcalNeedService.name);
+
+  /**
+   * Solo il target in kcal/giorno (o null se mancano i dati minimi). Usato dal generatore menu.
+   *
+   * ⛔ **E «NULL» ANCHE QUANDO LE PESATE NON STANNO IN PIEDI FRA LORO** (28/8).
+   *
+   * ⚠️ **Che cos'è «il blocco», per essere precisi.** Non è un cancello: la cliente non resta senza
+   * menu, non le compare un popup, non deve fare niente. `null` qui dentro vuol dire che
+   * `menu.service` non trova un fabbisogno e **tiene il livello della sua dieta** (`levelKcal`) —
+   * lo stesso numero che mangia chi non si è mai pesata. Quello che si blocca è **la
+   * personalizzazione**, cioè l'unico pezzo che dipende dal dato di cui non ci fidiamo.
+   *
+   * ⚠️ **Due precisazioni che i testi non possono contenere ma che qui vanno scritte** (secondo giro
+   * di revisione): 1) con `menu_kcal_need_enabled` spento per quella dieta la cliente **mangiava
+   * già** il livello, quindi lì non cambia niente e la segnalazione dice solo «guardate quei
+   * numeri»; 2) `menu.service` accende DayCombo quando `targetSource === 'need'`, quindi con `null`
+   * cambia anche **come** si compone la giornata, non solo quante kcal — a meno che DayCombo non sia
+   * già acceso per conto suo. Per questo i testi dicono «i menu usano il livello della sua dieta» e
+   * non «cambia quello che mangia»: la prima è vera sempre, la seconda no.
+   *
+   * ⛔ La regola di casa dice *un cancello chiuso costa a una cliente tutto il servizio*, e vale
+   * anche qui: fermarle il menu perché **noi** abbiamo un numero sbagliato in banca dati sarebbe
+   * farle pagare un nostro problema. E l'alternativa opposta — tirare avanti con la media di due
+   * pesate che si contraddicono — è quella che mette in tavola cento o duecento kcal sbagliate al
+   * giorno **senza che nessuno lo sappia**. Il livello della dieta è l'unica delle tre strade che
+   * non inventa niente.
+   *
+   * ⚠️ Chi deve accorgersene lo sa da altre due parti, non da qui: la coach dalla sua coda
+   * (`alerts.service`, avviso «Pesate incoerenti») e il nutrizionista da una segnalazione clinica
+   * aperta alla pesata (`signals.service`). Questo metodo **non apre niente**: lo chiama anche il
+   * dimensionamento del catalogo, su decine di clienti in fila, e un guardrail che scrive dentro un
+   * conto di sola lettura è un guardrail che prima o poi qualcuno spegne.
+   */
   async computeTargetKcal(clientId: string): Promise<number | null> {
     const est = await this.estimate(clientId);
-    return est ? est.target : null;
+    if (!est) {
+      /**
+       * ⛔ **ANCHE QUESTO RAMO SCRIVE IL MOTIVO** (aggiunto in revisione, 28/8). Prima loggava solo
+       * il ramo delle pesate incoerenti, e il kit di rientro — che diceva «il motivo è nella riga
+       * sopra» — mandava a cercare una riga che nel caso più comune non esisteva.
+       *
+       * ⚠️ **`debug` e non `warn`, e la differenza è la quantità**: un profilo incompleto è lo stato
+       * normale di ogni lead, e questo metodo gira su **fino a trecento clienti per taglia** a ogni
+       * generazione del catalogo. A livello `warn` sarebbero trecento righe di allarme per una cosa
+       * che non è un allarme — e il rumore spegne i log esattamente come una segnalazione di troppo
+       * spegne una scrivania. L'altro ramo resta `warn`, perché lì una cliente **sta mangiando
+       * diversamente da come dovrebbe**.
+       */
+      this.logger.debug(
+        `Fabbisogno non calcolabile per ${clientId}: mancano sesso, età, altezza o un peso da cui partire.`,
+      );
+      return null;
+    }
+    if (est.pesoIncoerente) {
+      this.logger.warn(
+        `Fabbisogno NON personalizzato per ${clientId}: pesate incoerenti — ${spiegaSalto(est.pesoIncoerente)}. ` +
+          'La cliente mangia il livello della sua dieta finché qualcuno non verifica le misure.',
+      );
+      return null;
+    }
+    return est.target;
   }
 
   /**
@@ -158,14 +250,15 @@ export class KcalNeedService {
      * cose sbagliate, un dato vecchio è meno sbagliato della media di più dati vecchi — e resta il
      * ripiego del peso di partenza sotto.
      */
-    const GIORNI_CHE_CONTANO = 90;
-    const daQuando = new Date(Date.now() - GIORNI_CHE_CONTANO * 86_400_000);
+    const daQuando = new Date(Date.now() - FINESTRA_GIORNI * 86_400_000);
     const pesate = (await this.prisma.measurement.findMany({
       where: { clientId, date: { gte: daQuando } },
       orderBy: { date: 'desc' },
       take: FINESTRA_MASSIMA,
-      select: { weightKg: true },
-    })) as { weightKg: number }[];
+      // ⚠️ Anche `date`: dal 28/8 le stesse righe servono a controllare che **stiano in piedi fra
+      // loro** (`peso-incoerente.ts`), e senza la data due pesate sono due numeri senza distanza.
+      select: { date: true, weightKg: true },
+    })) as { date: Date; weightKg: number }[];
     const ultimaPesata = pesate.length
       ? null
       : ((await this.prisma.measurement.findFirst({
@@ -176,6 +269,37 @@ export class KcalNeedService {
     const finestraMedia = await this.configParams.getNumber('moving_average_window', 3);
     // ⚠️ Il modulo le vuole dalla più vecchia alla più recente; la query le dà al contrario.
     const media = pesoDiAdesso(pesate.map((m) => m.weightKg).reverse(), finestraMedia);
+    /**
+     * ⛔ **PRIMA DI MEDIARLE, CONTROLLA CHE STIANO IN PIEDI FRA LORO** (28/8).
+     *
+     * La media di due pesate che si contraddicono non è una tendenza: è la metà di due numeri di cui
+     * uno è sbagliato, e ha l'aria di un numero buono. La regola e i suoi perché stanno in
+     * `signals/peso-incoerente.ts`; qui c'è solo la conseguenza.
+     *
+     * ⚠️ **Su TUTTE le righe caricate — novanta giorni — non solo su quelle che entrano nella
+     * media.** L'alternativa (guardare solo la fetta che `pesoDiAdesso` usa davvero) è più stretta e
+     * sembra più giusta, ma sposta **quali clienti si bloccano** al variare di
+     * `moving_average_window`: una casella dei Parametri che si muove per un altro motivo
+     * accenderebbe e spegnerebbe un guardrail clinico. E soprattutto darebbe una risposta diversa da
+     * quella che vede la coach nella sua coda, che quella fetta non la conosce. *Se due punti
+     * rispondono alla stessa domanda, uno deve chiamare l'altro* — qui: una regola sola, una
+     * finestra sola.
+     *
+     * ⚠️ **«Novanta giorni» è il tetto, non la finestra vera**: `take: FINESTRA_MASSIMA` prende al
+     * massimo **trenta righe**, quindi per chi si pesa tutti i giorni si guardano trenta giorni e
+     * per chi si pesa una volta a settimana tutti e novanta. Vale identico nei tre punti che fanno
+     * questa domanda (qui, la coda della coach e la pesata salvata), che è la cosa che conta.
+     *
+     * ⚠️ Il prezzo, detto e non taciuto: un errore di battitura vecchio ma ancora dentro la finestra
+     * tiene la cliente sul livello della sua dieta finché qualcuno non lo corregge. È il verso
+     * giusto in cui sbagliare — si ripara una volta e non torna — ma è un costo vero, e chi legge i
+     * log lo vede.
+     */
+    const [sogliaSalto, sogliaRitmo] = await Promise.all([
+      this.configParams.getNumber('weight_jump_impossible_kg', SALTO_KG_DEFAULT),
+      this.configParams.getNumber('weight_jump_impossible_kg_week', SALTO_RITMO_DEFAULT),
+    ]);
+    const pesoIncoerente = saltoPeggiore(pesate, sogliaSalto, sogliaRitmo);
     /**
      * ⚠️ `simulazione.pesoKg` esiste per **mostrare il prima accanto al dopo**, come `deficitCalcolato`:
      * lo usa la diagnostica `diag:fabbisogno-media` per stampare, cliente per cliente, il target di
@@ -217,10 +341,14 @@ export class KcalNeedService {
     // Deficit dedotto, SENZA tetti: i tetti li mette `calcolaTargetKcal`, perché è lì che si sa se
     // il deficit è dedotto o prescritto — e su quello prescritto non vanno messi.
     let deficitCalcolato = 0;
+    // ⚠️ **Quale dei due**, e non solo «calcolato»: le due strade hanno derivata di segno opposto
+    // rispetto al peso (il perché sta su `calcoloDeficit`, nell'interfaccia qui sopra).
+    let calcoloDeficit: KcalEstimate['calcoloDeficit'] = 'nessuno';
     if (objective !== 'mantenimento') {
       const rateDeficit = await this.deficitFromObjectiveRate(clientId, weightKg, kcalPerKg);
       // Se non ho un ritmo valido dall'obiettivo, uso un deficit di default (percentuale del TDEE).
       deficitCalcolato = Math.max(0, rateDeficit != null ? rateDeficit : tdee * defaultDeficitPct);
+      calcoloDeficit = rateDeficit != null ? 'ritmo' : 'default';
     }
 
     const p = profile as {
@@ -261,6 +389,12 @@ export class KcalNeedService {
       tettoDeficitKcal: deficitMaxKcal,
     });
 
+    const frase = spiegaTargetKcal(esito, tdee, {
+      finoAl: p.kcalAdjustUntil ?? null,
+      scaduta: !!p.kcalAdjustPct && !!p.kcalAdjustUntil && correzioneDelProfilo === 0,
+      pctScritta: p.kcalAdjustPct ?? null,
+    });
+
     return {
       bmr: Math.round(bmr),
       activityFactor,
@@ -271,8 +405,16 @@ export class KcalNeedService {
       floored: esito.sogliaApplicata,
       objective,
       weightKg,
+      /**
+       * ⚠️ **La frase viaggia col dato**, invece di lasciare che ogni schermata se la ricomponga:
+       * il riquadro del backoffice l'aveva riscritta a mano e le date gli uscivano in ISO, cioè
+       * proprio il formato che questa consegna ha appena tolto dai testi per le persone. *Se due
+       * punti rispondono alla stessa domanda, uno deve chiamare l'altro.*
+       */
+      pesoIncoerente: pesoIncoerente ? { ...pesoIncoerente, frase: spiegaSalto(pesoIncoerente) } : null,
       fonteDeficit: esito.fonteDeficit,
       deficitCalcolato: Math.round(deficitCalcolato),
+      calcoloDeficit,
       correzionePct: esito.correzionePct,
       sottoSoglia: esito.sottoSoglia,
       tettoApplicato: esito.tettoApplicato,
@@ -280,11 +422,18 @@ export class KcalNeedService {
       // Scritta ma non più attiva: il numero è già tornato normale da solo, e chi guarda la scheda
       // deve poterlo capire senza rifare i conti a mente.
       correzioneScaduta: !!p.kcalAdjustPct && !!p.kcalAdjustUntil && correzioneDelProfilo === 0,
-      spiegazione: spiegaTargetKcal(esito, tdee, {
-        finoAl: p.kcalAdjustUntil ?? null,
-        scaduta: !!p.kcalAdjustPct && !!p.kcalAdjustUntil && correzioneDelProfilo === 0,
-        pctScritta: p.kcalAdjustPct ?? null,
-      }),
+      /**
+       * ⚠️ **Quando le pesate non stanno in piedi, la frase lo dice PRIMA di tutto il resto** — e
+       * dice anche che questo numero *non è quello che la cliente sta mangiando*. Senza, la scheda
+       * mostrerebbe un target preciso al kcal che nessuno le sta servendo: il modo più elegante di
+       * far prendere una decisione clinica su un numero che non esiste.
+       */
+      spiegazione: pesoIncoerente
+        ? `⚠️ Pesate incoerenti (${spiegaSalto(pesoIncoerente)}): o una delle due è sbagliata, oppure è ` +
+          'successo qualcosa da guardare. Finché non sono verificate questo target NON viene usato: i menu ' +
+          'usano il livello della sua dieta. ' +
+          frase
+        : frase,
     };
   }
 

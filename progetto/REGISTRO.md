@@ -18,6 +18,57 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-28
+
+- `[Sviluppo]` **Un peso che non può essere vero non decide più cosa mangia.** Richiesta di Simone
+  dopo la prima passata di `diag:fabbisogno-media` in produzione, che aveva trovato quattro clienti
+  con la media mobile lontana 12,2 · 12,8 · 13,5 · 19,7 chili dall'ultima pesata: *«non considerare
+  questi account; se succede una cosa simile arriva il blocco e deve intervenire la coach o il
+  nutrizionista»*. Erano account di prova — ⚠️ ma il codice non sapeva distinguerli da una cliente
+  vera, e non deve saperlo.
+  **La regola** (`signals/peso-incoerente.ts`, modulo puro): due pesate consecutive non stanno in
+  piedi quando valgono **insieme** un salto ≥ 10 kg **e** un ritmo ≥ 7 kg/settimana — dieci chili in
+  dieci giorni. Soglie nei Parametri. Si guarda la **coppia**, non lo scostamento fra media e ultima
+  pesata: quello è il sintomo, dipende dalla larghezza della finestra e non dice quali due righe
+  guardare.
+  ⛔ **Le soglie erano 5 e 4, e la revisione ha mostrato che avrebbero suonato su clienti vere**: una
+  signora di 130 kg che nella prima settimana perde 5,5 kg di acqua, una post-parto, un avvio di
+  diuretico su edema, un rientro dalle vacanze. Un guardrail che suona su un terzo delle clienti non
+  è severo: è **spento**. I cinque controesempi sono adesso un test.
+  **Cosa vuol dire «blocco»**: `computeTargetKcal` risponde `null` e i menu usano il **livello della
+  dieta** — nessun cancello, nessun popup, la cliente non deve fare niente. Si sospende solo la
+  personalizzazione, cioè l'unico pezzo che dipende dal dato di cui non ci fidiamo. Se ne accorgono
+  la **coach** (avviso «Pesate incoerenti», si chiude da solo), il **nutrizionista** (segnalazione
+  clinica alla pesata, con tregua e riapertura per peggioramento) e la **scheda** (riquadro rosso
+  sopra il fabbisogno).
+  ⛔ **E tacciono le frasi che sarebbero false**: prima, su una pesata digitata male, il sistema
+  avrebbe detto «Calo rapido: 40 kg/settimana» al nutrizionista, «+20 kg negli ultimi 7 giorni» e
+  «Peso fermo da 6 giorni» alla coach. Tre frasi su un corpo, costruite su un errore di tastiera.
+  ⛔ **Il bloccante più grave l'ha trovato il secondo giro di revisione: i traguardi.** Giravano
+  *prima* del controllo, si calcolano sulla media mobile e **si scrivono una volta sola**: con 113 al
+  posto di 73 la media crolla sotto il peso obiettivo e parte «Obiettivo raggiunto! 🎉» — notifica
+  alla cliente, avviso alla coach, per sempre. Era la frase falsa su un corpo nell'unico posto
+  **irreversibile** che la consegna toccava senza saperlo.
+  ⚠️ **Le parole**: i testi non dicono «una delle due misure è sbagliata» — è un fatto che il codice
+  non sa — ma «o una delle due è sbagliata, oppure è successo qualcosa da guardare», e dicono che
+  sopra soglia il calo rapido non suona.
+  **Anche dal backoffice**: il controllo era solo sulla rotta della cliente; lo staff passa da
+  `PATCH /admin/clients/:id/measurements/:id` (che accetta 25–400 kg) e lì non girava niente. Ora sì,
+  con l'audit che registra chi l'ha innescato.
+  **La correzione promessa il 27/8**: la colonna «deficit» della diagnostica diceva «calcolato» per
+  due regimi con derivata di **segno opposto**; ora dice «ritmo» oppure «default %», e una colonna
+  «pesate» dice quando le due colonne kcal non sono un confronto fra regole ma due numeri costruiti
+  su un dato sbagliato.
+  ⚠️ **Quello che non fa, detto invece che scoperto dopo**: chi rientra da un mese senza pesarsi può
+  sbagliare venti chili senza far suonare niente (`pesate-lontane-buco-del-ritmo`); tre punti — Vera,
+  l'anteprima kcal e `impostaKcal`, che **scrive** — mostrano ancora un target sospeso
+  (`target-sospeso-chi-non-lo-sa`); l'app non chiede conferma al momento in cui si digita
+  (`pesata-strana-chiedi-conferma`).
+  **Misurato**: 5723 test backend verdi in quattro modalità, backoffice 149, app 192; diciotto
+  mutazioni provate e uccise. ⚠️ Una nota di mutazione era falsa e la revisione l'ha misurata:
+  «senza il test in discesa la suite resta verde» vale per il modulo, non per la suite intera.
+  Nessuna migrazione.
+
 ## 2026-08-27
 
 - `[Sviluppo]` **Il fabbisogno ragiona sulla tendenza — e il segno dell'effetto non era quello che

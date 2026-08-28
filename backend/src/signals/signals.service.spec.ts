@@ -28,6 +28,10 @@ describe('SignalsService', () => {
   let service: SignalsService;
   let prisma: any;
   let config: { getNumber: jest.Mock; getString: jest.Mock };
+  // ⚠️ Tenuti a portata di mano: due test del 28/8 guardano cosa NON è stato scritto (l'audit di
+  // una segnalazione mai nata, i traguardi su una pesata di cui non ci fidiamo).
+  let audit: { log: jest.Mock };
+  let learning: { onCycleClose: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -110,19 +114,29 @@ describe('SignalsService', () => {
             moving_average_window: 3,
             escalation_reopen_days: 14,
             rapid_loss_reopen_worsening_kg: 0.5,
+            // ⛔ **E queste due per la stessa ragione, e qui il danno sarebbe stato grosso** (28/8):
+            // il `?? 0` in fondo non è un default, è uno **zero** — e con le soglie del salto
+            // impossibile a zero *ogni* coppia di pesate risulterebbe incoerente. Il calo rapido si
+            // spegnerebbe sempre, e i quattro test del guardrail qui sotto passerebbero da verdi a
+            // rossi raccontando un difetto che non c'è.
+            weight_jump_impossible_kg: 10,
+            weight_jump_impossible_kg_week: 7,
           } as Record<string, number>)[key] ?? 0,
         ),
       ),
       getString: jest.fn(),
     };
 
+    audit = { log: jest.fn().mockResolvedValue(undefined) };
+    learning = { onCycleClose: jest.fn().mockResolvedValue(null) };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         SignalsService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConfigParamsService, useValue: config },
-        { provide: AuditService, useValue: { log: jest.fn() } },
-        { provide: DietLearningService, useValue: { onCycleClose: jest.fn().mockResolvedValue(null) } },
+        { provide: AuditService, useValue: audit },
+        { provide: DietLearningService, useValue: learning },
         // Le tre dipendenze qui sotto mancavano: il servizio ne ha sette, il modulo di test ne
         // dichiarava quattro. Non se n'era accorto nessuno perché la suite non compilava proprio.
         { provide: ProgressService, useValue: { getProgress: jest.fn().mockResolvedValue({ alerts: {} }) } },
@@ -190,6 +204,133 @@ describe('SignalsService', () => {
     const result = await service.upsertMeasurement('u1', { weightKg: 67.4 });
     expect(result.rapidLossAlert).toBe(false);
     expect(prisma.escalation.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **PESATE CHE NON POSSONO ESSERE DELLA STESSA PERSONA** (28/8, richiesta di Simone dopo la
+   * prima passata di `diag:fabbisogno-media` in produzione).
+   *
+   * ⚠️ Il secondo test è quello che conta davvero: senza, la prima cliente con una pesata sbagliata
+   * riceveva una segnalazione clinica che diceva *«Calo rapido: 70 kg/settimana. Verificare calorie
+   * ed energia»* — una frase sul suo corpo costruita su un numero digitato male. **Una ragione falsa
+   * è peggio di un ordine sbagliato.**
+   */
+  describe('⛔ pesate incoerenti: qualcuno deve guardare, e il calo rapido tace', () => {
+    // Da 113 a 73 in quattro giorni. Sembra un calo fulminante; è una tastiera.
+    const mk = (n: number, w: number) => ({ date: new Date(Date.UTC(2026, 6, n)), weightKg: w });
+    const ROTTE = [mk(1, 113), mk(5, 73), mk(9, 72)];
+
+    const motivi = (): string[] =>
+      prisma.escalation.create.mock.calls.map((c: never[]) => (c[0] as { data: { reason: string } }).data.reason);
+
+    it('⛔ apre una segnalazione clinica che nomina le due pesate', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      await service.upsertMeasurement('u1', { weightKg: 72 });
+      const incoerenti = motivi().filter((m) => m.startsWith('Pesate incoerenti'));
+      expect(incoerenti).toHaveLength(1);
+      expect(incoerenti[0]).toContain('113 kg');
+      expect(incoerenti[0]).toContain('73 kg');
+    });
+
+    it('⛔ e il calo rapido NON racconta un calo che non è mai avvenuto', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      const result = await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(result.rapidLossAlert).toBe(false);
+      expect(motivi().filter((m) => m.startsWith('Calo rapido'))).toHaveLength(0);
+    });
+
+    /** ⚠️ Esce anche dalla rotta: quando è lo staff a digitare, la correzione costa meno subito. */
+    it('⚠️ la risposta del salvataggio dice qual è la coppia che non torna', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      const result = await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(result.pesoIncoerente).not.toBeNull();
+      expect(result.pesoIncoerente!.daKg).toBe(113);
+      expect(result.pesoIncoerente!.aKg).toBe(73);
+    });
+
+    /**
+     * ⛔ **UNA «CALO RAPIDO» CHIUSA IERI NON DEVE ZITTIRE QUESTA** — è il difetto già pagato una
+     * volta in questo file (8/8: il dedupe per categoria faceva sparire una segnalazione clinica
+     * perché ce n'era un'altra, di tutt'altro argomento). ⚠️ Il controllo guarda il **motivo**, non
+     * la categoria, e questo test è l'unica cosa che lo tiene fermo: mutando `'Pesate incoerenti'`
+     * in `'Calo rapido'` la suite restava verde senza di lui.
+     */
+    it('⛔ una «Calo rapido» chiusa ieri non zittisce le pesate incoerenti', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      prisma.escalation.findFirst.mockImplementation(({ where }: never) => {
+        const w = where as { reason?: { contains?: string }; status?: unknown };
+        // Solo la «Calo rapido» esiste, ed è risolta ieri: sulla tregua di quella non si riapre.
+        if (w.reason?.contains !== 'Calo rapido') return Promise.resolve(null);
+        const stato = w.status as { in?: string[] } | string;
+        if (typeof stato === 'object' && Array.isArray(stato?.in)) return Promise.resolve(null);
+        // ⚠️ `severity: null` — le righe più vecchie non ce l'hanno (il campo è nato dopo, vedi lo
+        // schema). Serve anche qui: con una gravità confrontabile la regola del «peggioramento»
+        // riaprirebbe comunque, e il test non direbbe più niente sul motivo.
+        return Promise.resolve({ id: 'e-calo', status: 'resolved', severity: null, resolvedAt: new Date(Date.now() - 86_400_000) });
+      });
+      await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(motivi().filter((m) => m.startsWith('Pesate incoerenti'))).toHaveLength(1);
+    });
+
+    /**
+     * ⛔ **IL BLOCCANTE DEL SECONDO GIRO, e il più grave della consegna.**
+     *
+     * `evaluateMilestones` girava **prima** del controllo, e i traguardi **si scrivono una volta
+     * sola e restano** (lo dice `evaluateMilestones` stessa). Con una pesata digitata male la media
+     * crolla sotto il peso obiettivo e parte «**Obiettivo raggiunto! 🎉**»: una notifica alla
+     * cliente, un avviso alla coach, e nessun modo di tornare indietro. ⚠️ Era *«una frase su un
+     * corpo, costruita su un numero digitato male»* — la ragione per cui esiste questa consegna —
+     * nell'unico posto **irreversibile** che la consegna toccava senza saperlo.
+     */
+    it('⛔ non scrive nessun traguardo: quelli si scrivono una volta sola e restano', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      const result = await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(prisma.milestone.createMany).not.toHaveBeenCalled();
+      expect(result.newMilestones).toEqual([]);
+    });
+
+    it('⚠️ e non insegna al motore su un peso che non ci crediamo', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(learning.onCycleClose).not.toHaveBeenCalled();
+    });
+
+    it('⚠️ con pesate normali invece i traguardi si valutano come sempre', async () => {
+      prisma.measurement.findMany.mockResolvedValue([mk(1, 68), mk(5, 67.7), mk(9, 67.4)]);
+      await service.upsertMeasurement('u1', { weightKg: 67.4 });
+      expect(prisma.milestone.createMany).toHaveBeenCalled();
+      expect(learning.onCycleClose).toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ **SE LA SEGNALAZIONE NON NASCE, L'AUDIT NON DEVE DIRE CHE È NATA.** `apriSegnalazione` ha
+     * un `catch { return null }` dentro: la `create` che va giù non lancia niente, quindi il
+     * `catch` di chi chiama non scatta. Senza questo controllo il registro avrebbe raccontato
+     * un'apertura mai avvenuta — e lo si legge proprio quando qualcosa non torna.
+     */
+    it('⛔ se la segnalazione non nasce, l\'audit tace e il log parla', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      prisma.escalation.create.mockRejectedValue(new Error('database giù'));
+      await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(audit.log).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'signals.weight_incoherent' }),
+      );
+    });
+
+    it('⚠️ e quando nasce, l\'audit registra chi ha innescato il controllo', async () => {
+      prisma.measurement.findMany.mockResolvedValue(ROTTE);
+      await service.controllaPesoIncoerente('u1', 'staff-9');
+      expect(audit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'signals.weight_incoherent', actorId: 'staff-9' }),
+      );
+    });
+
+    it('⚠️ e con pesate normali non apre niente e non risponde niente', async () => {
+      prisma.measurement.findMany.mockResolvedValue([mk(1, 68), mk(5, 67.7), mk(9, 67.4)]);
+      const result = await service.upsertMeasurement('u1', { weightKg: 67.4 });
+      expect(result.pesoIncoerente).toBeNull();
+      expect(motivi().filter((m) => m.startsWith('Pesate incoerenti'))).toHaveLength(0);
+    });
   });
 
   it('guardrail: escalation già aperta → non ne apre un\'altra', async () => {

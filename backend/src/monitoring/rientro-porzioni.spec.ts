@@ -118,6 +118,9 @@ describe('MonitoringService · le giornate del kit di rientro', () => {
     const log = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
     await service.generateRientroMenus('c1');
     expect(pastiScritti()).toEqual(giornataVecchia.meals);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('fabbisogno non calcolabile'));
+    // ⚠️ La frase è cambiata il 28/8: diceva «Mancano sesso, età, altezza o peso», ma da quel
+    // giorno il fabbisogno tace **anche** quando le pesate non stanno in piedi fra loro, e quel
+    // motivo scritto nei log sarebbe stato una bugia che manda a cercare nel posto sbagliato.
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('fabbisogno non disponibile'));
   });
 });

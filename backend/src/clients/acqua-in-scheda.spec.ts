@@ -55,6 +55,8 @@ function schedaCon(acqua: unknown[]) {
     {} as never,
     {} as never,
     {} as never,
+    // ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff fanno scattare gli stessi segnali.
+    {} as never,
   );
   return { service, prisma };
 }
