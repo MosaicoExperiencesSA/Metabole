@@ -20,6 +20,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-27
 
+- `[Sviluppo]` **Il fabbisogno ragiona sulla tendenza — e il segno dell'effetto non era quello che
+  avevo scritto.** Decisione di Simone: *«il fabbisogno deve utilizzare la media mobile»*. Era
+  l'ultimo dei quattro punti che rispondevano in modo diverso alla domanda «quanto pesa adesso», e
+  il più pesante: da lì escono le kcal che una cliente si trova nel piatto.
+  ⛔ **La prima stesura del commento diceva una cosa falsa, e l'ha trovata la revisione.** «Due etti
+  di ritenzione le spostavano il fabbisogno di un paio di kcal»: contava **solo il metabolismo
+  basale**, nella stessa frase in cui diceva che il peso entra due volte. Sbagliato per un fattore
+  dieci, e **col segno sbagliato**. Il peso entra nel TDEE (`+10·PAL` per kg) e nel deficit dedotto
+  dal ritmo di calo (`−1100/settimane` per kg): `∂target/∂peso` è positiva **solo oltre ~78
+  settimane** di orizzonte, quindi su un piano vero domina il secondo termine — **vederla più
+  pesante vuol dire darle meno calorie**. ⚠️ La media mobile è **prociclica** nel regime più comune:
+  chi cala in fretta si vede tagliare ancora, chi risale si vede aumentare il target. Negli altri
+  regimi il segno si ribalta. Non è un dettaglio di implementazione, è una conseguenza clinica: il
+  numero per giudicarla lo dà `npm run diag:fabbisogno-media`, cliente per cliente, **prima** di
+  accendere — e con `moving_average_window` a 1 si torna esattamente a com'era, senza un rilascio.
+  ⚠️ **Chiuse di rimbalzo, e valgono quanto il lavoro principale:** il servizio del fabbisogno **non
+  aveva nessun test** (si è visto cambiandogli sotto il peso: la suite è rimasta verde) e adesso ne
+  ha tredici, con un finto che onora `orderBy`, `take` e il filtro sulle date — un doppio sordo
+  all'ordinamento renderebbe verde anche `asc` al posto di `desc`, che vuol dire alimentare una
+  cliente col peso di quando si è iscritta, difetto **già successo** in questo repo; e le pesate più
+  vecchie di **novanta giorni** non contano più, perché una cliente rientrata dopo mesi si vedeva
+  calcolare il fabbisogno sulla media fra il peso di tre mesi fa e quello di oggi — quattro chili
+  sotto il vero, cento kcal al giorno di troppo.
+  ⛔ **E un difetto trovato nella diagnostica di questa stessa consegna:** «sto simulando il deficit»
+  era scritto guardando il **puntatore** all'oggetto, quindi passare `{ pesoKg }` spegneva in
+  silenzio il deficit prescritto dal nutrizionista. Lo strumento nato per misurare prima di decidere
+  sbagliava di otto volte, per eccesso, **sulle clienti seguite di persona**, e le metteva in cima
+  all'elenco perché ordina per scarto.
+  ⚠️ **Detto invece che corretto:** il kit di rientro parte sull'ultima pesata e riporziona sulla
+  media (due domande diverse, ma la conseguenza la deve guardare la nutrizionista → voce nuova); e
+  tre etichette adesso dicono cosa sono — «peso di adesso (media)» nella scheda, «Ultima pesata» al
+  posto di «Peso attuale» nell'app della nutrizionista, e la descrizione di `moving_average_window`
+  avvisa che da lì dipendono anche le kcal.
+  5674 test verdi in quattro modalità (+ app 192, backoffice 149); otto mutazioni provate e tutte
+  uccise. Nessuna migrazione.
+
+## 2026-08-27
+
 - `[Sviluppo]` **L'elenco dei lavori dice la verità: quattro voci erano già fatte, e una era rossa.**
   Simone ha esportato la pagina Lavori — «13 aperte» — e ha chiesto se fosse vero che restava tutta
   quella roba. Verificandole una per una nel codice, **quattro erano chiuse da giorni**: le schermate

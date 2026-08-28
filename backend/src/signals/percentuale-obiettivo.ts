@@ -58,6 +58,40 @@ export interface AvanzamentoPeso {
  * @param target il traguardo dall'obiettivo, o `null` se non l'ha impostato
  * @param finestra `moving_average_window` (Parametri)
  */
+/**
+ * ⛔ **IL PESO «DI ADESSO» DI UNA PERSONA — una risposta sola, e adesso la legge anche il
+ * fabbisogno** (Simone, 27/8: «il fabbisogno deve utilizzare la media mobile»).
+ *
+ * ⚠️ È la regola scritta del progetto — *si ragiona sempre sulla tendenza, mai sul singolo dato*
+ * (spec 7.2) — e fino al 27/8 valeva ovunque **tranne** dentro `menu/kcal-need.service.ts`, che è il
+ * posto dove quel numero pesa di più: da lì escono le calorie che una cliente si trova nel piatto.
+ * Due etti di ritenzione le cambiavano il fabbisogno di un paio di kcal, ogni volta, senza che
+ * niente fosse successo.
+ *
+ * ⚠️ **Sta in una funzione sua e non copiata**, perché `avanzamentoPeso` la chiama: due punti che
+ * rispondono alla stessa domanda, e uno chiama l'altro.
+ *
+ * @param pesi le pesate in ordine di data, dalla più vecchia alla più recente
+ * @param finestra `moving_average_window` (Parametri), ritagliata a `FINESTRA_MASSIMA`
+ * @returns la media mobile arrotondata ai due decimali, o `null` se non c'è nemmeno una pesata
+ */
+export function pesoDiAdesso(pesi: readonly number[], finestra: number): number | null {
+  const buoni = (pesi ?? []).filter((p): p is number => typeof p === 'number' && Number.isFinite(p));
+  if (!buoni.length) return null;
+  /**
+   * ⚠️ **Si guardano le ultime `finestra` pesate, e basta.** La media mobile di oggi dipende solo da
+   * quelle: tagliarle qui vuol dire che **quanta storia pesca il chiamante non cambia il numero** —
+   * e i chiamanti ne pescano quantità diverse (`progress.service` si ferma a 120 pesate, il widget e
+   * la lista della coach le prendono tutte). Senza questo taglio, con una finestra grande la stessa
+   * cliente tornerebbe ad avere due numeri: il difetto che questo file esiste per chiudere,
+   * rientrato dalla porta di servizio.
+   */
+  const larghezza = finestraSensata(finestra);
+  const ultime = buoni.slice(-larghezza);
+  const ma = movingAverage(ultime, larghezza);
+  return Math.round(ma[ma.length - 1] * 100) / 100;
+}
+
 export function avanzamentoPeso(
   pesi: readonly number[],
   start: number | null | undefined,
@@ -67,18 +101,7 @@ export function avanzamentoPeso(
   const buoni = (pesi ?? []).filter((p): p is number => typeof p === 'number' && Number.isFinite(p));
   if (!buoni.length) return { percento: null, persiKg: null, pesoDiAdesso: null };
 
-  /**
-   * ⚠️ **Si guardano le ultime `finestra` pesate, e basta.** La media mobile di oggi dipende solo da
-   * quelle: tagliarle qui vuol dire che **quanta storia pesca il chiamante non cambia il numero** —
-   * e i tre chiamanti ne pescano quantità diverse (`progress.service` si ferma a 120 pesate, il
-   * widget e la lista della coach le prendono tutte). Senza questo taglio, con una finestra grande
-   * la stessa cliente tornerebbe ad avere due percentuali: il difetto che questo file esiste per
-   * chiudere, rientrato dalla porta di servizio.
-   */
-  const larghezza = finestraSensata(finestra);
-  const ultime = buoni.slice(-larghezza);
-  const ma = movingAverage(ultime, larghezza);
-  const adesso = Math.round(ma[ma.length - 1] * 100) / 100;
+  const adesso = pesoDiAdesso(buoni, finestra)!;
 
   // ⚠️ Il punto di partenza è quello del PROFILO quando c'è: è il peso con cui è cominciato il
   // percorso, e non cambia se la prima pesata viene corretta. La prima pesata è il ripiego per chi

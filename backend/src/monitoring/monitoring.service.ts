@@ -250,9 +250,27 @@ export class MonitoringService {
           continue;
         }
 
-        // 3) Trigger di rientro: peso oltre la soglia → si EROGANO i menu, senza chiedere
-        //    niente. Prima qui partiva un'offerta a €29: la cliente riprendeva peso e, per
-        //    avere una mano, doveva comprare. Dal 7/8 sono inclusi.
+        /**
+         * 3) Trigger di rientro: peso oltre la soglia → si EROGANO i menu, senza chiedere niente.
+         *    Prima qui partiva un'offerta a €29: la cliente riprendeva peso e, per avere una mano,
+         *    doveva comprare. Dal 7/8 sono inclusi.
+         *
+         * ⚠️ **QUESTO TRIGGER GUARDA L'ULTIMA PESATA, E LE PORZIONI DEL KIT LA MEDIA MOBILE** — sono
+         * due numeri diversi nella stessa esecuzione, e va scritto perché sembra una svista e non lo
+         * è (27/8, in revisione, dopo il passaggio del fabbisogno alla tendenza).
+         *
+         * Le due domande sono diverse: qui si chiede **«è risalita?»**, che è uno scarto fra oggi e
+         * un riferimento — e uno scarto lo si vede prima sull'ultima pesata; `generateRientroMenus`
+         * riporziona sul fabbisogno, che chiede **«quanto pesa adesso»**, e a quella il progetto
+         * risponde con la tendenza da sempre.
+         *
+         * ⛔ **Ma la conseguenza va detta**: il trigger scatta *perché* l'ultima pesata è un salto,
+         * cioè proprio il dato che la media diluisce. Riferimento 68, pesate 68,2 / 68,0 / 71,0: il
+         * kit parte perché è salita di 3 kg, e riporziona come se fosse salita di 1,07. Il kit
+         * arriva comunque — è il suo mestiere — ma con porzioni tarate su un peso più basso del suo.
+         * ⚠️ Cambiare questo trigger è una decisione clinica (farebbe partire il kit più tardi), e
+         * non la prende chi scrive il codice: sta nell'elenco Lavori.
+         */
         if (!p.regainOfferedAt && last && last.weightKg - p.referenceWeightKg >= regainKg) {
           const generati = await this.generateRientroMenus(p.clientId);
           await this.prisma.monitoringPeriod.update({

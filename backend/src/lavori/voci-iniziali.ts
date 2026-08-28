@@ -1229,9 +1229,31 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'percentuale-obiettivo-punti-rimasti',
     nata: '2026-08-19',
-    titolo: 'Resta UN punto che risponde ancora con l\'ultima pesata, ed è clinico (erano quattro)',
+    fatta: true,
+    titolo: '✅ Chiusa il 27/8: anche il fabbisogno calorico ragiona sulla tendenza (erano quattro punti)',
     dettaglio:
-      'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. **Chiusi il 19/8, dalle risposte di Simone:** `commerce.hasReachedObjective` — che decide se offrirle il **mantenimento** — è passato alla media mobile, perché proporglielo perché una mattina la bilancia ha detto 69,8 con la media a 70,6 vuol dire venderglielo un attimo prima che il peso risalga; e `reports.service` **resta di proposito sul peso misurato** (il Report è un documento firmato su un periodo, e «il peso a quella data» è un fatto verificabile che lei si può portare dal medico) ⚠️ **ma adesso lo dichiara**, con una riga sotto i numeri: due numeri diversi sulla stessa persona senza nessuno che dica perché erano esattamente il difetto tolto da tutto il resto del prodotto quel giorno. **Chiuso anche `plan-report.service` il 19/8**, e la scoperta ha cambiato la domanda: non alimenta il PDF firmato, alimenta la **schermata Report dentro l\'app** (`app/src/pages/Report.tsx`), quella che lei apre a fine piano. Lì scriveva «−4,2 kg da oggi» sull\'ultima pesata mentre la pagina Obiettivo della stessa app, due schermate più in là, ne diceva un altro sulla media mobile: due numeri sulla stessa persona dentro la stessa app. Simone ha scelto la **media mobile**, e ⚠️ cambia anche la decisione che ci sta sotto — `objectiveReached` sceglie se offrirle il Mantenimento o un piano-obiettivo, ed è la stessa domanda di `commerce.hasReachedObjective`, passata alla tendenza lo stesso giorno. ⚠️ Restano **misurati** i confronti A→B del periodo e i traguardi: raccontano cosa è successo, e la storia di una persona non si ridisegna con una media. **Resta** `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⛔ Il `kcal-need` non si tocca senza la nutrizionista: `kgToLose` entra nel **fabbisogno calorico**, e cambiarne la base cambia quante calorie mangia ogni cliente — è una decisione clinica, non di software. È l\'ultimo punto rimasto.',
+      '✅ **CHIUSA il 27/8. Simone: «il fabbisogno deve utilizzare la media mobile».** Era l\'ultimo dei '
+      + 'quattro punti che rispondevano in modo diverso alla domanda «quanto pesa adesso», e il più pesante: '
+      + 'da lì escono le kcal che una cliente si trova nel piatto.\n\n'
+      + '⛔ **E la revisione ha trovato che l\'effetto ha il SEGNO OPPOSTO a quello che avevo scritto.** Il '
+      + 'peso entra due volte — nel metabolismo basale (più pesante → più calorie) e nel ritmo di calo verso '
+      + 'l\'obiettivo (più pesante → più deficit → **meno** calorie) — e nel regime più comune, dimagrimento '
+      + 'con un obiettivo e una data, **domina il secondo**: `∂target/∂peso = 10·PAL − 1100/settimane`, '
+      + 'positiva solo oltre ~78 settimane di orizzonte. ⚠️ Vuol dire che la media mobile è **prociclica**: '
+      + 'chi cala in fretta ha la media sopra l\'ultima pesata e si vede tagliare ancora. Negli altri regimi '
+      + '(mantenimento, deficit di default, deficit imposto, tetto che morde) il segno si ribalta. **Non è un '
+      + 'dettaglio di implementazione: è una conseguenza clinica**, e il numero per giudicarla lo dà '
+      + '`npm run diag:fabbisogno-media`, cliente per cliente, prima di accendere.\n\n'
+      + '⚠️ **Con la finestra dei Parametri a 1 il fabbisogno torna esattamente a com\'era**: se questa '
+      + 'correzione facesse più danni che bene si spegne senza un rilascio. Un cambio clinico senza '
+      + 'interruttore è un cambio che si può solo subire.\n\n'
+      + '⚠️ **E due cose sono state chiuse di rimbalzo**: il servizio del fabbisogno **non aveva nessun test** '
+      + '(la suite intera restava verde cambiandogli sotto il peso), e le pesate più vecchie di **novanta '
+      + 'giorni** adesso non contano — una cliente rientrata dopo mesi si vedeva calcolare il fabbisogno sulla '
+      + 'media fra il peso di tre mesi fa e quello di oggi, cioè quattro chili sotto il vero, e cento kcal al '
+      + 'giorno di troppo.\n\n'
+      + '## Come ci si è arrivati\n\n'
+      + 'Trovati dalla revisione del 19/8, e lasciati fuori dalla consegna dei due dati **di proposito**: non erano fra i quattro del foglio, e cambiarli è una decisione clinica più che di software. **Chiusi il 19/8, dalle risposte di Simone:** `commerce.hasReachedObjective` — che decide se offrirle il **mantenimento** — è passato alla media mobile, perché proporglielo perché una mattina la bilancia ha detto 69,8 con la media a 70,6 vuol dire venderglielo un attimo prima che il peso risalga; e `reports.service` **resta di proposito sul peso misurato** (il Report è un documento firmato su un periodo, e «il peso a quella data» è un fatto verificabile che lei si può portare dal medico) ⚠️ **ma adesso lo dichiara**, con una riga sotto i numeri: due numeri diversi sulla stessa persona senza nessuno che dica perché erano esattamente il difetto tolto da tutto il resto del prodotto quel giorno. **Chiuso anche `plan-report.service` il 19/8**, e la scoperta ha cambiato la domanda: non alimenta il PDF firmato, alimenta la **schermata Report dentro l\'app** (`app/src/pages/Report.tsx`), quella che lei apre a fine piano. Lì scriveva «−4,2 kg da oggi» sull\'ultima pesata mentre la pagina Obiettivo della stessa app, due schermate più in là, ne diceva un altro sulla media mobile: due numeri sulla stessa persona dentro la stessa app. Simone ha scelto la **media mobile**, e ⚠️ cambia anche la decisione che ci sta sotto — `objectiveReached` sceglie se offrirle il Mantenimento o un piano-obiettivo, ed è la stessa domanda di `commerce.hasReachedObjective`, passata alla tendenza lo stesso giorno. ⚠️ Restano **misurati** i confronti A→B del periodo e i traguardi: raccontano cosa è successo, e la storia di una persona non si ridisegna con una media. **Resta** `menu/kcal-need.service` (`kgToLose`, che è un ingrediente del fabbisogno). ⛔ Il `kcal-need` non si tocca senza la nutrizionista: `kgToLose` entra nel **fabbisogno calorico**, e cambiarne la base cambia quante calorie mangia ogni cliente — è una decisione clinica, non di software. È l\'ultimo punto rimasto.',
     categoria: CODICE,
     ordine: 292,
   },
@@ -2343,6 +2365,29 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'senza un rilascio. ⚠️ **L\'ORARIO non si detta a Vera**, ed è una scelta: dove sta la '
       + 'finestra nella giornata di una persona — quando lavora, quando cena — lo sa lei, e lo sposta '
       + 'dall\'app.',
+  },
+  {
+    chiave: 'kit-rientro-quale-peso',
+    categoria: 'Da decidere con Simone',
+    ordine: 6,
+    nata: '2026-08-27T23:30',
+    titolo: 'Il kit di rientro parte sull\'ultima pesata e riporziona sulla media: è giusto così?',
+    dettaglio:
+      '⚠️ **Non è una svista, è una domanda per la nutrizionista** (aperta il 27/8 passando il fabbisogno '
+      + 'alla media mobile). Nel monitoraggio, il kit di rientro parte quando **l\'ultima pesata** supera il '
+      + 'riferimento di N chili; le giornate che copia vengono riporzionate sul **fabbisogno**, che dal 27/8 '
+      + 'si calcola sulla **media mobile**. Sono due numeri diversi nella stessa esecuzione.\n\n'
+      + '⚠️ **Le due domande sono diverse, e per questo il codice non è stato cambiato**: il trigger chiede '
+      + '«è risalita?», che è uno scarto e si vede prima sull\'ultima pesata; il fabbisogno chiede «quanto '
+      + 'pesa adesso», e a quella il progetto risponde con la tendenza da sempre.\n\n'
+      + '⛔ **Ma la conseguenza va guardata da chi decide**: il kit parte *perché* l\'ultima pesata è un '
+      + 'salto — cioè proprio il dato che la media diluisce. Riferimento 68 kg, pesate 68,2 / 68,0 / 71,0: '
+      + 'il kit parte perché è salita di 3 chili, e le riporziona i piatti come se ne avesse ripresi 1,07. '
+      + 'Il kit arriva comunque, ma tarato su un peso più basso del suo.\n\n'
+      + 'Le due strade: **a)** resta così, e il kit è volutamente «morbido» al primo giorno di rientro; '
+      + '**b)** anche le porzioni del kit partono dall\'ultima pesata, perché il rientro è il momento in cui '
+      + 'la tendenza è vecchia per definizione. ⚠️ È una decisione clinica: cambiarla sposta le calorie '
+      + 'proprio a chi sta risalendo di peso, e non la prende chi scrive il codice.',
   },
   {
     chiave: 'pathtype-non-protetto',

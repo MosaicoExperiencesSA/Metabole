@@ -32,6 +32,7 @@
     "prune:menu-planend": "ts-node --transpile-only prisma/prune-menu-after-planend.ts",
     "diag:anomalie": "ts-node --transpile-only prisma/diag-anomalie-piano.ts",
     "diag:varieta": "ts-node --transpile-only prisma/diag-varieta-menu.ts",
+    "diag:fabbisogno-media": "ts-node --transpile-only prisma/diag-fabbisogno-media.ts",
     "fix:varieta": "ts-node --transpile-only prisma/fix-varieta-menu.ts",
     "diag:rigenera": "ts-node --transpile-only prisma/diag-rigenera-menu.ts",
     "diag:abbonamenti": "ts-node --transpile-only prisma/diag-abbonamenti-cliente.ts",

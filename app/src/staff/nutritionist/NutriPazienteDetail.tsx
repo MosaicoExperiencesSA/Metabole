@@ -114,8 +114,14 @@ export default function NutriPazienteDetail() {
                   <span className="k">Cibi non graditi</span>
                   <span className="v">{list(p?.dislikedFoods)}</span>
                 </div>
+                {/*
+                  * ⚠️ **«Ultima pesata», non «Peso attuale»** (27/8). Dal passaggio del fabbisogno
+                  * alla media mobile, «il peso di adesso» nel resto del prodotto è la **tendenza**:
+                  * chiamare «attuale» l'ultima misura su una schermata clinica vuol dire dare lo
+                  * stesso nome a due numeri diversi. Questa è una misura, e si chiama così.
+                  */}
                 <div className="sf-kv">
-                  <span className="k">Peso attuale</span>
+                  <span className="k">Ultima pesata</span>
                   <span className="v">
                     {current != null ? `${current} kg` : '—'}
                     {d.objective?.targetWeightKg != null ? ` → ${d.objective.targetWeightKg} kg` : ''}

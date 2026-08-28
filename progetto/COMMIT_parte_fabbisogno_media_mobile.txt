@@ -1,0 +1,85 @@
+Il fabbisogno ragiona sulla tendenza — e il segno dell'effetto non era quello che avevo scritto
+
+LA DECISIONE
+Simone, 27/8: «il fabbisogno deve utilizzare la media mobile». Era l'ultimo dei
+quattro punti che rispondevano in modo diverso alla domanda «quanto pesa
+adesso»: gli altri tre sono passati alla tendenza il 19/8, e questo era rimasto
+indietro — proprio quello dove il numero pesa di più, perché da lì escono le kcal
+che una cliente si trova nel piatto.
+
+⛔ LA COSA PIÙ IMPORTANTE, E L'HA TROVATA LA REVISIONE
+La prima stesura del commento diceva «due etti di ritenzione le spostavano il
+fabbisogno di un paio di kcal». Contava SOLO il metabolismo basale, nella stessa
+frase in cui diceva che il peso entra due volte. Sbagliato per un fattore dieci,
+e con il SEGNO SBAGLIATO.
+
+  TDEE    = (10·P + …) · PAL           →  ∂/∂P = +10·PAL   (+12 … +19 kcal/kg)
+  deficit = (P − obiettivo)·7700/sett  →  ∂/∂P = −1100/settimane
+
+cioè ∂target/∂P = 10·PAL − 1100/settimane, positiva **solo oltre ~78 settimane**
+di orizzonte. Su un piano vero (2–6 mesi) domina il secondo termine:
+
+  ⛔ VEDERLA PIÙ PESANTE VUOL DIRE DARLE MENO CALORIE.
+
+Conseguenza clinica, da guardare in faccia prima di accendere: nel regime più
+comune — dimagrimento con obiettivo e data, deficit non tagliato — la media
+mobile è **prociclica**. Chi cala in fretta ha la media sopra l'ultima pesata e
+si vede tagliare ancora; chi risale ha la media sotto e si vede aumentare il
+target proprio mentre riprende peso. Negli altri regimi (mantenimento, deficit di
+default, deficit imposto a mano, tetto che morde) il segno si ribalta.
+
+⚠️ Non sto dicendo che la decisione sia sbagliata: sto dicendo che il numero per
+giudicarla non c'era, e adesso c'è.
+
+IL NUMERO, PRIMA DI ACCENDERE
+  npm run diag:fabbisogno-media
+Stampa cliente per cliente: ultima pesata, media mobile, kcal prima, kcal dopo,
+scarto — più «da dove viene il deficit» e «il tetto ha morso», perché senza quelle
+due colonne non si può sapere in quale regime sta la riga che si guarda. In cima
+chi si sposta di più. Sola lettura.
+
+⚠️ E C'È L'INTERRUTTORE: con `moving_average_window` a 1 il fabbisogno torna
+esattamente a com'era (l'ultima pesata), senza un rilascio. Un cambio clinico
+senza via di ritorno è un cambio che si può solo subire.
+
+CHIUSE DI RIMBALZO, E VALGONO QUANTO IL LAVORO PRINCIPALE
+· **Il servizio del fabbisogno non aveva NESSUN test.** Si è visto proprio
+  cambiandogli sotto il peso: la suite intera è rimasta verde. Adesso ne ha 13,
+  e il finto onora `orderBy`, `take` e il filtro sulle date — perché un doppio
+  sordo all'ordinamento renderebbe verde anche `asc` al posto di `desc`, che in
+  produzione vuol dire alimentare una cliente col peso di quando si è iscritta.
+  Non è ipotetico: sta scritto in `progress.service.spec.ts` che è già successo.
+· **Le pesate più vecchie di novanta giorni non contano più.** Una cliente in
+  monitoraggio si pesa a 70,2 / 69,8 tre mesi fa, sospende, torna oggi a 76: la
+  media diceva 72,0 — quattro chili sotto il vero — e le metteva in tavola cento
+  kcal al giorno di troppo. È esattamente la cliente per cui esiste il kit di
+  rientro. Novanta giorni è la durata di un piano: una pesata più vecchia del
+  piano che stai facendo non racconta il corpo di adesso.
+· ⛔ **«Sto simulando il deficit» non è «mi è arrivato un oggetto».** Il codice
+  guardava il puntatore: bastava passare `{ pesoKg }` — che del deficit non dice
+  niente — perché il deficit scritto a mano dal nutrizionista sparisse in
+  silenzio. Ci era inciampata la diagnostica di questa stessa consegna, che
+  stampava «il target di ieri» calcolato SENZA la prescrizione clinica: sbagliava
+  per eccesso, di otto volte, e proprio sulle clienti seguite di persona — e le
+  metteva in cima all'elenco, perché ordina per scarto.
+
+DETTO INVECE DI CORRETTO
+· **Il kit di rientro** parte sull'ultima pesata e riporziona sulla media: sono
+  due domande diverse («è risalita?» e «quanto pesa adesso»), ma la conseguenza
+  va guardata da chi decide — il kit parte perché l'ultima pesata è un salto,
+  cioè proprio il dato che la media diluisce. Voce nuova nell'elenco: è una
+  decisione clinica, non di software.
+· **Tre etichette** adesso dicono cosa sono: «peso di adesso (media)» nella
+  scheda cliente, «Ultima pesata» al posto di «Peso attuale» nell'app della
+  nutrizionista, e la descrizione del parametro `moving_average_window` dice che
+  da lì dipendono anche le kcal.
+
+MISURATO
+- 5674 test backend verdi in quattro modalità; backoffice 149; app 192.
+- Otto mutazioni provate, tutte uccise: `desc`→`asc`, via il `take`, via il
+  filtro dei novanta giorni, via il ripiego sull'ultima pesata, il puntatore al
+  posto dei campi nella simulazione, la media al posto della media pesata.
+- Il segno dell'effetto è inchiodato da due test opposti: con l'obiettivo la
+  media più pesante dà MENO calorie, in mantenimento ne dà di più.
+
+Nessuna migrazione.

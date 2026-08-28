@@ -166,7 +166,10 @@ const CONFIG_PARAMS: SeedParam[] = [
     key: 'moving_average_window',
     value: '3',
     type: 'number',
-    description: 'Finestra della media mobile (numero di rilevazioni)',
+    // ⛔ Dal 27/8 questa casella non muove più solo una barra: il **fabbisogno calorico** si calcola
+    // sulla media mobile, quindi ritoccarla cambia le kcal nel piatto di ogni cliente. Chi la tocca
+    // deve saperlo prima, non dopo — e a 1 il fabbisogno torna esattamente a com'era (l'ultima pesata).
+    description: 'Finestra della media mobile (numero di rilevazioni). ⚠️ Da questa dipende anche il FABBISOGNO CALORICO: cambiarla sposta le kcal di tutte le clienti. A 1 il fabbisogno torna a usare l\'ultima pesata.',
   },
   {
     key: 'stall_days_before_coach_alert',

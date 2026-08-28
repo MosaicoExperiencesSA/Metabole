@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcolaTargetKcal, spiegaTargetKcal, correzioneAttiva } from './correzione-kcal';
+import { FINESTRA_MASSIMA, pesoDiAdesso } from '../signals/percentuale-obiettivo';
 
 /**
  * Fabbisogno calorico giornaliero della cliente (kcal/giorno), stimato dal profilo.
@@ -47,6 +48,11 @@ export interface KcalEstimate {
   deficit: number; // kcal sottratte (0 in mantenimento)
   floored: boolean; // true se ha agito la soglia minima di sicurezza
   objective: string;
+  /**
+   * ⚠️ **La media mobile, non l'ultima pesata** (27/8). Chi lo mostra deve chiamarlo «peso di
+   * adesso» e non «ultima pesata»: sono due numeri diversi sulla stessa persona, ed è la confusione
+   * che il progetto ha già pagato in quattro punti.
+   */
   weightKg: number;
   // --- §15.5: cosa ha scritto il nutrizionista, e cosa ne è uscito ---
   /** Da dove viene il deficit: scritto a mano, dedotto dal motore, o nessuno. */
@@ -89,7 +95,7 @@ export class KcalNeedService {
    */
   async estimate(
     clientId: string,
-    simulazione?: { deficitImposto?: number | null; correzionePct?: number | null },
+    simulazione?: { deficitImposto?: number | null; correzionePct?: number | null; pesoKg?: number | null },
   ): Promise<KcalEstimate | null> {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile) return null;
@@ -98,13 +104,85 @@ export class KcalNeedService {
     const heightCm = profile.heightCm ?? null;
     if (!sex || !age || !heightCm) return null;
 
-    // Peso attuale = ultima misura, altrimenti peso iniziale del profilo.
-    const lastMeasure = await this.prisma.measurement.findFirst({
-      where: { clientId },
+    /**
+     * ⛔ **IL PESO DI ADESSO È LA MEDIA MOBILE, NON L'ULTIMA PESATA** (Simone, 27/8: «il fabbisogno
+     * deve utilizzare la media mobile»).
+     *
+     * Era l'ultimo dei quattro punti che rispondevano in modo diverso alla domanda «quanto pesa
+     * adesso»: gli altri tre sono passati alla tendenza il 19/8, e questo era rimasto indietro —
+     * proprio quello dove il numero pesa di più, perché da qui escono **le calorie che una cliente
+     * si trova nel piatto**. ⚠️ È la regola scritta del progetto: *si ragiona sempre sulla tendenza,
+     * mai sul singolo dato* (spec 7.2).
+     *
+     * ⛔ **COSA CAMBIA DAVVERO, COI NUMERI — e non è quello che avevo scritto io** (corretto in
+     * revisione, 27/8). La prima stesura di questo commento diceva «due etti di ritenzione le
+     * spostavano il fabbisogno di un paio di kcal»: contava **solo il BMR**, nella stessa frase in
+     * cui diceva che il peso entra due volte. Sbagliato per un fattore dieci, e **con il segno
+     * sbagliato**.
+     *
+     * Il peso entra due volte, e le due entrate **tirano in direzioni opposte**:
+     *
+     *   TDEE      = (10·P + 6,25·H − 5·E ± c) · PAL        →  ∂/∂P = **+10·PAL**   (+12 … +19 kcal/kg)
+     *   deficit   = (P − obiettivo) · kcalPerKg / settimane →  ∂/∂P = **−1100/settimane**
+     *
+     * cioè `∂target/∂P = 10·PAL − 1100/settimane`, che è **positiva solo oltre ~78 settimane** di
+     * orizzonte. Su un piano vero (2–6 mesi) domina il secondo termine: **vederla più pesante vuol
+     * dire darle MENO calorie.**
+     *
+     * ⚠️ **Conseguenza clinica, da guardare in faccia**: nel regime più comune — dimagrimento con un
+     * obiettivo e una data, deficit non tagliato dal tetto — la media mobile è **prociclica**. Chi
+     * cala in fretta ha la media *sopra* l'ultima pesata, e si vede tagliare ancora. Chi risale ha la
+     * media *sotto*, e si vede aumentare il target proprio mentre riprende peso. ⛔ Negli altri
+     * regimi (mantenimento, deficit di default, deficit imposto a mano, tetto che morde) il segno si
+     * ribalta e la derivata torna positiva. **Non è un dettaglio di implementazione: è una scelta
+     * clinica**, e il numero per giudicarla lo dà `npm run diag:fabbisogno-media` cliente per cliente.
+     *
+     * ⚠️ **I ripieghi restano quelli di prima, nell'ordine**: senza pesate recenti si usa il peso di
+     * partenza del profilo; senza nemmeno quello non si stima niente (meglio «non lo so» che un
+     * fabbisogno costruito su un peso inventato).
+     */
+    /**
+     * ⛔ **SOLO LE PESATE RECENTI: una media di dati vecchi non è il peso di adesso** (27/8, in
+     * revisione, ed era il caso che faceva il danno più grosso).
+     *
+     * `pesoDiAdesso` media le ultime N **righe**, non gli ultimi N **giorni**. Per una barra di
+     * avanzamento va bene; qui decide il cibo. ⛔ Il caso: una cliente in monitoraggio si pesa a
+     * 70,2 / 69,8 tre mesi fa, sospende, torna oggi a **76**. Con la finestra a tre la media dice
+     * **72,0** — quattro chili sotto il vero — e le mette in tavola **cento kcal al giorno in più**
+     * di quelle che le servono. È esattamente la cliente per cui esiste il kit di rientro.
+     *
+     * ⚠️ Novanta giorni non è un numero tondo scelto a caso: è la durata di un piano (dodici
+     * settimane). Una pesata più vecchia del piano che stai facendo non racconta il corpo di adesso.
+     *
+     * ⚠️ **E se non ce n'è nessuna recente si prende l'ULTIMA, non la media delle vecchie**: di due
+     * cose sbagliate, un dato vecchio è meno sbagliato della media di più dati vecchi — e resta il
+     * ripiego del peso di partenza sotto.
+     */
+    const GIORNI_CHE_CONTANO = 90;
+    const daQuando = new Date(Date.now() - GIORNI_CHE_CONTANO * 86_400_000);
+    const pesate = (await this.prisma.measurement.findMany({
+      where: { clientId, date: { gte: daQuando } },
       orderBy: { date: 'desc' },
+      take: FINESTRA_MASSIMA,
       select: { weightKg: true },
-    });
-    const weightKg = lastMeasure?.weightKg ?? profile.startWeightKg ?? null;
+    })) as { weightKg: number }[];
+    const ultimaPesata = pesate.length
+      ? null
+      : ((await this.prisma.measurement.findFirst({
+          where: { clientId },
+          orderBy: { date: 'desc' },
+          select: { weightKg: true },
+        })) as { weightKg: number } | null);
+    const finestraMedia = await this.configParams.getNumber('moving_average_window', 3);
+    // ⚠️ Il modulo le vuole dalla più vecchia alla più recente; la query le dà al contrario.
+    const media = pesoDiAdesso(pesate.map((m) => m.weightKg).reverse(), finestraMedia);
+    /**
+     * ⚠️ `simulazione.pesoKg` esiste per **mostrare il prima accanto al dopo**, come `deficitCalcolato`:
+     * lo usa la diagnostica `diag:fabbisogno-media` per stampare, cliente per cliente, il target di
+     * ieri e quello di oggi. ⛔ Nessun percorso che **scrive** lo passa, ed è la ragione per cui sta
+     * dentro `simulazione` e non è un parametro a sé: chi simula lo vede, chi decide no.
+     */
+    const weightKg = simulazione?.pesoKg ?? media ?? ultimaPesata?.weightKg ?? profile.startWeightKg ?? null;
     if (!weightKg) return null;
 
     // Costanti di sicurezza (configurabili).
@@ -158,11 +236,26 @@ export class KcalNeedService {
      * quello che scriverebbe parte oggi.
      */
     const correzioneDelProfilo = correzioneAttiva(p.kcalAdjustPct ?? null, p.kcalAdjustUntil ?? null);
+    /**
+     * ⛔ **«STO SIMULANDO IL DEFICIT» NON È «MI È ARRIVATO UN OGGETTO»** (27/8, in revisione).
+     *
+     * Qui c'era `simulazione ? … : …`, cioè il **puntatore** all'oggetto: bastava passare
+     * `estimate(id, { pesoKg })` — che del deficit non dice niente — perché il deficit scritto a mano
+     * dal nutrizionista (§15.5) e la correzione percentuale **sparissero in silenzio**. ⛔ E non era
+     * ipotetico: ci è inciampata la diagnostica di questa stessa consegna, che stampava «il target
+     * di ieri» calcolato **senza la prescrizione clinica** — proprio sulle clienti che qualcuno sta
+     * seguendo di persona, e sbagliando per eccesso, e mettendole in cima all'elenco perché ordina
+     * per scarto. Lo strumento nato per misurare prima di decidere avrebbe raccontato una bugia
+     * grossa dieci volte, esattamente dove la decisione conta.
+     *
+     * Adesso «sto simulando» vuol dire che chi chiama ha nominato **quei** campi.
+     */
+    const simulaDeficit = !!simulazione && ('deficitImposto' in simulazione || 'correzionePct' in simulazione);
     const esito = calcolaTargetKcal({
       tdee,
       deficitCalcolato,
-      deficitImposto: simulazione ? simulazione.deficitImposto ?? null : p.kcalDeficitOverride ?? null,
-      correzionePct: simulazione ? simulazione.correzionePct ?? null : correzioneDelProfilo,
+      deficitImposto: simulaDeficit ? simulazione!.deficitImposto ?? null : p.kcalDeficitOverride ?? null,
+      correzionePct: simulaDeficit ? simulazione!.correzionePct ?? null : correzioneDelProfilo,
       soglia: sex === 'male' ? floorM : floorF,
       tettoDeficitPct: deficitMaxPct,
       tettoDeficitKcal: deficitMaxKcal,

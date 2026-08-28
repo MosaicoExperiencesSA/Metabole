@@ -587,7 +587,15 @@ function KcalNeedCard({ clientId }: { clientId: string }) {
             </p>
           )}
           <p className="muted" style={{ margin: '10px 0 0', fontSize: 11.5 }}>
-            Obiettivo: <b>{data.objective}</b> · attività ×{data.activityFactor} ({SRC_ATTIVITA[data.activitySource]}) · peso {data.weightKg} kg
+            {/*
+              * ⚠️ **«peso di adesso», non «peso»** (27/8). Dal passaggio del fabbisogno alla media
+              * mobile questo numero NON è l'ultima pesata — che sta più in basso **in questa stessa
+              * pagina**, nella card delle pesate, insieme al «−X kg dal via» che è calcolato su
+              * prima e ultima misura. Tre numeri sullo stesso peso, in una schermata sola: due sono
+              * misure e uno è una tendenza, e senza una parola che lo dica sembrano un errore.
+              */}
+            Obiettivo: <b>{data.objective}</b> · attività ×{data.activityFactor} ({SRC_ATTIVITA[data.activitySource]})
+            {' · '}<span title="La media mobile delle ultime pesate, non l'ultima misura: il fabbisogno si calcola sulla tendenza.">peso di adesso {data.weightKg} kg (media)</span>
             {data.floored && <> · <span style={{ color: '#9a6a00' }}>soglia minima di sicurezza applicata</span></>}
             {data.fonteDeficit === 'imposto' && data.deficitCalcolato != null && <> · il calcolo automatico avrebbe dato −{data.deficitCalcolato} kcal</>}
           </p>
