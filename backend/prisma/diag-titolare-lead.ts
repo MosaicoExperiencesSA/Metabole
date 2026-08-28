@@ -35,7 +35,9 @@ async function main(): Promise<void> {
     select: { id: true, email: true, firstName: true, lastName: true },
   })) as { id: string; email: string; firstName: string | null; lastName: string | null }[];
 
-  console.log(`\nCommerciali con un account attivo: ${commerciali.length}.`);
+  // ⚠️ «non cancellato» non è «attivo»: `status` (active/suspended) qui non è guardato, e la frase
+  // non deve promettere più della query.
+  console.log(`\nCommerciali con un account non cancellato: ${commerciali.length}.`);
   if (commerciali.length) {
     console.table(commerciali.map((c) => ({ chi: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || c.email })));
   }

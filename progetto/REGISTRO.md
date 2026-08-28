@@ -20,6 +20,52 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-28
 
+- `[Sviluppo]` **Prima di chiudere il cancello alla commerciale: chi è, da dove entra, e su quante
+  clienti.** Simone: *«è la coach la commerciale di riferimento, la coach ha un doppio ruolo»* — e
+  allora il campo di assegnazione non va inventato, è `assignedCoachId`. Avevo scritto che la
+  consegna diventava **una riga**. ⛔ Era falso in tre punti, e la revisione li ha smontati tutti e
+  tre. **(1)** La strada ovvia darebbe la cosa sbagliata: `coachTeamScope` risponde «solo le sue»
+  **solo se il ruolo è letteralmente `coach`**, a chiunque altro dà la **rete sotto** — e nei
+  default `sales` ha `assign_coach`, «Resp. Coach Team: assegna le coach». Se la sua scheda è il
+  `managerId` delle coach, «le sue» sono **zero** e «la rete» è **tutte**: un cancello che invece di
+  stringere allarga. **(2)** I cancelli sono **due** nello stesso file — `perimetroClienti` per le
+  schede, `RUOLI_CHE_VEDONO_TUTTE` per alert, analytics e dashboard — e non sono sorvegliati allo
+  stesso modo: toccare il secondo fa diventare rosso `perimetro-una-porta-sola.spec.ts`, toccare il
+  primo lo lascia **verde**, perché quel test riscrive la regola a mano invece di chiamarla. *Il
+  cancello più facile da sbagliare è quello che nessuno guarda.* **(3)** La casella «Clienti» non è
+  la porta che sembra: in tutto il backend **non esiste** un `@RequirePage('clients')`, quindi
+  governa la voce di menu e non l'API — la scheda clinica è già raggiungibile con la casella spenta.
+  ✅ Consegnato `npm run diag:commerciale-e-coach` (sola lettura): per ogni account con un perimetro
+  dice la scheda `Staff` (e se è disattivata), quante clienti ha **sul campo che il suo ruolo usa
+  davvero**, quante **con la rete sotto**, e i permessi letti dalle **righe vere** — col default del
+  codice quando la riga non c'è, perché è quello che fanno il `PageGuard` e `ruoloPuo`. Due colonne
+  per il permesso e non una: le guardie cercano il **ruolo di sistema**, il menu usa `customRoleKey`.
+  Il «doppio ruolo» si guarda con `User.linkedUserId`, non col nome — ⚠️ il nome sbaglia in tutti e
+  due i versi, e una scheda senza nome ripiega sull'email, che è unica e quindi non combacia **mai**
+  proprio nel caso in cui servirebbe. Le clienti si contano come le conta il backoffice, e la
+  differenza si **dice**: quelle senza scheda profilo non entrano in nessun perimetro, in nessun
+  verso.
+  ✅ **E la voce «Descrizioni diete» era già fatta (22/8): riverificata riga per riga e chiusa.** ⛔
+  Ma **non** ho chiuso le due domande che le stavano sotto: erano domande su cosa vuole Simone, non
+  su cosa fa il codice, e leggere il comportamento di oggi e chiamarlo risposta vorrebbe dire che
+  qualunque domanda di prodotto si chiude da sola guardando il diff. Restano aperte in una voce sua,
+  insieme al registro **best-effort** (una riga per variante, ma fuori dalla transazione) e al
+  permesso preso in prestito da un'altra pagina. ⛔ **E separare quella chiave non è una riga**:
+  `INHERIT_DEFAULTS` promette che «separare una schermata non toglie accesso a nessuno» e **non lo
+  fa** — l'ereditarietà gira una volta sola sui **default del codice**, quindi una chiave figlia
+  nasce col default del genitore e mai con la sua **riga**: a chi il genitore è stato acceso a mano
+  la figlia si spegne, a chi è stato **spento** a mano la figlia si accende. ⚠️ Il secondo verso è
+  quello che non si vede, e vale per **tutte** le figlie.
+  ⚠️ **E una cosa che avevo dichiarato impossibile non lo era**: «il backend non vede i sorgenti
+  dell'app» — falso, `signals/unita-acqua.spec.ts` legge già `app/src/lib/water.ts` con
+  `readFileSync`, e gli stili che il catalogo genera sono un elenco statico nel backend, esattamente
+  i cinque dell'incidente del 6/8. Venti righe di prova avrebbero preso la scheda del «?» che
+  spariva. *Un limite dichiarato e non vero è peggio di un limite: manda il prossimo a costruire la
+  cosa cara.*
+  5804 test verdi in quattro modalità; nessun frontend toccato, nessuna migrazione. Due giri di
+  revisione avversariale — 20 difetti il primo, 16 il secondo, e il secondo ha smontato tre
+  affermazioni scritte per rimediare al primo.
+
 - `[Sviluppo]` **La data di inizio dice da dove viene, e il catalogo dice chi è caduto fuori.** Le
   ultime due voci della lista.
   **A)** `clientProfile.planStartDate` conteneva due cose diverse — un **giorno** scelto («comincio

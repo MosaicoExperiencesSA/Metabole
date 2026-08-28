@@ -1,0 +1,95 @@
+Prima di chiudere il cancello alla commerciale: chi è, da dove entra, e su quante clienti
+
+LA DECISIONE DI SIMONE, E PERCHÉ NON È ANCORA UNA CONSEGNA
+
+«È la coach la commerciale di riferimento, la coach ha un doppio ruolo.» Quindi il campo
+di assegnazione da inventare non serve: esiste, si chiama `assignedCoachId`. Avevo
+scritto che la consegna diventava «una riga». Era falso, e la revisione l'ha smontata.
+
+1. LA STRADA OVVIA DAREBBE LA COSA SBAGLIATA. `coachTeamScope` risponde «solo le sue»
+   (`[staff.id]`) SOLO se il ruolo è letteralmente `coach`; a chiunque altro dà
+   `reteSottoDiMe`, cioè la rete SOTTO di lei. E non è un caso di scuola: nei default
+   `sales` ha `assign_coach`, etichettato «Resp. Coach Team: assegna le coach». Se la
+   sua scheda è il `managerId` delle coach, «le sue» sono ZERO e «la rete» è TUTTE.
+   Un cancello che invece di stringere allarga — l'errore per eccesso, quello che non
+   si vede.
+
+2. I CANCELLI SONO DUE, NELLO STESSO FILE. `perimetroClienti` decide quali schede si
+   aprono; `RUOLI_CHE_VEDONO_TUTTE` — che nomina `sales` — decide alert, analytics e
+   dashboard. E non sono sorvegliati allo stesso modo: togliere `sales` dal secondo
+   fa diventare rosso `perimetro-una-porta-sola.spec.ts` in due punti, cambiare il
+   primo lo lascia verde, perché quel test riscrive la regola a mano invece di
+   chiamarla. Il cancello più facile da sbagliare è quello che nessuno guarda.
+
+3. LA CASELLA «CLIENTI» NON È LA PORTA CHE SEMBRA. Nei default `sales` non ha la pagina
+   `clients`, e verrebbe da concludere «allora la scheda non la apre». Falso: in tutto
+   il backend NON ESISTE nessun `@RequirePage('clients')`. `admin/clients` è protetto
+   dal solo elenco dei ruoli, e `sales` è dentro. Quella casella governa la voce di
+   menu, non l'API: tutta la scheda clinica è già raggiungibile con la casella spenta.
+
+`npm run diag:commerciale-e-coach` — LA MISURA CHE DECIDE
+
+Non scrive niente. Per ogni account con un perimetro (commerciale, coach,
+coordinatrice, nutrizionista): la scheda `Staff` (e se è disattivata), quante clienti
+ha SUL CAMPO CHE IL SUO RUOLO USA DAVVERO (la nutrizionista su
+`assignedNutritionistId`, non su `assignedCoachId`), quante ne avrebbe CON LA RETE
+SOTTO, e i permessi letti dalle righe vere — con il default del codice quando la riga
+non c'è, perché è quello che fanno il PageGuard e `ruoloPuo`.
+
+Due colonne per il permesso e non una: le guardie lato server cercano il RUOLO DI
+SISTEMA, il menu del backoffice usa `customRoleKey`. Un ruolo personalizzato può avere
+il menu acceso e l'API no, o il contrario.
+
+E il «doppio ruolo» si guarda con `User.linkedUserId` («utenza collegata, stessa
+persona»), non col nome: il nome sbaglia in tutti e due i versi — due omonime sembrano
+una persona sola, e una scheda senza nome ripiega sull'email, che è unica e quindi non
+combacia mai proprio nel caso in cui servirebbe.
+
+I NUMERI SI CONTANO COME LI CONTA IL BACKOFFICE, E LA DIFFERENZA SI DICE. Le clienti
+sono gli utenti con ruolo `client` non cancellati; il perimetro però filtra su
+`ClientProfile`. Le clienti SENZA scheda profilo non entrano in nessun perimetro, in
+nessun verso: il numero si stampa invece di sparire dentro una differenza.
+
+LA VOCE «DESCRIZIONI DIETE» ERA GIÀ FATTA, E L'HO CHIUSA GUARDANDOLA
+
+Consegnata il 22/8, riverificata riga per riga il 28/8 prima di spuntarla — pagina,
+rotta, voce di menu, scrittura. Ma NON ho chiuso le due domande che le stavano sotto:
+erano domande su cosa vuole Simone, non su cosa fa il codice, e leggere il
+comportamento di oggi e chiamarlo risposta vorrebbe dire che qualunque domanda di
+prodotto si chiude da sola guardando il diff. Stanno in una voce nuova, aperta:
+
+- I testi che la cliente legge li corregge la nutrizionista da sola, o passano dal
+  capo? Oggi: da sola. Nessuno l'ha scelto.
+- Il registro c'è, una riga per variante, ma FUORI dalla transazione e con `log` che
+  assorbe i propri errori: per un testo che la cliente legge, «probabilmente
+  registrato» non è registrato.
+- La pagina gira sul permesso di un'altra pagina (`diets_catalog`), contro la regola
+  di casa. ⛔ E separarla non è una riga: `INHERIT_DEFAULTS` promette che «separare una
+  schermata non toglie accesso a nessuno» e NON LO FA — l'ereditarietà gira una volta
+  sola sui default del codice, quindi una chiave figlia nasce col DEFAULT del genitore
+  e mai con la sua RIGA. A chi il genitore è stato acceso a mano la figlia si spegne; a
+  chi è stato SPENTO a mano la figlia si accende. Il secondo verso è quello che non si
+  vede. Va corretto prima, e vale per tutte le figlie.
+
+E LA SCHEDA LUNGA DEL «?» STA NEL CODICE DELL'APP
+
+`dietInfo.ts`, per stile e non per dieta. In registrazione, se lo stile non è in quel
+file, il pallino «?» non compare proprio — resta la fisarmonica «Caratteristiche
+principali», quindi non sparisce ogni spiegazione: sparisce quella con «cosa dice la
+ricerca» e le FONTI, la parte che dice alla cliente perché fidarsi. Nel profilo il «?»
+resta se la descrizione è compilata, e lei legge metà di quello che leggono le altre.
+
+⚠️ Avevo scritto che una prova non si poteva fare, «il backend non vede i sorgenti
+dell'app». Falso: `signals/unita-acqua.spec.ts` legge già `app/src/lib/water.ts` con
+`readFileSync`, e gli stili che il catalogo genera sono un elenco statico nel backend —
+esattamente i cinque dell'incidente del 6/8. Venti righe di prova l'avrebbero preso.
+
+MISURATO
+- 5804 test backend verdi in quattro modalità (default, TZ=Europe/Rome, notte, e le due
+  insieme). Nessun frontend toccato.
+- Due giri di revisione avversariale: 20 difetti il primo, 16 il secondo. Il secondo ha
+  smontato tre affermazioni del primo rimedio — le «tre pagine sorelle» non sono tutte
+  di sola interfaccia, `PAGE_GRANTS` allo stesso livello aprirebbe anche le scritture
+  del catalogo, e la commerciale i riassunti delle chat non li vede.
+- Nessuna migrazione. Nessun comportamento cambiato: due file di sola lettura e
+  l'elenco dei lavori.

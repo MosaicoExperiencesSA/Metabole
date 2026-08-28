@@ -35,6 +35,7 @@
     "diag:fabbisogno-media": "ts-node --transpile-only prisma/diag-fabbisogno-media.ts",
     "diag:permesso-tipo-dieta": "ts-node --transpile-only prisma/diag-permesso-tipo-dieta.ts",
     "diag:titolare-lead": "ts-node --transpile-only prisma/diag-titolare-lead.ts",
+    "diag:commerciale-e-coach": "ts-node --transpile-only prisma/diag-commerciale-e-coach.ts",
     "fix:varieta": "ts-node --transpile-only prisma/fix-varieta-menu.ts",
     "diag:rigenera": "ts-node --transpile-only prisma/diag-rigenera-menu.ts",
     "diag:abbonamenti": "ts-node --transpile-only prisma/diag-abbonamenti-cliente.ts",

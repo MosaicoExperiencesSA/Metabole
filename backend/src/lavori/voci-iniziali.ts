@@ -4089,7 +4089,7 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'descrizioni-diete-tabella',
-    titolo: 'Nutrizionista: tabella per leggere e correggere le descrizioni delle diete (quelle che la cliente legge in app)',
+    titolo: '✅ Nutrizionista: tabella per leggere e correggere le descrizioni delle diete (consegnata il 22/8, verificata il 28/8)',
     dettaglio:
       'Richiesta di Simone del 22/8: *«nella parte del nutrizionista manca una tabella dove si '
       + 'vedono e si possono modificare le descrizioni delle diete, che sono poi quelle che si '
@@ -4100,10 +4100,32 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'scritta senza guardare era falsa).\n\n'
       + 'Da decidere con Simone: se la modifica è libera o passa dall\'approvazione del capo, come '
       + 'per le diete a catalogo; e se il cambio va storicizzato nel log (probabile sì: è un testo '
-      + 'che la cliente legge).',
+      + 'che la cliente legge).\n\n'
+      + '✅ **Consegnata il 22/8** (commit `2bacf18`), e **riverificata riga per riga il 28/8** prima '
+      + 'di spuntarla — perché una voce chiusa a memoria è una voce che non è stata chiusa. Nel '
+      + 'codice ci sono tutti e tre i pezzi: la pagina `DescrizioniDiete.tsx`, la rotta `/descrizioni-diete` '
+      + 'con la voce di menu sotto Catalogo, e la scrittura `PATCH /diets/famiglia/product`.\n\n'
+      + '⚠️ **Le due domande che avevo lasciato aperte NON le chiudo io.** Erano domande su cosa vuole '
+      + 'Simone, non su cosa fa il codice: leggere il comportamento di oggi e chiamarla risposta '
+      + 'vorrebbe dire che qualunque domanda di prodotto si chiude da sola guardando il diff. Quello '
+      + 'che posso dire è **cosa succede adesso**, e sta scritto nella voce `descrizioni-diete-cosa-resta`.\n\n'
+      + 'Per la cronaca, e misurato: sulla rotta che **questa pagina** usa '
+      + '(`PATCH /diets/famiglia/product`) la scrittura è una **lista di tre campi** — `clientName`, '
+      + '`clientDescription`, `seasonalTag` — e la visibilità da lì non la tocca **nessuno**, capo '
+      + 'compreso; la guardia **per campo** (`clientVisible`/`siteVisible`/`recommended`/`objective` '
+      + 'al solo capo) è sull\'**altra** rotta, quella per id del pulsante «Scheda cliente» in pagina '
+      + 'Diete. ⚠️ E il modale di questa pagina manda solo due dei tre campi: `seasonalTag` non lo '
+      + 'scrive mai. Il registro c\'è, ed è **una riga per variante** e non una per famiglia — chi '
+      + 'filtra sulla dieta #7 ci trova il suo cambio.\n\n'
+      + '⚠️ **Quello che questa pagina NON copre** — la scheda lunga del «?» («In pratica», «Cosa dice '
+      + 'la ricerca», le fonti) sta **nel codice dell\'app**, per stile e non per dieta: voce '
+      + '`scheda-stile-cablata-nell-app`. Il permesso, il registro best-effort e la domanda '
+      + 'sull\'approvazione del capo stanno in `descrizioni-diete-cosa-resta`. ⛔ Chiudere questa voce '
+      + 'senza scrivere quelle due sarebbe stato spegnere la spia lasciando acceso il motore.',
     categoria: CODICE,
     ordine: 661,
     nata: '2026-08-22T10:10',
+    fatta: true,
   },
   {
     chiave: 'perimetro-nutrizionista-senza-assegnazione',
@@ -4236,5 +4258,147 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  {
+    chiave: 'perimetro-commerciale-clienti-assegnate',
+    titolo: 'La commerciale cambia il tipo di dieta SOLO alle clienti sue: oggi il perimetro non c\'è, e i cancelli da chiudere sono due',
+    dettaglio:
+      '⛔ **Trovato il 28/8 misurando, non leggendo il codice.** `npm run diag:permesso-tipo-dieta` in '
+      + 'produzione: la casella «Cambia tipo di dieta» è **accesa sul ruolo `sales`**, e il codice a '
+      + 'quel ruolo non l\'ha mai data — «⛔ ACCESO E NON PREVISTO». Qualcuno l\'ha accesa a mano, o '
+      + 'viene da un default vecchio.\n\n'
+      + '✅ **Decisioni di Simone, 28/8.** (1) *«Sì»*: la commerciale **può** cambiare il tipo di '
+      + 'dieta — la casella resta accesa. (2) *«Solo di quelle a lei assegnate»*: e **questo oggi non '
+      + 'è vero**. (3) *«È la coach la commerciale di riferimento, la coach ha un doppio ruolo»*: '
+      + 'quindi il campo di assegnazione **non va inventato**, è `assignedCoachId`.\n\n'
+      + '⚠️ **Prima strada, misurata e scartata.** `CrmRecord.ownerId` — il «titolare del lead» — '
+      + 'esiste, si vede in tre schermate del backoffice, e **non lo scrive nessun frontend**. '
+      + '`npm run diag:titolare-lead`, 28/8: **0 schede su 86325**, e **0 delle 61 schede CRM che '
+      + 'hanno un account cliente collegato**. ⚠️ Quelle 61 sono schede CRM, non l\'elenco clienti del '
+      + 'backoffice: sono due popolazioni e due tabelle, e vanno rilette dallo stesso metro prima di '
+      + 'metterle nella stessa frase.\n\n'
+      + '⛔ **«Prende il perimetro coach» NON è una riga, e l\'avevo scritto che lo era.** Due trappole, '
+      + 'tutte e due nello stesso file:\n'
+      + '· **`isCoachLike` darebbe la cosa sbagliata.** `coachTeamScope` risponde «solo le sue» '
+      + '(`[staff.id]`) **solo se il ruolo è letteralmente `coach`**; a chiunque altro dà '
+      + '`reteSottoDiMe`, cioè **la rete sotto di lei**. Aggiungere `sales` a quell\'elenco non la '
+      + 'limita: le dà le clienti di tutte le persone che ha sotto. È l\'errore **per eccesso**, '
+      + 'quello che `perimetro-clienti.ts` dice in testa di non voler mai fare.\n'
+      + '· **I cancelli sono due.** `perimetroClienti` decide quali schede si aprono; '
+      + '`RUOLI_CHE_VEDONO_TUTTE` — che nomina `sales` — decide **alert**, **analytics** e la '
+      + '**dashboard** (⚠️ i riassunti delle chat no: quel controller non ammette `sales`). '
+      + 'Chiuderne uno solo lascia la commerciale a vedere gli alert e i numeri di tutte. ⚠️ E i due '
+      + 'cancelli non sono sorvegliati allo stesso modo: togliere `sales` da `RUOLI_CHE_VEDONO_TUTTE` '
+      + 'fa diventare **rosso** `perimetro-una-porta-sola.spec.ts` in due punti, mentre cambiare '
+      + '`perimetroClienti` lo lascia **verde** — quel test riscrive la regola a mano invece di '
+      + 'chiamarla. Il cancello più facile da sbagliare è quello che nessuno guarda.\n\n'
+      + '⛔ **E la casella «Clienti» non è la porta che sembra.** Nei default `sales` non ha la pagina '
+      + '`clients`, e verrebbe da concludere «allora la scheda non la apre». Falso: in tutto il '
+      + 'backend **non esiste nessun `@RequirePage(\'clients\')`**. `admin/clients` è protetto dal solo '
+      + 'elenco dei ruoli, e `sales` è dentro quell\'elenco. Quindi quella casella governa la **voce '
+      + 'di menu**, non l\'API: **tutta** la scheda clinica — lettura, modifica, storico, menu — è già '
+      + 'raggiungibile da un account commerciale con la casella spenta. ⚠️ Non «cambia la fretta»: la '
+      + 'aumenta.\n\n'
+      + '⚠️ **Aspetta un numero**: `npm run diag:commerciale-e-coach` dice quante clienti vedrebbe '
+      + 'dopo, quante restano senza nessuna coach, e se i due account (coach e commerciale) sono la '
+      + 'stessa persona per il codice (`linkedUserId`) o solo per noi. Se quel numero è zero, il '
+      + 'cancello non si chiude: si assegna prima.',
+    categoria: CODICE,
+    ordine: 665,
+    nata: '2026-08-28T09:00',
+  },
+
+  {
+    chiave: 'scheda-stile-cablata-nell-app',
+    titolo: 'La scheda lunga del «?» sta nel codice dell\'app: una dieta con uno stile nuovo la fa sparire, in silenzio',
+    dettaglio:
+      '⚠️ **La metà che la tabella «Descrizioni diete» non raggiunge**, scritta qui perché chiudendo '
+      + 'quella voce non sparisse con lei. `app/src/onboarding/dietInfo.ts` — «In pratica», «Cosa dice '
+      + 'la ricerca», «Da tenere presente», le fonti — è **cablata nel codice dell\'app**, per '
+      + '**stile** e non per dieta. Cambiarla richiede un rilascio, e due diete dello stesso stile '
+      + 'condividono la stessa scheda.\n\n'
+      + '⛔ **Il difetto non è che si cambia con un rilascio: è che si rompe da sola**, e in due modi '
+      + 'diversi che vanno tenuti distinti.\n'
+      + '· In **registrazione** il pallino «?» accanto al nome **non compare proprio** quando lo stile '
+      + 'non è in quel file (`Onboarding.tsx`: `{DIET_INFO[p.style] && …}`). ⚠️ E lì il «?» apre '
+      + '**solo** la scheda dello stile: il testo scritto dal backoffice sta in un\'altra fisarmonica '
+      + '(«Caratteristiche principali»), e quella fisarmonica resta. ⚠️ Quindi non sparisce **ogni** '
+      + 'spiegazione: sparisce quella che porta «cosa dice la ricerca», «da tenere presente» e le '
+      + '**fonti** — la parte che dice alla cliente perché dovrebbe fidarsi. È già successo il 6/8 con '
+      + 'DASH, Flessibile, Detox e i due percorsi estivi.\n'
+      + '· Nel **profilo** il «?» resta se la descrizione è compilata '
+      + '(`haInfoDieta = dietDescription || scheda`), ma quello che legge è **metà** di quello che '
+      + 'leggono le altre: senza «cosa dice la ricerca» e **senza le fonti**, che sono la parte che '
+      + 'rende credibile il popup.\n\n'
+      + '⛔ **E una prova che lo tiene fermo si può scrivere oggi**, contro quello che avevo pensato: '
+      + 'gli stili che il catalogo genera sono un **elenco statico nel backend** '
+      + '(`engine-rules.presets.ts`: `dash`, `flexible`, `detox`, `summer_holiday`, `summer_return` — '
+      + '⚠️ esattamente i cinque dell\'incidente del 6/8), e un test del backend **può** leggere un '
+      + 'file dell\'app: `signals/unita-acqua.spec.ts` legge già `app/src/lib/water.ts` con '
+      + '`readFileSync` per confrontare due tabelle. Venti righe di prova avrebbero preso l\'incidente '
+      + 'che questa voce racconta. ⚠️ Resta scoperto un caso solo: uno stile scritto a mano fuori dai '
+      + 'preset, che il database può avere e nessun elenco statico conosce.\n\n'
+      + 'Le strade, in ordine di costo: **(a)** la prova statica «ogni stile dei preset ha la sua '
+      + 'scheda», venti righe, che prende il caso di ieri ma non lo stile scritto a mano; **(b)** una '
+      + 'diagnostica che legge gli stili **pubblicati e visibili** dal database e li confronta col '
+      + 'file, che prende anche quello; **(c)** la scheda passa a database e si scrive dal backoffice '
+      + 'come la descrizione — costa una tabella e una schermata, ma toglie il rilascio e **chiude** '
+      + 'la distanza invece di sorvegliarla. ⛔ Da scartare invece un ripiego generico per lo stile '
+      + 'sconosciuto: «alimentazione equilibrata» sotto una dieta chetogenica è peggio del vuoto, '
+      + 'perché sembra una risposta.',
+    categoria: CODICE,
+    ordine: 666,
+    nata: '2026-08-28T09:05',
+  },
+
+  {
+    chiave: 'descrizioni-diete-cosa-resta',
+    titolo: 'Descrizioni diete: il permesso è quello di un\'altra pagina, il registro è best-effort, e una domanda è di Simone',
+    dettaglio:
+      'La tabella è consegnata (22/8) e verificata (28/8). Qui sta quello che **non** copre, perché '
+      + 'una voce chiusa esce dall\'elenco e con lei uscirebbero queste tre righe.\n\n'
+      + '**1. ⚠️ La domanda che è di Simone, non del codice.** *I testi che la cliente legge li '
+      + 'corregge la nutrizionista da sola, o passano dall\'approvazione del capo come le diete a '
+      + 'catalogo?* Oggi: **da sola**. Sulla rotta che la pagina usa '
+      + '(`PATCH /diets/famiglia/product`) la scrittura è una lista di tre campi — `clientName`, '
+      + '`clientDescription`, `seasonalTag` — e **nessuno**, capo compreso, tocca da lì la '
+      + 'visibilità. ⛔ Non è una risposta: è il comportamento di oggi, e nessuno l\'ha scelto.\n\n'
+      + '**2. ⚠️ Il registro c\'è ma è un ripiego dichiarato.** Una riga per **variante** (non una per '
+      + 'famiglia: chi filtra sulla dieta #7 ci trova il suo cambio), ma **fuori** dalla transazione '
+      + 'e con `AuditService.log` che assorbe i propri errori di proposito. Quindi le diciotto '
+      + 'scritture possono riuscire e il «prima» perdersi. Per un testo che la cliente legge, '
+      + '«probabilmente registrato» non è registrato. ⚠️ `logMany` esiste e farebbe le diciotto righe '
+      + 'in una `createMany`: è il verso in cui guardare.\n\n'
+      + '**3. ⛔ La pagina gira sul permesso di un\'altra pagina.** In `CLAUDE.md`: *«ogni pagina nuova '
+      + 'del backoffice ha una chiave di permesso SUA»*. **Descrizioni diete** usa `diets_catalog`, '
+      + 'la chiave del catalogo: non si può dare a una nutrizionista i testi senza darle il catalogo, '
+      + 'né toglierle il catalogo lasciandole i testi.\n'
+      + '⚠️ **E le tre pagine sorelle non sono un modello uniforme**, guardarle senza distinguere '
+      + 'porta a copiare la cosa sbagliata: nessuna delle tre è letta da un `@RequirePage`, ma '
+      + '`diet_workspace` e `creation_validation` un effetto lato server ce l\'hanno lo stesso — sono '
+      + 'i **grantor** di `PAGE_GRANTS`, e chi le ha entra nelle API di `diets_catalog` e `recipes`. '
+      + '⛔ `equivalence_groups` invece è di sola interfaccia, cioè lo stesso difetto di `assignments`. '
+      + 'Chi accende `diet_workspace` credendo di muovere un menu apre catalogo e ricette.\n'
+      + '⛔ **E la trappola vera, da guardare prima di separare qualunque chiave**: `INHERIT_DEFAULTS` '
+      + 'promette che *«separare una schermata nei Permessi non toglie accesso a nessuno»*, e la '
+      + 'promessa **non è mantenuta**. L\'ereditarietà gira una volta sola, all\'avvio, sui **default '
+      + 'del codice**, e `syncDefaults` crea le righe mancanti da lì: una chiave figlia nuova nasce '
+      + 'col **default** del genitore, mai con la sua **riga**. Quindi a chi Simone ha acceso '
+      + '`diets_catalog` a mano la pagina si spegne, e a chi l\'ha **spento** a mano la pagina si '
+      + 'riaccende — ⚠️ e il secondo verso è quello che non si vede. Vale anche per i ruoli '
+      + 'personalizzati, riempiti dal default del ruolo di base. **Questo va corretto prima**, e vale '
+      + 'per tutte le figlie, non solo per questa.\n'
+      + '⚠️ **Per la lettura `PAGE_GRANTS` basterebbe — ma solo a sola vista**, e questo va guardato '
+      + 'prima di scriverlo: il guardiano prova la chiave hub **allo stesso livello** della rotta. '
+      + 'Una riga `diet_descriptions: [\'diets_catalog\']` fa passare `GET /diets` (livello *vista*), '
+      + 'ma se la chiave nuova viene concessa in *gestione* fa passare anche `POST /diets`, '
+      + '`PATCH /diets/:id` e `DELETE /diets/:id`. ⛔ Cioè ricrea **al contrario** l\'accoppiamento che '
+      + 'questa voce denuncia: dare i testi finirebbe per dare il catalogo. Quindi o la chiave nuova '
+      + 'resta a sola vista e la scrittura (`PATCH famiglia/product`, che è *gestione*) trova un\'altra '
+      + 'strada, oppure serve davvero una rotta di lettura sua — che sarebbe comunque meglio: oggi la '
+      + 'pagina si scarica **tutto** il catalogo per raggrupparlo nel browser.',
+    categoria: CODICE,
+    ordine: 667,
+    nata: '2026-08-28T09:10',
+  },
 
 ];
