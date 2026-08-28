@@ -1630,6 +1630,23 @@ export class ClientsService {
       this.logger.warn(`Controllo pesate incoerenti fallito per ${userId} dopo una correzione staff: ${String(e)}`);
       return null;
     });
+    /**
+     * ⛔ **E I GIORNI FUTURI SI RIFANNO** (28/8, secondo giro di revisione).
+     *
+     * Una pesata corretta cambia il peso su cui si calcola il fabbisogno, quindi cambia le calorie:
+     * lasciare i giorni già consegnati com'erano vuol dire che la correzione non arriva nel piatto
+     * finché il piano non ricompone da solo. ⚠️ E dopo il blocco sulle pesate incoerenti conta il
+     * doppio: se la coppia era quella che teneva il fabbisogno **sospeso**, sistemarla lo riaccende —
+     * ma senza questa riga la cliente continuava a mangiare il livello della dieta, e la frase «i
+     * menu la prenderanno appena la pesata sarà corretta» sarebbe stata una promessa vuota.
+     *
+     * ⚠️ Best-effort: una correzione di misura non deve fallire perché la rierogazione non è
+     * riuscita — e `redeliverFutureDays` sa già rimettere i giorni com'erano se non riesce a
+     * comporne di nuovi. Ma non in silenzio.
+     */
+    await this.menu.redeliverFutureDays(userId).catch((e) => {
+      this.logger.warn(`Pesata corretta per ${userId} ma i menu futuri non sono stati rigenerati: ${String(e)}`);
+    });
     await this.audit.log({
       action: 'client.measurement.fix',
       actorId,

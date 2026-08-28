@@ -100,6 +100,27 @@ describe('la riga che resta in scheda quando qualcuno tocca le calorie', () => {
     expect(t).not.toContain('il 28/08/2026');
   });
 
+  /**
+   * ⛔ **QUANDO IL FABBISOGNO ERA SOSPESO, LA NOTA LO DICE.** I due target scritti qui sopra sono
+   * numeri che quel giorno **nessuno stava servendo**: i menu usavano il livello della dieta. La
+   * prescrizione resta valida e varrà quando le pesate saranno sistemate — ma chi rilegge la scheda
+   * fra tre mesi deve poter sapere che quel «da 1600 a 1760» non è mai arrivato in tavola.
+   */
+  it('⛔ dice quando quei numeri non erano quelli nel piatto', () => {
+    const t = testoNotaKcal({ ...BASE, sospeso: 'da 113 kg del 14/08/2026 a 73 kg del 21/08/2026: 40 kg in 7 giorni' });
+    expect(t).toContain('fabbisogno era sospeso');
+    expect(t).toContain('113 kg');
+    expect(t).toContain('livello della dieta');
+    // ⚠️ E la nota resta una nota: il motivo e i numeri ci sono ancora tutti.
+    expect(t).toContain('+10% per 7 giorni');
+    expect(t).toContain('energia bassa da due settimane');
+  });
+
+  it('⚠️ e quando era regolare non aggiunge niente', () => {
+    expect(testoNotaKcal(BASE)).not.toContain('sospeso');
+    expect(testoNotaKcal({ ...BASE, sospeso: null })).not.toContain('sospeso');
+  });
+
   it('⚠️ le date sono quelle che legge una persona, non ISO', () => {
     const t = testoNotaKcal(BASE);
     expect(t).not.toContain('2026-08-28');

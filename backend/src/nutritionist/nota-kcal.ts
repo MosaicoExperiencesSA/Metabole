@@ -52,6 +52,18 @@ export interface DatiNotaKcal {
   quando: Date;
   /** Il motivo, obbligatorio a monte. */
   motivo: string;
+  /**
+   * ⛔ **La frase delle pesate che non tornano, quando il fabbisogno era SOSPESO** (28/8).
+   *
+   * In quel caso `targetPrima` e `targetDopo` qui sopra sono due numeri che quel giorno **nessuno
+   * stava servendo**: i menu usavano il livello della dieta. ⚠️ La nota resta comunque — la
+   * prescrizione è valida, e i menu la prendono appena la pesata sbagliata viene corretta — ma chi la
+   * rilegge fra tre mesi deve poter sapere che quel «da 1600 a 1760» non è arrivato in tavola quel
+   * giorno. ⛔ E se la correzione era **a termine**, la scadenza parte da quando è stata scritta: può
+   * scadere prima che qualcuno sistemi le pesate. `null` quando il fabbisogno era regolare, che è
+   * quasi sempre.
+   */
+  sospeso?: string | null;
 }
 
 /** Chi ha deciso, quando non si riesce a risalire al nome: mai una riga senza un soggetto. */
@@ -125,6 +137,10 @@ export function testoNotaKcal(d: DatiNotaKcal): string {
    */
   return (
     `${intestazione} da ${chi} il ${giornoItaliano(giornoLocale(d.quando))}: ` +
-    `${salto}(${cosaEStatoScritto(d)}). Motivo: «${d.motivo.trim()}».`
+    `${salto}(${cosaEStatoScritto(d)}). Motivo: «${d.motivo.trim()}».` +
+    (d.sospeso
+      ? ` ⚠️ Quel giorno il fabbisogno era sospeso (${d.sospeso}): i menu usavano il livello della ` +
+        'dieta, quindi questi numeri non erano quelli nel piatto.'
+      : '')
   );
 }

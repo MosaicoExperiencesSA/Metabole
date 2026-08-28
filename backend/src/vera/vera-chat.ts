@@ -403,6 +403,23 @@ export const testi = {
     '⚠️ Non riesco a calcolare il suo obiettivo calorico (mancano sesso, età, altezza o peso in ' +
     'scheda), quindi non posso dirti se la giornata ci sta dentro. Non la scrivo.',
 
+  /**
+   * ⛔ **IL FABBISOGNO C'È MA È SOSPESO, ed è un caso diverso da «non lo so»** (28/8).
+   *
+   * Quando le pesate di una cliente non stanno in piedi fra loro, il fabbisogno personalizzato non
+   * viene usato: i menu tornano al livello della sua dieta. ⚠️ Il numero però **esce lo stesso** dal
+   * calcolo, e giudicare una giornata dettata contro quel numero vorrebbe dire misurarla con un
+   * metro che non è quello nel piatto — e dire «ci sta dentro» quando non si sa.
+   *
+   * Si dice **quali** pesate non tornano, perché è l'unica cosa che chi legge può andare a
+   * sistemare: un «non posso» senza il come è un vicolo cieco.
+   */
+  giornataFabbisognoSospeso: (frase: string) =>
+    '⚠️ Il fabbisogno di questa cliente è **sospeso**: le sue pesate non stanno in piedi fra loro ' +
+    `(${frase}). Finché non sono verificate i suoi menu usano il livello della dieta, quindi non ` +
+    'posso dirti se questa giornata ci sta dentro — il numero che calcolerei non è quello che sta ' +
+    'mangiando. **Non la scrivo.** Correggete la pesata sbagliata dalla sua scheda e ridettamela.',
+
   giornataScritta: (quando: string, kcal: number) =>
     `Fatto: la giornata di ${quando} è quella che hai dettato (${kcal} kcal). ` +
     'Lo trovi nel registro, e lei la vedrà quando aprirà quel giorno.',
@@ -443,23 +460,64 @@ export const testi = {
    * ⚠️ L'anteprima dice il NUMERO, non la percentuale. «Le tolgo il 10%» non dice niente a
    * nessuno; «passa da 1620 a 1460 kcal al giorno» sì — è la regola del pool applicata ai numeri.
    */
-  anteprimaKcal: (cliente: string, pct: number, prima: number | null, dopo: number | null, giorni: number | null) =>
+  anteprimaKcal: (
+    cliente: string,
+    pct: number,
+    prima: number | null,
+    dopo: number | null,
+    giorni: number | null,
+    /** La frase delle pesate che non tornano, quando il fabbisogno è sospeso. */
+    sospeso?: string | null,
+  ) =>
     `${pct < 0 ? 'Riduco' : 'Aumento'} le calorie di **${cliente}** del ${Math.abs(pct)}%` +
     `${giorni ? ` **per ${giorni} giorni**` : ' **finché non me lo dici tu**'}.\n\n` +
     (prima && dopo
       ? `Il suo target passa da **${prima}** a **${dopo}** kcal al giorno.`
       : '⚠️ Non riesco a calcolare il target di adesso: controlla che abbia sesso, età, altezza e peso in scheda.') +
     (giorni ? '\nPoi torna da sola al ritmo normale.' : '') +
+    /**
+     * ⛔ **SE IL FABBISOGNO È SOSPESO VA DETTO PRIMA DI CONFERMARE** (28/8). I due numeri qui sopra
+     * si calcolano lo stesso, ma non sono quelli nel piatto: finché le pesate non tornano, i menu
+     * usano il livello della dieta. ⚠️ Non è un motivo per non scrivere la correzione — resterà
+     * scritta e varrà quando il fabbisogno torna — ma far confermare «passa da 1620 a 1460» senza
+     * dire che oggi non passa da nessuna parte è far prendere una decisione su un numero che non
+     * esiste.
+     */
+    (sospeso
+      ? `\n\n⚠️ **Attenzione**: il suo fabbisogno è sospeso (${sospeso}), quindi oggi i menu usano il ` +
+        'livello della dieta e questi due numeri non sono quelli nel suo piatto. La correzione la scrivo ' +
+        'lo stesso, e i menu la prenderanno appena la pesata sbagliata sarà corretta dalla scheda — ' +
+        '⛔ ma la scadenza **parte da oggi**: se passano più giorni di quelli che mi hai detto, scade senza ' +
+        'essere mai stata applicata.'
+      : '') +
     '\n\n**Confermi?**',
 
   chiediQuantiGiorni: (cliente: string, pct: number) =>
     `${pct < 0 ? 'Ridurre' : 'Aumentare'} del ${Math.abs(pct)}% le calorie di ${cliente}: **per quanto tempo?**\n` +
     '· «per 7 giorni» (o quanti vuoi)\n· «per sempre» — resta finché non me lo togli tu',
 
-  correzioneKcalFatta: (cliente: string, pct: number, dopo: number | null, giorni: number | null) =>
-    `Fatto: ${cliente} ${pct < 0 ? 'scende' : 'sale'} ${dopo ? `a **${dopo}** kcal al giorno` : `del ${Math.abs(pct)}%`}` +
+  /**
+   * ⛔ **L'ULTIMA FRASE NON PUÒ SMENTIRE LA PRIMA** (28/8, secondo giro di revisione). Diceva «Fatto:
+   * sale a 1760 kcal al giorno» anche quando trenta secondi prima l'anteprima aveva avvertito che il
+   * fabbisogno è sospeso e quel numero non è nel piatto. Chi legge l'ultima riga si porta a casa
+   * quella.
+   */
+  correzioneKcalFatta: (
+    cliente: string,
+    pct: number,
+    dopo: number | null,
+    giorni: number | null,
+    sospeso?: string | null,
+  ) =>
+    `Fatto: ${cliente} ${pct < 0 ? 'scende' : 'sale'} ${dopo && !sospeso ? `a **${dopo}** kcal al giorno` : `del ${Math.abs(pct)}%`}` +
     `${giorni ? `, fino a ${giorni} giorni da oggi; poi riprende col ritmo normale.` : ', finché non me lo dici tu.'} ` +
-    'Lo trovi nel registro e nello storico delle calorie.',
+    'Lo trovi nel registro e nello storico delle calorie.' +
+    (sospeso
+      ? `\n\n⚠️ **Ma non si vede ancora nel piatto**: il suo fabbisogno è sospeso (${sospeso}), quindi i ` +
+        'menu usano il livello della dieta. ⛔ E la scadenza **parte da oggi**: se le pesate non vengono ' +
+        'sistemate in tempo, questa correzione scade senza essere mai stata applicata. Fate correggere la ' +
+        'pesata sbagliata dalla scheda.'
+      : ''),
 
   /**
    * ⚠️ Sotto la soglia di sicurezza Vera si FERMA. Quella conferma si dà dalla scheda, guardando

@@ -54,14 +54,36 @@ export interface ScritturaKcal {
   simulaKcal(
     user: { sub: string; role: string },
     clientId: string,
+    /**
+     * ⚠️ **`undefined` non è `null`**: `null` vuol dire «togli il deficit», `undefined` «non lo sto
+     * nominando, resta com'è». Passare `null` per sbaglio fa calcolare un «dopo» senza il deficit
+     * imposto dal nutrizionista — un numero più alto del vero, mostrato per farlo confermare.
+     */
     deficitKcal?: number | null,
     correzionePct?: number | null,
-  ): Promise<{ prima: { target: number } | null; dopo: { target: number } | null }>;
+  ): Promise<{
+    /**
+     * ⚠️ `pesoIncoerente` sta nel tipo apposta: il fabbisogno può essere **sospeso** (pesate che non
+     * stanno in piedi fra loro), e allora questi `target` **non sono quelli nel piatto** — i menu
+     * usano il livello della dieta. Chi legge solo `target` racconta un numero che non viene servito,
+     * ed è successo in tre punti prima del 28/8.
+     */
+    prima: { target: number; pesoIncoerente?: { frase: string } | null } | null;
+    dopo: { target: number; pesoIncoerente?: { frase: string } | null } | null;
+  }>;
   impostaKcal(
     user: { sub: string; role: string },
     clientId: string,
     input: { deficitKcal?: number | null; correzionePct?: number | null; motivo: string; perGiorni?: number | null },
-  ): Promise<unknown>;
+  ): Promise<{
+    /**
+     * ⚠️ **Valorizzato quando il fabbisogno era sospeso.** Era `Promise<unknown>`, e Vera dopo il sì
+     * chiudeva con «Fatto: sale a 1760 kcal al giorno» — contraddicendo l'avviso che aveva dato
+     * trenta secondi prima. Il tipo che non dice niente è il modo in cui un dato nuovo non arriva
+     * mai a chi lo deve leggere.
+     */
+    fabbisognoSospeso?: string | null;
+  }>;
 }
 
 export const SCRITTURA_KCAL = 'VERA_SCRITTURA_KCAL';

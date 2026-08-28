@@ -616,7 +616,11 @@ export class NutritionistService {
      * ⚠️ Quello che `impostaKcal` ha da dire su come è andata: serve a `codaChiusa` più in basso, e
      * a chi ha premuto — «i menu futuri NON sono stati rigenerati» è un fatto che non si tace.
      */
-    type EsitoKcal = { menu?: { ripristinati?: number; delivered?: string[] }; notaInScheda?: boolean };
+    type EsitoKcal = {
+      menu?: { ripristinati?: number; delivered?: string[] };
+      notaInScheda?: boolean;
+      fabbisognoSospeso?: string | null;
+    };
     let esitoKcal: EsitoKcal | null = null;
     /**
      * ⛔ **«ALZA LE CALORIE» NON SCRIVE NIENTE DI SUO: chiama la porta che esiste già.**
@@ -715,6 +719,14 @@ export class NutritionistService {
     }
     if (esitoKcal && esitoKcal.notaInScheda === false) {
       avvisi.push('La riga nelle note della scheda non è stata scritta: le calorie sono cambiate lo stesso.');
+    }
+    if (esitoKcal?.fabbisognoSospeso) {
+      // ⚠️ La correzione è scritta e vale, ma oggi non arriva nel piatto: chi ha premuto lo deve
+      // sapere subito, non scoprirlo fra una settimana guardando perché le kcal non si muovono.
+      avvisi.push(
+        `Il fabbisogno di questa cliente è sospeso (${esitoKcal.fabbisognoSospeso}): finché le pesate ` +
+          'non sono verificate i menu usano il livello della dieta, quindi questa correzione non si vede ancora nel piatto.',
+      );
     }
 
     return {
@@ -916,16 +928,23 @@ export class NutritionistService {
      * «alza del 10%» ne alzava molte di più, senza che nessuno l'avesse chiesto e senza una riga
      * che lo dicesse.
      *
-     * ⚠️ Adesso il confine è la **presenza della chiave**, non il valore: chi vuole togliere manda
-     * `null` (o `0`) e lo toglie; chi non la nomina si tiene quello che c'era. ⛔ È il confine giusto
-     * anche perché è **verificabile da chi chiama**: `{ correzionePct: 10 }` dice una cosa sola, e
-     * prima ne diceva due.
+     * ⚠️ Adesso il confine è **`undefined`**: chi vuole togliere manda `null` (o `0`) e lo toglie;
+     * chi non nomina la leva — chiave assente, o presente col valore `undefined` — si tiene quello
+     * che c'era.
+     *
+     * ⛔ **E NON `'deficitKcal' in input`, che era la prima stesura e su HTTP non funzionava.** Con
+     * `target: ES2023` i campi del DTO dichiarati senza inizializzatore diventano **proprietà
+     * proprie** dell'istanza (`useDefineForClassFields`): dopo la `ValidationPipe` la chiave c'è
+     * **sempre**, col valore `undefined`. Cioè via API ogni chiamata che ometteva `deficitKcal`
+     * cancellava lo stesso il deficit — la correzione era vera solo per i test, che passano oggetti
+     * letterali. `!== undefined` si comporta allo stesso modo nei due mondi, ed è l'unica ragione per
+     * cui questo confine regge davvero.
      *
      * ⚠️ Dentro la chiave, invece, `0` e `null` restano la stessa cosa — «non impostato» — e si
      * normalizzano qui una volta sola, invece che in ogni lettura.
      */
-    const deficitScritto = 'deficitKcal' in input;
-    const pctScritta = 'correzionePct' in input;
+    const deficitScritto = input.deficitKcal !== undefined;
+    const pctScritta = input.correzionePct !== undefined;
     const deficitKcal = deficitScritto
       ? input.deficitKcal != null && input.deficitKcal > 0
         ? Math.round(input.deficitKcal)
@@ -964,11 +983,36 @@ export class NutritionistService {
     const prima = await this.kcalNeed.estimate(clientId);
     const dopo = await this.kcalNeed.estimate(clientId, { deficitImposto: deficitKcal, correzionePct });
 
+    /**
+     * ⛔ **IL FABBISOGNO PUÒ ESSERE SOSPESO, E ALLORA QUESTI NUMERI NON SONO NEL PIATTO** (28/8).
+     *
+     * Quando le pesate di una cliente non stanno in piedi fra loro (`peso-incoerente.ts`), il
+     * fabbisogno personalizzato non viene usato: i menu tornano al livello della dieta. ⚠️ Il calcolo
+     * però esce lo stesso, e da qui uscivano **tre affermazioni false**: il rifiuto «il menu
+     * scenderebbe a X kcal» (non ci scende: non sta usando quel numero), lo storico clinico con un
+     * prima/dopo mai servito, e la nota in scheda.
+     *
+     * ⛔ **Non si blocca la scrittura**, e non è una svista: la prescrizione è valida, e i menu la
+     * prendono appena la pesata sbagliata viene corretta (`ClientsService.updateMeasurement` rifà i
+     * giorni futuri). Quello che non si può fare è **tacerlo** — a chi decide, e a chi rileggerà lo
+     * storico fra tre mesi senza sapere che quel giorno il numero non contava.
+     *
+     * ⚠️ **E una cosa che va detta e non aggiustata**: se la correzione è **a termine**, la scadenza
+     * si calcola da oggi (`scadenzaDaGiorni`) e non si sposta. Su una cliente sospesa può scadere
+     * **senza essere mai stata applicata**. Non lo si corregge in silenzio spostando la scadenza —
+     * sarebbe una prescrizione clinica allungata da noi — lo si **dice** a chi la scrive, che può
+     * scriverla senza durata o far correggere prima la pesata.
+     */
+    const sospeso = dopo?.pesoIncoerente ?? prima?.pesoIncoerente ?? null;
     if (dopo?.sottoSoglia && !input.confermaSottoSoglia) {
       throw new BadRequestException(
         `Con questi valori il menu scenderebbe a ${dopo.target} kcal/giorno, sotto la soglia minima di ` +
           'sicurezza. Puoi farlo — il clinico sei tu — ma la conferma va data in modo esplicito: ' +
-          'resterà scritto nello storico e i capi nutrizionisti ne saranno informati.',
+          'resterà scritto nello storico e i capi nutrizionisti ne saranno informati.' +
+          (sospeso
+            ? ` ⚠️ Attenzione: il fabbisogno di questa cliente è SOSPESO (${sospeso.frase}), quindi oggi ` +
+              'i menu usano il livello della sua dieta e quel numero non è quello che sta mangiando.'
+            : ''),
       );
     }
 
@@ -996,9 +1040,14 @@ export class NutritionistService {
         // che una persona rilegge, e «per 7 giorni, fino al 20/8» è esattamente quello che serve
         // sapere fra un mese. Una colonna in più su una tabella di storico si aggiunge quando
         // qualcuno la deve interrogare, non quando la si deve leggere.
-        motivo: scadenzaDopo
-          ? `${input.motivo} — per ${Math.floor(input.perGiorni as number)} giorni, fino al ${scadenzaDopo}`
-          : input.motivo,
+        // ⚠️ E se il fabbisogno era sospeso lo dice **lo storico**, non solo il log: `targetPrima` e
+        // `targetDopo` qui accanto sono due numeri che quel giorno nessuno stava servendo, e fra tre
+        // mesi nessuno potrebbe più saperlo.
+        motivo:
+          (scadenzaDopo
+            ? `${input.motivo} — per ${Math.floor(input.perGiorni as number)} giorni, fino al ${scadenzaDopo}`
+            : input.motivo) +
+          (sospeso ? ` — ⚠️ fabbisogno sospeso quel giorno (${sospeso.frase}): i menu usavano il livello della dieta` : ''),
         byStaffId: staffId,
       } as never,
     });
@@ -1044,6 +1093,7 @@ export class NutritionistService {
             chi: chiHaDeciso?.displayName ?? CHI_SCONOSCIUTO,
             quando: new Date(),
             motivo: input.motivo,
+            sospeso: sospeso?.frase ?? null,
             // ⚠️ Stesso tetto degli altri due punti che scrivono note (`clients.service`): il motivo
             // può arrivare da Vera come frase di chat intera, e una nota illimitata in una lista di
             // note è il modo in cui una schermata diventa illeggibile per una riga sola.
@@ -1084,7 +1134,12 @@ export class NutritionistService {
         category: 'other',
         reason:
           `Calorie sotto la soglia di sicurezza: ${dopo.target} kcal/giorno, impostate a mano dal ` +
-          `nutrizionista. Motivo: «${input.motivo}».`,
+          `nutrizionista. Motivo: «${input.motivo}».` +
+          // ⛔ **Anche qui** (28/8, secondo giro di revisione). Il rifiuto era stato corretto e queste
+          // due righe no: la segnalazione clinica e la notifica ai capi affermavano «900 kcal/giorno»
+          // su una cliente che quel giorno mangiava il livello della sua dieta. È il difetto per cui
+          // questa voce è nata, su un canale che **sveglia un capo nutrizionista**.
+          (sospeso ? ` ⚠️ Fabbisogno SOSPESO quel giorno (${sospeso.frase}): i menu usavano il livello della dieta.` : ''),
         source: 'engine',
         // NIENTE dedupe: ogni discesa sotto la soglia è una decisione nuova, con un motivo nuovo.
         // Accorparla alla precedente vorrebbe dire perdere proprio la riga che serve.
@@ -1096,7 +1151,9 @@ export class NutritionistService {
         {
           type: 'kcal_sotto_soglia',
           title: 'Calorie sotto la soglia di sicurezza',
-          body: `${chi}: ${dopo.target} kcal/giorno. Motivo: «${input.motivo}».`,
+          body:
+            `${chi}: ${dopo.target} kcal/giorno. Motivo: «${input.motivo}».` +
+            (sospeso ? ' ⚠️ Fabbisogno sospeso: quel numero non era quello nel piatto.' : ''),
           payload: { clientId, target: dopo.target },
         },
         // Se a scriverle è stato un capo, non gli si notifica quello che ha appena fatto lui.
@@ -1116,6 +1173,9 @@ export class NutritionistService {
       ok: true,
       // ⚠️ Esce: chi chiama deve poter dire «le calorie sono cambiate ma la traccia in scheda no».
       notaInScheda: notaScritta,
+      // ⚠️ E che quel giorno il numero non era quello nel piatto: la coda del motore lo riporta a chi
+      // ha premuto, il backoffice ha già il suo riquadro rosso.
+      fabbisognoSospeso: sospeso?.frase ?? null,
       valori: { deficitKcal, correzionePct },
       targetPrima: prima?.target ?? null,
       targetDopo: dopo?.target ?? null,

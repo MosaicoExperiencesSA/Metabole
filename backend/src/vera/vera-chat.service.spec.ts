@@ -1863,6 +1863,80 @@ describe('VeraChatService — la correzione calorica dettata', () => {
     expect(stato?.passo).toBe('conferma');
   });
 
+  /**
+   * ⛔ **`undefined` E NON `null` PER IL DEFICIT** (corretto il 28/8, trovato in revisione).
+   *
+   * `null` vuol dire «togli il deficit»; `undefined` vuol dire «non lo sto nominando». Con `null`
+   * l'anteprima calcolava il «dopo» **senza il deficit imposto dal nutrizionista** — un numero più
+   * alto del vero, mostrato proprio per farlo confermare, e proprio sulle clienti che un deficit
+   * scritto a mano ce l'hanno. Qui si sta simulando solo la percentuale.
+   */
+  it('⛔ l\'anteprima non spegne il deficit imposto: non lo nomina nemmeno', async () => {
+    const kcal = kcalFinto();
+    const { service } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    const [, , deficit, pct] = (kcal.simulaKcal as jest.Mock).mock.calls[0];
+    expect(deficit).toBeUndefined();
+    expect(pct).toBe(-10);
+  });
+
+  /**
+   * ⛔ **E se il fabbisogno è sospeso lo dice PRIMA di far confermare.** I due numeri si calcolano
+   * lo stesso, ma oggi non sono quelli nel piatto: far confermare «passa da 1620 a 1460» senza
+   * dirlo è far prendere una decisione su un numero che non esiste. ⚠️ La correzione si scrive
+   * comunque — varrà quando le pesate saranno sistemate.
+   */
+  it('⛔ col fabbisogno sospeso avvisa, ma lascia confermare', async () => {
+    const kcal = {
+      simulaKcal: jest.fn().mockResolvedValue({
+        prima: { target: 1620 },
+        dopo: { target: 1460, pesoIncoerente: { frase: 'da 113 kg a 73 kg in 7 giorni' } },
+      }),
+      impostaKcal: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    const { service, messaggioCreate } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('sospeso');
+    expect(testo).toContain('113 kg');
+    expect(testo).toContain('Confermi?');
+    expect(stato?.passo).toBe('conferma');
+  });
+
+  /**
+   * ⚠️ **E il negativo**: con l'avviso reso incondizionato comparirebbe su ogni anteprima, e *un
+   * avviso che compare sempre non è un avviso*.
+   */
+  it('⚠️ col fabbisogno regolare l\'anteprima non parla di sospensione', async () => {
+    const { service, messaggioCreate } = make({}, { kcal: kcalFinto() });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    expect(ultimoAgente(messaggioCreate).testo).not.toContain('sospeso');
+  });
+
+  /**
+   * ⛔ **L'ULTIMA FRASE NON SMENTISCE LA PRIMA.** Dopo il sì Vera chiudeva con «Fatto: scende a 1460
+   * kcal al giorno» anche quando trenta secondi prima aveva avvisato che quel numero non è nel
+   * piatto. E il registro archiviava la stessa coppia prima/dopo senza marcatore, mentre lo storico
+   * delle calorie la marcava: due archivi della stessa decisione, uno dei due falso.
+   */
+  it('⛔ dopo il sì lo ridice, e lo scrive anche nel registro', async () => {
+    const kcal = {
+      simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1620 }, dopo: { target: 1460 } }),
+      impostaKcal: jest.fn().mockResolvedValue({ fabbisognoSospeso: 'da 113 kg a 73 kg in 7 giorni' }),
+    };
+    const { service, messaggioCreate, registro } = make({}, { kcal });
+    await service.parla('lucia', 'riduci le kcal del 10% a Giulia Rossi per 7 giorni');
+    await service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('non si vede ancora nel piatto');
+    expect(testo).toContain('113 kg');
+    // ⛔ E dice che la scadenza parte da oggi: è la parte che rende la promessa vera invece che
+    // consolatoria — una correzione a termine può scadere senza essere mai stata applicata.
+    expect(testo).toContain('parte da oggi');
+    const dettaglio = (registro.scrivi as jest.Mock).mock.calls[0][0].dettaglio;
+    expect(dettaglio.correzioneKcal.sospeso).toContain('113 kg');
+  });
+
   it('al sì scrive dalla PORTA della scheda, col motivo = la frase originale', async () => {
     const kcal = kcalFinto();
     const { service } = make({}, { kcal });
@@ -2190,6 +2264,46 @@ describe('VeraChatService — la giornata dettata', () => {
     const dati = (over.menuDay.update as jest.Mock).mock.calls[0][0].data.meals;
     expect(dati).toHaveLength(3);
     expect(dati[0]).toMatchObject({ slot: 'breakfast', recipeId: 'r-yog', name: expect.any(String), kcal: 320 });
+  });
+
+  /**
+   * ⛔ **IL FABBISOGNO SOSPESO NON È UN OBIETTIVO** (28/8, voce `target-sospeso-chi-non-lo-sa`).
+   *
+   * Quando le pesate di una cliente non stanno in piedi fra loro il fabbisogno personalizzato non
+   * viene usato: i menu tornano al livello della dieta. ⚠️ Il numero però **esce lo stesso** dal
+   * calcolo, e prima Vera lo prendeva e ci misurava contro la giornata dettata — cioè rispondeva «ci
+   * sta dentro» usando un metro che non è quello nel piatto.
+   *
+   * ⛔ Non scrive, e **dice quali pesate** non tornano: un «non posso» senza il come è un vicolo
+   * cieco per chi quella pesata la potrebbe correggere in trenta secondi.
+   */
+  it('⛔ col fabbisogno sospeso NON giudica la giornata e non la scrive', async () => {
+    const over = conCatalogo();
+    const sospeso = {
+      simulaKcal: jest.fn().mockResolvedValue({
+        prima: { target: 1400, pesoIncoerente: { frase: 'da 113 kg del 14/08/2026 a 73 kg del 21/08/2026' } },
+        dopo: { target: 1400 },
+      }),
+      impostaKcal: jest.fn().mockResolvedValue({}),
+    };
+    const { service, messaggioCreate } = make(over, { kcal: sospeso });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('sospeso');
+    expect(testo).toContain('113 kg');
+    expect(testo).toContain('livello della dieta');
+    // ⛔ E non la scrive: il controllo che non si è potuto fare non vale come controllo passato.
+    expect(over.menuDay.update).not.toHaveBeenCalled();
+    /**
+     * ⛔ **E la conversazione NON resta al passo «conferma»**, che è la cosa che il testo da solo non
+     * dice. Con lo stato lasciato aperto, un «sì» successivo entrerebbe in `confermaOAnnulla` e
+     * scriverebbe **esattamente la giornata** che questo ramo esiste per non scrivere: il test sul
+     * solo testo restava verde.
+     */
+    expect(stato?.passo).not.toBe('conferma');
+    await service.parla('lucia', 'sì');
+    expect(over.menuDay.update).not.toHaveBeenCalled();
   });
 
   it('⚠️ fuori dal ±15% NON scrive e dice di quanto sfora (decisione di Simone)', async () => {

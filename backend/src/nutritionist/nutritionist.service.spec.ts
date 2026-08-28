@@ -491,6 +491,34 @@ describe('NutritionistService — azioni sulla decisione', () => {
         .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia a terra', { correzionePct: 10, confermaSottoSoglia: true });
     });
 
+    /**
+     * ⛔ **L'AVVISO ARRIVA A CHI HA PREMUTO.** Senza, la coda dice «Calorie alzate del 10%» e la
+     * nutrizionista scopre fra una settimana — guardando perché le kcal non si muovono — che quella
+     * cliente ha il fabbisogno sospeso. *Se degradi, dillo.*
+     */
+    it('⛔ se il fabbisogno è sospeso, la coda lo dice a chi ha premuto', async () => {
+      const sospeso = makeKcalNeed({
+        estimate: jest.fn().mockResolvedValue({
+          ...stima(1600),
+          pesoIncoerente: { frase: 'da 113 kg a 73 kg in 7 giorni' },
+        }),
+      });
+      const res = (await make(prismaKcal(), makeEngine(), makePersonalBase(), makeAudit(), sospeso)
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia bassa', { correzionePct: 10, perGiorni: 7 })) as {
+        avviso?: string;
+      };
+      expect(res.avviso).toContain('sospeso');
+      expect(res.avviso).toContain('113 kg');
+    });
+
+    it('⚠️ e con le pesate a posto la coda non avvisa di niente', async () => {
+      const res = (await make(prismaKcal(), makeEngine(), makePersonalBase(), makeAudit(), kcalNeed())
+        .eseguiAzione(user, 'dec1', 'alza_calorie', 'energia bassa', { correzionePct: 10, perGiorni: 7 })) as {
+        avviso?: string;
+      };
+      expect(res.avviso).toBeUndefined();
+    });
+
     /** ⚠️ E la riga in scheda nasce: è la richiesta di Simone, non un di più. */
     it('⛔ lascia la nota in scheda, con chi, quando, di quanto e perché', async () => {
       const prisma = prismaKcal();
@@ -776,6 +804,139 @@ describe('⛔ le leve che non vengono nominate restano come sono', () => {
     const data = (prisma.clientProfile.update as jest.Mock).mock.calls[0][0].data;
     expect(data.kcalDeficitOverride).toBeNull();
     expect(data.kcalAdjustPct).toBe(-10);
+  });
+});
+
+/**
+ * ⛔ **QUANDO IL FABBISOGNO È SOSPESO, I NUMERI ESCONO LO STESSO — E VANNO DETTI PER QUELLO CHE
+ * SONO** (28/8, voce `target-sospeso-chi-non-lo-sa`).
+ *
+ * Dal 28/8 il fabbisogno personalizzato si sospende quando le pesate di una cliente non stanno in
+ * piedi fra loro: i menu tornano al livello della dieta. ⚠️ Il calcolo però continua a produrre un
+ * target, e da `impostaKcal` uscivano **tre affermazioni false**: il rifiuto «il menu scenderebbe a
+ * X kcal», lo storico clinico con un prima/dopo mai servito, e la nota in scheda.
+ *
+ * ⛔ La scrittura **non si blocca**: la prescrizione è valida e varrà quando le pesate saranno
+ * sistemate. Quello che non si può fare è tacerlo.
+ */
+describe('⛔ il fabbisogno sospeso si scrive, e si dice', () => {
+  const SALTO = { dal: new Date(), al: new Date(), daKg: 113, aKg: 73, giorni: 7, salto: 40, ritmo: 40, frase: 'da 113 kg a 73 kg in 7 giorni' };
+  const stima = (target: number, extra: Record<string, unknown> = {}) => ({
+    bmr: 1300, activityFactor: 1.4, activitySource: 'activity', tdee: 1900, target, deficit: 0,
+    floored: false, objective: 'dimagrimento', weightKg: 70, pesoIncoerente: null,
+    fonteDeficit: 'nessuno', deficitCalcolato: 0, calcoloDeficit: 'nessuno', correzionePct: 0,
+    sottoSoglia: false, tettoApplicato: false, correzioneFinoAl: null, correzioneScaduta: false,
+    spiegazione: `${target} kcal/giorno`, ...extra,
+  });
+  const prisma = () => ({
+    staff: { findUnique: jest.fn().mockResolvedValue({ id: 'nut-1', displayName: 'Dr.ssa Bini' }) },
+    clientProfile: {
+      findUnique: jest.fn().mockResolvedValue({
+        assignedNutritionistId: 'nut-1', kcalDeficitOverride: null, kcalAdjustPct: null,
+        kcalAdjustUntil: null, name: 'Anna',
+      }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    kcalOverride: { create: jest.fn().mockResolvedValue({ id: 'k1' }) },
+    clientNote: { create: jest.fn().mockResolvedValue({ id: 'n1' }) },
+    escalation: { create: jest.fn().mockResolvedValue({ id: 'e1' }), findFirst: jest.fn().mockResolvedValue(null) },
+    // ⚠️ Un capo c'è: senza, `avvisaCapiNutrizionisti` non scrive nessuna notifica e il test che
+    // guarda quel canale passerebbe per la ragione sbagliata — cioè perché il canale non esiste.
+    user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-capo' }]) },
+    notification: { create: jest.fn().mockResolvedValue({}) },
+  });
+  const conSospensione = (sottoSoglia = false) =>
+    makeKcalNeed({
+      estimate: jest.fn().mockResolvedValue(stima(1600, { pesoIncoerente: SALTO, sottoSoglia })),
+    });
+
+  it('⛔ la scrive lo stesso: la prescrizione vale quando le pesate torneranno a posto', async () => {
+    const p = prisma();
+    const r = (await make(p, makeEngine(), makePersonalBase(), makeAudit(), conSospensione())
+      .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' })) as { fabbisognoSospeso: string | null };
+    expect((p.clientProfile.update as jest.Mock).mock.calls[0][0].data.kcalAdjustPct).toBe(10);
+    // ⚠️ E lo dice a chi chiama, che è come arriva alla coda del motore e alla scheda.
+    expect(r.fabbisognoSospeso).toContain('113 kg');
+  });
+
+  it('⛔ lo storico clinico lo porta scritto: fra tre mesi nessuno potrebbe più saperlo', async () => {
+    const p = prisma();
+    await make(p, makeEngine(), makePersonalBase(), makeAudit(), conSospensione())
+      .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' });
+    const riga = (p.kcalOverride.create as jest.Mock).mock.calls[0][0].data;
+    expect(riga.motivo).toContain('fabbisogno sospeso');
+    expect(riga.motivo).toContain('energia bassa');
+  });
+
+  it('⛔ e la nota in scheda pure', async () => {
+    const p = prisma();
+    await make(p, makeEngine(), makePersonalBase(), makeAudit(), conSospensione())
+      .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' });
+    expect((p.clientNote.create as jest.Mock).mock.calls[0][0].data.body).toContain('fabbisogno era sospeso');
+  });
+
+  /**
+   * ⛔ **«Il menu scenderebbe a 1600 kcal» era falso**: non ci scende, perché non sta usando quel
+   * numero. Il rifiuto resta — la soglia è una guardia clinica — ma dice anche questo.
+   */
+  it('⛔ il rifiuto sotto soglia non promette più un menu che non c\'è', async () => {
+    const p = prisma();
+    await expect(
+      make(p, makeEngine(), makePersonalBase(), makeAudit(), conSospensione(true))
+        .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' }),
+    ).rejects.toThrow('SOSPESO');
+  });
+
+  /**
+   * ⚠️ **E il negativo, che è quello che tiene ferma la condizione.** Con l'avviso reso
+   * incondizionato ogni nutrizionista si sarebbe vista «il fabbisogno di questa cliente è SOSPESO ()»
+   * su qualunque rifiuto sotto soglia — e *un avviso che compare sempre non è un avviso*, che è
+   * regola scritta in questo repo.
+   */
+  it('⚠️ e col fabbisogno regolare il rifiuto sotto soglia NON parla di sospensione', async () => {
+    const p = prisma();
+    const soloSottoSoglia = makeKcalNeed({
+      estimate: jest.fn().mockResolvedValue(stima(900, { sottoSoglia: true })),
+    });
+    await expect(
+      make(p, makeEngine(), makePersonalBase(), makeAudit(), soloSottoSoglia)
+        .impostaKcal(user, 'p1', { correzionePct: -10, motivo: 'taglio' }),
+    ).rejects.toThrow('soglia minima');
+    // ⛔ E il messaggio NON parla di sospensione: con l'avviso reso incondizionato uscirebbe
+    // «il fabbisogno di questa cliente è SOSPESO ()» su ogni rifiuto sotto soglia.
+    await expect(
+      make(p, makeEngine(), makePersonalBase(), makeAudit(), soloSottoSoglia)
+        .impostaKcal(user, 'p1', { correzionePct: -10, motivo: 'taglio' }),
+    ).rejects.not.toThrow(/SOSPESO/);
+    await make(p, makeEngine(), makePersonalBase(), makeAudit(), soloSottoSoglia)
+      .impostaKcal(user, 'p1', { correzionePct: -10, motivo: 'taglio', confermaSottoSoglia: true })
+      .catch(() => undefined);
+    const segnalazione = (p.escalation.create as jest.Mock).mock.calls[0]?.[0]?.data?.reason ?? '';
+    expect(segnalazione).not.toContain('SOSPESO');
+  });
+
+  /**
+   * ⛔ **ANCHE LA SEGNALAZIONE E L'AVVISO AI CAPI**, non solo il rifiuto: sono due canali che
+   * affermano «900 kcal/giorno» su una cliente che quel giorno mangia il livello della sua dieta —
+   * e uno dei due **sveglia un capo nutrizionista**.
+   */
+  it('⛔ la segnalazione clinica dice che quel numero non era nel piatto', async () => {
+    const p = prisma();
+    await make(p, makeEngine(), makePersonalBase(), makeAudit(), conSospensione(true))
+      .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa', confermaSottoSoglia: true });
+    expect((p.escalation.create as jest.Mock).mock.calls[0][0].data.reason).toContain('SOSPESO');
+    // ⚠️ Il corpo dell'avviso ai capi sta dentro `payload`, non in una colonna sua.
+    expect((p.notification.create as jest.Mock).mock.calls[0][0].data.payload.body).toContain('sospeso');
+  });
+
+  it('⚠️ e con le pesate a posto non si dice niente di tutto questo', async () => {
+    const p = prisma();
+    const sane = makeKcalNeed({ estimate: jest.fn().mockResolvedValue(stima(1600)) });
+    const r = (await make(p, makeEngine(), makePersonalBase(), makeAudit(), sane)
+      .impostaKcal(user, 'p1', { correzionePct: 10, motivo: 'energia bassa' })) as { fabbisognoSospeso: string | null };
+    expect(r.fabbisognoSospeso).toBeNull();
+    expect((p.kcalOverride.create as jest.Mock).mock.calls[0][0].data.motivo).not.toContain('sospeso');
+    expect((p.clientNote.create as jest.Mock).mock.calls[0][0].data.body).not.toContain('sospeso');
   });
 });
 

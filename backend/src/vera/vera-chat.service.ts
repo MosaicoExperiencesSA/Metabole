@@ -2118,10 +2118,22 @@ export class VeraChatService {
     const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
     if (!scelte.length) return { testo: testi.giornataNienteDaScrivere(), esito: 'in_corso' };
 
-    const target = await this.kcal
+    /**
+     * ⛔ **NON SOLO IL NUMERO: anche se quel numero è quello che la cliente sta mangiando** (28/8).
+     *
+     * Qui si prendeva `prima.target` e basta. Da quando il fabbisogno può essere **sospeso** —
+     * pesate che non stanno in piedi fra loro — quel numero esce lo stesso dal calcolo ma i menu
+     * usano il livello della dieta: giudicare una giornata dettata contro di lui vorrebbe dire
+     * misurarla con un metro che non è quello nel piatto, e rispondere «ci sta dentro» a una domanda
+     * a cui non si sa rispondere.
+     */
+    const stima = await this.kcal
       .simulaKcal({ sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) }, stato.clienteId!)
-      .then((r) => r?.prima?.target ?? null)
+      .then((r) => r?.prima ?? null)
       .catch(() => null);
+    const sospeso = stima?.pesoIncoerente ?? null;
+    if (sospeso) return { testo: testi.giornataFabbisognoSospeso(sospeso.frase), esito: 'arresa' };
+    const target = stima?.target ?? null;
     const conto = contaGiornata(scelte, target);
     if (conto.dentroTolleranza === null) return { testo: testi.giornataSenzaTarget(), esito: 'arresa' };
     if (!conto.dentroTolleranza) {
@@ -2589,13 +2601,21 @@ export class VeraChatService {
   ): Promise<EsitoVera> {
     // Stessa simulazione del backoffice: un secondo calcolo qui darebbe due numeri per la stessa
     // domanda, e quello mostrato sarebbe quello sbagliato proprio quando serve.
+    /**
+     * ⛔ **`undefined` E NON `null` PER IL DEFICIT** (corretto il 28/8). `null` vuol dire «toglilo»,
+     * e con quel `null` l'anteprima calcolava il «dopo» **senza il deficit imposto dal
+     * nutrizionista** — cioè mostrava un numero più alto del vero, proprio per farlo confermare, e
+     * proprio sulle clienti che un deficit scritto a mano ce l'hanno. Quello che si sta simulando è
+     * la sola percentuale: il deficit non lo si sta nominando, quindi resta com'è.
+     */
     const sim = await this.kcal
-      .simulaKcal({ sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) }, stato.clienteId!, null, pct)
+      .simulaKcal({ sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) }, stato.clienteId!, undefined, pct)
       .catch(() => ({ prima: null, dopo: null }));
     const prima = sim?.prima?.target ?? null;
     const dopo = sim?.dopo?.target ?? null;
+    const sospeso = sim?.dopo?.pesoIncoerente ?? sim?.prima?.pesoIncoerente ?? null;
     return {
-      testo: testi.anteprimaKcal(stato.clienteNome ?? 'lei', pct, prima, dopo, giorni),
+      testo: testi.anteprimaKcal(stato.clienteNome ?? 'lei', pct, prima, dopo, giorni, sospeso?.frase ?? null),
       esito: 'in_corso',
       stato: { ...stato, passo: 'conferma', giorniCorrezione: giorni, kcalPrima: prima, kcalDopo: dopo, tentativi: 0 },
     };
@@ -2604,8 +2624,9 @@ export class VeraChatService {
   private async applicaCorrezioneKcal(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
     const intento = stato.intento as IntentoCorrezioneKcal;
     const giorni = stato.giorniCorrezione ?? null;
+    let sospeso: string | null = null;
     try {
-      await this.kcal.impostaKcal(
+      const esito = await this.kcal.impostaKcal(
         { sub: nutrizionistaId, role: await this.ruolo(nutrizionistaId) },
         stato.clienteId!,
         {
@@ -2616,6 +2637,10 @@ export class VeraChatService {
           ...(giorni ? { perGiorni: giorni } : {}),
         },
       );
+      // ⚠️ **La risposta si legge**: se il fabbisogno era sospeso, la frase di chiusura e il registro
+      // lo devono dire — altrimenti l'ultima cosa che la nutrizionista legge smentisce l'avviso che
+      // le è stato dato prima di confermare.
+      sospeso = esito?.fabbisognoSospeso ?? null;
     } catch (err) {
       const messaggio = err instanceof Error ? err.message : 'Non sono riuscita a scriverla.';
       logger.warn(`Correzione kcal non scritta (cliente=${stato.clienteId}): ${messaggio}`);
@@ -2633,11 +2658,14 @@ export class VeraChatService {
       // ⚠️ Il prima e il dopo si conservano: il fabbisogno cambia col peso, quindi fra un mese
       // quella percentuale darà un altro numero e senza questi due non si saprebbe cos'era.
       dettaglio: {
-        correzioneKcal: { pct: intento.pct, giorni, prima: stato.kcalPrima ?? null, dopo: stato.kcalDopo ?? null },
+        // ⚠️ `sospeso` sta nel registro accanto ai due numeri, come nello storico `kcal_override`:
+        // due archivi della stessa decisione di cui uno dice la verità e l'altro no sarebbero peggio
+        // di uno solo.
+        correzioneKcal: { pct: intento.pct, giorni, prima: stato.kcalPrima ?? null, dopo: stato.kcalDopo ?? null, sospeso },
       },
     })) as { id: string };
     return {
-      testo: testi.correzioneKcalFatta(stato.clienteNome ?? 'lei', intento.pct, stato.kcalDopo ?? null, giorni),
+      testo: testi.correzioneKcalFatta(stato.clienteNome ?? 'lei', intento.pct, stato.kcalDopo ?? null, giorni, sospeso),
       esito: 'scritta',
       azioneId: riga.id,
     };

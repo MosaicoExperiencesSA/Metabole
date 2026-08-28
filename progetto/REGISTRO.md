@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-28
 
+- `[Sviluppo]` **Un target che il motore non sta usando non si mostra, non si scrive e non decide.**
+  Chiude `target-sospeso-chi-non-lo-sa`, nata stamattina col blocco sulle pesate incoerenti: da lì il
+  fabbisogno può essere **sospeso** (i menu usano il livello della dieta), ma il calcolo continua a
+  produrre un target e **tre punti** lo trattavano come se fosse quello nel piatto.
+  **1)** Vera giudicava una giornata dettata contro quel numero col ±15% — ora non giudica e non
+  scrive, e dice **quali** pesate non tornano. **2)** L'anteprima della correzione kcal diceva «il suo
+  target passa da 1620 a 1460»: ora avvisa e ⚠️ lascia confermare lo stesso, perché la prescrizione è
+  valida. **3)** `impostaKcal`, che **scrive**: il rifiuto sotto soglia («il menu scenderebbe a X»
+  — falso, non ci scende) e lo storico clinico con un prima/dopo mai servito.
+  ⛔ **E una quarta**: l'anteprima di Vera chiamava `simulaKcal(..., null, pct)`, e `null` vuol dire
+  «togli il deficit» — mostrava un numero più alto del vero proprio per farlo confermare.
+  ⛔ **Il secondo giro di revisione ne ha trovati altri due**: la **segnalazione clinica** e la
+  **notifica ai capi** dicevano «900 kcal/giorno» su una cliente che mangiava il livello della dieta,
+  su un canale che sveglia un capo; e Vera **dopo il sì** chiudeva con «Fatto: scende a 1460 kcal»,
+  smentendo l'avviso di trenta secondi prima — perché `impostaKcal` era tipata `Promise<unknown>` e
+  quel campo non lo poteva leggere.
+  ⛔ **Una promessa falsa, riscritta invece che aggiustata di nascosto**: «varrà quando le pesate
+  saranno sistemate» — la scadenza di una correzione a termine parte **da oggi** e non si sposta,
+  quindi «−10% per 7 giorni» su una cliente sospesa può scadere **senza essere mai stata applicata**.
+  Spostarla da soli sarebbe allungare una prescrizione clinica: si dice a chi la scrive.
+  ✅ **L'altra metà chiusa davvero**: correggere una pesata dal backoffice adesso **rifà i giorni
+  futuri** — prima non li rifaceva nessuno, e il dato sistemato non arrivava nel piatto.
+  ⛔ **E un difetto ereditato, vivo**: `impostaKcal` distingueva «non l'ho scritto» da «toglilo» con
+  `'deficitKcal' in input`; con `target: ES2023` i campi del DTO sono proprietà proprie, quindi **via
+  HTTP la chiave c'è sempre** — la correzione di ieri era vera solo per i test. Ora è `!== undefined`.
+  ⚠️ **Non toccata**: la barra «verso il tuo obiettivo» che vede la cliente. È la sua storia, non una
+  decisione clinica; la strada giusta è chiederle conferma quando digita
+  (`pesata-strana-chiedi-conferma`).
+  **Misurato**: 5785 test backend verdi in quattro modalità, backoffice 150, app 192; undici
+  mutazioni, di cui **sei sopravvissute** al primo giro — fra cui lo stato della conversazione dopo
+  il rifiuto di Vera, dove col solo testo asserito un «sì» successivo avrebbe scritto la giornata che
+  quel ramo esiste per non scrivere. Nessuna migrazione.
+
 - `[Sviluppo]` **I pasti e il digiuno stanno sotto un permesso, come il resto del tipo di dieta.**
   Il cambio del «tipo di dieta» è protetto da `change_diet_type` dal 18/7, ma l'elenco dei campi
   protetti conteneva solo regime, stile e famiglia: restavano fuori **`pathType`** (che decide il

@@ -23,19 +23,22 @@ const servizio = (controlla: jest.Mock) => {
       update: jest.fn().mockImplementation(({ data }: never) => Promise.resolve({ id: 'm1', ...(data as object) })),
     },
   };
+  // ⚠️ `MenuService`: dal 28/8 una pesata corretta rifà i giorni futuri — il peso è cambiato, quindi
+  // le calorie pure, e se la pesata teneva sospeso il fabbisogno sistemarla lo riaccende.
+  const menu = { redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 0, delivered: [] }) };
   const s = new ClientsService(
     prisma as never,
     {} as never,
     { log: jest.fn().mockResolvedValue(undefined) } as never,
     {} as never,
-    {} as never,
+    menu as never,
     {} as never,
     {} as never,
     {} as never,
     { controllaPesoIncoerente: controlla } as never,
   );
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
-  return { s, prisma };
+  return { s, prisma, menu };
 };
 
 describe('⛔ la pesata corretta dallo staff passa dallo stesso guardrail', () => {
@@ -55,6 +58,26 @@ describe('⛔ la pesata corretta dallo staff passa dallo stesso guardrail', () =
     const { s } = servizio(jest.fn().mockResolvedValue(SALTO));
     const out = await s.updateMeasurement('cli-1', 'staff-1', 'm1', { weightKg: 113 });
     expect((out as { pesoIncoerente: unknown }).pesoIncoerente).toEqual(SALTO);
+  });
+
+  /**
+   * ⛔ **E I GIORNI FUTURI SI RIFANNO.** Senza, la correzione della pesata non arriva nel piatto:
+   * la cliente continua a mangiare i giorni costruiti sul peso sbagliato. ⚠️ E quando la coppia
+   * corretta era quella che teneva il fabbisogno **sospeso**, sistemarla lo riaccende — ma i menu
+   * restavano al livello della dieta, e la frase «i menu la prendono appena la pesata sarà corretta»
+   * sarebbe stata una promessa vuota.
+   */
+  it('⛔ e rifà i giorni futuri: una pesata corretta cambia le calorie', async () => {
+    const { s, menu } = servizio(jest.fn().mockResolvedValue(null));
+    await s.updateMeasurement('cli-1', 'staff-1', 'm1', { weightKg: 74 });
+    expect(menu.redeliverFutureDays).toHaveBeenCalledWith('cli-1');
+  });
+
+  it('⚠️ e se la rierogazione fallisce la correzione resta salvata lo stesso', async () => {
+    const { s } = servizio(jest.fn().mockResolvedValue(null));
+    (s as unknown as { menu: { redeliverFutureDays: jest.Mock } }).menu.redeliverFutureDays =
+      jest.fn().mockRejectedValue(new Error('menu giù'));
+    await expect(s.updateMeasurement('cli-1', 'staff-1', 'm1', { weightKg: 74 })).resolves.toBeDefined();
   });
 
   /** ⚠️ Un guardrail che cade non deve far fallire la correzione — ma non deve nemmeno tacere. */

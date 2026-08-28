@@ -1,0 +1,88 @@
+Un target che il motore non sta usando non si mostra, non si scrive e non decide
+
+LA VOCE
+`target-sospeso-chi-non-lo-sa`, aperta stamattina chiudendo il blocco sulle pesate
+incoerenti. Da quel giorno il fabbisogno può essere SOSPESO: quando due pesate
+consecutive non stanno in piedi fra loro, `computeTargetKcal` risponde `null` e i
+menu usano il livello della dieta. ⚠️ Il calcolo però continua a produrre un
+target, e tre punti lo mostravano — o lo scrivevano — come se fosse quello nel
+piatto.
+
+I TRE PUNTI
+
+1. VERA CHE GIUDICA UNA GIORNATA DETTATA. Prendeva `prima.target` e ci misurava
+   contro il ±15%: rispondeva «ci sta dentro» con un metro che non è quello
+   servito. Adesso non giudica e non scrive, e dice QUALI pesate non tornano — un
+   «non posso» senza il come è un vicolo cieco per chi quella pesata la
+   correggerebbe in trenta secondi.
+
+2. L'ANTEPRIMA DELLA CORREZIONE KCAL. Diceva «il suo target passa da 1620 a 1460»
+   e chiedeva conferma. Adesso avvisa, e ⚠️ lascia confermare lo stesso: la
+   prescrizione è valida. Sospendere anche la scrittura sarebbe togliere una cura
+   per un problema di dati.
+
+3. `impostaKcal`, CHE SCRIVE. Il rifiuto sotto soglia diceva «il menu scenderebbe
+   a X kcal/giorno» — falso, non ci scende: non sta usando quel numero. E
+   `targetPrima`/`targetDopo` finivano nello storico clinico senza dire che quel
+   giorno non contavano. Adesso lo dicono il rifiuto, il motivo dello storico, la
+   nota in scheda, la risposta a chi ha premuto e l'avviso della coda del motore.
+
+⛔ E UNA QUARTA COSA, TROVATA MENTRE SI SISTEMAVANO LE ALTRE TRE
+L'anteprima di Vera chiamava `simulaKcal(..., null, pct)` — e `null` vuol dire
+«togli il deficit». Mostrava il «dopo» SENZA il deficit imposto dal nutrizionista:
+un numero più alto del vero, proprio per farlo confermare, e proprio sulle clienti
+che un deficit scritto a mano ce l'hanno.
+
+⛔ IL SECONDO GIRO DI REVISIONE NE HA TROVATI ALTRI DUE
+(a) La SEGNALAZIONE CLINICA e la NOTIFICA AI CAPI che partono quando si scende
+    sotto soglia dicevano «900 kcal/giorno» su una cliente che quel giorno
+    mangiava il livello della sua dieta. Il rifiuto era stato corretto e queste due
+    righe no — su un canale che sveglia un capo nutrizionista.
+(b) Vera, DOPO IL SÌ, buttava via la risposta di `impostaKcal` e chiudeva con
+    «Fatto: scende a 1460 kcal al giorno»: l'ultima frase smentiva l'avviso di
+    trenta secondi prima. E il registro archiviava la stessa coppia prima/dopo
+    senza marcatore, mentre lo storico delle calorie la marcava — due archivi
+    della stessa decisione, uno dei due falso. La causa stava nel tipo:
+    `impostaKcal(): Promise<unknown>`, cioè il campo nuovo Vera non lo poteva
+    proprio leggere.
+
+⛔ UNA PROMESSA CHE ERA FALSA, RISCRITTA INVECE CHE AGGIUSTATA DI NASCOSTO
+Dicevamo «varrà quando le pesate saranno sistemate». ⚠️ La scadenza di una
+correzione a termine si calcola DA OGGI e non si sposta: «−10% per 7 giorni» su
+una cliente sospesa può scadere SENZA ESSERE MAI STATA APPLICATA.
+
+Spostare la scadenza da soli sarebbe allungare una prescrizione clinica: non si
+fa. Si dice a chi la scrive — che può scriverla senza durata, o far correggere
+prima la pesata.
+
+✅ E l'altra metà è stata chiusa davvero: correggere una pesata dal backoffice
+adesso RIFÀ I GIORNI FUTURI. Prima non li rifaceva nessuno, quindi anche dopo aver
+sistemato il dato la cliente continuava a mangiare i giorni costruiti sul peso
+sbagliato.
+
+⛔ E UN DIFETTO EREDITATO, VIVO E FONDANTE
+`impostaKcal` distingueva «non l'ho scritto» da «toglilo» con
+`'deficitKcal' in input`. ⚠️ Con `target: ES2023` i campi del DTO dichiarati senza
+inizializzatore diventano PROPRIETÀ PROPRIE dell'istanza: dopo la `ValidationPipe`
+la chiave c'è sempre, col valore `undefined`. Cioè via HTTP ogni chiamata che
+omettesse `deficitKcal` cancellava comunque il deficit, e la correzione di ieri era
+vera solo per i test — che passano oggetti letterali. Adesso il confine è
+`!== undefined`, che si comporta allo stesso modo nei due mondi.
+
+QUELLO CHE NON È STATO TOCCATO, E PERCHÉ
+La barra «verso il tuo obiettivo» e il «−X kg dal via» che vede la cliente in app.
+Sono calcolati sulla stessa media, quindi su pesate contraddittorie dicono una cosa
+non vera — ma sono LA SUA STORIA, non una decisione clinica, e nascondergliela per
+un errore di battitura sarebbe punire lei di un problema nostro. La strada giusta è
+chiederle conferma quando digita: è la voce `pesata-strana-chiedi-conferma`.
+
+MISURATO
+- 5785 test backend verdi in quattro modalità; backoffice 150; app 192.
+- Undici mutazioni provate. Sei sono SOPRAVVISSUTE al primo giro e hanno fatto
+  scrivere i test che mancavano: l'avviso della coda (non lo toccava nessun test),
+  i due suffissi «sospeso» resi costanti — *un avviso che compare sempre non è un
+  avviso* — lo stato della conversazione dopo il rifiuto di Vera (col solo testo
+  asserito, un «sì» successivo avrebbe scritto la giornata che quel ramo esiste per
+  non scrivere), `undefined`→`null` nell'anteprima, e il valore di ritorno.
+
+Nessuna migrazione.
