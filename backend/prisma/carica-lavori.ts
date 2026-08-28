@@ -40,7 +40,18 @@ type VoceStorica = Voce & { data: string };
  * pulsante della pagina. Due copie della stessa lista è il modo in cui la shell e la pagina
  * finiscono per caricare cose diverse.
  */
-const VOCI = VOCI_INIZIALI;
+/**
+ * ⛔ **LE RIGHE DI CHIUSURA NON SI CREANO — nemmeno da qui** (27/8, trovato in revisione).
+ *
+ * Le voci `soloSeEsiste` non sono lavori: sono righe che il file usa per **chiudere** un doppione
+ * rimasto in pagina. `LavoriService.caricaVociIniziali` le salta da sempre («crearle vorrebbe dire
+ * scrivere spazzatura nuova per pulire quella vecchia»); questo script no, e nessuno se n'era
+ * accorto perché il primo caricamento è già stato fatto. ⚠️ Ma nulla vieta di rilanciarlo, ed è
+ * documentato come lo strumento del primo caricamento: rilanciandolo oggi avrebbe creato **otto
+ * righe nuove già spuntate**, esattamente quella spazzatura. Due strade che scrivono la stessa
+ * lista, e una non applicava il patto dell'altra.
+ */
+const VOCI = VOCI_INIZIALI.filter((v) => v.soloSeEsiste !== true);
 
 async function main() {
   const conferma = process.env.CONFERMA === '1';

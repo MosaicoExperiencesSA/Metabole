@@ -73,6 +73,13 @@ export const SIMONE = 'Aspetta Simone';
 export const CODICE = 'Da fare — codice';
 export const MANUTENZIONE = 'Manutenzione';
 export const DATI = 'Dati e catalogo';
+/**
+ * ⚠️ **«Aspetta il paniere» è una categoria, non un rinvio generico** (27/8). Il rifacimento del
+ * catalogo (`progetto/PIANO_Panieri_Ricette.md`) rimescola le ricette: un lavoro che si misura sul
+ * catalogo di oggi, fatto adesso, andrebbe rifatto dopo — e lasciarlo in «Da fare» lo fa sembrare
+ * dimenticato invece che sospeso. Chiuderlo sarebbe peggio: si perderebbe.
+ */
+export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
@@ -115,12 +122,21 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'giallo-finestra-di-rientro',
+    fatta: true,
     categoria: 'Da decidere con Simone',
     ordine: 0,
     blocca: false,
     nata: '2026-08-24T09:30',
-    titolo: '👁 In osservazione (deciso il 25/8): il giallo del 23/8 si riguarda se si ripete — la struttura si completa prima',
+    titolo: '✅ Chiusa il 27/8: il giallo del 23/8 non si è ripetuto',
     dettaglio:
+      '✅ **CHIUSA il 27/8. Simone: «non è capitato, chiudi».** L\'attesa era la risposta giusta per la '
+      + 'forma di questo problema — un caso solo, non riprodotto, con tre ipotesi già smontate — e ha dato '
+      + 'il risultato che l\'attesa doveva dare: **nessun secondo caso**. ⚠️ E se dovesse ricapitare non si '
+      + 'ricomincia da capo: `npm run prova:erogazione -- <email>` dà un verdetto ✓/⛔ per ognuna delle diciannove '
+      + 'uscite, e la riga ⛔ dice quale cancello ha fermato l\'erogazione. È quello strumento che ha reso '
+      + 'sicuro aspettare, ed è il motivo per cui questa voce si chiude senza sapere cosa fosse.\n\n'
+      + '## Il testo di prima\n\n'
+      +
       '✅ **RISPOSTA DI SIMONE, 25/8: «completiamo tutta la struttura e vediamo se si ripete».** '
       + 'Questa voce quindi **non aspetta più una decisione**: aspetta un secondo caso, o nessuno.\n\n'
       + '⚠️ **È la risposta giusta per la forma che ha questo problema.** Un caso solo, non '
@@ -287,9 +303,21 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'whatsapp-numero',
-    titolo: '📅 Rimandata a settembre da Simone (14/8): numero WhatsApp dedicato, verificato su Meta Business',
+    fatta: true,
+    titolo: '✅ Chiusa il 27/8: il numero WhatsApp dedicato «al momento non serve» (Simone)',
     dettaglio:
-      '📅 **RISPOSTA DI SIMONE, 14/8: «lasciamolo in sospeso per ora, lo affrontiamo a settembre».** '
+      '✅ **CHIUSA il 27/8. Simone: «al momento non serve».** Non è un rinvio a settembre come il 14/8: '
+      + 'esce dall\'elenco.\n\n'
+      + '⛔ **E la prima stesura di questa chiusura diceva una cosa falsa**, trovata in revisione la sera '
+      + 'stessa: «il codice dice da sé cosa manca». Non lo diceva — «WhatsApp» compariva nel backend solo '
+      + 'in una parentesi incidentale, e la descrizione del passo 2 viveva **soltanto qui dentro**. Siccome '
+      + 'l\'elenco che si incolla in chat esporta **solo le voci aperte**, chiuderla avrebbe fatto sparire '
+      + 'il passo 2 — cioè esattamente quello contro cui questa voce argomentava fino a ieri: *«i lavori a '
+      + 'metà che escono dall\'elenco tornano come sorprese»*. ✅ Adesso è vero: il passo mancante è scritto '
+      + 'nel docblock di `mail.service.ts`, accanto al passo 1 che lo aspetta. La decisione di Simone resta; '
+      + 'la motivazione l\'ho dovuta rifare.\n\n'
+      + '## Il testo di prima\n\n'
+      + '📅 **RISPOSTA DI SIMONE, 14/8: «lasciamolo in sospeso per ora, lo affrontiamo a settembre».** '
       + 'Non aspetta più una decisione: aspetta il mese. Resta in elenco perché il passo 1 senza il '
       + 'passo 2 è un lavoro **a metà**, e i lavori a metà che escono dall\'elenco tornano come '
       + 'sorprese.\n\n'
@@ -319,10 +347,31 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'coda-da-validare-b-c',
     nata: '2026-08-13',
-    titolo: 'Coda «Da validare»: la B è chiusa (12/8), resta la C — e forse la C non serve più',
+    categoria: CODICE,
+    titolo: 'Coda «Da validare»: l\'aumento delle calorie lo autorizza il nutrizionista, e resta scritto in scheda',
     dettaglio:
+      '✅ **SBLOCCATA il 27/8, e la forma è cambiata in meglio.** Era ferma da settimane su un numero che '
+      + 'doveva dare Nocanty — «di quanto si alzano le calorie» — e quel numero non serve più. Simone, 27/8: '
+      + '*«Vera lo chiede al nutrizionista che risponde, e la sua risposta si salva nelle note della scheda '
+      + 'cliente (aumento calorie autorizzato da… il…)»*.\n\n'
+      + '⚠️ **Perché è meglio di un numero fisso.** Una percentuale decisa una volta per tutte sarebbe stata '
+      + 'la stessa per una cliente ferma da tre settimane e per una che ha saltato due check-in: è la '
+      + 'differenza fra una regola e una decisione clinica. Così invece la decide chi ha davanti il caso, e '
+      + '**resta scritta con il nome di chi l\'ha presa e la data** — che è quello che serve a chi rilegge '
+      + 'la scheda fra tre mesi.\n\n'
+      + '⚠️ **Nella nota va anche DI QUANTO.** Una riga che dice chi e quando ma non cosa non serve a '
+      + 'nessuno: si scrive l\'aumento insieme all\'autorizzazione, o fra tre mesi è una firma su niente.\n\n'
+      + '⛔ **E LA NOTA NON SOSTITUISCE L\'AZIONE: i lavori sono DUE.** Trovato in revisione il 27/8, perché '
+      + 'la prima stesura di questa riscrittura faceva sparire il difetto originale sotto un titolo che '
+      + 'diceva «risolto in meglio». Il difetto è ancora lì: «Presa visione» scrive `reviewOutcome`, e quel '
+      + 'campo in tutto il backend ha **una sola occorrenza non di test** — la scrittura in '
+      + '`engine.service.ts`. **Nessuno lo legge.** Una nota di testo libero in scheda non applica niente al '
+      + 'piano: le calorie le deve alzare qualcuno. Quindi questa voce contiene due cose e si chiude solo '
+      + 'quando ci sono tutte e due: **(1)** Vera chiede, il nutrizionista risponde, la nota resta in scheda; '
+      + '**(2)** l\'aumento **arriva davvero nel piano**, che è il lavoro aperto dal 13/8.\n\n'
+      + '## Come ci si è arrivati\n\n'
+      +
       '⚠️ **Voce corretta il 18/8 rileggendo il codice**: diceva «restano le consegne B e C», ma la **B era già stata consegnata il 12/8** (REGISTRO 3475-3502) — le azioni per causa, «Autorizza a proseguire» e «Blocca il piano» vivono in `engine/causa-decisione.ts:65-134` (`AZIONI_PER_CAUSA`, `azioneAmmessa`), `nutritionist.service.ts:487` e `:523-541` (`eseguiAzione`, che rifiuta un\'azione non prevista per quella causa) e nei pulsanti di `NutritionistHome.tsx:214-240`. **Resta la C**: «Conferma» dovrebbe applicare la proposta al piano, e oggi scrive soltanto `reviewOutcome` — ⚠️ un campo che in tutto il backend ha **una sola occorrenza**, quella scrittura: nessuno lo legge. Quindi «Conferma» è un registro di «ho letto» con l\'aspetto di un\'azione, che è il difetto di famiglia di questo progetto. ⛔ **Ma prima di farla serve una parola di Simone**, perché la C potrebbe essere stata **superata dalla B**: da quando la coda ha azioni esplicite per causa, «Conferma» che significa «visto, non serve fare niente» è una risposta legittima — e farle applicare da sola l\'azione proposta dal motore vorrebbe dire che un clic di presa visione cambia il piano di una persona. Le due strade erano: **1)** «Conferma» applica la proposta (e allora va rinominato: «Conferma e applica»); **2)** resta presa visione, e si toglie l\'ambiguità dall\'etichetta. ✅ **Il 19/8 Simone ha scelto la 2**: il pulsante si chiama **«Presa visione»** e sopra la lista c\'è una riga che dice cosa fanno tutti e due — l\'ambiguità è tolta, e nessun clic cambia più il piano di una persona per sbaglio. ⛔ **Resta aperta la sola parte 1**: far applicare davvero la proposta al piano. È ferma sul numero di Nocanty — di quanto si alzano le calorie — e non è una decisione di software. ⚠️ Il livello 2 non esiste (315 diete a livello 1): la voce 1 si fa in percentuale.',
-    categoria: SIMONE,
     ordine: 30,
   },
   {
@@ -1305,6 +1354,28 @@ export const VOCI_INIZIALI: Voce[] = [
    * `soloSeEsiste` fa in modo che il caricamento le spunti se le trova e non le inventi se non ci
    * sono. ⚠️ Non si CANCELLANO, si spuntano: in pagina può esserci sopra un commento di qualcuno.
    */
+  /**
+   * ⚠️ **Sta QUI, PRIMA delle tre righe doppie del 13/8 e non in mezzo a loro**: il commento che le
+   * introduce dice «sono, nell'ordine, …» e infilarne una quarta che non c'entra romperebbe quella
+   * frase. Un commento che introduce la voce sbagliata manda a leggere altro.
+   *
+   * ⚠️ **La riga del seed rimasta aperta in pagina** (27/8). Il difetto è chiuso dal 20/8 sera — la
+   * voce vera è `seed-nutrienti-firma-falsa`, spuntata — ma in pagina è rimasta **un'altra riga**,
+   * arrivata col caricamento dai documenti del 20/8 e con il titolo di allora. Nessuno la puntava,
+   * quindi restava rossa e dichiarava di bloccare del lavoro che non blocca da una settimana.
+   * ⛔ E il titolo che porta è l'accusa **sbagliata**: la firma non era falsa (quelle righe il capo
+   * nutrizionista le aveva guardate il 18/8). Motivo in più per chiuderla: finché sta lì, il primo
+   * che la legge riapre un'indagine su un'accusa già ritirata.
+   */
+  {
+    chiave: 'seed-deploy-riga-in-pagina',
+    titolo: '⛔ Il seed gira a OGNI deploy, riscrive le righe non confermate e le firma: la firma è falsa',
+    dettaglio: 'Riga rimasta in pagina dal caricamento del 20/8: la voce vera ha la chiave `seed-nutrienti-firma-falsa`, ed è chiusa dal 20/8 sera. ⚠️ Il titolo qui sopra porta anche l\'accusa sbagliata («la firma è falsa»), ritirata la sera stessa.',
+    categoria: MANUTENZIONE,
+    ordine: 903,
+    fatta: true,
+    soloSeEsiste: true,
+  },
   {
     chiave: 'vera-moduli-dashboard',
     titolo: 'Doppione del 13/8 — vedi «Vera: i moduli in dashboard "quello che aspetta me"»',
@@ -1458,8 +1529,21 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'ricalcolo-e-tetto-mensile',
-    titolo: '⛔ Una domanda sola, e serve un sì o un no: il ricalcolo può ripagare quello che il tetto aveva tolto?',
+    fatta: true,
+    titolo: '✅ Chiusa il 27/8: il ricalcolo può ripagare quote tagliate in un mese chiuso — e adesso lo DICE',
     dettaglio:
+      '✅ **DECISO da Simone il 27/8: la strada «a».** Il comportamento non cambia — il ricalcolo è un '
+      + 'pulsante che preme un admin, e se lo preme è perché vuole pagare. ⚠️ **Quello che cambia è che '
+      + 'adesso lo dice a chi preme**: la conferma del pulsante in `Acquisti.tsx` nomina il caso per intero '
+      + '(«il tetto mensile si misura su QUESTO mese, non su quello del pagamento»), e il docblock di '
+      + '`ricalcolaProvvigioni` non parla più di una domanda aperta ma di una decisione con la data.\n\n'
+      + '⛔ **Il difetto non era il comportamento: era il silenzio.** Una decisione di prodotto — '
+      + '«l\'eccedenza del tetto si perde», 11/8 — che si disfa con un clic senza che chi clicca lo sappia '
+      + 'è un difetto anche quando il codice fa esattamente quello che deve. ⚠️ E la strada «b» resta '
+      + 'possibile il giorno che servisse: l\'audit `provvigione.tetto_mensile` tiene la traccia di ogni '
+      + 'taglio con importo, mese e riferimento. Sta scritto nel docblock perché non si ricominci a cercarlo.\n\n'
+      + '## Il testo di prima\n\n'
+      +
       '⚠️ **LA RISPOSTA DEL 20/8 RISPONDEVA A UN\'ALTRA DOMANDA — e quella è già fatta.** Simone ha '
       + 'scritto: *«il ricalcolo provvigioni lavora solo sulle provvigioni della rete coach, non su '
       + 'quella dei nutrizionisti»*. ⛔ Il codice invece percorreva **tutte e due** le catene: su un '
@@ -2259,6 +2343,35 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'senza un rilascio. ⚠️ **L\'ORARIO non si detta a Vera**, ed è una scelta: dove sta la '
       + 'finestra nella giornata di una persona — quando lavora, quando cena — lo sa lei, e lo sposta '
       + 'dall\'app.',
+  },
+  {
+    chiave: 'pathtype-non-protetto',
+    categoria: CODICE,
+    ordine: 5,
+    nata: '2026-08-27T22:00',
+    titolo: '⛔ Una coach può mettere chiunque a digiuno intermittente: `pathType` non è protetto da nessun permesso',
+    dettaglio:
+      '⛔ **Difetto già in produzione, staccato il 27/8 da dove era sepolto.** Stava scritto in fondo alla voce '
+      + 'del digiuno, dentro un changelog di quaranta righe: cioè in un posto dove nessuno lo avrebbe mai letto '
+      + 'come un lavoro da fare. Un difetto nominato dentro il racconto di un altro lavoro è un difetto che non '
+      + 'esiste.\n\n'
+      + '⚠️ **Il fatto**: `clients.service.ts` protegge il cambio del tipo di dieta con il permesso '
+      + '`change_diet_type`, ma `DIET_TYPE_FIELDS` contiene **solo** `regime`, `dietStyle` e `dietFamily`. '
+      + '`pathType` no — ed è il campo che decide se una cliente fa 3 pasti, 5 pasti o **digiuno intermittente**.\n\n'
+      + '⛔ **La conseguenza, detta in chiaro:** una coach non può passare una cliente da vegetariana a vegana, '
+      + 'ma **può metterla a digiuno intermittente**. Delle tre è la modifica più clinica: cambia quanti pasti '
+      + 'mangia al giorno, e il digiuno ha controindicazioni che le altre due non hanno.\n\n'
+      + '⛔ **E NON È SOLO `pathType`: `mealsPerDay` ha lo stesso buco.** Il primo decide digiuno sì/no, il '
+      + 'secondo decide 3 o 5 pasti — e nessuno dei due è in `DIET_TYPE_FIELDS`. Nominare solo il primo '
+      + 'farebbe chiudere metà porta e scrivere «fatto»: chiusa quella, una coach potrebbe comunque portare '
+      + 'una cliente da 5 pasti a 3 senza avere il permesso. Vanno insieme, ed è ancora una riga sola.\n\n'
+      + '✅ **Misurato il 27/8, e la strada è libera**: `updateClient` ha **tre** chiamanti — il `PATCH` dello '
+      + 'staff e i due percorsi di Vera. Il questionario e la cliente passano da '
+      + '`profile.service.updateProfile`, che è un servizio diverso con la sua guardia: **aggiungere i due '
+      + 'campi a `DIET_TYPE_FIELDS` non può bloccare l\'onboarding**. ⚠️ La prima stesura di questa voce '
+      + 'mandava a misurare proprio quella cosa, e faceva sembrare rischiosa una correzione che non lo è — '
+      + 'una prudenza inventata costa quanto una sicurezza inventata: tutte e due mandano a guardare dalla '
+      + 'parte sbagliata.',
   },
   {
     chiave: 'data-inizio-giorno-o-istante',
@@ -3299,9 +3412,18 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'esclusioni-chiave-dentro-parola',
-    titolo: '⛔ Serve UN comando e una riga di risposta per parola: quali chiavi dentro una parola più lunga sono sbagliate?',
+    categoria: PANIERE,
+    titolo: '⏸ Sospesa il 27/8: le chiavi dentro una parola più lunga si guardano DOPO il rifacimento del paniere',
     dettaglio:
-      '⚠️ **RISPOSTA DI SIMONE, 25/8: «fammi una domanda specifica, non capisco cosa ti serve».** '
+      '⏸ **SOSPESA il 27/8. Simone: «lavoro da fare dopo aver sistemato il paniere, ora non ha senso».** '
+      + '⚠️ Ed è la risposta giusta, non un rinvio: l\'elenco delle coppie (chiave, parola) da guardare '
+      + 'una per una **si misura sul catalogo di oggi**. Il rifacimento dei panieri rimescola le ricette — '
+      + 'ne toglie, ne condivide fra diete diverse — quindi le coppie cambiano sotto, e le risposte date '
+      + 'adesso andrebbero ridate. ⛔ **Non si chiude**: ogni riga di quell\'elenco toglie o tiene una '
+      + 'protezione su un allergene, e una voce chiusa è una voce che nessuno riapre. Torna «da fare» il '
+      + 'giorno che i panieri sono accesi — vedi `progetto/PIANO_Panieri_Ricette.md`.\n\n'
+      + '## La domanda, pronta per quel giorno\n\n'
+      + '⚠️ **RISPOSTA DI SIMONE, 25/8: «fammi una domanda specifica, non capisco cosa ti serve».** '
       + 'Aveva ragione: la voce raccontava il problema e non chiedeva niente di eseguibile. Ecco la '
       + 'domanda, in due passi.\n\n'
       + '**PASSO 1 — un comando, sola lettura, sulla shell di Render:**\n\n'
@@ -3344,7 +3466,6 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'far scattare il sostituto. Le ha decise Simone, non aspettano Lucia.\n\n'
       + '## Il testo di quando la voce è nata\n\n'
       + '⚠️ **Difetto più vecchio della radice, e più delicato da correggere.** Il primo giro delle esclusioni cerca la parola chiave **intera** dentro il testo del piatto (`includes`), come fa da mesi. `npm run diag:esclusioni` adesso conta a parte quante volte quella chiave combacia **dentro una parola più lunga**: sono **212**.\n\n⛔ **E qui il confine di parola NON è la correzione**, al contrario della radice. Le due parole viste nell\'esito dicono perché:\n · «**aceto**» dentro «**sottaceto**» → **giusto**: il sottaceto l\'aceto ce l\'ha davvero, e mettere un confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti;\n · «**vino**» dentro «**bovino**» → **sbagliato**: uno stracetto di bovino magro non c\'entra niente con i solfiti.\n\n⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all\'altra. Quindi non è una regola: è una **lista corta** di parole da guardare una per una. La diagnostica adesso le raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta — la prima versione ne stampava 212 per far scoprire che erano due parole, e un elenco che costringe a contare a mano è un elenco che non si legge.\n\n⚠️ **Non l\'ho toccato**, e non per prudenza generica: correggere il giro della chiave esatta vuol dire cambiare il comportamento che regge le esclusioni da mesi, e la direzione dell\'errore qui è l\'opposta — si rischia di **togliere** una protezione invece di restituire dei piatti. Si legge l\'elenco raggruppato e si decide parola per parola. ⚠️ È la stessa famiglia di «Gaia trovava mela dentro melanzane», chiusa il 19/8 sulla ricerca: lì la risposta fu «a parole intere», qui non può esserlo.\n\n✅ **CORRETTA il 20/8 sera, invece che chiesta.** Aprire una voce per «bovino» era sbagliato: è una parola, non una decisione di prodotto. In `exclusions.ts` c\'è `PAROLE_CHE_NON_SONO`, una lista corta di parole omonime — `vino` → `bovino, bovina, bovini, bovine` — e «sottaceto» resta escluso com\'era giusto. ⚠️ **Ogni riga di quella lista TOGLIE un\'esclusione**, quindi si scrive solo dopo aver letto la parola in un esito vero, mai per analogia: `bovino` l\'ha nominata la diagnostica. ⛔ **Resta da guardare il resto dei 212**: `npm run diag:esclusioni` adesso li raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta, quindi sono poche righe da leggere. Quelle che sono come «bovino» si aggiungono alla lista; quelle che sono come «sottaceto» si lasciano stare. ⚠️ E «biscotti» non è nessuna delle due: è una delle **due voci larghe** dei solfiti dichiarate nel codice il 13/8 — insieme ad «aceto» — che si tolgono se Lucia dice che sono eccessive.',
-    categoria: SIMONE,
     ordine: 622,
     nata: '2026-08-20T19:10',
   },

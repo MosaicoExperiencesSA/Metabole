@@ -269,6 +269,19 @@ export class MailService {
    * `{password}` resta accettata dai modelli vecchi ma arriva vuota: se qualcuno ha
    * personalizzato il testo dal backoffice non vedrà comparire una password sbagliata, vedrà
    * uno spazio — e se ne accorgerà. Peggio sarebbe stampare qualcosa che non funziona.
+   *
+   * ## ⏸ IL PASSO 2 CHE MANCA: le credenziali via WhatsApp
+   *
+   * ⚠️ Questo è **metà** di un lavoro, e la metà che manca sta scritta qui perché il 27/8 la voce
+   * dell'elenco Lavori che la teneva viva è stata chiusa («al momento non serve», Simone) — e
+   * l'elenco esporta solo le voci aperte, quindi da lì sparisce. Un lavoro a metà che esce
+   * dall'elenco torna come sorpresa: allora si scrive dove il lavoro sta.
+   *
+   * Quello che serve il giorno che il canale WhatsApp si accende: un **numero dedicato verificato
+   * su Meta Business**, e i modelli di messaggio approvati da loro (WhatsApp non lascia mandare
+   * testo libero a chi non ha scritto per primo). ⚠️ Il link di questa email è già la forma giusta
+   * per quel canale — nessun segreto riutilizzabile da incollare in una chat — quindi il passo 2 è
+   * il canale, non il contenuto: qui non c'è niente da rifare.
    */
   async sendLeadCredentials(
     to: string,

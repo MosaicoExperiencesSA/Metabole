@@ -1,0 +1,115 @@
+L'elenco dei lavori dice la verità: sei decisioni scritte, e due strade che spuntavano da sole
+
+PERCHÉ
+Simone ha esportato la pagina Lavori — «13 aperte» — e ha chiesto se fosse vero
+che restava tutta quella roba da fare. Verificandole una per una nel codice:
+QUATTRO ERANO GIÀ FATTE, e una di quelle è la voce marcata 🔴 «blocca altro
+lavoro» che non bloccava niente dal 20 agosto.
+
+· «Schermate app 30 e 27-28» — chiusa il 19/8 (in tutto il codice la parola
+  «assaggio» non esiste più).
+· «Vera: rifare i giorni futuri quando il capo approva un divieto di dieta» —
+  chiusa il 19/8, ed era già fatta dal 18/8. Oggi è tre versioni più avanti.
+· 🔴 «Il seed gira a ogni deploy e la firma è falsa» — corretto il 20/8 sera, e
+  l'accusa del titolo era pure sbagliata (la firma non era falsa: quelle righe il
+  capo nutrizionista le aveva guardate).
+· «Tabella descrizioni diete» — fatta il 22/8, la pagina esiste ed è nel menu.
+
+LA CAUSA, MISURATA
+`npm run allinea:lavori` (sola lettura) l'ha detta da sé: sei voci che il file
+vuole chiudere e che in pagina non trova. Il meccanismo è che le voci di
+chiusura combaciano PER TITOLO, e solo su righe con `chiave: null` e non ancora
+spuntate. ⛔ Ma la riga vera del seed una chiave ce l'ha — STORPIATA: il 20/8
+uno script aveva attaccato 1600 caratteri di testo dentro il campo `chiave`
+(commit f2a7e04, corretto il giorno dopo). Una riga così non la trova più
+nessuno: il percorso per chiave non la riconosce, quello per titolo la scarta.
+Resta aperta per sempre, e nessuna consegna la può chiudere.
+
+COSA CAMBIA NEL CODICE
+· `lavori.service.ts` — la ricerca per titolo non filtra più su `chiave: null`
+  né su `fatto: false`: prende le righe e sceglie in memoria. Le righe con una
+  chiave che il file NON conosce sono orfane, e per le orfane vale il titolo;
+  quelle con una chiave del file restano al percorso per chiave, che è più
+  preciso.
+· Esito nuovo `titoliGiaChiusi`: prima una riga già spuntata usciva dalla query e
+  finiva fra le «non trovate» — lo strumento gridava al lupo proprio dove aveva
+  funzionato. ⚠️ E «già chiusa» si dice solo se la riga è stata chiusa DAL FILE o
+  è scritta a mano: fra i candidati ci sono anche le 481 righe dello storico, e
+  dichiarare fatto un lavoro guardando un'altra riga sarebbe la stessa malattia
+  con le parole rassicuranti.
+· `carica-lavori.ts` non crea più le righe `soloSeEsiste`: rilanciandolo avrebbe
+  creato otto righe nuove già spuntate, cioè spazzatura per pulire spazzatura.
+
+⛔ IL DIFETTO PIÙ GROSSO L'HA TROVATO LA REVISIONE, E NON ERA NEL CODICE NUOVO
+«Una voce riaperta a mano non si richiude da sola» era una protezione scritta il
+20/8 — e valeva su SETTE voci su CENTOTTANTAQUATTRO. `fattoDalFile` aveva una
+sola lettura in tutto il backend, e la query del percorso per chiave non lo
+caricava nemmeno. Lo scenario era vicino: questa stessa consegna chiude
+`whatsapp-numero`; a settembre Simone la riapre perché il numero serve; al deploy
+successivo — di QUALUNQUE consegna — si richiudeva da sola, con la data del
+rilascio, e compariva fra le «chiuse», cioè fra le cose andate bene. Togliere una
+spunta è l'unico modo che ha di contraddirmi: se si disfa da solo, non è più un
+modo.
+
+LE SEI DECISIONI DI SIMONE, SCRITTE
+1. Ricalcolo provvigioni e tetto mensile → «a». Il comportamento non cambia, ma
+   la conferma del pulsante adesso DICE che il tetto si misura sul mese in cui
+   premi, quindi una quota tagliata in un mese chiuso viene ripagata. Il difetto
+   non era il comportamento: era il silenzio.
+2. Esclusioni dentro una parola più lunga → sospesa, si fa dopo il paniere.
+   Categoria nuova «Aspetta il paniere»: non si chiude, perché ogni riga di quel
+   lavoro tiene o toglie una protezione su un allergene.
+3. Coda «Da validare» → sbloccata: non serve più il numero di Nocanty. Vera lo
+   chiede al nutrizionista, lui risponde, e resta in scheda «Aumento calorie
+   autorizzato da… il…». ⚠️ Ma la nota non sostituisce l'azione: la voce contiene
+   DUE lavori, e il secondo è quello aperto dal 13/8 — `reviewOutcome` si scrive
+   e non lo legge nessuno.
+4. WhatsApp → chiusa. ⚠️ E il passo 2 che mancava è stato scritto nel docblock di
+   `mail.service.ts`, accanto al passo 1: l'elenco esporta solo le voci aperte,
+   quindi chiuderla senza scriverlo da qualche parte l'avrebbe fatto sparire.
+5. Il giallo del 23/8 → chiuso, non è ricapitato.
+6. `pathType` non protetto → voce nuova. Una coach non può cambiare vegetariana
+   in vegana, ma PUÒ mettere chiunque a digiuno intermittente. ⚠️ E non è solo
+   `pathType`: `mealsPerDay` ha lo stesso buco, vanno insieme.
+
+MISURATO
+- 5661 test backend verdi in quattro modalità; backoffice 149; app 192.
+- Otto mutazioni provate, tutte uccise: togliere il filtro delle orfane, togliere
+  il controllo sulle righe già chiuse, prendere la riga sbagliata fra le
+  combacianti, togliere la protezione «riaperta a mano» su tutti e due i
+  percorsi, rimettere le righe di chiusura in `carica:lavori`.
+- Il caso della riga orfana è stato verificato sul `git log`, non ipotizzato: la
+  chiave storpiata sta nel commit f2a7e04 del 20/8 ed è stata corretta il 21.
+
+COSA NON HO TOCCATO, E PERCHÉ
+· **La categoria non la scrive il file.** È la leva con cui Simone organizza il
+  lavoro, e riscriverla a ogni rilascio gliela toglierebbe di mano in silenzio.
+  Le divergenze si DICONO (`categorieDiverse`), come già si fa per i testi
+  corretti a mano: dopo il deploy due voci mostreranno il titolo nuovo sotto la
+  categoria vecchia, e lo script lo stampa.
+· **Il blocco 🔴 sulla riga orfana del seed**: si chiude ma resta rossa in
+  colonna. Non fa danno (i bloccanti si contano solo fra le aperte), e toccarlo
+  vorrebbe dire far scrivere al file un campo che ha deciso di non scrivere.
+
+⚠️ UNA CORREZIONE AL PACCHETTO, PRIMA DI CONSEGNARLO
+Il primo pacchetto della 100 era incompleto e l'ha visto Simone leggendo il diff
+(«per ognuna delle venti uscite» — sono diciannove). Causa: lo script con cui
+applico le modifiche fa più sostituzioni e scrive il file **alla fine**; quando
+una non trova il testo si ferma, e butta via anche quelle già riuscite prima.
+In silenzio. Quattro correzioni della revisione erano sparite così: il numero
+delle uscite, la voce `pathType` (che mandava a misurare una cosa che non può
+accadere e ometteva `mealsPerDay`), la voce della coda «Da validare» (che faceva
+sparire il lavoro originale sotto un titolo che diceva «risolto in meglio») e un
+commento che introduceva la voce sbagliata. ⛔ È la stessa forma di difetto che
+questa consegna esiste per togliere — qualcosa che non fa il suo lavoro e non lo
+dice — commessa dallo strumento che la stava scrivendo. Adesso le sostituzioni
+si applicano **una per volta, scrivendo subito**, e ognuna dice se è riuscita.
+
+FILE NEL COMMIT
+- backend/src/lavori/lavori.service.ts · .spec.ts · voci-iniziali.ts
+- backend/prisma/allinea-lavori.ts · carica-lavori.ts
+- backend/src/commerce/finance.service.ts · backoffice/src/pages/Acquisti.tsx
+- backend/src/mail/mail.service.ts · backend/src/common/elenchi-senza-doppioni.ts
+- progetto/PIANO_Panieri_Ricette.md (nuovo: il piano del rifacimento del catalogo)
+
+Nessuna migrazione.

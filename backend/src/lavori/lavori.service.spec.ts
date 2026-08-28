@@ -5,6 +5,8 @@
  * La regola è a SENSO UNICO: il file può CHIUDERE una voce ancora aperta in pagina, mai riaprirne
  * una spuntata. La pagina resta lo stato vivo; il file porta solo la notizia «questa è finita».
  */
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { LavoriService } from './lavori.service';
@@ -357,9 +359,40 @@ describe('LavoriService.caricaVociIniziali — il file e la pagina che divergono
   });
 
   /** L'altra direzione: le voci scritte a mano dalla pagina, che nel file non esistono. */
-  it('conta le voci che vivono solo in pagina', async () => {
+  /**
+   * ⛔ **«Che il file non vede» ha UNA definizione sola** (27/8, in revisione). Il conteggio guardava
+   * `chiave: null` — le voci scritte a mano dalla pagina — mentre il percorso che chiude per titolo
+   * ne usa una più larga: anche una riga con una **chiave che il file non conosce** è invisibile al
+   * file, ed è esattamente il caso da cui la correzione è nata (una chiave storpiata da uno script).
+   * Due criteri per la stessa domanda facevano stampare un numero sistematicamente più basso del
+   * vero, e chi lo leggeva credeva che le righe fuori controllo fossero meno.
+   */
+  /**
+   * ⛔ **UNA VOCE RIAPERTA A MANO NON SI RICHIUDE DA SOLA — sul percorso per CHIAVE** (27/8, in
+   * revisione, ed era il difetto più grosso della consegna).
+   *
+   * La protezione esisteva dal 20/8 solo sul percorso per **titolo**, che riguarda sette voci su
+   * centottantaquattro: `fattoDalFile` non veniva nemmeno caricato dalla query per chiave. Quindi il
+   * patto «una spunta messa a mano non si discute da un file» era rispettato sul ramo piccolo e
+   * violato su quello grande. ⚠️ Lo scenario è vicino: il file chiude una voce, Simone la riapre
+   * perché il lavoro serve ancora, e al deploy successivo — di qualunque consegna — si richiudeva da
+   * sola, con la data del rilascio, comparendo fra le «chiuse» come una cosa andata bene.
+   */
+  it('⛔ una voce del file riaperta a mano non si richiude, e si dice', async () => {
+    prisma.lavoro.findMany.mockResolvedValue([
+      { id: 'l1', chiave: 'aperta-e-finita', fatto: false, fattoDalFile: true, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false },
+    ]);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.riaperteAMano).toContain('Lavoro finito nel file');
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Lavoro finito nel file');
+  });
+
+  it('conta le voci che il file non vede: chiave nulla O chiave sconosciuta', async () => {
     expect((await service.caricaVociIniziali(false)).soloInPagina).toBe(3);
-    expect((prisma.lavoro.count as jest.Mock).mock.calls[0][0].where).toEqual({ chiave: null, fatto: false });
+    const where = (prisma.lavoro.count as jest.Mock).mock.calls[0][0].where;
+    expect(where.fatto).toBe(false);
+    expect(where.OR[0]).toEqual({ chiave: null });
+    expect(where.OR[1].chiave.notIn).toContain('aperta-e-finita');
   });
 
   /** ⚠️ È una lettura: dirlo non deve scrivere niente, nemmeno col secondo clic. */
@@ -378,33 +411,44 @@ describe('LavoriService.caricaVociIniziali — il file e la pagina che divergono
  * anche quando il lavoro era finito. Oggi è costato tre indagini su tre voci già fatte.
  */
 describe('chiudere per titolo le voci scritte a mano', () => {
-  const conPagina = (aMano: { id: string; titolo: string; fatto?: boolean; fattoDalFile?: boolean }[]) => ({
+  const conPagina = (
+    aMano: { id: string; titolo: string; chiave?: string | null; fatto?: boolean; fattoDalFile?: boolean }[],
+  ) => ({
     lavoro: {
       /**
        * ⚠️ Il finto distingue le due letture dal `where`, come farebbe il database: quella per
-       * CHIAVE (le voci del file) e quella per TITOLO fra le righe scritte a mano (`chiave: null`).
-       * Un finto che rispondesse uguale a tutte e due farebbe passare il test qualunque cosa
-       * facesse il codice.
+       * CHIAVE (le voci del file) e quella per TITOLO. Un finto che rispondesse uguale a tutte e due
+       * farebbe passare il test qualunque cosa facesse il codice.
+       *
+       * ⛔ **E dal 27/8 la lettura per titolo NON filtra più né su `chiave: null` né su
+       * `fatto: false`**: le prende tutte e sceglie in memoria, perché deve poter vedere sia le
+       * righe **orfane** (una chiave che il file non conosce) sia quelle **già chiuse** (che prima
+       * finivano fra le «non trovate», cioè lo strumento gridava al lupo dove aveva funzionato).
+       * Il finto restituisce quindi la riga com'è dichiarata dal test, chiave e spunta comprese: se
+       * la nascondesse, togliere quel filtro dal codice non farebbe fallire niente.
        */
       findMany: jest.fn().mockImplementation((args: any) => {
         const w = args?.where ?? {};
-        if ('chiave' in w && w.chiave === null) {
-          /**
-           * ⚠️ Il finto onora anche `fatto` e restituisce `fattoDalFile`, come farebbe il database.
-           * Il doppio di prima li ignorava: togliere `fatto: false` dalla query non faceva fallire
-           * nessun test, e in produzione avrebbe voluto dire riscrivere `fattoIl` su righe già
-           * chiuse a ogni deploy.
-           */
+        if (w.titolo?.in) {
           return Promise.resolve(
             aMano
-              .filter((r) => (w.titolo?.in ?? [r.titolo]).includes(r.titolo))
-              .filter((r) => (w.fatto === undefined ? true : !!r.fatto === w.fatto))
-              .map((r) => ({ chiave: null, fatto: false, fattoDalFile: false, dettaglio: null, testoAMano: false, nataIl: null, ...r })),
+              .filter((r) => w.titolo.in.includes(r.titolo))
+              .map((r) => ({
+                chiave: null, fatto: false, fattoDalFile: false, dettaglio: null, testoAMano: false, nataIl: null,
+                ...r,
+              })),
           );
         }
         return Promise.resolve([]);
       }),
-      count: jest.fn().mockResolvedValue(aMano.length),
+      /**
+       * ⚠️ **Il doppio risponde come l'originale.** La query vera conta le righe **aperte** che il
+       * file non vede; questo finto rendeva `aMano.length`, cioè tutte — orfane e chiuse comprese.
+       * Nessun test ci guardava, quindi non faceva danno: ma un doppio che si comporta diversamente
+       * dall'originale è la lezione che questo stesso file cita due volte, e prima o poi qualcuno
+       * ci scrive sopra un test che passa per la ragione sbagliata.
+       */
+      count: jest.fn().mockResolvedValue(aMano.filter((r) => !r.fatto).length),
       /** ⚠️ Il ramo che SCRIVE ha bisogno di `create`: senza, il test con `conferma: true` non gira. */
       create: jest.fn().mockResolvedValue({}),
       createMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -418,6 +462,96 @@ describe('chiudere per titolo le voci scritte a mano', () => {
     const service = new LavoriService(prisma as never);
     const esito = await service.caricaVociIniziali(false);
     expect(esito.chiuse.map((x) => x.titolo)).toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⛔ **LA RIGA ORFANA — il caso che il 27/8 teneva aperte sei voci** (fra cui una rossa, che
+   * dichiarava di bloccare del lavoro già finito da una settimana).
+   *
+   * `chiave` è la colonna su cui il caricamento decide se una voce esiste già, ed è capitato che uno
+   * script la scrivesse **storpiata** (è documentato nella voce del seed: un pezzo di testo finito
+   * dentro la chiave). Una riga così non la trovava più nessuno: il percorso per chiave non la
+   * riconosceva, e il percorso per titolo la scartava perché la sua chiave non è `null`. Restava
+   * aperta **per sempre**, e nessuna consegna la poteva chiudere.
+   */
+  it('⛔ una riga ORFANA — chiave che il file non conosce — si chiude per titolo', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard', chiave: 'moduli-fissi-STORPIATA⚠️' }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse.map((x) => x.titolo)).toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⚠️ **Ma una riga con una chiave DEL FILE resta di chi la possiede.** Il percorso per chiave è
+   * più preciso di un titolo — sa quale voce è, non quale stringa somiglia — e due strade che
+   * scrivono sulla stessa riga sono due strade che un giorno si contraddicono.
+   */
+  it('⚠️ una riga con una chiave del file NON si chiude per titolo', async () => {
+    // ⚠️ `pagina-scritta-a-mano` è la chiave che il file dà proprio a questo titolo: una riga che ce
+    // l'ha appartiene al percorso per chiave, e il titolo non la deve toccare.
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard', chiave: 'pagina-scritta-a-mano' }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⛔ **«GIÀ CHIUSA» NON È «NON TROVATA», e prima erano la stessa cosa.** Una riga già spuntata
+   * usciva dalla query e finiva fra le non trovate: lo strumento nato per evitare le indagini su
+   * lavori già fatti **gridava al lupo proprio dove aveva funzionato**, e chi leggeva andava a
+   * cercare un titolo storto che non c'era. È la stessa ragione per cui il 20/8 «non trovata» e
+   * «ambigua» erano state separate.
+   */
+  it('⛔ una riga già chiusa finisce fra le «già chiuse», non fra le «non trovate»', async () => {
+    const prisma = conPagina([{ id: 'l1', titolo: 'Moduli fissi in dashboard', fatto: true }]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.titoliGiaChiusi).toContain('Moduli fissi in dashboard');
+    expect(esito.titoliNonTrovati).not.toContain('Moduli fissi in dashboard');
+    expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
+  });
+
+  /**
+   * ⚠️ E una riga chiusa **accanto** a una aperta con lo stesso titolo non rende il caso ambiguo:
+   * sono un lavoro e la sua storia, non due lavori. Si chiude quella aperta.
+   */
+  /**
+   * ⛔ **E si guarda QUALE riga tocca, non solo che ne tocchi una.** `esito.chiuse` porta i titoli
+   * delle **voci del file**, non gli id delle righe: un test che guarda solo lì resta verde anche
+   * scrivendo sulla riga sbagliata. Con `conferma: true` si legge l'`update`, che è l'unica cosa che
+   * arriva davvero al database — e la mutazione «prendi la prima combaciante invece della prima
+   * aperta» riscriverebbe `fattoIl` su una riga già chiusa **lasciando aperta quella vera**, cioè il
+   * difetto che il vecchio filtro `fatto: false` rendeva impossibile per costruzione.
+   */
+  it('⚠️ una chiusa e una aperta con lo stesso titolo: si chiude QUELLA APERTA', async () => {
+    const prisma = conPagina([
+      { id: 'vecchia', titolo: 'Moduli fissi in dashboard', fatto: true },
+      { id: 'aperta', titolo: 'Moduli fissi in dashboard' },
+    ]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(true);
+    expect(esito.chiuse.map((x) => x.titolo)).toContain('Moduli fissi in dashboard');
+    expect(esito.titoliAmbigui).not.toContain('Moduli fissi in dashboard');
+    const scritte = (prisma.lavoro.update as jest.Mock).mock.calls.map((c) => c[0].where.id);
+    expect(scritte).toContain('aperta');
+    expect(scritte).not.toContain('vecchia');
+  });
+
+  /**
+   * ⛔ **«GIÀ CHIUSA» È UN'INFERENZA, e si dice solo quando è fondata.** Fra i candidati adesso ci
+   * sono anche le righe dello **storico** caricate dal REGISTRO, che nascono già spuntate e portano
+   * una chiave che il file non conosce. Se una di quelle avesse lo stesso titolo, dire «era già
+   * chiusa» vorrebbe dire dichiarare fatto un lavoro **guardando un'altra riga** — con le parole
+   * rassicuranti, che è il modo peggiore.
+   */
+  it('⛔ una riga storica chiusa, che il file non ha mai toccato, NON vale come «già chiusa»', async () => {
+    const prisma = conPagina([
+      { id: 'storica', titolo: 'Moduli fissi in dashboard', chiave: 'storico-2026-08-01-qualcosa', fatto: true, fattoDalFile: false },
+    ]);
+    const service = new LavoriService(prisma as never);
+    const esito = await service.caricaVociIniziali(false);
+    expect(esito.titoliGiaChiusi).not.toContain('Moduli fissi in dashboard');
+    expect(esito.titoliNonTrovati).toContain('Moduli fissi in dashboard');
   });
 
   /**
@@ -457,7 +591,7 @@ describe('chiudere per titolo le voci scritte a mano', () => {
     const service = new LavoriService(prisma as never);
     const esito = await service.caricaVociIniziali(false);
     expect(esito.chiuse.map((x) => x.titolo)).not.toContain('Moduli fissi in dashboard');
-    expect(esito.titoliRiaperti).toContain('Moduli fissi in dashboard');
+    expect(esito.riaperteAMano).toContain('Moduli fissi in dashboard');
   });
 
   /**
@@ -506,7 +640,9 @@ describe('l\'allineamento automatico non si fa fermare da una voce già creata',
     lavoro: {
       findMany: jest.fn().mockImplementation((args: any) => {
         const w = args?.where ?? {};
-        if ('chiave' in w && w.chiave === null) return Promise.resolve([]);
+        // ⚠️ Dal 27/8 nessuna query ha più `chiave: null`: la lettura per titolo le prende tutte e
+    // sceglie in memoria. Il finto risponde vuoto a tutto quello che non è la lettura per chiave.
+    if (w.titolo?.in) return Promise.resolve([]);
         // In pagina c'è solo una voce, e il file ne dichiara una finita: la spunta è quella.
         return Promise.resolve([
           { id: 'l1', chiave: 'aperta-e-finita', fatto: false, titolo: 'Lavoro finito nel file', dettaglio: 'x', testoAMano: false, nataIl: null },
@@ -547,4 +683,26 @@ describe('l\'allineamento automatico non si fa fermare da una voce già creata',
     await expect(service.caricaVociIniziali(true)).rejects.toThrow('Neon ha chiuso');
   
 });
+});
+
+/**
+ * ⛔ **LE RIGHE DI CHIUSURA NON SI CREANO — E LA REGOLA VALE PER TUTTE E DUE LE STRADE.**
+ *
+ * `LavoriService.caricaVociIniziali` salta le voci `soloSeEsiste` da sempre: non sono lavori, sono
+ * righe che il file usa per **chiudere** un doppione rimasto in pagina, e crearle vorrebbe dire
+ * scrivere spazzatura nuova per pulire quella vecchia. ⚠️ `prisma/carica-lavori.ts` scrive nella
+ * stessa tabella, dalla stessa lista, e fino al 27/8 **non applicava quel patto**: rilanciandolo
+ * avrebbe creato otto righe nuove già spuntate. Nessuno se n'era accorto perché il primo
+ * caricamento è già stato fatto — ma è documentato come uno strumento da shell, e niente vieta di
+ * rilanciarlo.
+ *
+ * ⚠️ Il controllo è sul **sorgente** e non sul comportamento perché quello script non è importabile
+ * da un test (parla col database alla prima riga). Un guardiano imperfetto su una promessa scritta
+ * vale più della promessa da sola: senza, quel filtro si può togliere e nessun test lo dice.
+ */
+describe('⛔ `carica:lavori` non crea le righe di chiusura', () => {
+  it('filtra le voci `soloSeEsiste` prima di creare', () => {
+    const sorgente = readFileSync(join(__dirname, '..', '..', 'prisma', 'carica-lavori.ts'), 'utf8');
+    expect(sorgente).toMatch(/VOCI_INIZIALI\.filter\(\(v\) => v\.soloSeEsiste !== true\)/);
+  });
 });

@@ -337,15 +337,27 @@ export class FinanceService {
    *    Togliere soldi a una persona non è un'operazione da bottone.
    * Rilanciarlo non raddoppia: la seconda volta la differenza è zero.
    *
-   * ⚠️ **DOMANDA APERTA (20/8), scritta qui perché è una decisione e non una svista.** Il tetto di
-   * guadagno è MENSILE e si misura sul mese in cui si preme il pulsante, non su quello del
-   * pagamento. Quindi: una quota tagliata dal tetto ad agosto — e perduta, perché l'eccedenza non
-   * slitta — se il ricalcolo gira a settembre **viene pagata**, sotto il tetto di settembre. Non è
-   * un difetto del codice: è quello che «aggiungi il mancante» significa, letteralmente. Ma è
-   * anche il modo in cui una decisione di prodotto («l'eccedenza si perde») si può disfare con un
-   * clic, senza che chi clicca lo sappia. Va deciso da Simone se il ricalcolo debba escludere le
-   * quote già tagliate da un tetto di un mese chiuso; finché non è deciso, resta così e sta
-   * scritto.
+   * ⛔ **IL TETTO SI MISURA SUL MESE IN CUI PREMI, NON SU QUELLO DEL PAGAMENTO — e adesso è una
+   * decisione, non più una domanda aperta** (Simone, 27/8: «a»).
+   *
+   * Il tetto di guadagno è MENSILE e l'eccedenza **si perde** (decisione dell'11/8). Ma questo
+   * ricalcolo misura il tetto sul mese in cui gira: una quota tagliata ad agosto, se il ricalcolo
+   * parte a settembre, **viene pagata** sotto il tetto di settembre. Non è un difetto del codice:
+   * è quello che «aggiungi il mancante» significa, letteralmente.
+   *
+   * ✅ **Deciso di lasciarlo così**, e la ragione è che questo non è un automatismo: è un pulsante
+   * che preme un admin, e se lo preme è perché vuole pagare. ⚠️ **Quello che è cambiato è che
+   * adesso lo dice a chi preme**: la conferma del pulsante in `Acquisti.tsx` nomina il caso per
+   * intero. Il difetto non era il comportamento — era che una decisione di prodotto («l'eccedenza si
+   * perde») si poteva disfare con un clic **senza che chi clicca lo sapesse**. Una scelta detta è
+   * una scelta; una scelta taciuta è un difetto, anche quando il codice fa la cosa giusta.
+   *
+   * ⚠️ Se un giorno si volesse la strada opposta — escludere le quote tagliate da un tetto di un
+   * mese ormai chiuso — si può: l'audit `provvigione.tetto_mensile` tiene la traccia di ogni taglio
+   * con l'importo tagliato e il riferimento. ⛔ **Il mese però non è un campo**: si ricava dal
+   * `createdAt` della riga di audit, e per quella strada basta — ma va saputo prima, non scoperto
+   * scrivendo la query. (La prima stesura di questo commento prometteva un campo «mese» che non
+   * esiste: una promessa su un dato è una promessa che qualcuno verifica solo quando serve.)
    */
   async ricalcolaProvvigioni(paymentId: string): Promise<{
     aggiunte: { staff: string; ruolo: string; importoCents: number }[];

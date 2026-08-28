@@ -114,9 +114,17 @@ export class LavoriService {
    * dice cosa aggiungerebbe. Sulla shell quella sicurezza ce l'ha `CONFERMA=1`; un pulsante che
    * scrive al primo clic la butterebbe via proprio dove è più facile premere per sbaglio.
    *
-   * ⚠️ **Non aggiorna mai quello che trova.** Una voce già in elenco può essere stata spuntata o
-   * riscritta a mano: «riallinearla» la riporterebbe indietro senza dirlo. È la lezione di
-   * `accendi-automazioni.ts`, che pensato per accenderne tre ne ha spente venti.
+   * ⚠️ **Cosa aggiorna, e cosa no** — la riga «non aggiorna mai quello che trova» stava qui fino al
+   * 27/8 ed era **falsa dal 18/8**: venti righe più sotto questa funzione spunta, riscrive titolo e
+   * dettaglio, e scrive la data di nascita. Un cappello che smentisce il corpo è peggio di nessun
+   * cappello, perché chi legge si ferma al cappello. L'elenco vero:
+   *  · **spunta** una voce che il file dichiara finita — mai il contrario;
+   *  · **riscrive** titolo e dettaglio, ma non dove li ha corretti una persona (`testoAMano`);
+   *  · **scrive `nataIl`** solo se manca;
+   *  · **non tocca** categoria, ordine e priorità: quelle le mette Simone dalla pagina, e le
+   *    divergenze si **dicono** (`categorieDiverse`) invece di correggerle.
+   * È la lezione di `accendi-automazioni.ts`, che pensato per accenderne tre ne ha spente venti:
+   * quello che uno script tocca va scritto per esteso, o cresce senza che nessuno se ne accorga.
    *
    * ⚠️ Lo storico (le 481 righe dal REGISTRO) NON passa da qui: sta in un file accanto allo script,
    * che in `dist/` non c'è. Resta un lavoro da shell, ed è già stato fatto una volta sola.
@@ -125,8 +133,8 @@ export class LavoriService {
     const chiavi = VOCI_INIZIALI.map((v) => v.chiave);
     const righe = (await this.prisma.lavoro.findMany({
       where: { chiave: { in: chiavi } },
-      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true, testoAMano: true, nataIl: true },
-    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null; testoAMano: boolean; nataIl: Date | null }[];
+      select: { id: true, chiave: true, fatto: true, titolo: true, dettaglio: true, testoAMano: true, nataIl: true, fattoDalFile: true, categoria: true } as never,
+    })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; dettaglio: string | null; testoAMano: boolean; nataIl: Date | null; fattoDalFile: boolean; categoria: string }[];
     const perChiave = new Map(righe.map((r) => [r.chiave, r]));
 
     /**
@@ -146,10 +154,28 @@ export class LavoriService {
      * non è una cosa su cui si preme «Conferma» a cuor leggero.
      */
     const daSpuntare: { voce: (typeof VOCI_INIZIALI)[number]; riga: { id: string; chiave: string | null; fatto: boolean } }[] = [];
+    const riaperteAMano: string[] = [];
     for (const v of VOCI_INIZIALI) {
       if (v.fatta !== true) continue;
       const riga = perChiave.get(v.chiave);
-      if (riga && !riga.fatto) daSpuntare.push({ voce: v, riga });
+      if (!riga || riga.fatto) continue;
+      /**
+       * ⛔ **UNA VOCE RIAPERTA A MANO NON SI RICHIUDE DA SOLA — anche qui** (27/8, in revisione).
+       *
+       * Questa protezione esisteva dal 20/8 **solo sul percorso per titolo**, che riguarda sette
+       * voci su centottantaquattro: `fattoDalFile` aveva una sola lettura in tutto il backend, e la
+       * query di questo percorso non lo caricava nemmeno. Quindi il patto scritto in testa allo
+       * script — «la pagina è lo stato vivo, una spunta messa a mano non si discute da un file» —
+       * era rispettato sul ramo piccolo e violato su quello grande.
+       *
+       * ⚠️ Lo scenario, ed è vicino: il file chiude `whatsapp-numero` («al momento non serve»); a
+       * settembre Simone la riapre dalla pagina perché il numero serve; **al deploy dopo — di
+       * qualunque consegna, anche una che non c'entra niente — si richiudeva da sola**, con la data
+       * del rilascio, e compariva fra le «chiuse», cioè fra le cose andate bene. Togliere una spunta
+       * è l'unico modo che ha di contraddirmi: se si disfa da solo, non è più un modo.
+       */
+      if (riga.fattoDalFile) { riaperteAMano.push(v.titolo); continue; }
+      daSpuntare.push({ voce: v, riga });
     }
 
     /**
@@ -171,15 +197,42 @@ export class LavoriService {
      */
     const titoliNonTrovati: string[] = [];
     const titoliAmbigui: string[] = [];
-    const titoliRiaperti: string[] = [];
+    const titoliGiaChiusi: string[] = [];
     const perTitolo = VOCI_INIZIALI.filter((v) => v.soloSeEsiste && v.fatta === true && v.titolo);
     if (perTitolo.length) {
-      const aMano = (await this.prisma.lavoro.findMany({
-        where: { chiave: null, fatto: false, titolo: { in: perTitolo.map((v) => v.titolo) } } as never,
+      /**
+       * ⛔ **NON PIÙ SOLO `chiave: null`, E NON PIÙ SOLO `fatto: false`** — 27/8, dopo che
+       * l'allineamento ha dichiarato «non trovate» sei voci di fila.
+       *
+       * ⚠️ **Il caso vero: la riga ORFANA.** `chiave` è la colonna su cui il caricamento decide se
+       * una voce esiste già, ed è capitato che uno script la scrivesse **storpiata** (è documentato
+       * nella voce del seed: un pezzo di testo finito dentro la chiave). Una riga così non la trova
+       * più nessuno: il percorso per chiave non la riconosce, e il percorso per titolo la escludeva
+       * perché la sua chiave non è `null`. **Resta aperta per sempre**, e nessuna consegna la può
+       * chiudere. Adesso le righe con una chiave che il file **non conosce** sono orfane, e per le
+       * orfane vale il titolo — mentre una riga con una chiave del file resta di chi la possiede,
+       * il percorso per chiave, che è più preciso di un titolo.
+       *
+       * ⚠️ **E `fatto: true` si guarda invece di nasconderlo.** Prima una riga già spuntata usciva
+       * dalla query e finiva in «non trovata»: cioè lo strumento gridava al lupo proprio dove aveva
+       * funzionato. Adesso si dice «era già chiusa», che è un'informazione diversa e utile — è la
+       * stessa ragione per cui «non trovata» e «ambigua» erano state separate il 20/8.
+       */
+      const chiaviDelFile = new Set(VOCI_INIZIALI.map((v) => v.chiave));
+      const candidate = (await this.prisma.lavoro.findMany({
+        where: { titolo: { in: perTitolo.map((v) => v.titolo) } } as never,
         select: { id: true, chiave: true, fatto: true, titolo: true, fattoDalFile: true } as never,
       })) as { id: string; chiave: string | null; fatto: boolean; titolo: string; fattoDalFile: boolean }[];
+      const aMano = candidate.filter((r) => !r.chiave || !chiaviDelFile.has(r.chiave));
       for (const v of perTitolo) {
-        const combacianti = aMano.filter((r) => r.titolo.trim() === v.titolo.trim());
+        /**
+         * ⚠️ Il confronto è **esatto**, e non c'è un `trim()` a rattoppare: la riga arriva da un
+         * `titolo: { in: [...] }`, che in SQL è già un confronto esatto — uno spazio in coda non
+         * torna mai dal database, quindi un `trim()` qui sarebbe un ramo che non si può raggiungere,
+         * cioè una rete che sembra esserci e non c'è. Un titolo che non combacia si **dice**
+         * (`titoliNonTrovati`), che è l'unica rete vera.
+         */
+        const combacianti = aMano.filter((r) => r.titolo === v.titolo);
         /**
          * ⚠️ **NON TROVATA E AMBIGUA SONO DUE COSE DIVERSE, E TUTT'E DUE VANNO DETTE** — revisione
          * avversariale del 20/8. Prima finivano nello stesso `continue`, e **da nessuna parte**: né
@@ -192,7 +245,29 @@ export class LavoriService {
          * racconta sempre una giornata perfetta.
          */
         if (!combacianti.length) { titoliNonTrovati.push(v.titolo); continue; }
-        if (combacianti.length > 1) { titoliAmbigui.push(v.titolo); continue; }
+        /**
+         * ⚠️ **Le righe già chiuse non sono un problema, ma vanno tolte dal conto.** Se di quel
+         * titolo l'unica riga rimasta aperta non c'è, il lavoro è fatto: si dice e si passa oltre.
+         * Le si conta prima dell'ambiguità, perché due righe di cui una già chiusa non sono due
+         * lavori diversi — sono un lavoro e la sua storia.
+         *
+         * ⛔ **Ma «già chiusa» è un'inferenza, e si dice solo quando è fondata** (27/8, in
+         * revisione). Fra i candidati adesso ci sono anche le 481 righe dello **storico** caricate
+         * dal REGISTRO, che nascono già spuntate: se una di quelle avesse per caso lo stesso titolo,
+         * dire «era già chiusa» vorrebbe dire dichiarare fatto un lavoro **guardando un'altra riga**
+         * — cioè la malattia che questo elenco esiste per curare, con le parole rassicuranti.
+         * Perciò si accettano come «la stessa voce» solo le righe che il file **ha chiuso lui**
+         * (`fattoDalFile`) o che sono state scritte a mano in pagina (`chiave` nulla). Tutto il
+         * resto torna «non trovata», che è la risposta prudente e vera.
+         */
+        const aperte = combacianti.filter((r) => !r.fatto);
+        if (!aperte.length) {
+          const nostre = combacianti.filter((r) => r.fattoDalFile || !r.chiave);
+          if (nostre.length) titoliGiaChiusi.push(v.titolo);
+          else titoliNonTrovati.push(v.titolo);
+          continue;
+        }
+        if (aperte.length > 1) { titoliAmbigui.push(v.titolo); continue; }
         /**
          * ⚠️ **UNA VOCE RIAPERTA A MANO NON SI RICHIUDE DA SOLA** — revisione avversariale del 20/8,
          * ed era il difetto peggiore di questa funzione.
@@ -210,8 +285,8 @@ export class LavoriService {
          * Adesso una riga che è già stata chiusa una volta da un rilascio non si tocca più: se è
          * aperta, qualcuno l'ha riaperta apposta. E si dice, invece di tacere.
          */
-        const riga = combacianti[0];
-        if (riga.fattoDalFile) { titoliRiaperti.push(v.titolo); continue; }
+        const riga = aperte[0];
+        if (riga.fattoDalFile) { riaperteAMano.push(v.titolo); continue; }
         daSpuntare.push({ voce: v, riga });
       }
     }
@@ -280,6 +355,28 @@ export class LavoriService {
      * non di software, ed è ancora aperta. Si **mostra**, che è la stessa scelta già fatta per i
      * testi cambiati: meglio saperlo che crederle allineate.
      */
+    /**
+     * ⚠️ **LA CATEGORIA NON SI SCRIVE, SI DICE** (27/8). Il file può riclassificare una voce — è
+     * successo lo stesso giorno a due di loro: una sospesa in attesa del rifacimento del catalogo,
+     * una che ha smesso di aspettare una persona — ma `daRiscrivere` tocca solo titolo e dettaglio,
+     * di proposito: categoria e ordine li mette Simone dalla pagina, ed è l'unica leva che ha per
+     * organizzarsi il lavoro.
+     *
+     * ⛔ Il risultato però era una voce col titolo nuovo — «⏸ Sospesa, aspetta il paniere» — dentro
+     * la colonna **«Aspetta Simone»**: cioè una riga che dichiara di aspettare una risposta che lui
+     * ha già dato. Adesso la divergenza si mostra, come già si fa per i testi corretti a mano e per
+     * le voci che il file crede aperte: **si sposta con un clic, ma bisogna saperlo.**
+     */
+    const categorieDiverse: { titolo: string; inPagina: string; nelFile: string }[] = [];
+    for (const v of VOCI_INIZIALI) {
+      if (v.soloSeEsiste) continue;
+      const riga = perChiave.get(v.chiave);
+      if (!riga || riga.fatto) continue;
+      if (riga.categoria && riga.categoria !== v.categoria) {
+        categorieDiverse.push({ titolo: v.titolo, inPagina: riga.categoria, nelFile: v.categoria });
+      }
+    }
+
     const fileIndietro = VOCI_INIZIALI.filter((v) => {
       if (v.fatta === true || v.soloSeEsiste) return false;
       const riga = perChiave.get(v.chiave);
@@ -292,7 +389,17 @@ export class LavoriService {
      * rilascio, e chi legge il file non sa nemmeno che ci sono — sono tre, oggi, e due sono in
      * priorità alta. Si conta e si dice: non c'è niente da correggere, c'è da saperlo.
      */
-    const soloInPagina = await this.prisma.lavoro.count({ where: { chiave: null, fatto: false } as never });
+    /**
+     * ⚠️ **Lo stesso criterio del filtro delle orfane, e non un secondo** (27/8, in revisione). Qui
+     * si contava `chiave: null`, cioè «scritta a mano dalla pagina» — ma dal 27/8 il codice ha una
+     * seconda definizione di «riga che il file non vede»: anche quella con una **chiave che il file
+     * non conosce**, che è esattamente il caso da cui questa correzione è nata. Due punti nella
+     * stessa funzione che rispondevano alla stessa domanda in due modi, e il numero stampato era
+     * sistematicamente più basso del vero.
+     */
+    const soloInPagina = await this.prisma.lavoro.count({
+      where: { fatto: false, OR: [{ chiave: null }, { chiave: { notIn: chiavi } }] } as never,
+    });
 
     const daDatare: { id: string; nataIl: Date }[] = [];
     for (const v of VOCI_INIZIALI) {
@@ -380,7 +487,9 @@ export class LavoriService {
       /** ⚠️ I titoli che il file voleva chiudere e non ha chiuso: il silenzio qui era il difetto. */
       titoliNonTrovati,
       titoliAmbigui,
-      titoliRiaperti,
+      riaperteAMano,
+      categorieDiverse,
+      titoliGiaChiusi,
       /**
        * ⚠️ Voci il cui testo nel file è cambiato ma che qualcuno ha corretto **a mano** dalla
        * pagina: NON vengono riscritte, e si dicono — perché il file ha qualcosa di nuovo da

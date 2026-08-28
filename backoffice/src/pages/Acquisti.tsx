@@ -169,12 +169,23 @@ export function Acquisti() {
    * soli — questo bottone li rilegge con le percentuali di oggi e accredita quel che manca.
    * Non toglie niente a nessuno e rilanciarlo non raddoppia.
    */
+  /**
+   * ⛔ **LA CONFERMA DICE ANCHE LA COSA SCOMODA** (Simone, 27/8).
+   *
+   * Il tetto di guadagno è mensile e l'eccedenza si perde (decisione dell'11/8), ma questo ricalcolo
+   * misura il tetto sul mese in cui lo premi: una quota tagliata ad agosto, ricalcolata a settembre,
+   * **viene pagata** sotto il tetto di settembre. È stato deciso di lasciarlo così — è un pulsante,
+   * e chi lo preme vuole pagare — ⚠️ **a patto che chi preme lo sappia**. Una decisione di prodotto
+   * che si disfa con un clic in silenzio è un difetto anche quando il codice fa la cosa giusta.
+   */
   async function ricalcolaProvvigioni(p: Purchase) {
     // eslint-disable-next-line no-alert
     if (!confirm(
       `Ricalcolare le provvigioni di ${clientName(p)} (${p.description}, ${euro(p.amountCents)})?\n\n`
       + 'Vengono AGGIUNTE solo le quote mancanti, con le percentuali del piano di oggi.\n'
-      + 'Non viene tolto niente a nessuno e si può rilanciare senza raddoppiare.',
+      + 'Non viene tolto niente a nessuno e si può rilanciare senza raddoppiare.\n\n'
+      + '⚠️ Il tetto mensile si misura su QUESTO mese, non su quello del pagamento: una quota '
+      + 'tagliata da un tetto di un mese ormai chiuso viene pagata adesso, sotto il tetto di adesso.',
     )) return;
     setError(null);
     setNotice(null);

@@ -18,6 +18,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-27
+
+- `[Sviluppo]` **L'elenco dei lavori dice la verità: quattro voci erano già fatte, e una era rossa.**
+  Simone ha esportato la pagina Lavori — «13 aperte» — e ha chiesto se fosse vero che restava tutta
+  quella roba. Verificandole una per una nel codice, **quattro erano chiuse da giorni**: le schermate
+  30/27-28 (19/8), il rifacimento dei giorni futuri sul divieto di dieta (19/8, e già fatto dal
+  18/8), la tabella delle descrizioni diete (22/8) e — ⛔ quella marcata 🔴 «blocca altro lavoro» —
+  il seed che azzerava i campi che non ha, **corretto il 20/8 sera**. Non bloccava niente da una
+  settimana.
+  ⚠️ **La causa, misurata invece che ipotizzata.** `npm run allinea:lavori` (sola lettura) l'ha
+  detta da sé: sei voci che il file vuole chiudere e che in pagina non trova. Le voci di chiusura
+  combaciano **per titolo**, e solo su righe con `chiave: null`. ⛔ Ma la riga vera del seed una
+  chiave ce l'ha — **storpiata**: il 20/8 uno script aveva attaccato milleseicento caratteri di testo
+  dentro il campo `chiave` (commit `f2a7e04`, corretto il giorno dopo). Una riga così non la trova
+  più nessuno, e **nessuna consegna la può chiudere**. Adesso le righe con una chiave che il file non
+  conosce sono «orfane» e per loro vale il titolo; quelle con una chiave del file restano al percorso
+  per chiave, che è più preciso. E «già chiusa» non è più «non trovata»: prima una riga spuntata
+  usciva dalla query e finiva fra le non trovate — lo strumento gridava al lupo proprio dove aveva
+  funzionato.
+  ⛔ **E il difetto più grosso l'ha trovato la revisione, e non era nel codice nuovo.** «Una voce
+  riaperta a mano non si richiude da sola» era una protezione scritta il 20/8 — e valeva su **sette
+  voci su centottantaquattro**: `fattoDalFile` aveva **una sola lettura** in tutto il backend, e la
+  query del percorso per chiave non lo caricava nemmeno. Lo scenario era vicino: questa consegna
+  chiude `whatsapp-numero`; a settembre Simone la riapre; al deploy dopo — di qualunque consegna — si
+  richiudeva da sola, con la data del rilascio, comparendo fra le «chiuse». *Togliere una spunta è
+  l'unico modo che ha di contraddirmi: se si disfa da solo, non è più un modo.*
+  ⚠️ **E sei decisioni di Simone, scritte dove valgono:** il ricalcolo provvigioni resta com'è ma la
+  conferma del pulsante **dice** che può ripagare quote tagliate in un mese chiuso (il difetto non
+  era il comportamento, era il silenzio); le esclusioni dentro una parola si fanno **dopo il
+  paniere** (categoria nuova «Aspetta il paniere» — non si chiude, perché ogni riga di quel lavoro
+  tiene o toglie una protezione su un allergene); la coda «Da validare» **non aspetta più il numero
+  di Nocanty** — Vera lo chiede al nutrizionista e resta in scheda «autorizzato da… il…», ⚠️ ma la
+  nota non sostituisce l'azione e la voce contiene due lavori; WhatsApp chiusa, ⚠️ **col passo 2
+  scritto nel docblock di `mail.service.ts`** perché l'elenco esporta solo le voci aperte e
+  chiuderla l'avrebbe fatto sparire; il giallo del 23/8 chiuso, non è ricapitato; e una voce **nuova**
+  — una coach non può cambiare vegetariana in vegana ma **può mettere chiunque a digiuno
+  intermittente** (`pathType` fuori da `DIET_TYPE_FIELDS`, e `mealsPerDay` ha lo stesso buco).
+  5661 test backend verdi in quattro modalità (+ backoffice 149, app 192); otto mutazioni provate e
+  tutte uccise. Nessuna migrazione. In consegna anche `progetto/PIANO_Panieri_Ricette.md`, il piano
+  del rifacimento del catalogo.
+
 ## 2026-08-26
 
 - `[Sviluppo]` **«Visto» non voleva dire «aperto»: adesso c'è il segnale vero, e «non lo so» si

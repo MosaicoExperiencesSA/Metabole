@@ -9,7 +9,9 @@
  * `Set`/`Map` costruita per dire «questo c'è già», e poi una `create` per ogni voce che non c'era.
  *
  *   · `BACKOFFICE_PAGES`   (62 voci) → `rolePagePermission.createMany`, chiave `[role, pageKey]`
- *   · `VOCI_INIZIALI`      (130)     → `lavoro.create`, `chiave` è `@unique`
+ *   · `VOCI_INIZIALI`      (184 al 27/8) → `lavoro.create`, `chiave` è `@unique`
+ *     ⚠️ Il numero cresce a ogni consegna: sta qui per dare la scala, non per essere esatto —
+ *     se qualcuno lo legge come un conto lo trova sbagliato il giorno dopo.
  *   · `VIGNETTE_CATALOG`   (8)       → `socialPost.create` per `collectionId`
  *   · i fogli degli alimenti          → `nutrientFact.create`, `name` è `@unique`
  *

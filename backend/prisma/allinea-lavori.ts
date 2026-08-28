@@ -88,17 +88,39 @@ async function main() {
     console.log('     combacia: un trattino diverso, uno spazio in più, il testo riscritto a mano):');
     for (const t of e.titoliNonTrovati) console.log(`     · ${t}`);
   }
+  /**
+   * ⚠️ **«Già chiusa» non è «non trovata».** Fino al 27/8 una riga già spuntata usciva dalla query e
+   * finiva nell'elenco delle non trovate: l'allineamento gridava al lupo proprio dove aveva
+   * funzionato, e chi leggeva andava a cercare un titolo storto che non c'era.
+   */
+  if (e.titoliGiaChiusi.length) {
+    console.log('');
+    console.log('  ✔︎ Queste il file le voleva chiudere ed erano GIÀ chiuse in pagina: niente da fare.');
+    for (const t of e.titoliGiaChiusi) console.log(`     · ${t}`);
+  }
   if (e.titoliAmbigui.length) {
     console.log('');
     console.log('  ⚠️ E queste combaciano con PIÙ righe: non tocco niente, perché due voci intitolate');
     console.log('     uguale sono due lavori diversi e spuntarne una a caso è peggio di non spuntare.');
     for (const t of e.titoliAmbigui) console.log(`     · ${t}`);
   }
-  if (e.titoliRiaperti.length) {
+  if (e.riaperteAMano.length) {
     console.log('');
     console.log('  ✋ Queste il file le aveva già chiuse una volta, e qualcuno le ha RIAPERTE a mano.');
     console.log('     Non le richiudo: chi le ha riaperte sta dicendo che il lavoro non è finito.');
-    for (const t of e.titoliRiaperti) console.log(`     · ${t}`);
+    for (const t of e.riaperteAMano) console.log(`     · ${t}`);
+  }
+  /**
+   * ⚠️ **La categoria il file non la scrive: la dice.** È la leva con cui Simone si organizza il
+   * lavoro, e riscriverla a ogni rilascio gliela toglierebbe di mano in silenzio. Ma una voce col
+   * titolo «⏸ Sospesa, aspetta il paniere» dentro la colonna «Aspetta Simone» dichiara di aspettare
+   * una risposta che lui ha già dato: si sposta con un clic, bisogna saperlo.
+   */
+  if (e.categorieDiverse.length) {
+    console.log('');
+    console.log('  ↔︎ Queste stanno in pagina sotto una categoria diversa da quella del file (la');
+    console.log('     categoria la sposti tu dalla pagina: io non la tocco):');
+    for (const c of e.categorieDiverse) console.log(`     · ${c.titolo}\n       in pagina: ${c.inPagina}  ·  nel file: ${c.nelFile}`);
   }
   if (e.soloInPagina) {
     console.log('');
