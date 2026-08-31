@@ -1722,6 +1722,66 @@ model Diet {
   @@map("diet")
 }
 
+/**
+ * IL PANIERE — famiglia × regime. `PIANO_Panieri_Ricette.md` §3.2, Fase 1.
+ *
+ * ⛔ **L'appartenenza di una ricetta a una dieta viveva dentro un JSON** (`DietDayTemplate.meals`),
+ * mescolata all'abbinamento della giornata e **senza chiave esterna**. Tre conseguenze, tutte già
+ * viste: una ricetta che nessuna giornata nomina il motore non la vede; cancellare una ricetta
+ * lascia riferimenti morti (58 misurati il 31/8, su sei varianti con clienti sopra, che vedono un
+ * pasto vuoto); e per condividere una ricetta fra panieri bisogna nominarla in giornate di diete
+ * diverse.
+ *
+ * ⚠️ **10 famiglie × 4 regimi = 40, meno 2 impossibili = 38.** Keto × vegano e Keto-Mediterranea ×
+ * vegano si bloccano a priori: chi ci finisce sopra legge «combinazione non possibile», non un
+ * paniere vuoto. Un paniere vuoto è peggio di un rifiuto, perché sembra un problema temporaneo.
+ */
+model Paniere {
+  id      String @id @default(uuid())
+  /** La FAMIGLIA, non la variante: «Mediterranea», «Keto (non terapeutica)». */
+  famiglia String
+  /** onnivoro | pescetariano | vegetariano | vegano. */
+  regime  String
+  /** bozza | attivo | chiuso. Un paniere in bozza non compone menu. */
+  stato   String @default("bozza")
+  note    String?
+
+  ricette PaniereRicetta[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([famiglia, regime])
+  @@index([regime, stato])
+  @@map("paniere")
+}
+
+/**
+ * L'APPARTENENZA — la riga che finora non esisteva.
+ *
+ * ⚠️ Lo `slot` sta **QUI** e non solo sulla ricetta: è quello che permette a un piatto di essere
+ * merenda in un paniere e cena in un altro senza duplicare la riga (§3.2 del piano).
+ *
+ * ⛔ **Le chiavi esterne sono il punto di tutta la Fase 1**: `onDelete: Cascade` su `recipe` rende
+ * i riferimenti rotti **impossibili per costruzione**, invece di contarli con una diagnostica.
+ */
+model PaniereRicetta {
+  id        String  @id @default(uuid())
+  paniereId String  @map("paniere_id")
+  paniere   Paniere @relation(fields: [paniereId], references: [id], onDelete: Cascade)
+  recipeId  String  @map("recipe_id")
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  /** breakfast | morning_snack | lunch | afternoon_snack | dinner. */
+  slot      String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([paniereId, recipeId, slot])
+  @@index([paniereId, slot])
+  @@index([recipeId])
+  @@map("paniere_ricetta")
+}
+
 // Regole del motore attivate per un prodotto (dieta). rule_code dal catalogo (es. L5, L7, A2…).
 // I comportamenti sono mappati su config_param; qui si sceglie quali attivare per prodotto (Fase F).
 model ProductRule {
@@ -1807,6 +1867,8 @@ model Recipe {
   ratings RecipeRating[]
   // Le sostituzioni chieste dentro questo piatto (§16.9).
   foodSwaps FoodSwap[] @relation("FoodSwapRecipe")
+  /** I panieri a cui questa ricetta appartiene (Fase 1: l'appartenenza esce dal JSON). */
+  panieri PaniereRicetta[]
 
   @@index([regime, mealSlot, active])
   @@map("recipe")

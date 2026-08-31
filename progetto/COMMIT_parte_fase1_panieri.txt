@@ -1,0 +1,72 @@
+=== PARTE: Fase 1 — l'appartenenza esce dal JSON ===
+
+SUMMARY
+Panieri, Fase 1: le due tabelle dell'appartenenza, la migrazione, e lo script che le riempie dalle giornate senza scrivere finché non glielo si dice
+
+DESCRIPTION
+Il §9 del piano non aspetta più niente: la firma di Nocanty è arrivata e i numeri della Fase 0 sono
+stati letti (161 varianti sotto soglia, ma una sola con clienti sopra — che è proprio quella che il
+§2.3 dice di spostare a mano, quindi il piano non cambia). Si apre la Fase 1.
+
+⛔ L'APPARTENENZA DI UNA RICETTA A UNA DIETA VIVEVA DENTRO UN JSON. Non esisteva nessuna tabella che
+dicesse «questa ricetta sta in questo paniere»: stava dentro `diet_day_template.meals`, mescolata
+all'abbinamento della giornata e SENZA chiave esterna. Da lì i 58 riferimenti rotti misurati il
+31/8, su sei varianti con clienti attive che vedono un pasto vuoto.
+
+Adesso ci sono `Paniere` (famiglia × regime, 38 righe) e `PaniereRicetta` (paniere, ricetta, slot),
+con le chiavi esterne vere su tutti e due i lati. ⛔ È il punto di tutta la Fase 1: la chiave esterna
+rende i riferimenti rotti IMPOSSIBILI per costruzione, invece di contarli con una diagnostica dopo
+che sono successi.
+
+⚠️ Lo slot sta sull'APPARTENENZA e non solo sulla ricetta: è quello che permette a un piatto di
+essere merenda in un paniere e cena in un altro senza duplicare la riga.
+
+LA REGOLA DELLA MIGRAZIONE sta in `catalog/appartenenza-panieri.ts`, con le sue prove, e non nello
+script: `Diet` oggi è la VARIANTE (318 righe: famiglia × regime × obiettivo × struttura), il paniere
+è famiglia × regime e basta. Obiettivo e struttura NON entrano nella chiave — «Mediterranea onnivora
+dimagrimento 3 pasti» e «Mediterranea onnivora mantenimento 5 pasti» versano nello stesso paniere, e
+questo è il senso della strada B (§1.6): un pranzo vegano a basso indice glicemico serve anche DASH
+vegana e Mediterranea vegana, e non si riscrive.
+
+⛔ E le famiglie che spariscono (§2.1) NON diventano panieri. «Digiuno intermittente (16:8)» è una
+struttura pasti travestita: inventargli un paniere sarebbe la settima famiglia fantasma dopo le sei
+che questo lavoro esiste per chiudere. Si dichiara non mappabile e finisce in un elenco che una
+persona guarda. «Mediterranea ipocalorica» e «Mediterranea senza glutine» confluiscono nella
+Mediterranea, come deciso il 27/8.
+
+⛔ LO SCRIPT NON SCRIVE FINCHÉ NON GLIELO SI DICE. `npm run panieri:riempi` stampa il tabulato;
+`APPLICA=1` scrive. E non cancella niente: `diet_day_template` resta esattamente com'è, perché
+finché il motore legge di là spegnere quella strada è una consegna a sé (§4.3, il ripiego). Qui la
+tabella si aggiunge accanto e si confronta.
+
+⚠️ IL CONFRONTO PRIMA/DOPO che il piano pretende. Il piano dice: «se una ricetta si perde per
+strada, il paniere si assottiglia e nessuno se ne accorge — il motore continua a comporre, con meno
+scelta». Il tabulato stampa quante righe di giornata sono state lette, quante nominano una ricetta
+viva, quante appartenenze ne escono, e il conteggio per paniere e per pasto. ⚠️ L'atteso non è
+l'uguaglianza variante per variante — su strada B molte varianti versano nello stesso paniere — è
+che ogni ricetta nominata si ritrovi nel paniere della sua variante con lo stesso slot.
+
+⛔ E quello che si PERDE è dichiarato: i riferimenti rotti non sono trasferibili, perché la chiave
+esterna li rifiuterebbe. Sono l'unica cosa che questa migrazione perde di proposito, ed è esattamente
+la cosa che la Fase 1 esiste per chiudere. Lo script li conta per variante.
+
+⚠️ COSA NON FA QUESTA CONSEGNA, e va saputo: i tre punti che costruiscono il pool leggendo i template
+(`menu.service.ts` → `buildScoringContext`, `personal-base.service.ts`, `copertura-catalogo.ts`) NON
+sono stati toccati. Il motore continua a leggere le giornate come prima, quindi ad applicare questa
+consegna non cambia niente per nessuna cliente. Sono le prossime due consegne della Fase 1, e vanno
+fatte con la sentinella che vieta di leggere `DietDayTemplate.meals` per costruire un pool.
+
+VERIFICA
+21 prove sulla regola della migrazione. 6116 test backend verdi, `nest build` e `tsc --noEmit`
+compresi. ⚠️ Su questa consegna non ho fatto girare la revisione avversariale con subagent: è una
+scelta di costo dichiarata, non una svista — la parte che decide è coperta dalle prove, e lo script
+non scrive finché non glielo si dice.
+
+⛔ LA MIGRAZIONE SI APPLICA DA RENDER, mai dal Mac.
+
+FILE
+- backend/prisma/schema.prisma — `Paniere`, `PaniereRicetta`, la relazione su `Recipe`
+- backend/prisma/migrations/20260831210000_panieri_lappartenenza_esce_dal_json/migration.sql
+- backend/src/catalog/appartenenza-panieri.ts (+ .spec, 21 prove)
+- backend/prisma/riempi-panieri.ts — `npm run panieri:riempi`, sola lettura senza APPLICA=1
+- backend/package.json

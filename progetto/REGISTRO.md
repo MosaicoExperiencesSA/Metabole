@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🧺 **Panieri, Fase 1: l'appartenenza esce dal JSON.** Il §9 non aspetta più niente —
+  firma arrivata, numeri della Fase 0 letti (161 varianti sotto soglia ma **una sola con clienti
+  sopra**, che è proprio quella che il §2.3 dice di spostare a mano: il piano non cambia). ⛔ Fino a
+  oggi «questa ricetta sta in questo paniere» stava dentro `diet_day_template.meals`, mescolata
+  all'abbinamento della giornata e **senza chiave esterna** — da lì i 58 riferimenti rotti. Adesso
+  ci sono `Paniere` (famiglia × regime, 38) e `PaniereRicetta` (paniere, ricetta, **slot**), con le
+  chiavi esterne vere: ⛔ è il punto di tutta la Fase 1, i riferimenti rotti diventano **impossibili
+  per costruzione** invece di essere contati da una diagnostica dopo. ⚠️ La regola della migrazione
+  sta in un modulo suo con le sue prove: obiettivo e struttura pasti **non** entrano nella chiave
+  (è la strada B — un pranzo vegano a basso IG serve anche DASH vegana, e non si riscrive), e le
+  famiglie che spariscono **non** diventano panieri: inventare un paniere «Digiuno» sarebbe la
+  settima famiglia fantasma dopo le sei che questo lavoro chiude. ⛔ `npm run panieri:riempi` **non
+  scrive** senza `APPLICA=1`, e non cancella niente: le giornate restano dove sono, perché il motore
+  legge ancora di là. ⚠️ **Non sono stati toccati i tre punti che costruiscono il pool**: applicare
+  questa consegna non cambia niente per nessuna cliente. Sono le prossime due.
+
 - `[Sviluppo]` 🥛 **«latte di cocco» non conta più come latte: i sostituti vegetali tornano nel piano
   di chi è allergico al latte.** ⛔ E **le porte erano QUATTRO, non due**: oltre al tag della ricetta
   e al filtro che toglie il piatto, `lattosio.ts` e `sostituzioni-sicure.ts` non tolgono —
