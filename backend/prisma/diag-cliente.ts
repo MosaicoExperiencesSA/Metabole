@@ -76,6 +76,13 @@ async function main(): Promise<void> {
       clientProfile: {
         select: {
           name: true, planStartDate: true, screeningFlag: true, onboardingCompletedAt: true,
+      /**
+       * ⛔ **QUESTI DUE MANCAVANO, ed è tutto il difetto** (31/8). Senza, `statoSupervisione` qui
+       * sotto riceve un profilo senza decisione e risponde SEMPRE «mai valutata»: il ramo «visita
+       * scaduta» non poteva scattare mai, e il via libera era invisibile. Lo strumento nato per
+       * spiegare il difetto del 23/8 lo rifaceva identico.
+       */
+      idoneita: true, idoneitaVisitaEntro: true,
           regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true,
           allergies: true, intolerances: true, dislikedFoods: true,
           assignedCoach: { select: { displayName: true } },
@@ -88,6 +95,7 @@ async function main(): Promise<void> {
     createdAt: Date; deletedAt: Date | null; emailVerifiedAt: Date | null;
     clientProfile: {
       name: string | null; planStartDate: Date | null; screeningFlag: boolean;
+      idoneita: string | null; idoneitaVisitaEntro: Date | null;
       onboardingCompletedAt: Date | null; regime: string | null; dietStyle: string | null;
       dietFamily: string | null; mealsPerDay: number | null;
       allergies: string[]; intolerances: string[]; dislikedFoods: string[];
@@ -370,25 +378,47 @@ async function main(): Promise<void> {
     : false;
   const supervisione = statoSupervisione(p as never);
 
+  /**
+   * ⚠️ **La decisione clinica si STAMPA**, non solo si usa: chi legge deve poter vedere da sé
+   * perché il verdetto dice quello che dice — e il 31/8 il difetto è stato invisibile proprio
+   * perché questa riga non c'era.
+   */
+  if (p?.screeningFlag) {
+    console.log(
+      `Via libera clinico: ${supervisione.motivo}`
+      + (supervisione.visitaEntro ? ` (visita entro il ${supervisione.visitaEntro})` : '')
+      + ` → i menu ${supervisione.bloccata ? 'sono FERMI ⛔' : 'non sono fermi da qui ✓'}`,
+    );
+  }
+
   console.log('\n=== PERCHÉ VEDE QUEL MESSAGGIO ===');
   if (subs.length > 0 && !attivo && !inAttesa) {
     console.log('STATO: "Nessun piano attivo" — non ha un abbonamento attivo entro il periodo.');
   } else if (visibili > 0) {
     console.log('STATO: "menu disponibile" — nessun messaggio. Se lei ne vede uno, ricarica l\'app.');
-  } else if (p?.screeningFlag) {
-    console.log(
-      'STATO: "Menu dopo la visita" — percorso SUPERVISIONATO.\n' +
-      '  Nel questionario ha dichiarato una condizione clinica o dei farmaci, quindi il menu\n' +
-      '  parte dopo la visita col nutrizionista. NON è un guasto: è la regola di sicurezza.\n' +
-      '  Si sblocca fissando e svolgendo la visita.',
-    );
-  } else if (supervisione.motivo === 'visita_scaduta') {
+  } else if (supervisione.bloccata) {
     /**
-     * ⛔ Cancello del 23/8 che questa catena non aveva: `deliverIfEligible` si ferma su
-     * `visita_scaduta`, e senza questo ramo il verdetto sarebbe stato «idonea».
+     * ⛔ **`supervisione.bloccata`, NON `screeningFlag`** — corretto il 31/8, e il difetto era di
+     * questo file. Qui c'era `else if (p?.screeningFlag)`: il **fatto** che il questionario l'ha
+     * segnalata, che resta vero per sempre. Quindi il verdetto diceva «Menu dopo la visita» anche a
+     * chi aveva il via libera — ed essendo il primo ramo, la catena non arrivava nemmeno a guardare
+     * la sospensione e la finestra di rientro, che erano il punto.
+     *
+     * ⚠️ Il costo, misurato: su Patrizia, il 31/8, questa riga ha mandato due persone a inseguire
+     * per mezza mattinata una visita che non c'era da fare, mentre il menu era fermo per tutt'altro.
+     * *Una ragione falsa è peggio di un ordine sbagliato.*
      */
-    console.log(`STATO: "Menu dopo la visita" — la VISITA È SCADUTA (era entro il ${supervisione.visitaEntro}).`);
-    console.log('  L\'erogazione è ferma da quel giorno. Si sblocca con una valutazione clinica nuova dalla scheda.');
+    if (supervisione.motivo === 'visita_scaduta') {
+      console.log(`STATO: "Menu dopo la visita" — la VISITA È SCADUTA (era entro il ${supervisione.visitaEntro}).`);
+      console.log('  L\'erogazione è ferma da quel giorno. Si sblocca con una valutazione clinica nuova dalla scheda.');
+    } else {
+      console.log(
+        'STATO: "Menu dopo la visita" — percorso SUPERVISIONATO e NON ANCORA VALUTATO.\n' +
+        '  Nel questionario ha dichiarato una condizione clinica o dei farmaci, e nessuno ha ancora\n' +
+        '  preso la decisione clinica. NON è un guasto: è la regola di sicurezza.\n' +
+        '  Si sblocca dalla scheda, con «Può proseguire» oppure «Serve una visita» + la data.',
+      );
+    }
   } else if (sospesaOra) {
     /**
      * ⛔ **IL RAMO CHE MANCAVA — ed è il caso Lorena, 23/8.**

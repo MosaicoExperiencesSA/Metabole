@@ -1,0 +1,56 @@
+«Percorso supervisionato» non vuol dire «i menu sono fermi»: due schermate lo dicevano lo stesso
+
+IL FATTO, 31/8
+
+Patrizia aveva il VIA LIBERA CLINICO dalle 06:34. Alle 09 la sua scheda mostrava ancora il
+bollino rosso «Percorso supervisionato», e `diag:cliente` chiudeva con «Menu dopo la visita
+— si sblocca fissando e svolgendo la visita».
+
+Due persone hanno passato mezza mattinata a cercare di sbloccare una visita che non c'era
+da fare, mentre il menu era fermo per tutt'altro (le esclusioni). ⚠️ È il costo vero di
+questa categoria di difetto: non un errore, ma una RAGIONE FALSA che manda al posto
+sbagliato — e mentre la si insegue, quello vero resta lì.
+
+PERCHÉ, E PERCHÉ ERA LA SECONDA VOLTA
+
+`screeningFlag` è un FATTO: il questionario l'ha segnalata, e resta vero per sempre. Il
+CANCELLO è la decisione clinica. Il 23/8 esattamente questo difetto era stato chiuso nella
+card della cliente e nel gate del menu — «la card leggeva solo `screeningFlag`» — ma i due
+punti che quel giorno non erano stati toccati continuavano a rispondere per conto loro:
+
+ · `prisma/diag-cliente.ts` non CHIEDEVA nemmeno `idoneita` al database. Quindi
+   `statoSupervisione`, che pure chiamava, riceveva un profilo senza decisione e rispondeva
+   SEMPRE «mai valutata»: il ramo «visita scaduta» non poteva scattare mai, e il via libera
+   era invisibile. E siccome quel ramo era il PRIMO, la catena non arrivava nemmeno a
+   guardare la sospensione e la finestra di rientro — che erano il punto.
+ · `ClientDetail.tsx` dipingeva il bollino rosso su `p?.screeningFlag` e basta.
+
+⛔ La ragione per cui torna è sempre la stessa: la domanda «i menu si fermano?» aveva TRE
+risposte in TRE file.
+
+ADESSO NE HA UNA
+
+`statoSupervisione` — quella che ferma davvero l'erogazione. Il backend la calcola e la
+mette nella scheda (`idoneita.bloccata` + `motivo`); la pagina e la diagnostica la MOSTRANO
+invece di ricalcolarla. Se due punti rispondono alla stessa domanda, uno deve chiamare
+l'altro.
+
+E le due schermate adesso dicono cose diverse fra loro, perché sono diverse:
+
+ · via libera → «Supervisionato · via libera», e il colore non è più l'allarme;
+ · visita da fare → «Supervisionato · visita entro il 30/09»: la data si legge senza
+   cercarla, ed è l'unico campo con una conseguenza automatica;
+ · mai valutata → «Menu fermi · da valutare»;
+ · visita scaduta → «Menu fermi · visita scaduta», che è un'altra cosa e si sblocca in un
+   altro modo.
+
+⚠️ E la diagnostica adesso STAMPA la decisione clinica, non solo la usa: il 31/8 il difetto
+è stato invisibile proprio perché quella riga non c'era.
+
+MISURATO
+- 5851 test verdi in quattro modalità, backoffice 150. Nove prove nuove: cinque sul
+  comportamento (fatto contro cancello, nei quattro stati) e quattro che tengono ferme le
+  due schermate, perché sono un file di diagnostica e una pagina React.
+- Tre mutazioni provate, tutte uccise — fra cui quella che rimette `else if
+  (p?.screeningFlag)`, cioè esattamente il difetto di stamattina.
+- Nessuna migrazione.

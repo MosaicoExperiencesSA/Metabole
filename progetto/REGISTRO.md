@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **«Percorso supervisionato» non vuol dire «i menu sono fermi»: due schermate lo
+  dicevano lo stesso.** ⛔ Patrizia aveva il **via libera clinico dalle 06:34**; alle 09 la sua scheda
+  mostrava il bollino rosso «Percorso supervisionato» e `diag:cliente` chiudeva con «Menu dopo la
+  visita». Due persone hanno passato mezza mattinata a sbloccare una visita che non c'era da fare,
+  mentre il menu era fermo per tutt'altro. ⚠️ **È il costo vero di questa categoria**: non un errore,
+  ma una **ragione falsa** che manda al posto sbagliato — e intanto quello vero resta lì.
+  ⛔ **Ed era la seconda volta.** `screeningFlag` è un **fatto** che resta vero per sempre; il
+  **cancello** è la decisione clinica. Il 23/8 lo stesso difetto era stato chiuso nella card della
+  cliente e nel gate del menu, ma i due punti non toccati continuavano a rispondere da soli:
+  `diag-cliente.ts` non **chiedeva** nemmeno `idoneita` al database — quindi `statoSupervisione`, che
+  pure chiamava, riceveva un profilo senza decisione e rispondeva **sempre** «mai valutata», e
+  siccome quel ramo era il **primo** la catena non arrivava a guardare la sospensione e la finestra
+  di rientro, che erano il punto; e `ClientDetail.tsx` dipingeva il bollino su `screeningFlag` e
+  basta.
+  ✅ Adesso la risposta è **una**: la calcola il backend con `statoSupervisione` (`idoneita.bloccata`
+  + `motivo`) e le due schermate la **mostrano**. E dicono cose diverse perché sono diverse — «via
+  libera», «visita entro il …» con la data che ha una conseguenza automatica, «menu fermi · da
+  valutare», «menu fermi · visita scaduta», che si sbloccano in due modi diversi. ⚠️ La diagnostica
+  adesso **stampa** la decisione clinica invece di solo usarla: il 31/8 il difetto è stato invisibile
+  proprio perché quella riga non c'era.
+  5851 test verdi in quattro modalità, backoffice 150; tre mutazioni, tutte uccise — fra cui quella
+  che rimette `else if (p?.screeningFlag)`. Nessuna migrazione.
+
 - `[Sviluppo]` **Il salvataggio che disfaceva se stesso: «senza glutine» riscriveva la dieta appena
   scelta.** ⛔ Quattro cambi di dieta su Patrizia in un'ora — Ipocalorica, Detox, DASH, Keto — fatti
   da due persone diverse, tutti e quattro nel registro come «cambiata da Mediterranea senza glutine

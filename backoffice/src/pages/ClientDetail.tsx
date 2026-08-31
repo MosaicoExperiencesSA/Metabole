@@ -27,7 +27,16 @@ interface Detail {
    * Il via libera clinico (13/8). `esito: null` + `daValutare: true` = nessuno l'ha ancora guardata.
    * ⚠️ `serve_visita` NON è «da valutare»: qualcuno l'ha guardata e ha deciso che la visita serve.
    */
-  idoneita?: { esito: string | null; decisaIl: string | null; daValutare: boolean; visitaEntro?: string | null };
+  /**
+   * ⚠️ `bloccata` e `motivo` li calcola il BACKEND (`statoSupervisione`), che è lo stesso punto che
+   * ferma davvero l'erogazione. Qui non si ricalcola: il 31/8 questa scheda rispondeva da sé
+   * guardando il solo `screeningFlag` e diceva «supervisionata» a una cliente che aveva il via
+   * libera da tre ore.
+   */
+  idoneita?: {
+    esito: string | null; decisaIl: string | null; daValutare: boolean; visitaEntro?: string | null;
+    bloccata?: boolean; motivo?: 'non_supervisionata' | 'via_libera' | 'visita_da_fare' | 'visita_scaduta' | 'mai_valutata';
+  };
   /**
    * La dieta COLLEGATA alla cliente, con la descrizione per esteso. Lo stile («Mediterranea») non
    * basta a dire quale sia: tre diete diverse hanno `style = mediterranean`. Vedi il commento in
@@ -1497,7 +1506,28 @@ export function ClientDetail() {
               <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
                 {d.user.status === 'active' ? 'Attivo' : 'Sospeso'}
               </span>
-              {p?.screeningFlag && <span className="chip red">Percorso supervisionato</span>}
+              {/*
+                ⛔ **IL BOLLINO DICE SE I MENU SONO FERMI, non se il questionario l'ha segnalata.**
+                Il 31/8 era rosso su Patrizia — «Percorso supervisionato» — mentre lei aveva il via
+                libera clinico dalle 06:34 e i menu le sarebbero arrivati: due persone hanno passato
+                mezza mattinata a cercare di sbloccare una visita che non c'era da fare.
+                `screeningFlag` è un FATTO che resta vero per sempre; il cancello è la decisione.
+              */}
+              {p?.screeningFlag && (
+                d?.idoneita?.bloccata === false
+                  ? (
+                    <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>
+                      {d.idoneita.motivo === 'visita_da_fare' && d.idoneita.visitaEntro
+                        ? `Supervisionato · visita entro il ${date(d.idoneita.visitaEntro)}`
+                        : 'Supervisionato · via libera'}
+                    </span>
+                  )
+                  : (
+                    <span className="chip red">
+                      {d?.idoneita?.motivo === 'visita_scaduta' ? 'Menu fermi · visita scaduta' : 'Menu fermi · da valutare'}
+                    </span>
+                  )
+              )}
               {d.crm && <span className="chip" style={{ background: 'rgba(255,255,255,.2)', color: '#fff' }}>CRM: {d.crm.stageLabel ?? d.crm.stage}</span>}
             </div>
           </div>

@@ -33,6 +33,7 @@ import { PauseService } from '../pause/pause.service';
 import { giorniSospesi, giornoDiRientro, ultimoGiornoSospeso } from '../pause/giorno-di-rientro';
 import { sospensioniDiUnaCliente } from './sospensioni-di-una-cliente';
 import { type Idoneita, daValutare, testoNota, validaDecisione } from './idoneita';
+import { statoSupervisione } from './via-libera-clinico';
 import { giornoLocale, toDateOnly } from '../common/date-only';
 import { finestraMenu, MENU_MAX_GIORNI, PeriodoNonValido } from './finestra-menu';
 // Chi eroga oggi e chi è in coda: una funzione sola per tutto il prodotto (caso Polidoro).
@@ -581,6 +582,26 @@ export class ClientsService {
           idoneita: (profile as { idoneita?: string | null } | null)?.idoneita ?? null,
           screeningFlag: (profile as { screeningFlag?: boolean } | null)?.screeningFlag ?? false,
         }),
+        /**
+         * ⛔ **I MENU SONO FERMI, SÌ O NO — e la risposta la dà il backend, non la scheda.**
+         *
+         * Trovato il 31/8 su Patrizia. In scheda compariva il bollino rosso «Percorso
+         * supervisionato», e in `diag:cliente` il verdetto «Menu dopo la visita»: tutti e due
+         * leggevano il solo `screeningFlag`, cioè il **fatto** che il questionario l'ha segnalata —
+         * che resta vero per sempre. Ma il cancello vero è la **decisione clinica**, e lei aveva il
+         * via libera dalle 06:34. Due schermate dicevano «serve una visita» su una cliente che non
+         * ne aveva nessuna da fare, e ci hanno mandato due persone a inseguirla per mezza mattinata.
+         *
+         * ⚠️ È lo stesso difetto del 23/8 — «la card leggeva solo `screeningFlag`» — ricomparso nei
+         * due posti che quel giorno non erano stati toccati. La ragione per cui torna è sempre la
+         * stessa: la domanda «i menu si fermano?» aveva **tre** risposte in tre file. Adesso la dà
+         * `statoSupervisione`, che è quella che ferma davvero l'erogazione, e le schermate la
+         * **mostrano** invece di ricalcolarla.
+         */
+        ...(() => {
+          const st = statoSupervisione(profile as never);
+          return { bloccata: st.bloccata, motivo: st.motivo };
+        })(),
       },
       scostamentoDieta: scostamento,
       dietaMenuInCorso: dietaVecchiaInArrivo,
