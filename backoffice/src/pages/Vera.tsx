@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, Colonna, ContatoreRighe, useTabella } from '../components/tabella';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
-import { portaInFondo } from '../lib/scorri-in-fondo';
+import { agganciaInFondo, portaInFondo } from '../lib/scorri-in-fondo';
 
 /**
  * L'ASSISTENTE DELLA NUTRIZIONISTA — la chat sopra, il registro sotto, sulla stessa schermata.
@@ -142,7 +142,14 @@ export function Vera() {
   const [notice, setNotice] = useState<string | null>(null);
   const [aperta, setAperta] = useState<Azione | null>(null);
   const [report, setReport] = useState<{ periodo: string; testo: string } | null>(null);
-  const fine = useRef<HTMLDivElement>(null);
+  const fine = useRef<HTMLDivElement | null>(null);
+  /**
+   * ⛔ **Si scorre quando la scatola si ATTACCA, non quando arrivano i messaggi.** Fino al 31/8
+   * questa pagina si apriva su messaggi di cinque giorni prima: `apri()` scrive i messaggi e
+   * spegne `loading` solo dopo il registro, quindi nel disegno in cui i messaggi arrivano qui
+   * c'è ancora `<Spinner />` e `fine.current` è `null`. Vedi `lib/scorri-in-fondo.ts`.
+   */
+  const attaccaFine = useMemo(() => agganciaInFondo(fine), []);
   const finestraChat = useRef<HTMLDivElement>(null);
 
   /**
@@ -460,7 +467,7 @@ export function Vera() {
         className="card"
         style={{ padding: 0, display: 'flex', flexDirection: 'column', height: altezzaChat ?? 'min(72vh, 640px)', minHeight: ALTEZZA_CHAT_MIN }}
       >
-        <div ref={fine} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div ref={attaccaFine} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {messaggi.length === 0 && <div className="empty">Scrivi la prima frase qui sotto.</div>}
           {messaggi.map((m) => {
             const mia = m.ruolo === 'nutrizionista';

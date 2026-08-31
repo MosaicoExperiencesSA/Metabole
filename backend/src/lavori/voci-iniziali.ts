@@ -2302,7 +2302,23 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ Due rilievi della revisione: il segnaposto vecchio andava **tolto** (con la stessa ref '
       + 'attaccata a due nodi, React tiene l\'ultimo — un div alto zero — e lo scorrimento moriva in '
       + 'silenzio); e nel foglio dell\'app la dipendenza era il **numero** dei messaggi, quindi '
-      + 'passando da Gaia alla coach con dodici messaggi ciascuna la lista restava a metà.',
+      + 'passando da Gaia alla coach con dodici messaggi ciascuna la lista restava a metà.\n\n'
+      + '⛔ **RIAPERTA E RICHIUSA IL 31/8**, con due schermate di Simone: la pagina dell\'assistente si '
+      + 'apriva su messaggi del **26/8** mentre la conversazione finiva il **31/8 alle 09:39**. Il codice '
+      + 'per scorrere c\'era da sei giorni, ed è per questo che la voce era stata chiusa: **c\'era e non '
+      + 'serviva a niente**.\n\n'
+      + '⚠️ La causa è una riga che non c\'entra con lo scorrimento: `if (loading) return <Spinner />`. '
+      + 'Chi carica scrive prima i messaggi e spegne il caricamento **dopo** (in mezzo c\'è un secondo '
+      + '`await`, il registro): nel disegno in cui i messaggi arrivano al posto della scatola c\'è ancora '
+      + 'la rotellina, il `ref` è `null`, e l\'effetto scorre il nulla. Quando la scatola compare '
+      + 'l\'effetto non riparte, perché i messaggi non sono cambiati.\n\n'
+      + '⛔ La lezione, che vale oltre le chat: **una lista che si apre in cima non è la prova che manchi '
+      + 'il codice per scorrerla.** Il rimedio non è aggiungere `loading` alle dipendenze pagina per '
+      + 'pagina — è non dipendere più dal momento: `agganciaInFondo` scorre **quando la scatola si '
+      + 'attacca**, che è l\'istante in cui esiste per certo. La scheda cliente si allinea per prudenza '
+      + 'e non per un incidente: lì i due aggiornamenti cadono nello stesso disegno, ma dipende da come '
+      + 'React raggruppa — e basta un `await` in più, un domani, perché diventi la pagina '
+      + 'dell\'assistente.',
   },
   {
     chiave: 'orologio-numeri-tagliati',
@@ -3737,9 +3753,12 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'sul modello di `GraficaPdf.tsx` («Apri in una scheda»).\n\n'
       + '⚠️ Due accortezze: `client` può essere nullo (il link si mostra solo quando c\'è), e la scheda cliente '
       + 'sta dietro il permesso `clients`, **diverso** da `chat` — a una coach senza quel permesso il link '
-      + 'aprirebbe una pagina «accesso non consentito». Va condizionato al permesso.',
+      + 'aprirebbe una pagina «accesso non consentito». Va condizionato al permesso.\n\n'
+      + '✅ **FATTA il 31/8**: il nome è un link con `target="_blank"`, mostrato solo a chi ha il permesso '
+      + '`clients` — chi non ce l\'ha continua a vedere il nome come prima.',
     ordine: 963,
     nata: '2026-08-31T21:00',
+    fatta: true,
   },
 
   {
@@ -3764,9 +3783,15 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⛔ **Il buco da coprire**: nei rami «arresa» (Gaia non ha capito due volte) il messaggio viene girato '
       + '**senza** aprire nessuna segnalazione, quindi quella frase non viene prodotta — ed è proprio il caso '
       + 'più probabile per un «1» orfano. Lì il contesto va composto dallo stato (`ultimaDomanda` + piatto + '
-      + 'data), non riusando il testo della segnalazione.',
+      + 'data), non riusando il testo della segnalazione.\n\n'
+      + '✅ **FATTA il 31/8**, e il buco è coperto: `contestoPerLoStaff` compone la riga **dallo stato del '
+      + 'dialogo** — «Vuole cambiare «pollo» — pranzo di domani, «Pollo alle erbe». Gaia le aveva chiesto: '
+      + '«…»» — e i rami «arresa» adesso portano con sé `ultimoStato` apposta (⚠️ **non** `stato`: quello '
+      + 'riaprirebbe un dialogo che è finito). Se lo stato non dice niente, **non si scrive niente**: meglio '
+      + 'un numero nudo che una frase plausibile e sbagliata sotto gli occhi di chi decide.',
     ordine: 964,
     nata: '2026-08-31T21:00',
+    fatta: true,
   },
 
   {

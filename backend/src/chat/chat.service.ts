@@ -41,6 +41,8 @@ import { imparaDalNutrizionista } from '../food-swaps/impara-dal-nutrizionista';
 import { classifyMessage } from './ai-filter';
 import { RISPOSTA_FERMATA, verificaRispostaGaia } from './guardia-risposta-ai';
 import { domandaNutrizionale, terminiAlimentoCandidati } from './domanda-nutrizionale';
+import { giornoLocale } from '../common/date-only';
+import { contestoPerLoStaff } from '../menu/sostituzione-chat';
 
 type Counterpart = 'ai' | 'coach' | 'nutritionist';
 
@@ -1109,13 +1111,25 @@ export class ChatService {
         create: { clientId, counterpart: esito.inoltraA as never },
         update: { lastMessageAt: new Date() },
       });
+      /**
+       * ⛔ **IL CONTESTO VIAGGIA COL MESSAGGIO** (31/8, Simone). Nella chat con Gaia un «1» ha un
+       * senso: la domanda è la riga sopra. Qui il messaggio arriva **nudo**, in un thread dove
+       * quella domanda non c'è mai stata, e chi legge vede «1» e «2» senza sapere di cosa si
+       * parli.
+       *
+       * ⚠️ La frase non si inventa: è composta dallo **stato del dialogo** — giorno, pasto, piatto,
+       * l'alimento come l'ha scritto lei — e porta con sé la domanda di Gaia parola per parola.
+       * Se lo stato non dice niente, non si scrive niente: meglio un numero nudo che una frase
+       * plausibile e sbagliata.
+       */
+      const contesto = contestoPerLoStaff(esito.stato ?? esito.ultimoStato, giornoLocale(new Date()));
       await this.prisma.message.create({
         data: {
           threadId: target.id,
           senderRole: 'client',
           senderUserId: clientId,
           body,
-          meta: { forwardedFrom: 'ai', motivo: 'cambio_piatto' } as never,
+          meta: { forwardedFrom: 'ai', motivo: 'cambio_piatto', ...(contesto ? { contesto } : {}) } as never,
         },
       });
       await this.notifyCounterpartStaff(clientId, esito.inoltraA);

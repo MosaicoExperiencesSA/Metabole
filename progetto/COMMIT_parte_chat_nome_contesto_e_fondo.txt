@@ -1,0 +1,74 @@
+=== PARTE: La chat dello staff — il nome apre la scheda, un «1» non arriva nudo, e le liste si aprono in fondo ===
+
+SUMMARY
+Nella chat il nome della cliente apre la sua scheda, i messaggi inoltrati portano il motivo, e la pagina dell'assistente si apre davvero sull'ultimo messaggio
+
+DESCRIPTION
+Tre cose viste da Simone il 31/8 guardando lo schermo del nutrizionista.
+
+1) IL NOME DELLA CLIENTE È UN LINK, IN UN'ALTRA FINESTRA.
+In cima alla conversazione il nome era scritto in grassetto e basta: per guardare la scheda della
+persona con cui si sta parlando si doveva andare in Clienti e ritrovarla a mano — perdendo la
+conversazione. Adesso apre la scheda in una scheda nuova del browser, così la chat resta dov'era.
+⚠️ Solo a chi ha il permesso `clients`: `chat` e `clients` sono due chiavi diverse, e una coach che
+ha la prima e non la seconda avrebbe cliccato su «accesso non consentito». Chi non ce l'ha vede il
+nome come prima.
+
+2) UN «1» INOLTRATO NON ARRIVA PIÙ NUDO.
+Quando Gaia non riesce a chiudere un cambio piatto gira la conversazione allo staff — e quello che
+arrivava era l'ultimo messaggio della cliente, spesso «1» o «2»: la risposta a una domanda a scelta
+multipla che Gaia aveva fatto e che il nutrizionista non vede. Chi legge non ha nessun modo di
+capire di cosa si parla.
+Adesso sopra il messaggio compare una riga di contesto: *«Vuole cambiare "pollo" — pranzo di domani,
+"Pollo alle erbe". Gaia le aveva chiesto: "Con cosa te lo cambio?"»*.
+⛔ Il contesto **non si inventa**: si legge dallo stato del dialogo, che quelle cose le sa già (il
+cibo, il giorno, il pasto, la proposta, l'ultima domanda fatta). Se lo stato non dice niente, la riga
+non compare — meglio niente che una frase verosimile scritta da noi.
+⚠️ Nei rami in cui Gaia si arrende lo stato veniva buttato via: si passa con un campo suo
+(`ultimoStato`), non con quello che riaprirebbe il dialogo.
+
+3) LA PAGINA DELL'ASSISTENTE SI APRIVA SU MESSAGGI DI CINQUE GIORNI PRIMA.
+Due schermate: si entra e si legge il 26/8 alle 16:23, mentre la conversazione finisce il 31/8 alle
+09:39. La voce «tutte le chat si aprono sull'ultimo messaggio» era chiusa dal 25/8, e il codice per
+scorrere era lì.
+⛔ Il codice c'era e non serviva a niente, per una riga che con lo scorrimento non c'entra:
+`if (loading) return <Spinner />`. Chi carica scrive prima i messaggi e spegne il caricamento DOPO
+(in mezzo c'è un secondo `await`, il registro). Nel disegno in cui i messaggi arrivano al posto della
+scatola c'è ancora la rotellina: il `ref` è `null` e l'effetto scorre il nulla — e quando la scatola
+compare l'effetto non riparte, perché i messaggi non sono cambiati.
+⚠️ La lezione, che vale oltre le chat: **una lista che si apre in cima non è la prova che manchi il
+codice per scorrerla.** Il rimedio non è aggiungere `loading` alle dipendenze pagina per pagina — è
+non dipendere più dal momento: `agganciaInFondo` scorre quando la scatola si ATTACCA, che è
+l'istante in cui esiste per certo.
+La card «Conversazioni» della scheda cliente si allinea **per prudenza e non per un incidente**: lì
+i due aggiornamenti cadono nello stesso disegno e oggi funziona, ma dipende da come React raggruppa
+— e basta un `await` in più, un domani, perché diventi la pagina dell'assistente. È scritto così nel
+commento, perché un ⛔ che racconta un incidente mai avvenuto vale meno di niente.
+Misurate le altre quattro liste di messaggi del prodotto, una per una, guardando l'ordine degli
+aggiornamenti di stato: nessuna ha questa forma.
+
+VERIFICA
+Cinque mutazioni provate e tutte uccise, tre delle quali suggerite dalla revisione avversariale, che
+ha trovato tre difetti veri in questa stessa consegna:
+- la prova di guardia sulla scheda cliente cercava `? <Spinner />` in tutto il file e trovava la
+  rotellina di un ALTRO componente (e una riga di commento): passava anche cancellando la rotellina
+  che diceva di sorvegliare. Adesso ogni pagina ha la sua regex, ancorata al codice vero;
+- la prova sulla memoizzazione non guardava le dipendenze: `useMemo(..., [messaggi])` — cioè
+  l'errore che il commento dice di temere — la superava;
+- il commento nella scheda cliente registrava come causa osservata un difetto che lì non è mai
+  successo. Riscritto.
+Backend: 5932 test verdi nelle quattro modalità (piana, TZ=Europe/Rome, notte, notte+Roma) più
+`nest build`. Backoffice: 165 vitest, `tsc --noEmit` pulito (restano solo i due errori preesistenti
+di `approve-diets.ts` e `dedupe-diets.ts`, che sono in `prisma/`) e `npm run build` vero.
+
+FILE
+- backend/src/menu/sostituzione-chat.ts (+ contesto-per-lo-staff.spec.ts) — `contestoPerLoStaff`
+- backend/src/menu/sostituzione-chat.service.ts (+ .spec) — `ultimoStato` sui rami «arresa»
+- backend/src/chat/chat.service.ts (+ .spec) — il contesto viaggia nel `meta` del messaggio inoltrato
+- backoffice/src/pages/Chat.tsx — nome cliccabile (dietro `can('clients')`) e riga di contesto
+- backoffice/src/pages/chat-nome-e-contesto.spec.ts — nuova
+- backoffice/src/lib/scorri-in-fondo.ts (+ .spec) — `agganciaInFondo`
+- backoffice/src/pages/Vera.tsx — l'aggancio al posto del ref nudo
+- backoffice/src/pages/ClientDetail.tsx — idem, per prudenza, e scritto perché
+- backoffice/src/pages/chat-si-apre-in-fondo.spec.ts — nuova, la guardia
+- backend/src/lavori/voci-iniziali.ts — due voci chiuse, una riaperta e richiusa

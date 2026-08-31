@@ -347,6 +347,60 @@ export interface StatoSostituzione {
   ultimaDomanda?: string;
 }
 
+/**
+ * ⛔ **IL CONTESTO DI UN «1», per chi legge la chat dello staff.**
+ *
+ * Simone, 31/8, guardando la conversazione con Sonia: *«se il nutrizionista legge 1 e 2 come fa a
+ * capire di cosa si parla? mettiamo un breve riassunto — la signora Romina vuole correggere il
+ * pollo nel pranzo di domani»*.
+ *
+ * I numeri nascono dagli elenchi numerati che Gaia mostra alla cliente (voluti da Simone il 24/8,
+ * §170 qui sopra): nella chat con Gaia hanno un senso, perché la domanda è la riga sopra. Ma il
+ * messaggio viene **inoltrato** nel thread della coach o della nutrizionista, e lì arriva **nudo**:
+ * un «1» senza niente intorno.
+ *
+ * ⚠️ La frase **non si inventa e non si ricostruisce a mano**: tutto quello che serve è già nello
+ * stato del dialogo — il giorno, il pasto, il piatto, l'alimento come l'ha scritto lei — e
+ * `ultimaDomanda` porta perfino la domanda di Gaia parola per parola. Qui si mette in fila quello
+ * che c'è: se non c'è niente, `null`, e nella chat non compare nessuna riga inventata.
+ */
+export function contestoPerLoStaff(
+  stato: StatoSostituzione | null | undefined,
+  oggiIso: string,
+): string | null {
+  if (!stato) return null;
+  const quando = stato.data ? etichettaGiorno(stato.data, oggiIso) : null;
+  const dove = stato.slotPiatto ? etichettaSlot(stato.slotPiatto) : null;
+  const piatto = stato.piattoAttuale?.nome;
+  /** «pranzo di domani», «pranzo», «domani» — quello che si sa, senza buchi da riempire. */
+  const momento = [dove, quando].filter(Boolean).join(' di ');
+
+  let cosa: string | null = null;
+  if (stato.proposta?.da && stato.proposta?.a) {
+    cosa = `Vuole cambiare «${stato.proposta.da}» con «${stato.proposta.a}»`;
+  } else if (stato.cibo) {
+    cosa = `Vuole cambiare «${stato.cibo}»`;
+  } else if (momento) {
+    cosa = 'Sta cambiando un piatto';
+  }
+  if (!cosa && !stato.ultimaDomanda) return null;
+
+  /**
+   * ⚠️ Il momento si attacca col trattino e non con una preposizione: «nel **cena** di oggi» era il
+   * primo tentativo, e per dirlo bene servirebbe sapere il genere di ogni pasto — una tabella di
+   * articoli da tenere aggiornata per guadagnare niente.
+   */
+  const prima = cosa
+    ? `${cosa}${momento ? ` — ${momento}` : ''}${piatto ? `, «${piatto}»` : ''}.`
+    : null;
+  /**
+   * ⚠️ La domanda di Gaia va messa **per intero e fra virgolette**: è l'unica cosa che dà un senso
+   * al numero, e riassumerla vorrebbe dire far indovinare a chi legge quale riga era la «2».
+   */
+  const dopo = stato.ultimaDomanda ? `Gaia le aveva chiesto: «${stato.ultimaDomanda.trim()}»` : null;
+  return [prima, dopo].filter(Boolean).join(' ') || null;
+}
+
 /** Oltre questo, lo stato appeso a un messaggio vecchio non è più una conversazione in corso. */
 export const SCADENZA_FLUSSO_MS = 60 * 60 * 1000;
 
@@ -369,6 +423,7 @@ export { combaciaAlimento, condividonoAlimento, normalizza, paroleAlimento, radi
 // Gli aggettivi che descrivono un cibo senza nominarlo: vedi il riquadro di `ascolto.ts`, che
 // racconta la conversazione in cui «cruda» è stata scambiata per un ingrediente.
 import { QUALIFICATORI } from './ascolto';
+import { etichettaGiorno } from './giorno-conversazione';
 
 /**
  * Intenzione di sostituire, riconosciuta dal testo libero. Volutamente NARROW: pretende un

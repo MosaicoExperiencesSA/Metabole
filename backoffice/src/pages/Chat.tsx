@@ -26,13 +26,20 @@ interface Msg {
   senderUserId?: string | null;
   body: string;
   sentAt: string;
+  /**
+   * ⛔ **Il contesto di un messaggio inoltrato da Gaia** (31/8). Un «1» o un «2» qui dentro sono le
+   * risposte a un elenco numerato che la cliente ha letto in un'ALTRA conversazione: chi legge
+   * questa non ha nessun modo di sapere di cosa si parli. Il backend lo compone dallo stato del
+   * dialogo e lo mette qui; se non c'è, non si mostra niente.
+   */
+  meta?: { contesto?: string } | null;
 }
 
 const nameOf = (t: Thread) => t.client?.clientProfile?.name || t.client?.email || 'Cliente';
 
 /** Chat staff ↔ cliente (coach/nutrizionista). Legge le API staff/threads + threads/:id/messages. */
 export function Chat() {
-  const { user: me } = useAuth();
+  const { user: me, can } = useAuth();
   const [threads, setThreads] = useState<Thread[] | null>(null);
   const [sel, setSel] = useState<Thread | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -169,7 +176,29 @@ export function Chat() {
         ) : (
           <>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #eee' }}>
-              <b>{nameOf(sel)}</b>
+              {/*
+                ⛔ **IL NOME APRE LA SUA SCHEDA, in un'altra finestra** (Simone, 31/8). Chi legge una
+                conversazione e vuole guardare la scheda doveva cambiare pagina e cercarla — e
+                perdeva la chat che stava leggendo. `target="_blank"` è la parte che conta: la
+                conversazione resta aperta dov'era.
+
+                ⚠️ Il link solo a chi può: la scheda cliente sta dietro il permesso `clients`, che è
+                DIVERSO da `chat`. A una coach senza quel permesso questo link aprirebbe una pagina
+                «accesso non consentito» — cioè prometterebbe una cosa che non può dare.
+              */}
+              {sel.client?.id && can('clients') ? (
+                <a
+                  href={`/clienti/${sel.client.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontWeight: 700, color: 'inherit', textDecoration: 'none' }}
+                  title="Apri la scheda della cliente in una nuova scheda"
+                >
+                  {nameOf(sel)} <i className="ti ti-external-link" style={{ fontSize: 13, opacity: 0.6 }} />
+                </a>
+              ) : (
+                <b>{nameOf(sel)}</b>
+              )}
             </div>
             <div ref={endRef} style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {msgs.map((m) => {
@@ -200,6 +229,16 @@ export function Chat() {
                     {/* ⚠️ Stesso renderer delle bolle in app (25/8): qui arriva soprattutto testo
                         scritto da persone, ma la stessa frase non deve leggersi in due modi diversi
                         a seconda di chi apre la conversazione. */}
+                    {/*
+                      ⚠️ Sta SOPRA il messaggio e non sotto: si legge prima del «1», che senza è un
+                      numero e basta. E in corsivo, perché non è una cosa che ha scritto la cliente:
+                      è il riassunto di dov'era quando l'ha scritta.
+                    */}
+                    {m.meta?.contesto && (
+                      <div style={{ fontSize: 11, fontStyle: 'italic', opacity: 0.75, marginBottom: 4 }}>
+                        {m.meta.contesto}
+                      </div>
+                    )}
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><TestoConGrassetto testo={m.body} /></div>
                     <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>{new Date(m.sentAt).toLocaleString('it-IT')}</div>
                   </div>

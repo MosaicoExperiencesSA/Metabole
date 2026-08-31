@@ -23,3 +23,35 @@ export function portaInFondo(el: { scrollTop: number; scrollHeight: number } | n
   if (!el) return;
   el.scrollTop = el.scrollHeight;
 }
+
+/**
+ * ⛔ **LA SCATOLA NON C'È ANCORA QUANDO ARRIVANO I MESSAGGI** — 31/8, dagli screenshot di Simone:
+ * la pagina dell'assistente si apriva su messaggi del 26/8 mentre la conversazione finiva il 31/8
+ * alle 09:39. Il codice per scorrere c'era, e non serviva a niente.
+ *
+ * ⚠️ Il motivo è una sola riga: `if (loading) return <Spinner />`. Chi carica scrive prima i
+ * messaggi e spegne il caricamento DOPO (c'è un secondo `await` in mezzo, il registro). Nel disegno
+ * in cui i messaggi arrivano la scatola è ancora una rotellina: il `ref` è `null`, l'effetto scorre
+ * il nulla — e quando la scatola compare l'effetto non riparte, perché i messaggi non sono
+ * cambiati. Una lista che si apre in cima **non è la prova che manchi il codice per scorrerla**.
+ *
+ * Il rimedio non è aggiungere `loading` alle dipendenze in ogni pagina — è non dipendere più dal
+ * momento: si scorre **quando la scatola si attacca**, che è l'istante in cui esiste davvero.
+ * Il `ref` normale continua a servire all'effetto dei messaggi nuovi, e questa funzione lo riempie.
+ *
+ * ⚠️ Da memoizzare (`useMemo(() => agganciaInFondo(ref), [])`): una funzione nuova a ogni disegno
+ * React la stacca e la riattacca ogni volta, e la chat tornerebbe in fondo mentre qualcuno sta
+ * leggendo indietro.
+ */
+export function agganciaInFondo<T extends { scrollTop: number; scrollHeight: number }>(
+  ref: { current: T | null },
+): (el: T | null) => void {
+  return (el) => {
+    ref.current = el;
+    if (!el) return;
+    portaInFondo(el);
+    // Secondo giro, per la stessa ragione dell'effetto: al primo disegno le altezze non sono quelle
+    // vere. Si rilegge `ref.current`, così un elemento nel frattempo staccato non fa danni.
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => portaInFondo(ref.current));
+  };
+}

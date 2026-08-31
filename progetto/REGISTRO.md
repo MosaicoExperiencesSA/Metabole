@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 💬 **La chat dello staff: il nome apre la scheda, un «1» non arriva più nudo, e la
+  pagina dell'assistente si apre davvero in fondo.** Tre cose viste da Simone guardando lo schermo
+  del nutrizionista. (1) Il nome della cliente in cima alla conversazione era grassetto e basta: per
+  vedere la sua scheda si perdeva la chat. Adesso è un link che apre la scheda in un'altra finestra,
+  **solo a chi ha il permesso `clients`** — `chat` e `clients` sono due chiavi diverse. (2) Quando
+  Gaia gira un cambio piatto allo staff arrivava l'ultimo messaggio della cliente, che spesso è «1» o
+  «2»: la risposta a una domanda che chi legge non vede. Adesso sopra c'è una riga di contesto —
+  *«Vuole cambiare "pollo" — pranzo di domani. Gaia le aveva chiesto: …»* — ⛔ **letta dallo stato
+  del dialogo, non inventata**: se lo stato non dice niente, la riga non compare. (3) La pagina
+  dell'assistente si apriva su messaggi del **26/8** mentre la conversazione finiva il **31/8 alle
+  09:39**, con la voce «tutte le chat si aprono sull'ultimo messaggio» chiusa dal 25/8 e il codice
+  per scorrere al suo posto. ⛔ **C'era e non serviva a niente**, per una riga che con lo
+  scorrimento non c'entra: `if (loading) return <Spinner />`. I messaggi arrivano mentre al posto
+  della scatola c'è ancora la rotellina, quindi il `ref` è `null` e l'effetto scorre il nulla; e
+  quando la scatola compare l'effetto non riparte, perché i messaggi non sono cambiati. ⚠️ **Una
+  lista che si apre in cima non è la prova che manchi il codice per scorrerla.** Adesso si scorre
+  **quando la scatola si attacca**, non quando cambiano i messaggi. Revisione avversariale: tre
+  difetti trovati in questa stessa consegna (una prova di guardia che passava anche a rotellina
+  cancellata, una che non guardava le dipendenze del `useMemo`, e un commento ⛔ che registrava un
+  incidente mai avvenuto), tutti corretti. Cinque mutazioni uccise; 5932 test backend nelle quattro
+  modalità e 165 vitest, build vere comprese.
+
 - `[Sviluppo]` 🏷️ **Il nome di Vera: le frasi del primo incontro che cadevano, e «mi chiamo già
   così» invece di «non ci arrivo».** Cinque frasi su venticinque della pagina «frasi che non ho
   capito» cadevano sul **battesimo**, cioè nel momento in cui la nutrizionista decide se fidarsi.

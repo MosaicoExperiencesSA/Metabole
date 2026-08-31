@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -13,7 +13,7 @@ import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
 import { useTaxonomy } from '../lib/taxonomy';
 import { TabellaScorrevole } from '../components/tabella-scorrevole';
-import { portaInFondo } from '../lib/scorri-in-fondo';
+import { agganciaInFondo, portaInFondo } from '../lib/scorri-in-fondo';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
 
 interface Detail {
@@ -3493,6 +3493,20 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
    * disegno le altezze delle bolle non sono ancora quelle vere: vedi `lib/scorri-in-fondo.ts`.
    */
   const fondoConversazione = useRef<HTMLDivElement | null>(null);
+  /**
+   * **Si scorre anche quando la scatola si ATTACCA**, non solo quando cambiano i messaggi.
+   *
+   * ⚠️ Qui il difetto del 31/8 (la pagina dell'assistente che si apriva su messaggi di cinque giorni
+   * prima) **non si è mai visto**, e va detto: sotto c'è `caricaMsg ? <Spinner /> : …`, ma
+   * `setMessaggi` e `setCaricaMsg(false)` stanno nella stessa catena di promesse, senza rete in
+   * mezzo, quindi cadono nello stesso disegno e la scatola c'è già quando l'effetto gira.
+   *
+   * Ci si allinea lo stesso, per prudenza e non per un incidente: che i due aggiornamenti finiscano
+   * nello stesso disegno dipende da come React raggruppa, che non è una cosa nostra — e basta
+   * infilare un `await` fra i due (una lettura in più, un domani) perché questa card diventi la
+   * pagina dell'assistente. Vedi `lib/scorri-in-fondo.ts`.
+   */
+  const attaccaFondo = useMemo(() => agganciaInFondo(fondoConversazione), []);
   useEffect(() => {
     portaInFondo(fondoConversazione.current);
     const t = requestAnimationFrame(() => portaInFondo(fondoConversazione.current));
@@ -3919,7 +3933,7 @@ function ConversazioniCard({ clientId }: { clientId: string }) {
                quattro liste di messaggi del prodotto a partire dal primo: la coach apriva la
                conversazione di una cliente e doveva scorrere tutto per arrivare alla domanda a cui
                stava per rispondere. Vedi `lib/scorri-in-fondo.ts`. */
-            <div ref={fondoConversazione} style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div ref={attaccaFondo} style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
               {messaggi.map((m) => {
                 const dellaCliente = m.senderRole === 'client';
                 /*

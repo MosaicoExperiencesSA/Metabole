@@ -150,6 +150,20 @@ export interface EsitoSostituzione {
   stato?: StatoSostituzione;
   /** Il flusso si è arreso: il messaggio va inoltrato a una persona. */
   inoltraA?: 'coach' | 'nutritionist';
+  /**
+   * ⛔ **Lo stato con cui il dialogo si è CHIUSO, per spiegare il messaggio a chi lo riceve.**
+   *
+   * Non è `stato`, ed è una distinzione che conta: `stato` tiene **aperto** il flusso (finisce nel
+   * `meta` del messaggio di Gaia e il giro dopo lo si rilegge da lì). Questo serve solo a comporre
+   * la riga di contesto che accompagna il messaggio inoltrato — «Vuole cambiare «pollo» — pranzo di
+   * domani» — e non riapre niente.
+   *
+   * ⚠️ Nasce dai rami «mi sono arresa»: sono quelli in cui la cliente ha scritto un numero che Gaia
+   * non ha saputo leggere, cioè **proprio i «1» e «2» che arrivano nudi** nella chat dello staff.
+   * Lì `stato` non c'è per costruzione, e senza questo campo il contesto sarebbe vuoto dove serve
+   * di più.
+   */
+  ultimoStato?: StatoSostituzione;
   esito: 'aperto' | 'in_corso' | 'applicata' | 'annullata' | 'arresa' | 'rifiutata';
   /** Riepilogo di ciò che è stato scritto sul menu (per il `meta` e per l'audit). */
   applicata?: { giorni: number; da: string; a: string; motivo: MotivoKey; pasti: number };
@@ -840,7 +854,7 @@ export class SostituzioneChatService {
 
     const cibo = testoCliente.trim().slice(0, 60);
     if (tentativi >= 2) {
-      return { testo: testoCiboNonTrovato(cibo, true, quando), inoltraA: 'coach', esito: 'arresa' };
+      return { testo: testoCiboNonTrovato(cibo, true, quando), inoltraA: 'coach', esito: 'arresa', ultimoStato: stato };
     }
     /**
      * Non ho capito → lo dico e RIPETO LA DOMANDA (richiesta di Simone, 12/8).
@@ -870,7 +884,7 @@ export class SostituzioneChatService {
     if (!motivo) {
       const tentativi = (stato.tentativi ?? 0) + 1;
       if (tentativi >= 2) {
-        return { testo: testoMotivoNonCapito(true), inoltraA: 'coach', esito: 'arresa' };
+        return { testo: testoMotivoNonCapito(true), inoltraA: 'coach', esito: 'arresa', ultimoStato: stato };
       }
       // «Perdonami, non ho capito. La mia domanda è: …» con la domanda ripetuta parola per parola
       // (Simone, 12/8). `testoMotivoNonCapito` resta come coda: rielenca i quattro motivi, che è
@@ -977,7 +991,7 @@ export class SostituzioneChatService {
 
     const tentativi = (stato.tentativi ?? 0) + 1;
     if (tentativi >= 2) {
-      return { testo: testoRifiutoNonCapito(true), inoltraA: 'coach', esito: 'arresa' };
+      return { testo: testoRifiutoNonCapito(true), inoltraA: 'coach', esito: 'arresa', ultimoStato: stato };
     }
     return { testo: testoRifiutoNonCapito(false), stato: { ...stato, tentativi }, esito: 'in_corso' };
   }

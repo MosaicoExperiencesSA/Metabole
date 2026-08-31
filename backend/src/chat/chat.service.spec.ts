@@ -540,6 +540,43 @@ describe('ChatService', () => {
       expect(dataInizio.avanza).not.toHaveBeenCalled();
     });
 
+    /**
+     * ⛔ **UN «1» NON ARRIVA PIÙ NUDO** — Simone, 31/8, guardando la chat con Sonia: *«se il
+     * nutrizionista legge 1 e 2 come fa a capire di cosa si parla?»*.
+     */
+    it('⛔ il messaggio inoltrato porta con sé il contesto del dialogo', async () => {
+      sostituzione.avanza.mockResolvedValue({
+        testo: 'Perdonami, non ho capito.',
+        inoltraA: 'coach',
+        esito: 'arresa',
+        // ⚠️ `ultimoStato` e non `stato`: il dialogo è chiuso e non va riaperto, ma quello che
+        //    sapevamo serve a spiegare il numero a chi lo riceve.
+        ultimoStato: {
+          passo: 'cibo',
+          cibo: 'pollo',
+          slotPiatto: 'lunch',
+          piattoAttuale: { recipeId: 'r1', nome: 'Pollo alle erbe', kcal: 500 },
+          ultimaDomanda: 'Quale vuoi cambiare? 1 pollo 2 patate',
+        },
+      });
+      prisma.message.findFirst.mockResolvedValue({ meta: { sost: { passo: 'cibo' } }, sentAt: new Date() });
+      await service.postMessage(client, 't-ai', '1');
+      const inoltrato = prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai');
+      expect(inoltrato[0].data.body).toBe('1');
+      // ← prima: `meta` era solo `{forwardedFrom, motivo}` e nella chat si leggeva «1» e basta.
+      expect(inoltrato[0].data.meta.contesto).toContain('pollo');
+      expect(inoltrato[0].data.meta.contesto).toContain('Pollo alle erbe');
+      expect(inoltrato[0].data.meta.contesto).toContain('Quale vuoi cambiare?');
+    });
+
+    it('⚠️ ma se il dialogo non sapeva niente, non si inventa una riga', async () => {
+      sostituzione.avanza.mockResolvedValue({ testo: 'Non ho capito.', inoltraA: 'coach', esito: 'arresa' });
+      prisma.message.findFirst.mockResolvedValue({ meta: { sost: { passo: 'giorno' } }, sentAt: new Date() });
+      await service.postMessage(client, 't-ai', '2');
+      const inoltrato = prisma.message.create.mock.calls.find((c: any) => c[0].data.meta?.forwardedFrom === 'ai');
+      expect(inoltrato[0].data.meta.contesto).toBeUndefined();
+    });
+
     it('a piano già partito il messaggio finisce nel thread della coach', async () => {
       dataInizio.apriDaTesto.mockResolvedValue({
         testo: 'Il tuo piano è già cominciato…',

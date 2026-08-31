@@ -336,6 +336,15 @@ describe('SostituzioneChatService', () => {
     expect(secondo.esito).toBe('arresa');
     expect(secondo.inoltraA).toBe('coach');
     expect(secondo.stato).toBeUndefined();
+    /**
+     * ⛔ **E porta con sé quello che sapeva** (31/8). `stato` resta assente — il dialogo è chiuso e
+     * non va riaperto — ma `ultimoStato` sì: è quello che permette a chi riceve il messaggio in
+     * chat di leggere «Vuole cambiare «pollo» — pranzo di oggi» invece di un numero nudo. Senza,
+     * il contesto sarebbe vuoto **proprio nei rami in cui Gaia non ha capito**, che sono quelli da
+     * cui nascono i «1» e «2» orfani.
+     */
+    expect(secondo.ultimoStato).toBeDefined();
+    expect(secondo.ultimoStato?.passo).toBe('cibo');
   });
 
   // ---------- La scrittura sul menu: il ponte ----------
