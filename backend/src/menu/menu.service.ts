@@ -1525,9 +1525,46 @@ export class MenuService {
       const swapHistory = varietyGap > 0
         ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap)
         : new Map<string, string[]>();
+      /**
+       * ⚠️ Il piatto di partenza di ogni pasto, per sapere dopo **quali** sono cambiati davvero.
+       * ⛔ Non si riconoscono dalla `reason` della sostituzione: `'non gradito'` è la stessa che
+       * `esclusioniDi` mette su ogni esclusione non bloccante, quindi anche sui cambi di
+       * INGREDIENTE — e la cliente si vedrebbe la stessa riga due volte nella stessa giornata.
+       */
+      const primaDelloSwap = new Map<MealSnapshot, string>();
+      for (const day of daySnapshots) for (const m of day.meals) primaDelloSwap.set(m, m.recipeId);
+      let cambiati = 0;
       for (const day of daySnapshots) {
-        await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory);
+        cambiati += (await this.swapDislikedDishes(clientId, day.meals, dislikedNow, ctx?.slotPool, swapHistory)).length;
         this.pushSlotHistory(swapHistory, day.meals, varietyGap);
+      }
+      /**
+       * ⛔ **IL PIATTO SCAMBIATO RIPASSA DALLA SICUREZZA** (31/8). Lo swap sceglie un piatto che non
+       * viola niente — quello lo sa fare — ma un piatto **ammissibile con una sostituzione** entra
+       * senza che la sostituzione venga scritta: è la merenda del 30/8 di Sonia, arrivata con le
+       * albicocche secche e senza la riga che dice cosa non mettere. Il piatto andava bene; quello
+       * che mancava era dirglielo.
+       *
+       * ⚠️ Si ripassa da `evaluateMeals` invece di scrivere le sostituzioni dentro lo swap perché è
+       * lì che vivono le regole per ingrediente **e** la conversione delle grammature dei grassi:
+       * due punti che scrivono sostituzioni sarebbero due punti che un giorno le scrivono diverse.
+       *
+       * ⚠️ Solo i pasti **cambiati**: sugli altri le righe sono già state scritte sopra, e
+       * riscriverle qui vorrebbe dire farle leggere doppie in app, in scheda e nel PDF.
+       */
+      if (cambiati) {
+        const dopo = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals), vietatiDieta);
+        if (dopo.violations.length) {
+          await this.ensureDietBlockedEscalation(clientId, dopo.violations);
+          return [];
+        }
+        for (const day of daySnapshots) {
+          for (const m of day.meals) {
+            if (primaDelloSwap.get(m) === m.recipeId) continue;
+            const subs = dopo.subsByRecipe[m.recipeId] ?? [];
+            if (subs.length) m.substitutions = [...(m.substitutions ?? []), ...subs];
+          }
+        }
       }
     }
 
@@ -2862,6 +2899,39 @@ export class MenuService {
     );
 
     type Cand = { id: string; name: string; kcal: number; ingredients: unknown; allergens?: string[] };
+    /** Le chiavi che BLOCCANO (allergie e intolleranze): i non graditi hanno già il loro filtro. */
+    const chiaviBloccanti = esclusioni.excluded.filter((x) => x.blocking).map((x) => x.keyword);
+    /** Una ricetta di cui non sappiamo gli ingredienti: sul suo contenuto l'unico segnale è il nome. */
+    const senzaIngredienti = (c: Cand) => !((c.ingredients as { name?: string }[]) ?? []).some((i) => i?.name);
+    const valutate = new Map<string, ReturnType<typeof valutaRicetta>>();
+    const sicurezza = (c: Cand) => {
+      const gia = valutate.get(c.id);
+      if (gia) return gia;
+      const esito = valutaRicetta(
+        {
+          id: c.id,
+          name: c.name,
+          /**
+           * ⛔ **IL NOME ENTRA COME INGREDIENTE, e non come secondo confronto.** `valutaRicetta`
+           * cicla sugli **ingredienti**: su una ricetta con l'elenco vuoto, povero o scritto male
+           * non vede niente e la dichiara sicura — «Insalata di gamberi e avocado» andrebbe a
+           * un'allergica ai crostacei.
+           *
+           * ⚠️ La prima stesura metteva qui un `hitsExclusion` sul titolo, e la revisione l'ha
+           * bocciata con la misura in mano: rifiutava anche «Ricotta con albicocche secche», cioè
+           * **proprio il piatto** che il ripasso qui sotto serve a erogare in sicurezza (le
+           * albicocche hanno un sostituto, i gamberi no). Un secondo giudice, più severo del primo,
+           * dava due risposte diverse alla stessa domanda. Così invece il titolo passa dalle regole
+           * di casa: dove c'è un sostituto si sostituisce, dove non c'è si vieta.
+           */
+          ingredients: [...(((c.ingredients as { name?: string }[]) ?? []).filter((i) => i?.name)), { name: c.name }],
+          allergens: c.allergens ?? [],
+        } as never,
+        esclusioni,
+      );
+      valutate.set(c.id, esito);
+      return esito;
+    };
     const acceptable = (c: Cand) => {
       const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
       if (hitsExclusion(txt, excluded)) return false;
@@ -2870,10 +2940,7 @@ export class MenuService {
        * nome, gli ingredienti **e i tag allergene confermati** — che il filtro per testo qui sopra
        * non può vedere: un piatto col tag Glutine che il glutine non lo nomina passerebbe.
        */
-      return valutaRicetta(
-        { id: c.id, name: c.name, ingredients: c.ingredients, allergens: c.allergens ?? [] } as never,
-        esclusioni,
-      ).violations.length === 0;
+      return sicurezza(c).violations.length === 0;
     };
     // Due livelli, interrogati solo quando servono: prima la dieta, poi il catalogo.
     const fromDietBySlot = new Map<string, Cand[]>();
@@ -2917,12 +2984,39 @@ export class MenuService {
       const recent = new Set(history?.get(m.slot) ?? []);
       const fresh = tier.filter((c) => !recent.has(c.id));
       const candidates = fresh.length ? fresh : tier;
+      /**
+       * ⚠️ Fra i servibili si preferiscono i **puliti**: nessuna sostituzione da fare e ingredienti
+       * scritti. ⛔ «Ingredienti scritti» sembra pedante e non lo è: senza quella condizione il
+       * filtro premierebbe proprio le ricette di cui non sappiamo niente, perché una ricetta vuota
+       * non ha mai sostituzioni da fare.
+       */
+      /**
+       * ⚠️ `senzaIngredienti` conta **solo se c'è qualcosa di bloccante da cercare**: per una
+       * cliente con i soli cibi non graditi quella condizione non protegge da niente e cambierebbe
+       * la scelta per un motivo che non la riguarda — misurato in revisione: +60 kcal sul pasto,
+       * e le porzioni a valle si scalano solo all'insù.
+       */
+      const puliti = candidates.filter(
+        (c) => !sicurezza(c).subs.length && (!chiaviBloccanti.length || !senzaIngredienti(c)),
+      );
+      const scelti = puliti.length ? puliti : candidates;
       // Il tie-break sull'id serve: due candidati con le stesse kcal si alternavano a seconda
       // dell'ordine — non garantito — restituito dal database.
-      candidates.sort((a, b) => Math.abs(a.kcal - m.kcal) - Math.abs(b.kcal - m.kcal) || a.id.localeCompare(b.id));
-      const best = candidates[0];
+      scelti.sort((a, b) => Math.abs(a.kcal - m.kcal) - Math.abs(b.kcal - m.kcal) || a.id.localeCompare(b.id));
+      const best = scelti[0];
       swapped.push({ from: m.name, to: best.name });
-      m.substitutions = [...(m.substitutions ?? []), { from: m.name, to: best.name, reason: 'non gradito' }];
+      /**
+       * ⛔ **LE SOSTITUZIONI DEL PIATTO VECCHIO NON SI PORTANO DIETRO.** `m.substitutions` qui
+       * contiene quelle che `evaluateMeals` ha scritto per il piatto che stiamo **buttando** —
+       * «uvetta → frutta essiccata in casa» su un piatto che l'uvetta non ce l'ha più. Non è solo
+       * rumore: `ingredienti-effettivi.ts` quell'ingrediente lo **aggiunge** al piatto nuovo. È la
+       * decisione già scritta per il cambio di piatto della chat (`sostituzione-chat.service.ts`),
+       * e i due punti ora dicono la stessa cosa.
+       *
+       * ⚠️ E le sostituzioni del piatto NUOVO non si scrivono qui: le calcola chi sa farlo —
+       * `evaluateMeals`, che converte anche le grammature dei grassi. Chi chiama ripassa di lì.
+       */
+      m.substitutions = [{ from: m.name, to: best.name, reason: 'non gradito' }];
       m.recipeId = best.id;
       m.name = best.name;
       m.kcal = best.kcal;

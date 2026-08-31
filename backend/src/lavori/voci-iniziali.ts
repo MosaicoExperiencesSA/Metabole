@@ -3649,6 +3649,176 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  /**
+   * ⚠️ **Le otto voci qui sotto vengono dal passaggio di consegne del 31/8** (sessione parallela) e
+   * sono state messe in coda da Simone, non aperte di iniziativa. La prima è la più grave del
+   * gruppo: fare la cosa sbagliata **con sicurezza** è peggio che non farla, perché nessuno
+   * ricontrolla.
+   */
+  {
+    chiave: 'vera-risponde-invece-di-creare-la-regola',
+    categoria: CODICE,
+    titolo: '⛔ Vera dice «fatto» e non ha creato nessuna regola: risponde alla segnalazione e chiude',
+    dettaglio:
+      '⛔ **Il difetto più grave del gruppo Vera.** La nutrizionista ha scritto «il merluzzo può essere '
+      + 'sostituito con orata, salmone o spigola **estendi la regola a tutti**». Vera ha risposto: '
+      + '*«Fatto: l\'ho scritta a Dany nella vostra chat, e ho chiuso la segnalazione»*. ⛔ **Non ha creato '
+      + 'nessuna regola**: ha mandato un messaggio alla cliente e chiuso l\'escalation. Lei ha riprovato con '
+      + '«crea la regola che…» e si è sentita rispondere «non ci arrivo».\n\n'
+      + '⚠️ Non è un «non ho capito»: è un **«fatto» falso**. Chi lo legge non ricontrolla, e la regola che '
+      + 'doveva valere per tutte le clienti non esiste da nessuna parte.\n\n'
+      + 'Da guardare: il ramo che risponde a una segnalazione in chat, e **perché ha vinto** su una frase che '
+      + 'conteneva «estendi la regola a tutti». Poi: quando l\'azione riconosciuta è «rispondi», una frase che '
+      + 'chiede anche una regola non può uscire con un «fatto» che parla solo della risposta.',
+    ordine: 954,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'vera-nome-cinque-frasi-su-venticinque',
+    categoria: CODICE,
+    titolo: 'Il nome di Vera: cinque frasi su venticinque non lo riconoscono, ed è il primo incontro',
+    dettaglio:
+      '`estraiNome` (`src/vera/vera-chat.ts:905`) non riconosce «ti **voglio** chiamare Vera» né «il tuo '
+      + 'nome**,** sarà Vera» — la virgola. ⚠️ E soprattutto: **quando il nome c\'è già**, quelle frasi cadono '
+      + 'in «non ci arrivo» invece di «mi chiamo già Vera, vuoi cambiarlo?».\n\n'
+      + 'Sono cinque frasi su venticinque della pagina «frasi che non ho capito», e cadono nel **primo '
+      + 'incontro** fra la nutrizionista e l\'agente: è il momento in cui si decide se fidarsi.',
+    ordine: 955,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'menu-scritto-a-mano-dalla-scheda',
+    categoria: CODICE,
+    titolo: 'Il menu scritto a mano dalla scheda cliente — la via d\'uscita che il 31/8 non c\'era',
+    dettaglio:
+      'Il 31/8, con una cliente senza menu, sarebbe stata la via d\'uscita in cinque minuti. Non esiste.\n\n'
+      + '**Disegno concordato con Simone:** dalla scheda cliente si scelgono le date, e per ogni pasto si '
+      + 'cerca nel catalogo. Tre cose lo rendono utile invece che pericoloso:\n'
+      + '· la ricerca è **già filtrata sulle sue esclusioni** — le incompatibili compaiono **barrate col '
+      + 'motivo**, e servirle richiede di forzare e **scrivere perché**;\n'
+      + '· le **kcal si sommano** mentre scegli, col target davanti;\n'
+      + '· il giorno scritto a mano è **intoccabile** dalla passata notturna e da «Rigenera menu».\n\n'
+      + '⚠️ Più la **chiave di permesso sua**, come ogni pagina nuova, che nasce insieme alla guardia che la '
+      + 'legge. ⚠️ E `npm run rifai:non-sicuri` deve continuare a **non toccare** quei giorni: già oggi salta '
+      + 'le giornate scritte a mano.',
+    ordine: 956,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'vera-vocabolario-quattro-gruppi',
+    categoria: CODICE,
+    titolo: 'Il resto del vocabolario di Vera: liste di catalogo, la coda, le cortesie, le ricette',
+    dettaglio:
+      'Dalla pagina «frasi che non ho capito» (25 in 90 giorni), i gruppi rimasti dopo gli elenchi e il nome:\n\n'
+      + '· **liste di catalogo** (5) — «crea la lista dei formaggi molli», «aggiungi equivalenza»;\n'
+      + '· **la coda** (3) — «chiudi ilaria», «hai segnalazioni per me?»;\n'
+      + '· **le cortesie** (4) — «ok», «ok ciao», «Quale?», «ok annulla tutto»;\n'
+      + '· **le ricette** (2) — sostituire un **piatto**, non un alimento.\n\n'
+      + '⚠️ Le cortesie sembrano le meno importanti e sono quelle che fanno sembrare l\'agente stupido: «ok» '
+      + 'che riceve «non ci arrivo» è la risposta che una persona racconta agli altri.',
+    ordine: 957,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'ai-api-key-da-cambiare',
+    categoria: SIMONE,
+    titolo: '⛔ Cambiare la chiave `AI_API_KEY`: era leggibile in uno screenshot mandato in chat',
+    dettaglio:
+      '⛔ **In mano a Simone, e viene prima del resto.** La chiave era leggibile in uno screenshot mandato in '
+      + 'chat il 31/8. Va **ruotata** (nuova chiave dal fornitore, `AI_API_KEY` aggiornata su Render, vecchia '
+      + 'revocata) — non basta cancellare l\'immagine.\n\n'
+      + '⚠️ Finché non è revocata, chiunque abbia visto quello screenshot può spendere sul vostro account.',
+    ordine: 958,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'sonia-tre-pasti-gia-erogati',
+    categoria: SIMONE,
+    titolo: 'I tre pasti già in menu a Sonia con il suo allergene: i giorni passati non li tocca nessuno',
+    dettaglio:
+      'Trovati il 31/8 con `npm run diag:allergeni-piatto`: pranzo del 25/8 (gamberoni, tag `crostacei` '
+      + 'confermato) e merenda del 30/8 (albicocche secche senza la sostituzione). Il terzo — la merenda del '
+      + '28/8 — **era corretto**.\n\n'
+      + '✅ La strada da cui entravano è chiusa (`swapDislikedDishes`), e per le giornate **future** già '
+      + 'scritte c\'è `npm run rifai:non-sicuri`. ⚠️ Ma i giorni **già passati** restano come sono: `MenuDay` è '
+      + 'uno snapshot e non si riscrive. Resta da decidere se e cosa dire alla cliente.',
+    ordine: 959,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'patrizia-keto-col-glutine',
+    categoria: SIMONE,
+    titolo: 'Patrizia è sulla Keto con il glutine fra le allergie: confermare o disfare',
+    dettaglio:
+      'Ci è finita **di rimbalzo da una prova tecnica** il 31/8, non da una scelta clinica. Il piatto è '
+      + 'protetto dalle esclusioni — il motore non le serve glutine — ma la **dieta assegnata** è una decisione '
+      + 'che qualcuno deve confermare o disfare, e oggi non risulta di nessuno.',
+    ordine: 960,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'senza-glutine-catalogo-mezzo-inservibile',
+    categoria: DATI,
+    titolo: 'Mediterranea senza glutine: su due giornate, sei piatti su dieci non si potevano servire',
+    dettaglio:
+      'Misurato il 31/8 su Patrizia: su **due giornate da cinque pasti**, **sei piatti su dieci** erano roba '
+      + 'che a lei non si poteva servire. ✅ Adesso il motore li sostituisce e la cliente non se ne accorge — '
+      + '⚠️ ma il buco nel catalogo resta, e un catalogo mezzo inservibile si vede appena una cliente ha una '
+      + 'seconda esclusione. Si misura con `npm run diag:esclusioni`.\n\n'
+      + '⚠️ Da leggere insieme al rifacimento del paniere (`progetto/PIANO_Panieri_Ricette.md`): il senza '
+      + 'glutine lì diventa un **filtro** sul paniere mediterraneo, e la famiglia si chiude quando quel filtro '
+      + 'funziona.',
+    ordine: 961,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'piano-bloccato-solo-in-app',
+    categoria: SIMONE,
+    titolo: 'La notifica «Piano bloccato» è solo in-app: nessuna email, nessuna push',
+    dettaglio:
+      'Per un blocco che **ferma l\'erogazione** è poco: se la cliente non apre l\'app, non lo sa. È una '
+      + 'decisione di prodotto — a chi arriva (cliente, nutrizionista, coach), su che canale, e dopo quanto.\n\n'
+      + '⚠️ Il codice per mandare push ed email c\'è già ed è in uso altrove: qui manca la decisione, non il '
+      + 'meccanismo.',
+    ordine: 962,
+    nata: '2026-08-31T18:00',
+  },
+
+  {
+    chiave: 'porte-che-scrivono-piatti-senza-controllo',
+    categoria: CODICE,
+    titolo: 'Le altre due porte che scrivono un piatto nel menu senza passare dal controllo di sicurezza',
+    dettaglio:
+      '⛔ **Aperta il 31/8, trovata dalla revisione della consegna sullo swap.** Corretta la quarta porta '
+      + '(`swapDislikedDishes`: il piatto che sostituisce un non gradito non passava da nessun controllo, ed è così '
+      + 'che una cliente con sei allergie ha ricevuto i gamberoni col tag `crostacei` confermato), ne restano **due** '
+      + 'che scrivono direttamente in `menuDay.meals` un piatto pescato da `clientMenuPool`, **senza chiamare '
+      + '`valutaRicetta`**, e il pasto nasce con `substitutions` vuoto:\n\n'
+      + '· `sostituzione-chat.service.ts` — il cambio di piatto proposto da Gaia in chat;\n'
+      + '· `vera-chat.service.ts` — la giornata dettata dalla nutrizionista.\n\n'
+      + '⚠️ `clientMenuPool` filtra tre cose (`allergensReviewed`, regime, **tag** allergene) e non applica le regole '
+      + 'per INGREDIENTE di `solfiti.ts` e `lattosio.ts`. Quindi una ricetta revisionata senza tag `solfiti` ma con le '
+      + 'albicocche secche dentro può essere scritta sulla giornata **senza la riga che dice alla cliente cosa non '
+      + 'mettere** — che è esattamente la merenda del 30/8, per un\'altra strada.\n\n'
+      + '⚠️ **E c\'è una quinta porta, oggi SPENTA**: `buildSimpleSlotPool` (preferenza «ricette semplici», '
+      + '`menu_simple_recipes_enabled` a `false`) è ancora scritta nel modo vecchio — `select` senza `allergens` e '
+      + 'confronto a parole. Non fa danno adesso, e il suo modo di sbagliare è «cliente ferma», non «piatto '
+      + 'pericoloso»: ma il giorno che qualcuno riaccende quel parametro il buco è già lì.\n\n'
+      + '**Da fare:** chiamare `valutaRicetta` sul piatto scelto nei due punti, scrivere le sue `subs` sul pasto e '
+      + 'rifiutare il candidato se ci sono `violations`. È la stessa riga che il 31/8 è stata aggiunta allo swap. '
+      + 'Poi `npm run rifai:non-sicuri` per le giornate già scritte.',
+    ordine: 953,
+    nata: '2026-08-31T10:30',
+  },
+
   {
     chiave: 'esclusioni-chiave-dentro-parola',
     categoria: PANIERE,

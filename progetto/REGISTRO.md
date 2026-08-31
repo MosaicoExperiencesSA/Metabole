@@ -20,6 +20,69 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🗂️ **La coda del passaggio di consegne entra nell'elenco lavori.** Il foglio del 31/8
+  elencava lavori e decisioni che vivevano **solo lì**: un foglio non è una coda, e quello che non sta
+  nell'elenco non lo guarda nessuno. **Nove voci**, scritte per essere capite fra un mese senza
+  rileggere il passaggio. ⛔ La più grave è di Vera: a «il merluzzo può essere sostituito con orata,
+  salmone o spigola, **estendi la regola a tutti**» ha risposto *«Fatto: l'ho scritta a Dany nella
+  vostra chat, e ho chiuso la segnalazione»* — e **non ha creato nessuna regola**. Non è un «non ho
+  capito»: è un **«fatto» falso**, e chi lo legge non ricontrolla. ⚠️ Poi il **nome di Vera** (cinque
+  frasi su venticinque, nel primo incontro: `estraiNome` vuole «ti chiam…» attaccato, quindi «ti
+  **voglio** chiamare Vera» e «il tuo nome**,** sarà Vera» cadono — e quando il nome c'è già finiscono
+  in «non ci arrivo» invece che in «mi chiamo già Vera, vuoi cambiarlo?»); il **menu scritto a mano**
+  dalla scheda, col disegno concordato con Simone; e il resto del **vocabolario** in quattro gruppi.
+  ⛔ **In mano a Simone, e prima di tutto: la chiave `AI_API_KEY` era leggibile in uno screenshot
+  mandato in chat** — va **ruotata**, non nascosta. Con lei: i tre pasti già erogati a Sonia (la
+  strada è chiusa, per il futuro c'è `rifai:non-sicuri`, ma i giorni passati non li riscrive
+  nessuno), Patrizia sulla Keto col glutine — finita lì **di rimbalzo da una prova tecnica** — e la
+  notifica «Piano bloccato», oggi **solo in-app**: per un blocco che ferma l'erogazione è poco, e
+  manca la decisione, non il meccanismo. E una di catalogo: sulla «Mediterranea senza glutine», su due
+  giornate da cinque pasti, **sei piatti su dieci** non si potevano servire.
+  ⚠️ Le voci che il passaggio dava per aperte e che nell'elenco **c'erano già** non sono state
+  duplicate (perimetro della commerciale, digiuno, kit rientro, pesate lontane, attività in app,
+  scheda stile, descrizioni diete, esclusioni dentro una parola): prima di aprirne una si guarda se
+  esiste. Nessuna modifica di comportamento: 5894 test verdi, build compresa.
+
+- `[Sviluppo]` 🦐 **Il sostituto non porta dentro un allergene senza dirlo — e le giornate già
+  scritte si possono rifare.** Il commit di stamattina ha dato a `swapDislikedDishes` le allergie e
+  i tag; restavano quattro cose, e due si vedevano nel menu di una cliente vera. ⛔ **Il NOME del
+  piatto adesso passa dalla stessa `valutaRicetta` degli ingredienti**, entrandoci come ingrediente
+  in più: quella funzione cicla sull'elenco, quindi su una ricetta senza ingredienti — o con
+  l'elenco povero — non vede niente e la dichiara sicura, e «Insalata di gamberi e avocado» sarebbe
+  andata a un'allergica ai crostacei. ⚠️ Ma il titolo **non è un secondo giudice più severo**: la
+  prima stesura ci aveva messo un confronto a parole, e la revisione l'ha bocciata con la misura in
+  mano — rifiutava «Ricotta con albicocche secche», cioè **proprio il piatto** che questa consegna
+  esiste per servire in sicurezza (le albicocche un sostituto ce l'hanno, i gamberi no). *Se due
+  punti rispondono alla stessa domanda, uno deve chiamare l'altro.*
+  ⛔ **Le sostituzioni del piatto BUTTATO non restano attaccate a quello nuovo**: non era rumore,
+  perché `ingredienti-effettivi.ts` quell'ingrediente lo **aggiunge** al piatto che arriva in tavola.
+  ⛔ **E il piatto scambiato RIPASSA da `evaluateMeals`**, solo dove qualcosa è cambiato davvero: è
+  la merenda del 30/8 di Sonia — ammissibile per un'allergica ai solfiti soltanto con la riga che
+  dice cosa non mettere, riga che non veniva scritta perché a valle dello swap non c'era più nessuno
+  a calcolarla. Le sostituzioni non si scrivono dentro lo swap **di proposito**: in `evaluateMeals`
+  vivono le regole per ingrediente e la conversione delle grammature dei grassi.
+  ⚠️ Fra i candidati si preferiscono i «puliti» e non si premiano le ricette senza ingredienti (che
+  altrimenti risultano pulite proprio perché non c'è niente da leggere) — ma **solo dove c'è
+  un'esclusione bloccante**: applicare quella preferenza a chi ha soltanto dei gusti cambiava il
+  pasto per un motivo che non la riguarda, +60 kcal misurate, e le porzioni a valle si scalano solo
+  all'insù.
+  🧰 Nuovo `npm run rifai:non-sicuri` (**sola lettura**, agisce con `APPLICA=1`): dice quali giornate
+  **già scritte** oggi non passerebbero — un piatto da non servire, o un piatto ammissibile **senza**
+  la sua sostituzione. Gli snapshot non si correggono da soli: correggere il motore non corregge il
+  calendario. Passa dalla porta unica `codaDaRifare` e ⛔ **non tocca chi il motore non
+  ricomporrebbe** (visita clinica scaduta, piano fermato, monitoraggio, pausa, fine passata, nessuna
+  data d'inizio) né le **giornate scritte a mano** in chat o dettate dalla nutrizionista: rifarle
+  butterebbe via il lavoro di una persona senza dirlo a nessuno. ⚠️ E conta solo le sostituzioni di
+  **sicurezza**: contare anche i non graditi avrebbe fatto rifare un calendario intero perché una
+  cliente ha scritto «cipolla» fra le cose che non le piacciono.
+  **Due revisioni avversariali** — la seconda ha bocciato due delle correzioni della prima — e sei
+  mutazioni, tutte uccise. **5894 test backend verdi nelle quattro modalità**, build compresa.
+  ⛔ **Resta aperto** (voce nuova `porte-che-scrivono-piatti-senza-controllo`): due porte scrivono un
+  piatto in `menuDay.meals` senza passare da `valutaRicetta` — il cambio di piatto in chat e la
+  giornata dettata. `clientMenuPool` filtra `allergensReviewed`, regime e **tag**, ma non applica le
+  regole per ingrediente di `solfiti.ts`/`lattosio.ts`: è la stessa merenda del 30/8, da un'altra
+  strada. E una quinta porta, oggi spenta: `buildSimpleSlotPool`.
+
 - `[Sviluppo]` **Vera legge gli elenchi — e smette di leggerne quattro su undici senza dirlo.**
   Simone: *«non capisce quasi nulla»*. La pagina «frasi che non ho capito» ne elenca **25 in 90
   giorni**; raggruppate non sono 25 problemi ma **sei**, e il più grosso sono gli **elenchi** (7).

@@ -96,6 +96,7 @@
     "seed:nutrienti": "ts-node --transpile-only prisma/seed-valori-nutrizionali.ts",
     "fix:tag-settimane": "ts-node --transpile-only prisma/fix-tag-settimane.ts",
     "diag:catalogo": "ts-node --transpile-only prisma/diag-catalogo.ts",
+    "rifai:non-sicuri": "ts-node --transpile-only prisma/rifai-giorni-non-sicuri.ts",
     "diag:allergeni": "ts-node --transpile-only prisma/diag-allergeni.ts",
     "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",

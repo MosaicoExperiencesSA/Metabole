@@ -1,0 +1,40 @@
+=== PARTE: la coda del passaggio di consegne del 31/8 entra nell'elenco lavori ===
+
+SUMMARY
+Le nove cose rimaste dal passaggio di consegne entrano nell'elenco, con dentro il perché
+
+DESCRIPTION
+Il passaggio di consegne del 31/8 elencava lavori e decisioni che vivevano solo in quel foglio: un
+foglio non è una coda, e quello che non sta nell'elenco non lo guarda nessuno. Nove voci nuove,
+scritte in modo che si capiscano fra un mese senza rileggere il passaggio.
+
+Quattro di codice. ⛔ La prima è la più grave del gruppo Vera: a «il merluzzo può essere sostituito
+con orata, salmone o spigola, estendi la regola a tutti» Vera ha risposto «Fatto: l'ho scritta a Dany
+nella vostra chat, e ho chiuso la segnalazione» — e non ha creato nessuna regola. Non è un «non ho
+capito»: è un «fatto» falso, e chi lo legge non ricontrolla. Poi il nome di Vera (cinque frasi su
+venticinque, ed è il primo incontro: `estraiNome` vuole «ti chiam...» attaccato, quindi «ti VOGLIO
+chiamare Vera» e «il tuo nome, sarà Vera» cadono, e quando il nome c'è già finiscono in «non ci
+arrivo» invece che in «mi chiamo già Vera, vuoi cambiarlo?»); il menu scritto a mano dalla scheda,
+col disegno concordato con Simone — ricerca già filtrata sulle esclusioni, incompatibili barrate col
+motivo, kcal che si sommano, e il giorno intoccabile dalla passata notturna; e il resto del
+vocabolario in quattro gruppi.
+
+Quattro aspettano Simone, e la prima viene prima di tutto: ⛔ la chiave `AI_API_KEY` era leggibile in
+uno screenshot mandato in chat e va ruotata, non nascosta. Poi i tre pasti già erogati a Sonia (la
+strada è chiusa e per il futuro c'è `rifai:non-sicuri`, ma i giorni passati non li riscrive nessuno);
+Patrizia sulla Keto col glutine, finita lì di rimbalzo da una prova tecnica; e la notifica «Piano
+bloccato», oggi solo in-app — per un blocco che ferma l'erogazione è poco, e manca la decisione, non
+il meccanismo.
+
+Una di catalogo: sulla «Mediterranea senza glutine», su due giornate da cinque pasti, sei piatti su
+dieci non si potevano servire a Patrizia. Adesso il motore li sostituisce e la cliente non se ne
+accorge, ma il buco resta e si vede appena una cliente ha una seconda esclusione.
+
+⚠️ Le voci che il passaggio dava per aperte e che nell'elenco c'erano già non sono state duplicate:
+perimetro della commerciale, digiuno-pubblicazione, kit rientro, pesate lontane, attività
+nutrizionista in app, scheda stile, descrizioni diete, esclusioni dentro una parola.
+
+Nessuna modifica di comportamento: solo l'elenco. 5894 test verdi, build compresa.
+
+FILE
+- backend/src/lavori/voci-iniziali.ts (nove voci nuove, ordini 954-962)

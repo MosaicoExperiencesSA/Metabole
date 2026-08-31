@@ -46,7 +46,16 @@ describe('⛔ le uscite a mano vuota dell\'erogazione sono tutte nel tabulato', 
    * giornate tutte scartate, esclusioni non sostituibili. Due delle tre escono in silenzio, e una è
    * quella che il brief nominava per nome. È il motivo per cui questo conto lo fa una macchina.
    */
-  const USCITE_CENSITE = 19;
+  /**
+   * ⚠️ **20 dal 31/8**: ne è nata una dopo lo swap dei piatti non graditi. Il piatto scambiato
+   * ripassa da `evaluateMeals` (prima non ripassava da niente: è così che una cliente allergica ai
+   * crostacei ha ricevuto i gamberoni), e se da lì uscisse una violazione l'erogazione si ferma
+   * come per tutte le altre. ⚠️ Non esce in silenzio — scrive l'escalation al nutrizionista — e la
+   * causa è la stessa che il tabulato stampa già: «esclusioni non sostituibili». In condizioni
+   * normali non scatta mai: lo swap sceglie solo candidati che non violano niente. Se scatta, vuol
+   * dire che un'altra strada ci è sfuggita, ed è esattamente quello che vogliamo vedere.
+   */
+  const USCITE_CENSITE = 20;
 
   it('⛔ `deliverIfEligible` ha esattamente le uscite che il tabulato conosce', () => {
     const quante = (corpoDiDeliverIfEligible().match(/return \[\];/g) ?? []).length;

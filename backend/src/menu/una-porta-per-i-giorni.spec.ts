@@ -59,6 +59,10 @@ const PERMESSI = new Map<string, string>([
     'passa da `codaDaRifare` (corretto il 24/8: cancellava le giornate col piatto di collaudo, sparse)',
   ],
   [
+    'prisma/rifai-giorni-non-sicuri.ts',
+    'passa da `codaDaRifare`: cancella la coda dal primo giorno non sicuro in poi, una cliente per volta',
+  ],
+  [
     'prisma/prune-menu-after-planend.ts',
     'cancella tutto oltre la fine del piano: è una coda per data, e dopo non resta niente',
   ],

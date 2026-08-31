@@ -1,0 +1,64 @@
+=== PARTE: il sostituto non porta dentro un allergene senza dirlo ===
+
+SUMMARY
+Il piatto che sostituisce un non gradito passa dalla sicurezza, e le giornate già scritte si possono rifare
+
+DESCRIPTION
+`swapDislikedDishes` è l'ultimo passaggio prima del salvataggio e riscrive quanto composto sopra. Il
+commit di stamattina gli ha dato le allergie e i tag; restavano quattro cose, e due si vedevano nel
+menu di una cliente vera.
+
+Il NOME del piatto adesso passa dalla stessa `valutaRicetta` degli ingredienti, entrandoci come
+ingrediente in più. `valutaRicetta` cicla sull'elenco: su una ricetta senza ingredienti, o con
+l'elenco povero, non vede niente e la dichiara sicura — «Insalata di gamberi e avocado» sarebbe
+andata a un'allergica ai crostacei. Il titolo però non è un secondo giudice più severo: dove
+l'ingrediente ha un sostituto si sostituisce, dove non ce l'ha si vieta. Una prima stesura ci aveva
+messo un confronto a parole, e rifiutava «Ricotta con albicocche secche», cioè proprio il piatto che
+questa consegna esiste per servire in sicurezza.
+
+Le sostituzioni del piatto BUTTATO non restano più attaccate a quello nuovo: non era rumore, perché
+`ingredienti-effettivi.ts` quell'ingrediente lo aggiunge al piatto che arriva in tavola. È la
+decisione già scritta per il cambio di piatto della chat, e i due punti ora dicono la stessa cosa.
+
+E il piatto scambiato RIPASSA da `evaluateMeals`, solo dove qualcosa è cambiato davvero. È la merenda
+del 30/8 di Sonia: «Ricotta con albicocche secche», ammissibile per un'allergica ai solfiti soltanto
+con la riga che dice cosa non mettere — riga che non veniva scritta, perché a valle dello swap non
+c'era più nessuno a calcolarla. Le sostituzioni non si scrivono dentro lo swap di proposito: in
+`evaluateMeals` vivono le regole per ingrediente e la conversione delle grammature dei grassi, e due
+punti che scrivono sostituzioni un giorno le scriverebbero diverse. Solo i pasti cambiati, o le righe
+si vedrebbero doppie in app.
+
+Fra i candidati si preferiscono i «puliti» — nessuna sostituzione da fare — e non si premiano le
+ricette senza ingredienti, che altrimenti risultano pulite proprio perché non c'è niente da leggere.
+⚠️ Quella preferenza vale solo dove c'è un'esclusione bloccante: applicarla a chi ha soltanto dei
+gusti cambiava il pasto per un motivo che non la riguarda (+60 kcal misurate, e le porzioni a valle
+si scalano solo all'insù).
+
+Nuovo `npm run rifai:non-sicuri`, sola lettura (agisce con APPLICA=1): dice quali giornate GIÀ
+scritte oggi non passerebbero — un piatto da non servire, o un piatto ammissibile senza la sua
+sostituzione. Gli snapshot non si correggono da soli: correggere il motore non corregge il
+calendario. Passa dalla porta unica `codaDaRifare` e NON tocca chi il motore non ricomporrebbe
+(visita clinica scaduta, piano fermato, monitoraggio, pausa, fine passata, nessuna data d'inizio),
+né le giornate scritte a mano in chat o dettate dalla nutrizionista: rifarle butterebbe via il lavoro
+di una persona senza dirlo a nessuno.
+
+⚠️ Conta solo le sostituzioni di SICUREZZA: contare anche i cibi non graditi avrebbe fatto rifare un
+calendario intero perché una cliente ha scritto «cipolla» fra le cose che non le piacciono.
+
+Due revisioni avversariali (la seconda ha bocciato due delle correzioni della prima) e sei mutazioni,
+tutte uccise. 5894 test backend verdi nelle quattro modalità, build compresa.
+
+⛔ RESTA APERTO, voce nuova nei Lavori `porte-che-scrivono-piatti-senza-controllo`: due porte
+scrivono un piatto in `menuDay.meals` senza passare da `valutaRicetta` — il cambio di piatto in chat
+e la giornata dettata. `clientMenuPool` filtra `allergensReviewed`, regime e tag, ma non applica le
+regole per ingrediente di `solfiti.ts`/`lattosio.ts`: è la stessa merenda del 30/8, da un'altra
+strada. E una quinta porta, oggi spenta: `buildSimpleSlotPool`.
+
+FILE
+- backend/src/menu/menu.service.ts (swapDislikedDishes + il ripasso in deliverIfEligible)
+- backend/src/menu/giorni-non-sicuri.ts + .spec.ts (nuovi)
+- backend/src/menu/swap-non-gradito-e-allergie.spec.ts (nuovo, 10 casi)
+- backend/prisma/rifai-giorni-non-sicuri.ts (nuovo) + package.json (rifai:non-sicuri)
+- backend/src/menu/una-porta-per-i-cancelli.spec.ts (USCITE_CENSITE 19 → 20)
+- backend/src/menu/una-porta-per-i-giorni.spec.ts (lo script dichiarato fra chi cancella MenuDay)
+- backend/src/lavori/voci-iniziali.ts (voce nuova sulle due porte aperte)
