@@ -105,6 +105,42 @@ const senzaArticoloAttaccato = (parola: string): string =>
   parola.replace(/^(?:l|un|dell|all|nell|dall|sull|quell)['’]\s*/i, '');
 
 /**
+ * ⛔ **LE PAROLE CHE `nomeAlimento` SCARTA DI PROPOSITO, contate a parte.**
+ *
+ * Serve a chi deve sapere se una lettura ha **perso** qualcosa. `nomeAlimento` toglie l'articolo
+ * iniziale — è il suo mestiere, non un troncamento — ma chi confronta «quante parole sono entrate»
+ * con «quante ce n'erano» vede un articolo mancante e conclude che il nome è stato letto a metà.
+ *
+ * ⚠️ È successo davvero, ed è costato caro: dal 31/8 `leggiElenco` rifiutava **ogni** alimento
+ * scritto con l'articolo — «il merluzzo», «le zucchine, le melanzane», «la ricotta o lo
+ * stracchino» — cioè il modo normale di scrivere di una persona. La nutrizionista si sentiva
+ * rispondere «non ci arrivo» su cinque frasi normali su sette, e il controllo che rifiutava tutto
+ * era **quello nato per impedire i troncamenti silenziosi**: giusto nell'intenzione, cieco su cosa
+ * fosse davvero perso.
+ */
+export function paroleDaLeggere(pezzo: string): number {
+  const grezzo = (pezzo ?? '').replace(/[.,;:!?()"«»]/g, ' ').trim();
+  if (!grezzo) return 0;
+  let quante = 0;
+  for (const grezza of grezzo.split(/\s+/)) {
+    const p = quante === 0 ? senzaArticoloAttaccato(grezza) : grezza;
+    const n = normalizza(p);
+    if (!n) continue;
+    /**
+     * ⛔ **SOLO l'articolo iniziale**, e nient'altro. La prima stesura copiava da `nomeAlimento`
+     * anche il `break` su `FINE_FRASE` — e così spegneva il controllo che doveva servire: su «sale
+     * e pepe» tutte e due le funzioni si fermavano a «sale», i conti tornavano, e passava un nome
+     * letto a metà. ⚠️ Trovato da `elenco-alimenti.spec.ts`, che quel caso lo teneva fermo da
+     * ieri: fermarsi a una congiunzione **è** il troncamento da segnalare, non una parola scartata
+     * di proposito.
+     */
+    if (quante === 0 && ARTICOLI.has(n)) continue;
+    quante += 1;
+  }
+  return quante;
+}
+
+/**
  * Ripulisce il pezzo di frase catturato: toglie l'articolo, si ferma alla prima congiunzione o
  * punteggiatura, e non va oltre poche parole. Ritorna `null` se quello che resta non è un nome.
  */

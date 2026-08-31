@@ -40,7 +40,7 @@
  * un pezzo è esattamente il difetto che questo file esiste per chiudere, e «ne ho capiti nove su
  * undici» non è una cosa che si possa dire a chi sta scrivendo una regola sul cibo di una persona.
  */
-import { nomeAlimento } from '../food-swaps/impara-dalla-chat';
+import { nomeAlimento, paroleDaLeggere } from '../food-swaps/impara-dalla-chat';
 
 /** I separatori di alternativa: valgono anche senza virgole. */
 const ALTERNATIVE = /\s+(?:o|od|oppure)\s+/i;
@@ -95,8 +95,16 @@ export function leggiElenco(testo: string): string[] | null {
      * alla prima congiunzione: senza questo controllo «minestrone di verdure miste di stagione»
      * entrerebbe accorciato e nessuno lo saprebbe. È lo stesso troncamento silenzioso, un piano
      * più sotto.
+     *
+     * ⚠️ **Il confronto è con `paroleDaLeggere`, non con le parole grezze**, e la differenza non è
+     * una finezza: `nomeAlimento` toglie l'**articolo** di proposito, quindi «il merluzzo» dava un
+     * nome di una parola contro un pezzo di due e veniva rifiutato come «letto a metà». Misurato
+     * il 31/8: cinque forme normali su sette cadevano così — «il merluzzo», «le zucchine, le
+     * melanzane e i peperoni», «la ricotta o lo stracchino» — e la nutrizionista si sentiva
+     * rispondere «non ci arrivo» scrivendo in italiano corrente. Il controllo era giusto e
+     * guardava la cosa sbagliata.
      */
-    if (quanteParole(nome) < quanteParole(g)) return null;
+    if (quanteParole(nome) < paroleDaLeggere(g)) return null;
     const gia = nomi.some((n) => n.toLowerCase() === nome.toLowerCase());
     // Un doppione nell'elenco non è un errore di chi scrive: è una ripetizione, e si tiene una volta.
     if (!gia) nomi.push(nome);

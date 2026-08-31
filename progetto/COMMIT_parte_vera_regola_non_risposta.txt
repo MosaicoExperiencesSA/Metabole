@@ -1,0 +1,57 @@
+=== PARTE: Vera non dice più «fatto» su una regola che non ha scritto ===
+
+SUMMARY
+Vera non dice più «fatto» su una regola che non ha scritto: chiede, e adesso capisce come si scrive
+
+DESCRIPTION
+La nutrizionista, con una segnalazione aperta, ha scritto «il merluzzo può essere sostituito con
+orata, salmone o spigola estendi la regola a tutti». Vera ha risposto «Fatto: l'ho scritta a Dany
+nella vostra chat, e ho chiuso la segnalazione» — e non aveva creato nessuna regola: aveva inoltrato
+la frase alla cliente e chiuso l'escalation. Fare la cosa sbagliata con sicurezza è peggio che non
+farla: un «fatto» nessuno lo ricontrolla.
+
+Erano due difetti sovrapposti, e nessuno dei due era dove sembrava.
+
+Il primo: con una segnalazione aperta `parla` non chiama nemmeno `capisci`. Lo stato dirotta su
+`rispondiAllaGirata`, che guardava tre cose sole («la vedo io», «annulla», la lunghezza) e trattava
+tutto il resto come il corpo della risposta alla cliente. Adesso, se la frase è riconoscibile come
+un'azione, Vera chiede: «questa mi sembra una regola, non una risposta — la scrivo o la mando?». Non
+si dirotta in automatico, perché «puoi sostituire il merluzzo con l'orata» può essere davvero la
+risposta a una cliente che l'ha chiesto: le due cose si distinguono solo sapendo cosa aveva in mente
+chi scrive. Dal passo si esce: «la vedo io» funziona ancora, e al secondo «non ho capito» si manda
+la risposta invece di restare lì — è la lezione dello screenshot del 17/8.
+
+Il secondo, trovato misurando: la frase non si capiva comunque. `leggiElenco` rifiutava OGNI alimento
+con l'articolo — «il merluzzo», «le zucchine, le melanzane», «la ricotta o lo stracchino» — perché il
+controllo anti-troncamento contava l'articolo, che `nomeAlimento` toglie di proposito, come una
+parola persa: cinque forme normali su sette cadevano così, e la nutrizionista si sentiva rispondere
+«non ci arrivo» scrivendo in italiano corrente. Più la forma passiva («X può essere sostituito con
+Y»), che nessun riconoscitore copriva, e la coda «estendi la regola a tutti», che finiva dentro
+l'elenco dei pesci. E «tutti» non è più il nome di una cliente né un pezzo di alimento.
+
+La revisione ha trovato sei rilievi su questa stessa consegna, tre dei quali riaprivano il difetto:
+la coda che si mangiava l'ultima lettera dell'ultimo alimento («spigol», «lenticchi» — un troncamento
+silenzioso dentro una regola), il participio nudo che invertiva le negazioni («il merluzzo NON può
+essere sostituito con orata» diventava una regola col contrario di quello che c'era scritto), e
+l'auto-risposta che preparava la regola sulla cliente della segnalazione anche quando la frase ne
+nominava un'altra. Corretti tutti: sul ramo passivo si passa da `daScartare`, l'ausiliare è
+obbligatorio, il lato sinistro non può essere una mezza frase, e la cliente della segnalazione si usa
+solo se la frase non nominava nessuno.
+
+Dodici mutazioni provate, tutte uccise. 5910 test backend verdi nelle quattro modalità, build
+compresa.
+
+⛔ RESTA APERTO, dichiarato nella voce del vocabolario: la classe delle frasi è più larga della
+famiglia coperta. «è sostituibile con», «al posto del merluzzo può mettere», «merluzzo → orata» non
+si capiscono ancora, quindi vengono inoltrate alla cliente come risposta. Il «fatto» falso però non
+c'è più.
+
+FILE
+- backend/src/vera/vera-chat.service.ts (il bivio, `mandaLaRisposta`, `scegliRispostaORegola`)
+- backend/src/vera/vera-chat.ts (passo `risposta_o_regola`, `bozzaRisposta`, il testo del bivio)
+- backend/src/vera/sostituzione-a-elenchi.ts (forma passiva, coda d'ambito, vocativo, guardia)
+- backend/src/vera/capisci.ts (+ .spec) («tutti» non è una cliente né un alimento)
+- backend/src/vera/elenco-alimenti.ts (+ .spec) (l'articolo non è una parola persa)
+- backend/src/food-swaps/impara-dalla-chat.ts (`paroleDaLeggere`)
+- backend/src/vera/vera-chat.service.spec.ts (il caso vero, in cinque prove)
+- backend/src/lavori/voci-iniziali.ts (voce chiusa + le forme rimaste fuori)

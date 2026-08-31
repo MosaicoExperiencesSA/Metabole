@@ -400,6 +400,8 @@ export class VeraChatService {
         return this.scegliPiattoGiornata(nutrizionistaId, stato, frase);
       case 'quanti_giorni':
         return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
+      case 'risposta_o_regola':
+        return this.scegliRispostaORegola(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
         return this.rispondiAllaGirata(nutrizionistaId, stato, frase);
       case 'promemoria_supervisione':
@@ -1407,6 +1409,42 @@ export class VeraChatService {
       return { testo: testi.girataDaGaia(1, cliente, stato.frase), esito: 'in_corso', stato };
     }
 
+    /**
+     * ⛔ **PRIMA DI INOLTRARE, SI PROVA A CAPIRE** (31/8).
+     *
+     * Con una segnalazione aperta questo ramo riceveva **qualunque** frase e la trattava come il
+     * corpo della risposta alla cliente: `parla` non chiama `capisci` quando c'è uno stato aperto
+     * (`nuovoGiro` non viene proprio eseguito), e qui dentro nessuna riga guardava cosa ci fosse
+     * scritto. Così «il merluzzo può essere sostituito con orata, salmone o spigola, estendi la
+     * regola a tutti» è stata **inoltrata testualmente alla cliente**, la segnalazione è stata
+     * chiusa, e Vera ha risposto «Fatto: l'ho scritta a Dany… e ho chiuso la segnalazione».
+     * Nessuna regola era stata creata. ⛔ *Fare la cosa sbagliata con sicurezza è peggio che non
+     * farla*: un «fatto» nessuno lo ricontrolla.
+     *
+     * ⚠️ **Non si dirotta in automatico**, come fa `confermaOAnnulla` col suo `capisci` di riserva:
+     * lì la frase precedente non era stata capita, qui invece «puoi sostituire il merluzzo con
+     * l'orata» può essere benissimo la risposta vera a una cliente che l'ha chiesto. Le due cose si
+     * distinguono solo sapendo cosa aveva in mente chi scrive: quindi si chiede, una riga sola, e
+     * la frase si tiene da parte.
+     */
+    if (capisci(testo)) {
+      return {
+        testo: testi.rispostaORegola(cliente),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'risposta_o_regola', bozzaRisposta: testo },
+      };
+    }
+
+    return this.mandaLaRisposta(nutrizionistaId, stato, testo, cliente);
+  }
+
+  /** L'invio vero e proprio: usato dalla risposta diretta e da chi, al bivio, sceglie «mandala». */
+  private async mandaLaRisposta(
+    nutrizionistaId: string,
+    stato: StatoVera,
+    testo: string,
+    cliente: string | null,
+  ): Promise<EsitoVera> {
     const ruolo = await this.ruolo(nutrizionistaId);
     const mandata = await scriviAllaCliente(this.prisma, {
       clienteId: stato.clienteId!,
@@ -2853,6 +2891,62 @@ export class VeraChatService {
       avvisa: (m) => logger.warn(m),
     });
     return esito?.riscritta ?? null;
+  }
+
+  /**
+   * La scelta al bivio «è una regola o una risposta?».
+   *
+   * ⚠️ Se non si capisce nemmeno la scelta, **non si decide al posto suo**: si ripete la domanda.
+   * Il caso che questo ramo esiste per chiudere nasce proprio da un automatismo che aveva scelto da
+   * solo, e sbagliato.
+   */
+  private async scegliRispostaORegola(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const t = normalizza(frase ?? '');
+    const bozza = stato.bozzaRisposta ?? '';
+    const cliente = stato.clienteNome ?? null;
+    if (/\b(regola|scrivila|scrivi|come regola|la prima)\b/.test(t)) {
+      // La segnalazione resta APERTA: la regola è un'altra cosa, e la cliente aspetta ancora.
+      const esito = await this.nuovoGiro(nutrizionistaId, bozza);
+      /**
+       * ⚠️ **La cliente la sappiamo già**: la regola nasce dalla segnalazione **sua**. Senza questa
+       * riga la nutrizionista si sente chiedere «su quale cliente?» due righe dopo aver risposto a
+       * una domanda di quella cliente — una domanda a cui abbiamo già la risposta sotto gli occhi.
+       * ⚠️ Si passa dal giro normale (`avanza`) e non da una scorciatoia: se la ricerca trova
+       * un'omonimia, o non trova nessuno, valgono le regole di sempre.
+       */
+      /**
+       * ⛔ **Solo se la frase non nominava nessuno.** Al passo `quale_cliente` si arriva per tre
+       * motivi — nessun nome, nome non trovato, omonimia — e nei due casi in cui un nome lei
+       * l'aveva scritto, rispondere «Giulia Rossi» vorrebbe dire **scartare il nome che ha
+       * scritto** e preparare la regola su un'altra persona, buttando via anche il «non trovo
+       * nessuna cliente che si chiami Marta» che avrebbe dovuto leggere. Misurato in revisione:
+       * scriveva «a Marta…» e l'anteprima diceva Giulia.
+       */
+      const nominata = (esito.stato?.intento as { cliente?: string | null } | undefined)?.cliente;
+      if (esito.stato?.passo === 'quale_cliente' && !nominata && stato.clienteNome) {
+        return this.avanza(nutrizionistaId, esito.stato, stato.clienteNome);
+      }
+      return esito;
+    }
+    if (/\b(mandala|manda|mandagliela|invia|inviala|cos[iì] com['’]?[eè]|risposta|la seconda)\b/.test(t)) {
+      return this.mandaLaRisposta(nutrizionistaId, stato, bozza, cliente);
+    }
+    if (leggiConferma(frase) === false || /^\s*(lascia stare|lascia perdere|annulla)\b/.test(t)) {
+      return { testo: testi.annullato(), esito: 'annullata' };
+    }
+    /**
+     * ⛔ **DAL PASSO SI ESCE**, ed è la lezione dello screenshot del 17/8: una domanda chiusa che non
+     * ammette nessun'altra risposta trasforma un fraintendimento di un minuto in una chat
+     * inutilizzabile. Qui restano aperte le due strade di sempre — «la vedo io» chiude la
+     * segnalazione senza scrivere, e al secondo «non ho capito» si smette di chiedere e si fa la
+     * cosa che lei stava facendo: mandare la risposta.
+     */
+    if (/^\s*(la vedo io|ci penso io|me ne occupo io|la gestisco io|rispondo io)\b/.test(t)) {
+      return this.rispondiAllaGirata(nutrizionistaId, { ...stato, passo: 'risposta_cliente' }, frase);
+    }
+    const tentativi = (stato.tentativi ?? 1) + 1;
+    if (tentativi > MAX_TENTATIVI) return this.mandaLaRisposta(nutrizionistaId, stato, bozza, cliente);
+    return { testo: testi.rispostaORegola(cliente), esito: 'in_corso', stato: { ...stato, tentativi } };
   }
 
   private async confermaOAnnulla(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {

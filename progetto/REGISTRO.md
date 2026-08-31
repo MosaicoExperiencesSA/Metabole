@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🗣️ **Vera non dice più «fatto» su una regola che non ha scritto — e adesso capisce
+  come si scrive.** Con una segnalazione aperta, alla frase «il merluzzo può essere sostituito con
+  orata, salmone o spigola **estendi la regola a tutti**» rispondeva *«Fatto: l'ho scritta a Dany
+  nella vostra chat, e ho chiuso la segnalazione»*: aveva **inoltrato la frase alla cliente** e
+  chiuso l'escalation, senza creare niente. ⛔ *Fare la cosa sbagliata con sicurezza è peggio che non
+  farla: un «fatto» nessuno lo ricontrolla.*
+  **Erano due difetti sovrapposti, e nessuno dei due era dove sembrava.** Il primo: con uno stato
+  aperto `parla` **non chiama nemmeno `capisci`**, e `rispondiAllaGirata` guardava tre cose sole,
+  trattando tutto il resto come il corpo della risposta. Adesso, se la frase è riconoscibile come
+  un'azione, Vera **chiede** — «è una regola o una risposta?» — e ⚠️ non dirotta in automatico,
+  perché «puoi sostituire il merluzzo con l'orata» può essere davvero la risposta a chi l'ha chiesto.
+  ⚠️ E **dal passo si esce**: «la vedo io» funziona ancora, e al secondo «non ho capito» si manda la
+  risposta invece di restare lì — è la lezione dello screenshot del 17/8.
+  ⛔ **Il secondo l'ha trovato una misura, non un ragionamento: la frase non si capiva comunque.**
+  `leggiElenco` rifiutava **ogni alimento con l'articolo** — «il merluzzo», «le zucchine, le
+  melanzane», «la ricotta o lo stracchino» — perché il controllo anti-troncamento contava
+  l'articolo, che `nomeAlimento` toglie **di proposito**, come una parola persa: **cinque forme
+  normali su sette**, e la nutrizionista si sentiva rispondere «non ci arrivo» scrivendo in italiano
+  corrente. Più la forma **passiva**, che nessun riconoscitore copriva, e la coda «estendi la regola
+  a tutti» che finiva **dentro l'elenco dei pesci**. E «tutti» non è più né il nome di una cliente né
+  un pezzo di alimento («ceci a tutti»).
+  ⚠️ **La revisione ha trovato sei rilievi su questa stessa consegna, tre dei quali la riaprivano**:
+  la coda che si mangiava l'ultima lettera dell'ultimo alimento («spigol», «lenticchi» — un
+  troncamento silenzioso **dentro una regola**), il participio nudo che **invertiva le negazioni**
+  («il merluzzo NON può essere sostituito» diventava una regola col contrario di quello che c'era
+  scritto), e l'auto-risposta che preparava la regola sulla cliente della segnalazione **anche quando
+  la frase ne nominava un'altra**. Corretti tutti. **Dodici mutazioni provate, tutte uccise. 5910
+  test verdi nelle quattro modalità.**
+  ⛔ **Resta aperto e sta scritto nella voce del vocabolario:** la classe è più larga della famiglia
+  coperta — «è sostituibile con», «al posto del merluzzo può mettere», «merluzzo → orata» non si
+  capiscono ancora e vengono inoltrate come risposta. Il «fatto» falso però non c'è più.
+
 - `[Sviluppo]` 🗂️ **La coda del passaggio di consegne entra nell'elenco lavori.** Il foglio del 31/8
   elencava lavori e decisioni che vivevano **solo lì**: un foglio non è una coda, e quello che non sta
   nell'elenco non lo guarda nessuno. **Nove voci**, scritte per essere capite fra un mese senza

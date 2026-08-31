@@ -29,6 +29,7 @@ export type PassoVera =
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
+  | 'risposta_o_regola'  // ⛔ quella frase sembra una REGOLA, non una risposta: quale delle due? (31/8)
   | 'promemoria_supervisione' // ⛔ un percorso supervisionato da guardare: NON si risponde con alimenti (25/8)
   | 'quale_digiuno'      // «cambia il digiuno di Giulia»: a quali ore? (25/8)
   | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
@@ -64,6 +65,13 @@ export interface StatoVera {
   famiglieDaChiedere?: string[];
   /** Gli alimenti proposti da spuntare, per la famiglia in corso. */
   proposti?: string[];
+  /**
+   * ⛔ La frase scritta mentre una segnalazione era aperta, quando **sembra una regola** e non
+   * una risposta alla cliente. Si tiene da parte finché la nutrizionista non dice quale delle
+   * due cose voleva: mandarla a lei, o scriverla come regola. ⚠️ Sta in un campo suo e non in
+   * `frase`, che porta la domanda della CLIENTE e serve a ripetere la richiesta.
+   */
+  bozzaRisposta?: string;
   /** Quante volte di fila non ho capito. A due mi arrendo. */
   tentativi?: number;
   /** La proposta che sto sottoponendo al capo. */
@@ -626,6 +634,22 @@ export const testi = {
     'Scrivimi la risposta e **la mando io a lei** nella vostra chat. ' +
     'Oppure dimmi «la vedo io» e la lascio a te.',
 
+  /**
+   * ⛔ **IL BIVIO, invece di un «fatto» falso** (31/8). Con una segnalazione aperta, qualunque frase
+   * veniva inoltrata alla cliente e la segnalazione chiusa — anche «il merluzzo può essere
+   * sostituito con orata, salmone o spigola, estendi la regola a tutti», che è una **regola
+   * dettata**. Vera rispondeva «Fatto: l'ho scritta a Dany… e ho chiuso la segnalazione», e non
+   * aveva creato nessuna regola. *Fare la cosa sbagliata con sicurezza è peggio che non farla:
+   * nessuno ricontrolla un «fatto».*
+   *
+   * ⚠️ E non si sceglie al posto suo: «puoi sostituire il merluzzo con l'orata» è una **risposta**
+   * legittima a una cliente che l'ha chiesto. Le due cose si distinguono solo sapendo cosa aveva in
+   * mente chi scrive — quindi si chiede, in una riga.
+   */
+  rispostaORegola: (cliente: string | null) =>
+    `Aspetta: questa mi sembra una **regola**, non una risposta a ${cliente ?? 'lei'}.\n\n` +
+    'Vuoi che la **scriva come regola** (te la faccio vedere prima), oppure che la **mandi a lei** ' +
+    'così com\'è e chiuda la segnalazione?',
   rispostaMandata: (cliente: string | null) =>
     `Fatto: l'ho scritta a ${cliente ?? 'lei'} nella vostra chat, e ho chiuso la segnalazione.`,
 

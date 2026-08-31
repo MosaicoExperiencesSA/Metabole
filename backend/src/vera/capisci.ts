@@ -24,7 +24,7 @@
  *   riformularla; una frase capita male costa cibo sbagliato nel piatto di una persona.
  */
 import { leggiEquivalenza } from './equivalenza-dettata';
-import { chiedeUnaSostituzioneAElenchi, sostituzioneAElenchi } from './sostituzione-a-elenchi';
+import { chiedeUnaSostituzioneAElenchi, sostituzioneAElenchi, senzaCodaDiAmbito } from './sostituzione-a-elenchi';
 import { chiedeUnCambioDiDigiuno, clienteDopoIlVerbo, leggiDigiunoDettato } from './digiuno-dettato';
 import { normalizza } from '../common/nomi-alimento';
 import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
@@ -337,6 +337,16 @@ function pulisci(pezzo: string): string {
  * domanda «quale Simone? ne ho 93» — sta nel servizio, dove ci sono le clienti vere. Tenere separate
  * «cosa ha scritto» e «chi è» è ciò che permette di collaudare questo file senza un database.
  */
+/**
+ * ⛔ **«tutti» non è il nome di una cliente**, ed è la parola con cui si dice il contrario: che la
+ * regola vale per **tutte**. Sulla frase vera del 31/8 — «…estendi la regola a tutti» — la forma
+ * «a <minuscolo> a fine frase» qui sotto catturava `tutti`, e la nutrizionista si sarebbe sentita
+ * rispondere «non trovo nessuna cliente che si chiami tutti» al posto della regola. ⚠️ La rete
+ * c'era (il nome si cerca fra le clienti vere, non si scrive addosso a nessuno), ma una rete che
+ * ferma la caduta non rende la frase capita.
+ */
+const PAROLE_DI_AMBITO = new Set(['tutti', 'tutte', 'tutto', 'chiunque', 'ognuna', 'ognuno', 'nessuno', 'nessuna']);
+
 function nomePersona(testo: string): string | null {
   // «a Simone …», «per Anna Rossi …», «alla cliente Giulia …»
   // ⚠️ Le preposizioni si scrivono nelle due forme a mano invece di mettere il flag `i`: `i`
@@ -344,12 +354,12 @@ function nomePersona(testo: string): string | null {
   // «per Giulia» da «per domani». Senza la forma maiuscola, «Per Giulia Rossi domani» — cioè una
   // frase che comincia con la preposizione, com'è normale — non veniva riconosciuta da questa riga.
   const m = /(?:^|[\s,;.])(?:[Aa]|[Aa]d|[Pp]er|[Aa]lla|[Aa]l)\s+(?:client[ei]\s+|sig(?:\.|nora)\s+)?([A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’]+)?)/u.exec(testo);
-  if (m) return m[1].trim();
+  if (m && !PAROLE_DI_AMBITO.has(normalizza(m[1]))) return m[1].trim();
   // «… a giulia» tutto minuscolo: si accetta solo con la preposizione attaccata a fine frase, dove
   // l'ambiguità è minima. Una parola maiuscola a caso NON è un nome: sarebbe il modo più rapido
   // per attribuire una regola alla persona sbagliata.
   const m2 = /\b(?:a|ad|per)\s+([a-zà-ÿ][\wà-ÿ'’]{2,})\s*$/u.exec(testo.trim());
-  if (m2) return m2[1].trim();
+  if (m2 && !PAROLE_DI_AMBITO.has(normalizza(m2[1]))) return m2[1].trim();
   return nomeInTesta(testo);
 }
 
@@ -681,6 +691,14 @@ export function capisci(frase: string): Intento | null {
     if (cliente) {
       coda = coda.replace(new RegExp(`\\s*\\b(?:a|ad|per|alla|al)\\s+${escapeRe(cliente)}\\b`, 'iu'), '');
     }
+    /**
+     * ⛔ **E la coda che dice PER CHI VALE non è un alimento.** Da quando «tutti» non è più letto
+     * come nome di cliente, la riga qui sopra non lo toglie più (toglie il nome, e nome non ce n'è):
+     * «togli i ceci a tutti» vietava l'alimento «ceci a tutti». ⚠️ Prima si sbagliava dicendolo
+     * («non trovo nessuna cliente che si chiami tutti»), adesso si sbaglierebbe **in silenzio**, e
+     * il termine finto finirebbe anche nel dizionario. Trovato in revisione, 31/8.
+     */
+    coda = senzaCodaDiAmbito(coda);
 
     const vietati = elenco(coda);
     if (!vietati.length) return null;

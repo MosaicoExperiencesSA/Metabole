@@ -3667,11 +3667,33 @@ export const VOCI_INIZIALI: Voce[] = [
       + '«crea la regola che…» e si è sentita rispondere «non ci arrivo».\n\n'
       + '⚠️ Non è un «non ho capito»: è un **«fatto» falso**. Chi lo legge non ricontrolla, e la regola che '
       + 'doveva valere per tutte le clienti non esiste da nessuna parte.\n\n'
-      + 'Da guardare: il ramo che risponde a una segnalazione in chat, e **perché ha vinto** su una frase che '
-      + 'conteneva «estendi la regola a tutti». Poi: quando l\'azione riconosciuta è «rispondi», una frase che '
-      + 'chiede anche una regola non può uscire con un «fatto» che parla solo della risposta.',
+      + '✅ **CHIUSA il 31/8.** Erano **due** difetti sovrapposti, e nessuno dei due era dove sembrava.\n\n'
+      + '⛔ **Il primo: con una segnalazione aperta, `parla` non chiama nemmeno `capisci`.** Lo stato dirotta su '
+      + '`rispondiAllaGirata`, che di suo guardava solo tre cose («la vedo io», «annulla», la lunghezza): tutto il '
+      + 'resto era **per definizione** il corpo della risposta alla cliente. Adesso, se la frase è riconoscibile '
+      + 'come un\'azione, Vera **chiede**: «questa mi sembra una regola, non una risposta — la scrivo o la mando?». '
+      + '⚠️ Non si dirotta in automatico, perché «puoi sostituire il merluzzo con l\'orata» può essere davvero la '
+      + 'risposta a una cliente che l\'ha chiesto: le due cose si distinguono solo sapendo cosa aveva in mente chi '
+      + 'scrive.\n\n'
+      + '⛔ **Il secondo: la frase non si capiva comunque**, e la causa vera è arrivata da una misura. '
+      + '`leggiElenco` rifiutava **ogni alimento con l\'articolo** — «il merluzzo», «le zucchine, le melanzane» — '
+      + 'perché il controllo anti-troncamento contava l\'articolo, che `nomeAlimento` toglie di proposito, come '
+      + 'una parola persa: **cinque forme normali su sette** cadevano così. Più la forma **passiva** («X può essere '
+      + 'sostituito con Y»), che nessun riconoscitore copriva, e la coda «estendi la regola a tutti», che finiva '
+      + 'dentro l\'elenco dei pesci.\n\n'
+      + '⚠️ **La revisione ha trovato sei rilievi su questa stessa consegna**, tre dei quali riaprivano il difetto: '
+      + 'la coda che si mangiava l\'ultima lettera dell\'ultimo alimento («spigol», «lenticchi»), il participio nudo '
+      + 'che **invertiva le negazioni** («il merluzzo NON può essere sostituito» diventava una regola), e '
+      + 'l\'auto-risposta che scriveva la regola sulla cliente della segnalazione anche quando la frase ne '
+      + 'nominava un\'altra. Dodici mutazioni provate, tutte uccise.\n\n'
+      + '⛔ **Cosa NON chiude, ed è dichiarato**: la classe delle frasi resta più larga della famiglia coperta. '
+      + '«il merluzzo **è sostituibile** con orata», «**al posto del** merluzzo può mettere orata», '
+      + '«merluzzo **→** orata, salmone» non si capiscono ancora — e quindi vengono ancora inoltrate alla cliente. '
+      + 'Il «fatto» falso però non c\'è più: senza riconoscimento, la frase è trattata come una risposta, che è '
+      + 'quello che il testo dice.',
     ordine: 954,
     nata: '2026-08-31T18:00',
+    fatta: true,
   },
 
   {
@@ -3718,7 +3740,11 @@ export const VOCI_INIZIALI: Voce[] = [
       + '· **le cortesie** (4) — «ok», «ok ciao», «Quale?», «ok annulla tutto»;\n'
       + '· **le ricette** (2) — sostituire un **piatto**, non un alimento.\n\n'
       + '⚠️ Le cortesie sembrano le meno importanti e sono quelle che fanno sembrare l\'agente stupido: «ok» '
-      + 'che riceve «non ci arrivo» è la risposta che una persona racconta agli altri.',
+      + 'che riceve «non ci arrivo» è la risposta che una persona racconta agli altri.\n\n'
+      + '⚠️ **E le forme di sostituzione rimaste fuori** (misurate il 31/8, dopo la consegna sulla passiva): '
+      + '«il merluzzo **è sostituibile** con orata», «**al posto del** merluzzo può mettere orata o spigola», '
+      + '«merluzzo **→** orata, salmone». Su queste Vera non riconosce niente, quindi — dentro una segnalazione '
+      + 'aperta — le **inoltra alla cliente** come risposta. Non dice più «fatto» a vuoto, ma la regola non nasce.',
     ordine: 957,
     nata: '2026-08-31T18:00',
   },

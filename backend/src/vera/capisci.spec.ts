@@ -127,6 +127,73 @@ describe('capisci — sostituzioni', () => {
   });
 });
 
+/**
+ * ⛔ **LE FRASI DEL 31/8 CHE VERA NON CAPIVA**, e che hanno prodotto il difetto peggiore: non
+ * capendo la regola, l'ha inoltrata alla cliente e ha detto «fatto».
+ */
+describe('capisci — la regola dettata in forma passiva', () => {
+  it('⛔ «il merluzzo può essere sostituito con orata, salmone o spigola estendi la regola a tutti»', () => {
+    const esito = capisci('il merluzzo può essere sostituito con orata, salmone o spigola estendi la regola a tutti');
+    expect(esito).toEqual({ tipo: 'sostituzione', cliente: null, da: ['merluzzo'], a: ['orata', 'salmone', 'spigola'] });
+  });
+
+  it('⛔ «a tutti» NON è il nome di una cliente — e nemmeno parte dell\'alimento', () => {
+    // ← prima: cliente «tutti», e la nutrizionista si sentiva rispondere «non trovo nessuna
+    //   cliente che si chiami tutti». ⚠️ `toEqual` PIENO e non `objectContaining`: con quello, la
+    //   seconda metà del difetto — l'alimento «ceci a tutti» — passava il test senza farsi vedere.
+    expect(capisci('togli i ceci a tutti')).toEqual({
+      tipo: 'restrizione', cliente: null, vietati: ['ceci'], tenuti: [],
+    });
+  });
+
+  it('⛔ la coda «per tutti» non si mangia l\'ultima lettera dell\'ultimo alimento', () => {
+    // ← prima: «spigol», «lenticchi», «melanzan» — la «e» finale della parola scambiata per la
+    //   congiunzione. Un troncamento silenzioso DENTRO una regola.
+    expect(capisci('sostituisci il merluzzo con orata, salmone o spigole estendi la regola a tutti')).toEqual(
+      expect.objectContaining({ a: ['orata', 'salmone', 'spigole'] }),
+    );
+    expect(capisci('a Giulia sostituisci i ceci con fagioli o lenticchie per tutti')).toEqual(
+      expect.objectContaining({ cliente: 'Giulia', a: ['fagioli', 'lenticchie'] }),
+    );
+  });
+
+  it('⛔ la passiva NON inverte una negazione, e non ingoia la frase che la precede', () => {
+    // Tutte e quattro diventavano regole, con l'alimento sbagliato dentro.
+    expect(capisci('il merluzzo non può essere sostituito con orata o spigola')).toBeNull();
+    expect(capisci('il merluzzo potrebbe essere sostituito con orata o spigola')).toBeNull();
+    expect(capisci('il pane era stato sostituito con gallette o crackers')).toBeNull();
+    expect(capisci('in teoria il riso può essere sostituito con quinoa o farro')).toBeNull();
+  });
+
+  it('⛔ il nome della cliente non finisce dentro il nome dell\'alimento', () => {
+    // ← prima: da: ['a Marta il merluzzo'].
+    expect(capisci('a Marta il merluzzo può essere sostituito con orata, salmone o spigola')).toEqual({
+      tipo: 'sostituzione', cliente: 'Marta', da: ['merluzzo'], a: ['orata', 'salmone', 'spigola'],
+    });
+  });
+
+  it('⛔ con la coda d\'ambito la rete anti-mezza-lettura tiene lo stesso', () => {
+    // ← prima: togliendo la coda spariva l'unica virgola, la guardia non scattava più e il
+    //   riconoscitore vecchio leggeva «tacchino» perdendo «vitello» in silenzio. Caso Lorena.
+    expect(capisci('a Giulia sostituisci il pollo con tacchino e vitello, vale per tutti')).toBeNull();
+    expect(capisci('a Giulia sostituisci il pollo con tacchino, per tutte le clienti')).toBeNull();
+  });
+
+  it('le altre forme passive che scrive una persona', () => {
+    expect(capisci('la ricotta va sostituita con stracchino o crescenza')).toEqual(
+      expect.objectContaining({ tipo: 'sostituzione', da: ['ricotta'], a: ['stracchino', 'crescenza'] }),
+    );
+    expect(capisci('le verdure si possono sostituire con zucchine, melanzane e peperoni')).toEqual(
+      expect.objectContaining({ tipo: 'sostituzione', da: ['verdure'], a: ['zucchine', 'melanzane', 'peperoni'] }),
+    );
+  });
+
+  it('⚠️ e una frase che NON detta niente resta un «non ho capito»', () => {
+    expect(capisci('il pollo è buono con le patate')).toBeNull();
+    expect(capisci('il merluzzo è finito')).toBeNull();
+  });
+});
+
 describe('capisci — nel dubbio non si capisce', () => {
   it('una DOMANDA non è un\'istruzione', () => {
     expect(capisci('posso togliere il tonno a Giulia?')).toBeNull();

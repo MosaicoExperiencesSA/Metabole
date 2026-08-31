@@ -1861,6 +1861,107 @@ describe('VeraChatService — le domande girate da Gaia', () => {
     void prisma;
   });
 
+  /**
+   * ⛔ **IL CASO DEL 31/8, ed è il difetto più grave del gruppo Vera.**
+   *
+   * La nutrizionista ha scritto, con una segnalazione aperta: «il merluzzo può essere sostituito
+   * con orata, salmone o spigola estendi la regola a tutti». Vera ha risposto *«Fatto: l'ho
+   * scritta a Dany nella vostra chat, e ho chiuso la segnalazione»* — e **non aveva creato nessuna
+   * regola**: aveva inoltrato la frase alla cliente e chiuso l'escalation. *Fare la cosa sbagliata
+   * con sicurezza è peggio che non farla: un «fatto» nessuno lo ricontrolla.*
+   */
+  const DETTATA = 'il merluzzo può essere sostituito con orata, salmone o spigola estendi la regola a tutti';
+
+  it('⛔ una REGOLA dettata non viene inoltrata alla cliente: Vera chiede quale delle due cose vuole', async () => {
+    const over = conEscalation();
+    const { service, messaggioCreate } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', DETTATA);
+    // ← prima: il messaggio partiva, l'escalation si chiudeva, e la risposta diceva «Fatto».
+    expect(over.message.create).not.toHaveBeenCalled();
+    expect(over.escalation.update).not.toHaveBeenCalled();
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('regola');
+    expect(testo).not.toContain('Fatto');
+    expect(stato?.passo).toBe('risposta_o_regola');
+  });
+
+  it('al bivio, «scrivila come regola» porta all\'anteprima della regola — e la segnalazione resta aperta', async () => {
+    const over = conEscalation();
+    const { service, messaggioCreate } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', DETTATA);
+    await service.parla('lucia', 'scrivila come regola');
+    expect(over.message.create).not.toHaveBeenCalled();
+    // La cliente aspetta ancora una risposta: la regola è un'altra cosa.
+    expect(over.escalation.update).not.toHaveBeenCalled();
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('merluzzo');
+    expect(testo).toMatch(/orata|salmone|spigola/);
+  });
+
+  it('⛔ al bivio, se la frase nomina un\'ALTRA cliente non si scrive su quella della segnalazione', async () => {
+    /**
+     * ⚠️ Il doppio di serie trova SEMPRE la stessa cliente, qualunque cosa si cerchi: con quello
+     * questo caso non si può misurare, perché «Marta» risulterebbe trovata e sarebbe Giulia. Qui la
+     * ricerca non trova nessuno, che è la situazione vera di un nome sconosciuto.
+     */
+    const over = {
+      ...conEscalation(),
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'head_nutritionist' }), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const { service, messaggioCreate } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', 'a Marta il merluzzo può essere sostituito con orata o spigola');
+    await service.parla('lucia', 'scrivila come regola');
+    const { testo } = ultimoAgente(messaggioCreate);
+    // ← prima: l'anteprima diceva «Per Giulia Rossi», cioè la regola sulla persona sbagliata, e il
+    //   «non trovo nessuna cliente che si chiami Marta» non lo leggeva nessuno.
+    expect(testo).not.toContain('Giulia Rossi');
+    expect(testo).toContain('Marta');
+  });
+
+  it('dal bivio si esce: «la vedo io» funziona ancora, e al secondo «non ho capito» si manda', async () => {
+    const over = conEscalation();
+    const { service } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', DETTATA);
+    await service.parla('lucia', 'la vedo io');
+    // La via d'uscita del girato: nessun messaggio alla cliente, segnalazione non chiusa da noi.
+    expect(over.message.create).not.toHaveBeenCalled();
+    expect(over.escalation.update).not.toHaveBeenCalled();
+
+    const over2 = conEscalation();
+    const { service: s2 } = make(over2, { richieste: GIRATA });
+    await s2.apri('lucia');
+    await s2.parla('lucia', DETTATA);
+    await s2.parla('lucia', 'boh');
+    await s2.parla('lucia', 'mah');
+    // ← senza il contatore: si resta nel bivio per sempre, come nello screenshot del 17/8.
+    expect((over2.message.create as jest.Mock).mock.calls[0][0].data.body).toBe(DETTATA);
+  });
+
+  it('al bivio, «mandala così com\'è» fa quello che faceva prima: manda e chiude', async () => {
+    const over = conEscalation();
+    const { service } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', DETTATA);
+    await service.parla('lucia', 'mandala così com\'è');
+    expect((over.message.create as jest.Mock).mock.calls[0][0].data.body).toBe(DETTATA);
+    expect((over.escalation.update as jest.Mock).mock.calls[0][0].data.status).toBe('resolved');
+  });
+
+  it('⚠️ una risposta NORMALE alla cliente non passa dal bivio: parte com\'è', async () => {
+    // Il bivio non deve trasformare ogni risposta in una domanda: scatta solo dove la frase è
+    // riconoscibile come un'azione.
+    const over = conEscalation();
+    const { service } = make(over, { richieste: GIRATA });
+    await service.apri('lucia');
+    await service.parla('lucia', 'Il miele va bene, tienilo: 10 g al mattino.');
+    expect((over.message.create as jest.Mock).mock.calls[0][0].data.body).toContain('Il miele va bene');
+    expect((over.escalation.update as jest.Mock).mock.calls[0][0].data.status).toBe('resolved');
+  });
+
   it('«la vedo io» chiude la domanda SENZA scrivere alla cliente', async () => {
     const over = conEscalation();
     const { service } = make(over, { richieste: GIRATA });

@@ -5,6 +5,27 @@
 import { eUnElenco, leggiElenco } from './elenco-alimenti';
 
 describe('leggiElenco — o si legge tutto, o non si è capito', () => {
+  /**
+   * ⛔ **L'ARTICOLO NON È UNA PAROLA PERSA** (31/8). Il controllo anti-troncamento confrontava il
+   * nome letto con le parole grezze del pezzo: siccome `nomeAlimento` toglie l'articolo di
+   * proposito, «il merluzzo» risultava «letto a metà» e l'intero elenco veniva rifiutato. Cinque
+   * forme normali su sette cadevano così, e la nutrizionista si sentiva rispondere «non ci arrivo»
+   * scrivendo in italiano corrente.
+   */
+  it('⛔ gli alimenti con l\'articolo si leggono', () => {
+    expect(leggiElenco('il merluzzo')).toEqual(['merluzzo']);
+    expect(leggiElenco('le zucchine, le melanzane e i peperoni')).toEqual(['zucchine', 'melanzane', 'peperoni']);
+    expect(leggiElenco('la ricotta o lo stracchino')).toEqual(['ricotta', 'stracchino']);
+    expect(leggiElenco('il pesce azzurro')).toEqual(['pesce azzurro']);
+  });
+
+  it('⚠️ ma il troncamento vero resta un no: la rete non si allenta', () => {
+    // Oltre le quattro parole `nomeAlimento` taglia, e un nome tagliato non entra.
+    expect(leggiElenco('minestrone di verdure miste di stagione')).toBeNull();
+    // E fermarsi a una congiunzione È un troncamento, non un articolo scartato.
+    expect(leggiElenco('sale e pepe')).toBeNull();
+  });
+
   it('⛔ IL CASO LORENA: undici verdure restano undici, non quattro', () => {
     const undici = 'zucchine, melanzane, peperoni, carciofi, fagiolini, spinaci, erbe cotte, carote, minestrone, insalata, pomodoro';
     const letto = leggiElenco(undici);
