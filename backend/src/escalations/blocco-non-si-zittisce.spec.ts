@@ -73,3 +73,74 @@ describe('statoNonAvviso — dentro la tregua il blocco torna invece di tacere',
     expect(f.update).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ⛔ **LA RIAPERTURA SILENZIOSA — 31/8, e il silenzio era sul caso peggiore.**
+ *
+ * La riga tornava `open` dentro la tregua, ma **senza avvisare nessuno**: quel ramo esce prima
+ * della `create`, ed è lì che vive `avvisaSegnalazione`. Lo scenario è preciso: la nutrizionista
+ * mette «risolta» credendo di aver sistemato, il motore continua a non comporre, la riga si riapre
+ * da sé — e lei non lo sa. Cioè il sistema taceva proprio con **la persona che si era già occupata
+ * del problema**.
+ *
+ * ⚠️ Non è la tregua che si buca: la tregua evita il **doppione** (una riga nuova per una cosa già
+ * in elenco) e continua a farlo. Qui la riga è tornata **da chiusa ad aperta**, che è un fatto
+ * nuovo — e per uno stato che tiene ferma un'erogazione, un fatto nuovo si dice.
+ */
+describe('la riapertura dentro la tregua avvisa chi di dovere', () => {
+  const risoltaIeri = { id: 'e-vecchia', status: 'resolved', severity: null, resolvedAt: new Date(Date.now() - 86_400_000), updatedAt: new Date() };
+
+  const finto = () => {
+    const notifica = jest.fn().mockResolvedValue({});
+    return {
+      notifica,
+      prisma: {
+        escalation: {
+          findFirst: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(risoltaIeri),
+          create: jest.fn().mockResolvedValue({ id: 'e-nuova' }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        clientProfile: { findUnique: jest.fn().mockResolvedValue({ assignedCoachId: null, assignedNutritionistId: 's-n', name: 'Sonia' }) },
+        staff: { findMany: jest.fn().mockResolvedValue([{ id: 's-n', userId: 'u-n' }]), findFirst: jest.fn().mockResolvedValue(null) },
+        notification: { create: notifica },
+      },
+    };
+  };
+
+  const input = {
+    clientId: 'c1',
+    category: 'diet_blocked' as never,
+    reason: 'Piano bloccato: nessun piatto sicuro per la cena.',
+    source: 'engine' as const,
+    statoNonAvviso: true,
+  };
+
+  it('⛔ IL DIFETTO: riaprire una riga risolta manda una notifica, non lo fa in silenzio', async () => {
+    const f = finto();
+    await apriSegnalazione(f.prisma as never, input);
+    expect(f.notifica).toHaveBeenCalled();
+  });
+
+  it('la notifica va alla NUTRIZIONISTA della cliente, con la categoria giusta', async () => {
+    const f = finto();
+    await apriSegnalazione(f.prisma as never, input);
+    const dati = f.notifica.mock.calls[0][0].data as { userId: string; type: string };
+    expect(dati.userId).toBe('u-n');
+    expect(dati.type).toBe('escalation_diet_blocked');
+  });
+
+  it('⚠️ l\'avviso è un di più: se la notifica fallisce, la riga resta comunque APERTA', async () => {
+    const f = finto();
+    f.notifica.mockRejectedValue(new Error('database giù'));
+    const esito = await apriSegnalazione(f.prisma as never, input);
+    expect(f.prisma.escalation.update).toHaveBeenCalled();
+    expect(esito).toEqual({ id: 'e-vecchia' });
+  });
+
+  it('⛔ e su una riga GIÀ APERTA non si avvisa: quello sarebbe il rumore che la tregua evita', async () => {
+    const f = finto();
+    f.prisma.escalation.findFirst = jest.fn().mockResolvedValueOnce({ id: 'e-aperta', status: 'open', severity: null, resolvedAt: null, updatedAt: new Date() });
+    await apriSegnalazione(f.prisma as never, input);
+    expect(f.notifica).not.toHaveBeenCalled();
+  });
+});

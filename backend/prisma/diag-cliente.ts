@@ -492,14 +492,26 @@ async function main(): Promise<void> {
     console.log('STATO: "Menu in preparazione" — idonea, ma le giornate non sono ancora state erogate.');
   }
 
+  /**
+   * ⛔ **QUI C'ERA UNA RIGA FALSA, e il 31/8 è costata la sua parte di mattinata.**
+   *
+   * Diceva: «NON riceve nessuna notifica: le segnalazioni "Piano bloccato" vengono scritte
+   * direttamente a database, senza passare dal servizio che avvisa». Era vero quando è stata
+   * scritta; poi `menu.service` e `personal-base` sono passati a `apriSegnalazione` — che assegna,
+   * instrada al capo se non c'è nessuna nutrizionista, **e avvisa** — e questa riga è rimasta.
+   *
+   * ⚠️ Un commento che descrive un difetto già corretto è **peggio** di nessun commento: manda a
+   * cercare una cosa che non c'è, e intanto quello vero resta lì. *Una ragione falsa è peggio di un
+   * ordine sbagliato*, e vale anche quando la ragione falsa è la mia.
+   */
   console.log(
     '\n=== DOVE LO VEDE IL NUTRIZIONISTA ===\n' +
     '· Backoffice → Segnalazioni (e nella app staff, scheda della paziente).\n' +
-    '· ⚠️ NON riceve nessuna notifica: le segnalazioni "Piano bloccato" vengono scritte\n' +
-    '  direttamente a database da personal-base e menu, senza passare dal servizio che avvisa\n' +
-    '  coach e nutrizionista. Il tipo di notifica "Dieta bloccata" esiste ed è nel catalogo,\n' +
-    '  ma nessuno lo manda. Finché non si corregge, la segnalazione la vede solo chi va a\n' +
-    '  guardare l\'elenco di sua iniziativa.',
+    '· Una notifica in-app parte quando la segnalazione si APRE: `apriSegnalazione` la instrada\n' +
+    '  alla nutrizionista della cliente, o al capo se non ne ha una assegnata.\n' +
+    '· ⚠️ Non parte nessuna email e nessuna push: se la nutrizionista non apre il backoffice,\n' +
+    '  la segnalazione resta lì. Per un blocco che tiene ferma un\'erogazione è poco, ed è una\n' +
+    '  decisione di prodotto ancora da prendere.',
   );
 }
 

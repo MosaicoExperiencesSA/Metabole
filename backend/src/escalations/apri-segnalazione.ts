@@ -150,6 +150,36 @@ export async function apriSegnalazione(
             where: { id: prec.id },
             data: { status: 'open', resolvedAt: null, reason: input.reason },
           });
+          /**
+           * ⛔ **E LA SI AVVISA — 31/8. Questa riga mancava, ed è il caso che conta di più.**
+           *
+           * La riapertura dentro la tregua non passa dalla `create` qui sotto, quindi tornava
+           * `open` **in silenzio**: la nutrizionista aveva messo «risolta» credendo di aver
+           * sistemato, il motore continuava a non comporre, la riga si riapriva da sé e lei non lo
+           * sapeva. ⚠️ Il silenzio era proprio sullo scenario peggiore — quello in cui **qualcuno
+           * si è già occupato** del problema e crede che sia finito.
+           *
+           * ⚠️ Non è la tregua che si sta bucando: la tregua evita il **doppione**, cioè una riga
+           * nuova per una cosa già in elenco, e continua a farlo. Qui la riga è **tornata da
+           * chiusa ad aperta**, che è un fatto nuovo — e per uno stato che tiene ferma
+           * un'erogazione, un fatto nuovo si dice.
+           *
+           * Best effort come il resto degli avvisi: lo stato è già scritto, e un avviso che non
+           * parte non deve far fallire la riapertura.
+           */
+          try {
+            const aChi = await decidiDestinatari(prisma, input.clientId, input.category);
+            if (aChi) {
+              await avvisaSegnalazione(prisma, aChi, {
+                clientId: input.clientId,
+                category: input.category,
+                reason: input.reason,
+                escalationId: prec.id,
+              });
+            }
+          } catch {
+            /* la riga è aperta lo stesso: è quella che tiene lo stato, l'avviso è il di più */
+          }
         }
         return prec ? { id: prec.id } : null;
       }

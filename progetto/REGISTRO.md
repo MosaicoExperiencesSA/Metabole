@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **Il blocco che si riapre da solo adesso lo dice — e una riga di diagnostica che
+  mentiva.** ⛔ **Prima di tutto: quello che avevo detto io era falso.** Per mezza giornata ho
+  ripetuto che «le segnalazioni Piano bloccato non avvisano nessuno». L'avevo letto in
+  `diag-cliente.ts` e l'ho preso per buono. Non è vero: `menu.service` e `personal-base` passano da
+  `apriSegnalazione`, che assegna, instrada al capo quando la cliente non ha una nutrizionista **e
+  avvisa**. Quel commento era vero quando è stato scritto, poi il codice è stato corretto e la riga è
+  rimasta. ⚠️ **Un commento che descrive un difetto già corretto è peggio di nessun commento**: manda
+  a cercare una cosa che non c'è, e intanto quello vero resta dov'è. È il terzo caso in un giorno —
+  il bollino, il verdetto di `diag:cliente`, e questo. *Una ragione falsa è peggio di un ordine
+  sbagliato*, anche quando è la mia. La riga adesso dice cosa fa il codice **e cosa non fa**: nessuna
+  email e nessuna push, quindi se la nutrizionista non apre il backoffice la segnalazione resta lì —
+  scritto come decisione di prodotto da prendere, non come difetto.
+  ⛔ **Il difetto vero era più piccolo e meglio nascosto.** Dentro la tregua di riapertura, se la riga
+  era **risolta** e lo stato torna a valere la si riapre (`statoNonAvviso`, 21/8) — ma quel ramo esce
+  **prima** della `create`, e l'avviso vive dopo: la riga tornava `open` **in silenzio**. ⚠️ E il
+  silenzio era sullo scenario peggiore — la nutrizionista mette «risolta» credendo di aver sistemato,
+  il motore continua a non comporre, la riga si riapre da sé e lei non lo sa: il sistema taceva
+  proprio con **la persona che si era già occupata del problema**. ✅ Adesso la riapertura avvisa.
+  ⚠️ **Non è la tregua che si buca**: la tregua evita il **doppione** e continua a farlo; qui la riga
+  è tornata **da chiusa ad aperta**, che è un fatto nuovo. Su una riga già aperta non si avvisa.
+  ⚠️ E da oggi conta **di più**, non di meno: con la sostituzione automatica «Piano bloccato» si
+  aprirà di rado, quindi quando compare vuol dire che il catalogo ha un buco vero.
+  5855 test verdi in quattro modalità; due mutazioni, uccise; nessuna migrazione.
+
 - `[Sviluppo]` **«Percorso supervisionato» non vuol dire «i menu sono fermi»: due schermate lo
   dicevano lo stesso.** ⛔ Patrizia aveva il **via libera clinico dalle 06:34**; alle 09 la sua scheda
   mostrava il bollino rosso «Percorso supervisionato» e `diag:cliente` chiudeva con «Menu dopo la
