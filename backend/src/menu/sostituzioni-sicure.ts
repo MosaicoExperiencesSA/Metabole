@@ -1,3 +1,4 @@
+import { soloDentroFrasi } from './exclusions';
 /**
  * Sostituzioni equivalenti sicure (v1). Chiave = parola chiave nell'ingrediente → sostituto.
  * Se un ingrediente escluso NON è qui e deriva da un'intolleranza, il piano si blocca
@@ -54,7 +55,11 @@ export function sostitutoSicuro(ingrediente: string, parolaChiave?: string): str
   if (parolaChiave && SUBSTITUTION_MAP[parolaChiave]) return SUBSTITUTION_MAP[parolaChiave];
   if (SUBSTITUTION_MAP[nome]) return SUBSTITUTION_MAP[nome];
   for (const parola of nome.split(/[^a-zà-ù]+/).filter(Boolean)) {
-    if (SUBSTITUTION_MAP[parola]) return SUBSTITUTION_MAP[parola];
+    /**
+     * ⛔ Come in `lattosio.ts`: «latte di cocco» non si sostituisce come se fosse latte. Trovato in
+     * revisione il 31/8 — questa porta e quella sono le due che **aggiungono** invece di togliere.
+     */
+    if (SUBSTITUTION_MAP[parola] && !soloDentroFrasi(nome, parola)) return SUBSTITUTION_MAP[parola];
   }
   return null;
 }

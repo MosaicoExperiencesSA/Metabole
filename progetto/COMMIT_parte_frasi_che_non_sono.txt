@@ -1,0 +1,77 @@
+=== PARTE: «latte di cocco» non conta più come latte ===
+
+SUMMARY
+I latti vegetali e i burri di frutta secca tornano nel piano di chi è allergico al latte — e non gli vengono più sostituiti con del latte
+
+DESCRIPTION
+Trovato il 31/8 misurando, prima di scrivere la somma degli allergeni su ventitremila ricette.
+
+⛔ IL DIFETTO. «latte di cocco» contiene «latte». `PAROLE_CHE_NON_SONO` non poteva vederlo — là
+l'omonima è una parola DIVERSA («bovino» per «vino»), qui la parola è IDENTICA alla chiave. Quindi:
+
+  latte di cocco / di soia / d'avena  → latte
+  burro di arachidi / mandorle / cacao / sesamo → latte
+  panna di cocco, yogurt di soia      → latte
+  noce moscata, noce di cocco         → frutta a guscio   (423 ricette)
+
+I latti vegetali e i burri di frutta secca sono esattamente quello che una cliente allergica al
+latte deve poter mangiare, e sono i piatti che il motore le toglieva. ⚠️ E non si vede: un allergene
+di troppo non produce nessun errore, produce un menu più povero su una persona che ha già meno
+scelta di tutte le altre, e che non ha modo di sapere che quel piatto esisteva.
+
+⛔ E LE PORTE ERANO QUATTRO, NON DUE — trovato dalla revisione. Oltre al tag della ricetta e al
+filtro che toglie il piatto, ci sono `lattosio.ts` e `sostituzioni-sicure.ts`, che non tolgono:
+SOSTITUISCONO. Su «latte di cocco» rispondevano «sostituisci con latte senza lattosio» — cioè
+aggiungevano un derivato del latte a un piatto che non ne aveva, sulla cliente che il latte non può
+berlo. Il delattosato le proteine del latte le contiene tutte. Le porte che tolgono sbagliano verso
+il menu più povero; queste sbagliano verso il piatto.
+
+LA CORREZIONE: `FRASI_CHE_NON_SONO` in `menu/exclusions.ts` — chiave → frasi che la contengono ma
+non sono lei — con `dentroUnaFraseCheNonE` e `soloDentroFrasi`, letti da tutte e quattro le porte.
+Un elenco solo: due liste che rispondono alla stessa domanda un giorno divergono.
+
+⛔ ELENCO CHIUSO E GIUSTIFICATO VOCE PER VOCE, e le cose tenute FUORI valgono quanto quelle dentro:
+`burro chiarificato` e `ghee` SONO latte; `panna vegetale` e `formaggio vegano` restano esclusi
+perché in commercio contengono spesso caseinato; `noce di macadamia`, `noce pecan` e `noce
+brasiliana` SONO frutta a guscio — qui dentro ci vanno solo la moscata (una spezia) e quella di
+cocco.
+
+⚠️ `burro vegetale` L'AVEVO MESSO DENTRO, e la revisione l'ha tolto: la margarina in commercio
+contiene spesso siero di latte. Era l'unica riga che, per il criterio scritto tre righe più su nello
+stesso file, avrebbe lasciato passare un allergene vero — scritta dalla stessa mano che teneva fuori
+la panna vegetale per lo stesso identico motivo.
+
+⚠️ Le forme con l'apostrofo si generano dalla stessa riga: «latte d'avena» è come si scrive davvero
+ed è la forma trovata in catalogo, e la riga con «di» non la vedeva.
+
+VERIFICA
+Revisione avversariale: sei rilievi, fra cui `burro vegetale`, le due porte che sostituiscono, e DUE
+MUTAZIONI SOPRAVVISSUTE alla prima stesura delle prove — il tag che guardava sempre la prima
+occorrenza (su «latte di cocco e latte intero» perdeva il tag `latte`, cioè un ingrediente che il
+latte ce l'ha usciva come se non l'avesse), e il giro della radice che guardava l'indice zero
+(passava perché OGNI caso della spec aveva la frase all'inizio del nome, mentre i nomi veri ce
+l'hanno in mezzo). Uccise tutte e due con altrettante famiglie di prove nuove. Otto mutazioni in
+tutto, tutte uccise. 33 nomi misti provati per far passare un allergene VERO attraverso una frase:
+nessuno ci riesce, e la ragione è strutturale — ogni frase comincia con la chiave, quindi non può
+inghiottire un'occorrenza che non sia la propria.
+
+⚠️ Una sentinella strutturale ha pescato `lattosio.ts` appena ha cominciato a importare da
+`exclusions`. Guardato: è un'eccezione vera — quel confronto legge le **intolleranze dichiarate
+dalla cliente**, non il testo di un piatto — ed è dichiarata con il perché, accanto alle altre due.
+
+6095 test backend verdi nelle quattro modalità, `nest build` e `tsc --noEmit` compresi.
+
+⚠️ IL PASSATO NON È RIPULITO: le ricette che hanno già il tag falso scritto in catalogo ce l'hanno
+ancora. Si vedono rilanciando `npm run diag:allergeni-mancanti` — saliranno nella sezione «gli
+allergeni dichiarati che non risultano» — e si tolgono con un passo suo. È l'unico caso in cui
+questa famiglia di consegne toglie un allergene invece di aggiungerlo, ed è per questo che si fa a
+parte e con i numeri davanti.
+
+FILE
+- backend/src/menu/exclusions.ts — `FRASI_CHE_NON_SONO`, `dentroUnaFraseCheNonE`, `soloDentroFrasi`
+- backend/src/catalog/allergens.ts — il tag consulta le frasi
+- backend/src/menu/lattosio.ts — non sostituisce più un latte vegetale con del latte
+- backend/src/menu/sostituzioni-sicure.ts — idem
+- backend/src/menu/frasi-che-non-sono.spec.ts — nuova, 65 prove
+- backend/src/menu/una-porta-per-le-esclusioni.spec.ts — l'eccezione dichiarata
+- backend/src/lavori/voci-iniziali.ts — voce chiusa, coi limiti dichiarati

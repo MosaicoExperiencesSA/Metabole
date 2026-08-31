@@ -483,6 +483,134 @@ export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = 
 };
 
 /**
+ * ⛔ **LE FRASI CHE CONTENGONO UNA CHIAVE SENZA ESSERLA** — 31/8, e la parola da sola non bastava.
+ *
+ * `PAROLE_CHE_NON_SONO` risolve «bovino» per «vino»: l'omonima è una **parola diversa**, più lunga.
+ * Qui la parola è **identica alla chiave** — «latte di cocco» contiene «latte» e basta — quindi
+ * quel meccanismo non può vederla, e non è un caso di confine:
+ *
+ *     latte di cocco     → latte              tolto a chi esclude il latte
+ *     latte di soia      → latte              tolto a chi esclude il latte
+ *     burro di arachidi  → latte              tolto a chi esclude il latte
+ *     burro di cacao     → latte
+ *     noce moscata       → frutta a guscio    423 ricette
+ *
+ * ⛔ **È il contrario della protezione.** I latti vegetali e i burri di frutta secca sono
+ * esattamente quello che una cliente allergica al latte deve poter mangiare, e sono i piatti che il
+ * motore le toglieva. ⚠️ E non si vede: un allergene di troppo non produce nessun errore, produce
+ * un menu più povero su una persona che ha già meno scelta di tutte le altre, e che non ha modo di
+ * sapere che quel piatto esisteva.
+ *
+ * ⛔ **Ogni riga qui TOGLIE un'esclusione**, come in `PAROLE_CHE_NON_SONO`, quindi vale la stessa
+ * regola in forma più severa: si scrive una frase alla volta, e solo dove si **sa**. Le cose tenute
+ * FUORI apposta valgono quanto quelle dentro:
+ *
+ *  · `burro chiarificato` e `ghee` **sono** latte;
+ *  · `panna vegetale` e `formaggio vegano` no: molti prodotti in commercio contengono **caseinato**,
+ *    che è proteina del latte — restano esclusi, ed è giusto così;
+ *  · `noce di macadamia`, `noce pecan`, `noce brasiliana` **sono** frutta a guscio: qui dentro ci
+ *    vanno solo la moscata (una spezia) e quella di cocco.
+ *
+ * ⚠️ E niente regole tipo «burro di X»: sarebbe la scorciatoia che rimette dentro il ghee. Elenco
+ * chiuso, e chi lo allunga dichiara perché.
+ *
+ * ⛔ **`burro vegetale` è stato TOLTO da questo elenco in revisione**, ed è la riga che questo
+ * commento serve a non far rimettere: la margarina in commercio contiene spesso siero di latte o
+ * latte scremato in polvere. Era l'unica voce che, per il criterio scritto qui sopra, avrebbe
+ * lasciato passare un allergene vero — messa dentro dalla stessa mano che tre righe più su teneva
+ * fuori la panna vegetale per lo stesso motivo. ⚠️ `latte vegetale` e `yogurt vegetale` restano,
+ * e la differenza non è di gusto: quelle due parole **definiscono** un prodotto senza latte, il
+ * «burro vegetale» no.
+ *
+ * ## ⚠️ I limiti, misurati in revisione e scritti qui invece che scoperti dopo
+ *
+ * · **Un qualificatore in mezzo riapre il falso**: «latte intero di cocco», «yogurt magro di soia».
+ *   L'elenco è di frasi intere, non un modello.
+ * · **Le sei chiavi sono asimmetriche** (latte 15 voci, yogurt 7, noce 2): si allungano quando la
+ *   diagnostica nomina un nome vero, non per far quadrare la simmetria.
+ * · **Chi le nomina è `npm run diag:allergeni-mancanti`**, che per ogni allergene stampa gli
+ *   ingredienti che l'hanno fatto scattare. ⚠️ **Non** `diag:esclusioni`: quello raccoglie solo la
+ *   chiave *dentro una parola più lunga*, e «latte» in «latte di cocco» comincia una parola —
+ *   quindi non l'avrebbe nominata mai.
+ */
+const CON_APOSTROFO = (frasi: readonly string[]): string[] => [
+  ...frasi,
+  /**
+   * ⚠️ **«latte d'avena» e «latte di avena» sono la stessa cosa**, e la prima è come si scrive
+   * davvero: il primo giro in produzione (31/8) l'ha trovata in catalogo scritta così, e la riga
+   * con «di» non la vedeva. Non è un alimento in più — è la stessa parola con l'elisione, quindi si
+   * genera qui invece di scriverla due volte e dimenticarne una.
+   */
+  ...frasi.filter((f) => / di [aeiou]/.test(f)).map((f) => f.replace(/ di ([aeiou])/g, " d'$1")),
+];
+
+export const FRASI_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
+  latte: CON_APOSTROFO([
+    'latte di cocco', 'latte di soia', 'latte di mandorla', 'latte di mandorle', 'latte di riso',
+    'latte di avena', 'latte di nocciola', 'latte di nocciole', 'latte di anacardi', 'latte di canapa',
+    'latte vegetale', 'latte di sesamo', 'latte di quinoa', 'latte di piselli', 'latte di macadamia',
+  ]),
+  burro: CON_APOSTROFO([
+    'burro di arachidi', 'burro di mandorle', 'burro di anacardi', 'burro di nocciole',
+    'burro di cacao', 'burro di sesamo', 'burro di cocco',
+  ]),
+  panna: CON_APOSTROFO(['panna di cocco', 'panna di soia', 'panna di riso', 'panna di avena']),
+  yogurt: CON_APOSTROFO([
+    'yogurt di soia', 'yogurt di cocco', 'yogurt di mandorla', 'yogurt di riso', 'yogurt di avena',
+    'yogurt di anacardi', 'yogurt vegetale',
+  ]),
+  noce: CON_APOSTROFO(['noce moscata', 'noce di cocco']),
+  noci: CON_APOSTROFO(['noci moscate', 'noci di cocco']),
+};
+
+/**
+ * ⛔ **TUTTE** le occorrenze della chiave cadono dentro una frase che non è lei?
+ *
+ * Serve alle due porte che **sostituiscono** invece di togliere — `menu/lattosio.ts` e
+ * `menu/sostituzioni-sicure.ts` — e la revisione del 31/8 le ha trovate scoperte: su «latte di
+ * cocco» `decisioneLattosio` rispondeva «sostituisci con latte senza lattosio», cioè **aggiungeva
+ * un derivato del latte a un piatto che non ne aveva**. ⚠️ Le porte che tolgono sbagliano verso il
+ * menu più povero; queste sbagliano verso il piatto, ed è peggio.
+ *
+ * ⚠️ Qui la domanda è «tutte», non «questa»: quelle porte ragionano per parola e non hanno un
+ * indice da passare. Su «latte di cocco e latte intero» torna `false`, e il latte si sostituisce
+ * come prima.
+ */
+
+/**
+ * L'occorrenza della chiave che comincia in `i` cade **dentro** una frase che non è la chiave?
+ *
+ * ⚠️ Sta qui e non in due copie: la legge il filtro delle esclusioni e la legge il riconoscitore
+ * degli allergeni (`catalog/allergens.ts`), che sono le due porte che tolgono un piatto dal piano di
+ * una persona. Due elenchi che rispondono alla stessa domanda un giorno si contraddicono, ed è la
+ * ragione per cui `PAROLE_CHE_NON_SONO` sta già in un posto solo.
+ */
+export function soloDentroFrasi(testo: string, chiave: string): boolean {
+  if (!FRASI_CHE_NON_SONO[chiave]) return false;
+  let i = testo.indexOf(chiave);
+  if (i === -1) return false;
+  while (i !== -1) {
+    if (!dentroUnaFraseCheNonE(testo, chiave, i)) return false;
+    i = testo.indexOf(chiave, i + 1);
+  }
+  return true;
+}
+
+export function dentroUnaFraseCheNonE(haystack: string, chiave: string, i: number): boolean {
+  const frasi = FRASI_CHE_NON_SONO[chiave];
+  if (!frasi) return false;
+  for (const f of frasi) {
+    let s = haystack.indexOf(f);
+    while (s !== -1) {
+      // L'occorrenza della chiave sta tutta dentro l'occorrenza della frase.
+      if (s <= i && i + chiave.length <= s + f.length) return true;
+      s = haystack.indexOf(f, s + 1);
+    }
+  }
+  return false;
+}
+
+/**
  * ⛔ **LE CHIAVI CHE VALGONO SOLO A INIZIO DI PAROLA.**
  *
  * `PAROLE_CHE_NON_SONO` è un elenco chiuso: si scrive una parola alla volta, e va bene finché le
@@ -548,14 +676,22 @@ function chiaveVale(haystack: string, k: string): boolean {
   // omonime non basterebbe mai; le omonime restano la risposta ai casi singoli e noti.
   const soloInizio = SOLO_A_INIZIO_PAROLA.has(k);
   const escluse = PAROLE_CHE_NON_SONO[k];
-  if (!soloInizio && !escluse) return haystack.includes(k);
+  const frasi = FRASI_CHE_NON_SONO[k];
+  if (!soloInizio && !escluse && !frasi) return haystack.includes(k);
   let i = haystack.indexOf(k);
   while (i !== -1) {
     const inizioParola = i === 0 || !/[a-z0-9]/.test(haystack[i - 1]);
     if (!soloInizio || inizioParola) {
       let a = i; while (a > 0 && /[a-z0-9]/.test(haystack[a - 1])) a -= 1;
       let b = i + k.length; while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
-      if (!escluse || !escluse.includes(haystack.slice(a, b))) return true;
+      /**
+       * ⚠️ **I tre filtri si applicano INSIEME**, come già l'inizio di parola e le omonime: un
+       * piatto che dice «latte di cocco e latte intero» deve restare escluso per il secondo. Basta
+       * che UNA occorrenza sopravviva a tutti perché la chiave valga — ed è la stessa forma per cui
+       * il 23/8 il ritorno anticipato faceva sparire il carpaccio di manzo.
+       */
+      const omonima = !!escluse?.includes(haystack.slice(a, b));
+      if (!omonima && !dentroUnaFraseCheNonE(haystack, k, i)) return true;
     }
     i = haystack.indexOf(k, i + 1);
   }
@@ -588,13 +724,21 @@ export function hitsExclusion(haystack: string, keys: Iterable<string>): string 
  */
 function radiceVale(haystack: string, chiave: string, radice: string): boolean {
   const escluse = PAROLE_CHE_NON_SONO[chiave];
-  if (!escluse) return true;
+  const frasi = FRASI_CHE_NON_SONO[chiave];
+  /**
+   * ⛔ **ANCHE LA RADICE CONSULTA LE FRASI** — e il 31/8 non lo faceva: `yogurt di soia` usciva dal
+   * primo giro (la frase lo scartava) e rientrava **dal secondo**, perché qui si guardavano solo le
+   * omonime. Il piatto spariva lo stesso dal piano di chi esclude il latte, e il tabulato del primo
+   * giro diceva che era a posto. ⚠️ Due porte per la stessa domanda ne lasciano sempre una aperta:
+   * è la stessa lezione del 23/8, quando questo giro ignorava del tutto `PAROLE_CHE_NON_SONO`.
+   */
+  if (!escluse && !frasi) return true;
   let i = haystack.indexOf(radice);
   while (i !== -1) {
     if (i === 0 || !/[a-z0-9]/.test(haystack[i - 1])) {
       let b = i + radice.length;
       while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
-      if (!escluse.includes(haystack.slice(i, b))) return true;
+      if (!escluse?.includes(haystack.slice(i, b)) && !dentroUnaFraseCheNonE(haystack, chiave, i)) return true;
     }
     i = haystack.indexOf(radice, i + 1);
   }

@@ -1,4 +1,4 @@
-import { PAROLE_CHE_NON_SONO } from '../menu/exclusions';
+import { PAROLE_CHE_NON_SONO, dentroUnaFraseCheNonE } from '../menu/exclusions';
 
 /**
  * Allergeni UE (14) e dizionario per il PRE-TAG assistito delle ricette (R8).
@@ -101,16 +101,21 @@ export function ingredientNames(ingredients: unknown): string[] {
 function chiaveVale(nome: string, kw: string): boolean {
   if (!nome.includes(kw)) return false;
   const escluse = PAROLE_CHE_NON_SONO[kw];
-  if (!escluse) return true;
   let i = nome.indexOf(kw);
   while (i !== -1) {
     let a = i; while (a > 0 && /[a-zà-ÿ0-9]/.test(nome[a - 1])) a -= 1;
     let b = i + kw.length; while (b < nome.length && /[a-zà-ÿ0-9]/.test(nome[b])) b += 1;
-    if (!escluse.includes(nome.slice(a, b))) return true;
+    /**
+     * ⚠️ **I due filtri si applicano insieme, e basta UNA occorrenza che li superi.** «latte di
+     * cocco e latte intero» resta latte per il secondo: la frase scarta la sua occorrenza, non la
+     * chiave.
+     */
+    if (!escluse?.includes(nome.slice(a, b)) && !dentroUnaFraseCheNonE(nome, kw, i)) return true;
     i = nome.indexOf(kw, i + 1);
   }
   return false;
 }
+
 
 /**
  * Suggerisce gli allergeni presenti dagli ingredienti. Ritorna, per ogni allergene

@@ -48,6 +48,8 @@ export const INTOLLERANZA_LATTOSIO = 'lactose';
  * Volutamente larghi: qui un falso positivo costa una sostituzione più prudente del necessario, un
  * falso negativo costa una reazione allergica. L'asimmetria decide da sé come scriverli.
  */
+import { soloDentroFrasi } from './exclusions';
+
 const ALLERGIE_AL_LATTE = [
   'latte', 'latticini', 'lattiero', 'caseina', 'caseinati', 'proteine del latte', 'aplv',
   'siero di latte', 'lattoalbumina', 'lattoglobulina', 'formaggio', 'formaggi',
@@ -156,7 +158,16 @@ export function decisioneLattosio(
   if (eFormaggioStagionatoSicuro(nome)) return { azione: 'tieni' };
   for (const parola of paroleDi(nome)) {
     const sostituto = SOSTITUTI_SENZA_LATTOSIO[parola];
-    if (sostituto) return { azione: 'sostituisci', con: sostituto };
+    /**
+     * ⛔ **«latte di cocco» NON si sostituisce con «latte senza lattosio»** — trovato in revisione
+     * il 31/8, ed è il difetto che fa più danno di tutta questa famiglia: le altre porte tolgono un
+     * piatto (menu più povero), questa **aggiunge un derivato del latte a un piatto che non ne
+     * aveva**. E il delattosato le proteine del latte le contiene tutte.
+     *
+     * ⚠️ L'elenco delle frasi è quello di `exclusions.ts`, letto e non ricopiato: è la stessa
+     * domanda del filtro degli allergeni, e due liste che rispondono uguale un giorno divergono.
+     */
+    if (sostituto && !soloDentroFrasi(nome, parola)) return { azione: 'sostituisci', con: sostituto };
   }
   if (SOSTITUTI_SENZA_LATTOSIO[nome]) return { azione: 'sostituisci', con: SOSTITUTI_SENZA_LATTOSIO[nome] };
   return null;

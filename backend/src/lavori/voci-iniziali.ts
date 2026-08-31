@@ -178,10 +178,10 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'i-latti-vegetali-spariscono-a-chi-serve',
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
-    fatta: false,
+    blocca: false,
+    fatta: true,
     nata: '2026-08-31T20:30',
-    titolo: '⛔ «latte di cocco» conta come latte: i sostituti vegetali spariscono dal piano proprio di chi ha l\'allergia',
+    titolo: '✅ «latte di cocco» non conta più come latte: i sostituti vegetali tornano nel piano di chi ha l\'allergia',
     dettaglio:
       'Trovato il 31/8 misurando, prima di scrivere la somma degli allergeni. Verificato su **tutte e '
       + 'due le porte** — il tag della ricetta (`suggestAllergens`) e il filtro che toglie il piatto dal '
@@ -217,9 +217,28 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **Prima i numeri**: `npm run diag:allergeni-mancanti` stampa, per ogni allergene, gli '
       + 'ingredienti che lo fanno scattare e su quante ricette. `exclusions.ts` ha una regola scritta '
       + 'apposta — le omonime nascono dalla diagnostica, non a mente — e vale anche qui.\n\n'
-      + '⛔ **Blocca la somma degli allergeni** (decisione 1, la via di mezzo): sommare adesso vorrebbe '
-      + 'dire scrivere questi falsi su ventitremila ricette, e da lì non si tornerebbe più indietro '
-      + 'sapendo quali erano giusti.',
+      + '⛔ **Bloccava la somma degli allergeni** (decisione 1, la via di mezzo): sommare prima di '
+      + 'chiuderlo voleva dire scrivere questi falsi su ventitremila ricette.\n\n'
+      + '✅ **CHIUSA il 31/8 sera.** `FRASI_CHE_NON_SONO` in `menu/exclusions.ts` — elenco chiuso di '
+      + 'frasi, non una regola — letto da **tutte e quattro** le porte. ⛔ Le porte erano quattro e non '
+      + 'due, e le altre due sono peggio: `lattosio.ts` e `sostituzioni-sicure.ts` non tolgono un '
+      + 'piatto, **sostituiscono un ingrediente**, e su «latte di cocco» rispondevano «sostituisci con '
+      + 'latte senza lattosio» — un derivato del latte **aggiunto** a un piatto che non ne aveva, su '
+      + 'una cliente che il latte non può berlo. Il delattosato le proteine del latte le contiene '
+      + 'tutte.\n\n'
+      + '⛔ **`burro vegetale` è stato tolto dall\'elenco in revisione**: la margarina in commercio '
+      + 'contiene spesso siero di latte. Era l\'unica riga che avrebbe lasciato passare un allergene '
+      + 'vero, scritta dalla stessa mano che tre righe più su teneva fuori la panna vegetale per lo '
+      + 'stesso motivo.\n\n'
+      + '⚠️ **Restano dichiarati tre limiti**, misurati e scritti nel file invece che scoperti dopo: '
+      + 'un qualificatore in mezzo riapre il falso («latte intero di cocco»); le sei chiavi sono '
+      + 'asimmetriche e si allungano solo quando la diagnostica nomina un nome vero; e chi le nomina è '
+      + '`npm run diag:allergeni-mancanti`, **non** `diag:esclusioni` — quello raccoglie solo la chiave '
+      + 'dentro una parola più lunga, e «latte» in «latte di cocco» comincia una parola.\n\n'
+      + '⚠️ **E il passato non è ripulito**: le ricette che hanno già il tag falso scritto in catalogo '
+      + 'ce l\'hanno ancora. Si vedono rilanciando `diag:allergeni-mancanti` — saliranno nella sezione '
+      + '«gli allergeni dichiarati che non risultano» — e si tolgono con un passo suo, che è l\'unico '
+      + 'caso in cui questa consegna toglie un allergene invece di aggiungerlo.',
   },
   {
     chiave: 'allergeni-deducibili-i-due-numeri',

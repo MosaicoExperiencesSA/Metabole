@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🥛 **«latte di cocco» non conta più come latte: i sostituti vegetali tornano nel piano
+  di chi è allergico al latte.** ⛔ E **le porte erano QUATTRO, non due**: oltre al tag della ricetta
+  e al filtro che toglie il piatto, `lattosio.ts` e `sostituzioni-sicure.ts` non tolgono —
+  **sostituiscono**. Su «latte di cocco» rispondevano *«sostituisci con latte senza lattosio»*: un
+  derivato del latte **aggiunto** a un piatto che non ne aveva, sulla cliente che il latte non può
+  berlo. Le porte che tolgono sbagliano verso il menu più povero, queste verso il piatto.
+  ✅ `FRASI_CHE_NON_SONO` — elenco chiuso di frasi, non una regola — letto da tutte e quattro.
+  ⛔ **Elenco giustificato voce per voce, e le cose tenute FUORI valgono quanto quelle dentro**:
+  `ghee` e `burro chiarificato` sono latte; `panna vegetale` e `formaggio vegano` restano esclusi
+  perché in commercio contengono spesso caseinato; `noce pecan` e `noce di macadamia` sono frutta a
+  guscio — dentro ci vanno solo la moscata e quella di cocco. ⚠️ **`burro vegetale` l'avevo messo
+  io, e la revisione l'ha tolto**: la margarina contiene spesso siero di latte, ed era l'unica riga
+  che avrebbe lasciato passare un allergene vero. Due mutazioni sopravvissute alla prima stesura
+  delle prove (il tag che guardava sempre la prima occorrenza; la radice che guardava l'indice zero,
+  che passava perché *ogni* caso della spec aveva la frase all'inizio del nome mentre i nomi veri ce
+  l'hanno in mezzo), poi uccise. 33 nomi misti provati per far passare un allergene vero: nessuno ci
+  riesce. 6095 test verdi nelle quattro modalità. ⚠️ **Il passato non è ripulito**: i tag falsi già
+  scritti in catalogo si vedono rilanciando `diag:allergeni-mancanti` e si tolgono con un passo suo.
+
 - `[Sviluppo]` 🥥 **⛔ I latti vegetali spariscono dal piano di chi è allergico al latte — trovato
   misurando, prima di scrivere la somma degli allergeni.** Verificato su **tutte e due le porte**
   (il tag della ricetta e il filtro che toglie il piatto): `latte di cocco` → **latte**, `latte di

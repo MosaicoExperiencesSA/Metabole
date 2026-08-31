@@ -92,6 +92,18 @@ const PERMESSI = new Set<string>([
    * dalla parte del fermarsi a chiedere, che è quella giusta.)
    */
   'chat/allergie-chat.service.ts',
+  /**
+   * ⚠️ **Dichiarato il 31/8, dopo averlo guardato.** `lattosio.ts` è entrato nel perimetro della
+   * sentinella quel giorno, perché ha cominciato a importare da `exclusions` — legge
+   * `soloDentroFrasi`, così «latte di cocco» non viene più sostituito con «latte senza lattosio».
+   *
+   * Il `.some(…includes…)` che la sentinella pesca è a riga ~132 e risponde a un'altra domanda:
+   * `intolleranze.some((i) => i === 'lattosio' || i.includes('lattos'))` confronta le
+   * **intolleranze dichiarate dalla cliente** con una parola fissa — «questa persona ha dichiarato
+   * il lattosio?» — non il testo di un piatto con le chiavi escluse. ⚠️ Il confronto col piatto, in
+   * questo file, passa da `contieneAlimento`, che è una porta sua e dichiarata.
+   */
+  'menu/lattosio.ts',
 ]);
 
 /**
