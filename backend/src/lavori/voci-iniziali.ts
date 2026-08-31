@@ -3705,9 +3705,68 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nome**,** sarà Vera» — la virgola. ⚠️ E soprattutto: **quando il nome c\'è già**, quelle frasi cadono '
       + 'in «non ci arrivo» invece di «mi chiamo già Vera, vuoi cambiarlo?».\n\n'
       + 'Sono cinque frasi su venticinque della pagina «frasi che non ho capito», e cadono nel **primo '
-      + 'incontro** fra la nutrizionista e l\'agente: è il momento in cui si decide se fidarsi.',
+      + 'incontro** fra la nutrizionista e l\'agente: è il momento in cui si decide se fidarsi.\n\n'
+      + '✅ **CHIUSA il 31/8.** Il modale in mezzo e «da oggi **sei** Vera» adesso si leggono, e a nome già '
+      + 'dato le stesse frasi ricevono «Mi chiamo già Vera. Vuoi che da adesso mi chiami Lucia?» invece di '
+      + '«non ci arrivo».\n\n'
+      + '⚠️ **«il tuo nome, sarà Vera» funzionava già**: il passaggio di consegne la dava per rotta, la misura '
+      + 'diceva il contrario. *Una cosa letta in un foglio si verifica nel codice prima di ripararla.*\n\n'
+      + '⛔ **E la revisione ha fermato due difetti che questa consegna stava introducendo**, tutti e due nati '
+      + 'dalla stessa causa: un estrattore che non aveva mai avuto bisogno di essere preciso — girava **un '
+      + 'turno per account** — messo a decidere, con potere di scrittura, nello stato in cui l\'agente vive '
+      + 'tutti gli altri giorni. «ti chiamo **domani**» proponeva di ribattezzarsi «domani», e a un «ok» '
+      + 'distratto lo scriveva; «**tu** sei sicura?» battezzava «sicura». Adesso, a nome già dato, il '
+      + 'candidato dev\'essere un **nome proprio** (maiuscolo o fra virgolette), i prefissi che non '
+      + 'dichiarano una scelta sono spariti, e il ramo sta **dopo** «annulla» e la coda del capo: un '
+      + 'riconoscimento che resta un indovinello su una parola non passa davanti a una risposta certa.',
     ordine: 955,
     nata: '2026-08-31T18:00',
+    fatta: true,
+  },
+
+  {
+    chiave: 'chat-nome-cliente-apre-la-scheda',
+    categoria: CODICE,
+    titolo: 'Nella chat, il nome della cliente apre la sua scheda in un\'altra finestra',
+    dettaglio:
+      'Chiesto da Simone il 31/8, guardando la chat con Sonia. Oggi il nome in cima alla conversazione è '
+      + 'testo e basta (`backoffice/src/pages/Chat.tsx`, l\'intestazione): chi legge una chat e vuole '
+      + 'guardare la scheda deve cambiare pagina e cercarla, perdendo la conversazione.\n\n'
+      + '✅ **Il dato c\'è già lato pagina**: `Thread.client.id` arriva da `/staff/threads` ed è già usato per '
+      + 'il deep-link dalla coda. Nessuna modifica al backend: è un link a `/clienti/:id` con `target="_blank"`, '
+      + 'sul modello di `GraficaPdf.tsx` («Apri in una scheda»).\n\n'
+      + '⚠️ Due accortezze: `client` può essere nullo (il link si mostra solo quando c\'è), e la scheda cliente '
+      + 'sta dietro il permesso `clients`, **diverso** da `chat` — a una coach senza quel permesso il link '
+      + 'aprirebbe una pagina «accesso non consentito». Va condizionato al permesso.',
+    ordine: 963,
+    nata: '2026-08-31T21:00',
+  },
+
+  {
+    chiave: 'chat-messaggi-numerici-senza-contesto',
+    categoria: CODICE,
+    titolo: '⛔ Nella chat arrivano «1» e «2» e nessuno capisce di cosa si parla',
+    dettaglio:
+      'Chiesto da Simone il 31/8: *«se il nutrizionista legge 1 e 2 come fa a capire di cosa si parla? '
+      + 'mettiamo un breve riassunto — la signora Romina vuole correggere il pollo nel pranzo di domani»*.\n\n'
+      + 'I numeri nascono dalle domande a scelta multipla di Gaia (il cambio piatto in chat, con gli elenchi '
+      + 'numerati chiesti da Simone il 24/8). Quando la cliente risponde «1», il messaggio viene **inoltrato** '
+      + 'nel thread della coach/nutrizionista con `meta: {forwardedFrom: "ai", motivo: "cambio_piatto"}` — '
+      + 'cioè il numero nudo, **senza il testo della domanda**, senza il thread di origine, senza l\'id del '
+      + 'messaggio di Gaia.\n\n'
+      + '✅ **Il contesto esiste già, e non va inventato**: lo stato del dialogo (`StatoSostituzione`) vive nel '
+      + '`meta` del messaggio di Gaia e porta data, pasto, piatto, cibo, e perfino `ultimaDomanda` — «l\'ultima '
+      + 'domanda che Gaia ha fatto, parola per parola». E la frase in italiano è già scritta per le '
+      + 'segnalazioni: «Cambio in chat: «pollo» → «tacchino» (pranzo di 2026-09-01: Pollo alle erbe, 120 g)».\n\n'
+      + '**Da fare:** copiare quella stringa nel `meta` del messaggio inoltrato (più il riferimento al '
+      + 'messaggio di Gaia) e mostrarla nella chat sotto/sopra il numero. `listMessages` restituisce già '
+      + '`meta`; nella scheda cliente il tipo lo dichiara di già, nella pagina Chat no.\n\n'
+      + '⛔ **Il buco da coprire**: nei rami «arresa» (Gaia non ha capito due volte) il messaggio viene girato '
+      + '**senza** aprire nessuna segnalazione, quindi quella frase non viene prodotta — ed è proprio il caso '
+      + 'più probabile per un «1» orfano. Lì il contesto va composto dallo stato (`ultimaDomanda` + piatto + '
+      + 'data), non riusando il testo della segnalazione.',
+    ordine: 964,
+    nata: '2026-08-31T21:00',
   },
 
   {

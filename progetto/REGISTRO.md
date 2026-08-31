@@ -20,6 +20,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🏷️ **Il nome di Vera: le frasi del primo incontro che cadevano, e «mi chiamo già
+  così» invece di «non ci arrivo».** Cinque frasi su venticinque della pagina «frasi che non ho
+  capito» cadevano sul **battesimo**, cioè nel momento in cui la nutrizionista decide se fidarsi.
+  Adesso si leggono il **modale in mezzo** («ti **voglio** chiamare Vera») e «da oggi **sei** Vera».
+  E a nome già dato quelle stesse frasi finivano in «non ci arrivo», perché la condizione del
+  battesimo è **sui dati**: adesso Vera risponde «Mi chiamo già Vera. Vuoi che da adesso mi chiami
+  Lucia?».
+  ⚠️ **«il tuo nome, sarà Vera» funzionava già**: il passaggio di consegne la dava per rotta, la
+  misura diceva il contrario. *Una cosa letta in un foglio si verifica nel codice prima di ripararla.*
+  ⛔ **E la revisione ha fermato due difetti che questa consegna stava introducendo**, tutti e due
+  dalla stessa causa: un estrattore che non aveva mai avuto bisogno di essere preciso — girava **un
+  turno per account** — messo a decidere, **con potere di scrittura**, nello stato in cui l'agente
+  vive tutti gli altri giorni. «ti chiamo **domani**» proponeva di ribattezzarsi «domani» e a un «ok»
+  distratto lo **scriveva**; «**tu** sei sicura?» battezzava «sicura», e il test aveva scelto l'unica
+  formulazione che passava. Adesso, dove il nome c'è già, il candidato dev'essere un **nome proprio**;
+  i prefissi che non dichiarano una scelta sono spariti; e il ramo sta **dopo** «annulla» e la coda
+  del capo — *un indovinello su una parola non passa davanti a una risposta certa*. Dal passo si esce
+  anche non capendo, e il nome si salva da un punto solo, senza più una frase finta da rileggere.
+  ⚠️ **Nota di metodo:** due mutazioni erano risultate «sopravvissute» perché la sostituzione **non
+  si era applicata** (escaping). Una prova di mutazione va verificata che tocchi il file, altrimenti
+  dice il contrario di quello che sembra. **Sei mutazioni, tutte uccise. 5926 test verdi nelle
+  quattro modalità.**
+  🗂️ In coda anche le **due richieste di Simone** del 31/8 sera, con l'indagine già dentro: il nome
+  della cliente in chat che apre la scheda in un'altra finestra, e i messaggi **«1»/«2»** che
+  arrivano senza contesto (⚠️ il testo esiste già — «Cambio in chat: «pollo» → «tacchino» (pranzo
+  di…)» — e va copiato nel `meta` del messaggio inoltrato).
+
 - `[Sviluppo]` 🗣️ **Vera non dice più «fatto» su una regola che non ha scritto — e adesso capisce
   come si scrive.** Con una segnalazione aperta, alla frase «il merluzzo può essere sostituito con
   orata, salmone o spigola **estendi la regola a tutti**» rispondeva *«Fatto: l'ho scritta a Dany

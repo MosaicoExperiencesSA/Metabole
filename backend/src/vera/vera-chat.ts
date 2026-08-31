@@ -30,6 +30,7 @@ export type PassoVera =
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
   | 'risposta_o_regola'  // ⛔ quella frase sembra una REGOLA, non una risposta: quale delle due? (31/8)
+  | 'cambio_nome'       // il nome c'è già e me ne è stato detto un altro: lo cambio? (31/8)
   | 'promemoria_supervisione' // ⛔ un percorso supervisionato da guardare: NON si risponde con alimenti (25/8)
   | 'quale_digiuno'      // «cambia il digiuno di Giulia»: a quali ore? (25/8)
   | 'verifica_cambio'     // un cambio concordato in chat: ✓ o ✗? (voce 245, 14/8)
@@ -72,6 +73,8 @@ export interface StatoVera {
    * `frase`, che porta la domanda della CLIENTE e serve a ripetere la richiesta.
    */
   bozzaRisposta?: string;
+  /** Il nome proposto quando ne ho già uno: si conferma prima di cambiarlo. */
+  nomeProposto?: string;
   /** Quante volte di fila non ho capito. A due mi arrendo. */
   tentativi?: number;
   /** La proposta che sto sottoponendo al capo. */
@@ -190,6 +193,16 @@ export const testi = {
   nomePreso: (nome: string) =>
     `Da adesso mi chiamo ${nome}. Puoi cominciare quando vuoi: per esempio «a Giulia Rossi niente ` +
     'formaggi molli, solo il grana».',
+
+  /**
+   * ⛔ **«Mi chiamo già così» invece di «non ci arrivo»** (31/8). Chi riscrive il battesimo a nome
+   * fatto non sta sbagliando: o non si ricorda come mi chiamo, o vuole cambiarlo. Rispondere «non
+   * ci arrivo» a una frase perfettamente chiara è il modo più rapido per far smettere di provare.
+   */
+  giaMiChiamo: (attuale: string, proposto: string) =>
+    `Mi chiamo già **${attuale}**. Vuoi che da adesso mi chiami **${proposto}**?`,
+
+  restoCosi: (attuale: string) => `Va bene: resto ${attuale}.`,
 
   nomeNonCapito: () =>
     'Non ho capito il nome. Dimmelo secco — per esempio: «Vera» — oppure dimmi «scegli tu» e ne ' +
@@ -931,9 +944,27 @@ export function estraiNome(frase: string): EsitoNome | null {
   if (!f) return null;
   if (/\b(scegli tu|decidi tu|come vuoi|fai tu|non so)\b/i.test(f)) return { tipo: 'scegli_tu' };
 
-  const esplicita =
-    /(?:ti\s+chiam[\wà-ù]+|chiamart[\wà-ù]+|ti\s+battezz[\wà-ù]+|battezzart[\wà-ù]+|sar[àa]i?|il\s+tuo\s+nome\s+(?:è|sar[àa]))\s+[«"']?([a-zA-ZÀ-ÿ]{2,30})/i.exec(f);
-  if (esplicita) return { tipo: 'nome', nome: esplicita[1] };
+  /**
+   * ⛔ **IL MODALE IN MEZZO, e il verbo «sei»** (31/8). Cinque frasi su venticinque della pagina
+   * «frasi che non ho capito» cadevano qui, e cadono **nel primo incontro** — il momento in cui si
+   * decide se fidarsi di questo agente.
+   *
+   * · «ti **voglio** chiamare Vera», «vorrei/posso/preferisco chiamarti Vera»: la forma vecchia
+   *   chiedeva `ti chiam…` **attaccato**, quindi bastava un verbo in mezzo per non capire più.
+   * · «da oggi **sei** Vera», «per me sei Vera»: c'era `sarà/sarai`, non `sei`.
+   *
+   * ⚠️ «sei» **non** si accetta nudo: «sei sicura?» diventerebbe un battesimo. Vuole davanti una
+   * delle formule che **dichiarano la scelta** — da oggi, da ora, da adesso, per me. ⛔ La prima
+   * stesura ci aveva messo anche `adesso`, `ora` e `tu`, che non dichiarano niente: «**tu** sei
+   * sicura?» e «**ora** sei libera?» battezzavano l'agente «sicura» e «libera», e il test sceglieva
+   * l'unica formulazione che passava («sei sicura?» senza il «tu»). Trovato in revisione.
+   *
+   * ⚠️ Misurato prima di scrivere: «il tuo nome**,** sarà Vera» — che il passaggio di consegne dava
+   * per rotta — **funzionava già**, perché la virgola non sta fra il verbo e il nome. Una cosa
+   * letta in un foglio si verifica nel codice prima di ripararla.
+   */
+  const esplicita = nomeDettoEsplicitamente(f);
+  if (esplicita) return { tipo: 'nome', nome: esplicita };
 
   // Il nome secco, eventualmente con un saluto o un «ok» davanti e la punteggiatura in coda.
   const secco = f
@@ -942,6 +973,47 @@ export function estraiNome(frase: string): EsitoNome | null {
     .trim();
   if (/^[a-zA-ZÀ-ÿ]{2,30}$/.test(secco)) return { tipo: 'nome', nome: secco };
   return null;
+}
+
+/**
+ * ⛔ **IL NOME DETTO PER ESTESO**, senza il ripiego sul nome secco.
+ *
+ * Serve dove il nome **c'è già**: lì «ok» o «grazie» non possono valere come proposta di
+ * ribattezzarsi — una parola sola è una cortesia, non una richiesta. Chi deve solo capire la
+ * risposta al primo battesimo continua a usare `estraiNome`, che accetta anche il nome secco perché
+ * a quella domanda si risponde così.
+ */
+export function nomeDettoEsplicitamente(frase: string, soloNomeProprio = false): string | null {
+  const f = (frase ?? '').trim();
+  if (!f) return null;
+  const MODALE = '(?:vogli[oa]|vorrei|voglio|posso|potrei|preferisco|penso di|pensavo di)\\s+';
+  const m = new RegExp(
+    '(?:' +
+      `ti\\s+(?:${MODALE})?chiam[\\wà-ù]+|` +
+      `(?:${MODALE})?chiamart[\\wà-ù]+|` +
+      'ti\\s+battezz[\\wà-ù]+|battezzart[\\wà-ù]+|' +
+      'sar[àa]i?|' +
+      '(?:da\\s+oggi|da\\s+ora|da\\s+adesso|per\\s+me)\\s+sei|' +
+      'il\\s+tuo\\s+nome\\s+(?:è|sar[àa])' +
+    ')\\s+[«"\']?([a-zA-ZÀ-ÿ]{2,30})',
+    'i',
+  ).exec(f);
+  if (!m) return null;
+  /**
+   * ⛔ **DOVE IL NOME C'È GIÀ, dev'essere un nome PROPRIO** — maiuscolo, o fra virgolette.
+   *
+   * La regexp cattura una parola qualunque, e finché questo ramo girava **un turno per account**
+   * (il primo incontro, subito dopo la domanda «come vuoi chiamarmi?») non faceva danno. Nello
+   * stato in cui l'agente vive tutti gli altri giorni fa danno eccome, misurato in revisione:
+   * «ti chiamo **domani**», «posso chiamarti **quando** voglio?», «ti chiamerò **domani** mattina»
+   * diventavano «vuoi che mi chiami domani?» — e a un «ok» distratto l'agente si ribattezzava con
+   * un avverbio.
+   *
+   * ⚠️ Al primo incontro il vincolo **non** si applica: lì la domanda è appena stata fatta, e
+   * pretendere la maiuscola vorrebbe dire non capire «ti chiamerò vera» scritto di fretta.
+   */
+  if (soloNomeProprio && !/^[A-ZÀ-Ý]/.test(m[1]) && !/[«"']/.test(m[0])) return null;
+  return m[1];
 }
 
 /**

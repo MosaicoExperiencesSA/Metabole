@@ -114,6 +114,7 @@ import {
   StatoVera,
   testi,
   estraiNome,
+  nomeDettoEsplicitamente,
 } from './vera-chat';
 
 interface ClienteTrovata {
@@ -292,6 +293,33 @@ export class VeraChatService {
       const prossima = await this.cosaTiPorto(nutrizionistaId);
       if (prossima) return prossima;
       /**
+       * ⛔ **E SE IL NOME CE L'HO GIÀ, lo dico** (31/8). La condizione del battesimo è sui dati,
+       * quindi a nome fatto le stesse frasi — «ti voglio chiamare Vera», «da oggi sei Vera» —
+       * scivolavano fino a «non ci arrivo»: una risposta che dà della stupida a chi ha scritto una
+       * frase chiarissima, e nel punto in cui si decide se fidarsi.
+       *
+       * ⚠️ Sta **qui**, dopo «annulla» e dopo la coda del capo, per la stessa ragione per cui la
+       * seconda lettura sta in fondo: quelle sono risposte **certe** a frasi che `capisci` non
+       * riconosce, e un riconoscimento di nome — che resta un indovinello su una parola — non deve
+       * passare davanti a niente di certo. La prima stesura lo metteva davanti a tutte e tre, e in
+       * revisione «lascia stare, ti chiamo dopo» finiva a proporre di chiamarsi «dopo».
+       *
+       * ⚠️ E vale **solo la forma esplicita con un nome proprio**: col nome secco una cortesia come
+       * «grazie» diventerebbe la proposta di ribattezzarsi «grazie».
+       */
+      const proposto = nomeDettoEsplicitamente(frase, true);
+      const attuale = proposto ? await this.nomeAttuale(nutrizionistaId) : null;
+      if (proposto && attuale) {
+        if (proposto.toLowerCase() === attuale.toLowerCase()) {
+          return { testo: testi.restoCosi(attuale), esito: 'in_corso' };
+        }
+        return {
+          testo: testi.giaMiChiamo(attuale, proposto),
+          esito: 'in_corso',
+          stato: { passo: 'cambio_nome', frase, nomeProposto: proposto },
+        };
+      }
+      /**
        * ⚠️ LA SECONDA LETTURA — l'ULTIMA cosa che si prova, e per costruzione.
        *
        * Sta qui in fondo, dopo il battesimo, dopo «annulla» e dopo la coda del capo, perché tutte
@@ -400,6 +428,8 @@ export class VeraChatService {
         return this.scegliPiattoGiornata(nutrizionistaId, stato, frase);
       case 'quanti_giorni':
         return this.leggiQuantiGiorni(nutrizionistaId, stato, frase);
+      case 'cambio_nome':
+        return this.confermaCambioNome(nutrizionistaId, stato, frase);
       case 'risposta_o_regola':
         return this.scegliRispostaORegola(nutrizionistaId, stato, frase);
       case 'risposta_cliente':
@@ -440,12 +470,54 @@ export class VeraChatService {
       if (capisci(frase)) return this.nuovoGiro(nutrizionistaId, frase);
       return { testo: testi.nomeNonCapito(), esito: 'in_corso', stato: { passo: 'nome', frase: '' } };
     }
-    const nome = esito.tipo === 'scegli_tu' ? 'Vera' : esito.nome;
+    return this.salvaNome(nutrizionistaId, esito.tipo === 'scegli_tu' ? 'Vera' : esito.nome);
+  }
+
+  /**
+   * «Mi chiamo già X: lo cambio in Y?».
+   *
+   * ⚠️ Un «no» qui non è un fallimento: è una risposta. E se non si capisce nemmeno questa, si
+   * lascia perdere il nome e si prova a lavorare sulla frase — dal passo si esce.
+   */
+  private async confermaCambioNome(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const attuale = (await this.nomeAttuale(nutrizionistaId)) ?? 'come prima';
+    /**
+     * ⛔ Senza il nome proposto non c'è niente da confermare, e **non si torna al battesimo**: la
+     * prima stesura passava da `impostaNome` con una frase finta («ti chiamo ») che nessuno sapeva
+     * leggere, e da lì si finiva al passo `nome` — dove vale il nome secco, cioè dove «grazie»
+     * riscrive `nomeAgente`. Due turni per riaprire la porta che questo ramo esiste per chiudere.
+     */
+    if (!stato.nomeProposto) return { testo: testi.restoCosi(attuale), esito: 'in_corso' };
+    const scelta = leggiConferma(frase);
+    // ⚠️ Si salva il nome che abbiamo in mano: niente frase finta da rileggere.
+    if (scelta === true) return this.salvaNome(nutrizionistaId, stato.nomeProposto);
+    if (scelta === false) return { testo: testi.restoCosi(attuale), esito: 'in_corso' };
+    if (capisci(frase)) return this.nuovoGiro(nutrizionistaId, frase);
+    /**
+     * ⚠️ **E dal passo si esce anche non capendo**: come ogni altro giro, al secondo tentativo si
+     * smette di chiedere. Un nome non vale una chat bloccata.
+     */
+    const tentativi = (stato.tentativi ?? 1) + 1;
+    if (tentativi > MAX_TENTATIVI) return { testo: testi.restoCosi(attuale), esito: 'in_corso' };
+    return { testo: testi.giaMiChiamo(attuale, stato.nomeProposto), esito: 'in_corso', stato: { ...stato, tentativi } };
+  }
+
+  /** Scrive il nome dell'agente. È l'unico punto che tocca `nomeAgente`. */
+  private async salvaNome(nutrizionistaId: string, nome: string): Promise<EsitoVera> {
     await this.prisma.staff.updateMany({
       where: { userId: nutrizionistaId } as never,
       data: { nomeAgente: nome } as never,
     });
     return { testo: testi.nomePreso(nome), esito: 'in_corso' };
+  }
+
+  /** Come mi chiamo adesso, o `null` se il battesimo non è ancora avvenuto. */
+  private async nomeAttuale(nutrizionistaId: string): Promise<string | null> {
+    const s = (await this.prisma.staff.findFirst({
+      where: { userId: nutrizionistaId } as never,
+      select: { nomeAgente: true } as never,
+    })) as { nomeAgente: string | null } | null;
+    return s?.nomeAgente ?? null;
   }
 
   /** Il battesimo è una CONDIZIONE SUI DATI, non uno stato: finché il nome non c'è, resta aperto. */

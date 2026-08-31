@@ -1823,6 +1823,88 @@ describe('VeraChatService — il cambio di dieta (azione 3, 14/8)', () => {
  * I «GIRATI» DI GAIA DENTRO VERA (Simone, 14/8): «da una parte o dall'altra il nutrizionista
  * risponde». Decisione in progetto/NOTA_Vera_Porta_I_Girati_Di_Gaia.md.
  */
+describe('VeraChatService — il nome quando ce l\'ho già', () => {
+  const conNome = (nomeAgente: string | null) => ({
+    staff: { findFirst: jest.fn().mockResolvedValue({ nomeAgente }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+  });
+
+  it('⛔ a nome fatto, «ti voglio chiamare Lucia» non riceve «non ci arrivo»', async () => {
+    const { service, messaggioCreate } = make(conNome('Vera'));
+    await service.parla('lucia', 'ti voglio chiamare Lucia');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    // ← prima: «Non ci arrivo», a una frase chiarissima e nel primo incontro.
+    expect(testo).not.toContain('Non ci arrivo');
+    expect(testo).toContain('Vera');
+    expect(testo).toContain('Lucia');
+    expect(stato?.passo).toBe('cambio_nome');
+  });
+
+  it('e se confermo, il nome cambia davvero', async () => {
+    const over = conNome('Vera');
+    const { service } = make(over);
+    await service.parla('lucia', 'ti voglio chiamare Lucia');
+    await service.parla('lucia', 'sì');
+    expect((over.staff.updateMany as jest.Mock).mock.calls[0][0].data.nomeAgente).toBe('Lucia');
+  });
+
+  it('«no» lascia le cose come stanno, e non è un fallimento', async () => {
+    const over = conNome('Vera');
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'da oggi sei Lucia');
+    await service.parla('lucia', 'no');
+    expect(over.staff.updateMany).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resto Vera');
+  });
+
+  it('⚠️ se il nome proposto è quello che ho già, non si chiede niente', async () => {
+    const over = conNome('Vera');
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'ti chiamo Vera');
+    expect(over.staff.updateMany).not.toHaveBeenCalled();
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resto Vera');
+  });
+
+  it('⛔ «lascia stare, ti chiamo dopo» resta un «annulla», non una proposta di nome', async () => {
+    // ← prima il ramo del nome passava davanti ad «annulla» e alla coda del capo: un
+    //   riconoscimento che è un indovinello su una parola non deve battere una risposta certa.
+    const { service, messaggioCreate } = make(conNome('Vera'));
+    await service.parla('lucia', 'lascia stare, ti chiamo dopo');
+    expect(ultimoAgente(messaggioCreate).stato?.passo).not.toBe('cambio_nome');
+    // ⚠️ E anche con un nome PROPRIO dentro: è l'ordine dei rami che deve tenere, non il fatto che
+    //    «dopo» sia minuscolo. Senza, questo test resterebbe verde spostando il ramo del nome.
+    const secondo = make(conNome('Vera'));
+    await secondo.service.parla('lucia', 'lascia stare, ti chiamo Lucia');
+    expect(ultimoAgente(secondo.messaggioCreate).stato?.passo).not.toBe('cambio_nome');
+  });
+
+  it('dentro «cambio nome» una frase di lavoro esce e si esegue', async () => {
+    const { service, messaggioCreate } = make(conNome('Vera'));
+    await service.parla('lucia', 'ti voglio chiamare Lucia');
+    await service.parla('lucia', 'a Giulia Rossi niente formaggi molli');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('formaggi molli');
+  });
+
+  it('e se non si capisce nemmeno la risposta, dopo due giri si lascia perdere il nome', async () => {
+    const over = conNome('Vera');
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'ti voglio chiamare Lucia');
+    await service.parla('lucia', 'boh');
+    await service.parla('lucia', 'mah');
+    // ← senza contatore: la stessa domanda all'infinito, come nello screenshot del 17/8.
+    expect(ultimoAgente(messaggioCreate).testo).toContain('resto Vera');
+    expect(over.staff.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('⚠️ e una cortesia NON diventa una proposta di ribattezzarsi', async () => {
+    const over = conNome('Vera');
+    const { service, messaggioCreate } = make(over);
+    await service.parla('lucia', 'grazie');
+    // Col nome secco, «grazie» sarebbe stato letto come il nome nuovo.
+    expect(ultimoAgente(messaggioCreate).stato?.passo).not.toBe('cambio_nome');
+  });
+});
+
 describe('VeraChatService — le domande girate da Gaia', () => {
   const GIRATA = [{
     id: 'r-gaia', tipo: 'girata_da_gaia', clienteId: 'c1', clienteNome: 'Giulia Rossi',
