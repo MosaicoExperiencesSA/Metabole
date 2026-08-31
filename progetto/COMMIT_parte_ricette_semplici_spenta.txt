@@ -1,0 +1,57 @@
+La preferenza «ricette semplici» è spenta: pescava da tutto il catalogo senza guardare gli allergeni
+
+IL FATTO, 31/8, CASO PATRIZIA
+
+Menu del rientro fermo. `prova:erogazione` passa diciannove cancelli su venti e si ferma
+sull'ultimo: «Piano bloccato — i menu contengono ingredienti incompatibili». Ma i piatti
+che la bloccavano NON ERANO DELLA SUA DIETA: «Biscotti d'Avena e Banana» risulta della
+«Flexitariana», e lei è sulla «Mediterranea senza glutine».
+
+Arrivavano da qui (`buildSimpleSlotPool`):
+
+    where:  { regime, active: true, difficulty: 'semplice', mealSlot: { in: slots } }
+    select: { id, name, kcal, mealSlot, ingredients }
+
+Due buchi nella stessa query. NESSUN FILTRO SULLA DIETA: pesca da tutto il catalogo del
+regime, quindi a una cliente sulla dieta senza glutine arrivano piatti di un'altra
+famiglia. E `allergens` NON È NEL SELECT: la sicurezza di quel pool è fatta di sole
+parole — nome e ingredienti — quindi un piatto col tag Glutine che il glutine non lo
+nomina passa, entra nella giornata, e due righe più sotto `evaluateMeals` lo vede e
+FERMA TUTTA L'EROGAZIONE.
+
+Il difetto non era il catalogo della sua dieta. Era questo pool.
+
+LA DECISIONE DI SIMONE
+
+«Facciamo in modo che quell'interruttore non comandi nulla, per il momento disattiviamo
+la sua funzione, poi la riattiviamo quando abbiamo aggiustato tutto.»
+
+Quindi SPENTA, non tolta: parametro `menu_simple_recipes_enabled`, default false, nel
+catalogo dei parametri con scritto PERCHÉ è spenta e cosa deve succedere prima di
+riaccenderla — quel pool deve filtrare per dieta e leggere i tag allergene. Si riaccende
+dai Parametri, anche per singola dieta, senza un rilascio. Cancellare il codice avrebbe
+voluto dire rifarlo da zero; lasciarlo acceso avrebbe voluto dire lasciare il difetto.
+
+QUELLO CHE NON È RISOLTO, E VA DETTO
+
+L'interruttore NELL'APP resta visibile. Una cliente può accenderlo e non succede niente:
+è un interruttore che non accende nulla, ed è precisamente quello che questo progetto
+chiama un difetto. Toglierlo richiede un rilascio dell'app, e non è questa consegna. Nel
+frattempo chi ha la preferenza accesa mentre la funzione è spenta finisce in un log, così
+il numero si sa invece di immaginarlo.
+
+MISURATO
+- 5814 test verdi in quattro modalità (default, TZ=Europe/Rome, notte, e le due insieme).
+- Le due prove che misuravano la funzione ACCESA adesso accendono il parametro, come
+  farebbe Simone dai Parametri: misurano la stessa cosa di prima.
+- Due prove nuove, ed è la coppia che conta: spenta la colazione resta quella del piano,
+  accesa arriva il piatto semplice. Senza la prima, togliere il `&& simpliciAbilitate`
+  dal servizio avrebbe lasciato tutto verde e riacceso la preferenza in silenzio su tutte.
+- Quattro mutazioni provate, tutte uccise.
+- Nessuna migrazione: il parametro nasce dal catalogo, non da una colonna.
+
+⚠️ QUELLO CHE QUESTA CONSEGNA NON FA, e resta aperto dalla stessa mattinata:
+- il motore che CERCA UN'ALTERNATIVA invece di bloccare (richiesta di Simone, la prossima);
+- `swapDislikedDishes` gira DOPO la guardia e non legge le allergie: `diag:allergeni-piatto`
+  ha trovato 1 cliente e 3 pasti col proprio allergene già in menu. Quello sbaglia
+  nell'altro verso, e viene prima di tutto il resto.

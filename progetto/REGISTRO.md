@@ -18,6 +18,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-08-31
+
+- `[Sviluppo]` **La preferenza «ricette semplici» è spenta: pescava da tutto il catalogo senza
+  guardare gli allergeni.** ⛔ Patrizia, menu del rientro fermo: `prova:erogazione` passa diciannove
+  cancelli su venti e si ferma su «Piano bloccato». Ma i piatti che la bloccavano **non erano della
+  sua dieta** — «Biscotti d'Avena e Banana» è della «Flexitariana», lei è sulla «Mediterranea senza
+  glutine». Arrivavano da `buildSimpleSlotPool`, che pesca
+  `where: { regime, active, difficulty: 'semplice', mealSlot }` — **nessun filtro sulla dieta** — e
+  non mette `allergens` nel `select`: la sua sicurezza è fatta di sole **parole**, quindi un piatto
+  col tag Glutine che il glutine non lo nomina passa, entra nella giornata, e due righe dopo la
+  guardia lo vede e **ferma tutta l'erogazione**. ⚠️ Il difetto non era il catalogo della sua dieta:
+  era questo pool, e per mezza mattinata l'abbiamo cercato dalla parte sbagliata — anche perché la
+  pagina Catalogo, filtrata per dieta, quei piatti non li mostra affatto.
+  ✅ **Decisione di Simone**: *«facciamo in modo che quell'interruttore non comandi nulla, per il
+  momento disattiviamo la sua funzione, poi la riattiviamo quando abbiamo aggiustato tutto»*.
+  Quindi **spenta, non tolta**: `menu_simple_recipes_enabled`, default `false`, nel catalogo dei
+  parametri con scritto **perché** è spenta e **cosa deve succedere prima** di riaccenderla — quel
+  pool deve filtrare per dieta e leggere i tag. Si riaccende dai Parametri, anche per singola dieta,
+  senza un rilascio.
+  ⚠️ **Quello che resta storto e va detto**: l'interruttore **nell'app** resta visibile e non fa più
+  niente — un interruttore che non accende nulla, che è precisamente quello che questo progetto
+  chiama un difetto. Toglierlo vuole un rilascio dell'app. Nel frattempo chi ha la preferenza accesa
+  mentre la funzione è spenta finisce in un **log**, così il numero si sa invece di immaginarlo.
+  5814 test verdi in quattro modalità; quattro mutazioni provate, tutte uccise; nessuna migrazione.
+  ⚠️ **E la cosa più grave della giornata non è questa**: `diag:allergeni-piatto` ha trovato **1
+  cliente e 3 pasti** col proprio allergene già in menu — gamberoni a una allergica ai crostacei.
+  Il caso Patrizia sbaglia per eccesso di prudenza (non eroga); quello sbaglia nell'altro verso, e
+  viene prima di tutto il resto.
+
 ## 2026-08-28
 
 - `[Sviluppo]` **Prima di chiudere il cancello alla commerciale: chi è, da dove entra, e su quante

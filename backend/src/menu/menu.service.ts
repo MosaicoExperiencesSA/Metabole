@@ -1251,6 +1251,39 @@ export class MenuService {
       // livelli della dieta. Attivo di default; disattivabile globalmente o per dieta.
       this.configParams.getBool('menu_kcal_need_enabled', true),
     ]);
+    /**
+     * ⛔ **«RICETTE SEMPLICI» È SPENTA — decisione di Simone, 31/8, caso Patrizia.**
+     *
+     * La preferenza pescava i piatti «semplice» con questa query (`buildSimpleSlotPool`):
+     *
+     *     where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slots } }
+     *     select: { id, name, kcal, mealSlot, ingredients }
+     *
+     * Due buchi, tutti e due nella stessa riga. **Nessun filtro sulla dieta**: pesca da tutto il
+     * catalogo del regime, quindi a una cliente sulla «Mediterranea senza glutine» arrivavano
+     * biscotti della «Flexitariana». E **`allergens` non è nel `select`**: il filtro di sicurezza di
+     * quel pool guarda solo le PAROLE di nome e ingredienti, quindi un piatto col tag Glutine che il
+     * glutine non lo nomina passa, entra nella giornata, e due righe dopo `evaluateMeals` lo vede e
+     * **ferma tutta l'erogazione**.
+     *
+     * ⚠️ È esattamente quello che è successo a Patrizia il 31/8: sette allergie, il menu del rientro
+     * fermo, e i piatti incriminati non erano nemmeno della sua dieta. Il difetto non era il suo
+     * catalogo — era questo pool.
+     *
+     * ⛔ **Spenta di default, non tolta.** La preferenza resta un'idea giusta: si riaccende dai
+     * Parametri il giorno che quel pool filtra per dieta e legge i tag. Cancellare il codice
+     * vorrebbe dire rifarlo da zero; lasciarlo acceso vorrebbe dire lasciare il difetto.
+     *
+     * ⚠️ **E l'interruttore nell'app resta visibile**, perché toglierlo richiede un rilascio
+     * dell'app. Finché non si fa, una cliente può accenderlo e non succede niente: è un interruttore
+     * che non accende nulla, e va detto invece di lasciarlo scoprire. Il log qui sotto conta quante
+     * volte capita.
+     */
+    const simpliciAbilitate = pickBoolOverride(
+      overrides,
+      'menu_simple_recipes_enabled',
+      await this.configParams.getBool('menu_simple_recipes_enabled', false),
+    );
     // VARIETÀ (garanzia percepita dalla cliente): distanza minima, in giorni, prima che lo
     // stesso piatto possa tornare nello STESSO slot. Se esiste un'alternativa nel pool entro
     // la tolleranza kcal, si usa quella. 0 = guard disattivato.
@@ -1392,7 +1425,13 @@ export class MenuService {
     // (cucina italiana), entro la tolleranza kcal e rispettando le esclusioni. La rotazione
     // per giorno fa alternare i piatti semplici tra loro e con quelli esistenti quando il pool
     // è limitato. La sicurezza resta garantita da evaluateMeals subito sotto.
-    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes) {
+    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes && !simpliciAbilitate) {
+      this.logger.log(
+        `Ricette semplici: ${clientId} ha la preferenza ACCESA ma la funzione è spenta `
+        + '(`menu_simple_recipes_enabled`). Il menu si compone dalle giornate della sua dieta.',
+      );
+    }
+    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes && simpliciAbilitate) {
       const slots = [...new Set(templates.flatMap((t) => ((t.meals as { slot: string }[]) ?? []).map((m) => m.slot)))];
       const excludeTerms = [
         ...(((profile as { allergies?: string[] }).allergies) ?? []),

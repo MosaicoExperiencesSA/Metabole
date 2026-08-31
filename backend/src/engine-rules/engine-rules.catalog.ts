@@ -37,6 +37,22 @@ export const ENGINE_RULES: EngineRule[] = [
   // composizione DayCombo: chi cambiava il valore globale credeva di spostare le calorie dei
   // menu e non spostava niente.
   { code: 'menu_daycombo_kcal_target', label: 'Kcal target delle bozze generate', description: 'Taglia calorica della giornata usata dal GENERATORE di catalogo quando scrive una bozza. Non cambia i menu già erogati: quelli seguono il fabbisogno della cliente (o i livelli della dieta).', category: 'macro', kind: 'number', default: 1500, min: 600, max: 4000, step: 10, unit: 'kcal', perDiet: true },
+  {
+    code: 'menu_simple_recipes_enabled',
+    label: 'Preferenza «ricette semplici» attiva',
+    description:
+      '⛔ SPENTA dal 31/8 (caso Patrizia). Quando è accesa, alle clienti che hanno scelto «ricette '
+      + 'semplici» in app il motore sostituisce i piatti con quelli marcati «Semplice». ⚠️ Ma quel '
+      + 'pool pesca da TUTTO il catalogo del regime, senza filtrare per dieta, e non legge i tag '
+      + 'allergene: a una cliente sulla «Mediterranea senza glutine» arrivavano piatti della '
+      + '«Flexitariana», e uno col tag Glutine fermava l\'intera erogazione. Si riaccende quando quel '
+      + 'pool filtra per dieta e guarda gli allergeni — non prima. ⚠️ Finché è spenta, '
+      + 'l\'interruttore nell\'app resta visibile e non fa niente.',
+    category: 'macro',
+    kind: 'boolean',
+    default: false,
+    perDiet: true,
+  },
   { code: 'menu_kcal_need_enabled', label: 'Menu "a necessità" (kcal dal fabbisogno)', description: 'Se attivo, le calorie del menu vengono dal fabbisogno calcolato sul profilo della cliente (Mifflin + attività − deficit dell\'obiettivo, con soglie di sicurezza). Se spento, si usano le kcal del livello dichiarate nella dieta.', category: 'macro', kind: 'boolean', default: true, perDiet: true },
   { code: 'menu_daycombo_protein_min', label: 'Quota proteica minima', description: 'Frazione minima di proteine sui macro della giornata (0–1). Es. 0,20 = 20%.', category: 'macro', kind: 'number', default: 0.2, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },
   { code: 'menu_daycombo_protein_max', label: 'Quota proteica massima', description: 'Frazione massima di proteine sui macro della giornata (0–1). Es. 0,40 = 40%.', category: 'macro', kind: 'number', default: 0.45, min: 0, max: 1, step: 0.01, unit: 'frazione', perDiet: true },

@@ -1374,7 +1374,13 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
     meals: [{ slot: 'breakfast', recipeId: c }, { slot: 'lunch', recipeId: 'l-fisso' }, { slot: 'dinner', recipeId: 'd-fisso' }],
   });
 
-  function build(simplePool: ReturnType<typeof simple>[]) {
+  /**
+   * ⚠️ **`accesa` esiste dal 31/8**: la preferenza «ricette semplici» è spenta di default
+   * (`menu_simple_recipes_enabled`), quindi queste prove — che misurano cosa fa la funzione
+   * QUANDO è attiva — devono accenderla, come farebbe Simone dai Parametri. La prova che il
+   * contrario funzioni (spenta ⇒ il pool non si applica) è l'ultima del blocco.
+   */
+  function build(simplePool: ReturnType<typeof simple>[], accesa = true) {
     const all = [...dietRecipes, ...simplePool];
     const prisma: any = {
       productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
@@ -1408,7 +1414,8 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 2 } as Record<string, number>)[k] ?? def),
       ),
-      getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+      getBool: jest.fn((k: string, def?: boolean) =>
+        Promise.resolve(k === 'menu_simple_recipes_enabled' ? accesa : (def ?? false))),
     };
     const { DayComboService } = require('./day-combo.service');
     const service = new MenuService(
@@ -1438,6 +1445,33 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
     const b = breakfastsOf(prisma);
     expect(new Set(b).size).toBe(2);
     expect(b.every((id: string) => id === 's1' || id === 's2')).toBe(true);
+  });
+
+  /**
+   * ⛔ **L'INTERRUTTORE SPENTO — decisione di Simone, 31/8, dopo il caso Patrizia.**
+   *
+   * Il pool «semplici» pesca `where: { regime, active, difficulty, mealSlot }`: **nessun filtro
+   * sulla dieta**, e `allergens` non è nel `select`. A Patrizia arrivavano biscotti della
+   * «Flexitariana» col tag Glutine, e la guardia fermava tutta l'erogazione — menu del rientro a
+   * zero. Finché quel pool non filtra per dieta e non guarda i tag, la funzione resta giù.
+   *
+   * ⚠️ Questa prova è l'unica che vede la differenza per davvero: se qualcuno togliesse il
+   * `&& simpliciAbilitate` dal servizio, le prove qui sopra resterebbero verdi — misurano la
+   * funzione *accesa* — e la preferenza tornerebbe attiva in silenzio su tutte le clienti.
+   */
+  it('⛔ con `menu_simple_recipes_enabled` SPENTO la colazione resta quella del piano', async () => {
+    const { service, prisma } = build([simple('s1', 'Pane, burro e marmellata')], false);
+    await service.deliverIfEligible('cli');
+    // Senza il pool semplici la colazione è quella della giornata a catalogo: c1 e c2, non s1.
+    const colazioni = breakfastsOf(prisma);
+    expect(colazioni.length).toBeGreaterThan(0);
+    expect(colazioni).not.toContain('s1');
+  });
+
+  it('⚠️ e con l\'interruttore ACCESO la stessa chiamata la usa: l\'interruttore comanda davvero', async () => {
+    const { service, prisma } = build([simple('s1', 'Pane, burro e marmellata')], true);
+    await service.deliverIfEligible('cli');
+    expect(breakfastsOf(prisma)).toContain('s1');
   });
 });
 

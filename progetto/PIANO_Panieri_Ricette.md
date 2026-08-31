@@ -4,6 +4,7 @@
 **Domande e risposte:** 15 domande poste il 26/8, tutte risposte fra il 26 e il 27/8.
 **Misura di partenza:** `npm run diag:settimane` sul database di produzione, 27/8/2026.
 **Stato:** piano da approvare. **Nessuna riga di codice scritta.**
+**⚠️ Le decisioni di Simone del 31/8 stanno in `progetto/DECISIONI_Panieri.md`** — 25 risposte, e alcune cambiano questo foglio (il passaggio clienti è massivo e automatico, non uno per uno; il senza glutine entra nel piano; niente stato bozza sui panieri). In caso di disaccordo fra i due fogli, vale quello delle decisioni.
 
 > ⚠️ Questo foglio si legge prima di aprire il primo lavoro. Se una decisione qui dentro
 > cambia, cambia il piano — non si aggiusta a valle.

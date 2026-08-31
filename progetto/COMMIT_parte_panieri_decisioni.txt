@@ -1,0 +1,50 @@
+=== PARTE: panieri — le 25 decisioni del 31/8 + il foglio per il capo nutrizionista ===
+(sessione Cowork del 31/8/2026 — solo documenti, nessuna riga di codice)
+
+SUMMARY
+I panieri: venticinque decisioni prese, e il foglio che aspetta una firma
+
+DESCRIPTION
+Il piano del 27/8 era completo ma fermo: elencava quattro cose da decidere prima della Fase 1, due
+bloccanti. Giro di domande a Simone, una alla volta — 25 risposte, ora in
+progetto/DECISIONI_Panieri.md, che da oggi è la fonte. In cima al piano c'è il rimando: dove i due
+fogli si contraddicono, vale quello delle decisioni.
+
+Due risposte ribaltano il piano. Il passaggio delle clienti non è più «uno per uno» (26/8): è
+massivo e automatico a lavoro finito, poi il vecchio si archivia — archiviare e non cancellare,
+perché i MenuDay sono snapshot. E per le tre famiglie dove la destinazione non si deduce — Vegana,
+Vegetariana, Digiuno 16:8 — la conversione porta tutte su Mediterranea, regime e struttura
+invariati: nessuna cliente cambia stile, cambia il nome sotto cui è archiviata. Si userà
+`npm run rinomina:prodotto`, mai una updateMany scritta al momento: dietFamily contiene il NOME.
+
+Le altre, in breve: allergeni dedotti dagli ingredienti (uno solo non classificabile ferma la
+ricetta); spuntino e merenda intercambiabili, elenco unico da 168 senza tag; il ripiego kcal allarga
+la banda e lo dice, mai «non eroga»; coppia pranzo/cena mai la stessa, con la salvaguardia che
+allenta invece di bloccare; mantenimento sullo stesso paniere; pescetariano derivato e acceso subito,
+col filtro «contiene pesce e NON contiene carne»; flexitariano come ProductRule (carne 3 volte,
+pesce libero); Keto×vegano bloccata nella scheda cliente; Ritorno in Equilibrio prima il risultato
+poi il gusto, e se lo storico non copre il mese si completa dal paniere; Vacanze: si controlla alla
+pesata e non con un cron, soglia 3 kg, con parametri SEPARATI (i 4 giorni non possono riusare
+monitoring_rientro_days, che governa anche il monitoraggio post-percorso); pagina `panieri` in
+lettura a tutte e modifica a capo+admin; niente stato bozza, il paniere è sempre vivo; senza glutine
+dentro il piano; nome per la cliente composto da famiglia + regime.
+
+Una risposta con il dissenso agli atti: la cliente su Digiuno 16:8 (28 giornate, 12 pranzi diversi)
+non si sposta e aspetta il passaggio massivo. Sono settimane di menu visibilmente povero: se scrive,
+si sposta in giornata.
+
+In consegna anche Metabole_Allergeni_Firma_Nocanty.md/.pdf, due pagine per il capo nutrizionista sul
+modello del foglio dei grassi: una firma richiesta (come si decidono gli allergeni) e tre informative
+su cui può obiettare finché costa poco. Il foglio dichiara i tre limiti veri, contaminazioni comprese:
+il sistema legge ingredienti, non processi.
+
+Nessuna migrazione, nessun test toccato: Paniere e PaniereRicetta non esistono ancora. Restano aperti
+tre numeri — la firma di Nocanty, la Fase 0 (Copertura catalogo + diag:allergeni), e diag:kcal prima
+di toccare la tolleranza.
+
+FILE
+- progetto/DECISIONI_Panieri.md (nuovo: le 25 risposte, e cosa resta aperto)
+- progetto/Metabole_Allergeni_Firma_Nocanty.md (nuovo: il foglio per il capo nutrizionista)
+- progetto/Metabole_Allergeni_Firma_Nocanty.pdf (nuovo: la versione da mandargli)
+- progetto/PIANO_Panieri_Ricette.md (rimando in cima al foglio delle decisioni)
+- progetto/REGISTRO.md (voce del 31/8)
