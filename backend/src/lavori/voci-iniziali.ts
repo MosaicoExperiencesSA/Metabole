@@ -175,6 +175,53 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'prima di rileggerlo — una cosa che oggi non capita non è una cosa che non può capitare.',
   },
   {
+    chiave: 'i-latti-vegetali-spariscono-a-chi-serve',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: false,
+    nata: '2026-08-31T20:30',
+    titolo: '⛔ «latte di cocco» conta come latte: i sostituti vegetali spariscono dal piano proprio di chi ha l\'allergia',
+    dettaglio:
+      'Trovato il 31/8 misurando, prima di scrivere la somma degli allergeni. Verificato su **tutte e '
+      + 'due le porte** — il tag della ricetta (`suggestAllergens`) e il filtro che toglie il piatto dal '
+      + 'piano (`hitsExclusion`), che leggono le stesse liste:\n\n'
+      + '```\n'
+      + 'latte di cocco      → latte              tolto a chi esclude il latte\n'
+      + 'latte di soia       → soia, latte        tolto a chi esclude il latte\n'
+      + 'latte di mandorla   → latte, frutta a guscio\n'
+      + 'burro di arachidi   → arachidi, LATTE    tolto a chi esclude il latte\n'
+      + 'burro di mandorle   → latte, frutta a guscio\n'
+      + 'burro di cacao      → latte\n'
+      + 'burro di sesamo     → sesamo, LATTE\n'
+      + 'noce moscata        → frutta a guscio    tolta a chi è allergico alle noci\n'
+      + 'noce di cocco       → frutta a guscio\n'
+      + '```\n\n'
+      + '⛔ **È il contrario della protezione.** I latti vegetali e i burri di frutta secca sono '
+      + 'esattamente quello che una cliente allergica al latte deve poter mangiare — e sono proprio i '
+      + 'piatti che il motore le toglie. La noce moscata è una spezia, non frutta a guscio: '
+      + '`diag:fase0` la trova in **423** ricette.\n\n'
+      + '⚠️ **E non si vede.** Un allergene di troppo non produce nessun errore: produce un menu più '
+      + 'povero, su una persona che ha già meno scelta di tutte le altre, e che non ha modo di sapere '
+      + 'che quel piatto esisteva. È la forma di difetto che questo progetto ha imparato a temere di '
+      + 'più — quella che sbaglia in silenzio dalla parte che sembra prudente.\n\n'
+      + '**Come si chiude**: `PAROLE_CHE_NON_SONO` funziona sulla singola PAROLA («bovino» per '
+      + '«vino»), e qui la parola è identica alla chiave — «latte di cocco» contiene «latte» e basta. '
+      + 'Serve un elenco di **frasi** (chiave → frasi che la contengono ma non sono lei), letto da '
+      + 'tutte e due le porte: una copia sola, come `hitsExclusion`.\n\n'
+      + '⛔ **Elenco chiuso e giustificato voce per voce, non una regola tipo «burro di X»**: `burro '
+      + 'chiarificato` e `ghee` SONO latte, e `panna vegetale` e `formaggio vegano` restano fuori '
+      + 'apposta — molti prodotti in commercio contengono caseinato, cioè proteina del latte. ⚠️ Qui '
+      + 'l\'errore si fa nella direzione opposta e arriva davvero addosso a qualcuno: si toglie '
+      + 'un\'esclusione solo dove si sa.\n\n'
+      + '⚠️ **Prima i numeri**: `npm run diag:allergeni-mancanti` stampa, per ogni allergene, gli '
+      + 'ingredienti che lo fanno scattare e su quante ricette. `exclusions.ts` ha una regola scritta '
+      + 'apposta — le omonime nascono dalla diagnostica, non a mente — e vale anche qui.\n\n'
+      + '⛔ **Blocca la somma degli allergeni** (decisione 1, la via di mezzo): sommare adesso vorrebbe '
+      + 'dire scrivere questi falsi su ventitremila ricette, e da lì non si tornerebbe più indietro '
+      + 'sapendo quali erano giusti.',
+  },
+  {
     chiave: 'allergeni-deducibili-i-due-numeri',
     categoria: 'Da fare — codice',
     ordine: 0,

@@ -91,7 +91,12 @@ async function main() {
   const esempiGuadagno: string[] = [];
   const esempiFermate: string[] = [];
   const esempiPreparazioni: string[] = [];
-  /** Già confermate a mano: la deduzione non le tocca, ma se non torna vale la pena guardarle. */
+  /**
+   * Col contrassegno acceso. ⚠️ **Non** «guardate da una persona una per una»: `allergensReviewed`
+   * comprende le conferme in blocco del 19/8, dove gli allergeni li aveva scritti il riconoscitore.
+   * Chiamarlo «confermate a mano» — come faceva la prima stesura — fa concludere a chi legge che
+   * qualcuno le abbia viste, e su un numero che riguarda gli allergeni è la bugia peggiore possibile.
+   */
   let confermate = 0;
   let confermateChePassano = 0;
   let confermateCheNonTornano = 0;
@@ -213,7 +218,10 @@ async function main() {
     riga(`  · ${String(n).padStart(5)}  ${allergenLabel(c)}`);
   }
   riga('');
-  riga(`  Ricette già confermate A MANO: ${confermate}.`);
+  riga(`  Ricette col contrassegno di verifica acceso: ${confermate}.`);
+  riga('  ⛔ Qui c\'era scritto «confermate A MANO», ed era una bugia comoda: `allergensReviewed`');
+  riga('  comprende le conferme IN BLOCCO del 19/8, dove gli allergeni li aveva scritti il');
+  riga('  riconoscitore. Chi leggeva concludeva che qualcuno le avesse guardate. Corretta il 31/8.');
   riga(`  · di queste, ${confermateChePassano} passano la deduzione e si possono confrontare;`);
   riga(`  · ${confermate - confermateChePassano} SI FERMANO, quindi con la deduzione non si confrontano affatto;`);
   riga(`  · fra quelle confrontate, ${confermateCheNonTornano} non tornano.`);

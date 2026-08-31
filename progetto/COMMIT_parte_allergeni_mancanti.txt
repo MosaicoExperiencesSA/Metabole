@@ -1,0 +1,67 @@
+=== PARTE: quali allergeni mancano, e per colpa di chi ===
+
+SUMMARY
+Prima di sommare gli allergeni su ventitremila ricette: uno script di sola lettura che dice quante cambierebbero e QUALE ingrediente l'ha fatto scattare — e la scoperta che i latti vegetali spariscono dal piano di chi è allergico al latte
+
+DESCRIPTION
+Il punto 1 della decisione del 31/8 (la via di mezzo) dice che gli allergeni di una ricetta sono la
+SOMMA di quelli dichiarati e di quelli dedotti dagli ingredienti. Prima di scrivere quella somma su
+23.357 ricette servono due cose. Questa consegna è la seconda, ed è quella che conta di più.
+
+⛔ AGGIUNGERE UN ALLERGENE TOGLIE UN PIATTO A QUALCUNO. Uno giusto in più è una persona protetta;
+uno sbagliato in più è un piatto che sparisce dal piano di qualcuno per un errore, e nessuno lo
+saprà mai. Quindi il tabulato non dice solo «473 ricette guadagnerebbero i solfiti»: dice **con
+quale ingrediente**, e quante volte. È l'unico modo di vedere i falsi PRIMA di scriverli — ed è la
+regola che `exclusions.ts` ha già scritta: le omonime nascono dalla diagnostica, non a mente.
+
+⛔ E IL PRIMO FALSO L'HO TROVATO PROPRIO COSÌ, prima di scrivere una riga. Verificato su tutte e due
+le porte — il tag della ricetta e il filtro che toglie il piatto dal piano, che leggono le stesse
+liste:
+
+  latte di cocco      → latte              tolto a chi esclude il latte
+  latte di soia       → soia, LATTE        tolto a chi esclude il latte
+  latte di mandorla   → LATTE, frutta a guscio
+  burro di arachidi   → arachidi, LATTE    tolto a chi esclude il latte
+  burro di mandorle   → LATTE, frutta a guscio
+  burro di cacao      → LATTE
+  burro di sesamo     → sesamo, LATTE
+  noce moscata        → frutta a guscio    tolta a chi è allergico alle noci (423 ricette)
+  noce di cocco       → frutta a guscio
+
+⛔ È il contrario della protezione. I latti vegetali e i burri di frutta secca sono esattamente
+quello che una cliente allergica al latte deve poter mangiare — e sono proprio i piatti che il
+motore le toglie. La noce moscata è una spezia.
+
+⚠️ E non si vede: un allergene di troppo non produce nessun errore, produce un menu più povero su
+una persona che ha già meno scelta di tutte le altre, e che non ha modo di sapere che quel piatto
+esisteva. È la forma di difetto che sbaglia in silenzio dalla parte che sembra prudente.
+
+⛔ Per questo la somma NON si fa ancora: scriverla adesso vorrebbe dire mettere questi falsi su
+ventitremila ricette, e da lì non si torna più indietro sapendo quali erano giusti. La correzione ha
+la sua voce, bloccante, con scritto come si chiude — un elenco di FRASI (la parola non basta: «latte
+di cocco» contiene «latte» e basta), letto da tutte e due le porte, chiuso e giustificato voce per
+voce. ⚠️ `burro chiarificato` e `ghee` SONO latte; `panna vegetale` e `formaggio vegano` restano
+fuori apposta, perché molti prodotti in commercio contengono caseinato.
+
+⚠️ E UNA MIA ETICHETTA BUGIARDA, CORRETTA. `diag:allergeni-deducibili` stampava «Ricette già
+confermate A MANO: 23312». `allergensReviewed` comprende le conferme IN BLOCCO del 19/8, dove gli
+allergeni li aveva scritti il riconoscitore: chi leggeva concludeva che qualcuno le avesse guardate
+una per una. Su un numero che riguarda gli allergeni è la bugia peggiore possibile. Adesso si chiama
+«col contrassegno di verifica acceso», e sotto c'è scritto perché.
+
+⚠️ Perché non bastava `diag:allergeni-deducibili`: quello guarda solo le ricette che passano il
+riconoscimento degli ingredienti — il 16% del catalogo — perché la sua domanda è «la deduzione può
+decidere da sola?». La SOMMA non ha bisogno di riconoscere gli ingredienti: `suggestAllergens` legge
+i nomi. Quindi qui si guardano tutte le ricette attive, e il numero che ne esce è quello vero.
+
+VERIFICA
+Sola lettura: zero `create`/`update`/`delete`/`executeRaw`, verificato. Gli ingredienti scatenanti
+di una stessa ricetta si contano una volta sola, o un piatto che ripete «uvetta» farebbe sembrare
+quel nome più diffuso di quello che è. 6030 test backend verdi nelle quattro modalità, `nest build`
+e `tsc --noEmit` compresi.
+
+FILE
+- backend/prisma/diag-allergeni-mancanti.ts — nuovo, sola lettura
+- backend/package.json — `npm run diag:allergeni-mancanti`
+- backend/prisma/diag-allergeni-deducibili.ts — l'etichetta corretta
+- backend/src/lavori/voci-iniziali.ts — voce nuova e bloccante sui latti vegetali

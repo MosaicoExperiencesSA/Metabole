@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🥥 **⛔ I latti vegetali spariscono dal piano di chi è allergico al latte — trovato
+  misurando, prima di scrivere la somma degli allergeni.** Verificato su **tutte e due le porte**
+  (il tag della ricetta e il filtro che toglie il piatto): `latte di cocco` → **latte**, `latte di
+  soia` → **latte**, `burro di arachidi` → **latte**, `burro di mandorle` → **latte**, `burro di
+  cacao` → **latte**, `noce moscata` → **frutta a guscio** (423 ricette), `noce di cocco` → idem.
+  ⛔ **È il contrario della protezione**: i latti vegetali e i burri di frutta secca sono
+  esattamente quello che una cliente allergica al latte deve poter mangiare, e sono i piatti che il
+  motore le toglie. ⚠️ E non si vede: un allergene di troppo non produce un errore, produce un menu
+  più povero su una persona che ha già meno scelta di tutte, e che non saprà mai che quel piatto
+  esisteva. **La somma degli allergeni è quindi sospesa**: scriverla adesso metterebbe questi falsi
+  su 23.357 ricette. Consegnato `npm run diag:allergeni-mancanti` (sola lettura), che per ogni
+  allergene stampa **quale ingrediente l'ha fatto scattare** e su quante ricette — è così che questo
+  è saltato fuori, ed è la regola che `exclusions.ts` ha già scritta: le omonime nascono dalla
+  diagnostica, non a mente. ⚠️ Corretta anche un'etichetta mia: «Ricette già confermate A MANO»
+  comprendeva le conferme **in blocco** del 19/8 — su un numero che riguarda gli allergeni era la
+  bugia peggiore possibile.
+
 - `[Prodotto]` ✍️ **Allergeni: la decisione firmata entra nella sua fonte — la via di mezzo, non C
   secco.** Il foglio di Nocanty è tornato firmato, e ⚠️ la casella di Q1 si legge in due modi: a
   occhio sembra **B**, nel PDF la X sta dove stava la casella di **C**. ⛔ **C e A si comportano
