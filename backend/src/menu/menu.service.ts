@@ -18,6 +18,7 @@ import {
 } from '../coach-tasks/pasti-non-serviti';
 import { attendeIlViaLiberaClinico, statoSupervisione, type ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
 import { riparaGiornate } from './ripara-giornata';
+import { cercaUnAlternativa } from './cerca-un-alternativa';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
@@ -1459,7 +1460,52 @@ export class MenuService {
     // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
     // pasto (il piatto si eroga). Se un'INTOLLERANZA non è sostituibile → NON si eroga:
     // blocco + escalation al nutrizionista (la coach la vede via Alert engine).
-    const { violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals), vietatiDieta);
+    const primaGuardia = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals), vietatiDieta);
+    let violations = primaGuardia.violations;
+    let subsByRecipe = primaGuardia.subsByRecipe;
+    const nonSicure = primaGuardia.nonSicure;
+
+    /**
+     * ⛔ **PRIMA DI BLOCCARE, SI CERCA UN'ALTERNATIVA** (Simone, 31/8: *«il sistema deve cercare
+     * un'alternativa ed erogare il menu, altrimenti non è un sistema pensante»*).
+     *
+     * Il caso Patrizia: giornata a catalogo con dentro tre piatti che lei non può mangiare, e nel
+     * pool — già ripulito — un'alternativa sicura per **ogni** pasto. Il motore si fermava lo
+     * stesso, e la cliente restava senza menu per un piatto su cinque.
+     *
+     * ⚠️ **Questo ramo entra SOLO dove prima si usciva con `return []`.** Il confronto non è «piatto
+     * vecchio contro piatto nuovo»: è **un piatto contro nessun menu**. Per una cliente la cui
+     * giornata è già sicura non viene nemmeno eseguito.
+     *
+     * ⛔ E la guardia **si rifà** sui pasti sostituiti: la sostituzione non è una scorciatoia intorno
+     * al controllo, è un tentativo che deve superare lo stesso controllo di prima. Se dopo il
+     * tentativo resta anche una sola violazione, si blocca come sempre — con i motivi di **adesso**,
+     * non con quelli di prima.
+     */
+    if (violations.length && ctx) {
+      const esito = cercaUnAlternativa(daySnapshots, nonSicure, ctx, kcalTolPct / 100);
+      if (esito.sostituzioni.length) {
+        for (const day of daySnapshots) {
+          day.meals = await this.snapshotMeals(day.meals.map((m) => ({ slot: m.slot, recipeId: m.recipeId })) as never);
+        }
+        const fuoriBanda = esito.sostituzioni.filter((x) => x.fuoriBanda).length;
+        this.logger.warn(
+          `Alternativa trovata: ${esito.sostituzioni.length} pasti di ${clientId} avevano a catalogo una `
+          + `ricetta che lei non può mangiare e sono stati sostituiti dal pool`
+          + (fuoriBanda ? `; ${fuoriBanda} fuori dalla banda calorica (la sicurezza viene prima)` : '')
+          + '. ⚠️ Il catalogo di questa dieta va guardato: `npm run diag:esclusioni`.',
+        );
+        ({ violations, subsByRecipe } = await this.evaluateMeals(clientId, daySnapshots.flatMap((d) => d.meals), vietatiDieta));
+      }
+      if (esito.senzaAlternativa.length) {
+        this.logger.warn(
+          `Alternativa NON trovata per ${esito.senzaAlternativa.length} pasti di ${clientId} `
+          + `(slot: ${[...new Set(esito.senzaAlternativa.map((x) => x.slot))].join(', ')}): per quel pasto `
+          + 'il pool non ha NIENTE di sicuro. Qui il blocco è l\'unica risposta onesta.',
+        );
+      }
+    }
+
     if (violations.length) {
       await this.ensureDietBlockedEscalation(clientId, violations);
       return [];
@@ -2764,10 +2810,31 @@ export class MenuService {
   ): Promise<{ from: string; to: string }[]> {
     const dl = dislikes.map((s) => s.toLowerCase().trim()).filter((s) => s.length >= 2);
     if (!dl.length) return [];
+    /**
+     * ⛔ **`allergies` MANCAVA QUI, e questo pezzo gira DOPO la guardia.** Trovato il 31/8 con
+     * `diag:allergeni-piatto`: **Sonia** — allergica a crostacei, pesce, solfiti, lupini, molluschi
+     * e soia, e **senza intolleranze** — aveva in menu «Gamberoni al cartoccio», con la parola
+     * *crostacei* e il tag confermato.
+     *
+     * Il come è tutto in tre righe. Questo `select` non chiedeva `allergies`, quindi l'insieme
+     * `excluded` qui sotto non le conteneva; il candidato si giudicava sul **testo** e i tag
+     * allergene non si leggevano affatto; e `swapDislikedDishes` viene chiamato **dopo**
+     * `evaluateMeals`, senza nessun secondo controllo. Risultato: la guardia approvava la giornata,
+     * poi questo pezzo ci infilava dentro un piatto col suo allergene, e nessuno lo fermava più.
+     *
+     * ⚠️ **È il verso pericoloso.** Il caso Patrizia, lo stesso giorno, sbaglia per eccesso: non
+     * eroga. Questo eroga, e mette un allergene nel piatto di una persona.
+     *
+     * ✅ Adesso il giudizio su un candidato è **la stessa `valutaRicetta` della guardia**, con le
+     * stesse esclusioni: *se due punti rispondono alla stessa domanda, uno deve chiamare l'altro*.
+     * Il filtro per testo resta sopra — è più largo sui non graditi — ma non è più l'unico.
+     */
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { regime: true, intolerances: true, dislikedFoods: true },
+      select: { regime: true, allergies: true, intolerances: true, dislikedFoods: true },
     });
+    /** Le esclusioni vere della cliente, allergie comprese: le stesse che legge `evaluateMeals`. */
+    const esclusioni = esclusioniDi(profile as ProfiloConEsclusioni | null);
     // Un piatto alternativo non deve contenere NIENTE di escluso (né il cibo indicato,
     // né gli altri non graditi, né le parole chiave delle intolleranze).
     const excluded = new Set<string>();
@@ -2794,10 +2861,19 @@ export class MenuService {
       mealRecipes.map((r) => [r.id, (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' ')).toLowerCase()]),
     );
 
-    type Cand = { id: string; name: string; kcal: number; ingredients: unknown };
+    type Cand = { id: string; name: string; kcal: number; ingredients: unknown; allergens?: string[] };
     const acceptable = (c: Cand) => {
       const txt = (c.name + ' ' + (((c.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
-      return !hitsExclusion(txt, excluded);
+      if (hitsExclusion(txt, excluded)) return false;
+      /**
+       * ⛔ **E il giudizio di sicurezza è quello della guardia, non un secondo elenco.** Legge il
+       * nome, gli ingredienti **e i tag allergene confermati** — che il filtro per testo qui sopra
+       * non può vedere: un piatto col tag Glutine che il glutine non lo nomina passerebbe.
+       */
+      return valutaRicetta(
+        { id: c.id, name: c.name, ingredients: c.ingredients, allergens: c.allergens ?? [] } as never,
+        esclusioni,
+      ).violations.length === 0;
     };
     // Due livelli, interrogati solo quando servono: prima la dieta, poi il catalogo.
     const fromDietBySlot = new Map<string, Cand[]>();
@@ -2814,7 +2890,9 @@ export class MenuService {
         const rows = ids.length
           ? ((await this.prisma.recipe.findMany({
               where: { id: { in: ids }, active: true },
-              select: { id: true, name: true, kcal: true, ingredients: true },
+              // ⚠️ `allergens` va CHIESTO: senza, `valutaRicetta` guarda un elenco vuoto e il
+              // controllo qui sopra diventa una decorazione.
+              select: { id: true, name: true, kcal: true, ingredients: true, allergens: true },
               orderBy: { id: 'asc' },
             })) as Cand[])
           : [];
@@ -2826,7 +2904,7 @@ export class MenuService {
         if (!fromCatalogBySlot.has(m.slot)) {
           const rows = (await this.prisma.recipe.findMany({
             where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
-            select: { id: true, name: true, kcal: true, ingredients: true },
+            select: { id: true, name: true, kcal: true, ingredients: true, allergens: true },
             orderBy: { id: 'asc' },
           })) as Cand[];
           fromCatalogBySlot.set(m.slot, rows.filter(acceptable));
@@ -3394,7 +3472,7 @@ export class MenuService {
     clientId: string,
     meals: MealSnapshot[],
     extraDisliked: string[] = [],
-  ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]> }> {
+  ): Promise<{ violations: string[]; subsByRecipe: Record<string, Substitution[]>; nonSicure: Set<string> }> {
     const profile = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
       select: { intolerances: true, dislikedFoods: true, allergies: true },
@@ -3420,10 +3498,10 @@ export class MenuService {
      * fra i due sarebbe una cliente ferma senza che nessuno capisca perché.
      */
     const esclusioni = esclusioniDi(profile as ProfiloConEsclusioni | null, extraDisliked);
-    if (esclusioni.vuoto) return { violations: [], subsByRecipe: {} };
+    if (esclusioni.vuoto) return { violations: [], subsByRecipe: {}, nonSicure: new Set<string>() };
 
     const recipeIds = [...new Set(meals.map((m) => m.recipeId))];
-    if (!recipeIds.length) return { violations: [], subsByRecipe: {} };
+    if (!recipeIds.length) return { violations: [], subsByRecipe: {}, nonSicure: new Set<string>() };
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: recipeIds } },
       select: { id: true, name: true, ingredients: true, allergens: true },
@@ -3455,9 +3533,17 @@ export class MenuService {
     let grassiSenzaNumero = 0;
 
     const violations = new Set<string>();
+    /**
+     * ⚠️ **Gli id, non solo i messaggi** (31/8). Prima di qui usciva solo l'elenco delle frasi da
+     * scrivere nella segnalazione: chi voleva **sostituire** il piatto invece di bloccarlo doveva
+     * rifare la stessa valutazione da capo — cioè una seconda risposta alla stessa domanda. Adesso
+     * chi ha giudicato dice anche **su chi**.
+     */
+    const nonSicure = new Set<string>();
     const subsByRecipe: Record<string, Substitution[]> = {};
     for (const r of recipes) {
       const esito = valutaRicetta(r, esclusioni);
+      if (esito.violations.length) nonSicure.add(r.id);
       for (const v of esito.violations) violations.add(v);
       if (!esito.subs.length) continue;
       const ingredienti = ((r.ingredients as IngredienteRicetta[]) ?? []).filter(Boolean);
@@ -3493,7 +3579,7 @@ export class MenuService {
           'Le calorie del piatto possono scostarsi: `npm run diag:grassi` dice quali nomi mancano.',
       );
     }
-    return { violations: [...violations], subsByRecipe };
+    return { violations: [...violations], subsByRecipe, nonSicure };
   }
 
   /** Apre (una sola volta) un'escalation "piano bloccato" al nutrizionista. */

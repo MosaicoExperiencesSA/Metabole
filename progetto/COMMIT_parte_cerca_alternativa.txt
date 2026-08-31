@@ -1,0 +1,77 @@
+Prima di bloccare, il motore cerca un'alternativa — e il sostituto non scavalca un'allergia
+
+DUE CORREZIONI NATE LO STESSO GIORNO, E SBAGLIANO IN VERSI OPPOSTI.
+
+1) PRIMA DI BLOCCARE, SI CERCA UN'ALTERNATIVA
+
+Patrizia, 31/8: sette allergie, trentanove cibi esclusi, menu del rientro fermo. Il log
+dice due cose insieme: «262 ricette tolte dal pool prima della composizione» e NESSUN
+avviso «per lo slot X nessuna ricetta è sicura». Per ogni pasto un'alternativa sicura
+c'era. Il motore si è fermato lo stesso.
+
+Perché la giornata la sceglie il CATALOGO, non il pool: se dentro una giornata c'è un
+piatto che la cliente non può mangiare, la guardia lo vede e l'erogazione fa `return []`.
+Niente menu, per un piatto su cinque, con quattro alternative buone in mano.
+
+Simone: «il sistema deve cercare un'alternativa ed erogare il menu, altrimenti non è un
+sistema pensante»; e sull'avviso al nutrizionista: «non deve avvisare, deve trovare
+un'alternativa».
+
+Adesso il blocco è l'ULTIMA risorsa. `menu/cerca-un-alternativa.ts` sostituisce i pasti
+non sicuri col miglior candidato sicuro del pool, e ci si ferma solo quando per quel
+pasto non esiste NIENTE di sicuro.
+
+⚠️ NON PUÒ FARE DANNI A CHI STA BENE, ed è la differenza con la prima stesura di
+stamattina (bocciata in revisione, giustamente): questo ramo entra SOLO dove prima si
+usciva con `return []`. Il confronto non è «piatto vecchio contro piatto nuovo», è «un
+piatto contro nessun menu». Per una cliente la cui giornata è già sicura non viene
+nemmeno eseguito.
+
+⚠️ E LA GUARDIA SI RIFÀ sui pasti sostituiti: la sostituzione non è una scorciatoia
+intorno al controllo, è un tentativo che deve superare lo stesso controllo di prima. Se
+resta anche una sola violazione si blocca come sempre — coi motivi di ADESSO.
+
+Le kcal: si preferisce un candidato dentro la banda del piatto sostituito (dove decide il
+punteggio, perché il bilanciamento è già rispettato); se nella banda non c'è niente di
+sicuro si prende il più VICINO di calorie, non il più votato — fra una giornata un po'
+sbilanciata e nessuna giornata si sceglie la prima, e si sceglie il modo che la sbilancia
+di meno. Il ripiego finisce nel log: chi legge deve sapere che quel giorno è un ripiego, e
+che il catalogo di quella dieta va guardato.
+
+2) IL SOSTITUTO NON SCAVALCA UN'ALLERGIA — e questo sbaglia nel verso pericoloso
+
+`diag:allergeni-piatto` in produzione, stesso giorno: 1 cliente, 3 pasti. SONIA —
+allergica a crostacei, pesce, solfiti, lupini, molluschi e soia, e SENZA intolleranze —
+aveva in menu «Gamberoni al cartoccio», con la parola crostacei E il tag confermato.
+
+`swapDislikedDishes` leggeva `select: { regime, intolerances, dislikedFoods }`: LE
+ALLERGIE NON C'ERANO. Il candidato si giudicava sul solo testo, i tag allergene non si
+leggevano affatto, e questo pezzo gira DOPO `evaluateMeals`, senza nessun secondo
+controllo. La guardia approvava la giornata, poi il sostituto ci infilava dentro
+l'allergene, e nessuno lo fermava più.
+
+Adesso il giudizio su un candidato è la STESSA `valutaRicetta` della guardia, con le
+stesse esclusioni, e i tag si chiedono al database. Se due punti rispondono alla stessa
+domanda, uno deve chiamare l'altro.
+
+⚠️ Il caso Patrizia sbaglia per eccesso di prudenza: non eroga. Questo eroga, e mette un
+allergene nel piatto di una persona. Vanno letti insieme, ma non sono la stessa cosa.
+
+MISURATO
+- 5836 test verdi in quattro modalità. 12 prove nuove sulla ricerca dell'alternativa,
+  10 sul sostituto (fra cui quella che chiama davvero il codice col caso Sonia: gamberoni
+  come unico candidato, e il piatto NON si cambia).
+- Nove mutazioni provate. Due sopravvissute al primo giro — «un candidato che la guardia
+  vieterebbe» e «dentro la banda comanda il punteggio, non la vicinanza» — e hanno fatto
+  scrivere le due prove che mancavano.
+- Nessuna migrazione.
+
+⚠️ RESTA APERTO, dalla stessa mattinata:
+- il cambio del TIPO DI DIETA dalla scheda non arriva al database: provato due volte, e
+  `diag:cliente` continua a leggere la famiglia vecchia. È un pulsante che dice di sì e
+  non fa niente;
+- `diag:cliente` mente sulle clienti supervisionate: legge solo `screeningFlag` e non la
+  decisione clinica, quindi dice «Menu dopo la visita» anche a chi ha il via libera — e in
+  scheda compare il bollino rosso «Percorso supervisionato» per lo stesso motivo. Oggi ha
+  mandato due persone a inseguire una visita che non serviva;
+- le segnalazioni «Piano bloccato» non avvisano nessuno.

@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **Prima di bloccare, il motore cerca un'alternativa — e il sostituto non scavalca
+  un'allergia.** Due correzioni nate lo stesso giorno, e sbagliano in **versi opposti**.
+  ⛔ **(1)** Patrizia: sette allergie, menu del rientro fermo, e nel log due righe che insieme dicono
+  tutto — «262 ricette tolte dal pool» e **nessun** avviso «per lo slot X nessuna ricetta è sicura».
+  Per ogni pasto un'alternativa sicura c'era, e il motore si è fermato lo stesso: la giornata la
+  sceglie il **catalogo**, non il pool, e un piatto vietato dentro una giornata faceva `return []`.
+  Niente menu, per un piatto su cinque. ✅ Simone: *«il sistema deve cercare un'alternativa ed
+  erogare il menu, altrimenti non è un sistema pensante»* — e sull'avviso al nutrizionista: *«non
+  deve avvisare, deve trovare un'alternativa»*. Adesso il blocco è l'**ultima** risorsa:
+  `cerca-un-alternativa.ts` sostituisce col miglior candidato sicuro del pool, e ci si ferma solo
+  dove per quel pasto non esiste **niente** di sicuro. ⚠️ **Non può fare danni a chi sta bene** — ed
+  è la differenza con la prima stesura, bocciata in revisione: questo ramo entra **solo** dove prima
+  si usciva con `return []`, quindi il confronto non è «piatto vecchio contro piatto nuovo» ma «un
+  piatto contro nessun menu». ⚠️ E **la guardia si rifà** sui pasti sostituiti: la sostituzione non è
+  una scorciatoia intorno al controllo, è un tentativo che deve superarlo.
+  ⛔ **(2) E questo sbaglia nel verso pericoloso.** `diag:allergeni-piatto`, stesso giorno: **1
+  cliente, 3 pasti**. **Sonia** — allergica a crostacei, pesce, solfiti, lupini, molluschi, soia, e
+  **senza intolleranze** — aveva in menu «Gamberoni al cartoccio», con la parola *crostacei* **e** il
+  tag confermato. `swapDislikedDishes` leggeva `{ regime, intolerances, dislikedFoods }`: **le
+  allergie non c'erano**, il candidato si giudicava sul solo **testo**, i tag non si leggevano, e
+  quel pezzo gira **dopo** la guardia senza nessun secondo controllo. La guardia approvava la
+  giornata, poi il sostituto ci infilava l'allergene. ✅ Adesso il giudizio è la **stessa**
+  `valutaRicetta` della guardia, con le stesse esclusioni, e i tag si chiedono al database.
+  *Se due punti rispondono alla stessa domanda, uno deve chiamare l'altro.*
+  5836 test verdi in quattro modalità; nove mutazioni provate, due sopravvissute al primo giro e
+  hanno fatto scrivere le prove che mancavano; nessuna migrazione.
+  ⚠️ **Resta aperto dalla stessa mattinata**: il cambio del **tipo di dieta** dalla scheda non arriva
+  al database (provato due volte, `diag:cliente` legge sempre la famiglia vecchia); `diag:cliente` e
+  il bollino rosso in scheda **mentono** sulle clienti supervisionate — leggono `screeningFlag` e non
+  la decisione clinica, e oggi hanno mandato due persone a inseguire una visita che non serviva; e
+  «Piano bloccato» non avvisa nessuno.
+
 - `[Sviluppo]` **La preferenza «ricette semplici» è spenta: pescava da tutto il catalogo senza
   guardare gli allergeni.** ⛔ Patrizia, menu del rientro fermo: `prova:erogazione` passa diciannove
   cancelli su venti e si ferma su «Piano bloccato». Ma i piatti che la bloccavano **non erano della
