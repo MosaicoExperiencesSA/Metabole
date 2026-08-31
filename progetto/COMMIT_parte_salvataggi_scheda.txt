@@ -1,0 +1,43 @@
+«Ho salvato e non cambia niente»: una diagnostica che dice DOVE si perde
+
+IL FATTO, 31/8
+
+Due volte in mezza giornata, sulla stessa cliente. Simone cambia la dieta di Patrizia dalla
+scheda; poi la nutrizionista prova a spostarla da «Mediterranea senza glutine» a Keto. E
+`diag:cliente` continua a leggere la famiglia vecchia. Nessuno dei due sa dire se sia
+comparso un messaggio di errore.
+
+⚠️ IL CODICE, LETTO RIGA PER RIGA, DICE CHE NON PUÒ SUCCEDERE IN SILENZIO. Il campo
+`dietFamily` è nel DTO (decorato), è nella whitelist `PROFILE_FIELDS` del servizio, è nel
+corpo che manda la pagina (`ClientDetail.tsx`, riga 1330), e se il permesso manca la rotta
+risponde 403 CON UN MESSAGGIO che nomina i campi. La tendina scrive perfino DUE campi
+insieme — famiglia e stile — proprio per non lasciarne uno indietro.
+
+Quindi delle due l'una, e non lo so: o un errore c'è ed è stato visto solo da chi stava
+davanti allo schermo, o la scrittura parte e viene disfatta dopo. Finché non si sa quale,
+qualunque correzione è una scommessa — e oggi di scommesse ne abbiamo già fatte troppe.
+
+`npm run diag:salvataggi-scheda -- <email>`
+
+Sola lettura. Guarda il registro, che è l'unico posto dove la differenza si vede, e
+distingue TRE casi che dal backoffice si somigliano:
+
+ · c'è una riga `client.diet_type.change` col «dopo» giusto, ma il database dice il valore
+   vecchio → la scrittura è partita ed è stata DISFATTA dopo. Si guarda cosa gira dopo il
+   salvataggio, non il salvataggio;
+ · ci sono salvataggi (`client.update`) ma nessuna riga sul tipo di dieta → la richiesta
+   arriva MONCA: il campo si perde prima del confronto, e il posto da guardare è il corpo
+   che manda il browser;
+ · nessuna riga affatto → la richiesta non è mai arrivata al servizio: 403 o 400.
+
+⚠️ La riga si cerca PER NOME (`client.diet_type.change`, che il servizio scrive solo quando
+uno dei cinque campi cambia davvero) e non cercando i nomi dei campi dentro il metadata di
+`client.update`: quello elenca i campi toccati in un formato suo, e risponderebbe di sì
+anche quando è cambiato tutt'altro.
+
+⚠️ Non prova niente sul PERCHÉ. Dice DOVE guardare — che è la domanda che oggi è costata
+mezza giornata. Misurare prima di decidere.
+
+MISURATO
+- 5836 test verdi. Nessuna migrazione, nessun comportamento cambiato: un file di sola
+  lettura e una riga in `package.json`.

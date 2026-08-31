@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **«Ho salvato e non cambia niente»: una diagnostica che dice DOVE si perde.** Due
+  volte in mezza giornata, sulla stessa cliente: il cambio del tipo di dieta non arriva al database,
+  e `diag:cliente` continua a leggere la famiglia vecchia. ⚠️ **Il codice, letto riga per riga, dice
+  che non può succedere in silenzio**: il campo è nel DTO decorato, nella whitelist del servizio, nel
+  corpo che manda la pagina — e se il permesso manca la rotta risponde **403 con un messaggio che
+  nomina i campi**. Quindi delle due l'una: o l'errore c'è e l'ha visto solo chi era davanti allo
+  schermo, o la scrittura parte e viene **disfatta dopo**. ⛔ E finché non si sa quale, qualunque
+  correzione è una scommessa — di scommesse, oggi, ne abbiamo già fatte troppe.
+  ✅ `npm run diag:salvataggi-scheda -- <email>` (sola lettura) distingue i **tre** casi che dal
+  backoffice si somigliano: riga scritta col «dopo» giusto ma database vecchio (⇒ qualcosa la disfa
+  dopo), salvataggi presenti ma nessuna riga sul tipo di dieta (⇒ la richiesta arriva **monca**, e il
+  posto da guardare è il browser), nessuna riga affatto (⇒ 403 o 400, mai arrivata).
+  ⚠️ La riga si cerca **per nome** — `client.diet_type.change`, che il servizio scrive solo quando
+  uno dei cinque campi cambia davvero — e non cercando i nomi dei campi dentro il metadata di
+  `client.update`, che li elenca in un formato suo e direbbe di sì anche per tutt'altro.
+  Nessuna migrazione, nessun comportamento cambiato.
+
 - `[Sviluppo]` **Prima di bloccare, il motore cerca un'alternativa — e il sostituto non scavalca
   un'allergia.** Due correzioni nate lo stesso giorno, e sbagliano in **versi opposti**.
   ⛔ **(1)** Patrizia: sette allergie, menu del rientro fermo, e nel log due righe che insieme dicono
