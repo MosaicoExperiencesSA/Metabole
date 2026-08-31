@@ -93,7 +93,13 @@
  * abbinando. `fresco` vuol dire crudo (correzione di Simone sul latte, 19/8) — quindi si accetta
  * **solo se la riga è a crudo**, e su «pasta» (secca) non si accetta. Vedi `vaBene` dentro `abbina`.
  */
-const QUALIFICATORI = new Set([
+/**
+ * ⚠️ **Esportato il 31/8** per il conto degli allergeni deducibili: là serve sapere se una parola in
+ * più è una di queste, e una seconda copia di questo elenco sarebbe esattamente la cosa che il
+ * commento qui sopra dice di non fare. ⛔ Si legge, non si allunga da fuori — ed è un
+ * `ReadonlySet`, così il divieto non è solo scritto: un `.add()` da un altro file non compila.
+ */
+export const QUALIFICATORI: ReadonlySet<string> = new Set([
   'sgusciato', 'sgusciata', 'sgusciati', 'sgusciate',
   'pelato', 'pelata', 'pelati', 'pelate',
   'sbucciato', 'sbucciata', 'sbucciati', 'sbucciate',

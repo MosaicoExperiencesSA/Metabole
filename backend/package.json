@@ -98,6 +98,8 @@
     "diag:catalogo": "ts-node --transpile-only prisma/diag-catalogo.ts",
     "rifai:non-sicuri": "ts-node --transpile-only prisma/rifai-giorni-non-sicuri.ts",
     "diag:allergeni": "ts-node --transpile-only prisma/diag-allergeni.ts",
+    "diag:allergeni-deducibili": "ts-node --transpile-only prisma/diag-allergeni-deducibili.ts",
+    "diag:fase0": "ts-node --transpile-only prisma/diag-fase0-panieri.ts",
     "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",
     "diag:ricerca": "ts-node --transpile-only prisma/diag-ricerca-alimenti.ts",

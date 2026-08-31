@@ -1,0 +1,69 @@
+=== PARTE: la misura della Fase 0 del piano panieri ===
+
+SUMMARY
+La misura della Fase 0 dei panieri: piatti, attivi e rotti per ogni variante, e il verdetto che dice se si può aprire la Fase 1
+
+DESCRIPTION
+`PIANO_Panieri_Ricette.md` §9 elenca due cose bloccanti prima di aprire la Fase 1. Una è la firma
+del capo nutrizionista, arrivata il 31/8. L'altra è questa misura — e il piano dice anche quando
+basta: «se "attivi" ≥ 60 per pasto su tutte le celle, si procede senza cambiare niente». Quindi lo
+strumento non stampa una tabella e basta: dice sì o no, e quando è no dice quali celle e quante
+clienti ci stanno sopra.
+
+⚠️ IL CONTO NON VIVE NELLO SCRIPT. Da quel verdetto dipende se la Fase 6 è zero consegne, cioè la
+stima di tutto il piano: sta in `engine-rules/misura-fase0.ts` con le sue prove, non in un file di
+`prisma/` che nessun test guarda. Le regole del conto (`slotAttesi`, `statoCopertura`,
+`coperturaCatalogo`) sono quelle che disegnano la pagina «Copertura catalogo»: una seconda copia
+direbbe un'altra cosa, e a decidere sarebbe quella sbagliata.
+
+⛔ TRE COSE CHE LA REVISIONE HA SMONTATO, E CHE SONO IL VALORE DI QUESTA CONSEGNA.
+
+1) Il verdetto guardava SOLO la soglia sugli attivi. Una variante con trenta riferimenti rotti e i
+pasti pieni usciva ✅ «si procede», mentre il §9 chiede tre numeri — «piatti / attivi / rotti» — e la
+Fase 1 pretende che i rotti vadano a zero. `rottiTot` veniva calcolato, stampato, e non entrava mai
+nel verdetto: era ornamento. Adesso entra.
+
+2) Le clienti si contavano da `client_cycle`, ed era sbagliato in tre modi insieme: lì `status` è
+sempre `active` (nessuno scrive mai altro, quindi il filtro non filtrava niente); le righe sono
+cicli di DUE GIORNI, quindi una cliente da tre mesi ne vale una quarantina e, se ha cambiato dieta,
+compare su tutte e due; e si materializzano solo quando qualcuno dello staff apre una certa
+schermata, quindi una cliente vera poteva contare zero. Un numero insieme gonfiato e bucato,
+stampato come quello «che conta per i tempi». Adesso si contano le clienti DISTINTE con una giornata
+in `menu_day` negli ultimi 30 giorni — `menu_day` ha `@@unique(clientId, date)`, quindi una cliente,
+un giorno, una dieta.
+
+3) I totali sommavano i conteggi PER VARIANTE. Col catalogo condiviso la stessa ricetta si conta una
+volta per ogni variante che la nomina: su 306 varianti il totale usciva un ordine di grandezza sopra
+le ricette vere — e sotto c'era scritto che quel numero è «quanto vale la differenza fra le due
+porte», che si misura in RICETTE. Adesso si stampano entrambi, dichiarando che rispondono a due
+domande diverse: quante ricette esistono, e quanto è grosso il catalogo come lo vedono le varianti.
+
+⚠️ DUE VERDETTI, NON UNO: su tutte le varianti, e sulle sole varianti che hanno clienti sopra. Il
+denominatore vero non è 306 — il §2.3 dice che le magre senza clienti spariscono da sole chiudendo
+le famiglie doppione. Se il primo è «no» e il secondo «sì», il piano non cambia.
+
+⛔ E IL CAVEAT DEL 4, portato dentro invece di lasciarlo nel file accanto: `slotAttesi` sul 4
+risponde tre pasti, mentre `slotsForMeals` del wizard conosce una giornata da quattro CON la
+merenda. Su una variante a quattro pasti la merenda sparirebbe dal minimo e dai totali. Oggi non
+capita — zero diete a quattro in catalogo, il 4 tolto dal DTO — ma una cosa che oggi non capita non
+è una cosa che non può capitare, e questa misura esiste per decidere.
+
+Lo stato della dieta entra nell'etichetta: `pick-diet.ts` eroga solo sulle `approved`, quindi una
+bozza sotto soglia non è un lavoro da fare — è una variante che non serve nessuno.
+
+VERIFICA
+Revisione avversariale: sei rilievi, fra cui i due numeri sbagliati sopra e tre mutazioni
+SOPRAVVISSUTE alla prima stesura delle prove — il verdetto calcolato solo sulle varianti con
+clienti (cioè la semantica ribaltata dell'unica cosa che il modulo produce), lo stato giudicato su
+tutti e cinque i pasti invece che su quelli attesi, e i rotti che smettevano di sommarsi fra pasti
+(passava perché nel fixture stavano tutti sull'ultimo pasto iterato). Uccise tutte e tre con
+altrettante prove nuove, più il bordo della soglia (60 esatti è «si procede», il piano dice «≥») e
+il ramo `SETTIMANA=N` che non era provato affatto. 21 prove sul modulo, 5998 test backend verdi
+nelle quattro modalità, `nest build` e `tsc --noEmit` compresi. Lo script non scrive niente:
+verificato, zero `create`/`update`/`delete`/`executeRaw`.
+
+FILE
+- backend/src/engine-rules/misura-fase0.ts (+ .spec, 21 prove) — nuovo
+- backend/prisma/diag-fase0-panieri.ts — nuovo, sola lettura
+- backend/package.json — `npm run diag:fase0`
+- backend/src/lavori/voci-iniziali.ts — voce nuova, aperta e bloccante

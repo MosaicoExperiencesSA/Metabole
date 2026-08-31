@@ -83,6 +83,87 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'fase0-panieri-la-misura-che-manca',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: false,
+    nata: '2026-08-31T16:40',
+    titolo: 'Panieri — la misura della Fase 0: piatti, attivi e rotti per ogni variante',
+    dettaglio:
+      '`progetto/PIANO_Panieri_Ricette.md` §9 elenca due cose bloccanti prima di aprire la Fase 1. Una '
+      + 'è la firma del capo nutrizionista (arrivata il 31/8). L\'altra è questa misura, e il piano dice '
+      + 'anche quando basta: *«se "attivi" ≥ 60 per pasto su tutte le celle, si procede senza cambiare '
+      + 'niente»*.\n\n'
+      + '✅ Lo strumento c\'è: `npm run diag:fase0` (sola lettura), col conto in '
+      + '`engine-rules/misura-fase0.ts` e le sue prove. ⚠️ Il conto **non** vive nello script: da quel '
+      + 'verdetto dipende se la Fase 6 è zero consegne, cioè la stima di tutto il piano, e una cosa che '
+      + 'decide non sta in un file di `prisma/` che nessun test guarda. Resta da lanciarlo sui dati veri.\n\n'
+      + '⛔ **Tre cose che la revisione ha smontato, e che vanno sapute leggendo il tabulato.**\n\n'
+      + '· Il verdetto guardava **solo** la soglia sugli attivi: una variante con trenta riferimenti '
+      + 'rotti e i pasti pieni usciva ✅, mentre il §9 chiede tre numeri («piatti / attivi / **rotti**») '
+      + 'e la Fase 1 pretende che i rotti vadano a zero. Adesso i rotti entrano nel verdetto.\n'
+      + '· Le clienti si contavano da `client_cycle`: lì `status` è **sempre** `active` (il filtro non '
+      + 'filtrava niente), le righe sono cicli di **due giorni** (una cliente da tre mesi ne vale una '
+      + 'quarantina, e se ha cambiato dieta compare su due), e si materializzano solo quando lo staff '
+      + 'apre una certa schermata (una cliente vera poteva contare zero). Un numero insieme gonfiato e '
+      + 'bucato, stampato come decisivo. Adesso si contano le clienti **distinte** con una giornata in '
+      + '`menu_day` negli ultimi 30 giorni.\n'
+      + '· I totali sommavano i conteggi **per variante**: col catalogo condiviso la stessa ricetta si '
+      + 'conta una volta per ogni variante che la nomina, quindi su 306 varianti il totale usciva di un '
+      + 'ordine di grandezza sopra le ricette vere — e sotto c\'era scritto che quel numero era «quanto '
+      + 'vale la differenza fra le due porte», che si misura in **ricette**. Adesso si stampano tutti e '
+      + 'due, dichiarando che rispondono a due domande diverse.\n\n'
+      + '⚠️ **Due verdetti, non uno**: su tutte le varianti, e sulle sole varianti che hanno clienti '
+      + 'sopra. Il denominatore vero non è 306 — il §2.3 dice che le magre senza clienti spariscono da '
+      + 'sole chiudendo le famiglie doppione. Se il primo è «no» e il secondo «sì», il piano non cambia.\n\n'
+      + '⛔ **Il caveat del 4, portato dentro**: `slotAttesi` sul 4 risponde tre pasti, mentre '
+      + '`slotsForMeals` del wizard conosce una giornata da quattro **con la merenda**. Oggi non capita '
+      + '(zero diete a quattro in catalogo, il 4 tolto dal DTO), ma se torna questo conto va rifatto '
+      + 'prima di rileggerlo — una cosa che oggi non capita non è una cosa che non può capitare.',
+  },
+  {
+    chiave: 'allergeni-deducibili-i-due-numeri',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: false,
+    nata: '2026-08-31T15:20',
+    titolo: 'Panieri — i due numeri promessi a Nocanty: quante ricette si fermerebbero sugli allergeni dedotti',
+    dettaglio:
+      'Il foglio firmato il 31/8 (`progetto/Metabole_Allergeni_Firma_Nocanty.md`) promette al capo '
+      + 'nutrizionista, al §5, **due numeri prima di scrivere una riga di codice di produzione**: quante '
+      + 'ricette si fermerebbero sulla deduzione automatica e quante sono già in regola. Se il primo '
+      + 'fosse alto, la proposta si rivede insieme.\n\n'
+      + '✅ Lo strumento c\'è: `npm run diag:allergeni-deducibili` (sola lettura) e il modulo puro '
+      + '`catalog/allergeni-deterministici.ts`. Resta da **lanciarlo sui dati veri**: qui in sandbox il '
+      + 'database non c\'è.\n\n'
+      + '⛔ **E il numero va letto, non riportato.** Misurato dalla revisione sulle 273 ricette vere del '
+      + 'repo con le 306 righe di tabella dei seed: **si ferma l\'82%**. Ma i nomi che fermano di più non '
+      + 'sono «trancio misto» — sono `insalata` (20), `zucchine` (13), `pomodoro` (11), `riso` (10), '
+      + '`albumi` (10). Cioè quel numero misura soprattutto **quanto è indietro la tabella alimenti** '
+      + '(306 righe contro 7831 nomi di ingrediente usati dalle ricette), non quanto sono scritte male '
+      + 'le ricette. Portato a Nocanty così com\'è, gli farebbe bocciare l\'Opzione A per la ragione '
+      + 'sbagliata. Per questo lo script stampa **tre** numeri e non due: si fermano · passano · si '
+      + 'fermerebbero solo perché la riga in tabella non c\'è.\n\n'
+      + '⚠️ **La decisione aperta, da prendere con Simone**: il riconoscimento passa da '
+      + '`abbinaPerRicetta`, che è tarato sulle CALORIE — torna «non lo so» quando due righe vanno bene '
+      + 'uguale, e non abbina un nome a cui manca una parola della riga («riso» non arriva a «riso '
+      + 'basmati»). Per le calorie quella prudenza è giusta: `riso integrale` e `riso bianco` sono due '
+      + 'numeri diversi. Per gli **allergeni** quell\'ambiguità non esiste — qualunque riso dà la stessa '
+      + 'risposta. Il modulo eredita una prudenza che sul suo problema non serve, e ci ferma sopra delle '
+      + 'ricette. O si tara il riconoscimento sulla domanda giusta, o si accetta una coda più lunga.\n\n'
+      + '⛔ **Difetto trovato dalla revisione e chiuso**: `ingredientNames` scarta in silenzio gli '
+      + 'elementi senza `name` leggibile, quindi `[{name:\'pollo\'}, {nome:\'gamberi\'}]` usciva con '
+      + '`allergeni: []` — un elenco con dentro i gamberi che dichiara di non contenere niente. Adesso è '
+      + 'un arresto (`elementi_illeggibili`). ⚠️ Non era ipotetico: `engine-rules.service.ts` scrive '
+      + '`ingredients` come arriva dall\'AI, senza controllare la forma dei singoli elementi.\n\n'
+      + '⚠️ **Resta aperto e dichiarato**: essere in tabella non vuol dire conoscerne gli allergeni. Su '
+      + 'un «pesto pronto» che avesse la sua riga la deduzione direbbe «nessun allergene» con la stessa '
+      + 'faccia. È il limite n° 2 del foglio, e si chiude dichiarando gli allergeni **sull\'alimento** — '
+      + 'non allungando un elenco di parole.',
+  },
+  {
     chiave: 'diagnostica-erogazione-muta',
     categoria: 'Da fare — codice',
     ordine: 0,

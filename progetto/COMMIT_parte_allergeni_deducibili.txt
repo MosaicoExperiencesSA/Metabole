@@ -1,0 +1,68 @@
+=== PARTE: i due numeri promessi a Nocanty — quante ricette si fermerebbero sugli allergeni dedotti ===
+
+SUMMARY
+I due numeri promessi al capo nutrizionista: uno script di sola lettura che misura quante ricette si fermerebbero sugli allergeni dedotti dagli ingredienti
+
+DESCRIPTION
+Il foglio firmato da Nocanty il 31/8 promette, al §5, due numeri PRIMA di scrivere una riga di
+codice di produzione: quante ricette si fermerebbero sulla deduzione automatica degli allergeni e
+quante sono già in regola. Se il primo fosse alto, la proposta si rivede insieme. Questa consegna è
+lo strumento che li misura, e non tocca niente in produzione.
+
+⛔ LA DOMANDA NON È «QUALI ALLERGENI VEDO», È «SO CHE COS'È QUESTO INGREDIENTE».
+Sono due domande diverse, e confonderle è il difetto che il modulo esiste per non fare:
+`suggestAllergens` risponde alla prima, e su un ingrediente che non conosce risponde «nessun
+allergene» — la stessa identica risposta che dà sulle zucchine. L'ignoto e il sicuro si presentano
+uguali, ed è per questo che oggi il contrassegno lo deve accendere una persona. Qui la seconda
+domanda si fa per prima: un ingrediente è riconosciuto se porta a una riga della tabella alimenti.
+Se tutti lo sono, gli allergeni si scrivono da soli; se anche uno solo non lo è, la ricetta si ferma.
+`allergeni: null` («non lo so») e `allergeni: []` («letti gli ingredienti, non contiene niente») sono
+due cose diverse, e tenerle distinte è tutto il senso della consegna.
+
+⛔ IL DIFETTO TROVATO DALLA REVISIONE, E CHIUSO.
+`ingredientNames` scarta in silenzio ogni elemento senza `name` leggibile. Finché l'arresto guardava
+solo «ne ho letti zero», bastava UN ingrediente buono perché una ricetta passasse: `[{name:'pollo'},
+{nome:'gamberi'}]` usciva con `allergeni: []` — un elenco con dentro i gamberi che dichiara di non
+contenere niente. Adesso è un arresto suo (`elementi_illeggibili`). ⚠️ E non era ipotetico:
+`engine-rules.service.ts` scrive `ingredients` come arriva dall'AI, senza controllare la forma dei
+singoli elementi. Il commento che diceva di aver chiuso il caso «malformato» ne chiudeva uno su tre:
+era falso, ed è riscritto — un commento sbagliato qui conta come un difetto, non come una svista.
+
+⚠️ IL NUMERO VA LETTO, NON RIPORTATO — ed è la ragione per cui lo script ne stampa TRE.
+Misurato in revisione sulle 273 ricette vere del repo con le 306 righe di tabella dei seed: si ferma
+l'82%. Ma i nomi che fermano di più non sono «trancio misto» o «preparato per brodo»: sono
+`insalata` (20 ricette), `zucchine` (13), `pomodoro` (11), `riso` (10), `albumi` (10). Cioè quel
+numero misura soprattutto quanto è indietro la tabella alimenti — 306 righe contro i 7831 nomi di
+ingrediente che le ricette usano — non quanto sono scritte male le ricette. Portato a Nocanty così
+com'è gli farebbe bocciare l'Opzione A per la ragione sbagliata. Quindi: si fermano · passano · si
+fermerebbero solo perché la riga non c'è (il criterio «largo», che è dichiarato come misura di un
+tetto e non come proposta: «insalata di riso» ha due parole note e uscirebbe senza allergeni).
+
+⚠️ E UNA DECISIONE APERTA, non un difetto: il riconoscimento passa da `abbinaPerRicetta`, che è
+tarato sulle CALORIE. Torna «non lo so» quando due righe vanno bene uguale, e non abbina un nome a
+cui manca una parola della riga — «riso» non arriva a «riso basmati». Per le calorie quella prudenza
+è giusta (integrale e bianco sono due numeri diversi); per gli allergeni quell'ambiguità non esiste,
+qualunque riso dà la stessa risposta. Il modulo eredita una prudenza che sul suo problema non serve,
+e ci ferma sopra delle ricette. Scritto nella voce dell'elenco lavori, da decidere con Simone.
+
+VERIFICA
+Revisione avversariale: undici rilievi, tre dei quali gravi — il difetto sopra, e due FRASI FALSE
+che lo script stampava a chi legge il referto («una parola come "rosse" non è in nessun elenco»,
+vero solo sulla tabella finta delle prove; e le ricette già confermate a mano contate con due
+denominatori diversi, così che «37 su 39 tornano» nascondeva che 35 non erano state nemmeno
+confrontate). Entrambe corrette. Otto mutazioni provate: cinque uccise subito, tre sopravvissute e
+poi uccise con altrettante prove nuove (gli allergeni letti dal nome grezzo e non normalizzato —
+«baccalà» senza accento perde i solfiti; l'indizio delle preparazioni che smetteva di funzionare su
+maiuscole e accenti; il ramo degli aromi che, spostato, allargava in silenzio il criterio che
+decide). 5977 test backend verdi nelle quattro modalità, `nest build` e `tsc --noEmit` compresi.
+
+⚠️ Una sentinella strutturale (`una-porta-per-le-esclusioni.spec.ts`) ha pescato una riga del modulo
+nuovo. Non è stata messa in allowlist: è stata tolta la forma. Un guardiano si consuma un'eccezione
+ragionevole alla volta.
+
+FILE
+- backend/src/catalog/allergeni-deterministici.ts (+ .spec, 45 prove) — nuovo, modulo puro
+- backend/prisma/diag-allergeni-deducibili.ts — nuovo, sola lettura
+- backend/package.json — `npm run diag:allergeni-deducibili`
+- backend/src/nutrient-facts/abbinamento-alimenti.ts — `QUALIFICATORI` esportato come ReadonlySet
+- backend/src/lavori/voci-iniziali.ts — voce nuova, aperta e bloccante

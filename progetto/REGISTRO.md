@@ -20,6 +20,42 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 📏 **Panieri: la misura della Fase 0, e il verdetto che dice se si può aprire la Fase
+  1.** Il §9 del piano elenca due blocchi: la firma del capo nutrizionista (arrivata oggi) e questo
+  numero. Il piano dice anche quando basta — «attivi ≥ 60 per pasto su tutte le celle» — quindi
+  `npm run diag:fase0` (sola lettura) non stampa una tabella: dice sì o no, e quando è no dice quali
+  celle e quante clienti ci stanno sopra. ⚠️ Il conto sta in `engine-rules/misura-fase0.ts` con le
+  sue prove, non nello script: da quel verdetto dipende la stima di tutto il piano. ⛔ **Tre cose
+  smontate dalla revisione**: (1) il verdetto guardava solo la soglia sugli attivi, e una variante
+  con trenta riferimenti **rotti** e i pasti pieni usciva ✅ — mentre il §9 chiede tre numeri e la
+  Fase 1 pretende che i rotti vadano a zero; (2) le clienti si contavano da `client_cycle`, dove
+  `status` è **sempre** `active`, le righe sono cicli di **due giorni** (una cliente da tre mesi ne
+  vale quaranta) e si materializzano solo se lo staff apre una certa schermata — un numero insieme
+  gonfiato e bucato, stampato come decisivo: adesso si contano le clienti distinte da `menu_day`;
+  (3) i totali sommavano **per variante**, quindi la stessa ricetta contata una volta per ognuna
+  delle 306 — e sotto c'era scritto che era «la differenza fra le due porte», che si misura in
+  ricette. ⚠️ **Due verdetti, non uno**: su tutte le varianti e sulle sole varianti con clienti
+  sopra, perché il §2.3 dice che le magre senza nessuno spariscono da sole. Tre mutazioni
+  sopravvissute alla prima stesura delle prove, poi uccise. 5998 test verdi nelle quattro modalità.
+
+- `[Sviluppo]` 🧪 **I due numeri promessi a Nocanty: quante ricette si fermerebbero sugli allergeni
+  dedotti.** Il foglio firmato oggi promette al §5 due numeri **prima** di scrivere codice di
+  produzione. Consegnato lo strumento che li misura — `npm run diag:allergeni-deducibili`, sola
+  lettura — e il modulo puro che lo regge. ⛔ **La domanda non è «quali allergeni vedo», è «so che
+  cos'è questo ingrediente»**: `suggestAllergens` su un ingrediente che non conosce risponde
+  «nessun allergene», la stessa risposta che dà sulle zucchine — l'ignoto e il sicuro si presentano
+  uguali. Adesso la seconda domanda si fa per prima, e `allergeni: null` («non lo so») è tenuto
+  distinto da `[]` («letti gli ingredienti, non contiene niente»). ⛔ **Difetto trovato dalla
+  revisione**: `ingredientNames` scarta in silenzio gli elementi senza `name`, quindi
+  `[{name:'pollo'}, {nome:'gamberi'}]` usciva con `allergeni: []` — un elenco con dentro i gamberi
+  che dichiara di non contenere niente. Adesso è un arresto. ⚠️ **E il numero va letto, non
+  riportato**: misurato sulle 273 ricette vere del repo si ferma l'82%, ma i nomi che fermano di più
+  sono `insalata`, `zucchine`, `pomodoro`, `riso`, `albumi` — cioè quel numero misura quanto è
+  indietro la **tabella alimenti** (306 righe contro 7831 nomi usati), non quanto sono scritte male
+  le ricette. Per questo lo script ne stampa **tre** e non due. Revisione avversariale: undici
+  rilievi, fra cui due frasi false che lo script stampava a chi legge il referto; otto mutazioni,
+  tre sopravvissute e poi uccise. 5977 test verdi nelle quattro modalità.
+
 - `[Sviluppo]` 💬 **La chat dello staff: il nome apre la scheda, un «1» non arriva più nudo, e la
   pagina dell'assistente si apre davvero in fondo.** Tre cose viste da Simone guardando lo schermo
   del nutrizionista. (1) Il nome della cliente in cima alla conversazione era grassetto e basta: per
