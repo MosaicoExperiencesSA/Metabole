@@ -78,7 +78,15 @@ export interface EsitoApplicazione {
  * nel registro, ed è l'unico modo che ha di sapere cosa ha appena fatto.
  */
 export async function applicaProposta(prisma: PrismaService, p: Proposta): Promise<EsitoApplicazione> {
-  const dettaglio = (p.dettaglio ?? {}) as { termini?: string[]; intento?: { tipo?: string; from?: string; to?: string } };
+  /**
+   * ⚠️ `from`/`to` **e** `da`/`a`: le proposte in coda scritte prima del 31/8 hanno le prime, quelle
+   * nuove le seconde. Una riga in coda può restare lì giorni, quindi le due forme convivono per
+   * davvero — e toglierne una vorrebbe dire che il capo approva e non succede niente.
+   */
+  const dettaglio = (p.dettaglio ?? {}) as {
+    termini?: string[];
+    intento?: { tipo?: string; from?: string; to?: string; da?: string[]; a?: string[] };
+  };
 
   if (p.azione === 'restrizione_cliente') {
     return applicaRestrizione(prisma, p, dettaglio.termini ?? []);
@@ -95,18 +103,30 @@ export async function applicaProposta(prisma: PrismaService, p: Proposta): Promi
      * la fa una persona da dove si è sempre fatta.
      */
     const i = dettaglio.intento ?? {};
-    if (p.soggettoId && i.from && i.to) {
-      await registraSostituzione(prisma, {
-        clientId: p.soggettoId,
-        tipo: 'ingrediente',
-        from: i.from,
-        to: i.to,
-        recipeId: null,
-        origine: 'manuale',
-        stato: 'verificata',
-        nota: 'Approvata dal capo nutrizionista su proposta dell’assistente.',
-        creataDaId: p.nutrizionistaId,
-      });
+    /**
+     * ⚠️ **Gli elenchi anche qui, e le righe VECCHIE continuano a valere** (31/8). Le proposte in
+     * coda scritte prima di oggi hanno `from`/`to` (due stringhe); quelle nuove hanno `da`/`a`
+     * (due liste). Leggere solo le seconde vorrebbe dire che il capo approva una proposta e non
+     * succede niente — in silenzio, perché la riga risulta «approvata».
+     */
+    const daElenco: string[] = Array.isArray(i.da) ? (i.da as string[]) : i.from ? [i.from as string] : [];
+    const aElenco: string[] = Array.isArray(i.a) ? (i.a as string[]) : i.to ? [i.to as string] : [];
+    if (p.soggettoId && daElenco.length && aElenco.length) {
+      for (const da of daElenco) {
+        for (const a of aElenco) {
+          await registraSostituzione(prisma, {
+            clientId: p.soggettoId,
+            tipo: 'ingrediente',
+            from: da,
+            to: a,
+            recipeId: null,
+            origine: 'manuale',
+            stato: 'verificata',
+            nota: 'Approvata dal capo nutrizionista su proposta dell’assistente.',
+            creataDaId: p.nutrizionistaId,
+          });
+        }
+      }
     }
     return {
       toccate: p.soggettoId ? 1 : 0,

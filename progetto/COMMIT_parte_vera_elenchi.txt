@@ -1,0 +1,80 @@
+Vera legge gli elenchi — e smette di leggerne quattro su undici senza dirlo
+
+DA DOVE VIENE
+
+Simone, 31/8: «non capisce quasi nulla». La pagina «frasi che non ho capito» ne elenca 25
+in 90 giorni. Raggruppate non sono 25 problemi: sono SEI, e il più grosso sono gli ELENCHI
+(7 frasi).
+
+⛔ MA IL DIFETTO PEGGIORE NON ERA FRA LE FRASI NON CAPITE.
+
+  «a Lorena sostituisci le verdure con zucchine, melanzane, peperoni, carciofi, fagiolini,
+   spinaci, erbe cotte, carote, minestrone, insalata, pomodoro»
+
+In anteprima è diventato: «al posto di "verdure" metto "zucchine melanzane peperoni
+carciofi"». QUATTRO SU UNDICI, gli altri sette spariti senza una parola. Se lei confermava
+— e non aveva motivo di non farlo, la frase era sensata — nasceva una regola che copriva
+tre verdure su undici.
+
+Il come sta in due righe di `nomeAlimento`: la punteggiatura diventa spazi, quindi l'elenco
+si appiattisce in una frase sola; poi `PAROLE_MAX = 4` la taglia. Nessuna delle due è
+sbagliata per il mestiere che facevano — leggere UN nome — ma nessuno aveva detto loro che
+sarebbe arrivato un elenco. Niente troncamenti silenziosi: qui il troncamento c'era, ed era
+silenzioso.
+
+COSA CAMBIA
+
+`menu/elenco-alimenti.ts` (modulo puro): legge un elenco, e O LO LEGGE TUTTO O DICE DI NO.
+Un pezzo illeggibile, o anche solo letto a metà, fa rispondere `null`. Un elenco a cui
+manca un pezzo è il difetto che questo file esiste per chiudere, e «ne ho capiti nove su
+undici» non è una cosa che si possa dire a chi scrive una regola sul cibo di una persona.
+
+⚠️ LA VIRGOLA È IL SEGNALE, e non è una finezza. «e» dentro un nome è comunissimo —
+«Biscotti d'Avena e Banana», «sale e pepe». Spezzare sempre su «e» trasformerebbe il nome
+di una ricetta in due alimenti inventati, cioè rifarebbe lo stesso difetto al contrario.
+Quindi: con una virgola nella frase si spezza anche su «e»/«o» (l'italiano scrive «a, b e
+c»); senza virgole si spezza SOLO su «o»/«oppure», che è la forma delle alternative
+(«ceci con fagioli o lenticchie») e non compare quasi mai dentro il nome di un piatto.
+
+⚠️ E un nome con «e» dentro adesso è dichiarato ILLEGGIBILE invece di essere tagliato: da
+«sale e pepe» usciva «sale». Vuol dire che i nomi delle RICETTE restano non leggibili, come
+oggi — ma onestamente. È il lavoro successivo, e si fa guardando il catalogo ricette.
+
+`vera/sostituzione-a-elenchi.ts` legge la forma «sostituisci A, B, C con X, Y», refusi
+compresi («sostitusci» compare due volte nelle frasi vere). E se la frase HA la forma
+dell'elenco ma non si legge tutta, ci si ferma: non si ripiega sul riconoscitore vecchio,
+che tornerebbe proprio la mezza lettura che stiamo togliendo.
+
+L'intento porta due LISTE al posto di due stringhe. Il caso singolo è l'elenco di uno, non
+un campo diverso: due forme per la stessa cosa sono due posti dove sbagliarla.
+
+⚠️ E SI SCRIVONO TUTTE. La chiave di `FoodSwap` è cliente|ricetta|da|a, quindi «indivia →
+zucchine» e «indivia → melanzane» sono due righe legittime e il motore può pescare l'una o
+l'altra. Tre alimenti per due sostituti fanno SEI righe: scriverne una e buttare le altre
+sarebbe il troncamento di prima, un piano più in basso — invisibile, perché a quel punto
+l'anteprima è già stata superata.
+
+⚠️ E DUE COPPIE IN UNA FRASE ADESSO SI RIFIUTANO. `sost[0]` prendeva la prima e perdeva le
+altre in silenzio (trovato da una mutazione sopravvissuta).
+
+LA COMPATIBILITÀ, che l'ha trovata un test
+
+L'intento non vive solo nell'istante in cui si legge la frase: resta scritto nello STATO
+DELLA CONVERSAZIONE e nelle PROPOSTE IN CODA, che aspettano giorni. Al rilascio esistono per
+davvero nutrizioniste con l'anteprima sullo schermo che scrivono «confermo» un minuto dopo.
+Leggere solo la forma nuova voleva dire che quel «confermo» non scriveva niente — in
+silenzio. Le due forme si leggono tutte e due.
+
+MISURATO
+- 5876 test verdi in quattro modalità. Le prove nascono dalle frasi VERE della pagina, non
+  da casi inventati: è l'unico modo per sapere che quello che si aggiunge serve davvero.
+- Quattro mutazioni provate; una sopravvissuta — «due coppie in una frase» — e ha fatto
+  scrivere la prova che mancava.
+- Nessuna migrazione.
+
+⚠️ RESTANO GLI ALTRI CINQUE BUCHI, in ordine di frasi: il suo NOME (5 frasi, ed è il primo
+incontro), le liste di catalogo (5), la coda (3), le cortesie (4), le RICETTE (2). E i due
+casi in cui ha fatto una cosa sbagliata con sicurezza: la mezza lettura qui sopra, e «crea
+la regola che il merluzzo può essere sostituito con orata, salmone o spigola» → Vera ha
+risposto «l'ho scritta a Dany nella vostra chat», mandando un messaggio alla cliente invece
+di creare una regola. Quello va guardato prima del resto.

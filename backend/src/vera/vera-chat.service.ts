@@ -1121,8 +1121,20 @@ export class VeraChatService {
 
   private riepilogo(intento: Intento, termini: string[], cliente: string): string {
     if (intento.tipo === 'sostituzione') {
-      const i = intento as IntentoSostituzione;
-      return `Per **${cliente}**: al posto di «${i.from}» metto «${i.to}».`;
+      const i = elenchiDellIntento(intento as IntentoSostituzione);
+      /**
+       * ⚠️ **L'anteprima elenca TUTTO** (31/8). Qui c'era `«${i.from}» → «${i.to}»` su due stringhe,
+       * e con un elenco di undici verdure mostrava le prime quattro: la nutrizionista leggeva una
+       * frase sensata, diceva «confermo», e nasceva una regola che ne copriva tre su undici.
+       * L'anteprima è il punto in cui una lettura sbagliata si ferma — se mente lì, non si ferma più.
+       */
+      const da = i.da.map((x) => `«${x}»`).join(', ');
+      const a = i.a.map((x) => `«${x}»`).join(', ');
+      const quante = i.da.length * i.a.length;
+      const conteggio = quante > 1 ? ` (${quante} regole)` : '';
+      return i.a.length > 1
+        ? `Per **${cliente}**: al posto di ${da} metto uno fra ${a}.${conteggio}`
+        : `Per **${cliente}**: al posto di ${da} metto ${a}.${conteggio}`;
     }
     const i = intento as IntentoRestrizione;
     const tenuti = i.tenuti.length ? ` Tengo: ${i.tenuti.join(', ')}.` : '';
@@ -3124,18 +3136,35 @@ export class VeraChatService {
     stato: StatoVera,
     intento: IntentoSostituzione,
   ): Promise<string> {
-    await registraSostituzione(this.prisma, {
-      clientId: stato.clienteId!,
-      tipo: 'ingrediente',
-      from: intento.from,
-      to: intento.to,
-      recipeId: null,
-      origine: 'manuale',
-      stato: 'verificata',
-      nota: `Dettata all'assistente: «${stato.frase}»`,
-      creataDaId: nutrizionistaId,
-    });
-    return `Al posto di «${intento.from}» userò «${intento.to}».`;
+    /**
+     * ⛔ **UNA RIGA PER COPPIA, e sono tutte** (31/8). La chiave di `FoodSwap` è
+     * `cliente|ricetta|da|a`, quindi due alternative per lo stesso alimento sono due righe
+     * legittime — «indivia → zucchine» e «indivia → melanzane» — e il motore può pescare l'una o
+     * l'altra. Scriverne una sola e buttare le altre sarebbe il troncamento di prima, un piano più
+     * in basso: invisibile, perché a quel punto l'anteprima l'ha già superata.
+     */
+    const { da: listaDa, a: listaA } = elenchiDellIntento(intento);
+    for (const da of listaDa) {
+      for (const a of listaA) {
+        await registraSostituzione(this.prisma, {
+          clientId: stato.clienteId!,
+          tipo: 'ingrediente',
+          from: da,
+          to: a,
+          recipeId: null,
+          origine: 'manuale',
+          stato: 'verificata',
+          nota: `Dettata all'assistente: «${stato.frase}»`,
+          creataDaId: nutrizionistaId,
+        });
+      }
+    }
+    const quante = listaDa.length * listaA.length;
+    const elencoDa = listaDa.map((x) => `«${x}»`).join(', ');
+    const elencoA = listaA.map((x) => `«${x}»`).join(', ');
+    return quante > 1
+      ? `Al posto di ${elencoDa} userò ${elencoA}. Ho scritto ${quante} regole.`
+      : `Al posto di ${elencoDa} userò ${elencoA}.`;
   }
 
   // ────────────────────────────────────────────── la coda del capo ──────────
@@ -4071,4 +4100,26 @@ export class VeraChatService {
       } as never,
     });
   }
+}
+
+/**
+ * ⛔ **LA FORMA VECCHIA CONTINUA A VALERE — 31/8.**
+ *
+ * Dal 31/8 `IntentoSostituzione` porta due **liste** (`da`/`a`); fino al giorno prima portava due
+ * **stringhe** (`from`/`to`). E l'intento non vive solo nell'istante in cui si legge la frase:
+ * resta scritto nello **stato della conversazione** e nelle **proposte in coda**, che possono
+ * aspettare giorni.
+ *
+ * ⚠️ Quindi al primo rilascio esistono per davvero conversazioni aperte con dentro la forma
+ * vecchia: leggere solo `da`/`a` vorrebbe dire che una nutrizionista scrive «confermo» a
+ * un'anteprima che ha appena letto e si becca un errore — o, peggio, un silenzio. Qui si leggono
+ * tutte e due, e il caso singolo è l'elenco di uno.
+ */
+export function elenchiDellIntento(
+  i: { from?: string; to?: string; da?: string[]; a?: string[] },
+): { da: string[]; a: string[] } {
+  return {
+    da: Array.isArray(i.da) && i.da.length ? i.da : i.from ? [i.from] : [],
+    a: Array.isArray(i.a) && i.a.length ? i.a : i.to ? [i.to] : [],
+  };
 }

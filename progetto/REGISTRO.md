@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **Vera legge gli elenchi — e smette di leggerne quattro su undici senza dirlo.**
+  Simone: *«non capisce quasi nulla»*. La pagina «frasi che non ho capito» ne elenca **25 in 90
+  giorni**; raggruppate non sono 25 problemi ma **sei**, e il più grosso sono gli **elenchi** (7).
+  ⛔ **Ma il difetto peggiore non era fra le frasi non capite.** «sostituisci le verdure con
+  zucchine, melanzane, peperoni, carciofi, fagiolini, spinaci, erbe cotte, carote, minestrone,
+  insalata, pomodoro» diventava in anteprima **«al posto di "verdure" metto "zucchine melanzane
+  peperoni carciofi"»**: quattro su undici, gli altri sette spariti senza una parola. La frase era
+  sensata, non c'era motivo di non confermarla — e nasceva una regola che ne copriva tre. Il come
+  sta in due righe di `nomeAlimento`: la punteggiatura diventa spazi e `PAROLE_MAX = 4` taglia.
+  *Niente troncamenti silenziosi* — qui il troncamento c'era, ed era silenzioso.
+  ✅ `elenco-alimenti.ts`: **o legge tutto o dice di no**; un pezzo illeggibile, o anche solo letto a
+  metà, fa rispondere `null`. ⚠️ **La virgola è il segnale**, e non è una finezza: «e» dentro un nome
+  è comunissimo («Biscotti d'Avena e Banana», «sale e pepe»), e spezzare sempre su «e» rifarebbe lo
+  stesso difetto al contrario — un nome di ricetta trasformato in due alimenti inventati. Con la
+  virgola si spezza anche su «e»/«o»; senza, **solo** su «o»/«oppure», che è la forma delle
+  alternative. ⚠️ E un nome con «e» dentro è ora dichiarato **illeggibile** invece che tagliato: le
+  ricette restano fuori portata come ieri, ma onestamente.
+  ✅ L'intento porta due **liste** (il caso singolo è l'elenco di uno), e **si scrivono tutte**: la
+  chiave di `FoodSwap` è `cliente|ricetta|da|a`, quindi tre alimenti per due sostituti fanno **sei**
+  righe. ⚠️ E due coppie in una frase adesso si **rifiutano**: `sost[0]` ne perdeva le altre in
+  silenzio — trovato da una mutazione sopravvissuta.
+  ⚠️ **La compatibilità l'ha trovata un test**: l'intento resta scritto nello **stato della
+  conversazione** e nelle **proposte in coda**, che aspettano giorni. Al rilascio ci sono
+  nutrizioniste con l'anteprima sullo schermo: leggere solo la forma nuova voleva dire che il loro
+  «confermo» non scriveva niente, in silenzio.
+  5876 test verdi in quattro modalità, tutti da frasi vere; quattro mutazioni, una sopravvissuta e
+  ha fatto scrivere la prova mancante. Nessuna migrazione.
+  ⚠️ **Restano cinque buchi** — il suo **nome** (5 frasi, ed è il primo incontro), le liste di
+  catalogo (5), la coda (3), le cortesie (4), le **ricette** (2) — e un secondo caso in cui ha fatto
+  una cosa sbagliata **con sicurezza**: «crea la regola che il merluzzo può essere sostituito con
+  orata, salmone o spigola» → *«l'ho scritta a Dany nella vostra chat»*, cioè un messaggio alla
+  cliente al posto di una regola. Quello viene prima del resto.
+
 - `[Sviluppo]` **Il blocco che si riapre da solo adesso lo dice — e una riga di diagnostica che
   mentiva.** ⛔ **Prima di tutto: quello che avevo detto io era falso.** Per mezza giornata ho
   ripetuto che «le segnalazioni Piano bloccato non avvisano nessuno». L'avevo letto in

@@ -853,6 +853,51 @@ describe('VeraChatService — la scrittura', () => {
     expect(dati.create.origine).toBe('manuale');
     expect(dati.create.stato).toBe('verificata');
   });
+
+  /**
+   * ⛔ **LA CONVERSAZIONE APERTA AL MOMENTO DEL RILASCIO — 31/8.**
+   *
+   * La prova qui sopra usa la forma **vecchia** dell'intento (`from`/`to`), ed è quella che l'ha
+   * scoperto: lo stato della conversazione resta scritto, quindi al rilascio esistono per davvero
+   * nutrizioniste che hanno l'anteprima sullo schermo e scrivono «confermo» un minuto dopo. Se il
+   * codice nuovo leggesse solo `da`/`a`, quel «confermo» non scriverebbe niente.
+   */
+  it('⛔ una conversazione già aperta (forma vecchia from/to) scrive lo stesso', async () => {
+    const { service, prisma } = make(
+      { foodSwap: { upsert: jest.fn().mockResolvedValue({ id: 'f1', volte: 1 }) } },
+      {
+        statoAperto: statoAmbito({
+          frase: 'per Giulia sostituisci il pollo con il tacchino',
+          intento: { tipo: 'sostituzione', cliente: 'Giulia', from: 'pollo', to: 'tacchino' },
+        }),
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    const chiamate = (prisma as unknown as { foodSwap: { upsert: jest.Mock } }).foodSwap.upsert.mock.calls;
+    expect(chiamate).toHaveLength(1);
+    expect(chiamate[0][0].create.fromFood).toBe('pollo');
+    expect(chiamate[0][0].create.toFood).toBe('tacchino');
+  });
+
+  it('⛔ IL CASO LORENA: tre alimenti per due sostituti fanno SEI righe, non una', async () => {
+    const { service, prisma } = make(
+      { foodSwap: { upsert: jest.fn().mockResolvedValue({ id: 'f1', volte: 1 }) } },
+      {
+        statoAperto: statoAmbito({
+          frase: 'a Lorena sostituisci Indivia, Scarola, Verza con zucchine, melanzane',
+          intento: { tipo: 'sostituzione', cliente: 'Lorena', da: ['Indivia', 'Scarola', 'Verza'], a: ['zucchine', 'melanzane'] },
+        }),
+      },
+    );
+    await service.parla('lucia', 'solo per lei');
+    const chiamate = (prisma as unknown as { foodSwap: { upsert: jest.Mock } }).foodSwap.upsert.mock.calls;
+    // La chiave di FoodSwap è cliente|ricetta|da|a: due alternative per lo stesso alimento sono
+    // due righe legittime, e il motore può pescare l'una o l'altra.
+    expect(chiamate).toHaveLength(6);
+    const scritte = chiamate.map((c) => `${c[0].create.fromFood}→${c[0].create.toFood}`);
+    expect(scritte).toContain('Indivia→zucchine');
+    expect(scritte).toContain('Verza→melanzane');
+  });
 });
 
 describe('VeraChatService — la coda del capo nutrizionista', () => {

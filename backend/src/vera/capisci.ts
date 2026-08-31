@@ -24,6 +24,7 @@
  *   riformularla; una frase capita male costa cibo sbagliato nel piatto di una persona.
  */
 import { leggiEquivalenza } from './equivalenza-dettata';
+import { chiedeUnaSostituzioneAElenchi, sostituzioneAElenchi } from './sostituzione-a-elenchi';
 import { chiedeUnCambioDiDigiuno, clienteDopoIlVerbo, leggiDigiunoDettato } from './digiuno-dettato';
 import { normalizza } from '../common/nomi-alimento';
 import { sostituzioniNelMessaggio } from '../food-swaps/impara-dalla-chat';
@@ -90,12 +91,25 @@ export interface IntentoRestrizione {
   tenuti: string[];
 }
 
-/** «Per Anna sostituisci il pollo con il tacchino». */
+/**
+ * «Per Anna sostituisci il pollo con il tacchino» — e adesso anche gli ELENCHI.
+ *
+ * ⛔ **`from`/`to` erano due stringhe, e non reggevano quello che la nutrizionista scrive
+ * davvero** (31/8, dalle frasi vere): *«sostituisci Indivia, Scarola, Verza, Cavolo con zucchine,
+ * melanzane, peperoni…»* e *«sostituisci ceci con fagioli o lenticchie»*. Con due stringhe l'unico
+ * esito possibile era una lettura **parziale e silenziosa**: undici verdure diventavano quattro
+ * parole, e l'anteprima lo diceva con la faccia seria.
+ *
+ * ⚠️ Sono liste anche quando l'elenco è di uno: il caso singolo è il caso di lunghezza 1, non un
+ * campo diverso. Due forme per la stessa cosa sono due posti dove sbagliarla.
+ */
 export interface IntentoSostituzione {
   tipo: 'sostituzione';
   cliente: string | null;
-  from: string;
-  to: string;
+  /** Gli alimenti da togliere. Mai vuoto. */
+  da: string[];
+  /** Quelli che li sostituiscono: più d'uno vuol dire «uno qualunque di questi». Mai vuoto. */
+  a: string[];
 }
 
 /**
@@ -573,9 +587,29 @@ export function capisci(frase: string): Intento | null {
 
   // 3) Sostituzione: la delega al riconoscitore che esiste già, con le sue regole sulle due
   //    direzioni invertite. Riscriverlo qui sarebbe la seconda copia, e le seconde copie divergono.
+  /**
+   * ⛔ **PRIMA GLI ELENCHI** (31/8). `sostituzioniNelMessaggio` legge UN alimento per parte, e su
+   * una frase con un elenco non fallisce: risponde una **parte** — «zucchine melanzane peperoni
+   * carciofi» al posto di undici verdure — che è il modo peggiore di sbagliare, perché sembra una
+   * risposta. Quindi si prova prima la lettura a elenco, che o legge tutto o dice di no.
+   *
+   * ⚠️ E se la frase **ha** la forma di un elenco ma non si legge tutta, ci si ferma: non si
+   * ripiega sul riconoscitore vecchio, che tornerebbe proprio la mezza lettura che stiamo
+   * togliendo. *Niente troncamenti silenziosi.*
+   */
+  const aElenchi = sostituzioneAElenchi(testo);
+  if (aElenchi) return { tipo: 'sostituzione', cliente, da: aElenchi.da, a: aElenchi.a };
+  if (aElenchi === null && chiedeUnaSostituzioneAElenchi(testo)) return null;
+
   const sost = sostituzioniNelMessaggio(testo);
   if (sost.length) {
-    return { tipo: 'sostituzione', cliente, from: sost[0].from, to: sost[0].to };
+    /**
+     * ⚠️ `sost[0]`, e le altre? Se la frase contenesse due coppie — «A con B e C con D» — le altre
+     * si perdevano in silenzio. Adesso, se ce n'è più d'una, si dice di no: due regole scritte da
+     * una frase che ne mostrava una sola è il genere di sorpresa che si scopre dal piatto.
+     */
+    if (sost.length > 1) return null;
+    return { tipo: 'sostituzione', cliente, da: [sost[0].from], a: [sost[0].to] };
   }
 
   // 3-bis) LA FAMIGLIA A SECCO (Nocanty, 13/8): «hai la lista dei formaggi molli?»,

@@ -87,16 +87,43 @@ describe('capisci — sostituzioni', () => {
   it('«per Anna sostituisci il pollo con il tacchino»', () => {
     const i = sost('per Anna sostituisci il pollo con il tacchino');
     expect(i.tipo).toBe('sostituzione');
-    expect(i.from).toBe('pollo');
-    expect(i.to).toBe('tacchino');
+    // ⚠️ Liste dal 31/8: il caso singolo è l'elenco di uno, non un campo diverso.
+    expect(i.da).toEqual(['pollo']);
+    expect(i.a).toEqual(['tacchino']);
   });
 
   it('⚠️ «il tacchino al posto del pollo» dice PRIMA l\'arrivo: from resta il pollo', () => {
     // Capirla al contrario non produce un errore: produce una regola perfettamente formata e
     // rovesciata, che nessuno legge come sbagliata finché non arriva nel piatto di qualcuno.
     const i = sost('per Anna il tacchino al posto del pollo');
-    expect(i.from).toBe('pollo');
-    expect(i.to).toBe('tacchino');
+    expect(i.da).toEqual(['pollo']);
+    expect(i.a).toEqual(['tacchino']);
+  });
+
+  it('⛔ IL CASO LORENA: un elenco resta intero, non diventa le prime quattro parole', () => {
+    const i = sost('a Lorena sostituisci sempre Indivia, Scarola, Verza con zucchine, melanzane, peperoni');
+    expect(i.da).toEqual(['Indivia', 'Scarola', 'Verza']);
+    expect(i.a).toEqual(['zucchine', 'melanzane', 'peperoni']);
+  });
+
+  it('⛔ IL CASO JOLANDA, refuso compreso: «sostitusci ceci con fagioli o lenticchie»', () => {
+    const i = sost('a Jolanda sostitusci ceci con fagioli o lenticchie');
+    expect(i.da).toEqual(['ceci']);
+    expect(i.a).toEqual(['fagioli', 'lenticchie']);
+  });
+
+  it('⛔ DUE coppie in una frase: si dice di no invece di scriverne una e buttare l\'altra', () => {
+    /**
+     * Trovato da una mutazione. `sostituzioniNelMessaggio` può trovarne più d'una; il codice
+     * prendeva `sost[0]` e le altre sparivano. Due regole nate da una frase che ne mostrava una
+     * sola sono il genere di sorpresa che si scopre dal piatto, non dall'anteprima.
+     */
+    expect(capisci('per Anna sostituisci il pollo con il tacchino. sostituisci il riso con la quinoa')).toBeNull();
+  });
+
+  it('⛔ un elenco che non si legge tutto NON diventa una mezza regola: si dice di no', () => {
+    // «di» non è un alimento: la frase ha la forma dell'elenco e non si legge per intero.
+    expect(capisci('a Lorena sostituisci zucchine, di, peperoni con carote, sedano')).toBeNull();
   });
 });
 
