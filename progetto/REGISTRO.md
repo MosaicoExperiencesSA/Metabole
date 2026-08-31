@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🥖 **«senza glutine» non è una negazione — e la regola non esce più rovesciata.**
+  Dallo screenshot vero: *«a patrizia sogari sostituisci Biscotti d'Avena e Banana con Biscotti
+  **senza glutine** e banana»* → «Non ci arrivo», due volte. ⛔ `senza` stava nell'elenco delle
+  negazioni come **parola secca**, quindi bastava nominare mezzo scaffale — senza glutine, senza
+  lattosio, senza zucchero, senza sale — perché l'istruzione venisse buttata via. Questo prodotto ha
+  una funzione che si chiama `senza-glutine.ts`. ⚠️ **Una guardia che blocca il caso normale non è
+  prudente: è rotta, e sembra prudente.** La differenza sta in cosa segue: «senza + verbo
+  dell'azione» nega, «senza + nome» qualifica un alimento. ⛔ **E l'elenco chiuso, alla prima
+  stesura, ne aveva metà**: conoscevo i verbi del *cambiare* e nessuno di quelli del **mettere**,
+  che sono quelli della forma rovesciata «Y al posto di X» — quindi *«per la celiaca senza mettere
+  il pane normale al posto del pane senza glutine»* scriveva `pane senza glutine → pane normale`.
+  Nel piatto di una celiaca, con un'anteprima plausibile da confermare. Il commento dichiarava una
+  regola che il codice non aveva. ⚠️ Elenco **chiuso** e non una forma furba: quella scattava su
+  «senza **mandorle**». ⛔ **E un secondo difetto trovato misurando, non corretto e scritto come
+  bloccante**: «sostituisci Biscotti d'Avena e Banana con Gallette di riso» perde «e Banana» in
+  silenzio — la regola vieta *tutti* i biscotti d'avena. Correggerlo di fretta sarebbe peggio del
+  difetto: «e» dentro un nome è comunissimo. Revisione avversariale: tre difetti in questa stessa
+  consegna, fra cui una mia affermazione falsa nella voce dei lavori. 6030 test verdi.
+
 - `[Sviluppo]` 📏 **Panieri: la misura della Fase 0, e il verdetto che dice se si può aprire la Fase
   1.** Il §9 del piano elenca due blocchi: la firma del capo nutrizionista (arrivata oggi) e questo
   numero. Il piano dice anche quando basta — «attivi ≥ 60 per pasto su tutte le celle» — quindi

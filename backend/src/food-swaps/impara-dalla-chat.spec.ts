@@ -177,6 +177,117 @@ describe('daScartare', () => {
     // «nonna», «annona»: senza il confine di parola, mezza lingua italiana diventa una negazione.
     expect(daScartare('Sostituisci il pane della nonna con le gallette')).toBe(false);
   });
+
+  /**
+   * ⛔ **«SENZA GLUTINE» NON È UNA NEGAZIONE** — dal messaggio vero della nutrizionista del 31/8:
+   * *«a patrizia sogari sostituisci Biscotti d'Avena e Banana con Biscotti senza glutine e
+   * banana»*, e Vera rispondeva «Non ci arrivo». Due volte.
+   *
+   * ⚠️ `senza` stava nell'elenco delle negazioni come parola secca, quindi bastava nominare mezzo
+   * scaffale — senza glutine, senza lattosio, senza zucchero, senza sale — perché l'istruzione non
+   * venisse eseguita. Questo prodotto ha una funzione che si chiama `senza-glutine.ts`.
+   */
+  describe('⛔ «senza» qualifica un alimento, non nega l\'istruzione', () => {
+    it.each([
+      'a patrizia sostituisci i biscotti con biscotti senza glutine',
+      'sostituisci la pasta con pasta senza lattosio',
+      'sostituisci il pane con le gallette senza sale',
+      'sostituisci i biscotti con biscotti senza zucchero',
+    ])('«%s» si esegue', (f) => {
+      expect(daScartare(f)).toBe(false);
+      expect(sostituzioniNelMessaggio(f)).toHaveLength(1);
+    });
+
+    /**
+     * ⚠️ L'elenco dei verbi è CHIUSO apposta. La prima stesura usava una forma furba — «parola che
+     * finisce in -are/-ere/-ire, o in -r più un pronome» — e su «senza **mandorle**» scattava
+     * (`mando` + `r` + `le`): per coprire «senza dirglielo» avrebbe ributtato via una frase
+     * normalissima sul cibo. Cioè lo stesso difetto di prima, con un'altra parola.
+     */
+    it('⛔ e «senza mandorle» resta cibo, non diventa un verbo', () => {
+      expect(daScartare('sostituisci le noci con mandorle senza mandorle amare')).toBe(false);
+    });
+
+    it('mentre «senza» davanti al verbo dell\'azione nega ancora', () => {
+      expect(daScartare('fai il menu senza sostituire il pane con le gallette')).toBe(true);
+      expect(daScartare('aggiorna la dieta senza cambiare il pane con le gallette')).toBe(true);
+      expect(daScartare('sostituisci il pane con le gallette senza che se ne accorga')).toBe(true);
+    });
+
+    /**
+     * ⛔ **LA FORMA ROVESCIATA, ed è il caso peggiore che questo prodotto possa produrre.**
+     *
+     * Trovato dalla revisione del 31/8: la prima stesura dell'elenco chiuso conosceva i verbi del
+     * *cambiare* e nessuno di quelli del **mettere** — che sono proprio quelli della forma «Y al
+     * posto di X», la trappola numero uno dichiarata nel cappello del file. Risultato misurato:
+     *
+     *     «per la celiaca senza mettere il pane normale al posto del pane senza glutine»
+     *       → { da: ["pane senza glutine"], a: ["pane normale"] }
+     *
+     * cioè, nel piatto di una celiaca, il pane senza glutine sostituito **con pane normale** —
+     * scritto come regola, con un'anteprima plausibile da confermare. ⚠️ Non è un errore che si
+     * nota: è un errore che si mangia.
+     */
+    it.each([
+      'per la celiaca senza mettere il pane normale al posto del pane senza glutine',
+      'mi raccomando senza mettere il latte al posto della bevanda di soia',
+      'senza dare la ricotta al posto del formaggio di soia',
+      'senza usare le noci al posto delle mandorle',
+      'senza inserire il pane al posto delle gallette',
+      'senza prendere il tonno al posto del pollo',
+      'senza levare il pane al posto delle gallette',
+      'senza aggiungere lo zucchero al posto del miele',
+    ])('⛔ «%s» NON si esegue: la regola uscirebbe rovesciata', (f) => {
+      expect(daScartare(f)).toBe(true);
+      expect(sostituzioniNelMessaggio(f)).toEqual([]);
+    });
+
+    /**
+     * ⚠️ Il confine di parola su `che` non è decorazione: senza, «cheddar» e «cheto» diventano
+     * negazioni — cioè il difetto del 31/8 ricostruito con un'altra parola. Sopravviveva a tutte le
+     * prove finché nessuna lo guardava.
+     */
+    it.each([
+      ['sostituisci la pizza con una pizza senza cheddar', 'pizza senza cheddar'],
+      ['sostituisci il pane con pane senza cheto', 'pane senza cheto'],
+    ])('⛔ «%s»: `che` ha il confine di parola', (f, atteso) => {
+      expect(daScartare(f)).toBe(false);
+      expect(sostituzioniNelMessaggio(f)).toMatchObject([{ to: atteso }]);
+    });
+
+    /**
+     * ⚠️ Ogni radice dell'elenco è coperta da una prova sua. Senza, se ne possono togliere cinque su
+     * sedici e resta tutto verde — provato in revisione, ed è come un elenco chiuso smette di essere
+     * chiuso: non lo tocca nessuno, e intanto non lo tiene fermo niente.
+     */
+    it.each([
+      ['sostituir', 'fai il menu senza sostituire il pane'],
+      ['cambiar', 'fai il menu senza cambiare il pane'],
+      ['toglier', 'fai il menu senza togliere il pane'],
+      ['rimpiazzar', 'fai il menu senza rimpiazzare il pane'],
+      ['eliminar', 'fai il menu senza eliminare il pane'],
+      ['modificar', 'fai il menu senza modificare il pane'],
+      ['scriver', 'fai il menu senza scriverlo nella regola'],
+      ['metter', 'fai il menu senza mettere il pane'],
+      ['dar', 'fai il menu senza dare il pane'],
+      ['usar', 'fai il menu senza usare il pane'],
+      ['aggiunger', 'fai il menu senza aggiungere il pane'],
+      ['inserir', 'fai il menu senza inserire il pane'],
+      ['prender', 'fai il menu senza prendere il pane'],
+      ['lev', 'fai il menu senza levare il pane'],
+      ['mescolar', 'fai il menu senza mescolare il pane'],
+    ])('la radice «%s» nega', (_, f) => {
+      expect(daScartare(f)).toBe(true);
+    });
+
+    /**
+     * ⚠️ Copre poco apposta: qui il «senza» non nega il cambio, dice **come** farlo. Scartarlo
+     * vorrebbe dire non eseguire un'istruzione che c'è.
+     */
+    it('⚠️ e «senza dirglielo» resta una sostituzione: dice come, non se', () => {
+      expect(daScartare('sostituisci il pane con le gallette senza dirglielo')).toBe(false);
+    });
+  });
 });
 
 /**

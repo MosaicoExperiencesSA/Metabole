@@ -1,0 +1,82 @@
+=== PARTE: «senza glutine» non è una negazione ===
+
+SUMMARY
+Vera esegue di nuovo le sostituzioni che nominano un alimento «senza glutine», e non scrive più la regola rovesciata quando la frase dice di non farla
+
+DESCRIPTION
+Dallo screenshot vero della chat dell'assistente, 31/8. La nutrizionista scrive:
+
+  «a patrizia sogari sostituisci Biscotti d'Avena e Banana con Biscotti senza glutine e banana»
+
+e Vera risponde «Non ci arrivo». Due volte.
+
+⛔ LA CAUSA: `senza` stava nell'elenco delle negazioni di `daScartare` come PAROLA SECCA. Quindi
+bastava nominare mezzo scaffale — senza glutine, senza lattosio, senza zucchero, senza sale —
+perché l'istruzione venisse buttata via come «è una negazione, non si esegue». Questo prodotto ha
+una funzione che si chiama `senza-glutine.ts`. Una guardia che blocca il caso normale non è
+prudente: è rotta, e sembra prudente.
+
+La differenza non sta nella parola, sta in cosa la segue: «senza + verbo dell'azione» nega
+l'istruzione, «senza + nome» qualifica un alimento. Quindi si scarta solo la prima forma, con un
+elenco CHIUSO di verbi.
+
+⛔ E L'ELENCO CHIUSO, ALLA PRIMA STESURA, NE AVEVA METÀ — trovato dalla revisione avversariale, che
+ha misurato il caso peggiore che questo prodotto possa produrre:
+
+  «per la celiaca senza mettere il pane normale al posto del pane senza glutine»
+    → { da: ["pane senza glutine"], a: ["pane normale"] }
+
+cioè, nel piatto di una celiaca, il pane senza glutine sostituito CON PANE NORMALE — scritto come
+regola, con un'anteprima plausibile da confermare. ⚠️ Conoscevo i verbi del *cambiare*
+(`sostituir`, `cambiar`, `toglier`…) e nessuno di quelli del *mettere*, che sono proprio quelli
+della forma rovesciata «Y al posto di X» — la trappola numero uno dichiarata nel cappello del file.
+Il commento diceva «senza + verbo dell'azione nega»: `mettere`, `dare` e `usare` sono verbi
+dell'azione, e la riga non li conosceva. **Il codice non faceva quello che il suo commento
+dichiarava.** Adesso ci sono tutti e sedici, ognuno con la sua prova.
+
+⚠️ E l'elenco è chiuso, non una forma furba tipo «qualunque parola che finisce in -are/-ere/-ire o
+in -r più un pronome»: quella l'avevo scritta per prima, e su «senza MANDORLE» scattava
+(`mando` + `r` + `le`). Per coprire «senza dirglielo» avrebbe ributtato via una frase normalissima
+sul cibo — lo stesso difetto, con un'altra parola. Le 914 voci di catalogo verificate non toccano
+nessuna delle sedici radici; `che\b` con il confine, o «cheddar» e «cheto» tornerebbero negazioni.
+
+⚠️ Copre poco apposta: «sostituisci il pane con le gallette **senza dirglielo**» resta una
+sostituzione valida, perché lì il «senza» non nega il cambio — dice come farlo.
+
+⛔ UN SECONDO DIFETTO, TROVATO MISURANDO, NON CORRETTO E SCRITTO NELL'ELENCO LAVORI COME BLOCCANTE:
+
+  «sostituisci Biscotti d'Avena e Banana con Gallette di riso»
+    → { da: ["Biscotti d'Avena"], a: ["Gallette di riso"] }
+
+«e Banana» sparisce senza una parola: la regola scritta non vieta quel piatto, vieta TUTTI i
+«Biscotti d'Avena» — e l'anteprima mostra una frase plausibile, quindi basta un «confermo». È
+esattamente il difetto che `vera/elenco-alimenti.ts` è nato per chiudere, un piano più sotto:
+`leggiElenco` su quel pezzo torna `null` (giusto), ma `chiedeUnaSostituzioneAElenchi` risponde
+`false` — nessuna virgola, nessun «o» — quindi il ramo a elenchi non si apre e si ripiega sul
+riconoscitore che tronca. La guardia c'è, il caso le passa accanto.
+
+Non è stato corretto qui di proposito: «e» dentro un nome è comunissimo («sale e pepe», «erbe e
+spezie»), spezzare sempre trasformerebbe un piatto in due alimenti inventati, e il pezzo catturato
+è tutta la coda della frase — quindi il confronto «quante parole ho letto contro quante ce n'erano»
+non si può fare senza prima separare la coda di contesto dal nome, e oggi quel modo non c'è. Le due
+strade sono scritte nella voce. ⚠️ Una correzione affrettata qui sarebbe peggio del difetto.
+
+VERIFICA
+Revisione avversariale: il difetto della forma rovesciata (sei frasi misurate, tutte che
+producevano una regola invertita), due mutazioni sopravvissute alla prima stesura delle prove — il
+confine di parola su `che` e cinque radici su sedici che si potevano togliere restando verdi — e
+un'affermazione FALSA che avevo scritto nella voce dell'elenco lavori (`senzaCodaDiAmbito` come
+rimedio alla coda: misurato, su «a colazione» restituisce la frase identica). Tutte e tre corrette;
+la voce adesso dice come stanno le cose, perché chi la prende non parta da una riga sbagliata.
+Cinque mutazioni provate in tutto, tutte uccise. 6030 test backend verdi nelle quattro modalità,
+`nest build` e `tsc --noEmit` compresi.
+
+⚠️ Dichiarato e non chiuso: sulla frase vera dello screenshot «a patrizia sogari» tutto minuscolo
+non viene letto come nome di cliente (con le maiuscole sì), quindi quel messaggio adesso non dice
+più «non ci arrivo» ma chiede comunque a chi. È un terzo difetto, separato, scritto nella stessa
+voce.
+
+FILE
+- backend/src/food-swaps/impara-dalla-chat.ts — `VERBI_CHE_NEGANO`, e `senza` fuori dall'elenco secco
+- backend/src/food-swaps/impara-dalla-chat.spec.ts — 25 prove nuove
+- backend/src/lavori/voci-iniziali.ts — voce nuova, bloccante, sul troncamento silenzioso

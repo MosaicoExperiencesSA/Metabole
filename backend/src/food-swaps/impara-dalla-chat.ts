@@ -172,6 +172,38 @@ export function nomeAlimento(pezzo: string): string | null {
 }
 
 /**
+ * I VERBI CHE, DOPO «SENZA», NEGANO DAVVERO L'ISTRUZIONE.
+ *
+ * ⛔ **Elenco chiuso, e la prima stesura ne aveva metà** — trovato dalla revisione del 31/8, che ha
+ * misurato il caso peggiore che questo prodotto possa produrre:
+ *
+ *     «per la celiaca senza mettere il pane normale al posto del pane senza glutine»
+ *       → { da: ["pane senza glutine"], a: ["pane normale"] }
+ *
+ * cioè, nel piatto di una celiaca, il pane senza glutine sostituito **con pane normale**, scritto
+ * come regola e con un'anteprima plausibile da confermare. ⚠️ La lista copriva i verbi del
+ * *cambiare* (`sostituir`, `cambiar`, `toglier`…) e non quelli del **mettere**, che sono quelli
+ * della forma rovesciata «Y al posto di X» — la forma che il cappello di questo file dichiara come
+ * la trappola numero uno. Il commento diceva «senza + verbo dell'azione nega»: `mettere`, `dare` e
+ * `usare` sono verbi dell'azione, e la riga non li conosceva. Il codice non faceva quello che il
+ * suo commento dichiarava.
+ *
+ * ⚠️ **Radici, non parole intere**, per coprire infinito e forme con i pronomi («metterlo»,
+ * «darglielo»). ⚠️ E `che\b` con il confine: senza, «una pizza senza **che**ddar» e «pane senza
+ * **che**to» tornerebbero a essere negazioni — cioè il difetto del 31/8, con un'altra parola.
+ *
+ * ⛔ Chi allunga questo elenco controlli prima i nomi del catalogo: una radice che combacia con un
+ * alimento vero rimette in piedi il difetto che l'elenco esiste per chiudere. Le 914 verificate il
+ * 31/8 non ne toccano nessuna.
+ */
+const VERBI_CHE_NEGANO = [
+  // i verbi del CAMBIARE
+  'sostituir', 'cambiar', 'toglier', 'rimpiazzar', 'eliminar', 'modificar', 'scriver', 'scrivere',
+  // ⛔ i verbi del METTERE: sono quelli della forma rovesciata, e mancavano tutti
+  'metter', 'dar', 'usar', 'aggiunger', 'inserir', 'prender', 'lev', 'mescolar', 'sommininistrar',
+] as const;
+
+/**
  * Le frasi in cui questa proposizione va scartata comunque, qualunque cosa contenga.
  *
  * ⚠️ La domanda si controlla **sull'intera frase** e non sul pezzo catturato: «posso sostituire il
@@ -182,7 +214,31 @@ export function daScartare(frase: string): boolean {
   if (!f) return true;
   if (f.includes('?')) return true;
   // Negazioni e divieti. `\b` per non prendere «non» dentro un'altra parola.
-  if (/\b(non|senza|mai|evita|evitare|eviti|niente|nessun[ao]?|smetti|basta)\b/.test(f)) return true;
+  if (/\b(non|mai|evita|evitare|eviti|niente|nessun[ao]?|smetti|basta)\b/.test(f)) return true;
+  /**
+   * ⛔ **«SENZA» NON È SEMPRE UNA NEGAZIONE, E TRATTARLO COSÌ SPEGNEVA MEZZO PRODOTTO** — 31/8.
+   *
+   * Stava nell'elenco qui sopra come parola secca, e quindi *«a patrizia sostituisci i biscotti con
+   * biscotti **senza glutine**»* usciva da qui come «è una negazione, non si esegue»: la
+   * nutrizionista si sentiva rispondere «Non ci arrivo». ⚠️ E non è un caso di confine — «senza
+   * glutine», «senza lattosio», «senza zucchero», «senza sale» sono il modo normale di nominare
+   * mezzo scaffale, e questo prodotto ha una funzione che si chiama proprio `senza-glutine.ts`.
+   * Una guardia che blocca il caso normale non è prudente: è rotta, e sembra prudente.
+   *
+   * ⚠️ La differenza non sta nella parola, sta in **cosa la segue**: «senza + verbo dell'azione»
+   * nega l'istruzione, «senza + nome» qualifica un alimento.
+   *
+   * ⛔ **E l'elenco dei verbi è CHIUSO**, non una forma furba tipo «qualunque parola che finisce in
+   * -are/-ere/-ire o in -r + pronome». Quella l'avevo scritta per prima, e su «senza **mandorle**»
+   * scattava (`mando` + `r` + `le`): cioè per coprire «senza dirglielo» avrei ributtato via una
+   * frase perfettamente normale sul cibo — lo stesso difetto di prima, con un'altra parola. È la
+   * stessa lezione dei qualificatori innocui in `abbinamento-alimenti.ts`: un elenco chiuso si
+   * legge, «tutto quello che somiglia a un verbo» sbaglia in silenzio.
+   *
+   * ⚠️ E copre poco apposta: «sostituisci il pane con le gallette **senza dirglielo**» resta una
+   * sostituzione valida, perché il «senza» lì non nega il cambio — dice come farlo.
+   */
+  if (new RegExp(`\\bsenza\\s+(?:che\\b|${VERBI_CHE_NEGANO.join('|')})`).test(f)) return true;
   // Ipotesi e domande indirette: «se volessi», «si potrebbe», «magari».
   if (/\b(vorresti|volessi|potresti|potrebbe|potrebbero|magari|forse|dubbio|chiedi)\b/.test(f)) return true;
   return false;

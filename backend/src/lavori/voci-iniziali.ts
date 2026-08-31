@@ -83,6 +83,58 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'la-e-nel-nome-tronca-in-silenzio',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: false,
+    nata: '2026-08-31T18:10',
+    titolo: '⛔ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: la sostituzione si scrive troncata, e nessuno lo sa',
+    dettaglio:
+      'Trovato **misurando**, il 31/8, mentre si chiudeva il difetto del «senza glutine». Non era stato '
+      + 'segnalato da nessuno, ed è più pericoloso di quello che era stato segnalato.\n\n'
+      + '```\n'
+      + 'a patrizia sostituisci Biscotti d\'Avena e Banana con Gallette di riso\n'
+      + '  → { da: ["Biscotti d\'Avena"], a: ["Gallette di riso"] }\n'
+      + '```\n\n'
+      + '⛔ **«e Banana» sparisce senza una parola.** La regola scritta non vieta quel piatto: vieta '
+      + '**tutti** i «Biscotti d\'Avena». E l\'anteprima mostra una frase plausibile — «al posto di '
+      + '"Biscotti d\'Avena" metto "Gallette di riso"» — quindi basta un «confermo».\n\n'
+      + '⚠️ È **esattamente** il difetto che `vera/elenco-alimenti.ts` è nato per chiudere, un piano '
+      + 'più sotto. Là la regola è scritta: *«o si legge tutto, o non si è capito»*, e `leggiElenco` '
+      + 'infatti su questo pezzo torna `null`. Ma `chiedeUnaSostituzioneAElenchi` risponde **false** '
+      + '(nessuna virgola, nessun «o»), quindi il ramo a elenchi non si apre e si ripiega su '
+      + '`sostituzioniNelMessaggio` → `nomeAlimento`, che si ferma alla congiunzione e non lo dice a '
+      + 'nessuno. La guardia c\'è, il caso le passa accanto.\n\n'
+      + '⚠️ **Non basta spezzare su «e»**, ed è scritto nel cappello di `elenco-alimenti.ts`: «e» '
+      + 'dentro un nome è comunissimo — «Biscotti d\'Avena **e** Banana», «sale **e** pepe», «erbe **e** '
+      + 'spezie». Spezzare sempre trasformerebbe il nome di un piatto in due alimenti inventati, cioè '
+      + 'rifarebbe lo stesso errore al contrario.\n\n'
+      + '**Le due strade, da scegliere con Simone:**\n'
+      + '1. ⭐ **Dire di no.** Quando `nomeAlimento` si ferma su una congiunzione e dopo c\'è ancora '
+      + 'roba, `sostituzioniNelMessaggio` non risponde: Vera chiede *«"Biscotti d\'Avena e Banana" è '
+      + 'un piatto solo o due cose?»*. Onesto, e coerente con «niente troncamenti silenziosi». Costa '
+      + 'una domanda in più su frasi che oggi passano (sbagliate).\n'
+      + '2. **Guardare il catalogo**: se il pezzo intero combacia con una ricetta esistente è un nome '
+      + 'solo, se combaciano i due pezzi separati sono due. Più comodo per chi scrive, ma fa dipendere '
+      + 'la lettura di una frase da cosa c\'è in catalogo in quel momento — la stessa frase, domani, '
+      + 'si può capire in un altro modo.\n\n'
+      + '⚠️ Il pezzo catturato è **tutta la coda** («... con le gallette **a colazione**»), quindi il '
+      + 'confronto «quante parole ho letto contro quante ce n\'erano» non si può fare qui come lo fa '
+      + '`leggiElenco`: direbbe «non ci arrivo» a metà delle frasi normali. ⛔ E **non basta passare da '
+      + '`senzaCodaDiAmbito`**, che è quello che avevo scritto qui nella prima stesura: misurato in '
+      + 'revisione, quella funzione conosce «a tutti», «vale per tutte», «regola generale» — e su '
+      + '«sostituisci il pane con le gallette **a colazione**» restituisce la frase **identica**. Serve '
+      + 'un modo di separare la coda di contesto dal nome, e oggi non c\'è. Chi prende questa voce '
+      + 'parta da qui e non da quella riga, che era sbagliata.\n\n'
+      + '⚠️ **E si perde da tutte e due le parti**: nella frase vera anche «Biscotti senza glutine **e '
+      + 'banana**» diventa «Biscotti senza glutine». Il troncamento è simmetrico.\n\n'
+      + '⚠️ Nota di contorno, misurata sulla frase vera dello screenshot: «a patrizia sogari» tutto '
+      + 'minuscolo **non** viene letto come nome di cliente (con le maiuscole sì). Quindi quel messaggio, '
+      + 'anche adesso che non risponde più «non ci arrivo», chiede comunque a chi. È un terzo difetto, '
+      + 'separato dai due di questa voce.',
+  },
+  {
     chiave: 'fase0-panieri-la-misura-che-manca',
     categoria: 'Da fare — codice',
     ordine: 0,
