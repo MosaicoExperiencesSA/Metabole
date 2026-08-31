@@ -1,0 +1,45 @@
+=== PARTE: la decisione sugli allergeni, scritta ===
+
+SUMMARY
+La decisione firmata sugli allergeni entra in DECISIONI_Panieri.md: la via di mezzo, non C secco
+
+DESCRIPTION
+Il foglio di Nocanty è tornato firmato il 31/8. ⚠️ La casella di Q1 si legge in due modi: quella
+davanti ad «A» è stata cancellata e la riga dice `A ☐ B X C` — a occhio sembra B, nel PDF la X sta
+nel posto dove stava la casella di C. Simone ha letto C, e alla proposta di una via di mezzo ha
+risposto che è quella che vuole.
+
+⛔ Perché C non si fa così com'è, ed è misurabile: C e A si comportano diversamente SOLO sulle
+ricette di cui il sistema non capisce gli ingredienti. Su tutte le altre fanno la stessa cosa, e A
+le sblocca uguale. Quindi C non compra velocità in generale — la compra proprio dove l'AI ha tirato
+a indovinare più che altrove, che è il posto peggiore in cui fidarsi.
+
+DECISO: la via di mezzo.
+1. Gli allergeni di una ricetta sono la SOMMA di quelli dedotti dagli ingredienti e di quelli
+   suggeriti dall'AI. ⛔ Mai l'AI da sola dove la deduzione dice di più: fra i due non si sceglie, si
+   sommano — un allergene in meno è l'errore che si vede addosso a una persona.
+2. Una ricetta con anche un solo ingrediente non riconosciuto NON si ferma per tutte: entra in
+   catalogo come in C, e resta fuori solo dai panieri di chi ha dichiarato un'allergia o
+   un'intolleranza, finché non la guarda qualcuno.
+3. La coda delle ricette non riconosciute resta visibile e lavorabile, ma non blocca il riempimento.
+
+⚠️ Così il catalogo parte alla velocità di C, e nessun allergene incerto arriva addosso a chi quell'
+allergene ce l'ha davvero. Il rischio residuo si sposta su chi NON ha dichiarato niente — che è il
+rischio che C accettava per tutte.
+
+⛔ Se un giorno si volesse tornare a C secco serve una riga di Nocanty che dica «C» A LETTERE: una X
+in una casella che si legge in due modi non è una firma su questa decisione.
+
+⚠️ Restano scritte due cose aperte, perché una decisione presa non le chiude:
+· il riconoscimento passa da `abbinaPerRicetta`, tarato sulle CALORIE — torna «non lo so» su due
+  righe pari e non collega «riso» a «riso basmati». Per gli allergeni quell'ambiguità non esiste;
+· essere in tabella non vuol dire conoscerne gli allergeni: su un «pesto pronto» con la sua riga la
+  deduzione direbbe «nessun allergene» con la stessa faccia. Si chiude sull'ALIMENTO.
+
+Aggiornato anche «cosa resta aperto»: il blocco 1 (la firma) è chiuso; il 2 adesso ha i suoi due
+strumenti, con scritto accanto come si leggono — perché entrambi i numeri, riportati nudi,
+direbbero una cosa diversa da quella che misurano.
+
+FILE
+- progetto/DECISIONI_Panieri.md — §1 aggiornata, «cosa resta aperto» aggiornata
+- backend/src/lavori/voci-iniziali.ts — la voce degli allergeni deducibili registra la decisione

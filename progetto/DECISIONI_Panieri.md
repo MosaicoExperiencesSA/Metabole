@@ -21,6 +21,47 @@ ricontrollo degli allergeni.
 ingrediente vago («trancio surgelato misto») ferma la ricetta — comportamento giusto, ma la coda
 iniziale potrebbe essere grossa. **È uno dei numeri della Fase 0.**
 
+### ⛔ AGGIORNATA il 31/8 (sera) — la risposta firmata, e cosa si fa davvero
+
+Il foglio è tornato firmato. ⚠️ **La casella di Q1 si legge in due modi**: quella davanti ad «A» è
+stata cancellata e la riga dice `A ☐ B X C` — a occhio sembra **B**, nel PDF la X sta nel posto dove
+stava la casella di **C**. Simone ha letto **C** («si approva tutto di default, si corregge dopo»).
+
+⛔ **C non si fa così com'è**, e la ragione è misurabile: C e A si comportano diversamente **solo**
+sulle ricette di cui il sistema non capisce gli ingredienti. Su tutte le altre fanno la stessa cosa,
+e A le sblocca uguale. Quindi C non compra velocità in generale: la compra **proprio dove l'AI ha
+tirato a indovinare più che altrove**, che è il posto peggiore in cui fidarsi.
+
+**DECISO (Simone, 31/8 sera): la via di mezzo.**
+
+1. Gli allergeni di una ricetta sono la **somma** di quelli dedotti dagli ingredienti e di quelli
+   suggeriti dall'AI. ⛔ Mai l'AI **da sola** dove la deduzione dice di più: fra i due non si sceglie,
+   si sommano — un allergene in meno è l'errore che si vede addosso a una persona.
+2. Una ricetta con anche **un solo** ingrediente non riconosciuto **non si ferma per tutte**: entra
+   in catalogo come in C, e resta fuori **solo dai panieri di chi ha dichiarato un'allergia o
+   un'intolleranza**, finché non la guarda qualcuno.
+3. La coda delle ricette non riconosciute **resta visibile** e lavorabile, ma non blocca il
+   riempimento dei panieri.
+
+⚠️ Così il catalogo parte alla velocità di C, e nessun allergene incerto arriva addosso a chi quel
+allergene ce l'ha davvero. Il rischio residuo si sposta su chi **non** ha dichiarato niente — che è
+il rischio che C accettava per tutte.
+
+⛔ **Se un giorno si volesse tornare a C secco**, serve una riga di Nocanty che dica «C» **a
+lettere**: una X in una casella che si legge in due modi non è una firma su questa decisione.
+
+⚠️ **Aperta, e da decidere prima di scrivere il codice**: il riconoscimento degli ingredienti oggi
+passa da `abbinaPerRicetta`, che è tarato sulle **calorie** — torna «non lo so» quando due righe
+vanno bene uguale, e non collega «riso» a «riso basmati». Per le calorie è giusto (integrale e
+bianco sono due numeri diversi); per gli **allergeni** quell'ambiguità non esiste, qualunque riso dà
+la stessa risposta. O si tara il riconoscimento sulla domanda vera — coda più corta, e nessun rischio
+in più — o si accetta una coda più lunga di quanto serva.
+
+⚠️ **E resta il limite n° 2 del foglio, dichiarato e non chiuso**: essere in tabella non vuol dire
+conoscerne gli allergeni. Su un «pesto pronto» che avesse la sua riga la deduzione direbbe «nessun
+allergene» con la stessa faccia. Si chiude dichiarando gli allergeni **sull'alimento**, non
+allungando un elenco di parole.
+
 ## 2 · La firma del capo nutrizionista — foglio scritto
 
 Preparo io una pagina in linguaggio suo (come `Metabole_Grassi_Domanda_Nocanty.pdf`): cosa decide il
@@ -181,12 +222,15 @@ clienti cambiano piano. Fino ad allora `assegnaSenzaGlutine` resta esattamente c
 
 # Cosa resta aperto (31/8, fine giro)
 
-1. **La firma del capo nutrizionista sulla decisione 1** (allergeni deterministici). Bloccante.
-   Foglio da preparare — ci vanno dentro anche: la decisione 4 (spuntino e merenda intercambiabili)
-   come cosa DECISA su cui può obiettare, e la 12-13 (flexitariano: carne 3 volte, pesce libero).
-2. **I numeri della Fase 0**: pagina Copertura catalogo (piatti / attivi / rotti per cella e per
-   pasto) + `npm run diag:allergeni`. Da qui dipendono la decisione 3 e la dimensione della coda
-   allergeni della decisione 1.
+1. ✅ **CHIUSA il 31/8 (sera)** — la firma del capo nutrizionista sulla decisione 1 è arrivata, e la
+   decisione è la **via di mezzo** scritta lì sopra. ⚠️ Resta da chiedergli una riga a lettere se un
+   giorno si volesse davvero C secco: la casella firmata si legge in due modi.
+2. **I numeri della Fase 0 e della Fase 8**, e adesso hanno tutti e due il loro strumento:
+   `npm run diag:fase0` e `npm run diag:allergeni-deducibili` (sola lettura, shell di Render).
+   ⚠️ **Da leggere, non da riportare**: il primo dà due verdetti (su tutte le varianti e sulle sole
+   varianti con clienti sopra — il denominatore vero non è 306); il secondo ne dà tre, perché
+   «quante ricette si fermano» misura soprattutto quanto è indietro la tabella alimenti (306 righe
+   contro 7831 nomi di ingrediente usati), non quanto sono scritte male le ricette.
 3. **`npm run diag:kcal`** prima di toccare la tolleranza (decisione 8).
 
 Tutto il resto delle fasi non aspetta più nessuna risposta.

@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Prodotto]` ✍️ **Allergeni: la decisione firmata entra nella sua fonte — la via di mezzo, non C
+  secco.** Il foglio di Nocanty è tornato firmato, e ⚠️ la casella di Q1 si legge in due modi: a
+  occhio sembra **B**, nel PDF la X sta dove stava la casella di **C**. ⛔ **C e A si comportano
+  diversamente SOLO sulle ricette di cui il sistema non capisce gli ingredienti**: su tutte le altre
+  fanno la stessa cosa, e A le sblocca uguale — quindi C non compra velocità in generale, la compra
+  proprio dove l'AI ha tirato a indovinare più che altrove. **Deciso**: gli allergeni sono la
+  **somma** di quelli dedotti dagli ingredienti e di quelli suggeriti dall'AI (mai l'AI da sola dove
+  la deduzione dice di più), e una ricetta con un ingrediente non riconosciuto **non si ferma per
+  tutte** — entra in catalogo e resta fuori **solo dai panieri di chi ha dichiarato quell'allergia**.
+  Il catalogo parte alla velocità di C, e nessun allergene incerto arriva addosso a chi
+  quell'allergene ce l'ha davvero. ⛔ Per tornare a C secco servirà una riga di Nocanty che dica «C»
+  **a lettere**: una X in una casella che si legge in due modi non è una firma su questa decisione.
+
 - `[Sviluppo]` 🥖 **«senza glutine» non è una negazione — e la regola non esce più rovesciata.**
   Dallo screenshot vero: *«a patrizia sogari sostituisci Biscotti d'Avena e Banana con Biscotti
   **senza glutine** e banana»* → «Non ci arrivo», due volte. ⛔ `senza` stava nell'elenco delle
