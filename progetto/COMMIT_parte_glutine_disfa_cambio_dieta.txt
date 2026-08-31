@@ -1,0 +1,55 @@
+Il salvataggio che disfaceva se stesso: «senza glutine» riscriveva la dieta appena scelta
+
+IL FATTO, 31/8, PATRIZIA
+
+Quattro cambi di dieta in un'ora — Mediterranea ipocalorica, Detossinante, DASH, Keto —
+fatti da due persone diverse, admin e capo nutrizionista. Nel registro ci sono tutti e
+quattro, scritti come «cambiata da Mediterranea senza glutine a …». E in tutti e quattro il
+«prima» è di nuovo «Mediterranea senza glutine»: ognuno era stato annullato prima del
+successivo.
+
+⛔ IL SALVATAGGIO DISFACEVA SE STESSO, nella stessa richiesta.
+
+In fondo a `updateClient` c'era `assegnaSenzaGlutineEAvvisa(...)`, senza condizioni. Quella
+funzione, per una cliente che ha dichiarato il glutine, riscrive `dietFamily` e `dietStyle`
+sulla variante senza glutine; la sua unica difesa è «se la famiglia è già quella, non
+faccio niente». Quindi appena la nutrizionista la spostava altrove la difesa non valeva
+più, e il campo tornava indietro TRE RIGHE DOPO essere stato scritto.
+
+⚠️ È la forma peggiore fra le possibili: non un errore, ma TRE SCHERMATE CHE RACCONTANO TRE
+COSE DIVERSE. La pagina diceva «salvato». Il registro diceva «cambiata da X a Y» — e lo
+diceva in buona fede, perché l'audit lo calcola sui valori RICHIESTI. Il database diceva di
+no. E quella che vince è l'unica che non si vede.
+
+⚠️ E non era il caso di Patrizia soltanto: la regola è nata il 9/8 per «se la coach ha
+APPENA AGGIUNTO il glutine», e girava su OGNI salvataggio. Quindi da tre settimane nessuna
+cliente col glutine dichiarato poteva cambiare dieta. Mai. Senza che nessuno potesse
+accorgersene, perché non diceva niente — nemmeno un log.
+
+LA DECISIONE (Simone, 31/8)
+
+«Sì, la regola scatta solo se il glutine è appena stato aggiunto.» Una scelta esplicita
+della nutrizionista vince sull'automatismo.
+
+⚠️ E il piatto resta protetto lo stesso, che è la ragione per cui questa è la risposta
+giusta e non un allentamento: il glutine è fra le esclusioni del profilo, e da stamattina
+il motore SOSTITUISCE il piatto invece di servirlo (`cerca-un-alternativa.ts`). La regola
+non era l'unica difesa: era la più rumorosa e la più cieca.
+
+COME SI RICONOSCE «APPENA AGGIUNTO»
+
+Sul PRIMA e sul DOPO della dichiarazione, non su «il campo è stato mandato»: il form della
+scheda rimanda tutti i campi a ogni Salva, quindi «mandato» qui vorrebbe dire «sempre» —
+cioè esattamente il difetto che si sta chiudendo. Il DOPO si costruisce dal profilo di
+prima più i soli campi presenti in questa richiesta.
+
+MISURATO
+- 5842 test verdi in quattro modalità. Sei prove nuove, e le due che contano sono opposte:
+  chi ha GIÀ il glutine si può spostare su un'altra dieta; chi se lo vede aggiungere ADESSO
+  viene assegnato come sempre. Più il caso più comune di tutti — salvare il TELEFONO di una
+  cliente col glutine — che prima le riportava indietro la dieta.
+- Tre mutazioni provate, tutte uccise.
+- ⚠️ Il finto profilo del test è MUTABILE, come la banca dati: `assegnaSenzaGlutineEAvvisa`
+  rilegge il profilo per conto suo, e nella richiesta vera lo rilegge DOPO la transazione.
+  Un finto che risponde sempre il «prima» avrebbe misurato l'apparecchio, non il codice.
+- Nessuna migrazione.

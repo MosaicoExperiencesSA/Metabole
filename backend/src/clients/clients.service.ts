@@ -1467,14 +1467,50 @@ export class ClientsService {
         })
         .catch(() => undefined);
     }
-    // SENZA GLUTINE: se la coach ha appena aggiunto il glutine fra allergie o intolleranze, la
-    // variante dedicata si assegna da sé e la cliente viene avvisata (richiesta di Simone del 9/8).
-    // Idempotente: chi ce l'ha già non riceve un secondo messaggio. Best effort come sopra — il
-    // salvataggio della scheda non deve dipendere da questo.
-    try {
-      await assegnaSenzaGlutineEAvvisa(this.prisma as never, userId);
-    } catch {
-      /* non bloccante: il glutine resta escluso dai menu dalle esclusioni del profilo */
+    /**
+     * SENZA GLUTINE: se la coach ha **appena aggiunto** il glutine fra allergie o intolleranze, la
+     * variante dedicata si assegna da sé e la cliente viene avvisata (richiesta di Simone del 9/8).
+     *
+     * ⛔ **E «appena aggiunto» adesso è vero. Fino al 31/8 questa chiamata girava su OGNI
+     * salvataggio**, e il risultato era che nessuna cliente col glutine dichiarato poteva più
+     * cambiare dieta: l'unica difesa della funzione è «se la famiglia è già quella senza glutine
+     * non faccio niente», quindi appena la nutrizionista la spostava altrove la condizione non
+     * valeva più e il campo veniva **riscritto indietro tre righe dopo**, nella stessa richiesta.
+     *
+     * ⚠️ Il costo, misurato su Patrizia il 31/8: **quattro** cambi di dieta in un'ora — Ipocalorica,
+     * Detox, DASH, Keto — tutti registrati come «cambiata da Mediterranea senza glutine a …», tutti
+     * annullati prima del successivo. La pagina diceva «salvato», il registro diceva «cambiata», il
+     * database diceva di no. ⛔ È la forma peggiore: non un errore, ma **tre schermate che
+     * raccontano tre cose diverse**, e quella che vince è quella che non si vede.
+     *
+     * ✅ **Decisione di Simone, 31/8**: la regola scatta solo quando la dichiarazione **cambia in
+     * questo salvataggio**; una scelta esplicita della nutrizionista vince. Il piatto resta
+     * protetto lo stesso — il glutine è fra le sue esclusioni, e il motore adesso sostituisce il
+     * piatto invece di servirlo (`cerca-un-alternativa.ts`).
+     *
+     * ⚠️ Il confronto è sul PRIMA e sul DOPO della dichiarazione, non su «il campo è stato
+     * mandato»: il form della scheda rimanda tutti i campi a ogni Salva, quindi «mandato» qui
+     * vorrebbe dire «sempre», che è esattamente il difetto che si sta chiudendo.
+     */
+    const dichiarazioniDi = (fonte: Record<string, unknown> | null | undefined): string[] => [
+      ...(((fonte?.allergies as string[] | undefined) ?? [])),
+      ...(((fonte?.intolerances as string[] | undefined) ?? [])),
+      ...(((fonte?.dislikedFoods as string[] | undefined) ?? [])),
+    ];
+    const dopoIlSalvataggio: Record<string, unknown> = { ...(prevProfile ?? {}) };
+    for (const k of ['allergies', 'intolerances', 'dislikedFoods']) {
+      if (profileData[k] !== undefined) dopoIlSalvataggio[k] = profileData[k];
+    }
+    const glutineAppenaDichiarato =
+      !dichiaraSenzaGlutine(dichiarazioniDi(prevProfile))
+      && dichiaraSenzaGlutine(dichiarazioniDi(dopoIlSalvataggio));
+    if (glutineAppenaDichiarato) {
+      // Best effort: il salvataggio della scheda non deve dipendere da questo.
+      try {
+        await assegnaSenzaGlutineEAvvisa(this.prisma as never, userId);
+      } catch {
+        /* non bloccante: il glutine resta escluso dai menu dalle esclusioni del profilo */
+      }
     }
     /**
      * ⚠️ GLI AVVISI TORNANO A CHI HA PREMUTO SALVA, e non finiscono in un log che nessuno apre.

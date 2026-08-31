@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` **Il salvataggio che disfaceva se stesso: «senza glutine» riscriveva la dieta appena
+  scelta.** ⛔ Quattro cambi di dieta su Patrizia in un'ora — Ipocalorica, Detox, DASH, Keto — fatti
+  da due persone diverse, tutti e quattro nel registro come «cambiata da Mediterranea senza glutine
+  a …», e tutti e quattro col «prima» già tornato indietro. In fondo a `updateClient` c'era
+  `assegnaSenzaGlutineEAvvisa(...)` **senza condizioni**: per una cliente che ha dichiarato il
+  glutine riscrive `dietFamily` e `dietStyle`, e la sua unica difesa è «se la famiglia è già quella
+  non faccio niente» — quindi appena la si spostava altrove il campo tornava indietro **tre righe
+  dopo**, nella stessa richiesta.
+  ⚠️ **È la forma peggiore fra le possibili**: non un errore, ma **tre schermate che raccontano tre
+  cose diverse**. La pagina diceva «salvato»; il registro diceva «cambiata da X a Y», in buona fede,
+  perché l'audit lo calcola sui valori **richiesti**; il database diceva di no. E vince l'unica che
+  non si vede. ⛔ E non era il caso di Patrizia soltanto: la regola è nata il 9/8 per *«se la coach
+  ha **appena aggiunto** il glutine»* e girava su **ogni** salvataggio, quindi da tre settimane
+  nessuna cliente col glutine dichiarato poteva cambiare dieta — senza un errore, senza un log.
+  ✅ **Decisione di Simone**: scatta solo quando la dichiarazione **cambia in questo salvataggio**;
+  una scelta esplicita della nutrizionista vince. ⚠️ E il piatto resta protetto lo stesso — è la
+  ragione per cui è la risposta giusta e non un allentamento: il glutine è fra le esclusioni, e da
+  stamattina il motore **sostituisce** il piatto invece di servirlo. Quella regola non era l'unica
+  difesa: era la più rumorosa e la più cieca.
+  ⚠️ «Appena aggiunto» si riconosce sul **prima e dopo della dichiarazione**, non su «il campo è
+  stato mandato»: il form rimanda tutti i campi a ogni Salva, quindi «mandato» vorrebbe dire
+  «sempre» — cioè il difetto che si sta chiudendo.
+  5842 test verdi in quattro modalità; tre mutazioni, tutte uccise; nessuna migrazione.
+
 - `[Sviluppo]` **«Ho salvato e non cambia niente»: una diagnostica che dice DOVE si perde.** Due
   volte in mezza giornata, sulla stessa cliente: il cambio del tipo di dieta non arriva al database,
   e `diag:cliente` continua a leggere la famiglia vecchia. ⚠️ **Il codice, letto riga per riga, dice
