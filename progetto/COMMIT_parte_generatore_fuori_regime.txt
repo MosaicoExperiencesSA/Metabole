@@ -1,0 +1,43 @@
+Il generatore scriveva il regime della richiesta, non del piatto
+
+Questa è la risposta alla domanda che avevo lasciato aperta un'ora fa — «da dove sono nate quelle
+etichette» — e senza di lei correggerle a valle non serviva a niente: il generatore le rifaceva
+la notte dopo.
+
+⛔ L'ORIGINE, ED È UNA RIGA
+`recipe.create({ data: { name: r.name, regime, ... } })` — quel `regime` è quello della
+RICHIESTA. Si sta generando per la variante «Basso indice glicemico vegana», si chiede al modello
+sette piatti, e qualunque cosa risponda nasce `vegan`. Se risponde «Branzino arrostito con
+finocchi», in catalogo entra un branzino vegano.
+
+Ecco i 175 piatti con pesce e carne nei panieri vegani e vegetariani. Non li ha sbagliati il
+riempimento, non li ha sbagliati il paniere: li ha scritti così il generatore, e nessuno
+controllava che la risposta del modello stesse dentro quello che era stato chiesto.
+
+LA CORREZIONE
+Prima di scrivere, si guarda cosa c'è dentro: la carne fa `omnivore`, il pesce `pescetarian` — il
+regime più stretto che può mangiarlo — e poi decide `ricettaVaBene`, la stessa funzione del motore.
+Se il piatto non ci sta, NON viene scritto.
+
+⚠️ SI SCARTA, NON SI CORREGGE L'ETICHETTA. Il piatto era stato chiesto per un pasto di una
+giornata vegana: riscriverlo `pescetarian` lo lascerebbe in quella giornata con l'etichetta giusta
+e il posto sbagliato.
+
+⚠️ E SI GUARDANO GLI INGREDIENTI, NON IL NOME. «Polpo d'Alghe Nori Farcito» è un piatto vegano
+davvero, e scartarlo per il nome sarebbe l'errore uguale e contrario a quello che questo controllo
+esiste per fermare. È la stessa regola di `regime:contenuto`, e ha la sua prova.
+
+⚠️ IL CONTO SI VEDE SENZA APRIRE UNA SHELL: `scartatiFuoriRegime` torna nella risposta e finisce
+nel registro insieme alle altre cifre della generazione. Se il modello comincia a rispondere fuori
+regime il numero cresce lì — che è la differenza fra accorgersene e scoprirlo fra sei mesi dentro
+un paniere. E se `recipes` è basso, adesso si sa perché.
+
+PROVE DI MUTAZIONE (tre, tutte uccise)
+  1. conta ma non scarta                       → 1 prova rossa
+  2. via il `continue`: scrive lo stesso       → 1 prova rossa
+  3. guarda il NOME invece degli ingredienti   → 1 prova rossa (il Polpo d'Alghe)
+
+Tre prove nuove: il branzino chiesto vegano non entra (10 scritte su 15, 5 scartate), il polpo di
+alghe resta, e su una variante onnivora non si scarta niente.
+
+Test: backend 6460 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

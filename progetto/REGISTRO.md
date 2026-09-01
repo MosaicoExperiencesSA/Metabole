@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🏭 **Il generatore scriveva il regime della richiesta, non del piatto.** È la risposta
+  alla domanda lasciata aperta un'ora prima — «da dove sono nate quelle etichette» — e senza di lei
+  correggerle a valle non serviva: **il generatore le rifaceva la notte dopo**. ⛔ L'origine è una
+  riga: `recipe.create({ data: { name, regime, … } })`, dove quel `regime` è quello della
+  **richiesta**. Si genera per «Basso indice glicemico vegana», il modello risponde «Branzino
+  arrostito con finocchi», e in catalogo entra un branzino vegano. Ecco i 175 piatti: non li ha
+  sbagliati il riempimento né il paniere — nessuno controllava che la risposta del modello stesse
+  dentro quello che era stato chiesto. ✅ Ora prima di scrivere si guarda **cosa c'è dentro**: carne
+  → `omnivore`, pesce → `pescetarian`, e decide `ricettaVaBene` (la stessa funzione del motore). Se
+  non ci sta, **non si scrive**. ⚠️ Si **scarta**, non si corregge l'etichetta: il piatto era stato
+  chiesto per una giornata vegana, e riscriverlo `pescetarian` lo lascerebbe lì con l'etichetta
+  giusta e il posto sbagliato. ⚠️ E si guardano gli **ingredienti**, non il nome — «Polpo d'Alghe
+  Nori» è vegano davvero, e scartarlo per il nome sarebbe l'errore uguale e contrario. ⚠️ Il conto
+  (`scartatiFuoriRegime`) torna nella risposta e finisce **nel registro**: se il modello comincia a
+  rispondere fuori regime si vede senza aprire una shell, ed è la differenza fra accorgersene e
+  scoprirlo fra sei mesi dentro un paniere. Tre mutazioni, tutte uccise.
+
 - `[Sviluppo]` 🐟 **Ricette di pesce dichiarate «vegane» — l'etichetta, non il paniere.** Il numero
   ha deciso tutto: dei 175 piatti con pesce o carne dentro panieri vegani e vegetariani, **zero**
   hanno il regime incompatibile — «Salmone al forno con asparagi e limone» è dichiarato `vegan` in

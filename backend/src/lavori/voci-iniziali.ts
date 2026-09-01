@@ -5054,8 +5054,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'solo mucchio dubbio.\n'
       + '\u26a0\ufe0f La pulizia **conta prima di togliere** e si ferma se una casella scende sotto soglia: '
       + 'si passa sopra solo con `FORZA=1`, dichiarandolo.\n'
-      + '\u26d4 **E resta la domanda che nessuno script risponde**: da dove sono nate quelle etichette. '
-      + 'Finch\u00e9 non si sa, il generatore pu\u00f2 rifarle uguali domani notte.',
+      + '\u2705 **E la domanda «da dove sono nate» ha risposta, trovata l\'1/9 nel codice**: il generatore scrive il regime della **richiesta**, non del piatto \u2014 generando per una variante vegana, qualunque cosa risponda il modello nasceva `vegan`. Da oggi un piatto i cui INGREDIENTI il regime chiesto non pu\u00f2 mangiare **non viene scritto**, si conta e finisce nel registro (`scartatiFuoriRegime`). \u26a0\ufe0f Ingredienti e non nome: «Polpo d\'Alghe Nori» \u00e8 vegano davvero.',
     categoria: CODICE,
     blocca: true,
     ordine: 673,

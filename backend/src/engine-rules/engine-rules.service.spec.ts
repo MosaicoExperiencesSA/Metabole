@@ -155,6 +155,74 @@ describe('EngineRulesService', () => {
     });
   }
 
+  /**
+   * ⛔ **IL MODELLO RISPONDE FUORI REGIME, E IL GENERATORE LO SCRIVEVA LO STESSO** — 1/9.
+   *
+   * Il `regime` di una ricetta generata è quello della **richiesta**, non del piatto: generando
+   * per una variante vegana, qualunque cosa torni indietro nasceva `vegan`. In produzione erano
+   * **175 piatti con pesce o carne dentro panieri vegani e vegetariani** — «Salmone al forno con
+   * asparagi e limone» etichettato `vegan` — e correggerli a valle non bastava: senza questo
+   * controllo il generatore li rifà la notte dopo.
+   */
+  function presetVegano(prisma: any) {
+    prisma.rulePreset.findUnique.mockResolvedValue({
+      id: 'p1', label: 'Basso indice glicemico', style: 'low_carb', regime: 'vegan', objective: 'dimagrimento', meals: '5',
+      rules: {},
+    });
+  }
+
+  it('⛔ chiesto vegano, il modello risponde pesce: il piatto NON viene scritto', async () => {
+    const { service, prisma, ai } = build();
+    presetVegano(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: [
+          { slot, name: 'Insalata di ceci e rucola', kcal: 400, ingredients: [{ name: 'ceci' }], macros: {} },
+          { slot, name: 'Branzino arrostito con finocchi', kcal: 420, ingredients: [{ name: 'branzino' }], macros: {} },
+          { slot, name: 'Straccetti di seitan', kcal: 410, ingredients: [{ name: 'seitan' }], macros: {} },
+        ],
+      });
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    /** ⚠️ 5 pasti × 2 buone = 10 scritte, e 5 scartate (una per pasto). */
+    expect(res.recipes).toBe(10);
+    expect((res as { scartatiFuoriRegime: number }).scartatiFuoriRegime).toBe(5);
+    const scritte = prisma.recipe.create.mock.calls.map((c: any) => c[0].data.name);
+    expect(scritte).not.toContain('Branzino arrostito con finocchi');
+    expect(scritte).toContain('Insalata di ceci e rucola');
+  });
+
+  /**
+   * ⛔ **E si guardano gli INGREDIENTI, non il nome.** «Polpo d'Alghe Nori» è un piatto vegano
+   * davvero: scartarlo per il nome sarebbe l'errore uguale e contrario a quello che il controllo
+   * esiste per fermare.
+   */
+  it('⚠️ un piatto vegano col nome di un pesce resta: conta cosa c\'è dentro', async () => {
+    const { service, prisma, ai } = build();
+    presetVegano(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: [{ slot, name: "Polpo d'Alghe Nori Farcito", kcal: 400, ingredients: [{ name: 'alga nori' }, { name: 'riso integrale' }], macros: {} }],
+      });
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect((res as { scartatiFuoriRegime: number }).scartatiFuoriRegime).toBe(0);
+    expect(prisma.recipe.create.mock.calls.map((c: any) => c[0].data.name)).toContain("Polpo d'Alghe Nori Farcito");
+  });
+
+  /** ⚠️ E su una variante onnivora non si scarta niente: il pesce lì ci sta. */
+  it('chiesto onnivoro, il pesce resta', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect((res as { scartatiFuoriRegime: number }).scartatiFuoriRegime).toBe(0);
+  });
+
   it('genera UNA settimana: 7 ricette per ogni pasto e 7 giornate, nessun piatto ripetuto', async () => {
     const { service, prisma, ai } = build();
     preset5Pasti(prisma);

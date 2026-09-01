@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
-import { PASTI_SENZA_CARNE_PESCE_VERDURA } from '../catalog/piatto-di-cosa';
+import { PASTI_SENZA_CARNE_PESCE_VERDURA, eCarne, ePesce } from '../catalog/piatto-di-cosa';
 import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
 import { KcalNeedService } from '../menu/kcal-need.service';
@@ -28,6 +28,7 @@ import {
 import { primaSettimanaMagra as primaMagra, settimanaGiaPiena, type GiornataInCiclo } from './settimana-magra';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
+import { ricettaVaBene } from '../common/regimi';
 
 /**
  * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
@@ -509,6 +510,7 @@ export class EngineRulesService {
         riusate: 0,
         days: 0,
         groups: 0,
+        scartatiFuoriRegime: 0,
       };
     }
 
@@ -679,12 +681,52 @@ export class EngineRulesService {
     const bySlot = new Map<string, string[]>();
     let recCount = 0;
     let riusate = 0;
+    /** ⚠️ Si conta e si dice: uno scarto silenzioso sarebbe una generazione che rende meno senza motivo. */
+    let scartatiFuoriRegime = 0;
     for (const sl of slots) {
       const ids: string[] = [...(gia.get(sl) ?? [])];
       riusate += ids.length;
       const ricette = generati.find((g) => g.slot === sl)?.ricette ?? [];
       for (const r of ricette) {
         const ingredients = Array.isArray(r.ingredients) ? r.ingredients : [];
+        /**
+         * ⛔ **IL MODELLO HA RISPOSTO UN PIATTO CHE IL REGIME CHIESTO NON PUÒ MANGIARE** — controllo
+         * aggiunto l'1/9, e prima non c'era.
+         *
+         * Il `regime` scritto qui sotto è quello della **richiesta**, non del piatto: se si sta
+         * generando per una variante vegana, qualunque cosa torni indietro nasce `vegan`. Il 1/9 in
+         * produzione c'erano **175 piatti con pesce o carne dentro panieri vegani e vegetariani, e
+         * tutti col regime "compatibile"** — cioè «Salmone al forno con asparagi e limone»
+         * etichettato `vegan`. È da qui che sono nati, ed è per questo che correggerli a valle non
+         * bastava: senza questa riga il generatore li rifà la notte dopo.
+         *
+         * ⚠️ **Si guardano gli INGREDIENTI, non il nome.** «Polpo d'Alghe Nori Farcito» è un piatto
+         * vegano davvero, e scartarlo per il nome sarebbe l'errore uguale e contrario a quello che
+         * questo controllo esiste per fermare. Stessa regola di `npm run regime:contenuto`.
+         *
+         * ⚠️ E si **scarta**, non si corregge l'etichetta: il piatto era stato chiesto per un pasto
+         * di una variante vegana, e riscriverlo `pescetarian` lo lascerebbe in quella giornata con
+         * l'etichetta giusta e il posto sbagliato. Il conto delle generate cala, e si vede nel log.
+         */
+        const nomiIng = ingredients
+          .map((x) => (typeof (x as { name?: unknown })?.name === 'string' ? String((x as { name: string }).name) : ''))
+          .filter((x) => x !== '');
+        /**
+         * ⚠️ Il regime **del contenuto**: la carne fa `omnivore`, il pesce `pescetarian` — il più
+         * stretto che può mangiarlo. E la carne vince, come in `verdettoPescetariano`: «mare e
+         * monti» esiste. Poi decide `ricettaVaBene`, la stessa funzione del motore.
+         */
+        const conCarne = nomiIng.find((i) => eCarne(i));
+        const conPesce = nomiIng.find((i) => ePesce(i));
+        const regimeDelPiatto = conCarne ? 'omnivore' : conPesce ? 'pescetarian' : null;
+        if (regimeDelPiatto && !ricettaVaBene(regimeDelPiatto, regime)) {
+          scartatiFuoriRegime += 1;
+          this.logger.warn(
+            `Generazione ${preset.label}: scartata «${String(r.name ?? '?')}» — chiesta per il regime `
+            + `«${regime}» e fra gli ingredienti c'è «${conCarne ?? conPesce}». Il piatto NON viene scritto.`,
+          );
+          continue;
+        }
         const allergens = suggestAllergens(ingredients).map((s) => s.allergen);
         const created = await this.prisma.recipe.create({
           data: {
@@ -762,7 +804,15 @@ export class EngineRulesService {
     await this.audit.log({
       action: 'engine_rule.preset.generate_catalog',
       actorId, entityType: 'diet', entityId: diet.id,
-      metadata: { presetId, week, recipes: recCount, riusate, days: dayCount, groups: grpCount, pastiVuoti: vuoti },
+      metadata: {
+        presetId, week, recipes: recCount, riusate, days: dayCount, groups: grpCount, pastiVuoti: vuoti,
+        /**
+         * ⚠️ **Nel registro, non solo nel log.** Se il modello comincia a rispondere fuori regime
+         * il numero cresce qui, e si vede senza aprire una shell — che è la differenza fra
+         * accorgersene e scoprirlo fra sei mesi in un paniere.
+         */
+        scartatiFuoriRegime,
+      },
     });
     return {
       dietId: diet.id,
@@ -778,6 +828,11 @@ export class EngineRulesService {
       groups: grpCount,
       /** Pasti per cui l'AI non ha prodotto niente: il nutrizionista deve saperlo. */
       pastiIncompleti: vuoti,
+      /**
+       * Piatti che il modello ha risposto e che il regime chiesto non può mangiare: scartati.
+       * ⚠️ Se è alto, `recipes` è basso **per un motivo**, e non è che il generatore lavori meno.
+       */
+      scartatiFuoriRegime,
     };
   }
 
