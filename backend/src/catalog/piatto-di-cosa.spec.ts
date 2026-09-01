@@ -92,3 +92,78 @@ describe('di cosa è questo piatto', () => {
     });
   });
 });
+
+/**
+ * ⛔ IL RICONOSCITORE DELLA CARNE, RISCRITTO L'1/9 — e queste prove sono il motivo.
+ *
+ * La prima stesura dichiarava «ci vanno i tagli e gli animali, non i piatti» e poi conteneva
+ * `cotoletta`, `tagliata`, `arrosto di`, `hamburger di`, `spezzatino`, `straccetti`, `scaloppin`,
+ * `macinato di` — che sono preparazioni, e in cucina italiana si fanno di ceci e di seitan come di
+ * vitello. Su venti nomi plausibili ne sbagliava quindici, in silenzio: il confronto è per
+ * sottostringa e non lascia traccia.
+ *
+ * ⛔ **E i due elenchi qui sotto non sono simmetrici, come non lo è l'errore.** Un falso positivo
+ * toglie un piatto buono da un paniere; un falso negativo mette carne nel piatto di una
+ * pescetariana. Il secondo elenco è quello che conta, e va tenuto più lungo del primo.
+ */
+describe('eCarne — le preparazioni non sono animali', () => {
+  /** ⚠️ Erano tutti «carne» fino all'1/9. Sono i quindici che hanno fatto riscrivere l'elenco. */
+  it.each([
+    ['Coppa di yogurt greco con frutti di bosco'],
+    ['Coppa di gelato alla vaniglia'],
+    ['Salame di cioccolato'],
+    ['Uova di gallina in camicia'],
+    ['Uovo di gallina'],
+    ['Uova di quaglia sode con asparagi'],
+    ['Hamburger di ceci e curcuma'],
+    ['Hamburger di lenticchie'],
+    ['Cotoletta di melanzane al forno'],
+    ['Cotoletta di seitan'],
+    ['Tagliata di verdure grigliate'],
+    ['Arrosto di verdure miste'],
+    ['Spezzatino di soia con piselli'],
+    ['Straccetti di seitan e rucola'],
+    ['Scaloppine di seitan al limone'],
+    ['Macinato di ceci speziato'],
+  ])('non è carne: %s', (nome) => {
+    expect(eCarne(nome)).toBe(false);
+  });
+
+  /**
+   * ⛔ L'elenco che protegge. Un solo `false` qui è carne servita a chi non la mangia — e le due
+   * righe che contano davvero sono «Salame e formaggio» e «Spezzatino di manzo con patate»: sono
+   * i due modi in cui la correzione poteva sbagliare, e li ho scritti mentre la scrivevo.
+   */
+  it.each([
+    ['Petto di pollo alla piastra'],
+    ['Bresaola con rucola e grana'],
+    /** ⚠️ Il primo livello vince: l'animale non si lascia smontare da un contorno vegetale. */
+    ['Spezzatino di manzo con patate'],
+    ['Tagliata di manzo con rucola'],
+    ['Straccetti di pollo con zucchine'],
+    ['Macinato di manzo al ragù'],
+    ['Hamburger di manzo'],
+    ['Arrosto di vitello'],
+    ['Scaloppine di vitello'],
+    /** ⚠️ Nessun segno vegetale: la preparazione resta carne, ed è il caso più comune. */
+    ['Cotoletta alla milanese'],
+    ['Brasato al Barolo'],
+    /** ⛔ L'antidoto è SUO: `salame` cade davanti al cioccolato, non davanti a un formaggio. */
+    ['Salame e formaggio'],
+    ['Salame Milano'],
+    ['Coppa piacentina'],
+    ['Coppa di suino stagionata'],
+    ['Uova strapazzate con speck'],
+    ['Prosciutto crudo e melone'],
+    ['Wurstel di pollo'],
+    ['Fegato alla veneziana'],
+    ['Trippa alla romana'],
+  ])('resta carne: %s', (nome) => {
+    expect(eCarne(nome)).toBe(true);
+  });
+
+  it('⚠️ e un piatto senza niente di tutto questo non è carne', () => {
+    expect(eCarne('Pasta al pomodoro')).toBe(false);
+    expect(eCarne('Insalata di farro e zucchine')).toBe(false);
+  });
+});

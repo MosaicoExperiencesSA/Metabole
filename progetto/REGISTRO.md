@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🍔 **Il riconoscitore della carne diceva che l'hamburger di ceci è carne.** Trovato
+  tirando il filo dei cinque piatti con carne nel paniere vegetariano: non erano cinque ricette
+  sbagliate, era sbagliato il riconoscitore, ed è mio. ⛔ **L'elenco rompeva la sua stessa regola** —
+  diceva «i tagli e gli animali, non i piatti, perché esistono le polpette di ceci» e poi conteneva
+  `cotoletta`, `tagliata`, `arrosto di`, `hamburger di`, `spezzatino`, `straccetti`, `scaloppin`,
+  `macinato di`, più `coppa`, `salame`, `gallina`, `quaglia`. Confronto per sottostringa, che non
+  lascia traccia: **quindici sbagliati su venti** nomi plausibili. ⛔ **E il danno non era dove si
+  guardava**: la derivazione pescetariana della Fase 5 (**1355 ricette scartate come carne**, fra
+  cui gli hamburger di ceci che una pescetariana deve ricevere) e la **regola flexitariana** di ieri
+  — un hamburger di ceci bruciava una delle due volte a settimana. ⚠️ Sulle colazioni l'avevo detto
+  male e l'ho corretto: lì conta solo l'ingrediente principale, quindi «Coppa di yogurt» passava; a
+  non passare era «uova di gallina». ✅ **Corretto a due livelli** — animali e salumi che vincono
+  sempre, preparazioni che valgono solo senza un segno vegetale — più un antidoto **specifico** per
+  ogni doppio senso. ⛔ **E la correzione l'ho riscritta mentre la scrivevo**: con `formaggio` fra i
+  segni vegetali generici, «Salame e formaggio» diventava un piatto vegetariano — un falso negativo,
+  cioè l'unico errore che qui non si può fare. ⚠️ L'errore non è simmetrico e le prove nemmeno: 16
+  casi che non devono più essere carne, **20 che devono restarlo**. Tre mutazioni, tutte uccise.
+  ⛔ Resta a mano: **rilanciare `panieri:pesce`** (il codice corretto non riporta indietro quello che
+  è già stato scritto) e sapere che le giornate già composte hanno il conto della carne per eccesso.
+
 - `[Sviluppo]` 🥩 **Carne dove non deve stare — e un falso allarme mio, corretto.** ⛔ **Il mio
   `diag:famiglie-da-chiudere` ha gridato sul niente**: metteva le dodici varianti keto vegane fra
   quelle «fuori per un motivo che il piano non ha censito, vanno guardate». Sono le celle

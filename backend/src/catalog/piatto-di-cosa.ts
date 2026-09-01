@@ -33,24 +33,99 @@ import { exclusionKeys, hitsExclusion } from '../menu/exclusions';
  * sanno dire «vegetariano = niente carne né pesce» a parole, ma nessuna lista lo mette per iscritto.
  *
  * ⚠️ Ci vanno i **tagli e gli animali**, non i piatti: «polpette» non è qui, perché esistono le
- * polpette di ceci e di melanzane — a decidere è l'ingrediente principale, e se quello è manzo lo
- * dice `manzo`. ⛔ E niente radici corte: `pol` prenderebbe polpa, polenta e pollice.
+ * polpette di ceci e di melanzane. ⛔ E niente radici corte: `pol` prenderebbe polpa e polenta.
+ *
+ * ⛔ **RISCRITTO L'1/9, PERCHÉ LA PRIMA STESURA ROMPEVA LA SUA STESSA REGOLA.** Diceva «non i
+ * piatti» e poi conteneva `cotoletta`, `tagliata`, `arrosto di`, `hamburger di`, `spezzatino`,
+ * `straccetti`, `scaloppin`, `macinato di` — che sono preparazioni, e in cucina italiana si fanno
+ * di ceci, di melanzane e di seitan come di vitello. Su venti nomi plausibili ne sbagliava
+ * **quindici**, e nessuno se n'era accorto perché il confronto è per sottostringa e non lascia
+ * traccia: «Hamburger di ceci», «Cotoletta di melanzane», «Tagliata di verdure» erano carne.
+ *
+ * ⚠️ E dove faceva danno non era dove si guardava: la **derivazione dei panieri pescetariani**
+ * (1355 ricette scartate come carne nella Fase 5) e la **regola flexitariana** — un hamburger di
+ * ceci bruciava una delle due volte a settimana.
+ *
+ * ## Due livelli, e la ragione del secondo
+ *
+ * `CARNE_SEMPRE` sono animali, salumi e tagli che non hanno un gemello vegetale: se il nome li
+ * contiene, è carne e basta. `CARNE_SE_NON_VEGETALE` sono le **preparazioni**: valgono solo se nel
+ * testo non compare un segno vegetale. ⛔ L'ordine conta ed è il primo a vincere — «Spezzatino di
+ * manzo con patate» ha `patate` (vegetale) **e** `manzo`: resta carne, perché il primo livello non
+ * si lascia smontare dal secondo.
+ *
+ * ⚠️ **Sbagliare qui non è simmetrico.** Un falso positivo toglie un piatto buono da un paniere; un
+ * falso negativo mette carne nel piatto di una pescetariana. Per questo le preparazioni si
+ * ammorbidiscono e gli animali no, e per questo `seitan` e `soia` sono segni vegetali ma `patate` e
+ * `verdure` — che stanno anche accanto alla carne — non bastano da sole a smontare un animale.
  */
-export const CARNE: readonly string[] = [
+export const CARNE_SEMPRE: readonly string[] = [
   // Animali e carni bianche
-  'pollo', 'gallina', 'tacchino', 'coniglio', 'anatra', 'faraona', 'quaglia',
+  'pollo', 'tacchino', 'coniglio', 'anatra', 'faraona',
   // Carni rosse
   'manzo', 'bovino', 'vitello', 'vitellone', 'bresaola', 'maiale', 'suino', 'agnello', 'capretto',
   'cavallo', 'cinghiale', 'cervo',
-  // Tagli e forme
+  // Tagli che non hanno gemelli vegetali
   'fesa', 'petto di pollo', 'petto di tacchino', 'lombata', 'controfiletto', 'filetto di manzo',
-  'ossobuco', 'spezzatino', 'straccetti', 'scaloppin', 'cotoletta', 'arrosto di', 'brasato',
-  'macinato di', 'hamburger di', 'tagliata',
+  'ossobuco',
   // Salumi e trasformati
-  'prosciutto', 'speck', 'bacon', 'pancetta', 'salame', 'salsiccia', 'mortadella', 'wurstel',
-  'coppa', 'guanciale', 'porchetta',
+  'prosciutto', 'speck', 'bacon', 'pancetta', 'salsiccia', 'mortadella', 'wurstel',
+  'guanciale', 'porchetta',
   // Frattaglie
   'fegato', 'trippa',
+];
+
+/**
+ * ⛔ **Le PREPARAZIONI: carne solo se il piatto non è fatto di qualcos'altro.**
+ *
+ * `spezzatino`, `cotoletta`, `hamburger di`, `tagliata`… sono modi di cucinare, non animali. In
+ * cucina italiana si fanno di ceci, di melanzane e di seitan tanto quanto di vitello.
+ */
+export const CARNE_SE_NON_VEGETALE: readonly string[] = [
+  'spezzatino', 'straccetti', 'scaloppin', 'cotoletta', 'arrosto di', 'brasato',
+  'macinato di', 'hamburger di', 'tagliata',
+];
+
+/**
+ * ⛔ **I segni vegetali che smontano una preparazione** — e solo quella.
+ *
+ * ⚠️ Elenco **stretto apposta**: ci stanno le cose di cui un piatto è *fatto al posto della carne*,
+ * non i contorni e non i compagni di piatto. ⛔ `patate` e `zucchine` non ci sono: accompagnano lo
+ * spezzatino di manzo tanto quanto quello di soia. ⛔ E **`formaggio` e `uova` nemmeno**, per il
+ * caso che mi ha fatto riscrivere questo elenco mentre lo scrivevo: con `formaggio` qui dentro,
+ * «Salame e formaggio» sarebbe diventato un piatto vegetariano — cioè un falso negativo, salume
+ * nel piatto di chi non lo mangia, che è l'unico errore che qui non si può fare.
+ */
+export const SEGNI_VEGETALI: readonly string[] = [
+  'ceci', 'lenticchi', 'fagiol', 'piselli', 'soia', 'seitan', 'tofu', 'tempeh', 'quinoa', 'farro',
+  'melanzan', 'verdur', 'zucchin', 'cavolfior', 'broccol', 'funghi', 'cereali', 'legumi', 'avena',
+];
+
+/**
+ * ⛔ **I NOMI A DOPPIO SENSO, e ognuno col SUO antidoto** — non con l'elenco vegetale generico.
+ *
+ * Sono tre parole che in italiano indicano una carne *e* qualcos'altro di molto più comune in un
+ * elenco di piatti: la coppa di yogurt, il salame di cioccolato, le uova di gallina. ⚠️ Con
+ * l'elenco vecchio erano carne sempre, e «uova di gallina» — che è come si scrive in mezzo
+ * catalogo — bastava a tenere una colazione fuori dalla colazione.
+ *
+ * ⛔ **L'antidoto è specifico apposta.** Smontarle col vegetale generico sarebbe stato comodo e
+ * sbagliato: `salame` cade solo davanti al cioccolato, non davanti a un formaggio. Una parola per
+ * volta, col motivo scritto accanto.
+ */
+export const DOPPIO_SENSO: Readonly<Record<string, readonly string[]>> = {
+  /** Le uova, che nelle ricette si scrivono spessissimo «uova di gallina». */
+  gallina: ['uova', 'uovo'],
+  quaglia: ['uova', 'uovo'],
+  /** Il salame di cioccolato, che è un dolce. */
+  salame: ['cioccolat', 'cacao'],
+  /** La coppa di yogurt, di gelato, di frutta: il salume perde tre a uno. */
+  coppa: ['yogurt', 'gelato', 'frutt', 'macedonia', 'skyr', 'ricotta'],
+};
+
+/** ⚠️ Tenuto per chi lo importava: tutti i termini, senza le regole che li distinguono. */
+export const CARNE: readonly string[] = [
+  ...CARNE_SEMPRE, ...CARNE_SE_NON_VEGETALE, ...Object.keys(DOPPIO_SENSO),
 ];
 
 export type DiCosa = 'carne' | 'pesce' | 'verdura' | 'altro';
@@ -75,10 +150,24 @@ const normale = (s: string) => (s ?? '').toLowerCase().trim();
  * («questo piatto È di carne», e la carne non è un'esclusione), ma la strada comoda era dichiarare
  * l'eccezione, e un guardiano si consuma un'eccezione ragionevole alla volta.
  */
-const RE_CARNE = new RegExp(CARNE.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+const perRegex = (elenco: readonly string[]) =>
+  new RegExp(elenco.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+const RE_CARNE_SEMPRE = perRegex(CARNE_SEMPRE);
+const RE_CARNE_FORSE = perRegex(CARNE_SE_NON_VEGETALE);
+const RE_VEGETALE = perRegex(SEGNI_VEGETALI);
+const DOPPI = Object.entries(DOPPIO_SENSO).map(([t, antidoti]) => ({
+  termine: perRegex([t]),
+  antidoto: perRegex(antidoti),
+}));
 
 export function eCarne(nome: string): boolean {
-  return RE_CARNE.test(normale(nome));
+  const n = normale(nome);
+  /** ⛔ Il primo livello vince e non si discute: un animale resta carne anche accanto alle patate. */
+  if (RE_CARNE_SEMPRE.test(n)) return true;
+  /** ⚠️ Un nome a doppio senso è carne finché non compare il SUO antidoto, non uno qualsiasi. */
+  if (DOPPI.some((d) => d.termine.test(n) && !d.antidoto.test(n))) return true;
+  /** ⚠️ La preparazione vale solo se non c'è un segno vegetale: «hamburger di ceci» non è carne. */
+  return RE_CARNE_FORSE.test(n) && !RE_VEGETALE.test(n);
 }
 
 /** Vero se il nome contiene un termine del pesce, dal vocabolario delle esclusioni. */

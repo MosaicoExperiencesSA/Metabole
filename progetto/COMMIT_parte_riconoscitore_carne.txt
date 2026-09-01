@@ -1,0 +1,55 @@
+Il riconoscitore della carne diceva che l'hamburger di ceci è carne
+
+Trovato tirando il filo dei cinque piatti con carne nel paniere Mediterranea × vegetarian. Non
+erano cinque ricette sbagliate: era sbagliato il riconoscitore, ed è mio.
+
+⛔ L'ELENCO ROMPEVA LA SUA STESSA REGOLA
+`CARNE` diceva, nel suo commento: «ci vanno i tagli e gli animali, non i piatti — polpette non è
+qui, perché esistono le polpette di ceci». E poi dentro c'erano `cotoletta`, `tagliata`,
+`arrosto di`, `hamburger di`, `spezzatino`, `straccetti`, `scaloppin`, `macinato di`. Più tre
+parole a doppio senso: `coppa`, `salame`, `gallina`.
+
+Il confronto è per sottostringa e non lascia traccia. Su venti nomi plausibili ne sbagliava quindici:
+
+  Coppa di yogurt greco · Coppa di gelato · Salame di cioccolato · Uova di gallina · Uova di
+  quaglia · Hamburger di ceci · Hamburger di lenticchie · Cotoletta di melanzane · Cotoletta di
+  seitan · Tagliata di verdure · Arrosto di verdure · Spezzatino di soia · Straccetti di seitan ·
+  Scaloppine di seitan · Macinato di ceci
+
+⛔ E DOVE FACEVA DANNO NON ERA DOVE SI GUARDAVA
+  · la DERIVAZIONE PESCETARIANA della Fase 5: 1355 ricette scartate come «carne», e una fetta di
+    quelle sono esattamente i piatti che una pescetariana deve ricevere;
+  · la REGOLA FLEXITARIANA di ieri: un hamburger di ceci contava come giornata di carne e bruciava
+    una delle due volte a settimana;
+  · le COLAZIONI (regola del 31/8) — ma per un'altra strada di come l'avevo detto: lì si guarda solo
+    l'ingrediente principale, quindi «Coppa di yogurt» passava. A non passare era «uova di gallina»,
+    che è come si scrive in mezzo catalogo.
+
+LA CORREZIONE: DUE LIVELLI, E UN ANTIDOTO PER OGNI DOPPIO SENSO
+  · `CARNE_SEMPRE` — animali, salumi, tagli senza gemello vegetale: vince e non si discute.
+    «Spezzatino di manzo con patate» resta carne, perché il primo livello non si lascia smontare.
+  · `CARNE_SE_NON_VEGETALE` — le preparazioni: valgono solo se nel testo non c'è un segno vegetale.
+  · `DOPPIO_SENSO` — `salame` cade davanti al cioccolato, `coppa` davanti allo yogurt, `gallina`
+    davanti alle uova. ⛔ Ognuna col SUO antidoto, non con l'elenco vegetale generico.
+
+⛔ E QUESTA È LA RIGA CHE HA FATTO RISCRIVERE LA CORREZIONE MENTRE LA SCRIVEVO
+La prima stesura usava il vegetale generico anche per i doppi sensi, e `formaggio` era fra i segni
+vegetali: «Salame e formaggio» diventava un piatto vegetariano. Cioè un falso negativo — salume nel
+piatto di chi non lo mangia — che è l'unico errore che qui non si può fare. `formaggio`, `uova` e
+`patate` sono usciti dall'elenco generico: accompagnano lo spezzatino di manzo quanto quello di soia.
+
+⚠️ L'ERRORE NON È SIMMETRICO, E LE PROVE NEMMENO: 16 casi che non devono più essere carne, 20 che
+devono restarlo. Il secondo elenco è quello che protegge, ed è tenuto più lungo apposta.
+
+PROVE DI MUTAZIONE (tre, tutte uccise)
+  1. il primo livello non vince più            → 1 prova rossa
+  2. l'antidoto specifico diventa generico     → 6 prove rosse
+  3. le preparazioni tornano a valere sempre   → 10 prove rosse
+
+⛔ RESTA DA FARE A MANO, perché il codice corretto non riporta indietro quello che è già scritto:
+  ① rilanciare `npm run panieri:pesce` (la derivazione aggiunge e non sostituisce: è sicuro);
+  ② dopo aver acceso la regola flexitariana, sapere che le giornate già composte hanno un conto
+     sbagliato per eccesso — dal rilascio è giusto, all'indietro no e non si riscrivono.
+Voce in elenco lavori: `riconoscitore-carne-rilanciare-derivazione` (rossa).
+
+Test: backend 6442 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

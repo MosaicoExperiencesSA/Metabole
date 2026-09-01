@@ -4994,4 +4994,38 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-01T14:00',
   },
 
+  {
+    chiave: 'riconoscitore-carne-rilanciare-derivazione',
+    titolo: 'Il riconoscitore della carne sbagliava: rilanciare `panieri:pesce`, e ricontare le giornate con carne',
+    dettaglio:
+      '\u26d4 **Difetto mio, trovato e corretto l\'1/9.** `eCarne` confrontava per **sottostringa** un '
+      + 'elenco che dichiarava «i tagli e gli animali, non i piatti» e poi conteneva `cotoletta`, '
+      + '`tagliata`, `arrosto di`, `hamburger di`, `spezzatino`, `straccetti`, `scaloppin`, '
+      + '`macinato di` \u2014 pi\u00f9 `coppa`, `salame`, `gallina`, `quaglia`. Su venti nomi plausibili ne '
+      + 'sbagliava **quindici**: «Hamburger di ceci», «Cotoletta di melanzane», «Tagliata di verdure», '
+      + '«Coppa di yogurt», «Salame di cioccolato», «Uova di gallina» erano tutti carne.\n'
+      + '\u2705 **Corretto**: due livelli \u2014 animali e salumi che valgono sempre, preparazioni che '
+      + 'valgono solo senza un segno vegetale \u2014 pi\u00f9 un antidoto **specifico** per le tre parole a '
+      + 'doppio senso. \u26a0\ufe0f L\'errore non \u00e8 simmetrico e le prove nemmeno: 16 casi che non devono pi\u00f9 '
+      + 'essere carne e **20 che devono restarlo**, perch\u00e9 un falso negativo qui \u00e8 carne nel piatto '
+      + 'di una pescetariana.\n'
+      + '\u26d4 **MA IL CODICE CORRETTO NON RIPORTA INDIETRO QUELLO CHE \u00c8 GI\u00c0 STATO SCRITTO**, e qui '
+      + 'restano due cose da fare a mano:\n'
+      + '\u2460 **Rilanciare `npm run panieri:pesce`**: la derivazione della Fase 5 ha gi\u00e0 scritto 9179 '
+      + 'appartenenze e ne ha **scartate 1355 come «carne»**. Una fetta di quelle sono hamburger di '
+      + 'ceci e cotolette di melanzane \u2014 cio\u00e8 proprio i piatti che una pescetariana deve ricevere. '
+      + 'La derivazione **aggiunge e non sostituisce**, quindi rilanciarla \u00e8 sicuro.\n'
+      + '\u2461 **Ricontrollare la regola flexitariana** dopo averla accesa: `menu.service` conta le '
+      + 'giornate con carne dallo stesso riconoscitore, quindi finora un hamburger di ceci bruciava '
+      + 'una delle **due volte a settimana** decise l\'1/9. Dal rilascio il conto \u00e8 giusto; le '
+      + 'giornate gi\u00e0 composte no, e non si riscrivono.\n'
+      + '\u26a0\ufe0f E `npm run diag:carne-fuori-posto` dice se nei panieri vegani e vegetariani resta '
+      + 'ancora carne: quello che resta dopo questa correzione \u00e8 catalogo da guardare, non pi\u00f9 il '
+      + 'riconoscitore.',
+    categoria: CODICE,
+    blocca: true,
+    ordine: 672,
+    nata: '2026-09-01T16:00',
+  },
+
 ];
