@@ -348,10 +348,23 @@ describe('EngineRulesService', () => {
 
     const res = await service.generateCatalogFromPreset('p1', 'u1', 1, 'completa');
 
-    // I 5 piatti che c'erano restano (5 pasti × 5 = 25), se ne generano 2 per pasto (10).
-    expect(res.riusate).toBe(25);
-    expect(res.recipes).toBe(10);
-    expect(prisma.recipe.create).toHaveBeenCalledTimes(10);
+    /**
+     * ⚠️ **DAL 1/9 IL CONTO È UN ALTRO, ed è il punto della Fase 2.** Spuntino e merenda sono lo
+     * stesso paniere: contando cosa c'è già per lo spuntino si contano anche le merende, e
+     * viceversa. Quei due pasti hanno quindi **dieci** piatti a testa invece di cinque — tagliati
+     * a sette, che è quanti ne servono per una settimana — e per loro non si genera più niente.
+     *
+     * 5 (colazione) + 7 (spuntino) + 5 (pranzo) + 7 (merenda) + 5 (cena) = 29 riusate, e le
+     * generate scendono da dieci a sei: due per colazione, pranzo e cena.
+     *
+     * ⛔ **Le quattro ricette che non si generano più sono quattro chiamate all'AI risparmiate su
+     * una variante sola**, e il generatore gira su tutte. Era la coda dichiarata della Fase 2: da
+     * quando l'agente dei pasti leggeri lavora ogni notte, quel doppio lavoro si pagava tutti i
+     * giorni.
+     */
+    expect(res.riusate).toBe(29);
+    expect(res.recipes).toBe(6);
+    expect(prisma.recipe.create).toHaveBeenCalledTimes(6);
     // Nessuna ricetta cancellata: è tutto il punto della modalità "completa".
     expect(prisma.recipe.deleteMany).not.toHaveBeenCalled();
     // E la settimana ha comunque 7 giornate con 7 pranzi diversi.

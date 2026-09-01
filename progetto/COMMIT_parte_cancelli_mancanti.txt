@@ -1,0 +1,48 @@
+«Nessun motivo noto» su cinque persone che pagano
+
+⛔ COSA HA DETTO IL TABULATO
+`diag:senza-menu`, primo giro in produzione: 51 clienti senza menu da oggi in avanti. 46
+con un motivo noto — 26 senza piano attivo, 19 senza data di inizio, 1 sospesa: il
+motore fa il suo mestiere. E CINQUE «senza un motivo noto»:
+
+  Gianluca Del Medico   ultimo menu 28/8
+  Rosa                  mai
+  Domenico Mastracchio  mai
+  Antonio               ultimo menu 29/8
+  Lisa                  ultimo menu 27/8
+
+⚠️ «Nessun motivo noto» su una persona che paga è la risposta peggiore possibile: manda
+a cercare un difetto dove non c'è, mentre il motore sta facendo esattamente quello che
+gli è stato chiesto e aspetta una cosa che a quella cliente nessuno ha detto di fare.
+
+⛔ LA PORTA ERA MONCA — conosceva sette cancelli su nove
+`deliverIfEligible` ne ha nove; `perche-non-ricompone.ts` si fermava alla sospensione.
+Mancavano i due che tengono ferme le persone vere:
+  · la MISURA DI PARTENZA del piano — ed è quasi certamente la risposta per chi non ha
+    MAI ricevuto un menu: il motore la trattiene e la chiede, finché non arriva;
+  · la FINESTRA DI VISIBILITÀ — «il piano parte fra due giorni», che non è un problema.
+
+⚠️ Sono RICHIESTE ALLA CLIENTE, non guasti. La differenza per chi legge il tabulato è
+tutta: non si apre un difetto, si telefona.
+
+⚠️ La finestra si misura sulla partenza del piano CHE EROGA, non su `planStartDate`: su
+chi ha comprato un rinnovo in coda le due date sono diverse, e usare la seconda direbbe
+«troppo presto» a una cliente che riceve da mesi. È la stessa correzione del 19/8 dentro
+il motore. E i giorni si leggono da `menu_visible_days_before_start`, lo stesso
+parametro del motore: due numeri diversi darebbero due risposte alla stessa domanda.
+
+⚠️ LA PESATA DEL RIENTRO RESTA FUORI, DICHIARATA. Il giorno del rientro il motore lo
+calcola da tre rami diversi; rifarlo nella porta sarebbe la seconda copia della cosa più
+delicata che c'è. Su una cliente appena rientrata da una pausa la porta può ancora dire
+«nessun motivo noto» mentre un motivo c'è — ed è scritto dove chi legge lo trova.
+
+LA SENTINELLA — `menu/perche-non-ricompone.spec.ts`
+Tiene i due elenchi affiancati, cancello per cancello, nei due versi: uno che il motore
+ha e la porta no (la porta mente per omissione), e uno che la porta ha e il motore no
+(manda a spegnere una cosa che non ferma più niente).
+⚠️ E una prova controlla che la sentinella si accorga davvero di una porta monca — su
+espressioni scritte male resterebbe verde proprio sullo stato da cui viene.
+
+Prova di mutazione: tolto il cancello della misura di partenza → 1 prova rossa.
+
+Test: 6306 su 374 suite. Build pulita. Nessuna migrazione, niente che scriva.

@@ -91,6 +91,12 @@ async function main(): Promise<void> {
     },
   })) as ProfiloDelloScript[];
 
+  const paramVisibilita = (await prisma.configParam.findUnique({
+    where: { key: 'menu_visible_days_before_start' },
+    select: { value: true },
+  })) as { value: string } | null;
+  const giorniDiVisibilita = Math.max(0, Number(paramVisibilita?.value ?? 2) || 0);
+
   console.log(`Clienti con allergie o intolleranze dichiarate: ${profili.length}.`);
   const oggi = new Date();
   let conGiorniDaRifare = 0;
@@ -148,7 +154,11 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const motivoFermo = await perchePotrebbeNonRicomporre(prisma as never, p, oggi);
+    /**
+     * ⚠️ Il numero della finestra si legge dal parametro, come lo legge il motore: qui serve a
+     * NON cancellare la coda a chi il menu non ce l'ha ancora perché il piano parte fra due giorni.
+     */
+    const motivoFermo = await perchePotrebbeNonRicomporre(prisma as never, p, oggi, giorniDiVisibilita);
     if (motivoFermo) {
       daGuardareAMano.push(`${chi} — ${motivi.size} giornate non sicure, ma ${motivoFermo}: non tocco niente.`);
       continue;

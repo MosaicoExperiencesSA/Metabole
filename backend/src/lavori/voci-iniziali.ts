@@ -4889,7 +4889,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'generatore-non-vede-il-paniere-unito',
-    titolo: 'Il generatore conta gli spuntini e le merende separati: genererà piatti che nel paniere ci sono già',
+    titolo: 'Il generatore conta gli spuntini e le merende separati: genererà piatti che nel paniere ci sono già — CHIUSA l\'1/9',
     dettaglio:
       '⚠️ **Coda della Fase 2 (1/9).** Da oggi spuntino e merenda pescano dallo stesso paniere: chi '
       + '**sceglie** passa da `slotDaCuiPescare`, e l\'agente dei pasti leggeri conta una cella sola '
@@ -4901,9 +4901,16 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'chiamate all\'AI e tempo di approvazione alla nutrizionista, che è quello che oggi è scarso.\n'
       + '⚠️ È dichiarata come eccezione in `catalog/una-porta-per-gli-slot.spec.ts` e sta nella **Fase '
       + '7** del piano panieri, perché spostare da cosa dipende il generatore va fatto col tabulato '
-      + 'della copertura davanti — `npm run diag:spuntini` dà il primo dei due numeri.',
+      + 'della copertura davanti — `npm run diag:spuntini` dà il primo dei due numeri.\n'
+      + '✅ **Chiusa l\'1/9, e prima del previsto.** Non è servita la Fase 7 intera: bastava allargare '
+      + 'il CONTEGGIO ai due slot gemelli, in `ricetteOrfane` e nelle tre fonti di «cosa c\'è già». '
+      + 'La ricetta nuova continua a nascere con lo slot chiesto — il paniere unito dice quante ne '
+      + 'servono, non come si chiamano. ⚠️ Misurato su una variante da 5 pasti: le riusate passano da '
+      + '25 a 29 e le generate da 10 a **6**. Quattro chiamate all\'AI risparmiate su una variante '
+      + 'sola, e il generatore gira su tutte.',
     categoria: CODICE,
     ordine: 668,
+    fatta: true,
     nata: '2026-09-01T09:00',
   },
 

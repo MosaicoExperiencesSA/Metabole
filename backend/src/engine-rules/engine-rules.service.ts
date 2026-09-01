@@ -27,6 +27,7 @@ import {
 } from './prossima-generazione';
 import { primaSettimanaMagra as primaMagra, settimanaGiaPiena, type GiornataInCiclo } from './settimana-magra';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
+import { slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
 
 /**
  * Il catalogo si genera una SETTIMANA per volta: 7 giorni, 7 ricette per ogni pasto previsto.
@@ -585,11 +586,26 @@ export class EngineRulesService {
 
     // Per ogni pasto: prima quello che c'è (sorelle, poi le proprie, poi le orfane), e si genera
     // SOLO la differenza per arrivare a sette. È così che il lavoro del nutrizionista non si perde.
+    /**
+     * ⚠️ **SPUNTINO E MERENDA SONO LO STESSO PANIERE** (Fase 2, 1/9): un piatto pensato per le 10:30
+     * va bene anche alle 17. Quindi contando «cosa c'è già» per lo spuntino si contano **anche** le
+     * merende, e viceversa.
+     *
+     * ⛔ Senza questa riga il generatore chiede all'AI piatti che nel paniere ci sono già — e li
+     * paga. Era la coda dichiarata della Fase 2 (`voci-iniziali.ts`), chiusa qui: da quando l'agente
+     * dei pasti leggeri gira ogni notte, quel doppio lavoro si paga tutti i giorni.
+     *
+     * ⚠️ Si allarga il CONTEGGIO, non la generazione: la ricetta nuova nasce con lo slot chiesto,
+     * come prima. Il paniere unito dice quante ne servono, non come si chiamano.
+     */
+    const daOgniFonte = (m: ReadonlyMap<string, string[]>, sl: string): string[] =>
+      slotDaCuiPescare(sl).flatMap((g) => m.get(g) ?? []);
+
     const gia = new Map<string, string[]>();
     const mancanti = new Map<string, number>();
     for (const sl of slots) {
       const base: string[] = [];
-      for (const fonte of [condivise.get(sl) ?? [], proprie.get(sl) ?? [], orfane.get(sl) ?? []]) {
+      for (const fonte of [daOgniFonte(condivise, sl), daOgniFonte(proprie, sl), daOgniFonte(orfane, sl)]) {
         for (const id of fonte) {
           if (base.length >= GIORNI_SETTIMANA) break;
           if (!base.includes(id)) base.push(id);
@@ -1046,8 +1062,12 @@ export class EngineRulesService {
     regime: string,
     slots: string[],
   ): Promise<Map<string, string[]>> {
+    /**
+     * ⚠️ Fase 2 (1/9): per lo spuntino si chiedono anche le merende, e viceversa — sono lo stesso
+     * paniere, e una merenda orfana è un piatto buono che nessuno usa esattamente come le altre.
+     */
     const candidate = (await this.prisma.recipe.findMany({
-      where: { regime, tags: { has: `dieta:${label}` }, mealSlot: { in: slots as never } } as never,
+      where: { regime, tags: { has: `dieta:${label}` }, mealSlot: { in: slotDaChiedere(slots) as never } } as never,
       select: { id: true, mealSlot: true },
       take: 2000,
     })) as { id: string; mealSlot: string }[];

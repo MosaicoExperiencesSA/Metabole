@@ -1,0 +1,42 @@
+Il generatore smette di comprare piatti che nel paniere ci sono già
+
+⚠️ LA CODA DELLA FASE 2, CHIUSA — e prima del previsto
+L'avevo dichiarata come Fase 7: spuntino e merenda sono lo stesso paniere per chi
+SCEGLIE, ma il generatore continuava a contarli separati. Chiedendo all'AI i piatti che
+mancano per lo spuntino non vedeva le merende, e ne comprava di uguali.
+
+Non è servita la Fase 7 intera: bastava allargare il CONTEGGIO ai due slot gemelli, in
+`ricetteOrfane` e nelle tre fonti di «cosa c'è già» (le varianti sorelle, le proprie, le
+orfane).
+
+⚠️ Si allarga il CONTEGGIO, non la generazione. La ricetta nuova nasce con lo slot
+chiesto, come prima: il paniere unito dice QUANTE ne servono, non come si chiamano.
+
+IL NUMERO, misurato sul test di una variante da 5 pasti con 5 piatti per pasto:
+  riusate   25 → 29   (spuntino e merenda hanno 10 piatti a testa, tagliati a 7)
+  generate  10 →  6   (due per colazione, pranzo e cena; per gli spuntini più niente)
+
+⛔ Quattro chiamate all'AI risparmiate SU UNA VARIANTE SOLA, e il generatore gira su
+tutte. Da quando l'agente dei pasti leggeri lavora ogni notte, quel doppio lavoro si
+pagava tutti i giorni.
+
+⚠️ E le orfane: una merenda orfana è un piatto buono che nessuno usa esattamente come le
+altre. Prima non veniva nemmeno cercata quando il pasto da riempire era lo spuntino.
+
+INSIEME: `npm run diag:famiglie-da-chiudere` (sola lettura) — la Fase 9 comincia da un
+numero. Sei famiglie di oggi non sono famiglie: sono regimi, strutture o funzioni
+travestite, e le loro varianti sono le 78 che restano fuori da ogni paniere.
+⛔ La domanda vera non è «quante varianti» ma «quante PERSONE»: `ClientProfile.dietFamily`
+contiene il NOME della dieta, quindi chiudere una famiglia SCOLLEGA chi ce l'ha sopra —
+e il tabulato le conta per nome, una per una, come Simone ha chiesto il 26/8.
+⚠️ Per tre famiglie la colonna «dove va» è vuota, ed è giusto così: Vegana, Vegetariana e
+Digiuno 16:8 nel modello nuovo non sono famiglie ma COLONNE — il regime e la struttura.
+Quelle clienti non si spostano su un'altra famiglia: si guarda che famiglia alimentare
+stavano davvero seguendo, ed è una domanda per una nutrizionista, non per uno script.
+⚠️ E il tabulato chiude il cerchio: dice se le varianti fuori dai panieri sono TUTTE
+spiegate da queste sei, o se ce n'è qualcuna fuori per un motivo che il piano non ha
+censito.
+
+Prova di mutazione: il conteggio torna separato → 1 prova rossa.
+
+Test: 6306 su 374 suite, verdi nelle quattro modalità. Build pulita.

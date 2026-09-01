@@ -1,4 +1,5 @@
 import { statoSupervisione, type ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
+import { mancaMisuraDiPartenza } from './misura-di-partenza';
 import { attivoInCorso } from '../commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { toDateOnly } from '../common/date-only';
@@ -49,12 +50,15 @@ export const CAMPI_PER_RICOMPORRE = {
 export interface PrismaPerRicomporre {
   subscription: { findMany(args: unknown): Promise<unknown[]> };
   event: { findFirst(args: unknown): Promise<unknown | null> };
+  measurement: { findFirst(args: unknown): Promise<unknown | null> };
 }
 
 export async function perchePotrebbeNonRicomporre(
   prisma: PrismaPerRicomporre,
   p: ProfiloPerRicomporre,
   oggi: Date = new Date(),
+  /** Quanti giorni prima della partenza il menu diventa visibile (`menu_visible_days_before_start`). */
+  giorniDiVisibilita = 0,
 ): Promise<string | null> {
   if (!p.planStartDate) return 'nessuna data di inizio piano';
   if (p.planHeldAt) return 'piano fermato dalla nutrizionista';
@@ -90,5 +94,47 @@ export async function perchePotrebbeNonRicomporre(
     select: { id: true },
   });
   if (pausa) return 'sospensione in corso';
+
+  /**
+   * ⛔ **I DUE CANCELLI CHE MANCAVANO, e sono quelli che tengono ferme le persone vere — 1/9.**
+   *
+   * La prima stesura di questa porta si fermava alla sospensione, e il tabulato rispondeva «nessun
+   * motivo noto» su cinque clienti: due che non avevano **mai** ricevuto un menu, tre ferme da
+   * giorni. ⚠️ «Nessun motivo noto» su una persona che paga è la risposta peggiore possibile —
+   * manda a cercare un difetto dove non c'è, mentre il motore sta facendo esattamente quello che
+   * gli è stato chiesto e aspetta una cosa che nessuno le ha detto di fare.
+   *
+   * ⚠️ Sono **richieste alla cliente**, non guasti: finché non arriva la misura, il menu resta
+   * fermo di proposito. La differenza per chi legge il tabulato è enorme: non si apre un difetto,
+   * si telefona.
+   */
+  const inizio = piano.startDate ?? p.planStartDate;
+  if (await mancaMisuraDiPartenza(prisma as never, p.userId, inizio, giorniDiVisibilita)) {
+    return 'aspetta la MISURA DI PARTENZA di questo piano (gliela stiamo chiedendo)';
+  }
+
+  /**
+   * ⚠️ **La finestra di visibilità si misura sulla partenza del piano CHE EROGA**, non su
+   * `planStartDate`: su chi ha comprato un rinnovo in coda le due date sono diverse, e usare la
+   * seconda direbbe «troppo presto» a una cliente che sta ricevendo da mesi. È la stessa correzione
+   * del 19/8 dentro `deliverIfEligible`.
+   */
+  if (inizio) {
+    const visibileDal = new Date(toDateOnly(inizio.toISOString()).getTime() - giorniDiVisibilita * 86_400_000);
+    if (toDateOnly().getTime() < visibileDal.getTime()) {
+      return `il piano non è ancora visibile (parte il ${inizio.toISOString().slice(0, 10)})`;
+    }
+  }
+
+  /**
+   * ⚠️ **LA PESATA DEL RIENTRO NON È QUI, ED È UNA SCELTA.** Il motore, dopo una pausa, trattiene i
+   * menu finché non arriva una pesata **del rientro** — e il giorno del rientro lo calcola da tre
+   * rami diversi (pausa in corso, pausa appena finita, anticipo configurato). Rifare quel conto qui
+   * vorrebbe dire farne una seconda copia, della cosa più delicata che c'è in mezzo.
+   *
+   * ⛔ Quindi su una cliente appena rientrata da una pausa questa porta può rispondere «nessun
+   * motivo noto» mentre un motivo c'è: è la pesata che le è stata chiesta e non è arrivata. Chi
+   * legge il tabulato e vede una rientrata guardi lì prima di aprire un difetto.
+   */
   return null;
 }

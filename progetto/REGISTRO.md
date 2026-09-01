@@ -20,6 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 💰 **Il generatore smette di comprare piatti che nel paniere ci sono già.** Era la
+  coda dichiarata della Fase 2 e l'avevo rimandata alla Fase 7: spuntino e merenda sono lo stesso
+  paniere per chi **sceglie**, ma il generatore continuava a contarli separati e chiedeva all'AI
+  merende che aveva già. ⚠️ Non è servita la Fase 7 intera: bastava allargare il **conteggio** ai
+  due slot gemelli — nelle orfane e nelle tre fonti di «cosa c'è già». Si allarga il conteggio, non
+  la generazione: la ricetta nuova nasce con lo slot chiesto, il paniere unito dice **quante** ne
+  servono, non come si chiamano. ⚠️ Il numero, su una variante da 5 pasti: riusate **25 → 29**,
+  generate **10 → 6**. Quattro chiamate all'AI risparmiate su una variante sola, e il generatore
+  gira su tutte — da quando l'agente dei pasti leggeri lavora ogni notte quel doppio lavoro si
+  pagava ogni giorno. ⚠️ Insieme, `npm run diag:famiglie-da-chiudere`: la Fase 9 comincia da un
+  numero, e la domanda vera non è «quante varianti» ma **quante persone** — `dietFamily` contiene
+  il nome della dieta, quindi chiudere una famiglia **scollega** chi ce l'ha sopra. Per tre famiglie
+  la colonna «dove va» resta vuota ed è giusto: Vegana, Vegetariana e Digiuno 16:8 nel modello nuovo
+  non sono famiglie ma **colonne**, e dove vadano quelle clienti lo decide una nutrizionista.
+
+- `[Sviluppo]` ⛔ **Cinque persone che pagano e non ricevono, e una porta che conosceva sette
+  cancelli su nove.** Il primo giro di `diag:senza-menu` in produzione: 46 clienti ferme per un
+  motivo noto — il motore fa il suo mestiere — e **cinque «senza un motivo noto»**, di cui due che
+  non hanno **mai** ricevuto un menu. ⚠️ «Nessun motivo noto» su una persona che paga è la risposta
+  peggiore possibile: manda a cercare un difetto dove non c'è, mentre il motore aspetta una cosa
+  che a quella cliente nessuno ha detto di fare. La porta si fermava alla sospensione e non
+  conosceva la **misura di partenza** — che è quasi certamente la risposta per chi non ha mai
+  ricevuto niente: il motore la trattiene e gliela chiede — né la **finestra di visibilità**. ⚠️ Non
+  sono guasti, sono **richieste alla cliente**, e per chi legge il tabulato la differenza è tutta:
+  non si apre un difetto, si telefona. ⚠️ La pesata del rientro resta fuori ed è **dichiarato**: il
+  giorno del rientro il motore lo calcola da tre rami, e rifarlo sarebbe la seconda copia della cosa
+  più delicata. Sentinella che tiene i due elenchi affiancati nei due versi, più una prova che
+  controlla che la sentinella **si accorga** di una porta monca — su espressioni scritte male
+  resterebbe verde proprio sullo stato da cui viene.
+
 - `[Sviluppo]` ⛔ **«Le ricompone il cron notturno»: una frase mia, falsa, e cosa è costata.** Avevo
   scritto in tre punti — lo script, il commit, il registro — che le giornate cancellate le
   ricompone il cron della notte. Simone ha fatto girare `daily` fidandosi di quella riga: il cron

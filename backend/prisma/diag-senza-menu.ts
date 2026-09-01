@@ -34,6 +34,16 @@ async function main() {
   riga('──────────────────────────────────────────────────────────────────');
 
   const oggi = toDateOnly();
+  /**
+   * ⚠️ **Lo stesso parametro che legge il motore**, non un numero scritto qui: la finestra di
+   * visibilità decide se «non ha ancora il menu» vuol dire «è troppo presto» o «c'è un problema»,
+   * e due valori diversi darebbero due risposte diverse alla stessa domanda.
+   */
+  const param = (await prisma.configParam.findUnique({
+    where: { key: 'menu_visible_days_before_start' },
+    select: { value: true },
+  })) as { value: string } | null;
+  const giorniDiVisibilita = Math.max(0, Number(param?.value ?? 2) || 0);
   const profili = (await prisma.clientProfile.findMany({
     select: { ...CAMPI_PER_RICOMPORRE, name: true },
   })) as unknown as (ProfiloPerRicomporre & { name: string | null })[];
@@ -49,7 +59,7 @@ async function main() {
   for (const p of scelti) {
     const giorni = (await prisma.menuDay.count({ where: { clientId: p.userId, date: { gte: oggi } } })) as number;
     if (giorni > 0) continue;
-    const motivo = await perchePotrebbeNonRicomporre(prisma as never, p, new Date());
+    const motivo = await perchePotrebbeNonRicomporre(prisma as never, p, new Date(), giorniDiVisibilita);
     const ultimo = (await prisma.menuDay.findFirst({
       where: { clientId: p.userId },
       orderBy: { date: 'desc' },
