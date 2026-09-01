@@ -102,6 +102,7 @@
     "diag:allergeni-mancanti": "ts-node --transpile-only prisma/diag-allergeni-mancanti.ts",
     "diag:fase0": "ts-node --transpile-only prisma/diag-fase0-panieri.ts",
     "panieri:riempi": "ts-node --transpile-only prisma/riempi-panieri.ts",
+    "panieri:confronta": "ts-node --transpile-only prisma/confronta-pool.ts",
     "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",
     "diag:ricerca": "ts-node --transpile-only prisma/diag-ricerca-alimenti.ts",

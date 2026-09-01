@@ -74,6 +74,7 @@ function creaServizio(
    * più l'originale, ed è la stessa lezione già pagata su `audit.log` e su `cercaPerIngrediente`.
    */
   const configParams = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn(async (chiave: string, predefinito?: number) =>
       chiave === 'digiuno_passo_graduale_min' ? 60 : (predefinito ?? 60)),
   };

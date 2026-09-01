@@ -72,6 +72,7 @@ function make(over: {
     },
   };
   const config = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn((_k: string, d?: number) => Promise.resolve(over.minPerSlot ?? d ?? 3)),
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };

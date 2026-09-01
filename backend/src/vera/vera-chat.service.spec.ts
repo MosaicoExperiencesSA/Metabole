@@ -224,6 +224,7 @@ function make(
   // Il minimo proteico della dieta, per l'anteprima delle proteine (14/8).
   const secondaLetturaAccesa = opzioni.riscritturaModello !== undefined;
   const configParams = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn().mockResolvedValue(0.2),
     // ⚠️ `vera_seconda_lettura` è l'unica chiave che può essere vera: tutto il resto resta come era,
     // così i test scritti prima del 17/8 collaudano ancora il comportamento che collaudavano.

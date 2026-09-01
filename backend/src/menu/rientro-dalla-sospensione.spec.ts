@@ -168,6 +168,7 @@ describe('Menu — la finestra di rientro dalla sospensione', () => {
     };
 
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((key: string, def?: number) =>
         Promise.resolve(({
           menu_days_delivered: 2,

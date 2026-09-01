@@ -1,0 +1,27 @@
+=== PARTE: il confronto che dice se l'interruttore si può spostare ===
+
+SUMMARY
+Panieri: lo script che mette il pool dalle giornate accanto al pool dal paniere, e dice se si può spostare l'interruttore
+
+DESCRIPTION
+Terza consegna della Fase 1, ed è la verifica che il piano pretende prima di spostare la sorgente
+del pool: «serve un confronto prima/dopo per cella. Se il conto non torna, la migrazione si ferma».
+
+⛔ E «torna» NON vuol dire che i numeri siano uguali. Su strada B molte varianti versano nello stesso
+paniere, quindi il pool dal paniere è quasi sempre PIÙ GRANDE — ed è il punto di tutta la riforma:
+la Mediterranea vegana eredita i pranzi vegani scritti per la DASH vegana.
+
+Quello che deve tornare è l'altro verso: ogni ricetta che oggi una cliente può ricevere deve poterla
+ricevere anche domani. ⚠️ Una ricetta che sta nelle giornate e non nel paniere è un piatto che
+sparisce dal suo menu senza che nessuno lo decida — è l'unico errore che questo confronto esiste per
+trovare, e si stampa per primo.
+
+⚠️ Le ricette che non esistono più NON si contano come perse: la chiave esterna le rifiuta di
+proposito e `panieri:riempi` le dichiara già. Contarle qui vorrebbe dire far sembrare rotta la
+migrazione per la cosa che è venuta a chiudere.
+
+Sola lettura, e non tocca l'interruttore: quello si sposta a mano, dopo aver letto il verdetto.
+
+FILE
+- backend/prisma/confronta-pool.ts — nuovo, `npm run panieri:confronta`
+- backend/package.json

@@ -18,6 +18,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
  * di test ha i suoi contatori di chiamate.
  */
 const configParamsFinto = () => ({
+  getString: jest.fn(async (_k: string, d?: string) => d),
   getNumber: jest.fn().mockImplementation((_k: string, fallback?: number) => Promise.resolve(fallback)),
 });
 

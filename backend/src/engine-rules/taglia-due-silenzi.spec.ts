@@ -30,6 +30,7 @@ function servizio(stime: Record<string, unknown | null>) {
   };
   const configParams = {
     getBool: jest.fn().mockImplementation((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn().mockImplementation((_k: string, def?: number) => Promise.resolve(def)),
   };
   const kcalNeed = {

@@ -35,6 +35,7 @@ function makeService(prisma: Record<string, unknown>, expiringDays = 14) {
   // finestra della media mobile), e un finto che risponde sempre lo stesso numero darebbe una
   // finestra di 14 pesate — cioè un test che misura un mondo che non esiste.
   const config = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn(async (key: string, def?: number) =>
       key === 'moving_average_window' ? 3 : (expiringDays ?? def),
     ),

@@ -1,4 +1,6 @@
 import { createHmac } from 'crypto';
+import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
+import { famigliaDelPaniere } from '../menu/menu.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -185,13 +187,23 @@ export class PersonalBaseService {
       return this.block(clientId, profile.assignedNutritionistId, reasons);
     }
 
-    // 3. Pool ricette della dieta (dai template) → filtro di sicurezza.
+    /**
+     * 3. Pool ricette della dieta → filtro di sicurezza.
+     *
+     * ⛔ **Passa dalla porta unica** (`catalog/pool-del-paniere.ts`, Fase 1 dei panieri): questa era
+     * la seconda delle tre copie della domanda «quali ricette può ricevere questa cliente». Finché
+     * sono tre, il giorno che l'appartenenza si sposta sul paniere se ne sposta una sola.
+     * ⚠️ Con `panieri_sorgente_pool` sul suo default (`giornate`) il pool è identico a prima.
+     */
+    const sorgente = leggiSorgente(await this.configParams.getString('panieri_sorgente_pool', 'giornate'));
     const templates = (await this.prisma.dietDayTemplate.findMany({
       where: { dietId: diet.id },
       select: { meals: true },
     })) as unknown as { meals: { slot: string; recipeId: string }[] }[];
-    const poolIds = new Set<string>();
-    for (const t of templates) for (const m of t.meals ?? []) poolIds.add(m.recipeId);
+    const righe = sorgente === 'paniere'
+      ? await righeDalPaniere(this.prisma as never, famigliaDelPaniere(diet) ?? '', diet.regime ?? '')
+      : righeDalleGiornate(templates);
+    const poolIds = ricetteDelPool(poolPerSlot(righe));
 
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: [...poolIds] }, active: true },

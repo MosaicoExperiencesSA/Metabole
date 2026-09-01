@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
+import { paniereDellaVariante } from '../catalog/appartenenza-panieri';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { giornateComplete, NOME_PASTO } from '../catalog/giornate-complete';
 import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
@@ -1227,7 +1229,7 @@ export class MenuService {
     const esclusioniCliente = esclusioniDi(profile as ProfiloConEsclusioni);
 
     // Contesto di scoring condiviso (pool ricette per slot + punteggio efficacia/gradimento).
-    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente);
+    const ctx = await this.buildScoringContext(clientId, profile.regime, templates as never, agentState, diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente, famigliaDelPaniere(diet));
     /**
      * ⚠️ IL GIORNO DI CONFORTO DENTRO IL PLATEAU — decisione di Simone (13/8).
      *
@@ -1240,7 +1242,7 @@ export class MenuService {
      */
     const ctxConforto =
       agentState === 'plateau_conforto'
-        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente)
+        ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente, famigliaDelPaniere(diet))
         : null;
     const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
@@ -2381,6 +2383,17 @@ export class MenuService {
      * questionario — e fino a oggi non toglievano niente dal pool.
      */
     esclusioniCliente: EsclusioniCliente | null = null,
+    /**
+     * La FAMIGLIA della variante, per il giorno che il pool arriva dal paniere: il paniere è
+     * famiglia × regime, e molte varianti versano nello stesso (strada B). `null` con
+     * l'interruttore su `paniere` dà pool vuoto, ed è giusto che si veda invece di ripiegare.
+     *
+     * ⚠️ **Sta in FONDO apposta**: metterlo in mezzo agli altri sposta tutti i parametri
+     * posizionali, e le prove che chiamano questo metodo direttamente cominciano a passare lo stato
+     * dell'agente dove ora c'è la famiglia. Un parametro nuovo in mezzo a una firma lunga è un
+     * cambio silenzioso su ogni chiamante.
+     */
+    famigliaPaniere: string | null = null,
   ): Promise<{
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
@@ -2434,16 +2447,24 @@ export class MenuService {
     if (objective === 'mantenimento') wEff = maintWEff;
     const usePreEvent = state === 'pre_evento';
 
-    // Pool candidati per slot (ricette usate dalla dieta per quello slot).
-    const slotPool = new Map<string, Set<string>>();
-    const poolIds = new Set<string>();
-    for (const t of templates) {
-      for (const m of (t.meals as { slot: string; recipeId: string }[]) ?? []) {
-        if (!slotPool.has(m.slot)) slotPool.set(m.slot, new Set());
-        slotPool.get(m.slot)!.add(m.recipeId);
-        poolIds.add(m.recipeId);
-      }
-    }
+    /**
+     * ⛔ **IL POOL PASSA DA UNA PORTA SOLA** (`catalog/pool-del-paniere.ts`, Fase 1 dei panieri).
+     *
+     * Qui c'erano otto righe che appiattivano `DietDayTemplate.meals`: erano una delle tre copie
+     * della stessa domanda — «quali ricette può ricevere questa cliente, per ogni pasto» — e finché
+     * sono tre, il giorno che l'appartenenza si sposta sul paniere se ne sposta una e le altre due
+     * restano indietro senza che niente lo dica.
+     *
+     * ⚠️ La sorgente la decide `panieri_sorgente_pool`, e **il default è `giornate`**: con
+     * l'interruttore fermo il pool è identico a prima, riga per riga. Si sposta quando il confronto
+     * prima/dopo di `npm run panieri:riempi` torna, non prima.
+     */
+    const sorgente = leggiSorgente(await this.configParams.getString('panieri_sorgente_pool', 'giornate'));
+    const righe = sorgente === 'paniere'
+      ? await righeDalPaniere(this.prisma as never, famigliaPaniere ?? '', regime)
+      : righeDalleGiornate(templates);
+    const slotPool = poolPerSlot(righe);
+    const poolIds = ricetteDelPool(slotPool);
     if (poolIds.size === 0) return null;
 
     const [recipes, weights, ratings] = await Promise.all([
@@ -3926,4 +3947,20 @@ export function stagioneCorrente(d: Date = new Date()): string {
   if (m >= 6 && m <= 8) return 'summer';
   if (m >= 9 && m <= 11) return 'autumn';
   return 'winter';
+}
+
+
+/**
+ * La famiglia del paniere di una variante, o `null` se quella variante non versa in nessun paniere
+ * (le famiglie che il §2.1 del piano dichiara assi travestiti da famiglia).
+ *
+ * ⚠️ Serve solo quando l'interruttore è su `paniere`. Con `giornate` — il default — non viene
+ * nemmeno guardata.
+ */
+export function famigliaDelPaniere(
+  d: { name?: string | null; regime?: string | null } | null | undefined,
+): string | null {
+  if (!d?.name || !d?.regime) return null;
+  const esito = paniereDellaVariante({ id: '', name: d.name, regime: d.regime });
+  return esito.tipo === 'paniere' ? esito.famiglia : null;
 }

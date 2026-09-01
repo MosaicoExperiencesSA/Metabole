@@ -27,6 +27,7 @@ const PROFILO = {
 };
 
 const config = (finestra = 3, extra: Record<string, number> = {}) => ({
+  getString: jest.fn(async (_k: string, d?: string) => d),
   getNumber: jest.fn().mockImplementation((chiave: string, dato: number) =>
     Promise.resolve(
       chiave === 'moving_average_window' ? finestra : chiave in extra ? extra[chiave] : dato,

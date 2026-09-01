@@ -53,6 +53,7 @@ function makeService(profilo: Record<string, unknown>, opzioni: { pianoScaduto?:
     escalation: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const config = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn((_k: string, def?: number) => Promise.resolve(def ?? 2)),
     getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
   };

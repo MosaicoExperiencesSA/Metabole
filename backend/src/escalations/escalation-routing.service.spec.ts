@@ -28,6 +28,7 @@ function make(over: {
    * a 14 come in produzione; i test che vogliono provare la tregua passano `over.finestraGiorni`.
    */
   const configParams = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn().mockResolvedValue(over.finestraGiorni ?? 14),
   };
   const service = new EscalationRoutingService(

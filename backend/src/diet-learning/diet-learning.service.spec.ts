@@ -7,6 +7,7 @@ const dayIso = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString(
 
 function make(prisma: Record<string, unknown>, opts?: { distinctive?: boolean; alpha?: number }) {
   const config = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn((k: string, d?: number) =>
       Promise.resolve(k === 'learning_distinctiveness_alpha' ? (opts?.alpha ?? 0.5) : (d ?? 0)),
     ),

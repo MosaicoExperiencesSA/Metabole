@@ -75,6 +75,7 @@ async function crea(opzioni: Opzioni = {}) {
         // stesso numero a entrambi confonderebbe i due limiti, che ora sono davvero diversi (24h
         // contro 2 giorni).
         useValue: {
+          getString: jest.fn(async (_k: string, d?: string) => d),
           getNumber: jest.fn().mockImplementation((chiave: string, def: number) =>
             Promise.resolve(chiave === 'plan_start_change_lock_hours' ? (opzioni.oreBlocco ?? 24) : def),
           ),

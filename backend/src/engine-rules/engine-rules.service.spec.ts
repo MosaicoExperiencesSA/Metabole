@@ -49,6 +49,7 @@ function build() {
      * su quella del preset, che è il comportamento che questi test già difendevano.
      */
     getBool: jest.fn().mockImplementation((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn().mockImplementation((_k: string, def?: number) => Promise.resolve(def)),
   };
   const audit = { log: jest.fn() };

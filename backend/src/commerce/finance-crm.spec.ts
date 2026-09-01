@@ -67,6 +67,7 @@ describe('FinanceService (eventi economici automatici)', () => {
           useValue: {
             // Nessun parametro letto da questi test: le provvigioni arrivano dagli importi del
             // piano, e il compenso a visita (l'unico che leggeva un parametro) non esiste più.
+            getString: jest.fn(async (_k: string, d?: string) => d),
             getNumber: jest.fn(() => Promise.resolve(undefined)),
           },
         },
@@ -259,6 +260,7 @@ describe('CrmService (data + responsabile su ogni transizione)', () => {
           // comportamento che il prodotto non ha.
           provide: ConfigParamsService,
           useValue: {
+            getString: jest.fn(async (_k: string, d?: string) => d),
             getNumber: jest.fn((chiave: string) =>
               Promise.resolve(chiave === 'menu_visible_days_before_start' ? 2 : 7)),
           },

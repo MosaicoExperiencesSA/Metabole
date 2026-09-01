@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🚪 **Panieri, Fase 1 (2/3): il pool passa da una porta sola.** ⛔ «Quali ricette può
+  ricevere questa cliente, per ogni pasto» se la costruivano in **tre** — `buildScoringContext`,
+  `personal-base`, la copertura — ognuno appiattendo per conto suo `DietDayTemplate.meals`. Finché
+  sono tre, il giorno che l'appartenenza si sposta sul paniere se ne sposta **una** e le altre
+  restano indietro: i menu continuano a uscire, da un pool diverso da quello che qualcuno crede di
+  aver cambiato. Adesso c'è `catalog/pool-del-paniere.ts`, e la sorgente è il parametro
+  `panieri_sorgente_pool` — **default `giornate`**, quindi oggi non cambia niente per nessuna
+  cliente. ⛔ **E non è un ripiego automatico**: «se il paniere è vuoto leggi le giornate» sarebbe
+  una porta che risponde da due posti a seconda dello stato del database. Una parola sconosciuta nel
+  parametro **non** apre il paniere: un refuso in `config_param` non deve poter spostare da cosa
+  mangiano le clienti. ⛔ **La sentinella ha trovato una QUARTA copia che non conoscevo**
+  (`engine-rules.service.ts`, il generatore), dichiarata invece che spostata a scatola chiusa. ⚠️ E
+  alla prima stesura gridava su otto file, sette innocenti — fra cui `menu.service.ts` stesso:
+  sarebbe finita nelle eccezioni proprio la casa per cui esiste. ⚠️ Effetto collaterale: **27 doppi
+  di `ConfigParamsService` non avevano `getString`** — cioè si comportavano diversamente
+  dall'originale, ed è la sesta volta che questa cosa morde. 6142 test verdi nelle quattro modalità.
+
 - `[Sviluppo]` 🧺 **Panieri, Fase 1: l'appartenenza esce dal JSON.** Il §9 non aspetta più niente —
   firma arrivata, numeri della Fase 0 letti (161 varianti sotto soglia ma **una sola con clienti
   sopra**, che è proprio quella che il §2.3 dice di spostare a mano: il piano non cambia). ⛔ Fino a

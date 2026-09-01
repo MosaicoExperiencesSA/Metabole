@@ -105,6 +105,7 @@ describe('Pesata del ciclo: lo sblocco riapre l\'app, non eroga il menu', () => 
       shoppingList: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((key: string, def?: number) =>
         Promise.resolve(({
           menu_days_delivered: 2,

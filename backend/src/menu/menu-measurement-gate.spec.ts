@@ -58,6 +58,7 @@ let pushInviate: { userId: string; title: string; body: string; data?: Record<st
 
 function makeService(prisma: unknown, parametri: Record<string, number> = {}) {
   const config = {
+    getString: jest.fn(async (_k: string, d?: string) => d),
     getNumber: jest.fn((k: string, def?: number) =>
       Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, ...parametri } as Record<string, number>)[k] ?? def),
     ),

@@ -1,0 +1,68 @@
+=== PARTE: Fase 1 — il pool passa da una porta sola ===
+
+SUMMARY
+Panieri, Fase 1 (2/3): «quali ricette può ricevere questa cliente» si chiede in un posto solo, e la sorgente è un interruttore che oggi è fermo sulle giornate
+
+DESCRIPTION
+Seconda consegna della Fase 1. La prima ha creato le tabelle; questa toglie la domanda dalle tre
+copie in cui viveva.
+
+⛔ «QUALI RICETTE PUÒ RICEVERE QUESTA CLIENTE, PER OGNI PASTO» se la costruivano in tre —
+`menu.service.ts` (`buildScoringContext`), `personal-base.service.ts`, e la copertura del catalogo —
+ognuno appiattendo per conto suo `DietDayTemplate.meals`. ⚠️ Finché sono tre, il giorno che
+l'appartenenza si sposta sul paniere se ne sposta UNA e le altre restano indietro: i menu continuano
+a uscire, da un pool diverso da quello che qualcuno crede di aver cambiato.
+
+Adesso la porta è `catalog/pool-del-paniere.ts`, e la sorgente è un parametro:
+· `giornate` — come sempre, e **è il default**;
+· `paniere`  — da `PaniereRicetta`, la tabella con le chiavi esterne.
+
+⚠️ CON L'INTERRUTTORE FERMO NON CAMBIA NIENTE PER NESSUNA CLIENTE, ed è voluto: la tabella si riempie
+con un passo suo, e finché non è piena e verificata leggere di là vorrebbe dire comporre menu da un
+pool vuoto. Si sposta quando il confronto prima/dopo di `panieri:riempi` torna, non prima.
+
+⛔ E NON È UN RIPIEGO AUTOMATICO. La tentazione era «se il paniere è vuoto leggi le giornate»:
+sarebbe una porta che risponde da due posti a seconda dello stato del database — il genere di cosa
+che funziona per mesi e poi un giorno serve il menu sbagliato senza che nessuno sappia perché. La
+sorgente la decide un parametro che si legge. ⚠️ E una parola sconosciuta nel parametro **non** apre
+il paniere: un refuso in `config_param` non deve poter spostare da cosa mangiano le clienti.
+
+⛔ LA SENTINELLA HA TROVATO UNA QUARTA COPIA CHE NON CONOSCEVO, mentre la scrivevo:
+`engine-rules.service.ts` costruisce `slot → ricette` dalle giornate per sapere cosa c'è già in
+catalogo quando genera ricette nuove. ⚠️ È una domanda vicina ma diversa — «cosa c'è già per questa
+variante» al momento di generare, non «cosa può ricevere questa cliente» al momento di comporre — ed
+è dichiarata invece che spostata a scatola chiusa: spostarla vuol dire cambiare da cosa dipende il
+generatore, e va fatta con i numeri davanti (Fase 7).
+
+⚠️ E LA SENTINELLA, ALLA PRIMA STESURA, GRIDAVA SU OTTO FILE, sette innocenti — fra cui
+`menu.service.ts` stesso, che legge i pasti per **comporre** la giornata (cosa che si sposta alla
+Fase 3). Sarebbe finito nelle eccezioni proprio il file per cui la sentinella esiste. Stretta alla
+forma vera: si legge `.meals` e si **accumula** un `recipeId` in un insieme.
+
+⚠️ UN EFFETTO COLLATERALE DA SAPERE: 27 doppi di `ConfigParamsService` nelle prove non avevano
+`getString` — cioè si comportavano diversamente dall'originale, e se ne è accorto solo il codice
+nuovo che lo chiama. Aggiunto a tutti. È la sesta volta in questo progetto che un doppio diverso
+dall'originale morde.
+
+⚠️ Il parametro nuovo di `buildScoringContext` sta IN FONDO alla firma apposta: metterlo in mezzo
+sposta tutti i parametri posizionali, e le prove che chiamano quel metodo direttamente cominciano a
+passare lo stato dell'agente dove ora c'è la famiglia. Trovato provando, non ragionando.
+
+VERIFICA
+23 prove sulla porta, 3 sulla sentinella, 3 mutazioni provate e uccise (una parola sconosciuta che
+apre il paniere; il default che diventa `paniere`; il pool che smette di deduplicare). 6109 test
+backend verdi nelle quattro modalità, `nest build` e `tsc --noEmit` compresi.
+
+⚠️ Anche su questa niente revisione con subagent: scelta di costo dichiarata. La parte che decide è
+coperta dalle prove, e l'interruttore è fermo.
+
+RESTA DA FARE nella Fase 1: la terza copia (`copertura-catalogo.ts`) è una diagnostica che conta le
+giornate di una VARIANTE, e finché il motore legge di là deve continuare a contarle — si sposta con
+la pagina, alla Fase 7.
+
+FILE
+- backend/src/catalog/pool-del-paniere.ts (+ .spec, 23 prove) — nuovo, la porta
+- backend/src/menu/menu.service.ts — `buildScoringContext` passa dalla porta; `famigliaDelPaniere`
+- backend/src/personal-base/personal-base.service.ts — idem
+- backend/src/menu/una-porta-per-il-pool.spec.ts — nuova, la sentinella
+- 16 file di prova — il doppio di `ConfigParamsService` ha `getString` come l'originale

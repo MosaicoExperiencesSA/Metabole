@@ -150,6 +150,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
       findMany: jest.fn().mockResolvedValue([{ status: 'active', endDate: null }]),
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((key: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[key] ?? def),
       ),
@@ -883,6 +884,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((k: string, def?: boolean) => Promise.resolve(k === 'menu_daycombo_enabled' ? daycombo : (def ?? false))),
@@ -989,6 +991,7 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: penalty, menu_repeat_window_days: 14, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
@@ -1074,6 +1077,7 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
     };
     const config = {
       // R12: mantenimento = efficacia RIDOTTA ma non zero (0,1 quando il dimagrimento vale 1).
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_maintenance_w_eff: 0.1, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
@@ -1151,6 +1155,7 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, repeat_twin_kcal_tolerance_pct: 15, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
@@ -1245,6 +1250,7 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
     };
     // Global: penalità 0 (spenta) e finestra 14. L'override deve avere la precedenza.
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_repeat_window_days: 14, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
@@ -1316,6 +1322,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
     };
     const config = {
       // Penalità spenta di proposito: qui si misura SOLO la garanzia dura di varietà.
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: gapDays } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),
     };
@@ -1411,6 +1418,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 2 } as Record<string, number>)[k] ?? def),
       ),
@@ -1549,6 +1557,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: gapDays } as Record<string, number>)[k] ?? def),
       ),
@@ -1781,6 +1790,7 @@ describe('MenuService — giornate incomplete (§15.4)', () => {
       ...over,
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((key: string, def?: number) => Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2 } as Record<string, number>)[key] ?? def)),
       getBool: jest.fn((_k: string, d?: boolean) => Promise.resolve(d ?? false)),
     };
@@ -1941,6 +1951,7 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
       analyticsEvent: { create: jest.fn().mockResolvedValue({}) },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 2, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 0 } as Record<string, number>)[k] ?? def)),
       getBool: jest.fn((_k: string, def?: boolean) => Promise.resolve(def ?? false)),

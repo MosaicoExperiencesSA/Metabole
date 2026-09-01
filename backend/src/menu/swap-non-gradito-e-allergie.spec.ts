@@ -128,6 +128,7 @@ describe('MenuService — lo swap di un non gradito non può servire un allergen
       notification: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), updateMany: jest.fn() },
     };
     const config = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
       getNumber: jest.fn((k: string, def?: number) =>
         Promise.resolve(({ menu_days_delivered: 1, menu_visible_days_before_start: 2, menu_penalty_repeat: 0, menu_variety_min_gap_days: 2 } as Record<string, number>)[k] ?? def),
       ),
