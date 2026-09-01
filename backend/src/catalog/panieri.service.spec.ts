@@ -34,8 +34,8 @@ describe('le celle del paniere', () => {
     const celle = await svc.celle();
     const med = celle.find((c) => c.famiglia === 'Mediterranea' && c.regime === 'vegan')!;
     expect(med.totale).toBe(2);
-    expect(med.perSlot.lunch).toBe(2);
-    expect(med.perSlot.dinner).toBe(1);
+    expect(med.perSlot.lunch.piatti).toBe(2);
+    expect(med.perSlot.dinner.piatti).toBe(1);
   });
 
   /** ⚠️ Fase 2: i due spuntini si contano uniti, perché è quello che vede la cliente. */
@@ -48,8 +48,29 @@ describe('le celle del paniere', () => {
     ]);
     const svc = new PanieriService(prisma as never, audit() as never);
     const med = (await svc.celle()).find((c) => c.famiglia === 'Mediterranea' && c.regime === 'vegan')!;
-    expect(med.perSlot.morning_snack).toBe(2);
-    expect(med.perSlot.afternoon_snack).toBe(2);
+    expect(med.perSlot.morning_snack.piatti).toBe(2);
+    expect(med.perSlot.afternoon_snack.piatti).toBe(2);
+  });
+
+  /**
+   * ⛔ **DUE NUMERI, NON UNO.** Un piatto generato nasce in bozza: un paniere con 200 piatti di cui
+   * 20 attivi **è un paniere da 20**, perché gli altri il motore non li vede. Con un numero solo la
+   * pagina direbbe che va tutto bene proprio nel caso peggiore — il lavoro c'è e non arriva a
+   * nessuna cliente.
+   */
+  it('⛔ e dice quanti di quei piatti il motore userebbe davvero', async () => {
+    const prisma = prismaBase();
+    prisma.paniere.findMany.mockResolvedValue([{ id: 'p1', famiglia: 'Mediterranea', regime: 'vegan' }]);
+    prisma.paniereRicetta.findMany.mockResolvedValue([
+      { paniereId: 'p1', recipeId: 'viva', slot: 'lunch' },
+      { paniereId: 'p1', recipeId: 'bozza', slot: 'lunch' },
+    ]);
+    prisma.recipe.findMany.mockResolvedValue([{ id: 'viva' }]); // solo questa è attiva
+    const svc = new PanieriService(prisma as never, audit() as never);
+    const med = (await svc.celle()).find((c) => c.famiglia === 'Mediterranea' && c.regime === 'vegan')!;
+    expect(med.perSlot.lunch).toEqual({ piatti: 2, attivi: 1 });
+    expect(med.totale).toBe(2);
+    expect(med.totaleAttivi).toBe(1);
   });
 
   it('le celle ci sono tutte, anche quelle che in tabella non esistono ancora', async () => {

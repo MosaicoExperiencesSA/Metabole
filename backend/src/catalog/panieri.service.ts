@@ -16,14 +16,30 @@ import { FAMIGLIE, IMPOSSIBILI, REGIMI, combinazioneImpossibile } from './appart
  * cliente: è il pool da cui il motore pesca per tutte quelle del paniere. Per questo `manage` è del
  * capo nutrizionista e ogni scrittura passa dall'audit.
  */
+/**
+ * ⚠️ **DUE NUMERI PER PASTO, NON UNO** — è la stessa lezione della copertura del catalogo (11/8).
+ *
+ * Un piatto generato nasce in **bozza** e diventa attivo solo con la validazione: un paniere con
+ * 200 piatti di cui 20 attivi **è un paniere da 20**, perché il motore gli altri non li vede. Con
+ * un numero solo la pagina direbbe che va tutto bene proprio sul caso peggiore — quello in cui il
+ * lavoro c'è ma non arriva a nessuna cliente.
+ */
+export interface ConteggioDelPasto {
+  /** I piatti distinti che il paniere ha per quel pasto. */
+  piatti: number;
+  /** Quanti di quelli il motore userebbe davvero (`active: true`). */
+  attivi: number;
+}
+
 export interface CellaDelPaniere {
   famiglia: string;
   regime: string;
   esiste: boolean;
   impossibile: string | null;
-  /** Quante ricette DISTINTE ha ogni pasto, coi gemelli già uniti (spuntino e merenda insieme). */
-  perSlot: Record<string, number>;
+  /** Per ogni pasto: piatti e attivi, coi gemelli già uniti (spuntino e merenda insieme). */
+  perSlot: Record<string, ConteggioDelPasto>;
   totale: number;
+  totaleAttivi: number;
 }
 
 @Injectable()
@@ -44,12 +60,24 @@ export class PanieriService {
    * ⚠️ E i due spuntini si contano **uniti** (Fase 2): è quello che vede la cliente.
    */
   async celle(): Promise<CellaDelPaniere[]> {
-    const [panieri, righe] = await Promise.all([
+    const [panieri, righe, attive] = await Promise.all([
       this.prisma.paniere.findMany({ select: { id: true, famiglia: true, regime: true } }) as unknown as
         Promise<{ id: string; famiglia: string; regime: string }[]>,
       this.prisma.paniereRicetta.findMany({ select: { paniereId: true, recipeId: true, slot: true } }) as unknown as
         Promise<{ paniereId: string; recipeId: string; slot: string }[]>,
+      /**
+       * ⚠️ **Solo gli id delle ATTIVE**, non tutte le ricette: il catalogo è grande e qui serve
+       * rispondere a una domanda sola. E si chiede al database di filtrare, non a noi dopo.
+       *
+       * ⛔ E i «rotti» della copertura per variante qui **non esistono**: `PaniereRicetta` ha una
+       * chiave esterna con `onDelete: Cascade`, quindi una ricetta cancellata si porta via le sue
+       * righe. È uno dei guadagni della Fase 1 — nelle giornate, che tengono i pasti in un JSON
+       * senza vincoli, un riferimento rotto resta lì e nessuno lo vede.
+       */
+      this.prisma.recipe.findMany({ where: { active: true }, select: { id: true } }) as unknown as
+        Promise<{ id: string }[]>,
     ]);
+    const eAttiva = new Set(attive.map((r) => r.id));
 
     const perPaniere = new Map<string, Map<string, Set<string>>>();
     for (const r of righe) {
@@ -67,11 +95,11 @@ export class PanieriService {
         const chiave = `${famiglia}|${regime}`;
         const id = idDi.get(chiave);
         const slots = id ? perPaniere.get(id) ?? new Map<string, Set<string>>() : new Map<string, Set<string>>();
-        const perSlot: Record<string, number> = {};
+        const perSlot: Record<string, ConteggioDelPasto> = {};
         for (const sl of GIORNATA_CINQUE) {
           const uniti = new Set<string>();
           for (const g of slotDaCuiPescare(sl)) for (const rid of slots.get(g) ?? []) uniti.add(rid);
-          perSlot[sl] = uniti.size;
+          perSlot[sl] = { piatti: uniti.size, attivi: [...uniti].filter((rid) => eAttiva.has(rid)).length };
         }
         const tutte = new Set<string>();
         for (const s of slots.values()) for (const rid of s) tutte.add(rid);
@@ -82,6 +110,7 @@ export class PanieriService {
           impossibile: IMPOSSIBILI.includes(chiave) ? combinazioneImpossibile(famiglia, regime) : null,
           perSlot,
           totale: tutte.size,
+          totaleAttivi: [...tutte].filter((rid) => eAttiva.has(rid)).length,
         });
       }
     }

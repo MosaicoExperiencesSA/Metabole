@@ -69,6 +69,23 @@ describe('quello che la pagina spiega', () => {
     expect(pagina).toMatch(/bozza — il motore non la usa/);
   });
 
+  /**
+   * ⛔ **DUE NUMERI, NON UNO.** `84 (60)`: 84 in paniere, 60 che il motore userebbe davvero. Con un
+   * numero solo la pagina direbbe che va tutto bene proprio nel caso peggiore — il lavoro c'è e non
+   * arriva a nessuna cliente. È lo stesso linguaggio della «Copertura catalogo», di proposito.
+   */
+  it('⛔ mostra anche quanti piatti il motore userebbe davvero', () => {
+    /**
+     * ⚠️ **Nel testo che si LEGGE, non nel tooltip** — la prima stesura cercava `attivi` ovunque, e
+     * il nome compare anche dentro il `title` del pulsante: togliendo il numero dalla pagina la
+     * prova restava verde. Una prova di mutazione l'ha mostrato, ed è la terza volta oggi che la
+     * stessa distrazione passa da una sentinella: cercare un nome non è cercare quello che fa.
+     */
+    expect(pagina).toMatch(/\}\s*\(\{c\.perSlot\[sl\]\?\.attivi \?\? 0\}\)/);
+    expect(pagina).toMatch(/\{' '\}\(\{c\.totaleAttivi\}\)/);
+    expect(pagina).toMatch(/bozze\s*\n?\s*da validare/);
+  });
+
   /** ⚠️ Spuntino e merenda sono un paniere solo, e chi apre l'elenco deve saperlo. */
   it('⚠️ e lo dice che i due spuntini sono lo stesso paniere', () => {
     expect(pagina).toMatch(/pescano dallo stesso paniere/);

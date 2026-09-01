@@ -111,6 +111,7 @@
     "rifai:troppi-pasti": "ts-node --transpile-only prisma/rifai-giornate-troppi-pasti.ts",
     "diag:senza-menu": "ts-node --transpile-only prisma/diag-senza-menu.ts",
     "diag:famiglie-da-chiudere": "ts-node --transpile-only prisma/diag-famiglie-da-chiudere.ts",
+    "diag:pescetariane": "ts-node --transpile-only prisma/diag-pescetariane-da-migrare.ts",
     "diag:allargamenti": "ts-node --transpile-only prisma/diag-allargamenti.ts",
     "diag:coppie": "ts-node --transpile-only prisma/diag-coppie.ts",
     "agente:colazioni": "ts-node --transpile-only prisma/agente-colazioni.ts",

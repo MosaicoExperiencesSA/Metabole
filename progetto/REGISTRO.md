@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 📊 **La copertura per paniere: due numeri, non uno.** La pagina Panieri contava i
+  piatti per pasto; le mancava quello che conta. ⛔ **Un paniere con 200 piatti di cui 20 attivi è un
+  paniere da 20**: un piatto generato nasce in bozza, e con un numero solo la pagina direbbe che va
+  tutto bene proprio nel caso peggiore — il lavoro c'è, è stato pagato, e a nessuna cliente arriva.
+  Ora si legge `84 (60)`, come nella «Copertura catalogo», di proposito: chi legge l'una sa già
+  leggere l'altra. ⚠️ Quello che qui **non** c'è sono i riferimenti **rotti** — nel paniere non
+  possono esistere, perché la chiave esterna si porta via le righe di una ricetta cancellata;
+  nelle giornate, che tengono i pasti in un JSON senza vincoli, restano lì e non li vede nessuno.
+  ⛔ E una prova che cercava un **nome** invece di quello che fa: verificava che la pagina nominasse
+  `attivi`, e quel nome sta anche nel `title` del pulsante — togliendo il numero dalla pagina restava
+  verde. **Terza volta oggi** che la stessa distrazione passa da una sentinella: prima l'import, poi
+  il commento, adesso il tooltip.
+
 - `[Sviluppo]` 🧺 **La pagina Panieri** (Fase 7, seconda metà): le celle famiglia × regime coi piatti
   per pasto, l'elenco di un pasto, e «togli dal paniere» per chi ha `manage`. ⛔ **La conferma dice
   cosa cambia, non «sei sicuro?»**: chi preme quel pulsante toglie un piatto dal pool di **tutte** le

@@ -431,8 +431,11 @@ e non c'è.
 «togli dal paniere». Chiave di permesso sua (`panieri`), guardia sull'endpoint, `manage` al capo.
 ✅ Il generatore conta il paniere unito (era la coda della Fase 2).
 
-⚠️ **Resta**: la copertura per paniere invece che per variante, e il flag «verificata dal
-nutrizionista» (§8, che dipende dalla Fase 8).
+✅ La **copertura per paniere**: due numeri per pasto — i piatti e quanti il motore userebbe
+davvero — nella pagina Panieri, con lo stesso linguaggio della «Copertura catalogo».
+
+⚠️ **Resta solo**: il flag «verificata dal nutrizionista» (§8, che dipende dalla Fase 8 — gli
+allergeni, sospesa per decisione di Simone finché il resto non è finito).
 
 - pagina **Paniere**: le 38 celle, con quante ricette per slot, lo stato, e la possibilità di
   aggiungere/togliere una ricetta da un paniere (è la tabella di appartenenza, resa visibile);

@@ -19,6 +19,17 @@ import { Banner, PageHeader, Spinner } from '../components/ui';
  * ⚠️ I numeri sono **piatti diversi**, non righe di tabella: la stessa vellutata può stare a pranzo
  * e a cena, e conta una volta sola nel totale. E **spuntino e merenda hanno lo stesso numero**
  * perché sono un paniere solo (decisione dell'1/9: un piatto delle 10:30 va bene anche alle 17).
+ *
+ * ⛔ **E sono DUE numeri, non uno**: `84 (60)` vuol dire 84 piatti in paniere e 60 che il motore
+ * userebbe davvero. Un piatto generato nasce in **bozza**, quindi un paniere con 200 piatti di cui
+ * 20 attivi **è un paniere da 20** — e con un numero solo la pagina direbbe che va tutto bene
+ * proprio nel caso peggiore, quello in cui il lavoro c'è e non arriva a nessuna cliente. È lo
+ * stesso linguaggio della «Copertura catalogo», di proposito: chi legge l'una sa già leggere l'altra.
+ *
+ * ⚠️ Quello che qui **non** c'è, e nella copertura per variante sì, sono i **riferimenti rotti**:
+ * nel paniere non possono esistere, perché la tabella ha una chiave esterna e una ricetta cancellata
+ * si porta via le sue righe. Nelle giornate, che tengono i pasti in un JSON senza vincoli, restano
+ * lì e non li vede nessuno. È uno dei guadagni della riforma, e vale la pena saperlo.
  */
 
 const SLOT = ['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner'] as const;
@@ -36,13 +47,19 @@ const NOME_REGIME: Record<string, string> = {
   vegan: 'Vegano',
 };
 
+interface Conteggio {
+  piatti: number;
+  attivi: number;
+}
+
 interface Cella {
   famiglia: string;
   regime: string;
   esiste: boolean;
   impossibile: string | null;
-  perSlot: Record<string, number>;
+  perSlot: Record<string, Conteggio>;
   totale: number;
+  totaleAttivi: number;
 }
 
 interface Ricetta {
@@ -96,7 +113,7 @@ export function Panieri() {
      * ⚠️ La conferma dice **cosa cambia per le clienti**, non «sei sicuro?»: chi preme questo
      * pulsante toglie un piatto dal pool di tutte quelle del paniere, e la frase deve dirlo.
      */
-    const quante = cella.perSlot[slot] ?? 0;
+    const quante = cella.perSlot[slot]?.piatti ?? 0;
     if (!confirm(
       `Togliere «${r.name}» dal paniere ${cella.famiglia} · ${NOME_REGIME[cella.regime] ?? cella.regime}?\n\n`
       + `Non lo riceverà più nessuna cliente di questo paniere per ${NOME_SLOT[slot]?.toLowerCase() ?? slot}. `
@@ -131,6 +148,8 @@ export function Panieri() {
         Molte varianti diverse pescano dallo stesso. I numeri sono piatti <strong>diversi</strong>,
         non righe: la stessa vellutata a pranzo e a cena conta una volta sola.
         Spuntino e merenda hanno lo stesso numero perché sono un paniere solo.
+        {' '}<strong>Fra parentesi</strong> quanti il motore userebbe davvero: gli altri sono bozze
+        da validare, e finché lo sono a nessuna cliente arrivano.
       </p>
 
       {!celle ? <Spinner /> : (
@@ -161,17 +180,25 @@ export function Panieri() {
                     }
                     return (
                       <td key={rg}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>{c.totale} piatti</div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                          {c.totale} piatti
+                          <span
+                            style={{ fontWeight: 400, color: c.totaleAttivi < c.totale ? 'var(--warn, #b45309)' : 'var(--muted)' }}
+                            title="Fra parentesi quanti il motore userebbe davvero: gli altri sono bozze da validare."
+                          >
+                            {' '}({c.totaleAttivi})
+                          </span>
+                        </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {SLOT.map((sl) => (
                             <button
                               key={sl}
                               className="btn ghost"
                               style={{ padding: '2px 6px', fontSize: 12 }}
-                              title={`${NOME_SLOT[sl]}: ${c.perSlot[sl] ?? 0} piatti — apri l'elenco`}
+                              title={`${NOME_SLOT[sl]}: ${c.perSlot[sl]?.piatti ?? 0} piatti, di cui ${c.perSlot[sl]?.attivi ?? 0} che il motore userebbe davvero — apri l'elenco`}
                               onClick={() => void apri(c, sl)}
                             >
-                              {NOME_SLOT[sl]?.slice(0, 3)} {c.perSlot[sl] ?? 0}
+                              {NOME_SLOT[sl]?.slice(0, 3)} {c.perSlot[sl]?.piatti ?? 0} ({c.perSlot[sl]?.attivi ?? 0})
                             </button>
                           ))}
                         </div>

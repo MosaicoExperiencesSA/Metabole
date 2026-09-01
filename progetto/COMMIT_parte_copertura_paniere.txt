@@ -1,0 +1,29 @@
+La copertura per paniere: due numeri, non uno
+
+⚠️ Fase 7: «copertura per paniere invece che per variante». La pagina Panieri già
+contava i piatti per pasto — le mancava il numero che conta davvero.
+
+⛔ UN PANIERE CON 200 PIATTI DI CUI 20 ATTIVI È UN PANIERE DA 20
+Un piatto generato nasce in BOZZA e diventa attivo solo con la validazione. Con un numero
+solo la pagina direbbe che va tutto bene proprio nel caso peggiore: quello in cui il
+lavoro c'è, è stato pagato, e a nessuna cliente arriva.
+
+Ora si legge `84 (60)` — 84 in paniere, 60 che il motore userebbe davvero — sia per pasto
+sia nel totale della cella, e le parentesi diventano arancioni quando i due numeri non
+coincidono. ⚠️ È lo stesso linguaggio della «Copertura catalogo», di proposito: chi legge
+l'una sa già leggere l'altra.
+
+⚠️ QUELLO CHE QUI NON C'È, E NELLA COPERTURA PER VARIANTE SÌ: i riferimenti ROTTI. Nel
+paniere non possono esistere — la tabella ha una chiave esterna e una ricetta cancellata
+si porta via le sue righe. Nelle giornate, che tengono i pasti in un JSON senza vincoli,
+restano lì e non li vede nessuno. È uno dei guadagni della Fase 1, e vale la pena che
+qualcuno lo sappia invece di cercare una colonna che manca.
+
+⛔ E UNA PROVA CHE CERCAVA UN NOME INVECE DI QUELLO CHE FA
+La prima stesura verificava che la pagina nominasse `attivi` — e quel nome compare anche
+dentro il `title` del pulsante. Togliendo il numero dalla pagina, la prova restava verde.
+Una prova di mutazione l'ha mostrato. ⚠️ È la TERZA volta oggi che la stessa distrazione
+passa da una sentinella: prima l'import, poi il commento, adesso il tooltip. Cercare un
+nome non è cercare quello che il codice fa.
+
+Test: back office 173 su 20 suite; backend 6330 su 377. Build pulite. Nessuna migrazione.
