@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Prodotto]` 🥐 **«Niente carne, pesce e verdure a colazione, spuntino e merenda»** (Simone, 31/8
+  sera). ⛔ **La lettura è: il PIATTO non dev'esserlo**, non «nessuna verdura fra gli ingredienti» —
+  e la differenza vale il catalogo: con la lettura stretta uscirebbero la frittata con gli spinaci,
+  il pane coi pomodorini, l'avocado toast, e il paniere delle colazioni si svuoterebbe. Si decide
+  dall'**ingrediente principale**, quello che pesa di più — ⚠️ non dal nome, perché «Vellutata di
+  broccoli e patate» e «Purè di patate con broccoli» si chiamano quasi uguale e sono due piatti
+  diversi. ⛔ **E senza grammature non si indovina**: si risponde «non lo so», e «non lo so» **non**
+  passa a colazione. ⚠️ Il vocabolario del pesce è quello delle esclusioni, letto dalla stessa porta;
+  quello della **carne non esisteva** e nasce qui — tagli e animali, non piatti («polpette» non c'è:
+  esistono quelle di ceci). ⛔ **La regola non è applicata da nessuna parte**: prima il numero, con
+  `npm run diag:colazioni`, che dice per ogni paniere quante ricette restano. Se una cella scende
+  sotto le 84, applicarla costa una riscrittura e va saputo prima — è la stessa disciplina che oggi
+  ha impedito al paniere DASH di nascere vuoto. ⚠️ Due sentinelle strutturali hanno pescato il file
+  nuovo e avevano ragione tutte e due. 6180 test verdi.
+
 - `[Sviluppo]` 🔍 **Panieri: il primo giro in sola lettura ha trovato quattro famiglie fuori da ogni
   paniere, e 1764 righe che si sarebbero perse.** 38 panieri, 16.452 appartenenze, e i numeri per
   pasto dicono che la strada B funziona (Mediterranea × onnivoro esce con **1455** ricette, 301

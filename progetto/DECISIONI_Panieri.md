@@ -218,6 +218,35 @@ Una consegna in più: il senza glutine diventa un filtro sul paniere mediterrane
 chiude insieme alle altre sei, al passaggio massivo. Un'unica migrazione, un solo momento in cui le
 clienti cambiano piano. Fino ad allora `assegnaSenzaGlutine` resta esattamente com'è.
 
+## 26 · Niente carne, pesce e verdure a colazione, spuntino e merenda
+
+Richiesta di Simone, 31/8 sera: «carne, pesce e verdure evitiamole nelle colazioni, merende e
+spuntini».
+
+⛔ **La lettura è: il PIATTO non dev'essere di carne, pesce o verdura** — non «nessuna verdura fra
+gli ingredienti». Scelta da Simone fra tre, e la differenza vale il catalogo: con la lettura stretta
+uscirebbero la frittata con gli spinaci, il pane coi pomodorini, l'avocado toast — colazioni normali
+— e il paniere delle colazioni si svuoterebbe. Con questa escono «Petto di pollo alla piastra»,
+«Tonno con olive», «Insalata mista», «Vellutata di broccoli».
+
+**Come si decide di cosa è un piatto**: dall'**ingrediente principale**, cioè quello che pesa di più.
+⚠️ Non dal nome: «Vellutata di broccoli e patate» e «Purè di patate con broccoli» si chiamano quasi
+uguale e sono due piatti diversi. ⛔ E se le grammature non ci sono, **non si indovina**: si risponde
+«non lo so», e «non lo so» **non** passa a colazione.
+
+⚠️ Il vocabolario del pesce è quello delle esclusioni (67 termini), letto dalla stessa porta. Quello
+della carne **non esisteva** e nasce qui: tagli e animali, non piatti — «polpette» non c'è, perché
+esistono quelle di ceci, e a decidere è l'ingrediente principale.
+
+⛔ **NON è ancora applicata.** Prima il numero: `npm run diag:colazioni` dice, per ogni paniere e
+per ogni pasto, quante ricette restano e quante escono. Se qualche cella scende sotto le 84 del
+piano, applicarla costa un lavoro di riscrittura e va saputo prima — altrimenti il motore compone
+più povero e non lo dice nessuno. ⚠️ È la stessa disciplina che il 31/8 ha impedito al paniere DASH
+di nascere vuoto.
+
+⚠️ Da decidere dopo il numero: se la regola vale **anche per le ricette già in catalogo** (che escono
+da quegli slot) o **solo per quelle nuove** (e il generatore smette di produrle così).
+
 ---
 
 # Cosa resta aperto (31/8, fine giro)

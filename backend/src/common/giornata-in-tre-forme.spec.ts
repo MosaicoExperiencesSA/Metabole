@@ -45,6 +45,15 @@ const AMMESSE: { forma: string; dove: string; perche: string }[] = [
       'separate apposta: qui il permesso vale per QUESTO file, e là per quello.',
   },
   {
+    forma: 'breakfast,morning_snack,afternoon_snack',
+    dove: 'catalog/piatto-di-cosa.ts',
+    perche:
+      'Non è una giornata: è l\'elenco dei pasti in cui NON va un piatto di carne, pesce o verdura ' +
+      '(richiesta di Simone, 31/8). ⚠️ Che sia il complemento di [lunch,dinner] è una coincidenza ' +
+      'che non va sfruttata: se domani si aggiungesse un pasto, questa regola parlerebbe dei tre ' +
+      'pasti leggeri e non «di tutti tranne due».',
+  },
+  {
     forma: 'breakfast,morning_snack,lunch',
     dove: 'menu/finestre-digiuno.ts',
     perche: 'Non è una giornata: è l\'elenco dei pasti che una finestra di digiuno SALTA.',

@@ -1,0 +1,63 @@
+=== PARTE: niente carne, pesce e verdure a colazione, spuntino e merenda ===
+
+SUMMARY
+La regola delle colazioni: il classificatore che dice di cosa è un piatto, e il comando che misura quanto costa prima di applicarla
+
+DESCRIPTION
+Richiesta di Simone, 31/8 sera: «carne, pesce e verdure evitiamole nelle colazioni, merende e
+spuntini».
+
+⛔ LA LETTURA È: IL PIATTO NON DEV'ESSERE DI CARNE, PESCE O VERDURA — non «nessuna verdura fra gli
+ingredienti». Scelta da Simone fra tre, e la differenza vale il catalogo: con la lettura stretta
+uscirebbero la frittata con gli spinaci, il pane coi pomodorini, l'avocado toast — colazioni normali
+— e il paniere delle colazioni si svuoterebbe. Con questa escono «Petto di pollo alla piastra»,
+«Tonno con olive», «Insalata mista», «Vellutata di broccoli», cioè i piatti che a colazione non ci
+vanno.
+
+COME SI DECIDE: dall'ingrediente PRINCIPALE, quello che pesa di più. ⚠️ Non dal nome: «Vellutata di
+broccoli e patate» e «Purè di patate con broccoli» si chiamano quasi uguale e sono due piatti
+diversi, e il nome mette davanti quello che suona meglio, non quello che c'è di più. ⚠️ A parità di
+grammi vince il primo scritto: è l'unico segnale che resta quando i numeri non decidono.
+
+⛔ E SE LE GRAMMATURE NON CI SONO, NON SI INDOVINA: si risponde «non lo so», e «non lo so» NON passa
+a colazione. Farlo passare vorrebbe dire mettere in tavola un piatto che nessuno ha guardato, su una
+tabella alimenti che ha 373 righe contro 8012 nomi di ingrediente.
+
+⚠️ Il vocabolario del pesce è quello delle esclusioni — 67 termini — e il confronto passa da
+`hitsExclusion`: è un'altra domanda («questo piatto È di pesce» invece di «contiene una cosa
+esclusa»), ma il vocabolario è lo stesso, e scriverne un secondo vorrebbe dire che un giorno uno dei
+due impara «gallinella» e l'altro no. Quello della carne NON esisteva in casa e nasce qui: tagli e
+animali, non piatti. ⚠️ «polpette» non c'è, perché esistono quelle di ceci e di melanzane — a
+decidere è l'ingrediente principale. E niente radici corte: `pol` prenderebbe polpa, polenta e
+pollice.
+
+⛔ LA REGOLA NON È APPLICATA DA NESSUNA PARTE. Prima il numero: `npm run diag:colazioni` (sola
+lettura) dice per ogni paniere e per ogni pasto quante ricette restano, quante escono per carne,
+pesce o verdura, e quante non si sanno classificare. Se qualche cella scende sotto le 84 del piano,
+applicarla costa un lavoro di riscrittura e va saputo PRIMA — altrimenti il motore compone più
+povero e non lo dice nessuno. ⚠️ È la stessa disciplina che due ore fa ha impedito al paniere DASH
+di nascere vuoto.
+
+⚠️ E la colonna «non lo so» va guardata: se è grossa, il conto vero è più alto di quello stampato, e
+la strada più corta è riempire la tabella alimenti invece che riscrivere le ricette.
+
+RESTA DA DECIDERE dopo il numero: se la regola vale anche per le ricette già in catalogo (che escono
+da quegli slot) o solo per quelle nuove (e il generatore smette di produrle così).
+
+⚠️ DUE SENTINELLE STRUTTURALI hanno pescato il file nuovo, e tutte e due avevano ragione a modo
+loro. La prima vieta di riscriversi il confronto «questo testo contiene una di queste parole» in un
+file che importa dalle esclusioni: tolta la forma invece di dichiarare un'eccezione, perché un
+guardiano si consuma un'eccezione ragionevole alla volta. La seconda pretende che ogni elenco di
+pasti sia una forma di giornata dichiarata: questo non è una giornata — è l'elenco dei pasti in cui
+la regola vale — ed è dichiarato con la sua ragione. ⚠️ Che sia il complemento di [pranzo, cena] è
+una coincidenza da non sfruttare: se domani si aggiungesse un pasto, questa regola parlerebbe dei
+tre pasti leggeri e non «di tutti tranne due».
+
+6180 test backend verdi nelle quattro modalità, `nest build` e `tsc --noEmit` compresi.
+
+FILE
+- backend/src/catalog/piatto-di-cosa.ts (+ .spec, 33 prove) — nuovo
+- backend/prisma/diag-colazioni-salate.ts — nuovo, sola lettura, `npm run diag:colazioni`
+- backend/package.json
+- backend/src/common/giornata-in-tre-forme.spec.ts — l'eccezione dichiarata
+- progetto/DECISIONI_Panieri.md — decisione 26
