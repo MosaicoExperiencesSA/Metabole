@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🧺 **I panieri si vedono e si toccano: le porte** (Fase 7, prima metà). Fino a oggi la
+  tabella di appartenenza si leggeva solo con un tabulato da shell e si scriveva solo con uno
+  script. ⛔ **Chiave di permesso propria** (`panieri`), non `diets_catalog`: il paniere non è una
+  dieta, è **da dove arrivano i piatti**, e chi tocca una riga cambia il menu di **tutte** le
+  clienti di quella famiglia in un colpo solo — con una chiave sola, chi propone una dieta potrebbe
+  spostare il pool di tutte. `view` anche a chi propone, `manage` solo al capo. ⚠️ E la chiave nasce
+  **insieme alla guardia che la legge**: una chiave dichiarata e non controllata è un interruttore
+  che non accende niente, ed è già successo con `assignments`. ⛔ Tre controlli in scrittura, e sono
+  la parte che conta più della pagina: il **regime** (una ricetta onnivora nel paniere vegano
+  finirebbe nel piatto di una vegana), gli **allergeni confermati** (da qui non si ripassa dal
+  controllo di pubblicazione), e lo **slot normalizzato sul capofila**. ⛔ Togliere toglie da tutti
+  e due i gemelli: chi toglie una merenda dallo spuntino si aspetta che sparisca, non che resti
+  servita al pomeriggio. ⚠️ Le celle si contano per ricette **distinte**, non per righe: la stessa
+  vellutata a pranzo e a cena è un piatto solo, e contare le righe direbbe che il paniere è più
+  ricco di quanto è. Tre mutazioni provate, tre uccise. Resta la pagina vera e propria.
+
 - `[Sviluppo]` 🚫 **Keto e vegano insieme: chi la chiede legge perché, e dove andare invece.** Fase 5:
   fino a oggi quella combinazione dava un **paniere vuoto**, che sembra «al catalogo manca qualcosa»
   — falso, e manda qualcuno a riempirlo. ⛔ Keto + vegano non è una dieta magra di ricette: **non è

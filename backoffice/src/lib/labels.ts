@@ -65,6 +65,7 @@ export const PAGE_LABEL: Record<string, string> = {
   // quattro tipi. Il nome sta in tre posti (menu, titolo pagina, pagina Permessi) e vanno insieme.
   coach_tasks: 'Attività da fare',
   equivalence_groups: 'Gruppi di equivalenza',
+  panieri: 'Panieri',
   food_swaps: 'Sostituzioni',
   nutri_assistant: 'Assistente (Vera)',
   allergens: 'Allergeni ricette',

@@ -10,6 +10,8 @@ import {
 import { AgentePastiLeggeriService } from './agente-pasti-leggeri.service';
 import { CatalogService } from './catalog.service';
 import { PublicCatalogController } from './public-catalog.controller';
+import { PanieriController } from './panieri.controller';
+import { PanieriService } from './panieri.service';
 
 @Module({
   controllers: [
@@ -18,9 +20,10 @@ import { PublicCatalogController } from './public-catalog.controller';
     CatalogController,
     RecipesController,
     PublicCatalogController,
+    PanieriController,
   ],
   imports: [NotificationsModule, AiModule],
-  providers: [CatalogService, AgentePastiLeggeriService],
+  providers: [CatalogService, AgentePastiLeggeriService, PanieriService],
   exports: [CatalogService, AgentePastiLeggeriService],
 })
 export class CatalogModule {}

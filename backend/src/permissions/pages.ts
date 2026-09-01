@@ -69,6 +69,19 @@ export const BACKOFFICE_PAGES = [
   // `client_conversations`: quella è «i cambi di UNA cliente dalla sua scheda», questa è «cosa
   // chiedono tutte» — e chi promuove una riga a gruppo di equivalenza cambia il MOTORE, non una
   // giornata di menu. `manage` = valida, corregge, scrive a mano, promuove.
+  /**
+   * **I PANIERI** (Fase 7 del piano panieri, 1/9): le 38 celle famiglia × regime, con quante
+   * ricette hanno per pasto e la possibilità di aggiungerne o toglierne una.
+   *
+   * ⚠️ Chiave PROPRIA e non `diets_catalog`, che sarebbe stata la scelta comoda. Il paniere non è
+   * una dieta: è **da dove arrivano i piatti di una cliente**, e chi lo tocca cambia quello che
+   * arriva nel piatto di tutte le clienti di quella famiglia in un colpo solo. Legare le due
+   * chiavi vorrebbe dire che chi propone una dieta può anche spostare il pool di tutte — e non si
+   * potrebbero più separare senza un rilascio.
+   *
+   * ⛔ `manage` = aggiunge o toglie una ricetta da un paniere. La sola vista non tocca niente.
+   */
+  'panieri',
   'food_swaps',
   /**
    * L'assistente della nutrizionista (Vera): la pagina «Assistente».
@@ -290,6 +303,9 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clinical_clearance: { view: true, manage: true }, // dice «può proseguire» o «serve la visita»
     change_fasting_window: { view: true, manage: true }, // e quali pasti salta nel digiuno
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
+    // ⚠️ Vede i panieri ma non li tocca: proporre una dieta e spostare il pool di TUTTE le
+    // clienti di una famiglia sono due poteri diversi. `manage` sta col capo.
+    panieri: { view: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
     escalations: { view: true, manage: true },
@@ -321,6 +337,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clinical_clearance: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
+    panieri: { view: true, manage: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
     escalations: { view: true, manage: true },
@@ -378,6 +395,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     posta: { view: true },
     clients: { view: true },
     diets_catalog: { view: true, manage: true },
+    panieri: { view: true, manage: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true },
     escalations: { view: true, manage: true },

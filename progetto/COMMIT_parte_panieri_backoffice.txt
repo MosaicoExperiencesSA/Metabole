@@ -1,0 +1,54 @@
+I panieri si vedono e si toccano — le porte (Fase 7, prima metà)
+
+Fino a oggi la tabella di appartenenza si poteva leggere solo con un tabulato da shell e
+scrivere solo con uno script. Chi risponde di cosa mangiano le clienti non aveva modo di
+guardarci dentro.
+
+⛔ CHIAVE DI PERMESSO PROPRIA: `panieri`, non `diets_catalog`
+Sarebbe stata la scelta comoda, ed è quella sbagliata. Il paniere non è una dieta: è DA
+DOVE ARRIVANO I PIATTI, e chi tocca una riga cambia quello che finisce nel piatto di
+TUTTE le clienti di quella famiglia in un colpo solo. Con una chiave sola, chi propone
+una dieta potrebbe anche spostare il pool di tutte — e le due cose non si potrebbero più
+separare senza un rilascio.
+
+⚠️ E la chiave nasce insieme alla guardia che la legge: una chiave dichiarata che nessun
+endpoint controlla è un interruttore che non accende niente — è già successo con
+`assignments`, e da fuori non si distingue da un permesso che funziona.
+
+RUOLI: `view` anche a chi propone le diete, `manage` solo al capo. Proporre una dieta e
+spostare il pool di tutte sono due poteri diversi.
+
+TRE CONTROLLI IN SCRITTURA, e sono la parte che conta più della pagina:
+  ⛔ il REGIME — una ricetta onnivora nel paniere vegano finirebbe nel piatto di una
+     cliente vegana, e nessuno se ne accorgerebbe fino a lì;
+  ⛔ gli ALLERGENI CONFERMATI — da qui non si ripassa dal controllo di pubblicazione,
+     quindi il piatto entrerebbe nei menu con gli allergeni solo suggeriti;
+  ⚠️ lo SLOT si normalizza sul capofila (Fase 2): spuntino e merenda sono un paniere
+     solo, e due righe per la stessa ricetta la conterebbero due volte in ogni tabulato.
+     Chi legge la ritrova comunque su entrambi, perché la lettura allarga.
+
+⛔ E TOGLIERE TOGLIE DA TUTTI E DUE I GEMELLI: chi toglie una merenda dallo spuntino si
+aspetta che sparisca, non che resti servita al pomeriggio. Sono un paniere solo anche
+quando si disfa, altrimenti la pagina mostrerebbe una cosa e il motore ne farebbe
+un'altra.
+
+⚠️ LE CELLE SI CONTANO PER RICETTE DISTINTE, non per righe: la stessa ricetta può stare
+in un paniere per due pasti (una vellutata a pranzo e a cena), e contare le righe direbbe
+che il paniere è più ricco di quanto è. Chi guarda si chiede «quanti piatti diversi può
+ricevere», non «quante righe ci sono in tabella».
+
+⚠️ E le due celle impossibili si vedono per quello che sono, con la frase che spiega —
+non come panieri vuoti.
+
+Ogni scrittura passa dall'audit.
+
+PROVE DI MUTAZIONE (tre, uccise)
+  1. la guardia `manage` sparisce dalla scrittura → 1 prova rossa
+  2. il controllo del regime salta                → 1 prova rossa
+  3. la scrittura non normalizza sul capofila     → 1 prova rossa
+
+RESTA: la pagina vera e propria (seconda metà della Fase 7), la copertura per paniere e
+il flag «verificata dal nutrizionista».
+
+Test: backend 6329 su 377 suite, verdi nelle quattro modalità; back office 165 su 19.
+Build pulite. Nessuna migrazione.

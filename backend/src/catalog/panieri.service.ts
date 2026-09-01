@@ -1,0 +1,192 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { GIORNATA_CINQUE, slotCapofila, slotDaCuiPescare } from '../common/slot-pasto';
+import { FAMIGLIE, IMPOSSIBILI, REGIMI, combinazioneImpossibile } from './appartenenza-panieri';
+
+/**
+ * I PANIERI, VISTI DAL BACK OFFICE — Fase 7 del piano.
+ *
+ * ⚠️ **Il paniere non è una dieta**, ed è la ragione per cui questa pagina esiste separata: è **da
+ * dove arrivano i piatti** di ogni cliente di quella famiglia e di quel regime. Fino a oggi la
+ * tabella di appartenenza si poteva leggere solo con un tabulato da shell, e scriverla solo con uno
+ * script: chi risponde di cosa mangiano le clienti non aveva modo di guardarci dentro.
+ *
+ * ⛔ **E chi tocca una riga qui cambia il menu di tutte insieme.** Non è la giornata di una
+ * cliente: è il pool da cui il motore pesca per tutte quelle del paniere. Per questo `manage` è del
+ * capo nutrizionista e ogni scrittura passa dall'audit.
+ */
+export interface CellaDelPaniere {
+  famiglia: string;
+  regime: string;
+  esiste: boolean;
+  impossibile: string | null;
+  /** Quante ricette DISTINTE ha ogni pasto, coi gemelli già uniti (spuntino e merenda insieme). */
+  perSlot: Record<string, number>;
+  totale: number;
+}
+
+@Injectable()
+export class PanieriService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /**
+   * Le 38 celle, con quante ricette per pasto.
+   *
+   * ⚠️ **Si contano le ricette DISTINTE, non le righe.** La stessa ricetta può stare in un paniere
+   * per due pasti diversi (una vellutata a pranzo e a cena), e contare le righe direbbe che il
+   * paniere è più ricco di quanto è. Chi guarda questa pagina si chiede «quanti piatti diversi può
+   * ricevere», non «quante righe ci sono in tabella».
+   *
+   * ⚠️ E i due spuntini si contano **uniti** (Fase 2): è quello che vede la cliente.
+   */
+  async celle(): Promise<CellaDelPaniere[]> {
+    const [panieri, righe] = await Promise.all([
+      this.prisma.paniere.findMany({ select: { id: true, famiglia: true, regime: true } }) as unknown as
+        Promise<{ id: string; famiglia: string; regime: string }[]>,
+      this.prisma.paniereRicetta.findMany({ select: { paniereId: true, recipeId: true, slot: true } }) as unknown as
+        Promise<{ paniereId: string; recipeId: string; slot: string }[]>,
+    ]);
+
+    const perPaniere = new Map<string, Map<string, Set<string>>>();
+    for (const r of righe) {
+      const slots = perPaniere.get(r.paniereId) ?? new Map<string, Set<string>>();
+      const set = slots.get(r.slot) ?? new Set<string>();
+      set.add(r.recipeId);
+      slots.set(r.slot, set);
+      perPaniere.set(r.paniereId, slots);
+    }
+
+    const idDi = new Map(panieri.map((p) => [`${p.famiglia}|${p.regime}`, p.id]));
+    const out: CellaDelPaniere[] = [];
+    for (const famiglia of FAMIGLIE) {
+      for (const regime of REGIMI) {
+        const chiave = `${famiglia}|${regime}`;
+        const id = idDi.get(chiave);
+        const slots = id ? perPaniere.get(id) ?? new Map<string, Set<string>>() : new Map<string, Set<string>>();
+        const perSlot: Record<string, number> = {};
+        for (const sl of GIORNATA_CINQUE) {
+          const uniti = new Set<string>();
+          for (const g of slotDaCuiPescare(sl)) for (const rid of slots.get(g) ?? []) uniti.add(rid);
+          perSlot[sl] = uniti.size;
+        }
+        const tutte = new Set<string>();
+        for (const s of slots.values()) for (const rid of s) tutte.add(rid);
+        out.push({
+          famiglia,
+          regime,
+          esiste: !!id,
+          impossibile: IMPOSSIBILI.includes(chiave) ? combinazioneImpossibile(famiglia, regime) : null,
+          perSlot,
+          totale: tutte.size,
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Le ricette di un paniere per un pasto, coi gemelli uniti — quello che vedrebbe una cliente. */
+  async ricetteDi(famiglia: string, regime: string, slot: string): Promise<{ id: string; name: string; kcal: number; mealSlot: string; active: boolean }[]> {
+    const paniere = (await this.prisma.paniere.findFirst({
+      where: { famiglia, regime },
+      select: { id: true },
+    })) as { id: string } | null;
+    if (!paniere) throw new NotFoundException('Questo paniere non esiste ancora.');
+
+    const righe = (await this.prisma.paniereRicetta.findMany({
+      where: { paniereId: paniere.id, slot: { in: slotDaCuiPescare(slot) } },
+      select: { recipeId: true },
+    })) as { recipeId: string }[];
+    const ids = [...new Set(righe.map((r) => r.recipeId))];
+    if (!ids.length) return [];
+
+    return (await this.prisma.recipe.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, kcal: true, mealSlot: true, active: true },
+      orderBy: { name: 'asc' },
+    })) as unknown as { id: string; name: string; kcal: number; mealSlot: string; active: boolean }[];
+  }
+
+  /**
+   * Aggiunge una ricetta a un paniere.
+   *
+   * ⛔ **Il regime si controlla, e non è una formalità.** Una ricetta onnivora dentro il paniere
+   * vegano finirebbe nel piatto di una cliente vegana, e nessuno se ne accorgerebbe fino a lì: è lo
+   * stesso controllo che il collegamento a una giornata fa da sempre.
+   *
+   * ⚠️ **Lo slot si normalizza sul capofila** (Fase 2): spuntino e merenda sono un paniere solo, e
+   * scrivere due righe per la stessa ricetta — una per pasto — significherebbe contarla due volte
+   * in ogni tabulato. Chi legge poi la ritrova comunque su tutti e due, perché la lettura allarga.
+   */
+  async aggiungi(famiglia: string, regime: string, slot: string, recipeId: string, actorId: string): Promise<{ aggiunta: boolean }> {
+    const paniere = (await this.prisma.paniere.findFirst({ where: { famiglia, regime }, select: { id: true } })) as { id: string } | null;
+    if (!paniere) throw new NotFoundException('Questo paniere non esiste ancora: va creato con `npm run panieri:riempi`.');
+
+    const recipe = (await this.prisma.recipe.findUnique({
+      where: { id: recipeId },
+      select: { id: true, name: true, regime: true, allergensReviewed: true },
+    })) as { id: string; name: string; regime: string; allergensReviewed: boolean } | null;
+    if (!recipe) throw new NotFoundException('Ricetta non trovata.');
+    if (recipe.regime !== regime) {
+      throw new BadRequestException(
+        `La ricetta è ${recipe.regime} e questo paniere è ${regime}. Un piatto di un altro regime dentro un paniere è un errore che nessuno vede finché non arriva nel piatto di una cliente.`,
+      );
+    }
+    /**
+     * ⛔ Gli allergeni non confermati non entrano, per la stessa ragione del collegamento a una
+     * giornata: da qui non si ripassa dal controllo di pubblicazione, quindi il piatto entrerebbe
+     * nei menu con gli allergeni solo **suggeriti**.
+     */
+    if (!recipe.allergensReviewed) {
+      throw new BadRequestException(
+        'Gli allergeni di questa ricetta non sono ancora confermati. Confermali in «Allergeni ricette»: da qui non si ripassa dal controllo di pubblicazione.',
+      );
+    }
+
+    const slotVero = slotCapofila(slot);
+    const gia = await this.prisma.paniereRicetta.findFirst({
+      where: { paniereId: paniere.id, recipeId, slot: slotVero },
+      select: { id: true },
+    });
+    if (gia) return { aggiunta: false };
+
+    await this.prisma.paniereRicetta.create({ data: { paniereId: paniere.id, recipeId, slot: slotVero } as never });
+    await this.audit.log({
+      action: 'paniere.ricetta.aggiunta',
+      actorId,
+      entityType: 'paniere',
+      entityId: paniere.id,
+      metadata: { famiglia, regime, slot: slotVero, recipeId, nome: recipe.name },
+    });
+    return { aggiunta: true };
+  }
+
+  /**
+   * Toglie una ricetta da un paniere.
+   *
+   * ⛔ **Toglie da TUTTI gli slot gemelli**, e va detto: chi toglie una merenda dallo spuntino si
+   * aspetta che sparisca, non che resti servita al pomeriggio. Sono un paniere solo anche quando si
+   * disfa, altrimenti la pagina mostrerebbe una cosa e il motore ne farebbe un'altra.
+   */
+  async togli(famiglia: string, regime: string, slot: string, recipeId: string, actorId: string): Promise<{ tolte: number }> {
+    const paniere = (await this.prisma.paniere.findFirst({ where: { famiglia, regime }, select: { id: true } })) as { id: string } | null;
+    if (!paniere) throw new NotFoundException('Questo paniere non esiste.');
+
+    const esito = await this.prisma.paniereRicetta.deleteMany({
+      where: { paniereId: paniere.id, recipeId, slot: { in: slotDaCuiPescare(slot) } },
+    });
+    if (esito.count) {
+      await this.audit.log({
+        action: 'paniere.ricetta.tolta',
+        actorId,
+        entityType: 'paniere',
+        entityId: paniere.id,
+        metadata: { famiglia, regime, slot, recipeId, righe: esito.count },
+      });
+    }
+    return { tolte: esito.count };
+  }
+}
