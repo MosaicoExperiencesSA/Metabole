@@ -1,0 +1,32 @@
+Keto e vegano insieme: chi la chiede legge perché, e dove andare invece
+
+⚠️ Fase 5 del piano panieri, decisione del 31/8: «chi le chiede legge "combinazione non
+possibile", non un paniere vuoto — che sembra un problema temporaneo e nessuno lo
+guarda».
+
+⛔ E il punto è quello: keto + vegano non è una dieta magra di ricette, NON È UNA DIETA.
+Un paniere vuoto invece dice «al catalogo manca qualcosa», che è falso e manda qualcuno
+a riempirlo.
+
+`combinazioneImpossibile(famiglia, regime)` in `appartenenza-panieri.ts`, applicata in
+`updateProfile` prima di salvare.
+
+⚠️ E NON DICE SOLO DI NO. Un rifiuto senza alternativa lascia la cliente ferma davanti a
+una schermata: se il vegano è la sua scelta di vita e la keto è quella che le hanno
+consigliato, qualcuno deve dirle quale delle due si può tenere. La frase propone Low carb
+e Basso indice glicemico — che non sono due nomi scelti a caso: sono le famiglie in cui
+vanno a finire le ricette di quella cella (`DOVE_VANNO_LE_IMPOSSIBILI`), cioè i panieri
+che quei piatti li hanno davvero.
+
+⛔ SI GUARDA LA COPPIA CHE RESTA, NON QUELLA CHE ARRIVA. Chi cambia solo il regime lascia
+la famiglia com'era: guardando il solo campo nuovo passerebbe proprio il caso in cui la
+combinazione impossibile NASCE — una cliente vegana che passa alla keto.
+
+⚠️ E metà coppia non è una combinazione: durante l'onboarding il regime arriva prima
+della famiglia, e rifiutare a metà strada fermerebbe chi non ha ancora scelto niente.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. guarda solo i campi che arrivano  → 1 prova rossa
+  2. il rifiuto non viene sollevato    → 1 prova rossa
+
+Test: 6313 su 375 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

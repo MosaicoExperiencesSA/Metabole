@@ -353,14 +353,17 @@ panieri nuovi: va misurato prima con `npm run diag:kcal`, e i tetti di porzione 
 
 ---
 
-### Fase 5 · Il regime pescetariano e la regola flexitariana — **metà FATTA (1/9)**
+### Fase 5 · Il regime pescetariano e la regola flexitariana — **quasi FATTA (1/9)**
 
 ✅ Il nesting con `pescetarian` (`common/regimi.ts`, correzione di un ripiego rovesciato) e la
 derivazione dei panieri (`npm run panieri:pesce`).
 
+✅ E le due celle keto-vegane sono **dichiarate non possibili** dove si sceglie
+(`combinazioneImpossibile`, applicata in `updateProfile`): chi le chiede legge una frase che spiega
+perché e **dove andare invece**, non un paniere vuoto.
+
 ⚠️ **Resta**: `pescetarian` in `config_param diet_regimes` (lo accende Simone quando i panieri
-derivati sono pieni e guardati), il flexitariano come `ProductRule` di frequenza, e le due celle
-keto-vegane dichiarate «non possibili» all'utente.
+derivati sono pieni e guardati) e il flexitariano come `ProductRule` di frequenza.
 
 **Cosa si fa**
 - `pescetarian` entra fra i regimi attivi (`config_param diet_regimes`), e nel nesting:

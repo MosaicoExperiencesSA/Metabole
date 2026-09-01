@@ -20,6 +20,18 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🚫 **Keto e vegano insieme: chi la chiede legge perché, e dove andare invece.** Fase 5:
+  fino a oggi quella combinazione dava un **paniere vuoto**, che sembra «al catalogo manca qualcosa»
+  — falso, e manda qualcuno a riempirlo. ⛔ Keto + vegano non è una dieta magra di ricette: **non è
+  una dieta**. Ora `combinazioneImpossibile` si applica in `updateProfile` e ferma il salvataggio
+  con una frase che spiega. ⚠️ **E non dice solo di no**: propone Low carb e Basso indice glicemico,
+  che non sono nomi scelti a caso — sono le famiglie in cui vanno a finire le ricette di quella
+  cella, cioè i panieri che quei piatti li hanno davvero. Un rifiuto senza alternativa lascia la
+  cliente ferma davanti a una schermata. ⛔ Si guarda la coppia **che resta**, non quella che arriva:
+  chi cambia solo il regime lascia la famiglia com'era, e guardando il campo nuovo passerebbe
+  proprio il caso in cui la combinazione **nasce** — una vegana che passa alla keto. ⚠️ E metà
+  coppia non è una combinazione: nell'onboarding il regime arriva prima della famiglia.
+
 - `[Sviluppo]` 💰 **Il generatore smette di comprare piatti che nel paniere ci sono già.** Era la
   coda dichiarata della Fase 2 e l'avevo rimandata alla Fase 7: spuntino e merenda sono lo stesso
   paniere per chi **sceglie**, ma il generatore continuava a contarli separati e chiedeva all'AI

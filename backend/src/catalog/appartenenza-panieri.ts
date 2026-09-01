@@ -114,6 +114,34 @@ export const DOVE_VANNO_LE_IMPOSSIBILI: Readonly<Record<string, readonly string[
   'Keto-Mediterranea|vegan': ['Low carb', 'Basso indice glicemico'],
 };
 
+/**
+ * ⛔ **LA FRASE CHE LEGGE CHI CHIEDE UNA COMBINAZIONE IMPOSSIBILE** — Fase 5, decisione del 31/8:
+ * *«chi le chiede legge "combinazione non possibile", non un paniere vuoto — che sembra un problema
+ * temporaneo e nessuno lo guarda»*.
+ *
+ * ⚠️ **E non basta dire di no.** Un rifiuto senza un'alternativa lascia la cliente ferma davanti a
+ * una schermata: se il vegano è la sua scelta di vita e la keto è quella che le hanno consigliato,
+ * qualcuno deve dirle quale delle due si può tenere insieme all'altra. Le famiglie che si
+ * propongono sono le stesse in cui vanno a finire le ricette di quella cella (`DOVE_VANNO_LE_IMPOSSIBILI`),
+ * ed è voluto: sono i panieri che quei piatti li hanno davvero.
+ *
+ * ⛔ Torna `null` quando la combinazione si può fare — cioè quasi sempre. Chi chiama scrive
+ * `if (motivo) throw`, e non deve conoscere l'elenco.
+ */
+export function combinazioneImpossibile(famiglia: string | null | undefined, regime: string | null | undefined): string | null {
+  const f = (famiglia ?? '').trim();
+  const r = (regime ?? '').trim();
+  if (!f || !r) return null;
+  if (!IMPOSSIBILI.includes(`${f}|${r}`)) return null;
+  const alternative = DOVE_VANNO_LE_IMPOSSIBILI[`${f}|${r}`] ?? [];
+  const dove = alternative.length
+    ? ` Con questo regime funzionano ${alternative.join(' e ')}: gli stessi piatti stanno lì.`
+    : '';
+  return `«${f}» e il regime «${r}» non si possono mettere insieme: una dieta chetogenica ha bisogno`
+    + ` di proteine e grassi che quel regime esclude, e il risultato non sarebbe né l'una né l'altro.${dove}`;
+}
+
+
 export interface VariantePerPaniere {
   id: string;
   name: string;

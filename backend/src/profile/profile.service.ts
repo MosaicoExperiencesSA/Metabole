@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { combinazioneImpossibile } from '../catalog/appartenenza-panieri';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
@@ -83,6 +84,21 @@ export class ProfileService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const current = await this.getProfile(userId); // 404 se manca
+
+    /**
+     * ⛔ **LE COMBINAZIONI CHE NON SI POSSONO FARE SI FERMANO QUI** (Fase 5 del piano panieri,
+     * decisione del 31/8). Keto e vegano insieme non è una dieta magra di ricette: **non è una
+     * dieta**. Fino a oggi chi la sceglieva otteneva un paniere vuoto — che sembra un problema
+     * temporaneo, e nessuno lo guarda.
+     *
+     * ⚠️ Si controlla la coppia che RESTA dopo questa modifica, non quella che arriva: chi cambia
+     * solo il regime lascerebbe la famiglia com'era, e guardare il solo campo nuovo farebbe passare
+     * proprio il caso in cui la combinazione nasce — una vegana che passa alla keto.
+     */
+    const famigliaDopo = dto.dietFamily !== undefined ? dto.dietFamily : (current as { dietFamily?: string | null }).dietFamily;
+    const regimeDopo = dto.regime !== undefined ? dto.regime : (current as { regime?: string | null }).regime;
+    const impossibile = combinazioneImpossibile(famigliaDopo, regimeDopo);
+    if (impossibile) throw new BadRequestException(impossibile);
     const { lifestyle, consents, planStartDate, locale, ...rest } = dto;
     // Rete di sicurezza sulle spezie: la strada normale è `/me/menu/substitute`, che ha già il
     // suo cancello, ma questa PATCH riceve la lista INTERA dei cibi esclusi (Profilo → "Cibi
