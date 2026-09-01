@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
-import { PASTI_SENZA_CARNE_PESCE_VERDURA, eCarne, ePesce } from '../catalog/piatto-di-cosa';
+import { PASTI_SENZA_CARNE_PESCE_VERDURA, eCarneIngrediente, ePesce } from '../catalog/piatto-di-cosa';
 import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
 import { KcalNeedService } from '../menu/kcal-need.service';
@@ -716,7 +716,8 @@ export class EngineRulesService {
          * stretto che può mangiarlo. E la carne vince, come in `verdettoPescetariano`: «mare e
          * monti» esiste. Poi decide `ricettaVaBene`, la stessa funzione del motore.
          */
-        const conCarne = nomiIng.find((i) => eCarne(i));
+        /** ⛔ `eCarneIngrediente`: su un ingrediente le preparazioni portano solo falsi positivi. */
+        const conCarne = nomiIng.find((i) => eCarneIngrediente(i));
         const conPesce = nomiIng.find((i) => ePesce(i));
         const regimeDelPiatto = conCarne ? 'omnivore' : conPesce ? 'pescetarian' : null;
         if (regimeDelPiatto && !ricettaVaBene(regimeDelPiatto, regime)) {

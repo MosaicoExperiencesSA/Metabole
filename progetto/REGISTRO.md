@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🥕 **Le «sicure» non erano sicure — due falsi positivi in un blocco da 549.**
+  `regime:contenuto` in produzione: 549 da correggere, e nelle prime trenta righe del mucchio
+  **sicuro** — quello che `APPLICA=1` avrebbe riscritto senza che nessuno lo guardasse — due erano
+  sbagliate. Un **Buddha Bowl di lenticchie** diventava *onnivoro* perché fra gli ingredienti c'è
+  «Carota **tagliata** sottile»; una **torta di riso alla ricotta** diventava *pescetariana* perché
+  la cicoria si chiama «**ricciolina**». ⛔ **Il difetto era nel mio ragionamento, non nell'elenco**:
+  avevo detto che gli ingredienti sono affidabili e i nomi no, ma un ingrediente è **una cosa**, non
+  un modo di cucinarla — se la carne c'è, l'ingrediente la nomina. Quindi `eCarneIngrediente`, senza
+  il livello delle preparazioni. ⛔ E **non** ho aggiunto «carota» ai segni vegetali: sarebbe stato
+  rincorrere un elenco che non finisce, e il prossimo «sedano tagliato a julienne» sarebbe passato
+  lo stesso. ⛔ **La ricciolina invece il file la aspettava da settimane**: in cima a `exclusions.ts`
+  c'era scritto che la radice `ricciol` prende anche i «riccioli» e che *«se un giorno il costo si
+  vede, la strada è insegnare le omonime alla radice, non togliere la ricciola»* — con un test che
+  **fissava** quel costo. ⚠️ Il giorno è arrivato, e non da un fastidio: da un danno — il costo non
+  era più un piatto tolto a chi esclude il pesce, era un'etichetta sbagliata scritta in catalogo per
+  sempre. Omonime dichiarate, test riscritto al contrario col motivo, e la ricciola vera che resta
+  pesce in ogni prova. ⚠️ Questo tocca il vocabolario che tiene al sicuro chi è **allergico**: le
+  prove guardano tutti e due i versi, perché sbagliare di là non è un piatto in meno. ✅ E il
+  giudizio di `panieri:pulisci` — lo script che **cancella** righe in produzione — è uscito dallo
+  script: `catalog/pulizia-del-paniere.ts`, 11 prove e tre mutazioni sul freno.
+
 - `[Sviluppo]` 🪤 **La classe di trappola, non i singoli casi: una parola dentro un'altra parola.**
   Oggi ci sono cascato due volte, e finora avevo corretto i casi. ⛔ `pollo` dentro «ci·POLLO·tto» è
   costato mezza giornata e una riga sbagliata nella regola flexitariana. ⚠️ E il commento

@@ -475,6 +475,19 @@ export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = 
   palombo: ['palombaccio', 'palombacci', 'palomba', 'palombella', 'palombelle'],
   triglia: ['trigliceridi', 'trigliceride'],
   gallinella: ['gallinelle'], // il songino/valerianella, che in alcune regioni si chiama così
+  /**
+   * ⛔ **LA RICCIOLINA, TROVATA IN PRODUZIONE L'1/9** — ed è il «costo noto dei riccioli» che il
+   * commento in cima a questo file dichiarava di accettare, arrivato al pettine.
+   *
+   * «Torta di Riso Integrale con Ricotta e Cicoria Amara Cruda (ricciolina)» stava per diventare
+   * **pescetariana** in un blocco di correzioni automatiche: la ricciolina è una cicoria, e la
+   * radice `ricciol` la prendeva per una ricciola.
+   *
+   * ⚠️ Il commento diceva già la strada — «se un giorno il costo si vede su tanti riccioli, la
+   * strada è insegnare le omonime alla radice, non togliere la ricciola» — ed è questa.
+   * ⛔ E la ricciola vera resta esclusa: il suo nome intero passa dal primo giro, prima della radice.
+   */
+  ricciola: ['ricciolina', 'riccioline', 'ricciolino', 'riccioli', 'ricciolo'],
   smeriglio: ['smerigliato', 'smerigliata', 'smerigliate'],
   persico: ['persica', 'persiche'], // «pesca persica»
   rombo: ['stromboli'],

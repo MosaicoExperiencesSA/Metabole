@@ -42,7 +42,7 @@
  *   APPLICA=1 npm run regime:contenuto    → corregge SOLO il mucchio sicuro
  */
 import { PrismaClient } from '@prisma/client';
-import { eCarne, ePesce } from '../src/catalog/piatto-di-cosa';
+import { eCarne, eCarneIngrediente, ePesce } from '../src/catalog/piatto-di-cosa';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 30) || 30);
@@ -82,7 +82,13 @@ async function main() {
      * ⛔ **La carne si guarda per prima e vince**, come in `verdettoPescetariano`: un piatto che ha
      * tutti e due va all'onnivoro, non al pescetariano. «Mare e monti» esiste.
      */
-    const carneIng = ingredienti.find((i) => eCarne(i));
+    /**
+     * ⛔ **`eCarneIngrediente`, non `eCarne`** — 1/9, dopo un falso positivo in produzione: un
+     * Buddha Bowl di lenticchie stava per diventare onnivoro perché fra gli ingredienti c'è
+     * «Carota **tagliata** sottile». Su un ingrediente le preparazioni non servono: se la carne c'è,
+     * l'ingrediente la nomina.
+     */
+    const carneIng = ingredienti.find((i) => eCarneIngrediente(i));
     const pesceIng = ingredienti.find((i) => ePesce(i));
     if (carneIng) { sicure.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'carne', prova: carneIng }); continue; }
     if (pesceIng) { sicure.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'pesce', prova: pesceIng }); continue; }

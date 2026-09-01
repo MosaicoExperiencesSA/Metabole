@@ -191,12 +191,35 @@ const DOPPI = Object.entries(DOPPIO_SENSO).map(([t, antidoti]) => ({
 
 export function eCarne(nome: string): boolean {
   const n = normale(nome);
+  if (eCarneIngrediente(n)) return true;
+  /** ⚠️ La preparazione vale solo se non c'è un segno vegetale: «hamburger di ceci» non è carne. */
+  return RE_CARNE_FORSE.test(n) && !RE_VEGETALE.test(n);
+}
+
+/**
+ * LO STESSO GIUDIZIO SU UN **INGREDIENTE**, e senza le preparazioni.
+ *
+ * ⛔ **Nato da un falso positivo in produzione, 1/9**: «Buddha Bowl di Lenticchie Nere e Germogli su
+ * Base di Quinoa» stava per diventare **onnivoro** perché fra i suoi ingredienti c'è «Carota
+ * tagliata sottile» — `tagliata`, e nella stringa nessun segno vegetale del mio elenco. Sarebbe
+ * passato dentro un blocco di 549 correzioni automatiche, senza che nessuno lo vedesse.
+ *
+ * ⚠️ **E il difetto era nel ragionamento, non nell'elenco.** Avevo detto: gli ingredienti sono
+ * affidabili, i nomi no. Non è vero così — un ingrediente è **una cosa**, non un modo di cucinarla.
+ * `tagliata`, `arrosto di`, `spezzatino` dentro un elenco di ingredienti non aggiungono niente: se
+ * un piatto ha davvero della carne, l'ingrediente **la nomina** («petto di tacchino», «filetto di
+ * salmone»), e ci pensa il primo livello. Le preparazioni lì portano solo falsi positivi.
+ *
+ * ⛔ Aggiungere `carota` ai segni vegetali sarebbe stato il rimedio sbagliato: avrei continuato a
+ * rincorrere un elenco che non finisce, e il prossimo «sedano tagliato a julienne» sarebbe passato
+ * lo stesso.
+ */
+export function eCarneIngrediente(nome: string): boolean {
+  const n = normale(nome);
   /** ⛔ Il primo livello vince e non si discute: un animale resta carne anche accanto alle patate. */
   if (RE_CARNE_SEMPRE.test(n)) return true;
   /** ⚠️ Un nome a doppio senso è carne finché non compare il SUO antidoto, non uno qualsiasi. */
-  if (DOPPI.some((d) => d.termine.test(n) && !d.antidoto.test(n))) return true;
-  /** ⚠️ La preparazione vale solo se non c'è un segno vegetale: «hamburger di ceci» non è carne. */
-  return RE_CARNE_FORSE.test(n) && !RE_VEGETALE.test(n);
+  return DOPPI.some((d) => d.termine.test(n) && !d.antidoto.test(n));
 }
 
 /** Vero se il nome contiene un termine del pesce, dal vocabolario delle esclusioni. */

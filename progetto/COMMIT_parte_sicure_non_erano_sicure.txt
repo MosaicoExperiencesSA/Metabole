@@ -1,0 +1,47 @@
+Le «sicure» non erano sicure — due falsi positivi in un blocco da 549
+
+`regime:contenuto` in produzione ha detto: 549 sicure, 18 dubbie. Nelle prime trenta righe del
+mucchio SICURO — quello che `APPLICA=1` avrebbe riscritto senza che nessuno lo guardasse — ce
+n'erano due sbagliate.
+
+  · «Buddha Bowl di Lenticchie Nere e Germogli su Base di Quinoa»
+      vegetarian → OMNIVORE   perché fra gli ingredienti c'è «Carota tagliata sottile»
+  · «Torta di Riso Integrale con Ricotta e Cicoria Amara Cruda»
+      vegetarian → PESCETARIAN   perché la cicoria si chiama «ricciolina»
+
+⛔ 1. IL DIFETTO ERA NEL MIO RAGIONAMENTO, NON NELL'ELENCO
+Avevo scritto: gli ingredienti sono affidabili, i nomi no. Non è vero così. Un ingrediente è UNA
+COSA, non un modo di cucinarla: `tagliata`, `arrosto di`, `spezzatino` dentro un elenco di
+ingredienti non aggiungono niente, perché se un piatto ha davvero della carne l'ingrediente LA
+NOMINA — «petto di tacchino», «filetto di salmone» — e ci pensa il primo livello. Lì le
+preparazioni portano solo falsi positivi.
+
+Quindi `eCarneIngrediente`: stesso giudizio senza il livello delle preparazioni. ⛔ E NON ho
+aggiunto «carota» ai segni vegetali: sarebbe stato rincorrere un elenco che non finisce, e il
+prossimo «sedano tagliato a julienne» sarebbe passato lo stesso.
+
+⛔ 2. LA RICCIOLINA, E IL FILE LA ASPETTAVA DA SETTIMANE
+In cima a `exclusions.ts` c'era scritto: «"ricciola" ha radice `ricciol`, che prende anche i
+"riccioli"… se un giorno il costo si vede, la strada è insegnare le omonime alla radice — non
+togliere la ricciola». C'era perfino un test che FISSAVA quel costo.
+
+⚠️ Il giorno è arrivato, e non da un fastidio: da un danno. Il costo non era più un piatto tolto a
+chi esclude il pesce — era un'etichetta sbagliata scritta in catalogo per sempre. Le omonime
+dichiarate sulla chiave `ricciola`, e il test che fissava il costo riscritto al contrario, col
+motivo. ⚠️ La ricciola vera resta pesce, ed è la seconda metà di ogni prova: una prova che toglie
+soltanto non dice niente.
+
+⚠️ E QUESTO TOCCA IL VOCABOLARIO DELLE ESCLUSIONI, che tiene al sicuro chi è allergico. Per questo
+le prove guardano tutti e due i versi: «riccioli di pasta» non è pesce, «filetto di ricciola» sì.
+Sbagliare di là non è un piatto in meno, è una persona in pronto soccorso.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. `eCarneIngrediente` torna a usare le preparazioni  → 2 prove rosse
+  2. via l'omonima «ricciolina»                          → 5 prove rosse
+
+E il giudizio di `panieri:pulisci` — lo script che CANCELLA righe in produzione — è uscito dallo
+script: sta in `catalog/pulizia-del-paniere.ts` con 11 prove, perché un mese fa `rifai:troppi-pasti`
+avrebbe aperto buchi permanenti e a fermarlo non fu una rilettura. Tre mutazioni sul freno, uccise:
+segnala anche chi non peggiora, gemelli contati separati, le spente contano nel pool.
+
+Test: backend 6504 su 388 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

@@ -23,8 +23,7 @@
  *   FORZA=1 APPLICA=1 npm run panieri:pulisci → toglie anche se qualcuna ci va (si dichiara)
  */
 import { PrismaClient } from '@prisma/client';
-import { ricettaVaBene } from '../src/common/regimi';
-import { GIORNATA_CINQUE, slotDaCuiPescare } from '../src/common/slot-pasto';
+import { cosaTogliere } from '../src/catalog/pulizia-del-paniere';
 
 const prisma = new PrismaClient();
 const SOGLIA = Math.max(1, Number(process.env.SOGLIA ?? 30) || 30);
@@ -51,29 +50,21 @@ async function main() {
     prisma.recipe.findMany({ select: { id: true, name: true, regime: true, active: true } }) as unknown as
       Promise<{ id: string; name: string; regime: string; active: boolean }[]>,
   ]);
-  const perId = new Map(ricette.map((r) => [r.id, r]));
-
-  /** cella → slot → set di ricette ATTIVE (è il pool che una cliente vede davvero). */
-  const prima = new Map<string, Map<string, Set<string>>>();
-  const dopo = new Map<string, Map<string, Set<string>>>();
-  const daTogliere: { id: string; chiave: string; slot: string; nome: string; regime: string }[] = [];
-
-  for (const r of righe) {
-    const ric = perId.get(r.recipeId);
-    if (!ric) continue;
-    const chiave = `${r.paniere.famiglia} × ${r.paniere.regime}`;
-    const vaBene = ricettaVaBene(ric.regime, r.paniere.regime);
-    if (!vaBene) daTogliere.push({ id: r.id, chiave, slot: r.slot, nome: ric.name, regime: ric.regime });
-    /** ⚠️ Le spente non contano nel pool: il motore non le vede più (§2.4, chiuso l'1/9). */
-    if (!ric.active) continue;
-    for (const mappa of [prima, ...(vaBene ? [dopo] : [])]) {
-      const perSlot = mappa.get(chiave) ?? new Map<string, Set<string>>();
-      const set = perSlot.get(r.slot) ?? new Set<string>();
-      set.add(r.recipeId);
-      perSlot.set(r.slot, set);
-      mappa.set(chiave, perSlot);
-    }
-  }
+  /**
+   * ⛔ **IL GIUDIZIO NON STA QUI**, e non è una questione di ordine: sta in
+   * `catalog/pulizia-del-paniere.ts`, con le sue prove. Questo script CANCELLA righe in produzione,
+   * e un mese fa `rifai:troppi-pasti` avrebbe aperto buchi permanenti nei menu di due clienti — a
+   * fermarlo non è stata una rilettura, è stata una sentinella. La differenza è che il giudizio di
+   * quello stava dentro lo script, dove nessuna prova arriva.
+   *
+   * ⚠️ Qui restano il **quando** scrivere e il **come dirlo**, che sono le due cose che una prova
+   * non copre comunque.
+   */
+  const { daTogliere, caselleSotto } = cosaTogliere(
+    righe.map((r) => ({ id: r.id, slot: r.slot, recipeId: r.recipeId, famiglia: r.paniere.famiglia, regime: r.paniere.regime })),
+    ricette,
+    SOGLIA,
+  );
 
   titolo('1. QUANTE, E DA DOVE');
   riga('');
@@ -94,27 +85,14 @@ async function main() {
 
   titolo('2. COSA RESTA — la parte che decide se si può');
   riga('');
-  /** ⚠️ Gemelli uniti (Fase 2): spuntino e merenda sono un paniere solo, e la cliente li vede così. */
-  const sotto: { chiave: string; slot: string; prima: number; dopo: number }[] = [];
-  for (const [chiave, perSlot] of prima) {
-    for (const sl of GIORNATA_CINQUE) {
-      const uniti = (m: Map<string, Set<string>> | undefined) => {
-        const s = new Set<string>();
-        for (const g of slotDaCuiPescare(sl)) for (const id of m?.get(g) ?? []) s.add(id);
-        return s.size;
-      };
-      const a = uniti(perSlot);
-      if (a === 0) continue;
-      const b = uniti(dopo.get(chiave));
-      if (b < SOGLIA && b < a) sotto.push({ chiave, slot: sl, prima: a, dopo: b });
-    }
-  }
+  const sotto = caselleSotto;
   if (!sotto.length) {
     riga(`  ✅ NESSUNA casella scende sotto ${SOGLIA} togliendo quelle righe.`);
   } else {
     riga(`  ⛔ ${sotto.length} caselle scenderebbero sotto ${SOGLIA}:`);
     riga('');
-    for (const c of sotto.sort((a, b) => a.dopo - b.dopo).slice(0, ESEMPI)) {
+    /** ⚠️ Già in ordine dalla più povera: l'ordinamento è nel modulo, e ha la sua prova. */
+    for (const c of sotto.slice(0, ESEMPI)) {
       riga(`     · ${c.chiave} · ${c.slot.padEnd(15)} ${String(c.prima).padStart(5)} → ${String(c.dopo).padStart(5)}`);
     }
   }

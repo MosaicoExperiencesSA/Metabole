@@ -1,5 +1,5 @@
 import {
-  diCosaE, eCarne, ePesce, ingredientePrincipale, vaBeneAColazione,
+  diCosaE, eCarne, eCarneIngrediente, ePesce, ingredientePrincipale, vaBeneAColazione,
 } from './piatto-di-cosa';
 
 /** La tabella alimenti finta: solo quello che serve a distinguere una verdura. */
@@ -234,5 +234,44 @@ describe('eCarne — le preparazioni non sono animali', () => {
   it('⚠️ e un piatto senza niente di tutto questo non è carne', () => {
     expect(eCarne('Pasta al pomodoro')).toBe(false);
     expect(eCarne('Insalata di farro e zucchine')).toBe(false);
+  });
+});
+
+/**
+ * ⛔ SU UN INGREDIENTE LE PREPARAZIONI NON SERVONO — e il difetto era nel ragionamento.
+ *
+ * L'1/9, in produzione: «Buddha Bowl di Lenticchie Nere e Germogli su Base di Quinoa» stava per
+ * diventare **onnivoro** dentro un blocco di 549 correzioni automatiche, perché fra i suoi
+ * ingredienti c'è «Carota **tagliata** sottile».
+ *
+ * ⚠️ Avevo scritto che gli ingredienti sono affidabili e i nomi no. Non è vero così: un ingrediente
+ * è **una cosa**, non un modo di cucinarla. Se un piatto ha davvero della carne, l'ingrediente la
+ * nomina — «petto di tacchino», «filetto di salmone» — e ci pensa il primo livello.
+ */
+describe('eCarneIngrediente', () => {
+  it.each([
+    ['Carota tagliata sottile'],
+    ['sedano tagliato a julienne'],
+    ['zucchine arrostite'],
+    ['ceci lessati'],
+    ['melanzane grigliate'],
+  ])('⛔ un ingrediente vegetale con una parola di preparazione non è carne: %s', (i) => {
+    expect(eCarneIngrediente(i)).toBe(false);
+  });
+
+  it.each([
+    ['petto di tacchino'],
+    ['prosciutto crudo'],
+    ['fesa di tacchino'],
+    ['guanciale a cubetti'],
+    ['macinato di manzo'],
+  ])('⚠️ ma la carne nominata resta carne: %s', (i) => {
+    expect(eCarneIngrediente(i)).toBe(true);
+  });
+
+  /** ⛔ E sui NOMI le preparazioni continuano a valere: sono due domande diverse. */
+  it('⚠️ sul NOME del piatto la preparazione conta ancora', () => {
+    expect(eCarne('Cotoletta alla milanese')).toBe(true);
+    expect(eCarneIngrediente('Cotoletta alla milanese')).toBe(false);
   });
 });

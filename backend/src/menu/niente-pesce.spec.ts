@@ -134,16 +134,25 @@ describe('⛔ e NON porta via i piatti innocenti', () => {
   });
 
   /**
-   * ⚠️ **IL COSTO ACCETTATO, scritto qui perché non diventi una sorpresa**: la radice di «ricciola»
-   * (`ricciol`) prende anche i «riccioli» — la pasta, i riccioli di burro. Sbaglia nel verso sicuro
-   * (toglie un piatto innocente a chi ha escluso il pesce, mai il contrario), e la ricciola è fra i
-   * pesci più comuni nei menu: tenerla fuori sarebbe il buco più probabile. Se questo test un
-   * giorno dà fastidio, la strada è insegnare le omonime anche alla radice — non togliere la
-   * ricciola. Misura prima: `npm run diag:esclusioni`.
+   * ✅ **IL COSTO NOTO È STATO PAGATO — 1/9.** Questa prova fissava il contrario: la radice di
+   * «ricciola» (`ricciol`) prendeva anche i «riccioli» — la pasta, i riccioli di burro — e il
+   * commento diceva *«se questo test un giorno dà fastidio, la strada è insegnare le omonime anche
+   * alla radice, non togliere la ricciola»*.
+   *
+   * ⛔ **Il giorno è arrivato, e non da un fastidio: da un danno.** «Torta di Riso Integrale con
+   * Ricotta e Cicoria Amara Cruda (ricciolina)» stava per essere riscritta **pescetariana** dentro
+   * un blocco di 549 correzioni automatiche di `regime:contenuto`. Il costo non era più un piatto
+   * tolto a chi esclude il pesce: era un'etichetta sbagliata scritta in catalogo per sempre.
+   *
+   * ⚠️ **La strada è quella che il commento indicava**, non un'altra: le omonime dichiarate sulla
+   * chiave `ricciola`. La ricciola vera non si è mossa, ed è la seconda metà di questa prova —
+   * senza, questa sarebbe una prova che toglie soltanto.
    */
-  it('⚠️ costo noto: «riccioli di pasta» viene fermato per colpa della ricciola', () => {
-    expect(colpisce('Riccioli di pasta al pomodoro')).toBeTruthy();
+  it('✅ i «riccioli» non sono più fermati, e la ricciola sì', () => {
+    expect(colpisce('Riccioli di pasta al pomodoro')).toBeNull();
+    expect(colpisce('Insalata ricciolina')).toBeNull();
     expect(colpisce('Ricciola alla griglia')).toBeTruthy();
+    expect(colpisce('Filetto di ricciola')).toBeTruthy();
   });
 
   /**
