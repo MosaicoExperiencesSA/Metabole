@@ -592,6 +592,16 @@ export const FRASI_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
     'funghi ostriche', 'funghi ostrica', 'fungo ostrica', 'ostriche di bosco',
   ]),
   ostrica: CON_APOSTROFO(['funghi ostrica', 'fungo ostrica', 'pleurotus ostrica']),
+  /**
+   * ⛔ **IL RISO PER SUSHI NON È SUSHI** — 1/9, e questo è passato: «Poke Bowl Vegano con Riso e
+   * Alga Nori» è stato riscritto **pescetariano** dentro un blocco di 148 correzioni, perché fra i
+   * suoi ingredienti c'è «riso sushi».
+   *
+   * ⚠️ `sushi` nell'elenco del pesce ci sta di diritto — chi è allergico al pesce non ordina un
+   * sushi — ma il riso per sushi è una varietà di riso, e sta nei poke bowl vegetali come nel resto.
+   * ⛔ Il piatto che ha davvero il pesce dentro lo dice con un'altra parola, e quella lo prende.
+   */
+  sushi: CON_APOSTROFO(['riso sushi', 'riso per sushi', 'riso da sushi', 'aceto per sushi']),
 };
 
 /**

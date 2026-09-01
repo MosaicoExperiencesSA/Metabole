@@ -1,0 +1,35 @@
+Il riso per sushi non è sushi — e l'agente che non si costruisce
+
+⛔ 1. LA TABELLA DELLE PROPOSTE NON SI FA, E IL NUMERO L'HA DECISO
+Avevo cominciato a scriverla — modulo del giudizio, guardia sul modello, il pezzo che dice cosa il
+modello può e non può decidere. Poi è arrivato il conto:
+
+  · dubbie, NON si toccano    22
+        · solo nel nome       18
+        · sembrano imitazioni  4
+
+Ventidue righe, non centosettanta: il grosso erano i falsi «brodo vegetale» che il rilascio
+precedente ha chiuso. Una tabella nuova, una schermata, una chiave di permesso e un passo notturno
+per ventidue righe sarebbero più lavoro di quello che risparmiano, e le ventidue si leggono in
+dieci minuti — sono già tutte stampate nell'output.
+
+⚠️ Il modulo che avevo scritto è stato **tolto, non consegnato**: codice che nessuno usa è codice
+che qualcuno un giorno crede funzionante.
+
+⛔ È la stessa disciplina che ho predicato tutta la sera, applicata a me: si conta prima di
+scrivere, e quando il conto dice di no si smette anche se si è già cominciato.
+
+⛔ 2. E UN FALSO POSITIVO È PASSATO NELLE «SICURE»
+  · «Poke Bowl Vegano con Riso e Alga Nori»
+      vegan → pescetarian   (ingrediente: «riso sushi»)
+
+Un piatto vegano dichiarato tale nel nome, spostato di regime da una parola che indica una varietà
+di riso. ⚠️ `sushi` nell'elenco del pesce ci sta di diritto — chi è allergico al pesce non ordina
+un sushi — ma il riso per sushi è riso, e sta nei poke bowl vegetali come nel resto. Il piatto che
+ha davvero il pesce dentro lo dice con un'altra parola.
+
+⚠️ Ed è il terzo omonimo della giornata sullo stesso vocabolario — «ricciolina», «funghi ostrica»,
+«riso sushi» — tutti e tre chiusi col meccanismo che il file aveva già, e tutti e tre trovati
+leggendo output di produzione. Nessuno a ragionamento.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

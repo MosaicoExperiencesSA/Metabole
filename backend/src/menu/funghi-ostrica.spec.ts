@@ -42,3 +42,22 @@ describe('funghi ostrica', () => {
     expect(ePesce('funghi misti freschi (champignon, ostriche)')).toBe(true);
   });
 });
+
+/**
+ * ⛔ IL RISO PER SUSHI NON È SUSHI — 1/9, ed è passato in produzione.
+ *
+ * «Poke Bowl Vegano con Riso e Alga Nori» è stato riscritto **pescetariano** dentro un blocco di
+ * 148 correzioni automatiche, perché fra gli ingredienti c'è «riso sushi». Un piatto vegano
+ * dichiarato tale nel nome, spostato in un altro regime da una parola che indica una varietà di
+ * riso.
+ */
+describe('riso per sushi', () => {
+  it.each([['riso sushi'], ['riso per sushi'], ['Poke bowl con riso sushi e avocado']])(
+    '⛔ non è pesce: %s', (t) => { expect(ePesce(t)).toBe(false); },
+  );
+
+  /** ⚠️ E il sushi vero resta pesce: chi è allergico non deve trovarselo nel piatto. */
+  it.each([['Sushi misto'], ['sashimi di salmone'], ['sushi di tonno']])(
+    '⚠️ ma il sushi resta pesce: %s', (t) => { expect(ePesce(t)).toBe(true); },
+  );
+});

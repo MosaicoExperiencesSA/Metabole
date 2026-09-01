@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🍚 **Il riso per sushi non è sushi — e l'agente che non si costruisce.** ⛔ **La tabella
+  delle proposte non si fa, e l'ha deciso il numero**: avevo già cominciato a scriverla quando è
+  arrivato il conto — **22 dubbie**, non 170, perché il grosso erano i falsi «brodo vegetale» chiusi
+  dal rilascio prima. Una tabella nuova, una schermata, una chiave di permesso e un passo notturno
+  per ventidue righe sono più lavoro di quello che risparmiano, e quelle ventidue si leggono in
+  dieci minuti. ⚠️ Il modulo scritto a metà è stato **tolto, non consegnato**: codice che nessuno usa
+  è codice che qualcuno un giorno crede funzionante. ⛔ È la disciplina della giornata applicata a me
+  — si conta prima di scrivere, e quando il conto dice di no si smette anche se si è cominciato.
+  ⛔ **E un falso positivo è passato fra le «sicure»**: «Poke Bowl **Vegano** con Riso e Alga Nori»
+  spostato a pescetariano perché fra gli ingredienti c'è «riso sushi». ⚠️ `sushi` nell'elenco del
+  pesce ci sta di diritto, ma il riso per sushi è riso — e il piatto che ha davvero il pesce lo dice
+  con un'altra parola. ⚠️ **Terzo omonimo della giornata sullo stesso vocabolario** — ricciolina,
+  funghi ostrica, riso sushi — tutti e tre chiusi col meccanismo che il file aveva già, e tutti e
+  tre trovati leggendo output di produzione. Nessuno a ragionamento.
+
 - `[Sviluppo]` 🍲 **«Brodo vegetale» non è un'imitazione — e «il conto non torna» era un allarme
   falso mio.** ⛔ **Il filtro delle imitazioni cercava la parola in tutto il piatto**, e in cucina
   italiana è un disastro: «brodo vegetale» sta in metà delle ricette di pesce, «purè di ceci» è un
