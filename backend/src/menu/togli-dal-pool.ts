@@ -63,6 +63,13 @@ export function togliDalPool(
  *
  * ⚠️ E si toglie **dopo aver contato**: `npm run diag:spente` dice cella per cella cosa resta.
  * Il giorno che l'ha chiuso diceva 27 celle su 38 toccate e **nessuna** sotto soglia.
+ *
+ * ⚠️ **La base personale lo faceva già, e nella query** (`personal-base.service.ts`: `active: true`
+ * dentro la `where`). Era il «due porte che rispondono alla stessa domanda in due modi diversi» del
+ * §2.4: ora rispondono uguale. ⛔ Ma con due meccanismi diversi, e non è una svista — quella
+ * **elenca** cosa è disponibile e di una ricetta esclusa non le serve più niente; questa **compone
+ * una giornata** e di ogni id del pool deve conoscere kcal e macro. Chi un giorno le uniformasse
+ * «per pulizia» riaprirebbe esattamente il difetto che questa nota descrive.
  */
 export function ricetteSpente(ricette: readonly { id: string; active: boolean }[]): Set<string> {
   const fuori = new Set<string>();

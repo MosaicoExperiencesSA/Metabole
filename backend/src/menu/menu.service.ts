@@ -2701,10 +2701,16 @@ export class MenuService {
      * persona la vede), stava nel pool come tutte le altre e arrivava nel piatto di una cliente.
      * In catalogo erano 3566, e 2730 erano già dentro un paniere.
      *
-     * ⚠️ **Sta PRIMA degli altri due filtri**, ed è voluto: i due qui sotto contano quante ricette
-     * tolgono su quante ce n'erano, e quei numeri finiscono in un log che qualcuno legge per
-     * decidere se una cliente va guardata. Contando anche le spente direbbero «40 scartate su 120»
-     * dove le vere erano 40 su 95.
+     * ⚠️ **Sta PRIMA degli altri due filtri**, ed è voluto: i due qui sotto, quando risparmiano uno
+     * slot, scrivono nel log **quante ricette c'erano in quello slot**, e quel numero lo legge
+     * qualcuno per decidere se una cliente va guardata. Filtrando dopo, direbbe «su 120» dove le
+     * servibili erano 95.
+     *
+     * ⚠️ **Il numeratore invece resta sporco, e va saputo**: `ricetteVietate` e `ricetteNonSicure`
+     * girano su `recipes`, che è il catalogo letto — spente comprese — non sul pool. Quindi «40
+     * scartate» può comprendere ricette che erano già uscite di qui. Non si è cambiato: quei due
+     * numeri dicono «quante ne ha viste la regola», e restringerli al pool vorrebbe dire due conti
+     * diversi nella stessa riga di log.
      *
      * ⚠️ **E vale la stessa regola degli altri due**: uno slot che resterebbe vuoto non si svuota.
      * Non è una scorciatoia — è la scelta meno peggio, e ha una ragione propria: una ricetta spenta

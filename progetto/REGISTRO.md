@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 📐 **Il piano allineato, e due note che il codice non diceva.** ✅ §2.4 segnato chiuso
+  **con l'ordine in cui è stato chiuso** — scrittura, tabulato, lettura: l'ordine è la parte che
+  vale, perché il permesso di filtrare l'hanno dato i numeri, non il ragionamento. ✅ **La coda
+  «mantenimento» della Fase 3 era già chiusa e non me n'ero accorto**: `VariantePerPaniere` non ha
+  nemmeno il campo `objective` (la chiave è famiglia × regime, l'obiettivo non può entrarci) e
+  `kcal-need.service` salta il deficit in mantenimento, con i suoi test. Verificato invece che
+  riscritto — ⚠️ una coda già chiusa fa lavorare due volte chi legge il piano, ed è il modo in cui
+  un piano comincia a mentire. ⛔ **Corretto un mio commento sbagliato di stamattina**: mettere il
+  filtro delle spente per primo sistema il **denominatore** dei log degli altri due (quante ricette
+  c'erano nello slot), non il numeratore — quelle due regole girano sul catalogo letto, spente
+  comprese. Il comportamento non cambia; il commento diceva una cosa non vera, ed è peggio del
+  numero. ⚠️ E scritto **perché** le due porte restano diverse: la base personale filtra `active`
+  nella query, il pool toglie dopo — quella **elenca**, questa **compone** e di ogni id deve
+  conoscere kcal e macro. Uniformarle «per pulizia» riaprirebbe il difetto appena chiuso.
+
 - `[Sviluppo]` 🧹 **Le ricette spente escono dal pool — e 54 test che passavano senza provare
   niente.** ✅ Chiusura del §2.4 **dopo il numero**: `diag:spente` in produzione ha detto 3566 spente
   in catalogo, **2730 già dentro un paniere**, 27 celle su 38 toccate dal filtro e **nessuna sotto

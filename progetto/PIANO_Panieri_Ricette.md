@@ -154,6 +154,27 @@ la maggior parte sparisce da sola.
 personale invece la rifiuta. Sono due porte che rispondono alla stessa domanda in due modi
 diversi.
 
+✅ **CHIUSO l'1/9, in due tempi e in quest'ordine.** Prima la porta di **scrittura**: dalla pagina
+Panieri una ricetta spenta non si aggiunge (la pagina l'aveva appena aperta — verificava regime e
+allergeni e non `active`, quindi una bozza dell'agente notturno entrava nei menu al primo clic).
+Poi il **tabulato**, `npm run diag:spente`, perché filtrare nel pool restringe il pool di tutte le
+clienti insieme: 3566 spente in catalogo, **2730 già dentro un paniere**, 27 celle su 38 toccate,
+**nessuna sotto soglia**, zero pasti già composti che ne contenessero una. Solo allora la
+**lettura**: le spente escono dal pool (`menu/togli-dal-pool.ts`).
+
+⚠️ Non si è filtrato nella query: `active: true` nella `where` avrebbe lasciato gli id spenti in
+`slotPool` senza la loro riga in `recipes`, e la composizione avrebbe scelto un id di cui non
+conosce kcal né macro — una giornata sbilanciata mesi dopo, senza niente che la colleghi a qui.
+
+⚠️ Uno slot fatto **solo** di spente non si svuota, come per i divieti e le esclusioni: una spenta
+passa comunque dalla guardia, quindi tenerla nel caso degenere lascia in piedi quello che succede
+già oggi, mentre svuotare il pasto sarebbe un danno **nuovo**. Si sente nel log.
+
+⛔ **E la chiusura ha trovato dell'altro**: scritto il filtro, la suite è rimasta verde per il
+motivo sbagliato — i finti Prisma non rendevano `active`, quindi ogni ricetta risultava spenta,
+ogni slot veniva risparmiato, e **54 test non esercitavano una riga**. Ora un `active` mancante
+grida, i finti passano da `menu/come-dal-database.ts`, e una sentinella verifica la `select`.
+
 Quindi «84» è il massimo, non l'utile. Il numero utile sta nella pagina **Copertura catalogo**
 (piatti / attivi / rotti per variante e per pasto). **Va guardato prima della Fase 1**, ed è
 l'unico dato che può ancora spostare la stima.
@@ -290,9 +311,17 @@ Se la composizione si scrive su due panieri e poi diventano uno, si riscrive due
 (`menu/struttura-della-giornata.ts` — correzione di un difetto nato con la Fase 1), e il ripiego
 allarga la banda a passi scrivendo di quanto (`menu_day.allargamento_banda_pct`).
 
-⚠️ **Resta**: il mantenimento (stesso paniere, target senza deficit), e togliere del tutto la
-dipendenza dalla giornata pre-costruita — che oggi è ancora il ripiego oltre il tetto, e finché
-esiste è il ripiego giusto.
+✅ **E il mantenimento era già fatto, per costruzione** (verificato l'1/9, non riscritto). *Stesso
+paniere*: `VariantePerPaniere` non ha nemmeno il campo `objective` — la chiave è famiglia × regime
+e l'obiettivo non può entrarci, quindi «Mediterranea onnivora dimagrimento» e «Mediterranea
+onnivora mantenimento» versano nello stesso paniere. *Target senza deficit*: `kcal-need.service`
+salta il deficit su `objective !== 'mantenimento'` (e ha i suoi test), e dove il menu a necessità
+è spento il target sono le kcal del livello, che per la variante di mantenimento sono già quelle
+di mantenimento. ⚠️ Vale la pena averlo scritto qui: una coda che in realtà è già chiusa fa
+lavorare due volte chi legge il piano, ed è il modo in cui un piano comincia a mentire.
+
+⚠️ **Resta**: togliere del tutto la dipendenza dalla giornata pre-costruita — che oggi è ancora il
+ripiego oltre il tetto, e finché esiste è il ripiego giusto.
 
 **Cosa si fa**
 - `DayCombo` pesca dal paniere invece che dal pool dei template;

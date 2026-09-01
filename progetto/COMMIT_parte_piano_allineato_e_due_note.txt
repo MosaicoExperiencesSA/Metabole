@@ -1,0 +1,35 @@
+Il piano allineato, e due note che il codice non diceva
+
+Consegna piccola, di sole parole — ma le parole di un piano che qualcuno legge per decidere cosa
+fare domani.
+
+1) §2.4 SEGNATO COME CHIUSO, con l'ordine in cui è stato chiuso: prima la porta di scrittura, poi
+   il tabulato, poi la lettura. L'ordine è la parte che vale: filtrare nel pool restringe il pool
+   di tutte le clienti insieme, e il permesso l'hanno dato i numeri (27 celle su 38 toccate,
+   nessuna sotto soglia), non il ragionamento.
+
+2) LA CODA «MANTENIMENTO» DELLA FASE 3 ERA GIÀ CHIUSA, e non me n'ero accorto. Verificato invece
+   che riscritto:
+   · stesso paniere — `VariantePerPaniere` non ha nemmeno il campo `objective`: la chiave è
+     famiglia × regime, e l'obiettivo non può entrarci nemmeno per sbaglio;
+   · target senza deficit — `kcal-need.service` salta il deficit su `objective !== 'mantenimento'`,
+     e ha i suoi test; dove il menu a necessità è spento il target sono le kcal del livello, che
+     per la variante di mantenimento sono già quelle di mantenimento.
+   ⚠️ Vale la pena scriverlo nel piano: una coda che in realtà è già chiusa fa lavorare due volte
+   chi legge, ed è il modo in cui un piano comincia a mentire.
+
+3) CORRETTO UN MIO COMMENTO SBAGLIATO scritto stamattina. Dicevo che mettere il filtro delle spente
+   prima degli altri due sistema i numeri dei loro log: sistema il DENOMINATORE (quante ricette
+   c'erano nello slot), non il numeratore — `ricetteVietate` e `ricetteNonSicure` girano sul
+   catalogo letto, spente comprese. Non si è cambiato il comportamento: quei numeri dicono «quante
+   ne ha viste la regola», e restringerli al pool metterebbe due conti diversi nella stessa riga.
+   Ma il commento diceva una cosa non vera, ed è peggio del numero.
+
+4) SCRITTO PERCHÉ LE DUE PORTE SI COMPORTANO DIVERSAMENTE. La base personale filtra `active` nella
+   query; il pool del motore no, toglie dopo. Era il «due porte che rispondono alla stessa domanda
+   in due modi diversi» del §2.4 — ora rispondono uguale, ma con due meccanismi, e non è una
+   svista: quella ELENCA cosa è disponibile e di una ricetta esclusa non le serve più niente;
+   questa COMPONE una giornata e di ogni id del pool deve conoscere kcal e macro. Chi un giorno le
+   uniformasse «per pulizia» riaprirebbe il difetto appena chiuso.
+
+Test: backend 6405 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
