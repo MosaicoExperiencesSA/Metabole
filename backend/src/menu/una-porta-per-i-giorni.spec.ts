@@ -66,10 +66,40 @@ const PERMESSI = new Map<string, string>([
     'prisma/prune-menu-after-planend.ts',
     'cancella tutto oltre la fine del piano: è una coda per data, e dopo non resta niente',
   ],
+  /**
+   * ⛔ **QUESTA SENTINELLA HA FERMATO UN DIFETTO VERO PRIMA CHE GIRASSE — 1/9.**
+   *
+   * La prima stesura di questo script cancellava soltanto le giornate col pasto in più: quattro,
+   * il 2 e il 3 settembre, su due clienti. Sembrava la cosa più prudente possibile — si tocca solo
+   * quello che è sbagliato. ⚠️ Avrebbe lasciato il 4 settembre in piedi, e `deliverIfEligible`
+   * guarda **l'ultimo** giorno in calendario: due buchi permanenti, «menu in preparazione» per
+   * sempre su quelle date, senza un errore da nessuna parte.
+   *
+   * ⚠️ Riscritto su `codaDaRifare`, una cliente per volta, col calendario intero in mano.
+   */
+  [
+    'prisma/rifai-giornate-troppi-pasti.ts',
+    'passa da `codaDaRifare`: cancella la coda dalla prima giornata col pasto in più, una cliente per volta',
+  ],
 ]);
 
 /** `prisma.menuDay.deleteMany(...)` e `.delete(...)`, comunque sia scritto il prefisso. */
 const CANCELLA = /menuDay\s*\n?\s*\.\s*delete(?:Many)?\s*\(/;
+
+/**
+ * Il sorgente senza `import` e senza commenti: quello in cui una porta dev'essere davvero chiamata.
+ *
+ * ⚠️ Si tolgono i commenti oltre agli import perché in questo progetto i commenti **nominano le
+ * porte** per spiegare cosa fanno — è una buona abitudine che qui diventerebbe un alibi.
+ */
+function codicePuro(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .split('\n')
+    .filter((r) => !/^\s*import\s/.test(r) && !/^\s*\}\s*from\s+'/.test(r))
+    .join('\n');
+}
 
 function tuttiIFile(radice: string): string[] {
   const out: string[] = [];
@@ -132,10 +162,34 @@ describe('⛔ nessuno cancella un giorno di menu senza dichiarare perché è una
     for (const [file, ragione] of PERMESSI) {
       const nominate = ['codaDaRifare', 'codePerCliente'].filter((f) => ragione.includes(f));
       if (!nominate.length) continue;
-      const src = readFileSync(join(backend, file), 'utf8');
-      if (!nominate.some((f) => src.includes(f))) bugiardi.push(file);
+      const src = codicePuro(readFileSync(join(backend, file), 'utf8'));
+      if (!nominate.some((f) => new RegExp(`\\b${f}\\s*\\(`).test(src))) bugiardi.push(file);
     }
     expect(bugiardi).toEqual([]);
+  });
+
+  /**
+   * ⛔ **LA PROVA CHE UNA MUTAZIONE SOPRAVVISSUTA HA COMPRATO — 1/9.**
+   *
+   * Il controllo qui sopra cercava il **nome** della porta con `src.includes(f)`, e il nome compare
+   * anche nella riga di `import` e dentro i commenti che spiegano perché la porta esiste. Togliendo
+   * la chiamata da uno script — e lasciando l'import — il permesso restava verde: cioè la prova che
+   * esiste per smascherare un permesso bugiardo lo copriva.
+   *
+   * ⚠️ Adesso vuole la **chiamata**, e cerca nel codice senza import né commenti. Importare una
+   * regola non è applicarla.
+   */
+  it('⛔ e nominarla nell\'import o in un commento non conta', () => {
+    const soloImport = codicePuro([
+      "import { codaDaRifare } from '../src/vera/menu-da-rifare';",
+      '/** Passa da `codaDaRifare`, che sa dire anche «non lo so». */',
+      '// e qui invece si fa a mano: codaDaRifare non serve',
+      'const coda = giorni.filter((g) => colpiti.has(g.id));',
+    ].join('\n'));
+    expect(/\bcodaDaRifare\s*\(/.test(soloImport)).toBe(false);
+
+    const laChiama = codicePuro('const coda = codaDaRifare(giorni, (g) => colpiti.has(g.id));');
+    expect(/\bcodaDaRifare\s*\(/.test(laChiama)).toBe(true);
   });
 
   /**

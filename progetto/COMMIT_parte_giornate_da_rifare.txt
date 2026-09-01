@@ -1,0 +1,53 @@
+Le quattro giornate col pasto in più si rifanno — e la sentinella ha fermato il modo
+sbagliato di rifarle
+
+I NUMERI, dalla produzione
+`diag:struttura` col tabulato corretto: 160 varianti esposte, 12 con clienti, 19 clienti
+distinte. `diag:troppi-pasti`: 4 giornate composte davvero sbagliate, su 2 clienti, il 2
+e il 3 settembre, tutte ancora da aprire. Il caso migliore possibile.
+
+⛔ LA SENTINELLA HA FERMATO UN DIFETTO VERO PRIMA CHE GIRASSE
+La prima stesura di `rifai:troppi-pasti` cancellava soltanto le quattro giornate col
+pasto in più. Sembrava la cosa più prudente possibile — si tocca solo quello che è
+sbagliato — ed è stata bocciata da `una-porta-per-i-giorni.spec.ts`.
+
+Il motivo: `deliverIfEligible` NON cerca i buchi. Guarda l'ULTIMO giorno in calendario e
+se è oltre oggi esce. Cancellare il 2 e il 3 lasciando il 4 avrebbe aperto due buchi
+PERMANENTI: «menu in preparazione» su quelle date per sempre, su due clienti vere, senza
+un errore da nessuna parte.
+
+Riscritto su `codaDaRifare`, una cliente per volta, col calendario intero in mano — la
+stessa porta che usa il rifacimento di Vera, e l'unica che sa dire i due no diversi: «la
+cliente l'ha aperto» e «non sappiamo se l'ha aperto», che non è un no.
+
+⛔ E POI LA SENTINELLA STESSA AVEVA IL DIFETTO CHE CERCAVA
+La prova «chi dichiara di passare dalla porta ci passa davvero» cercava il NOME della
+porta con `src.includes('codaDaRifare')`. Ma il nome compare anche nella riga di
+`import` e dentro i commenti — e in questo progetto i commenti nominano le porte per
+spiegarle, che è una buona abitudine diventata un alibi.
+
+Una prova di mutazione lo ha mostrato: togliendo la chiamata da uno script e lasciando
+l'import, il permesso restava verde. Cioè la prova che esiste per smascherare un
+permesso bugiardo lo copriva. Ora vuole la CHIAMATA, e cerca nel codice senza import né
+commenti.
+
+⚠️ E UNA SECONDA SENTINELLA SCRITTA E POI CANCELLATA
+Ne avevo scritta una nuova (`chi-cancella-passa-dalla-regola.spec.ts`) senza accorgermi
+che `una-porta-per-i-giorni.spec.ts` faceva già quella domanda — cioè il difetto che le
+sentinelle esistono per impedire, commesso scrivendone una. Cancellata; la lezione utile
+che portava (le parentesi) è finita dentro quella vera.
+
+⚠️ IL TABULATO CHE RISPONDEVA «TUTTO A POSTO» GUARDANDO METÀ DELLA DOMANDA
+`diag:struttura` leggeva solo gli override per dieta e diceva «0 esposte». I due
+interruttori hanno anche un valore globale, ed erano ACCESI tutti e due —
+`menu_kcal_need_enabled` senza nemmeno una riga in `config_param`, quindi col default
+`true` del codice. Un tabulato che risponde bene guardando metà della domanda è peggio
+di un tabulato che non esiste: quello lo si rifà, questo lo si crede.
+
+USO
+  npm run rifai:troppi-pasti             → cosa cancellerebbe, cliente per cliente
+  APPLICA=1 npm run rifai:troppi-pasti   → cancella
+⚠️ Dopo, quelle clienti non hanno quei giorni finché non gira l'erogazione: o si aspetta
+il cron notturno, o si fa girare `daily` a mano.
+
+Test: 6297 su 372 suite, verdi nelle quattro modalità. Build pulita.

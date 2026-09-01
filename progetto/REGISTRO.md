@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` ⛔ **Le quattro giornate col pasto in più, e le due volte che un guardiano ha fermato
+  me.** Il difetto della struttura ha colpito davvero: **4 giornate, 2 clienti**, il 2 e il 3
+  settembre — tutte ancora da aprire, il caso migliore possibile. ⚠️ Ma il tabulato che diceva «0
+  esposte» **mentiva**: leggeva solo gli interruttori per dieta, e i due globali erano accesi tutti
+  e due (`menu_kcal_need_enabled` senza nemmeno una riga in `config_param`, quindi col default
+  `true` del codice). Un tabulato che risponde «tutto a posto» guardando metà della domanda è
+  peggio di un tabulato che non esiste: quello lo si rifà, questo lo si crede. ⛔ **Poi
+  `una-porta-per-i-giorni.spec.ts` ha bocciato il mio script prima che girasse**: cancellava solo
+  le quattro giornate sbagliate — la cosa che sembra più prudente — e `deliverIfEligible` non cerca
+  i buchi, guarda l'**ultimo** giorno: lasciando il 4 settembre in piedi avrei aperto due buchi
+  **permanenti** su due clienti vere. Riscritto su `codaDaRifare`, una cliente per volta. ⛔ **E poi
+  quella sentinella aveva il difetto che cercava**: la prova «chi dichiara di passare dalla porta ci
+  passa davvero» cercava il **nome**, e il nome sta anche nell'`import` e nei commenti — che qui
+  nominano le porte per spiegarle, buona abitudine diventata un alibi. Una prova di mutazione l'ha
+  mostrato: togliendo la chiamata e lasciando l'import il permesso restava verde. Ora vuole la
+  **chiamata**, nel codice senza import né commenti. ⚠️ E una sentinella nuova che avevo scritto
+  senza accorgermi che quella domanda esisteva già — cioè il difetto che le sentinelle impediscono,
+  commesso scrivendone una — è stata cancellata, tenendo solo la lezione.
+
 - `[Sviluppo]` 🏷️ **I parametri nuovi hanno un nome, e da oggi il debito non cresce.** Un parametro
   nasce nel backend col suo default e funziona subito; in pagina «Parametri» però compariva in
   fondo, sotto «Altro», con la **chiave grezza**. L'1/9 erano sei insieme, tutti miei. ⚠️ La pagina
