@@ -27,7 +27,7 @@
  *   ESEMPI=40 npm run panieri:riempi    → più righe negli elenchi (default 20)
  */
 import { PrismaClient } from '@prisma/client';
-import { paniereDellaVariante, panieriDaCreare, ricetteDellaGiornata } from '../src/catalog/appartenenza-panieri';
+import { IMPOSSIBILI, paniereDellaVariante, panieriDaCreare, ricetteDellaGiornata } from '../src/catalog/appartenenza-panieri';
 import { ricettaVaBene } from '../src/common/regimi';
 
 const prisma = new PrismaClient();
@@ -80,8 +80,10 @@ async function main() {
    * cosa che questa migrazione **perde di proposito**, ed è il senso della Fase 1.
    */
   const rotti = new Map<string, number>();
-  /** ⚠️ Chi è stato tenuto fuori dal controllo sul regime, per forma: si stampa, non si nasconde. */
+  /** ⚠️ Chi non ha proprio un paniere dove stare: si stampa, non si nasconde. */
   const fuoriRegime = new Map<string, number>();
+  /** ⚠️ E chi è stato SPOSTATO nel paniere della stessa famiglia col suo regime. */
+  const spostate = new Map<string, number>();
   let nominateVive = 0;
 
   for (const d of diete) {
@@ -137,14 +139,40 @@ async function main() {
          * `npm run panieri:pulisci` — perché questo script solo AGGIUNGE, e non toglie mai niente.
          * Questa riga serve a domani: una volta pulito, tiene pulito.
          */
-        if (!ricettaVaBene(regimeDi.get(r.recipeId), dest.regime)) {
-          fuoriRegime.set(
-            `ricetta «${regimeDi.get(r.recipeId) || '(vuoto)'}» → paniere «${dest.regime}»`,
-            (fuoriRegime.get(`ricetta «${regimeDi.get(r.recipeId) || '(vuoto)'}» → paniere «${dest.regime}»`) ?? 0) + 1,
-          );
-          continue;
+        /**
+         * ⛔ **E SE NON CI STA, SI SPOSTA — non si butta.** Corretto l'1/9 poche ore dopo averlo
+         * scritto, e il difetto era mio: la prima stesura **scartava** la ricetta, e questo ha
+         * quasi cancellato dai menu 531 piatti di pesce.
+         *
+         * La sequenza che l'ha prodotto: `regime:contenuto` sposta il pesce da `vegan` a
+         * `pescetarian` (giusto), `panieri:pulisci` lo toglie dai panieri vegani (giusto) — ma
+         * quelle ricette **stavano solo lì**, nelle giornate delle diete vegane, e nel paniere
+         * onnivoro non c'erano mai state. `panieri:pesce` deriva il pescetariano **da quello**, e
+         * quindi non le trovava. Non più nel posto sbagliato, non ancora in quello giusto: da
+         * nessuna parte.
+         *
+         * ⚠️ **La regola giusta era già tutta nei dati**: la FAMIGLIA la dà la variante che nomina
+         * la ricetta, il REGIME lo dà la ricetta. Il salmone nominato da «Basso indice glicemico
+         * vegana» appartiene a «Basso indice glicemico × pescetarian» — stessa famiglia, il suo
+         * regime — ed è esattamente dove le cinque clienti pescetariane andranno a pescarlo.
+         *
+         * ⚠️ Si sposta solo dove un paniere **esiste**: le celle dichiarate impossibili (§Fase 5)
+         * non si creano per far posto a una ricetta.
+         */
+        let regime = dest.regime;
+        if (!ricettaVaBene(regimeDi.get(r.recipeId), regime)) {
+          const suo = String(regimeDi.get(r.recipeId) ?? '').trim();
+          const esiste = suo && !IMPOSSIBILI.includes(`${dest.famiglia}|${suo}`)
+            && panieriDaCreare().some((p) => p.famiglia === dest.famiglia && p.regime === suo);
+          const etichetta = `ricetta «${suo || '(vuoto)'}» dal paniere «${dest.regime}»`;
+          if (!esiste) {
+            fuoriRegime.set(`${etichetta} → NESSUN paniere per lei`, (fuoriRegime.get(`${etichetta} → NESSUN paniere per lei`) ?? 0) + 1);
+            continue;
+          }
+          spostate.set(`${etichetta} → «${suo}»`, (spostate.get(`${etichetta} → «${suo}»`) ?? 0) + 1);
+          regime = suo;
         }
-        const chiave = `${dest.famiglia}|${dest.regime}`;
+        const chiave = `${dest.famiglia}|${regime}`;
         const set = dentro.get(chiave) ?? new Set<string>();
         set.add(`${r.recipeId}|${r.slot}`);
         dentro.set(chiave, set);
@@ -184,17 +212,30 @@ async function main() {
    * è un controllo di cui, fra un mese, nessuno sa più se sta girando — ed è la stessa ragione per
    * cui il riquadro del generatore in pagina Ricette non sparisce quando va tutto bene.
    */
+  const spostateTot = [...spostate.values()].reduce((s2, n) => s2 + n, 0);
   const fuoriTot = [...fuoriRegime.values()].reduce((s2, n) => s2 + n, 0);
   riga('');
-  riga(`  Tenute fuori dal controllo sul REGIME: ${fuoriTot}.`);
+  riga(`  SPOSTATE nel paniere della stessa famiglia col loro regime: ${spostateTot}.`);
+  if (spostateTot) {
+    riga('  ⚠️ La famiglia la dà la variante che nomina la ricetta, il regime lo dà la ricetta: un');
+    riga('  salmone nominato da «Basso indice glicemico vegana» va in «Basso indice glicemico ×');
+    riga('  pescetarian», dove le clienti pescetariane lo trovano.');
+    for (const [k, n] of [...spostate.entries()].sort((a, b) => b[1] - a[1]).slice(0, ESEMPI)) {
+      riga(`  · ${String(n).padStart(4)}  ${k}`);
+    }
+  } else {
+    riga('  ✅ Nessuna da spostare: ogni ricetta nominata sta già nel paniere giusto.');
+  }
+  riga('');
+  riga(`  Senza NESSUN paniere possibile: ${fuoriTot}.`);
   if (fuoriTot) {
-    riga('  ⛔ Una ricetta non entra in un paniere che non può mangiarla. Se il numero è grosso,');
-    riga('  prima di scrivere vale la pena guardare `npm run diag:carne-fuori-posto`.');
+    riga('  ⛔ Il loro regime non ha un paniere in quella famiglia (o è una cella impossibile).');
+    riga('  Queste restano fuori davvero, e vanno guardate: `npm run diag:orfane`.');
     for (const [k, n] of [...fuoriRegime.entries()].sort((a, b) => b[1] - a[1]).slice(0, ESEMPI)) {
       riga(`  · ${String(n).padStart(4)}  ${k}`);
     }
   } else {
-    riga('  ✅ Nessuna: ogni ricetta nominata sta in un paniere che può mangiarla.');
+    riga('  ✅ Nessuna.');
     riga('  ⚠️ Non vuol dire che nei panieri non ci sia pesce dove non deve: una ricetta con');
     riga('  l\'ETICHETTA sbagliata passa di qui indisturbata. Quello lo dice `regime:contenuto`.');
   }

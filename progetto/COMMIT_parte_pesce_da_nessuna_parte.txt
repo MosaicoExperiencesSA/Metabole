@@ -1,0 +1,33 @@
+Il pesce non è più nel posto sbagliato e non è ancora in quello giusto
+
+⛔ CONSEGUENZA DELLA SEQUENZA CHE HO DATO IO, e me ne sono accorto dopo che l'aveva lanciata.
+
+`regime:contenuto` sposta ~531 ricette di pesce da `vegan`/`vegetarian` a `pescetarian`: giusto.
+`panieri:pulisci` le toglie dai panieri vegani, dove non potevano stare: giusto.
+
+⚠️ Ma quelle ricette stavano SOLO lì — nelle giornate delle diete vegane. Nel paniere ONNIVORO non
+sono mai state, e `panieri:pesce` deriva il pescetariano proprio da quello. Quindi non le trova.
+
+Risultato: non più nel posto sbagliato, non ancora in quello giusto. Da nessuna parte. Cinquecento
+piatti di pesce che nessuna cliente riceve più — comprese le cinque pescetariane appena migrate,
+per cui tutto questo lavoro esiste.
+
+⛔ E LA CAUSA VERA È UNA RIGA CHE HO SCRITTO IERI SERA: la porta nuova in `riempi-panieri`
+SCARTAVA la ricetta che non c'entrava col paniere. Scartare era la scelta comoda, e sbagliata.
+
+LA REGOLA GIUSTA ERA GIÀ NEI DATI
+La FAMIGLIA la dà la variante che nomina la ricetta; il REGIME lo dà la ricetta. Un salmone
+nominato dalle giornate di «Basso indice glicemico vegana» appartiene a «Basso indice glicemico ×
+pescetarian» — stessa famiglia, il suo regime — ed è esattamente dove le pescetariane pescano.
+
+Quindi `riempi-panieri` non scarta più: SPOSTA. E dice quante ne ha spostate, riga per riga.
+⚠️ Si sposta solo dove un paniere esiste: le celle dichiarate impossibili non si creano per far
+posto a una ricetta. Quelle poche restano fuori davvero, e si contano a parte.
+
+E UN TABULATO PER VEDERLO: `npm run diag:orfane`
+Quante ricette attive non stanno in NESSUN paniere, per regime, in percentuale sul totale di quel
+regime. ⚠️ Una ricetta fuori dai panieri non è di per sé un difetto — il catalogo è più grande delle
+dieci famiglie — quello che conta è se un regime si è staccato di colpo. Se «pescetarian» è quasi
+tutto fuori, è successo quello che c'è scritto qui sopra.
+
+Test: backend 6525 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

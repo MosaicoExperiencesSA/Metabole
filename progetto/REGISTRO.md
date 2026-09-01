@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🎣 **Il pesce non è più nel posto sbagliato e non è ancora in quello giusto.**
+  ⛔ **Conseguenza della sequenza che ho dato io**, vista dopo che era già stata lanciata:
+  `regime:contenuto` sposta ~531 ricette di pesce da vegano a `pescetarian` (giusto),
+  `panieri:pulisci` le toglie dai panieri vegani (giusto) — ⚠️ ma quelle ricette **stavano solo lì**,
+  nelle giornate delle diete vegane, e nel paniere **onnivoro** non sono mai state: `panieri:pesce`
+  deriva il pescetariano proprio da quello. Risultato: cinquecento piatti di pesce che non riceve
+  più nessuno, comprese **le cinque pescetariane appena migrate**, per cui tutto questo lavoro
+  esiste. ⛔ **E la causa è una riga mia di ieri sera**: la porta nuova in `riempi-panieri`
+  **scartava** la ricetta che non c'entrava col paniere — la scelta comoda, e sbagliata. ✅ **La
+  regola giusta era già nei dati**: la *famiglia* la dà la variante che nomina la ricetta, il
+  *regime* lo dà la ricetta. Un salmone nominato da «Basso indice glicemico vegana» appartiene a
+  «Basso indice glicemico × pescetarian» — ed è dove le pescetariane pescano. Quindi non si scarta
+  più: si **sposta**, e si dice quante. ⚠️ Solo dove un paniere esiste: le celle impossibili non si
+  creano per far posto a una ricetta. ✅ E `npm run diag:orfane` dice quante ricette attive non stanno
+  in nessun paniere, per regime e in percentuale — perché una ricetta fuori non è di per sé un
+  difetto, quello che conta è se un regime si è staccato di colpo.
+
 - `[Sviluppo]` 🍄 **I funghi ostrica non sono ostriche — e cosa dice l'elenco lungo.** Letti i 549
   nomi di `regime:contenuto`: il mucchio «sicuro» adesso regge — quasi tutte le righe sono pesce e
   carne **veri** dentro ricette dichiarate vegane o vegetariane («Salmone al forno» vegan, «Petto di
