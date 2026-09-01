@@ -1,0 +1,12 @@
+-- L'OMAGGIO DI RIENTRO DATO DURANTE LA PAUSA — richiesta di Simone del 27/8 (Fase 6.2).
+--
+-- Quando la cliente in pausa manda una pesata e risulta salita oltre la soglia, riceve alcune
+-- giornate scelte sul suo storico. La regola è «una volta per mese solare», e senza un segno che
+-- dura un cron che gira due volte in una notte regalerebbe l'omaggio due volte.
+--
+-- ⛔ NON si riusa `rientro_menus_at`: quello dice «questa pausa l'ho già esaminata a fine corsa» e
+-- si scrive SEMPRE, anche quando non si eroga niente. Riusarlo vorrebbe dire che una pausa
+-- esaminata e finita a vuoto blocca l'omaggio del mese successivo.
+--
+-- Nullable e senza default: aggiungerla non tocca nessuna riga esistente.
+ALTER TABLE "pause_request" ADD COLUMN "omaggio_rientro_il" TIMESTAMP(3);

@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🏖️ **Vacanze in Serenità: la mano arriva durante la pausa, non dopo.** Richiesta di
+  Simone del 27/8. ⚠️ Il motore c'era ma scattava nel momento sbagliato — solo a fine pausa: chi
+  partiva tre settimane e a metà si accorgeva di essere salita di tre chili doveva aspettare il
+  rientro. Il dato passava già, mancava il **momento del controllo**. ⛔ **Guardia (a)**:
+  l'eccezione al «piano fermo» ha una **porta sua** — metterla dentro il cancello vorrebbe dire che
+  da domani chiunque passi di lì eroga a piano sospeso senza saperlo, e un cancello con un buco
+  dentro non è più un cancello. Una sentinella verifica che i cancelli **non la nominino**. ⛔
+  **Guardia (b)**: il segno si scrive **prima** di erogare — se si scrivesse dopo, due giri del cron
+  nella stessa notte regalerebbero l'omaggio due volte; meglio un omaggio mancato che due. E il
+  segno è una **colonna sua**, non `rientroMenusAt`, che dice un'altra cosa e si scrive sempre. ⛔
+  **Un terzo no che il piano non aveva previsto**: una pesata vecchia non è una pesata — senza
+  limite, una pesata di sei settimane fa farebbe scattare l'omaggio **ogni mese all'infinito**,
+  perché resta «l'ultima» finché non ne manda un'altra. ⚠️ I no sono **quattro e distinti**: chi
+  legge i log deve poter dire quale, «niente da fare» è la frase da cui non si impara niente. 4
+  giornate con un parametro suo, perché `monitoring_rientro_days` è un prodotto comprato a €19. ⚠️ E
+  la sentinella delle etichette ha funzionato su di me: il parametro nuovo sarebbe nato muto.
+
 - `[Sviluppo]` 📊 **La copertura per paniere: due numeri, non uno.** La pagina Panieri contava i
   piatti per pasto; le mancava quello che conta. ⛔ **Un paniere con 200 piatti di cui 20 attivi è un
   paniere da 20**: un piatto generato nasce in bozza, e con un numero solo la pagina direbbe che va

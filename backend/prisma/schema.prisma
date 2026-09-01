@@ -2542,6 +2542,13 @@ model PauseRequest {
   // Serve solo a non rierogarli a ogni giro del cron.
   rientroMenusAt   DateTime? @map("rientro_menus_at")
   coachAlertedAt   DateTime? @map("coach_alerted_at")
+  // ⚠️ **L'OMAGGIO DI RIENTRO DATO DURANTE LA PAUSA** (richiesta di Simone del 27/8, Fase 6.2).
+  // ⛔ NON è `rientroMenusAt`, ed è la differenza che conta: quello dice «questa pausa l'ho già
+  // esaminata a fine corsa» e si scrive SEMPRE, anche quando non si eroga niente. Questo dice
+  // «l'omaggio gliel'ho dato, il tal giorno», ed è il segno su cui gira la regola «una volta per
+  // mese solare». Riusare il primo per il secondo vorrebbe dire che una pausa esaminata e finita a
+  // vuoto blocca l'omaggio del mese dopo.
+  omaggioRientroIl DateTime? @map("omaggio_rientro_il")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

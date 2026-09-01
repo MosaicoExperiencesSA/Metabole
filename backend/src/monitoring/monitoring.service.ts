@@ -434,8 +434,15 @@ export class MonitoringService {
    * ereditato dal vecchio prodotto «Menu di rientro (8 giorni)» a €29, che non esiste più. Sette
    * è la settimana, che è come la cliente pensa il tempo: «per una settimana mangi così».
    */
-  async generateRientroMenus(clientId: string): Promise<number> {
-    const giorni = Math.max(1, await this.configParams.getNumber('monitoring_rientro_days', 7));
+  async generateRientroMenus(clientId: string, quantiGiorni?: number): Promise<number> {
+    /**
+     * ⚠️ **Quanti giorni: chi chiama può dirlo** (1/9, Fase 6.2). L'omaggio dato **durante** la
+     * pausa è di 4 giornate — richiesta di Simone del 27/8 — mentre il kit di fine monitoraggio
+     * resta di 7. ⛔ Sono due cose diverse e non devono condividere il parametro: cambiare
+     * `monitoring_rientro_days` per accorciare l'omaggio accorcerebbe anche il kit del piano a
+     * €19, cioè un prodotto che qualcuno ha comprato.
+     */
+    const giorni = Math.max(1, quantiGiorni ?? await this.configParams.getNumber('monitoring_rientro_days', 7));
     const history = (await this.prisma.menuDay.findMany({
       where: { clientId, date: { lte: new Date() } },
       orderBy: { date: 'desc' },

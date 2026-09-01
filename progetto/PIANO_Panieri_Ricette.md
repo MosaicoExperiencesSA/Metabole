@@ -391,7 +391,16 @@ Non è un catalogo: è una **selezione dallo storico personale**. I due segnali 
 `MenuWeight` (efficacia) e `RecipeRating` (gusto). Si scrive la regola di composizione, si chiude
 la famiglia, e le sue sei varianti a 84 confluiscono nei panieri delle famiglie corrispondenti.
 
-#### 6.2 Vacanze in Serenità — 2–3 consegne
+#### 6.2 Vacanze in Serenità — **FATTA (1/9)**
+
+✅ Il controllo **durante** la pausa (`pause.service.ts` → `spettaLOmaggio`), 4 giornate
+(`pause_omaggio_giorni`, parametro suo), e le due guardie: l'eccezione al «piano fermo» vive in
+`pause/omaggio-di-rientro.ts` e i cancelli non la nominano; il segno che dura è
+`pause_request.omaggio_rientro_il`, scritto **prima** di erogare.
+
+⚠️ Aggiunto un terzo no che il piano non aveva previsto: **una pesata vecchia non è una pesata**.
+Senza, una pesata di sei settimane fa farebbe scattare l'omaggio ogni mese all'infinito, perché
+resta «l'ultima» finché la cliente non ne manda un'altra.
 
 Simone (27/8): *«mentre il cliente è in vacanza monitora il peso (lo fa inserire quando vuole) e
 se vede un grosso aumento gli suggerisce 4 giorni di menu tra quelli che gli hanno reso di più.

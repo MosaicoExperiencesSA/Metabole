@@ -28,6 +28,7 @@ import {
   treguaFraVacanze,
   treguaVersoLaProssima,
 } from './tregua-fra-vacanze';
+import { spettaLOmaggio } from './omaggio-di-rientro';
 import {
   fraseNonSiSovrappone,
   primoGiornoUtile,
@@ -434,7 +435,7 @@ export class PauseService {
    *    pausa no — lì i menu sono sospesi per definizione, e mandarglieli mentre è in vacanza
    *    sarebbe il contrario del punto di avere una pausa.
    */
-  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number; rientriSegnati: number; parcheggiate: number; riportate: number }> {
+  async surveillanceTick(): Promise<{ pauseAttive: number; misureChieste: number; coachAvvisate: number; menuDiRientro: number; omaggiDati: number; rientriSegnati: number; parcheggiate: number; riportate: number }> {
     const now = new Date();
     // ⚠️ Il giorno di Roma, non quello del processo: era `setHours(0,0,0,0)`, che su Render è UTC.
     // Questo giro decide quali pause sono in corso OGGI e a chi tocca il menu di rientro — nelle
@@ -442,9 +443,15 @@ export class PauseService {
     // pausa l'aveva appena finita.
     const oggi = aGiorno(now);
 
-    const [askDays, sogliaKg] = await Promise.all([
+    const [askDays, sogliaKg, giorniOmaggio] = await Promise.all([
       this.configParams.getNumber('pause_watch_ask_days', 5),
       this.configParams.getNumber('pause_watch_regain_kg', 2),
+      /**
+       * ⚠️ **Quattro giornate, non sette** (richiesta di Simone, 27/8). E un parametro SUO, non
+       * `monitoring_rientro_days`: quello è il kit di fine monitoraggio, un prodotto che qualcuno
+       * ha comprato a €19, e accorciare l'omaggio non deve accorciare anche quello.
+       */
+      this.configParams.getNumber('pause_omaggio_giorni', 4),
     ]);
 
     const pause = (await this.prisma.pauseRequest.findMany({
@@ -453,7 +460,12 @@ export class PauseService {
         startDate: { lte: oggi },
         endDate: { gte: oggi },
       },
-    })) as {
+    /**
+     * ⚠️ `as unknown as`: il client Prisma generato in sandbox non conosce la colonna nuova finché
+     * non gira `prisma generate` — su Render lo fa il build. È la stessa forma usata altrove nel
+     * progetto per le colonne appena aggiunte.
+     */
+    })) as unknown as {
       id: string;
       clientId: string;
       startDate: Date;
@@ -461,10 +473,15 @@ export class PauseService {
       refWeightKg: number | null;
       lastMeasureAskAt: Date | null;
       coachAlertedAt: Date | null;
+      /** ⚠️ Nel cast perché la query prende tutte le colonne: leggerlo con un `as` in linea
+       *  vorrebbe dire che il giorno che qualcuno aggiunge un `select` il campo sparisce in
+       *  silenzio e l'omaggio si ripeterebbe ogni notte. */
+      omaggioRientroIl: Date | null;
     }[];
 
     let misureChieste = 0;
     let coachAvvisate = 0;
+    let omaggiDati = 0;
 
     for (const p of pause) {
       try {
@@ -561,6 +578,67 @@ export class PauseService {
             })
             .catch(() => undefined);
           misureChieste++;
+        }
+
+        /**
+         * ⛔ **3) L'OMAGGIO DI RIENTRO, DURANTE LA PAUSA** — richiesta di Simone del 27/8:
+         * *«mentre il cliente è in vacanza monitora il peso e se vede un grosso aumento gli
+         * suggerisce 4 giorni di menu tra quelli che gli hanno reso di più»*.
+         *
+         * ⚠️ Fino a oggi il controllo esisteva **solo a fine pausa** (`erogaRientriDiFinePausa`):
+         * chi partiva tre settimane e a metà si accorgeva di essere salita di tre chili doveva
+         * aspettare il rientro per avere una mano. Il dato passava già — la cliente si pesa quando
+         * vuole — mancava il **momento del controllo**.
+         *
+         * ⛔ **L'eccezione al «piano fermo» sta in una porta sua**, `omaggio-di-rientro.ts`, ed è la
+         * guardia (a) del 27/8: metterla dentro il cancello «piano sospeso» vorrebbe dire che da
+         * domani chiunque passi di lì eroga a piano fermo senza saperlo. Qui l'eccezione ha un
+         * nome, e il cancello continua a dire «a piano fermo non si eroga» — che resta vero per
+         * tutti gli altri.
+         */
+        if (riferimento != null) {
+          const ultima = (await this.prisma.measurement.findFirst({
+            where: { clientId: p.clientId },
+            orderBy: { date: 'desc' },
+            select: { weightKg: true, date: true },
+          })) as { weightKg: number; date: Date } | null;
+
+          const esito = spettaLOmaggio(
+            {
+              refWeightKg: riferimento,
+              ultimaPesataKg: ultima?.weightKg ?? null,
+              sogliaKg,
+              ultimoOmaggioIl: p.omaggioRientroIl ?? null,
+              oggi,
+            },
+            ultima?.date ?? null,
+          );
+
+          if (esito.spetta) {
+            /**
+             * ⛔ **Il segno si scrive PRIMA di erogare**, ed è la guardia (b) scritta come codice:
+             * se si scrivesse dopo, un errore in mezzo — o due giri del cron nella stessa notte —
+             * regalerebbe l'omaggio due volte. Meglio un omaggio mancato che due: il primo si
+             * recupera il mese dopo, il secondo è una cliente che riceve menu mentre ha chiesto di
+             * non riceverne.
+             */
+            await this.prisma.pauseRequest.update({
+              where: { id: p.id },
+              data: { omaggioRientroIl: new Date() } as never,
+            });
+            const quanti = await this.monitoring.generateRientroMenus(p.clientId, giorniOmaggio);
+            if (quanti > 0) {
+              await this.notifications
+                .notify({
+                  userId: p.clientId,
+                  type: 'pause_omaggio_rientro',
+                  title: 'Una mano, se ti va 🧰',
+                  body: `Sono +${esito.deltaKg} kg da quando sei partita, e capita a tutte. Ti ho messo in app ${quanti} giornate scelte sul tuo storico — quelle che su di te hanno funzionato meglio. Sono un regalo: la pausa resta, e se non ti va le ignori.`,
+                })
+                .catch(() => undefined);
+              omaggiDati++;
+            }
+          }
         }
       } catch {
         // Una pausa che va storta non deve fermare le altre né il cron.
@@ -789,7 +867,7 @@ export class PauseService {
     //    tre chili addosso era il momento peggiore per farlo. Ora si erogano e basta.
     const menuDiRientro = await this.erogaRientriDiFinePausa(oggi, sogliaKg);
 
-    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro, rientriSegnati, parcheggiate, riportate };
+    return { pauseAttive: pause.length, misureChieste, coachAvvisate, menuDiRientro, omaggiDati, rientriSegnati, parcheggiate, riportate };
   }
 
   /**

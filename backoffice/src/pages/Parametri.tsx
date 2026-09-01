@@ -93,6 +93,12 @@ const META: Record<string, Meta> = {
     help: 'Se oggi a pranzo c’è la pasta al pomodoro e a cena il branzino, per tanti giorni quella coppia non torna — anche se i due piatti, presi da soli, potrebbero. ZERO spegne la regola. Se il paniere è piccolo e non restano coppie nuove, la giornata si compone lo stesso e finisce nei log.',
   },
 
+  // L'OMAGGIO DI RIENTRO durante la pausa (richiesta di Simone, 27/8).
+  pause_omaggio_giorni: {
+    label: 'Giornate regalate se ingrassa in pausa', group: 'Menu · panieri', kind: 'number', unit: 'giornate',
+    help: 'Mentre è in pausa la cliente si pesa quando vuole. Se risulta salita oltre la soglia (Kg di rientro), le arrivano queste giornate scelte fra quelle che su di lei hanno funzionato meglio — una volta al mese, e la pausa resta. Non è il kit di fine monitoraggio, che ha il numero suo.',
+  },
+
   // L'AGENTE CHE SCRIVE COLAZIONI, SPUNTINI E MERENDE quando mancano (31/8).
   agente_leggeri_acceso: {
     label: 'Agente colazioni e spuntini', group: 'Menu · panieri', kind: 'toggle',

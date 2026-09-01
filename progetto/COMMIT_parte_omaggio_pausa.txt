@@ -1,0 +1,65 @@
+Vacanze in Serenità: la mano arriva DURANTE la pausa, non dopo
+
+Richiesta di Simone del 27/8: «mentre il cliente è in vacanza monitora il peso (lo fa
+inserire quando vuole) e se vede un grosso aumento gli suggerisce 4 giorni di menu tra
+quelli che gli hanno reso di più».
+
+⚠️ IL MOTORE C'ERA, MA SCATTAVA NEL MOMENTO SBAGLIATO. Il controllo esisteva solo a fine
+pausa: chi partiva tre settimane e a metà si accorgeva di essere salita di tre chili
+doveva aspettare il rientro per avere una mano. Il dato passava già — la cliente si pesa
+quando vuole — mancava il MOMENTO del controllo.
+
+⛔ GUARDIA (a): L'ECCEZIONE AL «PIANO FERMO» HA UNA PORTA SUA
+Tutto il motore si ferma quando il piano è sospeso, e quella regola ha una ragione: la
+cliente ha chiesto di non ricevere menu. L'omaggio è l'unica eccezione, ed è voluta.
+
+⚠️ La tentazione era metterla DENTRO il controllo «piano fermo», con un `if` in più.
+Sarebbe l'errore: da quel momento la condizione «si eroga a piano sospeso» vivrebbe dentro
+il cancello, e il prossimo pezzo di codice che passa di lì la erediterebbe senza saperlo.
+Un cancello con un buco dentro non è più un cancello.
+Ora l'eccezione ha un nome (`pause/omaggio-di-rientro.ts`), e una sentinella verifica che
+i cancelli NON la nominino: se `deliverIfEligible` o `perche-non-ricompone` la citassero,
+vorrebbe dire che è rientrata dentro.
+
+⛔ GUARDIA (b): IL SEGNO SI SCRIVE PRIMA DI EROGARE
+«Una volta per mese solare» ha bisogno di un segno che dura, e il segno si scrive prima.
+Se si scrivesse dopo, un errore in mezzo — o due giri del cron nella stessa notte —
+regalerebbe l'omaggio due volte. Meglio un omaggio mancato che due: il primo si recupera
+il mese dopo, il secondo è una cliente che riceve menu mentre ha chiesto di non riceverne.
+
+⚠️ E il segno è una COLONNA SUA, non `rientroMenusAt`: quello dice «questa pausa l'ho già
+esaminata a fine corsa» e si scrive SEMPRE, anche quando non si eroga niente. Riusarlo
+vorrebbe dire che una pausa esaminata a vuoto blocca l'omaggio del mese dopo.
+
+⚠️ MESE SOLARE, NON TRENTA GIORNI, e la forma la decide un precedente: il report mensile,
+dove «la notifica del mese fa da marcatore». Trenta giorni sarebbe più giusto in astratto
+e molto peggio da spiegare — chi riceve l'omaggio il 30 giugno e lo rivuole il 2 agosto
+non capirebbe perché deve aspettare, e avrebbe ragione.
+
+⛔ UN TERZO NO CHE IL PIANO NON AVEVA PREVISTO: UNA PESATA VECCHIA NON È UNA PESATA
+Il confronto usa «l'ultima pesata». Senza un limite, una pesata di sei settimane fa
+farebbe scattare l'omaggio ogni mese ALL'INFINITO, perché resta l'ultima finché la cliente
+non ne manda un'altra: riceverebbe il kit di rientro tutti i mesi su un peso che non è più
+il suo. Limite dichiarato: 21 giorni.
+
+⚠️ E I «NO» SONO QUATTRO E DISTINTI — non è ingrassata, non si pesa, la pesata è vecchia,
+l'ha già avuto. Chi legge i log deve poter dire quale: «niente da fare» è la frase da cui
+non si impara niente.
+
+4 GIORNATE, con un parametro SUO (`pause_omaggio_giorni`): `monitoring_rientro_days` è il
+kit di fine monitoraggio, un prodotto comprato a €19, e accorciare l'omaggio non deve
+accorciare quello.
+
+⚠️ MIGRAZIONE: `20260901120000_omaggio_di_rientro_durante_la_pausa` — una colonna nullable
+su `pause_request`. La applica il preDeploy di Render.
+
+⚠️ E la sentinella delle etichette ha funzionato su di me: il parametro nuovo sarebbe nato
+muto in pagina Parametri. Etichetta scritta prima del commit.
+
+PROVE DI MUTAZIONE (tre, uccise)
+  1. il segno si scrive dopo l'erogazione   → 1 prova rossa
+  2. il mese solare diventa trenta giorni   → 2 prove rosse
+  3. la pesata vecchia non viene guardata   → 2 prove rosse
+
+Test: backend 6346 su 379 suite, verdi nelle quattro modalità; back office 173 su 20.
+Build pulite.
