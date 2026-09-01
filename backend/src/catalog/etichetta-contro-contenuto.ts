@@ -45,19 +45,54 @@ export type Esito =
 export const PAROLE_DA_IMITAZIONE: readonly string[] = [
   'vegetale', 'vegetali', 'vegan', 'vegano', 'vegana', 'finto', 'finta', 'finti', 'finte',
   'di tofu', 'di seitan', 'di soia', 'di tempeh', 'di lupini', 'di ceci', 'di melanzane',
-  "d'alghe", 'di alghe', 'di jackfruit', 'di muscolo di grano',
+  "d'alghe", 'di alghe', 'di jackfruit', 'di muscolo di grano', 'di grano saraceno',
 ];
+
+/**
+ * ⛔ **LA PAROLA DEVE STARE SUBITO DOPO L'ANIMALE — non da qualche parte nel piatto** (1/9,
+ * seconda stesura, e la prima ha fatto danno in produzione).
+ *
+ * La prima versione cercava la parola nel testo intero. In cucina italiana è un disastro: «brodo
+ * **vegetale**» sta in metà delle ricette di pesce, «purè **di ceci**» è un contorno normale,
+ * «salsa **di soia**» è salsa di soia. Risultato: **152 ricette finite fra le dubbie**, quasi tutte
+ * a torto — e 147 piatti di pesce veri rimasti etichettati `omnivore`, che `panieri:pulisci` stava
+ * per togliere dai panieri pescetariani.
+ *
+ * ⚠️ **L'imitazione è una cosa che si dichiara ATTACCATA al nome dell'animale**: «prosciutto
+ * vegetale», «polpo di ceci», «branzino di melanzane», «pollo di tempeh», «acciughe vegetali». Se
+ * fra i due c'è una frase — «tonno al sesamo su purè di ceci» — non è un'imitazione, è un contorno.
+ *
+ * ⚠️ La finestra è corta apposta (poche lettere dopo il termine): allargarla vorrebbe dire tornare
+ * al problema di prima un pezzetto alla volta.
+ */
+/**
+ * Vero se la parola-imitazione ha **come parola immediatamente precedente** il nome di un animale.
+ *
+ * ⚠️ Si guarda indietro e non avanti perché la parola-imitazione è quella che si trova: partire da
+ * lì e chiedere «di cosa dice di essere l'imitazione?» è una domanda sola, mentre partire
+ * dall'animale vorrebbe dire sapere quale dei suoi cinquanta nomi ha fatto scattare.
+ *
+ * ⛔ **UNA PAROLA, NON UNA FINESTRA DI LETTERE.** La seconda stesura guardava le 18 lettere prima,
+ * e su «filetto di merluzzo · brodo vegetale» ci finiva dentro «merluzzo»: falso positivo uguale a
+ * quello di partenza, solo più corto. La parola attaccata è l'unica cosa che distingue «prosciutto
+ * vegetale» da «brodo vegetale», e va guardata quella e basta.
+ */
+const ultimaParola = (testo: string): string =>
+  testo.trimEnd().split(/[^a-zà-ú]+/i).filter(Boolean).pop() ?? '';
 
 export const sembraUnImitazione = (testo: string): string | null => {
   const t = (testo ?? '').toLowerCase();
-  return PAROLE_DA_IMITAZIONE.find((k) => t.includes(k)) ?? null;
+  for (const k of PAROLE_DA_IMITAZIONE) {
+    let i = t.indexOf(k);
+    while (i !== -1) {
+      const parola = ultimaParola(t.slice(0, i));
+      if (parola && (eCarneIngrediente(parola) || ePesce(parola))) return k;
+      i = t.indexOf(k, i + 1);
+    }
+  }
+  return null;
 };
 
-/**
- * ⚠️ Il regime giusto è **il più stretto che può mangiarlo**: il pesce va a `pescetarian`, non a
- * onnivoro. Buttare il pesce nell'onnivoro lo toglierebbe alle pescetariane, che è metà del motivo
- * per cui questa correzione esiste.
- */
 export const regimeGiusto = (cosa: Cosa): 'omnivore' | 'pescetarian' =>
   (cosa === 'carne' ? 'omnivore' : 'pescetarian');
 
@@ -91,7 +126,11 @@ export function classifica(nome: string, ingredienti: readonly string[], regimeD
    */
   const carneIng = ingredienti.find((i) => eCarneIngrediente(i));
   const pesceIng = carneIng ? undefined : ingredienti.find((i) => ePesce(i));
-  const imitazione = sembraUnImitazione([nome, ...ingredienti].join(' · '));
+  /**
+   * ⚠️ **Si parte dal termine che ha fatto scattare**, non dal piatto intero: l'imitazione è la
+   * parola attaccata a quel termine. «Prosciutto di tofu» sì, «tonno con purè di ceci» no.
+   */
+  const imitazione = sembraUnImitazione(`${nome} · ${ingredienti.join(' · ')}`);
 
   if (carneIng || pesceIng) {
     const cosa: Cosa = carneIng ? 'carne' : 'pesce';

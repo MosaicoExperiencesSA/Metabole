@@ -1,0 +1,45 @@
+«Brodo vegetale» non è un'imitazione — e «il conto non torna» era un allarme falso mio
+
+Due difetti miei, trovati nell'output di una sequenza andata bene.
+
+⛔ 1. IL FILTRO DELLE IMITAZIONI CERCAVA LA PAROLA IN TUTTO IL PIATTO
+E in cucina italiana è un disastro: «brodo vegetale» sta in metà delle ricette di pesce, «purè di
+ceci» è un contorno normale, «salsa di soia» è salsa di soia.
+
+  152 ricette finite fra le dubbie, quasi tutte a torto:
+  · «Merluzzo in umido con patate dolci»    ← «vegetale»   (brodo vegetale)
+  · «Tonno al sesamo su purè di ceci»       ← «di ceci»    (il contorno)
+  · «Gamberoni al vapore con riso basmati»  ← «di soia»    (la salsa)
+
+E la conseguenza vera: **147 piatti di pesce sono rimasti etichettati `omnivore`**, e
+`panieri:pulisci` stava per toglierli dai panieri pescetariani — cioè dalle uniche cinque clienti
+per cui tutto questo lavoro esiste.
+
+⚠️ L'IMITAZIONE È UNA COSA CHE SI DICHIARA ATTACCATA AL NOME DELL'ANIMALE: «prosciutto vegetale»,
+«polpo di ceci», «branzino di melanzane», «pollo di tempeh». Se fra i due c'è una frase, non è
+un'imitazione: è un contorno. Ora si guarda la parola immediatamente precedente, e basta.
+
+⛔ E la seconda stesura di questa stessa correzione guardava «le 18 lettere prima» — su «filetto di
+merluzzo · brodo vegetale» ci finiva dentro «merluzzo», cioè lo stesso falso positivo un po' più
+corto. Una PAROLA, non una finestra di lettere.
+
+⚠️ E UNA PROVA È STATA GIRATA, perché proteggeva dalla parte sbagliata: dicevo che «Prosciutto con
+contorno vegetale» dovesse finire nei dubbi «per prudenza». Ma «dubbia» vuol dire NON CORREGGO,
+cioè lascia il prosciutto etichettato vegetariano — che è esattamente il danno da cui volevo
+proteggermi. La prudenza va nell'altro verso: è carne, e si corregge.
+
+⛔ 2. «IL CONTO NON TORNA» ERA UN ALLARME FALSO, E L'HO SCRITTO IO
+Il controllo in fondo a `panieri:riempi` confrontava le righe in tabella con quelle derivabili
+dalle giornate, e le pretendeva UGUALI. Andava bene finché il riempimento era l'unico scrittore.
+Poi è arrivato `panieri:pesce`, che scrive righe che dalle giornate non escono: 32335 contro 23227,
+e il tabulato ha gridato su una serata in cui non era andato storto niente.
+
+⚠️ UN ALLARME FALSO COSTA PIÙ DI UNO MANCATO, qui: dice di fermarsi e di cercare un guasto che non
+c'è, alle undici di sera, dopo cinque ore. Ora la domanda è quella giusta — «c'è tutto quello che
+mi aspettavo?» — e le righe in più si dicono col nome di chi le ha scritte.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. il filtro torna a cercare in tutto il testo   → 5 prove rosse
+  2. l'imitazione non ferma più la correzione      → 3 prove rosse
+
+Test: backend 6533 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🍲 **«Brodo vegetale» non è un'imitazione — e «il conto non torna» era un allarme
+  falso mio.** ⛔ **Il filtro delle imitazioni cercava la parola in tutto il piatto**, e in cucina
+  italiana è un disastro: «brodo vegetale» sta in metà delle ricette di pesce, «purè di ceci» è un
+  contorno, «salsa di soia» è salsa di soia. **152 ricette finite fra le dubbie**, quasi tutte a
+  torto — e la conseguenza vera: **147 piatti di pesce rimasti etichettati `omnivore`**, che
+  `panieri:pulisci` stava per togliere dai panieri pescetariani, cioè dalle uniche cinque clienti
+  per cui il lavoro esiste. ⚠️ L'imitazione si dichiara **attaccata** al nome dell'animale
+  («prosciutto vegetale», «polpo di ceci»): ora si guarda la parola immediatamente precedente. ⛔ E
+  la seconda stesura guardava «le 18 lettere prima» — su «filetto di merluzzo · brodo vegetale» ci
+  finiva dentro «merluzzo»: lo stesso falso positivo un po' più corto. Una **parola**, non una
+  finestra. ⚠️ **E una prova è stata girata perché proteggeva dalla parte sbagliata**: dicevo che
+  «Prosciutto con contorno vegetale» dovesse restare nei dubbi «per prudenza», ma «dubbia» vuol dire
+  *non correggo*, cioè lascia il prosciutto etichettato vegetariano — il danno da cui volevo
+  proteggermi. ⛔ **E «IL CONTO NON TORNA» l'ho scritto io**: il controllo in fondo a `panieri:riempi`
+  pretendeva che le righe in tabella fossero **uguali** a quelle derivabili dalle giornate, e questo
+  valeva finché il riempimento era l'unico scrittore. Poi è arrivato `panieri:pesce`. ⚠️ Un allarme
+  falso costa più di uno mancato: dice di fermarsi e cercare un guasto che non c'è, alle undici di
+  sera dopo cinque ore. Ora chiede «c'è tutto quello che mi aspettavo?» e le righe in più le nomina.
+
 - `[Sviluppo]` 🐠 **Un salmone non è onnivoro — e il tabulato smette di gridare su cose già chiuse.**
   ⛔ **Due regole mie che si contraddicevano, e una pulizia che avrebbe fatto danno**: il tabulato ha
   trovato **2351 righe** con una ricetta `omnivore` dentro un paniere `pescetarian`. Non è un errore

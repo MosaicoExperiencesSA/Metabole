@@ -317,9 +317,35 @@ async function main() {
   riga(`  Panieri creati o già presenti: ${creati}.`);
   riga(`  Appartenenze scritte adesso:   ${scritte}.`);
   riga('');
+  /**
+   * ⛔ **IL CONTROLLO PRESUMEVA DI ESSERE L'UNICO A SCRIVERE, E DALL'1/9 NON È PIÙ VERO.**
+   *
+   * Confrontava le righe in tabella con quelle che QUESTO script deriva dalle giornate, e le
+   * pretendeva uguali. Andava bene finché il riempimento era l'unico scrittore. Poi è arrivato
+   * `panieri:pesce`, che deriva i panieri pescetariani e scrive righe che dalle giornate non
+   * escono: 32335 in tabella contro 23227 attese, e il tabulato ha gridato ⛔ IL CONTO NON TORNA
+   * su una serata in cui non era andato storto niente.
+   *
+   * ⚠️ **E un allarme falso costa più di un allarme mancato**, qui: dice a chi legge di fermarsi e
+   * di andare a cercare un guasto che non c'è, alle undici di sera, dopo cinque ore di lavoro.
+   *
+   * ⚠️ La domanda giusta non era «sono uguali» ma **«c'è tutto quello che mi aspettavo?»**: le
+   * righe in più hanno un nome e un padrone, e si dicono invece di far paura.
+   */
   const controllo = await prisma.paniereRicetta.count();
-  riga(`  Controllo: righe di appartenenza in tabella = ${controllo}, attese = ${appartenenze}.`);
-  riga(controllo === appartenenze ? '  ✅ Il conto torna.' : '  ⛔ IL CONTO NON TORNA: guardare prima di andare avanti.');
+  const inPiu = controllo - appartenenze;
+  riga(`  Controllo: righe in tabella = ${controllo}, derivabili dalle giornate = ${appartenenze}.`);
+  if (inPiu < 0) {
+    riga(`  ⛔ NE MANCANO ${-inPiu}: qualcosa non è stato scritto. Guardare prima di andare avanti.`);
+  } else if (inPiu === 0) {
+    riga('  ✅ Il conto torna esatto.');
+  } else {
+    riga(`  ✅ Il conto torna, con ${inPiu} righe in più delle giornate.`);
+    riga('  ⚠️ Non è un errore: sono le righe che scrive `panieri:pesce`, che deriva i panieri');
+    riga('  pescetariani da quelli vegetariano e onnivoro — roba che dalle giornate non esce.');
+    riga('  ⛔ Se un giorno questo numero cresce senza che nessuno abbia lanciato quella derivazione,');
+    riga('  allora sì che c\'è da guardare: `npm run panieri:pulisci` in sola lettura lo dice.');
+  }
   riga('');
 }
 

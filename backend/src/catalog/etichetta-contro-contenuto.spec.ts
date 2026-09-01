@@ -48,13 +48,34 @@ describe('classifica', () => {
   });
 
   /**
-   * ⛔ E l'imitazione **non decide al contrario**: «Prosciutto con contorno vegetale» è prosciutto
-   * vero. Finisce nei dubbi, non fra le corrette — ma soprattutto NON resta dichiarato vegetariano
-   * senza che nessuno lo guardi.
+   * ⛔ **QUESTA PROVA È STATA GIRATA IL 1/9, perché proteggeva dalla parte sbagliata.**
+   *
+   * Diceva che «Prosciutto con contorno vegetale» doveva finire nei dubbi, «per prudenza». Ma
+   * «dubbia» vuol dire *non correggo*, cioè **lascia il prosciutto etichettato vegetariano** — che
+   * è esattamente il danno da cui volevo proteggermi. La prudenza qui va nell'altro verso:
+   * correggerlo a `omnivore` è la mossa sicura, perché è carne davvero.
+   *
+   * ⚠️ E ci arriva da sé con la regola dell'adiacenza: fra «prosciutto» e «vegetale» ci sono due
+   * parole, quindi non è un'imitazione — è un prosciutto con un contorno.
    */
-  it('⛔ «Prosciutto con contorno vegetale» finisce nei dubbi, non fra le ok', () => {
+  it('⛔ «Prosciutto con contorno vegetale» è prosciutto vero, e si corregge', () => {
     const e = classifica('Prosciutto con contorno vegetale', ['prosciutto crudo', 'verdure grigliate']);
-    expect(e.tipo).toBe('dubbia');
+    expect(e).toMatchObject({ tipo: 'sicura', cosa: 'carne', regimeGiusto: 'omnivore' });
+  });
+
+  /**
+   * ⛔ **I FALSI POSITIVI DELLA PRIMA STESURA, presi dalla produzione dell'1/9.** Cercava la parola
+   * nel testo intero, e in cucina italiana «brodo vegetale» sta in metà delle ricette di pesce:
+   * **152 ricette finite fra le dubbie**, quasi tutte a torto, e 147 piatti di pesce veri rimasti
+   * `omnivore` che `panieri:pulisci` stava per togliere dai panieri pescetariani.
+   */
+  it.each([
+    ['Tonno al sesamo su purè di ceci e rucola', ['tonno fresco', 'purè di ceci']],
+    ['Merluzzo in umido con patate dolci', ['filetto di merluzzo', 'brodo vegetale']],
+    ['Gamberoni al vapore con riso basmati', ['gamberoni', 'salsa di soia']],
+    ['Branzino al forno con purè di ceci', ['filetto di branzino', 'ceci lessati']],
+  ])('⚠️ «%s» NON è un\'imitazione: la parola non è attaccata all\'animale', (nome, ing) => {
+    expect(classifica(nome, ing)).toMatchObject({ tipo: 'sicura', cosa: 'pesce' });
   });
 
   it('⚠️ un pesce nominato solo nel titolo è dubbio: può mancare l\'ingrediente in elenco', () => {
@@ -76,8 +97,11 @@ describe('classifica', () => {
     expect(regimeGiusto('carne')).toBe('omnivore');
   });
 
-  it('sembraUnImitazione rende la parola trovata, o null', () => {
-    expect(sembraUnImitazione('ragù vegetale')).toBe('vegetale');
+  it('sembraUnImitazione vuole l\'animale attaccato alla parola', () => {
+    expect(sembraUnImitazione('prosciutto vegetale')).toBe('vegetale');
+    expect(sembraUnImitazione('polpo di ceci')).toBe('di ceci');
+    expect(sembraUnImitazione('brodo vegetale')).toBeNull();
+    expect(sembraUnImitazione('purè di ceci')).toBeNull();
     expect(sembraUnImitazione('ragù di manzo')).toBeNull();
   });
 });
