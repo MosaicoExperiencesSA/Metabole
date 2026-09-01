@@ -122,17 +122,63 @@ async function main() {
     }
   }
 
-  /** ⚠️ Il controllo che chiude il cerchio: quelle varianti stanno davvero fuori da ogni paniere? */
-  const fuori = diete.filter((d) => paniereDellaVariante(d as never).tipo !== 'paniere');
-  const fuoriNonCensite = fuori.filter((d) => !famigliaDi(d.name));
+  /**
+   * ⚠️ Il controllo che chiude il cerchio: quelle varianti stanno davvero fuori da ogni paniere?
+   *
+   * ⛔ **E «fuori» sono TRE cose diverse, non una** — corretto l'1/9, dopo un falso allarme in
+   * produzione. La prima stesura filtrava `tipo !== 'paniere'` e metteva tutto nello stesso mucchio
+   * «vanno guardate»: ci sono finite le dodici varianti keto vegane, che non sono un buco ma una
+   * **decisione presa** (`IMPOSSIBILI`, §Fase 5: chi le chiede legge una frase che spiega perché e
+   * dove andare invece). Un tabulato che chiama «da guardare» una cosa già decisa fa perdere un
+   * pomeriggio a chi lo legge — ed è la terza volta oggi che una mia diagnostica grida sul niente.
+   *
+   * ⚠️ Le tre: **censita** (una delle famiglie che si chiudono, ha la sua riga qui sopra),
+   * **impossibile** (cella dichiarata non possibile: si guarda solo se ci sta sopra qualcuno), e
+   * **non mappabile** (nessuno sa cos'è: quella sì, va guardata).
+   */
+  const fuori = diete
+    .map((d) => ({ d, esito: paniereDellaVariante(d as never) }))
+    .filter((x) => x.esito.tipo !== 'paniere');
+  const impossibili = fuori.filter((x) => x.esito.tipo === 'impossibile');
+  const nonMappabili = fuori.filter((x) => x.esito.tipo === 'non_mappabile' && !famigliaDi(x.d.name));
   riga('');
-  riga(`  Varianti fuori da ogni paniere: ${fuori.length}  ·  di cui NON spiegate da queste sei famiglie: ${fuoriNonCensite.length}`);
-  if (fuoriNonCensite.length) {
+  riga(`  Varianti fuori da ogni paniere: ${fuori.length}`);
+  riga(`    · spiegate dalle famiglie che si chiudono   ${fuori.length - impossibili.length - nonMappabili.length}`);
+  riga(`    · celle dichiarate NON POSSIBILI            ${impossibili.length}`);
+  riga(`    · senza spiegazione                         ${nonMappabili.length}`);
+
+  if (impossibili.length) {
+    riga('');
+    /**
+     * ⚠️ Il conto che serve non è quante varianti sono, è **se ci sta sopra qualcuno**: una cella
+     * dichiarata impossibile e vuota è a posto; con una cliente sopra è una persona che riceve
+     * menu da una combinazione che abbiamo detto di non fare.
+     */
+    const nomiImpossibili = new Set(impossibili.map((x) => x.d.name));
+    const conGente = [...profiliPerFamiglia.entries()].filter(([f]) => nomiImpossibili.has(f));
+    riga('  ⚠️ Le celle NON POSSIBILI (decisione della Fase 5, non un buco): chi le chiede legge una');
+    riga('  frase che dice perché e dove andare invece. Qui si guarda solo se ci sta sopra qualcuno.');
+    for (const [nome, quante] of [...nomiImpossibili].map((n) => [n, impossibili.filter((x) => x.d.name === n).length] as const)) {
+      riga(`     · ${nome} — ${quante} varianti`);
+    }
+    if (conGente.length) {
+      riga('');
+      riga('  ⛔ E c\'è chi ci sta sopra: vanno spostate, perché quella combinazione l\'abbiamo');
+      riga('  dichiarata non possibile e loro la stanno ricevendo lo stesso.');
+      for (const [f, gente] of conGente) for (const g of gente) riga(`     · ${g.userId.slice(0, 8)}  ${g.nome}  («${f}»)`);
+    } else {
+      riga('  ✅ Nessuna cliente ci sta sopra: restano in catalogo e non fanno male a nessuno.');
+    }
+  }
+
+  if (nonMappabili.length) {
+    riga('');
     riga('  ⛔ Queste stanno fuori per un motivo che il piano non ha censito — vanno guardate:');
-    for (const d of fuoriNonCensite.slice(0, ESEMPI)) riga(`     · ${d.name}`);
-    if (fuoriNonCensite.length > ESEMPI) riga(`     …e altre ${fuoriNonCensite.length - ESEMPI}.`);
+    for (const x of nonMappabili.slice(0, ESEMPI)) riga(`     · ${x.d.name}  (${x.esito.tipo === 'non_mappabile' ? x.esito.perche : ''})`);
+    if (nonMappabili.length > ESEMPI) riga(`     …e altre ${nonMappabili.length - ESEMPI}.`);
   } else {
-    riga('  ✅ Tutte quelle fuori sono spiegate: sono le sei famiglie di questa tabella.');
+    riga('');
+    riga('  ✅ Nessuna variante fuori senza spiegazione.');
   }
   riga('');
 }

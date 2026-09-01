@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🥩 **Carne dove non deve stare — e un falso allarme mio, corretto.** ⛔ **Il mio
+  `diag:famiglie-da-chiudere` ha gridato sul niente**: metteva le dodici varianti keto vegane fra
+  quelle «fuori per un motivo che il piano non ha censito, vanno guardate». Sono le celle
+  **dichiarate non possibili** nella Fase 5 — chi le chiede legge una frase che dice perché e dove
+  andare invece. Il filtro era `tipo !== 'paniere'`, che mette nello stesso mucchio una decisione
+  presa e una variante che nessuno sa cos'è. Ora tre esiti separati, e per le impossibili il conto
+  che serve non è quante varianti sono ma **se ci sta sopra qualcuno**. ⚠️ Terza volta oggi che una
+  mia diagnostica manda a cercare un difetto dove non c'è. ⛔ **E in fondo a `diag:pescetariane`
+  c'era una riga che parlava d'altro**: «Mediterranea × vegetarian: 5 piatti con carne su 1244
+  attivi». In un paniere vegetariano la soglia è zero, e quei cinque non riguardano le pescetariane
+  — riguardano **quello che una vegetariana può ricevere nel piatto**. ⚠️ Le due spiegazioni sono
+  **opposte**: o sono ricette davvero sbagliate, o sbaglia `eCarne` — che è **lo stesso
+  riconoscitore** che nella Fase 5 ha scartato 1355 ricette come carne, e allora sarebbero piatti
+  buoni buttati in silenzio. Un conto non distingue le due: `npm run diag:carne-fuori-posto` le
+  **nomina**, col termine che ha fatto scattare il riconoscitore — «bovino» che faceva scattare i
+  solfiti perché contiene «vino» è successo il 23/8, non è un caso di scuola.
+
 - `[Sviluppo]` 📐 **Il piano allineato, e due note che il codice non diceva.** ✅ §2.4 segnato chiuso
   **con l'ordine in cui è stato chiuso** — scrittura, tabulato, lettura: l'ordine è la parte che
   vale, perché il permesso di filtrare l'hanno dato i numeri, non il ragionamento. ✅ **La coda

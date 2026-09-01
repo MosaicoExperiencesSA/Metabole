@@ -133,7 +133,8 @@
     "diag:visto": "ts-node --transpile-only prisma/diag-visto-non-aperto.ts",
     "diag:grassi": "ts-node --transpile-only prisma/diag-grassi-senza-peso.ts",
     "diag:supervisione": "ts-node --transpile-only prisma/diag-supervisione.ts",
-    "diag:spente": "ts-node --transpile-only prisma/diag-ricette-spente-nel-pool.ts"
+    "diag:spente": "ts-node --transpile-only prisma/diag-ricette-spente-nel-pool.ts",
+    "diag:carne-fuori-posto": "ts-node --transpile-only prisma/diag-carne-dove-non-deve-stare.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

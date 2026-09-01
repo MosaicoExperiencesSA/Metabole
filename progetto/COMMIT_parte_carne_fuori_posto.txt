@@ -1,0 +1,40 @@
+Carne dove non deve stare — e un falso allarme mio, corretto
+
+Due cose trovate leggendo gli output della Fase 9, e nessuna delle due era quello che stavamo
+cercando.
+
+⛔ 1. IL MIO TABULATO DELLE FAMIGLIE HA GRIDATO SUL NIENTE
+`diag:famiglie-da-chiudere` diceva: «Varianti fuori da ogni paniere: 78 · di cui NON spiegate: 12
+— stanno fuori per un motivo che il piano non ha censito, vanno guardate», e poi elencava sei
+«Keto (non terapeutica)» e sei «Keto-Mediterranea».
+Non è un buco: sono le celle keto × vegan, DICHIARATE non possibili nella Fase 5. Chi le chiede
+legge una frase che dice perché e dove andare invece. Il mio filtro era `tipo !== 'paniere'`, che
+mette nello stesso mucchio una decisione presa e una variante che nessuno sa cos'è.
+Corretto: tre esiti separati — censita, impossibile, non mappabile. E per le impossibili il conto
+che serve non è quante varianti sono, è SE CI STA SOPRA QUALCUNO: una cella dichiarata impossibile
+e vuota è a posto, con una cliente sopra è una persona che riceve una combinazione che abbiamo
+detto di non fare.
+⚠️ Terza volta oggi che una mia diagnostica manda a cercare un difetto dove non c'è.
+
+⛔ 2. CINQUE PIATTI CON CARNE IN UN PANIERE VEGETARIANO
+In fondo a `diag:pescetariane` c'era una riga che parlava d'altro: «Mediterranea × vegetarian:
+5 piatti con carne su 1244 attivi». In un paniere vegetariano la risposta giusta è zero, e quei
+cinque non riguardano le pescetariane — riguardano QUELLO CHE UNA VEGETARIANA PUÒ RICEVERE NEL
+PIATTO, che è un problema più grosso e di altre persone.
+
+⚠️ E le due spiegazioni possibili sono OPPOSTE, per questo il tabulato nuovo li NOMINA:
+  a) sono davvero con carne → la ricetta o la sua appartenenza vanno corrette, e intanto una
+     cliente vegetariana può riceverla;
+  b) sbaglia il riconoscitore (`piatto-di-cosa.ts` → `eCarne`) → allora il difetto è mio e più
+     largo, perché è LO STESSO riconoscitore che ha derivato i panieri pescetariani, dove ha
+     scartato 1355 ricette come «carne». Un falso positivo qui vuol dire piatti buoni buttati là,
+     in silenzio.
+
+Un conto non distingue le due. Solo i nomi lo fanno, e li deve leggere una persona — «bovino» che
+faceva scattare i solfiti perché contiene «vino» è successo il 23/8, non è un caso di scuola.
+
+`npm run diag:carne-fuori-posto` — sola lettura: quante per cella, e poi una per una col nome del
+piatto e IL TERMINE CHE HA FATTO SCATTARE il riconoscitore, che è l'unica cosa che permette di
+dire da che parte sta il difetto. Nei panieri vegani guarda anche il pesce; solo ricette attive.
+
+Test: backend 6405 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
