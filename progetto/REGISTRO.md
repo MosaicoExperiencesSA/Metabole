@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 📅 **Un mese composto dal passato, e il numero che dice quando NON farlo.** §6.1: *«un
+  mese coi menu scelti tra quelli che hanno dato migliori risultati e al cliente più graditi»*. ⛔ Il
+  problema vero non è scegliere le migliori, è **cosa fare quando finiscono**: trenta giornate
+  chieste a chi ne ha dodici sono dodici giornate ripetute due volte e mezza, e a decidere se il
+  prodotto mantiene la promessa è **come si ripete**. ⛔ Ci sono volute **due stesure sbagliate**,
+  tutte e due trovate dalle prove: la prima usava **7 giornate su 16** (la migliore tornava libera
+  al settimo giorno e il giro si chiudeva lì); la seconda le usava tutte ma al giro dopo ripartiva
+  lo stesso ciclo corto — le prime sette tre volte, altre nove una. ⚠️ Il criterio giusto non è la
+  distanza né la novità: è **quante volte una giornata è già stata usata**, e a parità comanda la
+  classifica. ⛔ È un difetto che **da fuori non si vede**: il mese esce pieno, le giornate sono
+  davvero le migliori, e nessuno sa che ce n'erano altre rimaste fuori — la cliente lo scopre
+  mangiando. Le due stesure sbagliate sono tenute ferme come prove. ⛔ **E il numero dalla
+  produzione cambia il piano**: `diag:ritorno` dice **una cliente sola, con 4 giornate di storico**.
+  La funzione le darebbe 4 giornate ripetute sette volte, mentre le 18 varianti approvate in
+  catalogo oggi la servono meglio. Serve una **soglia di storico minimo** che il piano non
+  prevedeva: *«per chi ha già fatto un percorso con noi»* — chi ha quattro giorni un percorso non
+  l'ha fatto.
+
 - `[Sviluppo]` 🏖️ **Vacanze in Serenità: la mano arriva durante la pausa, non dopo.** Richiesta di
   Simone del 27/8. ⚠️ Il motore c'era ma scattava nel momento sbagliato — solo a fine pausa: chi
   partiva tre settimane e a metà si accorgeva di essere salita di tre chili doveva aspettare il

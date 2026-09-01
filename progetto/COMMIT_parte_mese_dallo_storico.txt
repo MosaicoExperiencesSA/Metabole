@@ -1,0 +1,51 @@
+Un mese composto dal passato — e il numero che dice quando NON farlo
+
+⚠️ §6.1: «per chi ha già fatto un percorso con noi, un mese coi menu scelti tra quelli che
+hanno dato migliori risultati e al cliente più graditi».
+
+⛔ IL PROBLEMA VERO NON È SCEGLIERE LE MIGLIORI: È COSA FARE QUANDO FINISCONO
+Trenta giornate chieste a chi ne ha dodici alle spalle non sono «un mese dei suoi piatti
+migliori»: sono dodici giornate ripetute due volte e mezza. Quello che decide se il
+prodotto mantiene la promessa non è l'ordinamento — è COME si ripete.
+
+⛔ E CI SONO VOLUTE DUE STESURE SBAGLIATE PER ARRIVARCI, tutte e due trovate dalle prove:
+
+1ª — «la prima della classifica che rispetta la distanza». Con distanza 7 la migliore
+     tornava libera al settimo giorno, e il giro si chiudeva sulle prime sette: CON 16
+     GIORNATE DI STORICO NE USAVA 7, buttando via metà del passato di una cliente.
+2ª — «prima quelle mai usate». Meglio, le usava tutte e 16 — ma al giro successivo
+     ripartiva lo stesso ciclo corto: le prime sette tornavano TRE volte, altre nove una.
+
+⚠️ Il criterio giusto non è la distanza né la novità: è QUANTE VOLTE una giornata è già
+stata usata. A parità comanda la classifica. Con questo le ripetizioni si distribuiscono
+da sé, a ogni giro.
+
+⛔ Ed è un difetto che DA FUORI NON SI VEDE: il mese esce pieno, le giornate sono davvero
+le migliori, e nessuno sa che ce n'erano altre altrettanto buone rimaste fuori. La cliente
+lo scopre mangiando. Le due stesure sbagliate sono tenute ferme come prove.
+
+⚠️ E la distanza CEDE quando non c'è altro: con tre giornate sole e una distanza di sette
+si ripete più spesso invece di lasciare il giorno vuoto. Un buco è sempre peggio di una
+ripetizione — è la stessa rete che regge `dayComboPools` e la finestra del digiuno.
+
+`quantoEPovero` dice quando il mese non mantiene la promessa: se le giornate diverse sono
+dieci su trenta, qualcuno deve saperlo PRIMA che se ne accorga la cliente. ⚠️ E tace
+quando non c'è niente da dire: un avviso che compare sempre non è un avviso.
+
+⛔ IL NUMERO DALLA PRODUZIONE, E CAMBIA IL PIANO
+`npm run diag:ritorno`: UNA cliente sola su questa famiglia, con 4 GIORNATE di storico e 3
+voti. Su quei numeri la funzione darebbe 4 giornate ripetute sette volte — la promessa non
+regge proprio per l'unica persona che ci sta sopra. E in catalogo ci sono 18 varianti
+approvate con giornate vere, che oggi la servono meglio del suo passato.
+
+⚠️ Quindi la Fase 6.1 ha bisogno di una condizione che il piano non prevedeva: una SOGLIA
+DI STORICO MINIMO, sotto la quale la funzione non si attiva e la cliente resta sul paniere.
+«Per chi ha già fatto un percorso con noi» è nella richiesta stessa: chi ha quattro giorni
+un percorso non l'ha fatto.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. torna la 1ª stesura                  → 10 prove rosse
+  2. la distanza non cede mai (buchi)     → 4 prove rosse
+
+Test: 6360 su 380 suite. Build pulita. Niente che scriva, nessuna migrazione: il modulo è
+puro e non è ancora collegato a nessuno.
