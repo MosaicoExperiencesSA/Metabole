@@ -30,7 +30,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { eCarne, ePesce } from '../src/catalog/piatto-di-cosa';
-import { ricettaVaBene } from '../src/common/regimi';
+import { REGIMI_IN_ORDINE, ricettaVaBene } from '../src/common/regimi';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 25) || 25);
@@ -45,6 +45,8 @@ const titolo = (s: string) => {
 
 /** ⚠️ Gli stessi regimi e la stessa domanda di `verdettoPescetariano`: nome + TUTTI gli ingredienti. */
 const REGIMI_DA_GUARDARE = TUTTI ? ['vegan', 'vegetarian', 'pescetarian'] : ['vegan', 'vegetarian'];
+/** ⚠️ I regimi che il motore sa collocare: fuori da qui `regimiCompatibili` risponde «solo vegan». */
+const REGIMI_NOTI = new Set<string>(REGIMI_IN_ORDINE as readonly string[]);
 const nomiIngredienti = (ing: unknown): string[] =>
   (Array.isArray(ing) ? (ing as { name?: string }[]) : [])
     .map((x) => (typeof x?.name === 'string' ? x.name : ''))
@@ -100,6 +102,64 @@ async function main() {
     if (carne) { conto.carne += 1; trovate.push({ ...comune, cosa: 'carne', perche: carne }); }
     else if (pesce) { conto.pesce += 1; trovate.push({ ...comune, cosa: 'pesce', perche: pesce }); }
     perCella.set(chiave, conto);
+  }
+
+  /**
+   * ⛔ **SEZIONE 0, e serve a una domanda diversa dalle altre due** (1/9).
+   *
+   * Le sezioni sotto guardano i piatti che il riconoscitore chiama carne o pesce. Questa guarda
+   * **tutte** le righe dei panieri e chiede una cosa sola: *il regime della ricetta è compatibile
+   * con quello del paniere in cui sta?*
+   *
+   * ⚠️ È il numero che serve prima di mettere il controllo sul regime dentro `riempi-panieri`.
+   * Quella guardia va messa comunque — domani entra una ricetta nuova — ma **quanto** taglia oggi
+   * non si sa senza contare, e c'è un caso che potrebbe farla tagliare troppo: una ricetta con il
+   * regime **vuoto o sconosciuto**. `regimiCompatibili` su un valore che non riconosce risponde
+   * «solo vegan», che è la scelta prudente giusta per il motore ma qui vorrebbe dire buttarla fuori
+   * da quasi tutti i panieri. Se sono tante, la guardia va scritta diversamente.
+   */
+  titolo('0. IL REGIME DELLA RICETTA CONTRO QUELLO DEL PANIERE — tutte le righe');
+  riga('');
+  {
+    let compatibili = 0;
+    let incompatibili = 0;
+    let senzaRicetta = 0;
+    const perRegime = new Map<string, number>();
+    const ignoti = new Map<string, number>();
+    for (const r of righe) {
+      const ric = perId.get(r.recipeId);
+      /** ⚠️ Non è un errore: qui si leggono solo le ricette ATTIVE, le spente restano fuori. */
+      if (!ric) { senzaRicetta += 1; continue; }
+      if (ricettaVaBene(ric.regime, r.paniere.regime)) { compatibili += 1; continue; }
+      incompatibili += 1;
+      const k = `ricetta «${ric.regime || '(vuoto)'}» dentro paniere «${r.paniere.regime}»`;
+      perRegime.set(k, (perRegime.get(k) ?? 0) + 1);
+      if (!REGIMI_NOTI.has(String(ric.regime ?? '').trim())) {
+        ignoti.set(ric.regime || '(vuoto)', (ignoti.get(ric.regime || '(vuoto)') ?? 0) + 1);
+      }
+    }
+    riga(`  Righe dei panieri con ricetta attiva     ${compatibili + incompatibili}`);
+    riga(`  · regime COMPATIBILE                     ${compatibili}`);
+    riga(`  · regime INCOMPATIBILE                   ${incompatibili}`);
+    riga(`  (righe la cui ricetta è spenta, non contate: ${senzaRicetta})`);
+    if (incompatibili) {
+      riga('');
+      for (const [k, n] of [...perRegime.entries()].sort((a, b) => b[1] - a[1]).slice(0, ESEMPI)) {
+        riga(`     · ${String(n).padStart(5)}  ${k}`);
+      }
+    }
+    if (ignoti.size) {
+      riga('');
+      riga('  ⛔ E queste hanno un regime che il motore NON riconosce: `regimiCompatibili` risponde');
+      riga('  «solo vegan», quindi una guardia scritta senza pensarci le butterebbe fuori da quasi');
+      riga('  tutti i panieri. Vanno guardate prima di scrivere il filtro:');
+      for (const [v, n] of [...ignoti.entries()].sort((a, b) => b[1] - a[1])) {
+        riga(`     · ${String(n).padStart(5)}  regime «${v}»`);
+      }
+    } else if (incompatibili) {
+      riga('');
+      riga('  ✅ Tutti i regimi coinvolti sono fra quelli noti: la guardia si può scrivere dritta.');
+    }
   }
 
   titolo('1. QUANTE, PER CELLA');

@@ -5028,4 +5028,38 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-01T16:00',
   },
 
+  {
+    chiave: 'ricette-di-pesce-etichettate-vegane',
+    titolo: 'In catalogo ci sono ricette di pesce dichiarate «vegane»: una vegana pu\u00f2 ricevere il salmone',
+    dettaglio:
+      '\u26d4 **Misurato l\'1/9 con `diag:carne-fuori-posto`: 175 piatti** con pesce o carne dentro '
+      + 'panieri vegani e vegetariani \u2014 salmone, branzino, cozze, gamberi, alici \u2014 e **tutti e 175 '
+      + 'hanno il regime «compatibile»**, cio\u00e8 «Salmone al forno con asparagi e limone» \u00e8 dichiarato '
+      + '`vegan` in catalogo.\n'
+      + '\u26a0\ufe0f **Non l\'hanno causato i panieri**: il paniere fa quello che gli \u00e8 stato detto, e quelle '
+      + 'clienti ricevevano gi\u00e0 quei piatti quando il pool veniva dalle giornate. I panieri sono solo '
+      + 'il posto dove finalmente si vede.\n'
+      + '\u26d4 **E il difetto \u00e8 pi\u00f9 largo del paniere**: un salmone etichettato `vegan` \u00e8 vegano '
+      + 'dappertutto \u2014 base personale certificata, tendine del back office, ogni filtro per regime '
+      + 'del motore.\n'
+      + '\u26a0\ufe0f E spiega perch\u00e9 `panieri:pesce` trovava «pesce 0» negli onnivori: il pesce non \u00e8 nei '
+      + 'panieri onnivori, \u00e8 tutto etichettato vegano. Correggere l\'etichetta lo fa comparire dove '
+      + 'serve alle pescetariane.\n'
+      + '\u2705 **Gli strumenti ci sono, e l\'ordine \u00e8 questo**: \u2460 `npm run regime:contenuto` corregge '
+      + 'l\'etichetta \u2014 e corregge **solo** le ricette che hanno il pesce negli INGREDIENTI, non nel '
+      + 'nome, perch\u00e9 «Polpo d\'Alghe Nori» \u00e8 un piatto vegano davvero e riscriverlo a macchina '
+      + 'sarebbe l\'errore uguale e contrario; \u2461 `npm run panieri:pulisci` toglie dai panieri quello '
+      + 'che \u00e8 gi\u00e0 scritto \u2014 serve perch\u00e9 `panieri:riempi` **solo aggiunge** e non toglie mai; '
+      + '\u2462 `APPLICA=1 npm run panieri:pesce`; \u2463 `npm run diag:carne-fuori-posto` deve restare col '
+      + 'solo mucchio dubbio.\n'
+      + '\u26a0\ufe0f La pulizia **conta prima di togliere** e si ferma se una casella scende sotto soglia: '
+      + 'si passa sopra solo con `FORZA=1`, dichiarandolo.\n'
+      + '\u26d4 **E resta la domanda che nessuno script risponde**: da dove sono nate quelle etichette. '
+      + 'Finch\u00e9 non si sa, il generatore pu\u00f2 rifarle uguali domani notte.',
+    categoria: CODICE,
+    blocca: true,
+    ordine: 673,
+    nata: '2026-09-01T17:30',
+  },
+
 ];

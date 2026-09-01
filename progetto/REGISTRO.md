@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🐟 **Ricette di pesce dichiarate «vegane» — l'etichetta, non il paniere.** Il numero
+  ha deciso tutto: dei 175 piatti con pesce o carne dentro panieri vegani e vegetariani, **zero**
+  hanno il regime incompatibile — «Salmone al forno con asparagi e limone» è dichiarato `vegan` in
+  catalogo. ⛔ **Meno male di aver contato**: la guardia sul regime che stavo per scrivere in
+  `riempi-panieri` avrebbe tagliato zero righe, ed è la terza volta oggi che il tabulato manda la
+  correzione da un'altra parte rispetto a dove l'avrei scritta. ⚠️ **Non l'hanno causato i panieri**:
+  quelle clienti ricevevano già quei piatti quando il pool veniva dalle giornate — i panieri sono il
+  posto dove finalmente si vede. ⛔ E il difetto è più largo del paniere: un salmone etichettato
+  `vegan` è vegano **dappertutto**, base personale compresa. ⚠️ E spiega perché `panieri:pesce`
+  trovava «pesce 0» negli onnivori: il pesce non è lì, è tutto etichettato vegano. ✅ Tre strumenti:
+  **`regime:contenuto`** corregge l'etichetta ma **solo** dove il termine sta negli *ingredienti* —
+  «Polpo d'Alghe Nori» è vegano davvero e riscriverlo a macchina sarebbe l'errore uguale e contrario
+  — mandando il pesce a `pescetarian` e la carne a `omnivore`, cioè il regime più stretto che può
+  mangiarlo; **`panieri:pulisci`** toglie quello che è già scritto, contando prima cella per cella e
+  fermandosi se una casella scende sotto soglia; e la **porta in `riempi-panieri`**. ⛔ Quest'ultima
+  **non è quella che serviva oggi** — i 175 sarebbero passati lo stesso — e nasce da un errore mio:
+  avevo scritto che bastava rilanciare `panieri:riempi` per far uscire il pesce, e non è vero, quello
+  script **solo aggiunge**. ⛔ Resta la domanda che nessuno script risponde: **da dove sono nate
+  quelle etichette**. Finché non si sa, il generatore può rifarle uguali domani notte.
+
 - `[Sviluppo]` 🐟 **Il pesce nei panieri vegani: prima sapere quale dei due è rotto.**
   `diag:carne-fuori-posto` ha trovato **158 piatti di pesce dentro panieri vegani** — salmone,
   branzino, cozze, gamberi, alici — e non sono falsi positivi. ⚠️ **Non l'hanno causato i panieri**:

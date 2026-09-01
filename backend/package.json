@@ -134,7 +134,9 @@
     "diag:grassi": "ts-node --transpile-only prisma/diag-grassi-senza-peso.ts",
     "diag:supervisione": "ts-node --transpile-only prisma/diag-supervisione.ts",
     "diag:spente": "ts-node --transpile-only prisma/diag-ricette-spente-nel-pool.ts",
-    "diag:carne-fuori-posto": "ts-node --transpile-only prisma/diag-carne-dove-non-deve-stare.ts"
+    "diag:carne-fuori-posto": "ts-node --transpile-only prisma/diag-carne-dove-non-deve-stare.ts",
+    "regime:contenuto": "ts-node --transpile-only prisma/corregge-regime-dal-contenuto.ts",
+    "panieri:pulisci": "ts-node --transpile-only prisma/pulisci-panieri-fuori-regime.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

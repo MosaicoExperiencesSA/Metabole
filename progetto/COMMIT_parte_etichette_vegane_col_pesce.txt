@@ -1,0 +1,59 @@
+Ricette di pesce dichiarate «vegane» — l'etichetta, non il paniere
+
+IL NUMERO CHE HA DECISO TUTTO
+  Piatti segnalati in tutto                175
+  · col REGIME della ricetta incompatibile   0
+  · col regime della ricetta COMPATIBILE   175
+
+Zero. Il riempimento non ne ha sbagliata una: quelle ricette sono dichiarate `vegan` in catalogo.
+«Salmone al forno con asparagi e limone» → vegan. «Cozze al vapore» → vegan. «Gamberi al forno con
+carciofi» → vegan.
+
+⛔ Meno male di aver contato prima: la guardia sul regime che stavo per scrivere in
+`riempi-panieri` avrebbe tagliato ZERO righe. È la terza volta oggi che il tabulato manda la
+correzione da un'altra parte rispetto a dove l'avrei scritta.
+
+⚠️ E NON L'HANNO CAUSATO I PANIERI: il paniere fa quello che gli è stato detto, e quelle clienti
+ricevevano già quei piatti quando il pool veniva dalle giornate. I panieri sono il posto dove
+finalmente si vede.
+
+⛔ IL DIFETTO È PIÙ LARGO DEL PANIERE. Un salmone etichettato `vegan` è vegano dappertutto: base
+personale certificata, tendine del back office, ogni filtro per regime del motore.
+
+⚠️ E spiega la cosa che non tornava: `panieri:pesce` trovava «pesce 0» nei panieri onnivori e aveva
+2 sole appartenenze da aggiungere. Certo — il pesce non è negli onnivori, è tutto etichettato
+vegano. Correggere l'etichetta lo fa comparire dove serve alle pescetariane.
+
+TRE STRUMENTI, E UN ERRORE MIO CORRETTO IN CORSA
+
+① `npm run regime:contenuto` — l'etichetta contro il contenuto.
+   ⛔ Corregge SOLO le ricette che hanno carne o pesce negli INGREDIENTI. Quelle in cui ha scattato
+   solo il NOME restano com'erano e si stampano a parte: in cima all'elenco c'è «Polpo d'Alghe Nori
+   Farcito», un piatto vegano col nome di un polpo, e riscriverlo a macchina sarebbe l'errore uguale
+   e contrario a quello che si sta correggendo.
+   ⚠️ Il pesce va a `pescetarian` e la carne a `omnivore` — il regime più stretto che può mangiarlo.
+   Buttare il pesce nell'onnivoro lo toglierebbe alle pescetariane, che è metà del motivo per cui
+   questa correzione esiste.
+
+② `npm run panieri:pulisci` — e questo nasce da un errore mio.
+   Avevo scritto, in fondo al primo script, che dopo la correzione bastava rilanciare
+   `panieri:riempi` perché il pesce uscisse dai panieri vegani. NON È VERO: quello script solo
+   AGGIUNGE — `createMany` con `skipDuplicates` — ed è proprio quello che lo rende ripetibile senza
+   doverlo prima disfare. Una riga sbagliata, una volta scritta, ci resta finché qualcuno non la
+   toglie apposta.
+   ⚠️ Conta PRIMA di togliere, cella per cella e coi gemelli uniti, e se una casella scende sotto
+   soglia si ferma e non scrive. Si passa sopra solo con FORZA=1, dichiarandolo.
+
+③ La porta in `riempi-panieri`: una ricetta non entra in un paniere che non può mangiarla.
+   ⚠️ Questa NON è quella che serviva oggi — i 175 sarebbero passati lo stesso, perché l'etichetta
+   diceva vegan. Serve a domani: una volta pulito, tiene pulito. E la pagina Panieri questo
+   controllo ce l'ha da sempre per chi aggiunge a mano: erano due porte sulla stessa tabella e solo
+   una controllava.
+   ⚠️ Il conto si stampa anche quando è ZERO: un controllo che parla solo quando trova qualcosa è un
+   controllo di cui fra un mese nessuno sa più se sta girando.
+
+⛔ E RESTA UNA DOMANDA CHE NESSUNO SCRIPT RISPONDE: da dove sono nate quelle etichette. Finché non
+si sa, il generatore può rifarle uguali domani notte.
+
+Test: backend 6457 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
+Voce in elenco lavori: `ricette-di-pesce-etichettate-vegane` (rossa).

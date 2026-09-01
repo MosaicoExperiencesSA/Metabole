@@ -28,6 +28,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { paniereDellaVariante, panieriDaCreare, ricetteDellaGiornata } from '../src/catalog/appartenenza-panieri';
+import { ricettaVaBene } from '../src/common/regimi';
 
 const prisma = new PrismaClient();
 
@@ -54,10 +55,13 @@ async function main() {
       Promise<{ id: string; name: string; regime: string; status: string }[]>,
     prisma.dietDayTemplate.findMany({ select: { dietId: true, meals: true } }) as unknown as
       Promise<{ dietId: string; meals: unknown }[]>,
-    prisma.recipe.findMany({ select: { id: true } }) as unknown as Promise<{ id: string }[]>,
+    /** ⚠️ Anche il `regime`: da qui esce il controllo che nessuno faceva (vedi sotto, 1/9). */
+    prisma.recipe.findMany({ select: { id: true, regime: true } }) as unknown as
+      Promise<{ id: string; regime: string }[]>,
   ]);
 
   const esiste = new Set(ricetteVive.map((r) => r.id));
+  const regimeDi = new Map(ricetteVive.map((r) => [r.id, r.regime]));
   const perDieta = new Map<string, { slot: string; recipeId: string }[]>();
   for (const g of giornate) {
     const righe = ricetteDellaGiornata(g.meals);
@@ -76,6 +80,8 @@ async function main() {
    * cosa che questa migrazione **perde di proposito**, ed è il senso della Fase 1.
    */
   const rotti = new Map<string, number>();
+  /** ⚠️ Chi è stato tenuto fuori dal controllo sul regime, per forma: si stampa, non si nasconde. */
+  const fuoriRegime = new Map<string, number>();
   let nominateVive = 0;
 
   for (const d of diete) {
@@ -115,6 +121,29 @@ async function main() {
       }
       nominateVive += 1;
       for (const dest of destinazioni) {
+        /**
+         * ⛔ **UNA RICETTA NON ENTRA IN UN PANIERE CHE NON PUÒ MANGIARLA** — controllo aggiunto
+         * l'1/9, e non c'era.
+         *
+         * ⚠️ La destinazione viene dal regime della **variante**, e le ricette da quello che le sue
+         * giornate nominano: nessuno dei due garantisce che la ricetta stessa sia di quel regime.
+         * Il 1/9 `diag:carne-fuori-posto` ha trovato 175 piatti con pesce o carne dentro panieri
+         * vegani e vegetariani — e la pagina Panieri questo controllo ce l'ha da sempre per chi
+         * aggiunge a mano. Due porte sulla stessa tabella, e solo una controllava.
+         *
+         * ⛔ **Ma non era questo a lasciarli passare**: quei 175 sono ricette **dichiarate vegane**
+         * che contengono pesce, e per questo controllo sarebbero passate lo stesso. L'etichetta si
+         * corregge con `npm run regime:contenuto`, e quello che è già scritto si toglie con
+         * `npm run panieri:pulisci` — perché questo script solo AGGIUNGE, e non toglie mai niente.
+         * Questa riga serve a domani: una volta pulito, tiene pulito.
+         */
+        if (!ricettaVaBene(regimeDi.get(r.recipeId), dest.regime)) {
+          fuoriRegime.set(
+            `ricetta «${regimeDi.get(r.recipeId) || '(vuoto)'}» → paniere «${dest.regime}»`,
+            (fuoriRegime.get(`ricetta «${regimeDi.get(r.recipeId) || '(vuoto)'}» → paniere «${dest.regime}»`) ?? 0) + 1,
+          );
+          continue;
+        }
         const chiave = `${dest.famiglia}|${dest.regime}`;
         const set = dentro.get(chiave) ?? new Set<string>();
         set.add(`${r.recipeId}|${r.slot}`);
@@ -149,6 +178,26 @@ async function main() {
     riga(`  · ${String(n).padStart(4)}  ${nome}`);
   }
   if (rotti.size > ESEMPI) riga(`  …e altre ${rotti.size - ESEMPI}.`);
+
+  /**
+   * ⚠️ **Si stampa anche quando è zero.** Un controllo nuovo che parla solo quando trova qualcosa
+   * è un controllo di cui, fra un mese, nessuno sa più se sta girando — ed è la stessa ragione per
+   * cui il riquadro del generatore in pagina Ricette non sparisce quando va tutto bene.
+   */
+  const fuoriTot = [...fuoriRegime.values()].reduce((s2, n) => s2 + n, 0);
+  riga('');
+  riga(`  Tenute fuori dal controllo sul REGIME: ${fuoriTot}.`);
+  if (fuoriTot) {
+    riga('  ⛔ Una ricetta non entra in un paniere che non può mangiarla. Se il numero è grosso,');
+    riga('  prima di scrivere vale la pena guardare `npm run diag:carne-fuori-posto`.');
+    for (const [k, n] of [...fuoriRegime.entries()].sort((a, b) => b[1] - a[1]).slice(0, ESEMPI)) {
+      riga(`  · ${String(n).padStart(4)}  ${k}`);
+    }
+  } else {
+    riga('  ✅ Nessuna: ogni ricetta nominata sta in un paniere che può mangiarla.');
+    riga('  ⚠️ Non vuol dire che nei panieri non ci sia pesce dove non deve: una ricetta con');
+    riga('  l\'ETICHETTA sbagliata passa di qui indisturbata. Quello lo dice `regime:contenuto`.');
+  }
 
   if (nonMappabili.size) {
     const varianti = [...nonMappabili.values()].reduce((s2, v) => s2 + v.varianti, 0);
