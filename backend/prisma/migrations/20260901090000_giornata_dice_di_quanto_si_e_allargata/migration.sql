@@ -1,0 +1,11 @@
+-- SE DEGRADI, DILLO — decisione di Simone dell'1/9 (Fase 3 del piano panieri).
+--
+-- Quando nessuna combinazione di piatti entra nella banda kcal del target, la giornata si compone
+-- lo stesso allargando la banda a passi. Questa colonna dice DI QUANTO si è allargata, in punti
+-- percentuali sopra quella chiesta.
+--
+-- NULL = non si è allargato niente. È il caso normale, quindi la colonna resta vuota su quasi tutte
+-- le righe: chi la interroga cerca proprio le poche che non lo sono.
+--
+-- Nullable e senza default: aggiungerla non tocca nessuna riga esistente e non blocca la tabella.
+ALTER TABLE "menu_day" ADD COLUMN "allargamento_banda_pct" INTEGER;

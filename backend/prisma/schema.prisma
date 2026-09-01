@@ -1923,6 +1923,14 @@ model MenuDay {
   apertureTracciate Boolean @default(false) @map("aperture_tracciate")
   visibleFrom  DateTime @map("visible_from") @db.Date
   sourceRuleId String?  @map("source_rule_id") // valorizzato dal motore (M5)
+  // ⚠️ **SE DEGRADI, DILLO** (decisione di Simone, 1/9, Fase 3 del piano panieri). Di quanti punti
+  // percentuali si è dovuta allargare la banda kcal perché una giornata ci entrasse. NULL = non si
+  // è allargato niente, cioè il caso normale: la colonna è vuota per quasi tutte le righe, e chi la
+  // interroga cerca proprio le poche che non lo sono.
+  // ⛔ NON è la tolleranza usata, è **quanto in più** di quella chiesta: così la domanda «quanto
+  // abbiamo degradato» si legge senza sapere quale fosse la banda di quella dieta quel giorno —
+  // che nel frattempo può essere cambiata, e allora il numero salvato direbbe un'altra cosa.
+  allargamentoBandaPct Int? @map("allargamento_banda_pct")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

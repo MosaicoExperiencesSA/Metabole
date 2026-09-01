@@ -1,0 +1,65 @@
+Fase 4 dei panieri: la coppia pranzo/cena non si ripete
+
+Richiesta testuale di Simone del 26/8: «se a Simone oggi dai a pranzo spaghetti al
+pomodoro e cena branzino al forno, la prossima volta che a pranzo avrò spaghetti al
+pomodoro mi devi cambiare la cena».
+
+⚠️ NON È UN QUINTO MECCANISMO ANTI-RIPETIZIONE
+Ce n'erano già quattro — penalità su 14 giorni, distanza minima per slot, niente due
+volte nello stesso giorno, rotazione fra le migliori — e sono tutti PER SINGOLO SLOT.
+Con gli spaghetti concessi ogni due giorni e il branzino pure, la stessa coppia può
+tornare mercoledì senza che nessuno dei quattro se ne accorga: nessuno dei due piatti
+si sta ripetendo troppo. Quello che si ripete è la GIORNATA, e non c'era niente che la
+guardasse.
+
+`menu/coppia-pranzo-cena.ts`
+  · `chiaveCoppia` — ordinata per slot, non per id. «Spaghetti a pranzo e branzino a
+    cena» è una giornata diversa da quella scambiata, che infatti nessuno servirebbe:
+    con la chiave come insieme, vietare la prima vieterebbe anche la seconda.
+  · `coppiaDellaGiornata` — null per le giornate senza pranzo o senza cena (digiuno,
+    spuntini tolti, giornata monca). Trattarle come «coppia vuota» vorrebbe dire
+    vietarle tutte insieme.
+  · `scartaLeCoppieGiaViste` — ⛔ NON SVUOTA MAI: se tutte le coppie in banda sono già
+    state viste le tiene tutte e lo dichiara. Una coppia ripetuta è un difetto di
+    varietà; una giornata vuota è una cliente senza cena.
+
+⛔ LA COPPIA NON COMPRA CALORIE
+Il filtro sta DOPO la scelta della banda kcal, di proposito. Se una coppia già vista
+bastasse a far allargare la banda, la varietà comprerebbe calorie fuori target — due
+regole che si scambiano la moneta. Prima si decide dentro quale banda si compone, poi
+lì dentro si preferisce una giornata nuova. C'è una prova apposta.
+
+⚠️ LA COPPIA SI RICORDA DOPO LA GUARDIA DI VARIETÀ, che può cambiare il pranzo o la
+cena: quella da ricordare è la giornata che la cliente riceve, non quella che avevamo
+scelto. E si accumula durante il giro: le giornate appena composte non sono ancora in
+`menu_day`, e senza aggiungerle il ciclo di sette giorni ripeterebbe una coppia contro
+se stesso.
+
+PARAMETRO — `menu_coppia_pranzo_cena_giorni` (default 30), con override per dieta.
+⛔ Zero spegne la regola e riporta al comportamento di prima, senza un rilascio.
+
+QUANDO SI RIPETE, SI SCRIVE: una riga di log per giro (non per giornata) e il tabulato
+`npm run diag:coppie`, che conta le coppie DIVERSE ricevute da ogni cliente. ⚠️ Se sono
+poche rispetto ai giorni, il suo paniere ha pochi pranzi o poche cene dentro la banda:
+la risposta è aggiungere piatti a quel paniere, non allentare la regola.
+
+⚠️ SENTINELLA TROPPO STRETTA, CORRETTA
+`se-degradi-dillo.spec.ts` pretendeva `allargamento,` subito prima della parentesi di
+chiusura della chiamata. Aggiungere `coppieGiaViste` in coda l'ha fatta cadere su
+codice giusto. Ora cerca dentro la chiamata: una sentinella che si rompe quando si
+aggiunge un argomento è una sentinella che si impara a rilassare.
+
+NON FATTO, ED È IN `voci-iniziali.ts`: la tolleranza kcal dal 15% al 25% che il piano
+chiede «insieme». Quel parametro è globale e sposterebbe la banda di TUTTE le clienti
+attive nello stesso momento: va misurato prima con `npm run diag:kcal`. E ora esiste
+l'altra strada, che tocca solo chi ne ha bisogno — la banda che si allarga da sé fino
+al tetto, con `npm run diag:allargamenti` a dire quanto.
+
+PROVE DI MUTAZIONE (quattro, tutte uccise)
+  1. la rete che non svuota mai sparisce          → 3 prove rosse
+  2. la chiave diventa un insieme (ordine perso)  → 1 prova rossa
+  3. la coppia si ricorda prima della guardia     → 1 prova rossa
+  4. il filtro sale prima della banda kcal        → 2 prove rosse
+
+Test: 6263 su 368 suite, verdi nelle quattro modalità. Build pulita; `tsc` coi soli due
+errori preesistenti degli script prisma.

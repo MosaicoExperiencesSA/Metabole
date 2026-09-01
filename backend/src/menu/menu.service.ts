@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto';
 import { puoStareNelloSlot, slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
+import { coppiaDellaGiornata } from './coppia-pranzo-cena';
+import { slotDaComporre } from './struttura-della-giornata';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
 import { paniereDellaVariante } from '../catalog/appartenenza-panieri';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
-import { giornateComplete, NOME_PASTO } from '../catalog/giornate-complete';
+import { giornateComplete, NOME_PASTO, slotPieni } from '../catalog/giornate-complete';
 import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
 import {
   TIPO_KCAL_CORTE,
@@ -1245,7 +1247,7 @@ export class MenuService {
       agentState === 'plateau_conforto'
         ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente, famigliaDelPaniere(diet))
         : null;
-    const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG] = await Promise.all([
+    const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG, allargPassoG, allargTettoG, coppiaGiorniG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
       this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
@@ -1254,6 +1256,34 @@ export class MenuService {
       // (Mifflin + attività − deficit dell'obiettivo, con soglie di sicurezza), non dai
       // livelli della dieta. Attivo di default; disattivabile globalmente o per dieta.
       this.configParams.getBool('menu_kcal_need_enabled', true),
+      /**
+       * ⚠️ **SE DEGRADI, DILLO** (decisione di Simone, 1/9, Fase 3). Quando nessuna giornata entra
+       * nella banda kcal, la banda si allarga di `passo` punti alla volta fino a `tetto` punti in
+       * più, e ogni allargamento si scrive sulla giornata (`allargamentoBandaPct`).
+       *
+       * ⛔ **Il tetto è la metà che rende onesta l'altra**: senza, la banda si allargherebbe finché
+       * qualcosa entra, e comporrebbe una giornata che col target non c'entra più niente dicendo di
+       * aver rispettato la regola. Oltre il tetto si ripiega sulla giornata pre-costruita, che è
+       * quello che si faceva prima di questa consegna — quindi il caso peggiore è il comportamento
+       * di ieri, mai qualcosa di nuovo.
+       *
+       * ⚠️ Il passo a **zero** spegne tutto e riporta al comportamento di ieri anche nei casi buoni:
+       * è la via d'uscita se questo meccanismo si rivelasse sbagliato, e non richiede un rilascio.
+       */
+      this.configParams.getNumber('menu_daycombo_allargamento_passo_pct', 5),
+      this.configParams.getNumber('menu_daycombo_allargamento_tetto_pct', 20),
+      /**
+       * ⚠️ **LA COPPIA PRANZO/CENA NON SI RIPETE** entro tanti giorni (richiesta testuale di Simone
+       * del 26/8: *«se oggi a pranzo spaghetti e a cena branzino, la prossima volta che a pranzo
+       * avrò spaghetti mi devi cambiare la cena»*).
+       *
+       * ⚠️ I quattro meccanismi anti-ripetizione che c'erano guardano **un pasto alla volta**: con
+       * gli spaghetti concessi ogni due giorni e il branzino pure, la stessa coppia può tornare
+       * senza che nessuno se ne accorga, perché nessuno dei due piatti si sta ripetendo troppo.
+       *
+       * ⛔ **Zero spegne la regola** e riporta al comportamento di prima, senza un rilascio.
+       */
+      this.configParams.getNumber('menu_coppia_pranzo_cena_giorni', 30),
     ]);
     /**
      * ⛔ **«RICETTE SEMPLICI» È SPENTA — decisione di Simone, 31/8, caso Patrizia.**
@@ -1296,6 +1326,11 @@ export class MenuService {
     const kcalTolPct = pickNumOverride(overrides, 'menu_kcal_balance_tolerance_pct', kcalTolG);
     const daycomboEnabled = pickBoolOverride(overrides, 'menu_daycombo_enabled', daycomboG);
     const kcalNeedEnabled = pickBoolOverride(overrides, 'menu_kcal_need_enabled', kcalNeedG);
+    const allargamento = {
+      passoPct: pickNumOverride(overrides, 'menu_daycombo_allargamento_passo_pct', allargPassoG),
+      tettoPct: pickNumOverride(overrides, 'menu_daycombo_allargamento_tetto_pct', allargTettoG),
+    };
+    const coppiaGiorni = Math.max(0, pickNumOverride(overrides, 'menu_coppia_pranzo_cena_giorni', coppiaGiorniG));
     /**
      * ⚠️ LA QUOTA PROTEICA DI QUESTA CLIENTE vince su quella della dieta (14/8, terza frase
      * dell'azione 3: «rifai con più proteine»). Solo il MINIMO: il massimo resta della dieta —
@@ -1330,6 +1365,15 @@ export class MenuService {
     // Storico recente per slot (giorni già erogati): serve al guard di varietà per non
     // riproporre lo stesso piatto a ridosso di quando è già stato servito.
     const slotHistory = varietyGap > 0 ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap) : new Map<string, string[]>();
+    /**
+     * ⚠️ Le coppie pranzo/cena già servite. Si legge **prima** del ciclo e si aggiorna man mano: le
+     * giornate che sto componendo adesso non sono ancora in `menu_day`, e senza aggiungerle il
+     * ciclo di sette giorni potrebbe ripetere una coppia contro se stesso.
+     */
+    const coppieGiaViste = coppiaGiorni > 0
+      ? await this.coppieRecenti(clientId, firstNewDate, coppiaGiorni)
+      : new Set<string>();
+    let coppieRipetute = 0;
 
     // Prepara gli snapshot dei giorni del ciclo.
     // Gli slot che questa cliente non riceve: la finestra del digiuno (voce #7) PIÙ gli spuntini
@@ -1342,6 +1386,28 @@ export class MenuService {
     );
 
     /**
+     * ⛔ **QUANTI PASTI HA LA GIORNATA LO DICE LA SUA DIETA, NON IL PANIERE — corretto l'1/9.**
+     *
+     * `dayComboPools` prendeva gli slot dalle **chiavi del pool**. Finché il pool si costruiva
+     * dalle giornate della dieta di questa cliente era la stessa cosa, e ha funzionato per mesi.
+     * Dalla Fase 1 il pool arriva dal **paniere**, che è famiglia × regime e raccoglie tutte le
+     * varianti che ci versano dentro — comprese quelle con una struttura diversa.
+     *
+     * ⛔ Il costo, e non è teorico: una cliente a **3 pasti** il cui paniere contiene anche varianti
+     * a 5 si sarebbe vista comporre una giornata da **5 pasti**, cioè kcal in più di quelle che le
+     * spettano, senza che niente lo dicesse. Il difetto è nato con l'interruttore su `paniere` e
+     * questa riga è la sua correzione: la struttura la dettano le SUE giornate, il paniere dice
+     * soltanto **quali piatti** possono entrarci.
+     *
+     * ⚠️ Si legge dai template invece che da `pastiAttesi(diet)` di proposito: `pastiAttesi` non
+     * conosce la giornata da **quattro** pasti e la tratta come un tre (vedi il commento in
+     * `giornate-complete.ts`), quindi userebbe la dichiarazione per togliere un pasto che la
+     * cliente riceve davvero. I template sono quello che le arriva.
+     */
+    const slotDellaStruttura = new Set<string>();
+    for (const t of templates) for (const sl of slotPieni(t as { meals?: unknown })) slotDellaStruttura.add(sl);
+
+    /**
      * ⛔ **LE DATE, non un inizio più un contatore** (25/8). Il ciclo faceva `firstNewDate + i
      * giorni`: date consecutive per costruzione, quindi i buchi restavano. L'elenco lo decide
      * `dateDaComporre` (calcolato in cima, insieme a `firstNewDate`), che salta quelle che ci sono
@@ -1351,7 +1417,10 @@ export class MenuService {
      * che sceglie il template del giorno, e con le date non consecutive l'indice direbbe un'altra
      * cosa. Era già così, ed è la riga che rende questo cambio possibile senza toccare il resto.
      */
-    const daySnapshots: { date: Date; meals: MealSnapshot[] }[] = [];
+    const daySnapshots: { date: Date; meals: MealSnapshot[]; allargataDi?: number }[] = [];
+    /** Quante giornate di questo giro hanno avuto bisogno di allargare la banda, e di quanto al massimo. */
+    let giornateAllargate = 0;
+    let allargamentoMassimo = 0;
     for (const istante of daComporre) {
       const date = new Date(istante);
       const daysSinceStart = Math.round((date.getTime() - start.getTime()) / 86_400_000);
@@ -1368,16 +1437,26 @@ export class MenuService {
       let chosen: { slot: string; recipeId: string }[] | null = null;
       // I punteggi vanno ricalcolati AD OGNI GIORNO: i piatti scelti per il giorno precedente
       // sono nel frattempo diventati "serviti di recente" (bump) e vanno sfavoriti.
-      const combo = useDayCombo && ctxGiorno ? this.dayComboPools(ctxGiorno, slotSaltati) : null;
+      const combo = useDayCombo && ctxGiorno ? this.dayComboPools(ctxGiorno, slotSaltati, slotDellaStruttura) : null;
+      let allargataDi = 0;
       if (combo) {
-        chosen = this.dayCombo.compose({
+        const esito = this.dayCombo.componi({
           slots: combo.slots,
           poolBySlot: combo.poolBySlot,
           targetKcal,
           tolerancePct: kcalTolPct,
           dayIndex: daysSinceStart,
           proteinBand: { min: pMin, max: pMax },
+          allargamento,
+          coppieGiaViste,
         });
+        chosen = esito?.giornata ?? null;
+        allargataDi = esito?.allargataDi ?? 0;
+        if (esito?.coppiaRipetuta) coppieRipetute += 1;
+        if (allargataDi > 0) {
+          giornateAllargate += 1;
+          allargamentoMassimo = Math.max(allargamentoMassimo, allargataDi);
+        }
       }
       // Fallback: se DayCombo è spento o non trova una giornata nella banda, si usa
       // il template composto a mano con il selettore per-slot.
@@ -1392,12 +1471,20 @@ export class MenuService {
       // pool della dieta offre un'alternativa entro la tolleranza kcal (bilanciamento salvo).
       chosen = this.applyVarietyGuard(chosen, slotHistory, ctxGiorno, kcalTolPct / 100, varietyGap);
       this.pushSlotHistory(slotHistory, chosen, varietyGap);
+      /**
+       * ⚠️ **Dopo** la guardia di varietà, non prima: quella può cambiare il pranzo o la cena, e la
+       * coppia da ricordare è quella che la cliente riceve davvero, non quella che avevamo scelto.
+       */
+      if (coppiaGiorni > 0) {
+        const coppia = coppiaDellaGiornata(chosen);
+        if (coppia) coppieGiaViste.add(coppia);
+      }
       // I piatti di oggi contano come "serviti di recente" per i giorni successivi del ciclo.
       // ⚠️ Il «servito di recente» si segna su TUTTI E DUE i contesti: se lo si segnasse solo su
       // quello del giorno, la domenica riproporrebbe i piatti di sabato senza saperlo.
       for (const m of chosen) { ctx?.bump(m.recipeId); ctxConforto?.bump(m.recipeId); }
       const meals = await this.snapshotMeals(chosen as never);
-      daySnapshots.push({ date, meals });
+      daySnapshots.push({ date, meals, allargataDi: allargataDi > 0 ? allargataDi : undefined });
     }
     if (daySnapshots.length === 0) return []; // tutti i giorni erano oltre la fine piano
 
@@ -1805,6 +1892,27 @@ export class MenuService {
         );
     }
 
+    /**
+     * ⚠️ **SE DEGRADI, DILLO — anche a voce alta** (1/9). Il numero sulla riga serve a contare dopo;
+     * questa riga serve a chi guarda i log la mattina. Si scrive **una volta per giro** e non una
+     * per giornata: un ciclo di sette giorni con la banda stretta riempirebbe il log di sette righe
+     * identiche, e un log che si ripete è un log che si smette di leggere.
+     */
+    if (coppieRipetute > 0) {
+      this.logger.warn(
+        `Varietà: per ${clientId} ${coppieRipetute} giornata/e composte con una coppia pranzo/cena già servita `
+        + `negli ultimi ${coppiaGiorni} giorni — dentro la banda kcal non ne restavano di nuove. `
+        + 'Il pool di questa dieta è stretto: si guarda con `npm run diag:coppie`.',
+      );
+    }
+    if (giornateAllargate > 0) {
+      this.logger.warn(
+        `Kcal: per ${clientId} ${giornateAllargate} giornata/e su ${daySnapshots.length} composte allargando la banda `
+        + `(massimo +${allargamentoMassimo} punti sopra ±${kcalTolPct}%). Il pool di questa dieta non copre il target: `
+        + 'si guarda con `npm run diag:allargamenti`.',
+      );
+    }
+
     const created: string[] = [];
     for (const day of daySnapshots) {
       await this.prisma.menuDay.upsert({
@@ -1832,6 +1940,12 @@ export class MenuService {
            * dei pasti nella riga accanto.
            */
           apertureTracciate: !!(profile as { apertureDal?: Date | null }).apertureDal,
+          /**
+           * ⚠️ Di quanto si è allargata la banda kcal per comporre QUESTA giornata (1/9). Nullo nel
+           * caso normale — si scrive solo quando si è degradato, così la domanda «quali giornate
+           * abbiamo servito fuori target» è un `where … IS NOT NULL` e non un conto da rifare.
+           */
+          allargamentoBandaPct: day.allargataDi ?? null,
         } as never,
         update: {}, // mai sovrascrivere un giorno già erogato
       });
@@ -2680,6 +2794,32 @@ export class MenuService {
     return hist;
   }
 
+  /**
+   * LE COPPIE PRANZO/CENA GIÀ SERVITE negli ultimi `giorni` (richiesta di Simone, 26/8).
+   *
+   * ⚠️ Si legge dagli snapshot di `menu_day`, che è dove la coppia esiste davvero — la giornata
+   * servita, non quella progettata. Non c'è un indice sulle coppie e non serve: la finestra è di
+   * qualche decina di giorni **per una cliente**, cioè qualche decina di righe.
+   *
+   * ⚠️ `take` è la finestra in giorni e non un numero fisso: una cliente ha al massimo una giornata
+   * per data (`@@unique([clientId, date])`), quindi le due cose coincidono.
+   */
+  private async coppieRecenti(clientId: string, before: Date, giorni: number): Promise<Set<string>> {
+    const out = new Set<string>();
+    if (giorni <= 0) return out;
+    const rows = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { lt: before } },
+      select: { meals: true },
+      orderBy: { date: 'desc' },
+      take: giorni,
+    })) as { meals: unknown }[];
+    for (const r of rows) {
+      const coppia = coppiaDellaGiornata((r.meals as { slot?: string; recipeId?: string }[]) ?? []);
+      if (coppia) out.add(coppia);
+    }
+    return out;
+  }
+
   /** Aggiunge il giorno appena composto in testa allo storico (finestra `gapDays`). */
   private pushSlotHistory(history: Map<string, string[]>, meals: { slot: string; recipeId: string }[], gapDays: number): void {
     if (gapDays <= 0) return;
@@ -2744,17 +2884,20 @@ export class MenuService {
     kcalOf: Map<string, number>;
     proteinOf: Map<string, number>;
     score: (id: string) => number;
-  }, salta: Set<string> = new Set()): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
+  }, salta: Set<string> = new Set(), strutturaDellaDieta?: ReadonlySet<string>): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
     // Gli slot saltati escono PRIMA della composizione, non dopo: così il target kcal della
     // giornata viene ridistribuito sui pasti rimasti invece di lasciare un buco.
-    const tutti = [...ctx.slotPool.keys()];
-    const rimasti = tutti.filter((s) => !salta.has(s));
-    // Rete di sicurezza: se la finestra svuotasse la giornata, si ignora il filtro. Meglio un
-    // digiuno impreciso che una cliente senza niente da mangiare.
-    const slots = rimasti.length > 0 ? rimasti : tutti;
+    // ⛔ Quanti pasti ci sono lo dice la SUA dieta, non il paniere: vedi `struttura-della-giornata.ts`.
+    const slots = slotDaComporre({ strutturaDellaDieta, chiaviDelPool: ctx.slotPool.keys(), salta });
     const poolBySlot = new Map<string, RecipeInfo[]>();
-    for (const [slot, ids] of ctx.slotPool) {
-      if (!slots.includes(slot)) continue;
+    /**
+     * ⚠️ Si gira sugli **slot scelti**, non sulle chiavi del pool: uno slot della sua struttura che
+     * nel paniere non ha nemmeno un piatto deve arrivare a `compose` **vuoto**, così la
+     * composizione torna `null` e si ripiega sulla giornata pre-costruita. Se sparisse e basta, la
+     * giornata uscirebbe con un pasto in meno e con le kcal ridistribuite come se fosse voluto.
+     */
+    for (const slot of slots) {
+      const ids = ctx.slotPool.get(slot) ?? new Set<string>();
       poolBySlot.set(
         slot,
         [...ids].map((id) => ({

@@ -20,6 +20,88 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🏷️ **I parametri nuovi hanno un nome, e da oggi il debito non cresce.** Un parametro
+  nasce nel backend col suo default e funziona subito; in pagina «Parametri» però compariva in
+  fondo, sotto «Altro», con la **chiave grezza**. L'1/9 erano sei insieme, tutti miei. ⚠️ La pagina
+  non era rotta: era **muta**, che è il modo in cui questo difetto è sopravvissuto per mesi. Fatte
+  le sei etichette in un gruppo «Menu · panieri» — `panieri_sorgente_pool` è ora una tendina con
+  due voci in italiano invece di una casella dove si scrive «paniere» a mano — e corretto un
+  difetto preesistente: il gruppo «Agenti AI» non era nell'ordine e finiva in coda. ⛔ **La
+  sentinella legge i sorgenti del backend** e pretende un'etichetta per ogni parametro letto: la
+  domanda «esistono parametri che il motore legge e che lì non hanno un nome?» non si può fare
+  guardando solo il front end, ed è la domanda che nessuno si era fatto. ⛔ **Il debito si congela,
+  non si finge chiuso**: la prima stesura falliva su **novanta** chiavi, e un guardiano che grida
+  su novanta cose è un guardiano che si impara a zittire. Le novanta sono dichiarate, la prova
+  fallisce solo per i nuovi, e una seconda prova obbliga a togliere dalla lista chi riceve un nome
+  — altrimenti fra un anno la lista direbbe novanta e ne mancherebbero dieci.
+
+- `[Sviluppo]` 🐟 **Il pescetariano esiste — e non riceve carne.** Aprendo la Fase 5 è saltato fuori
+  un **ripiego rovesciato**: la tabella di «cosa può mangiare una cliente di questo regime» viveva
+  dentro `personal-base.service.ts`, non conosceva `pescetarian`, e per un regime sconosciuto
+  ripiegava su `['omnivore']`. ⛔ Cioè il giorno che il pescetariano entra fra i regimi attivi — che
+  è questa fase — a quella cliente la base personale avrebbe dichiarato sicuri **i piatti di
+  carne**. Non un menu più povero: un piatto sbagliato. ⚠️ Un ripiego su cosa si può mangiare deve
+  andare verso il **più stretto**: il vegano è sbagliato al massimo per difetto, l'onnivoro è
+  sbagliato nel piatto. Ora la tabella è in `common/regimi.ts`, il nesting si **calcola**
+  dall'ordine (vegano ⊂ vegetariano ⊂ pescetariano ⊂ onnivoro) invece di essere scritto a mano
+  quattro volte, e un regime sconosciuto su una cliente vera finisce nel log. ⚠️ **I panieri
+  pescetariani si derivano**: vegetariano della stessa famiglia + i piatti di pesce dell'onnivoro —
+  un'assegnazione, non una generazione. ⛔ Il pesce si riconosce con **l'elenco delle esclusioni**,
+  quello che tiene al sicuro chi è allergico: un secondo elenco di pesci è un elenco che un giorno
+  diverge, e quello sbagliato è sempre quello che nessuno guardava. ⛔ E si guardano **tutti** gli
+  ingredienti: un risotto con una julienne di speck è un risotto, ma non è un piatto per una
+  pescetariana. `npm run panieri:pesce` (sola lettura; `APPLICA=1` scrive, e solo aggiunge). Tre
+  mutazioni provate, tre uccise. ⚠️ `pescetarian` **non** è ancora fra i regimi attivi: quello è un
+  parametro, e si accende quando i panieri derivati sono pieni e guardati.
+
+- `[Sviluppo]` 🍝 **La coppia pranzo/cena non si ripete** — la frase di Simone del 26/8, *«se oggi a
+  pranzo spaghetti e a cena branzino, la prossima volta che a pranzo avrò spaghetti mi devi cambiare
+  la cena»*, diventa una regola. ⚠️ Non è un quinto meccanismo anti-ripetizione: i quattro che
+  c'erano guardano **un pasto alla volta**, e con gli spaghetti concessi ogni due giorni e il
+  branzino pure la stessa coppia può tornare senza che nessuno se ne accorga — nessuno dei due
+  piatti si sta ripetendo troppo. Quello che si ripete è la **giornata**, e non c'era niente che la
+  guardasse. ⚠️ La chiave è ordinata per slot: «spaghetti a pranzo e branzino a cena» è una giornata
+  diversa da quella scambiata, che infatti nessuno servirebbe. ⛔ **E non svuota mai**: se dentro la
+  banda kcal tutte le coppie sono già state viste, si compone lo stesso e lo si dichiara — una
+  coppia ripetuta è un difetto di varietà, una giornata vuota è una cliente senza cena. ⛔ **La
+  coppia non compra calorie**: il filtro sta dopo la scelta della banda, perché se una coppia già
+  vista bastasse ad allargare le kcal la varietà comprerebbe calorie fuori target. ⚠️ Si ricorda la
+  coppia **servita**, non quella scelta: la guardia di varietà può cambiare il pranzo o la cena.
+  `menu_coppia_pranzo_cena_giorni` (30, zero la spegne), `npm run diag:coppie`. Quattro mutazioni
+  provate, quattro uccise. ⚠️ La tolleranza kcal a ±25% che il piano chiede insieme **non è stata
+  toccata**: quel parametro è globale e sposterebbe la banda di tutte le clienti insieme — va
+  misurato prima, ed è in pagina «Lavori».
+
+- `[Sviluppo]` ⛔ **Una cliente a 3 pasti poteva riceverne 5: difetto mio, nato con la Fase 1,
+  corretto in giornata.** Con l'interruttore su `paniere`, la composizione bilanciata prendeva il
+  **numero di pasti** della giornata dalle chiavi del pool — cioè dal paniere, che è famiglia ×
+  regime e raccoglie anche varianti con una struttura diversa. Finché il pool veniva dalle sue
+  giornate le due cose coincidevano, e ha funzionato per mesi: il difetto nasce esattamente quando
+  l'interruttore si sposta. ⚠️ Raggiungibile solo dove DayCombo è acceso o il menu a necessità guida
+  il target; dove la giornata la fa il selettore sul template la struttura è sempre stata giusta.
+  Corretto in `menu/struttura-della-giornata.ts`: **il paniere dice quali piatti possono entrare in
+  un pasto, quanti pasti ci sono lo dice la sua dieta** — sono due domande diverse, ed è la Fase 3
+  del piano. ⚠️ Si legge dai template e non da `pastiAttesi`, che non conosce la giornata da quattro
+  pasti e la tratta come un tre. ⚠️ E il verso opposto: uno slot che il paniere non copre **resta**
+  nell'elenco e arriva vuoto alla composizione, così si ripiega — se sparisse, la giornata uscirebbe
+  con un pasto in meno e le kcal ridistribuite come se fosse voluto. ⛔ **Un menu già erogato non si
+  riscrive**: `npm run diag:struttura` dice quali varianti erano esposte e quante clienti ci stanno
+  dietro, e la voce in pagina «Lavori» è rossa perché quei menu vanno guardati a mano.
+
+- `[Sviluppo]` ⚖️ **Se degradi, dillo: la banda kcal si allarga a passi, e la giornata dice di
+  quanto.** Decisione di Simone (Fase 3): quando nessuna combinazione entra nella banda del target,
+  la giornata si compone lo stesso allargando di `menu_daycombo_allargamento_passo_pct` (5) alla
+  volta fino a `_tetto_pct` (20) punti in più, e `menu_day.allargamento_banda_pct` registra quanto —
+  nullo nel caso normale, così «quali giornate abbiamo servito fuori target» è un `IS NOT NULL` e
+  non un conto da rifare. Una riga di log per **giro**, non per giornata: sette righe identiche sono
+  un log che si smette di leggere. ⛔ **Il tetto è la metà che rende onesta l'altra**: una banda che
+  si allarga finché qualcosa entra prima o poi compone una giornata che col target non c'entra più
+  niente e dice di aver rispettato la regola. Oltre il tetto si ripiega sulla giornata
+  pre-costruita, cioè sul comportamento di ieri — **il caso peggiore di questa consegna è quello che
+  succedeva prima**. Il passo a zero spegne tutto senza un rilascio. Si legge con
+  `npm run diag:allargamenti`. ⚠️ Migrazione da applicare su Render **prima** del primo menu
+  composto: `20260901090000_giornata_dice_di_quanto_si_e_allargata`.
+
 - `[Sviluppo]` 🧺 **Spuntino e merenda diventano un paniere solo: due da 84 fanno 168.** Decisione
   di Simone alla domanda che la Fase 2 del piano poneva prima di scrivere — *«un piatto pensato per
   le 10:30 va bene anche alle 17?»*. Sì: quale dei due sia lo decide **l'ora del pasto nella

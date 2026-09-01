@@ -1,8 +1,9 @@
 import { createHmac } from 'crypto';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
+import { REGIME_PIU_STRETTO, regimeConosciuto, regimiCompatibili } from '../common/regimi';
 import { famigliaDelPaniere } from '../menu/menu.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger} from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { allergieDaCodificare } from '../common/allergie';
@@ -27,13 +28,6 @@ const rankOf = (seed: string, recipeId: string): string => hmac(`${seed}:${recip
 const signMenu = (seed: string, version: number, orderedRecipeIds: string[]): string =>
   hmac(`${seed}|v${version}|${orderedRecipeIds.join(',')}`);
 
-
-// Compatibilità regime: cosa può mangiare un cliente di un dato regime (nesting standard).
-const REGIME_OK: Record<string, string[]> = {
-  vegan: ['vegan'],
-  vegetarian: ['vegan', 'vegetarian'],
-  omnivore: ['vegan', 'vegetarian', 'omnivore'],
-};
 
 // Messaggio mostrato al cliente quando la base non è pronta (testo fornito dal socio).
 const BLOCK_MESSAGE =
@@ -65,6 +59,8 @@ export interface PersonalBaseResult {
  */
 @Injectable()
 export class PersonalBaseService {
+  private readonly logger = new Logger(PersonalBaseService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -216,7 +212,23 @@ export class PersonalBaseService {
       allergensReviewed: boolean;
     }[];
 
-    const regimeOk = REGIME_OK[profile.regime ?? 'omnivore'] ?? ['omnivore'];
+    /**
+     * ⛔ **IL RIPIEGO ERA ROVESCIATO** (corretto l'1/9, Fase 5). La tabella stava qui e non
+     * conosceva `pescetarian`, e il ripiego per un regime sconosciuto era `['omnivore']`: il giorno
+     * che il pescetariano entra fra i regimi attivi, a quella cliente la base personale avrebbe
+     * dichiarato sicuri **i piatti di carne**. Ora la tabella è in `common/regimi.ts`, conosce
+     * tutti e quattro i regimi, e per uno sconosciuto ripiega sul **più stretto**.
+     *
+     * ⚠️ E lo scrive: un regime che non conosciamo su una cliente vera è una cosa che qualcuno deve
+     * poter vedere, non un menu più povero senza spiegazione.
+     */
+    if (profile.regime && !regimeConosciuto(profile.regime)) {
+      this.logger.warn(
+        `Base personale: regime sconosciuto «${profile.regime}» sul profilo di ${clientId}. `
+        + `Si considera sicuro solo il ${REGIME_PIU_STRETTO}: la base sarà più povera del dovuto.`,
+      );
+    }
+    const regimeOk = regimiCompatibili(profile.regime);
     const codedSet = new Set(coded);
     const safe: { id: string; mealSlot: string }[] = [];
     let unreviewed = 0;
@@ -225,7 +237,7 @@ export class PersonalBaseService {
         unreviewed++; // ricetta non certificata → non è considerata sicura
         continue;
       }
-      if (!regimeOk.includes(r.regime)) continue; // incompatibile col regime del cliente
+      if (!(regimeOk as readonly string[]).includes(r.regime)) continue; // incompatibile col regime del cliente
       if ((r.allergens ?? []).some((a) => codedSet.has(a))) continue; // contiene un allergene del cliente
       safe.push({ id: r.id, mealSlot: r.mealSlot });
     }

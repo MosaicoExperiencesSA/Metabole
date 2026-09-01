@@ -1,0 +1,44 @@
+I parametri nuovi hanno un nome, e da oggi il debito non cresce
+
+⚠️ IL DIFETTO, RICORRENTE E MAI NOMINATO
+Un parametro nuovo nasce nel backend (`configParams.getNumber('menu_qualcosa', 5)`) e
+funziona subito col suo default. Nella pagina «Parametri» del back office però compare
+IN FONDO, sotto «Altro», con la chiave grezza e senza una riga che dica cosa fa. Chi lo
+trova fra sei mesi non sa se toccarlo; chi lo tocca non sa cosa sta cambiando.
+
+L'1/9 erano SEI insieme, tutti miei: i due dei panieri, i due dell'agente delle
+colazioni, i due dell'allargamento della banda kcal. Nessuno se n'era accorto perché la
+pagina non è rotta — è muta.
+
+FATTO: le sei etichette, in un gruppo nuovo «Menu · panieri», con l'aiuto scritto per
+chi non ha seguito questo lavoro. `panieri_sorgente_pool` diventa una tendina con due
+voci in italiano invece di una casella di testo dove si scrive «paniere» a mano.
+
+⛔ E UN DIFETTO PREESISTENTE: il gruppo «Agenti AI» non era in `GROUP_ORDER`. Non
+spariva — quello era stato corretto l'11/8 — ma finiva in coda, dopo tutti gli altri.
+
+LA SENTINELLA — `config-params/parametri-tutti-etichettati.spec.ts`
+Legge i sorgenti del backend, raccoglie ogni `getString/getNumber/getBool/getJson`, e
+pretende che ogni chiave abbia un'etichetta nella pagina. ⚠️ Sta nel BACKEND anche se
+guarda un file del front end: la domanda «esistono parametri che il motore legge e che
+lì non hanno un nome?» non si può fare guardando solo il front end, ed è esattamente la
+domanda che nessuno si era fatto.
+
+⛔ IL DEBITO SI CONGELA, NON SI FINGE CHIUSO
+La prima stesura falliva su NOVANTA chiavi in una volta. Un guardiano che grida su
+novanta cose è un guardiano che si impara a zittire — la lezione è già scritta in
+`una-porta-per-le-esclusioni.spec.ts`. E correggerle tutte insieme non sarebbe nemmeno
+giusto: scrivere novanta etichette di fila vuol dire scriverne ottanta a caso, e
+un'etichetta sbagliata è peggio della chiave grezza, che almeno non mente.
+
+Quindi le novanta sono dichiarate in `SENZA_NOME_OGGI` e la prova fallisce solo per i
+NUOVI. ⚠️ E una seconda prova obbliga a togliere dalla lista chi riceve un nome: senza,
+fra un anno la lista direbbe novanta e ne mancherebbero dieci, e nessuno si fiderebbe
+più del numero.
+
+PROVE DI MUTAZIONE (due, tutte e due uccise)
+  1. un parametro nuovo senza etichetta        → 1 prova rossa
+  2. una chiave del debito riceve un nome ma resta in lista → 1 prova rossa
+
+Test: backend 6282 su 371 suite, verdi nelle quattro modalità; back office 165 su 19.
+Build pulite tutte e due.

@@ -284,7 +284,15 @@ Se la composizione si scrive su due panieri e poi diventano uno, si riscrive due
 
 ---
 
-### Fase 3 · Si compone dal paniere — **2–3 consegne**
+### Fase 3 · Si compone dal paniere — **parzialmente FATTA (1/9)**
+
+✅ **Fatto**: la struttura dei pasti viene dalla dieta della cliente e non dalle chiavi del pool
+(`menu/struttura-della-giornata.ts` — correzione di un difetto nato con la Fase 1), e il ripiego
+allarga la banda a passi scrivendo di quanto (`menu_day.allargamento_banda_pct`).
+
+⚠️ **Resta**: il mantenimento (stesso paniere, target senza deficit), e togliere del tutto la
+dipendenza dalla giornata pre-costruita — che oggi è ancora il ripiego oltre il tetto, e finché
+esiste è il ripiego giusto.
 
 **Cosa si fa**
 - `DayCombo` pesca dal paniere invece che dal pool dei template;
@@ -315,7 +323,15 @@ rispettato. Serve un tetto dichiarato, e oltre quello la segnalazione alla nutri
 
 ---
 
-### Fase 4 · La regola della coppia pranzo/cena — **1–2 consegne**
+### Fase 4 · La regola della coppia pranzo/cena — ✅ **FATTA (1/9)**
+
+✅ `menu/coppia-pranzo-cena.ts`, applicata dentro `DayComboService.componi`. Storico letto dagli
+snapshot di `menu_day` e accumulato durante il giro. `menu_coppia_pranzo_cena_giorni` (30, zero la
+spegne). Si legge con `npm run diag:coppie`.
+
+⚠️ **La tolleranza a ±25% non è stata toccata** — è globale, tocca tutte le clienti insieme e va
+misurata prima (`npm run diag:kcal`). È in `voci-iniziali.ts`. Nel frattempo esiste l'allargamento
+automatico della Fase 3, che tocca solo chi ne ha bisogno e lo dichiara.
 
 Richiesta testuale del 26/8: *«se a Simone oggi dai a pranzo spaghetti al pomodoro e cena
 branzino al forno, la prossima volta che a pranzo avrò spaghetti al pomodoro mi devi cambiare la
@@ -337,7 +353,14 @@ panieri nuovi: va misurato prima con `npm run diag:kcal`, e i tetti di porzione 
 
 ---
 
-### Fase 5 · Il regime pescetariano e la regola flexitariana — **1–2 consegne**
+### Fase 5 · Il regime pescetariano e la regola flexitariana — **metà FATTA (1/9)**
+
+✅ Il nesting con `pescetarian` (`common/regimi.ts`, correzione di un ripiego rovesciato) e la
+derivazione dei panieri (`npm run panieri:pesce`).
+
+⚠️ **Resta**: `pescetarian` in `config_param diet_regimes` (lo accende Simone quando i panieri
+derivati sono pieni e guardati), il flexitariano come `ProductRule` di frequenza, e le due celle
+keto-vegane dichiarate «non possibili» all'utente.
 
 **Cosa si fa**
 - `pescetarian` entra fra i regimi attivi (`config_param diet_regimes`), e nel nesting:

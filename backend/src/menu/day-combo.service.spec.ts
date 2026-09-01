@@ -83,3 +83,198 @@ describe('DayComboService.compose', () => {
     expect(kcal).toBeLessThanOrEqual(1600 * 1.15);
   });
 });
+
+/**
+ * ⚠️ **SE DEGRADI, DILLO** — decisione di Simone dell'1/9 (Fase 3 del piano panieri): quando
+ * nessuna giornata entra nella banda kcal, la banda si allarga a passi **e si scrive di quanto**.
+ */
+describe('DayComboService.componi — la banda che si allarga, e lo dice', () => {
+  /** Un pool che dentro ±10% non ha niente, e a ±20% ha una giornata sola. */
+  const poolStretto = () => new Map<string, RecipeInfo[]>([
+    ['breakfast', [r('c1', 300)]],
+    ['lunch', [r('p1', 500)]],
+    ['dinner', [r('d1', 400)]], // totale 1200, target 1400 → scarto 14,3%
+  ]);
+
+  it('dentro la banda chiesta non allarga niente, e lo dice con uno zero', () => {
+    const esito = svc.componi({
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 1200,
+      tolerancePct: 10,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.allargataDi).toBe(0);
+    expect(esito!.tolleranzaUsata).toBe(10);
+  });
+
+  it('fuori banda allarga di un passo alla volta e si ferma al primo che basta', () => {
+    const esito = svc.componi({
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 1400,
+      tolerancePct: 10,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+    });
+    expect(esito).not.toBeNull();
+    // 1200 su 1400 è −14,3%: non basta ±10, basta ±15. Non deve arrivare a ±20.
+    expect(esito!.tolleranzaUsata).toBe(15);
+    expect(esito!.allargataDi).toBe(5);
+    expect(esito!.giornata.map((m) => m.recipeId)).toEqual(['c1', 'p1', 'd1']);
+  });
+
+  /**
+   * ⛔ **LA METÀ CHE RENDE ONESTA L'ALTRA.** Senza tetto, la banda si allargherebbe finché
+   * qualcosa entra: a quel punto compone una giornata che col target non c'entra più niente e
+   * dice di aver rispettato la regola. Oltre il tetto si torna `null` e si ripiega.
+   */
+  it('⛔ oltre il tetto NON compone: torna null e chi chiama ripiega', () => {
+    const esito = svc.componi({
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 2400, // 1200 è metà: servirebbe ±50%
+      tolerancePct: 10,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+    });
+    expect(esito).toBeNull();
+  });
+
+  it('senza allargamento si comporta esattamente come prima', () => {
+    const input = {
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 1400,
+      tolerancePct: 10,
+      dayIndex: 0,
+    };
+    expect(svc.componi(input)).toBeNull();
+    expect(svc.compose(input)).toBeNull();
+  });
+
+  /**
+   * ⚠️ Un parametro sbagliato in `config_param` non deve poter aprire la banda all'infinito: deve
+   * solo lasciare le cose come stavano.
+   */
+  it('⚠️ un passo a zero o negativo non allarga, non gira a vuoto', () => {
+    for (const allargamento of [{ passoPct: 0, tettoPct: 20 }, { passoPct: -5, tettoPct: 20 }, { passoPct: 5, tettoPct: 0 }]) {
+      expect(svc.componi({
+        slots: ['breakfast', 'lunch', 'dinner'],
+        poolBySlot: poolStretto(),
+        targetKcal: 1400,
+        tolerancePct: 10,
+        dayIndex: 0,
+        allargamento,
+      })).toBeNull();
+    }
+  });
+
+  it('l\'ultimo passo non supera il tetto, anche se il passo non lo divide', () => {
+    const esito = svc.componi({
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 1400,
+      tolerancePct: 10,
+      dayIndex: 0,
+      allargamento: { passoPct: 7, tettoPct: 8 }, // 17 e 18: la prima che basta è 17
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.tolleranzaUsata).toBeLessThanOrEqual(18);
+    expect(esito!.allargataDi).toBeLessThanOrEqual(8);
+  });
+
+  it('`compose` continua a rendere solo la giornata, come l\'hanno sempre chiamata in giro', () => {
+    const input = {
+      slots: ['breakfast', 'lunch', 'dinner'],
+      poolBySlot: poolStretto(),
+      targetKcal: 1400,
+      tolerancePct: 10,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+    };
+    expect(svc.compose(input)).toEqual(svc.componi(input)!.giornata);
+  });
+});
+
+/**
+ * ⚠️ **LA COPPIA PRANZO/CENA** — richiesta di Simone del 26/8. I quattro meccanismi
+ * anti-ripetizione che c'erano guardano un pasto alla volta: nessuno vedeva la giornata intera.
+ */
+describe('DayComboService.componi — la coppia pranzo/cena non si ripete', () => {
+  const pool = () => new Map<string, RecipeInfo[]>([
+    ['lunch', [r('spaghetti', 600), r('riso', 600)]],
+    ['dinner', [r('branzino', 600), r('pollo', 600)]],
+  ]);
+  const base = { slots: ['lunch', 'dinner'], targetKcal: 1200, tolerancePct: 15, dayIndex: 0 };
+
+  it('senza storico compone come ha sempre fatto', () => {
+    const esito = svc.componi({ ...base, poolBySlot: pool() });
+    expect(esito).not.toBeNull();
+    expect(esito!.coppiaRipetuta).toBe(false);
+  });
+
+  it('con una coppia già servita ne sceglie un\'altra', () => {
+    const esito = svc.componi({
+      ...base,
+      poolBySlot: pool(),
+      coppieGiaViste: new Set(['spaghetti|branzino', 'spaghetti|pollo', 'riso|branzino']),
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.giornata.map((m) => m.recipeId)).toEqual(['riso', 'pollo']);
+    expect(esito!.coppiaRipetuta).toBe(false);
+  });
+
+  /**
+   * ⛔ Con un pool stretto le coppie finiscono. Meglio ripetere una coppia — e dirlo — che lasciare
+   * la cliente senza cena.
+   */
+  it('⛔ se sono finite compone lo stesso e lo dichiara', () => {
+    const esito = svc.componi({
+      ...base,
+      poolBySlot: pool(),
+      coppieGiaViste: new Set(['spaghetti|branzino', 'spaghetti|pollo', 'riso|branzino', 'riso|pollo']),
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.coppiaRipetuta).toBe(true);
+  });
+
+  /**
+   * ⛔ **La coppia non allarga le kcal.** Se una coppia già vista bastasse a far allargare la banda,
+   * la varietà comprerebbe calorie fuori target — due regole che si scambiano la moneta. Prima si
+   * decide la banda, poi lì dentro si preferisce una giornata nuova.
+   */
+  it('⛔ una coppia già vista NON è un motivo per allargare la banda', () => {
+    const esito = svc.componi({
+      slots: ['lunch', 'dinner'],
+      poolBySlot: new Map<string, RecipeInfo[]>([
+        ['lunch', [r('spaghetti', 600)]],
+        ['dinner', [r('branzino', 600)]],
+      ]),
+      targetKcal: 1200,
+      tolerancePct: 15,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+      coppieGiaViste: new Set(['spaghetti|branzino']),
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.allargataDi).toBe(0);
+    expect(esito!.coppiaRipetuta).toBe(true);
+  });
+
+  /** ⚠️ Una giornata senza pranzo o senza cena non ha coppia: la regola la lascia passare. */
+  it('⚠️ il digiuno che toglie il pranzo non viene mai bloccato dalla regola', () => {
+    const esito = svc.componi({
+      slots: ['dinner'],
+      poolBySlot: new Map<string, RecipeInfo[]>([['dinner', [r('branzino', 600)]]]),
+      targetKcal: 600,
+      tolerancePct: 15,
+      dayIndex: 0,
+      coppieGiaViste: new Set(['spaghetti|branzino', '|branzino']),
+    });
+    expect(esito).not.toBeNull();
+    expect(esito!.coppiaRipetuta).toBe(false);
+  });
+});

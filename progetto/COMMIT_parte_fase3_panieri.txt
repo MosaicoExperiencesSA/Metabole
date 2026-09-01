@@ -1,0 +1,71 @@
+Fase 3 dei panieri: la struttura è della cliente, e se degradi lo dici
+
+⛔ PRIMA COSA, ED È UN DIFETTO MIO
+Con la Fase 1 e l'interruttore su `paniere`, la composizione bilanciata (DayCombo)
+prendeva il NUMERO DI PASTI della giornata dalle chiavi del pool — cioè dal paniere,
+che è famiglia × regime e raccoglie anche varianti con una struttura diversa.
+
+Una cliente a 3 pasti il cui paniere ne contiene di 5 poteva vedersi comporre 5 pasti:
+kcal in più di quelle che le spettano, senza che niente lo dicesse. Finché il pool
+veniva dalle sue giornate le due cose coincidevano, e ha funzionato per mesi; il
+difetto nasce esattamente quando l'interruttore si sposta.
+
+⚠️ Raggiungibile solo dove DayCombo è acceso (default spento, ma è per-dieta) o dove
+il menu a necessità guida il target. Dove la giornata la fa il selettore sul template,
+la struttura è sempre stata quella giusta.
+
+LA CORREZIONE — `menu/struttura-della-giornata.ts`
+`slotDaComporre` prende la struttura dalle GIORNATE della sua dieta; il paniere dice
+quali piatti possono entrare in un pasto, non quanti pasti ci sono. Sono due domande
+diverse ed è la Fase 3 del piano.
+
+⚠️ Si legge dai template e non da `pastiAttesi(diet)` di proposito: quella funzione non
+conosce la giornata da QUATTRO pasti e la tratta come un tre, quindi userebbe la
+dichiarazione per togliere un pasto che la cliente riceve davvero.
+
+⚠️ E il verso opposto, quello che si dimentica: uno slot della sua struttura che il
+paniere non copre RESTA nell'elenco e arriva vuoto alla composizione, così si ripiega
+sulla giornata pre-costruita. Se sparisse, la giornata uscirebbe con un pasto in meno e
+le kcal ridistribuite come se fosse voluto.
+
+CHI È STATO ESPOSTO — `npm run diag:struttura` (sola lettura)
+Quali varianti hanno un paniere più largo della loro struttura, quali di quelle hanno
+DayCombo o il menu a necessità acceso, e quante clienti ci stanno dietro. Un menu già
+erogato non si riscrive: quello che resta è guardarli, ed è in `voci-iniziali.ts`.
+
+SE DEGRADI, DILLO — la seconda metà della Fase 3
+Decisione di Simone: quando nessuna combinazione entra nella banda kcal, la banda si
+allarga a passi finché una giornata ci entra, e si scrive di quanto.
+
+  · `DayComboService.componi` — stesso conto di `compose`, che ora lo chiama; in più
+    dice `tolleranzaUsata` e `allargataDi`. I candidati si calcolano UNA volta e si
+    filtrano a bande crescenti: rifare l'enumerazione a ogni passo moltiplicherebbe il
+    lavoro proprio quando il pool è grande, cioè quando questo codice serve.
+  · `menu_daycombo_allargamento_passo_pct` (default 5) e `_tetto_pct` (default 20),
+    da `config_param`, con override per dieta.
+  · `menu_day.allargamento_banda_pct` — quanto si è degradato, sulla riga. NULL nel
+    caso normale, così «quali giornate abbiamo servito fuori target» è un IS NOT NULL.
+  · una riga di log per GIRO, non per giornata: sette righe identiche sono un log che
+    si smette di leggere.
+  · `npm run diag:allargamenti` — quante e da quali diete.
+
+⛔ IL TETTO È LA METÀ CHE RENDE ONESTA L'ALTRA. Una banda che si allarga finché
+qualcosa entra prima o poi compone una giornata che col target non c'entra più niente e
+dice di aver rispettato la regola. Oltre il tetto non si compone: si ripiega sulla
+giornata pre-costruita, cioè sul comportamento di ieri. Il caso peggiore di questa
+consegna è quello che succedeva prima, mai qualcosa di nuovo.
+⚠️ Il passo a zero spegne tutto senza un rilascio, se il meccanismo si rivelasse
+sbagliato.
+
+⚠️ MIGRAZIONE DA APPLICARE SU RENDER
+`20260901090000_giornata_dice_di_quanto_si_e_allargata` — una colonna nullable su
+`menu_day`. Va applicata PRIMA che il codice nuovo componga il primo menu: il campo si
+scrive in `create`, e senza colonna il primo giro fallirebbe per tutte insieme.
+
+PROVE DI MUTAZIONE (tre, tutte uccise)
+  1. la struttura torna a venire dalle chiavi del pool  → 2 prove rosse
+  2. il tetto sparisce (banda che si allarga senza fine) → 2 prove rosse
+  3. la colonna non si scrive più                        → 1 prova rossa
+
+Test: 6245 su 367 suite, verdi nelle quattro modalità. Build pulita; `tsc` coi soli due
+errori preesistenti degli script prisma.

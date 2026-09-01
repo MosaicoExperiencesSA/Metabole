@@ -1,0 +1,65 @@
+Fase 5 dei panieri: il pescetariano esiste, e non riceve carne
+
+⛔ PRIMA COSA: UN RIPIEGO ROVESCIATO, TROVATO APRENDO LA FASE 5
+La tabella di «cosa può mangiare una cliente di questo regime» viveva dentro
+`personal-base.service.ts`, non conosceva `pescetarian`, e il ripiego per un regime
+sconosciuto era `['omnivore']`.
+
+Cioè: il giorno che il pescetariano entra fra i regimi attivi — che è esattamente
+questa fase — a una cliente pescetariana la base personale avrebbe dichiarato sicuri
+I PIATTI DI CARNE. Non un menu più povero: un piatto sbagliato.
+
+⚠️ Un ripiego su un elenco di cosa si può mangiare deve andare verso il PIÙ STRETTO.
+Il vegano è sbagliato al massimo per difetto — arriva meno scelta e qualcuno se ne
+accorge. L'onnivoro è sbagliato nel piatto.
+
+`common/regimi.ts` — vegano ⊂ vegetariano ⊂ pescetariano ⊂ onnivoro
+Il nesting si CALCOLA dall'ordine invece di essere una tabella scritta a mano: quattro
+righe uguali a meno di una voce sono quattro righe di cui, il giorno che si aggiunge un
+regime, se ne aggiorna una e si dimenticano le altre. Un regime nuovo si mette al suo
+posto nell'ordine e tutte le risposte cambiano insieme.
+⚠️ E un regime sconosciuto su una cliente vera finisce nel log: una base più povera
+senza spiegazione è peggio di una base più povera spiegata.
+Sentinella: nessuno si riscrive il nesting (`common/regimi.spec.ts`).
+
+LA DERIVAZIONE — `catalog/paniere-pescetariano.ts`
+Paniere pescetariano = paniere VEGETARIANO della stessa famiglia + i piatti di PESCE di
+quello onnivoro. ⚠️ È un'assegnazione, non una generazione: nessuna ricetta nuova, si
+dice che ricette che esistono già appartengono anche a questo paniere. Nove panieri
+pescetariani su dieci erano vuoti, ed era atteso.
+
+⛔ IL PESCE SI RICONOSCE CON L'ELENCO DELLE ESCLUSIONI, quello che tiene al sicuro chi è
+allergico (67 termini, più crostacei e molluschi). Non ne esiste un secondo, ed è
+voluto: due elenchi di pesci sono due elenchi che un giorno divergono, e quello
+sbagliato è sempre quello che nessuno stava guardando.
+
+⛔ E si guardano TUTTI gli ingredienti, non solo il principale. Per la regola delle
+colazioni la domanda è di cosa È il piatto; qui è «questa persona può mangiarlo?», e a
+quella risponde qualunque grammo di carne: un risotto con una julienne di speck è un
+risotto, ma non è un piatto per una pescetariana. La carne vince sul pesce — «mare e
+monti» esiste.
+
+⚠️ Il paniere vegetariano entra TUTTO senza passare dal verdetto: quelle ricette sono
+già state approvate come vegetariane da una nutrizionista, e rileggerle con un elenco di
+parole vorrebbe dire far vincere le parole sulla firma di una persona.
+
+⚠️ Un piatto onnivoro senza né carne né pesce resta FUORI: se fosse davvero vegetariano
+starebbe nel paniere vegetariano, e se non c'è è perché nessuno l'ha detto.
+
+`npm run panieri:pesce` — sola lettura; `APPLICA=1` scrive. Solo aggiunte: non cancella
+niente, non tocca il catalogo, non crea ricette. `skipDuplicates` perché una riga già
+presente non è un errore, è il segno che il passo è già girato.
+
+NON FATTO IN QUESTA CONSEGNA (resta della Fase 5)
+  · `pescetarian` fra i regimi attivi — è `config_param diet_regimes`, lo scrive Simone
+    dal back office quando i panieri derivati sono pieni e guardati;
+  · il flexitariano come ProductRule di frequenza sul paniere onnivoro;
+  · le due celle keto-vegane dichiarate «non possibili» all'utente (in codice ci sono
+    già: `IMPOSSIBILI` e `DOVE_VANNO_LE_IMPOSSIBILI`).
+
+PROVE DI MUTAZIONE (tre, tutte uccise)
+  1. il ripiego torna a `omnivore`                → 1 prova rossa
+  2. `pescetarian` sparisce dall'ordine           → 3 prove rosse
+  3. il verdetto guarda solo il nome del piatto   → 3 prove rosse
+
+Test: 6279 su 370 suite, verdi nelle quattro modalità. Build pulita.

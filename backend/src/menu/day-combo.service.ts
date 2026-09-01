@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { coppiaDellaGiornata, scartaLeCoppieGiaViste } from './coppia-pranzo-cena';
 
 /** Ricetta candidata per uno slot, con i dati che servono alla composizione. */
 export interface RecipeInfo {
@@ -16,6 +17,48 @@ export interface DayComboInput {
   dayIndex: number; // indice del giorno nel ciclo → varietà (rotazione tra i migliori)
   proteinBand?: { min: number; max: number }; // banda quota proteica giornaliera (penalità soft)
   maxCombos?: number; // limite enumerazione completa (oltre → greedy)
+  /** Se e di quanto allargare la banda kcal quando nessuna giornata ci entra. Assente = non si allarga. */
+  allargamento?: Allargamento;
+  /**
+   * Le coppie pranzo/cena già servite di recente a questa cliente (richiesta del 26/8).
+   * ⚠️ Vuoto o assente = la regola non si applica, e la composizione è quella di sempre.
+   */
+  coppieGiaViste?: ReadonlySet<string>;
+}
+
+/**
+ * ⚠️ **SE DEGRADI, DILLO** — decisione di Simone dell'1/9, Fase 3 del piano panieri.
+ *
+ * Quando nessuna combinazione entra nella banda kcal, la giornata si compone lo stesso: la banda si
+ * allarga **a passi**, e si scrive di quanto. Le altre due strade erano comporre fuori banda senza
+ * limite (che non degrada: mente) e tenere una giornata di riserva per paniere (38 giornate scritte
+ * a mano, che invecchiano).
+ *
+ * ⛔ **Il tetto non è un dettaglio, è la metà che rende onesta l'altra.** Una banda che si allarga
+ * finché qualcosa entra prima o poi compone una giornata che col target non c'entra più niente, e
+ * dice di aver rispettato la regola. Oltre il tetto non si compone: si torna `null`, il chiamante
+ * ripiega sulla giornata pre-costruita e la cosa si segnala.
+ */
+export interface Allargamento {
+  /** Di quanti punti percentuali si allarga a ogni tentativo. */
+  passoPct: number;
+  /** Quanti punti percentuali in tutto si può arrivare ad aggiungere. Oltre, si rinuncia. */
+  tettoPct: number;
+}
+
+/** L'esito della composizione: la giornata, e a che prezzo. */
+export interface EsitoComposizione {
+  giornata: { slot: string; recipeId: string }[];
+  /** La tolleranza con cui è stata trovata, in punti percentuali. */
+  tolleranzaUsata: number;
+  /** Quanti punti sopra quella chiesta. **Zero vuol dire che non si è degradato niente.** */
+  allargataDi: number;
+  /**
+   * ⚠️ Vero se la coppia pranzo/cena era già stata servita e si è dovuta riproporre lo stesso,
+   * perché non ne restava nessun'altra dentro la banda. È un difetto di varietà dichiarato, non un
+   * errore: l'alternativa sarebbe stata non comporre.
+   */
+  coppiaRipetuta: boolean;
 }
 
 interface Combo {
@@ -35,25 +78,78 @@ interface Combo {
  * Non allarga mai l'insieme di ricette approvato dal nutrizionista: compone soltanto
  * combinazioni nuove degli stessi piatti. Ritorna `null` se non esiste una giornata
  * nella banda calorica (il chiamante ricade sui template composti a mano).
+ *
+ * ⚠️ **Dall'1/9 la banda kcal si può allargare a passi, e chi lo fa lo scrive** (`componi`): vedi
+ * `Allargamento` qui sotto. Il tetto è la metà che rende onesta l'altra.
  */
 @Injectable()
 export class DayComboService {
   compose(input: DayComboInput): { slot: string; recipeId: string }[] | null {
+    return this.componi(input)?.giornata ?? null;
+  }
+
+  /**
+   * Come `compose`, ma dice anche **a che prezzo**: con quale tolleranza ha trovato la giornata e
+   * di quanto ha dovuto allargare la banda.
+   *
+   * ⚠️ `compose` resta e chiama questo: è lo stesso conto, non una seconda strada. Chi vuole solo la
+   * giornata continua a chiedere quella, chi deve scrivere che si è degradato chiede questo.
+   *
+   * ⛔ I candidati si calcolano **una volta sola** e si filtrano a bande crescenti. Rifare
+   * l'enumerazione a ogni passo vorrebbe dire moltiplicare per quattro il lavoro proprio nel caso
+   * in cui il pool è già grande — cioè nel caso in cui questo codice serve.
+   */
+  componi(input: DayComboInput): EsitoComposizione | null {
     const { slots, poolBySlot, targetKcal, tolerancePct, dayIndex } = input;
     if (!slots.length || targetKcal <= 0) return null;
 
     const pools = slots.map((s) => (poolBySlot.get(s) ?? []).filter((r) => r.kcal > 0));
     if (pools.some((p) => p.length === 0)) return null; // uno slot senza candidati → non componibile
 
-    const lo = targetKcal * (1 - tolerancePct / 100);
-    const hi = targetKcal * (1 + tolerancePct / 100);
     const cap = input.maxCombos ?? 20000;
     const total = pools.reduce((acc, p) => acc * p.length, 1);
 
     const candidates: Combo[] = total <= cap ? this.enumerate(pools) : [this.greedy(pools, targetKcal)];
 
-    const valid = candidates.filter((c) => c.kcal >= lo && c.kcal <= hi);
-    if (!valid.length) return null; // nessuna giornata nella banda → fallback ai template
+    /**
+     * ⚠️ Le tolleranze da provare, **in ordine**: prima quella chiesta, poi i passi fino al tetto.
+     * Il passo a zero o negativo non allarga niente — un parametro sbagliato in `config_param` non
+     * deve poter aprire la banda all'infinito, deve solo lasciare le cose come stavano.
+     */
+    const all = input.allargamento;
+    const passo = Math.max(0, all?.passoPct ?? 0);
+    const tetto = Math.max(0, all?.tettoPct ?? 0);
+    const tolleranze: number[] = [tolerancePct];
+    if (passo > 0 && tetto > 0) {
+      for (let aggiunta = passo; aggiunta <= tetto + 1e-9; aggiunta += passo) {
+        tolleranze.push(tolerancePct + Math.min(aggiunta, tetto));
+      }
+    }
+
+    let valid: Combo[] = [];
+    let usata = tolerancePct;
+    for (const t of tolleranze) {
+      const lo = targetKcal * (1 - t / 100);
+      const hi = targetKcal * (1 + t / 100);
+      valid = candidates.filter((c) => c.kcal >= lo && c.kcal <= hi);
+      if (valid.length) { usata = t; break; }
+    }
+    // Nemmeno col tetto: si rinuncia, e chi ha chiamato ripiega sulla giornata pre-costruita.
+    if (!valid.length) return null;
+
+    /**
+     * ⚠️ **LA COPPIA PRANZO/CENA** (richiesta di Simone, 26/8) — e sta **dopo** la scelta della
+     * banda, di proposito: una coppia già vista non è un motivo per allargare le kcal. Prima si
+     * decide dentro quale banda si compone, poi lì dentro si preferisce una giornata nuova.
+     *
+     * ⛔ E non svuota mai: se tutte le coppie in banda sono già state viste si compone lo stesso e
+     * lo si dichiara. Una coppia ripetuta è un difetto di varietà; una giornata vuota è una cliente
+     * senza cena.
+     */
+    const coppiaDelCombo = (c: Combo): string | null =>
+      coppiaDellaGiornata(slots.map((slot, i) => ({ slot, recipeId: c.picks[i].id })));
+    const suCoppie = scartaLeCoppieGiaViste(valid, coppiaDelCombo, input.coppieGiaViste ?? new Set());
+    valid = suCoppie.restano;
 
     const band = input.proteinBand;
     const rank = (c: Combo): number => {
@@ -71,7 +167,12 @@ export class DayComboService {
     // Varietà: ruota tra le migliori K combinazioni in base al giorno del ciclo.
     const k = Math.min(valid.length, 3);
     const pick = valid[((dayIndex % k) + k) % k];
-    return slots.map((slot, i) => ({ slot, recipeId: pick.picks[i].id }));
+    return {
+      giornata: slots.map((slot, i) => ({ slot, recipeId: pick.picks[i].id })),
+      tolleranzaUsata: usata,
+      allargataDi: Math.max(0, usata - tolerancePct),
+      coppiaRipetuta: suCoppie.ripiegato,
+    };
   }
 
   /** Enumerazione completa (pool piccoli): tutte le combinazioni una-ricetta-per-slot. */

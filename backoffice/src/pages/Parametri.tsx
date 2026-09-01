@@ -69,6 +69,40 @@ const META: Record<string, Meta> = {
   menu_days_delivered: { label: 'Giorni di menu erogati per volta', group: 'Menu', kind: 'number', unit: 'giorni' },
   menu_visible_days_before_start: { label: 'Menu visibile prima dell’inizio', group: 'Menu', kind: 'number', unit: 'giorni' },
 
+  // I PANIERI (piano panieri, agosto-settembre 2026). Stavano in fondo alla pagina sotto «Altro»,
+  // con la chiave grezza: un parametro che decide da dove arrivano i piatti di una cliente non può
+  // essere l'unico della pagina che nessuno sa leggere.
+  panieri_sorgente_pool: {
+    label: 'Da dove arrivano i piatti di una cliente', group: 'Menu · panieri', kind: 'select',
+    options: [
+      { value: 'giornate', label: 'Dalle giornate della sua dieta (come prima)' },
+      { value: 'paniere', label: 'Dal paniere famiglia × regime (nuovo)' },
+    ],
+    help: 'Il paniere raccoglie i piatti di tutte le varianti della stessa famiglia e regime: molta più scelta per la stessa cliente. Si torna indietro rimettendo «dalle giornate», senza rilascio — il valore vale entro un minuto.',
+  },
+  menu_daycombo_allargamento_passo_pct: {
+    label: 'Banda calorie: di quanto si allarga per volta', group: 'Menu · panieri', kind: 'number', unit: 'punti %',
+    help: 'Quando nessuna combinazione di piatti entra nella banda del target, la banda si allarga di tanti punti alla volta finché una giornata ci entra. ZERO spegne del tutto l’allargamento e riporta al comportamento di prima.',
+  },
+  menu_daycombo_allargamento_tetto_pct: {
+    label: 'Banda calorie: quanto può allargarsi in tutto', group: 'Menu · panieri', kind: 'number', unit: 'punti %',
+    help: 'Il limite. Oltre questo non si compone: si ripiega sulla giornata pre-costruita. Serve perché una banda che si allarga finché qualcosa entra prima o poi compone una giornata fuori target dicendo di aver rispettato la regola. Ogni allargamento è scritto sulla giornata.',
+  },
+  menu_coppia_pranzo_cena_giorni: {
+    label: 'La coppia pranzo/cena non si ripete per', group: 'Menu · panieri', kind: 'number', unit: 'giorni',
+    help: 'Se oggi a pranzo c’è la pasta al pomodoro e a cena il branzino, per tanti giorni quella coppia non torna — anche se i due piatti, presi da soli, potrebbero. ZERO spegne la regola. Se il paniere è piccolo e non restano coppie nuove, la giornata si compone lo stesso e finisce nei log.',
+  },
+
+  // L'AGENTE CHE SCRIVE COLAZIONI, SPUNTINI E MERENDE quando mancano (31/8).
+  agente_leggeri_acceso: {
+    label: 'Agente colazioni e spuntini', group: 'Menu · panieri', kind: 'toggle',
+    help: 'Di notte scrive BOZZE di colazioni, spuntini e merende per i panieri che ne hanno poche. Le ricette nascono SPENTE e senza allergeni confermati: nessuna arriva a una cliente finché non la approva una nutrizionista.',
+  },
+  agente_leggeri_max: {
+    label: 'Quante ne scrive per notte', group: 'Menu · panieri', kind: 'number', unit: 'ricette',
+    help: 'Ogni ricetta è una chiamata all’AI e un pezzo di coda di approvazione. Il freno vero non è questo numero: è quante ne approvate voi.',
+  },
+
   marketing_require_consent: { label: 'Campagne solo con consenso esplicito', group: 'Marketing', kind: 'toggle', help: 'Se acceso, dalle campagne sono esclusi i lead che non hanno mai dato un consenso esplicito (chi ha detto NO è escluso sempre, in ogni caso). Va acceso PRIMA di lavorare lo storico importato.' },
 
   app_store_url: { label: 'Link App Store', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },
@@ -82,7 +116,7 @@ const META: Record<string, Meta> = {
  * L'ordine in cui compaiono i riquadri. Non è l'elenco di cosa si vede: vedi `grouped` più sotto,
  * dove i gruppi non citati qui finiscono in fondo invece di sparire.
  */
-const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Contabilità', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Marketing', 'App', 'AI', 'Altro'];
+const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Contabilità', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Menu · panieri', 'Agenti AI', 'Marketing', 'App', 'AI', 'Altro'];
 
 const metaFor = (p: Param): Meta =>
   META[p.key] ?? { label: p.key, group: 'Altro', kind: 'text', help: p.description ?? undefined };

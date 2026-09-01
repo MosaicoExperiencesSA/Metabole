@@ -4907,4 +4907,48 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-01T09:00',
   },
 
+  {
+    chiave: 'menu-composti-con-un-pasto-in-piu',
+    titolo: 'Guardare i menu composti fra lo spostamento su «paniere» e la correzione: qualcuno può aver ricevuto un pasto in più',
+    dettaglio:
+      '⛔ **Difetto mio, nato con la Fase 1 e corretto l\'1/9.** Con `panieri_sorgente_pool` su '
+      + '`paniere`, la composizione bilanciata prendeva il **numero di pasti** della giornata dalle '
+      + 'chiavi del pool — cioè dal paniere, che è famiglia × regime e raccoglie anche varianti con '
+      + 'una struttura diversa. Una cliente a 3 pasti il cui paniere ne contiene di 5 poteva vedersi '
+      + 'comporre 5 pasti: **kcal in più di quelle che le spettano**, senza che niente lo dicesse.\n'
+      + '⚠️ Raggiungibile solo dove DayCombo è acceso o il menu a necessità guida il target; dove la '
+      + 'giornata la faceva il selettore sul template la struttura è sempre stata quella giusta.\n'
+      + '⚠️ **Il codice è corretto** (`menu/struttura-della-giornata.ts`): la struttura la dettano le '
+      + 'giornate della sua dieta. Quello che resta è **umano**: `npm run diag:struttura` dice quali '
+      + 'varianti erano esposte e quante clienti ci stanno dietro; per quelle vale la pena aprire i '
+      + '`menu_day` della finestra fra lo spostamento dell\'interruttore e il rilascio e contare i '
+      + 'pasti. Non si corregge da sé: un menu già erogato non si riscrive.',
+    categoria: CODICE,
+    blocca: true,
+    ordine: 669,
+    nata: '2026-09-01T10:00',
+  },
+
+  {
+    chiave: 'tolleranza-kcal-a-25-va-misurata-prima',
+    titolo: 'Alzare la tolleranza kcal dal 15% al 25% tocca TUTTE le clienti insieme: prima il numero',
+    dettaglio:
+      '⚠️ **Coda della Fase 4** (1/9). Il piano dei panieri chiede la tolleranza kcal a ±25% '
+      + '(`menu_kcal_balance_tolerance_pct`, che ammette fino a 30) perché con un paniere grande le '
+      + 'combinazioni buone si trovano lo stesso e la varietà cresce.\n'
+      + '⛔ **Ma quel parametro è globale e non riguarda solo i panieri nuovi**: alzarlo sposta la '
+      + 'banda di ogni cliente attiva nello stesso momento, comprese quelle che oggi ricevono '
+      + 'giornate ben dentro il ±15%. Va misurato prima con `npm run diag:kcal`.\n'
+      + '⚠️ E i tetti di porzione restano il limite vero: ×1,8 sui principali, ×1,6 sulla colazione, '
+      + '×1,25 sugli spuntini. Una banda più larga non li supera, li rende solo più spesso attivi.\n'
+      + '⚠️ Dall\'1/9 esiste anche l\'altra strada, che tocca solo chi ne ha bisogno: la banda si '
+      + 'allarga **da sé** quando serve, fino al tetto, e la giornata scrive di quanto '
+      + '(`npm run diag:allargamenti`). Prima di alzare il parametro globale vale la pena leggere '
+      + 'quel tabulato: se gli allargamenti sono pochi e concentrati su poche diete, il problema '
+      + 'non è la banda di tutte — sono i panieri di quelle.',
+    categoria: CODICE,
+    ordine: 670,
+    nata: '2026-09-01T11:00',
+  },
+
 ];
