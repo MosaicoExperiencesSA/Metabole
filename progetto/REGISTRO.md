@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🔍 **Panieri: il primo giro in sola lettura ha trovato quattro famiglie fuori da ogni
+  paniere, e 1764 righe che si sarebbero perse.** 38 panieri, 16.452 appartenenze, e i numeri per
+  pasto dicono che la strada B funziona (Mediterranea × onnivoro esce con **1455** ricette, 301
+  colazioni diverse). ⛔ Ma **120 varianti su 318 non versavano in nessun paniere**, e non erano
+  tutte attese: (1) «DASH» in banca dati si chiama **«DASH (anti-ipertensiva)»** — quattro varianti
+  approvate, 420 righe ciascuna, fuori da tutto per un nome scritto come sta nel piano invece che
+  come sta nel database; ⚠️ **è il difetto che il tabulato in sola lettura esiste per trovare**, e se
+  lo script avesse scritto al primo colpo il paniere DASH sarebbe nato vuoto senza che nessuno lo
+  collegasse a un nome; (2) **«Flexitariana»** non era nel piano → confluisce in Flessibile;
+  (3) **«Pescetariana»** è un **regime travestito** da famiglia, la quinta dopo le quattro censite
+  → Mediterranea × pescetariano, ⛔ col regime letto **dal nome** e non dalla colonna, che dice
+  `omnivore` perché il pescetariano non è mai stato acceso; (4) le combinazioni impossibili avevano
+  **1764 righe** e la prima stesura le buttava — il §1.6 dice che «tornano in catalogo come vegane»,
+  ed è il guadagno per cui la strada B è stata scelta: versano nei panieri vegani di Low carb e
+  Basso indice glicemico. ⚠️ E l'elenco delle non mappabili adesso è **raggruppato per nome**: 120
+  righe per dieci nomi non si leggono. 6147 test verdi.
+
 - `[Sviluppo]` 🚪 **Panieri, Fase 1 (2/3): il pool passa da una porta sola.** ⛔ «Quali ricette può
   ricevere questa cliente, per ogni pasto» se la costruivano in **tre** — `buildScoringContext`,
   `personal-base`, la copertura — ognuno appiattendo per conto suo `DietDayTemplate.meals`. Finché

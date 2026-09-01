@@ -19,7 +19,14 @@
 
 /** Le dieci famiglie del piano (§1.1), coi nomi come stanno in `Diet.name`. */
 export const FAMIGLIE = [
-  'Basso indice glicemico', 'DASH', 'Detossinante (reset depurativo)', 'Flessibile',
+  /**
+   * ⛔ **`DASH` si chiama `DASH (anti-ipertensiva)` in banca dati** — il primo giro in produzione
+   * (31/8) l'ha trovato: quattro varianti approvate, 420 righe di giornata ciascuna, tutte fuori da
+   * ogni paniere per un nome scritto come sta nel piano invece che come sta nel database.
+   * ⚠️ È il difetto che il tabulato in sola lettura esiste per trovare: se lo script avesse scritto
+   * al primo colpo, il paniere DASH sarebbe nato vuoto e nessuno l'avrebbe collegato al nome.
+   */
+  'Basso indice glicemico', 'DASH (anti-ipertensiva)', 'Detossinante (reset depurativo)', 'Flessibile',
   'Iperproteica sportiva / ricomposizione', 'Keto (non terapeutica)', 'Keto-Mediterranea',
   'Low carb', 'Mediterranea', 'Proteica',
 ] as const;
@@ -39,6 +46,29 @@ export const IMPOSSIBILI: readonly string[] = ['Keto (non terapeutica)|vegan', '
  * migra e si dichiara: meglio una riga in un elenco da guardare che un paniere inventato.
  */
 export const FAMIGLIE_CHE_SPARISCONO: Readonly<Record<string, string>> = {
+  /**
+   * ⛔ **«Flexitariana» non era nel piano, e in catalogo ha varianti APPROVATE con 420 righe di
+   * giornata ciascuna** — trovata dal primo giro in sola lettura, 31/8.
+   *
+   * Decisione di Simone: confluisce in **Flessibile**. Il §1.2 del piano dice che il flexitariano
+   * non è un regime ma una **regola di frequenza** sul paniere onnivoro (carne al massimo tre volte
+   * a settimana); come famiglia vale lo stesso — le sue ricette non hanno niente che le distingua
+   * da quelle flessibili, e tenerla a sé farebbe nascere quattro panieri quasi identici da
+   * mantenere per sempre. La frequenza diventa una `ProductRule`.
+   */
+  Flexitariana: 'Flessibile',
+  /**
+   * ⛔ **«Pescetariana» è un REGIME travestito da famiglia** (31/8, decisione di Simone), ed è la
+   * quinta dopo le quattro che il §2.1 aveva già censito. Le sue varianti hanno `style:
+   * mediterranean`, quindi la famiglia vera è la Mediterranea.
+   *
+   * ⚠️ E il regime va letto **dal nome**, non dalla colonna: in banca dati quelle righe dicono
+   * `regime: omnivore`, perché il pescetariano non è mai stato acceso (§1.2). Prenderlo dalla
+   * colonna vorrebbe dire versare piatti pescetariani nel paniere onnivoro — legittimi lì, ma il
+   * paniere pescetariano resterebbe vuoto, che è il difetto che questa riforma viene a chiudere.
+   * Vedi `REGIME_DAL_NOME`.
+   */
+  Pescetariana: 'Mediterranea',
   // Regimi travestiti da famiglia: la famiglia vera non c'è, il regime sì → non si migra.
   Vegana: '',
   'Vegetariana (latto-ovo)': '',
@@ -52,6 +82,38 @@ export const FAMIGLIE_CHE_SPARISCONO: Readonly<Record<string, string>> = {
   'Vacanze in Serenità': '',
 };
 
+/**
+ * ⛔ **Le famiglie che dicono il REGIME nel nome.** Per queste il regime si legge di qua e non dalla
+ * colonna: in banca dati «Pescetariana» ha `regime: omnivore`, perché il pescetariano come regime
+ * non è mai stato acceso — e prendendo la colonna i suoi piatti finirebbero nel paniere onnivoro
+ * mentre quello pescetariano resta vuoto.
+ *
+ * ⚠️ Elenco chiuso, e corto apposta: vale solo dove il nome della famiglia **è** un regime. Non è
+ * una regola su «se il nome somiglia a un regime», che sul «Flessibile» o sul «Detossinante»
+ * comincerebbe a indovinare.
+ */
+export const REGIME_DAL_NOME: Readonly<Record<string, string>> = {
+  Pescetariana: 'pescetarian',
+  Vegana: 'vegan',
+  'Vegetariana (latto-ovo)': 'vegetarian',
+};
+
+/**
+ * ⛔ **DOVE VANNO LE RICETTE DELLE COMBINAZIONI IMPOSSIBILI** — decisione di Simone del 31/8.
+ *
+ * «Keto × vegano» e «Keto-Mediterranea × vegano» si chiudono, ma in catalogo hanno 1764 righe di
+ * giornata: il §1.6 dice che «tornano in catalogo come vegane», non che si buttano — è il guadagno
+ * della strada B, e buttarle sarebbe esattamente quello che la strada B è stata scelta per evitare.
+ *
+ * Sono ricette vegane e povere di carboidrati, quindi entrano nei panieri vegani delle due famiglie
+ * più vicine che esistono. ⚠️ **In tutte e due**, e non è una duplicazione: un piatto appartiene a
+ * più panieri per costruzione, ed è il senso della tabella di appartenenza.
+ */
+export const DOVE_VANNO_LE_IMPOSSIBILI: Readonly<Record<string, readonly string[]>> = {
+  'Keto (non terapeutica)|vegan': ['Low carb', 'Basso indice glicemico'],
+  'Keto-Mediterranea|vegan': ['Low carb', 'Basso indice glicemico'],
+};
+
 export interface VariantePerPaniere {
   id: string;
   name: string;
@@ -60,17 +122,22 @@ export interface VariantePerPaniere {
 
 export type Esito =
   | { tipo: 'paniere'; famiglia: string; regime: string }
-  | { tipo: 'impossibile'; famiglia: string; regime: string }
+  /** Chiusa, ma le sue ricette hanno una casa: `dove` sono i panieri in cui versano. */
+  | { tipo: 'impossibile'; famiglia: string; regime: string; dove: { famiglia: string; regime: string }[] }
   | { tipo: 'non_mappabile'; perche: string };
 
 const FAMIGLIA = new Set<string>(FAMIGLIE);
 const REGIME = new Set<string>(REGIMI);
 
 export function paniereDellaVariante(d: VariantePerPaniere): Esito {
-  const regime = (d.regime ?? '').trim();
+  const nome = (d.name ?? '').trim();
+  /**
+   * ⚠️ **Il nome prima della colonna**, per le famiglie che il regime lo dicono nel nome: vedi
+   * `REGIME_DAL_NOME`. Per tutte le altre — cioè quasi tutte — vale la colonna, come sempre.
+   */
+  const regime = (REGIME_DAL_NOME[nome] ?? d.regime ?? '').trim();
   if (!REGIME.has(regime)) return { tipo: 'non_mappabile', perche: `regime sconosciuto: «${regime}»` };
 
-  const nome = (d.name ?? '').trim();
   let famiglia = nome;
   if (!FAMIGLIA.has(famiglia)) {
     const dove = FAMIGLIE_CHE_SPARISCONO[famiglia];
@@ -78,7 +145,15 @@ export function paniereDellaVariante(d: VariantePerPaniere): Esito {
     if (!dove) return { tipo: 'non_mappabile', perche: `«${nome}» non è una famiglia (§2.1 del piano)` };
     famiglia = dove;
   }
-  if (IMPOSSIBILI.includes(`${famiglia}|${regime}`)) return { tipo: 'impossibile', famiglia, regime };
+  const chiave = `${famiglia}|${regime}`;
+  if (IMPOSSIBILI.includes(chiave)) {
+    return {
+      tipo: 'impossibile',
+      famiglia,
+      regime,
+      dove: (DOVE_VANNO_LE_IMPOSSIBILI[chiave] ?? []).map((f) => ({ famiglia: f, regime })),
+    };
+  }
   return { tipo: 'paniere', famiglia, regime };
 }
 

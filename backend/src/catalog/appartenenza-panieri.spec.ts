@@ -32,6 +32,54 @@ describe('da quale paniere viene una variante', () => {
     expect(paniereDellaVariante({ id: 'd', name: 'Keto (non terapeutica)', regime: 'vegetarian' }).tipo).toBe('paniere');
   });
 
+  /**
+   * ⛔ **Impossibile non vuol dire buttata.** In catalogo quelle due celle hanno 1764 righe di
+   * giornata, e il §1.6 dice che «tornano in catalogo come vegane»: buttarle sarebbe esattamente
+   * quello per cui la strada B è stata scelta al posto della A.
+   */
+  it('⛔ e le loro ricette hanno una casa: i panieri vegani delle famiglie vicine', () => {
+    const e = paniereDellaVariante({ id: 'd', name: 'Keto (non terapeutica)', regime: 'vegan' });
+    expect(e).toMatchObject({
+      tipo: 'impossibile',
+      dove: [{ famiglia: 'Low carb', regime: 'vegan' }, { famiglia: 'Basso indice glicemico', regime: 'vegan' }],
+    });
+  });
+
+  /**
+   * ⛔ **Il nome in banca dati non è quello del piano** — trovato dal primo giro in sola lettura del
+   * 31/8: quattro varianti DASH approvate, 420 righe ciascuna, tutte fuori da ogni paniere per un
+   * nome. Se lo script avesse scritto al primo colpo, il paniere DASH sarebbe nato vuoto.
+   */
+  it('⛔ «DASH (anti-ipertensiva)» è il nome vero, e porta al suo paniere', () => {
+    expect(paniereDellaVariante({ id: 'd', name: 'DASH (anti-ipertensiva)', regime: 'vegan' }))
+      .toEqual({ tipo: 'paniere', famiglia: 'DASH (anti-ipertensiva)', regime: 'vegan' });
+    // …e il nome del piano, che in banca dati non esiste, resta non mappabile invece di far finta.
+    expect(paniereDellaVariante({ id: 'd', name: 'DASH', regime: 'vegan' }).tipo).toBe('non_mappabile');
+  });
+
+  describe('le due famiglie trovate in produzione il 31/8', () => {
+    it('«Flexitariana» confluisce in Flessibile: come famiglia non distingue niente', () => {
+      expect(paniereDellaVariante({ id: 'd', name: 'Flexitariana', regime: 'omnivore' }))
+        .toMatchObject({ tipo: 'paniere', famiglia: 'Flessibile', regime: 'omnivore' });
+    });
+
+    /**
+     * ⛔ Il regime si legge **dal nome**: in banca dati «Pescetariana» dice `regime: omnivore`,
+     * perché il pescetariano come regime non è mai stato acceso. Prendendo la colonna i suoi piatti
+     * finirebbero nel paniere onnivoro mentre quello pescetariano resta vuoto — cioè il difetto che
+     * questa riforma viene a chiudere.
+     */
+    it('⛔ «Pescetariana» è un regime travestito: Mediterranea × pescetariano, anche se in banca dati dice onnivoro', () => {
+      expect(paniereDellaVariante({ id: 'd', name: 'Pescetariana', regime: 'omnivore' }))
+        .toEqual({ tipo: 'paniere', famiglia: 'Mediterranea', regime: 'pescetarian' });
+    });
+
+    it('⚠️ e la colonna vale per tutte le altre: «Mediterranea» onnivora resta onnivora', () => {
+      expect(paniereDellaVariante({ id: 'd', name: 'Mediterranea', regime: 'omnivore' }))
+        .toMatchObject({ regime: 'omnivore' });
+    });
+  });
+
   describe('le famiglie che spariscono (§2.1)', () => {
     it('quelle che confluiscono portano alla famiglia vera', () => {
       expect(paniereDellaVariante({ id: 'd', name: 'Mediterranea senza glutine', regime: 'omnivore' }))

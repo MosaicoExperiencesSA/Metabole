@@ -1,0 +1,55 @@
+=== PARTE: i nomi veri del catalogo, e le tre famiglie che il piano non aveva ===
+
+SUMMARY
+Panieri: il primo giro in sola lettura ha trovato quattro famiglie fuori da ogni paniere, e 1764 righe di giornata che si sarebbero perse
+
+DESCRIPTION
+`npm run panieri:riempi` girato in produzione, in sola lettura. 38 panieri, 16.452 appartenenze,
+25 panieri con dentro qualcosa — e i numeri per pasto dicono che la strada B funziona: Mediterranea
+× onnivoro esce con 1455 ricette (301 colazioni diverse), tutte molto sopra le 84 del piano.
+
+⛔ MA 120 VARIANTI SU 318 NON VERSAVANO IN NESSUN PANIERE, e non erano tutte attese.
+
+1) «DASH» IN BANCA DATI SI CHIAMA «DASH (anti-ipertensiva)». Quattro varianti approvate, 420 righe
+di giornata ciascuna, tutte fuori da ogni paniere per un nome scritto come sta nel piano invece che
+come sta nel database. ⚠️ È il difetto che il tabulato in sola lettura esiste per trovare: se lo
+script avesse scritto al primo colpo, il paniere DASH sarebbe nato vuoto e nessuno l'avrebbe
+collegato a un nome.
+
+2) «FLEXITARIANA» non era nel piano, e ha varianti approvate con 420 righe ciascuna. Decisione di
+Simone: confluisce in Flessibile. Il §1.2 dice che il flexitariano non è un regime ma una regola di
+frequenza sul paniere onnivoro; come famiglia vale lo stesso — le sue ricette non hanno niente che
+le distingua, e tenerla a sé farebbe nascere quattro panieri quasi identici da mantenere per sempre.
+
+3) «PESCETARIANA» è un REGIME travestito da famiglia, ed è la quinta dopo le quattro che il §2.1
+aveva censito. Decisione di Simone: Mediterranea × pescetariano. ⛔ E il regime si legge DAL NOME,
+non dalla colonna: in banca dati quelle righe dicono `regime: omnivore`, perché il pescetariano non
+è mai stato acceso. Prendendo la colonna i suoi piatti finirebbero nel paniere onnivoro mentre
+quello pescetariano resta vuoto — cioè il difetto che questa riforma viene a chiudere.
+
+4) LE COMBINAZIONI IMPOSSIBILI AVEVANO 1764 RIGHE DI GIORNATA, e la prima stesura le buttava. Il
+§1.6 dice che «tornano in catalogo come vegane», ed è il guadagno della strada B: buttarle sarebbe
+esattamente quello per cui la strada B era stata scelta al posto della A. Decisione di Simone: le
+ricette di Keto × vegano e Keto-Mediterranea × vegano versano nei panieri vegani di Low carb e
+Basso indice glicemico. ⚠️ In tutti e due, e non è una duplicazione: un piatto appartiene a più
+panieri per costruzione, ed è il senso della tabella di appartenenza.
+
+⚠️ E L'ELENCO DELLE NON MAPPABILI ADESSO È RAGGRUPPATO PER NOME. La prima stesura ne stampava una
+riga per variante — centoventi righe per una decina di nomi — e un elenco che costringe a contare a
+mano è un elenco che non si legge. Adesso si vede subito quali nomi mancano davvero, e il tabulato
+distingue «famiglia sconosciuta» (un nome che non conosciamo: o manca al piano o è scritto diverso)
+da «non è una famiglia» (già dichiarata un asse travestito, ed è atteso).
+
+⚠️ I riferimenti rotti in produzione sono 37 su 9 varianti, non 58: quel numero veniva da un conto
+per appartenenza con un'altra regola. Restano l'unica cosa che la migrazione perde di proposito.
+
+VERIFICA
+26 prove sulla regola, tutte e quattro le decisioni con la loro. 6142 test backend verdi nelle
+quattro modalità, `nest build` e `tsc --noEmit` compresi. Lo script continua a non scrivere senza
+APPLICA=1.
+
+FILE
+- backend/src/catalog/appartenenza-panieri.ts (+ .spec) — i nomi veri, `REGIME_DAL_NOME`,
+  `DOVE_VANNO_LE_IMPOSSIBILI`
+- backend/prisma/riempi-panieri.ts — le impossibili versano invece di perdersi; le non mappabili
+  raggruppate per nome

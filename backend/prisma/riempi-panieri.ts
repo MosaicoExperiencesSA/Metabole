@@ -67,7 +67,8 @@ async function main() {
 
   /** paniere «famiglia|regime» → set di «recipeId|slot». */
   const dentro = new Map<string, Set<string>>();
-  const nonMappabili: string[] = [];
+  /** nome famiglia → { varianti, righe, approvate }. ⚠️ RAGGRUPPATE: 120 righe non si leggono. */
+  const nonMappabili = new Map<string, { varianti: number; righe: number; approvate: number; perche: string }>();
   const impossibiliConRicette: string[] = [];
   /**
    * ⛔ I riferimenti ROTTI: la chiave esterna li renderà impossibili, ma **oggi ci sono** (58
@@ -81,24 +82,45 @@ async function main() {
     const righe = perDieta.get(d.id) ?? [];
     const esito = paniereDellaVariante(d);
     if (esito.tipo === 'non_mappabile') {
-      if (righe.length) nonMappabili.push(`  · «${d.name}» · ${d.regime} (${d.status}) — ${righe.length} righe di giornata — ${esito.perche}`);
+      if (righe.length) {
+        const v = nonMappabili.get(d.name) ?? { varianti: 0, righe: 0, approvate: 0, perche: esito.perche };
+        v.varianti += 1;
+        v.righe += righe.length;
+        if (d.status === 'approved') v.approvate += 1;
+        nonMappabili.set(d.name, v);
+      }
       continue;
     }
+    /**
+     * ⚠️ Una combinazione impossibile **non butta le sue ricette**: versano nei panieri che la
+     * decisione del 31/8 le assegna (§1.6, il guadagno della strada B). Se non ne ha nessuno
+     * assegnato, si dichiara e basta.
+     */
+    const destinazioni = esito.tipo === 'impossibile'
+      ? esito.dove
+      : [{ famiglia: esito.famiglia, regime: esito.regime }];
     if (esito.tipo === 'impossibile') {
-      if (righe.length) impossibiliConRicette.push(`  · «${esito.famiglia}» × ${esito.regime} — ${righe.length} righe, e la combinazione è dichiarata impossibile`);
-      continue;
+      if (righe.length) {
+        impossibiliConRicette.push(
+          `  · «${esito.famiglia}» × ${esito.regime} — ${righe.length} righe → `
+          + (destinazioni.length ? destinazioni.map((x) => `${x.famiglia} × ${x.regime}`).join(' + ') : '⛔ NESSUN paniere: si perderebbero'),
+        );
+      }
+      if (!destinazioni.length) continue;
     }
-    const chiave = `${esito.famiglia}|${esito.regime}`;
-    const set = dentro.get(chiave) ?? new Set<string>();
     for (const r of righe) {
       if (!esiste.has(r.recipeId)) {
         rotti.set(`${d.name} · ${d.regime}`, (rotti.get(`${d.name} · ${d.regime}`) ?? 0) + 1);
         continue;
       }
       nominateVive += 1;
-      set.add(`${r.recipeId}|${r.slot}`);
+      for (const dest of destinazioni) {
+        const chiave = `${dest.famiglia}|${dest.regime}`;
+        const set = dentro.get(chiave) ?? new Set<string>();
+        set.add(`${r.recipeId}|${r.slot}`);
+        dentro.set(chiave, set);
+      }
     }
-    dentro.set(chiave, set);
   }
 
   const tutti = panieriDaCreare();
@@ -128,19 +150,28 @@ async function main() {
   }
   if (rotti.size > ESEMPI) riga(`  …e altre ${rotti.size - ESEMPI}.`);
 
-  if (nonMappabili.length) {
-    titolo(`VARIANTI CHE NON VERSANO IN NESSUN PANIERE (${nonMappabili.length})`);
+  if (nonMappabili.size) {
+    const varianti = [...nonMappabili.values()].reduce((s2, v) => s2 + v.varianti, 0);
+    titolo(`FAMIGLIE CHE NON VERSANO IN NESSUN PANIERE (${nonMappabili.size} nomi, ${varianti} varianti)`);
     riga('');
-    riga('  ⚠️ Non è un errore: sono le famiglie che il §2.1 dichiara assi travestiti da famiglia.');
-    riga('  ⛔ Ma le loro ricette NON entrano in nessun paniere, quindi vanno guardate una per una');
-    riga('  prima di spegnere le giornate — e se una di queste ha clienti sopra, si sposta a mano.');
-    nonMappabili.slice(0, ESEMPI).forEach(riga);
-    if (nonMappabili.length > ESEMPI) riga(`  …e altre ${nonMappabili.length - ESEMPI}.`);
+    riga('  ⚠️ **Raggruppate per NOME**, e non è un dettaglio: la prima stesura ne stampava una riga');
+    riga('  per variante — centoventi righe per dieci nomi — e un elenco che costringe a contare a');
+    riga('  mano è un elenco che non si legge. Qui si vede subito quali nomi mancano davvero.');
+    riga('');
+    for (const [nome, v] of [...nonMappabili.entries()].sort((a, b) => b[1].righe - a[1].righe)) {
+      riga(`  · ${String(v.righe).padStart(5)} righe · ${String(v.varianti).padStart(3)} varianti (${v.approvate} approvate) — «${nome}»`);
+      riga(`      ${v.perche}`);
+    }
+    riga('');
+    riga('  ⛔ «famiglia sconosciuta» vuol dire che quel nome NON è nell\'elenco delle dieci: o è una');
+    riga('  famiglia vera che manca al piano, o è un nome scritto diverso. ⚠️ «non è una famiglia»');
+    riga('  vuol dire che il piano l\'ha già dichiarata un asse travestito, ed è atteso.');
   }
   if (impossibiliConRicette.length) {
-    titolo('⚠️ COMBINAZIONI DICHIARATE IMPOSSIBILI CHE PERÒ HANNO RICETTE');
+    titolo('COMBINAZIONI CHIUSE, E DOVE VANNO LE LORO RICETTE');
     riga('');
-    riga('  Il piano (§1.6) dice che tornano in catalogo come vegane, non che si buttano.');
+    riga('  Il piano (§1.6) dice che tornano in catalogo come vegane, non che si buttano — ed è il');
+    riga('  guadagno della strada B. La destinazione è la decisione di Simone del 31/8.');
     impossibiliConRicette.forEach(riga);
   }
 
