@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🍄 **I funghi ostrica non sono ostriche — e cosa dice l'elenco lungo.** Letti i 549
+  nomi di `regime:contenuto`: il mucchio «sicuro» adesso regge — quasi tutte le righe sono pesce e
+  carne **veri** dentro ricette dichiarate vegane o vegetariane («Salmone al forno» vegan, «Petto di
+  Pollo Arrosto» vegetarian, «Bistecca con broccoli» vegetarian). ⛔ **Un solo falso positivo nuovo**:
+  «Polenta ai Funghi Misti» diventava pescetariana per «funghi misti freschi (champignon,
+  **ostriche**)». ⚠️ E il danno non è solo l'etichetta: a una cliente allergica ai **molluschi**
+  quella parola fa sparire i piatti di funghi, cioè quello che può mangiare. Le frasi che non sono
+  ora conoscono «funghi ostrica». ⛔ **Ma la correzione non copre il caso che l'ha fatta nascere, e
+  la prova lo dice**: là «ostriche» sta da sola in una parentesi, lontana da «funghi», e allargare
+  le frasi a tutto il testo vorrebbe dire che un piatto di vongole con un contorno di funghi smette
+  di dichiarare le vongole — un falso negativo su un'allergia. Quella ricetta si corregge a mano.
+  ⚠️ **E due che sembrano errori e non lo sono**: «Panna Cotta» con la **colla di pesce** e «Tofu al
+  **nero di seppia**» — quelle ricette non sono vegetariane né vegane davvero, e lo script ha
+  ragione: è il tipo di errore che un occhio umano si perde perché l'ingrediente non sembra un
+  animale. ⚠️ E una terza cosa, che non è di questo script: alcune ricette hanno **nome e ingrediente
+  che non combaciano** — «Orata al forno» con dentro «filetto di branzino» — e vanno rilette.
+
+- `[Sviluppo]` 🌱 **Le imitazioni vegetali vanno nei dubbi — e il giudizio esce dallo script.** Terza
+  classe di falsi positivi, vista nell'elenco dei dubbi e non ancora chiusa dove faceva danno: in
+  questo catalogo esistono «prosciutto di tofu affumicato», «Pollo di Tempeh», «Branzino di
+  melanzane», «Polpo di ceci», «acciughe vegetali». ⚠️ Finora le prendevo solo se la parola stava nel
+  **nome**, ma «prosciutto vegetale» può stare fra gli **ingredienti** — e allora finiva nel mucchio
+  sicuro: una ricetta vegetariana riscritta onnivora a macchina. ⛔ **E non decidono al contrario**:
+  «Prosciutto con contorno vegetale» è prosciutto vero, e una regola che lo dichiarasse imitazione
+  lascerebbe carne etichettata vegetariana — fra i due errori il peggiore. Quindi la parola sposta
+  **nei dubbi** e basta. ⚠️ E l'elenco dei dubbi ora dice **perché**, perché sono due cose diverse:
+  «solo nel nome» può essere un piatto vegetale col nome di un pesce **oppure** ⛔ una ricetta a cui
+  *manca l'ingrediente in elenco* — «Branzino al forno con verdure rosse» sembra un branzino con la
+  lista incompleta, ed è un difetto di catalogo a sé. ✅ E il giudizio è uscito dallo script:
+  `catalog/etichetta-contro-contenuto.ts`, 14 prove — fra cui i due casi veri, il Buddha Bowl con la
+  carota tagliata e la torta di riso con la ricciolina. Tre mutazioni, tutte uccise.
+
 - `[Sviluppo]` 🥕 **Le «sicure» non erano sicure — due falsi positivi in un blocco da 549.**
   `regime:contenuto` in produzione: 549 da correggere, e nelle prime trenta righe del mucchio
   **sicuro** — quello che `APPLICA=1` avrebbe riscritto senza che nessuno lo guardasse — due erano

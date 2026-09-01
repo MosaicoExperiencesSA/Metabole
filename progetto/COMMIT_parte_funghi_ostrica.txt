@@ -1,0 +1,37 @@
+I funghi ostrica non sono ostriche — e cosa dice l'elenco lungo
+
+Letti i 549 nomi di `regime:contenuto`. Il mucchio «sicuro» adesso regge: quasi tutte le righe sono
+pesce e carne veri dentro ricette dichiarate vegane o vegetariane — «Salmone al forno» vegan,
+«Petto di Pollo Arrosto» vegetarian, «Bistecca con broccoli» vegetarian, «Coniglio al forno»
+vegetarian. Quelle vanno corrette, ed è il senso dello script.
+
+⛔ UN SOLO FALSO POSITIVO NUOVO, E TOCCA UN'ALTRA PORTA
+  · «Polenta Morbida ai Funghi Misti con Spinaci Freschi e Noci Tostate»
+      vegan → pescetarian   (ingrediente: «funghi misti freschi (champignon, ostriche)»)
+
+I funghi ostrica. ⚠️ E il danno non è solo l'etichetta: a una cliente allergica ai MOLLUSCHI quella
+parola fa sparire dal menu i piatti di funghi, cioè quello che può mangiare tranquillamente. Le
+frasi che non sono («latte di cocco», «noce moscata») ora conoscono anche «funghi ostrica».
+
+⛔ MA QUESTA CORREZIONE NON COPRE IL CASO CHE L'HA FATTA NASCERE, e la prova lo dice a chiare
+lettere: là «ostriche» sta da sola dentro una parentesi, lontana dalla parola «funghi». Le frasi
+funzionano per adiacenza, e allargarle a tutto il testo vorrebbe dire che un piatto di vongole con
+un contorno di funghi smette di dichiarare le vongole — un falso negativo su un'allergia, che qui
+non si fa. Quella ricetta si corregge a mano.
+
+⚠️ E DUE CHE SEMBRANO ERRORI E NON LO SONO — sono difetti di catalogo veri, trovati per caso
+  · «Panna Cotta Fragola e Biscotto Secco» → ingrediente «colla di pesce»
+  · «Tofu marmorizzato al nero di seppia» → ingrediente «nero di seppia in polvere»
+La colla di pesce è pesce e il nero di seppia è seppia: quelle ricette NON sono vegetariane né
+vegane, e lo script ha ragione. Sono il tipo di errore che un occhio umano si perde perché
+l'ingrediente non sembra un animale.
+
+⚠️ E UNA TERZA COSA DA GUARDARE, che non è di questo script: alcune ricette hanno il nome e
+l'ingrediente che non combaciano — «Orata al forno con patate dolci» il cui ingrediente è «filetto
+di branzino», «Brodo leggero con verdure (alternativa: tofu)» con dentro un branzino. La
+correzione del regime è giusta lo stesso (è pesce), ma quelle ricette sono da rileggere.
+
+⚠️ Le imitazioni che si vedono ancora in elenco — «Prosciutto Vegetale (a base di Seitan)», «Poke
+Bowl Vegano» — sono già chiuse dal codice spinto un'ora fa: quel giro girava sul rilascio prima.
+
+Test: backend 6525 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

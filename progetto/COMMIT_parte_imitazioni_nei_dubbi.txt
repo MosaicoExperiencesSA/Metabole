@@ -1,0 +1,39 @@
+Le imitazioni vegetali vanno nei dubbi — e il giudizio esce dallo script
+
+Terza classe di falsi positivi, vista nell'elenco dei dubbi del primo giro e non ancora chiusa
+dove faceva danno.
+
+⛔ LE IMITAZIONI ESISTONO, E NON SONO RARE
+In questo catalogo ci sono: «prosciutto di tofu affumicato», «Pollo di Tempeh», «Branzino di
+melanzane», «Polpo di ceci», «acciughe vegetali», «pasta al nero di seppia vegan», «Petto d'Anatra
+di Tofu Affumicato». Sono piatti vegetali che si chiamano come un animale — di proposito, perché è
+il loro senso.
+
+⚠️ Finora le prendevo solo quando la parola stava nel NOME. Ma «prosciutto vegetale» può stare
+anche fra gli INGREDIENTI, e allora finiva nel mucchio SICURO: una ricetta vegetariana riscritta
+onnivora a macchina.
+
+⛔ E NON DECIDONO AL CONTRARIO. «Prosciutto con contorno vegetale» è prosciutto vero: una regola
+che lo dichiarasse imitazione lascerebbe carne etichettata vegetariana, che fra i due errori è il
+peggiore. Quindi la parola-imitazione SPOSTA NEI DUBBI e basta — costa qualche riga in più da
+leggere a mano, e non costa nessuna etichetta sbagliata scritta per sempre.
+
+⚠️ E l'elenco dei dubbi ora dice PERCHÉ, perché sono due cose diverse:
+  · «solo nel nome» → o è un piatto vegetale col nome di un pesce, o ⛔ è una ricetta a cui MANCA
+    l'ingrediente in elenco. «Branzino al forno con verdure rosse» non sembra un'imitazione: sembra
+    un branzino con la lista incompleta, ed è un difetto di catalogo a sé.
+  · «sembra un'imitazione» → c'è «vegetale», «di tofu», «vegan» nel piatto.
+
+E IL GIUDIZIO È USCITO DALLO SCRIPT
+`catalog/etichetta-contro-contenuto.ts`, 14 prove. Lo script con APPLICA=1 riscrive `Recipe.regime`
+in blocco — 549 ricette al primo giro — e i due errori dell'altra volta li ha visti una persona
+leggendo l'output, non una prova, perché il giudizio stava dentro lo script. Adesso le prove
+arrivano, e fra loro ci sono i due casi veri: il Buddha Bowl con la carota tagliata e la torta di
+riso con la ricciolina.
+
+PROVE DI MUTAZIONE (tre, tutte uccise)
+  1. le imitazioni finiscono fra le sicure      → 4 prove rosse
+  2. il pesce va a onnivoro invece che a pesce. → 2 prove rosse
+  3. il nome torna a valere come gli ingredienti → 1 prova rossa
+
+Test: backend 6518 su 389 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

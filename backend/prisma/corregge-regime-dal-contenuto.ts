@@ -42,7 +42,7 @@
  *   APPLICA=1 npm run regime:contenuto    → corregge SOLO il mucchio sicuro
  */
 import { PrismaClient } from '@prisma/client';
-import { eCarne, eCarneIngrediente, ePesce } from '../src/catalog/piatto-di-cosa';
+import { classifica, type Cosa } from '../src/catalog/etichetta-contro-contenuto';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 30) || 30);
@@ -62,7 +62,16 @@ const nomiIngredienti = (ing: unknown): string[] =>
     .map((x) => (typeof x?.name === 'string' ? x.name.trim() : ''))
     .filter((x) => x !== '');
 
-type Esito = { id: string; nome: string; regime: string; cosa: 'carne' | 'pesce'; prova: string };
+type Riga = { id: string; nome: string; regime: string; cosa: Cosa; prova: string; perche: string };
+
+/**
+ * ⛔ **IL GIUDIZIO NON STA QUI**: sta in `catalog/etichetta-contro-contenuto.ts`, con le sue prove.
+ * Questo script con `APPLICA=1` riscrive `Recipe.regime` in blocco — 549 ricette al primo giro — e
+ * l'1/9 il suo mucchio «sicuro» conteneva due errori nelle prime trenta righe. Li ha visti una
+ * persona leggendo l'output, non una prova, perché il giudizio stava dentro lo script.
+ *
+ * ⚠️ Qui restano il **quando** scrivere e il **come dirlo**.
+ */
 
 async function main() {
   titolo("L'ETICHETTA CONTRO IL CONTENUTO — regime dichiarato vs cosa c'è dentro");
@@ -74,46 +83,42 @@ async function main() {
     select: { id: true, name: true, regime: true, ingredients: true },
   })) as unknown as { id: string; name: string; regime: string; ingredients: unknown }[];
 
-  const sicure: Esito[] = [];
-  const dubbie: Esito[] = [];
+  const sicure: (Riga & { regimeGiusto: string })[] = [];
+  const dubbie: Riga[] = [];
   for (const r of ricette) {
     const ingredienti = nomiIngredienti(r.ingredients);
-    /**
-     * ⛔ **La carne si guarda per prima e vince**, come in `verdettoPescetariano`: un piatto che ha
-     * tutti e due va all'onnivoro, non al pescetariano. «Mare e monti» esiste.
-     */
-    /**
-     * ⛔ **`eCarneIngrediente`, non `eCarne`** — 1/9, dopo un falso positivo in produzione: un
-     * Buddha Bowl di lenticchie stava per diventare onnivoro perché fra gli ingredienti c'è
-     * «Carota **tagliata** sottile». Su un ingrediente le preparazioni non servono: se la carne c'è,
-     * l'ingrediente la nomina.
-     */
-    const carneIng = ingredienti.find((i) => eCarneIngrediente(i));
-    const pesceIng = ingredienti.find((i) => ePesce(i));
-    if (carneIng) { sicure.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'carne', prova: carneIng }); continue; }
-    if (pesceIng) { sicure.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'pesce', prova: pesceIng }); continue; }
-    /** ⚠️ Solo il nome: può essere un piatto vegetale che si chiama come un pesce. Non si tocca. */
-    if (eCarne(r.name)) { dubbie.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'carne', prova: r.name }); continue; }
-    if (ePesce(r.name)) dubbie.push({ id: r.id, nome: r.name, regime: r.regime, cosa: 'pesce', prova: r.name });
+    const e = classifica(r.name, ingredienti);
+    if (e.tipo === 'ok') continue;
+    const base = { id: r.id, nome: r.name, regime: r.regime, cosa: e.cosa, prova: e.prova };
+    if (e.tipo === 'sicura') sicure.push({ ...base, perche: 'ingrediente', regimeGiusto: e.regimeGiusto });
+    else dubbie.push({ ...base, perche: e.perche });
   }
 
   titolo('IL CONTO');
   riga('');
   riga(`  Ricette attive dichiarate vegane o vegetariane   ${ricette.length}`);
   riga(`  · con carne o pesce negli INGREDIENTI (sicure)   ${sicure.length}`);
-  riga(`  · solo nel NOME (dubbie, non si toccano)         ${dubbie.length}`);
+  riga(`  · dubbie, NON si toccano                         ${dubbie.length}`);
+  riga(`      · solo nel nome                              ${dubbie.filter((d) => d.perche === 'solo nel nome').length}`);
+  riga(`      · sembrano imitazioni vegetali               ${dubbie.filter((d) => d.perche !== 'solo nel nome').length}`);
   riga('');
-  riga(`  Delle sicure: ${sicure.filter((x) => x.cosa === 'pesce').length} andrebbero a «pescetarian», `
-    + `${sicure.filter((x) => x.cosa === 'carne').length} a «omnivore».`);
+  riga(`  Delle sicure: ${sicure.filter((x) => x.regimeGiusto === 'pescetarian').length} andrebbero a «pescetarian», `
+    + `${sicure.filter((x) => x.regimeGiusto === 'omnivore').length} a «omnivore».`);
 
   if (dubbie.length) {
     titolo('LE DUBBIE — le legge una persona, una per una');
     riga('');
-    riga('  ⚠️ Qui ha scattato solo il NOME. Può essere un piatto vegetale che si chiama come un');
-    riga('  pesce — «Polpo d\'Alghe Nori» è vegano davvero — oppure una ricetta a cui manca');
-    riga('  l\'ingrediente nell\'elenco. Il primo caso si lascia, il secondo si sistema a mano.');
+    riga('  ⚠️ Due motivi diversi, e vanno letti diversamente.');
+    riga('  · «solo nel nome»: può essere un piatto vegetale che si chiama come un pesce — «Polpo');
+    riga('    d\'Alghe Nori» è vegano davvero — oppure ⛔ una ricetta a cui MANCA l\'ingrediente');
+    riga('    nell\'elenco, che è un difetto di catalogo a sé («Branzino al forno con verdure rosse»');
+    riga('    non sembra un\'imitazione: sembra un branzino con la lista incompleta).');
+    riga('  · «sembra un\'imitazione»: nel piatto c\'è una parola come «vegetale», «di tofu», «vegan».');
+    riga('    ⛔ Non si corregge a macchina in NESSUNO dei due versi: «Prosciutto con contorno');
+    riga('    vegetale» è prosciutto vero, e dichiararlo imitazione sarebbe carne lasciata');
+    riga('    etichettata vegetariana — l\'errore che qui non si può fare.');
     riga('');
-    for (const d of dubbie.slice(0, ESEMPI)) riga(`  · [${d.cosa}] «${d.nome}»  (oggi «${d.regime}»)`);
+    for (const d of dubbie.slice(0, ESEMPI)) riga(`  · [${d.cosa}] «${d.nome}»  (oggi «${d.regime}» — ${d.perche})`);
     if (dubbie.length > ESEMPI) riga(`  … e altre ${dubbie.length - ESEMPI}. ESEMPI=${dubbie.length} per vederle tutte.`);
   }
 
@@ -122,7 +127,7 @@ async function main() {
     riga('');
     for (const x of sicure.slice(0, ESEMPI)) {
       riga(`  · «${x.nome}»`);
-      riga(`      oggi «${x.regime}» → «${x.cosa === 'pesce' ? 'pescetarian' : 'omnivore'}»   (ingrediente: «${x.prova}»)`);
+      riga(`      oggi «${x.regime}» → «${x.regimeGiusto}»   (ingrediente: «${x.prova}»)`);
     }
     if (sicure.length > ESEMPI) riga(`  … e altre ${sicure.length - ESEMPI}. ESEMPI=${sicure.length} per vederle tutte.`);
   }
@@ -140,7 +145,7 @@ async function main() {
   for (const x of sicure) {
     await prisma.recipe.update({
       where: { id: x.id },
-      data: { regime: x.cosa === 'pesce' ? 'pescetarian' : 'omnivore' } as never,
+      data: { regime: x.regimeGiusto } as never,
     });
     fatte += 1;
   }

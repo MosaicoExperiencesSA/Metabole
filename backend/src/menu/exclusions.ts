@@ -574,6 +574,24 @@ export const FRASI_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
   ]),
   noce: CON_APOSTROFO(['noce moscata', 'noce di cocco']),
   noci: CON_APOSTROFO(['noci moscate', 'noci di cocco']),
+  /**
+   * ⛔ **I FUNGHI OSTRICA NON SONO OSTRICHE** — 1/9, trovato leggendo l'elenco di
+   * `regime:contenuto`: «Polenta Morbida ai Funghi Misti con Spinaci e Noci Tostate» stava per
+   * essere riscritta **pescetariana** perché fra i suoi ingredienti c'era «champignon, ostriche».
+   *
+   * ⚠️ E qui non toglie soltanto un piatto: a una cliente allergica ai **molluschi** questa parola
+   * fa sparire dal menu i piatti di funghi, che sono esattamente quello che può mangiare.
+   *
+   * ⛔ **Ma questa riga non copre il caso che l'ha fatta nascere**, e va detto: là «ostriche» sta
+   * da sola dentro una parentesi, lontana dalla parola «funghi». Le frasi qui funzionano per
+   * adiacenza, e allargarle a «tutto il testo» vorrebbe dire che un piatto con dei funghi accanto
+   * smette di dichiarare le vongole — cioè un falso negativo su un'allergia, che qui non si fa.
+   * Quella ricetta si corregge a mano.
+   */
+  ostriche: CON_APOSTROFO([
+    'funghi ostriche', 'funghi ostrica', 'fungo ostrica', 'ostriche di bosco',
+  ]),
+  ostrica: CON_APOSTROFO(['funghi ostrica', 'fungo ostrica', 'pleurotus ostrica']),
 };
 
 /**
