@@ -31,6 +31,7 @@ import { VisitsService } from '../health-area/visits.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { ProfileService } from '../profile/profile.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -42,6 +43,7 @@ import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali
 export class CronController {
   constructor(
     private readonly config: ConfigService,
+    private readonly agenteLeggeri: AgentePastiLeggeriService,
     private readonly engine: EngineService,
     private readonly engineRules: EngineRulesService,
     private readonly notifications: NotificationsService,
@@ -134,6 +136,22 @@ export class CronController {
      * salta l'unica conseguenza è un elenco vecchio di un giorno.
      */
     await step('alimentiDaCorreggere', () => this.valori.aggiornaIngredientiScoperti());
+    /**
+     * ⛔ **L'AGENTE CHE TIENE PIENI COLAZIONI, SPUNTINI E MERENDE** (Simone, 31/8: «servirà anche
+     * quando le clienti esauriranno quelle presenti»). Conta quante ne mancano per arrivare a 84 per
+     * pasto in ogni paniere, ne chiede all'AI, **rilegge quello che arriva** con la stessa regola
+     * del tabulato e tiene solo quello che passa.
+     *
+     * ⚠️ **DOPO `alimentiDaCorreggere`, e non è un dettaglio d'ordine**: quel passo aggiorna cosa il
+     * conto sa degli ingredienti, e l'agente giudica un piatto proprio dal suo ingrediente
+     * principale. Girando prima, scarterebbe come «non lo so» ricette che un'ora dopo saprebbe
+     * classificare.
+     *
+     * ⚠️ Nasce **spento** (`agente_leggeri_acceso`, default false) e con un tetto per notte
+     * (`agente_leggeri_max`, default 20): un agente che scrive in catalogo si accende quando
+     * qualcuno decide, non perché è stato distribuito. Spento non chiama l'AI e non costa niente.
+     */
+    await step('agentePastiLeggeri', () => this.agenteLeggeri.passoNotturno());
     await step('conversationSummaries', () => this.summaries.generateDailyBatch());
     /**
      * Le conversazioni di Gaia rimaste senza risposta: dopo un giorno le chiude lei, dicendo che ha

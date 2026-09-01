@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🤖 **L'agente che tiene pieni colazioni, spuntini e merende — e RILEGGE quello che
+  l'AI gli risponde.** Richiesta di Simone: «un agente che pensa e le crea coi giusti criteri», e
+  «servirà anche quando le clienti esauriranno quelle presenti, quindi fallo bene». ⛔ Quindi **non è
+  uno strumento di migrazione**: vive in `src/`, gira dal cron della notte, e quando i panieri sono
+  pieni non fa niente e non costa niente. ⛔ **E non è «un altro generatore»**: quello che c'è ha
+  riempito le colazioni di «Merluzzo crudo in tartare» e nessuno se n'è accorto per mesi — ⚠️
+  **chiedere all'AI di rispettare un criterio non è farglielo rispettare**. Questo chiede, **rilegge
+  con la stessa regola del tabulato**, tiene solo quello che passa e richiede il resto; e quello che
+  scarta lo conta, perché un agente che scarta in silenzio è un agente di cui non si può sapere se
+  funziona. **Tre freni**: nasce **spento** (un agente che scrive in catalogo si accende quando
+  qualcuno decide, non perché è stato distribuito), ha un **tetto** per notte (ogni ricetta è una
+  chiamata pagata), e dopo **tre giri a vuoto** su una cella passa oltre e lo dichiara — se una
+  colazione keto vegana senza carne, pesce e verdura non esce in tre giri, lì lo spazio è stretto
+  davvero. Su un errore fatale dell'AI si ferma subito: il 12/8 un ciclo così ha sparato 270 chiamate
+  allo stesso 400. ⚠️ Le ricette nascono **bozze**. 28 prove, 4 mutazioni uccise, 6208 test verdi.
+
 - `[Sviluppo]` 🚰 **Il generatore smette di mettere il pesce a colazione.** Il secondo giro di
   `diag:colazioni`, col riconoscimento vero degli ingredienti, ha spostato pochissimo — da 73 a 71
   celle sotto soglia — e il perché è la risposta. ⛔ **La tabella alimenti non ha gli alimenti di

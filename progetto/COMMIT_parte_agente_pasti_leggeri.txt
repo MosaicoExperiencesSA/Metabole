@@ -1,0 +1,68 @@
+=== PARTE: l'agente che tiene pieni colazioni, spuntini e merende ===
+
+SUMMARY
+Un agente che genera le colazioni che mancano e RILEGGE quello che l'AI gli risponde, tenendo solo quello che rispetta il criterio
+
+DESCRIPTION
+Richiesta di Simone, 31/8: «mettiamoci un agente che pensa e le crea coi giusti criteri se non ci
+sono», e poi: «servirà anche quando le clienti esauriranno quelle presenti, quindi fallo bene».
+
+⛔ QUINDI NON È UNO STRUMENTO DI MIGRAZIONE: è un pezzo del prodotto. Vive in `src/`, non in uno
+script di `prisma/`, e gira dal cron della notte come tutti gli altri passi. Quando i panieri sono
+pieni non fa niente e non costa niente.
+
+⛔ E NON È «UN ALTRO GENERATORE». Il generatore che c'è ha riempito le colazioni di «Merluzzo crudo
+in tartare» e «Polpo freddo marinato», e nessuno se n'è accorto per mesi. ⚠️ Chiedere all'AI di
+rispettare un criterio non è farglielo rispettare. Questo si rilegge: chiede, guarda cos'è arrivato
+con la STESSA regola del tabulato (`piatto-di-cosa.ts`), tiene solo quello che passa, e richiede il
+resto. Quello che scarta lo conta e lo stampa — un agente che scarta in silenzio è un agente di cui
+non si può sapere se sta funzionando. ⚠️ E gli scarti non sono uno spreco da nascondere: sono la
+misura di quanto il generatore da solo sbaglierebbe.
+
+I TRE FRENI, e ce ne vogliono tre:
+· l'INTERRUTTORE (`agente_leggeri_acceso`, default SPENTO). Un agente che scrive in catalogo si
+  accende quando qualcuno decide, non perché è stato distribuito. Spento non chiama l'AI.
+· il TETTO per giro (`agente_leggeri_max`, default 20 di notte). Ogni ricetta è una chiamata pagata:
+  un agente senza tetto è un agente che una notte spende quanto un mese.
+· i GIRI A VUOTO (3). Se su una cella non esce niente per tre volte, lì il criterio e il regime
+  insieme lasciano poco spazio — una colazione keto vegana che non sia carne, pesce o verdura è un
+  problema vero. Si passa oltre e si dichiara, invece di bruciare chiamate.
+· e in più: su un errore FATALE dell'AI si ferma subito. Il 12/8 un ciclo così ha sparato 270
+  chiamate tutte allo stesso 400, perché il credito era finito.
+
+L'ORDINE DI LAVORO: prima i panieri con clienti sopra, poi i più vuoti. Un paniere con otto
+colazioni e nessuna cliente non fa male a nessuno oggi; lo stesso paniere con dodici clienti sta già
+servendo lo stesso piatto ogni pochi giorni.
+
+⚠️ LE RICETTE NASCONO BOZZE (`active: false`, `allergensReviewed: false`): non entrano in nessun
+menu finché una persona non le approva. È la stessa regola di tutto il catalogo generato.
+
+⚠️ IL PROMPT SCRIVE IL CRITERIO COME LO APPLICA IL VAGLIO — «l'ingrediente principale, quello che
+pesa di più» — e non «niente verdure»: se dicesse così, l'AI toglierebbe anche gli spinaci dalla
+frittata, e la frittata con gli spinaci è una colazione.
+
+⚠️ E IL PASSO STA DOPO `alimentiDaCorreggere` nel cron, non è un dettaglio d'ordine: quel passo
+aggiorna cosa il conto sa degli ingredienti, e l'agente giudica un piatto proprio dal suo
+ingrediente principale. Girando prima, scarterebbe come «non lo so» ricette che un'ora dopo saprebbe
+classificare.
+
+VERIFICA
+28 prove: 19 sulla parte che decide (il piano, l'ordine, il vaglio, i tetti) e 9 sui freni del
+servizio. ⛔ Le prove sul servizio non guardano «genera ricette buone» — quello dipende dall'AI:
+guardano che nasca spento, che il tetto tenga, che rilegga davvero, che si fermi sull'errore fatale
+e che le ricette nascano bozze. Sono le cose che, se saltano, fanno di questo agente il modo più
+veloce di riempire il catalogo di spazzatura pagandola. Quattro mutazioni provate e uccise (nasce
+acceso; non rilegge; il tetto non ferma il ciclo; le ricette nascono attive). 6208 test backend
+verdi nelle quattro modalità, `nest build` e `tsc --noEmit` compresi.
+
+COME SI ACCENDE
+`config_param`: `agente_leggeri_acceso` = true, `agente_leggeri_max` = quante per notte.
+⚠️ Prima di accenderlo conviene guardare `npm run diag:colazioni`: l'agente riempie fino a 84 per
+pasto, e oggi mancano migliaia di ricette — con 20 a notte sono mesi. Il tetto si alza, ma è una
+decisione di spesa.
+
+FILE
+- backend/src/catalog/agente-pasti-leggeri.ts (+ .spec, 19 prove) — la parte che decide
+- backend/src/catalog/agente-pasti-leggeri.service.ts (+ .spec, 9 prove) — il servizio
+- backend/src/catalog/catalog.module.ts — registrato, con AiModule
+- backend/src/cron/cron.controller.ts (+ .spec) e cron.module.ts — il passo della notte

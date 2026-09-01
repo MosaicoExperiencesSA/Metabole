@@ -22,6 +22,7 @@ import { PlanReportService } from '../reports/plan-report.service';
 import { ReportsService } from '../reports/reports.service';
 import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
+import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -130,6 +131,16 @@ describe('CronController (endpoint per Render Cron)', () => {
         {
           provide: PrivacyService,
           useValue: { passoGiornaliero: jest.fn().mockResolvedValue({ aperte: 0, avvisate: 0, cancellate: 0, errori: [] }) },
+        },
+        /**
+         * ⚠️ L'agente che tiene pieni colazioni, spuntini e merende. **Nasce spento** e il doppio lo
+         * rispecchia: `acceso: false`, come il servizio vero quando `agente_leggeri_acceso` non c'è.
+         * Un doppio che risponde «ho creato dieci ricette» direbbe una cosa che di notte, oggi, non
+         * succede.
+         */
+        {
+          provide: AgentePastiLeggeriService,
+          useValue: { passoNotturno: jest.fn().mockResolvedValue({ acceso: false, piano: [], create: 0, scarti: {}, arrese: [] }) },
         },
         // L'elenco degli alimenti da correggere a mano: si ricalcola di notte e non scrive niente
         // di clinico. ⚠️ Sta in fondo di proposito — nessun altro passo lo legge.
