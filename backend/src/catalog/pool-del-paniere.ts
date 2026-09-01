@@ -19,6 +19,8 @@
  * che nessuno sappia perché. La sorgente la decide un parametro che si legge, non il caso.
  */
 
+import { allargaAiGemelli } from '../common/slot-pasto';
+
 export interface Appartenenza {
   slot: string;
   recipeId: string;
@@ -67,7 +69,15 @@ export function poolPerSlot(righe: readonly Appartenenza[]): Map<string, Set<str
     if (!pool.has(r.slot)) pool.set(r.slot, new Set());
     pool.get(r.slot)!.add(r.recipeId);
   }
-  return pool;
+  /**
+   * ⚠️ **Fase 2, 1/9: lo spuntino e la merenda pescano dallo stesso paniere.** L'allargamento sta
+   * qui e non in chi chiama, perché questa è la porta: se lo facesse `menu.service.ts` per conto
+   * suo, il pool della base personale e quello della composizione tornerebbero a essere due cose
+   * diverse — che è il difetto per cui questa porta è nata.
+   *
+   * ⛔ Le chiavi non cambiano: `allargaAiGemelli` non inventa un pasto che la giornata non ha.
+   */
+  return allargaAiGemelli(pool);
 }
 
 /** Tutte le ricette del pool, senza distinzione di pasto. */

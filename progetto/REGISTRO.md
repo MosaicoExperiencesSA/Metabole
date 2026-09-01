@@ -18,221 +18,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-01
+
+- `[Sviluppo]` 🧺 **Spuntino e merenda diventano un paniere solo: due da 84 fanno 168.** Decisione
+  di Simone alla domanda che la Fase 2 del piano poneva prima di scrivere — *«un piatto pensato per
+  le 10:30 va bene anche alle 17?»*. Sì: quale dei due sia lo decide **l'ora del pasto nella
+  giornata**, non la ricetta. ⛔ **In catalogo non cambia una riga**: niente migrazione, niente enum
+  toccato, nessuna riassegnazione a mano di 168 × 38 celle. L'unione avviene quando si **sceglie**,
+  in una porta sola (`common/slot-pasto.ts`), applicata nei cinque punti che pescano per pasto: il
+  pool del paniere — da cui la ereditano insieme la composizione del menu e la base personale — le
+  ricette semplici, il ricambio di un piatto non gradito, le alternative in chat, la soglia che Vera
+  misura e il controllo che collega una ricetta a una giornata. ⛔ **E non si aggiungono pasti**:
+  l'allargamento arricchisce le chiavi che ci sono e non ne crea di nuove, perché far comparire la
+  merenda dove esiste lo spuntino vorrebbe dire kcal in più nel piano di chi la merenda non ce l'ha —
+  `dayComboPools` prende gli slot della giornata proprio da quelle chiavi. ⚠️ **L'agente dei pasti
+  leggeri contava i due pasti separati**: si sarebbe dato due obiettivi da 84 sullo stesso paniere e
+  avrebbe generato, pagandole, il doppio delle ricette; ora conta una cella sola e l'obiettivo cresce
+  coi pasti che la variante ha davvero. ⛔ **Un doppio che non fa quello che fa l'originale, settima
+  volta**: i finti `recipe.findMany` della chat confrontavano `r.mealSlot === where.mealSlot`, e col
+  `{ in: […] }` il confronto è diventato sempre falso — 12 prove rosse su codice giusto, che è il
+  verso innocuo; il verso che costa è che su codice sbagliato sarebbero state rosse uguali. Misura in
+  sola lettura con `npm run diag:spuntini`. Sentinella `una-porta-per-gli-slot.spec.ts`, quattro
+  eccezioni dichiarate con la ragione. Tre mutazioni provate, tre uccise.
+
+- `[Sviluppo]` 🧺 **Fase 1 chiusa in produzione: il pool si legge dal paniere.** 38 panieri creati,
+  22990 appartenenze scritte col conto che torna, 240 varianti confrontate e **nessuna ricetta persa**
+  — tutto quello che una cliente può ricevere oggi lo può ricevere anche leggendo dal paniere.
+  `panieri_sorgente_pool` spostato su `paniere`. Il guadagno atteso della strada B, misurato: **153945
+  ricette che il paniere aggiunge**. Le 78 varianti che non versano in nessun paniere sono quelle con
+  una famiglia doppione o una combinazione impossibile, e non perdono niente perché quello che
+  servivano lo servono le altre. Reversibile in un secondo rimettendo `giornate`, senza deploy.
+
+- `[Sviluppo]` 🤖 **L'agente dei pasti leggeri acceso, lento**: `agente_leggeri_acceso` a `true`, 20
+  ricette a notte. Nascono **spente** e non verificate sugli allergeni: il freno vero non è il numero,
+  è quante ne approva una nutrizionista.
+
+---
+
 ## 2026-08-31
-
-- `[Sviluppo]` 🤖 **L'agente che tiene pieni colazioni, spuntini e merende — e RILEGGE quello che
-  l'AI gli risponde.** Richiesta di Simone: «un agente che pensa e le crea coi giusti criteri», e
-  «servirà anche quando le clienti esauriranno quelle presenti, quindi fallo bene». ⛔ Quindi **non è
-  uno strumento di migrazione**: vive in `src/`, gira dal cron della notte, e quando i panieri sono
-  pieni non fa niente e non costa niente. ⛔ **E non è «un altro generatore»**: quello che c'è ha
-  riempito le colazioni di «Merluzzo crudo in tartare» e nessuno se n'è accorto per mesi — ⚠️
-  **chiedere all'AI di rispettare un criterio non è farglielo rispettare**. Questo chiede, **rilegge
-  con la stessa regola del tabulato**, tiene solo quello che passa e richiede il resto; e quello che
-  scarta lo conta, perché un agente che scarta in silenzio è un agente di cui non si può sapere se
-  funziona. **Tre freni**: nasce **spento** (un agente che scrive in catalogo si accende quando
-  qualcuno decide, non perché è stato distribuito), ha un **tetto** per notte (ogni ricetta è una
-  chiamata pagata), e dopo **tre giri a vuoto** su una cella passa oltre e lo dichiara — se una
-  colazione keto vegana senza carne, pesce e verdura non esce in tre giri, lì lo spazio è stretto
-  davvero. Su un errore fatale dell'AI si ferma subito: il 12/8 un ciclo così ha sparato 270 chiamate
-  allo stesso 400. ⚠️ Le ricette nascono **bozze**. 28 prove, 4 mutazioni uccise, 6208 test verdi.
-
-- `[Sviluppo]` 🚰 **Il generatore smette di mettere il pesce a colazione.** Il secondo giro di
-  `diag:colazioni`, col riconoscimento vero degli ingredienti, ha spostato pochissimo — da 73 a 71
-  celle sotto soglia — e il perché è la risposta. ⛔ **La tabella alimenti non ha gli alimenti di
-  base**: i nomi da classificare sono «zucchine crude», «Broccolo fresco», «carciofi freschi»,
-  «yogurt greco 0%», «cottage cheese», «latte magro» — l'abbinamento non li trova perché **le righe
-  non ci sono affatto**. ⛔ E classificarli **non salverebbe i conti**: metà di quei nomi sono
-  verdure, quindi passerebbero da «non lo so» a **fuori**. ⚠️ Quindi la conclusione onesta è
-  scomoda: **il catalogo non ha 84 colazioni per paniere che non siano di carne, pesce o verdura.**
-  La regola è giusta, il catalogo è indietro, e non è un problema di classificazione — sono ricette
-  che mancano. ✅ Quello che si può fare subito, e che questa consegna fa: **chiudere il rubinetto**
-  — la regola entra nel prompt del generatore, così ogni settimana di generazione smette di allargare
-  il lavoro. ⚠️ Corretta anche la chiave dell'elenco di lavoro: «Carciofi freschi» e «carciofi
-  freschi» uscivano come due righe. 6180 test verdi.
-
-- `[Sviluppo]` 📊 **La regola delle colazioni misurata: non si applica oggi, e metà del problema non
-  sono le ricette ma la tabella alimenti.** 73 celle su 75 sotto le 84 per pasto. ⛔ Ma la regola sta
-  correggendo **un difetto vero**: in catalogo, a colazione e a merenda, ci sono «Merluzzo crudo in
-  tartare», «Polpo freddo marinato», «Capesante al vapore», «Ossobuco di tacchino» — nelle keto il
-  pesce da solo occupa **36-40 colazioni su ~95**. Il generatore ha riempito le colazioni di secondi
-  piatti e nessuno se n'era accorto, perché nessuno aveva mai contato. ⚠️ **La colonna «non lo so» è
-  spesso più grande di «restano»** (Basso IG × vegano: 61 contro **85**), e gli esempi sono colazioni
-  perfette — «Mela con burro di mandorla», «Miglio soffiato con latte di capra», «Latte di cocco con
-  chia e fragole» — bloccate solo perché l'ingrediente principale non sta in una tabella di 373
-  righe. ⛔ **Corretto un pezzo subito**: il riconoscimento cercava il nome esatto, quindi «mela
-  renetta media» non trovava «mela»; adesso passa da `abbinaPerRicetta`, la stessa porta del conto
-  delle calorie. ⚠️ E il tabulato adesso stampa **l'elenco dei nomi da classificare** con la curva
-  dei primi N: chi lavora non riscrive ricette, dice che cosa sono dei nomi. La regola resta **non
-  applicata**: applicarla oggi lascerebbe panieri con otto colazioni.
-
-- `[Prodotto]` 🥐 **«Niente carne, pesce e verdure a colazione, spuntino e merenda»** (Simone, 31/8
-  sera). ⛔ **La lettura è: il PIATTO non dev'esserlo**, non «nessuna verdura fra gli ingredienti» —
-  e la differenza vale il catalogo: con la lettura stretta uscirebbero la frittata con gli spinaci,
-  il pane coi pomodorini, l'avocado toast, e il paniere delle colazioni si svuoterebbe. Si decide
-  dall'**ingrediente principale**, quello che pesa di più — ⚠️ non dal nome, perché «Vellutata di
-  broccoli e patate» e «Purè di patate con broccoli» si chiamano quasi uguale e sono due piatti
-  diversi. ⛔ **E senza grammature non si indovina**: si risponde «non lo so», e «non lo so» **non**
-  passa a colazione. ⚠️ Il vocabolario del pesce è quello delle esclusioni, letto dalla stessa porta;
-  quello della **carne non esisteva** e nasce qui — tagli e animali, non piatti («polpette» non c'è:
-  esistono quelle di ceci). ⛔ **La regola non è applicata da nessuna parte**: prima il numero, con
-  `npm run diag:colazioni`, che dice per ogni paniere quante ricette restano. Se una cella scende
-  sotto le 84, applicarla costa una riscrittura e va saputo prima — è la stessa disciplina che oggi
-  ha impedito al paniere DASH di nascere vuoto. ⚠️ Due sentinelle strutturali hanno pescato il file
-  nuovo e avevano ragione tutte e due. 6180 test verdi.
-
-- `[Sviluppo]` 🔍 **Panieri: il primo giro in sola lettura ha trovato quattro famiglie fuori da ogni
-  paniere, e 1764 righe che si sarebbero perse.** 38 panieri, 16.452 appartenenze, e i numeri per
-  pasto dicono che la strada B funziona (Mediterranea × onnivoro esce con **1455** ricette, 301
-  colazioni diverse). ⛔ Ma **120 varianti su 318 non versavano in nessun paniere**, e non erano
-  tutte attese: (1) «DASH» in banca dati si chiama **«DASH (anti-ipertensiva)»** — quattro varianti
-  approvate, 420 righe ciascuna, fuori da tutto per un nome scritto come sta nel piano invece che
-  come sta nel database; ⚠️ **è il difetto che il tabulato in sola lettura esiste per trovare**, e se
-  lo script avesse scritto al primo colpo il paniere DASH sarebbe nato vuoto senza che nessuno lo
-  collegasse a un nome; (2) **«Flexitariana»** non era nel piano → confluisce in Flessibile;
-  (3) **«Pescetariana»** è un **regime travestito** da famiglia, la quinta dopo le quattro censite
-  → Mediterranea × pescetariano, ⛔ col regime letto **dal nome** e non dalla colonna, che dice
-  `omnivore` perché il pescetariano non è mai stato acceso; (4) le combinazioni impossibili avevano
-  **1764 righe** e la prima stesura le buttava — il §1.6 dice che «tornano in catalogo come vegane»,
-  ed è il guadagno per cui la strada B è stata scelta: versano nei panieri vegani di Low carb e
-  Basso indice glicemico. ⚠️ E l'elenco delle non mappabili adesso è **raggruppato per nome**: 120
-  righe per dieci nomi non si leggono. 6147 test verdi.
-
-- `[Sviluppo]` 🚪 **Panieri, Fase 1 (2/3): il pool passa da una porta sola.** ⛔ «Quali ricette può
-  ricevere questa cliente, per ogni pasto» se la costruivano in **tre** — `buildScoringContext`,
-  `personal-base`, la copertura — ognuno appiattendo per conto suo `DietDayTemplate.meals`. Finché
-  sono tre, il giorno che l'appartenenza si sposta sul paniere se ne sposta **una** e le altre
-  restano indietro: i menu continuano a uscire, da un pool diverso da quello che qualcuno crede di
-  aver cambiato. Adesso c'è `catalog/pool-del-paniere.ts`, e la sorgente è il parametro
-  `panieri_sorgente_pool` — **default `giornate`**, quindi oggi non cambia niente per nessuna
-  cliente. ⛔ **E non è un ripiego automatico**: «se il paniere è vuoto leggi le giornate» sarebbe
-  una porta che risponde da due posti a seconda dello stato del database. Una parola sconosciuta nel
-  parametro **non** apre il paniere: un refuso in `config_param` non deve poter spostare da cosa
-  mangiano le clienti. ⛔ **La sentinella ha trovato una QUARTA copia che non conoscevo**
-  (`engine-rules.service.ts`, il generatore), dichiarata invece che spostata a scatola chiusa. ⚠️ E
-  alla prima stesura gridava su otto file, sette innocenti — fra cui `menu.service.ts` stesso:
-  sarebbe finita nelle eccezioni proprio la casa per cui esiste. ⚠️ Effetto collaterale: **27 doppi
-  di `ConfigParamsService` non avevano `getString`** — cioè si comportavano diversamente
-  dall'originale, ed è la sesta volta che questa cosa morde. 6142 test verdi nelle quattro modalità.
-
-- `[Sviluppo]` 🧺 **Panieri, Fase 1: l'appartenenza esce dal JSON.** Il §9 non aspetta più niente —
-  firma arrivata, numeri della Fase 0 letti (161 varianti sotto soglia ma **una sola con clienti
-  sopra**, che è proprio quella che il §2.3 dice di spostare a mano: il piano non cambia). ⛔ Fino a
-  oggi «questa ricetta sta in questo paniere» stava dentro `diet_day_template.meals`, mescolata
-  all'abbinamento della giornata e **senza chiave esterna** — da lì i 58 riferimenti rotti. Adesso
-  ci sono `Paniere` (famiglia × regime, 38) e `PaniereRicetta` (paniere, ricetta, **slot**), con le
-  chiavi esterne vere: ⛔ è il punto di tutta la Fase 1, i riferimenti rotti diventano **impossibili
-  per costruzione** invece di essere contati da una diagnostica dopo. ⚠️ La regola della migrazione
-  sta in un modulo suo con le sue prove: obiettivo e struttura pasti **non** entrano nella chiave
-  (è la strada B — un pranzo vegano a basso IG serve anche DASH vegana, e non si riscrive), e le
-  famiglie che spariscono **non** diventano panieri: inventare un paniere «Digiuno» sarebbe la
-  settima famiglia fantasma dopo le sei che questo lavoro chiude. ⛔ `npm run panieri:riempi` **non
-  scrive** senza `APPLICA=1`, e non cancella niente: le giornate restano dove sono, perché il motore
-  legge ancora di là. ⚠️ **Non sono stati toccati i tre punti che costruiscono il pool**: applicare
-  questa consegna non cambia niente per nessuna cliente. Sono le prossime due.
-
-- `[Sviluppo]` 🥛 **«latte di cocco» non conta più come latte: i sostituti vegetali tornano nel piano
-  di chi è allergico al latte.** ⛔ E **le porte erano QUATTRO, non due**: oltre al tag della ricetta
-  e al filtro che toglie il piatto, `lattosio.ts` e `sostituzioni-sicure.ts` non tolgono —
-  **sostituiscono**. Su «latte di cocco» rispondevano *«sostituisci con latte senza lattosio»*: un
-  derivato del latte **aggiunto** a un piatto che non ne aveva, sulla cliente che il latte non può
-  berlo. Le porte che tolgono sbagliano verso il menu più povero, queste verso il piatto.
-  ✅ `FRASI_CHE_NON_SONO` — elenco chiuso di frasi, non una regola — letto da tutte e quattro.
-  ⛔ **Elenco giustificato voce per voce, e le cose tenute FUORI valgono quanto quelle dentro**:
-  `ghee` e `burro chiarificato` sono latte; `panna vegetale` e `formaggio vegano` restano esclusi
-  perché in commercio contengono spesso caseinato; `noce pecan` e `noce di macadamia` sono frutta a
-  guscio — dentro ci vanno solo la moscata e quella di cocco. ⚠️ **`burro vegetale` l'avevo messo
-  io, e la revisione l'ha tolto**: la margarina contiene spesso siero di latte, ed era l'unica riga
-  che avrebbe lasciato passare un allergene vero. Due mutazioni sopravvissute alla prima stesura
-  delle prove (il tag che guardava sempre la prima occorrenza; la radice che guardava l'indice zero,
-  che passava perché *ogni* caso della spec aveva la frase all'inizio del nome mentre i nomi veri ce
-  l'hanno in mezzo), poi uccise. 33 nomi misti provati per far passare un allergene vero: nessuno ci
-  riesce. 6095 test verdi nelle quattro modalità. ⚠️ **Il passato non è ripulito**: i tag falsi già
-  scritti in catalogo si vedono rilanciando `diag:allergeni-mancanti` e si tolgono con un passo suo.
-
-- `[Sviluppo]` 🥥 **⛔ I latti vegetali spariscono dal piano di chi è allergico al latte — trovato
-  misurando, prima di scrivere la somma degli allergeni.** Verificato su **tutte e due le porte**
-  (il tag della ricetta e il filtro che toglie il piatto): `latte di cocco` → **latte**, `latte di
-  soia` → **latte**, `burro di arachidi` → **latte**, `burro di mandorle` → **latte**, `burro di
-  cacao` → **latte**, `noce moscata` → **frutta a guscio** (423 ricette), `noce di cocco` → idem.
-  ⛔ **È il contrario della protezione**: i latti vegetali e i burri di frutta secca sono
-  esattamente quello che una cliente allergica al latte deve poter mangiare, e sono i piatti che il
-  motore le toglie. ⚠️ E non si vede: un allergene di troppo non produce un errore, produce un menu
-  più povero su una persona che ha già meno scelta di tutte, e che non saprà mai che quel piatto
-  esisteva. **La somma degli allergeni è quindi sospesa**: scriverla adesso metterebbe questi falsi
-  su 23.357 ricette. Consegnato `npm run diag:allergeni-mancanti` (sola lettura), che per ogni
-  allergene stampa **quale ingrediente l'ha fatto scattare** e su quante ricette — è così che questo
-  è saltato fuori, ed è la regola che `exclusions.ts` ha già scritta: le omonime nascono dalla
-  diagnostica, non a mente. ⚠️ Corretta anche un'etichetta mia: «Ricette già confermate A MANO»
-  comprendeva le conferme **in blocco** del 19/8 — su un numero che riguarda gli allergeni era la
-  bugia peggiore possibile.
-
-- `[Prodotto]` ✍️ **Allergeni: la decisione firmata entra nella sua fonte — la via di mezzo, non C
-  secco.** Il foglio di Nocanty è tornato firmato, e ⚠️ la casella di Q1 si legge in due modi: a
-  occhio sembra **B**, nel PDF la X sta dove stava la casella di **C**. ⛔ **C e A si comportano
-  diversamente SOLO sulle ricette di cui il sistema non capisce gli ingredienti**: su tutte le altre
-  fanno la stessa cosa, e A le sblocca uguale — quindi C non compra velocità in generale, la compra
-  proprio dove l'AI ha tirato a indovinare più che altrove. **Deciso**: gli allergeni sono la
-  **somma** di quelli dedotti dagli ingredienti e di quelli suggeriti dall'AI (mai l'AI da sola dove
-  la deduzione dice di più), e una ricetta con un ingrediente non riconosciuto **non si ferma per
-  tutte** — entra in catalogo e resta fuori **solo dai panieri di chi ha dichiarato quell'allergia**.
-  Il catalogo parte alla velocità di C, e nessun allergene incerto arriva addosso a chi
-  quell'allergene ce l'ha davvero. ⛔ Per tornare a C secco servirà una riga di Nocanty che dica «C»
-  **a lettere**: una X in una casella che si legge in due modi non è una firma su questa decisione.
-
-- `[Sviluppo]` 🥖 **«senza glutine» non è una negazione — e la regola non esce più rovesciata.**
-  Dallo screenshot vero: *«a patrizia sogari sostituisci Biscotti d'Avena e Banana con Biscotti
-  **senza glutine** e banana»* → «Non ci arrivo», due volte. ⛔ `senza` stava nell'elenco delle
-  negazioni come **parola secca**, quindi bastava nominare mezzo scaffale — senza glutine, senza
-  lattosio, senza zucchero, senza sale — perché l'istruzione venisse buttata via. Questo prodotto ha
-  una funzione che si chiama `senza-glutine.ts`. ⚠️ **Una guardia che blocca il caso normale non è
-  prudente: è rotta, e sembra prudente.** La differenza sta in cosa segue: «senza + verbo
-  dell'azione» nega, «senza + nome» qualifica un alimento. ⛔ **E l'elenco chiuso, alla prima
-  stesura, ne aveva metà**: conoscevo i verbi del *cambiare* e nessuno di quelli del **mettere**,
-  che sono quelli della forma rovesciata «Y al posto di X» — quindi *«per la celiaca senza mettere
-  il pane normale al posto del pane senza glutine»* scriveva `pane senza glutine → pane normale`.
-  Nel piatto di una celiaca, con un'anteprima plausibile da confermare. Il commento dichiarava una
-  regola che il codice non aveva. ⚠️ Elenco **chiuso** e non una forma furba: quella scattava su
-  «senza **mandorle**». ⛔ **E un secondo difetto trovato misurando, non corretto e scritto come
-  bloccante**: «sostituisci Biscotti d'Avena e Banana con Gallette di riso» perde «e Banana» in
-  silenzio — la regola vieta *tutti* i biscotti d'avena. Correggerlo di fretta sarebbe peggio del
-  difetto: «e» dentro un nome è comunissimo. Revisione avversariale: tre difetti in questa stessa
-  consegna, fra cui una mia affermazione falsa nella voce dei lavori. 6030 test verdi.
-
-- `[Sviluppo]` 📏 **Panieri: la misura della Fase 0, e il verdetto che dice se si può aprire la Fase
-  1.** Il §9 del piano elenca due blocchi: la firma del capo nutrizionista (arrivata oggi) e questo
-  numero. Il piano dice anche quando basta — «attivi ≥ 60 per pasto su tutte le celle» — quindi
-  `npm run diag:fase0` (sola lettura) non stampa una tabella: dice sì o no, e quando è no dice quali
-  celle e quante clienti ci stanno sopra. ⚠️ Il conto sta in `engine-rules/misura-fase0.ts` con le
-  sue prove, non nello script: da quel verdetto dipende la stima di tutto il piano. ⛔ **Tre cose
-  smontate dalla revisione**: (1) il verdetto guardava solo la soglia sugli attivi, e una variante
-  con trenta riferimenti **rotti** e i pasti pieni usciva ✅ — mentre il §9 chiede tre numeri e la
-  Fase 1 pretende che i rotti vadano a zero; (2) le clienti si contavano da `client_cycle`, dove
-  `status` è **sempre** `active`, le righe sono cicli di **due giorni** (una cliente da tre mesi ne
-  vale quaranta) e si materializzano solo se lo staff apre una certa schermata — un numero insieme
-  gonfiato e bucato, stampato come decisivo: adesso si contano le clienti distinte da `menu_day`;
-  (3) i totali sommavano **per variante**, quindi la stessa ricetta contata una volta per ognuna
-  delle 306 — e sotto c'era scritto che era «la differenza fra le due porte», che si misura in
-  ricette. ⚠️ **Due verdetti, non uno**: su tutte le varianti e sulle sole varianti con clienti
-  sopra, perché il §2.3 dice che le magre senza nessuno spariscono da sole. Tre mutazioni
-  sopravvissute alla prima stesura delle prove, poi uccise. 5998 test verdi nelle quattro modalità.
-
-- `[Sviluppo]` 🧪 **I due numeri promessi a Nocanty: quante ricette si fermerebbero sugli allergeni
-  dedotti.** Il foglio firmato oggi promette al §5 due numeri **prima** di scrivere codice di
-  produzione. Consegnato lo strumento che li misura — `npm run diag:allergeni-deducibili`, sola
-  lettura — e il modulo puro che lo regge. ⛔ **La domanda non è «quali allergeni vedo», è «so che
-  cos'è questo ingrediente»**: `suggestAllergens` su un ingrediente che non conosce risponde
-  «nessun allergene», la stessa risposta che dà sulle zucchine — l'ignoto e il sicuro si presentano
-  uguali. Adesso la seconda domanda si fa per prima, e `allergeni: null` («non lo so») è tenuto
-  distinto da `[]` («letti gli ingredienti, non contiene niente»). ⛔ **Difetto trovato dalla
-  revisione**: `ingredientNames` scarta in silenzio gli elementi senza `name`, quindi
-  `[{name:'pollo'}, {nome:'gamberi'}]` usciva con `allergeni: []` — un elenco con dentro i gamberi
-  che dichiara di non contenere niente. Adesso è un arresto. ⚠️ **E il numero va letto, non
-  riportato**: misurato sulle 273 ricette vere del repo si ferma l'82%, ma i nomi che fermano di più
-  sono `insalata`, `zucchine`, `pomodoro`, `riso`, `albumi` — cioè quel numero misura quanto è
-  indietro la **tabella alimenti** (306 righe contro 7831 nomi usati), non quanto sono scritte male
-  le ricette. Per questo lo script ne stampa **tre** e non due. Revisione avversariale: undici
-  rilievi, fra cui due frasi false che lo script stampava a chi legge il referto; otto mutazioni,
-  tre sopravvissute e poi uccise. 5977 test verdi nelle quattro modalità.
 
 - `[Sviluppo]` 💬 **La chat dello staff: il nome apre la scheda, un «1» non arriva più nudo, e la
   pagina dell'assistente si apre davvero in fondo.** Tre cose viste da Simone guardando lo schermo
@@ -255,33 +78,6 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   cancellata, una che non guardava le dipendenze del `useMemo`, e un commento ⛔ che registrava un
   incidente mai avvenuto), tutti corretti. Cinque mutazioni uccise; 5932 test backend nelle quattro
   modalità e 165 vitest, build vere comprese.
-
-- `[Sviluppo]` 🏷️ **Il nome di Vera: le frasi del primo incontro che cadevano, e «mi chiamo già
-  così» invece di «non ci arrivo».** Cinque frasi su venticinque della pagina «frasi che non ho
-  capito» cadevano sul **battesimo**, cioè nel momento in cui la nutrizionista decide se fidarsi.
-  Adesso si leggono il **modale in mezzo** («ti **voglio** chiamare Vera») e «da oggi **sei** Vera».
-  E a nome già dato quelle stesse frasi finivano in «non ci arrivo», perché la condizione del
-  battesimo è **sui dati**: adesso Vera risponde «Mi chiamo già Vera. Vuoi che da adesso mi chiami
-  Lucia?».
-  ⚠️ **«il tuo nome, sarà Vera» funzionava già**: il passaggio di consegne la dava per rotta, la
-  misura diceva il contrario. *Una cosa letta in un foglio si verifica nel codice prima di ripararla.*
-  ⛔ **E la revisione ha fermato due difetti che questa consegna stava introducendo**, tutti e due
-  dalla stessa causa: un estrattore che non aveva mai avuto bisogno di essere preciso — girava **un
-  turno per account** — messo a decidere, **con potere di scrittura**, nello stato in cui l'agente
-  vive tutti gli altri giorni. «ti chiamo **domani**» proponeva di ribattezzarsi «domani» e a un «ok»
-  distratto lo **scriveva**; «**tu** sei sicura?» battezzava «sicura», e il test aveva scelto l'unica
-  formulazione che passava. Adesso, dove il nome c'è già, il candidato dev'essere un **nome proprio**;
-  i prefissi che non dichiarano una scelta sono spariti; e il ramo sta **dopo** «annulla» e la coda
-  del capo — *un indovinello su una parola non passa davanti a una risposta certa*. Dal passo si esce
-  anche non capendo, e il nome si salva da un punto solo, senza più una frase finta da rileggere.
-  ⚠️ **Nota di metodo:** due mutazioni erano risultate «sopravvissute» perché la sostituzione **non
-  si era applicata** (escaping). Una prova di mutazione va verificata che tocchi il file, altrimenti
-  dice il contrario di quello che sembra. **Sei mutazioni, tutte uccise. 5926 test verdi nelle
-  quattro modalità.**
-  🗂️ In coda anche le **due richieste di Simone** del 31/8 sera, con l'indagine già dentro: il nome
-  della cliente in chat che apre la scheda in un'altra finestra, e i messaggi **«1»/«2»** che
-  arrivano senza contesto (⚠️ il testo esiste già — «Cambio in chat: «pollo» → «tacchino» (pranzo
-  di…)» — e va copiato nel `meta` del messaggio inoltrato).
 
 - `[Sviluppo]` 🗣️ **Vera non dice più «fatto» su una regola che non ha scritto — e adesso capisce
   come si scrive.** Con una segnalazione aperta, alla frase «il merluzzo può essere sostituito con

@@ -69,3 +69,76 @@ export const SLOT_LABEL: Record<string, string> = {
  * non sparire. Un pasto che non si vede è un pasto che nessuno verifica.
  */
 export const etichettaSlot = (slot: string): string => SLOT_LABEL[slot] ?? slot;
+
+/**
+ * ⚠️ **SPUNTINO E MERENDA SONO LO STESSO PANIERE** — decisione di Simone, 1/9, Fase 2 del piano
+ * panieri, alla domanda «un piatto pensato per le 10:30 va bene anche alle 17?».
+ *
+ * La risposta è sì: quale dei due sia lo decide **l'ora del pasto nella giornata**, non la ricetta.
+ * In catalogo una ricetta continua ad avere un `mealSlot` solo — non si è toccato né l'enum né una
+ * riga di dati — ma quando si **sceglie** cosa mettere in uno spuntino si pesca da tutti e due.
+ * Due panieri da 84 diventano uno da 168, senza migrazioni e senza riassegnare niente a mano.
+ *
+ * ⛔ **E NON si aggiungono pasti.** La tentazione era far sì che, dove esiste `morning_snack`,
+ * comparisse anche `afternoon_snack`: sarebbe una merenda in più nella giornata di chi non ce
+ * l'ha, cioè kcal aggiunte a una cliente perché il catalogo aveva una chiave. Quello che c'è nel
+ * paniere **allarga la scelta dentro i pasti che la giornata già prevede**, e non ne inventa uno.
+ * `allargaAiGemelli` per questo arricchisce le chiavi presenti e non ne crea di nuove.
+ */
+export const SLOT_SCAMBIABILI: readonly (readonly string[])[] = [['morning_snack', 'afternoon_snack']];
+
+/**
+ * Gli slot di catalogo da cui si può pescare per servire questo pasto — **lui compreso**, e per
+ * primo. Uno slot che non ha gemelli risponde con se stesso: chi chiama non deve sapere se il
+ * pasto che ha in mano è scambiabile o no.
+ */
+export function slotDaCuiPescare(slot: string): string[] {
+  const gruppo = SLOT_SCAMBIABILI.find((g) => g.includes(slot));
+  if (!gruppo) return [slot];
+  return [slot, ...gruppo.filter((s) => s !== slot)];
+}
+
+/**
+ * Il capofila del gruppo di slot scambiabili — il nome sotto cui si conta una volta sola.
+ *
+ * ⚠️ Serve a chi **conta** (l'agente che riempie il catalogo, i tabulati): se spuntino e merenda
+ * restassero due righe, l'agente si darebbe due obiettivi da 84 su un paniere solo e ne
+ * genererebbe il doppio del necessario. Chi **sceglie** non ne ha bisogno: per quello c'è
+ * `slotDaCuiPescare`.
+ */
+export const slotCapofila = (slot: string): string =>
+  (SLOT_SCAMBIABILI.find((g) => g.includes(slot)) ?? [slot])[0];
+
+/** Una ricetta di `slotRicetta` può stare nel pasto `slotPasto`? */
+export const puoStareNelloSlot = (slotRicetta: string, slotPasto: string): boolean =>
+  slotDaCuiPescare(slotPasto).includes(slotRicetta);
+
+/**
+ * Gli slot da chiedere al catalogo per servire questi pasti, senza doppioni e nell'ordine in cui
+ * sono stati chiesti. È la forma giusta per un `where: { mealSlot: { in: … } }`.
+ */
+export function slotDaChiedere(slots: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const s of slots ?? []) for (const g of slotDaCuiPescare(s)) if (!out.includes(g)) out.push(g);
+  return out;
+}
+
+/**
+ * Arricchisce un pool `slot → ricette` con i gemelli.
+ *
+ * ⛔ Le chiavi restano **quelle che c'erano**: un pasto assente resta assente (vedi sopra il perché).
+ * Il pool in ingresso non viene toccato — si restituisce una mappa nuova, perché chi lo riceve lo
+ * filtra poi sulle esclusioni della cliente e non deve trovarsi a modificare l'originale.
+ */
+export function allargaAiGemelli(pool: ReadonlyMap<string, Set<string>>): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [slot, ids] of pool) {
+    const unito = new Set(ids);
+    for (const gemello of slotDaCuiPescare(slot)) {
+      if (gemello === slot) continue;
+      for (const id of pool.get(gemello) ?? []) unito.add(id);
+    }
+    out.set(slot, unito);
+  }
+  return out;
+}

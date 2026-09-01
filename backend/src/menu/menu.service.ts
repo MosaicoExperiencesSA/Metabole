@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { puoStareNelloSlot, slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
 import { paniereDellaVariante } from '../catalog/appartenenza-panieri';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
@@ -2789,14 +2790,24 @@ export class MenuService {
     const excluded = new Set<string>();
     for (const t of excludeTerms) for (const kw of expandExclusion(t)) excluded.add(kw);
     const recipes = (await this.prisma.recipe.findMany({
-      where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slots as never } },
+      // ⚠️ Fase 2 (1/9): per lo spuntino si chiede al catalogo anche la merenda, e viceversa.
+      where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slotDaChiedere(slots) as never } },
       select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true },
     })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown }[];
     for (const r of recipes) {
       const txt = (r.name + ' ' + (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
       if (hitsExclusion(txt, excluded)) continue;
-      if (!out.has(r.mealSlot)) out.set(r.mealSlot, []);
-      out.get(r.mealSlot)!.push({ id: r.id, name: r.name, kcal: r.kcal });
+      /**
+       * ⚠️ Si indicizza sugli slot **chiesti**, non su quello scritto in catalogo: una merenda
+       * pescata per servire lo spuntino deve finire sotto `morning_snack`, altrimenti chi legge
+       * `out.get('morning_snack')` non la trova e l'allargamento non serve a niente. Un piatto
+       * scambiabile compare sotto tutti e due, ed è la stessa ricetta: la sceglie una volta sola.
+       */
+      for (const s of slots) {
+        if (!puoStareNelloSlot(r.mealSlot, s)) continue;
+        if (!out.has(s)) out.set(s, []);
+        out.get(s)!.push({ id: r.id, name: r.name, kcal: r.kcal });
+      }
     }
     // Ordine deterministico (per kcal, poi id) così la rotazione per giorno è stabile.
     for (const list of out.values()) list.sort((a, b) => a.kcal - b.kcal || a.id.localeCompare(b.id));
@@ -2991,7 +3002,8 @@ export class MenuService {
       if (!tier.length) {
         if (!fromCatalogBySlot.has(m.slot)) {
           const rows = (await this.prisma.recipe.findMany({
-            where: { mealSlot: m.slot as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
+            // ⚠️ Fase 2 (1/9): il ricambio di uno spuntino può essere una merenda, e viceversa.
+            where: { mealSlot: { in: slotDaCuiPescare(m.slot) } as never, active: true, ...(profile?.regime ? { regime: profile.regime } : {}) },
             select: { id: true, name: true, kcal: true, ingredients: true, allergens: true },
             orderBy: { id: 'asc' },
           })) as Cand[];

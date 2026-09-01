@@ -1,0 +1,68 @@
+Fase 2 dei panieri: spuntino e merenda diventano un paniere solo
+
+Decisione di Simone (1/9), alla domanda del piano: «un piatto pensato per le 10:30
+va bene anche alle 17?» → sì. Quale dei due sia lo decide l'ora del pasto nella
+giornata, non la ricetta.
+
+⛔ IN CATALOGO NON CAMBIA UNA RIGA. Niente migrazione, niente enum toccato, niente
+riassegnazione a mano di 168 × 38 celle. Una ricetta ha ancora il suo `mealSlot`:
+l'unione avviene quando si SCEGLIE, in una porta sola.
+
+LA PORTA — `common/slot-pasto.ts`
+  · SLOT_SCAMBIABILI      il gruppo dichiarato: spuntino + merenda
+  · slotDaCuiPescare      gli slot da cui pescare per servire un pasto (lui per primo)
+  · puoStareNelloSlot     una ricetta di X può stare nel pasto Y?
+  · slotDaChiedere        la forma giusta per un `where: { mealSlot: { in: … } }`
+  · allargaAiGemelli      arricchisce un pool slot → ricette
+  · slotCapofila          il nome sotto cui CONTARE una volta sola
+
+⛔ LA RIGA CHE COSTEREBBE UN PASTO IN PIÙ. `allargaAiGemelli` arricchisce le chiavi
+che ci sono e NON ne crea di nuove. La tentazione era far comparire `afternoon_snack`
+dove esiste `morning_snack`: sarebbe una merenda in più nella giornata di chi non ce
+l'ha — kcal aggiunte a una cliente perché il catalogo aveva una chiave. `dayComboPools`
+prende gli slot della giornata proprio dalle chiavi di quel pool. C'è una prova apposta.
+
+DOVE È APPLICATA (cinque punti di scelta)
+  · catalog/pool-del-paniere.ts   `poolPerSlot` — la porta del pool: da qui lo ereditano
+                                  la composizione del menu e la base personale insieme
+  · menu.service.ts               le ricette semplici (query + indicizzate sugli slot
+                                  CHIESTI, non su quello scritto in catalogo) e il
+                                  ricambio di un piatto non gradito
+  · sostituzione-chat.service.ts  le alternative proposte in chat
+  · vera/pool-disponibile.service.ts  la soglia che Vera misura, altrimenti direbbe
+                                  «restano 2 merende» mentre la composizione ne ha 168
+  · catalog.service.ts            il controllo quando si collega una ricetta a una giornata
+
+L'AGENTE DEI PASTI LEGGERI — una cella per paniere, non per pasto
+Contava spuntini e merende separati: si sarebbe dato due obiettivi da 84 sullo stesso
+paniere e avrebbe generato — pagandole — il doppio delle ricette. Ora conta sotto il
+capofila, e l'obiettivo cresce coi pasti che quella variante ha davvero: uno solo → 84,
+tutti e due → 168. Il prompt lo dice all'AI, perché un piatto scritto pensando alle
+10:30 alle 17 può non stare in piedi.
+
+SENTINELLA — `catalog/una-porta-per-gli-slot.spec.ts`
+Nessun file, fuori da quattro dichiarati, nomina un `mealSlot` singolo. Le eccezioni
+sono scritte con la ragione: il filtro della lista del back office (chi cerca «spuntino»
+vuole gli spuntini), le due scritture, la soglia sui MAIN_SLOTS (dove nessuno dei tre
+slot è scambiabile) e il generatore — che ANDREBBE allargato ed è la Fase 7.
+
+⛔ UN DOPPIO CHE NON FA QUELLO CHE FA L'ORIGINALE — settima volta
+I finti `recipe.findMany` di `sostituzione-chat.service.spec.ts` filtravano con
+`r.mealSlot === where.mealSlot`. Col `{ in: […] }` il confronto è diventato sempre
+falso: 12 prove rosse su codice giusto. E la parte che costa: se il codice fosse stato
+sbagliato sarebbero state rosse allo stesso modo, cioè non dicevano niente. Il doppio
+imita ora tutte e due le forme.
+
+PROVE DI MUTAZIONE (tutte e tre uccise)
+  1. `allargaAiGemelli` crea le chiavi mancanti  → 2 prove rosse
+  2. `poolPerSlot` non allarga                   → 1 prova rossa
+  3. il gruppo scambiabile sparisce              → 7 prove rosse
+
+MISURA — `npm run diag:spuntini` (sola lettura)
+Paniere per paniere: quanti spuntini, quante merende, quanti piatti dopo l'unione. Il
+numero onesto è in fondo: la somma del pasto messo PEGGIO di ogni paniere, prima e dopo.
+La varietà di una cliente la decide il pasto più povero che riceve, non la media.
+
+Test: 6222 su 366 suite, verdi nelle quattro modalità (jest, TZ=Europe/Rome, notte, e
+le due insieme). `npm run build` pulito; `tsc` coi soli due errori preesistenti degli
+script prisma.

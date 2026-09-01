@@ -69,6 +69,31 @@ describe('da dove viene il pool', () => {
       expect(poolPerSlot([]).size).toBe(0);
       expect(ricetteDelPool(poolPerSlot([])).size).toBe(0);
     });
+
+    /**
+     * ⚠️ **Fase 2 (1/9): spuntino e merenda pescano dallo stesso paniere**, e l'allargamento sta
+     * dentro la porta. Se qualcuno lo togliesse di qui per rifarlo in chi chiama, la composizione e
+     * la base personale tornerebbero a vedere due pool diversi — il difetto per cui la porta esiste.
+     */
+    it('⚠️ lo spuntino vede le merende, e la merenda vede gli spuntini', () => {
+      const pool = poolPerSlot([
+        { slot: 'morning_snack', recipeId: 's1' },
+        { slot: 'afternoon_snack', recipeId: 'm1' },
+        { slot: 'lunch', recipeId: 'r1' },
+      ]);
+      expect([...pool.get('morning_snack')!].sort()).toEqual(['m1', 's1']);
+      expect([...pool.get('afternoon_snack')!].sort()).toEqual(['m1', 's1']);
+      expect([...pool.get('lunch')!]).toEqual(['r1']);
+    });
+
+    /** ⛔ E non aggiunge la merenda a chi ha solo lo spuntino: sarebbero kcal in più nel piano. */
+    it('⛔ non inventa il pasto che le giornate non hanno', () => {
+      const pool = poolPerSlot([
+        { slot: 'morning_snack', recipeId: 's1' },
+        { slot: 'lunch', recipeId: 'r1' },
+      ]);
+      expect([...pool.keys()].sort()).toEqual(['lunch', 'morning_snack']);
+    });
   });
 
   describe('le righe dal paniere', () => {

@@ -104,6 +104,7 @@
     "panieri:riempi": "ts-node --transpile-only prisma/riempi-panieri.ts",
     "panieri:confronta": "ts-node --transpile-only prisma/confronta-pool.ts",
     "diag:colazioni": "ts-node --transpile-only prisma/diag-colazioni-salate.ts",
+    "diag:spuntini": "ts-node --transpile-only prisma/diag-spuntini-uniti.ts",
     "agente:colazioni": "ts-node --transpile-only prisma/agente-colazioni.ts",
     "diag:crudo-cotto": "ts-node --transpile-only prisma/diag-crudo-cotto.ts",
     "diag:coda": "ts-node --transpile-only prisma/diag-piani-in-coda.ts",

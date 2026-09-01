@@ -4887,4 +4887,24 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-08-28T09:10',
   },
 
+  {
+    chiave: 'generatore-non-vede-il-paniere-unito',
+    titolo: 'Il generatore conta gli spuntini e le merende separati: genererà piatti che nel paniere ci sono già',
+    dettaglio:
+      '⚠️ **Coda della Fase 2 (1/9).** Da oggi spuntino e merenda pescano dallo stesso paniere: chi '
+      + '**sceglie** passa da `slotDaCuiPescare`, e l\'agente dei pasti leggeri conta una cella sola '
+      + 'per paniere (`slotCapofila`). ⛔ **Il generatore di `engine-rules.service.ts` no**: quando '
+      + 'chiede «cosa c\'è già per questa variante» (`mealSlot: { in: slots }`, riga ~1050) tiene i due '
+      + 'pasti divisi, quindi generando spuntini non vede le merende — e ne scrive di uguali, pagando '
+      + 'ogni ricetta.\n'
+      + '⚠️ Non è un difetto nuovo e non fa male a nessuna cliente: le bozze nascono spente. Costa '
+      + 'chiamate all\'AI e tempo di approvazione alla nutrizionista, che è quello che oggi è scarso.\n'
+      + '⚠️ È dichiarata come eccezione in `catalog/una-porta-per-gli-slot.spec.ts` e sta nella **Fase '
+      + '7** del piano panieri, perché spostare da cosa dipende il generatore va fatto col tabulato '
+      + 'della copertura davanti — `npm run diag:spuntini` dà il primo dei due numeri.',
+    categoria: CODICE,
+    ordine: 668,
+    nata: '2026-09-01T09:00',
+  },
+
 ];

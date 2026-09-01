@@ -1,4 +1,23 @@
 /**
+ * ⛔ **UN DOPPIO CHE NON FA QUELLO CHE FA L'ORIGINALE È UN TEST CHE MENTE — 1/9, settima volta.**
+ *
+ * Questi due finti `recipe.findMany` filtravano con `r.mealSlot === where.mealSlot`. Funzionava
+ * finché il codice chiedeva **uno** slot; il giorno che la Fase 2 ha cominciato a chiedere
+ * `mealSlot: { in: [spuntino, merenda] }` il confronto è diventato `'breakfast' === {in: […]}`,
+ * cioè **sempre falso**: dodici prove rosse su un codice giusto, e — è la parte che costa — se il
+ * codice fosse stato sbagliato queste stesse prove sarebbero state rosse allo stesso modo, quindi
+ * non avrebbero detto niente.
+ *
+ * ⚠️ Il doppio imita adesso tutte e due le forme di Prisma, come le imita Prisma.
+ */
+const combaciaLoSlot = (chiesto: unknown, slotDellaRicetta: string): boolean => {
+  if (!chiesto) return true;
+  const dentro = (chiesto as { in?: unknown })?.in;
+  if (Array.isArray(dentro)) return dentro.includes(slotDellaRicetta);
+  return chiesto === slotDellaRicetta;
+};
+
+/**
  * ⚠️ **«OGGI» SI CHIEDE, ANCHE NEI TEST — corretto il 20/8 alle 00:02.**
  *
  * Qui il giorno si ricavava da `new Date().toISOString().slice(0, 10)`, cioè il giorno **UTC**,
@@ -102,7 +121,7 @@ async function creaServizio(tocca?: (prisma: any) => void) {
           return Promise.resolve(
             catalogo
               .filter((r) => (perId ? perId.includes(r.id) : true))
-              .filter((r) => (where?.mealSlot ? r.mealSlot === where.mealSlot : true)),
+              .filter((r) => combaciaLoSlot(where?.mealSlot, r.mealSlot)),
           );
         }),
       },
@@ -1882,7 +1901,7 @@ describe('SostituzioneChatService — cambio colazione: «dolce o salata?» (14/
       return Promise.resolve(
         catalogo
           .filter((r) => (perId ? perId.includes(r.id) : true))
-          .filter((r) => (where?.mealSlot ? r.mealSlot === where.mealSlot : true)),
+          .filter((r) => combaciaLoSlot(where?.mealSlot, r.mealSlot)),
       );
     });
     prisma.clientMenuPool.findFirst = jest.fn().mockResolvedValue({

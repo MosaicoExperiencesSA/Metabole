@@ -1,4 +1,5 @@
 import { laConfermaDecade } from './conferma-allergeni-decade';
+import { puoStareNelloSlot } from '../common/slot-pasto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -1155,7 +1156,12 @@ export class CatalogService {
       );
     }
     const attesi = pastiAttesi(diet);
-    if (!attesi.includes(recipe.mealSlot)) {
+    /**
+     * ⚠️ Fase 2 (1/9): una ricetta da spuntino può essere collegata a una merenda e viceversa, ed è
+     * la stessa decisione che allarga il paniere. Il controllo resta: uno spuntino in una dieta che
+     * non ha né spuntino né merenda continua a essere rifiutato.
+     */
+    if (!attesi.some((a) => puoStareNelloSlot(recipe.mealSlot, a))) {
       throw new BadRequestException(
         `La dieta «${diet.name}» non prevede questo pasto: le sue giornate hanno ${attesi.length} pasti (${attesi.join(', ')}).`,
       );

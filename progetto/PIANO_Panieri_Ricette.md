@@ -247,18 +247,37 @@ Se il conto non torna, la migrazione si ferma.
 
 ---
 
-### Fase 2 · Spuntino e merenda diventano un paniere da 168 — **1–2 consegne**
+### Fase 2 · Spuntino e merenda diventano un paniere da 168 — ✅ **FATTA (1/9)**
 
-**Cosa si fa**
-- `Recipe.mealSlot` da singolo a lista (o slot unico `snack`), migrazione compresa;
-- i 18 punti censiti in `slot-pasto.ts`;
-- la regola della **fascia oraria**: quale dei due è, si decide dall'ora del pasto nella giornata,
-  non dalla ricetta.
+**La domanda era**: *un piatto pensato per le 10:30 va bene anche alle 17?* **Risposta di Simone,
+1/9: sì.** Quale dei due sia lo decide l'ora del pasto nella giornata, non la ricetta. Niente tag
+mattina/pomeriggio.
 
-**Da chiarire con il capo nutrizionista prima di scrivere**
-⚠️ Un piatto pensato per le 10:30 va bene anche alle 17? Per le colazioni il progetto ha già
-dovuto distinguere dolce e salato (c'è una pagina apposta): può darsi che serva un tag simile.
-**Se serve, va deciso adesso**: aggiungerlo dopo vuol dire ripassare 168 × 38 assegnazioni.
+**Cosa si è fatto — e cosa NON si è fatto**
+⛔ **`Recipe.mealSlot` non è stato toccato**, e nemmeno una riga di catalogo. Il piano prevedeva di
+portarlo da singolo a lista con migrazione: non serve. L'unione avviene quando si **sceglie**, in
+una porta sola (`common/slot-pasto.ts`), e il dato resta com'è. Costo della strada scelta: zero
+migrazioni, zero riassegnazioni, e si torna indietro togliendo una riga.
+
+⚠️ E i «18 punti» erano già raccolti: `slot-pasto.ts` esisteva dal 20/8 con le tre forme di
+giornata. La Fase 2 ci ha aggiunto il gruppo scambiabile e le cinque funzioni che lo leggono.
+
+**I cinque punti di scelta** — pool del paniere (da cui la ereditano insieme composizione e base
+personale), ricette semplici, ricambio di un piatto non gradito, alternative in chat, soglia di
+Vera, controllo del collegamento a una giornata. Sentinella:
+`catalog/una-porta-per-gli-slot.spec.ts`, quattro eccezioni dichiarate.
+
+⛔ **La riga che costerebbe un pasto in più**: l'allargamento arricchisce le chiavi che ci sono e
+non ne crea di nuove. Far comparire la merenda dove esiste lo spuntino sarebbero kcal aggiunte al
+piano di chi la merenda non ce l'ha — `dayComboPools` prende gli slot della giornata proprio da
+quelle chiavi.
+
+⚠️ **Coda aperta**: il generatore di `engine-rules.service.ts` conta ancora i due pasti separati e
+genererà piatti che nel paniere ci sono già. Non fa male a nessuna cliente (le bozze nascono
+spente), costa chiamate all'AI. È la Fase 7, ed è in `voci-iniziali.ts`.
+
+**Misura**: `npm run diag:spuntini` — quanti spuntini, quante merende, quanti dopo l'unione, e in
+fondo la somma del pasto messo **peggio** di ogni paniere, che è il numero onesto.
 
 **Perché prima della composizione**
 Se la composizione si scrive su due panieri e poi diventano uno, si riscrive due volte.
@@ -286,6 +305,13 @@ Le tre risposte possibili, da scegliere prima di scrivere:
 
 La 1 è quella coerente con le regole di casa (*se degradi, dillo*), ma è una decisione, non un
 dettaglio.
+
+✅ **DECISA da Simone l'1/9: la 1.** Si allarga la banda a piccoli passi finché una giornata entra,
+e ogni allargamento lascia una traccia — log ed evento. ⚠️ La parte che va scritta con attenzione
+non è l'allargamento: è **il passo e il tetto**. Una banda che si allarga senza limite non degrada,
+mente: a un certo punto compone una giornata che col target non c'entra più niente e dice di averlo
+rispettato. Serve un tetto dichiarato, e oltre quello la segnalazione alla nutrizionista — cioè la
+2 come ultima spiaggia, non come regola.
 
 ---
 

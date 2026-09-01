@@ -11,6 +11,7 @@ import {
   grammiDi, pianoDiRiempimento, quanteChiederne, vaglia,
 } from './agente-pasti-leggeri';
 import { diCosaE, vaBeneAColazione } from './piatto-di-cosa';
+import { slotCapofila } from '../common/slot-pasto';
 
 /**
  * L'AGENTE CHE TIENE PIENI COLAZIONI, SPUNTINI E MERENDE.
@@ -100,16 +101,29 @@ export class AgentePastiLeggeriService {
       if (righe.length) perDieta.set(g.dietId, [...(perDieta.get(g.dietId) ?? []), ...righe]);
     }
 
-    const celle = new Map<string, { famiglia: string; regime: string; slot: string; ora: Set<string>; clienti: number }>();
+    /**
+     * ⚠️ **UNA CELLA PER PANIERE, NON PER PASTO** (Fase 2, 1/9). Spuntino e merenda pescano dallo
+     * stesso paniere, quindi si contano insieme sotto il capofila del gruppo. Se restassero due
+     * righe, l'agente si darebbe due obiettivi da 84 su un paniere solo e genererebbe — pagandole —
+     * il doppio delle ricette che servono.
+     *
+     * ⚠️ L'obiettivo però **cresce con i pasti che quella variante ha davvero**: chi mette in
+     * tavola sia lo spuntino sia la merenda ha bisogno di due piatti diversi lo stesso giorno, e
+     * con 84 in tutto le 84 giornate non sarebbero distinte. Per questo si moltiplica per quanti
+     * slot del gruppo compaiono nelle sue giornate: uno solo → 84, tutti e due → 168.
+     */
+    const celle = new Map<string, { famiglia: string; regime: string; slot: string; ora: Set<string>; slotVisti: Set<string>; clienti: number }>();
     for (const d of diete) {
       const esito = paniereDellaVariante(d);
       if (esito.tipo !== 'paniere') continue;
       if (solo && !esito.famiglia.toLowerCase().includes(solo)) continue;
       for (const r of perDieta.get(d.id) ?? []) {
         if (!eUnPastoLeggero(r.slot)) continue;
-        const k = `${esito.famiglia}|${esito.regime}|${r.slot}`;
+        const capo = slotCapofila(r.slot);
+        const k = `${esito.famiglia}|${esito.regime}|${capo}`;
         const c = celle.get(k)
-          ?? { famiglia: esito.famiglia, regime: esito.regime, slot: r.slot, ora: new Set<string>(), clienti: 0 };
+          ?? { famiglia: esito.famiglia, regime: esito.regime, slot: capo, ora: new Set<string>(), slotVisti: new Set<string>(), clienti: 0 };
+        c.slotVisti.add(r.slot);
         if (passa.get(r.recipeId)) c.ora.add(r.recipeId);
         c.clienti = Math.max(c.clienti, clientiPer.get(d.id) ?? 0);
         celle.set(k, c);
@@ -118,7 +132,7 @@ export class AgentePastiLeggeriService {
 
     const piano = pianoDiRiempimento([...celle.values()].map((c) => ({
       famiglia: c.famiglia, regime: c.regime, slot: c.slot,
-      ora: c.ora.size, obiettivo: OBIETTIVO_PER_PASTO, clienti: c.clienti,
+      ora: c.ora.size, obiettivo: OBIETTIVO_PER_PASTO * Math.max(1, c.slotVisti.size), clienti: c.clienti,
     })));
 
     if (!scrive || !piano.length) return { acceso: true, piano, create: 0, scarti: {}, arrese: [] };
@@ -201,8 +215,16 @@ export interface Esito {
 const somma = (r: Record<string, number>) => Object.values(r).reduce((s, n) => s + n, 0);
 const chiaveNome = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 
+/**
+ * ⚠️ `morning_snack` è il **capofila** dello spuntino e della merenda (Fase 2, 1/9), e il prompt lo
+ * dice: un piatto chiesto «per lo spuntino di metà mattina» finirebbe scritto pensando alle 10:30,
+ * mentre lo stesso piatto verrà servito anche alle 17. Chiederlo per tutti e due è l'unico modo
+ * perché l'AI scriva qualcosa che a entrambe le ore ha senso.
+ */
 const NOME_PASTO: Record<string, string> = {
-  breakfast: 'colazione', morning_snack: 'spuntino di metà mattina', afternoon_snack: 'merenda del pomeriggio',
+  breakfast: 'colazione',
+  morning_snack: 'spuntino di metà mattina o merenda del pomeriggio (lo stesso piatto va servito a tutte e due le ore)',
+  afternoon_snack: 'merenda del pomeriggio',
 };
 const REGOLA_REGIME: Record<string, string> = {
   omnivore: 'onnivoro',

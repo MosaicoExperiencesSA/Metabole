@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { AuditService } from '../audit/audit.service';
 import { avvisaCoachDellaCliente, avvisaNutrizionistaDellaCliente } from '../common/avvisa-nutrizionista';
 import { giornoPiu, istantePiuGiorni, toDateOnly } from '../common/date-only';
+import { slotDaCuiPescare } from '../common/slot-pasto';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
@@ -2336,7 +2337,8 @@ export class SostituzioneChatService {
     if (!ids.length) return [];
 
     const ricette = (await this.prisma.recipe.findMany({
-      where: { id: { in: ids }, mealSlot: slot as never, active: true },
+      // ⚠️ Fase 2 (1/9): spuntino e merenda si scambiano, quindi si chiedono tutti e due.
+      where: { id: { in: ids }, mealSlot: { in: slotDaCuiPescare(slot) } as never, active: true },
       select: { id: true, name: true, kcal: true, macros: true, difficulty: true, tags: true },
     })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null; tags?: string[] }[];
 

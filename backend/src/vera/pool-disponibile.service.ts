@@ -19,6 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { calcolaPool, EsitoPool, raccontaPool, RicettaDelPool } from './pool-disponibile';
 import { type ClienteDaContare, type EsitoConteggioPool, contaClientiSottoSoglia } from './clienti-pool-scoperto';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
+import { allargaAiGemelli } from '../common/slot-pasto';
 
 /**
  * ⚠️ Un tetto dichiarato, non silenzioso. Serve a non far diventare pesante una lettura che sta
@@ -240,7 +241,14 @@ export class PoolDisponibileService {
         idsPerSlot.get(m.slot)!.add(m.recipeId);
       }
     }
-    const tuttiGliId = [...new Set([...idsPerSlot.values()].flatMap((s) => [...s]))];
+    /**
+     * ⚠️ **Fase 2 (1/9): spuntino e merenda pescano dallo stesso paniere**, e la soglia si misura
+     * sul pool vero. Se qui restassero divisi, il controllo di Vera direbbe «restano 2 ricette per
+     * la merenda» mentre la composizione ne ha 168 a disposizione — due verità sullo stesso dato,
+     * che è esattamente quello che questo file esiste per non fare.
+     */
+    const perSlot = allargaAiGemelli(idsPerSlot);
+    const tuttiGliId = [...new Set([...perSlot.values()].flatMap((s) => [...s]))];
     if (!tuttiGliId.length) return new Map();
 
     const ricette = (await this.prisma.recipe.findMany({
@@ -250,7 +258,7 @@ export class PoolDisponibileService {
     const perId = new Map(ricette.map((r) => [r.id, r]));
 
     const out = new Map<string, RicettaDelPool[]>();
-    for (const [slot, ids] of idsPerSlot) {
+    for (const [slot, ids] of perSlot) {
       // Una ricetta cancellata dal catalogo sparisce dal pool invece di contare come disponibile:
       // il numero deve dire quanti piatti si possono servire, non quante righe c'erano nel modello.
       out.set(slot, [...ids].map((id) => perId.get(id)).filter((r): r is RicettaDelPool => !!r));
