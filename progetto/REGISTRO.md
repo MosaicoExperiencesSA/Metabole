@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🐠 **Un salmone non è onnivoro — e il tabulato smette di gridare su cose già chiuse.**
+  ⛔ **Due regole mie che si contraddicevano, e una pulizia che avrebbe fatto danno**: il tabulato ha
+  trovato **2351 righe** con una ricetta `omnivore` dentro un paniere `pescetarian`. Non è un errore
+  di riempimento — è `panieri:pesce` che fa il suo mestiere, ed è tutta la Fase 5 — ma
+  `panieri:pulisci`, che giudica col regime, **le avrebbe cancellate tutte**, svuotando i panieri
+  costruiti un'ora prima. ⚠️ **La radice è l'etichetta**, come tutto il resto di stasera: un piatto
+  di solo pesce non è `omnivore`, è `pescetarian`. Corretta quella, le due regole tornano a dire la
+  stessa cosa. ⛔ Le onnivore si guardano **solo per il pesce**: la carne lì è al posto suo, e
+  proporre «omnivore → omnivore» sarebbe rumore. ⛔ **E il tabulato gridava su cose già chiuse
+  altrove**, per una svista mia precisa: dei 18 piatti segnalati **sei erano la carota tagliata** —
+  avevo corretto `regime:contenuto` e il generatore perché leggessero gli ingredienti con la regola
+  degli ingredienti, e avevo lasciato indietro proprio lui — e altre cinque erano imitazioni. ⚠️ Un
+  tabulato che grida su cose che il resto del sistema ha già smesso di considerare tali è **peggio
+  di uno che tace**: manda a correggere a mano quello che va bene. Ora passa dallo stesso giudizio
+  degli altri due. ✅ **E la pulizia ha funzionato**: da 175 piatti a 18, e nei panieri vegani sono
+  rimasti 9 pesci su 4200.
+
 - `[Sviluppo]` 🎣 **Il pesce non è più nel posto sbagliato e non è ancora in quello giusto.**
   ⛔ **Conseguenza della sequenza che ho dato io**, vista dopo che era già stata lanciata:
   `regime:contenuto` sposta ~531 ricette di pesce da vegano a `pescetarian` (giusto),

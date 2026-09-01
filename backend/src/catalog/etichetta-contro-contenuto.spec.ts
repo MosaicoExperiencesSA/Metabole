@@ -81,3 +81,31 @@ describe('classifica', () => {
     expect(sembraUnImitazione('ragù di manzo')).toBeNull();
   });
 });
+
+/**
+ * ⛔ L'ONNIVORO, E LA CONTRADDIZIONE CHE CHIUDE — 1/9, seconda scoperta.
+ *
+ * `diag:carne-fuori-posto` ha trovato **2351 righe** con una ricetta `omnivore` dentro un paniere
+ * `pescetarian`. Non è un errore di riempimento: è `panieri:pesce` che fa il suo mestiere. Ma
+ * `panieri:pulisci`, che giudica col regime, le butterebbe fuori — svuotando i panieri appena
+ * costruiti. ⚠️ La radice è l'etichetta: un piatto di solo pesce non è `omnivore`, è `pescetarian`.
+ */
+describe('classifica — le ricette dichiarate onnivore', () => {
+  it('⛔ un piatto di solo PESCE dichiarato onnivoro va corretto a pescetariano', () => {
+    const e = classifica('Branzino al forno', ['filetto di branzino', 'limone'], 'omnivore');
+    expect(e).toEqual({ tipo: 'sicura', cosa: 'pesce', prova: 'filetto di branzino', regimeGiusto: 'pescetarian' });
+  });
+
+  /** ⚠️ La carne in una ricetta onnivora è al posto suo: proporre `omnivore` → `omnivore` è rumore. */
+  it('⚠️ ma la CARNE in una ricetta onnivora non è niente da correggere', () => {
+    expect(classifica('Tacchino ai funghi', ['petto di tacchino'], 'omnivore')).toEqual({ tipo: 'ok' });
+  });
+
+  it('⚠️ e nemmeno un nome che sembra carne, se la ricetta è già onnivora', () => {
+    expect(classifica('Cotoletta alla milanese', ['pangrattato'], 'omnivore')).toEqual({ tipo: 'ok' });
+  });
+
+  it('⚠️ senza regime dichiarato il giudizio è quello di prima', () => {
+    expect(classifica('Tacchino ai funghi', ['petto di tacchino'])).toMatchObject({ tipo: 'sicura', cosa: 'carne' });
+  });
+});

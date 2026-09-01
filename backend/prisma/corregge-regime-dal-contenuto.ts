@@ -42,7 +42,7 @@
  *   APPLICA=1 npm run regime:contenuto    → corregge SOLO il mucchio sicuro
  */
 import { PrismaClient } from '@prisma/client';
-import { classifica, type Cosa } from '../src/catalog/etichetta-contro-contenuto';
+import { REGIMI_DA_CONTROLLARE, classifica, type Cosa } from '../src/catalog/etichetta-contro-contenuto';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 30) || 30);
@@ -55,8 +55,12 @@ const titolo = (s: string) => {
   riga('──────────────────────────────────────────────────────────────────');
 };
 
-/** ⚠️ Solo chi dichiara di non contenerli: un piatto onnivoro col pesce dentro è normale. */
-const REGIMI_CHE_NON_POSSONO = ['vegan', 'vegetarian'];
+/**
+ * ⚠️ Vegane, vegetariane **e onnivore**: queste ultime solo per il pesce (vedi
+ * `REGIMI_DA_CONTROLLARE`), perché un salmone dichiarato `omnivore` è il motivo per cui 2351 righe
+ * risultano «incompatibili» dentro i panieri pescetariani appena costruiti.
+ */
+const REGIMI_CHE_NON_POSSONO = [...REGIMI_DA_CONTROLLARE];
 const nomiIngredienti = (ing: unknown): string[] =>
   (Array.isArray(ing) ? (ing as { name?: string }[]) : [])
     .map((x) => (typeof x?.name === 'string' ? x.name.trim() : ''))
@@ -87,7 +91,7 @@ async function main() {
   const dubbie: Riga[] = [];
   for (const r of ricette) {
     const ingredienti = nomiIngredienti(r.ingredients);
-    const e = classifica(r.name, ingredienti);
+    const e = classifica(r.name, ingredienti, r.regime);
     if (e.tipo === 'ok') continue;
     const base = { id: r.id, nome: r.name, regime: r.regime, cosa: e.cosa, prova: e.prova };
     if (e.tipo === 'sicura') sicure.push({ ...base, perche: 'ingrediente', regimeGiusto: e.regimeGiusto });
@@ -96,7 +100,7 @@ async function main() {
 
   titolo('IL CONTO');
   riga('');
-  riga(`  Ricette attive dichiarate vegane o vegetariane   ${ricette.length}`);
+  riga(`  Ricette attive guardate (vegane, vegetariane, onnivore)  ${ricette.length}`);
   riga(`  · con carne o pesce negli INGREDIENTI (sicure)   ${sicure.length}`);
   riga(`  · dubbie, NON si toccano                         ${dubbie.length}`);
   riga(`      · solo nel nome                              ${dubbie.filter((d) => d.perche === 'solo nel nome').length}`);

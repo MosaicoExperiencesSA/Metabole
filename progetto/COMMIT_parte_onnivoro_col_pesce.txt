@@ -1,0 +1,50 @@
+Un salmone non è onnivoro — e il tabulato smette di gridare su cose già chiuse
+
+⛔ 1. DUE REGOLE MIE CHE SI CONTRADDICONO, E UNA PULIZIA CHE AVREBBE FATTO DANNO
+`diag:carne-fuori-posto` (sezione 0, appena rilasciata) dice:
+
+  · regime INCOMPATIBILE   2351
+       ·  2351  ricetta «omnivore» dentro paniere «pescetarian»
+
+Non è un errore di riempimento. È `panieri:pesce` che fa il suo mestiere: il pesce del paniere
+onnivoro entra in quello pescetariano, ed è tutta la Fase 5. Ma il controllo sul regime dice che
+una ricetta onnivora in un paniere pescetariano non ci sta — e `panieri:pulisci`, che giudica
+proprio con quello, **avrebbe cancellato 2351 righe**, svuotando i panieri pescetariani costruiti
+un'ora prima.
+
+⚠️ LA RADICE È L'ETICHETTA, come tutto il resto di stasera: un piatto di solo pesce non è
+`omnivore`, è `pescetarian` — il regime più stretto che può mangiarlo. Corretta quella, le due
+regole tornano a dire la stessa cosa e non c'è niente da buttare.
+
+Quindi `regime:contenuto` ora guarda anche le ricette dichiarate onnivore, ⛔ ma SOLO per il pesce:
+la carne in una ricetta onnivora è al posto suo, e proporre «omnivore → omnivore» sarebbe rumore
+che fa sembrare grosso un lavoro che non c'è.
+
+⛔ 2. E IL TABULATO GRIDAVA SU COSE GIÀ CHIUSE ALTROVE — svista mia, precisa
+Dei 18 piatti che segnalava, SEI erano la carota tagliata:
+
+  «Crackers di ceci e curcuma»           ← «carota fresca tagliata a bastoncini»
+  «Buddha Bowl di Lenticchie Nere»       ← «Carota tagliata sottile»
+  «Brodo di Verdure con Pasta di Legumi» ← «Carota tagliata fine»
+  «Poke Bowl con Tofu Marinato»          ← «Carota tagliata a julienne»
+  «Barretta di Avena, Mandorle e Mela»   ← «mela secca tagliata»
+  «Yogurt Greco con Granola»             ← «Mela fresca tagliata a fette»
+
+Avevo corretto `regime:contenuto` e il generatore perché leggessero gli ingredienti con la regola
+degli ingredienti — e ho lasciato indietro proprio il tabulato, che continuava a leggerli con la
+regola dei nomi. Altre cinque erano imitazioni («Polpo di ceci», «Branzino di melanzane»,
+«prosciutto vegetale»), che il filtro l'aveva solo l'altro script.
+
+⚠️ UN TABULATO CHE GRIDA SU COSE CHE IL RESTO DEL SISTEMA HA GIÀ SMESSO DI CONSIDERARE TALI È
+PEGGIO DI UNO CHE TACE: manda a correggere a mano quello che va bene. Ora passa dallo stesso
+giudizio degli altri due (`catalog/etichetta-contro-contenuto.ts`), e le dubbie le mostra
+dichiarate come tali invece di spacciarle per errori del paniere.
+
+✅ E LA PULIZIA HA FUNZIONATO: da 175 piatti a 18, e nei panieri vegani sono rimasti 9 pesci su
+4200. Il grosso è chiuso.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. l'onnivoro con la carne torna «da correggere»  → 1 prova rossa
+  2. l'onnivoro col pesce non si corregge più       → 1 prova rossa
+
+Test: backend 6529 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

@@ -29,7 +29,7 @@
  *                                               ugualmente vietata, ma il pesce no)
  */
 import { PrismaClient } from '@prisma/client';
-import { eCarne, ePesce } from '../src/catalog/piatto-di-cosa';
+import { classifica } from '../src/catalog/etichetta-contro-contenuto';
 import { REGIMI_IN_ORDINE, ricettaVaBene } from '../src/common/regimi';
 
 const prisma = new PrismaClient();
@@ -78,7 +78,7 @@ async function main() {
   const perId = new Map(ricette.map((r) => [r.id, r]));
   const trovate: {
     chiave: string; nome: string; cosa: 'carne' | 'pesce'; slot: string; perche: string;
-    regime: string; regimeVaBene: boolean;
+    regime: string; regimeVaBene: boolean; dubbia: string | null;
   }[] = [];
   const perCella = new Map<string, { carne: number; pesce: number; totale: number }>();
   /** ⚠️ I due conti che decidono la correzione: chi ha il regime sbagliato e chi no. */
@@ -92,15 +92,31 @@ async function main() {
     const chiave = `${r.paniere.famiglia} × ${r.paniere.regime}`;
     const conto = perCella.get(chiave) ?? { carne: 0, pesce: 0, totale: 0 };
     conto.totale += 1;
-    const pezzi = [ric.name, ...nomiIngredienti(ric.ingredients)];
-    const carne = pezzi.find((p) => eCarne(p));
+    /**
+     * ⛔ **LO STESSO GIUDIZIO DI `regime:contenuto`, non una terza copia** — corretto l'1/9 dopo
+     * che questo tabulato ha continuato a gridare su cose già chiuse altrove.
+     *
+     * Leggeva gli ingredienti con la regola dei NOMI, quindi «Carota **tagliata** sottile» rendeva
+     * sospetto un Buddha Bowl di lenticchie — sei righe su diciotto erano questo — e non applicava
+     * il filtro delle imitazioni, quindi «Polpo di ceci» e «prosciutto vegetale» risultavano
+     * problemi. ⚠️ Un tabulato che grida su cose che il resto del sistema ha già smesso di
+     * considerare tali è peggio di un tabulato che tace: manda a correggere a mano quello che va
+     * bene.
+     *
+     * ⚠️ Le **dubbie** si mostrano lo stesso, ma dichiarate: sono la coda da leggere a mano, non
+     * un errore del paniere.
+     */
+    const esito = classifica(ric.name, nomiIngredienti(ric.ingredients), ric.regime);
+    const carne = esito.tipo !== 'ok' && esito.cosa === 'carne' ? esito.prova : undefined;
     /** ⚠️ Il pesce si guarda **solo nel vegano**: nel vegetariano e nel pescetariano non è un errore. */
-    const pesce = r.paniere.regime === 'vegan' ? pezzi.find((p) => ePesce(p)) : undefined;
+    const pesce = r.paniere.regime === 'vegan' && esito.tipo !== 'ok' && esito.cosa === 'pesce'
+      ? esito.prova : undefined;
+    const dubbia = esito.tipo === 'dubbia' ? esito.perche : null;
     const vaBene = ricettaVaBene(ric.regime, r.paniere.regime);
     const comune = { chiave, nome: ric.name, slot: r.slot, regime: ric.regime, regimeVaBene: vaBene };
     if (carne || pesce) { if (vaBene) regimeCompatibile += 1; else regimeIncompatibile += 1; }
-    if (carne) { conto.carne += 1; trovate.push({ ...comune, cosa: 'carne', perche: carne }); }
-    else if (pesce) { conto.pesce += 1; trovate.push({ ...comune, cosa: 'pesce', perche: pesce }); }
+    if (carne) { conto.carne += 1; trovate.push({ ...comune, cosa: 'carne', perche: carne, dubbia }); }
+    else if (pesce) { conto.pesce += 1; trovate.push({ ...comune, cosa: 'pesce', perche: pesce, dubbia }); }
     perCella.set(chiave, conto);
   }
 
@@ -196,7 +212,7 @@ async function main() {
     riga('  panieri pescetariani, scartando 1355 ricette come «carne».');
     riga('');
     for (const t of trovate.slice(0, ESEMPI)) {
-      riga(`  · [${t.cosa}] ${t.chiave} · ${t.slot}   ricetta dichiarata «${t.regime}»${t.regimeVaBene ? '' : '  ⛔ INCOMPATIBILE'}`);
+      riga(`  · [${t.cosa}] ${t.chiave} · ${t.slot}   ricetta dichiarata «${t.regime}»${t.regimeVaBene ? '' : '  ⛔ INCOMPATIBILE'}${t.dubbia ? `  ⚠️ DUBBIA (${t.dubbia})` : ''}`);
       riga(`      «${t.nome}»`);
       riga(`      ha fatto scattare: «${t.perche}»`);
     }

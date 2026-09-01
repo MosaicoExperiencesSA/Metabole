@@ -61,7 +61,27 @@ export const sembraUnImitazione = (testo: string): string | null => {
 export const regimeGiusto = (cosa: Cosa): 'omnivore' | 'pescetarian' =>
   (cosa === 'carne' ? 'omnivore' : 'pescetarian');
 
-export function classifica(nome: string, ingredienti: readonly string[]): Esito {
+/**
+ * ⛔ **I REGIMI DA GUARDARE, E PERCHÉ ORA C'È ANCHE L'ONNIVORO** (1/9, seconda scoperta).
+ *
+ * `diag:carne-fuori-posto` ha trovato **2351 righe** con una ricetta dichiarata `omnivore` dentro
+ * un paniere `pescetarian`. Non è un errore di riempimento: è `panieri:pesce` che fa il suo
+ * mestiere — il pesce del paniere onnivoro entra in quello pescetariano, ed è tutta la Fase 5.
+ *
+ * ⛔ **Ma allora due regole di casa si contraddicono**: la derivazione dice che quel salmone sta
+ * bene nel paniere pescetariano, il controllo sul regime dice che una ricetta onnivora lì non ci
+ * sta, e `panieri:pulisci` lo butterebbe fuori — svuotando i panieri appena costruiti.
+ *
+ * ⚠️ **La radice è l'etichetta, come sempre oggi**: un piatto di solo pesce non è `omnivore`, è
+ * `pescetarian` — il regime più stretto che può mangiarlo. Corretta quella, le due regole tornano
+ * a dire la stessa cosa e nessuna riga va buttata.
+ *
+ * ⛔ E l'onnivoro si guarda **solo per il pesce**: un piatto onnivoro con la carne dentro è
+ * onnivoro e basta, non c'è niente da correggere.
+ */
+export const REGIMI_DA_CONTROLLARE: readonly string[] = ['vegan', 'vegetarian', 'omnivore'];
+
+export function classifica(nome: string, ingredienti: readonly string[], regimeDichiarato?: string): Esito {
   /**
    * ⛔ **Sugli ingredienti si usa `eCarneIngrediente`**, non `eCarne`: un ingrediente è una cosa,
    * non un modo di cucinarla. «Carota **tagliata** sottile» stava per rendere onnivoro un Buddha
@@ -76,9 +96,17 @@ export function classifica(nome: string, ingredienti: readonly string[]): Esito 
   if (carneIng || pesceIng) {
     const cosa: Cosa = carneIng ? 'carne' : 'pesce';
     const prova = (carneIng ?? pesceIng) as string;
+    /**
+     * ⚠️ **Su una ricetta già ONNIVORA c'è una sola cosa da correggere: il pesce.** La carne lì è
+     * al suo posto, e dire «sicura» significherebbe proporre di riscrivere `omnivore` in
+     * `omnivore` — rumore che fa sembrare grosso un lavoro che non c'è.
+     */
+    if (regimeDichiarato === 'omnivore' && cosa !== 'pesce') return { tipo: 'ok' };
     if (imitazione) return { tipo: 'dubbia', cosa, prova, perche: `sembra un'imitazione: «${imitazione}»` };
     return { tipo: 'sicura', cosa, prova, regimeGiusto: regimeGiusto(cosa) };
   }
+  /** ⚠️ E sul nome, per una onnivora, non c'è niente da dubitare: sta già nel regime più largo. */
+  if (regimeDichiarato === 'omnivore') return { tipo: 'ok' };
   /**
    * ⚠️ Sul NOME invece le preparazioni contano — «Cotoletta alla milanese» è un piatto di carne — ma
    * qui non si corregge mai: può essere un piatto vegetale che si chiama come un animale, oppure
