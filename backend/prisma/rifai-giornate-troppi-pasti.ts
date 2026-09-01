@@ -18,8 +18,16 @@
  * se l'ha aperto — che non è «no». Riscrivere qui la condizione a mano vorrebbe dire cambiare il
  * menu di domani a chi l'ha già letto con l'app vecchia.
  *
- * ⚠️ **Dopo la cancellazione le giornate non tornano subito**: le ricompone il giro di erogazione,
- * cioè il cron notturno. Se non si vuole aspettare la notte, si fa girare `daily` a mano.
+ * ⛔ **DOPO LA CANCELLAZIONE LE GIORNATE NON TORNANO DA SOLE, E IL CRON NON C'ENTRA.**
+ *
+ * ⚠️ Scritto male la prima volta (1/9): dicevo «le ricompone il cron notturno». **Falso**, e il
+ * commento in cima a `cron.controller.ts` lo dice da mesi: *«i menu non li compone questo cron.
+ * `engine.runBatch()` valuta le regole e scrive decisioni; a comporre i menu è
+ * `deliverIfEligible`, che gira quando la cliente apre l'app»* — e al salvataggio di una misura.
+ *
+ * Quindi: le giornate cancellate tornano **quando quella cliente apre l'app**, e ripartono dal
+ * primo giorno mancante perché l'erogazione guarda l'ultimo giorno in calendario. Chi non vuole
+ * aspettare il suo prossimo accesso usa **«Rigenera menu» dalla sua scheda** nel back office.
  *
  * ## USO (shell di Render, dentro ~/project/src/backend)
  *
@@ -79,8 +87,24 @@ async function main() {
   riga(`  Giornate con pasti in più: ${sbagliate.size}  ·  clienti coinvolte: ${clienti.size}`);
 
   if (!sbagliate.size) {
+    /**
+     * ⛔ **«Niente da rifare» diceva due cose opposte — corretto l'1/9.** Zero giornate sbagliate
+     * vuol dire «sono tutte giuste» **oppure** «non ce ne sono affatto», per esempio perché sono
+     * appena state cancellate e il giro di erogazione non è ancora passato. Sotto la stessa riga
+     * verde stavano «a posto» e «due clienti con lo schermo vuoto».
+     */
+    const conMenu = await prisma.menuDay.count({ where: { createdAt: { gte: da } } });
     riga('');
-    riga('  ✅ Niente da rifare.');
+    riga('  Nessuna giornata con pasti in più.');
+    if (conMenu === 0) {
+      riga('  ⛔ MA in questa finestra non è stata composta NESSUNA giornata: questo non è un ✅.');
+      riga('     Se hai appena cancellato delle giornate per farle rifare, il motore non le rifà in');
+      riga('     quel momento: le rifà `deliverIfEligible`, che gira quando la cliente APRE L\'APP.');
+      riga('     ⛔ Il cron `daily` NON compone menu. Per non aspettare il suo prossimo accesso:');
+      riga('     «Rigenera menu» dalla sua scheda nel back office. Poi `npm run diag:senza-menu`.');
+    } else {
+      riga(`  ✅ Niente da rifare, e ${conMenu} giornate composte in questa finestra sono a posto.`);
+    }
     riga('');
     return;
   }
@@ -150,8 +174,10 @@ async function main() {
   riga(`  Cancellate: ${esito.count} su ${daCancellare.length} attese.`);
   riga(esito.count === daCancellare.length ? '  ✅ Il conto torna.' : '  ⛔ IL CONTO NON TORNA: guarda prima di rilanciare.');
   riga('');
-  riga('  ⚠️ ADESSO QUELLE CLIENTI NON HANNO QUEI GIORNI. Le ricompone il giro di erogazione, cioè');
-  riga('     il cron notturno. Se non vuoi aspettare la notte, fallo girare adesso (`daily`).');
+  riga('  ⚠️ ADESSO QUELLE CLIENTI NON HANNO QUEI GIORNI. Le ricompone `deliverIfEligible`, che gira');
+  riga('     QUANDO LA CLIENTE APRE L\'APP (e al salvataggio di una misura).');
+  riga('  ⛔ Il cron `daily` NON compone menu: valuta le regole e scrive decisioni. Se non vuoi');
+  riga('     aspettare il loro prossimo accesso, usa «Rigenera menu» dalla scheda di ciascuna.');
   riga('');
 }
 

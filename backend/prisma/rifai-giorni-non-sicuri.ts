@@ -29,6 +29,7 @@ import { statoSupervisione, type ProfiloDaSupervisionare } from '../src/clients/
 import { attivoInCorso } from '../src/commerce/abbonamento-in-corso';
 import { STATI_CON_UN_PIANO } from '../src/commerce/stati-abbonamento';
 import { toDateOnly } from '../src/common/date-only';
+import { perchePotrebbeNonRicomporre } from '../src/menu/perche-non-ricompone';
 import {
   CAMPI_DEL_GIORNO,
   GiornoDaValutare,
@@ -67,50 +68,6 @@ function scrittaAMano(meals: unknown): boolean {
   );
 }
 const giornoIt = (d: Date) => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-/**
- * Perché il motore potrebbe non ricomporre le giornate di questa cliente — la stessa batteria di
- * cancelli di `deliverIfEligible`, nell'ordine in cui li guarda lui. Torna la ragione, o `null` se
- * l'erogazione è in condizioni normali.
- */
-async function perchePotrebbeNonRicomporre(p: ProfiloDelloScript): Promise<string | null> {
-  if (!p.planStartDate) return 'nessuna data di inizio piano';
-  if (p.planHeldAt) return 'piano fermato dalla nutrizionista';
-  /**
-   * ⛔ **La visita scaduta è il PRIMO cancello del motore** (`menu.service.ts`, `deliverIfEligible`),
-   * e la prima stesura di questo script non se la chiedeva nemmeno: cancellava la coda a una
-   * cliente che il motore non serve più finché non rifà la visita — cioè le toglieva il menu **per
-   * sempre**. Trovato in revisione, prima di girarlo.
-   */
-  if (statoSupervisione(p as ProfiloDaSupervisionare).motivo === 'visita_scaduta') return 'visita clinica scaduta';
-  const oggi = new Date();
-  const attivi = (await prisma.subscription.findMany({
-    where: { clientId: p.userId, status: { in: [...STATI_CON_UN_PIANO] } as never },
-    select: { id: true, status: true, startDate: true, endDate: true, plan: { select: { period: true } } },
-  })) as { id: string; status: string; startDate: Date | null; endDate: Date | null; plan: { period: string | null } | null }[];
-  const piano = attivoInCorso(attivi as never, oggi) as (typeof attivi)[number] | null;
-  if (!piano) return 'nessun piano attivo o in coda';
-  if (piano.plan?.period === 'monitoring') return 'è in monitoraggio (il motore non compone)';
-  /**
-   * ⚠️ `toDateOnly()` e non l'ISTANTE: `endDate` è mezzanotte, e confrontarla con `new Date()`
-   * dichiara «concluso» un piano che **nell'ultimo giorno sta ancora erogando** — la cliente
-   * verrebbe saltata e si terrebbe la giornata non sicura. È l'anti-schema che
-   * `una-porta-per-i-cancelli.spec.ts` tiene fermo per il tabulato.
-   */
-  if (piano.endDate && piano.endDate.getTime() < toDateOnly().getTime()) return 'piano già concluso (fine passata)';
-  /**
-   * ⚠️ **Questa query è una COPIA di `EventsService.activePausePeriod`** (`calendar/events.service.ts`),
-   * ed è dichiarata invece che nascosta: uno script `prisma/` gira fuori da Nest e non può iniettare
-   * il servizio. ⛔ Il giorno che la regola della pausa cambia, cambia in due posti — se capita più
-   * di una volta, la clausola va estratta in un file puro e chiamata da tutti e due.
-   */
-  const pausa = await prisma.event.findFirst({
-    where: { clientId: p.userId, mode: 'pause_period', startDate: { lte: toDateOnly() }, endDate: { gte: toDateOnly() } } as never,
-    select: { id: true },
-  });
-  if (pausa) return 'sospensione in corso';
-  return null;
-}
 
 async function main(): Promise<void> {
   console.log('='.repeat(74));
@@ -191,7 +148,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const motivoFermo = await perchePotrebbeNonRicomporre(p);
+    const motivoFermo = await perchePotrebbeNonRicomporre(prisma as never, p, oggi);
     if (motivoFermo) {
       daGuardareAMano.push(`${chi} — ${motivi.size} giornate non sicure, ma ${motivoFermo}: non tocco niente.`);
       continue;

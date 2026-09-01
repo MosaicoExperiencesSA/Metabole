@@ -86,10 +86,25 @@ async function main() {
   riga('');
   riga(`  Giornate composte nella finestra: ${giornate.length}`);
   if (!giornate.length) {
+    /**
+     * ⛔ **QUESTA FRASE ERA UN ✅ E NON DOVEVA ESSERLO — corretta l'1/9, un'ora dopo averla scritta.**
+     *
+     * Diceva «nessuna giornata composta: il difetto non ha colpito nessuno», e dopo aver cancellato
+     * quattro giornate per farle ricomporre l'ha detto mentre due clienti erano rimaste **senza
+     * menu**. Era vero e insieme falsissimo: zero giornate composte vuol dire «il difetto non ha
+     * avuto occasione» **oppure** «i giorni non ci sono affatto», e sono due situazioni opposte
+     * sotto la stessa riga verde. Nessuno va a controllare dopo un ✅.
+     */
     riga('');
-    riga('  ✅ Nessuna giornata è stata composta in questa finestra: il difetto non ha avuto occasione');
-    riga('     di colpire nessuno. ⚠️ Il cron notturno gira di notte — se l\'interruttore è stato');
-    riga('     spostato dopo, l\'unica composizione possibile era quella su richiesta.');
+    riga('  Nessuna giornata è stata composta in questa finestra.');
+    riga('  ⚠️ E questo NON è di per sé un ✅: vuol dire una di due cose opposte.');
+    riga('     · il difetto non ha avuto occasione di colpire nessuno — il cron gira di notte, e se');
+    riga('       l\'interruttore è stato spostato dopo, l\'unica composizione possibile era su richiesta;');
+    riga('     · oppure quei giorni NON CI SONO, per esempio perché sono appena stati cancellati per');
+    riga('       farli rifare — e non tornano finché quella cliente non apre l\'app: è lì che gira');
+    riga('       `deliverIfEligible`. ⛔ Il cron `daily` NON compone menu.');
+    riga('  ⛔ A distinguerle è `npm run diag:senza-menu`, che guarda chi dovrebbe avere un menu e');
+    riga('     non ce l\'ha. Se sei qui dopo un `rifai:troppi-pasti`, guardalo prima di chiudere.');
     riga('');
     return;
   }

@@ -1,0 +1,46 @@
+«Le ricompone il cron notturno» — una frase mia, falsa, e cosa è costata
+
+⛔ COSA È SUCCESSO
+Cancellate le quattro giornate col pasto in più, avevo scritto in tre punti — lo script,
+il messaggio di commit, il registro — che a ricomporle sarebbe stato il cron notturno.
+Simone ha fatto girare `daily` fidandosi di quella riga. Il cron ha lavorato 56 secondi,
+ha fatto tutto il suo mestiere, e i due menu mancanti sono rimasti mancanti.
+
+⚠️ LA FRASE VERA ESISTEVA GIÀ, in cima a `cron.controller.ts`, da mesi:
+
+  «Non è per l'erogazione: i menu non li compone questo cron. `engine.runBatch()` valuta
+   le regole e scrive decisioni; a comporre i menu è `deliverIfEligible`, che gira quando
+   la cliente apre l'app».
+
+Non l'avevo letta. E la mia frase sbagliata era più VICINA a chi lavorava — dentro lo
+script che stava usando — quindi ha vinto lei.
+
+⛔ IL DANNO NON È IL TEMPO PERSO: È CHE CHI LEGGE SMETTE DI CERCARE. Aveva già premuto il
+pulsante che la documentazione indicava, quindi il problema doveva essere altrove. È il
+modo in cui una cliente resta senza menu per un giorno mentre tutti credono di aver già
+fatto la cosa che serviva.
+
+⚠️ E `engine: skipped 10` non era un difetto: sono le clienti la cui decisione di oggi
+era già stata presa alle 05:00. Il cron aveva ragione, la mia riga no.
+
+FATTO
+· la frase corretta nei tre script: le giornate cancellate tornano quando la cliente
+  APRE L'APP (o salva una misura), e chi non vuole aspettare usa «Rigenera menu» dalla
+  scheda nel back office;
+· `cron/il-cron-non-compone-menu.spec.ts` — nessuno può più scrivere che il cron
+  ricompone i menu.
+
+⛔ DUE COSE CHE LA SENTINELLA HA DOVUTO IMPARARE, TUTTE E DUE SU SE STESSA
+1. LA NEGAZIONE. «Il cron `daily` NON compone menu» ha le stesse parole nella stessa
+   relazione della frase sbagliata. Una regex che guarda solo le parole vieta di scrivere
+   la cosa giusta e lascia passare solo il silenzio: l'opposto di quello per cui esiste.
+2. LE CITAZIONI. Gridava sulla riga in cui CITO il mio errore per smentirlo. Un guardiano
+   che vieta di scrivere la lezione cancella la lezione, e la prossima persona ricomincia
+   da capo dall'errore. Ora quello che sta fra virgolette basse «…» è riportato, non
+   affermato — affermarlo in proprio resta vietato.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. la frase sbagliata riscritta in uno script → 1 prova rossa
+  2. il commento vero tolto dal controller       → 1 prova rossa
+
+Test: 6302 su 373 suite. Build pulita. Niente che scriva, nessuna migrazione.

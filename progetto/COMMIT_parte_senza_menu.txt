@@ -1,0 +1,41 @@
+Un ✅ che diceva due cose opposte — e la porta di «perché non ricompone»
+
+⛔ IL DIFETTO, MIO, SCOPERTO UN'ORA DOPO AVERLO SCRITTO
+Cancellate le quattro giornate col pasto in più perché il motore le ricomponesse,
+`diag:troppi-pasti` ha risposto:
+
+  «✅ Nessuna giornata è stata composta in questa finestra: il difetto non ha avuto
+   occasione di colpire nessuno»
+
+Era vero, e insieme falsissimo: le giornate non c'erano AFFATTO, e due clienti erano
+rimaste senza menu. Zero giornate composte vuol dire «il difetto non ha avuto occasione»
+OPPURE «i giorni non ci sono», che sono due situazioni opposte sotto la stessa riga
+verde. ⚠️ E nessuno va a controllare dopo un ✅ — è per questo che una frase così è
+peggio di un errore.
+
+Lo stesso valeva per «✅ Niente da rifare» di `rifai:troppi-pasti`.
+
+FATTO
+· le due frasi sono spezzate: dicono quale delle due situazioni è, e quando i giorni non
+  ci sono lo scrivono con un ⛔ invece che con un ✅;
+· `npm run diag:senza-menu` — chi dovrebbe avere un menu e non ce l'ha, col motivo. E le
+  due colonne sono separate apposta: chi ha un motivo noto (piano fermo, visita scaduta,
+  sospensione) è ATTESO — il motore fa il suo mestiere; chi NON ce l'ha è la riga da
+  guardare, una cliente che dovrebbe ricevere e non riceve senza che nessuno sappia
+  perché.
+
+LA PORTA — `menu/perche-non-ricompone.ts`
+«Perché il motore non compone i menu di questa cliente?» viveva come funzione privata
+dentro `prisma/rifai-giorni-non-sicuri.ts`. È stata estratta il giorno in cui è servita
+a un secondo script: la seconda copia sarebbe nata lì, e sarebbe stata quella sbagliata
+— la meno guardata.
+
+⛔ L'ordine dei cancelli è quello di `deliverIfEligible`, e non è estetica: chi legge
+deve leggere il PRIMO motivo per cui il motore si ferma. «Piano fermato» e «visita
+scaduta» insieme sono due cose da fare in ordine, e dire la seconda manderebbe qualcuno
+a prenotare una visita che non sblocca niente.
+
+⚠️ Torna `null` quando non c'è nessun motivo noto: se in quel caso i menu mancano lo
+stesso, il problema è altrove ed è una notizia — non un silenzio.
+
+Test: 6297 su 372 suite. Build pulita. Nessuna migrazione, niente che scriva.

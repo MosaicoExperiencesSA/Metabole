@@ -20,6 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` ⛔ **«Le ricompone il cron notturno»: una frase mia, falsa, e cosa è costata.** Avevo
+  scritto in tre punti — lo script, il commit, il registro — che le giornate cancellate le
+  ricompone il cron della notte. Simone ha fatto girare `daily` fidandosi di quella riga: il cron
+  ha lavorato 56 secondi, ha fatto tutto il suo mestiere, e i due menu mancanti sono rimasti
+  mancanti. ⚠️ **La frase vera esisteva già**, in cima a `cron.controller.ts`, da mesi — *i menu non
+  li compone questo cron, li compone `deliverIfEligible` quando la cliente apre l'app*. Non l'avevo
+  letta, e la mia era **più vicina** a chi lavorava: dentro lo script che stava usando. ⛔ Il danno
+  non è il tempo perso: **chi legge una frase così smette di cercare**, perché ha già premuto il
+  pulsante che la documentazione indicava. Corretta ovunque, e ora c'è
+  `cron/il-cron-non-compone-menu.spec.ts`. ⛔ Il guardiano ha dovuto imparare due cose, tutte e due
+  su se stesso: che **la negazione conta** (*«il cron NON compone menu»* ha le stesse parole della
+  frase sbagliata — vietarla lascerebbe passare solo il silenzio) e che **le citazioni non contano**
+  (gridava sulla riga in cui cito il mio errore per smentirlo: un guardiano che vieta di scrivere la
+  lezione **cancella la lezione**). ⚠️ E `engine: skipped 10` non era un difetto: sono le clienti la
+  cui decisione di oggi era già stata presa alle 05:00.
+
+- `[Sviluppo]` ⛔ **Un ✅ che diceva due cose opposte, e le due clienti che ci stavano sotto.**
+  Cancellate le quattro giornate col pasto in più perché il motore le ricomponesse, il tabulato ha
+  risposto *«✅ nessuna giornata composta: il difetto non ha colpito nessuno»* — vero, e insieme
+  falsissimo: le giornate **non c'erano affatto**, e due clienti erano rimaste senza menu in attesa
+  del giro di erogazione. ⚠️ Zero giornate composte vuol dire «non ha avuto occasione» **oppure**
+  «i giorni non ci sono»: due situazioni opposte sotto la stessa riga verde, e **nessuno va a
+  controllare dopo un ✅** — è per questo che una frase così è peggio di un errore. Le due frasi
+  sono state spezzate, e dove i giorni mancano ora c'è un ⛔. ⚠️ Nuovo `npm run diag:senza-menu`:
+  chi dovrebbe avere un menu e non ce l'ha, col motivo — e le due colonne separate, perché chi ha un
+  motivo noto (piano fermo, visita scaduta, sospensione) è **atteso**, mentre chi non ce l'ha è la
+  riga da guardare. ⚠️ «Perché il motore non compone per questa cliente» viveva come funzione
+  privata dentro uno script: **estratta** in `menu/perche-non-ricompone.ts` il giorno in cui è
+  servita a un secondo — la seconda copia sarebbe nata lì, e sarebbe stata quella meno guardata.
+
 - `[Sviluppo]` ⛔ **Le quattro giornate col pasto in più, e le due volte che un guardiano ha fermato
   me.** Il difetto della struttura ha colpito davvero: **4 giornate, 2 clienti**, il 2 e il 3
   settembre — tutte ancora da aprire, il caso migliore possibile. ⚠️ Ma il tabulato che diceva «0
