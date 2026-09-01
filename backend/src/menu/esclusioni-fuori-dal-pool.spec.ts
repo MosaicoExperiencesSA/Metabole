@@ -5,6 +5,7 @@ import { MenuService } from './menu.service';
 import { DayComboService } from './day-combo.service';
 import { esclusioniDi, ricetteNonSicure, valutaRicetta } from './esclusioni-della-cliente';
 
+import { comeDalDatabase } from './come-dal-database';
 /**
  * NON SI PROPONE QUELLO CHE POI SI VIETA — il caso Sonia (21/8).
  *
@@ -70,7 +71,7 @@ describe('le esclusioni della cliente escono dal pool, non fermano il piatto in 
 
   const creaServizio = (ricette: Record<string, unknown>[]) => {
     const prisma = {
-      recipe: { findMany: jest.fn().mockResolvedValue(ricette) },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(ricette)) },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       menuDay: { findMany: jest.fn().mockResolvedValue([]) },

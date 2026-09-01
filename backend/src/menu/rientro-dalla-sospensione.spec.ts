@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from './menu.service';
 import { aGiorno, giornoLocale } from '../common/date-only';
 
+import { comeDalDatabase } from './come-dal-database';
 /**
  * ⛔ **IL RIENTRO DALLA SOSPENSIONE** — richiesta di Simone, 23/8.
  *
@@ -152,7 +153,7 @@ describe('Menu — la finestra di rientro dalla sospensione', () => {
       productRule: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       equivalenceGroup: { findMany: jest.fn().mockResolvedValue([]) },
       recipe: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Farro', kcal: 520 }]),
+        findMany: jest.fn().mockResolvedValue(comeDalDatabase([{ id: 'r1', name: 'Farro', kcal: 520 }])),
         findUnique: jest.fn().mockResolvedValue({ id: 'r1' }),
       },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn() },

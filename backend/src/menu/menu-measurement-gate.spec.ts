@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DayComboService } from './day-combo.service';
 import { MenuService } from './menu.service';
 
+import { comeDalDatabase } from './come-dal-database';
 /**
  * ⛔ **IL DOPPIO DI `menuDay` SEGUE L'ORIGINALE** (25/8).
  *
@@ -180,7 +181,7 @@ describe('MenuService — gate misure', () => {
           intolerances: ['frutta secca'], dislikedFoods: [], assignedNutritionistId: 'nut-1',
         }),
       },
-      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Insalata con noci', kcal: 300, ingredients: [{ name: 'noci sgusciate' }] }]) },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase([{ id: 'r1', name: 'Insalata con noci', kcal: 300, ingredients: [{ name: 'noci sgusciate' }] }])) },
     });
     const created = await makeService(prisma).deliverIfEligible('c1');
     expect(created).toEqual([]);
@@ -207,10 +208,10 @@ describe('MenuService — gate misure', () => {
         ]),
       },
       recipe: {
-        findMany: jest.fn().mockResolvedValue([
+        findMany: jest.fn().mockResolvedValue(comeDalDatabase([
           { id: 'r1', name: 'Pasta A', kcal: 500, ingredients: [] },
           { id: 'r2', name: 'Pasta B', kcal: 500, ingredients: [] },
-        ]),
+        ])),
       },
       recipeRating: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', stars: 2 }, { recipeId: 'r2', stars: 5 }]) },
       menuDay: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert },
@@ -231,7 +232,7 @@ describe('MenuService — gate misure', () => {
           intolerances: ['lattosio'], dislikedFoods: [], assignedNutritionistId: 'nut-1',
         }),
       },
-      recipe: { findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Yogurt e avena', kcal: 300, ingredients: [{ name: 'yogurt greco' }] }]) },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase([{ id: 'r1', name: 'Yogurt e avena', kcal: 300, ingredients: [{ name: 'yogurt greco' }] }])) },
     });
     const created = await makeService(prisma).deliverIfEligible('c1');
     expect(created.length).toBeGreaterThan(0); // erogato, non bloccato

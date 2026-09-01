@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🧹 **Le ricette spente escono dal pool — e 54 test che passavano senza provare
+  niente.** ✅ Chiusura del §2.4 **dopo il numero**: `diag:spente` in produzione ha detto 3566 spente
+  in catalogo, **2730 già dentro un paniere**, 27 celle su 38 toccate dal filtro e **nessuna sotto
+  soglia**, zero pasti già composti che ne contenessero una. Con un ⛔ su quella riga questa consegna
+  non sarebbe esistita. ⚠️ **Non si è filtrato nella query**, ed è la parte che conta: chiedere
+  `active: true` al database sarebbe stata una parola, ma avrebbe lasciato gli id spenti dentro
+  `slotPool` **senza** la loro riga in `recipes` — la composizione avrebbe scelto un id di cui non
+  conosce né kcal né macro, e sarebbe uscito come una giornata sbilanciata mesi dopo, senza niente
+  che lo colleghi a qui. ⚠️ Uno slot fatto **solo** di spente non si svuota: una ricetta spenta passa
+  comunque dalla guardia, quindi tenerla nel caso degenere lascia in piedi quello che succede già
+  oggi — svuotare il pasto sarebbe un danno **nuovo**, introdotto da una correzione. ⚠️ E la regola
+  dello slot vuoto, che stava scritta due volte, ora è una sola (`menu/togli-dal-pool.ts`): il
+  messaggio resta a chi chiama, perché il motivo per cui una ricetta esce è l'unica cosa che cambia
+  fra i tre casi. ⛔ **Poi la parte peggiore: scritto il filtro, la suite è rimasta verde per il
+  motivo sbagliato.** I finti Prisma non rendevano `active`, quindi ogni ricetta risultava spenta,
+  ogni slot si svuotava, la regola lo risparmiava, e il pool tornava identico a prima — 54 test che
+  non esercitavano una riga. **Ottava volta** che un doppio che risponde diversamente dal database
+  vero copre proprio il codice che dovrebbe provare: ora un `active` mancante **grida** (non vale né
+  «spenta» né «attiva»: è una lettura sbagliata), i finti passano da `come-dal-database.ts`, e una
+  sentinella verifica che la `select` continui a chiederlo. ⚠️ **Quattro mutazioni, e la terza è
+  sopravvissuta alla prima ronda** — la guardia non aveva test: scritti, e allora è caduta.
+
 - `[Sviluppo]` 🚫 **Una ricetta spenta non entra in un paniere — e il tabulato che dice quanto
   costa toglierla dal pool.** ⛔ **§2.4 del piano, e la pagina Panieri di ieri lo allargava**: il mio
   controllo in scrittura verificava regime e allergeni e **non se la ricetta fosse attiva**, quindi

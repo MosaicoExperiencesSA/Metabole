@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MOTIVO_BLOCCO_MENU, MenuService } from './menu.service';
 import { aGiorno, giornoLocale } from '../common/date-only';
 
+import { comeDalDatabase } from './come-dal-database';
 // Il "menu a necessità" non è oggetto di questi test: il fabbisogno non è calcolabile
 // (null) e il target kcal resta quello del livello della dieta (comportamento storico).
 const kcalNeedStub = () => ({ computeTargetKcal: jest.fn().mockResolvedValue(null) }) as never;
@@ -128,7 +129,7 @@ describe('MenuService (erogazione 2 giorni alla volta)', () => {
         findMany: jest.fn().mockResolvedValue([template(1), template(2)]),
       },
       recipe: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Farro', kcal: 520 }]),
+        findMany: jest.fn().mockResolvedValue(comeDalDatabase([{ id: 'r1', name: 'Farro', kcal: 520 }])),
         findUnique: jest.fn().mockResolvedValue({ id: 'r1' }),
       },
       recipeRating: {
@@ -877,7 +878,7 @@ describe('MenuService — DayCombo (giornate bilanciate, opt-in)', () => {
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', levels: [{ level: 1, kcal: 1400 }] }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'b1', 'l1', 'd1'), tmpl(2, 'b2', 'l2', 'd2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -984,7 +985,7 @@ describe('MenuService — R11 penalità di ripetizione (varietà)', () => {
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'l1'), tmpl(2, 'l2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1058,7 +1059,7 @@ describe('MenuService — R12 modulazione da objective (mantenimento = efficacia
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'l1'), tmpl(2, 'l2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       // l2 = ricetta "che fa perdere di più" (efficacia appresa alta); l1 = più gradita.
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'l2', score: 5, samples: 5 }]) },
       /**
@@ -1147,7 +1148,7 @@ describe('MenuService — regola ripetizione bigiornaliera (menu_repeat_two_days
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'r1'), tmpl(2, 'r2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       // r1 con efficacia appresa alta → vince lo scoring in entrambi i giorni (base r1,r1).
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'r1', score: 5, samples: 5 }]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
@@ -1242,7 +1243,7 @@ describe('MenuService — override PER DIETA (ProductRule) letto dal motore', ()
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1' }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'l1'), tmpl(2, 'l2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1314,7 +1315,7 @@ describe('MenuService — garanzia di varietà (menu_variety_min_gap_days)', () 
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', objective: 'dimagrimento' }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'c1'), tmpl(2, 'c2')]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'c1', score: 5, samples: 5 }]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1409,7 +1410,7 @@ describe('MenuService — ricette semplici senza annullare la varietà', () => {
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1, 'c1'), tmpl(2, 'c2')]) },
       // Il pool "semplice" è una query a parte (difficulty='semplice'): va distinta.
       recipe: {
-        findMany: jest.fn((args: any) => Promise.resolve(args?.where?.difficulty === 'semplice' ? simplePool : all)),
+        findMany: jest.fn((args: any) => Promise.resolve(comeDalDatabase(args?.where?.difficulty === 'semplice' ? simplePool : all))),
         findUnique: jest.fn(),
       },
       menuWeight: { findMany: jest.fn().mockResolvedValue([{ recipeId: 'c1', score: 5, samples: 5 }]) },
@@ -1545,7 +1546,7 @@ describe('MenuService — sostituzione dei non graditi dentro il pool della diet
       recipe: {
         findMany: jest.fn((args: any) => {
           const ids = args?.where?.id?.in as string[] | undefined;
-          if (ids) return Promise.resolve(ids.map((i) => byId.get(i)).filter(Boolean));
+          if (ids) return Promise.resolve(comeDalDatabase(ids.map((i) => byId.get(i)).filter(Boolean) as object[]));
           if (args?.where?.mealSlot) return Promise.resolve(catalogRecipes);
           return Promise.resolve(dietRecipes);
         }),
@@ -1640,7 +1641,7 @@ describe('MenuService — portata della sostituzione (solo oggi / questi giorni 
       recipe: {
         findMany: jest.fn((args: any) => {
           const ids = args?.where?.id?.in as string[] | undefined;
-          if (ids) return Promise.resolve(ids.map((i) => byId.get(i)).filter(Boolean));
+          if (ids) return Promise.resolve(comeDalDatabase(ids.map((i) => byId.get(i)).filter(Boolean) as object[]));
           return Promise.resolve([altDish]); // catalogo per slot
         }),
       },
@@ -1943,7 +1944,7 @@ describe('MenuService · la giornata sotto il target si segnala (e si eroga comu
       engineDecision: { findFirst: jest.fn().mockResolvedValue(null) },
       diet: { findFirst: jest.fn().mockResolvedValue({ id: 'diet1', levels: [{ level: 1, kcal: levelKcal }] }) },
       dietDayTemplate: { findMany: jest.fn().mockResolvedValue([tmpl(1), tmpl(2)]) },
-      recipe: { findMany: jest.fn().mockResolvedValue(recipes), findUnique: jest.fn() },
+      recipe: { findMany: jest.fn().mockResolvedValue(comeDalDatabase(recipes)), findUnique: jest.fn() },
       menuWeight: { findMany: jest.fn().mockResolvedValue([]) },
       recipeRating: { findMany: jest.fn().mockResolvedValue([]) },
       escalation: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },

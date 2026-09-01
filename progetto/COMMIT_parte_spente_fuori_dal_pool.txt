@@ -1,0 +1,52 @@
+Le ricette spente escono dal pool — e 54 test che passavano senza provare niente
+
+Chiusura del §2.4, dopo il numero. `npm run diag:spente` in produzione ha detto quello che serviva
+sapere prima di toccare il pool di tutte le clienti insieme:
+
+  · 3566 ricette spente in catalogo (272 onnivore, 1629 vegetariane, 1665 vegane)
+  · 2730 di quelle erano già dentro un paniere — 4161 appartenenze
+  · 27 celle su 38 toccate dal filtro, e NESSUNA sotto soglia
+  · 0 pasti già composti negli ultimi 30 giorni puntavano a una spenta
+
+L'ultimo numero è quello che dice che il buco era ancora teorico, e il terzo è quello che permette
+di chiuderlo senza far ripetere il motore a nessuno. Con un ⛔ su quella riga questa consegna non
+sarebbe esistita.
+
+⚠️ NON SI È FILTRATO NELLA QUERY, ED È LA PARTE CHE CONTA
+Chiedere `active: true` al database sarebbe stata una parola sola. Ma avrebbe lasciato gli id
+spenti dentro `slotPool` SENZA la loro riga in `recipes`: la composizione avrebbe scelto un id di
+cui non conosce né kcal né macro, e il difetto sarebbe uscito come una giornata sbilanciata, mesi
+dopo, senza niente che lo colleghi a qui. Le ricette si leggono tutte e si tolgono dal pool.
+
+⚠️ E LA REGOLA DELLO SLOT VUOTO VALE ANCHE QUI
+Uno slot fatto solo di ricette spente non si svuota. Non è una scorciatoia: una ricetta spenta
+passa comunque dalla guardia (`evaluateMeals`) come qualunque altra, quindi tenerla nel caso
+degenere lascia in piedi quello che succede GIÀ oggi; svuotare il pasto sarebbe una giornata con
+un buco, cioè un danno nuovo introdotto da una correzione. Si sente nel log, con l'indicazione di
+quale paniere riempire.
+
+⚠️ Quella regola stava scritta due volte dentro `buildScoringContext` (divieti di dieta ed
+esclusioni della cliente). Con questa sarebbero state tre, e tre copie di una regola sono tre
+occasioni perché una cambi da sola: il ciclo è in `menu/togli-dal-pool.ts`, il messaggio resta a
+chi chiama — il motivo per cui una ricetta esce è l'unica cosa che davvero cambia fra i tre casi.
+
+⛔ E POI: 54 TEST PASSAVANO SENZA ESERCITARE UNA RIGA
+Scritto il filtro, la suite è rimasta verde. Non perché funzionasse: i finti Prisma non rendevano
+`active`, quindi OGNI ricetta risultava spenta, OGNI slot si svuotava, la regola qui sopra lo
+risparmiava, e il pool tornava identico a prima. Verde per il motivo sbagliato.
+È l'ottava volta che un doppio che risponde diversamente dal database vero copre proprio il codice
+che dovrebbe provare. Il rimedio non è ricordarselo:
+  · un `active` mancante ora GRIDA (non vale «spenta», e nemmeno «attiva»: è una lettura sbagliata);
+  · i finti passano da `menu/come-dal-database.ts`, che rende il campo come fa il database vero;
+  · una sentinella verifica che la `select` del pool continui a chiedere `active` — toglierlo è una
+    parola, e nessun test sul comportamento se ne accorgerebbe.
+
+PROVE DI MUTAZIONE (quattro, tutte uccise — la terza è nata proprio da qui)
+  1. il ramo non gira                            → 2 prove rosse
+  2. lo slot vuoto si svuota davvero             → 3 prove rosse
+  3. il campo mancante torna a valere «spenta»   → SOPRAVVISSUTA alla prima ronda: nessun test
+     copriva la guardia. Scritti i due che mancavano → 2 prove rosse
+  4. la `select` perde `active`                  → 1 prova rossa (la sentinella)
+
+Test: backend 6405 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
+Voce in elenco lavori: `pool-serve-ricette-spente`, chiusa.

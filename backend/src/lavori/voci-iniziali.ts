@@ -4974,9 +4974,22 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'apposta: `npm run diag:spente` dice quante spente sono nei panieri, **quali caselle '
       + 'scenderebbero sotto soglia** filtrandole, e quanti pasti gi\u00e0 composti ne contengono una.\n'
       + '\u26a0\ufe0f Il verdetto del tabulato \u00e8 la condizione: finch\u00e9 dice \u26d4, prima si riempiono le caselle '
-      + 'povere (o si validano le bozze che ci stanno dentro), e solo quando dice \u2705 si tocca il pool.',
+      + 'povere (o si validano le bozze che ci stanno dentro), e solo quando dice \u2705 si tocca il pool.\n'
+      + '\u2705 **CHIUSA lo stesso giorno**: il tabulato in produzione ha detto \u2705 \u2014 3566 spente in '
+      + 'catalogo, 2730 gi\u00e0 dentro un paniere, **27 celle su 38** toccate dal filtro e **nessuna** sotto '
+      + 'soglia; zero pasti gi\u00e0 composti puntavano a una spenta. Quindi le spente escono dal pool '
+      + '(`menu/togli-dal-pool.ts`). \u26a0\ufe0f Uno slot fatto **solo** di spente non si svuota, come per i '
+      + 'divieti e le esclusioni: una giornata con un buco sarebbe un danno nuovo introdotto da una '
+      + 'correzione. Si sente nel log.\n'
+      + '\u26d4 **E la chiusura ha trovato dell\'altro: 54 test passavano senza provare niente.** I finti '
+      + 'Prisma non rendevano `active`, quindi ogni ricetta risultava spenta, ogni slot si svuotava, la '
+      + 'regola lo risparmiava e il pool tornava identico a prima. Ottava volta che un doppio che '
+      + 'risponde diversamente dal database vero copre proprio il codice che dovrebbe provare: ora '
+      + '`active` mancante **grida** invece di valere «spenta», e i finti passano da '
+      + '`menu/come-dal-database.ts`.',
     categoria: CODICE,
     blocca: true,
+    fatta: true,
     ordine: 671,
     nata: '2026-09-01T14:00',
   },

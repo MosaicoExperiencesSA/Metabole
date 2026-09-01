@@ -41,6 +41,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { AgentState, DietAgentService } from '../diet-agent/diet-agent.service';
 import { eGiornoDiConforto } from './plateau';
 import { RULE_CODE_ESCLUSIONI, ricetteVietate, terminiVietati } from '../vera/regola-dieta';
+import { ricetteSpente, togliDalPool } from './togli-dal-pool';
 // §16.9: una funzione, non un servizio iniettato — vedi il commento in `food-swaps.module.ts`.
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
@@ -2682,7 +2683,7 @@ export class MenuService {
       // ⚠️ `name` e `ingredients` servono al divieto di dieta: il termine si cerca nel nome E negli
       // ingredienti, come per le esclusioni delle clienti. Senza, «insalata di riso» col tonno dentro
       // passerebbe, e il divieto sarebbe una decorazione.
-      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true, allergens: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown; allergens: string[] }[]>,
+      this.prisma.recipe.findMany({ where: { id: { in: [...poolIds] } }, select: { id: true, kcal: true, macros: true, seasons: true, name: true, ingredients: true, allergens: true, active: true } }) as Promise<{ id: string; kcal: number; macros: unknown; seasons: string[]; name: string; ingredients: unknown; allergens: string[]; active: boolean }[]>,
       this.prisma.menuWeight.findMany({ where: { clientId }, select: { recipeId: true, score: true, samples: true } }) as Promise<{ recipeId: string; score: number; samples: number }[]>,
       // ⚠️ Solo le stelle DATE: il 3 che l'app scrive quando la cliente tocca solo «Seguita / Non
       // seguita» non è un'opinione, e qui deciderebbe cosa riproporle. Vedi `stelle-che-contano.ts`.
@@ -2693,6 +2694,43 @@ export class MenuService {
     ]);
 
     /**
+     * ⛔ **LE RICETTE SPENTE ESCONO DAL POOL** — §2.4 del piano panieri, chiuso l'1/9.
+     *
+     * Una ricetta archiviata a mano, o una **bozza** che l'agente notturno ha scritto e che nessuno
+     * ha ancora guardato (nasce `active: false` apposta: la validazione è il momento in cui una
+     * persona la vede), stava nel pool come tutte le altre e arrivava nel piatto di una cliente.
+     * In catalogo erano 3566, e 2730 erano già dentro un paniere.
+     *
+     * ⚠️ **Sta PRIMA degli altri due filtri**, ed è voluto: i due qui sotto contano quante ricette
+     * tolgono su quante ce n'erano, e quei numeri finiscono in un log che qualcuno legge per
+     * decidere se una cliente va guardata. Contando anche le spente direbbero «40 scartate su 120»
+     * dove le vere erano 40 su 95.
+     *
+     * ⚠️ **E vale la stessa regola degli altri due**: uno slot che resterebbe vuoto non si svuota.
+     * Non è una scorciatoia — è la scelta meno peggio, e ha una ragione propria: una ricetta spenta
+     * passa comunque dalla guardia (`evaluateMeals`) come qualunque altra, quindi tenerla nel caso
+     * degenere lascia in piedi quello che succede **già oggi**; svuotare il pasto sarebbe una
+     * giornata con un buco, cioè un danno nuovo introdotto da una correzione. Si sente nel log.
+     *
+     * ⚠️ Il caso degenere oggi **non esiste**: `npm run diag:spente` (1/9) dice 27 celle su 38
+     * toccate dal filtro e **nessuna** sotto soglia. È il numero per cui questa riga si è potuta
+     * scrivere, ed è per questo che il tabulato è arrivato prima di lei.
+     */
+    const spente = ricetteSpente(recipes);
+    if (spente.size) {
+      for (const { slot, erano } of togliDalPool(slotPool, spente)) {
+        this.logger.warn(
+          `Ricette spente: per lo slot "${slot}" di ${clientId} il pool è fatto SOLO di ricette ` +
+            `spente (${erano} su ${erano}): restano nel pool e la cliente può ricevere una bozza ` +
+            'mai validata. Il paniere di quel pasto va riempito (`npm run diag:spente`).',
+        );
+      }
+      this.logger.log(
+        `Ricette spente: ${spente.size} tolte dal pool di ${clientId} prima della composizione.`,
+      );
+    }
+
+    /**
      * ⚠️ IL FILTRO A MONTE: le ricette vietate dalla dieta escono dal pool, quindi non vengono
      * nemmeno prese in considerazione. La guardia su `evaluateMeals` resta comunque, perché è il
      * punto obbligato di ogni erogazione: qui si evita di proporle, lì si evita di servirle.
@@ -2700,30 +2738,30 @@ export class MenuService {
     if (vietatiDieta.length) {
       const fuori = ricetteVietate(recipes, vietatiDieta);
       if (fuori.size) {
-        for (const [slot, ids] of slotPool) {
-          const restano = new Set([...ids].filter((id) => !fuori.has(id)));
-          // ⚠️ Uno slot che resterebbe VUOTO non si svuota: quella cliente resta com'era e finisce
-          // nell'elenco di chi va guardata (decisione di Simone, 13/8). Svuotarlo qui vorrebbe dire
-          // una giornata senza un pasto, che è peggio del piatto che si voleva togliere.
-          if (restano.size > 0) slotPool.set(slot, restano);
-          else
-            /**
-             * ⛔ **E LO SI DICE** (23/8, trovato in revisione). Questo ramo taceva: lo slot si
-             * teneva il pool intero — ricette vietate comprese — e la cliente si vedeva servito
-             * esattamente il piatto che la regola doveva toglierle, senza una riga da nessuna
-             * parte. ⚠️ La guardia non rimedia: i termini di dieta arrivano come «non graditi»,
-             * quindi non bloccano, e la sostituzione salta in silenzio se non trova un tier.
-             * L'elenco delle scoperte esiste ma si calcola **solo** quando il capo approva: da lì
-             * in poi, se il catalogo si assottiglia, nessuno lo sa più.
-             * ⚠️ Il ramo gemello venti righe sotto (le esclusioni della cliente) questo avviso ce
-             * l'ha da sempre: due rami che fanno la stessa cosa e solo uno che la racconta è il
-             * modo in cui una regola smette di valere senza che nessuno se ne accorga.
-             */
-            this.logger.warn(
-              `Divieto di dieta: per lo slot "${slot}" di ${clientId} resterebbero ZERO ricette ` +
-                `(${fuori.size} vietate su ${ids.size}): il divieto NON si applica a questo pasto e ` +
-                'la cliente riceve il piatto vietato. Va guardata (`npm run diag:esclusioni`).',
-            );
+        /**
+         * ⚠️ Uno slot che resterebbe VUOTO non si svuota: quella cliente resta com'era e finisce
+         * nell'elenco di chi va guardata (decisione di Simone, 13/8). Svuotarlo qui vorrebbe dire
+         * una giornata senza un pasto, che è peggio del piatto che si voleva togliere. La regola
+         * sta in `togli-dal-pool.ts`, una volta sola per tutti e tre i motivi.
+         */
+        for (const { slot, erano } of togliDalPool(slotPool, fuori)) {
+          /**
+           * ⛔ **E LO SI DICE** (23/8, trovato in revisione). Questo ramo taceva: lo slot si
+           * teneva il pool intero — ricette vietate comprese — e la cliente si vedeva servito
+           * esattamente il piatto che la regola doveva toglierle, senza una riga da nessuna
+           * parte. ⚠️ La guardia non rimedia: i termini di dieta arrivano come «non graditi»,
+           * quindi non bloccano, e la sostituzione salta in silenzio se non trova un tier.
+           * L'elenco delle scoperte esiste ma si calcola **solo** quando il capo approva: da lì
+           * in poi, se il catalogo si assottiglia, nessuno lo sa più.
+           * ⚠️ Il ramo gemello venti righe sotto (le esclusioni della cliente) questo avviso ce
+           * l'ha da sempre: due rami che fanno la stessa cosa e solo uno che la racconta è il
+           * modo in cui una regola smette di valere senza che nessuno se ne accorga.
+           */
+          this.logger.warn(
+            `Divieto di dieta: per lo slot "${slot}" di ${clientId} resterebbero ZERO ricette ` +
+              `(${fuori.size} vietate su ${erano}): il divieto NON si applica a questo pasto e ` +
+              'la cliente riceve il piatto vietato. Va guardata (`npm run diag:esclusioni`).',
+          );
         }
       }
     }
@@ -2748,14 +2786,11 @@ export class MenuService {
     if (esclusioniCliente && !esclusioniCliente.vuoto) {
       const fuori = ricetteNonSicure(recipes, esclusioniCliente);
       if (fuori.size) {
-        for (const [slot, ids] of slotPool) {
-          const restano = new Set([...ids].filter((id) => !fuori.has(id)));
-          if (restano.size > 0) slotPool.set(slot, restano);
-          else
-            this.logger.warn(
-              `Esclusioni: per lo slot "${slot}" di ${clientId} nessuna ricetta del pool è sicura ` +
-                `(${fuori.size} scartate su ${ids.size}). La giornata la fermerà la guardia.`,
-            );
+        for (const { slot, erano } of togliDalPool(slotPool, fuori)) {
+          this.logger.warn(
+            `Esclusioni: per lo slot "${slot}" di ${clientId} nessuna ricetta del pool è sicura ` +
+              `(${fuori.size} scartate su ${erano}). La giornata la fermerà la guardia.`,
+          );
         }
         this.logger.log(
           `Esclusioni: ${fuori.size} ricette tolte dal pool di ${clientId} prima della composizione ` +
