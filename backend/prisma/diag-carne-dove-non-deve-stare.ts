@@ -30,6 +30,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { eCarne, ePesce } from '../src/catalog/piatto-di-cosa';
+import { ricettaVaBene } from '../src/common/regimi';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 25) || 25);
@@ -59,15 +60,28 @@ async function main() {
       select: { recipeId: true, slot: true, paniere: { select: { famiglia: true, regime: true } } },
     }) as unknown as Promise<{ recipeId: string; slot: string; paniere: { famiglia: string; regime: string } }[]>,
     /** ⚠️ Solo le ATTIVE: una bozza spenta non arriva nel piatto di nessuno (§2.4, chiuso l'1/9). */
+    /**
+     * ⚠️ **E il `regime` della ricetta**, aggiunto l'1/9: è il dato che dice quale dei due è rotto.
+     * Se il branzino è marcato `omnivore` ed è finito in un paniere vegano, a sbagliare è chi ha
+     * riempito il paniere — e si chiude con un controllo al momento della scrittura. Se invece è
+     * marcato `vegan`, il difetto è nella **ricetta** e nessun filtro sul paniere lo troverebbe:
+     * andrebbe corretta in catalogo, una per una.
+     */
     prisma.recipe.findMany({
       where: { active: true },
-      select: { id: true, name: true, ingredients: true },
-    }) as unknown as Promise<{ id: string; name: string; ingredients: unknown }[]>,
+      select: { id: true, name: true, ingredients: true, regime: true },
+    }) as unknown as Promise<{ id: string; name: string; ingredients: unknown; regime: string }[]>,
   ]);
 
   const perId = new Map(ricette.map((r) => [r.id, r]));
-  const trovate: { chiave: string; nome: string; cosa: 'carne' | 'pesce'; slot: string; perche: string }[] = [];
+  const trovate: {
+    chiave: string; nome: string; cosa: 'carne' | 'pesce'; slot: string; perche: string;
+    regime: string; regimeVaBene: boolean;
+  }[] = [];
   const perCella = new Map<string, { carne: number; pesce: number; totale: number }>();
+  /** ⚠️ I due conti che decidono la correzione: chi ha il regime sbagliato e chi no. */
+  let regimeIncompatibile = 0;
+  let regimeCompatibile = 0;
 
   for (const r of righe) {
     if (!REGIMI_DA_GUARDARE.includes(r.paniere.regime)) continue;
@@ -80,8 +94,11 @@ async function main() {
     const carne = pezzi.find((p) => eCarne(p));
     /** ⚠️ Il pesce si guarda **solo nel vegano**: nel vegetariano e nel pescetariano non è un errore. */
     const pesce = r.paniere.regime === 'vegan' ? pezzi.find((p) => ePesce(p)) : undefined;
-    if (carne) { conto.carne += 1; trovate.push({ chiave, nome: ric.name, cosa: 'carne', slot: r.slot, perche: carne }); }
-    else if (pesce) { conto.pesce += 1; trovate.push({ chiave, nome: ric.name, cosa: 'pesce', slot: r.slot, perche: pesce }); }
+    const vaBene = ricettaVaBene(ric.regime, r.paniere.regime);
+    const comune = { chiave, nome: ric.name, slot: r.slot, regime: ric.regime, regimeVaBene: vaBene };
+    if (carne || pesce) { if (vaBene) regimeCompatibile += 1; else regimeIncompatibile += 1; }
+    if (carne) { conto.carne += 1; trovate.push({ ...comune, cosa: 'carne', perche: carne }); }
+    else if (pesce) { conto.pesce += 1; trovate.push({ ...comune, cosa: 'pesce', perche: pesce }); }
     perCella.set(chiave, conto);
   }
 
@@ -96,7 +113,19 @@ async function main() {
     }
   }
 
-  titolo('2. QUALI SONO — e questa è la parte che serve');
+  titolo('2. QUALE DEI DUE È ROTTO — e questo decide la correzione');
+  riga('');
+  riga(`  Piatti segnalati in tutto                        ${trovate.length}`);
+  riga(`  · col REGIME della ricetta incompatibile         ${regimeIncompatibile}`);
+  riga(`  · col regime della ricetta COMPATIBILE           ${regimeCompatibile}`);
+  riga('');
+  riga('  ⚠️ I primi sono un errore di RIEMPIMENTO: la ricetta si dichiara onnivora e qualcuno');
+  riga('  l\'ha messa in un paniere vegano. Si chiudono con un controllo alla scrittura — che la');
+  riga('  pagina Panieri ha già e `riempi-panieri` no.');
+  riga('  ⛔ I secondi sono un errore di CATALOGO: la ricetta dice di essere vegana e contiene');
+  riga('  pesce. Nessun filtro sul paniere li troverebbe, e vanno corretti uno per uno.');
+
+  titolo('3. QUALI SONO — e questa è la parte che si legge a mano');
   riga('');
   if (!trovate.length) {
     riga('  ✅ Niente da nominare.');
@@ -107,7 +136,7 @@ async function main() {
     riga('  panieri pescetariani, scartando 1355 ricette come «carne».');
     riga('');
     for (const t of trovate.slice(0, ESEMPI)) {
-      riga(`  · [${t.cosa}] ${t.chiave} · ${t.slot}`);
+      riga(`  · [${t.cosa}] ${t.chiave} · ${t.slot}   ricetta dichiarata «${t.regime}»${t.regimeVaBene ? '' : '  ⛔ INCOMPATIBILE'}`);
       riga(`      «${t.nome}»`);
       riga(`      ha fatto scattare: «${t.perche}»`);
     }

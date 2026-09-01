@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🐟 **Il pesce nei panieri vegani: prima sapere quale dei due è rotto.**
+  `diag:carne-fuori-posto` ha trovato **158 piatti di pesce dentro panieri vegani** — salmone,
+  branzino, cozze, gamberi, alici — e non sono falsi positivi. ⚠️ **Non l'hanno causato i panieri**:
+  li ha riempiti `panieri:riempi` dalle giornate delle diete, quindi se il branzino sta nel paniere
+  vegano è perché sta nelle **giornate della dieta vegana** — quelle clienti lo ricevevano anche
+  prima, quando il pool veniva dalle giornate. I panieri l'hanno solo reso visibile, ed è la prima
+  volta che qualcuno lo guarda. ⛔ **Ma la correzione non è una sola**, e dipende da un dato che il
+  tabulato non stampava: il `regime` della ricetta. Se il branzino è dichiarato «omnivore», sbaglia
+  chi **riempie** — `riempi-panieri` non controlla il regime, mentre la pagina Panieri sì — e si
+  chiude con un controllo alla scrittura, per tutti e 158 in un colpo. Se è dichiarato «vegan»,
+  sbaglia il **catalogo**, nessun filtro sul paniere lo troverebbe, e vanno corrette le ricette una
+  per una. ⚠️ Scrivere il filtro senza saperlo sarebbe scriverlo alla cieca — l'errore che oggi è
+  già stato fatto una volta di troppo. Il tabulato ora legge `Recipe.regime` e dice quanti stanno da
+  che parte, giudicando con `ricettaVaBene` (la stessa funzione del motore, non un confronto nuovo).
+
 - `[Sviluppo]` 🧅 **«Cipollotto» conteneva «pollo» — il confine di parola che non c'era.** Coda della
   correzione di un'ora prima, e trovata dove doveva: `diag:carne-fuori-posto` in produzione. ⛔ «Zuppa
   Miso con Edamame e Funghi Shiitake» risultava **carne**, e il termine che scattava era `pollo`

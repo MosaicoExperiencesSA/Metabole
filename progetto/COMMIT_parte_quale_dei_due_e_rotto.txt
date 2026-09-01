@@ -1,0 +1,35 @@
+Il pesce nei panieri vegani: prima sapere quale dei due è rotto
+
+`diag:carne-fuori-posto` ha trovato 158 piatti di pesce dentro panieri VEGANI — salmone, branzino,
+cozze, gamberi, alici. Non sono falsi positivi: è pesce vero, e con l'interruttore su `paniere` una
+vegana può riceverlo.
+
+⚠️ E NON L'HANNO CAUSATO I PANIERI. I panieri li ha riempiti `panieri:riempi` dalle giornate delle
+diete: se il branzino sta nel paniere vegano è perché sta nelle GIORNATE della dieta vegana. Quindi
+quelle clienti lo ricevevano anche prima, quando il pool veniva dalle giornate. I panieri l'hanno
+solo reso visibile — è la prima volta che qualcuno lo guarda.
+
+⛔ MA LA CORREZIONE NON È UNA SOLA, E DIPENDE DA UN DATO CHE NON AVEVO
+Il tabulato non stampava il `regime` della ricetta, e senza quello ci sono due storie diverse:
+
+  a) il branzino è dichiarato «omnivore» ed è finito in un paniere vegano
+     → sbaglia chi RIEMPIE. `riempi-panieri` non controlla il regime della ricetta, mentre la
+       pagina Panieri sì (ce l'ha da ieri, insieme al controllo su `active`). Si chiude con un
+       controllo alla scrittura, e vale per tutti i 158 in un colpo.
+
+  b) il branzino è dichiarato «vegan»
+     → sbaglia il CATALOGO. Nessun filtro sul paniere lo troverebbe, perché il paniere sta
+       facendo esattamente quello che gli è stato detto. Vanno corrette le ricette, una per una.
+
+Sono due lavori diversi, e scrivere il filtro senza saperlo vorrebbe dire scriverlo alla cieca —
+che è l'errore che questa giornata ha già fatto una volta di troppo.
+
+Quindi il tabulato ora legge anche `Recipe.regime` e dice, in una sezione sua, quanti dei piatti
+segnalati hanno il regime incompatibile col paniere e quanti no. È il numero che sceglie la
+correzione.
+
+⚠️ E il regime si giudica con `ricettaVaBene` di `common/regimi.ts` — la stessa funzione che usa
+il motore, non un confronto scritto qui: due regole per la stessa domanda un giorno divergono, e il
+giorno che divergono quella sbagliata è sempre quella che nessuno guardava.
+
+Test: backend 6457 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
