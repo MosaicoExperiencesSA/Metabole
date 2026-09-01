@@ -197,6 +197,40 @@ describe('eCarne — le preparazioni non sono animali', () => {
     expect(eCarne(nome)).toBe(true);
   });
 
+  /**
+   * ⛔ **LA CLASSE DI TRAPPOLA, non i singoli casi** — ed è quella in cui sono caduto due volte
+   * nello stesso giorno: una parola che ne CONTIENE un'altra.
+   *
+   * `pollo` dentro «cipollotto» è costato mezza giornata e una riga sbagliata nella regola
+   * flexitariana. Il commento dell'elenco ne aveva già previsti tre — polpa, polenta, pollice — e
+   * quelli non scattavano solo perché la radice `pol` non c'era; la parola intera dentro un'altra
+   * parola non l'aveva pensata nessuno.
+   *
+   * ⚠️ Metà di queste prove sono sul **pesce**, che passa da un'altra porta — il vocabolario delle
+   * esclusioni, quello che tiene al sicuro chi è allergico. Là il confine di parola c'è da sempre
+   * (`chiaveVale` → `inizioParola`), e «insalata decorata» non è mai stata un'orata. Sono qui
+   * perché il giorno che qualcuno tocca una delle due porte, questa riga dice cosa non deve
+   * rompere.
+   */
+  it.each([
+    ['Polpa di pomodoro'],
+    ['Polenta taragna'],
+    ['Pollice verde'],
+    ['Insalata decorata con semi'],
+    ['Zuppa colorata di verdure'],
+    ['Torta decorata al cioccolato'],
+    ['Riso alla cantonese'],
+    ['Sformato di patate'],
+  ])('⛔ contiene un termine ma non lo è: %s', (nome) => {
+    expect(eCarne(nome)).toBe(false);
+    expect(ePesce(nome)).toBe(false);
+  });
+
+  /** ⚠️ E al contrario: il pesce vero resta pesce, o la prova sopra non direbbe niente. */
+  it.each([['Orata al forno'], ['Sogliola al limone'], ['Merluzzo al vapore'], ['Tonno fresco']])(
+    'resta pesce: %s', (nome) => { expect(ePesce(nome)).toBe(true); },
+  );
+
   it('⚠️ e un piatto senza niente di tutto questo non è carne', () => {
     expect(eCarne('Pasta al pomodoro')).toBe(false);
     expect(eCarne('Insalata di farro e zucchine')).toBe(false);

@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🪤 **La classe di trappola, non i singoli casi: una parola dentro un'altra parola.**
+  Oggi ci sono cascato due volte, e finora avevo corretto i casi. ⛔ `pollo` dentro «ci·POLLO·tto» è
+  costato mezza giornata e una riga sbagliata nella regola flexitariana. ⚠️ E il commento
+  dell'elenco ne aveva già previsti tre — polpa, polenta, pollice — ma come **radici corte**
+  («niente `pol`»): la parola *intera* dentro un'altra parola non l'aveva pensata nessuno, ed è
+  quella che è passata. ✅ Otto prove su nomi che contengono un termine senza esserlo — polpa,
+  polenta, pollice, «insalata decorata», «zuppa colorata», «torta decorata», «riso alla cantonese»,
+  «sformato di patate» — più quattro al contrario, perché una prova che dice solo «non scatta» non
+  direbbe niente se il riconoscitore fosse spento. ⚠️ Metà sono sul **pesce**, che passa da un'altra
+  porta: il vocabolario delle esclusioni, dove il confine di parola c'è da sempre e «insalata
+  decorata» non è mai stata un'orata. Stanno qui lo stesso — il giorno che qualcuno tocca una delle
+  due porte, quelle righe dicono cosa non deve rompere.
+
 - `[Sviluppo]` 🏭 **Il generatore scriveva il regime della richiesta, non del piatto.** È la risposta
   alla domanda lasciata aperta un'ora prima — «da dove sono nate quelle etichette» — e senza di lei
   correggerle a valle non serviva: **il generatore le rifaceva la notte dopo**. ⛔ L'origine è una

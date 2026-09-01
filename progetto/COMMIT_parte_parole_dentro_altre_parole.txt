@@ -1,0 +1,23 @@
+La classe di trappola, non i singoli casi: una parola dentro un'altra parola
+
+Consegna piccola e di sole prove. Oggi ci sono cascato due volte nello stesso giorno, e finora
+avevo corretto i casi — non la classe.
+
+⛔ COSA È SUCCESSO
+`pollo` dentro «ci·POLLO·tto»: mezza giornata, e una riga sbagliata nella regola flexitariana
+(una zuppa di miso contava come giornata di carne).
+⚠️ E il commento dell'elenco ne aveva già previsti tre — polpa, polenta, pollice — ma li aveva
+previsti come RADICI corte: «niente `pol`». La parola INTERA dentro un'altra parola non l'aveva
+pensata nessuno, ed è quella che è passata.
+
+LE PROVE
+Otto nomi che contengono un termine senza esserlo — polpa, polenta, pollice, insalata decorata,
+zuppa colorata, torta decorata, riso alla cantonese, sformato di patate — e quattro al contrario,
+perché una prova che dice solo «non scatta» non dice niente se il riconoscitore fosse spento.
+
+⚠️ METÀ SONO SUL PESCE, E PASSANO DA UN'ALTRA PORTA: il vocabolario delle esclusioni, quello che
+tiene al sicuro chi è allergico. Là il confine di parola c'è da sempre (`chiaveVale` →
+`inizioParola`), e «insalata decorata» non è mai stata un'orata. Le prove stanno qui lo stesso: il
+giorno che qualcuno tocca una delle due porte, quelle righe dicono cosa non deve rompere.
+
+Test: backend 6472 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
