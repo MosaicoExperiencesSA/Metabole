@@ -208,3 +208,12 @@ export function ricetteDellaGiornata(meals: unknown): { slot: string; recipeId: 
   }
   return out;
 }
+
+/**
+ * ⚠️ **Il nome della famiglia che non è un paniere ma una funzione** (§6.1). Sta qui accanto a
+ * `FAMIGLIE_CHE_SPARISCONO`, dove è già dichiarata come «funzione, non paniere», perché scriverlo
+ * a mano in `menu.service.ts` vorrebbe dire due stringhe che un giorno divergono — ed è **già
+ * successo** con `DASH`, che nel piano si chiamava in un modo e in banca dati in un altro: quattro
+ * varianti approvate finite fuori da ogni paniere per un nome.
+ */
+export const FAMIGLIA_RITORNO_IN_EQUILIBRIO = 'Ritorno in Equilibrio';

@@ -386,7 +386,21 @@ elenco nuovo — due elenchi di pesci sono due elenchi che un giorno divergono.
 
 ### Fase 6 · Le due funzioni che non sono panieri — **3–5 consegne**
 
-#### 6.1 Ritorno in Equilibrio — 1–2 consegne
+#### 6.1 Ritorno in Equilibrio — **FATTA (1/9), e spenta**
+
+✅ Il pool viene dal passato della cliente (`catalog/pool-dal-passato.ts`), con i due segnali che il
+progetto ha già: il calo attorno a quella giornata e le stelle date ai suoi piatti.
+
+⛔ **Si sostituisce il POOL, non la giornata**, ed è una scelta: copiare le giornate intere
+salterebbe in un colpo la banda kcal, la coppia pranzo/cena, la carne a settimana, gli allergeni e
+le esclusioni — una cliente riceverebbe una giornata di tre mesi fa con le esclusioni di allora.
+
+⚠️ **Soglia: 28 giornate** (decisione di Simone). Sotto, la funzione non si attiva e la cliente
+resta sul paniere. ⛔ **E oggi non si attiva per nessuno**: sulla famiglia c'è una cliente sola, con
+4 giornate. `ritorno_in_equilibrio_acceso` nasce **spento**.
+
+⚠️ **Non fatto, e resta della Fase 9**: chiudere la famiglia e far confluire le sue 18 varianti nei
+panieri. Finché la funzione è spenta, quelle varianti sono la cosa che serve.
 
 Simone (27/8): *«per chi ha già fatto un percorso con noi, un mese coi menu scelti tra quelli che
 hanno dato migliori risultati e al cliente più graditi»*.

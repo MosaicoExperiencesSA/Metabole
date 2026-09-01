@@ -1,11 +1,12 @@
 import { randomUUID } from 'crypto';
 import { puoStareNelloSlot, slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
+import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-passato';
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
 import { verdettoPescetariano } from '../catalog/paniere-pescetariano';
 import { coppiaDellaGiornata } from './coppia-pranzo-cena';
 import { slotDaComporre } from './struttura-della-giornata';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
-import { paniereDellaVariante } from '../catalog/appartenenza-panieri';
+import { FAMIGLIA_RITORNO_IN_EQUILIBRIO, paniereDellaVariante } from '../catalog/appartenenza-panieri';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { giornateComplete, NOME_PASTO, slotPieni } from '../catalog/giornate-complete';
 import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
@@ -1344,6 +1345,7 @@ export class MenuService {
     };
     const coppiaGiorni = Math.max(0, pickNumOverride(overrides, 'menu_coppia_pranzo_cena_giorni', coppiaGiorniG));
     const carneMax = Math.max(0, pickNumOverride(overrides, 'menu_carne_max_a_settimana', carneMaxG));
+
     /**
      * ⚠️ LA QUOTA PROTEICA DI QUESTA CLIENTE vince su quella della dieta (14/8, terza frase
      * dell'azione 3: «rifai con più proteine»). Solo il MINIMO: il massimo resta della dieta —
@@ -2625,7 +2627,54 @@ export class MenuService {
     const righe = sorgente === 'paniere'
       ? await righeDalPaniere(this.prisma as never, famigliaPaniere ?? '', regime)
       : righeDalleGiornate(templates);
-    const slotPool = poolPerSlot(righe);
+    let slotPool = poolPerSlot(righe);
+
+    /**
+     * ⛔ **«RITORNO IN EQUILIBRIO»: IL POOL VIENE DAL SUO PASSATO, NON DAL PANIERE** (§6.1, 1/9).
+     *
+     * Richiesta di Simone del 27/8: *«per chi ha già fatto un percorso con noi, un mese coi menu
+     * scelti tra quelli che hanno dato migliori risultati e al cliente più graditi»*.
+     *
+     * ⚠️ **Si sostituisce solo il POOL**, e la giornata la compone il motore di sempre: così la
+     * banda kcal che si allarga dicendolo, la coppia pranzo/cena, la carne a settimana, gli
+     * allergeni e le esclusioni continuano a valere. Copiare le giornate intere del passato le
+     * salterebbe tutte in un colpo, e una cliente riceverebbe una giornata di tre mesi fa con le
+     * esclusioni di allora.
+     *
+     * ⛔ **E la sostituzione sta QUI**, prima dei filtri sulle esclusioni qui sotto: un pool che
+     * arriva dal passato deve passare dagli stessi cancelli di quello che arriva dal paniere. Se
+     * si sostituisse dopo, i piatti del suo passato entrerebbero senza controllo — ed è il tipo di
+     * scorciatoia che su un'allergia costa cara.
+     *
+     * ⚠️ Sotto la soglia di storico `poolDalPassatoDi` torna `null` e resta il paniere: un mese
+     * costruito su quattro giornate sono quattro giornate girate sette volte.
+     */
+    if (famigliaPaniere === FAMIGLIA_RITORNO_IN_EQUILIBRIO) {
+      /**
+       * ⚠️ I due parametri si leggono **qui dentro e solo per questa famiglia**: chiederli a ogni
+       * composizione di ogni cliente sarebbe due letture in più per una funzione che riguarda una
+       * famiglia sola. E la firma di questo metodo è già lunga: un parametro in più in fondo è la
+       * strada che il 31/8 ha rotto le prove posizionali.
+       */
+      const [acceso, minime] = await Promise.all([
+        /**
+         * ⚠️ **Spento di default**, come l'interruttore dei panieri: una funzione che cambia da
+         * dove arrivano i piatti si accende quando qualcuno ha guardato i numeri, non alla nascita.
+         */
+        this.configParams.getBool('ritorno_in_equilibrio_acceso', false),
+        /**
+         * ⚠️ **28: un mese di storico per comporre un mese** (decisione di Simone, 1/9). Sotto
+         * questa soglia la funzione non si attiva e la cliente resta sul paniere, che è pieno.
+         */
+        this.configParams.getNumber('ritorno_in_equilibrio_giornate_minime', 28),
+      ]);
+      if (acceso) {
+        const quante = Math.max(1, minime);
+        const dalPassato = await this.poolDalPassatoDi(clientId, quante, quante);
+        if (dalPassato) slotPool = dalPassato;
+      }
+    }
+
     const poolIds = ricetteDelPool(slotPool);
     if (poolIds.size === 0) return null;
 
@@ -2852,6 +2901,80 @@ export class MenuService {
       }
     }
     return hist;
+  }
+
+  /**
+   * IL POOL DI «RITORNO IN EQUILIBRIO», COSTRUITO DAL PASSATO DI QUESTA CLIENTE — §6.1.
+   *
+   * ⚠️ Richiesta di Simone del 27/8: *«per chi ha già fatto un percorso con noi, un mese coi menu
+   * scelti tra quelli che hanno dato migliori risultati e al cliente più graditi»*.
+   *
+   * ⛔ **Torna `null` quando non si può fare**, e chi chiama tiene il paniere: sotto la soglia di
+   * storico, senza segnali, o se il pool uscisse monco. «Un mese dei tuoi piatti migliori»
+   * costruito su quattro giornate sono quattro giornate girate sette volte — meglio il paniere
+   * normale, che è pieno.
+   *
+   * ⚠️ **I due segnali sono quelli che il progetto ha già**: il calo di peso attorno a quella
+   * giornata e le stelle date ai suoi piatti. Nessun dato nuovo, nessuna migrazione — è la
+   * differenza fra una funzione che si può accendere domani e una che chiede sei mesi di raccolta.
+   */
+  private async poolDalPassatoDi(clientId: string, quante: number, soglia: number): Promise<Map<string, Set<string>> | null> {
+    const [giornate, misure, stelle] = await Promise.all([
+      this.prisma.menuDay.findMany({
+        where: { clientId, date: { lt: toDateOnly() } },
+        select: { date: true, meals: true },
+        orderBy: { date: 'desc' },
+        take: 400,
+      }) as unknown as Promise<{ date: Date; meals: unknown }[]>,
+      this.prisma.measurement.findMany({
+        where: { clientId },
+        select: { date: true, weightKg: true },
+        orderBy: { date: 'asc' },
+      }) as unknown as Promise<{ date: Date; weightKg: number }[]>,
+      this.prisma.recipeRating.findMany({
+        where: { clientId, ...SOLO_STELLE_DATE },
+        select: { recipeId: true, stars: true },
+      }) as unknown as Promise<{ recipeId: string; stars: number }[]>,
+    ]);
+    if (giornate.length < soglia) return null;
+
+    const stelleDi = new Map<string, number[]>();
+    for (const r of stelle) stelleDi.set(r.recipeId, [...(stelleDi.get(r.recipeId) ?? []), r.stars]);
+
+    const candidate: GiornataDelPassato[] = giornate.map((g) => {
+      const pasti = ((g.meals as { slot?: string; recipeId?: string }[]) ?? [])
+        .filter((m) => m?.slot && m?.recipeId)
+        .map((m) => ({ slot: m.slot as string, recipeId: m.recipeId as string }));
+
+      /**
+       * ⚠️ Il calo **attorno** a quella giornata: la pesata più vicina prima e la prima entro tre
+       * giorni dopo. `null` quando mancano — e `null` non è zero, lo dice la porta che ordina.
+       */
+      const quando = g.date.getTime();
+      let prima: number | null = null;
+      let dopo: number | null = null;
+      for (const m of misure) {
+        const t = m.date.getTime();
+        if (t <= quando) prima = m.weightKg;
+        else if (dopo === null && t <= quando + 3 * 86_400_000) dopo = m.weightKg;
+      }
+
+      const voti = pasti.flatMap((m) => stelleDi.get(m.recipeId) ?? []);
+      return {
+        chiave: g.date.toISOString().slice(0, 10),
+        caloKg: prima !== null && dopo !== null ? dopo - prima : null,
+        gradimento: voti.length ? voti.reduce((a, v) => a + v, 0) / voti.length : null,
+        recenza: quando,
+        pasti,
+      };
+    });
+
+    const esito = poolDalPassato(candidate, quante, soglia);
+    if (!esito) return null;
+    if (esito.avviso) {
+      this.logger.warn(`Ritorno in Equilibrio: per ${clientId} il mese è più povero del previsto — ${esito.avviso}`);
+    }
+    return esito.pool;
   }
 
   /**

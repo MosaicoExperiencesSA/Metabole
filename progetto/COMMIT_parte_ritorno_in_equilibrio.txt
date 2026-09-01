@@ -1,0 +1,52 @@
+Ritorno in Equilibrio: il pool viene dal passato, ma passa dagli stessi cancelli
+
+Richiesta di Simone del 27/8: «per chi ha già fatto un percorso con noi, un mese coi menu
+scelti tra quelli che hanno dato migliori risultati e al cliente più graditi».
+
+⛔ LA FORMA È UNA SCELTA, E VA DICHIARATA PERCHÉ NON È L'UNICA POSSIBILE
+Si poteva copiare le giornate intere del passato, come fa il kit di rientro. Qui invece dal
+passato viene il POOL — l'insieme dei piatti fra cui scegliere — e la giornata la compone
+il motore di sempre.
+
+Il motivo: tutte le regole scritte in questi giorni vivono nella composizione — la banda
+kcal che si allarga dicendolo, la coppia pranzo/cena, la carne due volte a settimana, gli
+allergeni, le esclusioni. Copiando giornate intere si salterebbero TUTTE in un colpo, e
+una cliente riceverebbe una giornata di tre mesi fa con le esclusioni di allora. Il kit di
+rientro può permetterselo perché dura quattro giorni ed è un'emergenza; un mese no.
+
+⚠️ Dal passato si prende QUALI PIATTI, non COME STANNO INSIEME.
+
+⛔ E LA SOSTITUZIONE STA PRIMA DEI FILTRI SULLE ESCLUSIONI. Se stesse dopo, i piatti del
+suo passato entrerebbero senza controllo — ed è il tipo di scorciatoia che su un'allergia
+costa cara: una ricetta che oggi le è vietata è nel suo passato proprio perché allora non
+lo era.
+
+SOGLIA: 28 GIORNATE (decisione di Simone, 1/9). Sotto, la funzione non si attiva e la
+cliente resta sul paniere, che è pieno. «Un mese dei tuoi piatti migliori» costruito su
+quattro giornate sono quattro giornate girate sette volte: la promessa non regge, e chi la
+riceve se ne accorge mangiando.
+
+⛔ E OGGI NON SI ATTIVA PER NESSUNO: sulla famiglia c'è una cliente sola con 4 giornate.
+`ritorno_in_equilibrio_acceso` nasce SPENTO, come l'interruttore dei panieri — una funzione
+che cambia da dove arrivano i piatti si accende quando qualcuno ha guardato i numeri.
+
+⚠️ I DUE SEGNALI SONO QUELLI CHE IL PROGETTO HA GIÀ: il calo di peso attorno a quella
+giornata e le stelle date ai suoi piatti. Nessun dato nuovo, nessuna migrazione — è la
+differenza fra una funzione che si può accendere domani e una che chiede sei mesi di
+raccolta.
+
+⚠️ Il nome della famiglia viene da una costante, non scritto a mano: due stringhe uguali
+in due file un giorno divergono, ed è già successo con DASH — quattro varianti approvate
+finite fuori da ogni paniere per un nome.
+
+⚠️ E quando il mese esce più povero di quanto promette, si scrive nel log: chi legge deve
+saperlo prima che se ne accorga la cliente.
+
+⛔ TERZA VOLTA OGGI che la sentinella delle etichette mi prende un parametro nato muto.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. la sostituzione scende dopo le esclusioni → 1 prova rossa
+  2. sotto la soglia compone lo stesso          → 1 prova rossa
+
+Test: backend 6390 su 384 suite, verdi nelle quattro modalità; back office 173 su 20.
+Build pulite. Nessuna migrazione.

@@ -98,6 +98,16 @@ const META: Record<string, Meta> = {
     help: 'La regola flexitariana: pesca dal paniere onnivoro ma la carne è limitata. ZERO vuol dire nessun limite, NON «mai carne» — e zero è il valore giusto per le diete onnivore. Si accende sulle Flessibili da «Regole motore», dieta per dieta. La settimana è scorrevole (gli ultimi 7 giorni), non quella del calendario.',
   },
 
+  // «RITORNO IN EQUILIBRIO»: il mese composto dal passato della cliente (§6.1).
+  ritorno_in_equilibrio_acceso: {
+    label: 'Ritorno in Equilibrio', group: 'Menu · panieri', kind: 'toggle',
+    help: 'Per chi ha già fatto un percorso: un mese di menu scelti fra i suoi piatti che hanno dato i risultati migliori E che le sono piaciuti di più. Il paniere non c\'entra: i piatti vengono dal suo passato. Si accende solo quando qualcuno ha guardato quante clienti ci stanno sopra e quanto storico hanno.',
+  },
+  ritorno_in_equilibrio_giornate_minime: {
+    label: 'Ritorno in Equilibrio: storico minimo', group: 'Menu · panieri', kind: 'number', unit: 'giornate',
+    help: 'Sotto questa soglia la funzione NON si attiva e la cliente resta sul paniere normale, che è pieno. Un mese costruito su quattro giornate sono quattro giornate girate sette volte: la promessa non regge, e chi la riceve se ne accorge mangiando.',
+  },
+
   // L'OMAGGIO DI RIENTRO durante la pausa (richiesta di Simone, 27/8).
   pause_omaggio_giorni: {
     label: 'Giornate regalate se ingrassa in pausa', group: 'Menu · panieri', kind: 'number', unit: 'giornate',

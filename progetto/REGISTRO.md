@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🔄 **Ritorno in Equilibrio: il pool viene dal passato, ma passa dagli stessi
+  cancelli.** ⛔ **La forma è una scelta**: si poteva copiare le giornate intere del passato, come fa
+  il kit di rientro. Invece dal passato viene il **pool**, e la giornata la compone il motore di
+  sempre — perché tutte le regole scritte in questi giorni vivono nella composizione, e copiando
+  giornate intere si salterebbero **tutte in un colpo**: una cliente riceverebbe una giornata di tre
+  mesi fa con le esclusioni di allora. ⛔ E la sostituzione sta **prima** dei filtri sulle
+  esclusioni: se stesse dopo, i piatti del suo passato entrerebbero senza controllo — una ricetta
+  che oggi le è vietata è nel suo passato proprio perché allora non lo era. ⚠️ **Soglia 28
+  giornate**, decisione di Simone: sotto, la cliente resta sul paniere. Un mese costruito su quattro
+  giornate sono quattro giornate girate sette volte. ⛔ **E oggi non si attiva per nessuno**: sulla
+  famiglia c'è una cliente sola con 4 giornate, e l'interruttore nasce spento. ⚠️ I due segnali sono
+  quelli che il progetto **ha già** — il calo attorno alla giornata e le stelle: nessun dato nuovo,
+  nessuna migrazione, ed è la differenza fra una funzione accendibile domani e una che chiede sei
+  mesi di raccolta. ⛔ Terza volta oggi che la sentinella delle etichette mi prende un parametro
+  nato muto.
+
 - `[Sviluppo]` 🥩 **La regola flexitariana: la carne due volte a settimana.** Decisione di Simone,
   ultima cosa della Fase 5 — ed è quello che distingue «Flessibile» da «onnivoro», che pescano dallo
   stesso paniere. ⚠️ **La settimana è scorrevole, non il calendario**: altrimenti si potrebbe avere
