@@ -19,6 +19,7 @@ import { DescrizioniDiete } from './pages/DescrizioniDiete';
 import { GestioneDieta } from './pages/GestioneDieta';
 import { Testimonianze } from './pages/Testimonianze';
 import { GruppiEquivalenza } from './pages/GruppiEquivalenza';
+import { Panieri } from './pages/Panieri';
 import { Sostituzioni } from './pages/Sostituzioni';
 import { Vera } from './pages/Vera';
 import { Publisher } from './pages/Publisher';
@@ -134,6 +135,7 @@ export default function App() {
       <Route path="/colazioni" element={<Protected title="Colazioni dolci e salate" pageKey="colazioni"><Colazioni /></Protected>} />
       <Route path="/gruppi-equivalenza" element={<Protected title="Gruppi di equivalenza" pageKey="equivalence_groups"><GruppiEquivalenza /></Protected>} />
       <Route path="/sostituzioni" element={<Protected title="Sostituzioni" pageKey="food_swaps"><Sostituzioni /></Protected>} />
+      <Route path="/panieri" element={<Protected title="Panieri" pageKey="panieri"><Panieri /></Protected>} />
       <Route path="/assistente" element={<Protected title="Assistente" pageKey="nutri_assistant"><Vera /></Protected>} />
       <Route path="/creazione-validazione" element={<Protected title="Creazione e validazione" pageKey="creation_validation"><CreazioneValidazione /></Protected>} />
       <Route path="/gestione-dieta" element={<Protected title="Gestione dieta" pageKey="diet_workspace"><GestioneDieta /></Protected>} />

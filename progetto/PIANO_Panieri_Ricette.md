@@ -425,7 +425,14 @@ e non c'è.
 
 ---
 
-### Fase 7 · Il backoffice — **2 consegne**
+### Fase 7 · Il backoffice — **quasi FATTA (1/9)**
+
+✅ La pagina **Panieri**: le celle famiglia × regime coi piatti per pasto, l'elenco di un pasto e
+«togli dal paniere». Chiave di permesso sua (`panieri`), guardia sull'endpoint, `manage` al capo.
+✅ Il generatore conta il paniere unito (era la coda della Fase 2).
+
+⚠️ **Resta**: la copertura per paniere invece che per variante, e il flag «verificata dal
+nutrizionista» (§8, che dipende dalla Fase 8).
 
 - pagina **Paniere**: le 38 celle, con quante ricette per slot, lo stato, e la possibilità di
   aggiungere/togliere una ricetta da un paniere (è la tabella di appartenenza, resa visibile);

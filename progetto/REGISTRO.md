@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🧺 **La pagina Panieri** (Fase 7, seconda metà): le celle famiglia × regime coi piatti
+  per pasto, l'elenco di un pasto, e «togli dal paniere» per chi ha `manage`. ⛔ **La conferma dice
+  cosa cambia, non «sei sicuro?»**: chi preme quel pulsante toglie un piatto dal pool di **tutte** le
+  clienti del paniere, e la frase lo dice con quanti ne restano. Un «sei sicuro?» non informa
+  nessuno — a quel punto tanto vale non chiedere. ⚠️ Tre cose che la pagina **deve** spiegare: i
+  numeri sono piatti diversi e non righe; spuntino e merenda hanno lo stesso numero perché sono un
+  paniere solo; e una ricetta in **bozza** sta nel paniere ma il motore non la usa — mostrarla senza
+  dirlo farebbe contare piatti che a nessuna cliente arrivano. ⛔ Una pagina nuova è **quattro
+  cose**: chiave, etichetta, rotta e voce di menu — dimenticarne una non rompe niente in modo
+  visibile, ed è per questo che una prova le tiene insieme. ⚠️ E quella prova ha dovuto imparare la
+  stessa cosa della sentinella sul cron, un'ora dopo: la frase sbagliata è **citata** nel commento
+  che dice di non usarla, e cercare le parole nude la faceva cadere sul commento che la spiega.
+
 - `[Sviluppo]` 🧺 **I panieri si vedono e si toccano: le porte** (Fase 7, prima metà). Fino a oggi la
   tabella di appartenenza si leggeva solo con un tabulato da shell e si scriveva solo con uno
   script. ⛔ **Chiave di permesso propria** (`panieri`), non `diets_catalog`: il paniere non è una

@@ -1,0 +1,41 @@
+La pagina Panieri (Fase 7, seconda metà)
+
+Le celle famiglia × regime con quanti piatti hanno per pasto, l'elenco di un pasto, e
+«togli dal paniere» per chi ha `manage`.
+
+⚠️ NON È IL CATALOGO DIETE, e la pagina lo dice in testa: una dieta è quello che una
+cliente segue, il paniere è l'insieme dei piatti che il motore può metterle nel piatto —
+ed è famiglia × regime, quindi molte varianti diverse pescano dallo stesso.
+
+⛔ LA CONFERMA DICE COSA CAMBIA, NON «SEI SICURO?»
+Chi preme «togli» sta togliendo un piatto dal pool di TUTTE le clienti di quel paniere.
+La frase lo dice, e dice anche quanti ne restano: «Non lo riceverà più nessuna cliente di
+questo paniere per pranzo. Ne restano 83.» Un «sei sicuro?» non informa nessuno — e a
+quel punto tanto vale non chiedere.
+
+⚠️ TRE COSE CHE LA PAGINA DEVE SPIEGARE, e non sono decorazione:
+  · i numeri sono piatti DIVERSI, non righe: la stessa vellutata a pranzo e a cena conta
+    una volta sola nel totale;
+  · spuntino e merenda hanno lo stesso numero perché sono un paniere solo, e aprendo uno
+    dei due si vedono i piatti di entrambi — è quello che vede la cliente;
+  · una ricetta in bozza sta nel paniere ma il motore NON la usa: mostrarla senza dirlo
+    farebbe contare piatti che a nessuna cliente arrivano.
+
+⚠️ E le due celle impossibili si leggono «non possibile», col perché nel tooltip — non
+come panieri vuoti, che sembrano un problema temporaneo.
+
+⛔ UNA PAGINA NUOVA È QUATTRO COSE, NON UNA (regola di `CLAUDE.md`): la chiave nei
+permessi, l'etichetta, la rotta e la voce di menu. Dimenticarne una non rompe niente in
+modo visibile — la pagina funziona, ma o non compare nel menu, o nei Permessi si legge la
+chiave grezza, o ci si arriva solo scrivendo l'indirizzo. `panieri-pagina.spec.ts` le
+tiene tutte e quattro insieme; la guardia sull'endpoint sta nel backend.
+
+⚠️ E la prova ha dovuto imparare la stessa cosa della sentinella sul cron, un'ora dopo:
+la frase sbagliata è CITATA nel commento che dice di non usarla, e cercare le parole nude
+faceva cadere la prova sul commento che la spiega. Le citazioni fra «…» non contano.
+
+PROVE DI MUTAZIONE (due, uccise)
+  1. la voce di menu sparisce                        → 1 prova rossa
+  2. il pulsante perde il controllo del permesso     → 1 prova rossa
+
+Test: back office 172 su 20 suite; backend 6329. Build pulite. Nessuna migrazione.

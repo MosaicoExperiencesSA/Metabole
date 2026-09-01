@@ -99,6 +99,10 @@ export const NAV: NavSection[] = [
       // Subito sotto i gruppi di equivalenza perché è da qui che ci si arriva: una riga confermata
       // in questa tabella diventa un gruppo con «Promuovi a regola» (§16.9, 12/8).
       { key: 'food_swaps', label: 'Sostituzioni', to: '/sostituzioni', icon: 'ti-replace' },
+      // ⚠️ Il PANIERE non è il catalogo diete: è da dove arrivano i piatti di una cliente
+      // (famiglia × regime), e chi tocca una riga cambia il menu di tutte quelle del paniere.
+      // Chiave di permesso sua, per questo (1/9).
+      { key: 'panieri', label: 'Panieri', to: '/panieri', icon: 'ti-basket' },
       // L'assistente della nutrizionista (Vera). Stessa chiave di permesso delle sostituzioni:
       // è lo stesso perimetro — «cosa il motore userà per le clienti» — e moltiplicare le chiavi
       // moltiplica i posti in cui qualcuno dimentica di abilitare qualcosa.
