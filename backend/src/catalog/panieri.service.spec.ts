@@ -103,16 +103,30 @@ describe('aggiungere una ricetta a un paniere', () => {
    */
   it('⛔ una ricetta di un altro regime non entra', async () => {
     const prisma = conPaniere();
-    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Pollo', regime: 'omnivore', allergensReviewed: true });
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Pollo', regime: 'omnivore', allergensReviewed: true, active: true });
     const svc = new PanieriService(prisma as never, audit() as never);
     await expect(svc.aggiungi('Mediterranea', 'vegan', 'lunch', 'r1', 'u1')).rejects.toThrow(/vegan/);
+    expect(prisma.paniereRicetta.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **UNA BOZZA NON ENTRA IN UN PANIERE.** Il pool che il motore legge non filtra `active`
+   * (§2.4): finché il paniere si riempiva dalle giornate approvate il buco era coperto dalla
+   * validazione, ma da questa pagina una bozza dell'agente notturno — che nasce spenta **apposta**
+   * perché nessuno l'ha ancora guardata — finirebbe nei menu al primo clic.
+   */
+  it('⛔ una ricetta spenta o in bozza non entra', async () => {
+    const prisma = conPaniere();
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Bozza', regime: 'vegan', allergensReviewed: true, active: false });
+    const svc = new PanieriService(prisma as never, audit() as never);
+    await expect(svc.aggiungi('Mediterranea', 'vegan', 'lunch', 'r1', 'u1')).rejects.toThrow(/bozza|archiviata/i);
     expect(prisma.paniereRicetta.create).not.toHaveBeenCalled();
   });
 
   /** ⛔ Da qui non si ripassa dal controllo di pubblicazione: gli allergeni devono già essere confermati. */
   it('⛔ una ricetta con gli allergeni non confermati non entra', async () => {
     const prisma = conPaniere();
-    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: false });
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: false, active: true });
     const svc = new PanieriService(prisma as never, audit() as never);
     await expect(svc.aggiungi('Mediterranea', 'vegan', 'lunch', 'r1', 'u1')).rejects.toThrow(/allergeni/i);
     expect(prisma.paniereRicetta.create).not.toHaveBeenCalled();
@@ -124,7 +138,7 @@ describe('aggiungere una ricetta a un paniere', () => {
    */
   it('⚠️ una merenda si scrive sul capofila, non su due righe', async () => {
     const prisma = conPaniere();
-    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Yogurt', regime: 'vegan', allergensReviewed: true });
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Yogurt', regime: 'vegan', allergensReviewed: true, active: true });
     const svc = new PanieriService(prisma as never, audit() as never);
     await svc.aggiungi('Mediterranea', 'vegan', 'afternoon_snack', 'r1', 'u1');
     expect(prisma.paniereRicetta.create).toHaveBeenCalledWith(
@@ -134,7 +148,7 @@ describe('aggiungere una ricetta a un paniere', () => {
 
   it('e la scrittura finisce nell\'audit', async () => {
     const prisma = conPaniere();
-    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: true });
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: true, active: true });
     const a = audit();
     await new PanieriService(prisma as never, a as never).aggiungi('Mediterranea', 'vegan', 'lunch', 'r1', 'u1');
     expect(a.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'paniere.ricetta.aggiunta' }));
@@ -142,7 +156,7 @@ describe('aggiungere una ricetta a un paniere', () => {
 
   it('due volte la stessa ricetta non fa due righe', async () => {
     const prisma = conPaniere();
-    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: true });
+    prisma.recipe.findUnique.mockResolvedValue({ id: 'r1', name: 'Zuppa', regime: 'vegan', allergensReviewed: true, active: true });
     prisma.paniereRicetta.findFirst.mockResolvedValue({ id: 'x' });
     const svc = new PanieriService(prisma as never, audit() as never);
     expect(await svc.aggiungi('Mediterranea', 'vegan', 'lunch', 'r1', 'u1')).toEqual({ aggiunta: false });

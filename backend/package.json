@@ -132,7 +132,8 @@
     "diag:buchi-menu": "ts-node --transpile-only prisma/diag-buchi-nei-menu.ts",
     "diag:visto": "ts-node --transpile-only prisma/diag-visto-non-aperto.ts",
     "diag:grassi": "ts-node --transpile-only prisma/diag-grassi-senza-peso.ts",
-    "diag:supervisione": "ts-node --transpile-only prisma/diag-supervisione.ts"
+    "diag:supervisione": "ts-node --transpile-only prisma/diag-supervisione.ts",
+    "diag:spente": "ts-node --transpile-only prisma/diag-ricette-spente-nel-pool.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

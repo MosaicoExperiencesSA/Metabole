@@ -4958,4 +4958,27 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-01T11:00',
   },
 
+  {
+    chiave: 'pool-serve-ricette-spente',
+    titolo: 'Il pool del motore non filtra `active`: ricette archiviate e bozze mai validate finiscono nei menu',
+    dettaglio:
+      '\u26d4 **\u00a72.4 del piano panieri, aperto dall\'1/9.** `buildScoringContext` chiede le ricette del '
+      + 'pool **per id e basta** \u2014 `where: { id: { in: [...poolIds] } }`, senza `active: true`. Una '
+      + 'ricetta archiviata a mano, o una bozza che l\'agente notturno ha scritto e che nessuno ha '
+      + 'ancora guardato, se sta nel pool arriva nel piatto di una cliente.\n'
+      + '\u26a0\ufe0f **La porta di scrittura \u00e8 gi\u00e0 chiusa** (1/9): dalla pagina Panieri una ricetta spenta '
+      + 'non si aggiunge pi\u00f9. Resta aperta la lettura, cio\u00e8 quello che \u00e8 gi\u00e0 dentro.\n'
+      + '\u26d4 **E la riga che chiude non si scrive prima di aver contato**: filtrare `active: true` nel '
+      + 'pool restringe il pool di **tutte le clienti insieme** \u2014 la cella che ha 40 piatti e ne ha 12 '
+      + 'attivi domani ne ha 12, e da l\u00ec il motore ripete. \u00c8 la lezione della Fase 1, e c\'\u00e8 il tabulato '
+      + 'apposta: `npm run diag:spente` dice quante spente sono nei panieri, **quali caselle '
+      + 'scenderebbero sotto soglia** filtrandole, e quanti pasti gi\u00e0 composti ne contengono una.\n'
+      + '\u26a0\ufe0f Il verdetto del tabulato \u00e8 la condizione: finch\u00e9 dice \u26d4, prima si riempiono le caselle '
+      + 'povere (o si validano le bozze che ci stanno dentro), e solo quando dice \u2705 si tocca il pool.',
+    categoria: CODICE,
+    blocca: true,
+    ordine: 671,
+    nata: '2026-09-01T14:00',
+  },
+
 ];

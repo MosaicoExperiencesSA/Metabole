@@ -1,0 +1,51 @@
+Una ricetta spenta non entra in un paniere — e il tabulato che dice quanto costa toglierla dal pool
+
+§2.4 del piano panieri, il pezzo rimasto aperto. Il pool che il motore legge chiede le ricette
+per id e basta — `where: { id: { in: [...poolIds] } }`, senza `active: true`. Una ricetta
+archiviata, o una bozza che l'agente notturno ha scritto e che nessuno ha ancora guardato,
+se sta nel pool finisce nel piatto di una cliente.
+
+⛔ ED È UN BUCO CHE LA PAGINA PANIERI DI IERI ALLARGAVA
+Finché il paniere si riempiva dalle giornate già approvate, il controllo di pubblicazione lo
+copriva. Da quando quella pagina permette di aggiungere una ricetta a mano, no: il mio
+controllo in scrittura verificava il regime e gli allergeni e NON se la ricetta fosse attiva.
+Una nutrizionista poteva mettere nel paniere una bozza dell'agente notturno — che nasce spenta
+apposta, perché nessuno l'ha ancora guardata — e quella arrivava nei menu al primo clic.
+Chiuso: `aggiungi` rifiuta una ricetta spenta, con la frase che dice il perché («da qui non si
+ripassa dal controllo di pubblicazione»). È lo stesso ragionamento degli allergeni non
+confermati due righe sotto.
+
+⛔ LA LETTURA NON SI CHIUDE OGGI, E NON È UNA DIMENTICANZA
+Filtrare `active: true` nel pool è una riga sola. Quella riga restringe il pool di TUTTE le
+clienti insieme: la cella che oggi ha 40 piatti e ne ha 12 attivi domani ne ha 12, e da quel
+momento il motore ripete. È la stessa lezione della Fase 1 — l'interruttore si sposta dopo
+aver contato, non prima. Oggi si conta.
+
+`npm run diag:spente` — sola lettura, quattro domande in ordine:
+  1. quante ricette sono spente in catalogo;
+  2. quante di quelle sono entrate nei panieri;
+  3. cella per cella, cosa resta filtrando — e QUALI CASELLE SCENDONO SOTTO SOGLIA;
+  4. sta già succedendo? quanti pasti già composti puntano a una spenta, su quante clienti,
+     e quante di quelle hanno già aperto quel giorno.
+
+⚠️ SOGLIA 30 PERCHÉ 30 È LA FINESTRA DELLA COPPIA PRANZO/CENA. Sotto quella cifra il motore,
+in un mese, deve ripetere. Si cambia con SOGLIA=…
+
+⚠️ DUE LISTE, NON UNA. Le caselle già sotto soglia PRIMA del filtro si stampano a parte: dirle
+insieme alle altre farebbe sembrare che togliere le spente rompa qualcosa che era già rotto,
+e allora nessuno filtrerebbe più niente.
+
+⚠️ E IL TABULATO DICHIARA IL PROPRIO LIMITE: la cella è più grande di quello che una cliente
+vede davvero — sopra il paniere passano ancora le sue esclusioni, i suoi allergeni, le stagioni
+e la banda kcal. Una cella sopra soglia qui non è una promessa; una cella sotto soglia qui è
+una certezza al contrario.
+
+⚠️ I gemelli si contano uniti (Fase 2): spuntino e merenda sono un paniere solo, ed è così che
+la cliente li vede. Contarli separati direbbe due caselle povere dove ce n'è una piena.
+
+PROVA DI MUTAZIONE (una, uccisa)
+  1. `if (!recipe.active)` → `if (false)` → 1 prova rossa
+     («⛔ una ricetta spenta o in bozza non entra»)
+
+Test: backend 6391 su 384 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
+Voce in elenco lavori: `pool-serve-ricette-spente` (rossa, finché la lettura resta aperta).

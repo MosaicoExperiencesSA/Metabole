@@ -156,9 +156,27 @@ export class PanieriService {
 
     const recipe = (await this.prisma.recipe.findUnique({
       where: { id: recipeId },
-      select: { id: true, name: true, regime: true, allergensReviewed: true },
-    })) as { id: string; name: string; regime: string; allergensReviewed: boolean } | null;
+      select: { id: true, name: true, regime: true, allergensReviewed: true, active: true },
+    })) as { id: string; name: string; regime: string; allergensReviewed: boolean; active: boolean } | null;
     if (!recipe) throw new NotFoundException('Ricetta non trovata.');
+    /**
+     * ⛔ **UNA RICETTA SPENTA NON ENTRA — e questo controllo mancava, un giorno soltanto** (1/9).
+     *
+     * Il pool che il motore legge **non filtra `active`** (§2.4 del piano: 3546 ricette spente
+     * ancora servite). Finché il paniere si riempiva dalle giornate approvate il buco era coperto
+     * dalla validazione; da quando questa pagina permette di aggiungere una ricetta a mano, no:
+     * una bozza dell'agente notturno — che nasce **spenta apposta** perché nessuno l'ha ancora
+     * guardata — sarebbe finita nei menu al primo clic.
+     *
+     * ⚠️ È lo stesso ragionamento degli allergeni non confermati due righe sotto: da qui non si
+     * ripassa dal controllo di pubblicazione, quindi i controlli che quello farebbe vanno fatti qui.
+     */
+    if (!recipe.active) {
+      throw new BadRequestException(
+        'La ricetta è archiviata o è ancora una bozza: riattivala prima di metterla in un paniere. '
+        + 'Da qui non si ripassa dal controllo di pubblicazione, quindi entrerebbe nei menu senza che nessuno l\'abbia approvata.',
+      );
+    }
     if (recipe.regime !== regime) {
       throw new BadRequestException(
         `La ricetta è ${recipe.regime} e questo paniere è ${regime}. Un piatto di un altro regime dentro un paniere è un errore che nessuno vede finché non arriva nel piatto di una cliente.`,

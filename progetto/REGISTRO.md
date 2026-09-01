@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🚫 **Una ricetta spenta non entra in un paniere — e il tabulato che dice quanto
+  costa toglierla dal pool.** ⛔ **§2.4 del piano, e la pagina Panieri di ieri lo allargava**: il mio
+  controllo in scrittura verificava regime e allergeni e **non se la ricetta fosse attiva**, quindi
+  una nutrizionista poteva mettere nel paniere una bozza dell'agente notturno — che nasce spenta
+  apposta, perché nessuno l'ha ancora guardata — e quella arrivava nei menu al primo clic. Chiuso:
+  `aggiungi` la rifiuta, con la frase che dice il perché. ⛔ **La lettura invece non si chiude oggi, e
+  non è una dimenticanza**: filtrare `active: true` nel pool è una riga sola, ma quella riga
+  restringe il pool di **tutte le clienti insieme** — la cella che ha 40 piatti e ne ha 12 attivi
+  domani ne ha 12, e da lì il motore ripete. È la lezione della Fase 1: l'interruttore si sposta
+  dopo aver contato. ✅ Quindi oggi si conta — `npm run diag:spente`, sola lettura: quante spente in
+  catalogo, quante nei panieri, **cella per cella cosa resta filtrando e quali caselle scendono
+  sotto soglia**, e se sta già succedendo (pasti già composti che puntano a una spenta, e quante
+  clienti hanno già aperto quel giorno). ⚠️ **Soglia 30 perché 30 è la finestra della coppia
+  pranzo/cena**: sotto, in un mese, il motore *deve* ripetere. ⚠️ **Due liste, non una** — le caselle
+  già povere prima del filtro si stampano a parte, altrimenti sembrerebbe che togliere le spente
+  rompa qualcosa che era già rotto, e non filtrerebbe più nessuno. ⚠️ E il tabulato dichiara il
+  proprio limite: sopra il paniere passano ancora esclusioni, allergeni, stagioni e banda kcal, per
+  cui una cella sopra soglia non è una promessa — una sotto soglia è una certezza al contrario.
+
 - `[Sviluppo]` 🔄 **Ritorno in Equilibrio: il pool viene dal passato, ma passa dagli stessi
   cancelli.** ⛔ **La forma è una scelta**: si poteva copiare le giornate intere del passato, come fa
   il kit di rientro. Invece dal passato viene il **pool**, e la giornata la compone il motore di
