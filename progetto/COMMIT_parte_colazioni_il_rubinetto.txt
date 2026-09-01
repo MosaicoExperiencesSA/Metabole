@@ -1,0 +1,44 @@
+=== PARTE: il generatore smette di mettere il pesce a colazione ===
+
+SUMMARY
+La regola delle colazioni entra nel prompt del generatore: il catalogo smette di peggiorare mentre decidiamo cosa fare di quello che c'è già
+
+DESCRIPTION
+Il secondo giro di `npm run diag:colazioni` — con il riconoscimento vero degli ingredienti — ha
+spostato pochissimo: da 73 a 71 celle sotto soglia. E il perché è la risposta alla domanda.
+
+⛔ LA TABELLA ALIMENTI NON HA GLI ALIMENTI DI BASE. I nomi che restano da classificare non sono
+nomi strani: sono «zucchine crude», «Broccolo fresco», «carciofi freschi», «cavolfiore crudo»,
+«yogurt greco 0% grassi», «cottage cheese», «latte magro», «mela fresca». L'abbinamento non li
+trova perché **le righe non ci sono affatto** — 373 righe di tabella contro 8012 nomi di ingrediente
+usati dalle ricette.
+
+⛔ E CLASSIFICARLI NON SALVEREBBE I CONTI, anzi. Metà di quei nomi sono verdure: cavolfiore,
+carciofi, zucchine, broccoli, barbabietola, cavolini di Bruxelles, funghi, lattuga, cavolo rosso.
+Classificarli li sposta da «non lo so» a «verdura», cioè **fuori** — non «restano». L'altra metà
+(yogurt, ricotta, cottage cheese, latte, mela) resterebbe. Il conto finale si muoverebbe poco.
+
+⚠️ QUINDI LA CONCLUSIONE ONESTA È UN'ALTRA, ed è scomoda: **il catalogo non ha 84 colazioni per
+paniere che non siano di carne, pesce o verdura.** La regola è giusta e il catalogo è indietro. Non
+è un problema di classificazione: è un problema di ricette che mancano.
+
+⛔ QUELLO CHE SI PUÒ FARE SUBITO, E CHE QUESTA CONSEGNA FA: **chiudere il rubinetto**. La regola
+entra nel prompt del generatore, così ogni settimana di generazione smette di allargare il lavoro.
+Chiudere il rubinetto viene prima di asciugare il pavimento: applicare la regola al catalogo di oggi
+lascerebbe panieri con otto colazioni, ma se il generatore continua a produrre «Merluzzo crudo in
+tartare» a colazione, domani ce ne saranno di più.
+
+⚠️ E una correzione all'elenco di lavoro: la chiave adesso è normalizzata. «Carciofi freschi» (23) e
+«carciofi freschi» (26) uscivano come due righe diverse, e così «Zucchine crude» e «Brodo vegetale
+caldo». Un elenco che conta la stessa cosa due volte fa sembrare il lavoro più grande di quello che
+è — ed è il genere di cosa per cui si smette di leggerlo.
+
+RESTA DA DECIDERE, e sono numeri non decisioni tecniche:
+· i panieri messi peggio sono keto (8 colazioni), keto-mediterranea, low carb, proteica,
+  iperproteica, detossinante. Mediterranea e Flessibile onnivoro stanno bene (122-156).
+· quante ricette generare per pasto e per paniere, e in che ordine — si può partire dai panieri con
+  clienti sopra.
+
+FILE
+- backend/src/engine-rules/engine-rules.service.ts — la regola nel prompt del generatore
+- backend/prisma/diag-colazioni-salate.ts — la chiave dell'elenco normalizzata

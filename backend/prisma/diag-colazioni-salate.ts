@@ -200,7 +200,17 @@ async function main() {
   for (const [id, v] of verdetto) {
     if (v !== null) continue;
     const p = principaleDi.get(id);
-    if (p) daClassificare.set(p, (daClassificare.get(p) ?? 0) + 1);
+    /**
+     * ⚠️ **La chiave è NORMALIZZATA**, e il primo giro l'ha dimostrato: «Carciofi freschi» (23) e
+     * «carciofi freschi» (26) uscivano come due righe diverse, e così «Zucchine crude» / «zucchine
+     * crude», «Brodo vegetale caldo» / «brodo vegetale caldo». Un elenco di lavoro che conta la
+     * stessa cosa due volte fa sembrare il lavoro più grande di quello che è — ed è il genere di
+     * cosa per cui si smette di leggerlo.
+     */
+    if (p) {
+      const k = normalizzaNome(p);
+      daClassificare.set(k, (daClassificare.get(k) ?? 0) + 1);
+    }
   }
   const ordinati = [...daClassificare.entries()].sort((a, b) => b[1] - a[1]);
   riga(`  Nomi diversi da classificare: ${ordinati.length}.`);

@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 🚰 **Il generatore smette di mettere il pesce a colazione.** Il secondo giro di
+  `diag:colazioni`, col riconoscimento vero degli ingredienti, ha spostato pochissimo — da 73 a 71
+  celle sotto soglia — e il perché è la risposta. ⛔ **La tabella alimenti non ha gli alimenti di
+  base**: i nomi da classificare sono «zucchine crude», «Broccolo fresco», «carciofi freschi»,
+  «yogurt greco 0%», «cottage cheese», «latte magro» — l'abbinamento non li trova perché **le righe
+  non ci sono affatto**. ⛔ E classificarli **non salverebbe i conti**: metà di quei nomi sono
+  verdure, quindi passerebbero da «non lo so» a **fuori**. ⚠️ Quindi la conclusione onesta è
+  scomoda: **il catalogo non ha 84 colazioni per paniere che non siano di carne, pesce o verdura.**
+  La regola è giusta, il catalogo è indietro, e non è un problema di classificazione — sono ricette
+  che mancano. ✅ Quello che si può fare subito, e che questa consegna fa: **chiudere il rubinetto**
+  — la regola entra nel prompt del generatore, così ogni settimana di generazione smette di allargare
+  il lavoro. ⚠️ Corretta anche la chiave dell'elenco di lavoro: «Carciofi freschi» e «carciofi
+  freschi» uscivano come due righe. 6180 test verdi.
+
 - `[Sviluppo]` 📊 **La regola delle colazioni misurata: non si applica oggi, e metà del problema non
   sono le ricette ma la tabella alimenti.** 73 celle su 75 sotto le 84 per pasto. ⛔ Ma la regola sta
   correggendo **un difetto vero**: in catalogo, a colazione e a merenda, ci sono «Merluzzo crudo in

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, Logger } from '@nestjs/common';
+import { PASTI_SENZA_CARNE_PESCE_VERDURA } from '../catalog/piatto-di-cosa';
 import { CODICI_METODI } from '../common/metodi-cottura';
 import { AuditService } from '../audit/audit.service';
 import { KcalNeedService } from '../menu/kcal-need.service';
@@ -34,6 +35,32 @@ import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
  */
 const GIORNI_SETTIMANA = 7;
 const SETTIMANE_MAX = 12;
+
+/**
+ * ⛔ **NIENTE CARNE, PESCE E VERDURE A COLAZIONE, SPUNTINO E MERENDA** — richiesta di Simone, 31/8.
+ *
+ * ⚠️ Questa riga sta nel **prompt del generatore**, cioè impedisce che il catalogo continui a
+ * peggiorare. Non tocca quello che c'è già: misurato il 31/8, in catalogo a colazione e a merenda
+ * ci sono «Merluzzo crudo in tartare con sedano», «Polpo freddo marinato con cicoria», «Capesante
+ * al vapore», «Ossobuco di tacchino in umido» — e nelle keto il pesce da solo occupa **36-40
+ * colazioni su ~95**. Il generatore le colazioni le riempiva di secondi piatti, e nessuno se n'era
+ * accorto perché nessuno aveva mai contato.
+ *
+ * ⛔ **Chiudere il rubinetto viene prima di asciugare il pavimento**: applicare la regola al
+ * catalogo di oggi lascerebbe panieri con otto colazioni (`npm run diag:colazioni`), quindi lì
+ * servono ricette nuove. Ma se il generatore continua a produrle così, ogni settimana di
+ * generazione allarga il lavoro.
+ *
+ * ⚠️ La regola è quella scelta da Simone: **il piatto** non dev'essere di carne, pesce o verdura —
+ * una verdura fra gli ingredienti va benissimo. La frittata con gli spinaci è una colazione.
+ */
+function regolaPastoLeggero(slot: string): string {
+  if (!(PASTI_SENZA_CARNE_PESCE_VERDURA as readonly string[]).includes(slot)) return '';
+  return ' ⚠️ NON deve essere un piatto di carne, di pesce o di verdura: a questo pasto vanno'
+    + ' cereali, latticini, frutta, uova, frutta secca, legumi dolci. Una verdura come ingrediente'
+    + ' di contorno va bene (una frittata con gli spinaci è una colazione), ma il piatto non deve'
+    + ' essere un secondo o un contorno di verdure.';
+}
 
 /** Nomi dei pasti in italiano: entrano nel prompt, quindi devono essere quelli veri. */
 const NOME_PASTO: Record<string, string> = {
@@ -1198,7 +1225,7 @@ export class EngineRulesService {
     const system = 'Sei un nutrizionista esperto che prepara BOZZE di catalogo per una piattaforma nutrizionale. Rispondi SOLO con JSON valido e minificato, senza testo attorno: ogni elemento di array/oggetto separato da virgola, nessuna virgola finale. Niente claim medici. kcal e macro realistici e coerenti (le kcal ~ 4·(prot+carbo)+9·grassi).';
     const user =
 `Genera ${p.quante} ricette per il pasto "${nomeSlot}" della dieta "${p.label}" (stile ${p.style}, regime ${p.regime}, obiettivo ${p.objective}).
-Ognuna ~${p.kcalPasto} kcal (è la quota di questo pasto su una giornata di ~${p.kcalGiorno} kcal, tolleranza ±${p.kcalTol}%); proteine ${p.protMin}-${p.protMax}% delle kcal sulla giornata. Regime: ${p.regimeRule}.${p.fasting ? ' Digiuno intermittente 16:8: pasti solo nella finestra 12:00-20:00.' : ''}${p.clinicalNotes ? ` Regole cliniche da rispettare: ${p.clinicalNotes}` : ''}
+Ognuna ~${p.kcalPasto} kcal (è la quota di questo pasto su una giornata di ~${p.kcalGiorno} kcal, tolleranza ±${p.kcalTol}%); proteine ${p.protMin}-${p.protMax}% delle kcal sulla giornata. Regime: ${p.regimeRule}.${p.fasting ? ' Digiuno intermittente 16:8: pasti solo nella finestra 12:00-20:00.' : ''}${regolaPastoLeggero(p.slot)}${p.clinicalNotes ? ` Regole cliniche da rispettare: ${p.clinicalNotes}` : ''}
 Le ${p.quante} ricette devono essere DIVERSE fra loro per ingrediente principale e metodo di cottura: servono a coprire ${p.quante} giorni consecutivi senza che la cliente mangi due volte la stessa cosa.${evita.length ? `\nNON riproporre questi piatti, sono già in catalogo: ${evita.join('; ')}.` : ''}
 Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingredients":[{"name":"ingrediente","qty":<numero o null>,"unit":"g|ml|pz|q.b."}],"macros":{"protein_g":<int>,"carbs_g":<int>,"fat_g":<int>},"cookingMethods":[{"type":"${CODICI_METODI.join('|')}","steps":["passo 1","passo 2"]}]}]}`;
 
