@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-08-31
 
+- `[Sviluppo]` 📊 **La regola delle colazioni misurata: non si applica oggi, e metà del problema non
+  sono le ricette ma la tabella alimenti.** 73 celle su 75 sotto le 84 per pasto. ⛔ Ma la regola sta
+  correggendo **un difetto vero**: in catalogo, a colazione e a merenda, ci sono «Merluzzo crudo in
+  tartare», «Polpo freddo marinato», «Capesante al vapore», «Ossobuco di tacchino» — nelle keto il
+  pesce da solo occupa **36-40 colazioni su ~95**. Il generatore ha riempito le colazioni di secondi
+  piatti e nessuno se n'era accorto, perché nessuno aveva mai contato. ⚠️ **La colonna «non lo so» è
+  spesso più grande di «restano»** (Basso IG × vegano: 61 contro **85**), e gli esempi sono colazioni
+  perfette — «Mela con burro di mandorla», «Miglio soffiato con latte di capra», «Latte di cocco con
+  chia e fragole» — bloccate solo perché l'ingrediente principale non sta in una tabella di 373
+  righe. ⛔ **Corretto un pezzo subito**: il riconoscimento cercava il nome esatto, quindi «mela
+  renetta media» non trovava «mela»; adesso passa da `abbinaPerRicetta`, la stessa porta del conto
+  delle calorie. ⚠️ E il tabulato adesso stampa **l'elenco dei nomi da classificare** con la curva
+  dei primi N: chi lavora non riscrive ricette, dice che cosa sono dei nomi. La regola resta **non
+  applicata**: applicarla oggi lascerebbe panieri con otto colazioni.
+
 - `[Prodotto]` 🥐 **«Niente carne, pesce e verdure a colazione, spuntino e merenda»** (Simone, 31/8
   sera). ⛔ **La lettura è: il PIATTO non dev'esserlo**, non «nessuna verdura fra gli ingredienti» —
   e la differenza vale il catalogo: con la lettura stretta uscirebbero la frittata con gli spinaci,

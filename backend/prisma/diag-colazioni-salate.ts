@@ -27,7 +27,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { paniereDellaVariante, ricetteDellaGiornata } from '../src/catalog/appartenenza-panieri';
-import { PASTI_SENZA_CARNE_PESCE_VERDURA, diCosaE, vaBeneAColazione } from '../src/catalog/piatto-di-cosa';
+import { PASTI_SENZA_CARNE_PESCE_VERDURA, diCosaE, ingredientePrincipale, vaBeneAColazione } from '../src/catalog/piatto-di-cosa';
+import { abbinaPerRicetta, paroleChe } from '../src/nutrient-facts/abbinamento-alimenti';
+import { normalizzaNome } from '../src/nutrient-facts/valori-nutrizionali.service';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 15) || 15);
@@ -70,22 +72,52 @@ async function main() {
   ]);
 
   const categoria = new Map<string, string>();
+  const perParola = new Map<string, typeof alimenti>();
   for (const a of alimenti) {
-    for (const n of [a.name, ...(a.synonyms ?? [])]) {
-      if (n && a.category) categoria.set(n.toLowerCase().trim(), a.category);
-    }
+    const nomi = [a.name, ...(a.synonyms ?? [])].map(normalizzaNome).filter(Boolean);
+    for (const n of nomi) if (a.category) categoria.set(n, a.category);
+    const chiavi = new Set<string>();
+    for (const n of nomi) for (const p of paroleChe(n)) chiavi.add(p);
+    for (const k of chiavi) perParola.set(k, [...(perParola.get(k) ?? []), a]);
   }
-  const categoriaDi = (n: string) => categoria.get((n ?? '').toLowerCase().trim()) ?? null;
+  /**
+   * ⛔ **Non basta il nome esatto**, e il primo giro in produzione l'ha dimostrato: «Mela con burro
+   * di mandorla», «Miglio soffiato con latte di capra», «Focaccia integrale con pomodoro» — cioè
+   * colazioni perfette — finivano tutte in «non lo so» perché l'ingrediente principale in tabella
+   * si chiama «mela» e nella ricetta «mela renetta media».
+   *
+   * ⚠️ Quindi si passa da `abbinaPerRicetta`, la stessa porta che usa il conto delle calorie: due
+   * strade che rispondono a «a quale riga porta questo ingrediente» darebbero due risposte diverse,
+   * ed è già successo il 19/8 con «spinaci freschi» — 1350 ricette.
+   */
+  const memo = new Map<string, string | null>();
+  const categoriaDi = (nome: string): string | null => {
+    const n = normalizzaNome(nome);
+    if (!n) return null;
+    if (memo.has(n)) return memo.get(n) ?? null;
+    let cat = categoria.get(n) ?? null;
+    if (!cat) {
+      const candidate = new Set<(typeof alimenti)[number]>();
+      for (const p of paroleChe(n)) for (const a of perParola.get(p) ?? []) candidate.add(a);
+      const forse = candidate.size ? abbinaPerRicetta(n, [...candidate]) : null;
+      cat = forse?.riga.category ?? null;
+    }
+    memo.set(n, cat);
+    return cat;
+  };
 
   /** ricetta → verdetto, calcolato una volta sola. */
   const verdetto = new Map<string, ReturnType<typeof diCosaE>>();
   const nomeDi = new Map<string, string>();
+  /** L'ingrediente principale di ogni ricetta: serve all'elenco dei nomi da classificare. */
+  const principaleDi = new Map<string, string | null>();
   for (const r of ricette) {
     nomeDi.set(r.id, r.name);
     const ing = Array.isArray(r.ingredients)
       ? (r.ingredients as unknown[]).map((i) => ({ name: String((i as { name?: unknown })?.name ?? ''), grammi: grammi(i) }))
       : [];
     verdetto.set(r.id, diCosaE(ing, categoriaDi));
+    principaleDi.set(r.id, ingredientePrincipale(ing));
   }
 
   const perDieta = new Map<string, { slot: string; recipeId: string }[]>();
@@ -156,6 +188,31 @@ async function main() {
   for (const [id, v] of verdetto) {
     if (n >= ESEMPI) break;
     if (v && v !== 'altro') { riga(`  · [${v}] «${nomeDi.get(id)}»`); n += 1; }
+  }
+
+  titolo('⛔ I NOMI DA CLASSIFICARE — la strada più corta');
+  riga('');
+  riga('  L\'ingrediente PRINCIPALE di queste ricette non porta a nessuna riga della tabella');
+  riga('  alimenti, quindi non sappiamo se è una verdura e il piatto non passa. ⚠️ Non serve');
+  riga('  riscrivere la ricetta: basta che qualcuno dica, per ognuno di questi nomi, che cos\'è.');
+  riga('');
+  const daClassificare = new Map<string, number>();
+  for (const [id, v] of verdetto) {
+    if (v !== null) continue;
+    const p = principaleDi.get(id);
+    if (p) daClassificare.set(p, (daClassificare.get(p) ?? 0) + 1);
+  }
+  const ordinati = [...daClassificare.entries()].sort((a, b) => b[1] - a[1]);
+  riga(`  Nomi diversi da classificare: ${ordinati.length}.`);
+  riga('');
+  for (const [nome, n] of ordinati.slice(0, ESEMPI * 4)) riga(`  · ${String(n).padStart(5)}  ${nome}`);
+  if (ordinati.length > ESEMPI * 4) riga(`  …e altri ${ordinati.length - ESEMPI * 4}. Alza ESEMPI per vederli.`);
+  riga('');
+  riga('  ⚠️ Quante ricette si sbloccano coi primi N nomi:');
+  for (const n of [10, 25, 50, 100, 250]) {
+    if (n > ordinati.length) break;
+    const quante = ordinati.slice(0, n).reduce((s2, [, q]) => s2 + q, 0);
+    riga(`  · primi ${String(n).padStart(3)} nomi → ${quante} ricette`);
   }
 
   titolo(`ESEMPI — piatti che NON SO classificare (${ESEMPI})`);

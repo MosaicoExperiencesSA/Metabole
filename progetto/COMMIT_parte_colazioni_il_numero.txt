@@ -1,0 +1,41 @@
+=== PARTE: il numero delle colazioni, e cosa dice davvero ===
+
+SUMMARY
+La regola delle colazioni misurata in produzione: non si può applicare oggi, e metà del problema non sono le ricette ma la tabella alimenti
+
+DESCRIPTION
+`npm run diag:colazioni` girato in produzione. **73 celle su 75 scenderebbero sotto le 84 ricette
+per pasto.** Ma il tabulato dice tre cose diverse, e vanno separate.
+
+1) ⛔ LA REGOLA STA CORREGGENDO UN DIFETTO VERO, e non è un capriccio. In catalogo, a colazione e a
+merenda, ci sono: «Merluzzo crudo in tartare con sedano croccante», «Polpo freddo marinato con
+cicoria», «Capesante al vapore con cavolo rapa», «Ossobuco di tacchino in umido». Nelle keto il
+pesce da solo occupa 36-40 colazioni su ~95. Il generatore ha riempito le colazioni di secondi
+piatti, e nessuno se n'era accorto perché nessuno aveva mai contato.
+
+2) ⚠️ META DEL PROBLEMA NON SONO LE RICETTE, È LA TABELLA ALIMENTI. La colonna «non lo so» è spesso
+più grande di «restano»: Basso indice glicemico × vegano a colazione fa 61 restano contro **85 non
+lo so**; Mediterranea × vegetariano a merenda 117 contro **104**. E gli esempi di «non lo so» sono
+colazioni perfette: «Mela con burro di mandorla e semi di lino», «Mela al forno con ricotta light»,
+«Miglio soffiato con latte di capra e mela grattugiata», «Latte di cocco con semi di chia e
+fragole», «Focaccia integrale con pomodoro fresco». Non passano perché l'ingrediente principale non
+è in una tabella di 373 righe — non perché siano piatti sbagliati.
+
+⛔ CORRETTO SUBITO UN PEZZO DI QUESTO: il riconoscimento cercava il nome **esatto**, quindi «mela
+renetta media» non trovava «mela». Adesso passa da `abbinaPerRicetta`, la stessa porta del conto
+delle calorie — due strade che rispondono a «a quale riga porta questo ingrediente» darebbero due
+risposte diverse, ed è già successo il 19/8 con «spinaci freschi», 1350 ricette.
+
+3) ⚠️ E LA STRADA CORTA ADESSO SI VEDE. Il tabulato stampa **l'elenco dei nomi da classificare**,
+ordinato per quante ricette ciascuno sblocca, con la curva dei primi 10/25/50/100/250. Chi lavora
+non deve riscrivere ricette: deve dire, per una lista di nomi, che cosa sono. È molto meno lavoro,
+e non tocca il catalogo.
+
+COSA RESTA VERO ANCHE DOPO: nelle keto, nella proteica e nell'iperproteica le colazioni di pesce e
+carne sono tante davvero, e lì servono ricette nuove. Ma il conto di quante ne servono si fa dopo
+aver tolto di mezzo i «non lo so», non prima.
+
+⛔ LA REGOLA RESTA NON APPLICATA. Applicarla oggi vorrebbe dire lasciare panieri con otto colazioni.
+
+FILE
+- backend/prisma/diag-colazioni-salate.ts — l'abbinamento vero, e l'elenco dei nomi da classificare
