@@ -1,0 +1,43 @@
+«Cipollotto» conteneva «pollo» — il confine di parola che non c'era
+
+Coda della correzione di un'ora fa, e trovata dove doveva: `diag:carne-fuori-posto` in produzione.
+
+⛔ IL DIFETTO
+«Zuppa Miso con Edamame e Funghi Shiitake» risultava CARNE. Il termine che scattava era `pollo`,
+dentro «ci·POLLO·tto». Lo stesso su «Brodo Miso Edamame e Alga Wakame», «Riso Venere con Germogli
+di Ravanello», «Uova affogate con lenticchie nere» e una decina d'altri: il cipollotto sta in mezzo
+mezzo catalogo.
+
+⚠️ E il commento del mio elenco lo sfiorava senza vederlo — «niente radici corte: `pol` prenderebbe
+polpa e polenta» — mentre `pollo` per intero era già dentro una parola comune.
+
+⛔ E stava nel livello che VINCE SEMPRE, quindi nemmeno un segno vegetale lo fermava: una zuppa di
+miso contava come giornata di carne nella regola flexitariana.
+
+LA CORREZIONE
+Confine di parola **davanti a ogni termine**, e solo davanti. Mai in coda: `scaloppin` deve
+prendere scaloppine e scaloppina, `lenticchi` le lenticchie — un confine in fondo spegnerebbe metà
+elenco.
+
+E i due «Brasato» — «Radicchio Rosso Brasato con Noci Pecan», «Cavolrapa Brasato al Forno» —
+erano il mio elenco di segni vegetali troppo corto: radicchio e cavolrapa non c'erano. Allungato
+con le verdure che finiscono davvero accanto a una preparazione.
+⚠️ E l'elenco non sarà mai completo, né deve esserlo: da oggi si allunga con `diag:carne-fuori-posto`
+davanti, una parola alla volta coi nomi veri, invece che a indovinare.
+
+LE PROVE: I NOMI VERI, NON QUELLI INVENTATI
+Le prove di stamattina erano tutte inventate da me, e infatti questo difetto non l'avevano preso.
+Ora ci sono gli undici nomi presi dalla produzione, più quattro al contrario — «Pollo al curry con
+verdure», «Petto di pollo con cipollotto» — perché il confine di parola non deve aver spento il
+pollo vero.
+
+PROVE DI MUTAZIONE (due, uccise)
+  4. via il confine di parola                 → 3 prove rosse
+  5. i segni vegetali tornano corti            → 2 prove rosse
+
+⚠️ E UNA COSA CHE NON SI TOCCA: il tabulato segnala anche «Polpo d'Alghe Nori Farcito», che è un
+piatto vegano col nome di un polpo. È un falso positivo del vocabolario del PESCE — che è quello
+delle esclusioni, lo stesso che tiene al sicuro chi è allergico ai molluschi. Lì sbagliare per
+eccesso è la scelta giusta e resta com'è: si accetta il piatto tolto, non si accetta il contrario.
+
+Test: backend 6457 su 386 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

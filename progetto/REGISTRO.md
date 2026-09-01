@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🧅 **«Cipollotto» conteneva «pollo» — il confine di parola che non c'era.** Coda della
+  correzione di un'ora prima, e trovata dove doveva: `diag:carne-fuori-posto` in produzione. ⛔ «Zuppa
+  Miso con Edamame e Funghi Shiitake» risultava **carne**, e il termine che scattava era `pollo`
+  dentro «ci·POLLO·tto» — lo stesso su una decina d'altri, perché il cipollotto sta in mezzo mezzo
+  catalogo. ⚠️ Il commento del mio elenco lo sfiorava senza vederlo: «niente radici corte, `pol`
+  prenderebbe polpa e polenta», mentre `pollo` **per intero** era già dentro una parola comune.
+  ⛔ E stava nel livello che vince sempre, quindi nemmeno un segno vegetale lo fermava: una zuppa di
+  miso contava come giornata di carne nella regola flexitariana. ✅ Confine di parola **davanti** a
+  ogni termine e mai in coda (`scaloppin` deve prendere scaloppine, `lenticchi` le lenticchie), più
+  l'elenco dei segni vegetali allungato con le verdure che si brasano davvero — «Radicchio Rosso
+  Brasato», «Cavolrapa Brasato al Forno». ⚠️ **Le prove di stamattina erano tutte inventate da me, e
+  questo difetto non l'avevano preso**: ora ci sono gli undici nomi veri presi dalla produzione, più
+  quattro al contrario perché il pollo vero deve restare pollo. Due mutazioni, uccise. ⚠️ E una cosa
+  che **non** si tocca: il tabulato segnala anche «Polpo d'Alghe Nori», un piatto vegano col nome di
+  un polpo — falso positivo del vocabolario del **pesce**, che è quello delle esclusioni e tiene al
+  sicuro chi è allergico ai molluschi. Lì sbagliare per eccesso è la scelta giusta.
+
 - `[Sviluppo]` 🍔 **Il riconoscitore della carne diceva che l'hamburger di ceci è carne.** Trovato
   tirando il filo dei cinque piatti con carne nel paniere vegetariano: non erano cinque ricette
   sbagliate, era sbagliato il riconoscitore, ed è mio. ⛔ **L'elenco rompeva la sua stessa regola** —

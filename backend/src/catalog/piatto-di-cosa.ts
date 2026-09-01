@@ -97,8 +97,21 @@ export const CARNE_SE_NON_VEGETALE: readonly string[] = [
  * nel piatto di chi non lo mangia, che è l'unico errore che qui non si può fare.
  */
 export const SEGNI_VEGETALI: readonly string[] = [
-  'ceci', 'lenticchi', 'fagiol', 'piselli', 'soia', 'seitan', 'tofu', 'tempeh', 'quinoa', 'farro',
-  'melanzan', 'verdur', 'zucchin', 'cavolfior', 'broccol', 'funghi', 'cereali', 'legumi', 'avena',
+  // Le proteine vegetali: sono ciò di cui il piatto è fatto al posto della carne.
+  'ceci', 'lenticchi', 'fagiol', 'piselli', 'soia', 'seitan', 'tofu', 'tempeh', 'edamame',
+  'quinoa', 'farro', 'cereali', 'legumi', 'avena',
+  /**
+   * ⛔ **Le verdure che si brasano e si arrostiscono** — aggiunte l'1/9 dopo la produzione:
+   * «Radicchio Rosso Brasato con Noci Pecan» e «Cavolrapa Brasato al Forno» risultavano carne,
+   * perché `brasato` è una preparazione e nel piatto non c'era **nessuna** parola del mio elenco.
+   * ⚠️ Un elenco di verdure non sarà mai completo, e non deve esserlo: qui bastano quelle che
+   * finiscono davvero accanto a una preparazione. Le altre le trova `diag:carne-fuori-posto`, che
+   * da oggi è lo strumento con cui questo elenco si allunga — una parola alla volta, coi nomi
+   * davanti, invece che a indovinare.
+   */
+  'melanzan', 'verdur', 'zucchin', 'zucca', 'cavol', 'broccol', 'funghi', 'radicchio', 'carciof',
+  'finocchi', 'asparag', 'peperon', 'cicoria', 'indivia', 'scarola', 'bietol', 'spinaci', 'porro',
+  'rapa', 'topinambur', 'sedano', 'ravanell', 'germogli', 'alga', 'alghe', 'nori', 'wakame', 'miso',
 ];
 
 /**
@@ -150,8 +163,24 @@ const normale = (s: string) => (s ?? '').toLowerCase().trim();
  * («questo piatto È di carne», e la carne non è un'esclusione), ma la strada comoda era dichiarare
  * l'eccezione, e un guardiano si consuma un'eccezione ragionevole alla volta.
  */
+/**
+ * ⛔ **IL CONFINE DI PAROLA DAVANTI, E LA RAGIONE HA UN NOME: «cipollotto».**
+ *
+ * Trovato in produzione l'1/9 con `diag:carne-fuori-posto`: «Zuppa Miso con Edamame e Funghi
+ * Shiitake» risultava **carne**, e il termine che scattava era `pollo` — dentro «ci·POLLO·tto».
+ * Lo stesso su «Brodo Miso Edamame e Alga Wakame», «Riso Venere con Germogli di Ravanello» e una
+ * decina d'altri: il cipollotto è in mezzo mezzo catalogo.
+ *
+ * ⚠️ E il commento dell'elenco lo sfiorava senza vederlo — «niente radici corte: `pol`
+ * prenderebbe polpa e polenta» — mentre `pollo` per intero era già dentro una parola comune.
+ * ⛔ Peggio: `pollo` sta nel livello che **vince sempre**, quindi nemmeno un segno vegetale lo
+ * fermava. Una zuppa di miso contava come giornata di carne nella regola flexitariana.
+ *
+ * ⚠️ **Il confine sta solo DAVANTI, mai in fondo**, ed è voluto: `scaloppin` deve prendere
+ * scaloppine e scaloppina, `lenticchi` le lenticchie. Un confine in coda spegnerebbe metà elenco.
+ */
 const perRegex = (elenco: readonly string[]) =>
-  new RegExp(elenco.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+  new RegExp(elenco.map((t) => `\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).join('|'));
 const RE_CARNE_SEMPRE = perRegex(CARNE_SEMPRE);
 const RE_CARNE_FORSE = perRegex(CARNE_SE_NON_VEGETALE);
 const RE_VEGETALE = perRegex(SEGNI_VEGETALI);

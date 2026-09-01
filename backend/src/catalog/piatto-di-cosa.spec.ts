@@ -162,6 +162,41 @@ describe('eCarne — le preparazioni non sono animali', () => {
     expect(eCarne(nome)).toBe(true);
   });
 
+  /**
+   * ⛔ **I NOMI VERI, PRESI DA `diag:carne-fuori-posto` IN PRODUZIONE L'1/9** — e non sono
+   * varianti di quelli qui sopra: sono un difetto diverso, che le prove inventate non avevano
+   * preso. `pollo` sta dentro «ci·POLLO·tto», e il cipollotto è in mezzo mezzo catalogo.
+   *
+   * ⚠️ Peggio: `pollo` è nel livello che **vince sempre**, quindi nemmeno un segno vegetale lo
+   * fermava. Una zuppa di miso contava come giornata di carne nella regola flexitariana.
+   */
+  it.each([
+    ['cipollotto fresco'],
+    ['Cipollotto'],
+    ['Cipollottini'],
+    ['Zuppa Miso con Edamame e Funghi Shiitake Grigliati'],
+    ['Brodo Miso Edamame Tostati e Alga Wakame'],
+    ['Riso Venere Integrale con Edamame e Germogli di Ravanello'],
+    ['Brodo Proteico Tofu Silken con Noodle Soba e Miso'],
+    ['Uova affogate in salsa di pomodori e lenticchie nere'],
+    ['Frittata Fredda di Uova, Asparagi Arrosto e Formaggio di Capra'],
+    /** ⚠️ `brasato` su una verdura: l'elenco dei segni vegetali era troppo corto. */
+    ['Radicchio Rosso Brasato con Noci Pecan Croccanti e Olio MCT'],
+    ['Cavolrapa Brasato al Forno con Crema di Macadamia e Nori Croccante'],
+  ])('produzione 1/9 — non è carne: %s', (nome) => {
+    expect(eCarne(nome)).toBe(false);
+  });
+
+  /** ⚠️ E il confine di parola non deve aver spento niente: il pollo vero resta pollo. */
+  it.each([
+    ['Pollo alle erbe'],
+    ['Pollo al curry con verdure'],
+    ['Spezzatino di agnello con carciofi'],
+    ['Petto di pollo con cipollotto'],
+  ])('produzione 1/9 — resta carne: %s', (nome) => {
+    expect(eCarne(nome)).toBe(true);
+  });
+
   it('⚠️ e un piatto senza niente di tutto questo non è carne', () => {
     expect(eCarne('Pasta al pomodoro')).toBe(false);
     expect(eCarne('Insalata di farro e zucchine')).toBe(false);
