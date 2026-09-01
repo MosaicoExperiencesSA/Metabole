@@ -41,7 +41,7 @@ const titolo = (s: string) => {
 async function main() {
   titolo('STRUTTURA DELLA DIETA CONTRO STRUTTURA DEL PANIERE');
 
-  const [diete, giornate, panieri, regole, clienti, param] = await Promise.all([
+  const [diete, giornate, panieri, regole, clienti, param, globali] = await Promise.all([
     prisma.diet.findMany({ select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true } }) as unknown as
       Promise<{ id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null }[]>,
     prisma.dietDayTemplate.findMany({ select: { dietId: true, meals: true } }) as unknown as
@@ -59,6 +59,22 @@ async function main() {
     ` as Promise<{ dietId: string; clienti: number }[]>,
     prisma.configParam.findUnique({ where: { key: 'panieri_sorgente_pool' }, select: { value: true, updatedAt: true } }) as unknown as
       Promise<{ value: string; updatedAt: Date } | null>,
+    /**
+     * ⛔ **I GLOBALI, e la prima stesura non li guardava — 1/9.**
+     *
+     * Questo tabulato leggeva solo le `ProductRule`, cioè gli override **per dieta**, e concludeva
+     * «nessuna esposta» perché nessuna dieta accendeva DayCombo a mano. Ma i due interruttori hanno
+     * anche un valore **globale**, e `menu_kcal_need_enabled` ha default `true`: col globale acceso
+     * DayCombo gira su tutte le diete che non lo spengono, e il tabulato avrebbe detto zero
+     * esattamente nel caso in cui c'era da preoccuparsi.
+     *
+     * ⚠️ Un tabulato che risponde «tutto a posto» guardando metà della domanda è peggio di un
+     * tabulato che non esiste: quello lo si rifà, questo lo si crede.
+     */
+    prisma.configParam.findMany({
+      where: { key: { in: ['menu_daycombo_enabled', 'menu_kcal_need_enabled'] } },
+      select: { key: true, value: true },
+    }) as unknown as Promise<{ key: string; value: string }[]>,
   ]);
 
   riga('');
@@ -91,14 +107,55 @@ async function main() {
     slotDelPaniere.set(k, s);
   }
 
+  /**
+   * ⚠️ **Il default del CODICE, non zero.** Un interruttore senza riga in `config_param` non è
+   * spento: vale il default scritto nel codice, e per `menu_kcal_need_enabled` quel default è
+   * `true`. Leggere «riga assente» come «spento» è lo stesso errore di leggere una casella vuota
+   * come uno zero — quello che è già costato caro su `menu_days_delivered`.
+   */
+  const DEFAULT_NEL_CODICE: Record<string, boolean> = {
+    menu_daycombo_enabled: false,
+    menu_kcal_need_enabled: true,
+  };
+  const vero = (v: string | undefined, dflt: boolean): boolean => {
+    if (v === undefined) return dflt;
+    const t = v.trim().toLowerCase();
+    if (t === '') return dflt;
+    return t === 'true' || t === '1' || t === 'yes' || t === 'on';
+  };
+  const globaleDi = new Map(globali.map((g) => [g.key, g.value]));
+  const globaleAcceso: Record<string, boolean> = {
+    menu_daycombo_enabled: vero(globaleDi.get('menu_daycombo_enabled'), DEFAULT_NEL_CODICE.menu_daycombo_enabled),
+    menu_kcal_need_enabled: vero(globaleDi.get('menu_kcal_need_enabled'), DEFAULT_NEL_CODICE.menu_kcal_need_enabled),
+  };
+
+  riga('');
+  for (const k of ['menu_daycombo_enabled', 'menu_kcal_need_enabled']) {
+    const scritto = globaleDi.get(k);
+    riga(`  ${k} (globale) = ${globaleAcceso[k] ? 'ACCESO' : 'spento'}${scritto === undefined ? '  ⚠️ riga assente: vale il default del codice' : ''}`);
+  }
+
+  /**
+   * ⚠️ Per ogni dieta l'interruttore è: il suo override se c'è, altrimenti il globale. È la stessa
+   * regola che applica `menu.service.ts` (`pickBoolOverride`), e va tenuta uguale — se qui dicesse
+   * un'altra cosa, questo tabulato risponderebbe di un sistema che non esiste.
+   */
   const acceso = new Map<string, Set<string>>();
+  const overrideDi = new Map<string, Map<string, boolean>>();
   for (const r of regole) {
     const v = (r.params as { value?: unknown } | null)?.value;
     const attiva = typeof v === 'boolean' ? v : r.enabled;
-    if (!attiva) continue;
-    const s = acceso.get(r.dietId) ?? new Set<string>();
-    s.add(r.ruleCode);
-    acceso.set(r.dietId, s);
+    const m = overrideDi.get(r.dietId) ?? new Map<string, boolean>();
+    m.set(r.ruleCode, attiva);
+    overrideDi.set(r.dietId, m);
+  }
+  for (const d of diete) {
+    const s = new Set<string>();
+    for (const k of ['menu_daycombo_enabled', 'menu_kcal_need_enabled']) {
+      const o = overrideDi.get(d.id)?.get(k);
+      if (o === undefined ? globaleAcceso[k] : o) s.add(k);
+    }
+    if (s.size) acceso.set(d.id, s);
   }
 
   const clientiPer = new Map(clienti.map((c) => [c.dietId, Number(c.clienti)]));
@@ -133,7 +190,8 @@ async function main() {
   if (!esposte.length) {
     riga('');
     riga('  ✅ Nessuna variante esposta: dove il paniere è più largo, la composizione bilanciata è');
-    riga('     spenta, quindi la giornata la faceva il selettore sul template — struttura giusta.');
+    riga('     spenta — override per dieta E globale — quindi la giornata la faceva il selettore sul');
+    riga('     template, che la struttura giusta ce l\'ha sempre avuta.');
   } else {
     riga('');
     riga('  ┌─ variante ─────────────────────────────┬ suoi ┬ in più ──────────────┬ clienti ┐');
