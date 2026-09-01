@@ -278,3 +278,85 @@ describe('DayComboService.componi — la coppia pranzo/cena non si ripete', () =
     expect(esito!.coppiaRipetuta).toBe(false);
   });
 });
+
+/**
+ * ⚠️ **LA REGOLA FLEXITARIANA** — decisione di Simone dell'1/9: la carne due volte a settimana.
+ * È quello che distingue «Flessibile» da «onnivoro»: senza, le due cose sono la stessa.
+ */
+describe('DayComboService.componi — la carne due volte a settimana', () => {
+  const conCarne = (id: string, kcal: number, carne: boolean): RecipeInfo =>
+    ({ id, kcal, score: 1, proteinShare: 0.3, conCarne: carne });
+  const pool = () => new Map<string, RecipeInfo[]>([
+    ['lunch', [conCarne('pollo', 600, true), conCarne('pasta', 600, false)]],
+    ['dinner', [conCarne('verdure', 600, false)]],
+  ]);
+  const base = { slots: ['lunch', 'dinner'], targetKcal: 1200, tolerancePct: 15, dayIndex: 0 };
+
+  it('col tetto ancora aperto sceglie liberamente', () => {
+    const esito = svc.componi({ ...base, poolBySlot: pool(), carneRestante: 2 });
+    expect(esito!.carneOltreIlTetto).toBe(false);
+  });
+
+  it('⛔ col tetto esaurito preferisce la giornata senza carne', () => {
+    const esito = svc.componi({ ...base, poolBySlot: pool(), carneRestante: 0 });
+    expect(esito!.giornata.map((m) => m.recipeId)).toEqual(['pasta', 'verdure']);
+    expect(esito!.carneOltreIlTetto).toBe(false);
+  });
+
+  /**
+   * ⛔ **La rete**: se dentro la banda non resta nessuna giornata senza carne, si compone lo stesso
+   * e lo si dichiara. Una regola alimentare sforata è un difetto da guardare; una cliente senza
+   * cena è un guasto.
+   */
+  it('⛔ ma se non c\'è altro compone lo stesso, e lo dichiara', () => {
+    const soloCarne = new Map<string, RecipeInfo[]>([
+      ['lunch', [conCarne('pollo', 600, true)]],
+      ['dinner', [conCarne('manzo', 600, true)]],
+    ]);
+    const esito = svc.componi({ ...base, poolBySlot: soloCarne, carneRestante: 0 });
+    expect(esito).not.toBeNull();
+    expect(esito!.carneOltreIlTetto).toBe(true);
+  });
+
+  /**
+   * ⛔ **«Non lo sappiamo» non vuol dire «no».** Un piatto senza il dato conta come carne quando il
+   * tetto è esaurito: il verso opposto renderebbe il tetto aggirabile da qualunque ricetta con gli
+   * ingredienti scritti male.
+   */
+  it('⛔ un piatto di cui non sappiamo il contenuto non passa per «senza carne»', () => {
+    const ignoto = new Map<string, RecipeInfo[]>([
+      ['lunch', [{ id: 'boh', kcal: 600, score: 1, proteinShare: 0.3 }]],
+      ['dinner', [conCarne('verdure', 600, false)]],
+    ]);
+    const esito = svc.componi({ ...base, poolBySlot: ignoto, carneRestante: 0 });
+    expect(esito!.carneOltreIlTetto).toBe(true);
+  });
+
+  /**
+   * ⛔ **La carne finita non è un motivo per allargare le kcal**: sarebbe una regola alimentare che
+   * compra calorie fuori target. Sta dopo la banda, come la coppia.
+   */
+  it('⛔ il tetto della carne NON allarga la banda', () => {
+    const esito = svc.componi({
+      slots: ['lunch', 'dinner'],
+      poolBySlot: new Map<string, RecipeInfo[]>([
+        ['lunch', [conCarne('pollo', 600, true)]],
+        ['dinner', [conCarne('manzo', 600, true)]],
+      ]),
+      targetKcal: 1200,
+      tolerancePct: 15,
+      dayIndex: 0,
+      allargamento: { passoPct: 5, tettoPct: 20 },
+      carneRestante: 0,
+    });
+    expect(esito!.allargataDi).toBe(0);
+    expect(esito!.carneOltreIlTetto).toBe(true);
+  });
+
+  it('⚠️ e senza limite si comporta esattamente come prima', () => {
+    for (const carneRestante of [undefined, Infinity]) {
+      const esito = svc.componi({ ...base, poolBySlot: pool(), carneRestante });
+      expect(esito!.carneOltreIlTetto).toBe(false);
+    }
+  });
+});

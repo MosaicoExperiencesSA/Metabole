@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 import { puoStareNelloSlot, slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
+import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
+import { verdettoPescetariano } from '../catalog/paniere-pescetariano';
 import { coppiaDellaGiornata } from './coppia-pranzo-cena';
 import { slotDaComporre } from './struttura-della-giornata';
 import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalleGiornate } from '../catalog/pool-del-paniere';
@@ -1247,7 +1249,7 @@ export class MenuService {
       agentState === 'plateau_conforto'
         ? await this.buildScoringContext(clientId, profile.regime, templates as never, 'conforto', diet.objective ?? undefined, overrides, vietatiDieta, esclusioniCliente, famigliaDelPaniere(diet))
         : null;
-    const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG, allargPassoG, allargTettoG, coppiaGiorniG] = await Promise.all([
+    const [kcalTolG, daycomboG, pMinG, pMaxG, kcalNeedG, allargPassoG, allargTettoG, coppiaGiorniG, carneMaxG] = await Promise.all([
       this.configParams.getNumber('menu_kcal_balance_tolerance_pct', 15),
       this.configParams.getBool('menu_daycombo_enabled', false),
       this.configParams.getNumber('menu_daycombo_protein_min', 0.2),
@@ -1284,6 +1286,16 @@ export class MenuService {
        * ⛔ **Zero spegne la regola** e riporta al comportamento di prima, senza un rilascio.
        */
       this.configParams.getNumber('menu_coppia_pranzo_cena_giorni', 30),
+      /**
+       * ⚠️ **LA REGOLA FLEXITARIANA** (decisione di Simone, 1/9: due volte a settimana). È quello
+       * che distingue «Flessibile» da «onnivoro»: pescano dallo stesso paniere, e senza questo
+       * numero le due famiglie sono la stessa cosa.
+       *
+       * ⛔ **Zero è il default, e vuol dire NESSUN LIMITE** — non «mai carne». La regola si accende
+       * per dieta dalla pagina «Regole motore», dove il capo la mette sulle Flessibili: metterla
+       * globale a 2 la applicherebbe anche alle onnivore, che è il contrario di quello che serve.
+       */
+      this.configParams.getNumber('menu_carne_max_a_settimana', 0),
     ]);
     /**
      * ⛔ **«RICETTE SEMPLICI» È SPENTA — decisione di Simone, 31/8, caso Patrizia.**
@@ -1331,6 +1343,7 @@ export class MenuService {
       tettoPct: pickNumOverride(overrides, 'menu_daycombo_allargamento_tetto_pct', allargTettoG),
     };
     const coppiaGiorni = Math.max(0, pickNumOverride(overrides, 'menu_coppia_pranzo_cena_giorni', coppiaGiorniG));
+    const carneMax = Math.max(0, pickNumOverride(overrides, 'menu_carne_max_a_settimana', carneMaxG));
     /**
      * ⚠️ LA QUOTA PROTEICA DI QUESTA CLIENTE vince su quella della dieta (14/8, terza frase
      * dell'azione 3: «rifai con più proteine»). Solo il MINIMO: il massimo resta della dieta —
@@ -1374,6 +1387,15 @@ export class MenuService {
       ? await this.coppieRecenti(clientId, firstNewDate, coppiaGiorni)
       : new Set<string>();
     let coppieRipetute = 0;
+    /**
+     * ⚠️ Le giornate in cui la carne è già arrivata, come **numero di giorni dall'epoca**: così le
+     * giornate già servite e quelle che sto componendo adesso stanno sulla stessa scala e la
+     * finestra scorrevole le confronta senza conversioni.
+     */
+    const giornateConCarne: number[] = carneMax > 0
+      ? await this.giornateConCarneRecenti(clientId, firstNewDate)
+      : [];
+    let giornateOltreIlTetto = 0;
 
     // Prepara gli snapshot dei giorni del ciclo.
     // Gli slot che questa cliente non riceve: la finestra del digiuno (voce #7) PIÙ gli spuntini
@@ -1449,10 +1471,14 @@ export class MenuService {
           proteinBand: { min: pMin, max: pMax },
           allargamento,
           coppieGiaViste,
+          carneRestante: carneMax > 0
+            ? carneRestante(giornateConCarne, Math.floor(date.getTime() / 86_400_000), carneMax)
+            : undefined,
         });
         chosen = esito?.giornata ?? null;
         allargataDi = esito?.allargataDi ?? 0;
         if (esito?.coppiaRipetuta) coppieRipetute += 1;
+        if (esito?.carneOltreIlTetto) giornateOltreIlTetto += 1;
         if (allargataDi > 0) {
           giornateAllargate += 1;
           allargamentoMassimo = Math.max(allargamentoMassimo, allargataDi);
@@ -1478,6 +1504,14 @@ export class MenuService {
       if (coppiaGiorni > 0) {
         const coppia = coppiaDellaGiornata(chosen);
         if (coppia) coppieGiaViste.add(coppia);
+      }
+      /**
+       * ⚠️ **Dopo la guardia di varietà**, come la coppia: quella può cambiare un piatto, e la
+       * carne da contare è quella che la cliente riceve davvero. E si accumula durante il giro,
+       * altrimenti sette giornate composte insieme non si vedrebbero fra loro.
+       */
+      if (carneMax > 0 && ctxGiorno && chosen.some((m) => ctxGiorno.carne.get(m.recipeId) !== false)) {
+        giornateConCarne.push(Math.floor(date.getTime() / 86_400_000));
       }
       // I piatti di oggi contano come "serviti di recente" per i giorni successivi del ciclo.
       // ⚠️ Il «servito di recente» si segna su TUTTI E DUE i contesti: se lo si segnasse solo su
@@ -1898,6 +1932,13 @@ export class MenuService {
      * per giornata: un ciclo di sette giorni con la banda stretta riempirebbe il log di sette righe
      * identiche, e un log che si ripete è un log che si smette di leggere.
      */
+    if (giornateOltreIlTetto > 0) {
+      this.logger.warn(
+        `Flexitariana: per ${clientId} ${giornateOltreIlTetto} giornata/e composte CON CARNE oltre il tetto `
+        + `di ${carneMax} a settimana — dentro la banda kcal non restava nessuna giornata senza. `
+        + 'Il paniere di questa dieta ha poche giornate senza carne: si guarda con `npm run diag:carne`.',
+      );
+    }
     if (coppieRipetute > 0) {
       this.logger.warn(
         `Varietà: per ${clientId} ${coppieRipetute} giornata/e composte con una coppia pranzo/cena già servita `
@@ -2513,6 +2554,12 @@ export class MenuService {
     slotPool: Map<string, Set<string>>;
     kcalOf: Map<string, number>;
     proteinOf: Map<string, number>;
+    /**
+     * ⚠️ **Il piatto ha carne?** `false` = sappiamo che non ne ha; assente = **non lo sappiamo**, e
+     * per la regola flexitariana quel dubbio conta come carne. Il verso opposto renderebbe il tetto
+     * aggirabile da qualunque ricetta con gli ingredienti scritti male.
+     */
+    carne: Map<string, boolean>;
     score: (id: string) => number;
     bump: (id: string) => void;
   } | null> {
@@ -2732,7 +2779,20 @@ export class MenuService {
     // finivano per ripetere gli stessi piatti.
     const bump = (id: string) => recentCount.set(id, (recentCount.get(id) ?? 0) + 1);
 
-    return { slotPool, kcalOf, proteinOf, score, bump };
+    /**
+     * ⚠️ Il verdetto sulla carne si calcola **una volta per pool**, non a ogni giornata: gli stessi
+     * nomi e gli stessi ingredienti riletti sette volte sono lavoro sprecato. E si usa la stessa
+     * porta della derivazione pescetariana — un secondo elenco di carni è un elenco che diverge.
+     */
+    const carne = new Map<string, boolean>();
+    for (const r of recipes) {
+      const nomi = Array.isArray(r.ingredients)
+        ? (r.ingredients as { name?: unknown }[]).map((i) => String(i?.name ?? '')).filter(Boolean)
+        : [];
+      carne.set(r.id, verdettoPescetariano(r.name, nomi) === 'carne');
+    }
+
+    return { slotPool, kcalOf, proteinOf, carne, score, bump };
   }
 
   /**
@@ -2792,6 +2852,65 @@ export class MenuService {
       }
     }
     return hist;
+  }
+
+  /**
+   * LE GIORNATE IN CUI LA CARNE È GIÀ ARRIVATA, nell'ultima settimana (regola flexitariana, 1/9).
+   *
+   * ⚠️ Si torna il **numero di giorni dall'epoca**, non le date: le giornate già servite e quelle
+   * che si stanno componendo finiscono così sulla stessa scala, e la finestra scorrevole le
+   * confronta senza conversioni — che è il punto in cui questo genere di conti sbaglia.
+   *
+   * ⛔ **Una ricetta che non conosciamo conta come carne.** Se un piatto è stato cancellato dal
+   * catalogo non possiamo sapere cosa conteneva, e dire «allora era senza» regalerebbe una volta
+   * di carne in più a ogni buco dello storico.
+   */
+  private async giornateConCarneRecenti(clientId: string, before: Date): Promise<number[]> {
+    const rows = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { lt: before } },
+      select: { date: true, meals: true },
+      orderBy: { date: 'desc' },
+      take: GIORNI_DELLA_FINESTRA,
+    })) as { date: Date; meals: unknown }[];
+    if (!rows.length) return [];
+
+    /**
+     * ⚠️ **Scritto come una raccolta di id, non come un pool** — e la forma conta, perché
+     * `una-porta-per-il-pool.spec.ts` ha gridato sulla prima stesura di queste righe e aveva
+     * ragione a chiedere spiegazioni: leggere `.meals` e accumulare `recipeId` è *esattamente* la
+     * forma di chi si costruisce un pool per conto suo, cioè il difetto che quella sentinella
+     * esiste per impedire.
+     *
+     * ⛔ Qui la domanda è un'altra — «in quali giorni è arrivata la carne» — e non produce nessuna
+     * mappa `slot → ricette`: serve solo a chiedere al database cosa contenevano quei piatti. La
+     * forma è cambiata perché la sostanza è diversa, non per zittire il guardiano.
+     */
+    const ids = new Set(
+      rows.flatMap((r) => ((r.meals as { recipeId?: string }[]) ?? []).map((m) => m?.recipeId).filter(Boolean) as string[]),
+    );
+    if (!ids.size) return [];
+
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, name: true, ingredients: true },
+    })) as { id: string; name: string; ingredients: unknown }[];
+    const eCarneQuesta = new Map<string, boolean>();
+    for (const r of ricette) {
+      const nomi = Array.isArray(r.ingredients)
+        ? (r.ingredients as { name?: unknown }[]).map((i) => String(i?.name ?? '')).filter(Boolean)
+        : [];
+      eCarneQuesta.set(r.id, verdettoPescetariano(r.name, nomi) === 'carne');
+    }
+
+    const out: number[] = [];
+    for (const r of rows) {
+      const pasti = ((r.meals as { recipeId?: string }[]) ?? []).filter((m) => m?.recipeId);
+      // ⚠️ `!== false`: una ricetta sparita dal catalogo non è «senza carne», è ignota.
+      if (pasti.some((m) => eCarneQuesta.get(m.recipeId as string) !== false)) {
+        out.push(Math.floor(r.date.getTime() / 86_400_000));
+      }
+    }
+    return out;
   }
 
   /**
@@ -2884,6 +3003,7 @@ export class MenuService {
     kcalOf: Map<string, number>;
     proteinOf: Map<string, number>;
     score: (id: string) => number;
+    carne?: Map<string, boolean>;
   }, salta: Set<string> = new Set(), strutturaDellaDieta?: ReadonlySet<string>): { slots: string[]; poolBySlot: Map<string, RecipeInfo[]> } {
     // Gli slot saltati escono PRIMA della composizione, non dopo: così il target kcal della
     // giornata viene ridistribuito sui pasti rimasti invece di lasciare un buco.
@@ -2904,6 +3024,8 @@ export class MenuService {
           id,
           kcal: ctx.kcalOf.get(id) ?? 0,
           proteinShare: ctx.proteinOf.get(id) ?? 0,
+          // ⚠️ `undefined` quando non lo sappiamo: la regola lo tratta come carne, di proposito.
+          conCarne: ctx.carne?.get(id),
           score: ctx.score(id),
         })),
       );

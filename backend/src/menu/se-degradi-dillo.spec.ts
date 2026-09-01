@@ -119,3 +119,44 @@ describe('la coppia pranzo/cena non si ripete, e quando si ripete lo dice', () =
     expect(pkg.scripts['diag:coppie']).toBeTruthy();
   });
 });
+
+/**
+ * LA REGOLA FLEXITARIANA (decisione di Simone, 1/9: carne due volte a settimana) — stesse tre
+ * domande: che si chieda, che il numero venga da `config_param`, e che uno sforamento si scriva.
+ */
+describe('la carne è limitata, e quando si sfora lo dice', () => {
+  const src = readFileSync(join(__dirname, 'menu.service.ts'), 'utf8');
+
+  it('⛔ il tetto si calcola e si passa a chi compone', () => {
+    const chiamata = src.slice(src.indexOf('this.dayCombo.componi({'));
+    expect(chiamata.slice(0, chiamata.indexOf('});'))).toMatch(/\bcarneRestante:/);
+    expect(src).toMatch(/await this\.giornateConCarneRecenti\(clientId, firstNewDate\)/);
+  });
+
+  it('⛔ il numero viene da `config_param`, e ZERO è nessun limite', () => {
+    expect(src).toMatch(/getNumber\('menu_carne_max_a_settimana', 0\)/);
+    expect(src).toMatch(/const carneMax = Math\.max\(0, pickNumOverride\(/);
+  });
+
+  /**
+   * ⛔ **La carne servita si ricorda DOPO la guardia di varietà**, che può cambiare un piatto: se
+   * si contasse quella scelta, il conteggio direbbe una cosa e il piatto un'altra.
+   */
+  it('⛔ si conta la carne servita, non quella scelta', () => {
+    const dopo = src.slice(src.indexOf('this.pushSlotHistory(slotHistory, chosen, varietyGap);'));
+    expect(dopo.slice(0, 1200)).toMatch(/giornateConCarne\.push\(/);
+  });
+
+  /**
+   * ⛔ **«Non lo sappiamo» conta come carne**: il verso opposto renderebbe il tetto aggirabile da
+   * qualunque ricetta con gli ingredienti scritti male, o cancellata dal catalogo.
+   */
+  it('⛔ un piatto ignoto conta come carne, non come «senza»', () => {
+    expect(src).toMatch(/ctxGiorno\.carne\.get\(m\.recipeId\) !== false/);
+    expect(src).toMatch(/eCarneQuesta\.get\(m\.recipeId as string\) !== false/);
+  });
+
+  it('⛔ e uno sforamento finisce nel log', () => {
+    expect(src).toMatch(/if \(giornateOltreIlTetto > 0\) \{[\s\S]{0,400}?this\.logger\.warn\(/);
+  });
+});

@@ -1,0 +1,52 @@
+La regola flexitariana: la carne due volte a settimana
+
+Decisione di Simone (1/9). È l'ultima cosa della Fase 5, ed è quello che distingue
+«Flessibile» da «onnivoro»: pescano dallo stesso paniere, e senza questo numero le due
+famiglie sono la stessa cosa.
+
+⚠️ LA SETTIMANA È UNA FINESTRA SCORREVOLE, NON IL CALENDARIO. Con la settimana di
+calendario una cliente potrebbe ricevere carne sabato e domenica, poi lunedì e martedì:
+quattro volte in quattro giorni, e tutte e due le settimane «rispettate». Chi mangia conta
+i giorni, non le caselle del calendario.
+
+⛔ ZERO È NESSUN LIMITE, NON «MAI CARNE» — ed è il default. La regola si accende per dieta
+da «Regole motore», dove il capo la mette sulle Flessibili: metterla globale a 2 la
+applicherebbe anche alle onnivore, cioè il contrario di quello che serve.
+
+⛔ «NON LO SAPPIAMO» CONTA COME CARNE
+Un piatto di cui non conosciamo il contenuto — ingredienti scritti male, ricetta
+cancellata dal catalogo — non passa per «senza carne». Il verso opposto renderebbe il
+tetto aggirabile da qualunque buco nei dati, e nel piatto di una flexitariana arriverebbe
+carne che nessuno ha contato.
+
+⛔ E IL TETTO NON COMPRA CALORIE: il filtro sta dopo la scelta della banda kcal, come la
+coppia pranzo/cena. Se la carne finita bastasse ad allargare la banda, una regola
+alimentare comprerebbe calorie fuori target.
+
+⛔ LA RETE: se dentro la banda non resta nessuna giornata senza carne, si compone lo stesso
+e lo si dichiara (log + `carneOltreIlTetto`). Una regola alimentare sforata è un difetto
+da guardare; una cliente senza cena è un guasto.
+
+⚠️ La carne servita si conta DOPO la guardia di varietà, che può cambiare un piatto — e si
+accumula durante il giro, altrimenti sette giornate composte insieme non si vedrebbero fra
+loro.
+
+⚠️ Il verdetto usa la STESSA PORTA della derivazione pescetariana: un secondo elenco di
+carni è un elenco che un giorno diverge. E si calcola una volta per pool, non a ogni
+giornata.
+
+⛔ DUE SENTINELLE HANNO GRIDATO SU DI ME, E AVEVANO RAGIONE TUTTE E DUE
+· `una-porta-per-il-pool` sulla lettura dello storico: leggere `.meals` e accumulare
+  `recipeId` è ESATTAMENTE la forma di chi si costruisce un pool per conto suo. Qui la
+  domanda è un'altra — «in quali giorni è arrivata la carne» — e non produce nessuna mappa
+  slot → ricette: la forma è cambiata perché la sostanza è diversa, non per zittirla.
+· la sentinella delle etichette: il parametro nuovo sarebbe nato muto in pagina Parametri.
+  Seconda volta oggi che mi prende.
+
+PROVE DI MUTAZIONE (tre, uccise)
+  1. «non lo sappiamo» passa per «senza carne»  → 1 prova rossa
+  2. la finestra diventa il calendario           → 1 prova rossa
+  3. il tetto sale prima della banda kcal        → 4 prove rosse
+
+Test: backend 6378 su 382 suite, verdi nelle quattro modalità; back office 173 su 20.
+Build pulite. Nessuna migrazione.

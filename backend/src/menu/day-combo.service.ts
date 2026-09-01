@@ -7,6 +7,12 @@ export interface RecipeInfo {
   kcal: number;
   proteinShare: number; // quota proteica (0..1) sui macro della ricetta
   score: number; // punteggio efficacia+gradimento (già modulato dallo stato)
+  /**
+   * ⚠️ Il piatto contiene carne. Serve alla regola flexitariana (due volte a settimana): assente
+   * = non lo sappiamo, e **non lo sappiamo non vuol dire no** — una giornata con un piatto ignoto
+   * non conta come «senza carne», altrimenti il tetto si aggirerebbe da sé.
+   */
+  conCarne?: boolean;
 }
 
 export interface DayComboInput {
@@ -24,6 +30,11 @@ export interface DayComboInput {
    * ⚠️ Vuoto o assente = la regola non si applica, e la composizione è quella di sempre.
    */
   coppieGiaViste?: ReadonlySet<string>;
+  /**
+   * Quante volte si può ancora avere carne in questa giornata (regola flexitariana, 1/9).
+   * ⚠️ Assente o `Infinity` = nessun limite: è il caso di chi la regola non ce l'ha, cioè quasi tutte.
+   */
+  carneRestante?: number;
 }
 
 /**
@@ -59,6 +70,12 @@ export interface EsitoComposizione {
    * errore: l'alternativa sarebbe stata non comporre.
    */
   coppiaRipetuta: boolean;
+  /**
+   * ⚠️ Vero se il tetto della carne era esaurito e si è dovuta comporre una giornata con carne lo
+   * stesso, perché dentro la banda kcal non ne restava nessuna senza. Una regola alimentare
+   * sforata è un difetto da guardare; una cliente senza cena è un guasto.
+   */
+  carneOltreIlTetto: boolean;
 }
 
 interface Combo {
@@ -151,6 +168,23 @@ export class DayComboService {
     const suCoppie = scartaLeCoppieGiaViste(valid, coppiaDelCombo, input.coppieGiaViste ?? new Set());
     valid = suCoppie.restano;
 
+    /**
+     * ⚠️ **LA REGOLA FLEXITARIANA** (decisione di Simone, 1/9: due volte a settimana). Sta qui,
+     * accanto alla coppia e **dopo la banda**, per la stessa ragione: la carne finita non è un
+     * motivo per allargare le kcal — sarebbe una regola alimentare che compra calorie.
+     *
+     * ⛔ E **non lo sappiamo non vuol dire no**: un piatto di cui non conosciamo il contenuto conta
+     * come carne quando il tetto è esaurito. Il verso opposto — «nel dubbio passa» — renderebbe il
+     * tetto aggirabile da qualunque ricetta senza ingredienti scritti bene.
+     */
+    let carneOltreIlTetto = false;
+    const restanti = input.carneRestante;
+    if (restanti !== undefined && Number.isFinite(restanti) && restanti <= 0) {
+      const senzaCarne = valid.filter((c) => c.picks.every((r) => r.conCarne === false));
+      if (senzaCarne.length) valid = senzaCarne;
+      else carneOltreIlTetto = true; // la rete: si compone lo stesso, e lo si dichiara
+    }
+
     const band = input.proteinBand;
     const rank = (c: Combo): number => {
       let s = c.score;
@@ -172,6 +206,7 @@ export class DayComboService {
       tolleranzaUsata: usata,
       allargataDi: Math.max(0, usata - tolerancePct),
       coppiaRipetuta: suCoppie.ripiegato,
+      carneOltreIlTetto,
     };
   }
 

@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-01
 
+- `[Sviluppo]` 🥩 **La regola flexitariana: la carne due volte a settimana.** Decisione di Simone,
+  ultima cosa della Fase 5 — ed è quello che distingue «Flessibile» da «onnivoro», che pescano dallo
+  stesso paniere. ⚠️ **La settimana è scorrevole, non il calendario**: altrimenti si potrebbe avere
+  carne sabato e domenica, poi lunedì e martedì — quattro volte in quattro giorni, e tutte e due le
+  settimane «rispettate». Chi mangia conta i giorni. ⛔ **Zero è nessun limite, non «mai carne»**, ed
+  è il default: la regola si accende per dieta, perché globale a 2 la applicherebbe anche alle
+  onnivore. ⛔ **«Non lo sappiamo» conta come carne**: un piatto con gli ingredienti scritti male o
+  cancellato dal catalogo non passa per «senza» — il verso opposto renderebbe il tetto aggirabile da
+  qualunque buco nei dati. ⛔ E il tetto **non compra calorie**: sta dopo la banda kcal, come la
+  coppia. La rete resta: se non c'è altro si compone e lo si dichiara. ⛔ **Due sentinelle hanno
+  gridato su di me** — `una-porta-per-il-pool` sulla lettura dello storico (leggere `.meals` e
+  accumulare `recipeId` è esattamente la forma di chi si fa un pool per conto suo: la forma è
+  cambiata perché la sostanza è diversa, non per zittirla) e quella delle etichette, seconda volta
+  oggi.
+
 - `[Sviluppo]` 📅 **Un mese composto dal passato, e il numero che dice quando NON farlo.** §6.1: *«un
   mese coi menu scelti tra quelli che hanno dato migliori risultati e al cliente più graditi»*. ⛔ Il
   problema vero non è scegliere le migliori, è **cosa fare quando finiscono**: trenta giornate

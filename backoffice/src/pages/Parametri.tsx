@@ -93,6 +93,11 @@ const META: Record<string, Meta> = {
     help: 'Se oggi a pranzo c’è la pasta al pomodoro e a cena il branzino, per tanti giorni quella coppia non torna — anche se i due piatti, presi da soli, potrebbero. ZERO spegne la regola. Se il paniere è piccolo e non restano coppie nuove, la giornata si compone lo stesso e finisce nei log.',
   },
 
+  menu_carne_max_a_settimana: {
+    label: 'Carne al massimo, a settimana', group: 'Menu · panieri', kind: 'number', unit: 'volte',
+    help: 'La regola flexitariana: pesca dal paniere onnivoro ma la carne è limitata. ZERO vuol dire nessun limite, NON «mai carne» — e zero è il valore giusto per le diete onnivore. Si accende sulle Flessibili da «Regole motore», dieta per dieta. La settimana è scorrevole (gli ultimi 7 giorni), non quella del calendario.',
+  },
+
   // L'OMAGGIO DI RIENTRO durante la pausa (richiesta di Simone, 27/8).
   pause_omaggio_giorni: {
     label: 'Giornate regalate se ingrassa in pausa', group: 'Menu · panieri', kind: 'number', unit: 'giornate',

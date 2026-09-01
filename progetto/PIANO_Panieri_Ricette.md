@@ -362,8 +362,12 @@ derivazione dei panieri (`npm run panieri:pesce`).
 (`combinazioneImpossibile`, applicata in `updateProfile`): chi le chiede legge una frase che spiega
 perché e **dove andare invece**, non un paniere vuoto.
 
-⚠️ **Resta**: `pescetarian` in `config_param diet_regimes` (lo accende Simone quando i panieri
-derivati sono pieni e guardati) e il flexitariano come `ProductRule` di frequenza.
+✅ E il **flexitariano**: `menu_carne_max_a_settimana`, decisione di Simone dell'1/9 — **due volte
+a settimana**, su finestra scorrevole. Zero = nessun limite, e si accende per dieta da «Regole
+motore».
+
+⚠️ **Resta solo**: `pescetarian` in `config_param diet_regimes`, che lo accende Simone quando i
+panieri derivati sono pieni e guardati.
 
 **Cosa si fa**
 - `pescetarian` entra fra i regimi attivi (`config_param diet_regimes`), e nel nesting:
