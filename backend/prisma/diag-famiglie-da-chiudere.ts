@@ -46,8 +46,16 @@ async function main() {
 
   const [diete, profili, clientiPerDieta] = await Promise.all([
     prisma.diet.findMany({
-      select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true, status: true },
-    }) as unknown as Promise<{ id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null; status: string | null }[]>,
+      /**
+       * ⚠️ **`clientVisible` è la porta d'ingresso** — aggiunto il 2/9 su una domanda di Simone:
+       * «se una cliente si registra oggi vede solo quelle esistenti?». La registrazione mostra le
+       * diete `clientVisible && approved` (`onboarding.service.ts`), quindi finché il flag è acceso
+       * su una famiglia che si chiude **una nuova cliente ci si può ancora iscrivere** — e domani è
+       * un'altra persona da migrare a mano. Le venti della Fase 9 non sono un lavoro che finisce se
+       * la porta resta aperta.
+       */
+      select: { id: true, name: true, regime: true, mealsPerDay: true, fasting: true, status: true, clientVisible: true },
+    }) as unknown as Promise<{ id: string; name: string; regime: string; mealsPerDay: number | null; fasting: boolean | null; status: string | null; clientVisible: boolean | null }[]>,
     prisma.clientProfile.findMany({
       select: { userId: true, name: true, dietFamily: true },
     }) as unknown as Promise<{ userId: string; name: string | null; dietFamily: string | null }[]>,
@@ -72,13 +80,15 @@ async function main() {
     return null;
   };
 
-  const perFamiglia = new Map<string, { varianti: number; approvate: number; serviteDa: number; dove: string }>();
+  const perFamiglia = new Map<string, { varianti: number; approvate: number; visibili: number; serviteDa: number; dove: string }>();
   for (const d of diete) {
     const f = famigliaDi(d.name);
     if (!f) continue;
-    const c = perFamiglia.get(f) ?? { varianti: 0, approvate: 0, serviteDa: 0, dove: FAMIGLIE_CHE_SPARISCONO[f] };
+    const c = perFamiglia.get(f) ?? { varianti: 0, approvate: 0, visibili: 0, serviteDa: 0, dove: FAMIGLIE_CHE_SPARISCONO[f] };
     c.varianti += 1;
     if (d.status === 'approved') c.approvate += 1;
+    /** ⛔ Approvata **e** visibile alla cliente = una nuova iscritta ci si può ancora mettere. */
+    if (d.status === 'approved' && d.clientVisible) c.visibili += 1;
     c.serviteDa += serviteDa.get(d.id) ?? 0;
     perFamiglia.set(f, c);
   }
@@ -96,18 +106,38 @@ async function main() {
   }
 
   riga('');
-  riga('  ┌─ famiglia che si chiude ───────────────┬ var. ┬ appr ┬ serv ┬ profili ┬ dove va ─────────┐');
+  riga('  ┌─ famiglia che si chiude ───────────────┬ var. ┬ appr ┬ APERTA ┬ serv ┬ profili ┬ dove va ─────────┐');
   let totProfili = 0;
   for (const f of Object.keys(FAMIGLIE_CHE_SPARISCONO)) {
-    const c = perFamiglia.get(f) ?? { varianti: 0, approvate: 0, serviteDa: 0, dove: FAMIGLIE_CHE_SPARISCONO[f] };
+    const c = perFamiglia.get(f) ?? { varianti: 0, approvate: 0, visibili: 0, serviteDa: 0, dove: FAMIGLIE_CHE_SPARISCONO[f] };
     const quanti = (profiliPerFamiglia.get(f) ?? []).length;
     totProfili += quanti;
     const dove = c.dove || '⛔ da decidere a mano';
-    riga(`  │ ${f.slice(0, 38).padEnd(38)} │ ${String(c.varianti).padStart(4)} │ ${String(c.approvate).padStart(4)} │ ${String(c.serviteDa).padStart(4)} │ ${String(quanti).padStart(7)} │ ${dove.slice(0, 17).padEnd(17)} │`);
+    /** ⛔ Il numero che dice se domani ci saranno altre persone da migrare. */
+    const aperta = c.visibili > 0 ? `⛔ ${String(c.visibili).padStart(3)}` : '   ✅';
+    riga(`  │ ${f.slice(0, 38).padEnd(38)} │ ${String(c.varianti).padStart(4)} │ ${String(c.approvate).padStart(4)} │ ${aperta.padEnd(6)} │ ${String(c.serviteDa).padStart(4)} │ ${String(quanti).padStart(7)} │ ${dove.slice(0, 17).padEnd(17)} │`);
   }
-  riga('  └────────────────────────────────────────┴──────┴──────┴──────┴─────────┴───────────────────┘');
+  riga('  └────────────────────────────────────────┴──────┴──────┴────────┴──────┴─────────┴───────────────────┘');
   riga('  var. = varianti in catalogo · appr = approvate · serv = clienti servite negli ultimi 30 giorni');
   riga('  profili = clienti che hanno QUEL NOME in `dietFamily` — sono quelle che una chiusura scollega');
+  riga('');
+  /**
+   * ⛔ **«APERTA» è la colonna che decide se questo lavoro finisce.** Sono le varianti approvate e
+   * `clientVisible`: quelle che una cliente che si registra OGGI vede e può scegliere. Finché il
+   * numero non è zero, ogni iscritta nuova può finire su una famiglia che stiamo chiudendo, e le
+   * venti persone della Fase 9 diventano ventuno.
+   */
+  const totAperte = [...perFamiglia.values()].reduce((n, c) => n + c.visibili, 0);
+  if (totAperte > 0) {
+    riga(`  ⛔ LA PORTA È ANCORA APERTA: ${totAperte} varianti di famiglie in chiusura sono approvate E`);
+    riga('     visibili alla cliente. Chi si registra oggi le vede e le può scegliere, e domani è');
+    riga('     un\'altra persona da migrare a mano. Si chiude togliendo la spunta «visibile alla');
+    riga('     cliente» su quelle varianti — non serve cancellare niente.');
+    riga('  ⚠️ La tendina del BACKOFFICE è un\'altra porta e non guarda quel flag: `catalog.famiglie()`');
+    riga('     filtra solo `status: approved`. Spegnere `clientVisible` chiude l\'app, non la scheda.');
+  } else {
+    riga('  ✅ La porta è chiusa: nessuna variante di queste famiglie è visibile a chi si registra.');
+  }
 
   riga('');
   riga(`  Persone da vedere una per una: ${totProfili}`);

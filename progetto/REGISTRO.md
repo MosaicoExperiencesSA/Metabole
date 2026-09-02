@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🚪 **Le vecchie famiglie sono ancora scegliibili: due porte, e una sola ha la
+  serratura.** Due domande di Simone. ⚠️ **Dalla scheda lead si vedono ancora**: `catalog.famiglie()`
+  costruisce la tendina dalle diete `status: approved` e basta, senza guardare `clientVisible`.
+  ⛔ **E chi si registra oggi?** La registrazione filtra `clientVisible && approved`: se il flag è
+  ancora acceso su una famiglia in chiusura, una nuova iscritta la vede, la sceglie, e **domani è
+  un'altra persona da migrare a mano**. Le venti della Fase 9 non sono un lavoro che finisce se la
+  porta resta aperta.
+  ✅ `diag:famiglie-da-chiudere` ha una colonna nuova, **APERTA** — le varianti approvate **e**
+  visibili alla cliente — ed è il numero che dice se questo lavoro ha una fine. Quando non è zero
+  dice cosa fare (togliere la spunta «visibile alla cliente», senza cancellare niente) e avverte
+  che il backoffice è un'**altra** porta, che quel flag non lo guarda.
+  ✅ E `diag:fase9` stampa l'**email** accanto a ogni persona. ⛔ Sono dati personali e l'output di
+  una shell finisce facilmente in una chat: si stampano solo per le venti dell'elenco, mai per
+  tutti i profili.
+  🧪 6593/6593 verdi nelle quattro modalità.
+
 - `[Sviluppo]` 🕰️ **Un misuratore deve dire DA QUANDO misura, non solo cosa.** ⛔
   `panieri:confronta` risponde a «cosa cambierebbe spostando `panieri_sorgente_pool` su `paniere`»,
   e non leggeva il parametro: non sapeva che l'interruttore era **già su `paniere` dall'1/9 alle

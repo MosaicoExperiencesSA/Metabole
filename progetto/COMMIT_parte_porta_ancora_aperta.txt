@@ -1,0 +1,34 @@
+Le vecchie famiglie sono ancora scegliibili: due porte, e una sola ha la serratura
+
+Due domande di Simone, e la seconda pesa più della prima.
+
+1. «Dalla scheda lead vedo ancora le vecchie diete.» Vero:
+   `catalog.service.famiglie()` costruisce la tendina dalle diete `status:
+   approved` e basta — non guarda `clientVisible`. Quindi «Mediterranea senza
+   glutine», «Pescetariana», «Vegana», «Ritorno in Equilibrio» e le altre
+   compaiono allo staff anche dopo che sono state chiuse per le clienti.
+
+2. «Se una cliente si registra oggi vede solo quelle esistenti?» Dipende da un
+   flag: la registrazione filtra `clientVisible && approved`
+   (`onboarding.service.ts`). Se su una famiglia in chiusura quel flag è ancora
+   acceso, una nuova iscritta la vede e la può scegliere — E DOMANI È UN'ALTRA
+   PERSONA DA MIGRARE A MANO. Le venti della Fase 9 non sono un lavoro che
+   finisce, se la porta resta aperta.
+
+Quindi `diag:famiglie-da-chiudere` ha adesso una colonna in più, APERTA: le
+varianti approvate E visibili alla cliente, per ogni famiglia in chiusura. È il
+numero che dice se questo lavoro ha una fine. Sotto la tabella, quando non è
+zero, il tabulato dice cosa fare (togliere la spunta «visibile alla cliente»,
+senza cancellare niente) e avverte che la tendina del backoffice è un'ALTRA
+porta che quel flag non lo guarda: spegnere `clientVisible` chiude l'app, non la
+scheda.
+
+E `diag:fase9` stampa l'indirizzo email accanto a ogni persona, che è quello che
+serve per scrivere a queste venti. ⛔ Sono dati personali di clienti reali e
+l'output di una shell finisce facilmente in una chat o in un log: si stampano
+solo per le persone dell'elenco, mai per tutti i profili.
+
+File: backend/prisma/diag-famiglie-da-chiudere.ts,
+backend/prisma/diag-migrazione-fase9.ts.
+
+Prove: 6593/6593 verdi nelle quattro modalità, build e tsc puliti.

@@ -74,7 +74,7 @@ const ATTESE: readonly Attesa[] = [
 async function main() {
   titolo('FASE 9 — le venti persone: è andata come doveva?');
 
-  const [profili, panieri, righe, ricette, certificati] = await Promise.all([
+  const [profili, panieri, righe, ricette, certificati, utenti] = await Promise.all([
     prisma.clientProfile.findMany({
       select: {
         userId: true, name: true, dietFamily: true, regime: true, updatedAt: true,
@@ -91,7 +91,18 @@ async function main() {
     prisma.recipe.findMany({ where: { active: true }, select: { id: true } }) as unknown as Promise<{ id: string }[]>,
     prisma.personalizationCertificate.findMany({ select: { clientId: true, createdAt: true } }) as unknown as
       Promise<{ clientId: string; createdAt: Date }[]>,
+    /**
+     * ⚠️ **L'indirizzo email, per scrivere a queste persone** — chiesto da Simone il 2/9.
+     *
+     * ⛔ Sono dati personali di clienti reali, e questo tabulato si lancia in una shell il cui
+     * output finisce facilmente in una chat o in un log: si stampa **solo** per le persone
+     * dell'elenco qui sopra, mai per tutti i profili, e chi lo lancia sa che quello che ne esce
+     * non si incolla dove capita.
+     */
+    prisma.user.findMany({ select: { id: true, email: true } }) as unknown as
+      Promise<{ id: string; email: string }[]>,
   ]);
+  const emailDi = new Map(utenti.map((u) => [u.id, u.email]));
 
   const attive = new Set(ricette.map((r) => r.id));
   const idDi = new Map(panieri.map((p) => [`${p.famiglia}|${p.regime}`, p.id]));
@@ -135,6 +146,7 @@ async function main() {
     const ferma = (p.dietFamily ?? '') === a.daFamiglia;
     if (arrivata) fatte += 1; else daFare += 1;
     riga(`  ${arrivata ? '✅' : ferma ? '·' : '⚠️'} ${a.id8}  ${(p.name ?? a.nome).padEnd(16)} «${p.dietFamily ?? '(vuota)'}»`);
+    riga(`       ${emailDi.get(p.userId) ?? '⚠️ nessun utente per questo profilo: non le si può scrivere'}`);
     if (!arrivata) {
       riga(`       ${ferma ? 'ancora da spostare' : '⚠️ NON è né dove stava né dove doveva andare'} → attesa: «${a.aFamiglia}»`);
       continue;
