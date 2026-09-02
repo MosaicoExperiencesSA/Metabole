@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ⚖️ **Il confronto prima/dopo costruiva le due sponde in due modi diversi — e ha detto
+  «non accendere» quando non era vero.** ⛔ `npm run panieri:confronta` è la verifica che decide se
+  accendere il paniere, e il 2/9 ha risposto «119 varianti perderebbero almeno una ricetta». Il
+  difetto era **nel misuratore**: le giornate passavano da `poolPerSlot` — che dall'1/9 allarga ai
+  gemelli, perché **spuntino e merenda sono un paniere solo** — e il paniere no, costruito con un
+  ciclo scritto a mano. Lato giornate 168 e 168, lato paniere 84 e 84: ~80 «perse» per chiave, su
+  tutte le famiglie. Nel tabulato le perdite erano infatti quasi tutte sui due spuntini.
+  ✅ **La correzione non è aggiungere una chiamata: è togliere a chi chiama la possibilità di
+  dimenticarla.** Le due sponde si costruiscono dentro `catalog/confronto-dei-pool.ts`, dalla stessa
+  funzione. ⚠️ È il **quarto falso allarme della settimana**, e sono nati tutti così: due metà della
+  stessa domanda costruite in due posti.
+  ⛔ **Ma non erano tutte finte, e dirlo sarebbe stato l'errore uguale e contrario.**
+  `allargaAiGemelli` arricchisce i pasti che il pool **ha già**, non ne inventa: se un paniere non
+  ha **nessuna** ricetta di merenda, quella chiave non esiste e una cliente che la merenda ce l'ha
+  resterebbe senza — perdita vera. E nel tabulato c'era anche «2 su `dinner`», che i gemelli non
+  spiegano.
+  ✅ Quindi il tabulato ora stampa, sotto ogni perdita, **quali pasti il paniere ha davvero** e le
+  prime ricette perse per id: «mancano dei piatti» e «la cliente resterebbe senza questo pasto»
+  erano lo stesso numero, e sono due lavori diversi.
+  🧪 Nove prove nel modulo puro, fra cui il criterio che la correzione non abbia **spento** il
+  misuratore. ⚠️ Due delle prove che avevo scritto erano rosse perché davo per scontato che
+  l'allargamento inventasse le chiavi mancanti: sbagliavo io, non il prodotto.
+  6565/6565 verdi nelle quattro modalità; quattro mutazioni uccise, la prima rimette il difetto del
+  2/9 e fa diventare rosse due prove.
+
 - `[Sviluppo]` 🧺 **Panieri: «mostra solo attive» e «mostra solo in bozza».** Richiesta di Simone.
   ⛔ **Il filtro vale per tutta la pagina**, non solo per l'elenco che si apre sotto: la matrice
   scrive `84 (60)`, e un filtro che cambiasse l'elenco lasciando i numeri sopra farebbe leggere

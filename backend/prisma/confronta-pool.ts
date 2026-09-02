@@ -29,7 +29,8 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { paniereDellaVariante } from '../src/catalog/appartenenza-panieri';
-import { poolPerSlot, righeDalleGiornate } from '../src/catalog/pool-del-paniere';
+import { righeDalleGiornate } from '../src/catalog/pool-del-paniere';
+import { confrontaLePoole, quantePerse } from '../src/catalog/confronto-dei-pool';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 20) || 20);
@@ -62,13 +63,18 @@ async function main() {
   const perDieta = new Map<string, { meals: unknown }[]>();
   for (const g of giornate) perDieta.set(g.dietId, [...(perDieta.get(g.dietId) ?? []), { meals: g.meals }]);
 
-  const perPaniere = new Map<string, Map<string, Set<string>>>();
+  /**
+   * ⛔ **RIGHE GREZZE, non un pool costruito qui.** Fino al 2/9 questo ciclo costruiva la mappa
+   * `slot → ricette` a mano, mentre il lato «giornate» passava da `poolPerSlot` — che dall'1/9
+   * allarga ai gemelli, perché spuntino e merenda sono un paniere solo. Due sponde costruite in
+   * due modi: il confronto misurava due cose diverse e ha detto «119 varianti perderebbero almeno
+   * una ricetta» quando non era vero. Ora le costruisce tutte e due `confrontaLePoole`, e chi
+   * chiama non ha più dove sbagliarle in modo diverso.
+   */
+  const righePerPaniere = new Map<string, { slot: string; recipeId: string }[]>();
   for (const a of appartenenze) {
     const k = `${a.paniere.famiglia}|${a.paniere.regime}`;
-    const pool = perPaniere.get(k) ?? new Map<string, Set<string>>();
-    if (!pool.has(a.slot)) pool.set(a.slot, new Set());
-    pool.get(a.slot)!.add(a.recipeId);
-    perPaniere.set(k, pool);
+    righePerPaniere.set(k, [...(righePerPaniere.get(k) ?? []), { slot: a.slot, recipeId: a.recipeId }]);
   }
 
   riga('');
@@ -83,36 +89,43 @@ async function main() {
   const perse: string[] = [];
   let varianteConPerdite = 0;
   let guadagnateTot = 0;
+  let perseTot = 0;
   let confrontate = 0;
   let nonMappabili = 0;
 
   for (const d of diete) {
     const esito = paniereDellaVariante(d);
     if (esito.tipo !== 'paniere') { nonMappabili += 1; continue; }
-    const daGiornate = poolPerSlot(righeDalleGiornate(perDieta.get(d.id) ?? []));
-    const daPaniere = perPaniere.get(`${esito.famiglia}|${esito.regime}`) ?? new Map<string, Set<string>>();
+    const righeGiornate = righeDalleGiornate(perDieta.get(d.id) ?? []);
+    const righePaniere = righePerPaniere.get(`${esito.famiglia}|${esito.regime}`) ?? [];
     confrontate += 1;
 
-    let persePerVariante = 0;
-    for (const [slot, ids] of daGiornate) {
-      const la = daPaniere.get(slot) ?? new Set<string>();
+    /**
+     * ⚠️ Le ricette che **non esistono più** non si contano come perse: la chiave esterna le
+     * rifiuta di proposito, e `panieri:riempi` le dichiara già. Contarle qui vorrebbe dire far
+     * sembrare rotta la migrazione per la cosa che è venuta a chiudere.
+     */
+    const esito2 = confrontaLePoole(righeGiornate, righePaniere, (id) => esiste.has(id));
+    guadagnateTot += esito2.guadagnate;
+    perseTot += quantePerse(esito2);
+    if (esito2.perse.length) {
+      varianteConPerdite += 1;
       /**
-       * ⚠️ Le ricette che **non esistono più** non si contano come perse: la chiave esterna le
-       * rifiuta di proposito, e `panieri:riempi` le dichiara già. Contarle qui vorrebbe dire far
-       * sembrare rotta la migrazione per la cosa che è venuta a chiudere.
+       * ⛔ **Le chiavi che il paniere HA**, stampate accanto alla perdita. Una perdita su
+       * `afternoon_snack` vuol dire due cose diversissime a seconda che quella chiave nel paniere
+       * ci sia (mancano dei piatti) o non ci sia affatto (nel paniere non c'è **nessuna** ricetta
+       * di quel pasto, e la cliente resterebbe senza). Senza questa riga si va a cercare a occhio.
        */
-      const mancanti = [...ids].filter((id) => esiste.has(id) && !la.has(id));
-      if (mancanti.length) {
-        persePerVariante += mancanti.length;
-        if (perse.length < ESEMPI) {
-          perse.push(`  · ${String(mancanti.length).padStart(4)} su «${slot}» — ${d.name} · ${d.regime} (${d.status})`);
-        }
+      const chiaviPaniere = [...new Set(righePaniere.map((r) => r.slot))].sort().join(', ') || '(nessuna)';
+      for (const p of esito2.perse) {
+        if (perse.length >= ESEMPI) break;
+        const ceLaChiave = righePaniere.some((r) => r.slot === p.slot);
+        perse.push(
+          `  · ${String(p.mancanti.length).padStart(4)} su «${p.slot}» — ${d.name} · ${d.regime} (${d.status})`
+          + `\n        nel paniere: ${chiaviPaniere}${ceLaChiave ? '' : '   ⛔ «' + p.slot + '» NON c\'è: la cliente resterebbe senza questo pasto'}`
+          + `\n        prime perse: ${p.mancanti.slice(0, 5).join(', ')}${p.mancanti.length > 5 ? ` … (+${p.mancanti.length - 5})` : ''}`,
+        );
       }
-    }
-    if (persePerVariante) varianteConPerdite += 1;
-    for (const [slot, ids] of daPaniere) {
-      const qua = daGiornate.get(slot) ?? new Set<string>();
-      guadagnateTot += [...ids].filter((id) => !qua.has(id)).length;
     }
   }
 
@@ -125,9 +138,14 @@ async function main() {
     riga('  ✅ NESSUNA ricetta si perde: tutto quello che una cliente può ricevere oggi lo può');
     riga('  ricevere anche leggendo dal paniere. `panieri_sorgente_pool` si può spostare su `paniere`.');
   } else {
-    riga(`  ⛔ ${varianteConPerdite} varianti perderebbero almeno una ricetta. NON spostare l'interruttore.`);
+    riga(`  ⛔ ${varianteConPerdite} varianti perderebbero almeno una ricetta (${perseTot} in tutto). NON spostare l'interruttore.`);
     riga('  ⚠️ Una ricetta che sta nelle giornate e non nel paniere è un piatto che sparisce dal menu');
     riga('  di una cliente senza che nessuno lo decida. Prima si capisce perché.');
+    riga('');
+    riga('  ⚠️ Sotto ogni riga: quali pasti il paniere HA, e le prime ricette perse. Una perdita su');
+    riga('  un pasto che nel paniere ESISTE vuol dire «mancano dei piatti»; su un pasto che nel');
+    riga('  paniere non c\'è affatto vuol dire «la cliente resterebbe senza quel pasto», ed è');
+    riga('  segnalato a parte. Sono due lavori diversi.');
     riga('');
     perse.forEach(riga);
   }

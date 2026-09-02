@@ -1,0 +1,56 @@
+Il confronto prima/dopo costruiva le due sponde in due modi diversi
+
+`npm run panieri:confronta` è la verifica che decide se accendere il paniere. Il
+2/9 ha risposto «⛔ 119 varianti perderebbero almeno una ricetta, NON spostare
+l'interruttore» — e il difetto era nel misuratore.
+
+Costruiva le due sponde in due modi:
+· le GIORNATE con `poolPerSlot`, che dall'1/9 chiama `allargaAiGemelli` — perché
+  spuntino e merenda sono un paniere solo, quindi ognuna delle due chiavi si
+  porta dentro anche le ricette dell'altra;
+· il PANIERE con un ciclo scritto a mano sulle appartenenze, senza quello.
+
+Il lato giornate aveva 168 piatti sotto `morning_snack` e 168 sotto
+`afternoon_snack`, il lato paniere 84 e 84: ~80 ricette «perse» per chiave, su
+tutte le famiglie insieme. Nel tabulato le perdite erano infatti quasi tutte su
+`morning_snack` e `afternoon_snack`.
+
+LA CORREZIONE NON È AGGIUNGERE UNA CHIAMATA: è togliere a chi chiama la
+possibilità di dimenticarla. Le due sponde adesso si costruiscono dentro
+`catalog/confronto-dei-pool.ts`, dalla stessa funzione, e uno script che
+volesse sbagliarle in modo diverso non ha più dove farlo. È il quarto falso
+allarme della settimana e sono nati tutti così: due metà della stessa domanda
+costruite in due posti.
+
+⚠️ MA NON VUOL DIRE CHE FOSSERO TUTTE FINTE, e non va detto.
+`allargaAiGemelli` arricchisce i pasti che il pool HA GIÀ; non ne inventa. Se un
+paniere non contiene NESSUNA ricetta con `mealSlot = afternoon_snack`, quella
+chiave nel pool non esiste, e una cliente che nella sua giornata ha la merenda
+non ha da dove pescarla: è una perdita vera. E nel tabulato del 2/9 c'era anche
+«2 su dinner — DASH vegetarian», che i gemelli non spiegano in nessun modo.
+
+Quindi il tabulato adesso, sotto ogni perdita, stampa DUE cose che prima non
+diceva: quali pasti il paniere ha davvero, e le prime ricette perse per id. Una
+perdita su un pasto che nel paniere ESISTE vuol dire «mancano dei piatti»; su un
+pasto che nel paniere non c'è affatto vuol dire «la cliente resterebbe senza
+quel pasto», ed è segnalato a parte. Sono due lavori diversi, e prima erano lo
+stesso numero. In fondo c'è anche il totale delle ricette perse, non solo quante
+varianti.
+
+Il confronto sta in un modulo puro con nove prove. Fra queste il criterio che
+dice che la correzione non ha SPENTO il misuratore: una perdita vera su un pasto
+senza gemelli deve continuare a comparire, e una ricetta di spuntino che nel
+paniere non c'è né sotto una chiave né sotto l'altra resta persa — l'allargamento
+non è un condono.
+
+⚠️ Due delle prove che avevo scritto erano rosse perché davo per scontato che
+l'allargamento inventasse le chiavi mancanti. Non lo fa, ed è giusto così: dove
+il paniere non ha quel pasto, la perdita è reale. Le aspettative erano sbagliate
+io, non il prodotto.
+
+File: backend/src/catalog/confronto-dei-pool.ts (nuovo) e il suo spec,
+backend/prisma/confronta-pool.ts.
+
+Prove: 6565/6565 verdi nelle quattro modalità obbligatorie, `npm run build` e
+`npx tsc --noEmit` puliti. Quattro mutazioni uccise, la prima delle quali
+rimette esattamente il difetto del 2/9 e fa diventare rosse due prove.
