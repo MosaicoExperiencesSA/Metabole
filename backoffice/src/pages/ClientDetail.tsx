@@ -146,6 +146,25 @@ interface ChangeLogRow {
 
 const CHANGE_ACTION_LABEL: Record<string, string> = {
   'client.update': 'Modifica scheda',
+  /**
+   * ⛔ Senza questa etichetta la riga comparirebbe col nome tecnico. E senza la riga, il fatto che
+   * la base personale non si sia rifatta non lo saprebbe nessuno: la scheda dice «salvato».
+   */
+  'client.personal_base_failed': '⛔ Base ricette NON aggiornata',
+  /**
+   * ⛔ **Le due voci della scheda lead, che qui mancavano da sempre** — trovate il 2/9 dalla prova
+   * che lega le azioni alle etichette. Sono ammesse nel log dall'8/8 (richiesta di Simone: «i due
+   * log devono raccontare la stessa storia»), ma l'etichetta era stata scritta solo in
+   * `LeadDetail.tsx`: qui comparivano col nome tecnico, `crm.lead.update_info`, in una schermata
+   * che legge una nutrizionista.
+   *
+   * ⚠️ **Le parole non sono le stesse dell'altra pagina, ed è voluto.** Là si è nella scheda del
+   * lead e «Modifica dati (backoffice)» basta; qui si è nella scheda della cliente, e la cosa che
+   * serve sapere è **da dove** arriva la modifica. Le due mappe restano due perché quattro
+   * etichette differiscono di proposito: unirle cambierebbe testi che qualcuno ha scelto.
+   */
+  'crm.lead.update_info': 'Modifica dati (dalla scheda lead)',
+  'crm.lead.advance': 'Cambio stato (dalla scheda lead)',
   'client.diet_type.change': 'Cambio tipo di dieta',
   'me.profile.update': 'Modifica dati (dal cliente)',
   'admin.assignment.update': 'Assegnazione coach / nutrizionista',

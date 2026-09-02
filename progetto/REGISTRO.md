@@ -20,6 +20,66 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🥕 **Il foglio alimenti del 2/9: pronto per l'import, e l'import si rifiuta di
+  caricarlo.** Le 262 righe sono trascritte nel formato dell'importatore, coi valori **copiati** e
+  verificati uno per uno contro il foglio (zero differenze). ⛔ Poi l'import **si ferma**:
+  `trovaGemelli` — scritto il 20/8 dopo essersi bruciati sullo stesso problema — trova **149 righe
+  con i valori identici a un altro alimento**. Nel gruppo più grosso, 89 righe a «100/5/10/2/3/2»,
+  ci sono `sale q b`, `vino bianco`, `gorgonzola`, `maionese`, `cioccolato fondente 85`: il
+  gorgonzola non fa 100 kcal e il fondente ne fa seicento. E poi **riso basmati cotto** a 350,
+  **lenticchie cotte** a 310, il **cipollotto** con 21 g di proteine insieme al petto di pollo.
+  ⛔ **E la mia prima analisi diceva che il foglio era in ottimo stato**: guardavo riga per riga, e
+  **una riga copiata resta coerente con sé stessa**. La copia si vede solo mettendo le righe
+  accanto — è la stessa lezione già scritta nel commento del 20/8, e l'ho ripetuta.
+  ⛔ **E lo stato avrebbe fatto tornare indietro tutto il lavoro**: il foglio scrive «crudo /
+  naturale» su 238 righe, e `normalizzaStato` legge `altro` — «non lo so» — a qualunque valore con
+  una barra. Il 91% degli alimenti appena compilati sarebbe rientrato **nell'elenco da cui il foglio
+  è nato**. ✅ La traduzione sta in `stato-dal-foglio.ts`, fuori da `normalizzaStato`, e quello che
+  non riconosce **non diventa `crudo` per comodità**: l'import si ferma e dice quale scrittura non
+  era prevista.
+  ✅ E la **nota** di chi ha compilato entra in tabella: 244 righe su 262 ne hanno una, ed è la parte
+  che spiega i numeri.
+  🧪 6637/6637 verdi nelle quattro modalità.
+
+- `[Sviluppo]` 📐 **Quante clienti leggono un pool più vecchio di quello che hanno.** La correzione
+  della numerazione (versione della **cliente**, non della coppia cliente-dieta) **non ripara il
+  passato da sola**: una disallineata torna a posto alla prima ricostruzione, cioè quando qualcuno
+  riapre la sua scheda e risalva. ✅ `npm run diag:pool-disallineato` dice quante sono e chi — le
+  tre trovate erano quelle che ho guardato, non quelle che ci sono.
+  ⚠️ **Cosa misura**: non «il pool è della dieta del profilo» (`pickDietFor` ha sette ripieghi, e la
+  dieta servita può essere legittimamente diversa: misurarlo così darebbe falsi allarmi), ma che il
+  pool che **vince per versione** sia anche il più **recente per data**. Una ricostruzione più nuova
+  che nessuno legge è il difetto, e non è opinabile.
+  🧪 6626/6626 verdi nelle quattro modalità.
+
+- `[Sviluppo]` 🧬 **La base personale non si rifaceva quando a cambiare la dieta era lo staff.**
+  ⛔ `diag:fase9` ha mostrato Rosa, Arianna e Carla sulla famiglia **nuova** con la base **vecchia**:
+  erano state spostate dalla scheda, e `clients.service` non conosceva nemmeno
+  `PersonalBaseService` — la ricostruzione c'era **solo** quando a toccare i dati era la cliente
+  dall'app. Da `ClientMenuPool` pescano il cambio di piatto in chat e la giornata di Vera: con la
+  base ferma scelgono coi dati di prima, **compresa un'allergia aggiunta oggi**. Stessa forma dei
+  panieri dell'1/9 e dei segnali del 28/8: due porte, e una sola faceva il lavoro.
+  ⚠️ E l'elenco dei campi era corto: quattro guardati contro **dieci** letti da `buildPersonalBase`.
+  Mancavano `pathType`, `objective` e — peggio — `allergies`, che sono il motivo per cui la base
+  esiste.
+  ⛔ **La revisione avversariale ha trovato che la correzione non correggeva niente**, ed è la parte
+  da leggere. Le versioni del pool si contavano per la coppia **(cliente, dieta)**, mentre tutti e
+  quattro i lettori cercano per **sola cliente** e prendono la più alta: una cliente con quattro
+  ricostruzioni sulla dieta vecchia otteneva un pool **v1**, e i lettori continuavano a pescare il
+  **v4 della dieta vecchia**. Con una versione sola si pareggiava e vinceva l'ordine del database —
+  cioè a intermittenza, che è il modo peggiore. ✅ La versione adesso è **della cliente**, e nessuna
+  migrazione serve.
+  ⛔ **E un secondo buco**: il glutine dichiarato fra intolleranze o cibi non graditi cambia
+  `dietFamily` con una `updateMany` sua, fuori dal confronto — la base non si rifaceva, e la prova
+  che copre quel caso passava verde attraversandoci in mezzo.
+  ⚠️ Altri tre minori chiusi, fra cui: l'audit del fallimento **prometteva di essere leggibile dalla
+  scheda e non lo era** (il log filtra su una lista bianca), cioè il rimedio riproduceva il difetto
+  che dichiarava di chiudere.
+  🔍 **E la prova nuova sul log ne ha trovati due che non cercavo**: `crm.lead.update_info` e
+  `crm.lead.advance` erano ammessi nel log della scheda cliente dall'8/8 **senza etichetta**, e
+  comparivano col nome tecnico a una nutrizionista.
+  🧪 6626/6626 backend, 205/205 backoffice, nove mutazioni uccise.
+
 - `[Sviluppo]` 🏷️ **Le famiglie in chiusura nella scheda: si marcano, non si nascondono.**
   Segnalazione di Simone. ✅ Restano in tendina, in un gruppo in fondo — «In chiusura — non
   assegnarle a chi arriva adesso» — perché **toglierle sarebbe peggio**: chi ce l'ha già sopra deve

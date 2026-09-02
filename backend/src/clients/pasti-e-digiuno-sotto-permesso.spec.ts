@@ -44,7 +44,7 @@ const servizio = (permesso: boolean, profilo: Record<string, unknown> = {}) => {
   } as never;
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const menu = { redeliverFutureDays: jest.fn().mockResolvedValue({ removed: 0, delivered: [] }) };
-  const s = new ClientsService(prisma, {} as never, audit as never, {} as never, menu as never, {} as never, {} as never, {} as never, {} as never);
+  const s = new ClientsService(prisma, {} as never, audit as never, {} as never, menu as never, {} as never, {} as never, {} as never, {} as never, { buildPersonalBase: jest.fn().mockResolvedValue({}) } as never);
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
   return { s, audit, menu, prisma: prisma as unknown as Record<string, { [k: string]: jest.Mock }> };
 };

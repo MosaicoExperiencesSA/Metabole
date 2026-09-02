@@ -256,8 +256,35 @@ export class PersonalBaseService {
     // 5. Blocco o certificazione.
     if (reasons.length) return this.block(clientId, profile.assignedNutritionistId, reasons);
 
+    /**
+     * ⛔ **LA VERSIONE È DELLA CLIENTE, NON DELLA COPPIA (CLIENTE, DIETA)** — corretto il 2/9, e
+     * fino a quel giorno era il difetto che rendeva inutile ogni ricostruzione dopo un cambio di
+     * famiglia.
+     *
+     * Qui si contava `where: { clientId, dietId }`, mentre **tutti e quattro** i lettori cercano
+     * per sola cliente e prendono la versione più alta:
+     *
+     * · `getStatus` — lo stato che vede la cliente nell'app;
+     * · `sostituzione-chat.candidatiPerSlot` — il cambio di piatto in chat;
+     * · `vera-chat.poolDellaCliente` — la giornata dettata dalla nutrizionista;
+     * · e la verifica del certificato, che cerca `{ clientId, version }`.
+     *
+     * ⛔ Conseguenza: una cliente con quattro ricostruzioni sulla dieta vecchia (v1…v4) che viene
+     * spostata su una famiglia nuova otteneva un pool **v1**, e i tre lettori continuavano a
+     * pescare il **v4 della dieta vecchia**. La base si rifaceva e non la leggeva nessuno. Con una
+     * sola versione vecchia si finiva in pareggio (v1 contro v1) e vinceva l'ordine del database:
+     * cioè a caso, cioè a intermittenza — che è il modo peggiore.
+     *
+     * ⚠️ E il certificato è chiavato su `(clientId, version)`: due pool di diete diverse con la
+     * stessa versione si sovrascrivevano il certificato a vicenda.
+     *
+     * ✅ Contando per sola cliente il numero è monotono: l'ultimo pool costruito è sempre quello
+     * con la versione più alta, che è ciò che i lettori danno per scontato. ⚠️ Nessuna migrazione:
+     * le righe vecchie restano, e la prima ricostruzione di una cliente disallineata prende
+     * `max + 1` su tutte le sue diete e torna davanti.
+     */
     const last = (await this.prisma.clientMenuPool.findFirst({
-      where: { clientId, dietId: diet.id },
+      where: { clientId },
       orderBy: { version: 'desc' },
       select: { version: true },
     })) as unknown as { version: number } | null;

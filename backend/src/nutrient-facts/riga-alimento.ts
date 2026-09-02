@@ -36,6 +36,16 @@ export interface RigaAlimento {
   glycemicIndexMax?: number | null;
   /** solida | media | debole | non_applicabile — gli unici che il motore legge. */
   glycemicIndexReliability?: string | null;
+  /**
+   * ⛔ **LA NOTA DI CHI HA COMPILATO** — aggiunta il 2/9, e mancava per la stessa ragione per cui
+   * mancava l'IG il 20/8: una colonna che non arriva non produce nessun errore.
+   *
+   * Nel foglio del 2/9 **244 righe su 262** hanno una nota, e sono la parte che spiega i numeri —
+   * «il carico glicemico è bassissimo (2 per 80 g): l'IG da solo, qui, dice poco». Buttarle
+   * all'ingresso vorrebbe dire perdere il ragionamento e tenere solo la cifra, che è il modo più
+   * veloce per non poter più rimettere in discussione la cifra.
+   */
+  note?: string | null;
   /** Da quale foglio del file viene: serve solo a raccontarlo nella prova a vuoto. */
   foglio: string;
 }

@@ -25,6 +25,7 @@ import { PrenotazioniService } from '../agenda/prenotazioni.service';
 import { PauseService } from '../pause/pause.service';
 // ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff passano dallo stesso guardrail.
 import { SignalsService } from '../signals/signals.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
 import { TIPO_VISITA_DA_FISSARE } from './visita-da-fissare';
 
 const NOTA = 'Valutata in visita il 12/8: allergia al latte, nessuna controindicazione al percorso.';
@@ -99,6 +100,11 @@ async function crea(opzioni?: { permesso?: boolean }) {
         },
       },
       { provide: SignalsService, useValue: { controllaPesoIncoerente: jest.fn().mockResolvedValue(null) } },
+      /**
+       * ⚠️ `PersonalBaseService` (2/9): lo staff che cambia dieta o allergie deve far rifare la
+       * base personale sicura, che prima si rifaceva solo quando a toccare i dati era la cliente.
+       */
+      { provide: PersonalBaseService, useValue: { buildPersonalBase: jest.fn().mockResolvedValue({}) } },
     ],
   }).compile();
   return { service: moduleRef.get(ClientsService), prisma, audit, coachTasks, prenotazioni };

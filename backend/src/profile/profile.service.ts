@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { combinazioneImpossibile } from '../catalog/appartenenza-panieri';
+import { laBaseVaRifatta } from '../common/base-personale-da-rifare';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { validateObjective } from '../onboarding/objective-validator';
@@ -220,13 +221,29 @@ export class ProfileService {
       });
     }
 
-    // Se cambiano regime/stile/numero pasti, il prodotto e il pool ricette possono
-    // cambiare: rigeneriamo la base personalizzata sicura (non bloccante).
-    if (dto.regime !== undefined || dto.dietStyle !== undefined || dto.dietFamily !== undefined || dto.mealsPerDay !== undefined) {
+    /**
+     * Se cambia qualcosa che sposta **quali ricette** la cliente può ricevere, la base personale
+     * sicura si rifà. ⚠️ La condizione sta in `common/base-personale-da-rifare.ts`: qui era scritta
+     * a mano e guardava **quattro** campi mentre `buildPersonalBase` ne legge dieci — chi passava da
+     * 5 a 3 pasti, o si vedeva aggiungere un'allergia, restava con la base di prima.
+     *
+     * ⚠️ E si guardano i campi **davvero cambiati** (`campi`, già calcolato per l'audit qui sopra),
+     * non quelli mandati: il form rimanda tutto a ogni Salva.
+     */
+    if (laBaseVaRifatta(campi.map((c) => c.campo))) {
       try {
         await this.personalBase.buildPersonalBase(userId);
-      } catch {
-        /* non bloccante */
+      } catch (e) {
+        /**
+         * ⛔ **Non bloccante, ma non muto.** Il `catch {}` vuoto che c'era qui è il motivo per cui
+         * una base non rifatta è invisibile: il salvataggio riesce, la cliente non vede niente, e
+         * il disallineamento si scopre contando a mano. Non far fallire la scheda è giusto; non
+         * dire niente no.
+         */
+        this.logger.warn(
+          `Base personale non rifatta per ${userId} dopo un salvataggio dall'app: `
+          + `${e instanceof Error ? e.message : String(e)}. I cambi in chat pescheranno dai dati di prima.`,
+        );
       }
     }
     return {

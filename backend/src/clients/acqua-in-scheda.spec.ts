@@ -57,6 +57,7 @@ function schedaCon(acqua: unknown[]) {
     {} as never,
     // ⚠️ `SignalsService` (28/8): le pesate corrette dallo staff fanno scattare gli stessi segnali.
     {} as never,
+    { buildPersonalBase: jest.fn().mockResolvedValue({}) } as never,
   );
   return { service, prisma };
 }

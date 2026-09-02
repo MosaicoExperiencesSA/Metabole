@@ -1,0 +1,61 @@
+Il foglio alimenti del 2/9: pronto per l'import, e l'import si rifiuta di caricarlo
+
+Il foglio compilato (262 righe) è stato trascritto nel formato che l'importatore
+già usa — `prisma/dati-alimenti-2-9.ts`, modulo e non JSON, per la stessa ragione
+degli altri due: un file che in `dist/` non c'è fa fallire lo script il giorno
+che serve. I valori sono COPIATI, non rielaborati, e verificati uno per uno
+contro il foglio: 262 righe, sette campi ciascuna, zero differenze. Le celle
+vuote sono `null` — «non lo so» e «non ne contiene» sono due cose diverse.
+
+⛔ E POI L'IMPORT SI FERMA, perché il foglio ha 149 righe con i valori identici a
+quelli di un altro alimento. Il controllo è `trovaGemelli`, scritto il 20/8 dopo
+essersi bruciati sullo stesso problema, e ha ragione:
+
+· 89 righe a «100/5/10/2/3/2» — dentro ci sono `sale q b`, `vino bianco`,
+  `gorgonzola`, `maionese`, `cioccolato fondente 85`, `branzino`, `lattuga`. Il
+  gorgonzola non fa 100 kcal e il cioccolato fondente ne fa seicento;
+· 16 a «350 kcal», fra cui **riso basmati cotto** — il riso cotto ne fa 110;
+· 8 a «310 kcal», fra cui **lenticchie verdi cotte** e **piselli surgelati**;
+· 6 a «130/21/0/0/4.5/0», dove il **cipollotto** sta insieme al petto di pollo,
+  con 21 g di proteine e zero carboidrati;
+· 6 a «150/20» con merluzzo, sgombro, tonno e orata tutti uguali;
+· 12 verdure a «25 kcal»; 6 fra parmigiano e grana insieme ai **semi di
+  melagrana**.
+
+⚠️ I gruppi legittimi il controllo li riconosce già e li lascia passare: i dodici
+modi di scrivere «olio di oliva», le mele, i «grattugiati».
+
+⛔ E LA MIA PRIMA ANALISI DICEVA CHE IL FOGLIO ERA IN OTTIMO STATO. Guardavo riga
+per riga — coerenza fra kcal e macro, celle vuote — e una riga copiata resta
+coerente con sé stessa. La copia si vede solo mettendo le righe accanto. È la
+stessa lezione già scritta nel commento del 20/8, e l'ho ripetuta.
+
+⛔ LO STATO: LA COSA CHE AVREBBE FATTO TORNARE INDIETRO TUTTO IL LAVORO.
+In `Stato` il foglio scrive «crudo / naturale» su 238 righe di 262 e «lavorato /
+cotto» su altre 7. `normalizzaStato` rende `altro` — cioè «non lo so» — a
+qualunque valore che contenga una barra, e la regola è giusta: una riga che
+dichiara due stati sta dichiarando la propria ambiguità. Ma su questo foglio
+vorrebbe dire che il 91% degli alimenti appena compilati entra in tabella con la
+condizione che li rimette nell'elenco «Alimenti da correggere» DA CUI IL FOGLIO È
+NATO — senza un errore, senza che nessuno se ne accorga.
+
+La traduzione sta in `src/nutrient-facts/stato-dal-foglio.ts`, fuori da
+`normalizzaStato`: quella risponde a «cosa dice questa riga di tabella?», e per
+lei «crudo / naturale» è davvero ambiguo. Questa risponde a «cosa intendeva chi
+ha compilato la casella?», e vale solo all'ingresso. ⛔ E quello che non
+riconosce NON diventa `crudo` per comodità: l'import si ferma e dice quale
+scrittura non era prevista.
+
+E LA NOTA DI CHI HA COMPILATO adesso entra in tabella: 244 righe su 262 ne hanno
+una, ed è la parte che spiega i numeri. Mancava per la stessa ragione per cui
+mancava l'IG il 20/8 — una colonna che non arriva non produce nessun errore.
+Tenere la cifra e buttare il ragionamento è il modo più veloce per non poter più
+rimettere in discussione la cifra.
+
+File: backend/prisma/dati-alimenti-2-9.ts (nuovo),
+backend/src/nutrient-facts/stato-dal-foglio.ts (nuovo) e il suo spec,
+backend/src/nutrient-facts/riga-alimento.ts, backend/prisma/importa-alimenti.ts,
+backend/src/lavori/voci-iniziali.ts.
+
+Prove: 6637/6637 nelle quattro modalità, build e tsc puliti. La prova a vuoto
+dell'import gira e si ferma dove deve.

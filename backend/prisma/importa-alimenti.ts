@@ -40,8 +40,10 @@
 import { PrismaClient } from '@prisma/client';
 import { ALIMENTI_19_8, type RigaAlimento } from './dati-alimenti';
 import { ALIMENTI_20_8 } from './dati-alimenti-20-8';
+import { ALIMENTI_2_9 } from './dati-alimenti-2-9';
 import { trovaGemelli, riempimenti } from '../src/nutrient-facts/gemelli-alimenti';
 import { pianifica, type Conosciuta } from '../src/nutrient-facts/piano-alimenti';
+import { statiCheTornanoIndietro, statoDalFoglio } from '../src/nutrient-facts/stato-dal-foglio';
 
 const prisma = new PrismaClient();
 const CONFERMA = process.env.CONFERMA === '1';
@@ -60,7 +62,7 @@ async function main() {
    * riga già a crudo: stampa i due numeri accanto e lascia decidere a una persona. Rilanciarlo non
    * fa danni — la seconda volta trova tutto già a posto e non scrive niente.
    */
-  const righe = [...ALIMENTI_19_8, ...ALIMENTI_20_8];
+  const righe = [...ALIMENTI_19_8, ...ALIMENTI_20_8, ...ALIMENTI_2_9];
 
   console.log('');
   console.log('==================================================================');
@@ -70,6 +72,37 @@ async function main() {
   console.log('');
 
   if (!primaGuardaSeSonoInventati(righe)) return;
+
+  /**
+   * ⛔ **E POI: LO STATO CHE FA TORNARE INDIETRO IL LAVORO** — controllo aggiunto il 2/9.
+   *
+   * Il foglio di quel giorno scrive «crudo / naturale» su 238 righe di 262. `normalizzaStato` rende
+   * `altro` — cioè «non lo so» — a qualunque valore che contenga una barra, e la regola è giusta:
+   * una riga che dichiara due stati sta dichiarando la propria ambiguità. ⛔ Ma importarlo così
+   * vorrebbe dire che **il 91% degli alimenti appena compilati** entra in tabella con la condizione
+   * che li rimette nell'elenco «Alimenti da correggere» da cui il foglio è nato: il lavoro di chi
+   * l'ha riempito tornerebbe indietro da solo, senza un errore e senza che nessuno se ne accorga.
+   *
+   * `stato-dal-foglio.ts` traduce le scritture conosciute; questo controllo dice se ne è arrivata
+   * una nuova. ⚠️ Si guarda **prima** di leggere la tabella, come quello sui numeri inventati: un
+   * import che parte e poi si accorge è un import che ha già scritto.
+   */
+  const statiRotti = statiCheTornanoIndietro(righe);
+  if (statiRotti.length) {
+    console.log('⛔ FERMO. Ci sono stati che il motore leggerà come «non lo so»:');
+    console.log('');
+    for (const r of statiRotti.slice(0, 30)) {
+      console.log(`  · ${r.name}: «${r.state}» → il motore legge «${r.letto}»`);
+    }
+    if (statiRotti.length > 30) console.log(`  … e altri ${statiRotti.length - 30}.`);
+    console.log('');
+    console.log('  Queste righe entrerebbero in tabella senza stato, e si rimetterebbero da sole');
+    console.log('  nell\'elenco «Alimenti da correggere». Aggiungi la scrittura a STATI_DEL_FOGLIO');
+    console.log('  in `src/nutrient-facts/stato-dal-foglio.ts` — dopo aver chiesto a chi ha');
+    console.log('  compilato cosa intendeva, che è la parte che uno script non può indovinare.');
+    console.log('');
+    return;
+  }
 
   const tutti = (await prisma.nutrientFact.findMany({
     select: { id: true, name: true, synonyms: true, state: true, kcal: true } as never,
@@ -164,7 +197,6 @@ function datiDi(r: Riga) {
     name: r.name,
     synonyms: r.synonyms ?? [],
     category: r.category,
-    state: r.state,
     kcal: r.kcal,
     protein: r.protein,
     carbs: r.carbs,
@@ -172,6 +204,18 @@ function datiDi(r: Riga) {
     fat: r.fat,
     fiber: r.fiber,
     source: r.source,
+    /**
+     * ⚠️ **Lo stato passa dalla traduzione del foglio** (2/9): il foglio scrive «crudo / naturale»,
+     * e `normalizzaStato` legge `altro` a qualunque cosa contenga una barra. Senza questa riga il
+     * 91% degli alimenti del foglio nuovo entrerebbe come «non lo so», cioè si rimetterebbe da solo
+     * nell'elenco «Alimenti da correggere» da cui il foglio è nato.
+     */
+    state: statoDalFoglio(r.state),
+    /**
+     * ⚠️ **La nota di chi ha compilato** (2/9), con lo stesso `undefined` dell'IG: i fogli vecchi
+     * non ce l'hanno e non devono prendersi un `null` scritto apposta.
+     */
+    ...(r.note !== undefined ? { note: r.note } : {}),
     // ⚠️ L'indice glicemico c'è solo sul foglio del 20/8: `undefined` non arriva a Prisma, quindi le
     // righe vecchie restano come sono invece di prendersi dei `null` scritti apposta.
     ...(r.glycemicIndex !== undefined ? { glycemicIndex: r.glycemicIndex } : {}),

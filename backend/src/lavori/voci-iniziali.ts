@@ -5138,4 +5138,37 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-02T19:00',
   },
 
+  {
+    chiave: 'foglio-alimenti-2-9-riempito',
+    titolo: 'Il foglio alimenti del 2/9 ha 200 righe su 262 con valori copiati: non si carica',
+    dettaglio:
+      '\u26d4 **Il foglio compilato del 2/9 (262 righe) non si pu\u00f2 caricare cos\u00ec.** L\'import si '
+      + 'ferma da solo \u2014 il controllo `trovaGemelli`, scritto il 20/8 dopo essersi bruciati sullo '
+      + 'stesso problema \u2014 e ha ragione: **otto gruppi, 149 righe**, hanno i valori identici a '
+      + 'quelli di un altro alimento.\n'
+      + '\u26d4 **Il gruppo pi\u00f9 grosso sono 89 righe a «100/5/10/2/3/2»**, e dentro ci sono `sale q b`, '
+      + '`vino bianco`, `gorgonzola`, `maionese`, `cioccolato fondente 85`, `branzino`, `lattuga`. Il '
+      + 'gorgonzola non fa 100 kcal e il cioccolato fondente ne fa seicento: quei numeri non '
+      + 'descrivono quegli alimenti, sono un riempimento per categoria.\n'
+      + '\u26a0\ufe0f Gli altri, con dentro la riga che li smaschera: 16 a «350 kcal» fra cui **riso basmati '
+      + 'cotto** (il riso cotto ne fa 110); 8 a «310 kcal» fra cui **lenticchie verdi cotte** e '
+      + '**piselli surgelati**; 6 a «130/21/0/0/4.5/0» dove il **cipollotto** sta insieme al petto di '
+      + 'pollo, con 21 g di proteine e zero carboidrati; 6 a «150/20» con merluzzo, sgombro, tonno e '
+      + 'orata tutti uguali; 12 verdure a «25 kcal»; 6 fra parmigiano e grana insieme ai **semi di '
+      + 'melagrana**.\n'
+      + '\u26a0\ufe0f **I gruppi legittimi il controllo li riconosce gi\u00e0 e li lascia passare**: i dodici modi '
+      + 'di scrivere «olio di oliva», le mele, i «grattugiati». Quelli non sono in conto.\n'
+      + '\u26d4 **E la mia prima analisi diceva che il foglio era in ottimo stato**, perch\u00e9 guardavo '
+      + 'riga per riga \u2014 coerenza fra kcal e macro, celle vuote \u2014 e **una riga copiata resta '
+      + 'coerente con s\u00e9 stessa**. La copia si vede solo mettendo le righe accanto. \u00c8 la stessa '
+      + 'lezione gi\u00e0 scritta nel commento del 20/8, e l\'ho ripetuta.\n'
+      + '\u2705 **Cosa serve**: rifare quelle righe con valori veri. Il resto del lavoro \u00e8 pronto \u2014 il '
+      + 'file dati (`prisma/dati-alimenti-2-9.ts`, valori copiati fedelmente e verificati uno per '
+      + 'uno contro il foglio), la traduzione degli stati e la nota di chi ha compilato. Appena il '
+      + 'foglio \u00e8 sistemato, `npm run importa:alimenti` gira e poi `CONFERMA=1`.',
+    categoria: CODICE,
+    ordine: 676,
+    nata: '2026-09-02T13:00',
+  },
+
 ];

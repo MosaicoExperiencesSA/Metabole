@@ -1,0 +1,69 @@
+La base personale non si rifaceva quando a cambiare la dieta era lo staff
+
+`diag:fase9` ha mostrato Rosa, Arianna e Carla sulla famiglia NUOVA con la base
+personale VECCHIA — una non l'aveva proprio. Non era un caso loro: erano state
+spostate dalla scheda del backoffice, e `clients.service` non conosceva nemmeno
+`PersonalBaseService`. La ricostruzione esisteva SOLO in `profile.service`, cioè
+quando è la cliente a toccare i suoi dati dall'app.
+
+Da `ClientMenuPool` pescano il cambio di piatto in chat e la giornata dettata
+dalla nutrizionista: con la base ferma quelle due porte scelgono coi dati di
+prima, compresa un'allergia aggiunta oggi dalla scheda. È la stessa forma del
+difetto dei panieri dell'1/9 e dei segnali del 28/8: due porte sulla stessa
+colonna, e solo una faceva il lavoro.
+
+E L'ELENCO DEI CAMPI ERA CORTO. `profile.service` ne guardava quattro (regime,
+stile, famiglia, pasti) mentre `buildPersonalBase` ne legge dieci. Mancavano
+`pathType` e `objective`, che decidono quale variante serve la cliente, e —
+peggio — `allergies` e `allergiesOther`, che sono il motivo per cui la base
+esiste. Adesso la condizione sta in `common/base-personale-da-rifare.ts`, una
+sola, e guarda i campi DAVVERO CAMBIATI: il form rimanda tutto a ogni Salva, e su
+«mandati» la base si rifarebbe a ogni click — è la trappola in cui era caduta la
+regola del senza-glutine, che il 31/8 ha fatto risultare a Patrizia quattro cambi
+di dieta in un'ora.
+
+⛔ LA REVISIONE AVVERSARIALE HA TROVATO CHE LA CORREZIONE NON CORREGGEVA NIENTE.
+Ed è la parte da leggere. `buildPersonalBase` numerava le versioni del pool per
+la coppia (cliente, dieta), mentre TUTTI E QUATTRO i lettori cercano per sola
+cliente e prendono la versione più alta: `getStatus`, il cambio di piatto in
+chat, la giornata di Vera, e la verifica del certificato. Una cliente con quattro
+ricostruzioni sulla dieta vecchia (v1…v4) spostata su una famiglia nuova otteneva
+un pool v1 — e i lettori continuavano a pescare il v4 della dieta vecchia. Con
+una sola versione vecchia si finiva in pareggio, v1 contro v1, e vinceva l'ordine
+del database: cioè a caso, cioè a intermittenza. E il certificato, chiavato su
+(clientId, version), si sovrascriveva fra diete diverse.
+La versione adesso è della CLIENTE. Nessuna migrazione: la prima ricostruzione di
+una disallineata prende max+1 su tutte le sue diete e torna davanti.
+
+⛔ E UN SECONDO BUCO DALLA STESSA REVISIONE: il glutine dichiarato fra le
+INTOLLERANZE o i CIBI NON GRADITI cambia `dietFamily` con una `updateMany` sua
+(`senza-glutine.ts`), fuori da `profileData` — quindi non compariva nel confronto
+prima/dopo, e la base non si rifaceva. La prova che copre quel caso passava verde
+attraversandoci in mezzo, perché guardava la famiglia e non la base.
+
+⚠️ ALTRI TRE, minori, tutti chiusi: il commento diceva che `fastingWindow` «non
+passa da queste porte» ed è falso (ci passa, ed è l'unico campo che salva la
+ricostruzione quando il form rimanda `pathType` uguale); l'audit del fallimento
+prometteva nel commento di essere leggibile dalla scheda e non lo era (il log
+filtra su una lista bianca, e la voce non c'era: il rimedio riproduceva il
+difetto che dichiarava di chiudere); e «legge otto campi» era sbagliato in tre
+punti, sono dieci.
+
+E LA PROVA NUOVA SUL LOG NE HA TROVATI DUE CHE NON CERCAVO: `crm.lead.update_info`
+e `crm.lead.advance` sono ammessi nel log della scheda cliente dall'8/8 e non
+avevano etichetta lì — comparivano col nome tecnico a una nutrizionista. Le due
+mappe restano due, perché quattro etichette differiscono di proposito fra scheda
+lead e scheda cliente: unirle cambierebbe testi che qualcuno ha scelto.
+
+File: backend/src/common/base-personale-da-rifare.ts (nuovo) e il suo spec,
+backend/src/personal-base/personal-base.service.ts,
+backend/src/personal-base/versione-del-pool.spec.ts (nuovo),
+backend/src/clients/clients.service.ts, clients.module.ts,
+backend/src/clients/base-personale-dalla-scheda.spec.ts (nuovo),
+backend/src/profile/profile.service.ts, tredici spec di `clients` per la
+dipendenza nuova, backoffice/src/pages/ClientDetail.tsx e
+backoffice/src/pages/log-modifiche-etichettato.spec.ts (nuovo).
+
+Prove: 6626/6626 backend nelle quattro modalità, 205/205 backoffice, build e tsc
+puliti. Nove mutazioni uccise, fra cui quella che rimette la numerazione per
+(cliente, dieta) e quella che toglie il ramo del glutine.

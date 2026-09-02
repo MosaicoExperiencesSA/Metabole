@@ -16,7 +16,6 @@ import { statoPerGiornoDiInizio, STATI_CON_UN_PIANO } from '../commerce/stati-ab
 import { coachTeamScope, isCoachLike } from '../common/coach-team';
 import { perimetroClienti, type PerimetroClienti } from '../common/perimetro-clienti';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
-import { campiCambiati } from '../common/diff-campi';
 import { ruoloPuo } from '../permissions/permesso-di-ruolo';
 import { assegnaSenzaGlutineEAvvisa, dichiaraSenzaGlutine } from '../menu/senza-glutine';
 // La pulizia dei gusti scritti dalla scheda: spezza i tag e ferma le spezie (la stessa del
@@ -44,6 +43,9 @@ import { UpdateClientDto } from './dto/update-client.dto';
 import { aGiorno } from '../common/date-only';
 import { ORIGINE_INIZIO, spiegaOrigine } from '../commerce/origine-data-inizio';
 import { SignalsService } from '../signals/signals.service';
+import { PersonalBaseService } from '../personal-base/personal-base.service';
+import { campiCambiati } from '../common/diff-campi';
+import { laBaseVaRifatta } from '../common/base-personale-da-rifare';
 import { etichettaUnitaAcqua, obiettivoNellaUnita, quantitaNellaUnita } from '../common/unita-acqua';
 
 const USER_FIELDS = ['firstName', 'lastName', 'addressLine', 'postalCode', 'city', 'province', 'phone', 'codiceFiscale'] as const;
@@ -109,6 +111,16 @@ export class ClientsService {
      * nessuno dei tre importa i clienti.
      */
     private readonly signals: SignalsService,
+    /**
+     * ⛔ **PERCHÉ LA BASE PERSONALE ARRIVA FIN QUI** (2/9, stessa forma della riga qui sopra sui
+     * segnali). Quando è lo **staff** a cambiare la dieta o le allergie non passa da
+     * `PATCH /me/profile` — passa da qui, e qui non girava niente: la base personale sicura
+     * restava quella di prima, e da lì pescano il cambio di piatto in chat e la giornata dettata
+     * dalla nutrizionista. `diag:fase9` l'ha mostrato su tre clienti vere.
+     *
+     * ⚠️ Nessun anello fra i moduli: `PersonalBaseModule` non importa nessuno.
+     */
+    private readonly personalBase: PersonalBaseService,
   ) {}
 
   private readonly logger = new Logger(ClientsService.name);
@@ -1541,6 +1553,72 @@ export class ClientsService {
      * nutrizionista: se ha scritto «pepe» fra i cibi non graditi, quella riga non è stata salvata e
      * deve saperlo — con il motivo, perché il motivo è la parte che le fa cambiare gesto.
      */
+    /**
+     * ⛔ **LA BASE PERSONALE SI RIFÀ ANCHE DA QUI** — 2/9, e prima non succedeva.
+     *
+     * `diag:fase9` ha mostrato Rosa, Arianna e Carla sulla famiglia **nuova** con la base
+     * **vecchia** (una non l'aveva proprio). Non era un caso loro: erano state spostate da questa
+     * scheda, e questo servizio non conosceva nemmeno `PersonalBaseService`. La ricostruzione
+     * c'era **solo** in `profile.service`, cioè quando è la cliente a toccare i suoi dati dall'app.
+     *
+     * ⚠️ Il danno non è teorico: da `ClientMenuPool` pescano il cambio di piatto in chat e la
+     * giornata dettata dalla nutrizionista. Con la base ferma, quelle due porte scelgono con i dati
+     * **di prima** — compresa un'allergia aggiunta oggi dalla scheda.
+     *
+     * ⛔ E si guardano i campi **davvero cambiati**: il form rimanda tutto a ogni Salva, e su
+     * «mandati» la base si rifarebbe a ogni click. È la stessa trappola della regola del
+     * senza-glutine, qui sopra.
+     */
+    const cambiatiPerLaBase = campiCambiati(
+      prevProfile as unknown as Record<string, unknown>,
+      profileData,
+      Object.keys(profileData),
+    ).map((c) => c.campo);
+    /**
+     * ⛔ **E IL GLUTINE CAMBIA LA FAMIGLIA FUORI DA `profileData`** — trovato in revisione, 2/9.
+     *
+     * `assegnaSenzaGlutineEAvvisa` scrive `dietFamily` e `dietStyle` con una `updateMany` sua
+     * (`menu/senza-glutine.ts`), quindi quel cambio **non compare** nel confronto qui sopra: una
+     * cliente che dichiara il glutine fra le **intolleranze** o i **cibi non graditi** si vedeva
+     * cambiare la dieta e restava con la base di prima — esattamente il difetto che questo blocco
+     * viene a chiudere, per un'altra porta.
+     *
+     * ⚠️ E la prova che copre quel caso (`glutine-non-disfa-il-cambio-dieta.spec.ts`) passava
+     * verde attraversandoci in mezzo, perché non guardava la base.
+     *
+     * ⛔ La correzione **non** è aggiungere `intolerances` e `dislikedFoods` all'elenco dei campi:
+     * `buildPersonalBase` non li legge, e ricostruire a ogni cambio di gusti sarebbe lavoro per
+     * niente. È chiedere alla regola stessa se ha scritto: `glutineAppenaDichiarato` lo sa già.
+     */
+    if (laBaseVaRifatta(cambiatiPerLaBase) || glutineAppenaDichiarato) {
+      try {
+        await this.personalBase.buildPersonalBase(userId);
+      } catch (e) {
+        /**
+         * ⛔ **Non bloccante, ma non muto.** Il salvataggio della scheda non deve fallire per
+         * questo; ma una base non rifatta è invisibile — la pagina dice «salvato», la cliente non
+         * vede niente, e il disallineamento si scopre contando a mano tre giorni dopo. Finisce nel
+         * log **e** nell'audit, dove chi guarda la scheda lo può leggere.
+         */
+        const perche = e instanceof Error ? e.message : String(e);
+        this.logger.warn(
+          `Base personale non rifatta per ${userId} dopo un salvataggio dalla scheda (campi: `
+          + `${[...cambiatiPerLaBase, ...(glutineAppenaDichiarato ? ['senza-glutine'] : [])].join(', ')}): `
+          + `${perche}. I cambi in chat pescheranno dai dati di prima.`,
+        );
+        await this.audit.log({
+          action: 'client.personal_base_failed',
+          actorId,
+          entityType: 'client_profile',
+          entityId: userId,
+          metadata: {
+            campi: [...cambiatiPerLaBase, ...(glutineAppenaDichiarato ? ['senza-glutine'] : [])],
+            errore: perche,
+          },
+        }).catch(() => { /* nemmeno l'audit deve far fallire il salvataggio */ });
+      }
+    }
+
     return {
       updated: true,
       ...(avvisiSpezie.length ? { avvisiSpezie } : {}),
@@ -2288,6 +2366,17 @@ export class ClientsService {
        * cosa. Resta nell'audit, dove si va a cercarlo se serve capire una deriva.
        */
       'digiuno.prima_scelta', 'digiuno.finestra_spostata',
+      /**
+       * ⛔ **LA BASE PERSONALE CHE NON SI È RIFATTA** — 2/9, e sta qui per la stessa ragione per cui
+       * esiste la riga che la scrive: una base ferma è **invisibile**. La pagina dice «salvato», la
+       * cliente non vede niente, e il disallineamento si scopre contando a mano tre giorni dopo.
+       *
+       * ⚠️ La prima stesura scriveva l'audit e basta, promettendo nel commento che «chi guarda la
+       * scheda lo può leggere» — e non era vero: questo elenco è una lista bianca, e senza la voce
+       * la riga era raggiungibile solo da `/admin/audit-logs`, cioè dal solo admin. Il rimedio
+       * riproduceva il difetto che dichiarava di chiudere.
+       */
+      'client.personal_base_failed',
     ];
     const rows = await this.prisma.auditLog.findMany({
       where: { entityId: { in: ids }, action: { in: CHANGE_ACTIONS } },

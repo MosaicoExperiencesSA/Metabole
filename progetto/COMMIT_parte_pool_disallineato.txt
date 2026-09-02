@@ -1,0 +1,26 @@
+Quante clienti leggono un pool più vecchio di quello che hanno
+
+La correzione della numerazione del pool (versione della CLIENTE e non della
+coppia cliente-dieta) non ripara il passato da sola: le righe già scritte restano
+dove sono, e una cliente disallineata torna a posto solo alla prima
+ricostruzione — quando qualcuno riapre la sua scheda e risalva, o quando lei
+cambia qualcosa dall'app.
+
+`npm run diag:pool-disallineato` dice quante sono e chi. Serve a sapere se è un
+pomeriggio di lavoro o tre nomi: le tre trovate erano quelle che ho guardato,
+non quelle che ci sono.
+
+⚠️ COSA MISURA, ESATTAMENTE. Non «il pool è della dieta del profilo»:
+`pickDietFor` ha una scala di sette ripieghi, e la dieta servita può essere
+legittimamente diversa da quella che il nome della famiglia farebbe pensare —
+misurarlo così darebbe falsi allarmi. Misura invece che il pool che VINCE per
+versione sia anche il più RECENTE per data: una ricostruzione più nuova che
+nessuno legge è il difetto, e non è opinabile.
+
+E conta a parte le clienti con pool su più di una dieta: sono quelle spostate
+almeno una volta, cioè la popolazione su cui il difetto poteva scattare. Se quel
+numero è alto, la correzione valeva la pena; se è zero, il difetto era teorico.
+
+File: backend/prisma/diag-pool-disallineato.ts (nuovo), backend/package.json.
+
+Prove: 6626/6626 nelle quattro modalità, build e tsc puliti.

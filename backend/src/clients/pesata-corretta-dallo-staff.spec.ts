@@ -36,6 +36,7 @@ const servizio = (controlla: jest.Mock) => {
     {} as never,
     {} as never,
     { controllaPesoIncoerente: controlla } as never,
+    { buildPersonalBase: jest.fn().mockResolvedValue({}) } as never,
   );
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
   return { s, prisma, menu };

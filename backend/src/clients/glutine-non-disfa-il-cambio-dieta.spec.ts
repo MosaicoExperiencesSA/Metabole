@@ -54,6 +54,7 @@ function servizio(profiloPrima: Record<string, unknown>) {
   const s = new ClientsService(
     prisma, {} as never, { log: jest.fn() } as never, {} as never, menu as never,
     {} as never, {} as never, {} as never, {} as never,
+    { buildPersonalBase: jest.fn().mockResolvedValue({}) } as never,
   );
   (s as unknown as { assertClientAccess: () => Promise<void> }).assertClientAccess = () => Promise.resolve();
   (s as unknown as { roleCanManage: () => Promise<boolean> }).roleCanManage = () => Promise.resolve(true);
