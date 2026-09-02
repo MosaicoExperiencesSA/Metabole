@@ -1,0 +1,36 @@
+Prima di togliere: quelle righe sono attive o spente? — due numeri, due decisioni opposte
+
+⛔ IL TABULATO PROPONEVA DI TOGLIERE 69 PIATTI DI PESCE VERI DA PANIERI PESCETARIANI
+«Filetto di Sgombro alla Piastra», «Polpo Bollito con Crackers Integrali», «Carpaccio di Tonno
+Rosso», «Spigola al Forno» — tutti dentro «Iperproteica sportiva × pescetarian», tutti da togliere
+perché dichiarati `omnivore`.
+
+⚠️ E la regola che li segnala è giusta: una ricetta onnivora in un paniere pescetariano non ci sta.
+Ma la conclusione «quindi si tolgono» sarebbe stata esattamente il danno che questa pulizia esiste
+per evitare — quel paniere è di cinque clienti, e quelle sono le uniche cose di pesce che ha.
+
+⛔ MANCAVA UN DATO, E CAMBIA TUTTO: SONO ATTIVE O SPENTE?
+  · SPENTE → il motore già non le serve (§2.4, chiuso l'1/9). Toglierle non cambia niente per
+    nessuna cliente: pulisce e basta, si può fare a occhi chiusi.
+  · ATTIVE → allora sono piatti che le clienti ricevono, e il difetto non è dove stanno: è
+    l'ETICHETTA. Un piatto di pesce dichiarato «omnivore» dentro un paniere pescetariano ci sta
+    benissimo. Va corretto il regime, non tolta la riga.
+
+Due numeri diversi che portano a decisioni opposte, e finché non si stampano si sceglie a caso.
+Adesso `panieri:pulisci` li stampa separati, e dice cosa fare in tutti e due i casi.
+
+⚠️ `regime:contenuto` guarda solo le ricette ATTIVE — è scritto nella sua query da sempre. Quindi
+se quelle 69 sono spente, non le ha mai viste, e non è un difetto di quello script: è il motivo per
+cui sono ancora lì.
+
+⚠️ E DUE RICETTE VANNO RIMESSE A MANO, spostate per sbaglio da due falsi positivi già corretti nel
+codice ma non nei dati:
+  · «Poke Bowl Vegano con Riso e Alga Nori»  → oggi pescetarian, per «riso sushi»
+  · «Polenta Morbida ai Funghi Misti…»       → oggi pescetarian, per «champignon, ostriche»
+Tutte e due tornano `vegan` dalla scheda in back office.
+
+⚠️ E LA SINTASSI, perché è costata due giri a vuoto: la variabile va PRIMA del comando.
+    APPLICA=1 npm run panieri:pulisci     ✅
+    npm run panieri:pulisci APPLICA=1     ⛔ è un argomento, e lo script non lo legge
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

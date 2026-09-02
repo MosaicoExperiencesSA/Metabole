@@ -1,0 +1,29 @@
+Le otto correzioni decise a mano — e il difetto più grosso che restava sotto
+
+Simone ha aperto in back office le sei ricette che `regime:contenuto` si era rifiutato di toccare,
+e ha risposto: il pesce c'è davvero in tutte. Più le due che un mio falso positivo aveva spostato,
+e che tornano vegane.
+
+⛔ MA LE SEI DEL PESCE HANNO UN SECONDO DIFETTO, PIÙ GRANDE DI QUELLO CHE SI STA CORREGGENDO
+Erano nel mucchio «solo nel nome» PRECISAMENTE PERCHÉ il pesce non compare fra i loro ingredienti.
+Se il pesce c'è davvero, allora l'elenco ingredienti è INCOMPLETO — e da quell'elenco escono gli
+allergeni suggeriti, le kcal, i macro e la lista della spesa.
+
+⚠️ Quindi mettere a posto il regime le rende servibili a una pescetariana **con le calorie sbagliate
+e gli allergeni incompleti**. Il regime è la metà facile. L'ingrediente lo aggiunge una
+nutrizionista dalla scheda, con le grammature, e questo script non lo inventa: lo dice, riga per
+riga, stampando quanti ingredienti ci sono oggi in elenco.
+
+`npm run regime:a-mano` — l'elenco delle otto decisioni sta SCRITTO NEL FILE, col perché di ognuna.
+⚠️ Una correzione a mano fatta in una shell senza traccia è una correzione che fra tre mesi nessuno
+sa spiegare. Qui chi rilegge risale al motivo senza chiedere a nessuno.
+
+⚠️ E una riga porta scritto anche il mio dubbio: «Branzino al forno con verdure (vegetale)»
+l'avevo segnalata come probabile imitazione per via del «(vegetale)» nel titolo. Simone ha
+verificato il contrario, e si scrive la sua decisione — ma anche che avevo pensato l'opposto: se un
+giorno risulta un errore, quella riga dice dove guardare.
+
+⚠️ Si scrive per NOME ESATTO, non per id: l'id non l'ha letto nessuno, il nome sì. Se un nome trova
+più di una ricetta si scrivono tutte e si stampano gli id; se non ne trova nessuna si dice.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

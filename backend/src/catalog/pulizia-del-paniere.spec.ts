@@ -27,6 +27,7 @@ describe('cosaTogliere', () => {
       30,
     );
     expect(v.daTogliere.map((d) => d.id)).toEqual(['cattiva']);
+    expect(v.daTogliere[0].attiva).toBe(true);
     expect(v.caselleSotto).toEqual([]);
   });
 
@@ -91,6 +92,8 @@ describe('cosaTogliere', () => {
       30,
     );
     expect(v.daTogliere.map((d) => d.id)).toEqual(['spenta']);
+    /** ⛔ Ed è il campo che il 2/9 ha fermato una scrittura: attiva e spenta si decidono diverso. */
+    expect(v.daTogliere[0].attiva).toBe(false);
     // Il pool era 3 e resta 3: la spenta non c'era già prima, quindi nessuna casella peggiora.
     expect(v.caselleSotto).toEqual([]);
   });

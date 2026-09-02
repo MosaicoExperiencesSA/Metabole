@@ -20,6 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ✍️ **Le otto correzioni decise a mano — e il difetto più grosso che restava sotto.**
+  Simone ha aperto in scheda le sei ricette che `regime:contenuto` si era rifiutato di toccare: il
+  pesce c'è davvero in tutte. Più le due che un mio falso positivo aveva spostato, e che tornano
+  vegane. ⛔ **Ma quelle sei hanno un secondo difetto, più grande di quello che si sta correggendo**:
+  erano fra le dubbie **precisamente perché** il pesce non compare fra i loro ingredienti. Se c'è
+  davvero, l'elenco ingredienti è **incompleto** — e da lì escono allergeni, kcal, macro e lista
+  della spesa. ⚠️ Quindi il regime corretto le rende servibili a una pescetariana **con le calorie
+  sbagliate e gli allergeni incompleti**: il regime è la metà facile, l'ingrediente lo aggiunge una
+  nutrizionista con le grammature. Lo script lo dice riga per riga, stampando quanti ingredienti ci
+  sono oggi. ✅ `npm run regime:a-mano`: le otto decisioni stanno **scritte nel file** col perché di
+  ognuna — una correzione fatta in una shell senza traccia è una correzione che fra tre mesi nessuno
+  sa spiegare. ⚠️ E una riga porta scritto anche il mio dubbio: «Branzino al forno con verdure
+  (vegetale)» l'avevo data per imitazione, Simone ha verificato il contrario, e se un giorno risulta
+  un errore quella riga dice dove guardare.
+
+- `[Sviluppo]` 🔎 **Prima di togliere: quelle righe sono attive o spente?** ⛔ `panieri:pulisci`
+  proponeva di togliere **69 piatti di pesce veri da panieri pescetariani** — «Filetto di Sgombro»,
+  «Polpo Bollito», «Carpaccio di Tonno Rosso» — perché sono dichiarati `omnivore`. La regola è
+  giusta (un'onnivora in un paniere pescetariano non ci sta), ma la conclusione «quindi si tolgono»
+  sarebbe stata **il danno che quella pulizia esiste per evitare**: quel paniere è di cinque
+  clienti, e quelle sono le uniche cose di pesce che ha. ⛔ **Mancava un dato che cambia la
+  decisione**: se sono **spente** il motore già non le serve (§2.4) e toglierle non cambia niente
+  per nessuno; se sono **attive** il difetto non è dove stanno, è l'**etichetta** — un piatto di
+  pesce dichiarato onnivoro dentro un paniere pescetariano ci sta benissimo, e va corretto il
+  regime, non tolta la riga. ⚠️ Due numeri che portano a decisioni opposte, e finché non si stampano
+  si sceglie a caso: ora si stampano separati, col cosa-fare per ognuno. ⚠️ E `regime:contenuto`
+  guarda **solo le attive**, il che spiega perché quelle 69 sono ancora lì. ⚠️ Due ricette da
+  rimettere a mano, spostate da falsi positivi già chiusi nel codice ma non nei dati: «Poke Bowl
+  Vegano» (per «riso sushi») e «Polenta ai Funghi Misti» (per «ostriche»).
+
 - `[Sviluppo]` ⏰ **Le prove scadute stanotte, e il tabulato che avrebbe trovato i tre omonimi in una
   volta.** ⛔ **Quattro prove rosse alle quattro di notte senza che nessuno toccasse una riga**:
   `pause/primo-giorno-utile.spec.ts` chiede di aprire una pausa dall'1/9, e alla mezzanotte fra l'1 e

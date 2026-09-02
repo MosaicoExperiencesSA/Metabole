@@ -68,8 +68,25 @@ async function main() {
 
   titolo('1. QUANTE, E DA DOVE');
   riga('');
+  const attive = daTogliere.filter((t) => t.attiva);
   riga(`  Righe di appartenenza in tabella   ${righe.length}`);
   riga(`  · da togliere (regime incompatibile) ${daTogliere.length}`);
+  riga(`      · con ricetta ATTIVA             ${attive.length}`);
+  riga(`      · con ricetta spenta             ${daTogliere.length - attive.length}`);
+  if (attive.length) {
+    riga('');
+    riga('  ⛔ **LE ATTIVE SI GUARDANO PRIMA DI TOGLIERLE.** Una ricetta attiva dentro un paniere che');
+    riga('  non la può mangiare è una di due cose, e portano a decisioni opposte: o è nel paniere');
+    riga('  sbagliato (e allora si toglie), oppure ha l\'ETICHETTA sbagliata — un piatto di pesce');
+    riga('  dichiarato «omnivore» dentro un paniere pescetariano ci sta benissimo, ed è l\'etichetta');
+    riga('  che va corretta. Toglierlo vorrebbe dire spogliare il paniere di chi lo usa.');
+    riga('  ⚠️ Prima `npm run regime:contenuto`, poi si torna qui.');
+  }
+  if (daTogliere.length - attive.length) {
+    riga('');
+    riga('  ⚠️ Le spente invece si tolgono senza pensarci: il motore già non le serve (§2.4), quindi');
+    riga('  toglierle non cambia niente per nessuna cliente — pulisce e basta.');
+  }
   if (!daTogliere.length) {
     riga('');
     riga('  ✅ Niente da togliere: in ogni paniere ci sono solo ricette che ci possono stare.');

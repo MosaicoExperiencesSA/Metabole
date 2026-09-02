@@ -138,7 +138,8 @@
     "regime:contenuto": "ts-node --transpile-only prisma/corregge-regime-dal-contenuto.ts",
     "panieri:pulisci": "ts-node --transpile-only prisma/pulisci-panieri-fuori-regime.ts",
     "diag:orfane": "ts-node --transpile-only prisma/diag-ricette-senza-paniere.ts",
-    "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts"
+    "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts",
+    "regime:a-mano": "ts-node --transpile-only prisma/correggi-regime-a-mano.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

@@ -36,6 +36,20 @@ export interface DaTogliere {
   slot: string;
   nome: string;
   regime: string;
+  /**
+   * ⛔ **SE LA RICETTA È SPENTA CAMBIA TUTTO, e il 2/9 è stata la domanda che ha fermato una
+   * scrittura.** Il tabulato proponeva di togliere 69 piatti di pesce veri — «Filetto di Sgombro»,
+   * «Polpo Bollito», «Carpaccio di Tonno» — da panieri **pescetariani**, perché sono etichettati
+   * `omnivore`. Toglierli sarebbe stato il danno che questa pulizia esiste per evitare.
+   *
+   * ⚠️ Ma `regime:contenuto` guarda solo le ricette **attive**: se quelle sono spente, non le ha
+   * mai viste, e toglierle non cambia niente per nessuna cliente — il motore già non le serve
+   * (§2.4). Se invece sono **attive**, allora prima va corretta l'etichetta e la pulizia aspetta.
+   *
+   * Due numeri diversi che portano a due decisioni opposte, e finché non si stampano si sceglie a
+   * caso.
+   */
+  attiva: boolean;
 }
 
 export interface CasellaSottoSoglia {
@@ -93,7 +107,7 @@ export function cosaTogliere(
     if (!ric) continue;
     const chiave = chiaveCella(r.famiglia, r.regime);
     const vaBene = ricettaVaBene(ric.regime, r.regime);
-    if (!vaBene) daTogliere.push({ id: r.id, chiave, slot: r.slot, nome: ric.name, regime: ric.regime });
+    if (!vaBene) daTogliere.push({ id: r.id, chiave, slot: r.slot, nome: ric.name, regime: ric.regime, attiva: ric.active });
     if (!ric.active) continue;
     aggiungi(prima, chiave, r.slot, r.recipeId);
     if (vaBene) aggiungi(dopo, chiave, r.slot, r.recipeId);
