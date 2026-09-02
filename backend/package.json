@@ -142,7 +142,8 @@
     "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts",
     "regime:a-mano": "ts-node --transpile-only prisma/correggi-regime-a-mano.ts",
     "diag:fase9": "ts-node --transpile-only prisma/diag-migrazione-fase9.ts",
-    "diag:senza-ingredienti": "ts-node --transpile-only prisma/diag-ricette-senza-ingredienti.ts"
+    "diag:senza-ingredienti": "ts-node --transpile-only prisma/diag-ricette-senza-ingredienti.ts",
+    "diag:equivalenze-doppie": "ts-node --transpile-only prisma/diag-equivalenze-doppie.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

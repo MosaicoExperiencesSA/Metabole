@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, PageHeader, Spinner } from '../components/ui';
 import { NESSUN_FILTRO, comeSiLegge, numeriDaMostrare, passaIlFiltro, type Filtro } from './panieri-filtro';
+import { RecipeModal, type Recipe } from './Ricette';
 
 /**
  * I PANIERI — da dove arrivano i piatti di una cliente.
@@ -74,12 +75,21 @@ interface Ricetta {
 export function Panieri() {
   const { can } = useAuth();
   const puoGestire = can('panieri', 'manage');
+  /**
+   * ⛔ **«Modifica» è una porta sul CATALOGO, non sul paniere, e vuole la chiave del catalogo.**
+   * Il popup salva con `PATCH /recipes/:id`, protetto da `recipes`: mostrare il pulsante a chi ha
+   * solo `panieri` vorrebbe dire farlo compilare un modulo che al «Salva» risponde 403. Una porta
+   * che si apre e non si chiude è peggio di una porta che non c'è.
+   */
+  const puoModificare = can('recipes');
   const [celle, setCelle] = useState<Cella[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   /** La cella aperta, e per quale pasto: `null` = nessuna. */
   const [aperta, setAperta] = useState<{ cella: Cella; slot: string } | null>(null);
   const [ricette, setRicette] = useState<Ricetta[] | null>(null);
+  /** La ricetta aperta nel popup «Modifica ricetta», caricata intera: la tabella ne ha solo un pezzo. */
+  const [inModifica, setInModifica] = useState<Recipe | null>(null);
   /**
    * ⛔ **I due pulsanti valgono per TUTTA la pagina** — i numeri della matrice e l'elenco che si
    * apre sotto. Un filtro che cambiasse solo l'elenco farebbe leggere due verità diverse nella
@@ -110,6 +120,21 @@ export function Panieri() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Non sono riuscito a leggere le ricette.');
       setAperta(null);
+    }
+  }
+
+  /**
+   * ⚠️ La riga della tabella ha cinque campi; il popup ne vuole tutta la scheda — ingredienti,
+   * metodi, stagioni. Si ricarica dal server invece di allargare la risposta dei panieri: quella
+   * sta dietro la chiave `panieri`, e allargarla darebbe la scheda completa delle ricette a chi ha
+   * solo i panieri.
+   */
+  async function apriModifica(r: Ricetta) {
+    setError(null);
+    try {
+      setInModifica(await api<Recipe>(`/recipes/${r.id}`));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Non riesco ad aprire la ricetta.');
     }
   }
 
@@ -295,7 +320,7 @@ export function Panieri() {
             <table className="table" style={{ marginTop: 8 }}>
               <thead>
                 <tr>
-                  <th>Piatto</th><th>kcal</th><th>Stato</th>{puoGestire && <th />}
+                  <th>Piatto</th><th>kcal</th><th>Stato</th>{puoModificare && <th />}{puoGestire && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -304,6 +329,13 @@ export function Panieri() {
                     <td>{r.name}</td>
                     <td>{r.kcal}</td>
                     <td>{r.active ? 'attiva' : <span style={{ color: 'var(--muted)' }}>bozza — il motore non la usa</span>}</td>
+                    {puoModificare && (
+                      <td>
+                        <button className="btn ghost" onClick={() => void apriModifica(r)} title="Apri la scheda della ricetta">
+                          Modifica
+                        </button>
+                      </td>
+                    )}
                     {puoGestire && (
                       <td>
                         <button className="btn ghost" onClick={() => void togli(r)}>Togli dal paniere</button>
@@ -315,6 +347,27 @@ export function Panieri() {
             </table>
           )}
         </div>
+      )}
+
+      {/*
+        ⛔ **Lo stesso popup della pagina Ricette, non una copia.** Due schede della stessa ricetta
+        in due punti diversi divergono al primo campo aggiunto da una parte sola — ed è già successo
+        con «Allergeni ricette», che per questo lo riusa da mesi.
+
+        ⚠️ Dopo un salvataggio si ricarica **tutto**: cambiare il regime o spegnere una ricetta
+        cambia i conti della matrice, e lasciare i numeri vecchi sotto un popup appena chiuso è il
+        modo più diretto per far credere che il salvataggio non abbia funzionato.
+      */}
+      {inModifica && (
+        <RecipeModal
+          recipe={inModifica}
+          onClose={() => setInModifica(null)}
+          onSaved={() => {
+            setInModifica(null);
+            void carica();
+            if (aperta) void apri(aperta.cella, aperta.slot);
+          }}
+        />
       )}
     </div>
   );

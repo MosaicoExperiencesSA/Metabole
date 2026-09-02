@@ -20,6 +20,45 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ✏️ **«Modifica» dalla tabella dei panieri, e i panieri dentro la scheda della
+  ricetta.** Richiesta di Simone. ⛔ **«Dove è usata» e «in quali panieri sta» sono due domande
+  diverse**, e per questo la seconda è una sezione a parte e non righe in fondo alla prima: la prima
+  sono le **giornate** che nominano il piatto, il paniere è il **pool** da cui il motore pesca — e
+  con l'interruttore su `paniere` è il secondo a decidere cosa arriva nel piatto. Mescolarli farebbe
+  credere che togliere una riga di «Dove è usata» tolga il piatto dai menu, e da quel giorno non è
+  più vero.
+  ✅ `GET /panieri/ricetta/:id` dice dove sta, dove potrebbe stare, e — se non può stare da nessuna
+  parte — **perché**, ⛔ **prima** del clic che fallirebbe: scoprire paniere per paniere che la
+  ricetta è spenta è far cercare a qualcuno una cosa che sappiamo già. E offre **solo** i panieri
+  del suo regime: negli altri il server la rifiuta, e offrirli sarebbe offrire un errore.
+  ⛔ **«Modifica» vuole la chiave del catalogo, non quella dei panieri**: il popup salva con `PATCH
+  /recipes/:id`, e mostrarlo a chi ha solo `panieri` vuol dire fargli compilare un modulo che al
+  «Salva» risponde 403 — una porta che si apre e non si chiude è peggio di una porta che non c'è.
+  ⚠️ Il popup è **lo stesso** della pagina Ricette, non una copia; e dopo un salvataggio la matrice
+  si ricarica, perché cambiare regime o spegnere una ricetta cambia i conti.
+  ⚠️ Aggiungendo a più panieri si contano i sì e i no separatamente: se il terzo di cinque fallisce,
+  i primi due sono scritti davvero.
+  🧪 6593/6593 backend, 199/199 backoffice, quattro mutazioni uccise su `doveSta`.
+
+- `[Sviluppo]` 🥛 **I gruppi di equivalenza omonimi: cosa sono, e perché unirli non è pulizia.**
+  Richiesta di Simone — «Bevande vegetali» compare sei volte. ⛔ **Il danno lo fanno già adesso**:
+  `sostituzione-chat` cerca il gruppo dei grassi **per nome** fra gli approvati ordinati per data e
+  prende **il primo**. Con sei omonimi approvati, i pesi scritti nel secondo non li legge nessuno, e
+  la cliente riceve «questo gruppo non ha i pesi» mentre i pesi ci sono, nel gruppo accanto. Non è
+  disordine: è lavoro fatto che non arriva.
+  ⛔ **Ma unire non è sempre sicuro, e per questo la consegna non unisce niente**: un gruppo con
+  `productId` è **di una dieta**, e unirlo a quello di un'altra rende gli alimenti dell'una
+  equivalenti anche nell'altra — decisione di nutrizione, non di pulizia. Idem per i pesi dei
+  grassi, che finiscono nei grammi di una persona, e per una bozza unita a un approvato.
+  ✅ `npm run diag:equivalenze-doppie` divide in «si uniscono da sole» e «da guardare prima», col
+  motivo, e dice per primo quanti nomi hanno più di un gruppo **approvato**.
+  ⚠️ **La normalizzazione si ferma dove deve**: spazi interni collassati sì, parole di servizio no —
+  unirebbe «Bevande vegetali» e «Bevande vegetali **non zuccherate**», e chi non può avere zuccheri
+  aggiunti si vedrebbe le zuccherate come equivalenti. ⚠️ E il capofila è il gruppo **più vecchio**,
+  perché è quello che oggi vince: un'unione deve arricchire lui, o sposta il comportamento invece di
+  ripararlo.
+  🧪 14 prove nel modulo puro, cinque mutazioni uccise.
+
 - `[Sviluppo]` 🔎 **«625 perse» non è un numero: sono due fatti opposti sotto la stessa riga.**
   Corretto il difetto dei gemelli, `panieri:confronta` è sceso da 119 varianti a 62, con **625
   ricette perse**, quasi tutte in panieri vegani e vegetariani. ⚠️ «625 piatti spariscono dal menu»

@@ -236,4 +236,71 @@ export class PanieriService {
     }
     return { tolte: esito.count };
   }
+
+  /**
+   * ⛔ **IN QUALI PANIERI STA QUESTA RICETTA — e in quali potrebbe stare.**
+   *
+   * Richiesta di Simone (2/9): dal popup «Modifica ricetta», sotto «Dove è usata», poter aggiungere
+   * la ricetta a uno o più panieri.
+   *
+   * ⚠️ **«Dove è usata» e «in quali panieri sta» sono DUE COSE DIVERSE**, e vanno lette come tali:
+   * la prima sono le **giornate** che la nominano, la seconda è il **pool** da cui il motore pesca.
+   * Con `panieri_sorgente_pool` su `paniere` è la seconda a decidere cosa arriva alla cliente, e la
+   * prima diventa storia. Metterle nello stesso elenco farebbe credere che siano la stessa cosa.
+   *
+   * ⛔ **`bloccata` risponde PRIMA al clic che fallisce.** `aggiungi` rifiuta una ricetta spenta o
+   * con gli allergeni non confermati, e sono rifiuti giusti — ma scoprirli premendo un pulsante,
+   * paniere per paniere, è far cercare a qualcuno una cosa che sappiamo già. Se non si può
+   * aggiungere da nessuna parte, si dice subito e si dice perché.
+   *
+   * ⚠️ E `disponibili` contiene **solo i panieri del suo regime**: un piatto onnivoro in un paniere
+   * vegano `aggiungi` lo rifiuta, e offrirlo nella tendina sarebbe offrire un errore. Il perché lo
+   * dice `regime`, che si restituisce apposta.
+   */
+  async doveSta(recipeId: string): Promise<{
+    ricetta: { id: string; name: string; regime: string; active: boolean; allergensReviewed: boolean };
+    dentro: { famiglia: string; regime: string; slot: string }[];
+    disponibili: { famiglia: string; regime: string }[];
+    bloccata: string | null;
+  }> {
+    const ricetta = (await this.prisma.recipe.findUnique({
+      where: { id: recipeId },
+      select: { id: true, name: true, regime: true, active: true, allergensReviewed: true },
+    })) as { id: string; name: string; regime: string; active: boolean; allergensReviewed: boolean } | null;
+    if (!ricetta) throw new NotFoundException('Ricetta non trovata.');
+
+    const [panieri, righe] = await Promise.all([
+      this.prisma.paniere.findMany({ select: { id: true, famiglia: true, regime: true } }) as unknown as
+        Promise<{ id: string; famiglia: string; regime: string }[]>,
+      this.prisma.paniereRicetta.findMany({ where: { recipeId }, select: { paniereId: true, slot: true } }) as unknown as
+        Promise<{ paniereId: string; slot: string }[]>,
+    ]);
+    const paniereDi = new Map(panieri.map((p) => [p.id, p]));
+
+    const dentro = righe
+      .map((r) => {
+        const p = paniereDi.get(r.paniereId);
+        return p ? { famiglia: p.famiglia, regime: p.regime, slot: r.slot } : null;
+      })
+      .filter((x): x is { famiglia: string; regime: string; slot: string } => x !== null)
+      .sort((a, b) => a.famiglia.localeCompare(b.famiglia));
+
+    const giaDentro = new Set(righe.map((r) => r.paniereId));
+    const disponibili = panieri
+      .filter((p) => p.regime === ricetta.regime && !giaDentro.has(p.id))
+      .map((p) => ({ famiglia: p.famiglia, regime: p.regime }))
+      .sort((a, b) => a.famiglia.localeCompare(b.famiglia));
+
+    /** ⚠️ Le stesse frasi di `aggiungi`, dette prima invece che dopo il clic. */
+    const bloccata = !ricetta.active
+      ? 'La ricetta è archiviata o è ancora una bozza: riattivala prima di metterla in un paniere. '
+        + 'Da qui non si ripassa dal controllo di pubblicazione, quindi entrerebbe nei menu senza che nessuno l\'abbia approvata.'
+      : !ricetta.allergensReviewed
+        ? 'Gli allergeni di questa ricetta non sono ancora confermati. Confermali in «Allergeni ricette»: '
+          + 'da qui non si ripassa dal controllo di pubblicazione.'
+        : null;
+
+    return { ricetta, dentro, disponibili, bloccata };
+  }
+
 }

@@ -1,0 +1,57 @@
+«Modifica» dalla tabella dei panieri, e i panieri dentro la scheda della ricetta
+
+Richiesta di Simone (2/9): nella tabella del paniere un campo «Modifica» che apre
+il solito popup, e in fondo — dentro «Dove è usata» — poter aggiungere la ricetta
+a uno o più panieri.
+
+⛔ «DOVE È USATA» E «IN QUALI PANIERI STA» SONO DUE DOMANDE DIVERSE, e per questo
+la seconda è una sezione a parte e non righe in fondo alla prima. «Dove è usata»
+sono le GIORNATE che nominano il piatto; il paniere è il POOL da cui il motore
+pesca. Con `panieri_sorgente_pool` su `paniere` è il secondo a decidere cosa
+arriva nel piatto di una cliente, e le giornate diventano storia. Mescolarli
+farebbe credere che togliere una riga di «Dove è usata» tolga il piatto dai menu
+— e da quel giorno non è più vero.
+
+`GET /panieri/ricetta/:id` risponde con tre cose: dove sta, dove potrebbe stare, e
+— se non può stare da nessuna parte — perché. Quel «perché» si dice PRIMA del
+clic che fallirebbe: `aggiungi` rifiuta una ricetta spenta o con gli allergeni non
+confermati, e sono rifiuti giusti, ma scoprirli premendo un pulsante paniere per
+paniere è far cercare a qualcuno una cosa che sappiamo già.
+
+E fra i panieri offerti ci sono SOLO quelli del suo regime: un piatto onnivoro in
+un paniere vegano il server lo rifiuta, e offrirlo nella tendina sarebbe offrire
+un errore.
+
+⛔ «MODIFICA» VUOLE LA CHIAVE DEL CATALOGO, NON QUELLA DEI PANIERI. Il popup salva
+con `PATCH /recipes/:id`, protetto da `recipes`: mostrare il pulsante a chi ha
+solo `panieri` vuol dire farlo compilare un modulo che al «Salva» risponde 403.
+Una porta che si apre e non si chiude è peggio di una porta che non c'è. E non è
+la stessa chiave di «Togli dal paniere», che tocca il pool di tutte e vuole
+`panieri`/`manage`: sono due poteri diversi, ed è la ragione per cui il progetto
+vuole una chiave per pagina.
+
+Il popup è LO STESSO della pagina Ricette, non una copia: due schede della stessa
+ricetta in due punti divergono al primo campo aggiunto da una parte sola — è già
+successo con «Allergeni ricette», che per questo lo riusa da mesi. E dopo un
+salvataggio la matrice si ricarica: cambiare il regime o spegnere una ricetta
+cambia i conti, e lasciare i numeri vecchi sotto un popup appena chiuso fa credere
+che il salvataggio non abbia funzionato.
+
+Aggiungendo a più panieri in una volta si conta quanti sì e quanti no
+separatamente: se il terzo di cinque fallisce, i primi due sono stati scritti
+davvero, e dire «non riuscito» li nasconderebbe.
+
+`doveSta` LEGGE e basta: nessun `manage`, o una nutrizionista in sola lettura
+aprirebbe la scheda e vedrebbe un errore al posto dell'informazione. La chiave
+della classe la copre lo stesso.
+
+File: backend/src/catalog/panieri.service.ts e il suo spec,
+backend/src/catalog/panieri.controller.ts, backend/src/catalog/panieri-guardia.spec.ts,
+backoffice/src/pages/Ricette.tsx, backoffice/src/pages/Panieri.tsx,
+backoffice/src/pages/panieri-pagina.spec.ts,
+backoffice/src/pages/ricette-panieri.spec.ts (nuovo).
+
+Prove: 6593/6593 backend nelle quattro modalità, 199/199 backoffice, build e tsc
+puliti da tutte e due le parti. Quattro mutazioni uccise su `doveSta`: il filtro
+di regime tolto (2 prove rosse), i panieri già occupati offerti di nuovo (1), lo
+spento che non blocca (2), gli allergeni non controllati (1).

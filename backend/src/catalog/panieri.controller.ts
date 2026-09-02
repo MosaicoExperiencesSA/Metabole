@@ -34,6 +34,17 @@ export class PanieriController {
     return this.panieri.celle();
   }
 
+  /**
+   * In quali panieri sta una ricetta, e in quali potrebbe stare.
+   *
+   * ⚠️ **Prima della rotta con i parametri**, che ha tre segmenti: qui ce ne sono due e non si
+   * accavallano, ma l'ordine di dichiarazione è l'unica cosa che lo garantisce ancora fra un anno.
+   */
+  @Get('ricetta/:recipeId')
+  doveSta(@Param('recipeId') recipeId: string) {
+    return this.panieri.doveSta(recipeId);
+  }
+
   /** Le ricette di un paniere per un pasto — coi gemelli uniti, com'è per la cliente. */
   @Get(':famiglia/:regime/ricette')
   ricette(

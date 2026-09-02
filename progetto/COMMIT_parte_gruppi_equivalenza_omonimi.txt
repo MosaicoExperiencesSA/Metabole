@@ -1,0 +1,53 @@
+I gruppi di equivalenza omonimi: cosa sono, e perché unirli non è pulizia
+
+Richiesta di Simone (2/9): «nelle equivalenze ci sono parecchi gruppi doppi, se
+il nome del gruppo è uguale vanno accorpati». Nella pagina «Bevande vegetali»
+compare sei volte, con dentro elenchi simili ma non uguali.
+
+IL DANNO CHE FANNO GIÀ ADESSO, e che dalla pagina non si vede.
+`menu/sostituzione-chat.service.ts` cerca il gruppo dei grassi PER NOME fra gli
+approvati, ordinati per data, e prende IL PRIMO. Con sei omonimi approvati, i
+pesi che la nutrizionista scrive nel secondo non li legge nessuno — e la cliente
+riceve «questo gruppo non ha i pesi» mentre i pesi ci sono, nel gruppo accanto.
+Non è disordine: è lavoro fatto che non arriva.
+(`menu.service.ts` invece li usa tutti per il trova-gemella: lì i doppioni non
+fanno male e nemmeno bene.)
+
+MA UNIRE NON È SEMPRE SICURO, ed è il motivo per cui questa consegna NON unisce
+niente e si ferma a un tabulato di sola lettura:
+
+· L'AMBITO. Un gruppo ha un `productId`: null = globale, altrimenti è DI UNA
+  DIETA. Unire due omonimi di diete diverse rende gli alimenti dell'una
+  equivalenti anche nell'altra — che è una decisione di nutrizione, non di
+  pulizia. «bevanda di nocciola» che entra in una dieta dove nessuno l'aveva
+  messa è esattamente quello che non si fa con uno script.
+· I PESI. `members.fattori` porta i grammi di conversione dei grassi. Due gruppi
+  con fattori diversi non si uniscono scegliendone uno: quel numero finisce nei
+  grammi che una persona si mette nel piatto.
+· LO STATO. Unire una bozza dentro un approvato fa entrare nel motore alimenti
+  che nessuno ha validato; il contrario butta via un'approvazione.
+
+Quindi `npm run diag:equivalenze-doppie` divide gli omonimi in due elenchi: «si
+uniscono da sole» (stesso ambito, stesso stato, nessun conflitto sui pesi) e «da
+guardare prima», con scritto quale dei tre motivi. E dice per primo quanti nomi
+hanno più di un gruppo APPROVATO, che è il numero che misura il danno di oggi.
+
+LA NORMALIZZAZIONE DEL NOME SI FERMA DOVE DEVE. Minuscolo, senza accenti, spazi
+interni collassati — «Bevande  vegetali» con due spazi non è un gruppo a parte
+per un tasto premuto due volte. E NON si va oltre: togliere le parole di
+servizio unirebbe «Bevande vegetali» e «Bevande vegetali non zuccherate», che
+sono due gruppi diversi, e le clienti che non possono avere zuccheri aggiunti si
+vedrebbero le bevande zuccherate come equivalenti.
+
+Il capofila di una famiglia è il gruppo PIÙ VECCHIO, e non è un dettaglio: è
+quello che `sostituzione-chat` trova per primo, quindi è quello che oggi vince, e
+un'unione deve arricchire lui — se no si sposta il comportamento invece di
+ripararlo.
+
+File: backend/src/catalog/gruppi-omonimi.ts (nuovo) e il suo spec,
+backend/prisma/diag-equivalenze-doppie.ts (nuovo), backend/package.json.
+
+Prove: quattordici nel modulo puro; 6584/6584 verdi nelle quattro modalità
+obbligatorie, build e tsc puliti. Cinque mutazioni uccise: spazi interni non
+collassati (2 prove rosse), ambito non controllato (2), stato non controllato
+(1), pesi non controllati (1), capofila preso dal più recente (1).

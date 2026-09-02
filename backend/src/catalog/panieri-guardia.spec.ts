@@ -57,4 +57,18 @@ describe('⛔ le porte dei panieri', () => {
     const r = (Reflect.getMetadata(ROLES_KEY, PanieriController) ?? []) as string[];
     expect(r).toContain('nutritionist');
   });
+
+  /**
+   * ⛔ **`doveSta` LEGGE e basta, e non deve chiedere `manage`** (2/9). Serve al popup «Modifica
+   * ricetta» per dire in quali panieri sta un piatto: chiedere `manage` per **guardare** vorrebbe
+   * dire che una nutrizionista in sola lettura apre la scheda e vede un errore al posto
+   * dell'informazione. ⚠️ Ma la chiave della classe deve continuare a coprirlo: è pur sempre una
+   * finestra sul pool di tutte.
+   */
+  it('⛔ `doveSta` legge: nessun `manage`, ma la chiave della classe vale lo stesso', () => {
+    expect(pagina('doveSta')?.level).toBeUndefined();
+    expect(Reflect.getMetadata(PAGE_KEY, PanieriController)).toMatchObject({ pageKey: 'panieri' });
+    /** ⚠️ E nessun `@Roles` suo: vale quello della classe, che comprende chi propone le diete. */
+    expect(ruoli('doveSta')).toBeUndefined();
+  });
 });

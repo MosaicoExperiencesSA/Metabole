@@ -188,3 +188,95 @@ describe('togliere una ricetta', () => {
     expect(a.log).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * ⛔ **IN QUALI PANIERI STA UNA RICETTA** — richiesta di Simone del 2/9: dal popup «Modifica
+ * ricetta», sotto «Dove è usata», poter aggiungere la ricetta a uno o più panieri.
+ *
+ * ⚠️ **«Dove è usata» e «in quali panieri sta» sono due cose diverse**: la prima sono le giornate
+ * che la nominano, la seconda è il pool da cui il motore pesca. Con l'interruttore su `paniere` è
+ * la seconda a decidere cosa arriva alla cliente.
+ */
+describe('doveSta — in quali panieri sta una ricetta', () => {
+  const vegana = { id: 'r1', name: 'Buddha bowl', regime: 'vegan', active: true, allergensReviewed: true };
+
+  const conPanieri = () => {
+    const prisma = prismaBase();
+    prisma.paniere.findMany.mockResolvedValue([
+      { id: 'p1', famiglia: 'Mediterranea', regime: 'vegan' },
+      { id: 'p2', famiglia: 'DASH', regime: 'vegan' },
+      { id: 'p3', famiglia: 'Mediterranea', regime: 'omnivore' },
+    ]);
+    prisma.recipe.findUnique.mockResolvedValue(vegana);
+    return prisma;
+  };
+
+  it('dice dove sta già, con famiglia, regime e pasto', async () => {
+    const prisma = conPanieri();
+    prisma.paniereRicetta.findMany.mockResolvedValue([{ paniereId: 'p1', slot: 'lunch' }]);
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.dentro).toEqual([{ famiglia: 'Mediterranea', regime: 'vegan', slot: 'lunch' }]);
+  });
+
+  /**
+   * ⛔ **Solo i panieri del suo regime.** `aggiungi` rifiuta un piatto onnivoro in un paniere
+   * vegano, e offrirlo nella tendina sarebbe offrire un errore.
+   */
+  it('⛔ fra i disponibili non c\'è nessun paniere di un altro regime', async () => {
+    const prisma = conPanieri();
+    prisma.paniereRicetta.findMany.mockResolvedValue([]);
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.disponibili.map((d) => d.famiglia).sort()).toEqual(['DASH', 'Mediterranea']);
+    expect(e.disponibili.every((d) => d.regime === 'vegan')).toBe(true);
+  });
+
+  it('⚠️ e nemmeno quelli in cui sta già: non si offre due volte la stessa cosa', async () => {
+    const prisma = conPanieri();
+    prisma.paniereRicetta.findMany.mockResolvedValue([{ paniereId: 'p1', slot: 'lunch' }]);
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.disponibili).toEqual([{ famiglia: 'DASH', regime: 'vegan' }]);
+  });
+
+  /**
+   * ⛔ **Il perché si dice PRIMA del clic che fallisce.** `aggiungi` rifiuta una ricetta spenta, ed
+   * è un rifiuto giusto; ma farlo scoprire premendo un pulsante, paniere per paniere, è far cercare
+   * a qualcuno una cosa che sappiamo già.
+   */
+  it('⛔ una ricetta spenta è bloccata, e lo dice subito', async () => {
+    const prisma = conPanieri();
+    prisma.recipe.findUnique.mockResolvedValue({ ...vegana, active: false });
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.bloccata).toMatch(/archiviata o è ancora una bozza/);
+  });
+
+  it('⛔ e così una con gli allergeni non confermati', async () => {
+    const prisma = conPanieri();
+    prisma.recipe.findUnique.mockResolvedValue({ ...vegana, allergensReviewed: false });
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.bloccata).toMatch(/allergeni.*non sono ancora confermati/i);
+  });
+
+  /**
+   * ⚠️ **Spenta E senza allergeni: si dice lo spento.** È il primo ostacolo da togliere, e dare due
+   * frasi insieme fa sembrare due lavori una cosa che si sblocca in due passi ordinati.
+   */
+  it('⚠️ con due motivi insieme dice quello che viene prima', async () => {
+    const prisma = conPanieri();
+    prisma.recipe.findUnique.mockResolvedValue({ ...vegana, active: false, allergensReviewed: false });
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.bloccata).toMatch(/archiviata o è ancora una bozza/);
+  });
+
+  it('⚠️ una ricetta a posto non è bloccata', async () => {
+    const prisma = conPanieri();
+    prisma.paniereRicetta.findMany.mockResolvedValue([]);
+    const e = await new PanieriService(prisma as never, audit() as never).doveSta('r1');
+    expect(e.bloccata).toBeNull();
+  });
+
+  it('⚠️ e una ricetta che non esiste è un 404, non un elenco vuoto', async () => {
+    const prisma = prismaBase();
+    prisma.recipe.findUnique.mockResolvedValue(null);
+    await expect(new PanieriService(prisma as never, audit() as never).doveSta('boh')).rejects.toThrow(/non trovata/i);
+  });
+});

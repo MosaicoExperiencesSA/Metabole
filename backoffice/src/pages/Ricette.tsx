@@ -844,6 +844,7 @@ export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onCl
 
       {/* Solo su una ricetta che esiste già: una ricetta nuova non ha ancora un id da collegare. */}
       {recipe && <DoveUsata recipe={recipe} slotNelModulo={f.mealSlot} />}
+      {recipe && <InQualiPanieri recipe={recipe} />}
 
       <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 14 }}>
         <Toggle on={f.active} onChange={(v) => setF({ ...f, active: v })} />
@@ -1152,6 +1153,174 @@ function DoveUsata({ recipe, slotNelModulo }: { recipe: Recipe; slotNelModulo: s
               <i className="ti ti-link" /> {busy ? 'Collego…' : 'Collega'}
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * IN QUALI PANIERI STA QUESTA RICETTA — e come metterla in altri.
+ *
+ * Richiesta di Simone (2/9): dal popup, sotto «Dove è usata», poter aggiungere la ricetta a uno o
+ * più panieri.
+ *
+ * ## ⛔ Perché è una sezione a parte e non righe in fondo a «Dove è usata»
+ *
+ * Sono **due domande diverse**, e la differenza sta per diventare la cosa più importante della
+ * pagina. «Dove è usata» sono le **giornate** che nominano il piatto; il paniere è il **pool** da
+ * cui il motore pesca. Con `panieri_sorgente_pool` su `paniere` è il secondo a decidere cosa arriva
+ * nel piatto di una cliente, e le giornate diventano storia. Mescolarli farebbe credere che
+ * togliere da una riga di «Dove è usata» tolga il piatto dai menu — e da quel giorno non è più vero.
+ *
+ * ⚠️ **Vale subito, come i collegamenti sopra**: tocca il paniere, non la ricetta, e tenerlo in
+ * sospeso vorrebbe dire poter chiudere la scheda a metà.
+ */
+function InQualiPanieri({ recipe }: { recipe: Recipe }) {
+  interface Stato {
+    dentro: { famiglia: string; regime: string; slot: string }[];
+    disponibili: { famiglia: string; regime: string }[];
+    bloccata: string | null;
+  }
+  const [stato, setStato] = useState<Stato | null>(null);
+  const [scelte, setScelte] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [avviso, setAvviso] = useState<string | null>(null);
+
+  async function carica() {
+    try {
+      setStato(await api<Stato>(`/panieri/ricetta/${recipe.id}`));
+      setErr(null);
+    } catch (e) {
+      /** ⚠️ Chi non ha la chiave `panieri` non deve vedere un errore rosso: la sezione sparisce. */
+      if (e instanceof ApiError && (e.status === 403 || e.status === 401)) { setStato(null); setErr(null); return; }
+      setErr(e instanceof ApiError ? e.message : 'Non riesco a leggere i panieri.');
+    }
+  }
+  useEffect(() => { void carica(); }, [recipe.id]);
+
+  /**
+   * ⛔ **Uno alla volta, e il conto di cosa è andato.** Simone ha chiesto di poterne scegliere più
+   * d'uno; l'API ne prende uno per chiamata, e va bene — ma se il terzo di cinque fallisce, dire
+   * «non riuscito» nasconde che i primi due sono stati scritti davvero. Si dice quanti sì e quanti no.
+   */
+  async function aggiungi() {
+    if (!scelte.length) return;
+    setBusy(true); setErr(null); setAvviso(null);
+    const fatti: string[] = [];
+    const falliti: string[] = [];
+    for (const chiave of scelte) {
+      const [famiglia, regime] = chiave.split('|');
+      try {
+        await api('/panieri/ricetta', {
+          method: 'POST',
+          body: JSON.stringify({ famiglia, regime, slot: recipe.mealSlot, recipeId: recipe.id }),
+        });
+        fatti.push(famiglia);
+      } catch (e) {
+        falliti.push(`${famiglia} (${e instanceof ApiError ? e.message : 'non riuscito'})`);
+      }
+    }
+    if (fatti.length) setAvviso(`Aggiunta a ${fatti.join(', ')}. Da adesso il motore la può pescare per tutte le clienti di ${fatti.length > 1 ? 'quei panieri' : 'quel paniere'}.`);
+    if (falliti.length) setErr(`Non aggiunta a ${falliti.join(' · ')}`);
+    setScelte([]);
+    await carica();
+    setBusy(false);
+  }
+
+  async function togli(p: { famiglia: string; regime: string; slot: string }) {
+    /** ⚠️ La conferma dice cosa cambia per le clienti, come nella pagina Panieri. */
+    if (!confirm(
+      `Togliere «${recipe.name}» dal paniere ${p.famiglia} · ${p.regime}?\n\n`
+      + 'Non lo riceverà più nessuna cliente di quel paniere.',
+    )) return;
+    setBusy(true); setErr(null); setAvviso(null);
+    try {
+      await api('/panieri/ricetta', {
+        method: 'DELETE',
+        body: JSON.stringify({ famiglia: p.famiglia, regime: p.regime, slot: p.slot, recipeId: recipe.id }),
+      });
+      setAvviso(`Tolta dal paniere ${p.famiglia}.`);
+      await carica();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Non riesco a toglierla.');
+    } finally { setBusy(false); }
+  }
+
+  if (!stato) return null;
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+      <b style={{ fontSize: 13 }}>In quali panieri sta</b>
+      <p className="muted" style={{ fontSize: 11, margin: '2px 0 8px' }}>
+        Il paniere è <b>da dove il motore pesca</b>, ed è una cosa diversa dalle giornate qui sopra.
+        Vale <b>subito</b>: non aspetta «Salva».
+      </p>
+
+      {err && <Banner kind="err">{err}</Banner>}
+      {avviso && <Banner kind="ok">{avviso}</Banner>}
+
+      {stato.dentro.length === 0 ? (
+        <div className="muted" style={{ fontSize: 12, padding: '6px 0' }}>
+          In nessun paniere: il motore non la pesca per nessuna cliente.
+        </div>
+      ) : (
+        <table className="grid" style={{ marginTop: 4 }}>
+          <tbody>
+            {stato.dentro.map((p) => (
+              <tr key={`${p.famiglia}|${p.regime}|${p.slot}`}>
+                <td><b>{p.famiglia}</b> <span className="chip">{p.regime}</span></td>
+                <td className="muted" style={{ fontSize: 11 }}>{SLOT[p.slot] ?? p.slot}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <button className="btn ghost sm" disabled={busy} onClick={() => void togli(p)}>
+                    <i className="ti ti-unlink" /> Togli
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/*
+        ⛔ Il motivo si dice PRIMA del clic che fallirebbe: scoprirlo premendo un pulsante, paniere
+        per paniere, è far cercare a qualcuno una cosa che sappiamo già.
+      */}
+      {stato.bloccata ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠️ {stato.bloccata}</p>
+      ) : stato.disponibili.length === 0 ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          È già in tutti i panieri <b>{recipe.regime}</b>. ⚠️ Negli altri regimi non può stare: un
+          piatto di un regime dentro il paniere di un altro finirebbe nel piatto sbagliato.
+        </p>
+      ) : (
+        <div style={{ marginTop: 8 }}>
+          <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+            Aggiungila a uno o più panieri <b>{recipe.regime}</b> — negli altri regimi non può stare.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {stato.disponibili.map((d) => {
+              const chiave = `${d.famiglia}|${d.regime}`;
+              const on = scelte.includes(chiave);
+              return (
+                <button
+                  key={chiave}
+                  type="button"
+                  className={on ? 'btn sm' : 'btn ghost sm'}
+                  aria-pressed={on}
+                  disabled={busy}
+                  onClick={() => setScelte((v) => (on ? v.filter((x) => x !== chiave) : [...v, chiave]))}
+                >
+                  {d.famiglia}
+                </button>
+              );
+            })}
+          </div>
+          <button className="btn sm" style={{ marginTop: 8 }} disabled={busy || !scelte.length} onClick={() => void aggiungi()}>
+            <i className="ti ti-plus" /> {busy ? 'Aggiungo…' : `Aggiungi a ${scelte.length || 'nessun'} paniere${scelte.length === 1 ? '' : 'i'}`}
+          </button>
         </div>
       )}
     </div>

@@ -123,6 +123,39 @@ describe('quello che la pagina spiega', () => {
     expect(pagina).toMatch(/passa il filtro qui sopra/);
   });
 
+  /**
+   * ⛔ **«MODIFICA» È UNA PORTA SUL CATALOGO, E VUOLE LA CHIAVE DEL CATALOGO** — richiesta di
+   * Simone del 2/9, e la parte che si sbaglia.
+   *
+   * Il popup salva con `PATCH /recipes/:id`, protetto da `recipes`. Mostrare il pulsante a chi ha
+   * solo `panieri` vuol dire farlo compilare un modulo che al «Salva» risponde 403: una porta che
+   * si apre e non si chiude è peggio di una porta che non c'è. ⚠️ E NON è la stessa chiave di
+   * «Togli dal paniere», che tocca il pool e vuole `panieri`/`manage`: sono due poteri diversi, ed
+   * è la ragione per cui il progetto vuole una chiave per pagina.
+   */
+  it('⛔ «Modifica» chiede `recipes`, «Togli dal paniere» chiede `panieri`/`manage`', () => {
+    expect(pagina).toMatch(/can\('recipes'\)/);
+    expect(pagina).toMatch(/can\('panieri', 'manage'\)/);
+    expect(pagina).toMatch(/puoModificare && \(\s*<td>/);
+  });
+
+  /**
+   * ⛔ **Lo stesso popup della pagina Ricette, non una copia.** Due schede della stessa ricetta in
+   * due punti divergono al primo campo aggiunto da una parte sola.
+   */
+  it('⛔ riusa `RecipeModal` invece di rifarlo', () => {
+    expect(pagina).toMatch(/import \{ RecipeModal[\s\S]{0,40}?from '\.\/Ricette'/);
+    expect(pagina).toMatch(/<RecipeModal/);
+  });
+
+  /**
+   * ⚠️ Cambiare il regime o spegnere una ricetta cambia i conti della matrice: lasciare i numeri
+   * vecchi sotto un popup appena chiuso fa credere che il salvataggio non abbia funzionato.
+   */
+  it('⚠️ e dopo un salvataggio ricarica i numeri', () => {
+    expect(pagina).toMatch(/onSaved=\{\(\) => \{[\s\S]{0,200}?carica\(\)/);
+  });
+
   /** ⚠️ Spuntino e merenda sono un paniere solo, e chi apre l'elenco deve saperlo. */
   it('⚠️ e lo dice che i due spuntini sono lo stesso paniere', () => {
     expect(pagina).toMatch(/pescano dallo stesso paniere/);
