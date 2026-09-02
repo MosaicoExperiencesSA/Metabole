@@ -214,6 +214,127 @@ describe('EngineRulesService', () => {
     expect(prisma.recipe.create.mock.calls.map((c: any) => c[0].data.name)).toContain("Polpo d'Alghe Nori Farcito");
   });
 
+  /**
+   * ⛔ **UN PIATTO SENZA ELENCO INGREDIENTI NON SI PRENDE** — 2/9.
+   *
+   * In catalogo c'era `6a5666fd` «Branzino al forno con verdure rosse e limone», **attiva**, in un
+   * paniere, con l'elenco **vuoto**. Due danni in uno: una cliente riceve un piatto che non può
+   * cucinare, e il controllo del regime **non lo può giudicare**, perché guarda gli ingredienti e
+   * non ce ne sono. Un piatto senza elenco passa qualunque regime.
+   */
+  it('⛔ il modello risponde senza ingredienti: il piatto NON viene scritto', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: [
+          { slot, name: 'Insalata di ceci e rucola', kcal: 400, ingredients: [{ name: 'ceci' }], macros: {} },
+          { slot, name: 'Branzino al forno con verdure rosse', kcal: 420, ingredients: [], macros: {} },
+        ],
+      });
+    });
+    await service.generateCatalogFromPreset('p1', 'u1', 1);
+    const scritte = prisma.recipe.create.mock.calls.map((c: any) => c[0].data.name);
+    expect(scritte).not.toContain('Branzino al forno con verdure rosse');
+    expect(scritte).toContain('Insalata di ceci e rucola');
+  });
+
+  /**
+   * ⛔ **E «senza elenco» comprende l'elenco che c'è ma non ha nomi** (`[{qty: 100}]`): da fuori la
+   * ricetta sembra compilata, `ingredients.length` risponde 1, e dentro non c'è niente che un
+   * riconoscitore possa leggere. È il caso su cui si sbaglia chi conta le righe.
+   */
+  it('⛔ e nemmeno con un elenco di righe senza nomi', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: [{ slot, name: 'Piatto misterioso', kcal: 400, ingredients: [{ qty: 100, unit: 'g' }], macros: {} }],
+      });
+    });
+    await expect(service.generateCatalogFromPreset('p1', 'u1', 1)).rejects.toThrow();
+    expect(prisma.recipe.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **LA PARTE CHE LA PRIMA STESURA SBAGLIAVA, ed è la ragione per cui il controllo sta dentro
+   * il ciclo che riprova e non in quello che scrive.**
+   *
+   * Scartando a valle, `vuoti` era già stato calcolato sulla risposta del modello: si scrivevano
+   * **sette giornate senza cena** e la risposta diceva `pastiIncompleti: []`. Il nutrizionista non
+   * lo sapeva. Qui la cena finisce fra i pasti incompleti, che è tutto quello che serve perché
+   * qualcuno se ne accorga.
+   */
+  it('⛔ il pasto che torna senza ingredienti finisce in `pastiIncompleti`, non sparisce in silenzio', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      if (slot === 'dinner') {
+        return Promise.resolve({ recipes: [{ slot, name: 'Cena senza niente', kcal: 500, ingredients: [], macros: {} }] });
+      }
+      return Promise.resolve({
+        recipes: Array.from({ length: 7 }, (_, i) => ({
+          slot, name: `Piatto ${slot} ${i}`, kcal: 400 + i,
+          ingredients: [{ name: 'ceci' }], macros: { protein_g: 30, carbs_g: 20, fat_g: 10 },
+        })),
+      });
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(res.pastiIncompleti).toContain('dinner');
+  });
+
+  /**
+   * ⛔ **E si riprova, tre volte, come per il JSON malformato.** Un modello che sbaglia una volta
+   * non è un pasto perduto: scartando a valle il riprova non c'era, perché la risposta era già
+   * stata accettata.
+   */
+  it('⛔ un tentativo senza ingredienti non brucia il pasto: si riprova', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    const giri = new Map<string, number>();
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      const n = (giri.get(slot) ?? 0) + 1;
+      giri.set(slot, n);
+      if (n === 1) return Promise.resolve({ recipes: [{ slot, name: 'Primo giro vuoto', kcal: 400, ingredients: [], macros: {} }] });
+      return Promise.resolve({
+        recipes: [{ slot, name: `Buona ${slot}`, kcal: 400, ingredients: [{ name: 'ceci' }], macros: {} }],
+      });
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(res.pastiIncompleti).toEqual([]);
+    const scritte = prisma.recipe.create.mock.calls.map((c: any) => c[0].data.name);
+    expect(scritte).not.toContain('Primo giro vuoto');
+    expect(scritte.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * ⛔ **E la forma `['ceci', 'rucola']` è un elenco valido.** In catalogo esiste, e la prima
+   * stesura la leggeva come vuota: cinque piatti buoni buttati per pasto, con nel log la frase
+   * «è tornata SENZA elenco ingredienti», che era falsa.
+   */
+  it('⚠️ l\'elenco scritto come stringhe NON è «senza ingredienti»', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    ai.generateJson.mockImplementation((_s: string, user: string) => {
+      if (user.includes('equivalenceGroups')) return Promise.resolve({ equivalenceGroups: [] });
+      const slot = user.match(/"slot":"(\w+)"/)?.[1] ?? 'lunch';
+      return Promise.resolve({
+        recipes: [{ slot, name: `Insalata ${slot}`, kcal: 400, ingredients: ['ceci', 'rucola', 'olio evo'], macros: {} }],
+      });
+    });
+    const res = await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(res.pastiIncompleti).toEqual([]);
+    expect(prisma.recipe.create.mock.calls.length).toBeGreaterThan(0);
+  });
+
   /** ⚠️ E su una variante onnivora non si scarta niente: il pesce lì ci sta. */
   it('chiesto onnivoro, il pesce resta', async () => {
     const { service, prisma, ai } = build();

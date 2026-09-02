@@ -101,7 +101,14 @@ describe('tagsDopoScelta', () => {
 
 describe('nomiIngredienti', () => {
   it('estrae i nomi dal Json e sopravvive ai dati storti', () => {
-    expect(nomiIngredienti([{ name: 'uova', qty: 2, unit: 'pz' }, { qty: 1 }, null, 'stringa'])).toEqual(['uova']);
+    expect(nomiIngredienti([{ name: 'uova', qty: 2, unit: 'pz' }, { qty: 1 }, null, '  '])).toEqual(['uova']);
+    /**
+     * ⛔ **Una stringa nuda È un ingrediente** (2/9): in catalogo la forma `['ceci','rucola']`
+     * esiste, `vera/dizionario-invecchiato.ts` e `catalog/allergens.ts` la leggevano da sempre, e
+     * questa funzione no — quindi la stessa ricetta era «salata» per una porta e non per l'altra.
+     * Adesso la lettura è una sola (`catalog/elenco-ingredienti.ts`) e questa la ri-esporta.
+     */
+    expect(nomiIngredienti(['uova', 'pancetta'])).toEqual(['uova', 'pancetta']);
     expect(nomiIngredienti(null)).toEqual([]);
     expect(nomiIngredienti('non un array')).toEqual([]);
   });

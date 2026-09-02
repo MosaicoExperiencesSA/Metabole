@@ -5113,4 +5113,29 @@ export const VOCI_INIZIALI: Voce[] = [
     fatta: true,
   },
 
+  {
+    chiave: 'ricette-senza-elenco-ingredienti',
+    titolo: 'Ricette attive senza elenco ingredienti: passano ogni controllo, perché ogni controllo guarda gli ingredienti',
+    dettaglio:
+      '\u26d4 **`6a5666fd` «Branzino al forno con verdure rosse e limone» \u00e8 ATTIVA, dentro un paniere, '
+      + 'e ha l\'elenco ingredienti VUOTO.** \u00c8 saltata fuori il 2/9 guardando le sei ricette di pesce, '
+      + 'e non \u00e8 una stranezza di catalogo: \u00e8 un piatto che una cliente pu\u00f2 ricevere e non pu\u00f2 '
+      + 'cucinare.\n'
+      + '\u26d4 **E soprattutto \u00e8 il buco della settimana dei panieri.** Il filtro del regime nel '
+      + 'generatore, la deduzione degli allergeni e le esclusioni della cliente guardano tutti gli '
+      + '**ingredienti**: con l\'elenco vuoto non dicono «attenzione», dicono **«ok»**. \u00c8 il buco '
+      + 'esatto da cui erano entrati i 175 piatti con carne o pesce nei panieri vegani.\n'
+      + '\u2705 **Il generatore non ne fa pi\u00f9** (2/9): un piatto che torna dal modello senza elenco non '
+      + 'viene preso, si riprova fino a tre volte, e un pasto che resta vuoto finisce in '
+      + '`pastiIncompleti` invece di sparire in silenzio.\n'
+      + '\u26a0\ufe0f **Quelle gi\u00e0 in catalogo restano, e vanno riempite a mano.** `npm run '
+      + 'diag:senza-ingredienti` dice quante sono e quali, divise fra «attive e dentro a un paniere» '
+      + '(una cliente le pu\u00f2 ricevere) e «fuori dai panieri o spente» (con calma). \u26a0\ufe0f Attenzione '
+      + 'al terzo caso che il tabulato separa: l\'elenco che **c\'\u00e8 ma non ha nomi dentro** '
+      + '(`[{qty: 100}]`) \u2014 da fuori la ricetta sembra compilata.',
+    categoria: CODICE,
+    ordine: 675,
+    nata: '2026-09-02T19:00',
+  },
+
 ];

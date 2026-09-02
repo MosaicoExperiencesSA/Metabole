@@ -120,10 +120,13 @@ export function tagsDopoScelta(tags: readonly string[] | null | undefined, tipo:
   return senza;
 }
 
-/** I nomi degli ingredienti, dal Json `[{name, qty, unit}]` di `Recipe.ingredients`. */
-export function nomiIngredienti(ingredients: unknown): string[] {
-  if (!Array.isArray(ingredients)) return [];
-  return ingredients
-    .map((i) => (i && typeof i === 'object' && typeof (i as { name?: unknown }).name === 'string' ? (i as { name: string }).name : ''))
-    .filter(Boolean);
-}
+/**
+ * I nomi degli ingredienti di una ricetta.
+ *
+ * ⚠️ **Ri-esportata da `catalog/elenco-ingredienti.ts`.** Il 2/9 in `src` c'erano QUATTRO funzioni
+ * con questo nome o questo mestiere, e non leggevano le stesse cose: questa e quella del
+ * riconoscitore ignoravano la forma `['ceci','rucola']`, che in catalogo esiste. Una colazione
+ * salata riconosciuta da una e non dall'altra è il genere di differenza che non si trova mai
+ * guardando il codice, perché ogni file da solo sembra giusto.
+ */
+export { nomiIngredienti } from '../catalog/elenco-ingredienti';

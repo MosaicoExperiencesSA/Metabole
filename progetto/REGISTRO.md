@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🥣 **Una ricetta che non dice cosa ci va dentro passa qualunque controllo.** ⛔
+  Guardando le sei ricette di pesce è saltata fuori `6a5666fd` «Branzino al forno con verdure rosse
+  e limone»: **attiva**, dentro un paniere, con l'elenco ingredienti **vuoto**. Non è una stranezza
+  di catalogo: tutto il lavoro sui panieri guarda gli ingredienti — il filtro del regime nel
+  generatore, la deduzione degli allergeni, le esclusioni della cliente — e con l'elenco vuoto quei
+  controlli non dicono «attenzione», dicono **«ok»**. È il buco esatto da cui erano entrati i 175.
+  ✅ **Il generatore non ne fa più**: un piatto che torna dal modello senza elenco non viene preso,
+  e il controllo sta **dentro il ciclo che riprova** — quindi un tentativo sbagliato non brucia il
+  pasto, un pasto che resta vuoto finisce in `pastiIncompleti`, e se falliscono tutti si alza
+  l'errore che si alzava già.
+  ✅ **`npm run diag:senza-ingredienti`** conta quelle già in catalogo e le divide per gravità:
+  attive e dentro a un paniere (una cliente le può ricevere) contro fuori dai panieri o spente. E
+  separa i **tre modi di essere vuoto** — `null`, `[]`, e l'elenco che c'è ma non ha nomi dentro
+  (`[{qty: 100}]`), che è quello che inganna perché da fuori sembra compilato.
+  ⛔ **La lettura degli ingredienti era in QUATTRO posti e non leggevano le stesse cose**:
+  `dizionario-invecchiato`, `colazioni`, `allergens` e la nuova. Due gestivano la forma
+  `['ceci','rucola']` — che in catalogo esiste — e due no: la stessa ricetta era «salata» per una
+  porta e non per l'altra. Adesso la funzione è una (`catalog/elenco-ingredienti.ts`) e le altre tre
+  la ri-esportano. ⚠️ Due comportamenti cambiati, tutti e due in meglio: `colazioni` legge anche le
+  stringhe nude, e `deduci([{name:'zucchine'}, null])` si ferma per «elemento illeggibile» invece
+  che per «ingrediente ignoto» — la vecchia lettura trasformava `null` nella **stringa «null»**
+  (in JS `typeof null === 'object'` ma `null && …` è falso). In tutti e due i casi la ricetta non
+  passa: cambia il motivo scritto, non la sicurezza.
+  🔍 **La revisione avversariale ha bocciato la prima stesura, e aveva ragione su tutto.** Il
+  controllo stava nel ciclo che **scrive**, a valle del calcolo di `pastiVuoti`: si scrivevano
+  **sette giornate senza cena** con la risposta che diceva `pastiIncompleti: []`, e in «rifai» la
+  settimana veniva cancellata e non riscritta, con esito «ok». E leggendo solo `[{name}]` buttava
+  cinque piatti **validi** per pasto scrivendo nel log una frase falsa. ⚠️ Niente di tutto questo è
+  mai stato committato né consegnato.
+  ⚠️ **Resta a mano**: le ricette già in catalogo senza ingredienti. `6a5666fd` è attiva e in un
+  paniere — quella prima delle altre.
+  🧪 6556 prove verdi nelle quattro modalità obbligatorie. Sei mutazioni uccise.
+
 - `[Sviluppo]` ⏭️ **La suite nel futuro: `npm run test:futuro`, e la classe che credevo aperta era
   vuota.** ⛔ Stamattina avevo scritto in elenco lavori «la classe resta aperta altrove, e non l'ho
   toccata perché non l'ho misurata», con una dozzina di file sospetti in mano. ✅ Adesso è misurata:

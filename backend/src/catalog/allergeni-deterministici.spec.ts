@@ -148,12 +148,27 @@ describe('allergeni dedotti dagli ingredienti, con arresto sull\'ignoto', () => 
       expect(e.allergeni).toBeNull();
     });
 
-    it('⚠️ un elemento nullo si ferma lo stesso, ma per l\'altra porta', () => {
-      // `String(null)` diventa il nome «null», che nessuna tabella conosce: arresto sugli ignoti.
-      // Conta che si FERMI; da quale delle due porte è un dettaglio, e questa prova lo fissa.
+    /**
+     * ⛔ **Dal 2/9 si ferma dalla porta GIUSTA**, e il cambio vale la pena raccontarlo.
+     *
+     * Fino al 2/9 `ingredientNames` faceva `String(i)` sui non-oggetti e — siccome in JS
+     * `typeof null === 'object'` ma `null && …` è falso — un elemento `null` diventava il **nome
+     * «null»**. Nessuna tabella conosce un alimento chiamato «null», quindi la ricetta si fermava
+     * sugli **ignoti**: l'arresto giusto per il motivo sbagliato. Ora la lettura è una sola
+     * (`catalog/elenco-ingredienti.ts`), il `null` viene scartato come illeggibile, e il conto
+     * «quanti ce n'erano contro quanti se ne sono letti» lo vede.
+     *
+     * ⚠️ In tutte e due le versioni `allergeni` è `null` e la ricetta non passa: cambia il motivo
+     * scritto, non la sicurezza. Ma il motivo è quello che qualcuno legge per capire cosa
+     * aggiustare, e «c'è un elemento che non so leggere» manda nel posto giusto, «c'è un
+     * ingrediente che non conosco» no.
+     */
+    it('⛔ un elemento nullo è un elemento ILLEGGIBILE, non un ingrediente ignoto', () => {
       const e = deduci([{ name: 'zucchine' }, null], dz);
       expect(e.allergeni).toBeNull();
-      expect(e.motivoArresto).toBe('ignoti');
+      expect(e.motivoArresto).toBe('elementi_illeggibili');
+      /** ⚠️ E nessun alimento inventato: «null» non compare fra gli ignoti. */
+      expect(e.ignoti).toEqual([]);
     });
 
     it('⚠️ e due ingredienti uguali non sembrano uno scarto', () => {

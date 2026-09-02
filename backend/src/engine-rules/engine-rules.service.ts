@@ -14,6 +14,7 @@ import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { SLOT_ORDINE, coperturaCatalogo, slotAttesi, statoCopertura } from './copertura-catalogo';
 import { sincronizzaTagSettimane } from '../menu/tag-settimane';
 import { suggestAllergens } from '../catalog/allergens';
+import { nomiIngredienti } from '../catalog/elenco-ingredienti';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BASE_RULES, ENGINE_RULES, ENGINE_RULE_BY_CODE, RULE_CATEGORIES } from './engine-rules.catalog';
@@ -708,9 +709,7 @@ export class EngineRulesService {
          * di una variante vegana, e riscriverlo `pescetarian` lo lascerebbe in quella giornata con
          * l'etichetta giusta e il posto sbagliato. Il conto delle generate cala, e si vede nel log.
          */
-        const nomiIng = ingredients
-          .map((x) => (typeof (x as { name?: unknown })?.name === 'string' ? String((x as { name: string }).name) : ''))
-          .filter((x) => x !== '');
+        const nomiIng = nomiIngredienti(ingredients);
         /**
          * ⚠️ Il regime **del contenuto**: la carne fa `omnivore`, il pesce `pescetarian` — il più
          * stretto che può mangiarlo. E la carne vince, come in `verdettoPescetariano`: «mare e
@@ -1310,7 +1309,29 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
     for (let tentativo = 0; tentativo < 3; tentativo++) {
       const gen = await this.ai.generateJson<{ recipes?: unknown[] }>(system, user, 8000);
       const ricette = Array.isArray(gen?.recipes) ? (gen!.recipes as Record<string, unknown>[]) : [];
-      const buone = ricette.filter((r) => r && typeof r.name === 'string' && r.name.trim());
+      /**
+       * ⛔ **UN PIATTO CHE NON DICE COSA CI VA DENTRO NON SI PRENDE** — 2/9.
+       *
+       * In catalogo c'era `6a5666fd` «Branzino al forno con verdure rosse e limone»: **attiva**,
+       * dentro un paniere, con l'elenco ingredienti **vuoto**. Due danni in uno — una cliente
+       * riceve un piatto che non può cucinare, e il filtro del regime qui sotto **non lo può
+       * giudicare**, perché guarda gli ingredienti e non ce ne sono. Un piatto senza elenco passa
+       * qualunque regime: è il buco esatto da cui erano entrati i 175.
+       *
+       * ⛔ **E il posto è QUESTO, non il ciclo che scrive.** La prima stesura lo scartava là sotto,
+       * dopo che `vuoti` era già stato calcolato: la revisione ha mostrato sette giornate scritte
+       * **senza cena** con la risposta che diceva `pastiIncompleti: []`, e in modalità «rifai» una
+       * settimana cancellata e non riscritta, con esito «ok». Qui invece si **riprova** (tre giri
+       * come per il JSON malformato), lo slot che resta vuoto finisce in `pastiIncompleti`, e se
+       * falliscono tutti i pasti si alza l'errore che si alzava già.
+       *
+       * ⚠️ `nomiIngredienti` legge sia `[{name}]` sia `['ceci','rucola']`: la seconda forma in
+       * catalogo esiste, e la prima stesura buttava cinque piatti buoni per pasto scrivendo pure
+       * nel log una frase falsa.
+       */
+      const buone = ricette.filter(
+        (r) => r && typeof r.name === 'string' && r.name.trim() && nomiIngredienti(r.ingredients).length > 0,
+      );
       if (buone.length > 0) return buone.slice(0, p.quante);
       // Credito esaurito, chiave non valida, modello inesistente: riprovare non cambia niente.
       // Il 12/8 il credito è finito a metà generazione e questo ciclo, moltiplicato per cinque pasti

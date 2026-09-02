@@ -123,11 +123,12 @@ export function cercaNuoviMembri(
   return fuori.sort((a, b) => b.candidati.length - a.candidati.length);
 }
 
-/** I nomi degli ingredienti dal JSON di una ricetta, senza fidarsi della forma. */
-export function nomiIngredienti(ingredients: unknown): string[] {
-  if (!Array.isArray(ingredients)) return [];
-  return ingredients
-    .map((i) => (typeof i === 'string' ? i : ((i ?? {}) as { name?: unknown }).name))
-    .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
-    .map((n) => n.trim());
-}
+/**
+ * I nomi degli ingredienti dal JSON di una ricetta, senza fidarsi della forma.
+ *
+ * ⚠️ **Sta in `catalog/elenco-ingredienti.ts` adesso**, e qui si ri-esporta perché chi importava da
+ * questo file continui a funzionare. Il 2/9 le implementazioni erano tre — questa, quella di
+ * `catalog/allergens.ts` e una nuova — e due liste che rispondono alla stessa domanda sono un
+ * difetto che il progetto ha già pagato coi solfiti sul bovino.
+ */
+export { nomiIngredienti } from '../catalog/elenco-ingredienti';

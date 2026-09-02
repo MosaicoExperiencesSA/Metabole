@@ -1,0 +1,68 @@
+Una ricetta che non dice cosa ci va dentro passa qualunque controllo
+
+Guardando le sei ricette di pesce è saltata fuori `6a5666fd` «Branzino al forno
+con verdure rosse e limone»: ATTIVA, dentro un paniere, con l'elenco ingredienti
+VUOTO. Non è una stranezza di catalogo. Tutto il lavoro sui panieri guarda gli
+ingredienti — il filtro del regime nel generatore, la deduzione degli allergeni,
+le esclusioni della cliente — e con l'elenco vuoto quei controlli non dicono
+«attenzione»: dicono «ok». È il buco esatto da cui erano entrati i 175.
+
+TRE COSE.
+
+1) IL GENERATORE NON NE FA PIÙ. Un piatto che torna dal modello senza elenco
+   ingredienti non viene preso. Sta dentro il ciclo che riprova (tre giri, come
+   per il JSON malformato), quindi un tentativo sbagliato non brucia il pasto; se
+   il pasto resta comunque vuoto finisce in `pastiIncompleti` e il nutrizionista
+   lo vede; se falliscono tutti i pasti si alza l'errore che si alzava già.
+
+2) `npm run diag:senza-ingredienti` conta quelle che sono già dentro, e le divide
+   per gravità: attive e dentro a un paniere (una cliente le può ricevere) contro
+   fuori dai panieri o spente (sporcizia, con calma). Separa anche i tre modi di
+   essere vuoto — `null`, `[]`, e l'elenco che c'è ma non ha nomi dentro
+   (`[{qty: 100}]`), che è quello che inganna perché da fuori sembra compilato.
+
+3) LA LETTURA DEGLI INGREDIENTI ERA IN QUATTRO POSTI, E NON LEGGEVANO LE STESSE
+   COSE. `vera/dizionario-invecchiato.ts`, `vera/colazioni.ts`,
+   `catalog/allergens.ts` e la nuova: due gestivano la forma `['ceci','rucola']`
+   — che in catalogo esiste — e due no. La stessa ricetta era «salata» per una
+   porta e non per l'altra. Adesso la funzione è una
+   (`catalog/elenco-ingredienti.ts`) e le altre tre la ri-esportano.
+
+DUE COMPORTAMENTI CAMBIATI, tutti e due in meglio, e vanno letti:
+· `colazioni.nomiIngredienti` adesso legge anche le stringhe nude. Riconosce di
+  più, non di meno.
+· `deduci([{name:'zucchine'}, null])` si fermava per «ingrediente ignoto» perché
+  la vecchia lettura trasformava `null` nella stringa «null» (in JS
+  `typeof null === 'object'`, ma `null && …` è falso). Adesso si ferma per
+  «elemento illeggibile», che è la porta giusta. In tutte e due le versioni la
+  ricetta NON passa e `allergeni` è `null`: cambia il motivo scritto, non la
+  sicurezza — ma il motivo è quello che qualcuno legge per capire cosa aggiustare.
+
+LA REVISIONE AVVERSARIALE HA BOCCIATO LA PRIMA STESURA, e aveva ragione su tutto:
+· il controllo stava nel ciclo che SCRIVE, a valle del calcolo di `pastiVuoti`:
+  scartando lì si scrivevano sette giornate senza cena con la risposta che diceva
+  `pastiIncompleti: []`, e in modalità «rifai» la settimana veniva cancellata e
+  non riscritta, con esito «ok»;
+· e leggeva solo `[{name}]`, quindi buttava come «senza ingredienti» cinque piatti
+  validi per pasto scrivendo nel log una frase falsa;
+· più due frasi non vere nel commento del tabulato («il nome la salva» vale solo
+  su vegan e vegetarian: su una ricetta già `omnivore` `classifica` esce a «ok»
+  prima di guardarlo, e una `pescetarian` non viene proprio interrogata).
+Niente di tutto questo è mai stato committato né consegnato.
+
+COSA RESTA DA FARE A MANO: le ricette già in catalogo senza ingredienti.
+`diag:senza-ingredienti` dice quante sono e quali. `6a5666fd` è attiva e in un
+paniere: quella prima delle altre.
+
+File: backend/src/catalog/elenco-ingredienti.ts (nuovo) e il suo spec,
+backend/prisma/diag-ricette-senza-ingredienti.ts (nuovo), package.json,
+backend/src/engine-rules/engine-rules.service.ts e il suo spec,
+backend/src/catalog/allergens.ts, backend/src/vera/dizionario-invecchiato.ts,
+backend/src/vera/colazioni.ts, e i due spec aggiornati.
+
+Prove: 6556/6556 verdi nelle quattro modalità obbligatorie. `npm run build` e
+`npx tsc --noEmit` puliti (restano i due errori preesistenti in
+`prisma/approve-diets.ts` e `prisma/dedupe-diets.ts`). Sei mutazioni uccise: il
+guardiano tolto (4 prove rosse), la forma stringa non letta (1), «senza nomi»
+non distinto da «ok» (2), il trim tolto (3), il non-array come vuoto (2), il
+filtro dei vuoti tolto (4).

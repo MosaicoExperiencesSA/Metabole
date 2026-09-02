@@ -141,7 +141,8 @@
     "diag:orfane": "ts-node --transpile-only prisma/diag-ricette-senza-paniere.ts",
     "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts",
     "regime:a-mano": "ts-node --transpile-only prisma/correggi-regime-a-mano.ts",
-    "diag:fase9": "ts-node --transpile-only prisma/diag-migrazione-fase9.ts"
+    "diag:fase9": "ts-node --transpile-only prisma/diag-migrazione-fase9.ts",
+    "diag:senza-ingredienti": "ts-node --transpile-only prisma/diag-ricette-senza-ingredienti.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

@@ -78,13 +78,16 @@ const ALLERGEN_LABEL = new Map(EU_ALLERGENS.map((a) => [a.code, a.label]));
 export const allergenLabel = (code: string) => ALLERGEN_LABEL.get(code) ?? code;
 export const EU_ALLERGEN_CODES = EU_ALLERGENS.map((a) => a.code);
 
-/** Estrae i nomi degli ingredienti da Recipe.ingredients (Json [{name,...}]). */
-export function ingredientNames(ingredients: unknown): string[] {
-  if (!Array.isArray(ingredients)) return [];
-  return ingredients
-    .map((i) => (i && typeof i === 'object' ? String((i as { name?: unknown }).name ?? '') : String(i)))
-    .filter(Boolean);
-}
+/**
+ * Estrae i nomi degli ingredienti da `Recipe.ingredients`.
+ *
+ * ⚠️ **Ri-esportata da `catalog/elenco-ingredienti.ts` col nome italiano.** Questa lettura era una
+ * delle quattro in giro per `src`, ed era fra le due che facevano bene: la forma `['ceci','rucola']`
+ * la gestiva. Il nome inglese resta perché lo importano in sei posti.
+ */
+import { nomiIngredienti } from './elenco-ingredienti';
+
+export const ingredientNames = nomiIngredienti;
 
 /**
  * ⛔ **LE OMONIME VALGONO ANCHE QUI** — 24/8.
