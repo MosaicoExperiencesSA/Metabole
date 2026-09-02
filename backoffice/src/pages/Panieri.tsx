@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, PageHeader, Spinner } from '../components/ui';
+import { NESSUN_FILTRO, comeSiLegge, numeriDaMostrare, passaIlFiltro, type Filtro } from './panieri-filtro';
 
 /**
  * I PANIERI — da dove arrivano i piatti di una cliente.
@@ -79,6 +80,12 @@ export function Panieri() {
   /** La cella aperta, e per quale pasto: `null` = nessuna. */
   const [aperta, setAperta] = useState<{ cella: Cella; slot: string } | null>(null);
   const [ricette, setRicette] = useState<Ricetta[] | null>(null);
+  /**
+   * ⛔ **I due pulsanti valgono per TUTTA la pagina** — i numeri della matrice e l'elenco che si
+   * apre sotto. Un filtro che cambiasse solo l'elenco farebbe leggere due verità diverse nella
+   * stessa schermata. Entrambi spenti (o entrambi accesi) = tutto.
+   */
+  const [filtro, setFiltro] = useState<Filtro>(NESSUN_FILTRO);
 
   async function carica() {
     try {
@@ -132,6 +139,14 @@ export function Panieri() {
     }
   }
 
+  /** ⚠️ Filtrate qui e non nella query: l'API rende il paniere intero, e i due pulsanti si premono
+   * e si spengono in continuazione — una chiamata a ogni clic sarebbe attesa per niente. */
+  const ricetteMostrate = useMemo(
+    () => (ricette ?? []).filter((r) => passaIlFiltro(r.active, filtro)),
+    [ricette, filtro],
+  );
+  const spiegazione = comeSiLegge(filtro);
+
   const famiglie = useMemo(() => [...new Set((celle ?? []).map((c) => c.famiglia))], [celle]);
   const regimi = useMemo(() => [...new Set((celle ?? []).map((c) => c.regime))], [celle]);
   const cellaDi = (famiglia: string, regime: string) =>
@@ -151,6 +166,38 @@ export function Panieri() {
         {' '}<strong>Fra parentesi</strong> quanti il motore userebbe davvero: gli altri sono bozze
         da validare, e finché lo sono a nessuna cliente arrivano.
       </p>
+
+      {/*
+        ⛔ Due pulsanti, non un menu a tendina: gli stati sono tre e si premono cento volte in
+        un'ora. E si accendono e si spengono da soli — premere «solo attive» due volte torna a
+        mostrare tutto, che è la strada d'uscita più corta da un filtro acceso per sbaglio.
+      */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0 4px' }}>
+        <button
+          type="button"
+          className={filtro.attive ? 'btn sm' : 'btn ghost sm'}
+          aria-pressed={filtro.attive}
+          title="I piatti che il motore userebbe davvero, adesso."
+          onClick={() => setFiltro((f) => ({ ...f, attive: !f.attive }))}
+        >
+          Mostra solo attive
+        </button>
+        <button
+          type="button"
+          className={filtro.bozze ? 'btn sm' : 'btn ghost sm'}
+          aria-pressed={filtro.bozze}
+          title="I piatti che stanno nel paniere ma a nessuna cliente arrivano, finché qualcuno non li valida."
+          onClick={() => setFiltro((f) => ({ ...f, bozze: !f.bozze }))}
+        >
+          Mostra solo in bozza
+        </button>
+      </div>
+      {/*
+        ⛔ **Un filtro acceso senza una frase che lo dica è un numero sbagliato.** Chi torna su
+        questa pagina dopo dieci minuti legge «498 piatti» e non ha modo di sapere che ne sta
+        guardando un pezzo.
+      */}
+      {spiegazione && <Banner kind="info">{spiegazione}</Banner>}
 
       {!celle ? <Spinner /> : (
         <div style={{ overflowX: 'auto' }}>
@@ -178,29 +225,36 @@ export function Panieri() {
                     if (!c.esiste) {
                       return <td key={rg} style={{ color: 'var(--muted)' }}>paniere non creato</td>;
                     }
+                    const tot = numeriDaMostrare({ piatti: c.totale, attivi: c.totaleAttivi }, filtro);
                     return (
                       <td key={rg}>
                         <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                          {c.totale} piatti
-                          <span
-                            style={{ fontWeight: 400, color: c.totaleAttivi < c.totale ? 'var(--warn, #b45309)' : 'var(--muted)' }}
-                            title="Fra parentesi quanti il motore userebbe davvero: gli altri sono bozze da validare."
-                          >
-                            {' '}({c.totaleAttivi})
-                          </span>
+                          {tot.quanti} piatti
+                          {tot.fraParentesi !== null && (
+                            <span
+                              style={{ fontWeight: 400, color: c.totaleAttivi < c.totale ? 'var(--warn, #b45309)' : 'var(--muted)' }}
+                              title="Fra parentesi quanti il motore userebbe davvero: gli altri sono bozze da validare."
+                            >
+                              {' '}({c.totaleAttivi})
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {SLOT.map((sl) => (
-                            <button
-                              key={sl}
-                              className="btn ghost"
-                              style={{ padding: '2px 6px', fontSize: 12 }}
-                              title={`${NOME_SLOT[sl]}: ${c.perSlot[sl]?.piatti ?? 0} piatti, di cui ${c.perSlot[sl]?.attivi ?? 0} che il motore userebbe davvero — apri l'elenco`}
-                              onClick={() => void apri(c, sl)}
-                            >
-                              {NOME_SLOT[sl]?.slice(0, 3)} {c.perSlot[sl]?.piatti ?? 0} ({c.perSlot[sl]?.attivi ?? 0})
-                            </button>
-                          ))}
+                          {SLOT.map((sl) => {
+                            const n = numeriDaMostrare(c.perSlot[sl] ?? { piatti: 0, attivi: 0 }, filtro);
+                            return (
+                              <button
+                                key={sl}
+                                className="btn ghost"
+                                style={{ padding: '2px 6px', fontSize: 12 }}
+                                title={`${NOME_SLOT[sl]}: ${c.perSlot[sl]?.piatti ?? 0} piatti, di cui ${c.perSlot[sl]?.attivi ?? 0} che il motore userebbe davvero — apri l'elenco`}
+                                onClick={() => void apri(c, sl)}
+                              >
+                                {NOME_SLOT[sl]?.slice(0, 3)} {n.quanti}
+                                {n.fraParentesi !== null && <> ({c.perSlot[sl]?.attivi ?? 0})</>}
+                              </button>
+                            );
+                          })}
                         </div>
                       </td>
                     );
@@ -226,8 +280,17 @@ export function Panieri() {
               tutti e due, ed è quello che vede la cliente.
             </p>
           )}
-          {!ricette ? <Spinner /> : ricette.length === 0 ? (
-            <p className="muted">Nessun piatto per questo pasto.</p>
+          {!ricette ? <Spinner /> : ricetteMostrate.length === 0 ? (
+            /**
+             * ⚠️ **Due frasi diverse per due fatti diversi.** «Non ce ne sono» e «ce ne sono ma i
+             * pulsanti li stanno nascondendo» portano a due azioni opposte: nel secondo caso chi
+             * legge deve sapere che basta spegnere un pulsante, o cercherà un guasto nel paniere.
+             */
+            <p className="muted">
+              {ricette.length === 0
+                ? 'Nessun piatto per questo pasto.'
+                : `Nessuno dei ${ricette.length} piatti di questo pasto passa il filtro qui sopra.`}
+            </p>
           ) : (
             <table className="table" style={{ marginTop: 8 }}>
               <thead>
@@ -236,7 +299,7 @@ export function Panieri() {
                 </tr>
               </thead>
               <tbody>
-                {ricette.map((r) => (
+                {ricetteMostrate.map((r) => (
                   <tr key={r.id}>
                     <td>{r.name}</td>
                     <td>{r.kcal}</td>

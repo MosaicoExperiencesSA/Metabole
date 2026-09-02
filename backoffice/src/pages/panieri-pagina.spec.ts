@@ -81,9 +81,46 @@ describe('quello che la pagina spiega', () => {
      * prova restava verde. Una prova di mutazione l'ha mostrato, ed è la terza volta oggi che la
      * stessa distrazione passa da una sentinella: cercare un nome non è cercare quello che fa.
      */
-    expect(pagina).toMatch(/\}\s*\(\{c\.perSlot\[sl\]\?\.attivi \?\? 0\}\)/);
+    expect(pagina).toMatch(/\(\{c\.perSlot\[sl\]\?\.attivi \?\? 0\}\)/);
     expect(pagina).toMatch(/\{' '\}\(\{c\.totaleAttivi\}\)/);
     expect(pagina).toMatch(/bozze\s*\n?\s*da validare/);
+    /**
+     * ⛔ **E il numero fra parentesi si stampa solo quando `numeriDaMostrare` dice che c'è** (2/9,
+     * coi due pulsanti nuovi). Senza questa riga la pagina potrebbe calcolare il filtro e poi
+     * scrivere le parentesi comunque: `60 (60)` col filtro «solo attive», cioè due misure diverse
+     * che tornano per caso — che è peggio di non mostrarle.
+     */
+    expect(pagina).toMatch(/fraParentesi !== null && \(?\s*<(span|>)/);
+  });
+
+  /**
+   * ⛔ **I DUE PULSANTI VALGONO PER TUTTA LA PAGINA** — richiesta di Simone del 2/9. Il rischio non
+   * è che il filtro non funzioni: è che funzioni **a metà**, filtrando l'elenco e lasciando i
+   * numeri della matrice come prima. Due verità diverse nella stessa schermata sono il modo più
+   * veloce per non fidarsi più di nessuna delle due.
+   */
+  it('⛔ il filtro tocca i numeri della matrice, non solo l\'elenco', () => {
+    expect(pagina).toMatch(/numeriDaMostrare\(\{ piatti: c\.totale, attivi: c\.totaleAttivi \}, filtro\)/);
+    expect(pagina).toMatch(/numeriDaMostrare\(c\.perSlot\[sl\][\s\S]{0,60}?, filtro\)/);
+    expect(pagina).toMatch(/ricetteMostrate\.map/);
+  });
+
+  /**
+   * ⛔ **Un filtro acceso senza una frase che lo dica è un numero sbagliato.** Chi torna sulla
+   * pagina dopo dieci minuti legge «498 piatti» e non ha modo di sapere che ne sta guardando un
+   * pezzo.
+   */
+  it('⛔ e quando è acceso la pagina dice cosa si sta guardando', () => {
+    expect(pagina).toMatch(/\{spiegazione && <Banner/);
+  });
+
+  /**
+   * ⚠️ «Non ce ne sono» e «ce ne sono ma i pulsanti li nascondono» portano a due azioni opposte:
+   * nel secondo caso basta spegnere un pulsante, e chi legge deve saperlo o cercherà un guasto.
+   */
+  it('⚠️ e distingue «nessun piatto» da «nessuno passa il filtro»', () => {
+    expect(pagina).toMatch(/Nessun piatto per questo pasto/);
+    expect(pagina).toMatch(/passa il filtro qui sopra/);
   });
 
   /** ⚠️ Spuntino e merenda sono un paniere solo, e chi apre l'elenco deve saperlo. */

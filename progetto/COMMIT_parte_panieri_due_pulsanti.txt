@@ -1,0 +1,44 @@
+Panieri: «mostra solo attive» e «mostra solo in bozza»
+
+Richiesta di Simone (2/9). Due pulsanti sopra la matrice dei panieri; entrambi
+spenti mostrano tutto.
+
+IL FILTRO VALE PER TUTTA LA PAGINA, non solo per l'elenco che si apre sotto. La
+matrice scrive `84 (60)` — 84 piatti in paniere, 60 che il motore userebbe
+davvero: un filtro che cambiasse l'elenco e lasciasse i numeri sopra farebbe
+leggere due verità diverse nella stessa schermata, ed è il modo più veloce per
+non fidarsi più di nessuna delle due.
+
+ENTRAMBI ACCESI = ENTRAMBI SPENTI = TUTTO. Non è una scorciatoia: «attive» e
+«bozze» sono le uniche due possibilità, quindi la loro unione È il totale. Un
+terzo stato che mostrasse meno di quello che chiedono i due pulsanti premuti
+sarebbe una bugia. E premere due volte lo stesso pulsante torna a mostrare
+tutto: è la strada d'uscita più corta da un filtro acceso per sbaglio.
+
+COL FILTRO ACCESO IL NUMERO FRA PARENTESI SPARISCE. `60 (60)` non aggiunge
+niente e fa pensare a due misure diverse che tornano per caso: le parentesi
+rispondono a «quanti di questi arrivano davvero?», che con un filtro acceso non
+si pone più.
+
+E LA PAGINA DICE COSA SI STA GUARDANDO. Un filtro acceso senza una frase che lo
+dica è un numero sbagliato: chi torna sulla pagina dopo dieci minuti legge «498
+piatti» e non ha modo di sapere che ne sta guardando un pezzo. Stessa ragione
+per cui l'elenco vuoto distingue «non ce ne sono» da «ce ne sono ma i pulsanti
+li stanno nascondendo»: portano a due azioni opposte.
+
+Il giudizio sta in un modulo puro (`pages/panieri-filtro.ts`) con quattordici
+prove, non dentro il JSX. `Math.max(0, …)` sul conto delle bozze: i due numeri
+vengono da due conteggi distinti dell'API, e «−3 piatti in bozza» sarebbe un
+numero senza senso scritto dove qualcuno decide cosa mangiano le clienti.
+
+Il filtro è lato client: l'API rende il paniere intero, e i pulsanti si premono
+e si spengono in continuazione — una chiamata a ogni clic sarebbe attesa per
+niente.
+
+File: backoffice/src/pages/panieri-filtro.ts (nuovo) e il suo spec,
+backoffice/src/pages/Panieri.tsx, backoffice/src/pages/panieri-pagina.spec.ts.
+
+Prove: 190/190 verdi (`npx vitest run`), `npx tsc --noEmit` e `npm run build`
+puliti. Quattro mutazioni uccise: entrambi accesi che non mostra tutto (2 prove
+rosse), il `Math.max` tolto (1), le parentesi che restano col filtro (1), il
+filtro che non filtra (2).

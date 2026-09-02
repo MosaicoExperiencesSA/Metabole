@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🧺 **Panieri: «mostra solo attive» e «mostra solo in bozza».** Richiesta di Simone.
+  ⛔ **Il filtro vale per tutta la pagina**, non solo per l'elenco che si apre sotto: la matrice
+  scrive `84 (60)`, e un filtro che cambiasse l'elenco lasciando i numeri sopra farebbe leggere
+  **due verità diverse nella stessa schermata**. ✅ Entrambi accesi = entrambi spenti = tutto:
+  «attive» e «bozze» sono le uniche due possibilità, quindi la loro unione **è** il totale.
+  ⚠️ **Col filtro acceso il numero fra parentesi sparisce**: `60 (60)` non aggiunge niente e fa
+  pensare a due misure diverse che tornano per caso. E la pagina **dice** cosa si sta guardando —
+  un filtro acceso senza una frase che lo spieghi è un numero sbagliato, perché chi torna dopo
+  dieci minuti legge «498 piatti» e non sa che ne sta vedendo un pezzo. Stessa ragione per cui
+  l'elenco vuoto distingue «non ce ne sono» da «ce ne sono ma i pulsanti li nascondono»: portano a
+  due azioni opposte.
+  🧪 Il giudizio in un modulo puro (`pages/panieri-filtro.ts`) con 14 prove, non dentro il JSX;
+  190/190 verdi, quattro mutazioni uccise.
+
 - `[Sviluppo]` 🥣 **Una ricetta che non dice cosa ci va dentro passa qualunque controllo.** ⛔
   Guardando le sei ricette di pesce è saltata fuori `6a5666fd` «Branzino al forno con verdure rosse
   e limone»: **attiva**, dentro un paniere, con l'elenco ingredienti **vuoto**. Non è una stranezza
