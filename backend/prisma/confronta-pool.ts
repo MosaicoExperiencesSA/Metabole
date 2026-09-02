@@ -48,7 +48,7 @@ async function main() {
   riga('  POOL: dalle GIORNATE contro dal PANIERE — sola lettura');
   riga('==================================================================');
 
-  const [diete, giornate, appartenenze, ricetteVive] = await Promise.all([
+  const [diete, giornate, appartenenze, ricetteVive, interruttore] = await Promise.all([
     prisma.diet.findMany({ select: { id: true, name: true, regime: true, status: true } }) as unknown as
       Promise<{ id: string; name: string; regime: string; status: string }[]>,
     prisma.dietDayTemplate.findMany({ select: { dietId: true, meals: true } }) as unknown as
@@ -58,7 +58,24 @@ async function main() {
     }) as unknown as Promise<{ slot: string; recipeId: string; paniere: { famiglia: string; regime: string } }[]>,
     prisma.recipe.findMany({ select: { id: true, name: true, regime: true, active: true } }) as unknown as
       Promise<{ id: string; name: string; regime: string; active: boolean }[]>,
+    /**
+     * ⛔ **DA CHE PARTE STA L'INTERRUTTORE ADESSO** — aggiunto il 2/9, e mancava.
+     *
+     * Questo confronto risponde a «cosa cambierebbe spostando `panieri_sorgente_pool` su
+     * `paniere`». ⚠️ Se è **già** su `paniere` quella domanda è **storica**: il cambiamento è
+     * avvenuto, e leggere «⛔ NON spostare l'interruttore» manda a fermare una cosa già fatta —
+     * o, peggio, a rimetterla indietro. Il 2/9 è successo esattamente questo: l'interruttore era
+     * su `paniere` dall'1/9 alle 05:21 e il tabulato ha fatto rifare tre volte un giro che
+     * rispondeva a una domanda chiusa da un giorno.
+     *
+     * ⚠️ Un misuratore deve dire **da quando** misura, non solo cosa.
+     */
+    prisma.configParam.findUnique({
+      where: { key: 'panieri_sorgente_pool' },
+      select: { value: true, updatedAt: true },
+    }) as unknown as Promise<{ value: string; updatedAt: Date } | null>,
   ]);
+  const giaSulPaniere = interruttore?.value === 'paniere';
 
   const esiste = new Set(ricetteVive.map((r) => r.id));
   const laRicetta = new Map(ricetteVive.map((r) => [r.id, r]));
@@ -81,6 +98,18 @@ async function main() {
 
   riga('');
   riga(`Varianti: ${diete.length}.  Appartenenze in tabella: ${appartenenze.length}.`);
+  riga('');
+  if (giaSulPaniere) {
+    riga('  ⛔ ATTENZIONE: `panieri_sorgente_pool` È GIÀ SU `paniere`');
+    riga(`     (dall'${interruttore!.updatedAt.toISOString().slice(0, 16).replace('T', ' ')}).`);
+    riga('     Quindi il pool viene DAL PANIERE già adesso, e quello che segue non è «cosa');
+    riga('     succederebbe»: è una fotografia di com\'era prima. Le ricette contate come «perse»');
+    riga('     non stanno sparendo ora — sono già sparite quel giorno.');
+    riga('     ⚠️ Serve ancora, ma per un\'altra domanda: «quel cambiamento cos\'ha portato via?».');
+  } else {
+    riga(`  \`panieri_sorgente_pool\` = ${interruttore?.value ?? 'non scritto (vale il default `giornate`)'}:`);
+    riga('  il pool viene ancora dalle giornate, e questo confronto dice cosa cambierebbe spostandolo.');
+  }
   if (!appartenenze.length) {
     riga('');
     riga('⛔ La tabella dei panieri è VUOTA: prima `npm run panieri:riempi` con APPLICA=1.');
@@ -175,9 +204,18 @@ async function main() {
   const sp = perMotivo.get('spenta') ?? 0;
   const dg = perMotivo.get('da guardare') ?? 0;
 
+  /**
+   * ⚠️ **La frase finale cambia se l'interruttore è già spostato.** «Si può spostare» detto a chi
+   * l'ha spostato ieri è un invito a rifare una cosa fatta, e il 2/9 è quello che è successo.
+   */
+  const conclusione = giaSulPaniere
+    ? '  ✅ Ed è già così: il paniere è la sorgente dall\'' + interruttore!.updatedAt.toISOString().slice(0, 10) + '. Niente da fare.'
+    : '  `panieri_sorgente_pool` si può spostare su `paniere`.';
+
   if (perseTot === 0) {
     riga('  ✅ NESSUNA ricetta si perde: tutto quello che una cliente può ricevere oggi lo può');
-    riga('  ricevere anche leggendo dal paniere. `panieri_sorgente_pool` si può spostare su `paniere`.');
+    riga('  ricevere anche leggendo dal paniere.');
+    riga(conclusione);
   } else {
     riga(`  ${varianteConPerdite} varianti leggono dal paniere qualcosa di diverso da oggi: ${perseTot} ricette in meno.`);
     riga('');
@@ -194,7 +232,8 @@ async function main() {
     riga('');
     if (dg === 0) {
       riga('  ✅ NESSUNA ricetta sparisce senza una ragione: quello che si perde è esattamente quello');
-      riga('  che non doveva più arrivare. `panieri_sorgente_pool` si può spostare su `paniere`.');
+      riga('  che non doveva più arrivare.');
+      riga(conclusione);
     } else {
       riga(`  ⛔ ${dg} ricette sparirebbero SENZA una ragione. NON spostare l'interruttore.`);
       riga('  ⚠️ Regime giusto, attive, e nel paniere non ci sono: prima si capisce perché.');

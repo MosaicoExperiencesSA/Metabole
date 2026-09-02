@@ -1,0 +1,30 @@
+Un misuratore deve dire da quando misura, non solo cosa
+
+`panieri:confronta` risponde a «cosa cambierebbe spostando `panieri_sorgente_pool`
+su `paniere`». Non leggeva il parametro, quindi non sapeva che l'interruttore era
+GIÀ su `paniere` dall'1/9 alle 05:21 — e ha fatto rifare tre volte, il 2/9, un
+giro che rispondeva a una domanda chiusa da un giorno.
+
+Il costo non è il tempo perso. È che il tabulato scriveva «⛔ NON spostare
+l'interruttore» a chi l'aveva spostato il giorno prima: un invito a fermare — o a
+rimettere indietro — una cosa già fatta e funzionante. E all'altro estremo
+scriveva «✅ si può spostare su `paniere`», che a chi ce l'ha già su `paniere`
+suona come «rifallo».
+
+Adesso, in cima, dice da che parte sta l'interruttore e da quando. Se è già su
+`paniere` lo scrive prima di tutto il resto, e spiega che quello che segue non è
+«cosa succederebbe» ma una fotografia di com'era prima: le ricette contate come
+perse non stanno sparendo ora, sono già sparite quel giorno. Il tabulato resta
+utile, ma per un'altra domanda — «quel cambiamento cos'ha portato via?».
+
+E la frase finale cambia di conseguenza: «si può spostare» detto a chi l'ha
+spostato ieri è un invito a rifare una cosa fatta.
+
+⚠️ Una frase che ho detto a voce e che era sbagliata per la stessa ragione:
+«oggi una cliente vegana quel pesce lo riceve». Col pool che viene dal paniere
+dall'1/9, quel pesce non arriva già più. Le 626 ricette «perse» erano la
+fotografia di cosa era cambiato, non di cosa stava per cambiare.
+
+File: backend/prisma/confronta-pool.ts.
+
+Prove: 6593/6593 nelle quattro modalità, build e tsc puliti.

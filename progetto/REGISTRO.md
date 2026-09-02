@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🕰️ **Un misuratore deve dire DA QUANDO misura, non solo cosa.** ⛔
+  `panieri:confronta` risponde a «cosa cambierebbe spostando `panieri_sorgente_pool` su `paniere`»,
+  e non leggeva il parametro: non sapeva che l'interruttore era **già su `paniere` dall'1/9 alle
+  05:21**. Il 2/9 ha fatto rifare **tre volte** un giro che rispondeva a una domanda chiusa da un
+  giorno. ⚠️ Il costo non è il tempo: è che scriveva «⛔ NON spostare l'interruttore» a chi
+  l'aveva spostato il giorno prima — un invito a fermare, o a rimettere indietro, una cosa già
+  fatta e funzionante.
+  ✅ Ora in cima dice da che parte sta l'interruttore e da quando, e se è già su `paniere` avverte
+  che quello che segue **non è «cosa succederebbe»** ma una fotografia di com'era prima: le ricette
+  contate come perse non stanno sparendo, sono già sparite quel giorno.
+  ⚠️ **E una frase che avevo detto era sbagliata per la stessa ragione**: «oggi una cliente vegana
+  quel pesce lo riceve». Col pool dal paniere dall'1/9, quel pesce non arriva già più.
+  🧪 6593/6593 verdi nelle quattro modalità.
+
 - `[Sviluppo]` ✏️ **«Modifica» dalla tabella dei panieri, e i panieri dentro la scheda della
   ricetta.** Richiesta di Simone. ⛔ **«Dove è usata» e «in quali panieri sta» sono due domande
   diverse**, e per questo la seconda è una sezione a parte e non righe in fondo alla prima: la prima
