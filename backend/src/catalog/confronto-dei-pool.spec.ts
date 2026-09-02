@@ -1,4 +1,4 @@
-import { confrontaLePoole, quantePerse } from './confronto-dei-pool';
+import { confrontaLePoole, perchePersa, quantePerse } from './confronto-dei-pool';
 
 const app = (slot: string, ...ids: string[]) => ids.map((recipeId) => ({ slot, recipeId }));
 const tutteVive = () => true;
@@ -103,5 +103,36 @@ describe('il guadagno', () => {
   it('⛔ un pasto che le giornate non prevedono non compare fra le perse', () => {
     const e = confrontaLePoole(app('lunch', 'a'), [...app('lunch', 'a'), ...app('breakfast', 'z')], tutteVive);
     expect(e.perse).toEqual([]);
+  });
+});
+
+/**
+ * ⛔ **«625 piatti spariscono» e «625 piatti smettono di arrivare a chi non doveva riceverli» sono
+ * la stessa riga con due significati opposti.** Senza il perché, il verdetto manda a cercare.
+ */
+describe('perchePersa', () => {
+  it('⛔ una ricetta il cui regime non è quello del paniere sparisce APPOSTA', () => {
+    expect(perchePersa({ regime: 'pescetarian', active: true }, 'vegan')).toBe('regime diverso');
+  });
+
+  it('⛔ se il regime combacia, manca davvero: da guardare', () => {
+    expect(perchePersa({ regime: 'vegan', active: true }, 'vegan')).toBe('da guardare');
+  });
+
+  it('⚠️ una spenta del regime giusto si distingue lo stesso', () => {
+    expect(perchePersa({ regime: 'vegan', active: false }, 'vegan')).toBe('spenta');
+  });
+
+  /**
+   * ⛔ **Il regime vince sullo spento**: una ricetta di pesce spenta e riclassificata sparisce
+   * dal paniere vegano per il regime, e dirlo «spenta» manderebbe a riaccenderla.
+   */
+  it('⛔ e il regime diverso vince sullo spento', () => {
+    expect(perchePersa({ regime: 'omnivore', active: false }, 'vegetarian')).toBe('regime diverso');
+  });
+
+  /** ⚠️ Una ricetta che non si trova più non è «spenta»: è sparita, ed è un'altra cosa. */
+  it('⚠️ una ricetta che non c\'è più è da guardare, non «spenta»', () => {
+    expect(perchePersa(undefined, 'vegan')).toBe('da guardare');
   });
 });

@@ -20,6 +20,24 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🔎 **«625 perse» non è un numero: sono due fatti opposti sotto la stessa riga.**
+  Corretto il difetto dei gemelli, `panieri:confronta` è sceso da 119 varianti a 62, con **625
+  ricette perse**, quasi tutte in panieri vegani e vegetariani. ⚠️ «625 piatti spariscono dal menu»
+  e «625 piatti smettono di arrivare a chi non doveva riceverli» sono la stessa riga con due
+  significati opposti. ✅ **La maggior parte è il FINE della riforma**: `regime:contenuto` ha
+  riclassificato a `pescetarian` i piatti di pesce etichettati `vegan`, `panieri:pulisci` li ha
+  tolti dai panieri vegani, ma **nelle giornate sono rimasti** perché quelle sono un JSON che
+  nessuno ha ripulito. Oggi una cliente vegana quel pesce **lo riceve**; col paniere smette.
+  ✅ Il tabulato ora divide per motivo — regime diverso, spente, **da guardare** — e stampa una per
+  una **solo** le ultime: un elenco di 600 righe uguali nasconde le tre che contano.
+  ⛔ **E il verdetto in cima guarda quel numero, non il totale.** La prima stesura avrebbe scritto
+  «NON spostare l'interruttore» in cima e, dodici righe sotto, «si può spostare»: due verdetti
+  opposti nello stesso tabulato, e chi legge crede al primo — il modo più elegante di far fermare
+  un lavoro finito.
+  🧪 `perchePersa` nel modulo puro con cinque prove, fra cui «il regime vince sullo spento» (dire
+  «spenta» a una ricetta di pesce riclassificata manderebbe a riaccenderla). 6584/6584 verdi, tre
+  mutazioni uccise.
+
 - `[Sviluppo]` ⚖️ **Il confronto prima/dopo costruiva le due sponde in due modi diversi — e ha detto
   «non accendere» quando non era vero.** ⛔ `npm run panieri:confronta` è la verifica che decide se
   accendere il paniere, e il 2/9 ha risposto «119 varianti perderebbero almeno una ricetta». Il

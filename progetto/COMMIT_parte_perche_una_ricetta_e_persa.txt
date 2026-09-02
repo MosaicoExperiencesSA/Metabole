@@ -1,0 +1,39 @@
+«625 perse» non è un numero: sono due fatti opposti sotto la stessa riga
+
+Corretto il difetto dei gemelli, `panieri:confronta` è passato da 119 varianti a
+62, con 625 ricette perse — quasi tutte in panieri `vegan` e `vegetarian`. E
+«625 piatti spariscono dal menu» e «625 piatti smettono di arrivare a chi non
+doveva riceverli» sono la stessa riga con due significati opposti.
+
+La maggior parte è il FINE della riforma, non un guasto. `regime:contenuto` ha
+riclassificato a `pescetarian` centinaia di piatti etichettati `vegan` che
+contenevano pesce, e `panieri:pulisci` li ha tolti dai panieri vegani. Ma NELLE
+GIORNATE sono rimasti, perché quelle sono un JSON che nessuno ha ripulito.
+Quindi oggi, che il pool viene dalle giornate, una cliente vegana quel pesce LO
+RICEVE; accendendo il paniere smette. È esattamente la cosa che questa settimana
+serviva a ottenere.
+
+Quindi il tabulato adesso divide le perse per motivo:
+· regime diverso dal paniere → spariscono apposta;
+· spente → non le riceve nessuno comunque;
+· DA GUARDARE → regime giusto, attive, e nel paniere non ci sono: mancano
+  davvero, e sono le uniche che si stampano una per una, con nome, regime e
+  variante. Un elenco di 600 righe uguali nasconde le tre che contano.
+
+E IL VERDETTO IN CIMA GUARDA QUEL NUMERO, non il totale. La prima stesura
+decideva su «quante varianti perdono qualcosa»: avrebbe scritto «⛔ NON spostare
+l'interruttore» in cima e, dodici righe sotto, «✅ si può spostare». Due verdetti
+opposti nello stesso tabulato — e chi legge crede al primo, che è il modo più
+elegante di far fermare un lavoro finito. Contare le perse per regime insieme
+alle altre voleva dire chiedere il permesso di fare la cosa che si stava facendo.
+
+Il giudizio sta in `perchePersa`, nel modulo puro, con cinque prove. Fra queste:
+il regime vince sullo spento (una ricetta di pesce spenta e riclassificata
+sparisce dal paniere vegano per il regime, e dirla «spenta» manderebbe a
+riaccenderla), e una ricetta che non si trova più è «da guardare», non «spenta».
+
+File: backend/src/catalog/confronto-dei-pool.ts e il suo spec,
+backend/prisma/confronta-pool.ts.
+
+Prove: 6584/6584 verdi nelle quattro modalità obbligatorie, build e tsc puliti.
+Tre mutazioni uccise sulla classificazione.

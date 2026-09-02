@@ -85,3 +85,34 @@ export function confrontaLePoole(
 /** Quante ricette perde in tutto una variante. */
 export const quantePerse = (e: EsitoConfronto): number =>
   e.perse.reduce((n, p) => n + p.mancanti.length, 0);
+
+/**
+ * ⛔ **PERCHÉ UNA RICETTA È PERSA** — la domanda che il verdetto da solo non risponde.
+ *
+ * Il 2/9, corretto il difetto dei gemelli, restavano **625 ricette perse su 62 varianti**, quasi
+ * tutte in panieri `vegan` e `vegetarian`. Un numero così non si guarda a mano, e «625 piatti
+ * spariscono» e «625 piatti smettono di arrivare a chi non doveva riceverli» sono la stessa riga
+ * con due significati opposti.
+ *
+ * ⚠️ **La maggior parte è il FINE della riforma, non un guasto.** `regime:contenuto` ha spostato a
+ * `pescetarian` centinaia di piatti che erano etichettati `vegan` e contenevano pesce;
+ * `panieri:pulisci` li ha tolti dai panieri vegani. Ma **nelle giornate sono rimasti**, perché
+ * quelle sono un JSON che nessuno ha ripulito. Quindi oggi, che il pool viene dalle giornate, una
+ * cliente vegana quel pesce **lo riceve**; accendendo il paniere smette. È la cosa che tutta la
+ * settimana serviva a ottenere.
+ *
+ * ⛔ Una persa il cui regime **combacia** col paniere è un'altra cosa: lì manca davvero, e va
+ * guardata.
+ */
+export type PercheP = 'regime diverso' | 'spenta' | 'da guardare';
+
+export function perchePersa(
+  ricetta: { regime?: string | null; active?: boolean } | undefined,
+  regimeDelPaniere: string,
+): PercheP {
+  /** ⚠️ Una ricetta che non si trova più non è «spenta»: è sparita, e va guardata. */
+  if (!ricetta) return 'da guardare';
+  if (ricetta.regime && ricetta.regime !== regimeDelPaniere) return 'regime diverso';
+  if (ricetta.active === false) return 'spenta';
+  return 'da guardare';
+}
