@@ -1,0 +1,33 @@
+Le venti persone della Fase 9: il controllo che dice se è andata
+
+⛔ NASCE DA UNA COSA CHE HO RIFIUTATO DI FARE
+Simone ha chiesto di migrarle con uno script. Non si può, e le ragioni sono due:
+
+  · cambiare `dietFamily` da fuori salta `buildPersonalBase`. La base personale — quella da cui
+    Vera pesca quando una cliente chiede di cambiare un piatto in chat — resterebbe sulla famiglia
+    VECCHIA: i menu dalla nuova, i cambi in chat dalla vecchia. È lo stesso motivo per cui le
+    pescetariane le abbiamo migrate dalla scheda e non dal database.
+  · «bloccare» un piano non è un campo, è una DECISIONE: `planHeldAt` più il motivo e chi l'ha
+    presa, e finisce nel registro. Uno script metterebbe la data e basta — e fra tre mesi quattro
+    clienti sono ferme e nessuno sa da chi né perché.
+
+Quindi la migrazione si fa a mano, dalle schede. E questo è l'altra metà: `npm run diag:fase9`
+dice se è andata, invece di lasciarlo sperare.
+
+COSA GUARDA, PER OGNUNA DELLE VENTI
+  · dove è finita, confrontata con dove DOVEVA finire — il tabulato sa cosa ci si aspettava, e uno
+    che sa solo dire «ecco lo stato» non risponde alla domanda;
+  · da quale paniere pesca adesso, e quanti piatti ha per pasto (gemelli uniti, com'è per lei);
+  · ⛔ SE LA BASE PERSONALE È STATA RIFATTA — la riga che nessuno guarderebbe. Il certificato di
+    personalizzazione ha una data: se è più vecchio dell'ultima modifica del profilo, quella cliente
+    ha la famiglia nuova e il pool dei cambi ancora sulla vecchia. Non si vede da nessuna parte, e
+    in chat esce come «Vera mi propone piatti strani»;
+  · e per le quattro che vanno fermate: se il blocco c'è, da quando e con che motivo.
+
+⚠️ In fondo elenca anche CHI RESTA sulle famiglie che si chiudono, e lì possono comparire persone
+che nelle venti non c'erano: clienti arrivate dopo il censimento del 2/9. Vanno guardate come le
+altre — un elenco che si ferma alla fotografia di ieri invecchia in una settimana.
+
+⚠️ `44ce5fc5 test` non è in elenco: è un account di prova, e contarlo falserebbe i venti.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

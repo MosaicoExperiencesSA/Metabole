@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 👥 **Le venti persone della Fase 9: il controllo che dice se è andata.** ⛔ **Nasce da
+  una cosa che ho rifiutato di fare**: migrarle con uno script. Non si può — cambiare `dietFamily`
+  da fuori salta `buildPersonalBase`, e la base personale (quella da cui **Vera** pesca quando una
+  cliente chiede di cambiare un piatto in chat) resterebbe sulla famiglia **vecchia**: menu dalla
+  nuova, cambi in chat dalla vecchia. ⛔ E «bloccare» un piano non è un campo, è una **decisione**:
+  `planHeldAt` più il motivo e chi l'ha presa, che finisce nel registro — uno script metterebbe la
+  data e basta, e fra tre mesi quattro clienti sono ferme senza che nessuno sappia da chi né perché.
+  ✅ Quindi la migrazione si fa dalle schede, e `npm run diag:fase9` è l'altra metà: per ognuna delle
+  venti dice **dove è finita contro dove doveva finire** (un controllo che sa solo dire «ecco lo
+  stato» non risponde alla domanda), da che paniere pesca e con quanti piatti per pasto, se le
+  quattro da fermare sono ferme e con che motivo — e ⛔ **se la base personale è stata rifatta**, che
+  è la riga che nessuno guarderebbe: certificato più vecchio del profilo vuol dire famiglia nuova e
+  pool dei cambi vecchio, e in chat esce come «Vera mi propone piatti strani». ⚠️ In fondo elenca chi
+  resta sulle famiglie che si chiudono, comprese le clienti arrivate **dopo** il censimento: un
+  elenco fermo alla fotografia di ieri invecchia in una settimana.
+
 - `[Sviluppo]` ✅ **L'allarme si stampa solo quando scatta — e il piano panieri tocca terra.**
   ⛔ `diag:orfane` stampava **sempre** il blocco che descrive un guasto («il pesce è uscito dai
   panieri vegani e non è entrato in quelli pescetariani»), anche sotto un risultato in cui il
