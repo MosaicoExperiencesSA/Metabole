@@ -83,6 +83,63 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'interruttore-ricette-semplici-in-app',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: false,
+    nata: '2026-09-02T19:20',
+    titolo: 'Al prossimo rilascio dell\'app: via l\'interruttore «ricette semplici» dal Profilo',
+    dettaglio:
+      'Il 2/9 la preferenza «ricette semplici» è stata **tolta dal motore** (decisione di Simone, '
+      + 'dopo il caso Patrizia del 31/8). ⛔ **L\'interruttore nel Profilo dell\'app c\'è ancora**: la '
+      + 'cliente lo accende e non succede niente — un interruttore che non accende nulla, la cosa '
+      + 'che `CLAUDE.md` dice di non lasciare in giro.\n\n'
+      + '⚠️ **Non si poteva togliere insieme al resto**: sta in `app/src/pages/Profilo.tsx`, e '
+      + 'sparisce dai telefoni solo con un rilascio (OTA). Finché non esce, chi ha la versione '
+      + 'vecchia continua a vederlo comunque.\n\n'
+      + '**Da fare:** togliere la riga da `Profilo.tsx` e mandare l\'OTA.\n\n'
+      + '⛔ **E NON togliere `prefersSimpleRecipes` dal DTO** (`profile/dto/update-profile.dto.ts`) '
+      + 'nello stesso giro: le app **già installate** quel campo lo mandano a ogni salvataggio, e un '
+      + 'DTO che non lo accetta più risponde **400** — la cliente non salva più il profilo, nome e '
+      + 'allergie comprese, per un campo che non serve a nessuno. Il DTO si pulisce quando le '
+      + 'versioni vecchie non sono più in giro, ed è un altro giro.\n\n'
+      + '⚠️ **Il valore in banca dati si tiene**: dice a chi quella preferenza interessava, e non si '
+      + 'ricrea. Se un giorno la funzione torna, quella è l\'unica lista che c\'è.',
+  },
+  {
+    chiave: 'stesso-piatto-spuntino-e-merenda',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: false,
+    nata: '2026-09-02T18:40',
+    titolo: '⛔ Lo stesso piatto allo spuntino E alla merenda della stessa giornata: la composizione non lo vieta',
+    dettaglio:
+      'Trovato dalla revisione avversariale del 2/9, misurando un\'altra cosa. Dalla Fase 2 (1/9) '
+      + '`poolPerSlot` allarga il pool ai **gemelli**: `morning_snack` e `afternoon_snack` escono con '
+      + 'la stessa identica lista, perché una merenda deve poter servire lo spuntino e viceversa. È '
+      + 'giusto — ma da lì in poi **nessuno vieta che la stessa ricetta finisca in tutti e due**.\n\n'
+      + '⛔ `DayComboService.enumerate` è un prodotto cartesiano puro, e né `rank` né `greedy` '
+      + 'penalizzano un `recipeId` ripetuto fra due slot. `coppiaDellaGiornata` guarda solo '
+      + 'pranzo/cena, e fra **giornate** diverse, non dentro la stessa.\n\n'
+      + '```\n'
+      + '[{breakfast:c1},{morning_snack:sm1},{lunch:p1},{afternoon_snack:sm1},{dinner:d1}]\n'
+      + '```\n\n'
+      + 'Lo stesso piatto alle 10:30 e alle 17:00, e la cliente lo legge in due righe della stessa '
+      + 'giornata.\n\n'
+      + '⚠️ **Quanto capita dipende da quanto è largo il pool**, e nessuno l\'ha ancora misurato: con '
+      + 'un paniere pieno è raro, su una cliente con molte esclusioni no. **Il primo passo è '
+      + 'contarlo** sulle giornate già erogate — è una query, non una modifica — perché «quanto '
+      + 'spesso» decide se la correzione va nel motore o basta una guardia.\n\n'
+      + '⚠️ **Dove si chiude**: nella composizione (`dayCombo`), non in un pezzo a valle. La '
+      + 'preferenza «ricette semplici» il suo doppione se lo chiude da sé (2/9, '
+      + '`preferenza-semplici.ts`), ma è un percorso solo e riguarda poche clienti: la giornata '
+      + 'normale passa da un\'altra strada.\n\n'
+      + '⛔ **E non si risolve togliendo l\'allargamento**: quello serve, e toglierlo rimetterebbe '
+      + 'una merenda a non poter servire uno spuntino — cioè il difetto che la Fase 2 ha chiuso.',
+  },
+  {
     chiave: 'la-e-nel-nome-tronca-in-silenzio',
     categoria: 'Da fare — codice',
     ordine: 0,
@@ -4156,8 +4213,32 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'ricevere. Il divieto si tiene, la riga assurda no.\n'
       + '\u26a0\ufe0f **Il campo si scrive solo quando c\'\u00e8 qualcosa**: un `substitutions: []` scritto apposta '
       + '\u00e8 indistinguibile da «nessuno l\'ha guardato».\n'
-      + '\u26a0\ufe0f **Resta aperta la quinta porta**, `buildSimpleSlotPool`, che \u00e8 spenta: il giorno che '
-      + 'qualcuno riaccende `menu_simple_recipes_enabled` il buco \u00e8 gi\u00e0 l\u00ec.',
+      + '\u2705 **E LA QUINTA PORTA \u00c8 CHIUSA, il 2/9 \u2014 TOGLIENDOLA.** Prima riparata: i candidati '
+      + 'escono dal **pool della sua dieta** (`ctx.slotPool`) e passano da `valutaRicetta` col nome '
+      + 'fra gli ingredienti, come le altre quattro; il giudizio in un modulo suo, dove ogni '
+      + 'cancello si toglie e si vede cadere (nella prima stesura stava dentro il servizio e '
+      + '**quattro mutazioni su cinque sopravvivevano**). Poi la decisione di Simone: *«io lo '
+      + 'lascerei spento sai... anzi lo toglierei proprio»*. \u26d4 **Riparare e togliere sono due '
+      + 'decisioni diverse**, e la seconda la prende chi fa il prodotto: una funzione che non serve '
+      + 'non si tiene spenta «per quando servir\u00e0», perch\u00e9 il codice che non gira invecchia senza '
+      + 'che nessuno se ne accorga \u2014 questa era ancora scritta nel modo che aveva fermato il menu '
+      + 'di Patrizia **due giorni dopo** essere stata spenta.\n'
+      + '\u26d4 **E la riparazione, prima di essere buttata, ha trovato due difetti che nessuno '
+      + 'cercava** \u2014 tutti e due veri anche senza di lei. (1) La preferenza si portava dietro le '
+      + '**sostituzioni del piatto buttato**: «uvetta \u2192 frutta essiccata in casa» su un piatto che '
+      + 'l\'uvetta non ce l\'ha, e `ingredienti-effettivi.ts` quell\'ingrediente lo **aggiunge**. '
+      + '(2) Lo stesso piatto poteva finire **allo spuntino e alla merenda** della stessa giornata: '
+      + 'dopo `allargaAiGemelli` le due liste sono identiche e la rotazione usa lo stesso indice. Il '
+      + 'secondo \u00e8 **aperto per tutte** e sta nella voce `stesso-piatto-spuntino-e-merenda`.\n'
+      + '\u26a0\ufe0f **E `poolDalPassato` si costruiva la mappa a mano**, quarta copia di «quali ricette '
+      + 'per ogni pasto», gi\u00e0 indietro di una regola: niente allargamento spuntino\u2194merenda per chi '
+      + '\u00e8 su «Ritorno in Equilibrio». Adesso passa da `poolPerSlot` come tutti. \u26d4 **Nessuna '
+      + 'cliente ci aveva rimesso** \u2014 quel ramo \u00e8 spento e nemmeno dichiarato nei Parametri: era '
+      + 'un\'incoerenza fra due modi di costruire lo stesso pool, non un danno.\n'
+      + '\u26a0\ufe0f **`prefersSimpleRecipes` resta** in banca dati, nel DTO e nell\'app: toglierlo dal '
+      + 'DTO farebbe rispondere **400 a tutte le app installate**, che quel campo lo mandano a ogni '
+      + 'salvataggio del profilo. La riga sparisce dall\'app al prossimo rilascio \u2014 voce '
+      + '`interruttore-ricette-semplici-in-app`.',
     ordine: 953,
     nata: '2026-08-31T10:30',
     fatta: true,

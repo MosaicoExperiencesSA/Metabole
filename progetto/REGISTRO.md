@@ -20,6 +20,43 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🚪 **La quinta porta si chiude togliendola: «ricette semplici» esce dal motore.** Era
+  l'ultima delle cinque della voce 953 — spenta il 31/8 dopo il caso Patrizia, ma ancora scritta nel
+  modo che l'aveva rotta. ✅ **Prima riparata**: i candidati escono dal pool della **sua** dieta e
+  passano da `valutaRicetta` col nome fra gli ingredienti, come le altre quattro; il giudizio in un
+  modulo suo, dove ogni cancello si toglie e si vede cadere. ⚠️ Nella prima stesura stava dentro il
+  servizio e **quattro mutazioni su cinque sopravvivevano**: cancelli veri, e nessuna prova capace
+  di dire se c'erano.
+  ⛔ **Poi tolta**, che è una decisione diversa e la prende chi fa il prodotto (Simone: *«io lo
+  lascerei spento sai... anzi lo toglierei proprio»*). Una funzione che non serve non si tiene
+  spenta «per quando servirà»: il codice che non gira invecchia senza che nessuno se ne accorga —
+  questa era ancora scritta nel modo che aveva fermato il menu di Patrizia **due giorni dopo**
+  essere stata spenta.
+  ⚠️ **`prefersSimpleRecipes` resta** in banca dati, nel DTO e nell'app: toglierlo dal DTO farebbe
+  rispondere **400 alle app già installate**, e la cliente non salverebbe più il profilo — nome e
+  allergie comprese — per un campo che non serve a nessuno. Via dall'app al prossimo rilascio.
+  🧪 6647/6647 nelle quattro modalità, 210/210 backoffice, otto mutazioni su otto uccise.
+
+- `[Sviluppo]` 🔎 **E la riparazione, prima di essere buttata, ha trovato tre difetti che nessuno
+  cercava.** ✅ `poolDalPassato` si costruiva la mappa slot→ricette **a mano**: quarta copia di
+  «quali ricette per ogni pasto», già indietro di una regola — niente allargamento spuntino↔merenda
+  per chi è su «Ritorno in Equilibrio». Adesso passa da `poolPerSlot` come tutti. ⛔ **Nessuna
+  cliente ci aveva rimesso**, e lo scrivo così invece di raccontare un guasto mai avvenuto: quel
+  ramo è spento e nemmeno dichiarato nei Parametri.
+  ✅ Le **sostituzioni del piatto buttato** si portavano dietro quello nuovo — «uvetta → frutta
+  essiccata in casa» su un piatto che l'uvetta non ce l'ha, e `ingredienti-effettivi.ts`
+  quell'ingrediente lo **aggiunge** alla lista della spesa. La lezione era già scritta due volte nel
+  repo, e la terza porta non l'aveva ricevuta.
+  ▶️ **APERTA**: lo stesso piatto può finire **allo spuntino e alla merenda** della stessa giornata
+  (`dayCombo` è un prodotto cartesiano e non vieta un `recipeId` ripetuto fra slot). Riguarda
+  **tutte** le clienti. Voce `stesso-piatto-spuntino-e-merenda`: il primo passo è **contarlo** sulle
+  giornate già erogate.
+  ⛔ **Due revisioni avversariali, ventidue difetti nel mio lavoro** (dodici la prima, dieci la
+  seconda sulle correzioni della prima). Fra i più utili: prove che misuravano la **congiunzione**
+  di tre cancelli ridondanti e la spacciavano per il singolo, quaranta righe di finto Prisma che non
+  catturavano nessuna mutazione, e un `throw` che per una preferenza di stile avrebbe rotto la
+  schermata Menu.
+
 - `[Sviluppo]` ✂️ **«Biscotti d'Avena e Banana» non diventa più «Biscotti d'Avena».** ⛔ La frase
   vera del 31/8 scriveva una regola su **tutti** i «Biscotti d'Avena», con un'anteprima plausibile
   da confermare: «e Banana» spariva senza una parola. ✅ Chiusa con la strada che la voce stessa

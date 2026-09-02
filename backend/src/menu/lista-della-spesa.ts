@@ -9,9 +9,8 @@
  *
  * - le **porzioni scalate** del 18/8 (una lista fatta prima del rilascio somma le grammature di
  *   catalogo: la cliente compra il cibo della porzione piccola e a metà settimana finisce);
- * - il **piatto cambiato in chat** con Gaia, le «ricette semplici», il piatto non gradito
- *   sostituito in erogazione: la lista continua a chiedere gli ingredienti di un piatto che quel
- *   giorno non c'è più;
+ * - il **piatto cambiato in chat** con Gaia e il piatto non gradito sostituito in erogazione: la
+ *   lista continua a chiedere gli ingredienti di un piatto che quel giorno non c'è più;
  * - la **ricetta corretta in backoffice** (una grammatura sbagliata sistemata dalla nutrizionista).
  *
  * ⚠️ E non lo diceva nessuno: la lista *sembrava* la lista di quei giorni. È il difetto di famiglia

@@ -1,0 +1,89 @@
+La quinta porta si chiude togliendola: «ricette semplici» esce dal motore
+
+Era l'ultima delle cinque porte della voce 953: `buildSimpleSlotPool`, spenta il
+31/8 dopo il caso Patrizia ma ancora scritta nel modo che l'aveva rotta. Il
+lavoro di oggi è in due tempi, e il secondo l'ha deciso Simone.
+
+⛔ PRIMA RIPARATA. Il pool pescava `where: { regime, active, difficulty:
+'semplice', mealSlot }` — nessun filtro sulla dieta — e senza `allergens` nel
+`select`. A Patrizia, sette allergie, arrivavano biscotti della «Flexitariana»
+col tag Glutine, e la guardia fermava tutta l'erogazione: il menu del rientro a
+zero, e i piatti incriminati non erano nemmeno della sua dieta. Riparato: i
+candidati escono dal pool della SUA dieta (`ctx.slotPool`) e passano da
+`valutaRicetta` col nome fra gli ingredienti, come le altre quattro porte. Il
+giudizio in un modulo suo, dove ogni cancello si toglie e si vede cadere —
+⚠️ nella prima stesura stava dentro il servizio e QUATTRO MUTAZIONI SU CINQUE
+SOPRAVVIVEVANO: cancelli veri, e nessuna prova capace di dire se c'erano.
+
+⛔ POI TOLTA, che è una decisione diversa e la prende chi fa il prodotto.
+Simone, 2/9: «io lo lascerei spento sai... anzi lo toglierei proprio». Spariscono
+`buildSimpleSlotPool`, `applySimplePreference`, il modulo, il parametro
+`menu_simple_recipes_enabled` e le sue prove. Una funzione che non serve non si
+tiene spenta «per quando servirà»: il codice che non gira invecchia senza che
+nessuno se ne accorga — questa era ancora scritta nel modo che aveva fermato il
+menu di Patrizia DUE GIORNI DOPO essere stata spenta.
+
+⚠️ E LA RIPARAZIONE, PRIMA DI ESSERE BUTTATA, HA TROVATO TRE DIFETTI CHE NESSUNO
+CERCAVA — tutti e tre veri anche senza di lei, due li ho corretti e uno l'ho
+aperto:
+
+· `poolDalPassato` si costruiva la mappa slot→ricette a mano: quarta copia di
+  «quali ricette per ogni pasto», e come tutte le copie già indietro di una
+  regola — niente allargamento spuntino↔merenda per chi è su «Ritorno in
+  Equilibrio». Adesso passa da `poolPerSlot` come tutti. ⛔ Nessuna cliente ci
+  aveva rimesso: quel ramo è spento e nemmeno dichiarato nei Parametri. Era
+  un'incoerenza fra due modi di costruire lo stesso pool, non un danno — e lo
+  scrivo così invece di raccontare un guasto che non c'è stato.
+
+· Le sostituzioni del piatto BUTTATO si portavano dietro quello nuovo — «uvetta →
+  frutta essiccata in casa» su un piatto che l'uvetta non ce l'ha, e
+  `ingredienti-effettivi.ts` quell'ingrediente lo AGGIUNGE alla lista della
+  spesa. La lezione era già scritta due volte nel repo (`swapDislikedDishes` e il
+  cambio piatto in chat) e quella terza porta non l'aveva ricevuta. Sparisce col
+  codice, ma valeva la pena saperlo.
+
+· ⛔ APERTA: lo stesso piatto può finire ALLO SPUNTINO E ALLA MERENDA della
+  stessa giornata. Dopo `allargaAiGemelli` le due liste sono identiche e
+  `dayCombo` è un prodotto cartesiano che non vieta un `recipeId` ripetuto fra
+  slot; `coppiaDellaGiornata` guarda solo pranzo/cena, e fra giornate diverse.
+  Riguarda TUTTE le clienti, non solo quelle che avevano la preferenza. Voce
+  `stesso-piatto-spuntino-e-merenda`: il primo passo è contarlo sulle giornate
+  già erogate, perché «quanto spesso» decide se si chiude nel motore o basta una
+  guardia.
+
+⚠️ COSA NON HO TOLTO, E PERCHÉ. `prefersSimpleRecipes` resta in banca dati, nel
+DTO e nell'interruttore dell'app. Non è una dimenticanza: le app GIÀ INSTALLATE
+quel campo lo mandano a ogni salvataggio, e un DTO che non lo accetta più
+risponde 400 — la cliente non salva più il profilo, nome e allergie comprese,
+per un campo che non serve a nessuno. La riga sparisce dal Profilo dell'app al
+prossimo rilascio (voce `interruttore-ricette-semplici-in-app`), il DTO quando le
+versioni vecchie non sono più in giro. Il valore in banca dati si tiene: dice a
+chi quella preferenza interessava, ed è un dato che non si ricrea.
+
+⚠️ E `diag:varieta-menu` stampava «SÌ — il motore sostituisce i piatti del piano
+con ricette difficulty=semplice»: non è più vero, e uno strumento di diagnosi che
+racconta un comportamento che non esiste manda a cercare nel posto sbagliato — è
+già successo con `diag:fase9`. Adesso dice «accesa in app, ma NON FA NIENTE».
+
+DUE REVISIONI AVVERSARIALI, VENTIDUE DIFETTI NEL MIO LAVORO. La prima ne ha
+trovati dodici, la seconda — sulle correzioni della prima — altri dieci. Fra i
+più utili: prove che misuravano la CONGIUNZIONE di tre cancelli ridondanti e la
+spacciavano per il singolo, quaranta righe di finto Prisma che non catturavano
+nessuna mutazione, un commento che rivendicava un merito falso, un `throw` che
+per una preferenza di stile avrebbe rotto la schermata Menu, e una
+giustificazione che raccontava al passato remoto un danno mai avvenuto.
+
+File: backend/src/menu/menu.service.ts, backend/src/menu/menu.service.spec.ts,
+backend/src/menu/ricette-semplici-spenta.spec.ts (riscritto: adesso tiene ferma
+l'ASSENZA), backend/src/engine-rules/engine-rules.catalog.ts,
+backend/src/catalog/pool-dal-passato.ts e il suo spec,
+backend/src/profile/dto/update-profile.dto.ts, backend/prisma/diag-varieta-menu.ts,
+backend/src/menu/lista-della-spesa.ts, backend/src/menu/esclusioni-della-cliente.ts,
+backend/src/lavori/voci-iniziali.ts (953 chiusa, due voci aperte).
+
+Prove: 6647/6647 nelle quattro modalità (`--ci`, `TZ=Europe/Rome`, `test:notte`,
+le due insieme), 210/210 backoffice, build e tsc puliti (restano i due errori
+preesistenti in `approve-diets.ts` e `dedupe-diets.ts`). Trentatré mutazioni
+uccise in tutto lungo il lavoro; sulla consegna finale, otto su otto — fra cui il
+parametro che torna nel catalogo, il motore che torna a leggerlo, il pool dal
+passato che torna a costruirsi a mano, e il campo del DTO tolto.

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { puoStareNelloSlot, slotDaChiedere, slotDaCuiPescare } from '../common/slot-pasto';
+import { slotDaCuiPescare } from '../common/slot-pasto';
 import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-passato';
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
 import { verdettoPescetariano } from '../catalog/paniere-pescetariano';
@@ -1300,38 +1300,30 @@ export class MenuService {
       this.configParams.getNumber('menu_carne_max_a_settimana', 0),
     ]);
     /**
-     * ⛔ **«RICETTE SEMPLICI» È SPENTA — decisione di Simone, 31/8, caso Patrizia.**
+     * ⛔ **«RICETTE SEMPLICI» NON ESISTE PIÙ — decisione di Simone, 2/9.**
      *
-     * La preferenza pescava i piatti «semplice» con questa query (`buildSimpleSlotPool`):
+     * La preferenza sostituiva i piatti del piano con quelli marcati `difficulty: 'semplice'`. Il
+     * 31/8 è stata spenta (caso Patrizia): il suo pool pescava da tutto il catalogo del regime,
+     * senza filtrare per dieta, e non leggeva i tag allergene — a una cliente sulla «Mediterranea
+     * senza glutine» arrivavano biscotti della «Flexitariana», e uno col tag Glutine fermava
+     * **tutta** l'erogazione.
      *
-     *     where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slots } }
-     *     select: { id, name, kcal, mealSlot, ingredients }
+     * Il 2/9 il difetto è stato riparato — pool della sua dieta, `valutaRicetta`, tag compresi — e
+     * poi la funzione è stata **tolta**, che è una decisione diversa e la prende chi fa il
+     * prodotto: *«io lo lascerei spento sai... anzi lo toglierei proprio»*.
      *
-     * Due buchi, tutti e due nella stessa riga. **Nessun filtro sulla dieta**: pesca da tutto il
-     * catalogo del regime, quindi a una cliente sulla «Mediterranea senza glutine» arrivavano
-     * biscotti della «Flexitariana». E **`allergens` non è nel `select`**: il filtro di sicurezza di
-     * quel pool guarda solo le PAROLE di nome e ingredienti, quindi un piatto col tag Glutine che il
-     * glutine non lo nomina passa, entra nella giornata, e due righe dopo `evaluateMeals` lo vede e
-     * **ferma tutta l'erogazione**.
+     * ⚠️ **`prefersSimpleRecipes` resta**: in banca dati, nel DTO del profilo e nell'interruttore
+     * dell'app. Non è una dimenticanza — toglierlo dal DTO farebbe **fallire il salvataggio del
+     * profilo** a tutte le app già installate, che quel campo continuano a mandarlo. La riga
+     * sparisce dal Profilo dell'app al prossimo rilascio (voce
+     * `interruttore-ricette-semplici-in-app`), e il campo in banca dati resta: dice a chi
+     * interessava, e quel dato non si ricrea.
      *
-     * ⚠️ È esattamente quello che è successo a Patrizia il 31/8: sette allergie, il menu del rientro
-     * fermo, e i piatti incriminati non erano nemmeno della sua dieta. Il difetto non era il suo
-     * catalogo — era questo pool.
-     *
-     * ⛔ **Spenta di default, non tolta.** La preferenza resta un'idea giusta: si riaccende dai
-     * Parametri il giorno che quel pool filtra per dieta e legge i tag. Cancellare il codice
-     * vorrebbe dire rifarlo da zero; lasciarlo acceso vorrebbe dire lasciare il difetto.
-     *
-     * ⚠️ **E l'interruttore nell'app resta visibile**, perché toglierlo richiede un rilascio
-     * dell'app. Finché non si fa, una cliente può accenderlo e non succede niente: è un interruttore
-     * che non accende nulla, e va detto invece di lasciarlo scoprire. Il log qui sotto conta quante
-     * volte capita.
+     * ⛔ **E non si lascia in giro un pezzo di motore spento «per quando servirà».** Codice che non
+     * gira è codice che invecchia senza che nessuno se ne accorga: questa funzione era ancora
+     * scritta nel modo che aveva fermato il menu di Patrizia due giorni dopo che era stata spenta.
+     * Se un giorno la preferenza torna, torna scritta sul paniere di allora — e in git c'è tutto.
      */
-    const simpliciAbilitate = pickBoolOverride(
-      overrides,
-      'menu_simple_recipes_enabled',
-      await this.configParams.getBool('menu_simple_recipes_enabled', false),
-    );
     // VARIETÀ (garanzia percepita dalla cliente): distanza minima, in giorni, prima che lo
     // stesso piatto possa tornare nello STESSO slot. Se esiste un'alternativa nel pool entro
     // la tolleranza kcal, si usa quella. 0 = guard disattivato.
@@ -1548,40 +1540,8 @@ export class MenuService {
       }
     }
 
-    // PREFERENZA "RICETTE SEMPLICI" (scelta della cliente in app): se attiva, per ogni pasto
-    // si preferisce — quando disponibile — un'alternativa marcata `difficulty="semplice"`
-    // (cucina italiana), entro la tolleranza kcal e rispettando le esclusioni. La rotazione
-    // per giorno fa alternare i piatti semplici tra loro e con quelli esistenti quando il pool
-    // è limitato. La sicurezza resta garantita da evaluateMeals subito sotto.
-    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes && !simpliciAbilitate) {
-      this.logger.log(
-        `Ricette semplici: ${clientId} ha la preferenza ACCESA ma la funzione è spenta `
-        + '(`menu_simple_recipes_enabled`). Il menu si compone dalle giornate della sua dieta.',
-      );
-    }
-    if ((profile as { prefersSimpleRecipes?: boolean }).prefersSimpleRecipes && simpliciAbilitate) {
-      const slots = [...new Set(templates.flatMap((t) => ((t.meals as { slot: string }[]) ?? []).map((m) => m.slot)))];
-      const excludeTerms = [
-        ...(((profile as { allergies?: string[] }).allergies) ?? []),
-        ...((profile.intolerances as string[]) ?? []),
-        ...((profile.dislikedFoods as string[]) ?? []),
-      ];
-      const simpleBySlot = await this.buildSimpleSlotPool(profile.regime, slots, excludeTerms);
-      if ([...simpleBySlot.values()].some((l) => l.length)) {
-        // Questo passaggio RISCRIVE i pasti già composti: senza storico annullerebbe il guard
-        // di varietà applicato sopra (il pool "semplice" è piccolo e la rotazione per giorno
-        // degenera a piatto fisso quando in banda kcal ne resta uno solo). Lo storico riparte
-        // dai giorni GIÀ erogati e si aggiorna man mano, come nel ciclo di composizione.
-        const simpleHistory = varietyGap > 0
-          ? await this.recentSlotHistory(clientId, firstNewDate, varietyGap)
-          : new Map<string, string[]>();
-        for (const day of daySnapshots) {
-          const dayIndex = Math.round((day.date.getTime() - start.getTime()) / 86_400_000);
-          day.meals = this.applySimplePreference(day.meals, simpleBySlot, kcalTolPct / 100, dayIndex, simpleHistory);
-          this.pushSlotHistory(simpleHistory, day.meals, varietyGap);
-        }
-      }
-    }
+    // ⛔ Qui si applicava la preferenza «ricette semplici», tolta il 2/9 (vedi il commento in cima
+    //    a questa funzione). Il menu si compone dalle giornate della sua dieta, e basta.
 
     // SICUREZZA + SOSTITUZIONE (motore §2/§7): controllo i piatti contro le esclusioni
     // della cliente. Se un ingrediente escluso ha una sostituzione sicura → la annoto sul
@@ -1704,8 +1664,9 @@ export class MenuService {
      * fabbisogno (Sonia, finestra «salto la cena») usciva identica a una giusta.
      *
      * Il controllo va **qui e non dentro `DayCombo`**: la giornata la riscrivono anche la
-     * ripetizione bigiornaliera, la preferenza «ricette semplici» e il cambio dei piatti non
-     * graditi. Questo è il primo punto in cui i pasti sono quelli che la cliente riceverà.
+     * ripetizione bigiornaliera e il cambio dei piatti non graditi. Questo è il primo punto in cui
+     * i pasti sono quelli che la cliente riceverà. (Fino al 2/9 la riscriveva anche la preferenza
+     * «ricette semplici», tolta.)
      *
      * ⚠️ **Non blocca niente** — è la stessa scelta di `fasting_meals_missing` venti righe sopra:
      * una giornata scarsa è meglio di nessun menu, e il rimedio (porzioni scalate, strada C —
@@ -3195,96 +3156,6 @@ export class MenuService {
       );
     }
     return { slots, poolBySlot };
-  }
-
-  /**
-   * Se un cibo NON gradito è l'ingrediente PRINCIPALE (compare nel NOME del piatto),
-   * sostituire l'ingrediente non basta: si cambia PIATTO con un'alternativa equivalente
-   * (stesso slot, stesso regime, kcal più vicine, senza cibi esclusi/intolleranze).
-   * Muta i MealSnapshot passati e ritorna gli scambi fatti (from→to).
-   */
-  /**
-   * Pool di ricette SEMPLICI (difficulty="semplice", attive) per gli slot richiesti, filtrate
-   * sulle esclusioni della cliente (allergie + intolleranze + cibi non graditi, espanse per
-   * categoria: es. "legumi" → ceci, lenticchie…). Usato quando la cliente ha attivato
-   * "preferisco ricette semplici". Ritorna solo ricette dello stesso regime del piano.
-   */
-  private async buildSimpleSlotPool(
-    regime: string | null,
-    slots: string[],
-    excludeTerms: string[],
-  ): Promise<Map<string, { id: string; name: string; kcal: number }[]>> {
-    const out = new Map<string, { id: string; name: string; kcal: number }[]>();
-    if (!regime || slots.length === 0) return out;
-    const excluded = new Set<string>();
-    for (const t of excludeTerms) for (const kw of expandExclusion(t)) excluded.add(kw);
-    const recipes = (await this.prisma.recipe.findMany({
-      // ⚠️ Fase 2 (1/9): per lo spuntino si chiede al catalogo anche la merenda, e viceversa.
-      where: { regime, active: true, difficulty: 'semplice', mealSlot: { in: slotDaChiedere(slots) as never } },
-      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true },
-    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown }[];
-    for (const r of recipes) {
-      const txt = (r.name + ' ' + (((r.ingredients as { name?: string }[]) ?? []).map((i) => i?.name ?? '').join(' '))).toLowerCase();
-      if (hitsExclusion(txt, excluded)) continue;
-      /**
-       * ⚠️ Si indicizza sugli slot **chiesti**, non su quello scritto in catalogo: una merenda
-       * pescata per servire lo spuntino deve finire sotto `morning_snack`, altrimenti chi legge
-       * `out.get('morning_snack')` non la trova e l'allargamento non serve a niente. Un piatto
-       * scambiabile compare sotto tutti e due, ed è la stessa ricetta: la sceglie una volta sola.
-       */
-      for (const s of slots) {
-        if (!puoStareNelloSlot(r.mealSlot, s)) continue;
-        if (!out.has(s)) out.set(s, []);
-        out.get(s)!.push({ id: r.id, name: r.name, kcal: r.kcal });
-      }
-    }
-    // Ordine deterministico (per kcal, poi id) così la rotazione per giorno è stabile.
-    for (const list of out.values()) list.sort((a, b) => a.kcal - b.kcal || a.id.localeCompare(b.id));
-    return out;
-  }
-
-  /**
-   * Applica la preferenza "ricette semplici": per ogni pasto, se esistono alternative semplici
-   * entro ±tol kcal (bilanciamento), ne sceglie una ruotando per giorno (dayIndex) — così i
-   * piatti semplici si alternano tra loro e, quando il pool è limitato, con quelli esistenti.
-   *
-   * VARIETÀ: la rotazione `dayIndex % fits.length` degenera a piatto FISSO quando in banda
-   * kcal resta una sola ricetta semplice — ed è il caso più comune, perché il pool semplice è
-   * piccolo. Con lo storico si preferisce sempre un'alternativa non servita di recente; se non
-   * ce n'è, si tiene il piatto del piano (che il guard di varietà ha già reso diverso da ieri)
-   * anziché ripetere. Solo se anche quello è recente si ricade sulla rotazione storica.
-   */
-  private applySimplePreference(
-    meals: MealSnapshot[],
-    simpleBySlot: Map<string, { id: string; name: string; kcal: number }[]>,
-    tol: number,
-    dayIndex: number,
-    history?: Map<string, string[]>,
-  ): MealSnapshot[] {
-    const rotate = (list: { id: string; name: string; kcal: number }[]) =>
-      list[((dayIndex % list.length) + list.length) % list.length];
-    return meals.map((m) => {
-      const pool = simpleBySlot.get(m.slot);
-      if (!pool || pool.length === 0) return m;
-      const lo = m.kcal * (1 - tol);
-      const hi = m.kcal * (1 + tol);
-      const fits = pool.filter((c) => c.id !== m.recipeId && c.kcal >= lo && c.kcal <= hi);
-      if (fits.length === 0) return m;
-      const recent = new Set(history?.get(m.slot) ?? []);
-      const fresh = fits.filter((c) => !recent.has(c.id));
-      // 1) un piatto semplice mai servito di recente: è la scelta migliore, soddisfa
-      //    la preferenza della cliente senza ripetere.
-      if (fresh.length) {
-        const pick = rotate(fresh);
-        return { slot: m.slot, recipeId: pick.id, name: pick.name, kcal: pick.kcal, substitutions: m.substitutions };
-      }
-      // 2) tutte le semplici sono già state servite di recente: se il piatto del piano non lo
-      //    è, si tiene quello. La varietà percepita conta più della preferenza di stile.
-      if (!recent.has(m.recipeId)) return m;
-      // 3) anche il piatto del piano è recente: nessuna opzione fresca, rotazione storica.
-      const pick = rotate(fits);
-      return { slot: m.slot, recipeId: pick.id, name: pick.name, kcal: pick.kcal, substitutions: m.substitutions };
-    });
   }
 
   /**

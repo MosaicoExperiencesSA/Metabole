@@ -139,6 +139,19 @@ export class UpdateProfileDto {
   dislikedFoods?: string[];
 
   /** La cliente preferisce ricette semplici (cucina italiana) quando disponibili. */
+  /**
+   * ⛔ **IL CAMPO RESTA ANCHE SE NESSUNO LO LEGGE PIÙ** — 2/9.
+   *
+   * La preferenza «ricette semplici» è stata tolta dal motore (decisione di Simone: *«lo toglierei
+   * proprio»*, dopo il caso Patrizia del 31/8). L'interruttore nel Profilo dell'app però c'è
+   * ancora, e lo manda a **ogni salvataggio**: un DTO che non lo accetta più risponde 400 a tutte
+   * le **app già installate**, e la cliente non riesce più a salvare il profilo — nome, obiettivo,
+   * allergie — per un campo che non serve a nessuno.
+   *
+   * ⚠️ Sparisce dall'app al prossimo rilascio (voce `interruttore-ricette-semplici-in-app`), e di
+   * qui quando le versioni vecchie non sono più in giro. Il valore in banca dati si tiene: dice a
+   * chi quella preferenza interessava, ed è un dato che non si ricrea.
+   */
   @IsOptional()
   @IsBoolean({ message: 'Valore non valido.' })
   prefersSimpleRecipes?: boolean;

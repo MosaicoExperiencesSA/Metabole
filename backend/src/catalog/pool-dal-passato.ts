@@ -1,5 +1,6 @@
 import { PESI_RITORNO_IN_EQUILIBRIO, type GiornataCandidata } from '../monitoring/giornate-che-hanno-funzionato';
 import { componiIlMese, quantoEPovero } from './mese-dallo-storico';
+import { poolPerSlot } from './pool-del-paniere';
 
 /**
  * IL POOL CHE VIENE DAL PASSATO DI UNA CLIENTE — «Ritorno in Equilibrio», §6.1.
@@ -57,15 +58,34 @@ export function poolDalPassato(
   const mese = componiIlMese(giornate, quanteNeServono, PESI_RITORNO_IN_EQUILIBRIO);
   const scelte = new Set(mese.giornate.map((g) => g.chiave));
 
-  const pool = new Map<string, Set<string>>();
-  for (const g of giornate) {
-    if (!scelte.has(g.chiave)) continue;
-    for (const m of g.pasti) {
-      if (!m?.slot || !m?.recipeId) continue;
-      if (!pool.has(m.slot)) pool.set(m.slot, new Set());
-      pool.get(m.slot)!.add(m.recipeId);
-    }
-  }
+  /**
+   * ⛔ **IL POOL SI COSTRUISCE DALLA PORTA, NON A MANO** (2/9).
+   *
+   * Qui c'erano sei righe che appiattivano le giornate del passato in una mappa: erano la **quarta**
+   * copia della stessa domanda — «quali ricette può ricevere questa cliente, per ogni pasto» — e la
+   * porta `poolPerSlot` esiste proprio perché non ce ne siano due.
+   *
+   * ⚠️ E la copia era già indietro di una regola: `poolPerSlot` fa l'allargamento spuntino↔merenda
+   * (Fase 2, 1/9), questa no. ⛔ **Nessuna cliente ci ha rimesso**, e va detto invece di lasciar
+   * credere il contrario: `ritorno_in_equilibrio_acceso` è `false` di default e non è nemmeno
+   * dichiarato in `ENGINE_RULES`, quindi da quel ramo non è mai passato nessuno. Era
+   * un'incoerenza fra i due modi di costruire lo stesso pool, trovata il 2/9 mentre si verificava
+   * *perché* il pool delle «ricette semplici» potesse fidarsi dell'allargamento — quella funzione
+   * è stata poi tolta, questa correzione no: vale per chiunque legga `slotPool`.
+   *
+   * ⛔ `allargaAiGemelli` **non inventa un pasto che le sue giornate non avevano**: allarga fra
+   * chiavi che ci sono già.
+   *
+   * ⚠️ **E il controllo qui sotto sui pasti vuoti non c'entra**, né prima né dopo: un `Set` in
+   * questa mappa nasce solo un attimo prima di riceverci dentro un id, quindi vuoto non è mai — di
+   * quella riga vive solo `pool.size === 0`. La prima stesura del 2/9 lo citava come rassicurazione,
+   * ed era una tautologia spacciata per verifica.
+   */
+  const pool = poolPerSlot(
+    giornate
+      .filter((g) => scelte.has(g.chiave))
+      .flatMap((g) => (g.pasti ?? []).map((m) => ({ slot: m?.slot, recipeId: m?.recipeId }))) as never,
+  );
 
   /**
    * ⛔ **Un pool con un pasto vuoto non è un pool**: se anche un solo slot resta senza piatti la

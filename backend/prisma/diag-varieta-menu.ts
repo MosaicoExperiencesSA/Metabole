@@ -252,7 +252,15 @@ async function reportProfile(clientId: string) {
   console.log('PROFILO');
   console.log(`  regime = ${p.regime ?? '—'} | pasti/giorno = ${p.mealsPerDay ?? '—'} | stile = ${p.dietStyle ?? '—'} | obiettivo = ${p.objective ?? '—'}`);
   console.log(`  inizio piano = ${p.planStartDate ? ymd(p.planStartDate) : '—'}${p.travelState ? ` | viaggio: ${p.travelState}` : ''}`);
-  console.log(`  preferenza "ricette semplici": ${p.prefersSimpleRecipes ? 'SÌ — il motore sostituisce i piatti del piano con ricette difficulty=semplice dello STESSO REGIME' : 'no'}`);
+  /**
+   * ⛔ La riga diceva «SÌ — il motore sostituisce i piatti del piano con ricette
+   * difficulty=semplice»: dal 2/9 non è più vero, la preferenza è stata TOLTA. Uno strumento di
+   * diagnosi che racconta un comportamento che non esiste manda a cercare la causa nel posto
+   * sbagliato — è già successo con `diag:fase9` e l'istruzione su `updateProfile`.
+   */
+  console.log(`  preferenza "ricette semplici": ${p.prefersSimpleRecipes ? 'accesa in app, ma NON FA NIENTE' : 'no'}`
+    + `${p.prefersSimpleRecipes ? ' — la funzione è stata tolta dal motore il 2/9 (caso Patrizia del 31/8);'
+      + ' l\'interruttore sparisce dall\'app al prossimo rilascio' : ''}`);
   console.log(`  allergie: ${list(p.allergies)} | intolleranze: ${list(p.intolerances)} | non graditi: ${list(p.dislikedFoods)}`);
   console.log('');
   return p;

@@ -81,3 +81,53 @@ describe('il pool che viene dal passato', () => {
     expect(esito.avviso).toContain('10 giornate diverse su 30');
   });
 });
+
+/**
+ * ⛔ **IL POOL DAL PASSATO PASSA DALLA PORTA — trovato dalla revisione avversariale del 2/9.**
+ *
+ * `poolDalPassato` si costruiva la mappa a mano: era la **quarta** copia di «quali ricette, per
+ * ogni pasto», e come tutte le copie era già indietro di una regola. `poolPerSlot` fa
+ * l'allargamento spuntino↔merenda dalla Fase 2 (1/9), questa no — quindi una cliente su «Ritorno
+ * in Equilibrio» perdeva, in silenzio, lo scambio fra i due pasti che tutte le altre hanno.
+ *
+ * ⚠️ È saltato fuori misurando un'altra cosa: il pool delle «ricette semplici» aveva smesso di
+ * chiamare `puoStareNelloSlot` **perché** il pool è già allargato — vero su tre percorsi su
+ * quattro. Quella funzione è stata poi tolta (2/9); questa correzione resta, perché l'incoerenza
+ * era fra due modi di costruire `slotPool` e li legge tutto il motore.
+ */
+describe('il pool dal passato e l\'allargamento spuntino↔merenda', () => {
+  const conSpuntini = Array.from({ length: 30 }, (_, i) => ({
+    chiave: `g${i}`, caloKg: -(30 - i) / 10, gradimento: 5 - (i % 5), recenza: i,
+    pasti: [
+      { slot: 'breakfast', recipeId: `c${i}` },
+      { slot: 'morning_snack', recipeId: `sm${i}` },
+      { slot: 'lunch', recipeId: `p${i}` },
+      { slot: 'afternoon_snack', recipeId: `sp${i}` },
+      { slot: 'dinner', recipeId: `d${i}` },
+    ],
+  })) as never as GiornataDelPassato[];
+
+  it('⛔ una merenda del suo passato è pescabile anche allo spuntino, e viceversa', () => {
+    const esito = poolDalPassato(conSpuntini, 28, 28)!;
+    expect(esito).not.toBeNull();
+    const mattina = esito.pool.get('morning_snack')!;
+    const pomeriggio = esito.pool.get('afternoon_snack')!;
+    // Le due liste sono la stessa cosa: è quello che fa `allargaAiGemelli`.
+    expect([...mattina].sort()).toEqual([...pomeriggio].sort());
+    expect(mattina.size).toBe(56); // 28 spuntini + 28 merende
+  });
+
+  /**
+   * ⚠️ **Questa non morde, e si tiene lo stesso.** Rimettendo il ciclo a mano resta verde: `trenta`
+   * ha solo colazione, pranzo e cena, quindi non c'è niente da allargare. Non è una sentinella su
+   * `poolPerSlot` — è la clausola che fissa il limite della regola: se un giorno `allargaAiGemelli`
+   * cominciasse a **creare** chiavi, cadrebbe questa.
+   */
+  it('⚠️ e non inventa un pasto che le sue giornate non avevano', () => {
+    const esito = poolDalPassato(trenta, 28, 28)!;
+    expect(esito.pool.has('morning_snack')).toBe(false);
+    expect(esito.pool.has('afternoon_snack')).toBe(false);
+    expect([...esito.pool.keys()].sort()).toEqual(['breakfast', 'dinner', 'lunch']);
+  });
+});
+

@@ -34,7 +34,8 @@ import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
  *
  *  · a monte, per **non proporre** le ricette che poi vieteremmo;
  *  · a valle, in `evaluateMeals`, per **non servirle** — perché il pool non è l'unica strada da cui
- *    un piatto arriva in una giornata (le ricette semplici, gli scambi, le giornate riparate).
+ *    un piatto arriva in una giornata (gli scambi, le giornate riparate, il piatto cambiato in
+ *    chat).
  *
  * ⚠️ Due copie di questa logica sono la cosa peggiore che possa capitare qui: il filtro toglierebbe
  * un insieme di piatti e la guardia ne vieterebbe un altro, e la differenza fra i due sarebbe una
