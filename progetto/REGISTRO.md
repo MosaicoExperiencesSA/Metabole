@@ -20,6 +20,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 📏 **Lo stesso piatto a spuntino e merenda: lo strumento che lo conta**
+  (`npm run diag:piatto-doppio`, sola lettura). Primo passo della voce aperta ieri: prima contarlo,
+  perché «quanto spesso capita» decide dove va la correzione — dentro `dayCombo`, o in una guardia a
+  valle. ⚠️ Il conto **e il verdetto** stanno in un modulo con quaranta prove: da questo numero
+  dipende una scelta di progetto, e una cosa che decide non sta in un file di `prisma/` che nessun
+  test guarda.
+  ⛔ **E la revisione avversariale ha smontato la prima stesura** — undici difetti, due dei quali
+  avrebbero mandato dalla parte sbagliata **con la faccia di un numero preciso**. (1) Il verdetto
+  sommava le due cause che il file stesso dice di non sommare: su un campione con **zero** doppioni
+  fra spuntino e merenda e sessanta fra colazione e cena diceva «correggi `dayCombo`» per un difetto
+  mai capitato lì. (2) Il denominatore erano **tutte** le giornate: su una da tre pasti il doppione
+  fra gemelli è **impossibile**, non raro, e con 800 giornate da tre e 200 da cinque di cui 30 col
+  doppione il tasso vero è il 15% mentre il totale diceva 3% — sotto soglia, verdetto opposto.
+  ⛔ **E «zero giornate a rischio» non è «✅ non capita»**: se in quella finestra le clienti erano
+  tutte su diete da tre pasti, il difetto non è stato messo alla prova nemmeno una volta. Sarebbe
+  stata la bugia più comoda del tabulato. Adesso è «non misurato», con scritto cosa fare — e sotto
+  le cento giornate a rischio non si dà nessun verdetto.
+  ⚠️ Più: la query leggeva le giornate **future** e le chiamava «erogate»; il cutoff con l'ora dentro
+  mangiava sempre un giorno contro una colonna `@db.Date`; la specie si chiamava «principali» e
+  stampava «doppione fra PASTI PRINCIPALI» su una coppia cena+spuntino; gli esempi cambiavano fra
+  due lanci sugli stessi dati.
+  ⛔ **E la voce aveva dentro il difetto che citava**: «nella composizione, **non** a valle» e
+  undici righe sotto una soglia che sceglie fra le due — lo stesso tabulato dei panieri dell'1/9 che
+  la voce porta come esempio da non ripetere.
+  🧪 6687/6687 nelle quattro modalità, 210/210 backoffice, **24 mutazioni su 24 uccise**.
+  ▶️ Resta da **lanciarlo sui dati veri**.
+
 - `[Sviluppo]` 🚪 **La quinta porta si chiude togliendola: «ricette semplici» esce dal motore.** Era
   l'ultima delle cinque della voce 953 — spenta il 31/8 dopo il caso Patrizia, ma ancora scritta nel
   modo che l'aveva rotta. ✅ **Prima riparata**: i candidati escono dal pool della **sua** dieta e

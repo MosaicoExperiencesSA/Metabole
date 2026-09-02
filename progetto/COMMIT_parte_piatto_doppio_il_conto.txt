@@ -1,0 +1,99 @@
+Lo stesso piatto a spuntino e merenda: lo strumento che lo conta
+
+Primo passo della voce `stesso-piatto-spuntino-e-merenda`, aperta ieri dalla
+revisione avversariale mentre se ne misurava un'altra. La voce dice: prima
+contarlo, perché «quanto spesso capita» decide dove va la correzione — dentro
+`dayCombo`, o in una guardia a valle. Questo è il conto, e non corregge niente.
+
+DA DOVE NASCE. Dalla Fase 2 (1/9) `poolPerSlot` allarga il pool ai gemelli:
+`morning_snack` e `afternoon_snack` escono con la stessa identica lista, perché
+una merenda deve poter servire lo spuntino. È giusto — ma `DayComboService.
+enumerate` è un prodotto cartesiano, `rank` e `greedy` non penalizzano un
+`recipeId` ripetuto fra slot, e `coppiaDellaGiornata` guarda solo pranzo/cena e
+fra giornate diverse. Niente vieta lo stesso piatto alle 10:30 e alle 17:00.
+
+`npm run diag:piatto-doppio` (sola lettura). Il conto e il VERDETTO stanno in
+`menu/piatti-doppi-nella-giornata.ts` con quaranta prove: da questo numero dipende
+una scelta di progetto, e una cosa che decide non sta in un file di `prisma/` che
+nessun test guarda.
+
+⛔ E LA REVISIONE AVVERSARIALE HA SMONTATO LA PRIMA STESURA. Undici difetti, e i
+due che contano avrebbero mandato dalla parte sbagliata con la faccia di un
+numero preciso:
+
+· IL VERDETTO SOMMAVA LE CAUSE CHE IL FILE DICE DI NON SOMMARE. Contavo separati
+  i doppioni fra gemelli e quelli fra gli altri pasti — due cause, due rimedi — e
+  poi decidevo sul TOTALE. Su un campione con zero doppioni fra spuntino e
+  merenda e sessanta fra colazione e cena, lo strumento diceva «correggi
+  `dayCombo`» per un difetto che in quel campione non era mai capitato. Adesso il
+  verdetto guarda i gemelli e solo loro, ed è la mutazione più difficile da
+  uccidere di tutte: con zero gemelli il ramo non ci arriva nemmeno.
+
+· IL DENOMINATORE ERANO TUTTE LE GIORNATE. Su una giornata da tre pasti il
+  doppione fra gemelli è IMPOSSIBILE, non raro: metterla sotto la linea di
+  frazione diluisce il tasso di quanto è grande la fetta a tre pasti, che nessuno
+  controlla. Con 800 giornate da tre e 200 da cinque di cui 30 col doppione, il
+  tasso vero è il 15% e il totale diceva 3% — sotto soglia, verdetto opposto.
+  Adesso il denominatore sono le giornate che hanno tutti e due i pasti, e il
+  tabulato stampa quante sono.
+
+⛔ E «ZERO A RISCHIO» NON È «✅ NON CAPITA». Se in quella finestra le clienti erano
+tutte su diete da tre pasti, il difetto non è stato messo alla prova nemmeno una
+volta: la prima stesura stampava «✅ Nessun piatto ripetuto, la voce si può
+chiudere». Sarebbe stata la bugia più comoda di tutto il tabulato. Adesso è «non
+misurato», con scritto cosa fare.
+
+⚠️ E SOTTO LE CENTO GIORNATE A RISCHIO NON SI DÀ UN VERDETTO. Tre giornate con un
+doppione fanno il 33%, e su tre casi quel 33% sta insieme sia a «sotto soglia»
+sia a «capita quasi sempre». `campione troppo piccolo` è uno dei cinque esiti.
+
+Gli altri difetti corretti, più corti:
+
+· La query leggeva le giornate FUTURE — `menu_days_delivered` ne compone in
+  anticipo, e ce ne sono di scritte e mai mostrate a nessuno — e le chiamava
+  «erogate». Adesso si ferma a ieri, e `FUTURE=1` le guarda apposta.
+· Il cutoff `Date.now() - GIORNI*86400000` porta l'ora dentro, e contro una
+  colonna `@db.Date` mangiava sempre un giorno — quale, dipendeva dall'ora in cui
+  lanciavi lo script. Su un tabulato che deve reggere un confronto «prima/dopo» è
+  un numero che si muove da solo. Mezzanotte UTC, come `diag-porzioni.ts`.
+· La specie si chiamava «principali», e `MAIN_SLOTS` sono colazione, pranzo e
+  cena: il tabulato scriveva «⛔ N giornate hanno il doppione fra PASTI
+  PRINCIPALI» su una coppia cena+spuntino, mandando a cercare un difetto
+  pranzo/cena che non c'era. Adesso è «altri-pasti».
+· `orderBy: date desc` senza chiave secondaria: gli esempi — la parte che una
+  persona va davvero a controllare nel database — cambiavano fra due lanci sugli
+  stessi dati. La riproducibilità era stata messa dove nessuno guarda (il
+  tie-break delle coppie) e lasciata fuori dove si vede.
+· Il tetto degli esempi era per DOPPIONE: una sola giornata patologica con dodici
+  si mangiava tutto il budget, e il tabulato mostrava dodici righe con la stessa
+  data e la stessa cliente sotto un titolo che faceva credere a uno spaccato.
+  Adesso il tetto conta le giornate.
+· Gli slot si stampavano in inglese a un lettore umano, mentre `etichettaSlot`
+  esiste «per i messaggi che legge una persona».
+· Il tabulato non diceva cosa aveva letto: né il periodo, né il primo e l'ultimo
+  giorno trovati, né quante clienti, né quante giornate mettevano il difetto alla
+  prova. Un tabulato di misura che non dichiara il suo campione non si può
+  rilanciare per confronto, che è l'unico motivo per cui esiste.
+· Cinque mutazioni sopravvivevano: la data degli esempi non era guardata da
+  nessuna prova, e il `nome` preso dall'ultima comparsa invece che dalla prima
+  passava liscio.
+
+⛔ E LA VOCE AVEVA DENTRO IL DIFETTO CHE CITAVA. Diceva «⚠️ Dove si chiude: nella
+composizione, NON in un pezzo a valle» e undici righe sotto annunciava una soglia
+che sceglie fra le due — o il numero decide, o è già deciso. È lo stesso difetto
+del tabulato dei panieri dell'1/9 («⛔ non spostare» in cima, «✅ si può spostare»
+dodici righe sotto) che la voce cita come termine di paragone. Corretta.
+
+⚠️ Restava anche un rimando a `preferenza-semplici.ts`, che non esiste più: quel
+rimedio è stato tolto ieri insieme alla preferenza «ricette semplici». Via.
+
+File: backend/src/menu/piatti-doppi-nella-giornata.ts (nuovo) e il suo spec
+(nuovo, 40 prove), backend/prisma/diag-piatto-doppio.ts (nuovo),
+backend/package.json, backend/src/lavori/voci-iniziali.ts.
+
+RESTA DA LANCIARLO SUI DATI VERI: qui in sandbox il database non c'è.
+
+Prove: 6687/6687 nelle quattro modalità, 210/210 backoffice, build e tsc puliti.
+Ventiquattro mutazioni su ventiquattro uccise — fra cui il verdetto sul totale
+invece che sui gemelli, il denominatore su tutte le giornate, «zero a rischio»
+letto come «non capita», e il minimo di numerosità.
