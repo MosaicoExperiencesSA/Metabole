@@ -18,6 +18,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-02
+
+- `[Sviluppo]` ⏰ **Le prove scadute stanotte, e il tabulato che avrebbe trovato i tre omonimi in una
+  volta.** ⛔ **Quattro prove rosse alle quattro di notte senza che nessuno toccasse una riga**:
+  `pause/primo-giorno-utile.spec.ts` chiede di aprire una pausa dall'1/9, e alla mezzanotte fra l'1 e
+  il 2 quella data è diventata passato. ⚠️ **Le 56 date scritte a mano non sono il difetto, sono il
+  pregio** — ogni commento racconta una storia con le date vere, e renderle relative a «oggi»
+  darebbe un file illeggibile in cambio di prove incomprensibili. Si è fermato l'orologio, col
+  pattern che il progetto ha già, **per tutto il file** (le altre prove non erano sane, erano solo
+  non ancora scadute) e **a mezzogiorno UTC** — a mezzanotte sarebbero due giorni diversi fra la
+  modalità normale e quella con `TZ=Europe/Rome`. ⚠️ La classe resta aperta in una dozzina di file, e
+  ⛔ **non li ho toccati perché non li ho misurati**: una data fissa passata a una funzione pura non
+  scade mai, scadono solo quelle davanti a un `new Date()`. ⛔ **E i tre omonimi di ieri li ho trovati
+  uno alla volta, per caso**, mentre un modo per trovarli tutti insieme non esisteva: le
+  diagnostiche guardano «quanti allergeni non riconosciamo», nessuna guardava **quali parole tolgono
+  roba che non c'entra** — il difetto che non fa rumore, perché una cliente allergica ai molluschi
+  si vede sparire i piatti di funghi e un menu più povero non sembra un errore. ✅ `npm run
+  diag:omonimi`: per ogni parola, i **contesti distinti** in cui compare — «riso [sushi]» contro
+  «[sushi] di tonno» — e prima i **rari**, perché «salmone fresco» compare trecento volte ed è ovvio
+  mentre «riso sushi» tre volte ed è quello che fa danno.
+
 ## 2026-09-01
 
 - `[Sviluppo]` 🍚 **Il riso per sushi non è sushi — e l'agente che non si costruisce.** ⛔ **La tabella

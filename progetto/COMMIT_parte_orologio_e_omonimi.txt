@@ -1,0 +1,46 @@
+Le prove scadute stanotte, e il tabulato che avrebbe trovato i tre omonimi in una volta
+
+⛔ 1. QUATTRO PROVE ROSSE ALLE QUATTRO DI NOTTE, SENZA CHE NESSUNO TOCCASSE UNA RIGA
+`pause/primo-giorno-utile.spec.ts` chiede di aprire una pausa dall'1/9. Alla mezzanotte fra l'1 e
+il 2 quella data è diventata passato, e il servizio ha risposto «quel periodo è già passato» — che
+è la risposta giusta a una domanda che le prove non volevano fare.
+
+⚠️ LE 56 DATE SCRITTE A MANO NON SONO IL DIFETTO: SONO IL PREGIO. Ogni commento racconta una storia
+con le date vere — «la vacanza finisce il 4/9 → rientro il 5 → più i 15 giorni di tregua = 20
+settembre» — e renderle relative a `oggi` vorrebbe dire un file che non si legge più, in cambio di
+prove che non si capisce più quando sbagliano.
+
+Si è fermato l'orologio, ed è il pattern che il progetto ha già (`mezzanotte-della-pausa`,
+`mezzanotte-delle-attivita`). ⚠️ Per TUTTO il file e non solo per il gruppo rotto: le altre prove
+non erano sane, erano soltanto non ancora scadute. ⚠️ E a MEZZOGIORNO UTC, non a mezzanotte: la
+suite gira anche con `TZ=Europe/Rome`, e un istante a cavallo sarebbe due giorni diversi nelle due
+modalità — la stessa prova che passa in una e non nell'altra.
+
+⚠️ E la classe resta aperta altrove — una dozzina di file, i più carichi sono `privacy/cancellazione`
+(21 date), `agenda/calendario` (20), `common/il-giorno-a-mano` (18). ⛔ NON le ho toccate perché non
+le ho misurate: una data fissa passata a una funzione pura che riceve «oggi» come parametro non
+scade mai, scadono solo quelle che finiscono davanti a un `new Date()` dentro il codice provato.
+Fermare dodici orologi a scatola chiusa è la stessa fretta che ieri si è pagata tre volte. Voce in
+elenco lavori: `prove-con-le-date-scritte-a-mano`.
+
+⛔ 2. I TRE OMONIMI LI HO TROVATI UNO ALLA VOLTA, E C'ERA UN MODO PER TROVARLI TUTTI INSIEME
+«ricciolina» presa per una ricciola, «ostriche» dentro un elenco di funghi, «riso sushi» preso per
+sushi: tre scoperte separate, tutte per caso, leggendo output che parlavano d'altro.
+
+⚠️ Le diagnostiche che c'erano guardano il verso opposto: `diag:allergeni` chiede «quanti allergeni
+NON riconosciamo», `diag:allergeni-piatto` chiede «sta già arrivando nel piatto?». Nessuna chiedeva
+**quali parole tolgono roba che non c'entra** — ed è il difetto che non fa rumore: una cliente
+allergica ai molluschi si vede sparire i piatti di funghi, e non se ne accorge nessuno, perché un
+menu più povero non è un errore. È solo un menu più povero.
+
+`npm run diag:omonimi` — per ogni parola del vocabolario, i CONTESTI DISTINTI in cui compare: la
+parola col suo vicinato, che è la cosa che distingue «riso [sushi]» da «[sushi] di tonno».
+⚠️ Si mostrano prima i contesti RARI, non i frequenti: «salmone fresco» compare trecento volte ed è
+ovvio, «riso sushi» tre volte ed è quello che fa danno.
+⛔ E non corregge niente: il rimedio a un omonimo si scrive a mano in `exclusions.ts`, sapendo cosa
+si sta facendo. Quel vocabolario tiene al sicuro chi è allergico.
+
+⚠️ Provato sui tre casi di ieri: mostra l'unico ancora aperto («champignon, [ostriche]») e tace sui
+due già dichiarati. È il comportamento giusto, ed è la prova che serviva.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

@@ -5061,4 +5061,30 @@ export const VOCI_INIZIALI: Voce[] = [
     nata: '2026-09-01T17:30',
   },
 
+  {
+    chiave: 'prove-con-le-date-scritte-a-mano',
+    titolo: 'Altre prove hanno date scritte a mano e scadranno da sole, come è successo il 2/9 alle 4 di notte',
+    dettaglio:
+      '\u26d4 **Il 2/9 quattro prove sono diventate rosse senza che nessuno toccasse una riga.** '
+      + '`pause/primo-giorno-utile.spec.ts` chiede di aprire una pausa dall\'1/9, e alla mezzanotte '
+      + 'fra l\'1 e il 2 quella data \u00e8 diventata passato: il servizio rispondeva «quel periodo \u00e8 gi\u00e0 '
+      + 'passato», che \u00e8 la risposta giusta a una domanda che le prove non volevano fare.\n'
+      + '\u2705 **Quel file \u00e8 chiuso** (2/9): orologio fermo a mezzogiorno UTC dell\'1/9, per tutto il file '
+      + 'e non solo per il gruppo rotto \u2014 le date a mano l\u00ec dentro sono 56 sparse in otto gruppi, e '
+      + 'le altre non erano sane, erano solo non ancora scadute. \u26a0\ufe0f Mezzogiorno e non mezzanotte '
+      + 'perch\u00e9 la suite gira anche con `TZ=Europe/Rome`, e un istante a cavallo sarebbe due giorni '
+      + 'diversi nelle due modalit\u00e0.\n'
+      + '\u26a0\ufe0f **Ma la classe resta aperta altrove**, e non l\'ho toccata perch\u00e9 non l\'ho misurata: ci '
+      + 'sono una dozzina di file con date del 2026 scritte a mano e senza orologio fermo \u2014 i pi\u00f9 '
+      + 'carichi sono `privacy/cancellazione` (21), `agenda/calendario` (20), `common/il-giorno-a-mano` '
+      + '(18), `commerce/abbonamento-in-corso` (16), `menu/data-inizio-chat` (12).\n'
+      + '\u26d4 **Non tutte sono malate**: una data fissa passata a una funzione pura che riceve «oggi» '
+      + 'come parametro non scade mai. Scadono solo quelle che finiscono davanti a un `new Date()` '
+      + 'dentro il codice provato. Prima di fermare dodici orologi va guardato quali \u2014 fermarli tutti '
+      + 'a scatola chiusa \u00e8 la stessa fretta che oggi si \u00e8 pagata tre volte.',
+    categoria: CODICE,
+    ordine: 674,
+    nata: '2026-09-02T06:00',
+  },
+
 ];

@@ -26,6 +26,37 @@ const VACANZA: PeriodoOccupato = { startDate: g('2026-08-10'), endDate: g('2026-
 
 const OGGI = g('2026-08-15'); // in mezzo alla vacanza
 
+/**
+ * ⛔ **L'OROLOGIO SI FERMA, E LA RAGIONE È CHE QUESTO FILE SI È ROTTO DA SOLO.**
+ *
+ * Il 2/9 alle quattro di notte quattro prove sono diventate rosse **senza che nessuno toccasse una
+ * riga**: chiedono di aprire una pausa dall'1/9, e alla mezzanotte fra l'1 e il 2 quella data è
+ * diventata passato. Il servizio rispondeva «quel periodo è già passato», che è la risposta giusta
+ * a una domanda che le prove non volevano fare.
+ *
+ * ⚠️ Le cinquantasei date scritte a mano qui dentro **non sono il difetto**: sono il pregio. Ogni
+ * commento racconta una storia con le date vere — *«la vacanza finisce il 4/9 → rientro il 5 → più
+ * i 15 giorni di tregua = 20 settembre»* — e renderle relative a `oggi` vorrebbe dire un file che
+ * non si può più leggere, in cambio di prove che non si può più capire quando sbagliano.
+ *
+ * Si ferma l'orologio invece. È il pattern che il progetto ha già in
+ * `pause/mezzanotte-della-pausa.spec.ts` e in `coach-tasks/mezzanotte-delle-attivita.spec.ts`.
+ *
+ * ⚠️ **Mezzogiorno UTC, non mezzanotte**: la suite gira anche con `TZ=Europe/Rome`, e un istante a
+ * cavallo della mezzanotte sarebbe **due giorni diversi** nelle due modalità — cioè la stessa prova
+ * che passa in una e non nell'altra, che è il modo peggiore di scoprire un difetto.
+ */
+const ADESSO_FINTO = new Date('2026-09-01T12:00:00.000Z');
+
+/**
+ * ⚠️ **Per TUTTO il file, non solo per il gruppo che si è rotto.** Le quattro prove diventate rosse
+ * stanotte stavano in un gruppo solo, ma le date scritte a mano sono cinquantasei e sparse in otto:
+ * le altre non sono sane, sono soltanto **non ancora scadute**. Fermare l'orologio in un punto solo
+ * vorrebbe dire rifare questa stessa correzione fra una settimana, alle quattro di notte.
+ */
+beforeEach(() => { jest.useFakeTimers().setSystemTime(ADESSO_FINTO); });
+afterEach(() => { jest.useRealTimers(); });
+
 describe('⛔ siSovrappone: gli estremi sono compresi', () => {
   it('due periodi lontani non si toccano', () => {
     expect(siSovrappone(VACANZA, { startDate: g('2026-09-01'), endDate: g('2026-09-05') })).toBe(false);

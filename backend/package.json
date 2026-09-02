@@ -137,7 +137,8 @@
     "diag:carne-fuori-posto": "ts-node --transpile-only prisma/diag-carne-dove-non-deve-stare.ts",
     "regime:contenuto": "ts-node --transpile-only prisma/corregge-regime-dal-contenuto.ts",
     "panieri:pulisci": "ts-node --transpile-only prisma/pulisci-panieri-fuori-regime.ts",
-    "diag:orfane": "ts-node --transpile-only prisma/diag-ricette-senza-paniere.ts"
+    "diag:orfane": "ts-node --transpile-only prisma/diag-ricette-senza-paniere.ts",
+    "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
