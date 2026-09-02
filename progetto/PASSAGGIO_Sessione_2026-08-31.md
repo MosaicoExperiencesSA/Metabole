@@ -25,6 +25,12 @@ Da leggere per intero prima di scrivere una riga. È scritto per una sessione ch
   indicavano una prova che misurava il *sorgente* invece del *comportamento*.
 - **Quattro modalità di test** (backend): `npx jest --ci`, `TZ=Europe/Rome npx jest --ci`,
   `npm run test:notte -- --ci`, e le due insieme. Frontend: `npx vitest run`.
+- **E una quinta che NON è obbligatoria**: `AVANTI_GIORNI=120 npm run test:futuro -- --ci`
+  (`test/tempo-avanti.ts`, dal 2/9). Sposta avanti solo il *presente* — `new Date()`, `Date.now()`,
+  `Date()` — e lascia veri i timer e le date scritte a mano. Risponde a un'altra domanda: non
+  «funziona?» ma «funzionerà ancora fra tre mesi?». Si lancia quando si scrivono prove con date
+  a mano. ⚠️ Dove l'orologio è già fermo (18 file, 454 prove) il futuro non si vede: lì si guarda
+  a mano.
 
 **Consegna sul Mac:** `tar -czf` → `SendUserFile` → `device_commit_files` in
 `/Users/simonesalogni/Documents/Metabole/` → estrazione con

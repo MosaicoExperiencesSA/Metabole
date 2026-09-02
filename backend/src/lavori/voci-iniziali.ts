@@ -5074,17 +5074,43 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'le altre non erano sane, erano solo non ancora scadute. \u26a0\ufe0f Mezzogiorno e non mezzanotte '
       + 'perch\u00e9 la suite gira anche con `TZ=Europe/Rome`, e un istante a cavallo sarebbe due giorni '
       + 'diversi nelle due modalit\u00e0.\n'
-      + '\u26a0\ufe0f **Ma la classe resta aperta altrove**, e non l\'ho toccata perch\u00e9 non l\'ho misurata: ci '
-      + 'sono una dozzina di file con date del 2026 scritte a mano e senza orologio fermo \u2014 i pi\u00f9 '
-      + 'carichi sono `privacy/cancellazione` (21), `agenda/calendario` (20), `common/il-giorno-a-mano` '
-      + '(18), `commerce/abbonamento-in-corso` (16), `menu/data-inizio-chat` (12).\n'
-      + '\u26d4 **Non tutte sono malate**: una data fissa passata a una funzione pura che riceve «oggi» '
-      + 'come parametro non scade mai. Scadono solo quelle che finiscono davanti a un `new Date()` '
-      + 'dentro il codice provato. Prima di fermare dodici orologi va guardato quali \u2014 fermarli tutti '
-      + 'a scatola chiusa \u00e8 la stessa fretta che oggi si \u00e8 pagata tre volte.',
+      + '\u2705 **E la classe altrove \u00e8 stata misurata, ed \u00e8 vuota** (2/9 sera). Stamattina avevo '
+      + 'scritto «resta aperta, non l\'ho misurata» e avevo in mano una dozzina di file sospetti — '
+      + '`privacy/cancellazione` (21 date a mano), `agenda/calendario` (20), `common/il-giorno-a-mano` '
+      + '(18), `commerce/abbonamento-in-corso` (16), `menu/data-inizio-chat` (12). \u26d4 **Non erano '
+      + 'malate**: una data fissa passata a una funzione pura che riceve «oggi» come parametro non '
+      + 'scade mai; scadono solo quelle che finiscono davanti a un `new Date()` dentro il codice '
+      + 'provato. Fermare dodici orologi a scatola chiusa sarebbe stata la stessa fretta pagata tre '
+      + 'volte quel giorno: prima si guarda, poi si ferma.\n'
+      + '\u2705 **Come si guarda: `AVANTI_GIORNI=120 npm run test:futuro`** (`test/tempo-avanti.ts`). '
+      + 'Sposta avanti **solo `Date`** \u2014 e solo il costruttore senza argomenti e `now()`, cos\u00ec una '
+      + 'data scritta a mano resta quel giorno l\u00ec \u2014 lasciando veri i timer, come '
+      + '`test/orologio-fermo.ts`: falsificando anche `setTimeout` una suite che aspetta una promessa '
+      + 'si blocca, e una suite in timeout assomiglia molto a una che ha trovato un difetto. '
+      + '\u26a0\ufe0f **Non \u00e8 una delle quattro modalit\u00e0 obbligatorie e non deve diventarlo**: risponde a '
+      + 'una domanda diversa \u2014 non «funziona?» ma «funzioner\u00e0 ancora fra tre mesi?» \u2014 e si lancia '
+      + 'quando si scrivono prove con date a mano, o ogni tanto.\n'
+      + '\u2705 **Il verdetto: 390 file, 6539 prove, tutte verdi a +120 e a +400 giorni.** Nessun file '
+      + 'scade da solo nei prossimi tredici mesi.\n'
+      + '\u26d4 **Il misuratore \u00e8 un Proxy, non una sottoclasse, e questa \u00e8 la riga da non perdere.** '
+      + 'La prima stesura era `class Orologio extends Date` e dava due file rossi che rossi non erano '
+      + '(«Expected constructor: ClockDate, Received constructor: Date» in `profile/imposta-digiuno` e '
+      + 'in `notifications`): i timer finti di jest prendono il `Date` globale che trovano e fanno '
+      + '`ClockDate.prototype = quello.prototype`, quindi sopra una sottoclasse le date vere smettono '
+      + 'di essere `instanceof Date`. Un Proxy non ha un prototipo suo. \u26a0\ufe0f **Un misuratore che '
+      + 'inventa guasti \u00e8 peggio di nessun misuratore, perch\u00e9 manda a cercare.**\n'
+      + '\u2705 E `pause/primo-giorno-utile.spec.ts` ora ferma l\'orologio con `conOrologioFermo` \u2014 la '
+      + 'porta di casa che esisteva gi\u00e0 e che quella notte non avevo usato, scrivendomi a mano un '
+      + '`jest.useFakeTimers()` che falsificava anche i timer.\n'
+      + '\u26a0\ufe0f **Il punto cieco, detto per intero**: dove l\'orologio \u00e8 gi\u00e0 fermo il futuro non si '
+      + 'vede, e sono **454 prove su 6539** in 18 file. \u26d4 Avevo scritto «l\u00ec non c\'era niente da '
+      + 'misurare comunque» ed \u00e8 falso: fra quelle 454 ci sono le 49 di `primo-giorno-utile`, cio\u00e8 '
+      + 'l\'unico posto che si \u00e8 davvero rotto da solo \u2014 che proprio per questo l\'orologio adesso ce '
+      + 'l\'ha fermo. Quelle restano da guardare a mano quando si toccano quei file.',
     categoria: CODICE,
     ordine: 674,
     nata: '2026-09-02T06:00',
+    fatta: true,
   },
 
 ];

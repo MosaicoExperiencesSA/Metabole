@@ -10,6 +10,7 @@
  * Se un giorno qualcuno le unifica «per semplicità», uno dei due gruppi qui sotto diventa rosso.
  */
 import { giornoDiRientro } from './giorno-di-rientro';
+import { conOrologioFermo } from '../../test/orologio-fermo';
 import {
   fraseNonSiSovrappone,
   primoGiornoUtile,
@@ -54,8 +55,7 @@ const ADESSO_FINTO = new Date('2026-09-01T12:00:00.000Z');
  * le altre non sono sane, sono soltanto **non ancora scadute**. Fermare l'orologio in un punto solo
  * vorrebbe dire rifare questa stessa correzione fra una settimana, alle quattro di notte.
  */
-beforeEach(() => { jest.useFakeTimers().setSystemTime(ADESSO_FINTO); });
-afterEach(() => { jest.useRealTimers(); });
+conOrologioFermo(ADESSO_FINTO);
 
 describe('⛔ siSovrappone: gli estremi sono compresi', () => {
   it('due periodi lontani non si toccano', () => {
@@ -282,7 +282,6 @@ describe('⛔ la frase dice QUALE data mettere', () => {
  * si allungava **due volte per la stessa vacanza**.
  */
 import { Test } from '@nestjs/testing';
-import { conOrologioFermo } from '../../test/orologio-fermo';
 import { AuditService } from '../audit/audit.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -385,8 +384,11 @@ describe('⛔ dall’app una pausa non si sovrappone più a quelle che ci sono',
   /**
    * ⛔ **Nemmeno dal Calendario si segna un periodo passato** (25/8, revisione): non ferma niente —
    * quei menu sono già arrivati — e riempie l'agenda della cliente di roba che non ha effetto.
-   * ⚠️ Qui l'orologio è quello vero, quindi la data è scelta ben dietro: un test che scade è un test
-   * che un giorno diventa rosso senza che nessuno abbia rotto niente.
+   * ⚠️ **La data è scelta ben dietro, e resta giusta comunque**: dal 2/9 l'orologio di questo file
+   * è fermo all'1/9/2026 (`conOrologioFermo` in cima), ma il 2020 è passato in tutti e due i modi.
+   * Il commento diceva «qui l'orologio è quello vero» ed è rimasto indietro di un giorno: un
+   * commento che spiega una scelta con una premessa che il file non rispetta più fa concludere a
+   * chi legge che questo gruppo si difende da solo, e non è più vero.
    */
   it('⛔ un periodo che comincia nel PASSATO si rifiuta', async () => {
     const { service, prisma } = await servizioEventi([]);

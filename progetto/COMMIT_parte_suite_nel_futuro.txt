@@ -1,0 +1,76 @@
+La suite nel futuro: un misuratore che non inventa guasti
+
+Il 2/9 alle quattro di notte quattro prove sono diventate rosse senza che nessuno
+avesse toccato una riga: `pause/primo-giorno-utile.spec.ts` chiedeva di aprire una
+pausa dall'1/9, e a mezzanotte quella data è diventata passato. Stamattina ho
+chiuso quel file fermandogli l'orologio, ma ho scritto in elenco lavori che «la
+classe resta aperta altrove, e non l'ho misurata». Adesso è misurata, ed è vuota.
+
+`AVANTI_GIORNI=120 npm run test:futuro` (`backend/test/tempo-avanti.ts`) fa girare
+la suite col presente spostato avanti. Sposta SOLO il presente — `new Date()`,
+`Date.now()`, `Date()` senza `new` — e lascia stare le date scritte a mano, che
+altrimenti cambierebbero significato invece di cambiare presente. I timer restano
+veri, come in `test/orologio-fermo.ts`: falsificando anche `setTimeout` una suite
+che aspetta una promessa si blocca, e una suite in timeout assomiglia molto a una
+che ha trovato un difetto.
+
+IL VERDETTO: 390 file, 6539 prove, tutte verdi a +120 e a +400 giorni. La dozzina
+di file «sospetti» che avevo elencato stamattina — `privacy/cancellazione` con 21
+date a mano, `agenda/calendario` con 20, `common/il-giorno-a-mano` con 18 — non
+era malata: quelle date stanno dentro funzioni pure o dati finti, non davanti a un
+`new Date()`. Fermare dodici orologi a scatola chiusa sarebbe stata la stessa
+fretta pagata tre volte quel giorno.
+
+PERCHÉ È UN PROXY E NON UNA SOTTOCLASSE. La prima stesura era `class Orologio
+extends Date` e dava due file rossi che rossi non erano: «Expected constructor:
+ClockDate, Received constructor: Date» in `profile/imposta-digiuno` e in
+`notifications`. I timer finti di jest prendono il `Date` globale che trovano e
+fanno `ClockDate.prototype = quello.prototype`; sopra una sottoclasse le date vere
+smettono di essere `instanceof Date`. Un Proxy non ha un prototipo suo. Un
+misuratore che inventa guasti è peggio di nessun misuratore, perché manda a
+cercare — ed è la regola che avevo appena scritto dentro quel file mentre il
+comando li produceva.
+
+LA REVISIONE AVVERSARIALE ha trovato altri sei difetti, tutti chiusi con una prova:
+· `jest.spyOn(Date, 'now')` esauriva lo stack (la spia chiamava l'originale che
+  rileggeva la spia). Ora lo spostamento chiama `NOW_VERO` catturato al caricamento,
+  e una spia sull'orologio spegne lo spostamento — è giusto: chi mette una spia
+  sull'orologio sta dicendo che ora è.
+· `Number(x) || 90` diceva 90 ad `abc`, a `400giorni` e — peggio — a `0`, che è il
+  giro di controllo più utile che ci sia. Ora `0` vale zero e quello che non si
+  capisce si rifiuta con una frase, invece di misurare in silenzio un'altra cosa.
+· Oltre cent'anni le date diventano `Invalid Date` dappertutto: centinaia di prove
+  rosse, nessuna per un difetto. Ora si rifiuta.
+· `Date()` senza `new` non era spostato: rispondeva un presente diverso da
+  `new Date()` nello stesso tick.
+· `Object.getOwnPropertyDescriptor(Date, 'now').value` e `Date.now` erano due
+  funzioni diverse.
+· Il file non era un modulo, quindi `REALE`, `GIORNI` e `AVANTI` erano globali per
+  tutto il progetto: chiunque scrivesse `const GIORNI` a livello di file si
+  trovava un «Cannot redeclare block-scoped variable» che nominava un file mai
+  aperto.
+
+IL PUNTO CIECO, DETTO PER INTERO. Dove l'orologio è già fermo il futuro non si
+vede: sono 454 prove su 6539, in 18 file. Avevo scritto «lì non c'era niente da
+misurare comunque» ed è falso — fra quelle 454 ci sono le 49 di
+`primo-giorno-utile`, cioè l'unico posto che si è davvero rotto da solo, che
+proprio per questo l'orologio adesso ce l'ha fermo. Restano da guardare a mano
+quando si toccano quei file.
+
+E `pause/primo-giorno-utile.spec.ts` ora usa `conOrologioFermo` invece del
+`jest.useFakeTimers()` che mi ero scritto a mano quella notte: la porta di casa
+esisteva già, falsifica solo `Date` e non i timer, e non l'avevo usata. Prova di
+mutazione: spostando l'istante finto al 2029, cinque prove diventano rosse.
+
+`test:futuro` NON è una delle quattro modalità obbligatorie e non deve diventarlo:
+risponde a una domanda diversa — non «funziona?» ma «funzionerà ancora fra tre
+mesi?» — e si lancia quando si scrivono prove con date a mano, o ogni tanto.
+
+File: backend/test/tempo-avanti.ts (nuovo), backend/package.json (`test:futuro`),
+backend/src/pause/primo-giorno-utile.spec.ts, backend/src/lavori/voci-iniziali.ts
+(la voce `prove-con-le-date-scritte-a-mano` chiusa e corretta),
+progetto/PASSAGGIO_Sessione_2026-08-31.md.
+
+Prove: 6539/6539 verdi nelle quattro modalità obbligatorie, più `test:futuro` a 0,
++120 e +400 giorni. `npm run build` e `npx tsc --noEmit` puliti (restano i due
+errori preesistenti in `prisma/approve-diets.ts` e `prisma/dedupe-diets.ts`).

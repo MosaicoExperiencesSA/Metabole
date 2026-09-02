@@ -20,6 +20,44 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ⏭️ **La suite nel futuro: `npm run test:futuro`, e la classe che credevo aperta era
+  vuota.** ⛔ Stamattina avevo scritto in elenco lavori «la classe resta aperta altrove, e non l'ho
+  toccata perché non l'ho misurata», con una dozzina di file sospetti in mano. ✅ Adesso è misurata:
+  `AVANTI_GIORNI=120 npm run test:futuro` fa girare la suite col presente spostato avanti, e a +120
+  e a +400 giorni **390 file e 6539 prove sono verdi**. `privacy/cancellazione` (21 date scritte a
+  mano), `agenda/calendario` (20), `common/il-giorno-a-mano` (18) non erano malate: quelle date
+  stanno dentro funzioni pure o dati finti, non davanti a un `new Date()`. ⚠️ Fermare dodici
+  orologi a scatola chiusa sarebbe stata la stessa fretta pagata tre volte quel giorno — prima si
+  guarda, poi si ferma.
+  ⛔ **Il misuratore è un Proxy e non una sottoclasse, e questa è la riga da non perdere.** La prima
+  stesura era `class Orologio extends Date` e dava **due file rossi che rossi non erano**
+  («Expected constructor: ClockDate, Received constructor: Date» in `profile/imposta-digiuno` e in
+  `notifications`): i timer finti di jest prendono il `Date` globale che trovano e fanno
+  `ClockDate.prototype = quello.prototype`, quindi sopra una sottoclasse le date vere smettono di
+  essere `instanceof Date`. Un Proxy non ha un prototipo suo. ⚠️ **Un misuratore che inventa guasti
+  è peggio di nessun misuratore, perché manda a cercare** — ed è la regola che avevo appena scritto
+  dentro quel file mentre il comando li produceva.
+  🔍 **La revisione avversariale ne ha trovati altri sei**, tutti chiusi con una prova: `jest.spyOn
+  (Date, 'now')` esauriva lo stack; `Number(x) || 90` rispondeva 90 ad `abc`, a `400giorni` e —
+  peggio — a `0`, che è il giro di controllo più utile che ci sia («il rosso è del prodotto o del
+  misuratore?»); oltre cent'anni le date diventavano `Invalid Date` dappertutto; `Date()` senza
+  `new` non era spostato; il descrittore di `Date.now` e `Date.now` erano due funzioni diverse; e
+  il file non era un modulo, quindi `REALE`, `GIORNI` e `AVANTI` erano globali per **tutto** il
+  progetto e chiunque scrivesse `const GIORNI` si trovava un errore che nominava un file mai
+  aperto.
+  ⚠️ **Il punto cieco, detto per intero**: dove l'orologio è già fermo il futuro non si vede, e sono
+  **454 prove su 6539** in 18 file. Avevo scritto «lì non c'era niente da misurare comunque» ed è
+  falso — fra quelle 454 ci sono le 49 di `primo-giorno-utile`, cioè **l'unico posto che si è
+  davvero rotto da solo**, che proprio per questo l'orologio adesso ce l'ha fermo.
+  ✅ E `pause/primo-giorno-utile.spec.ts` ora ferma l'orologio con `conOrologioFermo` invece del
+  `jest.useFakeTimers()` che mi ero scritto a mano quella notte: la porta di casa esisteva già,
+  falsifica solo `Date` e lascia veri i timer, e non l'avevo usata. Prova di mutazione: spostando
+  l'istante finto al 2029, cinque prove diventano rosse.
+  ⚠️ `test:futuro` **non è una delle quattro modalità obbligatorie e non deve diventarlo**: risponde
+  a un'altra domanda — non «funziona?» ma «funzionerà ancora fra tre mesi?».
+  🧪 6539 prove verdi nelle quattro modalità obbligatorie, più `test:futuro` a 0, +120 e +400
+  giorni. `npm run build` e `npx tsc --noEmit` puliti.
+
 - `[Sviluppo]` 👥 **Le venti persone della Fase 9: il controllo che dice se è andata.** ⛔ **Nasce da
   una cosa che ho rifiutato di fare**: migrarle con uno script. Non si può — cambiare `dietFamily`
   da fuori salta `buildPersonalBase`, e la base personale (quella da cui **Vera** pesca quando una
