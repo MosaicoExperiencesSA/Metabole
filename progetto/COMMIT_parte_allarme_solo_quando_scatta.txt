@@ -1,0 +1,36 @@
+L'allarme si stampa solo quando scatta — e il piano panieri tocca terra
+
+⛔ IL TABULATO GRIDAVA SU UN RISULTATO BUONO
+`diag:orfane` stampava, sotto le percentuali, un blocco che descrive un guasto preciso: «il pesce è
+uscito dai panieri vegani e non è entrato in quelli pescetariani…». Lo stampava SEMPRE, anche
+stamattina, sotto queste righe:
+
+  · vegan            1418 su 7028  (20%)
+  · vegetarian       1243 su 7089  (18%)
+  · omnivore         1057 su 5436  (19%)
+  · pescetarian       592 su 3804  (16%)
+
+Il pescetariano è **il più basso dei quattro**, cioè l'opposto del guasto descritto. Chi legge o si
+spaventa per niente, o impara a saltare il blocco — e tutte e due le cose sono peggio del silenzio.
+
+⚠️ E LA CONDIZIONE GIUSTA NON È «ALTO», È «SPROPORZIONATO RISPETTO AGLI ALTRI». Fuori dai panieri
+c'è sempre un quinto del catalogo: sono le ricette delle varianti che in nessun paniere versano —
+Vacanze in Serenità, Ritorno in Equilibrio, Digiuno, Vegana, Vegetariana — cioè le famiglie della
+Fase 9. Quella è la normalità, non il segnale. Adesso l'allarme scatta se il pescetariano sta oltre
+il doppio della media degli altri; altrimenti dice ✅ e spiega perché il quinto è atteso.
+
+⚠️ È il terzo tabulato in due giorni che diceva una cosa per un'altra — dopo «IL CONTO NON TORNA» e
+«I panieri, e quante ricette per pasto» — e la causa è sempre la stessa: scritti guardando un
+momento del lavoro, e mai riletti quando il lavoro è andato avanti.
+
+✅ E CON QUESTO IL PIANO PANIERI TOCCA TERRA
+  · nei panieri vegani e vegetariani si è passati da 175 piatti con carne o pesce a OTTO, e tutti
+    e otto sono falsi positivi noti: imitazioni vegetali col nome di un animale, più la polenta ai
+    funghi ostrica;
+  · `regime INCOMPATIBILE: 0` — la contraddizione fra la derivazione pescetariana e il controllo
+    sul regime è chiusa;
+  · 3293 etichette corrette in catalogo, 87 appartenenze tolte, 1014 ricette ricollocate nel
+    paniere della loro famiglia col loro regime;
+  · e il generatore non ne scrive più di sbagliate: il rubinetto è chiuso a monte.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.

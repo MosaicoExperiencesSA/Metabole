@@ -64,13 +64,37 @@ async function main() {
     const pct = tot ? Math.round((n / tot) * 100) : 0;
     riga(`  · ${rg.padEnd(14)} ${String(n).padStart(6)} su ${String(tot).padStart(6)}  (${pct}%)`);
   }
+  /**
+   * ⛔ **L'ALLARME SI STAMPA SOLO QUANDO SCATTA, e il 2/9 si stampava sempre.**
+   *
+   * Il testo qui sotto descrive un guasto preciso — il pesce uscito dai panieri vegani e non
+   * entrato in quelli pescetariani — e compariva anche quando il risultato era buono: «pescetarian
+   * 16%, il più basso dei quattro», e sotto un blocco che spiega un disastro. Chi legge o si
+   * spaventa per niente, o impara a saltare il blocco: tutte e due le cose sono peggio del silenzio.
+   *
+   * ⚠️ La condizione è **sproporzionato rispetto agli altri**, non «alto»: fuori dai panieri c'è
+   * sempre un quinto del catalogo — sono le ricette delle varianti che in nessun paniere versano,
+   * le famiglie della Fase 9 — e quella è la normalità, non il segnale.
+   */
+  const pescetariane = perRegime.get('pescetarian') ?? 0;
+  const totPescetariane = totali.get('pescetarian') ?? 0;
+  const quotaPesce = totPescetariane ? pescetariane / totPescetariane : 0;
+  const altre = [...perRegime.entries()].filter(([rg]) => rg !== 'pescetarian');
+  const quotaAltre = altre.length
+    ? altre.reduce((s2, [rg, n]) => s2 + n / (totali.get(rg) || 1), 0) / altre.length
+    : 0;
   riga('');
-  riga('  ⛔ Se «pescetarian» è alto ed è quasi tutto il suo totale, è successo quello che questo');
-  riga('  tabulato viene a cercare: il pesce è uscito dai panieri vegani e non è entrato in quelli');
-  riga('  pescetariani, perché la derivazione lo cerca nel paniere ONNIVORO, dove non è mai stato.');
-  riga('  La strada è rilanciare `APPLICA=1 npm run panieri:riempi`: dal rilascio dell\'1/9 quello');
-  riga('  script non scarta più la ricetta che non c\'entra col paniere — la porta nel paniere della');
-  riga('  STESSA FAMIGLIA che le corrisponde.');
+  if (totPescetariane && quotaPesce > quotaAltre * 2) {
+    riga('  ⛔ «pescetarian» è sproporzionato rispetto agli altri regimi: è successo quello che questo');
+    riga('  tabulato viene a cercare — il pesce è uscito dai panieri vegani e non è entrato in quelli');
+    riga('  pescetariani, perché la derivazione lo cerca nel paniere ONNIVORO, dove non è mai stato.');
+    riga('  La strada è `APPLICA=1 npm run panieri:riempi`: quello script non scarta più la ricetta');
+    riga('  che non c\'entra col paniere — la porta in quello della STESSA FAMIGLIA col suo regime.');
+  } else {
+    riga('  ✅ Nessun regime si è staccato: le quote sono in linea fra loro.');
+    riga('  ⚠️ Che un quinto del catalogo stia fuori dai panieri è la normalità, non un guasto: sono');
+    riga('  le ricette delle varianti che in nessun paniere versano — le famiglie della Fase 9.');
+  }
 
   const pesce = fuori.filter((r) => r.regime === 'pescetarian');
   if (pesce.length) {

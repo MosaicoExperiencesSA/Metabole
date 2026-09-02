@@ -265,7 +265,25 @@ async function main() {
     impossibiliConRicette.forEach(riga);
   }
 
-  titolo('I PANIERI, E QUANTE RICETTE PER PASTO');
+  titolo('I PANIERI SECONDO LE GIORNATE — non è lo stato della tabella');
+  riga('');
+  /**
+   * ⛔ **QUESTO ELENCO DICE MENO DI QUELLO CHE SEMBRA, e il 2/9 stava per far prendere un colpo.**
+   *
+   * Sono le ricette che **queste giornate** versano in ogni paniere: è quello che lo script sta per
+   * scrivere, non quello che nel paniere c'è. Le righe scritte da `panieri:pesce` — la derivazione
+   * dei panieri pescetariani, novemila e passa — da qui **non si vedono**, perché dalle giornate
+   * non escono.
+   *
+   * ⚠️ Quindi una riga come «Flessibile × pescetarian 1» non vuol dire che quel paniere ha un
+   * piatto: vuol dire che una giornata sola lo nomina. Lo stato vero si guarda nella **pagina
+   * Panieri** del back office, che conta le righe in tabella e distingue i piatti dagli attivi.
+   */
+  riga('  ⚠️ Sono le ricette che LE GIORNATE versano in ogni paniere, cioè quello che questo script');
+  riga('  sta per scrivere — NON quello che nel paniere c\'è. Le righe scritte da `panieri:pesce`');
+  riga('  (la derivazione pescetariana) da qui non si vedono, perché dalle giornate non escono.');
+  riga('  ⛔ «Flessibile × pescetarian 1» vuol dire «una giornata lo nomina», non «ha un piatto».');
+  riga('  Lo stato vero è nella pagina Panieri del back office.');
   riga('');
   for (const p of tutti) {
     const set = dentro.get(`${p.famiglia}|${p.regime}`) ?? new Set<string>();

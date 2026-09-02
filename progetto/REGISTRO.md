@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ✅ **L'allarme si stampa solo quando scatta — e il piano panieri tocca terra.**
+  ⛔ `diag:orfane` stampava **sempre** il blocco che descrive un guasto («il pesce è uscito dai
+  panieri vegani e non è entrato in quelli pescetariani»), anche sotto un risultato in cui il
+  pescetariano era **il più basso dei quattro regimi**: chi legge o si spaventa per niente, o impara
+  a saltare il blocco, e tutte e due le cose sono peggio del silenzio. ⚠️ **La condizione giusta non
+  è «alto», è «sproporzionato rispetto agli altri»**: fuori dai panieri c'è sempre un quinto del
+  catalogo — le ricette delle varianti che in nessun paniere versano, cioè le famiglie della Fase 9
+  — e quella è la normalità. ⚠️ **Terzo tabulato in due giorni che diceva una cosa per un'altra**,
+  dopo «IL CONTO NON TORNA» e «I panieri, e quante ricette per pasto», e sempre per la stessa causa:
+  scritti guardando un momento del lavoro e mai riletti quando il lavoro è andato avanti.
+  ✅ **E con questo il piano panieri tocca terra**: nei panieri vegani e vegetariani si è passati da
+  **175 piatti con carne o pesce a otto**, tutti falsi positivi noti; `regime INCOMPATIBILE: 0`;
+  3293 etichette corrette, 87 appartenenze tolte, 1014 ricette ricollocate; e il generatore non ne
+  scrive più di sbagliate.
+
+- `[Sviluppo]` 🪤 **«I panieri, e quante ricette per pasto» diceva meno di quello che sembrava.**
+  ⛔ In fondo a `panieri:riempi` quell'elenco mostrava «Flessibile × pescetarian **1**», «Keto ×
+  pescetarian **0**» — e la conclusione ovvia, leggendolo, è che i panieri pescetariani siano vuoti
+  e che due giorni di lavoro non abbiano prodotto niente. ⚠️ **Non è quello che dice**: sono le
+  ricette che **le giornate** versano in ogni paniere, cioè quello che lo script sta per scrivere,
+  non quello che nel paniere c'è — e le 9137 righe della derivazione pescetariana da lì non si
+  vedono, perché dalle giornate non escono. ⚠️ **Stesso difetto del «IL CONTO NON TORNA» di ieri, e
+  stessa causa**: un tabulato scritto quando il riempimento era l'unico a scrivere, e mai riletto da
+  quando non lo è più. Ora il titolo dice cosa sta guardando e dove sta l'altra metà (la pagina
+  Panieri). ✅ **E la sequenza di stamattina è andata**: 87 appartenenze tolte (79 spente, 8 attive
+  nel paniere sbagliato), **1014 ricette ricollocate** nel paniere della stessa famiglia col loro
+  regime — 476 dal vegano e 276 dal vegetariano verso il pescetariano — «senza nessun paniere
+  possibile: 0», e il controllo del conto che spiega le righe in più invece di gridare.
+
 - `[Sviluppo]` ✍️ **Le otto correzioni decise a mano — e il difetto più grosso che restava sotto.**
   Simone ha aperto in scheda le sei ricette che `regime:contenuto` si era rifiutato di toccare: il
   pesce c'è davvero in tutte. Più le due che un mio falso positivo aveva spostato, e che tornano

@@ -1,0 +1,35 @@
+«I panieri, e quante ricette per pasto» diceva meno di quello che sembrava
+
+⛔ UNA TRAPPOLA NEL MIO OUTPUT, CHIUSA PRIMA CHE QUALCUNO CI CASCASSE
+In fondo a `panieri:riempi` c'è un elenco intitolato «I PANIERI, E QUANTE RICETTE PER PASTO», e il
+2/9 leggeva così:
+
+  ·   1  Flessibile × pescetarian   breakfast=0 morning_snack=0 lunch=0 afternoon_snack=0 dinner=1
+  ·   0  Keto (non terapeutica) × pescetarian
+  ·   2  Proteica × pescetarian
+
+Un piatto. Zero piatti. Leggendolo, la conclusione ovvia è che i panieri pescetariani siano vuoti e
+che tutto il lavoro delle ultime due giornate non abbia prodotto niente.
+
+⚠️ NON È QUELLO CHE DICE. Sono le ricette che **le giornate** versano in ogni paniere — cioè quello
+che quello script sta per scrivere — non quello che nel paniere c'è. Le righe scritte da
+`panieri:pesce`, la derivazione pescetariana, sono novemilacentotrentasette e **da lì non si
+vedono**, perché dalle giornate non escono.
+
+Quindi «Flessibile × pescetarian 1» vuol dire «una giornata sola lo nomina», non «ha un piatto». Lo
+stato vero sta nella pagina Panieri del back office, che conta le righe in tabella e distingue i
+piatti dagli attivi.
+
+⚠️ È lo stesso difetto del «IL CONTO NON TORNA» di ieri, e la stessa causa: un tabulato scritto
+quando il riempimento era l'unico a scrivere, e mai riletto da quando non lo è più. Il titolo adesso
+dice cosa sta guardando, e sotto c'è scritto dove guardare per l'altra metà.
+
+E LA SEQUENZA DI STAMATTINA È ANDATA:
+  · 87 appartenenze tolte — 79 di ricette spente, 8 attive nel paniere sbagliato;
+  · 1014 ricette ricollocate nel paniere della stessa famiglia col loro regime, di cui 476 dal
+    vegano e 276 dal vegetariano verso il pescetariano;
+  · «Senza NESSUN paniere possibile: 0»;
+  · e il controllo del conto non grida più: dice «torna, con 9137 righe in più delle giornate», e
+    spiega di chi sono.
+
+Test: backend 6539 su 390 suite, verdi nelle quattro modalità. Build pulita. Nessuna migrazione.
