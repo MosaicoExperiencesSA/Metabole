@@ -2544,3 +2544,120 @@ describe('⛔ SostituzioneChatService — il peso del nome vero, non di quello s
     expect(esito.inoltraA).toBe('nutritionist');
   });
 });
+
+/**
+ * ⛔ **IL CAMBIO DI PIATTO IN CHAT SCRIVEVA SENZA PASSARE DAL CONTROLLO DI SICUREZZA** — voce 953,
+ * aperta il 31/8 dalla revisione della consegna sullo swap, chiusa il 2/9.
+ *
+ * Questo servizio pescava da `clientMenuPool` e scriveva il pasto **senza chiamare `valutaRicetta`**,
+ * col `substitutions` vuoto. ⚠️ Il commento diceva che il pool è «già passato dai filtri di
+ * sicurezza»: vero a metà, ed è la metà che fa male. `clientMenuPool` filtra gli allergeni
+ * **revisionati**, il regime e i **tag** allergene, e **non** applica le regole per ingrediente di
+ * `solfiti.ts` e `lattosio.ts`. Una ricetta revisionata senza tag `solfiti` ma con le albicocche
+ * secche dentro passava, e arrivava alla cliente **senza la riga che le dice cosa non mettere** —
+ * la merenda del 30/8, per un'altra strada.
+ */
+describe('⛔ il cambio di piatto in chat passa dal controllo di sicurezza', () => {
+  /** Una colazione col nocciolo del problema: nessun tag allergene, l'ingrediente sì. */
+  const CON_SOLFITI = {
+    id: 'r-albicocche', name: 'Ricotta con albicocche secche', mealSlot: 'breakfast',
+    kcal: 335, macros: { protein_g: 22 }, difficulty: 'semplice',
+    ingredients: [{ name: 'ricotta' }, { name: 'albicocche secche' }],
+    allergens: [] as string[], allergensReviewed: true,
+  };
+  /** Una che invece va vietata e basta: sui crostacei non c'è niente da sostituire. */
+  const CON_GAMBERI = {
+    id: 'r-gamberi', name: 'Insalata di gamberi e avocado', mealSlot: 'breakfast',
+    kcal: 330, macros: { protein_g: 26 }, difficulty: 'semplice',
+    ingredients: [{ name: 'gamberi' }, { name: 'avocado' }],
+    allergens: [] as string[], allergensReviewed: true,
+  };
+
+  async function conCatalogo(profilo: Record<string, unknown>, extra: Record<string, unknown>[]) {
+    const { service, prisma } = await creaServizio();
+    prisma.clientProfile.findUnique = jest.fn().mockResolvedValue({
+      allergies: [], intolerances: [], dislikedFoods: [],
+      assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n', name: 'Giulia',
+      ...profilo,
+    });
+    prisma.clientMenuPool.findFirst = jest.fn().mockResolvedValue({
+      recipeIds: ['r-uova', ...extra.map((r) => r.id as string)],
+    });
+    const base = [
+      { id: 'r-uova', name: 'Uova strapazzate e pane di segale', mealSlot: 'breakfast', kcal: 340, macros: { protein_g: 24 }, difficulty: 'semplice', ingredients: [], allergens: [] },
+      ...extra,
+    ];
+    prisma.recipe.findMany = jest.fn().mockImplementation(({ where }: any) => {
+      const perId = (where?.id?.in ?? null) as string[] | null;
+      return Promise.resolve(base.filter((r) => (perId ? perId.includes(String(r.id)) : true)));
+    });
+    return { service, prisma };
+  }
+
+  /**
+   * ⛔ **Il piatto che non si può servire non si propone nemmeno.** Prima entrava nell'elenco delle
+   * alternative, la cliente lo sceglieva, e finiva scritto sulla sua giornata.
+   */
+  it('⛔ un piatto con un allergene NON si propone più', async () => {
+    const { service } = await conCatalogo({ allergies: ['crostacei'] }, [CON_GAMBERI]);
+    const esito = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    const nomi = esito.stato?.alternativePiatto?.map((a) => a.nome) ?? [];
+    expect(nomi).not.toContain('Insalata di gamberi e avocado');
+  });
+
+  /**
+   * ⛔ **E il tag non c'entra: conta l'ingrediente.** Sui gamberi il pool non ha nessun tag da
+   * guardare (`allergens: []`, e `allergensReviewed: true`), quindi il filtro del pool la lascia
+   * passare: la sola difesa è questa.
+   */
+  it('⛔ anche quando la ricetta non ha nessun tag allergene', async () => {
+    const { service } = await conCatalogo({ allergies: ['gamberi'] }, [CON_GAMBERI]);
+    const nomi = (await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica'))
+      .stato?.alternativePiatto?.map((a) => a.nome) ?? [];
+    expect(nomi).toEqual(['Uova strapazzate e pane di segale']);
+  });
+
+  /**
+   * ⛔ **Il piatto che si può servire CAMBIANDO un ingrediente si propone, e si porta dietro la
+   * riga.** È la differenza fra «vietare» e «servire in sicurezza»: sulle albicocche secche c'è un
+   * sostituto, sui gamberi no. Prima quella riga veniva calcolata da nessuno e il pasto nasceva con
+   * `substitutions` vuoto.
+   */
+  it('⛔ un piatto con un ingrediente da sostituire si propone, e la sostituzione arriva sul pasto', async () => {
+    const { service, prisma } = await conCatalogo({ intolerances: ['solfiti'] }, [CON_SOLFITI]);
+    const proposta = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    const alternative = proposta.stato?.alternativePiatto ?? [];
+    const albicocche = alternative.find((a) => a.nome === 'Ricotta con albicocche secche');
+    expect(albicocche).toBeDefined();
+    expect((albicocche as { sostituzioni?: unknown[] }).sostituzioni?.length).toBeGreaterThan(0);
+
+    /** ⚠️ E fino in fondo: la riga deve finire sul pasto scritto, non fermarsi alla proposta. */
+    const numero = alternative.findIndex((a) => a.nome === 'Ricotta con albicocche secche') + 1;
+    await service.avanza('cli-1', proposta.stato as StatoSostituzione, String(numero));
+    const scritti = prisma.menuDay.update.mock.calls.map((c: any) => c[0].data.meals).pop();
+    const colazione = (scritti ?? []).find((m: any) => m.slot === 'breakfast');
+    expect(colazione?.name).toBe('Ricotta con albicocche secche');
+    expect(colazione?.substitutions?.length).toBeGreaterThan(0);
+    /**
+     * ⛔ **E la riga dice una cosa sensata.** Il nome del piatto entra fra gli ingredienti per far
+     * scattare i divieti su una ricetta con l'elenco povero, ma le regole per ingrediente non sanno
+     * che è finto: sui solfiti producevano «al posto di *Ricotta con albicocche secche* metti
+     * *albicocche essiccate in casa*» — una riga che la cliente legge sul piatto che sta per
+     * ricevere, e non capisce.
+     */
+    expect(colazione?.substitutions?.map((x: any) => x.from)).toEqual(['albicocche secche']);
+  });
+
+  /**
+   * ⚠️ **E su una cliente senza esclusioni non cambia niente**: il campo `substitutions` non si
+   * scrive affatto. Un `[]` scritto apposta è indistinguibile da «nessuno l'ha guardato».
+   */
+  it('⚠️ senza esclusioni il pasto non si porta dietro un elenco vuoto', async () => {
+    const { service, prisma } = await conCatalogo({}, []);
+    const proposta = await service.proponiAltroPiatto('cli-1', 'voglio una colazione proteica');
+    await service.avanza('cli-1', proposta.stato as StatoSostituzione, '1');
+    const scritti = prisma.menuDay.update.mock.calls.map((c: any) => c[0].data.meals).pop();
+    const colazione = (scritti ?? []).find((m: any) => m.slot === 'breakfast');
+    expect(colazione?.substitutions).toBeUndefined();
+  });
+});

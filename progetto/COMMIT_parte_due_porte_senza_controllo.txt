@@ -1,0 +1,51 @@
+Le due porte che scrivevano un piatto senza passare dal controllo di sicurezza
+
+Voce 953, aperta il 31/8 dalla revisione della consegna sullo swap. Due strade
+scrivevano un piatto in `menuDay.meals` pescandolo da `clientMenuPool` SENZA
+chiamare `valutaRicetta`, e il pasto nasceva con `substitutions` vuoto:
+
+· il cambio di piatto in chat (`sostituzione-chat.service.ts`);
+· la giornata dettata dalla nutrizionista (`vera-chat.service.ts`).
+
+⚠️ Tutti e due i file avevano un commento che diceva che il pool è «già passato
+dai filtri di sicurezza». È vero a metà, ed è la metà che fa male: `clientMenuPool`
+filtra gli allergeni REVISIONATI, il regime e i TAG allergene, e NON applica le
+regole per ingrediente di `solfiti.ts` e `lattosio.ts`. Una ricetta revisionata
+senza tag `solfiti` ma con le albicocche secche dentro passava, e arrivava alla
+cliente senza la riga che le dice cosa non mettere — la merenda del 30/8, per
+un'altra strada.
+
+ADESSO: le due porte chiamano `valutaRicetta` sul candidato, col NOME COME
+INGREDIENTE — come fa già `menu.service`, e per la stessa ragione: la funzione
+cicla sugli ingredienti, e su una ricetta con l'elenco vuoto o povero non
+vedrebbe niente, quindi «Insalata di gamberi e avocado» andrebbe a un'allergica
+ai crostacei. Un piatto che viola non si propone nemmeno — né alla cliente né
+alla nutrizionista — e le sostituzioni che prima venivano buttate viaggiano col
+candidato fino al pasto scritto.
+
+⛔ E LA SOSTITUZIONE SUL NOME FINTO SI BUTTA. Il nome entra fra gli ingredienti
+per far scattare i divieti, ma le regole per ingrediente non sanno che è finto:
+sui solfiti producevano «al posto di *Ricotta con albicocche secche* metti
+*albicocche essiccate in casa*» — una riga che la cliente legge sul piatto che
+sta per ricevere, e non capisce. Il divieto si tiene, la riga assurda no.
+
+⚠️ Nel cambio piatto le sostituzioni morivano in un punto preciso e non ovvio:
+lo stato della conversazione teneva TRE campi delle alternative (`recipeId`,
+`nome`, `kcal`), quindi anche calcolandole si sarebbero perse lì.
+
+⚠️ E il campo `substitutions` si scrive solo quando c'è almeno una riga: un `[]`
+scritto apposta è indistinguibile da «nessuno l'ha guardato», e sono due cose
+diverse.
+
+⚠️ RESTA APERTA LA QUINTA PORTA, `buildSimpleSlotPool`, che oggi è spenta
+(`menu_simple_recipes_enabled` a `false`): il giorno che qualcuno la riaccende il
+buco è già lì. È dichiarato nella voce.
+
+File: backend/src/menu/sostituzione-chat.service.ts,
+backend/src/menu/cambio-piatto.ts, backend/src/vera/vera-chat.service.ts,
+backend/src/vera/giornata-dettata.ts, i due spec, e la voce 953 chiusa in
+`voci-iniziali.ts`.
+
+Prove: 6643/6643 nelle quattro modalità, build e tsc puliti. Sette mutazioni
+uccise, fra cui il controllo tolto su tutte e due le porte e la sostituzione sul
+nome finto non filtrata.

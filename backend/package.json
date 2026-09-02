@@ -144,7 +144,8 @@
     "diag:fase9": "ts-node --transpile-only prisma/diag-migrazione-fase9.ts",
     "diag:senza-ingredienti": "ts-node --transpile-only prisma/diag-ricette-senza-ingredienti.ts",
     "diag:equivalenze-doppie": "ts-node --transpile-only prisma/diag-equivalenze-doppie.ts",
-    "diag:pool-disallineato": "ts-node --transpile-only prisma/diag-pool-disallineato.ts"
+    "diag:pool-disallineato": "ts-node --transpile-only prisma/diag-pool-disallineato.ts",
+    "rifai:basi": "ts-node --transpile-only prisma/rifai-basi-personali.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

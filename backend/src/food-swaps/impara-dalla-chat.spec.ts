@@ -5,7 +5,7 @@
  * Il primo blocco è quello che conta: in italiano le due forme dicono la stessa cosa con i pezzi
  * invertiti, e capirla al contrario produce una regola perfettamente formata e rovesciata.
  */
-import { daScartare, nomeAlimento, sostituzioniNelMessaggio } from './impara-dalla-chat';
+import { daScartare, nomeAlimento, nomeTroncatoSuCongiunzione, sostituzioniNelMessaggio } from './impara-dalla-chat';
 
 const una = (t: string) => {
   const r = sostituzioniNelMessaggio(t);
@@ -321,5 +321,78 @@ describe('sostituzioniNelMessaggio — i refusi sul verbo', () => {
 
   it('⚠️ «la sostituzione di X con Y» NON è un ordine: è un resoconto', () => {
     expect(sostituzioniNelMessaggio('la sostituzione dei ceci con i fagioli è andata bene')).toEqual([]);
+  });
+});
+
+/**
+ * ⛔ **«BISCOTTI D'AVENA E BANANA» DIVENTAVA «BISCOTTI D'AVENA»** — voce
+ * `la-e-nel-nome-tronca-in-silenzio`, trovata **misurando** il 31/8 e chiusa il 2/9.
+ *
+ *     «a patrizia sostituisci Biscotti d'Avena e Banana con Gallette di riso»
+ *       → { da: ["Biscotti d'Avena"], a: ["Gallette di riso"] }
+ *
+ * ⛔ «e Banana» spariva senza una parola, e la regola scritta non vietava quel piatto: vietava
+ * **tutti** i «Biscotti d'Avena». L'anteprima mostrava una frase plausibile, quindi bastava un
+ * «confermo».
+ *
+ * ⚠️ La strada scelta (⭐ delle due della voce) è **dire di no**: non rispondere, e far chiedere.
+ * L'altra — guardare il catalogo per decidere se è un nome solo — farebbe dipendere la lettura di
+ * una frase da cosa c'è in catalogo in quel momento: la stessa frase, domani, si capirebbe in un
+ * altro modo.
+ */
+describe('⛔ il nome tagliato su una congiunzione non si legge a metà', () => {
+  it('⛔ la frase vera del 31/8 non produce più una sostituzione', () => {
+    const lette = sostituzioniNelMessaggio("a patrizia sostituisci Biscotti d'Avena e Banana con Gallette di riso");
+    expect(lette).toEqual([]);
+  });
+
+  it('⛔ e vale per qualunque congiunzione, non solo «e»', () => {
+    for (const frase of [
+      'sostituisci pane e marmellata con gallette',
+      'sostituisci riso o farro con quinoa',
+      'cambia latte e biscotti con yogurt',
+    ]) {
+      expect(sostituzioniNelMessaggio(frase)).toEqual([]);
+    }
+  });
+
+  /**
+   * ⚠️ **E le frasi normali continuano a passare.** Il rischio di un controllo così è di chiudere
+   * la porta a chi scrive bene: se «sostituisci il pane con le gallette» smettesse di funzionare,
+   * il rimedio sarebbe peggio del difetto.
+   */
+  it('⚠️ una frase senza congiunzioni nel nome si legge come prima', () => {
+    expect(sostituzioniNelMessaggio('sostituisci il pane con le gallette di riso')).toEqual([
+      expect.objectContaining({ from: 'pane', to: 'gallette di riso' }),
+    ]);
+  });
+
+  it('⚠️ e nemmeno la coda di contesto dopo il secondo nome dà fastidio', () => {
+    const lette = sostituzioniNelMessaggio('sostituisci il pane con le gallette a colazione');
+    expect(lette).toHaveLength(1);
+    expect(lette[0].from).toBe('pane');
+  });
+
+  /**
+   * ⛔ **La congiunzione conta solo se dopo c'è ancora qualcosa.** Una frase che finisce con una
+   * parola di troppo si capisce benissimo: segnalarla vorrebbe dire chiedere per niente.
+   */
+  it('⛔ una congiunzione a fine pezzo non è un troncamento', () => {
+    expect(nomeTroncatoSuCongiunzione('il pane e')).toBe(false);
+    expect(nomeTroncatoSuCongiunzione('il pane e  ')).toBe(false);
+  });
+
+  /** ⚠️ E il limite di quattro parole non è una congiunzione: è una regola dichiarata. */
+  it('⚠️ fermarsi a PAROLE_MAX non è il troncamento da segnalare', () => {
+    expect(nomeTroncatoSuCongiunzione('insalata di farro con pomodorini e feta greca')).toBe(false);
+  });
+
+  it('⛔ ma «Biscotti d\'Avena e Banana» sì', () => {
+    expect(nomeTroncatoSuCongiunzione("Biscotti d'Avena e Banana")).toBe(true);
+  });
+
+  it('⚠️ e un pezzo vuoto non è un troncamento', () => {
+    expect(nomeTroncatoSuCongiunzione('')).toBe(false);
+    expect(nomeTroncatoSuCongiunzione('   ')).toBe(false);
   });
 });

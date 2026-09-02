@@ -60,6 +60,18 @@ export interface CandidatoPiatto {
   difficolta?: string | null;
   /** `Recipe.tags`: servono al gusto della colazione (`piatto:dolce`/`piatto:salato`). */
   tags?: string[];
+  /**
+   * ⛔ **LE SOSTITUZIONI DI INGREDIENTE CHE QUESTO PIATTO PORTA CON SÉ** — 2/9, voce 953.
+   *
+   * `valutaRicetta` non risponde solo «sì o no»: su un piatto che si può servire **cambiando un
+   * ingrediente** — l'aceto balsamico per chi non tollera i solfiti, il latte per chi è
+   * delattosata — rende le righe che dicono alla cliente cosa mettere al posto di cosa.
+   *
+   * ⚠️ Il cambio di piatto in chat non le calcolava affatto: scriveva il pasto con `substitutions`
+   * vuoto. Il piatto arrivava senza la riga, e la cliente non sapeva che l'aceto andava sostituito.
+   * Da qui viaggiano col candidato fino alla scrittura.
+   */
+  sostituzioni?: unknown[];
 }
 
 export interface AlternativaProposta extends CandidatoPiatto {

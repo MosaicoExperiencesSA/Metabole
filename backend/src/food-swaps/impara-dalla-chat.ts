@@ -141,6 +141,58 @@ export function paroleDaLeggere(pezzo: string): number {
 }
 
 /**
+ * ⛔ **IL NOME SI È FERMATO SU UNA CONGIUNZIONE, E DOPO C'ERA ANCORA ROBA?** — 2/9, voce
+ * `la-e-nel-nome-tronca-in-silenzio`.
+ *
+ * Il caso, misurato il 31/8 su una frase vera:
+ *
+ *     «a patrizia sostituisci Biscotti d'Avena e Banana con Gallette di riso»
+ *       → { da: ["Biscotti d'Avena"], a: ["Gallette di riso"] }
+ *
+ * ⛔ «e Banana» spariva **senza una parola**. La regola scritta non vietava quel piatto: vietava
+ * **tutti** i «Biscotti d'Avena». E l'anteprima mostrava una frase plausibile, quindi bastava un
+ * «confermo».
+ *
+ * ⚠️ **Non basta spezzare su «e»**, ed è scritto nel cappello di `vera/elenco-alimenti.ts`: «e»
+ * dentro un nome è comunissimo — «sale **e** pepe», «erbe **e** spezie». Spezzare sempre
+ * trasformerebbe il nome di un piatto in due alimenti inventati, cioè lo stesso errore al
+ * contrario. La strada scelta è l'altra: **dire di no**, e far chiedere a Vera.
+ *
+ * ⚠️ **`PAROLE_MAX` non è un troncamento da segnalare**: fermarsi dopo quattro parole è una regola
+ * dichiarata, non una congiunzione che mangia mezzo nome. Qui si guarda **solo** il primo caso.
+ */
+export function nomeTroncatoSuCongiunzione(pezzo: string): boolean {
+  const grezzo = (pezzo ?? '').replace(/[.,;:!?()"«»]/g, ' ').trim();
+  if (!grezzo) return false;
+  /**
+   * ⛔ **Si contano le PAROLE, non si cerca la stringa.** La prima stesura faceva
+   * `grezzo.indexOf(congiunzione)` per sapere se dopo restava qualcosa, e su «il pane e» trovava
+   * la «e» **dentro «pane»**: la funzione rispondeva «troncato» a una frase che finisce lì.
+   * Trovato dalla prova che teneva fermo proprio quel caso.
+   */
+  const parole = grezzo.split(/\s+/).filter(Boolean);
+  let quante = 0;
+  for (let i = 0; i < parole.length; i += 1) {
+    const p = quante === 0 ? senzaArticoloAttaccato(parole[i]) : parole[i];
+    const n = normalizza(p);
+    if (!n) continue;
+    if (quante === 0 && ARTICOLI.has(n)) continue;
+    /**
+     * ⚠️ **La congiunzione conta solo se dopo c'è ancora una parola.** «sostituisci il pane con le
+     * gallette **e**» finisce lì: non è un nome tagliato a metà, è una frase che finisce con una
+     * parola di troppo. Segnalarla vorrebbe dire chiedere su frasi che si capiscono benissimo.
+     */
+    if (FINE_FRASE.has(n)) {
+      if (quante === 0) return false;
+      return parole.slice(i + 1).some((x) => normalizza(x).length > 0);
+    }
+    quante += 1;
+    if (quante >= PAROLE_MAX) return false;
+  }
+  return false;
+}
+
+/**
  * Ripulisce il pezzo di frase catturato: toglie l'articolo, si ferma alla prima congiunzione o
  * punteggiatura, e non va oltre poche parole. Ritorna `null` se quello che resta non è un nome.
  */
@@ -328,6 +380,22 @@ export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
     for (const re of IN_AVANTI) {
       const m = frase.match(re);
       if (m) {
+        /**
+         * ⛔ **SE IL NOME DI PARTENZA È TAGLIATO A METÀ, NON SI RISPONDE** — 2/9, strada ⭐ della
+         * voce `la-e-nel-nome-tronca-in-silenzio`. «sostituisci Biscotti d'Avena e Banana con
+         * Gallette di riso» scriveva una regola su **tutti** i «Biscotti d'Avena», con
+         * un'anteprima plausibile da confermare. Meglio una domanda in più che una regola scritta
+         * su un piatto che nessuno ha nominato.
+         *
+         * ⚠️ **Solo su `m[1]`, e la ragione è la forma del pattern.** Quel pezzo è delimitato da
+         * «con» (`(.+?)\s+con`), quindi contiene il nome e nient'altro. `m[2]` invece prende
+         * **tutta la coda** — «...con le gallette **a colazione**» — e lì il confronto «quanto ho
+         * letto contro quanto c'era» direbbe «non ci arrivo» a metà delle frasi normali. ⛔ E non
+         * basta passare da `senzaCodaDiAmbito`: misurato in revisione il 31/8, su quella frase
+         * restituisce la frase **identica**. Serve un modo di separare la coda dal nome, e oggi non
+         * c'è: chi lo scriverà potrà estendere il controllo anche di là.
+         */
+        if (nomeTroncatoSuCongiunzione(m[1])) break;
         letta = { from: nomeAlimento(m[1]), to: nomeAlimento(m[2]) };
         break;
       }

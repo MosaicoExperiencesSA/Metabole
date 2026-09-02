@@ -87,7 +87,7 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: true,
-    fatta: false,
+    fatta: true,
     nata: '2026-08-31T18:10',
     titolo: '⛔ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: la sostituzione si scrive troncata, e nessuno lo sa',
     dettaglio:
@@ -132,7 +132,20 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ Nota di contorno, misurata sulla frase vera dello screenshot: «a patrizia sogari» tutto '
       + 'minuscolo **non** viene letto come nome di cliente (con le maiuscole sì). Quindi quel messaggio, '
       + 'anche adesso che non risponde più «non ci arrivo», chiede comunque a chi. È un terzo difetto, '
-      + 'separato dai due di questa voce.',
+      + 'separato dai due di questa voce.\n\n'
+      + '\u2705 **CHIUSA il 2/9 con la strada 1** (⭐), quella che questa voce consigliava: quando il '
+      + 'nome di partenza si ferma su una congiunzione e **dopo c\'è ancora una parola**, '
+      + '`sostituzioniNelMessaggio` non risponde. Meglio una domanda in più che una regola scritta su '
+      + 'un piatto che nessuno ha nominato.\n'
+      + '\u26a0\ufe0f **Solo sul primo nome**, e per la ragione che questa voce aveva già scritto: quel '
+      + 'pezzo è delimitato da «con» nel pattern, mentre il secondo prende tutta la coda di contesto '
+      + '(«...con le gallette **a colazione**») e lì il confronto direbbe «non ci arrivo» a metà delle '
+      + 'frasi normali. La parte simmetrica resta da fare, e serve prima un modo di separare la coda '
+      + 'dal nome — non `senzaCodaDiAmbito`, che su quella frase rende la frase identica.\n'
+      + '\u26d4 **E la prima stesura della guardia aveva il difetto dentro**: per sapere se dopo la '
+      + 'congiunzione restava qualcosa cercava la stringa, e su «il pane e» trovava la «e» **dentro '
+      + '«pane»** — rispondendo «troncato» a una frase che finisce lì. L\'ha presa la prova che teneva '
+      + 'fermo proprio quel caso. Adesso conta le parole.',
   },
   {
     chiave: 'fase0-panieri-la-misura-che-manca',
@@ -4130,17 +4143,37 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'pericoloso»: ma il giorno che qualcuno riaccende quel parametro il buco è già lì.\n\n'
       + '**Da fare:** chiamare `valutaRicetta` sul piatto scelto nei due punti, scrivere le sue `subs` sul pasto e '
       + 'rifiutare il candidato se ci sono `violations`. È la stessa riga che il 31/8 è stata aggiunta allo swap. '
-      + 'Poi `npm run rifai:non-sicuri` per le giornate già scritte.',
+      + 'Poi `npm run rifai:non-sicuri` per le giornate già scritte.\n\n'
+      + '\u2705 **CHIUSA il 2/9.** Tutte e due le porte adesso chiamano `valutaRicetta` sul candidato, '
+      + 'con **il nome come ingrediente** (come fa gi\u00e0 `menu.service`): su una ricetta con l\'elenco '
+      + 'povero il riconoscitore non vedrebbe niente, e «Insalata di gamberi e avocado» andrebbe a '
+      + 'un\'allergica ai crostacei. Un piatto che **viola** non si propone nemmeno \u2014 n\u00e9 alla cliente '
+      + 'in chat n\u00e9 alla nutrizionista \u2014 e le **sostituzioni** che prima venivano buttate viaggiano '
+      + 'col candidato fino al pasto scritto.\n'
+      + '\u26d4 **E la sostituzione sul nome finto si butta**: le regole per ingrediente non sanno che il '
+      + 'nome \u00e8 finto, e sui solfiti producevano «al posto di *Ricotta con albicocche secche* metti '
+      + '*albicocche essiccate in casa*» \u2014 una riga che la cliente legge sul piatto che sta per '
+      + 'ricevere. Il divieto si tiene, la riga assurda no.\n'
+      + '\u26a0\ufe0f **Il campo si scrive solo quando c\'\u00e8 qualcosa**: un `substitutions: []` scritto apposta '
+      + '\u00e8 indistinguibile da «nessuno l\'ha guardato».\n'
+      + '\u26a0\ufe0f **Resta aperta la quinta porta**, `buildSimpleSlotPool`, che \u00e8 spenta: il giorno che '
+      + 'qualcuno riaccende `menu_simple_recipes_enabled` il buco \u00e8 gi\u00e0 l\u00ec.',
     ordine: 953,
     nata: '2026-08-31T10:30',
+    fatta: true,
   },
 
   {
     chiave: 'esclusioni-chiave-dentro-parola',
     categoria: PANIERE,
-    titolo: '⏸ Sospesa il 27/8: le chiavi dentro una parola più lunga si guardano DOPO il rifacimento del paniere',
+    titolo: '▶️ RIAPERTA il 2/9 (i panieri sono accesi): le chiavi dentro una parola più lunga, una per una',
     dettaglio:
-      '⏸ **SOSPESA il 27/8. Simone: «lavoro da fare dopo aver sistemato il paniere, ora non ha senso».** '
+      '\u25b6\ufe0f **RIAPERTA il 2/9: la condizione che la teneva ferma è caduta.** Il paniere è la sorgente '
+      + 'del pool dall\'1/9 alle 05:21, `panieri:confronta` dice che non si è perso niente di indebito, '
+      + 'e `diag:orfane` che nessuna ricetta è rimasta senza paniere possibile. Le coppie (chiave, '
+      + 'parola) adesso si misurano su un catalogo che non si rimescola più. ⚠️ Il passo 1 è sempre '
+      + 'quello scritto qui sotto, e non l\'ha ancora lanciato nessuno.\n\n'
+      + '⏸ *Storia: sospesa il 27/8. Simone: «lavoro da fare dopo aver sistemato il paniere, ora non ha senso».* '
       + '⚠️ Ed è la risposta giusta, non un rinvio: l\'elenco delle coppie (chiave, parola) da guardare '
       + 'una per una **si misura sul catalogo di oggi**. Il rifacimento dei panieri rimescola le ricette — '
       + 'ne toglie, ne condivide fra diete diverse — quindi le coppie cambiano sotto, e le risposte date '

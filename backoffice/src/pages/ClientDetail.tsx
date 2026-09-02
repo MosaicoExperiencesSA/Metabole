@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { eNutrizionista } from '../lib/ruoliNutrizionista';
 import {
   BottoneCancellaMessaggio,
   ConfermaCancellaMessaggio,
@@ -779,6 +780,17 @@ export function ClientDetail() {
   const [attivaPiano, setAttivaPiano] = useState(false);
   // Chi può caricare la contabile per conto della cliente (mai approvarla da qui).
   const canUploadReceipt = me?.role === 'coach' || me?.role === 'sales' || me?.role === 'admin';
+  /**
+   * ⛔ **GLI STESSI RUOLI CHE L'ENDPOINT ACCETTA**, e non uno di più: `POST
+   * /clients/:id/personal-base/rebuild` è `@Roles('nutritionist', 'head_nutritionist', 'admin')`.
+   * Mostrare il pulsante a una coach vorrebbe dire farle premere una cosa che risponde 403 — la
+   * stessa lezione del pulsante «Modifica» nei panieri.
+   *
+   * ⚠️ `eNutrizionista` copre anche i ruoli personalizzati costruiti su quelli (una «Nutrizionista
+   * junior» ha `role: nutritionist` di base), che è la ragione per cui esiste invece di due
+   * confronti scritti a mano.
+   */
+  const puoRifareLaBase = eNutrizionista(me?.role) || me?.role === 'admin';
   const [d, setD] = useState<Detail | null>(null);
   const [uploadingReceipt, setUploadingReceipt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1061,6 +1073,53 @@ export function ClientDetail() {
         return;
       }
       setError(err instanceof ApiError ? err.message : 'Annullamento non riuscito.');
+    }
+  }
+
+  /**
+   * ⛔ **RIFÀ LA BASE PERSONALE** — il pulsante che mancava, 2/9.
+   *
+   * L'endpoint esiste dal principio (`POST /clients/:id/personal-base/rebuild`, per nutrizioniste,
+   * capo nutrizionista e admin) e **nessuna schermata lo chiamava**: una porta senza maniglia, cioè
+   * la stessa cosa che `CLAUDE.md` chiama «una chiave dichiarata che non accende niente».
+   *
+   * ⚠️ **Serve perché la ricostruzione automatica, giustamente, non copre questo caso.** Dal 2/9 la
+   * scheda rifà la base quando la dieta, il regime, i pasti o le allergie **cambiano davvero** — e
+   * non a ogni Salva, o si ricostruirebbe a ogni click. Ma su una cliente **già** spostata non c'è
+   * niente da cambiare: risalvare non fa nulla, ed è quello che serviva alle diciannove della Fase
+   * 9. Il pulsante è la strada esplicita, e resta l'unica anche per «rifalla e basta, voglio
+   * vedere» dopo aver confermato degli allergeni.
+   *
+   * ⛔ **E l'esito si legge, tutto.** `buildPersonalBase` può rispondere `blocked`: vuol dire che
+   * con i dati di oggi la base non si può certificare — poche ricette sicure per un pasto,
+   * allergeni non revisionati — e apre una segnalazione. Non è un errore del pulsante: è la
+   * risposta, ed è quella che serve sapere. Un pulsante che dicesse «fatto» in tutti e due i casi
+   * sarebbe peggio di nessun pulsante.
+   */
+  async function rifaiBasePersonale() {
+    if (!confirm(
+      'Rifare la base personale di questa cliente?\n\n'
+      + 'È l\'elenco delle ricette che può ricevere, da cui pescano il cambio di piatto in chat e '
+      + 'la giornata dettata dalla nutrizionista. Si ricostruisce dai suoi dati di adesso.\n\n'
+      + 'Se le ricette sicure non bastano, il piano viene bloccato e si apre una segnalazione: '
+      + 'è la risposta vera, non un guasto.',
+    )) return;
+    setError(null); setNotice(null);
+    try {
+      const r = await api<{ status: 'ready' | 'blocked'; totalSafe?: number; version?: number; reasons?: string[]; message: string }>(
+        `/clients/${id}/personal-base/rebuild`, { method: 'POST' },
+      );
+      if (r.status === 'ready') {
+        setNotice(`Base personale rifatta: ${r.totalSafe ?? '?'} ricette sicure (versione ${r.version ?? '?'}).`);
+      } else {
+        /** ⚠️ Il blocco si legge come **errore**, perché è la cosa che qualcuno deve guardare. */
+        setError(
+          `Base NON certificabile, piano bloccato e segnalazione aperta. ${(r.reasons ?? []).join('; ') || r.message}`,
+        );
+      }
+      void loadDetail();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Ricostruzione non riuscita.');
     }
   }
 
@@ -2409,6 +2468,21 @@ export function ClientDetail() {
             {canChangePlanStart && (
               <button className="btn ghost sm" onClick={() => void regenerateMenu()} title="Rigenera i menu da oggi in poi: corregge menu vecchi sbagliati (es. solo colazione). Lo storico passato resta.">
                 <i className="ti ti-refresh" /> Rigenera menu
+              </button>
+            )}
+            {/*
+              ⚠️ **Accanto a «Rigenera menu», e non è la stessa cosa.** Quello rifà le GIORNATE dal
+              paniere; questo rifà l'elenco delle ricette che la cliente può ricevere, da cui pescano
+              il cambio di piatto in chat e la giornata dettata dalla nutrizionista. Stanno vicini
+              perché si cercano nello stesso momento, e il titolo dice quale serve.
+            */}
+            {puoRifareLaBase && (
+              <button
+                className="btn ghost sm"
+                onClick={() => void rifaiBasePersonale()}
+                title="Rifà la base personale: l'elenco delle ricette sicure di questa cliente, da cui pescano il cambio di piatto in chat e la giornata dettata dalla nutrizionista. Serve dopo un cambio di dieta o di allergie."
+              >
+                <i className="ti ti-shield-check" /> Rifai base ricette
               </button>
             )}
           </div>

@@ -20,6 +20,56 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` ✂️ **«Biscotti d'Avena e Banana» non diventa più «Biscotti d'Avena».** ⛔ La frase
+  vera del 31/8 scriveva una regola su **tutti** i «Biscotti d'Avena», con un'anteprima plausibile
+  da confermare: «e Banana» spariva senza una parola. ✅ Chiusa con la strada che la voce stessa
+  consigliava: quando il nome di partenza si ferma su una congiunzione e **dopo c'è ancora una
+  parola**, non si risponde e Vera chiede.
+  ⚠️ **Non si spezza su «e»**: «sale e pepe», «erbe e spezie» — spezzare sempre trasformerebbe il
+  nome di un piatto in due alimenti inventati, lo stesso errore al contrario. E la congiunzione
+  conta solo se dopo c'è qualcosa: «…con le gallette e» si capisce benissimo.
+  ⛔ **E la prima stesura della guardia aveva il difetto dentro**: cercava la congiunzione come
+  sottostringa, e su «il pane e» trovava la «e» **dentro «pane»**. L'ha presa la prova scritta per
+  quel caso. Adesso conta le parole.
+  ▶️ **E riaperta `esclusioni-chiave-dentro-parola`**, sospesa il 27/8 con la condizione «dopo aver
+  sistemato il paniere»: la condizione è caduta, e le coppie (chiave, parola) adesso si misurano su
+  un catalogo che non si rimescola più.
+  🧪 6651/6651 verdi nelle quattro modalità, tre mutazioni uccise.
+
+- `[Sviluppo]` 🛡️ **Le due porte che scrivevano un piatto senza passare dal controllo di sicurezza**
+  (voce 953, aperta il 31/8). Il cambio di piatto in chat e la giornata dettata dalla nutrizionista
+  pescavano da `clientMenuPool` e scrivevano **senza chiamare `valutaRicetta`**, col
+  `substitutions` vuoto. ⚠️ Tutti e due i file dicevano che il pool è «già passato dai filtri di
+  sicurezza»: vero a metà, ed è la metà che fa male — filtra allergeni revisionati, regime e **tag**,
+  e **non** le regole per ingrediente di `solfiti.ts` e `lattosio.ts`. Una ricetta senza tag
+  `solfiti` ma con le albicocche secche arrivava **senza la riga che dice cosa non mettere**.
+  ✅ Adesso le due porte chiamano `valutaRicetta`, col **nome come ingrediente** (come
+  `menu.service`): su una ricetta con l'elenco povero il riconoscitore non vedrebbe niente, e
+  «Insalata di gamberi e avocado» andrebbe a un'allergica ai crostacei. Un piatto che viola non si
+  propone nemmeno, e le sostituzioni viaggiano fino al pasto scritto.
+  ⛔ **E la sostituzione sul nome finto si butta**: le regole non sanno che il nome è finto, e sui
+  solfiti scrivevano «al posto di *Ricotta con albicocche secche* metti *albicocche essiccate in
+  casa*» — una riga che la cliente legge sul piatto che sta per ricevere.
+  ⚠️ Nel cambio piatto morivano in un punto non ovvio: lo stato della conversazione teneva **tre**
+  campi delle alternative, quindi anche calcolandole si sarebbero perse lì.
+  ⚠️ Resta aperta la **quinta porta**, `buildSimpleSlotPool`, oggi spenta.
+  🧪 6643/6643 verdi nelle quattro modalità, sette mutazioni uccise.
+
+- `[Sviluppo]` 🔘 **Il pulsante «Rifai base ricette»: la porta c'era, mancava la maniglia.**
+  `POST /clients/:id/personal-base/rebuild` esiste dal principio e **nessuna schermata lo chiamava**
+  — «una chiave dichiarata che non accende niente». ⚠️ Serve perché la ricostruzione automatica,
+  giustamente, non copre il caso di una cliente **già spostata**: lì non cambia nessun campo, quindi
+  risalvare la scheda non fa nulla. Era il caso delle diciannove della Fase 9, e il buco l'ho
+  trovato **seguendo la mia stessa istruzione** e vedendo che non succedeva niente.
+  ⛔ E `diag:fase9` quell'istruzione la stampava — «si rifà da sé risalvando la dieta, è
+  `updateProfile` che la chiama» — sbagliata due volte: `updateProfile` è la porta dell'**app**, e
+  su chi è già spostato non cambia niente. Corretta.
+  ⛔ **L'esito `blocked` si legge come errore, coi motivi**: la base non certificabile apre una
+  segnalazione, ed è la risposta, non un guasto. Un pulsante che dicesse «fatto» in tutti e due i
+  casi sarebbe peggio di nessun pulsante. ⚠️ E lo vede solo chi l'endpoint accetta.
+  ✅ Più `npm run rifai:basi` per farlo in blocco, con prova a vuoto di default.
+  🧪 6637/6637 backend, 210/210 backoffice, tre mutazioni uccise.
+
 - `[Sviluppo]` 🥕 **Il foglio alimenti del 2/9: pronto per l'import, e l'import si rifiuta di
   caricarlo.** Le 262 righe sono trascritte nel formato dell'importatore, coi valori **copiati** e
   verificati uno per uno contro il foglio (zero differenze). ⛔ Poi l'import **si ferma**:

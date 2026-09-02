@@ -1,0 +1,161 @@
+Tre buchi: la base da rifare a mano, le due porte senza controllo, il nome troncato su «e»
+
+Quattro commit fatti mentre Simone era via, consegnati insieme. Tre lavori
+distinti, nessuno dipende dagli altri, ma escono in un colpo solo.
+
+
+═══ 1. LA BASE PERSONALE CHE NESSUNA SCHERMATA SAPEVA RIFARE ═══
+
+`POST /clients/:id/personal-base/rebuild` esiste dal principio — nutrizioniste,
+capo nutrizionista, admin — e NESSUNA schermata lo chiamava. È «una chiave
+dichiarata che non accende niente», la cosa che `CLAUDE.md` dice di non fare, e
+oggi si è visto perché conta.
+
+SERVE PERCHÉ LA RICOSTRUZIONE AUTOMATICA, GIUSTAMENTE, NON COPRE QUESTO CASO.
+Dal 2/9 la scheda rifà la base quando la dieta, il regime, i pasti o le allergie
+CAMBIANO DAVVERO — e non a ogni Salva, o si ricostruirebbe a ogni click. Ma su
+una cliente già spostata non c'è niente da cambiare: risalvare non fa nulla. È
+esattamente il caso delle diciannove della Fase 9, e ho scoperto il buco
+seguendo la mia stessa istruzione e vedendo che non succedeva niente.
+
+⛔ E `diag:fase9` quell'istruzione la stampava: «si rifà da sé riaprendo la
+scheda e risalvando la dieta — è `updateProfile` che la chiama». Sbagliata due
+volte: `updateProfile` è la porta dell'app, non della scheda; e su chi è già
+spostato non cambia niente. Corretta: adesso dice il pulsante e `rifai:basi`, e
+avverte che risalvare non basta.
+
+L'ESITO SI LEGGE, TUTTO. `buildPersonalBase` può rispondere `blocked`: con i dati
+di oggi la base non si certifica — poche ricette sicure per un pasto, allergeni
+non revisionati — e apre una segnalazione. Non è un errore del pulsante: è la
+risposta, ed è quella che serve sapere. Il pulsante la mostra come errore, coi
+motivi. Un pulsante che dicesse «fatto» in tutti e due i casi sarebbe peggio di
+nessun pulsante.
+
+E LO VEDE SOLO CHI L'ENDPOINT ACCETTA, non uno di più: mostrarlo a una coach
+vorrebbe dire farle premere una cosa che risponde 403 — la stessa lezione del
+pulsante «Modifica» nei panieri. `eNutrizionista` copre anche i ruoli
+personalizzati costruiti su quelli.
+
+Sta accanto a «Rigenera menu» perché si cercano nello stesso momento, e non sono
+la stessa cosa: quello rifà le GIORNATE dal paniere, questo rifà l'elenco delle
+ricette che la cliente può ricevere.
+
+E per farlo in blocco c'è `npm run rifai:basi`, con prova a vuoto di default:
+dice prima di scrivere che su più persone insieme può aprire una segnalazione
+ciascuna.
+
+
+═══ 2. LE DUE PORTE CHE SCRIVEVANO UN PIATTO SENZA CONTROLLO DI SICUREZZA ═══
+
+Voce 953, aperta il 31/8 dalla revisione della consegna sullo swap. Due strade
+scrivevano un piatto in `menuDay.meals` pescandolo da `clientMenuPool` SENZA
+chiamare `valutaRicetta`, e il pasto nasceva con `substitutions` vuoto:
+
+· il cambio di piatto in chat (`sostituzione-chat.service.ts`);
+· la giornata dettata dalla nutrizionista (`vera-chat.service.ts`).
+
+⚠️ Tutti e due i file avevano un commento che diceva che il pool è «già passato
+dai filtri di sicurezza». È vero a metà, ed è la metà che fa male: `clientMenuPool`
+filtra gli allergeni REVISIONATI, il regime e i TAG allergene, e NON applica le
+regole per ingrediente di `solfiti.ts` e `lattosio.ts`. Una ricetta revisionata
+senza tag `solfiti` ma con le albicocche secche dentro passava, e arrivava alla
+cliente senza la riga che le dice cosa non mettere — la merenda del 30/8, per
+un'altra strada.
+
+ADESSO: le due porte chiamano `valutaRicetta` sul candidato, col NOME COME
+INGREDIENTE — come fa già `menu.service`, e per la stessa ragione: la funzione
+cicla sugli ingredienti, e su una ricetta con l'elenco vuoto o povero non
+vedrebbe niente, quindi «Insalata di gamberi e avocado» andrebbe a un'allergica
+ai crostacei. Un piatto che viola non si propone nemmeno — né alla cliente né
+alla nutrizionista — e le sostituzioni che prima venivano buttate viaggiano col
+candidato fino al pasto scritto.
+
+⛔ E LA SOSTITUZIONE SUL NOME FINTO SI BUTTA. Il nome entra fra gli ingredienti
+per far scattare i divieti, ma le regole per ingrediente non sanno che è finto:
+sui solfiti producevano «al posto di *Ricotta con albicocche secche* metti
+*albicocche essiccate in casa*» — una riga che la cliente legge sul piatto che
+sta per ricevere, e non capisce. Il divieto si tiene, la riga assurda no.
+
+⚠️ Nel cambio piatto le sostituzioni morivano in un punto preciso e non ovvio:
+lo stato della conversazione teneva TRE campi delle alternative (`recipeId`,
+`nome`, `kcal`), quindi anche calcolandole si sarebbero perse lì.
+
+⚠️ E il campo `substitutions` si scrive solo quando c'è almeno una riga: un `[]`
+scritto apposta è indistinguibile da «nessuno l'ha guardato», e sono due cose
+diverse.
+
+⚠️ RESTA APERTA LA QUINTA PORTA, `buildSimpleSlotPool`, che oggi è spenta
+(`menu_simple_recipes_enabled` a `false`): il giorno che qualcuno la riaccende il
+buco è già lì. È dichiarato nella voce.
+
+
+═══ 3. «BISCOTTI D'AVENA E BANANA» NON DIVENTA PIÙ «BISCOTTI D'AVENA» ═══
+
+Voce `la-e-nel-nome-tronca-in-silenzio`, trovata MISURANDO il 31/8 — non l'aveva
+segnalata nessuno, ed era più pericolosa di quella che era stata segnalata.
+
+    «a patrizia sostituisci Biscotti d'Avena e Banana con Gallette di riso»
+      → { da: ["Biscotti d'Avena"], a: ["Gallette di riso"] }
+
+⛔ «e Banana» spariva senza una parola. La regola scritta non vietava quel piatto:
+vietava TUTTI i «Biscotti d'Avena». E l'anteprima mostrava una frase plausibile,
+quindi bastava un «confermo».
+
+CHIUSA CON LA STRADA 1, quella che la voce stessa segnalava come consigliata:
+quando il nome di partenza si ferma su una congiunzione e dopo c'è ancora una
+parola, `sostituzioniNelMessaggio` NON risponde e Vera chiede. Meglio una domanda
+in più che una regola scritta su un piatto che nessuno ha nominato.
+
+⚠️ NON si spezza su «e», ed era il punto: «e» dentro un nome è comunissimo —
+«sale e pepe», «erbe e spezie». Spezzare sempre trasformerebbe il nome di un
+piatto in due alimenti inventati, cioè lo stesso errore al contrario.
+
+⚠️ E la congiunzione conta SOLO se dopo c'è ancora qualcosa: «sostituisci il pane
+con le gallette e» finisce lì, si capisce benissimo, e segnalarla vorrebbe dire
+chiedere per niente. Idem per il limite di quattro parole, che è una regola
+dichiarata e non una congiunzione che mangia mezzo nome.
+
+⚠️ SOLO SUL PRIMO NOME, e la ragione la scriveva già la voce: quel pezzo è
+delimitato da «con» nel pattern (`(.+?)\s+con`), quindi contiene il nome e
+nient'altro. Il secondo prende tutta la coda di contesto — «...con le gallette a
+colazione» — e lì il confronto «quanto ho letto contro quanto c'era» direbbe «non
+ci arrivo» a metà delle frasi normali. La parte simmetrica resta da fare, e serve
+prima un modo di separare la coda dal nome: NON `senzaCodaDiAmbito`, che su
+quella frase restituisce la frase identica (misurato in revisione il 31/8).
+
+⛔ E LA PRIMA STESURA DELLA GUARDIA AVEVA IL DIFETTO DENTRO. Per sapere se dopo la
+congiunzione restava qualcosa cercava la sottostringa, e su «il pane e» trovava
+la «e» DENTRO «pane»: rispondeva «troncato» a una frase che finisce lì. L'ha
+presa la prova scritta per tenere fermo proprio quel caso. Adesso conta le parole.
+
+E RIAPERTA `esclusioni-chiave-dentro-parola`, sospesa il 27/8 con la condizione
+«dopo aver sistemato il paniere». La condizione è caduta: il paniere è la
+sorgente del pool dall'1/9, il confronto dice che non si è perso niente di
+indebito, e le coppie (chiave, parola) adesso si misurano su un catalogo che non
+si rimescola più. Il passo 1 — `npm run diag:esclusioni` — non l'ha ancora
+lanciato nessuno.
+
+
+═══ FILE ═══
+
+backoffice/src/pages/ClientDetail.tsx,
+backoffice/src/pages/rifai-base-pulsante.spec.ts (nuovo),
+backend/prisma/rifai-basi-personali.ts (nuovo), backend/package.json,
+backend/prisma/diag-migrazione-fase9.ts (l'istruzione falsa),
+backend/src/menu/sostituzione-chat.service.ts, backend/src/menu/cambio-piatto.ts,
+backend/src/vera/vera-chat.service.ts, backend/src/vera/giornata-dettata.ts,
+backend/src/food-swaps/impara-dalla-chat.ts, i quattro spec,
+backend/src/lavori/voci-iniziali.ts (953 chiusa, `esclusioni-chiave-dentro-parola`
+riaperta).
+
+
+═══ PROVE ═══
+
+6651/6651 backend nelle quattro modalità (`--ci`, `TZ=Europe/Rome`, `test:notte`,
+le due insieme), 210/210 backoffice, `npm run build` e `tsc --noEmit` puliti (i
+due errori preesistenti in `approve-diets.ts` e `dedupe-diets.ts` restano quelli).
+
+Tredici mutazioni uccise in tutto: il pulsante mostrato a tutti, «bloccata» detta
+come successo, i motivi non mostrati, il controllo tolto su tutte e due le porte,
+la sostituzione sul nome finto non filtrata, la congiunzione cercata come
+sottostringa.

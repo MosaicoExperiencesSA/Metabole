@@ -23,6 +23,11 @@ import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-
 import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
+/**
+ * ⛔ **IL GIUDIZIO DI SICUREZZA È QUELLO DELLA GUARDIA** — 2/9, voce 953. La giornata dettata dalla
+ * nutrizionista pescava dal pool e scriveva, senza chiamarlo: il pool filtra tre cose su cinque.
+ */
+import { esclusioniDi, valutaRicetta, type ProfiloConEsclusioni } from '../menu/esclusioni-della-cliente';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -2156,18 +2161,65 @@ export class VeraChatService {
    * giornata non si scrive — invece di ripiegare sul catalogo intero.
    */
   private async poolDellaCliente(clientId: string): Promise<RicettaCandidata[]> {
-    const pool = (await this.prisma.clientMenuPool.findFirst({
-      where: { clientId } as never,
-      orderBy: { version: 'desc' },
-      select: { recipeIds: true },
-    })) as { recipeIds: string[] } | null;
+    const [pool, profilo] = await Promise.all([
+      this.prisma.clientMenuPool.findFirst({
+        where: { clientId } as never,
+        orderBy: { version: 'desc' },
+        select: { recipeIds: true },
+      }) as unknown as Promise<{ recipeIds: string[] } | null>,
+      /**
+       * ⛔ **LE ESCLUSIONI DELLA CLIENTE, che qui non si leggevano** — 2/9, voce 953.
+       *
+       * Il commento qui sopra dice che fuori dal pool «ci sono allergeni non revisionati e regimi
+       * che non sono i suoi». Vero, e incompleto: `clientMenuPool` filtra gli allergeni
+       * **revisionati**, il regime e i **tag**, e **non** applica le regole per ingrediente di
+       * `solfiti.ts` e `lattosio.ts`. Una ricetta revisionata senza tag `solfiti` ma con le
+       * albicocche secche dentro passava, e la nutrizionista la scriveva sulla giornata di una
+       * cliente che non tollera i solfiti **senza la riga che le dice cosa non mettere**.
+       */
+      this.prisma.clientProfile.findUnique({
+        where: { userId: clientId },
+        select: { allergies: true, intolerances: true, dislikedFoods: true },
+      }) as unknown as Promise<ProfiloConEsclusioni | null>,
+    ]);
     const ids = (pool?.recipeIds ?? []).filter(Boolean);
     if (!ids.length) return [];
     const ricette = (await this.prisma.recipe.findMany({
       where: { id: { in: ids }, active: true } as never,
-      select: { id: true, name: true, kcal: true, mealSlot: true },
-    })) as { id: string; name: string; kcal: number; mealSlot: string }[];
-    return ricette.map((r) => ({ recipeId: r.id, nome: r.name, kcal: r.kcal, slot: r.mealSlot }));
+      /** ⚠️ `ingredients` e `allergens` servono a `valutaRicetta`: senza, giudica a mani vuote. */
+      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true },
+    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[];
+
+    const esclusioni = esclusioniDi(profilo);
+    const out: RicettaCandidata[] = [];
+    for (const r of ricette) {
+      /**
+       * ⛔ **Il nome entra come ingrediente**, come in `menu.service` e nel cambio piatto di Gaia:
+       * su una ricetta con l'elenco vuoto o povero `valutaRicetta` non vedrebbe niente, e
+       * «Insalata di gamberi e avocado» finirebbe nella giornata di un'allergica ai crostacei.
+       */
+      const { violations, subs } = valutaRicetta(
+        {
+          id: r.id,
+          name: r.name,
+          ingredients: [...(((r.ingredients as { name?: string }[]) ?? []).filter((i) => i?.name)), { name: r.name }],
+          allergens: r.allergens ?? [],
+        } as never,
+        esclusioni,
+      );
+      /** ⛔ Un piatto che viola non si propone alla nutrizionista: non deve poterlo scegliere. */
+      if (violations.length) continue;
+      /**
+       * ⚠️ **La sostituzione sul nome finto si butta**: le regole per ingrediente non sanno che il
+       * nome è finto, e produrrebbero «al posto di *Ricotta con albicocche secche* metti
+       * *albicocche essiccate in casa*». Il divieto lo si tiene, la riga assurda no.
+       */
+      out.push({
+        recipeId: r.id, nome: r.name, kcal: r.kcal, slot: r.mealSlot,
+        sostituzioni: subs.filter((x) => String((x as { from?: unknown })?.from ?? '') !== r.name),
+      });
+    }
+    return out;
   }
 
   /**
@@ -2197,7 +2249,8 @@ export class VeraChatService {
       const c = riga.candidate[0];
       return this.prossimaDomandaGiornata(nutrizionistaId, {
         ...stato,
-        scelteGiornata: [...scelte, { slot: riga.slot, recipeId: c.recipeId, nome: c.nome, kcal: c.kcal }],
+        /** ⚠️ `sostituzioni` viaggia con la scelta fino alla scrittura: vedi `poolDellaCliente`. */
+        scelteGiornata: [...scelte, { slot: riga.slot, recipeId: c.recipeId, nome: c.nome, kcal: c.kcal, sostituzioni: c.sostituzioni }],
       });
     }
     return this.anteprimaGiornata(nutrizionistaId, stato);
@@ -2225,7 +2278,7 @@ export class VeraChatService {
     return this.prossimaDomandaGiornata(nutrizionistaId, {
       ...stato,
       tentativi: 0,
-      scelteGiornata: [...scelte, { slot: daRisolvere.slot, recipeId: scelta.recipeId, nome: scelta.nome, kcal: scelta.kcal }],
+      scelteGiornata: [...scelte, { slot: daRisolvere.slot, recipeId: scelta.recipeId, nome: scelta.nome, kcal: scelta.kcal, sostituzioni: scelta.sostituzioni }],
     });
   }
 
@@ -2333,7 +2386,19 @@ export class VeraChatService {
     await this.prisma.menuDay.update({
       where: { id: giorno.id },
       data: {
-        meals: scelte.map((s) => ({ slot: s.slot, recipeId: s.recipeId, name: s.nome, kcal: s.kcal })) as never,
+        /**
+         * ⛔ **Le sostituzioni di ingrediente si scrivono sul pasto** — 2/9, voce 953. Prima questa
+         * riga teneva quattro campi, e la giornata dettata dalla nutrizionista nasceva con
+         * `substitutions` vuoto: se il piatto si poteva servire solo cambiando un ingrediente, la
+         * cliente lo riceveva **senza la riga che glielo dice**.
+         *
+         * ⚠️ Il campo si scrive solo quando ce n'è almeno una: un `[]` scritto apposta è
+         * indistinguibile da «nessuno l'ha guardato».
+         */
+        meals: scelte.map((s) => ({
+          slot: s.slot, recipeId: s.recipeId, name: s.nome, kcal: s.kcal,
+          ...((s.sostituzioni ?? []).length ? { substitutions: s.sostituzioni } : {}),
+        })) as never,
       },
     });
 

@@ -3583,3 +3583,77 @@ describe('⛔ VeraChatService — le ore del digiuno', () => {
     expect(finale.stato).toBeUndefined();
   });
 });
+
+/**
+ * ⛔ **LA GIORNATA DETTATA SCRIVEVA SENZA PASSARE DAL CONTROLLO DI SICUREZZA** — voce 953, aperta il
+ * 31/8 dalla revisione della consegna sullo swap, chiusa il 2/9.
+ *
+ * `poolDellaCliente` pescava da `clientMenuPool` e la giornata veniva scritta **senza chiamare
+ * `valutaRicetta`**, coi pasti senza `substitutions`. ⚠️ Il commento diceva che fuori dal pool «ci
+ * sono allergeni non revisionati e regimi che non sono i suoi»: vero, e incompleto. Il pool filtra
+ * gli allergeni **revisionati**, il regime e i **tag**, e **non** applica le regole per ingrediente
+ * di `solfiti.ts` e `lattosio.ts`.
+ */
+describe('⛔ la giornata dettata passa dal controllo di sicurezza', () => {
+  const DETTATO_2 = 'Per Giulia Rossi\nColazione: ricotta con albicocche\nPranzo: pasta al pomodoro\nCena: orata al forno';
+
+  /** Nessun tag allergene, l'ingrediente sì: è il caso che il pool non sa fermare. */
+  const CATALOGO = [
+    { id: 'r-alb', name: 'Ricotta con albicocche secche', kcal: 320, mealSlot: 'breakfast', ingredients: [{ name: 'ricotta' }, { name: 'albicocche secche' }], allergens: [] as string[] },
+    { id: 'r-gam', name: 'Insalata di gamberi e avocado', kcal: 330, mealSlot: 'breakfast', ingredients: [{ name: 'gamberi' }], allergens: [] as string[] },
+    { id: 'r-p1', name: 'Pasta al pomodoro e basilico', kcal: 520, mealSlot: 'lunch', ingredients: [{ name: 'pasta' }], allergens: [] as string[] },
+    { id: 'r-orata', name: 'Orata al forno con patate', kcal: 480, mealSlot: 'dinner', ingredients: [{ name: 'orata' }], allergens: [] as string[] },
+  ];
+  const prismaCon = () => ({
+    clientMenuPool: { findFirst: jest.fn().mockResolvedValue({ recipeIds: CATALOGO.map((r) => r.id) }) },
+    recipe: { count: jest.fn().mockResolvedValue(1), findMany: jest.fn().mockResolvedValue(CATALOGO) },
+    menuDay: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: true }),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      count: jest.fn().mockResolvedValue(0),
+      update: jest.fn().mockResolvedValue({}),
+    },
+  });
+  const kcalFinto2 = () => ({
+    simulaKcal: jest.fn().mockResolvedValue({ prima: { target: 1400 }, dopo: { target: 1400 } }),
+    impostaKcal: jest.fn().mockResolvedValue({}),
+  });
+
+  /**
+   * ⛔ **Un piatto che la cliente non può mangiare non si propone alla nutrizionista.** Prima
+   * entrava fra le candidate, e lei poteva sceglierlo senza che niente glielo dicesse.
+   */
+  it('⛔ un piatto con un allergene non entra fra le candidate', async () => {
+    const { service, messaggioCreate } = make(prismaCon(), {
+      kcal: kcalFinto2(),
+      profilo: { dislikedFoods: [], allergies: ['gamberi'], intolerances: [], name: 'Giulia', pastiEsclusi: [] },
+    });
+    await service.parla('lucia', 'Per Giulia Rossi\nColazione: insalata di gamberi\nPranzo: pasta al pomodoro\nCena: orata al forno');
+    const { testo } = ultimoAgente(messaggioCreate);
+    /** ⚠️ Sparita dalle candidate, la colazione non ha più niente: Vera lo dice e non scrive. */
+    expect(testo).not.toContain('Insalata di gamberi e avocado');
+  });
+
+  /**
+   * ⛔ **E il piatto che si può servire cambiando un ingrediente si scrive CON la riga.** È la
+   * differenza fra vietare e servire in sicurezza: sulle albicocche secche c'è un sostituto, sui
+   * gamberi no. Prima quella riga non la calcolava nessuno e il pasto nasceva pulito.
+   */
+  it('⛔ la sostituzione di ingrediente finisce sul pasto scritto', async () => {
+    const prisma = prismaCon();
+    const { service, messaggioCreate } = make(prisma, {
+      kcal: kcalFinto2(),
+      profilo: { dislikedFoods: [], allergies: [], intolerances: ['solfiti'], name: 'Giulia', pastiEsclusi: [] },
+    });
+    await service.parla('lucia', DETTATO_2);
+    await service.parla('lucia', 'sì');
+
+    const scritti = prisma.menuDay.update.mock.calls.map((c: any) => c[0].data.meals).pop() ?? [];
+    const colazione = scritti.find((m: any) => m.slot === 'breakfast');
+    expect(colazione?.name).toBe('Ricotta con albicocche secche');
+    expect(colazione?.substitutions?.map((x: any) => x.from)).toEqual(['albicocche secche']);
+    /** ⚠️ E gli altri pasti, che non hanno niente da sostituire, non si portano un elenco vuoto. */
+    expect(scritti.find((m: any) => m.slot === 'dinner')?.substitutions).toBeUndefined();
+  });
+});

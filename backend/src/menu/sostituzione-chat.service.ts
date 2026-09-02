@@ -43,6 +43,12 @@ import {
   type GustoColazione,
 } from './cambio-piatto';
 import { exclusionKeys, hitsExclusion } from './exclusions';
+/**
+ * ⛔ **IL GIUDIZIO DI SICUREZZA È QUELLO DELLA GUARDIA** — 2/9, voce 953. Prima questo file non lo
+ * chiamava affatto: pescava dal pool e scriveva, fidandosi che il pool fosse già filtrato. Lo è
+ * per tre cose su cinque.
+ */
+import { esclusioniDi, valutaRicetta, type ProfiloConEsclusioni } from './esclusioni-della-cliente';
 import { IngredienteRicetta, MealSnapshot, Substitution } from './pasto-giornata';
 import {
   MOTIVI,
@@ -2328,25 +2334,79 @@ export class SostituzioneChatService {
    * quel rischio.
    */
   private async candidatiPerSlot(clientId: string, slot: string): Promise<CandidatoPiatto[]> {
-    const pool = (await this.prisma.clientMenuPool.findFirst({
-      where: { clientId },
-      orderBy: { version: 'desc' },
-      select: { recipeIds: true },
-    })) as { recipeIds: string[] } | null;
+    const [pool, profilo] = await Promise.all([
+      this.prisma.clientMenuPool.findFirst({
+        where: { clientId },
+        orderBy: { version: 'desc' },
+        select: { recipeIds: true },
+      }) as unknown as Promise<{ recipeIds: string[] } | null>,
+      /**
+       * ⛔ **LE ESCLUSIONI DELLA CLIENTE, che qui non si leggevano** — 2/9, voce 953.
+       *
+       * Il commento qui sopra dice che il pool è «già passato dai filtri di sicurezza». È vero a
+       * metà, ed è la metà che fa male: `clientMenuPool` filtra gli allergeni **revisionati**, il
+       * regime e i **tag** allergene, e **non** applica le regole per ingrediente di `solfiti.ts` e
+       * `lattosio.ts`. Una ricetta revisionata senza tag `solfiti` ma con le albicocche secche
+       * dentro passava, e il pasto veniva scritto **senza la riga che dice alla cliente cosa non
+       * mettere** — la merenda del 30/8, per un'altra strada.
+       */
+      this.prisma.clientProfile.findUnique({
+        where: { userId: clientId },
+        select: { allergies: true, intolerances: true, dislikedFoods: true },
+      }) as unknown as Promise<ProfiloConEsclusioni | null>,
+    ]);
     const ids = (pool?.recipeIds ?? []).filter(Boolean);
     if (!ids.length) return [];
 
     const ricette = (await this.prisma.recipe.findMany({
       // ⚠️ Fase 2 (1/9): spuntino e merenda si scambiano, quindi si chiedono tutti e due.
       where: { id: { in: ids }, mealSlot: { in: slotDaCuiPescare(slot) } as never, active: true },
-      select: { id: true, name: true, kcal: true, macros: true, difficulty: true, tags: true },
-    })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null; tags?: string[] }[];
+      /** ⚠️ `ingredients` e `allergens` servono a `valutaRicetta`: senza, giudica a mani vuote. */
+      select: { id: true, name: true, kcal: true, macros: true, difficulty: true, tags: true, ingredients: true, allergens: true },
+    })) as { id: string; name: string; kcal: number; macros: unknown; difficulty: string | null; tags?: string[]; ingredients: unknown; allergens?: string[] }[];
 
-    return ricette.map((r) => {
+    const esclusioni = esclusioniDi(profilo);
+
+    const out: CandidatoPiatto[] = [];
+    for (const r of ricette) {
+      /**
+       * ⛔ **IL NOME ENTRA COME INGREDIENTE**, come in `menu.service`: `valutaRicetta` cicla sugli
+       * ingredienti, e su una ricetta con l'elenco vuoto o povero non vedrebbe niente —
+       * «Insalata di gamberi e avocado» andrebbe a un'allergica ai crostacei. ⚠️ E passa dalle
+       * regole di casa invece che da un secondo giudice più severo: dove c'è un sostituto si
+       * sostituisce, dove non c'è si vieta.
+       */
+      const { violations, subs } = valutaRicetta(
+        {
+          id: r.id,
+          name: r.name,
+          ingredients: [...(((r.ingredients as { name?: string }[]) ?? []).filter((i) => i?.name)), { name: r.name }],
+          allergens: r.allergens ?? [],
+        } as never,
+        esclusioni,
+      );
+      /** ⛔ Un piatto che viola non si propone: non c'è una colazione che valga quel rischio. */
+      if (violations.length) continue;
+      /**
+       * ⛔ **E LA SOSTITUZIONE SUL NOME FINTO SI BUTTA.** Il nome entra fra gli ingredienti per far
+       * scattare i divieti su una ricetta con l'elenco povero — ma le regole per ingrediente non
+       * sanno che è finto, e sui solfiti producono «al posto di *Ricotta con albicocche secche*
+       * metti *albicocche essiccate in casa*». Una riga che la cliente legge e non capisce, sul
+       * piatto che sta per ricevere.
+       *
+       * ⚠️ Il divieto lo si tiene (è il motivo per cui il nome entra), la **sostituzione** no.
+       */
+      const suFinta = (x: unknown) => String((x as { from?: unknown })?.from ?? '') === r.name;
       const macro = (r.macros ?? {}) as { protein_g?: unknown };
       const prot = typeof macro.protein_g === 'number' ? macro.protein_g : null;
-      return { recipeId: r.id, nome: r.name, kcal: r.kcal, proteineG: prot, difficolta: r.difficulty, tags: r.tags ?? [] };
-    });
+      out.push({
+        recipeId: r.id, nome: r.name, kcal: r.kcal, proteineG: prot,
+        difficolta: r.difficulty, tags: r.tags ?? [],
+        /** ⚠️ Le sostituzioni viaggiano col candidato fino alla scrittura, invece di essere buttate. */
+        sostituzioni: subs.filter((x) => !suFinta(x)),
+      });
+    }
+    return out;
   }
 
   /**
@@ -2466,7 +2526,14 @@ export class SostituzioneChatService {
         // deve dire cosa aveva chiesto lei, non solo cosa le è stato dato.
         preferenzaPiatto: preferenza ?? (gusto ? `colazione ${gusto === 'dolce' ? 'dolce' : 'salata'}` : null),
         gustoColazione: gusto ?? null,
-        alternativePiatto: alternative.map((a) => ({ recipeId: a.recipeId, nome: a.nome, kcal: a.kcal })),
+        /**
+         * ⛔ **`sostituzioni` viaggia con l'alternativa** — 2/9. Questa riga teneva **tre** campi, e
+         * le righe che dicono alla cliente cosa mettere al posto di cosa morivano qui: calcolate
+         * dal controllo di sicurezza, buttate un attimo dopo, e il pasto nasceva pulito.
+         */
+        alternativePiatto: alternative.map((a) => ({
+          recipeId: a.recipeId, nome: a.nome, kcal: a.kcal, sostituzioni: a.sostituzioni,
+        })),
       },
       esito: 'in_corso',
     };
@@ -2586,7 +2653,12 @@ export class SostituzioneChatService {
   private async applicaCambioPiatto(
     clientId: string,
     stato: StatoSostituzione,
-    scelta: { recipeId: string; nome: string; kcal: number },
+    /**
+     * ⚠️ `sostituzioni` arriva da `candidatiPerSlot`, dove `valutaRicetta` l'ha calcolata: sono le
+     * righe che dicono alla cliente cosa mettere al posto di cosa. Prima non esistevano e il pasto
+     * nasceva con `substitutions` vuoto.
+     */
+    scelta: { recipeId: string; nome: string; kcal: number; sostituzioni?: unknown[] },
   ): Promise<EsitoSostituzione> {
     const oggi = toDateOnly();
     const oggiIso = this.oggiIso();
@@ -2612,6 +2684,20 @@ export class SostituzioneChatService {
       kcal: scelta.kcal,
       // Le sostituzioni di ingrediente del piatto VECCHIO non si portano dietro: erano sue, e su un
       // piatto nuovo non vogliono dire niente.
+      /**
+       * ⛔ **QUELLE DEL PIATTO NUOVO SÌ, E PRIMA NON C'ERANO** — 2/9, voce 953.
+       *
+       * Il pasto nasceva con `substitutions` vuoto. Se il piatto scelto si può servire solo
+       * **cambiando un ingrediente** — l'aceto balsamico per chi non tollera i solfiti — la cliente
+       * riceveva il piatto **senza la riga che glielo dice**. `valutaRicetta` le calcola in
+       * `candidatiPerSlot`, e da lì viaggiano fin qui col candidato.
+       *
+       * ⚠️ Il campo si scrive solo quando ce n'è almeno una: un `substitutions: []` scritto apposta
+       * è indistinguibile da «nessuno l'ha guardato», e sono due cose diverse.
+       */
+      ...(((scelta.sostituzioni ?? []) as Substitution[]).length
+        ? { substitutions: (scelta.sostituzioni ?? []) as Substitution[] }
+        : {}),
       cambioPiatto: {
         daRecipeId: prima.recipeId,
         daNome: prima.name,

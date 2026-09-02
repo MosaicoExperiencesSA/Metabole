@@ -42,6 +42,14 @@ export interface RicettaCandidata {
   nome: string;
   kcal: number;
   slot: string;
+  /**
+   * ⛔ **LE SOSTITUZIONI DI INGREDIENTE CHE QUESTO PIATTO PORTA CON SÉ** — 2/9, voce 953.
+   *
+   * `valutaRicetta` non risponde solo «sì o no»: su un piatto che si può servire **cambiando un
+   * ingrediente** rende le righe che dicono alla cliente cosa mettere al posto di cosa. La giornata
+   * dettata dalla nutrizionista non le calcolava affatto, e il pasto nasceva senza.
+   */
+  sostituzioni?: unknown[];
 }
 
 export interface RigaAbbinata extends RigaDettata {
@@ -129,6 +137,8 @@ export interface SceltaGiornata {
   recipeId: string;
   nome: string;
   kcal: number;
+  /** ⚠️ Viaggiano dalla candidata fino alla scrittura: vedi `RicettaCandidata.sostituzioni`. */
+  sostituzioni?: unknown[];
 }
 
 export interface ContoGiornata {

@@ -1,0 +1,46 @@
+Il pulsante «Rifai base ricette»: la porta c'era, mancava la maniglia
+
+`POST /clients/:id/personal-base/rebuild` esiste dal principio — nutrizioniste,
+capo nutrizionista, admin — e NESSUNA schermata lo chiamava. È «una chiave
+dichiarata che non accende niente», la cosa che `CLAUDE.md` dice di non fare, e
+oggi si è visto perché conta.
+
+SERVE PERCHÉ LA RICOSTRUZIONE AUTOMATICA, GIUSTAMENTE, NON COPRE QUESTO CASO.
+Dal 2/9 la scheda rifà la base quando la dieta, il regime, i pasti o le allergie
+CAMBIANO DAVVERO — e non a ogni Salva, o si ricostruirebbe a ogni click. Ma su
+una cliente già spostata non c'è niente da cambiare: risalvare non fa nulla. È
+esattamente il caso delle diciannove della Fase 9, e ho scoperto il buco
+seguendo la mia stessa istruzione e vedendo che non succedeva niente.
+
+⛔ E `diag:fase9` quell'istruzione la stampava: «si rifà da sé riaprendo la
+scheda e risalvando la dieta — è `updateProfile` che la chiama». Sbagliata due
+volte: `updateProfile` è la porta dell'app, non della scheda; e su chi è già
+spostato non cambia niente. Corretta: adesso dice il pulsante e `rifai:basi`, e
+avverte che risalvare non basta.
+
+L'ESITO SI LEGGE, TUTTO. `buildPersonalBase` può rispondere `blocked`: con i dati
+di oggi la base non si certifica — poche ricette sicure per un pasto, allergeni
+non revisionati — e apre una segnalazione. Non è un errore del pulsante: è la
+risposta, ed è quella che serve sapere. Il pulsante la mostra come errore, coi
+motivi. Un pulsante che dicesse «fatto» in tutti e due i casi sarebbe peggio di
+nessun pulsante.
+
+E LO VEDE SOLO CHI L'ENDPOINT ACCETTA, non uno di più: mostrarlo a una coach
+vorrebbe dire farle premere una cosa che risponde 403 — la stessa lezione del
+pulsante «Modifica» nei panieri. `eNutrizionista` copre anche i ruoli
+personalizzati costruiti su quelli.
+
+Sta accanto a «Rigenera menu» perché si cercano nello stesso momento, e non sono
+la stessa cosa: quello rifà le GIORNATE dal paniere, questo rifà l'elenco delle
+ricette che la cliente può ricevere.
+
+File: backoffice/src/pages/ClientDetail.tsx,
+backoffice/src/pages/rifai-base-pulsante.spec.ts (nuovo),
+backend/prisma/diag-migrazione-fase9.ts (l'istruzione falsa),
+backend/prisma/rifai-basi-personali.ts (nuovo) e backend/package.json — il
+comando per farlo in blocco, con prova a vuoto di default: dice prima di
+scrivere che su più persone insieme può aprire una segnalazione ciascuna.
+
+Prove: 6637/6637 backend nelle quattro modalità, 210/210 backoffice, build e tsc
+puliti. Tre mutazioni uccise: il pulsante mostrato a tutti, «bloccata» detta come
+successo, i motivi non mostrati.

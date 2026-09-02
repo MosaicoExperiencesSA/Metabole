@@ -1,0 +1,51 @@
+«Biscotti d'Avena e Banana» non diventa più «Biscotti d'Avena»
+
+Voce `la-e-nel-nome-tronca-in-silenzio`, trovata MISURANDO il 31/8 — non l'aveva
+segnalata nessuno, ed era più pericolosa di quella che era stata segnalata.
+
+    «a patrizia sostituisci Biscotti d'Avena e Banana con Gallette di riso»
+      → { da: ["Biscotti d'Avena"], a: ["Gallette di riso"] }
+
+⛔ «e Banana» spariva senza una parola. La regola scritta non vietava quel piatto:
+vietava TUTTI i «Biscotti d'Avena». E l'anteprima mostrava una frase plausibile,
+quindi bastava un «confermo».
+
+CHIUSA CON LA STRADA 1, quella che la voce stessa segnalava come consigliata:
+quando il nome di partenza si ferma su una congiunzione e dopo c'è ancora una
+parola, `sostituzioniNelMessaggio` NON risponde e Vera chiede. Meglio una domanda
+in più che una regola scritta su un piatto che nessuno ha nominato.
+
+⚠️ NON si spezza su «e», ed era il punto: «e» dentro un nome è comunissimo —
+«sale e pepe», «erbe e spezie». Spezzare sempre trasformerebbe il nome di un
+piatto in due alimenti inventati, cioè lo stesso errore al contrario.
+
+⚠️ E la congiunzione conta SOLO se dopo c'è ancora qualcosa: «sostituisci il pane
+con le gallette e» finisce lì, si capisce benissimo, e segnalarla vorrebbe dire
+chiedere per niente. Idem per il limite di quattro parole, che è una regola
+dichiarata e non una congiunzione che mangia mezzo nome.
+
+⚠️ SOLO SUL PRIMO NOME, e la ragione la scriveva già la voce: quel pezzo è
+delimitato da «con» nel pattern (`(.+?)\s+con`), quindi contiene il nome e
+nient'altro. Il secondo prende tutta la coda di contesto — «...con le gallette a
+colazione» — e lì il confronto «quanto ho letto contro quanto c'era» direbbe «non
+ci arrivo» a metà delle frasi normali. La parte simmetrica resta da fare, e serve
+prima un modo di separare la coda dal nome: NON `senzaCodaDiAmbito`, che su
+quella frase restituisce la frase identica (misurato in revisione il 31/8).
+
+⛔ E LA PRIMA STESURA DELLA GUARDIA AVEVA IL DIFETTO DENTRO. Per sapere se dopo la
+congiunzione restava qualcosa cercava la sottostringa, e su «il pane e» trovava
+la «e» DENTRO «pane»: rispondeva «troncato» a una frase che finisce lì. L'ha
+presa la prova scritta per tenere fermo proprio quel caso. Adesso conta le parole.
+
+E RIAPERTA `esclusioni-chiave-dentro-parola`, sospesa il 27/8 con la condizione
+«dopo aver sistemato il paniere». La condizione è caduta: il paniere è la
+sorgente del pool dall'1/9, il confronto dice che non si è perso niente di
+indebito, e le coppie (chiave, parola) adesso si misurano su un catalogo che non
+si rimescola più. Il passo 1 — `npm run diag:esclusioni` — non l'ha ancora
+lanciato nessuno.
+
+File: backend/src/food-swaps/impara-dalla-chat.ts e il suo spec,
+backend/src/lavori/voci-iniziali.ts.
+
+Prove: 6651/6651 nelle quattro modalità, build e tsc puliti. Tre mutazioni
+uccise.

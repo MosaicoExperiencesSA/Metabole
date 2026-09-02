@@ -177,7 +177,18 @@ async function main() {
   if (baseVecchia.length) {
     riga('');
     riga(`  ⛔ Base personale da rifare: ${baseVecchia.join(', ')}.`);
-    riga('  Si rifà da sé riaprendo la scheda e risalvando la dieta — è `updateProfile` che la chiama.');
+    /**
+     * ⛔ **QUESTA RIGA DICEVA IL FALSO, ed è costata un giro** (corretta il 2/9). Diceva «si rifà da
+     * sé riaprendo la scheda e risalvando la dieta — è `updateProfile` che la chiama»: sbagliato
+     * due volte. `updateProfile` è la porta dell'**app**, non della scheda; e dal 2/9 la scheda
+     * rifà la base solo quando un campo **cambia davvero** — su una cliente già spostata non
+     * cambia niente, quindi risalvare non fa nulla. Ho seguito la mia stessa istruzione e non è
+     * successo niente.
+     */
+    riga('  Si rifà col pulsante «Rifai base ricette» nella scheda (accanto a «Rigenera menu»),');
+    riga('  oppure in blocco con `npm run rifai:basi`. ⚠️ Risalvare la scheda NON basta: la');
+    riga('  ricostruzione automatica guarda i campi che cambiano, e su chi è già stato spostato');
+    riga('  non cambia niente.');
   }
   if (senzaBlocco.length) {
     riga('');
