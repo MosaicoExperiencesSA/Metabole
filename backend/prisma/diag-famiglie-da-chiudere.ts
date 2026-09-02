@@ -29,7 +29,7 @@
  *   npm run diag:famiglie-da-chiudere
  */
 import { PrismaClient } from '@prisma/client';
-import { FAMIGLIE_CHE_SPARISCONO, paniereDellaVariante } from '../src/catalog/appartenenza-panieri';
+import { FAMIGLIE_CHE_SPARISCONO, famigliaDaChiudereDi, paniereDellaVariante } from '../src/catalog/appartenenza-panieri';
 
 const prisma = new PrismaClient();
 const ESEMPI = Math.max(1, Number(process.env.ESEMPI ?? 40) || 40);
@@ -68,17 +68,11 @@ async function main() {
   const serviteDa = new Map(clientiPerDieta.map((c) => [c.dietId, Number(c.clienti)]));
 
   /**
-   * ⚠️ Una famiglia si riconosce dal PREFISSO del nome della variante: in banca dati le varianti si
-   * chiamano «Mediterranea — vegana 5 pasti» e simili. Il confronto è sul nome esatto della
-   * famiglia seguito da un separatore, non un `includes`: «Mediterranea» dentro «Mediterranea senza
-   * glutine» darebbe due volte la stessa variante, a due famiglie diverse.
+   * ⚠️ **Il riconoscimento sta in `catalog/appartenenza-panieri.ts`** (2/9): la stessa domanda
+   * serve alla tendina del backoffice, e due copie sono la prossima cosa che diverge. Lì ha anche
+   * le prove che qui non aveva — e che hanno trovato una riga morta e due regole non misurate.
    */
-  const famigliaDi = (nome: string): string | null => {
-    for (const f of Object.keys(FAMIGLIE_CHE_SPARISCONO)) {
-      if (nome === f || nome.startsWith(`${f} `) || nome.startsWith(`${f}—`) || nome.startsWith(`${f} —`)) return f;
-    }
-    return null;
-  };
+  const famigliaDi = famigliaDaChiudereDi;
 
   const perFamiglia = new Map<string, { varianti: number; approvate: number; visibili: number; serviteDa: number; dove: string }>();
   for (const d of diete) {

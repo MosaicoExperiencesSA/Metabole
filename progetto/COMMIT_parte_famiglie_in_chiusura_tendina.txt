@@ -1,0 +1,47 @@
+Le famiglie in chiusura nella scheda: si marcano, non si nascondono
+
+Segnalazione di Simone: «dalla scheda lead vedo ancora le vecchie diete». Vero, e
+la ragione è che `catalog.famiglie()` costruisce la tendina dalle diete `status:
+approved` e basta, senza guardare niente altro. Sei famiglie del piano panieri si
+stanno chiudendo e comparivano identiche alle altre: un lead assegnato oggi a
+«Mediterranea senza glutine» è un'altra persona da migrare a mano domani.
+
+⚠️ MA TOGLIERLE SAREBBE PEGGIO. Chi ce l'ha già sopra deve continuare a vederla:
+è la stessa ragione per cui `ClientDetail.tsx` tiene in tendina la dieta «(non
+più in catalogo)» — una scelta che sparisce si cancella al primo salvataggio di
+un altro campo. E una tendina che nasconde senza dire niente fa cercare un guasto
+dove c'è una decisione.
+
+Quindi restano, in un gruppo a parte in fondo: «In chiusura — non assegnarle a
+chi arriva adesso». La taxonomy porta `inChiusura` per ogni famiglia, letto dalla
+lista canonica (`FAMIGLIE_CHE_SPARISCONO`), e il campo è FACOLTATIVO: una
+risposta vecchia dell'API non ce l'ha, e `undefined` deve voler dire «non lo so»,
+non «sì» — marcare per sbaglio una famiglia viva la farebbe smettere di essere
+assegnata.
+
+⛔ LE TRE MUTAZIONI SOPRAVVISSUTE, che sono la parte da leggere.
+Il riconoscimento («questo nome sta su una famiglia che si chiude?») viveva
+copiato dentro `diag-famiglie-da-chiudere.ts`. L'ho estratto con le sue prove, e
+alla prima passata di mutazione TRE SU TRE sono sopravvissute:
+
+· `includes` al posto del prefisso — non lo vedeva nessuna prova, perché
+  nell'elenco vero nessun nome contiene un altro nome nel punto sbagliato;
+· l'ordinamento invertito (il più lungo per primo) — idem: nell'elenco di oggi
+  nessuna famiglia è prefisso di un'altra, quindi la regola non era osservabile;
+· la guardia sul nome vuoto — sopravviveva perché era CODICE MORTO: senza, il
+  ciclo risponde `null` lo stesso. Tolta. Una guardia che non guarda niente è
+  peggio di nessuna guardia, perché qualcuno un giorno crede che protegga.
+
+La correzione delle prime due non è scrivere prove più furbe: è passare l'elenco
+come PARAMETRO, così la prova può costruire il caso pericoloso invece di sperare
+che esista in produzione. Adesso quattro mutazioni su quattro muoiono.
+
+File: backend/src/catalog/appartenenza-panieri.ts,
+backend/src/catalog/famiglia-in-chiusura.spec.ts (nuovo),
+backend/src/catalog/catalog.service.ts,
+backend/prisma/diag-famiglie-da-chiudere.ts (la copia tolta),
+backoffice/src/lib/taxonomy.ts, backoffice/src/pages/ClientDetail.tsx,
+backoffice/src/pages/famiglie-in-chiusura.spec.ts (nuovo).
+
+Prove: 6601/6601 backend nelle quattro modalità, 202/202 backoffice, build e tsc
+puliti.

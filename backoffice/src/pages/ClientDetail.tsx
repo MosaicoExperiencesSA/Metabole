@@ -403,7 +403,29 @@ function EditCard({ form, setForm, lockDietType, lockAllergie }: { form: Record<
             }}
           >
             <option value="">—</option>
-            {families.map((f) => <option key={f.name} value={f.name}>{f.label}</option>)}
+            {/*
+              ⛔ **LE FAMIGLIE IN CHIUSURA RESTANO, MARCATE E IN FONDO** — 2/9, da una segnalazione
+              di Simone («dalla scheda lead vedo ancora le vecchie diete»).
+
+              Sei famiglie del piano panieri si stanno chiudendo e qui comparivano identiche alle
+              altre: un lead assegnato oggi a «Mediterranea senza glutine» è un'altra persona da
+              migrare a mano domani, e le venti della Fase 9 diventano ventuno.
+
+              ⚠️ **Toglierle sarebbe peggio.** Chi ce l'ha già sopra deve continuare a vederla — è
+              la stessa ragione dell'opzione «(non più in catalogo)» qui sotto: una scelta che
+              sparisce dalla tendina si cancella al primo salvataggio di un altro campo. E una
+              tendina che nasconde senza dire niente fa cercare un guasto dove c'è una decisione.
+            */}
+            {families.filter((f) => !f.inChiusura).map((f) => (
+              <option key={f.name} value={f.name}>{f.label}</option>
+            ))}
+            {families.some((f) => f.inChiusura) && (
+              <optgroup label="In chiusura — non assegnarle a chi arriva adesso">
+                {families.filter((f) => f.inChiusura).map((f) => (
+                  <option key={f.name} value={f.name}>{f.label}</option>
+                ))}
+              </optgroup>
+            )}
             {/* La dieta che la cliente ha oggi può non essere più approvata: se sparisse dalla
                 tendina, salvare un altro campo qualsiasi la cancellerebbe senza che nessuno lo
                 chieda. */}

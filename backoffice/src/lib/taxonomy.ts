@@ -7,7 +7,20 @@ export interface TaxItem { code: string; label: string }
  * `pickDietFor` cerca famiglia **e** stile, e una famiglia con lo stile di un'altra non trova
  * niente e ripiega su una dieta vicina (è il difetto §16.10).
  */
-export interface TaxFamily { name: string; style: string | null; label: string }
+export interface TaxFamily {
+  name: string;
+  style: string | null;
+  label: string;
+  /**
+   * ⛔ **La famiglia si sta chiudendo** (piano panieri): resta assegnabile — chi ce l'ha sopra deve
+   * continuare a vederla — ma chi assegna un lead deve sapere che mettercene uno nuovo significa
+   * un'altra persona da migrare a mano domani.
+   *
+   * ⚠️ Facoltativo perché una risposta vecchia dell'API non ce l'ha, e `undefined` deve voler dire
+   * «non lo so», non «sì»: marcare per sbaglio una famiglia viva farebbe smettere di assegnarla.
+   */
+  inChiusura?: boolean;
+}
 export interface Taxonomy { regimes: TaxItem[]; styles: TaxItem[]; families?: TaxFamily[]; cookingMethods?: TaxItem[] }
 
 // Fallback (usati finché la fetch non risponde e se l'API fallisce).

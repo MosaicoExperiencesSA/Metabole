@@ -20,6 +20,21 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🏷️ **Le famiglie in chiusura nella scheda: si marcano, non si nascondono.**
+  Segnalazione di Simone. ✅ Restano in tendina, in un gruppo in fondo — «In chiusura — non
+  assegnarle a chi arriva adesso» — perché **toglierle sarebbe peggio**: chi ce l'ha già sopra deve
+  vederla, e una scelta che sparisce si cancella al primo salvataggio di un altro campo (è la
+  stessa ragione dell'opzione «non più in catalogo»).
+  ⛔ **Tre mutazioni sopravvissute su tre, ed è la parte da leggere.** Il riconoscimento «questo
+  nome sta su una famiglia che si chiude?» era copiato dentro il tabulato; estraendolo con le prove,
+  la prima passata di mutazione non ha ucciso niente: `includes` al posto del prefisso e
+  l'ordinamento invertito **non erano osservabili**, perché nell'elenco vero non esiste la coppia
+  che li distingue; e la guardia sul nome vuoto era **codice morto**. ✅ La correzione non è
+  scrivere prove più furbe: è passare l'elenco come **parametro**, così la prova costruisce il caso
+  pericoloso invece di sperare che esista in produzione. Adesso quattro mutazioni su quattro
+  muoiono, e la riga morta è stata tolta.
+  🧪 6601/6601 backend, 202/202 backoffice.
+
 - `[Sviluppo]` 🚪 **Le vecchie famiglie sono ancora scegliibili: due porte, e una sola ha la
   serratura.** Due domande di Simone. ⚠️ **Dalla scheda lead si vedono ancora**: `catalog.famiglie()`
   costruisce la tendina dalle diete `status: approved` e basta, senza guardare `clientVisible`.

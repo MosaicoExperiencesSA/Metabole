@@ -217,3 +217,42 @@ export function ricetteDellaGiornata(meals: unknown): { slot: string; recipeId: 
  * varianti approvate finite fuori da ogni paniere per un nome.
  */
 export const FAMIGLIA_RITORNO_IN_EQUILIBRIO = 'Ritorno in Equilibrio';
+
+/**
+ * ⛔ **A QUALE FAMIGLIA IN CHIUSURA APPARTIENE QUESTO NOME** — in un posto solo, dal 2/9.
+ *
+ * In banca dati le varianti si chiamano «Mediterranea senza glutine — vegana 5 pasti»: per sapere
+ * se stanno su una famiglia che si chiude serve il **prefisso**, non un `includes`. Questa
+ * funzione viveva copiata dentro `prisma/diag-famiglie-da-chiudere.ts`, e ora serve anche alla
+ * tendina del backoffice: due copie della stessa domanda sono la prossima cosa che diverge.
+ *
+ * ⛔ **`elenco` è un parametro, e non è pedanteria.** Con la costante letta di dentro, le due
+ * regole che contano — il prefisso invece di `includes`, e il più lungo per primo — **non si
+ * possono provare**: nell'elenco di oggi non esiste nessuna coppia che le distingua, e infatti il
+ * 2/9 tre mutazioni su tre sono sopravvissute a prove che sembravano piene. Passandolo, la prova
+ * costruisce il caso pericoloso e la regola torna misurabile.
+ */
+export function famigliaDaChiudereIn(nome: string, elenco: readonly string[]): string | null {
+  const n = (nome ?? '').trim();
+  /**
+   * ⛔ **Il più lungo per primo.** Oggi «Mediterranea» non è nell'elenco e la differenza non si
+   * vede; il giorno che ci finisse, «Mediterranea senza glutine» combacerebbe con tutte e due e
+   * vincerebbe quella sbagliata a seconda dell'ordine delle chiavi — cioè a caso.
+   */
+  for (const f of [...elenco].sort((a, b) => b.length - a.length)) {
+    /**
+     * ⚠️ **Prefisso, non `includes`**: «Pescetariana» dentro «Dieta Pescetariana estiva» non è
+     * quella famiglia, è un nome che la nomina. Con `includes` una dieta viva verrebbe marcata
+     * come in chiusura e smetterebbe di essere assegnata.
+     */
+    if (n === f || n.startsWith(`${f} `) || n.startsWith(`${f}—`) || n.startsWith(`${f} —`)) return f;
+  }
+  return null;
+}
+
+/** La stessa domanda sull'elenco vero. */
+export const famigliaDaChiudereDi = (nome: string): string | null =>
+  famigliaDaChiudereIn(nome, Object.keys(FAMIGLIE_CHE_SPARISCONO));
+
+/** ⚠️ La domanda secca, per chi deve solo marcare una riga in una tendina. */
+export const famigliaInChiusura = (nome: string): boolean => famigliaDaChiudereDi(nome) !== null;

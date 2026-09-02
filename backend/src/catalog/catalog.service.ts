@@ -1,5 +1,6 @@
 import { laConfermaDecade } from './conferma-allergeni-decade';
 import { puoStareNelloSlot } from '../common/slot-pasto';
+import { famigliaInChiusura } from './appartenenza-panieri';
 import {
   BadRequestException,
   ForbiddenException,
@@ -1725,19 +1726,41 @@ export class CatalogService {
    * stile** insieme, e una famiglia con lo stile di un'altra non trova niente e ripiega — proprio
    * sul difetto che questa tendina serve a chiudere.
    */
-  async famiglie(): Promise<{ name: string; style: string | null; label: string }[]> {
+  /**
+   * ⛔ **LE FAMIGLIE IN CHIUSURA NON SPARISCONO DALLA TENDINA: SI MARCANO** — 2/9, da una
+   * segnalazione di Simone («dalla scheda lead vedo ancora le vecchie diete»).
+   *
+   * Sei famiglie del piano panieri si stanno chiudendo, e qui comparivano identiche alle altre:
+   * chi assegna un lead poteva metterlo su «Mediterranea senza glutine» oggi, e domani era
+   * un'altra persona da migrare a mano.
+   *
+   * ⚠️ **Ma toglierle sarebbe peggio.** Chi le ha già sopra deve continuare a vederle — è la
+   * stessa ragione per cui `ClientDetail.tsx` tiene in tendina la dieta «(non più in catalogo)»:
+   * una scelta che sparisce si cancella al primo salvataggio di un altro campo. E una tendina che
+   * nasconde senza dire nulla fa cercare un guasto dove c'è una decisione.
+   *
+   * Quindi la famiglia resta, con `inChiusura: true`, e chi disegna la tendina decide come dirlo.
+   * ⛔ La lista canonica è **una sola** (`FAMIGLIE_CHE_SPARISCONO` in `appartenenza-panieri.ts`):
+   * un secondo elenco qui sarebbe la prossima cosa che diverge.
+   */
+  async famiglie(): Promise<{ name: string; style: string | null; label: string; inChiusura: boolean }[]> {
     const rows = (await this.prisma.diet.findMany({
       where: { status: 'approved' },
       select: { name: true, style: true, clientName: true },
       orderBy: { createdAt: 'asc' },
     })) as { name: string | null; style: string | null; clientName: string | null }[];
     const viste = new Set<string>();
-    const out: { name: string; style: string | null; label: string }[] = [];
+    const out: { name: string; style: string | null; label: string; inChiusura: boolean }[] = [];
     for (const r of rows) {
       const name = r.name?.trim();
       if (!name || viste.has(name)) continue;
       viste.add(name);
-      out.push({ name, style: r.style ?? null, label: r.clientName?.trim() || name });
+      out.push({
+        name,
+        style: r.style ?? null,
+        label: r.clientName?.trim() || name,
+        inChiusura: famigliaInChiusura(name),
+      });
     }
     return out.sort((a, b) => a.label.localeCompare(b.label));
   }
