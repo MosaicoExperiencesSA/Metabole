@@ -214,6 +214,34 @@ export class ClientsController {
     return this.clients.getMenus(id, user.sub, { from, to });
   }
 
+  /**
+   * ⛔ **LA STESSA DOMANDA DEL LATO CLIENTE, per chi corregge dal backoffice** (voce
+   * `pesata-strana-chiedi-conferma`). Sola lettura: dice se il numero che si sta scrivendo non
+   * torna con le pesate confinanti, e **non tocca niente**.
+   *
+   * ⚠️ Permesso in **sola visione** (`fix_measures` senza `manage`): è una domanda su numeri che
+   * chi apre questa scheda vede già in tabella, e chiedere `manage` per leggere renderebbe muta la
+   * schermata a chi guarda senza correggere.
+   *
+   * ⚠️ La `date` è obbligatoria nei fatti anche se opzionale nella firma: qui si corregge anche una
+   * riga di due mesi fa, e senza il giorno la domanda si farebbe sulla coppia sbagliata. Senza,
+   * vale oggi — lo stesso comportamento della rotta della cliente.
+   */
+  @RequirePage('fix_measures')
+  @Get(':id/measurements/verifica')
+  verificaMisura(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('weightKg') weightKg?: string,
+    @Query('date') date?: string,
+  ) {
+    // ⚠️ Parametro assente o vuoto → `NaN` → 400. `Number('')` vale **0**, che è finito: senza
+    // questa riga una chiamata senza peso non dava errore, rispondeva una domanda su «0 kg».
+    const grezzo = String(weightKg ?? '').trim();
+    const n = grezzo ? Number(grezzo.replace(',', '.')) : Number.NaN;
+    return this.clients.verificaMisura(id, user.sub, n, date);
+  }
+
   /** Correzione di una misura inserita male dal cliente: permesso dedicato "fix_measures". */
   @RequirePage('fix_measures', 'manage')
   @HttpCode(200)

@@ -5,6 +5,7 @@ import VideoMisure from './VideoMisure';
 import { parseMisura } from '../lib/misure';
 import { EVENTO_APRI_MISURE } from './MenuStatusBanner';
 import { frasePausaMenu } from '../lib/da-quanto-fermo';
+import { entroIlTempo, leggiFrase, serveChiedere, type DomandaInSospeso } from '../lib/pesataDaConfermare';
 
 /**
  * Popup delle misure (Tracciamento_Dati §5).
@@ -46,6 +47,8 @@ export default function MeasuresGate() {
   const [hips, setHips] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  /** La domanda «è giusto?» prima del salvataggio — vedi `chiediSeTorna` qui sotto. */
+  const [daConfermare, setDaConfermare] = useState<DomandaInSospeso | null>(null);
   // Dal giorno dopo la richiesta il gate diventa un blocco vero: niente scorciatoie, e l'unica
   // via d'uscita è inserire le misure o farsi riaprire l'app dalla coach.
   const [locked, setLocked] = useState(false);
@@ -108,6 +111,29 @@ export default function MeasuresGate() {
     return () => window.removeEventListener(EVENTO_APRI_MISURE, apri);
   }, []);
 
+  /**
+   * ⛔ **LA DOMANDA VA ANCHE QUI, ed è la porta dove il numero sbagliato fa più male** (aggiunto in
+   * revisione della voce `pesata-strana-chiedi-conferma`).
+   *
+   * Delle tre schermate da cui una cliente scrive un peso, questa è **la bloccante**: «App in
+   * pausa», «Serve la tua pesata». È il momento in cui digita di fretta per far ripartire il menu —
+   * e in cui un 113 al posto di 73 le sospende il fabbisogno **proprio mentre il menu riparte**. La
+   * voce dice «quando digita un peso che non torna»: qui digita, e lasciarla muta sarebbe coprire
+   * due porte su tre, saltando quella a rischio più alto.
+   *
+   * ⛔ E qui **meno che mai è un cancello**: dopo il salvataggio c'è un `window.location.reload()`
+   * che sblocca il menu. Se la verifica cade o tarda, si tira dritto e si salva.
+   */
+  async function chiediSeTorna(pesoKg: number): Promise<string | null> {
+    try {
+      return await entroIlTempo(
+        api<unknown>(`/me/measurements/verifica?weightKg=${encodeURIComponent(String(pesoKg))}`).then(leggiFrase),
+      );
+    } catch {
+      return null;
+    }
+  }
+
   async function save() {
     setMsg(null);
     const w = parseMisura(weight);
@@ -115,7 +141,17 @@ export default function MeasuresGate() {
       setMsg('Inserisci almeno il peso.');
       return;
     }
+    if (serveChiedere(daConfermare, w)) {
+      setBusy(true);
+      const frase = await chiediSeTorna(w);
+      setBusy(false);
+      if (frase) {
+        setDaConfermare({ frase, pesoScritto: w });
+        return;
+      }
+    }
     setBusy(true);
+    setDaConfermare(null);
     const body: Record<string, number> = { weightKg: w };
     const wa = parseMisura(waist);
     const hi = parseMisura(hips);
@@ -175,7 +211,7 @@ export default function MeasuresGate() {
         </div>
 
         <label className="muted" style={{ fontSize: 12 }}>Peso (kg)</label>
-        <input className="input" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="es. 68,4" style={{ marginBottom: 8 }} />
+        <input className="input" inputMode="decimal" value={weight} onChange={(e) => { setWeight(e.target.value); setDaConfermare(null); }} placeholder="es. 68,4" style={{ marginBottom: 8 }} />
 
         {/*
           ⚠️ **Sta QUI, sopra vita e fianchi, e non in cima al riquadro.** Il peso non lo sbaglia
@@ -198,6 +234,25 @@ export default function MeasuresGate() {
         </div>
 
         {msg && <div className="muted" style={{ fontSize: 12, color: '#B4491F', marginTop: 8 }}>{msg}</div>}
+
+        {/*
+          ⛔ **Si chiede, non si blocca.** «Sì, è giusto» salva il numero identico a prima e il menu
+          riparte: qui dentro c'è già un muro, e aggiungerne un secondo su un dubbio nostro
+          significherebbe tenere una cliente ferma perché non crediamo alla sua bilancia.
+        */}
+        {daConfermare && (
+          <div className="card" style={{ marginTop: 10, background: '#FBF0D6', border: '1px solid #EAD8A6', boxShadow: 'none' }}>
+            <div style={{ fontSize: 13, color: '#7A5B12', marginBottom: 8, lineHeight: 1.5 }}>{daConfermare.frase}</div>
+            <div className="row" style={{ gap: 8 }}>
+              <button className="btn" style={{ flex: 1, padding: 10 }} onClick={save} disabled={busy}>
+                {busy ? 'Salvo…' : 'Sì, è giusto'}
+              </button>
+              <button className="btn ghost" style={{ flex: 1, padding: 10 }} onClick={() => setDaConfermare(null)} disabled={busy}>
+                Correggo
+              </button>
+            </div>
+          </div>
+        )}
 
         <button className="btn" style={{ width: '100%', marginTop: 12 }} onClick={save} disabled={busy}>
           {busy ? 'Salvo…' : 'Salva le misure'}

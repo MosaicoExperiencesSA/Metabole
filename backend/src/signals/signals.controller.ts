@@ -29,6 +29,31 @@ export class SignalsController {
     return this.signals.listMeasurements(user.sub, from, to);
   }
 
+  /**
+   * ⛔ **LA DOMANDA PRIMA DEL SALVATAGGIO, e nient'altro** (voce `pesata-strana-chiedi-conferma`).
+   *
+   * Risponde `null` se il numero scritto sta in piedi con le pesate che ci sono già, altrimenti la
+   * coppia che non torna e la frase da mostrarle. ⚠️ **Non scrive niente**: nessuna misura, nessuna
+   * segnalazione, nessun audit. L'app la chiama mentre lei ha ancora la tastiera davanti — che è il
+   * momento in cui un tasto premuto male costa un tocco invece di una telefonata.
+   *
+   * ⛔ **Dichiarata PRIMA di qualunque `@Get('measurements/...')` con un parametro**: `verifica`
+   * finirebbe dentro il segnaposto e questa rotta non esisterebbe più. Oggi non ce n'è nessuna, e
+   * la riga sta qui perché domani ce ne sarà una.
+   *
+   * ⛔ E **non è un cancello**: se l'app non chiama, o la chiamata fallisce, il salvataggio
+   * funziona esattamente come prima. Una cliente non deve restare fuori dalla sua app perché una
+   * rotta di cortesia è caduta.
+   */
+  @Get('measurements/verifica')
+  verificaMeasurement(@CurrentUser() user: AuthUser, @Query('weightKg') weightKg?: string) {
+    // ⚠️ Parametro assente o vuoto → `NaN` → 400. `Number('')` vale **0**, che è finito: senza
+    // questa riga una chiamata senza peso non dava errore, rispondeva una domanda su «0 kg».
+    const grezzo = String(weightKg ?? '').trim();
+    const n = grezzo ? Number(grezzo.replace(',', '.')) : Number.NaN;
+    return this.signals.verificaPesata(user.sub, n, 'cliente');
+  }
+
   @Post('measurements')
   createMeasurement(@CurrentUser() user: AuthUser, @Body() dto: CreateMeasurementDto) {
     return this.signals.upsertMeasurement(user.sub, dto);

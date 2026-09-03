@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **Quando digita un peso che non torna, adesso l'app glielo chiede.** Il guardrail
+  sulle pesate impossibili c'era dal 28/8, ⚠️ ma agiva tutto **dopo**: il numero si salvava, il
+  fabbisogno si sospendeva, e per riparare un tasto premuto male serviva una telefonata della coach.
+  Adesso la domanda si fa **mentre il numero si scrive** — «La pesata che abbiamo prima di questa è
+  del 26/08/2026: eri 73 kg. Hai scritto 113 kg: sono 40 kg in 8 giorni. È giusto?» — con **Sì, è
+  giusto** e **Correggo**.
+  ⛔ **Non è un cancello, in nessun ramo**: se risponde «sì» il numero si salva identico e il
+  guardrail fa il suo giro; se la rotta cade, tarda oltre cinque secondi o risponde storto, si salva
+  e basta. *Una cliente non deve restare fuori dalla sua app perché una rotta di cortesia è caduta.*
+  ✅ **Tutt'e tre le porte** da cui si scrive un peso: invio e correzione in «Il tuo obiettivo», il
+  **muro delle misure** («App in pausa») — che è quella a rischio più alto, ed era rimasta muta:
+  l'ha trovata la revisione — e il modale «Correggi misura» del backoffice, che accetta 25–400 kg ed
+  è quindi il punto in cui una pesata impossibile può *nascere*, dalle mani di chi la sta sistemando.
+  ⚠️ **La regola resta una sola**: le soglie stanno nei Parametri e il confronto è quello di
+  `peso-incoerente.ts`; ai frontend arriva la **frase già fatta**. ⛔ E non è il browser a dire che
+  la domanda è stata fatta — un `confermato: true` dal client farebbe scrivere al nutrizionista una
+  ragione falsa, come `{"bloccata": false}` col menu a mano.
+  ⛔ **Tre cose fermate dalla revisione**, tutt'e tre pronte a partire: `pesoIncoerente` è il salto
+  *peggiore dei novanta giorni*, quindi il riquadro «questa pesata è lontana dalle precedenti»
+  sarebbe uscito a ogni pesata normale per tre mesi — coprendo intanto l'allarme del calo rapido;
+  una richiesta **appesa** (non fallita: appesa) teneva le caselle spente per tutto il timeout di
+  sistema; e nel «Cambia misure» si poteva cambiare il numero fra il «sì» e il salvataggio, facendo
+  passare 113 con una conferma data su 73.
+  25 prove di mutazione, tutte prese.
+
 - `[Sviluppo]` ✅ **«Descrizioni diete» ha la sua chiave, la sua rotta e il registro in una andata
   sola.** Girava su `diets_catalog`, cioè il permesso di **un'altra pagina**: non si poteva dare a
   una nutrizionista i testi senza darle il catalogo. ⛔ E **non** passa da `PAGE_GRANTS`, che era la

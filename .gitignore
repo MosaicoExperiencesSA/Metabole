@@ -66,3 +66,10 @@ consegna*.tar.gz
 # (i file restano sul disco; smettono solo di essere committati). La cronologia vecchia resta,
 # quella non si tocca — ma da qui in avanti non cresce più.
 ota-out/
+
+# ⛔ Gli script di mutazione delle consegne (`mutazioni-<argomento>.py`): restano in locale.
+# Servono una volta sola — rompono una riga per volta e guardano se qualche prova diventa rossa —
+# e quello che vale davvero è il **test che ha preso la mutazione**, che invece è committato.
+# ⚠️ Committarli darebbe una cartella di script che nessuno rilancia e che invecchiano insieme al
+# codice, cioè un secondo elenco di prove che dice il falso.
+mutazioni-*.py

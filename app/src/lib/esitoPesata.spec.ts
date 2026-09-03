@@ -39,6 +39,25 @@ describe('esitoPesata', () => {
     expect(esitoPesata(TRAGUARDI, true)).toEqual({ tipo: 'segnalata' });
   });
 
+  /**
+   * ⛔ **Le pesate da verificare battono tutto il resto** (voce `pesata-strana-chiedi-conferma`).
+   * Sopra quelle soglie il calo rapido lato server viene **spento apposta**, quindi se arrivassero
+   * insieme il secondo sarebbe un residuo — e delle due frasi questa è quella vera: «il tuo calo è
+   * più rapido del previsto» detto a chi ha digitato 113 al posto di 73 è una frase su un corpo
+   * costruita su un numero sbagliato.
+   */
+  it('⛔ le pesate da verificare si dicono, e battono il calo rapido e i traguardi', () => {
+    expect(esitoPesata([], false, true)).toEqual({ tipo: 'da-verificare' });
+    expect(esitoPesata([], true, true)).toEqual({ tipo: 'da-verificare' });
+    expect(esitoPesata(TRAGUARDI, true, true)).toEqual({ tipo: 'da-verificare' });
+  });
+
+  /** ⚠️ Il terzo argomento è nuovo: chi non lo passa deve comportarsi esattamente come prima. */
+  it('⚠️ senza il terzo argomento niente cambia', () => {
+    expect(esitoPesata(TRAGUARDI, false)).toEqual(esitoPesata(TRAGUARDI, false, false));
+    expect(esitoPesata([], true)).toEqual({ tipo: 'segnalata' });
+  });
+
   it('le etichette vuote non diventano righe vuote', () => {
     expect(esitoPesata([{ type: 'x', label: '' }, { type: 'y', label: 'Metà strada!' }], false)).toEqual({
       tipo: 'traguardi',

@@ -13,6 +13,13 @@
  */
 
 export type EsitoPesata =
+  /**
+   * Le sue pesate non stanno in piedi fra loro: la segnalazione è aperta e il fabbisogno è sospeso.
+   * ⚠️ Ci si arriva **dopo** che le è stato chiesto «è giusto?» e lei ha risposto di sì — oppure
+   * senza domanda, se la rotta di verifica non ha risposto. In tutt'e due i casi da qui in poi
+   * qualcuno guarda quel numero, e lei deve saperlo prima che le arrivi un messaggio.
+   */
+  | { tipo: 'da-verificare' }
   /** La pesata ha fatto scattare il guardrail: è stata segnalata alla nutrizionista. */
   | { tipo: 'segnalata' }
   /** Traguardi appena raggiunti, con le parole del server. */
@@ -38,7 +45,16 @@ export interface Traguardo {
 export function esitoPesata(
   traguardi: readonly Traguardo[] | null | undefined,
   segnalata: boolean,
+  daVerificare = false,
 ): EsitoPesata | null {
+  /**
+   * ⚠️ **Le pesate da verificare battono il calo rapido**, e il verso non è arbitrario: sopra
+   * quelle soglie il calo rapido lato server viene **spento apposta** (`peso-incoerente.ts`), quindi
+   * se arrivassero tutt'e due la seconda sarebbe un residuo. E delle due questa è quella vera: «il
+   * tuo calo è più rapido del previsto» detto a chi ha digitato 113 al posto di 73 è una frase su un
+   * corpo costruita su un numero sbagliato.
+   */
+  if (daVerificare) return { tipo: 'da-verificare' };
   if (segnalata) return { tipo: 'segnalata' };
   const etichette = (traguardi ?? []).map((t) => (t?.label ?? '').trim()).filter(Boolean);
   return etichette.length ? { tipo: 'traguardi', etichette } : null;

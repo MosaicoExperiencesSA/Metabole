@@ -2841,23 +2841,45 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — prodotto',
     ordine: 4,
     nata: '2026-08-28T11:40',
+    fatta: true, // chiusa il 3/9
     titolo: 'Quando digita un peso che non torna, l\'app non le chiede niente',
     dettaglio:
-      'Aperta il 28/8 chiudendo il blocco sulle pesate incoerenti. ⚠️ **Il guardrail c\'è, ma agisce dopo**: '
-      + 'la pesata impossibile viene salvata, il fabbisogno si sospende, e la cosa arriva alla coach e al '
-      + 'nutrizionista. Funziona — solo che nel frattempo per qualche ora quella cliente mangia il livello '
-      + 'della sua dieta invece del suo fabbisogno, e qualcuno deve spendere una telefonata per un tasto '
-      + 'premuto male.\n\n'
-      + '⚠️ **Il posto dove costa meno è il momento in cui digita**: «l\'ultima volta pesavi 73,0 kg — hai '
-      + 'scritto 113. È giusto?», con **Sì** e **Correggi**. ⛔ Non un blocco: se dice sì il numero si salva '
-      + 'lo stesso e il guardrail fa il suo giro come adesso. Una cliente che ha davvero quel peso non deve '
-      + 'restare fuori dalla sua app perché noi non ci crediamo — *un cancello chiuso costa a una cliente '
-      + 'tutto il servizio*.\n\n'
-      + '⚠️ La regola è già scritta e provata (`backend/src/signals/peso-incoerente.ts`, soglie in Parametri): '
-      + 'serve una rotta di sola lettura che risponda «l\'ultima pesata è X del giorno Y» e il riquadro in '
-      + 'app. ⚠️ Vale **anche nel backoffice**, dove a digitare è lo staff: `PATCH /admin/clients/:id/'
-      + 'measurements/:id` risponde già `pesoIncoerente` (e quella rotta accetta 25–400 kg, più larga '
-      + 'del DTO della cliente), e nessuno lo legge ancora.',
+      '✅ **CHIUSA il 3/9.** Il guardrail sulle pesate impossibili c\'era dal 28/8, ⚠️ ma agiva tutto '
+      + '**dopo**: il numero si salvava, il fabbisogno si sospendeva, e per riparare un tasto premuto male '
+      + 'serviva una telefonata della coach. Adesso la domanda si fa **mentre il numero si scrive**, che è '
+      + 'il momento in cui lo stesso errore costa un tocco.\n\n'
+      + '✅ **La domanda**: «La pesata che abbiamo prima di questa è del 26/08/2026: eri 73 kg. Hai scritto '
+      + '113 kg: sono 40 kg in 8 giorni. È giusto?», con **Sì, è giusto** e **Correggo**. ⛔ **Non è un '
+      + 'cancello**, in nessun ramo: se dice sì il numero si salva identico e il guardrail fa il suo giro '
+      + 'come prima; se la rotta cade, tarda oltre cinque secondi o risponde storto, si salva e basta. *Una '
+      + 'cliente non deve restare fuori dalla sua app perché una rotta di cortesia è caduta.*\n\n'
+      + '✅ **Tutt\'e tre le porte da cui si scrive un peso**: l\'invio e la correzione in «Il tuo obiettivo», '
+      + 'e — ⚠️ la più a rischio, trovata in revisione — il **muro delle misure** («App in pausa», «Serve la '
+      + 'tua pesata»), cioè il punto in cui digita di fretta per far ripartire il menu. Più il modale '
+      + '«Correggi misura» del backoffice, dove la porta accetta 25–400 kg ed è quindi il punto in cui una '
+      + 'pesata impossibile può *nascere*, dalle mani di chi la sta sistemando.\n\n'
+      + '✅ **La regola resta una sola**: `backend/src/signals/pesata-da-confermare.ts` chiama '
+      + '`saltiImpossibili` di `peso-incoerente.ts` con le soglie dei Parametri, e ai frontend arriva la '
+      + '**frase già fatta** — nessuna soglia nel browser, altrimenti la schermata direbbe «va bene» un '
+      + 'istante prima che il guardrail apra la segnalazione. ⛔ E **non è il browser a dire che la domanda '
+      + 'è stata fatta**: niente `confermato: true` al salvataggio, perché un browser lo può affermare '
+      + 'sempre e la segnalazione direbbe al nutrizionista una ragione falsa.\n\n'
+      + '⛔ **Tre cose trovate dalla revisione, e vanno scritte perché erano tutt\'e tre pronte a partire.** '
+      + '1) `pesoIncoerente` è il salto **peggiore dei novanta giorni**, non quello appena scritto: il '
+      + 'riquadro «questa pesata è lontana dalle precedenti» sarebbe uscito a **ogni pesata normale per tre '
+      + 'mesi** dopo una coppia rotta — anche già guardata e chiusa — e per tutto quel tempo avrebbe coperto '
+      + 'l\'allarme del calo rapido. Ora c\'è `pesateDaVerificare`, che dice se il salto tocca la riga '
+      + 'appena scritta. 2) `fetch` non ha un timeout suo: una richiesta **appesa** (non fallita: appesa, il '
+      + 'modo più comune in cui una rete mobile smette di funzionare) teneva `busy`, e `busy` spegne anche '
+      + 'le caselle — campi grigi per il timeout di sistema, senza poter salvare né correggere. Ora c\'è un '
+      + 'tetto di cinque secondi. 3) Nel «Cambia misure» si poteva scrivere 73, aprire il «Sei sicuro?», '
+      + 'cambiare in 113 e premere «Sì, sostituisci»: il 113 passava con una conferma data su un altro '
+      + 'numero. Adesso ricontrolla il punto che scrive.\n\n'
+      + '⚠️ E la frase alla cliente **non dice «l\'ultima volta che ti sei pesata»**: esce anche mentre '
+      + 'corregge la pesata di oggi, e lì l\'ultima volta che si è pesata è stamattina. ⚠️ Sotto i 35 kg e '
+      + 'sopra i 250 non si chiede niente, perché il DTO dirà comunque di no: chiedere conferma e poi '
+      + 'smentirla è il modo peggiore di contraddirsi.\n\n'
+      + '25 prove di mutazione, tutte prese.',
   },
   {
     chiave: 'target-sospeso-chi-non-lo-sa',

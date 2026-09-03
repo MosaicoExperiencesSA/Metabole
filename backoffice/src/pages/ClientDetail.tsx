@@ -17,6 +17,7 @@ import { useTaxonomy } from '../lib/taxonomy';
 import { TabellaScorrevole } from '../components/tabella-scorrevole';
 import { agganciaInFondo, portaInFondo } from '../lib/scorri-in-fondo';
 import { TestoConGrassetto } from '../components/TestoConGrassetto';
+import { giornoDellaRiga, leggiFrase, serveChiedere, type DomandaInSospeso } from '../lib/pesataDaConfermare';
 
 interface Detail {
   user: {
@@ -3332,6 +3333,13 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
   const [thighs, setThighs] = useState(toS(measure.thighsCm));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * ⛔ **LA DOMANDA PRIMA DELLA CORREZIONE** (voce `pesata-strana-chiedi-conferma`). Questa rotta
+   * accetta **25–400 kg**, più largo del DTO della cliente: è il punto in cui una pesata impossibile
+   * può *nascere*, dalle mani di chi la sta sistemando. ⛔ Non è un blocco — «Confermo» salva il
+   * numero identico a prima e il guardrail fa il suo giro.
+   */
+  const [daConfermare, setDaConfermare] = useState<DomandaInSospeso | null>(null);
 
   /** '' → null (svuota il dato) · numero valido → numero · altro → undefined (errore). */
   const num = (v: string): number | null | undefined => {
@@ -3341,17 +3349,40 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
     return Number.isFinite(n) ? n : undefined;
   };
 
-  async function save() {
-    setErr(null);
+  /** Quello che si sta per mandare, o `null` se un campo non è valido (l'errore è già mostrato). */
+  function corpo(): Record<string, unknown> | null {
     const w = num(weight);
-    if (w == null) { setErr('Il peso è obbligatorio e deve essere un numero (kg).'); return; }
+    if (w == null) { setErr('Il peso è obbligatorio e deve essere un numero (kg).'); return null; }
     const body: Record<string, unknown> = { weightKg: w };
     for (const [key, val, label] of [['waistCm', waist, 'Vita'], ['hipsCm', hips, 'Fianchi'], ['thighsCm', thighs, 'Cosce']] as const) {
       const parsed = num(val);
-      if (parsed === undefined) { setErr(`${label}: valore non valido.`); return; }
+      if (parsed === undefined) { setErr(`${label}: valore non valido.`); return null; }
       body[key] = parsed;
     }
+    return body;
+  }
+
+  /**
+   * «Questo numero torna con le righe che gli stanno attorno?» — sola lettura, prima di scrivere.
+   *
+   * ⛔ Un errore qui vale «non chiedere», mai «non salvare»: chi apre questo modale di solito sta
+   * riparando qualcosa, e lasciarlo fuori perché è caduta una rotta di cortesia trasforma un aiuto
+   * in un ostacolo.
+   */
+  async function chiediSeTorna(pesoKg: number): Promise<string | null> {
+    const giorno = giornoDellaRiga(measure.date);
+    const q = new URLSearchParams({ weightKg: String(pesoKg), ...(giorno ? { date: giorno } : {}) });
+    try {
+      return leggiFrase(await api<unknown>(`/admin/clients/${clientId}/measurements/verifica?${q.toString()}`));
+    } catch {
+      return null;
+    }
+  }
+
+  /** La scrittura vera, senza più domande: la chiamano «Salva correzione» e «Confermo il valore». */
+  async function scrivi(body: Record<string, unknown>) {
     setBusy(true);
+    setDaConfermare(null);
     try {
       await api(`/admin/clients/${clientId}/measurements/${measure.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       onSaved();
@@ -3361,10 +3392,24 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
     }
   }
 
+  async function save() {
+    setErr(null);
+    const body = corpo();
+    if (!body) return;
+    const w = body.weightKg as number;
+    if (!serveChiedere(daConfermare, w)) { await scrivi(body); return; }
+    setBusy(true);
+    const frase = await chiediSeTorna(w);
+    setBusy(false);
+    if (frase) { setDaConfermare({ frase, pesoScritto: w }); return; }
+    await scrivi(body);
+  }
+
   const F = (label: string, v: string, set: (x: string) => void, unit: string) => (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
       <span>{label} ({unit})</span>
-      <input className="input" inputMode="decimal" value={v} onChange={(e) => set(e.target.value)} placeholder="—" />
+      {/* ⚠️ Cambiato il numero, la domanda di prima non parla più di questo peso: si azzera. */}
+      <input className="input" inputMode="decimal" value={v} onChange={(e) => { set(e.target.value); setDaConfermare(null); }} placeholder="—" />
     </label>
   );
 
@@ -3385,6 +3430,21 @@ function FixMeasureModal({ clientId, measure, onClose, onSaved }: {
           {F('Fianchi', hips, setHips, 'cm')}
           {F('Cosce', thighs, setThighs, 'cm')}
         </div>
+        {/*
+          ⛔ **LA DOMANDA, PRIMA CHE IL NUMERO PARTA.** Le parole sono quelle dello staff — qui non è
+          il suo corpo, ed è nominata la riga che si sta toccando — ma la regola è la stessa dell'app
+          e viene dallo stesso posto: il server. ⛔ E come nell'app **non è un blocco**: «Confermo il
+          valore» scrive il numero identico a prima.
+        */}
+        {daConfermare && (
+          <Banner kind="warn">
+            {daConfermare.frase}
+            <div className="row" style={{ gap: 8, marginTop: 8 }}>
+              <button className="btn sm" onClick={save} disabled={busy}>{busy ? 'Salvo…' : 'Confermo il valore'}</button>
+              <button className="btn ghost sm" onClick={() => setDaConfermare(null)} disabled={busy}>Correggo</button>
+            </div>
+          </Banner>
+        )}
         <div className="row" style={{ justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
           <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
           <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva correzione'}</button>

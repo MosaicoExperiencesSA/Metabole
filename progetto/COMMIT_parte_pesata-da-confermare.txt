@@ -1,0 +1,73 @@
+Quando digita un peso che non torna, adesso l'app glielo chiede
+
+Chiude la voce `pesata-strana-chiedi-conferma`. Il guardrail sulle pesate impossibili c'era dal
+28/8, ma agiva tutto DOPO: il numero si salvava, il fabbisogno si sospendeva, si apriva una
+segnalazione clinica, e per riparare un tasto premuto male serviva una telefonata della coach. La
+domanda adesso si fa mentre il numero si scrive, che è il momento in cui lo stesso errore costa un
+tocco invece di una scrivania.
+
+«La pesata che abbiamo prima di questa è del 26/08/2026: eri 73 kg. Hai scritto 113 kg: sono 40 kg
+in 8 giorni. È giusto?» — con «Sì, è giusto» e «Correggo».
+
+⛔ NON È UN CANCELLO, in nessun ramo. Se risponde «sì» il numero si salva identico a prima e il
+guardrail fa il suo giro come sempre. Se la rotta di verifica cade, tarda oltre cinque secondi o
+risponde una forma che non riconosciamo, si salva e basta. Una cliente che pesa davvero quel numero
+non deve restare fuori dalla sua app perché noi non ci crediamo: un cancello chiuso le costa tutto
+il servizio, una domanda a cui si risponde «sì» non costa niente a nessuno.
+
+TUTT'E TRE LE PORTE DA CUI SI SCRIVE UN PESO
+- l'invio e la correzione in «Il tuo obiettivo» (app);
+- ⚠️ il muro delle misure — «App in pausa», «Serve la tua pesata» — che è la porta a rischio più
+  alto, perché è lì che digita di fretta per far ripartire il menu, ed era rimasta muta nella prima
+  stesura: l'ha trovata la revisione;
+- il modale «Correggi misura» del backoffice, dove la porta accetta 25–400 kg (più larga del DTO
+  della cliente) ed è quindi il punto in cui una pesata impossibile può NASCERE, dalle mani di chi
+  la sta sistemando. Lì la domanda dice anche il ritmo e il giorno della riga che si sta toccando.
+
+LA REGOLA RESTA UNA SOLA
+`backend/src/signals/pesata-da-confermare.ts` costruisce l'elenco delle pesate col numero appena
+scritto dentro e chiama `saltiImpossibili` di `peso-incoerente.ts`, con le soglie lette dai
+Parametri a ogni chiamata. Ai due frontend arriva la FRASE GIÀ FATTA: nessuna soglia nel browser,
+altrimenti la schermata direbbe «va bene» un istante prima che il guardrail apra la segnalazione.
+⛔ E non è il browser a dire che la domanda è stata fatta: niente `confermato: true` nel corpo del
+salvataggio, perché un browser lo può affermare sempre — e la segnalazione direbbe al nutrizionista
+«gliel'abbiamo chiesto e ha confermato» anche a chi non è stato chiesto niente. È lo stesso errore
+già pagato col menu a mano, dove `{"bloccata": false}` faceva passare un allergene.
+
+TRE COSE TROVATE DALLA REVISIONE, ED ERANO TUTT'E TRE PRONTE A PARTIRE
+1) `pesoIncoerente` è il salto PEGGIORE DEI NOVANTA GIORNI, non quello appena scritto. Il riquadro
+   post-salvataggio ci si appoggiava: sarebbe uscito a OGNI pesata normale per tre mesi dopo una
+   coppia rotta — anche già guardata e chiusa dal nutrizionista — dicendo «questa pesata è lontana
+   dalle precedenti» su una pesata che non lo è. E per tutto quel tempo avrebbe coperto l'allarme
+   del calo rapido, che in app gli sta sotto. Adesso il server risponde `pesateDaVerificare`, che
+   dice se il salto tocca la riga appena scritta (`toccaIlGiorno`).
+2) `fetch` non ha un timeout suo. Una richiesta APPESA — non fallita: appesa, che è il modo più
+   comune in cui una rete mobile smette di funzionare — teneva `busy`, e `busy` spegne anche le
+   caselle: campi grigi e «Salvo…» per tutto il timeout di sistema, senza poter salvare né
+   correggere il numero. Cinque secondi di tetto, poi si tira dritto.
+3) Nel «Cambia misure» si poteva scrivere 73 (nessuna domanda), aprire il «Sei sicuro?», cambiare
+   il campo in 113 e premere «Sì, sostituisci»: il 113 si salvava con una conferma data su un altro
+   numero. Adesso ricontrolla il punto che scrive, non solo quello che chiede.
+
+LE PAROLE
+La domanda CHIEDE, non accusa: questo codice sa che due numeri insieme non stanno in piedi, non
+quale dei due è quello buono, e a una cliente a cui è successo qualcosa di vero non si può
+rispondere «hai sbagliato a scrivere». E non nomina la nutrizionista: lì non è ancora successo
+niente, e minacciare una segnalazione per ottenere una correzione fa rispondere «no» proprio a chi
+il numero l'aveva giusto. ⚠️ Non dice nemmeno «l'ultima volta che ti sei pesata»: esce anche mentre
+lei corregge la pesata di oggi, e lì l'ultima volta che si è pesata è stamattina.
+⚠️ Sotto i 35 kg e sopra i 250 non si chiede niente: il DTO dirà comunque di no, e chiedere una
+conferma per poi smentirla è il modo peggiore di contraddirsi.
+
+PROVE
+- `pesata-da-confermare.spec.ts` (27), fra cui i cinque controesempi clinici di `peso-incoerente.ts`
+  — la signora di 130 kg alla prima settimana, la post-parto, il diuretico su edema, il rientro
+  dalla vacanza, i dieci chili in due mesi: a nessuna di loro la sua app chiede niente.
+- `signals.service.spec.ts`: sola lettura verificata (nessuna segnalazione, nessun audit, nessuna
+  misura), soglie dai Parametri, finestra misurata attorno al giorno scritto, `pesateDaVerificare`.
+- `verifica-pesata-dal-backoffice.spec.ts`: perimetro prima della lettura, e la guardia sulla rotta.
+- app e backoffice: `entroIlTempo`, `serveChiedere`, `leggiFrase`, `giornoDellaRiga`.
+- 25 prove di mutazione, tutte prese.
+
+7070 prove verdi su 421 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su app e backoffice; 215 vitest app, 265 backoffice.

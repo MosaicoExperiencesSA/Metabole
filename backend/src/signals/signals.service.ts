@@ -24,6 +24,13 @@ import {
   saltoPeggiore,
   spiegaSalto,
 } from './peso-incoerente';
+import {
+  domandaPerLaCliente,
+  domandaPerLoStaff,
+  PesataDaConfermare,
+  pesataDaConfermare,
+  toccaIlGiorno,
+} from './pesata-da-confermare';
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { eUnitaAcqua } from '../common/unita-acqua';
@@ -163,7 +170,24 @@ export class SignalsService {
      * `ClientsService.updateMeasurement`, che chiama `controllaPesoIncoerente` per conto suo. La
      * prima stesura di questo commento diceva il contrario, ed era falsa.
      */
-    return { measurement, newMilestones, rapidLossAlert: alert, pesoIncoerente };
+    return {
+      measurement,
+      newMilestones,
+      rapidLossAlert: alert,
+      pesoIncoerente,
+      /**
+       * ⛔ **«Riguarda la pesata che ha appena scritto?»** (aggiunto in revisione, ed era un difetto
+       * grosso). `pesoIncoerente` è il salto **peggiore dei novanta giorni**: una volta che una
+       * coppia rotta esiste, quel campo non torna vuoto per tre mesi — anche dopo che il
+       * nutrizionista l'ha guardata e chiusa. Una schermata che ci si appoggiasse direbbe «questa
+       * pesata è lontana dalle precedenti» **a ogni pesata normale fino a dicembre**, cioè
+       * esattamente l'avviso che compare sempre e che nessuno legge più.
+       *
+       * ⚠️ Il calcolo sta **qui e non nel browser**: le due date sono `Date` veri, il giorno è
+       * quello della colonna, e la stessa risposta la legge anche il backoffice.
+       */
+      pesateDaVerificare: !!pesoIncoerente && toccaIlGiorno(pesoIncoerente, measurement.date as Date),
+    };
   }
 
   /**
@@ -248,7 +272,13 @@ export class SignalsService {
     // ⚠️ Esce anche di qui: è la rotta con cui la cliente corregge la pesata di oggi, cioè il
     // momento in cui un refuso si ripara da solo — e l'asimmetria con l'altra porta non avrebbe
     // nessuna ragione.
-    return { measurement, pesoIncoerente };
+    return {
+      measurement,
+      pesoIncoerente,
+      // ⚠️ Stessa ragione dell'altra porta: qui il salto vecchio è ancora più probabile, perché è
+      // proprio il momento in cui si sta riparando qualcosa.
+      pesateDaVerificare: !!pesoIncoerente && toccaIlGiorno(pesoIncoerente, measurement.date as Date),
+    };
   }
 
   /**
@@ -389,6 +419,89 @@ export class SignalsService {
       metadata: { ...salto, dal: salto.dal.toISOString(), al: salto.al.toISOString(), sogliaKg, sogliaRitmo, clientId },
     });
     return salto;
+  }
+
+  /**
+   * ⛔ **LA DOMANDA PRIMA DEL SALVATAGGIO — sola lettura, e deve restarlo** (voce
+   * `pesata-strana-chiedi-conferma`).
+   *
+   * Risponde a «il numero che sto scrivendo torna con le pesate che ci sono già?». La chiamano le
+   * due schermate dove un peso si digita: l'app della cliente e il modale «Correggi misura» del
+   * backoffice. ⚠️ **Non scrive niente**: nessuna segnalazione, nessun audit, nessun parametro
+   * toccato. Chi la chiama può solo mostrare una domanda — se la persona risponde «sì, è giusto» il
+   * salvataggio prosegue e `controllaPesoIncoerente` fa il suo giro identico a oggi.
+   *
+   * ⛔ **Non è un permesso**: un `null` di qui non autorizza niente e un valore non vieta niente.
+   * Se un domani qualcuno volesse farne un cancello, il posto è il servizio che scrive — non
+   * questo, che per costruzione non sa nemmeno se il salvataggio poi avverrà.
+   *
+   * ⚠️ **Le stesse soglie e la stessa finestra del guardrail**, lette dai Parametri a ogni chiamata
+   * (`soglieSalto`, `FINESTRA_GIORNI`): una domanda che usasse numeri suoi direbbe «va bene» un
+   * istante prima che la segnalazione si apra, ed è il modo più veloce per far smettere alla gente
+   * di leggere quello che scriviamo.
+   *
+   * @param chi decide le **parole**, non la regola: `cliente` parla del suo corpo, `staff` della
+   *   riga di un'altra persona.
+   * @param dataIso il giorno a cui il numero andrebbe (`YYYY-MM-DD`). Serve al backoffice, che
+   *   corregge anche righe vecchie; per la cliente è sempre oggi.
+   */
+  async verificaPesata(
+    clientId: string,
+    weightKg: number,
+    chi: 'cliente' | 'staff',
+    dataIso?: string,
+  ): Promise<(PesataDaConfermare & { frase: string }) | null> {
+    if (!Number.isFinite(weightKg)) throw new BadRequestException('Peso non valido.');
+    /**
+     * ⛔ **Fuori dai limiti che la porta di scrittura accetta, non si chiede niente** (aggiunto in
+     * revisione). Senza questa riga, chi scrive 30 al posto di 80 riceveva prima «…sono 50 kg in 3
+     * giorni. È giusto?», rispondeva «sì, è giusto», e **subito dopo** si prendeva «Il peso sembra
+     * troppo basso» dal DTO. ⚠️ Due schermate che si contraddicono, nell'ordine peggiore: la
+     * seconda smentisce una conferma che le abbiamo appena chiesto.
+     *
+     * ⚠️ I due limiti sono diversi perché lo sono le due porte: il DTO della cliente si ferma a
+     * 35–250 kg, la correzione dello staff arriva a 25–400. Chi chiede deve tacere esattamente dove
+     * chi scrive dirà di no.
+     */
+    const [minimo, massimo] = chi === 'staff' ? [25, 400] : [35, 250];
+    if (weightKg < minimo || weightKg > massimo) return null;
+    const giorno = toDateOnly(dataIso);
+    const [sogliaKg, sogliaRitmo] = await this.soglieSalto();
+    const larghezza = FINESTRA_GIORNI * 86_400_000;
+    /**
+     * ⛔ **Le due righe confinanti, chieste per nome — non le ultime trenta.**
+     *
+     * `controllaPesoIncoerente` legge la storia con `findMany(desc).take(FINESTRA_MASSIMA)` perché
+     * scandisce **tutte** le coppie. Qui la stessa lettura sarebbe un difetto silenzioso: le uniche
+     * righe che contano sono le due che confinano col giorno scritto, e «le trenta più recenti»
+     * quando si corregge una pesata di due mesi fa **non le contiene** — la domanda sarebbe stata
+     * muta proprio sulle correzioni vecchie, cioè quelle fatte a mano da chi sta riparando qualcosa.
+     *
+     * ⚠️ E la finestra dei novanta giorni si misura **attorno al giorno scritto**, non da oggi, per
+     * la stessa ragione: contata da oggi, la riga precedente a una pesata di due mesi fa ci sarebbe
+     * caduta fuori.
+     *
+     * ⚠️ Si guarda anche **dopo**: dal backoffice si corregge una riga in mezzo alla storia, e una
+     * correzione che sistema il rapporto col giorno prima e ne rompe uno identico col giorno dopo è
+     * esattamente il gesto che questa domanda deve fermare.
+     */
+    const [prima, dopo] = (await Promise.all([
+      this.prisma.measurement.findFirst({
+        where: { clientId, date: { gte: new Date(giorno.getTime() - larghezza), lt: giorno } },
+        orderBy: { date: 'desc' },
+        select: { date: true, weightKg: true },
+      }),
+      this.prisma.measurement.findFirst({
+        where: { clientId, date: { gt: giorno, lte: new Date(giorno.getTime() + larghezza) } },
+        orderBy: { date: 'asc' },
+        select: { date: true, weightKg: true },
+      }),
+    ])) as ({ date: Date; weightKg: number } | null)[];
+
+    const pesate = [prima, dopo].filter((x): x is { date: Date; weightKg: number } => !!x);
+    const p = pesataDaConfermare(pesate, weightKg, giorno, sogliaKg, sogliaRitmo);
+    if (!p) return null;
+    return { ...p, frase: chi === 'staff' ? domandaPerLoStaff(p) : domandaPerLaCliente(p) };
   }
 
   /**

@@ -7,6 +7,7 @@ import VideoMisure from '../components/VideoMisure';
 import { parseMisura } from '../lib/misure';
 import { esitoPesata, type EsitoPesata, type Traguardo } from '../lib/esitoPesata';
 import { oggiIso } from '../lib/giorno';
+import { entroIlTempo, leggiFrase, serveChiedere, type DomandaInSospeso } from '../lib/pesataDaConfermare';
 
 /** Obiettivo — misure reali, andamento (grafici) e progressi verso il target. */
 
@@ -126,6 +127,18 @@ export default function Obiettivo() {
   const [busy, setBusy] = useState(false);
   const [correcting, setCorrecting] = useState(false); // modalità "cambia misure" attiva
   const [confirmCorrect, setConfirmCorrect] = useState(false); // sto mostrando "Sei sicuro?"
+  /**
+   * ⛔ **LA DOMANDA PRIMA DEL SALVATAGGIO** (voce `pesata-strana-chiedi-conferma`). Il server sa già
+   * riconoscere due pesate che non possono essere della stessa persona, ⚠️ ma finora **agiva tutto
+   * dopo**: il numero si salvava, il fabbisogno si sospendeva, e per riparare un tasto premuto male
+   * serviva una telefonata. Qui c'è la frase che il server risponde quando il numero non torna, e
+   * `pesoScritto` è il valore per cui è stata chiesta.
+   *
+   * ⛔ **Non è un cancello**: se lei risponde «sì, è giusto» il numero si salva identico a prima e il
+   * guardrail fa il suo giro. Una cliente che pesa davvero quel numero non deve restare fuori dalla
+   * sua app perché noi non ci crediamo.
+   */
+  const [daConfermare, setDaConfermare] = useState<DomandaInSospeso | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
   const [chartIdx, setChartIdx] = useState(0);
@@ -190,20 +203,20 @@ export default function Obiettivo() {
     }
     setCorrecting(false);
     setConfirmCorrect(false);
+    setDaConfermare(null);
     setLoading(false);
   }
   useEffect(() => {
     load();
   }, []);
 
-  async function submit() {
-    setMsg(null);
+  /** Quello che si sta per mandare, o `null` se manca il peso (unico obbligatorio). */
+  function corpoMisure(): Record<string, number> | null {
     const w = parseMisura(weight);
     if (w === undefined) {
       setMsg('Inserisci almeno il peso.');
-      return;
+      return null;
     }
-    setBusy(true);
     const body: Record<string, number> = { weightKg: w };
     const wa = parseMisura(waist);
     const hi = parseMisura(hips);
@@ -211,14 +224,44 @@ export default function Obiettivo() {
     if (wa !== undefined) body.waistCm = wa;
     if (hi !== undefined) body.hipsCm = hi;
     if (co !== undefined) body.thighsCm = co;
+    return body;
+  }
+
+  /**
+   * «Questo numero torna con le pesate che ci sono già?» — la domanda, prima di salvare.
+   *
+   * ⛔ **Se qualcosa va storto si risponde "nessuna domanda" e si salva**: rete che cade, rotta che
+   * non c'è ancora sul server, risposta storta. Questa è una cortesia, non un controllo di accesso —
+   * *una cliente non deve restare fuori dalla sua app perché una rotta di cortesia è caduta.*
+   */
+  async function chiediSeTorna(pesoKg: number): Promise<string | null> {
     try {
-      const r = await api<{ newMilestones?: Traguardo[]; rapidLossAlert?: boolean }>(
+      /**
+       * ⛔ **Con un tetto al tempo di attesa.** `fetch` non ha un timeout suo: senza `entroIlTempo`
+       * una richiesta *appesa* — non fallita, appesa: il modo più comune in cui una rete mobile
+       * smette di funzionare — teneva `busy` acceso, e `busy` spegne anche le caselle. La cliente
+       * restava con i campi grigi, senza poter salvare né correggere il numero.
+       */
+      return await entroIlTempo(
+        api<unknown>(`/me/measurements/verifica?weightKg=${encodeURIComponent(String(pesoKg))}`).then(leggiFrase),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Il salvataggio vero, senza più domande: lo chiamano sia «Invia» sia «Sì, è giusto». */
+  async function salva(body: Record<string, number>) {
+    setBusy(true);
+    setDaConfermare(null);
+    try {
+      const r = await api<{ newMilestones?: Traguardo[]; rapidLossAlert?: boolean; pesateDaVerificare?: boolean }>(
         '/me/measurements',
         { method: 'POST', body: JSON.stringify(body) },
       );
       await load();
       setMsg('Misure salvate!');
-      setEsito(esitoPesata(r?.newMilestones, !!r?.rapidLossAlert));
+      setEsito(esitoPesata(r?.newMilestones, !!r?.rapidLossAlert, !!r?.pesateDaVerificare));
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Salvataggio non riuscito.');
     } finally {
@@ -226,26 +269,91 @@ export default function Obiettivo() {
     }
   }
 
-  /** Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita". */
-  async function correct() {
+  async function submit() {
     setMsg(null);
-    const w = parseMisura(weight);
-    if (w === undefined) {
-      setMsg('Inserisci almeno il peso.');
+    const body = corpoMisure();
+    if (!body) return;
+    // Già chiesto per QUESTO numero e già risposto: si salva. Se cambia il numero, si richiede.
+    if (!serveChiedere(daConfermare, body.weightKg)) {
+      await salva(body);
       return;
     }
     setBusy(true);
-    const body: Record<string, number> = { weightKg: w };
-    const wa = parseMisura(waist);
-    const hi = parseMisura(hips);
-    const co = parseMisura(thighs);
-    if (wa !== undefined) body.waistCm = wa;
-    if (hi !== undefined) body.hipsCm = hi;
-    if (co !== undefined) body.thighsCm = co;
+    const frase = await chiediSeTorna(body.weightKg);
+    setBusy(false);
+    if (frase) {
+      setDaConfermare({ frase, pesoScritto: body.weightKg });
+      return;
+    }
+    await salva(body);
+  }
+
+  /**
+   * «Salva correzione»: la stessa domanda, un passo prima del «Sei sicuro?».
+   *
+   * ⚠️ Correggere è **il gesto che ripara**, e quasi sempre il numero nuovo è quello buono — ma è
+   * anche il gesto con cui un numero storto può *nascere*, e chiederlo qui costa un tocco. ⛔ La
+   * riga di oggi che si sta sostituendo non entra nel confronto (ci pensa il server): altrimenti
+   * questa schermata difenderebbe il numero sbagliato proprio mentre lei lo ripara.
+   */
+  async function chiediPoiConferma() {
+    setMsg(null);
+    const body = corpoMisure();
+    if (!body) return;
+    if (serveChiedere(daConfermare, body.weightKg)) {
+      setBusy(true);
+      const frase = await chiediSeTorna(body.weightKg);
+      setBusy(false);
+      if (frase) {
+        setDaConfermare({ frase, pesoScritto: body.weightKg });
+        return;
+      }
+    }
+    // ⛔ La conferma NON si azzera: `correct()` la ricontrolla, e senza troverebbe il vuoto e
+    // richiederebbe la stessa cosa — un giro senza uscita.
+    setConfirmCorrect(true);
+  }
+
+  /** Correzione della misura di OGGI (una sola volta): la precedente resta "sostituita". */
+  async function correct() {
+    setMsg(null);
+    const body = corpoMisure();
+    if (!body) return;
+    /**
+     * ⛔ **LA DOMANDA SI RICONTROLLA QUI, che è il punto che scrive** (trovato in revisione).
+     *
+     * `chiediPoiConferma` chiede un passo prima, e apre il «Sei sicuro?» — ⚠️ ma in quello stato le
+     * caselle sono ancora **attive**: si poteva scrivere 73 (nessuna domanda), aprire il «Sei
+     * sicuro?», cambiare il campo in 113 e premere «Sì, sostituisci». Il 113 si salvava **senza che
+     * nessuno le avesse chiesto niente** — cioè usando una conferma data su un altro numero, che è
+     * esattamente l'invariante per cui `serveChiedere` esiste.
+     */
+    if (serveChiedere(daConfermare, body.weightKg)) {
+      setBusy(true);
+      const frase = await chiediSeTorna(body.weightKg);
+      setBusy(false);
+      if (frase) {
+        setConfirmCorrect(false);
+        setDaConfermare({ frase, pesoScritto: body.weightKg });
+        return;
+      }
+    }
+    setBusy(true);
+    setDaConfermare(null);
     try {
-      await api('/me/measurements/correct', { method: 'POST', body: JSON.stringify(body) });
+      const r = await api<{ pesateDaVerificare?: boolean }>(
+        '/me/measurements/correct',
+        { method: 'POST', body: JSON.stringify(body) },
+      );
       await load();
       setMsg('Misure corrette. La misura precedente è stata sostituita.');
+      /**
+       * ⚠️ Anche qui: `correctTodayMeasurement` risponde `pesoIncoerente` da sempre e questa
+       * schermata lo buttava via. È la rotta con cui un refuso si ripara da solo — ma se anche il
+       * numero corretto non torna con le altre pesate, la segnalazione nasce lo stesso, e allora
+       * lei deve saperlo qui e non dal messaggio della nutrizionista.
+       */
+      setEsito(esitoPesata([], false, !!r?.pesateDaVerificare));
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : 'Correzione non riuscita.');
     } finally {
@@ -355,7 +463,7 @@ export default function Obiettivo() {
           <VideoMisure forma="punto" origine="obiettivo" />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => setWeight(e.target.value)} /></div>
+          <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Peso (kg)</div><input className="input" inputMode="decimal" value={weight} disabled={!inputsEnabled} onChange={(e) => { setWeight(e.target.value); setDaConfermare(null); }} /></div>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Vita (cm)</div><input className="input" inputMode="decimal" value={waist} disabled={!inputsEnabled} onChange={(e) => setWaist(e.target.value)} /></div>
           <div><div className="muted" style={{ fontSize: 11, marginBottom: 3 }}>Fianchi (cm)</div><input className="input" inputMode="decimal" value={hips} disabled={!inputsEnabled} onChange={(e) => setHips(e.target.value)} /></div>
           {/* ⚠️ Non basta MOSTRARLE le cosce: se solo lo staff può scriverle, resta un dato su di
@@ -376,12 +484,62 @@ export default function Obiettivo() {
                 <i className="ti ti-pencil" /> Cambia misure
               </button>
             ) : (
-              <button className="btn" style={{ padding: 11 }} onClick={() => setConfirmCorrect(true)} disabled={busy}>
+              <button className="btn" style={{ padding: 11 }} onClick={chiediPoiConferma} disabled={busy}>
                 <i className="ti ti-send" /> {busy ? 'Salvo…' : 'Salva correzione'}
               </button>
             )}
           </div>
         </div>
+
+        {/*
+          ⛔ **LA DOMANDA, PRIMA CHE IL NUMERO PARTA** (voce `pesata-strana-chiedi-conferma`).
+
+          Il guardrail sulle pesate impossibili esisteva già, ⚠️ ma agiva **dopo**: il numero si
+          salvava, il fabbisogno si sospendeva, e per riparare un tasto premuto male serviva una
+          telefonata della coach. Il posto dove lo stesso errore costa niente è questo, perché lei
+          è ancora davanti alla tastiera.
+
+          ⛔ **Non è un blocco.** «Sì, è giusto» salva il numero identico a prima, e il guardrail fa
+          il suo giro come sempre: *una cliente che pesa davvero quel numero non deve restare fuori
+          dalla sua app perché noi non ci crediamo*. Per la stessa ragione la frase **chiede** e non
+          accusa, e non nomina la nutrizionista: qui non è ancora successo niente, e minacciare una
+          segnalazione per ottenere una correzione fa rispondere «no» proprio a chi il numero
+          l'aveva giusto.
+
+          ⚠️ La frase arriva dal server: le soglie stanno nei Parametri e la regola è la stessa che
+          un istante dopo deciderà se aprire la segnalazione. Riscriverla qui vorrebbe dire una
+          schermata che dice «va bene» e un guardrail che dice il contrario.
+        */}
+        {daConfermare && !daConfermare.confermato && (
+          <div className="card" style={{ marginTop: 10, background: '#FBF0D6', border: '1px solid #EAD8A6', boxShadow: 'none' }}>
+            <div style={{ fontSize: 13, color: '#7A5B12', marginBottom: 8, lineHeight: 1.5 }}>
+              <i className="ti ti-help-circle" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              {daConfermare.frase}
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              {/*
+                ⚠️ «Sì, è giusto» porta avanti **il gesto che stava facendo**: dal primo invio salva,
+                da «Cambia misure» apre il «Sei sicuro?» della sostituzione — che è una domanda
+                diversa (si corregge una volta sola) e non va saltata.
+              */}
+              <button
+                className="btn"
+                style={{ flex: 1, padding: 10 }}
+                onClick={
+                  correcting
+                    ? () => { setDaConfermare({ ...daConfermare, confermato: true }); setConfirmCorrect(true); }
+                    : submit
+                }
+                disabled={busy}
+              >
+                {busy ? 'Salvo…' : 'Sì, è giusto'}
+              </button>
+              <button className="btn ghost" style={{ flex: 1, padding: 10 }} onClick={() => setDaConfermare(null)} disabled={busy}>
+                Correggo
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Conferma sostituzione ("Sei sicuro?") */}
         {confirmCorrect && (
@@ -421,6 +579,26 @@ export default function Obiettivo() {
                 {e}
               </div>
             ))}
+          </div>
+        )}
+        {esito?.tipo === 'da-verificare' && (
+          <div
+            className="card"
+            style={{ marginTop: 10, background: '#FDECC8', boxShadow: 'none', padding: 11 }}
+          >
+            {/*
+              ⚠️ Adesso invece **è successo qualcosa**: la segnalazione è aperta e per qualche giorno
+              i suoi menu useranno il livello della sua dieta invece del suo fabbisogno. Tacere qui
+              sarebbe peggio che dirlo — poi la nutrizionista le scrive e lei non sa perché.
+
+              ⛔ E non si dice «hai sbagliato»: il server sa che due numeri insieme non stanno in
+              piedi, non **quale** dei due è quello buono.
+            */}
+            <span style={{ fontSize: 12.5, lineHeight: 1.55, color: '#8A5A00' }}>
+              <i className="ti ti-info-circle" style={{ verticalAlign: '-2px', marginRight: 5 }} />
+              Questa pesata è lontana dalle precedenti, quindi la controlla la tua nutrizionista: se
+              serve ti scrive lei. Intanto il tuo peso è salvato e il menu continua ad arrivare.
+            </span>
           </div>
         )}
         {esito?.tipo === 'segnalata' && (

@@ -325,11 +325,165 @@ describe('SignalsService', () => {
       );
     });
 
+    /**
+     * ⛔ **«QUESTA PESATA» DEVE VOLER DIRE QUESTA PESATA** (trovato in revisione, e sarebbe stato un
+     * avviso che compare sempre). `pesoIncoerente` è il salto **peggiore dei novanta giorni**: una
+     * volta che una coppia rotta esiste in mezzo alla storia, quel campo non torna vuoto per tre
+     * mesi — anche dopo che il nutrizionista l'ha guardata e chiusa. L'app ci si appoggiava per dire
+     * «questa pesata è lontana dalle precedenti»: l'avrebbe detto a **ogni pesata normale fino a
+     * dicembre**, e per tutto quel tempo avrebbe coperto l'allarme del calo rapido.
+     */
+    it('⛔ `pesateDaVerificare` è vero solo se il salto tocca la pesata appena scritta', async () => {
+      // La riga appena scritta è quella del 5 luglio, ed è il capo della coppia rotta.
+      prisma.measurement.upsert.mockResolvedValue({ id: 'm1', weightKg: 113, date: mk(5, 113).date });
+      prisma.measurement.findMany.mockResolvedValue([mk(1, 73), mk(5, 113)]);
+      const adesso = await service.upsertMeasurement('u1', { weightKg: 113 });
+      expect(adesso.pesoIncoerente).not.toBeNull();
+      expect(adesso.pesateDaVerificare).toBe(true);
+    });
+
+    it('⛔ una coppia rotta VECCHIA non fa dire «questa pesata»', async () => {
+      // La coppia rotta è fra il 1 e il 2 luglio; la misura di oggi è normale e lontana da lì.
+      const oggi = new Date(Date.UTC(2026, 8, 3));
+      prisma.measurement.upsert.mockResolvedValue({ id: 'm1', weightKg: 72, date: oggi });
+      prisma.measurement.findMany.mockResolvedValue([
+        { date: new Date(Date.UTC(2026, 6, 1)), weightKg: 73 },
+        { date: new Date(Date.UTC(2026, 6, 2)), weightKg: 113 },
+        { date: oggi, weightKg: 72 },
+      ]);
+      const r = await service.upsertMeasurement('u1', { weightKg: 72 });
+      expect(r.pesoIncoerente).not.toBeNull();
+      expect(r.pesateDaVerificare).toBe(false);
+    });
+
     it('⚠️ e con pesate normali non apre niente e non risponde niente', async () => {
       prisma.measurement.findMany.mockResolvedValue([mk(1, 68), mk(5, 67.7), mk(9, 67.4)]);
       const result = await service.upsertMeasurement('u1', { weightKg: 67.4 });
       expect(result.pesoIncoerente).toBeNull();
       expect(motivi().filter((m) => m.startsWith('Pesate incoerenti'))).toHaveLength(0);
+    });
+  });
+
+  /**
+   * ⛔ **LA DOMANDA PRIMA DEL SALVATAGGIO** (voce `pesata-strana-chiedi-conferma`). Il guardrail qui
+   * sopra agisce **dopo**: fabbisogno sospeso, segnalazione aperta, telefonata. Questa rotta esiste
+   * per il momento in cui lo stesso errore costa un tocco, cioè mentre il numero si sta scrivendo.
+   */
+  describe('verificaPesata: chiedere invece di telefonare', () => {
+    const gg = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+    const OGGI = '2026-09-03';
+
+    /** Il finto risponde alle due letture per confine (`lt: giorno` indietro, `gt: giorno` avanti). */
+    function conStoria(righe: { date: Date; weightKg: number }[]) {
+      prisma.measurement.findFirst.mockImplementation((args: any) => {
+        const d = args?.where?.date ?? {};
+        const dentro = righe.filter(
+          (r) =>
+            (!d.lt || r.date.getTime() < d.lt.getTime()) &&
+            (!d.gt || r.date.getTime() > d.gt.getTime()) &&
+            (!d.gte || r.date.getTime() >= d.gte.getTime()) &&
+            (!d.lte || r.date.getTime() <= d.lte.getTime()),
+        );
+        const su = args?.orderBy?.date === 'desc' ? -1 : 1;
+        dentro.sort((a, b) => su * (a.date.getTime() - b.date.getTime()));
+        return Promise.resolve(dentro[0] ?? null);
+      });
+    }
+
+    it('il caso della voce: 73 kg otto giorni fa, ne scrive 113 — e la frase è per lei', async () => {
+      conStoria([{ date: gg('2026-08-26'), weightKg: 73 }]);
+      const r = await service.verificaPesata('u1', 113, 'cliente', OGGI);
+      expect(r).not.toBeNull();
+      expect(r!.altra.weightKg).toBe(73);
+      expect(r!.giorni).toBe(8);
+      expect(r!.frase).toContain('La pesata che abbiamo prima di questa');
+      expect(r!.frase).toContain('È giusto?');
+    });
+
+    it('allo staff cambiano le parole, non la regola', async () => {
+      conStoria([{ date: gg('2026-08-26'), weightKg: 73 }]);
+      const r = await service.verificaPesata('u1', 113, 'staff', OGGI);
+      expect(r!.frase).not.toContain('La pesata che abbiamo prima di questa');
+      expect(r!.frase).toContain('kg/settimana');
+      expect(r!.salto).toBe(40);
+    });
+
+    it('un numero che sta in piedi non chiede niente', async () => {
+      conStoria([{ date: gg('2026-08-27'), weightKg: 73 }]);
+      expect(await service.verificaPesata('u1', 72.4, 'cliente', OGGI)).toBeNull();
+    });
+
+    /**
+     * ⛔ **SOLA LETTURA, e questo test è l'unica cosa che lo tiene fermo.** Una domanda che aprisse
+     * la segnalazione mentre la persona sta ancora decidendo farebbe arrivare al nutrizionista una
+     * riga per ogni tasto premuto male — cioè trasformerebbe una cortesia nel rumore che spegne la
+     * coda su cui è costruito tutto il guardrail.
+     */
+    it('⛔ non scrive NIENTE: nessuna segnalazione, nessun audit, nessuna misura', async () => {
+      conStoria([{ date: gg('2026-08-26'), weightKg: 73 }]);
+      await service.verificaPesata('u1', 113, 'cliente', OGGI);
+      expect(prisma.escalation.create).not.toHaveBeenCalled();
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalled();
+      expect(prisma.measurement.upsert).not.toHaveBeenCalled();
+      expect(learning.onCycleClose).not.toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ **Le soglie sono quelle dei Parametri, non due numeri scritti qui.** Se questa rotta avesse
+     * soglie sue, la schermata direbbe «va bene» e il guardrail aprirebbe la segnalazione un secondo
+     * dopo sugli stessi due numeri.
+     */
+    it('⛔ alzando la soglia nei Parametri, la stessa coppia smette di chiedere', async () => {
+      conStoria([{ date: gg('2026-08-26'), weightKg: 73 }]);
+      config.getNumber.mockImplementation((key: string) =>
+        Promise.resolve(key === 'weight_jump_impossible_kg' ? 50 : key === 'weight_jump_impossible_kg_week' ? 7 : 0),
+      );
+      expect(await service.verificaPesata('u1', 113, 'cliente', OGGI)).toBeNull();
+    });
+
+    /**
+     * ⚠️ Dal backoffice si corregge una riga **in mezzo** alla storia: una correzione che sistema il
+     * rapporto col giorno prima e ne rompe uno identico col giorno dopo va fermata lo stesso.
+     */
+    it('⚠️ guarda anche la riga DOPO quella che si sta scrivendo', async () => {
+      conStoria([{ date: gg('2026-08-30'), weightKg: 74 }]);
+      const r = await service.verificaPesata('u1', 114, 'staff', '2026-08-25');
+      expect(r).not.toBeNull();
+      expect(r!.dove).toBe('dopo');
+      expect(r!.altra.weightKg).toBe(74);
+    });
+
+    /**
+     * ⛔ **La finestra si misura dal giorno che si sta scrivendo, non da oggi.** Contata da oggi, la
+     * riga precedente a una pesata di tre mesi fa cade fuori dai novanta giorni e la domanda resta
+     * muta **proprio sulle correzioni vecchie** — che sono quelle fatte a mano da chi sta riparando
+     * qualcosa.
+     */
+    it('⛔ correggendo una pesata di cento giorni fa, la riga di cinque giorni prima si vede', async () => {
+      conStoria([{ date: gg('2026-05-21'), weightKg: 73 }]);
+      const r = await service.verificaPesata('u1', 113, 'staff', '2026-05-26');
+      expect(r).not.toBeNull();
+      expect(r!.altra.weightKg).toBe(73);
+    });
+
+    /**
+     * ⛔ **Dove chi scrive dirà di no, chi chiede tace.** Senza, chi digita 30 al posto di 80 riceveva
+     * «…sono 50 kg in 3 giorni. È giusto?», rispondeva «sì», e **poi** si prendeva «Il peso sembra
+     * troppo basso» dal DTO: due schermate che si contraddicono, nell'ordine peggiore.
+     */
+    it('⛔ fuori dai limiti della porta di scrittura non si chiede niente', async () => {
+      conStoria([{ date: gg('2026-08-26'), weightKg: 80 }]);
+      // 30 kg: sotto il minimo del DTO della cliente (35), dentro quello dello staff (25).
+      expect(await service.verificaPesata('u1', 30, 'cliente', OGGI)).toBeNull();
+      expect(await service.verificaPesata('u1', 30, 'staff', OGGI)).not.toBeNull();
+      // 300 kg: oltre il massimo della cliente (250), dentro quello dello staff (400).
+      expect(await service.verificaPesata('u1', 300, 'cliente', OGGI)).toBeNull();
+      expect(await service.verificaPesata('u1', 300, 'staff', OGGI)).not.toBeNull();
+    });
+
+    it('un peso che non è un numero è un errore, non un silenzio', async () => {
+      await expect(service.verificaPesata('u1', Number.NaN, 'cliente', OGGI)).rejects.toThrow(BadRequestException);
     });
   });
 

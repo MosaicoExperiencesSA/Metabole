@@ -1724,6 +1724,18 @@ export class ClientsService {
    * Correzione di una misura inserita male dal cliente (permesso dedicato
    * "fix_measures" nella matrice Permessi). Tutto tracciato in audit con prima/dopo.
    */
+  /**
+   * ⛔ **La domanda prima della correzione: sola lettura** (voce `pesata-strana-chiedi-conferma`).
+   *
+   * ⚠️ Passa da `assertClientAccess` come tutto il resto di questa scheda: senza, sarebbe un modo
+   * di **leggere il peso di una cliente che non è tua** scrivendo numeri a caso e guardando quando
+   * la frase compare. Una rotta di cortesia non è una rotta senza perimetro.
+   */
+  async verificaMisura(userId: string, actorId: string, weightKg: number, dataIso?: string) {
+    await this.assertClientAccess(actorId, userId);
+    return this.signals.verificaPesata(userId, weightKg, 'staff', dataIso);
+  }
+
   async updateMeasurement(
     userId: string,
     actorId: string,
