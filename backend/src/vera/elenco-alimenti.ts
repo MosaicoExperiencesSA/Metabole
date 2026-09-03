@@ -41,6 +41,7 @@
  * undici» non è una cosa che si possa dire a chi sta scrivendo una regola sul cibo di una persona.
  */
 import { nomeAlimento, paroleDaLeggere } from '../food-swaps/impara-dalla-chat';
+import { senzaIlQuando } from '../food-swaps/coda-di-quando';
 
 /** I separatori di alternativa: valgono anche senza virgole. */
 const ALTERNATIVE = /\s+(?:o|od|oppure)\s+/i;
@@ -86,7 +87,33 @@ export function leggiElenco(testo: string): string[] | null {
   if (!grezzi.length) return null;
 
   const nomi: string[] = [];
-  for (const g of grezzi) {
+  for (const grezzo of grezzi) {
+    /**
+     * ⛔ **LA CODA DEL QUANDO SI TOGLIE ANCHE QUI** (3/9, `food-swaps/coda-di-quando.ts`).
+     *
+     * Senza, le due strade capivano la stessa frase in due modi diversi a seconda di quante
+     * alternative avesse scritto la nutrizionista:
+     *
+     *     «sostituisci il pane con le gallette a colazione»              → «gallette»
+     *     «sostituisci il pane con le gallette o i cracker a colazione»  → «cracker a colazione»
+     *
+     * ⚠️ Bastava una «o» per cambiare ramo e cambiare esito — e questo è il ramo che **esegue un
+     * ordine**, cioè quello dove una lettura sporca pesa di più.
+     *
+     * ⚠️ **E il taglio va fatto prima di `paroleDaLeggere`**, non solo prima di `nomeAlimento`:
+     * quel confronto misura «quanto ho letto contro quanto c'era», e contando la coda fra le parole
+     * «che c'erano» ogni pezzo con un orario risulterebbe **letto a metà** — cioè un elenco
+     * rifiutato per intero. Il controllo era giusto e guarderebbe la cosa sbagliata.
+     */
+    /**
+     * ⛔ **E se togliere la coda rende il pezzo illeggibile, si torna a com'era** (seconda
+     * revisione). «il **tè** a colazione» tolta la coda resta «tè», sotto il minimo di tre
+     * caratteri; «lo **snack** a metà mattina» resta «snack», che è in `NON_ALIMENTI`. Qui un pezzo
+     * illeggibile fa cadere **l'elenco intero** — cioè un «non ci arrivo» su una frase normale, e
+     * su `impara-dal-nutrizionista.ts` un `return 0` senza notifica a nessuno.
+     */
+    const tagliato = senzaIlQuando(grezzo);
+    const g = nomeAlimento(tagliato) ? tagliato : grezzo;
     const nome = nomeAlimento(g);
     // ⛔ Un pezzo illeggibile ferma tutto: vedi il cappello. Niente elenchi parziali.
     if (!nome) return null;

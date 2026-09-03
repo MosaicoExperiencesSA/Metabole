@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **La coda del quando non entra più nel nome del piatto.** «sostituisci il pane con
+  le gallette **a colazione**» imparava «gallette a colazione», che non è un alimento: la regola
+  finiva in banca dati con un nome che non combacia con nessuna ricetta, e la sostituzione non
+  succedeva mai — dietro un'anteprima plausibile da confermare. Era l'ultimo pezzo aperto di
+  `la-e-nel-nome-tronca-in-silenzio`, ed era bloccante.
+  ⛔ **Non è una regola generale: è un elenco chiuso di code intere, preposizione compresa**, e la
+  preposizione è tutta la difficoltà. «**a** colazione» è un orario; «**da** colazione» e «**per
+  la** colazione» sono categorie merceologiche, e «zuppa **del** giorno» è un piatto. Le prime due
+  stesure li tagliavano: «togli i biscotti da colazione» diventava «togli **tutti** i biscotti».
+  ⚠️ Non un silenzio — cibo tolto dal piatto di qualcuno senza che l'abbia chiesto.
+  ⛔ **E un taglio che lascia una preposizione appesa non si fa affatto** («l'insalata **di** tutti i
+  giorni» → «insalata», di nuovo per eccesso); **e se togliere la coda rende il pezzo illeggibile si
+  torna a com'era** («il **tè** a colazione», «lo **snack** a metà mattina»), perché il taglio non
+  deve fabbricare silenzi.
+  ⛔ **E va detto cosa costa**: tolta la coda si impara una regola **senza orario**, più larga di
+  quella scritta. Si fa lo stesso perché la riga nasce `da_verificare` — una proposta che una persona
+  guarda — e la sua nota porta la frase intera. **Non** si scrive `FoodSwap.mealSlot`: la colonna c'è
+  ma non la legge nessuno, e riempirla darebbe a una riga l'aria di essere ristretta a un pasto
+  mentre vale su tutti.
+  ✅ Misurato sui **1246 nomi** dei tre cataloghi; 22 righe nuove nel corpus; **21 prove di
+  mutazione**, tutte prese. ⚠️ **Due revisioni avversariali**: la prima ha trovato tre regressioni,
+  la seconda altre quattro — **nessuna delle sette l'hanno trovata le mie prove**. Quello che resta
+  aperto è scritto come sentinelle `it.failing`, non come commento.
+
 - `[Sviluppo]` ✅ **Quando digita un peso che non torna, adesso l'app glielo chiede.** Il guardrail
   sulle pesate impossibili c'era dal 28/8, ⚠️ ma agiva tutto **dopo**: il numero si salvava, il
   fabbisogno si sospendeva, e per riparare un tasto premuto male serviva una telefonata della coach.

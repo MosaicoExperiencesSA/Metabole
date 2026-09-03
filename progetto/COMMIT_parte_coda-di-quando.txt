@@ -1,0 +1,68 @@
+La coda del quando non entra più nel nome del piatto
+
+Chiude l'ultimo pezzo aperto di `la-e-nel-nome-tronca-in-silenzio`, che era bloccante.
+
+  sostituisci il pane con le gallette a colazione
+    → prima: { da: ["pane"], a: ["gallette a colazione"] }
+
+«gallette a colazione» non è un alimento: è un alimento più un orario. La regola finiva in banca
+dati con un nome che non combacia con nessuna ricetta, quindi la sostituzione che la nutrizionista
+credeva di aver scritto non succedeva mai — dietro un'anteprima plausibile da confermare.
+
+Nuovo modulo puro `food-swaps/coda-di-quando.ts` (`separaIlQuando`), applicato a TUTT'E QUATTRO i
+pezzi — i due della forma diretta e i due di quella rovesciata — e anche dentro `leggiElenco`,
+perché bastava una «o» per cambiare ramo e cambiare esito: la stessa coda sopravviveva o moriva a
+seconda di quante alternative aveva scritto la nutrizionista, e il ramo a elenchi è quello che
+ESEGUE un ordine.
+
+⛔ NON È UNA REGOLA GENERALE: È UN ELENCO CHIUSO DI CODE INTERE, PREPOSIZIONE COMPRESA
+E la preposizione è tutta la difficoltà. «a colazione» è un orario; «da colazione» e «per la
+colazione» sono categorie merceologiche (biscotti, cereali, barrette, snack); «zuppa del giorno» e
+«arrosto della domenica» sono piatti. Le prime due stesure di questo file li tagliavano: «togli i
+biscotti da colazione» diventava «togli TUTTI i biscotti», merenda compresa. ⚠️ Non un silenzio:
+cibo tolto dal piatto di qualcuno senza che l'abbia chiesto, cioè l'errore che il cappello di
+`impara-dalla-chat.ts` dichiara essere il più caro.
+
+⛔ E UN TAGLIO CHE LASCIA UNA PREPOSIZIONE APPESA NON SI FA AFFATTO
+«l'insalata di tutti i giorni» diventava «l'insalata di», che `chiaveAlimento` riduce a «insalata»:
+una regola su tutta l'insalata, di nuovo per eccesso. Fra il difetto vecchio (la coda dentro al
+nome) e uno nuovo più caro, si tiene il vecchio — quello che non si è capito resta dov'era.
+
+⛔ E SE TOGLIERE LA CODA RENDE IL PEZZO ILLEGGIBILE, SI TORNA A COM'ERA
+«il tè a colazione» resta «tè» (sotto il minimo di tre caratteri di `nomeAlimento`), «lo snack a
+metà mattina» resta «snack» (che è in `NON_ALIMENTI`). Senza il ripiego una lettura sporca ma
+presente diventava un SILENZIO — e su `impara-dal-nutrizionista.ts` un silenzio è un `return 0`
+senza notifica a nessuno; negli elenchi, per giunta, un pezzo solo fa cadere tutto.
+
+⛔ E VA DETTO COSA COSTA IL TAGLIO, perché la prima stesura scriveva il rovescio
+«sostituisci il pane a colazione con le gallette» chiede una regola ristretta a un pasto; tolta la
+coda si impara `pane → gallette` senza orario, cioè più larga. Prima il nome restava «pane a
+colazione» e la riga nasceva inerte. Si fa lo stesso perché la riga nasce `da_verificare` — una
+proposta che una persona guarda, che non tocca nessun menu da sola — e la sua `nota` porta la frase
+intera, dove l'orario si legge. ⛔ E NON si scrive `FoodSwap.mealSlot`: la colonna c'è ma non la
+legge nessuno quando le sostituzioni si applicano, e riempirla darebbe a una riga l'aria di essere
+ristretta a un pasto mentre vale su tutti — un interruttore che non accende niente.
+
+MISURATO
+- i 1246 nomi dei tre cataloghi (606 distinti) passano dal separatore senza perdere niente
+  (`coda-di-quando-contro-il-catalogo.spec.ts`). ⚠️ Quella prova oggi passa A VUOTO, ed è scritto:
+  il rischio vero sta nella frase che arriva in chat, non nel catalogo — è una rete per il futuro.
+- il corpus `frasi-normali-che-devono-passare.spec.ts` cresce di 22 righe: le code in fondo, quelle
+  prima del «con», le frequenze («due volte a settimana», «solo a colazione»), e i nomi di prodotto
+  che NON devono essere toccati.
+- 21 prove di mutazione, tutte prese.
+- DUE revisioni avversariali: la prima ha trovato tre regressioni, la seconda altre quattro.
+  ⚠️ Nessuna delle sette l'hanno trovata le mie prove.
+
+COSA RESTA, scritto come sentinelle `it.failing` e non in un commento
+- la coda IN MEZZO alla frase («...con le gallette a colazione o i cracker») resta dentro al nome;
+- «il latte della mattina» non si taglia: «del/della + momento» è indistinguibile da un nome di
+  prodotto («la brioche del mattino»);
+- «il tè» cade sotto il minimo di tre caratteri;
+- «sostituisci le gallette con le gallette a colazione» — lo stesso piatto a un altro orario —
+  diventa un silenzio, perché i due lati combaciano. Si chiude il giorno che una regola potrà
+  portarsi dietro il pasto.
+
+7211 prove verdi su 423 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su app e backoffice.
+Lista lavori: 21 voci aperte su 222.

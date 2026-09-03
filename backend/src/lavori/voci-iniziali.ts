@@ -274,10 +274,11 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'la-e-nel-nome-tronca-in-silenzio',
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
-    fatta: false,
+    // ⚠️ Bloccante finché il nome imparato poteva essere un piatto che nessuno aveva nominato.
+    blocca: false,
     nata: '2026-08-31T18:10',
-    titolo: '⚠️ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: chiusi il primo nome e i nomi composti, resta la coda di contesto',
+    fatta: true, // chiusa il 3/9
+    titolo: '✅ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: chiusi il primo nome, i nomi composti e la coda del quando',
     dettaglio:
       'Trovato **misurando**, il 31/8, mentre si chiudeva il difetto del «senza glutine». Non era stato '
       + 'segnalato da nessuno, ed è più pericoloso di quello che era stato segnalato.\n\n'
@@ -359,7 +360,49 @@ export const VOCI_INIZIALI: Voce[] = [
       + '\u26d4 **E la prima stesura della guardia aveva il difetto dentro**: per sapere se dopo la '
       + 'congiunzione restava qualcosa cercava la stringa, e su «il pane e» trovava la «e» **dentro '
       + '«pane»** — rispondendo «troncato» a una frase che finisce lì. L\'ha presa la prova che teneva '
-      + 'fermo proprio quel caso. Adesso conta le parole.',
+      + 'fermo proprio quel caso. Adesso conta le parole.\n\n'
+      + '\u2705 **CHIUSA il 3/9 anche sulla CODA DEL QUANDO** (`food-swaps/coda-di-quando.ts`), che '
+      + 'era l\'ultimo pezzo aperto: «sostituisci il pane con le gallette **a colazione**» imparava '
+      + '«gallette a colazione», un nome che non combacia con nessuna ricetta — la sostituzione non '
+      + 'succedeva mai, dietro un\'anteprima plausibile. Il taglio è su **tutt\'e quattro** i pezzi '
+      + '(i due della forma diretta e i due di quella rovesciata) e anche dentro `leggiElenco`, '
+      + 'perché bastava una «o» per cambiare ramo e cambiare esito.\n\n'
+      + '⛔ **NON è una regola generale: è un elenco chiuso di code intere, preposizione compresa**, '
+      + 'e la preposizione è tutta la difficoltà. «**a** colazione» è un orario; «**da** colazione», '
+      + '«**per la** colazione» sono **categorie merceologiche** (biscotti, cereali, barrette), e '
+      + '«zuppa **del** giorno», «arrosto **della** domenica» sono piatti. Le prime due stesure li '
+      + 'tagliavano: «togli i biscotti da colazione» diventava «togli **tutti** i biscotti», merenda '
+      + 'compresa. ⚠️ Non un silenzio — **cibo tolto dal piatto di qualcuno senza che l\'abbia '
+      + 'chiesto**, cioè l\'errore che questo file dichiara essere il più caro.\n\n'
+      + '⛔ **E un taglio che lascia una preposizione appesa non si fa affatto**: «l\'insalata **di** '
+      + 'tutti i giorni» diventava «l\'insalata di», che `chiaveAlimento` riduce a «insalata» — una '
+      + 'regola su tutta l\'insalata, di nuovo per eccesso. Fra il difetto vecchio (la coda dentro al '
+      + 'nome) e uno nuovo più caro, si tiene il vecchio.\n\n'
+      + '⛔ **E se togliere la coda rende il pezzo illeggibile, si torna a com\'era**: «il **tè** a '
+      + 'colazione» resta «tè» (sotto i tre caratteri), «lo **snack** a metà mattina» resta «snack» '
+      + '(che è in `NON_ALIMENTI`). Senza il ripiego, una lettura sporca ma presente diventava un '
+      + '**silenzio** — e negli elenchi un pezzo solo fa cadere tutto.\n\n'
+      + '⛔ **E VA DETTO COSA COSTA IL TAGLIO, perché la prima stesura scriveva il rovescio.** '
+      + '«sostituisci il pane **a colazione** con le gallette» chiede una regola ristretta a un '
+      + 'pasto; tolta la coda si impara `pane → gallette` **senza orario**, cioè più larga. Prima il '
+      + 'nome restava «pane a colazione» e la riga nasceva **inerte**. Si fa lo stesso perché la riga '
+      + 'nasce `da_verificare` — una proposta che una persona guarda, che non tocca nessun menu da '
+      + 'sola — e la sua `nota` porta la **frase intera**, dove l\'orario si legge. ⛔ E non si scrive '
+      + '`FoodSwap.mealSlot`: la colonna c\'è ma **non la legge nessuno**, e riempirla darebbe a una '
+      + 'riga l\'aria di essere ristretta a un pasto mentre vale su tutti.\n\n'
+      + '✅ Misurato: i **1246 nomi** dei tre cataloghi (606 distinti) passano dal separatore senza '
+      + 'perdere niente (`coda-di-quando-contro-il-catalogo.spec.ts`), ⚠️ e quella prova oggi passa '
+      + '**a vuoto** — il rischio vero sta nella frase, non nel catalogo: è una rete per il futuro, '
+      + 'ed è scritto lì. **21 prove di mutazione**, tutte prese, e **due revisioni avversariali**: '
+      + 'la prima ha trovato tre regressioni, la seconda altre quattro. Nessuna delle due l\'hanno '
+      + 'trovata le mie prove.\n\n'
+      + '⚠️ **Cosa resta, scritto come sentinelle `it.failing` e non in un commento**: la coda **in '
+      + 'mezzo** alla frase («...con le gallette a colazione **o i cracker**») resta dentro al nome; '
+      + '«il latte **della mattina**» non si taglia perché «del/della + momento» è indistinguibile da '
+      + 'un nome di prodotto; «il tè» cade sotto il minimo di tre caratteri; e «sostituisci le '
+      + 'gallette con le gallette a colazione» — lo stesso piatto a un altro orario — diventa un '
+      + 'silenzio, perché i due lati combaciano. Le prime tre si chiudono capendo meglio la frase; '
+      + 'l\'ultima si chiude il giorno che una regola potrà portarsi dietro il pasto.',
   },
   {
     chiave: 'fase0-panieri-la-misura-che-manca',

@@ -31,12 +31,69 @@ const FRASI: [string, RegExp, RegExp][] = [
   ['sostituisci il riso con l\'insalata di farro', /^riso$/i, /^insalata di farro$/i],
   ['cambia il burro con la crema di mandorle', /^burro$/i, /^crema di mandorle$/i],
   /**
-   * ⚠️ **«a colazione» entra nel nome, ed è un difetto preesistente che questa riga TIENE FERMO
-   * invece di nasconderlo.** Con la regex a sottostringa (`/gallette/i`) non si vedeva. Il pezzo
-   * dopo «con» non è delimitato da niente e la coda di contesto ci finisce dentro: si chiude
-   * quando si saprà separarla, non con una guardia — vedi cos'è successo il 2/9 sera.
+   * ✅ **CHIUSA il 3/9 con `coda-di-quando.ts`** (la coda **in fondo**; quella in mezzo alla frase è
+   * più sotto, fra i difetti noti), ed è la riga che questo file teneva ferma da due
+   * giorni con l'esito sbagliato scritto dentro: «gallette a colazione» non è un alimento, e la
+   * regola imparata con quel nome non combaciava con nessuna ricetta — la sostituzione non
+   * succedeva mai, dietro un'anteprima plausibile. ⛔ Non è una guardia: la coda si **toglie**, non
+   * fa rifiutare la frase.
    */
-  ['sostituisci il pane con le gallette a colazione', /^pane$/i, /^gallette a colazione$/i],
+  ['sostituisci il pane con le gallette a colazione', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette a pranzo', /^pane$/i, /^gallette$/i],
+  ['sostituisci il latte con la bevanda di soia a merenda', /^latte$/i, /^bevanda di soia$/i],
+  ['sostituisci il pane con le gallette tutti i giorni', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette da domani', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette per tutte', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette la mattina', /^pane$/i, /^gallette$/i],
+  /**
+   * ⛔ **E il nome composto sopravvive alla coda**: è la trappola numero uno di questo file — «X di
+   * Y» è il modo normale di chiamare mezzo scaffale, e un taglio che si fermasse sulla preposizione
+   * rifarebbe al contrario il difetto che sta chiudendo.
+   */
+  ['sostituisci il burro con la crema di mandorle a colazione', /^burro$/i, /^crema di mandorle$/i],
+  ['sostituisci il pane con i cracker ai cereali a merenda', /^pane$/i, /^cracker ai cereali$/i],
+  ['sostituisci il budino con il gelato alla crema a cena', /^budino$/i, /^gelato alla crema$/i],
+  /** ⚠️ E anche dall'altra parte: nella forma rovesciata la coda sta sul nome che ESCE. */
+  ['metti le gallette al posto del pane a colazione', /^pane$/i, /^gallette$/i],
+  ['metti la crema di mandorle al posto del burro a colazione', /^burro$/i, /^crema di mandorle$/i],
+
+  /**
+   * ⛔ **LA CODA PRIMA DEL «CON», e prima del «al posto di».** La prima stesura tagliava solo il
+   * pezzo di destra, e il commento nel codice affermava che il pezzo di sinistra «è delimitato da
+   * "con", quindi contiene il nome e nient'altro» — ⚠️ **falso**, e falso proprio dal lato che
+   * decide **cosa esce dal piatto**, dove una regola più larga toglie cibo a qualcuno. L'ha trovato
+   * una revisione avversariale eseguendo il riconoscitore, non rileggendolo.
+   */
+  ['sostituisci il pane a colazione con le gallette', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane tutti i giorni con le gallette', /^pane$/i, /^gallette$/i],
+  ['metti le gallette a colazione al posto del pane', /^pane$/i, /^gallette$/i],
+  ['metti la bevanda di soia a merenda al posto del latte', /^latte$/i, /^bevanda di soia$/i],
+
+  /**
+   * ⛔ **LE FREQUENZE SONO IL MODO IN CUI SI SCRIVE UNA PRESCRIZIONE.** La prima stesura tagliava
+   * «a settimana» e lasciava «le gallette due», che non è un alimento: il taglio partiva e si
+   * fermava a metà, cioè il difetto restava con un nome diverso.
+   */
+  ['sostituisci il pane con le gallette due volte a settimana', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette una volta al giorno', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette solo a colazione', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette a colazione e a merenda', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette nei prossimi giorni', /^pane$/i, /^gallette$/i],
+  ['sostituisci il pane con le gallette per tutte le clienti', /^pane$/i, /^gallette$/i],
+
+  /**
+   * ⛔ **I NOMI DI PRODOTTO CHE FINISCONO COME UN ORARIO, e la prima stesura li mangiava.**
+   * «**da** colazione» è una categoria merceologica, non un quando; «zuppa **del** giorno» e
+   * «arrosto **della** domenica» sono piatti. ⚠️ Tagliarli non faceva un silenzio: faceva una regola
+   * **più larga di quanto chiesto** — «togli i biscotti da colazione» diventava «togli tutti i
+   * biscotti», merenda compresa. È il verso caro in cui sbagliare, ed è quello che questo prodotto
+   * dichiara di non voler mai fare.
+   */
+  ['sostituisci le merendine con i biscotti da colazione', /^merendine$/i, /^biscotti da colazione$/i],
+  ['sostituisci il pane con i cereali da colazione', /^pane$/i, /^cereali da colazione$/i],
+  ['metti lo yogurt al posto dei biscotti da colazione', /^biscotti da colazione$/i, /^yogurt$/i],
+  ['sostituisci la pasta con la zuppa del giorno', /^pasta$/i, /^zuppa del giorno$/i],
+  ['metti il pesce al posto del pollo della domenica', /^pollo della domenica$/i, /^pesce$/i],
   ['Sostituisci il latte con la bevanda di soia, che ti resta più leggera.', /^latte$/i, /^bevanda di soia$/i],
   ['sostituisci il latte con la soia perché è più leggera', /^latte$/i, /^soia$/i],
   ['sostituisci il latte con la soia ma solo la mattina', /^latte$/i, /^soia$/i],
@@ -174,6 +231,80 @@ describe('le frasi normali continuano a funzionare', () => {
  * qui, non in un commento.
  */
 describe('⛔ difetti noti, misurati e non ancora corretti', () => {
+  /**
+   * ⛔ **IL SILENZIO NUOVO CHE HA PORTATO IL TAGLIO DELLA CODA** (3/9, trovato in revisione).
+   *
+   * «sostituisci le gallette con le gallette a colazione» chiede una cosa che questo riconoscitore
+   * non sa esprimere: **lo stesso piatto a un altro orario**. Tolta la coda, i due lati combaciano
+   * e `sostituzioniNelMessaggio` scarta la frase come una ripetizione.
+   *
+   * ⚠️ Prima imparava una regola con un nome che non combaciava con nessuna ricetta — innocua e
+   * inutile; adesso non impara niente. ⛔ E su `impara-dal-nutrizionista.ts` «niente» è un `return 0`
+   * **senza notifica**: la nutrizionista scrive, non viene registrato niente, e nessuno le chiede
+   * niente. Il costo di sbagliare qui non è simmetrico, ed è scritto in testa a questo file.
+   *
+   * ⚠️ **La cura non è rimettere la coda dentro al nome**: è saper dire «questa è una regola di
+   * orario, non di sostituzione». Finché non si sa, la riga sta qui — verde finché il difetto c'è,
+   * **rossa il giorno che qualcuno lo corregge**.
+   */
+  it.failing('⛔ oggi «lo stesso piatto a un altro orario» diventa un silenzio', () => {
+    const r = sostituzioniNelMessaggio('sostituisci le gallette con le gallette a colazione');
+    expect(r).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ **E un nome di due lettere cade sotto il minimo di `nomeAlimento`.** «il tè» è un alimento
+   * vero; la regola dei tre caratteri è di là e nasce contro i resti di parsing. Prima il nome
+   * arrivava lungo («tè a colazione») e passava — ma passava sbagliato. ⛔ Non è un difetto che
+   * questa consegna ha creato: è uno che ha **scoperto**, ed è il posto giusto per scriverlo.
+   */
+  /**
+   * ⛔ **«DEL MATTINO» / «DELLA MATTINA»: non si sa se è un quando o un nome, quindi non si taglia.**
+   *
+   * «il latte **della mattina**» è un orario; «la brioche **del mattino**» è un prodotto. La
+   * differenza non sta nella preposizione né nella parola: sta in cosa è il piatto, e questo
+   * riconoscitore non lo sa. ⚠️ `coda-di-quando.ts` taglia «**la** mattina» e **non** «**della**
+   * mattina», di proposito: quello che non si è capito resta dentro al nome, che è il verso in cui
+   * il difetto rimane dov'era invece di nascerne uno nuovo (una regola più larga di quanto chiesto).
+   *
+   * Il prezzo è questa riga: la frase impara «latte della mattina», che non combacia con niente.
+   */
+  it.failing('⛔ oggi «il latte della mattina» si porta dentro il quando', () => {
+    const r = sostituzioniNelMessaggio('cambia il latte della mattina con la bevanda di soia');
+    expect(r).toHaveLength(1);
+    expect(r[0].from).toMatch(/^latte$/i);
+  });
+
+  /**
+   * ⚠️ **«il tè» cade sotto il minimo di tre caratteri di `nomeAlimento`**, che è una regola di là e
+   * nasce contro i resti di parsing. ✅ La frase **non va più in silenzio** — il ripiego di
+   * `nomeSenzaIlQuando` la riporta a com'era prima di questa consegna — ⛔ ma il nome imparato si
+   * porta ancora dentro l'orario. È un difetto **vecchio**, che questa consegna ha scoperto e non
+   * creato, e sta scritto qui invece che in un commento.
+   */
+  it('⚠️ «il tè a colazione» almeno non diventa un silenzio', () => {
+    expect(sostituzioniNelMessaggio('sostituisci il latte con il tè a colazione')).toHaveLength(1);
+  });
+
+  it.failing('⛔ ma il nome imparato è ancora «tè a colazione»', () => {
+    const r = sostituzioniNelMessaggio('sostituisci il latte con il tè a colazione');
+    expect(r).toHaveLength(1);
+    expect(r[0].to).toMatch(/^tè$/i);
+  });
+
+  /**
+   * ⛔ **LA CODA IN MEZZO ALLA FRASE SOPRAVVIVE**, e la riga qui sopra che dice «CHIUSA il 3/9» vale
+   * per la coda **in fondo**: `senzaIlQuando` guarda la fine del pezzo, e `nomeAlimento` si ferma
+   * sulla congiunzione, quindi in «...con le gallette **a colazione** o i cracker» l'orario resta
+   * dentro al primo nome. ⚠️ Il ramo a elenchi lo gestisce, ma `capisci` ci arriva solo quando la
+   * forma combacia, e su questa frase no. Trovato dalla seconda revisione.
+   */
+  it.failing('⛔ oggi la coda in mezzo alla frase resta dentro al nome', () => {
+    const r = sostituzioniNelMessaggio('sostituisci il pane con le gallette a colazione o i cracker');
+    expect(r.length).toBeGreaterThan(0);
+    expect(r[0].to).toMatch(/^gallette$/i);
+  });
+
   /**
    * ⛔ **Davanti al nome, quello che la risalita non riconosce se lo porta dentro.**
    *

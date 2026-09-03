@@ -86,6 +86,75 @@ describe('leggiElenco — o si legge tutto, o non si è capito', () => {
   });
 });
 
+/**
+ * ⛔ **LE DUE STRADE DEVONO CAPIRE LA STESSA FRASE ALLO STESSO MODO** (3/9, trovato in revisione).
+ *
+ * `capisci` prova prima gli elenchi e poi la lettura singola. Finché solo la seconda toglieva la
+ * coda del quando, bastava **una «o»** per cambiare ramo e cambiare esito:
+ *
+ *     «sostituisci il pane con le gallette a colazione»              → «gallette»
+ *     «sostituisci il pane con le gallette o i cracker a colazione»  → «cracker a colazione»
+ *
+ * ⚠️ E questo è il ramo che **esegue un ordine**, cioè quello dove una lettura sporca pesa di più.
+ */
+describe('⛔ anche negli elenchi la coda del quando non entra nel nome', () => {
+  it.each([
+    ['le gallette o i cracker a colazione', ['gallette', 'cracker']],
+    ['le zucchine, le melanzane tutti i giorni', ['zucchine', 'melanzane']],
+    ['la ricotta o lo stracchino a merenda', ['ricotta', 'stracchino']],
+  ])('«%s» → %s', (testo, atteso) => {
+    expect(leggiElenco(testo)).toEqual(atteso);
+  });
+
+  /**
+   * ⛔ **E il taglio va fatto PRIMA di `paroleDaLeggere`**, non solo prima di `nomeAlimento`: quel
+   * confronto misura «quanto ho letto contro quanto c'era», e contando la coda fra le parole «che
+   * c'erano» ogni pezzo con un orario risulterebbe **letto a metà** — cioè l'elenco intero
+   * rifiutato, che qui vuol dire «non ci arrivo» su una frase normale.
+   */
+  it('⛔ e il pezzo con la coda non risulta «letto a metà»: l\'elenco non si rifiuta', () => {
+    expect(leggiElenco('le gallette o il petto di tacchino a colazione')).toEqual([
+      'gallette',
+      'petto di tacchino',
+    ]);
+  });
+
+  /**
+   * ⛔ **E IL TAGLIO NON DEVE FABBRICARE SILENZI** (seconda revisione). Tolta la coda, «il **tè** a
+   * colazione» resta «tè» (sotto il minimo di tre caratteri) e «lo **snack** a metà mattina» resta
+   * «snack» (che è in `NON_ALIMENTI`): `nomeAlimento` risponde `null`, e qui **un pezzo solo fa
+   * cadere l'elenco intero** — cioè un «non ci arrivo» su una frase normale. Adesso, quando il
+   * taglio rende il pezzo illeggibile, si torna al pezzo intero: il comportamento è **quello di
+   * prima di questa consegna**, non un ripiego inventato.
+   */
+  it.each([
+    ['il tè a colazione o il caffè'],
+    ['lo snack a metà mattina o la frutta'],
+    ['la porzione a cena o la frutta'],
+  ])('⛔ «%s» non diventa un silenzio', (testo) => {
+    expect(leggiElenco(testo)).not.toBeNull();
+    expect(leggiElenco(testo)).toHaveLength(2);
+  });
+
+  /**
+   * ⛔ **E la guardia «letto a metà» continua a fare il suo mestiere** su quello che il taglio non
+   * ha capito: «fette biscottate durante la settimana» non è una coda riconosciuta (lascerebbe
+   * «durante» appeso), quindi il pezzo resta intero, `nomeAlimento` si ferma a quattro parole e
+   * l'elenco si rifiuta — com'è giusto, perché nessuno l'ha letto tutto.
+   */
+  it('⛔ un pezzo che nessuno ha letto tutto fa ancora cadere l\'elenco', () => {
+    expect(leggiElenco('pane, gallette o fette biscottate durante la settimana')).toBeNull();
+  });
+
+  /** ⚠️ E quello che non è una coda resta dentro, qui come di là: «da colazione» è un prodotto. */
+  it('⚠️ «da colazione» è un nome di prodotto e non si tocca nemmeno qui', () => {
+    expect(leggiElenco('i biscotti da colazione o le gallette')).toEqual([
+      'biscotti da colazione',
+      'gallette',
+    ]);
+  });
+});
+
 describe('eUnElenco — il segnale che apre la lettura', () => {
   it.each([
     ['zucchine, melanzane', true],

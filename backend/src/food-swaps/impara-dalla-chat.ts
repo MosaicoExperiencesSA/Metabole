@@ -49,6 +49,7 @@
  * non ha mai nominato.
  */
 import { chiaveAlimento, normalizza } from '../common/nomi-alimento';
+import { senzaIlQuando } from './coda-di-quando';
 
 export interface SostituzioneLetta {
   /** L'alimento che esce dal piatto. */
@@ -516,6 +517,23 @@ function codaDellaFrase(pezzo: string): string {
  * Ritorna una lista vuota molto spesso, ed è il comportamento voluto: la stragrande maggioranza dei
  * messaggi non contiene istruzioni di sostituzione, e questo file deve accorgersene senza inventare.
  */
+/**
+ * `nomeAlimento` tolta la coda del quando — ⛔ **e se toglierla rende il pezzo illeggibile, si torna
+ * a com'era.**
+ *
+ * Trovato dalla seconda revisione: «sostituisci il latte con **il tè a colazione**» tolta la coda
+ * resta «il tè», che cade sotto il minimo di tre caratteri di `nomeAlimento`; «lo **snack** a metà
+ * mattina» resta «snack», che è in `NON_ALIMENTI`. In tutti e due i casi il taglio trasformava una
+ * lettura sporca ma presente in un **silenzio nuovo** — e su `impara-dal-nutrizionista.ts` un
+ * silenzio è un `return 0` senza notifica a nessuno.
+ *
+ * ⚠️ Il ripiego non è «meglio di niente»: è **esattamente il comportamento di prima di questo
+ * file**. Una consegna che chiude un difetto non ne apre uno nella direzione opposta.
+ */
+function nomeSenzaIlQuando(pezzo: string): string | null {
+  return nomeAlimento(senzaIlQuando(pezzo)) ?? nomeAlimento(pezzo);
+}
+
 export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
   const trovate: SostituzioneLetta[] = [];
   const viste = new Set<string>();
@@ -544,7 +562,33 @@ export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
          * c'è: chi lo scriverà potrà estendere il controllo anche di là.
          */
         if (nomeTroncatoSuCongiunzione(m[1])) break;
-        letta = { from: nomeAlimento(m[1]), to: nomeAlimento(m[2]) };
+        /**
+         * ⛔ **LA CODA DEL QUANDO SI TOGLIE DA TUTT'E DUE I PEZZI** (3/9, `coda-di-quando.ts`).
+         * «...con le gallette **a colazione**» imparava «gallette a colazione», che non è un
+         * alimento: la regola finiva in banca dati con un nome che non combacia con nessuna
+         * ricetta, e la sostituzione non succedeva mai — in silenzio, dietro un'anteprima
+         * plausibile.
+         *
+         * ⚠️ **Anche dal PRIMO**, e la prima stesura non lo faceva perché questo commento diceva
+         * che `m[1]` «è delimitato da "con", quindi contiene il nome e nient'altro». **Falso**:
+         * «sostituisci il pane **a colazione** con le gallette» mette la coda prima del «con», ed è
+         * ordine di parole normale.
+         *
+         * ⛔ **E va detto cosa costa, perché la prima stesura di questa riga diceva il rovescio.**
+         * Togliendo l'orario, la riga imparata è più **larga** di quella scritta: `pane → gallette`
+         * senza pasto, invece che «a colazione». Prima restava «pane a colazione», che non combacia
+         * con niente e nasceva **inerte**. Si fa lo stesso perché la riga nasce `da_verificare` —
+         * una proposta che una persona guarda — e la sua `nota` porta la **frase intera**, dove
+         * l'orario si legge. Il ragionamento per esteso, e perché non si scrive `mealSlot`, stanno
+         * in testa a `coda-di-quando.ts`.
+         *
+         * ⛔ **Sul secondo pezzo NON si estende `nomeTroncatoSuCongiunzione`**, che è quello che
+         * questo commento invitava a fare prima che qualcuno lo misurasse: il corpus contiene
+         * «...con le gallette **e fammi sapere**», e per quel controllo è un nome tagliato su una
+         * congiunzione con roba dopo — la frase verrebbe rifiutata in silenzio. Qui la congiunzione
+         * non separa due nomi, separa il nome dal resto del messaggio.
+         */
+        letta = { from: nomeSenzaIlQuando(m[1]), to: nomeSenzaIlQuando(m[2]) };
         break;
       }
     }
@@ -552,8 +596,23 @@ export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
       for (const re of ALL_INDIETRO) {
         const m = frase.match(re);
         if (m) {
-          // ⚠️ Invertiti: il primo pezzo è quello che ENTRA.
-          letta = { from: nomeAlimento(m[2]), to: nomeAlimento(codaDellaFrase(m[1])) };
+          /**
+           * ⚠️ Invertiti: il primo pezzo è quello che ENTRA.
+           *
+           * ⚠️ E la coda del quando si toglie da tutt'e due, per la stessa ragione di sopra: «metti
+           * le gallette al posto del pane **a colazione**» imparava che si toglie un «pane a
+           * colazione», e «metti le gallette **a colazione** al posto del pane» che entrano delle
+           * «gallette a colazione».
+           *
+           * ⛔ **La risalita di `codaDellaFrase` NON basta**, ed è quello che la prima stesura di
+           * questo commento affermava: quella si ferma su un articolo, su chi scrive o su una
+           * congiunzione — una coda d'orario non è nessuna delle tre, e ci passa attraverso. Il
+           * taglio va **prima**, così la risalita parte da un pezzo che finisce sul nome.
+           */
+          letta = {
+            from: nomeSenzaIlQuando(m[2]),
+            to: nomeAlimento(codaDellaFrase(senzaIlQuando(m[1]))) ?? nomeAlimento(codaDellaFrase(m[1])),
+          };
           break;
         }
       }
