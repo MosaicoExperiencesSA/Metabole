@@ -1,0 +1,54 @@
+================================================================================
+Correzione: la voce sugli hub NON era stata chiusa davvero
+================================================================================
+
+⛔ L'ERRORE
+
+La consegna precedente («Permessi: la pagina dice quando spegnere una casella non
+chiude la porta») ha dichiarato chiusa la voce
+`togliere-una-chiave-non-basta-se-c-e-un-hub`. Non lo era.
+
+La modifica è stata scritta con `cd backend && python3 - <<'EOF' …`. La shell era
+GIÀ in `backend`, il `cd` è fallito, e con `&&` lo script non è mai partito.
+Nessun errore visibile: subito sotto girava `jest`, che è passato sul file non
+modificato. La voce è rimasta con il vecchio titolo e `fatta: false`, mentre il
+messaggio di commit, il registro e il riassunto in chat dicevano «chiusa».
+
+Il danno non è la spunta mancante: è che il registro comincia a mentire, ed è la
+sola cosa che dice cosa è stato fatto. Il numero riportato (28 aperte su 221) era
+giusto per caso — una voce chiusa in meno e una nuova in più si compensavano.
+
+✅ COSA C'È IN QUESTA CONSEGNA
+
+1. La voce è chiusa davvero: `fatta: true`, titolo con ✅, e il testo che racconta
+   la consegna — i quattro casi, il ruolo personalizzato, le 19 mutazioni, e la
+   seconda strada che resta una decisione di Simone.
+   Verificato rileggendo il file: 194 voci fatte su 221, 27 aperte.
+
+2. Una regola nuova in CLAUDE.md, che è dove sta il rimedio vero:
+   «UNA MODIFICA SI VERIFICA RILEGGENDO IL FILE, non fidandosi dell'uscita del
+   comando». Niente `cd X && <modifica>`; dopo ogni modifica fatta da uno script
+   si rilegge il pezzo cambiato con un grep, non ci si fida di un «ok» stampato
+   dallo script stesso. Un comando che non gira non stampa niente, e «niente»
+   somiglia troppo a «tutto bene».
+
+3. Una prova nuova, `il-testo-e-la-spunta-vanno-d-accordo.spec.ts`, che prende il
+   caso vicino: una voce il cui TITOLO comincia con ✅ e non è spuntata, e i
+   rimandi `[[chiave]]` che puntano a voci inesistenti (succede scrivendo «ha una
+   voce sua» prima di averla creata).
+
+   ⛔ E dice per iscritto quello che NON prende: l'errore del 3/9 no, perché lo
+   script non è partito affatto e la voce è rimasta coerente con se stessa —
+   a mentire erano il commit e il registro, che nessun test legge.
+
+   ⚠️ Una prima stesura cercava «✅ CHIUSA» anche nel dettaglio ed è diventata
+   rossa su `la-e-nel-nome-tronca-in-silenzio`: aveva torto lei, quella voce ha
+   chiuso due difetti su tre e lo dice. Un dettaglio racconta anche le chiusure
+   parziali, e pretendere la spunta lì avrebbe costretto a scrivere peggio per
+   far tacere una prova. Stessa cosa per il verso opposto: tre voci chiuse hanno
+   un titolo che comincia con ⛔ e hanno ragione — il titolo nomina il difetto,
+   il dettaglio dice che è stato corretto.
+
+MISURATO
+6852/6852 su 408 suite; tsc --noEmit solo i 2 errori preesistenti.
+Lista lavori: 27 voci aperte su 221.

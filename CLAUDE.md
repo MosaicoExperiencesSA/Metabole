@@ -26,6 +26,17 @@ insieme, e non si può più separarle senza un rilascio. Tre passi, e sono tutti
    (`@RequirePage`). ⚠️ La chiave nasce insieme alla guardia che la legge: una chiave dichiarata e
    non letta da nessuno è un interruttore che non accende niente — è già successo con `assignments`.
 
+⛔ **UNA MODIFICA SI VERIFICA RILEGGENDO IL FILE, non fidandosi dell'uscita del comando.** Il 3/9
+la chiusura di una voce dei lavori è stata scritta con `cd backend && python3 - <<'EOF' …`: la shell
+era **già** in `backend`, il `cd` è fallito, e con `&&` **lo script non è mai partito**. Nessun
+errore visibile — subito sotto girava `jest`, che passava sul file non modificato — e la consegna è
+uscita con il messaggio di commit e il registro che dicevano «chiusa» e la voce ancora aperta.
+⚠️ Il danno non è la riga mancante: è che **il registro comincia a mentire**, ed è la sola cosa che
+dice cosa è stato fatto. Perciò: niente `cd X && <modifica>` (si usano percorsi assoluti, o `cd`
+separato), e **dopo ogni modifica fatta da uno script si rilegge il pezzo cambiato** — un `grep` sul
+risultato, non un `ok` stampato dallo script stesso. Un comando che non gira non stampa niente, e
+«niente» somiglia troppo a «tutto bene».
+
 ⚠️ **`progetto/COMMIT.txt` si APPENDE, non si sovrascrive.** Il 13/8 è stato riscritto da zero due
 volte in un'ora: due sessioni lavorano allo stesso commit, e chi scriveva per secondo cancellava il
 messaggio dell'altra. Chi consegna aggiunge la sua parte in coda, sotto un separatore che dice da

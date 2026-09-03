@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ⛔ **Correzione: la voce sugli hub non era stata chiusa davvero.** La consegna di
+  prima l'ha dichiarata chiusa; non lo era. La modifica era scritta con `cd backend && python3 …`,
+  la shell era **già** in `backend`, il `cd` è fallito e con `&&` **lo script non è mai partito** —
+  senza nessun errore visibile, perché subito sotto girava `jest`, che è passato sul file non
+  modificato. ⛔ Il danno non è la spunta mancante: è che **il registro comincia a mentire**, ed è
+  la sola cosa che dice cosa è stato fatto. ✅ Adesso è chiusa davvero (verificato rileggendo il
+  file: 194 su 221). ⚠️ E il rimedio vero è in `CLAUDE.md`, perché è procedurale: *una modifica si
+  verifica rileggendo il file, non fidandosi dell'uscita del comando* — niente `cd X && …`, e un
+  `grep` sul risultato invece di un «ok» stampato dallo script stesso. Una prova nuova prende il
+  caso vicino (titolo con ✅ e spunta dimenticata, rimandi `[[chiave]]` rotti) e **dice per iscritto
+  che questo non lo avrebbe preso**: la voce era coerente con se stessa, a mentire erano il commit
+  e il registro, che nessun test legge.
+
 - `[Sviluppo]` ✅ **La pagina Permessi dice quando spegnere una casella non chiude la porta.**
   Simone spegne «Ricette» alla nutrizionista, e lei continua a chiamare le API delle ricette perché
   ha «Gestione dieta», che concede anche quella. ⛔ Non è un difetto — `PAGE_GRANTS` esiste apposta
