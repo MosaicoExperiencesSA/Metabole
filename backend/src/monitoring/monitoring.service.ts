@@ -264,12 +264,15 @@ export class MonitoringService {
          * riporziona sul fabbisogno, che chiede **«quanto pesa adesso»**, e a quella il progetto
          * risponde con la tendenza da sempre.
          *
-         * ⛔ **Ma la conseguenza va detta**: il trigger scatta *perché* l'ultima pesata è un salto,
-         * cioè proprio il dato che la media diluisce. Riferimento 68, pesate 68,2 / 68,0 / 71,0: il
-         * kit parte perché è salita di 3 kg, e riporziona come se fosse salita di 1,07. Il kit
-         * arriva comunque — è il suo mestiere — ma con porzioni tarate su un peso più basso del suo.
-         * ⚠️ Cambiare questo trigger è una decisione clinica (farebbe partire il kit più tardi), e
-         * non la prende chi scrive il codice: sta nell'elenco Lavori.
+         * ✅ **RISOLTO IL 3/9, e la risposta è stata l'opposta di quella che sembrava.** Il difetto
+         * era: il trigger scatta *perché* l'ultima pesata è un salto, e `generateRientroMenus`
+         * riporzionava sulla media, che quel salto lo diluisce — riferimento 68, pesate 68,2 /
+         * 68,0 / 71,0 → il kit partiva per 3 chili e riporzionava come per 1,07.
+         *
+         * Sembrava che a doversi muovere fosse **questo trigger** (farlo partire più tardi, con la
+         * media). Simone ha deciso il contrario: *«Sì esatto»* alla strada b — **le porzioni**
+         * partono dall'ultima pesata, come il trigger. ⚠️ Adesso i due guardano lo stesso numero, ed
+         * è quello il punto: non erano due scelte, era una incoerenza.
          */
         if (!p.regainOfferedAt && last && last.weightKg - p.referenceWeightKg >= regainKg) {
           const generati = await this.generateRientroMenus(p.clientId);
@@ -513,7 +516,25 @@ export class MonitoringService {
      * dimensionato su un fabbisogno che oggi non è più il suo. Il perché e i tre ⚠️ (a partire da
      * «non si scala quello che è già scalato») stanno in `menu/riporziona-giornata.ts`.
      */
-    const targetKcal = await this.kcalNeed.computeTargetKcal(clientId);
+    /**
+     * ⛔ **SULL'ULTIMA PESATA, NON SULLA TENDENZA** — regola di Simone, 3/9: *«Sì esatto»* alla
+     * strada b della voce `kit-rientro-quale-peso`.
+     *
+     * Il kit parte **perché** l'ultima pesata è un salto — cioè proprio il dato che la media
+     * diluisce. Riferimento 68, pesate 68,2 / 68,0 / 71,0: partiva perché era salita di 3 chili e
+     * riporzionava come se ne avesse ripresi 1,07. ⚠️ Adesso il trigger e le porzioni guardano **lo
+     * stesso numero**, ed è quella la cosa che non tornava: due numeri diversi nella stessa
+     * esecuzione, sulla stessa persona, nello stesso istante.
+     *
+     * ⛔ **Non «porzioni più grandi»**, e la prima stesura di questo commento lo diceva: il target
+     * non cresce col peso in tutti i regimi — la derivata è `10·PAL − 1100/settimane`, negativa in
+     * quello dominante. Quanto si sposta dipende dal regime, e in un verso o nell'altro vale
+     * qualche decina di kcal. Il motivo della correzione è la **coerenza**, non l'ampiezza.
+     *
+     * ⚠️ La tendenza resta la regola dappertutto: qui no perché al rientro è vecchia **per
+     * definizione**, non perché sia passato del tempo.
+     */
+    const targetKcal = await this.kcalNeed.computeTargetKcal(clientId, { sullUltimaPesata: true });
     const tetti = {
       principale: await this.configParams.getNumber('porzione_tetto_pasto_principale', TETTI_PREDEFINITI.principale),
       colazione: await this.configParams.getNumber('porzione_tetto_colazione', TETTI_PREDEFINITI.colazione),

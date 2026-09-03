@@ -2941,48 +2941,81 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'pesate-lontane-buco-del-ritmo',
     categoria: 'Da decidere con Simone',
-    ordine: 5,
-    nata: '2026-08-28T12:45',
-    titolo: 'Chi rientra dopo un mese senza pesarsi può sbagliare venti chili e non far suonare niente',
+    ordine: 0,
+    blocca: false,
+    fatta: false,
+    nata: '2026-08-28T10:10',
+    titolo: '▶️ Al rientro si riparte dal peso di prima (fatto): resta la soglia d\'allarme, che è clinica',
     dettaglio:
-      'Trovata in revisione il 28/8, chiudendo il blocco sulle pesate incoerenti — e detta subito '
-      + 'invece che scoperta dopo.\n\n'
-      + '⚠️ Il guardrail chiede **due condizioni insieme**: salto ≥ 10 kg **e** ritmo ≥ 7 kg/settimana. '
-      + 'La seconda equivale a «le due pesate distano meno giorni di quanti sono i chili». Quindi '
-      + 'venti chili sbagliati dopo **venticinque giorni** senza pesarsi fanno 5,6 kg/settimana e **non '
-      + 'scattano**: il fabbisogno si calcola su una media sporca e nessuno se ne accorge.\n\n'
-      + '⛔ **Ed è proprio la cliente del kit di rientro**: quella che sospende, sta ferma un mese e '
-      + 'torna — il caso che `kcal-need.service.ts` descrive come «quello che faceva il danno più '
-      + 'grosso». La condizione sul ritmo, che serve a non suonare su un percorso normale, qui lavora '
-      + 'contro di noi.\n\n'
-      + 'La strada è un **secondo ramo**: un salto enorme vale a qualunque distanza. Tre righe in '
-      + '`peso-incoerente.ts` e un parametro nuovo. ⚠️ **La soglia però è clinica e non la scegliamo '
-      + 'noi**: venti chili in tre mesi senza pesarsi sono possibili per una persona molto pesante che '
-      + 'ha fatto sul serio, e metterla troppo bassa vorrebbe dire sospendere il fabbisogno proprio a '
-      + 'chi sta riuscendo. Serve un numero da Nocanty.',
+      'Il guardrail sulle pesate impossibili chiede **due condizioni insieme**: salto ≥ 10 kg **e** '
+      + 'ritmo ≥ 7 kg/settimana. Quindi venti chili sbagliati dopo **venticinque giorni** senza '
+      + 'pesarsi fanno 5,6 kg/settimana e **non scattano** — ed è proprio la cliente del kit di '
+      + 'rientro, quella che sospende, sta ferma un mese e torna.\n\n'
+      + '✅ **RISPOSTA DI SIMONE, 3/9: «Quando uno rientra noi consideriamo sempre il peso del giorno '
+      + 'prima dell\'inizio di quel momento e non dei piani precedenti».**\n\n'
+      + '✅ **Fatto, ed è una cosa diversa da quella che questa voce chiedeva.** Il fabbisogno non '
+      + 'media più le pesate del rientro con quelle dei piani precedenti: la media si fa sulle sole '
+      + 'pesate del periodo nuovo, quante che siano, e finché non ce n\'è nessuna vale il '
+      + '**riferimento** — l\'ultima pesata prima di quel momento, alla lettera. '
+      + '(`signals/peso-al-rientro.ts`, `signals/quando-comincia-il-periodo.ts`.)\n\n'
+      + '⛔ **«Rientro» vuol dire una SOSPENSIONE VERA, e la prima stesura sbagliava.** Ci aveva '
+      + 'messo dentro anche `planStartDate`, che **si riscrive a ogni rinnovo dalla coda**: la '
+      + 'regola si sarebbe accesa su ogni cliente in rinnovo continuo, che non è rientrata da '
+      + 'niente. ⚠️ *Un rinnovo non è un rientro.* Adesso conta solo la fine di una sospensione da '
+      + '**vacanza** (`mode: pause_period` **e** `type: vacation`), e le pause **annullate** non '
+      + 'contano — togliendo una sospensione in corso l\'evento non si cancella, si accorcia a ieri, '
+      + 'e da fuori somiglia a una appena finita. Sono tutte e due lezioni già scritte in '
+      + '`pause.service.ts`, e le ho dovute reimparare.\n\n'
+      + '⛔ **E UNA REGOLA CHE SIMONE NON HA DETTO ERA FINITA NEL CODICE.** La prima stesura, sotto '
+      + 'tre pesate dal rientro, passava dalla media all\'**ultima pesata** — legando un '
+      + 'comportamento clinico alla casella `moving_average_window`, che è una taratura di '
+      + 'smoothing e si muove per ragioni sue. L\'ha smontata una revisione avversariale. *Se una '
+      + 'regola non è stata detta, non si scrive.*\n\n'
+      + '▶️ **QUELLO CHE RESTA APERTO, ed è il motivo per cui questa voce non si chiude.** La '
+      + 'risposta di Simone dà il **riferimento**, non una **soglia d\'allarme**. Una prima stesura '
+      + 'aveva aggiunto un secondo ramo che giudicava il salto attraverso un rientro sul solo salto '
+      + 'in chili, dicendosi «nessuna soglia nuova: riuso quella dei Parametri». ⛔ Non era vero: '
+      + 'togliere la condizione sul ritmo **è** cambiare la regola, e `peso-incoerente.ts` scrive '
+      + 'per esteso che la versione senza era già stata provata e buttata — *«dieci chili in due '
+      + 'mesi suonerebbero, ed è un percorso riuscito, non un errore»*. ⚠️ E il fabbisogno sarebbe '
+      + 'diventato `null` **senza che nessuno lo sapesse**: la coda della coach e la segnalazione al '
+      + 'nutrizionista leggono `saltoPeggiore`, non quel ramo.\n\n'
+      + '**La domanda, adesso stretta, per Nocanty:** *sopra quanti chili, attraverso una '
+      + 'sospensione senza pesate in mezzo, si smette di fidarsi del numero?* ⚠️ Serve un numero '
+      + 'solo, e va con una seconda decisione: chi lo deve sapere quando scatta — perché oggi quel '
+      + 'ramo non arriverebbe a nessuno.'
   },
   {
     chiave: 'kit-rientro-quale-peso',
     categoria: 'Da decidere con Simone',
-    ordine: 6,
-    nata: '2026-08-27T23:30',
-    titolo: 'Il kit di rientro parte sull\'ultima pesata e riporziona sulla media: è giusto così?',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-28T10:00',
+    titolo: '✅ Il kit di rientro riporziona sull\'ultima pesata, come il suo trigger',
     dettaglio:
-      '⚠️ **Non è una svista, è una domanda per la nutrizionista** (aperta il 27/8 passando il fabbisogno '
-      + 'alla media mobile). Nel monitoraggio, il kit di rientro parte quando **l\'ultima pesata** supera il '
-      + 'riferimento di N chili; le giornate che copia vengono riporzionate sul **fabbisogno**, che dal 27/8 '
-      + 'si calcola sulla **media mobile**. Sono due numeri diversi nella stessa esecuzione.\n\n'
-      + '⚠️ **Le due domande sono diverse, e per questo il codice non è stato cambiato**: il trigger chiede '
-      + '«è risalita?», che è uno scarto e si vede prima sull\'ultima pesata; il fabbisogno chiede «quanto '
-      + 'pesa adesso», e a quella il progetto risponde con la tendenza da sempre.\n\n'
-      + '⛔ **Ma la conseguenza va guardata da chi decide**: il kit parte *perché* l\'ultima pesata è un '
-      + 'salto — cioè proprio il dato che la media diluisce. Riferimento 68 kg, pesate 68,2 / 68,0 / 71,0: '
-      + 'il kit parte perché è salita di 3 chili, e le riporziona i piatti come se ne avesse ripresi 1,07. '
-      + 'Il kit arriva comunque, ma tarato su un peso più basso del suo.\n\n'
-      + 'Le due strade: **a)** resta così, e il kit è volutamente «morbido» al primo giorno di rientro; '
-      + '**b)** anche le porzioni del kit partono dall\'ultima pesata, perché il rientro è il momento in cui '
-      + 'la tendenza è vecchia per definizione. ⚠️ È una decisione clinica: cambiarla sposta le calorie '
-      + 'proprio a chi sta risalendo di peso, e non la prende chi scrive il codice.',
+      'Il kit di rientro partiva quando **l\'ultima pesata** superava il riferimento di N chili, e '
+      + 'le giornate copiate venivano riporzionate sul **fabbisogno**, che dal 27/8 si calcola sulla '
+      + '**media mobile**. Due numeri diversi nella stessa esecuzione, sulla stessa persona, nello '
+      + 'stesso istante.\n\n'
+      + '✅ **RISPOSTA DI SIMONE, 3/9: «Sì esatto»** — la strada b: anche le porzioni partono '
+      + 'dall\'ultima pesata.\n\n'
+      + '✅ **Fatto**: `generateRientroMenus` chiama `computeTargetKcal(clientId, '
+      + '{ sullUltimaPesata: true })`. ⚠️ La porta è **esplicita e sta fuori da `simulazione`**: '
+      + 'quell\'oggetto è per le anteprime del backoffice — «chi simula lo vede, chi decide no» — e '
+      + 'infilarci una scrittura avrebbe reso falsa quella riga senza che nessuno se ne accorgesse.\n\n'
+      + '⛔ **E il verso dell\'effetto era raccontato al contrario**, in due commenti, finché una '
+      + 'revisione avversariale non l\'ha misurato. Il target **non cresce col peso in tutti i '
+      + 'regimi**: la derivata è `10·PAL − 1100/settimane`, cioè **negativa** nel regime dominante '
+      + '(dimagrimento con obiettivo e data, tetto che non morde) — lì vedere la cliente più pesante '
+      + 'vuol dire darle **meno** calorie. Nei regimi a derivata positiva lo scarto vale una '
+      + 'ventina di kcal al giorno. ⚠️ Quindi il motivo della correzione è la **coerenza fra trigger '
+      + 'e porzioni**, non «porzioni più grandi a chi è risalita»: quella frase era comoda e falsa.\n\n'
+      + '⚠️ **Quello che resta aperto, e non è di questa voce**: se il guardrail delle pesate '
+      + 'incoerenti scatta, `computeTargetKcal` rende `null` e il kit copia le giornate **senza '
+      + 'riporzionarle** — comprese quelle di prima del 18/8, che tornano nel futuro al 65% e non le '
+      + 'aggiusta più nessuno. È un difetto preesistente, e va guardato con `riporziona-giornata.ts` '
+      + 'davanti.'
   },
   {
     chiave: 'pathtype-non-protetto',
@@ -4258,42 +4291,68 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'ai-api-key-da-cambiare',
-    categoria: SIMONE,
-    titolo: '⛔ Cambiare la chiave `AI_API_KEY`: era leggibile in uno screenshot mandato in chat',
+    categoria: 'Aspetta Simone',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-31T12:00',
+    titolo: '✅ Chiave `AI_API_KEY` ruotata',
     dettaglio:
-      '⛔ **In mano a Simone, e viene prima del resto.** La chiave era leggibile in uno screenshot mandato in '
-      + 'chat il 31/8. Va **ruotata** (nuova chiave dal fornitore, `AI_API_KEY` aggiornata su Render, vecchia '
-      + 'revocata) — non basta cancellare l\'immagine.\n\n'
-      + '⚠️ Finché non è revocata, chiunque abbia visto quello screenshot può spendere sul vostro account.',
-    ordine: 958,
-    nata: '2026-08-31T18:00',
+      'La chiave era leggibile in uno screenshot mandato in chat il 31/8. Andava **ruotata** — '
+      + 'nuova chiave dal fornitore, `AI_API_KEY` aggiornata su Render, vecchia revocata — perché '
+      + 'cancellare l\'immagine non toglie niente a chi l\'ha già vista.\n\n'
+      + '✅ **RISPOSTA DI SIMONE, 3/9: «Fatto».**\n\n'
+      + '⚠️ Resta come promemoria per la prossima volta, non come lavoro: **una chiave che è finita '
+      + 'in uno screenshot è bruciata**, anche se lo screenshot è stato cancellato subito. Non c\'è '
+      + 'una versione ridotta di questa risposta.'
   },
 
   {
     chiave: 'sonia-tre-pasti-gia-erogati',
-    categoria: SIMONE,
-    titolo: 'I tre pasti già in menu a Sonia con il suo allergene: i giorni passati non li tocca nessuno',
+    categoria: 'Aspetta Simone',
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-08-31T12:10',
+    titolo: '✅ I pasti già erogati a Sonia col suo allergene: corretti a mano',
     dettaglio:
-      'Trovati il 31/8 con `npm run diag:allergeni-piatto`: pranzo del 25/8 (gamberoni, tag `crostacei` '
-      + 'confermato) e merenda del 30/8 (albicocche secche senza la sostituzione). Il terzo — la merenda del '
-      + '28/8 — **era corretto**.\n\n'
-      + '✅ La strada da cui entravano è chiusa (`swapDislikedDishes`), e per le giornate **future** già '
-      + 'scritte c\'è `npm run rifai:non-sicuri`. ⚠️ Ma i giorni **già passati** restano come sono: `MenuDay` è '
-      + 'uno snapshot e non si riscrive. Resta da decidere se e cosa dire alla cliente.',
-    ordine: 959,
-    nata: '2026-08-31T18:00',
+      'Trovati il 31/8 con `npm run diag:allergeni-piatto`: pranzo del 25/8 (gamberoni, tag '
+      + '`crostacei` confermato) e merenda del 30/8 (albicocche secche senza la sostituzione). Il '
+      + 'terzo — la merenda del 28/8 — **era corretto**.\n\n'
+      + '✅ **RISPOSTA DI SIMONE, 3/9: «Corretti a mano».**\n\n'
+      + '⚠️ Era l\'unica strada: `MenuDay` è uno snapshot e i giorni **passati** non si riscrivono. '
+      + 'La strada da cui entravano è chiusa (`swapDislikedDishes`) e per le giornate future già '
+      + 'scritte c\'è `npm run rifai:non-sicuri`.\n\n'
+      + '⛔ **Quello che questa voce lascia detto**: il difetto è stato trovato da una diagnostica '
+      + 'lanciata a mano, non da un controllo che gira da solo. Un allergene arrivato nel piatto di '
+      + 'una cliente è la cosa più grave che questo prodotto possa fare, e oggi lo si scopre solo se '
+      + 'qualcuno decide di guardare. È una voce che vale la pena aprire il giorno che si vuole che '
+      + 'quel controllo suoni da sé.'
   },
 
   {
     chiave: 'patrizia-keto-col-glutine',
-    categoria: SIMONE,
-    titolo: 'Patrizia è sulla Keto con il glutine fra le allergie: confermare o disfare',
+    categoria: 'Aspetta Simone',
+    ordine: 0,
+    blocca: false,
+    fatta: false,
+    nata: '2026-08-31T12:20',
+    titolo: '▶️ Patrizia: Simone ha deciso di sospenderla — resta il gesto, che è dal backoffice',
     dettaglio:
-      'Ci è finita **di rimbalzo da una prova tecnica** il 31/8, non da una scelta clinica. Il piatto è '
-      + 'protetto dalle esclusioni — il motore non le serve glutine — ma la **dieta assegnata** è una decisione '
-      + 'che qualcuno deve confermare o disfare, e oggi non risulta di nessuno.',
-    ordine: 960,
-    nata: '2026-08-31T18:00',
+      'Ci era finita **di rimbalzo da una prova tecnica** il 31/8, non da una scelta clinica: sulla '
+      + 'Keto con il glutine fra le allergie. Il piatto era protetto dalle esclusioni — il motore '
+      + 'non le serviva glutine — ma la **dieta assegnata** era una decisione che non risultava di '
+      + 'nessuno.\n\n'
+      + '✅ **RISPOSTA DI SIMONE, 3/9: «Sospendi patrizia».**\n\n'
+      + '▶️ **Resta il gesto, e lo fa una persona dal backoffice**, non uno script: la sospensione '
+      + 'si inserisce dalla scheda cliente (card delle sospensioni), e da lì la pipeline commerciale '
+      + 'la parcheggia in «In sospensione» ricordandosi da quale colonna veniva '
+      + '(`stagePrimaSospensione`). ⛔ Non l\'ho fatta io e non con una query: sospendere una cliente '
+      + 'vera tocca l\'erogazione, la fatturazione e quello che lei vede in app — e una riga scritta '
+      + 'a mano in banca dati salterebbe tutte le cose che quella schermata fa insieme.\n\n'
+      + '⚠️ **E vale la pena scrivere il motivo** nel campo che la card chiede (Simone, 24/8): fra '
+      + 'sei mesi «sospesa il 3/9» senza una riga di spiegazione è indistinguibile da una '
+      + 'sospensione chiesta dalla cliente.'
   },
 
   {

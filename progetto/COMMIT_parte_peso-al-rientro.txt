@@ -1,0 +1,86 @@
+================================================================================
+Al rientro si riparte dal peso di prima di quel momento
+================================================================================
+
+Sei risposte di Simone dalla pagina Lavori, il 3/9. Due chiudono, una è un gesto
+suo, e due dicono la stessa cosa da due parti diverse e diventano codice.
+
+LE DUE RISPOSTE CHE DIVENTANO CODICE
+  · su `pesate-lontane-buco-del-ritmo`: «Quando uno rientra noi consideriamo
+    sempre il peso del giorno prima dell'inizio di quel momento e non dei piani
+    precedenti»
+  · su `kit-rientro-quale-peso`: «Sì esatto» — anche le porzioni del kit partono
+    dall'ultima pesata.
+
+COSA CAMBIA
+① Il fabbisogno non media più le pesate del rientro con quelle dei piani
+   precedenti. La media si fa sulle sole pesate del periodo nuovo, quante che
+   siano; finché non ce n'è nessuna vale il RIFERIMENTO, cioè l'ultima pesata
+   prima di quel momento — alla lettera quello che dice la regola.
+② Il kit di rientro riporziona sull'ultima pesata, come il suo trigger. Erano due
+   numeri diversi nella stessa esecuzione, sulla stessa persona, nello stesso
+   istante.
+
+⛔ «RIENTRO» VUOL DIRE UNA SOSPENSIONE VERA
+La prima stesura ci aveva messo dentro anche `planStartDate`, che si riscrive a
+ogni rinnovo dalla coda: la regola si sarebbe accesa su ogni cliente in rinnovo
+continuo, che non è rientrata da niente. Un rinnovo non è un rientro. Adesso conta
+solo la fine di una sospensione da vacanza (mode pause_period E type vacation), e
+le pause ANNULLATE non contano — togliendo una sospensione in corso l'evento non
+si cancella, si accorcia a ieri, e da fuori somiglia a una appena finita. Sono
+tutte e due lezioni già scritte in pause.service.ts, e le ho dovute reimparare.
+
+⛔ E UNA REGOLA CHE SIMONE NON HA DETTO ERA FINITA NEL CODICE
+La prima stesura, sotto tre pesate dal rientro, passava dalla media all'ULTIMA
+pesata — legando un comportamento clinico alla casella `moving_average_window`,
+che è una taratura di smoothing e si muove per ragioni sue. L'ha smontata una
+revisione avversariale. Se una regola non è stata detta, non si scrive.
+
+⛔ E IL SECONDO RAMO DEL GUARDRAIL È STATO TOLTO, NON AGGIUNTO
+Una prima stesura giudicava il salto attraverso un rientro sul solo salto in
+chili, dicendosi «nessuna soglia nuova: riuso quella dei Parametri». Non era vero:
+togliere la condizione sul ritmo È cambiare la regola, e peso-incoerente.ts scrive
+per esteso che la versione senza era già stata provata e buttata — «dieci chili in
+due mesi suonerebbero, ed è un percorso riuscito, non un errore». E il fabbisogno
+sarebbe diventato null senza che nessuno lo sapesse: la coda della coach e la
+segnalazione al nutrizionista leggono saltoPeggiore, non quel ramo.
+La voce resta APERTA, con la domanda più stretta di prima: sopra quanti chili,
+attraverso una sospensione senza pesate in mezzo, si smette di fidarsi del numero?
+
+ALTRO CHE HA TROVATO LA REVISIONE
+  · il riferimento poteva stare FUORI dalla finestra di novanta giorni — cioè
+    proprio nel caso della sospensione lunga, quello per cui la regola è nata.
+    Adesso si va a prenderlo;
+  · il verso dell'effetto era raccontato al contrario, in due commenti: il target
+    non cresce col peso in tutti i regimi (la derivata è 10·PAL − 1100/settimane,
+    negativa in quello dominante). Il motivo della correzione è la COERENZA fra
+    trigger e porzioni, non «porzioni più grandi»;
+  · il catch era muto: se domani l'enum cambia, la regola si spegnerebbe su tutte
+    le clienti in silenzio. Adesso lo dice;
+  · due query per cliente dentro `estimate`, che gira su centinaia di clienti in
+    parallelo: adesso è una, e non rilegge un dato che il chiamante ha già;
+  · `scartate` non lo leggeva nessuno, mentre il commento diceva «niente tagli
+    silenziosi». Adesso finisce nei log;
+  · e la suite storica del fabbisogno girava TUTTA con la regola spenta: il suo
+    finto non aveva `prisma.event`, il catch mangiava il TypeError, e nessuna di
+    quelle prove avrebbe mai visto il codice nuovo.
+
+LE ALTRE QUATTRO RISPOSTE
+  · AI_API_KEY: «Fatto» → chiusa;
+  · i pasti già erogati a Sonia: «Corretti a mano» → chiusa;
+  · Patrizia: «Sospendi patrizia» → la decisione è registrata, il gesto resta dal
+    backoffice. Non l'ho fatta io con una query: sospendere una cliente vera tocca
+    erogazione, fatturazione e quello che lei vede in app, e una riga scritta a
+    mano salterebbe tutto quello che quella schermata fa insieme;
+  · esclusioni dentro una parola: risposta vecchia, resta com'era.
+
+MISURATO
+6884/6884 su 412 suite nelle quattro modalità; build ok; tsc --noEmit solo i 2
+errori preesistenti; QUINDICI mutazioni su quindici uccise.
+⚠️ Due erano sopravvissute e hanno fatto correggere le PROVE, che guardavano
+lontano da dove serviva: il confine del rientro era misurato con pesate alle 09:00
+mentre in banca dati sono a mezzanotte (l'unico istante in cui >= e > differiscono),
+e le due pesate nuove del caso principale erano 76 e 76, cioè media e ultima
+coincidenti — la regola inventata poteva tornare e restare verde.
+
+Lista lavori: 23 voci aperte su 221.

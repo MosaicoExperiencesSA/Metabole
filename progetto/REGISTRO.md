@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **Al rientro si riparte dal peso di prima di quel momento.** Simone, dalla pagina
+  Lavori: *«quando uno rientra noi consideriamo sempre il peso del giorno prima dell'inizio di quel
+  momento e non dei piani precedenti»*, e — sul kit — *«Sì esatto»*. Il fabbisogno non media più le
+  pesate del rientro con quelle dei piani precedenti, e il kit di rientro riporziona sull'**ultima
+  pesata** come il suo trigger: erano due numeri diversi nella stessa esecuzione, sulla stessa
+  persona, nello stesso istante.
+
+- `[Sviluppo]` ⛔ **E la revisione avversariale ha fermato una regola che Simone non aveva detto.**
+  La prima stesura, sotto tre pesate dal rientro, passava dalla media all'**ultima** — legando un
+  comportamento clinico alla casella `moving_average_window`, che è una taratura di smoothing — e
+  contava come «rientro» anche `planStartDate`, che **si riscrive a ogni rinnovo dalla coda**: si
+  sarebbe accesa su ogni cliente in rinnovo continuo, che non è rientrata da niente. ⚠️ *Un rinnovo
+  non è un rientro, e se una regola non è stata detta non si scrive.* Adesso conta solo la fine di
+  una sospensione da **vacanza**, e le pause **annullate** non contano — due lezioni già scritte in
+  `pause.service.ts` che ho dovuto reimparare. ⛔ Ed è stato **tolto** anche il secondo ramo del
+  guardrail: giudicare il salto attraverso un rientro sui soli chili *è* cambiare una regola clinica
+  già provata e buttata, e il fabbisogno sarebbe andato a `null` senza che nessuno lo sapesse. La
+  voce resta aperta, con la domanda stretta per Nocanty.
+  🧪 6884/6884, **15 mutazioni su 15 uccise** — e due sopravvissute hanno fatto correggere le
+  **prove**: il confine era misurato con pesate alle 09:00 mentre in banca dati sono a mezzanotte,
+  e le due pesate del caso principale erano identiche, quindi media e ultima coincidevano.
+
+- `[Sviluppo]` ✅ **Chiuse tre voci con le risposte di Simone**: `AI_API_KEY` ruotata («Fatto»); i
+  pasti già erogati a Sonia col suo allergene («Corretti a mano» — era l'unica strada, `MenuDay` è
+  uno snapshot); e Patrizia, dove la decisione è registrata («Sospendi patrizia») ma **il gesto resta
+  dal backoffice**: sospendere una cliente vera tocca erogazione, fatturazione e quello che lei vede
+  in app, e una riga scritta a mano in banca dati salterebbe tutto quello che quella schermata fa
+  insieme.
+
 - `[Sviluppo]` 🧹 **Via dal Profilo dell'app l'interruttore «Preferisco ricette semplici».** La
   preferenza era uscita dal **motore** il 2/9; l'interruttore era rimasto, e la cliente lo accendeva
   senza che succedesse niente. ⛔ Un interruttore che non accende nulla è la cosa che `CLAUDE.md`

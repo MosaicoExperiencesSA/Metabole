@@ -11,6 +11,8 @@ import {
   saltoPeggiore,
   spiegaSalto,
 } from '../signals/peso-incoerente';
+import { pesateDaContare, pesoCheValeAlRientro } from '../signals/peso-al-rientro';
+import { inizioDelPeriodoDi } from '../signals/quando-comincia-il-periodo';
 
 /**
  * Fabbisogno calorico giornaliero della cliente (kcal/giorno), stimato dal profilo.
@@ -148,8 +150,11 @@ export class KcalNeedService {
    * dimensionamento del catalogo, su decine di clienti in fila, e un guardrail che scrive dentro un
    * conto di sola lettura è un guardrail che prima o poi qualcuno spegne.
    */
-  async computeTargetKcal(clientId: string): Promise<number | null> {
-    const est = await this.estimate(clientId);
+  async computeTargetKcal(
+    clientId: string,
+    opzioni?: { sullUltimaPesata?: boolean },
+  ): Promise<number | null> {
+    const est = await this.estimate(clientId, opzioni?.sullUltimaPesata ? { sullUltimaPesata: true } : undefined);
     if (!est) {
       /**
        * ⛔ **ANCHE QUESTO RAMO SCRIVE IL MOTIVO** (aggiunto in revisione, 28/8). Prima loggava solo
@@ -184,10 +189,25 @@ export class KcalNeedService {
    * `simulazione` serve al backoffice PRIMA di salvare: «se scrivo 450 di deficit, che numero le
    * arriva nel piatto?». Senza, l'unico modo di saperlo sarebbe salvare e guardare — cioè scoprire
    * di aver messo una cliente a 980 kcal dopo averla messa a 980 kcal.
+   *
+   * ⛔ **`sullUltimaPesata` NON è una simulazione, ed è per questo che sta fuori da quell'oggetto.**
+   * Regola di Simone del 3/9, seconda metà: *«Sì esatto»* alla domanda se anche le porzioni del kit
+   * di rientro debbano partire dall'ultima pesata invece che dalla tendenza. Il kit parte **perché**
+   * l'ultima pesata è un salto, cioè proprio il dato che la media diluisce: riferimento 68, pesate
+   * 68,2 / 68,0 / 71,0 → il kit partiva perché era salita di 3 chili e riporzionava come se ne
+   * avesse ripresi 1,07.
+   *
+   * ⚠️ **È una scrittura, non un'anteprima**, e infatti `simulazione.pesoKg` resta quello che era —
+   * un valore che solo la diagnostica passa. Mescolare le due cose in un campo solo vorrebbe dire
+   * che «chi simula» e «chi decide» entrano dalla stessa porta, e la prima riga di quel docstring
+   * smetterebbe di essere vera senza che nessuno se ne accorga.
    */
   async estimate(
     clientId: string,
-    simulazione?: { deficitImposto?: number | null; correzionePct?: number | null; pesoKg?: number | null },
+    simulazione?: {
+      deficitImposto?: number | null; correzionePct?: number | null; pesoKg?: number | null;
+      sullUltimaPesata?: boolean;
+    },
   ): Promise<KcalEstimate | null> {
     const profile = await this.prisma.clientProfile.findUnique({ where: { userId: clientId } });
     if (!profile) return null;
@@ -267,8 +287,80 @@ export class KcalNeedService {
           select: { weightKg: true },
         })) as { weightKg: number } | null);
     const finestraMedia = await this.configParams.getNumber('moving_average_window', 3);
+
+    /**
+     * ⛔ **AL RIENTRO NON SI MEDIA COI PIANI PRECEDENTI** — regola di Simone, 3/9: *«quando uno
+     * rientra noi consideriamo sempre il peso del giorno prima dell'inizio di quel momento e non
+     * dei piani precedenti»*.
+     *
+     * La finestra sopra è di novanta giorni, cioè la durata di un piano. Chi sospende un mese e
+     * torna, e si è ripesata **una o due volte**, si porta dentro la media una o due pesate del
+     * piano di prima — il corpo di due mesi fa — e le calorie escono da una miscela di due periodi
+     * che non si somigliano.
+     *
+     * ⚠️ **La media resta una media**: si fa sulle pesate del periodo nuovo, quante che siano.
+     * ⛔ Una prima stesura ci aveva messo dentro anche una **soglia**: «sotto tre pesate dal
+     * rientro si usa l'ultima invece della tendenza». Una revisione avversariale l'ha smontata, e
+     * aveva ragione: **quella regola Simone non l'ha mai detta**, cambiava le calorie a chi non era
+     * rientrato da niente, e legava un comportamento clinico alla casella
+     * `moving_average_window` — cioè una taratura di smoothing che si muove per ragioni sue.
+     * *Se una regola non è stata detta, non si scrive.*
+     *
+     * ⚠️ **La pesata di riferimento si tiene**, ed è quello che si usa finché non se ne fa una
+     * nuova: è *«il peso del giorno prima dell'inizio di quel momento»*, alla lettera.
+     *
+     * ⛔ E se non si sa quando comincia il periodo (`null`) **non si taglia niente**: chi non ha mai
+     * sospeso si comporta esattamente come prima. La regola sta in `signals/peso-al-rientro.ts`, la
+     * data in `signals/quando-comincia-il-periodo.ts`.
+     */
+    const inizioPeriodo = await inizioDelPeriodoDi(
+      this.prisma, clientId, new Date(), (m) => this.logger.warn(m),
+    );
     // ⚠️ Il modulo le vuole dalla più vecchia alla più recente; la query le dà al contrario.
-    const media = pesoDiAdesso(pesate.map((m) => m.weightKg).reverse(), finestraMedia);
+    const inOrdine = pesate.slice().reverse();
+    let delPeriodo = pesateDaContare(inOrdine, inizioPeriodo);
+    /**
+     * ⛔ **IL RIFERIMENTO PUÒ STARE FUORI DALLA FINESTRA, ed è proprio il caso della regola.**
+     *
+     * Le righe caricate sopra sono di novanta giorni. Per una sospensione **più lunga di novanta
+     * giorni** — cioè la cliente per cui questa regola è nata — l'ultima pesata prima del rientro
+     * non è fra quelle, e `pesateDaContare` renderebbe `riferimento: null`. Il modulo promette il
+     * contrario («è la sola cosa che si porta dietro»), e senza questa riga la promessa era falsa
+     * proprio dove serviva. L'ha trovato una revisione avversariale.
+     *
+     * ⚠️ **Una query in più solo quando serve davvero**: c'è un rientro, e nella finestra non c'è
+     * niente di prima.
+     */
+    if (inizioPeriodo && !delPeriodo.riferimento) {
+      const prima = (await this.prisma.measurement.findFirst({
+        where: { clientId, date: { lt: inizioPeriodo } },
+        orderBy: { date: 'desc' },
+        select: { date: true, weightKg: true },
+      })) as { date: Date; weightKg: number } | null;
+      if (prima) delPeriodo = { ...delPeriodo, riferimento: prima };
+    }
+    if (inizioPeriodo && delPeriodo.scartate > 0) {
+      /**
+       * ⚠️ *Niente tagli silenziosi.* Un fabbisogno calcolato su due pesate invece che su otto ha
+       * un motivo, e chi legge i log dev'essere in grado di trovarlo. La prima stesura contava le
+       * scartate e non le diceva a nessuno: il campo esisteva e non lo leggeva niente.
+       */
+      this.logger.debug(
+        `Fabbisogno di ${clientId}: ${delPeriodo.scartate} pesate dei piani precedenti non contate ` +
+        `(rientro del ${inizioPeriodo.toISOString().slice(0, 10)}).`,
+      );
+    }
+    /**
+     * ⛔ **`sullUltimaPesata` è la porta del kit di rientro, ed è l'unica cosa che salta la media.**
+     * Regola di Simone, seconda metà: *«Sì esatto»* — anche le porzioni del kit partono dall'ultima
+     * pesata. Il kit parte **perché** l'ultima pesata è un salto, cioè proprio il dato che la media
+     * diluisce: trigger e porzioni guardavano due numeri diversi nella stessa esecuzione.
+     */
+    const media = simulazione?.sullUltimaPesata
+      ? pesoCheValeAlRientro({ riferimento: null, delPeriodo: inOrdine, scartate: 0 })
+      : (delPeriodo.delPeriodo.length
+        ? pesoDiAdesso(delPeriodo.delPeriodo.map((m) => m.weightKg), finestraMedia)
+        : pesoCheValeAlRientro(delPeriodo));
     /**
      * ⛔ **PRIMA DI MEDIARLE, CONTROLLA CHE STIANO IN PIEDI FRA LORO** (28/8).
      *
@@ -299,6 +391,29 @@ export class KcalNeedService {
       this.configParams.getNumber('weight_jump_impossible_kg', SALTO_KG_DEFAULT),
       this.configParams.getNumber('weight_jump_impossible_kg_week', SALTO_RITMO_DEFAULT),
     ]);
+    /**
+     * ⚠️ **IL SALTO ATTRAVERSO IL RIENTRO NON SI GUARDA QUI, ed è una scelta.**
+     *
+     * La voce `pesate-lontane-buco-del-ritmo` chiede un secondo ramo: venti chili sbagliati dopo
+     * venticinque giorni fanno 5,6 kg/settimana e con la regola normale **non scattano**. Una prima
+     * stesura lo aveva aggiunto, giudicando il solo salto in chili e dicendo «nessuna soglia nuova:
+     * riuso quella dei Parametri».
+     *
+     * ⛔ **Non era vero, ed è stato tolto.** Togliere la condizione sul ritmo *è* cambiare la
+     * regola: `peso-incoerente.ts` scrive per esteso che la versione senza quella condizione era
+     * già stata provata e buttata — «dieci chili in due mesi suonerebbero, ed è un percorso
+     * riuscito, non un errore» — e che un guardrail che suona sul terzo delle clienti «non è
+     * severo: è spento». La voce dice *«la soglia è clinica e non la scegliamo noi»*, e la risposta
+     * di Simone del 3/9 dà il **riferimento** al rientro, non una soglia d'allarme.
+     *
+     * ⚠️ E c'era un secondo difetto, più concreto: il fabbisogno sarebbe diventato `null` **senza
+     * che nessuno lo sapesse**. La coda della coach e la segnalazione al nutrizionista leggono
+     * `saltoPeggiore`, non questo ramo — quindi la cliente sarebbe passata al livello della dieta
+     * in silenzio, che è il contrario di quello che questo file promette due paragrafi più su.
+     *
+     * ▶️ La voce resta **aperta**, con la domanda stretta: *sopra quanti chili, attraverso una
+     * sospensione, si smette di fidarsi del numero?*
+     */
     const pesoIncoerente = saltoPeggiore(pesate, sogliaSalto, sogliaRitmo);
     /**
      * ⚠️ `simulazione.pesoKg` esiste per **mostrare il prima accanto al dopo**, come `deficitCalcolato`:

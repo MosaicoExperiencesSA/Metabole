@@ -68,6 +68,20 @@ const conPesate = (
       }),
     },
     objective: { findFirst: jest.fn().mockResolvedValue(obiettivo) },
+    /**
+     * ⛔ **SENZA QUESTE DUE, TUTTA QUESTA SUITE GIRAVA CON LA REGOLA DEL RIENTRO SPENTA.**
+     *
+     * `inizioDelPeriodoDi` legge `event` e `pauseRequest`. Con un finto che non le ha,
+     * `prisma.event.findMany` lancia un `TypeError`, il `catch` del modulo lo assorbe e rende
+     * `null`: nessuna di queste prove avrebbe mai visto il codice nuovo, e nessuna sarebbe
+     * diventata rossa correggendolo. L'ha trovato una revisione avversariale, non le prove.
+     *
+     * ⚠️ Nessuna pausa: queste prove parlano di clienti che non hanno mai sospeso, ed è giusto che
+     * per loro non cambi niente. Il caso del rientro ha le sue, in
+     * `peso-al-rientro-nei-chiamanti.spec.ts`.
+     */
+    event: { findMany: jest.fn().mockResolvedValue([]) },
+    pauseRequest: { findFirst: jest.fn().mockResolvedValue(null) },
   };
 };
 
