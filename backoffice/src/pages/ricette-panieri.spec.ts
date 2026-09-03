@@ -6,19 +6,28 @@ const sorgenti = {
 const pagina = sorgenti['./Ricette.tsx'] ?? '';
 
 /**
- * ⛔ **«DOVE È USATA» E «IN QUALI PANIERI STA» SONO DUE DOMANDE DIVERSE** — richiesta di Simone del
- * 2/9, e la parte concettuale che conta.
+ * ⛔ **«DOVE È USATA» È STATA TOLTA DAL POPUP — decisione di Simone, 3/9.**
  *
- * La prima sono le **giornate** che nominano il piatto; la seconda è il **pool** da cui il motore
- * pesca. Con `panieri_sorgente_pool` su `paniere` è la seconda a decidere cosa arriva nel piatto di
- * una cliente, e le giornate diventano storia. Mescolarle in un elenco solo farebbe credere che
- * togliere una riga di «Dove è usata» tolga il piatto dai menu — e da quel giorno non è più vero.
+ * Il 2/9 le due sezioni convivevano, ed era già scritto qui perché fossero **due domande diverse**:
+ * «Dove è usata» sono le **giornate** che nominano il piatto, «In quali panieri» è il **pool** da
+ * cui il motore pesca. Con `panieri_sorgente_pool` su `paniere` è il secondo a decidere cosa arriva
+ * nel piatto di una cliente, e le giornate sono diventate storia.
+ *
+ * ⛔ Il passo successivo era inevitabile: un elenco che **sembra comandare** e non comanda più — con
+ * un pulsante «Togli» per ogni riga — è peggio di un elenco che non c'è. Resta la stessa domanda,
+ * fatta alla porta giusta.
  */
 describe('la sezione dei panieri nel popup della ricetta', () => {
-  it('⛔ è una sezione a parte, non righe in fondo a «Dove è usata»', () => {
+  it('⛔ «Dove è usata» non c\'è più: restano i panieri, che sono la porta vera', () => {
     expect(pagina).toMatch(/function InQualiPanieri/);
-    expect(pagina).toMatch(/<DoveUsata recipe=\{recipe\}/);
     expect(pagina).toMatch(/<InQualiPanieri recipe=\{recipe\}/);
+    expect(pagina).not.toMatch(/<DoveUsata/);
+    expect(pagina).not.toMatch(/function DoveUsata/);
+  });
+
+  /** ⚠️ E il motivo resta scritto nella pagina: senza, fra sei mesi sembra una dimenticanza. */
+  it('⚠️ e la pagina dice PERCHÉ è stata tolta', () => {
+    expect(pagina).toMatch(/«DOVE È USATA» È STATA TOLTA/);
   });
 
   it('⛔ e dice che il paniere è una cosa diversa dalle giornate', () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Modal, Spinner } from '../components/ui';
-import { raggruppaFamiglie, type DietRow, type Famiglia } from '../lib/famiglieDiete';
+import { contiDelleFamiglie, raggruppaFamiglie, type DietRow, type Famiglia } from '../lib/famiglieDiete';
 import { useAuth } from '../auth/AuthContext';
 import { eNutrizionista } from '../lib/ruoliNutrizionista';
 
@@ -50,17 +50,32 @@ export function DescrizioniDiete() {
   const [notice, setNotice] = useState<string | null>(null);
   const [apri, setApri] = useState<Famiglia | null>(null);
   /**
-   * ⛔ **L'ADMIN LA LEGGE E BASTA** (revisione, 22/8). Ha il permesso di pagina `diets_catalog`,
-   * quindi la voce di menu gli compare e `GET /diets` lo ammette — ma `PATCH famiglia/product`
-   * eredita `@Roles('nutritionist', 'head_nutritionist')` dal controller e gli risponde «ruolo non
-   * autorizzato». ⚠️ Un pulsante che si vede e non funziona è il difetto che questa stessa consegna
-   * ha corretto sulla «Scheda cliente»: rifarlo nella pagina nuova sarebbe stato ridicolo.
-   * `Diete.tsx` lo gestisce già così (`showActions`).
+   * ⛔ **ANCHE L'ADMIN SCRIVE, dal 3/9.** Simone, guardando questa pagina: *«qui dovrei poter
+   * modificare le descrizioni che poi le clienti leggono sull'app»*, e vedeva «sola lettura» su
+   * tutte le righe.
+   *
+   * ⚠️ Il 22/8 era una scelta scritta qui: l'admin legge e basta, perché `PATCH famiglia/product`
+   * ereditava `@Roles('nutritionist', 'head_nutritionist')` dal controller e un pulsante che si
+   * vede e risponde 403 è peggio di un pulsante che non c'è. Le strade erano due — togliere il
+   * pulsante o aprire la rotta — e la sceglie chi ha il prodotto in mano.
+   *
+   * ⛔ **Il pulsante e la rotta si sono mossi INSIEME** (`catalog.controller.ts`): aprire solo qui
+   * avrebbe rifatto esattamente il difetto che questa nota descriveva.
    */
   const { user } = useAuth();
-  const puoScrivere = eNutrizionista(user?.role);
+  const puoScrivere = eNutrizionista(user?.role) || user?.role === 'admin';
   const [filtro, setFiltro] = useState('');
   const [soloBuchi, setSoloBuchi] = useState(false);
+  /** ⚠️ Spento: le famiglie che chiudono non si scrivono più. Ma si possono rivedere, non spariscono. */
+  const [mostraChiuse, setMostraChiuse] = useState(false);
+
+  /**
+   * ⛔ **L'elenco delle famiglie che chiudono arriva dal BACKEND**, dove sta la lista canonica
+   * (`FAMIGLIE_CHE_SPARISCONO`). Se la chiamata non risponde si usa il ripiego scritto in
+   * `famiglieDiete.ts` — meglio una lista che può invecchiare che nove famiglie morte in cima alla
+   * pagina.
+   */
+  const [chiuse, setChiuse] = useState<ReadonlySet<string> | undefined>(undefined);
 
   async function carica() {
     try {
@@ -70,20 +85,29 @@ export function DescrizioniDiete() {
       setRighe([]);
       setError(e instanceof Error ? e.message : 'Caricamento non riuscito.');
     }
+    try {
+      const t = await api<{ families?: { name: string; inChiusura?: boolean }[] }>('/catalog/taxonomy');
+      const nomi = (t.families ?? []).filter((f) => f.inChiusura).map((f) => f.name);
+      if (nomi.length) setChiuse(new Set(nomi));
+    } catch { /* si resta sul ripiego: non è un errore che valga un banner rosso in pagina */ }
   }
   useEffect(() => { void carica(); }, []);
 
-  const famiglie = useMemo(() => raggruppaFamiglie(righe ?? []), [righe]);
+  const famiglie = useMemo(() => raggruppaFamiglie(righe ?? [], chiuse), [righe, chiuse]);
+  /**
+   * ⛔ **Le famiglie che chiudono escono dai conti, non solo dalla tabella.** Contandole,
+   * «famiglie incomplete» resterebbe rosso per sempre su righe che stanno per sparire — la stessa
+   * ragione per cui le archiviate non si contano.
+   */
+  const { vive, inChiusura, varianti, coperte, scoperte } = useMemo(() => contiDelleFamiglie(famiglie), [famiglie]);
+
   const mostrate = useMemo(() => {
     const q = filtro.trim().toLowerCase();
-    return famiglie
+    return (mostraChiuse ? famiglie : vive)
       .filter((f) => (soloBuchi ? f.coperte < f.varianti.length : true))
       .filter((f) => !q || `${f.nome} ${f.stile} ${f.clientName ?? ''}`.toLowerCase().includes(q));
-  }, [famiglie, filtro, soloBuchi]);
+  }, [famiglie, vive, mostraChiuse, filtro, soloBuchi]);
 
-  const scoperte = famiglie.filter((f) => f.coperte < f.varianti.length).length;
-  const varianti = famiglie.reduce((n, f) => n + f.varianti.length, 0);
-  const coperte = famiglie.reduce((n, f) => n + f.coperte, 0);
 
   if (!righe) return <Spinner />;
 
@@ -95,8 +119,14 @@ export function DescrizioniDiete() {
       <div className="card" style={{ padding: '12px 16px', marginBottom: 14 }}>
         <div className="row" style={{ gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
           <b style={{ fontSize: 13 }}>
-            <i className="ti ti-file-description" /> {famiglie.length} famiglie · {varianti} varianti
+            <i className="ti ti-file-description" /> {vive.length} famiglie · {varianti} varianti
           </b>
+          {inChiusura > 0 && (
+            <span className="muted" style={{ fontSize: 12 }}>
+              {/* ⚠️ Si dice quante sono state tolte: niente tagli silenziosi. */}
+              <b>{inChiusura}</b> in chiusura, non elencate
+            </span>
+          )}
           {/*
             ⚠️ Il numero che conta: quante varianti hanno la descrizione. In registrazione e sul sito
             basta che ne sia compilata una per famiglia; nel PROFILO la cliente legge la sua, quindi
@@ -142,6 +172,17 @@ export function DescrizioniDiete() {
         >
           Solo quelle incomplete
         </button>
+        {inChiusura > 0 && (
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setMostraChiuse((v) => !v)}
+            title="Le famiglie che confluiscono in altre: le clienti si spostano e questi testi non li leggerà più nessuno"
+            style={{ cursor: 'pointer', borderColor: mostraChiuse ? 'var(--teal)' : undefined, background: mostraChiuse ? 'var(--chip)' : undefined }}
+          >
+            {mostraChiuse ? 'Nascondi quelle in chiusura' : `Mostra anche le ${inChiusura} in chiusura`}
+          </button>
+        )}
       </div>
 
       {mostrate.length === 0 ? (
@@ -190,6 +231,13 @@ export function DescrizioniDiete() {
                     )}
                   </td>
                   <td>
+                    {f.inChiusura ? (
+                      /* ⚠️ Visibile solo con l'interruttore acceso: la si può ancora scrivere, ma
+                         sapendo che quei testi stanno per non servire più a nessuno. */
+                      <span className="chip gray" style={{ fontSize: 11 }} title="Questa famiglia confluisce in un'altra: le clienti si spostano">
+                        in chiusura
+                      </span>
+                    ) : null}
                     {puoScrivere ? (
                       <button className="btn ghost sm" onClick={() => setApri(f)}>
                         <i className="ti ti-pencil" /> Scrivi

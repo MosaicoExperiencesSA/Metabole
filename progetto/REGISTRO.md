@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` 📝 **Le descrizioni le scrive anche l'admin, e le vecchie diete escono dall'elenco.**
+  Simone, guardando la pagina: *«qui dovrei poter modificare le descrizioni che poi le clienti
+  leggono sull'app, ma ci sono le vecchie diete»* — e vedeva «sola lettura» su tutte e diciannove le
+  righe. ⛔ Il 22/8 era una scelta: `PATCH famiglia/product` ereditava `@Roles('nutritionist',
+  'head_nutritionist')`, e un pulsante che risponde 403 è peggio di un pulsante che non c'è. ✅
+  Aperta la rotta **e** il pulsante **insieme**: aprirne uno solo avrebbe rifatto quel difetto, e una
+  prova tiene ferme tutte e due le metà. ⚠️ Passano solo i tre campi del testo: la visibilità alle
+  clienti resta al capo.
+  ⛔ **E nove famiglie su diciannove stanno chiudendo** (`FAMIGLIE_CHE_SPARISCONO`): le loro clienti
+  si spostano e quei testi non li leggerà più nessuno. Adesso non sono elencate e i loro buchi **non
+  contano** in «famiglie incomplete» — che altrimenti non sarebbe mai tornato a zero. ⚠️ Niente tagli
+  silenziosi: si legge «9 in chiusura, non elencate», e un interruttore le rimette in tabella.
+  ⚠️ E i conti sono usciti dal componente: stanno in `lib/` con le loro prove, che è la regola che
+  quel file si era già dato.
+  🧪 222/222 backoffice, 6797/6797 backend, **7 mutazioni su 7 uccise**.
+
+- `[Sviluppo]` 🧹 **«Dove è usata» tolta dal popup della ricetta** (richiesta di Simone). Elencava le
+  **giornate** che nominano il piatto, con un «Togli» per ogni riga: dal 1°/9 la sorgente del pool è
+  il **paniere**, quindi quelle righe raccontavano una cosa che non decide più cosa arriva nel piatto
+  di una cliente — e il «Togli» toglieva da una porta che non è più quella. ⚠️ Resta «In quali
+  panieri», che è la stessa domanda fatta alla porta giusta.
+
 - `[Sviluppo]` 🥣 **«Crema di mandorle» non diventa più «mandorle»: il nome composto si legge
   intero.** Nella forma rovesciata («Y al posto di X») il nome si legge risalendo, e `codaDellaFrase`
   si fermava su `ARTICOLI` — che tiene insieme «**le** gallette», dove l'articolo apre il nome, e

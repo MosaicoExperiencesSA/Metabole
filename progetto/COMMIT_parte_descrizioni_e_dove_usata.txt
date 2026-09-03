@@ -1,0 +1,62 @@
+Le descrizioni le scrive anche l'admin, e le vecchie diete escono dall'elenco
+
+Tre cose viste guardando le schermate, il 3/9.
+
+⛔ 1. «DOVE È USATA» TOLTA DAL POPUP DELLA RICETTA (richiesta di Simone).
+Elencava le GIORNATE che nominano il piatto, con un «Togli» per ogni riga. Dal
+1°/9 la sorgente del pool è il PANIERE (`panieri_sorgente_pool`): quelle righe
+raccontavano una cosa che non decide più cosa arriva nel piatto di una cliente, e
+il «Togli» toglieva da una porta che non è più quella. Un elenco che sembra
+comandare e non comanda è peggio di un elenco che non c'è.
+⚠️ Resta «In quali panieri», che è la stessa domanda fatta alla porta giusta — e
+la nota del 2/9 diceva già che erano due domande diverse. Il passo era scritto.
+
+⛔ 2. L'ADMIN NON POTEVA SCRIVERE LE DESCRIZIONI. Simone: «qui dovrei poter
+modificare le descrizioni che poi le clienti leggono sull'app», e vedeva «sola
+lettura» su tutte le diciannove righe. Il 22/8 era una scelta, scritta nel codice:
+`PATCH famiglia/product` ereditava `@Roles('nutritionist', 'head_nutritionist')`
+dal controller, e un pulsante che si vede e risponde 403 è peggio di un pulsante
+che non c'è. Le strade erano due — togliere il pulsante o aprire la rotta — e la
+sceglie chi ha il prodotto in mano.
+⛔ IL PULSANTE E LA ROTTA SI SONO MOSSI INSIEME: aprirne uno solo avrebbe rifatto
+esattamente il difetto che quella nota descriveva, e c'è una prova che tiene ferme
+tutte e due le metà.
+⚠️ Dalla rotta passano SOLO i tre campi del testo (`clientName`,
+`clientDescription`, `seasonalTag`): la visibilità alle clienti resta al capo
+nutrizionista, e una prova lo tiene fermo sul DTO.
+
+⛔ 3. E IN ELENCO C'ERANO LE VECCHIE DIETE — nove famiglie su diciannove.
+Flexitariana, Pescetariana, Vegana, Vegetariana, Digiuno intermittente,
+Mediterranea ipocalorica, Mediterranea senza glutine, Ritorno in Equilibrio,
+Vacanze in Serenità: tutte in `FAMIGLIE_CHE_SPARISCONO`, cioè confluiscono
+altrove. Le loro clienti si spostano e quei testi non li leggerà più nessuno.
+✅ Adesso non sono elencate, e i loro buchi NON contano nel numero «famiglie
+incomplete» — che altrimenti non sarebbe mai tornato a zero, e l'unico modo di
+spegnere l'avviso sarebbe stato scrivere testi su famiglie morte. ⚠️ È la stessa
+ragione per cui le varianti archiviate non si contano: un avviso che compare
+sempre non è un avviso.
+⚠️ NIENTE TAGLI SILENZIOSI: in cima si legge «9 in chiusura, non elencate», e un
+interruttore le rimette in tabella con l'etichetta «in chiusura» — si possono
+ancora scrivere, sapendo cosa sono.
+⚠️ L'elenco vero arriva da `GET /catalog/taxonomy`, dove la lista è UNA
+(`FAMIGLIE_CHE_SPARISCONO`). Quello nel frontend è il ripiego per quando quella
+chiamata non risponde, ed è dichiarato tale: se un giorno diverge, una famiglia
+chiusa ricompare in elenco — un errore per eccesso, che si vede. L'errore opposto
+non è possibile.
+
+⚠️ E i conti in cima alla pagina sono usciti dal componente: stanno in
+`lib/famiglieDiete.ts` con le loro prove, perché sono «la parte che si può
+sbagliare in silenzio» — è la regola che quel file si era già dato in testa.
+
+File: backoffice/src/pages/Ricette.tsx (via «Dove è usata» e i tipi rimasti
+orfani), backoffice/src/pages/ricette-panieri.spec.ts,
+backoffice/src/pages/DescrizioniDiete.tsx,
+backoffice/src/pages/descrizioni-admin-scrive.spec.ts (nuovo),
+backoffice/src/lib/famiglieDiete.ts,
+backoffice/src/lib/descrizioni-famiglie-in-chiusura.spec.ts (nuovo),
+backend/src/catalog/catalog.controller.ts.
+
+Prove: 222/222 backoffice, 6797/6797 backend nelle quattro modalità, build e tsc
+puliti. Sette mutazioni su sette uccise — fra cui il pulsante richiuso all'admin,
+la rotta richiusa, le famiglie in chiusura non marcate, e le chiuse che tornano
+nei conti.

@@ -46,7 +46,32 @@ export interface Famiglia {
   archiviate: number;
   /** ⚠️ Le varianti compilate NON dicono tutte la stessa cosa: va detto, o si sovrascrive alla cieca. */
   testiDiversi: boolean;
+  /**
+   * ⛔ **La famiglia sta chiudendo** (`FAMIGLIE_CHE_SPARISCONO` nel backend): le sue clienti si
+   * spostano altrove e i suoi testi non li leggerà più nessuno. Scriverli è tempo buttato — e
+   * peggio, il numero «famiglie incomplete» resterebbe rosso per sempre su righe che stanno per
+   * sparire.
+   */
+  inChiusura: boolean;
 }
+
+/**
+ * ⛔ **LE FAMIGLIE CHE STANNO CHIUDENDO, e perché l'elenco sta QUI e non nel backend.**
+ *
+ * La lista canonica è una sola — `FAMIGLIE_CHE_SPARISCONO` in `catalog/appartenenza-panieri.ts` — e
+ * arriva al backoffice da `GET /catalog/taxonomy`, dove ogni famiglia porta `inChiusura`. Questo
+ * elenco è il **ripiego** per quando quella chiamata non c'è o non risponde: senza, la pagina
+ * mostrerebbe le nove vecchie famiglie come se fossero da compilare.
+ *
+ * ⚠️ **Due elenchi divergono**, e va detto invece di far finta di niente: se in futuro una famiglia
+ * si chiude e questo non lo sa, comparirà di nuovo in elenco — un errore per eccesso, che si vede.
+ * L'errore opposto (nascondere una famiglia viva) non è possibile: queste nove sono già chiuse.
+ */
+export const FAMIGLIE_IN_CHIUSURA_NOTE: readonly string[] = [
+  'Flexitariana', 'Pescetariana', 'Vegana', 'Vegetariana (latto-ovo)',
+  'Digiuno intermittente (16:8)', 'Mediterranea ipocalorica', 'Mediterranea senza glutine',
+  'Ritorno in Equilibrio', 'Vacanze in Serenità',
+];
 
 /** ⚠️ Una stringa di soli spazi non è un testo: alla cliente non dice niente, e non va contata. */
 const vuota = (t?: string | null): boolean => !t || !t.trim();
@@ -67,7 +92,8 @@ const vuota = (t?: string | null): boolean => !t || !t.trim();
  * con un NUL dentro diventa «binario» per grep e sparisce dai test che leggono i sorgenti. Vedi la
  * nota in testa a questo file, e `sorgenti-leggibili.spec.ts`.
  */
-export function raggruppaFamiglie(righe: DietRow[]): Famiglia[] {
+export function raggruppaFamiglie(righe: DietRow[], inChiusura?: ReadonlySet<string>): Famiglia[] {
+  const chiuse = inChiusura ?? new Set(FAMIGLIE_IN_CHIUSURA_NOTE);
   const per = new Map<string, DietRow[]>();
   for (const r of righe) {
     const chiave = `${r.name}\u0000${r.style}`;
@@ -97,6 +123,7 @@ export function raggruppaFamiglie(righe: DietRow[]): Famiglia[] {
       nome: varianti[0].name,
       stile: varianti[0].style,
       varianti: vive,
+      inChiusura: chiuse.has(varianti[0].name),
       archiviate: varianti.length - vive.length,
       coperte: compilate.length,
       descrizione: compilate[0]?.clientDescription ?? null,
@@ -120,3 +147,33 @@ export function raggruppaFamiglie(righe: DietRow[]): Famiglia[] {
     return a.nome.localeCompare(b.nome);
   });
 }
+
+/**
+ * ⛔ **I NUMERI IN CIMA ALLA PAGINA, e stanno qui per la ragione scritta in testa a questo file:
+ * sono la parte che si può sbagliare in silenzio.**
+ *
+ * Se `scoperte` conta anche le famiglie che stanno chiudendo, «famiglie incomplete» non torna
+ * **mai** a zero, il filtro «solo quelle incomplete» non si svuota mai, e l'unico modo di spegnere
+ * l'avviso sarebbe scrivere testi su famiglie che nessuna cliente leggerà. ⚠️ *Un avviso che
+ * compare sempre non è un avviso* — è la stessa ragione per cui le varianti archiviate non si
+ * contano.
+ */
+export interface ContiDescrizioni {
+  vive: Famiglia[];
+  inChiusura: number;
+  varianti: number;
+  coperte: number;
+  scoperte: number;
+}
+
+export function contiDelleFamiglie(famiglie: readonly Famiglia[]): ContiDescrizioni {
+  const vive = (famiglie ?? []).filter((f) => !f.inChiusura);
+  return {
+    vive,
+    inChiusura: (famiglie ?? []).length - vive.length,
+    varianti: vive.reduce((n, f) => n + f.varianti.length, 0),
+    coperte: vive.reduce((n, f) => n + f.coperte, 0),
+    scoperte: vive.filter((f) => f.coperte < f.varianti.length).length,
+  };
+}
+

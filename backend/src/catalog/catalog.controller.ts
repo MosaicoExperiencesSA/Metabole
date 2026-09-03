@@ -68,6 +68,19 @@ export class DietsController {
    * `famiglia/product` (leggendo `famiglia` come un id). Dichiarata dopo, questa rotta non verrebbe
    * mai raggiunta: risponderebbe l'altra, con un 404 su una dieta che si chiama «famiglia».
    */
+  /**
+   * ⛔ **ANCHE L'ADMIN SCRIVE, dal 3/9.** Simone, guardando la pagina «Descrizioni diete»: *«qui
+   * dovrei poter modificare le descrizioni che poi le clienti leggono sull'app»* — e vedeva «sola
+   * lettura» su tutte le righe, perché questa rotta ereditava `@Roles('nutritionist',
+   * 'head_nutritionist')` dal controller.
+   *
+   * ⚠️ Il 22/8 era stata una scelta, scritta in `DescrizioniDiete.tsx`: l'admin legge e basta,
+   * perché un pulsante che si vede e risponde 403 è peggio di un pulsante che non c'è. La scelta
+   * fra le due — togliere il pulsante o aprire la rotta — la fa chi ha il prodotto in mano, e l'ha
+   * fatta. ⛔ Qui si scrivono solo i **tre campi del testo** (`clientName`, `clientDescription`,
+   * `seasonalTag`): la visibilità alle clienti resta al capo nutrizionista, e non passa da qui.
+   */
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
   @Patch('famiglia/product')
   updateFamilyProduct(@Body() dto: UpdateFamilyProductDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateFamilyProduct(user.sub, dto);
