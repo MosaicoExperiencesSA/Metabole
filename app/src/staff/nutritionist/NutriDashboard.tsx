@@ -40,11 +40,36 @@ interface Segnalazione {
   bloccoPiano: boolean;
 }
 
+/** Una riga di «Le tue attività»: la forma che rende `GET /staff/coach-tasks`. */
+interface Attivita {
+  id: string;
+  clientId: string;
+  kind: string;
+  title: string;
+  description: string | null;
+  dueDate: string;
+  /** ⚠️ Lo calcola il backend sul giorno di **Roma**: rifarlo qui darebbe un altro giorno. */
+  overdue: boolean;
+  clientName: string;
+}
+
 export default function NutriDashboard() {
   const nav = useNavigate();
   const dash = useApi<Dash>('/nutritionist/dashboard');
   const queue = useApi<ValidationQueue>('/nutritionist/validation-queue');
   const segn = useApi<{ segnalazioni: Segnalazione[] }>('/nutritionist/escalations');
+  /**
+   * ⛔ **LE SUE ATTIVITÀ, dal 3/9.** Dal 21/8 quattro tipi nascono addosso a lei — digiuno estremo,
+   * finestra non traducibile, pasti non serviti, calorie corte — e la **push le arriva sul
+   * telefono**. La sua schermata non le aveva: il 22/8 le era stata aperta la pagina del
+   * backoffice, l'app staff no. Una notifica che porta a una schermata che non mostra la cosa
+   * notificata è peggio di nessuna notifica.
+   *
+   * ⚠️ L'endpoint la serve **già** filtrata ai suoi quattro tipi e alle sue clienti
+   * (`filtroNutrizionista`): qui non c'è nessun filtro, e non deve essercene uno — due regole per
+   * la stessa domanda divergono, e questa decide cosa vede una persona.
+   */
+  const attivita = useApi<Attivita[]>('/staff/coach-tasks?status=todo&limit=50');
   const [lavoro, setLavoro] = useState<string | null>(null);
   const [esito, setEsito] = useState<{ id: string; ok: boolean; testo: string } | null>(null);
 
@@ -67,6 +92,31 @@ export default function NutriDashboard() {
       if (r.sbloccato) segn.reload();
     } catch (e) {
       setEsito({ id: sg.id, ok: false, testo: e instanceof Error ? e.message : 'Non riuscito.' });
+    } finally {
+      setLavoro(null);
+    }
+  }
+
+  /**
+   * ⛔ **CHIUDERLA DEVE POTERLA FARE DA QUI, o la schermata è una vetrina.**
+   *
+   * Su questi quattro tipi la coach prende 403 (`TIPI_DELLA_NUTRIZIONISTA` in
+   * `coach-tasks.service.ts`, regola del 22/8): **è lei l'unica** che può chiuderle. Mostrargliele
+   * senza il pulsante voleva dire mandarle una push, farle aprire la Dashboard, e rispedirla nel
+   * backoffice per il clic — mentre l'avviso ha appena smesso di dirle dov'è il backoffice.
+   * Un'attività che resta `todo` per questo motivo, il giorno dopo `escalateAttivitaScadute` la
+   * manda alla manager commerciale: il difetto non sarebbe rimasto in questa pagina.
+   *
+   * ⚠️ Niente «Salta» qui, al contrario della coach: saltare «digiuno estremo» o «calorie corte»
+   * è una decisione clinica, e questa lista è la coda di chi la prende. Si chiude facendola.
+   */
+  async function chiudiAttivita(id: string) {
+    setLavoro(id); setEsito(null);
+    try {
+      await api(`/staff/coach-tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'done' }) });
+      attivita.reload();
+    } catch (e) {
+      setEsito({ id, ok: false, testo: e instanceof Error ? e.message : 'Non riuscito.' });
     } finally {
       setLavoro(null);
     }
@@ -177,6 +227,80 @@ export default function NutriDashboard() {
                 );
               }}
             </Async>
+
+            {/* ⛔ SOPRA le priorità cliniche: sono le uniche righe di questa pagina che hanno una
+                SCADENZA, e per cui a lei è già arrivata una notifica sul telefono.
+
+                ⚠️ **Niente `<Async>` qui, al contrario del resto della pagina.** `@RequirePage`
+                legge `coach_tasks` da `role_page_permission`, e finché quella riga è spenta la
+                chiamata torna 403: `Async` metterebbe un rettangolo d'errore rosso **senza titolo**
+                (il `<Section>` sta dentro i children) fra il questionario e «Priorità cliniche».
+                Un 403 previsto non è un guasto da mostrare — la sezione semplicemente non c'è,
+                come fa già la dashboard della coach. */}
+            {attivita.data && attivita.data.length > 0 && (() => {
+              const lista = attivita.data;
+              const scadute = lista.filter((a) => a.overdue).length;
+              return (
+                <>
+                  <Section
+                    title={`Le tue attività (${lista.length})`}
+                    action={scadute > 0
+                      ? <span className="sf-sub" style={{ color: '#B4491F', fontWeight: 700 }}>{scadute} in ritardo</span>
+                      : undefined}
+                  />
+                  <Card className="pad0">
+                    {/* ⛔ **Si mostrano TUTTE, non le prime N.** La coach ne mostra sei perché il
+                        resto lo trova nel backoffice; lei il backoffice l'ha solo se qualcuno le
+                        accende la chiave, e l'app staff non ha una pagina «tutte le attività». Un
+                        «…e altre 12» senza nessun posto dove andarle a prendere rende falsa la
+                        frase della push. ⚠️ L'ordine è `dueDate asc`: l'attività appena
+                        notificata (scadenza domani) è **l'ultima** — cioè esattamente quella che
+                        un taglio in cima nasconderebbe. */}
+                    {lista.map((a) => (
+                      <div
+                        key={a.id}
+                        className="sf-row"
+                        style={{ alignItems: 'flex-start' }}
+                      >
+                        <span style={{ width: 34, height: 34, borderRadius: 11, background: a.overdue ? '#FBE3E3' : '#EAF1FB', color: a.overdue ? '#B4491F' : '#2C5AA0', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                          <i className={`ti ${a.overdue ? 'ti-alarm' : 'ti-checklist'}`} style={{ fontSize: 18 }} />
+                        </span>
+                        <div
+                          className="sf-row-main"
+                          style={{ minWidth: 0, cursor: 'pointer' }}
+                          onClick={() => nav(`/pazienti/${a.clientId}`)}
+                        >
+                          <div className="sf-row-name">{a.title}</div>
+                          <div className="sf-row-sub" style={{ whiteSpace: 'normal' }}>
+                            {/* ⚠️ `clientName` può arrivare stringa vuota (il ripiego del backend
+                                usa `??` dopo un `join`, che vuoto non è nullish): senza questo la
+                                riga comincerebbe con « · per il 5/9». */}
+                            {a.clientName?.trim() || 'Cliente'}
+                            {/* ⚠️ La scadenza si scrive SEMPRE, non solo quando è passata: «per il 5
+                                settembre» dice cosa fare, «in ritardo» dice solo che è tardi. */}
+                            {' · '}
+                            <span style={{ color: a.overdue ? '#B4491F' : undefined, fontWeight: a.overdue ? 700 : undefined }}>
+                              {a.overdue ? 'scaduta il ' : 'per il '}{a.dueDate.split('-').reverse().join('/')}
+                            </span>
+                          </div>
+                          {esito && esito.id === a.id && !esito.ok && (
+                            <div className="sf-row-sub" style={{ color: '#B4491F', whiteSpace: 'normal' }}>{esito.testo}</div>
+                          )}
+                        </div>
+                        <button
+                          className="sf-btn g"
+                          style={{ flex: 'none', width: 'auto', whiteSpace: 'nowrap', padding: '6px 10px', fontSize: 13 }}
+                          disabled={lavoro === a.id}
+                          onClick={() => chiudiAttivita(a.id)}
+                        >
+                          <i className="ti ti-check" /> Fatto
+                        </button>
+                      </div>
+                    ))}
+                  </Card>
+                </>
+              );
+            })()}
 
             <Section
               title="Priorità cliniche"

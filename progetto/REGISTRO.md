@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **La nutrizionista vede — e chiude — le sue attività dalla sua app.** Dal 21/8
+  quattro tipi nascono addosso a lei (digiuno estremo, finestra non traducibile, pasti non serviti,
+  calorie corte) e la **push le arriva sul telefono**; `NutriDashboard` chiamava tre endpoint e
+  `/staff/coach-tasks` non lo chiamava nessuno. ⛔ *Una notifica che porta a una schermata vuota è
+  peggio di un 403: non dice nemmeno che una porta esiste.* Il 22/8 la frase era stata corretta al
+  ribasso («La trovi nel backoffice») — *se degradi, dillo*; adesso la sezione c'è e la frase è
+  tornata una sola. ⛔ **E col pulsante «Fatto»**: su questi quattro tipi la coach prende 403, è
+  **lei** l'unica che può chiuderli — mostrargliele e basta voleva dire mandarla nel backoffice per
+  il clic, cioè all'indirizzo che la frase aveva appena smesso di darle, e il giorno dopo
+  all'escalation. ⚠️ Niente «Salta»: saltare «digiuno estremo» è una decisione clinica.
+
+- `[Sviluppo]` 🔒 **La scheda del «?» dello stile adesso è sorvegliata da una prova.** Nella voce era
+  scritto che non si poteva fare: si poteva — gli stili dei preset sono un elenco statico nel
+  backend, e un test del backend può leggere un file dell'app (`unita-acqua.spec.ts` lo fa già).
+  ⛔ Non conta le **chiavi** ma apre ogni scheda e guarda i **campi**, con un minimo per campo:
+  «Mediterranea» è un titolo giusto e lungo dodici caratteri, `cosaDiceLaRicerca` in dodici
+  caratteri è un campo non scritto. ⚠️ Con una sentinella `it.failing` su `STYLE_LABELS`, che
+  contiene `vegan`/`vegetarian`/`balanced` senza scheda: verde finché il difetto c'è, **rossa**
+  quando qualcuno lo corregge. La voce **resta aperta**: gli stili veri arrivano dal database, non
+  dai preset.
+
+- `[Sviluppo]` ⛔ **E la revisione avversariale ha fermato una consegna che non compilava.**
+  Togliendo il vecchio `isCoachSide` era rimasta la dichiarazione senza lettori, e `app/tsconfig`
+  ha `noUnusedLocals` → TS6133, job «App · build» rosso, deploy fermo. ⚠️ **Nessuna delle sei
+  prove se ne accorgeva**, perché leggevano il sorgente come *testo* invece di compilarlo: da qui
+  l'app e il backoffice si typecheccano davvero prima di consegnare. Trovati nella stessa passata:
+  la schermata senza il pulsante (sopra); un «…e altre 12» che non portava da nessuna parte, con
+  l'ordine `dueDate asc` che metteva **ultima** proprio l'attività appena notificata; `clientName`
+  che poteva uscire **stringa vuota** (`join` non torna mai nullish: i due `??` di ripiego erano
+  codice morto); la prova sulla scheda che passava verde su **dieci schede vuote**; e il registro
+  che dichiarava prove inesistenti e aveva riscritto la `nata` di una voce. Tutti corretti.
+  🧪 6821/6821 backend nelle quattro modalità, 222/222 backoffice, `tsc -b` pulito su app e
+  backoffice, **10 mutazioni su 10 uccise**.
+
 - `[Sviluppo]` 📝 **Le descrizioni le scrive anche l'admin, e le vecchie diete escono dall'elenco.**
   Simone, guardando la pagina: *«qui dovrei poter modificare le descrizioni che poi le clienti
   leggono sull'app, ma ci sono le vecchie diete»* — e vedeva «sola lettura» su tutte e diciannove le

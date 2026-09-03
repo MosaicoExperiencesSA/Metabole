@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { initials } from './format';
-import { COACH_ROLES } from './tabs';
+import { COACH_ROLES, NUTRI_ROLES } from './tabs';
 
 /** Voce della tab bar in basso. */
 export interface TabItem {
@@ -28,18 +28,28 @@ export function StaffShell({
   headerBadge?: number;
 }) {
   const { user } = useAuth();
-  const isCoachSide = !!user && COACH_ROLES.has(user.role);
-  // #7: pallino sul tab Dashboard quando la coach ha attività "da fare" pendenti,
-  // così se ne accorge senza aprire il tab. Solo per i ruoli coach.
+  /**
+   * ⛔ **ANCHE LA NUTRIZIONISTA, dal 3/9.** Il pallino esisteva dal #7 ma era dietro una condizione
+   * sui soli ruoli coach (`COACH_ROLES`),
+   * che non la comprende: dal 21/8 quattro tipi di attività nascono addosso a lei — digiuno
+   * estremo, finestra non traducibile, pasti non serviti, calorie corte — la push le arriva sul
+   * telefono, e la sua schermata non le aveva. Mandare una notifica per una cosa che l'app non
+   * mostra è peggio che non mandarla.
+   *
+   * ⚠️ L'endpoint le serve **già** solo i suoi quattro tipi sulle sue clienti
+   * (`filtroNutrizionista` in `coach-tasks.service.ts`): qui non serve nessun filtro in più, e
+   * metterne uno vorrebbe dire tenere due regole per la stessa domanda.
+   */
+  const conAttivita = !!user && (COACH_ROLES.has(user.role) || NUTRI_ROLES.has(user.role));
   const [pendingTasks, setPendingTasks] = useState(0);
   useEffect(() => {
-    if (!isCoachSide) return;
+    if (!conAttivita) return;
     let alive = true;
     api<unknown[]>('/staff/coach-tasks?status=todo&limit=50')
       .then((r) => { if (alive) setPendingTasks(Array.isArray(r) ? r.length : 0); })
       .catch(() => { /* nessun indicatore se il dato non è disponibile */ });
     return () => { alive = false; };
-  }, [isCoachSide]);
+  }, [conAttivita]);
   return (
     <div className="sf-frame">
       {user?.linkedUserId ? (

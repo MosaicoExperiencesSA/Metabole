@@ -28,6 +28,31 @@ import { frasiDaChiarire, impronta, TIPO_ESCLUSIONI_DA_CHIARIRE, testoEsclusioni
  * G7 chiusura, +7 ultima chiamata) e di OGNI fine piano (report + rinnovo).
  * La coach li vede in dashboard con scadenza e stato (da fare / fatto / saltato).
  */
+
+/**
+ * ⛔ **IL NOME DELLA CLIENTE, e perché i tre `??` in fila NON funzionavano.**
+ *
+ * Era scritto `name ?? [firstName, lastName].filter(Boolean).join(' ') ?? email ?? 'Cliente'`.
+ * ⚠️ `Array.prototype.join` **non restituisce mai** `null` o `undefined`: con `name` nullo e
+ * i due nomi nulli il risultato è `''`, che non è nullish — quindi i due `??` successivi erano
+ * codice morto e usciva la stringa vuota. `ClientProfile.name` è `String?` nello schema, quindi
+ * il caso è raggiungibile.
+ *
+ * ⚠️ Si vedeva solo adesso: dal 3/9 la nutrizionista legge queste righe nella sua Dashboard, e
+ * una riga che comincia con « · per il 05/09» non dice di chi è.
+ */
+export function nomeDellaCliente(
+  cliente?: { firstName?: string | null; lastName?: string | null; email?: string | null;
+              clientProfile?: { name?: string | null } | null } | null,
+): string {
+  const pieno = (t?: string | null): string => (t ?? '').trim();
+  const dalProfilo = pieno(cliente?.clientProfile?.name);
+  if (dalProfilo) return dalProfilo;
+  const composto = [pieno(cliente?.firstName), pieno(cliente?.lastName)].filter(Boolean).join(' ');
+  if (composto) return composto;
+  return pieno(cliente?.email) || 'Cliente';
+}
+
 @Injectable()
 export class CoachTasksService {
   constructor(
@@ -136,10 +161,7 @@ export class CoachTasksService {
       dueDate: t.dueDate.toISOString().slice(0, 10),
       overdue: t.dueDate.getTime() < today.getTime(),
       status: t.status,
-      clientName: t.client?.clientProfile?.name
-        ?? [t.client?.firstName, t.client?.lastName].filter(Boolean).join(' ')
-        ?? t.client?.email
-        ?? 'Cliente',
+      clientName: nomeDellaCliente(t.client),
     }));
   }
 

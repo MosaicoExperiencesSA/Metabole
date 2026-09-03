@@ -163,22 +163,26 @@ export async function avvisaAttivitaNuova(
     const cliente = profilo?.name ?? 'una tua cliente';
     const scadenza = attivita.dueDate.toLocaleDateString('it-IT');
     /**
-     * ⛔ **«LA TROVI IN DASHBOARD» NON VALE PER TUTTI** (corretto in revisione, 22/8).
+     * ⛔ **«LA TROVI IN DASHBOARD» TORNA A VALERE PER TUTTI** — 3/9, chiusa la voce
+     * `attivita-nutrizionista-in-app`.
      *
-     * La coach lavora dall'app staff, e lì la Dashboard le attività ce le ha. La **nutrizionista**
-     * no: `NutriDashboard` chiama `/nutritionist/dashboard`, `validation-queue` ed `escalations` —
-     * `/staff/coach-tasks` non lo chiama nessuno. Le mandavamo una notifica sul telefono che
-     * indicava una schermata dove non c'era niente da vedere: non più un 403, ma un vuoto, che è
-     * peggio perché non le dice nemmeno che una porta esiste.
+     * Il 22/8 questa frase era stata **corretta al ribasso**: la coach lavora dall'app staff e lì
+     * la Dashboard le attività ce le ha, la nutrizionista no — `NutriDashboard` chiamava
+     * `/nutritionist/dashboard`, `validation-queue` ed `escalations`, e `/staff/coach-tasks` non lo
+     * chiamava nessuno. Le mandavamo una notifica che indicava una schermata vuota: peggio di un
+     * 403, perché non le diceva nemmeno che una porta esisteva. Finché la sezione non c'era, la
+     * push mandava al **backoffice** — *se degradi, dillo* vale anche per una frase.
      *
-     * ⚠️ Finché la sezione nell'app staff non c'è (è a elenco lavori), la push dice **dove si trova
-     * davvero**: il backoffice. *Se degradi, dillo* vale anche per una frase.
+     * ✅ Adesso la sezione «Le tue attività» c'è (`NutriDashboard.tsx`), col pallino sul tab, e la
+     * frase torna una sola. ⚠️ **La frase e la schermata si sono mosse insieme**: rimetterla senza
+     * la sezione — o fare la sezione lasciando la frase vecchia — rifà il difetto in uno dei due
+     * versi, e una prova lo tiene fermo (`attivita-nutrizionista-in-app.spec.ts`).
+     *
+     * ⚠️ Il nome della costante era `perLaNutrizionista_dove` e mentiva: questa frase la leggono
+     * **tutti** i destinatari, coach compresa. Un nome che dichiara una condizione inesistente è la
+     * prossima modifica sbagliata.
      */
-    const perLaNutrizionista_dove = perLaNutrizionista
-      // ⚠️ Il percorso vero: la voce si chiama «Attività da fare» e sta nel gruppo CRM, che è
-      // richiudibile. «Sezione Attività» — com'era scritto prima — non esiste da nessuna parte.
-      ? 'La trovi nel backoffice, in CRM › Attività da fare.'
-      : 'La trovi in Dashboard.';
+    const doveTrovarla = 'La trovi in Dashboard.';
     for (const userId of destinatari) {
       await notificaUtente(prisma, push, {
         userId,
@@ -192,8 +196,8 @@ export async function avvisaAttivitaNuova(
          * quella che conta per chi legge: la data amministrativa dell'attività resta nell'elenco.
          */
         body: attivita.title.includes('(entro il ')
-          ? `${attivita.title} — ${cliente}. ${perLaNutrizionista_dove}`
-          : `${attivita.title} — ${cliente} (entro il ${scadenza}). ${perLaNutrizionista_dove}`,
+          ? `${attivita.title} — ${cliente}. ${doveTrovarla}`
+          : `${attivita.title} — ${cliente} (entro il ${scadenza}). ${doveTrovarla}`,
         payload: { taskId: attivita.id, clientId: attivita.clientId },
       });
     }

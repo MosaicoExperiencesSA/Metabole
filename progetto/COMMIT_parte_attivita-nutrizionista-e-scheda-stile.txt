@@ -1,0 +1,103 @@
+================================================================================
+Le attività della nutrizionista nella sua app + la scheda dello stile sorvegliata
+================================================================================
+
+Due voci chiuse, e una revisione avversariale che ha trovato un errore di
+compilazione e una schermata che non serviva a niente.
+
+--------------------------------------------------------------------------------
+1. LE ATTIVITÀ DELLA NUTRIZIONISTA, NELLA SUA APP
+--------------------------------------------------------------------------------
+
+Dal 21/8 quattro tipi di attività nascono addosso alla nutrizionista — digiuno
+estremo, finestra non traducibile, pasti non serviti, calorie corte — e la push
+le arriva sul telefono. La sua schermata non le aveva: NutriDashboard chiamava
+/nutritionist/dashboard, validation-queue ed escalations, e /staff/coach-tasks
+non lo chiamava nessuno. Una notifica che porta a una schermata VUOTA è peggio
+di un 403: non dice nemmeno che una porta esiste.
+
+Il 22/8 la frase della push era stata corretta al ribasso («La trovi nel
+backoffice, in CRM › Attività da fare») — se degradi, dillo. Adesso la sezione
+c'è e la frase è tornata una sola.
+
+  · sezione «Le tue attività» SOPRA le priorità cliniche: sono le uniche righe
+    di quella pagina che hanno una scadenza, e per cui le è già arrivata una
+    notifica;
+  · pulsante «Fatto» su ogni riga. Su questi quattro tipi la coach prende 403
+    (TIPI_DELLA_NUTRIZIONISTA, regola del 22/8): è LEI l'unica che può
+    chiuderli. Senza il pulsante la schermata era una vetrina — push, apri la
+    Dashboard, e per il clic torna nel backoffice, cioè l'indirizzo che la
+    frase aveva appena smesso di darti; e il giorno dopo escalateAttivitaScadute
+    le manda alla manager commerciale. Niente «Salta», al contrario della
+    coach: saltare «digiuno estremo» è una decisione clinica;
+  · il pallino sul tab comprende anche i suoi ruoli;
+  · nessun filtro nell'app: l'endpoint la serve già coi suoi quattro tipi sulle
+    sue clienti (filtroNutrizionista). Due regole per la stessa domanda
+    divergono, e questa decide cosa vede una persona;
+  · la scadenza si scrive SEMPRE, non solo quando è passata.
+
+--------------------------------------------------------------------------------
+2. LA SCHEDA DELLO STILE, SORVEGLIATA
+--------------------------------------------------------------------------------
+
+app/src/onboarding/dietInfo.ts — «In pratica», «Cosa dice la ricerca», «Da
+tenere presente», le fonti — è cablata nel codice dell'app, per STILE. In
+registrazione il «?» compare solo se lo stile sta in quel file, e sparisce in
+silenzio: è già successo il 6/8 con DASH, Flessibile, Detox e i due percorsi
+estivi.
+
+Nella voce era scritto che una prova non si poteva scrivere. Si poteva: gli
+stili dei preset sono un elenco statico nel backend, e un test del backend può
+leggere un file dell'app (signals/unita-acqua.spec.ts lo fa già).
+scheda-stile-nell-app.spec.ts, quattordici prove.
+
+  · non conta le CHIAVI ma apre ogni scheda e guarda i CAMPI, con una lunghezza
+    minima per campo: «Mediterranea» è un titolo giusto e lungo dodici
+    caratteri, cosaDiceLaRicerca in dodici caratteri è un campo non scritto;
+  · e una sentinella it.failing su STYLE_LABELS (Onboarding.tsx), che contiene
+    vegan/vegetarian/balanced senza scheda: verde finché il difetto c'è, rossa
+    quando qualcuno lo corregge.
+
+La voce resta APERTA: gli stili veri arrivano dal database, non dai preset.
+
+--------------------------------------------------------------------------------
+3. QUELLO CHE HA TROVATO LA REVISIONE AVVERSARIALE
+--------------------------------------------------------------------------------
+
+  · L'APP NON COMPILAVA. Togliendo il vecchio isCoachSide era rimasta la
+    dichiarazione senza più nessuno che la leggesse, e app/tsconfig.json ha
+    noUnusedLocals: true → TS6133, job «App · build» rosso, build Vercel ferma.
+    Nessuna delle sei prove se ne accorgeva, perché leggevano ui.tsx come testo
+    invece di compilarlo. Da qui in avanti l'app e il backoffice si
+    typeckeccano davvero prima di consegnare.
+  · La schermata era una vetrina (sopra: pulsante «Fatto»).
+  · «…e altre 12» non portava da nessuna parte: nessuna pagina con l'elenco
+    completo, e l'ordine è dueDate asc — quindi l'attività appena notificata
+    era proprio l'ultima. Si mostrano tutte.
+  · clientName poteva arrivare stringa vuota: era
+    name ?? [nome, cognome].join(' ') ?? email ?? 'Cliente', e join non torna
+    MAI nullish. I due ripieghi erano codice morto e la riga cominciava con
+    « · per il 05/09». Ora è la funzione pura nomeDellaCliente.
+  · Le prove della prima consegna erano TUTTE toMatch su testo: una mutazione
+    da un token (guardia della sezione resa incondizionata) spegneva la sezione
+    e le lasciava verdi. La frase della push è backend, quindi ora si prova
+    chiamando avvisaAttivitaNuova e leggendo il body che parte davvero. E la
+    prova che lega le due metà pretende che siano tutte e due VERE, non che
+    «siano uguali»: false === false passava.
+  · La prova sulla scheda passava su dieci schede VUOTE (misurato).
+  · Il registro dichiarava prove che non esistevano, e aveva riscritto la data
+    di nascita di una voce. Corretti tutti e due.
+
+--------------------------------------------------------------------------------
+MISURATO
+--------------------------------------------------------------------------------
+
+  · 6821 prove verdi su 404 suite, nelle quattro modalità (jest, TZ=Europe/Rome,
+    test:notte, e le due insieme);
+  · npm run build ok; npx tsc --noEmit: solo i 2 errori preesistenti in
+    prisma/approve-diets.ts e prisma/dedupe-diets.ts;
+  · app: npx tsc -b pulito. backoffice: npx tsc -b pulito, 222 prove vitest su
+    26 file;
+  · DIECI mutazioni su dieci uccise, con ripristino garantito (atexit + SIGTERM).
+
+Lista lavori: 27 voci aperte su 220.
