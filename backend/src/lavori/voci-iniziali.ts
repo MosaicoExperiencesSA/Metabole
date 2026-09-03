@@ -83,6 +83,47 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'chiavi-dichiarate-che-nessuno-legge',
+    categoria: CODICE,
+    ordine: 1,
+    nata: '2026-09-03T10:30',
+    titolo: '⛔ 43 chiavi di permesso su 64 non le legge nessuna guardia: quelle caselle spengono il menu, non la porta',
+    dettaglio:
+      '**Misurato il 3/9**, mentre si chiudeva `togliere-una-chiave-non-basta-se-c-e-un-hub`: '
+      + '`BACKOFFICE_PAGES` dichiara **64** chiavi, e solo **21** compaiono in un `@RequirePage`. Le '
+      + 'altre **43** governano la voce di menu e basta: la rotta dietro è protetta da `@Roles`, o da '
+      + 'niente.\n\n'
+      + '⛔ **È il difetto di `assignments`, che `CLAUDE.md` racconta come chiuso.** *«Una chiave '
+      + 'dichiarata e non letta da nessuno è un interruttore che non accende niente.»* Il 13/8 ne '
+      + 'erano state tolte due (`engine_reviews`, `assignments`); il conto dice che il caso non era '
+      + 'due, era quarantatré.\n\n'
+      + '⚠️ **Non sono tutte lo stesso caso, e mescolarle porta a correggere quella sbagliata:**\n'
+      + '· ⛔ **Le peggiori** sono quelle su cui una casella *sembra* un cancello e non lo è, su dati '
+      + 'sensibili o poteri forti: `audit_logs`, `users`, `permissions`, `engine_config`, '
+      + '`health_documents`, `escalations`, `chat`, `accounting`, `compensation`, `withdrawals`. '
+      + 'Spegnere «Documenti sanitari» a un ruolo toglie la voce e **non** chiude `GET`.\n'
+      + '· ⚠️ **Le figlie di una pagina già guardata** (`crm_lead_new`, `crm_import`, '
+      + '`crm_pipeline`, `crm_calendar`, `testimonials`, `publisher`, `allergens`, `colazioni`, '
+      + '`roles`, `equivalence_groups`): l\'API vera sta sotto la chiave del genitore, che una '
+      + 'guardia ce l\'ha. Qui la casella è **di interfaccia per progetto**, e va detto — non è un '
+      + 'buco, è una scelta.\n'
+      + '· ⚠️ **`diet_workspace` e `creation_validation`** non hanno guardia ma un effetto lato '
+      + 'server ce l\'hanno lo stesso: sono i **grantor** di `PAGE_GRANTS` (vedi la voce sorella).\n'
+      + '· ⚠️ **Le innocue**: `dashboard`, `notifications`, `charts` — schermate di sola lettura del '
+      + 'proprio perimetro.\n\n'
+      + '**Le strade:** **(a)** una prova che tiene fermo l\'elenco delle chiavi senza guardia — '
+      + 'c\'è già (`chiavi-senza-guardia.spec.ts`): oggi è verde su quarantatré, e diventa **rossa** '
+      + 'quando qualcuno ne aggiunge una senza guardia, o ne toglie una senza aggiornare l\'elenco; '
+      + '**(b)** agganciare `@RequirePage` alle dieci del primo gruppo, una per una, guardando cosa '
+      + 'si romperebbe — ⚠️ è la strada che tocca i permessi di persone vere e va fatta a piccoli '
+      + 'passi, non in blocco; **(c)** marcare esplicitamente nel codice le chiavi di sola '
+      + 'interfaccia, così che «senza guardia» smetta di essere un elenco unico in cui il buco e la '
+      + 'scelta si somigliano.\n\n'
+      + '⛔ **Quello che NON va fatto** è spegnere l\'avviso togliendo le chiavi: la voce di menu '
+      + 'serve, e toglierla darebbe a tutti quello che oggi si può almeno nascondere.',
+  },
+
+  {
     chiave: 'togliere-una-chiave-non-basta-se-c-e-un-hub',
     categoria: 'Da fare — codice',
     ordine: 0,

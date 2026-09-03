@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **La pagina Permessi dice quando spegnere una casella non chiude la porta.**
+  Simone spegne «Ricette» alla nutrizionista, e lei continua a chiamare le API delle ricette perché
+  ha «Gestione dieta», che concede anche quella. ⛔ Non è un difetto — `PAGE_GRANTS` esiste apposta
+  perché «bastino poche voci di menu per gestire tutto» — ma **non era scritto da nessuna parte
+  nella schermata**. Adesso le celle che mentono hanno un'etichetta gialla che nomina la porta e
+  dice cosa fare, la riga di un hub dice cosa apre oltre a sé, e un conto in cima fa cercare i badge
+  in una tabella che scorre. ⚠️ Il verdetto lo calcola il **backend**, con lo stesso modulo del
+  guardiano: rifarlo nel backoffice sarebbe la seconda copia della stessa regola — quella che è
+  costata l'incidente dell'ereditarietà. ⛔ La pagina **spiega**: far sì che spegnere una chiave la
+  spenga davvero cambia il significato della matrice per tutti, e resta una decisione di Simone.
+
+- `[Sviluppo]` ⛔ **E la revisione ha trovato che i casi erano quattro, non due.** Il peggiore: per
+  un **ruolo personalizzato** il guardiano legge la riga del **ruolo di base** (`resolveRole` mette
+  il base in `user.role`), quindi spegnere una casella lì toglie la voce di menu e lascia aperte le
+  API — e la prima stesura, calcolando sulle righe della colonna, su quella colonna produceva
+  **zero avvisi**: *garantiva silenzio proprio dove è più facile sbagliarsi*. ⚠️ Il quarto caso —
+  la riga mai creata, decine per ruolo se l'allineamento all'avvio va storto — si dice con un
+  numero invece che con decine di badge: non c'è nessun permesso su cui agire, e un avviso su ogni
+  riga non è un avviso. 🧪 **19 mutazioni su 19 uccise**, e due sopravvissute hanno fatto cambiare
+  il **codice** e non le prove: un parametro che non cambiava nessuna risposta, e due cancelli
+  ridondanti nello stesso `if`.
+
+- `[Sviluppo]` ⚠️ **Misurato: 43 chiavi di permesso su 64 non le legge nessuna guardia.**
+  `CLAUDE.md` lo dice da agosto — *«una chiave dichiarata e non letta da nessuno è un interruttore
+  che non accende niente»* — e il 13/8 ne erano state tolte due. Il conto dice che il caso non era
+  due. Quelle caselle spengono il **menu**, non la porta: l'endpoint dietro è protetto dal solo
+  `@Roles`. ⛔ Non sono tutte lo stesso caso, e mescolarle porta a correggere quella sbagliata: le
+  peggiori sono `audit_logs`, `users`, `permissions`, `health_documents`, `chat`. Nuova voce in
+  lista, e una prova che **congela l'elenco**: verde su quarantatré, rossa appena qualcuno ne
+  aggiunge una senza guardia — o ne aggancia una e dimentica di togliere il nome.
+
 - `[Sviluppo]` ✅ **La nutrizionista vede — e chiude — le sue attività dalla sua app.** Dal 21/8
   quattro tipi nascono addosso a lei (digiuno estremo, finestra non traducibile, pasti non serviti,
   calorie corte) e la **push le arriva sul telefono**; `NutriDashboard` chiamava tre endpoint e

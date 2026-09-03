@@ -3,12 +3,36 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Spinner, Toggle } from '../components/ui';
 import { pageLabel } from '../lib/labels';
+import { paroleDellaPorta, type CellaAperta } from '../lib/portaAperta';
 import type { RoleInfo } from '../lib/roles';
 
+/**
+ * ⛔ **«SPENTO» NON VUOL SEMPRE DIRE CHIUSO, e finora questa pagina non lo diceva.**
+ *
+ * Due porte che la matrice non nomina, tutte e due volute:
+ * · l'**hub** (`PAGE_GRANTS` nel backend): «Gestione dieta» concede `diets_catalog` **+ `recipes`»,
+ *   perché bastino poche voci di menu per gestire tutto. Spegnere «Ricette» alla nutrizionista che
+ *   ha «Gestione dieta» non le toglie le API delle ricette;
+ * · l'**eredità** (`INHERIT_DEFAULTS`): una figlia **senza riga** vale la riga del genitore — e
+ *   senza riga questa tabella la disegna spenta, perché `serverCell` rende `false`.
+ *
+ * ⚠️ Il conto arriva **dal backend** (`aperteLoStesso`), calcolato con lo stesso modulo del
+ * guardiano. Rifarlo qui vorrebbe dire tenere due copie della stessa regola, che è esattamente il
+ * difetto costato l'incidente dell'ereditarietà: girava in tre posti e ne era stato corretto uno.
+ *
+ * ⛔ Questa pagina **spiega**, non cambia niente. Far sì che spegnere una chiave la spenga davvero
+ * — una negazione esplicita che batte l'hub — cambierebbe il significato della matrice per tutti, e
+ * va deciso da Simone: oggi «spento» vuol dire «non te lo do io», non «non ce l'hai».
+ */
 interface Matrix {
   pages: string[];
   roles: RoleInfo[];
   matrix: Record<string, { pageKey: string; canView: boolean; canManage: boolean }[]>;
+  /** hub → chiavi che apre. Assente se il backend è più vecchio della pagina. */
+  concede?: Record<string, string[]>;
+  aperteLoStesso?: CellaAperta[];
+  /** Caselle spente solo perché la riga non esiste: si dicono con un numero, non con un badge. */
+  senzaRiga?: number;
 }
 
 interface CellVal {
@@ -19,6 +43,31 @@ interface CellVal {
 type Edits = Record<string, CellVal>;
 
 const cellKey = (role: string, pageKey: string) => `${role}|${pageKey}`;
+
+/**
+ * ⛔ **L'avviso su una cella che dice «spento» mentre il server dice «sì».**
+ *
+ * ⚠️ Piccolo e attaccato all'interruttore, non un banner in cima: chi guarda la matrice sta
+ * guardando *quella* cella, e un avviso lontano dalla cosa di cui parla non lo legge nessuno. E
+ * compare **solo** sulle celle che mentono — segnare tutte le righe sarebbe non segnarne nessuna.
+ */
+function AvvisoPortaAperta({ cella, nomeRuolo }: { cella?: CellaAperta; nomeRuolo: (k: string) => string }) {
+  if (!cella) return null;
+  const { breve, lunga } = paroleDellaPorta(cella, pageLabel, nomeRuolo);
+  return (
+    <span
+      title={lunga}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, lineHeight: 1.2,
+        color: '#8A5A00', background: '#FFF3D6', border: '1px solid #F0D9A0',
+        borderRadius: 6, padding: '1px 5px', maxWidth: 112, whiteSpace: 'normal', textAlign: 'left',
+      }}
+    >
+      <i className="ti ti-lock-open" style={{ fontSize: 10, flex: 'none' }} />
+      {breve}
+    </span>
+  );
+}
 
 export function Permissions() {
   const { can } = useAuth();
@@ -80,6 +129,32 @@ export function Permissions() {
     });
   }
 
+  /**
+   * ⚠️ Indicizzate per `ruolo|pagina|livello`: la tabella ha decine di righe per una dozzina di
+   * ruoli, e cercare in un array dentro il ciclo di render costerebbe a ogni cella.
+   */
+  const aperte = useMemo(() => {
+    const m = new Map<string, CellaAperta>();
+    for (const c of data?.aperteLoStesso ?? []) m.set(`${c.role}|${c.pageKey}|${c.livello}`, c);
+    return m;
+  }, [data]);
+
+  /** «Apre anche: Catalogo diete, Ricette» — il verso diretto, sulla riga dell'hub. */
+  const apreAnche = data?.concede ?? {};
+
+  /** L'etichetta di un ruolo, per l'avviso «vale Nutrizionista»: la chiave grezza non dice niente. */
+  const nomeRuolo = useMemo(() => {
+    const m = new Map((data?.roles ?? []).map((r) => [r.key, r.label]));
+    return (k: string) => m.get(k) ?? k;
+  }, [data]);
+
+  /** «Gestione dieta apre anche Catalogo diete e Ricette» — scritto dai dati, non a mano. */
+  const righeCheApronoAltro = useMemo(
+    () => Object.entries(data?.concede ?? {})
+      .map(([hub, concesse]) => `«${pageLabel(hub)}» apre anche ${concesse.map(pageLabel).join(' e ')}`),
+    [data],
+  );
+
   const dirtyKeys = useMemo(() => Object.keys(edits), [edits]);
   const dirtyCount = dirtyKeys.length;
 
@@ -118,6 +193,46 @@ export function Permissions() {
         Per ogni sezione e ruolo: <b>Vede</b> mostra la pagina nel menu, <b>Gestisce</b> permette anche di modificarne i
         contenuti. Le modifiche si applicano solo dopo <b>Salva</b>. L'accesso dell'admin ai permessi è bloccato (anti-lockout).
       </Banner>
+      {/* ⛔ Il numero in cima serve a far CERCARE i badge: sono piccoli e sparsi in una tabella che
+          scorre, e senza un conto qualcuno può guardare la matrice senza accorgersene. ⚠️ Compare
+          solo se ce n'è almeno uno — un avviso sempre acceso non è un avviso.
+
+          ⛔ **E gli esempi si SCRIVONO dai dati, non a mano.** La prima stesura diceva in prosa
+          «Gestione dieta concede anche Catalogo diete e Ricette»: era la stessa tabella del backend
+          ricopiata con le etichette invece che con le chiavi — cioè la seconda copia che il resto
+          di questa pagina evita apposta. Aggiungere un hub l'avrebbe resa falsa, coi badge giusti.
+
+          ⚠️ **E il perimetro si dichiara per intero.** Questi avvisi coprono tre vie — l'hub,
+          l'eredità e il ruolo di base — e non tutte: 43 chiavi su 64 non sono lette da nessuna
+          `@RequirePage`, e lì la casella governa il menu e non la porta (l'endpoint è protetto dal
+          solo `@Roles`). Dire «spegnerle non chiude la porta» senza qualificarlo sarebbe promettere
+          più di quello che si guarda. */}
+      {(data.aperteLoStesso ?? []).length > 0 && (
+        <Banner kind="warn">
+          <b>
+            {(data.aperteLoStesso ?? []).length}{' '}
+            {(data.aperteLoStesso ?? []).length === 1 ? 'casella spenta è aperta lo stesso' : 'caselle spente sono aperte lo stesso'}.
+          </b>{' '}
+          Un permesso può arrivare da un'altra riga
+          {righeCheApronoAltro.length > 0 && <> — {righeCheApronoAltro.join('; ')}</>}
+          , una schermata separata senza una riga sua eredita quella del genitore, e per un ruolo
+          personalizzato le API guardano il suo <b>ruolo di base</b>.
+          Le caselle interessate hanno un'etichetta gialla che dice da dove:{' '}
+          <b>spegnerle non chiude quella porta</b>, si agisce dove è scritto.
+        </Banner>
+      )}
+      {/* ⚠️ Le righe mai create sono un'altra cosa e si dicono con un numero: sarebbero decine di
+          badge per ruolo, e non c'è nessun permesso su cui agire — il valore sta nel codice. Un
+          numero grande qui vuol dire che l'allineamento dei permessi all'avvio non è andato a
+          buon fine, e QUELLO è il problema, non la singola casella. */}
+      {(data.senzaRiga ?? 0) > 0 && (
+        <Banner kind="info">
+          {data.senzaRiga} caselle risultano spente solo perché <b>non hanno ancora una riga</b>:
+          per quelle vale il valore predefinito del ruolo, che è acceso. Si sistemano da sole al
+          prossimo avvio del backend; se il numero resta alto, l'allineamento all'avvio non sta
+          funzionando.
+        </Banner>
+      )}
       {error && <Banner kind="err">{error}</Banner>}
       {notice && <Banner kind="ok">{notice}</Banner>}
 
@@ -140,7 +255,16 @@ export function Permissions() {
           <tbody>
             {orderedPages.map((pageKey) => (
               <tr key={pageKey}>
-                <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, zIndex: 1 }}>{pageLabel(pageKey)}</td>
+                <td style={{ position: 'sticky', left: 0, background: '#fff', fontWeight: 600, zIndex: 1 }}>
+                  {pageLabel(pageKey)}
+                  {/* ⛔ Il verso diretto, scritto UNA volta sulla riga dell'hub invece che su ogni
+                      cella: chi accende «Gestione dieta» deve sapere che sta accendendo tre cose. */}
+                  {(apreAnche[pageKey] ?? []).length > 0 && (
+                    <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)', marginTop: 2, whiteSpace: 'normal', maxWidth: 200 }}>
+                      Apre anche: {(apreAnche[pageKey] ?? []).map(pageLabel).join(', ')}
+                    </div>
+                  )}
+                </td>
                 {data.roles.map((r) => {
                   const c = cell(r.key, pageKey);
                   const locked = r.key === 'admin' && pageKey === 'permissions';
@@ -157,6 +281,11 @@ export function Permissions() {
                             onChange={(next) => setLocal(r.key, pageKey, { canView: next })}
                           />
                         </div>
+                        {/* ⛔ **Il badge tace se la casella è stata toccata e non salvata.** Gli
+                            avvisi arrivano dal server, cioè dallo stato SALVATO: lasciarli sotto un
+                            interruttore appena acceso vorrebbe dire scrivere «questa cella dice
+                            spento ma è aperta» sotto una cella che dice acceso. */}
+                        {!c.canView && <AvvisoPortaAperta cella={aperte.get(`${r.key}|${pageKey}|view`)} nomeRuolo={nomeRuolo} />}
                         <div className="row" style={{ gap: 6, justifyContent: 'center' }}>
                           <span className="muted" style={{ fontSize: 11, width: 44, textAlign: 'right' }}>gestisce</span>
                           <Toggle
@@ -166,6 +295,7 @@ export function Permissions() {
                             onChange={(next) => setLocal(r.key, pageKey, { canManage: next })}
                           />
                         </div>
+                        {!c.canManage && <AvvisoPortaAperta cella={aperte.get(`${r.key}|${pageKey}|manage`)} nomeRuolo={nomeRuolo} />}
                       </div>
                     </td>
                   );

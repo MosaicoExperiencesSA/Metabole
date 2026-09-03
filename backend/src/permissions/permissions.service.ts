@@ -4,9 +4,11 @@ import { isSystemRole } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
 import {
-  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO, PageKey,
+  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO,
+  PAGE_GRANTS, PageKey,
 } from './pages';
 import { type Decisione, righeDaCreare } from './eredita-dal-genitore';
+import { type CellaApertaLoStesso, celleApertePurEssendoSpente } from './porta-aperta-lo-stesso';
 
 @Injectable()
 export class PermissionsService implements OnModuleInit {
@@ -137,7 +139,19 @@ export class PermissionsService implements OnModuleInit {
     return { created };
   }
 
-  /** Matrice completa: elenco ruoli (sistema + personalizzati) + permessi per ruolo. */
+  /**
+   * Matrice completa: elenco ruoli (sistema + personalizzati) + permessi per ruolo.
+   *
+   * ⛔ **E adesso anche PERCHÉ una cella spenta può essere aperta lo stesso.** Due porte che la
+   * tabella non nominava: l'**hub** (`PAGE_GRANTS`: «Gestione dieta» concede `diets_catalog` e
+   * `recipes`) e l'**eredità** (una figlia senza riga vale la riga del genitore, e senza riga la
+   * cella si disegna spenta). Tutte e due sono volute; quello che non lo era è che la schermata
+   * mostrasse «spento» dove il guardiano risponde «sì».
+   *
+   * ⚠️ Il conto si fa **qui e non nel backoffice**, con lo stesso modulo del guardiano: la regola
+   * riscritta in TypeScript nel frontend sarebbe una seconda copia, e due copie della stessa regola
+   * divergono — l'ha già mostrato l'ereditarietà, che girava in tre posti e ne correggevo uno.
+   */
   async getMatrix() {
     const [rows, roleList] = await Promise.all([
       this.prisma.rolePagePermission.findMany({ orderBy: [{ role: 'asc' }, { pageKey: 'asc' }] }),
@@ -151,7 +165,72 @@ export class PermissionsService implements OnModuleInit {
         canManage: row.canManage,
       });
     }
-    return { pages: BACKOFFICE_PAGES, roles: roleList, matrix: byRole };
+
+    const aperteLoStesso: CellaApertaLoStesso[] = [];
+    let senzaRiga = 0;
+    for (const r of roleList) {
+      /**
+       * ⛔ **L'admin non entra nel conto — e «admin» è il ruolo di BASE, non la chiave.** Nel
+       * guardiano `user.role === 'admin'` risponde sì prima di qualunque lettura, e `user.role` è
+       * il base: un ruolo personalizzato costruito su `admin` («Amministrazione clienti») ha
+       * **tutte** le porte aperte. Filtrare sulla chiave letterale lasciava quella colonna con due
+       * avvisi da hub su sessantaquattro celle aperte: una spiegazione sbagliata data con
+       * sicurezza, che è il difetto che questa pagina esiste per non fare.
+       */
+      if (r.baseRole === 'admin') continue;
+
+      /**
+       * ⛔ **IL GUARDIANO LEGGE IL RUOLO DI BASE.** `resolveRole` mette il base in `user.role` e la
+       * chiave personalizzata a parte, quindi `page.guard.ts` cerca `role_page_permission` con
+       * «nutritionist» anche per «Nutrizionista junior» — mentre la colonna che si vede, e
+       * `/me/permissions` da cui nasce il menu, usano la chiave personalizzata. `syncDefaults`, qui
+       * sopra, lo sa già e passa `custom.baseRole`: la prima stesura di questo blocco no, e per un
+       * ruolo personalizzato calcolava su righe e default che il guardiano non guarda mai —
+       * garantendo **silenzio** proprio sulla colonna dove è più facile sbagliarsi.
+       */
+      const righeMostrate = new Map((byRole[r.key] ?? []).map((x) => [x.pageKey, x]));
+      const righeDelGuardiano = r.key === r.baseRole
+        ? righeMostrate
+        : new Map((byRole[r.baseRole] ?? []).map((x) => [x.pageKey, x]));
+
+      const conto = celleApertePurEssendoSpente(r.key, BACKOFFICE_PAGES, {
+        genitoreDi: INHERIT_DEFAULTS as Readonly<Record<string, string>>,
+        concessioni: PAGE_GRANTS as Readonly<Record<string, readonly string[]>>,
+        nonEreditano: NON_EREDITANO,
+        ruoloDelGuardiano: r.baseRole,
+        rigaMostrata: (k) => righeMostrate.get(k) ?? null,
+        rigaDi: (k) => righeDelGuardiano.get(k) ?? null,
+        defaultDi: (k) => {
+          const d = DEFAULT_PERMISSIONS[r.baseRole]?.[k as PageKey];
+          return d ? { canView: !!d.view, canManage: !!d.manage } : null;
+        },
+        defaultEsplicitoDi: (k) => {
+          const d = DEFAULT_ESPLICITI[r.baseRole]?.[k as PageKey];
+          return d ? { canView: !!d.view, canManage: !!d.manage } : null;
+        },
+      });
+      aperteLoStesso.push(...conto.celle);
+      senzaRiga += conto.senzaRiga;
+    }
+
+    return {
+      pages: BACKOFFICE_PAGES,
+      roles: roleList,
+      matrix: byRole,
+      /** hub → chiavi che apre, così la pagina può scrivere «apre anche: Catalogo diete, Ricette». */
+      concede: PAGE_GRANTS,
+      aperteLoStesso,
+      /**
+       * ⚠️ Quante caselle sono spente **solo perché la loro riga non esiste**. Non stanno in
+       * `aperteLoStesso` — sarebbero decine per ruolo — e si dicono con un numero solo: non c'è
+       * nessun permesso su cui agire, il valore che vale è il predefinito del ruolo nel codice.
+       *
+       * ⛔ Un numero grande qui vuol dire che `syncDefaults` non ha finito il suo lavoro all'avvio
+       * (`onModuleInit` assorbe il proprio errore con un `warn`): è quello il problema, non la
+       * singola casella.
+       */
+      senzaRiga,
+    };
   }
 
   /** Permessi del ruolo EFFETTIVO dell'utente (per costruire il menu del frontend). */

@@ -1,0 +1,80 @@
+================================================================================
+La pagina Permessi dice quando spegnere una casella NON chiude la porta
+================================================================================
+
+Trovato il 2/9 dalla revisione avversariale sull'ereditarietà, chiuso il 3/9.
+Non era un difetto del codice: era il progetto, non scritto da nessuna parte
+nella schermata.
+
+IL CASO
+Simone spegne «Ricette» alla nutrizionista. Lei continua a chiamare le API delle
+ricette, perché ha «Gestione dieta» (diet_workspace) e quell'hub concede
+diets_catalog + recipes. Dalla schermata sembra spento, e non lo è.
+
+COSA C'È ADESSO
+  · le celle che mentono portano un'etichetta gialla che nomina la porta e dice
+    cosa fare;
+  · la riga di un hub dice «Apre anche: Catalogo diete, Ricette»;
+  · un riassunto in cima fa cercare i badge in una tabella che scorre.
+Il verdetto lo calcola il BACKEND, con lo stesso modulo del guardiano
+(permissions/porta-aperta-lo-stesso.ts). Rifarlo nel backoffice sarebbe la
+seconda copia della stessa regola — il difetto costato l'incidente
+dell'ereditarietà, che girava in tre posti e ne era stato corretto uno.
+
+La pagina SPIEGA, non cambia niente. Far sì che spegnere una chiave la spenga
+davvero (una negazione esplicita che batte l'hub) cambia il significato della
+matrice per tutti, e resta una decisione di Simone: oggi «spento» vuol dire
+«non te lo do io», non «non ce l'hai».
+
+I CASI NON ERANO DUE, ERANO QUATTRO (revisione avversariale sulla consegna)
+  · ⛔ IL RUOLO PERSONALIZZATO. resolveRole mette il ruolo di BASE in user.role,
+    quindi il guardiano cerca la riga di «Nutrizionista» anche per «Nutrizionista
+    junior», mentre la colonna che si vede — e il menu — usano la chiave
+    personalizzata. Spegnere una casella lì toglie la voce di menu e lascia
+    aperte le API. La prima stesura calcolava su righe e default che il guardiano
+    non guarda mai, quindi su quella colonna produceva ZERO avvisi: garantiva
+    silenzio proprio dove è più facile sbagliarsi, e tacere in modo credibile è
+    peggio che tacere. Ora ha la sua etichetta («vale Nutrizionista»), e un ruolo
+    personalizzato costruito su admin si salta del tutto — il guardiano gli dice
+    sì prima di leggere qualunque cosa.
+  · ⚠️ LA RIGA MAI CREATA. Se syncDefaults è andato storto all'avvio
+    (onModuleInit assorbe il proprio errore con un warn) sono decine per ruolo —
+    misurate: 52 per la nutrizionista, 33 per la coach. Segnalarle una per una
+    spegnerebbe l'unico segnale che la pagina ha, e lì non c'è nessun permesso su
+    cui agire: il valore sta nel codice. Si dicono con un numero, a parte.
+
+IL PERIMETRO È DICHIARATO, E NON È «TUTTO»
+Restano fuori le 43 chiavi su 64 che nessuna @RequirePage legge (misurate): lì la
+casella governa il menu e non la porta, perché l'endpoint è protetto dal solo
+@Roles. È il difetto che CLAUDE.md racconta su assignments ed engine_reviews,
+vivo su decine di chiavi. Ha una voce sua (chiavi-dichiarate-che-nessuno-legge) e
+una prova che congela l'elenco: verde su quarantatré, rossa appena qualcuno ne
+aggiunge una senza guardia — o ne aggancia una e dimentica di aggiornare l'elenco.
+
+ALTRO CHE HA TROVATO LA REVISIONE
+  · le parole dell'avviso erano un ternario dentro il JSX, e le prove del
+    frontend passavano tutte anche svuotando il componente a `return null`. Ora
+    stanno in lib/portaAperta.ts, con le loro prove — e la prima prova ha trovato
+    subito che una chiave mancante scriveva «aperta da null»;
+  · il banner riscriveva PAGE_GRANTS a mano, in prosa: la seconda copia che il
+    resto della pagina evita apposta. Ora gli esempi si scrivono dai dati;
+  · i badge restavano sotto una casella appena accesa e non salvata: adesso
+    tacciono, perché gli avvisi vengono dallo stato salvato;
+  · un test cercava «va deciso da Simone», che sta solo in un commento — nello
+    stesso file che apre spiegando perché i commenti si tolgono prima di
+    cercarci dentro;
+  · ereditaDa veniva spedito e non lo usava nessuno: tolto.
+
+MISURATO
+  · 6849/6849 su 407 suite, nelle quattro modalità; npm run build ok; tsc
+    --noEmit solo i 2 errori preesistenti; app e backoffice tsc -b puliti;
+    238/238 vitest backoffice;
+  · DICIANNOVE mutazioni su diciannove uccise. Due erano sopravvissute e hanno
+    fatto cambiare il CODICE, non le prove: un parametro `role` che non cambiava
+    nessuna risposta (tolto, così quella mutazione non si può nemmeno scrivere) e
+    due cancelli ridondanti nello stesso if. Una terza è annotata come non
+    uccidibile da sola: DEFAULT_ESPLICITI e DEFAULT_PERMISSIONS oggi si coprono a
+    vicenda, quindi sbagliare una delle due chiavi non cambia nessuna risposta —
+    scritto nella prova invece di fingere.
+
+Lista lavori: 28 voci aperte su 221 (una chiusa, una nuova).

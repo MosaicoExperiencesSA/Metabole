@@ -566,6 +566,14 @@ table.grid tr:hover td {
   background: #e8f1fb;
   color: #2f5f8f;
 }
+/* ⚠️ «Attenzione», che non è né un errore né un'informazione: una cosa vera e voluta che però
+   sorprende chi legge. Stessi colori dell'etichetta gialla sulle celle della pagina Permessi, così
+   il banner in cima e i badge in tabella si riconoscono come la stessa cosa. */
+.banner.warn {
+  background: #fff3d6;
+  color: #8a5a00;
+  border: 1px solid #f0d9a0;
+}
 
 .row {
   display: flex;

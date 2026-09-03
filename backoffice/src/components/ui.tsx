@@ -10,7 +10,7 @@ export function Spinner() {
   );
 }
 
-export function Banner({ kind, children }: { kind: 'err' | 'ok' | 'info'; children: ReactNode }) {
+export function Banner({ kind, children }: { kind: 'err' | 'ok' | 'info' | 'warn'; children: ReactNode }) {
   return <div className={`banner ${kind}`}>{children}</div>;
 }
 
