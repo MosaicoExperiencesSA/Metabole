@@ -182,25 +182,31 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: false,
-    fatta: false,
+    fatta: true,
     nata: '2026-09-02T19:20',
-    titolo: 'Al prossimo rilascio dell\'app: via l\'interruttore «ricette semplici» dal Profilo',
+    titolo: '✅ Tolto dal Profilo dell\'app l\'interruttore «ricette semplici» — resta da mandare l\'OTA',
     dettaglio:
       'Il 2/9 la preferenza «ricette semplici» è stata **tolta dal motore** (decisione di Simone, '
-      + 'dopo il caso Patrizia del 31/8). ⛔ **L\'interruttore nel Profilo dell\'app c\'è ancora**: la '
-      + 'cliente lo accende e non succede niente — un interruttore che non accende nulla, la cosa '
-      + 'che `CLAUDE.md` dice di non lasciare in giro.\n\n'
-      + '⚠️ **Non si poteva togliere insieme al resto**: sta in `app/src/pages/Profilo.tsx`, e '
-      + 'sparisce dai telefoni solo con un rilascio (OTA). Finché non esce, chi ha la versione '
-      + 'vecchia continua a vederlo comunque.\n\n'
-      + '**Da fare:** togliere la riga da `Profilo.tsx` e mandare l\'OTA.\n\n'
-      + '⛔ **E NON togliere `prefersSimpleRecipes` dal DTO** (`profile/dto/update-profile.dto.ts`) '
-      + 'nello stesso giro: le app **già installate** quel campo lo mandano a ogni salvataggio, e un '
-      + 'DTO che non lo accetta più risponde **400** — la cliente non salva più il profilo, nome e '
-      + 'allergie comprese, per un campo che non serve a nessuno. Il DTO si pulisce quando le '
-      + 'versioni vecchie non sono più in giro, ed è un altro giro.\n\n'
+      + 'dopo il caso Patrizia del 31/8). ⛔ L\'interruttore nel Profilo dell\'app è rimasto un '
+      + 'giorno di più: la cliente lo accendeva e non succedeva niente — un interruttore che non '
+      + 'accende nulla, la cosa che `CLAUDE.md` dice di non lasciare in giro. ⚠️ E quando a premerlo '
+      + 'è la **cliente** è peggio di una chiave di permesso morta, perché lei ci conta.\n\n'
+      + '✅ **CHIUSA il 3/9 per la parte di codice**: via il componente `SimpleRecipesPref` e il suo '
+      + 'montaggio da `app/src/pages/Profilo.tsx`. Al posto suo resta scritto **perché** è stato '
+      + 'tolto — senza, fra sei mesi qualcuno lo rimette credendo a una dimenticanza.\n\n'
+      + '⛔ **`prefersSimpleRecipes` NON è stato tolto dal DTO** (`profile/dto/update-profile.dto.ts`), '
+      + 'ed è una scelta, non una dimenticanza: le app **già installate** mandano quel campo a ogni '
+      + 'salvataggio, e un DTO che non lo accetta più risponde **400** — la cliente non salverebbe '
+      + 'più il profilo, nome e allergie comprese, per un campo che non serve a nessuno. Si pulisce '
+      + 'quando le versioni vecchie non sono più in giro, ed è un altro giro.\n\n'
+      + '⚠️ **Le due metà vanno in direzioni opposte, e una prova sola le tiene ferme tutte e due** '
+      + '(`profile/interruttore-ricette-semplici-tolto.spec.ts`): l\'interruttore non c\'è più '
+      + 'nell\'app, **e** il DTO accetta ancora il campo. Con una controprova su un campo inventato, '
+      + 'o la seconda passerebbe anche a campo tolto.\n\n'
       + '⚠️ **Il valore in banca dati si tiene**: dice a chi quella preferenza interessava, e non si '
-      + 'ricrea. Se un giorno la funzione torna, quella è l\'unica lista che c\'è.',
+      + 'ricrea. Se un giorno la funzione torna, quella è l\'unica lista che c\'è.\n\n'
+      + '▶️ **Resta a Simone: mandare l\'OTA.** Finché non esce, chi ha la versione vecchia '
+      + 'l\'interruttore continua a vederlo — e a premerlo a vuoto.'
   },
   {
     chiave: 'stesso-piatto-spuntino-e-merenda',

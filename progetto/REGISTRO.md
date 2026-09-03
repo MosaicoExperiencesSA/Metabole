@@ -20,6 +20,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` 🧹 **Via dal Profilo dell'app l'interruttore «Preferisco ricette semplici».** La
+  preferenza era uscita dal **motore** il 2/9; l'interruttore era rimasto, e la cliente lo accendeva
+  senza che succedesse niente. ⛔ Un interruttore che non accende nulla è la cosa che `CLAUDE.md`
+  dice di non lasciare in giro — e quando a premerlo è la **cliente** è peggio di una chiave di
+  permesso morta, perché lei ci conta. Al posto suo resta scritto **perché**: senza, fra sei mesi
+  qualcuno lo rimette credendo a una dimenticanza. ⛔ **Il campo NON è stato tolto dal DTO**, ed è
+  una scelta: le app già installate lo mandano a ogni salvataggio, e un DTO che lo rifiuta risponde
+  **400** — la cliente non salverebbe più il profilo, nome e allergie comprese, per un campo che non
+  serve a nessuno. ⚠️ Le due metà vanno in direzioni opposte e una prova sola le tiene ferme tutte e
+  due. ▶️ Resta l'OTA, che è di Simone. 🧪 3 mutazioni su 3 uccise.
+
 - `[Sviluppo]` ⛔ **Correzione: la voce sugli hub non era stata chiusa davvero.** La consegna di
   prima l'ha dichiarata chiusa; non lo era. La modifica era scritta con `cd backend && python3 …`,
   la shell era **già** in `backend`, il `cd` è fallito e con `&&` **lo script non è mai partito** —

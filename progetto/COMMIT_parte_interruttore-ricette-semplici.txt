@@ -1,0 +1,39 @@
+================================================================================
+Via dal Profilo dell'app l'interruttore «Preferisco ricette semplici»
+================================================================================
+
+Il 2/9 la preferenza è stata tolta dal MOTORE (decisione di Simone, dopo il caso
+Patrizia del 31/8). L'interruttore nel Profilo dell'app è rimasto un giorno di
+più: la cliente lo accendeva e non succedeva niente.
+
+⛔ Un interruttore che non accende nulla è la cosa che CLAUDE.md dice di non
+lasciare in giro — e quando a premerlo è la CLIENTE è peggio di una chiave di
+permesso morta, perché lei ci conta.
+
+COSA CAMBIA
+Via il componente SimpleRecipesPref e il suo montaggio da
+app/src/pages/Profilo.tsx. Al posto suo resta scritto PERCHÉ è stato tolto: senza,
+fra sei mesi qualcuno lo rimette credendo a una dimenticanza.
+
+⛔ QUELLO CHE NON È STATO TOLTO, E È UNA SCELTA
+`prefersSimpleRecipes` resta nel DTO (profile/dto/update-profile.dto.ts). Le app
+GIÀ INSTALLATE mandano quel campo a ogni salvataggio del profilo, e un DTO che non
+lo accetta più risponde 400: la cliente non salverebbe più il profilo — nome e
+allergie comprese — per un campo che non serve a nessuno. Si pulisce quando le
+versioni vecchie non sono più in giro, ed è un altro giro.
+
+⚠️ Le due metà vanno in DIREZIONI OPPOSTE, ed è per questo che stanno in una prova
+sola (profile/interruttore-ricette-semplici-tolto.spec.ts): l'interruttore non c'è
+più nell'app, E il DTO accetta ancora il campo. Con una controprova su un campo
+inventato, o la seconda passerebbe anche a campo tolto e non misurerebbe niente.
+
+⚠️ Il valore in banca dati si tiene: dice a chi quella preferenza interessava, e
+non si ricrea. Se un giorno la funzione torna, quella è l'unica lista che c'è.
+
+▶️ RESTA A SIMONE: mandare l'OTA. Finché non esce, chi ha la versione vecchia
+l'interruttore continua a vederlo — e a premerlo a vuoto.
+
+MISURATO
+6857/6857 su 409 suite; build ok; tsc --noEmit solo i 2 errori preesistenti;
+app tsc -b pulito; 3 mutazioni su 3 uccise.
+Lista lavori: 26 voci aperte su 221.

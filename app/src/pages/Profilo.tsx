@@ -811,54 +811,25 @@ function ExcludedFoods() {
 }
 
 /**
- * Preferenza "ricette semplici": se attiva, i menu propongono — quando disponibili — piatti
- * semplici / di cucina italiana, alternati a quelli del piano. Si applica ai menu dei prossimi
- * giorni (quelli già ricevuti restano invariati).
+ * ⛔ **«PREFERISCO RICETTE SEMPLICI» È STATA TOLTA — 3/9.**
+ *
+ * La preferenza è uscita dal motore il 2/9 (decisione di Simone, dopo il caso Patrizia del 31/8).
+ * L'interruttore però è rimasto qui: la cliente lo accendeva e **non succedeva niente**. Un
+ * interruttore che non accende nulla è la cosa che `CLAUDE.md` dice di non lasciare in giro — e
+ * quando è la cliente a premerlo è peggio di una chiave di permesso morta, perché lei ci conta.
+ *
+ * ⚠️ **Non si poteva togliere insieme al resto**: sta nell'app, e sparisce dai telefoni solo con un
+ * rilascio OTA. Chi ha la versione vecchia continua a vederlo finché non aggiorna.
+ *
+ * ⛔ **`prefersSimpleRecipes` NON è stato tolto dal DTO** (`profile/dto/update-profile.dto.ts`), e
+ * non va tolto in questo giro: le app **già installate** mandano quel campo a ogni salvataggio, e
+ * un DTO che non lo accetta più risponde **400** — la cliente non salverebbe più il profilo, nome e
+ * allergie comprese, per un campo che non serve a nessuno. Si pulisce quando le versioni vecchie
+ * non sono più in giro, ed è un altro giro.
+ *
+ * ⚠️ **Il valore in banca dati si tiene**: dice a chi quella preferenza interessava, e non si
+ * ricrea. Se un giorno la funzione torna, quella è l'unica lista che c'è.
  */
-function SimpleRecipesPref() {
-  const [on, setOn] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<{ prefersSimpleRecipes?: boolean | null }>('/me/client-profile')
-      .then((p) => setOn(!!p.prefersSimpleRecipes))
-      .catch(() => setOn(false));
-  }, []);
-
-  async function toggle() {
-    if (on === null || busy) return;
-    const next = !on;
-    setBusy(true); setErr(null);
-    setOn(next); // ottimistico
-    try {
-      await api('/me/client-profile', { method: 'PATCH', body: JSON.stringify({ prefersSimpleRecipes: next }) });
-    } catch (e) {
-      setOn(!next);
-      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="card">
-      <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Preferisco ricette semplici</div>
-          <p className="muted" style={{ margin: '4px 0 0', fontSize: 12.5 }}>
-            Piatti facili e veloci, vicini alla cucina italiana, quando disponibili. Si applica ai menu dei prossimi giorni.
-          </p>
-        </div>
-        <button onClick={toggle} aria-pressed={!!on} disabled={on === null || busy}
-          style={{ background: 'none', border: 0, padding: 0, cursor: on === null ? 'default' : 'pointer', lineHeight: 0, flex: 'none' }}>
-          <i className={`ti ${on ? 'ti-toggle-right' : 'ti-toggle-left'}`} style={{ fontSize: 30, color: on ? 'var(--teal)' : '#C6CFCB' }} />
-        </button>
-      </div>
-      {err && <div style={{ color: '#993C1D', fontSize: 12, marginTop: 6 }}>{err}</div>}
-    </div>
-  );
-}
 
 /**
  * Attività fisica: guida il calcolo del fabbisogno calorico giornaliero (e quindi le calorie
@@ -1362,10 +1333,6 @@ export default function Profilo() {
       {/* Attività fisica: guida il fabbisogno calorico e le calorie dei menu */}
       <div className="sec" style={{ marginTop: 4 }}>Attività fisica</div>
       <ActivityPref />
-
-      {/* Preferenza ricette semplici / cucina italiana */}
-      <div className="sec" style={{ marginTop: 4 }}>Ricette</div>
-      <SimpleRecipesPref />
 
       {/* Colore dell'app */}
       <div className="sec" style={{ marginTop: 4 }}>Colore dell'app</div>
