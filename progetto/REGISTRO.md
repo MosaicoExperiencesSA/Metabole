@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **Le 43 caselle di permesso senza guardia non sono più un elenco unico.** Erano
+  quattro casi diversi sotto un nome solo, e *mescolarli porta a correggere quello sbagliato*: la
+  classificazione adesso sta **nel codice** — **buco (29)**, dove la casella sembra un cancello e non
+  lo è su dati o poteri veri (compresi i tre che **cambiano dati clinici**); **figlia (9)**, dove
+  l'API sta sotto il genitore che la guardia ce l'ha, ed è una scelta di progetto; **grantor (2)**,
+  che una guardia non ce l'hanno ma spegnerli chiude quello che concedono; **innocua (3)**.
+  ✅ **E la pagina Permessi lo dice**: una nota gialla sotto il nome delle 29 righe col buco, più il
+  conto in cima che serve a farle cercare. ⚠️ Solo i buchi — segnalare anche le figlie rifarebbe
+  l'elenco unico che questa classificazione esiste per sciogliere.
+  ⛔ E la classificazione **dev'essere letta da qualcuno**, o sarebbe l'interruttore che non accende
+  niente rifatto un piano più sopra, dentro la consegna che quel difetto misura: una prova tiene
+  fermo il giro dichiara → manda → mostra. ⚠️ E il numero **si accorcia agganciando le guardie, mai
+  riclassificando**: c'è una mutazione apposta.
+  ▶️ Resta la strada (b), ed è di Simone: agganciare `@RequirePage` alle 29 una per una, a piccoli
+  passi — tocca i permessi di persone vere. 🧪 6968/6968, 5 mutazioni su 5 uccise.
+
 - `[Sviluppo]` ✅ **La giornata a mano che un cambio di dieta lascia fuori regime.** Era l'ultimo dei
   limiti dichiarati col menu scritto a mano, e l'unico che poteva arrivare nel piatto di qualcuno:
   la nutrizionista compone giovedì col salmone, mercoledì la cliente passa a vegana, e quella

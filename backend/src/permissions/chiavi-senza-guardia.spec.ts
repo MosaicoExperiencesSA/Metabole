@@ -19,7 +19,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { BACKOFFICE_PAGES } from './pages';
+import { BACKOFFICE_PAGES, MOTIVO_SENZA_GUARDIA } from './pages';
 
 /** Tutti i `.ts` del backend, esclusi i test: una guardia in uno spec non protegge niente. */
 function sorgenti(dir: string, out: string[] = []): string[] {
@@ -94,5 +94,85 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
     );
     expect(banner).toContain(`${senza.length} chiavi su ${BACKOFFICE_PAGES.length}`);
+  });
+});
+
+/**
+ * ⛔ **E NON SONO TUTTE LO STESSO CASO: la classificazione, tenuta ferma.**
+ *
+ * Un elenco unico mette insieme il **buco** («Documenti sanitari»: spegnere toglie la voce e lascia
+ * aperto il `GET`) e la **scelta** («Nuovo lead»: l'API vera sta sotto `crm_leads`, che la guardia
+ * ce l'ha). ⚠️ *Mescolarle porta a correggere quella sbagliata* — è scritto nella voce, e finché la
+ * distinzione stava solo lì chi guardava la matrice non aveva modo di saperla.
+ */
+describe('ogni chiave senza guardia dice PERCHÉ', () => {
+  const senza = BACKOFFICE_PAGES.filter((k) => !chiaviLette.has(k));
+
+  it('⛔ nessuna resta senza motivo: un elenco unico non si può leggere', () => {
+    expect(senza.filter((k) => !MOTIVO_SENZA_GUARDIA[k])).toEqual([]);
+  });
+
+  /**
+   * ⛔ **E il verso opposto, che è quello che marcisce.** Il giorno che una di queste prende la sua
+   * `@RequirePage`, la riga va tolta: lasciarla direbbe «è decorativa» di una casella che adesso
+   * comanda — e nella pagina Permessi comparirebbe un avviso falso.
+   */
+  it('⛔ e una chiave CON la guardia non ha un motivo: sarebbe un avviso falso in pagina', () => {
+    const conGuardia = BACKOFFICE_PAGES.filter((k) => chiaviLette.has(k));
+    expect(conGuardia.filter((k) => MOTIVO_SENZA_GUARDIA[k])).toEqual([]);
+  });
+
+  /** ⚠️ E nessun motivo per una chiave che non esiste più: un elenco che sopravvive alla cosa che descrive. */
+  it('⚠️ nessun motivo per una chiave che non è in BACKOFFICE_PAGES', () => {
+    const dichiarate = new Set<string>(BACKOFFICE_PAGES);
+    expect(Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => !dichiarate.has(k))).toEqual([]);
+  });
+
+  /**
+   * ⛔ **I buchi sono la parte che conta, e sono la maggioranza: 29 su 43.** Il numero sta scritto
+   * qui perché è quello che dice quanto lavoro resta — ogni riga è una casella che oggi **mente** a
+   * chi la guarda. ⚠️ Si accorcia agganciando le guardie, **mai riclassificando**: spostare una
+   * chiave da `buco` a `figlia` per far scendere il numero è la stessa cosa che spegnere l'avviso.
+   */
+  it('⛔ e quanti sono i buchi veri: 29 su 43', () => {
+    const per = (m: string) => senza.filter((k) => MOTIVO_SENZA_GUARDIA[k] === m).length;
+    expect(per('buco')).toBe(29);
+    expect(per('figlia')).toBe(9);
+    expect(per('grantor')).toBe(2);
+    expect(per('innocua')).toBe(3);
+  });
+});
+
+/**
+ * ⛔ **E LA CLASSIFICAZIONE DEVE ESSERE LETTA DA QUALCUNO.**
+ *
+ * Una tabella esportata e non letta è **l'interruttore che non accende niente** — cioè il difetto
+ * di `assignments` rifatto un piano più sopra, dentro la consegna che quel difetto misura. ⚠️ Il
+ * giro è: `pages.ts` la dichiara · `permissions.service.ts` la manda in `senzaGuardia` · la pagina
+ * la mostra. Se una delle tre si stacca, la matrice torna a non dire niente e nessuno se ne
+ * accorge.
+ */
+describe('la classificazione arriva a chi guarda la matrice', () => {
+  const bo = (...p: string[]) => readFileSync(join(__dirname, '..', '..', '..', 'backoffice', 'src', ...p), 'utf8');
+
+  it('⛔ il servizio la manda alla pagina', () => {
+    const servizio = readFileSync(join(__dirname, 'permissions.service.ts'), 'utf8');
+    expect(servizio).toMatch(/senzaGuardia: MOTIVO_SENZA_GUARDIA/);
+  });
+
+  it('⛔ e la pagina la legge, e segnala i buchi', () => {
+    const pagina = bo('pages', 'Permissions.tsx');
+    expect(pagina).toMatch(/data\.senzaGuardia\?\.\[pageKey\] === 'buco'/);
+  });
+
+  /**
+   * ⚠️ **Solo i buchi.** Segnalare anche le figlie e i grantor rifarebbe l'elenco unico che questa
+   * classificazione esiste per sciogliere: la figlia di una pagina guardata non è un difetto, e un
+   * avviso su una cosa che va bene insegna a non leggere gli avvisi.
+   */
+  it('⚠️ e non segnala le figlie né i grantor', () => {
+    const pagina = bo('pages', 'Permissions.tsx');
+    expect(pagina).not.toMatch(/=== 'figlia'/);
+    expect(pagina).not.toMatch(/=== 'grantor'/);
   });
 });

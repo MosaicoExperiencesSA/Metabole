@@ -33,6 +33,12 @@ interface Matrix {
   aperteLoStesso?: CellaAperta[];
   /** Caselle spente solo perché la riga non esiste: si dicono con un numero, non con un badge. */
   senzaRiga?: number;
+  /**
+   * ⛔ **Quali chiavi non le legge nessuna guardia, e perché.** Assente se il backend è più vecchio
+   * della pagina: in quel caso non si scrive niente, invece di dedurlo — un avviso su una porta
+   * inventata è peggio di nessun avviso.
+   */
+  senzaGuardia?: Record<string, 'buco' | 'figlia' | 'grantor' | 'innocua'>;
 }
 
 interface CellVal {
@@ -225,6 +231,22 @@ export function Permissions() {
           badge per ruolo, e non c'è nessun permesso su cui agire — il valore sta nel codice. Un
           numero grande qui vuol dire che l'allineamento dei permessi all'avvio non è andato a
           buon fine, e QUELLO è il problema, non la singola casella. */}
+      {/* ⛔ Il conto in cima, come per gli altri due avvisi: i badge sono piccoli e sparsi in una
+          tabella che scorre. ⚠️ E dice **cosa non è**: le figlie di una pagina guardata e i due
+          grantor non sono in conto, perché non sono difetti — mescolarli rifarebbe l'elenco unico
+          in cui il buco e la scelta si somigliano. */}
+      {Object.values(data.senzaGuardia ?? {}).filter((m) => m === 'buco').length > 0 && (
+        <Banner kind="warn">
+          <b>
+            {Object.values(data.senzaGuardia ?? {}).filter((m) => m === 'buco').length} caselle
+            governano la voce di menu e non la porta.
+          </b>{' '}
+          Per quelle schermate l'API è protetta dal solo elenco dei ruoli: spegnere la casella
+          nasconde la voce e <b>non</b> chiude l'endpoint. Hanno una nota gialla sotto il nome.
+          Non è un guasto di questa pagina — è una guardia che manca lato server, e si chiude una
+          chiave per volta.
+        </Banner>
+      )}
       {(data.senzaRiga ?? 0) > 0 && (
         <Banner kind="info">
           {data.senzaRiga} caselle risultano spente solo perché <b>non hanno ancora una riga</b>:
@@ -262,6 +284,19 @@ export function Permissions() {
                   {(apreAnche[pageKey] ?? []).length > 0 && (
                     <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--muted)', marginTop: 2, whiteSpace: 'normal', maxWidth: 200 }}>
                       Apre anche: {(apreAnche[pageKey] ?? []).map(pageLabel).join(', ')}
+                    </div>
+                  )}
+                  {/* ⛔ **La casella che sembra un cancello e non lo è.** Sta sulla RIGA e non su
+                      ogni cella: non dipende dal ruolo — l'endpoint non ha la guardia per nessuno —
+                      e ripeterlo su otto colonne sarebbe rumore su una cosa vera.
+
+                      ⚠️ Solo per i **buchi**: la figlia di una pagina guardata e il grantor non
+                      sono difetti, e segnalarli insieme rifarebbe l'elenco unico che questa
+                      classificazione esiste per sciogliere. */}
+                  {data.senzaGuardia?.[pageKey] === 'buco' && (
+                    <div style={{ fontSize: 10, fontWeight: 400, color: '#8A5A00', marginTop: 2, whiteSpace: 'normal', maxWidth: 200 }}>
+                      ⚠️ Questa casella governa la <b>voce di menu</b>, non l'API: spegnerla nasconde
+                      la schermata e <b>non</b> chiude la porta.
                     </div>
                   )}
                 </td>

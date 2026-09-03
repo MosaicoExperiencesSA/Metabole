@@ -4,7 +4,8 @@ import { isSystemRole } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
 import {
-  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO,
+  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA,
+  NON_EREDITANO,
   PAGE_GRANTS, PageKey,
 } from './pages';
 import { type Decisione, righeDaCreare } from './eredita-dal-genitore';
@@ -219,6 +220,20 @@ export class PermissionsService implements OnModuleInit {
       matrix: byRole,
       /** hub → chiavi che apre, così la pagina può scrivere «apre anche: Catalogo diete, Ricette». */
       concede: PAGE_GRANTS,
+      /**
+       * ⛔ **Quali caselle NON chiudono la porta, e perché** — 43 su 65 il 3/9.
+       *
+       * Non cambia niente di quello che succede: **descrive**. Serve perché una casella che sembra
+       * un cancello e non lo è va detta a chi la guarda: spegnere «Documenti sanitari» a un ruolo
+       * toglie la voce di menu e **non** chiude il `GET`. ⚠️ E non sono tutte lo stesso caso — la
+       * figlia di una pagina guardata è una scelta di progetto, il grantor un effetto lato server —
+       * quindi il motivo viaggia con la chiave, non un booleano.
+       *
+       * La classificazione e i suoi perché stanno in `permissions/pages.ts`, e
+       * `chiavi-senza-guardia.spec.ts` tiene ferme le due condizioni: nessuna senza motivo, e
+       * nessun motivo su una chiave che la guardia ce l'ha.
+       */
+      senzaGuardia: MOTIVO_SENZA_GUARDIA,
       aperteLoStesso,
       /**
        * ⚠️ Quante caselle sono spente **solo perché la loro riga non esiste**. Non stanno in

@@ -231,6 +231,107 @@ export type PageKey = (typeof BACKOFFICE_PAGES)[number];
 type Perm = { view?: true; manage?: true };
 
 /**
+ * ⛔ **PERCHÉ QUESTA CASELLA NON CHIUDE LA PORTA — la classificazione, nel codice.**
+ *
+ * `chiavi-senza-guardia.spec.ts` congela l'elenco delle chiavi che nessun `@RequirePage` legge:
+ * il 3/9 erano **43 su 65**. ⚠️ Ma un elenco unico mette insieme cose diverse, e *mescolarle porta a
+ * correggere quella sbagliata*: la casella «Nuovo lead» che non ha una guardia sua è una **scelta di
+ * progetto** (l'API vera sta sotto `crm_leads`, che la guardia ce l'ha); la casella «Documenti
+ * sanitari» che non ce l'ha è un **buco**, perché spegnerla toglie la voce di menu e lascia aperto
+ * il `GET`.
+ *
+ * ⛔ Finché la differenza stava solo in una voce dei lavori, chi guardava la matrice non aveva modo
+ * di saperla. Adesso sta qui — e la pagina Permessi la mostra, perché è l'unica informazione che
+ * rende quella schermata leggibile: *una casella che sembra un cancello e non lo è va detta.*
+ *
+ * ⚠️ **Non è un permesso di più né di meno.** Questa tabella non cambia niente di quello che
+ * succede: descrive. Il giorno che una di queste chiavi prende la sua `@RequirePage`, la riga
+ * corrispondente si toglie — e la prova diventa rossa se non lo si fa.
+ */
+export type MotivoSenzaGuardia =
+  /**
+   * ⛔ **BUCO**: la casella sembra un cancello e non lo è, e dietro ci sono dati o poteri veri.
+   * Spegnerla toglie la voce di menu e **non** chiude l'API, che è protetta dal solo `@Roles` — o da
+   * niente. È il difetto di `assignments`, che `CLAUDE.md` racconta come chiuso.
+   */
+  | 'buco'
+  /**
+   * ⚠️ **FIGLIA**: l'API vera sta sotto la chiave del **genitore**, che una guardia ce l'ha. Qui la
+   * casella è di interfaccia **per progetto** — serve a separare una schermata, non una porta.
+   */
+  | 'figlia'
+  /**
+   * ⚠️ **GRANTOR**: nessuna guardia sua, ma un effetto lato server ce l'ha lo stesso — è una chiave
+   * di `PAGE_GRANTS`, e chi ce l'ha entra nelle API che concede. Spegnerla **chiude** qualcosa.
+   */
+  | 'grantor'
+  /**
+   * ⚠️ **INNOCUA**: schermata di sola lettura del proprio perimetro. Non c'è una porta da chiudere.
+   */
+  | 'innocua';
+
+/**
+ * ⚠️ **Una riga per ogni chiave senza guardia, e nessuna per quelle che ce l'hanno.** Le due
+ * condizioni le tiene ferme `chiavi-senza-guardia.spec.ts`: una chiave che prende la sua guardia e
+ * resta qui direbbe «è decorativa» di una casella che adesso comanda.
+ */
+export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> = {
+  // ⛔ I BUCHI SU DATI SENSIBILI O POTERI FORTI. Sono quelli da chiudere per primi, uno per uno.
+  audit_logs: 'buco',
+  users: 'buco',
+  permissions: 'buco',
+  roles: 'buco',
+  engine_config: 'buco',
+  engine_protocols: 'buco',
+  engine_rules: 'buco',
+  health_documents: 'buco',
+  escalations: 'buco',
+  clinical_clearance: 'buco',
+  chat: 'buco',
+  posta: 'buco',
+  accounting: 'buco',
+  accounting_costs: 'buco',
+  compensation: 'buco',
+  commissions: 'buco',
+  withdrawals: 'buco',
+  discounts: 'buco',
+  shop: 'buco',
+  email_log: 'buco',
+  email_templates: 'buco',
+  pdf_templates: 'buco',
+  // ⛔ Questi tre **cambiano dati clinici** e la casella non li ferma: la rotta è protetta dal solo
+  //    elenco dei ruoli. `change_diet_type` in particolare è quella che il 28/8 è stata trovata
+  //    accesa su `sales` senza che il codice l'avesse mai data.
+  change_allergies: 'buco',
+  change_diet_type: 'buco',
+  change_fasting_window: 'buco',
+  assign_coach: 'buco',
+  assign_nutritionist: 'buco',
+  lead_acceptance: 'buco',
+  crm_leads: 'buco',
+
+  // ⚠️ LE FIGLIE: l'API sta sotto la chiave del genitore, che la guardia ce l'ha.
+  crm_lead_new: 'figlia',
+  crm_import: 'figlia',
+  crm_pipeline: 'figlia',
+  crm_calendar: 'figlia',
+  testimonials: 'figlia',
+  publisher: 'figlia',
+  allergens: 'figlia',
+  colazioni: 'figlia',
+  equivalence_groups: 'figlia',
+
+  // ⚠️ I GRANTOR: nessuna guardia, ma spegnerli chiude le API che concedono.
+  diet_workspace: 'grantor',
+  creation_validation: 'grantor',
+
+  // ⚠️ LE INNOCUE: sola lettura del proprio perimetro.
+  dashboard: 'innocua',
+  notifications: 'innocua',
+  charts: 'innocua',
+};
+
+/**
  * Default della specifica (sez. 4):
  * - la coach NON vede note cliniche né documenti sanitari;
  * - il nutrizionista gestisce cartelle, protocolli, verifiche, televisite;

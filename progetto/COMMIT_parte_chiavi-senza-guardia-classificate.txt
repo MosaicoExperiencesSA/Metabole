@@ -1,0 +1,57 @@
+================================================================================
+Le 43 caselle di permesso senza guardia: classificate, e la pagina lo dice
+================================================================================
+
+`BACKOFFICE_PAGES` dichiara 65 chiavi e solo 22 compaiono in un `@RequirePage`. Le
+altre 43 governano la voce di menu e basta: la rotta dietro è protetta dal solo
+`@Roles`, o da niente. È il difetto di `assignments`, che CLAUDE.md racconta come
+chiuso: il 13/8 ne erano state tolte due, il conto dice che il caso non era due.
+
+STRADA (c): NON SONO PIÙ UN ELENCO UNICO
+Erano quattro casi diversi sotto un nome solo, e mescolarli porta a correggere
+quello sbagliato. La classificazione adesso sta NEL CODICE
+(`MOTIVO_SENZA_GUARDIA`), non più solo in una voce dei lavori:
+
+  · buco (29) — la casella sembra un cancello e non lo è, su dati o poteri veri:
+    audit_logs, users, permissions, roles, engine_config, health_documents,
+    escalations, chat, posta, la contabilità, e i tre che CAMBIANO DATI CLINICI
+    (change_allergies, change_diet_type, change_fasting_window). Spegnere
+    «Documenti sanitari» a un ruolo toglie la voce e NON chiude il GET.
+  · figlia (9) — l'API vera sta sotto la chiave del genitore, che la guardia ce
+    l'ha: qui la casella è di interfaccia per progetto. Non è un buco, è una
+    scelta, e va detto.
+  · grantor (2) — diet_workspace e creation_validation: nessuna guardia, ma
+    spegnerli CHIUDE le API che concedono.
+  · innocua (3) — dashboard, notifications, charts: sola lettura del proprio
+    perimetro.
+
+E LA PAGINA PERMESSI LO DICE
+Sotto il nome delle 29 righe col buco compare una nota gialla — «questa casella
+governa la voce di menu, non l'API» — più il conto in cima, che serve a farle
+CERCARE: sono note piccole in una tabella che scorre.
+Solo i buchi: segnalare anche le figlie e i grantor rifarebbe l'elenco unico che
+questa classificazione esiste per sciogliere, e un avviso su una cosa che va bene
+insegna a non leggere gli avvisi.
+
+E LA CLASSIFICAZIONE DEV'ESSERE LETTA DA QUALCUNO
+O sarebbe l'interruttore che non accende niente rifatto un piano più sopra, dentro
+la consegna che quel difetto misura. Il giro è tenuto fermo da una prova:
+pages.ts la dichiara · il servizio la manda · la pagina la mostra.
+E il numero SI ACCORCIA AGGANCIANDO LE GUARDIE, MAI RICLASSIFICANDO: spostare una
+chiave da `buco` a `figlia` per far scendere il conto è la stessa cosa che
+spegnere l'avviso — c'è una mutazione apposta.
+
+RESTA LA STRADA (b), ED È DI SIMONE
+Agganciare `@RequirePage` alle 29, una per una. Va fatta a piccoli passi, non in
+blocco, e tocca i permessi di persone vere: la guardia legge
+`role_page_permission`, e per una chiave che nessuno leggeva le righe possono non
+esserci — chi oggi entra senza problemi domani prenderebbe 403. L'ordine sensato è
+dalle dieci sui dati sensibili, guardando ogni volta cosa si rompe.
+
+MISURATO
+6968/6968 su 420 suite nelle quattro modalità; build ok; tsc solo i 2 errori
+preesistenti; backoffice tsc -b pulito e 248/248 vitest.
+CINQUE mutazioni su cinque uccise — compresa «un buco viene riclassificato come
+figlia per far scendere il numero».
+
+Lista lavori: 23 voci aperte su 222.
