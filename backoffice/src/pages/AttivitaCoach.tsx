@@ -67,6 +67,13 @@ const KIND_ICON: Record<string, string> = {
   kcal_restano_corte: 'ti-alert-circle',
   finestra_digiuno_mai_chiesta: 'ti-hourglass',
   esclusioni_da_chiarire: 'ti-message-question',
+  /**
+   * ⚠️ **Il quinto tipo della nutrizionista (3/9)**: la giornata scritta a mano che un cambio di
+   * tipo dieta ha lasciato fuori regime. `ti-salad` è già in uso in **questo** backoffice — è la
+   * regola scritta sopra: un nome che nella 2.47.0 non esiste disegna un quadratino vuoto, che si
+   * legge come «riga rotta» ed è peggio del segnaposto.
+   */
+  giornata_a_mano_fuori_regime: 'ti-salad',
 };
 
 export function AttivitaCoach() {

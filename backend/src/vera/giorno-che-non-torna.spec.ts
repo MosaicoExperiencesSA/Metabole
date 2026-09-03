@@ -362,3 +362,54 @@ describe('⚠️ la ragione per cui la coda serve, riscritta il 25/8', () => {
     expect(codaDaRifare(conAperto, sono([conAperto[0]])).esito).toBe('bloccata');
   });
 });
+
+/**
+ * ⛔ **LE GIORNATE SCRITTE A MANO ESCONO DALLA CODA** — 3/9, chiudendo un buco dichiarato il giorno
+ * prima insieme al menu scritto a mano.
+ *
+ * La coda è «tutto quello che sta dopo», e dentro ci finiva anche la giornata che la nutrizionista
+ * aveva appena composto pasto per pasto: dettava «niente pesce» a Vera e se la cancellava da sola.
+ */
+describe('la coda non porta via il lavoro scritto a mano', () => {
+  const g = (id: string, giorno: string, meals: unknown = []) => ({
+    id, clientId: 'c1', date: new Date(`2026-09-${giorno}T00:00:00Z`),
+    apertoDallaClienteIl: null, apertureTracciate: true, meals,
+  });
+  const aMano = [{ slot: 'lunch', recipeId: 'p1', name: 'x', kcal: 700, scrittaAMano: { origine: 'nutrizionista', da: 'Lucia', il: '2026-09-03' } }];
+
+  it('⛔ la giornata a mano resta fuori dai giorni da cancellare', () => {
+    const cal = [g('a', '10'), g('b', '11', aMano), g('c', '12')];
+    const esito = codaDaRifare(cal, (x) => x.id === 'a');
+    expect(esito.esito).toBe('coda');
+    if (esito.esito !== 'coda') return;
+    expect(esito.giorni.map((x) => x.id)).toEqual(['a', 'c']);
+  });
+
+  /**
+   * ⚠️ **Non blocca, si salta** — al contrario di un giorno che la cliente ha già aperto. Quello
+   * ferma la coda perché la ricomposizione partirebbe da un punto che lei ha in mano; questo resta
+   * suo e basta, e il resto si può rifare.
+   */
+  it('⚠️ e non ferma la coda: quello che viene dopo si rifà lo stesso', () => {
+    const cal = [g('a', '10'), g('b', '11', aMano), g('c', '12')];
+    const esito = codaDaRifare(cal, (x) => x.id === 'a');
+    if (esito.esito !== 'coda') throw new Error('doveva essere una coda');
+    expect(esito.giorni.map((x) => x.id)).toContain('c');
+  });
+
+  /** ⚠️ E quante ne ha risparmiate si **dice**: una passata che ne salta tre in silenzio non si distingue da una che non ne ha trovate. */
+  it('⚠️ dice quante ne ha tenute', () => {
+    const cal = [g('a', '10'), g('b', '11', aMano), g('c', '12', aMano)];
+    const esito = codaDaRifare(cal, (x) => x.id === 'a');
+    if (esito.esito !== 'coda') throw new Error('doveva essere una coda');
+    expect(esito.tenuteAMano).toBe(2);
+  });
+
+  /** ⚠️ La controprova: senza giornate a mano la coda è tutta, come prima. */
+  it('⚠️ senza giornate a mano la coda resta intera', () => {
+    const esito = codaDaRifare([g('a', '10'), g('b', '11'), g('c', '12')], (x) => x.id === 'a');
+    if (esito.esito !== 'coda') throw new Error('doveva essere una coda');
+    expect(esito.giorni.map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(esito.tenuteAMano).toBe(0);
+  });
+});

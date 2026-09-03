@@ -22,6 +22,7 @@ import { aGiorno } from '../common/date-only';
 import { TIPO_DIGIUNO_ESTREMO, TIPO_FINESTRA_NON_TRADUCIBILE } from './verifica-digiuno';
 import { TIPO_PASTI_NON_SERVITI } from './pasti-non-serviti';
 import { TIPO_KCAL_CORTE } from './kcal-restano-corte';
+import { TIPO_GIORNATA_A_MANO_DA_RIVEDERE } from './giornata-a-mano-fuori-regime';
 import type { PrismaService } from '../prisma/prisma.service';
 
 const logger = new Logger('AvvisiAttivitaCoach');
@@ -92,6 +93,17 @@ export const TIPI_DELLA_NUTRIZIONISTA = new Set<string>([
   TIPO_FINESTRA_NON_TRADUCIBILE,
   TIPO_PASTI_NON_SERVITI,
   TIPO_KCAL_CORTE,
+  /**
+   * ⚠️ **Il quinto, dal 3/9.** La giornata scritta a mano che un cambio di tipo dieta ha lasciato
+   * fuori regime: l'ha scritta lei, è l'unica che può riscriverla, e il motore non la tocca perché
+   * è protetta apposta.
+   *
+   * ⛔ Aggiungendolo ho ripassato le quattro condizioni che il commento qui sopra dice di
+   * controllare a mano: tipo in questo elenco · ruolo nel controller (`coach-tasks.controller.ts`,
+   * che ammette già i ruoli nutrizionista) · permesso di pagina (`coach_tasks`, la stessa degli
+   * altri quattro) · icona in pagina (`CrmAttivita.tsx`).
+   */
+  TIPO_GIORNATA_A_MANO_DA_RIVEDERE,
 ]);
 
 /**

@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **La giornata a mano che un cambio di dieta lascia fuori regime.** Era l'ultimo dei
+  limiti dichiarati col menu scritto a mano, e l'unico che poteva arrivare nel piatto di qualcuno:
+  la nutrizionista compone giovedì col salmone, mercoledì la cliente passa a vegana, e quella
+  giornata la saltiamo **apposta** perché è scritta a mano — ⛔ lì la protezione lavora **contro** la
+  cliente. Adesso, dopo aver erogato, si guardano le giornate a mano rimaste contro il regime della
+  dieta **appena erogata**, e parte un'attività alla nutrizionista: è il quinto tipo dei suoi,
+  quindi le arriva la push e la vede nella Dashboard che ha da stamattina.
+  ⚠️ **Si segnala, non si cancella** — buttare via il lavoro di una persona senza dirglielo è il
+  difetto che l'intoccabilità esiste per impedire, e «Branzino di melanzane» è un piatto vegano
+  davvero: `classifica` lo manda nei **dubbi**, e il testo dice «forse» invece di «contiene». La
+  scadenza è il giorno **prima** di quella giornata, non un generico domani. ⛔ E il testo dice che
+  il piatto **arriva lo stesso** e **cosa fare**: la giornata è intoccabile dal motore, quindi se non
+  la tocca lei non la tocca nessuno.
+  ⚠️ Aggiungendo il quinto tipo ho ripassato **le quattro condizioni** che `avvisi-attivita.ts`
+  avverte di controllare a mano, invece di aggiungere una riga al conteggio e chiamarlo fatto —
+  compresa l'icona, scelta fra quelle già in uso in **questo** backoffice perché un nome che nella
+  2.47.0 non esiste disegna un quadratino vuoto.
+  🧪 6961/6961, **7 mutazioni su 7 uccise**.
+
+- `[Sviluppo]` ✅ **Menu scritto a mano: chiusi i due buchi dichiarati poche ore prima.** ①
+  L'intoccabilità copriva **tre porte su nove**: le altre passano da `codaDaRifare`, che rende
+  *tutto quello che sta dopo* — quindi la nutrizionista dettava «niente pesce» a Vera e si
+  cancellava da sola la giornata appena composta. Adesso le giornate a mano escono dalla coda
+  **dentro `codaDaRifare`**, cioè per tutti i chiamanti insieme (i divieti a Vera, la regola di
+  dieta approvata dal capo che gira su molte clienti, e i tre script). ⚠️ **Non bloccano, si
+  saltano**, e la coda dice **quante ne ha tenute**. ② Il cancello a valle **c'era già**, e la mia
+  voce lo diceva male: la scrittura rivaluta ogni ricetta con la stessa `valutaRicetta` di
+  `evaluateMeals`. ⛔ Una voce che dichiara un buco che non c'è manda il prossimo a chiudere una
+  cosa già chiusa — correggerla vale quanto chiuderne uno vero.
+  🧪 6942/6942, 3 mutazioni su 3 uccise. ⚠️ E riscrivendo le voci avevo **riaperto** una voce già
+  chiusa: rimessa com'era, e stavolta l'ha presa il conteggio prima della consegna.
+
 - `[Sviluppo]` ✅ **Il menu scritto a mano dalla scheda cliente.** Il 31/8, con una cliente senza
   menu, sarebbe stata la via d'uscita in cinque minuti. Adesso c'è: si sceglie una data, e per ogni
   pasto si cerca nel suo paniere — con le incompatibili **barrate col motivo** (non tolte: chi non

@@ -1,0 +1,60 @@
+================================================================================
+Menu scritto a mano: chiusi i due buchi dichiarati poche ore prima
+================================================================================
+
+La consegna del menu a mano aveva lasciato una voce coi limiti scritti
+(`menu-a-mano-cosa-non-copre`). I due che mordevano sono chiusi.
+
+① LE PORTE CHE CANCELLANO — chiuse quasi tutte, in un posto solo
+L'intoccabilità copriva tre porte su nove: «Rigenera menu», il cambio di tipo
+dieta e la ripartenza dal piano. Le altre passano tutte da `codaDaRifare`, che
+rende TUTTO QUELLO CHE STA DOPO — quindi la nutrizionista dettava «niente pesce» a
+Vera e si cancellava da sola la giornata che aveva appena composto pasto per
+pasto.
+
+Adesso le giornate scritte a mano escono dalla coda DENTRO `codaDaRifare`, cioè
+per tutti i chiamanti insieme: i due divieti dettati a Vera, «più proteine», la
+regola di dieta approvata dal capo (che gira su molte clienti) e i tre script.
+Metterla lì invece che in ognuno di loro è la stessa scelta di `siPuoCancellare`:
+se più punti rispondono alla stessa domanda, uno deve chiamare gli altri.
+
+NON BLOCCANO, SI SALTANO. Un giorno aperto dalla cliente ferma la coda, perché la
+ricomposizione partirebbe da un punto che lei ha in mano; un giorno scritto a mano
+no — quello resta suo e basta, e il resto si rifà. E il buco in mezzo non è più un
+problema: dal 25/8 `dateDaComporre` ricompone anche le date interne.
+La coda dice adesso quante ne ha tenute (`tenuteAMano`): una passata che ne salta
+tre in silenzio è indistinguibile da una che non ne ha trovate.
+
+Resta scoperto `sostituzione-chat.service.ts`, che ricostruisce il pasto campo per
+campo e perde il marchio — ma scrive `cambioPiatto`, che rende la giornata
+intoccabile da un altro segnale: l'effetto non cambia.
+
+② IL CANCELLO A VALLE — c'era già, e la mia voce lo diceva male
+Avevo scritto che la giornata a mano «non passa da nessun cancello» e che
+chiuderlo era «una riga». Non è vero, e la correzione è al testo: dalla passata
+della sera, la scrittura RIVALUTA OGNI RICETTA con `valutaRicetta` e le stesse
+`esclusioniDi` che usa `evaluateMeals`, col nome del piatto infilato fra gli
+ingredienti e le sostituzioni portate fino al pasto scritto. È la stessa regola,
+non una copia — vive in `esclusioni-della-cliente.ts` e la chiamano tutti e due.
+
+Una voce che dichiara un buco che non c'è manda il prossimo a chiudere una cosa
+già chiusa: vale la pena correggerla quanto chiuderne uno vero.
+
+QUELLO CHE RESTA, e in che ordine
+Il caso 5 è l'unico rimasto a poter arrivare nel piatto di qualcuno: dopo un
+cambio di tipo dieta, la giornata a mano che sopravvive porta il dietId vecchio e
+piatti che il regime nuovo può vietare. Lì l'intoccabilità lavora CONTRO la
+cliente — la protezione che tiene il lavoro di una persona tiene anche un piatto
+che non le si può più servire. Poi il pool che è uno scatto, il `where` che non
+c'è, e il limite sul passato.
+
+MISURATO
+6942/6942 su 417 suite nelle quattro modalità; build ok; tsc solo i 2 errori
+preesistenti. TRE mutazioni su tre uccise.
+
+⚠️ E una correzione mia: riscrivendo le voci avevo RIAPERTO
+`interruttore-ricette-semplici-in-app`, che era già chiusa — rimessa com'era. È la
+seconda volta oggi che una voce dei lavori si sposta per un errore di scrittura, e
+stavolta l'ha presa il conteggio (199 fatte, non 198) prima della consegna.
+
+Lista lavori: 23 voci aperte su 222.

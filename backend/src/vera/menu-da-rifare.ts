@@ -314,7 +314,21 @@ export type CodaDaRifare =
    * stanno **prima** e che non si toccano (già aperti, o non sappiamo): chi racconta l'esito li deve
    * nominare, altrimenti dice «fatto» a chi ha ancora il piatto vietato davanti.
    */
-  | { esito: 'coda'; giorni: GiornoDaValutare[]; daQuando: Date; lasciatiIndietro: number }
+  | {
+    esito: 'coda';
+    giorni: GiornoDaValutare[];
+    daQuando: Date;
+    lasciatiIndietro: number;
+    /**
+     * ⛔ **Le giornate SCRITTE A MANO che sono state tolte dalla coda** (3/9). Non bloccano — la
+     * coda va avanti — ma non si cancellano: dentro c'è il lavoro di una persona.
+     *
+     * ⚠️ Si contano e si **dicono**: chi racconta l'esito deve poter scrivere «rifatte N, e M
+     * scritte a mano lasciate com'erano». Una passata che ne salta tre in silenzio è
+     * indistinguibile da una che non ne ha trovate.
+     */
+    tenuteAMano: number;
+  }
   /** Non si cancella niente: il giorno che blocca la cliente **l'ha aperto davvero**. */
   | { esito: 'bloccata'; daQuando: Date; apertoIl: Date }
   /**
@@ -381,8 +395,32 @@ export function codaDaRifare(tuttiIGiorni: readonly GiornoDaValutare[], colpito:
   }
 
   const daQuando = new Date(Math.min(...daRifare.map(quando)));
-  const coda = tuttiIGiorni.filter((g) => quando(g) >= daQuando.getTime());
-  return { esito: 'coda', giorni: coda, daQuando, lasciatiIndietro: colpiti.length - daRifare.length };
+  const finestra = tuttiIGiorni.filter((g) => quando(g) >= daQuando.getTime());
+  /**
+   * ⛔ **LE GIORNATE SCRITTE A MANO ESCONO DALLA CODA** (3/9, chiudendo un buco dichiarato il giorno
+   * prima). La coda è «tutto quello che sta dopo», e dentro ci finiva anche la giornata che la
+   * nutrizionista aveva appena composto pasto per pasto: dettava «niente pesce» a Vera e se la
+   * cancellava da sola.
+   *
+   * ⚠️ **Non bloccano, si saltano.** Un giorno aperto dalla cliente ferma la coda perché la
+   * ricomposizione partirebbe da un punto che lei ha già in mano; un giorno scritto a mano no —
+   * quello resta suo e basta, e il resto si può rifare. ⛔ E il buco non è più un problema: dal 25/8
+   * `dateDaComporre` ricompone anche le date in mezzo, quindi lasciarne una non apre più un vuoto
+   * permanente.
+   *
+   * ⚠️ Vale per **tutti** i chiamanti insieme — i divieti dettati a Vera, «più proteine», la regola
+   * di dieta approvata dal capo (che gira su molte clienti), e i tre script. Metterla qui invece che
+   * in ognuno di loro è la stessa scelta di `siPuoCancellare`: *se più punti rispondono alla stessa
+   * domanda, uno deve chiamare gli altri.*
+   */
+  const { daRifare: coda, aMano } = senzaQuelleAMano(finestra);
+  return {
+    esito: 'coda',
+    giorni: coda,
+    daQuando,
+    lasciatiIndietro: colpiti.length - daRifare.length,
+    tenuteAMano: aMano.length,
+  };
 }
 
 /**

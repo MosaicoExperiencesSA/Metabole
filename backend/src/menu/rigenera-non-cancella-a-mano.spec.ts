@@ -12,39 +12,56 @@
  */
 import { MenuService } from './menu.service';
 
-const aMano = [{ slot: 'lunch', recipeId: 'p1', name: 'x', kcal: 700, scrittaAMano: { origine: 'nutrizionista', da: 'Lucia', il: '2026-09-03' } }];
+const aMano = [{ slot: 'lunch', recipeId: 'p1', name: 'Salmone al forno', kcal: 700, scrittaAMano: { origine: 'nutrizionista', da: 'Lucia', il: '2026-09-03' } }];
 const delMotore = [{ slot: 'lunch', recipeId: 'p2', name: 'y', kcal: 700 }];
 
 /**
  * Il minimo perché i tre metodi girino: quello che conta è **quali id finiscono nel `deleteMany`**.
  * `deliverIfEligible` è finto — qui non si prova l'erogazione, si prova cosa viene cancellato.
  */
-function servizio(giorni: { id: string; meals: unknown }[]) {
+function servizio(
+  giorni: { id: string; meals: unknown; date?: Date }[],
+  regime: string | null = 'omnivore',
+  ricette: { id: string; name: string; ingredients: unknown }[] = [],
+) {
   const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
   const createMany = jest.fn().mockResolvedValue({ count: 0 });
+  const apri = jest.fn().mockResolvedValue({});
   const prisma = {
     clientProfile: { findUnique: jest.fn().mockResolvedValue({ planHeldAt: null }) },
     menuDay: {
       findMany: jest.fn().mockResolvedValue(giorni),
+      /** ⚠️ La lettura del regime della dieta appena erogata: senza, l'avviso non parte. */
+      findFirst: jest.fn().mockResolvedValue({ diet: { regime } }),
       deleteMany,
       createMany,
     },
+    recipe: { findMany: jest.fn().mockResolvedValue(ricette) },
+    /** ⚠️ La porta usa `findUnique` sulla chiave composta, non `findFirst`. */
+    coachTask: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockImplementation((a: never) => { apri(a); return Promise.resolve({ id: 't1' }); }),
+    },
+    /** ⚠️ `avvisaAttivitaNuova` gira subito dopo la creazione: senza questi assorbe e logga. */
+    user: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    notification: { create: jest.fn().mockResolvedValue({}), findFirst: jest.fn().mockResolvedValue(null) },
   } as never;
   const s = new MenuService(
     prisma, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
   );
   // ⚠️ L'erogazione non è l'oggetto di queste prove: si finge, e si guarda solo la cancellazione.
   (s as unknown as { deliverIfEligible: unknown }).deliverIfEligible = jest.fn().mockResolvedValue([]);
-  return { s, deleteMany, createMany };
+  return { s, deleteMany, createMany, apri };
 }
 
+const _dummy = 0; void _dummy;
 const idCancellati = (deleteMany: jest.Mock): string[] =>
   (deleteMany.mock.calls[0]?.[0]?.where?.id?.in ?? []) as string[];
 
 describe('le tre porte che cancellano giornate risparmiano quelle scritte a mano', () => {
   const GIORNI = [
-    { id: 'a-mano', meals: aMano },
-    { id: 'del-motore', meals: delMotore },
+    { id: 'a-mano', meals: aMano, date: new Date('2026-09-20T00:00:00Z') },
+    { id: 'del-motore', meals: delMotore, date: new Date('2026-09-21T00:00:00Z') },
   ];
 
   it('⛔ «Rigenera menu» cancella solo quella del motore', async () => {
@@ -106,5 +123,60 @@ describe('le tre porte che cancellano giornate risparmiano quelle scritte a mano
     const { s, createMany } = servizio([{ id: 'a-mano', meals: aMano }]);
     await s.redeliverFutureDays('c1');
     expect(createMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⛔ **DOPO UN CAMBIO DI TIPO DIETA, LA GIORNATA A MANO CHE SOPRAVVIVE VIENE GUARDATA.**
+ *
+ * È il caso 5 dei limiti dichiarati, e l'unico rimasto a poter arrivare nel piatto di qualcuno: lì
+ * l'intoccabilità lavora **contro** la cliente — la stessa regola che tiene il lavoro di una
+ * persona tiene anche un piatto che non le si può più servire.
+ */
+describe('il cambio di tipo dieta guarda le giornate a mano rimaste', () => {
+  const SALMONE = [{ id: 'p1', name: 'Salmone al forno', ingredients: [{ name: 'salmone' }] }];
+  const giorno = { id: 'a-mano', meals: aMano, date: new Date('2026-09-20T00:00:00Z') };
+
+  it('⛔ passando a vegana, il salmone rimasto apre un\'attività', async () => {
+    const { s, apri } = servizio([giorno], 'vegan', SALMONE);
+    await s.redeliverFutureDays('c1');
+    expect(apri).toHaveBeenCalled();
+    const dati = apri.mock.calls[0][0].data;
+    expect(dati.kind).toBe('giornata_a_mano_fuori_regime');
+    expect(dati.title).toContain('20/09/2026');
+    expect(dati.description).toContain('Salmone al forno');
+  });
+
+  /** ⚠️ Per un'onnivora non c'è niente da rivedere: un avviso che arriva sempre non è un avviso. */
+  it('⚠️ restando onnivora non apre niente', async () => {
+    const { s, apri } = servizio([giorno], 'omnivore', SALMONE);
+    await s.redeliverFutureDays('c1');
+    expect(apri).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ E una giornata del motore non è affar suo: quella il motore l'ha appena rifatta. */
+  it('⚠️ una giornata del motore non apre niente', async () => {
+    const { s, apri } = servizio([{ id: 'x', meals: delMotore, date: new Date('2026-09-20T00:00:00Z') }], 'vegan', SALMONE);
+    await s.redeliverFutureDays('c1');
+    expect(apri).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **La scadenza è il giorno PRIMA di quella giornata**: una scadenza generica su una cosa che
+   * ne ha una precisa è il modo di farla arrivare tardi.
+   */
+  it('⛔ scade il giorno prima della giornata da rivedere', async () => {
+    const { s, apri } = servizio([giorno], 'vegan', SALMONE);
+    await s.redeliverFutureDays('c1');
+    const scadenza = apri.mock.calls[0][0].data.dueDate as Date;
+    expect(scadenza.toISOString().slice(0, 10)).toBe('2026-09-19');
+  });
+
+  /** ⛔ E non blocca: se l'attività non si apre, il menu è stato erogato lo stesso. */
+  it('⛔ un guaio nell\'avviso non ferma la rierogazione', async () => {
+    const { s } = servizio([giorno], 'vegan', SALMONE);
+    (s as unknown as { avvisaGiornateAManoFuoriRegime: unknown }).avvisaGiornateAManoFuoriRegime =
+      jest.fn().mockRejectedValue(new Error('boom'));
+    await expect(s.redeliverFutureDays('c1')).resolves.toMatchObject({ removed: 0 });
   });
 });

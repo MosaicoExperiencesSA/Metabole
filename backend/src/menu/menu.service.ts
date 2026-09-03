@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { senzaQuelleAMano } from '../vera/menu-da-rifare';
+import { ricetteDelGiorno, senzaQuelleAMano } from '../vera/menu-da-rifare';
 import { slotDaCuiPescare } from '../common/slot-pasto';
 import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-passato';
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
@@ -11,6 +11,12 @@ import { FAMIGLIA_RITORNO_IN_EQUILIBRIO, paniereDellaVariante } from '../catalog
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { giornateComplete, NOME_PASTO, slotPieni } from '../catalog/giornate-complete';
 import { apriAttivitaCoach } from '../coach-tasks/porta-delle-attivita';
+import {
+  giornateDaRivedere,
+  riferimentoGiornataDaRivedere,
+  testoGiornataDaRivedere,
+  TIPO_GIORNATA_A_MANO_DA_RIVEDERE,
+} from '../coach-tasks/giornata-a-mano-fuori-regime';
 import {
   TIPO_KCAL_CORTE,
   decisioneKcalCorte,
@@ -3656,6 +3662,24 @@ export class MenuService {
       );
       return { removed: 0, delivered: [], ripristinati: daRifare.length };
     }
+    /**
+     * ⛔ **E LE GIORNATE A MANO RIMASTE SI GUARDANO, perché il regime può essere cambiato.**
+     *
+     * È il caso 5 di `menu-a-mano-cosa-non-copre`, e l'unico rimasto a poter arrivare nel piatto di
+     * qualcuno: la nutrizionista compone giovedì col salmone, mercoledì la cliente passa a vegana, e
+     * questa giornata la saltiamo **apposta** perché è scritta a mano. ⚠️ Lì la protezione lavora
+     * **contro** la cliente — la stessa regola che tiene il lavoro di una persona tiene anche un
+     * piatto che non le si può più servire.
+     *
+     * ⚠️ Si **segnala**, non si cancella: buttare via il lavoro di una persona senza dirglielo è il
+     * difetto che l'intoccabilità esiste per impedire, e «Branzino di melanzane» è un piatto vegano
+     * davvero. E c'è tempo — questi giorni sono tutti **dopo oggi**.
+     *
+     * ⛔ Non blocca la rierogazione: `avvisaGiornateAManoFuoriRegime` assorbe i propri errori, come
+     * ogni avviso di questo progetto. Un menu non erogato per un'attività non aperta sarebbe il
+     * rimedio peggiore del male.
+     */
+    await this.avvisaGiornateAManoFuoriRegime(clientId, aMano).catch(() => undefined);
     return { removed: del.count, delivered, ripristinati: 0 };
   }
 
@@ -3874,6 +3898,70 @@ export class MenuService {
     }).catch(() => undefined);
     this.logger.error(`Nessuna giornata completa per la dieta ${diet.id} né per le sue gemelle: erogazione ferma.`);
     return null;
+  }
+
+  /**
+   * ⛔ **LE GIORNATE A MANO CHE UN CAMBIO DI REGIME HA LASCIATO FUORI POSTO.**
+   *
+   * Il giudizio sta in `coach-tasks/giornata-a-mano-fuori-regime.ts`, che è puro e si prova. Qui c'è
+   * solo quello che tocca la banca dati: leggere gli ingredienti dei piatti e aprire l'attività.
+   *
+   * ⚠️ **Il regime si legge dalla dieta appena erogata**, non dal profilo: è quella che dice cosa la
+   * cliente riceverà da domani, ed è la stessa riga che il motore ha usato un attimo fa.
+   *
+   * ⚠️ **Gli ingredienti si rileggono dal catalogo**, non dallo snapshot: `meals` porta nome e kcal,
+   * non l'elenco — e `classifica` senza ingredienti guarda solo il nome, che è il ramo dei «dubbi».
+   */
+  private async avvisaGiornateAManoFuoriRegime(
+    clientId: string,
+    aMano: readonly { id: string; date: Date; meals: unknown }[],
+  ): Promise<void> {
+    if (!aMano.length) return;
+    const ultima = (await this.prisma.menuDay.findFirst({
+      where: { clientId } as never,
+      orderBy: { date: 'desc' } as never,
+      select: { diet: { select: { regime: true } } } as never,
+    })) as { diet?: { regime?: string | null } | null } | null;
+    const regime = ultima?.diet?.regime ?? null;
+    if (!regime || regime === 'omnivore') return;
+
+    const ids = [...new Set(aMano.flatMap((g) => ricetteDelGiorno(g.meals)))];
+    if (!ids.length) return;
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { id: { in: ids } } as never,
+      select: { id: true, name: true, ingredients: true },
+    })) as { id: string; name: string; ingredients: unknown }[];
+    const perId = new Map(ricette.map((r) => [r.id, r]));
+
+    const giornate = aMano.map((g) => ({
+      giorno: new Date(g.date).toISOString().slice(0, 10),
+      piatti: ricetteDelGiorno(g.meals).map((rid) => {
+        const r = perId.get(rid);
+        return {
+          name: r?.name ?? '',
+          ingredienti: (((r?.ingredients as { name?: string }[]) ?? [])
+            .map((i) => i?.name).filter((n): n is string => !!n)),
+        };
+      }).filter((p) => p.name),
+    }));
+
+    for (const da of giornateDaRivedere(giornate, regime)) {
+      const testo = testoGiornataDaRivedere(da, regime);
+      await apriAttivitaCoach(this.prisma, this.push, {
+        clientId,
+        kind: TIPO_GIORNATA_A_MANO_DA_RIVEDERE,
+        refId: riferimentoGiornataDaRivedere(da.giorno),
+        title: testo.title,
+        description: testo.description,
+        /**
+         * ⚠️ **Scade il giorno PRIMA di quella giornata**, non domani: la cosa da fare ha una data
+         * sua, e una scadenza generica su una cosa che ne ha una precisa è il modo di farla
+         * arrivare tardi. ⛔ Mai nel passato: se la giornata è dopodomani la scadenza è domani, se è
+         * domani è oggi.
+         */
+        dueDate: new Date(Math.max(Date.now(), new Date(`${da.giorno}T00:00:00.000Z`).getTime() - 86_400_000)),
+      });
+    }
   }
 
   /** Vero se il piano è fermato dal nutrizionista (`planHeldAt`). Vedi §15.2 punto 4. */

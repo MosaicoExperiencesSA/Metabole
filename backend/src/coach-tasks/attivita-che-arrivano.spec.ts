@@ -24,7 +24,7 @@
  * ⛔ **Quello che questo file NON fa, dichiarato.** Non è una rete automatica per un tipo *nuovo*:
  * i test sui ruoli e sui permessi girano su `RUOLI_NUTRIZIONISTA`, non sui tipi, quindi aggiungendo
  * un quinto `kind` l'unico che si accende è «sono esattamente quattro» — e si zittisce aggiungendo
- * una riga a `I_QUATTRO`. Chi lo fa deve ripassare le quattro condizioni a mano. ⚠️ E la quarta (il
+ * una riga a `I_TIPI`. Chi lo fa deve ripassare le quattro condizioni a mano. ⚠️ E la quarta (il
  * filtro di `list`) è provata in `chi-vede-le-attivita.spec.ts`, non qui.
  *
  * La prima stesura di questa nota prometteva che «se una delle quattro condizioni manca, questo
@@ -35,6 +35,7 @@ import { TIPI_DELLA_NUTRIZIONISTA } from './avvisi-attivita';
 import { TIPO_DIGIUNO_ESTREMO, TIPO_FINESTRA_NON_TRADUCIBILE } from './verifica-digiuno';
 import { TIPO_PASTI_NON_SERVITI } from './pasti-non-serviti';
 import { TIPO_KCAL_CORTE } from './kcal-restano-corte';
+import { TIPO_GIORNATA_A_MANO_DA_RIVEDERE } from './giornata-a-mano-fuori-regime';
 import { RUOLI_NUTRIZIONISTA } from '../common/ruoli-nutrizionista';
 import { DEFAULT_PERMISSIONS } from '../permissions/pages';
 import { CoachTasksController } from './coach-tasks.controller';
@@ -42,16 +43,26 @@ import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-/** I quattro tipi, con la costante che li produce. ⚠️ Costanti, mai stringhe scritte a mano. */
-const I_QUATTRO: [string, string][] = [
+/**
+ * I tipi della nutrizionista, con la costante che li produce. ⚠️ Costanti, mai stringhe scritte a
+ * mano.
+ *
+ * ⛔ **Dal 3/9 sono cinque**, e aggiungerne uno non è «aggiustare il conteggio»: il commento in
+ * `avvisi-attivita.ts` avverte che l'unico test che si accende è quello che li conta, e che le
+ * **quattro condizioni** vanno ripassate a mano. Per `giornata_a_mano_fuori_regime` sono state
+ * ripassate tutte e quattro, e stanno qui sotto: elenco · ruolo nel controller · permesso di pagina
+ * · icona in pagina.
+ */
+const I_TIPI: [string, string][] = [
   ['digiuno estremo', TIPO_DIGIUNO_ESTREMO],
   ['finestra non traducibile', TIPO_FINESTRA_NON_TRADUCIBILE],
   ['pasti non serviti', TIPO_PASTI_NON_SERVITI],
   ['calorie che restano corte', TIPO_KCAL_CORTE],
+  ['giornata a mano fuori regime', TIPO_GIORNATA_A_MANO_DA_RIVEDERE],
 ];
 
 describe('⛔ i tipi della nutrizionista: l\'elenco e le costanti sono la stessa cosa', () => {
-  it.each(I_QUATTRO)('«%s» è nell\'elenco', (_titolo, kind) => {
+  it.each(I_TIPI)('«%s» è nell\'elenco', (_titolo, kind) => {
     expect(TIPI_DELLA_NUTRIZIONISTA.has(kind)).toBe(true);
   });
 
@@ -59,8 +70,8 @@ describe('⛔ i tipi della nutrizionista: l\'elenco e le costanti sono la stessa
    * ⛔ **Nessun tipo di troppo.** L'elenco decide anche cosa lei vede in pagina: un tipo in più qui
    * è un'attività della coach che finisce nella sua colonna, e che lei può chiudere al posto suo.
    */
-  it('⛔ e sono esattamente quattro, non cinque', () => {
-    expect([...TIPI_DELLA_NUTRIZIONISTA].sort()).toEqual(I_QUATTRO.map(([, k]) => k).sort());
+  it('⛔ e sono esattamente quelli, non uno di più', () => {
+    expect([...TIPI_DELLA_NUTRIZIONISTA].sort()).toEqual(I_TIPI.map(([, k]) => k).sort());
   });
 
   /**
@@ -134,7 +145,7 @@ describe('⛔ ogni tipo ha la sua icona in pagina', () => {
     expect(sorgente).toContain('KIND_ICON');
   });
 
-  it.each(I_QUATTRO)('⛔ «%s» ha un\'icona sua, non il segnaposto', (_titolo, kind) => {
+  it.each(I_TIPI)('⛔ «%s» ha un\'icona sua, non il segnaposto', (_titolo, kind) => {
     expect(sorgente).toMatch(new RegExp(`\\b${kind}\\s*:\\s*'ti-`));
   });
 });

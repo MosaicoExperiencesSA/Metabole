@@ -1,0 +1,58 @@
+================================================================================
+La giornata a mano che un cambio di dieta lascia fuori regime
+================================================================================
+
+Era il caso 5 dei limiti dichiarati col menu scritto a mano, e l'unico rimasto a
+poter arrivare nel piatto di qualcuno.
+
+IL CASO
+La nutrizionista compone a mano il menu di giovedì, col salmone. Mercoledì la
+cliente passa a vegana. `redeliverFutureDays` rifà le giornate future — ma quella
+la salta, PERCHÉ È SCRITTA A MANO. Lì la protezione lavora CONTRO la cliente: la
+stessa regola che tiene il lavoro di una persona tiene anche un piatto che non le
+si può più servire.
+
+COSA FA ADESSO
+Dopo aver erogato, `redeliverFutureDays` guarda le giornate a mano rimaste contro
+il regime della dieta APPENA EROGATA (non quello del profilo: è la riga che il
+motore ha usato un attimo fa) e apre un'attività alla nutrizionista — il quinto
+tipo di TIPI_DELLA_NUTRIZIONISTA, quindi le arriva anche la push e la vede nella
+sua Dashboard, che è il lavoro di stamattina.
+
+SI SEGNALA, NON SI CANCELLA
+Buttare via il lavoro di una persona senza dirglielo è il difetto che
+l'intoccabilità esiste per impedire. E «Branzino di melanzane» è un piatto vegano
+davvero: `classifica` lo manda nei DUBBI apposta, e il testo lo dice — «forse»
+invece di «contiene». C'è tempo: quei giorni sono tutti dopo oggi, e la scadenza è
+il giorno PRIMA di quella giornata, non un generico domani.
+
+IL TESTO DICE DUE COSE CHE SEMBRANO OVVIE E NON LO SONO
+① che il piatto arriva lo stesso — un avviso che non nomina la conseguenza si
+legge come una segnalazione di catalogo, e si rimanda;
+② cosa fare («riscrivila dalla sua scheda, oppure toglila») — la giornata è
+intoccabile dal motore, quindi se non la tocca lei non la tocca nessuno.
+
+LE QUATTRO CONDIZIONI, RIPASSATE A MANO
+`avvisi-attivita.ts` avverte per esteso che aggiungendo un tipo l'unico test che
+si accende è quello che li conta, e che «si aggiusta aggiungendo una riga». Le
+altre tre sono state ripassate: ruolo nel controller (già ammette la
+nutrizionista), permesso di pagina (`coach_tasks`, la stessa degli altri quattro),
+e icona in pagina — `ti-salad`, scelta fra quelle GIÀ IN USO IN QUESTO BACKOFFICE,
+perché un nome che nella 2.47.0 del font non esiste disegna un quadratino vuoto,
+che si legge come «riga rotta» ed è peggio del segnaposto.
+
+COSA NON VEDE, detto
+`classifica` guarda carne e pesce. Un passaggio a «senza glutine» o «senza
+lattosio» no — ma quelli non sono un regime, sono esclusioni della cliente, e
+passano dal filtro che gira a OGNI scrittura, compresa quella a mano.
+
+MISURATO
+6961/6961 su 419 suite nelle quattro modalità; build ok; tsc solo i 2 errori
+preesistenti; backoffice tsc -b pulito e 249/249 vitest.
+SETTE mutazioni su sette uccise.
+
+Dei sei limiti dichiarati ieri sera ne restano tre — il pool che è uno scatto,
+`scrittaAMano` che non è un `where`, e nessun limite sul passato — e nessuno dei
+tre può arrivare nel piatto di qualcuno.
+
+Lista lavori: 23 voci aperte su 222.
