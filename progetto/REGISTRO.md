@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **Il cancello del perimetro clienti adesso è guardato davvero.** La voce
+  `perimetro-commerciale-clienti-assegnate` lo diceva da sei giorni: dei due cancelli che decidono
+  chi vede i dati di chi, uno era sorvegliato e l'altro no. Togliere `sales` da
+  `RUOLI_CHE_VEDONO_TUTTE` faceva diventare rossa la sentinella; cambiare `perimetroClienti` la
+  lasciava **verde**.
+  ⛔ **Il motivo stava dentro la prova**: `perimetro-una-porta-sola.spec.ts` **riscriveva a mano** la
+  regola del perimetro, quindi confrontava la funzione vera con una copia della sua regola vecchia —
+  cioè faceva, un piano più sotto, esattamente la cosa che quel file esiste per vietare. Adesso la
+  prova **chiama** `perimetroClienti` ruolo per ruolo e ne fissa anche il campo su cui filtra.
+  ⛔ **Dimostrato eseguendo, non sostenendo**: aggiungere `sales` a `isCoachLike` — cioè dare alla
+  commerciale il perimetro di tutta la rete sotto di lei, l'errore *per eccesso* contro cui la voce
+  mette in guardia — resta verde sulla prova com'era a HEAD e diventa rossa su quella nuova. Lo
+  script di mutazione prende la prova vecchia da `git show`, non la imita.
+  ⚠️ **E una cosa che si è vista solo chiamando la funzione**: `perimetroClienti` risponde «nessun
+  limite» anche al ruolo `client`. Oggi non è un buco (a tenerlo fuori sono i `@Roles`), ma è un
+  ripiego *per eccesso* dentro il file che dichiara di volerne fare uno per difetto — ed è scritto
+  come prova, non come commento.
+  ⛔ Il resto della voce **non si muove**: quali clienti vede la commerciale e il numero di
+  `diag:commerciale-e-coach` sono decisioni di Simone.
+
 - `[Sviluppo]` ✅ **La coda del quando non entra più nel nome del piatto.** «sostituisci il pane con
   le gallette **a colazione**» imparava «gallette a colazione», che non è un alimento: la regola
   finiva in banca dati con un nome che non combacia con nessuna ricetta, e la sostituzione non

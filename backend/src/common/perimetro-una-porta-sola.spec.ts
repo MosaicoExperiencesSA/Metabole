@@ -122,12 +122,78 @@ describe('cosa risponde, ruolo per ruolo', () => {
  * è una decisione su chi vede i dati delle clienti, e la prende Simone.
  */
 describe('⚠️ dove le due risposte NON combaciano (oggi)', () => {
-  /** Il perimetro vero fa una query; qui si riproduce solo la sua regola sui ruoli. */
-  const perimetroSarebbeNullo = (ruolo: string) => ruolo !== 'coach' && ruolo !== 'coach_coordinator' && ruolo !== 'nutritionist';
+  /**
+   * ⛔ **SI CHIAMA `perimetroClienti`, NON SI RISCRIVE LA SUA REGOLA** (corretto il 3/9).
+   *
+   * Qui c'era una riga che rifaceva a mano il ragionamento del perimetro:
+   *
+   *     const perimetroSarebbeNullo = (r) => r !== 'coach' && r !== 'coach_coordinator' && r !== 'nutritionist'
+   *
+   * ⚠️ Cioè **il cancello più pericoloso dei due era quello che nessuno guardava**. Togliere `sales`
+   * da `RUOLI_CHE_VEDONO_TUTTE` fa diventare rosso questo file in due punti; cambiare
+   * `perimetroClienti` — aggiungere un ruolo a `isCoachLike`, o togliere il `role !== 'nutritionist'`
+   * — lo lasciava **verde**, perché il test confrontava la funzione vera con una copia della sua
+   * regola vecchia. Una copia di una regola di perimetro dentro la prova che la sorveglia è la
+   * stessa cosa che questo file esiste per vietare, un piano più sotto.
+   *
+   * ⚠️ Il perimetro vero fa due query, e per questo qui c'era una scorciatoia: si chiedono
+   * `user.role` e la scheda `Staff`, e per la coordinatrice anche la rete sotto (`reteSottoDiMe`,
+   * che interroga `staff.findMany`). Sono tre righe di finto Prisma, e valgono la differenza fra un
+   * test che guarda e uno che sembra guardare.
+   */
+  const perimetroDi = (ruolo: string) => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ role: ruolo }) },
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'staff-1' }),
+        // La rete sotto la coordinatrice: vuota basta, qui interessa solo `null` o non-`null`.
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    return perimetroClienti(prisma as never, 'u-1');
+  };
 
-  it('marketing e head_marketing: per `perimetroClienti` nessun limite, per `vedeTutteLeClienti` no', () => {
-    const diverse = [...ROLES].filter((r) => r !== 'client' && perimetroSarebbeNullo(r) !== vedeTutteLeClienti(r));
+  it('marketing e head_marketing: per `perimetroClienti` nessun limite, per `vedeTutteLeClienti` no', async () => {
+    const diverse: string[] = [];
+    for (const r of ROLES) {
+      if (r === 'client') continue; // vedi la prova qui sotto
+      const senzaLimite = (await perimetroDi(r)) === null;
+      if (senzaLimite !== vedeTutteLeClienti(r)) diverse.push(r);
+    }
     expect(diverse).toEqual(['marketing', 'head_marketing']);
+  });
+
+  /**
+   * ⚠️ **E i ruoli che un perimetro ce l'hanno sono esattamente tre**, chiesti alla funzione vera.
+   * Serve a rendere rossa la riga giusta quando qualcuno tocca `isCoachLike` o il ramo della
+   * nutrizionista: senza, la prova qui sopra potrebbe restare verde spostando due ruoli insieme.
+   */
+  it('⛔ chi ha un perimetro, e su quale campo: chiesto alla funzione, non riscritto', async () => {
+    const conPerimetro: Record<string, string> = {};
+    for (const r of ROLES) {
+      const p = await perimetroDi(r);
+      if (p) conPerimetro[r] = p.field;
+    }
+    expect(conPerimetro).toEqual({
+      coach: 'assignedCoachId',
+      coach_coordinator: 'assignedCoachId',
+      nutritionist: 'assignedNutritionistId',
+    });
+  });
+
+  /**
+   * ⛔ **E `client` NON è escluso perché è innocuo: è escluso perché la risposta è «nessun limite».**
+   *
+   * `perimetroClienti` non conosce il ruolo `client`, quindi ci risponde `null` come a un admin.
+   * ⚠️ Oggi non è un buco perché nessuna rotta che usa il perimetro ammette quel ruolo — lo
+   * decidono i `@Roles` dei controller, che sono l'altra domanda («chi entra», non «quanto vede»).
+   * ⛔ Ma è un ripiego **per eccesso** dentro il file che dichiara in testa di volerne fare uno per
+   * difetto, e sta scritto qui invece che in un commento: il giorno che una rotta aperta alle
+   * clienti si appoggiasse al perimetro, questa riga dice cosa succederebbe.
+   */
+  it('⛔ per una cliente il perimetro è «nessun limite»: la tiene fuori la guardia dei ruoli, non questo file', async () => {
+    expect(await perimetroDi('client')).toBeNull();
+    expect(vedeTutteLeClienti('client')).toBe(false);
   });
 });
 

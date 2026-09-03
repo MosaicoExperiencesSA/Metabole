@@ -1,0 +1,47 @@
+Il cancello del perimetro clienti adesso è guardato davvero
+
+La voce `perimetro-commerciale-clienti-assegnate` diceva una cosa che è rimasta vera per sei
+giorni: i due cancelli che decidono chi vede i dati di chi NON sono sorvegliati allo stesso modo.
+Togliere `sales` da `RUOLI_CHE_VEDONO_TUTTE` fa diventare rossa la sentinella in due punti;
+cambiare `perimetroClienti` la lasciava VERDE.
+
+Il motivo stava dentro la prova stessa. `perimetro-una-porta-sola.spec.ts` riscriveva a mano la
+regola del perimetro:
+
+    const perimetroSarebbeNullo = (r) =>
+      r !== 'coach' && r !== 'coach_coordinator' && r !== 'nutritionist'
+
+⚠️ Cioè confrontava la funzione vera con una COPIA DELLA SUA REGOLA VECCHIA — che è esattamente la
+cosa che quel file esiste per vietare, un piano più sotto: «un perimetro copiato è un perimetro che
+prima o poi divergerà». Il cancello più facile da sbagliare era quello che nessuno guardava.
+
+Adesso la prova CHIAMA `perimetroClienti` ruolo per ruolo, con un finto Prisma di tre righe
+(`user.findUnique`, `staff.findUnique`, `staff.findMany` per la rete della coordinatrice), e ne
+fissa anche il campo su cui filtra: `assignedCoachId` per coach e coordinatrice,
+`assignedNutritionistId` per la nutrizionista, e nessun perimetro per tutti gli altri.
+
+⛔ DIMOSTRATO ESEGUENDO, NON SOSTENENDO
+La stessa mutazione — aggiungere `sales` a `isCoachLike`, cioè dare alla commerciale il perimetro
+di tutta la rete sotto di lei, che è l'errore PER ECCESSO contro cui quella voce mette in guardia —
+resta verde sulla prova com'era a HEAD e diventa rossa su quella nuova. Lo script di mutazione non
+imita la prova vecchia: la prende da `git show HEAD:...`.
+
+Quattro mutazioni prese (`sales` coach-like, la nutrizionista che perde il perimetro, il perimetro
+della coach che diventa «tutte», lo staff senza scheda che vede tutte invece di nessuna), più la
+dimostrazione che sopravvive come previsto.
+
+⚠️ E UNA COSA CHE SI È VISTA SOLO CHIAMANDO LA FUNZIONE
+`perimetroClienti` risponde «nessun limite» anche al ruolo `client`. Oggi non è un buco — nessuna
+rotta che usa il perimetro ammette quel ruolo, e a deciderlo sono i `@Roles` dei controller, che
+sono l'altra domanda («chi entra», non «quanto vede») — ma è un ripiego PER ECCESSO dentro il file
+che dichiara in testa di volerne fare uno per difetto. Sta scritto come prova, non come commento.
+
+⛔ Il resto della voce NON si muove: quali clienti vede la commerciale, i due cancelli da chiudere
+insieme e il numero di `npm run diag:commerciale-e-coach` sono decisioni di Simone. Questa consegna
+tocca solo la parte che non aspettava nessuno.
+
+Misurato anche il verso opposto, e non c'era niente da correggere: nessun chiamante di
+`perimetroClienti` calcola il perimetro e poi si dimentica di applicarlo (14 punti, tutti lo usano).
+
+7213 prove verdi su 423 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su app e backoffice.

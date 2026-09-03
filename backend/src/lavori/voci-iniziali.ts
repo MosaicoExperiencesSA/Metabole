@@ -5371,7 +5371,29 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **Aspetta un numero**: `npm run diag:commerciale-e-coach` dice quante clienti vedrebbe '
       + 'dopo, quante restano senza nessuna coach, e se i due account (coach e commerciale) sono la '
       + 'stessa persona per il codice (`linkedUserId`) o solo per noi. Se quel numero è zero, il '
-      + 'cancello non si chiude: si assegna prima.',
+      + 'cancello non si chiude: si assegna prima.\n\n'
+      + '✅ **FATTO IL 3/9 quello che non aspettava nessuna decisione: il cancello che nessuno '
+      + 'guardava adesso è guardato.** Questa voce diceva che i due cancelli non sono sorvegliati '
+      + 'allo stesso modo — togliere `sales` da `RUOLI_CHE_VEDONO_TUTTE` fa diventare rossa la '
+      + 'sentinella, cambiare `perimetroClienti` la lasciava **verde**. Il motivo: dentro '
+      + '`perimetro-una-porta-sola.spec.ts` la regola del perimetro era **riscritta a mano** '
+      + '(`ruolo !== \'coach\' && ruolo !== \'coach_coordinator\' && ruolo !== \'nutritionist\'`), '
+      + 'quindi la prova confrontava la funzione vera con una **copia della sua regola vecchia**. '
+      + '⚠️ Una copia di una regola di perimetro dentro la prova che la sorveglia è esattamente la '
+      + 'cosa che quel file esiste per vietare, un piano più sotto.\n\n'
+      + '✅ Adesso la prova **chiama `perimetroClienti`** ruolo per ruolo con un finto Prisma di tre '
+      + 'righe, e ne fissa anche il campo (`assignedCoachId` / `assignedNutritionistId`). '
+      + '⛔ **Dimostrato eseguendo, non sostenendo**: la stessa mutazione (aggiungere `sales` a '
+      + '`isCoachLike`, cioè dare alla commerciale il perimetro della sua rete — l\'errore **per '
+      + 'eccesso** contro cui questa voce mette in guardia) resta **verde** sulla prova com\'era a '
+      + 'HEAD e diventa **rossa** su quella nuova. Quattro mutazioni prese, più quella dimostrazione.\n\n'
+      + '⚠️ **E una cosa che si è vista solo chiamandola**: `perimetroClienti` risponde «nessun '
+      + 'limite» anche al ruolo `client`. Oggi non è un buco — nessuna rotta che usa il perimetro '
+      + 'ammette quel ruolo, lo decidono i `@Roles` — ma è un ripiego **per eccesso** dentro il file '
+      + 'che dichiara di volerne fare uno per difetto, ed è scritto come prova invece che come '
+      + 'commento.\n\n'
+      + '⛔ **Il resto della voce resta aperto e non si muove senza Simone**: quali clienti vede la '
+      + 'commerciale, i due cancelli da chiudere insieme, e il numero di `diag:commerciale-e-coach`.',
     categoria: CODICE,
     ordine: 665,
     nata: '2026-08-28T09:00',
