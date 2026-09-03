@@ -20,6 +20,27 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **Il menu scritto a mano dalla scheda cliente.** Il 31/8, con una cliente senza
+  menu, sarebbe stata la via d'uscita in cinque minuti. Adesso c'è: si sceglie una data, e per ogni
+  pasto si cerca nel suo paniere — con le incompatibili **barrate col motivo** (non tolte: chi non
+  sa perché un piatto non c'è, lo cerca), le kcal che si sommano col suo fabbisogno davanti, e il
+  giorno che ne esce **intoccabile** da «Rigenera menu». ⚠️ La regola dell'intoccabilità sta in **un
+  posto solo**: viveva in uno script di `prisma/` che conosceva **una** delle porte che cancellano
+  giornate. Più la chiave di permesso sua, nata insieme alla guardia.
+
+- `[Sviluppo]` ⛔ **E la revisione avversariale ha fermato una versione pericolosa.** La prima
+  stesura leggeva «questo piatto è vietato» **dal browser**: bastava mandare `bloccata: false`
+  perché un piatto con l'allergene finisse nel menu senza avvisi e **senza traccia nel registro**.
+  ⚠️ Il commento sopra la scrittura diceva «il giudizio gira anche qui»: era vero per la struttura e
+  **falso sulla sicurezza** — il server non giudicava, ripeteva. *Il client può proporre; non può
+  certificare.* Nella stessa passata: le **sostituzioni si perdevano** (la voce 953 rientrata da una
+  porta nuova il giorno dopo averla chiusa), **nessun perimetro** (si scriveva il menu di qualunque
+  cliente), la giornata visibile solo il giorno stesso, gli slot che ignoravano il **digiuno**, e la
+  giornata che nasceva **non riscrivibile dalla sua autrice**. ⛔ E la conferma era un vicolo cieco
+  proprio per la cliente appena entrata — cioè il caso del 31/8: la via d'uscita non usciva.
+  🧪 **14 mutazioni su 14 uccise**, e tre sopravvissute hanno fatto correggere le **prove**, che
+  guardavano accanto al punto.
+
 - `[Sviluppo]` ✅ **Al rientro si riparte dal peso di prima di quel momento.** Simone, dalla pagina
   Lavori: *«quando uno rientra noi consideriamo sempre il peso del giorno prima dell'inizio di quel
   momento e non dei piani precedenti»*, e — sul kit — *«Sì esatto»*. Il fabbisogno non media più le

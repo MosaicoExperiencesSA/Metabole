@@ -66,6 +66,7 @@ export const PAGE_LABEL: Record<string, string> = {
   coach_tasks: 'Attività da fare',
   equivalence_groups: 'Gruppi di equivalenza',
   panieri: 'Panieri',
+  menu_a_mano: 'Menu scritto a mano',
   food_swaps: 'Sostituzioni',
   nutri_assistant: 'Assistente (Vera)',
   allergens: 'Allergeni ricette',

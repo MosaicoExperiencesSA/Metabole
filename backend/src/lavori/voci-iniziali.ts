@@ -90,7 +90,8 @@ export const VOCI_INIZIALI: Voce[] = [
     titolo: '⛔ 43 chiavi di permesso su 64 non le legge nessuna guardia: quelle caselle spengono il menu, non la porta',
     dettaglio:
       '**Misurato il 3/9**, mentre si chiudeva `togliere-una-chiave-non-basta-se-c-e-un-hub`: '
-      + '`BACKOFFICE_PAGES` dichiara **64** chiavi, e solo **21** compaiono in un `@RequirePage`. Le '
+      + '`BACKOFFICE_PAGES` dichiara **65** chiavi — 64 quel giorno, più `menu_a_mano` nata la '
+      + 'sera stessa **insieme alla sua guardia** — e solo **22** compaiono in un `@RequirePage`. Le '
       + 'altre **43** governano la voce di menu e basta: la rotta dietro è protetta da `@Roles`, o da '
       + 'niente.\n\n'
       + '⛔ **È il difetto di `assignments`, che `CLAUDE.md` racconta come chiuso.** *«Una chiave '
@@ -4251,22 +4252,114 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'menu-a-mano-cosa-non-copre',
+    categoria: CODICE,
+    ordine: 2,
+    nata: '2026-09-03T13:30',
+    titolo: '⚠️ Menu scritto a mano: le porte che ancora lo cancellano, e il cancello a valle che non lo guarda',
+    dettaglio:
+      'Scritta il 3/9 chiudendo `menu-scritto-a-mano-dalla-scheda`, perché una voce chiusa esce '
+      + 'dall\'elenco e con lei uscirebbero questi limiti. Sono **dichiarati**, non scoperti dopo.\n\n'
+      + '⛔ **1. L\'intoccabilità copre tre porte su nove.** `senzaQuelleAMano` la chiamano '
+      + '`regenerateFromToday`, `redeliverFutureDays`, `restartFromPlanStart` (più lo script '
+      + '`rifai:non-sicuri`). **Non** la chiamano: i divieti dettati in chat a Vera '
+      + '(`vera-chat.service.ts`, due punti), la regola di dieta approvata dal capo '
+      + '(`applica-proposta.ts`, che gira **su molte clienti insieme**), '
+      + '`sostituzione-chat.service.ts` — che **ricostruisce il pasto campo per campo**, quindi il '
+      + 'marchio sparisce da quel pasto — e tre script di `prisma/`.\n'
+      + '⚠️ Quelle passano da `codaDaRifare`, che rende **tutto quello che sta dopo**: la '
+      + 'nutrizionista detta «niente pesce» a Vera e si cancella da sola la giornata che ha appena '
+      + 'composto. ✅ `deliverIfEligible` e il kit di rientro invece **sono a posto**: `update: {}` '
+      + 'e `dateDaComporre` che salta le date già presenti.\n\n'
+      + '⛔ **2. La giornata a mano non passa da nessun cancello a valle.** '
+      + '`esclusioni-della-cliente.ts` dichiara `evaluateMeals` *«il punto obbligato prima di '
+      + 'servire»*, e quello gira **solo in composizione**. Il filtro a monte adesso c\'è ed è del '
+      + 'server, ma questa resta l\'unica scrittura del progetto che non attraversa la guardia '
+      + 'finale.\n\n'
+      + '⚠️ **3. Il pool è uno scatto, non quello del motore.** Si legge `ClientMenuPool`, come fanno '
+      + 'Vera e il cambio piatto in chat; il motore compone da `pool-del-paniere.ts`. Una ricetta '
+      + 'entrata in catalogo dopo l\'ultimo «Rifai base ricette» **qui non compare** — e quel '
+      + 'pulsante è sulla stessa card, apposta.\n\n'
+      + '⚠️ **4. `scrittaAMano` non è un `where`.** Sta dentro `meals`, quindi chi deve saltare i '
+      + 'giorni a mano li **carica e filtra in memoria**. Sulla singola cliente non costa niente; il '
+      + 'giorno che servisse un elenco «tutte le giornate scritte a mano di questo mese» su molte '
+      + 'clienti insieme, allora la colonna serve davvero — ed è un `ALTER TABLE ADD COLUMN` '
+      + 'nullable, sul modello del 1°/9.\n\n'
+      + '⚠️ **5. Dopo un cambio di tipo dieta**, la giornata a mano che sopravvive porta il `dietId` '
+      + 'vecchio e piatti che il regime nuovo può vietare (vegano, senza glutine). Nessuno lo dice a '
+      + 'nessuno, e quella giornata è ormai intoccabile da tutte e tre le rigenerazioni.\n\n'
+      + '⚠️ **6. Nessun limite sul passato**: si può scrivere il menu di un giorno già passato. Non '
+      + 'fa danno — è uno snapshot — ma non serve a niente, e `restartFromPlanStart` da adesso lo '
+      + 'conserva per sempre.\n\n'
+      + '**L\'ordine in cui li chiuderei:** il 2 (una riga: `evaluateMeals` prima di scrivere), poi '
+      + 'il 1 limitatamente a `codaDaRifare` — che è quello che morde subito e su una persona sola — '
+      + 'poi il 5. Il 3 e il 4 si chiudono da sé il giorno che servono davvero.',
+  },
+
+  {
     chiave: 'menu-scritto-a-mano-dalla-scheda',
     categoria: CODICE,
-    titolo: 'Il menu scritto a mano dalla scheda cliente — la via d\'uscita che il 31/8 non c\'era',
+    titolo: '✅ Il menu scritto a mano dalla scheda cliente — la via d\'uscita che il 31/8 non c\'era',
     dettaglio:
-      'Il 31/8, con una cliente senza menu, sarebbe stata la via d\'uscita in cinque minuti. Non esiste.\n\n'
-      + '**Disegno concordato con Simone:** dalla scheda cliente si scelgono le date, e per ogni pasto si '
-      + 'cerca nel catalogo. Tre cose lo rendono utile invece che pericoloso:\n'
-      + '· la ricerca è **già filtrata sulle sue esclusioni** — le incompatibili compaiono **barrate col '
-      + 'motivo**, e servirle richiede di forzare e **scrivere perché**;\n'
-      + '· le **kcal si sommano** mentre scegli, col target davanti;\n'
-      + '· il giorno scritto a mano è **intoccabile** dalla passata notturna e da «Rigenera menu».\n\n'
-      + '⚠️ Più la **chiave di permesso sua**, come ogni pagina nuova, che nasce insieme alla guardia che la '
-      + 'legge. ⚠️ E `npm run rifai:non-sicuri` deve continuare a **non toccare** quei giorni: già oggi salta '
-      + 'le giornate scritte a mano.',
+      'Il 31/8, con una cliente senza menu, sarebbe stata la via d\'uscita in cinque minuti. Non '
+      + 'esisteva.\n\n'
+      + '✅ **CONSEGNATO il 3/9.** Dalla scheda si sceglie una data — una per volta — e per ogni '
+      + 'pasto si cerca nel suo paniere. Le tre cose che lo rendono utile invece che pericoloso, '
+      + 'come concordato con Simone:\n'
+      + '· la ricerca è **filtrata sulle sue esclusioni**, e le incompatibili compaiono **barrate '
+      + 'col motivo** — non tolte: chi non sa perché un piatto non c\'è, lo cerca. Servirle richiede '
+      + 'di forzare e **scrivere perché** (almeno cinque caratteri: «ok» non è un motivo);\n'
+      + '· le **kcal si sommano** mentre scegli, col fabbisogno davanti e la banda della **sua** '
+      + 'dieta, non quella globale;\n'
+      + '· il giorno scritto a mano è **intoccabile**: «Rigenera menu», il cambio di tipo dieta e la '
+      + 'ripartenza dal piano lo saltano. ⚠️ La regola sta in **un posto solo** '
+      + '(`vera/menu-da-rifare.ts`, accanto a `siPuoCancellare`): viveva in uno script di `prisma/` '
+      + 'che conosceva **una** delle porte che cancellano giornate.\n\n'
+      + '⚠️ Più la **chiave di permesso sua** (`menu_a_mano`), nata insieme alla guardia che la '
+      + 'legge. Non è `clients`: aprire la scheda di una cliente e **scriverle il menu** sono due '
+      + 'poteri diversi.\n\n'
+      + '⛔ **E LA REVISIONE AVVERSARIALE HA FERMATO UNA VERSIONE PERICOLOSA.** La prima stesura '
+      + 'leggeva `bloccata` e `motivoBlocco` **dal corpo del POST**, cioè dal browser: bastava '
+      + 'mandare `{"bloccata": false}` perché un piatto con l\'allergene finisse nel menu senza '
+      + 'avvisi, senza conferma e **senza traccia nel registro** — che filtra le forzature proprio '
+      + 'su quel campo. E `name` e `kcal` erano anch\'essi del client, dove `kcal` è il numero che '
+      + 'l\'app somma da sola in tre schermate. ⚠️ Il commento sopra la scrittura diceva «il '
+      + 'giudizio gira anche qui»: era vero per la struttura e **falso sulla sicurezza** — il server '
+      + 'non giudicava, ripeteva. *Il client può proporre; non può certificare.*\n\n'
+      + '⛔ **Altri cinque difetti della stessa passata**, tutti trovati dalla revisione e nessuno '
+      + 'dalle mie prove:\n'
+      + '· le **sostituzioni si perdevano** — è la voce 953 rientrata da una porta nuova il giorno '
+      + 'dopo averla chiusa. `valutaRicetta` alza una violation **solo se non c\'è un sostituto**: '
+      + 'un piatto col latte per un\'intollerante al lattosio esce **non barrato**, con dentro '
+      + '«latte → delattosato», e perderla vuol dire scriverle la giornata senza la riga che glielo '
+      + 'dice;\n'
+      + '· **nessun perimetro**: con `menu_a_mano: manage` — il default della nutrizionista — si '
+      + 'scriveva il menu di **qualunque** cliente, e se ne leggevano le esclusioni dai motivi;\n'
+      + '· `visibleFrom: date` rendeva la giornata visibile **il giorno stesso**: niente spesa in '
+      + 'anticipo, il contrario di quello che il progetto ripete su questo punto;\n'
+      + '· gli slot ignoravano la **finestra del digiuno**: a una cliente in 16:8 la schermata '
+      + '**pretendeva la colazione** — cioè il difetto `menu-composti-con-un-pasto-in-piu`, citato '
+      + 'nel commento come se fosse stato evitato;\n'
+      + '· la giornata nasceva **non riscrivibile dalla sua autrice**: per una cliente che non ha '
+      + 'mai aperto l\'app `apertureDal` è nullo, quindi «non si sa se l\'ha aperto» era vero '
+      + 'subito e chi sbagliava un piatto non poteva più correggerlo. Adesso quello **avvisa e si '
+      + 'conferma**, non ferma.\n\n'
+      + '⛔ **E la conferma era un vicolo cieco.** Il client calcolava il flag nello stesso clic — '
+      + 'quindi non era una conferma — e sbagliava: per una cliente **senza fabbisogno calcolabile** '
+      + 'il server chiedeva conferma, il client mandava `false`, e non c\'era **nessun modo di '
+      + 'riprovare**. Cioè la giornata non si poteva scrivere, mai, proprio alla cliente appena '
+      + 'entrata — il caso del 31/8. Adesso il secondo pulsante compare **dopo** che il server ha '
+      + 'detto cosa c\'è da confermare, accanto alla frase che l\'ha detto.\n\n'
+      + '🧪 Quattordici mutazioni su quattordici uccise. ⚠️ Tre erano sopravvissute perché le prove '
+      + 'guardavano **accanto** al punto: il fixture della ricetta vietata aveva sia il tag sia '
+      + 'l\'ingrediente (quindi «il nome non entra più fra gli ingredienti» non si vedeva), non '
+      + 'c\'era nessuna ricetta spenta, e togliere la guardia dalla **classe** lasciava la chiave '
+      + 'letta lo stesso dal `POST`. Da lì una prova **sui decoratori**, che è l\'unico posto dove '
+      + '«chi può bussare» si vede senza avviare l\'applicazione.\n\n'
+      + '▶️ **Quello che resta, e sta in `menu-a-mano-cosa-non-copre`.**',
     ordine: 956,
     nata: '2026-08-31T18:00',
+    fatta: true,
   },
 
   {

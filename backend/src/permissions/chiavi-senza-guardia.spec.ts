@@ -73,11 +73,26 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
   });
 
   /**
-   * ⚠️ Il numero scritto nella voce dei lavori e nel banner della pagina Permessi: se cambia senza
-   * che qualcuno aggiorni quei due posti, cominciano a mentire.
+   * ⚠️ Il numero scritto nella voce dei lavori **e nel banner della pagina Permessi**: se cambia
+   * senza che qualcuno aggiorni quei due posti, cominciano a mentire.
+   *
+   * ⛔ **E il banner si controlla, non si toglie dal docstring.** La consegna del menu scritto a
+   * mano ha aggiunto una chiave, ha aggiornato il numero qui e ha **tolto la menzione del banner**
+   * da questo commento invece di correggerlo: il banner è rimasto a 64. È la regola di `CLAUDE.md`
+   * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
+   * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
+   *
+   * ✅ **43 su 65 dal 3/9**, ed è il verso giusto: la chiave nuova `menu_a_mano` è nata **insieme
+   * alla sua guardia** (`menu/menu-a-mano.controller.ts`), quindi le chiavi salgono a 65 e quelle
+   * senza guardia restano 43. ⚠️ È esattamente il caso per cui questa prova esiste: senza, la
+   * chiave nuova sarebbe potuta nascere senza guardia e nessuno se ne sarebbe accorto.
    */
-  it('⚠️ e sono 43 su 64: il numero che sta scritto nella voce e nella pagina', () => {
-    expect(BACKOFFICE_PAGES.length).toBe(64);
+  it('⚠️ e sono 43 su 65: il numero che sta scritto nella voce e nel banner', () => {
+    expect(BACKOFFICE_PAGES.length).toBe(65);
     expect(senza.length).toBe(43);
+    const banner = readFileSync(
+      join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
+    );
+    expect(banner).toContain(`${senza.length} chiavi su ${BACKOFFICE_PAGES.length}`);
   });
 });

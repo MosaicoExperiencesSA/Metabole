@@ -1,0 +1,83 @@
+================================================================================
+Il menu scritto a mano dalla scheda cliente — la via d'uscita che il 31/8 non c'era
+================================================================================
+
+Il 31/8, con una cliente senza menu, sarebbe stata la soluzione in cinque minuti.
+Non esisteva.
+
+COSA C'È
+Dalla scheda si sceglie una data — una per volta — e per ogni pasto si cerca nel
+suo paniere. Le tre cose concordate con Simone:
+  · la ricerca è FILTRATA sulle sue esclusioni, e le incompatibili compaiono
+    BARRATE COL MOTIVO — non tolte: chi non sa perché un piatto non c'è, lo
+    cerca. Servirle richiede di forzare e SCRIVERE PERCHÉ (almeno cinque
+    caratteri: «ok» non è un motivo);
+  · le KCAL SI SOMMANO mentre scegli, col fabbisogno davanti e la banda della SUA
+    dieta, non quella globale;
+  · il giorno scritto a mano è INTOCCABILE: «Rigenera menu», il cambio di tipo
+    dieta e la ripartenza dal piano lo saltano.
+
+La regola dell'intoccabilità sta in UN POSTO SOLO (vera/menu-da-rifare.ts,
+accanto a siPuoCancellare): viveva in uno script di prisma/ che conosceva UNA
+delle porte che cancellano giornate — le altre non la chiamavano affatto, quindi
+una giornata composta a mano sarebbe stata cancellata da un clic.
+
+Più la chiave di permesso sua (menu_a_mano), nata insieme alla guardia che la
+legge. Non è `clients`: aprire la scheda di una cliente e SCRIVERLE IL MENU sono
+due poteri diversi.
+
+⛔ LA REVISIONE AVVERSARIALE HA FERMATO UNA VERSIONE PERICOLOSA
+La prima stesura leggeva `bloccata` e `motivoBlocco` DAL CORPO DEL POST, cioè dal
+browser: bastava mandare {"bloccata": false} perché un piatto con l'allergene
+finisse nel menu senza avvisi, senza conferma e SENZA TRACCIA NEL REGISTRO — che
+filtra le forzature proprio su quel campo. E `name` e `kcal` erano anch'essi del
+client, dove kcal è il numero che l'app somma da sola in tre schermate.
+Il commento sopra la scrittura diceva «il giudizio gira anche qui»: era vero per
+la struttura e FALSO SULLA SICUREZZA — il server non giudicava, ripeteva.
+Il client può proporre; non può certificare.
+
+ALTRI CINQUE DIFETTI DELLA STESSA PASSATA, tutti dalla revisione
+  · le SOSTITUZIONI si perdevano — la voce 953 rientrata da una porta nuova il
+    giorno dopo averla chiusa. valutaRicetta alza una violation SOLO se non c'è un
+    sostituto: un piatto col latte per un'intollerante al lattosio esce NON
+    barrato, con dentro «latte → delattosato», e perderla vuol dire scriverle la
+    giornata senza la riga che glielo dice;
+  · NESSUN PERIMETRO: con menu_a_mano:manage — il default della nutrizionista —
+    si scriveva il menu di QUALUNQUE cliente, e se ne leggevano le esclusioni dai
+    motivi;
+  · visibleFrom: date rendeva la giornata visibile IL GIORNO STESSO: niente spesa
+    in anticipo;
+  · gli slot ignoravano la FINESTRA DEL DIGIUNO: a una cliente in 16:8 la
+    schermata PRETENDEVA la colazione — il difetto
+    menu-composti-con-un-pasto-in-piu, citato nel commento come se fosse stato
+    evitato;
+  · la giornata nasceva NON RISCRIVIBILE DALLA SUA AUTRICE: per una cliente che
+    non ha mai aperto l'app apertureDal è nullo, quindi «non si sa se l'ha
+    aperto» era vero subito. Adesso quello avvisa e si conferma, non ferma.
+
+E LA CONFERMA ERA UN VICOLO CIECO
+Il client calcolava il flag nello stesso clic — quindi non era una conferma — e
+sbagliava: per una cliente SENZA FABBISOGNO CALCOLABILE il server chiedeva
+conferma, il client mandava false, e non c'era NESSUN MODO DI RIPROVARE. Cioè la
+giornata non si poteva scrivere, mai, proprio alla cliente appena entrata — il
+caso del 31/8. Adesso il secondo pulsante compare DOPO che il server ha detto cosa
+c'è da confermare, accanto alla frase che l'ha detto.
+
+I LIMITI SONO DICHIARATI, NON NASCOSTI
+Voce nuova `menu-a-mano-cosa-non-copre`: l'intoccabilità copre tre porte su nove
+(restano i divieti dettati a Vera, la regola di dieta approvata dal capo, la
+sostituzione in chat e tre script); la giornata a mano non passa da evaluateMeals;
+il pool è uno scatto e non quello del motore; `scrittaAMano` non è un `where`.
+
+MISURATO
+6938/6938 su 416 suite nelle quattro modalità; build ok; tsc --noEmit solo i 2
+errori preesistenti; app e backoffice tsc -b puliti; 248/248 vitest backoffice.
+QUATTORDICI mutazioni su quattordici uccise.
+⚠️ Tre erano sopravvissute perché le prove guardavano ACCANTO al punto: il fixture
+della ricetta vietata aveva sia il tag sia l'ingrediente (quindi «il nome non
+entra più fra gli ingredienti» non si vedeva), non c'era nessuna ricetta spenta, e
+togliere la guardia dalla CLASSE lasciava la chiave letta lo stesso dal POST. Da
+lì una prova sui decoratori, che è l'unico posto dove «chi può bussare» si vede
+senza avviare l'applicazione.
+
+Lista lavori: 23 voci aperte su 222 (una chiusa, una nuova).

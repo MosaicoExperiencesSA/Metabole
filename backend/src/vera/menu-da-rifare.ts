@@ -105,6 +105,62 @@ export function siPuoCancellare(g: Aperture): boolean {
   return !laClienteLHaAperto(g) && !nonSappiamoSeLHaAperto(g);
 }
 
+/**
+ * ⛔ **UNA GIORNATA SCRITTA A MANO NON SI TOCCA — e la regola sta QUI, in un posto solo.**
+ *
+ * Due modi, e per questa domanda contano uguale:
+ * · la nutrizionista l'ha **dettata a Vera** o ha cambiato un piatto d'accordo con la cliente
+ *   (`cambioPiatto`, `substitutions` con `origine: 'chat'`);
+ * · dal 3/9 l'ha **composta dalla scheda cliente**, pasto per pasto
+ *   (`scrittaAMano.origine === 'nutrizionista'`).
+ *
+ * ⛔ **`origine: 'app'` NON conta, ed è una correzione.** Quella è la **cliente** che preme
+ * «Sostituisci» dentro il suo menu — non chi lavora. Contandola, «Rigenera menu» avrebbe saltato in
+ * silenzio ogni giornata futura su cui lei ha premuto quel pulsante una volta: e «Rigenera menu» è
+ * lo strumento che tutti gli altri messaggi del progetto indicano come via d'uscita. ⚠️ Questo
+ * docstring dice che la domanda è *«rispetto verso chi lavora»*: la prima stesura ci aveva messo
+ * dentro anche la cliente, e l'ha trovato una revisione avversariale.
+ *
+ * ⚠️ **Perché accanto a `siPuoCancellare` e non nello script che la usava.** Questa funzione
+ * viveva in `prisma/rifai-giorni-non-sicuri.ts`, cioè in un file che nessun test guarda e che
+ * conosce **una** delle porte che cancellano giornate. Le altre — «Rigenera menu», il cambio di
+ * tipo dieta, la ripartenza dal piano — non la chiamavano affatto: una giornata composta a mano
+ * sarebbe stata cancellata da un clic, e il lavoro di una persona sparito senza una parola.
+ * *Se più punti rispondono alla stessa domanda, uno deve chiamare gli altri.*
+ *
+ * ⛔ **Non è la stessa domanda di `siPuoCancellare`, e le due NON si fondono.** Quella chiede «la
+ * cliente l'ha già visto?», che è una questione di rispetto verso chi legge; questa chiede «qualcuno
+ * l'ha scritto a mano?», che è una questione di rispetto verso chi lavora. Una giornata può essere
+ * non aperta e scritta a mano: si tiene lo stesso.
+ */
+export function scrittaAMano(meals: unknown): boolean {
+  if (!Array.isArray(meals)) return false;
+  return (meals as {
+    cambioPiatto?: unknown;
+    substitutions?: { origine?: string }[];
+    scrittaAMano?: { origine?: string };
+  }[]).some((m) => !!m?.cambioPiatto
+    || (m?.substitutions ?? []).some((s) => s?.origine === 'chat')
+    || m?.scrittaAMano?.origine === 'nutrizionista');
+}
+
+/**
+ * ⛔ **Il filtro da usare PRIMA di cancellare**: quello che resta è quello che si può buttare.
+ *
+ * ⚠️ Rende un elenco e non un booleano perché chi cancella deve poter **dire quante ne ha
+ * risparmiate**: una passata che salta silenziosamente tre giornate e non lo scrive è
+ * indistinguibile da una che non ha trovato niente.
+ */
+export function senzaQuelleAMano<T extends { meals?: unknown }>(giorni: readonly T[]): {
+  daRifare: T[];
+  aMano: T[];
+} {
+  const daRifare: T[] = [];
+  const aMano: T[] = [];
+  for (const g of giorni ?? []) (scrittaAMano(g?.meals) ? aMano : daRifare).push(g);
+  return { daRifare, aMano };
+}
+
 /** Dal confine di `daQuandoSiPuoRifare` in avanti — la giornata di oggi compresa. */
 export function daOggiInPoi(g: { date: Date }, oggi: Date = new Date()): boolean {
   return new Date(g.date).getTime() >= daQuandoSiPuoRifare(oggi).getTime();

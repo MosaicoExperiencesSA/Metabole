@@ -145,6 +145,23 @@ export interface MealSnapshot {
   substitutions?: Substitution[];
   /** Presente solo se il piatto è stato cambiato in chat. Vedi `CambioPiatto`. */
   cambioPiatto?: CambioPiatto;
+  /**
+   * ⛔ **IL PASTO È STATO SCELTO A MANO dalla scheda cliente** (3/9). Chi, quando, e — se la ricetta
+   * era incompatibile — **perché è stata servita lo stesso**.
+   *
+   * ⚠️ **Dichiarato qui e non solo scritto dal servizio**, che è la correzione: finché non c'era, un
+   * punto che ricostruisce un pasto tipizzato lo perdeva **senza un errore di compilazione**, ed è
+   * già successo con `porzione` e `substitutions`. Un giorno che perde questo campo torna
+   * cancellabile da «Rigenera menu», e il lavoro di una persona sparisce senza una parola.
+   *
+   * ⛔ Non è `Substitution.origine`: quello sta sulla singola sostituzione ed è `'chat' | 'app'`.
+   */
+  scrittaAMano?: {
+    origine: 'nutrizionista';
+    da: string;
+    il: string;
+    forzatoPerche?: string;
+  };
 }
 
 /** Un ingrediente come sta in `Recipe.ingredients`. */

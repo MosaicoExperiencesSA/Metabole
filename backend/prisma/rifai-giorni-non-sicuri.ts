@@ -55,18 +55,16 @@ type ProfiloDelloScript = {
 };
 
 /**
- * ⛔ **UNA GIORNATA SCRITTA A MANO NON SI CANCELLA.** La giornata dettata dalla nutrizionista in
- * chat e il piatto cambiato d'accordo con la cliente nascono **senza** le sostituzioni scritte (è
- * la voce `porte-che-scrivono-piatti-senza-controllo`): per questo script sembrerebbero «da
- * rifare», e rifarle vorrebbe dire buttare via il lavoro di una persona senza dirlo a nessuno.
- * Vanno in «da guardare a mano».
+ * ⛔ **UNA GIORNATA SCRITTA A MANO NON SI CANCELLA**, e dal 3/9 la regola **non sta più qui**.
+ *
+ * Viveva in questo file: un file di `prisma/` che nessun test guarda, e che conosce **una** delle
+ * porte che cancellano giornate. Le altre — «Rigenera menu», il cambio di tipo dieta, la ripartenza
+ * dal piano — non la chiamavano affatto, quindi una giornata composta a mano sarebbe stata
+ * cancellata da un clic. Adesso sta accanto a `siPuoCancellare`, in `src/vera/menu-da-rifare.ts`,
+ * e la chiamano tutti e quattro. *Se più punti rispondono alla stessa domanda, uno deve chiamare
+ * gli altri.*
  */
-function scrittaAMano(meals: unknown): boolean {
-  if (!Array.isArray(meals)) return false;
-  return (meals as { cambioPiatto?: unknown; substitutions?: { origine?: string }[] }[]).some(
-    (m) => !!m?.cambioPiatto || (m?.substitutions ?? []).some((s) => s?.origine === 'chat' || s?.origine === 'app'),
-  );
-}
+import { scrittaAMano } from '../src/vera/menu-da-rifare';
 const giornoIt = (d: Date) => new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 async function main(): Promise<void> {

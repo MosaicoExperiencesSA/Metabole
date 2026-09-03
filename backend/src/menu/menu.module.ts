@@ -5,6 +5,8 @@ import { PushModule } from '../notifications/push.module';
 import { DataInizioChatService } from './data-inizio-chat.service';
 import { DayComboService } from './day-combo.service';
 import { KcalNeedService } from './kcal-need.service';
+import { MenuAManoController } from './menu-a-mano.controller';
+import { MenuAManoService } from './menu-a-mano.service';
 import { MenuController, StaffMeasuresController } from './menu.controller';
 import { MenuService } from './menu.service';
 import { SostituzioneChatService } from './sostituzione-chat.service';
@@ -13,8 +15,8 @@ import { SostituzioneChatService } from './sostituzione-chat.service';
   // `PushModule` e non `NotificationsModule`: quest'ultimo importa noi, e la circolarità non si
   // risolve con un forwardRef messo lì per farla tacere.
   imports: [CalendarModule, DietAgentModule, PushModule],
-  controllers: [MenuController, StaffMeasuresController],
-  providers: [MenuService, DayComboService, KcalNeedService, SostituzioneChatService, DataInizioChatService],
+  controllers: [MenuController, StaffMeasuresController, MenuAManoController],
+  providers: [MenuService, DayComboService, KcalNeedService, SostituzioneChatService, DataInizioChatService, MenuAManoService],
   // `SostituzioneChatService` esce dal modulo perché lo usano la chat (il ponte fra la
   // conversazione con Gaia e il menu della giornata) e la scheda cliente in backoffice.
   // `DataInizioChatService` per lo stesso motivo: è la chat che lo chiama, ma è lui che scrive

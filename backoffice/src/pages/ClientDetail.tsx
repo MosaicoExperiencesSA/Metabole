@@ -9,6 +9,7 @@ import {
   useCancellaMessaggio,
 } from '../components/cancellaMessaggio';
 import { Banner, Modal, Spinner } from '../components/ui';
+import { MenuAMano } from './MenuAMano';
 import { giornoIso, giornoItaliano } from '../lib/giorno';
 import { noteModifica, righeModifica } from '../lib/logModifiche';
 import { PORZIONE_DA_DIRE } from '../lib/porzione';
@@ -862,6 +863,14 @@ export function ClientDetail() {
   const canFixMeasures = can('fix_measures', 'manage');
   // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
   const canChangePlanStart = can('change_plan_start', 'manage');
+  /**
+   * ⛔ **Chiave PROPRIA, non `clients`.** Aprire la scheda di una cliente e **scriverle il menu**
+   * sono due poteri diversi: chi scrive una giornata a mano decide cosa mangia una persona per un
+   * giorno intero, saltando il motore e i suoi controlli, e quel giorno resta intoccabile anche da
+   * «Rigenera menu». Il perché per esteso sta in `permissions/pages.ts`.
+   */
+  const puoScrivereIlMenu = can('menu_a_mano', 'manage');
+  const [menuAMano, setMenuAMano] = useState(false);
   // Annullamento di un abbonamento: permesso suo, di default solo admin (17/8). Prima era
   // `isAdmin`, che in questa pagina vuol dire «vede la pagina Permessi» — e teneva il × nascosto
   // proprio a chi gestisce i piani, il capo nutrizionista.
@@ -2471,6 +2480,22 @@ export function ClientDetail() {
               </button>
             )}
             {/*
+              ⛔ **La via d'uscita del 31/8, accanto alle altre due.** Con una cliente senza menu,
+              «Rigenera menu» rifà le giornate dal paniere — e se il paniere non basta non succede
+              niente. Questo scrive la giornata a mano, pasto per pasto, con la ricerca già filtrata
+              sulle sue esclusioni e le kcal davanti. ⚠️ Il giorno che ne esce è **intoccabile**:
+              «Rigenera menu» non lo cancella più.
+            */}
+            {puoScrivereIlMenu && (
+              <button
+                className="btn ghost sm"
+                onClick={() => setMenuAMano(true)}
+                title="Scrivi a mano il menu di un giorno: si sceglie pasto per pasto dal suo paniere, con le incompatibili barrate col motivo e le kcal contro il suo fabbisogno. Il giorno scritto a mano non viene più toccato dal motore."
+              >
+                <i className="ti ti-pencil-plus" /> Scrivi menu a mano
+              </button>
+            )}
+            {/*
               ⚠️ **Accanto a «Rigenera menu», e non è la stessa cosa.** Quello rifà le GIORNATE dal
               paniere; questo rifà l'elenco delle ricette che la cliente può ricevere, da cui pescano
               il cambio di piatto in chat e la giornata dettata dalla nutrizionista. Stanno vicini
@@ -2537,6 +2562,8 @@ export function ClientDetail() {
       <ConversazioniCard clientId={id ?? ''} />
 
       {/* Popup: Menu del cliente (revisione nutrizionista, con stelline) */}
+      {menuAMano && <MenuAMano clientId={id!} onClose={() => setMenuAMano(false)} />}
+
       {menusOpen && (
         <div className="overlay" onClick={() => setMenusOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: '82vh', overflowY: 'auto' }}>

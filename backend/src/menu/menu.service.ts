@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { senzaQuelleAMano } from '../vera/menu-da-rifare';
 import { slotDaCuiPescare } from '../common/slot-pasto';
 import { poolDalPassato, type GiornataDelPassato } from '../catalog/pool-dal-passato';
 import { GIORNI_DELLA_FINESTRA, carneRestante } from './carne-quante-volte';
@@ -3609,9 +3610,23 @@ export class MenuService {
       meals: unknown; status: string; visibleFrom: Date; sourceRuleId: string | null;
       apertoDallaClienteIl?: Date | null; apertureTracciate?: boolean;
     }[];
-    const del = await this.prisma.menuDay.deleteMany({ where });
+    /**
+     * ⛔ **Anche qui le giornate scritte a mano restano.** Stessa regola, stesso posto: cambiare il
+     * tipo di dieta non deve buttare via una giornata che una persona ha composto — quella giornata
+     * è stata scritta *sapendo* chi è la cliente, e vale più di una ricomposta a macchina.
+     */
+    const { daRifare, aMano } = senzaQuelleAMano(copia);
+    if (aMano.length) {
+      this.logger.log(`Rierogazione per ${clientId}: ${aMano.length} giornate scritte a mano tenute.`);
+    }
+    const del = await this.prisma.menuDay.deleteMany({ where: { id: { in: daRifare.map((d) => d.id) } } });
     const delivered = await this.deliverIfEligible(clientId);
-    if (delivered.length === 0 && copia.length > 0) {
+    /**
+     * ⚠️ **`daRifare`, non `copia`.** Se tutte le giornate future erano scritte a mano, `daRifare` è
+     * vuoto e `copia` no: si entrava nel ramo, si faceva `createMany({ data: [] })` e si loggava
+     * «rierogazione a vuoto: **0** giorni rimessi com'erano» — un messaggio che non descrive niente.
+     */
+    if (delivered.length === 0 && daRifare.length > 0) {
       // `createMany` e non `create` in ciclo: se qualcosa va storto qui la cliente resta senza
       // giorni, quindi meno andate al database ci sono, meno finestre ci sono per restare a metà.
       await this.prisma.menuDay
@@ -3625,7 +3640,9 @@ export class MenuService {
            * lavoro esiste per impedire. ⚠️ Un ripristino che perde una colonna non è un ripristino:
            * è una scrittura nuova travestita.
            */
-          data: copia.map((d) => ({
+          // ⚠️ Si rimettono solo quelle CANCELLATE: quelle a mano non sono mai uscite, e
+          //    ricrearle darebbe un doppione (che `skipDuplicates` nasconderebbe).
+          data: daRifare.map((d) => ({
             id: d.id, clientId: d.clientId, date: d.date, dietId: d.dietId, level: d.level,
             meals: d.meals as never, status: d.status, visibleFrom: d.visibleFrom, sourceRuleId: d.sourceRuleId,
             apertoDallaClienteIl: d.apertoDallaClienteIl ?? null, apertureTracciate: !!d.apertureTracciate,
@@ -3634,10 +3651,10 @@ export class MenuService {
         })
         .catch(() => undefined);
       this.logger.warn(
-        `Rierogazione a vuoto per ${clientId}: ${copia.length} giorni futuri rimessi com'erano ` +
+        `Rierogazione a vuoto per ${clientId}: ${daRifare.length} giorni futuri rimessi com'erano ` +
           '(la cliente non è idonea a ricevere menu adesso).',
       );
-      return { removed: 0, delivered: [], ripristinati: copia.length };
+      return { removed: 0, delivered: [], ripristinati: daRifare.length };
     }
     return { removed: del.count, delivered, ripristinati: 0 };
   }
@@ -3656,7 +3673,26 @@ export class MenuService {
     // e le lascerebbe lo schermo vuoto. Chi vuole davvero rigenerare, prima riattiva il piano.
     if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
     const today = toDateOnly();
-    const del = await this.prisma.menuDay.deleteMany({ where: { clientId, date: { gte: today } } });
+    /**
+     * ⛔ **LE GIORNATE SCRITTE A MANO NON SI CANCELLANO** (3/9, col menu scritto dalla scheda).
+     *
+     * Questo metodo era un `deleteMany` secco: un clic su «Rigenera menu» buttava via anche la
+     * giornata che la nutrizionista aveva composto pasto per pasto, e il lavoro di una persona
+     * spariva senza una parola. ⚠️ La regola sta in un posto solo (`vera/menu-da-rifare.ts`) ed è la
+     * stessa che usa `npm run rifai:non-sicuri` — che finora era **l'unica** porta a conoscerla.
+     *
+     * ⚠️ E quante ne ha risparmiate **si dice**: una passata che salta tre giornate in silenzio è
+     * indistinguibile da una che non ha trovato niente.
+     */
+    const futuri = (await this.prisma.menuDay.findMany({
+      where: { clientId, date: { gte: today } },
+      select: { id: true, meals: true },
+    })) as { id: string; meals: unknown }[];
+    const { daRifare, aMano } = senzaQuelleAMano(futuri);
+    if (aMano.length) {
+      this.logger.log(`Rigenera menu per ${clientId}: ${aMano.length} giornate scritte a mano tenute.`);
+    }
+    const del = await this.prisma.menuDay.deleteMany({ where: { id: { in: daRifare.map((d) => d.id) } } });
     const delivered = await this.deliverIfEligible(clientId);
     return { removed: del.count, delivered };
   }
@@ -3856,7 +3892,20 @@ export class MenuService {
   async restartFromPlanStart(clientId: string): Promise<{ removed: number; delivered: string[] }> {
     // Come sopra, e qui il danno sarebbe massimo: cancella TUTTI i menu.
     if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [] };
-    const del = await this.prisma.menuDay.deleteMany({ where: { clientId } });
+    /**
+     * ⛔ **E qui più che altrove: le giornate scritte a mano restano.** Questo metodo cancella
+     * *tutti* i menu, passati compresi — è la porta dove una giornata composta pasto per pasto
+     * sparirebbe con meno rumore di tutte.
+     */
+    const tutti = (await this.prisma.menuDay.findMany({
+      where: { clientId },
+      select: { id: true, meals: true },
+    })) as { id: string; meals: unknown }[];
+    const { daRifare, aMano } = senzaQuelleAMano(tutti);
+    if (aMano.length) {
+      this.logger.log(`Ripartenza dal piano per ${clientId}: ${aMano.length} giornate scritte a mano tenute.`);
+    }
+    const del = await this.prisma.menuDay.deleteMany({ where: { id: { in: daRifare.map((d) => d.id) } } });
     const delivered = await this.deliverIfEligible(clientId);
     return { removed: del.count, delivered };
   }

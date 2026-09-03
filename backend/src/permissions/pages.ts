@@ -82,6 +82,24 @@ export const BACKOFFICE_PAGES = [
    * ⛔ `manage` = aggiunge o toglie una ricetta da un paniere. La sola vista non tocca niente.
    */
   'panieri',
+  /**
+   * **IL MENU SCRITTO A MANO DALLA SCHEDA CLIENTE** (3/9). Dalla scheda si sceglie una data — una per
+   * volta — e per ogni pasto si cerca nel catalogo, con la ricerca già filtrata sulle sue esclusioni.
+   *
+   * ⚠️ Chiave PROPRIA e non `clients`, che sarebbe stata la scelta comoda: aprire la scheda di una
+   * cliente e **scriverle il menu** sono due poteri diversi. Chi scrive una giornata a mano decide
+   * cosa mangia una persona per un giorno intero, saltando il motore, le sue soglie e i suoi
+   * controlli — e quel giorno resta **intoccabile** anche da «Rigenera menu». Legarla a `clients`
+   * vorrebbe dire che chiunque possa aprire una scheda possa anche fare questo, e non si
+   * potrebbero più separare senza un rilascio.
+   *
+   * ⛔ `manage` = scrive la giornata, ed è **anche quello che accende il pulsante**: con la sola
+   * vista non si vede niente. ⚠️ È una scelta, e la prima stesura del commento diceva il contrario
+   * («la sola vista mostra la schermata»): non è vero, e una schermata di sola lettura qui non
+   * servirebbe a niente — non c'è niente da leggere finché non si compone. Chi ha solo `view` passa
+   * le due `GET` e non trova la porta: è coerente, ma va saputo.
+   */
+  'menu_a_mano',
   'food_swaps',
   /**
    * L'assistente della nutrizionista (Vera): la pagina «Assistente».
@@ -333,6 +351,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     nutri_assistant: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
+    // ⚠️ È il suo mestiere: è lei che il 31/8 sarebbe uscita in cinque minuti da una cliente senza menu.
+    menu_a_mano: { view: true, manage: true },
   },
   head_nutritionist: {
     // Come per la nutrizionista: le attività dei suoi quattro tipi. Vedi la nota qui sopra.
@@ -363,6 +383,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     nutri_assistant: { view: true, manage: true },
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
+    menu_a_mano: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista
     engine_config: { view: true },
     engine_rules: { view: true, manage: true }, // regole del motore: le gestisce SOLO il capo nutrizionista
@@ -455,6 +476,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     travel_mode: { view: true, manage: true },
     // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
     dev_backlog: { view: true, manage: true },
+    menu_a_mano: { view: true, manage: true },
   },
 };
 

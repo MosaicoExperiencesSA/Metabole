@@ -156,9 +156,22 @@ export interface ContoGiornata {
  * stessa distinzione che regge il resto del progetto. Chi chiama deve poter dire «il target non
  * c'è» invece di far passare una giornata come approvata da un controllo che non è stato fatto.
  */
-export function contaGiornata(scelte: readonly SceltaGiornata[], targetKcal: number | null): ContoGiornata {
+export function contaGiornata(
+  scelte: readonly SceltaGiornata[],
+  targetKcal: number | null,
+  /**
+   * ⚠️ **La banda arriva da fuori, e il default resta quello di prima.** `TOLLERANZA_KCAL_PCT` è
+   * una copia del valore di partenza di `menu_kcal_balance_tolerance_pct`, che si configura nei
+   * Parametri **e si può sovrascrivere per dieta**. Finché il solo chiamante era la giornata
+   * dettata a Vera, la copia bastava; dal 3/9 conta anche per il menu scritto a mano dalla scheda,
+   * dove la nutrizionista ha il numero davanti mentre sceglie — e mostrarle una banda diversa da
+   * quella che il motore userà sarebbe darle un metro sbagliato.
+   */
+  tolleranzaPct: number = TOLLERANZA_KCAL_PCT,
+): ContoGiornata {
   const kcal = (scelte ?? []).reduce((n, s) => n + (Number.isFinite(s.kcal) ? s.kcal : 0), 0);
   if (!targetKcal || targetKcal <= 0) return { kcal, scostamentoPct: null, dentroTolleranza: null };
+  const banda = Number.isFinite(tolleranzaPct) && tolleranzaPct > 0 ? tolleranzaPct : TOLLERANZA_KCAL_PCT;
   const scostamentoPct = Math.round(((kcal - targetKcal) / targetKcal) * 1000) / 10;
-  return { kcal, scostamentoPct, dentroTolleranza: Math.abs(scostamentoPct) <= TOLLERANZA_KCAL_PCT };
+  return { kcal, scostamentoPct, dentroTolleranza: Math.abs(scostamentoPct) <= banda };
 }
