@@ -1,7 +1,10 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DEFAULT_PERMISSIONS, PAGE_GRANTS, PageKey } from '../../permissions/pages';
+import {
+  DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO, PAGE_GRANTS, PageKey,
+} from '../../permissions/pages';
+import { catenaDeiGenitori } from '../../permissions/eredita-dal-genitore';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { PAGE_KEY, PageLevel } from '../decorators/require-page.decorator';
@@ -40,11 +43,34 @@ export class PageGuard implements CanActivate {
     try {
       // Verifica il permesso di un singolo pageKey (riga DB o default di ruolo).
       const has = async (key: string): Promise<boolean> => {
-        const row = await this.prisma.rolePagePermission.findUnique({
-          where: { role_pageKey: { role: user.role, pageKey: key } },
+        /**
+         * ⛔ **LA RIGA MANCANTE VALE QUANTO QUELLA DEL GENITORE, non quanto il default** (2/9).
+         *
+         * `syncDefaults` crea le righe all'avvio, ma `onModuleInit` **assorbe** il proprio errore
+         * con un `warn`: un singhiozzo del database lascia un'istanza viva per sempre con le righe
+         * mancanti, e qui si decide chi entra. Ripiegare sul default arricchito rimetteva in piedi
+         * il difetto che `INHERIT_DEFAULTS` promette di non avere — **lato server**, dove non è
+         * una voce di menu ma una porta: a chi Simone aveva spento a mano `diets_catalog`, la
+         * figlia valeva accesa.
+         *
+         * ⚠️ Le query in più si fanno **solo** quando la riga manca, che è il caso raro; e la
+         * catena è di uno. La regola è la stessa di `syncDefaults` e di `ruoloPuo`, e sta in un
+         * posto solo: *se più punti rispondono alla stessa domanda, uno deve chiamare gli altri*.
+         */
+        const leggi = async (k: string) => (await this.prisma.rolePagePermission.findUnique({
+          where: { role_pageKey: { role: user.role, pageKey: k } },
           select: { canView: true, canManage: true },
-        });
-        if (row) return level === 'view' ? row.canView : row.canManage;
+        })) as { canView: boolean; canManage: boolean } | null;
+
+        for (const k of catenaDeiGenitori(key, INHERIT_DEFAULTS, NON_EREDITANO)) {
+          const row = await leggi(k);
+          if (row) return level === 'view' ? !!row.canView : !!row.canManage;
+          /** ⚠️ Il default ESPLICITO della figlia vince sull'eredità: è la precedenza di sempre. */
+          if (k === key) {
+            const suo = DEFAULT_ESPLICITI[user.role]?.[key as PageKey];
+            if (suo) return level === 'view' ? !!suo.view : !!suo.manage;
+          }
+        }
         const def = DEFAULT_PERMISSIONS[user.role as Role]?.[key as PageKey];
         return level === 'view' ? !!def?.view : !!def?.manage;
       };

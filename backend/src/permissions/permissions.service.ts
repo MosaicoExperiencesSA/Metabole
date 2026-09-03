@@ -3,7 +3,10 @@ import { AuditService } from '../audit/audit.service';
 import { isSystemRole } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
-import { BACKOFFICE_PAGES, DEFAULT_PERMISSIONS, PageKey } from './pages';
+import {
+  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO, PageKey,
+} from './pages';
+import { type Decisione, righeDaCreare } from './eredita-dal-genitore';
 
 @Injectable()
 export class PermissionsService implements OnModuleInit {
@@ -30,31 +33,62 @@ export class PermissionsService implements OnModuleInit {
   }
 
   async syncDefaults(): Promise<{ created: number }> {
+    /**
+     * ⛔ **SI LEGGONO ANCHE `canView`/`canManage`, non solo le chiavi** (2/9).
+     *
+     * Servono per l'ereditarietà vera: una pagina figlia nuova deve nascere dalla **riga** del
+     * genitore — quello che l'admin ha davvero deciso — e non dal **default del codice**.
+     * `INHERIT_DEFAULTS` promette che «separare una schermata nei Permessi non toglie accesso a
+     * nessuno», e finché la riga nasceva dal default la promessa era falsa nei due versi: a chi
+     * aveva la pagina accesa a mano spariva, e ⛔ **a chi l'aveva spenta a mano tornava** — che è il
+     * verso che nessuno segnala, perché un accesso in più non fa reclamare nessuno.
+     */
     const existing = (await this.prisma.rolePagePermission.findMany({
-      select: { role: true, pageKey: true },
-    })) as { role: string; pageKey: string }[];
+      select: { role: true, pageKey: true, canView: true, canManage: true },
+    })) as { role: string; pageKey: string; canView: boolean; canManage: boolean }[];
     const have = new Set(existing.map((e) => `${e.role}:${e.pageKey}`));
+    const righe = new Map(existing.map((e) => [`${e.role}:${e.pageKey}`, e]));
+    /**
+     * ⚠️ **La chiave si costruisce col ruolo, e il ruolo lo chiude chi chiama.** La prima stesura
+     * passava `(role, pageKey)` al modulo: la mutazione che cercava la riga del genitore **di un
+     * altro ruolo** — la coach che eredita la riga dell'admin — passava verde. Con il ruolo chiuso
+     * qui, quella mutazione non si può nemmeno scrivere senza cambiare questa riga.
+     */
+    const rigaDiRuolo = (role: string) => (pageKey: string) => righe.get(`${role}:${pageKey}`) ?? null;
+    const perm = (def: { view?: true; manage?: true } | undefined) =>
+      (def ? { canView: !!def.view, canManage: !!def.manage } : null);
+    const defaultDi = (ruoloDeiDefault: string) => (pageKey: string) =>
+      perm(DEFAULT_PERMISSIONS[ruoloDeiDefault as keyof typeof DEFAULT_PERMISSIONS]?.[pageKey as PageKey]);
+    /** ⛔ Solo i default SCRITTI A MANO: quelli sintetizzati dall'eredità non hanno precedenza. */
+    const espliciti = (ruoloDeiDefault: string) => (pageKey: string) =>
+      perm(DEFAULT_ESPLICITI[ruoloDeiDefault]?.[pageKey as PageKey]);
+    const mancanti = (role: string) => BACKOFFICE_PAGES.filter((k) => !have.has(`${role}:${k}`));
+    const opzioni = (ruoloDeiDefault: string) =>
+      ({ nonEreditano: NON_EREDITANO, defaultEsplicitoDi: espliciti(ruoloDeiDefault) });
 
-    const toCreate: { role: string; pageKey: string; canView: boolean; canManage: boolean }[] = [];
+    const decisioni: Decisione[] = [];
     for (const role of Object.keys(DEFAULT_PERMISSIONS)) {
-      for (const pageKey of BACKOFFICE_PAGES) {
-        if (have.has(`${role}:${pageKey}`)) continue;
-        const def = DEFAULT_PERMISSIONS[role as keyof typeof DEFAULT_PERMISSIONS]?.[pageKey];
-        toCreate.push({ role, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
-      }
+      decisioni.push(...righeDaCreare(
+        role, mancanti(role), INHERIT_DEFAULTS, rigaDiRuolo(role), defaultDi(role), opzioni(role),
+      ));
     }
-    // Anche i ruoli PERSONALIZZATI ricevono le sezioni aggiunte dopo la loro creazione,
-    // ereditando il default del ruolo di base (le righe esistenti non vengono toccate).
+    // Anche i ruoli PERSONALIZZATI ricevono le sezioni aggiunte dopo la loro creazione: le righe
+    // esistenti non vengono toccate, e le nuove ereditano dalla riga del genitore **di quel ruolo**
+    // — ⚠️ non da quella del ruolo di base, che è un altro ruolo e può avere altri permessi. Il
+    // default del ruolo di base resta il ripiego quando il genitore non ha ancora una riga sua.
     const customRoles = (await this.prisma.customRole.findMany({
       select: { key: true, baseRole: true },
     })) as { key: string; baseRole: string }[];
     for (const custom of customRoles) {
-      for (const pageKey of BACKOFFICE_PAGES) {
-        if (have.has(`${custom.key}:${pageKey}`)) continue;
-        const def = DEFAULT_PERMISSIONS[custom.baseRole as keyof typeof DEFAULT_PERMISSIONS]?.[pageKey];
-        toCreate.push({ role: custom.key, pageKey, canView: def?.view ?? false, canManage: def?.manage ?? false });
-      }
+      decisioni.push(...righeDaCreare(
+        custom.key, mancanti(custom.key), INHERIT_DEFAULTS,
+        rigaDiRuolo(custom.key), defaultDi(custom.baseRole), opzioni(custom.baseRole),
+      ));
     }
+
+    const toCreate = decisioni.map((d) => ({
+      role: d.role, pageKey: d.pageKey, canView: d.canView, canManage: d.canManage,
+    }));
     /**
      * ⚠️ `skipDuplicates` è la **rete**, non il controllo. `have` è costruita dalla banca dati, non
      * da `BACKOFFICE_PAGES`: se in quell'elenco una pagina comparisse due volte, i due giri qui
@@ -63,8 +97,44 @@ export class PermissionsService implements OnModuleInit {
      * (`common/elenchi-senza-doppioni.spec.ts`), che è il momento in cui la riga si incolla; questo
      * serve perché una riga incollata male non spenga il backoffice.
      */
-    if (toCreate.length) await this.prisma.rolePagePermission.createMany({ data: toCreate, skipDuplicates: true });
-    return { created: toCreate.length };
+    const esito = toCreate.length
+      ? await this.prisma.rolePagePermission.createMany({ data: toCreate, skipDuplicates: true })
+      : { count: 0 };
+    /**
+     * ⛔ **`esito.count`, non `toCreate.length`.** Erano le righe **proposte**, non quelle scritte:
+     * con due istanze su Render che partono insieme, tutte e due annunciavano «create N righe»
+     * mentre `skipDuplicates` ne faceva scrivere N a una sola. Un numero che conta i tentativi,
+     * stampato accanto a una traccia di permessi, è peggio di nessun numero.
+     */
+    const created = typeof esito?.count === 'number' ? esito.count : toCreate.length;
+
+    /**
+     * ⛔ **CHI EREDITA LASCIA UNA RIGA NEL REGISTRO, non solo nel log.**
+     *
+     * Un permesso che compare senza che nessuno l'abbia acceso dev'essere rintracciabile mesi dopo,
+     * e i log di Render non lo sono. La prima stesura scriveva solo `logger.log`, per giunta
+     * tagliato a venti righe proprio nel caso grosso. `AuditService` era già iniettato qui e regge
+     * un `actorId` nullo di proposito: la riga di registro era a portata di mano.
+     *
+     * ⚠️ **Una riga sola con l'elenco dentro**, non una per permesso: sono decine, e trenta righe di
+     * registro identiche a ogni avvio renderebbero illeggibile la pagina che dovrebbero servire.
+     *
+     * ⚠️ **E solo se qualcosa è stato scritto davvero** (`created > 0`): l'istanza che ha perso la
+     * corsa con `skipDuplicates` non deve lasciare una traccia di permessi che non ha creato.
+     */
+    const ereditate = decisioni.filter((d) => d.provenienza === 'riga del genitore');
+    if (ereditate.length && created > 0) {
+      const quali = ereditate.map((d) =>
+        `${d.role}:${d.pageKey}←${d.genitore}(${d.canView ? 'v' : '-'}${d.canManage ? 'g' : '-'})`);
+      this.logger.log(`Permessi: ${ereditate.length} righe nuove ereditate dalla riga del genitore — ${quali.slice(0, 20).join(' ')}${ereditate.length > 20 ? ' …' : ''}`);
+      await this.audit.log({
+        action: 'admin.permissions.inherited',
+        entity: 'RolePagePermission',
+        entityId: 'sync',
+        metadata: { quante: ereditate.length, righe: quali },
+      } as never);
+    }
+    return { created };
   }
 
   /** Matrice completa: elenco ruoli (sistema + personalizzati) + permessi per ruolo. */

@@ -108,7 +108,7 @@ export const BACKOFFICE_PAGES = [
   'crm_calendar',       // Calendario CRM (da crm_leads)
   'testimonials',       // Testimonianze (da marketing)
   'publisher',          // Publisher social (da marketing)
-  'agents',             // Registro Agenti AI (da marketing)
+  'agents',             // Registro Agenti AI (nata da marketing, ma NON è fra le figlie di INHERIT_DEFAULTS)
   'coach_tasks',        // Attività coach (task generati dal cron: prova, fine piano)
   'equivalence_groups', // Gruppi di equivalenza (da diets_catalog)
   'allergens',          // Allergeni ricette (da recipes)
@@ -303,6 +303,17 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clinical_clearance: { view: true, manage: true }, // dice «può proseguire» o «serve la visita»
     change_fasting_window: { view: true, manage: true }, // e quali pasti salta nel digiuno
     diets_catalog: { view: true, manage: true }, // propone (l'approvazione resta al capo)
+    /**
+     * ⛔ **SCRITTE, non dedotte** (2/9). `diet_workspace` e `creation_validation` sono figlie di
+     * `diets_catalog` in `INHERIT_DEFAULTS`, e fino a oggi il loro default nasceva dal ciclo che
+     * arricchisce questa tabella. Ma sono anche **hub** (`PAGE_GRANTS`): concedono `diets_catalog`
+     * **+ `recipes`**, cioè più di quello che il loro genitore concede, e per questo non ereditano
+     * più la riga del genitore. Perché «non eredita» valga anche per il default — altrimenti la
+     * regola sarebbe chiusa da una porta e aperta dall'altra — il default va scritto qui. ⚠️ È
+     * esattamente quello che il ciclo produceva: nessun ruolo cambia permesso.
+     */
+    diet_workspace: { view: true, manage: true },
+    creation_validation: { view: true, manage: true },
     // ⚠️ Vede i panieri ma non li tocca: proporre una dieta e spostare il pool di TUTTE le
     // clienti di una famiglia sono due poteri diversi. `manage` sta col capo.
     panieri: { view: true },
@@ -337,6 +348,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     clinical_clearance: { view: true, manage: true },
     change_fasting_window: { view: true, manage: true },
     diets_catalog: { view: true, manage: true }, // approvazione nel catalogo
+    diet_workspace: { view: true, manage: true },
+    creation_validation: { view: true, manage: true },
     panieri: { view: true, manage: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true, manage: true },
@@ -395,6 +408,8 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     posta: { view: true },
     clients: { view: true },
     diets_catalog: { view: true, manage: true },
+    diet_workspace: { view: true, manage: true },
+    creation_validation: { view: true, manage: true },
     panieri: { view: true, manage: true },
     recipes: { view: true, manage: true },
     engine_protocols: { view: true },
@@ -444,9 +459,24 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
 };
 
 /**
- * Le schermate "figlie" ereditano di default l'accesso della loro pagina "genitore",
- * così separare una schermata nei Permessi non toglie accesso a nessuno. L'admin può
- * poi differenziarle a runtime dalla UI Permessi.
+ * Le schermate "figlie" ereditano l'accesso della loro pagina "genitore", così separare una
+ * schermata nei Permessi non toglie — e non **dà** — accesso a nessuno. L'admin può poi
+ * differenziarle a runtime dalla UI Permessi.
+ *
+ * ⛔ **DUE EREDITARIETÀ, e il ciclo qui sotto è solo la prima.** Questo ciclo arricchisce i
+ * `DEFAULT_PERMISSIONS` una volta sola, all'avvio, e riguarda i **default del codice**: serve
+ * perché una figlia nuova abbia un default sensato quando il genitore non ha ancora una riga in
+ * banca dati (il primo avvio, un ruolo appena creato).
+ *
+ * ⚠️ **Quella che conta la fa `syncDefaults`** (`permissions.service.ts`, modulo
+ * `eredita-dal-genitore.ts`): quando crea la riga mancante di una figlia legge la **riga vera** del
+ * genitore, cioè quello che l'admin ha davvero deciso, e ripiega su questi default solo se quella
+ * riga non c'è.
+ *
+ * ⛔ Fino al 2/9 esisteva solo questo ciclo, e la promessa qui sopra era falsa nei due versi: a chi
+ * aveva la pagina accesa **a mano** la figlia nasceva spenta, e — il verso che non si vede — a chi
+ * l'aveva **spenta** a mano la figlia nasceva **accesa**, cioè la pagina tornava a chi era stata
+ * tolta. Un accesso in più non lo segnala nessuno.
  */
 /**
  * Pagine "hub": chi ha il permesso su di esse può usare anche le API dei domini
@@ -461,7 +491,12 @@ export const PAGE_GRANTS: Record<string, PageKey[]> = {
   creation_validation: ['diets_catalog', 'recipes'],
 };
 
-export const INHERIT_DEFAULTS: Record<string, PageKey> = {
+/**
+ * ⚠️ **Figlia e genitore sono tutti e due `PageKey`**: con la figlia `string` un errore di battitura
+ * (`crm_pipelin: 'crm_leads'`) compilava, non ereditava niente e non lo diceva nessuno. Prima
+ * costava un default, adesso costa un permesso.
+ */
+export const INHERIT_DEFAULTS: Partial<Record<PageKey, PageKey>> = {
   crm_lead_new: 'crm_leads',
   crm_import: 'crm_leads',
   crm_pipeline: 'crm_leads',
@@ -476,6 +511,21 @@ export const INHERIT_DEFAULTS: Record<string, PageKey> = {
   diet_workspace: 'diets_catalog',
 };
 
+/**
+ * ⛔ **I DEFAULT SCRITTI A MANO, PRIMA CHE L'EREDITÀ LI MESCOLI.**
+ *
+ * Il ciclo qui sotto arricchisce `DEFAULT_PERMISSIONS` con i default del genitore, e da lì in poi
+ * «default della figlia» e «default del genitore» sono la stessa cosa e non si distinguono più.
+ * Ma la precedenza che quel ciclo ha sempre avuto (`if (p && !perms[child])`) è che **il default
+ * scritto apposta per la figlia vince**: l'unico motivo per scriverne uno è renderlo più stretto
+ * del genitore, e senza questa copia quella scelta verrebbe ignorata in silenzio dall'eredità sulle
+ * righe. Oggi nessuna delle dodici figlie ne ha uno — questa copia serve al giorno che ne avrà.
+ */
+export const DEFAULT_ESPLICITI: Record<string, Partial<Record<PageKey, Perm>>> =
+  Object.fromEntries(
+    (Object.keys(DEFAULT_PERMISSIONS) as Role[]).map((role) => [role, { ...DEFAULT_PERMISSIONS[role] }]),
+  );
+
 for (const role of Object.keys(DEFAULT_PERMISSIONS) as Role[]) {
   const perms = DEFAULT_PERMISSIONS[role];
   for (const [child, parent] of Object.entries(INHERIT_DEFAULTS) as [PageKey, PageKey][]) {
@@ -483,3 +533,11 @@ for (const role of Object.keys(DEFAULT_PERMISSIONS) as Role[]) {
     if (p && !perms[child]) perms[child] = { ...p };
   }
 }
+
+/**
+ * ⛔ **Le pagine «hub» non ereditano**: concedono più di quello che il loro genitore concede.
+ * `diet_workspace` e `creation_validation` sono figlie di `diets_catalog` e grantor di
+ * `diets_catalog` **+ `recipes`** — ereditare la riga del genitore darebbe loro di aprire una porta
+ * che il genitore non apre. Nascono dal loro default, che è la scelta prudente.
+ */
+export const NON_EREDITANO: ReadonlySet<string> = new Set(Object.keys(PAGE_GRANTS));

@@ -62,3 +62,50 @@ describe('ruoloPuo', () => {
     expect(await ruoloPuo(finto({ canView: true, canManage: false }), 'coach', 'client_conversations')).toBe(false);
   });
 });
+
+/**
+ * ⛔ **ANCHE QUI LA RIGA MANCANTE VALE QUANTO QUELLA DEL GENITORE** (2/9).
+ *
+ * `ruoloPuo` è uno dei tre punti che risolvono un permesso, e la prima correzione ne copriva uno
+ * solo: `syncDefaults`. Questo e il `PageGuard` ripiegavano sui `DEFAULT_PERMISSIONS` arricchiti,
+ * cioè sul meccanismo dichiarato rotto — e lo fanno **a tempo di richiesta**, quando la riga manca
+ * davvero perché `syncDefaults` è fallito all'avvio e l'errore è stato assorbito con un `warn`.
+ */
+describe('ruoloPuo — la riga mancante eredita dal genitore', () => {
+  const prismaCon = (righe: Record<string, { canView: boolean; canManage: boolean }>) => ({
+    rolePagePermission: {
+      findUnique: jest.fn(({ where }: { where: { role_pageKey: { role: string; pageKey: string } } }) =>
+        Promise.resolve(righe[`${where.role_pageKey.role}:${where.role_pageKey.pageKey}`] ?? null)),
+    },
+  }) as never;
+
+  it('⛔ genitore SPENTO a mano: la figlia senza riga dice no', async () => {
+    const p = prismaCon({ 'head_nutritionist:diets_catalog': { canView: false, canManage: false } });
+    await expect(ruoloPuo(p, 'head_nutritionist', 'equivalence_groups', 'view')).resolves.toBe(false);
+  });
+
+  it('⛔ genitore ACCESO a mano: la figlia senza riga dice sì', async () => {
+    const p = prismaCon({ 'coach:diets_catalog': { canView: true, canManage: true } });
+    await expect(ruoloPuo(p, 'coach', 'equivalence_groups', 'view')).resolves.toBe(true);
+  });
+
+  it('⚠️ e il livello resta separato: sola vista non dà la gestione', async () => {
+    const p = prismaCon({ 'coach:diets_catalog': { canView: true, canManage: false } });
+    await expect(ruoloPuo(p, 'coach', 'equivalence_groups', 'view')).resolves.toBe(true);
+    await expect(ruoloPuo(p, 'coach', 'equivalence_groups', 'manage')).resolves.toBe(false);
+  });
+
+  it('la riga PROPRIA comanda su quella del genitore', async () => {
+    const p = prismaCon({
+      'coach:diets_catalog': { canView: true, canManage: true },
+      'coach:equivalence_groups': { canView: false, canManage: false },
+    });
+    await expect(ruoloPuo(p, 'coach', 'equivalence_groups', 'view')).resolves.toBe(false);
+  });
+
+  it('⛔ una pagina «hub» non eredita: resta sul suo default', async () => {
+    const p = prismaCon({ 'coach:diets_catalog': { canView: true, canManage: true } });
+    await expect(ruoloPuo(p, 'coach', 'diet_workspace', 'view')).resolves.toBe(false);
+  });
+});
+

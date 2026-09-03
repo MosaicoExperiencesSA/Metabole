@@ -21,7 +21,8 @@
  * database ha un singhiozzo è un difetto che si vede solo il giorno in cui è troppo tardi.
  */
 import type { PrismaService } from '../prisma/prisma.service';
-import { DEFAULT_PERMISSIONS, PageKey } from './pages';
+import { DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO, PageKey } from './pages';
+import { catenaDeiGenitori } from './eredita-dal-genitore';
 import { Role } from '../common/roles';
 
 /**
@@ -39,17 +40,31 @@ export async function ruoloPuo(
   livello: 'view' | 'manage' = 'manage',
 ): Promise<boolean> {
   if (role === 'admin') return true; // superutente, come nel PageGuard
-  let riga: { canView: boolean; canManage: boolean } | null = null;
-  try {
-    riga = (await prisma.rolePagePermission.findUnique({
-      where: { role_pageKey: { role, pageKey } },
-      select: { canView: true, canManage: true },
-    })) as { canView: boolean; canManage: boolean } | null;
-  } catch {
-    // Database muto (o un finto nei test senza quella tabella): si ricade sui default, mai su «sì».
-    riga = null;
+  /**
+   * ⛔ **LA RIGA MANCANTE VALE QUANTO QUELLA DEL GENITORE, non quanto il default** (2/9). Stessa
+   * regola del `PageGuard` e di `syncDefaults`, e sta in un posto solo (`catenaDeiGenitori`): la
+   * prima stesura della correzione ne copriva uno dei tre, e questo era uno dei due scoperti.
+   */
+  const leggi = async (k: string): Promise<{ canView: boolean; canManage: boolean } | null> => {
+    try {
+      return (await prisma.rolePagePermission.findUnique({
+        where: { role_pageKey: { role, pageKey: k } },
+        select: { canView: true, canManage: true },
+      })) as { canView: boolean; canManage: boolean } | null;
+    } catch {
+      // Database muto (o un finto nei test senza quella tabella): si ricade sui default, mai su «sì».
+      return null;
+    }
+  };
+  for (const k of catenaDeiGenitori(pageKey, INHERIT_DEFAULTS, NON_EREDITANO)) {
+    const riga = await leggi(k);
+    if (riga) return livello === 'view' ? !!riga.canView : !!riga.canManage;
+    /** ⚠️ Il default ESPLICITO della pagina vince sull'eredità: è la precedenza di sempre. */
+    if (k === pageKey) {
+      const suo = DEFAULT_ESPLICITI[role]?.[pageKey as PageKey];
+      if (suo) return livello === 'view' ? !!suo.view : !!suo.manage;
+    }
   }
-  if (riga) return livello === 'view' ? !!riga.canView : !!riga.canManage;
   const def = DEFAULT_PERMISSIONS[role as Role]?.[pageKey as PageKey];
   return livello === 'view' ? !!def?.view : !!def?.manage;
 }

@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-02
 
+- `[Sviluppo]` 🔑 **Separare una pagina nei Permessi non toglie — e non dà — accesso a nessuno.**
+  `INHERIT_DEFAULTS` lo prometteva e non lo manteneva: l'ereditarietà girava una volta sola,
+  all'avvio, sui **default del codice**, quindi una figlia valeva il *default* del genitore e mai la
+  sua **riga**. ⛔ A chi Simone aveva **spento a mano** il genitore la figlia valeva **accesa**: la
+  pagina tornava a chi era stata tolta, e **questo non lo segnala nessuno** — un accesso in più non
+  fa reclamare nessuno.
+  ⛔ **E la prima correzione ne copriva uno su tre**: sistemavo chi *crea* la riga e lasciavo
+  scoperti i due punti che risolvono la riga **mancante a tempo di richiesta** — il `PageGuard` e
+  `ruoloPuo` — cioè il difetto vivo **lato server**, dove non è una voce di menu ma una porta. E non
+  è teorico: `onModuleInit` assorbe l'errore di `syncDefaults` con un `warn`. ✅ Adesso la regola è
+  **una sola** e la chiamano tutti e tre.
+  ⛔ **E le pagine «hub» non ereditano**: `diet_workspace` e `creation_validation` concedono
+  `diets_catalog` **+ `recipes`**, cioè più del loro genitore. Il loro default è ora **scritto**
+  invece che dedotto, così la regola vale da tutt'e due le porte — nessun ruolo cambia permesso.
+  ⛔ **Chi eredita lascia una riga in `AuditLog`**, non solo nei log di Render: un permesso che
+  compare senza che nessuno l'abbia acceso dev'essere rintracciabile mesi dopo.
+  ⚠️ **Non ripara il passato, previene il futuro**: le righe già scritte sono indistinguibili da una
+  scelta dell'admin.
+  ⚠️ **E la prova sul ciclo non fa più bloccare la CI**: con la sola guardia sui già-visti,
+  toglierla non faceva *fallire* la suite — la **bloccava**. Una prova che segnala un difetto
+  fermando la CI invece di diventare rossa è peggio di nessuna prova.
+  🧪 6736/6736 nelle quattro modalità, 210/210 backoffice, **19 mutazioni su 19 uccise**.
+  ▶️ Aperta `togliere-una-chiave-non-basta-se-c-e-un-hub`: spegnere `recipes` a una nutrizionista
+  non le chiude le API, perché ci entra da «Gestione dieta». È il progetto di `PAGE_GRANTS`, ma
+  dalla pagina Permessi sembra spento e non lo è.
+
 - `[Sviluppo]` 📏 **Lo stesso piatto a spuntino e merenda: lo strumento che lo conta**
   (`npm run diag:piatto-doppio`, sola lettura). Primo passo della voce aperta ieri: prima contarlo,
   perché «quanto spesso capita» decide dove va la correzione — dentro `dayCombo`, o in una guardia a

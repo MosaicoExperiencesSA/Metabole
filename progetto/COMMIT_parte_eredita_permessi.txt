@@ -1,0 +1,105 @@
+Separare una pagina nei Permessi non toglie — e non dà — accesso a nessuno
+
+`INHERIT_DEFAULTS` prometteva testualmente che «separare una schermata nei
+Permessi non toglie accesso a nessuno». La promessa non era mantenuta, e va
+chiusa PRIMA di separare qualunque chiave — ce n'è una in coda: Descrizioni diete
+gira sul permesso del catalogo, contro la regola di `CLAUDE.md`.
+
+⛔ IL DIFETTO. L'ereditarietà girava una volta sola, all'avvio, dentro
+`pages.ts`, e girava sui `DEFAULT_PERMISSIONS`, cioè sui default DEL CODICE. Poi
+i tre punti che risolvono un permesso leggevano quegli stessi default. Quindi una
+figlia valeva il DEFAULT del genitore, mai la sua RIGA — che è quello che l'admin
+ha davvero deciso.
+
+I due versi, e il secondo è quello che fa male:
+
+· Simone aveva ACCESO a mano `diets_catalog` a un ruolo dove il default è spento:
+  la figlia valeva spenta, e la pagina spariva a chi doveva averla. Questo si
+  vede subito — qualcuno scrive «non trovo più la voce di menu».
+· ⛔ L'aveva SPENTO a mano dove il default è acceso: la figlia valeva ACCESA, e la
+  pagina tornava a chi era stata tolta. QUESTO NON LO VEDE NESSUNO: un accesso in
+  più non fa reclamare nessuno, e il permesso resta lì finché qualcuno non
+  riguarda la matrice riga per riga.
+
+⛔ E LA MIA PRIMA CORREZIONE NE COPRIVA UNO SU TRE. Sistemavo `syncDefaults` —
+chi CREA la riga — e lasciavo scoperti i due punti che risolvono la riga mancante
+a tempo di richiesta: `page.guard.ts` e `permesso-di-ruolo.ts`. Cioè il difetto
+restava vivo LATO SERVER, dove non è una voce di menu ma una porta. ⚠️ E non è
+una finestra teorica: `onModuleInit` ASSORBE l'errore di `syncDefaults` con un
+`warn`, quindi un singhiozzo del database all'avvio lascia un'istanza viva per
+sempre con le righe mancanti. L'ha trovata la revisione avversariale provandola
+sul guardiano vero.
+
+✅ Adesso la regola è UNA SOLA — `catenaDeiGenitori`, in
+`permissions/eredita-dal-genitore.ts` — e la chiamano tutti e tre. Se più punti
+rispondono alla stessa domanda, uno deve chiamare gli altri.
+
+⛔ E LE PAGINE «HUB» NON EREDITANO. `diet_workspace` e `creation_validation` sono
+figlie di `diets_catalog` E grantor di `diets_catalog` + `recipes`: ereditare la
+riga del genitore darebbe loro di aprire una porta che il genitore non apre —
+cioè la frase «non toglie e non dà accesso a nessuno» sarebbe falsa proprio sulle
+due chiavi che lato server contano davvero. ⚠️ E perché «non eredita» valga anche
+dall'altra porta, il loro default adesso è SCRITTO in `DEFAULT_PERMISSIONS`
+invece che dedotto dal ciclo: è esattamente quello che il ciclo produceva,
+nessun ruolo cambia permesso.
+
+⛔ IL DEFAULT SCRITTO APPOSTA PER LA FIGLIA BATTE L'EREDITÀ (`DEFAULT_ESPLICITI`).
+È la precedenza che il ciclo di `pages.ts` ha sempre avuto (`if (p &&
+!perms[child])`), e la prima stesura la rovesciava senza dirlo. Oggi non si
+vedrebbe — nessuna delle dodici figlie ha un default suo — ma l'unico motivo per
+scriverne uno è renderlo PIÙ STRETTO del genitore, e quella scelta sarebbe stata
+ignorata in silenzio.
+
+⛔ CHI EREDITA LASCIA UNA RIGA IN `AuditLog` (`admin.permissions.inherited`), non
+solo nei log di Render. Un permesso che compare senza che nessuno l'abbia acceso
+dev'essere rintracciabile mesi dopo. ⚠️ Una riga sola con l'elenco dentro — non
+una per permesso, che sarebbero decine a ogni avvio — e solo se qualcosa è stato
+scritto davvero: l'istanza che perde la corsa con `skipDuplicates` non deve
+lasciare una traccia di permessi che non ha creato. Per la stessa ragione
+`syncDefaults` ora restituisce `esito.count` e non più le righe PROPOSTE: con due
+istanze su Render tutte e due annunciavano «create N righe» mentre ne scriveva
+una sola.
+
+⚠️ E LA PROVA SUL CICLO NON FA PIÙ BLOCCARE LA CI. Con la sola guardia sui
+già-visti, toglierla non faceva FALLIRE la suite: la BLOCCAVA — giro sincrono,
+event loop occupato, timeout di Jest che non scatta mai. Adesso c'è anche un
+tetto ai salti. Una prova che segnala un difetto fermando la CI invece di
+diventare rossa è peggio di nessuna prova.
+
+Le altre cose corrette, più corte:
+· `INHERIT_DEFAULTS` aveva la FIGLIA tipizzata `string` (il genitore no):
+  `crm_pipelin: 'crm_leads'` compilava, non ereditava niente e non lo diceva
+  nessuno. Prima costava un default, adesso costerebbe un permesso.
+· La chiave della riga si costruisce col ruolo chiuso da chi chiama: la mutazione
+  «prendi la riga del genitore di un ruolo qualsiasi» — la coach che eredita la
+  riga dell'ADMIN — passava verde.
+· `agents` era commentata come «da marketing» e non è fra le figlie: chi audita
+  partendo dai commenti trovava due testi che dicevano cose diverse.
+
+⚠️ NON RIPARA IL PASSATO, PREVIENE IL FUTURO. Le righe già scritte non si
+toccano: una riga sbagliata dal difetto vecchio è indistinguibile da una scelta
+dell'admin, e riscriverla sarebbe decidere al posto suo. ⛔ Chi vuole sapere se è
+successo davvero deve guardare la matrice: le figlie di oggi sono `crm_lead_new`,
+`crm_import`, `crm_pipeline`, `crm_calendar`, `testimonials`, `publisher`,
+`equivalence_groups`, `allergens`, `colazioni`, `roles`, `creation_validation`,
+`diet_workspace`.
+
+▶️ E APERTA UNA VOCE che la revisione ha fatto saltare fuori e che NON è un
+difetto del codice: spegnere `recipes` a una nutrizionista non le chiude le API
+delle ricette, perché ci entra da «Gestione dieta» che quell'hub concede. È il
+progetto di `PAGE_GRANTS` — ma dalla pagina Permessi sembra spento e non lo è, e
+nessuno può indovinarlo. Voce `togliere-una-chiave-non-basta-se-c-e-un-hub`, con
+le due strade e il numero da misurare prima.
+
+File: backend/src/permissions/eredita-dal-genitore.ts (nuovo) e il suo spec
+(nuovo), backend/src/permissions/pages.ts,
+backend/src/permissions/permissions.service.ts e il suo spec,
+backend/src/permissions/permesso-di-ruolo.ts e il suo spec,
+backend/src/common/guards/page.guard.ts,
+backend/src/common/guards/page-guard-eredita.spec.ts (nuovo),
+backend/src/lavori/voci-iniziali.ts.
+
+Prove: 6736/6736 nelle quattro modalità, 210/210 backoffice, build e tsc puliti.
+Diciannove mutazioni su diciannove uccise — fra cui il guardiano che non risale
+al genitore, gli hub che ereditano, il default esplicito senza precedenza, il
+registro che non si scrive, e `created` che conta i tentativi.
