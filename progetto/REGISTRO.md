@@ -18,7 +18,54 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-03
+
+- `[Sviluppo]` 🥣 **«Crema di mandorle» non diventa più «mandorle»: il nome composto si legge
+  intero.** Nella forma rovesciata («Y al posto di X») il nome si legge risalendo, e `codaDellaFrase`
+  si fermava su `ARTICOLI` — che tiene insieme «**le** gallette», dove l'articolo apre il nome, e
+  «crema **di** mandorle», dove il «di» sta **dentro**. Di «petto di tacchino» restava «tacchino».
+  In italiano quei nomi sono ovunque, e la cliente riceveva l'ultima parola del piatto.
+  ✅ **Corretta la lettura, non messa una guardia**: chiudono il nome solo gli articoli veri
+  (partitivi compresi) e chi scrive.
+  ⛔ **E ci sono voluti due tentativi sbagliati, tutti e due trovati da una revisione avversariale,
+  mai dalle mie prove.** (1) Il 2/9 sera una **guardia** spegneva **ventuno frasi normali su
+  trentasette** — tolta, e al suo posto è nato il corpus che mancava. (2) Il 3/9 mattina il
+  confronto sui verbi era **per prefisso** e mangiava alimenti veri: «**prov**ola»,
+  «**punt**arelle», «**passa**ta di pomodoro» — che è un ingrediente di questo catalogo — smettevano
+  di essere capiti. ⚠️ La regola era già scritta venti righe sopra, nello stesso file: *«chi allunga
+  questo elenco controlli prima i nomi del catalogo»*.
+  ⚠️ **E i partitivi sono articoli**: lasciati fuori, «per Anna **della** ricotta» imparava «Anna
+  della ricotta» — il nome della cliente dentro al piatto.
+  ⛔ **Il corpus adesso è ancorato**: trentasette righe su quarantuno confrontavano con una
+  **sottostringa**, e «ti consiglio della bresaola» → «consiglio della bresaola» passava per buona.
+  Ora ogni riga asserisce il nome intero, e le frasi sono cinquantasei.
+  🧪 6797/6797 nelle quattro modalità, **12 mutazioni su 12 uccise**.
+  ▶️ Restano scritte due cose: la coda di contesto sul secondo nome («gallette **a colazione**») e
+  il saluto che finisce nel nome, quest'ultimo con `it.failing` — rosso il giorno che si corregge.
+
 ## 2026-09-02
+
+- `[Sviluppo]` 🕸️ **Le frasi normali che devono passare: la rete che mancava** — e una correzione
+  **tolta**. Ho provato a chiudere la metà simmetrica del troncamento silenzioso (il nome letto a
+  metà quando Vera impara una sostituzione dalla chat): misurandola sono usciti **quattro** versi
+  aperti invece di uno, fra cui ⛔ «metti la crema **di** mandorle al posto del burro» → impara
+  «mandorle», che in italiano è il caso più frequente di tutti.
+  ⛔ **Ma la guardia rompeva più di quanto riparasse**: spegneva **ventuno frasi normali su
+  trentasette** — «prova della ricotta al posto dello yogurt», «usa il latte di soia invece del
+  latte vaccino». La lista dei verbi di chi scrive ne conosceva sette; le congiunzioni di
+  **discorso** venivano lette come elenchi di alimenti; e «**è**», che `normalizza` scrive «e»,
+  passava per congiunzione. **L'ho tolta.**
+  ⛔ **E lì un falso allarme non è «una domanda in più»**: `impara-dal-nutrizionista.ts` fa
+  `return 0` **senza notifica** — la nutrizionista scrive alla cliente e non si registra niente.
+  ✅ **Quello che resta è la cosa che mancava**: trentasette frasi vere tenute ferme come qualunque
+  prova, più i nove difetti scritti con `it.failing` — verdi finché il difetto c'è, **rossi il
+  giorno che qualcuno lo corregge**.
+  ⚠️ Le mie prove erano tutte costruite sui casi da **bloccare**, ed erano verdi: la regressione
+  l'ha trovata una revisione avversariale scrivendosi un corpus di frasi vere, cioè facendo la cosa
+  che andava fatta **prima** di scrivere la guardia.
+  🧪 6774/6774 nelle quattro modalità, build e tsc puliti.
+  ▶️ La voce `la-e-nel-nome-tronca-in-silenzio` torna **aperta**, col titolo che dice quanto è
+  chiusa davvero: un verso su cinque.
 
 - `[Sviluppo]` 🔑 **Separare una pagina nei Permessi non toglie — e non dà — accesso a nessuno.**
   `INHERIT_DEFAULTS` lo prometteva e non lo manteneva: l'ereditarietà girava una volta sola,

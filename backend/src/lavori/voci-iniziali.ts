@@ -194,9 +194,9 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: 'Da fare — codice',
     ordine: 0,
     blocca: true,
-    fatta: true,
+    fatta: false,
     nata: '2026-08-31T18:10',
-    titolo: '⛔ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: la sostituzione si scrive troncata, e nessuno lo sa',
+    titolo: '⚠️ «Biscotti d\'Avena e Banana» diventa «Biscotti d\'Avena»: chiusi il primo nome e i nomi composti, resta la coda di contesto',
     dettaglio:
       'Trovato **misurando**, il 31/8, mentre si chiudeva il difetto del «senza glutine». Non era stato '
       + 'segnalato da nessuno, ed è più pericoloso di quello che era stato segnalato.\n\n'
@@ -244,11 +244,37 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'nome di partenza si ferma su una congiunzione e **dopo c\'è ancora una parola**, '
       + '`sostituzioniNelMessaggio` non risponde. Meglio una domanda in più che una regola scritta su '
       + 'un piatto che nessuno ha nominato.\n'
-      + '\u26a0\ufe0f **Solo sul primo nome**, e per la ragione che questa voce aveva già scritto: quel '
-      + 'pezzo è delimitato da «con» nel pattern, mentre il secondo prende tutta la coda di contesto '
-      + '(«...con le gallette **a colazione**») e lì il confronto direbbe «non ci arrivo» a metà delle '
-      + 'frasi normali. La parte simmetrica resta da fare, e serve prima un modo di separare la coda '
-      + 'dal nome — non `senzaCodaDiAmbito`, che su quella frase rende la frase identica.\n'
+      + '\u2705 **E IL 3/9 È CHIUSA LA FAMIGLIA PIÙ GROSSA: il nome composto nella forma '
+      + 'rovesciata.** «metti la crema **di** mandorle al posto del burro» imparava **«mandorle»**, '
+      + '«il petto di tacchino» **«tacchino»**, «i cracker ai cereali» **«cereali»**: in italiano '
+      + 'quei nomi sono ovunque, e la cliente riceveva l\'ultima parola del piatto.\n'
+      + '✅ **Corretta la LETTURA, non messa una guardia**: `codaDellaFrase` si fermava su `ARTICOLI`, '
+      + 'che tiene insieme due cose che risalendo si comportano al contrario — «**le** gallette», '
+      + 'dove l\'articolo apre il nome, e «crema **di** mandorle», dove il «di» sta **dentro**. Adesso '
+      + 'chiudono il nome solo gli articoli veri (partitivi compresi: «**della** ricotta») e chi '
+      + 'scrive; le preposizioni no.\n'
+      + '⛔ **E ci sono voluti due tentativi sbagliati, tutti e due trovati da una revisione '
+      + 'avversariale, mai dalle mie prove.** (1) Il 2/9 sera una **guardia** («se il nome sembra '
+      + 'tagliato, non rispondere») spegneva **ventuno frasi normali su trentasette** — tolta, e al '
+      + 'suo posto è nato `frasi-normali-che-devono-passare.spec.ts`, il corpus che mancava. (2) Il '
+      + '3/9 mattina il confronto sui verbi era **per prefisso**, e mangiava alimenti veri: '
+      + '«**prov**ola», «**punt**arelle», «**passa**ta di pomodoro» — che è un ingrediente di questo '
+      + 'catalogo — «**lev**istico», «**dai**kon» smettevano di essere capiti. ⚠️ La regola era già '
+      + 'scritta venti righe sopra, in questo stesso file: *«chi allunga questo elenco controlli '
+      + 'prima i nomi del catalogo»*. Adesso il confronto è per **parola intera**.\n'
+      + '⚠️ **E i partitivi sono articoli**: lasciati fuori, «per Anna **della** ricotta» imparava '
+      + '«Anna della ricotta» — il nome della cliente dentro al piatto. Come l\'articolo elidato '
+      + 'attaccato («per Anna **un\'**insalata di farro»), che non combacia con nessun elenco e '
+      + 'si riconosce con la stessa regex di `senzaArticoloAttaccato`, apostrofo tipografico compreso.\n'
+      + '⚠️ **Resta aperta la coda di contesto sul secondo nome**: «sostituisci il pane con le '
+      + 'gallette **a colazione**» impara «gallette a colazione». Il pezzo dopo «con» non è delimitato '
+      + 'da niente, e una riga del corpus lo tiene fermo con una regex **ancorata** invece di '
+      + 'nasconderlo — con `/gallette/i` non si vedeva. Si chiude quando si saprà separare la coda, '
+      + 'non con una guardia.\n'
+      + '⚠️ **E un saluto davanti al nome ci finisce dentro** («ciao Anna Maria buongiorno gallette»): '
+      + 'scritto con `it.failing`, cioè verde finché il difetto c\'è e **rosso il giorno che qualcuno '
+      + 'lo corregge**. La cura non è allungare un elenco di saluti: è capire dove **comincia** il '
+      + 'nome.\n'
       + '\u26d4 **E la prima stesura della guardia aveva il difetto dentro**: per sapere se dopo la '
       + 'congiunzione restava qualcosa cercava la stringa, e su «il pane e» trovava la «e» **dentro '
       + '«pane»** — rispondendo «troncato» a una frase che finisce lì. L\'ha presa la prova che teneva '

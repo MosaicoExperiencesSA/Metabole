@@ -1,0 +1,68 @@
+Le frasi normali che devono passare: la rete che mancava, e quattro difetti misurati
+
+Consegna che vale per quello che NON contiene: stanotte ho provato a chiudere la
+metà simmetrica del troncamento silenzioso, e la correzione rompeva più di quanto
+riparava. L'ho tolta. Resta la rete che mancava, e i difetti misurati per intero.
+
+⛔ COSA HO PROVATO A FARE. Il 2/9 mattina si era chiuso un verso solo: il nome che
+ESCE in «sostituisci X con Y». La voce diceva «la parte simmetrica resta da fare».
+Misurandola sono usciti QUATTRO versi ancora aperti, e due più gravi di quello già
+chiuso:
+
+· `sostituisci le gallette con Biscotti d'Avena e Banana` → entra «Biscotti
+  d'Avena»: qui il nome tagliato è quello che la cliente RICEVE;
+· `metti Gallette di riso al posto di Biscotti d'Avena e Banana` → regola scritta
+  su TUTTI i «Biscotti d'Avena». ⛔ È il caso grave del 31/8, entrato da «al posto
+  di» invece che da «sostituisci», e quella porta non ha nessuna guardia;
+· `Biscotti d'Avena e Banana invece di X` → entra «Banana»: lì il taglio è dalla
+  TESTA, perché `codaDellaFrase` risale dal fondo e si ferma sulla congiunzione;
+· ⛔ `metti la crema di mandorle al posto del burro` → entra «mandorle», ed è il
+  verso più frequente: `ARTICOLI` mette insieme «le gallette», dove l'articolo
+  apre il nome, e «crema di mandorle», dove il «di» sta DENTRO. In italiano quei
+  nomi sono ovunque — latte di soia, filetto di merluzzo, petto di tacchino — e la
+  cliente riceve l'ultima parola.
+
+⛔ E LA STRADA FACILE NON FUNZIONA. Mettere la stessa guardia del mattino — «se il
+nome sembra tagliato, non rispondere e chiedi» — spegneva VENTUNO frasi normali su
+trentasette: «prova della ricotta al posto dello yogurt», «usa il latte di soia
+invece del latte vaccino», «Sostituisci le uova con la ricotta E vedrai che va
+meglio». La lista bianca dei verbi di chi scrive ne conosceva sette e spegneva
+tutti gli altri; le congiunzioni di DISCORSO venivano lette come elenchi di
+alimenti; e «è», che `normalizza` scrive «e», passava per congiunzione.
+
+⛔ E QUI UN FALSO ALLARME NON È «UNA DOMANDA IN PIÙ». Su `capisci` un rifiuto
+diventa una domanda, ma `impara-dal-nutrizionista.ts` fa `return 0` SENZA NOTIFICA:
+la nutrizionista scrive alla cliente, non si registra niente, e nessuno le chiede
+niente. È un silenzio in più, e il conto «meglio chiedere» lì non torna.
+
+⚠️ È la lezione che questo stesso file ha già scritto due volte — sul «senza
+glutine» il 31/8 e sui verbi «furbi»: «una guardia che blocca il caso normale non è
+prudente: è rotta, e sembra prudente». L'ho rifatta, con le stesse parole nel
+commento sopra.
+
+✅ QUELLO CHE RESTA, ED È LA COSA CHE MANCAVA:
+`frasi-normali-che-devono-passare.spec.ts` — trentasette frasi che una
+nutrizionista manderebbe davvero (nomi composti, forme colloquiali, refusi,
+congiunzioni di discorso, verbi diversi, accenti mancanti), tenute ferme come
+qualunque altra prova. Più i nove difetti qui sopra scritti con `it.failing`: la
+suite resta verde finché il difetto c'è, e diventa ROSSA il giorno che qualcuno lo
+corregge, obbligandolo a spostare la riga nel corpus.
+
+⚠️ Le mie prove di stanotte erano tutte costruite sui casi da BLOCCARE, ed erano
+verdi. La regressione l'ha trovata una revisione avversariale scrivendosi un
+corpus di frasi vere — cioè facendo la cosa che avrei dovuto fare prima di
+scrivere la guardia. Adesso quel corpus è nel repo: chi aggiunge una guardia a
+questo file aggiunge prima una frase lì.
+
+**Da fare**, e serve un lavoro di lingua fatto con calma, non una guardia:
+separare nella risalita gli articoli che APRONO il nome dalle preposizioni che ci
+stanno DENTRO, senza appoggiarsi a un elenco di verbi — «metti DELLA ricotta» e
+«la crema DI mandorle» si distinguono per cosa viene prima, non per la
+preposizione. La voce `la-e-nel-nome-tronca-in-silenzio` è tornata APERTA, col
+titolo che dice quanto è chiuso davvero: un verso su cinque.
+
+File: backend/src/food-swaps/frasi-normali-che-devono-passare.spec.ts (nuovo),
+backend/src/lavori/voci-iniziali.ts.
+⚠️ `impara-dalla-chat.ts` non è toccato: la correzione è stata tolta, non consegnata.
+
+Prove: 6774/6774 nelle quattro modalità, build e tsc puliti.

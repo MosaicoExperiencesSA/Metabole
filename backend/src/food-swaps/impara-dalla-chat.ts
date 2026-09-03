@@ -340,9 +340,133 @@ const ALL_INDIETRO = [
 ];
 
 /**
+ * ⛔ **CHI SCRIVE, davanti al nome: le radici dei verbi con cui una persona detta una sostituzione.**
+ *
+ * Nella forma rovesciata («Y al posto di X») il nome sta **prima** del verbo, quindi la risalita
+ * deve sapere dove finisce il piatto e comincia chi parla. ⚠️ **Radici, non parole intere**, come
+ * già fa `VERBI_CHE_NEGANO` venti righe più su: «metti», «mettiamo», «mettici» sono la stessa cosa,
+ * e un elenco di forme coniugate invecchia alla prima persona che scrive diversamente.
+ *
+ * ⛔ **E un verbo che manca non rompe niente**: la risalita continua e il nome esce come usciva
+ * prima — «metti l'orzo perlato» — cioè il comportamento di oggi. È la differenza fra questa lista
+ * e quella che avevo scritto il 2/9 sera: là un verbo mancante **spegneva** la frase, qui la lascia
+ * dov'era. Una lista incompleta che degrada al comportamento vecchio si può allungare con calma;
+ * una che rifiuta va allungata subito, e nessuno sa quando.
+ */
+/**
+ * ⛔ **CHI SCRIVE, davanti al nome: le forme INTERE dei verbi con cui si detta una sostituzione.**
+ *
+ * Nella forma rovesciata («Y al posto di X») il nome sta **prima** del verbo, quindi la risalita
+ * deve sapere dove finisce il piatto e comincia chi parla.
+ *
+ * ⛔ **PAROLE INTERE, NON RADICI, e questa è la seconda lezione della stessa settimana.** La prima
+ * stesura del 3/9 confrontava per prefisso, come fa `VERBI_CHE_NEGANO` venti righe più su. Ma là il
+ * prefisso *restringe* un rifiuto, qui *butta fuori* una parola dal nome — e la regola che quel
+ * blocco si è dato, testualmente, è: *«chi allunga questo elenco controlli prima i nomi del
+ * catalogo: una radice che combacia con un alimento vero rimette in piedi il difetto che l'elenco
+ * esiste per chiudere»*. Non l'avevo fatto, e la revisione avversariale ha trovato il conto:
+ *
+ *     «metti la **provola** al posto della mozzarella»      → prov  → non si impara più niente
+ *     «metti le **puntarelle** al posto della rucola»        → punt  → niente
+ *     «usa la **passata** di pomodoro al posto del sugo»     → passa → niente
+ *     «metti il **levistico** al posto del sedano»           → lev   → niente
+ *     «metti il **daikon** al posto del ravanello»           → dai   → niente
+ *     «metti la **provola affumicata** al posto della scamorza» → impara «affumicata»
+ *
+ * ⚠️ E **«passata di pomodoro» è un ingrediente di questo catalogo** (`prisma/data/
+ * simple_italian_catalog.json`): non un caso di scuola.
+ *
+ * ⛔ **E il silenzio non è innocuo.** Su `capisci` diventa un «non ci arrivo»; su
+ * `impara-dal-nutrizionista.ts` è un `return 0` **senza notifica**. È lo stesso costo asimmetrico
+ * per cui il 2/9 sera era stata tolta una guardia intera.
+ *
+ * ⚠️ **Un verbo che MANCA non rompe niente**: la risalita continua e il nome esce come usciva prima
+ * — «metti l'orzo perlato» — cioè il comportamento vecchio, e l'elenco si allunga con calma. ⛔ **Il
+ * verso pericoloso è la parola di TROPPO**, che non degrada a niente: cancella il risultato. Per
+ * questo si aggiungono forme coniugate vere, non pezzi di parola.
+ */
+const PAROLE_DI_CHI_SCRIVE = new Set([
+  'metti', 'mettici', 'mettiamo', 'metto', 'mettere', 'metterei', 'mettila', 'mettilo',
+  'ricorda', 'ricordati', 'ricordale', 'ricordo',
+  'usa', 'usiamo', 'usare', 'userei', 'usala', 'usalo',
+  'dai', 'dagli', 'dalle', 'dare', 'darei', 'diamo', 'diamole',
+  'prendi', 'prendiamo', 'prendere', 'prenderei',
+  'aggiungi', 'aggiungiamo', 'aggiungere',
+  'inserisci', 'inseriamo', 'inserire',
+  'sostituisci', 'sostituiamo', 'sostituire', 'sostituirei', 'sostituiscila', 'sostituiscilo',
+  'cambia', 'cambiamo', 'cambiare', 'cambierei', 'cambiala', 'cambialo',
+  'rimpiazza', 'rimpiazzare',
+  'proponi', 'proponiamo', 'proporrei', 'propongo',
+  'servi', 'serviamo', 'servire', 'servile', 'servigli',
+  'consiglio', 'consiglia', 'consigliamo', 'consiglierei', 'consigliare',
+  'prova', 'proviamo', 'provare', 'proverei', 'provala', 'provalo',
+  'facciamo', 'fai', 'fare', 'farei', 'faccia',
+  'lascia', 'lasciamo', 'lasciare', 'lascerei',
+  'tieni', 'teniamo', 'tenere', 'terrei',
+  'scegli', 'scegliamo', 'scegliere', 'sceglierei',
+  'alterna', 'alterniamo', 'alternare',
+  'togli', 'togliamo', 'togliere', 'toglierei',
+  'leva', 'leviamo', 'levare',
+  'preferisci', 'preferiamo', 'preferire', 'preferirei', 'preferisco',
+  'passa', 'passiamo', 'passare',
+  'punta', 'puntiamo', 'puntare',
+]);
+
+/**
+ * ⛔ **Confronto per parola intera.** Con `startsWith`, «provola» era «prov», «puntarelle» era
+ * «punt», «passata» era «passa»: alimenti veri scambiati per verbi e buttati fuori dal nome.
+ */
+const eDiChiScrive = (normalizzata: string): boolean => PAROLE_DI_CHI_SCRIVE.has(normalizzata);
+
+/**
+ * ⛔ **GLI ARTICOLI CHE APRONO IL NOME, separati dalle preposizioni che ci stanno DENTRO.**
+ *
+ * `ARTICOLI` li tiene insieme — a `nomeAlimento` serve così, perché lì si tratta di togliere quello
+ * che c'è **in testa** — ma nella risalita si comportano al contrario:
+ *
+ *     «per Anna **il** tacchino»   → l'articolo APRE il nome: prima c'è altro, e va lasciato fuori
+ *     «la crema **di** mandorle»   → la preposizione sta DENTRO: prima c'è ancora il nome
+ *     «il gelato **alla** crema»   → idem, ed è articolata: non basta guardare la forma
+ *
+ * ⚠️ È la separazione che la voce `la-e-nel-nome-tronca-in-silenzio` diceva servisse, e senza la
+ * quale il 2/9 sera ero finito a scrivere una guardia che spegneva le frasi normali.
+ */
+const ARTICOLI_CHE_APRONO = new Set([
+  'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', "un'", "l'",
+  /**
+   * ⛔ **I PARTITIVI SONO ARTICOLI, e aprono il nome esattamente come «la».** «metti **della**
+   * ricotta», «per Anna **del** pane integrale»: la prima stesura del 3/9 li aveva lasciati fuori
+   * — perché sembrano preposizioni — e il nome della cliente entrava nel piatto («Anna della
+   * ricotta»). ⚠️ Non è la forma della parola a decidere: `di` sta dentro il nome («crema **di**
+   * mandorle»), `della` lo apre.
+   */
+  'del', 'dello', 'della', 'dei', 'degli', 'delle', "dell'",
+  'tuo', 'tua', 'suo', 'sua', 'quel', 'quella', 'quello', 'questo', 'questa',
+]);
+
+/**
  * ⚠️ Nella forma rovesciata il pezzo di SINISTRA è la coda della frase che precede: «ti consiglio
  * il tacchino al posto del pollo» cattura «ti consiglio il tacchino». Il nome vero è in fondo, non
  * in testa: si tengono le ultime parole, non le prime.
+ *
+ * ⛔ **E L'ARTICOLO NON CHIUDE PIÙ DA SOLO** — 3/9, difetto misurato la notte prima su un corpus di
+ * frasi vere. `ARTICOLI` mette insieme due cose che nella risalita si comportano al contrario:
+ *
+ *     «metti **le** gallette»          → l'articolo APRE il nome, e prima c'è chi scrive
+ *     «la crema **di** mandorle»       → il «di» sta DENTRO, e prima c'è ancora il nome
+ *
+ * Fermandosi su tutti e due, di «crema di mandorle» restava **«mandorle»**, di «petto di tacchino»
+ * **«tacchino»**, di «cracker ai cereali» **«cereali»**: in italiano quei nomi sono ovunque, e la
+ * cliente riceveva l'ultima parola del piatto.
+ *
+ * ✅ Adesso l'articolo chiude **solo quando prima c'è chi scrive** (o la frase finisce): altrimenti
+ * la risalita continua, perché quel «di» era dentro al nome.
+ *
+ * ⛔ **E non è una guardia.** Il 2/9 sera avevo provato a chiudere lo stesso difetto rifiutando le
+ * frasi sospette: spegneva **ventuno frasi normali su trentasette**
+ * (`frasi-normali-che-devono-passare.spec.ts`). La differenza è che lì il dubbio diventava un
+ * silenzio, qui diventa una lettura migliore — e dove il verbo non si riconosce resta esattamente
+ * quella di prima.
  */
 function codaDellaFrase(pezzo: string): string {
   // ⚠️ I due punti e la virgola chiudono quello che c'era prima: in «Ricorda: tacchino al posto
@@ -350,14 +474,38 @@ function codaDellaFrase(pezzo: string): string {
   // imparata porta dentro il verbo di chi la scriveva.
   const ultimaProposizione = (pezzo ?? '').split(/[:,;]/).pop() ?? '';
   const parole = ultimaProposizione.replace(/[.!()"«»]/g, ' ').trim().split(/\s+/).filter(Boolean);
-  // Si risale finché le parole sembrano far parte del nome, al massimo PAROLE_MAX.
+  /**
+   * Si risale finché le parole sembrano far parte del nome, al massimo `PAROLE_MAX`.
+   *
+   * ⚠️ **Nessuna prova lo può uccidere, e il perché va detto giusto.** `nomeAlimento` taglia alla
+   * stessa lunghezza, ma **conta in modo diverso** — lui scarta l'articolo prima di contare, qui no
+   * — quindi togliere questo limite *cambia* dei risultati («un piatto di crema di mandorle» passa
+   * da «crema di mandorle» a «piatto di crema di»). Semplicemente non li cambia in nessuna frase
+   * che qualcuno abbia scritto in una prova: la prima stesura del commento diceva «non cambia
+   * nessun risultato», ed era falso.
+   */
   const tenute: string[] = [];
   for (let i = parole.length - 1; i >= 0 && tenute.length < PAROLE_MAX; i -= 1) {
     const n = normalizza(parole[i]);
     if (FINE_FRASE.has(n)) break;
+    /** ⛔ Chi scrive non entra nel nome, qualunque cosa venga dopo. */
+    if (eDiChiScrive(n)) break;
     tenute.unshift(parole[i]);
-    // L'articolo apre il nome: quello che c'è prima è un'altra cosa.
-    if (ARTICOLI.has(n)) break;
+    /**
+     * ⛔ **L'articolo VERO chiude il nome**: «per Anna **il** tacchino» è il tacchino, non «Anna il
+     * tacchino» — e quel nome è di una cliente, non di un piatto.
+     *
+     * ⚠️ Le **preposizioni** (`di`, `del`, `ai`, `alla`…) non chiudono niente: stanno dentro al
+     * nome, e la risalita continua finché non trova un articolo vero, chi scrive, o la fine.
+     */
+    if (ARTICOLI_CHE_APRONO.has(n)) break;
+    /**
+     * ⛔ **E l'articolo ELIDATO è attaccato al nome**, quindi non combacia con nessuna voce
+     * dell'elenco: «per Anna **un'**insalata di farro» leggeva «Anna un'insalata di farro», col
+     * nome della cliente dentro al piatto. ⚠️ Stessa regex di `senzaArticoloAttaccato`, che copre
+     * anche l'apostrofo tipografico — chi scrive dal telefono lo prende senza accorgersene.
+     */
+    if (parole[i] !== senzaArticoloAttaccato(parole[i])) break;
   }
   return tenute.join(' ');
 }

@@ -1,0 +1,90 @@
+«Crema di mandorle» non diventa più «mandorle»: il nome composto si legge intero
+
+Chiusa la famiglia più grossa del troncamento silenzioso, e ci sono voluti due
+tentativi sbagliati — tutti e due trovati da una revisione avversariale, mai dalle
+mie prove.
+
+⛔ IL DIFETTO. Nella forma rovesciata («Y al posto di X») il nome che entra si
+legge risalendo dal fondo, perché davanti c'è il verbo di chi scrive.
+`codaDellaFrase` si fermava su `ARTICOLI`, che tiene insieme due cose che
+risalendo si comportano al contrario:
+
+    «metti LE gallette»        → l'articolo APRE il nome: prima c'è chi scrive
+    «la crema DI mandorle»     → la preposizione sta DENTRO: prima c'è il nome
+
+Risultato: di «crema di mandorle» restava «mandorle», di «petto di tacchino»
+«tacchino», di «cracker ai cereali» «cereali». In italiano quei nomi sono ovunque
+— latte di soia, filetto di merluzzo, passata di pomodoro — e la cliente riceveva
+l'ultima parola del piatto.
+
+✅ CORRETTA LA LETTURA, NON MESSA UNA GUARDIA. Adesso chiudono il nome solo gli
+articoli veri e chi scrive; le preposizioni no. Dieci frasi che ieri notte erano
+scritte come difetti noti (`it.failing`) sono diventate rosse tutte insieme — la
+sentinella ha fatto il suo mestiere — e sono salite nel corpus verde.
+
+⛔ E I DUE TENTATIVI SBAGLIATI, perché contano più della correzione.
+
+(1) Il 2/9 sera avevo messo una GUARDIA: «se il nome sembra tagliato, non
+rispondere e chiedi». Spegneva VENTUNO frasi normali su trentasette — «prova
+della ricotta al posto dello yogurt», «usa il latte di soia invece del latte
+vaccino», «Sostituisci le uova con la ricotta E vedrai che va meglio». L'ho tolta,
+e al suo posto è nato `frasi-normali-che-devono-passare.spec.ts`: il corpus che
+mancava.
+
+(2) Il 3/9 mattina il confronto sui verbi di chi scrive era PER PREFISSO, come fa
+`VERBI_CHE_NEGANO`. Ma là il prefisso restringe un rifiuto, qui butta fuori una
+parola dal nome — e mangiava alimenti veri:
+
+    «metti la PROVOLA al posto della mozzarella»   → prov  → non si impara niente
+    «metti le PUNTARELLE al posto della rucola»    → punt  → niente
+    «usa la PASSATA di pomodoro al posto del sugo» → passa → niente
+    «metti il LEVISTICO al posto del sedano»       → lev   → niente
+    «metti il DAIKON al posto del ravanello»       → dai   → niente
+    «metti la PROVOLA AFFUMICATA al posto della scamorza» → impara «affumicata»
+
+⚠️ «passata di pomodoro» è un ingrediente di QUESTO catalogo
+(`prisma/data/simple_italian_catalog.json`), non un caso di scuola. E la regola
+era già scritta venti righe sopra, nello stesso file: «chi allunga questo elenco
+controlli prima i nomi del catalogo: una radice che combacia con un alimento vero
+rimette in piedi il difetto che l'elenco esiste per chiudere». Non l'avevo fatto.
+Adesso il confronto è per PAROLA INTERA, e un verbo che manca degrada al
+comportamento vecchio invece di cancellare il risultato.
+
+⚠️ E I PARTITIVI SONO ARTICOLI. Lasciati fuori perché «sembrano preposizioni»,
+facevano entrare il nome della cliente nel piatto: «per Anna della ricotta»
+imparava «Anna della ricotta». Come l'articolo elidato attaccato — «per Anna
+un'insalata di farro» — che non combacia con nessun elenco e adesso si riconosce
+con la stessa regex di `senzaArticoloAttaccato`, apostrofo tipografico compreso.
+
+⛔ E IL CORPUS ADESSO È ANCORATO. Trentasette righe su quarantuno confrontavano
+con una SOTTOSTRINGA (`/bresaola/i`): «ti consiglio della bresaola» imparava
+«consiglio della bresaola» e la prova restava verde. Cioè il difetto documentato
+dal file passava inosservato in trentasette righe su quarantuno. Adesso ogni riga
+asserisce il nome INTERO, e il corpus è cresciuto a cinquantasei frasi — provola,
+puntarelle, partitivi, articoli elidati, nomi propri di clienti, alimenti che
+cominciano come un verbo.
+
+⚠️ E DUE COSE RESTANO APERTE, scritte dove si vedono:
+· la coda di contesto sul secondo nome — «sostituisci il pane con le gallette A
+  COLAZIONE» impara «gallette a colazione». Una riga del corpus lo tiene fermo con
+  regex ancorata invece di nasconderlo;
+· un saluto davanti al nome ci finisce dentro — «ciao Anna Maria buongiorno
+  gallette» — scritto con `it.failing`: verde finché il difetto c'è, ROSSO il
+  giorno che qualcuno lo corregge. La cura non è allungare un elenco di saluti: è
+  capire dove COMINCIA il nome.
+
+⚠️ E una nota onesta su una riga che nessuna prova uccide: il limite di quattro
+parole dentro `codaDellaFrase`. Il primo commento diceva «non cambia nessun
+risultato perché `nomeAlimento` taglia comunque»: è falso, i due contano in modo
+diverso — senza quel limite «un piatto di crema di mandorle» diventa «piatto di
+crema di». Semplicemente nessuna frase scritta nel corpus lo distingue, ed è
+scritto così.
+
+File: backend/src/food-swaps/impara-dalla-chat.ts,
+backend/src/food-swaps/frasi-normali-che-devono-passare.spec.ts,
+backend/src/lavori/voci-iniziali.ts.
+
+Prove: 6797/6797 nelle quattro modalità, build e tsc puliti. Dodici mutazioni su
+dodici uccise — fra cui il ritorno al confronto per prefisso, i partitivi tolti
+dagli articoli, l'articolo elidato non riconosciuto, e le preposizioni che tornano
+a chiudere il nome.
