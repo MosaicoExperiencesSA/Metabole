@@ -128,7 +128,7 @@ export default function App() {
         ⚠️ Stesso permesso del catalogo diete (`diets_catalog`): è lo stesso oggetto, guardato da
         un'altra angolazione — chi può entrare nel catalogo può scriverne le descrizioni.
       */}
-      <Route path="/descrizioni-diete" element={<Protected title="Descrizioni diete" pageKey="diets_catalog"><DescrizioniDiete /></Protected>} />
+      <Route path="/descrizioni-diete" element={<Protected title="Descrizioni diete" pageKey="diet_descriptions"><DescrizioniDiete /></Protected>} />
       <Route path="/diete" element={<Protected title="Catalogo diete" pageKey="diets_catalog"><Diete /></Protected>} />
       <Route path="/ricette" element={<Protected title="Catalogo ricette" pageKey="recipes"><Ricette /></Protected>} />
       <Route path="/tag-allergeni" element={<Protected title="Allergeni ricette" pageKey="allergens"><TagAllergeni /></Protected>} />

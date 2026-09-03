@@ -33,6 +33,32 @@ export class DietsController {
     return this.catalog.listDiets({ status });
   }
 
+  /**
+   * ⛔ **LA LETTURA DELLA PAGINA «DESCRIZIONI DIETE» — una rotta sua, e più stretta.**
+   *
+   * Fino al 3/9 la pagina chiamava `GET /diets`, cioè si scaricava **tutto il catalogo** per
+   * raggrupparlo nel browser: righe intere con giornate, regole e stato, per mostrarne cinque
+   * campi di testo. ⚠️ E soprattutto la legava a `diets_catalog`: finché la lettura passava di lì,
+   * separare la chiave sulla sola scrittura sarebbe stata una separazione a metà — la pagina non si
+   * sarebbe aperta lo stesso.
+   *
+   * ⛔ **Rende solo i campi che la pagina mostra.** Non è un'ottimizzazione: è la stessa ragione per
+   * cui esiste la chiave. Una rotta che rende tutto è una rotta che dà tutto, e allora tanto valeva
+   * lasciare la chiave del catalogo.
+   *
+   * ⛔ **E STA PRIMA DI `@Get(':id')`, non è uno stile: è necessità.** Nest cerca le rotte
+   * nell'ordine in cui sono dichiarate, e `:id` combacia anche con `descrizioni` — dichiarata dopo,
+   * questa rotta non verrebbe mai raggiunta: risponderebbe l'altra, con un 404 su una dieta che si
+   * chiama «descrizioni». ⚠️ È la stessa lezione già scritta venti righe sotto per
+   * `famiglia/product`, e l'ho rifatta lo stesso: c'è una prova adesso.
+   */
+  @RequirePage('diet_descriptions')
+  @Roles('nutritionist', 'head_nutritionist', 'admin')
+  @Get('descrizioni')
+  descrizioni() {
+    return this.catalog.listDescrizioniDiete();
+  }
+
   @Roles('nutritionist', 'head_nutritionist', 'admin')
   @Get(':id')
   get(@Param('id') id: string) {
@@ -80,11 +106,25 @@ export class DietsController {
    * fatta. ⛔ Qui si scrivono solo i **tre campi del testo** (`clientName`, `clientDescription`,
    * `seasonalTag`): la visibilità alle clienti resta al capo nutrizionista, e non passa da qui.
    */
+  /**
+   * ⛔ **CHIAVE PROPRIA DAL 3/9: `diet_descriptions`, non `diets_catalog`.**
+   *
+   * La pagina «Descrizioni diete» girava sul permesso di **un'altra pagina** — non si poteva dare a
+   * una nutrizionista i testi senza darle il catalogo, né toglierle il catalogo lasciandole i
+   * testi. `CLAUDE.md`: *«ogni pagina nuova del backoffice ha una chiave di permesso SUA»*.
+   *
+   * ⚠️ La chiave del **metodo** batte quella della **classe** (`getAllAndOverride` in
+   * `page.guard.ts`): questa rotta chiede `diet_descriptions` in gestione, e `diets_catalog` non
+   * c'entra più. È l'unico modo di separarle davvero — e senza quel comportamento del guardiano la
+   * separazione sarebbe stata solo apparente.
+   */
+  @RequirePage('diet_descriptions', 'manage')
   @Roles('nutritionist', 'head_nutritionist', 'admin')
   @Patch('famiglia/product')
   updateFamilyProduct(@Body() dto: UpdateFamilyProductDto, @CurrentUser() user: AuthUser) {
     return this.catalog.updateFamilyProduct(user.sub, dto);
   }
+
 
   /**
    * ⛔ **APERTA ANCHE ALLA NUTRIZIONISTA** (deciso da Simone il 22/8: «la nutrizionista scrive il

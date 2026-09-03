@@ -1,0 +1,67 @@
+================================================================================
+«Descrizioni diete»: la sua chiave, la sua rotta, e il registro in una andata sola
+================================================================================
+
+Due dei tre punti che `descrizioni-diete-cosa-resta` teneva aperti dal 28/8. Il
+terzo è una domanda di prodotto e resta di Simone.
+
+① LA PAGINA HA LA SUA CHIAVE: `diet_descriptions`
+Girava su `diets_catalog`, cioè il permesso di UN'ALTRA PAGINA: non si poteva dare
+a una nutrizionista i testi senza darle il catalogo, né toglierle il catalogo
+lasciandole i testi. CLAUDE.md: «ogni pagina nuova del backoffice ha una chiave di
+permesso SUA».
+
+⛔ E NON passa da PAGE_GRANTS, che era la scorciatoia contro cui la voce stessa
+metteva in guardia: il guardiano prova la chiave concessa ALLO STESSO LIVELLO
+della rotta, quindi una riga `diet_descriptions: ['diets_catalog']` in GESTIONE
+farebbe passare anche POST /diets, PATCH /diets/:id e DELETE /diets/:id —
+ricreando AL CONTRARIO l'accoppiamento che la separazione scioglie: dare i testi
+finirebbe per dare il catalogo.
+Il legame giusto è INHERIT_DEFAULTS, che vale ALLA NASCITA della riga e non è
+permanente: nessuno perde la pagina, e da lì in poi la figlia vive per conto suo.
+
+② E LA LETTURA HA UNA ROTTA SUA: GET /diets/descrizioni
+Rende solo i campi che la pagina mostra. Finché leggeva da GET /diets restava
+legata al catalogo, e la separazione sarebbe stata a metà — la pagina non si
+sarebbe aperta lo stesso a chi ha i testi e non il catalogo. La voce lo diceva
+già: «sarebbe comunque meglio, oggi la pagina si scarica tutto il catalogo per
+raggrupparlo nel browser».
+Non è un'ottimizzazione: UNA ROTTA CHE RENDE TUTTO DÀ TUTTO, e allora tanto valeva
+lasciare la chiave del catalogo.
+
+⚠️ La separazione dipende da un dettaglio del guardiano — getAllAndOverride
+([handler, class]), cioè LA CHIAVE DEL METODO BATTE QUELLA DELLA CLASSE — e c'è
+una prova sui decoratori che tiene ferma proprio quella.
+
+⛔ E LA ROTTA STA PRIMA DI @Get(':id')
+L'avevo scritta in fondo, dove `:id` l'avrebbe intercettata leggendo «descrizioni»
+come un id: la stessa lezione già scritta venti righe sopra per `famiglia/product`,
+rifatta lo stesso. Adesso c'è una prova — e la sua PRIMA STESURA cercava il
+decoratore con indexOf e trovava la MENZIONE DENTRO IL COMMENTO che spiega la
+regola, dicendo «sta dopo» di una rotta che sta prima. Un test che legge un
+sorgente deve distinguere il codice dalla prosa che lo racconta.
+
+③ IL REGISTRO: DICIOTTO ANDATE AL DATABASE SONO DIVENTATE UNA
+Erano un `await` in ciclo DOPO la transazione: diciotto finestre in cui il
+processo può morire lasciando il registro a metà, invece di una. Adesso `logMany`
+fa una createMany sola, e il suo ripiego riga-per-riga scatta solo se quella
+fallisce. Le righe restano DICIOTTO, una per variante: è quello che conta per chi
+filtra il log sulla dieta #7.
+Resta best-effort, e va detto invece che promesso: logMany assorbe i propri errori
+come log, perché una riga di registro che non passa non deve far fallire un
+salvataggio clinico. Cambia la FINESTRA, non la garanzia.
+
+E LE TRE SENTINELLE SI SONO ACCESE COME DEVONO
+Dichiarando la chiave prima di agganciare la guardia, `chiavi-senza-guardia.spec`
+è diventata rossa in tre punti nello stesso momento: l'elenco, il conteggio, e «ogni
+chiave senza guardia dice perché». È esattamente il caso per cui quella prova
+esiste.
+
+MISURATO
+7028/7028 su 424 suite nelle quattro modalità; build ok; tsc solo i 2 errori
+preesistenti; backoffice tsc -b pulito e 248/248 vitest.
+SEI mutazioni su sei uccise — compresa «la chiave diventa un grantor del catalogo».
+⚠️ Una era sopravvissuta perché la mutazione stessa era sbagliata: creava una
+costante nuova invece di toccare PAGE_GRANTS. Rifatta.
+
+Lista lavori: 23 voci aperte su 222.

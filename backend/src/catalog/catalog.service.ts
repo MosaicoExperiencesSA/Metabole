@@ -100,6 +100,31 @@ export class CatalogService {
     });
   }
 
+  /**
+   * ⛔ **LE RIGHE DELLA PAGINA «DESCRIZIONI DIETE», e solo quelle.**
+   *
+   * La pagina chiamava `listDiets`, cioè si scaricava **tutto il catalogo** — giornate, regole,
+   * autore, stato — per mostrarne cinque campi di testo. ⚠️ Non è (solo) una questione di byte: una
+   * rotta che rende tutto **dà** tutto, e allora tanto valeva lasciarle la chiave del catalogo. La
+   * chiave propria e questa `select` sono la stessa decisione vista da due parti.
+   *
+   * ⚠️ **`status` serve e resta**: `raggruppaFamiglie` non conta le varianti archiviate, che
+   * `archiveDiet` marca `rejected` senza uno stato suo — toglierlo qui farebbe tornare rosse per
+   * sempre le famiglie con varianti archiviate. E `clientVisible` serve a distinguere «accesa» da
+   * «bozza spuntata».
+   */
+  async listDescrizioniDiete() {
+    return this.prisma.diet.findMany({
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true, name: true, style: true, regime: true, objective: true,
+        mealsPerDay: true, fasting: true, status: true,
+        clientName: true, clientDescription: true, highlights: true,
+        seasonalTag: true, clientVisible: true,
+      },
+    });
+  }
+
   /** Catalogo pubblicato: solo diete approvate. */
   async catalog() {
     return this.listDiets({ status: 'approved' });
@@ -465,18 +490,27 @@ export class CatalogService {
      *
      * ⚠️ **L'audit sta FUORI dalla transazione, ed è un ripiego dichiarato**: `AuditService.log`
      * assorbe i propri errori di proposito (una riga di registro che non passa non deve far fallire
-     * un salvataggio clinico). Quindi le diciotto scritture possono riuscire e il «prima» perdersi.
-     * È il verso giusto in cui sbagliare, ma è un best-effort e va detto invece che promesso.
+     * un salvataggio clinico). Quindi le scritture possono riuscire e il «prima» perdersi. È il
+     * verso giusto in cui sbagliare, ma è un best-effort e va detto invece che promesso.
+     *
+     * ✅ **DICIOTTO ANDATE AL DATABASE SONO DIVENTATE UNA** (3/9). Erano un `await` in ciclo: su una
+     * famiglia larga, diciotto round-trip in fila **dopo** che la transazione ha già chiuso —
+     * diciotto finestre in cui il processo può morire e lasciare il registro a metà, invece di una.
+     * `logMany` fa una `createMany` sola, e il suo ripiego riga-per-riga scatta **solo** se quella
+     * fallisce: la voce `descrizioni-diete-cosa-resta` diceva *«è il verso in cui guardare»*, ed era
+     * giusto.
+     *
+     * ⛔ **Resta best-effort, e la frase sopra resta vera**: `logMany` assorbe i propri errori come
+     * `log`. Quello che cambia è la **finestra**, non la garanzia — e prometterla sarebbe peggio
+     * che non averla.
      */
-    for (const v of varianti) {
-      await this.audit.log({
-        action: 'catalog.diet.product.famiglia',
-        actorId: userId,
-        entityType: 'diet',
-        entityId: v.id,
-        metadata: { famiglia, stile, campi, varianti: varianti.length, prima: v },
-      });
-    }
+    await this.audit.logMany(varianti.map((v) => ({
+      action: 'catalog.diet.product.famiglia',
+      actorId: userId,
+      entityType: 'diet',
+      entityId: v.id,
+      metadata: { famiglia, stile, campi, varianti: varianti.length, prima: v },
+    })));
     return { famiglia, stile, aggiornate: varianti.length, campi };
   }
 

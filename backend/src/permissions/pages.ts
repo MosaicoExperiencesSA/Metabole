@@ -100,6 +100,23 @@ export const BACKOFFICE_PAGES = [
    * le due `GET` e non trova la porta: è coerente, ma va saputo.
    */
   'menu_a_mano',
+  /**
+   * **LE DESCRIZIONI DELLE DIETE** — i testi che la cliente legge in app (3/9).
+   *
+   * ⚠️ Chiave PROPRIA, e chiude un difetto che `descrizioni-diete-cosa-resta` denuncia dal 28/8: la
+   * pagina girava su `diets_catalog`, cioè **il permesso di un'altra pagina**. Non si poteva dare a
+   * una nutrizionista i testi senza darle il catalogo, né toglierle il catalogo lasciandole i
+   * testi. `CLAUDE.md`: *«ogni pagina nuova del backoffice ha una chiave di permesso SUA»*.
+   *
+   * ⛔ **E NON passa da `PAGE_GRANTS`**, che sarebbe stata la scorciatoia. Il guardiano prova la
+   * chiave concessa **allo stesso livello** della rotta: una riga `diet_descriptions:
+   * ['diets_catalog']` farebbe passare `GET /diets` in *vista*, ma in *gestione* farebbe passare
+   * anche `POST /diets`, `PATCH /diets/:id` e `DELETE /diets/:id`. Cioè ricreerebbe **al
+   * contrario** l'accoppiamento che questa separazione esiste per sciogliere: dare i testi
+   * finirebbe per dare il catalogo. Il legame giusto è `INHERIT_DEFAULTS`, che vale **alla
+   * nascita** e non è un legame permanente.
+   */
+  'diet_descriptions',
   'food_swaps',
   /**
    * L'assistente della nutrizionista (Vera): la pagina «Assistente».
@@ -454,6 +471,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     health_documents: { view: true, manage: true },
     // ⚠️ È il suo mestiere: è lei che il 31/8 sarebbe uscita in cinque minuti da una cliente senza menu.
     menu_a_mano: { view: true, manage: true },
+    diet_descriptions: { view: true, manage: true },
   },
   head_nutritionist: {
     // Come per la nutrizionista: le attività dei suoi quattro tipi. Vedi la nota qui sopra.
@@ -485,6 +503,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
     menu_a_mano: { view: true, manage: true },
+    diet_descriptions: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista
     engine_config: { view: true },
     engine_rules: { view: true, manage: true }, // regole del motore: le gestisce SOLO il capo nutrizionista
@@ -578,6 +597,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
     dev_backlog: { view: true, manage: true },
     menu_a_mano: { view: true, manage: true },
+    diet_descriptions: { view: true, manage: true },
   },
 };
 
@@ -632,6 +652,18 @@ export const INHERIT_DEFAULTS: Partial<Record<PageKey, PageKey>> = {
   roles: 'permissions',
   creation_validation: 'diets_catalog',
   diet_workspace: 'diets_catalog',
+  /**
+   * ⛔ **`diet_descriptions` eredita, e questo è il verso giusto** (3/9). La pagina girava su
+   * `diets_catalog`: separarla senza eredità toglierebbe la voce a chi oggi ce l'ha, e la promessa
+   * di `INHERIT_DEFAULTS` è che *«separare una schermata nei Permessi non toglie accesso a
+   * nessuno»*.
+   *
+   * ⚠️ **Non è un legame permanente**, ed è la differenza con `PAGE_GRANTS`: vale alla **nascita**
+   * della riga, poi la figlia vive per conto suo — che è il motivo per cui separare la schermata
+   * serve a qualcosa. E **non** è una pagina hub: non concede niente a nessuno, quindi non sta in
+   * `NON_EREDITANO`.
+   */
+  diet_descriptions: 'diets_catalog',
 };
 
 /**

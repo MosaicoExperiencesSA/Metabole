@@ -62,8 +62,17 @@ export function DescrizioniDiete() {
    * ⛔ **Il pulsante e la rotta si sono mossi INSIEME** (`catalog.controller.ts`): aprire solo qui
    * avrebbe rifatto esattamente il difetto che questa nota descriveva.
    */
-  const { user } = useAuth();
-  const puoScrivere = eNutrizionista(user?.role) || user?.role === 'admin';
+  const { user, can } = useAuth();
+  /**
+   * ⛔ **Il permesso della SUA chiave, dal 3/9.** Era un elenco di ruoli scritto qui: adesso la
+   * pagina ha `diet_descriptions`, e il pulsante segue la casella — o si torna a un pulsante che si
+   * vede e risponde 403, che è il difetto corretto stamattina.
+   *
+   * ⚠️ Resta il ruolo come rete: il `PageGuard` è permissivo se il database non risponde, e i tre
+   * campi del testo li scrivono comunque solo queste persone.
+   */
+  const puoScrivere = can('diet_descriptions', 'manage')
+    && (eNutrizionista(user?.role) || user?.role === 'admin');
   const [filtro, setFiltro] = useState('');
   const [soloBuchi, setSoloBuchi] = useState(false);
   /** ⚠️ Spento: le famiglie che chiudono non si scrivono più. Ma si possono rivedere, non spariscono. */
@@ -79,7 +88,14 @@ export function DescrizioniDiete() {
 
   async function carica() {
     try {
-      setRighe(await api<DietRow[]>('/diets'));
+      /**
+       * ⛔ **`/diets/descrizioni`, non `/diets`** (3/9). Questa pagina ha adesso una chiave sua
+       * (`diet_descriptions`): finché leggeva dal catalogo restava legata a `diets_catalog`, e la
+       * separazione sarebbe stata a metà — la pagina non si sarebbe aperta lo stesso a chi ha i
+       * testi e non il catalogo. ⚠️ E la rotta nuova rende **solo i campi che questa pagina
+       * mostra**: una rotta che rende tutto dà tutto.
+       */
+      setRighe(await api<DietRow[]>('/diets/descrizioni'));
       setError(null);
     } catch (e) {
       setRighe([]);

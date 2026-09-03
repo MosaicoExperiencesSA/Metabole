@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **«Descrizioni diete» ha la sua chiave, la sua rotta e il registro in una andata
+  sola.** Girava su `diets_catalog`, cioè il permesso di **un'altra pagina**: non si poteva dare a
+  una nutrizionista i testi senza darle il catalogo. ⛔ E **non** passa da `PAGE_GRANTS`, che era la
+  scorciatoia contro cui la voce stessa metteva in guardia — in *gestione* farebbe passare anche
+  `POST`/`PATCH`/`DELETE /diets`, ricreando **al contrario** l'accoppiamento. Il legame giusto è
+  `INHERIT_DEFAULTS`, che vale **alla nascita** e non è permanente.
+  ⚠️ **E la lettura ha una rotta sua**, che rende solo i campi che la pagina mostra: finché leggeva
+  da `GET /diets` restava legata al catalogo. *Una rotta che rende tutto dà tutto.*
+  ⛔ La rotta nuova sta **prima di `@Get(':id')`** — l'avevo scritta in fondo, dove `:id` l'avrebbe
+  intercettata: la stessa lezione già scritta venti righe sopra, rifatta lo stesso. ⚠️ E la prima
+  stesura della prova cercava il decoratore con `indexOf` e trovava la **menzione dentro il
+  commento** che spiega la regola: un test che legge un sorgente deve distinguere il codice dalla
+  prosa che lo racconta.
+  ✅ Il registro: diciotto `await` in fila dopo la transazione sono diventati una `createMany`. Le
+  righe restano diciotto — è quello che conta per chi filtra il log — e resta best-effort: cambia la
+  finestra, non la garanzia.
+  🧪 7028/7028, 6 mutazioni su 6 uccise. ⚠️ E le tre sentinelle sulle chiavi senza guardia si sono
+  accese davvero, dichiarando la chiave prima di agganciarla.
+
 - `[Sviluppo]` ✅ **«ok» non riceve più «non ci arrivo».** Quattro delle venticinque frasi non capite
   in novanta giorni erano cortesie — «ok», «ok ciao», «Quale?», «ok annulla tutto». ⚠️ Sembravano le
   meno importanti e sono quelle che fanno sembrare l'agente stupido. Adesso ognuna ha una risposta

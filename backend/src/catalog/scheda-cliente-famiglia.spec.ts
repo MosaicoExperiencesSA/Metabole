@@ -30,7 +30,7 @@ const VARIANTI = Array.from({ length: 18 }, (_, i) => ({
 }));
 
 function crea(opzioni?: { varianti?: unknown[] }) {
-  const audit = { log: jest.fn() };
+  const audit = { log: jest.fn(), logMany: jest.fn() };
   const prisma = {
     diet: {
       /**
@@ -214,9 +214,16 @@ describe('⛔ scrivere per famiglia: tutte e diciotto, o nessuna', () => {
      * agganciata alla prima variante che tornava dal database: chi apriva il log filtrando sulla
      * dieta #7 — quella su cui era arrivata la segnalazione — non trovava niente, e diciotto diete
      * risultavano cambiate da nessuno.
+     *
+     * ✅ **E adesso in UNA andata al database** (3/9): erano diciotto `await` in fila **dopo** la
+     * transazione, cioè diciotto finestre in cui il processo può morire lasciando il registro a
+     * metà. ⚠️ Le righe restano diciotto — è quello che conta per chi legge il log — ma la chiamata
+     * è una: `logMany`. ⛔ Resta best-effort come prima: cambia la finestra, non la garanzia.
      */
-    expect(audit.log).toHaveBeenCalledTimes(18);
-    const righe = audit.log.mock.calls.map(([r]) => r as { action: string; entityId: string; metadata: Record<string, unknown> });
+    expect(audit.logMany).toHaveBeenCalledTimes(1);
+    expect(audit.log).not.toHaveBeenCalled();
+    const righe = (audit.logMany.mock.calls[0][0] as { action: string; entityId: string; metadata: Record<string, unknown> }[]);
+    expect(righe).toHaveLength(18);
     expect(new Set(righe.map((r) => r.entityId)).size).toBe(18);
     expect(righe[0].action).toBe('catalog.diet.product.famiglia');
     expect(righe[0].metadata.campi).toEqual(['clientDescription']);

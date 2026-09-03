@@ -92,7 +92,7 @@ export const NAV: NavSection[] = [
       { key: 'diets_catalog', label: 'Catalogo diete', to: '/diete', icon: 'ti-salad' },
       { key: 'recipes', label: 'Catalogo ricette', to: '/ricette', icon: 'ti-tools-kitchen-2' },
       // ⚠️ Stessa `pageKey` del catalogo diete: è lo stesso oggetto visto dal lato del testo.
-      { key: 'diets_catalog', label: 'Descrizioni diete', to: '/descrizioni-diete', icon: 'ti-file-description' },
+      { key: 'diet_descriptions', label: 'Descrizioni diete', to: '/descrizioni-diete', icon: 'ti-file-description' },
       { key: 'allergens', label: 'Allergeni ricette', to: '/tag-allergeni', icon: 'ti-alert-triangle' },
       { key: 'colazioni', label: 'Colazioni', to: '/colazioni', icon: 'ti-coffee' },
       { key: 'equivalence_groups', label: 'Gruppi di equivalenza', to: '/gruppi-equivalenza', icon: 'ti-arrows-shuffle' },
