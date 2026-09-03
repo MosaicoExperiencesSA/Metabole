@@ -14,6 +14,7 @@
  * registro smette di raccontare cosa è successo davvero.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { diceDiFermarsi, leggiCortesia, rispostaCortesia } from './cortesie';
 import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
 import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
@@ -289,10 +290,32 @@ export class VeraChatService {
       if ((await this.senzaNome(nutrizionistaId)) && estraiNome(frase)) {
         return this.impostaNome(nutrizionistaId, frase);
       }
-      // «annulla» con niente in corso: dirlo — «non ci arrivo» sarebbe vero e fuorviante.
-      if (/\b(annulla|lascia stare|lascia perdere|ferma tutto)\b/i.test(frase)) {
-        return { testo: testi.nienteDaAnnullare(), esito: 'in_corso' };
-      }
+      /**
+       * ⛔ **LE CORTESIE — «ok», «ok ciao», «grazie», «Quale?», «annulla tutto» con niente in corso.**
+       *
+       * Quattro delle venticinque frasi non capite in novanta giorni erano queste. ⚠️ Sembrano le
+       * meno importanti e sono quelle che fanno sembrare l'agente stupido: *«ok» che riceve «non ci
+       * arrivo» è la risposta che una persona racconta agli altri.*
+       *
+       * ⚠️ **Sta qui, in questo ramo, e non in `capisci`**: questo è il punto in cui si sa che
+       * **non c'è niente in sospeso**. Durante una conferma «ok» vuol dire **sì** e lo legge
+       * `leggiConferma` — leggerlo come cortesia là vorrebbe dire buttare via una conferma in
+       * silenzio, cioè una regola che la nutrizionista crede scritta e non lo è.
+       *
+       * ⚠️ E sta **prima** della coda del capo e della seconda lettura, come già faceva «annulla»,
+       * per la ragione scritta lì sotto: sono risposte **certe** a frasi che `capisci` non
+       * riconosce, e niente di incerto deve passargli davanti.
+       *
+       * ⛔ **«Annulla» resta una regola A PARTE, e più larga.** Vale **ovunque** nella frase, perché
+       * chi lo scrive vuole che ci si fermi qualunque cosa venga dopo — la frase vera che l'ha
+       * insegnato è «lascia stare, ti chiamo Lucia», che whole-phrase sarebbe scivolata fino a far
+       * proporre a Vera di ribattezzarsi. Le cortesie invece si riconoscono **solo da sole**: «ok»
+       * dentro «ok togli il tonno» è un intercalare, e prenderlo vorrebbe dire mangiarsi
+       * l'istruzione. Le due regole stanno **nello stesso modulo**, vicine, coi loro perché.
+       */
+      if (diceDiFermarsi(frase)) return { testo: testi.nienteDaAnnullare(), esito: 'in_corso' };
+      const cortesia = leggiCortesia(frase);
+      if (cortesia) return { testo: rispostaCortesia(cortesia), esito: 'in_corso' };
       // Il capo che scrive «cosa c'è da vedere?» non sta dettando una regola: sta chiedendo la coda.
       // Si prova quella PRIMA di rispondere «non ho capito», che sarebbe vero e inutile.
       const prossima = await this.cosaTiPorto(nutrizionistaId);

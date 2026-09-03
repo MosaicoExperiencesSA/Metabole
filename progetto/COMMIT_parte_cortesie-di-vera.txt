@@ -1,0 +1,55 @@
+================================================================================
+Le cortesie di Vera: «ok» non riceve più «non ci arrivo»
+================================================================================
+
+Dalla pagina «frasi che non ho capito» (25 in 90 giorni), quattro erano cortesie:
+«ok», «ok ciao», «Quale?», «ok annulla tutto».
+
+Sembravano le meno importanti, e sono quelle che fanno sembrare l'agente stupido:
+«ok» che riceve «non ci arrivo» è la risposta che una persona racconta agli altri.
+
+OGNUNA HA UNA RISPOSTA SUA
+Un unico «va bene» sarebbe cortese e inutile.
+  · presa d'atto → «Va bene — anche se non c'era niente in sospeso da confermare».
+    Chi scrive «ok» a vuoto quasi sempre CREDE di stare rispondendo a una domanda
+    che non vede più: un «va bene» e basta la lascerebbe convinta di aver
+    confermato qualcosa;
+  · congedo → «Ciao! Quando ti serve sono qui» (niente «a presto» promesso: non è
+    lei a decidere quando si torna);
+  · grazie → «Di niente», con la frase d'esempio;
+  · «Quale?» → «non so a cosa ti riferisci», NON «non ci arrivo»: quella frase è
+    chiarissima, è il contesto che manca.
+
+⛔ LA COSA CHE CONTA DI PIÙ È DOVE NON INTERVENGONO
+Dentro una conferma «ok» vuol dire SÌ, e lo legge `leggiConferma`: leggerlo là
+come cortesia vorrebbe dire BUTTARE VIA UNA CONFERMA IN SILENZIO — cioè una regola
+che la nutrizionista crede scritta e non lo è. Il modulo si chiama solo dal ramo in
+cui si sa che non c'è niente in sospeso, e una mutazione che lo sposta dentro la
+conferma è uccisa.
+
+⛔ E «FERMATI» È UNA REGOLA A PARTE, PIÙ LARGA
+Le cortesie si riconoscono SOLO DA SOLE: «ok» dentro «ok togli il tonno» è un
+intercalare, e prenderlo vorrebbe dire mangiarsi l'istruzione. «Annulla» vale
+invece OVUNQUE nella frase, perché chi lo scrive vuole che ci si fermi qualunque
+cosa venga dopo: la frase vera che l'ha insegnato è «lascia stare, ti chiamo
+Lucia», che whole-phrase sarebbe scivolata fino a far proporre a Vera di
+ribattezzarsi.
+Sono due regole diverse, e stanno VICINE NELLO STESSO MODULO coi loro perché
+invece che sparse. Una prova già esistente ha preso il tentativo di unificarle.
+
+MISURATO
+7020/7020 su 422 suite nelle quattro modalità; build ok; tsc solo i 2 errori
+preesistenti. SETTE mutazioni su sette uccise.
+46 prove sulle forme che arrivano da una tastiera vera — «OK!!», «ok 👍», «grazie
+ciao», «ci sentiamo» — più l'elenco di quelle che NON devono passare.
+
+QUELLO CHE RESTA, e perché non l'ho preso
+I tre gruppi rimasti (liste di catalogo, la coda, le ricette) e le forme di
+sostituzione misurate il 31/8 («è sostituibile con», «al posto del», «→»).
+Quelle sono lettura di frasi, cioè il terreno su cui questo progetto ha già
+sbagliato due volte in due giorni: la guardia che spegneva ventuno frasi normali
+su trentasette, e il confronto per prefisso che mangiava «provola» e «passata di
+pomodoro». Chi le prende parta dal corpus e MISURI PRIMA quante frasi vere
+smettono di passare — non dopo.
+
+Lista lavori: 23 voci aperte su 222.

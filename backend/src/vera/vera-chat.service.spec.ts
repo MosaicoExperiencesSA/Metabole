@@ -376,6 +376,49 @@ describe('VeraChatService — quando non capisce', () => {
   });
 });
 
+/**
+ * ⛔ **LE CORTESIE ARRIVANO FINO ALLA RISPOSTA.**
+ *
+ * Il modulo puro ha le sue prove. Qui si prova il **montaggio**: che nel giro vero la cortesia
+ * passi davanti a «non ci arrivo», e — la cosa che conta di più — che **durante una conferma** non
+ * ci passi affatto, perché lì «ok» vuol dire **sì**.
+ */
+describe('VeraChatService — le cortesie', () => {
+  it.each([
+    ['ok', 'non c\'era niente in sospeso'],
+    ['ok ciao', 'Quando ti serve sono qui'],
+    ['Quale?', 'non so a cosa ti riferisci'],
+    ['grazie', 'Di niente'],
+  ])('⛔ «%s» non riceve più «non ci arrivo»', async (frase, atteso) => {
+    const { service, messaggioCreate, profileUpdate } = make();
+    await service.parla('lucia', frase);
+    const testo = ultimoAgente(messaggioCreate).testo;
+    expect(testo).toContain(atteso);
+    expect(testo).not.toContain('Non ci arrivo');
+    /** ⚠️ E non scrive niente: una cortesia non è un'istruzione. */
+    expect(profileUpdate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **LA PROVA CHE CONTA.** Durante una conferma «ok» vuol dire **sì**, e lo legge
+   * `leggiConferma`. Se la cortesia passasse anche lì, una regola che la nutrizionista crede
+   * scritta non lo sarebbe — e nessuno glielo direbbe.
+   */
+  it('⛔ ma dentro una conferma «ok» resta un SÌ, non una cortesia', async () => {
+    const { service, messaggioCreate } = make({}, { statoAperto: { passo: 'conferma', frase: 'x', tentativi: 1 } });
+    await service.parla('lucia', 'ok');
+    expect(ultimoAgente(messaggioCreate).testo).not.toContain('non c\'era niente in sospeso');
+  });
+
+  /** ⛔ E un\'istruzione con «ok» davanti resta un\'istruzione: la toglie `capisci`, non la cortesia. */
+  it('⛔ «ok, a Giulia niente formaggi molli» resta un\'istruzione', async () => {
+    const { service, messaggioCreate } = make();
+    await service.parla('lucia', 'ok, a Giulia Rossi niente formaggi molli');
+    const testo = ultimoAgente(messaggioCreate).testo;
+    expect(testo).not.toContain('non c\'era niente in sospeso');
+  });
+});
+
 describe('VeraChatService — chi è la cliente', () => {
   it('con più omonime chiede cognome o email invece di scegliere', async () => {
     const { service, messaggioCreate, prisma } = make();

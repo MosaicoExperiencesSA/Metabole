@@ -4400,21 +4400,50 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'vera-vocabolario-quattro-gruppi',
     categoria: CODICE,
-    titolo: 'Il resto del vocabolario di Vera: liste di catalogo, la coda, le cortesie, le ricette',
+    ordine: 4,
+    nata: '2026-08-31T14:00',
+    titolo: '▶️ Il vocabolario di Vera: chiuse le cortesie, restano le liste, la coda e le ricette',
     dettaglio:
-      'Dalla pagina «frasi che non ho capito» (25 in 90 giorni), i gruppi rimasti dopo gli elenchi e il nome:\n\n'
+      'Dalla pagina «frasi che non ho capito» (25 in 90 giorni), i gruppi rimasti dopo gli elenchi e '
+      + 'il nome:\n'
       + '· **liste di catalogo** (5) — «crea la lista dei formaggi molli», «aggiungi equivalenza»;\n'
       + '· **la coda** (3) — «chiudi ilaria», «hai segnalazioni per me?»;\n'
-      + '· **le cortesie** (4) — «ok», «ok ciao», «Quale?», «ok annulla tutto»;\n'
+      + '· ✅ **le cortesie** (4) — «ok», «ok ciao», «Quale?», «ok annulla tutto»;\n'
       + '· **le ricette** (2) — sostituire un **piatto**, non un alimento.\n\n'
-      + '⚠️ Le cortesie sembrano le meno importanti e sono quelle che fanno sembrare l\'agente stupido: «ok» '
-      + 'che riceve «non ci arrivo» è la risposta che una persona racconta agli altri.\n\n'
-      + '⚠️ **E le forme di sostituzione rimaste fuori** (misurate il 31/8, dopo la consegna sulla passiva): '
-      + '«il merluzzo **è sostituibile** con orata», «**al posto del** merluzzo può mettere orata o spigola», '
-      + '«merluzzo **→** orata, salmone». Su queste Vera non riconosce niente, quindi — dentro una segnalazione '
-      + 'aperta — le **inoltra alla cliente** come risposta. Non dice più «fatto» a vuoto, ma la regola non nasce.',
-    ordine: 957,
-    nata: '2026-08-31T18:00',
+      + '✅ **LE CORTESIE SONO CHIUSE, 3/9.** Erano quelle che sembravano le meno importanti — e '
+      + 'sono quelle che fanno sembrare l\'agente stupido: *«ok» che riceve «non ci arrivo» è la '
+      + 'risposta che una persona racconta agli altri.* Adesso `vera/cortesie.ts` le riconosce e '
+      + 'ognuna ha una risposta **sua**: un unico «va bene» sarebbe cortese e inutile.\n'
+      + '⛔ **E la presa d\'atto dice che non c\'era niente in sospeso.** Chi scrive «ok» a vuoto '
+      + 'quasi sempre **crede** di stare rispondendo a una domanda che non vede più: un «va bene» e '
+      + 'basta la lascerebbe convinta di aver confermato qualcosa. Stessa cosa per «Quale?», a cui '
+      + 'si risponde che manca il contesto e **non** «non ci arrivo»: quella frase è chiarissima.\n\n'
+      + '⛔ **La cosa che conta di più è DOVE non intervengono.** Dentro una conferma «ok» vuol dire '
+      + '**sì** e lo legge `leggiConferma`: leggerlo là come cortesia vorrebbe dire **buttare via '
+      + 'una conferma in silenzio**, cioè una regola che la nutrizionista crede scritta e non lo è. '
+      + 'Il modulo si chiama **solo** dal ramo in cui si sa che non c\'è niente in sospeso, e una '
+      + 'mutazione che lo sposta dentro la conferma è uccisa.\n\n'
+      + '⛔ **E «fermati» è una regola A PARTE, più larga.** Le cortesie si riconoscono **solo da '
+      + 'sole** — «ok» dentro «ok togli il tonno» è un intercalare, e prenderlo vorrebbe dire '
+      + 'mangiarsi l\'istruzione. «Annulla» vale invece **ovunque** nella frase, perché chi lo '
+      + 'scrive vuole che ci si fermi qualunque cosa venga dopo: la frase vera che l\'ha insegnato è '
+      + '«lascia stare, ti chiamo Lucia», che whole-phrase sarebbe scivolata fino a far proporre a '
+      + 'Vera di ribattezzarsi. ⚠️ Sono due regole diverse, e stanno **vicine nello stesso modulo** '
+      + 'coi loro perché invece che sparse: una prova già esistente ha preso il tentativo di '
+      + 'unificarle.\n\n'
+      + '🧪 Sette mutazioni su sette uccise, e 46 prove sulle forme che arrivano da una tastiera '
+      + 'vera — «OK!!», «ok 👍», «grazie ciao», «ci sentiamo» — più l\'elenco di quelle che **non** '
+      + 'devono passare.\n\n'
+      + '▶️ **QUELLO CHE RESTA.** I tre gruppi sopra, e le **forme di sostituzione** misurate il '
+      + '31/8: «il merluzzo **è sostituibile** con orata», «**al posto del** merluzzo può mettere '
+      + 'orata o spigola», «merluzzo **→** orata, salmone». Su queste Vera non riconosce niente, '
+      + 'quindi — dentro una segnalazione aperta — le **inoltra alla cliente** come risposta. Non '
+      + 'dice più «fatto» a vuoto, ma la regola non nasce.\n'
+      + '⚠️ Quelle sono lettura di frasi, cioè il terreno su cui questo progetto ha già sbagliato '
+      + 'due volte in due giorni (la guardia che spegneva ventuno frasi normali, e il confronto per '
+      + 'prefisso che mangiava «provola» e «passata di pomodoro»). Chi le prende parta dal corpus '
+      + '`frasi-normali-che-devono-passare.spec.ts` e **misuri prima** quante frasi vere smettono di '
+      + 'passare — non dopo.'
   },
 
   {

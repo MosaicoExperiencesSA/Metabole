@@ -20,6 +20,22 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-03
 
+- `[Sviluppo]` ✅ **«ok» non riceve più «non ci arrivo».** Quattro delle venticinque frasi non capite
+  in novanta giorni erano cortesie — «ok», «ok ciao», «Quale?», «ok annulla tutto». ⚠️ Sembravano le
+  meno importanti e sono quelle che fanno sembrare l'agente stupido. Adesso ognuna ha una risposta
+  **sua**: un unico «va bene» sarebbe cortese e inutile. ⛔ E la presa d'atto **dice che non c'era
+  niente in sospeso** — chi scrive «ok» a vuoto quasi sempre crede di rispondere a una domanda che
+  non vede più; a «Quale?» si risponde che manca il contesto, non «non ci arrivo».
+  ⛔ **La cosa che conta di più è dove NON intervengono**: dentro una conferma «ok» vuol dire **sì**,
+  e leggerlo come cortesia là vorrebbe dire buttare via una conferma in silenzio — una regola che la
+  nutrizionista crede scritta e non lo è. ⚠️ E «fermati» resta una regola **a parte, più larga**:
+  vale ovunque nella frase, perché «lascia stare, ti chiamo Lucia» whole-phrase sarebbe scivolata
+  fino a far proporre a Vera di ribattezzarsi. Due regole diverse, vicine nello stesso modulo.
+  🧪 7020/7020, **7 mutazioni su 7 uccise**, 46 prove sulle forme vere di tastiera.
+  ▶️ Restano i tre gruppi (liste, coda, ricette) e le forme di sostituzione: quelle sono lettura di
+  frasi, il terreno su cui abbiamo già sbagliato due volte in due giorni — chi le prende **misuri
+  prima** quante frasi vere smettono di passare.
+
 - `[Sviluppo]` ✅ **Le 43 caselle di permesso senza guardia non sono più un elenco unico.** Erano
   quattro casi diversi sotto un nome solo, e *mescolarli porta a correggere quello sbagliato*: la
   classificazione adesso sta **nel codice** — **buco (29)**, dove la casella sembra un cancello e non
