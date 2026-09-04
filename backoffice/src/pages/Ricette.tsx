@@ -55,6 +55,15 @@ export interface Recipe {
   /** I 14 allergeni UE confermati o suggeriti. Li guarda «Allergeni ricette», non il catalogo. */
   allergens?: string[];
   allergensReviewed?: boolean;
+  /**
+   * ⛔ **LA SPUNTA «RICETTA VERIFICATA»** (Simone, 4/9): una nutrizionista ha guardato la ricetta
+   * intera. ⚠️ NON è `allergensReviewed`, che è più stretta e la legge il filtro di sicurezza.
+   * `verifiedAt` è la data, `verifiedByName` il nome di chi: una spunta senza chi e quando dice
+   * «qualcuno, una volta», e fra tre mesi davanti a una ricetta verificata e sbagliata non si sa a
+   * chi chiedere.
+   */
+  verifiedAt?: string | null;
+  verifiedByName?: string | null;
 }
 
 /** I nomi delle diete che usano la ricetta. `null` (server muto) si legge come elenco vuoto qui. */
@@ -88,6 +97,7 @@ interface Form {
   ingredients: Ingredient[];
   methods: FormMethod[];
   active: boolean;
+  verified: boolean;
 }
 
 const emptyForm = (regime = 'omnivore'): Form => ({
@@ -95,6 +105,7 @@ const emptyForm = (regime = 'omnivore'): Form => ({
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
+  verified: false,
 });
 
 function toForm(r: Recipe): Form {
@@ -107,6 +118,7 @@ function toForm(r: Recipe): Form {
       ? (r.cookingMethods ?? []).map((m) => ({ type: m.type, stepsText: (m.steps ?? []).join('\n') }))
       : [{ type: 'veloce', stepsText: '' }],
     active: r.active,
+    verified: !!r.verifiedAt,
   };
 }
 
@@ -671,7 +683,14 @@ export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onCl
      * ricomprava dall'AI un piatto che esisteva già, senza nessun errore. Ora da qui non si possono
      * più rompere.
      */
-    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, difficulty: f.difficulty, seasons: f.seasons, active: f.active };
+    /**
+     * ⚠️ `verified` si manda **solo quando è cambiato**. `updateRecipe` non tocca la spunta se il
+     * campo non arriva, ed è quello che serve: mandarla sempre vorrebbe dire che chi apre una
+     * ricetta verificata, corregge un refuso e salva, la **ri-firma** con il proprio nome senza
+     * averla guardata. La firma deve restare di chi l'ha data.
+     */
+    const verificaCambiata = !recipe || f.verified !== !!recipe.verifiedAt;
+    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, difficulty: f.difficulty, seasons: f.seasons, active: f.active, ...(verificaCambiata ? { verified: f.verified } : {}) };
 
     setBusy(true);
     try {
@@ -809,6 +828,30 @@ export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onCl
       <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 14 }}>
         <Toggle on={f.active} onChange={(v) => setF({ ...f, active: v })} />
         <span style={{ fontSize: 13 }}>{f.active ? 'Attiva (disponibile nei menu)' : 'Archiviata'}</span>
+      </div>
+
+      {/*
+        ⛔ **LA SPUNTA «RICETTA VERIFICATA»** (Simone, 4/9). Sotto la casella si legge CHI e QUANDO,
+        quando c'è: senza, la spunta direbbe «qualcuno, una volta».
+        ⚠️ E si dice a voce alta che **cade da sola** se cambiano gli ingredienti o il regime — una
+        firma su un contenuto non vale su un contenuto diverso. Chi la mette deve saperlo prima, non
+        scoprirlo il giorno che la trova spenta.
+      */}
+      <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <Toggle on={f.verified} onChange={(v) => setF({ ...f, verified: v })} />
+        <span style={{ fontSize: 13 }}>
+          {f.verified ? 'Verificata dalla nutrizionista' : 'Non verificata'}
+          {recipe?.verifiedAt && f.verified && (
+            <span style={{ color: 'var(--muted)' }}>
+              {' — '}
+              {recipe.verifiedByName ? `${recipe.verifiedByName}, ` : ''}
+              {new Date(recipe.verifiedAt).toLocaleDateString('it-IT')}
+            </span>
+          )}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+        ⚠️ La verifica decade da sola se cambi gli ingredienti o il regime: vale su questo contenuto.
       </div>
 
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>

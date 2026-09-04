@@ -20,6 +20,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **La spunta «ricetta verificata» in modifica ricetta** (richiesta di Simone). Non un
+  booleano: **chi** e **quando**, e in schermata si legge il nome e la data. ⛔ Non è
+  `allergensReviewed` — quella è più stretta e la legge il filtro di sicurezza; farle coincidere
+  vorrebbe dire che un piatto entra nei menu delle allergiche perché qualcuno ha detto «l'ho
+  guardata». ⛔ E **cade da sola** se cambiano i nomi degli ingredienti o il regime, con la stessa
+  regola degli allergeni del 18/8 (che infatti chiama, invece di riscriverla); non cade per una
+  grammatura o un refuso. ⚠️ La spunta si manda solo quando è cambiata: chi corregge un refuso su
+  una ricetta verificata non la ri-firma col proprio nome.
+
+
 - `[Sviluppo]` ⛔ **Branzino, merluzzo e gamberetti a colazione: la regola c'era e guardava dalla parte
   sbagliata.** «Carne, pesce e verdure fuori da colazione, spuntino e merenda» è scritta dal 31/8, ma
   la legge **un posto solo**: l'agente che *genera* i piatti nuovi. Su quello che era già in catalogo

@@ -1,3 +1,4 @@
+import { campiDaScrivere, cosaSuccedeAllaVerifica } from './verifica-della-ricetta';
 import { laConfermaDecade } from './conferma-allergeni-decade';
 import { puoStareNelloSlot } from '../common/slot-pasto';
 import { famigliaInChiusura } from './appartenenza-panieri';
@@ -1480,12 +1481,38 @@ export class CatalogService {
       this.logger.error(`Lettura utilizzo ricette non riuscita: ${e instanceof Error ? e.message : String(e)}`);
       usi = null;
     }
-    const conUtilizzo = (items as { id: string }[]).map((r) => {
+    /**
+     * ⛔ **IL NOME DI CHI HA VERIFICATO, non il suo id** (Simone, 4/9). Una spunta che dice
+     * «verificata da 3f7a-…» non la legge nessuno, e il senso della richiesta era proprio che
+     * *«resta tutto registrato»*: registrato per essere letto.
+     *
+     * ⚠️ **Una query sola per tutta la pagina**, sugli id distinti: una per riga vorrebbe dire mille
+     * andate al database per una colonna che si guarda di sfuggita. E se la lettura fallisce si va
+     * avanti senza il nome — la data e la spunta ci sono lo stesso, e un catalogo che non si apre
+     * per un nome mancante sarebbe un pessimo affare.
+     */
+    const daVerifica = [...new Set(
+      (items as { verifiedById?: string | null }[]).map((r) => r.verifiedById).filter((x): x is string => !!x),
+    )];
+    let nomiVerifica = new Map<string, string>();
+    if (daVerifica.length) {
+      try {
+        const utenti = (await this.prisma.user.findMany({
+          where: { id: { in: daVerifica } },
+          select: { id: true, firstName: true, lastName: true },
+        })) as { id: string; firstName: string | null; lastName: string | null }[];
+        nomiVerifica = new Map(utenti.map((u) => [u.id, [u.firstName, u.lastName].filter(Boolean).join(' ').trim()]));
+      } catch (e) {
+        this.logger.warn(`Nomi di chi ha verificato non letti: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    const conUtilizzo = (items as { id: string; verifiedById?: string | null }[]).map((r) => {
       const u = usi?.get(r.id) ?? (usi ? [] : null);
       return {
         ...r,
         utilizzo: u,
         settimane: settimane ? (settimane.get(r.id) ?? []) : (u ? settimaneDiTutte(u) : null),
+        verifiedByName: r.verifiedById ? (nomiVerifica.get(r.verifiedById) || null) : null,
       };
     });
     return {
@@ -1547,6 +1574,28 @@ export class CatalogService {
     );
     if (confermaDecaduta) data.allergensReviewed = false;
 
+    /**
+     * ⛔ **LA SPUNTA «RICETTA VERIFICATA»** (Simone, 4/9). La regola — quando si mette, quando si
+     * toglie e quando **cade da sola** — sta in `verifica-della-ricetta.ts` con le sue prove: qui
+     * si scrive quello che quella decide.
+     * ⚠️ Non è `allergensReviewed`: sono due firme diverse su due cose diverse, e questo
+     * salvataggio può farle cadere **tutte e due**, ciascuna per la sua ragione.
+     */
+    const esitoVerifica = cosaSuccedeAllaVerifica(
+      {
+        verificata: !!(existing as { verifiedAt?: Date | null }).verifiedAt,
+        ingredienti: (existing as { ingredients?: unknown }).ingredients,
+        regime: (existing as { regime?: unknown }).regime,
+      },
+      { verified: dto.verified, ingredienti: dto.ingredients as unknown, regime: dto.regime },
+      userId,
+    );
+    const campiVerifica = campiDaScrivere(esitoVerifica);
+    if (campiVerifica) {
+      data.verifiedAt = campiVerifica.verifiedAt;
+      data.verifiedById = campiVerifica.verifiedById;
+    }
+
     const recipe = await this.prisma.recipe.update({ where: { id }, data });
     await this.audit.log({
       action: 'catalog.recipe.update',
@@ -1556,14 +1605,36 @@ export class CatalogService {
       // ⚠️ Nell'audit, perché è un cambio di STATO DI SICUREZZA che nessuno ha chiesto
       // esplicitamente: chi un domani si chiede «perché questa ricetta è sparita dai menu?» deve
       // trovare la risposta qui, con la data e il nome di chi ha salvato.
-      ...(confermaDecaduta ? { metadata: { allergensReviewed: false, motivo: 'ingredienti_cambiati' } } : {}),
+      /**
+       * ⚠️ Nell'audit finiscono **tutti e due** i cambi di firma, e separati: chi legge il registro
+       * deve poter distinguere «gli allergeni non sono più confermati» da «la ricetta non è più
+       * verificata», che sono due cose diverse e si riparano in due posti diversi.
+       */
+      ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata'
+        ? {
+          metadata: {
+            ...(confermaDecaduta ? { allergensReviewed: false, motivo: 'ingredienti_cambiati' } : {}),
+            ...(esitoVerifica.tipo !== 'invariata' ? { verifica: esitoVerifica.tipo } : {}),
+            ...(esitoVerifica.tipo === 'decaduta' ? { verificaDecadutaPerche: esitoVerifica.perche } : {}),
+          },
+        }
+        : {}),
     });
     /**
      * ⚠️ `confermaDecaduta` torna INSIEME alla ricetta, e non solo nel log: una conseguenza che
      * chi la provoca non vede è la stessa famiglia di difetti che stiamo togliendo da settimane.
      * Il backoffice la scrive con `fraseConfermaDecaduta`.
      */
-    return { ...(recipe as Record<string, unknown>), confermaAllergeniDecaduta: confermaDecaduta };
+    /**
+     * ⚠️ **Due conseguenze, due campi.** Chi ha appena salvato deve sapere quale delle due firme è
+     * caduta: gli allergeni si ricontrollano in «Allergeni ricette», la verifica si rimette qui.
+     * Un campo solo costringerebbe la schermata a indovinare quale messaggio scrivere.
+     */
+    return {
+      ...(recipe as Record<string, unknown>),
+      confermaAllergeniDecaduta: confermaDecaduta,
+      verificaDecaduta: esitoVerifica.tipo === 'decaduta' ? esitoVerifica.perche : null,
+    };
   }
 
   /**

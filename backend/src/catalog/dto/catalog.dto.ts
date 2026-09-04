@@ -327,6 +327,13 @@ export class UpdateRecipeDto {
   @IsOptional() @IsIn(['semplice', 'media', 'elaborata']) difficulty?: string;
   @IsOptional() @IsArray() @IsIn(['spring', 'summer', 'autumn', 'winter'], { each: true }) seasons?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
+  /**
+   * ⛔ **LA SPUNTA «RICETTA VERIFICATA»** (Simone, 4/9). `true` la mette col nome di chi salva e
+   * l'ora; `false` la toglie; assente **non la tocca** — perché ogni altro salvataggio della scheda
+   * manda solo i campi cambiati, e un `undefined` letto come «togli» spegnerebbe la verifica a
+   * ogni correzione di refuso.
+   */
+  @IsOptional() @IsBoolean() verified?: boolean;
 }
 
 export class RejectDietDto {

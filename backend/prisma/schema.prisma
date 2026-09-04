@@ -1861,6 +1861,15 @@ model Recipe {
   // nutrizionista ha CONFERMATO i tag (una ricetta non revisionata NON è considerata sicura).
   allergens         String[] @default([]) @map("allergens")
   allergensReviewed Boolean  @default(false) @map("allergens_reviewed")
+  /**
+   * LA SPUNTA «RICETTA VERIFICATA» (Simone, 4/9): una nutrizionista ha guardato la ricetta intera.
+   * ⚠️ NON è `allergensReviewed`, che è più stretta e la legge il filtro di sicurezza: quella dice
+   * «i tag degli allergeni sono confermati». Spuntare questa non accende quella.
+   * ⛔ Decade quando cambia il CONTENUTO — i nomi degli ingredienti o il regime — con la stessa
+   * regola degli allergeni: una firma su un contenuto non vale su un contenuto diverso.
+   */
+  verifiedAt        DateTime? @map("verified_at")
+  verifiedById      String?   @map("verified_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

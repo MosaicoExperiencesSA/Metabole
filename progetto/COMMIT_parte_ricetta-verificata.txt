@@ -1,0 +1,42 @@
+La spunta «ricetta verificata», con chi e quando — e che cade se cambia il piatto
+
+⛔ LA RICHIESTA
+Simone, 4/9: «quando vado in modifica devo avere un flag: ricetta verificata. Quando il
+nutrizionista clicca, resta tutto registrato.»
+
+✅ CHI E QUANDO, NON UN BOOLEANO
+Due colonne, `verified_at` e `verified_by_id`. Una spunta da sola dice «qualcuno, una volta»: fra
+tre mesi, davanti a una ricetta verificata e sbagliata, nessuno saprebbe a chi chiedere. È la
+stessa forma di `clinical_clearance`. In schermata, sotto la casella, si legge il NOME e la data —
+il nome si risolve con UNA query per pagina, sugli id distinti, e se fallisce si va avanti senza:
+un catalogo che non si apre per un nome mancante sarebbe un pessimo affare.
+
+⛔ E NON È `allergensReviewed`
+Quella dice «i tag degli allergeni sono confermati» e la legge il filtro di sicurezza: senza,
+la ricetta non entra nei menu di chi ha allergie. Questa dice «una nutrizionista ha guardato la
+ricetta intera». Farle coincidere vorrebbe dire che un piatto entra nei menu delle allergiche
+perché qualcuno ha detto «l'ho guardata», senza aver guardato i tag. Il salvataggio può far cadere
+tutte e due, ciascuna per la sua ragione, e nell'audit finiscono separate.
+
+⛔ LA FIRMA CADE QUANDO CAMBIA QUELLO SU CUI È STATA MESSA
+Stessa regola degli allergeni del 18/8 — e la CHIAMA invece di riscriverla, così se un giorno si
+corregge lì si corregge anche qui. Cade sui NOMI degli ingredienti e sul REGIME (una vegana che
+diventa onnivora è un'altra ricetta).
+⚠️ E NON cade su nome, kcal, grammature, stagioni o difficoltà: azzerarla per un peso corretto
+vorrebbe dire che dopo due settimane non è verificato più niente — cioè spegnere la spunta a forza
+di rispettarla.
+⚠️ La spunta messa NELLO STESSO salvataggio vince sulla decadenza: è il caso normale, la
+nutrizionista corregge e conferma col piatto nuovo davanti. Se vincesse la decadenza, non
+riuscirebbe mai a verificare una ricetta che sta correggendo.
+
+⚠️ E `verified` SI MANDA SOLO QUANDO È CAMBIATO
+`updateRecipe` non tocca la spunta se il campo non arriva. Mandarla sempre vorrebbe dire che chi
+apre una ricetta verificata, corregge un refuso e salva, la RI-FIRMA col proprio nome senza averla
+guardata. La firma resta di chi l'ha data.
+
+⚠️ E la schermata lo dice prima: «la verifica decade da sola se cambi gli ingredienti o il regime».
+Chi la mette deve saperlo quando la mette, non il giorno che la trova spenta.
+
+Dieci prove sul modulo del giudizio.
+
+7491 prove verdi su 436 suite; build ok; `tsc -b` pulito su `app/` e `backoffice/`.
