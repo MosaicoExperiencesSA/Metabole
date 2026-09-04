@@ -41,6 +41,8 @@ export const PAGE_LABEL: Record<string, string> = {
   accounting_costs: 'Contabilità',
   marketing: 'Marketing',
   purchases: 'Acquisti',
+  // ⚠️ Il nome che il pulsante ha in scheda cliente: chi assegna i permessi deve riconoscerlo.
+  attiva_piano: 'Attiva un piano a una cliente (senza passare dal negozio)',
   shop: 'Negozio',
   discounts: 'Buoni sconto',
   commissions: 'Provvigioni',

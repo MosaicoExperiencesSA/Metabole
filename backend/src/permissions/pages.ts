@@ -37,6 +37,7 @@ export const BACKOFFICE_PAGES = [
   'accounting',
   'accounting_costs',
   'purchases',
+  'attiva_piano',
   'shop',
   'discounts',
   'commissions',
@@ -584,6 +585,21 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     accounting: { view: true, manage: true },
     accounting_costs: { view: true, manage: true },
     purchases: { view: true, manage: true },
+    /**
+     * ⛔ **«Attiva un piano» ha una chiave sua** (Simone, 4/9: *«va gestito nei ruoli»*). Prima il
+     * pulsante stava dentro un `can('permissions')` scritto a mano e la rotta era `@Roles('admin')`:
+     * quel potere non si poteva né dare al capo nutrizionista senza farne un admin, né togliere a un
+     * admin.
+     *
+     * ⛔ **E NON sta in `INHERIT_DEFAULTS` sotto `purchases`**, che sarebbe la scorciatoia: `purchases`
+     * in sola vista ce l'hanno coach, coordinatrici e nutrizioniste, quindi ereditare vorrebbe dire
+     * **dare a tutte** un potere che oggi non ha nessuna. L'ereditarietà serve a «separare una
+     * schermata non toglie accesso a nessuno», non a darne.
+     *
+     * ⚠️ Perciò il default è **solo admin**, cioè esattamente com'era: questa consegna sposta il
+     * cancello, non lo apre.
+     */
+    attiva_piano: { view: true, manage: true },
     shop: { view: true, manage: true },
     discounts: { view: true, manage: true },
     commissions: { view: true, manage: true },

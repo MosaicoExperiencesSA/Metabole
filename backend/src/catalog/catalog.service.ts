@@ -1,5 +1,6 @@
 import { campiDaScrivere, cosaSuccedeAllaVerifica } from './verifica-della-ricetta';
 import { laConfermaDecade } from './conferma-allergeni-decade';
+import { controllaRicettaDaScrivere } from './ricetta-che-si-puo-scrivere';
 import { etichettaSlot, puoStareNelloSlot, slotCapofila } from '../common/slot-pasto';
 /**
  * ⚠️ Le due porte che servono quando una ricetta cambia pasto: il giudizio «in questo pasto ci
@@ -1604,6 +1605,36 @@ export class CatalogService {
   async updateRecipe(userId: string, id: string, dto: UpdateRecipeDto) {
     const existing = await this.prisma.recipe.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Ricetta non trovata');
+
+    /**
+     * ⛔ **Si giudica la ricetta COME RESTERÀ, non i campi mandati.** `PATCH` manda solo quello che
+     * cambia: chi tocca il **solo** regime — da onnivoro a vegetariano su un piatto col pollo —
+     * manderebbe un corpo in cui gli ingredienti non ci sono, e un controllo sui campi ricevuti
+     * direbbe «niente da vedere».
+     *
+     * ⛔ **Ma valgono solo su chi tocca quelle cose.** Facendoli girare su ogni salvataggio, un
+     * `{ active: true }` — che è **come si approva una ricetta dettata a Vera** — prendeva un 400 su
+     * un difetto che chi approva non ha introdotto e da lì **non poteva risolvere**: quel chiamante
+     * non ha nessun modo di mandare `confermaRegime`, e la proposta restava in coda per sempre.
+     */
+    const vecchia = existing as { name: string; regime: string; ingredients: unknown };
+    const verdetto = controllaRicettaDaScrivere({
+      nome: dto.name ?? vecchia.name,
+      regime: dto.regime ?? vecchia.regime,
+      ingredienti: dto.ingredients ?? vecchia.ingredients,
+    });
+    const toccaLEtichetta = dto.regime !== undefined || dto.ingredients !== undefined;
+    /**
+     * ⚠️ **Sull'elenco vuoto si ferma SOLO se lo sta mandando adesso.** Una ricetta che l'elenco
+     * vuoto ce l'ha già in catalogo non deve diventare impossibile da correggere: chi apre quella
+     * scheda per sistemare un refuso si troverebbe il salvataggio chiuso proprio sul difetto che sta
+     * andando a chiudere.
+     */
+    if (verdetto.esito === 'ferma' && dto.ingredients !== undefined) throw new BadRequestException(verdetto.problema);
+    if (verdetto.esito === 'conferma' && toccaLEtichetta && dto.confermaRegime !== true) {
+      throw new BadRequestException(`Da confermare: ${verdetto.problema}`);
+    }
+
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.regime !== undefined) data.regime = dto.regime as never;
@@ -1802,6 +1833,12 @@ export class CatalogService {
        * deve poter distinguere «gli allergeni non sono più confermati» da «la ricetta non è più
        * verificata», che sono due cose diverse e si riparano in due posti diversi.
        */
+      /**
+       * ⛔ **E la forzatura del regime finisce qui come nella creazione**, che è la porta più
+       * probabile delle due: il difetto è tipicamente **già** in catalogo, quindi chi lo forza lo
+       * forza modificando.
+       */
+      ...(verdetto.esito === 'conferma' && toccaLEtichetta ? { metadata: { regimeForzato: verdetto.problema } } : {}),
       ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata' || pasto
         ? {
           metadata: {
@@ -1951,7 +1988,29 @@ export class CatalogService {
     }
   }
 
+  /**
+   * ⛔ **I DUE CANCELLI DI SIMONE (4/9) STANNO QUI, e non su una schermata.**
+   *
+   * Questa funzione la chiamano **tre** strade che una persona guida: la pagina Ricette, la finestra
+   * «Nuova ricetta» dentro il menu della cliente, e **Vera** che detta la ricetta passo passo. Il
+   * controllo su una di quelle avrebbe lasciato aperte le altre due.
+   *
+   * ⚠️ **Rimessi il 4/9 sera, dopo che una consegna parallela li aveva sovrascritti**: il file era
+   * stato riscritto da una base precedente, e le due righe erano sparite lasciando in piedi la
+   * prova che le sorveglia. La suite su `origin/main` era rossa, ed è così che si è visto.
+   */
   async createRecipe(userId: string, dto: CreateRecipeDto) {
+    const verdetto = controllaRicettaDaScrivere({ nome: dto.name, regime: dto.regime, ingredienti: dto.ingredients });
+    if (verdetto.esito === 'ferma') throw new BadRequestException(verdetto.problema);
+    /**
+     * ⚠️ **«Da confermare:» è un prefisso che il client LEGGE**, ed è la stessa forma della scrittura
+     * del menu a mano: separa «non si può» da «va confermato». Un errore rosso su una cosa che si
+     * può fare insegna a non leggere gli errori.
+     */
+    if (verdetto.esito === 'conferma' && dto.confermaRegime !== true) {
+      throw new BadRequestException(`Da confermare: ${verdetto.problema}`);
+    }
+
     const recipe = await this.prisma.recipe.create({
       data: {
         name: dto.name,
@@ -1972,6 +2031,11 @@ export class CatalogService {
       actorId: userId,
       entityType: 'recipe',
       entityId: recipe.id,
+      /**
+       * ⛔ **La forzatura resta scritta.** Un permesso senza traccia è un pulsante «ignora»: fra sei
+       * mesi, davanti a un piatto etichettato male, nessuno saprebbe se qualcuno ci aveva pensato.
+       */
+      ...(verdetto.esito === 'conferma' ? { metadata: { regimeForzato: verdetto.problema } } : {}),
     });
     return recipe;
   }

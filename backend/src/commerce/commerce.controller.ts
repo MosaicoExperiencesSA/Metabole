@@ -578,8 +578,17 @@ export class AdminPurchasesController {
    * Il modale "Nuovo acquisto manuale" leggeva `GET /plans`, che ora nasconde il mantenimento:
    * senza questo endpoint l'operatrice non potrebbe piu' attivarlo a nessuno.
    */
-  // Serve solo al modale «Nuovo acquisto manuale», che è admin: non si apre a chi non può usarlo.
-  @Roles('admin', 'sales')
+  /**
+   * ⛔ **STESSA CHIAVE DELLA SCRITTURA, in sola vista** — e senza, il permesso sarebbe un
+   * interruttore che non accende niente: la finestra «Attiva un piano» legge **questo** elenco, e a
+   * chi avesse la casella senza poter leggere i piani si aprirebbe **vuota**.
+   *
+   * ⚠️ `@Roles` si allarga ai ruoli dello staff e resta come **rete**: il cancello vero è la
+   * casella, che si cambia dai Permessi senza un rilascio. È la stessa forma già scritta in testa a
+   * questo controller per `purchases`.
+   */
+  @Roles('admin', 'sales', 'head_nutritionist', 'coach_coordinator')
+  @RequirePage('attiva_piano')
   @Get('plans')
   plans() {
     return this.commerce.listPlans();
@@ -590,7 +599,19 @@ export class AdminPurchasesController {
     return this.commerce.generateReceiptPdf(id, user.sub);
   }
 
-  @Roles('admin')
+  /**
+   * ⛔ **ATTIVARE UN PIANO A MANO HA UNA CHIAVE SUA** (Simone, 4/9: *«va gestito nei ruoli»*).
+   *
+   * Prima era `@Roles('admin')` e basta: il potere non si poteva né dare né togliere dai Permessi —
+   * il gemello rovesciato del difetto del 3/9, dove 29 caselle spengono il menu e non la porta.
+   * ⚠️ Qui c'era **una porta senza nessuna casella**.
+   *
+   * ⚠️ `manage`, non `view`: vedere l'elenco dei piani e attivarne uno a una cliente vera — che
+   * tocca erogazione, fatturazione e quello che lei vede in app — sono due cose. E `@Roles` resta
+   * sotto, perché il `PageGuard` è permissivo se il database non risponde.
+   */
+  @Roles('admin', 'sales', 'head_nutritionist', 'coach_coordinator')
+  @RequirePage('attiva_piano', 'manage')
   @HttpCode(201)
   @Post()
   createManual(@CurrentUser() user: AuthUser, @Body() dto: CreateManualPurchaseDto) {

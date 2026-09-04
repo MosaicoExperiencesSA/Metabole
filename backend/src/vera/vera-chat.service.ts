@@ -1419,7 +1419,28 @@ export class VeraChatService {
       return { testo: testi.modificaInCoda(campi.name), esito: 'in_approvazione', azioneId: riga.id };
     }
 
-    const nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+    /**
+     * ⛔ **`createRecipe` PUÒ RIFIUTARE, e senza questo `catch` l'eccezione volava via nuda.**
+     *
+     * Dal 4/9 ha due cancelli: l'elenco ingredienti vuoto **ferma**, il regime che il contenuto
+     * smentisce **chiede una conferma**. ⚠️ Da Vera quella conferma non si può dare, quindi il
+     * rifiuto è definitivo e va **raccontato**: `parla()` non ha un try/catch, e il messaggio della
+     * nutrizionista è già stato scritto in chat. Lasciandola volare: la sua frase in chat, **nessuna
+     * risposta**, lo stato del dialogo fermo, e il «sì» ripetuto che rifà lo stesso errore.
+     *
+     * ⚠️ È lo stesso ragionamento del `catch` più sotto, che questa riga aveva lasciato scoperto:
+     * *un errore raccontato è un lavoro che si può riprendere; un errore inghiottito è un piatto che
+     * nessuno sa di avere*.
+     */
+    let nuova: { id: string };
+    try {
+      nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : 'la scrittura non è riuscita.';
+      logger.warn(`Vera: ricetta «${campi.name}» rifiutata alla scrittura — ${motivo}`);
+      /** ⚠️ `arresa`: il dialogo si chiude qui, e non è stato fatto niente. È com'è rimasta. */
+      return { testo: testi.ricettaRifiutata(campi.name, motivo), esito: 'arresa' };
+    }
 
     /**
      * ⛔ **QUI LA RICETTA SI ACCENDE, E SI ACCENDE DA UNA PORTA SOLA** — Simone, 4/9: *«Vera chiede

@@ -1,0 +1,76 @@
+────────────────────────────────────────────────────────────────────────────
+ «Attiva un piano» diventa una casella dei Permessi, non un ruolo
+ 4 settembre 2026 (notte)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+Summary
+───────
+«Attiva un piano» nei Permessi, e rimessi i due cancelli che una consegna parallela aveva cancellato
+
+Description
+───────────
+Simone, 4/9: «va gestito nei ruoli». Controllato, ed era vero.
+
+COM ERA
+· il pulsante in scheda cliente stava dentro un `isAdmin` scritto a mano — che in
+  quella pagina vuol dire `can('permissions')`, cioè «vede la pagina Permessi»;
+· la rotta sotto, POST /admin/purchases, era @Roles('admin') e basta;
+· la classe ha @RequirePage('purchases'), ma quella e la chiave della PAGINA
+  Acquisti in sola vista: governa chi vede l elenco, non chi attiva un piano.
+
+⛔ Quindi quel potere non si poteva ne dare al capo nutrizionista senza farne un
+admin, ne togliere a un admin. E il gemello rovesciato del difetto del 3/9: li 29
+caselle spengono il menu e non la porta, qui c era una porta senza nessuna casella.
+
+COM E ADESSO — i tre passi di CLAUDE.md, tutti e tre
+1. la chiave `attiva_piano` in permissions/pages.ts;
+2. l etichetta in labels.ts, o nella tabella comparirebbe la chiave grezza;
+3. la guardia @RequirePage('attiva_piano', 'manage') sulla scrittura E il pulsante
+   che legge can('attiva_piano','manage') invece di isAdmin.
+
+⛔ E LA STESSA CHIAVE SULLA LETTURA DEI PIANI, in sola vista: la finestra legge
+GET /admin/purchases/plans, e a chi avesse la casella senza poterlo leggere si
+aprirebbe VUOTA — cioe il permesso sarebbe un interruttore che non accende niente.
+
+⛔ QUESTA CONSEGNA SPOSTA IL CANCELLO, NON LO APRE. Il default resta solo admin,
+esattamente com era. E la chiave NON sta in INHERIT_DEFAULTS sotto `purchases`,
+che sarebbe la scorciatoia: `purchases` in sola vista ce l hanno coach,
+coordinatrici e nutrizioniste, quindi ereditare vorrebbe dire DARLO A TUTTE.
+L ereditarieta serve a «separare una schermata non toglie accesso a nessuno», non
+a darne. Una prova tiene ferme tutte e due le cose.
+
+⚠️ @Roles resta sotto come rete, allargato ai ruoli dello staff: il PageGuard e
+permissivo se il database non risponde, e in quel caso dietro deve esserci ancora
+un cancello.
+
+⚠️ Il conto delle chiavi senza guardia resta 43, su 67 invece che su 66: la chiave
+nuova nasce CON la guardia che la legge. Il numero scende solo agganciando le
+guardie che mancano, mai riclassificando.
+
+⛔ E RIMESSO QUELLO CHE 57ae018 AVEVA CANCELLATO — misurato, non dedotto.
+
+La consegna «Seconda lettura sul metodo dettato» e stata costruita su una base
+precedente e, ricommittando i file interi, ha tolto tre pezzi della consegna delle
+23:00:
+
+· backend/package.json        → sparito lo script ripara:allergeni-chiave
+· catalog/catalog.service.ts  → spariti i DUE CANCELLI: l elenco ingredienti vuoto
+                                non bloccava piu, il regime smentito non chiedeva
+                                piu conferma
+· vera/vera-chat.ts e .service.ts → sparito il catch che fa RISPONDERE Vera quando
+                                la scrittura viene rifiutata
+
+⚠️ E si vedeva: due-cancelli-alla-porta.spec.ts era rimasta in piedi, e su
+origin/main era ROSSA — sette test falliti. La CI del ramo principale era rossa.
+
+✅ Rimessi tutti e tre sopra 57ae018, TENENDO le loro modifiche. Le prove che li
+sorvegliano c erano gia ed e cosi che si e visto: una consegna che toglie un
+cancello e lascia in piedi la prova che lo guarda si scopre in un minuto. Se la
+prova non ci fosse stata, i due cancelli sarebbero spariti in silenzio.
+
+Verificato
+──────────
+· backend: 446 suite, 7678 test verdi · nest build verde
+· backoffice: build vero verde, 298 test

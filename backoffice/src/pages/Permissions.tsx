@@ -209,7 +209,7 @@ export function Permissions() {
           di questa pagina evita apposta. Aggiungere un hub l'avrebbe resa falsa, coi badge giusti.
 
           ⚠️ **E il perimetro si dichiara per intero.** Questi avvisi coprono tre vie — l'hub,
-          l'eredità e il ruolo di base — e non tutte: 43 chiavi su 66 non sono lette da nessuna
+          l'eredità e il ruolo di base — e non tutte: 43 chiavi su 67 non sono lette da nessuna
           `@RequirePage`, e lì la casella governa il menu e non la porta (l'endpoint è protetto dal
           solo `@Roles`). Dire «spegnerle non chiude la porta» senza qualificarlo sarebbe promettere
           più di quello che si guarda. */}

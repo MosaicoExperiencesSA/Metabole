@@ -85,9 +85,10 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'attiva-un-piano-non-e-nei-permessi',
     categoria: CODICE,
+    fatta: true,
     ordine: 0,
     nata: '2026-09-04T23:55',
-    titolo: '⛔ «Attiva un piano» non si può né dare né togliere dai Permessi: è cablato su `isAdmin`',
+    titolo: '✅ «Attiva un piano» adesso è una casella dei Permessi, non un ruolo',
     dettaglio:
       'Simone, 4/9: *«va gestito nei ruoli»*. Controllato, ed è vero.\n\n'
       + '· il pulsante nella scheda cliente sta dentro un `if (isAdmin)` scritto a mano '
@@ -105,8 +106,18 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'casella invece di `isAdmin`, con `@Roles` sotto come rete.\n\n'
       + '⚠️ **Una decisione di Simone dentro**: la finestra legge anche `GET /admin/purchases/plans`, '
       + 'oggi `@Roles(\'admin\',\'sales\')`. Dando la casella a qualcun altro, quella lettura risponde '
-      + '**403** e la finestra si apre vuota. La chiave nuova deve aprire tutte e due, o è un '
-      + 'interruttore che non accende niente.',
+      + '**403** e la finestra si apre vuota.\n\n'
+      + '✅ **CHIUSA il 4/9 sera**, coi tre passi: la chiave `attiva_piano`, l\'etichetta, e la '
+      + 'guardia `@RequirePage(\'attiva_piano\', \'manage\')` sulla scrittura **più** il pulsante che '
+      + 'legge la casella invece del ruolo. ✅ E **la stessa chiave sulla lettura dei piani**, in sola '
+      + 'vista: senza, il permesso sarebbe un interruttore che non accende niente.\n\n'
+      + '⛔ **La consegna sposta il cancello, non lo apre**: il default resta **solo admin**, '
+      + 'esattamente com\'era. ⚠️ E la chiave **non eredita** da `purchases` — quella in sola vista ce '
+      + 'l\'hanno coach, coordinatrici e nutrizioniste, quindi ereditare vorrebbe dire **darla a '
+      + 'tutte**: l\'ereditarietà serve a «separare una schermata non toglie accesso a nessuno», non '
+      + 'a darne. Una prova tiene ferme tutte e due le cose.\n\n'
+      + '⚠️ Il conto delle chiavi senza guardia resta **43**, su **67** invece che su 66: la chiave '
+      + 'nuova nasce **con** la guardia che la legge.',
   },
 
   {

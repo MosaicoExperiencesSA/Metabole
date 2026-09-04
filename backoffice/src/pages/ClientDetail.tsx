@@ -2356,7 +2356,10 @@ export function ClientDetail() {
         <div style={{ padding: '18px 20px 4px' }} className="spread">
           <h2 style={{ margin: 0 }}>Acquisti</h2>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            {isAdmin && (
+            {/* ⛔ **La casella, non il ruolo** (Simone, 4/9: «va gestito nei ruoli»). Prima era
+                `isAdmin`, che in questa pagina vuol dire «vede la pagina Permessi»: un potere che
+                non si poteva né dare al capo nutrizionista né togliere a un admin. */}
+            {can('attiva_piano', 'manage') && (
               <button className="btn ghost sm" onClick={() => setAttivaPiano(true)}
                 title="Attiva un piano a questa cliente senza passare dal negozio">
                 <i className="ti ti-plus" /> Attiva un piano

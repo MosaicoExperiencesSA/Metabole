@@ -82,14 +82,19 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
    * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
    *
+   * ✅ **43 su 67 dal 4/9 sera**, ed è il verso giusto **tre volte**: `menu_a_mano`, `diet_descriptions`
+   * e ora `attiva_piano` sono nate **con** la loro guardia — le chiavi salgono, quelle guardate
+   * salgono, e le 43 restano 43. ⚠️ Il numero scende **solo** agganciando le guardie che mancano,
+   * mai riclassificando.
+   *
    * ✅ **43 su 66 dal 3/9 sera**, ed è il verso giusto **due volte**: `menu_a_mano` e
    * `diet_descriptions` sono nate **insieme alle loro guardie**, quindi le chiavi salgono e quelle
    * senza guardia restano 43. ⚠️ È esattamente il caso per cui questa prova esiste — e con
    * `diet_descriptions` si è accesa davvero: la chiave era stata dichiarata prima di agganciare la
    * `@RequirePage`, e tre prove sono diventate rosse nello stesso momento.
    */
-  it('⚠️ e sono 43 su 66: il numero che sta scritto nella voce e nel banner', () => {
-    expect(BACKOFFICE_PAGES.length).toBe(66);
+  it('⚠️ e sono 43 su 67: il numero che sta scritto nella voce e nel banner', () => {
+    expect(BACKOFFICE_PAGES.length).toBe(67);
     expect(senza.length).toBe(43);
     const banner = readFileSync(
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
