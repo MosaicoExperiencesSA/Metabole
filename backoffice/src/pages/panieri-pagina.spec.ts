@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 const sorgenti = {
   ...import.meta.glob('./Panieri.tsx', { query: '?raw', import: 'default', eager: true }),
+  ...import.meta.glob('./panieri-filtro.ts', { query: '?raw', import: 'default', eager: true }),
   ...import.meta.glob('../App.tsx', { query: '?raw', import: 'default', eager: true }),
   ...import.meta.glob('../components/Layout.tsx', { query: '?raw', import: 'default', eager: true }),
   ...import.meta.glob('../lib/labels.ts', { query: '?raw', import: 'default', eager: true }),
@@ -100,8 +101,13 @@ describe('quello che la pagina spiega', () => {
    * veloce per non fidarsi più di nessuna delle due.
    */
   it('⛔ il filtro tocca i numeri della matrice, non solo l\'elenco', () => {
-    expect(pagina).toMatch(/numeriDaMostrare\(\{ piatti: c\.totale, attivi: c\.totaleAttivi \}, filtro\)/);
-    expect(pagina).toMatch(/numeriDaMostrare\(c\.perSlot\[sl\][\s\S]{0,60}?, filtro\)/);
+    /**
+     * ⚠️ Riscritta il 4/9 col terzo filtro: i conteggi passano da `conConteggi`, che riempie di zero
+     * le due colonne nuove quando il server ancora non le manda — durante un rilascio la pagina è
+     * nuova e il backend no. Il numero in alto e quelli per pasto passano tutti e due di lì.
+     */
+    expect(pagina).toMatch(/numeriDaMostrare\(conConteggi\(\{[\s\S]*?piatti: c\.totale, attivi: c\.totaleAttivi,/);
+    expect(pagina).toMatch(/numeriDaMostrare\(conConteggi\(c\.perSlot\[sl\] \?\? \{ piatti: 0, attivi: 0 \}\), filtroVero\)/);
     expect(pagina).toMatch(/ricetteMostrate\.map/);
   });
 
@@ -159,5 +165,60 @@ describe('quello che la pagina spiega', () => {
   /** ⚠️ Spuntino e merenda sono un paniere solo, e chi apre l'elenco deve saperlo. */
   it('⚠️ e lo dice che i due spuntini sono lo stesso paniere', () => {
     expect(pagina).toMatch(/pescano dallo stesso paniere/);
+  });
+});
+
+/**
+ * ⛔ **IL TERZO FILTRO: «Nascondi verificate»** — Simone, 4/9.
+ *
+ * ⚠️ Sta staccato dagli altri due perché è un **asse a parte**: quelli dicono *quali piatti*, questo
+ * *quali di quelli*. E il campo `verificata` arriva dall'elenco, non si indovina.
+ */
+describe('il pulsante «nascondi verificate»', () => {
+  const pagina = src('./Panieri.tsx');
+
+  it('⛔ c\'è, ed è un interruttore come gli altri due', () => {
+    expect(pagina).toMatch(/nascondiVerificate: !f\.nascondiVerificate/);
+    expect(pagina).toMatch(/Nascondi verificate/);
+  });
+
+  /** ⛔ E l'elenco lo applica leggendo il campo del database, non un'etichetta. */
+  it('⛔ e l\'elenco filtra sul campo che arriva dal server', () => {
+    expect(pagina).toMatch(/passaIlFiltro\(r\.active, filtroVero, r\.verificata === true\)/);
+  });
+
+  /**
+   * ⛔ **L'ECO DEL FILTRO** — corretto il 4/9 da una revisione avversariale.
+   *
+   * Durante un rilascio la pagina è nuova e il backend no: senza le due colonne il pulsante restava
+   * premuto, i numeri non cambiavano, l'elenco non nascondeva niente, **e il banner diceva che le
+   * verificate erano nascoste**. Su una cella `84 (60)` con 40 verificate la pagina scriveva
+   * `84 (60)` affermando di averne tolte 40: chi legge conclude di avere 84 piatti da verificare
+   * invece di 44. Mostrare di più sotto una frase che dice il contrario non è l'errore innocuo.
+   */
+  it('⛔ il pulsante non c\'è se il server non sa rispondere', () => {
+    expect(pagina).toMatch(/const sannoLeVerificate = \(celle \?\? \[\]\)\.some/);
+    expect(pagina).toMatch(/\{sannoLeVerificate && \(/);
+  });
+
+  /** ⛔ E il filtro non vale lo stesso: un pulsante nascosto con lo stato acceso è invisibile. */
+  it('⛔ e in quel caso il filtro non si applica di nascosto', () => {
+    expect(pagina).toMatch(/const filtroVero: Filtro = sannoLeVerificate \? filtro : \{ \.\.\.filtro, nascondiVerificate: false \}/);
+    /** ⚠️ E tutti i conti passano da `filtroVero`, non da `filtro`: uno solo rimasto indietro basta. */
+    expect(pagina).not.toMatch(/numeriDaMostrare\([\s\S]{0,200}?\), filtro\)/);
+    expect(pagina).not.toMatch(/comeSiLegge\(filtro\)/);
+  });
+});
+
+/**
+ * ⛔ **NESSUNA DI QUESTE FRASI SCRIVE MARKDOWN.** Il `Banner` rende i `children` come testo: gli
+ * asterischi si leggono. Le frasi del filtro usano le MAIUSCOLE apposta — e il 4/9 la regola è
+ * stata scritta e violata nello stesso lavoro, quindi qui c'è un guardiano.
+ */
+describe('le frasi dei filtri si leggono dove finiscono', () => {
+  it('⛔ niente asterischi in `panieri-filtro.ts`', () => {
+    expect(src('./panieri-filtro.ts').split('\n')
+      .filter((r) => /^\s*(\?|:)?\s*'/.test(r))
+      .join('\n')).not.toContain('**');
   });
 });

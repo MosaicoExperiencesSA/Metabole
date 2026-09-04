@@ -134,3 +134,25 @@ describe('scrivere una ricetta nuova da «Scrivi menu a mano»', () => {
     expect(menu).toMatch(/diventa di\n\s+\* +quarantamila doppioni|quarantamila\n?\s*\*?\s*doppioni/);
   });
 });
+
+/**
+ * ⛔ **DUE CONSEGUENZE DELLO STESSO «SALVA» SI DICONO TUTTE E DUE** — corretto il 4/9 da una
+ * revisione avversariale.
+ *
+ * Il ramo degli allergeni **assegnava** l'avviso invece di sommarlo, e cancellava la frase sui
+ * panieri appena scritta: chi correggeva gli ingredienti **e** spostava il pasto nello stesso
+ * salvataggio vedeva solo l'avviso degli allergeni, e le righe di paniere si muovevano in silenzio.
+ * ⚠️ È la famiglia di difetti che il commento due righe sopra dichiara di togliere — «una
+ * conseguenza che chi la provoca non vede» — rifatta nella riga sotto.
+ */
+describe('gli avvisi del salvataggio si sommano', () => {
+  it('⛔ l\'avviso degli allergeni non cancella quello dei panieri', () => {
+    expect(ricette).toMatch(/avviso = avviso \? `\$\{allergeni\}\\n\\n\$\{avviso\}` : allergeni;/);
+    /** ⚠️ E nessuno dei due rami assegna secco: uno solo che lo faccia rimette il difetto. */
+    expect(ricette).not.toMatch(/^\s*avviso =\s*$/m);
+  });
+
+  it('⛔ e quello dei panieri si somma a sua volta', () => {
+    expect(ricette).toMatch(/if \(r\?\.pastoCambiato\) avviso = avviso \?/);
+  });
+});

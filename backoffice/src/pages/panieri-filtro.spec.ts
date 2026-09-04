@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { NESSUN_FILTRO, comeSiLegge, mostraTutto, numeriDaMostrare, passaIlFiltro } from './panieri-filtro';
 
 const TUTTO = NESSUN_FILTRO;
-const SOLO_ATTIVE = { attive: true, bozze: false };
-const SOLO_BOZZE = { attive: false, bozze: true };
-const TUTTI_E_DUE = { attive: true, bozze: true };
+const SOLO_ATTIVE = { attive: true, bozze: false, nascondiVerificate: false };
+const SOLO_BOZZE = { attive: false, bozze: true, nascondiVerificate: false };
+const TUTTI_E_DUE = { attive: true, bozze: true, nascondiVerificate: false };
+/** ⚠️ Il terzo asse, che si combina con gli altri due invece di sostituirli. */
+const senzaSpunta = <T extends object>(f: T) => ({ ...f, nascondiVerificate: true });
 
 describe('⛔ entrambi spenti e entrambi accesi vogliono dire la stessa cosa', () => {
   it('nessun pulsante premuto mostra tutto', () => {
@@ -48,7 +50,7 @@ describe('passaIlFiltro — l’elenco delle ricette', () => {
 });
 
 describe('numeriDaMostrare — i numeri della matrice', () => {
-  const cella = { piatti: 84, attivi: 60 };
+  const cella = { piatti: 84, attivi: 60, verificate: 0, attiveVerificate: 0 };
 
   it('senza filtro: 84 (60), come prima', () => {
     expect(numeriDaMostrare(cella, TUTTO)).toEqual({ quanti: 84, fraParentesi: 60 });
@@ -74,11 +76,11 @@ describe('numeriDaMostrare — i numeri della matrice', () => {
    * che non c'è.
    */
   it('⛔ se gli attivi superassero i piatti, zero e non un negativo', () => {
-    expect(numeriDaMostrare({ piatti: 3, attivi: 9 }, SOLO_BOZZE)).toEqual({ quanti: 0, fraParentesi: null });
+    expect(numeriDaMostrare({ piatti: 3, attivi: 9, verificate: 0, attiveVerificate: 0 }, SOLO_BOZZE)).toEqual({ quanti: 0, fraParentesi: null });
   });
 
   it('⚠️ un paniere vuoto resta zero in tutti e tre i modi', () => {
-    const vuoto = { piatti: 0, attivi: 0 };
+    const vuoto = { piatti: 0, attivi: 0, verificate: 0, attiveVerificate: 0 };
     expect(numeriDaMostrare(vuoto, TUTTO)).toEqual({ quanti: 0, fraParentesi: 0 });
     expect(numeriDaMostrare(vuoto, SOLO_ATTIVE).quanti).toBe(0);
     expect(numeriDaMostrare(vuoto, SOLO_BOZZE).quanti).toBe(0);
@@ -99,5 +101,62 @@ describe('comeSiLegge', () => {
   it('⛔ col filtro acceso spiega cosa sono i numeri', () => {
     expect(comeSiLegge(SOLO_ATTIVE)).toMatch(/solo le ricette ATTIVE/);
     expect(comeSiLegge(SOLO_BOZZE)).toMatch(/solo le BOZZE/);
+  });
+});
+
+/**
+ * ⛔ **IL TERZO PULSANTE: «nascondi verificate»** — Simone, 4/9.
+ *
+ * ⚠️ È un **asse a parte**, e queste prove sono qui per quello: non sostituisce «attive»/«bozze», si
+ * incrocia con loro. «Solo attive» più questo chiede *le attive che restano da verificare*, che è la
+ * domanda per cui il pulsante esiste — e che nella stessa terna non si sarebbe potuta fare.
+ */
+describe('⛔ nascondere le verificate', () => {
+  it('⛔ nell\'elenco toglie le verificate, e lascia le altre', () => {
+    expect(passaIlFiltro(true, senzaSpunta(TUTTO), true)).toBe(false);
+    expect(passaIlFiltro(true, senzaSpunta(TUTTO), false)).toBe(true);
+  });
+
+  /** ⛔ E si incrocia: una bozza verificata sparisce anche a «solo in bozza». */
+  it('⛔ si combina con gli altri due invece di sostituirli', () => {
+    expect(passaIlFiltro(false, senzaSpunta(SOLO_BOZZE), true)).toBe(false);
+    expect(passaIlFiltro(false, senzaSpunta(SOLO_BOZZE), false)).toBe(true);
+    expect(passaIlFiltro(true, senzaSpunta(SOLO_BOZZE), false)).toBe(false);
+  });
+
+  /**
+   * ⚠️ **«Non lo so» vale «non verificata»**: una schermata che ancora non manda il campo non deve
+   * far sparire dei piatti che ci sono. Il ripiego mostra **di più**, che è l'errore innocuo.
+   */
+  it('⚠️ senza il campo non nasconde niente', () => {
+    expect(passaIlFiltro(true, senzaSpunta(TUTTO))).toBe(true);
+  });
+
+  /**
+   * ⛔ **E i numeri della matrice seguono**, come per gli altri due: un filtro che cambiasse
+   * l'elenco sotto e lasciasse i numeri sopra farebbe leggere due verità diverse nella stessa
+   * schermata. Su 10 piatti, 6 attivi, 4 verificati di cui 3 attivi:
+   */
+  const C = { piatti: 10, attivi: 6, verificate: 4, attiveVerificate: 3 };
+
+  it('⛔ senza altri filtri: 6 non verificate, di cui 3 attive', () => {
+    expect(numeriDaMostrare(C, senzaSpunta(TUTTO))).toEqual({ quanti: 6, fraParentesi: 3 });
+  });
+
+  it('⛔ con «solo attive»: le attive non verificate', () => {
+    expect(numeriDaMostrare(C, senzaSpunta(SOLO_ATTIVE))).toEqual({ quanti: 3, fraParentesi: null });
+  });
+
+  /** 4 bozze in tutto, di cui 1 verificata (4 verificate − 3 attive verificate) → 3. */
+  it('⛔ con «solo in bozza»: le bozze non verificate', () => {
+    expect(numeriDaMostrare(C, senzaSpunta(SOLO_BOZZE))).toEqual({ quanti: 3, fraParentesi: null });
+  });
+
+  /** ⚠️ E la frase lo dice: senza, un filtro acceso è un numero sbagliato. */
+  it('⚠️ e la spiegazione lo dice, sommandosi all\'altra', () => {
+    expect(comeSiLegge(senzaSpunta(TUTTO))).toContain('VERIFICATE');
+    const due = comeSiLegge(senzaSpunta(SOLO_ATTIVE))!;
+    expect(due).toContain('ATTIVE');
+    expect(due).toContain('VERIFICATE');
   });
 });

@@ -14,29 +14,7 @@ import { FAMIGLIE, IMPOSSIBILI, REGIMI, combinazioneImpossibile } from './appart
  *
  * ⚠️ Si passa dalla porta già esistente (`fuoriPostoAColazione`), non da un secondo giudizio.
  */
-import { PASTI_SENZA_CARNE_PESCE_VERDURA, fuoriPostoAColazione } from './colazione-senza-carne-e-pesce';
-import { nomiIngredienti } from './elenco-ingredienti';
-
-/**
- * Il motivo per cui questa ricetta non va in quel pasto, o `null`.
- *
- * ⚠️ **Due letture, nome e ingredienti**, come la diagnostica: i gamberetti nel nome spesso non
- * compaiono, e un elenco ingredienti povero non è «va bene», è «non lo so».
- */
-function fuoriPostoNelPasto(
-  ricetta: { id: string; name: string; ingredients?: unknown },
-  slot: string,
-): string | null {
-  if (!(PASTI_SENZA_CARNE_PESCE_VERDURA as readonly string[]).includes(slot)) return null;
-  const fuori = fuoriPostoAColazione({
-    id: ricetta.id,
-    nome: ricetta.name,
-    ingredienti: nomiIngredienti(ricetta.ingredients),
-  });
-  if (!fuori) return null;
-  return `«${ricetta.name}» è ${fuori.motivo.startsWith('carne') ? 'carne' : 'pesce'} (${fuori.prova}): `
-    + 'a colazione, spuntino e merenda non ci va. La regola è del 31/8 e vale su tutte le famiglie.';
-}
+import { fuoriPostoNelPasto } from './colazione-senza-carne-e-pesce';
 
 
 /**
@@ -64,6 +42,18 @@ export interface ConteggioDelPasto {
   piatti: number;
   /** Quanti di quelli il motore userebbe davvero (`active: true`). */
   attivi: number;
+  /**
+   * ⛔ **Quante hanno la spunta «verificata dalla nutrizionista»** (Simone, 4/9: *«mi serve un altro
+   * filtro "Verificato" che nasconde le verificate»*).
+   *
+   * ⚠️ Sono **due** numeri e non uno, perché il filtro si combina con gli altri due: chi guarda
+   * «solo attive» **e** nasconde le verificate vuole il conto delle attive-non-verificate, che non
+   * si ricava da `attivi` e `verificate` presi separatamente. Un conto sbagliato in questa matrice
+   * è un numero su cui si decide cosa mangiano le clienti.
+   */
+  verificate: number;
+  /** Quante sono **attive E verificate**: serve a incrociare i due filtri senza indovinare. */
+  attiveVerificate: number;
 }
 
 export interface CellaDelPaniere {
@@ -75,6 +65,9 @@ export interface CellaDelPaniere {
   perSlot: Record<string, ConteggioDelPasto>;
   totale: number;
   totaleAttivi: number;
+  /** ⚠️ Le stesse due colonne del conteggio per pasto, sul totale della cella: vedi `ConteggioDelPasto`. */
+  totaleVerificate: number;
+  totaleAttiveVerificate: number;
 }
 
 @Injectable()
@@ -95,7 +88,7 @@ export class PanieriService {
    * ⚠️ E i due spuntini si contano **uniti** (Fase 2): è quello che vede la cliente.
    */
   async celle(): Promise<CellaDelPaniere[]> {
-    const [panieri, righe, attive] = await Promise.all([
+    const [panieri, righe, attive, verificate] = await Promise.all([
       this.prisma.paniere.findMany({ select: { id: true, famiglia: true, regime: true } }) as unknown as
         Promise<{ id: string; famiglia: string; regime: string }[]>,
       this.prisma.paniereRicetta.findMany({ select: { paniereId: true, recipeId: true, slot: true } }) as unknown as
@@ -111,8 +104,21 @@ export class PanieriService {
        */
       this.prisma.recipe.findMany({ where: { active: true }, select: { id: true } }) as unknown as
         Promise<{ id: string }[]>,
+      /**
+       * ⚠️ Gli id delle **verificate**, con la stessa forma della riga sopra: due insiemi in
+       * memoria, e i conti si fanno incrociandoli. Contarle con un `count` per cella vorrebbe dire
+       * quaranta query per una tabella che si apre in continuazione.
+       */
+      /**
+       * ⚠️ `as never` sul `where`, come altrove nel progetto: i tipi generati da Prisma non
+       * conoscono ancora `verified_at` — la colonna è di stamattina e la rigenerazione dei tipi qui
+       * non arriva in fondo. La colonna in database c'è, la migrazione è applicata.
+       */
+      this.prisma.recipe.findMany({ where: { verifiedAt: { not: null } } as never, select: { id: true } }) as unknown as
+        Promise<{ id: string }[]>,
     ]);
     const eAttiva = new Set(attive.map((r) => r.id));
+    const eVerificata = new Set(verificate.map((r) => r.id));
 
     const perPaniere = new Map<string, Map<string, Set<string>>>();
     for (const r of righe) {
@@ -134,7 +140,13 @@ export class PanieriService {
         for (const sl of GIORNATA_CINQUE) {
           const uniti = new Set<string>();
           for (const g of slotDaCuiPescare(sl)) for (const rid of slots.get(g) ?? []) uniti.add(rid);
-          perSlot[sl] = { piatti: uniti.size, attivi: [...uniti].filter((rid) => eAttiva.has(rid)).length };
+          const dentro = [...uniti];
+          perSlot[sl] = {
+            piatti: uniti.size,
+            attivi: dentro.filter((rid) => eAttiva.has(rid)).length,
+            verificate: dentro.filter((rid) => eVerificata.has(rid)).length,
+            attiveVerificate: dentro.filter((rid) => eAttiva.has(rid) && eVerificata.has(rid)).length,
+          };
         }
         const tutte = new Set<string>();
         for (const s of slots.values()) for (const rid of s) tutte.add(rid);
@@ -146,6 +158,8 @@ export class PanieriService {
           perSlot,
           totale: tutte.size,
           totaleAttivi: [...tutte].filter((rid) => eAttiva.has(rid)).length,
+          totaleVerificate: [...tutte].filter((rid) => eVerificata.has(rid)).length,
+          totaleAttiveVerificate: [...tutte].filter((rid) => eAttiva.has(rid) && eVerificata.has(rid)).length,
         });
       }
     }
@@ -153,7 +167,7 @@ export class PanieriService {
   }
 
   /** Le ricette di un paniere per un pasto, coi gemelli uniti — quello che vedrebbe una cliente. */
-  async ricetteDi(famiglia: string, regime: string, slot: string): Promise<{ id: string; name: string; kcal: number; mealSlot: string; active: boolean }[]> {
+  async ricetteDi(famiglia: string, regime: string, slot: string): Promise<{ id: string; name: string; kcal: number; mealSlot: string; active: boolean; verificata: boolean }[]> {
     const paniere = (await this.prisma.paniere.findFirst({
       where: { famiglia, regime },
       select: { id: true },
@@ -167,11 +181,17 @@ export class PanieriService {
     const ids = [...new Set(righe.map((r) => r.recipeId))];
     if (!ids.length) return [];
 
-    return (await this.prisma.recipe.findMany({
+    /**
+     * ⚠️ `verificata` è un **booleano**, non la data: qui serve a filtrare, e la data con il nome di
+     * chi l'ha messa si legge nella scheda. Mandare `verifiedById` da questa porta darebbe a chi ha
+     * solo la chiave `panieri` un pezzo di scheda ricetta che non gli spetta.
+     */
+    const righeRicette = (await this.prisma.recipe.findMany({
       where: { id: { in: ids } },
-      select: { id: true, name: true, kcal: true, mealSlot: true, active: true },
+      select: { id: true, name: true, kcal: true, mealSlot: true, active: true, verifiedAt: true } as never,
       orderBy: { name: 'asc' },
-    })) as unknown as { id: string; name: string; kcal: number; mealSlot: string; active: boolean }[];
+    })) as unknown as { id: string; name: string; kcal: number; mealSlot: string; active: boolean; verifiedAt: Date | null }[];
+    return righeRicette.map(({ verifiedAt, ...r }) => ({ ...r, verificata: verifiedAt !== null }));
   }
 
   /**

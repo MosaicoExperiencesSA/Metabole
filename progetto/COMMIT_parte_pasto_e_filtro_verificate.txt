@@ -1,0 +1,85 @@
+────────────────────────────────────────────────────────────────────────────
+ Il pasto sposta i panieri · il filtro «Nascondi verificate»
+ 4 settembre 2026 (sera, due urgenze)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+Summary
+───────
+Cambiare il pasto sposta le righe di paniere; filtro «Nascondi verificate» nei Panieri
+
+Description
+───────────
+Due urgenze di Simone, e la prima era più grossa di come suonava.
+
+1) ⛔ «SE SPOSTO UNA RICETTA DA COLAZIONE A CENA E SALVO NON LA SPOSTA»
+   `Recipe.mealSlot` e `PaniereRicetta.slot` sono due colonne diverse — devono
+   esserlo: la prima dice che pasto è il piatto, la seconda in quale CELLA sta —
+   ma `updateRecipe` scriveva solo la prima. La scheda diceva «cena» e IL MOTORE
+   CONTINUAVA A SERVIRLO A COLAZIONE. Nessun errore: chi aveva salvato aveva
+   davanti la prova che il salvataggio era andato.
+   Ora le righe seguono il pasto, con tre attenzioni:
+   ⚠️ spuntino e merenda sono un paniere solo: fra i due non si sposta niente,
+      e lo slot scritto è il capofila;
+   ⚠️ se nello stesso paniere una riga sta già alla destinazione, la seconda si
+      toglie — l'unicità è `(paniere, ricetta, slot)`, e senza questo controllo
+      lo spostamento fallirebbe a metà senza che nessuno sappia quali righe;
+   ⚠️ le due mosse passano da UNA transazione: fra un `updateMany` e un
+      `deleteMany` separati ci sta un errore, e il risultato sarebbe metà delle
+      righe spostate e metà no — cioè lo stato che questa funzione evita.
+
+   ⛔ LA QUARTA PORTA, e si chiude RIFIUTANDO. Un pesce spostato a colazione non
+   si salva: si dice di no, e si dice come si fa. La prima stesura invece
+   TOGLIEVA le righe di paniere — una revisione avversariale l'ha smontata prima
+   della consegna: una tendina premuta per sbaglio su una ricetta in dodici
+   panieri ne cancellava dodici righe, rimettere «cena» non le riportava
+   indietro, e la regola restava aperta lo stesso perché la ricetta finiva
+   comunque a colazione in catalogo. Una distruzione irreversibile senza
+   conferma, come conseguenza di un clic.
+   ⚠️ E il giudizio si dà sugli ingredienti NUOVI: chi toglie il pesce E sposta
+   il pasto nello stesso salvataggio passa.
+
+2) IL FILTRO «NASCONDI VERIFICATE» NELLA PAGINA PANIERI
+   ⚠️ È un ASSE A PARTE, non un terzo valore dei due pulsanti: quelli dicono
+   *quali piatti*, questo *quali di quelli*. Così «solo attive» + questo dà LE
+   ATTIVE CHE RESTANO DA VERIFICARE, che è la domanda per cui serve — e che
+   nella stessa terna non si sarebbe potuta fare.
+   ⚠️ I numeri della matrice seguono, come gli altri due: l'API manda due
+   conteggi in più per cella (verificate, attive-verificate), perché «attive non
+   verificate» dai numeri di prima non si ricava.
+   ⛔ E c'è L'ECO DEL FILTRO: se il server non sa rispondere — la finestra di
+   rilascio in cui il backoffice è nuovo e il backend no — il pulsante NON C'È e
+   il filtro non si applica di nascosto. Senza, la pagina avrebbe scritto
+   `84 (60)` affermando di aver tolto le 40 verificate: chi legge conclude di
+   avere 84 piatti da verificare invece di 44.
+
+⛔ SEI DIFETTI TROVATI DALLA REVISIONE AVVERSARIALE, PRIMA DELLA CONSEGNA
+   1. la cancellazione di massa irreversibile (sopra), fuori transazione;
+   2. l'avviso dei panieri veniva CANCELLATO dall'avviso degli allergeni: chi
+      correggeva gli ingredienti e spostava il pasto nello stesso salvataggio
+      vedeva solo il secondo, e le righe si muovevano in silenzio;
+   3. «la quarta porta è chiusa» era falso finché si cancellava invece di
+      rifiutare: la ricetta restava comunque a colazione in catalogo;
+   4. il banner del filtro scriveva `**asterischi**` dove il markdown non si
+      disegna — e la regola è stata scritta e violata nello stesso lavoro;
+   5. il ripiego del server vecchio mentiva (sopra);
+   6. l'audit registrava il pasto scelto e non quello scritto: chi cerca un
+      piatto nel registro trovava un valore che nella colonna non esiste. Ora
+      ci sono tutti e due.
+
+PROVE
+─────
+· 7626 verdi su 442 suite nelle quattro modalità; 291 nel backoffice. Build ok;
+  `tsc --noEmit` solo i 2 errori preesistenti; `tsc -b` pulito su app e
+  backoffice.
+· Suite nuove: `ricetta-che-cambia-pasto.spec.ts` (12) e
+  `il-pasto-sposta-i-panieri.spec.ts` (9, la cucitura).
+· Dieci prove di mutazione, tutte rosse. Una era sopravvissuta — l'avviso
+  cancellato — e ha fatto scrivere la sentinella che mancava.
+
+⚠️ RESTA APERTO, dichiarato
+   La regola dei pasti leggeri non è applicata dai pool che pescano per
+   `mealSlot` (`menu.service.ts`, le sostituzioni): una ricetta di pesce che
+   fosse GIÀ a colazione in catalogo verrebbe proposta come ricambio. È una
+   quinta porta, più a valle, e non l'ho toccata: è un lavoro a sé.

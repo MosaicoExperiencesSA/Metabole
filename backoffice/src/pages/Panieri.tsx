@@ -52,7 +52,28 @@ const NOME_REGIME: Record<string, string> = {
 interface Conteggio {
   piatti: number;
   attivi: number;
+  /** ⚠️ Facoltativi: durante un rilascio la pagina è nuova e il server ancora no. Vedi `senzaSpunte`. */
+  verificate?: number;
+  attiveVerificate?: number;
 }
+
+/**
+ * ⚠️ **Il ripiego quando il server non manda ancora le due colonne nuove**, cioè per qualche minuto
+ * durante un rilascio: il backoffice si pubblica in un minuto e il backend ci mette di più.
+ *
+ * ⛔ **Ma il ripiego da solo non basta, e la prima stesura si fermava qui.** Con zero verificate il
+ * pulsante restava premuto, i numeri non cambiavano, l'elenco non nascondeva niente — e il banner
+ * diceva «le verificate sono nascoste». Su una cella `84 (60)` con 40 verificate, la pagina
+ * scriveva `84 (60)` **affermando** che le 40 erano state tolte: chi legge conclude di avere 84
+ * piatti da verificare invece di 44. Mostrare di più sotto una frase che dice il contrario non è
+ * l'errore innocuo, è il numero sbagliato.
+ *
+ * ⚠️ Perciò il pulsante **non c'è** finché il server non sa rispondere: vedi `sannoLeVerificate`.
+ */
+const conConteggi = (c: Conteggio) => ({
+  piatti: c.piatti, attivi: c.attivi,
+  verificate: c.verificate ?? 0, attiveVerificate: c.attiveVerificate ?? 0,
+});
 
 interface Cella {
   famiglia: string;
@@ -62,6 +83,8 @@ interface Cella {
   perSlot: Record<string, Conteggio>;
   totale: number;
   totaleAttivi: number;
+  totaleVerificate?: number;
+  totaleAttiveVerificate?: number;
 }
 
 interface Ricetta {
@@ -70,6 +93,8 @@ interface Ricetta {
   kcal: number;
   mealSlot: string;
   active: boolean;
+  /** ⚠️ La spunta della nutrizionista, come booleano: la data e il nome stanno nella scheda. */
+  verificata?: boolean;
 }
 
 export function Panieri() {
@@ -164,13 +189,28 @@ export function Panieri() {
     }
   }
 
+  /**
+   * ⛔ **Il server sa rispondere alla domanda «quante sono verificate»?** È l'«eco del filtro» che
+   * questo progetto usa già altrove (`filtroDaRivedere`): durante un rilascio la pagina è nuova e il
+   * backend ancora no, e un filtro che non filtra sotto una frase che dice il contrario è peggio di
+   * un filtro che non c'è. ⚠️ Basta una cella a dirlo: o la risposta ha le due colonne o non le ha.
+   */
+  const sannoLeVerificate = (celle ?? []).some((c) => c.totaleVerificate !== undefined);
+  /**
+   * ⚠️ **E se il pulsante non c'è, il filtro non deve valere lo stesso.** Un pulsante nascosto con
+   * il suo stato ancora acceso sarebbe un filtro invisibile: la pagina mostrerebbe meno di quello
+   * che dice, che è lo stesso difetto dell'altra parte. Lo stato resta — se il server torna a
+   * rispondere, il pulsante si riaccende com'era.
+   */
+  const filtroVero: Filtro = sannoLeVerificate ? filtro : { ...filtro, nascondiVerificate: false };
+
   /** ⚠️ Filtrate qui e non nella query: l'API rende il paniere intero, e i due pulsanti si premono
    * e si spengono in continuazione — una chiamata a ogni clic sarebbe attesa per niente. */
   const ricetteMostrate = useMemo(
-    () => (ricette ?? []).filter((r) => passaIlFiltro(r.active, filtro)),
-    [ricette, filtro],
+    () => (ricette ?? []).filter((r) => passaIlFiltro(r.active, filtroVero, r.verificata === true)),
+    [ricette, filtroVero],
   );
-  const spiegazione = comeSiLegge(filtro);
+  const spiegazione = comeSiLegge(filtroVero);
 
   const famiglie = useMemo(() => [...new Set((celle ?? []).map((c) => c.famiglia))], [celle]);
   const regimi = useMemo(() => [...new Set((celle ?? []).map((c) => c.regime))], [celle]);
@@ -216,6 +256,24 @@ export function Panieri() {
         >
           Mostra solo in bozza
         </button>
+        {/*
+          ⛔ **Il terzo pulsante è un ASSE A PARTE**, e per questo sta staccato dagli altri due
+          (Simone, 4/9). «Attive» e «bozze» dicono *quali piatti*; questo dice *quali di quelli*, e
+          si combina: «solo attive» più questo chiede **le attive che restano da verificare**, che è
+          la domanda per cui esiste. Nella stessa terna non si sarebbe potuta fare.
+        */}
+        <span style={{ width: 12 }} />
+        {sannoLeVerificate && (
+        <button
+          type="button"
+          className={filtro.nascondiVerificate ? 'btn sm' : 'btn ghost sm'}
+          aria-pressed={filtro.nascondiVerificate}
+          title="Nasconde i piatti che la nutrizionista ha già verificato: resta quello da guardare."
+          onClick={() => setFiltro((f) => ({ ...f, nascondiVerificate: !f.nascondiVerificate }))}
+        >
+          <i className="ti ti-rosette-discount-check-off" /> Nascondi verificate
+        </button>
+        )}
       </div>
       {/*
         ⛔ **Un filtro acceso senza una frase che lo dica è un numero sbagliato.** Chi torna su
@@ -250,7 +308,10 @@ export function Panieri() {
                     if (!c.esiste) {
                       return <td key={rg} style={{ color: 'var(--muted)' }}>paniere non creato</td>;
                     }
-                    const tot = numeriDaMostrare({ piatti: c.totale, attivi: c.totaleAttivi }, filtro);
+                    const tot = numeriDaMostrare(conConteggi({
+                      piatti: c.totale, attivi: c.totaleAttivi,
+                      verificate: c.totaleVerificate, attiveVerificate: c.totaleAttiveVerificate,
+                    }), filtroVero);
                     return (
                       <td key={rg}>
                         <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -266,7 +327,7 @@ export function Panieri() {
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {SLOT.map((sl) => {
-                            const n = numeriDaMostrare(c.perSlot[sl] ?? { piatti: 0, attivi: 0 }, filtro);
+                            const n = numeriDaMostrare(conConteggi(c.perSlot[sl] ?? { piatti: 0, attivi: 0 }), filtroVero);
                             return (
                               <button
                                 key={sl}

@@ -48,6 +48,7 @@
  * panieri di roba giusta — e un paniere vuoto a colazione è peggio di un branzino.
  */
 import { eCarne, eCarneIngrediente, ePesce, diCosaE, vaBeneAColazione, PASTI_SENZA_CARNE_PESCE_VERDURA, type DiCosa, type IngredientePesato } from './piatto-di-cosa';
+import { nomiIngredienti } from './elenco-ingredienti';
 
 export { PASTI_SENZA_CARNE_PESCE_VERDURA, vaBeneAColazione };
 
@@ -102,6 +103,34 @@ export function fuoriPostoAColazione(p: PiattoDaGuardare): FuoriPosto | null {
   if (pesce) return { ...base, motivo: 'pesce fra gli ingredienti', prova: pesce };
   return null;
 }
+
+/**
+ * ⚠️ **Traslocata qui il 4/9**: viveva in `panieri.service.ts`, e da quel giorno la chiede anche
+ * `updateRecipe` — quando una ricetta cambia pasto, le sue righe di paniere la seguono, e in un
+ * pasto leggero un piatto di carne non ci può andare. Importare il servizio dei panieri dentro il
+ * catalogo avrebbe chiuso un cerchio: la funzione è pura e sta col giudizio che chiama.
+ */
+/**
+ * Il motivo per cui questa ricetta non va in quel pasto, o `null`.
+ *
+ * ⚠️ **Due letture, nome e ingredienti**, come la diagnostica: i gamberetti nel nome spesso non
+ * compaiono, e un elenco ingredienti povero non è «va bene», è «non lo so».
+ */
+export function fuoriPostoNelPasto(
+  ricetta: { id: string; name: string; ingredients?: unknown },
+  slot: string,
+): string | null {
+  if (!(PASTI_SENZA_CARNE_PESCE_VERDURA as readonly string[]).includes(slot)) return null;
+  const fuori = fuoriPostoAColazione({
+    id: ricetta.id,
+    nome: ricetta.name,
+    ingredienti: nomiIngredienti(ricetta.ingredients),
+  });
+  if (!fuori) return null;
+  return `«${ricetta.name}» è ${fuori.motivo.startsWith('carne') ? 'carne' : 'pesce'} (${fuori.prova}): `
+    + 'a colazione, spuntino e merenda non ci va. La regola è del 31/8 e vale su tutte le famiglie.';
+}
+
 
 export interface Cella {
   paniereId: string;

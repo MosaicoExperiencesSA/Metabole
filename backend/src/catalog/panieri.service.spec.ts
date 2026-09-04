@@ -65,12 +65,43 @@ describe('le celle del paniere', () => {
       { paniereId: 'p1', recipeId: 'viva', slot: 'lunch' },
       { paniereId: 'p1', recipeId: 'bozza', slot: 'lunch' },
     ]);
-    prisma.recipe.findMany.mockResolvedValue([{ id: 'viva' }]); // solo questa è attiva
+    /**
+     * ⚠️ Le due letture si distinguono dal `where`: la prima chiede le attive, la seconda le
+     * verificate. Rispondere lo stesso elenco a tutte e due — come faceva questo finto prima del
+     * 4/9 — vorrebbe dire provare i quattro numeri su un caso in cui non si possono distinguere.
+     */
+    prisma.recipe.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(where?.active === true ? [{ id: 'viva' }] : []));
     const svc = new PanieriService(prisma as never, audit() as never);
     const med = (await svc.celle()).find((c) => c.famiglia === 'Mediterranea' && c.regime === 'vegan')!;
-    expect(med.perSlot.lunch).toEqual({ piatti: 2, attivi: 1 });
+    expect(med.perSlot.lunch).toEqual({ piatti: 2, attivi: 1, verificate: 0, attiveVerificate: 0 });
     expect(med.totale).toBe(2);
     expect(med.totaleAttivi).toBe(1);
+  });
+
+  /**
+   * ⛔ **QUATTRO NUMERI, PERCHÉ I FILTRI SI COMBINANO** — Simone, 4/9: *«mi serve un altro filtro
+   * "Verificato" che nasconde le verificate»*.
+   *
+   * Chi guarda «solo attive» **e** nasconde le verificate vuole il conto delle attive-non-verificate,
+   * e quello non si ricava da `attivi` e `verificate` presi separatamente: servono anche quelle che
+   * sono tutte e due le cose. Un numero indovinato qui è un numero su cui si decide cosa mangiano
+   * le clienti.
+   */
+  it('⛔ conta anche le verificate, e quelle che sono attive E verificate', async () => {
+    const prisma = prismaBase();
+    prisma.paniere.findMany.mockResolvedValue([{ id: 'p1', famiglia: 'Mediterranea', regime: 'vegan' }]);
+    prisma.paniereRicetta.findMany.mockResolvedValue([
+      { paniereId: 'p1', recipeId: 'a', slot: 'lunch' }, // attiva e verificata
+      { paniereId: 'p1', recipeId: 'b', slot: 'lunch' }, // attiva, non verificata
+      { paniereId: 'p1', recipeId: 'c', slot: 'lunch' }, // bozza, verificata
+      { paniereId: 'p1', recipeId: 'd', slot: 'lunch' }, // bozza, non verificata
+    ]);
+    prisma.recipe.findMany.mockImplementation(({ where }: any) =>
+      Promise.resolve(where?.active === true ? [{ id: 'a' }, { id: 'b' }] : [{ id: 'a' }, { id: 'c' }]));
+    const svc = new PanieriService(prisma as never, audit() as never);
+    const med = (await svc.celle()).find((c) => c.famiglia === 'Mediterranea' && c.regime === 'vegan')!;
+    expect(med.perSlot.lunch).toEqual({ piatti: 4, attivi: 2, verificate: 2, attiveVerificate: 1 });
   });
 
   it('le celle ci sono tutte, anche quelle che in tabella non esistono ancora', async () => {

@@ -18,21 +18,45 @@
 export interface Conteggio {
   piatti: number;
   attivi: number;
+  /**
+   * ⛔ **Le due colonne del 4/9** (Simone: *«mi serve un altro filtro "Verificato" che nasconde le
+   * verificate»*). Sono **due** e non una perché il terzo pulsante si **incrocia** con i primi due:
+   * «solo attive» + «nascondi verificate» chiede le attive-non-verificate, che da `attivi` e
+   * `verificate` presi separatamente non si ricava.
+   */
+  verificate: number;
+  attiveVerificate: number;
 }
 
-/** Lo stato dei due pulsanti. */
+/**
+ * Lo stato dei pulsanti.
+ *
+ * ⚠️ **`nascondiVerificate` è un ASSE A PARTE**, non un terzo valore di `attive`/`bozze`: quelli
+ * due dicono *quali piatti*, questo dice *quali di quelli*. Metterlo nella stessa terna avrebbe
+ * voluto dire non poter più chiedere «le attive che mi mancano da verificare», che è la domanda per
+ * cui il pulsante esiste.
+ */
 export interface Filtro {
   attive: boolean;
   bozze: boolean;
+  nascondiVerificate: boolean;
 }
 
-export const NESSUN_FILTRO: Filtro = { attive: false, bozze: false };
+export const NESSUN_FILTRO: Filtro = { attive: false, bozze: false, nascondiVerificate: false };
 
 /** ⚠️ Vero quando i pulsanti non stanno chiedendo di nascondere niente: nessuno o tutti e due. */
 export const mostraTutto = (f: Filtro): boolean => f.attive === f.bozze;
 
-/** Una ricetta passa il filtro? ⚠️ `attiva` è il campo del database, non un'etichetta. */
-export function passaIlFiltro(attiva: boolean, f: Filtro): boolean {
+/**
+ * Una ricetta passa il filtro? ⚠️ `attiva` e `verificata` sono campi del database, non etichette.
+ *
+ * ⚠️ **I due assi si applicano in fila**: prima si guarda se il piatto è del tipo che si sta
+ * chiedendo, poi se la spunta lo esclude. `verificata` è opzionale perché una schermata che ancora
+ * non lo manda non deve smettere di filtrare per stato — «non lo so» qui vale «non verificata», che
+ * è il ripiego che **mostra di più**, e mostrare di più è l'errore innocuo dei due.
+ */
+export function passaIlFiltro(attiva: boolean, f: Filtro, verificata = false): boolean {
+  if (f.nascondiVerificate && verificata) return false;
   if (mostraTutto(f)) return true;
   return attiva ? f.attive : f.bozze;
 }
@@ -45,6 +69,26 @@ export function passaIlFiltro(attiva: boolean, f: Filtro): boolean {
  * domanda «quanti di questi arrivano davvero?», che con un filtro acceso non si pone più.
  */
 export function numeriDaMostrare(c: Conteggio, f: Filtro): { quanti: number; fraParentesi: number | null } {
+  /**
+   * ⛔ **Il terzo pulsante toglie da OGNI conto, non da uno solo.** È la stessa regola dei primi
+   * due, scritta in cima a questo file: un filtro che cambiasse l'elenco sotto e lasciasse i numeri
+   * sopra farebbe leggere due verità diverse nella stessa schermata.
+   *
+   * ⚠️ E le parentesi spariscono anche qui: «quanti di questi arrivano davvero» è una domanda che
+   * con un filtro acceso non si pone più.
+   */
+  if (f.nascondiVerificate) {
+    const senzaSpunta = (tot: number, verificate: number) => Math.max(0, tot - verificate);
+    if (mostraTutto(f)) {
+      return { quanti: senzaSpunta(c.piatti, c.verificate), fraParentesi: senzaSpunta(c.attivi, c.attiveVerificate) };
+    }
+    if (f.attive) return { quanti: senzaSpunta(c.attivi, c.attiveVerificate), fraParentesi: null };
+    /** Le bozze non verificate: tutte meno le attive, meno le verificate che non erano attive. */
+    return {
+      quanti: Math.max(0, (c.piatti - c.attivi) - (c.verificate - c.attiveVerificate)),
+      fraParentesi: null,
+    };
+  }
   if (mostraTutto(f)) return { quanti: c.piatti, fraParentesi: c.attivi };
   if (f.attive) return { quanti: c.attivi, fraParentesi: null };
   /**
@@ -58,8 +102,15 @@ export function numeriDaMostrare(c: Conteggio, f: Filtro): { quanti: number; fra
 
 /** ⚠️ La frase che dice cosa si sta guardando: senza, un filtro acceso è un numero sbagliato. */
 export function comeSiLegge(f: Filtro): string | null {
-  if (mostraTutto(f)) return null;
-  return f.attive
-    ? 'Stai guardando solo le ricette ATTIVE: i numeri qui sotto sono i piatti che il motore userebbe davvero, non quanti ce ne sono in paniere.'
-    : 'Stai guardando solo le BOZZE: i numeri qui sotto sono i piatti che stanno nel paniere ma a nessuna cliente arrivano, finché qualcuno non li valida.';
+  const perStato = mostraTutto(f)
+    ? null
+    : f.attive
+      ? 'Stai guardando solo le ricette ATTIVE: i numeri qui sotto sono i piatti che il motore userebbe davvero, non quanti ce ne sono in paniere.'
+      : 'Stai guardando solo le BOZZE: i numeri qui sotto sono i piatti che stanno nel paniere ma a nessuna cliente arrivano, finché qualcuno non li valida.';
+  /** ⚠️ Le due frasi si sommano quando i due assi sono accesi tutti e due: sono due restrizioni. */
+  const perSpunta = f.nascondiVerificate
+    /** ⚠️ MAIUSCOLE e non asterischi, come le due frasi qui sopra: il banner non disegna il markdown. */
+    ? 'Le ricette già VERIFICATE dalla nutrizionista sono nascoste: qui sotto c\'è quello che resta da guardare.'
+    : null;
+  return [perStato, perSpunta].filter(Boolean).join(' ') || null;
 }

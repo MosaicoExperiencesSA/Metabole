@@ -800,11 +800,26 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
        */
       let avviso: string | null = null;
       if (recipe) {
-        const r = await api<{ confermaAllergeniDecaduta?: boolean }>(
+        const r = await api<{ confermaAllergeniDecaduta?: boolean; pastoCambiato?: string | null }>(
           `/recipes/${recipe.id}`, { method: 'PATCH', body: JSON.stringify(body) },
         );
+        /**
+         * ⛔ **Il cambio di pasto sposta le righe di paniere, e chi salva non lo vede** (4/9).
+         * `Recipe.mealSlot` e `PaniereRicetta.slot` sono due colonne diverse: la scheda mostra il
+         * campo cambiato, non le celle che si sono mosse — o che si sono **svuotate**, se il piatto
+         * in quel pasto non ci può stare. Una conseguenza che chi la provoca non vede è la famiglia
+         * di difetti che questo progetto toglie da settimane.
+         */
+        if (r?.pastoCambiato) avviso = avviso ? `${avviso}\n\n${r.pastoCambiato}` : r.pastoCambiato;
+        /**
+         * ⛔ **Si SOMMA, non sostituisce** — corretto il 4/9 da una revisione avversariale. Questo
+         * ramo assegnava, e cancellava la frase sui panieri appena scritta due righe sopra: chi
+         * correggeva gli ingredienti **e** spostava il pasto nello stesso salvataggio vedeva solo
+         * l'avviso degli allergeni, e le righe di paniere si muovevano in silenzio. Sono due
+         * conseguenze diverse dello stesso «Salva», e vanno dette tutte e due.
+         */
         if (r?.confermaAllergeniDecaduta) {
-          avviso =
+          const allergeni =
             `«${body.name}»: hai cambiato gli ingredienti, quindi la conferma degli allergeni non ` +
             'vale più — era stata data su un piatto diverso. ⚠️ Da adesso la ricetta NON entra nei ' +
             'menu nuovi ' +
@@ -812,6 +827,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
               ? 'e la riga qui sotto è tornata «Da rivedere»: ricontrolla gli allergeni e conferma.'
               : 'finché non ricontrolli gli allergeni in «Allergeni ricette».') +
             ' I menu già consegnati non cambiano.';
+          avviso = avviso ? `${allergeni}\n\n${avviso}` : allergeni;
         }
       } else {
         /**

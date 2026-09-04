@@ -1,6 +1,13 @@
 import { campiDaScrivere, cosaSuccedeAllaVerifica } from './verifica-della-ricetta';
 import { laConfermaDecade } from './conferma-allergeni-decade';
-import { puoStareNelloSlot } from '../common/slot-pasto';
+import { etichettaSlot, puoStareNelloSlot, slotCapofila } from '../common/slot-pasto';
+/**
+ * ⚠️ Le due porte che servono quando una ricetta cambia pasto: il giudizio «in questo pasto ci
+ * può stare?» — lo stesso della diagnostica, del riempimento e della pagina Panieri — e la
+ * decisione su cosa fare delle sue righe di paniere.
+ */
+import { fuoriPostoNelPasto } from './colazione-senza-carne-e-pesce';
+import { cosaFareDelleRighe, perchePerNonSiPuoSpostare, raccontaSpostamento } from './ricetta-che-cambia-pasto';
 import { famigliaInChiusura } from './appartenenza-panieri';
 import {
   BadRequestException,
@@ -1654,7 +1661,96 @@ export class CatalogService {
       data.verifiedById = campiVerifica.verifiedById;
     }
 
+    /**
+     * ⛔ **LA QUARTA PORTA — e si chiude RIFIUTANDO, non cancellando.**
+     *
+     * Il 4/9 sono state chiuse le tre porte da cui carne e pesce rientravano in colazione, spuntino
+     * e merenda. Questa scheda era la quarta: da qui si poteva mettere un branzino a colazione con
+     * una tendina.
+     *
+     * ⛔ **La prima stesura la chiudeva togliendo le righe di paniere. Una revisione avversariale
+     * l'ha smontata prima della consegna**: una tendina premuta per sbaglio su una ricetta presente
+     * in dodici panieri ne cancellava dodici righe, rimettere «cena» non le riportava indietro, e
+     * ricostruirle voleva dire rifarle a mano. Una distruzione irreversibile senza conferma, come
+     * conseguenza di un clic — e per giunta la regola restava aperta lo stesso, perché la ricetta
+     * finiva comunque **a colazione** in catalogo.
+     *
+     * ⚠️ Adesso non si salva: si dice di no, e si dice **come si fa** ad ottenere quello che si
+     * voleva. Nessun dato distrutto, e il pasto in catalogo resta quello di prima.
+     *
+     * ⛔ **E il giudizio si dà sugli ingredienti NUOVI**, quelli che sta salvando adesso: chi
+     * corregge gli ingredienti *e* sposta il pasto nello stesso salvataggio deve essere giudicato
+     * sul piatto che sta scrivendo, non su quello di prima.
+     */
+    if (dto.mealSlot !== undefined && dto.mealSlot !== (existing as { mealSlot?: string }).mealSlot) {
+      const motivo = fuoriPostoNelPasto(
+        {
+          id,
+          name: dto.name ?? String((existing as { name?: unknown }).name ?? ''),
+          ingredients: dto.ingredients ?? (existing as { ingredients?: unknown }).ingredients,
+        },
+        slotCapofila(dto.mealSlot),
+      );
+      if (motivo) {
+        throw new BadRequestException(
+          perchePerNonSiPuoSpostare(
+            dto.name ?? String((existing as { name?: unknown }).name ?? ''),
+            etichettaSlot(dto.mealSlot),
+            motivo,
+          ),
+        );
+      }
+    }
+
     const recipe = await this.prisma.recipe.update({ where: { id }, data });
+
+    /**
+     * ⛔ **SE CAMBIA IL PASTO, I PANIERI SEGUONO** — Simone, 4/9: *«se sposto una ricetta da
+     * colazione a cena e salvo non la sposta»*.
+     *
+     * `Recipe.mealSlot` e `PaniereRicetta.slot` sono due colonne diverse, e devono esserlo — la
+     * prima dice che pasto è il piatto, la seconda in quale **cella** sta. Ma qui si scriveva solo
+     * la prima: la scheda diceva «cena» e **il motore continuava a servirlo a colazione**. Nessun
+     * errore, e chi aveva salvato aveva davanti la prova che il salvataggio era andato.
+     *
+     * ⚠️ La decisione sta in `ricetta-che-cambia-pasto.ts` con le sue prove; qui si scrive. E il
+     * giudizio «in questo pasto ci può stare?» arriva dalla **stessa porta** delle altre tre
+     * (diagnostica, riempimento, pagina Panieri): un branzino spostato a colazione dalla scheda
+     * aprirebbe la quarta porta, quella da cui nessuno guarda.
+     */
+    let pasto: { spostate: number; tolte: number; avviso: string | null } | null = null;
+    if (dto.mealSlot !== undefined && dto.mealSlot !== (existing as { mealSlot?: string }).mealSlot) {
+      const destinazione = slotCapofila(dto.mealSlot);
+      const righe = (await this.prisma.paniereRicetta.findMany({
+        where: { recipeId: id },
+        select: { id: true, paniereId: true, slot: true },
+      })) as unknown as { id: string; paniereId: string; slot: string }[];
+      const esito = cosaFareDelleRighe(righe, dto.mealSlot);
+      /**
+       * ⚠️ **Una scrittura sola per le due mosse**, e non è pignoleria: fra un `updateMany` e un
+       * `deleteMany` separati ci sta un errore, e il risultato sarebbe metà delle righe spostate e
+       * metà no — cioè proprio lo stato che questa funzione esiste per non lasciare.
+       */
+      const scritture = [
+        ...(esito.daSpostare.length
+          ? [this.prisma.paniereRicetta.updateMany({ where: { id: { in: esito.daSpostare } }, data: { slot: destinazione } })]
+          : []),
+        ...(esito.daTogliere.length
+          ? [this.prisma.paniereRicetta.deleteMany({ where: { id: { in: esito.daTogliere } } })]
+          : []),
+      ];
+      if (scritture.length) await this.prisma.$transaction(scritture);
+      pasto = {
+        spostate: esito.daSpostare.length,
+        tolte: esito.daTogliere.length,
+        avviso: raccontaSpostamento(
+          String((recipe as { name?: unknown }).name ?? ''),
+          etichettaSlot(dto.mealSlot),
+          esito,
+        ),
+      };
+    }
+
     await this.audit.log({
       action: 'catalog.recipe.update',
       actorId: userId,
@@ -1663,17 +1759,33 @@ export class CatalogService {
       // ⚠️ Nell'audit, perché è un cambio di STATO DI SICUREZZA che nessuno ha chiesto
       // esplicitamente: chi un domani si chiede «perché questa ricetta è sparita dai menu?» deve
       // trovare la risposta qui, con la data e il nome di chi ha salvato.
+      // ⚠️ E dal 4/9 ci sta anche lo spostamento fra le celle dei panieri, per la stessa ragione:
+      // è una conseguenza che nessuno ha chiesto esplicitamente, e che tocca cosa arriva nel piatto.
       /**
        * ⚠️ Nell'audit finiscono **tutti e due** i cambi di firma, e separati: chi legge il registro
        * deve poter distinguere «gli allergeni non sono più confermati» da «la ricetta non è più
        * verificata», che sono due cose diverse e si riparano in due posti diversi.
        */
-      ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata'
+      ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata' || pasto
         ? {
           metadata: {
             ...(confermaDecaduta ? { allergensReviewed: false, motivo: 'ingredienti_cambiati' } : {}),
             ...(esitoVerifica.tipo !== 'invariata' ? { verifica: esitoVerifica.tipo } : {}),
             ...(esitoVerifica.tipo === 'decaduta' ? { verificaDecadutaPerche: esitoVerifica.perche } : {}),
+            /**
+             * ⚠️ **Due valori e non uno**: `pasto` è quello che ha scelto lei, `slotScritto` quello
+             * che finisce in tabella — spuntino e merenda sono un paniere solo, quindi non sempre
+             * coincidono. Registrarne uno solo vorrebbe dire mandare chi cerca un piatto in una
+             * colonna dove quel valore non esiste.
+             */
+            ...(pasto
+              ? {
+                pasto: dto.mealSlot,
+                slotScritto: slotCapofila(dto.mealSlot as string),
+                panieriSpostati: pasto.spostate,
+                panieriTolti: pasto.tolte,
+              }
+              : {}),
           },
         }
         : {}),
@@ -1692,6 +1804,13 @@ export class CatalogService {
       ...(recipe as Record<string, unknown>),
       confermaAllergeniDecaduta: confermaDecaduta,
       verificaDecaduta: esitoVerifica.tipo === 'decaduta' ? esitoVerifica.perche : null,
+      /**
+       * ⚠️ **Il cambio di pasto si dice, quando è successo qualcosa.** Spostare un piatto sposta le
+       * sue righe di paniere — o le toglie — e sono conseguenze che chi salva non vede: la scheda
+       * mostra il campo cambiato, non le celle che si sono mosse. `null` quando non è successo
+       * niente: un avviso che dice «spostate 0 righe» insegna a non leggere gli avvisi.
+       */
+      pastoCambiato: pasto?.avviso ?? null,
     };
   }
 
