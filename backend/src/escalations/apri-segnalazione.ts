@@ -1,5 +1,8 @@
 import { ESCALATION_CATEGORY_LABEL, ESCALATION_ROUTING, EscalationCategory } from './escalation-routing';
 import { decidiRiapertura } from './riapertura';
+import { chiVaDisturbato, type UtenteDestinatario } from './canali-della-segnalazione';
+import type { PushMinimo } from '../notifications/notifica-utente';
+import { datiPush } from '../notifications/dati-push';
 
 /**
  * La tregua di default dopo una «risolta», quando chi chiama non passa il valore letto da
@@ -33,10 +36,24 @@ export const FINESTRA_RIAPERTURA_DEFAULT = 14;
  * segnalazione va comunque a **chi risponde di quel ruolo** — capo nutrizionista o
  * coordinatrice coach. Una segnalazione senza destinatario non è una segnalazione.
  *
- * ⚠️ Le notifiche qui si scrivono direttamente in tabella (canale in-app). Il push e il
- * rispetto delle preferenze passano da `NotificationsService`, che qui non è raggiungibile:
- * chi PUÒ importarlo — `EscalationRoutingService` — continua a usarlo e ha il giro completo.
- * Meglio una campanella che accende un pallino che il silenzio di prima.
+ * ## E dal 4/9 l'avviso esce anche dall'app
+ *
+ * Qui stava scritto: *«Le notifiche si scrivono direttamente in tabella (canale in-app). Il push e
+ * il rispetto delle preferenze passano da `NotificationsService`, che qui non è raggiungibile.
+ * Meglio una campanella che accende un pallino che il silenzio di prima.»* Era vero, ed era il
+ * limite giusto da dichiarare — ma «meglio del silenzio» non è «abbastanza» per una segnalazione
+ * che **ferma l'erogazione**: la cliente legge «Menu in preparazione», l'unica che può sbloccare è
+ * la nutrizionista, e finché non apriva il backoffice non lo sapeva nessuno.
+ *
+ * ⛔ **E non serviva `NotificationsService`.** La forma l'aveva già mostrata `notifica-utente.ts`:
+ * una porta minima (`PushMinimo`, che infatti si riusa) passata da chi chiama, invece di un
+ * servizio importato — così `MenuModule` non chiude nessun anello. Chi non la passa si comporta
+ * esattamente come prima. Chi va disturbato, e l'opt-out del profilo, stanno in
+ * `canali-della-segnalazione.ts`; qui c'è solo il trasporto.
+ *
+ * ⚠️ **L'email che Simone aveva chiesto insieme alla push non è qui**, ed è una decisione sospesa,
+ * non una dimenticanza: il perché sta in `canali-della-segnalazione.ts` e nella voce
+ * `piano-bloccato-solo-in-app`.
  */
 
 /** Il minimo del client Prisma che serve: così è testabile con un oggetto finto. */
@@ -65,6 +82,26 @@ export interface PrismaPerSegnalazione {
     findFirst(args: unknown): Promise<{ id: string; userId: string } | null>;
   };
   notification: { create(args: unknown): Promise<unknown> };
+  /**
+   * ⚠️ **Facoltativa**, come `escalation.update`: serve solo agli avvisi fuori dall'app (leggere
+   * indirizzo, lingua e opt-out dei destinatari), e senza di lei la riga in app si scrive lo
+   * stesso. Così i finti minimi delle prove che c'erano restano validi.
+   */
+  user?: { findMany(args: unknown): Promise<UtenteDestinatario[]> };
+}
+
+/**
+ * ⛔ **LA PORTA VERSO L'AVVISO FUORI DALL'APP.** Un'interfaccia minima, non il servizio: è la
+ * stessa forma di `notifica-utente.ts` (`PushMinimo`, che infatti si riusa), e serve allo stesso
+ * motivo — `MenuModule` non può dipendere da `NotificationsModule` senza chiudere un anello, e un
+ * `forwardRef` messo lì per farlo tacere non è una soluzione, è un rinvio.
+ *
+ * ⚠️ Chi non la passa si comporta **esattamente come prima**: riga in app e basta. Non è una
+ * gentilezza verso i chiamanti vecchi, è quello che tiene questa consegna piccola — la push si
+ * accende dove qualcuno ha deciso che serve, non dappertutto per simmetria.
+ */
+export interface CanaliDaUsare {
+  push?: PushMinimo;
 }
 
 export interface SegnalazioneInput {
@@ -111,6 +148,12 @@ export interface SegnalazioneInput {
   statoNonAvviso?: boolean;
   /** Chiamata quando NON si apre, col perché: serve a chi vuole scriverlo nei log. */
   alSilenzio?: (motivo: string) => void;
+  /**
+   * ⛔ **Gli avvisi FUORI dall'app**, se chi chiama ce li ha. Senza, il comportamento è quello di
+   * sempre: riga in app e basta. Con, la stessa segnalazione arriva anche sul telefono e — per le
+   * categorie che **fermano l'erogazione** — via email. Vedi `canali-della-segnalazione.ts`.
+   */
+  canali?: CanaliDaUsare;
 }
 
 /** Ruolo utente che risponde quando il ruolo primario non è assegnato a nessuno. */
@@ -175,7 +218,7 @@ export async function apriSegnalazione(
                 category: input.category,
                 reason: input.reason,
                 escalationId: prec.id,
-              });
+              }, input.canali);
             }
           } catch {
             /* la riga è aperta lo stesso: è quella che tiene lo stato, l'avviso è il di più */
@@ -225,7 +268,7 @@ export async function apriSegnalazione(
         category: input.category,
         reason: input.reason,
         escalationId: created.id,
-      });
+      }, input.canali);
     }
     return created;
   } catch {
@@ -316,24 +359,42 @@ export async function avvisaSegnalazione(
   prisma: PrismaPerSegnalazione,
   decisione: DecisioneSegnalazione,
   input: { clientId: string; category: EscalationCategory; reason?: string; escalationId: string },
+  canali?: CanaliDaUsare,
 ): Promise<void> {
   const chi = decisione.nomeCliente ?? 'una cliente';
   const etichetta = ESCALATION_CATEGORY_LABEL[input.category];
-  for (const userId of decisione.destinatari) {
+  const tipo = `escalation_${input.category}`;
+
+  /**
+   * ⚠️ Il testo si compone **una volta per destinatario** e serve a tutti e tre i canali: prima
+   * stava dentro la `create`, e la push avrebbe dovuto ricopiarlo. Due punti che scrivono lo
+   * stesso avviso sono due punti che un giorno lo scrivono diverso — e alla coach, che ne riceve
+   * uno tutto suo («Serve il nutrizionista»), si vedrebbe subito.
+   */
+  const avvisi = decisione.destinatari.map((userId) => {
     const perLaCoach = decisione.serveNutrizionista && userId === decisione.coachUserId;
+    return {
+      userId,
+      perLaCoach,
+      title: perLaCoach ? 'Nutrizionista richiesto' : etichetta,
+      body: perLaCoach
+        ? `Serve il nutrizionista per ${chi}${input.reason ? `: ${input.reason}` : ''}. ` +
+          'Nessuna nutrizionista è assegnata: intanto seguila tu e tieni la segnalazione aperta.'
+        : `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
+    };
+  });
+
+  for (const a of avvisi) {
     await prisma.notification
       .create({
         data: {
-          userId,
-          type: `escalation_${input.category}`,
+          userId: a.userId,
+          type: tipo,
           scheduledFor: new Date(),
           sentAt: new Date(),
           payload: {
-            title: perLaCoach ? 'Nutrizionista richiesto' : etichetta,
-            body: perLaCoach
-              ? `Serve il nutrizionista per ${chi}${input.reason ? `: ${input.reason}` : ''}. ` +
-                'Nessuna nutrizionista è assegnata: intanto seguila tu e tieni la segnalazione aperta.'
-              : `${etichetta} · ${chi}${input.reason ? `: ${input.reason}` : ''}`,
+            title: a.title,
+            body: a.body,
             clientId: input.clientId,
             escalationId: input.escalationId,
             category: input.category,
@@ -341,10 +402,61 @@ export async function avvisaSegnalazione(
             // è un'informazione da leggere, non un dettaglio tecnico.
             nonAssegnata: !decisione.assegnato,
             // Lo leggono backoffice e app staff per mostrare l'etichetta giusta in elenco.
-            nutrizionistaRichiesto: perLaCoach,
+            nutrizionistaRichiesto: a.perLaCoach,
           } as never,
         },
       })
       .catch(() => undefined);
+  }
+
+  await avvisiFuoriDallApp(prisma, avvisi, input, canali);
+}
+
+/**
+ * ⛔ **PUSH ED EMAIL — e sono un DI PIÙ, mai una condizione.**
+ *
+ * Le righe in app sono già scritte quando si arriva qui: qualunque cosa vada storta da questo punto
+ * in poi, la segnalazione esiste, è in elenco e ha un destinatario. Perciò qui non si lancia mai —
+ * è la stessa regola di `notificaUtente`, e nasce dallo stesso incidente: un intoppo sull'avviso
+ * che risaliva fino a chi stava facendo il lavoro vero.
+ *
+ * ⚠️ E si legge la riga utente **una volta sola per tutti i destinatari**: sono due o tre persone,
+ * e una lettura per ciascuno moltiplicherebbe le andate al database di un avviso che è un di più.
+ */
+async function avvisiFuoriDallApp(
+  prisma: PrismaPerSegnalazione,
+  avvisi: readonly { userId: string; title: string; body: string }[],
+  input: { clientId: string; category: EscalationCategory; escalationId: string },
+  canali?: CanaliDaUsare,
+): Promise<void> {
+  if (!canali?.push) return;
+  if (!avvisi.length) return;
+  try {
+    const ids = avvisi.map((a) => a.userId);
+    /**
+     * ⚠️ Senza `prisma.user` non si conosce l'opt-out, e la push parte lo stesso: un allarme che
+     * non si può *filtrare* non è un allarme da *spegnere*.
+     */
+    const utenti = prisma.user
+      ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, prefs: true } })
+      : [];
+    const daDisturbare = new Set(chiVaDisturbato(ids, utenti, input.category));
+    /**
+     * ⛔ **`datiPush` e non un oggetto scritto a mano.** La prima stesura componeva qui i dati
+     * della push — `escalationId`, `category` — e faceva due cose sbagliate insieme: quelle chiavi
+     * l'app le **butta** (`CHIAVI_UTILI` in `dati-push.ts` passa solo `kind`, `threadId`,
+     * `clientId`, `visitId`, `counterpart`), e scavalcava il filtro che quel file esiste per
+     * tenere — *«nessun contenuto sanitario nel payload»*. Un secondo punto che compone i dati di
+     * una push è un secondo punto che un giorno ci mette dentro qualcosa che non deve viaggiare.
+     * ⚠️ Quindi il tocco apre la **scheda della cliente**, non la segnalazione: è quello che si
+     * può fare oggi, ed è meglio dirlo che promettere altro.
+     */
+    const dati = datiPush(`escalation_${input.category}`, { clientId: input.clientId });
+    for (const a of avvisi) {
+      if (!daDisturbare.has(a.userId)) continue;
+      await canali.push.sendToUser(a.userId, a.title, a.body, dati).catch(() => undefined);
+    }
+  } catch {
+    /* le righe in app sono scritte: l'avviso fuori dall'app è un di più, mai una condizione */
   }
 }

@@ -67,7 +67,7 @@ export class RegistroVeraService {
     @Inject(SCRITTURA_RICETTA) private readonly ricette: ScritturaRicetta,
     // Il postino per l'avviso di conflitto (decisione di Simone, 13/8 sera): l'in-app da solo
     // vale finché il capo entra quel giorno. `@Optional` così i test esistenti non cambiano.
-    @Optional() private readonly mail: MailService | null = null,
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   /**

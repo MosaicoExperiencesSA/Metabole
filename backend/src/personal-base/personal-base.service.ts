@@ -3,7 +3,8 @@ import { leggiSorgente, poolPerSlot, ricetteDelPool, righeDalPaniere, righeDalle
 import { REGIME_PIU_STRETTO, regimeConosciuto, regimiCompatibili } from '../common/regimi';
 import { famigliaDelPaniere } from '../menu/menu.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
-import { Injectable, NotFoundException, Logger} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, Optional } from '@nestjs/common';
+import { PushService } from '../notifications/push.service';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { allergieDaCodificare } from '../common/allergie';
@@ -65,6 +66,20 @@ export class PersonalBaseService {
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    /**
+     * ⛔ **Il postino di «Piano bloccato»** (Simone, 4/9). La base non certificabile **ferma
+     * l'erogazione**: la cliente legge «Menu in preparazione» e l'unica che può sbloccare è la
+     * nutrizionista — che finché non apriva il backoffice non lo sapeva. Push a lei e alla coach.
+     *
+     * ⚠️ `@Optional` perché le prove costruiscono questo servizio a mano, ed è un **di più**:
+     * senza, la segnalazione nasce e la riga in app si scrive lo stesso.
+     * ⛔ **E SENZA `| null`.** Un tipo unione fa scrivere a TypeScript `Object` in
+     * `design:paramtypes`, Nest non sa cosa iniettare, `@Optional()` inghiotte il fallimento e
+     * resta il default: la dipendenza è `undefined` per sempre, in silenzio. È successo davvero —
+     * `RegistroVeraService` ce l'aveva dal 13/8 e la sua email al capo non è mai partita.
+     * `permessi-iniettati.spec.ts` adesso lo guarda.
+     */
+    @Optional() private readonly push?: PushService,
   ) {}
 
   /** Stato della base personalizzata (per la app cliente). */
@@ -403,6 +418,8 @@ export class PersonalBaseService {
         // non un avviso che si ripete. Dentro la tregua si riapre quella risolta, col motivo di
         // adesso, invece di lasciare la cliente ferma davanti a «Menu in preparazione».
         statoNonAvviso: true,
+        // ⛔ E adesso esce anche dall'app: la push a chi può sbloccare. Vedi il costruttore.
+        canali: { push: this.push },
       });
       await this.audit.log({
         action: 'personal_base.blocked',

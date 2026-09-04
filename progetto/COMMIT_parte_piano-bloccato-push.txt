@@ -1,0 +1,61 @@
+«Piano bloccato» esce dall'app, e un'iniezione rotta da agosto
+
+⛔ IL BLOCCO CHE FERMA L'EROGAZIONE LO SAPEVA SOLO CHI APRIVA IL BACKOFFICE
+«Piano bloccato» è la segnalazione che nasce quando la base personalizzata non è certificabile in
+automatico: la cliente vede «Menu in preparazione» e l'unica che può sbloccare è la nutrizionista.
+L'avviso era una riga in tabella e basta. Simone, 4/9: va **alla nutrizionista e alla coach**.
+
+✅ ADESSO C'È LA PUSH
+`apriSegnalazione` prende una porta `push` — la stessa forma di `notifica-utente.ts`, un'interfaccia
+minima passata da chi chiama, perché `MenuModule` non può dipendere da `NotificationsModule` senza
+chiudere un anello. Chi non la passa si comporta esattamente come prima.
+⚠️ L'opt-out del profilo toglie **la push, non la riga in elenco**: la casella promette di non
+disturbare, non di cancellare un allarme clinico. ⛔ E il percorso gemello (`notificaUtente`) fa
+l'opposto — lì l'opt-out cancella anche la riga. Sono due semantiche dello stesso interruttore,
+tutte e due vive: scritto nel codice come voce da aprire, non uniformato di nascosto.
+⚠️ I dati della push escono da `datiPush` e non da un oggetto scritto a mano. La prima stesura ci
+metteva `escalationId` e `category`: l'app li **butta** (`CHIAVI_UTILI`), e comporli a mano
+scavalcava il filtro che quel file esiste per tenere — «nessun contenuto sanitario nel payload».
+
+⛔ E LUNGO LA STRADA È SALTATO FUORI UN DIFETTO IN PRODUZIONE DA AGOSTO
+`@Optional() private readonly mail: MailService | null = null`: il tipo **unione** fa emettere a
+TypeScript `Object` in `design:paramtypes`, Nest non sa cosa iniettare, `@Optional()` inghiotte il
+fallimento e resta il default. La dipendenza è `null` per sempre, in silenzio — nessun errore,
+nessun log, e le prove non se ne accorgono perché costruiscono i servizi con `new`.
+
+  MenuService         → … | PushService | Object
+  PersonalBaseService → PrismaService | ConfigParamsService | AuditService | Object
+  RegistroVeraService → PrismaService | AuditService | DizionarioService | Object | Object
+
+⛔ `RegistroVeraService` ce l'aveva dal 13/8: **l'email di conflitto al capo non è mai partita**, con
+il codice per mandarla scritto e verde. Corretto togliendo l'unione (`mail?: MailService`), e adesso
+c'è una sentinella: un parametro `@Optional()` non dichiara un'unione.
+⚠️ La sentinella legge i sorgenti, e la sua prima stesura è diventata rossa su una **voce dei
+lavori** che cita quel pattern dentro una stringa: è la lezione già scritta il 3/9 — un test che
+legge un sorgente deve distinguere il codice dalla menzione del codice. Adesso è ancorata a inizio
+riga, e il conto è sceso da tre a due.
+
+✅ E LA PORTA NON PUÒ RESTARE INUTILIZZATA
+`il-blocco-esce-sempre-dall-app.spec.ts`: **ogni** chiamata che apre un `diet_blocked` deve passare
+i canali. Un terzo punto scritto fra sei mesi diventa rosso il giorno che lo si scrive, non il
+giorno che una cliente resta ferma. ⚠️ Il lettore conta le parentesi e **lancia** se non si
+chiudono: un `apriSegnalazione(` dentro un commento gli farebbe inghiottire il resto del file, e una
+sentinella che guarda metà progetto credendo di guardarlo tutto è peggio di nessuna sentinella.
+
+⛔ L'EMAIL NON È IN QUESTA CONSEGNA, ED È UNA DECISIONE SOSPESA, NON UNA DIMENTICANZA
+Simone l'aveva chiesta insieme alla push. La strada comoda era `sendNotificationEmail`, che però:
+è il modello delle CLIENTI (il piè di pagina dice «hai attivato le notifiche via email nelle
+preferenze» — a una nutrizionista è falso, e la manda a cercare un interruttore che per lei non
+esiste); ha `copiaCoach: true`, cioè cerca la coach di chi riceve e la mette in copia; e ⛔ scrive
+il corpo in `email_log`, cioè **nome della cliente e motivo clinico del blocco** finirebbero in una
+tabella che il backoffice mostra, con un modello modificabile dall'admin.
+La domanda sta nella voce dei lavori, insieme a due cose misurate: l'avviso parte **dentro la
+richiesta della cliente**, e il ciclo chiudi/riapri (la nutrizionista corregge le allergie,
+`resolveBlocks` chiude, la cliente apre l'app e si riapre) con l'email diventerebbe dieci mail
+identiche in un pomeriggio.
+
+🧪 Quattordici mutazioni, tutte prese — comprese le due che rimettono il tipo unione. Due revisioni
+avversariali: la prima ha trovato che l'iniezione non avveniva, cioè che la consegna non funzionava.
+
+7393 prove verdi su 432 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su `app/` e `backoffice/`.

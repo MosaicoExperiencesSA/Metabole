@@ -4189,6 +4189,13 @@ export class MenuService {
       // ⚠️ Questa riga non è un avviso, è lo STATO che l'app mostra alla cliente: dentro la tregua
       // si riapre invece di tacere. Vedi `statoNonAvviso` in `apri-segnalazione.ts`.
       statoNonAvviso: true,
+      /**
+       * ⛔ **E adesso esce anche dall'app.** «Piano bloccato» ferma l'erogazione: la cliente legge
+       * «Menu in preparazione» e l'unica che può sbloccare è la nutrizionista — che finché non
+       * apriva il backoffice non lo sapeva. Push alla nutrizionista **e** alla coach assegnate
+       * (Simone, 4/9). ⚠️ L'email di quella decisione **non è qui**: vedi la voce dei lavori.
+       */
+      canali: { push: this.push },
     });
     await this.audit.log({
       action: 'menu.diet_blocked',

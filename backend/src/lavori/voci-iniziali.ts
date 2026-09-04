@@ -4729,12 +4729,46 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'piano-bloccato-solo-in-app',
     categoria: SIMONE,
-    titolo: 'La notifica «Piano bloccato» è solo in-app: nessuna email, nessuna push',
+    titolo: '▶️ «Piano bloccato»: la push c\'è (4/9), resta la domanda sull\'email',
     dettaglio:
-      'Per un blocco che **ferma l\'erogazione** è poco: se la cliente non apre l\'app, non lo sa. È una '
-      + 'decisione di prodotto — a chi arriva (cliente, nutrizionista, coach), su che canale, e dopo quanto.\n\n'
-      + '⚠️ Il codice per mandare push ed email c\'è già ed è in uso altrove: qui manca la decisione, non il '
-      + 'meccanismo.',
+      'Per un blocco che **ferma l\'erogazione** l\'in-app era poco: se la cliente non apre l\'app non lo '
+      + 'sa, e chi può sbloccare è la nutrizionista, che finché non apriva il backoffice non lo sapeva.\n\n'
+      + '✅ **LA PUSH È FATTA (4/9).** Simone: l\'avviso va **alla nutrizionista e alla coach**. '
+      + '`apriSegnalazione` adesso prende una porta `push` — la stessa forma di `notifica-utente.ts`, '
+      + 'perché `MenuModule` non può dipendere da `NotificationsModule` senza chiudere un anello — e i '
+      + 'due punti che aprono un `diet_blocked` gliela passano. Una prova tiene ferma la condizione: '
+      + '**ogni** `diet_blocked` passa i canali, o diventa rossa il giorno che qualcuno ne scrive un '
+      + 'terzo senza.\n'
+      + '⚠️ L\'opt-out del profilo toglie **la push, non la riga in elenco**: la casella promette di non '
+      + 'disturbare, non di cancellare un allarme clinico. ⛔ Il percorso gemello (`notificaUtente`, che '
+      + 'usa `EscalationRoutingService`) fa l\'opposto — lì l\'opt-out cancella anche la riga. Sono due '
+      + 'semantiche dello stesso interruttore, tutte e due vive: è una voce da aprire, non una cosa da '
+      + 'uniformare di nascosto.\n\n'
+      + '⛔ **E LUNGO LA STRADA È SALTATO FUORI UN DIFETTO CHE ERA IN PRODUZIONE DA AGOSTO.** '
+      + '`@Optional() private readonly mail: MailService | null = null` — il tipo **unione** fa emettere '
+      + 'a TypeScript `Object` in `design:paramtypes`, Nest non sa cosa iniettare, `@Optional()` '
+      + 'inghiotte il fallimento e resta il default. La dipendenza è `null` per sempre, in silenzio. '
+      + '`RegistroVeraService` ce l\'aveva dal 13/8: **l\'email di conflitto al capo non è mai partita**, '
+      + 'con il codice per mandarla scritto e verde. Corretto in tutti e tre i punti (via l\'unione), e '
+      + 'adesso c\'è una sentinella: un parametro `@Optional()` non dichiara un\'unione.\n\n'
+      + '▶️ **LA DOMANDA CHE RESTA, ED È DI SIMONE: l\'email.** L\'aveva chiesta insieme alla push, e '
+      + 'stanotte non è stata scritta apposta. La strada comoda era `sendNotificationEmail`, che però:\n'
+      + '· è il modello delle **clienti**, e il piè di pagina dice «ricevi questa email perché hai '
+      + 'attivato le notifiche via email nelle preferenze» — a una nutrizionista è **falso**, e la manda '
+      + 'a cercare un interruttore che per lei non esiste (il suo è un altro campo);\n'
+      + '· ha `copiaCoach: true`, cioè cerca la coach di chi riceve e la mette in copia;\n'
+      + '· ⛔ **scrive il corpo in `email_log`** — cioè **nome della cliente e motivo clinico del blocco** '
+      + 'finiscono in una tabella che il backoffice mostra, e il modello è modificabile dall\'admin.\n'
+      + 'Quindi la domanda è: *mandiamo l\'email allo staff con un modello suo (senza copia coach, con un '
+      + 'testo che dica la verità a chi lo legge), e va bene che il nome della cliente e il motivo del '
+      + 'blocco viaggino per posta e restino scritti in `email_log`? Oppure la mail dice solo «una tua '
+      + 'cliente ha il piano bloccato, guarda in Dashboard» senza nominare né lei né il motivo?*\n\n'
+      + '⚠️ **Due cose misurate da tenere in conto quando si risponde.** (1) L\'avviso parte **dentro la '
+      + 'richiesta della cliente** (`deliverIfEligible` gira a ogni apertura dell\'app): con la push si '
+      + 'sente poco, con una POST a Brevo senza timeout no. (2) Il ciclo chiudi/riapri non è raro — la '
+      + 'nutrizionista corregge le allergie, `resolveBlocks` chiude, la cliente apre l\'app e il blocco '
+      + 'si riapre — e ogni riapertura è un avviso: con la push va bene, con l\'email diventano dieci '
+      + 'mail identiche in un pomeriggio.',
     ordine: 962,
     nata: '2026-08-31T18:00',
   },

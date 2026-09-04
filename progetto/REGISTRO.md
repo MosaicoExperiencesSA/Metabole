@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **«Piano bloccato» esce dall'app: push alla nutrizionista e alla coach.** È la
+  segnalazione che **ferma l'erogazione** — la cliente vede «Menu in preparazione» e l'unica che può
+  sbloccare è la nutrizionista, che finché non apriva il backoffice non lo sapeva. Decisione di
+  Simone (4/9): a lei **e** alla coach. Una prova tiene ferma la condizione: ogni punto che apre un
+  `diet_blocked` deve passare i canali, o diventa rosso il giorno che lo si scrive.
+  ⚠️ L'opt-out del profilo toglie la push, **non** la riga in elenco; il percorso gemello fa
+  l'opposto, ed è scritto nel codice come voce da aprire invece che uniformato di nascosto.
+  ⛔ **L'email è una decisione sospesa, non una dimenticanza**: la strada comoda passava dal modello
+  delle clienti (piè di pagina falso per una nutrizionista), metteva in copia la coach, e **scriveva
+  nome della cliente e motivo clinico in `email_log`**. La domanda è nella voce dei lavori.
+
+- `[Sviluppo]` ⛔ **Un'iniezione rotta da agosto, trovata scrivendo quella push.**
+  `@Optional() private readonly mail: MailService | null = null`: il tipo **unione** fa emettere a
+  TypeScript `Object` in `design:paramtypes`, Nest non sa cosa iniettare, `@Optional()` inghiotte il
+  fallimento e resta il default `null`. Nessun errore, nessun log — e le prove non se ne accorgono
+  perché costruiscono i servizi con `new`. **`RegistroVeraService` ce l'aveva dal 13/8: l'email di
+  conflitto al capo non è mai partita**, col codice per mandarla scritto e verde.
+  ✅ Corretto togliendo l'unione, e adesso c'è una sentinella: un parametro `@Optional()` non
+  dichiara un'unione. ⚠️ La sua prima stesura è diventata rossa su una **voce dei lavori** che cita
+  quel pattern dentro una stringa — un test che legge un sorgente deve distinguere il codice dalla
+  menzione del codice, ed è la seconda volta in due giorni che questa lezione si presenta.
+
+
 - `[Sviluppo]` ⛔ **Tre commenti sui permessi dicevano il falso, e uno di loro stava in una prova.**
   La classificazione delle chiavi senza guardia diceva che le nove `figlia` hanno l'API «sotto la
   chiave del genitore, **che la guardia ce l'ha**»: vero per cinque, **falso per le quattro

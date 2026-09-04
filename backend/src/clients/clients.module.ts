@@ -8,8 +8,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PauseModule } from '../pause/pause.module';
 /**
  * ⛔ **La base personale si rifà anche dalla scheda** (2/9): lo staff che cambia dieta o allergie
- * non passa da `profile.service`, e fino a oggi qui non si rifaceva niente. Nessun anello:
- * `PersonalBaseModule` non importa nessuno.
+ * non passa da `profile.service`, e fino a oggi qui non si rifaceva niente. ⚠️ Nessun anello:
+ * `PersonalBaseModule` importa solo `PushModule` (dal 4/9, per la push di «Piano bloccato»), che è
+ * autonomo — Prisma e Config, entrambi globali. Qui c'era scritto «non importa nessuno», ed è
+ * rimasto vero fino a stanotte: una riga così va corretta, non lasciata invecchiare.
  */
 import { PersonalBaseModule } from '../personal-base/personal-base.module';
 // ⚠️ Le pesate corrette dallo staff devono far scattare gli stessi segnali di quelle inserite dalla
