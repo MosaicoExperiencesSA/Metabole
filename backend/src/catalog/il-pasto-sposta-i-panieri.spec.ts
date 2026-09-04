@@ -69,17 +69,34 @@ describe('CatalogService — cambiare il pasto sposta le righe di paniere', () =
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 
-  /** ⚠️ Se il pasto non cambia non si legge nemmeno: una lettura in più su ogni salvataggio. */
-  it('⚠️ se il pasto non cambia, i panieri non si toccano e non si leggono', async () => {
-    await monta(PORRIDGE, []);
-    await service.updateRecipe('u1', 'r1', { name: 'Porridge tiepido' } as never);
-    expect(prisma.paniereRicetta.findMany).not.toHaveBeenCalled();
+  /**
+   * ⛔ **RISALVARE RIPARA — Simone, 4/9 sera**: *«il nutrizionista è entrato in una ricetta che aveva
+   * già messo come cena, ha risalvato e resta nel paniere delle colazioni»*.
+   *
+   * La prima stesura guardava i panieri **solo quando il pasto cambiava**, e lì non cambiava niente:
+   * la riga era storta da prima, da quando spostare il pasto non toccava i panieri. Chiudere la
+   * falla in avanti non ripara quello che si è già storto — e chi risalva d'istinto per rimettere a
+   * posto non rimetteva a posto niente.
+   *
+   * ⚠️ La regola è un'**invariante**, non una transizione: la riga sta sempre nella cella del pasto
+   * della ricetta.
+   */
+  it('⛔ risalvare una ricetta già a cena ripara la riga rimasta a colazione', async () => {
+    const cena = { ...PORRIDGE, name: 'Frittata al forno', mealSlot: 'dinner' };
+    await monta(cena, [{ id: 'a', paniereId: 'p1', slot: 'breakfast' }]);
+    await service.updateRecipe('u1', 'r1', { name: 'Frittata al forno con funghi' } as never);
+    expect(prisma.paniereRicetta.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a'] } }, data: { slot: 'dinner' },
+    });
   });
 
-  it('⚠️ e nemmeno se il pasto viene rimandato uguale', async () => {
-    await monta(PORRIDGE, []);
-    await service.updateRecipe('u1', 'r1', { mealSlot: 'breakfast' } as never);
-    expect(prisma.paniereRicetta.findMany).not.toHaveBeenCalled();
+  /** ⚠️ E quando è già tutto a posto non si scrive niente, e non si dice niente. */
+  it('⚠️ ma se è già allineata non scrive e non parla', async () => {
+    await monta(PORRIDGE, [{ id: 'a', paniereId: 'p1', slot: 'breakfast' }]);
+    const esito = await service.updateRecipe('u1', 'r1', { name: 'Porridge tiepido' } as never) as { pastoCambiato: string | null };
+    expect(prisma.paniereRicetta.updateMany).not.toHaveBeenCalled();
+    expect(prisma.paniereRicetta.deleteMany).not.toHaveBeenCalled();
+    expect(esito.pastoCambiato).toBeNull();
   });
 
   /**
@@ -134,6 +151,21 @@ describe('CatalogService — cambiare il pasto sposta le righe di paniere', () =
     expect(prisma.paniereRicetta.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['a'] } }, data: { slot: 'morning_snack' },
     });
+  });
+
+  /**
+   * ⛔ **LA QUINTA PORTA: il riallineamento non spinge DENTRO un pasto leggero.**
+   *
+   * Il rifiuto copre il **cambio** di pasto. Ma il riallineamento gira a ogni salvataggio: una
+   * ricetta di pesce che in catalogo è **già** a colazione — roba di prima che la regola esistesse —
+   * vedrebbe le sue righe spostate dentro la colazione da un salvataggio che non c'entrava niente.
+   */
+  it('⛔ risalvare un pesce già a colazione non gli sposta dentro le righe', async () => {
+    const branzino = { ...PORRIDGE, name: 'Branzino al vapore', mealSlot: 'breakfast', ingredients: [] };
+    await monta(branzino, [{ id: 'a', paniereId: 'p1', slot: 'dinner' }]);
+    await service.updateRecipe('u1', 'r1', { name: 'Branzino al vapore leggero' } as never);
+    expect(prisma.paniereRicetta.updateMany).not.toHaveBeenCalled();
+    expect(prisma.paniereRicetta.deleteMany).not.toHaveBeenCalled();
   });
 
   /** ⚠️ Una ricetta che non sta in nessun paniere non fa scrivere niente, e non lo racconta. */

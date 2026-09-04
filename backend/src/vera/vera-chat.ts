@@ -119,6 +119,26 @@ export interface StatoVera {
    * costringerebbe a riscrivere la prima risposta.
    */
   passiInAttesa?: string[];
+  /**
+   * ⚠️ **La seconda lettura del metodo si prova UNA volta per giro.** Senza, una riscrittura che il
+   * parser capisce a metà potrebbe rimbalzare fra il modello e il parser, spendendo a ogni rimbalzo.
+   * È la stessa ragione — e lo stesso nome — di `giaRiletta` sulla strada dell'intento.
+   */
+  giaRiletto?: boolean;
+  /**
+   * ⛔ **Il metodo che ha capito il MODELLO, non ancora accettato.**
+   *
+   * ⚠️ Trovato da una revisione avversariale il 4/9: sul metodo il **modo di cottura è la
+   * decisione**, e la guardia non può accorgersi se il modello sposta in prima riga una parola che
+   * stava in fondo — «lo lesso e poi lo servo freddo» → «piatto freddo». La parola c'era, quindi
+   * non è «nuova». Sul percorso dell'intento questo non succede perché `capisci` ha forme sue; qui
+   * il parser rilegge una riga che ha scritto il modello.
+   *
+   * ⛔ Perciò la riscrittura del modello **non passa da sola**: si mostra e si fa confermare. È la
+   * stessa regola di sempre — il modello propone, decide una persona — applicata dove il parser da
+   * solo non basta a garantirla.
+   */
+  metodoProposto?: { type: string; steps: string[] };
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
@@ -410,6 +430,16 @@ export const testi = {
   metodoSenzaModo: (modi: string) =>
     `I passaggi me li segno. Mi manca **come si cuoce**: ${modi}?`,
 
+  /**
+   * ⚠️ **La riscrittura si MOSTRA.** È la terza proprietà della seconda lettura, e non è cortesia:
+   * una frase riscritta da un modello e usata senza farla vedere è una parola messa in bocca a
+   * qualcuno. Chi legge deve poter dire «no, non intendevo questo» prima che finisca in catalogo.
+   */
+  hoCapitoCosi: (modo: string, passi: readonly string[]) =>
+    `Ho capito così:\n\n**${modo}**\n${passi.map((r) => `· ${r}`).join('\n')}\n\n`
+    + '⚠️ Il **modo di cottura** l\'ho dedotto io da come l\'hai scritto: confermi, oppure me lo '
+    + 'ridici tu?',
+
   metodoSaltato: () =>
     '⚠️ Va bene, la scrivo **senza i passaggi**: in scheda la cliente vedrà gli ingredienti e non ' +
     'come prepararla. Si aggiungono quando vuoi da **Ricette**.',
@@ -482,23 +512,6 @@ export const testi = {
      */
     '⚠️ Se ti sei sbagliata, si **spegne** dalla sua scheda in Ricette: il registro tiene la ' +
     'traccia di chi l\'ha scritta, ma non la spegne lui.',
-
-  /**
-   * ⛔ **LA SCRITTURA RIFIUTATA SI RACCONTA, non diventa un 500 muto.**
-   *
-   * Dal 4/9 `createRecipe` ha due cancelli — l'elenco ingredienti vuoto **ferma**, il regime che il
-   * contenuto smentisce **chiede una conferma** — e da Vera quella conferma non si può dare: la
-   * porta è un dialogo, non un pulsante. ⚠️ Senza questo messaggio la frase della nutrizionista
-   * restava scritta in chat, Vera **non rispondeva niente**, e il «sì» ripetuto rifaceva lo stesso
-   * errore. L'ha trovato una revisione avversariale.
-   *
-   * ⚠️ Il motivo del server si riporta **per intero**: nomina l'ingrediente, ed è la sola cosa che
-   * dice cosa correggere.
-   */
-  ricettaRifiutata: (nome: string, motivo: string) =>
-    `Non ho potuto scrivere **${nome}**: ${motivo.replace(/^Da confermare:\s*/, '')}\n\n` +
-    '⚠️ Da qui non posso passarci sopra: se il piatto è giusto così, scrivilo dalla pagina Ricette, ' +
-    'dove la conferma si può dare. Altrimenti correggi e ridimmelo.',
 
   modificaInCoda: (nome: string) =>
     `Fatto: la modifica di **${nome}** è in coda al capo nutrizionista. Fino a quando non la approva, ` +

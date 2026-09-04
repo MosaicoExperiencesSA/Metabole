@@ -1,0 +1,94 @@
+────────────────────────────────────────────────────────────────────────────
+ La seconda lettura sul metodo · le righe di paniere rimaste storte
+ 4 settembre 2026 (sera)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+⛔ DOPO LA PUSH, DA LANCIARE:
+   npm run diag:pasti-disallineati              (sola lettura: dice quante sono)
+   APPLICA=1 npm run diag:pasti-disallineati    (le rimette a posto)
+
+Summary
+───────
+Seconda lettura sul metodo dettato; le righe di paniere seguono il pasto anche risalvando
+
+Description
+───────────
+1) LA SECONDA LETTURA SUL METODO DI COTTURA
+   Simone: «Vera utilizza una AI giusto?» → sì, in un punto solo, e da oggi
+   anche qui. «lo butto in forno finché non è dorato» il parser non lo capisce —
+   nomina il forno dentro una frase invece di rispondere «al forno» — e si
+   tornava a chiedere. Chiedere due volte la stessa cosa è il modo più sicuro di
+   farsi rispondere «lascia stare».
+
+   ⛔ E QUI IL MODELLO PROPONE, NON DECIDE — la differenza con il percorso
+   dell'intento, trovata da una revisione avversariale prima della consegna.
+   Là `capisci` ha forme sue e il modello può solo riordinare. Qui il MODO DI
+   COTTURA È LA DECISIONE, e la guardia non può accorgersi se il modello sposta
+   in prima riga una parola che stava in fondo: «lo lesso in acqua e poi lo
+   servo freddo» → «piatto freddo», cioè un piatto lessato scritto in scheda
+   come crudo. La parola c'era, quindi non è «nuova» — ed è esattamente quello
+   che `metodo-dettato.ts` dichiara di evitare.
+   ⚠️ Non si può chiedere alla guardia di vederlo: si chiede a una persona. La
+   riscrittura si mostra e si fa confermare; col «no» si richiede solo il modo,
+   tenendo i passaggi.
+
+   ⛔ E NON si estende al testo della ricetta né agli allergeni, per due ragioni
+   diverse e tutte e due scritte nel codice:
+   · alla ricetta la guardia vieta di AGGIUNGERE, quindi quello che manca
+     davvero — il pasto, il regime — il modello non lo può mettere. Gli
+     resterebbe da riformattare gli ingredienti, dove l'unico errore possibile è
+     perdere una riga: calorie che non si contano.
+   · sugli allergeni è lo stesso in peggio: una parola persa è una cliente
+     allergica che riceve il piatto.
+
+2) ⛔ «HA RISALVATO E RESTA NEL PANIERE DELLE COLAZIONI»
+   Segnalato in produzione la sera stessa, con lo screenshot: una frittata da
+   CENA dentro «Basso indice glicemico · Onnivoro · Colazione».
+   La correzione di poche ore prima scattava sul CAMBIO di pasto, e lì non
+   cambiava niente: la riga era storta da PRIMA, da quando spostare il pasto non
+   toccava i panieri. Chiudere la falla in avanti non ripara quello che si è già
+   storto — e chi risalva d'istinto per rimettere a posto non rimetteva a posto
+   niente.
+   ⚠️ La regola è un'INVARIANTE, non una transizione: la riga di paniere sta
+   sempre nella cella del pasto della ricetta, e non esiste un caso legittimo in
+   cui divergono. Scritta così, risalvare ripara.
+
+   ⛔ LA QUINTA PORTA, chiusa nello stesso punto: il riallineamento gira a ogni
+   salvataggio, quindi una ricetta di pesce che in catalogo è GIÀ a colazione —
+   roba di prima che la regola esistesse — vedrebbe le sue righe spostate DENTRO
+   la colazione da un salvataggio che non c'entrava niente. In quel caso non si
+   muove niente.
+
+3) `npm run diag:pasti-disallineati` — IL PASSATO
+   Il punto 2 chiude la falla; questo ripara quello che è già storto, che
+   altrimenti resta storto per sempre e nessuno lo vede: la scheda mostra il
+   pasto giusto e il motore pesca dalla cella.
+   ⚠️ Sola lettura, con `APPLICA=1` come gli altri. E non sposta le ricette che
+   entrerebbero in un pasto leggero con carne o pesce: quelle si nominano.
+
+⛔ SEI DIFETTI TROVATI DALLA REVISIONE, TRE CHIUSI QUI
+   · il modello che decideva il modo di cottura (sopra);
+   · `giaRiletto` si scriveva solo sul ramo che riusciva, quindi non limitava
+     niente: su una frase che il modello non sa riscrivere erano tre chiamate
+     invece di una, e il commento diceva il contrario;
+   · la prova che doveva tenere quel limite provava uno stato irraggiungibile.
+
+⚠️ E DUE RESTANO APERTI, dichiarati
+   · il prompt chiede una prima riga («al forno», «piatto freddo») che la
+     guardia rifiuta come «parola nuova» quando quella parola non era già nella
+     frase: la seconda lettura lavora, in pratica, quasi solo quando il nome del
+     modo era già scritto. Funziona o non funziona — non sbaglia — ma rende meno
+     di quello che promette. Serve una guardia sua, diversa da quella dei
+     comandi.
+   · `nienteOmissioni` è scritta e non usata da nessuno, e la riga che la
+     giustifica promette più di quello che fa: le grammature di due cifre e le
+     parole con la stessa radice le passano sotto. Va o usata bene o tolta.
+
+PROVE
+─────
+· 7644 verdi su 442 suite nelle quattro modalità; build e tsc puliti.
+· Nove prove di mutazione sulla seconda lettura, tutte rosse. Due erano
+  sopravvissute e hanno fatto correggere due prove: una usava «boh», che è una
+  parola da rinuncia e non arrivava nemmeno al ramo.

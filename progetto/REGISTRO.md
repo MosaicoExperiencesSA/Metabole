@@ -20,21 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
-- `[Sviluppo]` ✅ **Due cancelli alla ricetta che entra in catalogo** (decisioni di Simone): l'elenco
-  ingredienti vuoto **ferma** il salvataggio, il regime che il contenuto smentisce **chiede una
-  doppia conferma**. ⚠️ Una porta sola — `createRecipe` — e ci passano tutte e tre le strade che una
-  persona guida: la pagina Ricette, «Nuova ricetta» dentro il menu della cliente, e Vera.
-  ⛔ E la **porta unica delle chiavi**: `allergens.ts` non ha più una copia sua di «questa chiave
-  vale?». Misurato: **190 ricette su 23 726** avevano un allergene falso scritto — diciassette piatti
-  di **carne** risultavano contenere **pesce** perché la zucca è «dorata», quarantatré di **edamame**
-  contenere **latte** perché i fagioli sono «sgranati».
-  ⛔ **La revisione avversariale ha trovato tre cose gravi, due dentro le mie correzioni**: la
-  riparazione cancellava **le acciughe della salsa Worcestershire** (criterio più largo del dovuto);
-  il cancello del regime **bloccava la coda di approvazione di Vera** su un `{active: true}`, senza
-  via d'uscita; e `createRecipe` non era in try/catch, quindi Vera **non rispondeva più niente**.
-  ⚠️ E le prove dei due cancelli non mordevano: si poteva togliere metà del cablaggio con la suite
-  verde. ⛔ Compreso `onClick={save}`, che passa l'evento React come conferma — cioè manda
-  `confermaRegime` al primo clic e la doppia conferma sparisce.
+- `[Sviluppo]` ✅ **La seconda lettura arriva sul metodo dettato a Vera** (Simone: *«Vera utilizza una
+  AI giusto?»*). ⛔ Ma qui **il modello propone e non decide**, ed è una differenza vera rispetto al
+  percorso dell'intento: sul metodo il **modo di cottura è la decisione**, e la guardia non può
+  accorgersi se il modello sposta in prima riga una parola che stava in fondo — «lo lesso e poi lo
+  servo freddo» diventerebbe «piatto freddo», cioè un piatto lessato scritto in scheda come crudo.
+  La riscrittura si mostra e si fa confermare.
+  ⚠️ Non si estende al testo della ricetta né agli allergeni: là l'errore possibile è **perdere** una
+  riga — calorie che non si contano, o una cliente allergica che riceve il piatto.
+
+- `[Sviluppo]` ⛔ **«Ha risalvato e resta nel paniere delle colazioni».** La correzione della mattina
+  scattava sul **cambio** di pasto: lì non cambiava niente, e la riga era storta da prima. Chiudere
+  la falla in avanti non ripara quello che si è già storto. Ora la regola è un'**invariante** — la
+  riga sta sempre nella cella del pasto della ricetta — quindi risalvare ripara. E
+  `npm run diag:pasti-disallineati` ripara il passato tutto insieme.
 
 
 - `[Sviluppo]` ⛔ **«Se sposto una ricetta da colazione a cena e salvo non la sposta».** `Recipe.mealSlot`

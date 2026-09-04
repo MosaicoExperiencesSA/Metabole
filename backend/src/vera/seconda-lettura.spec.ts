@@ -1,5 +1,6 @@
+import { leggiMetodo } from './metodo-dettato';
 import { capisci, daScartare } from './capisci';
-import { riscritturaAccettabile, secondaLettura } from './seconda-lettura';
+import { riscritturaAccettabile, secondaLettura, secondaLetturaMetodo } from './seconda-lettura';
 
 /**
  * La seconda lettura di Vera (decisa da Simone il 17/8). Il modello TRADUCE, `capisci` DECIDE.
@@ -130,5 +131,110 @@ describe('secondaLettura — quando si chiama il modello, e quando no', () => {
     expect(await secondaLettura('', deps(modello))).toBeNull();
     expect(await secondaLettura('   ', deps(modello))).toBeNull();
     expect(modello).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⛔ **LA SECONDA LETTURA DEL METODO DI COTTURA** — Simone, 4/9: «Vera utilizza una AI giusto?».
+ *
+ * Le tre proprietà sono le stesse del resto del file, e queste prove servono a tenerle: il modello
+ * **riscrive**, a decidere resta il parser deterministico, e la riscrittura **si mostra**.
+ */
+describe('la seconda lettura del metodo', () => {
+  const leggi = (f: string) => leggiMetodo(f);
+  const completo = (e: ReturnType<typeof leggiMetodo>) => e.tipo === 'metodo';
+
+  const conModello = (frase: unknown) => ({
+    chiediAlModello: jest.fn().mockResolvedValue({ frase }),
+    leggi,
+    completo,
+  });
+
+  it('⛔ una frase che il parser non capisce, riscritta, diventa un metodo', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo butto in forno finche non e dorato',
+      conModello('al forno\nbuttarlo in forno finche non e dorato'),
+    );
+    expect(r?.esito.tipo).toBe('metodo');
+    expect(r?.esito.tipo === 'metodo' && r.esito.metodo.type).toBe('forno');
+    /** ⚠️ E la riscrittura torna indietro per essere MOSTRATA. */
+    expect(r?.riscritta).toContain('al forno');
+  });
+
+  /**
+   * ⛔ **GLI A CAPO RESTANO.** Appiattendo la riscrittura su una riga sola il parser non troverebbe
+   * più i passaggi, e la seconda lettura sarebbe inutile proprio nel caso per cui esiste.
+   */
+  it('⛔ la riscrittura resta su più righe', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo butto in forno finche non e dorato',
+      conModello('al forno\nbuttarlo in forno finche non e dorato'),
+    );
+    expect(r?.riscritta.split('\n')).toHaveLength(2);
+  });
+
+  /**
+   * ⛔ **LA GUARDIA VALE ANCHE QUI: il modello può riordinare, non aggiungere.** Un passaggio
+   * inventato finisce nella scheda che una persona legge mentre cucina.
+   */
+  it('⛔ una riscrittura che aggiunge parole si butta', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo butto in forno',
+      conModello('al forno\nspennellare con olio e rosmarino'),
+    );
+    expect(r).toBeNull();
+  });
+
+  /** ⛔ E i numeri inventati — una temperatura, un tempo — sono la specie peggiore. */
+  it('⛔ e una che inventa una temperatura pure', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo metto in forno finche non e dorato',
+      conModello('al forno\nmetterlo in forno a 180 gradi'),
+    );
+    expect(r).toBeNull();
+  });
+
+  /**
+   * ⛔ **A decidere resta il PARSER.** Se la riscrittura non è un metodo completo, non si va avanti:
+   * il modello non ha voce in capitolo sull'esito, solo sulla forma della frase.
+   */
+  it('⛔ se la riscrittura non è un metodo completo, non passa', async () => {
+    const r = await secondaLetturaMetodo('lo butto in forno', conModello('al forno'));
+    expect(r).toBeNull();
+  });
+
+  /** ⚠️ Modello non disponibile: si torna al comportamento di prima, cioè si richiede. */
+  it('⚠️ senza modello non succede niente', async () => {
+    const r = await secondaLetturaMetodo('lo butto in forno', {
+      chiediAlModello: jest.fn().mockResolvedValue(null), leggi, completo,
+    });
+    expect(r).toBeNull();
+  });
+
+  it('⚠️ e una frase vuota non arriva nemmeno al modello', async () => {
+    const deps = conModello('al forno\ninfornare');
+    expect(await secondaLetturaMetodo('   ', deps)).toBeNull();
+    expect(deps.chiediAlModello).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⛔ **LA GUARDIA NELL'ALTRA DIREZIONE: `nienteOmissioni`.**
+ *
+ * Quella di partenza controlla solo che non compaiano parole nuove — è la direzione che conta per un
+ * comando. ⚠️ Su un testo che **elenca** l'errore grave è l'opposto: un ingrediente che sparisce
+ * sono calorie che non si contano, un allergene che sparisce è una cliente che riceve il piatto
+ * sbagliato. È il motivo per cui il testo della ricetta e gli allergeni restano deterministici.
+ */
+describe('nienteOmissioni — quando sparire è peggio che aggiungere', () => {
+  it('⛔ una parola persa fa cadere la riscrittura', () => {
+    const e = riscritturaAccettabile('tonno olive capperi', 'tonno e olive', { nienteOmissioni: true });
+    expect(e.ok).toBe(false);
+    expect(e.perche).toContain('capperi');
+  });
+
+  /** ⚠️ E senza la richiesta esplicita la guardia resta quella di prima: non si stringe da sola. */
+  it('⚠️ senza chiederlo, la guardia non cambia', () => {
+    expect(riscritturaAccettabile('tonno olive capperi', 'tonno e olive').ok).toBe(true);
   });
 });

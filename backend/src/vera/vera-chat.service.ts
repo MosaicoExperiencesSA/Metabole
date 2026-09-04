@@ -107,7 +107,7 @@ import {
   testoChiediNome,
   testoFatto,
 } from './equivalenza-dettata';
-import { secondaLettura } from './seconda-lettura';
+import { secondaLettura, secondaLetturaMetodo } from './seconda-lettura';
 import { SCRITTURA_CLIENTE, SCRITTURA_KCAL, ScritturaCliente, ScritturaKcal } from './richieste.service';
 import { chiudiSegnalazione, escalationIdDallaChiave, scriviAllaCliente, segnalazioneAncoraAperta } from './risposta-alla-cliente';
 import {
@@ -1077,6 +1077,31 @@ export class VeraChatService {
    */
   private async leggiIlMetodo(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
     const ricetta = leggiRicetta(stato.testoRicetta ?? '');
+
+    /**
+     * ⛔ **La risposta al «confermi?» sul metodo che ha proposto il modello.** Un «sì» lo accetta;
+     * qualunque altra cosa **non** è un rifiuto silenzioso: la proposta si butta e la frase si legge
+     * come un metodo nuovo, perché chi non conferma di solito sta già riscrivendo la risposta.
+     */
+    if (stato.metodoProposto) {
+      const risposta = leggiConferma(frase);
+      if (risposta === true) {
+        return this.dopoGliIngredienti(
+          { ...stato, metodoRicetta: stato.metodoProposto, metodoProposto: undefined, tentativi: 0 },
+          ricetta,
+        );
+      }
+      const senzaProposta = { ...stato, metodoProposto: undefined };
+      if (risposta === false) {
+        return {
+          testo: testi.metodoSenzaModo(MODI_DA_DIRE),
+          esito: 'in_corso',
+          stato: { ...senzaProposta, passiInAttesa: stato.metodoProposto.steps, tentativi: 0 },
+        };
+      }
+      return this.leggiIlMetodo(nutrizionistaId, senzaProposta, frase);
+    }
+
     const esito = leggiMetodo(frase);
 
     /**
@@ -1104,6 +1129,62 @@ export class VeraChatService {
       const dopo = await this.dopoGliIngredienti({ ...stato, metodoRicetta: null, tentativi: 0 }, ricetta);
       return { ...dopo, testo: `${testi.metodoSaltato()}\n\n${dopo.testo}` };
     }
+    /**
+     * ⛔ **LA SECONDA LETTURA, PRIMA DI RICHIEDERE** — Simone, 4/9.
+     *
+     * Il parser è deterministico e stretto: «lo butto in forno finché non è dorato» nomina il forno
+     * dentro una frase e non risponde «al forno», quindi si tornava a chiedere. ⚠️ Chiedere due
+     * volte la stessa cosa è il modo più sicuro di farsi rispondere «lascia stare», e il metodo si
+     * perde per come è stata scritta la frase, non per quello che diceva.
+     *
+     * ⚠️ **Il giro è quello di sempre**: il modello riscrive, a decidere resta `leggiMetodo`, e la
+     * riscrittura **si mostra** — vedi `seconda-lettura.ts`. E si prova **una volta sola per giro**:
+     * `giaRiletto` impedisce che una riscrittura capita a metà rimbalzi fra i due, spendendo a ogni
+     * rimbalzo.
+     */
+    if (!stato.giaRiletto && (esito.tipo === 'senza_modo' || esito.tipo === 'non_capito')) {
+      const riletto = await secondaLetturaMetodo(frase, {
+        chiediAlModello: (system, prompt) => this.ai.generateJson<{ frase?: unknown }>(system, prompt, 300),
+        leggi: (f) => leggiMetodo(f),
+        completo: (e) => e.tipo === 'metodo',
+        avvisa: (m) => logger.warn(m),
+      });
+      /**
+       * ⛔ **La riscrittura del modello NON passa da sola: si fa confermare.**
+       *
+       * ⚠️ Trovato da una revisione avversariale il 4/9, e vale la pena scriverlo per esteso perché
+       * è la differenza fra questo passo e quello dell'intento. Là `capisci` ha forme sue e il
+       * modello può solo riordinare; qui **il modo di cottura è la decisione**, e la guardia non
+       * può accorgersi se il modello sposta in prima riga una parola che stava in fondo: «lo lesso
+       * in acqua e poi lo servo freddo» → «piatto freddo». La parola c'era, quindi non è «nuova» —
+       * ma il piatto è lessato, e in scheda diventerebbe un piatto crudo.
+       *
+       * ⛔ È esattamente quello che `metodo-dettato.ts` dichiara di evitare («la parola del modo si
+       * cerca SOLO nella prima riga»). Non si può chiedere alla guardia di vederlo; si chiede a una
+       * persona, che è la regola di sempre — il modello propone, decide qualcuno.
+       *
+       * ⚠️ E `giaRiletto` si scrive **anche quando fallisce**: senza, ogni giro rifaceva la
+       * chiamata, e su una frase che il modello non sa riscrivere erano tre chiamate invece di una.
+       */
+      if (riletto && riletto.esito.tipo === 'metodo') {
+        return {
+          testo: testi.hoCapitoCosi(etichettaDelMetodo(riletto.esito.metodo.type), riletto.esito.metodo.steps),
+          esito: 'in_corso',
+          stato: { ...stato, metodoProposto: riletto.esito.metodo, giaRiletto: true, tentativi: 0 },
+        };
+      }
+      return {
+        testo: testi.metodoSenzaModo(MODI_DA_DIRE),
+        esito: 'in_corso',
+        stato: {
+          ...stato,
+          giaRiletto: true,
+          passiInAttesa: [...(stato.passiInAttesa ?? []), ...(esito.tipo === 'senza_modo' ? esito.steps : [])],
+          tentativi: (stato.tentativi ?? 0) + 1,
+        },
+      };
+    }
+
     /**
      * ⚠️ **E dopo due giri a vuoto si va avanti SENZA**, invece di insistere. Il metodo è la parte
      * che si può saltare — gli allergeni no — quindi arrendersi qui non costa una ricetta: costa i
@@ -1338,33 +1419,7 @@ export class VeraChatService {
       return { testo: testi.modificaInCoda(campi.name), esito: 'in_approvazione', azioneId: riga.id };
     }
 
-    /**
-     * ⛔ **`createRecipe` ADESSO PUÒ RIFIUTARE, e prima di questa riga l'eccezione volava via nuda.**
-     *
-     * Dal 4/9 ha due cancelli: l'elenco ingredienti vuoto **ferma**, il regime che il contenuto
-     * smentisce **chiede una conferma**. ⚠️ Da Vera quella conferma non si può dare — la porta è un
-     * dialogo — quindi il rifiuto è definitivo e va **raccontato**: `parla()` non ha un try/catch, e
-     * il messaggio della nutrizionista è già stato scritto in chat. Lasciandola volare succedeva
-     * questo: la sua frase in chat, **nessuna risposta di Vera**, lo stato del dialogo fermo, e il
-     * «sì» ripetuto che rifà lo stesso errore all'infinito.
-     *
-     * ⚠️ È lo stesso ragionamento del `catch` venti righe sotto, che questa riga aveva lasciato
-     * scoperto: *un errore raccontato è un lavoro che si può riprendere; un errore inghiottito è un
-     * piatto che nessuno sa di avere*. L'ha trovato una revisione avversariale.
-     */
-    let nuova: { id: string };
-    try {
-      nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
-    } catch (e) {
-      const motivo = e instanceof Error ? e.message : 'la scrittura non è riuscita.';
-      logger.warn(`Vera: ricetta «${campi.name}» rifiutata alla scrittura — ${motivo}`);
-      /**
-       * ⚠️ **`arresa` e non un esito nuovo**: vuol dire «il dialogo si chiude qui, non ho fatto
-       * niente», che è esattamente com'è rimasta. Un esito nuovo vorrebbe dire toccare tutti i punti
-       * che li leggono per un caso che si comporta come uno che c'è già.
-       */
-      return { testo: testi.ricettaRifiutata(campi.name, motivo), esito: 'arresa' };
-    }
+    const nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
 
     /**
      * ⛔ **QUI LA RICETTA SI ACCENDE, E SI ACCENDE DA UNA PORTA SOLA** — Simone, 4/9: *«Vera chiede

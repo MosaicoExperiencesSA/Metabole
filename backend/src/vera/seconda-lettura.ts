@@ -118,9 +118,34 @@ export interface EsitoRiscrittura {
  * «sostitusci» → «sostituisci» passa) o essere una parola della forma. Basta una parola nuova e la
  * riscrittura si butta: meglio un «non ci arrivo» che una regola in più nel piatto di qualcuno.
  */
-export function riscritturaAccettabile(originale: string, riscritta: unknown): EsitoRiscrittura {
+export interface ComeGuardare {
+  /**
+   * ⚠️ **Tiene gli a capo.** Serve al metodo di cottura, dove la riscrittura è «il modo su una riga,
+   * i passaggi sotto»: appiattendola su una riga sola il parser non troverebbe più i passaggi, e la
+   * riscrittura diventerebbe inutile proprio nel caso per cui esiste.
+   */
+  multiriga?: boolean;
+  /**
+   * ⛔ **Nessuna parola dell'originale può SPARIRE.**
+   *
+   * La guardia di partenza controlla solo che non ne compaiano di nuove — è la direzione che conta
+   * per un comando: una parola in più è una regola in più nel piatto di qualcuno. ⚠️ Ma su un testo
+   * che **elenca** — gli ingredienti di una ricetta, gli allergeni — l'errore grave è l'opposto: un
+   * ingrediente che sparisce sono calorie che non si contano, un allergene che sparisce è una
+   * cliente che riceve il piatto sbagliato. Chi passa un elenco al modello deve chiedere questa.
+   */
+  nienteOmissioni?: boolean;
+}
+
+/** ⚠️ Gli spazi si stringono, gli a capo restano quando servono: vedi `ComeGuardare.multiriga`. */
+function ripulisci(t: string, multiriga: boolean): string {
+  if (!multiriga) return t.trim().replace(/\s+/g, ' ');
+  return t.trim().split('\n').map((r) => r.replace(/[^\S\n]+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+
+export function riscritturaAccettabile(originale: string, riscritta: unknown, come: ComeGuardare = {}): EsitoRiscrittura {
   if (typeof riscritta !== 'string') return { ok: false, perche: 'il modello non ha restituito una stringa' };
-  const frase = riscritta.trim().replace(/\s+/g, ' ');
+  const frase = ripulisci(riscritta, come.multiriga === true);
   if (!frase) return { ok: false, perche: 'riscrittura vuota' };
   if (frase.length > MAX_CARATTERI) return { ok: false, perche: `riscrittura troppo lunga (${frase.length} caratteri)` };
   // Una riscrittura che è la frase di prima non ha aggiunto niente: `capisci` ha già detto no.
@@ -142,6 +167,13 @@ export function riscritturaAccettabile(originale: string, riscritta: unknown): E
   const radiciOriginali = new Set(parolePiene(originale).map(radice));
   const nuove = parolePiene(frase).filter((p) => !PAROLE_DELLA_FORMA.has(p) && !radiciOriginali.has(radice(p)));
   if (nuove.length) return { ok: false, perche: `parole non presenti nella frase: ${nuove.join(', ')}` };
+
+  /** ⛔ L'altra direzione, per i testi che elencano: vedi `ComeGuardare.nienteOmissioni`. */
+  if (come.nienteOmissioni) {
+    const radiciNuove = new Set(parolePiene(frase).map(radice));
+    const perse = parolePiene(originale).filter((p) => !PAROLE_DELLA_FORMA.has(p) && !radiciNuove.has(radice(p)));
+    if (perse.length) return { ok: false, perche: `parole sparite dalla frase: ${perse.join(', ')}` };
+  }
 
   return { ok: true, frase };
 }
@@ -216,4 +248,92 @@ export async function secondaLettura<T>(
   const intento = deps.capisci(esito.frase) as T | null;
   if (!intento) return null;
   return { riscritta: esito.frase, intento };
+}
+
+/**
+ * ⛔ **LA SECONDA LETTURA DEL METODO DI COTTURA — Simone, 4/9: «Vera utilizza una AI giusto?».**
+ *
+ * Sì, e da oggi anche qui. Il giro è **lo stesso** del resto del file, con le stesse tre proprietà:
+ * il modello **riscrive**, a decidere resta il parser deterministico (`leggiMetodo`), e la
+ * riscrittura **si mostra** prima di andare avanti.
+ *
+ * ## A che cosa serve davvero
+ *
+ * «lo butto in forno finché non è dorato» il parser non lo capisce: nomina il forno dentro una
+ * frase, non risponde «al forno». Chiedeva di nuovo, e chiedere due volte la stessa cosa è il modo
+ * più sicuro di farsi rispondere «lascia stare». Il modello lo riscrive in
+ * «al forno / buttarlo in forno finché non è dorato», e da lì decide il parser.
+ *
+ * ## ⛔ E perché NON si estende al testo della ricetta
+ *
+ * Simone l'ha chiesto per «i passi», e su questo passo ha senso. Sul **testo della ricetta** no, e
+ * non è prudenza: la guardia vieta di **aggiungere** parole, quindi quello che manca davvero a una
+ * ricetta incompleta — il pasto, il regime — il modello non lo può mettere, ed è giusto così. Gli
+ * resterebbe da riformattare gli ingredienti: un lavoro in cui l'unico errore possibile è **perdere
+ * una riga**, cioè calorie che non si contano. `nienteOmissioni` lo impedirebbe, ma a quel punto la
+ * riscrittura non aggiunge niente che valga il rischio.
+ * ⚠️ Sugli **allergeni** vale lo stesso, in peggio: lì una parola persa è una cliente allergica che
+ * riceve il piatto. Restano tutti e due deterministici, e questa riga dice perché.
+ */
+export const SYSTEM_METODO = [
+  'Riscrivi la risposta dell\'utente come un metodo di cottura, senza aggiungere niente.',
+  '',
+  'FORMA:',
+  '- prima riga: SOLO il modo di cottura, fra questi — veloce, al forno, in padella, al vapore,',
+  '  meal prep, piatto freddo;',
+  '- righe successive: i passaggi, uno per riga, con le parole dell\'utente.',
+  '',
+  'REGOLE ASSOLUTE:',
+  '- usa SOLO le parole che ci sono nella risposta; puoi correggere refusi, coniugare i verbi e',
+  '  aggiungere preposizioni o articoli, ma NON puoi aggiungere ingredienti, numeri, tempi o',
+  '  temperature che non ci sono;',
+  '- non inventare passaggi: se ne ha scritto uno solo, la riscrittura ne ha uno solo;',
+  '- se il modo di cottura non si capisce dalla risposta, restituisci la stringa vuota:',
+  '  NON sceglierne uno plausibile;',
+  '- non spiegare e non commentare.',
+  '',
+  'Rispondi con un JSON: {"frase": "..."}',
+].join('\n');
+
+export interface LetturaDelMetodo<T> {
+  /** La riscrittura, che si MOSTRA prima di andare avanti. */
+  riscritta: string;
+  /** Quello che ne ha capito il parser: il modello non decide. */
+  esito: T;
+}
+
+/**
+ * Il secondo tentativo sul metodo. `null` in tutti i casi in cui oggi si richiede: modello non
+ * disponibile, riscrittura rifiutata dalla guardia, o riscrittura che il parser **ancora** non
+ * riconosce come un metodo completo.
+ *
+ * ⚠️ Si chiama **solo dopo** che il parser ha già detto di no: il costo è una chiamata sul giro che
+ * era comunque perso.
+ */
+export async function secondaLetturaMetodo<T>(
+  frase: string,
+  deps: {
+    chiediAlModello: (system: string, prompt: string) => Promise<{ frase?: unknown } | null>;
+    /** `leggiMetodo`, passata da fuori: questo modulo non decide niente da sé. */
+    leggi: (frase: string) => T;
+    /** Vero se quello che ne esce è un metodo completo. */
+    completo: (esito: T) => boolean;
+    avvisa?: (messaggio: string) => void;
+  },
+): Promise<LetturaDelMetodo<T> | null> {
+  const testo = (frase ?? '').trim();
+  if (!testo) return null;
+
+  const risposta = await deps.chiediAlModello(SYSTEM_METODO, promptSecondaLettura(testo));
+  if (!risposta) return null;
+
+  const guardia = riscritturaAccettabile(testo, risposta.frase, { multiriga: true });
+  if (!guardia.ok || !guardia.frase) {
+    if (guardia.perche) deps.avvisa?.(`Seconda lettura del metodo rifiutata (${guardia.perche}) su: «${testo}»`);
+    return null;
+  }
+
+  const esito = deps.leggi(guardia.frase);
+  if (!deps.completo(esito)) return null;
+  return { riscritta: guardia.frase, esito };
 }

@@ -26,6 +26,18 @@
  * ⚠️ Adesso quel caso **si rifiuta alla porta**: `updateRecipe` non salva affatto e dice perché.
  * Nessun dato distrutto, e la regola è chiusa davvero invece che pagata coi panieri.
  *
+ * ## ⚠️ E si guarda a OGNI salvataggio, non solo quando il pasto cambia
+ *
+ * Simone, 4/9 sera: *«il nutrizionista è entrato in una ricetta che aveva già messo come cena, ha
+ * risalvato e resta nel paniere delle colazioni»*. Giusto: la correzione scattava sul **cambio**, e
+ * lì non cambiava niente — la riga era storta **da prima**, da quando spostare il pasto non toccava
+ * i panieri. Chiudere la falla in avanti non ripara quello che si è già storto.
+ *
+ * ⛔ **La regola vera è un'invariante, non una transizione**: la riga di paniere sta sempre nella
+ * cella del pasto della ricetta, e non esiste un caso legittimo in cui divergono. Scritta come
+ * invariante, risalvare la ricetta la ripara — che è il gesto che una persona fa d'istinto quando
+ * vede qualcosa fuori posto.
+ *
  * ⚠️ Modulo **puro**: qui si decide, non si scrive. Chi scrive è `updateRecipe`.
  */
 import { slotCapofila } from '../common/slot-pasto';

@@ -1527,6 +1527,116 @@ describe('VeraChatService — le ricette', () => {
     });
 
     /**
+     * ⛔ **LA SECONDA LETTURA, PRIMA DI RICHIEDERE** — Simone, 4/9: «Vera utilizza una AI giusto?».
+     *
+     * «lo butto in forno finché non è dorato» nomina il forno dentro una frase e il parser non lo
+     * capisce: si tornava a chiedere, e chiedere due volte la stessa cosa è il modo più sicuro di
+     * farsi rispondere «lascia stare».
+     *
+     * ⚠️ Il giro resta quello di sempre: il modello **riscrive**, a decidere resta `leggiMetodo`, e
+     * la riscrittura **si mostra**. Queste tre prove tengono le tre proprietà.
+     */
+    it('⛔ una frase che il parser non capisce passa dal modello e diventa una PROPOSTA', async () => {
+      const { service, messaggioCreate, ai } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      (ai.generateJson as jest.Mock).mockResolvedValue({ frase: 'al forno\nbuttarlo in forno finche non e dorato' });
+      await service.parla('lucia', 'lo butto in forno finche non e dorato');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      /**
+       * ⛔ **PROPOSTA, non decisione** — corretto il 4/9 da una revisione avversariale. Sul metodo il
+       * **modo di cottura è la decisione**, e la guardia non può accorgersi se il modello sposta in
+       * prima riga una parola che stava in fondo: «lo lesso e poi lo servo freddo» diventerebbe
+       * «piatto freddo», cioè un piatto lessato scritto in scheda come crudo. La parola c'era,
+       * quindi non è «nuova». Non si può chiedere alla guardia di vederlo: si chiede a una persona.
+       */
+      expect(stato?.metodoRicetta).toBeUndefined();
+      expect(stato?.metodoProposto).toEqual({
+        type: 'forno', steps: ['buttarlo in forno finche non e dorato'],
+      });
+      expect(stato?.passo).toBe('ricetta_metodo');
+      /** ⚠️ E si MOSTRA: una riscrittura che non si vede è una parola messa in bocca. */
+      expect(testo).toContain('Ho capito così');
+      expect(testo).toContain('Al forno');
+    });
+
+    it('⚠️ e col «sì» la proposta diventa il metodo', async () => {
+      const { service, messaggioCreate } = make({}, aperto({
+        passo: 'ricetta_metodo', metodoProposto: { type: 'forno', steps: ['infornare'] },
+      }));
+      await service.parla('lucia', 'sì');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toEqual({ type: 'forno', steps: ['infornare'] });
+      expect(stato?.passo).toBe('ricetta_allergeni');
+    });
+
+    /** ⛔ E col «no» si torna a chiedere il modo, **tenendo i passaggi**: non si fa riscrivere tutto. */
+    it('⛔ col «no» si richiede solo il modo, e i passaggi restano', async () => {
+      const { service, messaggioCreate } = make({}, aperto({
+        passo: 'ricetta_metodo', metodoProposto: { type: 'piatto_freddo', steps: ['lessarlo', 'servirlo freddo'] },
+      }));
+      await service.parla('lucia', 'no');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toBeUndefined();
+      expect(stato?.passiInAttesa).toEqual(['lessarlo', 'servirlo freddo']);
+    });
+
+    /** ⚠️ E chi invece di rispondere riscrive il metodo viene letto, non ignorato. */
+    it('⚠️ una risposta che non è sì né no si legge come un metodo nuovo', async () => {
+      const { service, messaggioCreate } = make({}, aperto({
+        passo: 'ricetta_metodo', metodoProposto: { type: 'piatto_freddo', steps: ['lessarlo'] },
+      }));
+      await service.parla('lucia', 'in padella\nrosolare 5 minuti');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toEqual({ type: 'padella', steps: ['rosolare 5 minuti'] });
+    });
+
+    /** ⛔ Il modello può riordinare, non aggiungere: un passaggio inventato finisce nella scheda. */
+    it('⛔ una riscrittura che aggiunge un passaggio si butta, e si richiede', async () => {
+      const { service, messaggioCreate, ai } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      (ai.generateJson as jest.Mock).mockResolvedValue({ frase: 'al forno\nspennellare con olio e rosmarino' });
+      await service.parla('lucia', 'lo butto in forno');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toBeUndefined();
+      expect(stato?.passo).toBe('ricetta_metodo');
+    });
+
+    /**
+     * ⚠️ **Una volta sola per giro.** Senza, una riscrittura capita a metà rimbalzerebbe fra il
+     * modello e il parser, spendendo a ogni rimbalzo.
+     */
+    it('⚠️ e al secondo giro il modello non si richiama', async () => {
+      /**
+       * ⚠️ La frase dev'essere una che il parser **non capisce** — «mescolare piano» è `senza_modo`.
+       * Con una parola da rinuncia («boh») il ramo della seconda lettura non si raggiunge nemmeno, e
+       * la prova passerebbe per la ragione sbagliata: l'ha mostrato una prova di mutazione.
+       */
+      const { service, ai } = make({}, aperto({ passo: 'ricetta_metodo', giaRiletto: true }));
+      (ai.generateJson as jest.Mock).mockResolvedValue({ frase: 'al forno\ninfornare' });
+      await service.parla('lucia', 'mescolare piano');
+      expect(ai.generateJson).not.toHaveBeenCalled();
+    });
+
+    /** ⚠️ La controprova: senza `giaRiletto` il modello si chiama davvero. */
+    it('⚠️ ma al primo giro sì', async () => {
+      const { service, ai } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      (ai.generateJson as jest.Mock).mockResolvedValue(null);
+      await service.parla('lucia', 'mescolare piano');
+      expect(ai.generateJson).toHaveBeenCalled();
+    });
+
+    /**
+     * ⛔ **E `giaRiletto` si scrive ANCHE QUANDO LA SECONDA LETTURA FALLISCE** — corretto il 4/9 da
+     * una revisione avversariale. Scrivendolo solo sul ramo che riesce, lo stato «già riletto» non
+     * era producibile: ogni giro rifaceva la chiamata, e su una frase che il modello non sa
+     * riscrivere erano **tre** chiamate invece di una — mentre il commento diceva «una sola».
+     */
+    it('⛔ e se il modello non ce la fa, il giro dopo non lo richiama', async () => {
+      const { service, messaggioCreate, ai } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      (ai.generateJson as jest.Mock).mockResolvedValue(null);
+      await service.parla('lucia', 'mescolare piano');
+      expect(ultimoAgente(messaggioCreate).stato?.giaRiletto).toBe(true);
+    });
+
+    /**
      * ⚠️ **Si può saltare, e si dice cosa comporta.** Una domanda che sembra obbligatoria e non lo
      * è insegna a rispondere qualcosa pur di uscirne — e qui «qualcosa» finisce nella scheda che
      * una persona legge mentre cucina.
@@ -1666,7 +1776,8 @@ describe('VeraChatService — le ricette', () => {
 
     /** ⚠️ Sul metodo invece ci si arrende ANDANDO AVANTI: è il campo che si può saltare. */
     it('⚠️ dopo troppi tentativi sul metodo si va avanti senza', async () => {
-      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo', tentativi: 2 }));
+      /** ⚠️ `giaRiletto` acceso: altrimenti il giro passa prima dalla seconda lettura. */
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo', tentativi: 2, giaRiletto: true }));
       await service.parla('lucia', 'boh boh boh');
       const { stato } = ultimoAgente(messaggioCreate);
       expect(stato?.metodoRicetta).toBeNull();
