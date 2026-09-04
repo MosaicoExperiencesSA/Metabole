@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` 🧰 **Il kit di montaggio: la base comune di un progetto nuovo, estratta da qui.**
+  Nuova cartella `kit/` — un manuale in dieci capitoli più trentacinque file già ripuliti, così che
+  un progetto nuovo non ridecida da capo grafica, gabbia, permessi, identità e blocco commerciale.
+  ⚠️ **Il kit non tocca una riga di Metabole**: legge, non scrive. Nessuna migrazione, nessuna
+  dipendenza, nessun endpoint.
+  ▶️ Le tre cose che porta via da qui e che sono costate di più: *una pagina = una chiave sua*,
+  *una chiave nasce con la guardia che la legge*, *una modifica si verifica rileggendo il file*.
+  ▶️ Due generalizzazioni, decise con Simone: i ruoli diventano **quattro neutri**
+  (`user/staff/manager/admin`) e i mestieri restano ruoli personalizzati — un mestiere nuovo non è
+  più una migrazione; e le provvigioni passano da cinque colonne coi nomi dei mestieri a **una**
+  colonna `commissionByLevel` a livelli numerici, con la regola della differenza fra livelli.
+  ⚠️ Detto invece che nascosto: il blocco commerciale **non** è nello starter in forma ripulita —
+  qui è intrecciato con abbonamenti e piani, ed estrarlo «pulito» vorrebbe dire riscriverlo, cioè
+  consegnare codice mai girato. Per quello il kit dà lo schema, i contratti API e la mappa file per
+  file, con le quattro sostituzioni da fare mentre si copia.
+  ⚠️ `prisma validate` sullo schema del kit **non** è stato eseguito: la rete verso
+  `binaries.prisma.sh` è bloccata da entrambi i lati. Al posto suo un controllo strutturale
+  (19 modelli, relazioni tutte bidirezionali, `@relation(fields:)` coerenti) — e il README dello
+  starter lo dice, invece di far credere che sia validato.
+  ▶️ La verifica di coerenza ha trovato un difetto vero e l'ha chiuso: `email_templates` e
+  `email_log` erano chiavi con etichetta ma senza voce di menu — cioè esattamente l'interruttore
+  che non accende niente contro cui il capitolo 03 mette in guardia.
+
 - `[Sviluppo]` ✅ **La posta di «Piano bloccato», con il nome della cliente e il motivo.** Decisione
   di Simone alla domanda posta apposta. ⚠️ Conseguenza detta invece che nascosta: quel corpo finisce
   anche in `email_log`, che il backoffice mostra. Non passa da `sendNotificationEmail` — quello è il

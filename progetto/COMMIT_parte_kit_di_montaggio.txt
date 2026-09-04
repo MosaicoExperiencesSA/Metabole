@@ -1,0 +1,63 @@
+Kit di montaggio: manuale in dieci capitoli e starter estratto da Metabole
+
+Nuova cartella `kit/`: la base comune da cui far partire un progetto nuovo senza ridecidere ogni
+volta grafica, gabbia, permessi, identità, profilo e blocco commerciale. Non tocca una riga di
+Metabole — legge soltanto.
+
+MANUALE (kit/manuale/, dieci file)
+- 00 decisioni: le undici caselle da compilare prima di scrivere una riga. Ruoli neutri
+  (user/staff/manager/admin) con i mestieri come ruoli personalizzati — un mestiere nuovo non è più
+  una migrazione. Rete provvigionale a LIVELLI numerici invece che a nomi di mestiere. Importi in
+  centesimi, sempre.
+- 01 grafica: un file solo per i colori, quindici variabili, i temi commutabili e la regola dei tre
+  posti (CSS, THEMES, backend) in cui un tema deve esistere o il difetto è silenzioso.
+- 02 gabbia: header, barra, NAV come unico posto dove si dichiara una voce di menu.
+- 03 permessi: il capitolo centrale. Una pagina = una chiave sua; una chiave nasce con la guardia
+  che la legge; INHERIT_DEFAULTS (legame alla nascita) contro PAGE_GRANTS (legame permanente), e
+  perché scambiarli ricrea al contrario l'accoppiamento che si stava sciogliendo. Il fail-open e
+  quando NON è ammesso.
+- 04 identità: registrazione, verifica mail, login, password. Token hashati, monouso con usedAt.
+- 05 cambio mail a due indirizzi: perché il modo ovvio perde l'account, e i tre passi che lo
+  impediscono. I quattro controlli, incluso il ricontrollo alla conferma che si dimentica sempre.
+- 06 profilo: la scheda Impostazioni, card indipendenti, cancellazione come richiesta e non come
+  esecuzione.
+- 07 amministrazione: Utenti, Ruoli, Permessi, Log attività, Lista lavori (con la distinzione fra
+  `blocca` — un fatto — e `priorita` — un giudizio).
+- 08 commerciale: Negozio, Acquisti, Bonifici, Buoni sconto, Compensi, Contabilità, Provvigioni,
+  Prelievi. Schema, contratti API e mappa file per file di cosa copiare da Metabole.
+- 09 checklist: sette giorni di montaggio e sei verifiche finali.
+
+STARTER (kit/starter/, 35 file)
+Estratti e ripuliti: --teal → --accent, metabole_bo_* → app_bo_*, MetaboleAI → NOME_APP.
+Riscritti da zero per il kit: `common/roles.ts` (quattro ruoli), `permissions/pages.ts` (chiavi
+comuni), `lib/labels.ts`, `prisma/schema-kit.prisma` (19 modelli).
+Copiati integri con i loro commenti: page.guard.ts, permissions.service.ts, auth.service.ts,
+audit/*, Layout.tsx, theme.css, ui.tsx, AuthContext.tsx e le cinque spec dei permessi.
+
+DETTO INVECE CHE NASCOSTO
+- Il blocco commerciale NON è nello starter in forma ripulita: in Metabole è intrecciato con
+  abbonamenti e piani, ed estrarlo «pulito» vorrebbe dire riscriverlo, cioè consegnare codice mai
+  girato. Il kit dà schema, contratti e mappa file per file.
+- `prisma validate` non è stato eseguito sullo schema del kit: la rete verso binaries.prisma.sh è
+  bloccata da entrambi i lati. Al posto suo un controllo strutturale (relazioni bidirezionali,
+  @relation(fields:) coerenti). Il README dello starter lo dichiara.
+
+VERIFICHE FATTE
+- Nessun riferimento residuo a metabole_bo_ / MetaboleAI / --teal nei file dello starter.
+- NAV, BACKOFFICE_PAGES e PAGE_LABEL coerenti fra loro (18 voci, 21 chiavi, 21 etichette; le tre
+  chiavi fuori dal menu sono i poteri gravi, che voce di menu non hanno per scelta).
+- Tutti i link interni fra i file del manuale puntano a file esistenti.
+- Tutti i file di Metabole citati nella mappa del capitolo 08 esistono davvero nel repo.
+- La verifica ha trovato e chiuso un difetto: `email_templates` ed `email_log` erano chiavi con
+  etichetta e senza voce di menu.
+
+FILE NEL COMMIT
+- kit/README.md
+- kit/manuale/00-decisioni.md … 09-checklist.md (dieci file)
+- kit/starter/README.md
+- kit/starter/frontend/src/** (nove file)
+- kit/starter/backend/src/** (ventiquattro file)
+- kit/starter/backend/prisma/schema-kit.prisma
+- progetto/REGISTRO.md (voce del 4/9)
+
+Migrazioni: nessuna. Variabili d'ambiente: nessuna. Dipendenze: nessuna.

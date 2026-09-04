@@ -82,6 +82,15 @@ export const NAV: NavSection[] = [
       { key: 'dev_backlog', label: 'Lavori', to: '/lavori', icon: 'ti-checkup-list' },
     ],
   },
+  {
+    group: 'Comunicazioni',   // kit/manuale/07-amministrazione.md §7.6
+    items: [
+      { key: 'email_templates', label: 'Modelli email', to: '/email-modelli', icon: 'ti-mail-cog' },
+      // ⚠️ La pagina che risponde a «non mi è arrivato niente» senza aprire il pannello del
+      // fornitore. Vale le due ore che costa.
+      { key: 'email_log', label: 'Log email', to: '/email-log', icon: 'ti-mail-check' },
+    ],
+  },
 ];
 
 export function Layout({ title, children }: { title: string; children: ReactNode }) {
