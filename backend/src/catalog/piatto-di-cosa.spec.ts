@@ -115,6 +115,16 @@ describe('eCarne — le preparazioni non sono animali', () => {
     ['Uova di gallina in camicia'],
     ['Uovo di gallina'],
     ['Uova di quaglia sode con asparagi'],
+    /**
+     * ⛔ **Il falso positivo del 4/9, preso con `diag:colazioni-con-carne` in produzione.** Non è
+     * un nome di piatto: è **l'ingrediente** con cui il catalogo scrive le uova non di gallina, e
+     * scattava su `anatra`, che sta fra gli animali che vincono sempre. Tre piatti sarebbero
+     * usciti da colazione per delle uova.
+     */
+    ['tuorlo/uova di anatra, quaglia, oca'],
+    ['Tuorlo di anatra'],
+    ['Albume di quaglia'],
+    ['Uova di anatra sode'],
     ['Hamburger di ceci e curcuma'],
     ['Hamburger di lenticchie'],
     ['Cotoletta di melanzane al forno'],
@@ -158,6 +168,27 @@ describe('eCarne — le preparazioni non sono animali', () => {
     ['Wurstel di pollo'],
     ['Fegato alla veneziana'],
     ['Trippa alla romana'],
+    /**
+     * ⛔ **LE SEI RIGHE CHE VALGONO LA CORREZIONE DELLA CORREZIONE** — trovate da una revisione
+     * avversariale il 4/9, prima della consegna.
+     *
+     * La prima stesura aveva spostato `anatra` fra i nomi a doppio senso, il cui antidoto si cerca
+     * in **tutto il testo**: bastava la parola *uovo* in un punto qualsiasi. In un catalogo
+     * italiano «all'uovo» è ovunque, e queste sei righe smettevano tutte di essere carne — cioè
+     * carne nel piatto di una pescetariana, per riparare tre colazioni.
+     *
+     * ⚠️ Ora l'uovo smonta l'animale solo se gli sta **attaccato** («uova di anatra»), come il
+     * segno vegetale in `senzaImitazioni`. Queste sei sono la prova che la parola in mezzo basta.
+     */
+    ['Tagliatelle all\'uovo al ragù di anatra'],
+    ['Ravioli all\'uovo ripieni di anatra'],
+    ['Uova strapazzate con petto d\'anatra affumicato'],
+    ['Anatra all\'arancia con uova sode'],
+    ['Uova, petto di anatra a fette'],
+    ['Petto d\'anatra con uova di quaglia'],
+    /** ⚠️ E senza nessuna parola dell'uovo l'anatra non è mai stata in discussione. */
+    ['Petto d\'anatra all\'arancia'],
+    ['Ragù di anatra'],
   ])('resta carne: %s', (nome) => {
     expect(eCarne(nome)).toBe(true);
   });
@@ -266,6 +297,31 @@ describe('eCarneIngrediente', () => {
     ['guanciale a cubetti'],
     ['macinato di manzo'],
   ])('⚠️ ma la carne nominata resta carne: %s', (i) => {
+    expect(eCarneIngrediente(i)).toBe(true);
+  });
+
+  /**
+   * ⛔ **L'INGREDIENTE VERO, e sull'INGREDIENTE va provato.** «tuorlo/uova di anatra, quaglia, oca»
+   * arriva a `fuoriPostoAColazione` come **elemento dell'elenco ingredienti**, non come nome del
+   * piatto: è quella la porta che decide se il piatto esce da colazione.
+   *
+   * ⚠️ Provarlo solo su `eCarne` non basta e non è teoria: la prova di mutazione del 4/9 ha visto
+   * sopravvivere «`senzaUovaDi` tolto da `eCarneIngrediente`», perché `eCarne` lo applicava già
+   * prima di chiamarlo. Verde qui, rotto in produzione.
+   */
+  it.each([
+    ['tuorlo/uova di anatra, quaglia, oca'],
+    ['uova di quaglia'],
+    ['albume di anatra'],
+  ])('⛔ le uova di un uccello non sono quell\'uccello: %s', (i) => {
+    expect(eCarneIngrediente(i)).toBe(false);
+  });
+
+  it.each([
+    ['petto di anatra'],
+    ['uova, petto di anatra a fette'],
+    ['ragù di anatra'],
+  ])('⚠️ ma l\'animale nominato resta carne anche accanto alle uova: %s', (i) => {
     expect(eCarneIngrediente(i)).toBe(true);
   });
 

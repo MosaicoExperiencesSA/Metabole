@@ -295,11 +295,14 @@ export class RecipesController {
     @Query('kcalMax') kcalMax?: string,
     /** ⚠️ Il filtro «aspetta gli allergeni» gira sul database: vedi `listRecipes`. */
     @Query('daRivedere') daRivedere?: string,
+    /** ⚠️ `si` / `no`; qualsiasi altra cosa vale «tutte» — un filtro non si inventa un valore. */
+    @Query('verificata') verificata?: string,
   ) {
     const num = (v?: string) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : undefined);
     return this.catalog.listRecipes({
       regime, mealSlot, q, includeInactive: includeInactive === 'true', dietId,
       daRivedere: daRivedere === 'true',
+      verificata: verificata === 'si' || verificata === 'no' ? verificata : undefined,
       difficulty, season, stato, kcalMin: num(kcalMin), kcalMax: num(kcalMax),
     });
   }

@@ -147,6 +147,13 @@ const emptyFilters = (regime = '') => ({
   // non sono colonne del database, e Prisma non li sa interrogare. Come prima faceva il filtro Tag —
   // che aveva lo stesso limite e in più cercava dentro un'etichetta che diceva un'altra cosa.
   dieta: '', settimana: '',
+  /**
+   * ⚠️ **La spunta della nutrizionista**: `''` tutte, `'si'` solo verificate, `'no'` solo da
+   * verificare. Sta qui dentro e non in uno stato suo apposta, così «Azzera filtri» la azzera e il
+   * contatore la conta fra i filtri attivi — un filtro che nasconde righe e non compare fra quelli
+   * attivi è il modo più veloce per far credere che il catalogo sia più piccolo di com'è.
+   */
+  verificata: '',
 });
 
 export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegime?: string; scopeDietId?: string; scopeDietName?: string } = {}) {
@@ -170,6 +177,8 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
   // Quante ricette corrispondono ai filtri IN TUTTO il catalogo (non quante ne abbiamo in mano).
   const [totale, setTotale] = useState(0);
   const [troncato, setTroncato] = useState(false);
+  /** ⚠️ Falso solo mentre si parla con un server che il filtro «verificate» non ce l'ha ancora. */
+  const [serverFiltra, setServerFiltra] = useState(true);
 
   async function load() {
     setError(null);
@@ -187,12 +196,22 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       if (f.difficulty) params.set('difficulty', f.difficulty);
       if (f.season) params.set('season', f.season);
       if (f.stato) params.set('stato', f.stato);
+      if (f.verificata) params.set('verificata', f.verificata);
       if (f.kcalMin.trim()) params.set('kcalMin', f.kcalMin.trim());
       if (f.kcalMax.trim()) params.set('kcalMax', f.kcalMax.trim());
-      const r = await api<{ items: Recipe[]; total: number; troncato: boolean }>(`/recipes?${params.toString()}`);
+      const r = await api<{ items: Recipe[]; total: number; troncato: boolean; filtroVerificata?: 'si' | 'no' }>(`/recipes?${params.toString()}`);
       setRows(r.items);
       setTotale(r.total);
       setTroncato(r.troncato);
+      /**
+       * ⛔ **L'ECO: «il filtro l'ho applicato davvero»** — la stessa di `TagAllergeni`, e per lo
+       * stesso motivo. Il backoffice si pubblica in un minuto, il backend ci mette di più: in quella
+       * finestra la pagina manda `verificata=no` a un server che non lo conosce, riceve tutto il
+       * catalogo e scrive «19347 ricette trovate» col pulsante «Solo da verificare» acceso. Un
+       * numero sbagliato con la faccia di un numero giusto — e su questo si decide quanto lavoro
+       * manca.
+       */
+      setServerFiltra(f.verificata ? r.filtroVerificata === f.verificata : true);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -206,7 +225,7 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
     const t = setTimeout(() => { void load(); }, 300);
     return () => clearTimeout(t);
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [scopeRegime, scopeDietId, soloDieta, f.name, f.regime, f.slot, f.difficulty, f.season, f.stato, f.kcalMin, f.kcalMax]);
+  }, [scopeRegime, scopeDietId, soloDieta, f.name, f.regime, f.slot, f.difficulty, f.season, f.stato, f.verificata, f.kcalMin, f.kcalMax]);
 
   async function del(r: Recipe) {
     if (!confirm(`Eliminare la ricetta "${r.name}"?\nL'operazione non è reversibile.`)) return;
@@ -378,6 +397,29 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                 infatti in quel caso il pulsante lo dice prima di scaricare (`avvisoExport`). */}
             {filtriAttivi ? <><b>{t.conteggio.mostrate}</b> ricette trovate</> : <><b>{totale}</b> ricette</>}
           </span>
+          {/*
+              ⚠️ **DUE PULSANTI, NON UNO** (Simone, 4/9: «il pulsante che mostra e nasconde quelle
+              verificate»). Un solo interruttore avrebbe due stati — tutte / solo verificate — e la
+              domanda che si fa davvero mentre si verifica un catalogo è l'altra: *quali mancano*.
+              Con due, il secondo clic sullo stesso pulsante torna a «tutte», come nella pagina
+              Panieri: nessuno stato in cui si è entrati e non si sa come uscire.
+          */}
+          <div className="row" style={{ gap: 4 }}>
+            <button
+              className={`btn ${f.verificata === 'si' ? '' : 'ghost'} sm`}
+              onClick={() => setF({ ...f, verificata: f.verificata === 'si' ? '' : 'si' })}
+              title="Solo le ricette con la spunta della nutrizionista"
+            >
+              <i className="ti ti-rosette-discount-check" /> Solo verificate
+            </button>
+            <button
+              className={`btn ${f.verificata === 'no' ? '' : 'ghost'} sm`}
+              onClick={() => setF({ ...f, verificata: f.verificata === 'no' ? '' : 'no' })}
+              title="Solo le ricette che la spunta non ce l'hanno ancora"
+            >
+              <i className="ti ti-rosette-discount-check-off" /> Solo da verificare
+            </button>
+          </div>
           {filtriAttivi && (
             <button className="btn ghost sm" onClick={() => { setF(emptyFilters(scopeRegime ?? '')); t.azzera(); }}>
               <i className="ti ti-filter-off" /> Azzera filtri
@@ -389,6 +431,12 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
       </div>
 
       {error && <Banner kind="err">{error}</Banner>}
+      {!serverFiltra && (
+        <Banner kind="warn">
+          Il filtro <b>verificate</b> non è arrivato al server: quello che vedi è il catalogo intero,
+          non la selezione. Succede per qualche minuto durante un rilascio — ricarica fra poco.
+        </Banner>
+      )}
       {/* La conferma allergeni decaduta dopo una modifica degli ingredienti (voce 252): sta qui e
           non nella finestra, perché il salvataggio la chiude. */}
       {avvisoSalvataggio && <Banner kind="info">{avvisoSalvataggio}</Banner>}
@@ -497,7 +545,19 @@ export function Ricette({ scopeRegime, scopeDietId, scopeDietName }: { scopeRegi
                 <tr><td colSpan={COLONNE.length}><div className="empty" style={{ padding: '18px 0' }}>Nessuna ricetta con questi filtri.</div></td></tr>
               ) : t.pagina.map((r) => (
                 <tr key={r.id} onClick={() => setEditing(r)} style={{ cursor: 'pointer' }} title="Apri la ricetta">
-                  <td>{r.name}</td>
+                  {/* ⚠️ Il segno sulla riga, non solo il filtro: senza, tolto il filtro non si
+                      distingue più una verificata da una no, e il pulsante diventa l'unico modo di
+                      saperlo — cioè si vede una cosa per volta e mai le due insieme. */}
+                  <td>
+                    {r.name}
+                    {r.verifiedAt && (
+                      <i
+                        className="ti ti-rosette-discount-check"
+                        style={{ marginLeft: 6, color: 'var(--ok-ink)' }}
+                        title={`Verificata${r.verifiedByName ? ` da ${r.verifiedByName}` : ''} il ${new Date(r.verifiedAt).toLocaleDateString('it-IT')}`}
+                      />
+                    )}
+                  </td>
                   <td className="muted">{regimeLabel(r.regime)}</td>
                   <td className="muted">{SLOT[r.mealSlot] ?? r.mealSlot}</td>
                   <td className="muted">{r.kcal}</td>

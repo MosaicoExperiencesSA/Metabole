@@ -1,0 +1,99 @@
+────────────────────────────────────────────────────────────────────────────
+ Menu a mano fuori dal paniere · filtro «verificate» · le uova non sono l'animale
+ 4 settembre 2026
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna: nessuna colonna nuova, nessun indice.
+   (La migrazione della spunta `verified_at`/`verified_by_id` era quella di
+   stamattina, `a2dea8b`, e Simone l'ha già applicata.)
+
+Summary
+───────
+Scrivi menu a mano pesca da tutto il catalogo; filtro «verificate»; uova non carne
+
+Description
+───────────
+Tre cose chieste oggi da Simone, e sei difetti che una revisione avversariale ha
+trovato prima della consegna — due dei quali annullavano il lavoro.
+
+1) SCRIVI MENU A MANO: SI PESCA DA TUTTO IL CATALOGO
+   L'interfaccia esisteva dal 3/9 (Simone non l'aveva vista, e me l'ha detto),
+   ma pescava SOLO dal pool della cliente — ed è il motivo vero per cui i menu
+   passavano dalla chat: se il piatto giusto stava fuori, da lì non si trovava.
+   · casella «Cerca in tutto il catalogo» nella finestra del pasto;
+   · ogni riga dice se è FUORI DAL SUO PANIERE, sulla riga e non solo in cima;
+   · le incompatibili restano barrate col motivo, come prima;
+   · il taglio a 200 righe si DICE: fuori dal paniere scatta a ogni ricerca
+     corta, dentro non scattava mai — e il campo tornava già senza che nessuno
+     lo leggesse, cioè lo stesso silenzio con un campo in più.
+   ⛔ Il confine si è SPOSTATO, non tolto: da «è nel suo paniere» a «è di un
+   regime che questa cliente mangia», riletto dal database in `valutate`. Il
+   paniere è una comodità; il regime no. Dentro al pool non si chiede niente,
+   perché quelle ricette sono già state scelte per lei.
+
+2) MOSTRA / NASCONDI LE RICETTE VERIFICATE (pagina Ricette)
+   Due pulsanti, non uno: la domanda che si fa verificando un catalogo è QUALI
+   MANCANO, e il secondo clic sullo stesso pulsante torna a «tutte». Più il
+   segno di spunta sulla riga, con chi e quando nel titolo — senza, tolto il
+   filtro non si distingue più una verificata da una no.
+   ⛔ Gira sul DATABASE, come il filtro allergeni del 19/8 e per la stessa
+   ragione: la pagina riceve mille righe in ordine alfabetico, e un filtro
+   applicato dopo direbbe «ne restano poche» mentre ne restano migliaia.
+   ⚠️ Con l'eco «il filtro l'ho applicato davvero», per la finestra di rilascio
+   in cui il backoffice è nuovo e il backend ancora no.
+
+3) «tuorlo/uova di anatra, quaglia, oca» NON È CARNE
+   È l'unico falso positivo emerso leggendo le 2823 righe di
+   `diag:colazioni-con-carne`: è il modo in cui il catalogo scrive le uova non
+   di gallina, e risultava carne perché `anatra` sta fra gli animali che
+   vincono sempre. Tre piatti sarebbero usciti da colazione per delle uova.
+   ⛔ E LA PRIMA CORREZIONE ERA PEGGIO DEL DIFETTO: spostare `anatra` fra i nomi
+   a doppio senso significa cercare l'antidoto in TUTTO il testo, e in un
+   catalogo italiano «all'uovo» è ovunque. «Tagliatelle all'uovo al ragù di
+   anatra» smetteva di essere carne. Ora `senzaUovaDi` smonta l'animale solo se
+   l'uovo gli sta ATTACCATO, con la stessa forma stretta della carne finta.
+   ✅ E le due risposte di Simone sono nel codice: la regola VALE PER TUTTE le
+   famiglie (Keto compresa — il rimedio è `MINIMO_PER_CELLA`, non un'eccezione),
+   e si puliscono BOZZE E ATTIVI; il diagnostico conta i tre stati separati,
+   perché `chiuso` non è `bozza`.
+
+⛔ I SEI DIFETTI TROVATI DALLA REVISIONE AVVERSARIALE, PRIMA DELLA CONSEGNA
+   1. `scrivi()` rifiutava con 400 tutto ciò che non era nel pool: si accendeva
+      la casella, si componeva la giornata intera, e il salvataggio diceva di no
+      proprio sul piatto per cui la casella esiste. NESSUNA PROVA COPRIVA LA
+      COPPIA ricerca→scrittura: c'erano le prove sull'una e sull'altra.
+   2. Il filtro sul regime si applicava solo se il regime si riusciva a leggere
+      — e non si legge esattamente per la cliente senza pool, cioè quella per
+      cui si esce dal paniere. Una vegana appena inserita vedeva lo spezzatino
+      di manzo NON BARRATO. Ora il ripiego è il regime più stretto
+      (`common/regimi.ts`), mai «tutti».
+   3. L'antidoto largo dell'uovo (sopra).
+   4. Il nome di chi ha verificato veniva letto da `User.firstName`, che per lo
+      staff è vuoto: il nome vive in `Staff.displayName`. Il tooltip diceva
+      «Verificata il 04/09» e basta, per quasi tutte le nutrizioniste.
+   5. Il taglio a 200 righe non lo leggeva nessuno (sopra).
+   6. Il diagnostico contava «tutto ciò che non è attivo» come «in bozza»,
+      mentre gli stati sono tre: un paniere chiuso finiva in quella parola.
+   ⚠️ Più l'eco mancante del filtro «verificate», aggiunta.
+
+PROVE
+─────
+· 7529 verdi su 437 suite, nelle quattro modalità (jest, TZ=Europe/Rome, notte,
+  notte+TZ). Build ok. `tsc --noEmit` solo i 2 errori preesistenti di
+  `prisma/approve-diets.ts` e `prisma/dedupe-diets.ts`. `tsc -b` pulito su app
+  e backoffice.
+· Suite nuove: `filtro-verificate.spec.ts` (6), `nome-di-chi-verifica.spec.ts`
+  (4), più le prove della cucitura ricerca→salvataggio in
+  `menu-a-mano.service.spec.ts` e i sei nomi veri in `piatto-di-cosa.spec.ts`.
+· Sei prove di mutazione, tutte rosse. Una era sopravvissuta — «`senzaUovaDi`
+  tolto da `eCarneIngrediente`» — perché `eCarne` lo applicava già prima di
+  chiamarlo: verde nelle prove, rotto in produzione. Ha fatto scrivere le prove
+  sull'INGREDIENTE, che è la porta vera.
+
+RESTA APERTO, dichiarato
+────────────────────────
+· Creare una ricetta NUOVA dalla stessa finestra (nome, ingredienti, metodo,
+  kcal, e IN QUALI PANIERI — riusando il pezzo che la pagina Ricette ha già).
+· La ricetta dettata a Vera passo passo: fuori portata per oggi, l'ho detto.
+· `APPLICA=1 npm run diag:colazioni-con-carne` è di Simone, e ora la
+  diagnostica dice anche quante celle sono attive e quante in bozza o chiuse.

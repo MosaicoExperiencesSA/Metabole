@@ -20,6 +20,48 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Scrivi menu a mano: si pesca da TUTTO il catalogo, non solo dal suo paniere.**
+  L'interfaccia c'era dal 3/9 — Simone non l'aveva vista — ma pescava solo dal pool della cliente, ed
+  è il motivo vero per cui i menu passavano dalla chat: se il piatto giusto stava fuori, da lì non si
+  trovava. Ora c'è la casella «Cerca in tutto il catalogo», ogni riga dice se è **fuori dal suo
+  paniere**, e il taglio a 200 righe è scritto in chiaro (fuori dal paniere scatta a ogni ricerca
+  corta; dentro non scattava mai).
+  ⛔ **Il confine si è spostato, non tolto**: da «è nel suo paniere» a «è di un regime che questa
+  cliente mangia», riletto dal database al salvataggio.
+  ⛔ **Due difetti gravi trovati dalla revisione avversariale prima della consegna, e nessuna prova li
+  copriva.** (1) `scrivi()` rifiutava con 400 tutto ciò che non era nel pool: si accendeva la
+  casella, si componeva la giornata, e il salvataggio diceva di no proprio sul piatto per cui la
+  casella esiste — le prove sulla ricerca c'erano, quelle sulla scrittura pure, **la coppia no**.
+  (2) Il filtro sul regime si applicava *solo se* il regime si riusciva a leggere, e non si legge
+  esattamente per la cliente senza pool: una vegana appena inserita vedeva lo spezzatino di manzo non
+  barrato. Ora il ripiego è il regime più stretto, mai «tutti».
+
+
+- `[Sviluppo]` ✅ **Mostrare e nascondere le ricette già verificate** (richiesta di Simone, il giorno
+  dopo la spunta). Due pulsanti — «Solo verificate» e «Solo da verificare» — e un segno sulla riga con
+  chi e quando. ⚠️ Due e non uno: la domanda che si fa verificando un catalogo è *quali mancano*.
+  ⛔ Gira sul **database**, come il filtro allergeni del 19/8: la pagina riceve mille righe in ordine
+  alfabetico, e un filtro applicato dopo direbbe «ne restano poche» mentre ne restano migliaia.
+  ⛔ E il nome di chi ha verificato veniva letto da `User.firstName`, che per lo staff è vuoto: il
+  nome vive in `Staff.displayName`. Il tooltip diceva «Verificata il 04/09» e basta, per quasi tutte
+  le nutrizioniste — una firma senza chi, in silenzio.
+
+
+- `[Sviluppo]` ⛔ **«tuorlo/uova di anatra, quaglia, oca» non è carne — e la prima correzione era
+  peggio del difetto.** Leggendo le 2823 righe di `diag:colazioni-con-carne` è saltato fuori l'unico
+  falso positivo del riconoscitore: quell'ingrediente — che è il modo in cui il catalogo scrive le
+  uova non di gallina — risultava carne, perché `anatra` sta fra gli animali che vincono sempre.
+  ⛔ La prima riparazione spostava `anatra` fra i nomi a doppio senso, il cui antidoto si cerca in
+  **tutto il testo**: bastava la parola *uovo* in un punto qualsiasi, e in un catalogo italiano
+  «all'uovo» è ovunque. «Tagliatelle all'uovo al ragù di anatra» smetteva di essere carne — cioè il
+  falso negativo che quel file dichiara in cima di non potersi permettere, per riparare tre
+  colazioni. Ora l'uovo smonta l'animale **solo se gli sta attaccato**, come il segno vegetale della
+  carne finta.
+  ✅ E le due risposte di Simone sono nel codice: la regola **vale per tutte** le famiglie (Keto
+  compresa, che perde l'80% delle merende — il rimedio è la soglia, non un'eccezione), e si puliscono
+  **bozze e attivi**; il diagnostico ora conta i tre stati separati, perché `chiuso` non è `bozza`.
+
+
 - `[Sviluppo]` ✅ **La spunta «ricetta verificata» in modifica ricetta** (richiesta di Simone). Non un
   booleano: **chi** e **quando**, e in schermata si legge il nome e la data. ⛔ Non è
   `allergensReviewed` — quella è più stretta e la legge il filtro di sicurezza; farle coincidere

@@ -6122,6 +6122,17 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'questo ne toglie due. «Avocado toast» e «Crepes con spinaci» sono colazioni normali, e '
       + '`diCosaE` le legge come verdura per via dell\'ingrediente più pesante: toglierle '
       + 'svuoterebbe i panieri di roba giusta.\n\n'
+      + '✅ **LE DUE RISPOSTE CI SONO (4/9), e la diagnostica è stata letta davvero.** Simone l\'ha '
+      + 'lanciata su Render: 2823 righe da 61 celle. Alla domanda «Keto e Keto-Mediterranea sono '
+      + 'un\'eccezione, visto che perdono l\'80%% delle merende (106→26 e 89→26)?» ha risposto '
+      + '**«vale per tutte»**; a «le celle mostrate sono tutte in bozza, si puliscono anche quelle?» '
+      + '**«bozze o attive»**. Nessuna eccezione di famiglia nel codice: il rimedio resta '
+      + '`MINIMO_PER_CELLA`, e le keto restano da riempire con spuntini che non siano carne — lavoro '
+      + 'di catalogo, non di codice.\n'
+      + '✅ **E il falso positivo trovato leggendo è stato corretto**: l\'ingrediente '
+      + '«tuorlo/uova di anatra, quaglia, oca» — che è il modo in cui il catalogo scrive le uova non '
+      + 'di gallina — risultava carne. Ora `senzaUovaDi` lo smonta, ma **solo se l\'uovo sta '
+      + 'attaccato all\'animale**: «Tagliatelle all\'uovo al ragù di anatra» resta carne.\n\n'
       + '▶️ **RESTA DA FARE, ed è di Simone**: lanciare la diagnostica su Render, **leggere le righe '
       + 'una per una** (se una non c\'entra niente sbaglia il riconoscitore, e allora sbaglia anche '
       + 'dove nessuno lo sta guardando), e poi `APPLICA=1`. ⚠️ Non cancella nessuna ricetta: toglie '
@@ -6129,6 +6140,67 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⛔ **E resta il cancello a valle**: anche svuotando oggi il paniere, domani qualcuno ce li '
       + 'rimette a mano dalla pagina Panieri. Quello è un lavoro a sé — la pagina ha già il '
       + 'controllo alla scrittura, `riempi-panieri` no.',
+  },
+
+  {
+    chiave: 'menu-a-mano-fuori-dal-paniere',
+    categoria: SIMONE,
+    ordine: 2,
+    nata: '2026-09-04T11:00',
+    titolo: '\u25b6\ufe0f Entrare nel menu di una cliente: si pesca da tutto il catalogo, resta da creare la ricetta nuova',
+    dettaglio:
+      'Simone, 4/9: *\u00abinterfaccia dove il nutrizionista pu\u00f2 entrare nel menu della cliente e '
+      + 'modificare i pasti presenti uno ad uno selezionando dal catalogo o inserire nuovi piatti\u00bb* \u2014 e '
+      + 'poi, pi\u00f9 secco: *\u00abgli manda i menu in chat perch\u00e9 tu non hai pi\u00f9 fatto l\'interfaccia per '
+      + 'farli\u00bb*.\n\n'
+      + '\u26a0\ufe0f **L\'interfaccia c\'era gi\u00e0** (\u00abScrivi menu a mano\u00bb, consegnata il 3/9) \u2014 gliel\'ho '
+      + 'verificato e lui ha risposto *\u00abhai ragione colpa mia non lo avevo visto\u00bb*. Ma pescava **solo '
+      + 'dal paniere della cliente**, ed \u00e8 il motivo vero per cui i menu passavano dalla chat: se il '
+      + 'piatto giusto stava fuori dal pool, da l\u00ec non si trovava.\n\n'
+      + '\u2705 **FATTO (4/9)**: casella \u00abCerca in tutto il catalogo\u00bb nella finestra dei pasti; ogni riga '
+      + 'dice se \u00e8 **fuori dal suo paniere**; le incompatibili restano barrate col motivo; il taglio a '
+      + '200 righe \u00e8 scritto in chiaro (fuori dal paniere scatta a ogni ricerca corta, dentro non '
+      + 'scattava mai).\n'
+      + '\u26d4 **E il confine si \u00e8 spostato, non tolto**: da \u00ab\u00e8 nel suo paniere\u00bb a \u00ab\u00e8 di un regime che '
+      + 'questa cliente mangia\u00bb, riletto dal database al salvataggio. Il paniere \u00e8 una comodit\u00e0; il '
+      + 'regime no.\n\n'
+      + '\u26d4 **DUE DIFETTI GRAVI TROVATI DALLA REVISIONE AVVERSARIALE PRIMA DELLA CONSEGNA**, e '
+      + 'nessuna prova li copriva:\n'
+      + '\u00b7 `scrivi()` rifiutava con 400 **tutto** ci\u00f2 che non era nel pool: si accendeva la casella, '
+      + 'si componeva la giornata intera, e il salvataggio diceva di no proprio sul piatto per cui la '
+      + 'casella esiste. Le prove sulla ricerca e quelle sulla scrittura c\'erano tutte e due; **la '
+      + 'coppia no**.\n'
+      + '\u00b7 Il filtro sul regime si applicava **solo se** il regime si riusciva a leggere \u2014 e non si '
+      + 'legge esattamente per la cliente senza pool, cio\u00e8 quella per cui si esce dal paniere. Una '
+      + 'vegana appena inserita vedeva lo spezzatino di manzo non barrato. Ora il ripiego \u00e8 il regime '
+      + 'pi\u00f9 stretto (`common/regimi.ts`), mai \u00abtutti\u00bb.\n\n'
+      + '\u25b6\ufe0f **RESTA APERTO, e Simone lo sa**: creare una ricetta nuova dalla stessa finestra (nome, '
+      + 'ingredienti, metodo, kcal, e **in quali panieri** \u2014 riusando il pezzo che la pagina Ricette '
+      + 'ha gi\u00e0). E la ricetta dettata a Vera passo passo, che il 4/9 ho dichiarato fuori portata.',
+  },
+
+  {
+    chiave: 'filtro-ricette-verificate',
+    categoria: SIMONE,
+    ordine: 4,
+    fatta: true,
+    nata: '2026-09-04T11:20',
+    titolo: '\u2705 Mostrare e nascondere le ricette gi\u00e0 verificate, in pagina Ricette',
+    dettaglio:
+      'Simone, 4/9, il giorno stesso della spunta: *\u00abaggiungiamo il pulsante che mostra e nasconde '
+      + 'quelle verificate\u00bb*.\n\n'
+      + '\u2705 **FATTO**: due pulsanti \u2014 \u00abSolo verificate\u00bb e \u00abSolo da verificare\u00bb \u2014 nella barra della '
+      + 'pagina, pi\u00f9 un segno di spunta sulla riga con chi e quando nel titolo. \u26a0\ufe0f **Due e non uno**: '
+      + 'la domanda che si fa davvero verificando un catalogo \u00e8 *quali mancano*, e il secondo clic '
+      + 'sullo stesso pulsante torna a \u00abtutte\u00bb.\n'
+      + '\u26d4 **Gira sul database**, come il filtro allergeni del 19/8 e per la stessa ragione: la pagina '
+      + 'riceve mille righe in ordine alfabetico, e un filtro applicato dopo direbbe \u00abne restano '
+      + 'poche\u00bb mentre ne restano migliaia. C\'\u00e8 anche l\'eco \u00abil filtro l\'ho applicato davvero\u00bb, per '
+      + 'la finestra di rilascio in cui il backoffice \u00e8 nuovo e il backend ancora no.\n\n'
+      + '\u26d4 **E il nome di chi ha verificato veniva letto dalla tabella sbagliata** (revisione '
+      + 'avversariale, stesso giorno): gli account di staff nascono senza nome e cognome, il nome vive '
+      + 'in `Staff.displayName`. Il tooltip diceva \u00abVerificata il 04/09\u00bb e basta per quasi tutte le '
+      + 'nutrizioniste \u2014 una firma senza chi, in silenzio.',
   },
 
 ];

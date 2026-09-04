@@ -248,8 +248,53 @@ export function senzaImitazioni(testo: string): string {
   return testo.replace(RE_IMITAZIONE, (parola) => ' '.repeat(parola.length));
 }
 
+/**
+ * ⛔ **LE UOVA DI UN ANIMALE NON SONO QUELL'ANIMALE — e l'antidoto è ATTACCATO, come per la carne
+ * finta.**
+ *
+ * Trovato in produzione il 4/9 con `diag:colazioni-con-carne`: l'ingrediente
+ * «tuorlo/uova di anatra, quaglia, oca» — che è **il modo in cui il catalogo scrive le uova non di
+ * gallina** — risultava carne, perché `anatra` sta fra gli animali che vincono sempre. Tre piatti
+ * sarebbero usciti da colazione per delle uova.
+ *
+ * ⛔ **E la prima correzione era peggio del difetto.** Avevo spostato `anatra` fra i nomi a doppio
+ * senso, il cui antidoto si cerca in **tutto il testo**: bastava la parola *uovo* in un punto
+ * qualsiasi. «Tagliatelle all'uovo al ragù di anatra» smetteva di essere carne, e «Uova strapazzate
+ * con petto d'anatra» pure. In un catalogo italiano «all'uovo» è ovunque — l'antidoto largo va bene
+ * per `salame`/`cioccolato`, che è raro, non per questo. L'ha trovata una revisione avversariale
+ * prima della consegna, ed era **il** falso negativo che questo file dichiara in cima di non potersi
+ * permettere: carne nel piatto di chi non la mangia, per riparare tre colazioni.
+ *
+ * ⚠️ Perciò vale la stessa forma stretta di `RE_IMITAZIONE`: la parola dell'uovo dev'essere
+ * **subito prima** del «di \<animale\>», con al più un elenco puntato in mezzo — che è come il
+ * catalogo scrive davvero questa riga. Basta una parola di troppo e la regola non vale più.
+ *
+ *     tuorlo/uova di anatra, quaglia, oca   → uova     Tagliatelle all'uovo al ragù di anatra → CARNE
+ *     Uova di quaglia sode                  → uova     Uova strapazzate con petto d'anatra    → CARNE
+ *     Albume d'anatra                       → uova     Anatra all'arancia con uova sode       → CARNE
+ */
+const UCCELLI_DA_UOVO = ['gallina', 'quaglia', 'anatra', 'oca', 'faraona'] as const;
+const RE_UOVA_DI = new RegExp(
+  `\\b(?:uov[ao]|tuorl[oi]|album[ei])\\b(?:\\s*[/,]\\s*(?:uov[ao]|tuorl[oi]|album[ei]))*`
+  + `\\s+d(?:i|['’])\\s*(${UCCELLI_DA_UOVO.join('|')})\\b`
+  + `((?:\\s*,\\s*(?:${UCCELLI_DA_UOVO.join('|')}))*)`,
+  'g',
+);
+
+/**
+ * Il testo senza i nomi degli uccelli di cui si stanno nominando **le uova**.
+ *
+ * ⚠️ Come `senzaImitazioni`: si cancellano solo quei nomi, sostituiti da spazi della stessa
+ * lunghezza, così le posizioni nel testo non si spostano e nessun altro controllo si sfasa. La coda
+ * dell'elenco («, quaglia, oca») si cancella insieme, perché è lo stesso soggetto.
+ */
+export function senzaUovaDi(testo: string): string {
+  return testo.replace(RE_UOVA_DI, (tutto) =>
+    tutto.replace(new RegExp(`\\b(?:${UCCELLI_DA_UOVO.join('|')})\\b`, 'g'), (u) => ' '.repeat(u.length)));
+}
+
 export function eCarne(nome: string): boolean {
-  const n = senzaImitazioni(normale(nome));
+  const n = senzaUovaDi(senzaImitazioni(normale(nome)));
   if (eCarneIngrediente(n)) return true;
   /** ⚠️ La preparazione vale solo se non c'è un segno vegetale: «hamburger di ceci» non è carne. */
   return RE_CARNE_FORSE.test(n) && !RE_VEGETALE.test(n);
@@ -274,7 +319,7 @@ export function eCarne(nome: string): boolean {
  * lo stesso.
  */
 export function eCarneIngrediente(nome: string): boolean {
-  const n = senzaImitazioni(normale(nome));
+  const n = senzaUovaDi(senzaImitazioni(normale(nome)));
   /** ⛔ Il primo livello vince e non si discute: un animale resta carne anche accanto alle patate. */
   if (RE_CARNE_SEMPRE.test(n)) return true;
   /** ⚠️ Un nome a doppio senso è carne finché non compare il SUO antidoto, non uno qualsiasi. */

@@ -1410,7 +1410,17 @@ export class CatalogService {
      * chiuso l'11/8 per la pagina Ricette — chiuso lì e non qui.
      */
     daRivedere?: boolean;
-  }): Promise<{ items: unknown[]; total: number; troncato: boolean; filtroDaRivedere?: boolean }> {
+    /**
+     * ⚠️ **«Mostra / nascondi quelle verificate»** (Simone, 4/9) — `'si'` = solo quelle con la
+     * spunta, `'no'` = solo quelle senza. Vuoto = tutte.
+     *
+     * ⛔ **E gira sul DATABASE, come `daRivedere` e per la stessa ragione scritta lì sopra**: il
+     * catalogo è di ventimila ricette e la pagina ne riceve mille alla volta, in ordine alfabetico.
+     * Un filtro «da verificare» applicato in memoria risponderebbe sulla fetta che comincia per A,
+     * e la nutrizionista lo leggerebbe come «ne restano poche» proprio mentre sono migliaia.
+     */
+    verificata?: 'si' | 'no';
+  }): Promise<{ items: unknown[]; total: number; troncato: boolean; filtroDaRivedere?: boolean; filtroVerificata?: 'si' | 'no' }> {
     // Con `dietId` l'elenco è quello della SINGOLA dieta: il tetto non lo tocca mai, perché una
     // dieta ha decine di ricette, non migliaia.
     // Con `dietId` si sa anche IN QUALI SETTIMANE ogni ricetta è usata: serve al filtro per settimana
@@ -1447,6 +1457,10 @@ export class CatalogService {
       ...(Object.keys(kcal).length ? { kcal } : {}),
       ...(filter.q ? { name: { contains: filter.q, mode: 'insensitive' } } : {}),
       ...(filter.daRivedere ? { allergensReviewed: false } : {}),
+      /** ⚠️ La spunta È `verifiedAt`: non c'è un booleano da tenere allineato a una data. */
+      ...(filter.verificata === 'si' ? { verifiedAt: { not: null } }
+        : filter.verificata === 'no' ? { verifiedAt: null }
+        : {}),
     };
 
     const TETTO = 1000;
@@ -1490,6 +1504,16 @@ export class CatalogService {
      * andate al database per una colonna che si guarda di sfuggita. E se la lettura fallisce si va
      * avanti senza il nome — la data e la spunta ci sono lo stesso, e un catalogo che non si apre
      * per un nome mancante sarebbe un pessimo affare.
+     *
+     * ⛔ **E IL NOME STA IN `Staff.displayName`, non in `User.firstName`** — trovato da una
+     * revisione avversariale il 4/9 prima della consegna. `users.service.ts` crea gli account di
+     * staff **senza** nome e cognome (sono facoltativi) e scrive il nome solo su `Staff`, che è la
+     * porta usata da coach, chat e prenotazioni. Leggendo `User` il tooltip diceva «Verificata il
+     * 04/09/2026» e basta, per **quasi tutte** le nutrizioniste: una firma senza chi, cioè
+     * esattamente la cosa che la spunta doveva evitare, e in silenzio.
+     *
+     * ⚠️ `User.firstName` resta il ripiego, non il contrario: le clienti il nome ce l'hanno lì, e
+     * un giorno potrebbe verificare qualcuno che non è staff.
      */
     const daVerifica = [...new Set(
       (items as { verifiedById?: string | null }[]).map((r) => r.verifiedById).filter((x): x is string => !!x),
@@ -1497,11 +1521,21 @@ export class CatalogService {
     let nomiVerifica = new Map<string, string>();
     if (daVerifica.length) {
       try {
-        const utenti = (await this.prisma.user.findMany({
-          where: { id: { in: daVerifica } },
-          select: { id: true, firstName: true, lastName: true },
-        })) as { id: string; firstName: string | null; lastName: string | null }[];
-        nomiVerifica = new Map(utenti.map((u) => [u.id, [u.firstName, u.lastName].filter(Boolean).join(' ').trim()]));
+        const [utenti, staff] = await Promise.all([
+          this.prisma.user.findMany({
+            where: { id: { in: daVerifica } },
+            select: { id: true, firstName: true, lastName: true },
+          }) as unknown as Promise<{ id: string; firstName: string | null; lastName: string | null }[]>,
+          this.prisma.staff.findMany({
+            where: { userId: { in: daVerifica } },
+            select: { userId: true, displayName: true },
+          }) as unknown as Promise<{ userId: string; displayName: string | null }[]>,
+        ]);
+        const perStaff = new Map(staff.map((x) => [x.userId, (x.displayName ?? '').trim()]));
+        nomiVerifica = new Map(utenti.map((u) => [
+          u.id,
+          perStaff.get(u.id) || [u.firstName, u.lastName].filter(Boolean).join(' ').trim(),
+        ]));
       } catch (e) {
         this.logger.warn(`Nomi di chi ha verificato non letti: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -1532,6 +1566,8 @@ export class CatalogService {
        * che il filtro non ce l'ha, e lo dice invece di raccontare una cosa diversa.
        */
       ...(filter.daRivedere ? { filtroDaRivedere: true } : {}),
+      /** ⚠️ La stessa eco per il filtro «verificate», e per la stessa ragione scritta qui sopra. */
+      ...(filter.verificata ? { filtroVerificata: filter.verificata } : {}),
     };
   }
 

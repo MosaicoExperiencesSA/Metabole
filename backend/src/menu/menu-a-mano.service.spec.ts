@@ -16,8 +16,9 @@ import type { KcalNeedService } from './kcal-need.service';
 import type { ConfigParamsService } from '../config-params/config-params.service';
 import type { AuditService } from '../audit/audit.service';
 
-const RICETTE: { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens: string[]; active?: boolean }[] = [
-  { id: 'c1', name: 'Porridge', kcal: 400, mealSlot: 'breakfast', ingredients: [{ name: 'avena' }], allergens: [] },
+const RICETTE: { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens: string[]; active?: boolean; regime?: string }[] = [
+  /** ⚠️ Il regime è scritto perché la ricerca fuori dal paniere ci filtra sopra: senza, «Porridge» sparirebbe. */
+  { id: 'c1', name: 'Porridge', kcal: 400, mealSlot: 'breakfast', ingredients: [{ name: 'avena' }], allergens: [], regime: 'vegan' },
   { id: 'p1', name: 'Insalata di gamberi', kcal: 700, mealSlot: 'lunch', ingredients: [{ name: 'gamberi' }], allergens: ['crostacei'] },
   { id: 'd1', name: 'Pollo e verdure', kcal: 600, mealSlot: 'dinner', ingredients: [{ name: 'pollo' }], allergens: [] },
   /**
@@ -26,6 +27,14 @@ const RICETTE: { id: string; name: string; kcal: number; mealSlot: string; ingre
    * così la mutazione «il nome non entra più» sopravvive, come è successo.
    */
   { id: 'x1', name: 'Insalata di gamberi e avocado', kcal: 650, mealSlot: 'lunch', ingredients: [{ name: 'avocado' }], allergens: [] },
+  /**
+   * ⛔ **FUORI DAL PANIERE** (non è in `recipeIds`): esiste in catalogo e il pool non la conosce. È
+   * il caso per cui Simone il 4/9 mandava i menu in chat — il piatto giusto c'era e da qui non si
+   * trovava.
+   */
+  { id: 'fuori', name: 'Pancake di avena', kcal: 380, mealSlot: 'breakfast', ingredients: [{ name: 'avena' }], allergens: [], regime: 'vegan' },
+  /** ⚠️ Fuori dal paniere E di un regime che una vegana non può mangiare. */
+  { id: 'carne', name: 'Spezzatino di manzo', kcal: 700, mealSlot: 'dinner', ingredients: [{ name: 'manzo' }], allergens: [], regime: 'omnivore' },
   /** ⚠️ Spenta: non deve comparire da nessuna parte. */
   { id: 'spenta', name: 'Vecchia ricetta', kcal: 500, mealSlot: 'lunch', ingredients: [{ name: 'riso' }], allergens: [], active: false },
 ];
@@ -38,6 +47,8 @@ function servizio(over: {
   pool?: { recipeIds: string[]; dietId: string } | null;
   /** Il ruolo dell'attore: `nutritionist` ha un perimetro, `admin` no. */
   ruoloAttore?: string;
+  /** Il regime della dieta della cliente: letto solo quando si esce dal paniere. */
+  regimeDieta?: string | null;
   staffId?: string | null;
 } = {}) {
   const upsert = jest.fn().mockResolvedValue({});
@@ -57,15 +68,18 @@ function servizio(over: {
     },
     recipe: {
       findMany: jest.fn().mockImplementation(({ where }: never) => {
-        const w = (where ?? {}) as { mealSlot?: string; name?: { contains?: string }; id?: { in?: string[] } };
+        const w = (where ?? {}) as { mealSlot?: string; name?: { contains?: string }; id?: { in?: string[] }; regime?: { in?: string[] } };
         const w2 = (where ?? {}) as { active?: boolean };
         return Promise.resolve(RICETTE
           .filter((r) => (w2.active === true ? r.active !== false : true))
           .filter((r) => (w.id?.in ? w.id.in.includes(r.id) : true))
           .filter((r) => (w.mealSlot ? r.mealSlot === w.mealSlot : true))
+          .filter((r) => (w.regime?.in ? w.regime.in.includes(r.regime ?? 'omnivore') : true))
           .filter((r) => (w.name?.contains ? r.name.toLowerCase().includes(w.name.contains.toLowerCase()) : true)));
       }),
     },
+    /** ⚠️ Letta SOLO quando si esce dal paniere: dentro, il regime non serve e non si chiede. */
+    diet: { findUnique: jest.fn().mockResolvedValue({ regime: over.regimeDieta === undefined ? 'vegan' : over.regimeDieta }) },
     menuDay: {
       findFirst: jest.fn().mockImplementation(({ orderBy }: never) =>
         Promise.resolve(orderBy ? (over.ultimoMenu === undefined ? { dietId: 'diet-1', level: 2 } : over.ultimoMenu)
@@ -119,6 +133,134 @@ describe('le ricette che la schermata propone', () => {
     const { s, prisma } = servizio();
     (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue({ recipeIds: [] });
     expect(await s.ricette('u1', 'c1')).toEqual({ righe: [], poolVuoto: true });
+  });
+
+  /**
+   * ⛔ **CERCARE IN TUTTO IL CATALOGO** (Simone, 4/9). È la ragione per cui i menu passavano dalla
+   * chat: se il piatto giusto stava fuori dal pool, da questa schermata non si trovava.
+   */
+  describe('fuori dal paniere', () => {
+    it('⛔ dentro al paniere «Pancake di avena» non si trova', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'breakfast');
+      expect((esito.righe as { recipeId: string }[]).map((r) => r.recipeId)).not.toContain('fuori');
+    });
+
+    it('⛔ e con tuttoIlCatalogo sì, marcata come eccezione', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true);
+      const riga = (esito.righe as { recipeId: string; fuoriDalPaniere: boolean }[]).find((r) => r.recipeId === 'fuori');
+      expect(riga).toBeTruthy();
+      expect(riga?.fuoriDalPaniere).toBe(true);
+    });
+
+    it('⚠️ e quelle del paniere restano marcate come tali', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true);
+      const riga = (esito.righe as { recipeId: string; fuoriDalPaniere: boolean }[]).find((r) => r.recipeId === 'c1');
+      expect(riga?.fuoriDalPaniere).toBe(false);
+    });
+
+    /**
+     * ⛔ **IL REGIME RESTA UN CANCELLO.** Fuori dal paniere il catalogo ha anche la carne, e
+     * servire uno spezzatino a una vegana perché «non era fra le sue esclusioni» sarebbe il modo
+     * più veloce di perdere una cliente. Dentro al paniere la domanda non si pone.
+     */
+    it('⛔ una ricetta di un regime che lei non mangia NON esce, nemmeno dal catalogo intero', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'dinner', undefined, true);
+      expect((esito.righe as { recipeId: string }[]).map((r) => r.recipeId)).not.toContain('carne');
+    });
+
+    /** ⚠️ E i regimi su cui si è filtrato si **dicono**, invece di farli indovinare alla schermata. */
+    it('⚠️ la risposta dice su che regimi ha filtrato', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true) as { regimiAmmessi?: string[] };
+      expect(esito.regimiAmmessi).toEqual(['vegan']);
+    });
+
+    /**
+     * ⛔ **IL CASO CHE HA FATTO RISCRIVERE IL FILTRO** — trovato da una revisione avversariale il
+     * 4/9, prima della consegna.
+     *
+     * La prima stesura filtrava sul regime **solo se** riusciva a leggerlo: `dietId ? {regime} : {}`
+     * — e senza pool `dietId` è nullo, cioè proprio la cliente per cui si esce dal paniere. Una
+     * vegana appena inserita alzava «tutto il catalogo» e vedeva lo spezzatino di manzo **non
+     * barrato**, perché il manzo non è fra le sue esclusioni.
+     *
+     * ⚠️ Il ripiego di `regimiCompatibili` va verso il più stretto: regime ignoto → vegano. Meno
+     * scelta, e qualcuno se ne accorge; non carne nel piatto, che nessuno vede.
+     */
+    it('⛔ senza pool e senza dieta si mostra solo il regime più stretto, non tutto', async () => {
+      const { s, prisma } = servizio();
+      (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue(null);
+      const esito = await s.ricette('u1', 'c1', 'dinner', undefined, true) as { righe: { recipeId: string }[]; regimiAmmessi?: string[] };
+      expect(esito.regimiAmmessi).toEqual(['vegan']);
+      expect(esito.righe.map((r) => r.recipeId)).not.toContain('carne');
+    });
+
+    /** ⛔ Il pool vuoto non ferma più la ricerca, se si sta guardando il catalogo intero. */
+    it('⛔ col pool vuoto il catalogo si può guardare lo stesso', async () => {
+      const { s, prisma } = servizio();
+      (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue({ recipeIds: [], dietId: 'diet-1' });
+      const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true);
+      expect(esito.poolVuoto).toBe(true);
+      expect(esito.righe.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+/**
+ * ⛔ **LA CUCITURA FRA LA RICERCA E IL SALVATAGGIO — il difetto che annullava tutto il lavoro.**
+ *
+ * Trovato da una revisione avversariale il 4/9, prima della consegna, e non da una prova: **nessuna
+ * prova copriva la coppia.** Le prove sulla ricerca dicevano che «Pancake di avena» si trova, quelle
+ * sul salvataggio non lo provavano mai — e in mezzo `scrivi()` rifiutava con 400 tutto ciò che non
+ * stava nel pool. Cioè: si alzava la casella, si componeva la giornata intera, e il salvataggio
+ * diceva di no proprio sul piatto per cui la casella esiste.
+ *
+ * ⚠️ *Le prove sui due pezzi non provano la cucitura* — è la stessa lezione del 3/9 scritta in cima
+ * a questo file, ripetuta sul punto esatto in cui la funzione nasce o muore.
+ */
+describe('⛔ quello che la ricerca mostra, il salvataggio lo accetta', () => {
+  const giornataConFuori = [
+    { slot: 'breakfast', recipeId: 'fuori' },
+    { slot: 'lunch', recipeId: 'p1' },
+    { slot: 'dinner', recipeId: 'd1' },
+  ];
+
+  it('⛔ un piatto fuori dal paniere si SALVA: era il senso della richiesta del 4/9', async () => {
+    const { s, upsert } = servizio();
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: giornataConFuori, conferma: true });
+    const meals = (upsert.mock.calls[0][0].create.meals ?? []) as { recipeId: string; name: string }[];
+    expect(meals.find((m) => m.recipeId === 'fuori')?.name).toBe('Pancake di avena');
+  });
+
+  /**
+   * ⛔ **Ma il regime resta un cancello, e si rilegge dal database.** Il pool non è più il confine;
+   * questo sì. E si rilegge in `valutate`, non si eredita da quello che la ricerca aveva mostrato:
+   * il client può proporre, non certificare.
+   */
+  it('⛔ un piatto di un regime che lei non mangia NON si salva, nemmeno chiedendolo per id', async () => {
+    const { s } = servizio();
+    await expect(s.scrivi('c1', LUCIA, {
+      data: '2026-09-10',
+      pasti: [{ slot: 'breakfast', recipeId: 'c1' }, { slot: 'lunch', recipeId: 'p1' }, { slot: 'dinner', recipeId: 'carne' }],
+      conferma: true,
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  /**
+   * ⚠️ **E dentro al pool il regime non si chiede**, ed è voluto: quelle ricette sono già state
+   * scelte per lei. Chiederlo di nuovo vorrebbe dire che una ricetta col regime scritto male in
+   * catalogo smette di essere salvabile per tutte le clienti che ce l'hanno nel paniere — una
+   * consegna che rompe quello che funzionava per riparare quello che non esisteva ancora.
+   */
+  it('⚠️ una ricetta del suo paniere si salva anche senza regime scritto', async () => {
+    const { s, upsert } = servizio();
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const meals = (upsert.mock.calls[0][0].create.meals ?? []) as { recipeId: string }[];
+    expect(meals.map((m) => m.recipeId)).toEqual(['c1', 'p1', 'd1']);
   });
 });
 

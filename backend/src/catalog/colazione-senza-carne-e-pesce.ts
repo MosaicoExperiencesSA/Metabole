@@ -26,6 +26,19 @@
  * all'animale vuol dire che l'animale non c'è. Senza quella correzione questa pulizia avrebbe
  * tolto dai panieri dei piatti vegetali — cioè avrebbe fatto il danno che vuole evitare.
  *
+ * ## ⚠️ Nessuna famiglia è un'eccezione — chiesto e risposto il 4/9
+ *
+ * La diagnostica del 4/9 ha mostrato che **Keto e Keto-Mediterranea pagano quasi tutto il conto**:
+ * le loro merende passano da 106 e 89 piatti a ventisei. Su una dieta chetogenica «carne e pesce
+ * fuori dagli spuntini» è una regola scomoda, perché lì lo spuntino proteico è normale — quindi la
+ * domanda è stata fatta prima di applicare. ⛔ Simone: *«vale per tutte»*. Nessuna eccezione scritta
+ * nel codice, e questo modulo non guarda la famiglia.
+ *
+ * ⚠️ **Il rimedio resta `MINIMO_PER_CELLA`, non un'eccezione**: le celle che scenderebbero sotto la
+ * soglia si nominano e non si toccano, così la regola vale per tutte senza svuotare nessuno. Le
+ * keto restano da riempire con degli spuntini che non siano carne — ed è un lavoro di catalogo,
+ * non una riga di codice.
+ *
  * ## ⛔ Le VERDURE non sono qui, ed è una scelta
  *
  * La richiesta del 31/8 ne nominava tre. Questo modulo ne toglie **due**: carne e pesce, che sono

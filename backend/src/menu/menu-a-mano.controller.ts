@@ -67,8 +67,20 @@ export class MenuAManoController {
 
   /** Le ricette che si possono mettere in un pasto, con le incompatibili **barrate col motivo**. */
   @Get('ricette')
-  ricette(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('slot') slot?: string, @Query('q') q?: string) {
-    return this.menuAMano.ricette(user.sub, id, slot, q);
+  ricette(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('slot') slot?: string,
+    @Query('q') q?: string,
+    /**
+     * ⛔ **Cercare in TUTTO il catalogo e non solo nel suo paniere** (Simone, 4/9). È il motivo per
+     * cui i menu passavano dalla chat: se il piatto giusto stava fuori dal pool, da qui non si
+     * trovava. ⚠️ Fuori dal paniere resta il filtro sul **regime** compatibile, e ogni riga dice
+     * che è un'eccezione — vedi `MenuAManoService.ricette`.
+     */
+    @Query('tuttoIlCatalogo') tuttoIlCatalogo?: string,
+  ) {
+    return this.menuAMano.ricette(user.sub, id, slot, q, tuttoIlCatalogo === '1' || tuttoIlCatalogo === 'true');
   }
 
   /** La cornice: che pasti ha la sua giornata, che fabbisogno, e cosa c'è già scritto. */

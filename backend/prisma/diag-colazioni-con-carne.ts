@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   }[];
 
   const vive = righe.filter((r) => r.recipe?.active);
-  const perCella = new Map<string, Cella & { righeId: Map<string, string> }>();
+  const perCella = new Map<string, Cella & { righeId: Map<string, string>; stato: string }>();
   for (const r of vive) {
     const chiave = `${r.paniereId}·${r.slot}`;
     if (!perCella.has(chiave)) {
@@ -85,9 +85,10 @@ async function main(): Promise<void> {
         slot: r.slot,
         piatti: [],
         righeId: new Map(),
+        stato: r.paniere.stato,
       });
     }
-    const c = perCella.get(chiave) as Cella & { righeId: Map<string, string>; piatti: unknown[] };
+    const c = perCella.get(chiave) as Cella & { righeId: Map<string, string>; stato: string; piatti: unknown[] };
     (c.piatti as unknown[]).push({
       id: r.recipeId,
       nome: r.recipe.name,
@@ -110,6 +111,28 @@ async function main(): Promise<void> {
   riga(`  Piatti di carne o pesce lì dentro            ${fuoriPostoInTutto}`);
   riga(`  Celle che si possono pulire                  ${daPulire.length}`);
   riga(`  ⛔ Celle che resterebbero sotto la soglia     ${troppoVuote.length}`);
+  riga('');
+  /**
+   * ⛔ **BOZZA O ATTIVO, DETTO PRIMA DI APPLICARE** — perché sono due cose diverse. Un paniere in
+   * bozza non compone menu di nessuno: pulirlo non cambia niente oggi, cambia il giorno in cui
+   * qualcuno lo accende. Un paniere attivo sta già pescando adesso.
+   *
+   * ⚠️ Simone, 4/9: *«bozze o attive»* — si puliscono tutti e due. Il numero si stampa lo stesso,
+   * perché «ho tolto 400 righe» e «ne stavano arrivando 400 nel piatto delle clienti» non sono la
+   * stessa frase, e chi legge il registro fra sei mesi deve poterle distinguere.
+   *
+   * ⛔ **E gli stati sono TRE, non due**: `bozza | attivo | chiuso` (schema). La prima stesura
+   * contava «tutto ciò che non è attivo» e lo stampava come «in bozza» — un paniere chiuso finiva
+   * dentro quella parola. È il difetto che qui si tratta come il peggiore di tutti: una riga che
+   * afferma una cosa che i dati non dicono, in un numero che qualcuno rileggerà fra sei mesi. Lo
+   * ha trovato una revisione avversariale prima di lanciare `APPLICA=1`.
+   */
+  const quanti = (elenco: readonly { paniereId: string; slot: string }[], stato: string) =>
+    elenco.filter((e) => perCella.get(`${e.paniereId}·${e.slot}`)?.stato === stato).length;
+  const altri = daPulire.length - quanti(daPulire, 'attivo') - quanti(daPulire, 'bozza') - quanti(daPulire, 'chiuso');
+  riga(`  Di quelle da pulire: ${quanti(daPulire, 'attivo')} in panieri ATTIVI, ${quanti(daPulire, 'bozza')} in bozza, ${quanti(daPulire, 'chiuso')} chiusi.`);
+  /** ⚠️ Uno stato che non conosciamo non si nasconde in una delle tre cifre: si nomina. */
+  if (altri) riga(`  ⚠️ e ${altri} in panieri con uno stato che questo script non conosce.`);
 
   if (troppoVuote.length) {
     titolo('⛔ QUESTE NON SI TOCCANO: prima vanno riempite');

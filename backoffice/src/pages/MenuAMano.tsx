@@ -37,6 +37,11 @@ interface RigaRicetta {
   slot: string;
   bloccata: boolean;
   motivoBlocco: string | null;
+  /**
+   * ⚠️ Vero quando il piatto **non** è nel paniere della cliente: si può scegliere, ma è
+   * un'eccezione e va detto. Chi lo sceglie non deve credere che le arrivasse comunque.
+   */
+  fuoriDalPaniere?: boolean;
 }
 
 interface Cornice {
@@ -64,6 +69,19 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
   const [scelte, setScelte] = useState<Record<string, Scelta>>({});
   const [slotAperto, setSlotAperto] = useState<string | null>(null);
   const [cerca, setCerca] = useState('');
+  /**
+   * ⛔ **Cercare in TUTTO il catalogo e non solo nel suo paniere** (Simone, 4/9). È la ragione per
+   * cui i menu passavano dalla chat: se il piatto giusto stava fuori dal pool, da qui non si
+   * trovava. ⚠️ Il regime della cliente resta un cancello anche fuori: lo applica il server.
+   */
+  const [tuttoIlCatalogo, setTuttoIlCatalogo] = useState(false);
+  /**
+   * ⛔ **Quante ricette il server ha tagliato via, quando le ha tagliate.** Dentro il paniere non
+   * succedeva mai (sono decine); fuori sono ventimila e il taglio scatta a ogni ricerca corta.
+   * Il campo tornava già e non lo leggeva nessuno — cioè il silenzio di prima, con un campo in più:
+   * chi cerca «zuppa» scorrendo duecento nomi in ordine alfabetico conclude che non ce ne siano.
+   */
+  const [taglio, setTaglio] = useState<number | null>(null);
   const [risultati, setRisultati] = useState<RigaRicetta[] | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [ricarica, setRicarica] = useState(0);
@@ -96,17 +114,19 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
      * («è un piatto da lunch, non da dinner»), ma farlo scoprire dopo il clic è farlo sbagliare.
      */
     setRisultati(null);
+    setTaglio(null);
     if (!slotAperto) return;
     let vivo = true;
     const t = setTimeout(() => {
-      api<{ righe: RigaRicetta[]; poolVuoto: boolean }>(
-        `/admin/clients/${clientId}/menu-a-mano/ricette?slot=${encodeURIComponent(slotAperto)}&q=${encodeURIComponent(cerca)}`,
+      api<{ righe: RigaRicetta[]; poolVuoto: boolean; troncato?: boolean; tetto?: number }>(
+        `/admin/clients/${clientId}/menu-a-mano/ricette?slot=${encodeURIComponent(slotAperto)}&q=${encodeURIComponent(cerca)}`
+        + (tuttoIlCatalogo ? '&tuttoIlCatalogo=1' : ''),
       )
-        .then((r) => { if (vivo) setRisultati(r.righe); })
-        .catch(() => { if (vivo) setRisultati([]); });
+        .then((r) => { if (vivo) { setRisultati(r.righe); setTaglio(r.troncato ? (r.tetto ?? r.righe.length) : null); } })
+        .catch(() => { if (vivo) { setRisultati([]); setTaglio(null); } });
     }, 250);
     return () => { vivo = false; clearTimeout(t); };
-  }, [clientId, slotAperto, cerca]);
+  }, [clientId, slotAperto, cerca, tuttoIlCatalogo]);
 
   const c = useMemo(
     () => conta(Object.values(scelte), cornice?.slotAttesi ?? [], cornice?.targetKcal ?? null, cornice?.tolleranzaPct ?? 15),
@@ -239,11 +259,28 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
               <div style={{ marginTop: 8 }}>
                 <input
                   autoFocus
-                  placeholder="Cerca nel suo paniere…"
+                  placeholder={tuttoIlCatalogo ? 'Cerca in tutto il catalogo…' : 'Cerca nel suo paniere…'}
                   value={cerca}
                   onChange={(e) => setCerca(e.target.value)}
                   style={{ width: '100%' }}
                 />
+                {/* ⚠️ Spenta di suo: il paniere è la scelta fatta per questa cliente, e pescare fuori
+                    resta un'eccezione che si chiede. Ma è a un clic, perché il piatto che serve a
+                    volte semplicemente non ci sta dentro. */}
+                <label className="row" style={{ gap: 6, alignItems: 'center', marginTop: 6, fontSize: 12.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={tuttoIlCatalogo}
+                    onChange={(e) => setTuttoIlCatalogo(e.target.checked)}
+                  />
+                  <span>Cerca in tutto il catalogo (fuori dal suo paniere)</span>
+                </label>
+                {taglio !== null && (
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 6, color: '#8A5A00' }}>
+                    ⚠️ Sono le prime {taglio} in ordine alfabetico: scrivi qualche lettera per trovare
+                    quella che cerchi — le altre ci sono, non sono qui.
+                  </div>
+                )}
                 <div style={{ maxHeight: 220, overflow: 'auto', marginTop: 6 }}>
                   {risultati === null && <Spinner />}
                   {risultati?.length === 0 && <div className="muted" style={{ padding: 8 }}>Nessuna ricetta.</div>}
@@ -256,6 +293,9 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
                     >
                       <span style={{ textDecoration: r.bloccata ? 'line-through' : undefined, minWidth: 0 }}>
                         {r.nome}
+                        {/* ⚠️ Detto sulla riga, non solo nell'intestazione: chi scorre trenta righe non
+                            si ricorda quale interruttore ha alzato tre secondi fa. */}
+                        {r.fuoriDalPaniere && <span style={{ color: '#8A5A00', fontSize: 11.5 }}> · fuori dal suo paniere</span>}
                         {r.bloccata && <span style={{ color: '#8A5A00', fontSize: 11.5 }}> — {r.motivoBlocco}</span>}
                       </span>
                       <span className="muted" style={{ flex: 'none' }}>{r.kcal} kcal</span>

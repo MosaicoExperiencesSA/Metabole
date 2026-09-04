@@ -4,6 +4,7 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { esclusioniDi, valutaRicetta, type EsclusioniCliente, type ProfiloConEsclusioni } from './esclusioni-della-cliente';
 import { perimetroClienti } from '../common/perimetro-clienti';
+import { REGIME_PIU_STRETTO, regimeConosciuto, regimiCompatibili } from '../common/regimi';
 import { slotEsclusiTotali } from './finestre-digiuno';
 import { RULE_CODE_ESCLUSIONI, terminiVietati } from '../vera/regola-dieta';
 import { slotDaComporre } from './struttura-della-giornata';
@@ -26,6 +27,13 @@ import { laClienteLHaAperto, nonSappiamoSeLHaAperto } from '../vera/menu-da-rifa
  * deve scriverla. Nascondere una riga e nascondere un motivo sono la stessa cosa: chi non sa perché
  * un piatto non c'è, lo cerca.
  */
+/**
+ * ⚠️ **Quante ricette torna al massimo una ricerca.** Dentro il paniere non si tocca mai (sono
+ * decine); fuori scatta a ogni ricerca corta, e per questo la risposta porta `troncato` **e** il
+ * numero, così la schermata può dire quante ne ha in mano invece di lasciarlo intuire.
+ */
+const TETTO_RICERCA = 200;
+
 @Injectable()
 export class MenuAManoService {
   private readonly logger = new Logger(MenuAManoService.name);
@@ -78,17 +86,34 @@ export class MenuAManoService {
    * voleva colmare. *Il client può proporre; non può certificare.*
    */
   private async valutate(clientId: string, recipeIds: readonly string[]) {
-    const { esclusioni, ids } = await this.contestoDi(clientId);
+    const { esclusioni, ids, regimiAmmessi } = await this.contestoDi(clientId);
     const dentroIlPool = new Set(ids);
     const ricette = (await this.prisma.recipe.findMany({
       where: { id: { in: [...new Set(recipeIds)] }, active: true } as never,
-      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true },
-    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[];
-    return new Map(ricette.map((r) => [r.id, { ...this.giudica(r, esclusioni), nelPool: dentroIlPool.has(r.id) }]));
+      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true, regime: true },
+    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[]; regime?: string }[];
+    return new Map(ricette.map((r) => [r.id, {
+      ...this.giudica(r, esclusioni),
+      nelPool: dentroIlPool.has(r.id),
+      /**
+       * ⛔ **Il cancello che sostituisce «dev'essere nel pool»** — e vale **solo fuori dal pool.**
+       *
+       * Fuori dal paniere si può servire — è la richiesta del 4/9 — ma non un piatto di un regime
+       * che questa cliente non mangia: il pool non è più il confine, il regime sì, e si rilegge qui
+       * invece di fidarsi di quello che la ricerca aveva mostrato.
+       *
+       * ⚠️ **Dentro al pool non si chiede niente**, ed è voluto: quelle ricette sono già state
+       * scelte per lei quando la base è stata composta. Chiederglielo di nuovo vorrebbe dire che una
+       * ricetta col regime scritto male in catalogo smetterebbe di essere salvabile per tutte le
+       * clienti che ce l'hanno nel paniere — cioè una consegna che rompe quello che funzionava per
+       * riparare quello che ancora non esisteva.
+       */
+      regimeAmmesso: (regimiAmmessi as readonly string[]).includes(String(r.regime ?? '').trim()),
+    }]));
   }
 
   /** Il pool della cliente e le sue esclusioni: la coppia che serve a ogni domanda di questo file. */
-  private async contestoDi(clientId: string): Promise<{ esclusioni: EsclusioniCliente; ids: string[]; dietIdDelPool: string | null }> {
+  private async contestoDi(clientId: string): Promise<{ esclusioni: EsclusioniCliente; ids: string[]; dietIdDelPool: string | null; regimiAmmessi: readonly string[] }> {
     const [pool, profilo] = await Promise.all([
       this.prisma.clientMenuPool.findFirst({
         where: { clientId } as never,
@@ -113,10 +138,33 @@ export class MenuAManoService {
         select: { ruleCode: true, enabled: true, params: true },
       })) as { ruleCode: string; enabled: boolean; params: unknown }[])
       : [];
+    /**
+     * ⛔ **I REGIMI CHE QUESTA CLIENTE PUÒ RICEVERE — e la risposta non è mai «tutti».**
+     *
+     * ⚠️ Trovato da una revisione avversariale il 4/9, prima della consegna. La prima stesura
+     * filtrava sul regime **solo se** riusciva a leggerlo: `dietIdDelPool ? {regime: …} : {}`. Ma
+     * `dietIdDelPool` è nullo esattamente per la cliente che non ha ancora un pool — che è **la**
+     * cliente per cui si esce dal paniere. Cioè: cliente vegana appena inserita, si alza «tutto il
+     * catalogo», e in elenco compare lo spezzatino di manzo **non barrato**, perché il manzo non è
+     * fra le sue esclusioni.
+     *
+     * ⛔ Il ripiego di `regimiCompatibili` va verso il **più stretto** (`common/regimi.ts`, che
+     * esiste per un rovesciamento identico): regime ignoto → vegano. Sbagliato per difetto, cioè
+     * meno scelta e qualcuno se ne accorge, invece che carne nel piatto.
+     */
+    const regimeCliente = pool?.dietId
+      ? ((await this.prisma.diet.findUnique({ where: { id: pool.dietId }, select: { regime: true } })) as { regime: string } | null)?.regime ?? null
+      : null;
+    if (!regimeConosciuto(regimeCliente)) {
+      this.logger.warn(
+        `Regime non leggibile per la cliente ${clientId} (dieta ${pool?.dietId ?? 'nessuna'}): fuori dal paniere si mostra solo ${REGIME_PIU_STRETTO}.`,
+      );
+    }
     return {
       esclusioni: esclusioniDi(profilo, vietatiDieta),
       ids: (pool?.recipeIds ?? []).filter(Boolean),
       dietIdDelPool: pool?.dietId ?? null,
+      regimiAmmessi: regimiCompatibili(regimeCliente),
     };
   }
 
@@ -170,29 +218,71 @@ export class MenuAManoService {
    * rifacimento qui non compare — e il pulsante «Rifai base ricette» è lì accanto, sulla stessa
    * card, apposta.
    */
-  async ricette(attoreId: string, clientId: string, slot?: string, q?: string) {
+  /**
+   * Le ricette fra cui scegliere, già giudicate sulle esclusioni di questa cliente.
+   *
+   * ⛔ **`tuttoIlCatalogo` è una richiesta di Simone del 4/9**, e nasce da un fatto: la
+   * nutrizionista i menu li mandava **in chat**, perché da qui poteva pescare **solo dal paniere**
+   * della cliente. Un paniere è un pool, non il catalogo: se il piatto giusto sta fuori, la
+   * schermata non lo trovava e lei usava un altro strumento.
+   *
+   * ⚠️ **Ma fuori dal paniere il regime torna a essere una domanda.** Dentro no — il pool nasce dal
+   * suo paniere, quindi è già del regime giusto. Fuori il catalogo ha anche la carne, e servire uno
+   * spezzatino a una vegana perché «non era fra le sue esclusioni» sarebbe il modo più veloce di
+   * perdere una cliente. Perciò si filtra sui regimi **compatibili col suo**, con la stessa
+   * funzione che usa la base personalizzata.
+   *
+   * ⚠️ E ogni riga dice se è **fuori dal paniere**: chi sceglie deve sapere che sta facendo
+   * un'eccezione, non credere che quel piatto le arrivasse comunque.
+   */
+  async ricette(attoreId: string, clientId: string, slot?: string, q?: string, tuttoIlCatalogo = false) {
     await this.perimetro(attoreId, clientId);
-    const { esclusioni, ids } = await this.contestoDi(clientId);
-    if (!ids.length) return { righe: [], poolVuoto: true };
+    const { esclusioni, ids, regimiAmmessi } = await this.contestoDi(clientId);
+    if (!ids.length && !tuttoIlCatalogo) return { righe: [], poolVuoto: true };
 
     const cerca = (q ?? '').trim();
+    const nelPaniere = new Set(ids);
+    /**
+     * ⛔ **Fuori dal paniere il filtro sul regime NON è facoltativo.** Dentro la domanda non si
+     * pone — il pool nasce dal suo paniere, quindi è già del regime giusto. Fuori il catalogo ha
+     * anche la carne, e `regimiAmmessi` risponde sempre: su regime ignoto è `['vegan']`, mai
+     * «tutti». Il perché sta su `contestoDi`, ed è un difetto che questa riga ha davvero avuto.
+     */
+    const dovePescare = tuttoIlCatalogo
+      ? { regime: { in: [...regimiAmmessi] } }
+      : { id: { in: ids } };
     const ricette = (await this.prisma.recipe.findMany({
       where: {
-        id: { in: ids },
+        ...dovePescare,
         active: true,
         ...(slot ? { mealSlot: slot } : {}),
         ...(cerca ? { name: { contains: cerca, mode: 'insensitive' } } : {}),
       } as never,
       orderBy: { name: 'asc' },
-      take: 200,
+      take: TETTO_RICERCA,
       select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true },
     })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[];
 
     return {
-      righe: ricette.map((r) => this.giudica(r, esclusioni)),
-      poolVuoto: false,
-      /** ⚠️ Il taglio si **dice**: una lista troncata in silenzio fa credere che il resto non esista. */
-      troncato: ricette.length >= 200,
+      righe: ricette.map((r) => ({ ...this.giudica(r, esclusioni), fuoriDalPaniere: !nelPaniere.has(r.id) })),
+      poolVuoto: !ids.length,
+      /**
+       * ⚠️ I regimi su cui si è filtrato, quando si è usciti: la schermata lo dice invece di farlo
+       * indovinare — «non trovo il pollo» ha una risposta, ed è che questa cliente non lo mangia.
+       */
+      ...(tuttoIlCatalogo ? { regimiAmmessi: [...regimiAmmessi] } : {}),
+      /**
+       * ⛔ **Il taglio si dice, e da oggi scatta davvero.** Dentro il paniere sono decine di
+       * ricette e il tetto non si toccava mai; fuori sono ventimila, e con la casella di ricerca
+       * vuota arrivano **sempre** i primi duecento nomi in ordine alfabetico. Una lista troncata in
+       * silenzio fa credere che il resto non esista — e chi cerca «zuppa» scorrendo conclude che
+       * non ce ne siano.
+       *
+       * ⚠️ Perciò la schermata lo **legge**: il campo c'era già e non lo guardava nessuno, il che
+       * è lo stesso silenzio con un campo in più.
+       */
+      troncato: ricette.length >= TETTO_RICERCA,
+      tetto: TETTO_RICERCA,
     };
   }
 
@@ -276,8 +366,20 @@ export class MenuAManoService {
        * scrive. La prima stesura non rileggeva niente: qualunque stringa finiva in `meals`.
        */
       if (!v) throw new BadRequestException(`La ricetta ${p.recipeId} non esiste o non è più attiva.`);
-      if (!v.nelPool) {
-        throw new BadRequestException(`«${v.nome}» non è nel paniere di questa cliente: rifai la base ricette prima di usarla.`);
+      /**
+       * ⛔ **QUI STAVA IL DIFETTO CHE ANNULLAVA LA RICERCA FUORI DAL PANIERE**, trovato da una
+       * revisione avversariale il 4/9 prima della consegna: la ricerca lasciava scegliere fuori dal
+       * pool e **questa riga rifiutava di salvarlo**. Cioè si accendeva la casella, si componeva la
+       * giornata intera, e il salvataggio rispondeva 400 proprio sul piatto per cui la casella
+       * esiste. La schermata prometteva, il server diceva di no.
+       *
+       * ⚠️ Il confine però non sparisce, **si sposta**: da «è nel suo paniere» a «è di un regime
+       * che questa cliente mangia». Il paniere è una scelta di comodo — una selezione fatta per lei
+       * —, il regime è quello che non si può violare. `regimeAmmesso` si rilegge dal database in
+       * `valutate`, non si eredita dalla ricerca: il client può proporre, non certificare.
+       */
+      if (!v.nelPool && !v.regimeAmmesso) {
+        throw new BadRequestException(`«${v.nome}» è di un regime che questa cliente non mangia: non si può metterla nel suo menu.`);
       }
       /** ⛔ E lo slot dev'essere il suo: una cena a colazione la manda una schermata che ha sbagliato. */
       if (v.slot !== p.slot) {
