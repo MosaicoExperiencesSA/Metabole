@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Il perimetro della commerciale si chiude con una decisione, non con un cancello:
+  «Lascia tutto com'è».** Prima di scrivere una riga ho misurato cosa cambiava chiudendo i due
+  cancelli sul suo id: Giusy avrebbe visto **solo** le clienti di riserva — in Clienti, Acquisti,
+  Attività coach, Vera, dashboard, alert e analytics perdeva le altre 56 (il CRM dei lead no: usa
+  `coachScope`, non `perimetroClienti`). E il secondo cancello senza `sales` non le dava «le sue»:
+  le dava **niente**, perché dashboard, analytics e alert ridisegnano il perimetro da sé con
+  `isCoachLike` invece di chiamare `perimetroClienti` — la copia che quel file dice in testa di non
+  volere. Tre strade davanti a Simone; ha scelto la terza. La commerciale vede e cambia tutto,
+  come oggi; la coach di riserva resta (è presa in carico, non perimetro). ⚠️ Di passaggio,
+  corretto un commento falso in `ricetta-che-si-puo-scrivere.ts`: l'agente dei pasti leggeri
+  **non** è senza cancelli — `vaglia` scarta «senza ingredienti» e ogni piatto di carne o pesce,
+  quindi è più stretto dei due cancelli; era scritto per deduzione, non per lettura.
+
 - `[Sviluppo]` ✅ **La coach di riserva: chi resta senza coach non resta di nessuno.** Decisione
   di Simone (4/9, dopo `diag:commerciale-e-coach`: Giusy 0 clienti sue, 4 schede senza coach, 2
   clienti senza scheda): *«tutte le clienti non assegnate ad una coach vanno a Giusy»*, anche

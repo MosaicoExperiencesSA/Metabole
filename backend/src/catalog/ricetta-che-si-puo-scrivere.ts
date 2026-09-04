@@ -21,8 +21,12 @@ import { REGIMI_IN_ORDINE } from '../common/regimi';
  * ⛔ **Le due strade che NON ci passano, dichiarate**: il generatore notturno
  * (`engine-rules.service.ts`) scrive con `prisma.recipe.create` e ha **già** il suo controllo
  * sull'elenco vuoto dal 2/9 — quello va riusato, non raddoppiato; `agente-pasti-leggeri.service.ts`
- * scrive anche lui e non ha nessuno dei due. Resta aperto e va detto: una porta chiusa e una no non
- * è un cancello, è un cartello.
+ * scrive anche lui, e **il suo vaglio è già più stretto di questi due cancelli** (riletto il 4/9
+ * sera, dopo che una prima stesura di questo commento diceva «non ha nessuno dei due» — per
+ * deduzione, non per lettura): `vaglia` scarta «senza ingredienti» **e** scarta ogni piatto di carne
+ * o pesce, perché a colazione e negli spuntini non ci vanno — quindi il regime che il contenuto
+ * smentisce lì non può nemmeno nascere. Due porte con regole diverse restano due porte, e va detto;
+ * ma nessuna delle due è aperta.
  *
  * ## ⛔ Perché uno blocca e l'altro chiede
  *

@@ -1,0 +1,55 @@
+────────────────────────────────────────────────────────────────────────────
+ Il perimetro della commerciale: deciso, non chiuso
+ 4 settembre 2026 (sera)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. Nessun cambio di comportamento: una voce chiusa
+   nell'elenco Lavori e un commento corretto.
+
+Summary
+───────
+Perimetro della commerciale: chiuso con la decisione «lascia tutto com è», e un commento falso corretto
+
+Description
+───────────
+✅ LA VOCE `perimetro-commerciale-clienti-assegnate` SI CHIUDE CON UNA
+DECISIONE, NON CON UN CANCELLO. Prima di scrivere una riga ho misurato cosa
+sarebbe cambiato chiudendo i due cancelli sull'id di Giusy:
+
+· avrebbe visto SOLO le clienti di riserva (le 4 + quelle che verranno) in
+  Clienti, Acquisti, Attività coach, Vera, dashboard, alert e analytics —
+  cioè perdeva le altre 56. Il CRM dei lead no: usa `coachScope`, non
+  `perimetroClienti`;
+· il secondo cancello (`vedeTutteLeClienti` senza `sales`) non le dava «le
+  sue»: le dava NIENTE (`__none__`), perché dashboard, analytics e alert
+  ridisegnano il perimetro da sé con `isCoachLike` invece di chiamare
+  `perimetroClienti` — la copia che quel file dice in testa di non volere.
+
+Tre strade davanti a Simone: solo le sue ovunque / tutte ma cambia la dieta
+solo alle sue / tutto com'è. Ha scelto la terza. Quindi: la commerciale vede e
+cambia tutto, come oggi; la casella «Cambia tipo di dieta» resta accesa su
+`sales`; nessun perimetro. La coach di riserva resta com'è: era una regola di
+presa in carico, non di perimetro.
+
+⛔ RESTA VERO E NON CHIUSO, scritto nella voce: dashboard, analytics e alert
+sono ancora tre copie di una domanda di perimetro. Il giorno che si dà un
+perimetro a un ruolo nuovo, prima si portano su `perimetroClienti`.
+
+⚠️ DI PASSAGGIO: un commento falso in `ricetta-che-si-puo-scrivere.ts`. Diceva
+che `agente-pasti-leggeri.service.ts` scrive ricette «senza nessuno dei due
+cancelli». Riletto: `vaglia` scarta «senza ingredienti» E ogni piatto di carne
+o pesce (a colazione e negli spuntini non ci vanno), quindi il regime che il
+contenuto smentisce lì non può nemmeno nascere. Era scritto per deduzione, non
+per lettura; ora dice il vero.
+
+Verificato
+──────────
+· `src/lavori` 74 prove + `ricetta-che-si-puo-scrivere` 13 prove verdi
+  (compresa «il testo e la spunta vanno d'accordo»)
+
+Cosa resta
+──────────
+· Parametri → «Coach di riserva» → Giusy, poi `assegna:coach-di-riserva`
+  (prova a vuoto, poi `CONFERMA=1`): il passo che lo script ha chiesto.
+· `giusy@metabole.eu` risulta collegata a un'utenza «non trovata»: un
+  collegamento appeso da togliere da Utenti quando capita.
