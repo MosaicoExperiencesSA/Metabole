@@ -745,6 +745,22 @@ export function coppiaGiaDecisa(chiave: string, parola: string): boolean {
  * anticipato il carpaccio di manzo tornava a sparire dal piatto di chi esclude il pesce, cioè il
  * falso che le omonime erano state scritte per chiudere.
  */
+/**
+ * ⛔ **ESPORTATA il 4/9 perché `catalog/allergens.ts` ne aveva una SECONDA COPIA.**
+ *
+ * Quella copia conosceva le omonime e le frasi, e **non** `SOLO_A_INIZIO_PAROLA`. Cioè la regola
+ * scritta il 4/9 per «grana»/«grano» — 239 occorrenze su 24 mila ricette — valeva per le esclusioni
+ * della cliente e non per i tag allergene, che però **vengono scritti** sulle ricette. Misurato:
+ * «melo**grano**» risultava con glutine, «mela**grana**» e «piselli s**grana**ti» con latte.
+ *
+ * ⚠️ È lo stesso difetto che il commento di `dentroUnaFraseCheNonE` dichiara di aver chiuso venti
+ * righe sopra — *«due elenchi che rispondono alla stessa domanda un giorno si contraddicono»* — e
+ * che si era richiuso da solo un piano più in là, sulla funzione invece che sull'elenco.
+ */
+export function chiaveCombacia(haystack: string, chiave: string): boolean {
+  return chiaveVale(haystack, chiave);
+}
+
 function chiaveVale(haystack: string, k: string): boolean {
   // ⚠️ `SOLO_A_INIZIO_PAROLA` è la risposta alle famiglie APERTE («-orata»), dove un elenco di
   // omonime non basterebbe mai; le omonime restano la risposta ai casi singoli e noti.

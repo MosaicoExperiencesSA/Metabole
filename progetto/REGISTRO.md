@@ -20,6 +20,26 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ⛔ **«Melograno» risulta con il glutine e «melagrana» con il latte — e la regola che
+  lo evita è scritta dal 4/9.** `menu/exclusions.ts` risponde a «questa chiave combacia?» con tre
+  filtri, `catalog/allergens.ts` ne ha una **seconda copia** che ne conosce due: manca
+  `SOLO_A_INIZIO_PAROLA`, cioè proprio il riquadro di «grana»/«grano» (239 occorrenze su 24 mila
+  ricette). ⚠️ E i tag allergene **vengono scritti** sulle ricette: oggi una celiaca non riceve la
+  vellutata di melograno, e chi è intollerante al lattosio non riceve i piselli sgranati.
+  ⛔ **I panieri non c'entrano**: il paniere decide quali piatti entrano nel pool, gli allergeni
+  scritti decidono quali vengono tolti a chi è allergica. Due filtri in fila.
+  ✅ **Consegnata la MISURA, non la correzione** (Simone: prima quante ricette cambiano etichetta):
+  `npm run diag:chiave-doppia`, sola lettura, col conto in `catalog/allergeni-porta-unica.ts` — puro
+  e con 16 prove — e non dentro lo script, perché da quel numero dipende una decisione sul catalogo.
+  ⛔ **Due errori di conteggio trovati dalla revisione avversariale**, tutti e due nel verso che fa
+  sembrare grosso un lavoro che non c'è: il tabulato contava gli **ingredienti** e stampava
+  «N ricette» (`['melograno', 'succo di melograno', 'chicchi di melograno']` = 3 su una ricetta
+  sola), e l'elenco «da leggere una per una» conteneva coppie che con la perdita non c'entravano.
+  ⛔ **E una correzione che la revisione chiedeva era sbagliata**: chiamare `coppiaGiaDecisa` qui
+  avrebbe cancellato esattamente le righe per cui il tabulato esiste — `grana` **è** già decisa, in
+  `exclusions.ts`, ed è la decisione che `allergens.ts` non legge.
+
+
 - `[Sviluppo]` ✅ **Vera fa scrivere la ricetta passo passo: metodo e allergeni, e la ricetta nasce
   attiva.** Terzo pezzo della richiesta di Simone, quello che la mattina avevo dichiarato fuori
   portata. ⚠️ Molto c'era già — nome, ingredienti, pasto, regime, kcal e macro dai valori veri —

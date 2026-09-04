@@ -83,6 +83,52 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'chiave-vale-in-due-copie',
+    categoria: CODICE,
+    ordine: 0,
+    blocca: false,
+    nata: '2026-09-04T23:30',
+    titolo: '⛔ «Melograno» risulta con il GLUTINE: «questa chiave vale?» ha due copie, e una non legge la regola del 4/9',
+    dettaglio:
+      '⛔ **Misurato il 4/9, ed è una prova che gira** (`catalog/allergeni-porta-unica.spec.ts`):\n'
+      + '```\n'
+      + 'melograno sgranato   →  oggi risulta con GLUTINE\n'
+      + 'melagrana fresca     →  oggi risulta con LATTE\n'
+      + 'piselli sgranati     →  oggi risulta con LATTE\n'
+      + '```\n'
+      + 'Quindi **oggi una celiaca non riceve la vellutata di melograno**, e chi è intollerante al '
+      + 'lattosio non riceve i piselli sgranati.\n\n'
+      + '⚠️ **La regola che lo evita è già scritta**: `SOLO_A_INIZIO_PAROLA`, il riquadro del 4/9, '
+      + '239 occorrenze su 24 mila ricette. Solo che la legge **una porta e non l\'altra**: '
+      + '`menu/exclusions.ts` risponde a «questa chiave combacia?» con **tre** filtri (omonime, '
+      + 'frasi, inizio di parola), e `catalog/allergens.ts` ha una **seconda copia** che ne conosce '
+      + 'due. ⛔ E i tag allergene **vengono scritti** sulle ricette: non è un suggerimento che '
+      + 'qualcuno legge, è una riga che toglie il piatto.\n\n'
+      + '⛔ **E i panieri non c\'entrano** (domanda di Simone, 4/9): il paniere decide quali piatti '
+      + 'finiscono nel pool, gli allergeni scritti decidono **quali di quelli vengono tolti** a chi è '
+      + 'allergica. Sono due filtri in fila, e il secondo lo attraversano tutte comunque sia fatto il '
+      + 'pool.\n\n'
+      + '⚠️ È lo stesso difetto che il commento di `dentroUnaFraseCheNonE` dichiara di aver chiuso '
+      + 'venti righe sopra — *«due elenchi che rispondono alla stessa domanda un giorno si '
+      + 'contraddicono»* — e che si era richiuso da solo un piano più in là: sulla **funzione** '
+      + 'invece che sull\'elenco.\n\n'
+      + '✅ **LA MISURA C\'È: `npm run diag:chiave-doppia`** (sola '
+      + 'lettura). Dice quante ricette perdono un allergene accendendo la porta unica, con **tre '
+      + 'numeri che non vanno confusi**: quante cambiano l\'elenco *dedotto*, quante ce l\'hanno '
+      + '*scritto* in catalogo (è quello su cui si decide), e quante di quelle portano la **spunta di '
+      + 'conferma**. ⚠️ Il conto sta nel **modulo puro** e non nello script: da quel numero dipende '
+      + 'una decisione sul catalogo, e un giudizio che decide non sta in un file di `prisma/` che '
+      + 'nessun test guarda.\n\n'
+      + '▶️ **RESTA DA LANCIARLO SUI DATI VERI**, e poi si decide: qui in sandbox il database non '
+      + 'c\'è. ⚠️ Quando si accende, `suggestAllergens` chiama `chiaveCombacia` e spariscono sia '
+      + '`allergeniConPortaUnica` sia `chiaveCombaciaOggi`, che vivono solo per la misura.\n\n'
+      + '⚠️ **Quello che il tabulato NON conta, dichiarato**: chi ricalcola davvero i tag è '
+      + '`confermaAllergeniInBlocco`, che gira sulle **bozze** (`active: false`) e qui non entra; e '
+      + 'per le ricette già attive uno script di ri-tag **non esiste**. Cioè quel numero conta '
+      + 'ricette che cambiano solo se qualcuno scrive quel passaggio.',
+  },
+
+  {
     chiave: 'chiavi-dichiarate-che-nessuno-legge',
     categoria: CODICE,
     ordine: 1,

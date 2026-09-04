@@ -101,6 +101,20 @@ export const ingredientNames = nomiIngredienti;
  * solfiti. Due liste che rispondono alla stessa domanda e una sola sa le omonime era il difetto —
  * adesso la lista è una.
  */
+/**
+ * ⛔ **ESPORTATA il 4/9 per la MISURA, non per essere usata.**
+ *
+ * `diag:chiave-doppia` deve sapere **quale chiave** questa copia fa scattare e la porta unica no.
+ * Senza, si sarebbe scritta una terza copia della stessa domanda dentro il modulo della misura —
+ * cioè si sarebbe rifatto, per contarlo, il difetto che si sta contando.
+ *
+ * ⚠️ **Sparisce insieme alla misura**: il giorno che questa funzione chiama `chiaveCombacia` di
+ * `menu/exclusions.ts`, non c'è più niente da confrontare e questo export non serve a nessuno.
+ */
+export function chiaveCombaciaOggi(nome: string, kw: string): boolean {
+  return chiaveVale(nome, kw);
+}
+
 function chiaveVale(nome: string, kw: string): boolean {
   if (!nome.includes(kw)) return false;
   const escluse = PAROLE_CHE_NON_SONO[kw];

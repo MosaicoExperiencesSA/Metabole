@@ -1,0 +1,135 @@
+────────────────────────────────────────────────────────────────────────────
+ «Questa chiave vale?» ha due copie: quanto costa chiuderne una — misurato
+ 4 settembre 2026 (notte)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+⚠️ SOLA LETTURA: non cambia nessun comportamento in produzione.
+
+Summary
+───────
+Diagnostica: quante ricette perdono un allergene chiudendo la seconda copia di «chiaveVale»
+
+Description
+───────────
+⛔ IL DIFETTO, MISURATO E NON DEDOTTO.
+
+`menu/exclusions.ts` risponde a «questa chiave combacia?» con TRE filtri: le
+parole omonime (`PAROLE_CHE_NON_SONO`), le frasi che non sono
+(`FRASI_CHE_NON_SONO`) e — dal 4/9 — `SOLO_A_INIZIO_PAROLA`, che è la risposta
+alle FAMIGLIE APERTE dove un elenco chiuso non basterebbe mai.
+
+`catalog/allergens.ts` ha una SECONDA COPIA di quella funzione, che conosce i
+primi due filtri e NON il terzo. Cioè: la regola scritta il 4/9 per «grana» e
+«grano» — 239 occorrenze su 24 mila ricette — vale per le esclusioni della
+cliente e non vale per i tag allergene, che però VENGONO SCRITTI sulle ricette.
+
+Misurato adesso, ed è una prova che gira (`allergeni-porta-unica.spec.ts`):
+
+    melograno sgranato   →  oggi risulta con GLUTINE   (è un albero)
+    melagrana fresca     →  oggi risulta con LATTE
+    piselli sgranati     →  oggi risulta con LATTE     (sgranare è quello che
+                                                        si fa ai piselli)
+
+Quindi oggi una celiaca non riceve la vellutata di melograno, e chi è
+intollerante al lattosio non riceve i piselli sgranati.
+
+⚠️ È lo stesso difetto che il commento di `dentroUnaFraseCheNonE` dichiara di
+aver chiuso venti righe sopra — «due elenchi che rispondono alla stessa domanda
+un giorno si contraddicono» — e che si era richiuso da solo un piano più in là:
+sulla FUNZIONE invece che sull'elenco.
+
+⛔ E NON C'ENTRANO I PANIERI. Il paniere decide quali piatti finiscono nel pool;
+gli allergeni scritti sulla ricetta decidono quali di quelli vengono tolti a chi
+è allergica. Sono due filtri in fila, e il secondo lo attraversano tutte,
+comunque sia fatto il pool.
+
+✅ COSA C'È IN QUESTA CONSEGNA: LA MISURA, NON LA CORREZIONE.
+
+Simone, 4/9: prima una diagnostica che dica quante ricette cambiano etichetta, e
+poi si decide. La correzione tocca i tag di TUTTO il catalogo: si accende con un
+numero davanti, non per analogia.
+
+· `npm run diag:chiave-doppia` (sola lettura, non scrive niente)
+· il conto in `src/catalog/allergeni-porta-unica.ts`, PURO e con 16 prove
+· `chiaveCombacia` esportata da `menu/exclusions.ts` (wrapper, nessun cambio di
+  comportamento) e `chiaveCombaciaOggi` da `catalog/allergens.ts`, che serve alla
+  misura per sapere QUALE chiave la porta unica scarta davvero — senza, si
+  sarebbe scritta una TERZA copia della stessa domanda dentro il modulo che la
+  conta, cioè si sarebbe rifatto il difetto per misurarlo.
+
+⚠️ IL CONTO STA NEL MODULO E NON NELLO SCRIPT, ed è la lezione del tabulato dei
+panieri dell'1/9 (che diceva «⛔ non spostare» in cima e «✅ si può spostare»
+dodici righe sotto): da questo numero dipende se la porta unica si accende in
+blocco o si legge riga per riga, e un giudizio che decide non sta in un file di
+`prisma/` che nessun test guarda.
+
+⛔ I TRE NUMERI, E NON VANNO CONFUSI.
+
+· «cambia l'elenco DEDOTTO» — il numero grosso, e da solo non decide niente: la
+  deduzione oggi non è scritta su tutte.
+· «cambia quello che è SCRITTO in catalogo» — le ricette che tornerebbero
+  servibili a chi dichiara quell'allergene. È il numero su cui si decide.
+· «con la spunta di conferma» — lì il tag qualcuno l'ha accettato. ⚠️ Con la
+  cautela già scritta il 31/8: `allergensReviewed` comprende le conferme IN
+  BLOCCO del 19/8, dove gli allergeni li aveva scritti il riconoscitore. Non
+  vuol dire «guardata una per una».
+
+⛔ E UNA SENTINELLA: «guadagnati» DEVE restare zero. La porta unica aggiunge un
+filtro, quindi non può guadagnare allergeni. Se non è zero, le due copie
+divergevano in un modo che nessuno aveva capito, e la misura va riletta PRIMA di
+toccare qualunque cosa.
+
+⛔ COSA HA TROVATO LA REVISIONE AVVERSARIALE, e sono due errori di conteggio che
+avrebbero fatto decidere sul numero sbagliato:
+
+1) Il tabulato contava gli INGREDIENTI e stampava «N ricette». In catalogo lo
+   stesso allergene compare più volte nello stesso elenco — `['melograno',
+   'succo di melograno', 'chicchi di melograno']` faceva «3 ricette» su una
+   ricetta sola, con lo stesso nome negli esempi tre volte. E gonfiava NEL VERSO
+   che fa sembrare grosso un lavoro che non c'è: chi sommava le righe otteneva
+   un numero più alto di «cambiano davvero», senza che niente glielo dicesse.
+
+2) L'elenco «da leggere una per una» conteneva coppie che con la perdita non
+   c'entravano: il ciclo girava su TUTTE le keyword dell'allergene perso, quindi
+   su «insalata di rapanelli e melograno» usciva anche «pane» dentro
+   «rapanelli» — che è una coppia chiusa nelle omonime dal 4/9, e che con il
+   glutine perso (che lo toglie `grano`) non ha niente a che fare.
+
+⛔ E UNA CORREZIONE CHE LA REVISIONE AVEVA CHIESTO ERA SBAGLIATA, e sta scritto
+nel codice: chiamare `coppiaGiaDecisa` qui avrebbe cancellato dall'elenco
+ESATTAMENTE le righe per cui il tabulato esiste — `grana` sta in
+`SOLO_A_INIZIO_PAROLA`, quindi quella funzione la dichiara «già decisa», ed è
+proprio la decisione che `allergens.ts` non legge.
+
+⚠️ E `parolaCheContiene` rendeva solo la PRIMA parola: su «melagrana e piselli
+sgranati» tornava `melagrana`, e `sgranati` per quella ricetta non esisteva. Non
+si perde un esempio — si perde una RIGA dell'elenco da leggere, e una parola che
+compare sempre accanto a un'altra non compare mai, mentre chi legge crede di
+avere l'elenco completo.
+
+⚠️ CHE COSA IL TABULATO NON È: non è l'elenco delle 239 occorrenze del riquadro
+del 4/9. Una parola compare solo se, tolta lei, l'allergene si perde per intero:
+una ricetta con «melograno» E «farina» il glutine lo tiene, e la parola non si
+vede. È il perimetro giusto per decidere la rimozione, e lo script lo dice.
+
+Verificato
+──────────
+· suite intera: 440 suite, 7564 test verdi
+· `npm run build` (nest) verde
+· mutazioni che mordono: `chiaveCombacia` che ignora `SOLO_A_INIZIO_PAROLA` (4
+  rosse), `cambianoDavvero` contato come `cambiano`, l'ordinamento invertito, e
+  la sentinella `guadagnati` cancellata — quest'ultima NON mordeva ed è stata
+  riscritta con una deduzione finta che rende meno allergeni.
+
+Cosa resta
+──────────
+⛔ Lanciare `npm run diag:chiave-doppia` sui dati veri: qui in sandbox il
+   database non c'è. Il numero decide se la porta unica si accende in blocco.
+⚠️ Quando si accende: `suggestAllergens` chiama `chiaveCombacia`, e spariscono
+   sia `allergeniConPortaUnica` sia `chiaveCombaciaOggi` — vivono solo per la
+   misura.
+⚠️ E resta fuori dal conto chi ricalcola davvero i tag: `confermaAllergeniInBlocco`
+   gira sulle BOZZE (`active: false`), che questa misura non guarda; e per le
+   ricette già attive uno script di ri-tag non esiste. Cioè «cambiano davvero»
+   conta ricette che cambiano solo se qualcuno scrive quel passaggio.
