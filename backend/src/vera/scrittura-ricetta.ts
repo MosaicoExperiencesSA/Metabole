@@ -37,10 +37,32 @@ export interface RicettaDaScrivere {
   kcal: number;
   ingredients: { name: string; qty: number | null; unit: string | null }[];
   macros: { protein_g: number; carbs_g: number; fat_g: number };
+  /**
+   * ⛔ **COME SI PREPARA** (Simone, 4/9). Prima non c'era, e `createRecipe` scriveva `[]`: la
+   * ricetta dettata entrava in catalogo **senza il modo di prepararla**, e in app la cliente apriva
+   * la scheda trovando gli ingredienti e nient'altro.
+   *
+   * ⚠️ Vuoto è una risposta legittima — «lascia stare» — e si dice in anteprima. Quello che non si
+   * fa è **inventare** dei passaggi per riempire il campo.
+   *
+   * ⛔ **Assente e vuoto sono due cose diverse, e la differenza pesa sulla MODIFICA**: `[]` dice
+   * «questa ricetta non ha passaggi» e li cancellerebbe, `undefined` dice «non li ho chiesti» e
+   * `updateRecipe` non tocca il campo. Su una ricetta già in uso il primo sarebbe una perdita
+   * silenziosa di lavoro scritto da qualcun altro.
+   */
+  cookingMethods?: { type: string; steps: string[] }[];
   tags: string[];
   /**
-   * ⚠️ SEMPRE `false` alla nascita, e non è un dettaglio: una ricetta attiva entra nel motore, e il
-   * motore non chiede il permesso a nessuno. Nasce spenta, la accende il capo dalla coda.
+   * ⚠️ SEMPRE `false` **da questa porta**, e non è un dettaglio: una ricetta attiva entra nel motore,
+   * e il motore non chiede il permesso a nessuno.
+   *
+   * ⛔ **Ma dal 4/9 la ricetta dettata NASCE ATTIVA lo stesso** (Simone: *«Vera chiede anche gli
+   * allergeni e la ricetta nasce attiva»*) — e non passando di qui: si scrive spenta, e poi la
+   * conferma degli allergeni la accende, perché `setRecipeAllergens` fa **tutte e due** le cose.
+   *
+   * ⚠️ L'ordine è la sicurezza di questo pezzo: non esiste un istante in cui la ricetta è accesa e
+   * gli allergeni non sono confermati. Un `active: true` scritto qui creerebbe quella finestra, e
+   * dentro quella finestra il motore compone.
    */
   active: false;
 }

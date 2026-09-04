@@ -1,5 +1,35 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+
+/**
+ * ⛔ **COME SI PREPARA — validato dal 4/9, e prima non lo era.**
+ *
+ * `cookingMethods` era `@IsArray()` e basta: dentro ci poteva finire qualunque cosa, `[{}]`
+ * compreso — un oggetto vuoto passava la validazione ed entrava in catalogo. Da oggi ci scrive
+ * anche Vera, che il testo lo riceve da una persona.
+ *
+ * ⛔ **E il `type` NON si controlla contro `CODICI_METODI`, di proposito** (correzione del 4/9, da
+ * una revisione avversariale). L'elenco dei metodi è cambiato nel tempo, e in catalogo ci sono
+ * ricette con codici che oggi non ci sono più: la scheda li tiene selezionabili apposta — *«senza,
+ * aprire e salvare una ricetta vecchia le cambierebbe la preparazione di nascosto»*. Con `@IsIn`
+ * quella ricetta avrebbe preso **400 su tutto il salvataggio**: nome e ingredienti compresi, per un
+ * campo che nessuno stava toccando.
+ *
+ * ⚠️ La garanzia sta a monte, dove nasce il dato: il parser di Vera emette solo codici di
+ * `CODICI_METODI`, e la tendina della scheda è costruita da lì. Qui si controlla la **forma**.
+ */
+export class MetodoCotturaDto {
+  @IsString()
+  @MaxLength(40)
+  type!: string;
+
+  /** ⚠️ Almeno un passaggio: una lista vuota in scheda è un titolo di sezione con sotto il vuoto. */
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  steps!: string[];
+}
 
 export class CreateDietDto {
   @IsString()
@@ -284,7 +314,9 @@ export class CreateRecipeDto {
 
   @IsOptional()
   @IsArray()
-  cookingMethods?: unknown[];
+  @ValidateNested({ each: true })
+  @Type(() => MetodoCotturaDto)
+  cookingMethods?: MetodoCotturaDto[];
 
   @IsOptional()
   @IsArray()
@@ -321,7 +353,7 @@ export class UpdateRecipeDto {
   @IsOptional() @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']) mealSlot?: string;
   @IsOptional() @IsInt() @Min(30) @Max(2000) kcal?: number;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => IngredientDto) ingredients?: IngredientDto[];
-  @IsOptional() @IsArray() cookingMethods?: unknown[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MetodoCotturaDto) cookingMethods?: MetodoCotturaDto[];
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsObject() macros?: Record<string, number>;
   @IsOptional() @IsIn(['semplice', 'media', 'elaborata']) difficulty?: string;

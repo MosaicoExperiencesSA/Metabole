@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Vera fa scrivere la ricetta passo passo: metodo e allergeni, e la ricetta nasce
+  attiva.** Terzo pezzo della richiesta di Simone, quello che la mattina avevo dichiarato fuori
+  portata. ⚠️ Molto c'era già — nome, ingredienti, pasto, regime, kcal e macro dai valori veri —
+  mancavano il **come si prepara** (prima `cookingMethods` restava vuoto: in app la cliente apriva la
+  scheda e trovava gli ingredienti e nient'altro) e gli **allergeni**, che si chiedevano solo dopo
+  l'approvazione.
+  ⛔ **E l'ordine della scrittura è la sicurezza del pezzo**: `createRecipe` la scrive **spenta**, e
+  la conferma degli allergeni — la stessa funzione del pulsante in scheda — la **accende**. Così non
+  esiste un istante in cui il piatto è acceso e gli allergeni non sono confermati; dentro
+  quell'istante il motore compone.
+  ⚠️ Il parser del metodo è **suo** e non legge dentro il testo della ricetta: un passaggio è una
+  riga corta come un ingrediente, e leggerli insieme vuol dire perdere l'uno o l'altro.
+
+
 - `[Sviluppo]` ✅ **Scrivere una ricetta nuova da dentro il menu della cliente**, con la catena vera:
   nome, ingredienti, metodo, kcal → **allergeni** → **in quali panieri**. ⛔ La prima stesura aveva un
   anello solo: una ricetta appena creata nasce con gli allergeni non confermati, e in quel caso il

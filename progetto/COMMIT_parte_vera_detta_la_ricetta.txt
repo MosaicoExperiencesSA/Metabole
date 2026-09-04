@@ -1,0 +1,105 @@
+────────────────────────────────────────────────────────────────────────────
+ Vera fa scrivere la ricetta passo passo: metodo e allergeni, e nasce attiva
+ 4 settembre 2026 (sera)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+Summary
+───────
+Vera chiede metodo e allergeni della ricetta dettata, e la ricetta nasce attiva
+
+Description
+───────────
+Terzo pezzo della richiesta del 4/9, quello che stamattina avevo dichiarato
+fuori portata: «i nuovi poi chiede Vera l'inserimento della ricetta
+direttamente da lei guidando passo passo: ingredienti, metodo ecc», più la
+precisazione della sera: «Vera chiede anche gli allergeni e la ricetta nasce
+attiva».
+
+⚠️ MOLTO DI QUELLO CHE SERVIVA C'ERA GIÀ, e va detto: Vera si faceva dettare
+nome, ingredienti, pasto e regime dal 12/8, calcolava kcal e macro dai valori
+veri, e si fermava sugli alimenti fuori tabella. Mancavano tre cose.
+
+1) COME SI PREPARA — `src/vera/metodo-dettato.ts` (nuovo)
+   Prima Vera scriveva `cookingMethods: []`: la ricetta entrava in catalogo
+   SENZA il modo di prepararla, e in app la cliente apriva la scheda trovando
+   gli ingredienti e nient'altro.
+   ⛔ Il parser è SUO e non legge dentro il testo della ricetta: un passaggio è
+   una riga corta come un ingrediente («scaldare il forno a 180°»), e leggerli
+   insieme vuol dire perdere l'uno o l'altro — cioè una grammatura che sparisce
+   dal totale su cui il motore calcola le giornate.
+   ⚠️ Il modo si legge SOLO dalla prima riga, e solo se quella riga È la
+   risposta: «al forno» sì, «scaldare il forno a 180 gradi» no. Altrimenti si
+   richiede. Una riga che nomina due cotture non si sceglie: si chiede.
+   ⚠️ Si può saltare, e si dice cosa comporta.
+
+2) GLI ALLERGENI, PRIMA DI SCRIVERE
+   Esistevano già, ma DOPO l'approvazione. Ora si chiedono nella dettatura, con
+   lo stesso lettore (`allergeni-ricetta.ts`) e le sue quattro risposte: «sì»,
+   un elenco che sostituisce, «nessuno», e un «sì e anche X» che si somma.
+   ⚠️ Resta la regola dei tre stati: una frase che non nomina niente NON diventa
+   «nessuno». «Non lo so» e «non ne ha» sono due cose diverse.
+
+3) ⛔ LA RICETTA NASCE ATTIVA, E SI ACCENDE DA UNA PORTA SOLA
+   Prima nasceva bozza e la accendeva il capo dalla coda.
+   ⚠️ L'ORDINE È LA SICUREZZA DI QUESTO PEZZO: `createRecipe` la scrive SPENTA,
+   e `setRecipeAllergens` — la stessa funzione del pulsante in scheda — fa tutte
+   e due le cose: conferma gli allergeni E accende la ricetta che era spenta e
+   non revisionata. Così non esiste un istante in cui il piatto è acceso e gli
+   allergeni non sono confermati; dentro quell'istante il motore compone.
+   Un `active: true` alla creazione avrebbe aperto esattamente quella finestra.
+
+4) `cookingMethods` VALIDATO NEL DTO
+   Era `@IsArray()` e basta: dentro ci poteva finire `[{}]`. Ora si controlla la
+   forma. ⚠️ Ma NON il codice contro `CODICI_METODI`, di proposito: in catalogo
+   ci sono ricette con codici legacy che la scheda tiene selezionabili apposta,
+   e `@IsIn` avrebbe dato 400 su tutto il salvataggio — nome e ingredienti
+   compresi — per un campo che nessuno stava toccando.
+
+⛔ SEI DIFETTI TROVATI DALLA REVISIONE AVVERSARIALE, PRIMA DELLA CONSEGNA
+   1. «dopo aver lessato la pasta, saltare in padella» veniva letto come una
+      RINUNCIA: la parola di rinuncia era ancorata solo davanti. E il danno non
+      era perdere il metodo — era dire il contrario: «va bene, la scrivo senza
+      i passaggi» a chi li aveva appena dettati.
+   2. I due passi nuovi erano gli unici del file a non guardare né le parole di
+      uscita né il tetto dei tentativi: chi non veniva capito restava dentro
+      fino alla scadenza di due ore, senza poter fare niente altro con Vera. E
+      «annulla», al passo del metodo, finiva FRA I PASSAGGI di preparazione.
+   3. L'anteprima e il messaggio finale si contraddicevano, e la falsa era la
+      prima — quella su cui si dà il consenso: prometteva «da stanotte il motore
+      la mette nei menu di chi ha quel paniere», mentre una ricetta appena
+      creata non sta in nessun paniere e non la riceve nessuno.
+   4. `allergeniDaScrivere ?? []` violava la regola dei tre stati: uno stato
+      senza quel campo — un dialogo aperto PRIMA di questo rilascio, che vive
+      due ore — diventava «questa ricetta non contiene allergeni», scritto,
+      confermato e acceso.
+   5. Nessuna transazione fra creazione e conferma: se la seconda falliva
+      restava in catalogo un piatto FUORI DAL REGISTRO, la nutrizionista vedeva
+      un 500, e il «sì» ripetuto ne creava un doppione.
+   6. «si può annullare» era falso: `registro.annulla` marca la riga del
+      registro e sulla ricetta non fa niente. Innocuo finché era una bozza in
+      coda; su una ricetta accesa era l'unica rete promessa, e non esiste. Ora
+      si dice il gesto che funziona: si spegne dalla sua scheda.
+   ⚠️ Più tre frasi false corrette, fra cui «gli allergeni della ricetta
+   esistente sono confermati» — non lo sono per le migliaia generate.
+
+PROVE
+─────
+· 7604 verdi su 440 suite, nelle quattro modalità. Build ok; `tsc --noEmit` solo
+  i 2 errori preesistenti; `tsc -b` pulito su app e backoffice.
+· Suite nuova: `metodo-dettato.spec.ts` (37). Più il giro intero — ingredienti →
+  metodo → allergeni → scritta — in `vera-chat.service.spec.ts`: si prova la
+  CUCITURA, non i tre pezzi, che hanno già le loro prove.
+· Nove prove di mutazione, tutte rosse.
+
+⚠️ UNA COSA DA SAPERE, E NON È UN DIFETTO
+   Vera usa un modello solo in un punto: quando `capisci()` non capisce una
+   frase, il modello la RISCRIVE in forma canonica e la riscrittura torna a
+   `capisci`, che decide. La dettatura della ricetta — nome, ingredienti,
+   metodo, allergeni — è invece tutta deterministica.
+   ▶️ Quindi «lo butto in forno finché non è dorato» oggi fa richiedere. La
+   seconda lettura si può estendere a questi passi, con la stessa garanzia (il
+   modello riscrive, il parser decide, la riscrittura si vede). È una decisione
+   di Simone, e sugli allergeni ci penserei due volte: lì una parola in meno
+   cambia un dato sanitario.

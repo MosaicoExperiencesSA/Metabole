@@ -8,7 +8,7 @@ import { RichiesteVeraService } from './richieste.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { ScritturaRicetta } from './scrittura-ricetta';
 import { VeraChatService } from './vera-chat.service';
-import { StatoVera } from './vera-chat';
+import { PassoVera, StatoVera } from './vera-chat';
 
 /**
  * ⚠️ Il test che conta di più qui è che **niente si scrive senza il sì**.
@@ -1363,8 +1363,17 @@ describe('VeraChatService — le ricette', () => {
     const { testo, stato } = ultimoAgente(messaggioCreate);
     // 120 g di tonno (116/100) + 30 g di olive (235/100) = 139 + 70,5 → 210
     expect(testo).toContain('210 kcal');
-    expect(testo).toContain('bozza');
-    expect(stato?.passo).toBe('ricetta_conferma');
+    /**
+     * ⛔ **E dopo gli ingredienti si chiede COME SI PREPARA** (Simone, 4/9: «guidando passo passo:
+     * ingredienti, metodo ecc»). Prima si andava dritti all'anteprima e `cookingMethods` restava
+     * vuoto: la ricetta entrava in catalogo senza il modo di prepararla, e in app la cliente apriva
+     * la scheda trovando gli ingredienti e nient'altro.
+     *
+     * ⚠️ I macro però si mostrano **già qui**, ed è il motivo per cui questa prova non si è spostata
+     * più avanti: sono la prova che ogni ingrediente è stato trovato in tabella, e un abbinamento
+     * sbagliato deve saltare fuori adesso, non sotto il pulsante che conferma.
+     */
+    expect(stato?.passo).toBe('ricetta_metodo');
   });
 
   /**
@@ -1409,11 +1418,28 @@ describe('VeraChatService — le ricette', () => {
     expect(testo).not.toContain('98 kcal');
   });
 
-  it('⚠️ al sì la ricetta nasce SPENTA e va in coda', async () => {
-    // Una ricetta attiva entra nel motore, e il motore non chiede il permesso a nessuno.
+  /**
+   * ⛔ **LA RICETTA NASCE ATTIVA, E SI ACCENDE DA UNA PORTA SOLA** — Simone, 4/9: *«Vera chiede
+   * anche gli allergeni e la ricetta nasce attiva»*. Fino a quel giorno nasceva spenta e la
+   * accendeva il capo dalla coda.
+   *
+   * ⚠️ **L'ordine è la sicurezza di questo pezzo, e questa prova è lì per inchiodarlo**:
+   * `createRecipe` la scrive **spenta**, e `setRecipeAllergens` — la stessa funzione del pulsante in
+   * scheda — conferma gli allergeni **e** accende la ricetta. Così non esiste un istante in cui il
+   * piatto è acceso e gli allergeni non sono confermati; dentro quell'istante il motore compone.
+   * Un `active: true` alla creazione aprirebbe esattamente quella finestra.
+   */
+  it('⛔ al sì la ricetta si scrive SPENTA e la accendono gli allergeni', async () => {
     const { service, ricette, registro } = make(
       {},
-      { statoAperto: { passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'nuova', testoRicetta: RICETTA }, valori: VALORI },
+      {
+        statoAperto: {
+          passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'nuova', testoRicetta: RICETTA,
+          metodoRicetta: { type: 'forno', steps: ['infornare 20 minuti'] },
+          allergeniDaScrivere: ['pesce'],
+        },
+        valori: VALORI,
+      },
     );
     await service.parla('lucia', 'sì');
     const scritta = (ricette.createRecipe as jest.Mock).mock.calls[0][1];
@@ -1421,8 +1447,280 @@ describe('VeraChatService — le ricette', () => {
     expect(scritta.kcal).toBe(210);
     expect(scritta.mealSlot).toBe('lunch');
     expect(scritta.regime).toBe('omnivore');
+    /** ⛔ Il metodo dettato finisce in catalogo: prima `cookingMethods` restava vuoto. */
+    expect(scritta.cookingMethods).toEqual([{ type: 'forno', steps: ['infornare 20 minuti'] }]);
+    /** ⛔ E la ricetta si accende **dopo**, con gli allergeni, dalla porta della scheda. */
+    expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('lucia', 'r-nuova', ['pesce']);
+    /**
+     * ⚠️ **`inApprovazione: false`, e la riga resta.** La ricetta è già attiva: dire «in coda»
+     * sarebbe falso e aprirebbe una coda per approvare una cosa già fatta. Il registro serve
+     * comunque — è quello che permette di annullare, ed è la sola traccia di chi l'ha messa lì.
+     */
     expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({
-      azione: 'ricetta_nuova', inApprovazione: true, soggettoId: 'r-nuova',
+      azione: 'ricetta_nuova', inApprovazione: false, soggettoId: 'r-nuova',
+    });
+  });
+
+  /**
+   * ⛔ **LA CATENA INTERA, DETTATA A VOCE** — Simone, 4/9: *«i nuovi poi chiede Vera l'inserimento
+   * della ricetta direttamente da lei guidando passo passo: ingredienti, metodo ecc»* e *«Vera
+   * chiede anche gli allergeni e la ricetta nasce attiva»*.
+   *
+   * ⚠️ **Si prova il GIRO, non i tre pezzi.** I parser hanno le loro prove
+   * (`metodo-dettato.spec.ts`, `allergeni-ricetta.spec.ts`); qui la domanda è un'altra — che le
+   * risposte si incastrino, che nessun passo si salti e che nessuno si ripeta. È la lezione del
+   * 3/9, ed è la stessa che oggi ha fatto trovare, sull'altra metà del progetto, un salvataggio che
+   * rifiutava quello che la ricerca aveva appena mostrato.
+   */
+  describe('⛔ dettare una ricetta: ingredienti → metodo → allergeni → scritta', () => {
+    const aperto = (extra: Partial<StatoVera> & { passo: PassoVera }) => ({
+      statoAperto: { frase: 'x', modoRicetta: 'nuova' as const, testoRicetta: RICETTA, ...extra },
+      valori: VALORI,
+    });
+
+    it('dopo gli ingredienti chiede come si prepara, e intanto mostra i valori veri', async () => {
+      /** ⚠️ Senza `testoRicetta` nello stato: qui la ricetta arriva adesso, e il testo si accumula. */
+      const { service, messaggioCreate } = make(
+        {}, { statoAperto: { passo: 'ricetta_testo', frase: 'x', modoRicetta: 'nuova' }, valori: VALORI },
+      );
+      await service.parla('lucia', RICETTA);
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.passo).toBe('ricetta_metodo');
+      expect(testo).toContain('come si prepara');
+      expect(testo).toContain('210 kcal');
+    });
+
+    it('dopo il metodo chiede gli allergeni, coi suggeriti davanti', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'al forno\ninfornare 20 minuti');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.passo).toBe('ricetta_allergeni');
+      expect(stato?.metodoRicetta).toEqual({ type: 'forno', steps: ['infornare 20 minuti'] });
+      expect(testo).toContain('allergeni');
+    });
+
+    /** ⚠️ Il modo senza i passaggi non diventa una lista vuota: si richiede, e non si va avanti. */
+    it('⚠️ il modo senza i passaggi non passa al passo dopo', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'al forno');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.passo).toBe('ricetta_metodo');
+      expect(stato?.metodoRicetta).toBeUndefined();
+    });
+
+    /**
+     * ⛔ **Le due metà arrivano in due messaggi, e non si perde niente.** Chi scrive prima l'elenco
+     * e poi, alla domanda, la parola sola, non deve riscrivere l'elenco: è il modo più sicuro di
+     * farsi rispondere «lascia stare».
+     */
+    it('⛔ i passaggi scritti prima si ritrovano quando arriva il modo', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'scaldare il forno a 180 gradi\ninfornare 20 minuti');
+      expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('ricetta_metodo');
+      const conPassi = ultimoAgente(messaggioCreate).stato!;
+      const { service: s2, messaggioCreate: m2 } = make({}, aperto({ ...conPassi }));
+      await s2.parla('lucia', 'al forno');
+      const { stato } = ultimoAgente(m2);
+      expect(stato?.metodoRicetta).toEqual({
+        type: 'forno', steps: ['scaldare il forno a 180 gradi', 'infornare 20 minuti'],
+      });
+    });
+
+    /**
+     * ⚠️ **Si può saltare, e si dice cosa comporta.** Una domanda che sembra obbligatoria e non lo
+     * è insegna a rispondere qualcosa pur di uscirne — e qui «qualcosa» finisce nella scheda che
+     * una persona legge mentre cucina.
+     */
+    it('⚠️ «lascia stare» salta il metodo e lo dichiara, senza richiederlo al giro dopo', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'lascia stare');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toBeNull();
+      expect(stato?.passo).toBe('ricetta_allergeni');
+      expect(testo).toContain('senza i passaggi');
+    });
+
+    it('gli allergeni dettati sostituiscono i suggeriti, e si arriva all\'anteprima', async () => {
+      const { service, messaggioCreate } = make(
+        {}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: { type: 'forno', steps: ['infornare'] } }),
+      );
+      await service.parla('lucia', 'latte e uova');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.passo).toBe('ricetta_conferma');
+      expect(stato?.allergeniDaScrivere).toEqual(['uova', 'latte']);
+      expect(testo).toContain('Al forno');
+      expect(testo).toContain('Confermo?');
+    });
+
+    /** ⛔ «nessuno» è un'affermazione clinica e si scrive come tale: elenco vuoto, non «non lo so». */
+    it('⛔ «nessuno» scrive un elenco vuoto, e l\'anteprima lo dice', async () => {
+      const { service, messaggioCreate } = make(
+        {}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: null }),
+      );
+      await service.parla('lucia', 'nessuno');
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.allergeniDaScrivere).toEqual([]);
+      expect(testo).toContain('nessun allergene');
+    });
+
+    /**
+     * ⛔ **Una frase che non nomina niente NON diventa «nessuno».** «Non lo so» e «non ne ha» sono
+     * due cose diverse, e la seconda apre il piatto a tutte le allergiche.
+     */
+    it('⛔ una risposta non capita non diventa «nessun allergene»', async () => {
+      const { service, messaggioCreate } = make(
+        {}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: null }),
+      );
+      await service.parla('lucia', 'mah, vedi tu');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.passo).toBe('ricetta_allergeni');
+      expect(stato?.allergeniDaScrivere).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ **L'anteprima mostra tutto quello che sta per essere scritto.** Un campo che si scrive
+     * senza comparire qui è un campo che nessuno ha approvato — e questa è l'ultima schermata
+     * prima che il piatto esista.
+     */
+    it('⚠️ l\'anteprima mostra metodo e allergeni, e dice che entra attiva', async () => {
+      const { service, messaggioCreate } = make(
+        {}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: { type: 'vapore', steps: ['cuocere 8 minuti'] } }),
+      );
+      await service.parla('lucia', 'nessuno');
+      const { testo } = ultimoAgente(messaggioCreate);
+      expect(testo).toContain('Al vapore');
+      expect(testo).toContain('cuocere 8 minuti');
+      expect(testo).toContain('attiva');
+    });
+
+    /**
+     * ⛔ **Sulla MODIFICA il metodo non dettato NON si manda**, e non è un dettaglio: `[]`
+     * cancellerebbe i passaggi che ci sono già, scritti da qualcun altro, su una ricetta che è nei
+     * piatti di oggi. Assente vuol dire «non l'ho chiesto» e `updateRecipe` non tocca il campo.
+     */
+    it('⛔ una MODIFICA senza metodo dettato non cancella i passaggi esistenti', async () => {
+      const { service, registro } = make({}, {
+        statoAperto: {
+          passo: 'ricetta_conferma', frase: 'x', modoRicetta: 'modifica', ricettaId: 'r1',
+          testoRicetta: RICETTA, metodoRicetta: null,
+        },
+        valori: VALORI,
+      });
+      await service.parla('lucia', 'sì');
+      const campi = ((registro.scrivi as jest.Mock).mock.calls[0][0] as { dettaglio: { campi: Record<string, unknown> } }).dettaglio.campi;
+      expect('cookingMethods' in campi).toBe(false);
+    });
+
+    /** ⚠️ E sulla ricetta NUOVA, saltato il metodo, il campo si scrive vuoto: non c'è niente da perdere. */
+    it('⚠️ sulla NUOVA invece il metodo saltato si scrive come elenco vuoto', async () => {
+      const { service, ricette } = make({}, aperto({
+        passo: 'ricetta_conferma', metodoRicetta: null, allergeniDaScrivere: [],
+      }));
+      await service.parla('lucia', 'sì');
+      expect((ricette.createRecipe as jest.Mock).mock.calls[0][1].cookingMethods).toEqual([]);
+    });
+
+    /**
+     * ⛔ **SI DEVE POTER USCIRE — e i due passi nuovi erano gli unici del file a non guardare né
+     * `USCITE` né `MAX_TENTATIVI`.** Chi non veniva capito restava dentro fino alla scadenza di due
+     * ore, e nel frattempo non poteva fare niente altro con Vera: è lo stesso vicolo cieco trovato
+     * il 19/8 sulla lista dei lavori, rifatto uguale. Trovato da una revisione prima della consegna.
+     */
+    it('⛔ «annulla» esce dal passo degli allergeni invece di girare a vuoto', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: null }));
+      await service.parla('lucia', 'annulla');
+      expect(ultimoAgente(messaggioCreate).stato).toBeUndefined();
+    });
+
+    /**
+     * ⚠️ **Ma al passo del METODO «lascia stare» vuol dire SALTA, non annulla**, ed è la risposta
+     * che la domanda stessa suggerisce. Le due liste hanno delle parole in comune e l'ordine fra
+     * loro è la differenza fra saltare un campo e buttare via tutta la ricetta.
+     */
+    it('⚠️ al metodo «lascia stare» salta, non annulla', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'lascia stare');
+      expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('ricetta_allergeni');
+    });
+
+    /** ⚠️ E «annulla» al metodo esce davvero, invece di finire fra i passaggi di preparazione. */
+    it('⛔ «annulla» al metodo non diventa un passaggio della ricetta', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo' }));
+      await service.parla('lucia', 'annulla');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato).toBeUndefined();
+    });
+
+    /**
+     * ⛔ **Dopo due giri a vuoto sugli allergeni ci si arrende SENZA scrivere.** Accendere una
+     * ricetta senza sapere cosa contiene è il contrario del motivo per cui questa domanda esiste.
+     */
+    it('⛔ dopo troppi tentativi sugli allergeni non si scrive niente', async () => {
+      const { service, ricette, messaggioCreate } = make(
+        {}, aperto({ passo: 'ricetta_allergeni', metodoRicetta: null, tentativi: 2 }),
+      );
+      await service.parla('lucia', 'mah');
+      expect(ricette.createRecipe).not.toHaveBeenCalled();
+      expect(ultimoAgente(messaggioCreate).testo).toContain('non la scrivo');
+    });
+
+    /** ⚠️ Sul metodo invece ci si arrende ANDANDO AVANTI: è il campo che si può saltare. */
+    it('⚠️ dopo troppi tentativi sul metodo si va avanti senza', async () => {
+      const { service, messaggioCreate } = make({}, aperto({ passo: 'ricetta_metodo', tentativi: 2 }));
+      await service.parla('lucia', 'boh boh boh');
+      const { stato } = ultimoAgente(messaggioCreate);
+      expect(stato?.metodoRicetta).toBeNull();
+      expect(stato?.passo).toBe('ricetta_allergeni');
+    });
+
+    /**
+     * ⛔ **«NON LO SO» NON È «NESSUNO», nemmeno come ripiego di un campo mancante.**
+     *
+     * Uno stato senza `allergeniDaScrivere` — per esempio un dialogo aperto **prima** di questo
+     * rilascio, che vive due ore nel `meta` dell'ultimo messaggio — diventava «questa ricetta non
+     * contiene allergeni»: scritto, confermato e **acceso**. Ora si torna a chiedere.
+     */
+    it('⛔ senza gli allergeni nello stato non si scrive: si torna a chiedere', async () => {
+      const { service, ricette, messaggioCreate } = make({}, aperto({
+        passo: 'ricetta_conferma', metodoRicetta: null,
+      }));
+      await service.parla('lucia', 'sì');
+      expect(ricette.createRecipe).not.toHaveBeenCalled();
+      expect(ultimoAgente(messaggioCreate).stato?.passo).toBe('ricetta_allergeni');
+    });
+
+    /**
+     * ⛔ **SE LA CONFERMA DEGLI ALLERGENI FALLISCE, LA RICETTA È GIÀ SCRITTA** — e non c'è
+     * transazione che le tenga insieme. Lasciando volare l'eccezione restava in catalogo un piatto
+     * **fuori dal registro**, la nutrizionista vedeva un 500, e il «sì» ripetuto — il gesto naturale
+     * dopo un errore — ne creava un doppione.
+     */
+    it('⛔ se gli allergeni non si scrivono, la ricetta finisce lo stesso nel registro e si dice', async () => {
+      const { service, ricette, registro, messaggioCreate } = make({}, aperto({
+        passo: 'ricetta_conferma', metodoRicetta: null, allergeniDaScrivere: [],
+      }));
+      (ricette.setRecipeAllergens as jest.Mock).mockRejectedValueOnce(new Error('database via'));
+      await service.parla('lucia', 'sì');
+      expect((registro.scrivi as jest.Mock).mock.calls[0][0]).toMatchObject({
+        azione: 'ricetta_nuova', soggettoId: 'r-nuova',
+      });
+      const { testo, stato } = ultimoAgente(messaggioCreate);
+      expect(testo).toContain('spenta');
+      /** ⚠️ E il dialogo si chiude: un «sì» ripetuto non deve creare un doppione. */
+      expect(stato).toBeUndefined();
+    });
+
+    /**
+     * ⛔ **Gli allergeni si scrivono anche quando sono ZERO.** Saltare la chiamata perché l'elenco è
+     * vuoto vorrebbe dire lasciare `allergensReviewed: false` — e quindi la ricetta **spenta**,
+     * dopo aver detto a schermo che entra attiva.
+     */
+    it('⛔ «nessun allergene» chiama lo stesso la conferma: è quella che accende la ricetta', async () => {
+      const { service, ricette } = make({}, aperto({
+        passo: 'ricetta_conferma', metodoRicetta: null, allergeniDaScrivere: [],
+      }));
+      await service.parla('lucia', 'sì');
+      expect(ricette.setRecipeAllergens).toHaveBeenCalledWith('lucia', 'r-nuova', []);
     });
   });
 

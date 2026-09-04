@@ -27,6 +27,8 @@ export type PassoVera =
   | 'aggiorna_famiglia'  // in catalogo è entrato qualcosa che forse è di una tua famiglia
   | 'ricetta_quale'      // quale delle ricette che si chiamano così
   | 'ricetta_testo'      // scrivimela: nome, ingredienti con le quantità, pasto e regime
+  | 'ricetta_metodo'     // e come si prepara? il modo, poi i passaggi (4/9)
+  | 'ricetta_allergeni'  // …e questi sono gli allergeni? (4/9: si chiedono PRIMA di scrivere)
   | 'ricetta_conferma'   // ecco cosa scrivo, coi macro veri. Confermi?
   | 'risposta_cliente'   // una domanda girata da Gaia: cosa le rispondo? (14/8)
   | 'risposta_o_regola'  // ⛔ quella frase sembra una REGOLA, non una risposta: quale delle due? (31/8)
@@ -101,6 +103,22 @@ export interface StatoVera {
    */
   testoRicetta?: string;
   modoRicetta?: 'nuova' | 'modifica';
+  /**
+   * ⛔ **COME SI PREPARA** (Simone, 4/9) — e sta a parte dal testo della ricetta apposta: un
+   * passaggio è una riga corta come un ingrediente, e leggerli insieme vuol dire perdere l'uno o
+   * l'altro. Il perché per esteso è in cima a `metodo-dettato.ts`.
+   *
+   * ⚠️ `undefined` = non ancora chiesto; `null` = **chiesto e saltato**, e sono due cose diverse:
+   * la prima fa fare la domanda, la seconda no. Senza questa distinzione, chi risponde «lascia
+   * stare» se la sentirebbe richiedere a ogni giro.
+   */
+  metodoRicetta?: { type: string; steps: string[] } | null;
+  /**
+   * ⚠️ I passaggi già scritti quando manca ancora **come si cuoce**. Le due metà arrivano spesso in
+   * due messaggi — prima l'elenco, poi la parola — e senza questo campo la seconda domanda
+   * costringerebbe a riscrivere la prima risposta.
+   */
+  passiInAttesa?: string[];
   /** La ricetta esistente che sto modificando. */
   ricettaId?: string;
   tagsRicetta?: string[];
@@ -127,6 +145,15 @@ export interface StatoVera {
   /** La sostituzione che sto sottoponendo (voce 245), e il nome di chi l'ha chiesta. */
   sostituzioneId?: string;
   sostituzioneCliente?: string;
+  /**
+   * ⛔ **Gli allergeni della ricetta che sto per scrivere** (Simone, 4/9: *«Vera chiede anche gli
+   * allergeni e la ricetta nasce attiva»*).
+   *
+   * ⚠️ Non sono `allergeniScelti`, che è quello del flusso della ricetta **già approvata** (voce
+   * 227): là la ricetta esiste e si aggiorna, qui non esiste ancora. Tenerli nello stesso campo
+   * vorrebbe dire che due conversazioni intrecciate si scambiano un dato sanitario.
+   */
+  allergeniDaScrivere?: string[];
   /** La ricetta di cui sto chiedendo gli allergeni (voce 227): quale, come si chiama, cosa propongo. */
   ricettaAllergeniId?: string;
   ricettaAllergeniNome?: string;
@@ -352,21 +379,109 @@ export const testi = {
     'inserisc' + (mancanti.length === 1 ? 'e' : 'ono') + ' dalla pagina **Valori nutrizionali**, e ' +
     'poi la ricetta si scrive in un attimo. Oppure dimmi lo stesso piatto con un ingrediente che ho già.',
 
+  /**
+   * ⛔ **LA DOMANDA SUL METODO — Simone, 4/9: «guidando passo passo: ingredienti, metodo ecc».**
+   *
+   * ⚠️ Dice **cosa si può rispondere** e dice che si può saltare. Una domanda che sembra
+   * obbligatoria e non lo è insegna a rispondere qualcosa pur di uscirne — e qui «qualcosa» finisce
+   * nella scheda che una persona legge mentre cucina.
+   */
+  /**
+   * ⚠️ **I macro veri si mostrano QUI**, non solo in anteprima: sono la prova che ogni ingrediente
+   * è stato trovato nella tabella nutrienti. Se «riso» si fosse abbinato a «riso integrale», il
+   * numero sbagliato deve comparire adesso — quando c'è ancora tutta la conversazione per
+   * correggerlo — e non alla fine, sotto il pulsante che conferma.
+   */
+  chiediMetodo: (nome: string, modi: string, macro?: string) =>
+    (macro ? `${macro}\n\n` : '') +
+    `Bene. E **${nome}** come si prepara?\n\n` +
+    `Dimmi prima **come si cuoce** (${modi}) e poi i **passaggi, uno per riga**. Per esempio:\n\n` +
+    '· al forno\n· scaldare il forno a 180°\n· infornare 20 minuti\n\n' +
+    'Se preferisci scriverli dopo dalla scheda, dimmi **«lascia stare»** e vado avanti.',
+
+  /** ⚠️ Ha detto il modo e basta: `steps: []` in scheda è un titolo con sotto il vuoto. */
+  metodoSenzaPassi: (modo: string) =>
+    `**${modo}**, va bene. E i passaggi? Uno per riga — anche solo due o tre.`,
+
+  /**
+   * ⛔ Ha scritto i passaggi ma non **come si cuoce**, oppure ne ha nominate due. Non si sceglie:
+   * un modo indovinato finisce in scheda e nessuno lo rilegge.
+   */
+  metodoSenzaModo: (modi: string) =>
+    `I passaggi me li segno. Mi manca **come si cuoce**: ${modi}?`,
+
+  metodoSaltato: () =>
+    '⚠️ Va bene, la scrivo **senza i passaggi**: in scheda la cliente vedrà gli ingredienti e non ' +
+    'come prepararla. Si aggiungono quando vuoi da **Ricette**.',
+
+  /**
+   * ⚠️ **L'anteprima mostra TUTTO quello che sto per scrivere**, metodo e allergeni compresi: è
+   * l'ultima schermata prima che il piatto esista, e un campo che si scrive senza comparire qui è
+   * un campo che nessuno ha approvato.
+   */
   anteprimaRicetta: (
     nome: string, pasto: string, regime: string, ingredienti: string[], macro: string, modo: 'nuova' | 'modifica',
+    metodo?: string | null, allergeni?: string | null,
   ) =>
     `Ecco cosa scrivo:\n\n**${nome}** — ${pasto}, ${regime}\n` +
     ingredienti.map((i) => `· ${i}`).join('\n') +
-    `\n\n${macro}\n\n` +
+    `\n\n${macro}\n` +
+    (metodo ? `\n**Come si prepara:** ${metodo}\n` : '\n⚠️ Senza i passaggi di preparazione.\n') +
+    (modo === 'nuova' && allergeni !== undefined ? `**Allergeni:** ${allergeni ?? 'nessuno'}\n` : '') +
+    '\n' +
     (modo === 'nuova'
-      ? '⚠️ Entra come **bozza**, quindi il motore non la può usare: la attiva il capo nutrizionista ' +
-        'dalla coda. Prima di finire in un menu servirà comunque la conferma degli allergeni.\n\nConfermo?'
+      /**
+       * ⛔ **Simone, 4/9: «la ricetta nasce attiva».** Prima nasceva bozza e la accendeva il capo
+       * dalla coda. Adesso gli allergeni li conferma lei qui dentro, e la conferma degli allergeni
+       * è **la stessa porta che accende la ricetta** (`setRecipeAllergens`): niente finestra in cui
+       * il piatto è acceso e non revisionato.
+       *
+       * ⚠️ E si dice che entra **subito** nei menu: è la conseguenza vera del sì che sta per dare.
+       */
+      /**
+       * ⛔ **QUESTA FRASE DEVE DIRE LA STESSA COSA DI `ricettaScritta`** — la prima stesura no, e
+       * quella falsa era proprio questa: la frase su cui si dà il consenso. Diceva «da stanotte il
+       * motore la può mettere nei menu di chi ha quel paniere», e subito dopo il messaggio finale
+       * diceva il contrario. ⚠️ Una ricetta appena creata non sta in **nessun** paniere e in nessuna
+       * giornata: è attiva, ma non la riceve nessuno finché non la si collega. E «quel paniere» non
+       * esisteva nemmeno: di panieri, in questa conversazione, non si è mai parlato.
+       */
+      ? '⚠️ **Entra subito in catalogo, attiva** — ma non ancora in nessun **paniere**, quindi ' +
+        'nessuna cliente la riceve finché non ce la metti da **Ricette**. Se sbaglio qualcosa, la ' +
+        'spegni dalla sua scheda.\n\nConfermo?'
       : '⚠️ Questa ricetta è **già in uso**: la modifica non la applico io — la metto in coda al capo ' +
         'nutrizionista, e diventa vera quando la approva.\n\nConfermo?'),
 
+  /**
+   * ⚠️ **Dice dove NON è ancora**, ed è la cosa che serve sapere: con `panieri_sorgente_pool` una
+   * ricetta che non sta in un paniere non la pesca nessuno, per quanto sia attiva. Tacerlo
+   * lascerebbe credere che il lavoro sia finito.
+   */
+  /**
+   * ⛔ **La ricetta c'è ma è rimasta spenta**: la creazione è riuscita, la conferma degli allergeni
+   * no. Si dice tutto — che esiste, che è spenta, che nessuna cliente la riceve, e dove si finisce.
+   * Un errore raccontato è un lavoro che si riprende; un errore inghiottito è un piatto che nessuno
+   * sa di avere.
+   */
+  ricettaSenzaAllergeni: (nome: string) =>
+    `⚠️ **${nome}** è stata scritta in catalogo, ma **non sono riuscita a confermare gli ` +
+    'allergeni**: è rimasta **spenta**, quindi nessuna cliente la riceve.\n\n' +
+    'Si finisce dalla sua scheda in **Ricette**: confermando gli allergeni si accende. L\'ho ' +
+    'segnata nel registro con il nome, così la ritrovi.',
+
   ricettaScritta: (nome: string) =>
-    `Scritta: **${nome}** è in catalogo come bozza e l'ho messa in coda al capo nutrizionista. ` +
-    'Quando la approva diventa attiva; gli allergeni li conferma lui dalla scheda della ricetta.',
+    `Scritta: **${nome}** è in catalogo, **attiva**, con gli allergeni confermati.\n\n` +
+    '⚠️ Non è ancora in nessun **paniere**, e finché non ci sta il motore non la pesca per nessuna ' +
+    'cliente: si mette dalla scheda della ricetta, in **Ricette**.\n' +
+    /**
+     * ⛔ **Non si promette l'annullamento, e non è una svista.** `registro.annulla` marca la riga
+     * del registro; sulla ricetta **non fa niente** (agisce solo sui soggetti `user`). Finché era
+     * una bozza in coda la promessa era innocua — bastava non approvarla. Su una ricetta **accesa**
+     * sarebbe l'unica rete promessa, e non esiste: chi ci contasse lascerebbe in catalogo un piatto
+     * che crede spento. Si dice invece il gesto che funziona davvero.
+     */
+    '⚠️ Se ti sei sbagliata, si **spegne** dalla sua scheda in Ricette: il registro tiene la ' +
+    'traccia di chi l\'ha scritta, ma non la spegne lui.',
 
   modificaInCoda: (nome: string) =>
     `Fatto: la modifica di **${nome}** è in coda al capo nutrizionista. Fino a quando non la approva, ` +
@@ -889,6 +1004,17 @@ export const testi = {
   allergeniScritti: (ricetta: string, elenco: string) =>
     `Fatto: su **${ricetta}** ho confermato ${elenco}. Da adesso può entrare nelle giornate, ` +
     'filtrata per chi è allergica.',
+
+  /**
+   * ⛔ **Ci si arrende SENZA scrivere.** Dopo due giri a vuoto sugli allergeni l'unico esito onesto
+   * è non scrivere: accendere una ricetta senza sapere cosa contiene è il contrario del motivo per
+   * cui questa domanda esiste. E si dice **dove** finirla, così il lavoro non è buttato.
+   */
+  allergeniNonCapitiBasta: (nome: string) =>
+    `Non riesco a capire quali allergeni ha **${nome}**, e senza quelli non la scrivo: sarebbe un ` +
+    'piatto acceso di cui non sappiamo il contenuto.\n\n' +
+    'La ricetta non è stata scritta. Puoi rifarla da capo qui, oppure crearla da **Ricette** con ' +
+    '«Nuova ricetta», dove gli allergeni si spuntano da un elenco.',
 
   allergeniNonCapiti: (racconto: string) =>
     `Non ho capito.\n\n${racconto}\n\nDimmi **«sì»** per confermare questi, oppure l\'elenco giusto ` +

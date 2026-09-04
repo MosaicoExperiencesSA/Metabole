@@ -59,6 +59,7 @@ import { RichiesteVeraService } from './richieste.service';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
 import { suggestAllergens } from '../catalog/allergens';
 import { EsitoAllergeni, leggiAllergeni, raccontaScelti, raccontaSuggerimenti, Suggerimento } from './allergeni-ricetta';
+import { etichettaDelMetodo, leggiMetodo, MODI_DA_DIRE } from './metodo-dettato';
 import { SCRITTURA_SOSTITUZIONI, ScritturaSostituzioni } from './scrittura-sostituzioni';
 import { leggiVerdetto, motivoDetto, raccontaSostituzione } from './verifica-sostituzioni';
 import {
@@ -481,6 +482,10 @@ export class VeraChatService {
         return this.scegliRicetta(nutrizionistaId, stato, frase);
       case 'ricetta_testo':
         return this.leggiLaRicetta(nutrizionistaId, stato, frase);
+      case 'ricetta_metodo':
+        return this.leggiIlMetodo(nutrizionistaId, stato, frase);
+      case 'ricetta_allergeni':
+        return this.leggiGliAllergeniDellaNuova(nutrizionistaId, stato, frase);
       case 'ricetta_conferma':
         return this.scriviLaRicetta(nutrizionistaId, stato, frase);
       case 'giornata_scelte':
@@ -990,6 +995,62 @@ export class VeraChatService {
       return { testo: testi.alimentiFuoriTabella(macro.mancanti), esito: 'in_corso', stato: dopo };
     }
 
+    /**
+     * ⛔ **Da qui NON si va più diritti all'anteprima** (Simone, 4/9: *«guidando passo passo:
+     * ingredienti, metodo ecc»* e *«Vera chiede anche gli allergeni»*). Prima c'era un salto:
+     * ingredienti → anteprima → scritto. Adesso in mezzo ci sono due domande, e sono due domande
+     * che una persona deve poter rispondere «non ora».
+     */
+    return this.dopoGliIngredienti(dopo, ricetta);
+  }
+
+  /**
+   * Il passo successivo agli ingredienti: **il metodo**, poi **gli allergeni**, poi l'anteprima.
+   *
+   * ⚠️ È una funzione sola perché ci si torna da tre punti diversi (finito il testo, finito il
+   * metodo, finiti gli allergeni) e ognuno deve sapere **dove si è arrivati**, non dove pensava di
+   * essere. Tre copie di questa scaletta divergerebbero al primo passo aggiunto.
+   */
+  private async dopoGliIngredienti(stato: StatoVera, ricetta: RicettaDettata): Promise<EsitoVera> {
+    if (stato.metodoRicetta === undefined) {
+      /**
+       * ⚠️ I macro si calcolano e si **mostrano** già qui: sono la prova che ogni ingrediente è
+       * stato trovato in tabella, e un abbinamento sbagliato deve saltare fuori adesso — non sotto
+       * il pulsante che conferma. Il perché per esteso sta su `testi.chiediMetodo`.
+       */
+      const macro = await this.macroDiRicetta(ricetta);
+      return {
+        testo: testi.chiediMetodo(ricetta.nome!, MODI_DA_DIRE, raccontaMacro(macro)),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'ricetta_metodo', tentativi: 0 },
+      };
+    }
+    /**
+     * ⚠️ Gli allergeni si chiedono **solo sulla ricetta NUOVA**, e il motivo non è che quella
+     * esistente li abbia di sicuro — le migliaia di ricette generate nascono con
+     * `allergensReviewed: false`, quindi spesso non li ha. È che **una modifica non si applica qui**:
+     * va in coda al capo, e la ricetta di oggi non cambia. Chiedere gli allergeni di un piatto che
+     * fra un'ora potrebbe essere diverso vorrebbe dire farli confermare su un contenuto che non è
+     * ancora quello. Se gli ingredienti cambiano, la conferma decade da sola —
+     * `conferma-allergeni-decade.ts` — ed è la strada giusta.
+     */
+    if ((stato.modoRicetta ?? 'nuova') === 'nuova' && stato.allergeniDaScrivere === undefined) {
+      const suggeriti = suggestAllergens(
+        ricetta.ingredienti.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })) as never,
+      ) as Suggerimento[];
+      return {
+        testo: testi.chiediAllergeni(ricetta.nome!, raccontaSuggerimenti(suggeriti)),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'ricetta_allergeni', tentativi: 0 },
+      };
+    }
+    return this.anteprimaDellaRicetta(stato, ricetta);
+  }
+
+  /** L'ultima schermata prima che il piatto esista: ci sta **tutto** quello che sto per scrivere. */
+  private async anteprimaDellaRicetta(stato: StatoVera, ricetta: RicettaDettata): Promise<EsitoVera> {
+    const macro = await this.macroDiRicetta(ricetta);
+    const m = stato.metodoRicetta;
     return {
       testo: testi.anteprimaRicetta(
         ricetta.nome!,
@@ -998,10 +1059,153 @@ export class VeraChatService {
         ricetta.ingredienti.map((i) => `${i.name}${i.qty ? ` ${i.qty} ${i.unit ?? 'g'}` : ''}`),
         raccontaMacro(macro),
         stato.modoRicetta ?? 'nuova',
+        m ? `${etichettaDelMetodo(m.type)} — ${m.steps.join(' · ')}` : null,
+        stato.allergeniDaScrivere === undefined ? undefined : raccontaScelti(stato.allergeniDaScrivere),
       ),
       esito: 'in_corso',
-      stato: { ...dopo, passo: 'ricetta_conferma' },
+      stato: { ...stato, passo: 'ricetta_conferma' },
     };
+  }
+
+  /**
+   * ⛔ **COME SI PREPARA.** Il parser sta in `metodo-dettato.ts`, e ha il suo cappello sul perché
+   * non legge dentro il testo della ricetta.
+   *
+   * ⚠️ Le tre risposte incomplete — modo senza passaggi, passaggi senza modo, non capito — tornano
+   * indietro con una domanda **diversa** l'una dall'altra. Una sola frase per tre casi («non ho
+   * capito») farebbe rispondere di nuovo la stessa cosa.
+   */
+  private async leggiIlMetodo(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const ricetta = leggiRicetta(stato.testoRicetta ?? '');
+    const esito = leggiMetodo(frase);
+
+    /**
+     * ⛔ **SI DEVE POTER USCIRE, e l'ordine fra «salta» e «annulla» conta.**
+     *
+     * Trovato da una revisione avversariale il 4/9: questi due passi erano gli unici del file a non
+     * guardare né `USCITE` né `MAX_TENTATIVI`. Chi non veniva capito restava dentro fino alla
+     * scadenza di due ore — e nel frattempo non poteva fare **niente altro** con Vera. È lo stesso
+     * vicolo cieco trovato il 19/8 sulla lista dei lavori, rifatto uguale.
+     *
+     * ⚠️ **`SALTA` si guarda PRIMA di `USCITE`**, e le due liste hanno delle parole in comune
+     * («lascia stare», «niente»): qui quelle parole vogliono dire *salta il metodo*, non *butta via
+     * la ricetta* — è la risposta che la domanda stessa suggerisce. Per uscire davvero restano
+     * «annulla», «basta», «stop», che non sono parole da rinuncia parziale.
+     */
+    if (esito.tipo !== 'salta' && VeraChatService.USCITE.test((frase ?? '').trim())) {
+      return { testo: testi.annullato(), esito: 'annullata' };
+    }
+
+    if (esito.tipo === 'metodo') {
+      return this.dopoGliIngredienti({ ...stato, metodoRicetta: esito.metodo, tentativi: 0 }, ricetta);
+    }
+    if (esito.tipo === 'salta') {
+      /** ⚠️ `null` e non `undefined`: «chiesto e saltato» non si richiede al giro dopo. */
+      const dopo = await this.dopoGliIngredienti({ ...stato, metodoRicetta: null, tentativi: 0 }, ricetta);
+      return { ...dopo, testo: `${testi.metodoSaltato()}\n\n${dopo.testo}` };
+    }
+    /**
+     * ⚠️ **E dopo due giri a vuoto si va avanti SENZA**, invece di insistere. Il metodo è la parte
+     * che si può saltare — gli allergeni no — quindi arrendersi qui non costa una ricetta: costa i
+     * passaggi, e si dice.
+     */
+    if ((stato.tentativi ?? 0) >= MAX_TENTATIVI) {
+      const dopo = await this.dopoGliIngredienti({ ...stato, metodoRicetta: null, tentativi: 0 }, ricetta);
+      return { ...dopo, testo: `${testi.metodoSaltato()}\n\n${dopo.testo}` };
+    }
+
+    if (esito.tipo === 'senza_passi') {
+      /**
+       * ⚠️ **I passaggi che aveva già scritto NON si perdono.** È il caso di chi risponde prima con
+       * l'elenco e poi, alla domanda su come si cuoce, con una parola sola: le due metà arrivano in
+       * due messaggi ed è questa riga a rimetterle insieme. Senza, si sentirebbe chiedere di
+       * riscrivere quello che ha appena scritto — che è il modo più sicuro di farsi rispondere
+       * «lascia stare».
+       */
+      if (stato.passiInAttesa?.length) {
+        return this.dopoGliIngredienti(
+          { ...stato, metodoRicetta: { type: esito.type, steps: stato.passiInAttesa }, passiInAttesa: undefined, tentativi: 0 },
+          ricetta,
+        );
+      }
+      return {
+        testo: testi.metodoSenzaPassi(etichettaDelMetodo(esito.type)),
+        esito: 'in_corso',
+        stato: { ...stato, tentativi: (stato.tentativi ?? 0) + 1 },
+      };
+    }
+    /**
+     * ⚠️ Passaggi senza il modo: i passaggi **si tengono**, e si chiede solo quello che manca. Farli
+     * riscrivere è il modo più sicuro di far rispondere «lascia stare».
+     */
+    if (esito.tipo === 'senza_modo') {
+      return {
+        testo: testi.metodoSenzaModo(MODI_DA_DIRE),
+        esito: 'in_corso',
+        stato: {
+          ...stato,
+          passiInAttesa: [...(stato.passiInAttesa ?? []), ...esito.steps],
+          tentativi: (stato.tentativi ?? 0) + 1,
+        },
+      };
+    }
+    return {
+      testo: testi.chiediMetodo(ricetta.nome ?? 'la ricetta', MODI_DA_DIRE),
+      esito: 'in_corso',
+      stato: { ...stato, tentativi: (stato.tentativi ?? 0) + 1 },
+    };
+  }
+
+  /**
+   * ⛔ **GLI ALLERGENI, PRIMA DI SCRIVERE** (Simone, 4/9). Il lettore è quello del flusso già
+   * esistente (`allergeni-ricetta.ts`), con le stesse quattro risposte: «sì», un elenco che
+   * sostituisce, «nessuno», oppure un «sì **e anche** X» che si somma.
+   *
+   * ⚠️ E `null` resta una risposta: una frase che non nomina niente **non diventa «nessuno»**.
+   * «Non lo so» e «non ne ha» sono due cose diverse, e la seconda apre il piatto a tutte.
+   */
+  private async leggiGliAllergeniDellaNuova(nutrizionistaId: string, stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const ricetta = leggiRicetta(stato.testoRicetta ?? '');
+    const suggeriti = suggestAllergens(
+      ricetta.ingredienti.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })) as never,
+    ) as Suggerimento[];
+    const codiciSuggeriti = suggeriti.map((x) => x.allergen);
+    const esito = leggiAllergeni(frase);
+
+    /**
+     * ⛔ **Da qui si esce annullando, e non si «salta».** Gli allergeni sono il cancello: senza, la
+     * ricetta non si accende. Un modo di andare avanti senza rispondere sarebbe un modo di scrivere
+     * «nessun allergene» senza dirlo.
+     *
+     * ⚠️ La ricetta non è ancora scritta, quindi annullare non perde niente in catalogo: perde
+     * quello che ha digitato, e va detto — lo dice `testi.annullato()`.
+     */
+    if (VeraChatService.USCITE.test((frase ?? '').trim())) {
+      return { testo: testi.annullato(), esito: 'annullata' };
+    }
+    /**
+     * ⛔ **E dopo due giri a vuoto ci si arrende, invece di ripetere la stessa domanda per due ore.**
+     * Ci si arrende **senza scrivere**: la ricetta resta non scritta e si dice come farla — è
+     * l'unico esito onesto, perché il contrario sarebbe accenderla senza sapere cosa contiene.
+     */
+    if ((stato.tentativi ?? 0) >= MAX_TENTATIVI) {
+      return { testo: testi.allergeniNonCapitiBasta(ricetta.nome ?? 'la ricetta'), esito: 'arresa' };
+    }
+
+    if (esito === null) {
+      return {
+        testo: testi.allergeniNonCapiti(raccontaSuggerimenti(suggeriti)),
+        esito: 'in_corso',
+        stato: { ...stato, tentativi: (stato.tentativi ?? 0) + 1 },
+      };
+    }
+    const scelti =
+      esito.tipo === 'tutti' ? codiciSuggeriti
+      : esito.tipo === 'nessuno' ? []
+      : esito.tipo === 'elenco' ? esito.codici
+      : [...new Set([...codiciSuggeriti, ...esito.codici])];
+
+    return this.dopoGliIngredienti({ ...stato, allergeniDaScrivere: scelti, tentativi: 0 }, ricetta);
   }
 
   /** I valori veri, uno per ingrediente. La ricerca per nome e sinonimi è quella di Gaia. */
@@ -1081,6 +1285,22 @@ export class VeraChatService {
       return { testo: fraseSoloCotto(macro.soloCotto), esito: 'in_corso', stato };
     }
 
+    /**
+     * ⛔ **«NON LO SO» NON È «NESSUNO», nemmeno come ripiego di un campo mancante.**
+     *
+     * La prima stesura scriveva `stato.allergeniDaScrivere ?? []`: uno stato senza quel campo —
+     * per esempio un dialogo aperto **prima** di questo rilascio, che vive due ore nel `meta`
+     * dell'ultimo messaggio — sarebbe diventato «questa ricetta non contiene allergeni», scritto,
+     * confermato e **acceso**. La nutrizionista avrebbe davanti la vecchia anteprima, che dice
+     * un'altra cosa ancora. È la regola dei tre stati di `allergeni-ricetta.ts`, violata dal ripiego
+     * di una riga sola. Trovato da una revisione avversariale prima della consegna.
+     *
+     * ⚠️ Qui non si indovina e non si scrive: si torna a **chiedere**.
+     */
+    if ((stato.modoRicetta ?? 'nuova') === 'nuova' && stato.allergeniDaScrivere === undefined) {
+      return this.dopoGliIngredienti({ ...stato, tentativi: 0 }, ricetta);
+    }
+
     const campi: RicettaDaScrivere = {
       name: ricetta.nome!,
       regime: ricetta.regime!,
@@ -1088,6 +1308,15 @@ export class VeraChatService {
       kcal: macro.kcal,
       ingredients: ricetta.ingredienti.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
       macros: macro.macros,
+      /**
+       * ⚠️ **Assente e vuoto sono due cose diverse** (vedi `RicettaDaScrivere`): sulla ricetta NUOVA
+       * il campo si scrive comunque — `[]` se ha detto «lascia stare», e non c'è niente da perdere.
+       * Sulla MODIFICA, se non l'ha dettato, il campo **non si manda**: `updateRecipe` non lo tocca,
+       * e i passaggi che ci sono già restano di chi li ha scritti.
+       */
+      ...(stato.metodoRicetta
+        ? { cookingMethods: [stato.metodoRicetta] }
+        : (stato.modoRicetta ?? 'nuova') === 'nuova' ? { cookingMethods: [] } : {}),
       tags: [...new Set([...(stato.tagsRicetta ?? []), ...ricetta.tags])],
       active: false,
     };
@@ -1110,6 +1339,58 @@ export class VeraChatService {
     }
 
     const nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+
+    /**
+     * ⛔ **QUI LA RICETTA SI ACCENDE, E SI ACCENDE DA UNA PORTA SOLA** — Simone, 4/9: *«Vera chiede
+     * anche gli allergeni e la ricetta nasce attiva»*.
+     *
+     * ⚠️ **L'ordine è la sicurezza di questo pezzo.** `createRecipe` la scrive **spenta** (vedi
+     * `RicettaDaScrivere.active`), e `setRecipeAllergens` fa **tutte e due** le cose: conferma gli
+     * allergeni e accende la ricetta che era spenta e non revisionata. Così non esiste un istante in
+     * cui il piatto è acceso e gli allergeni non sono confermati — e dentro quell'istante il motore
+     * compone. Scrivere `active: true` alla creazione avrebbe aperto esattamente quella finestra.
+     *
+     * ⚠️ E si passa dalla **stessa funzione del pulsante in scheda**: filtra sui 14 codici UE e
+     * lascia la sua traccia in audit. Una seconda strada per un dato sanitario è il difetto che
+     * questo progetto ha già pagato due volte.
+     */
+    const allergeni = stato.allergeniDaScrivere!;
+    try {
+      await this.ricette.setRecipeAllergens(nutrizionistaId, nuova.id, allergeni);
+    } catch (e) {
+      /**
+       * ⛔ **SE LA SECONDA SCRITTURA NON RIESCE, LA PRIMA È GIÀ AVVENUTA** — e non c'è transazione
+       * che le tenga insieme: sono due chiamate a due funzioni di servizio, non due query.
+       *
+       * Trovato da una revisione avversariale il 4/9. Lasciando volare l'eccezione succedevano tre
+       * cose, tutte silenziose: la ricetta restava in catalogo **spenta e fuori dal registro**
+       * (`registro.scrivi` non veniva mai eseguito); la nutrizionista vedeva un 500; e siccome lo
+       * stato del dialogo non veniva riscritto, il «sì» ripetuto — il gesto naturale dopo un errore
+       * — ne creava un **doppione**.
+       *
+       * ⚠️ Perciò: la riga di registro si scrive **lo stesso** (è la sola traccia di chi ha messo
+       * quel piatto lì), il dialogo si chiude, e si dice esattamente com'è rimasta — spenta, senza
+       * allergeni, e dove si finisce il lavoro. Un errore raccontato è un lavoro che si può
+       * riprendere; un errore inghiottito è un piatto che nessuno sa di avere.
+       */
+      logger.error(
+        `Allergeni non scritti sulla ricetta ${nuova.id} appena creata da ${nutrizionistaId}: `
+        + `${e instanceof Error ? e.message : String(e)}`,
+      );
+      const rigaRotta = (await this.registro.scrivi({
+        nutrizionistaId,
+        frase: stato.testoRicetta ?? stato.frase,
+        azione: 'ricetta_nuova',
+        ambito: 'catalogo',
+        soggettoTipo: 'recipe',
+        soggettoId: nuova.id,
+        soggettoNome: campi.name,
+        dettaglio: { campi, allergeni, allergeniNonScritti: true },
+        inApprovazione: false,
+      }).catch(() => ({ id: undefined }))) as { id?: string };
+      return { testo: testi.ricettaSenzaAllergeni(campi.name), esito: 'scritta', azioneId: rigaRotta.id };
+    }
+
     const riga = (await this.registro.scrivi({
       nutrizionistaId,
       frase: stato.testoRicetta ?? stato.frase,
@@ -1118,10 +1399,16 @@ export class VeraChatService {
       soggettoTipo: 'recipe',
       soggettoId: nuova.id,
       soggettoNome: campi.name,
-      dettaglio: { campi },
-      inApprovazione: true,
+      dettaglio: { campi, allergeni },
+      /**
+       * ⚠️ **`inApprovazione: false`, e la riga resta.** La ricetta è già attiva: dire «in coda»
+       * sarebbe falso, e il capo aprirebbe una coda per approvare una cosa già fatta. Ma il registro
+       * serve lo stesso — è quello che permette di **annullare**, ed è la sola traccia leggibile di
+       * chi ha messo quel piatto in catalogo.
+       */
+      inApprovazione: false,
     })) as { id: string };
-    return { testo: testi.ricettaScritta(campi.name), esito: 'in_approvazione', azioneId: riga.id };
+    return { testo: testi.ricettaScritta(campi.name), esito: 'scritta', azioneId: riga.id };
   }
 
   // ────────────────────────────────────────────────────────────── l'anteprima ─
