@@ -24,6 +24,16 @@ const PAGINA = join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', '
 /** Le chiamate che leggono un parametro di configurazione, in tutte e quattro le forme. */
 const LETTURA = /\bget(?:String|Number|Bool|Boolean|Json)\(\s*'([a-z0-9_]+)'/g;
 
+/**
+ * ⛔ **E LE CHIAVI CHE PASSANO PER UNA COSTANTE** (4/9). `getBool(PARAM_CAPO_PREDEFINITO, true)` non
+ * contiene la stringa, e la regex qui sopra non la vedeva: `assign_head_nutritionist_by_default` e
+ * `alert_gestito_giorni` stavano in pagina con la chiave grezza da settimane, con la sentinella
+ * verde. Un guardiano che guarda solo una delle due forme in cui la cosa si scrive non è un
+ * guardiano: qui si raccolgono le costanti `const NOME = 'chiave'` chiamate in un `get*(NOME`.
+ */
+const LETTURA_PER_COSTANTE = /\bget(?:String|Number|Bool|Boolean|Json)\(\s*([A-Z][A-Z0-9_]+)\b/g;
+const COSTANTE = /\bconst\s+([A-Z][A-Z0-9_]+)\s*=\s*'([a-z0-9_]+)'/g;
+
 function tuttiIFile(dir: string): string[] {
   const out: string[] = [];
   for (const nome of readdirSync(dir)) {
@@ -164,11 +174,21 @@ describe('i parametri del motore hanno tutti un nome leggibile', () => {
     }
 
     const lette = new Set<string>();
+    const costantiChiamate = new Set<string>();
+    const costanti = new Map<string, string>();
     for (const f of tuttiIFile(RADICE_BACKEND)) {
       const src = readFileSync(f, 'utf8');
       for (const m of src.matchAll(LETTURA)) lette.add(m[1]);
+      for (const m of src.matchAll(LETTURA_PER_COSTANTE)) costantiChiamate.add(m[1]);
+      for (const m of src.matchAll(COSTANTE)) costanti.set(m[1], m[2]);
+    }
+    for (const nome of costantiChiamate) {
+      const chiave = costanti.get(nome);
+      if (chiave) lette.add(chiave);
     }
     expect(lette.size).toBeGreaterThan(10); // se fosse zero, la regex non sta più trovando niente
+    // ⚠️ E la seconda forma deve trovare qualcosa: il caso vero è `PARAM_CAPO_PREDEFINITO`.
+    expect(lette.has('assign_head_nutritionist_by_default')).toBe(true);
 
     const pagina = readFileSync(PAGINA, 'utf8');
     const meta = pagina.slice(pagina.indexOf('const META'), pagina.indexOf('const GROUP_ORDER'));

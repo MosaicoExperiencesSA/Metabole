@@ -1,4 +1,5 @@
 import type { PrismaService } from '../prisma/prisma.service';
+import { idDellaRiserva } from './coach-di-riserva-chiave';
 
 /**
  * IL PONTE FRA LEAD E CLIENTE.
@@ -26,6 +27,16 @@ import type { PrismaService } from '../prisma/prisma.service';
  *    «profilo_incompleto», che prima le saltava perché il profilo non c'era proprio.)
  *
  * Ritorna cosa ha fatto, per l'audit e per lo script di riparazione.
+ *
+ * ## ⛔ Dal 4/9 «vuoto» comprende la COACH DI RISERVA (`common/coach-di-riserva.ts`)
+ *
+ * Chi resta senza coach viene scritta in scheda alla riserva — un segnaposto che vuol dire «nessuno,
+ * per ora». Senza questa riga la regola 1 la tratterebbe come una coach scelta: la coach che
+ * accetta il lead il giorno dopo troverebbe la scheda «già assegnata», non scriverebbe niente, e
+ * per il CRM la cliente sarebbe sua mentre per il backoffice resta di Giusy — cioè **lo stesso
+ * difetto del 6/8 che questo ponte esiste per chiudere**, riaperto dalla riserva. Una revisione
+ * avversariale l'ha visto prima che uscisse. ⚠️ Vale solo per la riserva: una coach vera in scheda
+ * non si sovrascrive mai, come prima.
  */
 export type EsitoAggancio = 'creato' | 'completato' | 'gia_assegnato' | 'niente_da_fare';
 
@@ -56,7 +67,9 @@ export async function agganciaAssegnazioneAlProfilo(
   }
 
   const patch: { assignedCoachId?: string; assignedNutritionistId?: string } = {};
-  if (coachId && !prof.assignedCoachId) patch.assignedCoachId = coachId;
+  const riservaId = coachId && prof.assignedCoachId && prof.assignedCoachId !== coachId ? await idDellaRiserva(prisma) : null;
+  const coachSostituibile = !prof.assignedCoachId || (riservaId !== null && prof.assignedCoachId === riservaId);
+  if (coachId && coachSostituibile && coachId !== prof.assignedCoachId) patch.assignedCoachId = coachId;
   if (nutriId && !prof.assignedNutritionistId) patch.assignedNutritionistId = nutriId;
   if (Object.keys(patch).length === 0) return 'gia_assegnato';
 

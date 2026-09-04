@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
@@ -17,6 +18,7 @@ import { soloSeMandato, unioneSenzaPerdere } from '../common/non-perdere';
 import { assegnaSenzaGlutineEAvvisa } from '../menu/senza-glutine';
 import { agganciaAssegnazioneAlProfilo } from '../common/assegnazione-profilo';
 import { PARAM_CAPO_PREDEFINITO, nutrizionistaDiRiferimento } from '../common/nutrizionista-di-riferimento';
+import { AZIONE_REGISTRO as AZIONE_COACH_DI_RISERVA, coachDiRiserva, type PortaRiserva } from '../common/coach-di-riserva';
 import { toDateOnly } from '../common/date-only';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubmitAnswersDto } from './dto/submit-answers.dto';
@@ -29,6 +31,8 @@ import { stileDellaFamiglia } from '../catalog/pick-diet';
 
 @Injectable()
 export class OnboardingService {
+  private readonly logger = new Logger(OnboardingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly configParams: ConfigParamsService,
@@ -170,7 +174,8 @@ export class OnboardingService {
       where: { clientId: userId },
       select: { assignedCoachId: true, assignedNutritionistId: true },
     });
-    const coachId = record?.assignedCoachId ?? null;
+    let coachId = record?.assignedCoachId ?? null;
+    // ⚠️ Se resta vuota, la coach di riserva la riempie più sotto — DOPO la lettura di `precedente`.
     /**
      * ⚠️ **LA NUTRIZIONISTA, SE NESSUNO L'HA ASSEGNATA** (21/8, dal caso Sonia).
      *
@@ -277,6 +282,7 @@ export class OnboardingService {
       select: {
         consents: true,
         onboardingCompletedAt: true,
+        assignedCoachId: true, // per la coach di riserva, qui sotto
         regime: true, dietStyle: true, dietFamily: true, mealsPerDay: true, pathType: true,
         // ⚠️ Servono per NON cancellarle: l'upsert è replace, e un reinvio che salta la pagina
         // delle allergie le azzererebbe. Vedi `common/non-perdere.ts`.
@@ -285,11 +291,39 @@ export class OnboardingService {
     })) as {
       consents?: Record<string, unknown> | null;
       onboardingCompletedAt: Date | null;
+      assignedCoachId?: string | null;
       regime: string | null; dietStyle: string | null; dietFamily: string | null;
       mealsPerDay: number | null; pathType: string | null;
       allergies: string[]; allergiesOther: string[]; intolerances: string[]; intolerancesOther: string[];
     } | null;
     const consentiPrecedenti = precedente?.consents;
+
+    /**
+     * ⛔ **LA COACH DI RISERVA, SE NESSUNO L'HA ASSEGNATA** (Simone, 4/9: «tutte le clienti non
+     * assegnate ad una coach vanno a Giusy», anche quelle che verranno). È la gemella della regola
+     * qui sotto sulla nutrizionista, e come lei riempie solo il vuoto: se il lead ha già una coach
+     * (ref code, CRM), vince quella. Chi è la riserva lo dice il parametro `coach_di_riserva`;
+     * vedi `common/coach-di-riserva.ts` per le altre porte e per il giro notturno.
+     */
+    /**
+     * ⚠️ **Chi rifà il questionario e ha già una coach in scheda non passa di qui.** L'upsert sotto
+     * non tocca `assignedCoachId` nel ramo `update`, e il ponte del 6/8 non sovrascrive: senza questo
+     * controllo la riga di registro direbbe «presa in carico dalla riserva» su una cliente che è
+     * rimasta della sua coach — una riga falsa, che è peggio di nessuna riga. Per questo il blocco sta
+     * DOPO la lettura di `precedente`, e non accanto alla nutrizionista.
+     */
+    let riservaScelta: { staffId: string; displayName: string } | null = null;
+    if (!coachId && !precedente?.assignedCoachId) {
+      const riserva = await coachDiRiserva(this.prisma as never, this.configParams);
+      if (riserva.esito === 'ok') {
+        coachId = riserva.staffId;
+        // ⚠️ La riga di registro si scrive DOPO l'upsert e l'aggancio, quando l'assegnazione c'è davvero:
+        // fra qui e lì ci sono un `throw` («scegli il percorso») e una scrittura che può fallire.
+        riservaScelta = { staffId: riserva.staffId, displayName: riserva.displayName };
+      } else if (riserva.esito === 'non_valida') {
+        this.logger.warn(`Coach di riserva non valida (${riserva.valore}: ${riserva.motivo}): la cliente ${userId} resta senza coach.`);
+      }
+    }
 
     /**
      * ⚠️ SI AGGIUNGE, NON SI CANCELLA — la regola sta in `common/non-perdere.ts`.
@@ -533,10 +567,32 @@ export class OnboardingService {
      * riempie solo i campi vuoti, non sovrascrive mai. (Un upsert sono due scritture, e il ramo
      * `update` è quello che nessuno rilegge.)
      */
-    await agganciaAssegnazioneAlProfilo(this.prisma, userId, {
+    const aggancio = await agganciaAssegnazioneAlProfilo(this.prisma, userId, {
       assignedCoachId: coachId,
       assignedNutritionistId: nutritionistId,
     }).catch(() => undefined);
+
+    /**
+     * ⛔ **LA RIGA DI REGISTRO DELLA RISERVA, SOLO SE L'ASSEGNAZIONE È AVVENUTA.** Nel ramo `create`
+     * dell'upsert la coach è scritta lì; nel ramo `update` la scrive solo l'aggancio qui sopra
+     * (`'completato'`), e se quello fallisce la coach resta vuota: una riga «presa in carico» senza
+     * la presa in carico sarebbe falsa, e una riga falsa è peggio di nessuna riga.
+     */
+    if (riservaScelta && (!precedente || aggancio === 'completato')) {
+      await this.audit.log({
+        action: AZIONE_COACH_DI_RISERVA,
+        actorId: userId,
+        entityType: 'client_profile',
+        entityId: userId,
+        metadata: {
+          staffId: riservaScelta.staffId,
+          coach: riservaScelta.displayName,
+          porta: 'onboarding' satisfies PortaRiserva,
+          schedaCreata: !precedente,
+          motivo: 'nessuna coach sul lead: presa in carico dalla coach di riserva',
+        },
+      });
+    }
 
     /**
      * Se il reinvio avrebbe tolto un'allergia o un'intolleranza, resta scritto CHE ci ha provato.

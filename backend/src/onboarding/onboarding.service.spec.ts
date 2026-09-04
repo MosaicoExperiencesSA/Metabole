@@ -84,7 +84,8 @@ describe('OnboardingService', () => {
       getNumber: jest.fn((key: string) =>
         Promise.resolve(key === 'sustainable_rate_max_kg_week' ? 0.7 : 1.0),
       ),
-      getString: jest.fn().mockResolvedValue('warn'),
+      // ⚠️ La coach di riserva (4/9) legge `coach_di_riserva` di qui: nel test è spenta.
+      getString: jest.fn(async (k: string) => (k === 'coach_di_riserva' ? 'off' : 'warn')),
       // `assign_head_nutritionist_by_default` (21/8): il finto deve avere i metodi che il
       // servizio usa davvero, altrimenti verifica una versione del mondo che non esiste.
       getBool: jest.fn(async (_k: string, d?: boolean) => d ?? false),
@@ -543,6 +544,95 @@ describe('OnboardingService', () => {
     expect(createArgs.assignedNutritionistId).toBeNull();
   });
 
+  /**
+   * ⛔ **LA COACH DI RISERVA (Simone, 4/9): «tutte le clienti non assegnate ad una coach vanno a
+   * Giusy», anche quelle che verranno.** È la gemella della regola del capo nutrizionista qui sopra,
+   * e come lei riempie solo il vuoto. ⚠️ Giusy è `sales`: la prova usa quel ruolo apposta.
+   */
+  describe('⛔ la coach di riserva (`coach_di_riserva`)', () => {
+    const giusy = { id: 'st-giusy', userId: 'u-giusy', displayName: 'Giusy Vita', active: true, user: { role: 'sales', status: 'active', deletedAt: null } };
+
+    it('⛔ senza coach sul lead la prende la RISERVA, anche se è una commerciale, e lo scrive nel registro', async () => {
+      audit.log.mockClear();
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null); // primo questionario: la scheda nasce qui
+      await service.submitAnswers('u1', baseAnswers());
+      const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+      expect(createArgs.assignedCoachId).toBe('st-giusy');
+      expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'assegnazione.coach_di_riserva',
+        entityId: 'u1',
+        metadata: expect.objectContaining({ staffId: 'st-giusy', porta: 'onboarding', schedaCreata: true }),
+      }));
+    });
+
+    /** ⛔ La riga di registro si scrive solo se l'assegnazione c'è davvero (revisione avversariale, 4/9). */
+    it('⛔ se il questionario si ferma prima di scrivere, NESSUNA riga di registro', async () => {
+      audit.log.mockClear();
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+      prisma.clientProfile.findUnique.mockResolvedValueOnce(null);
+      prisma.clientProfile.upsert.mockRejectedValueOnce(new Error('il database non risponde'));
+      await expect(service.submitAnswers('u1', baseAnswers())).rejects.toThrow('non risponde');
+      expect(audit.log).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'assegnazione.coach_di_riserva' }));
+    });
+
+    it('⛔ sul questionario rifatto con la coach VUOTA la riserva entra dall\'aggancio, e la riga c\'è', async () => {
+      audit.log.mockClear();
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({ id: 'p1', userId: 'u1', assignedCoachId: null, consents: {} });
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({ assignedCoachId: null, assignedNutritionistId: null }); // la lettura dell'aggancio
+      prisma.clientProfile.update = jest.fn().mockResolvedValue({});
+      await service.submitAnswers('u1', baseAnswers());
+      expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1' }, data: expect.objectContaining({ assignedCoachId: 'st-giusy' }) }));
+      expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'assegnazione.coach_di_riserva',
+        metadata: expect.objectContaining({ porta: 'onboarding', schedaCreata: false }),
+      }));
+    });
+
+    it('⛔ col ref code sul lead vince la coach del lead: la riserva riempie solo il vuoto', async () => {
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+      prisma.crmRecord.findUnique.mockResolvedValue({ assignedCoachId: 's-ref-coach', assignedNutritionistId: null });
+      await service.submitAnswers('u1', baseAnswers());
+      const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+      expect(createArgs.assignedCoachId).toBe('s-ref-coach');
+      expect(prisma.staff.findUnique).not.toHaveBeenCalled();
+    });
+
+    /** ⛔ Il questionario rifatto: la coach messa a mano resta, e il registro NON dice il contrario. */
+    it('⛔ chi rifà il questionario con una coach già in scheda non passa alla riserva, e non c\'è nessuna riga', async () => {
+      audit.log.mockClear();
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({ id: 'p1', userId: 'u1', assignedCoachId: 'st-sua-coach', consents: {} });
+      await service.submitAnswers('u1', baseAnswers());
+      expect(prisma.staff.findUnique).not.toHaveBeenCalled();
+      expect(audit.log).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'assegnazione.coach_di_riserva' }));
+    });
+
+    it('⚠️ con la riserva spenta la coach resta vuota, e non si legge nemmeno la scheda', async () => {
+      prisma.staff.findUnique = jest.fn();
+      await service.submitAnswers('u1', baseAnswers());
+      const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+      expect(createArgs.assignedCoachId).toBeNull();
+      expect(prisma.staff.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('⛔ con una riserva NON valida (sospesa) la coach resta vuota: non si riempie a caso', async () => {
+      audit.log.mockClear(); // il registro finto è condiviso fra le prove di questo file
+      configParams.getString.mockImplementation(async (k: string) => (k === 'coach_di_riserva' ? 'st-giusy' : 'warn'));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue({ ...giusy, user: { ...giusy.user, status: 'suspended' } });
+      await service.submitAnswers('u1', baseAnswers());
+      const createArgs = prisma.clientProfile.upsert.mock.calls[0][0].create;
+      expect(createArgs.assignedCoachId).toBeNull();
+      expect(audit.log).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'assegnazione.coach_di_riserva' }));
+    });
+  });
+
   it('col ref code sul lead, coach e nutrizionista si propagano al profilo', async () => {
     prisma.crmRecord.findUnique.mockResolvedValue({
       assignedCoachId: 's-ref-coach',
@@ -687,7 +777,7 @@ describe('OnboardingService — lo stile non si chiede più', () => {
           provide: ConfigParamsService,
           useValue: {
             getNumber: jest.fn((key: string) => Promise.resolve(key === 'sustainable_rate_max_kg_week' ? 0.7 : 1.0)),
-            getString: jest.fn().mockResolvedValue('warn'),
+            getString: jest.fn(async (k: string) => (k === 'coach_di_riserva' ? 'off' : 'warn')),
             getBool: jest.fn(async (_k: string, d?: boolean) => d ?? false),
           },
         },

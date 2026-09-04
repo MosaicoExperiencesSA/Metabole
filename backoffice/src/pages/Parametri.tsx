@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { Banner, Spinner, Toggle } from '../components/ui';
+import { ROLE_LABEL, type Role } from '../lib/labels';
 
 interface Param {
   key: string;
@@ -10,7 +11,12 @@ interface Param {
   updatedAt: string;
 }
 
-type Kind = 'number' | 'text' | 'textarea' | 'toggle' | 'select' | 'euro';
+/**
+ * ⚠️ `staff`: una tendina che sceglie una PERSONA dello staff e salva il suo staff id. Nasce con
+ * «Coach di riserva» (4/9): un id copiato a mano in una casella di testo non è «una casella da
+ * cambiare», è un modo per sbagliare persona senza accorgersene.
+ */
+type Kind = 'number' | 'text' | 'textarea' | 'toggle' | 'select' | 'euro' | 'staff';
 
 interface Meta {
   label: string;
@@ -19,6 +25,8 @@ interface Meta {
   kind: Kind;
   unit?: string;
   options?: { value: string; label: string }[];
+  /** Solo per `kind: 'staff'`: i ruoli fra cui si può scegliere. */
+  ruoli?: string[];
 }
 
 // Etichette e raggruppamento leggibili per ogni parametro.
@@ -41,6 +49,22 @@ const META: Record<string, Meta> = {
   water_ml_per_kg: { label: 'Acqua per kg di peso', group: 'Obiettivi cliente', kind: 'number', unit: 'ml/kg', help: 'Personalizza l’obiettivo acqua sul peso della cliente (30-35 tipico). Obiettivo = peso × ml/kg ÷ 250 ml (bicchiere), limitato 6-16 bicchieri (1,5-4 L).' },
   water_goal_glasses: { label: 'Obiettivo acqua (ripiego)', group: 'Obiettivi cliente', kind: 'number', unit: 'bicchieri/giorno', help: 'Usato solo quando il peso della cliente non è ancora noto. Altrimenti l’obiettivo è personalizzato sul peso.' },
   steps_goal: { label: 'Obiettivo passi', group: 'Obiettivi cliente', kind: 'number', unit: 'passi/giorno' },
+
+  // CHI PRENDE IN CARICO CHI RESTA SENZA NESSUNO. Due regole gemelle (vedi
+  // `common/nutrizionista-di-riferimento.ts` e `common/coach-di-riserva.ts`): riempiono solo il
+  // vuoto, non spostano mai nessuno.
+  coach_di_riserva: {
+    label: 'Coach di riserva', group: 'Presa in carico', kind: 'staff', ruoli: ['coach', 'coach_coordinator', 'sales'],
+    help: 'Chi prende in carico le clienti rimaste senza coach: al questionario, quando si toglie la coach a mano, e ogni notte per tutte le altre. Riempie solo il vuoto — chi ha già una coach non si tocca. «Nessuna» spegne la regola. Può essere anche una commerciale.',
+  },
+  assign_head_nutritionist_by_default: {
+    label: 'Il capo nutrizionista prende chi resta senza nutrizionista', group: 'Presa in carico', kind: 'toggle',
+    help: 'Finché è acceso, chi finisce il questionario senza una nutrizionista viene presa in carico dal capo nutrizionista. Ha senso finché la nutrizionista è una sola: quando diventano più d’una, spegnilo e assegna dal backoffice.',
+  },
+  alert_gestito_giorni: {
+    label: 'Alert «gestito»: dopo quanti giorni torna in lista', group: 'Motore · monitoraggio', kind: 'number', unit: 'giorni',
+    help: 'Un alert segnato «gestito» che non ha risolto niente (la cliente è ancora nella stessa situazione) torna in lista dopo questi giorni. Gli alert inoltrati a qualcun altro non si toccano.',
+  },
 
   agent_default_model: { label: 'Modello di default', group: 'Agenti AI', kind: 'text', help: 'Modello Claude usato dagli agenti ad alto volume (es. claude-haiku-4-5). Cambia senza redeploy.' },
   agent_judge_model: { label: 'Modello del Giudice', group: 'Agenti AI', kind: 'text', help: 'Modello Claude del Giudice compliance (es. claude-sonnet-5): qualità di giudizio sui contenuti.' },
@@ -137,7 +161,7 @@ const META: Record<string, Meta> = {
  * L'ordine in cui compaiono i riquadri. Non è l'elenco di cosa si vede: vedi `grouped` più sotto,
  * dove i gruppi non citati qui finiscono in fondo invece di sparire.
  */
-const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Contabilità', 'Provvigioni e compensi', 'Obiettivi cliente', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Menu · panieri', 'Agenti AI', 'Marketing', 'App', 'AI', 'Altro'];
+const GROUP_ORDER = ['Pagamenti', 'Bonifico', 'Contabilità', 'Provvigioni e compensi', 'Obiettivi cliente', 'Presa in carico', 'Motore · ritmo e sicurezza', 'Motore · monitoraggio', 'Menu', 'Menu · panieri', 'Agenti AI', 'Marketing', 'App', 'AI', 'Altro'];
 
 const metaFor = (p: Param): Meta =>
   META[p.key] ?? { label: p.key, group: 'Altro', kind: 'text', help: p.description ?? undefined };
@@ -154,6 +178,8 @@ export function Parametri() {
   // un default scritto nel codice senza dirlo a nessuno.
   const [nuovo, setNuovo] = useState<{ key: string; value: string; type: string; description: string } | null>(null);
   const [creando, setCreando] = useState(false);
+  // Le persone dello staff, per le tendine `kind: 'staff'`. Si caricano una volta, con i parametri.
+  const [staff, setStaff] = useState<{ id: string; name: string; role: string }[]>([]);
 
   async function load() {
     setLoading(true);
@@ -161,6 +187,15 @@ export function Parametri() {
       const list = await api<Param[]>('/admin/config');
       setParams(list);
       setDraft(Object.fromEntries(list.map((p) => [p.key, p.value])));
+      if (list.some((p) => metaFor(p).kind === 'staff')) {
+        try {
+          type StaffUser = { role: string; status: string; staff: { id: string; displayName: string } | null };
+          const r = await api<{ items: StaffUser[] }>('/admin/users?scope=staff&limit=200');
+          setStaff(r.items.filter((u) => u.staff && u.status === 'active').map((u) => ({ id: u.staff!.id, name: u.staff!.displayName, role: u.role })));
+        } catch {
+          /* senza l'elenco la tendina mostra solo «nessuna» e il valore salvato: si può ancora spegnere la regola */
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Solo un admin può gestire i parametri.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -170,6 +205,9 @@ export function Parametri() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  /** Le persone fra cui una tendina `staff` può scegliere: lo staff attivo, filtrato per i ruoli della voce. */
+  const scelteStaff = (m: Meta) => staff.filter((u) => !m.ruoli || m.ruoli.includes(u.role));
 
   const grouped = useMemo(() => {
     const by: Record<string, Param[]> = {};
@@ -310,6 +348,15 @@ export function Parametri() {
                       ) : m.kind === 'select' ? (
                         <select className="select" value={draft[p.key] ?? ''} onChange={(e) => set(e.target.value)} style={{ width: '100%' }}>
                           {m.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      ) : m.kind === 'staff' ? (
+                        <select className="select" value={draft[p.key] ?? 'off'} onChange={(e) => set(e.target.value)} style={{ width: '100%' }}>
+                          <option value="off">— nessuna: regola spenta —</option>
+                          {scelteStaff(m).map((u) => <option key={u.id} value={u.id}>{u.name} · {ROLE_LABEL[u.role as Role] ?? u.role}</option>)}
+                          {/* Il valore salvato non è fra le persone che si possono scegliere (sospesa, ruolo cambiato, elenco non caricato): si mostra lo stesso, con la chiave, così non sparisce in silenzio dietro «regola spenta». ⚠️ Si confronta con l'elenco FILTRATO per ruolo, non con tutto lo staff: una revisione ha visto che altrimenti il ruolo cambiato era proprio il caso che non si vedeva. */}
+                          {draft[p.key] && draft[p.key] !== 'off' && !scelteStaff(m).some((u) => u.id === draft[p.key]) && (
+                            <option value={draft[p.key]}>⚠️ {draft[p.key]} (non è più fra le persone che si possono scegliere)</option>
+                          )}
                         </select>
                       ) : m.kind === 'euro' ? (
                         <input

@@ -11,6 +11,8 @@ import { FinanceService } from './finance.service';
 describe('FinanceService (eventi economici automatici)', () => {
   let service: FinanceService;
   let prisma: any;
+  let configParams: { getString: jest.Mock; getNumber: jest.Mock };
+  const moduleRefConfig = () => configParams;
 
   beforeEach(async () => {
     prisma = {
@@ -58,18 +60,19 @@ describe('FinanceService (eventi economici automatici)', () => {
         }),
       },
     };
+    configParams = {
+      getString: jest.fn(async (_k: string, d?: string) => d),
+      getNumber: jest.fn(() => Promise.resolve(undefined)),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: prisma },
         {
           provide: ConfigParamsService,
-          useValue: {
-            // Nessun parametro letto da questi test: le provvigioni arrivano dagli importi del
-            // piano, e il compenso a visita (l'unico che leggeva un parametro) non esiste più.
-            getString: jest.fn(async (_k: string, d?: string) => d),
-            getNumber: jest.fn(() => Promise.resolve(undefined)),
-          },
+          // ⚠️ Un solo parametro si legge di qui, dal 4/9: `coach_di_riserva` (ripiego «off»). Le
+          // provvigioni arrivano dagli importi del piano.
+          useValue: configParams,
         },
         { provide: AuditService, useValue: { log: jest.fn() } },
       ],
@@ -108,6 +111,58 @@ describe('FinanceService (eventi economici automatici)', () => {
     expect(staffIds).toEqual(expect.arrayContaining(['staff-c', 'staff-n']));
     expect(staffIds).not.toContain('staff-mc');
     expect(staffIds).not.toContain('staff-hn');
+  });
+
+  /**
+   * ⛔ **LA COACH DI RISERVA NON INCASSA LA QUOTA COACH** (4/9). Dal 4/9 chi resta senza coach è
+   * scritta in scheda alla riserva — Giusy, ruolo `sales`, in cima alla scala. Senza questa prova
+   * `settleChain` partirebbe da lei e le pagherebbe subito, per intero, la quota che oggi si
+   * accantona per la coach che verrà: un cambio di soldi nascosto in una regola di presa in carico.
+   */
+  describe('⛔ la coach di riserva conta come «nessuna coach» per i compensi', () => {
+    const riserva = { id: 'staff-giusy', userId: 'u-giusy', displayName: 'Giusy', active: true, user: { role: 'sales', status: 'active', deletedAt: null } };
+    const accendi = () => {
+      const cfg = moduleRefConfig();
+      cfg.getString.mockImplementation(async (k: string, d?: string) => (k === 'coach_di_riserva' ? 'staff-giusy' : d));
+      prisma.staff.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+        where.id === 'staff-giusy' ? riserva : { managerId: 'staff-hn' });
+    };
+
+    it('⛔ con la riserva in scheda la quota coach si ACCANTONA, come senza coach', async () => {
+      accendi();
+      prisma.clientProfile.findUnique.mockResolvedValueOnce({
+        assignedCoachId: 'staff-giusy', assignedNutritionistId: 'staff-n',
+        assignedCoach: { managerId: null }, assignedNutritionist: { managerId: 'staff-hn' },
+      });
+      prisma.payment.findUnique.mockResolvedValueOnce({
+        subscription: { plan: { priceCents: 10000, commissionCoachCents: 1000, commissionManagerCoachCents: 300, commissionNutritionistCents: 1500, commissionHeadNutritionistCents: 500 } },
+        order: null,
+      });
+      await service.generateCommissions({ id: 'pay-r', clientId: 'c1', amountCents: 10000 });
+      const staffIds = prisma.staffCompensation.upsert.mock.calls.map((c: any) => c[0].create.staffId);
+      expect(staffIds).not.toContain('staff-giusy');
+      expect(staffIds).toEqual(expect.arrayContaining(['staff-n', 'staff-hn']));
+      const pendings = prisma.pendingCommission.create.mock.calls.map((c: any) => c[0].data);
+      expect(pendings).toEqual(expect.arrayContaining([
+        expect.objectContaining({ role: 'coach', amountCents: 1000 }),
+        expect.objectContaining({ role: 'manager_coach', amountCents: 300 }),
+      ]));
+    });
+
+    it('⛔ e assegnare la riserva a mano NON paga le accantonate: aspettano la coach vera', async () => {
+      accendi();
+      prisma.pendingCommission.findMany.mockResolvedValueOnce([{ id: 'pc1', role: 'coach', amountCents: 1000, paymentId: 'pay-r' }]);
+      await service.resolvePendingForAssignment('c1', 'coach', 'staff-giusy');
+      expect(prisma.staffCompensation.upsert).not.toHaveBeenCalled();
+      expect(prisma.pendingCommission.update).not.toHaveBeenCalled();
+    });
+
+    it('⚠️ mentre una coach vera le incassa, come prima', async () => {
+      accendi();
+      prisma.pendingCommission.findMany.mockResolvedValueOnce([{ id: 'pc1', role: 'coach', amountCents: 1000, paymentId: 'pay-r' }]);
+      await service.resolvePendingForAssignment('c1', 'coach', 'staff-c');
+      expect(prisma.pendingCommission.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'pc1' }, data: expect.objectContaining({ status: 'paid', resolvedStaffId: 'staff-c' }) }));
+    });
   });
 
   it('accantona: nutrizionista non assegnato → provvigioni in sospeso, non pagate subito', async () => {

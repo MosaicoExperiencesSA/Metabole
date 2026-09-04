@@ -24,6 +24,7 @@ import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { CoachDiRiservaService } from '../coach-di-riserva/coach-di-riserva.service';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
@@ -154,6 +155,8 @@ describe('CronController (endpoint per Render Cron)', () => {
          * finisse dopo, una finestra aggiornata varrebbe da dopodomani invece che da domani.
          */
         { provide: ProfileService, useValue: profile },
+        // La coach di riserva (4/9): nel test è spenta, e spenta non legge nemmeno le clienti.
+        { provide: CoachDiRiservaService, useValue: { giroNotturno: jest.fn().mockResolvedValue({ riserva: 'spenta', senzaCoach: 0 }) } },
       ],
     }).compile();
     controller = moduleRef.get(CronController);

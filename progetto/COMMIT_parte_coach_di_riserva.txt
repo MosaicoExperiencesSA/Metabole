@@ -1,0 +1,90 @@
+────────────────────────────────────────────────────────────────────────────
+ La coach di riserva: chi resta senza coach non resta di nessuno
+ 4 settembre 2026 (sera)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. Il seed aggiunge la riga `coach_di_riserva` (spenta) ai
+   Parametri al primo deploy: nessun cambio di comportamento finché non la
+   accendi.
+
+Summary
+───────
+Coach di riserva: chi resta senza coach va a chi dice il parametro, e le 4 si possono assegnare
+
+Description
+───────────
+⛔ LA DECISIONE (Simone, 4/9). `diag:commerciale-e-coach`: Giusy (`sales`) ha
+0 clienti sue e 56 con la rete; 4 schede senza coach; 2 clienti senza scheda
+profilo. Chiudere il perimetro su «le sue» voleva dire spegnerle il lavoro.
+«Tutte le clienti non assegnate ad una coach vanno a Giusy», anche quelle che
+verranno, con un parametro — così il giorno che non è più lei si cambia una
+casella, non il codice.
+
+✅ LA REGOLA — `common/coach-di-riserva.ts`, gemella di
+`nutrizionista-di-riferimento.ts`, stessa forma apposta: RIEMPIE SOLO IL
+VUOTO, non sposta mai nessuno.
+
+· Parametro `coach_di_riserva`: Parametri → «Presa in carico» → tendina di
+  PERSONE (coach, coordinatrice, commerciale), non un id scritto a mano.
+  Nasce spento («off»). Il seed lo crea al deploy.
+· Tre porte, perché un profilo nasce senza coach da più di due:
+  - il questionario (`onboarding`), come per la nutrizionista;
+  - la rimozione a mano (`assign` con «— nessuna —»): con la regola accesa
+    diventa la riserva, e la scheda lo dice a chi l'ha tolta;
+  - il GIRO NOTTURNO (`cron → coachDiRiserva`, prima dei compiti coach): ripesca
+    importazioni, lead senza coach, e le 2 senza scheda — che entrano con una
+    scheda creata dal ponte del 6/8, con la sola coach.
+· `npm run assegna:coach-di-riserva`: lo STESSO giro, a mano, con la lista
+  davanti. Prova a vuoto, poi `CONFERMA=1`.
+
+⛔ SCOPERTO FACENDOLO: dal backoffice le 4 NON si potevano assegnare a Giusy.
+`assertStaffRole(coachId, 'coach')` rifiuta chi non ha ruolo `coach`, e la
+tendina della scheda carica solo `role=coach`. Cioè l'unica persona che la
+regola assegna in automatico era l'unica che a mano non si poteva scegliere.
+Ora `assign` accetta la riserva — SOLO LEI, non tutte le commerciali — e la
+scheda la mette in tendina («· coach di riserva») chiedendo al backend chi è.
+
+⛔ TRE COSE FERMATE DALLA REVISIONE AVVERSARIALE, prima che uscissero:
+
+1) Il ponte lead→profilo del 6/8 «riempie solo il vuoto». Con la riserva NEL
+   vuoto, la coach che accettava il lead il giorno dopo trovava la scheda «già
+   assegnata» e non scriveva niente: per il CRM la cliente era sua, per il
+   backoffice di Giusy — lo stesso difetto del 6/8, riaperto. Ora il ponte
+   sostituisce la riserva, e SOLO la riserva; una coach vera non si tocca mai.
+   E il giro notturno lascia stare chi ha un lead con una coach in attesa.
+2) Nell'onboarding la riga di registro «presa in carico» era scritta PRIMA
+   dell'upsert — cioè prima di un `throw` possibile («scegli il percorso»).
+   Ora si scrive solo se l'assegnazione c'è davvero.
+3) I SOLDI. `settleChain` sarebbe partito da Giusy, che è `sales` — in cima
+   alla scala — e le avrebbe pagato SUBITO E PER INTERO la quota coach che
+   oggi, senza coach, si accantona per la coach che verrà. Un cambio di soldi
+   nascosto in una regola di presa in carico. DECISO PER DIFETTO: per i
+   compensi la riserva vale «nessuna coach» (`senzaLaRiserva` in
+   `finance.service.ts`): accantonato, pagato a chi verrà, ESATTAMENTE come
+   oggi; e assegnare la riserva a mano non paga le accantonate.
+   ⚠️ Se Giusy deve incassare la quota coach delle clienti di riserva, è una
+   decisione tua: si toglie quella riga, non si cambia altro.
+
+⚠️ DI PASSAGGIO. La sentinella «ogni parametro ha un'etichetta» non vedeva le
+chiavi passate per COSTANTE (`getBool(PARAM_CAPO_PREDEFINITO, …)`):
+`assign_head_nutritionist_by_default` e `alert_gestito_giorni` stavano in
+pagina con la chiave grezza, sentinella verde. Allargata alle costanti, e le
+tre etichette scritte.
+
+Verificato
+──────────
+· backend: 452 suite, 7800 prove verdi; `npm run build` verde
+· backoffice: tsc + vite verdi; vitest 33 file, 304 prove
+· sei mutazioni che mordono: onboarding che ignora la coach già in scheda;
+  `assign` che rifiuta la riserva; rimozione che lascia null; passo del cron
+  dopo i compiti coach; finanza che paga la riserva; ponte che non la
+  sostituisce
+
+Cosa resta (nell'ordine)
+────────────────────────
+1. Parametri → «Presa in carico» → «Coach di riserva» → Giusy → Salva
+2. shell di Render: `npm run assegna:coach-di-riserva` (legge la lista),
+   poi `CONFERMA=1 npm run assegna:coach-di-riserva`
+3. `npm run diag:commerciale-e-coach`: se Giusy non ha più zero, si chiudono i
+   due cancelli (`perimetroClienti` + `RUOLI_CHE_VEDONO_TUTTE`), che questa
+   consegna NON tocca

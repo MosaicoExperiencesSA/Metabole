@@ -20,6 +20,28 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **La coach di riserva: chi resta senza coach non resta di nessuno.** Decisione
+  di Simone (4/9, dopo `diag:commerciale-e-coach`: Giusy 0 clienti sue, 4 schede senza coach, 2
+  clienti senza scheda): *«tutte le clienti non assegnate ad una coach vanno a Giusy»*, anche
+  quelle che verranno, con un parametro. `common/coach-di-riserva.ts`, gemella della nutrizionista
+  di riferimento: **riempie solo il vuoto, non sposta mai nessuno**. Parametro `coach_di_riserva`
+  (Parametri → «Presa in carico», tendina di **persone**, nasce spento); tre porte — questionario,
+  rimozione a mano, **giro notturno** (`cron → coachDiRiserva`, prima dei compiti coach) — così le
+  porte che non si vedono si chiudono insieme; `npm run assegna:coach-di-riserva` per la prima
+  passata con la lista davanti. ⛔ **Scoperto facendolo**: dal backoffice le 4 **non si potevano**
+  assegnare a Giusy — `assertStaffRole` rifiuta chi non è `coach`, la tendina carica solo
+  `role=coach`. Ora la riserva è assegnabile a mano, e **solo lei**.
+  ⛔ **Fermate in revisione avversariale, prima di uscire**: (1) il ponte lead→profilo del 6/8
+  «riempie solo il vuoto» — con la riserva nel vuoto la coach che accettava il lead **non entrava
+  più**: ora il ponte sostituisce la riserva, e solo lei; (2) la riga di registro dell'onboarding
+  era scritta prima dell'upsert, cioè prima di un `throw` possibile; (3) **i soldi**: `settleChain`
+  sarebbe partito da Giusy (`sales`, in cima alla scala) pagandole subito la quota coach che oggi
+  si accantona. **Deciso per difetto: per i compensi la riserva vale «nessuna coach»**, tutto come
+  oggi — se deve incassare, lo decide Simone. ⚠️ Di passaggio: la sentinella delle etichette dei
+  Parametri non vedeva le chiavi passate per **costante** (`assign_head_nutritionist_by_default`,
+  `alert_gestito_giorni` erano in pagina con la chiave grezza, sentinella verde): allargata, e le
+  tre etichette scritte. 452 suite, 7800 prove; sei mutazioni che mordono.
+
 - `[Sviluppo]` ✅ **L'unione è stata lanciata: i gruppi di equivalenza passano da 2848 a 1105.**
   `SCRIVI=1 npm run ripara:equivalenze-omonime`, in produzione, dopo la prova a vuoto. 257 nomi
   doppi, 1743 righe che spariscono, **2821** gruppi che da «di una dieta» diventano globali.

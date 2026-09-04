@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { MailService } from '../mail/mail.service';
 import { CrmService } from '../commerce/crm.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 
@@ -12,6 +13,7 @@ describe('UsersService (admin)', () => {
   let service: UsersService;
   let prisma: Record<string, Record<string, jest.Mock>>;
   let audit: { log: jest.Mock };
+  let configParams: { getString: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -28,6 +30,7 @@ describe('UsersService (admin)', () => {
       clientProfile: { findUnique: jest.fn(), update: jest.fn() },
     };
     audit = { log: jest.fn().mockResolvedValue(undefined) };
+    configParams = { getString: jest.fn(async (_k: string, d?: string) => d ?? '') };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -39,6 +42,8 @@ describe('UsersService (admin)', () => {
         { provide: CrmService, useValue: { ensureLead: jest.fn() } },
         { provide: FinanceService, useValue: { resolvePendingForAssignment: jest.fn() } },
         { provide: MailService, useValue: { sendClientAssignedToNutritionist: jest.fn() } },
+        // La coach di riserva (4/9): `assign` la legge di qui. Nel test è spenta.
+        { provide: ConfigParamsService, useValue: configParams },
       ],
     }).compile();
     service = moduleRef.get(UsersService);
@@ -205,6 +210,62 @@ describe('UsersService (admin)', () => {
     it('non ripristina un utente non archiviato', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u9', deletedAt: null });
       await expect(service.restore('u9', 'admin-1')).rejects.toThrow('non archiviato');
+    });
+  });
+  /**
+   * ⛔ **LA COACH DI RISERVA PASSA DA `assign` DUE VOLTE** (Simone, 4/9). Giusy è `sales`:
+   * `assertStaffRole(…, 'coach')` la rifiuterebbe, e senza queste prove l'unica persona che la regola
+   * assegna in automatico sarebbe l'unica che a mano non si può scegliere.
+   */
+  describe('⛔ la coach di riserva in assign', () => {
+    const giusy = { id: 'st-giusy', userId: 'u-giusy', displayName: 'Giusy Vita', active: true, user: { role: 'sales', status: 'active', deletedAt: null } };
+
+    beforeEach(() => {
+      prisma.clientProfile.findUnique.mockResolvedValue({ id: 'p1', name: 'Anna' });
+      prisma.clientProfile.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'p1', ...data }));
+      prisma.staff.findUnique = jest.fn().mockResolvedValue(giusy);
+    });
+
+    it('⛔ la riserva si può assegnare a mano anche se è una commerciale', async () => {
+      configParams.getString.mockResolvedValue('st-giusy');
+      const out = await service.assign({ clientId: 'c1', coachId: 'st-giusy' }, 'admin-1');
+      expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assignedCoachId: 'st-giusy' } }));
+      // Scelta a mano, non «applicata»: la scheda non deve dire che è stata la regola.
+      expect(out.coachDiRiserva).toBeNull();
+    });
+
+    /** ⛔ «Solo se è lei»: un'altra commerciale resta rifiutata come prima. */
+    it('⛔ ma un\'altra commerciale NO: la porta si apre per la riserva, non per il ruolo', async () => {
+      configParams.getString.mockResolvedValue('st-giusy');
+      prisma.staff.findUnique = jest.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === 'st-giusy' ? giusy : { ...giusy, id: 'st-altra', user: { ...giusy.user } });
+      await expect(service.assign({ clientId: 'c1', coachId: 'st-altra' }, 'admin-1')).rejects.toThrow('non valido');
+    });
+
+    it('⛔ togliere la coach con la riserva accesa la mette al posto del vuoto, e lo dice', async () => {
+      configParams.getString.mockResolvedValue('st-giusy');
+      const out = await service.assign({ clientId: 'c1', coachId: null }, 'admin-1');
+      expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assignedCoachId: 'st-giusy' } }));
+      expect(out.coachDiRiserva).toEqual({ staffId: 'st-giusy', displayName: 'Giusy Vita' });
+      expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'admin.assignment.update',
+        metadata: expect.objectContaining({ coachId: null, coachDiRiserva: true, coachDiRiservaStaffId: 'st-giusy' }),
+      }));
+    });
+
+    it('⚠️ con la riserva spenta togliere la coach lascia il campo vuoto, com\'era', async () => {
+      configParams.getString.mockResolvedValue('off');
+      const out = await service.assign({ clientId: 'c1', coachId: null }, 'admin-1');
+      expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assignedCoachId: null } }));
+      expect(out.coachDiRiserva).toBeNull();
+    });
+
+    /** ⚠️ La riserva non c'entra con la nutrizionista: quel campo ha la sua regola altrove. */
+    it('⚠️ non tocca la nutrizionista, e non legge nemmeno il parametro se la coach non si tocca', async () => {
+      prisma.staff.findUnique = jest.fn().mockResolvedValue({ id: 'st-n', active: true, user: { role: 'nutritionist', status: 'active' } });
+      await service.assign({ clientId: 'c1', nutritionistId: 'st-n' }, 'admin-1');
+      expect(configParams.getString).not.toHaveBeenCalled();
+      expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ data: { assignedNutritionistId: 'st-n' } }));
     });
   });
 });

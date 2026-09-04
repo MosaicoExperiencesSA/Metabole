@@ -149,6 +149,13 @@ const CONFIG_PARAMS: SeedParam[] = [
       'Finché è acceso, chi finisce il questionario SENZA una nutrizionista sul lead viene presa in carico dal capo nutrizionista. Serve perché con una sola nutrizionista l\'assegnazione a mano non è una decisione: è un passaggio che qualche volta salta, e la cliente resta senza nessuno che risponda di lei (il caso Sonia, 21/8). Si spegne quando le nutrizioniste diventano più d\'una e distribuire i pazienti torna a essere una scelta.',
   },
   {
+    key: 'coach_di_riserva',
+    value: 'off',
+    type: 'string',
+    description:
+      'Chi prende in carico le clienti rimaste SENZA coach (Simone, 4/9: «tutte le clienti non assegnate ad una coach vanno a Giusy», anche quelle che verranno). Vale lo staff id della persona, oppure «off» per spegnere la regola. Riempie solo il vuoto — chi ha già una coach non si tocca — al questionario, quando si toglie la coach a mano, e ogni notte per tutto il resto. Può essere una coach, una coordinatrice o una commerciale.',
+  },
+  {
     key: 'escalation_reopen_days',
     value: '14',
     type: 'number',

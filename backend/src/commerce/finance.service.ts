@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { CATEGORIE_COMPENSO, euroCents, inizioMese, mesePeriodo, quotaSottoTetto, tettoAttivoCents } from '../common/tetto-compensi';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { coachDiRiserva } from '../common/coach-di-riserva';
 
 // Client di transazione: tipo canonico di Prisma (evita implicit any in sandbox).
 type PrismaTx = Prisma.TransactionClient;
@@ -227,12 +228,28 @@ export class FinanceService {
      * compensi sembreranno strani, si parte da questa riga.
      */
 
+    /**
+     * ⛔ **LA COACH DI RISERVA NON INCASSA LA QUOTA COACH: per i compensi vale «nessuna coach».**
+     *
+     * Dal 4/9 chi resta senza coach viene scritta in scheda alla riserva (`common/coach-di-riserva.ts`),
+     * che oggi è Giusy, ruolo `sales` — cioè **in cima** alla scala. Senza questa riga `settleChain`
+     * partirebbe da lei e le pagherebbe **subito e per intero** la quota che oggi, senza coach, viene
+     * accantonata (`pendingCommission`) e pagata alla coach che verrà. Sarebbe un cambio di soldi
+     * nascosto dentro una regola di presa in carico.
+     *
+     * ⚠️ Quindi qui la riserva conta come «non assegnata», e i compensi si comportano **esattamente
+     * come prima**: accantonati, e pagati a chi verrà. Se un giorno si decide che la riserva incassa,
+     * si toglie questa riga — con Simone, non di sponda.
+     */
+    const coachPerICompensi = await this.senzaLaRiserva(profile.assignedCoachId);
+    const managerPerICompensi = coachPerICompensi ? profile.assignedCoach?.managerId : undefined;
+
     // RETE A DIFFERENZA (decisione 17/07): se il piano/prodotti hanno percentuali,
     // si paga per differenza lungo la catena reale (coach → coordinatrice → manager;
     // nutrizionista → capo). Altrimenti restano gli importi fissi legacy.
     const pq = await this.percentAmounts(payment.amountCents, full);
     if (pq) {
-      await this.settleChain(payment, 'coach', profile.assignedCoachId, [
+      await this.settleChain(payment, 'coach', coachPerICompensi, [
         { role: 'coach', amountCents: pq.coach },
         { role: 'coach_coordinator', amountCents: pq.coordinator },
         { role: 'sales', amountCents: pq.manager },
@@ -246,7 +263,7 @@ export class FinanceService {
 
     const q = await this.commissionAmounts(payment.amountCents, full);
 
-    await this.settleSide(payment, 'coach', profile.assignedCoachId, profile.assignedCoach?.managerId, q.coach, q.managerCoach);
+    await this.settleSide(payment, 'coach', coachPerICompensi, managerPerICompensi, q.coach, q.managerCoach);
     await this.settleSide(payment, 'nutritionist', profile.assignedNutritionistId, profile.assignedNutritionist?.managerId, q.nutritionist, q.headNutritionist);
   }
 
@@ -412,7 +429,8 @@ export class FinanceService {
      * le segnala come eccesso. Quello che è stato pagato resta pagato.
      */
     const atteso = new Map<string, { nome: string; ruolo: string; cents: number }>();
-    for (const [id, v] of await this.dovutoLungoCatena(profile?.assignedCoachId, [
+    // ⚠️ La riserva conta come «nessuna coach» anche qui: vedi `generateCommissions`.
+    for (const [id, v] of await this.dovutoLungoCatena(await this.senzaLaRiserva(profile?.assignedCoachId), [
       { role: 'coach', amountCents: pq.coach },
       { role: 'coach_coordinator', amountCents: pq.coordinator },
       { role: 'sales', amountCents: pq.manager },
@@ -652,12 +670,21 @@ export class FinanceService {
     }
   }
 
+  /** Lo staff id, oppure `null` se è la coach di riserva: per i compensi la riserva è «nessuno». */
+  private async senzaLaRiserva(staffId: string | null | undefined): Promise<string | null> {
+    if (!staffId) return null;
+    const riserva = await coachDiRiserva(this.prisma as never, this.configParams);
+    return riserva.esito === 'ok' && riserva.staffId === staffId ? null : staffId;
+  }
+
   /**
    * Assegnato coach/nutrizionista → paga le provvigioni accantonate del cliente:
    * la quota base va allo staff appena assegnato, la quota "responsabile" al suo
    * manager (se impostato), altrimenti quella quota viene annullata.
    */
   async resolvePendingForAssignment(clientId: string, group: 'coach' | 'nutritionist', staffId: string) {
+    /** ⛔ Assegnare la riserva (anche a mano, dalla tendina) non è «assegnare una coach»: le accantonate aspettano. Vedi `generateCommissions`. */
+    if (group === 'coach' && !(await this.senzaLaRiserva(staffId))) return;
     const [primaryRole, managerRole] = group === 'coach' ? ['coach', 'manager_coach'] : ['nutritionist', 'head_nutritionist'];
     const pendings = await this.prisma.pendingCommission.findMany({
       where: { clientId, status: 'pending', role: { in: [primaryRole, managerRole] } },

@@ -32,6 +32,7 @@ import { PrivacyService } from '../privacy/privacy.service';
 import { ProfileService } from '../profile/profile.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
 import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
+import { CoachDiRiservaService } from '../coach-di-riserva/coach-di-riserva.service';
 
 /**
  * Endpoint per Render Cron Jobs: il motore gira ogni giorno e le notifiche
@@ -71,6 +72,8 @@ export class CronController {
     private readonly profile: ProfileService,
     /** L'elenco degli alimenti da correggere a mano: si ricalcola di notte. */
     private readonly valori: ValoriNutrizionaliService,
+    /** La coach di riserva: ripesca chi è rimasta senza coach da qualunque porta (4/9). */
+    private readonly coachDiRiserva: CoachDiRiservaService,
   ) {}
 
   private assertSecret(secret?: string): void {
@@ -160,6 +163,14 @@ export class CronController {
      */
     await step('chiusureGaia', () => this.chat.chiudiSostituzioniLasciateAMeta());
     await step('leadAssignments', () => this.leadAssignment.expireStale());
+    /**
+     * ⛔ **CHI È RIMASTA SENZA COACH VA ALLA COACH DI RISERVA** (Simone, 4/9: «tutte le clienti non
+     * assegnate ad una coach vanno a Giusy», anche quelle che verranno). Le porte da cui un profilo
+     * nasce senza coach sono più di due; questo passo le chiude tutte insieme, comunque sia entrata.
+     * Vedi `common/coach-di-riserva.ts`. ⚠️ **Prima di `coachTasks`**: i compiti del giorno vanno a
+     * chi ha la cliente in scheda, e dopo questo passo ce l'ha qualcuno.
+     */
+    await step('coachDiRiserva', () => this.coachDiRiserva.giroNotturno());
     await step('stalePayments', () => this.commerce.autoCancelStalePayments());
     // Prova gratuita: scadenza automatica + purge del profilo a +7 giorni (handoff lancio).
     await step('trials', () => this.commerce.expireTrialsAndPurge());

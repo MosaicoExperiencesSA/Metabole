@@ -8,6 +8,8 @@ import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
 import { FinanceService } from '../commerce/finance.service';
 import { CrmService } from '../commerce/crm.service';
+import { ConfigParamsService } from '../config-params/config-params.service';
+import { coachDiRiserva } from '../common/coach-di-riserva';
 import { Role } from '../common/roles';
 import { MailService } from '../mail/mail.service';
 import { campiCambiati } from '../common/diff-campi';
@@ -80,6 +82,8 @@ export class UsersService {
     private readonly finance: FinanceService,
     private readonly mail: MailService,
     private readonly crm: CrmService,
+    /** Serve a `assign`: chi è la coach di riserva (4/9). */
+    private readonly configParams: ConfigParamsService,
   ) {}
 
   async list(params: { role?: Role; staffOnly?: boolean; includeArchived?: boolean; page?: number; limit?: number }) {
@@ -502,10 +506,27 @@ export class UsersService {
     }
 
     const patch: { assignedCoachId?: string | null; assignedNutritionistId?: string | null } = {};
+    /**
+     * ⛔ **LA COACH DI RISERVA PASSA DI QUI DUE VOLTE** (Simone, 4/9: «tutte le clienti non
+     * assegnate ad una coach vanno a Giusy»). Vedi `common/coach-di-riserva.ts`.
+     *
+     * · **Si può scegliere a mano anche se non è `coach`.** Giusy è `sales`, e `assertStaffRole`
+     *   la rifiuterebbe: la riserva è accettata **solo se è lei** — non «tutte le commerciali».
+     * · **Togliere la coach non lascia la cliente di nessuno.** Con la regola accesa, «— nessuna —»
+     *   diventa la riserva, e il registro lo dice (`coachDiRiserva: true`), così chi ha tolto la
+     *   coach e ritrova Giusy non crede a un difetto. Con la regola spenta resta `null`, com'era.
+     */
+    let coachDiRiservaApplicata: { staffId: string; displayName: string } | null = null;
     if (data.coachId !== undefined) {
+      const riserva = await coachDiRiserva(this.prisma as never, this.configParams);
       if (data.coachId) {
-        await this.assertStaffRole(data.coachId, 'coach');
+        if (!(riserva.esito === 'ok' && riserva.staffId === data.coachId)) {
+          await this.assertStaffRole(data.coachId, 'coach');
+        }
         patch.assignedCoachId = data.coachId;
+      } else if (riserva.esito === 'ok') {
+        patch.assignedCoachId = riserva.staffId;
+        coachDiRiservaApplicata = { staffId: riserva.staffId, displayName: riserva.displayName };
       } else {
         patch.assignedCoachId = null;
       }
@@ -532,7 +553,11 @@ export class UsersService {
       actorId,
       entityType: 'client_profile',
       entityId: profile.id,
-      metadata: { coachId: data.coachId, nutritionistId: data.nutritionistId },
+      metadata: {
+        coachId: data.coachId,
+        nutritionistId: data.nutritionistId,
+        ...(coachDiRiservaApplicata ? { coachDiRiserva: true, coachDiRiservaStaffId: coachDiRiservaApplicata.staffId } : {}),
+      },
     });
 
     // Paga eventuali provvigioni accantonate su questa cliente per il ruolo assegnato.
@@ -554,7 +579,7 @@ export class UsersService {
       }
     }
 
-    return updated;
+    return { ...updated, coachDiRiserva: coachDiRiservaApplicata };
   }
 
   private async assertStaffRole(staffId: string, role: Role): Promise<void> {

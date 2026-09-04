@@ -10,6 +10,7 @@ import { ChatModule } from './chat/chat.module';
 import { ClientsModule } from './clients/clients.module';
 import { CommerceModule } from './commerce/commerce.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { CoachDiRiservaModule } from './coach-di-riserva/coach-di-riserva.module';
 import { CronModule } from './cron/cron.module';
 import { EngineModule } from './engine/engine.module';
 import { EscalationsModule } from './escalations/escalations.module';
@@ -80,6 +81,7 @@ import { AppUpdatesModule } from './app-updates/app-updates.module';
     PdfModule,
     AuthModule,
     UsersModule,
+    CoachDiRiservaModule,
     VeraModule,
     RolesModule,
     PermissionsModule,

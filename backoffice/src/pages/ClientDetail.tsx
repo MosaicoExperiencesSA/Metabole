@@ -1203,12 +1203,21 @@ export function ClientDetail() {
     (async () => {
       try {
         type StaffUser = { staff: { id: string; displayName: string } | null };
-        const [c, n] = await Promise.all([
+        type Riserva = { esito: 'spenta' } | { esito: 'non_valida' } | { esito: 'ok'; staffId: string; displayName: string; role: string };
+        const [c, n, riserva] = await Promise.all([
           api<{ items: StaffUser[] }>('/admin/users?role=coach'),
           api<{ items: StaffUser[] }>('/admin/users?role=nutritionist'),
+          // La coach di riserva (4/9) può non essere una coach — Giusy è commerciale — e allora
+          // `role=coach` non la elenca: sarebbe l'unica persona assegnata in automatico che a mano
+          // non si può scegliere. Senza risposta la tendina resta quella di prima.
+          api<Riserva>('/admin/coach-di-riserva').catch((): Riserva => ({ esito: 'spenta' })),
         ]);
         const opts = (list: StaffUser[]) => list.filter((u) => u.staff).map((u) => ({ id: u.staff!.id, name: u.staff!.displayName }));
-        setCoaches(opts(c.items));
+        const coachOpts = opts(c.items);
+        if (riserva.esito === 'ok' && !coachOpts.some((o) => o.id === riserva.staffId)) {
+          coachOpts.push({ id: riserva.staffId, name: `${riserva.displayName} · coach di riserva` });
+        }
+        setCoaches(coachOpts);
         setNutritionists(opts(n.items));
       } catch {
         /* le liste sono opzionali: se non si caricano, resta la vista in sola lettura */
@@ -1223,11 +1232,15 @@ export function ClientDetail() {
       const body: Record<string, string | null> = { clientId: id! };
       if (kind === 'coach') body.coachId = staffId || null;
       else body.nutritionistId = staffId || null;
-      await api('/admin/assignments', { method: 'POST', body: JSON.stringify(body) });
+      const esito = await api<{ coachDiRiserva?: { staffId: string; displayName: string } | null }>('/admin/assignments', { method: 'POST', body: JSON.stringify(body) });
       const data = await api<Detail>(`/admin/clients/${id}`); // ricarico: aggiorna team e accantonate
       setD(data);
       setNotes(data.notes ?? []);
-      setNotice('Team aggiornato.');
+      // Togliere la coach non lascia la cliente di nessuno (4/9): chi ha scelto «nessuna» e ritrova
+      // la riserva deve leggerlo qui, non crederlo un difetto.
+      setNotice(esito?.coachDiRiserva
+        ? `Team aggiornato. Senza coach non si resta: la cliente è passata alla coach di riserva (${esito.coachDiRiserva.displayName}).`
+        : 'Team aggiornato.');
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Solo un admin può cambiare le assegnazioni.');
       else setError(err instanceof Error ? err.message : 'Assegnazione non riuscita.');

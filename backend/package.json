@@ -47,6 +47,7 @@
     "diag:parametri": "ts-node --transpile-only prisma/diag-parametri.ts",
     "fix:assegnazioni": "ts-node --transpile-only prisma/fix-assegnazioni.ts",
     "assegna:nutrizionista": "ts-node --transpile-only prisma/assegna-nutrizionista.ts",
+    "assegna:coach-di-riserva": "ts-node --transpile-only prisma/assegna-coach-di-riserva.ts",
     "prova:erogazione": "ts-node --transpile-only prisma/prova-erogazione.ts",
     "sblocca:sospensione": "ts-node --transpile-only prisma/sblocca-sospensione.ts",
     "fix:diet-family": "ts-node --transpile-only prisma/fix-diet-family.ts",

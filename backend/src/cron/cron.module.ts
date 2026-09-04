@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CoachDiRiservaModule } from '../coach-di-riserva/coach-di-riserva.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { AgentsModule } from '../agents/agents.module';
 import { CoachTasksModule } from '../coach-tasks/coach-tasks.module';
@@ -20,7 +21,7 @@ import { ProfileModule } from '../profile/profile.module';
 import { CronController } from './cron.controller';
 
 @Module({
-  imports: [EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule, ProfileModule, CatalogModule],
+  imports: [CoachDiRiservaModule, EngineModule, EngineRulesModule, NotificationsModule, CommerceModule, ReportsModule, AlertsModule, ChatModule, SignalsModule, HealthAreaModule, AgentsModule, CoachTasksModule, MonitoringModule, PauseModule, PrivacyModule, VeraModule, NutrientFactsModule, ProfileModule, CatalogModule],
   controllers: [CronController],
 })
 export class CronModule {}

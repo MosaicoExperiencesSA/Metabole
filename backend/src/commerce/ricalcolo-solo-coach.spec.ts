@@ -60,7 +60,8 @@ describe('ricalcolaProvvigioni — solo la catena coach', () => {
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: prisma },
-        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (_k: string, d?: number) => d) } },
+        // `getString`: dal 4/9 il ricalcolo chiede chi è la coach di riserva (qui: spenta, col ripiego).
+        { provide: ConfigParamsService, useValue: { getNumber: jest.fn(async (_k: string, d?: number) => d), getString: jest.fn(async (_k: string, d?: string) => d) } },
         { provide: AuditService, useValue: { log: jest.fn() } },
       ],
     }).compile();
