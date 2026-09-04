@@ -83,6 +83,33 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'attiva-un-piano-non-e-nei-permessi',
+    categoria: CODICE,
+    ordine: 0,
+    nata: '2026-09-04T23:55',
+    titolo: '⛔ «Attiva un piano» non si può né dare né togliere dai Permessi: è cablato su `isAdmin`',
+    dettaglio:
+      'Simone, 4/9: *«va gestito nei ruoli»*. Controllato, ed è vero.\n\n'
+      + '· il pulsante nella scheda cliente sta dentro un `if (isAdmin)` scritto a mano '
+      + '(`ClientDetail.tsx`);\n'
+      + '· la rotta sotto — `POST /admin/purchases` — è protetta da **`@Roles(\'admin\')`**, cioè dal '
+      + 'ruolo, non da una casella;\n'
+      + '· la classe ha `@RequirePage(\'purchases\')`, ma quella è la chiave della **pagina Acquisti** '
+      + 'in sola vista: governa chi vede l\'elenco, non chi attiva un piano.\n\n'
+      + '⛔ Quindi quel potere non si può dare al capo nutrizionista senza farne un admin, né '
+      + 'togliere a un admin. ⚠️ È il gemello rovesciato del difetto del 3/9: lì 29 caselle spengono '
+      + 'il menu e non la porta, qui c\'è **una porta senza nessuna casella**.\n\n'
+      + '**Serve, e sono i tre passi di `CLAUDE.md`, tutti e tre:** la chiave `attiva_piano` in '
+      + '`permissions/pages.ts` coi default di ruolo · l\'etichetta in `labels.ts` · la guardia '
+      + '`@RequirePage(\'attiva_piano\', \'manage\')` sulla rotta **e** il pulsante che legge quella '
+      + 'casella invece di `isAdmin`, con `@Roles` sotto come rete.\n\n'
+      + '⚠️ **Una decisione di Simone dentro**: la finestra legge anche `GET /admin/purchases/plans`, '
+      + 'oggi `@Roles(\'admin\',\'sales\')`. Dando la casella a qualcun altro, quella lettura risponde '
+      + '**403** e la finestra si apre vuota. La chiave nuova deve aprire tutte e due, o è un '
+      + 'interruttore che non accende niente.',
+  },
+
+  {
     chiave: 'chiave-vale-in-due-copie',
     categoria: CODICE,
     ordine: 0,
@@ -119,13 +146,37 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'conferma**. ⚠️ Il conto sta nel **modulo puro** e non nello script: da quel numero dipende '
       + 'una decisione sul catalogo, e un giudizio che decide non sta in un file di `prisma/` che '
       + 'nessun test guarda.\n\n'
-      + '▶️ **RESTA DA LANCIARLO SUI DATI VERI**, e poi si decide: qui in sandbox il database non '
-      + 'c\'è. ⚠️ Quando si accende, `suggestAllergens` chiama `chiaveCombacia` e spariscono sia '
-      + '`allergeniConPortaUnica` sia `chiaveCombaciaOggi`, che vivono solo per la misura.\n\n'
-      + '⚠️ **Quello che il tabulato NON conta, dichiarato**: chi ricalcola davvero i tag è '
-      + '`confermaAllergeniInBlocco`, che gira sulle **bozze** (`active: false`) e qui non entra; e '
-      + 'per le ricette già attive uno script di ri-tag **non esiste**. Cioè quel numero conta '
-      + 'ricette che cambiano solo se qualcuno scrive quel passaggio.',
+      + '✅ **MISURATO SUI DATI VERI IL 4/9, e Simone ha letto le otto coppie una per una: tutte e '
+      + 'otto «no».** 190 ricette su 23 726, tutte col tag **scritto** e tutte con la spunta.\n'
+      + '```\n'
+      + 'melograno  → glutine  63     dorata (zucca)       → pesce   17\n'
+      + 'melagrana  → latte    58     sgranato             → latte    6\n'
+      + 'sgranati   → latte    43     melograna            → latte    1\n'
+      + '(edamame)                    sgranocchiate        → glutine  1\n'
+      + '                             corata (di coniglio) → pesce    1\n'
+      + '```\n'
+      + '⛔ **Diciassette piatti di carne risultavano contenere pesce** perché la zucca è «dorata», e '
+      + 'quarantatré piatti di **edamame** risultavano contenere **latte** perché i fagioli sono '
+      + '«sgranati».\n\n'
+      + '✅ **LA PORTA UNICA È CHIUSA (4/9 sera)**: `suggestAllergens` chiama `chiaveCombacia` di '
+      + '`menu/exclusions.ts`, e la copia non c\'è più. Da adesso nessuna ricetta nuova nasce con '
+      + 'quei tag.\n\n'
+      + '▶️ **RESTA DA LANCIARE LA RIPARAZIONE, ed è il gesto che scrive:**\n'
+      + '```\n'
+      + 'npm run ripara:allergeni-chiave\n'
+      + 'CONFERMA=1 npm run ripara:allergeni-chiave\n'
+      + '```\n'
+      + '⛔ **Correggere la funzione non riporta indietro quello che è già scritto** (lezione dell\'1/9 '
+      + 'sul riconoscitore della carne): quelle 190 continuano a togliere il piatto finché non si '
+      + 'riscrivono.\n\n'
+      + '⚠️ **Si toglie SOLO l\'allergene falso, mai si riscrive l\'elenco**, e le ricette su cui '
+      + 'qualcuno ha scelto gli allergeni **a mano** (`catalog.recipe.allergens.set` nel registro) '
+      + 'non si toccano affatto: escono in un elenco a parte. ⛔ Il perché l\'ha misurato una '
+      + 'revisione avversariale — su «zucca dorata + salsa Worcestershire» il tag «pesce» sono **le '
+      + 'acciughe**, e dagli ingredienti non si distingue dal falso della zucca.\n\n'
+      + '⚠️ E `allergensReviewed` **non** si azzera: `personal-base.service.ts` scarta le ricette '
+      + 'senza quella spunta, quindi azzerarla toglierebbe 190 piatti dalle basi personali — cioè si '
+      + 'scambierebbe un allergene falso con nessun piatto.',
   },
 
   {

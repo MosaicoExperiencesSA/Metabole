@@ -1338,7 +1338,33 @@ export class VeraChatService {
       return { testo: testi.modificaInCoda(campi.name), esito: 'in_approvazione', azioneId: riga.id };
     }
 
-    const nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+    /**
+     * ⛔ **`createRecipe` ADESSO PUÒ RIFIUTARE, e prima di questa riga l'eccezione volava via nuda.**
+     *
+     * Dal 4/9 ha due cancelli: l'elenco ingredienti vuoto **ferma**, il regime che il contenuto
+     * smentisce **chiede una conferma**. ⚠️ Da Vera quella conferma non si può dare — la porta è un
+     * dialogo — quindi il rifiuto è definitivo e va **raccontato**: `parla()` non ha un try/catch, e
+     * il messaggio della nutrizionista è già stato scritto in chat. Lasciandola volare succedeva
+     * questo: la sua frase in chat, **nessuna risposta di Vera**, lo stato del dialogo fermo, e il
+     * «sì» ripetuto che rifà lo stesso errore all'infinito.
+     *
+     * ⚠️ È lo stesso ragionamento del `catch` venti righe sotto, che questa riga aveva lasciato
+     * scoperto: *un errore raccontato è un lavoro che si può riprendere; un errore inghiottito è un
+     * piatto che nessuno sa di avere*. L'ha trovato una revisione avversariale.
+     */
+    let nuova: { id: string };
+    try {
+      nuova = (await this.ricette.createRecipe(nutrizionistaId, campi)) as { id: string };
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : 'la scrittura non è riuscita.';
+      logger.warn(`Vera: ricetta «${campi.name}» rifiutata alla scrittura — ${motivo}`);
+      /**
+       * ⚠️ **`arresa` e non un esito nuovo**: vuol dire «il dialogo si chiude qui, non ho fatto
+       * niente», che è esattamente com'è rimasta. Un esito nuovo vorrebbe dire toccare tutti i punti
+       * che li leggono per un caso che si comporta come uno che c'è già.
+       */
+      return { testo: testi.ricettaRifiutata(campi.name, motivo), esito: 'arresa' };
+    }
 
     /**
      * ⛔ **QUI LA RICETTA SI ACCENDE, E SI ACCENDE DA UNA PORTA SOLA** — Simone, 4/9: *«Vera chiede

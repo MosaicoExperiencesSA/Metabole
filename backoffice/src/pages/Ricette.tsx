@@ -727,6 +727,14 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   /**
+   * ⛔ **LA DOPPIA CONFERMA SUL REGIME** (Simone, 4/9). Il server rifiuta con «Da confermare:» un
+   * piatto la cui etichetta il contenuto smentisce — la carne dentro un vegetariano — e si riprova
+   * **dopo** aver letto. ⚠️ Non è un flag che il codice si mette da solo nello stesso clic: quello
+   * non sarebbe una conferma, sarebbe un campo in più. È la stessa forma della scrittura del menu a
+   * mano, che quel difetto l'ha già avuto e corretto.
+   */
+  const [daConfermare, setDaConfermare] = useState<string | null>(null);
+  /**
    * ⛔ **UNA RICETTA NUOVA CHE NON STA IN NESSUN PANIERE NON ARRIVA A NESSUNO.**
    *
    * Simone, 4/9: *«ovviamente mi chiederà anche in quali panieri metterla»*. Fino a oggi «Nuova
@@ -756,8 +764,9 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
     setF((s) => ({ ...s, methods: s.methods.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
   }
 
-  async function save() {
+  async function save(conferma = false) {
     setErr(null);
+    if (!conferma) setDaConfermare(null);
     const kcal = Number(f.kcal);
     if (f.name.trim().length < 2) { setErr('Dai un nome alla ricetta.'); return; }
     if (!Number.isFinite(kcal) || kcal < 30 || kcal > 2000) { setErr('Le kcal devono essere tra 30 e 2000.'); return; }
@@ -785,7 +794,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
      * averla guardata. La firma deve restare di chi l'ha data.
      */
     const verificaCambiata = !recipe || f.verified !== !!recipe.verifiedAt;
-    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, difficulty: f.difficulty, seasons: f.seasons, active: f.active, ...(verificaCambiata ? { verified: f.verified } : {}) };
+    const body = { name: f.name.trim(), regime: f.regime, mealSlot: f.mealSlot, kcal, ingredients, cookingMethods, difficulty: f.difficulty, seasons: f.seasons, active: f.active, ...(verificaCambiata ? { verified: f.verified } : {}), ...(conferma ? { confermaRegime: true } : {}) };
 
     setBusy(true);
     try {
@@ -840,7 +849,15 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
       }
       onSaved(avviso);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
+      const messaggio = e instanceof Error ? e.message : 'Salvataggio non riuscito.';
+      /**
+       * ⚠️ **«Non si può» e «va confermato» sono due cose**, e la schermata deve distinguerle: un
+       * errore rosso su una cosa che si può fare insegna a non leggere gli errori. ⛔ L'elenco
+       * ingredienti vuoto resta un errore rosso, e non ha un pulsante per passare oltre: non è una
+       * decisione di nessuno, è una dimenticanza.
+       */
+      if (!conferma && messaggio.startsWith('Da confermare:')) setDaConfermare(messaggio.replace(/^Da confermare:\s*/, ''));
+      else setErr(messaggio);
     } finally {
       setBusy(false);
     }
@@ -919,6 +936,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
   return (
     <Modal title={recipe ? 'Modifica ricetta' : 'Nuova ricetta'} onClose={onClose}>
       {err && <Banner kind="err">{err}</Banner>}
+      {daConfermare && <Banner kind="warn"><b>Da leggere prima di salvare:</b> {daConfermare}</Banner>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
         <label style={{ gridColumn: '1 / -1' }}><span className="muted" style={{ fontSize: 12 }}>Nome</span>
@@ -1043,7 +1061,18 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
 
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
-        <button className="btn" onClick={save} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva'}</button>
+        {/* ⛔ **Il secondo pulsante compare solo DOPO che il server ha detto cosa c'è da confermare**,
+            e accanto alla frase che l'ha detto. Un pulsante «salva lo stesso» prima di aver mostrato
+            «lo stesso che cosa» insegna a cliccare senza leggere. */}
+        {daConfermare
+          ? (
+            <button className="btn" onClick={() => void save(true)} disabled={busy}>
+              <i className="ti ti-alert-triangle" /> {busy ? 'Salvo…' : 'Ho letto, salva lo stesso'}
+            </button>
+          )
+          : (
+            <button className="btn" onClick={() => void save()} disabled={busy}><i className="ti ti-device-floppy" /> {busy ? 'Salvo…' : 'Salva'}</button>
+          )}
       </div>
     </Modal>
   );

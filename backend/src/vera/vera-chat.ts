@@ -483,6 +483,23 @@ export const testi = {
     '⚠️ Se ti sei sbagliata, si **spegne** dalla sua scheda in Ricette: il registro tiene la ' +
     'traccia di chi l\'ha scritta, ma non la spegne lui.',
 
+  /**
+   * ⛔ **LA SCRITTURA RIFIUTATA SI RACCONTA, non diventa un 500 muto.**
+   *
+   * Dal 4/9 `createRecipe` ha due cancelli — l'elenco ingredienti vuoto **ferma**, il regime che il
+   * contenuto smentisce **chiede una conferma** — e da Vera quella conferma non si può dare: la
+   * porta è un dialogo, non un pulsante. ⚠️ Senza questo messaggio la frase della nutrizionista
+   * restava scritta in chat, Vera **non rispondeva niente**, e il «sì» ripetuto rifaceva lo stesso
+   * errore. L'ha trovato una revisione avversariale.
+   *
+   * ⚠️ Il motivo del server si riporta **per intero**: nomina l'ingrediente, ed è la sola cosa che
+   * dice cosa correggere.
+   */
+  ricettaRifiutata: (nome: string, motivo: string) =>
+    `Non ho potuto scrivere **${nome}**: ${motivo.replace(/^Da confermare:\s*/, '')}\n\n` +
+    '⚠️ Da qui non posso passarci sopra: se il piatto è giusto così, scrivilo dalla pagina Ricette, ' +
+    'dove la conferma si può dare. Altrimenti correggi e ridimmelo.',
+
   modificaInCoda: (nome: string) =>
     `Fatto: la modifica di **${nome}** è in coda al capo nutrizionista. Fino a quando non la approva, ` +
     'la ricetta resta quella di adesso — nessuna cliente si trova il piatto cambiato stanotte.',

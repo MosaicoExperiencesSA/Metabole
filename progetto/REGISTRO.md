@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Due cancelli alla ricetta che entra in catalogo** (decisioni di Simone): l'elenco
+  ingredienti vuoto **ferma** il salvataggio, il regime che il contenuto smentisce **chiede una
+  doppia conferma**. ⚠️ Una porta sola — `createRecipe` — e ci passano tutte e tre le strade che una
+  persona guida: la pagina Ricette, «Nuova ricetta» dentro il menu della cliente, e Vera.
+  ⛔ E la **porta unica delle chiavi**: `allergens.ts` non ha più una copia sua di «questa chiave
+  vale?». Misurato: **190 ricette su 23 726** avevano un allergene falso scritto — diciassette piatti
+  di **carne** risultavano contenere **pesce** perché la zucca è «dorata», quarantatré di **edamame**
+  contenere **latte** perché i fagioli sono «sgranati».
+  ⛔ **La revisione avversariale ha trovato tre cose gravi, due dentro le mie correzioni**: la
+  riparazione cancellava **le acciughe della salsa Worcestershire** (criterio più largo del dovuto);
+  il cancello del regime **bloccava la coda di approvazione di Vera** su un `{active: true}`, senza
+  via d'uscita; e `createRecipe` non era in try/catch, quindi Vera **non rispondeva più niente**.
+  ⚠️ E le prove dei due cancelli non mordevano: si poteva togliere metà del cablaggio con la suite
+  verde. ⛔ Compreso `onClick={save}`, che passa l'evento React come conferma — cioè manda
+  `confermaRegime` al primo clic e la doppia conferma sparisce.
+
+
 - `[Sviluppo]` ⛔ **«Se sposto una ricetta da colazione a cena e salvo non la sposta».** `Recipe.mealSlot`
   e `PaniereRicetta.slot` sono due colonne diverse e il salvataggio scriveva solo la prima: la scheda
   diceva «cena» e **il motore continuava a servirlo a colazione**. Nessun errore, e chi aveva salvato

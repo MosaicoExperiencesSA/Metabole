@@ -1,0 +1,100 @@
+────────────────────────────────────────────────────────────────────────────
+ Due cancelli alla ricetta che entra in catalogo, e la porta unica delle chiavi
+ 4 settembre 2026 (notte)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+Summary
+───────
+Ricetta senza ingredienti bloccata, regime smentito con doppia conferma, e la porta unica sugli allergeni
+
+Description
+───────────
+Tre cose, e le prime due sono decisioni di Simone del 4/9 su difetti misurati
+su origin/main.
+
+1) L ELENCO INGREDIENTI VUOTO FERMA IL SALVATAGGIO
+   Simone: «deve essere bloccante, non fa salvare la ricetta».
+   CreateRecipeDto aveva @IsArray() senza @ArrayMinSize: una ricetta si poteva
+   creare senza dire cosa ci va dentro, dall interfaccia. E il buco 6a5666fd
+   dice cosa costa: il filtro del regime, la deduzione degli allergeni e le
+   esclusioni della cliente guardano TUTTI l elenco, e con l elenco vuoto non
+   dicono attenzione, dicono ok.
+   ⚠️ Due difese: @ArrayMinSize sul DTO ferma il caso grosso, statoElenco nel
+   servizio prende quello che inganna — le righe che ci sono ma senza nomi.
+
+2) IL REGIME CHE IL CONTENUTO SMENTISCE CHIEDE UNA DOPPIA CONFERMA
+   Simone: «chiede doppia conferma». createRecipe scriveva regime: dto.regime
+   senza confrontarlo col contenuto: un piatto col pollo poteva nascere
+   dichiarato vegano. È il difetto dei 175 piatti dell 1/9 — il generatore
+   scriveva il regime della RICHIESTA e non del piatto — rifatto da una porta
+   a mano.
+   ⛔ Chiede e non ferma, ed è la decisione: in questo catalogo esistono
+   «Polpo di ceci» e «Branzino di melanzane», e bloccare vorrebbe dire non
+   poterli più scrivere. Si prova, il server dice cosa c è da leggere, e POI si
+   conferma — non un flag che il codice si mette da solo nello stesso clic.
+   La forzatura resta scritta nel registro, in creazione E in modifica.
+
+   ⚠️ UNA PORTA SOLA, e ci passano tutte e tre le strade che una persona guida:
+   la pagina Ricette, la finestra «Nuova ricetta» dentro il menu della cliente,
+   e Vera che detta la ricetta passo passo.
+
+3) LA PORTA UNICA DELLE CHIAVI, e le 190 ricette che si lascia dietro
+   catalog/allergens.ts aveva una copia sua di «questa chiave vale?» che non
+   consultava SOLO_A_INIZIO_PAROLA. Misurato con diag:chiave-doppia sul
+   catalogo vero: 190 ricette su 23726, tutte col tag scritto e con la spunta.
+   Otto coppie, tutte e otto lette da Simone: tutte «no».
+
+       melograno  → glutine  63     dorata (zucca)       → pesce   17
+       melagrana  → latte    58     sgranato             → latte    6
+       sgranati   → latte    43     melograna            → latte    1
+       (edamame)                    sgranocchiate        → glutine  1
+                                    corata (di coniglio) → pesce    1
+
+   Diciassette piatti di CARNE risultavano contenere PESCE perché la zucca è
+   «dorata», e quarantatré piatti di EDAMAME risultavano contenere LATTE perché
+   i fagioli sono «sgranati».
+   ✅ Adesso suggestAllergens chiama chiaveCombacia di menu/exclusions.ts, e la
+   copia non c è più.
+
+⛔ COSA HA TROVATO LA REVISIONE AVVERSARIALE — tre cose gravi, e due erano
+   dentro le mie correzioni:
+
+   · LA RIPARAZIONE CANCELLAVA ALLERGENI MESSI A MANO. Il criterio era «una
+     chiave combacia dentro una parola più lunga», che è più largo di «la
+     vecchia porta lo scriveva»: toglieva i solfiti dal brasato di bovino e —
+     misurato — LE ACCIUGHE della salsa Worcestershire su «zucca dorata».
+     Adesso il criterio è esatto, e dove una persona ha scelto gli allergeni a
+     mano (catalog.recipe.allergens.set nel registro) non si tocca niente: quelle
+     ricette escono in un elenco a parte.
+   · IL CANCELLO DEL REGIME BLOCCAVA LA CODA DI VERA. Girava su ogni PATCH,
+     quindi un {active: true} — che è come si approva una ricetta dettata —
+     tornava 400 su un difetto che chi approva non ha introdotto e da lì non
+     poteva risolvere: la proposta restava in coda per sempre. Adesso i due
+     cancelli valgono solo su chi tocca il regime o gli ingredienti.
+   · VERA NON RISPONDEVA PIÙ. createRecipe non era in try/catch, e parla() non
+     ne ha uno: la frase della nutrizionista restava in chat, nessuna risposta,
+     lo stato del dialogo fermo, e il «sì» ripetuto rifaceva lo stesso errore.
+     Adesso il rifiuto si racconta, col motivo del server per intero.
+
+   ⚠️ E le prove dei due cancelli NON MORDEVANO: si poteva togliere metà del
+   cablaggio con la suite intera verde. Adesso c è due-cancelli-alla-porta.spec.ts
+   sul montaggio, e una riga che vieta onClick={save} — che passa l evento React
+   come conferma, cioè manda confermaRegime al primo clic.
+
+Verificato
+──────────
+· backend: 445 suite, 7670 test verdi · nest build verde
+· backoffice: build vero (tsc -b && vite build) verde, 32 file, 298 test
+· tre giri di revisione avversariale, e i primi due hanno bocciato correzioni
+  del giro precedente
+
+Cosa resta
+──────────
+⛔ Lanciare la riparazione delle 190 (il comando sta nella voce dei Lavori).
+⚠️ Le uova e i latticini dentro un piatto dichiarato vegano passano ancora: il
+   perché è scritto nel codice, e adesso manca solo un allungamento dei segni
+   vegetali per «ricotta di mandorla» e «uova di lino».
+⚠️ agente-pasti-leggeri.service.ts scrive ricette con prisma.recipe.create e non
+   passa da nessuno dei due cancelli. Dichiarato, non chiuso.

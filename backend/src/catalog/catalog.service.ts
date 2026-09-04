@@ -8,6 +8,7 @@ import { etichettaSlot, puoStareNelloSlot, slotCapofila } from '../common/slot-p
  */
 import { fuoriPostoNelPasto } from './colazione-senza-carne-e-pesce';
 import { cosaFareDelleRighe, perchePerNonSiPuoSpostare, raccontaSpostamento } from './ricetta-che-cambia-pasto';
+import { controllaRicettaDaScrivere } from './ricetta-che-si-puo-scrivere';
 import { famigliaInChiusura } from './appartenenza-panieri';
 import {
   BadRequestException,
@@ -1604,6 +1605,45 @@ export class CatalogService {
   async updateRecipe(userId: string, id: string, dto: UpdateRecipeDto) {
     const existing = await this.prisma.recipe.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Ricetta non trovata');
+
+    /**
+     * ⛔ **Si giudica la ricetta COME RESTERÀ, non i campi mandati.** `PATCH` manda solo quello che
+     * cambia: chi tocca il **solo** regime — da onnivoro a vegetariano su un piatto col pollo —
+     * manderebbe un corpo in cui gli ingredienti non ci sono, e un controllo sui campi ricevuti
+     * direbbe «niente da vedere». È il verso più probabile del difetto, non il meno.
+     */
+    const vecchia = existing as { name: string; regime: string; ingredients: unknown };
+    const verdetto = controllaRicettaDaScrivere({
+      nome: dto.name ?? vecchia.name,
+      regime: dto.regime ?? vecchia.regime,
+      ingredienti: dto.ingredients ?? vecchia.ingredients,
+    });
+    /**
+     * ⚠️ **Sull'elenco vuoto si ferma SOLO se lo sta mandando adesso.** Una ricetta che l'elenco
+     * vuoto ce l'ha già in catalogo — ce ne sono, `diag:senza-ingredienti` le conta — non deve
+     * diventare impossibile da correggere: chi apre quella scheda per sistemare un refuso si
+     * troverebbe il salvataggio chiuso proprio sul difetto che sta andando a chiudere.
+     */
+    /**
+     * ⛔ **I DUE CANCELLI VALGONO SOLO SU CHI TOCCA QUELLE COSE, e la prima stesura no.**
+     *
+     * `PATCH` manda solo quello che cambia. Facendoli girare su ogni salvataggio, un
+     * `{ active: true }` — che è **come si approva una ricetta dettata a Vera**
+     * (`vera/registro.service.ts`) — prendeva un 400 su un difetto che chi approva non ha
+     * introdotto e da lì **non può risolvere**: quel chiamante non ha nessun modo di mandare
+     * `confermaRegime`, e la proposta restava in coda per sempre. L'ha trovato una revisione
+     * avversariale.
+     *
+     * ⚠️ La regola è la stessa per tutti e due: si giudica **chi sta cambiando** il regime o gli
+     * ingredienti. Chi corregge un refuso nel nome, o accende una ricetta, passa — anche se quella
+     * ricetta in catalogo ha già un difetto. Sistemarlo è un altro gesto, e va fatto da chi lo vede.
+     */
+    const tocca = dto.regime !== undefined || dto.ingredients !== undefined;
+    if (verdetto.esito === 'ferma' && dto.ingredients !== undefined) throw new BadRequestException(verdetto.problema);
+    if (verdetto.esito === 'conferma' && tocca && dto.confermaRegime !== true) {
+      throw new BadRequestException(`Da confermare: ${verdetto.problema}`);
+    }
+
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.regime !== undefined) data.regime = dto.regime as never;
@@ -1766,7 +1806,14 @@ export class CatalogService {
        * deve poter distinguere «gli allergeni non sono più confermati» da «la ricetta non è più
        * verificata», che sono due cose diverse e si riparano in due posti diversi.
        */
-      ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata' || pasto
+      /**
+       * ⛔ **E la forzatura del regime finisce qui come nella creazione**, che è la porta meno
+       * probabile delle due: il difetto è tipicamente **già** in catalogo, quindi chi lo forza lo
+       * forza modificando. La prima stesura la scriveva solo su `createRecipe`, e una revisione
+       * avversariale ha misurato che l'invariante «un permesso senza traccia è un pulsante ignora»
+       * valeva su una porta sola.
+       */
+      ...(confermaDecaduta || esitoVerifica.tipo !== 'invariata' || pasto || (verdetto.esito === 'conferma' && tocca)
         ? {
           metadata: {
             ...(confermaDecaduta ? { allergensReviewed: false, motivo: 'ingredienti_cambiati' } : {}),
@@ -1786,6 +1833,7 @@ export class CatalogService {
                 panieriTolti: pasto.tolte,
               }
               : {}),
+            ...(verdetto.esito === 'conferma' && tocca ? { regimeForzato: verdetto.problema } : {}),
           },
         }
         : {}),
@@ -1915,7 +1963,29 @@ export class CatalogService {
     }
   }
 
+  /**
+   * ⛔ **I DUE CANCELLI DI SIMONE (4/9) STANNO QUI, e non su una schermata.**
+   *
+   * Questa funzione la chiamano **tre** strade che una persona guida: la pagina Ricette, la finestra
+   * «Nuova ricetta» dentro il menu della cliente, e **Vera** che la detta passo passo
+   * (`vera/scrittura-ricetta.ts`). Il controllo su una di quelle avrebbe lasciato aperte le altre
+   * due — la forma esatta del difetto `assignments`.
+   *
+   * ⚠️ La regola sta in `ricetta-che-si-puo-scrivere.ts`, che è puro e ha le sue prove; qui si
+   * traduce il suo verdetto in una risposta HTTP e si scrive nel registro chi ha forzato.
+   */
   async createRecipe(userId: string, dto: CreateRecipeDto) {
+    const verdetto = controllaRicettaDaScrivere({ nome: dto.name, regime: dto.regime, ingredienti: dto.ingredients });
+    if (verdetto.esito === 'ferma') throw new BadRequestException(verdetto.problema);
+    /**
+     * ⚠️ **«Da confermare:» è un prefisso che il client LEGGE**, ed è la stessa forma che usa già la
+     * scrittura del menu a mano: separa «non si può» da «va confermato». Un errore rosso su una cosa
+     * che si può fare insegna a non leggere gli errori.
+     */
+    if (verdetto.esito === 'conferma' && dto.confermaRegime !== true) {
+      throw new BadRequestException(`Da confermare: ${verdetto.problema}`);
+    }
+
     const recipe = await this.prisma.recipe.create({
       data: {
         name: dto.name,
@@ -1936,7 +2006,12 @@ export class CatalogService {
       actorId: userId,
       entityType: 'recipe',
       entityId: recipe.id,
-    });
+      /**
+       * ⛔ **La forzatura resta scritta.** Un permesso senza traccia è un pulsante «ignora»: fra sei
+       * mesi, davanti a un piatto etichettato male, nessuno saprebbe se qualcuno ci aveva pensato.
+       */
+      ...(verdetto.esito === 'conferma' ? { metadata: { regimeForzato: verdetto.problema } } : {}),
+    } as never);
     return recipe;
   }
 

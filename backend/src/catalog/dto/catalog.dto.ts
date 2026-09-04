@@ -307,10 +307,27 @@ export class CreateRecipeDto {
   @Max(2000)
   kcal!: number;
 
+  /**
+   * ⛔ **ALMENO UN INGREDIENTE — Simone, 4/9: «deve essere bloccante, non fa salvare la ricetta».**
+   *
+   * ⚠️ È la **prima** di due difese, non l'unica: il caso che inganna — righe senza nome dentro,
+   * `[{qty: 100}]` — lo prende `statoElenco` nel servizio, che è anche il posto dove il messaggio è
+   * scritto per una persona invece che dalla pipe di validazione.
+   */
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => IngredientDto)
   ingredients!: IngredientDto[];
+
+  /**
+   * ⚠️ **La seconda conferma sul regime** (Simone, 4/9: «chiede doppia conferma»). Non si manda al
+   * primo tentativo: si prova, il server dice cosa c'è da leggere, e **poi** si conferma. Un flag
+   * che il client si mette da solo nello stesso clic non è una conferma — è un campo in più.
+   */
+  @IsOptional()
+  @IsBoolean()
+  confermaRegime?: boolean;
 
   @IsOptional()
   @IsArray()
@@ -352,7 +369,10 @@ export class UpdateRecipeDto {
   @IsOptional() @IsString() @MaxLength(40) regime?: string;
   @IsOptional() @IsIn(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner']) mealSlot?: string;
   @IsOptional() @IsInt() @Min(30) @Max(2000) kcal?: number;
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => IngredientDto) ingredients?: IngredientDto[];
+  /** ⛔ Se l'elenco si manda, non può essere vuoto: svuotarlo è lo stesso difetto della creazione. */
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => IngredientDto) ingredients?: IngredientDto[];
+  /** ⚠️ Come nella creazione: si manda al secondo tentativo, dopo aver letto. */
+  @IsOptional() @IsBoolean() confermaRegime?: boolean;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MetodoCotturaDto) cookingMethods?: MetodoCotturaDto[];
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsObject() macros?: Record<string, number>;

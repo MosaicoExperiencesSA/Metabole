@@ -1,4 +1,4 @@
-import { PAROLE_CHE_NON_SONO, dentroUnaFraseCheNonE } from '../menu/exclusions';
+import { chiaveCombacia } from '../menu/exclusions';
 
 /**
  * Allergeni UE (14) e dizionario per il PRE-TAG assistito delle ricette (R8).
@@ -102,37 +102,32 @@ export const ingredientNames = nomiIngredienti;
  * adesso la lista è una.
  */
 /**
- * ⛔ **ESPORTATA il 4/9 per la MISURA, non per essere usata.**
+ * ⛔ **LA SECONDA COPIA DI «QUESTA CHIAVE VALE?» NON C'È PIÙ — 4/9 sera, e con un numero davanti.**
  *
- * `diag:chiave-doppia` deve sapere **quale chiave** questa copia fa scattare e la porta unica no.
- * Senza, si sarebbe scritta una terza copia della stessa domanda dentro il modulo della misura —
- * cioè si sarebbe rifatto, per contarlo, il difetto che si sta contando.
+ * Qui viveva una copia della funzione di `menu/exclusions.ts` che conosceva le parole omonime e le
+ * frasi, e **non** `SOLO_A_INIZIO_PAROLA`. Cioè la regola scritta il 4/9 per «grana» e «grano»
+ * valeva per le esclusioni della cliente e non per i tag allergene — che però **vengono scritti**
+ * sulle ricette, e da lì tolgono il piatto.
  *
- * ⚠️ **Sparisce insieme alla misura**: il giorno che questa funzione chiama `chiaveCombacia` di
- * `menu/exclusions.ts`, non c'è più niente da confrontare e questo export non serve a nessuno.
+ * ⛔ **Misurato con `npm run diag:chiave-doppia` sul catalogo vero: 190 ricette su 23 726**, tutte
+ * con il tag scritto e tutte con la spunta di conferma. Otto coppie, e Simone le ha lette una per
+ * una: **tutte e otto «no»**.
+ *
+ *     melograno     → glutine   63     dorata (zucca)  → pesce   17
+ *     melagrana     → latte     58     sgranato        → latte    6
+ *     sgranati      → latte     43     melograna       → latte    1
+ *     (edamame)                        sgranocchiate   → glutine  1
+ *                                      corata (di coniglio) → pesce 1
+ *
+ * ⚠️ Diciassette piatti di **carne** risultavano contenere **pesce** perché la zucca è «dorata», e
+ * quarantatré piatti di **edamame** risultavano contenere **latte** perché i fagioli sono
+ * «sgranati». Non era una proposta di troppo: era una riga scritta che li toglieva dal piatto di
+ * chi ha quell'allergia.
+ *
+ * ⚠️ E non c'era niente da decidere di nuovo: `grana`, `grano` e `orata` stanno in
+ * `SOLO_A_INIZIO_PAROLA` **dal 4/9**. Quelle 190 ricette stavano pagando una decisione già presa,
+ * che una porta sola non leggeva.
  */
-export function chiaveCombaciaOggi(nome: string, kw: string): boolean {
-  return chiaveVale(nome, kw);
-}
-
-function chiaveVale(nome: string, kw: string): boolean {
-  if (!nome.includes(kw)) return false;
-  const escluse = PAROLE_CHE_NON_SONO[kw];
-  let i = nome.indexOf(kw);
-  while (i !== -1) {
-    let a = i; while (a > 0 && /[a-zà-ÿ0-9]/.test(nome[a - 1])) a -= 1;
-    let b = i + kw.length; while (b < nome.length && /[a-zà-ÿ0-9]/.test(nome[b])) b += 1;
-    /**
-     * ⚠️ **I due filtri si applicano insieme, e basta UNA occorrenza che li superi.** «latte di
-     * cocco e latte intero» resta latte per il secondo: la frase scarta la sua occorrenza, non la
-     * chiave.
-     */
-    if (!escluse?.includes(nome.slice(a, b)) && !dentroUnaFraseCheNonE(nome, kw, i)) return true;
-    i = nome.indexOf(kw, i + 1);
-  }
-  return false;
-}
-
 
 /**
  * Suggerisce gli allergeni presenti dagli ingredienti. Ritorna, per ogni allergene
@@ -146,7 +141,7 @@ export function suggestAllergens(ingredients: unknown): { allergen: string; labe
     const matched: string[] = [];
     for (const name of names) {
       for (const kw of a.keywords) {
-        if (chiaveVale(name, kw)) {
+        if (chiaveCombacia(name, kw)) {
           matched.push(name);
           break;
         }

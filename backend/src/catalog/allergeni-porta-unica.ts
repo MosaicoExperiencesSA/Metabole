@@ -1,83 +1,77 @@
-import { chiaveCombacia } from '../menu/exclusions';
-import { EU_ALLERGENS, chiaveCombaciaOggi } from './allergens';
+import { EU_ALLERGENS, suggestAllergens } from './allergens';
+import { PAROLE_CHE_NON_SONO, chiaveCombacia, dentroUnaFraseCheNonE } from '../menu/exclusions';
 import { nomiIngredienti } from './elenco-ingredienti';
 
 /**
- * ⛔ **QUANTO COSTA CHIUDERE LA SECONDA COPIA DI «QUESTA CHIAVE VALE?» — misurato, prima di
- * toccare il catalogo.**
+ * ⛔ **QUELLO CHE LA PORTA UNICA SI LASCIA DIETRO: 190 RICETTE CON UN ALLERGENE FALSO SCRITTO.**
  *
- * `menu/exclusions.ts` risponde a quella domanda con **tre** filtri: le parole omonime
- * (`PAROLE_CHE_NON_SONO`), le frasi che non sono (`FRASI_CHE_NON_SONO`) e — dal 4/9 —
- * `SOLO_A_INIZIO_PAROLA`, la risposta alle **famiglie aperte** dove un elenco chiuso non basterebbe
- * mai. `catalog/allergens.ts` ne ha una copia sua che conosce le prime due e **non la terza**.
+ * Fino al 4/9 `catalog/allergens.ts` aveva una **copia sua** di «questa chiave vale?» che non
+ * consultava `SOLO_A_INIZIO_PAROLA`. Adesso chiama la stessa funzione delle esclusioni, e da oggi
+ * nessuna ricetta nuova nasce con quei tag.
  *
- * ⚠️ **Non è una differenza teorica, e non è simmetrica**: i tag allergene suggeriti **vengono
- * scritti** sulle ricette, e da lì tolgono il piatto a chi dichiara quell'allergene. Misurato sulle
- * parole del riquadro del 4/9:
+ * ⛔ **Ma correggere la funzione non riporta indietro quello che è già scritto** — è la lezione
+ * dell'1/9 sul riconoscitore della carne, scritta a caratteri grandi in quella voce. Le 190 ricette
+ * che il tabulato ha contato hanno il tag falso **in catalogo**, con la spunta di conferma, e da lì
+ * continuano a togliere il piatto a chi ha quell'allergia finché qualcuno non le riscrive.
  *
- *     melograno       → glutine   (grano dentro melograno: è un albero)
- *     melagrana       → latte     (grana dentro melagrana)
- *     piselli sgranati→ latte     (sgranare è quello che si fa ai piselli)
+ *     melograno     → glutine   63     dorata (zucca)       → pesce   17
+ *     melagrana     → latte     58     sgranato             → latte    6
+ *     sgranati      → latte     43     melograna            → latte    1
+ *     (edamame)                        sgranocchiate        → glutine  1
+ *                                      corata (di coniglio) → pesce    1
  *
- * ## ⛔ Perché il conto sta QUI e non dentro lo script
+ * ## ⚠️ Perché si toglie SOLO l'allergene falso, e non si riscrive l'elenco
  *
- * Perché da questo numero dipende se la porta unica si può accendere in blocco o va letta riga per
- * riga, e **un giudizio che decide non sta in un file di `prisma/` che nessun test guarda**. È la
- * lezione del tabulato dei panieri dell'1/9, che diceva «⛔ non spostare» in cima e «✅ si può
- * spostare» dodici righe sotto.
+ * La strada comoda sarebbe `allergens = suggestAllergens(ingredienti)`: una riga. ⛔ E cancellerebbe
+ * gli allergeni che una nutrizionista ha **aggiunto a mano** (`setRecipeAllergens` esiste, ed è la
+ * porta per le cose che dagli ingredienti non si vedono — un condimento pronto, una contaminazione
+ * di lavorazione). Cioè per togliere una protezione falsa se ne toglierebbero di vere, in silenzio.
  *
- * ## ⚠️ E l'errore ha un verso solo
- *
- * La porta unica **toglie** tag, non ne aggiunge: `SOLO_A_INIZIO_PAROLA` è un filtro in più. Quindi
- * ogni riga di questo conto è un piatto che **torna disponibile** a chi ha quell'allergia — e la
- * domanda per chi legge è una sola: *quella parola conteneva davvero l'allergene?* Se la risposta è
- * no, la riga è un piatto restituito; se fosse sì, sarebbe protezione tolta. Per questo il tabulato
- * stampa la **parola** e non solo il numero.
+ * ⚠️ Quindi si toglie un allergene **solo** quando si può dire perché: la deduzione di oggi non lo
+ * trova **e** una chiave combaciava dentro una parola più lunga. *Se non si sa perché c'era, resta.*
  */
-
-/** Un allergene dedotto, con dentro i nomi di ingrediente che l'hanno fatto scattare. */
-export interface AllergeneDedotto {
-  allergen: string;
-  matched: string[];
-}
 
 /**
- * Gli allergeni dedotti **con la porta unica** — cioè con la stessa `chiaveVale` che usano le
- * esclusioni della cliente.
+ * ⛔ **LA VECCHIA PORTA, RIMESSA QUI APPOSTA E SOLO QUI — perché senza si cancella protezione vera.**
  *
- * ⚠️ È una copia deliberata di `suggestAllergens` con una riga sola cambiata, e vive solo finché
- * dura la misura: il giorno che il numero si legge, `suggestAllergens` chiama `chiaveCombacia` e
- * questa funzione sparisce. Tenerne due in produzione sarebbe rifare il difetto che misura.
+ * La riparazione deve togliere quello che **la vecchia porta aveva scritto**, non «tutto quello per
+ * cui una chiave combacia dentro una parola». Sembrano la stessa cosa e non lo sono: una revisione
+ * avversariale ha misurato che il criterio largo **toglie allergeni messi a mano**.
+ *
+ *     solfiti su «straccetti di bovino»          ← «vino» dentro «bovino»
+ *     glutine su «melograno + salsa di soia»     ← «grano» dentro «melograno»
+ *     pesce   su «zucca dorata + worcestershire» ← «orata» dentro «dorata»
+ *
+ * ⚠️ In tutti e tre la **vecchia porta non aveva scritto niente** — le omonime le conosceva
+ * (`bovino` è in `PAROLE_CHE_NON_SONO` dal 20/8) — quindi quel tag può esserci solo perché ce l'ha
+ * messo una persona, su cose che dagli ingredienti non si vedono: il vino del brasato, il frumento
+ * della salsa di soia, **le acciughe della salsa Worcestershire**. Cancellarli sarebbe togliere
+ * protezione vera per riparare protezione falsa.
+ *
+ * ⛔ **Vive solo per la riparazione, e muore con lei.** Non è esportata, non la chiama nessun altro
+ * file, e il giorno che le 190 sono riparate sparisce insieme a questo modulo e al suo script.
  */
-export function allergeniConPortaUnica(ingredients: unknown): AllergeneDedotto[] {
-  const nomi = nomiIngredienti(ingredients).map((n) => n.toLowerCase());
-  const out: AllergeneDedotto[] = [];
-  for (const a of EU_ALLERGENS) {
-    const matched = nomi.filter((nome) => a.keywords.some((kw) => chiaveCombacia(nome, kw)));
-    if (matched.length) out.push({ allergen: a.code, matched: [...new Set(matched)] });
+function laVecchiaPortaScriveva(nome: string, kw: string): boolean {
+  if (!nome.includes(kw)) return false;
+  const escluse = PAROLE_CHE_NON_SONO[kw];
+  let i = nome.indexOf(kw);
+  while (i !== -1) {
+    let a = i; while (a > 0 && /[a-zà-ÿ0-9]/.test(nome[a - 1])) a -= 1;
+    let b = i + kw.length; while (b < nome.length && /[a-zà-ÿ0-9]/.test(nome[b])) b += 1;
+    if (!escluse?.includes(nome.slice(a, b)) && !dentroUnaFraseCheNonE(nome, kw, i)) return true;
+    i = nome.indexOf(kw, i + 1);
   }
-  return out;
+  return false;
 }
 
 /**
- * La **parola intera** dentro cui una chiave combacia senza cominciarla — cioè quella che chi legge
- * deve giudicare.
+ * ⛔ **TUTTE le parole di `testo` dentro cui `chiave` combacia senza cominciarle** — cioè quelle su
+ * cui la vecchia porta faceva scattare l'allergene e la nuova no.
  *
- * ⚠️ Torna `null` quando la chiave comincia sempre una parola: in quel caso non c'è niente da
- * decidere, e stampare la riga vorrebbe dire mettere lavoro già fatto in un elenco di lavoro da
- * fare. *Un elenco che contiene lavoro già fatto è un elenco che si smette di leggere.*
- */
-export function parolaCheContiene(testo: string, chiave: string): string | null {
-  return paroleCheContengono(testo, chiave)[0] ?? null;
-}
-
-/**
- * ⛔ **TUTTE le parole, non la prima — e la prima stesura ne rendeva una sola.**
- *
- * Su «melagrana e piselli sgranati» tornava `melagrana` e basta: `sgranati`, per quella ricetta,
- * non esisteva. ⚠️ Non si perde un esempio, si perde una **riga dell'elenco da leggere** — e una
- * parola che compare sempre accanto a un'altra non compare **mai**, mentre chi legge crede di avere
- * l'elenco completo.
+ * ⚠️ **Tutte e non la prima**: su «melagrana e piselli sgranati» la prima stesura rendeva
+ * `melagrana` e basta, e `sgranati` per quella ricetta non esisteva. Non si perde un esempio — si
+ * perde una **riga** dell'elenco da leggere, e una parola che compare sempre accanto a un'altra non
+ * compare mai.
  */
 export function paroleCheContengono(testo: string, chiave: string): string[] {
   const out: string[] = [];
@@ -95,156 +89,144 @@ export function paroleCheContengono(testo: string, chiave: string): string[] {
   return out;
 }
 
+/** ⚠️ La prima, per chi ne vuole una sola. Torna `null` quando la chiave comincia sempre una parola. */
+export function parolaCheContiene(testo: string, chiave: string): string | null {
+  return paroleCheContengono(testo, chiave)[0] ?? null;
+}
 
-
-/** Una ricetta, come serve a questo conto. */
-export interface RicettaDaContare {
+export interface RicettaDaRiparare {
   id: string;
   name: string;
   ingredients: unknown;
   /** Gli allergeni **scritti** oggi in catalogo. */
   allergens?: readonly string[];
   /**
-   * ⛔ **La spunta di conferma, e pesa diverso.** Un tag che ha scritto il riconoscitore e nessuno
-   * ha guardato è un'ipotesi; un tag su una ricetta **confermata** è una cosa che qualcuno ha detto.
-   * ⚠️ Con la cautela che il progetto si è già scritto il 31/8: `allergensReviewed` comprende anche
-   * le conferme **in blocco** del 19/8, dove gli allergeni li aveva scritti il riconoscitore. Quindi
-   * «confermate» non vuol dire «guardate una per una» — vuol dire «qualcuno ha premuto il pulsante».
+   * ⚠️ La spunta di conferma. ⛔ Comprende le conferme **in blocco** del 19/8, dove gli allergeni li
+   * aveva scritti il riconoscitore: non vuol dire «guardata una per una», vuol dire «qualcuno ha
+   * premuto il pulsante». Sta scritto anche nel foglio del 31/8.
    */
   allergensReviewed?: boolean;
+  /**
+   * ⛔ **QUALCUNO HA SCELTO A MANO GLI ALLERGENI DI QUESTA RICETTA** — c'è una riga
+   * `catalog.recipe.allergens.set` nel registro, che è la porta di `setRecipeAllergens`.
+   *
+   * ⚠️ Serve a distinguere quello che **non si può** distinguere guardando la ricetta. Su «chicchi di
+   * melograno + salsa di soia» col glutine scritto, la vecchia porta il glutine lo scriveva (per il
+   * melograno) **e** una nutrizionista poteva volerlo (il frumento della salsa di soia): le due
+   * cose sono indistinguibili dagli ingredienti, e togliere è irreversibile.
+   *
+   * ⛔ Quindi dove una persona ha messo le mani **non si tocca niente**: quella ricetta esce in un
+   * elenco a parte e la guarda lei. Una revisione avversariale ha misurato che senza questa
+   * distinzione la riparazione cancella le acciughe della salsa Worcestershire.
+   */
+  toccataAMano?: boolean;
 }
 
-/** Una coppia (allergene, parola) che la porta unica smette di far scattare. */
-export interface CoppiaPersa {
+/** Un allergene scritto che si può togliere, con dentro il perché. */
+export interface AllergeneFalso {
+  allergen: string;
+  /** La chiave che lo faceva scattare, e la parola dentro cui combaciava. */
+  chiave: string;
+  parola: string;
+  /** Il nome di ingrediente in cui è successo: è quello che una persona legge per giudicare. */
+  ingrediente: string;
+}
+
+/**
+ * ⛔ **GLI ALLERGENI SCRITTI CHE SI POSSONO TOGLIERE, E SOLO QUELLI.**
+ *
+ * Tre condizioni **insieme**, e togliendone una si toglie protezione vera:
+ *
+ * 1. l'allergene è **scritto** in catalogo (se non c'è, non c'è niente da riparare);
+ * 2. la deduzione di **oggi** non lo trova (con la porta unica);
+ * 3. **si sa perché c'era**: una chiave di quell'allergene combaciava dentro una parola più lunga.
+ *
+ * ⚠️ La terza è quella che distingue «l'ha scritto la vecchia porta» da «l'ha aggiunto una persona»:
+ * senza, questo elenco cancellerebbe anche i tag messi a mano su cose che dagli ingredienti non si
+ * vedono.
+ */
+export function allergeniFalsiDaTogliere(r: RicettaDaRiparare): AllergeneFalso[] {
+  const scritti = (r.allergens ?? []).map((x) => String(x));
+  if (!scritti.length) return [];
+  /** ⛔ Dove una persona ha scelto la lista, la macchina non la corregge. Vedi `toccataAMano`. */
+  if (r.toccataAMano) return [];
+  const trovatiOra = new Set(suggestAllergens(r.ingredients).map((a) => a.allergen));
+  const nomi = nomiIngredienti(r.ingredients).map((n) => n.toLowerCase());
+  const out: AllergeneFalso[] = [];
+
+  for (const codice of scritti) {
+    if (trovatiOra.has(codice)) continue;
+    const def = EU_ALLERGENS.find((x) => x.code === codice);
+    if (!def) continue;
+    for (const nome of nomi) {
+      for (const kw of def.keywords) {
+        /**
+         * ⛔ **La condizione esatta: la vecchia porta lo scriveva, la nuova no.** Non «una chiave
+         * combacia dentro una parola», che è più largo e toglie i tag messi a mano — vedi
+         * `laVecchiaPortaScriveva`. È il criterio con cui erano state contate le 190, e la prima
+         * stesura della riparazione l'aveva allargato senza accorgersene.
+         */
+        if (!laVecchiaPortaScriveva(nome, kw) || chiaveCombacia(nome, kw)) continue;
+        for (const parola of paroleCheContengono(nome, kw)) {
+          /** ⚠️ Una riga per (allergene, chiave, parola): la stessa parola in tre ingredienti è una. */
+          if (out.some((x) => x.allergen === codice && x.chiave === kw && x.parola === parola)) continue;
+          out.push({ allergen: codice, chiave: kw, parola, ingrediente: nome });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Una coppia (allergene, parola) raccolta su tutto il catalogo. */
+export interface CoppiaFalsa {
   allergen: string;
   chiave: string;
   parola: string;
-  /** Quante ricette perdono quell'allergene per colpa di questa parola. */
   ricette: number;
-  /** Di quelle, quante ce l'hanno **scritto** in catalogo — cioè quante cambiano davvero. */
-  scritte: number;
-  /** Di quelle scritte, quante portano la spunta di conferma. Vedi `allergensReviewed`. */
-  confermate: number;
   esempi: string[];
 }
 
-export interface ContoPortaUnica {
+export interface ContoRiparazione {
   esaminate: number;
-  /** Ricette il cui elenco di allergeni **dedotti** cambia. */
-  cambiano: number;
-  /** Ricette che oggi hanno quell'allergene **scritto** in catalogo e lo perderebbero. */
-  cambianoDavvero: number;
-  /** Di quelle, quante portano la spunta di conferma: lì il tag qualcuno l'ha accettato. */
-  cambianoConfermate: number;
-  /** ⛔ Deve restare zero: la porta unica aggiunge un filtro, quindi non può guadagnare allergeni. */
-  guadagnati: number;
-  coppie: CoppiaPersa[];
+  /** Ricette che perdono almeno un allergene scritto. */
+  daRiparare: number;
+  /** Di quelle, quante portano la spunta di conferma. */
+  confermate: number;
+  coppie: CoppiaFalsa[];
 }
 
 const MAX_ESEMPI = 3;
 
 /**
- * ⛔ **IL VERDETTO, e i tre numeri che non vanno confusi.**
- *
- * · **`cambiano`** — quante ricette cambiano l'elenco *dedotto*. È il numero grosso e da solo non
- *   decide niente: la deduzione oggi non è scritta su tutte.
- * · **`cambianoDavvero`** — quante hanno quell'allergene **scritto** in `Recipe.allergens`. Sono
- *   quelle che, accendendo la porta unica e ripassando la deduzione, tornerebbero servibili a chi
- *   dichiara quell'allergia. È il numero su cui si decide.
- * · **`guadagnati`** — deve essere **zero**. Se non lo è, la porta unica non è un filtro in più:
- *   vuol dire che le due copie divergevano in un modo che nessuno aveva capito, e la misura va
- *   riletta prima di toccare qualunque cosa.
+ * ⛔ **IL CONTO STA QUI E NON NELLO SCRIPT**, ed è la lezione del tabulato dei panieri dell'1/9, che
+ * diceva «⛔ non spostare» in cima e «✅ si può spostare» dodici righe sotto: da questo numero dipende
+ * una scrittura sul catalogo, e un giudizio che decide non sta in un file di `prisma/` che nessun
+ * test guarda.
  */
-export function contaPortaUnica(
-  ricette: readonly RicettaDaContare[],
-  allergeniOggi: (ingredients: unknown) => AllergeneDedotto[],
-): ContoPortaUnica {
-  const perCoppia = new Map<string, CoppiaPersa>();
-  /**
-   * ⛔ **Una ricetta conta UNA VOLTA per coppia, e la prima stesura contava gli ingredienti.**
-   *
-   * Il ciclo gira sui nomi di ingrediente, e in catalogo lo stesso allergene compare più volte
-   * nello stesso elenco: `['melograno', 'succo di melograno', 'chicchi di melograno']` faceva
-   * `ricette = 3` su una ricetta sola, con lo stesso nome stampato tre volte negli esempi. ⚠️ E
-   * gonfiava **nel verso che fa sembrare grosso un lavoro che non c'è**: chi somma le righe del
-   * tabulato otteneva un numero più alto di «cambiano davvero», senza che niente glielo dicesse.
-   * L'ha trovato una revisione avversariale.
-   */
-  const gia = new Set<string>();
-  let cambiano = 0;
-  let cambianoDavvero = 0;
-  let cambianoConfermate = 0;
-  let guadagnati = 0;
+export function contaRiparazione(ricette: readonly RicettaDaRiparare[]): ContoRiparazione {
+  const perCoppia = new Map<string, CoppiaFalsa>();
+  let daRiparare = 0;
+  let confermate = 0;
 
   for (const r of ricette) {
-    const oggi = allergeniOggi(r.ingredients);
-    const dopo = allergeniConPortaUnica(r.ingredients);
-    const codiciDopo = new Set(dopo.map((a) => a.allergen));
-    const persi = oggi.filter((a) => !codiciDopo.has(a.allergen));
-    const nuovi = dopo.filter((a) => !oggi.some((b) => b.allergen === a.allergen));
-    if (nuovi.length) guadagnati += 1;
-    if (!persi.length) continue;
-    cambiano += 1;
-    const scritti = new Set((r.allergens ?? []).map((x) => String(x)));
-    if (persi.some((a) => scritti.has(a.allergen))) {
-      cambianoDavvero += 1;
-      if (r.allergensReviewed) cambianoConfermate += 1;
-    }
-
-    for (const a of persi) {
-      const def = EU_ALLERGENS.find((x) => x.code === a.allergen);
-      for (const nome of a.matched) {
-        for (const kw of def?.keywords ?? []) {
-          /**
-           * ⛔ **Solo le chiavi che la porta unica SCARTA DAVVERO** — la prima stesura girava su
-           * tutte le keyword dell'allergene perso, e bastava che una seconda comparisse dentro una
-           * parola qualunque dello stesso ingrediente per finire in elenco. Misurato: su «insalata
-           * di rapanelli e melograno» usciva anche «pane» dentro «rapanelli», che con la perdita
-           * del glutine non c'entra niente — quella la toglie `grano`.
-           */
-          if (!chiaveCombaciaOggi(nome, kw) || chiaveCombacia(nome, kw)) continue;
-          for (const parola of paroleCheContengono(nome, kw)) {
-            /**
-             * ⛔ **QUI NON SI CHIAMA `coppiaGiaDecisa`, e la revisione lo aveva chiesto: sbagliava.**
-             *
-             * Quella funzione risponde «già decisa» anche quando la chiave sta in
-             * `SOLO_A_INIZIO_PAROLA` — e `grana` ci sta. Cioè avrebbe cancellato dall'elenco
-             * **esattamente le righe per cui questo tabulato esiste**: le decisioni prese in
-             * `exclusions.ts` e non lette da `allergens.ts` sono il difetto, non lavoro già fatto.
-             *
-             * ⚠️ Il caso vero che la revisione aveva misurato — «pane» dentro «rapanelli» — non
-             * arriva fin qui: lo scarta la riga sopra, perché `allergens.ts` le omonime le conosce
-             * già e quella chiave non fa scattare niente nemmeno oggi. Il filtro giusto era uno
-             * solo, e non è questo.
-             */
-            const chiave = `${a.allergen}|${kw}|${parola}`;
-            const riga = perCoppia.get(chiave)
-              ?? { allergen: a.allergen, chiave: kw, parola, ricette: 0, scritte: 0, confermate: 0, esempi: [] };
-            /** ⚠️ Una ricetta vale uno, anche se quella parola le compare in tre ingredienti. */
-            const gettone = `${chiave}|${r.id}`;
-            if (!gia.has(gettone)) {
-              gia.add(gettone);
-              riga.ricette += 1;
-              if (scritti.has(a.allergen)) {
-                riga.scritte += 1;
-                if (r.allergensReviewed) riga.confermate += 1;
-              }
-              if (riga.esempi.length < MAX_ESEMPI) riga.esempi.push(r.name);
-            }
-            perCoppia.set(chiave, riga);
-          }
-        }
-      }
+    const falsi = allergeniFalsiDaTogliere(r);
+    if (!falsi.length) continue;
+    daRiparare += 1;
+    if (r.allergensReviewed) confermate += 1;
+    for (const f of falsi) {
+      const k = `${f.allergen}|${f.chiave}|${f.parola}`;
+      const riga = perCoppia.get(k) ?? { allergen: f.allergen, chiave: f.chiave, parola: f.parola, ricette: 0, esempi: [] };
+      riga.ricette += 1;
+      if (riga.esempi.length < MAX_ESEMPI) riga.esempi.push(r.name);
+      perCoppia.set(k, riga);
     }
   }
 
   return {
     esaminate: ricette.length,
-    cambiano,
-    cambianoDavvero,
-    cambianoConfermate,
-    guadagnati,
-    /** ⚠️ In ordine di quante ricette toccano davvero: chi legge parte da dove il conto pesa. */
-    coppie: [...perCoppia.values()].sort((a, b) => (b.scritte - a.scritte) || (b.ricette - a.ricette)),
+    daRiparare,
+    confermate,
+    coppie: [...perCoppia.values()].sort((a, b) => b.ricette - a.ricette),
   };
 }
