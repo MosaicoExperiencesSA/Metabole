@@ -1,0 +1,63 @@
+La carne finta, e le dodici parole lette una per una
+
+⛔ OTTO SEGNALAZIONI, OTTO FALSI, E NESSUNO ERA UN ERRORE DI CATALOGO
+`diag:carne-fuori-posto` in produzione (4/9): 28.513 righe di paniere con ricetta attiva, **zero**
+col regime incompatibile. Gli otto piatti segnalati avevano tutti il regime della ricetta
+COMPATIBILE — cioè non c'era niente di rotto nel catalogo. Erano nomi:
+
+    Prosciutto vegetale        → prosciutto   (×2, in panieri vegetariani)
+    Pollo di Tempeh            → pollo
+    Polpo di ceci              → polpo
+    Polpo d'Alghe Nori         → polpo
+    Branzino di melanzane      → branzino
+    Branzino di Ceci al Forno  → branzino
+
+⛔ **Il conto vero non sono gli otto.** Lo stesso riconoscitore ha scartato **1342 piatti come
+carne** derivando i panieri pescetariani: gli otto si vedevano, quelli no.
+
+✅ UNA REGOLA, NON UN ELENCO — perché la famiglia è aperta
+Domani sarà «tonno di ceci» o «bresaola vegana». `senzaImitazioni` in `piatto-di-cosa.ts` cancella
+il nome dell'animale quando il segno vegetale gli sta ATTACCATO, in due forme sole: «X
+vegetale/vegano» e «X di <vegetale>». Si cancella solo la parola, con spazi della stessa lunghezza,
+così il segno vegetale resta agli altri controlli e le posizioni non si spostano.
+
+⛔ **«con» NON vale, ed è la riga che tiene stretta la regola.** «Pollo con ceci» è pollo vero, e
+leggerlo come finto è carne nel piatto di una pescetariana — l'unico errore che qui non ci si può
+permettere. La prova mette le due frasi una accanto all'altra. ⚠️ E il segno vegetale più avanti nel
+piatto non conta: «filetto di merluzzo con brodo vegetale» resta pesce, che era il falso positivo di
+partenza di `sembraUnImitazione`.
+
+⚠️ E HA CAMBIATO LA RISPOSTA IN ALTRI DUE PUNTI, IN MEGLIO
+`etichetta-contro-contenuto` non manda più una persona a guardare «prosciutto di tofu»: era
+«dubbia», adesso è «ok», perché non c'è niente da correggere. E una giornata scritta a mano con
+«branzino di melanzane» non chiede più la revisione a una nutrizionista. Un dubbio in meno non è
+protezione persa: è protezione che torna a valere, perché quelli che restano sono veri.
+⚠️ `sembraUnImitazione` resta: prende le forme dove il segno vegetale sta in un altro pezzo del
+testo. Quello che è cambiato è che i casi attaccati li risolve chi di dovere, una volta sola.
+
+⛔ E LE DODICI COPPIE DI `diag:esclusioni`, LETTE UNA PER UNA
+Dieci NO, due SÌ, una lasciata stare.
+· I NO sono due famiglie e tre casi singoli. `grana` e `grano` — melagrana, melograno, sgranati,
+  sgranato, sgranocchiate: 239 occorrenze — vanno nella regola di POSIZIONE, perché sgranare si
+  coniuga e un elenco chiuso lo rincorrerebbe per sempre. `platter`, `umbrie` e `rapanelli` nella
+  lista CHIUSA: tre parole note, e solo quelle che la diagnostica ha nominato.
+· I SÌ non si toccano: il sottaceto l'aceto ce l'ha, e il fiordilatte è mozzarella di latte.
+  ⛔ Ed è il fiordilatte a decidere la forma di tutta la correzione: `latte` non può usare la regola
+  di posizione, che lo lascerebbe passare insieme a «platter».
+· ⚠️ La lasciata stare: «soffrittata» non è una parola italiana, quindi quel piatto ha un refuso e
+  può essere «soffritto» storpiato (niente uovo) o «frittata» storpiata (uovo eccome). Una ricetta
+  su ventiquattromila, e i due errori non costano uguale: si tiene esclusa.
+⚠️ E un falso DICHIARATO invece che chiuso: «granoturco» è mais e comincia una parola, quindi la
+regola di posizione non lo scarta. Si chiude quando la diagnostica lo nomina, non per analogia.
+⚠️ Come l'ottavo caso della carne: «Polenta ai Funghi Misti» scattava su «champignon, ostriche» —
+sono i funghi ostrica — e le due parole non sono attaccate. Allargare la regola per prenderlo
+vorrebbe dire togliere la sola cosa che la tiene stretta.
+
+▶️ RESTA `APPLICA=1 npm run panieri:pesce`: 81 appartenenze da aggiungere. ⚠️ Ma prima vale la pena
+rilanciare `diag:carne-fuori-posto`, perché il 1342 è il numero che questa correzione cambia.
+
+🧪 Sette mutazioni, tutte prese. Due voci chiuse (`esclusioni-chiave-dentro-parola`,
+`ricette-di-pesce-etichettate-vegane`), tre aggiornate coi numeri veri.
+
+7456 prove verdi su 434 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su `app/` e `backoffice/`.

@@ -36,15 +36,30 @@ describe('classifica', () => {
     expect(e).toEqual({ tipo: 'ok' });
   });
 
-  /** ⛔ LE IMITAZIONI: nei dubbi, in tutti e due i versi. */
+  /**
+   * ⛔ **LE IMITAZIONI: da «dubbia» a «ok», ed è un miglioramento, non una resa.**
+   *
+   * Fino al 4/9 questi tre finivano in «dubbia — sembra un'imitazione»: il riconoscitore leggeva
+   * `prosciutto` e `acciughe` come carne e pesce, e questo modulo si rifiutava di correggere a
+   * macchina un piatto che non capiva. Era la scelta giusta finché il dubbio c'era.
+   *
+   * ⚠️ Adesso il dubbio non c'è più: `piatto-di-cosa.ts` sa che «prosciutto **di tofu**» e
+   * «acciughe **vegetali**» non sono carne né pesce (misurato in produzione con
+   * `diag:carne-fuori-posto`, otto falsi su otto). Quindi la risposta giusta è **«ok»** — non c'è
+   * niente da correggere — e mandare una persona a guardarli sarebbe il rumore che questo modulo
+   * evita altrove: *«rumore che fa sembrare grosso un lavoro che non c'è»*.
+   *
+   * ⛔ **`sembraUnImitazione` resta e serve ancora**: prende le forme che il riconoscitore non
+   * vede, dove il segno vegetale sta in un altro pezzo del testo — nome da una parte, ingredienti
+   * dall'altra. Quello che è cambiato è che i casi attaccati li risolve chi di dovere, una volta
+   * sola, invece di due punti che si passano un dubbio.
+   */
   it.each([
     ['Insalata di melone, feta e prosciutto di tofu affumicato', ['prosciutto di tofu affumicato', 'melone']],
     ['Lenticchie Nere con Petto d\'Anatra di Tofu', ['petto d\'anatra di tofu affumicato', 'lenticchie']],
     ['Crostoni con hummus e acciughe vegetali', ['acciughe vegetali', 'ceci']],
-  ])('⛔ «%s» non si corregge a macchina: sembra un\'imitazione', (nome, ing) => {
-    const e = classifica(nome, ing);
-    expect(e.tipo).toBe('dubbia');
-    if (e.tipo === 'dubbia') expect(e.perche).toContain('imitazione');
+  ])('✅ «%s» non è più un dubbio: non c\'è niente da correggere', (nome, ing) => {
+    expect(classifica(nome, ing)).toEqual({ tipo: 'ok' });
   });
 
   /**
@@ -83,9 +98,12 @@ describe('classifica', () => {
     expect(e).toMatchObject({ tipo: 'dubbia', cosa: 'pesce', perche: 'solo nel nome' });
   });
 
-  it('⚠️ e un piatto vegetale che si chiama come un pesce è dubbio anche lui, non corretto', () => {
-    const e = classifica("Polpo d'Alghe Nori Farcito", ['alga nori', 'riso integrale']);
-    expect(e.tipo).toBe('dubbia');
+  /**
+   * ⛔ **Uno degli otto veri del 4/9.** Era «dubbia»; adesso è «ok», perché «polpo **d'alghe**» il
+   * riconoscitore lo legge per quello che è. È il caso per cui la regola è stata scritta.
+   */
+  it('✅ un piatto vegetale che si chiama come un pesce non è più un dubbio', () => {
+    expect(classifica("Polpo d'Alghe Nori Farcito", ['alga nori', 'riso integrale'])).toEqual({ tipo: 'ok' });
   });
 
   it('una ricetta davvero vegetale non risulta niente', () => {

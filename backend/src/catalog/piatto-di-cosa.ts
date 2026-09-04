@@ -189,8 +189,67 @@ const DOPPI = Object.entries(DOPPIO_SENSO).map(([t, antidoti]) => ({
   antidoto: perRegex(antidoti),
 }));
 
+/**
+ * ⛔ **LA CARNE FINTA E IL PESCE FINTO — misurati in produzione il 4/9 con `diag:carne-fuori-posto`.**
+ *
+ * Otto piatti segnalati, **otto falsi**, e nessuno era un errore di catalogo: il regime della
+ * ricetta era compatibile in tutti e otto. Erano nomi.
+ *
+ *     Prosciutto vegetale        → prosciutto   (×2, in un paniere vegetariano)
+ *     Pollo di Tempeh            → pollo
+ *     Polpo di ceci              → polpo
+ *     Polpo d'Alghe Nori         → polpo
+ *     Branzino di melanzane      → branzino
+ *     Branzino di Ceci al Forno  → branzino
+ *
+ * ⚠️ È la stessa forma sei volte su sei: **il nome dell'animale seguito da come è fatto davvero.**
+ * Non è un elenco di casi singoli, è una famiglia aperta — domani sarà «tonno di ceci» o «bresaola
+ * vegana» — e le famiglie aperte non si rincorrono con un elenco.
+ *
+ * ⛔ **E il conto vero non sono gli otto**: lo stesso riconoscitore ha scartato **1342 piatti come
+ * carne** derivando i panieri pescetariani. Se sbaglia su «prosciutto vegetale» davanti a noi,
+ * sbaglia anche là dentro, dove nessuno sta guardando.
+ *
+ * ## Perché è STRETTA, e dove finisce
+ *
+ * ⚠️ Sbagliare qui non è simmetrico — è la regola scritta in cima a questo file: un falso positivo
+ * toglie un piatto buono, un falso negativo mette carne nel piatto di una pescetariana. Quindi il
+ * segno vegetale deve stare **attaccato** all'animale, e solo in due forme: «X vegetale/vegano» e
+ * «X di \<vegetale\>». Basta una parola in mezzo e la regola non vale più:
+ *
+ *     Pollo di tempeh          → finto      Pollo con ceci              → CARNE
+ *     Prosciutto vegetale      → finto      Prosciutto e melone         → CARNE
+ *     Branzino di melanzane    → finto      Branzino con verdure        → PESCE
+ *     Polpo d'alghe            → finto      Spezzatino di manzo e ceci  → CARNE
+ *
+ * ⛔ **«con» non vale, e non è pignoleria**: «pollo con ceci» è pollo vero con dei ceci accanto, e
+ * leggerlo come finto è esattamente il falso negativo che non ci si può permettere.
+ *
+ * ⚠️ **Quello che questa regola NON prende, dichiarato**: l'ottavo falso di quel riquadro è
+ * «Polenta ai Funghi Misti», che scatta su «champignon, **ostriche**» dentro gli **ingredienti** —
+ * sono i funghi ostrica, e le due parole non sono attaccate. Resta aperto: è un caso singolo, e
+ * allargare la regola per prenderlo vorrebbe dire staccare il segno vegetale dall'animale, cioè
+ * togliere la sola cosa che la tiene stretta.
+ */
+const RE_IMITAZIONE = new RegExp(
+  `\\b([a-zà-ù]+)(?=\\s+(?:vegetal[ei]|vegan[oaei]?|fint[oa])\\b`
+  + `|\\s+(?:di|d['’])\\s*(?:${SEGNI_VEGETALI.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`,
+  'g',
+);
+
+/**
+ * Il testo senza i nomi di animale che una parola dopo si dichiarano finti.
+ *
+ * ⚠️ Si cancella **solo la parola**, non il segno vegetale che la smonta: quello serve ancora agli
+ * altri controlli («hamburger di ceci» deve continuare a vedere `ceci`). E si sostituisce con
+ * spazi della stessa lunghezza, così le posizioni nel testo non si spostano.
+ */
+export function senzaImitazioni(testo: string): string {
+  return testo.replace(RE_IMITAZIONE, (parola) => ' '.repeat(parola.length));
+}
+
 export function eCarne(nome: string): boolean {
-  const n = normale(nome);
+  const n = senzaImitazioni(normale(nome));
   if (eCarneIngrediente(n)) return true;
   /** ⚠️ La preparazione vale solo se non c'è un segno vegetale: «hamburger di ceci» non è carne. */
   return RE_CARNE_FORSE.test(n) && !RE_VEGETALE.test(n);
@@ -215,7 +274,7 @@ export function eCarne(nome: string): boolean {
  * lo stesso.
  */
 export function eCarneIngrediente(nome: string): boolean {
-  const n = normale(nome);
+  const n = senzaImitazioni(normale(nome));
   /** ⛔ Il primo livello vince e non si discute: un animale resta carne anche accanto alle patate. */
   if (RE_CARNE_SEMPRE.test(n)) return true;
   /** ⚠️ Un nome a doppio senso è carne finché non compare il SUO antidoto, non uno qualsiasi. */
@@ -224,7 +283,7 @@ export function eCarneIngrediente(nome: string): boolean {
 
 /** Vero se il nome contiene un termine del pesce, dal vocabolario delle esclusioni. */
 export function ePesce(nome: string): boolean {
-  const n = normale(nome);
+  const n = senzaImitazioni(normale(nome));
   return hitsExclusion(n, exclusionKeys(['pesce'])) !== null
     || hitsExclusion(n, exclusionKeys(['crostacei'])) !== null
     || hitsExclusion(n, exclusionKeys(['molluschi'])) !== null;

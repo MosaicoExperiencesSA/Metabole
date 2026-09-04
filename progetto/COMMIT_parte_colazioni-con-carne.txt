@@ -1,0 +1,44 @@
+Branzino a colazione: la regola c'è dal 31/8 e guarda solo i piatti nuovi
+
+⛔ IL DIFETTO
+Simone, 4/9, aprendo «Basso indice glicemico · Onnivoro · Colazione»: branzino al vapore, burger di
+merluzzo, dentice, filetto di trota (due), salmone affumicato. E non è un caso isolato: è tutta la
+classe. La regola «carne, pesce e verdure fuori da colazione, spuntino e merenda» esiste dal 31/8 —
+`PASTI_SENZA_CARNE_PESCE_VERDURA`, `vaBeneAColazione` — ma la legge UN POSTO SOLO: l'agente che
+GENERA i piatti leggeri nuovi. Serve a non farne creare altri. I piatti entrati prima non li ha
+filtrati nessuno, e il motore dal paniere ci pesca.
+
+✅ LO STRUMENTO: `npm run diag:colazioni-con-carne`, sola lettura
+Dice quanti sono, in quali celle, con quale parola sono stati riconosciuti, e — il numero che conta
+— QUANTI NE RESTANO togliendoli. Il giudizio sta in `colazione-senza-carne-e-pesce.ts` con le sue
+prove, non nello script.
+
+⛔ IL NUMERO CHE DECIDE NON È QUANTI ESCONO: È QUANTI RESTANO
+Sotto `MINIMO_PER_CELLA` (8) la cella si NOMINA e NON si tocca. Una colazione che resta con tre
+piatti serve alla cliente lo stesso piatto a giorni alterni, e dopo tre giorni smette di aprire
+l'app. Il branzino a colazione è sbagliato; una colazione che non c'è è peggio.
+
+⚠️ DUE LETTURE, NON UNA
+Il nome («Branzino al vapore») e gli ingredienti («gamberetti sgusciati», che nel nome non
+compaiono). `diCosaE` da solo non basta: senza grammature risponde «non lo so», e «non lo so» non è
+«va bene».
+⚠️ E la lettura per parola è quella corretta stamattina: «Burger vegetale di lenticchie nere» e
+«Polpo di ceci» non scattano, perché `senzaImitazioni` sa che il segno vegetale attaccato
+all'animale vuol dire che l'animale non c'è. Senza quella correzione questa pulizia avrebbe tolto
+dai panieri dei piatti vegetali — cioè avrebbe fatto il danno che esiste per evitare. C'è una prova
+apposta, coi nomi veri della schermata.
+
+⚠️ E LE VERDURE SI CONTANO MA NON SI TOLGONO
+La richiesta del 31/8 ne nominava tre, questa ne toglie due. «Avocado toast» e «Crepes con spinaci»
+sono colazioni normali, e `diCosaE` le legge come verdura per via dell'ingrediente più pesante:
+toglierle svuoterebbe i panieri di roba giusta.
+
+▶️ RESTA DA FARE, ed è di Simone: lanciare la diagnostica su Render, leggere le righe una per una —
+se una non c'entra niente sbaglia il riconoscitore, e allora sbaglia anche dove nessuno lo sta
+guardando — e poi `APPLICA=1`. ⚠️ Non cancella nessuna ricetta: toglie l'appartenenza a quella
+cella, e a pranzo e a cena quei piatti restano dove sono.
+⛔ E resta il cancello a valle: anche svuotando oggi, domani qualcuno ce li rimette dalla pagina
+Panieri. È un lavoro a sé, scritto nella voce.
+
+7481 prove verdi su 435 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su `app/` e `backoffice/`.

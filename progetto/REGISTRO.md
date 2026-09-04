@@ -20,28 +20,36 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
-- `[Sviluppo]` 🧰 **Il kit di montaggio: la base comune di un progetto nuovo, estratta da qui.**
-  Nuova cartella `kit/` — un manuale in dieci capitoli più trentacinque file già ripuliti, così che
-  un progetto nuovo non ridecida da capo grafica, gabbia, permessi, identità e blocco commerciale.
-  ⚠️ **Il kit non tocca una riga di Metabole**: legge, non scrive. Nessuna migrazione, nessuna
-  dipendenza, nessun endpoint.
-  ▶️ Le tre cose che porta via da qui e che sono costate di più: *una pagina = una chiave sua*,
-  *una chiave nasce con la guardia che la legge*, *una modifica si verifica rileggendo il file*.
-  ▶️ Due generalizzazioni, decise con Simone: i ruoli diventano **quattro neutri**
-  (`user/staff/manager/admin`) e i mestieri restano ruoli personalizzati — un mestiere nuovo non è
-  più una migrazione; e le provvigioni passano da cinque colonne coi nomi dei mestieri a **una**
-  colonna `commissionByLevel` a livelli numerici, con la regola della differenza fra livelli.
-  ⚠️ Detto invece che nascosto: il blocco commerciale **non** è nello starter in forma ripulita —
-  qui è intrecciato con abbonamenti e piani, ed estrarlo «pulito» vorrebbe dire riscriverlo, cioè
-  consegnare codice mai girato. Per quello il kit dà lo schema, i contratti API e la mappa file per
-  file, con le quattro sostituzioni da fare mentre si copia.
-  ⚠️ `prisma validate` sullo schema del kit **non** è stato eseguito: la rete verso
-  `binaries.prisma.sh` è bloccata da entrambi i lati. Al posto suo un controllo strutturale
-  (19 modelli, relazioni tutte bidirezionali, `@relation(fields:)` coerenti) — e il README dello
-  starter lo dice, invece di far credere che sia validato.
-  ▶️ La verifica di coerenza ha trovato un difetto vero e l'ha chiuso: `email_templates` e
-  `email_log` erano chiavi con etichetta ma senza voce di menu — cioè esattamente l'interruttore
-  che non accende niente contro cui il capitolo 03 mette in guardia.
+- `[Sviluppo]` ⛔ **Branzino, merluzzo e gamberetti a colazione: la regola c'era e guardava dalla parte
+  sbagliata.** «Carne, pesce e verdure fuori da colazione, spuntino e merenda» è scritta dal 31/8, ma
+  la legge **un posto solo**: l'agente che *genera* i piatti nuovi. Su quello che era già in catalogo
+  non l'ha mai passata nessuno, e il motore dal paniere ci pesca.
+  ✅ `npm run diag:colazioni-con-carne` (sola lettura) dice quanti sono, dove, con quale parola — e
+  soprattutto **quanti ne restano** togliendoli. ⛔ Sotto gli 8 piatti la cella si nomina e non si
+  tocca: una colazione che non c'è è peggio di un branzino.
+  ⚠️ Due letture, nome **e** ingredienti, perché i gamberetti nel nome non compaiono. E le verdure si
+  contano ma non si tolgono: «Avocado toast» è una colazione normale.
+
+
+- `[Sviluppo]` ⛔ **Otto piatti «carne o pesce dove non devono stare», otto falsi.** `diag:carne-fuori-posto`
+  in produzione: 28.513 righe di paniere, **zero** col regime incompatibile. Non c'era una ricetta di
+  pesce dichiarata vegana — c'era un riconoscitore che le inventava, e leggeva «prosciutto
+  **vegetale**», «pollo **di tempeh**», «polpo **di ceci**», «branzino **di melanzane**».
+  ✅ Corretto con una **regola**, non un elenco: il segno vegetale deve stare **attaccato**
+  all'animale. ⛔ «con» non vale — «pollo con ceci» è pollo vero, e leggerlo come finto sarebbe carne
+  nel piatto di una pescetariana.
+  ⚠️ **Il conto vero non sono gli otto**: lo stesso riconoscitore ha scartato **1342 piatti come
+  carne** derivando i panieri pescetariani. Prima di `APPLICA=1` conviene rilanciare la diagnostica.
+  ⚠️ E ha migliorato altri due punti: «prosciutto di tofu» non manda più una persona a guardarlo, e
+  una giornata a mano con «branzino di melanzane» non chiede più la revisione a una nutrizionista.
+
+- `[Sviluppo]` ✅ **Le dodici parole di `diag:esclusioni`, lette una per una.** Dieci NO, due SÌ, una
+  lasciata stare. `grana` e `grano` (melagrana, melograno, sgranati: 239 occorrenze) nella regola di
+  posizione, perché sgranare si coniuga; `platter`, `umbrie`, `rapanelli` nella lista chiusa.
+  ⛔ **Il fiordilatte decide la forma di tutta la correzione**: è mozzarella di latte, quindi `latte`
+  non può usare la regola di posizione. ⚠️ E «soffrittata» non è una parola italiana: quel piatto ha
+  un refuso e può essere soffritto o frittata — su un caso ambiguo si tiene esclusa.
+
 
 - `[Sviluppo]` ✅ **La posta di «Piano bloccato», con il nome della cliente e il motivo.** Decisione
   di Simone alla domanda posta apposta. ⚠️ Conseguenza detta invece che nascosta: quel corpo finisce

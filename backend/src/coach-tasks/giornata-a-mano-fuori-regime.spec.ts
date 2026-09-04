@@ -24,15 +24,28 @@ describe('quali giornate a mano il regime nuovo non ammette', () => {
   });
 
   /**
-   * ⚠️ **Un'imitazione non è una certezza.** «Branzino di melanzane» e «Polpo d'Alghe Nori» sono
-   * piatti vegani davvero: `classifica` li manda nei dubbi apposta, e qui restano segnalati ma
-   * **non certi** — perché la differenza cambia la frase che legge chi deve decidere.
+   * ⛔ **UN'IMITAZIONE NON SI SEGNALA PIÙ AFFATTO, ED È LA RISPOSTA GIUSTA** (4/9).
+   *
+   * Fino a ieri «Branzino di melanzane» in una giornata vegana usciva come **dubbia**: il
+   * riconoscitore leggeva `branzino`, `classifica` non se la sentiva di correggere, e una
+   * nutrizionista veniva mandata a guardare un piatto di melanzane. Adesso `piatto-di-cosa.ts` sa
+   * che «branzino **di** melanzane» non è pesce — misurato in produzione, otto falsi su otto — e
+   * la giornata non ha niente che non va.
+   *
+   * ⚠️ È la stessa regola scritta due prove più giù: *«chiedere di rivedere una giornata che va
+   * bene insegna a non leggere»*. Un dubbio in meno qui non è protezione persa: è protezione che
+   * torna a valere, perché quelli che restano sono veri.
    */
-  it('⚠️ un\'imitazione si segnala come DUBBIA, non come certa', () => {
+  it('✅ un\'imitazione non è più niente da rivedere', () => {
     const out = giornateDaRivedere([g('2026-09-10', [{ name: 'Branzino di melanzane', ingredienti: ['melanzane'] }])], 'vegan');
+    expect(out).toEqual([]);
+  });
+
+  /** ⛔ E il pesce vero in una giornata vegana resta certo: la regola si è stretta, non spenta. */
+  it('⛔ ma il branzino vero resta, e resta certo', () => {
+    const out = giornateDaRivedere([g('2026-09-10', [{ name: 'Branzino al forno', ingredienti: ['branzino', 'patate'] }])], 'vegan');
     expect(out).toHaveLength(1);
-    expect(out[0].certo).toBe(false);
-    expect(out[0].piatti[0].perche).toContain('forse');
+    expect(out[0].certo).toBe(true);
   });
 
   /** ⛔ L'onnivora mangia tutto: chiedere di rivedere una giornata che va bene insegna a non leggere. */

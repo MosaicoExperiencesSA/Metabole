@@ -493,6 +493,21 @@ export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = 
   rombo: ['stromboli'],
   colatura: ['scolatura', 'scolature'],
   luccio: ['lucciole', 'lucciola'],
+  /**
+   * ⛔ **LETTE UNA PER UNA IL 4/9**, dal riquadro di `npm run diag:esclusioni` in produzione, con
+   * la risposta di Simone. Sono i casi **singoli e noti**: le famiglie aperte dello stesso giro
+   * (`grana`, `grano`) stanno in `SOLO_A_INIZIO_PAROLA`, dove vanno.
+   *
+   * ⚠️ Solo le parole che la diagnostica ha **nominato**, mai per analogia: «rapanelli» c'è,
+   * «rapanello» no, e ci entrerà il giorno che un piatto vero lo scrive. È la regola scritta qui
+   * sopra, e vale anche quando la variante sembra ovvia — ogni riga toglie un'esclusione.
+   */
+  // ⚠️ «fiordilatte» NON è qui, ed è la riga che decide la forma di tutta la correzione: la
+  //    mozzarella di latte il latte ce l'ha davvero. È il motivo per cui `latte` non può passare
+  //    dalla regola di posizione, che la lascerebbe passare insieme a «platter».
+  latte: ['platter'],
+  brie: ['umbrie'],
+  pane: ['rapanelli'],
 };
 
 /**
@@ -680,6 +695,24 @@ export const SOLO_A_INIZIO_PAROLA: ReadonlySet<string> = new Set([
   'orata', 'spada', 'carpa', 'rombo', 'alice', 'alici', 'trota', 'trote', 'sarago', 'tinca',
   // «cefalo» sta dentro «cefalopode» — che è un mollusco, non un pesce, e ha la sua chiave.
   'cefalo',
+  /**
+   * ⛔ **`grana` E `grano`, dal riquadro del 4/9 — e sono 239 occorrenze su 24 mila ricette.**
+   *
+   * «grana» dentro **melagrana** (×95), **sgranati** (×46), **sgranato** (×9), **melagrana** in
+   * un'altra grafia (×2); «grano» dentro **melograno** (×84) e **sgranocchiate** (×3). Nessuna ha
+   * a che vedere col formaggio o col frumento: il melograno è un albero, sgranare è quello che si
+   * fa ai piselli.
+   *
+   * ⚠️ **Qui e non fra le omonime, e la ragione è che la famiglia è APERTA**: sgranato, sgranati,
+   * sgranando, sgranocchiare, sgranocchiate… un elenco chiuso li rincorrerebbe per sempre, e
+   * quello che non viene rincorso resta un piatto tolto dal paniere di qualcuno.
+   *
+   * ⚠️ E restano prese al posto giusto: «grana padano», «grano saraceno», «grano duro» cominciano
+   * una parola. ⛔ Compreso **«granoturco»**, che è mais e di glutine non ne ha — ma è un falso
+   * che c'era già prima di questa riga e che questa riga non tocca: si chiude quando la
+   * diagnostica lo nomina, non per analogia.
+   */
+  'grana', 'grano',
 ]);
 
 /**

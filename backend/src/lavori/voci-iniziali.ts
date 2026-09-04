@@ -4861,6 +4861,7 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'esclusioni-chiave-dentro-parola',
     categoria: PANIERE,
     titolo: '▶️ RIAPERTA il 2/9 (i panieri sono accesi): le chiavi dentro una parola più lunga, una per una',
+    fatta: true,
     dettaglio:
       '\u25b6\ufe0f **RIAPERTA il 2/9: la condizione che la teneva ferma è caduta.** Il paniere è la sorgente '
       + 'del pool dall\'1/9 alle 05:21, `panieri:confronta` dice che non si è perso niente di indebito, '
@@ -4917,7 +4918,12 @@ export const VOCI_INIZIALI: Voce[] = [
       + '(`exclusions.ts`: «⛔ `biscotti` TOLTA il 24/8») e `aceto` resta di proposito, perché serve a '
       + 'far scattare il sostituto. Le ha decise Simone, non aspettano Lucia.\n\n'
       + '## Il testo di quando la voce è nata\n\n'
-      + '⚠️ **Difetto più vecchio della radice, e più delicato da correggere.** Il primo giro delle esclusioni cerca la parola chiave **intera** dentro il testo del piatto (`includes`), come fa da mesi. `npm run diag:esclusioni` adesso conta a parte quante volte quella chiave combacia **dentro una parola più lunga**: sono **212**.\n\n⛔ **E qui il confine di parola NON è la correzione**, al contrario della radice. Le due parole viste nell\'esito dicono perché:\n · «**aceto**» dentro «**sottaceto**» → **giusto**: il sottaceto l\'aceto ce l\'ha davvero, e mettere un confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti;\n · «**vino**» dentro «**bovino**» → **sbagliato**: uno stracetto di bovino magro non c\'entra niente con i solfiti.\n\n⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all\'altra. Quindi non è una regola: è una **lista corta** di parole da guardare una per una. La diagnostica adesso le raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta — la prima versione ne stampava 212 per far scoprire che erano due parole, e un elenco che costringe a contare a mano è un elenco che non si legge.\n\n⚠️ **Non l\'ho toccato**, e non per prudenza generica: correggere il giro della chiave esatta vuol dire cambiare il comportamento che regge le esclusioni da mesi, e la direzione dell\'errore qui è l\'opposta — si rischia di **togliere** una protezione invece di restituire dei piatti. Si legge l\'elenco raggruppato e si decide parola per parola. ⚠️ È la stessa famiglia di «Gaia trovava mela dentro melanzane», chiusa il 19/8 sulla ricerca: lì la risposta fu «a parole intere», qui non può esserlo.\n\n✅ **CORRETTA il 20/8 sera, invece che chiesta.** Aprire una voce per «bovino» era sbagliato: è una parola, non una decisione di prodotto. In `exclusions.ts` c\'è `PAROLE_CHE_NON_SONO`, una lista corta di parole omonime — `vino` → `bovino, bovina, bovini, bovine` — e «sottaceto» resta escluso com\'era giusto. ⚠️ **Ogni riga di quella lista TOGLIE un\'esclusione**, quindi si scrive solo dopo aver letto la parola in un esito vero, mai per analogia: `bovino` l\'ha nominata la diagnostica. ⛔ **Resta da guardare il resto dei 212**: `npm run diag:esclusioni` adesso li raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta, quindi sono poche righe da leggere. Quelle che sono come «bovino» si aggiungono alla lista; quelle che sono come «sottaceto» si lasciano stare. ⚠️ E «biscotti» non è nessuna delle due: è una delle **due voci larghe** dei solfiti dichiarate nel codice il 13/8 — insieme ad «aceto» — che si tolgono se Lucia dice che sono eccessive.',
+      + '⚠️ **Difetto più vecchio della radice, e più delicato da correggere.** Il primo giro delle esclusioni cerca la parola chiave **intera** dentro il testo del piatto (`includes`), come fa da mesi. `npm run diag:esclusioni` adesso conta a parte quante volte quella chiave combacia **dentro una parola più lunga**: sono **212**.\n\n⛔ **E qui il confine di parola NON è la correzione**, al contrario della radice. Le due parole viste nell\'esito dicono perché:\n · «**aceto**» dentro «**sottaceto**» → **giusto**: il sottaceto l\'aceto ce l\'ha davvero, e mettere un confine di parola **toglierebbe** protezione a chi è sensibile ai solfiti;\n · «**vino**» dentro «**bovino**» → **sbagliato**: uno stracetto di bovino magro non c\'entra niente con i solfiti.\n\n⚠️ La stessa regola darebbe la risposta giusta a una e sbagliata all\'altra. Quindi non è una regola: è una **lista corta** di parole da guardare una per una. La diagnostica adesso le raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta — la prima versione ne stampava 212 per far scoprire che erano due parole, e un elenco che costringe a contare a mano è un elenco che non si legge.\n\n⚠️ **Non l\'ho toccato**, e non per prudenza generica: correggere il giro della chiave esatta vuol dire cambiare il comportamento che regge le esclusioni da mesi, e la direzione dell\'errore qui è l\'opposta — si rischia di **togliere** una protezione invece di restituire dei piatti. Si legge l\'elenco raggruppato e si decide parola per parola. ⚠️ È la stessa famiglia di «Gaia trovava mela dentro melanzane», chiusa il 19/8 sulla ricerca: lì la risposta fu «a parole intere», qui non può esserlo.\n\n✅ **CORRETTA il 20/8 sera, invece che chiesta.** Aprire una voce per «bovino» era sbagliato: è una parola, non una decisione di prodotto. In `exclusions.ts` c\'è `PAROLE_CHE_NON_SONO`, una lista corta di parole omonime — `vino` → `bovino, bovina, bovini, bovine` — e «sottaceto» resta escluso com\'era giusto. ⚠️ **Ogni riga di quella lista TOGLIE un\'esclusione**, quindi si scrive solo dopo aver letto la parola in un esito vero, mai per analogia: `bovino` l\'ha nominata la diagnostica. ⛔ **Resta da guardare il resto dei 212**: `npm run diag:esclusioni` adesso li raggruppa per coppia (chiave, parola) invece di stampare una riga per ricetta, quindi sono poche righe da leggere. Quelle che sono come «bovino» si aggiungono alla lista; quelle che sono come «sottaceto» si lasciano stare. ⚠️ E «biscotti» non è nessuna delle due: è una delle **due voci larghe** dei solfiti dichiarate nel codice il 13/8 — insieme ad «aceto» — che si tolgono se Lucia dice che sono eccessive.'
+      + '\n\n▶️ **LETTE E CHIUSE IL 4/9.** `diag:esclusioni` in produzione ha dato **dodici** coppie; Simone ha risposto: **dieci NO, due SÌ, una lasciata stare**.\n'
+      + '· `grana` e `grano` — melagrana, melograno, sgranati, sgranato, sgranocchiate, 239 occorrenze — nella regola di **posizione**, perché sgranare si coniuga e un elenco chiuso lo rincorrerebbe per sempre. `platter`, `umbrie` e `rapanelli` nella lista **chiusa**: tre parole note.\n'
+      + '· I SÌ non si toccano: il sottaceto l\'aceto ce l\'ha, e il fiordilatte è mozzarella di latte. ⛔ **Ed è quest\'ultimo a decidere la forma di tutta la correzione**: `latte` non può usare la regola di posizione, che lascerebbe passare il fiordilatte insieme a «platter».\n'
+      + '· ⚠️ **La lasciata stare**: «soffrittata» non è una parola italiana, quindi quel piatto ha un refuso e può essere «soffritto» storpiato (niente uovo) o «frittata» storpiata (uovo eccome). Una ricetta su ventiquattromila, e i due errori non costano uguale: si tiene esclusa.\n'
+      + '⚠️ E un falso **dichiarato invece che chiuso**: «granoturco» è mais e comincia una parola, quindi la regola di posizione non lo scarta. Si chiude il giorno che la diagnostica lo nomina.',
     ordine: 622,
     nata: '2026-08-20T19:10',
   },
@@ -5578,7 +5584,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'che dichiara di volerne fare uno per difetto, ed è scritto come prova invece che come '
       + 'commento.\n\n'
       + '⛔ **Il resto della voce resta aperto e non si muove senza Simone**: quali clienti vede la '
-      + 'commerciale, i due cancelli da chiudere insieme, e il numero di `diag:commerciale-e-coach`.',
+      + 'commerciale, i due cancelli da chiudere insieme, e il numero di `diag:commerciale-e-coach`.'
+      + '\n\n▶️ **MISURATO IL 4/9** con `diag:commerciale-e-coach`: **Giusy ha ZERO clienti sue e 56 con la rete sotto**, su 60 schede (62 utenti vivi, 2 senza scheda che non entrano in nessun perimetro). La strada ovvia — metterla fra i ruoli «coach-like» — le darebbe la **rete**, cioè quasi tutte: un cancello che invece di stringere allarga. Il perimetro va scritto sul suo id.',
     categoria: CODICE,
     ordine: 665,
     nata: '2026-08-28T09:00',
@@ -5804,7 +5811,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'giornate della sua dieta. Quello che resta è **umano**: `npm run diag:struttura` dice quali '
       + 'varianti erano esposte e quante clienti ci stanno dietro; per quelle vale la pena aprire i '
       + '`menu_day` della finestra fra lo spostamento dell\'interruttore e il rilascio e contare i '
-      + 'pasti. Non si corregge da sé: un menu già erogato non si riscrive.',
+      + 'pasti. Non si corregge da sé: un menu già erogato non si riscrive.'
+      + '\n\n▶️ **MISURATO IL 4/9** con `diag:struttura`: **160** varianti hanno un paniere con slot che le loro giornate non hanno, tutte esposte. Di queste **13** hanno servito clienti negli ultimi 30 giorni, per **21 clienti**. L\'interruttore è stato spostato il 1° settembre alle 05:21.\n'
+      + '⚠️ Da lì in avanti la struttura la detta la dieta: la correzione c\'è. Quello che **non** è stato guardato è il passato — i `menu_day` composti fra lo spostamento e il rilascio. Sono poche, e la scelta di non guardarlo è dichiarata, non dimenticata.',
     categoria: CODICE,
     blocca: true,
     ordine: 669,
@@ -5896,7 +5905,11 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'giornate gi\u00e0 composte no, e non si riscrivono.\n'
       + '\u26a0\ufe0f E `npm run diag:carne-fuori-posto` dice se nei panieri vegani e vegetariani resta '
       + 'ancora carne: quello che resta dopo questa correzione \u00e8 catalogo da guardare, non pi\u00f9 il '
-      + 'riconoscitore.',
+      + 'riconoscitore.'
+      + '\n\n✅ **IL RICONOSCITORE È CORRETTO, 4/9.** `diag:carne-fuori-posto` in produzione: otto piatti, **otto falsi**, tutti della stessa forma — il nome di un animale seguito da come è fatto davvero: «prosciutto **vegetale**», «pollo **di tempeh**», «polpo **di ceci**», «branzino **di melanzane**». Famiglia aperta, quindi regola e non elenco: `senzaImitazioni` in `piatto-di-cosa.ts` cancella il nome dell\'animale quando il segno vegetale gli sta **attaccato**, in due forme sole.\n'
+      + '⛔ **«con» non vale, ed è la riga che tiene stretta la regola**: «pollo con ceci» è pollo vero, e leggerlo come finto sarebbe carne nel piatto di una pescetariana — l\'unico errore che qui non ci si può permettere.\n'
+      + '⚠️ **E ha cambiato la risposta in altri due punti, in meglio**: «prosciutto di tofu» non manda più una persona a guardarlo (era «dubbia», adesso «ok»), e una giornata a mano con «branzino di melanzane» non chiede più la revisione a una nutrizionista.\n'
+      + '▶️ **RESTA `APPLICA=1 npm run panieri:pesce`**: il tabulato del 4/9 dice **81 appartenenze da aggiungere** e 1342 piatti scartati perché contengono carne. ⚠️ Quel 1342 è il numero che il riconoscitore corretto cambia: vale la pena rilanciare la diagnostica **prima** di applicare.',
     categoria: CODICE,
     blocca: true,
     ordine: 672,
@@ -5906,6 +5919,7 @@ export const VOCI_INIZIALI: Voce[] = [
   {
     chiave: 'ricette-di-pesce-etichettate-vegane',
     titolo: 'In catalogo ci sono ricette di pesce dichiarate «vegane»: una vegana pu\u00f2 ricevere il salmone',
+    fatta: true,
     dettaglio:
       '\u26d4 **Misurato l\'1/9 con `diag:carne-fuori-posto`: 175 piatti** con pesce o carne dentro '
       + 'panieri vegani e vegetariani \u2014 salmone, branzino, cozze, gamberi, alici \u2014 e **tutti e 175 '
@@ -5929,7 +5943,10 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'solo mucchio dubbio.\n'
       + '\u26a0\ufe0f La pulizia **conta prima di togliere** e si ferma se una casella scende sotto soglia: '
       + 'si passa sopra solo con `FORZA=1`, dichiarandolo.\n'
-      + '\u2705 **E la domanda «da dove sono nate» ha risposta, trovata l\'1/9 nel codice**: il generatore scrive il regime della **richiesta**, non del piatto \u2014 generando per una variante vegana, qualunque cosa risponda il modello nasceva `vegan`. Da oggi un piatto i cui INGREDIENTI il regime chiesto non pu\u00f2 mangiare **non viene scritto**, si conta e finisce nel registro (`scartatiFuoriRegime`). \u26a0\ufe0f Ingredienti e non nome: «Polpo d\'Alghe Nori» \u00e8 vegano davvero.',
+      + '\u2705 **E la domanda «da dove sono nate» ha risposta, trovata l\'1/9 nel codice**: il generatore scrive il regime della **richiesta**, non del piatto \u2014 generando per una variante vegana, qualunque cosa risponda il modello nasceva `vegan`. Da oggi un piatto i cui INGREDIENTI il regime chiesto non pu\u00f2 mangiare **non viene scritto**, si conta e finisce nel registro (`scartatiFuoriRegime`). \u26a0\ufe0f Ingredienti e non nome: «Polpo d\'Alghe Nori» \u00e8 vegano davvero.'
+      + '\n\n✅ **MISURATO IL 4/9: NON ESISTONO.** `diag:carne-fuori-posto` su 28.513 righe di paniere con ricetta attiva: **zero** col regime incompatibile. Otto piatti segnalati, tutti e otto col regime della ricetta **compatibile** — nessun errore di catalogo.\n'
+      + '⛔ **Erano nomi, non ricette**: «Polpo di ceci», «Branzino di melanzane», «Prosciutto vegetale», «Pollo di tempeh». Non c\'era una ricetta di pesce dichiarata vegana: c\'era un riconoscitore che le inventava, corretto nella stessa consegna.\n'
+      + '⚠️ L\'ottavo resta scritto: «Polenta ai Funghi Misti» scattava su «champignon, **ostriche**» negli ingredienti — sono i funghi ostrica. Le due parole non sono attaccate, quindi la regola nuova non lo prende: caso singolo, dichiarato.',
     categoria: CODICE,
     blocca: true,
     ordine: 673,
@@ -6044,6 +6061,74 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 676,
     nata: '2026-09-02T13:00',
+  },
+
+  {
+    chiave: 'ricetta-verificata-dalla-nutrizionista',
+    categoria: SIMONE,
+    ordine: 3,
+    nata: '2026-09-04T11:40',
+    titolo: '▶️ La spunta «ricetta verificata»: chiesta da Simone, e prima serve una risposta',
+    dettaglio:
+      'Richiesta di Simone, 4/9: *«quando vado in modifica devo avere un flag — ricetta verificata — '
+      + 'che quando il nutrizionista clicca resta tutto registrato»*.\n\n'
+      + '✅ **La forma esiste già nel progetto**, e non va inventata: è quella di '
+      + '`clinical_clearance` — *«la chiude a mano chi ha guardato, e così resta scritto chi ha '
+      + 'guardato»*. Due colonne sulla ricetta (chi, quando), la spunta nel popup «Modifica ricetta», '
+      + 'la riga di registro. ⚠️ Serve una **migrazione**, quindi la applica Simone prima della push.\n\n'
+      + '⛔ **E prima serve UNA risposta, perché decide se la spunta vuol dire qualcosa: quando la '
+      + 'ricetta viene modificata, la verifica resta o cade?**\n'
+      + '· Se **resta**, «verificata» diventa una bugia il giorno che qualcuno cambia gli ingredienti '
+      + '— ed è la parola su cui poi si costruiscono gli allergeni.\n'
+      + '· Se **cade**, la nutrizionista rifà il lavoro a ogni virgola cambiata, e dopo due volte '
+      + 'smette di spuntare.\n'
+      + '· La terza strada è che cada **solo** se cambia qualcosa che conta — ingredienti, allergeni, '
+      + 'regime — e non se cambia il nome o una grammatura. Costa di più da scrivere, ed è l\'unica '
+      + 'che tiene la spunta vera senza far rifare il lavoro.\n\n'
+      + '⚠️ **E una domanda più piccola che viene dietro**: la spunta la può mettere solo la '
+      + 'nutrizionista, o anche il capo? Oggi la scheda ricetta si apre con `recipes`, che ce l\'hanno '
+      + 'in tre ruoli.',
+  },
+
+  {
+    chiave: 'carne-e-pesce-nei-pasti-leggeri',
+    categoria: SIMONE,
+    ordine: 1,
+    blocca: true,
+    nata: '2026-09-04T12:30',
+    titolo: '⛔ Branzino, merluzzo e gamberetti a COLAZIONE: la regola c\'è dal 31/8 e guarda solo i piatti nuovi',
+    dettaglio:
+      'Simone, 4/9, aprendo «Basso indice glicemico · Onnivoro · Colazione»: *«avevo detto di '
+      + 'togliere pesce e carne nelle colazioni e trovo Branzino a colazione?»* — e non è solo il '
+      + 'branzino: nella stessa cella ci sono burger di merluzzo, dentice, filetto di trota (due), '
+      + 'salmone affumicato.\n\n'
+      + '⛔ **La regola esiste dal 31/8 e non è mai stata applicata a quello che c\'era già.** '
+      + '`PASTI_SENZA_CARNE_PESCE_VERDURA` copre colazione, spuntino **e** merenda, e '
+      + '`vaBeneAColazione` decide bene — ma la legge **un posto solo**: l\'agente che *genera* i '
+      + 'piatti leggeri nuovi. Serve a non farne creare altri. I piatti entrati prima non li ha '
+      + 'filtrati nessuno, e il motore dal paniere ci pesca.\n\n'
+      + '✅ **LO STRUMENTO C\'È (4/9): `npm run diag:colazioni-con-carne`**, sola lettura. Dice quanti '
+      + 'sono, in quali celle, con quale parola sono stati riconosciuti — e soprattutto **quanti ne '
+      + 'restano** togliendoli. Il giudizio sta in `colazione-senza-carne-e-pesce.ts` con le sue '
+      + 'prove, non nello script.\n'
+      + '⛔ **Il numero che decide non è quanti escono: è quanti restano.** Sotto '
+      + '`MINIMO_PER_CELLA` (8) la cella si **nomina e non si tocca**: una colazione che resta con '
+      + 'tre piatti serve lo stesso piatto a giorni alterni, e dopo tre giorni la cliente smette di '
+      + 'aprire l\'app. Il branzino a colazione è sbagliato; una colazione che non c\'è è peggio.\n'
+      + '⚠️ **Due letture, non una**: il nome (`Branzino al vapore`) e gli ingredienti (`gamberetti '
+      + 'sgusciati`, che nel nome non compaiono). `diCosaE` da solo non basta, perché senza '
+      + 'grammature risponde «non lo so» — e «non lo so» non è «va bene».\n'
+      + '⚠️ **E le VERDURE si contano ma non si tolgono**: la richiesta del 31/8 ne nominava tre, '
+      + 'questo ne toglie due. «Avocado toast» e «Crepes con spinaci» sono colazioni normali, e '
+      + '`diCosaE` le legge come verdura per via dell\'ingrediente più pesante: toglierle '
+      + 'svuoterebbe i panieri di roba giusta.\n\n'
+      + '▶️ **RESTA DA FARE, ed è di Simone**: lanciare la diagnostica su Render, **leggere le righe '
+      + 'una per una** (se una non c\'entra niente sbaglia il riconoscitore, e allora sbaglia anche '
+      + 'dove nessuno lo sta guardando), e poi `APPLICA=1`. ⚠️ Non cancella nessuna ricetta: toglie '
+      + 'l\'appartenenza a quella cella, e a pranzo e a cena quei piatti restano dove sono.\n'
+      + '⛔ **E resta il cancello a valle**: anche svuotando oggi il paniere, domani qualcuno ce li '
+      + 'rimette a mano dalla pagina Panieri. Quello è un lavoro a sé — la pagina ha già il '
+      + 'controllo alla scrittura, `riempi-panieri` no.',
   },
 
 ];
