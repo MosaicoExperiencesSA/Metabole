@@ -86,31 +86,45 @@ export const VOCI_INIZIALI: Voce[] = [
     chiave: 'equivalenze-un-nome-un-gruppo',
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
-    fatta: false,
+    blocca: false,
+    fatta: true,
     nata: '2026-09-04T16:00',
-    titolo: '⏳ Gruppi di equivalenza: il codice è pronto, lo SCRIPT non è stato lanciato',
+    titolo: '\u2705 Gruppi di equivalenza: da 2848 a 1105, un nome un gruppo \u2014 UNIONE FATTA',
     dettaglio:
-      'La consegna del 4/9 rende i gruppi globali e chiude le porte da cui si moltiplicavano, ma i '
-      + '**2848 gruppi che ci sono già non li ha toccati nessuno**: l\'unione è uno script a parte, e '
-      + 'si lancia dopo aver guardato il tabulato.\n\n'
+      'Lo script `ripara:equivalenze-omonime` \u00e8 stato lanciato in produzione da Simone il 4/9, dopo la '
+      + 'prova a vuoto. I numeri della prova a vuoto, che \u00e8 quello che lo script si preparava a fare:\n\n'
       + '```\n'
-      + 'npm run ripara:equivalenze-omonime            prova a vuoto\n'
-      + 'ESEMPI=60 npm run ripara:equivalenze-omonime  piu righe\n'
-      + 'SCRIVI=1 npm run ripara:equivalenze-omonime   scrive davvero\n'
+      + 'Gruppi in tabella                      2848\n'
+      + 'Legati a una dieta (diventano globali) 2821\n'
+      + 'Nomi che compaiono piu di una volta     257\n'
+      + 'Righe che spariscono                   1743\n'
+      + 'Restano                                1105\n'
+      + 'Famiglie ferme (pesi diversi)             0\n'
       + '```\n\n'
-      + '⛔ **Tre misure da fare PRIMA di `SCRIVI=1`**, e ognuna decide qualcosa:\n'
-      + '1. quanti gruppi **approvati** ci sono in tutto: `candidati()` ne legge 5000 e lo dice nel '
-      + 'log quando tocca il tetto, ma se sono già migliaia il tabulato va guardato;\n'
-      + '2. quanti gruppi risulteranno approvati con un `createdAt` **più vecchio** di «Oli e grassi '
-      + 'da condimento»: la tabella dei pesi adesso si cerca per nome, quindi il rischio è chiuso, ma '
-      + 'il numero dice quanto ci si era vicini;\n'
-      + '3. gli **elenchi che diventano lunghissimi**: lo script stampa a parte le famiglie che '
-      + 'superano i 40 alimenti. Un gruppo con settanta voci dice «questi settanta si scambiano tutti '
-      + 'fra loro», ed è una frase molto più grossa di quelle da cui nasce.\n\n'
-      + '⚠️ E la riga che resta detta: «tutto in un gruppo solo, approvato» è la decisione di Simone, e '
-      + 'vuol dire che alimenti proposti dall\'AI e mai riletti entrano nel motore. Lo script stampa '
-      + 'quanti sono prima di scrivere.',
+      + '\u2705 **La riserva pi\u00f9 grossa \u00e8 caduta, e l\u2019ha detta il tabulato.** Il blocco \u00abN alimenti che '
+      + 'stavano SOLO in gruppi in bozza entrano in gruppi approvati\u00bb **non \u00e8 stato stampato**, e si stampa '
+      + 'solo se \u00e8 maggiore di zero: nessun alimento mai validato \u00e8 entrato nel motore. Tutte e 257 le '
+      + 'famiglie escono \u00abapprovato\u00bb perch\u00e9 quei gruppi erano gi\u00e0 stati approvati **in blocco** dal '
+      + 'pulsante del wizard, dieta per dieta \u2014 lo stesso pulsante che questa consegna ha tolto.\n\n'
+      + '\u2705 **Zero famiglie ferme**: nessun conflitto fra tabelle di pesi, e la tabella dei grassi firmata '
+      + 'da Nocanty \u00e8 passata intatta.\n\n'
+      + '\u26a0\ufe0f **QUELLO CHE RESTA DA GUARDARE, e sono decisioni di nutrizione, non di pulizia.**\n\n'
+      + '\u00b7 **Tre elenchi molto lunghi**, che adesso sono tre righe sole in pagina: \u00abCereali integrali\u00bb '
+      + '**66 alimenti** (da 171 gruppi), \u00abVerdure a foglia verde\u00bb 46 (da 82), \u00abProteine vegetali\u00bb 45 '
+      + '(da 36). \u26d4 Il primo dice al motore che quinoa, grano saraceno e riso si scambiano con **farro e '
+      + 'orzo**, che hanno il glutine; il terzo mette **seitan** insieme a tofu e tempeh. Chi il glutine lo ha '
+      + 'dichiarato \u00e8 protetto dalle intolleranze, chi non lo ha dichiarato riceve lo scambio.\n'
+      + '\u00b7 **1105 non sono 1105 gruppi diversi**: dentro ci sono i sinonimi che la normalizzazione non tocca '
+      + 'apposta \u2014 \u00abVerdure **cru**cifere\u00bb e \u00abVerdure **cro**cifere\u00bb sono un refuso e sono 70 gruppi in '
+      + 'due, e la frutta secca ha **sette** nomi (\u00abFrutta secca\u00bb, \u00ab\u2026 e semi\u00bb, \u00abSemi e \u2026\u00bb, \u00ab\u2026 '
+      + 'oleosa\u00bb, \u00ab\u2026 proteica\u00bb, \u00abNoci e semi\u00bb, \u00abSemi oleosi\u00bb). Si uniscono **a mano** dal backoffice, '
+      + 'una decisione per volta: allargare la normalizzazione unirebbe anche \u00abBevande vegetali\u00bb e '
+      + '\u00abBevande vegetali **non zuccherate**\u00bb, che sono due gruppi diversi apposta.\n'
+      + '\u00b7 Da oggi la domanda dell\u2019accorpamento impedisce che se ne creino altri: \u00e8 la met\u00e0 che tiene '
+      + 'pulito, e senza di lei fra sei mesi la pagina sarebbe di nuovo com\u2019era.\n\n'
+      + '\u26a0\ufe0f **Il tabulato della SCRITTURA non l\u2019ho letto**: i quattro conti finali (famiglie unite, gruppi '
+      + 'cancellati, righe di sostituzione ripuntate, gruppi resi globali) li stampa lo script alla fine, '
+      + 'anche se si interrompe a met\u00e0. Se divergono da 257 / 1743, questa riga va corretta.',
   },
   {
     chiave: 'allergeni-formaggi-e-pescato-mancanti',
@@ -136,7 +150,12 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'la stessa regola del 31/8 sui latti vegetali.\n\n'
       + '⚠️ Nel frattempo il cancello del regime ha il **suo** elenco, in `menu/regime-del-candidato.ts`, '
       + 'che vale solo lì: è l\'unico posto dove un elenco largo è la scelta prudente, perché un falso '
-      + 'positivo toglie una proposta e non mette niente nel piatto.',
+      + 'positivo toglie una proposta e non mette niente nel piatto.\n\n'
+      + '\u26d4 **E il 4/9 l\u2019unione ha messo la prova nero su bianco**: fra i gruppi che restano c\u2019\u00e8 '
+      + '\u00abMolluschi\u00bb, approvato, con dentro `vongole, cozze, polpo, calamari, **seppie**, capasante, polpa '
+      + 'di granchio, calamaretti`. Le seppie stanno in un gruppo che si chiama Molluschi e il vocabolario '
+      + 'degli allergeni non le riconosce come molluschi: chi \u00e8 allergica non si vede togliere quei piatti. '
+      + 'Non \u00e8 un difetto nato oggi, ma da oggi \u00e8 scritto dove si legge.',
   },
   {
     chiave: 'attiva-un-piano-non-e-nei-permessi',

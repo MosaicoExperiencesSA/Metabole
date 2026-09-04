@@ -1,0 +1,25 @@
+Elenco lavori: l'unione dei gruppi di equivalenza è stata lanciata (2848 → 1105)
+
+Solo carta: elenco lavori e REGISTRO. Nessuna riga di codice, nessuna migrazione.
+
+`SCRIVI=1 npm run ripara:equivalenze-omonime` girato in produzione dopo la prova a vuoto.
+257 nomi doppi, 1743 righe che spariscono, 2821 gruppi che da «di una dieta» diventano globali.
+
+LA RISERVA PIÙ GROSSA È CADUTA, e l'ha detta il tabulato. Il blocco «N alimenti che stavano SOLO in
+bozza entrano in gruppi approvati» non è stato stampato, e si stampa solo se è maggiore di zero:
+nessun alimento mai validato è entrato nel motore. Tutte e 257 le famiglie escono «approvato» perché
+quei gruppi erano già stati approvati in blocco dal pulsante del wizard, dieta per dieta — lo stesso
+pulsante che la consegna precedente ha tolto.
+
+Zero famiglie ferme: nessun conflitto fra tabelle di pesi, e quella firmata da Nocanty è passata
+intatta.
+
+RESTA DA GUARDARE, e sono decisioni di nutrizione: «Cereali integrali» con 66 alimenti (quinoa e
+riso scambiabili con farro e orzo, che hanno il glutine), «Proteine vegetali» 45 (col seitan
+dentro), «Verdure a foglia verde» 46. E 1105 non sono 1105 gruppi diversi: «Verdure crucifere» e
+«Verdure crocifere» sono un refuso che vale 70 gruppi in due, la frutta secca ha sette nomi. Si
+uniscono a mano, una decisione per volta.
+
+E L'UNIONE HA MESSO NERO SU BIANCO UN DIFETTO CHE NON È SUO: fra i gruppi che restano c'è
+«Molluschi», approvato, con dentro le seppie — e exclusions.ts non le riconosce come molluschi. Chi
+è allergica non si vede togliere quei piatti. Voce aperta, e si chiude da sola.

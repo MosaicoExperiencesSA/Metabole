@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **L'unione è stata lanciata: i gruppi di equivalenza passano da 2848 a 1105.**
+  `SCRIVI=1 npm run ripara:equivalenze-omonime`, in produzione, dopo la prova a vuoto. 257 nomi
+  doppi, 1743 righe che spariscono, **2821** gruppi che da «di una dieta» diventano globali.
+  ✅ **La riserva più grossa è caduta, e l'ha detta il tabulato**: il blocco «N alimenti che stavano
+  SOLO in bozza entrano in gruppi approvati» **non è stato stampato**, e si stampa solo se è maggiore
+  di zero. Nessun alimento mai validato è entrato nel motore. Tutte e 257 le famiglie escono
+  «approvato» perché quei gruppi erano già stati approvati **in blocco** dal pulsante del wizard,
+  dieta per dieta — lo stesso pulsante che questa consegna ha tolto.
+  ✅ **Zero famiglie ferme**: nessun conflitto fra tabelle di pesi, e quella firmata da Nocanty è
+  passata intatta.
+  ⚠️ **Restano tre elenchi da guardare**, e sono decisioni di nutrizione: «Cereali integrali» con
+  **66 alimenti** (quinoa e riso scambiabili con **farro e orzo**, che hanno il glutine), «Verdure a
+  foglia verde» 46, «Proteine vegetali» 45 (con dentro il **seitan**). Chi il glutine lo ha
+  dichiarato è protetto dalle intolleranze; chi non lo ha dichiarato riceve lo scambio.
+  ⚠️ **E 1105 non sono 1105 gruppi diversi**: «Verdure **cru**cifere» e «Verdure **cro**cifere» sono
+  un refuso e valgono 70 gruppi in due, la frutta secca ha **sette** nomi. Si uniscono a mano, una
+  decisione per volta: allargare la normalizzazione unirebbe anche «Bevande vegetali» e «Bevande
+  vegetali **non zuccherate**», che sono due gruppi diversi apposta.
+  ⛔ **E l'unione ha messo nero su bianco un difetto che non è suo**: fra i gruppi che restano c'è
+  «Molluschi», approvato, con dentro le **seppie** — e `exclusions.ts` non le riconosce come
+  molluschi. Chi è allergica non si vede togliere quei piatti. Stessa cosa per taleggio, robiola e
+  fontina col latte. Voce aperta, e si chiude **da sola**, misurando: cambia i menu di tutte le
+  allergiche.
+
 - `[Sviluppo]` 🧩 **I gruppi di equivalenza non sono più di una dieta: un nome, un gruppo.** Richiesta
   di Simone — «si stanno moltiplicando all'infinito» — e sua la decisione: *«i gruppi NON devono
   essere legati alle diete, sono gruppi e stop»*, e il gruppo unito è **approvato se almeno uno lo
