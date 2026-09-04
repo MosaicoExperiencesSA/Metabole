@@ -1,0 +1,56 @@
+────────────────────────────────────────────────────────────────────────────
+ La guardia del metodo: prima riga libera, passaggi stretti
+ 4 settembre 2026 (sera, coda)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+Summary
+───────
+La guardia della seconda lettura sul metodo: prima riga libera, passaggi stretti
+
+Description
+───────────
+Le due cose che avevo dichiarato aperte consegnando la seconda lettura. Erano
+tutte e due «promesse più grandi del codice», che è la specie di difetto che
+questo progetto tratta come la peggiore.
+
+1) ⛔ IL PROMPT CHIEDEVA UNA RIGA CHE LA GUARDIA RIFIUTAVA
+   Il prompt chiede come prima riga il nome del modo — «al forno», «piatto
+   freddo», «meal prep» — e chi scrive «lo lascio crudo» o «si fa in due
+   minuti» quelle parole non le ha usate: la guardia dei comandi le bocciava
+   come «parole nuove». La riscrittura giusta veniva buttata in quattro casi su
+   sei, e la seconda lettura serviva quasi solo a chi il nome del modo l'aveva
+   già scritto — cioè quasi a nessuno.
+
+   ⚠️ Ora la guardia si applica ai PASSAGGI, non alla prima riga. E toglierla da
+   lì non apre un buco, perché quella riga è guardata da altri due:
+   `leggiMetodo` accetta solo i sei codici, e IL MODO LO CONFERMA UNA PERSONA.
+   ⛔ I passaggi invece restano stretti, e lì la guardia è tutto quello che c'è:
+   un passaggio inventato — un tempo, una temperatura, un ingrediente in più —
+   finisce nella scheda che una persona legge mentre cucina, e nessuno lo
+   conferma riga per riga.
+
+   ⚠️ E al modello si chiede di NON riscrivere i verbi dei passaggi: la guardia
+   confronta le radici, e «si fa» → «farlo» cambia radice. Gli serve spezzare le
+   righe, non migliorare la prosa.
+   ⚠️ I passaggi possono restare IDENTICI, e non è un'omissione: quello che la
+   riscrittura aggiunge è la prima riga.
+
+2) ⛔ `nienteOmissioni` TOLTA — era una promessa appoggiata a niente
+   L'avevo scritta come «la cosa che renderebbe sicuro passare al modello il
+   testo della ricetta». Non lo renderebbe: `parolePiene` scarta i token sotto
+   le tre lettere, quindi «tonno 80 g» → «tonno g» le passa sotto; e due
+   ingredienti con la stessa radice — «pomodoro» e «pomodorini» — si coprono a
+   vicenda. Una guardia che promette di vedere le omissioni e non vede proprio
+   quelle che contano è peggio della sua assenza, perché ci si appoggia.
+   ⚠️ Al suo posto restano due prove che tengono il ricordo del perché, e il
+   commento dice la ragione vera per cui il testo della ricetta e gli allergeni
+   restano deterministici.
+
+PROVE
+─────
+· 7651 verdi su 442 suite nelle quattro modalità; build e tsc puliti.
+· Otto prove di mutazione, tutte rosse. Una era sopravvissuta — «il parser non
+  decide più» — perché dopo la modifica il caso che la copriva veniva fermato da
+  un altro controllo: ha fatto scrivere la prova che mancava davvero.

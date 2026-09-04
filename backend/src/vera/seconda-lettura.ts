@@ -94,7 +94,8 @@ const PAROLE_DELLA_FORMA = new Set(
 );
 
 /** Le parole piene di un testo: si ignorano quelle corte, che non portano contenuto. */
-function parolePiene(testo: string): string[] {
+/** ⚠️ Esportata per le prove: la sua cecità sui token corti è un fatto che va tenuto scritto. */
+export function parolePiene(testo: string): string[] {
   return normalizza(testo)
     .split(/[^a-z0-9]+/)
     .filter((p) => p.length >= 3);
@@ -126,15 +127,15 @@ export interface ComeGuardare {
    */
   multiriga?: boolean;
   /**
-   * ⛔ **Nessuna parola dell'originale può SPARIRE.**
+   * ⛔ **I passaggi possono restare identici, e non è un'omissione.**
    *
-   * La guardia di partenza controlla solo che non ne compaiano di nuove — è la direzione che conta
-   * per un comando: una parola in più è una regola in più nel piatto di qualcuno. ⚠️ Ma su un testo
-   * che **elenca** — gli ingredienti di una ricetta, gli allergeni — l'errore grave è l'opposto: un
-   * ingrediente che sparisce sono calorie che non si contano, un allergene che sparisce è una
-   * cliente che riceve il piatto sbagliato. Chi passa un elenco al modello deve chiedere questa.
+   * Per un comando una riscrittura uguale all'originale non aggiunge niente — `capisci` ha già detto
+   * di no — e si butta. Sul metodo no: quello che la riscrittura aggiunge è **la prima riga**, il
+   * modo di cottura; i passaggi restano le parole di chi ha scritto, ed è esattamente quello che il
+   * prompt gli chiede di fare. Senza questa opzione «si fa in due minuti» veniva rifiutato perché i
+   * suoi passaggi erano, giustamente, sé stessi.
    */
-  nienteOmissioni?: boolean;
+  puoRestareUguale?: boolean;
 }
 
 /** ⚠️ Gli spazi si stringono, gli a capo restano quando servono: vedi `ComeGuardare.multiriga`. */
@@ -149,7 +150,9 @@ export function riscritturaAccettabile(originale: string, riscritta: unknown, co
   if (!frase) return { ok: false, perche: 'riscrittura vuota' };
   if (frase.length > MAX_CARATTERI) return { ok: false, perche: `riscrittura troppo lunga (${frase.length} caratteri)` };
   // Una riscrittura che è la frase di prima non ha aggiunto niente: `capisci` ha già detto no.
-  if (normalizza(frase) === normalizza(originale)) return { ok: false, perche: 'riscrittura identica all\'originale' };
+  if (!come.puoRestareUguale && normalizza(frase) === normalizza(originale)) {
+    return { ok: false, perche: 'riscrittura identica all\'originale' };
+  }
 
   /**
    * ⚠️ I NUMERI SI CONTROLLANO A PARTE, e non è pedanteria: il filtro delle parole scarta quelle
@@ -167,13 +170,6 @@ export function riscritturaAccettabile(originale: string, riscritta: unknown, co
   const radiciOriginali = new Set(parolePiene(originale).map(radice));
   const nuove = parolePiene(frase).filter((p) => !PAROLE_DELLA_FORMA.has(p) && !radiciOriginali.has(radice(p)));
   if (nuove.length) return { ok: false, perche: `parole non presenti nella frase: ${nuove.join(', ')}` };
-
-  /** ⛔ L'altra direzione, per i testi che elencano: vedi `ComeGuardare.nienteOmissioni`. */
-  if (come.nienteOmissioni) {
-    const radiciNuove = new Set(parolePiene(frase).map(radice));
-    const perse = parolePiene(originale).filter((p) => !PAROLE_DELLA_FORMA.has(p) && !radiciNuove.has(radice(p)));
-    if (perse.length) return { ok: false, perche: `parole sparite dalla frase: ${perse.join(', ')}` };
-  }
 
   return { ok: true, frase };
 }
@@ -270,8 +266,13 @@ export async function secondaLettura<T>(
  * non è prudenza: la guardia vieta di **aggiungere** parole, quindi quello che manca davvero a una
  * ricetta incompleta — il pasto, il regime — il modello non lo può mettere, ed è giusto così. Gli
  * resterebbe da riformattare gli ingredienti: un lavoro in cui l'unico errore possibile è **perdere
- * una riga**, cioè calorie che non si contano. `nienteOmissioni` lo impedirebbe, ma a quel punto la
- * riscrittura non aggiunge niente che valga il rischio.
+ * una riga**, cioè calorie che non si contano.
+ *
+ * ⛔ **E una guardia «niente omissioni» non lo chiuderebbe**, l'ho scritta e tolta il 4/9 dopo una
+ * revisione: `parolePiene` scarta i token sotto le tre lettere, quindi «tonno 80 g» che diventa
+ * «tonno g» le passa sotto; e due ingredienti con la stessa radice — «pomodoro» e «pomodorini» — si
+ * coprono a vicenda. Una guardia che promette di vedere le omissioni e non vede proprio quelle che
+ * contano è peggio della sua assenza, perché ci si appoggia.
  * ⚠️ Sugli **allergeni** vale lo stesso, in peggio: lì una parola persa è una cliente allergica che
  * riceve il piatto. Restano tutti e due deterministici, e questa riga dice perché.
  */
@@ -281,12 +282,18 @@ export const SYSTEM_METODO = [
   'FORMA:',
   '- prima riga: SOLO il modo di cottura, fra questi — veloce, al forno, in padella, al vapore,',
   '  meal prep, piatto freddo;',
-  '- righe successive: i passaggi, uno per riga, con le parole dell\'utente.',
+  '- righe successive: i passaggi, uno per riga, CON LE PAROLE DELL\'UTENTE, senza riscriverle.',
   '',
   'REGOLE ASSOLUTE:',
-  '- usa SOLO le parole che ci sono nella risposta; puoi correggere refusi, coniugare i verbi e',
-  '  aggiungere preposizioni o articoli, ma NON puoi aggiungere ingredienti, numeri, tempi o',
-  '  temperature che non ci sono;',
+  /**
+   * ⚠️ **Ai passaggi si chiede di NON riscrivere i verbi**, e non è un dettaglio di stile: la
+   * guardia confronta le radici, e «si fa» → «farlo» cambia radice — quindi una riscrittura
+   * fedelissima nel senso veniva buttata come parola nuova. Al modello serve **spezzare le righe**,
+   * non migliorare la prosa.
+   */
+  '- nei passaggi usa SOLO le parole che ci sono nella risposta, com\'erano: puoi correggere refusi',
+  '  e spezzare le frasi in righe, ma NON riscrivere i verbi e NON aggiungere ingredienti, numeri,',
+  '  tempi o temperature che non ci sono;',
   '- non inventare passaggi: se ne ha scritto uno solo, la riscrittura ne ha uno solo;',
   '- se il modo di cottura non si capisce dalla risposta, restituisci la stringa vuota:',
   '  NON sceglierne uno plausibile;',
@@ -327,13 +334,37 @@ export async function secondaLetturaMetodo<T>(
   const risposta = await deps.chiediAlModello(SYSTEM_METODO, promptSecondaLettura(testo));
   if (!risposta) return null;
 
-  const guardia = riscritturaAccettabile(testo, risposta.frase, { multiriga: true });
+  /**
+   * ⛔ **LA GUARDIA SI APPLICA AI PASSAGGI, NON ALLA PRIMA RIGA** — corretto il 4/9 dopo una
+   * revisione, ed è la differenza fra una funzione che lavora e una che rifiuta quasi sempre.
+   *
+   * La guardia dei comandi vieta ogni parola che non fosse nell'originale. Ma la prima riga che
+   * questo prompt **chiede** è il nome del modo — «al forno», «piatto freddo», «meal prep» — e chi
+   * scrive «lo lascio crudo» o «si fa in due minuti» quelle parole non le ha usate. Risultato: la
+   * riscrittura giusta veniva buttata in quattro casi su sei, e la seconda lettura serviva quasi
+   * solo a chi il nome del modo l'aveva già scritto — cioè quasi a nessuno.
+   *
+   * ⚠️ **E toglierla dalla prima riga non apre un buco**, perché quella riga è guardata da altri
+   * due: `leggiMetodo` accetta solo i sei codici di `CODICI_METODI`, e soprattutto **il modo lo
+   * conferma una persona** (vedi `metodoProposto` in `vera-chat.ts`). Il modello propone una parola
+   * fra sei, davanti agli occhi di chi l'ha scritta.
+   *
+   * ⛔ **I PASSAGGI invece restano stretti**, e lì la guardia è tutto quello che c'è: un passaggio
+   * inventato — un tempo, una temperatura, un ingrediente in più — finisce nella scheda che una
+   * persona legge mentre cucina, e nessuno lo conferma riga per riga.
+   */
+  const righe = String(risposta.frase ?? '').split('\n').map((r) => r.trim()).filter(Boolean);
+  if (righe.length < 2) return null;
+  const [primaRiga, ...passaggi] = righe;
+
+  const guardia = riscritturaAccettabile(testo, passaggi.join('\n'), { multiriga: true, puoRestareUguale: true });
   if (!guardia.ok || !guardia.frase) {
     if (guardia.perche) deps.avvisa?.(`Seconda lettura del metodo rifiutata (${guardia.perche}) su: «${testo}»`);
     return null;
   }
 
-  const esito = deps.leggi(guardia.frase);
+  const riscritta = `${primaRiga}\n${guardia.frase}`;
+  const esito = deps.leggi(riscritta);
   if (!deps.completo(esito)) return null;
-  return { riscritta: guardia.frase, esito };
+  return { riscritta, esito };
 }

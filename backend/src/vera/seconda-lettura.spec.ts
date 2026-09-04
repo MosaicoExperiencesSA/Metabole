@@ -1,6 +1,6 @@
 import { leggiMetodo } from './metodo-dettato';
 import { capisci, daScartare } from './capisci';
-import { riscritturaAccettabile, secondaLettura, secondaLetturaMetodo } from './seconda-lettura';
+import { parolePiene, riscritturaAccettabile, secondaLettura, secondaLetturaMetodo } from './seconda-lettura';
 
 /**
  * La seconda lettura di Vera (decisa da Simone il 17/8). Il modello TRADUCE, `capisci` DECIDE.
@@ -174,6 +174,39 @@ describe('la seconda lettura del metodo', () => {
   });
 
   /**
+   * ⛔ **LA PRIMA RIGA È LIBERA, I PASSAGGI NO** — corretto il 4/9 dopo una revisione, ed è la
+   * differenza fra una funzione che lavora e una che rifiuta quasi sempre.
+   *
+   * Il prompt **chiede** come prima riga il nome del modo — «piatto freddo», «veloce», «meal prep» —
+   * e chi scrive «lo lascio crudo» quelle parole non le ha usate: la guardia dei comandi le
+   * bocciava come «parole nuove». La riscrittura giusta veniva buttata in quattro casi su sei.
+   *
+   * ⚠️ E toglierla da lì non apre un buco: quella riga è guardata da altri due — `leggiMetodo`
+   * accetta solo i sei codici, e **il modo lo conferma una persona**.
+   */
+  it.each([
+    ['lo lascio crudo', 'piatto freddo\nlasciarlo crudo', 'piatto_freddo'],
+    ['si fa in due minuti', 'veloce\nsi fa in due minuti', 'veloce'],
+    ['lo preparo la sera prima', 'meal prep\nprepararlo la sera prima', 'meal_prep'],
+  ])('⛔ «%s» adesso passa', async (frase, riscritta, atteso) => {
+    const r = await secondaLetturaMetodo(frase, conModello(riscritta));
+    expect(r?.esito.tipo === 'metodo' && r.esito.metodo.type).toBe(atteso);
+  });
+
+  /**
+   * ⚠️ **Ai passaggi si chiede di non riscrivere i verbi**, ed è il motivo per cui il prompt lo dice
+   * in maiuscolo: la guardia confronta le **radici**, e «si fa» → «farlo» cambia radice. Una
+   * riscrittura fedelissima nel senso veniva buttata come parola nuova.
+   *
+   * ⚠️ Il verso però è quello sicuro: si perde una riscrittura buona, non se ne accetta una brutta.
+   * Quando succede si torna a chiedere, che è il comportamento di sempre.
+   */
+  it('⚠️ un verbo riscritto nei passaggi fa ancora cadere la riscrittura', async () => {
+    const r = await secondaLetturaMetodo('si fa in due minuti', conModello('veloce\nfarlo in due minuti'));
+    expect(r).toBeNull();
+  });
+
+  /**
    * ⛔ **LA GUARDIA VALE ANCHE QUI: il modello può riordinare, non aggiungere.** Un passaggio
    * inventato finisce nella scheda che una persona legge mentre cucina.
    */
@@ -203,6 +236,38 @@ describe('la seconda lettura del metodo', () => {
     expect(r).toBeNull();
   });
 
+  /**
+   * ⛔ **E se la prima riga non è un modo, non si va avanti lo stesso** — anche quando i passaggi
+   * sono impeccabili. È l'unica cosa che il parser decide qui, e questa prova la tiene: senza,
+   * togliere il controllo `completo` sarebbe passato inosservato (l'ha mostrato una prova di
+   * mutazione, che era rimasta verde).
+   */
+  it('⛔ e se la prima riga non nomina un modo, nemmeno', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo butto in forno finche non e dorato',
+      conModello('poi si serve\nbuttarlo in forno finche non e dorato'),
+    );
+    expect(r).toBeNull();
+  });
+
+  /**
+   * ⛔ **E la libertà della prima riga NON si estende ai passaggi.** Qui il modo («al forno») non
+   * era nella frase — quindi la prima riga passa — ma il passaggio inventa il rosmarino: si butta.
+   * È la prova che il confine sta dove deve.
+   */
+  it('⛔ prima riga libera, ma un passaggio inventato butta tutto lo stesso', async () => {
+    const r = await secondaLetturaMetodo(
+      'lo lascio crudo',
+      conModello('piatto freddo\nlasciarlo crudo con rosmarino'),
+    );
+    expect(r).toBeNull();
+  });
+
+  /** ⚠️ Una riscrittura senza passaggi non è un metodo: la prima riga da sola non basta. */
+  it('⚠️ e la sola prima riga non passa', async () => {
+    expect(await secondaLetturaMetodo('lo lascio crudo', conModello('piatto freddo'))).toBeNull();
+  });
+
   /** ⚠️ Modello non disponibile: si torna al comportamento di prima, cioè si richiede. */
   it('⚠️ senza modello non succede niente', async () => {
     const r = await secondaLetturaMetodo('lo butto in forno', {
@@ -219,22 +284,24 @@ describe('la seconda lettura del metodo', () => {
 });
 
 /**
- * ⛔ **LA GUARDIA NELL'ALTRA DIREZIONE: `nienteOmissioni`.**
+ * ⛔ **PERCHÉ NON ESISTE UNA GUARDIA «NIENTE OMISSIONI»** — scritta e tolta il 4/9, dopo una
+ * revisione.
  *
- * Quella di partenza controlla solo che non compaiano parole nuove — è la direzione che conta per un
- * comando. ⚠️ Su un testo che **elenca** l'errore grave è l'opposto: un ingrediente che sparisce
- * sono calorie che non si contano, un allergene che sparisce è una cliente che riceve il piatto
- * sbagliato. È il motivo per cui il testo della ricetta e gli allergeni restano deterministici.
+ * Sembrava la cosa che avrebbe reso sicuro passare al modello il testo della ricetta: se nessuna
+ * parola può sparire, nessun ingrediente si perde. ⛔ Ma `parolePiene` scarta i token sotto le tre
+ * lettere e `radice` confronta i primi quattro caratteri: le due omissioni che contano davvero le
+ * passano sotto tutte e due. Queste prove tengono il ricordo — una guardia che promette di vedere
+ * le omissioni e non vede proprio quelle gravi è peggio della sua assenza, perché ci si appoggia.
  */
-describe('nienteOmissioni — quando sparire è peggio che aggiungere', () => {
-  it('⛔ una parola persa fa cadere la riscrittura', () => {
-    const e = riscritturaAccettabile('tonno olive capperi', 'tonno e olive', { nienteOmissioni: true });
-    expect(e.ok).toBe(false);
-    expect(e.perche).toContain('capperi');
+describe('⛔ le omissioni che una guardia per parole non può vedere', () => {
+  /** ⛔ «tonno 80 g» → «tonno g»: la grammatura sparita è invisibile a un confronto per parole. */
+  it('⛔ una grammatura sparita non è una parola persa', () => {
+    expect(parolePiene('tonno 80 g olive 120 g')).not.toContain('80');
   });
 
-  /** ⚠️ E senza la richiesta esplicita la guardia resta quella di prima: non si stringe da sola. */
-  it('⚠️ senza chiederlo, la guardia non cambia', () => {
-    expect(riscritturaAccettabile('tonno olive capperi', 'tonno e olive').ok).toBe(true);
+  /** ⛔ E due ingredienti con la stessa radice si coprono a vicenda: «pomodorini» sparisce sotto «pomodoro». */
+  it('⛔ due ingredienti con la stessa radice si coprono a vicenda', () => {
+    const radice = (p: string) => p.slice(0, 4);
+    expect(radice('pomodoro')).toBe(radice('pomodorini'));
   });
 });

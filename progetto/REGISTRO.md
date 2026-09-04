@@ -20,17 +20,15 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
-- `[Sviluppo]` ✅ **«Attiva un piano» è una casella dei Permessi, non un ruolo** (Simone: *«va gestito
-  nei ruoli»*). Il pulsante stava dentro un `isAdmin` scritto a mano — che in quella pagina vuol dire
-  «vede la pagina Permessi» — e la rotta era `@Roles('admin')`: quel potere non si poteva né dare al
-  capo nutrizionista senza farne un admin, né togliere a un admin. ⚠️ Il gemello rovesciato del
-  difetto del 3/9: lì 29 caselle spengono il menu e non la porta, qui c'era **una porta senza nessuna
-  casella**.
-  ⛔ **La stessa chiave anche sulla lettura dei piani**, o il permesso sarebbe un interruttore che non
-  accende niente: la finestra legge quell'elenco, e senza si aprirebbe vuota.
-  ⛔ **E la chiave NON eredita da `purchases`**, che sarebbe la scorciatoia: quella in sola vista ce
-  l'hanno coach, coordinatrici e nutrizioniste, quindi ereditare vorrebbe dire **darla a tutte**.
-  Il default resta solo admin: questa consegna **sposta** il cancello, non lo apre.
+- `[Sviluppo]` ✅ **La guardia della seconda lettura sul metodo: prima riga libera, passaggi stretti.**
+  Il prompt chiedeva come prima riga il nome del modo — «al forno», «piatto freddo» — e la guardia dei
+  comandi lo bocciava come «parola nuova» quando non era già nella frase: la riscrittura giusta
+  veniva buttata in quattro casi su sei. ⚠️ Toglierla da lì non apre un buco: quella riga la guardano
+  `leggiMetodo`, che accetta solo i sei codici, e **una persona**, che la conferma. I passaggi invece
+  restano stretti, ed è lì che la guardia è tutto quello che c'è.
+  ⛔ E `nienteOmissioni` è stata **tolta**: prometteva di vedere gli ingredienti spariti e proprio
+  quelli non li vedeva — una grammatura di due cifre e due parole con la stessa radice le passano
+  sotto. Una guardia su cui ci si appoggia e che non regge è peggio della sua assenza.
 
 
 - `[Sviluppo]` ✅ **La seconda lettura arriva sul metodo dettato a Vera** (Simone: *«Vera utilizza una
