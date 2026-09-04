@@ -1,0 +1,45 @@
+────────────────────────────────────────────────────────────────────────────
+ Elenco lavori: dentro i numeri di oggi, e due voci chiuse
+ 4 settembre 2026 (fine giornata)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. Nessun cambio di comportamento: solo la pagina Lavori.
+
+Summary
+───────
+Elenco lavori aggiornato coi numeri misurati oggi, e due voci chiuse
+
+Description
+───────────
+I numeri lanciati oggi su Render non stavano da nessuna parte: erano in chat, e
+la chat non e l elenco lavori. Adesso stanno dentro le voci che li aspettavano.
+
+✅ CHIUSE
+· «questa chiave vale» in due copie — porta unica chiusa E riparazione fatta:
+  215 ricette scritte, tolto solo l allergene falso. Lo zero della riga «non
+  toccate perche qualcuno le ha toccate» ha retto: nessuna di quelle ricette
+  aveva gli allergeni scelti a mano, quindi non e stata tolta nessuna
+  protezione vera.
+· tolleranza kcal al 25% — NO, si resta a 15. diag:kcal su 100 giornate erogate
+  trova UNA sola cliente sotto fabbisogno, e il tetto ×1,8 la copre gia.
+
+▶️ AGGIORNATE COI NUMERI
+· Fase 0 panieri — quello che manca e finito: 144 varianti sotto soglia ma UNA
+  SOLA con clienti sopra (16:8, 12 piatti a pranzo, 1 cliente), piu 84
+  riferimenti rotti su 68 varianti, cinque delle quali con clienti sopra. La
+  Fase 1 aspetta due cose, non un rifacimento.
+· I due numeri per Nocanty — si fermano 19956 su 23726 (84,1%), ma quella coda
+  e la TABELLA: 7962 si fermano solo perche l alimento non ha la sua riga, e il
+  primo della lista non e un alimento — «sale e pepe» ferma 3577 ricette. I
+  primi 10 nomi ne sbloccano 1625. E 456 ricette dichiarano MENO di quello che
+  hanno, 471 sui solfiti.
+· Perimetro della commerciale — il numero che aspettava e ZERO: Giusy ha 0
+  clienti sue e 56 con la rete sotto. Decisione di Simone: le clienti senza
+  coach vanno a lei, con un parametro per la coach di riserva. Prima le
+  assegnazioni (oggi sono 4), poi i cancelli.
+
+⛔ APERTA UNA VOCE NUOVA, ed e di Simone: due sessioni che committano file
+   interi si cancellano a vicenda. Successo TRE volte oggi, e l ultima ha
+   cancellato i due cancelli appena messi lasciando la CI di origin/main rossa.
+   Le prove li hanno salvati; quello che nessuna prova guarda sparirebbe senza
+   un rumore. Tre strade dentro la voce.

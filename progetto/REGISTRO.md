@@ -20,6 +20,19 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **I 215 allergeni falsi tolti dal catalogo**, e l'elenco lavori aggiornato coi numeri
+  di giornata. `CONFERMA=1 npm run ripara:allergeni-chiave`: «Ossobuco di tacchino» e «Stracotto di
+  vitello» non risultano più contenere **pesce** (la zucca era «dorata»), «Edamame al vapore» non
+  risulta più contenere **latte** (i fagioli erano «sgranati»).
+  ⚠️ **E lo zero ha retto**: nessuna di quelle ricette aveva gli allergeni scelti a mano, quindi non è
+  stata tolta nessuna protezione vera.
+  ✅ Chiuse anche la **tolleranza kcal** (resta a 15: su 100 giornate erogate una sola cliente è sotto
+  fabbisogno, e il tetto la copre) e dentro le voci sono finiti i numeri di **Fase 0**, degli
+  **allergeni deducibili** e del **perimetro della commerciale**.
+  ⛔ **Aperta una voce che è di Simone**: due sessioni che committano file interi si cancellano a
+  vicenda — successo **tre volte** oggi, e l'ultima ha lasciato la CI di `origin/main` rossa.
+
+
 - `[Sviluppo]` ✅ **La guardia della seconda lettura sul metodo: prima riga libera, passaggi stretti.**
   Il prompt chiedeva come prima riga il nome del modo — «al forno», «piatto freddo» — e la guardia dei
   comandi lo bocciava come «parola nuova» quando non era già nella frase: la riscrittura giusta

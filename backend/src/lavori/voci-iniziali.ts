@@ -121,7 +121,37 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'due-sessioni-si-sovrascrivono',
+    categoria: SIMONE,
+    ordine: 0,
+    nata: '2026-09-04T23:59',
+    titolo: '⛔ Due sessioni che committano file interi si cancellano a vicenda: successo TRE volte il 4/9',
+    dettaglio:
+      '⛔ **Misurato, non dedotto.** Il 4/9 `origin/main` è passato di mano tre volte fra due '
+      + 'sessioni che lavoravano in parallelo — `ad7272d`, `1cb87fa`, `57ae018` — e ogni volta chi '
+      + 'committava per secondo ha ricommesso **file interi** costruiti su una base precedente.\n\n'
+      + '**Cosa è costato, in ordine di gravità:**\n'
+      + '· ⛔ **`57ae018` ha cancellato i due cancelli appena messi** su `catalog.service.ts`: '
+      + 'l\'elenco ingredienti vuoto non bloccava più, e il regime smentito non chiedeva più '
+      + 'conferma. Più lo script `ripara:allergeni-chiave` da `package.json` e il `catch` che fa '
+      + 'rispondere Vera. **La CI di `origin/main` era rossa** — sette test — e la voce esiste anche '
+      + 'per questo: *le prove hanno salvato i due cancelli, e senza sarebbero spariti in silenzio*.\n'
+      + '· ⛔ **Mezza giornata di lavoro buttata**: la creazione della ricetta nuova dal menu a mano '
+      + 'è stata scritta due volte, da due sessioni, e la seconda se n\'è accorta solo alla consegna. '
+      + 'Quella copia è stata gettata.\n\n'
+      + '⚠️ **Non è un problema di chi scrive**, ed è il motivo per cui questa voce è di Simone e non '
+      + 'di codice: due sessioni sullo stesso repository si accorgono l\'una dell\'altra **solo** '
+      + 'leggendo `origin/main`, e fra la lettura e la consegna passa il tempo del lavoro.\n\n'
+      + '**Le strade, da scegliere:** **(a)** dire a ogni sessione, all\'inizio, su cosa lavora '
+      + 'l\'altra — costa una riga e chiude il caso del doppione; **(b)** dividere per file o per '
+      + 'area, così due consegne non toccano mai lo stesso sorgente; **(c)** lasciare com\'è e '
+      + 'contare sulle prove, che oggi hanno funzionato — ⛔ ma hanno funzionato perché quel pezzo '
+      + 'una prova ce l\'aveva: quello che nessuna prova guarda sparirebbe senza un rumore.',
+  },
+
+  {
     chiave: 'chiave-vale-in-due-copie',
+    fatta: true,
     categoria: CODICE,
     ordine: 0,
     blocca: false,
@@ -187,7 +217,19 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'acciughe**, e dagli ingredienti non si distingue dal falso della zucca.\n\n'
       + '⚠️ E `allergensReviewed` **non** si azzera: `personal-base.service.ts` scarta le ricette '
       + 'senza quella spunta, quindi azzerarla toglierebbe 190 piatti dalle basi personali — cioè si '
-      + 'scambierebbe un allergene falso con nessun piatto.',
+      + 'scambierebbe un allergene falso con nessun piatto.'
+      + '\n\n▶️ **LA RIPARAZIONE È PRONTA E MISURATA A VUOTO (4/9 sera).** `npm run ripara:allergeni-chiave` su tutto il catalogo — **27 070 ricette, attive e spente**:\n'
+      + '```\n'
+      + 'Con almeno un allergene falso SCRITTO      215\n'
+      + '  di quelle, con la spunta di conferma     190\n'
+      + 'Non toccate perche qualcuno le ha toccate    0\n'
+      + '```\n'
+      + '⚠️ **Quello zero è la riga che conta**: su nessuna di quelle ricette una persona aveva scelto gli allergeni a mano (`catalog.recipe.allergens.set`). Sono **tutte** scritture della macchina, e non c\'è **nessun caso ambiguo** — la protezione «dove ha messo le mani una nutrizionista non si tocca niente» non ha niente da proteggere.\n'
+      + '**Il gesto che scrive:** `CONFERMA=1 npm run ripara:allergeni-chiave`.\n'
+      + '⚠️ Toglie **solo** l\'allergene falso: sull\'edamame toglie il latte e lascia la soia. E **non** azzera `allergensReviewed` — azzerarla toglierebbe 215 piatti dalle basi personali, cioè scambierebbe un allergene falso con nessun piatto.'
+      + '\n\n✅ **RIPARATA IL 4/9 SERA: 215 ricette scritte.** `CONFERMA=1 npm run ripara:allergeni-chiave` ha tolto l\'allergene falso — e solo quello — a tutte e 215.\n'
+      + '⚠️ Qualche riga di quelle, per capire cosa era in gioco: «Ossobuco di tacchino» e «Stracotto di Vitello» non risultano più contenere **pesce** (la zucca era «dorata»); «Edamame al vapore con sale marino» non risulta più contenere **latte** (i fagioli erano «sgranati»); «Mix Noci & Melograno» non risulta più contenere **glutine**.\n'
+      + '✅ **E lo zero della riga «non toccate» ha retto**: nessuna di quelle ricette aveva gli allergeni scelti a mano, quindi non è stata tolta nessuna protezione vera.',
   },
 
   {
@@ -606,7 +648,11 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⛔ **Il caveat del 4, portato dentro**: `slotAttesi` sul 4 risponde tre pasti, mentre '
       + '`slotsForMeals` del wizard conosce una giornata da quattro **con la merenda**. Oggi non capita '
       + '(zero diete a quattro in catalogo, il 4 tolto dal DTO), ma se torna questo conto va rifatto '
-      + 'prima di rileggerlo — una cosa che oggi non capita non è una cosa che non può capitare.',
+      + 'prima di rileggerlo — una cosa che oggi non capita non è una cosa che non può capitare.'
+      + '\n\n▶️ **MISURATO IL 4/9 con `diag:fase0`, e quello che manca è finito.** 318 varianti (306 approvate), **26 618 ricette diverse** nominate, **23 316 attive**, **3 273 spente**, **29 inesistenti**. Stati: 237 complete, 68 rotte, 13 magre.\n'
+      + '⛔ **144 varianti su 318 non arrivano a 60 piatti attivi su almeno un pasto**, ma di quelle **una sola ha clienti sopra**: la 16:8 · flexible · omnivore · dimagrimento · 3 pasti, che a **pranzo ha 12 piatti attivi** per **1 cliente**. Le altre 143 sono le magre senza clienti che il §2.3 dice che spariscono chiudendo le famiglie doppione. ⚠️ **Il numero che decide i tempi è 1, non 144.**\n'
+      + '⛔ **E i riferimenti rotti sono 84, su 68 varianti**: da soli bastano a fermare la Fase 1, che mette la chiave esterna. Sono concentrati — Keto e Detossinante ne hanno 3 a testa — e **cinque varianti coi rotti hanno clienti sopra** (Mediterranea 3 pasti con 4 clienti, Flessibile 5 pasti con 3, Keto con 2, Flessibile 3 pasti con 2, Pescetariana con 2).\n'
+      + '▶️ **Quindi la Fase 1 aspetta due cose sole, e sono finite**: i 29 piatti che non esistono più (le 84 righe che li nominano) e la variante magra con una cliente sopra. Non è «rifare il catalogo».',
   },
   {
     chiave: 'i-latti-vegetali-spariscono-a-chi-serve',
@@ -720,7 +766,13 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **Resta aperto e dichiarato**: essere in tabella non vuol dire conoscerne gli allergeni. Su '
       + 'un «pesto pronto» che avesse la sua riga la deduzione direbbe «nessun allergene» con la stessa '
       + 'faccia. È il limite n° 2 del foglio, e si chiude dichiarando gli allergeni **sull\'alimento** — '
-      + 'non allungando un elenco di parole.',
+      + 'non allungando un elenco di parole.'
+      + '\n\n▶️ **MISURATO IL 4/9: si fermano 19 956 su 23 726 (84,1%), passano 3 770 (15,9%).**\n'
+      + '⛔ **Ma il sospetto era giusto: quella coda è la TABELLA, non le ricette.** Col criterio largo passerebbero 11 732 (49,4%) — cioè **7 962 ricette si fermano solo perché quell\'alimento non ha la sua riga**. La tabella ha **373 righe**; i nomi di ingrediente che fermano almeno una ricetta sono **8 129**.\n'
+      + '⛔ **E il primo della lista non è nemmeno un alimento: «sale e pepe» ferma 3 577 ricette.** Con «sale pepe» (251) e «sale iodato» (201) fanno **quattromila ricette bloccate da un condimento che allergeni non ne ha**. Dietro: peperoncino 503, noce moscata 429, vaniglia in polvere 427, rosmarino 371, origano 334.\n'
+      + '⚠️ **La curva è ripida all\'inizio**: i primi 10 nomi sbloccano **1 625** ricette, i primi 250 ne sbloccano **5 525** (27,7% della coda). La coda si chiude riempiendo la tabella, non riscrivendo le ricette — ed è questo che va portato a Nocanty, non il solo 84%.\n'
+      + '⛔ **E una cosa che vale già oggi, indipendentemente dai panieri: 456 ricette dichiarano MENO di quello che hanno.** 471 guadagnerebbero **solfiti** — mix di frutta secca, uvetta, datteri — e sono già in catalogo, già «confermate», e a una cliente sensibile ai solfiti oggi risultano sicure. (194 ne perderebbero uno, quasi tutte latte: menu più poveri, non un rischio.)\n'
+      + '⚠️ **Il limite del §4.2 è misurato e resta aperto**: 505 ricette (13,4%) passano avendo dentro un ingrediente dal nome di **preparazione** — «brodo vegetale», «hummus di ceci». La riga in tabella c\'è, quindi il sistema **non si ferma**: dice «nessun allergene» con la stessa faccia.',
   },
   {
     chiave: 'diagnostica-erogazione-muta',
@@ -5693,7 +5745,12 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'commento.\n\n'
       + '⛔ **Il resto della voce resta aperto e non si muove senza Simone**: quali clienti vede la '
       + 'commerciale, i due cancelli da chiudere insieme, e il numero di `diag:commerciale-e-coach`.'
-      + '\n\n▶️ **MISURATO IL 4/9** con `diag:commerciale-e-coach`: **Giusy ha ZERO clienti sue e 56 con la rete sotto**, su 60 schede (62 utenti vivi, 2 senza scheda che non entrano in nessun perimetro). La strada ovvia — metterla fra i ruoli «coach-like» — le darebbe la **rete**, cioè quasi tutte: un cancello che invece di stringere allarga. Il perimetro va scritto sul suo id.',
+      + '\n\n▶️ **MISURATO IL 4/9** con `diag:commerciale-e-coach`: **Giusy ha ZERO clienti sue e 56 con la rete sotto**, su 60 schede (62 utenti vivi, 2 senza scheda che non entrano in nessun perimetro). La strada ovvia — metterla fra i ruoli «coach-like» — le darebbe la **rete**, cioè quasi tutte: un cancello che invece di stringere allarga. Il perimetro va scritto sul suo id.'
+      + '\n\n▶️ **MISURATO IL 4/9, e il numero che questa voce aspettava è ZERO — il che cambia la risposta.** `diag:commerciale-e-coach`: Giusy Vita (`sales`) ha **0 clienti sue**, **56 con la rete sotto**, su 60 schede.\n'
+      + '⛔ Chiudere il cancello oggi vorrebbe dire lasciarla con **zero clienti**, cioè spegnerle il lavoro. E la strada ovvia — metterla fra i ruoli «coach-like» — gliene darebbe **56 su 60**: un cancello che invece di stringere allarga.\n'
+      + '✅ **DECISIONE DI SIMONE, 4/9: «tutte le clienti non assegnate ad una coach vanno a Giusy», e vale anche per quelle che verranno**, con un parametro che dice chi è la **coach di riserva** — così il giorno che non è più lei si cambia una casella, non il codice.\n'
+      + '▶️ **L\'ordine è: prima le assegnazioni, poi i cancelli.** Oggi le schede **senza nessuna coach sono 4**, e le assegna Simone dal backoffice; i due cancelli (perimetro clienti + alert/analytics/dashboard) si chiudono quando quel numero non è più zero.\n'
+      + '⚠️ **Due cose di contorno, misurate**: **2 clienti non hanno nessuna scheda profilo** e non entrano in nessun perimetro, in nessun verso. E **«Dr.ssa Bini» risulta `nutritionist` SOSPESA con 1 cliente**: è la domanda che sta in coda dal 21/8, e adesso ha una risposta.',
     categoria: CODICE,
     ordine: 665,
     nata: '2026-08-28T09:00',
@@ -5930,6 +5987,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'tolleranza-kcal-a-25-va-misurata-prima',
+    fatta: true,
     titolo: 'Alzare la tolleranza kcal dal 15% al 25% tocca TUTTE le clienti insieme: prima il numero',
     dettaglio:
       '⚠️ **Coda della Fase 4** (1/9). Il piano dei panieri chiede la tolleranza kcal a ±25% '
@@ -5944,7 +6002,10 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'allarga **da sé** quando serve, fino al tetto, e la giornata scrive di quanto '
       + '(`npm run diag:allargamenti`). Prima di alzare il parametro globale vale la pena leggere '
       + 'quel tabulato: se gli allargamenti sono pochi e concentrati su poche diete, il problema '
-      + 'non è la banda di tutte — sono i panieri di quelle.',
+      + 'non è la banda di tutte — sono i panieri di quelle.'
+      + '\n\n✅ **CHIUSA il 4/9: la banda NON si alza, e lo dice il numero.** `diag:kcal` su **100 giornate erogate** in 14 giorni trova **una sola** cliente sotto fabbisogno (quota peggiore 87%), e il tetto ×1,8 la copre già: «1 coperta, 0 ancora corte».\n'
+      + '⛔ Alzare `menu_kcal_balance_tolerance_pct` dal 15 al 25 sposterebbe la banda di **tutte** le clienti attive per un caso che il motore risolve da sé. Si resta a 15.\n'
+      + '⚠️ Resta non lanciata la controprova con `diag:allargamenti`: se un giorno gli allargamenti risultassero tanti e concentrati, il problema non sarebbe comunque la banda di tutte — sarebbero i panieri di quelle.',
     categoria: CODICE,
     ordine: 670,
     nata: '2026-09-01T11:00',
