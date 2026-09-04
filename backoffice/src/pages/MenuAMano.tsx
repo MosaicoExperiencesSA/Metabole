@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Banner, Modal, Spinner } from '../components/ui';
 import { conta, MOTIVO_MINIMO, nomePasto, type Scelta } from '../lib/giornataAMano';
+/**
+ * ⚠️ **Si RIUSA la finestra della pagina Ricette**, non se ne scrive una seconda. È la stessa
+ * ragione per cui «Allergeni ricette» e «Panieri» la riusano da settimane: due finestre che
+ * scrivono la stessa ricetta divergono, e il giorno che divergono nessuno se ne accorge — se ne
+ * accorge la cliente. Da lì arriva anche il passo «in quali panieri», che così è uno solo.
+ */
+import { RecipeModal, type Recipe } from './Ricette';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * ⛔ **IL MENU SCRITTO A MANO DALLA SCHEDA CLIENTE — la via d'uscita che il 31/8 non c'era.**
@@ -82,6 +90,41 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
    * chi cerca «zuppa» scorrendo duecento nomi in ordine alfabetico conclude che non ce ne siano.
    */
   const [taglio, setTaglio] = useState<number | null>(null);
+  /**
+   * I regimi che questa cliente può ricevere, come li dice il server — sempre, non solo uscendo
+   * dal paniere. ⚠️ Serve a **spiegare** un'assenza («il pollo non c'è perché lei non lo mangia»),
+   * non a scrivere il regime di una ricetta nuova: per quello c'è `regimeCliente` qui sotto, e la
+   * differenza fra i due è il motivo per cui sono due campi.
+   */
+  const [regimiAmmessi, setRegimiAmmessi] = useState<string[] | null>(null);
+  /**
+   * ⛔ **Il regime VERO della cliente, o `null` se il server non riesce a leggerlo** — e non è
+   * l'ultimo di `regimiAmmessi`.
+   *
+   * Su regime illeggibile `regimiAmmessi` vale `['vegan']`: è il ripiego di sicurezza del filtro,
+   * innocuo perché fa uscire meno roba. Usarlo per **scrivere** il regime di una ricetta nuova
+   * scriverebbe «vegana» su un piatto che resta in catalogo, cioè un'affermazione falsa al posto di
+   * una domanda. Quando è `null` la finestra parte dal default di catalogo e chi scrive sceglie.
+   */
+  const [regimeCliente, setRegimeCliente] = useState<string | null>(null);
+  /** Il pasto per cui si sta scrivendo una ricetta nuova, oppure `null`. */
+  const [creandoPer, setCreandoPer] = useState<string | null>(null);
+  const [avvisoCreazione, setAvvisoCreazione] = useState<string | null>(null);
+  /**
+   * ⛔ **Scrivere una ricetta è un permesso a sé (`recipes` in scrittura), e si chiede PRIMA.**
+   *
+   * Chi non ce l'ha riceverebbe un 403 dopo aver compilato nome, ingredienti e metodo: il lavoro
+   * buttato, e un messaggio che sembra un guasto invece che un permesso.
+   *
+   * ⚠️ **E il pulsante segue la tabella dei permessi, che per un RUOLO PERSONALIZZATO non è sempre
+   * quello che dice la guardia sull'API**: `can()` legge le righe diritte di `/me/permissions`,
+   * mentre `PageGuard` legge la riga del ruolo **base** con l'eredità e gli hub. La divergenza è
+   * già scritta e ha un nome — `permissions/porta-aperta-lo-stesso.ts` — e non la chiude questo
+   * pulsante. ⛔ Il verso che conta è che qui si nasconde di più, mai di meno: un pulsante che
+   * manca è una domanda, uno che c'è e fallisce è lavoro buttato.
+   */
+  const { can } = useAuth();
+  const puoScrivereRicette = can('recipes', 'manage');
   const [risultati, setRisultati] = useState<RigaRicetta[] | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [ricarica, setRicarica] = useState(0);
@@ -118,11 +161,17 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
     if (!slotAperto) return;
     let vivo = true;
     const t = setTimeout(() => {
-      api<{ righe: RigaRicetta[]; poolVuoto: boolean; troncato?: boolean; tetto?: number }>(
+      api<{ righe: RigaRicetta[]; poolVuoto: boolean; troncato?: boolean; tetto?: number; regimiAmmessi?: string[]; regimeCliente?: string | null }>(
         `/admin/clients/${clientId}/menu-a-mano/ricette?slot=${encodeURIComponent(slotAperto)}&q=${encodeURIComponent(cerca)}`
         + (tuttoIlCatalogo ? '&tuttoIlCatalogo=1' : ''),
       )
-        .then((r) => { if (vivo) { setRisultati(r.righe); setTaglio(r.troncato ? (r.tetto ?? r.righe.length) : null); } })
+        .then((r) => {
+          if (!vivo) return;
+          setRisultati(r.righe);
+          setTaglio(r.troncato ? (r.tetto ?? r.righe.length) : null);
+          if (r.regimiAmmessi?.length) setRegimiAmmessi(r.regimiAmmessi);
+          setRegimeCliente(r.regimeCliente ?? null);
+        })
         .catch(() => { if (vivo) { setRisultati([]); setTaglio(null); } });
     }, 250);
     return () => { vivo = false; clearTimeout(t); };
@@ -143,11 +192,43 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
         kcal: r.kcal,
         bloccata: r.bloccata,
         motivoBlocco: r.motivoBlocco,
+        /** ⚠️ Si porta avanti: il perché sta sul campo, in `giornataAMano.ts`. */
+        fuoriDalPaniere: r.fuoriDalPaniere,
         forzatoPerche: s[slot]?.recipeId === r.recipeId ? s[slot]?.forzatoPerche : '',
       },
     }));
     setSlotAperto(null);
     setCerca('');
+  }
+
+  /**
+   * ⛔ **La ricetta appena scritta si mette nel pasto passando DAL SERVER, non dai campi del form.**
+   *
+   * La tentazione era comporre la riga qui con quello che si è appena digitato — nome, kcal, e
+   * `bloccata: false`. ⛔ Sarebbe il difetto che questa schermata ha già avuto una volta e che il
+   * suo cappello racconta: *il verdetto è del server*. Una ricetta nuova può benissimo contenere un
+   * allergene di questa cliente — l'ha appena scritta una persona, non un controllo — e comporla a
+   * mano vorrebbe dire servirgliela senza barratura e senza motivo.
+   *
+   * ⚠️ Perciò si richiede la riga al server cercandola per nome, e si prende **il suo** verdetto. Se
+   * non torna (il nome è cambiato, la ricerca non la trova) non si indovina: si dice, e la si sceglie
+   * a mano.
+   */
+  async function metti(slot: string, creata: Recipe) {
+    try {
+      const r = await api<{ righe: RigaRicetta[] }>(
+        `/admin/clients/${clientId}/menu-a-mano/ricette?slot=${encodeURIComponent(slot)}`
+        + `&q=${encodeURIComponent(creata.name)}&tuttoIlCatalogo=1`,
+      );
+      const riga = r.righe.find((x) => x.recipeId === creata.id);
+      if (riga) { scegli(slot, riga); return; }
+      setAvvisoCreazione(
+        `«${creata.name}» è stata creata, ma non risulta fra le ricette che questa cliente può ricevere `
+        + `per ${nomePasto(slot)}: controlla il regime e il pasto della ricetta.`,
+      );
+    } catch {
+      setAvvisoCreazione(`«${creata.name}» è stata creata: cercala qui sopra per metterla nel pasto.`);
+    }
   }
 
   async function salva(conferma: boolean) {
@@ -231,6 +312,10 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
                   {/* ⛔ Barrato col motivo, non nascosto: chi non sa perché un piatto non c'è, lo cerca. */}
                   <span style={{ textDecoration: scelta.bloccata ? 'line-through' : undefined }}>{scelta.nome}</span>
                   <span className="muted"> · {scelta.kcal} kcal</span>
+                  {/* ⚠️ Resta scritto anche DOPO la scelta: la riga dell'elenco sparisce, il piatto no. */}
+                  {scelta.fuoriDalPaniere && (
+                    <span style={{ color: '#8A5A00', fontSize: 11.5 }}> · fuori dal suo paniere</span>
+                  )}
                 </span>
               ) : (
                 <span className="muted" style={{ flex: 1 }}>da scegliere</span>
@@ -283,7 +368,17 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
                 )}
                 <div style={{ maxHeight: 220, overflow: 'auto', marginTop: 6 }}>
                   {risultati === null && <Spinner />}
-                  {risultati?.length === 0 && <div className="muted" style={{ padding: 8 }}>Nessuna ricetta.</div>}
+                  {risultati?.length === 0 && (
+                    <div className="muted" style={{ padding: 8 }}>
+                      Nessuna ricetta.
+                      {/* ⚠️ Un elenco vuoto senza il perché fa concludere che il catalogo sia povero.
+                          Spesso la ragione è il regime: si dice quale, invece di farlo indovinare. */}
+                      {tuttoIlCatalogo && regimiAmmessi?.length && (
+                        <> Fuori dal paniere si cerca solo fra i regimi che lei può ricevere:{' '}
+                          <b>{regimiAmmessi.join(', ')}</b>.</>
+                      )}
+                    </div>
+                  )}
                   {risultati?.map((r) => (
                     <div
                       key={r.recipeId}
@@ -302,6 +397,20 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
                     </div>
                   ))}
                 </div>
+                {/*
+                  ⛔ **«Il piatto che serve non c'è»** (Simone, 4/9). Sta **in fondo all'elenco** e non
+                  in cima, ed è voluto: scrivere una ricetta nuova quando in catalogo ce n'è già una
+                  uguale è il modo in cui un catalogo di ventimila piatti diventa di quarantamila
+                  doppioni. Prima si cerca — anche fuori dal paniere — e solo dopo si scrive.
+                */}
+                {puoScrivereRicette && (
+                  <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8, flexWrap: 'wrap' }}>
+                    <span className="muted" style={{ fontSize: 11.5 }}>Il piatto che ti serve non c'è?</span>
+                    <button className="btn ghost sm" onClick={() => setCreandoPer(slot)}>
+                      <i className="ti ti-plus" /> Scrivi una ricetta nuova
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -310,6 +419,34 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
 
       {/* ⚠️ Il totale sta SEMPRE davanti mentre si sceglie, non alla fine: è il numero su cui si
           decide, e metterlo in fondo vorrebbe dire farlo leggere dopo aver scelto. */}
+      {avvisoCreazione && <Banner kind="warn">{avvisoCreazione}</Banner>}
+      {/*
+        ⚠️ **Il regime proposto è il SUO quando si sa**, non «onnivoro»: lo dice il server
+        (`regimeCliente`). Proporre il default di catalogo a chi sta scrivendo un piatto per una
+        vegana vuol dire farlo sbagliare su un campo già deciso aprendo questa schermata.
+
+        ⛔ E quando il server **non** riesce a leggerlo si passa `undefined`, non il ripiego: il
+        ripiego è per filtrare, non per scrivere. Vedi lo stato `regimeCliente`.
+
+        ⚠️ `creata` arriva solo dal pulsante di conferma della finestra: chiudendo con un clic fuori
+        la ricetta resta in catalogo e **il pasto non si tocca**. Il perché è nella finestra stessa.
+      */}
+      {creandoPer && (
+        <RecipeModal
+          recipe={null}
+          defaultRegime={regimeCliente ?? undefined}
+          defaultSlot={creandoPer}
+          contesto="menu"
+          onClose={() => setCreandoPer(null)}
+          onSaved={(avviso, creata) => {
+            const slot = creandoPer;
+            setCreandoPer(null);
+            setAvvisoCreazione(avviso ?? null);
+            if (slot && creata) void metti(slot, creata);
+          }}
+        />
+      )}
+
       {cornice && cornice.slotAttesi.length > 0 && (
         <div className="card" style={{ marginTop: 4 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>

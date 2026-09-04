@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Scrivere una ricetta nuova da dentro il menu della cliente**, con la catena vera:
+  nome, ingredienti, metodo, kcal → **allergeni** → **in quali panieri**. ⛔ La prima stesura aveva un
+  anello solo: una ricetta appena creata nasce con gli allergeni non confermati, e in quel caso il
+  pannello dei panieri è bloccato — diceva «scegli dove metterla» sopra un elenco che non compariva
+  mai. Un passo che chiede un gesto impossibile è peggio del passo che non c'è.
+  ⚠️ Il pulsante sta **in fondo** all'elenco e non in cima: prima si cerca, anche fuori dal paniere.
+  Un catalogo di ventimila piatti diventa di quarantamila doppioni un piatto alla volta.
+
+- `[Sviluppo]` ⛔ **«Ricetta non trovata» su ricette che erano lì in elenco.** Pagina Panieri, filtro
+  «Mostra solo in bozza»: si preme «Modifica» e la pagina dice che non esiste. `GET /recipes/:id` è
+  la porta aperta a ogni autenticato — cliente compresa — e per questo rifiutava le ricette spente.
+  Il cancello non si toglie, si **restringe a chi lo riguarda**: lo staff le apre, la cliente no.
+
+- `[Sviluppo]` ⛔ **La pulizia dei pasti leggeri saltava TUTTE le bozze**, e la colpa è di una frase:
+  «una bozza spenta non arriva nel piatto di nessuno». Vero oggi, **falso domani** — quel branzino
+  entra in colazione il giorno che qualcuno valida la bozza, cioè quando nessuno se lo sta più
+  chiedendo. Ora le bozze si tolgono **sempre** (toglierle non svuota niente per nessuna cliente) e
+  la soglia degli 8 piatti si misura sulle **attive**: una cella con venti bozze e tre attive
+  sembrava piena, e la cliente ne riceve tre.
+
+- `[Sviluppo]` ✅ **Le tre porte della regola «niente carne né pesce a colazione, spuntino e merenda»,
+  adesso chiuse tutte**: l'agente che genera (dal 31/8), `panieri:riempi` (che derivando
+  dalle giornate li rimetteva dentro alla passata successiva) e la pagina Panieri a mano.
+  ⛔ E qui mi correggo: avevo scritto che «la pagina ha già il controllo alla scrittura». Era falso —
+  controllava regime, ricetta spenta e allergeni, non questo.
+  ⚠️ Tutte e tre passano dalla **porta già esistente**: due riconoscitori della carne divergono, e il
+  giorno che divergono uno dei due mette del pesce in una colazione senza che nessuno lo veda.
+
+
 - `[Sviluppo]` ✅ **Scrivi menu a mano: si pesca da TUTTO il catalogo, non solo dal suo paniere.**
   L'interfaccia c'era dal 3/9 — Simone non l'aveva vista — ma pescava solo dal pool della cliente, ed
   è il motivo vero per cui i menu passavano dalla chat: se il piatto giusto stava fuori, da lì non si

@@ -340,7 +340,7 @@ export class RecipesController {
     @Query('giorno') giorno?: string,
     @Query('slot') slot?: string,
   ) {
-    return this.catalog.getRecipe(id, { clientId: user?.sub, giorno, slot });
+    return this.catalog.getRecipe(id, { clientId: user?.sub, ruolo: user?.role, giorno, slot });
   }
 
   @Roles('nutritionist', 'head_nutritionist', 'admin')

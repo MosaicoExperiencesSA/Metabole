@@ -5,6 +5,12 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Modal, Pager, Spinner, Toggle } from '../components/ui';
 import { BottoneExcel, useTabella, type Colonna } from '../components/tabella';
 import { useTaxonomy } from '../lib/taxonomy';
+/**
+ * ⚠️ La finestra degli allergeni: serve al passo che segue la creazione di una ricetta. Sta in
+ * `components/` e non in `TagAllergeni.tsx` per non chiudere un ciclo di import — il perché per
+ * esteso è in cima a quel file.
+ */
+import { AllergeniModal } from '../components/AllergeniModal';
 
 export interface Ingredient { name: string; qty?: number | null; unit?: string | null }
 interface CookingMethod { type: string; steps: string[] }
@@ -100,8 +106,8 @@ interface Form {
   verified: boolean;
 }
 
-const emptyForm = (regime = 'omnivore'): Form => ({
-  name: '', regime, mealSlot: 'lunch', kcal: '', difficulty: 'media', seasons: [],
+const emptyForm = (regime = 'omnivore', mealSlot = 'lunch'): Form => ({
+  name: '', regime, mealSlot, kcal: '', difficulty: 'media', seasons: [],
   ingredients: [{ name: '', qty: null, unit: '' }],
   methods: [{ type: 'veloce', stepsText: '' }],
   active: true,
@@ -697,22 +703,51 @@ function GeneratoreWidget() {
  * confermare gli allergeni deve poter correggere il piatto senza cambiare pagina (richiesta di
  * Simone). Restava privato di questo file e non lo usava nessun altro.
  */
-export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onClose, onSaved }: {
+export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'catalogo', onClose, onSaved }: {
   recipe: Recipe | null;
   defaultRegime?: string;
+  /**
+   * ⚠️ Il pasto già scelto da chi apre la finestra. Serve a «Scrivi menu a mano», che la apre stando
+   * dentro uno slot preciso: proporre «pranzo» a chi sta riempiendo la colazione è farlo sbagliare
+   * su un campo che aveva già deciso prima di aprire.
+   */
+  defaultSlot?: string;
   /**
    * Da dove è stato aperto. ⚠️ Serve a una cosa sola, e non è cosmesi: l'avviso della conferma
    * allergeni decaduta diceva «ricontrolla gli allergeni in «Allergeni ricette»», e detto **dentro**
    * quella pagina manda qualcuno a cercare il posto dove si trova già.
    */
-  contesto?: 'catalogo' | 'allergeni';
+  contesto?: 'catalogo' | 'allergeni' | 'menu';
   onClose: () => void;
-  onSaved: (avviso?: string | null) => void;
+  /** ⚠️ `creata` arriva solo quando la ricetta è appena NATA: serve a chi la vuole usare subito. */
+  onSaved: (avviso?: string | null, creata?: Recipe) => void;
 }) {
   const { regimes, cookingMethods } = useTaxonomy();
-  const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime));
+  const [f, setF] = useState<Form>(recipe ? toForm(recipe) : emptyForm(defaultRegime, defaultSlot));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /**
+   * ⛔ **UNA RICETTA NUOVA CHE NON STA IN NESSUN PANIERE NON ARRIVA A NESSUNO.**
+   *
+   * Simone, 4/9: *«ovviamente mi chiederà anche in quali panieri metterla»*. Fino a oggi «Nuova
+   * ricetta» salvava e chiudeva: la ricetta entrava in catalogo e **il motore non la pescava mai**,
+   * perché con `panieri_sorgente_pool` è il paniere a decidere cosa arriva nel piatto. Chi l'aveva
+   * appena scritta la ritrovava «da nessuna parte» senza nessun errore — il silenzio peggiore.
+   *
+   * ⛔ **E LA CATENA HA DUE ANELLI, non uno** — trovato da una revisione avversariale il 4/9, sulla
+   * prima stesura di questo stesso passo. Una ricetta appena creata nasce con
+   * `allergensReviewed: false`, e `InQualiPanieri` in quel caso è **bloccata**: la prima versione
+   * mostrava un pannello che diceva «scegli dove metterla» sopra un elenco che non compariva mai.
+   * Un passo che chiede un gesto impossibile è peggio del passo che non c'è.
+   *
+   * ⚠️ Quindi prima gli **allergeni** (la stessa finestra di «Allergeni ricette», traslocata in
+   * `components/` apposta), e solo dopo i **panieri**. È la catena vera del prodotto: senza
+   * allergeni confermati un piatto non entra nei menu, ed è un cancello di sicurezza, non un
+   * passaggio burocratico da saltare.
+   */
+  const [creata, setCreata] = useState<Recipe | null>(null);
+  /** ⚠️ Sale a `true` quando gli allergeni della ricetta appena creata sono stati confermati qui. */
+  const [allergeniFatti, setAllergeniFatti] = useState(false);
 
   function setIng(i: number, patch: Partial<Ingredient>) {
     setF((s) => ({ ...s, ingredients: s.ingredients.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
@@ -779,7 +814,13 @@ export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onCl
             ' I menu già consegnati non cambiano.';
         }
       } else {
-        await api('/recipes', { method: 'POST', body: JSON.stringify(body) });
+        /**
+         * ⚠️ La risposta del POST si legge: è la ricetta appena nata, con il suo id. Senza,
+         * il secondo passo non saprebbe a quale ricetta attaccare i panieri, e chi ha aperto
+         * questa finestra da «Scrivi menu a mano» non potrebbe metterla nel pasto.
+         */
+        const nata = await api<Recipe>('/recipes', { method: 'POST', body: JSON.stringify(body) });
+        if (nata?.id) { setCreata(nata); setBusy(false); return; }
       }
       onSaved(avviso);
     } catch (e) {
@@ -787,6 +828,76 @@ export function RecipeModal({ recipe, defaultRegime, contesto = 'catalogo', onCl
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * ⛔ **IL SECONDO PASSO: dove va a finire questa ricetta.** Vedi `creata` sopra per il perché.
+   *
+   * ⚠️ La riga in cima **non** dice «salvata con successo»: dice cosa manca ancora perché quel
+   * piatto arrivi a qualcuno. Un messaggio di successo davanti a una ricetta che nessuna cliente
+   * riceverà mai è la bugia più facile da scrivere.
+   */
+  if (creata && !allergeniFatti && !creata.allergensReviewed) {
+    return (
+      <AllergeniModal
+        recipe={creata}
+        /**
+         * ⚠️ **Chiudere qui NON annulla la ricetta**: è già in catalogo, il POST è andato. Si esce
+         * dalla catena, e la riga qui sotto lo dice a chi l'ha aperta invece di lasciarlo credere
+         * che «Annulla» abbia annullato qualcosa.
+         */
+        onClose={() => onSaved(
+          `«${creata.name}» è in catalogo, ma gli allergeni non sono confermati: finché non lo sono `
+          + 'non entra in nessun paniere e nessuna cliente la riceve. Si fa da «Allergeni ricette».',
+        )}
+        onSaved={() => setAllergeniFatti(true)}
+      />
+    );
+  }
+
+  if (creata) {
+    return (
+      /**
+       * ⛔ **CHIUDERE NON È «FINE»** — trovato da una revisione avversariale il 4/9.
+       *
+       * `Modal` non ha una X: si chiude cliccando **fuori**, e quel clic chiamava `onSaved(…,
+       * creata)` esattamente come il pulsante. Da «Scrivi menu a mano» voleva dire che chiudere la
+       * finestra **sostituiva il piatto già scelto** per quel pasto, motivazione della forzatura
+       * compresa, senza una conferma e senza un messaggio: lavoro scritto perso con un clic fuori
+       * bersaglio.
+       *
+       * ⚠️ Ora la ricetta la si porta via **solo** dal pulsante, che dice cosa fa. Chiudendo, la
+       * ricetta resta in catalogo — è già salvata — e il pasto non si tocca.
+       */
+      <Modal title="In quali panieri?" onClose={() => onSaved(null)}>
+        {/*
+          ⚠️ **La riga non ORDINA un gesto**, e la differenza non è di tono: un paniere può essere
+          impossibile per questa ricetta — un piatto di carne per una colazione, per dirne una — e
+          in quel caso il pannello qui sotto non mostra niente da scegliere, solo il motivo. Una
+          riga che dice «scegli dove metterla» sopra un elenco vuoto è la stessa specie di guasto
+          che il passo allergeni esiste per togliere.
+        */}
+        <Banner kind="info">
+          <b>«{creata.name}»</b> è in catalogo{allergeniFatti ? ' e gli allergeni sono confermati' : ''}.
+          ⚠️ Finché non sta in un paniere il motore non la pesca per nessuna cliente. Qui sotto ci
+          sono i panieri in cui può andare — o il motivo per cui non può andare in nessuno.
+          {contesto === 'menu' && (
+            <> Nel menu che stai scrivendo a mano ci va comunque: quello lo decidi tu, non il motore.</>
+          )}
+        </Banner>
+        {/* ⚠️ Non si porta avanti nessuno stato: `InQualiPanieri` rilegge da `/panieri/ricetta/:id`,
+            e il server ricalcola `bloccata` sulla ricetta vera — che gli allergeni li ha appena
+            ricevuti davvero, con un PATCH. Passarglielo nel prop sarebbe un doppione che un giorno
+            dice il contrario del database. */}
+        <InQualiPanieri recipe={creata} />
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+          {/* ⚠️ L'etichetta dice cosa succede, e da «Scrivi menu a mano» succede una cosa in più. */}
+          <button className="btn" onClick={() => onSaved(null, creata)}>
+            {contesto === 'menu' ? 'Metti nel pasto' : 'Fine'}
+          </button>
+        </div>
+      </Modal>
+    );
   }
 
   return (

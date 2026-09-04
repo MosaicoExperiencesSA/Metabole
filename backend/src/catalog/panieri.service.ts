@@ -3,6 +3,41 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GIORNATA_CINQUE, slotCapofila, slotDaCuiPescare } from '../common/slot-pasto';
 import { FAMIGLIE, IMPOSSIBILI, REGIMI, combinazioneImpossibile } from './appartenenza-panieri';
+/**
+ * ⛔ **IL CANCELLO A MANO — Simone, 4/9: «correggiamo immediatamente riempi-panieri».**
+ *
+ * La regola «niente carne né pesce in colazione, spuntino e merenda» ha tre porte da cui si può
+ * violare: l'agente che genera i piatti (chiusa dal 31/8), lo script che riempie i panieri
+ * (chiusa il 4/9) e **questa**, la pagina Panieri. Chiuderne due su tre vuol dire che domani
+ * qualcuno rimette il branzino a colazione con un clic, e la pulizia di oggi si disfa a mano
+ * invece che a comando.
+ *
+ * ⚠️ Si passa dalla porta già esistente (`fuoriPostoAColazione`), non da un secondo giudizio.
+ */
+import { PASTI_SENZA_CARNE_PESCE_VERDURA, fuoriPostoAColazione } from './colazione-senza-carne-e-pesce';
+import { nomiIngredienti } from './elenco-ingredienti';
+
+/**
+ * Il motivo per cui questa ricetta non va in quel pasto, o `null`.
+ *
+ * ⚠️ **Due letture, nome e ingredienti**, come la diagnostica: i gamberetti nel nome spesso non
+ * compaiono, e un elenco ingredienti povero non è «va bene», è «non lo so».
+ */
+function fuoriPostoNelPasto(
+  ricetta: { id: string; name: string; ingredients?: unknown },
+  slot: string,
+): string | null {
+  if (!(PASTI_SENZA_CARNE_PESCE_VERDURA as readonly string[]).includes(slot)) return null;
+  const fuori = fuoriPostoAColazione({
+    id: ricetta.id,
+    nome: ricetta.name,
+    ingredienti: nomiIngredienti(ricetta.ingredients),
+  });
+  if (!fuori) return null;
+  return `«${ricetta.name}» è ${fuori.motivo.startsWith('carne') ? 'carne' : 'pesce'} (${fuori.prova}): `
+    + 'a colazione, spuntino e merenda non ci va. La regola è del 31/8 e vale su tutte le famiglie.';
+}
+
 
 /**
  * I PANIERI, VISTI DAL BACK OFFICE — Fase 7 del piano.
@@ -156,8 +191,8 @@ export class PanieriService {
 
     const recipe = (await this.prisma.recipe.findUnique({
       where: { id: recipeId },
-      select: { id: true, name: true, regime: true, allergensReviewed: true, active: true },
-    })) as { id: string; name: string; regime: string; allergensReviewed: boolean; active: boolean } | null;
+      select: { id: true, name: true, regime: true, allergensReviewed: true, active: true, ingredients: true },
+    })) as { id: string; name: string; regime: string; allergensReviewed: boolean; active: boolean; ingredients: unknown } | null;
     if (!recipe) throw new NotFoundException('Ricetta non trovata.');
     /**
      * ⛔ **UNA RICETTA SPENTA NON ENTRA — e questo controllo mancava, un giorno soltanto** (1/9).
@@ -194,6 +229,16 @@ export class PanieriService {
     }
 
     const slotVero = slotCapofila(slot);
+    /**
+     * ⛔ **NIENTE CARNE NÉ PESCE NEI TRE PASTI LEGGERI** — vedi il cappello in cima al file.
+     *
+     * ⚠️ Si controlla sullo **slot normalizzato**: spuntino e merenda sono un paniere solo, e
+     * controllare quello scritto dal client vorrebbe dire che «merenda» passa e «spuntino» no —
+     * o viceversa — a seconda di quale parola ha usato la schermata.
+     */
+    const fuoriPosto = fuoriPostoNelPasto(recipe, slotVero);
+    if (fuoriPosto) throw new BadRequestException(fuoriPosto);
+
     const gia = await this.prisma.paniereRicetta.findFirst({
       where: { paniereId: paniere.id, recipeId, slot: slotVero },
       select: { id: true },
@@ -265,8 +310,8 @@ export class PanieriService {
   }> {
     const ricetta = (await this.prisma.recipe.findUnique({
       where: { id: recipeId },
-      select: { id: true, name: true, regime: true, active: true, allergensReviewed: true },
-    })) as { id: string; name: string; regime: string; active: boolean; allergensReviewed: boolean } | null;
+      select: { id: true, name: true, regime: true, active: true, allergensReviewed: true, mealSlot: true, ingredients: true },
+    })) as { id: string; name: string; regime: string; active: boolean; allergensReviewed: boolean; mealSlot: string; ingredients: unknown } | null;
     if (!ricetta) throw new NotFoundException('Ricetta non trovata.');
 
     const [panieri, righe] = await Promise.all([
@@ -298,7 +343,8 @@ export class PanieriService {
       : !ricetta.allergensReviewed
         ? 'Gli allergeni di questa ricetta non sono ancora confermati. Confermali in «Allergeni ricette»: '
           + 'da qui non si ripassa dal controllo di pubblicazione.'
-        : null;
+        /** ⚠️ Detto PRIMA del clic, come gli altri due: il pasto è quello della ricetta. */
+        : fuoriPostoNelPasto(ricetta, slotCapofila(ricetta.mealSlot));
 
     return { ricetta, dentro, disponibili, bloccata };
   }

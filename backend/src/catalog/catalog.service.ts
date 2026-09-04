@@ -56,12 +56,34 @@ type PrismaTx = Prisma.TransactionClient;
  */
 export interface ContestoScheda {
   clientId?: string;
+  /**
+   * ⛔ **Il ruolo di chi guarda — e serve a UNA cosa: le ricette spente.**
+   *
+   * Questa porta è aperta a tutti gli autenticati, cliente compresa (niente `@RequirePage`,
+   * altrimenti la scheda si apre vuota nell'app). Perciò rifiutava le ricette non attive: una bozza
+   * dell'agente notturno non deve comparire nell'app di nessuno.
+   *
+   * ⛔ Ma il backoffice passa **di qui** per aprire «Modifica ricetta» dalla pagina Panieri, e con
+   * il filtro «Mostra solo in bozza» acceso ogni riga risponde **«Ricetta non trovata»** (Simone,
+   * 4/9): l'elenco mostra dei piatti e il pulsante accanto dice che non esistono. Sono le ricette
+   * che quella pagina esiste per far validare.
+   *
+   * ⚠️ Il cancello non si toglie, si **restringe a chi lo riguarda**: la cliente continua a non
+   * vederle, lo staff sì.
+   */
+  ruolo?: string;
   /** `YYYY-MM-DD`. Formato sbagliato = si tace e si mostra il catalogo, non un errore. */
   giorno?: string;
   slot?: string;
 }
 
 const SOLO_DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * ⚠️ Chi può aprire la scheda di una ricetta **spenta**. Sono i tre ruoli che già possono
+ * modificarla: la bozza è roba loro finché non la validano. Vedi `ContestoScheda.ruolo`.
+ */
+const RUOLI_CHE_VEDONO_LE_BOZZE = new Set(['nutritionist', 'head_nutritionist', 'admin']);
 
 /**
  * Catalogo diete e ricette (spec sez. 4/5/6):
@@ -1684,7 +1706,11 @@ export class CatalogService {
    */
   async getRecipe(id: string, contesto?: ContestoScheda) {
     const recipe = await this.prisma.recipe.findUnique({ where: { id } });
-    if (!recipe || !recipe.active) throw new NotFoundException('Ricetta non trovata');
+    if (!recipe) throw new NotFoundException('Ricetta non trovata');
+    /** ⚠️ Le spente le vede solo chi le deve validare. Il perché è su `ContestoScheda.ruolo`. */
+    if (!recipe.active && !RUOLI_CHE_VEDONO_LE_BOZZE.has(String(contesto?.ruolo ?? ''))) {
+      throw new NotFoundException('Ricetta non trovata');
+    }
     const { tags: _interni, ...senzaTag } = recipe as unknown as Record<string, unknown>;
     return this.conLaPorzioneDelGiorno(senzaTag, id, contesto);
   }

@@ -61,7 +61,16 @@ export interface PiattoDaGuardare {
   ingredienti: readonly string[];
   /** Gli ingredienti con i grammi, quando ci sono: serve a `diCosaE`. */
   pesati?: readonly IngredientePesato[];
+  /**
+   * ⚠️ **Se la ricetta è attiva.** `undefined` = non lo so, e vale **attiva**: è il ripiego
+   * conservativo, perché la soglia si misura sulle attive e contarne una in più fa togliere di
+   * meno, non di più.
+   */
+  attivo?: boolean;
 }
+
+/** ⚠️ Il ripiego in un posto solo: «non lo so» vale attiva. Vedi `PiattoDaGuardare.attivo`. */
+const eAttivo = (p: PiattoDaGuardare) => p.attivo !== false;
 
 export interface FuoriPosto {
   id: string;
@@ -71,6 +80,8 @@ export interface FuoriPosto {
   prova: string;
   /** Cosa dice `diCosaE`, quando le grammature ci sono: `null` = non lo so. */
   diCosa: DiCosa | null;
+  /** ⚠️ Se la ricetta è attiva: decide se questa riga pesa sulla soglia o si può togliere sempre. */
+  attivo: boolean;
 }
 
 /**
@@ -82,7 +93,7 @@ export interface FuoriPosto {
  */
 export function fuoriPostoAColazione(p: PiattoDaGuardare): FuoriPosto | null {
   const diCosa = p.pesati?.length ? diCosaE(p.pesati, () => null) : null;
-  const base = { id: p.id, nome: p.nome, diCosa };
+  const base = { id: p.id, nome: p.nome, diCosa, attivo: eAttivo(p) };
   if (eCarne(p.nome)) return { ...base, motivo: 'carne nel nome', prova: p.nome };
   if (ePesce(p.nome)) return { ...base, motivo: 'pesce nel nome', prova: p.nome };
   const carne = p.ingredienti.find((i) => eCarneIngrediente(i));
@@ -105,8 +116,18 @@ export interface EsitoCella {
   slot: string;
   quanti: number;
   fuoriPosto: FuoriPosto[];
-  /** Quanti resterebbero togliendo i fuori posto. ⛔ È il numero che decide se si può togliere. */
+  /** Quanti resterebbero togliendo i fuori posto. */
   restano: number;
+  /** Quante delle ricette della cella sono ATTIVE, cioè quante il motore può davvero pescare. */
+  attivi: number;
+  /**
+   * ⛔ **Quante ATTIVE resterebbero: è il numero che decide, e prima era un altro.**
+   *
+   * La soglia esiste per non lasciare una cliente con tre colazioni. Ma una cliente riceve solo le
+   * ricette **attive**: contare anche le bozze nella soglia vorrebbe dire lasciare un branzino
+   * dentro perché la cella è piena di piatti che nessuno riceve.
+   */
+  restanoAttivi: number;
   /** ⚠️ Solo contate, mai tolte: vedi il cappello. */
   verdure: number;
 }
@@ -127,6 +148,8 @@ export function guardaLeCelle(celle: readonly Cella[]): EsitoCella[] {
   return celle.map((c) => {
     const fuoriPosto = c.piatti.map((p) => fuoriPostoAColazione(p)).filter((x): x is FuoriPosto => x !== null);
     const verdure = c.piatti.filter((p) => p.pesati?.length && diCosaE(p.pesati, () => null) === 'verdura').length;
+    const attivi = c.piatti.filter(eAttivo).length;
+    const fuoriPostoAttivi = fuoriPosto.filter((f) => f.attivo).length;
     return {
       paniereId: c.paniereId,
       etichetta: c.etichetta,
@@ -134,17 +157,43 @@ export function guardaLeCelle(celle: readonly Cella[]): EsitoCella[] {
       quanti: c.piatti.length,
       fuoriPosto,
       restano: c.piatti.length - fuoriPosto.length,
+      attivi,
+      restanoAttivi: attivi - fuoriPostoAttivi,
       verdure,
     };
   });
 }
 
-/** Le celle in cui si può togliere davvero: quelle che dopo restano sopra la soglia. */
-export function celleDaPulire(esiti: readonly EsitoCella[], minimo = MINIMO_PER_CELLA): EsitoCella[] {
-  return esiti.filter((e) => e.fuoriPosto.length > 0 && e.restano >= minimo);
+/**
+ * ⛔ **CHE COSA SI TOGLIE DA QUESTA CELLA — riga per riga, non tutta o niente.**
+ *
+ * ⚠️ **Le BOZZE si tolgono SEMPRE**, e non è una scorciatoia: una bozza non arriva nel piatto di
+ * nessuna cliente, quindi toglierla non può svuotare niente — la soglia esiste per proteggere
+ * quello che una cliente riceve. Lasciarla dentro vorrebbe dire tenere in cella un branzino che
+ * entrerà in colazione **il giorno che qualcuno lo valida**, cioè quando nessuno lo starà più
+ * guardando con questa domanda in testa.
+ *
+ * ⚠️ Le ATTIVE si tolgono solo se dopo ne restano abbastanza (`restanoAttivi >= minimo`): è il
+ * numero che decide, ed è misurato sulle attive perché sono quelle che una cliente riceve.
+ */
+export function daTogliere(e: EsitoCella, minimo = MINIMO_PER_CELLA): FuoriPosto[] {
+  const bozze = e.fuoriPosto.filter((f) => !f.attivo);
+  if (e.restanoAttivi >= minimo) return e.fuoriPosto;
+  return bozze;
 }
 
-/** Le celle che hanno dei fuori posto ma che svuoterebbero: si nominano, non si toccano. */
+/** Le celle in cui c'è qualcosa da togliere davvero — bozze comprese. */
+export function celleDaPulire(esiti: readonly EsitoCella[], minimo = MINIMO_PER_CELLA): EsitoCella[] {
+  return esiti.filter((e) => daTogliere(e, minimo).length > 0);
+}
+
+/**
+ * Le celle che hanno dei fuori posto ATTIVI che svuoterebbero: si nominano, non si toccano.
+ *
+ * ⚠️ Una cella può stare **in tutti e due gli elenchi**: le sue bozze si puliscono, le sue attive
+ * no. È la situazione normale di un paniere a metà validazione, e dirla in due righe è più onesto
+ * che scegliere una delle due.
+ */
 export function celleTroppoVuote(esiti: readonly EsitoCella[], minimo = MINIMO_PER_CELLA): EsitoCella[] {
-  return esiti.filter((e) => e.fuoriPosto.length > 0 && e.restano < minimo);
+  return esiti.filter((e) => e.fuoriPosto.some((f) => f.attivo) && e.restanoAttivi < minimo);
 }

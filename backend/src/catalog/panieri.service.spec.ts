@@ -133,6 +133,50 @@ describe('aggiungere una ricetta a un paniere', () => {
   });
 
   /**
+   * ⛔ **NIENTE CARNE NÉ PESCE IN COLAZIONE, SPUNTINO E MERENDA — la terza porta, chiusa il 4/9.**
+   *
+   * Simone: *«correggiamo immediatamente riempi-panieri»*, il giorno stesso della pulizia. Le porte
+   * da cui la regola si può violare erano tre: l'agente che genera (chiusa il 31/8), lo script che
+   * riempie i panieri, e **questa** — la pagina Panieri. Chiuderne due su tre vuol dire che domani
+   * qualcuno rimette il branzino a colazione con un clic.
+   */
+  it('⛔ un pesce non entra in una colazione, nemmeno a mano', async () => {
+    const prisma = conPaniere();
+    prisma.recipe.findUnique.mockResolvedValue({
+      id: 'r1', name: 'Branzino al vapore', regime: 'omnivore', allergensReviewed: true, active: true, ingredients: [],
+    });
+    const svc = new PanieriService(prisma as never, audit() as never);
+    await expect(svc.aggiungi('Mediterranea', 'omnivore', 'breakfast', 'r1', 'u1')).rejects.toThrow(/colazione, spuntino e merenda/i);
+    expect(prisma.paniereRicetta.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ **Anche dagli INGREDIENTI**, non solo dal nome: i gamberetti nel nome spesso non compaiono,
+   * ed è la ragione per cui il giudizio fa due letture.
+   */
+  it('⛔ e nemmeno se la carne sta solo fra gli ingredienti', async () => {
+    const prisma = conPaniere();
+    prisma.recipe.findUnique.mockResolvedValue({
+      id: 'r1', name: 'Insalatina fresca', regime: 'omnivore', allergensReviewed: true, active: true,
+      ingredients: [{ name: 'gamberetti sgusciati' }, { name: 'insalata' }],
+    });
+    const svc = new PanieriService(prisma as never, audit() as never);
+    await expect(svc.aggiungi('Mediterranea', 'omnivore', 'afternoon_snack', 'r1', 'u1')).rejects.toThrow(/colazione, spuntino e merenda/i);
+    expect(prisma.paniereRicetta.create).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ E a PRANZO lo stesso piatto entra: la regola vale sui tre pasti leggeri, non ovunque. */
+  it('⚠️ ma a pranzo lo stesso piatto entra', async () => {
+    const prisma = conPaniere();
+    prisma.recipe.findUnique.mockResolvedValue({
+      id: 'r1', name: 'Branzino al vapore', regime: 'omnivore', allergensReviewed: true, active: true, ingredients: [],
+    });
+    const svc = new PanieriService(prisma as never, audit() as never);
+    await svc.aggiungi('Mediterranea', 'omnivore', 'lunch', 'r1', 'u1');
+    expect(prisma.paniereRicetta.create).toHaveBeenCalled();
+  });
+
+  /**
    * ⚠️ Fase 2: spuntino e merenda sono un paniere solo. Scrivere due righe per la stessa ricetta
    * la conterebbe due volte in ogni tabulato — si scrive sul capofila, e la lettura allarga.
    */

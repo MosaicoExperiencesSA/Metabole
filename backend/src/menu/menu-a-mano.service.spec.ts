@@ -128,11 +128,28 @@ describe('le ricette che la schermata propone', () => {
     expect(pulita.righe.find((r) => r.recipeId === 'p1')!.bloccata).toBe(false);
   });
 
-  /** ⚠️ Un pool vuoto si dice, invece di far vedere una ricerca che non trova mai niente. */
-  it('⚠️ senza pool lo dice', async () => {
+  /**
+   * ⚠️ Un pool vuoto si dice, invece di far vedere una ricerca che non trova mai niente.
+   *
+   * ⛔ **E porta i regimi lo stesso** — corretto il 4/9 dopo una revisione. Questa uscita anticipata
+   * riguarda la cliente **senza pool**, cioè proprio quella per cui la ricerca in tutto il catalogo
+   * esiste: senza i due campi la schermata le proponeva «onnivoro» per scrivere una ricetta nuova.
+   */
+  it('⚠️ senza pool lo dice, e dice comunque che regime ha', async () => {
     const { s, prisma } = servizio();
-    (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue({ recipeIds: [] });
-    expect(await s.ricette('u1', 'c1')).toEqual({ righe: [], poolVuoto: true });
+    (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue({ recipeIds: [], dietId: 'diet-1' });
+    expect(await s.ricette('u1', 'c1')).toEqual({
+      righe: [], poolVuoto: true, regimiAmmessi: ['vegan'], regimeCliente: 'vegan',
+    });
+  });
+
+  /** ⛔ E senza nessun pool (nemmeno la riga) resta il ripiego stretto, non «tutti». */
+  it('⛔ senza nessun pool i regimi ci sono lo stesso, e il regime vero è «non lo so»', async () => {
+    const { s, prisma } = servizio();
+    (prisma.clientMenuPool.findFirst as jest.Mock).mockResolvedValue(null);
+    expect(await s.ricette('u1', 'c1')).toEqual({
+      righe: [], poolVuoto: true, regimiAmmessi: ['vegan'], regimeCliente: null,
+    });
   });
 
   /**
@@ -177,6 +194,40 @@ describe('le ricette che la schermata propone', () => {
       const { s } = servizio();
       const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true) as { regimiAmmessi?: string[] };
       expect(esito.regimiAmmessi).toEqual(['vegan']);
+    });
+
+    /**
+     * ⛔ **E tornano ANCHE senza la casella alzata** — corretto il 4/9 dopo una revisione.
+     *
+     * La schermata li usa per proporre il regime di una **ricetta nuova**, e quel pulsante c'è
+     * anche a casella abbassata: chi scriveva un piatto senza aver mai cercato in tutto il catalogo
+     * si vedeva proporre «onnivoro» per una cliente vegana, e lo scopriva dopo il salvataggio.
+     */
+    it('⛔ i regimi tornano anche restando dentro al paniere', async () => {
+      const { s } = servizio();
+      const esito = await s.ricette('u1', 'c1', 'breakfast') as { regimiAmmessi?: string[] };
+      expect(esito.regimiAmmessi).toEqual(['vegan']);
+    });
+
+    /**
+     * ⛔ **`regimeCliente` e `regimiAmmessi` NON sono lo stesso dato**, e la differenza si vede solo
+     * qui: su regime illeggibile `regimiAmmessi` vale `['vegan']` — ripiego di sicurezza, innocuo
+     * come filtro — mentre `regimeCliente` resta `null`. Chi scrive una ricetta nuova deve
+     * **chiedere** il regime, non ereditare il ripiego: «vegana» su un piatto che resta in catalogo
+     * non è un filtro stretto, è un'affermazione falsa.
+     */
+    it('⛔ su regime illeggibile il ripiego filtra, ma non si spaccia per il suo regime', async () => {
+      const { s } = servizio({ regimeDieta: null });
+      const esito = await s.ricette('u1', 'c1', 'breakfast', undefined, true) as { regimiAmmessi?: string[]; regimeCliente?: string | null };
+      expect(esito.regimiAmmessi).toEqual(['vegan']);
+      expect(esito.regimeCliente).toBeNull();
+    });
+
+    /** ⚠️ E quando si legge, è quello vero. */
+    it('⚠️ quando il regime si legge, la risposta lo dice', async () => {
+      const { s } = servizio({ regimeDieta: 'pescetarian' });
+      const esito = await s.ricette('u1', 'c1', 'breakfast') as { regimeCliente?: string | null };
+      expect(esito.regimeCliente).toBe('pescetarian');
     });
 
     /**

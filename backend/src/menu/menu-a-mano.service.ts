@@ -113,7 +113,7 @@ export class MenuAManoService {
   }
 
   /** Il pool della cliente e le sue esclusioni: la coppia che serve a ogni domanda di questo file. */
-  private async contestoDi(clientId: string): Promise<{ esclusioni: EsclusioniCliente; ids: string[]; dietIdDelPool: string | null; regimiAmmessi: readonly string[] }> {
+  private async contestoDi(clientId: string): Promise<{ esclusioni: EsclusioniCliente; ids: string[]; dietIdDelPool: string | null; regimiAmmessi: readonly string[]; regimeCliente: string | null }> {
     const [pool, profilo] = await Promise.all([
       this.prisma.clientMenuPool.findFirst({
         where: { clientId } as never,
@@ -165,6 +165,8 @@ export class MenuAManoService {
       ids: (pool?.recipeIds ?? []).filter(Boolean),
       dietIdDelPool: pool?.dietId ?? null,
       regimiAmmessi: regimiCompatibili(regimeCliente),
+      /** ⚠️ Quello VERO, non il ripiego: `null` quando non lo sappiamo. Vedi `ricette`. */
+      regimeCliente: regimeConosciuto(regimeCliente) ? String(regimeCliente) : null,
     };
   }
 
@@ -237,8 +239,18 @@ export class MenuAManoService {
    */
   async ricette(attoreId: string, clientId: string, slot?: string, q?: string, tuttoIlCatalogo = false) {
     await this.perimetro(attoreId, clientId);
-    const { esclusioni, ids, regimiAmmessi } = await this.contestoDi(clientId);
-    if (!ids.length && !tuttoIlCatalogo) return { righe: [], poolVuoto: true };
+    const { esclusioni, ids, regimiAmmessi, regimeCliente } = await this.contestoDi(clientId);
+    /**
+     * ⛔ **Anche l'uscita anticipata porta i regimi** — corretto il 4/9 dopo una revisione.
+     *
+     * Questa riga esce **prima** della risposta piena, e la cliente che ci passa è quella **senza
+     * pool**: cioè esattamente quella per cui la ricerca in tutto il catalogo esiste. Senza i due
+     * campi la schermata proponeva «onnivoro» per scrivere una ricetta nuova a una vegana — che è
+     * l'errore che il commento due riquadri più sotto dichiara di aver corretto.
+     */
+    if (!ids.length && !tuttoIlCatalogo) {
+      return { righe: [], poolVuoto: true, regimiAmmessi: [...regimiAmmessi], regimeCliente };
+    }
 
     const cerca = (q ?? '').trim();
     const nelPaniere = new Set(ids);
@@ -267,10 +279,26 @@ export class MenuAManoService {
       righe: ricette.map((r) => ({ ...this.giudica(r, esclusioni), fuoriDalPaniere: !nelPaniere.has(r.id) })),
       poolVuoto: !ids.length,
       /**
-       * ⚠️ I regimi su cui si è filtrato, quando si è usciti: la schermata lo dice invece di farlo
+       * ⚠️ I regimi su cui si filtra uscendo dal paniere: la schermata lo dice invece di farlo
        * indovinare — «non trovo il pollo» ha una risposta, ed è che questa cliente non lo mangia.
+       *
+       * ⛔ **Tornano SEMPRE, non solo con `tuttoIlCatalogo`** — corretto il 4/9 dopo una revisione.
+       * Prima uscivano solo se la casella era alzata, e la schermata li usa per proporre il regime
+       * di una **ricetta nuova**: chi scriveva un piatto senza aver mai alzato la casella si vedeva
+       * proporre «onnivoro» per una cliente vegana, e l'errore si scopriva dopo il salvataggio.
        */
-      ...(tuttoIlCatalogo ? { regimiAmmessi: [...regimiAmmessi] } : {}),
+      regimiAmmessi: [...regimiAmmessi],
+      /**
+       * ⛔ **Il regime VERO di questa cliente, o `null` se non si riesce a leggere** — e i due campi
+       * non sono lo stesso dato.
+       *
+       * `regimiAmmessi` su regime ignoto vale `['vegan']`: è un **ripiego di sicurezza**, e come
+       * filtro è innocuo (sbaglia per difetto, esce meno roba). Ma la schermata lo userebbe per
+       * scrivere il regime di una ricetta nuova, e lì «vegana» non è un filtro stretto: è
+       * un'affermazione falsa su un piatto che resta in catalogo. Chi non lo sa deve **chiederlo**,
+       * non ereditare il ripiego.
+       */
+      regimeCliente,
       /**
        * ⛔ **Il taglio si dice, e da oggi scatta davvero.** Dentro il paniere sono decine di
        * ricette e il tetto non si toccava mai; fuori sono ventimila, e con la casella di ricerca

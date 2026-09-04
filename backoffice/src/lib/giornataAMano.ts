@@ -27,6 +27,16 @@ export interface Scelta {
   bloccata?: boolean;
   motivoBlocco?: string | null;
   forzatoPerche?: string;
+  /**
+   * ⚠️ **Se il piatto scelto sta FUORI dal paniere di questa cliente.**
+   *
+   * Aggiunto il 4/9 dopo una revisione: la ricerca lo diceva sulla riga, e poi `scegli` lo buttava
+   * via. Su un piatto scelto a mano si vedeva almeno mentre lo si sceglieva; su una **ricetta
+   * appena creata** — che è per definizione fuori dal pool e viene messa nel pasto da codice, senza
+   * che la riga si disegni mai — non si vedeva da nessuna parte. Il giorno dopo, chi apre la
+   * scheda non ha modo di sapere che quel piatto non le sarebbe mai arrivato.
+   */
+  fuoriDalPaniere?: boolean;
 }
 
 export interface Conto {

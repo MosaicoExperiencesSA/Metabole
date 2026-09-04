@@ -29,6 +29,21 @@
 import { PrismaClient } from '@prisma/client';
 import { IMPOSSIBILI, paniereDellaVariante, panieriDaCreare, ricetteDellaGiornata } from '../src/catalog/appartenenza-panieri';
 import { ricettaVaBene } from '../src/common/regimi';
+/**
+ * ⛔ **IL CANCELLO A VALLE — Simone, 4/9: «correggiamo immediatamente riempi-panieri».**
+ *
+ * Lo stesso giorno in cui i panieri sono stati ripuliti da carne e pesce a colazione, spuntino e
+ * merenda, questo script li rimetterebbe dentro alla prossima passata: **deriva l'appartenenza
+ * dalle giornate**, e nelle giornate quei piatti ci sono ancora. Una pulizia che il primo
+ * riempimento annulla non è una pulizia: è un giro a vuoto che fa credere che il problema sia
+ * chiuso.
+ *
+ * ⚠️ **E si passa dalla PORTA GIÀ ESISTENTE** (`fuoriPostoAColazione`), non da un secondo giudizio
+ * scritto qui: due riconoscitori della carne divergono, e il giorno che divergono uno dei due
+ * mette del pesce in una colazione senza che nessuno lo veda.
+ */
+import { MINIMO_PER_CELLA, PASTI_SENZA_CARNE_PESCE_VERDURA, fuoriPostoAColazione } from '../src/catalog/colazione-senza-carne-e-pesce';
+import { nomiIngredienti } from '../src/catalog/elenco-ingredienti';
 
 const prisma = new PrismaClient();
 
@@ -55,13 +70,22 @@ async function main() {
       Promise<{ id: string; name: string; regime: string; status: string }[]>,
     prisma.dietDayTemplate.findMany({ select: { dietId: true, meals: true } }) as unknown as
       Promise<{ dietId: string; meals: unknown }[]>,
-    /** ⚠️ Anche il `regime`: da qui esce il controllo che nessuno faceva (vedi sotto, 1/9). */
-    prisma.recipe.findMany({ select: { id: true, regime: true } }) as unknown as
-      Promise<{ id: string; regime: string }[]>,
+    /**
+     * ⚠️ Anche il `regime`: da qui esce il controllo che nessuno faceva (vedi sotto, 1/9).
+     * ⛔ E dal 4/9 anche `name` e `ingredients`, per il cancello su colazione, spuntino e merenda:
+     * il giudizio vuole **due letture**, perché i gamberetti nel nome spesso non compaiono.
+     */
+    prisma.recipe.findMany({ select: { id: true, regime: true, name: true, ingredients: true } }) as unknown as
+      Promise<{ id: string; regime: string; name: string; ingredients: unknown }[]>,
   ]);
 
   const esiste = new Set(ricetteVive.map((r) => r.id));
   const regimeDi = new Map(ricetteVive.map((r) => [r.id, r.regime]));
+  const laRicetta = new Map(ricetteVive.map((r) => [r.id, r]));
+  /** ⚠️ Gli slot leggeri come insieme: la domanda «questo pasto è leggero?» si fa per ogni riga. */
+  const PASTI_LEGGERI = new Set<string>(PASTI_SENZA_CARNE_PESCE_VERDURA);
+  /** Quante ne sono state fermate, raggruppate per motivo — e qualche nome vero davanti. */
+  const carneNeiLeggeri = new Map<string, { quante: number; esempi: string[] }>();
   const perDieta = new Map<string, { slot: string; recipeId: string }[]>();
   for (const g of giornate) {
     const righe = ricetteDellaGiornata(g.meals);
@@ -172,6 +196,33 @@ async function main() {
           spostate.set(`${etichetta} → «${suo}»`, (spostate.get(`${etichetta} → «${suo}»`) ?? 0) + 1);
           regime = suo;
         }
+        /**
+         * ⛔ **NIENTE CARNE NÉ PESCE IN COLAZIONE, SPUNTINO E MERENDA — il cancello a valle.**
+         *
+         * ⚠️ Sta **dopo** lo spostamento di regime e **prima** della scrittura, ed è l'unico punto
+         * in cui può stare: qui si sa già in quale cella la riga finirebbe, e non è ancora finita
+         * dentro. La riga non si sposta altrove — a colazione un branzino non ha una cella giusta:
+         * si **ferma**, e si dice quante e quali.
+         *
+         * ⚠️ La ricetta resta in catalogo e resta nei panieri di pranzo e cena: qui si toglie
+         * l'appartenenza a **quella cella**, come fa `diag:colazioni-con-carne`.
+         */
+        const ric = laRicetta.get(r.recipeId);
+        if (PASTI_LEGGERI.has(r.slot) && ric) {
+          const fuori = fuoriPostoAColazione({
+            id: ric.id,
+            nome: ric.name,
+            ingredienti: nomiIngredienti(ric.ingredients),
+          });
+          if (fuori) {
+            const k = `${fuori.motivo} · slot ${r.slot}`;
+            const v2 = carneNeiLeggeri.get(k) ?? { quante: 0, esempi: [] };
+            v2.quante += 1;
+            if (v2.esempi.length < 5 && !v2.esempi.includes(ric.name)) v2.esempi.push(ric.name);
+            carneNeiLeggeri.set(k, v2);
+            continue;
+          }
+        }
         const chiave = `${dest.famiglia}|${regime}`;
         const set = dentro.get(chiave) ?? new Set<string>();
         set.add(`${r.recipeId}|${r.slot}`);
@@ -238,6 +289,71 @@ async function main() {
     riga('  ✅ Nessuna.');
     riga('  ⚠️ Non vuol dire che nei panieri non ci sia pesce dove non deve: una ricetta con');
     riga('  l\'ETICHETTA sbagliata passa di qui indisturbata. Quello lo dice `regime:contenuto`.');
+  }
+
+  /**
+   * ⚠️ **Si stampa anche quando è zero**, come il blocco qui sopra e per la stessa ragione: un
+   * cancello che parla solo quando ferma qualcosa è un cancello di cui fra un mese nessuno sa più
+   * se è aperto.
+   */
+  const leggeriTot = [...carneNeiLeggeri.values()].reduce((s2, v2) => s2 + v2.quante, 0);
+  riga('');
+  riga(`  FERMATE perché carne o pesce in colazione, spuntino o merenda: ${leggeriTot} RIGHE DI GIORNATA.`);
+  riga('  ⚠️ Sono righe di giornata, non celle: la stessa ricetta nominata da cinquanta giornate della');
+  riga('     stessa famiglia conta cinquanta. Non è confrontabile con «Appartenenze» qui sopra, che è');
+  riga('     deduplicato per (ricetta × slot × paniere), né con le righe che toglie il diagnostico.');
+  if (leggeriTot) {
+    riga('  ⛔ La regola è del 31/8 e fino al 4/9 la leggeva SOLO l\'agente che genera i piatti nuovi:');
+    riga('  questo script, derivando l\'appartenenza dalle giornate, le rimetteva dentro alla passata');
+    riga('  successiva — cioè annullava la pulizia dei panieri fatta lo stesso giorno.');
+    riga('  ⚠️ Le ricette restano in catalogo e restano a pranzo e a cena: qui si ferma solo');
+    riga('  l\'appartenenza a quelle celle.');
+    for (const [k, v2] of [...carneNeiLeggeri.entries()].sort((a, b) => b[1].quante - a[1].quante).slice(0, ESEMPI)) {
+      riga(`  · ${String(v2.quante).padStart(4)}  ${k}`);
+      riga(`          ${v2.esempi.join(' · ')}`);
+    }
+  } else {
+    riga('  ✅ Nessuna: nelle giornate non è rimasto niente di carne o pesce in quei tre pasti.');
+  }
+
+  /**
+   * ⛔ **E LE CELLE CHE RESTANO TROPPO VUOTE SI NOMINANO.** È lo stesso numero di
+   * `diag:colazioni-con-carne` e la stessa ragione: una colazione con tre piatti serve alla cliente
+   * lo stesso piatto a giorni alterni, e dopo tre giorni smette di aprire l'app.
+   *
+   * ⚠️ Qui però la soglia **non ferma niente**: là si toglieva da un paniere che esisteva, qui lo
+   * si sta componendo, e riempirlo di branzini per far numero sarebbe rimettere il difetto per
+   * rispettare la misura fatta per curarlo. Si dice quali sono, e si riempiono con dei piatti
+   * giusti — che è lavoro di catalogo.
+   */
+  const vuoteLeggere: string[] = [];
+  /**
+   * ⛔ **Si gira su TUTTI i panieri, non su quelli che hanno già una riga** — e lo zero si nomina.
+   *
+   * La prima stesura iterava `dentro`, che contiene solo i panieri con almeno una riga, e saltava
+   * `quante === 0`: cioè taceva esattamente sul caso peggiore — la colazione i cui unici piatti
+   * erano di pesce, che il cancello svuota del tutto. Il riquadro prometteva «si dice quali sono» e
+   * l'unico risultato davvero grave era l'unico invisibile. Trovato da una revisione prima della
+   * consegna.
+   */
+  for (const p of tutti) {
+    const set = dentro.get(`${p.famiglia}|${p.regime}`) ?? new Set<string>();
+    for (const slot of PASTI_LEGGERI) {
+      const quante = [...set].filter((x) => x.endsWith(`|${slot}`)).length;
+      if (quante < MINIMO_PER_CELLA) {
+        vuoteLeggere.push(`${p.famiglia} · ${p.regime} · ${slot}: ${quante}${quante === 0 ? '  ⛔ VUOTA' : ''}`);
+      }
+    }
+  }
+  riga('');
+  riga(`  Celle leggere che nascono sotto i ${MINIMO_PER_CELLA} piatti: ${vuoteLeggere.length}.`);
+  if (vuoteLeggere.length) {
+    riga('  ⚠️ Non si riempiono con carne o pesce per far numero: vanno riempite con dei piatti che a');
+    riga('  colazione ci stanno. La soglia qui NON ferma la scrittura — vedi il commento nel file.');
+    for (const x of vuoteLeggere.sort().slice(0, ESEMPI)) riga(`  · ${x}`);
+    if (vuoteLeggere.length > ESEMPI) riga(`  …e altre ${vuoteLeggere.length - ESEMPI}.`);
+  } else {
+    riga('  ✅ Nessuna.');
   }
 
   if (nonMappabili.size) {
@@ -349,6 +465,13 @@ async function main() {
    *
    * ⚠️ La domanda giusta non era «sono uguali» ma **«c'è tutto quello che mi aspettavo?»**: le
    * righe in più hanno un nome e un padrone, e si dicono invece di far paura.
+   *
+   * ⛔ **E dal 4/9 i padroni sono DUE, non uno.** Il cancello sui pasti leggeri (vedi in cima al
+   * file) ferma delle righe che dalle giornate escono: `appartenenze` non le conta più, mentre in
+   * tabella possono benissimo esserci — `diag:colazioni-con-carne` lascia apposta le attive delle
+   * celle sotto soglia. Quindi `inPiu` cresce **anche** per quel motivo, e attribuirlo tutto a
+   * `panieri:pesce` sarebbe la solita frase falsa detta su un numero vero. Si nominano tutti e due,
+   * e si dice quante ne ha fermate questo giro: il resto è l'incognita, ed è dichiarata tale.
    */
   const controllo = await prisma.paniereRicetta.count();
   const inPiu = controllo - appartenenze;
@@ -359,10 +482,15 @@ async function main() {
     riga('  ✅ Il conto torna esatto.');
   } else {
     riga(`  ✅ Il conto torna, con ${inPiu} righe in più delle giornate.`);
-    riga('  ⚠️ Non è un errore: sono le righe che scrive `panieri:pesce`, che deriva i panieri');
-    riga('  pescetariani da quelli vegetariano e onnivoro — roba che dalle giornate non esce.');
-    riga('  ⛔ Se un giorno questo numero cresce senza che nessuno abbia lanciato quella derivazione,');
-    riga('  allora sì che c\'è da guardare: `npm run panieri:pulisci` in sola lettura lo dice.');
+    riga('  ⚠️ Non è un errore, e i motivi noti sono DUE:');
+    riga('     · le righe che scrive `panieri:pesce`, che deriva i panieri pescetariani da quelli');
+    riga('       vegetariano e onnivoro — roba che dalle giornate non esce;');
+    riga(`     · le righe di carne o pesce nei tre pasti leggeri: qui ne sono state fermate ${leggeriTot},`);
+    riga('       ma in tabella possono restarci quelle che `diag:colazioni-con-carne` lascia apposta');
+    riga('       nelle celle sotto soglia. Sono attese, e da qui non si possono contare.');
+    riga('  ⛔ Se questo numero cresce senza che nessuno abbia lanciato quella derivazione e senza che');
+    riga('  il cancello qui sopra abbia fermato niente, allora sì che c\'è da guardare:');
+    riga('  `npm run panieri:pulisci` e `npm run diag:colazioni-con-carne`, tutti e due in sola lettura.');
   }
   riga('');
 }

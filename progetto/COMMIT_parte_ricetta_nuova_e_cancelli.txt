@@ -1,0 +1,126 @@
+────────────────────────────────────────────────────────────────────────────
+ Scrivere una ricetta dal menu · le tre porte della regola dei pasti leggeri
+ 4 settembre 2026 (pomeriggio)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI in questa consegna.
+
+⛔ DOPO LA PUSH VA RILANCIATO IL DIAGNOSTICO:
+   npm run diag:colazioni-con-carne
+   I numeri saranno DIVERSI da stamattina: ora vede anche le ricette in bozza,
+   e conta i tre stati del paniere separati. Poi, come prima:
+   APPLICA=1 npm run diag:colazioni-con-carne
+
+Summary
+───────
+Ricetta nuova dal menu a mano; carne e pesce fuori dai pasti leggeri su tutte e tre le porte
+
+Description
+───────────
+Seconda metà della richiesta del 4/9, più due difetti trovati in produzione da
+Simone nel pomeriggio.
+
+1) SCRIVERE UNA RICETTA NUOVA DA «SCRIVI MENU A MANO»
+   Simone: «manca la possibilità di aggiungere piatti comunque» e «ovviamente
+   mi chiederà anche in quali panieri metterla».
+   · pulsante «Scrivi una ricetta nuova» in fondo all'elenco delle ricette di
+     uno slot — IN FONDO e non in cima: prima si cerca, anche fuori dal
+     paniere, e solo dopo si scrive. Un catalogo di ventimila piatti diventa di
+     quarantamila doppioni un piatto alla volta.
+   · si RIUSA la finestra della pagina Ricette, non se ne scrive una seconda.
+   · dopo il salvataggio la finestra NON si chiude: passa agli ALLERGENI e poi
+     ai PANIERI. ⛔ È la catena vera del prodotto, e la prima stesura ne aveva
+     un anello solo: una ricetta appena creata nasce con gli allergeni non
+     confermati, e in quel caso il pannello dei panieri è bloccato — mostrava
+     «scegli dove metterla» sopra un elenco che non compariva mai.
+   · il verdetto sulla ricetta appena creata lo dà il SERVER: si richiede la
+     riga e si prende il suo giudizio, invece di comporla coi campi del modulo.
+   · il permesso (`recipes` in scrittura) si chiede PRIMA, non dopo aver
+     compilato nome, ingredienti e metodo.
+
+2) «RICETTA NON TROVATA» SULLE BOZZE (segnalato in produzione)
+   Pagina Panieri, filtro «Mostra solo in bozza»: l'elenco mostra i piatti e
+   «Modifica» risponde «Ricetta non trovata». `GET /recipes/:id` è la porta
+   aperta a ogni autenticato — cliente compresa — e per questo rifiutava le
+   ricette spente. Il cancello non si toglie, si restringe: nutrizionista, capo
+   e admin le aprono; la cliente no.
+
+3) ⛔ LA PULIZIA DI COLAZIONE, SPUNTINO E MERENDA SALTAVA TUTTE LE BOZZE
+   Simone, dopo APPLICA=1: «da qui non ha tolto pesce, carne, molluschi e
+   crostacei». Il filtro era `recipe.active`, col commento «una bozza spenta
+   non arriva nel piatto di nessuno»: VERO OGGI E FALSO DOMANI — quel branzino
+   entra in colazione il giorno che qualcuno valida la bozza, cioè quando
+   nessuno se lo sta più chiedendo.
+   La regola ora è più precisa di prima:
+   · le BOZZE si tolgono sempre — toglierle non può svuotare niente per
+     nessuna cliente;
+   · la soglia degli 8 piatti si misura sulle ATTIVE: una cella con venti
+     bozze e tre attive sembrava piena, e la cliente ne riceve tre.
+
+4) LE TRE PORTE DELLA REGOLA, ADESSO CHIUSE TUTTE
+   · l'agente che genera i piatti leggeri — chiusa dal 31/8;
+   · `panieri:riempi` — chiusa ora: deriva l'appartenenza dalle giornate, dove
+     quei piatti ci sono ancora, e alla prossima passata li rimetteva dentro.
+     Ferma le righe, le dichiara raggruppate per motivo, e nomina le celle che
+     nascono sotto soglia (lo ZERO compreso: è il caso peggiore);
+   · la pagina Panieri, a mano — chiusa ora: rifiuta, e lo dice PRIMA del clic.
+   ⛔ E qui mi correggo: stamattina avevo scritto «la pagina ha già il controllo
+   alla scrittura». Era FALSO. Controllava regime, ricetta spenta e allergeni,
+   non carne e pesce nei pasti leggeri.
+   ⚠️ Tutte e tre passano dalla porta già esistente (`fuoriPostoAColazione`):
+   due riconoscitori della carne divergono, e il giorno che divergono uno dei
+   due mette del pesce in una colazione senza che nessuno lo veda.
+
+5) `regimiAmmessi` E `regimeCliente` SONO DUE CAMPI, APPOSTA
+   Su regime illeggibile `regimiAmmessi` vale ['vegan']: come FILTRO è un
+   ripiego di sicurezza innocuo (esce meno roba). Come valore SCRITTO su una
+   ricetta che resta in catalogo sarebbe un'affermazione falsa. Quindi il
+   regime vero torna a parte, `null` quando non si sa, e la finestra chiede.
+
+⛔ UNDICI DIFETTI TROVATI DA DUE REVISIONI AVVERSARIALI, PRIMA DELLA CONSEGNA
+   · il passo panieri inerte al 100% (sopra);
+   · «il regime proposto è il suo» falso: il pulsante c'è anche a casella
+     abbassata, e lì i regimi non arrivavano — «onnivoro» per una vegana;
+   · e ancora falso per la cliente SENZA POOL, che è quella per cui la ricerca
+     in tutto il catalogo esiste: l'uscita anticipata non portava i due campi;
+   · chiudere la finestra cliccando fuori SOSTITUIVA il piatto già scelto per
+     quel pasto, motivazione della forzatura compresa, senza conferma e senza
+     messaggio. Ora la ricetta la porta via solo il pulsante, che dice cosa fa;
+   · `fuoriDalPaniere` veniva buttato via da `scegli`: su una ricetta appena
+     creata — fuori dal pool per definizione, e messa nel pasto da codice — non
+     si vedeva da nessuna parte;
+   · un commento affermava che la tabella dei permessi e la guardia dell'API
+     dicono la stessa cosa: per un ruolo personalizzato non è vero, ed è già
+     documentato in `permissions/porta-aperta-lo-stesso.ts`;
+   · il tabulato del diagnostico stampava «ne restano N attive» calcolato come
+     se si togliessero anche le attive sotto soglia: contraddiceva l'elenco
+     stampato due righe sotto;
+   · «celle sopra la soglia» era diventato falso: `celleDaPulire` include anche
+     quelle sotto, che hanno delle bozze da togliere;
+   · il controllo finale di `riempi-panieri` avrebbe attribuito a `panieri:pesce`
+     righe in più che ora vengono dal cancello — un falso allarme armato per il
+     prossimo lancio;
+   · «le celle troppo vuote si nominano» taceva sulla cella che nasce a ZERO,
+     cioè sul risultato peggiore;
+   · il conteggio delle righe fermate è in righe di giornata e veniva messo
+     accanto a conteggi di celle, come se fossero confrontabili.
+
+PROVE
+─────
+· 7548 verdi su 439 suite, nelle quattro modalità (jest, TZ=Europe/Rome, notte,
+  notte+TZ). 279 verdi nel backoffice. Build ok; `tsc --noEmit` solo i 2 errori
+  preesistenti; `tsc -b` pulito su app e backoffice.
+· Suite nuove: `bozza-che-non-si-apriva.spec.ts` (7),
+  `ricetta-nuova-e-panieri.spec.ts` (14, sentinelle sul sorgente), più le prove
+  delle bozze in `colazione-senza-carne-e-pesce.spec.ts` e del cancello in
+  `panieri.service.spec.ts`.
+· Otto prove di mutazione, tutte rosse.
+
+RESTA APERTO, dichiarato
+────────────────────────
+· La ricetta dettata a VERA passo passo: non fatta, ed è il pezzo più grosso
+  dei tre della richiesta del 4/9.
+· `POST /panieri/ricetta` è `head_nutritionist`/`admin` + `panieri:manage`: una
+  nutrizionista semplice vede le pastiglie (la lettura è aperta in view) e ogni
+  clic torna 403. È una decisione di prodotto, non un difetto da correggere di
+  mia iniziativa.

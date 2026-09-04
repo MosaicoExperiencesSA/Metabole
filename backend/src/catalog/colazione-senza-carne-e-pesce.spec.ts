@@ -9,7 +9,7 @@
  * falso positivo non è un fastidio — è una colazione buona che sparisce.
  */
 import {
-  fuoriPostoAColazione, guardaLeCelle, celleDaPulire, celleTroppoVuote, MINIMO_PER_CELLA,
+  fuoriPostoAColazione, guardaLeCelle, celleDaPulire, celleTroppoVuote, daTogliere, MINIMO_PER_CELLA,
 } from './colazione-senza-carne-e-pesce';
 
 const p = (nome: string, ingredienti: string[] = [], pesati?: { name: string; grammi: number | null }[]) =>
@@ -115,5 +115,81 @@ describe('le celle: quante ne restano decide se si può togliere', () => {
     }]);
     expect(e.fuoriPosto).toEqual([]);
     expect(e.restano).toBe(11);
+  });
+
+  /**
+   * ⛔ **LE BOZZE SI TOLGONO SEMPRE — il caso trovato in produzione il 4/9, dopo `APPLICA=1`.**
+   *
+   * Simone, riaprendo la pagina Panieri col filtro «Mostra solo in bozza»: *«da qui non ha tolto
+   * pesce, carne, molluschi e crostacei»*. La prima stesura guardava **solo le ricette attive**,
+   * col commento «una bozza spenta non arriva nel piatto di nessuno»: vero oggi, falso il giorno
+   * che qualcuno la valida — che è il senso di quella pagina.
+   *
+   * ⚠️ E la soglia non le riguarda: una bozza non arriva a nessuna cliente, quindi toglierla non
+   * può svuotare niente.
+   */
+  it('⛔ una bozza fuori posto si toglie anche se la cella è magra', () => {
+    const [e] = guardaLeCelle([{
+      paniereId: 'x', etichetta: 'x', slot: 'breakfast',
+      piatti: [{ ...p('Branzino al vapore'), attivo: false }, ...buone(2)],
+    }]);
+    expect(daTogliere(e).map((f) => f.nome)).toEqual(['Branzino al vapore']);
+    expect(celleDaPulire([e]).map((c) => c.paniereId)).toEqual(['x']);
+  });
+
+  /** ⛔ E la stessa riga ATTIVA, nella stessa cella magra, non si tocca: è quello che protegge. */
+  it('⛔ ma la stessa riga attiva, in una cella magra, resta', () => {
+    const [e] = guardaLeCelle([{
+      paniereId: 'x', etichetta: 'x', slot: 'breakfast',
+      piatti: [p('Branzino al vapore'), ...buone(2)],
+    }]);
+    expect(daTogliere(e)).toEqual([]);
+    expect(celleTroppoVuote([e]).map((c) => c.paniereId)).toEqual(['x']);
+  });
+
+  /**
+   * ⛔ **La soglia si misura sulle ATTIVE, non su tutte.** Una cella con venti bozze e tre attive
+   * sembrerebbe piena e non lo è: la cliente riceve tre piatti.
+   */
+  it('⛔ venti bozze non fanno passare la soglia per le tre attive', () => {
+    const [e] = guardaLeCelle([{
+      paniereId: 'x', etichetta: 'x', slot: 'breakfast',
+      piatti: [
+        p('Branzino al vapore'),
+        ...buone(2),
+        ...buone(20).map((b, i) => ({ ...b, id: `bozza-${i}`, nome: `bozza ${i}`, attivo: false })),
+      ],
+    }]);
+    expect(e.attivi).toBe(3);
+    expect(e.restanoAttivi).toBe(2);
+    expect(daTogliere(e)).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **Una cella può stare in tutti e due gli elenchi**, ed è la situazione normale di un paniere
+   * a metà validazione: le sue bozze si puliscono, le sue attive no.
+   */
+  it('⚠️ bozze da togliere e attive da lasciare, nella stessa cella', () => {
+    const [e] = guardaLeCelle([{
+      paniereId: 'x', etichetta: 'x', slot: 'breakfast',
+      piatti: [
+        p('Branzino al vapore'),
+        { ...p('Filetto di trota'), id: 'trota-bozza', attivo: false },
+        ...buone(2),
+      ],
+    }]);
+    expect(daTogliere(e).map((f) => f.nome)).toEqual(['Filetto di trota']);
+    expect(celleDaPulire([e]).map((c) => c.paniereId)).toEqual(['x']);
+    expect(celleTroppoVuote([e]).map((c) => c.paniereId)).toEqual(['x']);
+  });
+
+  /** ⚠️ «Non lo so» vale ATTIVA: il ripiego fa togliere di meno, non di più. */
+  it('⚠️ una riga senza `attivo` conta come attiva', () => {
+    const [e] = guardaLeCelle([{
+      paniereId: 'x', etichetta: 'x', slot: 'breakfast',
+      piatti: [p('Branzino al vapore'), ...buone(2)],
+    }]);
+    expect(e.attivi).toBe(3);
+    expect(daTogliere(e)).toEqual([]);
   });
 });

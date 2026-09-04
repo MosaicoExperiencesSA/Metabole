@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import { Banner, Modal, Pager, Spinner } from '../components/ui';
+import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 /**
  * ⚠️ **Il tipo della riga arriva da `Ricette.tsx`, non ce n'è più uno qui** (24/8). Questa pagina ne
@@ -11,32 +11,18 @@ import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../compo
  * nessuna delle due pagine sta guardando in quel momento.
  */
 import { RecipeModal, type Recipe } from './Ricette';
+/**
+ * ⚠️ **La finestra degli allergeni sta in `components/` dal 4/9**: la usa anche `RecipeModal`, su
+ * una ricetta appena creata. Il perché del trasloco — e del ciclo di import evitato — è scritto
+ * in cima a quel file.
+ */
+import { AllergeniModal, EU_ALLERGENS } from '../components/AllergeniModal';
 
-// I 14 allergeni UE (allineati al backend src/catalog/allergens.ts).
-const EU_ALLERGENS: { code: string; label: string }[] = [
-  { code: 'glutine', label: 'Glutine' },
-  { code: 'crostacei', label: 'Crostacei' },
-  { code: 'uova', label: 'Uova' },
-  { code: 'pesce', label: 'Pesce' },
-  { code: 'arachidi', label: 'Arachidi' },
-  { code: 'soia', label: 'Soia' },
-  { code: 'latte', label: 'Latte e derivati' },
-  { code: 'frutta_a_guscio', label: 'Frutta a guscio' },
-  { code: 'sedano', label: 'Sedano' },
-  { code: 'senape', label: 'Senape' },
-  { code: 'sesamo', label: 'Sesamo' },
-  { code: 'solfiti', label: 'Solfiti' },
-  { code: 'lupini', label: 'Lupini' },
-  { code: 'molluschi', label: 'Molluschi' },
-];
 const LABEL = new Map(EU_ALLERGENS.map((a) => [a.code, a.label]));
 
 const MEAL: Record<string, string> = {
   breakfast: 'Colazione', morning_snack: 'Spuntino', lunch: 'Pranzo', afternoon_snack: 'Merenda', dinner: 'Cena',
 };
-
-interface Suggestion { allergen: string; label: string; matched: string[] }
-interface SuggestResp { recipeId: string; name: string; current: string[]; reviewed: boolean; suggestions: Suggestion[] }
 
 /** Taggaggio allergeni delle ricette (R8): il nutrizionista conferma i tag (con pre-tag assistito). */
 export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
@@ -392,7 +378,7 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
       )}
 
       {editing && (
-        <TagModal
+        <AllergeniModal
           recipe={editing}
           onClose={() => setEditing(null)}
           onSaved={(id, allergens) => {
@@ -403,87 +389,5 @@ export function TagAllergeni({ scopeRegime }: { scopeRegime?: string } = {}) {
         />
       )}
     </>
-  );
-}
-
-function TagModal({ recipe, onClose, onSaved }: { recipe: Recipe; onClose: () => void; onSaved: (id: string, allergens: string[]) => void }) {
-  const [loading, setLoading] = useState(true);
-  const [suggested, setSuggested] = useState<Set<string>>(new Set());
-  const [matches, setMatches] = useState<Record<string, string[]>>({});
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await api<SuggestResp>(`/recipes/${recipe.id}/allergen-suggestions`);
-        if (!alive) return;
-        const sug = new Set(r.suggestions.map((s) => s.allergen));
-        setSuggested(sug);
-        setMatches(Object.fromEntries(r.suggestions.map((s) => [s.allergen, s.matched])));
-        // pre-selezione: allergeni già presenti ∪ suggeriti (il nutrizionista conferma/corregge)
-        setSelected(new Set([...(r.current ?? []), ...sug]));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Impossibile calcolare i suggerimenti.');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [recipe.id]);
-
-  function toggle(code: string) {
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(code)) n.delete(code); else n.add(code);
-      return n;
-    });
-  }
-
-  async function confirm() {
-    setBusy(true);
-    setError(null);
-    try {
-      const allergens = EU_ALLERGENS.map((a) => a.code).filter((c) => selected.has(c));
-      await api(`/recipes/${recipe.id}/allergens`, { method: 'PATCH', body: JSON.stringify({ allergens }) });
-      onSaved(recipe.id, allergens);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Salvataggio non riuscito.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal title={`Allergeni — ${recipe.name}`} onClose={onClose}>
-      {error && <Banner kind="err">{error}</Banner>}
-      {loading ? (
-        <Spinner />
-      ) : (
-        <>
-          <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-            Spunta gli allergeni presenti. Quelli con ✨ sono <b>suggeriti automaticamente</b> dagli ingredienti: controllali e conferma.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            {EU_ALLERGENS.map((a) => {
-              const isSug = suggested.has(a.code);
-              return (
-                <label key={a.code} title={matches[a.code]?.length ? `Rilevato da: ${matches[a.code].join(', ')}` : ''}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', background: isSug ? 'var(--soft,#fdf3ef)' : 'transparent' }}>
-                  <input type="checkbox" checked={selected.has(a.code)} onChange={() => toggle(a.code)} />
-                  <span>{a.label}{isSug && ' ✨'}</span>
-                </label>
-              );
-            })}
-          </div>
-          <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-            <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
-            <button className="btn" onClick={confirm} disabled={busy}>{busy ? 'Salvo…' : recipe.active === false ? 'Conferma e metti in catalogo' : 'Conferma allergeni'}</button>
-          </div>
-        </>
-      )}
-    </Modal>
   );
 }
