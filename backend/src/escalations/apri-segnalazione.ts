@@ -1,6 +1,6 @@
 import { ESCALATION_CATEGORY_LABEL, ESCALATION_ROUTING, EscalationCategory } from './escalation-routing';
 import { decidiRiapertura } from './riapertura';
-import { chiVaDisturbato, type UtenteDestinatario } from './canali-della-segnalazione';
+import { chiRicevePostaAncheLei, chiVaDisturbato, type UtenteDestinatario } from './canali-della-segnalazione';
 import type { PushMinimo } from '../notifications/notifica-utente';
 import { datiPush } from '../notifications/dati-push';
 
@@ -51,9 +51,9 @@ export const FINESTRA_RIAPERTURA_DEFAULT = 14;
  * esattamente come prima. Chi va disturbato, e l'opt-out del profilo, stanno in
  * `canali-della-segnalazione.ts`; qui c'è solo il trasporto.
  *
- * ⚠️ **L'email che Simone aveva chiesto insieme alla push non è qui**, ed è una decisione sospesa,
- * non una dimenticanza: il perché sta in `canali-della-segnalazione.ts` e nella voce
- * `piano-bloccato-solo-in-app`.
+ * ⛔ **E la posta la manda la NASCITA, non il ritorno.** La stessa segnalazione si chiude e si
+ * riapre più volte in un pomeriggio; con la push va bene, con la posta sarebbero dieci mail
+ * identiche. Il perché per esteso sta in `canali-della-segnalazione.ts`.
  */
 
 /** Il minimo del client Prisma che serve: così è testabile con un oggetto finto. */
@@ -102,6 +102,12 @@ export interface PrismaPerSegnalazione {
  */
 export interface CanaliDaUsare {
   push?: PushMinimo;
+  /**
+   * ⚠️ **`sendStaffAlertEmail`, non `sendNotificationEmail`**: il secondo è il modello delle
+   * clienti, con un piè di pagina che a una nutrizionista dice una cosa falsa e una copia alla
+   * coach che non c'entra niente. Il perché per esteso sta accanto alla funzione, in `MailService`.
+   */
+  mail?: { sendStaffAlertEmail(to: string, locale: string | null | undefined, title: string, body: string): Promise<boolean> };
 }
 
 export interface SegnalazioneInput {
@@ -218,6 +224,8 @@ export async function apriSegnalazione(
                 category: input.category,
                 reason: input.reason,
                 escalationId: prec.id,
+                // ⛔ Sta TORNANDO, non nascendo: push sì (è un fatto nuovo), posta no.
+                nascita: false,
               }, input.canali);
             }
           } catch {
@@ -268,6 +276,7 @@ export async function apriSegnalazione(
         category: input.category,
         reason: input.reason,
         escalationId: created.id,
+        nascita: true,
       }, input.canali);
     }
     return created;
@@ -358,7 +367,11 @@ export async function decidiDestinatari(
 export async function avvisaSegnalazione(
   prisma: PrismaPerSegnalazione,
   decisione: DecisioneSegnalazione,
-  input: { clientId: string; category: EscalationCategory; reason?: string; escalationId: string },
+  input: {
+    clientId: string; category: EscalationCategory; reason?: string; escalationId: string;
+    /** ⛔ Vera se la segnalazione **nasce adesso**; falsa se sta tornando dentro la tregua. */
+    nascita?: boolean;
+  },
   canali?: CanaliDaUsare,
 ): Promise<void> {
   const chi = decisione.nomeCliente ?? 'una cliente';
@@ -426,35 +439,49 @@ export async function avvisaSegnalazione(
 async function avvisiFuoriDallApp(
   prisma: PrismaPerSegnalazione,
   avvisi: readonly { userId: string; title: string; body: string }[],
-  input: { clientId: string; category: EscalationCategory; escalationId: string },
+  input: { clientId: string; category: EscalationCategory; escalationId: string; nascita?: boolean },
   canali?: CanaliDaUsare,
 ): Promise<void> {
-  if (!canali?.push) return;
+  if (!canali?.push && !canali?.mail) return;
   if (!avvisi.length) return;
   try {
     const ids = avvisi.map((a) => a.userId);
     /**
      * ⚠️ Senza `prisma.user` non si conosce l'opt-out, e la push parte lo stesso: un allarme che
-     * non si può *filtrare* non è un allarme da *spegnere*.
+     * non si può *filtrare* non è un allarme da *spegnere*. La posta invece no, perché senza la
+     * riga non si conosce l'indirizzo — lì il limite è fisico.
      */
     const utenti = prisma.user
-      ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, prefs: true } })
+      ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, locale: true, prefs: true } })
       : [];
-    const daDisturbare = new Set(chiVaDisturbato(ids, utenti, input.category));
-    /**
-     * ⛔ **`datiPush` e non un oggetto scritto a mano.** La prima stesura componeva qui i dati
-     * della push — `escalationId`, `category` — e faceva due cose sbagliate insieme: quelle chiavi
-     * l'app le **butta** (`CHIAVI_UTILI` in `dati-push.ts` passa solo `kind`, `threadId`,
-     * `clientId`, `visitId`, `counterpart`), e scavalcava il filtro che quel file esiste per
-     * tenere — *«nessun contenuto sanitario nel payload»*. Un secondo punto che compone i dati di
-     * una push è un secondo punto che un giorno ci mette dentro qualcosa che non deve viaggiare.
-     * ⚠️ Quindi il tocco apre la **scheda della cliente**, non la segnalazione: è quello che si
-     * può fare oggi, ed è meglio dirlo che promettere altro.
-     */
-    const dati = datiPush(`escalation_${input.category}`, { clientId: input.clientId });
-    for (const a of avvisi) {
-      if (!daDisturbare.has(a.userId)) continue;
-      await canali.push.sendToUser(a.userId, a.title, a.body, dati).catch(() => undefined);
+    const daDisturbare = chiVaDisturbato(ids, utenti, input.category);
+    const insieme = new Set(daDisturbare);
+    const testo = new Map(avvisi.map((a) => [a.userId, a]));
+
+    if (canali.push) {
+      /**
+       * ⛔ **`datiPush` e non un oggetto scritto a mano.** La prima stesura componeva qui i dati
+       * della push — `escalationId`, `category` — e faceva due cose sbagliate insieme: quelle
+       * chiavi l'app le **butta** (`CHIAVI_UTILI` in `dati-push.ts` passa solo `kind`, `threadId`,
+       * `clientId`, `visitId`, `counterpart`), e scavalcava il filtro che quel file esiste per
+       * tenere — *«nessun contenuto sanitario nel payload»*. Un secondo punto che compone i dati
+       * di una push è un secondo punto che un giorno ci mette dentro qualcosa che non deve
+       * viaggiare. ⚠️ Quindi il tocco apre la **scheda della cliente**, non la segnalazione: è
+       * quello che si può fare oggi, ed è meglio dirlo che promettere altro.
+       */
+      const dati = datiPush(`escalation_${input.category}`, { clientId: input.clientId });
+      for (const a of avvisi) {
+        if (!insieme.has(a.userId)) continue;
+        await canali.push.sendToUser(a.userId, a.title, a.body, dati).catch(() => undefined);
+      }
+    }
+
+    if (canali.mail) {
+      for (const dest of chiRicevePostaAncheLei(daDisturbare, utenti, input.category, !!input.nascita)) {
+        const a = testo.get(dest.userId);
+        if (!a) continue;
+        await canali.mail.sendStaffAlertEmail(dest.email, dest.locale, a.title, a.body).catch(() => undefined);
+      }
     }
   } catch {
     /* le righe in app sono scritte: l'avviso fuori dall'app è un di più, mai una condizione */

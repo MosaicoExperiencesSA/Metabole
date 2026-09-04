@@ -306,7 +306,25 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'piccolo`): tre giornate con un doppione fanno il 33%, e su tre casi quel 33% sta insieme '
       + 'sia a «sotto soglia» sia a «capita quasi sempre».\n\n'
       + '⛔ **E non si risolve togliendo l\'allargamento**: quello serve, e toglierlo rimetterebbe '
-      + 'una merenda a non poter servire uno spuntino — cioè il difetto che la Fase 2 ha chiuso.',
+      + 'una merenda a non poter servire uno spuntino — cioè il difetto che la Fase 2 ha chiuso.\n\n'
+      + '▶️ **MISURATO SUI DATI VERI IL 4/9, e il verdetto è «non ancora».** Lanciato con `GIORNI=30` '
+      + 'e poi con `GIORNI=180`. Il secondo ha risposto una cosa che vale più del verdetto: chiesti '
+      + '180 giorni, **trovati 46** (`2026-07-20 → 2026-09-03`). Non è che il campione è piccolo — '
+      + 'è **finito**: indietro non c\'è altro, quelle sono tutte le giornate di menu che esistono.\n'
+      + '· 219 giornate, 37 clienti · **66** con spuntino **e** merenda (le uniche dove il doppione è '
+      + 'possibile) · **1** doppione, fra i gemelli: «Tonno in olio con maionese», il 3/9.\n'
+      + '⚠️ 66 su 100, quindi lo strumento **non dà un verdetto**, ed è giusto così: un caso su 66 '
+      + 'sembra raro, ma è esattamente il campione su cui quella soglia esiste per non far dire '
+      + '«raro» con la faccia di una misura.\n'
+      + '▶️ **Si rimisura a fine settembre.** 66 giornate a rischio in 46 giorni fanno ~1,4 al '
+      + 'giorno: per arrivare a 100 mancano tre settimane scarse di esercizio, meno se entrano '
+      + 'clienti nuove. Il comando è lo stesso, e da lì la scelta si fa in un minuto.\n'
+      + '✅ **E lo strumento adesso lo dice da sé** (4/9): quando la giornata più vecchia trovata è '
+      + 'dopo l\'inizio della finestra chiesta stampa «alzare GIORNI non serve, il campione è '
+      + 'FINITO» e stima quanti giorni di esercizio mancano. ⛔ Prima diceva «alza GIORNI e '
+      + 'rilancia» **anche quando indietro non c\'era altro**, cioè mandava a rilanciare a vuoto e '
+      + 'poi a decidere lo stesso senza il numero — con tutti gli elementi per accorgersene in mano '
+      + '(il periodo chiesto e quello trovato, che erano diversi).',
   },
   {
     chiave: 'la-e-nel-nome-tronca-in-silenzio',

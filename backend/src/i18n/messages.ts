@@ -234,6 +234,14 @@ const it: Catalog = {
     title: '',
     variants: ['<p><strong>{title}</strong></p><p>{body}</p><p style="color:#667">Ricevi questa email perché hai attivato le notifiche via email nelle preferenze. Puoi disattivarle in qualsiasi momento dall\'app.</p>'],
   },
+  // ⛔ L'avviso allo STAFF ha un testo suo: il piè di pagina di quello sopra parla di una
+  //    preferenza che una nutrizionista non ha, e le direbbe una cosa falsa. Qui si dice perché la
+  //    riceve, dove si spegne, e che spegnerla NON toglie la segnalazione dall'elenco.
+  'mail.staff_alert.subject': { title: '', variants: ['Metabole — {title}'] },
+  'mail.staff_alert.body': {
+    title: '',
+    variants: ['<p><strong>{title}</strong></p><p>{body}</p><p style="color:#667">Ricevi questa email perché sei fra le persone assegnate a questa cliente. Puoi spegnere questo tipo di avviso dal tuo profilo, nella tabella delle notifiche: la segnalazione resta comunque nel tuo elenco.</p>'],
+  },
   // ---------- Etichette ----------
   'label.days_always': { title: '', variants: ['sempre'] },
   'label.days_count': { title: '', variants: ['{days} giorni'] },
@@ -442,6 +450,11 @@ const en: Catalog = {
   'mail.notification.body': {
     title: '',
     variants: ['<p><strong>{title}</strong></p><p>{body}</p><p style="color:#667">You receive this email because you enabled email notifications in your preferences. You can turn them off anytime from the app.</p>'],
+  },
+  'mail.staff_alert.subject': { title: '', variants: ['Metabole — {title}'] },
+  'mail.staff_alert.body': {
+    title: '',
+    variants: ['<p><strong>{title}</strong></p><p>{body}</p><p style="color:#667">You receive this email because you are assigned to this client. You can turn this type of alert off in your profile, in the notifications table: the escalation stays in your list either way.</p>'],
   },
   'label.days_always': { title: '', variants: ['ever'] },
   'label.days_count': { title: '', variants: ['{days} days'] },

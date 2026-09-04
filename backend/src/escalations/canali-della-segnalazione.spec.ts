@@ -4,7 +4,7 @@
  * La distinzione che questo modulo esiste per tenere: una casella del profilo toglie la push,
  * **non** la segnalazione dall'elenco. Quella è lo stato che tiene ferma un'erogazione.
  */
-import { chiVaDisturbato } from './canali-della-segnalazione';
+import { chiRicevePostaAncheLei, chiVaDisturbato, CATEGORIE_CON_EMAIL } from './canali-della-segnalazione';
 
 describe('chiVaDisturbato', () => {
   const utenti = [{ id: 'nutri', prefs: {} }, { id: 'coach', prefs: {} }];
@@ -35,5 +35,55 @@ describe('chiVaDisturbato', () => {
 
   it('tiene l\'ordine dei destinatari, non quello degli utenti letti', () => {
     expect(chiVaDisturbato(['coach', 'nutri'], utenti, 'diet_blocked')).toEqual(['coach', 'nutri']);
+  });
+});
+
+describe('chiRicevePostaAncheLei', () => {
+  const utenti = [
+    { id: 'nutri', email: 'n@x.it', locale: 'it', prefs: {} },
+    { id: 'coach', email: 'c@x.it', locale: null, prefs: {} },
+  ];
+
+  it('alla nascita di un «piano bloccato» la posta va a tutti e due', () => {
+    expect(chiRicevePostaAncheLei(['nutri', 'coach'], utenti, 'diet_blocked', true)).toEqual([
+      { userId: 'nutri', email: 'n@x.it', locale: 'it' },
+      { userId: 'coach', email: 'c@x.it', locale: null },
+    ]);
+  });
+
+  /**
+   * ⛔ **È l'argine al diluvio.** La stessa segnalazione si chiude e si riapre più volte in un
+   * pomeriggio: con la push va bene, con la posta sarebbero dieci mail identiche.
+   */
+  it('quando la segnalazione TORNA dentro la tregua, la posta non parte', () => {
+    expect(chiRicevePostaAncheLei(['nutri'], utenti, 'diet_blocked', false)).toEqual([]);
+  });
+
+  it('sulle altre categorie non parte nemmeno alla nascita', () => {
+    expect(chiRicevePostaAncheLei(['nutri'], utenti, 'low_adherence', true)).toEqual([]);
+  });
+
+  /** ⚠️ Parte da chi va disturbato: chi ha spento l'avviso non è in quell'elenco, e non ci rientra. */
+  it('la posta segue chi va disturbato, non i destinatari grezzi', () => {
+    expect(chiRicevePostaAncheLei(['coach'], utenti, 'diet_blocked', true).map((p) => p.userId))
+      .toEqual(['coach']);
+  });
+
+  it('senza indirizzo non si inventa una mail', () => {
+    const senza = [{ id: 'nutri', email: '   ', locale: 'it', prefs: {} }];
+    expect(chiRicevePostaAncheLei(['nutri'], senza, 'diet_blocked', true)).toEqual([]);
+  });
+
+  it('e di un destinatario che non si è riusciti a leggere non si conosce l\'indirizzo', () => {
+    expect(chiRicevePostaAncheLei(['sconosciuto'], [], 'diet_blocked', true)).toEqual([]);
+  });
+
+  /**
+   * ⚠️ L'elenco è di prodotto, e va letto: `menu.service` apre anche una `other` con motivo «menu
+   * NON erogato», che lascia la cliente senza menu allo stesso modo. È una candidata dichiarata,
+   * non una dimenticanza — allungarlo abbassa l'attenzione su quello che c'era già.
+   */
+  it('oggi la posta parte per una categoria sola', () => {
+    expect([...CATEGORIE_CON_EMAIL]).toEqual(['diet_blocked']);
   });
 });

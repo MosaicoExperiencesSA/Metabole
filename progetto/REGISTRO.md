@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **La posta di «Piano bloccato», con il nome della cliente e il motivo.** Decisione
+  di Simone alla domanda posta apposta. ⚠️ Conseguenza detta invece che nascosta: quel corpo finisce
+  anche in `email_log`, che il backoffice mostra. Non passa da `sendNotificationEmail` — quello è il
+  modello delle **clienti**, con un piè di pagina che a una nutrizionista dice una cosa falsa, una
+  copia alla coach che non c'entra e un `templateKey` condiviso — ma da `sendStaffAlertEmail`, che
+  ha un testo suo e dice la verità a chi lo legge.
+  ⛔ **Due argini, misurati prima di scrivere:** la posta la manda la **nascita** e non il ritorno
+  (il ciclo chiudi/riapri farebbe dieci mail identiche in un pomeriggio; la push invece sì, è il
+  fatto nuovo), e un **tetto di dieci secondi** sulla chiamata a Brevo, che non ne aveva nessuno e
+  sta dentro la richiesta della cliente.
+
+- `[Sviluppo]` ⛔ **Lo strumento dei piatti doppi mandava a rilanciare a vuoto.** Chiesti 180 giorni,
+  **trovati 46**: i menu cominciano il 20 luglio. Il campione non era piccolo, era **finito**, e il
+  riquadro diceva «alza GIORNI e rilancia» avendo in mano tutti e due i numeri per accorgersene.
+  Adesso lo dice, e stima quanti giorni di esercizio mancano.
+  ▶️ La misura: 219 giornate, 37 clienti, 66 con spuntino **e** merenda, **un** doppione fra
+  gemelli. Sotto le 100 che servono, quindi nessun verdetto: si rimisura a fine settembre.
+
+
 - `[Sviluppo]` ✅ **«Piano bloccato» esce dall'app: push alla nutrizionista e alla coach.** È la
   segnalazione che **ferma l'erogazione** — la cliente vede «Menu in preparazione» e l'unica che può
   sbloccare è la nutrizionista, che finché non apriva il backoffice non lo sapeva. Decisione di

@@ -1,6 +1,7 @@
 import {
   GIORNATE_MINIME, QUOTA_CHE_CAMBIA_LA_STRADA, aRischioGemelli, contaDoppioni,
   doppioniDellaGiornata, doveCorreggere, type PastoLetto,
+  laStoriaEFinita, giorniDiEsercizioCheMancano,
 } from './piatti-doppi-nella-giornata';
 
 const p = (slot: string, recipeId: string, name = `Piatto ${recipeId}`): PastoLetto => ({ slot, recipeId, name });
@@ -394,5 +395,45 @@ describe('dove va la correzione', () => {
     expect(doveCorreggere(conto(200, 8), 0.02)).toBe('nella composizione');
     expect(doveCorreggere(conto(200, 20), 0.5)).toBe('guardia a valle');
     expect(doveCorreggere(conto(10, 1), undefined, 5)).toBe('nella composizione');
+  });
+});
+
+/**
+ * ⛔ **Il consiglio che non porta da nessuna parte.** Il 4/9 lo strumento ha detto «alza GIORNI e
+ * rilancia» su una finestra di 180 giorni che ne aveva trovati 46: indietro non c'era altro.
+ */
+describe('quando la storia è finita', () => {
+  const g = (s: string) => new Date(`${s}T00:00:00.000Z`);
+
+  it('la storia è finita se la giornata più vecchia è ben dopo l\'inizio chiesto', () => {
+    expect(laStoriaEFinita(g('2026-03-08'), g('2026-07-20'))).toBe(true);
+  });
+
+  it('non lo è se i menu partono da dove si è chiesto', () => {
+    expect(laStoriaEFinita(g('2026-03-08'), g('2026-03-08'))).toBe(false);
+  });
+
+  /** ⚠️ Un giorno di tolleranza: la finestra taglia a mezzanotte UTC, il fuso sposta di un'ora. */
+  it('un giorno di scarto non è «finita»: è il fuso', () => {
+    expect(laStoriaEFinita(g('2026-03-08'), g('2026-03-09'))).toBe(false);
+  });
+
+  it('senza nessuna giornata trovata non si dice niente', () => {
+    expect(laStoriaEFinita(g('2026-03-08'), null)).toBe(false);
+  });
+
+  it('stima quanti giorni di esercizio mancano, al ritmo di adesso', () => {
+    // 66 giornate a rischio in 46 giorni ≈ 1,43 al giorno; ne mancano 34 → 24 giorni.
+    expect(giorniDiEsercizioCheMancano(66, 46)).toBe(24);
+  });
+
+  it('zero se il campione basta già', () => {
+    expect(giorniDiEsercizioCheMancano(120, 46)).toBe(0);
+  });
+
+  /** ⛔ Un numero inventato è peggio di nessun numero. */
+  it('niente stima se non c\'è niente su cui stimare', () => {
+    expect(giorniDiEsercizioCheMancano(0, 46)).toBeNull();
+    expect(giorniDiEsercizioCheMancano(10, 0)).toBeNull();
   });
 });

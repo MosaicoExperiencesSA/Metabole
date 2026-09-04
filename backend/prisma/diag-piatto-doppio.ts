@@ -27,6 +27,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   GIORNATE_MINIME, QUOTA_CHE_CAMBIA_LA_STRADA, contaDoppioni, doveCorreggere,
   type GiornataLetta, type PastoLetto,
+  laStoriaEFinita, giorniDiEsercizioCheMancano,
 } from '../src/menu/piatti-doppi-nella-giornata';
 
 const prisma = new PrismaClient();
@@ -43,6 +44,12 @@ const titolo = (s: string) => {
 const num = (n: number) => String(n).padStart(6);
 const pct = (n: number, su: number) => (su > 0 ? `${((n / su) * 100).toFixed(1)}%` : '—');
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Quanti giorni copre la finestra davvero letta, estremi compresi. */
+function giorniFra(dal: Date | null, al: Date | null): number {
+  if (!dal || !al) return 0;
+  return Math.round((al.getTime() - dal.getTime()) / 86_400_000) + 1;
+}
 
 async function main() {
   titolo(`PIATTI DOPPI NELLA STESSA GIORNATA — ultimi ${GIORNI} giorni, sola lettura`);
@@ -134,8 +141,29 @@ async function main() {
   } else if (verdetto === 'campione troppo piccolo') {
     riga(`  ⚠️ Solo ${c.giornateARischioGemelli} giornate a rischio, sotto le ${GIORNATE_MINIME} che servono per dire qualcosa.`);
     riga(`     Su così poche, ${pct(c.perSpecie.gemelli, c.giornateARischioGemelli)} sta insieme sia a «sotto soglia» sia a «capita quasi sempre».`);
-    riga('     Alza GIORNI e rilancia: un verdetto perentorio su questo campione avrebbe la faccia');
-    riga('     di una misura senza esserlo.');
+    /**
+     * ⛔ **«Alza GIORNI» solo se indietro c'è davvero altro.** Il 4/9 questo riquadro l'ha detto su
+     * una finestra di 180 giorni che ne aveva trovati 46 — i menu cominciano lì — e chi lo legge
+     * rilancia a vuoto e poi decide lo stesso senza il numero. Il giudizio sta nel modulo, con le
+     * sue prove: qui si stampa.
+     */
+    const trovatoDa = c.dal ? new Date(`${c.dal}T00:00:00.000Z`) : null;
+    if (laStoriaEFinita(da, trovatoDa)) {
+      const coperti = giorniFra(trovatoDa, c.al ? new Date(`${c.al}T00:00:00.000Z`) : null);
+      const mancano = giorniDiEsercizioCheMancano(c.giornateARischioGemelli, coperti);
+      riga('');
+      riga(`  ⛔ E ALZARE GIORNI NON SERVE: hai chiesto dal ${ymd(da)}, la giornata più vecchia che`);
+      riga(`     esiste è del ${c.dal}. Indietro non c'è altro — il campione non è piccolo, è FINITO.`);
+      if (mancano !== null) {
+        riga('');
+        riga(`  ▶️ Al ritmo di adesso (${c.giornateARischioGemelli} giornate a rischio in ${coperti} giorni) ne servono altri ~${mancano}`);
+        riga('     di esercizio perché il campione basti. ⚠️ È una stima: presuppone questo ritmo e');
+        riga('     nessuna cliente nuova — con quelle arriva prima.');
+      }
+    } else {
+      riga('     Alza GIORNI e rilancia: un verdetto perentorio su questo campione avrebbe la faccia');
+      riga('     di una misura senza esserlo.');
+    }
   } else if (verdetto === 'non serve') {
     riga(`  ✅ Su ${c.giornateARischioGemelli} giornate con tutti e due i pasti gemelli, nessun piatto ripetuto fra loro.`);
     riga('     Il difetto è possibile ma non capita: la voce si può chiudere con una guardia');

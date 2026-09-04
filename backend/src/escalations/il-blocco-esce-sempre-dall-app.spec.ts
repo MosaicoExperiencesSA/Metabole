@@ -85,4 +85,16 @@ describe('il blocco che ferma l\'erogazione esce sempre dall\'app', () => {
     expect(bloccanti.length).toBeGreaterThanOrEqual(2);
     expect(bloccanti.filter((c) => !/canali:\s*\{/.test(c.testo)).map((c) => c.file)).toEqual([]);
   });
+
+  /**
+   * ⛔ **E li passa TUTTI E DUE.** Un `canali: { push }` senza il postino supera un controllo che
+   * guardi solo la parola `canali`, e la posta semplicemente non parte — di nuovo senza che nessun
+   * errore lo dica. La condizione è che il blocco esca **su tutti i canali che ha**, non che
+   * l'oggetto esista.
+   */
+  it('⛔ e li passa tutti e due: `push` e `mail`', () => {
+    const bloccanti = TUTTE.filter((c) => /category:\s*['"]diet_blocked['"]/.test(c.testo));
+    const monchi = bloccanti.filter((c) => !/push:/.test(c.testo) || !/mail:/.test(c.testo));
+    expect(monchi.map((c) => c.file)).toEqual([]);
+  });
 });

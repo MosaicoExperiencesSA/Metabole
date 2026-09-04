@@ -1,0 +1,128 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * KIT DI MONTAGGIO — file estratto da Metabole e ripulito.
+ * Manuale: kit/manuale/03-permessi.md
+ * Da fare mentre lo copi: niente, e' il cuore dei permessi
+ * ⚠️ I commenti che raccontano decisioni ed errori passati sono TENUTI apposta:
+ *    sono il motivo per cui il file è fatto così. Non toglierli mentre adatti.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { PrismaService } from '../../prisma/prisma.service';
+import {
+  DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, NON_EREDITANO, PAGE_GRANTS, PageKey,
+} from '../../permissions/pages';
+import { catenaDeiGenitori } from '../../permissions/eredita-dal-genitore';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { PAGE_KEY, PageLevel } from '../decorators/require-page.decorator';
+import { AuthUser } from '../interfaces/auth-user.interface';
+import { Role } from '../roles';
+
+/**
+ * Applica la matrice permessi pagina×ruolo lato server (difesa in profondità):
+ * se la rotta è taggata con @RequirePage, il ruolo deve avere view (GET) o manage
+ * (modifiche) su quella pagina. Rotte non taggate → invariate (solo @Roles).
+ * L'admin è sempre ammesso (superutente). ⚠️ Sugli errori di lookup si è permissivi SOLO se la rotta
+ * ha ancora un @Roles sotto: dove questo guardiano è l'unico cancello (`impersonate`,
+ * `cancel_subscription`) un errore chiude, non apre.
+ */
+@Injectable()
+export class PageGuard implements CanActivate {
+  private readonly logger = new Logger(PageGuard.name);
+  constructor(private readonly reflector: Reflector, private readonly prisma: PrismaService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [context.getHandler(), context.getClass()]);
+    if (isPublic) return true;
+
+    const meta = this.reflector.getAllAndOverride<{ pageKey: string; level?: PageLevel } | undefined>(
+      PAGE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (!meta?.pageKey) return true;
+
+    const req = context.switchToHttp().getRequest();
+    const user = req.user as AuthUser | undefined;
+    if (!user) return false;
+    if (user.role === 'admin') return true; // superutente
+
+    const level: PageLevel = meta.level ?? (req.method === 'GET' ? 'view' : 'manage');
+    try {
+      // Verifica il permesso di un singolo pageKey (riga DB o default di ruolo).
+      const has = async (key: string): Promise<boolean> => {
+        /**
+         * ⛔ **LA RIGA MANCANTE VALE QUANTO QUELLA DEL GENITORE, non quanto il default** (2/9).
+         *
+         * `syncDefaults` crea le righe all'avvio, ma `onModuleInit` **assorbe** il proprio errore
+         * con un `warn`: un singhiozzo del database lascia un'istanza viva per sempre con le righe
+         * mancanti, e qui si decide chi entra. Ripiegare sul default arricchito rimetteva in piedi
+         * il difetto che `INHERIT_DEFAULTS` promette di non avere — **lato server**, dove non è
+         * una voce di menu ma una porta: a chi Simone aveva spento a mano `diets_catalog`, la
+         * figlia valeva accesa.
+         *
+         * ⚠️ Le query in più si fanno **solo** quando la riga manca, che è il caso raro; e la
+         * catena è di uno. La regola è la stessa di `syncDefaults` e di `ruoloPuo`, e sta in un
+         * posto solo: *se più punti rispondono alla stessa domanda, uno deve chiamare gli altri*.
+         */
+        const leggi = async (k: string) => (await this.prisma.rolePagePermission.findUnique({
+          where: { role_pageKey: { role: user.role, pageKey: k } },
+          select: { canView: true, canManage: true },
+        })) as { canView: boolean; canManage: boolean } | null;
+
+        for (const k of catenaDeiGenitori(key, INHERIT_DEFAULTS, NON_EREDITANO)) {
+          const row = await leggi(k);
+          if (row) return level === 'view' ? !!row.canView : !!row.canManage;
+          /** ⚠️ Il default ESPLICITO della figlia vince sull'eredità: è la precedenza di sempre. */
+          if (k === key) {
+            const suo = DEFAULT_ESPLICITI[user.role]?.[key as PageKey];
+            if (suo) return level === 'view' ? !!suo.view : !!suo.manage;
+          }
+        }
+        const def = DEFAULT_PERMISSIONS[user.role as Role]?.[key as PageKey];
+        return level === 'view' ? !!def?.view : !!def?.manage;
+      };
+      let allowed = await has(meta.pageKey);
+      // Fallback: chi ha una pagina "hub" (es. "Gestione dieta" o "Creazione e
+      // validazione") può usare le API dei domini che quell'hub concede
+      // (diets_catalog, recipes), pur senza il permesso diretto sulla pagina del
+      // singolo catalogo → così bastano poche voci di menu per gestire tutto.
+      if (!allowed) {
+        const grantors = Object.entries(PAGE_GRANTS)
+          .filter(([, granted]) => granted.includes(meta.pageKey as PageKey))
+          .map(([hub]) => hub);
+        for (const h of grantors) {
+          if (await has(h)) { allowed = true; break; }
+        }
+      }
+      if (!allowed) throw new ForbiddenException('Non hai il permesso per questa sezione.');
+      return true;
+    } catch (e) {
+      if (e instanceof ForbiddenException) throw e;
+      this.logger.warn(`PageGuard lookup fallito (${user.role}/${meta.pageKey}): ${e instanceof Error ? e.message : e}`);
+      /**
+       * ⚠️ IL FAIL-OPEN VALE SOLO SE SOTTO C'È ANCORA UNA RETE — corretto il 17/8 sera, in revisione.
+       *
+       * Questo `return true` è nato con una premessa scritta nel docstring: «@Roles resta applicato».
+       * Il 17/8 quella premessa ha smesso di valere su due rotte: `impersonate` (11/8) e
+       * l'annullamento abbonamento sono passati da `@Roles('admin')` alla sola chiave di matrice, e
+       * `RolesGuard` **senza metadata lascia passare qualunque utente autenticato**. Il risultato:
+       * un blip del database di trenta secondi e una cliente loggata poteva chiamare
+       * `POST /admin/subscriptions/:id/cancel` — che non verifica nessuna proprietà — e annullare il
+       * piano di chiunque, con il proprio nome nel registro.
+       *
+       * Quindi: se la rotta ha ancora un `@Roles`, si resta permissivi come prima (un errore di
+       * lettura dei permessi non deve chiudere fuori tutto lo staff per una pagina già protetta dal
+       * ruolo). Se non ce l'ha, **questo guardiano è l'unico cancello** e un cancello che si apre da
+       * solo quando il database tossisce non è un cancello.
+       */
+      const ruoliRichiesti = this.reflector.getAllAndOverride<string[] | undefined>(ROLES_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (ruoliRichiesti?.length) return true;
+      throw new ForbiddenException('Permesso non verificabile in questo momento. Riprova fra poco.');
+    }
+  }
+}

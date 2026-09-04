@@ -1,0 +1,420 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// KIT DI MONTAGGIO — lo schema di base.
+// Manuale: kit/manuale/04-identita.md · 07-amministrazione.md · 08-commerciale.md
+//
+// ⚠️ NON è uno schema completo da incollare: è il NUCLEO comune. I modelli del tuo
+//    dominio si aggiungono, e il blocco «commerciale» in fondo si tiene solo se il
+//    progetto vende qualcosa.
+// ⛔ REGOLA UNICA SUGLI IMPORTI: interi in CENTESIMI. Mai Float, mai Decimal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+
+// ⛔ Quattro, e restano quattro. I mestieri sono `CustomRole`. (kit/manuale/00-decisioni.md)
+enum Role { user staff manager admin }
+enum UserStatus { active suspended deleted }
+enum ActionTokenType { email_verification email_change password_reset }
+enum ConfigParamType { number string boolean json }
+
+// ═══════════════════════════ IDENTITÀ (capitolo 04) ══════════════════════════
+
+model User {
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  // ⚠️ La SECONDA email (capitolo 05): si entra con tutte e due, si RICEVE solo sulla principale.
+  secondaryEmail     String?    @unique @map("secondary_email")
+  passwordHash       String     @map("password_hash")
+  // Account creati da un amministratore: il frontend forza il cambio al primo accesso — la
+  // password iniziale l'ha vista una seconda persona.
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  role               Role       @default(user)
+  // Il mestiere: etichetta + colore + riga sua nei permessi. Nessuna migrazione per aggiungerne uno.
+  customRoleKey      String?    @map("custom_role_key")
+  customRole         CustomRole? @relation(fields: [customRoleKey], references: [key], onDelete: SetNull)
+  status             UserStatus @default(active)
+  emailVerifiedAt    DateTime?  @map("email_verified_at")
+  locale             String     @default("it")
+  theme              String     @default("light")
+
+  firstName String? @map("first_name")
+  lastName  String? @map("last_name")
+  phone     String?
+  photoUrl  String? @map("photo_url")   // data URL già ridotta lato browser (capitolo 06)
+  prefs     Json?                       // ordine del menu, moduli della home
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  // ⚠️ Si SOSPENDE, non si distrugge: un utente ha righe attaccate ovunque.
+  deletedAt DateTime? @map("deleted_at")
+
+  refreshTokens RefreshToken[]
+  actionTokens  ActionToken[]
+  auditLogs     AuditLog[]
+  configChanges ConfigParam[] @relation("ConfigUpdatedBy")
+  staff         Staff?
+  orders        Order[]
+  payments      Payment[]
+
+  @@index([role])
+  @@map("user")
+}
+
+// ⚠️ Salvato HASHATO: chi legge il database non può usarlo per entrare.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  // Il logout e il reset password mettono questa: da lì il token è morto anche se qualcuno ne ha copia.
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_token")
+}
+
+// ⚠️ Monouso = `usedAt` valorizzato, NON cancellato: un token usato che resta racconta cosa è
+// successo e quando. Anche questo hashato.
+model ActionToken {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      ActionTokenType
+  tokenHash String          @unique @map("token_hash")
+  email     String?         // la destinazione, per il cambio email
+  expiresAt DateTime        @map("expires_at")
+  usedAt    DateTime?       @map("used_at")
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@index([userId, type])
+  @@map("action_token")
+}
+
+// ═══════════════════════ PERMESSI (capitoli 03 e 07) ═════════════════════════
+
+model CustomRole {
+  key         String   @id                        // "tutor", "segreteria"…
+  label       String
+  color       String?
+  // ⚠️ Non modificabile dopo la creazione: cambiarlo sposterebbe in silenzio i default di tutte
+  // le pagine per tutti quelli che ce l'hanno addosso. Si crea un ruolo nuovo.
+  baseRole    Role     @map("base_role")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("custom_role")
+}
+
+model RolePagePermission {
+  // ⚠️ `String` e non l'enum, di proposito: qui ci deve poter stare anche la chiave di un ruolo
+  // personalizzato. Con l'enum ogni mestiere nuovo sarebbe una migrazione.
+  role        String
+  pageKey     String   @map("page_key")
+  canView     Boolean  @default(false) @map("can_view")
+  canManage   Boolean  @default(false) @map("can_manage")
+  updatedById String?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@id([role, pageKey])
+  @@map("role_page_permission")
+}
+
+// ═════════════════════ REGISTRO E PARAMETRI (capitolo 07) ════════════════════
+
+// ⛔ NESSUN endpoint di scrittura o cancellazione, per nessuno. Un registro modificabile non è
+//    una prova: è un documento.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id")      // null = il sistema
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String                         // "dominio.verbo" — stringa, non enum
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  // ⚠️ «Di quando è l'ultima X» è una domanda che una pagina fa a ogni apertura. Senza questo
+  // indice costa la scansione dell'INTERO registro — proprio quando la riga non c'è.
+  @@index([action, createdAt])
+  @@map("audit_log")
+}
+
+// ⛔ Nessuna soglia si scrive nel codice: un numero nel codice è un numero che per cambiare
+//    richiede te.
+model ConfigParam {
+  key         String          @id
+  value       String
+  type        ConfigParamType @default(number)
+  description String?
+  updatedById String?         @map("updated_by_id")
+  updatedBy   User?           @relation("ConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@map("config_param")
+}
+
+// ═══════════════════════ LISTA LAVORI (capitolo 7.5) ═════════════════════════
+
+model Lavoro {
+  id        String    @id @default(uuid())
+  chiave    String?   @unique                 // per le voci caricate da file: niente doppioni
+  titolo    String                            // 3–200 caratteri
+  dettaglio String?
+  categoria String    @default("Da fare")
+  ordine    Int       @default(0)
+  // ⚠️ `blocca` è un FATTO verificabile (dietro c'è una fila ferma). `priorita` è un GIUDIZIO, e lo
+  // dà una persona sola. Con un campo solo, in un mese è tutto rosso e il colore non dice più niente.
+  blocca    Boolean   @default(false)
+  // ⚠️ Il default è `neutra`, non `bassa`: una voce nuova non è meno importante, è una voce su cui
+  // nessuno si è ancora pronunciato.
+  priorita  String    @default("neutra")      // alta | neutra | bassa
+  fatta     Boolean   @default(false)
+  risposta  String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  chiusaIl  DateTime? @map("chiusa_il")
+
+  @@map("lavoro")
+}
+
+// ═══════════ COMMERCIALE (capitolo 08) — solo se il progetto vende ═══════════
+
+enum PaymentMethod { bank_transfer card cash other }
+enum PaymentStatus { pending approved rejected }
+enum OrderStatus   { pending paid cancelled refunded }
+enum LedgerType    { income expense }
+
+model Staff {
+  id          String @id @default(uuid())
+  userId      String @unique @map("user_id")
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String @map("display_name")
+  bio         String?
+  iban        String?
+  // ⚠️ Il livello sta sulla PERSONA, non sul ruolo: chi sale non deve cambiare ruolo per farlo.
+  level       Int    @default(1)
+  // Chi sta sopra nella rete. null = è in cima.
+  parentId    String? @map("parent_id")
+  // ⚠️ null e 0 significano ENTRAMBI «nessun tetto». Un tetto a zero preso alla lettera
+  //    azzererebbe i compensi di chi non ne ha uno.
+  monthlyCapCents Int? @map("monthly_cap_cents")
+
+  compensations StaffCompensation[] @relation("CompensationStaff")
+  withdrawals   CommissionWithdrawal[] @relation("StaffWithdrawals")
+
+  @@map("staff")
+}
+
+model Product {
+  id            String  @id @default(uuid())
+  name          String
+  description   String?
+  priceCents    Int     @map("price_cents")
+  // ⚠️ Non si cancella: si disattiva. Ha ordini attaccati.
+  active        Boolean @default(true)
+  repurchasable Boolean @default(true)
+  // ⛔ Percentuali per LIVELLO: {"1": 25, "2": 35, "3": 45}. Chi sta sopra incassa la DIFFERENZA
+  //    col livello sotto, quindi il totale è sempre la percentuale del livello più alto presente:
+  //    la rete non regala e non buca. Un mestiere nuovo qui non tocca niente.
+  commissionByLevel Json @default("{}") @map("commission_by_level")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("product")
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  clientId   String      @map("client_id")
+  client     User        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status     OrderStatus @default(pending)
+  totalCents Int         @map("total_cents")
+  // ⚠️ La FOTOGRAFIA di allora: [{productId, name, priceCents, qty}]. Leggere il prezzo dal
+  //    prodotto farebbe cambiare retroattivamente tutte le ricevute già emesse.
+  items      Json
+  payment    Payment?
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([clientId])
+  @@map("order")
+}
+
+model Payment {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  client         User          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  orderId        String?       @unique @map("order_id")
+  order          Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  amountCents    Int           @map("amount_cents")
+  description    String
+  method         PaymentMethod @default(bank_transfer)
+  status         PaymentStatus @default(pending)
+  // ⚠️ CIFRATA a riposo (AES-256-GCM, iv 12B + authTag 16B + ciphertext): è un documento bancario
+  //    con dentro un IBAN.
+  receiptData    Bytes?        @map("receipt_data")
+  receiptMime    String?       @map("receipt_mime")
+  receiptName    String?       @map("receipt_name")
+  approvedById   String?       @map("approved_by_id")
+  approvedAt     DateTime?     @map("approved_at")
+  rejectReason   String?       @map("reject_reason")
+  discountCodeId String?       @map("discount_code_id")
+  discountCents  Int?          @map("discount_cents")
+  // ⚠️ Lo STORNO è una riga in più, mai una riga tolta: la contabilità deve poter raccontare che
+  //    c'è stato un incasso e poi un rimborso.
+  refundCents    Int?          @map("refund_cents")
+  refundedAt     DateTime?     @map("refunded_at")
+  refundById     String?       @map("refund_by_id")
+  refundNote     String?       @map("refund_note")
+  // ⚠️ Sembra superfluo e non lo è: senza, un rinnovo è indistinguibile da un primo acquisto e la
+  //    regola «sul rinnovo la provvigione si paga solo se chi ha venduto è ancora l'assegnato» non
+  //    si può nemmeno esprimere.
+  billingReason  String?       @map("billing_reason")   // first | renewal
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([clientId, createdAt])
+  @@map("payment")
+}
+
+model DiscountCode {
+  id           String    @id @default(uuid())
+  code         String    @unique                     // normalizzato MAIUSCOLO ai due lati
+  type         String                                // percent | fixed
+  value        Int                                   // 10 (%) oppure centesimi
+  clientId     String?   @map("client_id")           // se valorizzato: personale
+  maxTotalUses Int?      @map("max_total_uses")      // null = illimitato
+  maxPerClient Int       @default(1) @map("max_per_client")
+  usedCount    Int       @default(0) @map("used_count")
+  active       Boolean   @default(true)
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  redemptions DiscountRedemption[]
+
+  @@index([clientId])
+  @@map("discount_code")
+}
+
+// ⚠️ Una TABELLA, non un contatore: il contatore dice «quanti», questa dice chi, quando, quanto —
+//    ed è l'unica che risponde a «questo codice quanto ci è costato».
+model DiscountRedemption {
+  id          String       @id @default(uuid())
+  codeId      String       @map("code_id")
+  code        DiscountCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  clientId    String       @map("client_id")
+  paymentId   String?      @map("payment_id")
+  amountCents Int          @map("amount_cents")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([codeId, clientId])
+  @@map("discount_redemption")
+}
+
+model CostEntry {
+  id          String    @id @default(uuid())
+  label       String
+  category    String
+  amountCents Int       @map("amount_cents")
+  // ⚠️ Un canone mensile è UNA riga, espansa al momento del report. Salvarne dodici vuol dire
+  //    correggerne dodici il giorno che il canone cambia.
+  recurring   Boolean   @default(false)
+  cadence     String    @default("once")             // once | monthly | yearly
+  date        DateTime  @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  vendor      String?
+  // ⚠️ Testo libero scelto da una TENDINA che l'amministratore riempie dai Parametri. Non un enum
+  //    (una carta nuova sarebbe una migrazione), non una tabella sua (vorrebbe una pagina, e la
+  //    pagina Parametri esiste già). Prezzo della scelta: rinominare una voce non riscrive i costi
+  //    già registrati — che è la verità storica di come si chiamava allora.
+  paidWith    String?   @map("paid_with")
+  invoiceData Bytes?    @map("invoice_data")         // cifrata come le contabili
+  invoiceMime String?   @map("invoice_mime")
+  invoiceName String?   @map("invoice_name")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([category, date])
+  @@map("cost_entry")
+}
+
+// ⛔ LA FONTE UNICA del conto economico. Non si sommano i pagamenti da una parte e i costi
+//    dall'altra sperando che tornino: ogni movimento scrive UNA riga qui, e il report legge solo
+//    questa tabella.
+model LedgerEntry {
+  id          String     @id @default(uuid())
+  type        LedgerType
+  amountCents Int        @map("amount_cents")
+  category    String
+  date        DateTime   @default(now())
+  ref         String?                              // id del pagamento / prelievo di origine
+  clientId    String?    @map("client_id")
+  staffId     String?    @map("staff_id")
+  note        String?
+
+  @@index([type, date])
+  @@index([category, date])
+  // ⚠️ «Quanto ha maturato QUESTA persona in QUESTO mese» è la domanda del tetto e del portafoglio.
+  //    Senza indice è una scansione del registro contabile intero.
+  @@index([staffId, date])
+  @@map("ledger_entry")
+}
+
+model StaffCompensation {
+  id          String @id @default(uuid())
+  staffId     String @map("staff_id")
+  staff       Staff  @relation("CompensationStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  period      String                                // "2026-09"
+  amountCents Int    @default(0) @map("amount_cents")
+  items       Json   @default("[]")                 // [{at, kind, amountCents, ref}]
+
+  @@unique([staffId, period])
+  @@map("staff_compensation")
+}
+
+// Provvigione ACCANTONATA: qualcuno paga PRIMA che gli sia stato assegnato un referente. Senza
+// questa tabella quella provvigione o si perde in silenzio o si paga a chi non spetta.
+model PendingCommission {
+  id              String    @id @default(uuid())
+  paymentId       String    @map("payment_id")
+  clientId        String    @map("client_id")
+  level           Int                                // il livello che deve incassare
+  amountCents     Int       @map("amount_cents")
+  status          String    @default("pending")      // pending | paid | cancelled
+  resolvedStaffId String?   @map("resolved_staff_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  @@index([clientId, status])
+  @@map("pending_commission")
+}
+
+model CommissionWithdrawal {
+  id           String    @id @default(uuid())
+  staffId      String    @map("staff_id")
+  staff        Staff     @relation("StaffWithdrawals", fields: [staffId], references: [id], onDelete: Cascade)
+  amountCents  Int       @map("amount_cents")
+  // ⚠️ Si COPIA qui, non si legge dalla scheda: se la persona lo cambia dopo, la richiesta deve
+  //    continuare a raccontare dove i soldi sono davvero andati.
+  iban         String
+  status       String    @default("requested")       // requested | paid | rejected
+  receiptData  Bytes?    @map("receipt_data")
+  receiptMime  String?   @map("receipt_mime")
+  receiptName  String?   @map("receipt_name")
+  note         String?                               // il motivo del rifiuto: OBBLIGATORIO
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  paidAt       DateTime? @map("paid_at")
+  approvedById String?   @map("approved_by_id")
+
+  @@index([staffId, status])
+  @@map("commission_withdrawal")
+}

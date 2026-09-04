@@ -33,6 +33,12 @@ interface SendMailInput {
   copiaCoach?: boolean;
 }
 
+/**
+ * Quanto si aspetta Brevo prima di rinunciare. Dieci secondi: abbastanza perché una chiamata lenta
+ * arrivi comunque, poco abbastanza da non tenere ferma la schermata di una cliente.
+ */
+const TETTO_INVIO_MS = 10_000;
+
 /** Sostituisce i segnaposto {{var}} nel testo del template. */
 function render(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k: string) => (k in vars ? vars[k] : ''));
@@ -188,6 +194,16 @@ export class MailService {
     try {
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
+        /**
+         * ⛔ **UN TETTO AL TEMPO, perché non tutte le email partono da un cron.** Questa `fetch`
+         * non ne aveva nessuno: se Brevo si impunta, chi ha chiamato resta appeso finché non
+         * interviene il timeout della piattaforma. Va bene per un invio in coda; non va bene per
+         * gli avvisi che nascono **dentro la richiesta di una cliente** — `deliverIfEligible` gira
+         * a ogni apertura dell'app, e da lì può nascere «Piano bloccato». ⚠️ Un'email che non parte
+         * viene registrata `failed` in `email_log` e chi chiama va avanti: è già così per ogni
+         * altro errore di rete, questo ne aggiunge uno che prima non arrivava mai.
+         */
+        signal: AbortSignal.timeout(TETTO_INVIO_MS),
         headers: { 'api-key': key, 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({
           sender: this.sender,
@@ -403,6 +419,32 @@ export class MailService {
       html: this.i18n.text(locale, 'mail.notification.body', vars),
     }, vars);
     return this.send({ to, subject, html, templateKey: 'notification', copiaCoach: true });
+  }
+
+  /**
+   * ⛔ **L'AVVISO ALLO STAFF — e NON `sendNotificationEmail`, che è quello delle clienti.**
+   *
+   * Riusare quella sarebbe stato di una riga, e avrebbe fatto tre cose sbagliate insieme:
+   * · il suo piè di pagina dice *«ricevi questa email perché hai attivato le notifiche via email
+   *   nelle preferenze»* — a una nutrizionista è **falso**, e la manda a cercare un interruttore
+   *   che per lei non esiste (il suo sta nella tabella notifiche del profilo);
+   * · porta `copiaCoach: true`, cioè cerca la coach di chi riceve e la mette in copia — pensato per
+   *   le clienti, e su una riga `User` che avesse sia `staff` sia `clientProfile` metterebbe una
+   *   coach in copia a un avviso clinico che parla di **un'altra** cliente;
+   * · condivide il `templateKey` con le clienti, quindi chi riscrive dall'admin il modello delle
+   *   notifiche riscriverebbe **senza saperlo** anche l'avviso clinico allo staff.
+   *
+   * ⚠️ Il corpo nomina la cliente e dice il motivo — decisione di Simone del 4/9 — e quindi finisce
+   * anche in `email_log`, che il backoffice mostra. È scritto qui perché chi cambia questa funzione
+   * sappia che sta muovendo un dato clinico, non un avviso qualunque.
+   */
+  async sendStaffAlertEmail(to: string, locale: string | null | undefined, title: string, body: string): Promise<boolean> {
+    const vars = { title, body };
+    const { subject, html } = await this.resolve('staff_alert', {
+      subject: this.i18n.text(locale, 'mail.staff_alert.subject', { title }),
+      html: this.i18n.text(locale, 'mail.staff_alert.body', vars),
+    }, vars);
+    return this.send({ to, subject, html, templateKey: 'staff_alert' });
   }
 
   /** Report mensile alla cliente (con PDF allegato). */

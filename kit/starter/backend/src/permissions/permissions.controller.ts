@@ -1,0 +1,59 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * KIT DI MONTAGGIO — file estratto da Metabole e ripulito.
+ * Manuale: kit/manuale/03-permessi.md
+ * Da fare mentre lo copi: niente
+ * ⚠️ I commenti che raccontano decisioni ed errori passati sono TENUTI apposta:
+ *    sono il motivo per cui il file è fatto così. Non toglierli mentre adatti.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { AuthUser } from '../common/interfaces/auth-user.interface';
+import { PermissionsService } from './permissions.service';
+
+class UpdatePermissionDto {
+  @IsString()
+  role!: string; // ruolo di sistema o chiave di un ruolo personalizzato (validato nel service)
+
+  @IsString()
+  pageKey!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canView?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canManage?: boolean;
+}
+
+@Controller('admin/permissions')
+@Roles('admin')
+export class AdminPermissionsController {
+  constructor(private readonly permissions: PermissionsService) {}
+
+  @Get()
+  matrix() {
+    return this.permissions.getMatrix();
+  }
+
+  @Patch()
+  update(@Body() dto: UpdatePermissionDto, @CurrentUser() actor: AuthUser) {
+    return this.permissions.update(dto, actor.sub);
+  }
+}
+
+@Controller('me/permissions')
+export class MePermissionsController {
+  constructor(private readonly permissions: PermissionsService) {}
+
+  /** Il frontend costruisce menu e viste del backoffice dal ruolo EFFETTIVO. */
+  @Get()
+  mine(@CurrentUser() user: AuthUser) {
+    const effectiveRole = user.customRoleKey ?? user.role;
+    return this.permissions.getForRole(effectiveRole);
+  }
+}

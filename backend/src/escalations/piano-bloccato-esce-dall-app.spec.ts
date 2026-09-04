@@ -3,9 +3,8 @@
  *
  * La segnalazione **ferma l'erogazione**: la cliente legge «Menu in preparazione», e l'unica che
  * può sbloccare è la nutrizionista. Fino al 4/9 l'avviso era solo la riga in tabella — la vedeva
- * chi apriva il backoffice. Simone, 4/9: alla nutrizionista **e** alla coach.
- * ⚠️ L'email che aveva chiesto insieme alla push è una decisione sospesa: vedi
- * `canali-della-segnalazione.ts`.
+ * chi apriva il backoffice. Simone, 4/9: alla nutrizionista **e** alla coach, su push **e posta**,
+ * con il nome della cliente e il motivo dentro.
  *
  * ⚠️ Queste prove guardano il **trasporto** (le porte arrivano fino in fondo e non fanno fallire
  * niente); quali canali per quale categoria stanno in `canali-della-segnalazione.spec.ts`.
@@ -34,22 +33,44 @@ function portePrisma(opts: { utenti?: unknown[] } = {}) {
     notification: { create: jest.fn().mockResolvedValue({}) },
     user: {
       findMany: jest.fn().mockResolvedValue(opts.utenti ?? [
-        { id: 'u-nutri', prefs: {} }, { id: 'u-coach', prefs: {} },
+        { id: 'u-nutri', email: 'n@x.it', locale: 'it', prefs: {} },
+        { id: 'u-coach', email: 'c@x.it', locale: 'it', prefs: {} },
       ]),
     },
   };
 }
 
-const porte = () => ({ push: { sendToUser: jest.fn().mockResolvedValue(undefined) } });
+const porte = () => ({
+  push: { sendToUser: jest.fn().mockResolvedValue(undefined) },
+  mail: { sendStaffAlertEmail: jest.fn().mockResolvedValue(true) },
+});
 
 describe('«Piano bloccato» esce dall\'app', () => {
-  it('la push arriva alla nutrizionista E alla coach', async () => {
+  it('push e posta arrivano alla nutrizionista E alla coach', async () => {
     const prisma = portePrisma();
     const canali = porte();
     await apriSegnalazione(prisma as never, {
       clientId: 'c1', category: 'diet_blocked', reason: 'base non certificabile', canali,
     });
     expect(canali.push.sendToUser.mock.calls.map((c) => c[0]).sort()).toEqual(['u-coach', 'u-nutri']);
+    expect(canali.mail.sendStaffAlertEmail.mock.calls.map((c) => c[0]).sort()).toEqual(['c@x.it', 'n@x.it']);
+  });
+
+  /**
+   * ⚠️ **Il corpo nomina la cliente e dice il motivo** — decisione di Simone del 4/9, presa alla
+   * domanda posta apposta. Sta scritto in una prova perché è la conseguenza che si vede: quel testo
+   * finisce anche in `email_log`, che il backoffice mostra.
+   */
+  it('la posta porta il nome della cliente e il motivo', async () => {
+    const prisma = portePrisma();
+    const canali = porte();
+    await apriSegnalazione(prisma as never, {
+      clientId: 'c1', category: 'diet_blocked', reason: 'base non certificabile', canali,
+    });
+    const [, , titolo, corpo] = canali.mail.sendStaffAlertEmail.mock.calls[0];
+    expect(titolo).toBe('Piano bloccato');
+    expect(corpo).toContain('Ilaria');
+    expect(corpo).toContain('base non certificabile');
   });
 
   /** ⛔ La riga in app resta la traccia: si scrive comunque, ed è quella che tiene lo stato. */
@@ -64,9 +85,12 @@ describe('«Piano bloccato» esce dall\'app', () => {
    * ⛔ **Un avviso che non parte non deve far fallire la segnalazione.** È lo stesso incidente di
    * `notificaUtente`: la riga che tiene ferma l'erogazione vale più del disturbo che la annuncia.
    */
-  it('se la push esplode, la segnalazione nasce lo stesso', async () => {
+  it('se la push o la posta esplodono, la segnalazione nasce lo stesso', async () => {
     const prisma = portePrisma();
-    const canali = { push: { sendToUser: jest.fn().mockRejectedValue(new Error('fcm giù')) } };
+    const canali = {
+      push: { sendToUser: jest.fn().mockRejectedValue(new Error('fcm giù')) },
+      mail: { sendStaffAlertEmail: jest.fn().mockRejectedValue(new Error('brevo giù')) },
+    };
     const esito = await apriSegnalazione(prisma as never, {
       clientId: 'c1', category: 'diet_blocked', reason: 'x', canali,
     });
@@ -134,10 +158,22 @@ describe('«Piano bloccato» esce dall\'app', () => {
   });
 
   /** ⛔ Chi ha spento quel tipo nel profilo non viene disturbato — ma la riga in elenco ce l'ha. */
+  it('chi ha spento l\'avviso non riceve nemmeno la posta', async () => {
+    const prisma = portePrisma({ utenti: [
+      { id: 'u-nutri', email: 'n@x.it', locale: 'it', prefs: { notificationsDisabled: ['escalation_diet_blocked'] } },
+      { id: 'u-coach', email: 'c@x.it', locale: 'it', prefs: {} },
+    ] });
+    const canali = porte();
+    await apriSegnalazione(prisma as never, {
+      clientId: 'c1', category: 'diet_blocked', reason: 'x', canali,
+    });
+    expect(canali.mail.sendStaffAlertEmail.mock.calls.map((c) => c[0])).toEqual(['c@x.it']);
+  });
+
   it('l\'opt-out toglie il disturbo, non la segnalazione', async () => {
     const prisma = portePrisma({ utenti: [
-      { id: 'u-nutri', prefs: { notificationsDisabled: ['escalation_diet_blocked'] } },
-      { id: 'u-coach', prefs: {} },
+      { id: 'u-nutri', email: 'n@x.it', locale: 'it', prefs: { notificationsDisabled: ['escalation_diet_blocked'] } },
+      { id: 'u-coach', email: 'c@x.it', locale: 'it', prefs: {} },
     ] });
     const canali = porte();
     await apriSegnalazione(prisma as never, {
@@ -160,10 +196,17 @@ describe('«Piano bloccato» esce dall\'app', () => {
     });
     expect(prisma.escalation.create).not.toHaveBeenCalled();
     expect(canali.push.sendToUser).toHaveBeenCalled();
+    /**
+     * ⛔ **E la posta NO.** È l'argine al diluvio: la nutrizionista corregge le allergie,
+     * `resolveBlocks` chiude, la cliente apre l'app e il blocco torna — dieci volte in un
+     * pomeriggio. La push è il fatto nuovo; dieci mail identiche sono il modo più rapido per far
+     * smettere di leggere proprio quelle.
+     */
+    expect(canali.mail.sendStaffAlertEmail).not.toHaveBeenCalled();
   });
 
   /** ⚠️ Senza `prisma.user` (i finti minimi delle prove vecchie) la push parte lo stesso. */
-  it('senza la lettura degli utenti la push parte lo stesso', async () => {
+  it('senza la lettura degli utenti la push parte e la posta no', async () => {
     const prisma = portePrisma() as Record<string, unknown>;
     delete prisma.user;
     const canali = porte();
@@ -174,5 +217,6 @@ describe('«Piano bloccato» esce dall\'app', () => {
       canali,
     );
     expect(canali.push.sendToUser).toHaveBeenCalledTimes(1);
+    expect(canali.mail.sendStaffAlertEmail).not.toHaveBeenCalled();
   });
 });

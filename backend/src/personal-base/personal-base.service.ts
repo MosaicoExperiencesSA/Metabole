@@ -5,6 +5,7 @@ import { famigliaDelPaniere } from '../menu/menu.service';
 import { apriSegnalazione } from '../escalations/apri-segnalazione';
 import { Injectable, NotFoundException, Logger, Optional } from '@nestjs/common';
 import { PushService } from '../notifications/push.service';
+import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { allergieDaCodificare } from '../common/allergie';
@@ -80,6 +81,7 @@ export class PersonalBaseService {
      * `permessi-iniettati.spec.ts` adesso lo guarda.
      */
     @Optional() private readonly push?: PushService,
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   /** Stato della base personalizzata (per la app cliente). */
@@ -418,8 +420,8 @@ export class PersonalBaseService {
         // non un avviso che si ripete. Dentro la tregua si riapre quella risolta, col motivo di
         // adesso, invece di lasciare la cliente ferma davanti a «Menu in preparazione».
         statoNonAvviso: true,
-        // ⛔ E adesso esce anche dall'app: la push a chi può sbloccare. Vedi il costruttore.
-        canali: { push: this.push },
+        // ⛔ E adesso esce anche dall'app: push e posta a chi può sbloccare. Vedi il costruttore.
+        canali: { push: this.push, mail: this.mail },
       });
       await this.audit.log({
         action: 'personal_base.blocked',

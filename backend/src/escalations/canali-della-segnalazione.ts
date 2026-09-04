@@ -24,20 +24,36 @@
  * promette, l'altra è una voce da aprire, non una cosa da uniformare di nascosto alle sei del
  * mattino.
  *
- * ⚠️ **L'EMAIL NON È QUI, ED È UNA DECISIONE SOSPESA.** Simone l'aveva chiesta insieme alla push;
- * scriverla stanotte voleva dire passare da `sendNotificationEmail`, che è il modello delle
- * **clienti** (il piè di pagina dice «hai attivato le notifiche via email nelle preferenze», falso
- * per una nutrizionista, e rimanda a un interruttore che per lei non esiste), che mette in copia la
- * coach della cliente, e che **scrive il corpo in `email_log`** — cioè nome della cliente e motivo
- * clinico del blocco in una tabella che il backoffice mostra. Va deciso, non dedotto: vedi la voce
- * `piano-bloccato-solo-in-app`.
+ * ⛔ **E L'EMAIL, con il corpo che nomina la cliente e dice il motivo** (Simone, 4/9, alla domanda
+ * posta apposta: *«la mail si può viaggiare»*). Non passa da `sendNotificationEmail` — quello è il
+ * modello delle clienti — ma da `sendStaffAlertEmail`, che ha un testo suo, nessuna copia alla
+ * coach e un `templateKey` separato. ⚠️ Il corpo finisce anche in `email_log`, che il backoffice
+ * mostra: è la conseguenza di quella decisione, ed è scritta dove si vede.
  */
 import { EscalationCategory } from './escalation-routing';
 import { staffDisabledTypes } from '../notifications/notifica-utente';
 
+/**
+ * ⛔ **PER QUALI SEGNALAZIONI SI ARRIVA FINO ALLA POSTA.**
+ *
+ * `diet_blocked` è quella che Simone ha nominato, e la ragione è che **ferma l'erogazione**: la
+ * cliente resta davanti a «Menu in preparazione» finché qualcuno non interviene.
+ *
+ * ⚠️ **Non è però l'unica che lascia una cliente senza menu**, e va detto invece di far credere il
+ * contrario: `menu.service.ts` apre anche una `other` con motivo «menu NON erogato». È una
+ * candidata, non una dimenticanza — allungare questo elenco è una decisione di prodotto, perché
+ * ogni riga in più abbassa l'attenzione su quelle che c'erano già, e una posta che si smette di
+ * leggere è peggio di una posta che non arriva.
+ */
+export const CATEGORIE_CON_EMAIL: ReadonlySet<EscalationCategory> = new Set<EscalationCategory>([
+  'diet_blocked',
+]);
+
 /** Quel poco che serve sapere di un destinatario per decidere se disturbarlo. */
 export interface UtenteDestinatario {
   id: string;
+  email?: string | null;
+  locale?: string | null;
   /** `User.prefs`, da cui si legge `notificationsDisabled` (l'opt-out per tipo dello staff). */
   prefs?: unknown;
 }
@@ -60,4 +76,35 @@ export function chiVaDisturbato(
     const u = perId.get(userId);
     return !u || !staffDisabledTypes(u.prefs).includes(tipo);
   });
+}
+
+/**
+ * A chi mandare **anche** la mail, fra quelli che vanno disturbati.
+ *
+ * ⛔ **`nascita` non è un dettaglio: è l'argine al diluvio.** La stessa segnalazione si chiude e si
+ * riapre più volte in un pomeriggio — la nutrizionista corregge le allergie, `resolveBlocks` chiude,
+ * la cliente apre l'app, il motore ancora non compone e la riga torna aperta — e ogni ritorno è un
+ * avviso. Con la push va bene: è il fatto nuovo, e chi l'ha risolta deve sapere che è tornata. Con
+ * la posta sarebbero **dieci mail identiche in un pomeriggio**, cioè il modo più rapido per far
+ * smettere di leggere proprio quelle. Quindi: **la mail la manda la nascita, non il ritorno.**
+ *
+ * ⚠️ Un blocco che torna **fuori** dalla tregua è una segnalazione nuova, e la mail la rifà: è
+ * giusto, sono passate due settimane e nessuno se lo ricorda più.
+ * ⚠️ E chi non ha un indirizzo non entra: lì il limite è fisico, non una scelta.
+ */
+export function chiRicevePostaAncheLei(
+  daDisturbare: readonly string[],
+  utenti: readonly UtenteDestinatario[],
+  category: EscalationCategory,
+  nascita: boolean,
+): { userId: string; email: string; locale: string | null }[] {
+  if (!nascita || !CATEGORIE_CON_EMAIL.has(category)) return [];
+  const perId = new Map(utenti.map((u) => [u.id, u]));
+  const posta: { userId: string; email: string; locale: string | null }[] = [];
+  for (const userId of daDisturbare) {
+    const u = perId.get(userId);
+    const email = u?.email?.trim();
+    if (email) posta.push({ userId, email, locale: u?.locale ?? null });
+  }
+  return posta;
 }

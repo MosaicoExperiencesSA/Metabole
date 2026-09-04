@@ -261,3 +261,41 @@ export function doveCorreggere(
     ? 'nella composizione'
     : 'guardia a valle';
 }
+
+/**
+ * ⛔ **«ALZA GIORNI E RILANCIA» È UN CONSIGLIO CHE A VOLTE NON PORTA DA NESSUNA PARTE.**
+ *
+ * Misurato il 4/9: chiesti 180 giorni, trovati 46 — dal 20 luglio, che è quando cominciano i menu.
+ * Il campione non era piccolo per la finestra scelta: era **finito**. Lo strumento continuava a
+ * dire «alza GIORNI», e chi lo legge rilancia a vuoto, due volte, e poi decide lo stesso senza il
+ * numero. ⚠️ Gli elementi per accorgersene li aveva già tutti: il periodo **chiesto** e il periodo
+ * **trovato**, e sono diversi.
+ *
+ * Vero quando la giornata più vecchia trovata è **dopo** l'inizio della finestra chiesta: indietro
+ * non c'è altro da leggere. ⚠️ Un giorno di tolleranza, perché la finestra si taglia a mezzanotte
+ * UTC e la prima giornata utile può cadere il giorno dopo per un'ora di fuso.
+ */
+export function laStoriaEFinita(chiestoDa: Date, trovatoDa: Date | null): boolean {
+  if (!trovatoDa) return false;
+  return trovatoDa.getTime() - chiestoDa.getTime() > 86_400_000;
+}
+
+/**
+ * Quanti giorni di esercizio mancano perché il campione basti, al ritmo di adesso.
+ *
+ * ⚠️ **È una stima, e va detta come tale**: presuppone che il ritmo resti quello e che non entrino
+ * clienti nuove — con quelle arriva prima. Serve a rispondere «fra quanto ha senso rilanciare»,
+ * che è la domanda vera quando la storia è finita.
+ *
+ * Rende `0` quando il campione basta già, e `null` quando non si può stimare niente (nessuna
+ * giornata a rischio, o una finestra vuota): un numero inventato è peggio di nessun numero.
+ */
+export function giorniDiEsercizioCheMancano(
+  aRischio: number,
+  giorniCoperti: number,
+  minime = GIORNATE_MINIME,
+): number | null {
+  if (aRischio >= minime) return 0;
+  if (aRischio <= 0 || giorniCoperti <= 0) return null;
+  return Math.ceil((minime - aRischio) / (aRischio / giorniCoperti));
+}

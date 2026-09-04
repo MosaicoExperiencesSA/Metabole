@@ -64,8 +64,9 @@ describe('le dipendenze facoltative arrivano davvero', () => {
    * ancorando la ricerca a inizio riga (vedi sopra) il conto è sceso da tre a due, perché uno dei
    * tre era la **menzione** dentro una voce dei lavori. Il numero è due, e sono questi due.
    */
-  it('⛔ il lettore trova davvero i parametri `@Optional()`, e sono i due che ci sono', () => {
-    expect(PARAMETRI.map((p) => p.file).sort()).toEqual([
+  it('⛔ il lettore trova davvero i parametri `@Optional()`, e sono quelli che ci sono', () => {
+    expect([...new Set(PARAMETRI.map((p) => p.file))].sort()).toEqual([
+      'src/menu/menu.service.ts',
       'src/personal-base/personal-base.service.ts',
       'src/vera/registro.service.ts',
     ]);

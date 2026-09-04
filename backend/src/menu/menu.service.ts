@@ -34,7 +34,8 @@ import {
 import { attendeIlViaLiberaClinico, statoSupervisione, type ProfiloDaSupervisionare } from '../clients/via-libera-clinico';
 import { riparaGiornate } from './ripara-giornata';
 import { cercaUnAlternativa } from './cerca-un-alternativa';
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { EventsService } from '../calendar/events.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
@@ -205,6 +206,13 @@ export class MenuService {
     private readonly dayCombo: DayComboService,
     private readonly kcalNeed: KcalNeedService,
     private readonly push: PushService,
+    /**
+     * ⛔ **Il postino di «Piano bloccato»** (Simone, 4/9). ⚠️ `@Optional` **senza `| null`**: venti
+     * prove costruiscono questo servizio a mano, e un tipo unione farebbe emettere `Object` nei
+     * metadati — Nest non saprebbe cosa iniettare e la dipendenza resterebbe vuota per sempre, in
+     * silenzio. È il difetto che `dipendenze-facoltative-che-arrivano.spec.ts` adesso guarda.
+     */
+    @Optional() private readonly mail?: MailService,
   ) {}
 
   /**
@@ -4193,9 +4201,11 @@ export class MenuService {
        * ⛔ **E adesso esce anche dall'app.** «Piano bloccato» ferma l'erogazione: la cliente legge
        * «Menu in preparazione» e l'unica che può sbloccare è la nutrizionista — che finché non
        * apriva il backoffice non lo sapeva. Push alla nutrizionista **e** alla coach assegnate
-       * (Simone, 4/9). ⚠️ L'email di quella decisione **non è qui**: vedi la voce dei lavori.
+       * (Simone, 4/9), e la **posta** con il nome della cliente e il motivo — decisione della
+       * stessa mattina, alla domanda posta apposta. ⚠️ La posta la manda solo la **nascita**: vedi
+       * `canali-della-segnalazione.ts`.
        */
-      canali: { push: this.push },
+      canali: { push: this.push, mail: this.mail },
     });
     await this.audit.log({
       action: 'menu.diet_blocked',

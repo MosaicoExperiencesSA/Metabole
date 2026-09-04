@@ -1,0 +1,55 @@
+La posta di «Piano bloccato», e lo strumento che mandava a rilanciare a vuoto
+
+⛔ LA MAIL, CON IL NOME DELLA CLIENTE E IL MOTIVO
+Simone, 4/9, alla domanda posta apposta: «la mail si può viaggiare». Quindi l'avviso di «Piano
+bloccato» adesso arriva anche per posta alla nutrizionista e alla coach, e nomina la cliente e dice
+perché il piano è fermo. ⚠️ Conseguenza detta invece che nascosta: quel corpo finisce anche in
+`email_log`, che il backoffice mostra nella pagina «Log email».
+
+✅ E NON PASSA DA `sendNotificationEmail`, CHE È QUELLO DELLE CLIENTI
+Riusarlo sarebbe stato di una riga e avrebbe fatto tre cose sbagliate insieme: il piè di pagina dice
+«ricevi questa email perché hai attivato le notifiche via email nelle preferenze» — a una
+nutrizionista è FALSO, e la manda a cercare un interruttore che per lei non esiste; porta
+`copiaCoach: true`, cioè cerca la coach di chi riceve e la mette in copia; e condivide il
+`templateKey` con le clienti, quindi chi riscrive dall'admin il modello delle notifiche riscriverebbe
+senza saperlo anche l'avviso clinico allo staff.
+Adesso c'è `sendStaffAlertEmail`: chiave `staff_alert`, nessuna copia, e un piè di pagina che dice la
+verità — perché la ricevi, dove si spegne, e che spegnerla NON toglie la segnalazione dall'elenco.
+
+⛔ E DUE ARGINI, MISURATI PRIMA DI SCRIVERE
+1. LA POSTA LA MANDA LA NASCITA, NON IL RITORNO. La stessa segnalazione si chiude e si riapre più
+   volte in un pomeriggio — la nutrizionista corregge le allergie, `resolveBlocks` chiude, la cliente
+   apre l'app, il motore ancora non compone e la riga torna aperta. Con la push va bene: è il fatto
+   nuovo, e chi l'ha risolta deve sapere che è tornata. Con la posta sarebbero dieci mail identiche
+   in un pomeriggio, cioè il modo più rapido per far smettere di leggere proprio quelle.
+   ⚠️ Un blocco che torna FUORI dalla tregua è una segnalazione nuova, e la mail la rifà: sono
+   passate due settimane e nessuno se lo ricorda più.
+2. UN TETTO AL TEMPO SULLA CHIAMATA A BREVO (10 s). Quella `fetch` non ne aveva nessuno, e questi
+   avvisi nascono DENTRO la richiesta della cliente (`deliverIfEligible` gira a ogni apertura
+   dell'app): se Brevo si impunta, la schermata resta appesa fino al timeout di piattaforma. Vale per
+   ogni email del progetto, non solo per questa.
+
+⚠️ E UNA COSA DICHIARATA INVECE CHE TACIUTA: `diet_blocked` non è l'unica che lascia una cliente
+senza menu — `menu.service` apre anche una `other` con motivo «menu NON erogato». È una candidata
+per la posta, non una dimenticanza: allungare quell'elenco è una decisione, perché ogni riga in più
+abbassa l'attenzione su quelle che c'erano già.
+
+⛔ E LO STRUMENTO DEI PIATTI DOPPI MANDAVA A RILANCIARE A VUOTO
+Lanciato sui dati veri (4/9): chiesti 180 giorni, TROVATI 46 — i menu cominciano il 20 luglio. Il
+campione non era piccolo, era FINITO, e il riquadro continuava a dire «alza GIORNI e rilancia» con
+tutti gli elementi per accorgersene in mano (il periodo chiesto e quello trovato, che erano diversi).
+Adesso, quando la giornata più vecchia è dopo l'inizio chiesto, dice che indietro non c'è altro e
+STIMA quanti giorni di esercizio mancano al ritmo di adesso. Il giudizio sta nel modulo con le sue
+prove (`laStoriaEFinita`, `giorniDiEsercizioCheMancano`), non nello script.
+▶️ La misura: 219 giornate, 37 clienti, 66 con spuntino E merenda, UN doppione fra gemelli. Sotto le
+100 che servono, quindi nessun verdetto — si rimisura a fine settembre, e la voce se lo scrive.
+
+✅ E LA SENTINELLA CHIEDE TUTTI E DUE I CANALI
+`canali: { push }` senza il postino supererebbe un controllo che guarda solo la parola `canali`, e la
+posta non partirebbe — di nuovo senza che nessun errore lo dica. Adesso ogni `diet_blocked` deve
+nominare `push` e `mail`.
+
+🧪 Ventitré mutazioni, tutte prese.
+
+7410 prove verdi su 432 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su `app/` e `backoffice/`.

@@ -1,0 +1,853 @@
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * KIT DI MONTAGGIO — file estratto da Metabole e ripulito.
+ * Manuale: kit/manuale/01-grafica.md
+ * Da fare mentre lo copi: sostituisci la palette di :root con la tua
+ * ⚠️ I commenti che raccontano decisioni ed errori passati sono TENUTI apposta:
+ *    sono il motivo per cui il file è fatto così. Non toglierli mentre adatti.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+/* Tema Metabole — stessa palette del prototipo grafico (nocanty-ux). */
+:root {
+  --accent: #12a386;
+  --accent-dark: #0e7c66;
+  --deep: #10403a;
+  --coral: #e8825a;
+  --coral-dark: #993c1d;
+  --violet: #6c5ab7;
+  --gold: #b8863b;
+  --bg: #faf8f3;
+  --card: #ffffff;
+  --ink: #16302c;
+  --muted: #7c8c88;
+  --line: #ece7de;
+  --chip: #dcebe3;
+  --chip-ink: #0e7c66;
+  --danger: #c0392b;
+  --danger-bg: #fbeee7;
+  --ok: #dcf0d8;
+  --ok-ink: #3b6d11;
+  --radius: 16px;
+  --shadow: 0 2px 8px rgba(16, 64, 58, 0.06);
+  --shadow-hover: 0 8px 20px rgba(16, 64, 58, 0.12);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: light;
+}
+
+/* ============================================================
+   TEMI commutabili a runtime (data-theme su <html>).
+   Cambiano solo sfondi/superfici/testo; l'accento Metabole (teal,
+   coral, violet, gold, danger) resta uguale in tutti i temi.
+   ============================================================ */
+/* Chiaro · verde Metabole (accento teal) */
+:root[data-theme="light"] {
+  --accent: #12a386; --accent-dark: #0e7c66; --deep: #10403a;
+  --bg: #faf8f3; --card: #ffffff; --ink: #16302c; --muted: #7c8c88;
+  --line: #ece7de; --chip: #dcebe3; --chip-ink: #0e7c66;
+  --ok: #dcf0d8; --ok-ink: #3b6d11; --danger-bg: #fbeee7;
+  color-scheme: light;
+}
+/* Notturno · oro (accento dorato su fondo scuro) */
+:root[data-theme="dark"] {
+  --accent: #cba14e; --accent-dark: #e3c079; --deep: #0d0a06;
+  --bg: #14110b; --card: #1e1810; --ink: #ece3d0; --muted: #a99d85;
+  --line: #38301f; --chip: #2a2113; --chip-ink: #e6c98a;
+  --ok: #202a12; --ok-ink: #c7d98a; --danger-bg: #3a1f1c;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.45); --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+/* Tortora · terracotta (accento caldo) */
+:root[data-theme="taupe"] {
+  --accent: #c2683c; --accent-dark: #9d4e28; --deep: #3a2e24;
+  --bg: #e6ded2; --card: #f5f0e8; --ink: #33291f; --muted: #7c7161;
+  --line: #cabfad; --chip: #efe1d5; --chip-ink: #9d4e28;
+  --ok: #e3ecd6; --ok-ink: #5c6d2a; --danger-bg: #f3e0d8;
+  color-scheme: light;
+}
+/* Minimal · indaco (accento indaco su bianco) */
+:root[data-theme="white"] {
+  --accent: #5b57c9; --accent-dark: #423fa0; --deep: #2a2740;
+  /*
+    La barra dei menu schiarita (Simone, 11/8). `--deep` resta com'era perché lo usano titoli e
+    icone sul bianco, dove serve scuro: qui cambia SOLO la barra.
+    #4b4878 è ancora abbastanza scuro da tenere il testo chiaro leggibile (contrasto ~7:1 sul
+    #cfe3db delle voci), e le etichette dei gruppi salgono di conseguenza: sul fondo di prima
+    stavano bene, su questo sparivano.
+  */
+  --sidebar: #4b4878; --sidebar-sep: #b9b5e0;
+  --bg: #ffffff; --card: #ffffff; --ink: #1c1a24; --muted: #85808f;
+  --line: #eceaf2; --chip: #eae9f7; --chip-ink: #423fa0;
+  --ok: #e7f0ff; --ok-ink: #3a58a0; --danger-bg: #fbeef0;
+  color-scheme: light;
+}
+/* Cipria · fucsia (accento magenta scuro su cipria) */
+:root[data-theme="fucsia"] {
+  --accent: #b03a6e; --accent-dark: #8c2c56; --deep: #3a2430;
+  --bg: #f7f0f3; --card: #ffffff; --ink: #2b1f27; --muted: #837080;
+  --line: #ecdfe5; --chip: #f6e6ee; --chip-ink: #8c2c56;
+  --ok: #e6f0e2; --ok-ink: #4f6b3f; --danger-bg: #f8e2e6;
+  color-scheme: light;
+}
+/* Acceso · mela e indaco (verde mela primario, lo stesso desaturato come secondario, accento indaco) */
+:root[data-theme="acceso"] {
+  --accent: #5b57c9; --accent-dark: #423fa0; --deep: #2c3a00;
+  /*
+    ⏪ RIMESSO COM'ERA (Simone, 12/8: «la combinazione acceso mela riportala come prima»).
+    Il verde mela era passato sulla barra e il fondo era stato desaturato: guardato sul vivo non
+    convinceva. Torna il fondo mela pieno, con la barra nello stesso verde portato molto giù —
+    il mela non regge il testo chiaro (2,1:1), quindi la barra scura resta l'unico modo di averlo
+    come fondo.
+    ⚠️ Le variabili `--sidebar-ink` / `--sidebar-hover` restano nel CSS generico: non le usa più
+    nessuno, ma i loro default sono ESATTAMENTE i colori fissi di prima, quindi non cambiano niente
+    e il giorno che serve una barra chiara ci sono già.
+  */
+  --sidebar: #2c3a00; --sidebar-sep: #b6c98a;
+  --bg: #8db600; --card: #edf2d9; --ink: #16250a; --muted: #5d6b3f;
+  --line: #d3dfb0; --chip: #eae9f7; --chip-ink: #423fa0;
+  --ok: #e2eecd; --ok-ink: #47630f; --danger-bg: #f7e2de;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: var(--accent-dark);
+}
+
+/* ---------- Layout ---------- */
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+/* Sidebar chiudibile */
+.app-shell.nav-closed .sidebar { display: none; }
+.nav-collapse {
+  background: none; border: none; color: #cfe3db; cursor: pointer;
+  padding: 4px 6px; border-radius: 8px; font-size: 18px; line-height: 1; flex: none;
+}
+.nav-collapse:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.nav-toggle {
+  background: none; border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 9px; cursor: pointer; color: var(--ink); font-size: 18px; line-height: 1;
+}
+.nav-toggle:hover { background: var(--chip); }
+/*
+  `--sidebar` e non `--deep` (11/8, richiesta di Simone sul tema indaco): la barra dei menu può
+  avere un colore suo senza trascinarsi dietro titoli e icone, che usano `--deep` in tutta
+  l'applicazione. Dove non è dichiarata vale `--deep`, quindi gli altri temi non cambiano di un
+  pixel.
+*/
+.sidebar {
+  width: 250px;
+  flex: none;
+  background: var(--sidebar, var(--deep));
+  /*
+    ⚠️ Il testo della barra è una VARIABILE dall'11/8, e non più un colore fisso chiaro.
+    Serve al tema «Acceso», dove la barra è verde mela: il testo chiaro su quel verde sta a 2,1:1,
+    cioè illeggibile. Chi non la imposta non cambia di una virgola.
+  */
+  color: var(--sidebar-ink, #eaf3ef);
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px 18px;
+}
+.brand .logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex: none;
+}
+.brand b {
+  font-size: 18px;
+  letter-spacing: 0.5px;
+}
+.brand span {
+  font-size: 11px;
+  color: #9cc4b8;
+  display: block;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--sidebar-ink, #cfe3db);
+  text-decoration: none;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.nav-item i {
+  font-size: 19px;
+  width: 22px;
+  text-align: center;
+}
+.nav-item:hover {
+  /* Su una barra CHIARA lo schiarimento non si vede: i temi chiari passano un velo scuro. */
+  background: var(--sidebar-hover, rgba(255, 255, 255, 0.07));
+  color: var(--sidebar-ink-forte, #fff);
+}
+.nav-item.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.nav-sep {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  /* Anche questo per tema: su una barra schiarita il verdino fisso perdeva contrasto. */
+  color: var(--sidebar-sep, #6f9488);
+  padding: 14px 12px 4px;
+}
+.sidebar-foot {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.topbar {
+  height: 64px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 26px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.topbar h1 {
+  font-size: 20px;
+  margin: 0;
+  font-weight: 700;
+}
+.content {
+  padding: 26px;
+  width: 100%;
+}
+/* Tutte le schermate usano l'intera larghezza dello schermo. */
+
+/* ---------- Componenti ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.card + .card {
+  margin-top: 18px;
+}
+/* Riga di due moduli affiancati con la stessa spaziatura verticale delle card. */
+.card-row {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.card-row > .card {
+  flex: 1;
+  min-width: 280px;
+  margin-top: 0;
+}
+.card-row + .card {
+  margin-top: 18px;
+}
+.card h2 {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+.card .hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 11px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+}
+.btn:hover {
+  box-shadow: var(--shadow-hover);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn.ghost {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn.ghost:hover {
+  background: #f6f4ee;
+}
+.btn.danger {
+  background: var(--danger);
+}
+.btn.sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 9px;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+/*
+  Versione compatta, per i moduli che stanno DENTRO una cella di tabella (la verifica dei cambi
+  concordati in chat, in scheda cliente): con il padding pieno tre campi in colonna facevano
+  crescere la riga oltre il doppio, e la tabella diventava illeggibile proprio dove serve
+  confrontare le righe fra loro.
+*/
+.input.sm,
+.select.sm {
+  padding: 6px 9px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(18, 163, 134, 0.13);
+}
+.field {
+  margin-bottom: 14px;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #3a514c;
+}
+
+table.grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+table.grid th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+table.grid td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+table.grid tr:last-child td {
+  border-bottom: none;
+}
+table.grid tr:hover td {
+  background: #fbfaf6;
+}
+
+/* ---------- UNA SOLA IMPAGINAZIONE PER TUTTE LE TABELLE (11/8) ----------
+
+   Richiesta di Simone: «le tabelle devono essere tutte impaginate come quella dei permessi, che
+   scorre liberamente nella finestra e risulta sempre perfettamente leggibile».
+
+   Il difetto che si vedeva in Ricette: la card che contiene la tabella non scorreva in orizzontale,
+   quindi quando la tabella era più larga della card l'ultima colonna — i pulsanti «Modifica» —
+   finiva FUORI dal bordo arrotondato, sopra il fondo della pagina. Non era la colonna sbagliata: era
+   la card che non aveva dove metterla.
+
+   `:has(> table.grid)` prende ogni card che contiene direttamente una tabella, quindi la regola vale
+   per tutte e trentaquattro le pagine senza toccarne nessuna — e per quelle che verranno.
+
+   `min-width` è l'altra metà di «perfettamente leggibile»: senza, su una finestra strettá le colonne
+   si schiacciano e i nomi vanno a capo tre volte (nello screenshot: «Branzino al forno con riso
+   integrale e verdure grigliate» su tre righe). Con una larghezza minima la tabella preferisce
+   **scorrere** invece di comprimersi, che è esattamente il comportamento della pagina Permessi.
+
+   L'intestazione incollata in alto e la riga dei filtri sotto di lei le mette l'helper
+   (`components/tabella.tsx`, opzione `testaFissa`): lo scostamento della seconda riga dipende
+   dall'altezza vera della prima, che il CSS non può misurare. */
+.card:has(> table.grid) {
+  padding: 0;
+  overflow: auto;
+  /* Quanto basta per lasciare in vista i filtri sopra e il paginatore sotto. */
+  max-height: calc(100vh - 240px);
+}
+.card:has(> table.grid) > table.grid {
+  min-width: 900px;
+}
+/* Le tabelle dentro una finestra o una scheda (modali, scheda cliente) non hanno né l'altezza né la
+   larghezza della pagina intera a disposizione: lì il limite lo mette chi le usa. Forzare 900px in un
+   modale largo 760 vorrebbe dire una barra di scorrimento orizzontale su una tabella di tre colonne. */
+.modal .card:has(> table.grid),
+.card .card:has(> table.grid) {
+  max-height: none;
+}
+.modal .card:has(> table.grid) > table.grid,
+.card .card:has(> table.grid) > table.grid {
+  min-width: 0;
+}
+
+/* ---------- DIECI RIGHE E POI SI SCORRE (24/8) ----------
+
+   Richiesta di Simone: le quattro tabelle della scheda cliente (acqua, passi, pesate, umori) sono
+   lunghe fino a sessanta righe e spingevano fuori pagina tutto quello che sta sotto. L'altezza vera
+   la misura `components/tabella-scorrevole.tsx` (dieci righe VERE, non un numero a occhio): qui c'è
+   solo il contenitore che scorre e l'intestazione che resta in cima mentre si scorre — senza,
+   dopo tre righe non si sa più quale colonna si sta leggendo.
+
+   ⚠️ Lo sfondo pieno sull'intestazione non è decorazione: `position: sticky` non stacca la riga dal
+   flusso, quindi con lo sfondo trasparente le righe le passerebbero SOTTO e si leggerebbero i due
+   testi sovrapposti. */
+.tabella-scorrevole {
+  overflow: auto;
+}
+/* ⚠️ La larghezza minima è quella della regola dell'11/8, riportata a mano: incapsulando la tabella
+   in `TabellaScorrevole` la `<table>` non è più figlia diretta della card, quindi
+   `.card:has(> table.grid)` non la prende più. Senza questa riga le quattro tabelle della scheda
+   cliente perderebbero la metà «perfettamente leggibile» di quella richiesta — su finestra stretta
+   le Pesate (cinque colonne più la matita) si schiacciano e la data va a capo. Il `max-height` di
+   quella regola invece NON serve più: lo sostituisce la misura a dieci righe, che è più stretta. */
+.tabella-scorrevole > table.grid {
+  min-width: 900px;
+}
+.modal .tabella-scorrevole > table.grid,
+.card .card .tabella-scorrevole > table.grid {
+  min-width: 0;
+}
+.tabella-scorrevole > table.grid > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card);
+  /* ⚠️ Il filetto sotto i titoli va disegnato con un'ombra interna: `table.grid` ha
+     `border-collapse: collapse`, e con i bordi collassati il `border-bottom` lo disegna la TABELLA,
+     non la cella — quindi non viaggia con l'intestazione incollata, e scorrendo le righe passerebbero
+     sotto un titolo senza linea di separazione. */
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--chip);
+  color: var(--chip-ink);
+}
+.chip.gray {
+  background: #eef0ee;
+  color: #6a7a75;
+}
+.chip.amber {
+  background: #fbf0dd;
+  color: var(--gold);
+}
+.chip.red {
+  background: var(--danger-bg);
+  color: var(--coral-dark);
+}
+.chip.violet {
+  background: #efeaf9;
+  color: var(--violet);
+}
+
+.toggle {
+  width: 40px;
+  height: 23px;
+  border-radius: 20px;
+  background: #d9d6cd;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s;
+  flex: none;
+}
+.toggle.on {
+  background: var(--accent);
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.toggle.on::after {
+  transform: translateX(17px);
+}
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.banner {
+  padding: 11px 15px;
+  border-radius: 11px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+.banner.err {
+  background: var(--danger-bg);
+  color: var(--coral-dark);
+}
+.banner.ok {
+  background: var(--ok);
+  color: var(--ok-ink);
+}
+.banner.info {
+  background: #e8f1fb;
+  color: #2f5f8f;
+}
+/* ⚠️ «Attenzione», che non è né un errore né un'informazione: una cosa vera e voluta che però
+   sorprende chi legge. Stessi colori dell'etichetta gialla sulle celle della pagina Permessi, così
+   il banner in cima e i badge in tabella si riconoscono come la stessa cosa. */
+.banner.warn {
+  background: #fff3d6;
+  color: #8a5a00;
+  border: 1px solid #f0d9a0;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.spread {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.muted {
+  color: var(--muted);
+}
+
+/*
+  IL TESTO DI UNA NOTIFICA NON È UN'ETICHETTA SECONDARIA (11/8, segnalato dallo staff: «i titoli si
+  leggono bene, i testi no»). Usava `.muted`, che è il grigio pensato per le didascalie: giusto per
+  un'etichetta accanto a un dato, sbagliato per la frase che È il contenuto della notifica — lì
+  quello che si deve leggere è proprio quella riga.
+  Colore pieno con un filo di trasparenza: resta sotto il titolo, che è in grassetto, senza sbiadire.
+*/
+.notif-testo {
+  color: var(--ink);
+  opacity: 0.86;
+}
+
+/* ---------- Barra "salva" permessi ---------- */
+.perm-savebar {
+  position: sticky;
+  bottom: 16px;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  box-shadow: var(--shadow-hover);
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.perm-savebar i {
+  color: var(--coral-dark);
+  margin-right: 4px;
+}
+
+/* ---------- Menu utente (header) ---------- */
+.usermenu {
+  position: relative;
+}
+.usermenu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px 5px 5px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+.usermenu-trigger:hover {
+  background: var(--bg);
+  border-color: var(--accent);
+}
+.usermenu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  flex: none;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.usermenu-avatar.lg {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+.usermenu-id {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+  max-width: 180px;
+}
+.usermenu-id b {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.usermenu-id .muted {
+  font-size: 11.5px;
+}
+.usermenu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-hover);
+  padding: 8px;
+  z-index: 20;
+}
+.usermenu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.usermenu-email {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+.usermenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.usermenu-item:hover {
+  background: var(--bg);
+}
+.usermenu-item.danger {
+  color: var(--danger);
+}
+.usermenu-item i {
+  font-size: 17px;
+}
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 20px;
+}
+.spin {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Modale ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 48, 44, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+.modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 24px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+.modal h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+/* ---------- Login ---------- */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 12px 40px rgba(16, 64, 58, 0.1);
+  padding: 34px;
+  width: 100%;
+  max-width: 400px;
+}
+.login-card .logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto 14px;
+  box-shadow: 0 8px 22px rgba(18, 163, 134, 0.3);
+}
+.login-card h1 {
+  text-align: center;
+  font-size: 24px;
+  margin: 0 0 2px;
+}
+.login-card .sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+/* Banner impersonazione */
+.imp-bar {
+  background: var(--coral);
+  color: #fff;
+  padding: 8px 26px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.imp-bar button {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+}
