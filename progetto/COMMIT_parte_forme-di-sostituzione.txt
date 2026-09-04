@@ -1,0 +1,87 @@
+Le forme di sostituzione che nessuna delle due strade leggeva
+
+Dalla voce `vera-vocabolario-quattro-gruppi`, forme misurate il 31/8 dalla pagina «frasi che non ho
+capito» e ancora mute il 3/9. Il caso che spiega tutto:
+
+  il merluzzo può essere sostituito con orata o spigola   →  si leggeva
+  il merluzzo può essere sostituito con orata             →  NIENTE
+
+La forma passiva la conosceva SOLO il ramo a elenchi (`vera/sostituzione-a-elenchi.ts`), che però
+risponde `null` quando un elenco non c'è — giustamente, perché quello è il mestiere dell'altro. E
+l'altro (`sostituzioniNelMessaggio`) la forma passiva non la conosceva affatto. La frase cadeva nel
+mezzo, e dentro una segnalazione aperta Vera la inoltrava alla cliente come risposta: la regola non
+nasceva.
+
+⛔ UNA FORMA SCRITTA IN DUE POSTI DIVERGE. Adesso stanno in `food-swaps/forme-di-sostituzione.ts` e
+le usano tutte e due le strade — insieme a `eUnElenco` e al vocativo, che erano nella stessa
+condizione. Qui stanno le FORME (dove sta il nome che esce e dove quello che entra), non il
+GIUDIZIO su cosa sia un alimento: quello resta di `nomeAlimento` e `leggiElenco`, che sbagliano in
+versi diversi apposta.
+
+CHIUSE
+- la passiva con l'AGGETTIVO: «il merluzzo è sostituibile con orata». È un aggettivo e non un
+  participio, e per questo la riga dell'ausiliare non poteva prenderlo;
+- «al posto del merluzzo può mettere orata», che APRE la frase invece di stare in mezzo: il gruppo
+  pigro davanti non aveva niente da prendere;
+- i verbi con cui una persona scrive davvero — «mangia», «scegli», «prova», «alterna»: l'elenco
+  divergeva da quello vicino nello stesso dominio, e una divergenza così è un silenzio su frasi
+  normali.
+
+⛔ LA FRECCIA È RIMASTA FUORI, ED È UNA DECISIONE MISURATA
+La prima stesura la leggeva. Una revisione avversariale l'ha provata su venticinque righe di chat
+vere con una freccia dentro: SEDICI diventavano una regola.
+
+  legumi -> 3 volte a settimana        →  regola: legumi diventa «3 volte a settimana»
+  olio evo -> 3 cucchiai al giorno     →  regola: olio evo diventa «3 cucchiai al giorno»
+  da eliminare -> pane, pasta e riso   →  regola: si METTE pane, pasta e riso (il rovescio)
+
+⚠️ E non sono inerti: a sinistra c'è un alimento vero di catalogo, quindi la riga arriva in coda di
+verifica come una sostituzione che nessuno ha chiesto — su un percorso che scrive senza avvisare
+nessuno. La ragione è strutturale: le altre due forme hanno un'ANCORA LESSICALE obbligatoria che
+dice «questa frase è un ordine di sostituzione»; la freccia non ha niente, e in una chat di
+nutrizione significa anche una frequenza, una quantità, un progresso di peso. Si riapre quando si
+saprà distinguere «alimento → alimento» da «alimento → quantità»: ci sono le prove che diventano
+rosse se qualcuno la rimette senza quella regola.
+
+⛔ E DI PASSAGGIO: UN DIVIETO VENIVA ESEGUITO COME ORDINE
+Trovato scrivendo le prove, non rileggendo il codice. In `sostituzione-a-elenchi.ts` `daScartare`
+girava DOPO il ramo imperativo:
+
+  «mai sostituire il pane con le gallette o i cracker»      →  sostituisci pane con gallette
+  «evita di sostituire il pane con le gallette o i cracker» →  sostituisci pane con gallette
+
+cioè il contrario di quanto scritto, nel ramo che ESEGUE un ordine. Il «non» lo fermava un
+controllo più a monte in `capisci`; «mai» ed «evita» no.
+
+⚠️ E la prima correzione costava DICIASSETTE frasi normali: applicava `daScartare` al messaggio
+intero, e in italiano la negazione sta quasi sempre in un'altra proposizione — «non digerisce il
+glutine, sostituisci la pasta con il riso» si spegneva. Il commento dichiarava quel costo
+«misurato» e non lo era. Adesso la negazione si cerca nella proposizione che contiene il verbo, e
+le diciassette sono nel corpus.
+
+⛔ E IL TRONCAMENTO SULLA «e» ERA TORNATO DALLA PORTA NUOVA
+«il pane e la pasta possono essere sostituiti con il riso» imparava «pasta»; «Biscotti d'Avena e
+Banana» imparava «Banana». `eUnElenco` conosce la virgola e l'«o», non la «e» — di proposito,
+perché «sale e pepe» è un nome solo. La guardia giusta era `nomeTroncatoSuCongiunzione`, che stava
+solo sul ramo in avanti.
+
+PROVE
+- `forme-di-sostituzione.spec.ts`: le forme, e le righe che tengono ferma la decisione sulla freccia;
+- `vera/sostituzione-a-elenchi.spec.ts` (nuovo): la stessa forma con e senza elenco su tutt'e due le
+  strade, i divieti, e le diciassette frasi normali che non devono spegnersi;
+- il corpus cresce di 21 righe, ⚠️ e per la prima volta anche del verso opposto — 16 frasi che NON
+  devono diventare una regola. Il file dichiara in testa «chi aggiunge una guardia aggiunge prima
+  una frase qui»: qui non era una guardia ma tre riconoscitori, e mancava.
+- 15 prove di mutazione, tutte prese. DUE revisioni avversariali: la seconda ha trovato la freccia,
+  il troncamento e le diciassette frasi. Nessuna delle tre l'hanno trovata le mie prove.
+
+RESTA (scritto come sentinelle `it.failing`, non come commento)
+- `nomePersona` prende «a colazione» per il nome di una cliente: difetto vecchio, reso raggiungibile
+  dalle forme nuove;
+- le due strade leggono il lato sinistro in modo diverso (una risale, l'altra no, e ognuna ha
+  ragione per la sua strada): il modulo condivide le forme, non il modo di leggere quello che
+  catturano;
+- la freccia, e i tre gruppi del vocabolario (liste di catalogo, la coda, le ricette).
+
+7314 prove verdi su 425 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su app e backoffice.

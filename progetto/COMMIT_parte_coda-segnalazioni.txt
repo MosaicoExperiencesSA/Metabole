@@ -1,0 +1,38 @@
+«chiudi ilaria»: si capisce benissimo, e «non ci arrivo» era falso
+
+Terzo gruppo del vocabolario di Vera misurato il 31/8 (`vera-vocabolario-quattro-gruppi`). La
+nutrizionista ha sentito la cliente, la cosa è risolta, e lo scrive in due parole. La risposta era
+«non ci arrivo» — che è la risposta che una persona racconta agli altri, ed è pure falsa: la frase
+si capisce benissimo.
+
+Adesso Vera dice tre cose:
+- COSA ha capito, nominando la cliente — così si vede subito se ha capito quella sbagliata;
+- PERCHÉ non lo fa: una segnalazione chiusa è la traccia che qualcuno ha guardato, e resta scritto
+  chi e perché l'ha chiusa; da una frase di due parole quel perché non si può chiedere;
+- DOVE si fa: la coda «Segnalazioni» nella Dashboard, con un clic. E offre «hai segnalazioni per
+  me?» se prima vuole vedere cosa ha in sospeso.
+
+⛔ CHIUDERE DAVVERO DALLA CHAT È UNA DECISIONE DI PRODOTTO, E LA DOMANDA È PRONTA
+«Una nutrizionista può chiudere una segnalazione scrivendolo a Vera, e in quel caso cosa scriviamo
+come motivo — la sua frase così com'è, oppure Vera glielo chiede prima?» Con la risposta il resto è
+codice: la coda, il perimetro e l'audit ci sono già.
+
+⚠️ IL VERBO DA SOLO NON BASTA
+«chiudi» compare dove non c'entra con la coda — «chiudi la lista dei formaggi molli», «chiudi il
+menu di oggi» — e prendere quelle frasi qui vorrebbe dire rispondere la cosa sbagliata a una
+richiesta che gli altri riconoscitori sanno leggere. Serve o la parola «segnalazione/avviso/caso», o
+un nome subito dopo il verbo.
+
+⚠️ E DUE COSE MISURATE, SCRITTE INVECE CHE SCOPERTE DOPO
+- «chiudi le segnalazioni» dava `dettaglio: "segnalazioni"`, cioè la risposta avrebbe detto «la
+  segnalazione di segnalazioni è risolta». Adesso si risponde lo stesso, senza fingere di sapere di
+  chi.
+- «ho sentito ilaria, puoi chiudere» NON si legge: il nome sta prima del verbo e in un'altra
+  proposizione. Cercarlo ovunque nella frase vorrebbe dire indovinare di chi si parla su una cosa
+  che finisce in un registro clinico — si preferisce chiedere.
+
+⚠️ E un difetto preso da una prova, non da una rilettura: `if (chiusura)` scartava la **stringa
+vuota**, che qui vuol dire «è una chiusura, ma non so di chi». Adesso è `!== null`.
+
+8 prove di mutazione, tutte prese. 7371 prove verdi su 428 suite nelle quattro modalità; build ok;
+`tsc --noEmit` solo i due errori preesistenti in `prisma/`.

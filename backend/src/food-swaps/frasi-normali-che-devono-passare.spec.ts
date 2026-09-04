@@ -205,6 +205,31 @@ const FRASI: [string, RegExp, RegExp][] = [
   ['consiglio tacchino al posto del pollo', /^pollo$/i, /^tacchino$/i],
   ['proviamo yogurt greco al posto del latte', /^latte$/i, /^yogurt greco$/i],
 
+  /**
+   * ⛔ **LE FORME IN CUI IL NOME CHE ESCE STA PRIMA** (3/9, voce `vera-vocabolario-quattro-gruppi`).
+   * Misurate dalla pagina «frasi che non ho capito» il 31/8 e mute fino al 3/9: nessuna delle due
+   * strade le leggeva. ⚠️ Il caso che spiega tutto è il secondo: «può essere sostituito con orata
+   * **o spigola**» si leggeva, «…con orata» no — la forma passiva la conosceva solo il ramo a
+   * elenchi, che però risponde `null` quando un elenco non c'è. **La frase cadeva nel mezzo.**
+   */
+  ['il merluzzo è sostituibile con orata', /^merluzzo$/i, /^orata$/i],
+  ['il merluzzo può essere sostituito con orata', /^merluzzo$/i, /^orata$/i],
+  ['il merluzzo va sostituito con orata', /^merluzzo$/i, /^orata$/i],
+  ['il merluzzo si può sostituire con orata', /^merluzzo$/i, /^orata$/i],
+  ['per Anna il merluzzo è sostituibile con orata', /^merluzzo$/i, /^orata$/i],
+  ['in teoria il riso può essere sostituito con quinoa', /^riso$/i, /^quinoa$/i],
+  ['il merluzzo è sostituibile con orata a colazione', /^merluzzo$/i, /^orata$/i],
+
+  /** ⚠️ «al posto di» che **apre** la frase: il gruppo pigro davanti non aveva niente da prendere. */
+  ['al posto del merluzzo può mettere orata', /^merluzzo$/i, /^orata$/i],
+  ['al posto del merluzzo metti orata', /^merluzzo$/i, /^orata$/i],
+  ['invece del merluzzo possiamo mettere orata', /^merluzzo$/i, /^orata$/i],
+  ['Ricorda: al posto del merluzzo metti orata', /^merluzzo$/i, /^orata$/i],
+
+  /** ⚠️ E i verbi con cui una persona scrive davvero, non quattro. */
+  ['al posto della carne mangia il pesce', /^carne$/i, /^pesce$/i],
+  ['al posto del pane scegli le gallette', /^pane$/i, /^gallette$/i],
+
   // — chi scrive di corsa, senza accenti —
   ['sostituisci il parmigiano con il grana padano perche e piu leggero', /^parmigiano$/i, /^grana padano$/i],
 ];
@@ -230,7 +255,73 @@ describe('le frasi normali continuano a funzionare', () => {
  * ⚠️ Qui dentro sta quello che è **misurato e non ancora corretto**: il prossimo difetto si scrive
  * qui, non in un commento.
  */
+/**
+ * ⛔ **E IL VERSO OPPOSTO: quello che NON deve diventare una regola.**
+ *
+ * Il corpus qui sopra tiene ferme le frasi che devono passare; ⚠️ aggiungendo **riconoscitori** (non
+ * guardie) serve anche l'altra metà, e la prima stesura di questa consegna non ce l'aveva: le
+ * ventuno righe nuove coprivano solo il verso «adesso si legge». L'ha detto una revisione
+ * avversariale misurando venticinque righe di chat con una freccia dentro.
+ */
+describe('⛔ quello che NON deve diventare una regola', () => {
+  it.each([
+    // — la freccia: una notazione che in chat significa anche una frequenza o un progresso —
+    ['legumi -> 3 volte a settimana'],
+    ['olio evo -> 3 cucchiai al giorno'],
+    ['pesce azzurro -> almeno 2 volte a settimana'],
+    ['peso 80->78 in due mesi, ottimo'],
+    ['kcal 1800 -> 1600 da domani'],
+    ['da eliminare -> pane, pasta e riso'],
+    ['il percorso: valutazione -> dieta -> controllo'],
+    // — il troncamento sulla «e», che le forme nuove avevano riaperto —
+    ["Biscotti d'Avena e Banana -> Gallette di riso"],
+    ['sale e pepe -> erbe aromatiche'],
+    ['il pane e la pasta possono essere sostituiti con il riso'],
+    ['al posto del pane e della marmellata metti lo yogurt'],
+    ['il merluzzo è sostituibile con orata e salmone'],
+    // — i divieti e i resoconti —
+    ['il merluzzo non è sostituibile con orata'],
+    ['al posto del merluzzo non mettere orata'],
+    ['il pane era stato sostituito con gallette'],
+    ['al posto del merluzzo qualcosa di leggero'],
+  ])('⛔ «%s»', (frase) => {
+    expect(sostituzioniNelMessaggio(frase)).toEqual([]);
+  });
+});
+
 describe('⛔ difetti noti, misurati e non ancora corretti', () => {
+  /**
+   * ⚠️ **LA FRECCIA EREDITA IL DIFETTO APERTO «DOVE COMINCIA IL NOME»**, e va detto invece che
+   * scoperto dopo. L'operando di sinistra di una notazione **non ha l'articolo** che ferma la
+   * risalita, quindi un vocativo minuscolo ci finisce dentro:
+   *
+   *     «a patrizia merluzzo → orata» → impara «a patrizia merluzzo»
+   *
+   * ⚠️ È lo stesso difetto della riga «un saluto davanti al nome ci finisce dentro» qui sotto — «a
+   * patrizia sogari» tutto minuscolo non viene letto come nome di cliente da nessuna parte — e la
+   * voce dei lavori lo dichiara **separato e aperto** dal 31/8. ⛔ La regola che ne esce è inerte
+   * (quel nome non combacia con nessun alimento) e in chat con Vera passa da un'anteprima da
+   * confermare; nella chat di una cliente il nome non si scrive, perché la cliente è quella.
+   * Sta qui perché una forma nuova non si aggiunge senza scrivere cosa eredita.
+   */
+  it.failing('⛔ oggi un vocativo minuscolo entra nell\'operando della freccia', () => {
+    const r = sostituzioniNelMessaggio('a patrizia merluzzo -> orata');
+    expect(r).toHaveLength(1);
+    expect(r[0].from).toMatch(/^merluzzo$/i);
+  });
+
+  /**
+   * ⛔ **E «al posto di» in mezzo con un vocativo davanti resta letto male**, che è il caso di prima
+   * visto dall'altra forma: «Y al posto di X» prende «a patrizia» come nome che entra. Anche questa
+   * è la stessa famiglia, e la regola che ne esce è inerte da tutt'e due i lati.
+   */
+  it.failing('⛔ oggi «a patrizia al posto del merluzzo può mettere orata» si legge al contrario', () => {
+    const r = sostituzioniNelMessaggio('a patrizia al posto del merluzzo può mettere orata');
+    expect(r).toHaveLength(1);
+    expect(r[0].from).toMatch(/^merluzzo$/i);
+    expect(r[0].to).toMatch(/^orata$/i);
+  });
+
   /**
    * ⛔ **IL SILENZIO NUOVO CHE HA PORTATO IL TAGLIO DELLA CODA** (3/9, trovato in revisione).
    *

@@ -370,6 +370,37 @@ export class VeraChatService {
       }
       return { testo: testi.nonCapito(1), esito: 'non_capito', stato: { passo: 'conferma', frase, tentativi: 1 } };
     }
+    if (intento.tipo === 'fuori_portata' && intento.cosa === 'chiudi_segnalazione') {
+      // ⚠️ Non si scrive niente e non si apre nessuna pratica: una segnalazione chiusa senza il
+      // motivo di chi l'ha chiusa vale meno di una lasciata aperta. Si dice cosa si è capito e dove
+      // si fa — un clic nella coda che lei ha già.
+      return { testo: testi.chiusuraSegnalazione(intento.dettaglio), esito: 'non_capito' };
+    }
+    if (intento.tipo === 'fuori_portata' && intento.cosa === 'voce_di_lista') {
+      // ⚠️ Stessa ragione del piatto: non si apre una pratica per una cosa che si fa parlando con
+      // Vera stessa. Qui la strada esiste già ed è la frase che Vera suggerisce quando mostra una
+      // lista — ripeterla è la risposta, non un ripiego.
+      return { testo: testi.voceDiLista(intento.dettaglio), esito: 'non_capito' };
+    }
+    if (intento.tipo === 'fuori_portata' && intento.cosa === 'ricetta_nel_menu') {
+      /**
+       * ⛔ **UN PIATTO NON SI METTE IN CODA AL CAPO: si dice dove si fa.**
+       *
+       * La regola su un tipo di dieta nasce come proposta perché cambia il menu di **centinaia** di
+       * clienti. Cambiare un piatto nel menu di una persona è il contrario: è un gesto piccolo, su
+       * una schermata che **esiste già** — «Menu a mano», nella scheda della cliente — e che chi ha
+       * scritto la frase sa usare.
+       *
+       * ⚠️ Aprire una pratica per una cosa che si fa in trenta secondi non è prudenza: è una riga in
+       * più in una coda che qualcuno deve svuotare, e una risposta che sposta il lavoro invece di
+       * indicarlo. ⛔ E soprattutto **non si scrive niente**: fino a ieri questa frase diventava una
+       * regola su un alimento chiamato «ricetta Pasta al pomodoro», che non esiste.
+       */
+      return {
+        testo: testi.piattoNonAlimento(intento.dettaglio),
+        esito: 'non_capito',
+      };
+    }
     if (intento.tipo === 'fuori_portata') {
       /**
        * ⚠️ Non si ripiega su «allora lo faccio sulla cliente»: fare la cosa sbagliata con sicurezza

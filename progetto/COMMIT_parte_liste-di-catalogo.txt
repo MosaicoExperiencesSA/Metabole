@@ -1,0 +1,43 @@
+Le liste di catalogo: la stessa richiesta capita o no per una preposizione
+
+Gruppo «liste di catalogo» della voce `vera-vocabolario-quattro-gruppi`, misurato il 31/8.
+
+⚠️ Il grosso non erano forme sconosciute: erano VARIANTI di forme già capite, e la differenza fra il
+capire e il non capire era una preposizione o un apostrofo.
+
+  crea la lista DEI formaggi molli      →  capita
+  crea una lista CON i formaggi molli   →  «non ci arrivo»
+  aggiungi UN'equivalenza tra pane e…   →  capita
+  aggiungi UNA equivalenza fra pane e…  →  «non ci arrivo»
+
+Una nutrizionista che scrive la stessa cosa in due modi e ne vede funzionare uno non impara la
+regola: impara che «a volte non funziona». Adesso passano tutte, più «fammi una lista», «metti pane
+e gallette nella stessa equivalenza», e i verbi con cui si scrive davvero.
+
+⛔ E UNA LA LEGGEVA MALE, NON SOLO POCO
+
+  «togli le gallette dalla lista dei formaggi molli»
+     → restrizione, vietati: ["gallette dalla lista dei formaggi molli"]
+
+«togli» è la stessa parola con cui si vieta un alimento a una cliente, e il riconoscitore dei
+divieti prendeva tutta la coda. Il divieto era inerte — nessun alimento si chiama così — ma con
+un'anteprima plausibile, e alla domanda «su quale cliente?» si sarebbe scritto un divieto VERO su un
+termine inventato.
+
+Adesso cambiare una lista si riconosce e Vera dice la strada che esiste: «rifai la lista dei
+formaggi molli», che è la stessa frase che suggerisce da sola quando mostra una lista. ⛔ E non apre
+una pratica: la coda al capo serve alla regola di dieta, che cambia il menu di centinaia di clienti.
+
+⚠️ E il nome della lista si ferma al verbo, dallo stesso elenco — non da una seconda lista di parole
+di stop, che divergerebbe: senza, «nella lista dei formaggi molli aggiungi la ricotta» avrebbe
+suggerito «rifai la lista dei formaggi molli aggiungi la ricotta».
+
+⛔ Quello che resta da fare: aggiungere o togliere UNA VOCE da una lista. Si sa creare e mostrare
+una lista, non modificarla.
+
+⚠️ E i divieti veri restano divieti — «a Giulia niente formaggi molli», «togli il tonno a Giulia»:
+prenderli di qui vorrebbe dire spegnere il caso di tutti i giorni, che è il modo in cui questo
+progetto ha già sbagliato due volte.
+
+9 prove di mutazione, tutte prese. 7356 prove verdi su 427 suite nelle quattro modalità; build ok;
+`tsc --noEmit` solo i due errori preesistenti in `prisma/`.

@@ -1,0 +1,66 @@
+Tre frasi false sui permessi, e la diagnostica che è stata scritta e buttata
+
+⛔ TRE COMMENTI CHE DICEVANO IL FALSO, IN TRE FILE, SULLA STESSA COSA
+Nata provando a rendere guardabile la strada (b) di `chiavi-dichiarate-che-nessuno-legge` — quella
+che aggancia `@RequirePage` alle 29 chiavi col buco. Per scrivere una diagnostica bisognava prima
+capire la classificazione, e la classificazione si smentiva da sola:
+
+1. `pages.ts`, sopra le nove `figlia`: «l'API sta sotto la chiave del genitore, CHE LA GUARDIA CE
+   L'HA». Vero per cinque (`testimonials`/`publisher` sotto `marketing`, `allergens`/`colazioni`
+   sotto `recipes` — le loro rotte in `catalog.controller` portano `@RequirePage('recipes')` scritto
+   sopra —, `equivalence_groups` sotto `diets_catalog`). ⛔ Falso per le quattro `crm_*`: il loro
+   genitore è `crm_leads`, che di `@RequirePage` non ne ha nessuna e sta **quattro righe più su**,
+   classificato `buco`. La frase si contraddiceva a quattro righe di distanza.
+2. `chiavi-senza-guardia.spec.ts` faceva lo stesso esempio — «Nuovo lead: l'API vera sta sotto
+   `crm_leads`, che la guardia ce l'ha» — cioè la prova ripeteva la frase invece di controllarla.
+3. `pages.ts`, sopra `DEFAULT_ESPLICITI`: «oggi nessuna delle DODICI figlie ne ha uno — questa copia
+   serve al giorno che ne avrà». Le figlie sono **tredici**, e **tre** un default scritto a mano ce
+   l'hanno già (`diet_workspace`, `creation_validation`, `diet_descriptions`). ⚠️ Il danno non è il
+   conteggio: un commento che dice «serve al giorno che» di una riga che regge già tre casi invita
+   il prossimo a toglierla.
+
+⛔ E LE FRASI RESTANO `figlia`, CHE NON È UN MODO DI ABBASSARE IL CONTO
+Riclassificare le quattro `crm_*` a `buco` conterebbe cinque volte lo stesso buco: `crm_leads` il
+suo lo dichiara già, e chi aggancia la guardia lì chiude anche loro. ⚠️ Ma «figlia» adesso vuol dire
+«il buco è del genitore», non «qui non c'è niente da chiudere»: `GET /crm/pipeline` un'API sua ce
+l'ha, protetta dal solo `@Roles`.
+
+✅ E LA CONDIZIONE È UN CANCELLO, NON UN COMMENTO
+`chiavi-senza-guardia.spec.ts`: il genitore di una figlia **o ha una guardia, o è a sua volta un
+`buco`**; più quali figlie stanno sotto un buco (le quattro `crm_*`), quante sono le figlie (13) e
+quali hanno un default esplicito (3). Un commento è tornato falso due volte in due giorni: adesso
+per tornare falso deve far diventare rossa una prova. Cinque mutazioni sui **dati**, tutte prese —
+si mutano le righe di `pages.ts`, perché è la classificazione che marcisce, non un algoritmo.
+
+⛔ LA DIAGNOSTICA È STATA SCRITTA E BUTTATA, E QUELLO CHE HA MISURATO VALE PIÙ DI LEI
+L'idea era: per ogni chiave col buco, dire chi la matrice chiuderebbe fuori, e soprattutto quali
+chiavi non chiudono nessuno — «queste subito, sulle altre si decide». Scritta, provata, revisionata
+due volte da un revisore avversariale, e **non consegnata**, perché il numero per cui esisteva non
+c'era. Quello che ha misurato è finito nella voce dei lavori:
+
+- **Non è una decisione per chiave, sono due.** Il livello di `@RequirePage` si può fissare a mano, e
+  nel progetto è scritto a mano in **54 punti** (`@Post` fissati a `'view'` in `catalog.controller`:
+  «il requisito manage bloccherebbe chi ha il catalogo in sola lettura»).
+- **La matrice da sola sbaglia di molto quanto costa una chiave.** `users` sta su `@Roles('admin')`:
+  la matrice dice «sette ruoli fuori», il costo vero è **zero**. Il conto giusto è matrice ∩ `@Roles`
+  della rotta, e non c'è nessun modo meccanico di legare una chiave alla sua rotta — sono chiavi che
+  nessuno legge, è la definizione.
+- **Fatto il conto per bene** — un livello per volta, perché la guardia ne chiede uno solo — **le
+  chiavi che la matrice non chiude a nessuno sono UNA su 29**: `posta`, che è la propria casella di
+  posta, già `@Roles` su tutto lo staff e già limitata a `user.sub`. Agganciarla non chiude niente, e
+  a livello di classe romperebbe `PUT`/`POST`/`DELETE` di `me/mailbox`. Il gruppo delle «gratis» non
+  esiste.
+- ⛔ **La guardia vale per chiunque sia autenticato, CLIENTI COMPRESE**, e il ruolo `client` nella
+  matrice non ha nessuna casella accesa. `threads` (i messaggi della chat) e `documents` (il download
+  decifrato) **non hanno `@Roles`**: verificano il permesso dentro il servizio, cliente per cliente.
+  Agganciare `chat` o `health_documents` a livello di classe chiude fuori **tutte le clienti**.
+- ⛔ **Su una rotta senza `@Roles` il fail-open si rovescia**: lì la guardia è l'unico cancello, e un
+  errore di lettura diventa 403 per tutti (correzione del 17/8). Agganciando si aggiunge un modo
+  nuovo di restare fuori.
+
+⚠️ E DUE NUMERI STANTII NELLA VOCE, CORRETTI: diceva «65 chiavi, 22 guardate». Sono 66 e 23 dalla
+sera del 3/9, quando `menu_a_mano` e `diet_descriptions` sono nate con la loro guardia. Le 43 senza
+guardia restano 43 — la prova le tiene ferme, la voce no, ed era rimasta indietro.
+
+7375 prove verdi su 428 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`; `tsc -b` pulito su `app/` e `backoffice/`.

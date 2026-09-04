@@ -50,6 +50,7 @@
  */
 import { chiaveAlimento, normalizza } from '../common/nomi-alimento';
 import { senzaIlQuando } from './coda-di-quando';
+import { eUnElenco, FORME_CON_IL_NOME_PRIMA, VOCATIVO } from './forme-di-sostituzione';
 
 export interface SostituzioneLetta {
   /** L'alimento che esce dal piatto. */
@@ -534,6 +535,18 @@ function nomeSenzaIlQuando(pezzo: string): string | null {
   return nomeAlimento(senzaIlQuando(pezzo)) ?? nomeAlimento(pezzo);
 }
 
+/**
+ * Il nome letto **risalendo** dalla fine, per i pezzi che non sono delimitati da niente a sinistra.
+ *
+ * ⚠️ È lo stesso trattamento che riceve il pezzo di sinistra di «Y al posto di X», e per la stessa
+ * ragione: lì dentro c'è il nome più tutto quello che c'era prima — un vocativo, un «in teoria», il
+ * verbo di chi scrive. `codaDellaFrase` si ferma su un articolo vero o su chi scrive, che è il modo
+ * per sapere dove **comincia** il nome invece di elencare tutto quello che non lo è.
+ */
+function nomeRisalendo(pezzo: string): string | null {
+  return nomeAlimento(codaDellaFrase(senzaIlQuando(pezzo))) ?? nomeAlimento(codaDellaFrase(pezzo));
+}
+
 export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
   const trovate: SostituzioneLetta[] = [];
   const viste = new Set<string>();
@@ -617,6 +630,74 @@ export function sostituzioniNelMessaggio(testo: string): SostituzioneLetta[] {
         }
       }
     }
+    /**
+     * ⛔ **LE FORME IN CUI IL NOME CHE ESCE STA PRIMA** (3/9, voce `vera-vocabolario-quattro-gruppi`).
+     *
+     * La passiva («il merluzzo **può essere sostituito con** orata»), la freccia («merluzzo **→**
+     * orata») e «**al posto del** merluzzo può mettere orata», che apre la frase invece di stare in
+     * mezzo. ⚠️ Erano misurate dal 31/8 e nessuna delle due strade le leggeva: quella a elenchi
+     * conosceva la passiva ma risponde `null` senza un elenco, questa non la conosceva affatto —
+     * **la frase cadeva nel mezzo**, e dentro una segnalazione aperta Vera la inoltrava alla cliente
+     * come risposta. La regola non nasceva.
+     *
+     * ⛔ **Un elenco qui NON si legge**: «merluzzo → orata, salmone» diventerebbe l'alimento
+     * inesistente «orata salmone», cioè una lettura **parziale travestita da lettura**. Quello è il
+     * mestiere di `sostituzioneAElenchi`, che sulle stesse forme adesso passa — le due strade
+     * leggono lo stesso elenco di forme, apposta.
+     */
+    /**
+     * ⛔ **Si prova anche quando una forma precedente ha letto A METÀ.** «Ricorda: al posto del
+     * merluzzo metti orata» combacia con «Y al posto di X», che però legge `Ricorda:` come nome di
+     * chi entra e risponde `null`: con un `if (!letta)` la frase moriva lì, e la forma che l'avrebbe
+     * letta bene non veniva nemmeno provata. ⚠️ Una forma che non ha prodotto niente non deve
+     * chiudere la porta a un'altra.
+     */
+    if (!letta?.from || !letta.to) {
+      const senzaVocativo = frase.replace(VOCATIVO, '');
+      for (const { re, risalita } of FORME_CON_IL_NOME_PRIMA) {
+        const m = re.exec(senzaVocativo);
+        if (!m) continue;
+        if (eUnElenco(m[1]) || eUnElenco(m[2])) break;
+        /**
+         * ⛔ **E IL TRONCAMENTO SU «E» VALE ANCHE QUI** (trovato in revisione, ed era grave).
+         *
+         * `eUnElenco` conosce la virgola e l'«o», **non la «e»** — di proposito, perché «sale **e**
+         * pepe» è un nome solo. Ma allora «il pane **e** la pasta possono essere sostituiti con il
+         * riso» passava di qui e imparava **«pasta»**, e «il merluzzo è sostituibile con orata **e**
+         * salmone» imparava **«orata»**: la stessa famiglia della voce
+         * `la-e-nel-nome-tronca-in-silenzio`, riaperta da una porta nuova.
+         *
+         * ⚠️ La guardia c'era già (`nomeTroncatoSuCongiunzione`) e stava **solo** sul ramo in avanti.
+         * Qui vale su tutt'e due i pezzi: chi scrive «X e Y» sta nominando due cose o una sola, e
+         * questo riconoscitore non lo sa — *meglio una domanda in più che una regola scritta su un
+         * piatto che nessuno ha nominato.*
+         */
+        if (nomeTroncatoSuCongiunzione(m[1]) || nomeTroncatoSuCongiunzione(m[2])) break;
+        /**
+         * ⚠️ `risalita` = il pezzo di sinistra non è delimitato («per Anna il merluzzo è
+         * sostituibile con…»): si legge dalla fine come fa la forma «Y al posto di X», e la
+         * risalita si ferma da sé su un articolo o su chi scrive. Dove invece una parola chiave lo
+         * delimita — «al posto **del** merluzzo …» — si legge in avanti.
+         */
+        const daQui = {
+          from: risalita ? nomeRisalendo(m[1]) : nomeSenzaIlQuando(m[1]),
+          to: nomeSenzaIlQuando(m[2]),
+        };
+        /**
+         * ⚠️ Solo se questa forma legge **tutt'e due** i nomi: altrimenti si prova la prossima.
+         *
+         * ⛔ **Nessuna prova lo uccide, e il perché va detto giusto** — non è ridondante, è che non
+         * si conosce una frase che lo distingua: servirebbe una in cui una forma di questo elenco
+         * combacia lasciando un nome vuoto e **una successiva la legge bene**, e con le tre forme di
+         * oggi (passiva, freccia, «al posto di» in testa) quella frase non si è trovata. È lo stesso
+         * invariante della riga qui sopra — una forma che non ha letto niente non chiude la porta
+         * alle altre — un livello più sotto, e lo si scrive invece di lasciar credere che sia
+         * coperto.
+         */
+        if (daQui.from && daQui.to) { letta = daQui; break; }
+      }
+    }
+
     if (!letta?.from || !letta.to) continue;
 
     // Stesso alimento da tutte e due le parti: non è una sostituzione, è una ripetizione.

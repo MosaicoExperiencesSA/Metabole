@@ -327,7 +327,28 @@ export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> 
   lead_acceptance: 'buco',
   crm_leads: 'buco',
 
-  // ⚠️ LE FIGLIE: l'API sta sotto la chiave del genitore, che la guardia ce l'ha.
+  /**
+   * ⚠️ LE FIGLIE: l'API vera sta sotto la chiave del **genitore**, ed è lì che la guardia va — non
+   * su di loro. Il buco, se c'è, è del genitore e si conta una volta sola, sul genitore.
+   *
+   * ⛔ **Quello che qui NON si dice più, perché era falso, è «il genitore la guardia ce l'ha».**
+   * Misurato nella notte fra il 3 e il 4/9: è vero per cinque — `testimonials` e `publisher` sotto
+   * `marketing`, `allergens` e `colazioni` sotto `recipes` (le loro rotte in `catalog.controller`
+   * portano `@RequirePage('recipes')` scritto sopra), `equivalence_groups` sotto `diets_catalog` —
+   * ed è **falso per le quattro `crm_*`**: il loro genitore è `crm_leads`, che di `@RequirePage`
+   * non ne ha **nessuna** e sta quattro righe più su, classificato `buco`. La frase si
+   * contraddiceva da sola a quattro righe di distanza.
+   *
+   * ⚠️ **Restano `figlia` lo stesso**, e non è per far scendere il conto dei buchi: `crm_leads` il
+   * suo buco lo dichiara già, e riclassificare queste quattro lo conterebbe cinque volte. Chi
+   * aggancia la guardia a `crm_leads` chiude anche loro. ⛔ Ma `GET /crm/pipeline`
+   * (`commerce/pipeline.controller.ts`) un'API sua ce l'ha, protetta dal solo `@Roles`: «figlia»
+   * vuol dire *«il buco è del genitore»*, non *«qui non c'è niente da chiudere»*.
+   *
+   * ⚠️ La condizione è tenuta ferma da `chiavi-senza-guardia.spec.ts`: il genitore di una figlia o
+   * ha una guardia, o è a sua volta un `buco`. Senza quella prova questo commento è tornato falso
+   * due volte in due giorni.
+   */
   crm_lead_new: 'figlia',
   crm_import: 'figlia',
   crm_pipeline: 'figlia',
@@ -674,7 +695,15 @@ export const INHERIT_DEFAULTS: Partial<Record<PageKey, PageKey>> = {
  * Ma la precedenza che quel ciclo ha sempre avuto (`if (p && !perms[child])`) è che **il default
  * scritto apposta per la figlia vince**: l'unico motivo per scriverne uno è renderlo più stretto
  * del genitore, e senza questa copia quella scelta verrebbe ignorata in silenzio dall'eredità sulle
- * righe. Oggi nessuna delle dodici figlie ne ha uno — questa copia serve al giorno che ne avrà.
+ * righe.
+ *
+ * ⛔ **E NON È UNA COPIA CHE SERVIRÀ UN GIORNO: serve oggi.** Fino alla notte fra il 3 e il 4/9 qui
+ * stava scritto *«oggi nessuna delle dodici figlie ne ha uno — questa copia serve al giorno che ne
+ * avrà»*, ed era falso su tutti e due i numeri: le figlie sono **tredici**, e **tre** un default
+ * scritto a mano ce l'hanno — `diet_workspace` e `creation_validation` (scritti apposta il 2/9,
+ * perché sono anche hub e non devono ereditare) e `diet_descriptions`. Un commento che dice «serve
+ * al giorno che» di una riga che regge già tre casi invita il prossimo a toglierla. I numeri sono
+ * tenuti fermi da `chiavi-senza-guardia.spec.ts`.
  */
 export const DEFAULT_ESPLICITI: Record<string, Partial<Record<PageKey, Perm>>> =
   Object.fromEntries(

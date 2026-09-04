@@ -19,7 +19,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { BACKOFFICE_PAGES, MOTIVO_SENZA_GUARDIA } from './pages';
+import { BACKOFFICE_PAGES, DEFAULT_ESPLICITI, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA } from './pages';
 
 /** Tutti i `.ts` del backend, esclusi i test: una guardia in uno spec non protegge niente. */
 function sorgenti(dir: string, out: string[] = []): string[] {
@@ -102,9 +102,14 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
  * ⛔ **E NON SONO TUTTE LO STESSO CASO: la classificazione, tenuta ferma.**
  *
  * Un elenco unico mette insieme il **buco** («Documenti sanitari»: spegnere toglie la voce e lascia
- * aperto il `GET`) e la **scelta** («Nuovo lead»: l'API vera sta sotto `crm_leads`, che la guardia
- * ce l'ha). ⚠️ *Mescolarle porta a correggere quella sbagliata* — è scritto nella voce, e finché la
+ * aperto il `GET`) e la **scelta** («Allergeni»: l'API vera sta sotto `recipes`, che la guardia ce
+ * l'ha davvero — le rotte in `catalog.controller` portano `@RequirePage('recipes')`).
+ * ⚠️ *Mescolarle porta a correggere quella sbagliata* — è scritto nella voce, e finché la
  * distinzione stava solo lì chi guardava la matrice non aveva modo di saperla.
+ *
+ * ⛔ **L'esempio di prima era «Nuovo lead», e diceva il falso**: `crm_leads` una guardia non ce
+ * l'ha, sta lei stessa fra i buchi. Corretto nella notte fra il 3 e il 4/9 insieme al commento
+ * gemello in `pages.ts`, e questa volta con una prova sotto invece che con un altro commento.
  */
 describe('ogni chiave senza guardia dice PERCHÉ', () => {
   const senza = BACKOFFICE_PAGES.filter((k) => !chiaviLette.has(k));
@@ -141,6 +146,65 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
     expect(per('figlia')).toBe(9);
     expect(per('grantor')).toBe(2);
     expect(per('innocua')).toBe(3);
+  });
+
+  /**
+   * ⛔ **«FIGLIA» DEVE VOLER DIRE QUALCOSA, E FINORA VOLEVA DIRE UNA COSA FALSA.**
+   *
+   * Il motivo `figlia` si legge: *l'API vera sta sotto la chiave del genitore, ed è lì che la
+   * guardia va*. Perché sia una **scelta** e non un buco travestito, il genitore deve o avere una
+   * guardia, o essere lui stesso dichiarato `buco` — se non è nessuna delle due, c'è una porta
+   * aperta che **nessuna riga di questa classificazione conta**, e la pagina Permessi non ne
+   * segnala nemmeno una delle due.
+   *
+   * ⚠️ Fino alla notte fra il 3 e il 4/9 il commento su quelle righe diceva «il genitore la guardia
+   * ce l'ha», e per le quattro `crm_*` era falso: il genitore è `crm_leads`, che sta fra i buchi.
+   * La condizione reggeva lo stesso — per la seconda via — ma nessuno la controllava, e il commento
+   * è tornato falso **due volte in due giorni**. Un commento non è un cancello.
+   */
+  it('⛔ il genitore di una figlia o ha una guardia, o è a sua volta un buco', () => {
+    const figlie = Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => MOTIVO_SENZA_GUARDIA[k] === 'figlia');
+    const orfane = figlie.filter((k) => {
+      const genitore = (INHERIT_DEFAULTS as Record<string, string>)[k];
+      return !genitore || (!chiaviLette.has(genitore) && MOTIVO_SENZA_GUARDIA[genitore] !== 'buco');
+    });
+    expect(orfane).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **E quali delle due vie regge ciascuna**, congelato: `figlia` con il genitore guardato è una
+   * scelta chiusa; `figlia` con il genitore bucato è un lavoro che si fa **sul genitore**, e chi
+   * legge deve poterlo distinguere senza aprire cinque controller.
+   */
+  it('⚠️ e quali figlie stanno sotto un genitore che è a sua volta un buco', () => {
+    const figlie = Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => MOTIVO_SENZA_GUARDIA[k] === 'figlia');
+    const sottoUnBuco = figlie
+      .filter((k) => MOTIVO_SENZA_GUARDIA[(INHERIT_DEFAULTS as Record<string, string>)[k]] === 'buco')
+      .sort();
+    expect(sottoUnBuco).toEqual(['crm_calendar', 'crm_import', 'crm_lead_new', 'crm_pipeline']);
+  });
+});
+
+/**
+ * ⛔ **I DEFAULT SCRITTI A MANO DELLE FIGLIE: quanti sono davvero.**
+ *
+ * `DEFAULT_ESPLICITI` esiste perché il default scritto apposta per una figlia vinca sull'eredità.
+ * Il commento che lo spiega ha detto fino alla notte fra il 3 e il 4/9 *«oggi nessuna delle dodici
+ * figlie ne ha uno — questa copia serve al giorno che ne avrà»*, ed era falso su tutti e due i
+ * numeri. ⚠️ Il danno non è il conteggio: è che un commento così invita il prossimo a togliere una
+ * riga che regge già tre casi veri.
+ */
+describe('i default espliciti delle figlie', () => {
+  const figlie = Object.keys(INHERIT_DEFAULTS);
+
+  it('⚠️ le figlie sono tredici, non dodici', () => {
+    expect(figlie.length).toBe(13);
+  });
+
+  it('⛔ e tre un default scritto a mano ce l\'hanno già', () => {
+    const conEsplicito = figlie.filter((f) => Object.values(DEFAULT_ESPLICITI)
+      .some((perRuolo) => perRuolo?.[f as keyof typeof perRuolo])).sort();
+    expect(conEsplicito).toEqual(['creation_validation', 'diet_descriptions', 'diet_workspace']);
   });
 });
 

@@ -42,17 +42,17 @@
  */
 import { nomeAlimento, paroleDaLeggere } from '../food-swaps/impara-dalla-chat';
 import { senzaIlQuando } from '../food-swaps/coda-di-quando';
+import { ALTERNATIVE, eUnElenco } from '../food-swaps/forme-di-sostituzione';
 
-/** I separatori di alternativa: valgono anche senza virgole. */
-const ALTERNATIVE = /\s+(?:o|od|oppure)\s+/i;
 /** Il separatore in più che si usa SOLO quando la frase ha già una virgola. */
 const CONGIUNZIONE = /\s+(?:e|ed)\s+/i;
 
-/** Vero se in questo testo c'è il segnale che apre la lettura a elenco. */
-export function eUnElenco(testo: string): boolean {
-  const t = testo ?? '';
-  return /[,;]/.test(t) || ALTERNATIVE.test(t);
-}
+/**
+ * ⚠️ **`eUnElenco` vive in `food-swaps/forme-di-sostituzione.ts` e qui si ri-esporta**: la usa anche
+ * la strada singola, per **rifiutare** quello che è un elenco invece di leggerlo come un nome solo.
+ * Il nome resta questo perché è così che la chiamano i quattro punti che la usano.
+ */
+export { eUnElenco };
 
 /** Quante parole «vere» ha un pezzo: serve a sapere se leggendolo se ne perde qualcuna. */
 const quanteParole = (t: string): number => (t.trim().match(/[^\s]+/g) ?? []).length;

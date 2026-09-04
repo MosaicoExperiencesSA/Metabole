@@ -1,0 +1,44 @@
+Un piatto non è un alimento: Vera smetteva di dirlo e scriveva regole su nomi inventati
+
+Gruppo «le ricette» della voce `vera-vocabolario-quattro-gruppi`, misurato il 31/8. Prima:
+
+  «sostituisci la ricetta Pasta al pomodoro con Riso alle verdure»
+     → da: ["ricetta Pasta al pomodoro"]                        ← la parola «ricetta» DENTRO il nome
+  «togli la ricetta Pasta al pomodoro dal menu di ilaria»
+     → vietati: ["ricetta Pasta al pomodoro dal menu di ilaria"] ← e dentro anche il nome della cliente
+
+⚠️ Le regole che ne uscivano erano INERTI — nessun alimento si chiama così — ma Vera rispondeva con
+un'anteprima plausibile da confermare, e chi aveva scritto restava convinta di aver scritto
+qualcosa. Una lettura plausibile e sbagliata è peggio di un onesto «non ci arrivo».
+
+Adesso Vera riconosce che si parla di un PIATTO, lo nomina («ho capito che parli di un piatto,
+"Pasta al pomodoro"») e dice DOVE si fa: «Menu a mano» nella scheda della cliente per il menu,
+«Ricette» per il catalogo. Nominare il piatto capito è il modo in cui chi legge si accorge subito
+se abbiamo capito quello sbagliato.
+
+⛔ E NON APRE UNA PRATICA
+`fuori_portata` esisteva già ma finiva sempre in coda al capo. Giusto per la regola su un tipo di
+dieta, che cambia il menu di centinaia di clienti; sbagliato qui: cambiare un piatto nel menu di una
+persona è un gesto piccolo su una schermata che esiste già. Aprire una pratica per una cosa che si
+fa in trenta secondi non è prudenza — è una riga in più in una coda che qualcuno deve svuotare, e
+una risposta che SPOSTA il lavoro invece di indicarlo.
+
+⛔ SERVONO TUTT'E DUE LE CONDIZIONI
+La parola che dice «è un piatto» (la ricetta / il piatto) e un verbo del sostituire o togliere.
+Senza il verbo, «la ricetta Pasta al pomodoro ha troppi carboidrati» è un commento; senza la parola,
+«sostituisci il pane con le gallette» è una sostituzione di alimento, che si sa fare — e prenderla
+di qui vorrebbe dire spegnere il caso normale, che è il modo in cui questo progetto ha già sbagliato
+due volte.
+
+⛔ E «UN PIATTO DI PASTA» È UNA PORZIONE, NON UNA RICETTA
+La preposizione dopo la parola è tutta la differenza: la stessa lezione di `coda-di-quando.ts`, dove
+«a colazione» è un orario e «da colazione» è un prodotto.
+
+⚠️ E le ricette che si sanno già fare restano dove stanno: «crea la ricetta X» e «modifica la
+ricetta X» hanno un riconoscitore loro dal 13/8, e va PRIMA di questo.
+
+8 prove di mutazione, tutte prese, comprese le due che contano: il riconoscitore spostato dopo la
+sostituzione (non scatterebbe mai) e la risposta che smette di dire dove si fa.
+
+7333 prove verdi su 426 suite nelle quattro modalità; build ok; `tsc --noEmit` solo i due errori
+preesistenti in `prisma/`.

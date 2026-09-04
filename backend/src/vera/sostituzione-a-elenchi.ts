@@ -24,6 +24,15 @@
  */
 import { daScartare, paroleDaLeggere } from '../food-swaps/impara-dalla-chat';
 import { leggiElenco, eUnElenco } from './elenco-alimenti';
+/**
+ * ⛔ **La forma passiva e il vocativo vivono in `food-swaps/forme-di-sostituzione.ts`.**
+ *
+ * Ci sono finiti il 3/9: li usa anche la strada singola (`sostituzioniNelMessaggio`), che la passiva
+ * non la conosceva — quindi «il merluzzo può essere sostituito con orata **o spigola**» si leggeva e
+ * «…con orata» no. ⚠️ La stessa frase capita o buttata via a seconda di quante alternative aveva
+ * scritto la nutrizionista: una forma scritta in due posti diverge, una scritta in uno solo no.
+ */
+import { FORME_CON_IL_NOME_PRIMA, VOCATIVO } from '../food-swaps/forme-di-sostituzione';
 
 /** «sostituisci», «sostituisci sempre», e i refusi che compaiono davvero. */
 const VERBO = '(?:sostitu[ai]?sc[iae]|sostitu[ai]sci|sostituire|cambia|rimpiazza)';
@@ -31,28 +40,6 @@ const VERBO = '(?:sostitu[ai]?sc[iae]|sostitu[ai]sci|sostituire|cambia|rimpiazza
 const RINFORZO = '(?:\\s+(?:sempre|ovunque|in\\s+tutti\\s+i\\s+men[uù]|nei\\s+men[uù]))?';
 
 const FORMA = new RegExp(`\\b${VERBO}${RINFORZO}\\s+(.+?)\\s+con\\s+(.+)$`, 'i');
-
-/**
- * ⛔ **LA FORMA PASSIVA: «il merluzzo può essere sostituito con orata, salmone o spigola».**
- *
- * È come scrive chi detta una regola invece di dare un ordine, ed è la frase vera del 31/8. Qui il
- * primo alimento sta **prima** del verbo, quindi la forma imperativa qui sopra non può leggerla: il
- * gruppo che cattura sarebbe vuoto, e la frase moriva in «non ci arrivo».
- *
- * ⛔ **L'ausiliare è obbligatorio, e non è pignoleria.** La prima stesura accettava il participio
- * **nudo** (`sostituito con`) con un `^(.+?)` pigro davanti: la revisione l'ha smontata misurando —
- * «il pane **era stato** sostituito con gallette» diventava una regola, e «**in teoria** il riso può
- * essere sostituito con quinoa» metteva «in teoria il riso» al posto dell'alimento. Una lettura
- * plausibile e sbagliata è peggio di un «non ci arrivo».
- */
-const FORMA_PASSIVA = new RegExp(
-  '^(.+?)\\s+(?:' +
-    '(?:pu[òo]|possono|deve|devono)\\s+essere\\s+(?:sostituit[oaie]|cambiat[oaie])|' +
-    '(?:va|vanno)\\s+(?:sostituit[oaie]|cambiat[oaie])|' +
-    'si\\s+(?:pu[òo]|possono)\\s+(?:sostituire|cambiare)' +
-  ')\\s+con\\s+(.+)$',
-  'i',
-);
 
 /**
  * ⛔ **LA CODA CHE DICE «PER CHI VALE» NON È UN ALIMENTO**, e va staccata prima di leggere.
@@ -79,15 +66,6 @@ const CODA_AMBITO = new RegExp(
 );
 
 /**
- * Il vocativo che apre la frase: «**a Marta** il merluzzo può essere sostituito con…».
- *
- * ⛔ Senza staccarlo, il nome della cliente finisce **dentro il nome dell'alimento** («al posto di
- * "a Marta il merluzzo"…»). Chi lo legge poi come cliente è `nomePersona`, che lavora sulla frase
- * intera: qui si toglie solo per non sporcare l'alimento.
- */
-const VOCATIVO = /^(?:a|ad|per|alla|al)\s+[A-ZÀ-Ý][\wÀ-ÿ'’]+(?:\s+[A-ZÀ-Ý][\wÀ-ÿ'’]+)?[\s,;]+/u;
-
-/**
  * La frase senza la coda che dice per chi vale. Se la coda non c'è, torna la frase com'è.
  *
  * ⚠️ Il pezzo staccato **non** viene riletto da nessuno: l'ambito lo si chiede comunque, un passo
@@ -107,14 +85,80 @@ export function senzaCodaDiAmbito(testo: string): string {
  * fermava. ⚠️ E il lato sinistro non può essere una mezza frase: oltre tre parole vere non è più il
  * nome di un alimento, è il resto del discorso.
  */
+/**
+ * ⛔ **LA NEGAZIONE SI CERCA NELLA PROPOSIZIONE DELL'ORDINE, non nel messaggio intero.**
+ *
+ * `daScartare` è nata per una frase sola. Applicandola al messaggio intero — che è quello che fa il
+ * ramo passivo, ancorato a `^` — si perdono le frasi in cui la negazione sta in un'**altra**
+ * proposizione, e in italiano è quasi sempre lì:
+ *
+ * ```
+ * non digerisce il glutine, sostituisci la pasta con il riso o la quinoa
+ * niente latticini, sostituisci il formaggio con il tofu o il seitan
+ * le va bene? sostituisci il pane con le gallette o i cracker
+ * ```
+ *
+ * ⚠️ Sono **diciassette** frasi normali su un campione di prova, tutte spente: misurate in
+ * revisione, dopo che il commento di questa correzione dichiarava un costo «misurato» che non lo
+ * era. ⛔ *Una guardia che blocca il caso normale non è prudente: è rotta, e sembra prudente* — è
+ * scritto in testa a `frasi-normali-che-devono-passare.spec.ts`, e l'ho dovuto imparare due volte.
+ *
+ * Quindi si guarda **da dove comincia la proposizione che contiene il verbo**: «mai sostituire…» e
+ * «evita di sostituire…» ce l'hanno dentro e restano fuori; «non digerisce il glutine, sostituisci…»
+ * no e passa.
+ */
+function clausolaDellOrdine(frase: string, doveIlVerbo: number): string {
+  let inizio = 0;
+  for (const sep of [',', ';', ':', '?', '!', '.', '\n']) {
+    const i = frase.lastIndexOf(sep, doveIlVerbo);
+    if (i >= 0 && i + 1 > inizio) inizio = i + 1;
+  }
+  return frase.slice(inizio);
+}
+
 function leggiForma(testo: string): RegExpExecArray | null {
+  /**
+   * ⛔ **`daScartare` PRIMA DI TUTTO, imperativo compreso** (3/9, trovato scrivendo le prove delle
+   * forme nuove — non da una rilettura).
+   *
+   * Stava **dopo** il ramo imperativo, e il commento diceva «sul ramo passivo si passa da
+   * `daScartare`» come se l'asimmetria fosse voluta. Misurato:
+   *
+   *     «**mai** sostituire il pane con le gallette o i cracker»   → sostituisci pane con gallette
+   *     «**evita di** sostituire il pane con le gallette»          → sostituisci pane con gallette
+   *
+   * ⚠️ Cioè **il contrario di quello che era stato scritto**, nel ramo che *esegue un ordine*. Il
+   * «non» lo fermava un controllo più a monte in `capisci`; «mai» ed «evita» no, e arrivavano fino
+   * in fondo. È lo stesso difetto che `daScartare` esiste per chiudere — «il merluzzo **non** può
+   * essere sostituito con orata» — lasciato aperto dalla porta accanto.
+   *
+   * ⚠️ Misurato anche il costo: le due frasi vere del 31/8 (Lorena, Jolanda) non contengono nessuna
+   * di quelle parole e passano identiche; le frasi con «?» erano già rifiutate, perché la coda
+   * («va bene?») rendeva illeggibile l'ultimo pezzo dell'elenco.
+   */
   const pulita = senzaCodaDiAmbito(testo ?? '');
   const imperativa = FORMA.exec(pulita);
-  if (imperativa) return imperativa;
+  if (imperativa) return daScartare(clausolaDellOrdine(pulita, imperativa.index)) ? null : imperativa;
   if (daScartare(testo ?? '')) return null;
-  const passiva = FORMA_PASSIVA.exec(pulita.replace(VOCATIVO, ''));
-  if (!passiva) return null;
-  return paroleDaLeggere(passiva[1]) <= PAROLE_DEL_NOME ? passiva : null;
+  /**
+   * ⚠️ **Tutte le forme in cui il nome sta prima**, dallo stesso elenco che usa la strada singola
+   * (`food-swaps/forme-di-sostituzione.ts`): la passiva, la freccia e «al posto di» che apre la
+   * frase. Prima qui c'era solo la passiva, quindi «al posto del merluzzo può mettere orata **o
+   * spigola**» non veniva letta né di qua né di là.
+   *
+   * ⛔ Il tetto di tre parole vale **solo** dove il pezzo di sinistra non è delimitato (`risalita`):
+   * lì contiene tutto quello che c'era prima, e oltre tre parole non è più un nome ma una frase.
+   * Dove invece una parola chiave lo delimita — «al posto **del** merluzzo …» — contarle sarebbe
+   * rifiutare nomi lunghi legittimi.
+   */
+  const senzaVocativo = pulita.replace(VOCATIVO, '');
+  for (const { re, risalita } of FORME_CON_IL_NOME_PRIMA) {
+    const m = re.exec(senzaVocativo);
+    if (!m) continue;
+    if (risalita && paroleDaLeggere(m[1]) > PAROLE_DEL_NOME) continue;
+    return m;
+  }
+  return null;
 }
 
 /** Oltre tre parole vere, il lato sinistro di una passiva non è un alimento ma una frase. */
@@ -142,8 +186,10 @@ export function chiedeUnaSostituzioneAElenchi(testo: string): boolean {
    * Lorena in miniatura, rinato dalla porta accanto (trovato in revisione, 31/8).
    */
   for (const t of [testo ?? '', senzaCodaDiAmbito(testo ?? '')]) {
-    const m = FORMA.exec(t) ?? FORMA_PASSIVA.exec(t.replace(VOCATIVO, ''));
-    if (m && (eUnElenco(m[1]) || eUnElenco(m[2]))) return true;
+    const forme = [FORMA.exec(t), ...FORME_CON_IL_NOME_PRIMA.map((f) => f.re.exec(t.replace(VOCATIVO, '')))];
+    for (const m of forme) {
+      if (m && (eUnElenco(m[1]) || eUnElenco(m[2]))) return true;
+    }
   }
   return false;
 }

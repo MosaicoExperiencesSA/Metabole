@@ -56,13 +56,22 @@ function spezza(elenco: string): string[] {
  */
 const FORME: { re: RegExp; elenco: number; nome?: number }[] = [
   // «aggiungi equivalenza: pollo, tacchino, coniglio» · «crea un'equivalenza fra pollo e tacchino»
-  { re: /^(?:aggiungi(?:amo)?|crea(?:mi|iamo)?|fai|facciamo|inserisci(?:amo)?|nuova?)\s+(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
+  /**
+   * ⚠️ **«un», «un'» e «una»**: la prima stesura scriveva `(?:un[' ]?)?`, che prende «un » e «un'»
+   * e **non** «una». Quindi «aggiungi **una** equivalenza fra pane e gallette» cadeva su «non ci
+   * arrivo» mentre «aggiungi **un'**equivalenza tra pane e gallette» funzionava: la stessa frase
+   * capita o no a seconda di un apostrofo. Misurato il 3/9.
+   */
+  { re: /^(?:aggiungi(?:amo)?|crea(?:mi|iamo)?|fa(?:i|mmi|cciamo)|inserisci(?:amo)?|nuova?)\s+(?:un(?:a|')?\s*)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
   // «voglio aggiungere un'equivalenza: …»
-  { re: /^(?:voglio|vorrei|devo|posso)\s+(?:aggiungere|creare|fare|inserire)\s+(?:un[' ]?)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
+  { re: /^(?:voglio|vorrei|devo|posso)\s+(?:aggiungere|creare|fare|inserire)\s+(?:un(?:a|')?\s*)?(?:gruppo\s+di\s+)?equivalenz[ae]\b(?:\s+(?:fra|tra|con|per|di))?\s*:?\s*(.+)$/i, elenco: 1 },
   // «al posto del pollo si può mettere tacchino o coniglio»
   { re: /^(?:al posto (?:del|dello|della|dei|degli|delle|di)\s+)(.+?)\s+(?:si pu[òo]|puoi|posso|possiamo)\s+(?:mettere|usare|dare)\s+(.+)$/i, elenco: 2, nome: 1 },
   // «pollo, tacchino e coniglio sono equivalenti»
   { re: /^(.+?)\s+sono\s+equivalenti\b.*$/i, elenco: 1 },
+  // ⚠️ «metti pane e gallette nella stessa equivalenza»: dice la stessa cosa mettendo il verbo
+  // davanti e l'equivalenza in fondo. Misurata il 3/9 fra le forme che cadevano su «non ci arrivo».
+  { re: /^(?:metti(?:amo)?|mettere|mettili|unisci(?:amo)?)\s+(.+?)\s+(?:nell[ao]|in|sotto)\s+(?:la\s+)?stess[ao]\s+(?:gruppo\s+di\s+)?equivalenz[ae]\b.*$/i, elenco: 1 },
 ];
 
 /**

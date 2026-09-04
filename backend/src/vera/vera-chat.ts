@@ -236,6 +236,48 @@ export const testi = {
     'ancora non lo so fare: cambia il menu di tutte le clienti di quella dieta, e deve passare ' +
     'dall\'approvazione. Se intendevi una cliente sola, dimmi il suo nome.',
 
+  /**
+   * ⛔ **Si dice COSA si è capito e DOVE si fa** — non «non ci arrivo».
+   *
+   * «sostituisci la ricetta Pasta al pomodoro con Riso alle verdure» è una frase chiarissima: dire
+   * «non ci arrivo» a chi l'ha scritta è falso e la manda a riscriverla uguale. ⚠️ E il nome del
+   * piatto si ripete: è il modo in cui chi legge si accorge subito se abbiamo capito il piatto
+   * sbagliato.
+   */
+  piattoNonAlimento: (piatto: string) =>
+    `Ho capito che parli di un piatto («${piatto}»), non di un alimento. Le sostituzioni che so ` +
+    'scrivere sono fra **alimenti** — «il pane con le gallette» — e valgono su tutti i piatti che li ' +
+    'contengono.\n\nCambiare un piatto nel menu di una cliente si fa dalla sua scheda, in **Menu a ' +
+    'mano**: lì scegli il giorno e il pasto, e vedi subito le kcal e gli avvisi. Se invece volevi ' +
+    'toglierla dal catalogo, si fa da **Ricette**; e se volevi una regola su un alimento, dimmi ' +
+    'quale al posto di quale.',
+
+  /**
+   * ⛔ **La lista si sa creare e mostrare, non cambiare — e la strada che esiste gliela dice Vera
+   * stessa** quando la mostra («Se va corretta, dimmi "rifai la lista dei X"»). Ripeterla qui non è
+   * una scusa: è l'unica cosa che si può fare adesso, e dirla costa una riga.
+   */
+  voceDiLista: (lista: string) =>
+    `Ho capito che vuoi cambiare la lista «${lista}». Aggiungere o togliere una voce da sola non lo ` +
+    'so ancora fare: quello che posso fare è **rifarla da capo**, e mi ridetti l\'elenco completo.' +
+    `\n\nDimmi «rifai la lista dei ${lista}» e me la scrivi, oppure «hai la lista dei ${lista}?» se ` +
+    'prima vuoi vedere com\'è adesso.',
+
+  /**
+   * ⛔ **Si dice cosa si è capito e dove si fa.** Chiudere una segnalazione è la traccia che
+   * qualcuno ha guardato, e resta scritto chi: non è un gesto che si fa da una frase di due parole
+   * senza un motivo scritto. ⚠️ Ma «non ci arrivo» a «chiudi Ilaria» è **falso** — si è capito
+   * benissimo — ed è la risposta che una persona racconta agli altri.
+   */
+  chiusuraSegnalazione: (chi: string) =>
+    (chi
+      ? `Ho capito: la segnalazione di ${chi} è risolta. `
+      : 'Ho capito che vuoi chiudere una segnalazione. ') +
+    'Chiuderla non lo so ancora fare: resta scritto **chi** l\'ha guardata e **perché** l\'ha ' +
+    'chiusa, e da qui quel perché non te lo posso chiedere.' +
+    '\n\nLa chiudi dalla tua coda — **Segnalazioni**, nella tua Dashboard — con un clic. Se prima ' +
+    'vuoi vedere cosa hai in sospeso, dimmi «hai segnalazioni per me?».',
+
   chiediQualeSpuntino: (cliente: string) =>
     `Per ${cliente}: quale spuntino? Dimmi «quello del mattino», «la merenda del pomeriggio», ` +
     'oppure «tutti e due».',

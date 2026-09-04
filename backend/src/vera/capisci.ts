@@ -286,7 +286,19 @@ export interface IntentoEquivalenza {
 
 export interface IntentoFuoriPortata {
   tipo: 'fuori_portata';
-  cosa: 'regola_dieta';
+  /**
+   * ⚠️ **Due cose diverse, e la risposta giusta è diversa** — vedi `vera-chat.service.ts`.
+   * · `regola_dieta` cambia il menu di centinaia di clienti: nasce come **proposta in coda al capo**;
+   * · `ricetta_nel_menu` è un gesto piccolo su una schermata che **esiste già** («Menu a mano»):
+   *   la risposta giusta è dire dov'è, non aprire una pratica che nessuno aspetta;
+   * · `voce_di_lista` è una lista che c'è già e va **cambiata**: Vera sa crearla e mostrarla, non
+   *   modificarla — e la strada che esiste (rifarla da capo) gliela dice lei stessa quando la
+   *   mostra, quindi la risposta giusta è ricordargliela;
+   * · `chiudi_segnalazione` è un gesto **clinico**: chiudere una segnalazione è la traccia che
+   *   qualcuno ha guardato, e chi la chiude resta scritto. ⛔ Non si fa da qui finché non è deciso
+   *   **cosa si scrive come motivo**, e quella è una decisione di prodotto: vedi la voce dei lavori.
+   */
+  cosa: 'regola_dieta' | 'ricetta_nel_menu' | 'voce_di_lista' | 'chiudi_segnalazione';
   dettaglio: string;
 }
 
@@ -470,6 +482,102 @@ const STILE_NOMINATO = /\b(?:menu|dieta|diete)\s+(\w+)/iu;
 /** «la ricetta tonno alle olive» → il nome viene dopo la parola «ricetta». */
 const NOME_DOPO_RICETTA = /\bricett[ae]\s+(?:dell?[ao']\s+|di\s+|del\s+)?([^,.;]{3,80})/iu;
 
+/**
+ * ⛔ **«LA RICETTA X», «IL PIATTO X»: un piatto, non un alimento.**
+ *
+ * Serve un verbo del **sostituire o togliere** più la parola che dice che si parla di un piatto. Le
+ * due condizioni insieme, e nessuna delle due basta:
+ * · senza il verbo, «la ricetta Pasta al pomodoro ha troppi carboidrati» è un commento;
+ * · senza la parola, «sostituisci il pane con le gallette» è una sostituzione di alimento, che si
+ *   sa fare — e prenderla di qui vorrebbe dire spegnere il caso normale.
+ *
+ * ⛔ **«piatto di …» NON conta**: «un piatto di pasta» è una **porzione**, non una ricetta, e
+ * «sostituisci un piatto di pasta con del riso» è una sostituzione di alimento come tutte le altre.
+ * La preposizione dopo la parola è tutta la differenza — è la stessa lezione di `coda-di-quando.ts`,
+ * dove «**a** colazione» è un orario e «**da** colazione» è un prodotto.
+ */
+const PAROLA_DEL_PIATTO = /\b(?:la|le|una|quella|questa)\s+ricett[ae]\b|\b(?:il|i|un|quel|questo)\s+piatt[oi]\b(?!\s+d(?:i|el|ella|elle|egli|ei)\b)/iu;
+const VERBI_DEL_PIATTO = /\b(?:sostitu\w*|cambi\w*|rimpiazz\w*|togli\w*|tolgo|leva\w*|elimin\w*|rimuov\w*|scambi\w*)\b/iu;
+/** Il nome del piatto: quello che viene dopo la parola, fino alla prima parola di servizio. */
+const NOME_DEL_PIATTO = /\b(?:ricett[ae]|piatt[oi])\s+(?:dell?[ao']\s+|di\s+|del\s+)?([^,.;]{3,80}?)(?:\s+(?:con|dal|dalla|dai|nel|nella|per|a|e)\b|[,.;]|$)/iu;
+
+/**
+ * Il nome del piatto se la frase parla di un piatto, altrimenti `null`.
+ *
+ * ⚠️ Il nome è **quello che si mostra a chi ha scritto**, non un identificatore: serve a far vedere
+ * che si è capito di quale piatto si parla, e a far accorgere subito se si è capito male.
+ */
+function parlaDiUnPiatto(testo: string): string | null {
+  if (!PAROLA_DEL_PIATTO.test(testo)) return null;
+  if (!VERBI_DEL_PIATTO.test(testo)) return null;
+  const nome = NOME_DEL_PIATTO.exec(testo)?.[1]?.trim();
+  return nome && nome.length >= 3 ? nome : null;
+}
+
+/**
+ * ⛔ **«AGGIUNGI/TOGLI X ALLA/DALLA LISTA DEI Y»: si parla della lista, non di una cliente.**
+ *
+ * ⚠️ Serve che la frase nomini **la lista** e che il verbo sia di quelli che aggiungono o tolgono.
+ * Senza la lista, «togli le gallette» è un divieto su una cliente — che si sa fare, ed è il caso di
+ * tutti i giorni: prenderlo di qui vorrebbe dire spegnerlo.
+ *
+ * ⚠️ Rende **il nome della lista**, che è quello che serve per rispondere: la strada che esiste è
+ * «rifai la lista dei Y», e per dirla bisogna sapere quale.
+ */
+const VERBI_DELLA_VOCE = /\b(?:aggiung\w*|inserisc\w*|metti\w*|togli\w*|tolgo|leva\w*|elimin\w*|rimuov\w*)\b/iu;
+const NOME_DELLA_LISTA = /\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+([^,.;?!]{2,60})/iu;
+
+function parlaDiUnaVoceDiLista(testo: string): string | null {
+  if (!VERBI_DELLA_VOCE.test(testo)) return null;
+  const grezzo = NOME_DELLA_LISTA.exec(testo)?.[1];
+  if (!grezzo) return null;
+  /**
+   * ⚠️ **Il nome si ferma al verbo**, e il verbo è quello dello stesso elenco qui sopra — non una
+   * seconda lista di parole di stop, che divergerebbe. «**nella lista dei** formaggi molli
+   * **aggiungi** la ricotta» dava «formaggi molli aggiungi la ricotta», cioè un nome di lista con
+   * dentro mezza frase: chi legge la risposta si sarebbe visto suggerire «rifai la lista dei
+   * formaggi molli aggiungi la ricotta».
+   */
+  const nome = grezzo.split(VERBI_DELLA_VOCE)[0].trim();
+  return nome.length >= 2 ? nome : null;
+}
+
+/**
+ * ⛔ **«chiudi ilaria», «chiudi la segnalazione di Ilaria», «ho sentito Ilaria, puoi chiudere».**
+ *
+ * ⚠️ **Il verbo da solo non basta.** «chiudi» compare anche dove non c'entra niente con la coda —
+ * «chiudi la lista dei formaggi molli» — quindi serve **o** la parola «segnalazione/avviso/caso»,
+ * **o** un nome di persona subito dopo il verbo. ⛔ E si esclude esplicitamente quello che è
+ * un'altra cosa (una lista, un piatto), perché prendere quelle qui vorrebbe dire rispondere la cosa
+ * sbagliata a una frase che gli altri riconoscitori sanno leggere.
+ *
+ * ⚠️ Rende **il nome scritto**, non la cliente risolta: serve solo a far vedere che si è capito di
+ * chi si parla. Chi risolve davvero i nomi è `nomePersona`, e qui non si scrive niente.
+ */
+const PAROLA_DELLA_CODA = /\b(?:segnalazion[ei]|avvis[oi]|cas[oi]|allarm[ei])\b/iu;
+const VERBO_DEL_CHIUDERE = /\b(?:chiud\w*|risolt[oaie]|risolv\w*|archivi\w*|sistemat[oaie]|a\s+posto)\b/iu;
+const NON_E_LA_CODA = /\b(?:lista|elenco|famiglia|ricett[ae]|piatt[oi]|giornata|menu|men[uù])\b/iu;
+/** «chiudi ilaria», «chiudi la segnalazione di ilaria»: il nome dopo il verbo o dopo «di». */
+const CHI_SI_CHIUDE = /\b(?:chiud\w*|risolv\w*|archivi\w*)\s+(?:(?:la|il|lo|le|i)\s+)?(?:segnalazion[ei]|avvis[oi]|cas[oi]|allarm[ei])?\s*(?:di\s+|per\s+|a\s+)?([\p{L}][\p{L}'’]{1,30}(?:\s+[\p{L}][\p{L}'’]{1,30})?)/iu;
+
+function chiedeDiChiudereUnaSegnalazione(testo: string): string | null {
+  if (NON_E_LA_CODA.test(testo)) return null;
+  if (!VERBO_DEL_CHIUDERE.test(testo)) return null;
+  const nome = CHI_SI_CHIUDE.exec(testo)?.[1]?.trim();
+  // ⚠️ «chiudi tutto», «chiudi tutte»: non è una persona, e chiudere «tutto» è proprio la cosa che
+  // non si deve indovinare. Si risponde lo stesso, ma senza fingere di sapere quale.
+  if (nome && /^(?:tutt[oiae]|questa|quella|adesso|ora|pure|anche)$/iu.test(nome)) {
+    return PAROLA_DELLA_CODA.test(testo) ? '' : null;
+  }
+  /**
+   * ⚠️ **La parola della coda non è un nome di persona.** «chiudi **le segnalazioni**» dava
+   * `dettaglio: "segnalazioni"`, e la risposta sarebbe stata «la segnalazione di segnalazioni è
+   * risolta». Si risponde lo stesso, ma senza fingere di sapere di chi.
+   */
+  if (nome && !PAROLA_DELLA_CODA.test(nome)) return nome;
+  return PAROLA_DELLA_CODA.test(testo) ? '' : null;
+}
+
 function parlaDiRicetta(testo: string): IntentoRicetta | null {
   if (!/\bricett/iu.test(testo)) return null;
   const modifica = VERBI_MODIFICA.test(testo);
@@ -492,7 +600,13 @@ function parlaDiRicetta(testo: string): IntentoRicetta | null {
  */
 /** «Hai la lista dei…?» — sola lettura: è l'unica frase che può essere una domanda. */
 const MOSTRA_FAMIGLIA = /^(?:hai|mostrami|fammi vedere|vedi|dammi|qual è|com'è|cosa c'è (?:in|nella|nei))\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+(.{2,60}?)[?.!]*$/i;
-const CREA_FAMIGLIA = /^(?:crea(?:mi)?|fai|facciamo|prepara|costruisci|impara|rifai|aggiorna)\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del)\s+(.{2,60}?)[?.!]*$/i;
+/**
+ * ⚠️ **«con i formaggi molli» quanto «dei formaggi molli»**, e i verbi con cui si scrive davvero.
+ * Misurato il 3/9: «crea una lista **con** i formaggi molli» e «**fammi** una lista dei formaggi
+ * molli» cadevano su «non ci arrivo» mentre «crea la lista **dei** formaggi molli» funzionava — la
+ * stessa richiesta capita o no per una preposizione.
+ */
+const CREA_FAMIGLIA = /^(?:crea(?:mi)?|fa(?:i|mmi|cciamo)|prepara(?:mi)?|costruisci|impara|rifai|aggiorna|scrivi(?:mi)?)\b.*?\b(?:lista|elenco|famiglia)\s+(?:dei|delle|degli|di|del|con(?:\s+(?:i|le|gli|il|la|lo))?)\s+(.{2,60}?)[?.!]*$/i;
 
 export function capisci(frase: string): Intento | null {
   /**
@@ -592,6 +706,66 @@ export function capisci(frase: string): Intento | null {
   // 2) Una ricetta: nuova o da cambiare.
   const ricetta = parlaDiRicetta(testo);
   if (ricetta) return ricetta;
+
+  /**
+   * 2-bis) ⛔ **UN PIATTO NON È UN ALIMENTO, e leggerlo come tale scriveva regole su nomi inventati.**
+   *
+   * Misurato il 3/9 (voce `vera-vocabolario-quattro-gruppi`, gruppo «le ricette»):
+   *
+   * ```
+   * «sostituisci la ricetta Pasta al pomodoro con Riso alle verdure»
+   *    → da: ["ricetta Pasta al pomodoro"]                       ← la parola «ricetta» DENTRO il nome
+   * «togli la ricetta Pasta al pomodoro dal menu di ilaria»
+   *    → vietati: ["ricetta Pasta al pomodoro dal menu di ilaria"] ← e con dentro il nome della cliente
+   * ```
+   *
+   * ⚠️ Quelle regole sono **inerti** — nessun alimento si chiama così — ma Vera rispondeva con
+   * un'anteprima plausibile da confermare, e la nutrizionista restava convinta di aver scritto
+   * qualcosa. *Una lettura plausibile e sbagliata è peggio di un onesto «non ci arrivo».*
+   *
+   * ⛔ Va **prima** dei riconoscitori di sostituzione e divieto, che sono quelli che la leggevano
+   * male: dopo sarebbe una correzione che non scatta mai.
+   */
+  const piatto = parlaDiUnPiatto(testo);
+  if (piatto) return { tipo: 'fuori_portata', cosa: 'ricetta_nel_menu', dettaglio: piatto };
+
+  /**
+   * 2-ter) ⛔ **CAMBIARE UNA LISTA NON È VIETARE UN ALIMENTO A UNA CLIENTE.**
+   *
+   * Misurato il 3/9, stesso gruppo del piatto:
+   *
+   * ```
+   * «togli le gallette dalla lista dei formaggi molli»
+   *    → restrizione, vietati: ["gallette dalla lista dei formaggi molli"]
+   * ```
+   *
+   * ⚠️ «togli» è la stessa parola con cui si vieta un alimento, e il riconoscitore dei divieti la
+   * prendeva con tutta la coda dentro. Il divieto che ne usciva era **inerte** — nessun alimento si
+   * chiama così — ma con un'anteprima plausibile, e alla domanda «su quale cliente?» si sarebbe
+   * scritto un divieto vero su un termine inventato.
+   *
+   * ⛔ Va **prima** del riconoscitore dei divieti, che è quello che la leggeva male.
+   */
+  const voceLista = parlaDiUnaVoceDiLista(testo);
+  if (voceLista) return { tipo: 'fuori_portata', cosa: 'voce_di_lista', dettaglio: voceLista };
+
+  /**
+   * 2-quater) ⛔ **«CHIUDI ILARIA»: si è capito benissimo, e «non ci arrivo» è falso.**
+   *
+   * È il terzo gruppo del vocabolario misurato il 31/8 (`vera-vocabolario-quattro-gruppi`): la
+   * nutrizionista ha sentito la cliente, la cosa è risolta, e lo scrive a Vera in due parole.
+   * ⚠️ Rispondere «non ci arrivo» a una frase così è la risposta che una persona racconta agli
+   * altri — è la stessa ragione per cui esistono le cortesie.
+   *
+   * ⛔ **Chiudere davvero non si fa da qui**, e non è pigrizia: una segnalazione chiusa è la traccia
+   * che **qualcuno ha guardato**, e resta scritto chi. Farla chiudere da una frase di due parole
+   * senza un motivo scritto è una decisione di prodotto — sta nella voce dei lavori, con la domanda
+   * pronta. Fino ad allora si dice cosa si è capito e dove si fa.
+   */
+  const chiusura = chiedeDiChiudereUnaSegnalazione(testo);
+  // ⚠️ `!== null`, non `if (chiusura)`: la **stringa vuota** vuol dire «è una chiusura, ma non so di
+  // chi» — ed è falsy. Con `if (chiusura)` «chiudi le segnalazioni» tornava a «non ci arrivo».
+  if (chiusura !== null) return { tipo: 'fuori_portata', cosa: 'chiudi_segnalazione', dettaglio: chiusura };
 
   const cliente = nomePersona(testo);
 

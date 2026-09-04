@@ -18,7 +18,97 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-04
+
+- `[Sviluppo]` ⛔ **Tre commenti sui permessi dicevano il falso, e uno di loro stava in una prova.**
+  La classificazione delle chiavi senza guardia diceva che le nove `figlia` hanno l'API «sotto la
+  chiave del genitore, **che la guardia ce l'ha**»: vero per cinque, **falso per le quattro
+  `crm_*`**, il cui genitore è `crm_leads` — che di guardia non ne ha nessuna e sta quattro righe
+  più su, dichiarato `buco`. La stessa frase era l'esempio usato dalla prova che avrebbe dovuto
+  controllarla. E sopra `DEFAULT_ESPLICITI` stava scritto «nessuna delle **dodici** figlie ha un
+  default scritto a mano — questa copia serve al giorno che ne avrà»: le figlie sono **tredici** e
+  **tre** ce l'hanno già.
+  ✅ Adesso la condizione è un cancello e non una frase: il genitore di una figlia **o ha una
+  guardia, o è a sua volta un buco**, più i tre numeri congelati. Cinque mutazioni sui **dati** di
+  `pages.ts`, tutte prese — è la classificazione che marcisce, non un algoritmo.
+  ⚠️ Le quattro `crm_*` restano `figlia`: riclassificarle conterebbe cinque volte lo stesso buco.
+
+- `[Sviluppo]` ⛔ **La diagnostica della strada (b) è stata scritta, revisionata due volte e
+  buttata** — e quello che ha misurato è finito nella voce dei lavori, che vale di più. Doveva dire
+  «queste chiavi si agganciano subito, sulle altre si decide»: fatto il conto per bene (un livello
+  per volta, che è come la guardia lo chiede) **quelle che non chiudono nessuno sono una su 29**, ed
+  è `posta`, la propria casella di posta — agganciarla non chiude niente e a livello di classe
+  romperebbe i suoi `PUT`/`POST`. Il gruppo delle «gratis» non esiste, e senza il `@Roles` della
+  rotta la matrice sbaglia di molto quanto costa una chiave (`users`: sette ruoli sulla carta, zero
+  davvero).
+  ⛔ **Due cose che non sapevamo, e che vanno guardate prima di ogni aggancio:** la guardia vale per
+  **chiunque sia autenticato, clienti comprese**, e `threads` e `documents` — i messaggi della chat
+  e il download dei documenti sanitari — **non hanno `@Roles`**, quindi agganciarci una chiave a
+  livello di classe chiude fuori tutte le clienti; e proprio lì il **fail-open si rovescia**, perché
+  la guardia diventa l'unico cancello e un errore di lettura diventa 403 per tutti.
+
 ## 2026-09-03
+
+- `[Sviluppo]` ✅ **«chiudi ilaria»: si capisce benissimo, e «non ci arrivo» era falso.** Terzo
+  gruppo del vocabolario di Vera. Adesso dice **cosa** ha capito (nominando la cliente, così si vede
+  subito se ha capito quella sbagliata), **perché** non lo fa — una segnalazione chiusa è la traccia
+  che qualcuno ha guardato, e resta scritto chi e perché — e **dove** si fa: la coda «Segnalazioni»,
+  con un clic.
+  ⛔ **Chiudere davvero dalla chat è una decisione di prodotto, e la domanda è pronta**: *può
+  chiudere scrivendolo a Vera, e cosa scriviamo come motivo — la sua frase così com'è, o Vera glielo
+  chiede prima?* Con la risposta il resto è codice.
+  ⚠️ E «ho sentito ilaria, puoi chiudere» resta fuori, misurato: il nome sta prima del verbo, e
+  cercarlo ovunque vorrebbe dire indovinare di chi si parla su una cosa che finisce in un registro
+  clinico. 8 mutazioni su 8 prese.
+
+- `[Sviluppo]` ✅ **Le liste di catalogo: la stessa richiesta capita o no per una preposizione.**
+  «crea la lista **dei** formaggi molli» sì, «crea una lista **con** i formaggi molli» no; «aggiungi
+  **un'**equivalenza» sì, «aggiungi **una** equivalenza» no. ⚠️ *Una nutrizionista che scrive la
+  stessa cosa in due modi e ne vede funzionare uno non impara la regola: impara che «a volte non
+  funziona».*
+  ⛔ **E una la leggeva male, non solo poco**: «togli le gallette **dalla lista dei formaggi molli**»
+  diventava un **divieto su una cliente** — «togli» è la stessa parola con cui si vieta un alimento,
+  e il riconoscitore prendeva tutta la coda. Inerte, ma alla domanda «su quale cliente?» si sarebbe
+  scritto un divieto vero su un termine inventato.
+  ✅ Adesso Vera dice la strada che esiste («rifai la lista dei formaggi molli», la stessa frase che
+  suggerisce da sola quando la mostra) e **non apre una pratica**. ⛔ Resta da fare: aggiungere o
+  togliere **una voce sola**. 9 mutazioni su 9 prese.
+
+- `[Sviluppo]` ✅ **Un piatto non è un alimento.** «sostituisci **la ricetta** Pasta al pomodoro con
+  Riso alle verdure» scriveva una regola su un alimento chiamato «ricetta Pasta al pomodoro»; «togli
+  la ricetta X **dal menu di ilaria**» un divieto col nome della cliente dentro. ⚠️ Regole **inerti**
+  — nessun alimento si chiama così — ma con un'anteprima plausibile da confermare: chi aveva scritto
+  restava convinta di aver scritto qualcosa.
+  ✅ Adesso Vera riconosce il **piatto**, lo nomina (così si vede subito se ha capito quello
+  sbagliato) e dice **dove si fa**: «Menu a mano» per il menu di una cliente, «Ricette» per il
+  catalogo. ⛔ **E non apre una pratica**: mettere in coda al capo una cosa che si fa in trenta
+  secondi sposta il lavoro invece di indicarlo — la coda serve alla regola di dieta, che cambia il
+  menu di centinaia di clienti.
+  ⛔ Servono **tutt'e due** le condizioni (la parola «ricetta/piatto» e un verbo del sostituire),
+  e «un piatto **di** pasta» resta una **porzione**: la preposizione dopo la parola è tutta la
+  differenza. 8 mutazioni su 8 prese.
+
+- `[Sviluppo]` ✅ **Le forme di sostituzione che nessuna delle due strade leggeva.** «il merluzzo
+  può essere sostituito con orata **o spigola**» si leggeva, «…con orata» **no**: la forma passiva la
+  conosceva solo il ramo a elenchi, che però risponde `null` quando un elenco non c'è, e il ramo
+  singolo non la conosceva affatto. ⚠️ **La frase cadeva nel mezzo**, e dentro una segnalazione
+  aperta Vera la inoltrava alla cliente come risposta.
+  ✅ Adesso le forme stanno in **un modulo solo** e le usano tutte e due le strade. Chiuse: la
+  passiva con l'aggettivo («è sostituibile con»), «al posto del X può mettere Y» che apre la frase,
+  e i verbi con cui una persona scrive davvero.
+  ⛔ **La freccia è rimasta fuori, ed è una decisione misurata**: provata su venticinque righe di
+  chat vere con una freccia dentro, **sedici diventavano una regola** — «legumi → 3 volte a
+  settimana», «da eliminare → pane, pasta e riso» (il rovescio). Le altre due forme hanno un'ancora
+  lessicale che dice «questo è un ordine»; la freccia no.
+  ⛔ **E di passaggio: un divieto veniva eseguito come ordine.** «**mai** sostituire il pane con le
+  gallette» ed «**evita di** sostituire…» arrivavano fino in fondo come ordini. ⚠️ E la prima
+  correzione costava **diciassette frasi normali**, perché cercava la negazione nel messaggio intero
+  invece che nella proposizione del verbo — il commento la dichiarava «misurata» e non lo era.
+  ⛔ E il **troncamento sulla «e»** era tornato dalla porta nuova: «il pane **e** la pasta possono
+  essere sostituiti con il riso» imparava «pasta».
+  15 mutazioni prese; **due revisioni avversariali**, e le tre cose peggiori le ha trovate la
+  seconda — nessuna le mie prove. Il corpus cresce di 21 righe e, per la prima volta, anche del
+  verso opposto: 16 frasi che **non** devono diventare una regola.
 
 - `[Sviluppo]` ✅ **Il cancello del perimetro clienti adesso è guardato davvero.** La voce
   `perimetro-commerciale-clienti-assegnate` lo diceva da sei giorni: dei due cancelli che decidono
