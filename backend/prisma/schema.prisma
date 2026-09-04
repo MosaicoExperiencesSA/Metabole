@@ -2341,11 +2341,17 @@ model Testimonial {
 
 // R4/R8 — Gruppi di equivalenza per le sostituzioni (safety-critical).
 // Di proprietà del nutrizionista (workflow draft→approved, versionato).
-// productId null = gruppo globale; le sostituzioni restano comunque dentro il pool del prodotto.
+//
+// ⛔ DAL 4/9 UN GRUPPO NON È DI UNA DIETA — decisione di Simone: «i gruppi non devono essere legati
+// alle diete, sono gruppi e stop». `productId` è sempre `null`: la colonna resta (niente
+// migrazione) ma non porta più informazione, e le query che filtravano su di essa non filtrano più
+// niente. Il cancello che quel legame dava per caso — tenere «Carni bianche» lontano da una
+// vegetariana — adesso ha un nome e delle prove: `menu/regime-del-candidato.ts`.
 model EquivalenceGroup {
   id        String   @id @default(uuid())
   name      String
-  productId String?  @map("product_id") // Diet.id; null = globale
+  // ⚠️ Sempre null dal 4/9. Non si cancella per non fare una migrazione su una tabella viva.
+  productId String?  @map("product_id")
   members   Json     @default("[]") // alimenti/ingredienti/recipeId equivalenti
   status    String   @default("draft") // draft | approved
   version   Int      @default(1)

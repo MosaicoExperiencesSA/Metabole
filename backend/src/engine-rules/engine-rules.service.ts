@@ -10,6 +10,7 @@ import { statoDaiBattiti } from './stato-generatore';
  *  silenzioso. La generazione di un catalogo è già un'operazione lunga; questa parte no. */
 const MASSIMO_CLIENTI_PER_TAGLIA = 300;
 import { AiService } from '../ai/ai.service';
+import { chiaveNome } from '../catalog/gruppi-omonimi';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { SLOT_ORDINE, coperturaCatalogo, slotAttesi, statoCopertura } from './copertura-catalogo';
 import { sincronizzaTagSettimane } from '../menu/tag-settimane';
@@ -1341,21 +1342,58 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
     return [];
   }
 
-  /** Gruppi di equivalenza (alimenti intercambiabili): una richiesta breve, solo alla nascita. */
+  /**
+   * Gruppi di equivalenza (alimenti intercambiabili): una richiesta breve, solo alla nascita.
+   *
+   * ⛔ **QUESTA FUNZIONE È LA SORGENTE DEI 2848 GRUPPI** — misurato il 4/9. Chiedeva all'AI 5-8
+   * gruppi **a ogni nascita di dieta** e li scriveva con `productId` della dieta: le decine di
+   * «Carni bianche» in pagina non erano un doppio clic di nessuno, erano una dieta ciascuna. Con
+   * qualche centinaio di diete in catalogo il conto torna tutto, e qualunque pulizia si sarebbe
+   * riempita di nuovo da sola alla dieta successiva.
+   *
+   * ⚠️ **Adesso i gruppi sono globali** (decisione di Simone, 4/9: *«i gruppi non devono essere
+   * legati alle diete»*) **e i nomi che esistono già non si riscrivono.** Un nome nuovo continua a
+   * nascere, in bozza, perché è l'unico modo per cui una dieta con un'idea che non c'era la porta
+   * dentro; un nome che c'è già non produce un secondo gruppo — produce niente, e chi vuole
+   * arricchire quello che c'è lo apre in Equivalenze.
+   *
+   * ⛔ E **non** si aggiunge d'ufficio l'elenco dell'AI dentro il gruppo esistente: quel gruppo può
+   * essere approvato, e allargarlo senza che nessuno lo rilegga cambierebbe cosa mangiano le
+   * clienti a partire dal menu della notte, per una risposta di un modello.
+   */
   private async generaGruppiEquivalenza(dietId: string, label: string, regime: string, regimeRule: string): Promise<number> {
     const gen = await this.ai.generateJson<{ equivalenceGroups?: unknown[] }>(
       'Rispondi SOLO con JSON valido e minificato, senza testo attorno.',
       `Per la dieta "${label}" (regime ${regime}: ${regimeRule}) elenca 5-8 gruppi di alimenti intercambiabili fra loro (struttura nutrizionale simile).\nFormato: {"equivalenceGroups":[{"name":"es. Pesci bianchi","items":["branzino","orata","merluzzo"]}]}`,
       2000,
     );
+    /**
+     * ⚠️ I nomi che ci sono già, presi **una volta sola** e non una query per gruppo: la chiave è la
+     * stessa con cui la pagina li accorpa (`chiaveNome`), o «Carni Bianche» e «carni bianche»
+     * tornerebbero a essere due.
+     */
+    const esistenti = (await this.prisma.equivalenceGroup.findMany({ select: { name: true } })) as { name: string }[];
+    const giaInTabella = new Set(esistenti.map((x) => chiaveNome(x.name ?? '')));
     let grpCount = 0;
+    let saltati = 0;
     for (const g of (Array.isArray(gen?.equivalenceGroups) ? gen!.equivalenceGroups : []) as Record<string, unknown>[]) {
       const items = Array.isArray(g.items) ? g.items.map((x) => String(x)) : [];
       if (!g.name || items.length < 2) continue;
+      const nome = String(g.name).slice(0, 120);
+      const chiave = chiaveNome(nome);
+      if (!chiave || giaInTabella.has(chiave)) {
+        saltati++;
+        continue;
+      }
+      giaInTabella.add(chiave);
       await this.prisma.equivalenceGroup.create({
-        data: { name: String(g.name).slice(0, 120), productId: dietId, members: { items } as never, status: 'draft', version: 1 } as never,
+        // ⚠️ `productId: null` — globale. Vedi il riquadro sopra: era da qui che si moltiplicavano.
+        data: { name: nome, productId: null, members: { items } as never, status: 'draft', version: 1 } as never,
       });
       grpCount++;
+    }
+    if (saltati > 0) {
+      this.logger.log(`Gruppi di equivalenza: ${saltati} proposti dall'AI per «${label}» esistevano già con lo stesso nome, non riscritti.`);
     }
     /**
      * UN avviso, non uno per gruppo (11/8). Qui i gruppi nascono a gruppetti di 5-8 tutti insieme,
@@ -1368,8 +1406,9 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
         type: 'equivalence_group_new',
         title: 'Gruppi di equivalenza da approvare',
         body:
-          `Per la dieta «${label}» sono stati generati ${grpCount} gruppi di equivalenza in bozza. ` +
-          'Li ha proposti il generatore, non una persona: il motore non li usa finché non li approvi.',
+          `Nascendo la dieta «${label}» sono stati proposti ${grpCount} gruppi di equivalenza nuovi, in bozza. ` +
+          '⚠️ Valgono per tutte le diete, non solo per questa. Li ha proposti il generatore, non una ' +
+          'persona: il motore non li usa finché non li approvi.',
         payload: { kind: 'equivalence_group_new', dietId, quanti: grpCount, origine: 'ai' },
       });
     }
@@ -1418,7 +1457,6 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       const meals = (Array.isArray(t.meals) ? t.meals : []) as { slot?: string; recipeId?: string }[];
       return needed.every((sl) => meals.some((m) => m.slot === sl && !!m.recipeId));
     }).length;
-    const groups = (await this.prisma.equivalenceGroup.findMany({ where: { productId: dietId }, select: { status: true } })) as { status: string }[];
     return {
       dietId: diet.id,
       name: diet.name,
@@ -1426,7 +1464,6 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
       mealsPerDay: diet.mealsPerDay,
       recipes: { total: recipes.length, active: recipes.filter((r) => r.active).length, allergensReviewed: recipes.filter((r) => r.allergensReviewed).length },
       days: { total: diet.dayTemplates.length, complete: daysComplete },
-      groups: { total: groups.length, approved: groups.filter((g) => g.status === 'approved').length },
     };
   }
 
@@ -1468,12 +1505,20 @@ Formato: {"recipes":[{"slot":"${p.slot}","name":"nome piatto","kcal":<int>,"ingr
     return this.dietReviewStatus(dietId);
   }
 
-  /** Conferma (approva) i gruppi di equivalenza collegati alla dieta. */
-  async approveDietGroups(dietId: string, actorId: string) {
-    await this.prisma.equivalenceGroup.updateMany({ where: { productId: dietId }, data: { status: 'approved' } });
-    await this.audit.log({ action: 'engine_rule.review.approve_groups', actorId, entityType: 'diet', entityId: dietId });
-    return this.dietReviewStatus(dietId);
-  }
+  /**
+   * ⛔ **«CONFERMA TUTTI I GRUPPI DELLA DIETA» NON ESISTE PIU** -- tolta in revisione, 4/9.
+   *
+   * Faceva `updateMany where productId = dietId`. Dal 4/9 i gruppi non hanno piu un `productId`,
+   * quindi avrebbe toccato **zero righe rispondendo 200**: la nutrizionista premeva, la pagina
+   * diceva fatto, e non era successo niente. Lo stesso valeva per il conteggio qui sopra, che
+   * avrebbe risposto sempre `0` -- cioe spunta verde e dettaglio "nessuno" su una dieta con otto
+   * bozze appena scritte dall'AI.
+   *
+   * ⚠️ E non si e rimpiazzata con la versione globale: un pulsante che approva **tutti** i
+   * gruppi di equivalenza del sistema, premuto dalla scheda di una dieta, e' peggio del pulsante
+   * rotto. I gruppi in bozza si rivedono in due posti, tutti e due uno per volta: la pagina
+   * Equivalenze e la coda di Vera (`dieteInRevisione`, corretta lo stesso giorno).
+   */
 
   // ---------- Proposte di regole nuove ----------
 

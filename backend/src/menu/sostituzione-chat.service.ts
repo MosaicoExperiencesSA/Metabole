@@ -44,6 +44,21 @@ import {
 } from './cambio-piatto';
 import { exclusionKeys, hitsExclusion } from './exclusions';
 /**
+ * ⛔ **IL CANCELLO DEL REGIME** — 4/9. I gruppi di equivalenza non sono più legati a una dieta
+ * (decisione di Simone), e quel legame era l'unica cosa che impedisse al gruppo «Carni bianche» di
+ * finire addosso a una cliente vegetariana. Qui il cancello ha un nome e delle prove.
+ */
+import { fuoriRegime, PAROLA, type FuoriRegime } from './regime-del-candidato';
+
+/**
+ * Quanti gruppi di equivalenza approvati si leggono al massimo per cercare un sostituto.
+ *
+ * ⚠️ Largo apposta: al 4/9 in tabella ce ne sono 2848 in tutto, bozze comprese. Serve a non
+ * tenere in memoria una tabella che cresce, non a filtrare -- e quando lo si tocca si scrive nel
+ * log, perche' un tetto raggiunto in silenzio e' un pezzo di catalogo che sparisce.
+ */
+const TETTO_GRUPPI = 5000;
+/**
  * ⛔ **IL GIUDIZIO DI SICUREZZA È QUELLO DELLA GUARDIA** — 2/9, voce 953. Prima questo file non lo
  * chiamava affatto: pescava dal pool e scriveva, fidandosi che il pool fosse già filtrato. Lo è
  * per tre cose su cinque.
@@ -88,6 +103,7 @@ import {
   testoConferma,
   testoContropropostaAllergene,
   testoContropropostaEsclusa,
+  testoContropropostaFuoriRegime,
   testoContropropostaNonPrevista,
   testoContropropostaOk,
   testoContropropostaStessoAlimento,
@@ -1071,7 +1087,7 @@ export class SostituzioneChatService {
       };
     }
 
-    const esito = await this.verificaCandidato(clientId, proposta.da, scelto);
+    const esito = await this.verificaCandidato(clientId, proposta.da, scelto, pasto.dietId);
     if (esito !== 'ok') {
       // Rifiutata, ma non a mani vuote: si dice **perché** e si propone subito un'alternativa, con
       // il suo alimento aggiunto agli scartati perché non lo riproponga il giro dopo.
@@ -1080,7 +1096,11 @@ export class SostituzioneChatService {
           ? testoContropropostaAllergene(scelto, nome)
           : esito === 'stesso_alimento'
             ? testoContropropostaStessoAlimento(proposta.da, scelto, nome)
-            : testoContropropostaEsclusa(scelto, nome);
+            : esito === 'escluso'
+              ? testoContropropostaEsclusa(scelto, nome)
+              // ⚠️ Il motivo si dice: «non te lo metto» senza il perché è la risposta che fa
+              // riscrivere la stessa cosa con altre parole.
+              : testoContropropostaFuoriRegime(scelto, PAROLA[esito], nome);
       const dopo = await this.altroSostituto(clientId, {
         ...stato,
         scartati: [...(stato.scartati ?? []), scelto],
@@ -1125,18 +1145,51 @@ export class SostituzioneChatService {
    * fra tanti, questo dice sì o no su uno — e dice anche **perché** no, che è la parte che la
    * cliente legge.
    */
+  /**
+   * IL REGIME DI QUESTA CLIENTE — e cosa si fa quando non si sa.
+   *
+   * ⚠️ Prima la **dieta** su cui sta oggi (`MenuDay.dietId`, che è la giornata vera che ha in mano)
+   * e poi quello scritto in scheda: la dieta è la cosa che il motore le sta effettivamente
+   * servendo, la scheda è quello che ha dichiarato in registrazione. Se divergono comanda la dieta.
+   *
+   * ⛔ **E se non si sa, non si tira a indovinare**: `fuoriRegime` di un regime sconosciuto applica
+   * il più stretto, come `common/regimi.ts`. Il costo è una proposta in meno e una richiesta che va
+   * alla nutrizionista; il costo dell'errore opposto è la carne nel piatto di una vegetariana.
+   */
+  private async regimeDi(regimeInScheda: string | null, dietId: string | null): Promise<string | null> {
+    if (dietId) {
+      const dieta = (await this.prisma.diet.findUnique({
+        where: { id: dietId },
+        select: { regime: true },
+      })) as { regime: string | null } | null;
+      if (dieta?.regime) return dieta.regime;
+    }
+    return regimeInScheda;
+  }
+
   private async verificaCandidato(
     clientId: string,
     nomeIngrediente: string,
     candidato: string,
-  ): Promise<'ok' | 'allergene' | 'escluso' | 'stesso_alimento'> {
+    dietId: string | null,
+  ): Promise<'ok' | 'allergene' | 'escluso' | 'stesso_alimento' | FuoriRegime> {
     const profilo = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { allergies: true, intolerances: true, dislikedFoods: true },
+      select: { allergies: true, intolerances: true, dislikedFoods: true, regime: true },
     });
     const testo = normalizza(candidato);
     const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
     if (hitsExclusion(testo, allergeni)) return 'allergene';
+    /**
+     * ⛔ **ANCHE QUELLO CHE PROPONE LEI passa dal cancello del regime.** Qui la cliente ha scritto
+     * un nome («metti il pollo»), e fino al 4/9 bastava che quel nome fosse fra gli equivalenti
+     * approvati per il suo ingrediente: erano i gruppi **della sua dieta**, e la carne in un gruppo
+     * di una vegetariana non c'era. Adesso i gruppi sono di tutte, e questa porta senza cancello
+     * sarebbe la strada più corta perché una vegetariana si veda scrivere il pollo sul menu —
+     * chiedendolo lei, il che non la rende una cosa che possiamo fare.
+     */
+    const fuori = fuoriRegime(candidato, await this.regimeDi(profilo?.regime ?? null, dietId));
+    if (fuori) return fuori;
     const altre = exclusionKeys([
       ...((profilo?.intolerances ?? []) as string[]),
       ...((profilo?.dislikedFoods ?? []) as string[]),
@@ -1318,13 +1371,14 @@ export class SostituzioneChatService {
   ): Promise<{ ok: true; sostituto: string } | { ok: false; perche: 'nessun_candidato' | 'allergene' | 'incompatibile' }> {
     const profilo = await this.prisma.clientProfile.findUnique({
       where: { userId: clientId },
-      select: { allergies: true, intolerances: true, dislikedFoods: true },
+      select: { allergies: true, intolerances: true, dislikedFoods: true, regime: true },
     });
     const allergeni = exclusionKeys((profilo?.allergies ?? []) as string[]);
     const altreEsclusioni = exclusionKeys([
       ...((profilo?.intolerances ?? []) as string[]),
       ...((profilo?.dislikedFoods ?? []) as string[]),
     ]);
+    const regime = await this.regimeDi(profilo?.regime ?? null, dietId);
 
     const candidati = await this.candidati(nomeIngrediente, termine, dietId);
     if (!candidati.length) return { ok: false, perche: 'nessun_candidato' };
@@ -1340,6 +1394,16 @@ export class SostituzioneChatService {
         continue;
       }
       if (hitsExclusion(testo, altreEsclusioni)) continue;
+      /**
+       * ⛔ **IL REGIME, dal 4/9.** I gruppi non sono più legati a una dieta, quindi «Carni bianche»
+       * arriva fin qui anche per una vegetariana: prima non ci arrivava, e non perché qualcuno lo
+       * avesse deciso — perché il gruppo era di un'altra dieta.
+       *
+       * ⚠️ Va **dopo** gli allergeni e non prima: se un candidato è insieme un allergene e fuori
+       * regime, la ragione che conta per la frase è l'allergene, ed è quella che `scartatoPerAllergene`
+       * porta fuori di qui.
+       */
+      if (fuoriRegime(c, regime)) continue;
       /**
        * IL FILTRO «È LA STESSA COSA» VALE SOLO PER LA MAPPA, NON PER I GRUPPI.
        *
@@ -1404,10 +1468,18 @@ export class SostituzioneChatService {
    *    finora il motore non li leggeva: qui cominciano a servire a qualcosa);
    * 2. la mappa delle sostituzioni sicure, condivisa col motore.
    *
-   * I gruppi si filtrano per PRODOTTO: `EquivalenceGroup.productId` è il `Diet.id` e `null`
-   * vuol dire globale. Senza quel filtro un gruppo scritto per la dieta vegana — «tofu, tempeh,
-   * seitan» — finirebbe addosso a una cliente onnivora, che chiederebbe di cambiare il tofu e
-   * si vedrebbe proporre il seitan: glutine, per una scelta che nessuno aveva fatto per lei.
+   * ⛔ **QUESTO COMMENTO DICEVA UNA COSA CHE DAL 4/9 NON È PIÙ VERA, e va letto sapendolo.**
+   * Diceva: *«i gruppi si filtrano per PRODOTTO… senza quel filtro un gruppo scritto per la dieta
+   * vegana finirebbe addosso a una cliente onnivora»*. Era giusto, e il filtro c'è ancora nella
+   * query qui sotto — ma dal 4/9 **non filtra più niente**, perché i gruppi sono tutti globali
+   * (decisione di Simone: *«i gruppi non devono essere legati alle diete»*). Resta come rete per i
+   * gruppi vecchi eventualmente rimasti con un `productId`, non come garanzia.
+   *
+   * ⚠️ Quindi il gruppo scritto per la dieta vegana **arriva davvero** a una cliente onnivora, ed è
+   * una cosa che si è scelta: sul verso pericoloso — la carne o il pesce a chi non li mangia — il
+   * cancello è `fuoriRegime` in `scegliSostituto`, che è dove si può provare. Sul verso opposto (il
+   * seitan proposto a un'onnivora) restano allergie e intolleranze, che quel glutine lo fermano
+   * per chi lo deve evitare.
    */
   /**
    * ⛔ **I PESI DEI GRASSI, dal gruppo che li porta.**
@@ -1439,14 +1511,29 @@ export class SostituzioneChatService {
      * ⚠️ Si legge **solo il gruppo approvato**: una bozza è un lavoro in corso, e i grammi che
      * finiscono nel piatto di una persona non si prendono da una bozza.
      */
-    const gruppi = (await this.prisma.equivalenceGroup.findMany({
-      where: { status: 'approved' } as never,
+    /**
+     * ⛔ **SI CHIEDE IL GRUPPO PER NOME, non si scorrono le prime 500 righe** -- corretto in
+     * revisione, 4/9.
+     *
+     * Prima: `take: 500` ordinati per `createdAt`, e poi un `find` sul nome. Con i gruppi legati
+     * alle diete gli approvati erano pochi e il tetto non si toccava. Dal 4/9 l'unione ne promuove
+     * ad approvato una famiglia intera per ogni nome, e il capofila **tiene il `createdAt` piu'
+     * vecchio**: il numero di approvati piu' vecchi della tabella dei grassi (25/8) cresce. Al
+     * cinquecentounesimo, `find` non la trova piu' e da quel momento Gaia passa la mano su **tutti**
+     * i cambi di grasso, di tutte le clienti, dicendo che il gruppo non c'e' mentre ce l'ha davanti.
+     *
+     * ⚠️ Il confronto resta normalizzato come prima: si chiede al database l'uguaglianza
+     * senza maiuscole, e poi si ricontrolla qui -- «Oli e Grassi da Condimento» e' lo stesso gruppo,
+     * «Oli e grassi da condimento (estate)» no.
+     */
+    const cercato = normalizza(GRUPPO_GRASSI);
+    const candidati = (await this.prisma.equivalenceGroup.findMany({
+      where: { status: 'approved', name: { equals: GRUPPO_GRASSI, mode: 'insensitive' } } as never,
       orderBy: { createdAt: 'asc' },
       select: { name: true, members: true },
-      take: 500,
+      take: 20,
     })) as { name: string; members: unknown }[];
-    const cercato = normalizza(GRUPPO_GRASSI);
-    const g = gruppi.find((x) => normalizza(x.name ?? '') === cercato);
+    const g = candidati.find((x) => normalizza(x.name ?? '') === cercato);
     if (!g) return { fattori: null, perche: 'gruppo_assente' };
     const fattori = leggiFattori(g.members);
     return fattori ? { fattori } : { fattori: null, perche: 'gruppo_senza_pesi' };
@@ -1621,11 +1708,32 @@ export class SostituzioneChatService {
     termine: string,
     dietId: string | null,
   ): Promise<Candidato[]> {
+    /**
+     * ⛔ **IL `take: 200` ERA UN TAGLIO ALFABETICO** -- trovato in revisione, 4/9.
+     *
+     * Questa riga non l'aveva scritta oggi nessuno, ed e' per quello che era pericolosa: finche' il
+     * `WHERE` filtrava per dieta i gruppi erano cinque o otto, e duecento era un tetto che non si
+     * toccava mai. Dal 4/9 i gruppi sono tutti globali: duecento su duemilaottocento, ordinati per
+     * `name asc`, vuol dire che **ogni gruppo il cui nome cade oltre la duecentesima posizione e'
+     * invisibile alla chat**. La cliente che chiede di cambiare le zucchine si sente rispondere che
+     * non c'e' alternativa, il gruppo c'e', ed e' approvato. Nessun errore, nessun log: il difetto
+     * che sbaglia in silenzio.
+     *
+     * ⚠️ Il tetto resta, perche' una query senza limite su una tabella che cresce e' l'altro
+     * modo di rompersi -- ma e' largo e **si dichiara quando lo si tocca**. Un tetto raggiunto
+     * senza una riga di log e' lo stesso difetto di prima, scritto piu' in alto.
+     */
     const gruppi = (await this.prisma.equivalenceGroup.findMany({
       where: { status: 'approved', OR: [{ productId: null }, ...(dietId ? [{ productId: dietId }] : [])] },
       orderBy: { name: 'asc' },
-      take: 200,
+      take: TETTO_GRUPPI,
     })) as { name: string; members: unknown; productId: string | null }[];
+    if (gruppi.length >= TETTO_GRUPPI) {
+      this.logger.warn(
+        `Gruppi di equivalenza approvati oltre il tetto di ${TETTO_GRUPPI}: i sostituti si stanno ` +
+          'cercando su un elenco tagliato, e quelli in fondo all\'alfabeto non li vede nessuno.',
+      );
+    }
 
     const dalGruppo: string[] = [];
     for (const g of gruppi) {

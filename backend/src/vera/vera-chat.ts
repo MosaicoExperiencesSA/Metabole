@@ -45,6 +45,7 @@ export type PassoVera =
   | 'da_quando'          // cambio dieta: da subito, o lascio i giorni già preparati?
   | 'equivalenza_alimenti'  // «aggiungi equivalenza»: quali alimenti si scambiano? (19/8)
   | 'equivalenza_nome'      // …e come lo chiamiamo? ⚠️ il nome non si inventa
+  | 'equivalenza_accorpa'   // ⛔ questi cibi stanno già in un altro gruppo: lo accorpo lì? (4/9)
   | 'equivalenza_conferma'  // ecco cosa scrivo: è una regola del motore, e nasce come proposta
   | 'lista_aperta'          // la lista numerata è sullo schermo: «la 3» apre la terza (19/8)
   | 'lista_voce';           // una voce aperta: quale delle azioni possibili?
@@ -86,6 +87,17 @@ export interface StatoVera {
   /** Gli alimenti del gruppo di equivalenza che si sta dettando, e il suo nome. */
   equivalenzaAlimenti?: string[];
   equivalenzaNome?: string;
+  /**
+   * ⛔ **I gruppi che somigliano a quello che sta per nascere** (4/9), numerati come li ha letti
+   * lei. ⚠️ Si conservano nello stato e non si rileggono al messaggio dopo: fra la domanda e «la 2»
+   * qualcuno può creare o cancellare un gruppo, e la seconda diventerebbe un'altra riga — cioè si
+   * accorperebbe dentro un gruppo diverso da quello che ha scelto. È la stessa ragione di
+   * `listaVoci`.
+   */
+  equivalenzaAccorpabili?: { id: string; nome: string; status: string }[];
+  /** Quello che ha scelto: da qui in poi non si crea, si aggiunge lì dentro. */
+  equivalenzaAccorpaId?: string;
+  equivalenzaAccorpaNome?: string;
   /**
    * Le voci della lista della mattina, numerate. ⚠️ Si conservano nello stato e non si rileggono a
    * ogni messaggio: fra «fammi la lista» e «la 3» qualcuno può aver chiuso una segnalazione, e la

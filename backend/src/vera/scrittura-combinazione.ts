@@ -17,7 +17,28 @@ export interface ScritturaCombinazione {
    * avvisa i capi nutrizionisti — quella regola sta in `EquivalenceService.create` e qui non si
    * duplica: da questa porta si passa, non si decide.
    */
-  create(userId: string, dto: { name: string; items: string[]; note?: string; productId?: string }): Promise<unknown>;
+  create(userId: string, dto: { name: string; items: string[]; note?: string }): Promise<unknown>;
+  /**
+   * ⛔ **Chiedere se accorpare, e accorparlo** — 4/9, richiesta di Simone. Sono due metodi e non
+   * uno: il primo è **sola lettura** e serve a fare la domanda, il secondo scrive solo dopo che lei
+   * ha risposto. Metterli insieme vorrebbe dire che chiedere e fare sono la stessa chiamata, cioè
+   * che una domanda può scrivere.
+   */
+  accorpabili(dto: { name: string; items: string[] }): Promise<{
+    id: string;
+    nome: string;
+    status: string;
+    /** ⚠️ L'unione vera, non `string`: è quella che `testoChiediAccorpamento` si aspetta. */
+    perche: 'stesso nome' | 'alimenti in comune';
+    inComune: string[];
+    daAggiungere: string[];
+    quantiHa: number;
+  }[]>;
+  accorpa(userId: string, id: string, dto: { items: string[] }): Promise<{
+    aggiunti: string[];
+    /** ⚠️ Quelli che NON sono entrati perché il gruppo ce li aveva già, con il nome che ha lui. */
+    giaPresenti: { proposto: string; comeSta: string }[];
+  }>;
 }
 
 export const SCRITTURA_COMBINAZIONE = 'VERA_SCRITTURA_COMBINAZIONE';

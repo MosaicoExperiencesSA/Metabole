@@ -194,8 +194,15 @@ export class FoodSwapsService {
       );
     }
 
-    // I gruppi che potrebbero già coprirla: i globali e quelli della dieta di questa giornata.
-    // Non tutti: un gruppo scritto per la chetogenica non dice niente su una mediterranea.
+    /**
+     * ⛔ **IL COMMENTO CHE C'ERA QUI DAL 4/9 NON È PIÙ VERO, e resta scritto perché si sappia.**
+     *
+     * Diceva: «i gruppi che potrebbero già coprirla: i globali e quelli della dieta di questa
+     * giornata. **Non tutti**: un gruppo scritto per la chetogenica non dice niente su una
+     * mediterranea». Dal 4/9 sono **tutti**, perché i gruppi non sono più di una dieta (decisione
+     * di Simone). Il `WHERE` qui sotto è rimasto come rete per eventuali righe vecchie con un
+     * `productId`, non come garanzia: oggi non filtra niente.
+     */
     const gruppi = (await this.prisma.equivalenceGroup.findMany({
       where: { OR: [{ productId: null }, ...(riga.dietId ? [{ productId: riga.dietId }] : [])] } as never,
       select: { id: true, name: true, status: true, productId: true, members: true },
@@ -252,7 +259,9 @@ export class FoodSwapsService {
       const creato = (await this.prisma.equivalenceGroup.create({
         data: {
           name: nomeGruppoDaSostituzione(riga.fromFood, riga.toFood),
-          productId: riga.dietId ?? null,
+          // ⛔ Globale, dal 4/9: i gruppi non sono di una dieta. Nasce comunque in BOZZA — è quella
+          // la riga che tiene fuori dal motore una scelta fatta per una cliente sola.
+          productId: null,
           members: { items: scelta.items, note: provenienza } as never,
           // ⚠️ Sempre in BOZZA. Il motore usa solo i gruppi approvati: una scelta fatta per una
           // cliente non deve cambiare i menu di tutte perché qualcuno ha premuto un pulsante.

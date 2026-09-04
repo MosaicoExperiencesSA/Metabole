@@ -72,6 +72,7 @@
     "importa:ig": "ts-node --transpile-only prisma/importa-ig.ts",
     "ripara:alimenti": "ts-node --transpile-only prisma/ripara-import-alimenti.ts",
     "ripara:stati": "ts-node --transpile-only prisma/rimetti-gli-stati.ts",
+    "ripara:equivalenze-omonime": "ts-node --transpile-only prisma/unisci-equivalenze-omonime.ts",
     "importa:alimenti": "ts-node --transpile-only prisma/importa-alimenti.ts",
     "prisma:tipi": "node scripts/prisma-generate-reale.mjs",
     "carica:lavori": "ts-node --transpile-only prisma/carica-lavori.ts",

@@ -50,9 +50,10 @@ export class CreateEquivalenceGroupDto {
   @MaxLength(300)
   note?: string;
 
-  @IsOptional()
-  @IsString()
-  productId?: string; // Diet.id; assente/null = gruppo globale
+  /**
+   * ⛔ **TOLTO il 4/9**: un gruppo di equivalenza non è di una dieta (decisione di Simone). Restava
+   * qui solo la scheda «Gruppi» dentro Gestione dieta a mandarlo, ed è sparita insieme a questo.
+   */
 
   @IsOptional()
   @IsIn(['draft', 'approved'])
@@ -80,9 +81,7 @@ export class UpdateEquivalenceGroupDto {
   @MaxLength(300)
   note?: string;
 
-  @IsOptional()
-  @IsString()
-  productId?: string | null;
+  /** ⛔ Tolto il 4/9 insieme a quello della creazione: i gruppi sono di tutte le diete. */
 
   @IsOptional()
   @IsIn(['draft', 'approved'])
@@ -92,4 +91,27 @@ export class UpdateEquivalenceGroupDto {
   @ValidateNested()
   @Type(() => FattoriDto)
   fattori?: FattoriDto | null;
+}
+
+/**
+ * «QUESTI CIBI STANNO GIÀ IN UN ALTRO GRUPPO?» — la domanda che si fa **prima** di scrivere
+ * (richiesta di Simone, 4/9). Sola lettura: non crea e non modifica niente.
+ */
+export class AccorpabiliDto {
+  @IsString()
+  @MaxLength(80)
+  name!: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  items!: string[];
+}
+
+/** Gli alimenti da aggiungere a un gruppo che esiste già, invece di scriverne un altro. */
+export class AccorpaDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  items!: string[];
 }

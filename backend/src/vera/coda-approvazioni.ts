@@ -253,7 +253,11 @@ export function testoVoce(voce: VoceDaApprovare, rimanenti: number, quanteDiete 
   }
 
   return (
-    `**${voce.nome}** — combinazione della dieta «${voce.dietaNome}»\n` +
+    /**
+     * ⚠️ **Senza dieta, dal 4/9**: i gruppi di equivalenza valgono per tutte. La forma vecchia
+     * resta per le righe che una dieta ce l'hanno ancora, se ne restano.
+     */
+    `**${voce.nome}** — ${voce.dietaNome ? `combinazione della dieta «${voce.dietaNome}»` : 'gruppo di equivalenza, vale per **tutte** le diete'}\n` +
     (dentro
       ? `Il motore potrà scambiare fra loro: ${dentro}\n`
       : 'Gli alimenti del gruppo non riesco a leggerli da qui: aprilo in Equivalenze prima di decidere.\n') +

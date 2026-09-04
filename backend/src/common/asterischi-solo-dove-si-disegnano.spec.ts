@@ -31,6 +31,11 @@ const CHI_LO_DISEGNA: { file: string; dove: string }[] = [
   { file: 'src/vera/vera-chat.service.ts', dove: 'chat di Vera' },
   { file: 'src/vera/coda-approvazioni.ts', dove: 'chat di Vera' },
   { file: 'src/vera/equivalenza-dettata.ts', dove: 'chat di Vera' },
+  /**
+   * ⚠️ `testoChiediAccorpamento` (4/9) esce **solo** dalla chat di Vera, esattamente come
+   * `equivalenza-dettata` qui sopra: il resto del file è calcolo puro e non produce testo.
+   */
+  { file: 'src/catalog/gia-in-un-altro-gruppo.ts', dove: 'chat di Vera' },
   { file: 'src/vera/verifica-sostituzioni.ts', dove: 'chat di Vera' },
   { file: 'src/vera/allergeni-ricetta.ts', dove: 'chat di Vera' },
   { file: 'src/vera/conflitti-dizionario.ts', dove: 'chat di Vera' },
@@ -140,6 +145,14 @@ describe('il markdown si scrive solo dove qualcuno lo disegna', () => {
     expect(nelleVoci).toBeGreaterThan(500);
     // Fuori dalle voci ce n'erano 108 il 25/8, quasi tutte di Vera: se questo numero esplode,
     // qualcuno sta scrivendo markdown a mano dove prima non ce n'era.
-    expect(trovati.length - nelleVoci).toBeLessThan(150);
+    /**
+     * ⚠️ **Il tetto è passato da 150 a 175 il 4/9, e questo è il conto di chi ha aggiunto cosa.**
+     * Erano 108 il 25/8, sono 152 adesso: la consegna dei gruppi di equivalenza globali ne porta
+     * una ventina (le frasi dell'accorpamento in chat, la spiegazione del regime a chi propone un
+     * alimento che il suo piano non prevede), il resto arriva dalle consegne della stessa giornata.
+     * ⛔ Il senso della sentinella non cambia: serve a vedere un **salto**, non a bloccare la
+     * crescita normale. Se la si alza senza scrivere perché, la volta dopo non vuol più dire niente.
+     */
+    expect(trovati.length - nelleVoci).toBeLessThan(175);
   });
 });

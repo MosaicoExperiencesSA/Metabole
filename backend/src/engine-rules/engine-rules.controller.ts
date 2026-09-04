@@ -167,11 +167,6 @@ export class EngineRulesController {
     return this.service.reviewDietAllergens(id, u.sub);
   }
 
-  @Post('diets/:id/approve-groups')
-  approveGroups(@Param('id') id: string, @CurrentUser() u: AuthUser) {
-    return this.service.approveDietGroups(id, u.sub);
-  }
-
   @Get('proposals')
   proposals() {
     return this.service.listProposals();

@@ -1,0 +1,33 @@
+Gruppi di equivalenza: un nome un gruppo, non più legati alle diete
+
+I gruppi di equivalenza non appartengono più a una dieta (decisione di Simone, 4/9: «i gruppi non
+devono essere legati alle diete, sono gruppi e stop»). Gli omonimi si fondono in uno solo, e alla
+creazione — dalla pagina o dettando a Vera — si chiede se accorpare invece di scriverne un altro.
+
+LA SORGENTE DELLA MOLTIPLICAZIONE. I 2848 gruppi non erano doppi clic: `generaGruppiEquivalenza`
+chiedeva all'AI 5-8 gruppi A OGNI NASCITA DI DIETA e li scriveva col `productId` di quella. Ora
+nascono globali e i nomi che esistono già non si riscrivono.
+
+IL CANCELLO CHE `productId` DAVA SENZA VOLERLO. Quel legame faceva un secondo lavoro che non stava
+scritto da nessuna parte: teneva «Carni bianche» lontano dalle clienti vegetariane. `scegliSostituto`
+filtra per allergie, intolleranze e cibi non graditi — il regime non l'ha mai guardato, perché non
+ne aveva bisogno. Nuovo `menu/regime-del-candidato.ts`, con le sue prove: carne, pesce, latticini e
+uova secondo il regime, e il regime che non si conosce vale come il più stretto.
+
+MISURATO, NON DEDOTTO. La prima stesura del cancello si appoggiava solo ai vocabolari di casa, e
+passavano: carne · carni · salumi · affettati · insaccati · strutto · lardo · frutti di mare ·
+seppie · philadelphia · robiola · crescenza · taleggio · fontina · asiago · emmental · caciotta ·
+skyr. Elenco chiuso aggiunto, valido solo per questo cancello — dove un falso positivo costa una
+proposta e non un piatto.
+
+LA REVISIONE HA BOCCIATO TRE COSE CHE ERANO GIÀ VERDI:
+· la coda «da approvare» di Vera e il passo del wizard filtravano per `productId`: sarebbero
+  diventati vuoti per sempre, mentre la notifica continuava a dire «vai ad approvarlo»;
+· `candidati()` legge i gruppi con `take: 200` ordinati per nome: innocuo con 8 gruppi per dieta,
+  taglio alfabetico su 2848;
+· la tabella dei pesi dei grassi si cercava scorrendo 500 righe per `createdAt`: l'unione promuove
+  ad approvato famiglie intere col `createdAt` più vecchio, e al 501° Gaia avrebbe smesso di
+  convertire i grassi per tutte. Ora si chiede per nome.
+
+Niente migrazioni. Lo script di unione è a parte e NON è stato lanciato: `npm run
+ripara:equivalenze-omonime` è una prova a vuoto, `SCRIVI=1` scrive.

@@ -3,13 +3,22 @@ import { api, ApiError } from '../api/client';
 import { Banner, Spinner } from '../components/ui';
 import { Ricette } from './Ricette';
 import { TagAllergeni } from './TagAllergeni';
-import { GruppiEquivalenza } from './GruppiEquivalenza';
 import { useTaxonomy } from '../lib/taxonomy';
 import { useAuth } from '../auth/AuthContext';
 
 interface DietRow { id: string; name: string; regime: string; style: string; objective?: string | null; mealsPerDay?: number; fasting?: boolean; status?: string; clientVisible?: boolean; siteVisible?: boolean }
 
-type Section = 'ricette' | 'allergeni' | 'gruppi';
+/**
+ * ⛔ **LA SCHEDA «GRUPPI DI EQUIVALENZA» È SPARITA DA QUI** — 4/9, decisione di Simone: *«i gruppi
+ * non devono essere legati alle diete, sono gruppi e stop»*.
+ *
+ * ⚠️ Non è una semplificazione grafica: questa scheda **scriveva** il `productId` della dieta su
+ * ogni gruppo creato da dentro, ed era una delle due porte da cui nascevano i doppioni. Lasciarla
+ * mostrando i gruppi globali sarebbe stato peggio di toglierla — sotto il titolo di una dieta si
+ * sarebbero modificati gruppi che valgono per tutte, senza che niente lo dicesse. Stanno in
+ * Equivalenze, che è la pagina di tutte.
+ */
+type Section = 'ricette' | 'allergeni';
 
 // Etichetta dell'obiettivo/fase: distingue le varianti dimagrimento vs mantenimento
 // che altrimenti avrebbero nome+regime identici nella tendina.
@@ -76,20 +85,26 @@ export function GestioneDieta() {
     const fam = familyOf(sel);
     if (!fam.length) return;
     // eslint-disable-next-line no-alert
-    if (!confirm(`Validare, pubblicare e rendere visibili TUTTE le ${fam.length} varianti della famiglia "${sel.name}"?\n\nPer ogni variante: attiva le ricette, conferma gli allergeni, approva i gruppi, pubblica e accende la visibilità (clienti + sito).`)) return;
+    if (!confirm(`Validare, pubblicare e rendere visibili TUTTE le ${fam.length} varianti della famiglia "${sel.name}"?\n\nPer ogni variante: attiva le ricette, conferma gli allergeni, pubblica e accende la visibilità (clienti + sito).`)) return;
     setFamBusy(true); setFamMsg(null); setFamProgress('');
     const errs: string[] = [];
-    // Pass 1 — contenuti (ricette, allergeni, gruppi) su ogni variante.
+    // Pass 1 — contenuti (ricette, allergeni) su ogni variante.
     for (const v of fam) {
       try {
         await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
-        await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
       } catch (e) {
         errs.push(`${regimeLabel(v.regime)}${objSuffix(v.objective)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`);
       }
     }
-    // Pass 2 — pubblica + visibilità (gruppi già approvati → gate R8 soddisfatto).
+    /**
+     * Pass 2 — pubblica + visibilità.
+     *
+     * ⛔ **QUI PRIMA SI APPROVAVANO ANCHE I GRUPPI DI EQUIVALENZA, e non si fa piu** (4/9).
+     * Dal 4/9 i gruppi non sono di una dieta: quella chiamata avrebbe toccato zero righe
+     * rispondendo 200, cioe una riga che dice di aver fatto una cosa che non fa. I gruppi in bozza
+     * si rivedono uno per uno in Equivalenze e nella coda di Vera.
+     */
     let done = 0;
     for (const v of fam) {
       try {
@@ -130,7 +145,6 @@ export function GestioneDieta() {
   const TABS: { key: Section; label: string; icon: string }[] = [
     { key: 'ricette', label: 'Catalogo ricette', icon: 'ti-tools-kitchen-2' },
     { key: 'allergeni', label: 'Allergeni', icon: 'ti-alert-triangle' },
-    { key: 'gruppi', label: 'Gruppi di equivalenza', icon: 'ti-arrows-shuffle' },
   ];
 
   return (
@@ -212,9 +226,6 @@ export function GestioneDieta() {
           </div>
           <div style={{ display: section === 'allergeni' ? 'block' : 'none' }}>
             <TagAllergeni key={diet.id} scopeRegime={diet.regime} />
-          </div>
-          <div style={{ display: section === 'gruppi' ? 'block' : 'none' }}>
-            <GruppiEquivalenza key={diet.id} scopeProductId={diet.id} />
           </div>
         </>
       )}

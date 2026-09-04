@@ -37,7 +37,15 @@ function build() {
       findMany: jest.fn().mockResolvedValue([]),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    equivalenceGroup: { create: jest.fn().mockResolvedValue({}) },
+    /**
+     * ⚠️ **`findMany` dal 4/9**: prima di scrivere un gruppo nuovo il generatore guarda quali nomi
+     * ci sono già, e non ne riscrive uno che esiste. Senza questa riga il doppio non ha il metodo e
+     * nove prove cadono su un difetto che non è il loro.
+     */
+    equivalenceGroup: {
+      create: jest.fn().mockResolvedValue({}),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     // Nessuna cliente su questo preset: la taglia resta quella del preset, e lo dice.
     clientProfile: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -344,6 +352,34 @@ describe('EngineRulesService', () => {
     expect((res as { scartatiFuoriRegime: number }).scartatiFuoriRegime).toBe(0);
   });
 
+  /**
+   * ⛔ **LA SORGENTE DELLA MOLTIPLICAZIONE, CHIUSA** — 4/9. `generaGruppiEquivalenza` chiedeva
+   * all'AI 5-8 gruppi a ogni nascita di dieta e li scriveva tutti: con qualche centinaio di diete
+   * fa 2848 righe, e qualunque pulizia si sarebbe riempita di nuovo da sola alla dieta dopo.
+   */
+  it('⛔ un nome di gruppo che esiste già non produce un secondo gruppo', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    // Il modello propone «Pesci bianchi», che in tabella c'è già — scritto con altre maiuscole.
+    prisma.equivalenceGroup.findMany.mockResolvedValue([{ name: 'pesci  bianchi' }]);
+    await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(prisma.equivalenceGroup.create).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ Ma un nome nuovo continua a nascere: la porta si stringe, non si chiude. */
+  it('⚠️ un nome di gruppo che non c\'è nasce ancora, in bozza e globale', async () => {
+    const { service, prisma, ai } = build();
+    preset5Pasti(prisma);
+    aiSetteRicette(ai);
+    prisma.equivalenceGroup.findMany.mockResolvedValue([{ name: 'Legumi' }]);
+    await service.generateCatalogFromPreset('p1', 'u1', 1);
+    expect(prisma.equivalenceGroup.create).toHaveBeenCalledTimes(1);
+    expect(prisma.equivalenceGroup.create.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ name: 'Pesci bianchi', productId: null, status: 'draft' }),
+    );
+  });
+
   it('genera UNA settimana: 7 ricette per ogni pasto e 7 giornate, nessun piatto ripetuto', async () => {
     const { service, prisma, ai } = build();
     preset5Pasti(prisma);
@@ -356,6 +392,14 @@ describe('EngineRulesService', () => {
     // ricetta creata in BOZZA (non attiva, allergeni da confermare)
     expect(prisma.recipe.create.mock.calls[0][0].data).toEqual(expect.objectContaining({ active: false, allergensReviewed: false }));
     expect(prisma.equivalenceGroup.create).toHaveBeenCalledTimes(1);
+    /**
+     * ⛔ **E nasce GLOBALE, non della dieta** (4/9). Era da qui che venivano i 2848 gruppi: 5-8 per
+     * ogni dieta nuova, ognuno col `productId` della sua, e «Carni bianche» ripetuta una volta per
+     * dieta. Il `productId` di prima è la riga che questa prova non deve far tornare.
+     */
+    expect(prisma.equivalenceGroup.create.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ productId: null, status: 'draft' }),
+    );
     expect(prisma.productRule.upsert).toHaveBeenCalled(); // regole del preset applicate alla dieta
 
     // Dentro la settimana ogni giorno ha piatti diversi dagli altri giorni: è tutto il punto.
@@ -704,3 +748,4 @@ describe('EngineRulesService — completare una settimana magra', () => {
     expect(ai.generateJson).toHaveBeenCalled();
   });
 });
+

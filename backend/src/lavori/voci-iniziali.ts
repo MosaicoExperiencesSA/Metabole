@@ -83,6 +83,62 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'equivalenze-un-nome-un-gruppo',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: true,
+    fatta: false,
+    nata: '2026-09-04T16:00',
+    titolo: '⏳ Gruppi di equivalenza: il codice è pronto, lo SCRIPT non è stato lanciato',
+    dettaglio:
+      'La consegna del 4/9 rende i gruppi globali e chiude le porte da cui si moltiplicavano, ma i '
+      + '**2848 gruppi che ci sono già non li ha toccati nessuno**: l\'unione è uno script a parte, e '
+      + 'si lancia dopo aver guardato il tabulato.\n\n'
+      + '```\n'
+      + 'npm run ripara:equivalenze-omonime            prova a vuoto\n'
+      + 'ESEMPI=60 npm run ripara:equivalenze-omonime  piu righe\n'
+      + 'SCRIVI=1 npm run ripara:equivalenze-omonime   scrive davvero\n'
+      + '```\n\n'
+      + '⛔ **Tre misure da fare PRIMA di `SCRIVI=1`**, e ognuna decide qualcosa:\n'
+      + '1. quanti gruppi **approvati** ci sono in tutto: `candidati()` ne legge 5000 e lo dice nel '
+      + 'log quando tocca il tetto, ma se sono già migliaia il tabulato va guardato;\n'
+      + '2. quanti gruppi risulteranno approvati con un `createdAt` **più vecchio** di «Oli e grassi '
+      + 'da condimento»: la tabella dei pesi adesso si cerca per nome, quindi il rischio è chiuso, ma '
+      + 'il numero dice quanto ci si era vicini;\n'
+      + '3. gli **elenchi che diventano lunghissimi**: lo script stampa a parte le famiglie che '
+      + 'superano i 40 alimenti. Un gruppo con settanta voci dice «questi settanta si scambiano tutti '
+      + 'fra loro», ed è una frase molto più grossa di quelle da cui nasce.\n\n'
+      + '⚠️ E la riga che resta detta: «tutto in un gruppo solo, approvato» è la decisione di Simone, e '
+      + 'vuol dire che alimenti proposti dall\'AI e mai riletti entrano nel motore. Lo script stampa '
+      + 'quanti sono prima di scrivere.',
+  },
+  {
+    chiave: 'allergeni-formaggi-e-pescato-mancanti',
+    categoria: 'Da fare — codice',
+    ordine: 0,
+    blocca: false,
+    fatta: false,
+    nata: '2026-09-04T16:00',
+    titolo: '⛔ Il vocabolario degli allergeni non conosce taleggio, robiola, fontina — né «seppie»',
+    dettaglio:
+      'Trovato **misurando** il cancello del regime, il 4/9, e non è un difetto del cancello: è un '
+      + 'buco in `menu/exclusions.ts`, che è la porta degli **allergeni**.\n\n'
+      + '`exclusionKeys([\'latticini\'])` non riconosce: `philadelphia`, `robiola`, `crescenza`, '
+      + '`taleggio`, `fontina`, `asiago`, `emmental`, `caciotta`, `skyr`. E il vocabolario del pesce '
+      + 'non riconosce `frutti di mare` né `seppie`.\n\n'
+      + '⛔ **Vuol dire che una cliente allergica al latte può ricevere un piatto col taleggio**, e una '
+      + 'allergica ai molluschi un piatto con le seppie: `hitsExclusion` non li vede, quindi il piatto '
+      + 'non le viene tolto. È più grave del motivo per cui li ho trovati.\n\n'
+      + '⚠️ **Non si è corretto insieme alla consegna del 4/9, ed è voluto**: allargare il vocabolario '
+      + 'degli allergeni cambia i menu di tutte le clienti che hanno dichiarato quell\'allergia, e va '
+      + 'fatto misurando prima (`npm run diag:allergeni-mancanti`), con la sua consegna. Farlo salire '
+      + 'a bordo di un\'altra vorrebbe dire scrivere su ventitremila ricette senza avere i numeri — è '
+      + 'la stessa regola del 31/8 sui latti vegetali.\n\n'
+      + '⚠️ Nel frattempo il cancello del regime ha il **suo** elenco, in `menu/regime-del-candidato.ts`, '
+      + 'che vale solo lì: è l\'unico posto dove un elenco largo è la scelta prudente, perché un falso '
+      + 'positivo toglie una proposta e non mette niente nel piatto.',
+  },
+  {
     chiave: 'attiva-un-piano-non-e-nei-permessi',
     categoria: CODICE,
     fatta: true,

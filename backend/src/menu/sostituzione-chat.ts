@@ -926,6 +926,22 @@ export function testoContropropostaAllergene(alimento: string, nome?: string | n
   );
 }
 
+/**
+ * ⛔ **La sua proposta non sta nel suo regime** — 4/9. `parola` arriva da `PAROLA` in
+ * `regime-del-candidato.ts`: «carne», «pesce», «un derivato del latte», «un derivato delle uova».
+ *
+ * ⚠️ La frase **non** dice «non sei autorizzata»: dice cos'è quella cosa e che il piano è di un
+ * altro tipo. Una vegetariana che scrive «metti il pollo» quasi sempre non sta chiedendo di
+ * smettere di essere vegetariana — sta cercando un'alternativa e ha buttato lì un nome. E la porta
+ * per cambiare davvero regime resta la sua coach, non una riga di chat.
+ */
+export function testoContropropostaFuoriRegime(alimento: string, parola: string, nome?: string | null): string {
+  return apreFrase(
+    nome,
+    `«${alimento}» è ${parola}, e il tuo piano non lo prevede: non te lo metto io. Se vuoi cambiare tipo di alimentazione parlane con la tua coach, che è la sola che può farlo.`,
+  );
+}
+
 /** La sua proposta è fra le cose che ha escluso lei (intolleranza o non gradito). */
 export function testoContropropostaEsclusa(alimento: string, nome?: string | null): string {
   return apreFrase(

@@ -1,0 +1,47 @@
+=====================================================================
+PARTE: lista lavori — Vera va collegata ai panieri (4/9, sera)
+=====================================================================
+
+NIENTE MIGRAZIONI.
+
+⛔ QUESTA CONSEGNA RIPARA ANCHE UN DANNO FATTO DA ME.
+Il pacchetto precedente su voci-iniziali.ts era costruito su una copia vecchia
+del file: l'md5 sul Mac era stato letto prima di preparare il pacchetto invece
+che nell'istante prima di scriverlo, e in mezzo l'altra sessione aveva riscritto
+il file. Sono sparite 66 righe sue — fra cui, con una precisione che non si
+inventa, proprio la voce `due-sessioni-si-sovrascrivono` che documenta questo
+difetto. Recuperata con `git checkout` e rifatto il merge sopra quella.
+
+RIMESSO (lavoro dell'altra sessione):
+· voce `due-sessioni-si-sovrascrivono`: i tre passaggi di mano di origin/main il
+  4/9, la CI rossa su main, la mezza giornata scritta due volte;
+· le misure del 4/9: allergeni-chiave (215 ricette riparate), fase0 (318
+  varianti, 84 riferimenti rotti, e il numero che decide i tempi è 1 non 144),
+  la tabella alimenti (19 956 ricette su 23 726 si fermano, ma la coda è della
+  TABELLA: «sale e pepe» da solo ne ferma 3 577), il perimetro della
+  commerciale (Giusy 0 clienti sue, la coach di riserva come parametro);
+· `fatta: true` su `chiave-vale-in-due-copie` e su
+  `tolleranza-kcal-a-25-va-misurata-prima` (la banda kcal NON si alza: una sola
+  cliente sotto fabbisogno su 100 giornate, e il tetto x1,8 la copre già).
+
+AGGIUNTO (richiesta di Simone del 4/9):
+· voce `vera-collegata-ai-panieri`.
+  ⛔ La catena di Vera si ferma un passo prima della fine: scrive la ricetta,
+  ma non la mette in nessun paniere, quindi a nessuna cliente arriva.
+  ▶️ Serve una richiesta al capo (AzioneVera / registro.service.ts) che gli
+  chieda DOVE metterla.
+  ⛔ POST /panieri/ricetta e' head_nutritionist + panieri:manage: Vera non puo'
+  scriverci da sola, e non deve poterlo fare.
+  ⚠️ La richiesta deve portarsi dietro tre cose o il capo decide al buio:
+  il regime, la cella del pasto, e il cancello dei pasti leggeri (niente carne,
+  pesce, molluschi e crostacei a colazione, spuntino e merenda).
+
+STATO MISURATO
+· voci-iniziali.ts: 6408 righe, 232 voci.
+  `due-sessioni-si-sovrascrivono` a riga 124, `vera-collegata-ai-panieri` a 6376.
+· npx tsc --noEmit -p tsconfig.json: solo i 2 errori preesistenti
+  (prisma/approve-diets.ts, prisma/dedupe-diets.ts).
+· npx jest --ci src/lavori: 74 prove verdi su 4 suite.
+
+FILE TOCCATI
+· backend/src/lavori/voci-iniziali.ts

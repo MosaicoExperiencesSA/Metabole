@@ -13,6 +13,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import {
+  AccorpaDto,
+  AccorpabiliDto,
   CreateEquivalenceGroupDto,
   UpdateEquivalenceGroupDto,
 } from './dto/equivalence.dto';
@@ -25,13 +27,33 @@ export class EquivalenceController {
   constructor(private readonly service: EquivalenceService) {}
 
   @Get()
-  list(@Query('status') status?: string, @Query('productId') productId?: string) {
-    return this.service.list({ status, productId });
+  list(@Query('status') status?: string) {
+    return this.service.list({ status });
   }
 
   @Post()
   create(@Body() dto: CreateEquivalenceGroupDto, @CurrentUser() user: AuthUser) {
     return this.service.create(user.sub, dto);
+  }
+
+  /**
+   * ⚠️ **Sola lettura, ed è un `POST` apposta**: l'elenco degli alimenti sta nel corpo perché in
+   * una query string quindici nomi con gli spazi diventano illeggibili — e questa risposta la
+   * chiedono sia la schermata sia Vera, prima di scrivere.
+   *
+   * ⛔ Sta **prima** di `:id` nel file: `accorpabili` è un segmento solo, e con l'ordine invertito
+   * Nest lo prenderebbe per un id.
+   */
+  @HttpCode(200)
+  @Post('accorpabili')
+  accorpabili(@Body() dto: AccorpabiliDto) {
+    return this.service.accorpabili(dto);
+  }
+
+  @HttpCode(200)
+  @Post(':id/accorpa')
+  accorpa(@Param('id') id: string, @Body() dto: AccorpaDto, @CurrentUser() user: AuthUser) {
+    return this.service.accorpa(user.sub, id, dto);
   }
 
   @Patch(':id')

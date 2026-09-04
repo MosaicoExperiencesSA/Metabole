@@ -106,9 +106,12 @@ async function main(): Promise<void> {
     })) as { id: string; active: boolean; allergensReviewed: boolean }[];
     const daAttivare = ricette.filter((r) => !r.active).length;
     const daConfermare = ricette.filter((r) => !r.allergensReviewed).length;
-    const gruppiDaApprovare = await prisma.equivalenceGroup.count({
-      where: { productId: d.id, status: { not: 'approved' as never } },
-    });
+    /**
+     * ⛔ **I gruppi di equivalenza non si contano piu per dieta** (4/9): non ne hanno una. La
+     * colonna sarebbe stata sempre vuota e il verdetto di riga "gia a posto" anche con centinaia di
+     * bozze in giro -- uno strumento di verifica che dice sempre di si.
+     */
+    const gruppiDaApprovare = 0;
     const daPubblicare = ['draft', 'in_review'].includes(d.status);
     const daRendereVisibile = !d.clientVisible;
 

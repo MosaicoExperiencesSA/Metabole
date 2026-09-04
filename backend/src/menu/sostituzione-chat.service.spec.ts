@@ -130,12 +130,25 @@ async function creaServizio(tocca?: (prisma: any) => void) {
           allergies: [],
           intolerances: [],
           dislikedFoods: [],
+          regime: 'omnivore',
           assignedCoachId: 'staff-c',
           assignedNutritionistId: 'staff-n',
           name: 'Giulia',
         }),
         update: jest.fn().mockResolvedValue({}),
       },
+      /**
+       * ⛔ **IL REGIME DELLA DIETA, dal 4/9.** I gruppi di equivalenza non sono più legati a una
+       * dieta, quindi «Carni bianche» arriva anche a una cliente vegetariana: il cancello che prima
+       * dava il `productId` adesso è `fuoriRegime`, e per rispondere ha bisogno di sapere che regime
+       * fa questa cliente.
+       *
+       * ⚠️ Qui è `omnivore` perché questi test parlano di carote e biete, non di regimi: con un
+       * finto che risponde `null` il regime risulterebbe sconosciuto, il cancello applicherebbe il
+       * più stretto e ottanta prove fallirebbero per una ragione che non è la loro. Il cancello ha
+       * le sue prove in `regime-del-candidato.spec.ts` e in fondo a questo file.
+       */
+      diet: { findUnique: jest.fn().mockResolvedValue({ regime: 'omnivore' }) },
       // Lo scenario del progetto: il nutrizionista ha approvato un gruppo che rende le carote
       // intercambiabili con le biete. È da qui che Gaia prende il sostituto.
       equivalenceGroup: {
@@ -2659,5 +2672,101 @@ describe('⛔ il cambio di piatto in chat passa dal controllo di sicurezza', () 
     const scritti = prisma.menuDay.update.mock.calls.map((c: any) => c[0].data.meals).pop();
     const colazione = (scritti ?? []).find((m: any) => m.slot === 'breakfast');
     expect(colazione?.substitutions).toBeUndefined();
+  });
+});
+
+/**
+ * ⛔ **IL CANCELLO DEL REGIME, IN CHAT** — 4/9.
+ *
+ * Dal 4/9 i gruppi di equivalenza non sono più legati a una dieta (decisione di Simone): «Carni
+ * bianche», che prima stava solo dentro le diete onnivore, adesso arriva a **tutte**. Il filtro che
+ * teneva la carne lontana da una vegetariana non era una regola: era un effetto collaterale di
+ * `productId`, e togliendolo sarebbe sparito senza che nessuno lo vedesse.
+ *
+ * ⚠️ Queste prove sono di **comportamento** e non del modulo puro: `regime-del-candidato.spec.ts`
+ * dimostra che la funzione sa rispondere, questo dimostra che il servizio la chiama davvero — che
+ * è la parte che il 4/9 poteva mancare.
+ */
+describe('⛔ SostituzioneChatService — a una vegetariana non si propone la carne (4/9)', () => {
+  /** Il gruppo che dal 4/9 arriva a tutte: le carote della sua insalata insieme al pollo. */
+  const conCarne = (prisma: any, regime: string) => {
+    prisma.equivalenceGroup.findMany.mockResolvedValue([
+      { productId: null, name: 'Contorni e carni', members: { items: ['carote', 'petto di pollo'] } },
+    ]);
+    prisma.diet.findUnique.mockResolvedValue({ regime });
+    prisma.clientProfile.findUnique.mockResolvedValue({
+      allergies: [], intolerances: [], dislikedFoods: [], regime,
+      assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n', name: 'Giulia',
+    });
+  };
+
+  it('⛔ il pollo non le viene proposto: la richiesta va alla nutrizionista', async () => {
+    const { service, prisma } = await creaServizio((p) => conCarne(p, 'vegetarian'));
+    const esito = await service.apriDaTesto('client-1', 'vorrei sostituire le carote');
+
+    expect(esito.stato?.proposta?.a).toBeUndefined();
+    expect(esito.testo).not.toContain('pollo');
+    // ⚠️ E la richiesta arriva a una persona: un cambio negato e basta lascia la cliente ferma.
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ La prova gemella, e serve quanto l'altra: il cancello deve **fermare**, non spegnere. A
+   * un'onnivora lo stesso identico gruppo funziona come sempre.
+   */
+  it('⚠️ ma a un\'onnivora lo stesso gruppo continua a funzionare', async () => {
+    const { service } = await creaServizio((p) => conCarne(p, 'omnivore'));
+    const esito = await service.apriDaTesto('client-1', 'vorrei sostituire le carote');
+    expect(esito.stato?.proposta?.a).toBe('petto di pollo');
+  });
+
+  /**
+   * ⛔ E la porta che si dimentica più facilmente: **quello che propone lei**. La cliente scrive il
+   * nome, e fino al 4/9 bastava che fosse fra gli equivalenti approvati del suo ingrediente.
+   */
+  it('⛔ nemmeno se lo chiede lei — e la frase dice perché', async () => {
+    const { service, prisma } = await creaServizio((p) => {
+      conCarne(p, 'vegetarian');
+      // Un secondo alimento buono, o non ci sarebbe nessuna proposta da cui partire.
+      p.equivalenceGroup.findMany.mockResolvedValue([
+        { productId: null, name: 'Contorni e carni', members: { items: ['carote', 'biete', 'petto di pollo'] } },
+      ]);
+    });
+    const apertura = await service.apriDaTesto('client-1', 'vorrei sostituire le carote');
+    const conferma = await service.avanza('client-1', apertura.stato!, '2');
+    const suo = await service.avanza('client-1', conferma.stato!, 'posso usare il petto di pollo?');
+
+    expect(suo.testo).toContain('carne');
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **E il regime che non si sa vale come il più stretto.** Se un giorno `dietId` arriva vuoto e
+   * la scheda non dice niente, la risposta non può essere «allora passa tutto»: è la direzione in
+   * cui l'errore finisce nel piatto.
+   */
+  it('⛔ senza regime da nessuna parte, la carne resta fuori', async () => {
+    const { service, prisma } = await creaServizio((p) => {
+      conCarne(p, 'omnivore');
+      p.diet.findUnique.mockResolvedValue(null);
+      p.clientProfile.findUnique.mockResolvedValue({
+        allergies: [], intolerances: [], dislikedFoods: [], regime: null,
+        assignedCoachId: 'staff-c', assignedNutritionistId: 'staff-n', name: 'Giulia',
+      });
+    });
+    const esito = await service.apriDaTesto('client-1', 'vorrei sostituire le carote');
+    /**
+     * ⚠️ **Tre asserzioni e non una** — rilievo della revisione del 4/9. `not.toContain('pollo')`
+     * da sola passava anche se il giro era esploso prima di arrivare a proporre qualcosa: era una
+     * prova che non dimostrava niente. Qui si pretende che il giro sia arrivato fin dove doveva
+     * (l'alimento è stato riconosciuto), che il sostituto non ci sia, e che la richiesta sia
+     * **arrivata a una persona** invece di finire nel vuoto.
+     */
+    expect(esito.stato?.proposta?.da ?? esito.testo).toBeDefined();
+    expect(esito.stato?.proposta?.a).toBeUndefined();
+    expect(esito.testo).not.toContain('pollo');
+    expect(prisma.escalation.create).toHaveBeenCalled();
+    expect(prisma.menuDay.update).not.toHaveBeenCalled();
   });
 });

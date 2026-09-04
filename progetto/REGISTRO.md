@@ -20,6 +20,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` 🧩 **I gruppi di equivalenza non sono più di una dieta: un nome, un gruppo.** Richiesta
+  di Simone — «si stanno moltiplicando all'infinito» — e sua la decisione: *«i gruppi NON devono
+  essere legati alle diete, sono gruppi e stop»*, e il gruppo unito è **approvato se almeno uno lo
+  era**.
+  ⛔ **I 2848 non erano doppi clic**: `generaGruppiEquivalenza` chiedeva all'AI 5-8 gruppi **a ogni
+  nascita di dieta** e li scriveva col `productId` di quella — le decine di «Carni bianche» erano
+  una dieta ciascuna. Ora nascono globali e un nome che esiste già non si riscrive: senza questo,
+  qualunque pulizia si sarebbe riempita di nuovo da sola.
+  ⛔ **E `productId` faceva un secondo lavoro che non stava scritto da nessuna parte**: teneva «Carni
+  bianche» lontano dalle vegetariane. `scegliSostituto` filtra allergie, intolleranze e cibi non
+  graditi — il **regime non l'ha mai guardato**, perché non ne aveva bisogno. Nuovo
+  `menu/regime-del-candidato.ts`: carne, pesce, latticini e uova secondo il regime, e il regime che
+  non si conosce vale come il **più stretto**.
+  ⚠️ **La prima stesura del cancello l'ho misurata e faceva acqua**: passavano `carne`, `salumi`,
+  `affettati`, `strutto`, `frutti di mare`, `seppie`, `philadelphia`, `robiola`, `taleggio`,
+  `fontina`, `asiago`, `emmental`, `caciotta`, `skyr`. E la correzione che avevo scritto subito dopo
+  (`eCarne` al posto di `eCarneIngrediente`) l'ho **buttata alla misura successiva**: rispondeva
+  «carne» a `carota tagliata sottile`.
+  ✅ **«Questi cibi stanno già in un altro gruppo: li accorpo?»** — l'altra metà, quella che tiene
+  pulito. Dalla pagina e dettando a Vera. ⚠️ Soglia a **due** alimenti in comune (il nome uguale
+  basta da solo): con uno, «petto di pollo» sta ovunque e la domanda comparirebbe sempre — cioè si
+  imparerebbe a rispondere senza leggerla.
+  ⛔ **La revisione ha bocciato tre cose che erano già verdi**, tutte e tre silenziose: la **coda di
+  Vera** e il **passo del wizard** filtravano per `productId` e sarebbero diventati vuoti per sempre
+  mentre la notifica continuava a dire «vai ad approvarlo»; `candidati()` legge i gruppi con
+  `take: 200` **ordinati per nome** — innocuo con otto gruppi per dieta, taglio alfabetico su 2848;
+  e la tabella dei pesi dei grassi si cercava scorrendo **500 righe per `createdAt`**, mentre
+  l'unione promuove ad approvato famiglie intere col `createdAt` più vecchio: al 501° Gaia avrebbe
+  smesso di convertire i grassi per tutte, dicendo che il gruppo non c'è mentre ce l'ha davanti.
+  ⛔ **Il pulsante «Conferma tutti i gruppi» è stato tolto, non riparato**: per dieta avrebbe toccato
+  zero righe rispondendo 200 (si preme, la pagina dice fatto, non succede niente); globale sarebbe
+  stato peggio — approvare **tutti** i gruppi del sistema dalla scheda di una dieta. Si rivedono uno
+  per uno in Equivalenze e nella coda di Vera.
+  ⚠️ **Detto una volta e non più**: «tutto in un gruppo solo, approvato» è una scelta di Simone e
+  vuol dire che alimenti proposti dall'AI e mai riletti da nessuno entrano nel motore. Il cancello
+  del regime li ferma su carne e pesce; sul resto no. Lo script lo stampa prima di scrivere.
+  ⛔ **Lo script NON è stato lanciato**: `npm run ripara:equivalenze-omonime` è una prova a vuoto,
+  `SCRIVI=1` scrive. Niente migrazioni.
+  🧪 7698/7698 backend, 293/293 backoffice, `npm run build` veri su tutti e due. Due mutazioni
+  uccise sul cancello del regime.
+
 - `[Sviluppo]` ✅ **I 215 allergeni falsi tolti dal catalogo**, e l'elenco lavori aggiornato coi numeri
   di giornata. `CONFERMA=1 npm run ripara:allergeni-chiave`: «Ossobuco di tacchino» e «Stracotto di
   vitello» non risultano più contenere **pesce** (la zucca era «dorata»), «Edamame al vapore» non

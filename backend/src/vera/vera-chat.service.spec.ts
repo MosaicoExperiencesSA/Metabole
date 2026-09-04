@@ -249,9 +249,20 @@ function make(
    * comporta diversamente dall'originale non verifica niente — è la lezione già pagata due volte
    * oggi, su `audit.log` e su `cercaPerIngrediente`.
    */
+  /**
+   * ⛔ **E `accorpabili`/`accorpa` dal 4/9**: senza, la lettura falliva, il `try` di
+   * `equivalenzaNome` la inghiottiva e la dettatura andava all'anteprima come prima — cioè la
+   * funzione nuova risultava invisibile e la suite restava verde. È lo stesso modo in cui un difetto
+   * sopravvive a un doppio incompleto, e in questo file è già costato due volte.
+   *
+   * ⚠️ Di default **non trova niente**: i test che parlano d'altro devono continuare a misurare
+   * quello che misuravano. Chi vuole la domanda la accende nel suo test.
+   */
   const combinazioni = {
     approve: jest.fn().mockResolvedValue({ id: 'g1' }),
     create: jest.fn().mockResolvedValue({ id: 'g-nuovo' }),
+    accorpabili: jest.fn().mockResolvedValue([]),
+    accorpa: jest.fn().mockResolvedValue({ aggiunti: ['coniglio'] }),
   };
   /**
    * La porta della coda «Da validare» (19/8): la stessa dei pulsanti in NutritionistHome. ⚠️ Le
@@ -3604,6 +3615,174 @@ describe('VeraChatService — l\'equivalenza dettata', () => {
     );
     await service.parla('lucia', 'no');
     expect(combinazioni.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **«QUESTI CIBI STANNO GIÀ IN UN ALTRO GRUPPO: LI ACCORPO?»** — richiesta di Simone, 4/9.
+   *
+   * ⚠️ La domanda arriva **al nome** e non alla conferma: alla conferma avrebbe già letto «scrivo
+   * il gruppo X», e cambiarle le carte all'ultimo passo insegna a premere «sì» senza leggere.
+   */
+  const SIMILI = [
+    { id: 'g-carni', nome: 'Carni bianche', status: 'approved', perche: 'stesso nome' as const, inComune: ['pollo'], daAggiungere: ['tacchino'], quantiHa: 3 },
+  ];
+
+  it('⛔ se quegli alimenti stanno già in un gruppo, lo chiede invece di scriverne un altro', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_nome', frase: '', equivalenzaAlimenti: ['pollo', 'tacchino'] } },
+    );
+    combinazioni.accorpabili.mockResolvedValue(SIMILI);
+    await service.parla('lucia', 'carni bianche');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('equivalenza_accorpa');
+    expect(testo).toContain('1) «Carni bianche»');
+    expect(testo).toContain('«nuovo»');
+    expect(combinazioni.create).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ «nuovo» è una risposta legittima: la domanda non deve diventare un cancello.
+   *
+   * ⛔ **E lo stato di partenza porta già una scelta dentro**, corretto in revisione: senza,
+   * `expect(equivalenzaAccorpaId).toBeUndefined()` era vero per costruzione del finto e sarebbe
+   * passato anche su un codice che la scelta non la cancella. Qui invece la prova morde: è il caso
+   * di chi preme «1» e poi ci ripensa.
+   */
+  it('⚠️ «nuovo» torna all\'anteprima e cancella la scelta fatta prima', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'equivalenza_accorpa',
+          frase: '',
+          equivalenzaAlimenti: ['pollo', 'tacchino'],
+          equivalenzaNome: 'carni bianche magre',
+          equivalenzaAccorpabili: [{ id: 'g-carni', nome: 'Carni bianche', status: 'approved' }],
+          equivalenzaAccorpaId: 'g-carni',
+          equivalenzaAccorpaNome: 'Carni bianche',
+        },
+      },
+    );
+    await service.parla('lucia', 'nuovo');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('equivalenza_conferma');
+    expect(stato?.equivalenzaAccorpaId).toBeUndefined();
+    expect(testo).toContain('scambiarli');
+    expect(combinazioni.accorpa).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ Il numero **non scrive**: porta a una conferma che dice cosa comporta. Accorpare dentro un
+   * approvato è la cosa più grossa che si possa fare da questa chat.
+   */
+  it('⛔ il numero non accorpa subito: prima dice che il gruppo è approvato', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'equivalenza_accorpa',
+          frase: '',
+          equivalenzaAlimenti: ['pollo', 'tacchino'],
+          equivalenzaNome: 'carni bianche magre',
+          equivalenzaAccorpabili: [{ id: 'g-carni', nome: 'Carni bianche', status: 'approved' }],
+        },
+      },
+    );
+    await service.parla('lucia', '1');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(combinazioni.accorpa).not.toHaveBeenCalled();
+    expect(stato?.passo).toBe('equivalenza_conferma');
+    expect(stato?.equivalenzaAccorpaId).toBe('g-carni');
+    expect(testo).toContain('approvato');
+    expect(testo).toContain('dal prossimo menu');
+  });
+
+  /**
+   * ⛔ **Quello che non e' entrato si dice.** Il confronto e' per parola: un gruppo che ha
+   * «latte» fa scartare «latte di mandorla». Rispondere solo «coniglio e' finito in X» lascerebbe
+   * chi ha dettato convinto di aver scritto anche il resto.
+   */
+  it('⛔ dice anche quello che NON ha aggiunto, e come c\'era già', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'equivalenza_conferma',
+          frase: '',
+          equivalenzaAlimenti: ['latte di mandorla', 'coniglio'],
+          equivalenzaNome: 'x',
+          equivalenzaAccorpaId: 'g-carni',
+          equivalenzaAccorpaNome: 'Carni bianche',
+        },
+      },
+    );
+    combinazioni.accorpa.mockResolvedValue({
+      aggiunti: ['coniglio'],
+      giaPresenti: [{ proposto: 'latte di mandorla', comeSta: 'latte' }],
+    });
+    await service.parla('lucia', 'sì');
+    const { testo } = ultimoAgente(messaggioCreate);
+    expect(testo).toContain('coniglio');
+    expect(testo).toContain('Non ho aggiunto: latte di mandorla');
+    expect(testo).toContain('«latte»');
+  });
+
+  it('⚠️ e al sì accorpa lì invece di creare', async () => {
+    const { service, combinazioni } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'equivalenza_conferma',
+          frase: '',
+          equivalenzaAlimenti: ['pollo', 'tacchino'],
+          equivalenzaNome: 'carni bianche magre',
+          equivalenzaAccorpaId: 'g-carni',
+          equivalenzaAccorpaNome: 'Carni bianche',
+        },
+      },
+    );
+    await service.parla('lucia', 'sì');
+    expect(combinazioni.accorpa).toHaveBeenCalledWith('lucia', 'g-carni', { items: ['pollo', 'tacchino'] });
+    expect(combinazioni.create).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ Un numero fuori elenco non sceglie a caso: richiede. */
+  it('⚠️ un numero che non c\'è non accorpa niente', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      {
+        statoAperto: {
+          passo: 'equivalenza_accorpa',
+          frase: '',
+          equivalenzaAlimenti: ['pollo'],
+          equivalenzaNome: 'x',
+          equivalenzaAccorpabili: [{ id: 'g-carni', nome: 'Carni bianche', status: 'draft' }],
+        },
+      },
+    );
+    await service.parla('lucia', '7');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(combinazioni.accorpa).not.toHaveBeenCalled();
+    expect(stato?.passo).toBe('equivalenza_accorpa');
+    expect(testo).toContain('da 1 a 1');
+  });
+
+  /**
+   * ⛔ **E se la lettura dei gruppi simili va storta, la dettatura continua.** Una domanda in più è
+   * un miglioramento; un gruppo che non si riesce più a scrivere perché una query è andata storta
+   * è una regressione.
+   */
+  it('⛔ se i gruppi simili non si leggono, si va all\'anteprima come prima', async () => {
+    const { service, combinazioni, messaggioCreate } = make(
+      {},
+      { statoAperto: { passo: 'equivalenza_nome', frase: '', equivalenzaAlimenti: ['pollo', 'tacchino'] } },
+    );
+    combinazioni.accorpabili.mockRejectedValue(new Error('db giù'));
+    await service.parla('lucia', 'carni bianche');
+    const { testo, stato } = ultimoAgente(messaggioCreate);
+    expect(stato?.passo).toBe('equivalenza_conferma');
+    expect(testo).toContain('scambiarli');
   });
 });
 

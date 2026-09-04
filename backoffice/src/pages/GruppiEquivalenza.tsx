@@ -23,6 +23,24 @@ interface EqGroup {
   updatedAt: string;
 }
 
+/**
+ * ⛔ **«QUESTI CIBI STANNO GIÀ IN UN ALTRO GRUPPO: LI ACCORPO?»** — richiesta di Simone, 4/9.
+ *
+ * Unire i doppioni di oggi è un lavoro che si fa una volta; se poi ogni gruppo nuovo può nascere
+ * accanto a uno che dice quasi la stessa cosa, fra sei mesi la pagina è di nuovo com'era. La
+ * risposta la calcola il server (`catalog/gia-in-un-altro-gruppo.ts`, con le sue prove): qui si
+ * mostra e si aspetta la scelta, che è di chi sta scrivendo.
+ */
+interface Accorpabile {
+  id: string;
+  nome: string;
+  status: string;
+  perche: 'stesso nome' | 'alimenti in comune';
+  inComune: string[];
+  daAggiungere: string[];
+  quantiHa: number;
+}
+
 const itemsOf = (g: EqGroup) => (Array.isArray(g.members?.items) ? g.members!.items! : []);
 const pesiOf = (g: EqGroup) => g.members?.fattori?.pesi ?? {};
 
@@ -135,8 +153,15 @@ export function scriviRighe(items: string[], pesi: Record<string, number>): stri
   return righe.join('\n');
 }
 
-/** Gruppi di equivalenza (R4/R8): il nutrizionista rivede e approva i sostituti. */
-export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string } = {}) {
+/**
+ * Gruppi di equivalenza (R4/R8): il nutrizionista rivede e approva i sostituti.
+ *
+ * ⛔ **DAL 4/9 UN GRUPPO NON È DI UNA DIETA** — decisione di Simone: *«i gruppi non devono essere
+ * legati alle diete, sono gruppi e stop»*. Con `scopeProductId` è sparita anche la scheda dentro
+ * Gestione dieta, che era una delle due porte da cui i doppioni nascevano: quella creava un gruppo
+ * per ogni dieta, l'altra (il generatore) cinque-otto per ogni dieta nuova.
+ */
+export function GruppiEquivalenza() {
   const [rows, setRows] = useState<EqGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -146,8 +171,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
   async function load() {
     setLoading(true);
     try {
-      const qs = scopeProductId ? `/equivalence-groups?productId=${encodeURIComponent(scopeProductId)}` : '/equivalence-groups';
-      setRows(await api<EqGroup[]>(qs));
+      setRows(await api<EqGroup[]>('/equivalence-groups'));
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) setError('Sezione riservata a nutrizionisti e amministratori.');
       else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
@@ -155,7 +179,7 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [scopeProductId]);
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   async function toggleApprove(g: EqGroup) {
     const to = g.status === 'approved' ? 'unapprove' : 'approve';
@@ -200,7 +224,6 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
       },
       filtro: 'testo',
     },
-    { chiave: 'ambito', titolo: 'Ambito', valore: (g) => (g.productId ? 'Prodotto' : 'Globale'), filtro: 'scelta', etichettaTutti: 'Tutti', stile: { width: 90 } },
     { chiave: 'stato', titolo: 'Stato', valore: (g) => g.status, filtro: 'scelta', etichettaTutti: 'Tutti', etichetta: (v) => (v === 'approved' ? 'Approvato' : 'Bozza'), stile: { width: 100 } },
     { chiave: 'azioni', titolo: 'Azioni', stile: { textAlign: 'right' } },
   ];
@@ -269,7 +292,6 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
                       ? `${Object.keys(pesiOf(g)).length} su ${itemsOf(g).length} · rif. ${g.members?.fattori?.riferimento ?? '—'}`
                       : '—'}
                   </td>
-                  <td className="muted">{g.productId ? 'Prodotto' : 'Globale'}</td>
                   <td>
                     <span className={`chip ${g.status === 'approved' ? '' : 'gray'}`}>{g.status === 'approved' ? 'Approvato' : 'Bozza'}</span>
                   </td>
@@ -289,7 +311,6 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
       {editing && (
         <GroupModal
           value={editing === 'new' ? null : editing}
-          scopeProductId={scopeProductId}
           onClose={() => setEditing(null)}
           onSaved={(msg) => { setEditing(null); setNotice(msg); void load(); }}
         />
@@ -300,12 +321,10 @@ export function GruppiEquivalenza({ scopeProductId }: { scopeProductId?: string 
 
 function GroupModal({
   value,
-  scopeProductId,
   onClose,
   onSaved,
 }: {
   value: EqGroup | null;
-  scopeProductId?: string;
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
@@ -321,6 +340,12 @@ function GroupModal({
   const [error, setError] = useState<string | null>(null);
   /** Il secondo Salva dopo l'avviso «stai cancellando i pesi». Vedi il riquadro in `submit`. */
   const [confermaSenzaPesi, setConfermaSenzaPesi] = useState(false);
+  /**
+   * I gruppi che somigliano a questo. `null` = non ho ancora chiesto; `[]` = ho chiesto e non c'è
+   * niente. ⚠️ Sono due cose diverse, e confonderle vorrebbe dire chiedere due volte o non chiedere
+   * mai — dipende da quale delle due si sceglie come «vuoto».
+   */
+  const [simili, setSimili] = useState<Accorpabile[] | null>(null);
 
   async function submit() {
     setError(null);
@@ -379,6 +404,29 @@ function GroupModal({
       );
       return;
     }
+    /**
+     * ⛔ **PRIMA DI SCRIVERNE UN ALTRO, SI GUARDA SE C'È GIÀ.** Solo alla creazione: modificando un
+     * gruppo che esiste la domanda non ha senso, e chiederla lì vorrebbe dire farla comparire ogni
+     * volta che si corregge una riga.
+     *
+     * ⚠️ Se la lettura non riesce **non si blocca il salvataggio**: una domanda in più è un
+     * miglioramento, un gruppo che non si riesce più a scrivere è una regressione.
+     */
+    if (!isEdit && simili === null) {
+      setBusy(true);
+      try {
+        const trovati = await api<Accorpabile[]>('/equivalence-groups/accorpabili', {
+          method: 'POST',
+          body: JSON.stringify({ name: name.trim(), items }),
+        });
+        setSimili(trovati);
+        if (trovati.length) { setBusy(false); return; }
+      } catch {
+        setSimili([]);
+      } finally {
+        setBusy(false);
+      }
+    }
     const payload = {
       name: name.trim(),
       items,
@@ -394,7 +442,7 @@ function GroupModal({
         await api(`/equivalence-groups/${value!.id}`, { method: 'PATCH', body: JSON.stringify(payload) });
         onSaved(`Gruppo "${payload.name}" aggiornato.`);
       } else {
-        await api('/equivalence-groups', { method: 'POST', body: JSON.stringify(scopeProductId ? { ...payload, productId: scopeProductId } : payload) });
+        await api('/equivalence-groups', { method: 'POST', body: JSON.stringify(payload) });
         onSaved(`Gruppo "${payload.name}" creato.`);
       }
     } catch (err) {
@@ -404,9 +452,84 @@ function GroupModal({
     }
   }
 
+  async function accorpaIn(t: Accorpabile) {
+    setError(null);
+    setBusy(true);
+    try {
+      const { items } = leggiRighe(itemsText);
+      const esito = await api<{ aggiunti: string[]; giaPresenti?: { proposto: string; comeSta: string }[] }>(
+        `/equivalence-groups/${t.id}/accorpa`,
+        { method: 'POST', body: JSON.stringify({ items }) },
+      );
+      /*
+        ⛔ **Quello che NON e' entrato si dice.** Il confronto e' per parola: un gruppo che ha
+        «latte» fa scartare «latte di mandorla». Scrivere solo quello che e' entrato lascia chi ha
+        premuto convinto di aver salvato anche il resto -- ed e' la stessa perdita silenziosa che
+        questa pagina ha gia' pagato il 25/8 sui pesi.
+      */
+      const scartati = (esito.giaPresenti ?? []).map((x) => `${x.proposto} (c'era già come "${x.comeSta}")`);
+      const coda = scartati.length ? ` Non aggiunti: ${scartati.join(', ')}.` : '';
+      onSaved(
+        (esito.aggiunti.length
+          ? `${esito.aggiunti.join(', ')} ${esito.aggiunti.length === 1 ? 'aggiunto' : 'aggiunti'} a "${t.nome}".`
+          : `"${t.nome}" li conteneva già tutti: non ho scritto niente.`) + coda,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Accorpamento non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Modal title={isEdit ? 'Modifica gruppo' : 'Nuovo gruppo di equivalenza'} onClose={onClose}>
       {error && <Banner kind="err">{error}</Banner>}
+      {simili !== null && simili.length > 0 && (
+        <div className="card" style={{ padding: 12, marginBottom: 12, borderLeft: '3px solid var(--warn, #d19a00)' }}>
+          <p style={{ margin: '0 0 8px' }}>
+            <b>Questi alimenti stanno già in {simili.length === 1 ? 'un gruppo' : 'altri gruppi'}.</b>{' '}
+            Accorparli lì tiene la pagina leggibile; crearne un altro va bene solo se sono davvero
+            due gruppi diversi.
+          </p>
+          {simili.map((t) => (
+            <div key={t.id} className="row" style={{ justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--line, #eee)' }}>
+              <div style={{ minWidth: 0 }}>
+                <b>{t.nome}</b>{' '}
+                <span className={`chip ${t.status === 'approved' ? '' : 'gray'}`} style={{ fontSize: 11 }}>
+                  {t.status === 'approved' ? 'Approvato' : 'Bozza'}
+                </span>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {t.quantiHa} aliment{t.quantiHa === 1 ? 'o' : 'i'} ·{' '}
+                  {t.perche === 'stesso nome' ? 'stesso nome' : `ha già ${t.inComune.join(', ')}`}
+                  {t.daAggiungere.length ? ` · ci aggiungerei ${t.daAggiungere.join(', ')}` : ' · non ci aggiungerei niente'}
+                </div>
+              </div>
+              <button className="btn sm" disabled={busy} onClick={() => accorpaIn(t)} style={{ whiteSpace: 'nowrap' }}>
+                Accorpa qui
+              </button>
+            </div>
+          ))}
+          {/*
+            ⛔ **Le due cose che chi preme deve sapere PRIMA.** Accorpare dentro un approvato manda
+            quegli alimenti nel motore dal prossimo menu; e i pesi e la nota scritti qui dentro
+            **non** entrano nell'accorpamento, perché la porta aggiunge alimenti e non riscrive il
+            gruppo. Dirlo dopo sarebbe una perdita silenziosa, che è il difetto che questa pagina ha
+            già pagato il 25/8.
+          */}
+          {simili.some((t) => t.status === 'approved') && (
+            <p className="hint" style={{ margin: '8px 0 0' }}>
+              ⚠️ Il gruppo approvato il motore <b>lo usa già</b>: quello che aggiungi ci entra dal
+              prossimo menu, senza che nessun altro lo rilegga.
+            </p>
+          )}
+          {(itemsText.includes('=') || note.trim()) && (
+            <p className="hint" style={{ margin: '6px 0 0' }}>
+              ⚠️ Accorpando, i <b>pesi</b> e la <b>nota</b> che hai scritto qui non vengono copiati:
+              passano solo gli alimenti. Se ti servono, crea il gruppo a parte.
+            </p>
+          )}
+        </div>
+      )}
       <div className="field">
         <label>Nome del gruppo</label>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Es. Pesci grassi" />
@@ -456,7 +579,11 @@ function GroupModal({
       </div>
       <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Annulla</button>
-        <button className="btn" onClick={submit} disabled={busy || !name.trim()}>{busy ? 'Salvo…' : isEdit ? 'Salva' : 'Crea'}</button>
+        {/* ⚠️ Con la domanda sullo schermo il pulsante dice cosa fa davvero: crea un gruppo A PARTE.
+            «Crea» sopra un elenco di gruppi somiglianti è la parola che fa premere senza leggere. */}
+        <button className="btn" onClick={submit} disabled={busy || !name.trim()}>
+          {busy ? 'Salvo…' : isEdit ? 'Salva' : simili && simili.length > 0 ? 'Crea comunque un gruppo nuovo' : 'Crea'}
+        </button>
       </div>
     </Modal>
   );

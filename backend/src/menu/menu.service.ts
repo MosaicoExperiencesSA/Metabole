@@ -4025,11 +4025,18 @@ export class MenuService {
    */
   private async pesiDeiGrassi(): Promise<{ fattori: FattoriGrassi | null }> {
     try {
+      /**
+       * ⛔ **PER NOME, non le prime 500 righe** -- corretto in revisione il 4/9, come il gemello
+       * in `sostituzione-chat.service.ts`. Dal 4/9 i gruppi approvati sono molti di piu' e il
+       * capofila di ogni famiglia tiene il `createdAt` piu' vecchio: il `take: 500` ordinato per
+       * data avrebbe finito per lasciare fuori proprio la tabella dei grassi, e da li' in poi il
+       * motore sarebbe tornato alla pari grammatura senza che nessuno lo decidesse.
+       */
       const gruppi = (await this.prisma.equivalenceGroup.findMany({
-        where: { status: 'approved' } as never,
+        where: { status: 'approved', name: { equals: GRUPPO_GRASSI, mode: 'insensitive' } } as never,
         orderBy: { createdAt: 'asc' },
         select: { name: true, members: true },
-        take: 500,
+        take: 20,
       })) as { name: string; members: unknown }[];
       const cercato = GRUPPO_GRASSI.trim().toLowerCase();
       const g = gruppi.find((x) => (x.name ?? '').trim().toLowerCase() === cercato);

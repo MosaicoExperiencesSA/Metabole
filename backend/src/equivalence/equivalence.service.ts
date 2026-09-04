@@ -3,7 +3,12 @@ import { AuditService } from '../audit/audit.service';
 import { avvisaCapiNutrizionisti } from '../common/avvisa-nutrizionista';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { accorpabili, type Accorpabile } from '../catalog/gia-in-un-altro-gruppo';
+import { combaciaAlimento, normalizza } from '../common/nomi-alimento';
+import { GRUPPO_GRASSI } from '../menu/grassi-equivalenti';
 import {
+  AccorpaDto,
+  AccorpabiliDto,
   CreateEquivalenceGroupDto,
   UpdateEquivalenceGroupDto,
 } from './dto/equivalence.dto';
@@ -109,12 +114,17 @@ export class EquivalenceService {
     return { riferimento: f.riferimento.trim(), pesi, ...(f.fonte?.trim() ? { fonte: f.fonte.trim() } : {}) };
   }
 
-  list(filter: { status?: string; productId?: string }) {
+  /**
+   * ⛔ **IL FILTRO `?productId=` E' STATO TOLTO** -- 4/9, come il campo nel DTO.
+   *
+   * Dal 4/9 nessun gruppo ha un `productId`, quindi quel filtro non poteva piu' restituire niente:
+   * era esattamente «una porta che accetta un campo e poi lo butta», che e' la ragione per cui il
+   * campo era gia' sparito dalla creazione. Restava aperta, e chi la chiamava riceveva una lista
+   * vuota credendola vera.
+   */
+  list(filter: { status?: string }) {
     return this.prisma.equivalenceGroup.findMany({
-      where: {
-        ...(filter.status ? { status: filter.status } : {}),
-        ...(filter.productId ? { productId: filter.productId } : {}),
-      },
+      where: { ...(filter.status ? { status: filter.status } : {}) },
       orderBy: [{ status: 'asc' }, { name: 'asc' }],
     });
   }
@@ -125,11 +135,21 @@ export class EquivalenceService {
     return g;
   }
 
+  /**
+   * ⛔ **UN GRUPPO NON È DI UNA DIETA** — decisione di Simone, 4/9: *«i gruppi non devono essere
+   * legati alle diete, sono gruppi e stop»*. `productId` resta in tabella (niente migrazione) ma
+   * nasce sempre `null`, e il DTO non lo accetta più: una porta che accetta un campo e poi lo butta
+   * è una porta che il giorno dopo qualcuno crede funzionante.
+   *
+   * ⚠️ E il legame faceva un secondo lavoro che nessuno aveva scritto: teneva il gruppo «Carni
+   * bianche» lontano dalle clienti vegetariane. Quel cancello adesso ha un nome e delle prove —
+   * `menu/regime-del-candidato.ts` — e non dipende più da un campo che serviva ad altro.
+   */
   async create(userId: string, dto: CreateEquivalenceGroupDto) {
     const created = await this.prisma.equivalenceGroup.create({
       data: {
         name: dto.name,
-        productId: dto.productId ?? null,
+        productId: null,
         members: this.membersFrom(dto.items, dto.note, undefined, dto.fattori) as never,
         status: dto.status ?? 'draft',
         version: 1,
@@ -164,12 +184,119 @@ export class EquivalenceService {
     return created;
   }
 
+  /**
+   * I gruppi che somigliano a quello che sta per nascere. **Sola lettura.**
+   *
+   * ⚠️ La decisione — sono la stessa cosa? — resta a chi sta scrivendo, che è una nutrizionista:
+   * «Carni bianche» e «Carni bianche magre» possono avere gli stessi tre alimenti e non essere lo
+   * stesso gruppo. Qui si dice solo dove quegli alimenti stanno già.
+   */
+  async accorpabili(dto: AccorpabiliDto): Promise<Accorpabile[]> {
+    const gruppi = (await this.prisma.equivalenceGroup.findMany({
+      select: { id: true, name: true, status: true, members: true },
+    })) as { id: string; name: string; status: string; members: unknown }[];
+    /**
+     * ⛔ **«OLI E GRASSI DA CONDIMENTO» NON SI PROPONE MAI** -- trovato in revisione, 4/9.
+     *
+     * Quel gruppo non e' un elenco di equivalenze: e' la **tabella di conversione** firmata dal capo
+     * nutrizionista, e `sostituzione-chat` lo salta per intero quando cerca i candidati (riga
+     * scritta il 25/8 apposta, dopo che a una vegana era stato proposto il burro). Proporlo come
+     * posto dove accorpare vorrebbe dire che l'equivalenza appena dettata finisce dentro l'unico
+     * gruppo che la chat non legge: sparirebbe, e nessuno saprebbe perche'.
+     */
+    const cercato = normalizza(GRUPPO_GRASSI);
+    return accorpabili(
+      dto.name,
+      dto.items,
+      gruppi.filter((g) => normalizza(g.name ?? '') !== cercato).map((g) => ({
+        id: g.id,
+        name: g.name,
+        status: g.status,
+        items: (((g.members as { items?: unknown } | null)?.items ?? []) as unknown[]).filter(
+          (i): i is string => typeof i === 'string',
+        ),
+      })),
+    );
+  }
+
+  /**
+   * Gli alimenti nuovi dentro un gruppo che esiste già, invece di scriverne un altro.
+   *
+   * ⛔ **Si parte da quello che c'è dentro `members`**, non da quello che ci si ricorda: lì vivono
+   * anche la `note` e i **`fattori`** — i pesi dei grassi firmati dal capo nutrizionista — e
+   * riscrivere l'oggetto da capo è esattamente il modo con cui il 25/8 quella tabella si stava per
+   * cancellare da sola.
+   *
+   * ⚠️ **Lo stato non si tocca.** Accorpare dentro un approvato manda quegli alimenti nel motore
+   * dal menu della notte: è una cosa che si può fare — chi lo fa è la nutrizionista, ed è la
+   * persona che li approverebbe comunque — ma va **detta prima** (lo dice la schermata) e
+   * **segnalata dopo**, che è quello che fa l'avviso qui sotto. Riportare il gruppo in bozza
+   * sarebbe peggio: spegnerebbe anche quello che oggi funziona.
+   */
+  async accorpa(userId: string, id: string, dto: AccorpaDto) {
+    const esistente = await this.get(id);
+    const prev = (esistente.members ?? {}) as Record<string, unknown>;
+    const attuali = (Array.isArray(prev.items) ? prev.items : []).filter(
+      (i: unknown): i is string => typeof i === 'string',
+    );
+    const proposti = dto.items.map((i) => (i ?? '').trim()).filter(Boolean);
+    /**
+     * ⛔ **QUELLO CHE NON ENTRA SI DICE** -- corretto in revisione, 4/9.
+     *
+     * Il confronto e' per parola e nei due versi, quindi un gruppo che ha «latte» fa scartare
+     * «latte di mandorla», uno che ha «yogurt» scarta «yogurt greco», uno che ha «olio» scarta
+     * «olio di semi». La prima stesura tornava solo `aggiunti`: la nutrizionista leggeva «coniglio
+     * e' finito in X», e il latte di mandorla non c'era, non era nominato da nessuna parte, e non
+     * aveva modo di accorgersene.
+     *
+     * ⚠️ E' la stessa regola dei pesi scartati in `puliscoFattori`, dove sta scritto «niente
+     * troncamenti silenziosi: il conto si scrive». Qui valeva per gli alimenti e non era applicata.
+     */
+    const giaPresenti: { proposto: string; comeSta: string }[] = [];
+    const nuovi: string[] = [];
+    for (const i of proposti) {
+      const dentro = attuali.find((a) => combaciaAlimento(a, i) || combaciaAlimento(i, a));
+      if (dentro) giaPresenti.push({ proposto: i, comeSta: dentro });
+      else nuovi.push(i);
+    }
+    if (!nuovi.length) {
+      // ⚠️ Non e' un errore: e' la risposta «li aveva gia' tutti». Dirlo e' meglio che scrivere e basta.
+      return { gruppo: esistente, aggiunti: [] as string[], giaPresenti };
+    }
+    const aggiornato = await this.prisma.equivalenceGroup.update({
+      where: { id },
+      data: { members: { ...prev, items: [...attuali, ...nuovi] } as never },
+    });
+    await this.audit.log({
+      action: 'equivalence.accorpa',
+      actorId: userId,
+      entityType: 'equivalence_group',
+      entityId: id,
+      metadata: { aggiunti: nuovi, giaPresenti, stato: esistente.status },
+    });
+    if (esistente.status === 'approved') {
+      await avvisaCapiNutrizionisti(
+        this.prisma,
+        this.notifications,
+        {
+          type: 'equivalence_group_new',
+          title: 'Alimenti aggiunti a un gruppo approvato',
+          body:
+            `«${esistente.name}» era approvato e ha ${nuovi.length} aliment${nuovi.length === 1 ? 'o' : 'i'} in più ` +
+            `(${nuovi.join(', ')}): il motore li può usare dal prossimo menu.`,
+          payload: { kind: 'equivalence_group_merged', groupId: id, aggiunti: nuovi },
+        },
+        userId,
+      );
+    }
+    return { gruppo: aggiornato, aggiunti: nuovi, giaPresenti };
+  }
+
   async update(userId: string, id: string, dto: UpdateEquivalenceGroupDto) {
     const existing = await this.get(id);
     const prev = (existing.members as unknown as { items?: string[]; note?: string; fattori?: unknown } | null) ?? {};
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data.name = dto.name;
-    if (dto.productId !== undefined) data.productId = dto.productId;
     if (dto.status !== undefined) data.status = dto.status;
     // ⚠️ `fattori` nella condizione: senza, salvare **solo** i pesi non scriveva niente — il ramo
     // non si apriva e la risposta diceva «salvato». Un salvataggio che non salva è il difetto

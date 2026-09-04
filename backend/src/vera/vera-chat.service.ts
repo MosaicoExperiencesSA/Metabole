@@ -99,6 +99,7 @@ import { SCRITTURA_DECISIONE, ScritturaDecisione } from './scrittura-decisione';
 import { pastiDellaFinestra, protocolloDigiuno } from '../menu/orologio-digiuno';
 import { SCRITTURA_DIGIUNO, ScritturaDigiuno } from './scrittura-digiuno';
 import { SCRITTURA_COMBINAZIONE, ScritturaCombinazione } from './scrittura-combinazione';
+import { testoChiediAccorpamento } from '../catalog/gia-in-un-altro-gruppo';
 import {
   bastaPerScrivere,
   leggiEquivalenza,
@@ -458,6 +459,8 @@ export class VeraChatService {
         return this.equivalenzaAlimenti(stato, frase);
       case 'equivalenza_nome':
         return this.equivalenzaNome(stato, frase);
+      case 'equivalenza_accorpa':
+        return this.equivalenzaAccorpa(stato, frase);
       case 'equivalenza_conferma':
         return this.equivalenzaScrivi(nutrizionistaId, stato, frase);
       case 'lista_aperta':
@@ -866,10 +869,99 @@ export class VeraChatService {
     if (nome.length < 3) {
       return { testo: testoChiediNome({ alimenti: stato.equivalenzaAlimenti ?? [], nome: null }), esito: 'in_corso', stato };
     }
+    const alimenti = stato.equivalenzaAlimenti ?? [];
+    /**
+     * ⛔ **PRIMA DI SCRIVERNE UN ALTRO, SI GUARDA SE C'È GIÀ** — richiesta di Simone, 4/9.
+     *
+     * ⚠️ La domanda si fa **qui e non alla conferma**: alla conferma la nutrizionista ha già letto
+     * «scrivo il gruppo X», e cambiarle le carte davanti all'ultimo passo è il modo migliore per
+     * farle premere «sì» senza leggere. Qui invece la scelta è ancora aperta.
+     *
+     * ⚠️ E se la lettura fallisce **non si blocca la dettatura**: si va all'anteprima come prima.
+     * Una domanda in più è un miglioramento; un gruppo che non si riesce più a scrivere perché una
+     * query è andata storta è una regressione.
+     */
+    let simili: { id: string; nome: string; status: string }[] = [];
+    try {
+      const trovati = await this.combinazioni.accorpabili({ name: nome, items: alimenti });
+      if (trovati.length) {
+        return {
+          testo: testoChiediAccorpamento(nome, trovati),
+          esito: 'in_corso',
+          stato: {
+            ...stato,
+            passo: 'equivalenza_accorpa',
+            equivalenzaNome: nome,
+            equivalenzaAccorpabili: trovati.map((t) => ({ id: t.id, nome: t.nome, status: t.status })),
+          },
+        };
+      }
+      simili = [];
+    } catch (err) {
+      logger.warn(`Gruppi simili non letti, la dettatura continua: ${err instanceof Error ? err.message : 'errore'}`);
+    }
+    void simili;
     return {
-      testo: testoAnteprima({ alimenti: stato.equivalenzaAlimenti ?? [], nome: null }, nome),
+      testo: testoAnteprima({ alimenti, nome: null }, nome),
       esito: 'in_corso',
       stato: { ...stato, passo: 'equivalenza_conferma', equivalenzaNome: nome },
+    };
+  }
+
+  /**
+   * «1» accorpa dentro quel gruppo, «nuovo» ne scrive uno a parte.
+   *
+   * ⛔ **Non scrive: porta alla conferma.** Accorpare dentro un gruppo **approvato** vuol dire che
+   * quegli alimenti il motore li può usare dal menu della notte — è la cosa più grossa che si possa
+   * fare da questa chat, e si fa dopo aver letto una frase che lo dice, non premendo un numero.
+   */
+  private async equivalenzaAccorpa(stato: StatoVera, frase: string): Promise<EsitoVera> {
+    const detto = (frase ?? '').trim();
+    if (VeraChatService.USCITE.test(detto)) return { testo: testi.annullato(), esito: 'annullata' };
+    const alimenti = stato.equivalenzaAlimenti ?? [];
+    const nome = stato.equivalenzaNome ?? '';
+    const scelte = stato.equivalenzaAccorpabili ?? [];
+
+    // ⚠️ «nuovo», «nuovo gruppo», «no»: chi non vuole accorpare lo dice in tre modi, e sono tutti
+    // e tre la stessa risposta.
+    if (/^(?:no|nuovo|nuovo gruppo|un nuovo gruppo|a parte)\b/i.test(detto)) {
+      /**
+       * ⛔ **La scelta si CANCELLA, non si lascia lì** -- rilievo della revisione del 4/9. La
+       * prima stesura faceva `{ ...stato, passo }`, e la prova che diceva «non accorpa» passava
+       * solo perché il suo stato di partenza non aveva mai avuto un `equivalenzaAccorpaId`. Bastava
+       * un «1» seguito da un ripensamento («no, nuovo») e al «sì» `equivalenzaScrivi` avrebbe
+       * accorpato lo stesso: la risposta di due messaggi prima batteva l'ultima.
+       */
+      return {
+        testo: testoAnteprima({ alimenti, nome: null }, nome),
+        esito: 'in_corso',
+        stato: { ...stato, passo: 'equivalenza_conferma', equivalenzaAccorpaId: undefined, equivalenzaAccorpaNome: undefined },
+      };
+    }
+
+    const n = Number(detto.replace(/[^0-9]/g, ''));
+    const scelto = Number.isInteger(n) && n >= 1 && n <= scelte.length ? scelte[n - 1] : null;
+    if (!scelto) {
+      return {
+        testo: `Non ho capito. Rispondi col numero del gruppo (da 1 a ${scelte.length}) per accorparlo lì, oppure «nuovo».`,
+        esito: 'in_corso',
+        stato,
+      };
+    }
+    return {
+      testo:
+        `Aggiungo ${alimenti.join(', ')} al gruppo **«${scelto.nome}»**` +
+        (scelto.status === 'approved'
+          ? ', che è **approvato**: il motore potrà usarli dal prossimo menu, senza che nessun altro li rilegga.'
+          : ', che è in bozza: il motore non lo usa finché il capo non lo approva.') +
+        '\n\nConfermo? (sì / no)',
+      esito: 'in_corso',
+      stato: {
+        ...stato,
+        passo: 'equivalenza_conferma',
+        equivalenzaAccorpaId: scelto.id,
+        equivalenzaAccorpaNome: scelto.nome,
+      },
     };
   }
 
@@ -886,6 +978,24 @@ export class VeraChatService {
     const alimenti = stato.equivalenzaAlimenti ?? [];
     const nome = stato.equivalenzaNome ?? '';
     try {
+      // ⛔ Due strade dallo stesso «sì», e la differenza l'ha scelta lei un messaggio fa.
+      if (stato.equivalenzaAccorpaId) {
+        const esito = await this.combinazioni.accorpa(nutrizionistaId, stato.equivalenzaAccorpaId, { items: alimenti });
+        const dove = stato.equivalenzaAccorpaNome ?? 'il gruppo';
+        /**
+         * ⛔ **Quello che NON e' entrato si dice** -- corretto in revisione, 4/9. Il confronto e'
+         * per parola: un gruppo che ha «latte» fa scartare «latte di mandorla». Rispondere solo
+         * «coniglio e' finito in X» lasciava lei convinta di aver scritto anche il resto.
+         */
+        const scartati = (esito.giaPresenti ?? []).map((x) => `${x.proposto} (c'era già come «${x.comeSta}»)`);
+        const coda = scartati.length ? `\n\nNon ho aggiunto: ${scartati.join(', ')}.` : '';
+        return {
+          testo: (esito.aggiunti.length
+            ? `Fatto: ${esito.aggiunti.join(', ')} ${esito.aggiunti.length === 1 ? 'è finito' : 'sono finiti'} in «${dove}». 💚`
+            : `«${dove}» li aveva già tutti: non ho scritto niente. 💚`) + coda,
+          esito: 'scritta',
+        };
+      }
       await this.combinazioni.create(nutrizionistaId, { name: nome, items: alimenti });
     } catch (err) {
       /**
@@ -2327,12 +2437,35 @@ export class VeraChatService {
       : [];
     const perId = new Map(ricette.map((r) => [r.id, r]));
 
-    const gruppi = (await this.prisma.equivalenceGroup.findMany({
-      where: { productId: { in: diete.map((d) => d.id) } } as never,
-      select: { id: true, name: true, status: true, productId: true, members: true },
-    })) as { id: string; name: string; status: string; productId: string | null; members: unknown }[];
+    /**
+     * ⛔ **I GRUPPI NON SONO PIU DI UNA DIETA, E QUESTA QUERY LO ERA** -- corretto in revisione, 4/9.
+     *
+     * Diceva `where: productId in (le diete in revisione)`, e con la consegna del 4/9 -- che mette
+     * `productId: null` ovunque -- sarebbe diventata **vuota per sempre**: la coda "quello che
+     * aspetta me" avrebbe smesso di mostrare un solo gruppo di equivalenza, mentre
+     * `EquivalenceService.create` continuava a mandare la notifica "e in bozza: il motore non lo usa
+     * finche non lo approvi". Una notifica che rimanda a una schermata che non li mostra piu -- e
+     * nessun errore, nessuna riga di log. Era il difetto peggiore della consegna.
+     *
+     * ⚠️ Adesso si leggono **tutte le bozze**, e non appese a una dieta: appenderle alla prima
+     * sarebbe una frase falsa in chat ("combinazione della dieta X" su un gruppo che vale per
+     * tutte). Vanno in una voce a parte, e il testo della domanda lo dice.
+     */
+    const bozze = (await this.prisma.equivalenceGroup.findMany({
+      where: { status: { not: 'approved' } } as never,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, status: true, members: true },
+      take: 300,
+    })) as { id: string; name: string; status: string; members: unknown }[];
 
-    return diete.map((d) => ({
+    const combinazioniGlobali = bozze.map((g) => ({
+      id: g.id,
+      nome: g.name,
+      stato: g.status,
+      alimenti: (((g.members as { items?: unknown })?.items ?? []) as unknown[]).map((x) => String(x)).filter(Boolean),
+    }));
+
+    const perDiete: DietaInRevisione[] = diete.map((d) => ({
       dietaId: d.id,
       dietaNome: d.name,
       ricette: (perDieta.get(d.id) ?? []).flatMap((id) => {
@@ -2348,15 +2481,17 @@ export class VeraChatService {
           ingredienti: (Array.isArray(r.ingredients) ? r.ingredients : []).map((i) => String((i as { name?: unknown })?.name ?? '')).filter(Boolean),
         }];
       }),
-      combinazioni: gruppi
-        .filter((g) => g.productId === d.id)
-        .map((g) => ({
-          id: g.id,
-          nome: g.name,
-          stato: g.status,
-          alimenti: (((g.members as { items?: unknown })?.items ?? []) as unknown[]).map((x) => String(x)).filter(Boolean),
-        })),
+      // ⚠️ I gruppi non stanno piu sotto una dieta: vedi la voce a parte, qui in coda.
+      combinazioni: [],
     }));
+    const senzaDieta: DietaInRevisione[] = [
+      /**
+       * ⚠️ La voce dei gruppi, senza dieta. `dietaId` e `dietaNome` vuoti sono la cosa vera: questi
+       * gruppi valgono per tutte, e `testoDomanda` scrive la frase giusta quando il nome e vuoto.
+       */
+      { dietaId: '', dietaNome: '', ricette: [], combinazioni: combinazioniGlobali },
+    ];
+    return perDiete.concat(senzaDieta);
   }
 
   /**

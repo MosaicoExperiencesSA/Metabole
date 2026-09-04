@@ -15,7 +15,6 @@ type ReviewStatus = {
   dietId: string; name: string; status: string; mealsPerDay: number;
   recipes: { total: number; active: number; allergensReviewed: number };
   days: { total: number; complete: number };
-  groups: { total: number; approved: number };
 };
 
 const LS_DIET = 'metabole_bo_wizard_diet';
@@ -266,7 +265,7 @@ export function CreazioneValidazione() {
           ready = s.recipes.total > 0 && s.recipes.active === s.recipes.total
             && s.recipes.allergensReviewed === s.recipes.total
             && s.days.total > 0 && s.days.complete === s.days.total
-            && (s.groups.total === 0 || s.groups.approved === s.groups.total);
+            ;
         } catch { /* resta false */ }
         out.push({ dietId: d.id, regime: d.regime, objective: (d.objective as string) || 'dimagrimento', meals: d.fasting ? 'fasting' : String(d.mealsPerDay ?? 5), status: d.status, ready });
       }
@@ -604,7 +603,6 @@ export function CreazioneValidazione() {
       try {
         await api(`/engine-rules/diets/${v.id}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
         await api(`/engine-rules/diets/${v.id}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
-        await api(`/engine-rules/diets/${v.id}/approve-groups`, { method: 'POST', body: JSON.stringify({}) });
         validate += 1;
       } catch (e) { errs.push(`${tag(v)} (validazione): ${e instanceof ApiError ? e.message : 'errore'}`); }
       step += 1;
@@ -660,7 +658,6 @@ export function CreazioneValidazione() {
     try {
       await api(`/engine-rules/diets/${dietId}/activate-recipes`, { method: 'POST', body: JSON.stringify({}) });
       await api(`/engine-rules/diets/${dietId}/review-allergens`, { method: 'POST', body: JSON.stringify({}) });
-      setStatus(await api<ReviewStatus>(`/engine-rules/diets/${dietId}/approve-groups`, { method: 'POST', body: JSON.stringify({}) }));
       void loadFamilyStatuses();
       setNotice('Fatto ✓ Le ricette di questa variante sono attive e gli allergeni confermati: le clienti le ricevono. La dieta era già pubblicata, quindi non c\'è niente da ripubblicare.');
     } catch (e) {
@@ -724,9 +721,8 @@ export function CreazioneValidazione() {
     recipes: s.recipes.total > 0 && s.recipes.active === s.recipes.total,
     allergens: s.recipes.total > 0 && s.recipes.allergensReviewed === s.recipes.total,
     days: s.days.total > 0 && s.days.complete === s.days.total,
-    groups: s.groups.total === 0 || s.groups.approved === s.groups.total,
   } : null;
-  const allReady = !!done && done.recipes && done.allergens && done.days && done.groups;
+  const allReady = !!done && done.recipes && done.allergens && done.days;
 
   return (
     <>
@@ -1164,9 +1160,16 @@ export function CreazioneValidazione() {
                 link={<Link className="btn ghost sm" to="/tag-allergeni">Rivedi</Link>} />
               <StepRow ok={!!done?.days} title="Giornate" detail={`${s.days.complete}/${s.days.total} complete`}
                 link={<Link className="btn ghost sm" to="/diete">Componi</Link>} />
-              <StepRow ok={!!done?.groups} title="Gruppi di equivalenza" detail={s.groups.total === 0 ? 'nessuno' : `${s.groups.approved}/${s.groups.total} confermati`}
-                action={s.groups.total > 0 ? <button className="btn ghost sm" onClick={() => act('approve-groups')} disabled={busy}>Conferma tutti</button> : undefined}
-                link={<Link className="btn ghost sm" to="/gruppi-equivalenza">Rivedi</Link>} />
+              {/*
+                ⛔ **IL PASSO «GRUPPI DI EQUIVALENZA» E SPARITO DA QUI** -- 4/9. Dal 4/9 un gruppo
+                non e piu di una dieta, quindi questa riga contava sempre zero: spunta verde,
+                dettaglio "nessuno", e nessun pulsante -- su una dieta con otto bozze appena
+                scritte dall'AI. E "Conferma tutti" faceva una updateMany su zero righe
+                rispondendo 200: si premeva, la pagina diceva fatto, non succedeva niente.
+                ⚠️ Non si e messa la versione globale al suo posto: un pulsante che approva TUTTI
+                i gruppi del sistema, premuto dalla scheda di UNA dieta, e peggio di quello rotto.
+                Si rivedono uno per uno in Equivalenze e nella coda di Vera.
+              */}
             </div>
             <div className="row" style={{ gap: 8, marginTop: 16 }}>
               {/* Già pubblicata → non si ripubblica, si validano le ricette nuove. Prima il
