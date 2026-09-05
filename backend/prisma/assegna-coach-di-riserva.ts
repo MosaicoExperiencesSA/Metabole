@@ -26,6 +26,7 @@ import {
   PARAM_COACH_DI_RISERVA,
   RISERVA_SPENTA,
   assegnaLaRiserva,
+  clientiConLeadMaSenzaCoach,
   clientiSenzaCoach,
   giudicaLaRiserva,
 } from '../src/common/coach-di-riserva';
@@ -63,9 +64,27 @@ async function main(): Promise<void> {
   console.log(`Coach di riserva: ${riserva.displayName} (ruolo ${riserva.role}, staff ${riserva.staffId})`);
 
   const senza = await clientiSenzaCoach(prisma as never);
-  console.log(`\n=== CLIENTI VIVE SENZA NESSUNA COACH: ${senza.length} ===`);
+  /**
+   * ⛔ LO ZERO DEVE PARLARE (5/9): la prima passata ha stampato «0» dove il giorno prima erano 4 + 2,
+   * senza dire se il giro notturno le aveva prese o se il filtro del lead le nascondeva.
+   */
+  const conLead = await clientiConLeadMaSenzaCoach(prisma as never);
+  const inAttesa = conLead.filter((c) => c.statoLead === 'pending');
+  const accettateVuote = conLead.filter((c) => c.statoLead !== 'pending');
+  console.log(`\n=== CLIENTI VIVE SENZA NESSUNA COACH (e senza una coach sul lead): ${senza.length} ===`);
+  console.log(`Lasciate fuori apposta, perché il lead una coach ce l'ha: ${conLead.length}`);
+  if (inAttesa.length) {
+    console.log(`  · ${inAttesa.length} con la coach che deve ancora ACCETTARE — non si toccano: quando accetta, il ponte scrive lei.`);
+    console.table(inAttesa.map((c) => ({ cliente: c.nome ?? '(senza nome)', email: c.email, coach: c.coachDelLead ?? '—', scheda: c.haScheda ? '' : 'MANCA' })));
+  }
+  if (accettateVuote.length) {
+    console.log(`  ⛔ ${accettateVuote.length} con il lead ACCETTATO e la scheda rimasta vuota: è il difetto del 6/8 sulle clienti vecchie.`);
+    console.log('     La riserva non c\'entra — sono di quella coach. Si riparano con:  npm run fix:assegnazioni  (poi CONFERMA=1)');
+    console.table(accettateVuote.map((c) => ({ cliente: c.nome ?? '(senza nome)', email: c.email, coach: c.coachDelLead ?? '—', stato: c.statoLead ?? '—', scheda: c.haScheda ? '' : 'MANCA' })));
+  }
   if (!senza.length) {
-    console.log('nessuna — niente da fare.');
+    console.log('\nNessuna da assegnare alla riserva — niente da fare.');
+    console.log('⚠️ Se ieri erano di più: `npm run diag:commerciale-e-coach` dice se le ha già prese il giro notturno (Giusy non è più a zero).');
     return;
   }
   console.table(

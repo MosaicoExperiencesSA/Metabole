@@ -185,6 +185,65 @@ export async function clientiSenzaCoach(prisma: PrismaPerSenzaCoach): Promise<Cl
   }));
 }
 
+/** Una cliente senza coach in scheda che la riserva NON prende, perché il suo lead una coach ce l'ha. */
+export interface ClienteConLeadMaSenzaCoach {
+  userId: string;
+  email: string;
+  nome: string | null;
+  haScheda: boolean;
+  /** `pending` = la coach deve ancora accettare; `accepted` = ha accettato ma la scheda è rimasta vuota. */
+  statoLead: string | null;
+  coachDelLead: string | null;
+}
+
+/** Il minimo del client Prisma che serve a contare chi resta fuori dalla riserva, e perché. */
+export interface PrismaPerLeadEsclusi {
+  user: {
+    findMany(args: unknown): Promise<{
+      id: string; email: string;
+      clientProfile: { name: string | null; assignedCoachId: string | null } | null;
+      crmRecord: { assignedCoachId: string | null; assignmentStatus: string | null; assignedCoach: { displayName: string | null } | null } | null;
+    }[]>;
+  };
+}
+
+/**
+ * ⛔ **LO ZERO DEVE PARLARE.** La prima passata del 5/9 ha stampato «0 senza coach» su un catalogo
+ * dove il giorno prima erano 4 più 2 senza scheda: o il giro notturno le aveva già prese, o il
+ * filtro «lead con una coach» le nascondeva. Un tabulato che non dice quante ne ha lasciate fuori
+ * e perché non è un tabulato. Qui si contano quelle: senza coach in scheda **ma** con una coach sul
+ * lead.
+ *
+ * · `pending`: la coach deve ancora accettare, e quando accetta il ponte scrive lei. Non si tocca.
+ * · `accepted` con la scheda vuota: è il difetto del 6/8 sulle clienti vecchie, e ha già la sua
+ *   riparazione — `npm run fix:assegnazioni`. La riserva non c'entra: quella cliente è di quella
+ *   coach, non di Giusy.
+ */
+export async function clientiConLeadMaSenzaCoach(prisma: PrismaPerLeadEsclusi): Promise<ClienteConLeadMaSenzaCoach[]> {
+  const righe = await prisma.user.findMany({
+    where: {
+      role: 'client',
+      deletedAt: null,
+      OR: [{ clientProfile: null }, { clientProfile: { assignedCoachId: null } }],
+      crmRecord: { assignedCoachId: { not: null } },
+    },
+    select: {
+      id: true, email: true,
+      clientProfile: { select: { name: true, assignedCoachId: true } },
+      crmRecord: { select: { assignedCoachId: true, assignmentStatus: true, assignedCoach: { select: { displayName: true } } } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  return righe.map((u) => ({
+    userId: u.id,
+    email: u.email,
+    nome: u.clientProfile?.name ?? null,
+    haScheda: !!u.clientProfile,
+    statoLead: u.crmRecord?.assignmentStatus ?? null,
+    coachDelLead: u.crmRecord?.assignedCoach?.displayName ?? null,
+  }));
+}
+
 /** Una riga di registro da scrivere: chi chiama decide con che cosa (AuditService o Prisma nudo). */
 export interface RigaDiRegistro {
   action: string;

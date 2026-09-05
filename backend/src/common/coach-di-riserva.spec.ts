@@ -1,6 +1,7 @@
 import {
   RISERVA_SPENTA,
   assegnaLaRiserva,
+  clientiConLeadMaSenzaCoach,
   clientiSenzaCoach,
   coachDiRiserva,
   giudicaLaRiserva,
@@ -99,6 +100,20 @@ describe('clientiSenzaCoach: si contano le clienti, non i profili', () => {
     // Un lead con una coach che deve ancora accettare non è «senza coach».
     expect(where.NOT).toEqual({ crmRecord: { assignedCoachId: { not: null } } });
     expect(out.map((c) => [c.userId, c.haScheda, c.nome])).toEqual([['u1', false, null], ['u2', true, 'B']]);
+  });
+});
+
+describe('clientiConLeadMaSenzaCoach: lo zero deve parlare', () => {
+  it('⛔ chiede le clienti senza coach in scheda MA con una coach sul lead, e ne dice lo stato', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { id: 'u1', email: 'a@x.it', clientProfile: null, crmRecord: { assignedCoachId: 'st-x', assignmentStatus: 'pending', assignedCoach: { displayName: 'X' } } },
+      { id: 'u2', email: 'b@x.it', clientProfile: { name: 'B', assignedCoachId: null }, crmRecord: { assignedCoachId: 'st-y', assignmentStatus: 'accepted', assignedCoach: { displayName: 'Y' } } },
+    ]);
+    const out = await clientiConLeadMaSenzaCoach({ user: { findMany } });
+    const where = findMany.mock.calls[0][0].where;
+    expect(where.crmRecord).toEqual({ assignedCoachId: { not: null } });
+    expect(where.OR).toEqual([{ clientProfile: null }, { clientProfile: { assignedCoachId: null } }]);
+    expect(out.map((c) => [c.userId, c.statoLead, c.coachDelLead, c.haScheda])).toEqual([['u1', 'pending', 'X', false], ['u2', 'accepted', 'Y', true]]);
   });
 });
 

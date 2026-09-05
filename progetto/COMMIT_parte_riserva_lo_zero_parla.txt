@@ -1,0 +1,35 @@
+────────────────────────────────────────────────────────────────────────────
+ assegna:coach-di-riserva — lo zero deve parlare
+ 5 settembre 2026 (mattina)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. Nessun cambio di comportamento: lo script stampa di più.
+
+Summary
+───────
+assegna:coach-di-riserva dice quante clienti lascia fuori e perché, invece di stampare zero
+
+Description
+───────────
+La prima passata (5/9) ha stampato «CLIENTI VIVE SENZA NESSUNA COACH: 0» su un
+catalogo dove il giorno prima erano 4 più 2 senza scheda. Due spiegazioni
+possibili, e lo script non diceva quale: il giro notturno del cron le aveva già
+prese, oppure il filtro «chi ha un lead con una coach non è senza coach» le
+nascondeva. Un tabulato che non dice quante ne ha lasciate fuori e perché non
+è un tabulato.
+
+Ora conta anche quelle (`clientiConLeadMaSenzaCoach`, in
+`common/coach-di-riserva.ts`, con la prova):
+· lead IN ATTESA: la coach deve ancora accettare, e quando accetta il ponte
+  scrive lei — non si toccano;
+· lead ACCETTATO con la scheda rimasta vuota: è il difetto del 6/8 sulle
+  clienti vecchie, e ha già la sua riparazione (`npm run fix:assegnazioni`).
+  La riserva non c'entra: quelle clienti sono di quella coach, non di Giusy.
+
+E sullo zero rimanda a `diag:commerciale-e-coach`, che dice se il giro
+notturno le ha già prese (Giusy non più a zero).
+
+Verificato
+──────────
+· `common/coach-di-riserva` + `coach-di-riserva.service`: 21 prove verdi;
+  `npm run build` verde

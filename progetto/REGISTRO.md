@@ -18,6 +18,16 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-05
+
+- `[Sviluppo]` ⚠️ **`assegna:coach-di-riserva`: lo zero deve parlare.** La prima passata ha
+  stampato «0 senza coach» su un catalogo dove il giorno prima erano 4 più 2 senza scheda, senza
+  dire se le aveva già prese il giro notturno o se il filtro «lead con una coach» le nascondeva.
+  Ora lo script conta anche chi resta fuori apposta e perché: **in attesa** (la coach deve
+  accettare: non si tocca) o **accettato con la scheda vuota** (il difetto del 6/8 sulle clienti
+  vecchie → `npm run fix:assegnazioni`, che esiste già; la riserva non c'entra, sono di quella
+  coach). `clientiConLeadMaSenzaCoach` in `common/coach-di-riserva.ts`, con la prova.
+
 ## 2026-09-04
 
 - `[Sviluppo]` ✅ **Le uova e i latticini in un piatto dichiarato vegano chiedono conferma: chiuso
