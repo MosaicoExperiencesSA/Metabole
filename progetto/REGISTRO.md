@@ -20,6 +20,25 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ⛔ **Circa 300 ricette dichiarate vegane hanno uova, formaggio o pesce dentro — e
+  si rietichettano.** `diag:vegani-con-latte-e-uova` sul catalogo vero: 7206 vegane attive, 462
+  chiederebbero conferma. Lette riga per riga: un centinaio erano forme che la regola non
+  conosceva («latte mandorla» senza «di», «burro di semi di girasole», «burro di pistacchio»,
+  tahina, walnut, soya, legumi, «(senza uova)», «granata semi») — chiuse in `derivatoVegetale`
+  (con e senza «di»; ⚠️ le piante corte sono parole intere: «burro **chia**rificato» resta burro,
+  l'ha trovato la prova del 31/8), nelle omonime e con «senza ‹chiave›». Il resto — uova (85),
+  ricotta (80), stracchino (30), mozzarella (27), parmigiano, mascarpone, grana, pecorino, yogurt
+  greco, e calamari, cernia, nasello, acciughe — sono **vegane a torto**: il difetto dei 175
+  dell'1/9 nella versione latte-e-uova. Decisione di Simone: rietichettare come allora. ✅ Fatto
+  nel giudizio, non nello script: `classifica` conosce ora `uova` e `latticini` per il regime
+  vegano (`uovaOLatticini`, → `vegetarian`), e la usano insieme il cancello delle ricette, le
+  attività coach e `regime:contenuto` — una testa sola. Il cancello non ha più il suo secondo
+  giudizio. ⚠️ Trovato e NON chiuso di sponda: «pasta senza glutine» resta col glutine per via di
+  «pasta» — una celiaca non riceve la pasta fatta per lei; voce nuova
+  `senza-glutine-risulta-glutine`, con la regola giusta scritta (per allergene, in
+  `suggestAllergens`, e «senza lattosio» non è «senza latte»). 454 suite, 7834 prove; due
+  mutazioni che mordono.
+
 - `[Sviluppo]` ✅ **Della coach di riserva non si lancia più niente a mano: il giro notturno fa
   tutto.** Simone: *«ma continuiamo a lanciare lo stesso comando, una volta sistemate basta»*.
   Aveva ragione: una regola che ogni tanto chiede un comando (`fix:assegnazioni` per il lead

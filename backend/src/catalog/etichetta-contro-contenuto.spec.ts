@@ -151,3 +151,43 @@ describe('classifica — le ricette dichiarate onnivore', () => {
     expect(classifica('Tacchino ai funghi', ['petto di tacchino'])).toMatchObject({ tipo: 'sicura', cosa: 'carne' });
   });
 });
+
+/**
+ * ⛔ **LE UOVA E I LATTICINI, SOLO PER IL VEGANO** (5/9). `diag:vegani-con-latte-e-uova` sul catalogo
+ * vero: ~300 ricette dichiarate vegane con uova, formaggio o pesce dentro. Lo stesso giudizio serve
+ * al cancello, allo script che rietichetta e alle attività coach: per questo sta qui e non in tre
+ * posti.
+ */
+describe('⛔ uova e latticini in un piatto dichiarato vegano', () => {
+  it('⛔ le uova negli ingredienti di un piatto vegano sono «sicure», e vanno a vegetarian', () => {
+    expect(classifica('Uova sode con verza', ['uova', 'verza'], 'vegan')).toEqual({
+      tipo: 'sicura', cosa: 'uova', prova: 'uova', regimeGiusto: 'vegetarian',
+    });
+  });
+
+  it('⛔ lo stracchino pure, come «latticini»', () => {
+    const e = classifica('Stracchino con ravanelli', ['stracchino', 'ravanelli'], 'vegan');
+    expect(e).toMatchObject({ tipo: 'sicura', cosa: 'latticini', regimeGiusto: 'vegetarian' });
+  });
+
+  /** ⛔ Carne e pesce vengono PRIMA: «uova strapazzate con pancetta» è onnivora, non vegetariana. */
+  it('⛔ con la carne dentro vince la carne: onnivoro, non vegetariano', () => {
+    expect(classifica('Uova con pancetta', ['uova', 'pancetta'], 'vegan')).toMatchObject({ cosa: 'carne', regimeGiusto: 'omnivore' });
+  });
+
+  it('⚠️ su un piatto VEGETARIANO le uova e i latticini non sono niente', () => {
+    expect(classifica('Uova sode', ['uova'], 'vegetarian')).toEqual({ tipo: 'ok' });
+    expect(classifica('Stracchino', ['stracchino'], 'omnivore')).toEqual({ tipo: 'ok' });
+  });
+
+  /** ⛔ I derivati vegetali: rietichettarli sarebbe un'etichetta falsa scritta per sempre. */
+  it('⛔ «ricotta di mandorla», «latte mandorla», «formaggio vegano», «uova di lino» NON sono niente', () => {
+    for (const ing of ['ricotta di mandorla', 'latte mandorla', 'formaggio vegano', 'uova di lino', 'burro di semi di girasole', 'panna vegetale']) {
+      expect(classifica('Piatto', [ing, 'spinaci'], 'vegan')).toEqual({ tipo: 'ok' });
+    }
+  });
+
+  it('⚠️ e le uova vengono nominate prima dei latticini, se ci sono tutte e due', () => {
+    expect(classifica('Frittata', ['parmigiano', 'uova'], 'vegan')).toMatchObject({ cosa: 'uova', prova: 'uova' });
+  });
+});

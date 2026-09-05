@@ -508,6 +508,9 @@ export const PAROLE_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = 
   latte: ['platter'],
   brie: ['umbrie'],
   pane: ['rapanelli'],
+  // ⚠️ «granata semi» (5/9, dal tabulato dei vegani): i semi di melograno. `grana` comincia la parola,
+  //    quindi la regola di posizione non la scarta: è un'omonima, e sta qui.
+  grana: ['granata', 'granate'],
 };
 
 /**
@@ -785,12 +788,37 @@ export const NOMI_CON_VERSIONE_VEGETALE: ReadonlySet<string> = new Set([
 
 /** Le piante di cui si fanno latte, formaggi e uova vegetali. ⛔ Niente animali, mai. */
 export const PIANTE_DEI_DERIVATI: readonly string[] = [
-  'mandorl', 'soia', 'riso', 'avena', 'cocco', 'anacard', 'lino', 'canapa', 'nocciol', 'ceci', 'lupin',
-  'pisell', 'quinoa', 'sesamo', 'macadamia', 'aquafaba', 'chia', 'miglio', 'noci', 'arachid', 'girasole',
-  'patat', 'tofu', 'cajù', 'caju',
+  'mandorl', 'soia', 'soya', 'riso', 'avena', 'cocco', 'anacard', 'lino', 'canapa', 'nocciol', 'ceci', 'lupin',
+  'pisell', 'quinoa', 'sesamo', 'macadamia', 'aquafaba', 'chia', 'miglio', 'noci', 'noce', 'walnut', 'arachid',
+  'girasole', 'patat', 'tofu', 'cajù', 'caju',
+  /**
+   * ⚠️ Aggiunte il 5/9 leggendo `diag:vegani-con-latte-e-uova` sul catalogo vero (462 righe): «burro
+   * di **pistacchio**» (13), «burro di **tahina**» (5), «burro di **semi** di girasole» (21), «ricotta
+   * di **legumi**» — tutte scritte da chi le ha messe in un piatto vegano, tutte senza latte.
+   */
+  'pistacch', 'tahin', 'semi', 'legumi',
 ];
 
-const RE_DI_PIANTA = new RegExp(`^\\s+(?:di|d['’])\\s*(?:${PIANTE_DEI_DERIVATI.join('|')})`);
+/**
+ * ⚠️ **Con e senza il «di»** (5/9): il catalogo scrive «latte mandorla» (18), «latte cocco» (8),
+ * «yogurt soia», «burro arachidi» — il «di» cade in metà delle righe. La forma stretta resta: la
+ * pianta deve venire **subito** dopo la parola; «yogurt greco noci» non entra, perché «greco» non
+ * è una pianta.
+ */
+/**
+ * ⛔ Le piante corte sono parole INTERE, le altre radici: «burro **chia**rificato» è burro vero, e
+ * con `chia` come radice diventava vegetale. Trovato dalla prova del 31/8 («burro chiarificato
+ * resta latte»), non da me.
+ */
+const pianta = (p: string) => (p.length <= 4 ? `${p}\\b` : p);
+const RE_DI_PIANTA = new RegExp(`^\\s+(?:(?:di|d['’])\\s*)?(?:${PIANTE_DEI_DERIVATI.map(pianta).join('|')})`);
+
+/**
+ * ⚠️ **«senza uova», «senza latte», «senza glutine»** (5/9, dal tabulato: «lievito per dolci (senza
+ * uova)»): la parola c'è per dire che la cosa NON c'è. Solo con «senza» **subito prima**: «torta
+ * senza uova e latte» tiene il latte, che è il verso giusto quando non si è sicuri.
+ */
+const RE_SENZA_PRIMA = /(?:^|[^a-zà-ù])senza\s+$/;
 
 /**
  * ⚠️ Per prefisso e non per uguaglianza: le chiavi degli allergeni sono radici («ricott»), quelle
@@ -809,6 +837,10 @@ const haVersioneVegetale = (chiave: string): boolean =>
  * `RE_IMITAZIONE` in `piatto-di-cosa.ts`: allargarla vuol dire staccare il segno dalla parola.
  */
 export function derivatoVegetale(haystack: string, chiave: string, i: number): boolean {
+  /** ⚠️ «senza ‹chiave›» vale per OGNI chiave: «pasta senza glutine» non ha il glutine. */
+  let a = i;
+  while (a > 0 && /[a-zà-ù0-9]/.test(haystack[a - 1])) a -= 1;
+  if (RE_SENZA_PRIMA.test(haystack.slice(0, a))) return true;
   if (!haVersioneVegetale(chiave)) return false;
   let b = i + chiave.length;
   while (b < haystack.length && /[a-zà-ù0-9]/.test(haystack[b])) b += 1;
@@ -837,7 +869,7 @@ function chiaveVale(haystack: string, k: string): boolean {
   const soloInizio = SOLO_A_INIZIO_PAROLA.has(k);
   const escluse = PAROLE_CHE_NON_SONO[k];
   const frasi = FRASI_CHE_NON_SONO[k];
-  const derivabile = haVersioneVegetale(k);
+  const derivabile = haVersioneVegetale(k) || haystack.includes('senza ');
   if (!soloInizio && !escluse && !frasi && !derivabile) return haystack.includes(k);
   let i = haystack.indexOf(k);
   while (i !== -1) {

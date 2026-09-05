@@ -1,4 +1,5 @@
 import { eCarne, eCarneIngrediente, ePesce } from './piatto-di-cosa';
+import { suggestAllergens } from './allergens';
 
 /**
  * L'ETICHETTA CONTRO IL CONTENUTO — il giudizio, fuori dallo script che riscrive il catalogo.
@@ -21,10 +22,17 @@ import { eCarne, eCarneIngrediente, ePesce } from './piatto-di-cosa';
  * un Buddha Bowl che diventa onnivoro, nell'altro è carne che resta dichiarata vegetariana.
  */
 
-export type Cosa = 'carne' | 'pesce';
+/**
+ * ⚠️ **`uova` e `latticini` dal 5/9**, e valgono solo per il regime **vegano**: il vegetariano li
+ * mangia. `diag:vegani-con-latte-e-uova` sul catalogo vero: circa 300 ricette dichiarate vegane con
+ * uova strapazzate, stracchino, mozzarella, parmigiano dentro — il difetto dei 175 dell'1/9, nella
+ * versione latte-e-uova. Simone, 5/9: si rietichettano come allora (vegan → vegetarian).
+ */
+export type Cosa = 'carne' | 'pesce' | 'uova' | 'latticini';
+export type RegimeGiusto = 'omnivore' | 'pescetarian' | 'vegetarian';
 export type Esito =
   | { tipo: 'ok' }
-  | { tipo: 'sicura'; cosa: Cosa; prova: string; regimeGiusto: 'omnivore' | 'pescetarian' }
+  | { tipo: 'sicura'; cosa: Cosa; prova: string; regimeGiusto: RegimeGiusto }
   | { tipo: 'dubbia'; cosa: Cosa; prova: string; perche: string };
 
 /**
@@ -93,8 +101,28 @@ export const sembraUnImitazione = (testo: string): string | null => {
   return null;
 };
 
-export const regimeGiusto = (cosa: Cosa): 'omnivore' | 'pescetarian' =>
-  (cosa === 'carne' ? 'omnivore' : 'pescetarian');
+export const regimeGiusto = (cosa: Cosa): RegimeGiusto =>
+  (cosa === 'carne' ? 'omnivore' : cosa === 'pesce' ? 'pescetarian' : 'vegetarian');
+
+/** Un ingrediente che si dichiara vegetale da sé: «formaggio vegano», «panna vegetale», «maionese veg». */
+const DETTO_VEGETALE = /\b(?:vegan[oaei]?|vegetal[ei]|veg)\b/;
+
+/**
+ * ⛔ **LE UOVA E I LATTICINI IN UN PIATTO VEGANO — si chiede alla deduzione degli allergeni**, che
+ * li conosce (`classifica` da sola conosce carne e pesce). ⚠️ Due porte, due versi: per gli
+ * allergeni «panna vegetale» resta latte (31/8, il caseinato), qui no — chi l'ha scritta l'ha
+ * dichiarata vegetale, e un giudizio che la chiamasse latticino sarebbe una rietichettatura
+ * sbagliata scritta in catalogo per sempre. I derivati «di ‹pianta›» li scarta già la porta unica.
+ */
+export function uovaOLatticini(ingredienti: readonly string[]): { cosa: 'uova' | 'latticini'; prova: string } | null {
+  const trovati = suggestAllergens(ingredienti.map((name) => ({ name })))
+    .filter((a) => a.allergen === 'latte' || a.allergen === 'uova')
+    .map((a) => ({ ...a, matched: a.matched.filter((nome) => !DETTO_VEGETALE.test(nome)) }))
+    .filter((a) => a.matched.length);
+  if (!trovati.length) return null;
+  const primo = trovati.find((a) => a.allergen === 'uova') ?? trovati[0];
+  return { cosa: primo.allergen === 'uova' ? 'uova' : 'latticini', prova: primo.matched[0] };
+}
 
 /**
  * ⛔ **I REGIMI DA GUARDARE, E PERCHÉ ORA C'È ANCHE L'ONNIVORO** (1/9, seconda scoperta).
@@ -146,6 +174,16 @@ export function classifica(nome: string, ingredienti: readonly string[], regimeD
   }
   /** ⚠️ E sul nome, per una onnivora, non c'è niente da dubitare: sta già nel regime più largo. */
   if (regimeDichiarato === 'omnivore') return { tipo: 'ok' };
+  /**
+   * ⛔ **Le uova e i latticini, solo per il vegano** (5/9). Vengono DOPO carne e pesce — «uova
+   * strapazzate con pancetta» è onnivora, non vegetariana — e sono sempre «sicure»: stanno negli
+   * ingredienti, e l'imitazione («formaggio vegano», «ricotta di mandorla») è già stata scartata
+   * da `uovaOLatticini`. Su un piatto vegetariano non c'è niente da correggere.
+   */
+  if (regimeDichiarato === 'vegan') {
+    const animale = uovaOLatticini(ingredienti);
+    if (animale) return { tipo: 'sicura', cosa: animale.cosa, prova: animale.prova, regimeGiusto: 'vegetarian' };
+  }
   /**
    * ⚠️ Sul NOME invece le preparazioni contano — «Cotoletta alla milanese» è un piatto di carne — ma
    * qui non si corregge mai: può essere un piatto vegetale che si chiama come un animale, oppure

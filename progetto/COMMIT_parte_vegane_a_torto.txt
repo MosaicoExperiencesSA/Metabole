@@ -1,0 +1,60 @@
+────────────────────────────────────────────────────────────────────────────
+ Le ricette vegane a torto: uova e latticini entrano nel giudizio, e si
+ rietichettano
+ 5 settembre 2026 (mattina)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. La scrittura sul catalogo la fa `regime:contenuto`
+   con APPLICA=1, a mano, dopo la prova a vuoto.
+
+Summary
+───────
+Uova e latticini nel giudizio del regime: le ~300 vegane a torto si rietichettano con regime:contenuto
+
+Description
+───────────
+⛔ IL NUMERO. `diag:vegani-con-latte-e-uova` sul catalogo vero: 7206 ricette
+vegane attive, 462 chiederebbero conferma. Lette riga per riga, sono due mucchi.
+
+1) UN CENTINAIO DI FORME CHE LA REGOLA NON CONOSCEVA — «latte mandorla» senza il
+   «di» (18), «burro di semi di girasole» (21), «burro di pistacchio» (13),
+   tahina, walnut, soya, legumi, «lievito (senza uova)», «granata semi» (è
+   melograno: `grana` dentro `granata`). Chiuse in `derivatoVegetale`: la forma
+   vale con e senza «di», le piante nuove sono in `PIANTE_DEI_DERIVATI`, «senza
+   ‹chiave›» smonta la chiave che segue, «granata» è un'omonima. ⚠️ Le piante
+   corte sono parole INTERE: «burro CHIArificato» stava per diventare vegetale,
+   e l'ha fermato la prova del 31/8 (burro chiarificato resta latte), non io.
+
+2) CIRCA 300 RICETTE DICHIARATE VEGANE A TORTO — uova sode e strapazzate (85),
+   ricotta (80), stracchino (30), mozzarella (27), parmigiano, mascarpone,
+   grana, pecorino, yogurt greco, e una decina con calamari, cernia, nasello,
+   acciughe. Una vegana le riceve oggi. È il difetto dei 175 dell'1/9, nella
+   versione latte-e-uova. Simone, 5/9: si rietichettano come allora.
+
+✅ FATTO NEL GIUDIZIO, NON NELLO SCRIPT. `classifica`
+(`etichetta-contro-contenuto.ts`) conosce ora `uova` e `latticini` per il
+regime vegano (`uovaOLatticini`: chiede alla deduzione degli allergeni, scarta
+i derivati vegetali e chi si dichiara «vegano/vegetale» nel nome), e li manda a
+`vegetarian` — il regime più stretto che può mangiarli. Carne e pesce vengono
+prima: «uova con pancetta» è onnivora. Lo usano insieme il cancello delle
+ricette (che non ha più un secondo giudizio suo), le attività coach quando una
+cliente passa a vegana, e `regime:contenuto`, che ora conta e scrive anche il
+mucchio «→ vegetarian».
+
+⚠️ TROVATO E NON CHIUSO DI SPONDA: «pasta senza glutine» resta col glutine, per
+via di «pasta». Una celiaca non riceve la pasta fatta per lei. La regola giusta
+è per ALLERGENE e non per chiave, sta in `suggestAllergens`, e «senza lattosio»
+non è «senza latte». Voce nuova nell'elenco: `senza-glutine-risulta-glutine`,
+prima il numero.
+
+Verificato
+──────────
+· backend: 454 suite, 7834 prove verdi; `npm run build` verde
+· due mutazioni che mordono: `classifica` che ignora le uova nel vegano (6
+  rosse su tre file), `DETTO_VEGETALE` che non filtra (3 rosse)
+
+Cosa resta (a Simone, nell'ordine, dopo il push)
+────────────────────────────────────────────────
+1. npm run regime:contenuto               → sola lettura, legge la lista
+2. APPLICA=1 npm run regime:contenuto     → scrive
+3. npm run panieri:pulisci                → toglie dai panieri vegani chi non ci sta

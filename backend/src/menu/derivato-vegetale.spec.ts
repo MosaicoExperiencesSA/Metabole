@@ -37,6 +37,31 @@ describe('derivatoVegetale: la forma, non l\'elenco', () => {
     expect(dedotti('burro di arachidi')).not.toContain('latte');
   });
 
+  /** ⚠️ Le forme trovate il 5/9 sul catalogo vero: senza il «di», e le piante che mancavano. */
+  it('⚠️ «latte mandorla», «burro di semi di girasole», «burro di pistacchio», «yogurt soya» non sono latte', () => {
+    for (const n of ['latte mandorla', 'latte cocco light', 'yogurt soia naturale', 'burro arachidi naturale', 'burro di semi di girasole',
+      'burro di pistacchio', 'burro di tahina', 'burro di walnut', 'yogurt soya non zuccherato', 'ricotta di legumi (ceci)', 'ricotta di noce']) {
+      expect(dedotti(n)).not.toContain('latte');
+    }
+    expect(dedotti('maionese di semi di girasole')).not.toContain('uova');
+  });
+
+  /**
+   * ⚠️ Vale per la CHIAVE che segue «senza», non per l'allergene: «pasta senza glutine» resta glutine
+   * per via di «pasta». È un difetto a sé (una celiaca non riceve la pasta senza glutine) e sta
+   * nell'elenco Lavori come voce sua, non chiuso di sponda qui.
+   */
+  it('⚠️ «senza uova» non è uova; ma «torta senza uova e latte» tiene il latte, e «latte senza lattosio» resta latte', () => {
+    expect(dedotti('lievito per dolci (senza uova)')).not.toContain('uova');
+    expect(dedotti('torta senza uova e latte')).toContain('latte');
+    expect(dedotti('latte senza lattosio')).toContain('latte');
+  });
+
+  it('⚠️ «granata semi» è melograno, non grana', () => {
+    expect(dedotti('granata semi')).not.toContain('latte');
+    expect(dedotti('grana padano')).toContain('latte');
+  });
+
   /** ⛔ LA CONTROPROVA CHE CONTA: le preparazioni con «di ‹pianta›» restano di uova. */
   it('⛔ «frittata di zucchine» e «omelette di funghi» RESTANO uova', () => {
     expect(dedotti('frittata di zucchine')).toContain('uova');
@@ -51,6 +76,13 @@ describe('derivatoVegetale: la forma, non l\'elenco', () => {
     expect(dedotti('latte di bufala')).toContain('latte');
     expect(dedotti('uova di quaglia')).toContain('uova');
     expect(dedotti('mozzarella di bufala')).toContain('latte');
+    // E senza il «di» vale lo stesso: la parola dopo deve essere una pianta.
+    expect(dedotti('mozzarella fior di latte')).toContain('latte');
+    expect(dedotti('yogurt greco intero')).toContain('latte');
+    expect(dedotti('latte intero')).toContain('latte');
+    expect(dedotti('ricotta fresca')).toContain('latte');
+    expect(dedotti('uova intere')).toContain('uova');
+    expect(dedotti('pasta all\'uovo integrale')).toContain('uova');
   });
 
   it('⛔ «di ‹pianta›» deve stare SUBITO dopo: «ricotta fresca di mandorla» resta latte', () => {

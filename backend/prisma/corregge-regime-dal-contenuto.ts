@@ -35,6 +35,16 @@
  * dove sono: si rifanno con `panieri:riempi` e `panieri:pesce` DOPO, ed è giusto che siano due
  * passi separati — questo si può rilanciare e leggere senza muovere il pool di nessuna cliente.
  *
+ * ## ⛔ DAL 5/9 ANCHE LE UOVA E I LATTICINI NEI PIATTI VEGANI
+ *
+ * `diag:vegani-con-latte-e-uova` sul catalogo vero: circa **300 ricette dichiarate vegane** con uova
+ * strapazzate, stracchino, mozzarella, parmigiano, mascarpone, yogurt greco dentro — e una decina
+ * con calamari, cernia, nasello, acciughe. È lo stesso difetto dei 175, nella versione
+ * latte-e-uova. Simone, 5/9: si rietichettano come allora. Vanno a **`vegetarian`**, il regime più
+ * stretto che può mangiarle. Il giudizio è sempre `classifica` (`uovaOLatticini`), e i derivati
+ * vegetali («ricotta di mandorla», «latte mandorla», «formaggio vegano») non entrano nel mucchio:
+ * la porta unica e `DETTO_VEGETALE` li scartano prima.
+ *
  * ## USO (shell di Render, dentro ~/project/src/backend)
  *
  *   npm run regime:contenuto              → sola lettura: cosa correggerebbe, e cosa no
@@ -101,12 +111,17 @@ async function main() {
   titolo('IL CONTO');
   riga('');
   riga(`  Ricette attive guardate (vegane, vegetariane, onnivore)  ${ricette.length}`);
-  riga(`  · con carne o pesce negli INGREDIENTI (sicure)   ${sicure.length}`);
+  riga(`  · con carne, pesce, uova o latticini negli INGREDIENTI (sicure)   ${sicure.length}`);
+  riga(`      · uova                                       ${sicure.filter((x) => x.cosa === 'uova').length}`);
+  riga(`      · latticini                                  ${sicure.filter((x) => x.cosa === 'latticini').length}`);
+  riga(`      · pesce                                      ${sicure.filter((x) => x.cosa === 'pesce').length}`);
+  riga(`      · carne                                      ${sicure.filter((x) => x.cosa === 'carne').length}`);
   riga(`  · dubbie, NON si toccano                         ${dubbie.length}`);
   riga(`      · solo nel nome                              ${dubbie.filter((d) => d.perche === 'solo nel nome').length}`);
   riga(`      · sembrano imitazioni vegetali               ${dubbie.filter((d) => d.perche !== 'solo nel nome').length}`);
   riga('');
-  riga(`  Delle sicure: ${sicure.filter((x) => x.regimeGiusto === 'pescetarian').length} andrebbero a «pescetarian», `
+  riga(`  Delle sicure: ${sicure.filter((x) => x.regimeGiusto === 'vegetarian').length} andrebbero a «vegetarian», `
+    + `${sicure.filter((x) => x.regimeGiusto === 'pescetarian').length} a «pescetarian», `
     + `${sicure.filter((x) => x.regimeGiusto === 'omnivore').length} a «omnivore».`);
 
   if (dubbie.length) {
@@ -130,7 +145,7 @@ async function main() {
     titolo('LE SICURE — il termine sta negli ingredienti');
     riga('');
     for (const x of sicure.slice(0, ESEMPI)) {
-      riga(`  · «${x.nome}»`);
+      riga(`  · [${x.cosa}] «${x.nome}»`);
       riga(`      oggi «${x.regime}» → «${x.regimeGiusto}»   (ingrediente: «${x.prova}»)`);
     }
     if (sicure.length > ESEMPI) riga(`  … e altre ${sicure.length - ESEMPI}. ESEMPI=${sicure.length} per vederle tutte.`);
@@ -154,6 +169,8 @@ async function main() {
     fatte += 1;
   }
   riga(`  ✅ Corrette ${fatte} ricette. Le ${dubbie.length} dubbie sono rimaste come stavano.`);
+  riga('  ⚠️ Le vegane con uova o latticini sono andate a «vegetarian»: dai panieri vegani le toglie');
+  riga('     `panieri:pulisci`, qui sotto; nei panieri vegetariani ci entrano con `panieri:riempi`.');
   riga('');
   riga('  ⚠️ I PANIERI NON SONO STATI TOCCATI: le appartenenze già scritte stanno ancora dove');
   riga('  stavano. ⛔ E rilanciare `panieri:riempi` NON le toglie: quello script solo AGGIUNGE');
