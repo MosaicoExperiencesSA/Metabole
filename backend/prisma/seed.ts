@@ -149,6 +149,20 @@ const CONFIG_PARAMS: SeedParam[] = [
       'Finché è acceso, chi finisce il questionario SENZA una nutrizionista sul lead viene presa in carico dal capo nutrizionista. Serve perché con una sola nutrizionista l\'assegnazione a mano non è una decisione: è un passaggio che qualche volta salta, e la cliente resta senza nessuno che risponda di lei (il caso Sonia, 21/8). Si spegne quando le nutrizioniste diventano più d\'una e distribuire i pazienti torna a essere una scelta.',
   },
   {
+    key: 'agente_alimenti_acceso',
+    value: 'false',
+    type: 'string',
+    description:
+      'L\'agente alimenti (Simone, 5/9): di notte prende i nomi di ingrediente che le ricette usano e la tabella alimenti non ha, cerca in rete allergeni e valori per 100 g con la fonte, e scrive la riga — usata subito da Gaia e dai tag delle ricette, e messa nella coda «da confermare» della nutrizionista. Nasce spento: ogni alimento è una chiamata all\'AI con ricerche in rete, che si pagano a parte.',
+  },
+  {
+    key: 'agente_alimenti_max',
+    value: '20',
+    type: 'string',
+    description:
+      'Quanti alimenti l\'agente compila per notte. Ogni alimento vale fino a tre ricerche in rete oltre alla chiamata: venti per notte sono al massimo sessanta ricerche.',
+  },
+  {
     key: 'coach_di_riserva',
     value: 'off',
     type: 'string',

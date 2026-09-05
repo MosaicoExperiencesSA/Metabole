@@ -148,6 +148,16 @@ const META: Record<string, Meta> = {
     help: 'Ogni ricetta è una chiamata all’AI e un pezzo di coda di approvazione. Il freno vero non è questo numero: è quante ne approvate voi.',
   },
 
+  // L'AGENTE ALIMENTI: allergeni e valori nutrizionali cercati in rete (Simone, 5/9).
+  agente_alimenti_acceso: {
+    label: 'Agente alimenti (allergeni e valori dalla rete)', group: 'AI', kind: 'toggle',
+    help: 'Di notte prende i nomi di ingrediente che le ricette usano e la tabella alimenti non ha, cerca in rete allergeni e valori per 100 g con la fonte, e scrive la riga. La riga vale SUBITO — Gaia la cita e le ricette con quell’ingrediente prendono i tag allergene la notte stessa — e resta nella coda «da confermare» di Valori nutrizionali, con la fonte accanto. Ogni alimento è una chiamata all’AI con ricerche in rete, che si pagano a parte.',
+  },
+  agente_alimenti_max: {
+    label: 'Quanti alimenti per notte', group: 'AI', kind: 'number', unit: 'alimenti',
+    help: 'Fino a tre ricerche in rete per alimento: venti per notte sono al massimo sessanta ricerche. Un alimento bocciato dal vaglio (senza fonte, numeri che non tornano, allergene fuori elenco, valori copiati) non si richiede per trenta giorni.',
+  },
+
   marketing_require_consent: { label: 'Campagne solo con consenso esplicito', group: 'Marketing', kind: 'toggle', help: 'Se acceso, dalle campagne sono esclusi i lead che non hanno mai dato un consenso esplicito (chi ha detto NO è escluso sempre, in ogni caso). Va acceso PRIMA di lavorare lo storico importato.' },
 
   app_store_url: { label: 'Link App Store', group: 'App', kind: 'text', help: 'Usato dai pulsanti “Scarica” nelle email.' },

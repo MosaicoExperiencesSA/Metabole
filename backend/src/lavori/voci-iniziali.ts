@@ -6295,6 +6295,35 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'agente-alimenti-allergeni-dalla-rete',
+    fatta: true,
+    titolo: 'L\'agente alimenti: prende il nome, cerca in rete allergeni e valori nutrizionali, e li scrive sull\'alimento',
+    dettaglio:
+      '✅ **Simone, 5/9: «mettiamoci un agente che prende la parola, cerca in internet gli allergeni e i valori nutrizionali e li popola»** — dopo la quarta volta che il vocabolario andava allungato a mano («continuiamo ad avere questo problema»). È la strada del foglio del 31/8: *dichiarare gli allergeni sull\'alimento, non allungare un elenco di parole*.\n'
+      + '**Cosa fa, ogni notte** (`nutrient-facts/agente-alimenti.ts` + service, passo `agenteAlimenti` nel `daily` subito dopo `alimentiDaCorreggere`): prende dalla coda i nomi di ingrediente che le ricette usano e la tabella alimenti non ha (dai più usati, aromi esclusi), chiede all\'AI **con la ricerca in rete** (`AiService.generateJsonConRicerca`, strumento `web_search` di Anthropic) allergeni UE e valori per 100 g **con la fonte**, **vaglia** e scrive la riga (`allergens`, `filledBy: agente_alimenti`, fonte con link, «da confermare»); poi porta i tag dalla tabella alle ricette che usano quell\'ingrediente (nome uguale, mai «contiene»; aggiunge, mai toglie; salta le toccate a mano; una riga di registro per ricetta, con ingrediente e riga di origine, per poter disfare).\n'
+      + '⛔ **Decisione di Simone: «direttamente, valgono subito»** — non la bozza da confermare. La riga è usata da Gaia e dai tag la notte stessa, e resta nella coda «da confermare» della nutrizionista (chip «agente», fonte cliccabile, caselle degli allergeni). Il costo dichiarato: un allergene sbagliato dell\'AI toglie un piatto a chi ha quell\'allergia finché una persona non corregge la riga — e i tag già propagati **non si ritirano da soli** (si disfa dal registro).\n'
+      + '⚠️ **Il vaglio** (23 prove): fonte con indirizzo obbligatoria; kcal obbligatorie e coerenti coi macro (Atwater, alcol compreso, tolleranza larga); zuccheri ≤ carboidrati; **stato obbligatorio** (a crudo / secco / non applicabile risolvono il termine; «cotto» entra ma lascia il termine nella lista come «solo da cotto»); allergene fuori dai 14 codici → tutta la riga bocciata; **gemelle** (lezione del 20/8) bocciate; **niente sinonimi dall\'AI** (un iperonimo farebbe rispondere la riga a ogni «formaggio»). Uno scarto non si richiede per 30 giorni, un «non è un alimento» per un anno — e il termine resta nella lista di una persona, non diventa `ignored`.\n'
+      + '⚠️ **I freni**: `agente_alimenti_acceso` (nasce SPENTO, Parametri → AI), `agente_alimenti_max` (20 per notte: fino a 3 ricerche per alimento, che si pagano a parte — circa 60 ricerche per notte al massimo), tre giri a vuoto e si ferma, errore fatale dell\'AI e si ferma subito. ⚠️ Con 20 alimenti il `daily` può allungarsi di parecchi minuti: da misurare la prima notte accesa.\n'
+      + '⚠️ **Cosa NON fa, dichiarato**: non compila gli allergeni delle righe **già in tabella** (le ~260 del foglio: nascono con `allergens` vuoto = «non si sa», e la pagina lo mostra così, distinto da «nessuno (agente)»); gli scarti si vedono nel log e nel registro, non in pagina (voce a parte).',
+    categoria: CODICE,
+    ordine: 678,
+    nata: '2026-09-05T11:00',
+  },
+
+  {
+    chiave: 'agente-alimenti-cosa-resta',
+    titolo: 'Agente alimenti: gli allergeni delle righe già in tabella, e gli scarti che non si vedono in pagina',
+    dettaglio:
+      '▶️ **Due code lasciate aperte apposta il 5/9**, dopo la revisione avversariale dell\'agente alimenti.\n'
+      + '1. **Le righe già in tabella hanno `allergens` vuoto = «non si sa».** L\'agente compila solo i nomi che mancano; le ~260 righe del foglio del 20/8 (e quelle scritte a mano) restano senza allergeni finché la nutrizionista non li spunta, o finché non si aggiunge all\'agente un secondo giro «solo allergeni» sulle righe che ne sono senza — misurando prima quante sono e quante ricette le usano.\n'
+      + '2. **Gli scarti dell\'agente non arrivano a una persona.** Un termine bocciato (senza fonte, numeri che non tornano, stato ignoto, «non è un alimento») sta nel log e nel registro (`nutrient_fact.agente_alimenti`, esito e motivo) e non si richiede per 30 giorni (un anno se «non alimento»), ma la pagina Valori nutrizionali non dice «l\'agente ha provato X e l\'ha bocciato perché…». Chi lavora la lista lo scopre solo aprendo il registro. Da mostrare in pagina accanto al termine, quando la lista dei mancanti si rilegge.\n'
+      + '3. ⚠️ Un allergene sbagliato scritto dall\'AI, una volta propagato, resta sulle ricette anche dopo che la riga è stata corretta: il registro per ricetta permette di disfare a mano, ma non c\'è ancora uno script che lo faccia («ritira i tag venuti dalla riga X»).',
+    categoria: CODICE,
+    ordine: 679,
+    nata: '2026-09-05T11:00',
+  },
+
+  {
     chiave: 'senza-glutine-risulta-glutine',
     fatta: true,
     titolo: '\u00abPasta senza glutine\u00bb risulta con il glutine: una celiaca non riceve la pasta fatta per lei',

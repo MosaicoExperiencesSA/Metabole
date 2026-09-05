@@ -1,0 +1,81 @@
+L'agente alimenti: prende il nome, cerca in rete allergeni e valori, e li scrive sull'alimento
+
+Simone, 5/9, davanti al quarto elenco di parole da aggiungere a mano al
+vocabolario degli allergeni: «mettiamoci un agente che prende la parola, cerca
+in internet gli allergeni e i valori nutrizionali e li popola». Non è una
+scorciatoia: è la strada che il foglio del 31/8 aveva già scritto — «essere in
+tabella non vuol dire conoscerne gli allergeni… si chiude dichiarando gli
+allergeni SULL'ALIMENTO, non allungando un elenco di parole».
+
+MIGRAZIONE: nutrient_fact.allergens (TEXT[], vuoto = NON SI SA, non «nessuno»:
+tutte le righe di prima nascono vuote) e nutrient_fact.filled_by ('agente_alimenti'
+per le righe che l'AI ha compilato).
+
+COSA FA OGNI NOTTE (passo `agenteAlimenti` nel daily, subito dopo
+`alimentiDaCorreggere`, che riempie la sua coda):
+
+1. prende dalla coda i nomi di ingrediente che le ricette usano e la tabella
+   non ha, dai più usati, aromi esclusi (sale, pepe: le loro calorie non contano
+   per decisione scritta);
+2. chiede all'AI con la RICERCA IN RETE accesa (nuovo
+   `AiService.generateJsonConRicerca`: strumento `web_search` di Anthropic,
+   `pause_turn` gestito, ricerche contate) allergeni UE e valori per 100 g con
+   la fonte;
+3. VAGLIA — è la parte che conta: fonte con indirizzo obbligatoria; kcal
+   obbligatorie e coerenti coi macro (Atwater, alcol compreso, tolleranza
+   larga); zuccheri ≤ carboidrati; STATO obbligatorio (crudo / secco / non
+   applicabile risolvono il termine; «cotto» entra ma lascia il termine nella
+   lista come «solo da cotto»); un allergene fuori dai 14 codici boccia tutta
+   la riga (lasciarlo cadere sarebbe un allergene perso in silenzio); le
+   GEMELLE — la lezione del 20/8, 99 alimenti con «25 kcal» copiate — bocciate;
+   NIENTE sinonimi dall'AI (un iperonimo come «formaggio» farebbe rispondere la
+   riga del taleggio a ogni ricetta con «formaggio»);
+4. scrive la riga: allergeni, valori, fonte con link, «da confermare», chip
+   «agente» nella pagina Valori nutrizionali, caselle per correggere gli
+   allergeni;
+5. porta i TAG dalla tabella alle ricette che usano quell'ingrediente: nome
+   UGUALE (normalizzato), mai «contiene» — «latte» dentro «latte di mandorla» è
+   il difetto del 31/8; aggiunge, mai toglie; salta le ricette toccate a mano;
+   non tocca allergensReviewed; una riga di registro PER RICETTA con
+   ingrediente e riga di origine, per poter disfare. Questa parte gira anche a
+   interruttore spento: non chiama l'AI, e una riga a cui la nutrizionista ha
+   aggiunto un allergene a mano deve valere lo stesso.
+
+DECISIONE DI SIMONE: «DIRETTAMENTE, VALGONO SUBITO» — gli era stata offerta la
+bozza da confermare. La riga è usata da Gaia e dai tag la notte stessa, e resta
+nella coda «da confermare» della nutrizionista. Il costo, scritto: un allergene
+sbagliato dell'AI toglie un piatto a chi ha quell'allergia finché una persona
+non corregge la riga, e i tag già propagati non si ritirano da soli.
+
+I FRENI: agente_alimenti_acceso (nasce SPENTO, Parametri → AI),
+agente_alimenti_max (20 per notte: fino a 3 ricerche per alimento, che si
+pagano a parte — al massimo 60 ricerche a notte), tre giri a vuoto e si ferma,
+errore fatale dell'AI e si ferma subito (12/8: 270 chiamate allo stesso 400).
+Uno scarto non si richiede per 30 giorni; un «non è un alimento» per un anno,
+e il termine resta nella lista di una persona — non diventa `ignored`, che è
+uno stato di chi lo decide a mano. Con 20 alimenti il daily si allunga: da
+misurare la prima notte accesa.
+
+LA REVISIONE AVVERSARIALE HA TROVATO UNDICI COSE, sette chiuse qui:
+- con la ricerca l'API spezza la risposta in un blocco di testo per ogni
+  citazione: leggere «l'ultimo blocco con una parentesi» leggeva un terzo di
+  JSON e scartava righe buone — si incollano tutti;
+- la nota della riga finiva nel prompt di Gaia («compilata dall'agente… da
+  confermare») — ora in `source`, con l'affidabilità, e `note` resta vuota;
+- una riga senza stato, o «da cotto», chiudeva il termine e lasciava il conto
+  della ricetta dov'era, col buco sparito dalla lista — stato obbligatorio, e
+  il termine si chiude solo se la riga risolve;
+- i sinonimi dell'AI erano chiavi di abbinamento esatto senza vaglio — tolti;
+- la finestra della coda era presa prima di togliere aromi e scarti: bastavano
+  gli aromi in cima a svuotare la notte — gli esclusi si tolgono nella query;
+- `ignored` messo dall'AI non si riapriva dalla pagina — non si mette più;
+- il registro della propagazione aveva solo i conteggi — ora una riga per
+  ricetta.
+Tre restano dichiarate nella voce `agente-alimenti-cosa-resta`: gli allergeni
+delle righe GIÀ in tabella (vuoto = non si sa, e la pagina lo mostra distinto da
+«nessuno (agente)»); gli scarti che non arrivano in pagina; lo script per
+ritirare i tag venuti da una riga sbagliata.
+
+MUTAZIONI: «contiene» invece di «uguale» → rossa; ultimo blocco solo → rossa;
+termine chiuso anche da cotto → rossa. Suite backend 7896 verdi, backoffice
+304, build verdi.

@@ -24,6 +24,7 @@ import { SignalsService } from '../signals/signals.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { AgenteAlimentiService } from '../nutrient-facts/agente-alimenti.service';
 import { CoachDiRiservaService } from '../coach-di-riserva/coach-di-riserva.service';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -148,6 +149,14 @@ describe('CronController (endpoint per Render Cron)', () => {
         {
           provide: ValoriNutrizionaliService,
           useValue: { aggiornaIngredientiScoperti: jest.fn().mockResolvedValue({ scoperti: 0, scritti: 0, fuori: 0 }) },
+        },
+        /**
+         * ⚠️ L'agente alimenti (5/9): nel test risponde come il servizio vero a interruttore spento —
+         * niente compilato, e la propagazione dei tag che trova zero righe con allergeni.
+         */
+        {
+          provide: AgenteAlimentiService,
+          useValue: { passoNotturno: jest.fn().mockResolvedValue({ compilazione: { acceso: false, guardati: 0, scritte: 0, nonAlimenti: 0, scartate: {}, ricerche: 0 }, tag: { righeConAllergeni: 0, ricette: 0, tag: 0, perAllergene: [] } }) },
         },
         /**
          * ⚠️ Il passo notturno dell'orologio del digiuno: applica i cambi rimandati a stanotte e i

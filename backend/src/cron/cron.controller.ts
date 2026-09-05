@@ -31,6 +31,7 @@ import { VisitsService } from '../health-area/visits.service';
 import { PrivacyService } from '../privacy/privacy.service';
 import { ProfileService } from '../profile/profile.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
+import { AgenteAlimentiService } from '../nutrient-facts/agente-alimenti.service';
 import { AgentePastiLeggeriService } from '../catalog/agente-pasti-leggeri.service';
 import { CoachDiRiservaService } from '../coach-di-riserva/coach-di-riserva.service';
 
@@ -72,6 +73,7 @@ export class CronController {
     private readonly profile: ProfileService,
     /** L'elenco degli alimenti da correggere a mano: si ricalcola di notte. */
     private readonly valori: ValoriNutrizionaliService,
+    private readonly agenteAlimenti: AgenteAlimentiService,
     /** La coach di riserva: ripesca chi è rimasta senza coach da qualunque porta (4/9). */
     private readonly coachDiRiserva: CoachDiRiservaService,
   ) {}
@@ -139,6 +141,20 @@ export class CronController {
      * salta l'unica conseguenza è un elenco vecchio di un giorno.
      */
     await step('alimentiDaCorreggere', () => this.valori.aggiornaIngredientiScoperti());
+    /**
+     * ⛔ **L'AGENTE ALIMENTI** (Simone, 5/9: «prende la parola, cerca in internet gli allergeni e i
+     * valori nutrizionali e li popola»). Prende dalla coda appena riempita i nomi che la tabella non
+     * ha, chiede all'AI con la ricerca in rete, **vaglia** e scrive la riga con gli allergeni e la
+     * fonte; poi porta i tag dalla tabella alle ricette che usano quell'ingrediente. Il perché e i
+     * freni stanno in testa a `nutrient-facts/agente-alimenti.ts`.
+     *
+     * ⚠️ Subito DOPO `alimentiDaCorreggere`: legge la coda che quel passo ha appena scritto. Nasce
+     * **spento** (`agente_alimenti_acceso`) con un tetto per notte (`agente_alimenti_max`, 20):
+     * ogni alimento è una chiamata con ricerche in rete, che si pagano a parte. Spento non chiama
+     * l'AI; la sola cosa che fa anche da spento è portare alle ricette gli allergeni che qualcuno ha
+     * scritto a mano su una riga della tabella — non costa niente e non è un giudizio dell'AI.
+     */
+    await step('agenteAlimenti', () => this.agenteAlimenti.passoNotturno());
     /**
      * ⛔ **L'AGENTE CHE TIENE PIENI COLAZIONI, SPUNTINI E MERENDE** (Simone, 31/8: «servirà anche
      * quando le clienti esauriranno quelle presenti»). Conta quante ne mancano per arrivare a 84 per

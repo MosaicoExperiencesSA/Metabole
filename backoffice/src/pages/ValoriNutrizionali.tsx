@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { EU_ALLERGENS } from '../components/AllergeniModal';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, stileScorrevole, type Colonna } from '../components/tabella';
 import { oggiIso, scaricaExcel, type Cella } from '../lib/excel';
@@ -28,6 +29,8 @@ import { etaDellElenco } from '../lib/elenco-di-quando';
  * numero, dice il range — perché «l'anguria ha IG 72» è una precisione che i dati non hanno.
  */
 
+const etichettaAllergene = (code: string): string => EU_ALLERGENS.find((a) => a.code === code)?.label ?? code;
+
 interface Valore {
   id: string;
   name: string;
@@ -45,7 +48,12 @@ interface Valore {
   fat: number | null;
   fiber: number | null;
   source: string | null;
+  sourceRef: string | null;
   note: string | null;
+  /** ⛔ Gli allergeni dichiarati SULL'ALIMENTO (5/9): codici UE. Vuoto = non si sa, non «nessuno». */
+  allergens: string[];
+  /** `agente_alimenti` per le righe che l'AI ha compilato cercando in rete. */
+  filledBy: string | null;
   verifiedAt: string | null;
   verifiedBy: { displayName: string } | null;
 }
@@ -196,6 +204,7 @@ export function ValoriNutrizionali() {
       fat: v.fat?.toString() ?? '',
       fiber: v.fiber?.toString() ?? '',
       state: v.state ?? '',
+      allergens: v.allergens.join(','),
       note: v.note ?? '',
     });
   }
@@ -209,7 +218,10 @@ export function ValoriNutrizionali() {
   };
 
   async function salva(v: Valore) {
-    const corpo: Record<string, unknown> = { state: bozza.state.trim() || null, note: bozza.note.trim() || null, glycemicIndexReliability: bozza.glycemicIndexReliability || null };
+    const corpo: Record<string, unknown> = {
+      state: bozza.state.trim() || null, note: bozza.note.trim() || null, glycemicIndexReliability: bozza.glycemicIndexReliability || null,
+      allergens: (bozza.allergens ?? '').split(',').filter(Boolean),
+    };
     for (const campo of ['glycemicIndex', 'glycemicIndexMin', 'glycemicIndexMax', 'kcal', 'protein', 'carbs', 'fat', 'fiber']) {
       const n = num(bozza[campo]);
       if (n === undefined) { setError(`«${campo}» non è un numero valido.`); return; }
@@ -769,6 +781,8 @@ export function ValoriNutrizionali() {
       filtro: 'scelta', etichettaTutti: 'Tutte', ordineScelte: ['Solida', 'Media', 'Debole'],
     },
     { chiave: 'kcal', titolo: 'kcal/100 g', valore: (v) => v.kcal },
+    // ⛔ Gli allergeni sull'alimento (5/9): vuoto è «non si sa», e si vede come tale.
+    { chiave: 'allergeni', titolo: 'Allergeni', valore: (v) => (v.allergens.length ? v.allergens.map(etichettaAllergene).join(', ') : v.filledBy === 'agente_alimenti' ? 'nessuno (agente)' : null), filtro: 'testo' },
     // ⚠️ `esporta` senza `valore`: la colonna resta non ordinabile a schermo (è quattro numeri in
     // uno), ma nel file ci DEVE essere — è il motivo per cui questa tabella si esporta.
     { chiave: 'macro', titolo: 'P / C / G / F', nonOrdinabile: true, esporta: (v) => `${numero(v.protein)} / ${numero(v.carbs)} / ${numero(v.fat)} / ${numero(v.fiber)}` },
@@ -992,8 +1006,24 @@ export function ValoriNutrizionali() {
                     <tr key={v.id} style={!v.verifiedAt ? { background: 'rgba(255,193,7,0.06)' } : undefined}>
                       <td>
                         <b>{v.name}</b>
+                        {v.filledBy === 'agente_alimenti' && (
+                          <span
+                            className={`chip ${v.verifiedAt ? '' : 'amber'}`}
+                            style={{ marginLeft: 6 }}
+                            title={v.verifiedAt
+                              ? 'Riga compilata dall\'agente alimenti cercando in rete, poi confermata da una persona.'
+                              : 'Riga compilata dall\'agente alimenti cercando in rete: i valori e gli allergeni sono già in uso, la fonte è qui sotto. Correggi o conferma.'}
+                          >
+                            agente
+                          </span>
+                        )}
                         {v.synonyms.length > 0 && (
                           <div className="muted" style={{ fontSize: 12 }}>anche: {v.synonyms.join(', ')}</div>
+                        )}
+                        {v.sourceRef && (
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            fonte: <a href={v.sourceRef} target="_blank" rel="noreferrer">{v.source ?? v.sourceRef}</a>
+                          </div>
                         )}
                       </td>
                       <td>{v.category ?? '—'}</td>
@@ -1006,6 +1036,13 @@ export function ValoriNutrizionali() {
                         {aff ? <span className={`chip ${aff.chip}`} title={aff.spiega}>{aff.etichetta}</span> : '—'}
                       </td>
                       <td>{numero(v.kcal)}</td>
+                      <td style={{ fontSize: 12 }}>
+                        {v.allergens.length
+                          ? v.allergens.map((a) => <span key={a} className="chip" style={{ marginRight: 4 }}>{etichettaAllergene(a)}</span>)
+                          : v.filledBy === 'agente_alimenti'
+                            ? <span className="muted" title="L'agente ha cercato in rete e non ne ha trovati. Se ne ha, spuntali con la matita.">nessuno (agente)</span>
+                            : <span className="muted" title="Nessuno ha ancora dichiarato gli allergeni di questo alimento: non vuol dire che non ne ha.">non si sa</span>}
+                      </td>
                       <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
                         {numero(v.protein)} / {numero(v.carbs)} / {numero(v.fat)} / {numero(v.fiber)}
                       </td>
@@ -1085,6 +1122,25 @@ export function ValoriNutrizionali() {
                                 onChange={(e) => setBozza((b) => ({ ...b, state: e.target.value }))}
                               />
                             </label>
+                            <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3, flexBasis: '100%' }}>
+                              <span title="⛔ Da stanotte ogni ricetta con questo ingrediente (nome uguale) prende i tag che le mancano. Si aggiunge, non si toglie mai.">Allergeni dell'alimento</span>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {EU_ALLERGENS.map((a) => {
+                                  const scelti = (bozza.allergens ?? '').split(',').filter(Boolean);
+                                  const c = scelti.includes(a.code);
+                                  return (
+                                    <label key={a.code} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={c}
+                                        onChange={() => setBozza((b) => ({ ...b, allergens: (c ? scelti.filter((x) => x !== a.code) : [...scelti, a.code]).join(',') }))}
+                                      />
+                                      {a.label}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
                             <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 220 }}>
                               Nota (la legge Gaia insieme al valore)
                               <input

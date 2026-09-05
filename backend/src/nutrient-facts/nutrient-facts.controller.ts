@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { AZIONE_SCOPERTI_AGGIORNATI, ValoriNutrizionaliService } from './valori-nutrizionali.service';
 import { AuditService } from '../audit/audit.service';
+import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -551,10 +552,22 @@ export class NutrientFactsController {
   async update(@Param('id') id: string, @Body() body: Record<string, unknown>, @CurrentUser() user: AuthUser) {
     const campi = [
       'glycemicIndex', 'glycemicIndexMin', 'glycemicIndexMax', 'glycemicIndexReliability',
-      'kcal', 'protein', 'carbs', 'sugars', 'fat', 'fiber', 'state', 'note', 'synonyms', 'source',
+      'kcal', 'protein', 'carbs', 'sugars', 'fat', 'fiber', 'state', 'note', 'synonyms', 'source', 'sourceRef',
     ];
     const data: Record<string, unknown> = {};
     for (const c of campi) if (body[c] !== undefined) data[c] = body[c] === '' ? null : body[c];
+    /**
+     * ⛔ **GLI ALLERGENI SULL'ALIMENTO** (5/9): solo i quattordici codici UE. Un codice che non esiste
+     * non cade in silenzio — è un allergene che nessuno vedrebbe più — e la riga non si scrive.
+     * Da stanotte le ricette con quell'ingrediente prendono i tag che mancano (`agente-alimenti`).
+     */
+    if (body.allergens !== undefined) {
+      if (!Array.isArray(body.allergens)) throw new BadRequestException('allergens deve essere un elenco di codici.');
+      const codici = [...new Set(body.allergens.map((a) => String(a).trim().toLowerCase()))];
+      const ignoti = codici.filter((c) => !EU_ALLERGEN_CODES.includes(c));
+      if (ignoti.length) throw new BadRequestException(`Allergene sconosciuto: ${ignoti.join(', ')}. Valgono solo i quattordici codici UE.`);
+      data.allergens = codici;
+    }
 
     const staff = (await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } })) as { id: string } | null;
     data.verifiedAt = new Date();

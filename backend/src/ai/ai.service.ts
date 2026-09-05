@@ -227,24 +227,108 @@ export class AiService {
       }
       const data = (await res.json()) as { content?: { type: string; text?: string }[] };
       const text = data.content?.find((c) => c.type === 'text')?.text ?? '';
-      const fence = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/);
-      const blob = fence ? fence[1] : (text.match(/[[{][\s\S]*[\]}]/)?.[0] ?? text);
-      try {
-        return JSON.parse(blob) as T;
-      } catch {
-        // Secondo tentativo con riparazione (virgole mancanti/finali, troncature).
-        try {
-          return JSON.parse(repairJson(blob)) as T;
-        } catch (e) {
-          this.lastError = `l'AI non ha restituito JSON valido${e instanceof Error ? ` (${e.message})` : ''}`;
-          this.logger.warn('AI generateJson: JSON non valido anche dopo repair');
-          return null;
-        }
-      }
+      return this.estraiJson<T>(text, 'generateJson');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.lastError = /aborted/i.test(msg) ? 'timeout della richiesta AI (90s)' : msg;
       this.logger.warn(`AI generateJson non disponibile: ${msg}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Il JSON dentro il testo dell'AI: recinto ```json, o la prima parentesi; poi la riparazione. */
+  private estraiJson<T>(text: string, chi: string): T | null {
+    const fence = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/);
+    const blob = fence ? fence[1] : (text.match(/[[{][\s\S]*[\]}]/)?.[0] ?? text);
+    try {
+      return JSON.parse(blob) as T;
+    } catch {
+      // Secondo tentativo con riparazione (virgole mancanti/finali, troncature).
+      try {
+        return JSON.parse(repairJson(blob)) as T;
+      } catch (e) {
+        this.lastError = `l'AI non ha restituito JSON valido${e instanceof Error ? ` (${e.message})` : ''}`;
+        this.logger.warn(`AI ${chi}: JSON non valido anche dopo repair`);
+        return null;
+      }
+    }
+  }
+
+  /** Quante ricerche in rete ha fatto l'ultima chiamata di `generateJsonConRicerca` (si pagano a parte). */
+  lastRicerche = 0;
+
+  /**
+   * ⛔ **GENERAZIONE STRUTTURATA CON LA RICERCA IN RETE** (5/9, per l'agente alimenti: «cerca in
+   * internet gli allergeni e i valori nutrizionali»). È `generateJson` con lo strumento `web_search`
+   * di Anthropic acceso: il modello cerca da solo, legge le pagine e risponde; qui si legge il JSON
+   * dall'**ultimo** blocco di testo, perché con la ricerca la risposta arriva a pezzi (ricerca,
+   * risultati, testo, ricerca, testo…) e il primo pezzo è quasi sempre «cerco».
+   *
+   * ⚠️ **Costa a parte**: ogni ricerca si paga oltre ai token (`maxRicerche` è il tetto per
+   * chiamata, e chi chiama ha il suo tetto per notte). `lastRicerche` dice quante ne ha fatte,
+   * per il log e per i conti.
+   *
+   * ⚠️ `pause_turn`: quando le ricerche sono lunghe l'API si ferma a metà e chiede di continuare
+   * rimandandole la sua stessa risposta. Si continua al massimo tre volte, poi si prende quello
+   * che c'è.
+   */
+  async generateJsonConRicerca<T = unknown>(
+    system: string, userPrompt: string, maxTokens = 3000, maxRicerche = 3,
+  ): Promise<T | null> {
+    this.lastError = null;
+    this.lastErrorFatale = false;
+    this.lastRicerche = 0;
+    const key = this.config.get<string>('AI_API_KEY');
+    if (!key) {
+      this.lastError = 'AI_API_KEY non configurata sul server.';
+      this.lastErrorFatale = true;
+      return null;
+    }
+    const model = this.config.get<string>('AI_MODEL') ?? 'claude-haiku-4-5';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120_000);
+    type Blocco = { type: string; text?: string };
+    type Risposta = { content?: Blocco[]; stop_reason?: string; usage?: { server_tool_use?: { web_search_requests?: number } } };
+    const messages: { role: 'user' | 'assistant'; content: unknown }[] = [{ role: 'user', content: userPrompt }];
+    try {
+      let testi: string[] = [];
+      for (let giro = 0; giro < 4; giro += 1) {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({
+            model, max_tokens: maxTokens, system, messages,
+            tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxRicerche }],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          const { messaggio, fatale } = classificaErroreAi(res.status, body, model);
+          this.lastError = messaggio;
+          this.lastErrorFatale = fatale;
+          this.logger.warn(`AI generateJsonConRicerca: risposta ${res.status} ${body.slice(0, 200)}`);
+          return null;
+        }
+        const data = (await res.json()) as Risposta;
+        this.lastRicerche += data.usage?.server_tool_use?.web_search_requests ?? 0;
+        testi = [...testi, ...(data.content ?? []).filter((c) => c.type === 'text' && c.text).map((c) => c.text as string)];
+        if (data.stop_reason !== 'pause_turn') break;
+        messages.push({ role: 'assistant', content: data.content ?? [] });
+      }
+      /**
+       * ⛔ **TUTTI i blocchi di testo, incollati senza niente in mezzo.** Con la ricerca l'API spezza la
+       * risposta in un blocco `text` per ogni citazione: `{"kcal": ` · `315` · `,"allergeni":…}`. Prendere
+       * un blocco solo — anche «l'ultimo con una parentesi» — vuol dire leggere un terzo di JSON e
+       * scartare una riga buona (trovato dalla revisione avversariale del 5/9).
+       */
+      return this.estraiJson<T>(testi.join(''), 'generateJsonConRicerca');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.lastError = /aborted/i.test(msg) ? 'timeout della richiesta AI (120s)' : msg;
+      this.logger.warn(`AI generateJsonConRicerca non disponibile: ${msg}`);
       return null;
     } finally {
       clearTimeout(timer);

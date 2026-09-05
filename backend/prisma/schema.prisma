@@ -2789,6 +2789,17 @@ model NutrientFact {
   sourceRef String? @map("source_ref")
   note      String?
 
+  /**
+   * ⛔ **GLI ALLERGENI DICHIARATI SULL'ALIMENTO** (5/9) — codici UE di `catalog/allergens.ts`.
+   * Il foglio del 31/8 lo diceva: «essere in tabella non vuol dire conoscerne gli allergeni», e si
+   * chiude «dichiarando gli allergeni sull'alimento, non allungando un elenco di parole». Vuoto =
+   * NON SI SA (le righe di prima del 5/9), non «nessuno»: chi legge non deduca niente da un vuoto.
+   * Le ricette con quell'ingrediente prendono il tag la notte (`agente-alimenti`), e mai lo perdono.
+   */
+  allergens String[] @default([])
+  /** Chi ha scritto la riga: `agente_alimenti` per quelle che l'AI ha compilato cercando in rete; vuoto = una persona o un import. */
+  filledBy  String?  @map("filled_by")
+
   /** Chi l'ha confermato e quando. Vuoti = «da confermare», e Gaia lo usa comunque. */
   verifiedById String?   @map("verified_by_id")
   verifiedBy   Staff?    @relation("NutrientFactVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)

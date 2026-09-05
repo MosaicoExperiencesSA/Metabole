@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AiModule } from '../ai/ai.module';
+import { AgenteAlimentiService } from './agente-alimenti.service';
 import { NutrientFactsController } from './nutrient-facts.controller';
 import { ValoriNutrizionaliService } from './valori-nutrizionali.service';
 
@@ -7,8 +9,9 @@ import { ValoriNutrizionaliService } from './valori-nutrizionali.service';
  * ricordarli — e la nutrizionista dal backoffice, che è l'unica che può correggerli.
  */
 @Module({
+  imports: [AiModule],
   controllers: [NutrientFactsController],
-  providers: [ValoriNutrizionaliService],
-  exports: [ValoriNutrizionaliService],
+  providers: [ValoriNutrizionaliService, AgenteAlimentiService],
+  exports: [ValoriNutrizionaliService, AgenteAlimentiService],
 })
 export class NutrientFactsModule {}

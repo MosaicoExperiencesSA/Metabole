@@ -20,6 +20,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **L'agente alimenti: prende il nome dell'ingrediente, cerca in rete allergeni e valori
+  nutrizionali, e li scrive SULL'ALIMENTO.** Simone, davanti alla quarta lista di parole da aggiungere
+  a mano: «mettiamoci un agente che prende la parola, cerca in internet gli allergeni e i valori
+  nutrizionali e li popola». È la strada del foglio del 31/8 («dichiarare gli allergeni
+  sull'alimento, non allungare un elenco di parole»). Migrazione: `nutrient_fact.allergens` (vuoto =
+  NON SI SA, non «nessuno») e `filled_by`. Ogni notte, subito dopo `alimentiDaCorreggere`: i nomi
+  che le ricette usano e la tabella non ha (aromi esclusi) → AI con la **ricerca in rete**
+  (`generateJsonConRicerca`, strumento `web_search` di Anthropic, tutti i blocchi di testo incollati
+  perché le citazioni spezzano il JSON) → **vaglio** (fonte con indirizzo, kcal coerenti coi macro e
+  con l'alcol, zuccheri ≤ carboidrati, stato obbligatorio, 14 codici UE o niente, gemelle del 20/8
+  bocciate, niente sinonimi dall'AI) → riga scritta «da confermare» con chip «agente» e fonte
+  cliccabile → **i tag dalla tabella alle ricette** con quell'ingrediente (nome uguale, aggiunge,
+  mai toglie, una riga di registro per ricetta per poter disfare).
+  ⛔ **Decisione di Simone: «direttamente, valgono subito»**, non la bozza. Nasce SPENTO
+  (`agente_alimenti_acceso`, Parametri → AI) con tetto 20 per notte (fino a 3 ricerche l'una, che si
+  pagano a parte). Revisione avversariale: undici rilievi, sette chiusi (blocchi spezzati, nota in
+  bocca a Gaia, stato che chiudeva il termine senza risolverlo, iperonimi nei sinonimi, finestra
+  della coda, `ignored` messo dall'AI, registro senza ricette), tre dichiarati nella voce
+  `agente-alimenti-cosa-resta`. Mutazioni provate: «contiene» invece di «uguale» → rossa; ultimo
+  blocco solo → rossa; termine chiuso anche da cotto → rossa. Suite backend 7896, backoffice 304.
+
+- `[Sviluppo]` ⚠️ **I 3833 tag di stasera: 3080 sono solfiti, ed erano la decisione del 24/8 applicata
+  alle ricette vecchie.** `ripara:allergeni-mancanti` aggiunge ogni tag mancante su tutto il catalogo,
+  non solo le parole unificate oggi: l'elenco dei solfiti allargato il 24/8 («quattro parole non
+  bastavano») valeva solo per le ricette nuove, con «3111 da rivedere» scritto nel commento. Detto a
+  Simone dopo, non prima: il numero andava misurato e scritto nella consegna.
+
 - `[Sviluppo]` ✅ **I vocabolari degli allergeni sono UNO — e «pasta senza glutine» non risulta più col glutine.**
   Simone, sui numeri della diagnostica: «ancora? continuiamo ad avere questo problema... possibile
   che non riusciamo a trovare una soluzione?». La soluzione non è l'elenco allungato di nuovo: da
