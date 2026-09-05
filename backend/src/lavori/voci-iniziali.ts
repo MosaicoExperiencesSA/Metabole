@@ -197,6 +197,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'due-sessioni-si-sovrascrivono',
+    fatta: true,
     categoria: SIMONE,
     ordine: 0,
     nata: '2026-09-04T23:59',
@@ -221,7 +222,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'l\'altra — costa una riga e chiude il caso del doppione; **(b)** dividere per file o per '
       + 'area, così due consegne non toccano mai lo stesso sorgente; **(c)** lasciare com\'è e '
       + 'contare sulle prove, che oggi hanno funzionato — ⛔ ma hanno funzionato perché quel pezzo '
-      + 'una prova ce l\'aveva: quello che nessuna prova guarda sparirebbe senza un rumore.',
+      + 'una prova ce l\'aveva: quello che nessuna prova guarda sparirebbe senza un rumore.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9: «Ho chiuso l\'altra, controlla cosa ha fatto e poi basta».** Controllato: i suoi commit sono tutti su `origin/main` (colazioni con carne e pesce con le tre porte, ricetta nuova dal menu, spunta «verificata», email di «Piano bloccato», Vera che chiede metodo e allergeni, righe di paniere che seguono il pasto, gruppi di equivalenza globali e uniti), e sul Mac non ha lasciato **niente di non committato** (`find -newer .git/refs/heads/main`: solo i miei due file). Da oggi una sessione sola; le regole del 4/9 (fetch prima di scrivere e di consegnare, md5 contro `origin/main`) restano.',
   },
 
   {
@@ -4618,6 +4620,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'menu-a-mano-cosa-non-copre',
+    fatta: true,
     categoria: CODICE,
     ordine: 2,
     nata: '2026-09-03T13:30',
@@ -4685,6 +4688,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + '**Quello che resta** è il 3 (il pool è uno scatto), il 4 (`scrittaAMano` non è un `where`) '
       + 'e il 6 (nessun limite sul passato): nessuno dei tre può arrivare nel piatto di qualcuno, e '
       + 'tutti e tre si chiudono da sé il giorno che pesano davvero.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9: «accettato così».** I tre limiti che restano (il pool è uno scatto, `scrittaAMano` non è un `where`, nessun limite sul passato) non arrivano nel piatto di nessuno e si riaprono il giorno che uno pesa.',
   },
 
   {
@@ -4755,6 +4759,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'vera-vocabolario-quattro-gruppi',
+    fatta: true,
     categoria: CODICE,
     ordine: 4,
     nata: '2026-08-31T14:00',
@@ -4895,6 +4900,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + '`nomePersona` che prende «a colazione» per il nome di una cliente, e le due strade che '
       + 'leggono il lato sinistro in modo diverso — il modulo condivide le **forme**, non il modo di '
       + 'leggere quello che catturano, e su quel lato è il modo che conta.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9: «accettato così».** Dei quattro gruppi resta fuori solo la freccia →, tenuta fuori apposta (sedici regole sbagliate su venticinque righe vere) con la condizione per riaprirla scritta nelle prove; e la domanda sulla chiusura delle segnalazioni dalla chat resta una riga da rispondere quando servirà.',
   },
 
   {
@@ -4940,10 +4946,10 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'patrizia-keto-col-glutine',
+    fatta: true,
     categoria: 'Aspetta Simone',
     ordine: 0,
     blocca: false,
-    fatta: false,
     nata: '2026-08-31T12:20',
     titolo: '▶️ Patrizia: Simone ha deciso di sospenderla — resta il gesto, che è dal backoffice',
     dettaglio:
@@ -4961,6 +4967,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ **E vale la pena scrivere il motivo** nel campo che la card chiede (Simone, 24/8): fra '
       + 'sei mesi «sospesa il 3/9» senza una riga di spiegazione è indistinguibile da una '
       + 'sospensione chiesta dalla cliente.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9: «Sì, sospesa», dal backoffice.**',
   },
 
   {
@@ -4981,6 +4988,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'piano-bloccato-solo-in-app',
+    fatta: true,
     categoria: SIMONE,
     titolo: '▶️ «Piano bloccato»: la push c\'è (4/9), resta la domanda sull\'email',
     dettaglio:
@@ -5021,7 +5029,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'sente poco, con una POST a Brevo senza timeout no. (2) Il ciclo chiudi/riapri non è raro — la '
       + 'nutrizionista corregge le allergie, `resolveBlocks` chiude, la cliente apre l\'app e il blocco '
       + 'si riapre — e ogni riapertura è un avviso: con la push va bene, con l\'email diventano dieci '
-      + 'mail identiche in un pomeriggio.',
+      + 'mail identiche in un pomeriggio.'
+      + '\n\n✅ **CHIUSA — fatta il 4/9 (`4f4035b`), e questa voce non lo diceva.** Risposta di Simone alla domanda: la mail **con il nome della cliente e il motivo**, e la conseguenza detta — quel corpo finisce anche in `email_log`. Non passa da `sendNotificationEmail` (il modello delle clienti): c\'è `sendStaffAlertEmail`, chiave `staff_alert`, nessuna copia coach, piè di pagina che dice il vero. Due argini misurati: la posta la manda la **nascita** della segnalazione, non ogni riapertura; e un tetto di dieci secondi sulla chiamata a Brevo, per ogni email del progetto. Riletto il 5/9 sulla lista di Simone: era già finita.',
     ordine: 962,
     nata: '2026-08-31T18:00',
   },
@@ -5897,6 +5906,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'descrizioni-diete-cosa-resta',
+    fatta: true,
     titolo: 'Descrizioni diete: il permesso è quello di un\'altra pagina, il registro è best-effort, e una domanda è di Simone',
     dettaglio:
       'La tabella è consegnata (22/8) e verificata (28/8). Qui sta quello che **non** copre, perché '
@@ -6007,7 +6017,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'questa voce denuncia: dare i testi finirebbe per dare il catalogo. Quindi o la chiave nuova '
       + 'resta a sola vista e la scrittura (`PATCH famiglia/product`, che è *gestione*) trova un\'altra '
       + 'strada, oppure serve davvero una rotta di lettura sua — che sarebbe comunque meglio: oggi la '
-      + 'pagina si scarica **tutto** il catalogo per raggrupparlo nel browser.',
+      + 'pagina si scarica **tutto** il catalogo per raggrupparlo nel browser.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9, sulla domanda 1: «Da sola, va bene così».** I testi che la cliente legge li corregge la nutrizionista senza passare dal capo: da oggi è una decisione, non il comportamento di default. I punti 2 e 3 erano già fatti il 3/9.',
     categoria: CODICE,
     ordine: 667,
     nata: '2026-08-28T09:10',
@@ -6042,6 +6053,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'menu-composti-con-un-pasto-in-piu',
+    fatta: true,
     titolo: 'Guardare i menu composti fra lo spostamento su «paniere» e la correzione: qualcuno può aver ricevuto un pasto in più',
     dettaglio:
       '⛔ **Difetto mio, nato con la Fase 1 e corretto l\'1/9.** Con `panieri_sorgente_pool` su '
@@ -6057,9 +6069,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + '`menu_day` della finestra fra lo spostamento dell\'interruttore e il rilascio e contare i '
       + 'pasti. Non si corregge da sé: un menu già erogato non si riscrive.'
       + '\n\n▶️ **MISURATO IL 4/9** con `diag:struttura`: **160** varianti hanno un paniere con slot che le loro giornate non hanno, tutte esposte. Di queste **13** hanno servito clienti negli ultimi 30 giorni, per **21 clienti**. L\'interruttore è stato spostato il 1° settembre alle 05:21.\n'
-      + '⚠️ Da lì in avanti la struttura la detta la dieta: la correzione c\'è. Quello che **non** è stato guardato è il passato — i `menu_day` composti fra lo spostamento e il rilascio. Sono poche, e la scelta di non guardarlo è dichiarata, non dimenticata.',
+      + '⚠️ Da lì in avanti la struttura la detta la dieta: la correzione c\'è. Quello che **non** è stato guardato è il passato — i `menu_day` composti fra lo spostamento e il rilascio. Sono poche, e la scelta di non guardarlo è dichiarata, non dimenticata.'
+      + '\n\n✅ **CHIUSA — Simone, 5/9: «Non si guarda, chiudi».** Un menu già erogato non si riscrive, la correzione c\'è dal 1°/9, e i menu delle 21 clienti nella finestra non si guardano: è una scelta scritta, non una dimenticanza.',
     categoria: CODICE,
-    blocca: true,
     ordine: 669,
     nata: '2026-09-01T10:00',
   },
@@ -6128,6 +6140,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'riconoscitore-carne-rilanciare-derivazione',
+    fatta: true,
     titolo: 'Il riconoscitore della carne sbagliava: rilanciare `panieri:pesce`, e ricontare le giornate con carne',
     dettaglio:
       '\u26d4 **Difetto mio, trovato e corretto l\'1/9.** `eCarne` confrontava per **sottostringa** un '
@@ -6157,9 +6170,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + '\n\n✅ **IL RICONOSCITORE È CORRETTO, 4/9.** `diag:carne-fuori-posto` in produzione: otto piatti, **otto falsi**, tutti della stessa forma — il nome di un animale seguito da come è fatto davvero: «prosciutto **vegetale**», «pollo **di tempeh**», «polpo **di ceci**», «branzino **di melanzane**». Famiglia aperta, quindi regola e non elenco: `senzaImitazioni` in `piatto-di-cosa.ts` cancella il nome dell\'animale quando il segno vegetale gli sta **attaccato**, in due forme sole.\n'
       + '⛔ **«con» non vale, ed è la riga che tiene stretta la regola**: «pollo con ceci» è pollo vero, e leggerlo come finto sarebbe carne nel piatto di una pescetariana — l\'unico errore che qui non ci si può permettere.\n'
       + '⚠️ **E ha cambiato la risposta in altri due punti, in meglio**: «prosciutto di tofu» non manda più una persona a guardarlo (era «dubbia», adesso «ok»), e una giornata a mano con «branzino di melanzane» non chiede più la revisione a una nutrizionista.\n'
-      + '▶️ **RESTA `APPLICA=1 npm run panieri:pesce`**: il tabulato del 4/9 dice **81 appartenenze da aggiungere** e 1342 piatti scartati perché contengono carne. ⚠️ Quel 1342 è il numero che il riconoscitore corretto cambia: vale la pena rilanciare la diagnostica **prima** di applicare.',
+      + '▶️ **RESTA `APPLICA=1 npm run panieri:pesce`**: il tabulato del 4/9 dice **81 appartenenze da aggiungere** e 1342 piatti scartati perché contengono carne. ⚠️ Quel 1342 è il numero che il riconoscitore corretto cambia: vale la pena rilanciare la diagnostica **prima** di applicare.'
+      + '\n\n✅ **CHIUSA — eseguito da Simone il 5/9.** `panieri:pesce` col riconoscitore corretto: **20 appartenenze aggiunte** (righe pescetariane 9318 → 9338, il conto torna), e i piatti scartati perché contengono carne sono scesi da 1342 a **902** — la differenza sono gli hamburger di ceci e le cotolette di melanzane che il vecchio riconoscitore chiamava carne. La regola flexitariana conta le giornate dal rilascio col riconoscitore giusto; quelle già composte non si riscrivono, ed è dichiarato.',
     categoria: CODICE,
-    blocca: true,
     ordine: 672,
     nata: '2026-09-01T16:00',
   },
@@ -6345,6 +6358,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'ricetta-verificata-dalla-nutrizionista',
+    fatta: true,
     categoria: SIMONE,
     ordine: 3,
     nata: '2026-09-04T11:40',
@@ -6367,14 +6381,15 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'che tiene la spunta vera senza far rifare il lavoro.\n\n'
       + '⚠️ **E una domanda più piccola che viene dietro**: la spunta la può mettere solo la '
       + 'nutrizionista, o anche il capo? Oggi la scheda ricetta si apre con `recipes`, che ce l\'hanno '
-      + 'in tre ruoli.',
+      + 'in tre ruoli.'
+      + '\n\n✅ **CHIUSA — fatta il 4/9 (`4b21463`), e questa voce non lo diceva.** Due colonne (`verified_at`, `verified_by_id`) e il **nome** in schermata sotto la casella, come `clinical_clearance`. La risposta alla domanda è la **terza strada**: la firma cade **solo** se cambiano gli ingredienti (i nomi) o il regime — non su nome, kcal, grammature, stagioni — e la spunta messa nello stesso salvataggio vince sulla decadenza. `verified` si manda solo quando è cambiato: chi corregge un refuso non ri-firma col proprio nome. ⛔ E **non** è `allergensReviewed`: quella la legge il filtro di sicurezza, questa dice «una nutrizionista ha guardato la ricetta intera»; cadono ciascuna per la sua ragione. Chi può metterla: chi apre la scheda ricetta. Riletto il 5/9 sulla lista di Simone: era già finita.',
   },
 
   {
     chiave: 'carne-e-pesce-nei-pasti-leggeri',
+    fatta: true,
     categoria: SIMONE,
     ordine: 1,
-    blocca: true,
     nata: '2026-09-04T12:30',
     titolo: '⛔ Branzino, merluzzo e gamberetti a COLAZIONE: la regola c\'è dal 31/8 e guarda solo i piatti nuovi',
     dettaglio:
@@ -6419,11 +6434,13 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'l\'appartenenza a quella cella, e a pranzo e a cena quei piatti restano dove sono.\n'
       + '⛔ **E resta il cancello a valle**: anche svuotando oggi il paniere, domani qualcuno ce li '
       + 'rimette a mano dalla pagina Panieri. Quello è un lavoro a sé — la pagina ha già il '
-      + 'controllo alla scrittura, `riempi-panieri` no.',
+      + 'controllo alla scrittura, `riempi-panieri` no.'
+      + '\n\n✅ **CHIUSA — fatto il 4/9 (`ad7272d`), e questa voce non lo diceva.** Simone ha lanciato `APPLICA=1 npm run diag:colazioni-con-carne` in produzione, e lo stesso giorno l\'altra sessione ha chiuso **le tre porte** insieme: `riempi-panieri`, la pagina Panieri e l\'agente dei pasti leggeri passano tutte da `fuoriPostoAColazione`. Dalla pagina con «Mostra solo in bozza» era saltato fuori che la pulizia saltava le bozze (`recipe.active`): corretto nello stesso commit, le bozze si tolgono sempre. Riletto il 5/9 sulla lista di Simone: era già finita.',
   },
 
   {
     chiave: 'menu-a-mano-fuori-dal-paniere',
+    fatta: true,
     categoria: SIMONE,
     ordine: 2,
     nata: '2026-09-04T11:00',
@@ -6456,7 +6473,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'pi\u00f9 stretto (`common/regimi.ts`), mai \u00abtutti\u00bb.\n\n'
       + '\u25b6\ufe0f **RESTA APERTO, e Simone lo sa**: creare una ricetta nuova dalla stessa finestra (nome, '
       + 'ingredienti, metodo, kcal, e **in quali panieri** \u2014 riusando il pezzo che la pagina Ricette '
-      + 'ha gi\u00e0). E la ricetta dettata a Vera passo passo, che il 4/9 ho dichiarato fuori portata.',
+      + 'ha gi\u00e0). E la ricetta dettata a Vera passo passo, che il 4/9 ho dichiarato fuori portata.'
+      + '\n\n✅ **CHIUSA — fatto il 4/9 (`ad7272d`), e questa voce non lo diceva.** Il pulsante «Scrivi una ricetta nuova» sta in fondo all\'elenco di «Scrivi menu a mano»: prima si cerca, anche fuori dal paniere, e solo dopo si scrive. Riusa la finestra della pagina Ricette e dopo il salvataggio passa agli allergeni e poi ai panieri (con l\'anello corretto: una ricetta appena creata nasce con gli allergeni non confermati, e il pannello dei panieri non deve chiedere un gesto impossibile). Il permesso si chiede prima di compilare. ⚠️ La ricetta dettata a Vera passo passo resta fuori portata, ed è dichiarato in `vera/scrittura-ricetta.ts`. Riletto il 5/9 sulla lista di Simone: era già finita.',
   },
 
   {

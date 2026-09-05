@@ -1,0 +1,48 @@
+────────────────────────────────────────────────────────────────────────────
+ Elenco lavori riletto con Simone: undici chiuse, tredici restano
+ 5 settembre 2026 (mattina)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. Nessun cambio di comportamento: solo la pagina Lavori,
+   più l'esito eseguito scritto nella consegna precedente.
+
+Summary
+───────
+Elenco lavori: undici voci chiuse (quattro erano già fatte il 4/9 e non lo dicevano), tredici restano
+
+Description
+───────────
+Simone, 5/9: «controlla la lista lavori cosa veramente resta perché secondo
+me molte cose le abbiamo già fatte». Aveva ragione.
+
+QUATTRO ERANO GIÀ FATTE IL 4/9 DALL'ALTRA SESSIONE, e l'elenco non lo diceva:
+· colazioni con carne e pesce: pulizia eseguita (APPLICA=1) e le tre porte
+  chiuse insieme — riempi-panieri, pagina Panieri, agente (ad7272d);
+· ricetta nuova da «Scrivi menu a mano» (ad7272d);
+· la spunta «ricetta verificata», con chi e quando, che cade solo se cambiano
+  ingredienti o regime — la terza strada (4b21463);
+· l'email di «Piano bloccato», con nome e motivo, modello suo per lo staff,
+  una per segnalazione, tetto di dieci secondi su Brevo (4f4035b).
+
+SEI CHIUSE CON UNA RISPOSTA DI SIMONE, chiesta una per una:
+· Patrizia: «sì, sospesa», dal backoffice;
+· descrizioni diete: «da sola, va bene così» — la nutrizionista corregge i
+  testi senza passare dal capo, e da oggi è una decisione;
+· menu composti nella finestra del 1°/9: «non si guarda, chiudi»;
+· limiti del menu a mano e freccia di Vera: «accettato così»;
+· due sessioni in parallelo: «ho chiuso l'altra» — controllato, i suoi commit
+  sono tutti su origin/main e sul Mac non ha lasciato niente.
+
+UNA CHIUSA ESEGUENDO: `APPLICA=1 panieri:pesce` col riconoscitore corretto,
+20 appartenenze aggiunte (9318 → 9338), scartati per carne da 1342 a 902.
+
+TREDICI RESTANO, e nessuna è «codice da scrivere oggi»: dati (Fase 0 panieri,
+foglio alimenti, ricette senza elenco, Mediterranea senza glutine), decisioni
+con Nocanty o Lucia (peso al rientro, allergeni dedotti, digiuno), lavoro di
+Simone passo passo (29 caselle di permesso), tre di codice che aspettano una
+misura (taleggio/seppie, «senza glutine», piatto doppio a fine settembre), e la
+scheda stile dell'app.
+
+Verificato
+──────────
+· `src/lavori`: 74 prove verdi (compresa «il testo e la spunta vanno d'accordo»)

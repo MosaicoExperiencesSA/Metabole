@@ -20,6 +20,20 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **Elenco lavori riletto con Simone: undici voci chiuse, tredici restano.** Quattro
+  erano **già fatte il 4/9 dall'altra sessione** e l'elenco non lo diceva (colazioni con carne e
+  pesce — pulizia eseguita e tre porte chiuse, `ad7272d`; ricetta nuova dal menu a mano,
+  `ad7272d`; spunta «ricetta verificata» con la terza strada, `4b21463`; email di «Piano
+  bloccato» con nome e motivo, `4f4035b`). Sei chiuse con una risposta di Simone, una per una:
+  Patrizia sospesa; le descrizioni diete le corregge la nutrizionista da sola; i menu composti
+  nella finestra del 1°/9 non si guardano; i limiti del menu a mano e la freccia di Vera sono
+  «accettato così»; l'altra sessione è chiusa (niente lasciato sul Mac). Una chiusa eseguendo:
+  `panieri:pesce` col riconoscitore corretto, 20 appartenenze aggiunte, scartati per carne da
+  1342 a 902. ⚠️ Restano tredici, e sono dati (Fase 0, foglio alimenti, ricette senza elenco,
+  Mediterranea senza glutine), decisioni con Nocanty o Lucia (peso al rientro, allergeni dedotti,
+  digiuno), lavoro di Simone passo passo (29 caselle di permesso), e tre di codice che aspettano
+  una misura (taleggio/seppie, «senza glutine», piatto doppio a fine mese) più la scheda stile.
+
 - `[Sviluppo]` ⛔ **Circa 300 ricette dichiarate vegane hanno uova, formaggio o pesce dentro — e
   si rietichettano.** `diag:vegani-con-latte-e-uova` sul catalogo vero: 7206 vegane attive, 462
   chiederebbero conferma. Lette riga per riga: un centinaio erano forme che la regola non
@@ -37,7 +51,10 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   «pasta» — una celiaca non riceve la pasta fatta per lei; voce nuova
   `senza-glutine-risulta-glutine`, con la regola giusta scritta (per allergene, in
   `suggestAllergens`, e «senza lattosio» non è «senza latte»). 454 suite, 7834 prove; due
-  mutazioni che mordono.
+  mutazioni che mordono. ✅ **Eseguito in produzione (Simone, 5/9 mattina)**: `regime:contenuto`
+  ha guardato 19 928 ricette, **346 rietichettate** (298 → vegetarian: 88 uova, 210 latticini;
+  48 → pescetarian; 0 dubbie); `panieri:pulisci` ha tolto **602 appartenenze** dai panieri
+  vegani (300 Low carb, 299 Basso indice glicemico), nessuna casella sotto i 30 piatti.
 
 - `[Sviluppo]` ✅ **Della coach di riserva non si lancia più niente a mano: il giro notturno fa
   tutto.** Simone: *«ma continuiamo a lanciare lo stesso comando, una volta sistemate basta»*.

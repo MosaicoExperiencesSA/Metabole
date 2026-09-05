@@ -53,8 +53,9 @@ Verificato
 · due mutazioni che mordono: `classifica` che ignora le uova nel vegano (6
   rosse su tre file), `DETTO_VEGETALE` che non filtra (3 rosse)
 
-Cosa resta (a Simone, nell'ordine, dopo il push)
-────────────────────────────────────────────────
-1. npm run regime:contenuto               → sola lettura, legge la lista
-2. APPLICA=1 npm run regime:contenuto     → scrive
-3. npm run panieri:pulisci                → toglie dai panieri vegani chi non ci sta
+Eseguito in produzione (5/9 mattina)
+────────────────────────────────────
+· `regime:contenuto`: 19 928 ricette guardate, 346 rietichettate (298 →
+  vegetarian: 88 uova, 210 latticini; 48 → pescetarian; 0 dubbie)
+· `APPLICA=1 panieri:pulisci`: 602 appartenenze tolte dai panieri vegani
+  (300 Low carb, 299 Basso indice glicemico), nessuna casella sotto i 30
