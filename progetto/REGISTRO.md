@@ -60,6 +60,13 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
   · un timeout di rete non mette più un alimento in frigo per trenta giorni.
   Migrazione additiva (`allergens_filled_by`, `allergens_source`), 22 mutazioni provate una per una,
   8003 prove verdi.
+  ⚠️ **Corretta anche una promessa che il codice non manteneva**, trovata rileggendo: il commento
+  dell'esito «non è un alimento» diceva che il termine si chiude come `ignored`, e non è così. A
+  sbagliare era la promessa, non il comportamento — `ignored` lo mette una **persona** e dalla
+  pagina non si riapre, quindi un giudizio dell'AI che lo scrivesse toglierebbe quel termine dalla
+  lista per sempre, senza che nessuno possa rimetterlo. Il termine resta dov'è, l'agente non lo
+  richiede per un anno, e da oggi la pagina dice a chi lavora la lista che l'agente l'ha guardato.
+  Il comportamento giusto era già tenuto fermo da una prova; adesso lo dice anche il commento.
 
 - `[Sviluppo]` ✅ **Il digiuno intermittente è pubblicato: i tre numeri, le quattro conferme di Lucia,
   e le finestre morte tolte dalle tendine.** I numeri, letti in produzione: **9 clienti** in digiuno

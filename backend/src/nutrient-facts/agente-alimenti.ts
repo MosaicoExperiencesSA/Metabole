@@ -199,7 +199,17 @@ export type MotivoScarto =
 
 export type Vaglio =
   | { esito: 'ok'; riga: RigaDaScrivere }
-  /** ⚠️ «Non è un alimento» è un esito suo: il termine si chiude come `ignored`, non si ritenta. */
+  /**
+   * ⚠️ **«Non è un alimento» è un esito suo, e NON chiude il termine.**
+   *
+   * ⛔ Il commento qui diceva «il termine si chiude come `ignored`» e prometteva una cosa che il
+   * codice non fa — visto rileggendo, il 5/9. A sbagliare era la promessa, non il comportamento:
+   * `ignored` è uno stato che mette una **persona** (`valori-nutrizionali.service.ts`) e dalla
+   * pagina non si riapre, quindi un giudizio dell'AI che lo scrivesse toglierebbe il termine dalla
+   * lista **per sempre**, senza che nessuno possa rimetterlo. Il termine resta dov'è; l'agente non
+   * lo richiede per un anno (`GIORNI_DI_PAUSA_NON_ALIMENTO`), e dal 5/9 la pagina dice a chi lavora
+   * la lista che l'agente l'ha guardato e cosa ne pensa.
+   */
   | { esito: 'non_alimento' }
   | { esito: 'scartata'; motivo: MotivoScarto; dettaglio: string };
 
