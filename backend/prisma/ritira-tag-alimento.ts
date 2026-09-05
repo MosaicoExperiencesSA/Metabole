@@ -79,10 +79,37 @@ async function main(): Promise<void> {
     }))
     .filter((r) => r.recipeId && Array.isArray(r.aggiunti));
 
+  /**
+   * ⛔ **UNO ZERO DEVE PARLARE.** «Il registro è vuoto» da solo lascia chi legge con la domanda vera
+   * in mano — *è normale, o è rotto qualcosa?* — e sono due situazioni lontanissime: la propagazione
+   * non ha mai avuto niente da propagare, oppure gira e non lascia traccia. La differenza si misura
+   * con tre conti che costano niente, e sono qui perché nessuno debba dedurla.
+   */
   if (!registro.length) {
+    const [conAllergeni, maiGuardate, righeInTabella, registroInTutto] = await Promise.all([
+      prisma.nutrientFact.count({ where: { NOT: { allergens: { isEmpty: true } } } as never }),
+      prisma.nutrientFact.count({ where: { allergens: { isEmpty: true }, allergensFilledBy: null } as never }),
+      prisma.nutrientFact.count(),
+      prisma.auditLog.count({ where: { action: AZIONE_TAG, entityType: 'recipe' } as never }),
+    ]);
+    titolo('IL REGISTRO DELLA PROPAGAZIONE È VUOTO — ecco se è normale');
+    riga(`  Righe della tabella alimenti                      ${String(righeInTabella).padStart(6)}`);
+    riga(`  · con almeno un allergene dichiarato              ${String(conAllergeni).padStart(6)}   ← senza queste non c'è niente da propagare`);
+    riga(`  · che nessuno ha ancora guardato                  ${String(maiGuardate).padStart(6)}   ← le chiede l'agente, di notte`);
+    riga(`  Righe di registro, senza finestra di ${String(GIORNI).padStart(3)} giorni  ${String(registroInTutto).padStart(6)}`);
     riga('');
-    riga('  Il registro della propagazione è vuoto: nessun tag è mai arrivato dalla tabella alimenti.');
-    riga('  (L\'agente scrive questa riga solo quando aggiunge davvero qualcosa.)');
+    if (!conAllergeni) {
+      riga('  ✅ È normale: nessuna riga della tabella dichiara allergeni, quindi la propagazione non');
+      riga('     ha mai avuto niente da portare alle ricette. La colonna è nata il 5/9; l\'agente');
+      riga('     comincia a compilarla stanotte, se l\'interruttore agente_alimenti_acceso è su.');
+    } else if (registroInTutto) {
+      riga(`  ⚠️ Ci sono ${registroInTutto} righe di registro, ma tutte più vecchie di ${GIORNI} giorni.`);
+      riga('     Per risalire più indietro:  GIORNI=730 npm run ritira:tag-alimento');
+    } else {
+      riga(`  ⛔ ${conAllergeni} righe dichiarano allergeni e il registro è vuoto anche senza finestra.`);
+      riga('     O la propagazione non ha mai trovato una ricetta da cambiare (tutti i tag c\'erano già),');
+      riga('     oppure il passo notturno non sta girando: da guardare in ordine.');
+    }
     riga('');
     return;
   }
