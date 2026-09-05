@@ -1,4 +1,5 @@
 import { controllaRicettaDaScrivere } from './ricetta-che-si-puo-scrivere';
+import { suggestAllergens } from './allergens';
 
 /**
  * ⛔ **I DUE CANCELLI DI SIMONE (4/9), e non fanno la stessa cosa apposta.**
@@ -134,22 +135,65 @@ it('⛔ su una ricetta senza elenco si ferma, invece di dare l\'ok sul regime', 
 });
 
 /**
- * ⚠️ **QUELLO CHE QUESTO CONTROLLO NON GUARDA, tenuto fermo da una prova invece che da un commento.**
- *
- * Le uova e i latticini dentro un piatto dichiarato vegano passano: `classifica` conosce carne e
- * pesce e basta. ⛔ Non si chiude di qui **oggi** perché la deduzione che servirebbe chiederebbe
- * conferma su «ricotta di mandorla» e «uova di lino» — nomi di imitazione che `senzaImitazioni` non
- * conosce. ⚠️ La ragione più grossa («melagrana» e «piselli sgranati») è caduta con questa stessa
- * consegna, chiudendo la porta unica delle chiavi: quello che resta si chiude allungando i segni
- * vegetali, con la cautela di sempre.
- *
- * ⛔ Il giorno che qualcuno lo chiude, questa prova diventa **rossa**: è il segnale che il buco è
- * chiuso, non che qualcosa si è rotto.
+ * ⛔ **LE UOVA E I LATTICINI IN UN PIATTO VEGANO — chiuso il 4/9 sera.** La prova che stava qui
+ * diceva «oggi passa, il buco è dichiarato» e prometteva di diventare rossa il giorno della
+ * chiusura: è successo, ed è stata riscritta, non cancellata.
  */
-it('⛔ una frittata dichiarata vegana oggi passa — il buco è dichiarato, non dimenticato', () => {
-  expect(controllaRicettaDaScrivere({
-    nome: 'Frittata di zucchine',
-    regime: 'vegan',
-    ingredienti: [{ name: 'uova' }, { name: 'zucchine' }],
-  }).esito).toBe('ok');
+describe('le uova e i latticini in un piatto dichiarato vegano CHIEDONO', () => {
+  it('⛔ una frittata dichiarata vegana chiede conferma, e nomina l\'ingrediente', () => {
+    const v = controllaRicettaDaScrivere({
+      nome: 'Frittata di zucchine',
+      regime: 'vegan',
+      ingredienti: [{ name: 'uova' }, { name: 'zucchine' }],
+    });
+    expect(v.esito).toBe('conferma');
+    expect((v as { problema: string }).problema).toContain('«uova»');
+    expect((v as { problema: string }).problema).toContain('vegetarian');
+  });
+
+  it('⚠️ e il parmigiano in un piatto vegano pure', () => {
+    const v = controllaRicettaDaScrivere({ nome: 'Pasta al pesto', regime: 'vegan', ingredienti: [{ name: 'basilico' }, { name: 'parmigiano reggiano' }] });
+    expect(v.esito).toBe('conferma');
+    expect((v as { problema: string }).problema).toContain('latticini');
+  });
+
+  /** ⛔ I due falsi che tenevano aperto il buco: adesso passano senza una parola. */
+  it('⛔ «ricotta di mandorla» e «uova di lino» in un piatto vegano NON chiedono niente', () => {
+    expect(controllaRicettaDaScrivere({
+      nome: 'Cannelloni vegani', regime: 'vegan', ingredienti: [{ name: 'ricotta di mandorla' }, { name: 'spinaci' }],
+    }).esito).toBe('ok');
+    expect(controllaRicettaDaScrivere({
+      nome: 'Pancake vegani', regime: 'vegan', ingredienti: [{ name: 'uova di lino' }, { name: 'farina di avena' }, { name: 'latte di soia' }],
+    }).esito).toBe('ok');
+    expect(controllaRicettaDaScrivere({
+      nome: 'Pizza vegana', regime: 'vegan', ingredienti: [{ name: 'formaggio vegano' }, { name: 'pomodoro' }],
+    }).esito).toBe('ok');
+  });
+
+  /**
+   * ⛔ **Due porte, due versi.** Per gli allergeni «panna vegetale» resta latte (31/8, caseinato);
+   * qui non chiede, perché chi l'ha scritta l'ha dichiarata vegetale. Se questa prova diventa rossa
+   * nel primo `expect`, qualcuno ha riaperto la decisione del 31/8; nel secondo, il cancello ha
+   * ricominciato a fare domande a cui la risposta è già scritta nel nome.
+   */
+  it('⛔ «panna vegetale» non chiede, e per gli allergeni resta latte', () => {
+    expect(suggestAllergens([{ name: 'panna vegetale' }]).map((a) => a.allergen)).toContain('latte');
+    expect(controllaRicettaDaScrivere({
+      nome: 'Carbonara vegana', regime: 'vegan', ingredienti: [{ name: 'panna vegetale' }, { name: 'tofu affumicato' }],
+    }).esito).toBe('ok');
+  });
+
+  /** ⚠️ Il vegetariano le uova le mangia: lì non si chiede niente. */
+  it('⚠️ la stessa frittata dichiarata vegetariana passa', () => {
+    expect(controllaRicettaDaScrivere({
+      nome: 'Frittata di zucchine', regime: 'vegetarian', ingredienti: [{ name: 'uova' }, { name: 'zucchine' }],
+    }).esito).toBe('ok');
+  });
+
+  /** ⛔ Chiede, non ferma: la differenza fra i due cancelli vale anche qui. */
+  it('⛔ chiede e non ferma', () => {
+    expect(controllaRicettaDaScrivere({
+      nome: 'Frittata', regime: 'vegan', ingredienti: [{ name: 'uova' }],
+    }).esito).not.toBe('ferma');
+  });
 });

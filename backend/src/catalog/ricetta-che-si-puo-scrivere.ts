@@ -1,6 +1,7 @@
 import { nomiIngredienti, statoElenco } from './elenco-ingredienti';
 import { classifica } from './etichetta-contro-contenuto';
 import { REGIMI_IN_ORDINE } from '../common/regimi';
+import { suggestAllergens } from './allergens';
 
 /**
  * ⛔ **I DUE CANCELLI ALLA PORTA CHE SCRIVE UNA RICETTA IN CATALOGO.**
@@ -62,6 +63,9 @@ const PERCHE_NON_VA: Record<string, string> = {
   'senza nomi': 'L\'elenco ingredienti ha delle righe ma nessun nome dentro (solo le quantità).',
 };
 
+/** Un ingrediente che si dichiara vegetale da sé: «formaggio vegano», «panna vegetale», «maionese veg». */
+const DETTO_VEGETALE = /\b(?:vegan[oaei]?|vegetal[ei]|veg)\b/;
+
 /** Quanto è largo un regime: più avanti sta nella scala, più cose può contenere. */
 const quantoLargo = (regime: string): number =>
   (REGIMI_IN_ORDINE as readonly string[]).indexOf(String(regime ?? '').trim());
@@ -107,27 +111,48 @@ export function controllaRicettaDaScrivere(r: RicettaDaScrivere): EsitoScrittura
   }
 
   /**
-   * ⛔ **QUELLO CHE QUESTO CONTROLLO NON GUARDA, e va detto invece di lasciarlo credere: le UOVA e
-   * i LATTICINI dentro un piatto dichiarato VEGANO.**
+   * ⛔ **LE UOVA E I LATTICINI DENTRO UN PIATTO DICHIARATO VEGANO** — chiuso il 4/9 sera, dopo essere
+   * stato dichiarato aperto la mattina.
    *
    * `classifica` conosce carne e pesce; `formaggio` e `uova` stanno fuori dai suoi elenchi, e lo
-   * dichiara `piatto-di-cosa.ts` in testa. Quindi una «Frittata di zucchine» dichiarata vegana passa
-   * di qui senza una parola.
+   * dichiara `piatto-di-cosa.ts` in testa. Qui si chiede alla deduzione degli allergeni, che le
+   * conosce: se in un piatto vegano trova `latte` o `uova`, si chiede conferma — **si chiede, non si
+   * ferma**, per la stessa ragione della carne: chi scrive ne sa più del riconoscitore.
    *
-   * ⚠️ **Provato, e quello che resta è misurato.** La strada è dedurre `latte` e `uova` dagli
-   * ingredienti con `suggestAllergens`. Fino al 4/9 non si poteva, perché chiedeva conferma su
-   * **«melagrana»** e **«piselli sgranati»** — e quella ragione **è caduta con questa stessa
-   * consegna**: la porta unica delle chiavi è chiusa, `grana` non fa più scattare il latte.
+   * ⚠️ **Perché fino a stasera non si poteva.** La mattina chiedeva conferma su «melagrana» e
+   * «piselli sgranati» (`grana` dentro una parola più lunga) — caduto con la porta unica delle
+   * chiavi. Restavano **«ricotta di mandorla»** e **«uova di lino»**, che sono derivati vegetali
+   * scritti in una forma che le frasi «non sono» non conoscevano: chiuso con `derivatoVegetale` in
+   * `menu/exclusions.ts`, che è una regola di forma («‹nome› vegano», «‹nome› di ‹pianta›») e non
+   * dieci frasi in più. La conferma arriva quindi sui piatti vegani **sbagliati**, non su quelli veri.
    *
-   * ⛔ Restano due falsi misurati su quaranta piatti vegani plausibili: **«ricotta di mandorla»** e
-   * **«uova di lino»**. Sono nomi di imitazione che `senzaImitazioni` non conosce — «di mandorla»
-   * non è fra i segni vegetali — quindi la conferma arriverebbe sui piatti vegani veri, che è il
-   * verso peggiore per un avviso.
+   * ⚠️ **«formaggio vegano» qui NON chiede, e per gli allergeni resta latte: sono due porte con due
+   * verso.** La deduzione degli allergeni lo tiene (decisione del 31/8: il caseinato nei prodotti
+   * «vegetali» in commercio), perché toglie un tag e per un'allergia si sbaglia verso il tag che
+   * resta. Questo cancello invece **chiede**, e una domanda su un ingrediente che si dichiara vegano
+   * da sé è una domanda che insegna a non leggere le domande. Quindi chi scrive «vegano»,
+   * «vegetale» o «veg» nel nome dell'ingrediente passa senza conferma — e il tag latte, se c'è,
+   * resta scritto, che è il verso giusto.
    *
-   * ⚠️ **Non è un rinvio senza data**: si chiude allungando i segni vegetali di
-   * `piatto-di-cosa.ts`, che è un elenco di parole e va guardato con la stessa cautela di tutti gli
-   * altri — «chi allunga questo elenco controlli prima i nomi del catalogo». Non di sponda a questa
-   * consegna.
+   * ⚠️ Solo `vegan`: il vegetariano le uova e i latticini li mangia.
    */
+  if (regime === 'vegan') {
+    const animali = suggestAllergens(r.ingredienti)
+      .filter((a) => a.allergen === 'latte' || a.allergen === 'uova')
+      .map((a) => ({ ...a, matched: a.matched.filter((nome) => !DETTO_VEGETALE.test(nome)) }))
+      .filter((a) => a.matched.length);
+    if (animali.length) {
+      const cosa = animali.map((a) => (a.allergen === 'latte' ? 'latticini' : 'uova')).join(' e ');
+      const prova = animali[0].matched[0];
+      return {
+        esito: 'conferma',
+        problema:
+          `Fra gli ingredienti c'è «${prova}»: un piatto dichiarato vegano non dovrebbe contenere ${cosa}. `
+          + 'Se è una versione vegetale, scrivilo nel nome dell\'ingrediente («formaggio vegano», «ricotta di mandorla») e non chiederà più; '
+          + 'altrimenti correggi l\'elenco, oppure dichiaralo vegetarian.',
+      };
+    }
+  }
+
   return { esito: 'ok' };
 }

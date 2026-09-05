@@ -75,6 +75,23 @@ describe('decisioneLattosio — la sostituzione', () => {
     expect(decisioneLattosio(dentro)).toEqual({ azione: 'sostituisci', con: atteso });
   });
 
+  /**
+   * ⛔ **I DERIVATI VEGETALI NON SI SOSTITUISCONO** (4/9 sera): «ricotta di mandorla senza lattosio»
+   * sarebbe un latticino aggiunto a un piatto vegano — la forma del difetto del 31/8 («latte di
+   * cocco»), su una forma che le frasi non conoscevano. La regola è `derivatoVegetale` in
+   * `exclusions.ts`, letta e non ricopiata.
+   */
+  it.each(['ricotta di mandorla', 'formaggio di anacardi', 'yogurt di cocco', 'mozzarella di riso', 'latte d\'avena'])(
+    '⛔ «%s» è vegetale: non si sostituisce',
+    (dentro) => {
+      expect(decisioneLattosio(dentro)).toBeNull();
+    },
+  );
+
+  it('⛔ ma «ricotta di pecora» sì, e «frittata di zucchine» non c\'entra col lattosio', () => {
+    expect(decisioneLattosio('ricotta di pecora')).toEqual({ azione: 'sostituisci', con: 'ricotta senza lattosio' });
+  });
+
   it('il burro resta all’olio evo: il burro delattosato non si trova al supermercato', () => {
     expect(decisioneLattosio('burro')).toEqual({ azione: 'sostituisci', con: 'olio evo' });
   });

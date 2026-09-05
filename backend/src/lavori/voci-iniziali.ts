@@ -6272,10 +6272,28 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'diag:senza-ingredienti` dice quante sono e quali, divise fra «attive e dentro a un paniere» '
       + '(una cliente le pu\u00f2 ricevere) e «fuori dai panieri o spente» (con calma). \u26a0\ufe0f Attenzione '
       + 'al terzo caso che il tabulato separa: l\'elenco che **c\'\u00e8 ma non ha nomi dentro** '
-      + '(`[{qty: 100}]`) \u2014 da fuori la ricetta sembra compilata.',
+      + '(`[{qty: 100}]`) \u2014 da fuori la ricetta sembra compilata.'
+      + '\n\n\u2705 **Dal 4/9 non ne nascono pi\u00f9 nemmeno dalle persone**: la porta di `createRecipe`/`updateRecipe` ferma l\'elenco vuoto e quello senza nomi (vedi la voce `cancelli-alla-porta-delle-ricette`). Resta da riempire quello che c\'\u00e8 gi\u00e0.',
     categoria: CODICE,
     ordine: 675,
     nata: '2026-09-02T19:00',
+  },
+
+  {
+    chiave: 'cancelli-alla-porta-delle-ricette',
+    titolo: 'Alla porta che scrive una ricetta: l\'elenco vuoto ferma, il regime che il contenuto smentisce chiede conferma',
+    fatta: true,
+    dettaglio:
+      '\u2705 **Decisioni di Simone del 4/9**, su due difetti misurati: *\u00ab1 deve essere bloccante, non fa salvare la ricetta\u00bb* (l\'elenco ingredienti vuoto) e *\u00ab2 chiede doppia conferma\u00bb* (il regime dichiarato che il contenuto smentisce: pollo in un piatto vegetariano). '
+      + 'Il giudizio sta in `catalog/ricetta-che-si-puo-scrivere.ts` (puro, con le prove); la porta \u00e8 **una**, `catalog.service.createRecipe`/`updateRecipe`, e ci passano la pagina Ricette, la finestra \u00abNuova ricetta\u00bb dal menu e Vera. Il backoffice mostra il banner \u00abDa leggere prima di salvare\u00bb e un secondo pulsante \u00abHo letto, salva lo stesso\u00bb: la conferma \u00e8 un secondo clic, non un campo che il codice si mette da solo. La forzatura resta scritta nel registro (`regimeForzato`).\n'
+      + '\u26a0\ufe0f **Chiede e non ferma, ed \u00e8 voluto**: in catalogo esistono \u00abPolpo di ceci\u00bb e \u00abBranzino di melanzane\u00bb; bloccare vorrebbe dire non poter pi\u00f9 scrivere met\u00e0 delle imitazioni.\n'
+      + '\u26d4 **Il generatore notturno e l\'agente dei pasti leggeri NON passano da qui, e non sono aperti**: il primo ha il suo controllo sull\'elenco vuoto dal 2/9, il secondo (`vaglia`) scarta \u00absenza ingredienti\u00bb e ogni piatto di carne o pesce. Un commento diceva il contrario per deduzione: corretto il 4/9 sera.\n'
+      + '\u2705 **Chiuso la sera dello stesso giorno il buco dichiarato la mattina: le UOVA e i LATTICINI in un piatto dichiarato VEGANO.** `classifica` conosce carne e pesce; per latte e uova si chiede alla deduzione degli allergeni, e in un piatto vegano si chiede conferma. Non si poteva la mattina perch\u00e9 chiedeva su \u00abmelagrana\u00bb (caduto con la porta unica delle chiavi) e poi su \u00abricotta di mandorla\u00bb e \u00abuova di lino\u00bb \u2014 chiuso con `derivatoVegetale` in `menu/exclusions.ts`: una **regola di forma** (\u00ab\u2039nome\u203a di \u2039pianta\u203a\u00bb) e non dieci frasi in pi\u00f9, perch\u00e9 \u00e8 una famiglia aperta come \u00ab-orata\u00bb.\n'
+      + '\u26d4 **Due cose che la regola di forma NON fa, per due decisioni diverse**: vale solo per i **nomi** di ingrediente e mai per le preparazioni (\u00abfrittata di zucchine\u00bb \u00e8 di uova); e \u00abformaggio vegano\u00bb/\u00abpanna vegetale\u00bb **restano latte** per gli allergeni (decisione del 31/8: il caseinato nei prodotti in commercio) \u2014 il cancello, che chiede e non toglie, li lascia passare da solo.\n'
+      + '\u26a0\ufe0f **Il tag gi\u00e0 scritto in catalogo non cambia da solo**: `npm run diag:vegani-con-latte-e-uova` (sola lettura) dice quante ricette vegane chiederebbero conferma oggi e per quale ingrediente \u2014 l\'elenco con cui si allungano le piante di `derivatoVegetale`, o si correggono i piatti dichiarati vegani a torto. I tag falsi per \u00abricotta di mandorla\u00bb si tolgono con `ripara:allergeni-chiave`, come le 215.',
+    categoria: CODICE,
+    ordine: 676,
+    nata: '2026-09-04T10:00',
   },
 
   {

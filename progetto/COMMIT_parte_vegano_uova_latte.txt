@@ -1,0 +1,69 @@
+────────────────────────────────────────────────────────────────────────────
+ Uova e latticini in un piatto vegano: il cancello chiede, e i derivati
+ vegetali non sono latte
+ 4 settembre 2026 (sera)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI.
+
+Summary
+───────
+Uova e latticini in un piatto vegano chiedono conferma, e «ricotta di mandorla» non è più latte
+
+Description
+───────────
+✅ CHIUSO LA SERA IL BUCO DICHIARATO LA MATTINA. `ricetta-che-si-puo-scrivere.ts`
+chiede alla deduzione degli allergeni: latte o uova in un piatto dichiarato
+vegano → conferma (chiede, non ferma: come per la carne, chi scrive ne sa più
+del riconoscitore). Solo `vegan`: il vegetariano le uova le mangia.
+
+⛔ PERCHÉ LA MATTINA NON SI POTEVA. Chiedeva su «melagrana» (caduto con la
+porta unica delle chiavi) e poi su «ricotta di mandorla» e «uova di lino»:
+derivati vegetali scritti in forme che le frasi «non sono» non conoscevano.
+Chiuso con `derivatoVegetale` in `menu/exclusions.ts`: una REGOLA DI FORMA
+(«‹nome› di ‹pianta›»), non dieci frasi in più — è una famiglia aperta, come
+«-orata», e un elenco chiuso contro una famiglia aperta perde sempre.
+
+Vale per tutta la porta unica: esclusioni della cliente, tag allergene, e
+`soloDentroFrasi` delle sostituzioni («ricotta di mandorla» non riceve più
+«ricotta senza lattosio» — il difetto del 31/8 in un'altra forma).
+
+⛔ DUE LIMITI, PER DUE DECISIONI DIVERSE:
+
+1) Solo i NOMI di ingrediente, mai le preparazioni: «frittata di zucchine» è
+   una frittata di uova con le zucchine dentro, «omelette di funghi» pure.
+   Visto scrivendo la regola. Le piante sono un elenco chiuso con la
+   controprova «nessun animale»: «formaggio di capra», «uova di quaglia»,
+   «latte di bufala» restano quello che sono.
+2) «formaggio vegano» e «panna vegetale» RESTANO latte per gli allergeni. La
+   prima stesura li smontava e la suite mi ha fermato sulla decisione del
+   31/8 (molti prodotti «vegetali» in commercio contengono caseinato): ha
+   ragione lei, per un'allergia si sbaglia verso il tag che resta. Il
+   suffisso lo guarda SOLO il cancello, che chiede e non toglie — una domanda
+   su un ingrediente che si dichiara vegano da sé insegna a non leggere le
+   domande. Due porte, due versi, e una prova che li tiene fermi tutti e due.
+
+⚠️ IL TAG GIÀ SCRITTO NON CAMBIA DA SOLO (lezione della porta unica):
+`npm run diag:vegani-con-latte-e-uova` (sola lettura, conto in
+`vegani-che-chiedono.ts`) dice quante ricette vegane chiederebbero conferma
+oggi e per quale ingrediente — se una riga è un derivato in una forma nuova
+(«… di lupini») si allunga `PIANTE_DEI_DERIVATI`; se è una frittata vera, la
+ricetta è vegana a torto. I tag falsi si tolgono con `ripara:allergeni-chiave`.
+
+⚠️ Voce nuova, chiusa: `cancelli-alla-porta-delle-ricette` — i due cancelli
+della mattina non avevano una voce nell'elenco, stavano solo nel REGISTRO.
+
+Verificato
+──────────
+· backend: 454 suite, 7823 prove verdi; `npm run build` verde
+· quattro mutazioni che mordono: la porta unica che ignora i derivati; la
+  forma «di pianta» estesa alle preparazioni («frittata di zucchine» rossa);
+  `soloDentroFrasi` senza derivati (lattosio rosso); il cancello che chiede
+  anche al vegetariano
+
+Cosa resta
+──────────
+· `npm run diag:vegani-con-latte-e-uova` sui dati veri: il numero dice se il
+  cancello fa domande giuste. Poi `ripara:allergeni-chiave` per i tag falsi.
+· `giusy@metabole.eu` collegata a un'utenza «non trovata»: da scollegare.
+· Parametri → «Coach di riserva» → Giusy, poi `assegna:coach-di-riserva`.

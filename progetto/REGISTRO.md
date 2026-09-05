@@ -20,6 +20,23 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-04
 
+- `[Sviluppo]` ✅ **Le uova e i latticini in un piatto dichiarato vegano chiedono conferma: chiuso
+  la sera il buco dichiarato la mattina.** In `ricetta-che-si-puo-scrivere.ts` si chiede alla
+  deduzione degli allergeni; la mattina non si poteva perché scattava su «ricotta di mandorla» e
+  «uova di lino». Chiuso con `derivatoVegetale` in `menu/exclusions.ts`: una **regola di forma**
+  («‹nome› di ‹pianta›»), non dieci frasi in più — famiglia aperta come «-orata». Vale per la
+  porta unica (esclusioni della cliente, tag allergene, e `soloDentroFrasi` delle sostituzioni:
+  «ricotta di mandorla» non riceve più «ricotta senza lattosio»). ⛔ **Due limiti, per due
+  decisioni**: (1) solo i **nomi** di ingrediente, mai le preparazioni — «frittata di zucchine» è
+  di uova, visto scrivendo la regola; (2) «formaggio vegano» e «panna vegetale» **restano latte**
+  per gli allergeni: la suite mi ha fermato sulla decisione del 31/8 (caseinato nei prodotti in
+  commercio), e ha ragione lei — per un'allergia si sbaglia verso il tag che resta. Il suffisso
+  «vegano/vegetale» lo guarda solo il cancello, che chiede e non toglie. Piante in elenco chiuso
+  con la controprova «nessun animale». `npm run diag:vegani-con-latte-e-uova` (sola lettura,
+  conto in `vegani-che-chiedono.ts`) dice quante ricette vegane chiederebbero conferma oggi e per
+  quale ingrediente. Voce nuova chiusa `cancelli-alla-porta-delle-ricette` (i due cancelli della
+  mattina non avevano una voce). 454 suite, 7823 prove; quattro mutazioni che mordono.
+
 - `[Sviluppo]` ✅ **Il perimetro della commerciale si chiude con una decisione, non con un cancello:
   «Lascia tutto com'è».** Prima di scrivere una riga ho misurato cosa cambiava chiudendo i due
   cancelli sul suo id: Giusy avrebbe visto **solo** le clienti di riserva — in Clienti, Acquisti,

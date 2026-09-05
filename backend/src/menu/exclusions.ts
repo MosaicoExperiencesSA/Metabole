@@ -642,11 +642,13 @@ export const FRASI_CHE_NON_SONO: Readonly<Record<string, readonly string[]>> = {
  * ragione per cui `PAROLE_CHE_NON_SONO` sta già in un posto solo.
  */
 export function soloDentroFrasi(testo: string, chiave: string): boolean {
-  if (!FRASI_CHE_NON_SONO[chiave]) return false;
+  /** ⚠️ Anche i derivati vegetali (4/9 sera): «ricotta di mandorla» non riceve «ricotta senza lattosio». */
+  const derivabile = haVersioneVegetale(chiave);
+  if (!FRASI_CHE_NON_SONO[chiave] && !derivabile) return false;
   let i = testo.indexOf(chiave);
   if (i === -1) return false;
   while (i !== -1) {
-    if (!dentroUnaFraseCheNonE(testo, chiave, i)) return false;
+    if (!dentroUnaFraseCheNonE(testo, chiave, i) && !derivatoVegetale(testo, chiave, i)) return false;
     i = testo.indexOf(chiave, i + 1);
   }
   return true;
@@ -746,6 +748,74 @@ export function coppiaGiaDecisa(chiave: string, parola: string): boolean {
  * falso che le omonime erano state scritte per chiudere.
  */
 /**
+ * ⛔ **I DERIVATI VEGETALI SCRITTI «‹nome› di ‹pianta›» — «ricotta di mandorla», «uova di lino»,
+ * «parmigiano di anacardi» — NON SONO latte né uova. E sono una famiglia APERTA, come «-orata».**
+ *
+ * `FRASI_CHE_NON_SONO` conosce «latte di mandorla» e «yogurt di soia», ma una ricetta vegana li
+ * scrive in cento forme: «ricotta di anacardi», «mozzarella di riso», «uova di lino». Rincorrerle
+ * con le frasi vorrebbe dire scriverne dieci alla volta e perderne sempre una — ed è il motivo
+ * dichiarato sopra per cui `SOLO_A_INIZIO_PAROLA` esiste. Qui la stessa risposta: una **forma**.
+ * Misurato il 4/9 sera sui piatti vegani plausibili del catalogo: i due falsi che restavano dopo
+ * la porta unica erano proprio «ricotta di mandorla» e «uova di lino».
+ *
+ * ## ⛔ Quello che questa forma NON fa, per due decisioni diverse
+ *
+ * · **«formaggio vegano», «panna vegetale» restano latte.** È la decisione del 31/8, scritta in
+ *   `frasi-che-non-sono.spec.ts`: molti prodotti in commercio contengono **caseinato**, che è
+ *   proteina del latte, e per un'allergia si sbaglia verso il tag che resta. Il suffisso lo guarda
+ *   solo il cancello delle ricette (`ricetta-che-si-puo-scrivere.ts`), che chiede e non toglie.
+ * · **Solo per i NOMI di ingrediente, mai per le preparazioni.** «**frittata di zucchine**» è una
+ *   frittata di uova con le zucchine dentro, «omelette di funghi» pure: applicare la forma a
+ *   `frittat` sarebbe un falso negativo su un allergene. L'ho visto scrivendo la regola.
+ *
+ * ⚠️ E le piante sono un elenco chiuso apposta (`PIANTE_DEI_DERIVATI`): «formaggio **di capra**»,
+ * «ricotta **di pecora**», «uova **di quaglia**», «latte **di bufala**» devono restare quello che
+ * sono. Chi allunga l'elenco ci mette una pianta, non un animale: la controprova sta in
+ * `derivato-vegetale.spec.ts`.
+ *
+ * ⚠️ **Il tag già scritto in catalogo non cambia da solo** — è la lezione della porta unica del
+ * 4/9: le ricette vegane che oggi portano `latte` per una «ricotta di mandorla» si contano con
+ * `diag:vegani-con-latte-e-uova` e si riparano con `ripara:allergeni-chiave`, come le 215.
+ */
+export const NOMI_CON_VERSIONE_VEGETALE: ReadonlySet<string> = new Set([
+  'latte', 'burro', 'formagg', 'mozzarell', 'ricott', 'parmigian', 'grana', 'panna', 'yogurt', 'kefir',
+  'mascarpone', 'feta', 'brie', 'cheddar', 'stracchino', 'gorgonzol', 'pecorino', 'caciocavallo',
+  'latticin', 'ghee', 'crema di formaggio', 'maionese', 'uovo', 'uova', 'albume', 'tuorlo',
+]);
+
+/** Le piante di cui si fanno latte, formaggi e uova vegetali. ⛔ Niente animali, mai. */
+export const PIANTE_DEI_DERIVATI: readonly string[] = [
+  'mandorl', 'soia', 'riso', 'avena', 'cocco', 'anacard', 'lino', 'canapa', 'nocciol', 'ceci', 'lupin',
+  'pisell', 'quinoa', 'sesamo', 'macadamia', 'aquafaba', 'chia', 'miglio', 'noci', 'arachid', 'girasole',
+  'patat', 'tofu', 'cajù', 'caju',
+];
+
+const RE_DI_PIANTA = new RegExp(`^\\s+(?:di|d['’])\\s*(?:${PIANTE_DEI_DERIVATI.join('|')})`);
+
+/**
+ * ⚠️ Per prefisso e non per uguaglianza: le chiavi degli allergeni sono radici («ricott»), quelle
+ * delle sostituzioni (`lattosio.ts`, `sostituzioni-sicure.ts`) parole intere («ricotta»). La stessa
+ * domanda deve rispondere uguale a tutte e due, o «ricotta di mandorla» resta senza latte per gli
+ * allergeni e riceve «ricotta senza lattosio» dalla sostituzione — cioè un latticino aggiunto a un
+ * piatto vegano, il difetto del 31/8 in un'altra forma.
+ */
+const haVersioneVegetale = (chiave: string): boolean =>
+  NOMI_CON_VERSIONE_VEGETALE.has(chiave) || [...NOMI_CON_VERSIONE_VEGETALE].some((radice) => chiave.startsWith(radice));
+
+/**
+ * L'occorrenza di `chiave` che comincia in `i` è un nome scritto «‹nome› di ‹pianta›»?
+ * ⚠️ Si guarda quello che viene **subito dopo** la parola che contiene la chiave: «ricotta di
+ * mandorla» sì, «ricotta fresca di mandorla» no — la regola resta stretta apposta, come
+ * `RE_IMITAZIONE` in `piatto-di-cosa.ts`: allargarla vuol dire staccare il segno dalla parola.
+ */
+export function derivatoVegetale(haystack: string, chiave: string, i: number): boolean {
+  if (!haVersioneVegetale(chiave)) return false;
+  let b = i + chiave.length;
+  while (b < haystack.length && /[a-zà-ù0-9]/.test(haystack[b])) b += 1;
+  return RE_DI_PIANTA.test(haystack.slice(b));
+}
+
+/**
  * ⛔ **ESPORTATA il 4/9 perché `catalog/allergens.ts` ne aveva una SECONDA COPIA.**
  *
  * Quella copia conosceva le omonime e le frasi, e **non** `SOLO_A_INIZIO_PAROLA`. Cioè la regola
@@ -767,7 +837,8 @@ function chiaveVale(haystack: string, k: string): boolean {
   const soloInizio = SOLO_A_INIZIO_PAROLA.has(k);
   const escluse = PAROLE_CHE_NON_SONO[k];
   const frasi = FRASI_CHE_NON_SONO[k];
-  if (!soloInizio && !escluse && !frasi) return haystack.includes(k);
+  const derivabile = haVersioneVegetale(k);
+  if (!soloInizio && !escluse && !frasi && !derivabile) return haystack.includes(k);
   let i = haystack.indexOf(k);
   while (i !== -1) {
     const inizioParola = i === 0 || !/[a-z0-9]/.test(haystack[i - 1]);
@@ -775,13 +846,14 @@ function chiaveVale(haystack: string, k: string): boolean {
       let a = i; while (a > 0 && /[a-z0-9]/.test(haystack[a - 1])) a -= 1;
       let b = i + k.length; while (b < haystack.length && /[a-z0-9]/.test(haystack[b])) b += 1;
       /**
-       * ⚠️ **I tre filtri si applicano INSIEME**, come già l'inizio di parola e le omonime: un
+       * ⚠️ **I quattro filtri si applicano INSIEME**, come già l'inizio di parola e le omonime: un
        * piatto che dice «latte di cocco e latte intero» deve restare escluso per il secondo. Basta
        * che UNA occorrenza sopravviva a tutti perché la chiave valga — ed è la stessa forma per cui
        * il 23/8 il ritorno anticipato faceva sparire il carpaccio di manzo.
        */
       const omonima = !!escluse?.includes(haystack.slice(a, b));
-      if (!omonima && !dentroUnaFraseCheNonE(haystack, k, i)) return true;
+      // ⚠️ Il quarto filtro (4/9 sera): «ricotta di mandorla», «uova di lino» — vedi `derivatoVegetale`.
+      if (!omonima && !dentroUnaFraseCheNonE(haystack, k, i) && !derivatoVegetale(haystack, k, i)) return true;
     }
     i = haystack.indexOf(k, i + 1);
   }
