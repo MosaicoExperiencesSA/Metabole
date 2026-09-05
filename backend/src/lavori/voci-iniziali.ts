@@ -4989,6 +4989,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'senza-glutine-catalogo-mezzo-inservibile',
+    fatta: true,
     categoria: PANIERE,
     titolo: 'Mediterranea senza glutine: su due giornate, sei piatti su dieci non si potevano servire',
     dettaglio:
@@ -4999,7 +5000,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⚠️ Da leggere insieme al rifacimento del paniere (`progetto/PIANO_Panieri_Ricette.md`): il senza '
       + 'glutine lì diventa un **filtro** sul paniere mediterraneo, e la famiglia si chiude quando quel filtro '
       + 'funziona.'
-      + '\n\n⚠️ **Spostata su «Aspetta il paniere» il 5/9**: la rete di sicurezza c\'è (`menu/senza-glutine.ts`, `exclusions.ts`) e il numero si legge con `npm run diag:esclusioni`, ma la chiusura dichiarata è il **filtro sul paniere mediterraneo** (`PIANO_Panieri_Ricette.md`; oggi `appartenenza-panieri.ts` mappa solo famiglia × regime). Misurare adesso sul catalogo di oggi vorrebbe dire rifare la misura dopo.',
+      + '\n\n⚠️ **Spostata su «Aspetta il paniere» il 5/9**: la rete di sicurezza c\'è (`menu/senza-glutine.ts`, `exclusions.ts`) e il numero si legge con `npm run diag:esclusioni`, ma la chiusura dichiarata è il **filtro sul paniere mediterraneo** (`PIANO_Panieri_Ricette.md`; oggi `appartenenza-panieri.ts` mappa solo famiglia × regime). Misurare adesso sul catalogo di oggi vorrebbe dire rifare la misura dopo.'
+      + '\n\n✅ **SPUNTATA DA SIMONE IN PAGINA, e il file era rimasto indietro** (visto il 5/9 dallo schermo di allineamento: «il rilascio è indietro su 1 voce: qui è già spuntata, nel file risulta da fare»). Chiusa anche qui, così il file non la ripropone. ⚠️ La spunta in pagina vale sempre: una voce chiusa a mano non si riapre da un file.',
     ordine: 961,
     nata: '2026-08-31T18:00',
   },

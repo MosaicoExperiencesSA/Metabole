@@ -1,0 +1,70 @@
+Le risposte scritte in pagina non le ho mai lette, e la guida di Lucia adesso è nel repo
+
+IL DIFETTO, DETTO COM'È
+
+Simone, 5/9: «mi stai dicendo che hai perso la risposta di Lucia che avevo
+mandato e anche quelle che ho mandato io?». Non perse: MAI LETTE, che è peggio,
+perché non se ne accorge nessuno.
+
+Le voci di lavoro vivono in due posti. Il file `src/lavori/voci-iniziali.ts`
+porta la DOMANDA — cosa c'è da fare e perché — ed è quello che legge chi scrive
+il codice. La tabella `lavoro` in banca dati porta lo STATO VIVO: la spunta, la
+categoria, e il campo `risposta`, che Simone ha chiesto il 13/8 proprio per non
+tenere le risposte in una chat o in una mail («così posso consultarmi e inserire
+mano a mano»).
+
+Conseguenza: una risposta data IN CHAT la ricopio nel file, e si vede. Una
+risposta scritta NELLA PAGINA — comprese quelle che arrivano dalla nutrizionista
+— resta in banca dati, e chi legge il file non la incontra mai. Il 5/9 è
+successo due volte in un'ora: una domanda già decisa il 24/8 rifatta da capo, e
+un elenco di «cose che restano» consegnato senza guardare le risposte che
+c'erano già.
+
+`npm run lavori:risposte` (sola lettura) stampa due liste: le voci che hanno una
+risposta scritta, con chi l'ha data e quando; e le voci APERTE SENZA risposta,
+che è l'elenco di cosa si sta aspettando e da chi. Si lancia all'inizio di una
+sessione, prima di dire a qualcuno cosa manca. `APERTE=1` per le sole aperte.
+
+LA GUIDA DI LUCIA SUI SOLFITI, NEL REPO
+
+`progetto/guide/Guida_Completa_Allergia_Solfiti.pdf`. Simone l'aveva caricata in
+chat almeno due volte, e per una ragione precisa: il suo CONTENUTO era diventato
+codice il 24/8 (`menu/solfiti.ts` ha le sue righe, con i mg/kg della tabella
+accanto a ognuna), ma il DOCUMENTO non era stato conservato — e ogni sessione
+riparte dal repo. Il foglio di Nocanty sugli allergeni era stato salvato, questo
+no.
+
+Riletta per intero contro il codice:
+- le quattro sostituzioni sui condimenti combaciano (aceto e balsamico → succo
+  di limone fresco; dado industriale → dado casalingo o brodo fresco; frutta
+  secca industriale → essiccata in casa);
+- tre righe divergono, e divergono per DECISIONI DI SIMONE del 24/8, scritte nel
+  codice: il vino la guida lo sostituisce con brodo acidulato, noi lo togliamo e
+  basta («la parola vino non dice se serve a sfumare o se è il piatto»);
+  insaccati e crostacei la guida li sostituisce, noi escludiamo il piatto («un
+  gambero non è un branzino»);
+- il §3 nomina sette portatori che il nostro vocabolario non ha: biscotti
+  industriali, farine confezionate, amidi modificati, salsa di pomodoro
+  industriale, birre artigianali non filtrate, aperitivi alcolici, succhi da
+  concentrato. NON toccato niente: allargare il vocabolario cambia i menu di
+  tutte le clienti che hanno dichiarato quell'allergia, e si accende con un
+  numero davanti — è la regola del 31/8.
+
+Il commento in testa a `solfiti.ts` adesso punta al percorso nel repo.
+
+«DA FARE — CODICE» NON È LO STATO
+
+Nella schermata di allineamento la lista «Aggiungerei N voci» mostrava
+`categoria — titolo`. Ma una voce nuova che il rilascio dà per FINITA nasce già
+spuntata (`lavori.service.ts`, `datiSpunta`), e da fuori si leggeva «Da fare —
+codice» su una consegna appena chiusa: Simone, «perché mi aggiungi da fare due
+cose che dieci minuti fa hai detto fatte?». La categoria dice DOVE va la voce,
+la spunta dice SE è da fare: due domande, e chi preme «Conferma» deve vedere
+tutte e due. Adesso accanto al titolo compare «nasce spuntata».
+
+E «Mediterranea senza glutine» — spuntata da Simone in pagina, ancora aperta nel
+file — è chiusa anche nel file: era l'unica voce su cui il rilascio risultava
+indietro. La spunta in pagina vale sempre; una voce chiusa a mano non si riapre
+da un file.
+
+Suite backend 7914 verdi, build verdi su backend e backoffice. Niente migrazioni.

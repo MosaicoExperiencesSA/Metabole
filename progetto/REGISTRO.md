@@ -20,6 +20,32 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ⛔ **LE RISPOSTE SCRITTE IN PAGINA NON LE HO MAI LETTE, e adesso c'è il comando.**
+  Simone: «mi stai dicendo che hai perso la risposta di Lucia?». Non persa: **mai letta**. Le voci di
+  lavoro vivono in due posti — il file `voci-iniziali.ts` (la domanda) e la tabella `lavoro` (lo stato
+  vivo, con il campo `risposta` che Simone ha chiesto il 13/8). Chi scrive il codice legge solo il
+  file: una risposta data in chat finisce nel file e si vede, una scritta **nella pagina** — comprese
+  quelle della nutrizionista — resta in banca dati e non la vede nessuno. È il motivo per cui il 5/9
+  una domanda già decisa è stata rifatta e un elenco di «cosa resta» è stato scritto senza guardare
+  le risposte che c'erano. ▶️ `npm run lavori:risposte` (sola lettura) stampa le voci con la loro
+  risposta, e quelle **aperte senza risposta**, che è la lista di cosa si aspetta e da chi.
+- `[Sviluppo]` ✅ **La guida di Lucia sui solfiti è nel repo** (`progetto/guide/Guida_Completa_Allergia_Solfiti.pdf`).
+  Simone l'aveva caricata in chat almeno due volte perché ogni sessione riparte dal repo e lì non
+  c'era: il suo **contenuto** era diventato codice (`menu/solfiti.ts`), il **documento** no.
+  Riletta contro il codice: le sostituzioni combaciano; le due righe che divergono — insaccati e
+  crostacei, che la guida sostituisce e noi escludiamo — divergono per la decisione di Simone del
+  24/8 («un gambero non è un branzino»), e il vino idem («semplicemente togliamo il vino»).
+  ⚠️ Il §3 della guida nomina sette cose che il nostro vocabolario non ha: biscotti industriali,
+  farine confezionate, amidi modificati, salsa di pomodoro industriale, birre artigianali non
+  filtrate, aperitivi alcolici, succhi da concentrato. Non toccato niente: allargare cambia i menu, e
+  si accende con un numero davanti.
+- `[Sviluppo]` ✅ **«Da fare — codice» non è lo stato: la lista dell'allineamento lo dice.** Una voce
+  nuova che il rilascio dà per finita nasce **già spuntata**, ma in pagina si leggeva la sola
+  categoria — cioè «Da fare — codice» su una consegna appena chiusa (Simone: «perché mi aggiungi da
+  fare due cose che dieci minuti fa hai detto fatte?»). Adesso accanto compare «nasce spuntata».
+  ✅ E **Mediterranea senza glutine**, spuntata da Simone in pagina, è chiusa anche nel file: era
+  l'unica voce su cui il rilascio risultava indietro.
+
 - `[Sviluppo]` ✅ **Un giudizio solo sul tag solfiti: la base personale allineata ai menu.** Il giro
   dei 3080 tag `solfiti` del 5/9 ha reso grossa una divergenza che c'era da prima: la composizione
   dei menu, dal 24/8, sul tag `solfiti` **non blocca** (guarda gli ingredienti, perché per i solfiti

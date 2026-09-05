@@ -3,7 +3,7 @@
  *
  * Chiesto da Simone il 21/8 («la nutrizionista mi ha mandato il file con i cibi da sostituire e come
  * sostituirli») e deciso da lui il 24/8, quattro risposte alla volta. Le righe vengono dalla
- * `Guida_Completa_Allergia_Solfiti.pdf` della capo nutrizionista, non da chi scrive il codice.
+ * `progetto/guide/Guida_Completa_Allergia_Solfiti.pdf` (nel repo dal 5/9: prima stava solo nelle chat, e andava richiesta ogni volta) della capo nutrizionista, non da chi scrive il codice.
  *
  * ## Perché non basta l'elenco delle esclusioni
  *

@@ -80,6 +80,7 @@
     "prisma:tipi": "node scripts/prisma-generate-reale.mjs",
     "carica:lavori": "ts-node --transpile-only prisma/carica-lavori.ts",
     "allinea:lavori": "ts-node --transpile-only prisma/allinea-lavori.ts",
+    "lavori:risposte": "ts-node --transpile-only prisma/diag-risposte-lavori.ts",
     "accendi:automazioni": "ts-node --transpile-only prisma/accendi-automazioni.ts",
     "diag:dieta": "ts-node --transpile-only prisma/diag-dieta.ts",
     "diag:cliente": "ts-node --transpile-only prisma/diag-cliente.ts",

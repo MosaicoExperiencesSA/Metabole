@@ -158,7 +158,7 @@ export function Lavori() {
     aggiunte: number;
     spuntate: number;
     saltate: number;
-    titoli: { titolo: string; categoria: string }[];
+    titoli: { titolo: string; categoria: string; fatta?: boolean }[];
     chiuse: { titolo: string; categoria: string }[];
     /** Voci il cui testo viene **riscritto** dal rilascio (nessuno le aveva corrette a mano). */
     riscritte: { titolo: string; categoria: string }[];
@@ -295,7 +295,7 @@ export function Lavori() {
         aggiunte: number;
         spuntate: number;
         saltate: number;
-        titoli: { titolo: string; categoria: string }[];
+        titoli: { titolo: string; categoria: string; fatta?: boolean }[];
         chiuse: { titolo: string; categoria: string }[];
         riscritte: { titolo: string; categoria: string }[];
         testiCambiati: { titolo: string; categoria: string }[];
@@ -403,8 +403,20 @@ export function Lavori() {
                 {caricamento.aggiunte > 0 && (
                   <>
                     <div style={{ fontWeight: 700, marginBottom: 6 }}>Aggiungerei {caricamento.aggiunte} voci:</div>
+                    {/*
+                      ⛔ **LA CATEGORIA NON È LO STATO** (5/9). Qui si leggeva «Da fare — codice» anche
+                      sulle voci che il rilascio dà per GIÀ FATTE, che nascono spuntate: da fuori
+                      sembrava che una consegna appena finita aggiungesse lavoro da fare. Simone:
+                      «perché mi aggiungi da fare due cose che dieci minuti fa hai detto fatte?».
+                      La categoria dice DOVE va la voce, la spunta dice SE è da fare: due domande.
+                    */}
                     <ul style={{ margin: '0 0 10px 18px' }}>
-                      {caricamento.titoli.map((t) => <li key={t.titolo}><span className="muted">{t.categoria} — </span>{t.titolo}</li>)}
+                      {caricamento.titoli.map((t) => (
+                        <li key={t.titolo}>
+                          <span className="muted">{t.categoria} — </span>{t.titolo}
+                          {t.fatta && <span className="chip" style={{ marginLeft: 6 }} title="Il rilascio la dà per finita: nasce già spuntata, non è lavoro da fare.">nasce spuntata</span>}
+                        </li>
+                      ))}
                     </ul>
                   </>
                 )}

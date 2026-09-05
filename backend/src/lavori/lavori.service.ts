@@ -469,7 +469,13 @@ export class LavoriService {
       aggiunte: mancanti.length,
       spuntate: daSpuntare.length,
       saltate: VOCI_INIZIALI.length - mancanti.length - daSpuntare.length,
-      titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria })),
+      /**
+       * ⚠️ **`fatta` viaggia con la voce** (5/9): una voce nuova che il rilascio dà per finita nasce
+       * già spuntata (vedi `datiSpunta` qui sopra), ma in pagina si leggeva solo la categoria — cioè
+       * «Da fare — codice» su una cosa appena consegnata. La categoria dice dove va, la spunta dice
+       * se è da fare: chi preme «Conferma» deve vedere tutte e due.
+       */
+      titoli: mancanti.map((v) => ({ titolo: v.titolo, categoria: v.categoria, fatta: v.fatta === true })),
       // Titoli e non chiavi: è quello che la pagina mostra prima di far premere «Conferma».
       chiuse: daSpuntare.map(({ voce }) => ({ titolo: voce.titolo, categoria: voce.categoria })),
       /** Voci il cui testo è stato **riscritto** dal file (nessuno le aveva corrette a mano). */
