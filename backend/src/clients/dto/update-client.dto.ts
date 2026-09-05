@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, IsObject } from 'class-validator';
 
 /** Aggiornamento scheda cliente: anagrafica (User) + questionario (ClientProfile). Tutti i campi opzionali. */
 export class UpdateClientDto {
@@ -93,6 +93,15 @@ export class UpdateClientDto {
       + 'orologio, e in scheda si legge sotto «Finestra del digiuno». Ricarica la pagina.',
   })
   fastingWindow?: string | null;
+  /**
+   * ⛔ **LE TRE ESCLUSIONI CLINICHE DAL DIGIUNO** (Lucia, 5/9). Va dichiarato qui o la richiesta
+   * fallisce intera — è la stessa trappola di `fastingWindow` venti righe sopra
+   * (`forbidNonWhitelisted: true` in `main.ts`), e la revisione avversariale l'ha ripescata: senza
+   * questa riga la nutrizionista spuntava la casella, prendeva 400, il `catch` della pagina scriveva
+   * «Salvataggio non riuscito» e **nessuna sospensione sarebbe mai partita**.
+   * ⚠️ Il contenuto lo normalizza `clients.service` (solo le tre chiavi, solo booleani veri).
+   */
+  @IsOptional() @IsObject() fastingExclusions?: Record<string, unknown> | null;
   @IsOptional() @IsIn(['sedentary', 'light', 'moderate', 'active', 'very_active']) activityLevel?: string;
   /** Account dei recensori degli store: misure mai bloccanti (voce #6f del 5/8). */
   @IsOptional() @IsBoolean() isStoreReviewer?: boolean;

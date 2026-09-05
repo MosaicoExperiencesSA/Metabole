@@ -121,6 +121,12 @@ describe('SignalsService', () => {
             // rossi raccontando un difetto che non c'è.
             weight_jump_impossible_kg: 10,
             weight_jump_impossible_kg_week: 7,
+            // ⛔ **E la TERZA volta, il 5/9**: la soglia del salto di peso di Lucia (4 kg). Con lo
+            // zero del `??` in fondo, ogni calo di trecento grammi apriva una segnalazione clinica
+            // e il test «calo normale → nessuna escalation» diventava rosso su un difetto
+            // inesistente. È la stessa trappola raccontata due volte qui sopra: quando si aggiunge
+            // una chiave al codice, si aggiunge anche a questo finto.
+            weight_jump_alert_kg: 4,
           } as Record<string, number>)[key] ?? 0,
         ),
       ),

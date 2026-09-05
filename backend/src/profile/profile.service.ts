@@ -15,6 +15,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { apriRichiestaVera } from '../vera/apri-richiesta';
 import { apriServeVisita } from '../clients/serve-visita';
+import { apriSegnalazione } from '../escalations/apri-segnalazione';
+import { vaSospesoSubito, type RisposteDigiuno } from '../menu/digiuno-si-puo';
+import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { type RispostaAllergie, dichiarazione, haRisposto } from './dichiara-allergie';
 import { esclusioniCliente } from './esclusioni-cliente';
 import { subscriptionEnd, pickMainSubscription } from '../commerce/commerce.service';
@@ -1102,7 +1105,122 @@ export class ProfileService {
    * ⚠️ Non lancia mai per una cliente sola: un profilo storto non deve fermare il giro di tutte le
    * altre. Quello che salta si conta e si dice — *niente tagli silenziosi*.
    */
-  async passoNotturnoDigiuno(): Promise<{ guardati: number; protocolliApplicati: number; passiFatti: number; arrivate: number; falliti: number }> {
+  /**
+   * ⛔ **LE CONTROINDICAZIONI EMERSE A DIGIUNO GIÀ IN CORSO — sospensione immediata.**
+   *
+   * Decisione della nutrizionista responsabile, 5/9 (`progetto/guide/Risposte_Cliniche_Lucia_
+   * 2026-09-05.pdf`, scheda 7 punto 1): *«sospendere immediatamente il digiuno e ripristinare la
+   * giornata piena. Il rischio di mantenere un digiuno controindicato è superiore al ritorno
+   * temporaneo alla dieta standard»*. Era il caso della migrazione — una cliente che dichiara una
+   * cosa dopo essere già stata messa a digiuno — e finora non succedeva niente.
+   *
+   * ⚠️ **La cliente torna a `classic3`, non a un percorso inventato**: è la giornata piena, cioè il
+   * comportamento normale del prodotto. La finestra si azzera perché non vuol più dire niente, e
+   * **resta scritto** cosa è successo (`fastingSospesoIl`, `fastingSospesoPerche`): una cliente che
+   * si trova la giornata piena senza una riga che lo spieghi è un guasto, non una protezione.
+   *
+   * ⚠️ **Si apre una segnalazione clinica**, che va alla nutrizionista e alla coach: rimetterla a
+   * digiuno è una decisione di una persona, mai di questo giro.
+   */
+  async sospendiDigiuniControindicati(): Promise<{ guardate: number; sospese: number; falliti: number; motivi: string[] }> {
+    /**
+     * ⚠️ **Solo chi ha un piano in corso** (revisione, 5/9). Una cliente uscita a marzo con
+     * `pathType: intermittent_fasting` ancora scritto in profilo non deve prendersi una modifica di
+     * profilo e una segnalazione clinica stanotte: è la stessa regola della coda della coach —
+     * *«aprire un'attività su chi ha finito il percorso mesi fa è il modo più rapido di insegnare a
+     * ignorare la colonna»*.
+     */
+    const profili = (await this.prisma.clientProfile.findMany({
+      where: {
+        pathType: 'intermittent_fasting',
+        user: { subscriptions: { some: { status: { in: [...STATI_CON_UN_PIANO] } } } },
+      } as never,
+      select: { userId: true, name: true, fastingExclusions: true, fastingSospesoIl: true } as never,
+    })) as unknown as {
+      userId: string; name: string | null;
+      fastingExclusions: RisposteDigiuno | null; fastingSospesoIl: Date | null;
+    }[];
+    const motivi: string[] = [];
+    let sospese = 0;
+    let falliti = 0;
+    for (const p of profili) {
+      /**
+       * ⛔ **Un errore su una cliente non ferma le altre** (revisione, 5/9): il ciclo sotto — il
+       * piano graduale — ha il suo try/catch e conta i falliti da sempre; questo non ce l'aveva, e
+       * una `update` andata giù avrebbe fatto saltare **tutto** il passo notturno del digiuno,
+       * sospensioni e adattamenti insieme.
+       */
+      try {
+        const esito = vaSospesoSubito({ risposte: p.fastingExclusions ?? null });
+        if (!esito) continue;
+        sospese += 1;
+        motivi.push(`${p.name ?? p.userId}: ${esito.motivi.join(', ')}`);
+        /**
+         * ⛔ **`orologioAzzerato()`, non tre colonne a mano** (revisione, 5/9). `uscita-dal-digiuno.ts`
+         * esiste proprio perché quattro porte scrivevano queste sette colonne per conto loro e tre
+         * divergevano: questa era la quinta, e ne azzerava tre su sette. Lo stato che lasciava è
+         * quello che quel file chiama il peggiore — finestra vuota, protocollo e orario ancora
+         * scritti, e `fastingSceltoIl` sopravvissuto, cioè la pagina dell'orologio che non si
+         * riapre il giorno che la nutrizionista la rimette a digiuno.
+         */
+        await this.prisma.clientProfile.update({
+          where: { userId: p.userId },
+          data: {
+            pathType: 'classic3',
+            ...orologioAzzerato(),
+            fastingSospesoIl: new Date(),
+            fastingSospesoPerche: esito.frase,
+          } as never,
+        });
+        /**
+         * ⛔ **E la base personale va rifatta** (revisione, 5/9). `pathType` e `fastingWindow` sono
+         * due dei campi di `CAMPI_CHE_CAMBIANO_LA_BASE`: senza questo, la cliente si sveglia
+         * «giornata piena» con il pool costruito su pranzo-merenda-cena, cioè riceve una giornata
+         * senza colazione — la protezione l'avrebbe lasciata in uno stato peggiore di prima.
+         * ⚠️ Non bloccante e non muta, come nell'altra porta che fa la stessa cosa.
+         */
+        try {
+          await this.personalBase?.buildPersonalBase(p.userId);
+        } catch (e) {
+          this.logger.warn(`Base personale non rifatta dopo la sospensione di ${p.userId}: ${e instanceof Error ? e.message : String(e)}.`);
+        }
+        /**
+         * ⚠️ **Il dedup guarda il MOTIVO, non la categoria**: con quello standard una qualunque
+         * clinica già aperta (un'allergia, un calo rapido) avrebbe zittito proprio l'avviso che dice
+         * che a questa cliente abbiamo cambiato il percorso stanotte.
+         */
+        const aperta = await apriSegnalazione(this.prisma as never, {
+          clientId: p.userId,
+          category: 'clinical',
+          reason: esito.frase,
+          source: 'engine',
+          dedupe: false,
+        });
+        if (!aperta) {
+          this.logger.warn(`Digiuno sospeso per ${p.userId} ma la segnalazione NON è stata aperta: avvisare a mano.`);
+        }
+        await this.audit.log({
+          action: 'digiuno.sospeso_per_controindicazione',
+          entityType: 'client_profile',
+          entityId: p.userId,
+          metadata: { motivi: esito.motivi, segnalazione: aperta ? 'aperta' : 'non aperta' },
+        });
+        this.logger.warn(`Digiuno sospeso per ${p.userId}: ${esito.motivi.join(', ')}.`);
+      } catch (e) {
+        falliti += 1;
+        this.logger.error(`Sospensione del digiuno fallita per ${p.userId}: ${e instanceof Error ? e.message : String(e)}.`);
+      }
+    }
+    return { guardate: profili.length, sospese, falliti, motivi };
+  }
+
+  async passoNotturnoDigiuno(): Promise<{ guardati: number; protocolliApplicati: number; passiFatti: number; arrivate: number; falliti: number; sospese?: number }> {
+    /**
+     * ⛔ **PRIMA la sospensione, poi l'adattamento graduale**, e l'ordine non è di stile: avvicinare
+     * di un'ora la finestra di una cliente che stanotte esce dal digiuno vuol dire scriverle un
+     * orario che domattina non vale più — e la riga nel registro racconterebbe due cose in conflitto.
+     */
+    const controindicate = await this.sospendiDigiuniControindicati();
     const passo = await this.passoGraduale();
     const profili = (await this.prisma.clientProfile.findMany({
       where: {
@@ -1192,7 +1310,7 @@ export class ProfileService {
         console.error(`[digiuno] passo notturno fallito per ${p.userId}:`, e);
       }
     }
-    return { guardati: profili.length, protocolliApplicati, passiFatti, arrivate, falliti };
+    return { guardati: profili.length, protocolliApplicati, passiFatti, arrivate, falliti, sospese: controindicate.sospese };
   }
 
   /**

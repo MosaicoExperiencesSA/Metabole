@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { coppiaDellaGiornata, scartaLeCoppieGiaViste } from './coppia-pranzo-cena';
+import { scartaChiRipeteUnPiatto } from './piatti-doppi-nella-giornata';
 
 /** Ricetta candidata per uno slot, con i dati che servono alla composizione. */
 export interface RecipeInfo {
@@ -70,6 +71,8 @@ export interface EsitoComposizione {
    * errore: l'alternativa sarebbe stata non comporre.
    */
   coppiaRipetuta: boolean;
+  /** ⚠️ Vero quando l'unica giornata componibile ripete un piatto: si compone lo stesso, e si dice. */
+  piattoRipetuto: boolean;
   /**
    * ⚠️ Vero se il tetto della carne era esaurito e si è dovuta comporre una giornata con carne lo
    * stesso, perché dentro la banda kcal non ne restava nessuna senza. Una regola alimentare
@@ -166,7 +169,19 @@ export class DayComboService {
     const coppiaDelCombo = (c: Combo): string | null =>
       coppiaDellaGiornata(slots.map((slot, i) => ({ slot, recipeId: c.picks[i].id })));
     const suCoppie = scartaLeCoppieGiaViste(valid, coppiaDelCombo, input.coppieGiaViste ?? new Set());
-    valid = suCoppie.restano;
+    /**
+     * ⛔ **LO STESSO PIATTO IN DUE PASTI DELLA STESSA GIORNATA** (5/9). Dalla Fase 2 spuntino e
+     * merenda pescano dallo stesso pool — giusto, una merenda deve poter servire lo spuntino — ma da
+     * lì in poi niente vietava che la stessa ricetta finisse in tutti e due, e la cliente la legge
+     * in due righe della stessa giornata. Misurato il 4/9: 1 su 66 giornate a rischio (1,5%), sotto
+     * la soglia del 5% che manda alla guardia a valle invece che al vincolo nel cartesiano.
+     * ⚠️ Il giudizio sta in `piatti-doppi-nella-giornata.ts`, insieme al conto che l'ha misurato.
+     */
+    const senzaDoppioni = scartaChiRipeteUnPiatto(
+      suCoppie.restano,
+      (c: Combo) => slots.map((slot, i) => ({ slot, recipeId: c.picks[i].id })),
+    );
+    valid = senzaDoppioni.restano;
 
     /**
      * ⚠️ **LA REGOLA FLEXITARIANA** (decisione di Simone, 1/9: due volte a settimana). Sta qui,
@@ -206,6 +221,7 @@ export class DayComboService {
       tolleranzaUsata: usata,
       allargataDi: Math.max(0, usata - tolerancePct),
       coppiaRipetuta: suCoppie.ripiegato,
+      piattoRipetuto: senzaDoppioni.ripiegato,
       carneOltreIlTetto,
     };
   }

@@ -92,13 +92,19 @@ describe('⚠️ ogni proposta produce DAVVERO la finestra a cui è appesa', () 
    * Fino ad allora questo test tiene il numero **scritto**: *niente tagli silenziosi, se si scarta
    * qualcosa si dice quanto.* Il giorno che qualcuno cambia le tendine, qui si deve passare.
    */
-  it('⛔ quante finestre ancora scegliibili l\'orologio non sa riprodurre: TRE, in attesa di decisione', () => {
+  it('✅ quante finestre ancora scegliibili l\'orologio non sa riprodurre: ZERO, dal 5/9', () => {
+    /**
+     * ⛔ **La decisione è stata presa, e il numero l'ha resa facile.** Le tre — «salta la cena»,
+     * «salta colazione e pranzo», «salta cena e colazione» — sono uscite dalle tendine il 5/9,
+     * perché `diag:digiuni` su TUTTI i percorsi ha detto **zero profili** su tutte e tre: toglierle
+     * non toglie niente a nessuna, e chiude la segnalazione che partiva a Lucia per una scelta
+     * fatta cinque minuti prima. ⚠️ Restano leggibili in tabella: `selezionabile: false`, non
+     * cancellate.
+     */
     const scegliibiliSenzaProposta = VALORI_FINESTRA_SELEZIONABILI
       .filter((v) => !PROPOSTE_DA_FINESTRA_STORICA[v])
       .sort();
-    expect(scegliibiliSenzaProposta).toEqual(
-      ['skip_breakfast_lunch', 'skip_dinner', 'skip_dinner_breakfast'],
-    );
+    expect(scegliibiliSenzaProposta).toEqual([]);
     // E l'unica che l'orologio riproduce fra quelle scegliibili è il 16:8 classico.
     expect(VALORI_FINESTRA_SELEZIONABILI.filter((v) => PROPOSTE_DA_FINESTRA_STORICA[v])).toEqual(['skip_breakfast']);
   });

@@ -149,6 +149,13 @@ const CONFIG_PARAMS: SeedParam[] = [
       'Finché è acceso, chi finisce il questionario SENZA una nutrizionista sul lead viene presa in carico dal capo nutrizionista. Serve perché con una sola nutrizionista l\'assegnazione a mano non è una decisione: è un passaggio che qualche volta salta, e la cliente resta senza nessuno che risponda di lei (il caso Sonia, 21/8). Si spegne quando le nutrizioniste diventano più d\'una e distribuire i pazienti torna a essere una scelta.',
   },
   {
+    key: 'weight_jump_alert_kg',
+    value: '4',
+    type: 'number',
+    description:
+      'Salto di peso che fa scattare una segnalazione clinica, in chili fra due pesate consecutive. Deciso dalla nutrizionista responsabile il 5/9 («salto improvviso > 4 kg»), insieme al ritmo di 1,5 kg a settimana che sta in «max_weight_change_alert_kg_week». ⚠️ Non è la soglia delle pesate impossibili (10 kg + 7 kg/settimana): quella decide se fidarsi del numero per il fabbisogno, questa se avvisare una persona.',
+  },
+  {
     key: 'agente_alimenti_acceso',
     value: 'false',
     type: 'string',

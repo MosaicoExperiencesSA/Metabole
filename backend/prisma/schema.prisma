@@ -476,6 +476,18 @@ model ClientProfile {
   // finestra tradotta a tavolino era il pezzo più rischioso della consegna, e la loro risposta
   // costa meno del nostro indovinare.
   fastingSceltoIl        DateTime?  @map("fasting_scelto_il")
+  /**
+   * ⛔ **LE TRE DOMANDE DI ESCLUSIONE DAL DIGIUNO** (Lucia, 5/9): disturbi del comportamento
+   * alimentare, gravidanza o allattamento, terapia ipoglicemizzante o diabete di tipo 1. Forma:
+   * `{ dca: bool, gravidanza: bool, ipoglicemizzanti: bool }` — il giudizio sta in
+   * `menu/digiuno-si-puo.ts`, qui c'è solo il dato.
+   * ⚠️ NULL = **non gliel'abbiamo chiesto**, che è diverso da «ha risposto no»: senza risposte il
+   * digiuno non si propone, ma una cliente che già digiuna non si sospende su un dato mancante.
+   */
+  fastingExclusions      Json?      @map("fasting_exclusions")
+  /** Quando il digiuno è stato sospeso d'ufficio per una controindicazione, e perché. */
+  fastingSospesoIl       DateTime?  @map("fasting_sospeso_il")
+  fastingSospesoPerche   String?    @map("fasting_sospeso_perche")
   // QUOTA PROTEICA MINIMA DI QUESTA CLIENTE (14/8, terza frase dell'azione 3: «rifai con più
   // proteine»). Frazione 0–1, come `menu_daycombo_protein_min` della dieta, su cui vince — e vince
   // SOLO sul minimo: il massimo resta della dieta. NULL = vale la banda della sua dieta.

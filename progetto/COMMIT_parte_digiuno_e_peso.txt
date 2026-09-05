@@ -1,0 +1,110 @@
+Il digiuno pubblicato, l'allarme sul salto di peso, e il piatto doppio
+
+Simone, 5/9 sera: «ok io stacco chiudi tutto». Tre voci chiuse su otto, e tutte
+e tre erano ferme non per il codice ma per una decisione che è arrivata:
+il documento firmato dalla nutrizionista responsabile
+(progetto/guide/Risposte_Cliniche_Lucia_2026-09-05.pdf) e i tre tabulati letti
+in produzione.
+
+I TRE NUMERI DEL DIGIUNO, LETTI
+
+- 9 clienti in digiuno, tutte con i pasti che la loro finestra promette;
+- catalogo completo: 12/12 settimane su tutte le varianti, zero unità di lavoro;
+- nessuna giornata sotto il fabbisogno su 96 erogate.
+
+E il numero che aspettavamo dal 22/8: `skip_dinner`, `skip_breakfast_lunch`,
+`skip_dinner_breakfast` — le tre finestre che l'orologio non sa disegnare — hanno
+ZERO profili su tutti i percorsi. Escono dalle tendine (`selezionabile: false`,
+la riga resta leggibile perché un valore scritto in passato si deve poter
+leggere), e con loro sparisce la segnalazione che partiva a Lucia per una scelta
+fatta cinque minuti prima. Da oggi la sola finestra scegliibile è «salta la
+colazione», e una prova lo tiene fermo.
+
+LE QUATTRO DECISIONI DI LUCIA, NEL CODICE
+
+1. Controindicazione emersa a digiuno già in corso → SOSPENSIONE IMMEDIATA.
+   `profile.service.sospendiDigiuniControindicati()`, primo passo del giro
+   notturno: la cliente torna alla giornata piena, l'orologio si azzera tutto
+   (`orologioAzzerato()`, sette colonne), la base personale si rifà, resta
+   scritto in scheda cosa è successo e quando, e parte una segnalazione clinica
+   che arriva a coach E nutrizionista. Rimetterla a digiuno è una decisione di
+   una persona, mai di questo giro.
+2. BMI minimo 18,5 e le tre domande di esclusione (DCA, gravidanza o
+   allattamento, ipoglicemizzanti o diabete T1): giudizio in
+   `menu/digiuno-si-puo.ts` con 15 prove, colonna `fastingExclusions`
+   (tri-stato: assente = non chiesto, false = ha risposto no, true = esclusa),
+   caselle nella scheda cliente dietro il permesso «Cambia finestra del digiuno»,
+   controllato anche lato server.
+3. Nomi dei pasti per fascia oraria — MA solo dove la fascia coincide con lo
+   slot servito. Alle 08:15 con la finestra 08:00–16:00 il motore serve uno slot
+   `lunch`, cioè un pranzo: chiamarlo «Colazione» sarebbe la stessa frase falsa
+   per cui questa funzione è nata («Pranzo alle 08:15»), solo specchiata. Alle
+   12:15 un `lunch` è un pranzo e si chiama Pranzo.
+4. Quote per pasto: RESTANO .45/.10/.45. Il manuale propone 36·16·48 (la cena
+   diventa il pasto più grande) e Lucia lo ha scartato. Adesso il numero
+   scartato è scritto accanto a quello in uso, con una prova, perché chi rilegge
+   il manuale non «corregga» il codice.
+
+L'ALLARME SUL SALTO DI PESO (decisione 5 e 6)
+
+«Ritmo di calo oltre 1,5 kg/settimana per due settimane consecutive O salto
+improvviso oltre 4 kg». La prima metà c'era già (`max_weight_change_alert_kg_week`,
+default 1,5, su quattordici giorni). La seconda è `signals/salto-di-peso.ts`: il
+calo più grosso fra due pesate CONSECUTIVE su novanta giorni — la finestra larga
+serve, perché un salto attraverso una sospensione ha per definizione un buco in
+mezzo. Venti chili in venticinque giorni adesso suonano. Soglia in Parametri.
+
+⚠️ Il guardrail dei dati sporchi (10 kg E 7 kg/settimana) non si tocca: quello
+decide se fidarsi del numero per calcolare il fabbisogno, questo se avvisare una
+persona. Confonderli azzererebbe il fabbisogno di chiunque cali quattro chili.
+
+Sui destinatari (decisione 6, «entrambe le figure»): era già così, e adesso è
+verificato — `decidiDestinatari` notifica coach e nutrizionista assegnate;
+`primary` dice solo chi la prende in carico.
+
+IL PIATTO DOPPIO SPUNTINO/MERENDA
+
+Il numero l'aveva già deciso: 1 doppione su 66 giornate a rischio (1,5%), sotto
+la soglia del 5% che manda alla guardia a valle invece che al vincolo dentro il
+prodotto cartesiano. `scartaChiRipeteUnPiatto` scarta le combinazioni che
+ripetono un piatto; se non ne resta nessuna le tiene tutte E LO DICE nei log —
+quel ripiego è il numero su cui a fine settembre si deciderà se serve anche il
+vincolo.
+
+LA REVISIONE AVVERSARIALE HA TROVATO DICIOTTO COSE, TRE GRAVI
+
+E le tre gravi erano tutte della stessa specie: la protezione non proteggeva.
+
+- `fastingExclusions` non era dichiarato in `UpdateClientDto`, e questa API ha
+  `forbidNonWhitelisted: true`. La nutrizionista spuntava la casella, prendeva
+  400, il `catch` della pagina scriveva «Salvataggio non riuscito» e NESSUNA
+  sospensione sarebbe mai partita. Il DTO racconta questa trappola venti righe
+  sopra, a proposito di `fastingWindow`.
+- La sospensione azzerava tre colonne dell'orologio su sette — quello che
+  `uscita-dal-digiuno.ts` chiama lo stato peggiore, con `fastingSceltoIl`
+  sopravvissuto — e non rifaceva la base personale: la cliente si sarebbe
+  svegliata «giornata piena» col pool del digiuno, cioè senza colazione.
+- Sospendeva anche sul BMI, calcolato su una pesata che nessuno ha verificato:
+  chi digita 48 invece di 68 si vedeva cambiare percorso quella notte, senza
+  gesto inverso. E la decisione di Lucia sul sottopeso sta nei criteri di
+  ELIGIBILITÀ: parla di non proporre, non di togliere. Il BMI resta in
+  `digiunoSiPuoProporre`, dove costa una proposta in meno.
+
+Corretti anche: dedup per MOTIVO invece che per categoria su tutte e due le
+segnalazioni nuove (col dedup standard una qualunque clinica aperta le zittiva —
+ed è il difetto che gli altri due controlli dello stesso file avevano già
+pagato); audit scritto solo se la segnalazione è nata davvero; try/catch per
+cliente, perché un errore su una non fermi il passo notturno di tutte;
+perimetro ai soli piani in corso; permesso controllato lato server e non solo
+nella pagina; tri-stato delle caselle (togliendo la spunta si torna a «non
+chiesto», non a «ha risposto no»); `piattoRipetuto` che adesso qualcuno legge.
+
+⚠️ E una cosa che NON è ancora vera, scritta anche nella voce: il filtro in
+INGRESSO (BMI + tre domande) è scritto e provato ma non lo chiama ancora
+nessuno — il questionario continua a offrire il digiuno a chiunque. Oggi
+protegge la sospensione, non la proposta. Una nota di consegna che dichiara
+chiusa una protezione inesistente è peggio della protezione mancante.
+
+Mutazioni: BMI che sospende → 2 rosse; fasce orarie spente → 3 rosse; soglia del
+salto irraggiungibile → 3 rosse. Suite backend 7955 verdi, backoffice 304, build
+verdi.

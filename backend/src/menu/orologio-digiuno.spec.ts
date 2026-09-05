@@ -326,3 +326,35 @@ describe('coerenza fra le due tabelle', () => {
     }
   });
 });
+
+describe('etichettaPasto con le fasce orarie — Lucia, 5/9', () => {
+  /**
+   * ⛔ **LA FASCIA VALE SOLO SE LO SLOT COINCIDE** (revisione, 5/9). Alle 08:15 con la finestra
+   * 08:00–16:00 il motore serve uno slot `lunch`, cioè un pranzo: chiamarlo «Colazione» sarebbe la
+   * frase falsa specchiata — promettere un pasto diverso da quello nel piatto.
+   */
+  it('⛔ il pasto delle 08:15 NON si chiama Colazione se quello che servi è un pranzo', () => {
+    expect(etichettaPasto(0, 3, 'lunch', 8 * 60 + 15)).toBe('Primo pasto');
+    // …ma una colazione vera alle 08:15 sì.
+    expect(etichettaPasto(0, 3, 'breakfast', 8 * 60 + 15)).toBe('Colazione');
+  });
+
+  it('✅ con la finestra classica i nomi sono quelli veri: 12:15 Pranzo, 19:30 Cena', () => {
+    expect(etichettaPasto(0, 3, 'lunch', 12 * 60 + 15)).toBe('Pranzo');
+    expect(etichettaPasto(2, 3, 'dinner', 19 * 60 + 30)).toBe('Cena');
+  });
+
+  it('⚠️ fuori dalle fasce si torna alla posizione: un pasto alle 11 non è né colazione né pranzo', () => {
+    expect(etichettaPasto(0, 3, 'lunch', 11 * 60)).toBe('Primo pasto');
+    expect(etichettaPasto(0, 1, 'dinner', 17 * 60)).toBe('Il tuo pasto');
+  });
+
+  it('⚠️ senza l\'ora si comporta come prima: nessuna regressione per chi non la passa', () => {
+    expect(etichettaPasto(0, 3, 'lunch')).toBe('Primo pasto');
+    expect(etichettaPasto(2, 3, 'dinner')).toBe('Ultimo pasto');
+  });
+
+  it('⚠️ uno spuntino resta Spuntino a qualunque ora', () => {
+    expect(etichettaPasto(1, 4, 'afternoon_snack', 12 * 60 + 30)).toBe('Spuntino');
+  });
+});

@@ -20,6 +20,55 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **Il digiuno intermittente è pubblicato: i tre numeri, le quattro conferme di Lucia,
+  e le finestre morte tolte dalle tendine.** I numeri, letti in produzione: **9 clienti** in digiuno
+  tutte coi pasti giusti; **catalogo completo** (12/12 settimane su tutte le varianti); **nessuna
+  giornata sotto il fabbisogno** su 96 erogate. E il numero che aspettavamo dal 22/8: le tre finestre
+  che l'orologio non sa disegnare — «salta la cena», «colazione e pranzo», «cena e colazione» — hanno
+  **zero profili**, quindi escono dalle tendine (restano leggibili in tabella) e con loro sparisce la
+  segnalazione che partiva a Lucia per una scelta fatta cinque minuti prima.
+  Le decisioni cliniche (documento firmato in `progetto/guide/Risposte_Cliniche_Lucia_2026-09-05.pdf`):
+  **sospensione immediata** di chi dichiara una controindicazione a digiuno già in corso — giro
+  notturno che riporta alla giornata piena, azzera **tutto** l'orologio (`orologioAzzerato()`), rifà
+  la base personale, scrive in scheda perché, e apre una segnalazione a coach **e** nutrizionista;
+  **BMI 18,5 e le tre domande di esclusione** (DCA, gravidanza/allattamento, ipoglicemizzanti o
+  diabete T1) in `menu/digiuno-si-puo.ts`, con la colonna `fastingExclusions` e le caselle in scheda;
+  **nomi dei pasti per fascia oraria**, ma solo dove la fascia coincide con lo slot servito — alle
+  08:15 il motore serve un pranzo, e chiamarlo «Colazione» sarebbe la stessa frase falsa al
+  contrario; **quote 45-10-45 confermate**, il 36·16·48 del manuale è stato scartato da Lucia e ora
+  il numero scartato è scritto accanto a quello in uso, con una prova.
+  ⚠️ **Cosa NON è ancora vero, detto**: il filtro in ingresso (BMI + tre domande) è scritto e provato
+  ma non lo chiama ancora nessuno — il questionario continua a offrire il digiuno a chiunque. Oggi
+  protegge la sospensione, non la proposta.
+
+- `[Sviluppo]` ✅ **L'allarme sul salto di peso, e la soglia clinica che mancava da agosto.** Lucia:
+  «ritmo di calo oltre 1,5 kg/settimana per due settimane **o salto improvviso oltre 4 kg**». La prima
+  metà c'era; la seconda è `signals/salto-di-peso.ts` — il calo più grosso fra due pesate consecutive
+  su novanta giorni, perché un salto attraverso una sospensione ha per definizione un buco in mezzo.
+  Venti chili in venticinque giorni adesso suonano. Soglia in Parametri (`weight_jump_alert_kg`).
+  ⚠️ Il guardrail dei dati sporchi (10 kg **e** 7 kg/settimana) non si tocca: quello decide se fidarsi
+  del numero per il fabbisogno, questo se avvisare una persona.
+
+- `[Sviluppo]` ✅ **Lo stesso piatto allo spuntino e alla merenda: la guardia a valle.** Il numero
+  l'aveva già deciso (1 doppione su 66 giornate a rischio, 1,5%, sotto la soglia del 5%):
+  `scartaChiRipeteUnPiatto` toglie dalle combinazioni quelle che ripetono un piatto, e se non ne
+  resta nessuna le tiene tutte **dicendolo** nei log — quel ripiego è il numero su cui a fine
+  settembre si deciderà se serve anche il vincolo dentro la composizione.
+
+- `[Sviluppo]` ⛔ **La revisione avversariale ha trovato diciotto cose, tre gravi, e le tre gravi
+  erano tutte «la protezione non protegge».** (1) `fastingExclusions` non era dichiarato nel DTO e
+  l'API ha `forbidNonWhitelisted`: la nutrizionista spuntava la casella, prendeva 400, il `catch`
+  scriveva «salvataggio non riuscito» e **nessuna sospensione sarebbe mai partita**. (2) La
+  sospensione azzerava tre colonne dell'orologio su sette — lo stato che `uscita-dal-digiuno.ts`
+  chiama il peggiore — e non rifaceva la base personale: la cliente si sarebbe svegliata «giornata
+  piena» col pool del digiuno, cioè senza colazione. (3) Sospendeva anche sul **BMI**, calcolato su
+  una pesata che nessuno ha verificato: chi digita 48 invece di 68 si vedeva cambiare percorso senza
+  gesto inverso — e la decisione di Lucia sul sottopeso parla di **proporre**, non di togliere.
+  Corretti anche: dedup per motivo invece che per categoria su tutte e due le segnalazioni nuove
+  (col dedup standard una qualunque clinica aperta le zittiva), audit scritto solo se la segnalazione
+  è nata davvero, try/catch per cliente, perimetro ai soli piani in corso, permesso controllato lato
+  server e non solo nella pagina, tri-stato delle tre caselle (assente ≠ «ha risposto no»).
+
 - `[Sviluppo]` ⛔ **LE RISPOSTE SCRITTE IN PAGINA NON LE HO MAI LETTE, e adesso c'è il comando.**
   Simone: «mi stai dicendo che hai perso la risposta di Lucia?». Non persa: **mai letta**. Le voci di
   lavoro vivono in due posti — il file `voci-iniziali.ts` (la domanda) e la tabella `lavoro` (lo stato

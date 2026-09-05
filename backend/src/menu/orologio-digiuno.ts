@@ -272,8 +272,55 @@ export function derivaDaOrologio(
  *
  * ⛔ I nomi esatti li conferma la nutrizionista: stanno tutti in questa funzione apposta.
  */
-export function etichettaPasto(indice: number, totale: number, slot: SlotPasto): string {
-  if (slot === 'morning_snack' || slot === 'afternoon_snack') return 'Spuntino';
+/**
+ * ⛔ **LE FASCE ORARIE DECISE DALLA NUTRIZIONISTA** (Lucia, 5/9, scheda 7 punto 4): *«mappare i
+ * pasti in base all'orario solare: Colazione (07-10), Pranzo (12-15), Merenda/Cena adattati»*.
+ *
+ * ⚠️ Sono **fasce**, non istanti: un pasto alle 11:00 non è né colazione né pranzo, e in quel caso
+ * si torna al nome per posizione («Primo pasto»), che è vero sempre. Inventare «Pranzo» per un pasto
+ * delle 11 sarebbe rifare il difetto al contrario.
+ */
+export const FASCE_ORARIE: { nome: string; daMin: number; aMin: number }[] = [
+  { nome: 'Colazione', daMin: 7 * 60, aMin: 10 * 60 },
+  { nome: 'Pranzo', daMin: 12 * 60, aMin: 15 * 60 },
+  { nome: 'Cena', daMin: 19 * 60, aMin: 22 * 60 },
+];
+
+/** Il nome della fascia in cui cade quell'ora, se ce n'è una. */
+export const fasciaDellOra = (oraMin: number): string | null =>
+  FASCE_ORARIE.find((f) => oraMin >= f.daMin && oraMin <= f.aMin)?.nome ?? null;
+
+/**
+ * ⛔ **QUALE SLOT PUÒ PORTARE QUEL NOME.** Trovato dalla revisione avversariale del 5/9, ed è la
+ * frase falsa **specchiata**: con la finestra 08:00–16:00 il pasto delle 08:15 è uno slot `lunch`,
+ * e il motore ci serve un **pranzo** preso dal catalogo digiuno. Chiamarlo «Colazione» perché
+ * l'orologio segna le otto vorrebbe dire promettere un pasto che non è quello nel piatto — cioè
+ * rifare dall'altro verso l'errore per cui questa funzione è nata («Pranzo alle 08:15»).
+ *
+ * ⚠️ Quindi la fascia oraria di Lucia si applica **solo dove coincide con lo slot servito**: alle
+ * 12:15 un `lunch` è un pranzo e si chiama «Pranzo»; alle 08:15 lo stesso `lunch` non è una
+ * colazione, e si torna al nome per posizione, che è vero sempre.
+ */
+const SLOT_DELLA_FASCIA: Record<string, SlotPasto> = { Colazione: 'breakfast', Pranzo: 'lunch', Cena: 'dinner' };
+
+export function etichettaPasto(indice: number, totale: number, slot: SlotPasto, oraMin?: number): string {
+  if (slot === 'morning_snack' || slot === 'afternoon_snack') {
+    /**
+     * ⚠️ Uno spuntino resta «Spuntino» a qualunque ora: la fascia serve a non dare a un pasto il
+     * nome di un altro, e «Merenda» lo decide la posizione nella giornata, non l'orologio.
+     */
+    return 'Spuntino';
+  }
+  /**
+   * ⛔ **La fascia oraria viene PRIMA della posizione** (Lucia, 5/9). Con la finestra 12:00-20:00 il
+   * pasto delle 12:15 si chiama «Pranzo» e quello delle 19:30 «Cena», che è come li chiama chi li
+   * mangia. Con la finestra 08:00-16:00 il pasto delle 08:15 cade nella fascia della colazione e si
+   * chiama «Colazione» — mai «Pranzo», che era la frase falsa da cui è nata questa funzione.
+   */
+  if (oraMin !== undefined) {
+    const fascia = fasciaDellOra(oraMin);
+    if (fascia && SLOT_DELLA_FASCIA[fascia] === slot) return fascia;
+  }
   if (totale === 1) return 'Il tuo pasto';
   if (indice === 0) return 'Primo pasto';
   if (indice === totale - 1) return 'Ultimo pasto';

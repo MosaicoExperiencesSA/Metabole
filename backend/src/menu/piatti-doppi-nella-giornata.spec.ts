@@ -1,8 +1,7 @@
 import {
   GIORNATE_MINIME, QUOTA_CHE_CAMBIA_LA_STRADA, aRischioGemelli, contaDoppioni,
   doppioniDellaGiornata, doveCorreggere, type PastoLetto,
-  laStoriaEFinita, giorniDiEsercizioCheMancano,
-} from './piatti-doppi-nella-giornata';
+  laStoriaEFinita, giorniDiEsercizioCheMancano, scartaChiRipeteUnPiatto } from './piatti-doppi-nella-giornata';
 
 const p = (slot: string, recipeId: string, name = `Piatto ${recipeId}`): PastoLetto => ({ slot, recipeId, name });
 
@@ -435,5 +434,37 @@ describe('quando la storia è finita', () => {
   it('niente stima se non c\'è niente su cui stimare', () => {
     expect(giorniDiEsercizioCheMancano(0, 46)).toBeNull();
     expect(giorniDiEsercizioCheMancano(10, 0)).toBeNull();
+  });
+});
+
+describe('scartaChiRipeteUnPiatto — la guardia a valle (5/9)', () => {
+  const g = (...coppie: [string, string][]) => coppie.map(([slot, recipeId]) => ({ slot, recipeId }));
+  const pulita = g(['lunch', 'p1'], ['afternoon_snack', 's1']);
+  const doppia = g(['morning_snack', 's1'], ['afternoon_snack', 's1']);
+
+  it('⛔ scarta la combinazione che ripete lo stesso piatto in due pasti', () => {
+    const out = scartaChiRipeteUnPiatto([pulita, doppia], (c) => c);
+    expect(out.restano).toEqual([pulita]);
+    expect(out.ripiegato).toBe(false);
+  });
+
+  it('⛔ IL RIPIEGO: se restassero zero combinazioni si tengono tutte, e si dice', () => {
+    const out = scartaChiRipeteUnPiatto([doppia], (c) => c);
+    expect(out.restano).toEqual([doppia]);
+    expect(out.ripiegato).toBe(true);
+  });
+
+  it('⚠️ elenco vuoto: niente da dire, e non è un ripiego', () => {
+    expect(scartaChiRipeteUnPiatto([], (c: typeof pulita) => c)).toEqual({ restano: [], ripiegato: false });
+  });
+
+  it('⛔ e con una combinazione sola che ripete, «ripiegato» dice il vero: è il caso in cui la serviamo per forza', () => {
+    expect(scartaChiRipeteUnPiatto([doppia], (c) => c).ripiegato).toBe(true);
+  });
+
+  it('⚠️ vale anche fra pasti che NON sono gemelli: pranzo e cena con lo stesso piatto si scartano', () => {
+    const pranzoCena = g(['lunch', 'x1'], ['dinner', 'x1']);
+    const out = scartaChiRipeteUnPiatto([pranzoCena, pulita], (c) => c);
+    expect(out.restano).toEqual([pulita]);
   });
 });

@@ -102,10 +102,17 @@ describe('le tendine dei due frontend dicono quello che dice la tabella', () => 
     expect(existsSync(PROFILO)).toBe(true);
   });
 
-  it('⛔ scegliibili: quattro, e si dicono per nome', () => {
-    expect([...VALORI_FINESTRA_SELEZIONABILI].sort()).toEqual([
-      'skip_breakfast', 'skip_breakfast_lunch', 'skip_dinner', 'skip_dinner_breakfast',
-    ]);
+  /**
+   * ⛔ **UNA SOLA, dal 5/9**, e il numero è quello che aspettavamo dal 22/8. Le altre tre —
+   * `skip_dinner`, `skip_breakfast_lunch`, `skip_dinner_breakfast` — l'orologio non sa disegnarle:
+   * chi le sceglieva si vedeva aprire una pagina vuota e faceva partire una segnalazione a Lucia
+   * per una scelta fatta cinque minuti prima. La voce teneva in vista la decisione — «o escono
+   * dalle tendine, o la segnalazione va ristretta» — con una condizione sola: che non le usasse
+   * nessuno. `diag:digiuni` del 5/9, su TUTTI i percorsi: zero profili su tutte e tre.
+   * ⚠️ Restano **leggibili** (la riga in tabella non si tocca): non sono cancellate, non si scelgono.
+   */
+  it('⛔ scegliibile: UNA, e si dice per nome', () => {
+    expect([...VALORI_FINESTRA_SELEZIONABILI].sort()).toEqual(['skip_breakfast']);
   });
 
   /**
@@ -290,9 +297,10 @@ describe('⛔ le due ragioni per cui una finestra non si sceglie non sono la ste
     .filter((f) => !f.selezionabile && !finestreRaggiungibili().includes(f.valore))
     .map((f) => f.valore);
 
-  it('sono tre derivate e una ritirata, non quattro uguali', () => {
+  it('sono tre derivate e QUATTRO ritirate (5/9), non sette uguali', () => {
     expect(derivate.sort()).toEqual(['skip_all_but_dinner', 'skip_breakfast_and_snacks', 'skip_morning_snack']);
-    expect(ritirate).toEqual(['skip_lunch']);
+    // ⚠️ `skip_lunch` dal 21/8 (non è un digiuno); le altre tre dal 5/9 (l'orologio non le disegna).
+    expect(ritirate.sort()).toEqual(['skip_breakfast_lunch', 'skip_dinner', 'skip_dinner_breakfast', 'skip_lunch']);
   });
 
   /**

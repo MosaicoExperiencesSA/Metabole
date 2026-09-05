@@ -108,7 +108,16 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     pastoPrincipale: 'pranzo',
     primoPasto: 'colazione',
     unicoPasto: false,
-    selezionabile: true,
+    /**
+     * ⛔ **RITIRATA il 5/9, e il numero è quello che aspettavamo.** Era la finestra del caso Sonia:
+     * l'orologio non sa disegnarla, quindi chi la sceglieva si vedeva aprire una pagina vuota e
+     * faceva partire una segnalazione a Lucia **per una scelta fatta cinque minuti prima**. La voce
+     * teneva la decisione in vista — «o escono dalle tendine, o la segnalazione va ristretta» — e la
+     * condizione per decidere era una sola: che non la stesse usando nessuno. `diag:digiuni` del
+     * 5/9, su **tutti** i percorsi e non solo su chi digiuna: **zero profili**.
+     * ⚠️ La riga resta, come `skip_lunch`: un valore scritto in passato si deve ancora poter leggere.
+     */
+    selezionabile: false,
   },
   {
     valore: 'skip_lunch',
@@ -141,7 +150,8 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     pastoPrincipale: 'cena',
     primoPasto: 'merenda',
     unicoPasto: true,
-    selezionabile: true,
+    /** ⛔ Ritirata il 5/9 con `skip_dinner`, stesso motivo e stesso numero: zero profili. */
+    selezionabile: false,
   },
   {
     valore: 'skip_dinner_breakfast',
@@ -152,7 +162,8 @@ export const FINESTRE_DIGIUNO: FinestraDigiuno[] = [
     pastoPrincipale: 'pranzo',
     primoPasto: 'pranzo',
     unicoPasto: true,
-    selezionabile: true,
+    /** ⛔ Ritirata il 5/9 con `skip_dinner`, stesso motivo e stesso numero: zero profili. */
+    selezionabile: false,
   },
   /*
    * ─── LE TRE RIGHE CHE NASCONO DALL'OROLOGIO (21/8) ───────────────────────────────────────────

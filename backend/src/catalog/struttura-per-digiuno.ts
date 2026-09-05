@@ -23,6 +23,16 @@
  * mentre nel catalogo digiuno valgono .45 + .10 + .45 = 100% (`quoteKcalPerSlot`,
  * `engine-rules.service.ts`).
  *
+ * ## ⛔ LE QUOTE RESTANO .45 / .10 / .45 — decisione di Lucia del 5/9, non una dimenticanza
+ *
+ * Il manuale clinico del digiuno propone **36 · 16 · 48** (pranzo · merenda · cena), che è un'altra
+ * forma di giornata: con il 48% **la cena diventa il pasto più grande**. La domanda è stata posta
+ * alla nutrizionista responsabile insieme alle altre tre, e la casella barrata è **«Standard
+ * Attuale (45 - 10 - 45)»** — `progetto/guide/Risposte_Cliniche_Lucia_2026-09-05.pdf`, scheda 7
+ * punto 3. ⚠️ Chiunque rilegga il manuale trova quel 36·16·48 e pensa che il codice sia indietro:
+ * non lo è, ed è per questo che il numero scartato è scritto qui accanto a quello in uso. Una prova
+ * (`menu/digiuno-si-puo.spec.ts`) tiene fermo il fatto che questa pagina lo dica.
+ *
  * Quindi: **il catalogo digiuno vince quando contiene tutti i pasti che la finestra promette**, ed è
  * il catalogo a 5 pasti a raccoglierlo quando non li contiene. Finestra per finestra viene da sé —
  * e questa è la ragione per cui la regola non è un elenco di finestre scritto a mano:

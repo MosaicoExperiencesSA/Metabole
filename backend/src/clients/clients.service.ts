@@ -1052,6 +1052,46 @@ export class ClientsService {
     for (const k of PROFILE_FIELDS) if (d[k] !== undefined) profileData[k] = d[k] === '' ? null : d[k];
 
     /**
+     * ⛔ **LE TRE DOMANDE DI ESCLUSIONE DAL DIGIUNO** (Lucia, 5/9). Non stanno in `PROFILE_FIELDS`
+     * perché non sono un campo da copiare: sono tre booleani con un significato clinico, e quello
+     * che arriva dalla scheda si **normalizza** — `true` solo il vero `true`, mai una stringa. Una
+     * casella spuntata per sbaglio a `'false'` (stringa, che in JavaScript è vera) toglierebbe il
+     * digiuno a una cliente stanotte, senza che nessuno abbia deciso niente.
+     * ⚠️ E si scrive solo quello che è arrivato: le tre chiavi restano indipendenti, così la
+     * nutrizionista può registrarne una senza rispondere per le altre due.
+     */
+    if (d.fastingExclusions !== undefined) {
+      /**
+       * ⛔ **E IL PERMESSO SI CONTROLLA QUI, NON SOLO NELLA PAGINA** (revisione, 5/9). La scheda
+       * disabilita le caselle senza `change_fasting_window`, ma questa rotta non ha `@RequirePage`:
+       * chiunque possa aprire una scheda — la coach — poteva mandare il campo e togliere il digiuno
+       * a una cliente stanotte. È la stessa forma del controllo sulle allergie duecento righe sotto,
+       * e per la stessa ragione: *«un'allergia è un blocco duro»*, e questa lo è ancora di più,
+       * perché agisce da sola mentre nessuno guarda.
+       */
+      const attoreDigiuno = (await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } })) as { role: string } | null;
+      if (!(await this.roleCanManage(attoreDigiuno?.role ?? '', 'change_fasting_window'))) {
+        throw new ForbiddenException(
+          'Registrare un\'esclusione clinica dal digiuno richiede il permesso "Cambia finestra del digiuno": '
+          + 'una spunta qui sospende il percorso della cliente stanotte.',
+        );
+      }
+      const arrivate = (d.fastingExclusions ?? {}) as Record<string, unknown>;
+      const pulite: Record<string, boolean> = {};
+      /**
+       * ⚠️ **Tre stati, non due** (revisione, 5/9): NULL = «non gliel'abbiamo chiesto», `false` =
+       * «ha risposto no», `true` = esclusa. Una chiave che arriva **assente** resta assente, così
+       * togliendo una spunta messa per sbaglio si torna a «non chiesto» invece di scrivere un «no»
+       * che nessuno ha detto — ed è il motivo per cui la pagina, quando si toglie la spunta, manda
+       * l'oggetto **senza** quella chiave.
+       */
+      for (const k of ['dca', 'gravidanza', 'ipoglicemizzanti']) {
+        if (arrivate[k] !== undefined) pulite[k] = arrivate[k] === true;
+      }
+      profileData.fastingExclusions = Object.keys(pulite).length ? pulite : null;
+    }
+
+    /**
      * ⚠️ I GUSTI SCRITTI DALLA SCHEDA PASSAVANO DIRITTI IN BANCA DATI — quarta volta per la stessa
      * riga (`latte` l'8/8, `frutta_a_guscio` il 12/8, `"Carne .ceci"` il 17/8).
      *

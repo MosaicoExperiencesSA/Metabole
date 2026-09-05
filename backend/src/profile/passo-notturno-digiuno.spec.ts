@@ -27,9 +27,16 @@ function creaServizio(profili: Profilo[]) {
   };
   const prisma: any = {
     clientProfile: {
-      findMany: jest.fn().mockResolvedValue(profili),
+      /**
+       * ⚠️ **Due letture, non una** (5/9): il giro notturno prima cerca le controindicazioni su
+       * TUTTE le clienti a digiuno (`where.pathType`), poi i bersagli dell'adattamento graduale.
+       * Il finto risponde con i profili solo alla seconda: qui nessuno è controindicato, e la
+       * sospensione ha le sue prove in `digiuno-si-puo.spec.ts` e in `sospensione-digiuno.spec.ts`.
+       */
+      findMany: jest.fn(async (a: any) => (a?.where?.OR ? profili : [])),
       update: tx.clientProfile.update,
     },
+    measurement: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn(async (fn: any) => fn(tx)),
   };
   const service = new ProfileService(
@@ -134,8 +141,19 @@ describe('quello che non si tocca, e quello che non ferma il giro', () => {
     const esito = await service.passoNotturnoDigiuno();
     expect(esito.guardati).toBe(0);
     expect(scritture).toHaveLength(0);
-    // ⚠️ La query chiede solo chi ha qualcosa da fare: il giro non legge tutte le clienti.
-    expect(prisma.clientProfile.findMany.mock.calls[0][0].where.OR).toHaveLength(2);
+    /**
+     * ⚠️ La query dell'ADATTAMENTO chiede solo chi ha qualcosa da fare: il giro non legge tutte le
+     * clienti per spostare un orario. ⛔ La **prima** query invece le legge tutte, ed è voluto: le
+     * controindicazioni si guardano su chiunque digiuni, non solo su chi ha un cambio in corso.
+     */
+    const query = prisma.clientProfile.findMany.mock.calls.map((c: any[]) => c[0]);
+    /**
+     * ⚠️ La prima legge chi digiuna **e ha un piano in corso** (revisione 5/9: una cliente uscita a
+     * marzo non deve prendersi una modifica di profilo stanotte); la seconda solo chi ha un
+     * bersaglio da avvicinare.
+     */
+    expect(query[0].where).toMatchObject({ pathType: 'intermittent_fasting', user: expect.anything() });
+    expect(query[1].where.OR).toHaveLength(2);
   });
 
   /**

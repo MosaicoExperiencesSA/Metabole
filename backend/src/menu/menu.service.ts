@@ -1397,6 +1397,8 @@ export class MenuService {
       ? await this.coppieRecenti(clientId, firstNewDate, coppiaGiorni)
       : new Set<string>();
     let coppieRipetute = 0;
+    /** ⚠️ Il ripiego della guardia sui piatti doppi (5/9): la giornata che ripete un piatto perché non ce n'erano altre. */
+    let piattiRipetuti = 0;
     /**
      * ⚠️ Le giornate in cui la carne è già arrivata, come **numero di giorni dall'epoca**: così le
      * giornate già servite e quelle che sto componendo adesso stanno sulla stessa scala e la
@@ -1488,6 +1490,7 @@ export class MenuService {
         chosen = esito?.giornata ?? null;
         allargataDi = esito?.allargataDi ?? 0;
         if (esito?.coppiaRipetuta) coppieRipetute += 1;
+        if (esito?.piattoRipetuto) piattiRipetuti += 1;
         if (esito?.carneOltreIlTetto) giornateOltreIlTetto += 1;
         if (allargataDi > 0) {
           giornateAllargate += 1;
@@ -1923,6 +1926,19 @@ export class MenuService {
         `Varietà: per ${clientId} ${coppieRipetute} giornata/e composte con una coppia pranzo/cena già servita `
         + `negli ultimi ${coppiaGiorni} giorni — dentro la banda kcal non ne restavano di nuove. `
         + 'Il pool di questa dieta è stretto: si guarda con `npm run diag:coppie`.',
+      );
+    }
+    /**
+     * ⛔ **E IL PIATTO RIPETUTO SI DICE** (revisione, 5/9). La guardia scarta le giornate che
+     * ripetono lo stesso piatto in due pasti, ma se non ne resta nessuna le tiene — e senza questa
+     * riga quel ripiego sarebbe invisibile, cioè il numero su cui a fine settembre si decide se
+     * serve anche il vincolo dentro la composizione non lo saprebbe nessuno.
+     */
+    if (piattiRipetuti > 0) {
+      this.logger.warn(
+        `Varietà: per ${clientId} ${piattiRipetuti} giornata/e composte con lo STESSO piatto in due pasti — `
+        + 'dentro la banda kcal non restavano combinazioni senza doppioni. Il pool di questa cliente è stretto '
+        + '(molte esclusioni, o paniere magro): si guarda con `npm run diag:piatto-doppio`.',
       );
     }
     if (giornateAllargate > 0) {

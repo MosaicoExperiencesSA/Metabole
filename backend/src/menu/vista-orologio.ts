@@ -170,7 +170,8 @@ export function vistaOrologio(
         slot: pasto.slot,
         oraMin: pasto.oraMin,
         ora: oraDelGiorno(pasto.oraMin),
-        etichetta: etichettaPasto(i, tutti.length, pasto.slot),
+        // ⛔ L'ora entra nell'etichetta (Lucia, 5/9): il pasto delle 08:15 si chiama «Colazione».
+        etichetta: etichettaPasto(i, tutti.length, pasto.slot, pasto.oraMin),
       })),
     };
 

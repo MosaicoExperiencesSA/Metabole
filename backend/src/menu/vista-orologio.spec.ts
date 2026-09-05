@@ -80,9 +80,19 @@ describe('com\'è messa adesso', () => {
     const pasti = v.attuale!.pasti;
     expect(pasti.map((p) => p.slot)).toEqual(['lunch', 'afternoon_snack', 'dinner']);
     expect(pasti[0].ora).toBe('08:15');
+    /**
+     * ⛔ **Dal 5/9 il nome viene dalla FASCIA ORARIA** (decisione di Lucia): le 08:15 stanno nella
+     * fascia della colazione (07-10), e «Colazione» è come lo chiama chi lo mangia. ⚠️ La frase
+     * falsa che questa prova sorveglia resta la stessa — «Pranzo alle 08:15» — e infatti sotto si
+     * chiede che nessun pasto prenda il nome di un altro rispetto alla propria ora.
+     */
+    /**
+     * ⛔ Alle 08:15 il motore serve uno slot `lunch`: il nome resta quello per posizione, perché
+     * «Colazione» prometterebbe un pasto che non è quello servito (revisione del 5/9). Nessuna
+     * etichetta nomina un pasto della giornata diverso da quello che c'è nel piatto.
+     */
     expect(pasti[0].etichetta).toBe('Primo pasto');
     expect(pasti[2].etichetta).toBe('Ultimo pasto');
-    // ⚠️ E nessuna etichetta nomina un pasto della giornata: sarebbe la frase falsa.
     for (const p of pasti) expect(p.etichetta).not.toMatch(/Pranzo|Cena|Colazione/);
   });
 
@@ -93,7 +103,8 @@ describe('com\'è messa adesso', () => {
       fastingSceltoIl: new Date(),
     }));
     expect(v.attuale!.pasti).toHaveLength(1);
-    expect(v.attuale!.pasti[0].etichetta).toBe('Il tuo pasto');
+    // ⚠️ Le 19:15 stanno nella fascia della cena E lo slot servito è `dinner`: il nome vero vince.
+    expect(v.attuale!.pasti[0].etichetta).toBe('Cena');
   });
 
   it('una finestra che scavalca la mezzanotte ha la chiusura del giorno dopo, e si vede', () => {

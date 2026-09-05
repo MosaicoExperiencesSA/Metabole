@@ -299,3 +299,38 @@ export function giorniDiEsercizioCheMancano(
   if (aRischio <= 0 || giorniCoperti <= 0) return null;
   return Math.ceil((minime - aRischio) / (aRischio / giorniCoperti));
 }
+
+/**
+ * ⛔ **LA GUARDIA: una combinazione che ripete lo stesso piatto in due pasti si scarta.**
+ *
+ * Scritta il 5/9, con il numero davanti. Misurato il 4/9 su tutte le giornate che esistono (46
+ * giorni, 219 giornate, 66 con spuntino **e** merenda): **un doppione solo**, «Tonno in olio con
+ * maionese» il 3/9 — l'1,5%, cioè sotto la soglia del 5% che questo file dichiara. E la soglia dice
+ * esattamente cosa fare sotto: *«una guardia a valle costa meno di un vincolo dentro il prodotto
+ * cartesiano, che ne moltiplica le combinazioni da scartare»*. Questa è quella guardia.
+ *
+ * ⚠️ **Il ripiego è la metà che conta**, ed è lo stesso di `scartaLeCoppieGiaViste`: se togliendo i
+ * doppioni non resta **nessuna** combinazione, si tengono tutte e si dice. Una cliente con molte
+ * esclusioni può avere un pool in cui l'unica giornata componibile ripete un piatto: meglio un
+ * piatto ripetuto che nessun menu — e il contrario sarebbe una regola di stile che toglie il pranzo.
+ *
+ * ⚠️ **Non sostituisce il conteggio**: se a fine settembre `diag:piatto-doppio` dà sopra il 5% sui
+ * gemelli, il vincolo va messo **dentro** la composizione, dove si generano le combinazioni. Questa
+ * guardia resta comunque, perché è l'ultima riga di difesa e non costa niente.
+ */
+export function scartaChiRipeteUnPiatto<T>(
+  candidati: readonly T[],
+  pastiDi: (c: T) => readonly PastoLetto[],
+): { restano: T[]; ripiegato: boolean } {
+  /**
+   * ⚠️ **Niente scorciatoia sul candidato unico.** La prima stesura usciva subito con `ripiegato:
+   * false` quando la combinazione era una sola: rispondeva «tutto a posto» proprio nel caso in cui
+   * la giornata col piatto ripetuto la stiamo servendo per forza. Il campo che lo dice deve dire
+   * il vero anche — soprattutto — lì.
+   */
+  if (!candidati.length) return { restano: [], ripiegato: false };
+  const restano = candidati.filter((c) => doppioniDellaGiornata(pastiDi(c)).length === 0);
+  return restano.length > 0
+    ? { restano, ripiegato: false }
+    : { restano: [...candidati], ripiegato: true };
+}

@@ -8,6 +8,7 @@ import { decidiRiapertura } from '../escalations/riapertura';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
 import { avanzamentoPeso, FINESTRA_MASSIMA } from './percentuale-obiettivo';
+import { SALTO_ALLARME_KG_DEFAULT, saltoDiPeso, spiegaSaltoDiPeso } from './salto-di-peso';
 import {
   CreateCheckinDto,
   CreateMeasurementDto,
@@ -34,7 +35,7 @@ import {
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { eUnitaAcqua } from '../common/unita-acqua';
-import { toDateOnly } from '../common/date-only';
+import { giornoItaliano, toDateOnly } from '../common/date-only';
 import { bicchieriObiettivo } from '../common/obiettivo-acqua';
 import { obiettivoPassi } from '../common/obiettivo-passi';
 import { MenuService } from '../menu/menu.service';
@@ -151,6 +152,11 @@ export class SignalsService {
 
     const newMilestones = pesoIncoerente ? [] : await this.evaluateMilestones(clientId);
     const alert = await this.checkRapidLossGuardrail(clientId);
+    /**
+     * ⚠️ I due controlli sono indipendenti: la regola di Lucia dice «ritmo **O** salto». ⛔ Tutti e
+     * due però tacciono su una pesata incoerente, che è la terza cosa e ha la sua segnalazione.
+     */
+    await this.checkSaltoDiPeso(clientId, !!pesoIncoerente).catch(() => undefined);
     await this.checkNoProgress(clientId).catch(() => undefined);
     await this.maybeTrackTrialMeasures(clientId).catch(() => undefined);
 
@@ -268,6 +274,7 @@ export class SignalsService {
     });
     if (!pesoIncoerente) await this.evaluateMilestones(clientId).catch(() => undefined);
     await this.checkRapidLossGuardrail(clientId).catch(() => undefined);
+    await this.checkSaltoDiPeso(clientId, !!(await this.controllaPesoIncoerente(clientId).catch(() => null))).catch(() => undefined);
     await this.menu.deliverIfEligible(clientId).catch(() => undefined);
     // ⚠️ Esce anche di qui: è la rotta con cui la cliente corregge la pesata di oggi, cioè il
     // momento in cui un refuso si ripara da solo — e l'asimmetria con l'altra porta non avrebbe
@@ -509,6 +516,87 @@ export class SignalsService {
    * max_weight_change_alert_kg_week, apre un'escalation verso il nutrizionista
    * assegnato (una sola aperta per volta).
    */
+  /**
+   * ⛔ **IL SALTO IMPROVVISO OLTRE 4 KG** — seconda metà della regola di Lucia (5/9): *«ritmo calo
+   * > 1.5 kg/settimana per 2+ settimane consecutive **O salto improvviso > 4 kg**»*. La prima metà
+   * è `checkRapidLossGuardrail` qui sotto, che c'era già con la soglia giusta; questa mancava, ed è
+   * il caso che la voce `pesate-lontane-buco-del-ritmo` chiedeva da agosto — chi sospende, sta ferma
+   * venticinque giorni e torna con venti chili in meno.
+   *
+   * ⚠️ **La finestra è più larga di quella del ritmo** (novanta giorni contro quattordici), e deve
+   * esserlo: un salto attraverso una sospensione ha per definizione un buco in mezzo, e cercarlo in
+   * due settimane vorrebbe dire non trovarlo mai. È la stessa finestra del fabbisogno
+   * (`FINESTRA_GIORNI`), così le due letture guardano lo stesso pezzo di storia.
+   *
+   * ⚠️ **La segnalazione arriva a tutte e due le figure**, come ha chiesto Lucia (punto 6): non
+   * serve niente di speciale — `decidiDestinatari` notifica la coach **e** la nutrizionista
+   * assegnate, ed è `primary` a dire solo chi la prende in carico.
+   */
+  private async checkSaltoDiPeso(clientId: string, pesoIncoerente: boolean): Promise<boolean> {
+    /**
+     * ⛔ **SU UNA PESATA CHE NON STA IN PIEDI NON SI DICE NIENTE** (revisione, 5/9). È la stessa
+     * regola del calo rapido venti righe sotto: una cliente che digita 48 invece di 68 ha un
+     * «salto» di venti chili, e la frase «−20 kg fra il 3 e il 5 settembre» sarebbe una frase
+     * **falsa su un corpo**. Chi deve saperlo lo sa già dalla segnalazione «Pesate incoerenti».
+     */
+    if (pesoIncoerente) return false;
+    const [soglia, finestraRiapertura] = await Promise.all([
+      this.configParams.getNumber('weight_jump_alert_kg', SALTO_ALLARME_KG_DEFAULT),
+      this.configParams.getNumber('escalation_reopen_days', 14),
+    ]);
+    const da = new Date(Date.now() - FINESTRA_GIORNI * 86_400_000);
+    const pesate = (await this.prisma.measurement.findMany({
+      where: { clientId, date: { gte: da } },
+      orderBy: { date: 'desc' },
+      take: FINESTRA_MASSIMA,
+      select: { date: true, weightKg: true },
+    })) as { date: Date; weightKg: number }[];
+    const salto = saltoDiPeso(pesate, soglia);
+    if (!salto) return false;
+    /**
+     * ⛔ **IL DEDUP GUARDA IL MOTIVO, NON LA CATEGORIA** — corretto in revisione il 5/9, ed è lo
+     * stesso difetto che gli altri due controlli di questo file avevano già pagato. Col dedup
+     * standard bastava una qualunque clinica aperta — un'allergia, il calo rapido che gira tre
+     * righe prima — per **zittire** proprio la segnalazione che dice le due date e i chili. Sul caso
+     * di punta (venti chili al rientro) il calo rapido apre per primo, e questa non nasceva mai.
+     * ⚠️ E la tregua è quella configurata (`escalation_reopen_days`), non il default nascosto dentro
+     * `apriSegnalazione`: senza, lo stesso salto — che resta nella finestra di novanta giorni —
+     * riapriva una segnalazione identica ogni quattordici giorni per tre mesi.
+     */
+    const decisione = await decidiRiapertura(this.prisma as never, {
+      clientId,
+      motivoContiene: 'Salto di peso',
+      gravita: salto.persi,
+      finestraGiorni: finestraRiapertura,
+      peggioramentoMinimo: 0,
+    });
+    if (!decisione.apri) {
+      this.logger.log(`Salto di peso per ${clientId}: non riaperta — ${decisione.motivo}`);
+      return true;
+    }
+    const aperta = await apriSegnalazione(this.prisma as never, {
+      clientId,
+      category: 'clinical',
+      reason: spiegaSaltoDiPeso(salto, giornoItaliano),
+      source: 'engine',
+      gravita: salto.persi,
+      dedupe: false,
+    });
+    /** ⛔ Se non è nata, l'audit non deve dire che è nata: `apriSegnalazione` ritorna `null` e non lancia. */
+    if (!aperta) {
+      this.logger.warn(`Salto di peso per ${clientId}: la segnalazione NON è stata aperta — −${salto.persi} kg.`);
+      return true;
+    }
+    await this.audit.log({
+      action: 'signals.weight_jump_alert',
+      actorId: clientId,
+      entityType: 'escalation',
+      metadata: { persi: salto.persi, giorni: salto.giorni, soglia },
+    });
+    this.logger.warn(`Salto di peso per ${clientId}: −${salto.persi} kg in ${salto.giorni} giorni.`);
+    return true;
+  }
+
   private async checkRapidLossGuardrail(clientId: string): Promise<boolean> {
     const [threshold, minGiorniRiarmo, minPesateRiarmo] = await Promise.all([
       this.configParams.getNumber('max_weight_change_alert_kg_week', 1.5),

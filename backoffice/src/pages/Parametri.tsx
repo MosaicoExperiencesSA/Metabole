@@ -149,6 +149,12 @@ const META: Record<string, Meta> = {
   },
 
   // L'AGENTE ALIMENTI: allergeni e valori nutrizionali cercati in rete (Simone, 5/9).
+  // L'ALLARME SUL SALTO DI PESO — deciso dalla nutrizionista responsabile il 5/9.
+  weight_jump_alert_kg: {
+    label: 'Salto di peso che fa scattare un allarme', group: 'Motore · ritmo e sicurezza', kind: 'number', unit: 'kg',
+    help: 'Chili persi fra due pesate consecutive che aprono una segnalazione clinica a coach e nutrizionista. Deciso da Lucia il 5/9 («salto improvviso oltre 4 kg»), insieme al ritmo di 1,5 kg a settimana che sta nella casella del calo rapido. ⚠️ Non è la soglia delle pesate impossibili (10 kg): quella decide se fidarsi del numero per calcolare il fabbisogno, questa se avvisare una persona. Il caso che copre: chi sospende, sta ferma un mese e torna con venti chili in meno.',
+  },
+
   agente_alimenti_acceso: {
     label: 'Agente alimenti (allergeni e valori dalla rete)', group: 'AI', kind: 'toggle',
     help: 'Di notte prende i nomi di ingrediente che le ricette usano e la tabella alimenti non ha, cerca in rete allergeni e valori per 100 g con la fonte, e scrive la riga. La riga vale SUBITO — Gaia la cita e le ricette con quell’ingrediente prendono i tag allergene la notte stessa — e resta nella coda «da confermare» di Valori nutrizionali, con la fonte accanto. Ogni alimento è una chiamata all’AI con ricerche in rete, che si pagano a parte.',

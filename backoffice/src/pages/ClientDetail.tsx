@@ -885,6 +885,8 @@ export function ClientDetail() {
   const vedeSospensioni = can('travel_mode', 'view');
   // Le allergie: si vedono sempre, si correggono col permesso «Modifica allergie» (13/8).
   const puoAllergie = can('change_allergies', 'manage');
+  /** ⚠️ Le esclusioni cliniche dal digiuno le registra chi può cambiare la finestra: è la stessa materia. */
+  const puoDigiuno = can('change_fasting_window', 'manage');
   // Il via libera clinico: lo dà chi ha «Idoneità a proseguire» (13/8).
   const puoIdoneita = can('clinical_clearance', 'manage');
 
@@ -1178,6 +1180,32 @@ export function ClientDetail() {
       setError(err instanceof Error ? err.message : 'Invio del report non riuscito.');
     } finally {
       setSendingReport(false);
+    }
+  }
+
+  /**
+   * ⛔ **Le tre esclusioni cliniche dal digiuno** (Lucia, 5/9): si salvano una alla volta, appena
+   * spuntate. ⚠️ Nessun pulsante «Salva» intermedio: una casella clinica lasciata spuntata ma non
+   * salvata è la forma peggiore — chi l'ha messa crede di aver protetto qualcuno.
+   */
+  async function salvaEsclusioneDigiuno(chiave: 'dca' | 'gravidanza' | 'ipoglicemizzanti', valore: boolean) {
+    try {
+      /**
+       * ⛔ **TRE STATI, NON DUE** (revisione, 5/9): assente = «non gliel'abbiamo chiesto», `false` =
+       * «ha risposto no», `true` = esclusa. Togliendo una spunta si **toglie la chiave**, così una
+       * casella messa per sbaglio torna a «non chiesto» invece di scrivere un «no» che nessuno ha
+       * detto — e che renderebbe quella cliente idonea al digiuno per il resto della sua storia.
+       */
+      const attuali = { ...((d?.profile?.fastingExclusions ?? {}) as Record<string, boolean>) };
+      if (valore) attuali[chiave] = true;
+      else delete attuali[chiave];
+      await api(`/clients/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fastingExclusions: attuali }),
+      });
+      await loadDetail();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Salvataggio non riuscito.');
     }
   }
 
@@ -2013,6 +2041,50 @@ export function ClientDetail() {
                     ⚠️ mai chiesta — intanto riceve tutti i pasti della dieta
                   </span>
                 )
+              }
+            />
+          )}
+          {/*
+            ⛔ **LE TRE DOMANDE DI ESCLUSIONE DAL DIGIUNO** — decisione di Lucia del 5/9. Stanno in
+            scheda e non solo nel questionario perché la nutrizionista le può registrare quando le
+            emergono parlando con la cliente, che è come emergono davvero. ⚠️ Una spunta qui
+            SOSPENDE il digiuno stanotte: la frase sotto le caselle lo dice prima, non dopo.
+          */}
+          {p.pathType === 'intermittent_fasting' && (
+            <Row
+              label="Esclusioni cliniche dal digiuno"
+              value={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {([
+                    ['dca', 'Disturbi del comportamento alimentare (storici o attivi)'],
+                    ['gravidanza', 'Gravidanza o allattamento'],
+                    ['ipoglicemizzanti', 'Terapia ipoglicemizzante o diabete di tipo 1'],
+                  ] as const).map(([chiave, testo]) => (
+                    <label key={chiave} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        disabled={!puoDigiuno}
+                        checked={p.fastingExclusions?.[chiave] === true}
+                        onChange={(e) => void salvaEsclusioneDigiuno(chiave, e.target.checked)}
+                      />
+                      <span>{testo}</span>
+                    </label>
+                  ))}
+                  <div className="muted" style={{ fontSize: 11.5 }}>
+                    Una sola spunta sospende il digiuno stanotte e riporta la cliente alla giornata piena,
+                    con una segnalazione clinica. Rimetterla a digiuno è una decisione tua.
+                  </div>
+                </div>
+              }
+            />
+          )}
+          {p.fastingSospesoIl && (
+            <Row
+              label="Digiuno sospeso"
+              value={
+                <span style={{ color: '#9A5B12' }}>
+                  {new Date(p.fastingSospesoIl).toLocaleDateString('it-IT')} — {p.fastingSospesoPerche}
+                </span>
               }
             />
           )}
