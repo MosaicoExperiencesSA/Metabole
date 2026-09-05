@@ -1,0 +1,55 @@
+────────────────────────────────────────────────────────────────────────────
+ Il vocabolario degli allergeni: prima la misura
+ 5 settembre 2026
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI. ⚠️ SOLA LETTURA: non cambia nessun comportamento.
+
+Summary
+───────
+Diagnostica: cosa non conosce il vocabolario degli allergeni, e quanto divergono tag ed esclusioni
+
+Description
+───────────
+La voce del 4/9 (taleggio, robiola, fontina non sono latte; seppie non sono
+molluschi) diceva: si allarga misurando prima, con la sua consegna. Questa è
+la misura.
+
+`npm run diag:vocabolario-allergeni`, sola lettura, giudizio in
+`catalog/vocabolario-allergeni.ts` con le sue prove. Quattro conti:
+1. le parole candidate (taleggio, robiola, crescenza, fontina, asiago,
+   emmental, caciotta, skyr, philadelphia, scamorza, burrata, provola,
+   squacquerone, quark, montasio, groviera, gouda, latticello, caseina…;
+   seppie, capasante, frutti di mare, lumache, fasolari, telline,
+   cannolicchi; canocchie, cicale di mare, granseola): quante ricette le hanno
+   in un ingrediente e NON portano il tag — i piatti che oggi arrivano a chi ha
+   dichiarato quell'allergia;
+2. le forme «senza ‹allergene›» («pasta senza glutine», «gluten free», «senza
+   uova»…) che portano il tag lo stesso, SEPARANDO quelle in cui il tag viene
+   comunque da un altro ingrediente (pasta senza glutine + pangrattato: il tag
+   è giusto). Il numero che conta è la differenza. «senza lattosio» non è una
+   forma, apposta;
+3. quanto divergono i due vocabolari — `EU_ALLERGENS` (i tag) e
+   `INTOLERANCE_MAP` (le esclusioni);
+4. quanto costerebbe unificarli: per ogni parola solo nelle esclusioni, le
+   ricette che la hanno senza il tag.
+
+⛔ MISURATO SUL CODICE, e la divergenza è più grossa di taleggio e seppie: sul
+PESCE i tag conoscono 15 parole e le esclusioni 67 — cernia, spigola,
+dentice, sardine, bottarga, sushi. Una ricetta con la cernia oggi non porta il
+tag `pesce`: la porta delle esclusioni la toglie, quella dei tag (la base
+personale di chi ha allergie) no. E i vocabolari sono TRE: `piatto-di-cosa.ts`
+ha il suo per carne e pesce.
+
+⚠️ «edam» NON è fra i candidati: sta dentro «edamame», che è soia — una radice
+corta dentro una parola lunga è il difetto di «grana».
+
+Verificato
+──────────
+· `catalog/vocabolario-allergeni`: 8 prove; `npm run build` verde
+
+Cosa resta
+──────────
+· Lanciare `npm run diag:vocabolario-allergeni` sui dati veri. Con i numeri:
+  unificare i vocabolari (uno solo da cui tag ed esclusioni leggono) e
+  riparare i tag mancanti — aggiungere, mai togliere.

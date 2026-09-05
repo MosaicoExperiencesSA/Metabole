@@ -20,6 +20,17 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **Il vocabolario degli allergeni: lo strumento che lo misura prima di allargarlo.**
+  `npm run diag:vocabolario-allergeni` (sola lettura, giudizio in `catalog/vocabolario-allergeni.ts`
+  con 8 prove): le parole candidate (taleggio, robiola, fontina… seppie, frutti di mare) con quante
+  ricette le hanno **senza il tag**; le forme «senza ‹allergene›» col tag lo stesso, separando
+  quelle in cui il tag viene da un altro ingrediente; e quanto divergono i due vocabolari.
+  ⛔ **Misurato sul codice, e la divergenza è più grossa di taleggio**: sul pesce i tag conoscono
+  15 parole, le esclusioni 67 (cernia, spigola, dentice, sardine, bottarga…) — una ricetta con la
+  cernia non porta il tag `pesce`, e i vocabolari sono tre (`piatto-di-cosa.ts` ha il suo). Con i
+  numeri si decide l'unificazione e la riparazione dei tag mancanti. ⚠️ «edam» escluso dai
+  candidati: sta dentro «edamame».
+
 - `[Sviluppo]` ✅ **Elenco lavori riletto con Simone: undici voci chiuse, tredici restano.** Quattro
   erano **già fatte il 4/9 dall'altra sessione** e l'elenco non lo diceva (colazioni con carne e
   pesce — pulizia eseguita e tre porte chiuse, `ad7272d`; ricetta nuova dal menu a mano,

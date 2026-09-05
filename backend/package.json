@@ -39,6 +39,7 @@
     "diag:pasti-disallineati": "ts-node --transpile-only prisma/diag-pasti-disallineati.ts",
     "diag:commerciale-e-coach": "ts-node --transpile-only prisma/diag-commerciale-e-coach.ts",
     "diag:vegani-con-latte-e-uova": "ts-node --transpile-only prisma/diag-vegani-con-latte-e-uova.ts",
+    "diag:vocabolario-allergeni": "ts-node --transpile-only prisma/diag-vocabolario-allergeni.ts",
     "diag:salvataggi-scheda": "ts-node --transpile-only prisma/diag-salvataggi-scheda.ts",
     "fix:varieta": "ts-node --transpile-only prisma/fix-varieta-menu.ts",
     "diag:rigenera": "ts-node --transpile-only prisma/diag-rigenera-menu.ts",
