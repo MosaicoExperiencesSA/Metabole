@@ -47,7 +47,14 @@ describe('gli elenchi degli alimenti da correggere', () => {
        * finto che manca fa esplodere il controller; uno che risponde `null` è il caso vero di un
        * passo mai girato, che la pagina deve saper raccontare.
        */
-      auditLog: { findFirst: jest.fn().mockResolvedValue({ createdAt: new Date('2026-08-25T03:12:00.000Z') }) },
+      /**
+       * ⚠️ `findMany` aggiunta il 5/9: l'elenco porta anche l'ultimo tentativo dell'agente alimenti
+       * su ogni termine (perché è stato bocciato). Vuota = nessun tentativo, cioè l'elenco di prima.
+       */
+      auditLog: {
+        findFirst: jest.fn().mockResolvedValue({ createdAt: new Date('2026-08-25T03:12:00.000Z') }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       ...over,
     };
     return { prisma, controller: new NutrientFactsController(prisma, { log: jest.fn() } as never, passoFinto() as never) };
@@ -142,7 +149,7 @@ describe('gli elenchi degli alimenti da correggere', () => {
    * esattamente il modo in cui il 21/8 un elenco di ventiquattr'ore è sembrato vivo.
    */
   it('⛔ se il passo non è mai girato torna null, non una data finta', async () => {
-    const { controller } = crea({ auditLog: { findFirst: jest.fn().mockResolvedValue(null) } });
+    const { controller } = crea({ auditLog: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) } });
     expect(((await controller.mancanti()) as any).aggiornatoIl).toBeNull();
   });
 
@@ -176,6 +183,93 @@ describe('gli elenchi degli alimenti da correggere', () => {
   });
 
   /**
+   * ⛔ **CHI LAVORA LA LISTA DEVE SAPERE CHE L'AGENTE CI HA GIÀ PROVATO, E COM'È ANDATA** (5/9).
+   * Un termine bocciato dall'agente resta nell'elenco identico a uno mai guardato: senza il motivo,
+   * la nutrizionista rifà a mano la stessa ricerca che stanotte è finita senza fonte — o peggio, non
+   * sa che «non è un alimento» è un giudizio dell'AI e non un dato mancante.
+   */
+  describe('gli scarti dell\'agente, attaccati alle righe', () => {
+    const tentativi = (righe: { entityId: string; esito: string; motivo?: string; quando?: string }[]) => ({
+      auditLog: {
+        findFirst: jest.fn().mockResolvedValue({ createdAt: new Date('2026-08-25T03:12:00.000Z') }),
+        findMany: jest.fn().mockResolvedValue(righe.map((r) => ({
+          entityId: r.entityId,
+          createdAt: new Date(r.quando ?? '2026-09-04T03:10:00.000Z'),
+          metadata: { esito: r.esito, motivo: r.motivo, dettaglio: 'CREA non risponde' },
+        }))),
+      },
+    });
+
+    it('⛔ la riga che l\'agente ha bocciato porta esito, motivo e quando', async () => {
+      const { controller } = crea(tentativi([{ entityId: 'r0', esito: 'scartata', motivo: 'senza_fonte' }]));
+      const r = (await controller.mancanti()) as any;
+      expect(r.daRicette.righe[0]).toMatchObject({
+        id: 'r0',
+        agente: { esito: 'scartata', motivo: 'senza_fonte', dettaglio: 'CREA non risponde' },
+      });
+      expect(r.daRicette.righe[0].agente.quando).toBe('2026-09-04T03:10:00.000Z');
+    });
+
+    it('⚠️ le righe che l\'agente non ha mai guardato restano esattamente com\'erano', async () => {
+      const { controller } = crea(tentativi([{ entityId: 'r0', esito: 'scartata', motivo: 'senza_fonte' }]));
+      const r = (await controller.mancanti()) as any;
+      expect(r.daRicette.righe[1].agente).toBeUndefined();
+    });
+
+    it('⚠️ vale anche per l\'elenco delle chieste in chat, non solo per quello dalle ricette', async () => {
+      const { controller } = crea(tentativi([{ entityId: 'c3', esito: 'non_alimento' }]));
+      const r = (await controller.mancanti()) as any;
+      expect(r.chieste.righe[3]).toMatchObject({ id: 'c3', agente: { esito: 'non_alimento' } });
+    });
+
+    /**
+     * ⛔ **L'ULTIMO tentativo, non il primo.** Il registro arriva dal più recente: se la pagina
+     * mostrasse il più vecchio, un termine riprovato e bocciato per un motivo nuovo continuerebbe a
+     * raccontare quello di un mese fa.
+     */
+    it('⛔ di un termine provato due volte si dice l\'ultimo giro, anche se il registro arriva alla rovescia', async () => {
+      // ⚠️ Il più VECCHIO per primo, apposta: fidarsi dell'`orderBy` della query non basta a saperlo.
+      const { controller } = crea(tentativi([
+        { entityId: 'r0', esito: 'scartata', motivo: 'senza_fonte', quando: '2026-08-01T03:10:00.000Z' },
+        { entityId: 'r0', esito: 'scartata', motivo: 'kcal_incoerenti', quando: '2026-09-04T03:10:00.000Z' },
+      ]));
+      const r = (await controller.mancanti()) as any;
+      expect(r.daRicette.righe[0].agente.motivo).toBe('kcal_incoerenti');
+    });
+
+    /**
+     * ⛔ **GLI SCARTI SI CHIEDONO PER GLI ID CHE SONO IN ELENCO**, non a finestra: la memoria che
+     * blocca l'agente su un «non è un alimento» dura un anno, e cinquecento righe di registro
+     * possono coprire meno di un mese — sparirebbe dalla pagina proprio lo scarto che nessuno
+     * ricorda più.
+     */
+    it('⛔ la domanda al registro nomina gli id in elenco, e non prende una finestra qualsiasi', async () => {
+      const { prisma, controller } = crea(tentativi([]));
+      await controller.mancanti();
+      const dove = prisma.auditLog.findMany.mock.calls[0][0].where;
+      expect(dove.entityId.in).toContain('r0');
+      expect(dove.entityId.in).toContain('c0');
+      expect(dove.entityId.in.length).toBeLessThanOrEqual(200);
+    });
+
+    /**
+     * ⚠️ **Il registro giù non porta giù la pagina.** È un di più: se `audit_log` non risponde,
+     * l'elenco esce come prima del 5/9, senza scarti e senza errore.
+     */
+    it('⚠️ registro irraggiungibile: l\'elenco esce lo stesso, solo senza scarti', async () => {
+      const { controller } = crea({
+        auditLog: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          findMany: jest.fn().mockRejectedValue(new Error('audit_log giù')),
+        },
+      });
+      const r = (await controller.mancanti()) as any;
+      expect(r.daRicette.righe).toHaveLength(100);
+      expect(r.daRicette.righe[0].agente).toBeUndefined();
+    });
+  });
+
+  /**
    * ⛔ **UN GIRO ANDATO MALE NON DEVE SEMBRARE UN ELENCO FRESCO** — dalla revisione avversariale del
    * 25/8. La riga di registro si scrive comunque, anche se **tutte** le scritture sono fallite: è un
    * fatto avvenuto. Ma se la pagina legge solo la data, la mattina dopo dice «Elenco rifatto
@@ -189,6 +283,7 @@ describe('gli elenchi degli alimenti da correggere', () => {
           createdAt: new Date('2026-08-25T03:12:00.000Z'),
           metadata: { scoperti: 300, scritti: 0, falliti: 300, fuori: 0 },
         }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     });
     expect(((await controller.mancanti()) as any).ultimoGiro).toEqual({ scoperti: 300, scritti: 0, falliti: 300 });
@@ -209,7 +304,7 @@ describe('gli elenchi degli alimenti da correggere', () => {
     ['nullo', null],
   ])('⚠️ registro %s: non si inventa «0 falliti», non si dice niente', async (_come, metadata) => {
     const { controller } = crea({
-      auditLog: { findFirst: jest.fn().mockResolvedValue({ createdAt: new Date(), metadata }) },
+      auditLog: { findFirst: jest.fn().mockResolvedValue({ createdAt: new Date(), metadata }), findMany: jest.fn().mockResolvedValue([]) },
     });
     expect(((await controller.mancanti()) as any).ultimoGiro).toBeNull();
   });
@@ -220,7 +315,7 @@ describe('gli elenchi degli alimenti da correggere', () => {
    */
   it('⛔ con il registro in errore la pagina mostra comunque gli elenchi', async () => {
     const { controller } = crea({
-      auditLog: { findFirst: jest.fn().mockRejectedValue(new Error('audit_log giù')) },
+      auditLog: { findFirst: jest.fn().mockRejectedValue(new Error('audit_log giù')), findMany: jest.fn().mockRejectedValue(new Error('audit_log giù')) },
     });
     const r = (await controller.mancanti()) as any;
     expect(r.daRicette.righe.length).toBeGreaterThan(0);

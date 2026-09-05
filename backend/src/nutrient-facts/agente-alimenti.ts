@@ -58,6 +58,8 @@ export const GIRI_A_VUOTO_MAX = 3;
 export const SCRITTO_DA = 'agente_alimenti';
 export const AZIONE_RIGA = 'nutrient_fact.agente_alimenti';
 export const AZIONE_TAG = 'catalog.recipe.allergens.dalla_tabella';
+/** Il registro del secondo giro: gli allergeni chiesti per una riga che in tabella c'era già. */
+export const AZIONE_ALLERGENI = 'nutrient_fact.agente_allergeni';
 /** Quante ricerche in rete per alimento: oltre, il modello risponde con quello che ha. */
 export const RICERCHE_PER_ALIMENTO = 3;
 
@@ -78,6 +80,83 @@ export const SYSTEM = [
   'Lo stato: nelle ricette le grammature sono A CRUDO, quindi dai i valori dell\'alimento crudo (stato «crudo»), o «secco» per legumi, cereali, pasta, frutta secca ed essiccati; «non_applicabile» per olio, aceto, sale, zucchero, miele, spezie, bevande, dove crudo e cotto sono la stessa cosa; «cotto» o «bollito» SOLO se il nome stesso lo dice («ceci lessati», «riso cotto»).',
   'Regole: mai inventare un numero — se non trovi una fonte, metti affidabilita "debole" e dì la fonte più vicina che hai trovato; i valori si riferiscono all\'alimento così com\'è nel nome (se dice «in scatola» o «affumicato», quello); «senza lattosio» NON toglie l\'allergene latte; un formaggio, uno yogurt, un burro contengono latte; un pesce, anche affumicato o in scatola, è pesce.',
 ].join('\n');
+
+/**
+ * ⛔ **IL SECONDO GIRO: SOLO GLI ALLERGENI, sulle righe che in tabella ci sono già.**
+ *
+ * L'agente compila i nomi che **mancano**. Ma il foglio del 31/8 diceva un'altra cosa ancora — *«su
+ * un pesto pronto che avesse la sua riga la deduzione direbbe nessun allergene con la stessa
+ * faccia»* — e quel caso l'agente non lo copriva: le righe già scritte (il foglio del 20/8, quelle
+ * a mano, gli import) hanno `allergens` vuoto, cioè **non si sa**, e nessuno lo chiede a nessuno.
+ *
+ * ⚠️ Qui non si toccano i **valori**: quelli una persona li ha già messi, e riscriverli sarebbe
+ * l'AI che corregge una nutrizionista. Si chiede **solo** l'elenco degli allergeni, e si scrive solo
+ * se la riga non ne ha nessuno.
+ */
+export const SYSTEM_SOLO_ALLERGENI = [
+  'Sei un nutrizionista che compila la colonna ALLERGENI di una tabella di composizione degli alimenti, per una piattaforma italiana di diete.',
+  'Ti viene dato il nome di un alimento che è già in tabella. Cerca in rete (etichette dei produttori, CREA, BDA, USDA, Ciqual) e rispondi SOLO con un oggetto JSON.',
+  'Campi: e_un_alimento (boolean), allergeni (array di codici presi SOLO da questo elenco: '
+    + EU_ALLERGEN_CODES.join(', ')
+    + ' — vuoto se non ne contiene nessuno), fonte ({ nome, url }), affidabilita (solida, media, debole).',
+  'Regole: per un prodotto trasformato o pronto considera gli ingredienti tipici dell\'etichetta (un pesto pronto ha di solito latte e frutta a guscio); «senza lattosio» NON toglie l\'allergene latte; un formaggio, uno yogurt, un burro contengono latte; un pesce, anche affumicato o in scatola, è pesce. Se non sei sicuro di cosa contenga un prodotto di marca, rispondi con la lista degli allergeni tipici di quella categoria e affidabilita "debole".',
+].join('\n');
+
+export const promptSoloAllergeni = (nome: string, categoria: string | null): string =>
+  `Alimento: «${nome}»${categoria ? ` (categoria: ${categoria})` : ''}.\nRispondi con il solo JSON.`;
+
+export type MotivoScartoAllergeni =
+  'risposta_vuota' | 'allergene_sconosciuto' | 'senza_fonte' | 'vuoto_e_debole' | 'allergene_perso';
+
+export type VaglioAllergeni =
+  | { esito: 'ok'; allergens: string[]; fonte: string; affidabilita: string }
+  | { esito: 'non_alimento' }
+  | { esito: 'scartata'; motivo: MotivoScartoAllergeni; dettaglio: string };
+
+/**
+ * ⛔ **Lo stesso vaglio del giro grande, ma sui soli allergeni**: fonte con un indirizzo
+ * obbligatoria, e un codice fuori dai quattordici UE boccia tutta la riga invece di cadere in
+ * silenzio — un allergene perso è il verso in cui si sbaglia addosso a una persona.
+ *
+ * ⛔ **Due guardie in più, dalla revisione del 5/9, e sono la ragione per cui questo vaglio è più
+ * severo di quello grande** — là un allergene mancato accompagna dei valori che una nutrizionista
+ * rileggerà, qui l'allergene è **l'unica cosa** che si scrive, e scriverlo fa smettere di guardare:
+ *
+ * · **`[]` con affidabilità debole si scarta.** Il sistema dice all'AI di rispondere «debole» quando
+ *   non sa: un elenco vuoto e debole è un'ipotesi, e la pagina la mostrerebbe come «l'agente ha
+ *   cercato e non ne ha trovati». Fra «non lo sa nessuno» e una scrollata di spalle, meglio il primo.
+ * · **Un allergene che le PAROLE trovano e l'AI non dichiara boccia la riga** (`dalleParole`): se
+ *   «taleggio» sta nel vocabolario come latte e l'AI risponde `[]`, la risposta è sbagliata, e
+ *   scriverla chiuderebbe la riga con un allergene in meno. Il contrario — l'AI ne trova uno che le
+ *   parole non conoscono — è il motivo per cui il giro esiste, e passa.
+ */
+export function vagliaAllergeni(
+  grezza: RispostaGrezza | null | undefined,
+  dalleParole: readonly string[] = [],
+): VaglioAllergeni {
+  if (!grezza || typeof grezza !== 'object') return { esito: 'scartata', motivo: 'risposta_vuota', dettaglio: 'nessun JSON' };
+  if (grezza.e_un_alimento === false) return { esito: 'non_alimento' };
+  const allergeniGrezzi = Array.isArray(grezza.allergeni) ? grezza.allergeni : null;
+  if (allergeniGrezzi === null) return { esito: 'scartata', motivo: 'risposta_vuota', dettaglio: 'niente elenco allergeni' };
+  const allergens: string[] = [];
+  for (const a of allergeniGrezzi) {
+    const code = String(a ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (!EU_ALLERGEN_CODES.includes(code)) return { esito: 'scartata', motivo: 'allergene_sconosciuto', dettaglio: String(a) };
+    if (!allergens.includes(code)) allergens.push(code);
+  }
+  const fonte = (grezza.fonte && typeof grezza.fonte === 'object' ? grezza.fonte : {}) as { nome?: unknown; url?: unknown };
+  const url = testo(fonte.url, 500);
+  if (!url || !/^https?:\/\//i.test(url)) return { esito: 'scartata', motivo: 'senza_fonte', dettaglio: url ?? 'nessun url' };
+  const affidabilita = (AFFIDABILITA as readonly string[]).includes(String(grezza.affidabilita ?? '').toLowerCase())
+    ? String(grezza.affidabilita).toLowerCase()
+    : 'debole';
+  if (!allergens.length && affidabilita === 'debole') {
+    return { esito: 'scartata', motivo: 'vuoto_e_debole', dettaglio: 'nessun allergene, ma la fonte è debole' };
+  }
+  const persi = dalleParole.filter((a) => !allergens.includes(a));
+  if (persi.length) return { esito: 'scartata', motivo: 'allergene_perso', dettaglio: persi.join(', ') };
+  return { esito: 'ok', allergens, fonte: testo(fonte.nome, 160) ?? url, affidabilita };
+}
 
 export function prompt(nome: string, esempi: readonly string[]): string {
   const dove = esempi.length ? ` Compare in ricette come: ${esempi.slice(0, 3).map((e) => `«${e}»`).join(', ')}.` : '';

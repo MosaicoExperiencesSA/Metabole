@@ -5,12 +5,15 @@ import { ConfigParamsService } from '../config-params/config-params.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AZIONE_RIGA, AZIONE_TAG, CHIAVE_ACCESO, CHIAVE_MAX, GIRI_A_VUOTO_MAX, MAX_PER_NOTTE, RICERCHE_PER_ALIMENTO, SCRITTO_DA, SYSTEM,
-  contaTag, fonteDellaRiga, prompt, tagDallaTabella, vaglia,
+  AZIONE_ALLERGENI, SYSTEM_SOLO_ALLERGENI,
+  contaTag, fonteDellaRiga, prompt, promptSoloAllergeni, tagDallaTabella, vaglia, vagliaAllergeni,
   type ContoTag, type MotivoScarto, type RicettaDaTaggare, type RigaConAllergeni, type RispostaGrezza,
 } from './agente-alimenti';
 import { eAroma } from './aromi';
 import type { RigaDaControllare } from './gemelli-alimenti';
 import { normalizzaNome } from './valori-nutrizionali.service';
+import { nomiIngredienti } from '../catalog/elenco-ingredienti';
+import { suggestAllergens } from '../catalog/allergens';
 
 /**
  * ⚠️ **Il servizio non giudica: chiama `agente-alimenti.ts` e basta.** Il giudizio — cosa entra in
@@ -32,6 +35,15 @@ export interface EsitoCompilazione {
   fermatoPer?: string;
 }
 
+export interface EsitoAllergeni {
+  acceso: boolean;
+  guardate: number;
+  scritte: number;
+  scartate: Partial<Record<string, number>>;
+  ricerche: number;
+  fermatoPer?: string;
+}
+
 export interface EsitoTag {
   /** Righe della tabella con almeno un allergene dichiarato. */
   righeConAllergeni: number;
@@ -43,6 +55,12 @@ export interface EsitoTag {
 const AZIONE_A_MANO = 'catalog.recipe.allergens.set';
 /** Dopo uno scarto il termine aspetta questi giorni prima di essere richiesto. */
 export const GIORNI_DI_PAUSA = 30;
+/**
+ * Quante righe a colonna allergeni vuota si leggono per scegliere le venti della notte. ⚠️ Larga
+ * apposta: la finestra si ordina per `updatedAt` crescente, così quelle mai guardate ruotano invece
+ * di restare dietro alle stesse cinquecento ogni notte.
+ */
+export const RIGHE_GUARDATE_PER_NOTTE = 5000;
 /**
  * ⚠️ «Non è un alimento» detto dall'AI NON chiude il termine come `ignored`: quello stato è di una
  * persona (`valori-nutrizionali.service.ts`), e dalla pagina non si riapre. Il termine resta nella
@@ -74,14 +92,170 @@ export class AgenteAlimentiService {
   ) {}
 
   /**
-   * Il passo del cron: prima compila (se acceso), poi porta i tag dalla tabella alle ricette.
+   * Il passo del cron, in tre giri: compila i nomi che mancano (se acceso), poi chiede gli allergeni
+   * delle righe che in tabella ci sono già con la colonna vuota, poi porta i tag alle ricette.
    * ⚠️ La seconda metà gira **anche a interruttore spento**: non chiama l'AI, non costa niente, e
    * una riga a cui la nutrizionista ha aggiunto un allergene a mano deve valere lo stesso.
    */
-  async passoNotturno(): Promise<{ compilazione: EsitoCompilazione; tag: EsitoTag }> {
+  async passoNotturno(): Promise<{ compilazione: EsitoCompilazione; allergeni: EsitoAllergeni; tag: EsitoTag }> {
     const compilazione = await this.compila();
+    /**
+     * ⚠️ **Dopo la compilazione e prima della propagazione**: le righe scritte stanotte hanno già i
+     * loro allergeni, questo giro guarda solo quelle che ne sono senza, e i tag partono una volta
+     * sola per tutte e due.
+     */
+    const allergeni = await this.compilaAllergeniMancanti();
     const tag = await this.propagaTag();
-    return { compilazione, tag };
+    return { compilazione, allergeni, tag };
+  }
+
+  /**
+   * ⛔ **IL SECONDO GIRO: GLI ALLERGENI DELLE RIGHE CHE IN TABELLA CI SONO GIÀ.**
+   *
+   * Il primo giro compila i nomi che **mancano**; questo chiude l'altra metà del limite dichiarato
+   * nel foglio del 31/8 — *«essere in tabella non vuol dire conoscerne gli allergeni: su un pesto
+   * pronto che avesse la sua riga la deduzione direbbe nessun allergene con la stessa faccia»*.
+   *
+   * ⚠️ **Non tocca i valori**: quelli li ha messi una persona, e riscriverli sarebbe l'AI che
+   * corregge una nutrizionista. Si chiede solo l'elenco degli allergeni, si scrive `allergens` e il
+   * segno di chi lo ha guardato — e **mai** `filledBy`, che dice chi ha scritto la riga (revisione
+   * del 5/9: le 262 righe copiate a mano dal CREA il 2/9 sarebbero diventate «scritte dall'AI»).
+   *
+   * ⛔ **Chi ha già guardato gli allergeni non si tocca più**, ed è `allergensFilledBy` a dirlo. La
+   * prima stesura filtrava per il solo `allergens` vuoto, e sbagliava in due modi: (1) una
+   * nutrizionista che apre una riga e dichiara «li ho guardati, non ne ha» lascia sul database un
+   * elenco vuoto **identico** a quello di partenza, e l'agente ci avrebbe scritto sopra la sua
+   * ipotesi; (2) una riga a cui l'agente stesso aveva risposto `[]` rientrava in coda ogni trenta
+   * giorni, ripagando le stesse ricerche — e, essendo fra le più usate, rioccupava le prime
+   * posizioni del tetto ogni mese, togliendo il posto a quelle mai guardate.
+   *
+   * ⚠️ `verifiedAt` **non** serve a questo: le righe confermate prima del 5/9 lo sono sui valori, e
+   * la colonna allergeni allora non esisteva. Escluderle avrebbe lasciato senza allergeni proprio
+   * le righe migliori della tabella.
+   *
+   * ⚠️ **Le righe più usate per prime**: `nutrient_lookup_miss.ricette` non serve qui (quelle righe
+   * in tabella ci sono), quindi si ordina per quante ricette **nominano** quel nome, che è il conto
+   * che decide quanti piatti cambiano.
+   */
+  async compilaAllergeniMancanti(): Promise<EsitoAllergeni> {
+    const spento: EsitoAllergeni = { acceso: false, guardate: 0, scritte: 0, scartate: {}, ricerche: 0 };
+    if (!(await this.configParams.getBool(CHIAVE_ACCESO, false))) return spento;
+    const max = Math.max(0, Math.floor(await this.configParams.getNumber(CHIAVE_MAX, MAX_PER_NOTTE)));
+    const esito: EsitoAllergeni = { ...spento, acceso: true, scartate: {} };
+    if (!max) return esito;
+
+    const adesso = Date.now();
+    /** ⚠️ Stessa memoria del primo giro: una riga bocciata non si richiede per trenta giorni. */
+    const giaProvate = new Set(((await this.prisma.auditLog.findMany({
+      where: { action: AZIONE_ALLERGENI, entityType: 'nutrient_fact', createdAt: { gte: new Date(adesso - GIORNI_DI_PAUSA * 86_400_000) } } as never,
+      select: { entityId: true } as never,
+    })) as { entityId: string | null }[]).map((x) => String(x.entityId ?? '')));
+
+    /**
+     * ⛔ **Il tetto è largo e l'ordine è dichiarato, e non è pignoleria** (revisione del 5/9): con
+     * `take: 500` senza `orderBy` il commento «le più usate per prime» era falso — erano «le più
+     * usate fra 500 righe qualsiasi». E siccome una riga che nessuna ricetta nomina non viene mai
+     * chiesta (quindi non lascia mai una riga di registro, quindi non esce mai da questa finestra),
+     * cinquecento righe inutilizzate avrebbero potuto nascondere «pesto pronto» per sempre — cioè
+     * proprio il caso per cui il giro esiste.
+     */
+    const righe = (await this.prisma.nutrientFact.findMany({
+      where: {
+        allergens: { isEmpty: true },
+        allergensFilledBy: null,
+        id: { notIn: [...giaProvate] },
+      } as never,
+      select: { id: true, name: true, category: true, synonyms: true } as never,
+      orderBy: { updatedAt: 'asc' } as never,
+      take: RIGHE_GUARDATE_PER_NOTTE,
+    })) as unknown as { id: string; name: string; category: string | null; synonyms: string[] }[];
+    if (!righe.length) return esito;
+
+    /** Quante ricette nominano ogni riga: decide l'ordine, perché è il numero di piatti che cambiano. */
+    const ricette = (await this.prisma.recipe.findMany({
+      where: { active: true } as never,
+      select: { ingredients: true } as never,
+    })) as unknown as { ingredients: unknown }[];
+    const usi = new Map<string, number>();
+    for (const r of ricette) {
+      for (const n of new Set(nomiIngredienti(r.ingredients).map((x) => normalizzaNome(x)))) {
+        usi.set(n, (usi.get(n) ?? 0) + 1);
+      }
+    }
+    const quante = (r: { name: string; synonyms: string[] }): number =>
+      Math.max(...[r.name, ...(r.synonyms ?? [])].map((n) => usi.get(normalizzaNome(n)) ?? 0), 0);
+    const daFare = righe
+      .map((r) => ({ r, usi: quante(r) }))
+      .filter((x) => x.usi > 0)
+      .sort((a, b) => b.usi - a.usi)
+      .slice(0, max);
+    if (!daFare.length) return esito;
+
+    let vuoti = 0;
+    for (const { r, usi: quanteRicette } of daFare) {
+      if (vuoti >= GIRI_A_VUOTO_MAX) {
+        esito.fermatoPer = `${GIRI_A_VUOTO_MAX} risposte a vuoto di fila`;
+        break;
+      }
+      esito.guardate += 1;
+      const grezza = await this.ai.generateJsonConRicerca<RispostaGrezza>(
+        SYSTEM_SOLO_ALLERGENI, promptSoloAllergeni(r.name, r.category), 1500, RICERCHE_PER_ALIMENTO,
+      );
+      esito.ricerche += this.ai.lastRicerche;
+      /**
+       * ⛔ **UN TIMEOUT NON BRUCIA TRENTA GIORNI** (revisione del 5/9). Prima il `null` non fatale
+       * cadeva nel vaglio, usciva come `risposta_vuota` e **scriveva la riga di registro** che
+       * mette quell'alimento in frigo per un mese: un blip di rete di trenta secondi e «pesto
+       * pronto» non si riprovava fino a ottobre. Il giro grande lo tratta già così (`compila`).
+       */
+      if (grezza === null) {
+        if (this.ai.lastErrorFatale) {
+          esito.fermatoPer = this.ai.lastError ?? 'errore AI';
+          this.logger.warn(`Agente alimenti (allergeni) fermato: ${esito.fermatoPer}`);
+          break;
+        }
+        vuoti += 1;
+        esito.scartate.risposta_vuota = (esito.scartate.risposta_vuota ?? 0) + 1;
+        continue;
+      }
+      /**
+       * ⛔ Le parole del vocabolario entrano nel vaglio: se «taleggio» è latte e l'AI risponde
+       * «nessun allergene», la riga si scarta invece di chiudersi con un allergene in meno.
+       */
+      const v = vagliaAllergeni(grezza, suggestAllergens([{ name: r.name }]).map((a) => a.allergen));
+      if (v.esito !== 'ok') {
+        vuoti += 1;
+        const motivo = v.esito === 'non_alimento' ? 'non_alimento' : v.motivo;
+        esito.scartate[motivo] = (esito.scartate[motivo] ?? 0) + 1;
+        await this.audit.log({
+          action: AZIONE_ALLERGENI, entityType: 'nutrient_fact', entityId: r.id,
+          metadata: { nome: r.name, esito: v.esito, motivo, dettaglio: v.esito === 'scartata' ? v.dettaglio : undefined },
+        });
+        continue;
+      }
+      vuoti = 0;
+      /**
+       * ⚠️ **Anche l'elenco vuoto si scrive**, ed è il punto: `[]` scritto dall'agente vuol dire
+       * «ha cercato e non ne ha trovati», che è un'informazione — diversa dal vuoto di partenza, che
+       * vuol dire «non lo sa nessuno». La pagina li mostra diversi (`filledBy`).
+       */
+      await this.prisma.nutrientFact.update({
+        where: { id: r.id },
+        data: {
+          allergens: v.allergens,
+          /** ⛔ Il segno degli **allergeni**, non `filledBy`: chi ha scritto la riga resta chi era. */
+          allergensFilledBy: SCRITTO_DA,
+          allergensSource: v.affidabilita === 'solida' ? v.fonte : `${v.fonte} (affidabilità ${v.affidabilita})`,
+        } as never,
+      });
+      esito.scritte += 1;
+      await this.audit.log({
+        action: AZIONE_ALLERGENI, entityType: 'nutrient_fact', entityId: r.id,
+        metadata: { nome: r.name, esito: 'scritta', allergens: v.allergens, fonte: v.fonte, affidabilita: v.affidabilita, ricetteCheLoUsano: quanteRicette },
+      });
+    }
+    this.logger.log(`Agente alimenti (allergeni sulle righe già in tabella): ${esito.scritte} scritte su ${esito.guardate} guardate.`);
+    return esito;
   }
 
   async compila(): Promise<EsitoCompilazione> {

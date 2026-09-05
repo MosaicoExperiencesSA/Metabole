@@ -20,6 +20,47 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **L'agente alimenti chiude le sue tre code: gli allergeni delle righe che in
+  tabella ci sono già, gli scarti visibili in pagina, e il gesto per disfare un tag sbagliato.**
+  Erano le tre cose lasciate aperte apposta il 5/9 mattina, dopo la revisione dell'agente.
+  1. **Il secondo giro, «solo allergeni».** Il limite stava scritto nel foglio del 31/8: *essere in
+     tabella non vuol dire conoscerne gli allergeni* — su un pesto pronto che ha la sua riga, la
+     deduzione dalle parole dice «nessun allergene» con la stessa faccia con cui lo direbbe per una
+     mela. Adesso l'agente, dopo aver compilato i nomi che mancano, chiede **solo l'elenco degli
+     allergeni** alle righe che ne sono senza — mai i valori, che li ha messi una persona — partendo
+     da quelle che più ricette nominano, perché è il numero di piatti che cambiano.
+  2. **Gli scarti si vedono.** Un termine che l'agente ha bocciato (senza fonte, numeri che non
+     tornano, «non è un alimento») restava nell'elenco identico a uno mai guardato: chi lo lavorava
+     rifaceva a mano la stessa ricerca finita male stanotte. Ora la riga porta il motivo, in
+     arancione, con la data.
+  3. **`npm run ritira:tag-alimento`.** Il costo dichiarato di «le righe dell'agente valgono subito»
+     era che un allergene sbagliato, una volta propagato, resta anche dopo che la riga è stata
+     corretta. Il gesto inverso adesso c'è: legge il registro della propagazione e toglie **solo**
+     quello che era arrivato da quella riga.
+  ⛔ **La colonna nuova `allergens_filled_by` è la parte che conta.** Un elenco di allergeni vuoto
+  vuol dire «non si sa»; una nutrizionista che apre «mela» e dichiara «li ho guardati, non ne ha»
+  lascia sul database un vuoto **identico**. Senza un segno, l'agente ci avrebbe scritto sopra la
+  sua ipotesi la notte stessa — l'AI che disfa in silenzio la decisione di una persona. Adesso la
+  colonna dice *chi* li ha guardati, agente o persona, e finché è vuota l'agente può chiedere.
+  ⚠️ **Quello che la revisione avversariale ha trovato, e che è stato corretto prima di consegnare**
+  (nove rilievi, quattro gravi):
+  · l'agente si firmava in `filledBy`, che vuol dire «chi ha scritto **la riga**»: le 262 righe
+    copiate a mano dal CREA il 2/9 sarebbero diventate «scritte dall'AI», col rimando a una fonte —
+    quella dei valori — che degli allergeni non ha mai parlato. Ora c'è `allergens_source`, sua.
+  · **il caso delle lasagne**: besciamella pronta e pesto pronto, tutte e due dichiarate latte in
+    tabella; la propagazione ne scrive **una sola** origine, e nessuna delle due parole sta nel
+    vocabolario. Disfare il pesto avrebbe tolto `latte` a un piatto con la besciamella dentro. Il
+    ritiro adesso conta anche quello che **gli altri alimenti** giustificano ancora.
+  · lo script non guardava la riga che stava disfacendo: lanciato prima di correggerla, la
+    propagazione notturna rimetteva tutto e il tabulato aveva detto «✅ fatto». Ora si ferma.
+  · un elenco vuoto con la fonte **debole** non si scrive più (il sistema dice all'AI di rispondere
+    «debole» quando non sa: era un'ipotesi che in pagina diventava «cercato, non ne ha»), e un
+    allergene che **le parole** trovano e l'AI non dichiara boccia la riga invece di chiuderla con
+    un allergene in meno.
+  · un timeout di rete non mette più un alimento in frigo per trenta giorni.
+  Migrazione additiva (`allergens_filled_by`, `allergens_source`), 22 mutazioni provate una per una,
+  8003 prove verdi.
+
 - `[Sviluppo]` ✅ **Il digiuno intermittente è pubblicato: i tre numeri, le quattro conferme di Lucia,
   e le finestre morte tolte dalle tendine.** I numeri, letti in produzione: **9 clienti** in digiuno
   tutte coi pasti giusti; **catalogo completo** (12/12 settimane su tutte le varianti); **nessuna

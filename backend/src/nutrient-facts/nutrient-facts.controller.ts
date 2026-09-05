@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { AZIONE_SCOPERTI_AGGIORNATI, ValoriNutrizionaliService } from './valori-nutrizionali.service';
+import { AZIONE_RIGA as AZIONE_AGENTE_ALIMENTI } from './agente-alimenti';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 import { RequirePage } from '../common/decorators/require-page.decorator';
@@ -180,9 +181,51 @@ export class NutrientFactsController {
         } as never) as Promise<{ createdAt: Date | null; metadata?: unknown } | null>
       ).catch(() => null),
     ]);
+    /**
+     * ⛔ **GLI SCARTI DELL'AGENTE, che finora stavano solo nel registro** (5/9). Un termine che
+     * l'agente alimenti ha provato a compilare e ha **bocciato** — senza fonte, numeri che non
+     * tornano, stato ignoto, «non è un alimento» — resta in questo elenco senza che chi lo lavora
+     * sappia che qualcuno ci ha già provato e perché. Scoprirlo richiedeva di aprire l'audit.
+     * ⚠️ Si legge il registro e basta: nessuna colonna nuova, e se il registro è vuoto l'elenco
+     * esce esattamente come prima.
+     *
+     * ⛔ **GLI SCARTI SI CHIEDONO PER GLI ID CHE SONO IN ELENCO**, non a finestra (revisione del
+     * 5/9). Una `take: 500` sul registro sembra generosa e non lo è: la memoria che *blocca*
+     * l'agente su un «non è un alimento» dura **un anno**, e con il tetto notturno alzato cinquecento
+     * righe possono coprire meno di un mese — sparirebbe dalla pagina proprio lo scarto più vecchio,
+     * che è quello che nessuno ricorda. Gli id in elenco sono al massimo duecento.
+     */
+    const idsInElenco = [...daRicette, ...chieste].map((r) => (r as { id: string }).id);
+    const tentativi = idsInElenco.length
+      ? await (
+        this.prisma.auditLog.findMany({
+          where: { action: AZIONE_AGENTE_ALIMENTI, entityType: 'nutrient_lookup_miss', entityId: { in: idsInElenco } } as never,
+          orderBy: { createdAt: 'desc' } as never,
+          select: { entityId: true, createdAt: true, metadata: true } as never,
+        } as never) as Promise<{ entityId: string | null; createdAt: Date; metadata?: { esito?: string; motivo?: string; dettaglio?: string } }[]>
+      ).catch(() => [])
+      : [];
+    /**
+     * L'**ultimo** tentativo dell'agente per ogni termine.
+     * ⚠️ L'ordine si rifà qui invece di fidarsi dell'`orderBy`: un termine riprovato racconterebbe
+     * altrimenti il motivo di un mese fa, e a fidarsi della query nessuna prova se ne accorgerebbe.
+     */
+    const scarti = new Map<string, { esito: string; motivo?: string; dettaglio?: string; quando: string }>();
+    for (const r of [...tentativi].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())) {
+      const id = String(r.entityId ?? '');
+      if (!id || scarti.has(id)) continue;
+      scarti.set(id, {
+        esito: String(r.metadata?.esito ?? ''),
+        motivo: r.metadata?.motivo,
+        dettaglio: r.metadata?.dettaglio,
+        quando: new Date(r.createdAt).toISOString(),
+      });
+    }
+    const conScarto = <T extends { id: string }>(righe: T[]): (T & { agente?: unknown })[] =>
+      righe.map((r) => (scarti.has(r.id) ? { ...r, agente: scarti.get(r.id) } : r));
     return {
-      daRicette: { righe: daRicette, quanti: quanteRicette },
-      chieste: { righe: chieste, quanti: quanteChieste },
+      daRicette: { righe: conScarto(daRicette as never), quanti: quanteRicette },
+      chieste: { righe: conScarto(chieste as never), quanti: quanteChieste },
       /**
        * Quando il passo notturno ha rifatto il conto. `null` vuol dire **non è mai girato** (o la
        * riga di registro non si è scritta, o non si è potuta leggere): non «adesso». La pagina lo
@@ -567,6 +610,13 @@ export class NutrientFactsController {
       const ignoti = codici.filter((c) => !EU_ALLERGEN_CODES.includes(c));
       if (ignoti.length) throw new BadRequestException(`Allergene sconosciuto: ${ignoti.join(', ')}. Valgono solo i quattordici codici UE.`);
       data.allergens = codici;
+      /**
+       * ⛔ **IL SEGNO CHE QUALCUNO LI HA GUARDATI** (revisione del 5/9). Senza, una nutrizionista che
+       * apre la riga e dichiara «li ho guardati, non ne ha» lascia un elenco vuoto **identico** a
+       * quello di partenza: l'agente notturno lo leggerebbe come «non lo sa nessuno» e ci
+       * scriverebbe sopra la sua ipotesi. Questa colonna è quello che glielo impedisce.
+       */
+      data.allergensFilledBy = 'persona';
     }
 
     const staff = (await this.prisma.staff.findUnique({ where: { userId: user.sub }, select: { id: true } })) as { id: string } | null;

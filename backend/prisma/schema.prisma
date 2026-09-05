@@ -2812,6 +2812,18 @@ model NutrientFact {
   /** Chi ha scritto la riga: `agente_alimenti` per quelle che l'AI ha compilato cercando in rete; vuoto = una persona o un import. */
   filledBy  String?  @map("filled_by")
 
+  /**
+   * ⛔ **Chi ha GUARDATO gli allergeni** (5/9): `agente_alimenti` o `persona`. Vuoto = nessuno ci ha
+   * ancora messo gli occhi, ed è l'unica cosa che distingue «cercato, non ne ha» da «non si sa» —
+   * `allergens` è vuoto in tutti e due i casi. È anche la guardia che impedisce all'agente di
+   * scrivere sopra a una scelta di una nutrizionista, compreso un «li ho guardati, non ne ha».
+   * ⚠️ NON è `filledBy`, che dice chi ha scritto la riga: le righe dell'import del 2/9 sono di una
+   * persona anche il giorno che l'agente ne compila gli allergeni.
+   */
+  allergensFilledBy String? @map("allergens_filled_by")
+  /** La fonte degli **allergeni**, che può non essere quella dei valori: CREA per le kcal, l'etichetta del produttore per il latte. */
+  allergensSource   String? @map("allergens_source")
+
   /** Chi l'ha confermato e quando. Vuoti = «da confermare», e Gaia lo usa comunque. */
   verifiedById String?   @map("verified_by_id")
   verifiedBy   Staff?    @relation("NutrientFactVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)

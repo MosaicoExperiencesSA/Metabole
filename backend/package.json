@@ -149,6 +149,7 @@
     "diag:omonimi": "ts-node --transpile-only prisma/diag-parole-che-tolgono-troppo.ts",
     "ripara:allergeni-chiave": "ts-node --transpile-only prisma/ripara-allergeni-chiave.ts",
     "ripara:allergeni-mancanti": "ts-node --transpile-only prisma/ripara-allergeni-mancanti.ts",
+    "ritira:tag-alimento": "ts-node --transpile-only prisma/ritira-tag-alimento.ts",
     "regime:a-mano": "ts-node --transpile-only prisma/correggi-regime-a-mano.ts",
     "diag:fase9": "ts-node --transpile-only prisma/diag-migrazione-fase9.ts",
     "diag:senza-ingredienti": "ts-node --transpile-only prisma/diag-ricette-senza-ingredienti.ts",

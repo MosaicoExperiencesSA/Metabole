@@ -1,0 +1,29 @@
+-- CHI HA GUARDATO GLI ALLERGENI DI UNA RIGA, E DA DOVE LI HA PRESI — 5/9/2026.
+--
+-- La colonna `allergens` nasce il 5/9 e vuota vuol dire NON SI SA. L'agente notturno compila le
+-- righe che ne sono senza, e finora segnava di averlo fatto in `filled_by`. Era sbagliato per due
+-- ragioni, uscite dalla revisione avversariale dello stesso giorno:
+--
+-- 1. `filled_by` vuol dire «chi ha scritto LA RIGA» (vuoto = una persona o un import). Scrivendoci
+--    sopra, le 262 righe copiate a mano dal CREA il 2/9 sarebbero diventate «scritte dall'agente»,
+--    e la pagina avrebbe mostrato il chip dell'AI su un lavoro di una persona.
+-- 2. Senza un segno suo, l'unica cosa che distingueva «l'agente ha cercato e non ne ha trovati» da
+--    «non lo sa nessuno» era un elenco vuoto uguale in tutti e due i casi: la riga rientrava in coda
+--    ogni trenta giorni e si ripagavano le stesse ricerche, per sempre.
+--
+-- `allergens_filled_by` risponde a UNA domanda: qualcuno ha già guardato gli allergeni di questa
+-- riga? Vale sia per l'agente (`agente_alimenti`) sia per la nutrizionista (`persona`), e finché è
+-- vuota l'agente può chiedere. È anche la guardia che gli impedisce di scrivere sopra a una scelta
+-- di una persona — compreso il caso in cui quella scelta è «li ho guardati, non ne ha».
+--
+-- ⚠️ `verified_at` NON serviva a questo: le righe confermate prima del 5/9 lo sono sui VALORI, e
+-- la colonna allergeni allora non esisteva. Escluderle avrebbe lasciato senza allergeni proprio le
+-- righe migliori della tabella.
+--
+-- `allergens_source` tiene la fonte degli allergeni, che è un'altra cosa da `source`/`source_ref`
+-- (la fonte dei valori): un pesto pronto prende le kcal dal CREA e gli allergeni dall'etichetta del
+-- produttore, e chi rilegge deve poter aprire quella giusta.
+--
+-- Additive e nullable: il giorno del deploy non cambia niente per nessuno.
+ALTER TABLE "nutrient_fact" ADD COLUMN "allergens_filled_by" TEXT;
+ALTER TABLE "nutrient_fact" ADD COLUMN "allergens_source" TEXT;

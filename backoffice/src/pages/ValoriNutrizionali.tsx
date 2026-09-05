@@ -54,6 +54,14 @@ interface Valore {
   allergens: string[];
   /** `agente_alimenti` per le righe che l'AI ha compilato cercando in rete. */
   filledBy: string | null;
+  /**
+   * ⛔ Chi ha guardato **gli allergeni**: `agente_alimenti` o `persona`. Vuoto = nessuno, ed è
+   * l'unica cosa che distingue «cercato, non ne ha» da «non si sa»: `allergens` è vuoto in tutti e
+   * due i casi. ⚠️ NON è `filledBy`, che dice chi ha scritto la riga.
+   */
+  allergensFilledBy?: string | null;
+  /** La fonte degli allergeni, che può non essere quella dei valori. */
+  allergensSource?: string | null;
   verifiedAt: string | null;
   verifiedBy: { displayName: string } | null;
 }
@@ -69,7 +77,27 @@ interface Mancante {
   /** La riga a cui si abbinerebbe: si chiude con un sinonimo invece che con una riga nuova. */
   suggerito: string | null;
   lastAskedAt: string;
+  /**
+   * ⛔ L'ultimo tentativo dell'agente alimenti su questo termine, se c'è stato (5/9). Finora stava
+   * solo nel registro: chi lavora l'elenco non sapeva che qualcuno ci aveva già provato, né perché
+   * era stato bocciato — e ci riprovava a mano.
+   */
+  agente?: { esito: string; motivo?: string; dettaglio?: string; quando: string } | null;
 }
+
+/** Le parole degli scarti dell'agente: dicono cosa fare, non solo cosa non è andato. */
+const SCARTO_AGENTE: Record<string, string> = {
+  senza_fonte: 'l\'AI non ha trovato una fonte con un indirizzo: i valori vanno cercati a mano',
+  senza_kcal: 'l\'AI non ha dato le calorie',
+  numero_illeggibile: 'un valore non era un numero',
+  numero_fuori_scala: 'un valore era fuori scala (negativo o impossibile per 100 g)',
+  kcal_incoerenti: 'le calorie non tornavano coi macro',
+  zuccheri_oltre_carboidrati: 'gli zuccheri superavano i carboidrati',
+  allergene_sconosciuto: 'ha nominato un allergene che non è fra i quattordici UE',
+  senza_stato: 'non ha detto se i valori sono a crudo, secco o cotto',
+  gemella: 'i valori erano identici a quelli di un altro alimento: è una copia, non un dato',
+  risposta_vuota: 'l\'AI non ha risposto',
+};
 
 /**
  * ⚠️ I TRE PERCHÉ, e si chiudono in tre modi diversi. Un elenco che dice solo «manca» obbliga chi lo
@@ -588,6 +616,20 @@ export function ValoriNutrizionali() {
                     {m.suggerito && m.motivo === 'non_in_tabella' && (
                       <div className="muted" style={{ fontSize: 12 }}>somiglia a «{m.suggerito}»</div>
                     )}
+                    {/*
+                      ⛔ **L'agente ci ha già provato, e questo è il motivo per cui non è entrato.**
+                      Senza questa riga il termine sembra intatto e chi lo lavora rifà da capo un
+                      giro che l'AI ha già fatto e bocciato — o, peggio, si fida di un silenzio.
+                    */}
+                    {m.agente && (
+                      <div style={{ fontSize: 12, color: '#9A5B12', marginTop: 2 }}>
+                        {m.agente.esito === 'non_alimento'
+                          ? 'l’agente dice che non è un alimento'
+                          : `l’agente l’ha bocciato: ${SCARTO_AGENTE[m.agente.motivo ?? ''] ?? m.agente.motivo ?? 'motivo non registrato'}`}
+                        <span className="muted"> · {new Date(m.agente.quando).toLocaleDateString('it-IT')}</span>
+                        {m.agente.dettaglio && <span className="muted"> · {m.agente.dettaglio}</span>}
+                      </div>
+                    )}
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {puoModificare && m.suggerito && m.motivo === 'non_in_tabella' && (
@@ -782,7 +824,7 @@ export function ValoriNutrizionali() {
     },
     { chiave: 'kcal', titolo: 'kcal/100 g', valore: (v) => v.kcal },
     // ⛔ Gli allergeni sull'alimento (5/9): vuoto è «non si sa», e si vede come tale.
-    { chiave: 'allergeni', titolo: 'Allergeni', valore: (v) => (v.allergens.length ? v.allergens.map(etichettaAllergene).join(', ') : v.filledBy === 'agente_alimenti' ? 'nessuno (agente)' : null), filtro: 'testo' },
+    { chiave: 'allergeni', titolo: 'Allergeni', valore: (v) => (v.allergens.length ? v.allergens.map(etichettaAllergene).join(', ') : v.allergensFilledBy ? 'nessuno (cercato)' : null), filtro: 'testo' },
     // ⚠️ `esporta` senza `valore`: la colonna resta non ordinabile a schermo (è quattro numeri in
     // uno), ma nel file ci DEVE essere — è il motivo per cui questa tabella si esporta.
     { chiave: 'macro', titolo: 'P / C / G / F', nonOrdinabile: true, esporta: (v) => `${numero(v.protein)} / ${numero(v.carbs)} / ${numero(v.fat)} / ${numero(v.fiber)}` },
@@ -1012,7 +1054,7 @@ export function ValoriNutrizionali() {
                             style={{ marginLeft: 6 }}
                             title={v.verifiedAt
                               ? 'Riga compilata dall\'agente alimenti cercando in rete, poi confermata da una persona.'
-                              : 'Riga compilata dall\'agente alimenti cercando in rete: i valori e gli allergeni sono già in uso, la fonte è qui sotto. Correggi o conferma.'}
+                              : 'Riga compilata dall\'agente alimenti cercando in rete: i valori sono già in uso, la fonte è qui sotto. Correggi o conferma.'}
                           >
                             agente
                           </span>
@@ -1039,8 +1081,17 @@ export function ValoriNutrizionali() {
                       <td style={{ fontSize: 12 }}>
                         {v.allergens.length
                           ? v.allergens.map((a) => <span key={a} className="chip" style={{ marginRight: 4 }}>{etichettaAllergene(a)}</span>)
-                          : v.filledBy === 'agente_alimenti'
-                            ? <span className="muted" title="L'agente ha cercato in rete e non ne ha trovati. Se ne ha, spuntali con la matita.">nessuno (agente)</span>
+                          : v.allergensFilledBy
+                            ? (
+                              <span
+                                className="muted"
+                                title={v.allergensFilledBy === 'agente_alimenti'
+                                  ? `L'agente ha cercato in rete e non ne ha trovati${v.allergensSource ? ` (${v.allergensSource})` : ''}. Se ne ha, spuntali con la matita.`
+                                  : 'Qualcuno li ha guardati e ha detto che non ne ha. L\'agente non ci scrive più sopra.'}
+                              >
+                                {v.allergensFilledBy === 'agente_alimenti' ? 'nessuno (agente)' : 'nessuno (guardato)'}
+                              </span>
+                            )
                             : <span className="muted" title="Nessuno ha ancora dichiarato gli allergeni di questo alimento: non vuol dire che non ne ha.">non si sa</span>}
                       </td>
                       <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>

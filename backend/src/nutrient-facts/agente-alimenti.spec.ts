@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  CHIAVE_ACCESO, CHIAVE_MAX, SYSTEM, contaTag, fonteDellaRiga, kcalTornano, prompt, tagDallaTabella, vaglia, type RispostaGrezza,
+  CHIAVE_ACCESO, CHIAVE_MAX, SYSTEM, SYSTEM_SOLO_ALLERGENI, contaTag, fonteDellaRiga, kcalTornano, prompt,
+  promptSoloAllergeni, tagDallaTabella, vaglia, vagliaAllergeni, type RispostaGrezza,
 } from './agente-alimenti';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
 
@@ -132,6 +133,119 @@ describe('kcalTornano', () => {
     expect(kcalTornano(100, 5, 10, 4)).toBe(true); // 96
     expect(kcalTornano(300, 5, 10, 4)).toBe(false);
     expect(kcalTornano(300, null, null, null)).toBe(true);
+  });
+});
+
+/**
+ * ⛔ **IL SECONDO VAGLIO: SOLO GLI ALLERGENI, SULLE RIGHE CHE IN TABELLA CI SONO GIÀ.**
+ *
+ * Il giro grande compila i nomi che mancano; questo chiude l'altra metà del limite dichiarato il
+ * 31/8 — una riga può esserci con i suoi valori giusti e la colonna allergeni **vuota**, e la
+ * deduzione dalle parole direbbe «nessun allergene» con la stessa faccia con cui lo direbbe per una
+ * mela. ⚠️ Le prove qui sotto tengono fermo che il vaglio sia **più severo** del giro grande, non
+ * meno: là un allergene sbagliato accompagna dei valori che una nutrizionista rileggerà, qui
+ * l'allergene è **l'unica cosa** che si scrive.
+ */
+describe('vagliaAllergeni — il giro sulle righe già in tabella', () => {
+  const buonaA = (extra: Record<string, unknown> = {}): RispostaGrezza => ({
+    e_un_alimento: true,
+    allergeni: ['latte', 'frutta_a_guscio'],
+    fonte: { nome: 'Etichetta produttore', url: 'https://esempio.it/pesto' },
+    affidabilita: 'media',
+    ...extra,
+  });
+
+  it('✅ una risposta buona passa, e i codici escono normalizzati e senza doppioni', () => {
+    const v = vagliaAllergeni(buonaA({ allergeni: ['Latte', 'FRUTTA A GUSCIO', 'latte'] }));
+    expect(v).toMatchObject({ esito: 'ok', allergens: ['latte', 'frutta_a_guscio'], affidabilita: 'media' });
+  });
+
+  it('⛔ un codice fuori dai quattordici UE boccia TUTTA la riga, non cade in silenzio', () => {
+    const v = vagliaAllergeni(buonaA({ allergeni: ['latte', 'nichel'] }));
+    expect(v).toMatchObject({ esito: 'scartata', motivo: 'allergene_sconosciuto', dettaglio: 'nichel' });
+  });
+
+  /**
+   * ⛔ **L'elenco VUOTO passa, ed è il punto di tutto il giro.** `[]` scritto dall'agente vuol dire
+   * «ho cercato e non ne ha», che è un'informazione; il vuoto di partenza vuol dire «non lo sa
+   * nessuno». Se il vaglio bocciasse il vuoto, l'unica riga che l'agente saprebbe chiudere sarebbe
+   * quella con un allergene — e le mele resterebbero indistinguibili dai pesti pronti per sempre.
+   */
+  it('⛔ «nessun allergene» è una risposta, non una risposta mancata — se la fonte regge', () => {
+    expect(vagliaAllergeni(buonaA({ allergeni: [], affidabilita: 'solida' }))).toMatchObject({ esito: 'ok', allergens: [] });
+  });
+
+  /**
+   * ⛔ **UN ELENCO VUOTO E DEBOLE NON SI SCRIVE** (revisione del 5/9). Il sistema dice all'AI di
+   * rispondere «debole» quando non è sicura: `[]` + debole è una scrollata di spalle, e in pagina
+   * diventerebbe «l'agente ha cercato e non ne ha trovati» — cioè il segnale che fa smettere di
+   * guardare. Fra «non lo sa nessuno» e un'ipotesi travestita da risposta, si tiene il vuoto.
+   */
+  it('⛔ «nessun allergene» con la fonte debole si scarta: è un\'ipotesi, non una risposta', () => {
+    expect(vagliaAllergeni(buonaA({ allergeni: [], affidabilita: 'debole' }))).toMatchObject({ esito: 'scartata', motivo: 'vuoto_e_debole' });
+    // ⚠️ Un'affidabilità che non conosciamo vale «debole», quindi anche lei non scrive un vuoto.
+    expect(vagliaAllergeni(buonaA({ allergeni: [], affidabilita: 'abbastanza' }))).toMatchObject({ esito: 'scartata', motivo: 'vuoto_e_debole' });
+  });
+
+  /**
+   * ⛔ **SE LE PAROLE NE TROVANO UNO E L'AI NO, VINCE LA PAROLA.** «Taleggio» sta nel vocabolario
+   * come latte: un'AI che risponde «nessun allergene» sta sbagliando, e scrivere quella risposta
+   * chiuderebbe la riga con un allergene in meno addosso a chi è allergico. Il verso opposto — l'AI
+   * ne trova uno che il vocabolario non conosce — è esattamente il motivo per cui il giro esiste.
+   */
+  it('⛔ un allergene che le parole trovano e l\'AI non dichiara boccia la riga', () => {
+    expect(vagliaAllergeni(buonaA({ allergeni: [], affidabilita: 'solida' }), ['latte']))
+      .toMatchObject({ esito: 'scartata', motivo: 'allergene_perso', dettaglio: 'latte' });
+    expect(vagliaAllergeni(buonaA({ allergeni: ['latte'] }), ['latte'])).toMatchObject({ esito: 'ok' });
+  });
+
+  it('✅ un allergene in PIÙ di quelli che le parole conoscono passa: è il motivo del giro', () => {
+    expect(vagliaAllergeni(buonaA({ allergeni: ['latte', 'frutta_a_guscio'] }), ['latte']))
+      .toMatchObject({ esito: 'ok', allergens: ['latte', 'frutta_a_guscio'] });
+  });
+
+  it('⚠️ ma «niente elenco» non è «elenco vuoto»: senza il campo si scarta', () => {
+    expect(vagliaAllergeni(buonaA({ allergeni: undefined }))).toMatchObject({ esito: 'scartata', motivo: 'risposta_vuota' });
+    expect(vagliaAllergeni(buonaA({ allergeni: 'latte' }))).toMatchObject({ esito: 'scartata', motivo: 'risposta_vuota' });
+  });
+
+  it('⛔ la fonte con un indirizzo è obbligatoria: «lo so» non è una fonte', () => {
+    expect(vagliaAllergeni(buonaA({ fonte: { nome: 'conoscenza generale' } }))).toMatchObject({ esito: 'scartata', motivo: 'senza_fonte' });
+    expect(vagliaAllergeni(buonaA({ fonte: { nome: 'CREA', url: 'crea.gov.it' } }))).toMatchObject({ esito: 'scartata', motivo: 'senza_fonte' });
+  });
+
+  it('⚠️ «non è un alimento» è un esito suo, non uno scarto', () => {
+    expect(vagliaAllergeni(buonaA({ e_un_alimento: false }))).toEqual({ esito: 'non_alimento' });
+  });
+
+  it('⚠️ niente JSON, o un JSON che non è un oggetto: scartata, non un errore', () => {
+    expect(vagliaAllergeni(null)).toMatchObject({ esito: 'scartata', motivo: 'risposta_vuota' });
+    expect(vagliaAllergeni(undefined)).toMatchObject({ esito: 'scartata', motivo: 'risposta_vuota' });
+    expect(vagliaAllergeni('latte' as never)).toMatchObject({ esito: 'scartata', motivo: 'risposta_vuota' });
+  });
+
+  it('⚠️ un\'affidabilità che non conosciamo diventa «debole», mai «solida»', () => {
+    const v = vagliaAllergeni(buonaA({ affidabilita: 'abbastanza', allergeni: ['latte'] }));
+    expect(v).toMatchObject({ esito: 'ok', affidabilita: 'debole' });
+  });
+
+  it('⚠️ senza nome della fonte resta l\'indirizzo: qualcosa da aprire c\'è sempre', () => {
+    const v = vagliaAllergeni(buonaA({ fonte: { url: 'https://esempio.it/pesto' } }));
+    expect(v).toMatchObject({ esito: 'ok', fonte: 'https://esempio.it/pesto' });
+  });
+
+  it('⛔ il sistema del giro allergeni elenca i quattordici codici e dice le trappole', () => {
+    for (const c of EU_ALLERGEN_CODES) expect(SYSTEM_SOLO_ALLERGENI).toContain(c);
+    expect(SYSTEM_SOLO_ALLERGENI).toMatch(/senza lattosio/);
+    expect(SYSTEM_SOLO_ALLERGENI).toMatch(/ALLERGENI/);
+    // ⚠️ NON deve chiedere i valori: quelli in tabella li ha messi una persona.
+    expect(SYSTEM_SOLO_ALLERGENI).not.toMatch(/kcal/i);
+  });
+
+  it('la domanda porta il nome e la categoria della riga', () => {
+    expect(promptSoloAllergeni('pesto pronto', 'sughi')).toContain('«pesto pronto»');
+    expect(promptSoloAllergeni('pesto pronto', 'sughi')).toContain('sughi');
+    expect(promptSoloAllergeni('pesto pronto', null)).toContain('«pesto pronto»');
   });
 });
 

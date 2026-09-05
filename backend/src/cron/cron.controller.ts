@@ -153,6 +153,11 @@ export class CronController {
      * ogni alimento è una chiamata con ricerche in rete, che si pagano a parte. Spento non chiama
      * l'AI; la sola cosa che fa anche da spento è portare alle ricette gli allergeni che qualcuno ha
      * scritto a mano su una riga della tabella — non costa niente e non è un giudizio dell'AI.
+     *
+     * ⚠️ Dal 5/9 il passo è in **tre giri**: i nomi che in tabella non ci sono, poi gli **allergeni
+     * delle righe che ci sono già con la colonna vuota** (il caso del pesto pronto: valori giusti,
+     * allergeni ignoti), poi la propagazione dei tag. Il secondo scrive solo `allergens`, mai i
+     * valori: quelli li ha messi una persona.
      */
     await step('agenteAlimenti', () => this.agenteAlimenti.passoNotturno());
     /**

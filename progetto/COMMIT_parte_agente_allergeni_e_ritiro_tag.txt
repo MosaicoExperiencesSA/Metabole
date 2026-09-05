@@ -1,0 +1,66 @@
+Summary
+-------
+L'agente alimenti chiude le sue tre code: gli allergeni delle righe che in tabella ci sono già,
+gli scarti visibili in pagina, e il gesto per disfare un tag sbagliato.
+
+1. Secondo giro dell'agente, "solo allergeni" (compilaAllergeniMancanti): chiede l'elenco degli
+   allergeni alle righe che nessuno ha ancora guardato, partendo da quelle che più ricette
+   nominano. Non tocca mai i valori.
+2. Gli scarti dell'agente arrivano in pagina, sotto il termine, col motivo e la data.
+3. npm run ritira:tag-alimento: il gesto inverso della propagazione, sola lettura per default.
+
+Colonna nuova allergens_filled_by: dice CHI ha guardato gli allergeni (agente o persona) ed è
+l'unica cosa che distingue "cercato e non ne ha" da "non lo sa nessuno". Finché è vuota l'agente
+può chiedere; appena qualcuno risponde, non ci scrive più sopra.
+
+Nove rilievi dalla revisione avversariale, quattro gravi, tutti corretti prima della consegna.
+22 mutazioni provate una per una, 8003 prove verdi, build backend e backoffice verdi.
+
+Description
+-----------
+IL SECONDO GIRO
+Il limite stava scritto nel foglio del 31/8: essere in tabella non vuol dire conoscerne gli
+allergeni. Su un pesto pronto che ha la sua riga, la deduzione dalle parole dice "nessun
+allergene" con la stessa faccia con cui lo direbbe per una mela. L'agente adesso, dopo aver
+compilato i nomi che mancano e prima di propagare i tag, chiede solo gli allergeni alle righe che
+ne sono senza: fonte con un indirizzo obbligatoria, codici solo fra i quattordici UE, e due
+guardie in più rispetto al giro grande, perché qui l'allergene è l'unica cosa che si scrive.
+Un elenco vuoto con la fonte "debole" si scarta (il sistema dice all'AI di rispondere debole
+quando non sa: era un'ipotesi che in pagina sarebbe diventata "cercato, non ne ha"), e un
+allergene che il vocabolario delle parole trova e l'AI non dichiara boccia la riga.
+
+LA COLONNA NUOVA
+allergens vuoto vuol dire "non si sa". Una nutrizionista che apre "mela" e dichiara "li ho
+guardati, non ne ha" lascia sul database un vuoto identico a quello di partenza: senza un segno,
+l'agente ci scriveva sopra la sua ipotesi la notte stessa. allergens_filled_by dice chi li ha
+guardati, agente_alimenti o persona; allergens_source tiene la fonte degli allergeni, che può non
+essere quella dei valori (CREA per le kcal, l'etichetta del produttore per il latte).
+
+IL GESTO INVERSO
+Il costo dichiarato di "le righe dell'agente valgono subito" era che un allergene sbagliato, una
+volta propagato, resta anche dopo che la riga è stata corretta. ritira:tag-alimento legge il
+registro della propagazione e ricostruisce cosa era arrivato da quella riga. Non toglie un tag che
+la ricetta avrebbe comunque dalle parole, né uno che un altro alimento della tabella giustifica
+ancora, né tocca le ricette guardate a mano o spuntate in blocco, e non tocca mai
+allergensReviewed. Si ferma se la riga in tabella dichiara ancora quegli allergeni: toglierli
+adesso non servirebbe a niente, la propagazione di stanotte li rimetterebbe tutti.
+
+DALLA REVISIONE AVVERSARIALE
+- l'agente si firmava in filledBy, che vuol dire chi ha scritto la riga: le 262 righe copiate a
+  mano dal CREA il 2/9 sarebbero diventate "scritte dall'AI".
+- il caso delle lasagne: besciamella e pesto, tutte e due latte; la propagazione scrive una sola
+  origine e nessuna delle due parole sta nel vocabolario. Disfare il pesto avrebbe tolto latte a un
+  piatto con la besciamella dentro.
+- lo script non guardava la riga che stava disfacendo.
+- allergeniDopoIlRitiro filtrava per solo allergene: chi le avesse passato l'elenco intero invece
+  della fetta di quella ricetta avrebbe tolto a ogni piatto l'unione di tutti i tag ritirati.
+- un timeout non fatale scriveva la riga di registro che mette un alimento in frigo per 30 giorni.
+- la finestra di 500 righe senza ordinamento rendeva falso "le più usate per prime".
+- gli scarti in pagina si chiedono per gli id in elenco, non a finestra.
+
+MIGRAZIONE
+20260905140000_chi_ha_guardato_gli_allergeni: due colonne additive e nullable su nutrient_fact.
+Il giorno del deploy non cambia niente per nessuno.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01DYFuVapCUpZ1uZPEyeUsNM
