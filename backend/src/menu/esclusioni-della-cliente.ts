@@ -1,7 +1,8 @@
-import { EU_ALLERGEN_CODES, allergenLabel } from '../catalog/allergens';
+import { allergenLabel } from '../catalog/allergens';
 import { expandExclusion, hitsExclusion } from './exclusions';
 import { decisioneLattosio, usaDelattosati } from './lattosio';
 import { ALLERGENE_SOLFITI, TESTO_SI_TOGLIE, decisioneSolfiti, dichiaraSolfiti } from './solfiti';
+import { codiciAllergeneDichiarati, codiciCheBloccanoDalTag, ilTagSolfitiRipiega } from './tag-che-scarta';
 import { Substitution } from './pasto-giornata';
 import { SUBSTITUTION_MAP } from './sostituzioni-sicure';
 
@@ -122,7 +123,7 @@ export function esclusioniDi(
     // ⚠️ Anche le intolleranze: `dichiaraSolfiti` guarda tutti e due i campi, e passargliene uno
     // solo lo rendeva cieco su chi li ha scritti nel posto sbagliato. Trovato dal test, 24/8.
     solfiti: dichiaraSolfiti({ allergies: allergie, intolerances: intolleranze }),
-    codiciAllergene: new Set(allergie.filter((a) => EU_ALLERGEN_CODES.includes(a))),
+    codiciAllergene: new Set(codiciAllergeneDichiarati(allergie)),
     vuoto: false,
   };
 }
@@ -164,7 +165,7 @@ export function valutaRicetta(
    * saputo dire, ingrediente per ingrediente, cosa cambiare — e dove uno degli ingredienti richiede
    * di togliere il piatto (`'fuori'`), il piatto si toglie comunque.
    */
-  const codiciDaGuardare = [...e.codiciAllergene].filter((c) => !(c === ALLERGENE_SOLFITI && e.solfiti));
+  const codiciDaGuardare = codiciCheBloccanoDalTag(e.codiciAllergene, e.solfiti);
   const perTag = codiciDaGuardare.length
     ? (r.allergens ?? []).find((a) => codiciDaGuardare.includes(a))
     : undefined;
@@ -257,7 +258,7 @@ export function valutaRicetta(
    * allora il tag torna a bloccare. È il caso della ricetta taggata a mano dalla nutrizionista su un
    * ingrediente che il nostro elenco non nomina: lì lei sa una cosa che noi non sappiamo, e vince lei.
    */
-  if (e.solfiti && !violations.length && !subs.length && (r.allergens ?? []).includes(ALLERGENE_SOLFITI)) {
+  if (ilTagSolfitiRipiega(e.solfiti, r.allergens, violations.length > 0, subs.length > 0)) {
     violations.push(`${r.name}: contiene ${allergenLabel(ALLERGENE_SOLFITI)} (allergene dichiarato)`);
   }
 

@@ -20,6 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **Un giudizio solo sul tag solfiti: la base personale allineata ai menu.** Il giro
+  dei 3080 tag `solfiti` del 5/9 ha reso grossa una divergenza che c'era da prima: la composizione
+  dei menu, dal 24/8, sul tag `solfiti` **non blocca** (guarda gli ingredienti, perché per i solfiti
+  esiste la tabella che dice cosa sostituire), la **base personale** invece scartava su qualunque
+  tag — e contava «non sicure» proprio le ricette che il motore avrebbe servito con la sostituzione,
+  fino a far scattare «poche ricette sicure» su chi ne aveva. Simone: «allinea subito le due porte».
+  Il giudizio sta ora in `menu/tag-che-scarta.ts` (`codiciAllergeneDichiarati`,
+  `codiciCheBloccanoDalTag`, `ilTagSolfitiRipiega`, `tagCheScarta`) e lo chiamano tutte e due; sette
+  prove mettono gli stessi dati nei due percorsi e pretendono lo **stesso verdetto**. ⚠️ Per ogni
+  altro allergene non cambia niente. Mutazione: il tag solfiti che torna a bloccare da solo → 5 rosse.
+
+- `[Sviluppo]` ✅ **Elenco lavori ripulito: «Da fare — codice» da 8 voci a 3.** Simone: «i panieri li
+  abbiamo finiti due giorni fa, perché sono ancora qui?», «stai tenendo aperte cose chiuse». Aveva
+  ragione, e la colpa era della colonna: dentro «da fare» stavano cose che aspettavano una persona o
+  un dato. **Chiuse** le due dei panieri (la misura della Fase 0 e i due numeri per Nocanty: erano
+  state misurate il 4/9, e il testo stesso lo diceva); il residuo dei panieri — 84 righe che nominano
+  29 piatti spariti, più una variante magra con una cliente sopra — è diventato una voce di **dati**
+  sua (`panieri-84-righe-rotte`). **Spostate** fuori da «codice»: piatto doppio → Simone (aspetta il
+  comando di fine settembre), pesate lontane e **digiuno** → Nocanty, senza glutine → paniere,
+  ricette senza ingredienti e foglio alimenti → dati. ⛔ Sul digiuno il testo diceva il falso:
+  elencava come «resto della consegna» `PATCH /me/digiuno`, il cron del piano graduale, le sei push,
+  l'orologio e il widget in app, la scheda staff — **verificati uno per uno nel codice, ci sono
+  tutti**. Di codice non resta niente: restano tre numeri e quattro conferme cliniche. Corretti anche
+  i numeri della voce dei permessi (67 chiavi e 24 lette, non 66 e 23).
+
 - `[Sviluppo]` ✅ **L'agente alimenti: prende il nome dell'ingrediente, cerca in rete allergeni e valori
   nutrizionali, e li scrive SULL'ALIMENTO.** Simone, davanti alla quarta lista di parole da aggiungere
   a mano: «mettiamoci un agente che prende la parola, cerca in internet gli allergeni e i valori

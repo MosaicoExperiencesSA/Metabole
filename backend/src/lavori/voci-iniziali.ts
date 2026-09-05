@@ -398,6 +398,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'clienti?».\n\n'
       + '⛔ **Quello che NON va fatto** è spegnere l\'avviso togliendo le chiavi: la voce di menu '
       + 'serve, e toglierla darebbe a tutti quello che oggi si può almeno nascondere.'
+      + '\n\n⚠️ **Numeri riallineati il 5/9** (erano scivolati, ed è lo stesso difetto che questa voce rimproverava a sé): `pages.ts` dichiara **67** chiavi, quelle lette da un `@RequirePage` sono **24**, le altre **43** — di cui **29 buchi**, 9 figlie, 2 grantor, 3 innocue. Resta la strada (b): le 29 guardie, una per una. ⚠️ Anche l\'intestazione di `chiavi-senza-guardia.spec.ts` dice ancora «quarantatré su sessantaquattro».',
   },
 
   {
@@ -487,10 +488,9 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'stesso-piatto-spuntino-e-merenda',
-    categoria: 'Da fare — codice',
+    categoria: SIMONE,
     ordine: 0,
     blocca: false,
-    fatta: false,
     nata: '2026-09-02T18:40',
     titolo: '⛔ Lo stesso piatto allo spuntino E alla merenda della stessa giornata: la composizione non lo vieta',
     dettaglio:
@@ -553,7 +553,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'FINITO» e stima quanti giorni di esercizio mancano. ⛔ Prima diceva «alza GIORNI e '
       + 'rilancia» **anche quando indietro non c\'era altro**, cioè mandava a rilanciare a vuoto e '
       + 'poi a decidere lo stesso senza il numero — con tutti gli elementi per accorgersene in mano '
-      + '(il periodo chiesto e quello trovato, che erano diversi).',
+      + '(il periodo chiesto e quello trovato, che erano diversi).'
+      + '\n\n⚠️ **Spostata fuori da «Da fare — codice» il 5/9**: lo strumento e il giudizio ci sono (`menu/piatti-doppi-nella-giornata.ts`, `npm run diag:piatto-doppio`), e il prossimo passo è **rilanciare quel comando a fine settembre** — sotto le cento giornate a rischio il campione non basta. Quale delle due strade si prende (guardia a valle o vincolo nel cartesiano) si decide **con quel numero**, non prima.',
   },
   {
     chiave: 'la-e-nel-nome-tronca-in-silenzio',
@@ -691,10 +692,9 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'fase0-panieri-la-misura-che-manca',
+    fatta: true,
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
-    fatta: false,
     nata: '2026-08-31T16:40',
     titolo: 'Panieri — la misura della Fase 0: piatti, attivi e rotti per ogni variante',
     dettaglio:
@@ -731,7 +731,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + '\n\n▶️ **MISURATO IL 4/9 con `diag:fase0`, e quello che manca è finito.** 318 varianti (306 approvate), **26 618 ricette diverse** nominate, **23 316 attive**, **3 273 spente**, **29 inesistenti**. Stati: 237 complete, 68 rotte, 13 magre.\n'
       + '⛔ **144 varianti su 318 non arrivano a 60 piatti attivi su almeno un pasto**, ma di quelle **una sola ha clienti sopra**: la 16:8 · flexible · omnivore · dimagrimento · 3 pasti, che a **pranzo ha 12 piatti attivi** per **1 cliente**. Le altre 143 sono le magre senza clienti che il §2.3 dice che spariscono chiudendo le famiglie doppione. ⚠️ **Il numero che decide i tempi è 1, non 144.**\n'
       + '⛔ **E i riferimenti rotti sono 84, su 68 varianti**: da soli bastano a fermare la Fase 1, che mette la chiave esterna. Sono concentrati — Keto e Detossinante ne hanno 3 a testa — e **cinque varianti coi rotti hanno clienti sopra** (Mediterranea 3 pasti con 4 clienti, Flessibile 5 pasti con 3, Keto con 2, Flessibile 3 pasti con 2, Pescetariana con 2).\n'
-      + '▶️ **Quindi la Fase 1 aspetta due cose sole, e sono finite**: i 29 piatti che non esistono più (le 84 righe che li nominano) e la variante magra con una cliente sopra. Non è «rifare il catalogo».',
+      + '▶️ **Quindi la Fase 1 aspetta due cose sole, e sono finite**: i 29 piatti che non esistono più (le 84 righe che li nominano) e la variante magra con una cliente sopra. Non è «rifare il catalogo».'
+      + '\n\n✅ **CHIUSA il 5/9: la misura che questa voce chiedeva È STATA FATTA il 4/9**, e il verdetto sta scritto qui sopra (318 varianti, 26 618 ricette nominate, 23 316 attive, 3 273 spente, 29 inesistenti; 237 complete, 68 rotte, 13 magre). Simone, 5/9: «i panieri li abbiamo finiti due giorni fa, perché sono ancora qui?» — aveva ragione: la voce chiedeva **una misura**, non una riparazione, e restava aperta per il residuo, che è **dato** e non codice. Quel residuo ha adesso una voce sua (`panieri-84-righe-rotte`).',
   },
   {
     chiave: 'i-latti-vegetali-spariscono-a-chi-serve',
@@ -801,10 +802,9 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'allergeni-deducibili-i-due-numeri',
+    fatta: true,
     categoria: 'Da fare — codice',
     ordine: 0,
-    blocca: true,
-    fatta: false,
     nata: '2026-08-31T15:20',
     titolo: 'Panieri — i due numeri promessi a Nocanty: quante ricette si fermerebbero sugli allergeni dedotti',
     dettaglio:
@@ -851,7 +851,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + '⛔ **E il primo della lista non è nemmeno un alimento: «sale e pepe» ferma 3 577 ricette.** Con «sale pepe» (251) e «sale iodato» (201) fanno **quattromila ricette bloccate da un condimento che allergeni non ne ha**. Dietro: peperoncino 503, noce moscata 429, vaniglia in polvere 427, rosmarino 371, origano 334.\n'
       + '⚠️ **La curva è ripida all\'inizio**: i primi 10 nomi sbloccano **1 625** ricette, i primi 250 ne sbloccano **5 525** (27,7% della coda). La coda si chiude riempiendo la tabella, non riscrivendo le ricette — ed è questo che va portato a Nocanty, non il solo 84%.\n'
       + '⛔ **E una cosa che vale già oggi, indipendentemente dai panieri: 456 ricette dichiarano MENO di quello che hanno.** 471 guadagnerebbero **solfiti** — mix di frutta secca, uvetta, datteri — e sono già in catalogo, già «confermate», e a una cliente sensibile ai solfiti oggi risultano sicure. (194 ne perderebbero uno, quasi tutte latte: menu più poveri, non un rischio.)\n'
-      + '⚠️ **Il limite del §4.2 è misurato e resta aperto**: 505 ricette (13,4%) passano avendo dentro un ingrediente dal nome di **preparazione** — «brodo vegetale», «hummus di ceci». La riga in tabella c\'è, quindi il sistema **non si ferma**: dice «nessun allergene» con la stessa faccia.',
+      + '⚠️ **Il limite del §4.2 è misurato e resta aperto**: 505 ricette (13,4%) passano avendo dentro un ingrediente dal nome di **preparazione** — «brodo vegetale», «hummus di ceci». La riga in tabella c\'è, quindi il sistema **non si ferma**: dice «nessun allergene» con la stessa faccia.'
+      + '\n\n✅ **CHIUSA il 5/9: i due numeri promessi a Nocanty ci sono** — misurati il 4/9 sui dati veri (si fermano 19 956 su 23 726, 84,1%; passano 3 770). Il §5 del foglio chiedeva **due numeri prima di scrivere codice di produzione**: sono stati dati, e la decisione (la via di mezzo, `DECISIONI_Panieri.md` §1) è del 31/8.\n✅ **E il limite che questa voce dichiarava aperto — «essere in tabella non vuol dire conoscerne gli allergeni» — è chiuso il 5/9** dall\'agente alimenti: gli allergeni si dichiarano **sull\'alimento** (`nutrient_fact.allergens`) e da lì arrivano alle ricette. Vedi `agente-alimenti-allergeni-dalla-rete`.',
   },
   {
     chiave: 'diagnostica-erogazione-muta',
@@ -3310,10 +3311,9 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'pesate-lontane-buco-del-ritmo',
-    categoria: 'Da decidere con Simone',
+    categoria: NOCANTY,
     ordine: 0,
     blocca: false,
-    fatta: false,
     nata: '2026-08-28T10:10',
     titolo: '▶️ Al rientro si riparte dal peso di prima (fatto): resta la soglia d\'allarme, che è clinica',
     dettaglio:
@@ -3354,6 +3354,7 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'sospensione senza pesate in mezzo, si smette di fidarsi del numero?* ⚠️ Serve un numero '
       + 'solo, e va con una seconda decisione: chi lo deve sapere quando scatta — perché oggi quel '
       + 'ramo non arriverebbe a nessuno.'
+      + '\n\n⚠️ **Spostata su «Aspetta Nocanty» il 5/9**: la parte di codice è fatta (`signals/peso-al-rientro.ts`, `quando-comincia-il-periodo.ts`); quello che manca è una **soglia clinica** — oggi servono insieme 10 kg **e** 7 kg/settimana (`peso-incoerente.ts`), quindi venti chili in venticinque giorni non fanno scattare niente — e la decisione di chi dev\'essere avvisato. Sono due risposte, non due righe.',
   },
   {
     chiave: 'kit-rientro-quale-peso',
@@ -4120,10 +4121,10 @@ export const VOCI_INIZIALI: Voce[] = [
   },
   {
     chiave: 'digiuno-pubblicazione',
-    categoria: 'Da fare — codice',
+    categoria: NOCANTY,
     ordine: 0,
     blocca: false,
-    titolo: 'Pubblicare il digiuno intermittente — le fondamenta sono scritte, restano i tre numeri',
+    titolo: 'Digiuno intermittente: il codice è tutto in produzione, restano tre numeri e quattro conferme cliniche',
     dettaglio:
       '⚠️ **Questa voce era stata aperta prima di misurare qualsiasi cosa, e lo diceva.** Adesso una '
       + 'parte è misurata e una parte è scritta: il testo di prima resta in fondo, perché una voce '
@@ -4364,7 +4365,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + '*Il testo di quando questa voce è nata, il 21/8, prima di misurare:* quello che c\'è già — '
       + '`menu/finestre-digiuno.ts`, `catalog/struttura-per-digiuno.ts`, le varianti in catalogo, '
       + '`pickDietFor`, l\'attività che chiede la finestra quando manca, le porzioni scalate, '
-      + '`diag:digiuni`. E i tre numeri da avere prima di scrivere codice, che sono ancora aperti.',
+      + '`diag:digiuni`. E i tre numeri da avere prima di scrivere codice, che sono ancora aperti.'
+      + '\n\n⛔ **RILETTA IL 5/9, e il testo qui sopra dice cose che non sono più vere.** Simone: «stai tenendo aperte cose chiuse». Verificato nel codice, uno per uno, tutto l\'elenco che questa voce chiamava «il resto della consegna» **c\'è**: `PATCH /me/digiuno` e `GET /me/digiuno` (`profile.controller.ts`), il passo notturno del piano graduale e `POST internal/cron/digiuno-push` (col suo cron in `render.yaml`), `menu/orologio-digiuno.ts`, `cambio-finestra.ts`, `push-digiuno.ts`, l\'orologio e il widget in app (`Digiuno.tsx`, `CardDigiuno.tsx`, `OrologioDigiuno.tsx`), la scheda staff in `ClientDetail.tsx`. Anche «OTA 2.2.1» è vecchio: l\'apertura della voce dichiara la **2.2.2 già live**.\n▶️ **Quindi di codice non resta niente, e la voce è passata a «Aspetta Nocanty».** Restano: i **tre numeri** da produzione (`npm run diag:digiuni`, `npm run diag:catalogo` + `npm run diag:coda`, `npm run diag:kcal`) e le **quattro conferme cliniche** — la più urgente è chi dichiara una controindicazione **mentre sta già digiunando** (proposta: si sospende subito); poi le tre domande cliniche e la soglia BMI, le quote per pasto del manuale (**36 · 16 · 48** contro le .45/.10/.45 che il codice usa oggi in `catalog/struttura-per-digiuno.ts` — ⚠️ cambia la forma della giornata: la cena diventa il pasto più grande), e i nomi che legge la cliente.',
   },
   {
     chiave: 'seed-nutrienti-firma-falsa',
@@ -4973,8 +4975,21 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
-    chiave: 'senza-glutine-catalogo-mezzo-inservibile',
+    chiave: 'panieri-84-righe-rotte',
+    titolo: 'Panieri, quello che resta: 84 righe che nominano 29 piatti spariti, e una variante magra con una cliente sopra',
+    dettaglio:
+      '▶️ **È il residuo — di DATI, non di codice — della misura del 4/9** (`diag:fase0`), staccato dalla voce della misura il 5/9 perché quella chiedeva un numero e il numero c\'è.\n'
+      + '⛔ **Le due cose che la Fase 1 pretende a zero**: (1) **29 ricette nominate dalle giornate non esistono più**, e sono nominate da **84 righe** — finché ci sono, quelle giornate hanno un buco che nessun controllo riempie; (2) **una variante magra con una cliente sopra**: le altre magre spariscono da sole chiudendo le famiglie doppione (§2.3 del piano), questa no perché qualcuno la sta mangiando.\n'
+      + '▶️ **Come si vedono**: `npm run diag:fase0` (sola lettura) le elenca — `ESEMPI=100` per vederle tutte, `SOGLIA` per cambiare la soglia dei piatti attivi per pasto. Le 84 righe si correggono dal backoffice sostituendo il piatto sparito con uno del paniere giusto; la variante magra si sposta a mano sulla variante piena.\n'
+      + '⚠️ **Non è «rifare il catalogo»**: sono 84 righe e una cliente. Il piano lo dice al §9, e la misura del 4/9 lo conferma.',
     categoria: DATI,
+    ordine: 0,
+    nata: '2026-09-05T12:00',
+  },
+
+  {
+    chiave: 'senza-glutine-catalogo-mezzo-inservibile',
+    categoria: PANIERE,
     titolo: 'Mediterranea senza glutine: su due giornate, sei piatti su dieci non si potevano servire',
     dettaglio:
       'Misurato il 31/8 su Patrizia: su **due giornate da cinque pasti**, **sei piatti su dieci** erano roba '
@@ -4983,7 +4998,8 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'seconda esclusione. Si misura con `npm run diag:esclusioni`.\n\n'
       + '⚠️ Da leggere insieme al rifacimento del paniere (`progetto/PIANO_Panieri_Ricette.md`): il senza '
       + 'glutine lì diventa un **filtro** sul paniere mediterraneo, e la famiglia si chiude quando quel filtro '
-      + 'funziona.',
+      + 'funziona.'
+      + '\n\n⚠️ **Spostata su «Aspetta il paniere» il 5/9**: la rete di sicurezza c\'è (`menu/senza-glutine.ts`, `exclusions.ts`) e il numero si legge con `npm run diag:esclusioni`, ma la chiusura dichiarata è il **filtro sul paniere mediterraneo** (`PIANO_Panieri_Ricette.md`; oggi `appartenenza-panieri.ts` mappa solo famiglia × regime). Misurare adesso sul catalogo di oggi vorrebbe dire rifare la misura dopo.',
     ordine: 961,
     nata: '2026-08-31T18:00',
   },
@@ -6270,7 +6286,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'ricette-senza-elenco-ingredienti',
-    titolo: 'Ricette attive senza elenco ingredienti: passano ogni controllo, perché ogni controllo guarda gli ingredienti',
+    titolo: 'Le ricette GIÀ in catalogo senza elenco ingredienti: le porte sono chiuse, resta il pregresso da riempire',
     dettaglio:
       '\u26d4 **`6a5666fd` «Branzino al forno con verdure rosse e limone» \u00e8 ATTIVA, dentro un paniere, '
       + 'e ha l\'elenco ingredienti VUOTO.** \u00c8 saltata fuori il 2/9 guardando le sei ricette di pesce, '
@@ -6288,8 +6304,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + '(una cliente le pu\u00f2 ricevere) e «fuori dai panieri o spente» (con calma). \u26a0\ufe0f Attenzione '
       + 'al terzo caso che il tabulato separa: l\'elenco che **c\'\u00e8 ma non ha nomi dentro** '
       + '(`[{qty: 100}]`) \u2014 da fuori la ricetta sembra compilata.'
-      + '\n\n\u2705 **Dal 4/9 non ne nascono pi\u00f9 nemmeno dalle persone**: la porta di `createRecipe`/`updateRecipe` ferma l\'elenco vuoto e quello senza nomi (vedi la voce `cancelli-alla-porta-delle-ricette`). Resta da riempire quello che c\'\u00e8 gi\u00e0.',
-    categoria: CODICE,
+      + '\n\n\u2705 **Dal 4/9 non ne nascono pi\u00f9 nemmeno dalle persone**: la porta di `createRecipe`/`updateRecipe` ferma l\'elenco vuoto e quello senza nomi (vedi la voce `cancelli-alla-porta-delle-ricette`). Resta da riempire quello che c\'\u00e8 gi\u00e0.'
+      + '\n\n⚠️ **Titolo corretto e voce spostata sui DATI il 5/9.** Diceva «passano ogni controllo», e dal 4/9 non è più vero: `catalog/ricetta-che-si-puo-scrivere.ts` ferma l\'elenco vuoto e quello senza nomi in **tutte e due** le porte (`createRecipe` e `updateRecipe`), e il generatore notturno ha il suo controllo dal 2/9. Non ne nascono più. Resta **solo il pregresso**: `npm run diag:senza-ingredienti` (sola lettura) dice quali sono, e si riempiono a mano.',
+    categoria: DATI,
     ordine: 675,
     nata: '2026-09-02T19:00',
   },
@@ -6384,8 +6401,9 @@ export const VOCI_INIZIALI: Voce[] = [
       + '\u2705 **Cosa serve**: rifare quelle righe con valori veri. Il resto del lavoro \u00e8 pronto \u2014 il '
       + 'file dati (`prisma/dati-alimenti-2-9.ts`, valori copiati fedelmente e verificati uno per '
       + 'uno contro il foglio), la traduzione degli stati e la nota di chi ha compilato. Appena il '
-      + 'foglio \u00e8 sistemato, `npm run importa:alimenti` gira e poi `CONFERMA=1`.',
-    categoria: CODICE,
+      + 'foglio \u00e8 sistemato, `npm run importa:alimenti` gira e poi `CONFERMA=1`.'
+      + '\n\n⚠️ **Spostata sui DATI il 5/9: il codice è pronto, è il foglio a essere rotto.** `prisma/importa-alimenti.ts` chiama già `trovaGemelli` e si ferma da solo. Ricontato il 5/9 su `prisma/dati-alimenti-2-9.ts` (262 righe): i gruppi copiati sono **tutti ancora lì** — 89 righe a 100 kcal / 5 g di proteine, 16 a 350/11, 15 a 340/13, 12 a 25/2, 8 a 310/22, 6 a 130/21. Servono ~149 righe rifatte con valori veri, poi `npm run importa:alimenti` e `CONFERMA=1`.\n⚠️ **E l\'agente alimenti del 5/9 NON copre questo caso**: compila i nomi che in tabella **mancano**, non corregge le righe già scritte.',
+    categoria: DATI,
     ordine: 676,
     nata: '2026-09-02T13:00',
   },

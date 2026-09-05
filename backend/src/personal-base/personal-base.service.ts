@@ -8,6 +8,9 @@ import { PushService } from '../notifications/push.service';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { EU_ALLERGEN_CODES } from '../catalog/allergens';
+import { nomiIngredienti } from '../catalog/elenco-ingredienti';
+import { dichiaraSolfiti } from '../menu/solfiti';
+import { codiciAllergeneDichiarati, tagCheScarta } from '../menu/tag-che-scarta';
 import { allergieDaCodificare } from '../common/allergie';
 import { ConfigParamsService } from '../config-params/config-params.service';
 import { DietMatchProfile, pickDietFor } from '../catalog/pick-diet';
@@ -159,6 +162,8 @@ export class PersonalBaseService {
         objective: true,
         allergies: true,
         allergiesOther: true,
+        /** ⚠️ Serve a `dichiaraSolfiti`: chi li scrive fra le intolleranze va trattato uguale (24/8). */
+        intolerances: true,
         assignedNutritionistId: true,
       },
     })) as unknown as {
@@ -171,6 +176,7 @@ export class PersonalBaseService {
       objective: string | null;
       allergies: string[];
       allergiesOther: string[];
+      intolerances: string[];
       assignedNutritionistId: string | null;
     } | null;
     if (!profile) throw new NotFoundException('Profilo non trovato: completa prima il questionario.');
@@ -189,7 +195,7 @@ export class PersonalBaseService {
      * due risposte possono non coincidere, e perché va bene così.
      */
     const allergies = profile.allergies ?? [];
-    const coded = allergies.filter((a) => EU_ALLERGEN_CODES.includes(a));
+    const coded = codiciAllergeneDichiarati(allergies);
     const uncoded = allergieDaCodificare(allergies, profile.allergiesOther, EU_ALLERGEN_CODES);
     if (uncoded.length) reasons.push(`allergie da codificare a mano: ${uncoded.join(', ')}`);
 
@@ -220,13 +226,15 @@ export class PersonalBaseService {
 
     const recipes = (await this.prisma.recipe.findMany({
       where: { id: { in: [...poolIds] }, active: true },
-      select: { id: true, mealSlot: true, regime: true, allergens: true, allergensReviewed: true },
+      /** ⚠️ `ingredients` serve **solo** ai solfiti: vedi `menu/tag-che-scarta.ts`. */
+      select: { id: true, mealSlot: true, regime: true, allergens: true, allergensReviewed: true, ingredients: true },
     })) as unknown as {
       id: string;
       mealSlot: string;
       regime: string;
       allergens: string[];
       allergensReviewed: boolean;
+      ingredients: unknown;
     }[];
 
     /**
@@ -246,7 +254,16 @@ export class PersonalBaseService {
       );
     }
     const regimeOk = regimiCompatibili(profile.regime);
-    const codedSet = new Set(coded);
+    /**
+     * ⛔ **LO STESSO GIUDIZIO DEI MENU** (5/9, Simone: «allinea subito le due porte»). Qui c'era
+     * `allergens.some(a => codedSet.has(a))`, cioè «un tag qualsiasi e la ricetta non è sicura» —
+     * mentre la composizione dei menu, dal 24/8, sul tag `solfiti` guarda gli **ingredienti**,
+     * perché per i solfiti sappiamo cosa sostituire. Il giro dei 3080 tag solfiti del 5/9 ha reso
+     * la divergenza grossa: la base personale contava «non sicure» proprio le ricette che il motore
+     * avrebbe servito con la sostituzione. Il giudizio sta in `menu/tag-che-scarta.ts` e lo chiamano
+     * tutte e due. ⚠️ Per ogni altro allergene non cambia niente: il tag scarta come prima.
+     */
+    const solfiti = dichiaraSolfiti({ allergies, intolerances: profile.intolerances ?? [] });
     const safe: { id: string; mealSlot: string }[] = [];
     let unreviewed = 0;
     for (const r of recipes) {
@@ -255,7 +272,7 @@ export class PersonalBaseService {
         continue;
       }
       if (!(regimeOk as readonly string[]).includes(r.regime)) continue; // incompatibile col regime del cliente
-      if ((r.allergens ?? []).some((a) => codedSet.has(a))) continue; // contiene un allergene del cliente
+      if (tagCheScarta({ allergens: r.allergens, ingredienti: nomiIngredienti(r.ingredients) }, coded, solfiti).scarta) continue;
       safe.push({ id: r.id, mealSlot: r.mealSlot });
     }
 

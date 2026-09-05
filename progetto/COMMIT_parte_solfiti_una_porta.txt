@@ -1,0 +1,89 @@
+Un giudizio solo sul tag solfiti, e l'elenco lavori ripulito
+
+DUE PORTE CHE RISPONDEVANO DIVERSO ALLA STESSA DOMANDA
+
+Il giro di riparazione del 5/9 ha scritto 3080 tag `solfiti` su ricette vecchie
+(dado vegetale, aceto di mele, uva passa, tonno in scatola): era la decisione
+del 24/8 — «quattro parole non bastavano» — applicata finalmente anche al
+catalogo di prima. Da lì è saltato fuori che lo stesso tag veniva giudicato da
+due porte con due regole diverse:
+
+- la composizione dei menu (`esclusioni-della-cliente.ts`), dal 24/8, NON
+  blocca sul tag solfiti: per chi li dichiara guarda gli ingredienti, perché per
+  i solfiti esiste una tabella che dice quale ingrediente è e cosa metterci al
+  posto;
+- la base personale (`personal-base.service.ts`) scartava su qualunque tag,
+  solfiti compresi. Per una cliente che dichiara i solfiti contava «non sicure»
+  proprio le ricette che il motore le avrebbe servito con la sostituzione — e
+  con abbastanza ricette così scattava l'avviso «poche ricette sicure» su una
+  cliente che ne aveva.
+
+Simone, 5/9: «allinea subito le due porte». La decisione sui solfiti era già
+sua, del 24/8: non andava richiesta, andava applicata dove non lo era.
+
+`menu/tag-che-scarta.ts` è il giudizio, e lo chiamano tutte e due:
+`codiciAllergeneDichiarati` (era la stessa riga scritta in tre posti),
+`codiciCheBloccanoDalTag` (tutti i codici tranne i solfiti quando dichiarati),
+`ilTagSolfitiRipiega` (dove non abbiamo saputo dire niente il tag torna a
+vincere: la nutrizionista sa una cosa che noi non sappiamo) e `tagCheScarta`,
+la domanda intera per chi conta le ricette sicure.
+
+⚠️ Per ogni altro allergene non cambia niente: il tag scarta come prima. E chi
+compone i menu continua a chiamare `valutaRicetta`, che oltre a rispondere
+costruisce le sostituzioni — ma le tre funzioni sono le stesse.
+
+LA PROVA CHE CONTA: sette casi (aceto, vino, gamberi, tag su ingrediente che non
+nominiamo, glutine, latte, solfiti+latte insieme) passati nei DUE percorsi, con
+la pretesa che diano lo stesso verdetto. Se qualcuno cambia una regola sola,
+diventa rossa. Più due sentinelle che leggono i sorgenti: la base personale non
+ha più il suo confronto sui tag, il motore non ha più la sua copia della regola
+solfiti.
+
+Mutazione: il tag solfiti che torna a bloccare da solo → 5 prove rosse.
+
+L'ELENCO LAVORI: «DA FARE — CODICE» DA 8 VOCI A 3
+
+Simone: «i panieri li abbiamo finiti due giorni fa, perché sono ancora qui?»,
+«stai tenendo aperte cose chiuse», «non sei in grado di chiudere i lavori».
+Aveva ragione, e la colpa era della colonna: dentro «da fare — codice» stavano
+cose che aspettavano una persona o un dato.
+
+CHIUSE, perché la misura che chiedevano era stata fatta il 4/9 e il testo stesso
+lo diceva:
+- «Panieri — la misura della Fase 0» (318 varianti, 26 618 ricette nominate,
+  23 316 attive, 29 inesistenti; 237 complete, 68 rotte, 13 magre);
+- «Panieri — i due numeri promessi a Nocanty» (si fermano 19 956 su 23 726,
+  84,1%). E il limite che dichiarava aperta — «essere in tabella non vuol dire
+  conoscerne gli allergeni» — è quello che l'agente alimenti ha chiuso oggi.
+
+NUOVA, di dati: `panieri-84-righe-rotte` — 84 righe che nominano 29 piatti
+spariti, più una variante magra con una cliente sopra. È il residuo della misura,
+e non è codice: si vede con `npm run diag:fase0` e si corregge dal backoffice.
+
+SPOSTATE fuori da «codice», perché aspettano una persona o un numero:
+- piatto doppio spuntino/merenda → Simone (il comando di fine settembre decide
+  quale delle due strade prendere);
+- pesate lontane → Nocanty (serve una soglia clinica: oggi servono insieme 10 kg
+  e 7 kg/settimana, quindi venti chili in venticinque giorni non scattano);
+- digiuno intermittente → Nocanty;
+- Mediterranea senza glutine → paniere (la chiusura dichiarata è il filtro sul
+  paniere, misurare adesso vorrebbe dire rifare la misura dopo);
+- ricette senza elenco ingredienti → dati (le due porte sono chiuse dal 4/9:
+  non ne nascono più, resta il pregresso);
+- foglio alimenti del 2/9 → dati (il codice è pronto, è il foglio ad avere 149
+  righe copiate).
+
+⛔ E sul digiuno il testo diceva il falso. Elencava come «resto della consegna»
+`PATCH /me/digiuno`, il cron del piano graduale, le sei push, l'orologio e il
+widget in app, la scheda staff: verificati uno per uno nel codice, ci sono
+tutti, e anche «OTA 2.2.1» era vecchio (l'apertura della voce dichiara la 2.2.2
+già live). Di codice non resta niente: restano i tre numeri da produzione e le
+quattro conferme cliniche — la più urgente è chi dichiara una controindicazione
+mentre sta già digiunando, e le quote per pasto del manuale (36·16·48 contro le
+.45/.10/.45 che il codice usa oggi), che cambiano la forma della giornata.
+
+Corretti anche i numeri della voce dei permessi: `pages.ts` dichiara 67 chiavi
+e ne legge 24, non 66 e 23 — lo stesso scivolamento che quella voce rimproverava
+a sé stessa.
+
+Suite backend 7914 verdi, build verde. Niente migrazioni.
