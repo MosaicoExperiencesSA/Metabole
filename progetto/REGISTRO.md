@@ -20,6 +20,14 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **Della coach di riserva non si lancia più niente a mano: il giro notturno fa
+  tutto.** Simone: *«ma continuiamo a lanciare lo stesso comando, una volta sistemate basta»*.
+  Aveva ragione: una regola che ogni tanto chiede un comando (`fix:assegnazioni` per il lead
+  accettato con la scheda vuota) non è una regola, è un promemoria. Ora il passo `coachDiRiserva`
+  del cron fa prima quello — `riagganciaLeadAccettati`, il ponte del 6/8 con la coach del lead,
+  riempie solo il vuoto — e poi la riserva; i lead in attesa non si toccano. Lo script resta per
+  chi vuole vedere la lista, e dice che non serve rilanciarlo.
+
 - `[Sviluppo]` ⚠️ **`assegna:coach-di-riserva`: lo zero deve parlare.** La prima passata ha
   stampato «0 senza coach» su un catalogo dove il giorno prima erano 4 più 2 senza scheda, senza
   dire se le aveva già prese il giro notturno o se il filtro «lead con una coach» le nascondeva.

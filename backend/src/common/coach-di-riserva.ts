@@ -194,6 +194,7 @@ export interface ClienteConLeadMaSenzaCoach {
   /** `pending` = la coach deve ancora accettare; `accepted` = ha accettato ma la scheda è rimasta vuota. */
   statoLead: string | null;
   coachDelLead: string | null;
+  coachDelLeadId: string | null;
 }
 
 /** Il minimo del client Prisma che serve a contare chi resta fuori dalla riserva, e perché. */
@@ -241,7 +242,30 @@ export async function clientiConLeadMaSenzaCoach(prisma: PrismaPerLeadEsclusi): 
     haScheda: !!u.clientProfile,
     statoLead: u.crmRecord?.assignmentStatus ?? null,
     coachDelLead: u.crmRecord?.assignedCoach?.displayName ?? null,
+    coachDelLeadId: u.crmRecord?.assignedCoachId ?? null,
   }));
+}
+
+/**
+ * ⛔ **IL LEAD ACCETTATO CON LA SCHEDA VUOTA SI RIPARA DA SOLO, DI NOTTE.** Simone, 5/9: *«ma
+ * continuiamo a lanciare lo stesso comando, una volta sistemate basta»*. Aveva ragione: una regola
+ * che ogni tanto chiede un comando a mano (`fix:assegnazioni`) non è una regola, è un promemoria.
+ * Qui il giro notturno fa quello che farebbe quello script: il ponte del 6/8 con la coach del lead,
+ * che riempie solo il vuoto. ⚠️ I lead **in attesa** non si toccano: quando la coach accetta, il
+ * ponte scrive lei.
+ */
+export async function riagganciaLeadAccettati(
+  prisma: PrismaService,
+  clienti: readonly ClienteConLeadMaSenzaCoach[],
+): Promise<{ riagganciate: number; schedeCreateDalLead: number }> {
+  const out = { riagganciate: 0, schedeCreateDalLead: 0 };
+  for (const c of clienti) {
+    if (c.statoLead !== 'accepted' || !c.coachDelLeadId) continue;
+    const fatto = await agganciaAssegnazioneAlProfilo(prisma, c.userId, { name: c.nome, assignedCoachId: c.coachDelLeadId });
+    if (fatto === 'creato' || fatto === 'completato') out.riagganciate += 1;
+    if (fatto === 'creato') out.schedeCreateDalLead += 1;
+  }
+  return out;
 }
 
 /** Una riga di registro da scrivere: chi chiama decide con che cosa (AuditService o Prisma nudo). */

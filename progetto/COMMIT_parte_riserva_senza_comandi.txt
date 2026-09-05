@@ -1,0 +1,32 @@
+────────────────────────────────────────────────────────────────────────────
+ Coach di riserva: il giro notturno fa tutto, niente più comandi a mano
+ 5 settembre 2026 (mattina)
+────────────────────────────────────────────────────────────────────────────
+
+⚠️ NIENTE MIGRAZIONI.
+
+Summary
+───────
+Coach di riserva: il lead accettato con la scheda vuota lo ripara il giro notturno, non un comando
+
+Description
+───────────
+Simone, 5/9: «ma continuiamo a lanciare lo stesso comando, una volta sistemate
+basta». Aveva ragione: una regola che ogni tanto chiede un comando a mano
+(`fix:assegnazioni` per il lead ACCETTATO con la scheda rimasta vuota) non è una
+regola, è un promemoria.
+
+Ora il passo `coachDiRiserva` del cron fa prima quello — `riagganciaLeadAccettati`
+in `common/coach-di-riserva.ts`: il ponte del 6/8 con la coach del lead, che
+riempie solo il vuoto — e poi assegna la riserva a chi resta davvero senza
+nessuno. I lead IN ATTESA non si toccano: quando la coach accetta, il ponte
+scrive lei. Nessuna delle due va alla riserva.
+
+Lo script `assegna:coach-di-riserva` resta per chi vuole vedere la lista, e
+adesso dice che non serve rilanciarlo.
+
+Verificato
+──────────
+· `common/coach-di-riserva`, `coach-di-riserva.service`, `cron`: 49 prove verdi
+  (nuova: il lead accettato va alla SUA coach, il lead in attesa non si tocca,
+  nessuno dei due alla riserva); `npm run build` verde

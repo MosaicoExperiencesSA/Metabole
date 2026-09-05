@@ -113,7 +113,7 @@ describe('clientiConLeadMaSenzaCoach: lo zero deve parlare', () => {
     const where = findMany.mock.calls[0][0].where;
     expect(where.crmRecord).toEqual({ assignedCoachId: { not: null } });
     expect(where.OR).toEqual([{ clientProfile: null }, { clientProfile: { assignedCoachId: null } }]);
-    expect(out.map((c) => [c.userId, c.statoLead, c.coachDelLead, c.haScheda])).toEqual([['u1', 'pending', 'X', false], ['u2', 'accepted', 'Y', true]]);
+    expect(out.map((c) => [c.userId, c.statoLead, c.coachDelLead, c.coachDelLeadId, c.haScheda])).toEqual([['u1', 'pending', 'X', 'st-x', false], ['u2', 'accepted', 'Y', 'st-y', true]]);
   });
 });
 

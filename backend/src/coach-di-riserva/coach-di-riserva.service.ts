@@ -2,8 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import {
   assegnaLaRiserva,
+  clientiConLeadMaSenzaCoach,
   clientiSenzaCoach,
   coachDiRiserva,
+  riagganciaLeadAccettati,
   type CoachDiRiserva,
   type EsitoGiro,
 } from '../common/coach-di-riserva';
@@ -39,7 +41,7 @@ export class CoachDiRiservaService {
    * niente e lo dice nei log con il motivo: è la differenza fra «nessuno l'ha voluta» e «è
    * configurata male», e chi legge i log deve poterla vedere.
    */
-  async giroNotturno(): Promise<{ riserva: CoachDiRiserva['esito']; senzaCoach: number } & Partial<EsitoGiro>> {
+  async giroNotturno(): Promise<{ riserva: CoachDiRiserva['esito']; senzaCoach: number; riagganciate?: number; schedeCreateDalLead?: number } & Partial<EsitoGiro>> {
     const riserva = await this.chi();
     if (riserva.esito === 'spenta') return { riserva: 'spenta', senzaCoach: 0 };
     if (riserva.esito === 'non_valida') {
@@ -49,8 +51,17 @@ export class CoachDiRiservaService {
       );
       return { riserva: 'non_valida', senzaCoach: 0 };
     }
+    /**
+     * ⚠️ Prima chi ha un lead ACCETTATO e la scheda vuota: è di quella coach, non della riserva, e si
+     * ripara col ponte del 6/8 (`riagganciaLeadAccettati`). Simone, 5/9: niente più comandi a mano.
+     */
+    const conLead = await clientiConLeadMaSenzaCoach(this.prisma as never);
+    const riagganciate = await riagganciaLeadAccettati(this.prisma, conLead);
+    if (riagganciate.riagganciate) {
+      this.logger.log(`Lead accettati con la scheda vuota: ${riagganciate.riagganciate} riagganciate alla loro coach (${riagganciate.schedeCreateDalLead} schede create).`);
+    }
     const senza = await clientiSenzaCoach(this.prisma as never);
-    if (!senza.length) return { riserva: 'ok', senzaCoach: 0, assegnate: 0, schedeCreate: 0, giaAssegnate: 0 };
+    if (!senza.length) return { riserva: 'ok', senzaCoach: 0, assegnate: 0, schedeCreate: 0, giaAssegnate: 0, ...riagganciate };
     const esito = await assegnaLaRiserva(
       this.prisma, riserva, senza, 'giro_notturno',
       (riga) => this.audit.log(riga),
@@ -59,6 +70,6 @@ export class CoachDiRiservaService {
       `Coach di riserva (${riserva.displayName}): ${senza.length} senza coach, ${esito.assegnate} assegnate `
       + `(${esito.schedeCreate} schede create), ${esito.giaAssegnate} già di qualcuno.`,
     );
-    return { riserva: 'ok', senzaCoach: senza.length, ...esito };
+    return { riserva: 'ok', senzaCoach: senza.length, ...esito, ...riagganciate };
   }
 }

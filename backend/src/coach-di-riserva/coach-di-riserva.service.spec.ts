@@ -14,10 +14,11 @@ import { CoachDiRiservaService } from './coach-di-riserva.service';
 
 const giusy = { id: 'st-giusy', userId: 'u-giusy', displayName: 'Giusy Vita', active: true, user: { role: 'sales', status: 'active', deletedAt: null } };
 
-function monta(valore: string, scheda: unknown, utenti: unknown[] = []) {
+function monta(valore: string, scheda: unknown, utenti: unknown[] = [], conLead: unknown[] = []) {
   const prisma = {
     staff: { findUnique: jest.fn().mockResolvedValue(scheda) },
-    user: { findMany: jest.fn().mockResolvedValue(utenti) },
+    // ⚠️ Due letture: prima chi ha un lead con coach (`crmRecord` nel where), poi chi è senza.
+    user: { findMany: jest.fn(async (args: { where: { crmRecord?: unknown } }) => (args.where.crmRecord ? conLead : utenti)) },
     clientProfile: {
       findUnique: jest.fn().mockResolvedValue({ assignedCoachId: null, assignedNutritionistId: null }),
       update: jest.fn().mockResolvedValue({}),
@@ -47,13 +48,27 @@ describe('giroNotturno', () => {
     const { prisma, audit, service } = monta('st-giusy', giusy, [
       { id: 'u1', email: 'a@x.it', createdAt: new Date(), clientProfile: { name: 'A', assignedCoachId: null, onboardingCompletedAt: null } },
     ]);
-    expect(await service.giroNotturno()).toEqual({ riserva: 'ok', senzaCoach: 1, assegnate: 1, schedeCreate: 0, giaAssegnate: 0 });
+    expect(await service.giroNotturno()).toEqual({ riserva: 'ok', senzaCoach: 1, assegnate: 1, schedeCreate: 0, giaAssegnate: 0, riagganciate: 0, schedeCreateDalLead: 0 });
     expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u1' }, data: { assignedCoachId: 'st-giusy' } }));
     expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
       action: 'assegnazione.coach_di_riserva',
       entityId: 'u1',
       metadata: expect.objectContaining({ porta: 'giro_notturno', staffId: 'st-giusy' }),
     }));
+  });
+
+  /** ⛔ Simone, 5/9: «una volta sistemate basta» — il lead accettato con la scheda vuota lo ripara la notte, non un comando. */
+  it('⛔ un lead ACCETTATO con la scheda vuota va alla SUA coach, non alla riserva, e senza comandi a mano', async () => {
+    const { prisma, audit, service } = monta('st-giusy', giusy, [], [
+      { id: 'u9', email: 'z@x.it', clientProfile: { name: 'Z', assignedCoachId: null }, crmRecord: { assignedCoachId: 'st-sua', assignmentStatus: 'accepted', assignedCoach: { displayName: 'Sua' } } },
+      { id: 'u8', email: 'w@x.it', clientProfile: null, crmRecord: { assignedCoachId: 'st-x', assignmentStatus: 'pending', assignedCoach: { displayName: 'X' } } },
+    ]);
+    const out = await service.giroNotturno();
+    expect(out.riagganciate).toBe(1);
+    expect(prisma.clientProfile.update).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 'u9' }, data: { assignedCoachId: 'st-sua' } }));
+    // Il lead in attesa non si tocca, e nessuna delle due va alla riserva.
+    expect(prisma.clientProfile.create).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'assegnazione.coach_di_riserva' }));
   });
 
   it('⚠️ accesa e nessuno senza coach: zero scritture, zero righe', async () => {

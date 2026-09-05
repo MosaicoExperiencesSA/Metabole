@@ -79,12 +79,12 @@ async function main(): Promise<void> {
   }
   if (accettateVuote.length) {
     console.log(`  ⛔ ${accettateVuote.length} con il lead ACCETTATO e la scheda rimasta vuota: è il difetto del 6/8 sulle clienti vecchie.`);
-    console.log('     La riserva non c\'entra — sono di quella coach. Si riparano con:  npm run fix:assegnazioni  (poi CONFERMA=1)');
+    console.log('     La riserva non c\'entra — sono di quella coach. Le ripara il giro notturno del cron da solo (o subito: CONFERMA=1 npm run fix:assegnazioni).');
     console.table(accettateVuote.map((c) => ({ cliente: c.nome ?? '(senza nome)', email: c.email, coach: c.coachDelLead ?? '—', stato: c.statoLead ?? '—', scheda: c.haScheda ? '' : 'MANCA' })));
   }
   if (!senza.length) {
     console.log('\nNessuna da assegnare alla riserva — niente da fare.');
-    console.log('⚠️ Se ieri erano di più: `npm run diag:commerciale-e-coach` dice se le ha già prese il giro notturno (Giusy non è più a zero).');
+    console.log('⚠️ Da qui in poi non serve rilanciare: il giro notturno del cron fa questo stesso lavoro ogni notte.');
     return;
   }
   console.table(
