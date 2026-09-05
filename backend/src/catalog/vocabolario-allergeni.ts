@@ -1,4 +1,6 @@
-import { EU_ALLERGENS, suggestAllergens } from './allergens';
+import { CHIAVE_ESCLUSIONE, EU_ALLERGENS, SENZA_PER_ALLERGENE, suggestAllergens } from './allergens';
+
+export { CHIAVE_ESCLUSIONE, SENZA_PER_ALLERGENE };
 import { nomiIngredienti } from './elenco-ingredienti';
 import { chiaveCombacia, exclusionKeys, hitsExclusion } from '../menu/exclusions';
 
@@ -9,14 +11,15 @@ import { chiaveCombacia, exclusionKeys, hitsExclusion } from '../menu/exclusions
  * allergica al latte può ricevere un piatto col taleggio, e una allergica ai molluschi un piatto
  * con le seppie (il gruppo «Molluschi» del catalogo le elenca; il vocabolario no).
  *
- * ## ⛔ Sono DUE vocabolari, e divergono già
+ * ## ⛔ ERANO due vocabolari, e divergevano — unificati il 5/9
  *
  * `EU_ALLERGENS` (`catalog/allergens.ts`) scrive i **tag** sulle ricette, con radici («formagg»).
  * `INTOLERANCE_MAP` (`menu/exclusions.ts`) toglie i piatti a chi ha dichiarato l'allergia, con
- * parole intere e la regola della radice del 20/8. `scamorza`, `burrata`, `provola` stanno nel
- * secondo e non nel primo; `caciocavallo`, `crema di formaggio` nel primo e non nel secondo. È lo
- * stesso difetto delle due copie di `chiaveVale` (4/9), un piano più sopra: *due elenchi che
- * rispondono alla stessa domanda un giorno si contraddicono* — e qui si contraddicono già.
+ * parole intere. Misurato il 5/9 sul catalogo vero: sul pesce 15 parole contro 67, **616 ricette**
+ * con sardine, dentice, spigola, ricciola, rombo, cernia senza il tag `pesce`. Dal 5/9 i tag
+ * leggono anche le parole delle esclusioni (`conLeEsclusioni` in `allergens.ts`): la tabella 3 di
+ * questa diagnostica deve dire «solo nelle esclusioni → —» per ogni allergene, e una prova lo tiene
+ * fermo. Il verso opposto (parole solo nei tag: «farina», «pan », «birra») resta dichiarato.
  *
  * ## ⚠️ Perché prima si misura
  *
@@ -26,7 +29,12 @@ import { chiaveCombacia, exclusionKeys, hitsExclusion } from '../menu/exclusions
  * sta qui e non nello script.
  */
 
-/** Le parole che il vocabolario dei TAG non conosce, come radici (la forma di `EU_ALLERGENS`). */
+/**
+ * Le parole che il vocabolario NON conosceva fino al 5/9, come radici. ⚠️ Da quel giorno stanno
+ * nel vocabolario (unificato): questa lista resta per la **misura** — la tabella 1 della
+ * diagnostica dice quante ricette le hanno ancora senza il tag, cioè quanto manca alla riparazione
+ * (`ripara:allergeni-mancanti`); a riparazione fatta deve dare zero.
+ */
 export const PAROLE_CANDIDATE: Readonly<Record<string, readonly string[]>> = {
   latte: [
     'taleggio', 'robiola', 'crescenza', 'fontina', 'asiago', 'emmental', 'emmenthal', 'caciott',
@@ -34,19 +42,11 @@ export const PAROLE_CANDIDATE: Readonly<Record<string, readonly string[]>> = {
     'groviera', 'gruy', 'gouda', 'latticello', 'casein', 'formaggin', 'fiocchi di latte',
     /** ⛔ Non «edam»: sta dentro «edamame», che è soia. Una radice corta dentro una parola lunga è il difetto di «grana». */
   ],
-  /** ⚠️ «seppie» non contiene «seppia»: la radice `seppi` prende seppia, seppie, seppioline. */
-  molluschi: ['seppi', 'capasant', 'frutti di mare', 'lumach', 'fasolar', 'tellin', 'cannolicch'],
+  /** ⚠️ «seppie» non contiene «seppia»: la radice `seppi` prende seppia, seppie, seppioline. ⛔ NON `tellin`: sta dentro «tortellini» (trovato dalla tabella del 5/9). */
+  molluschi: ['seppi', 'capasant', 'frutti di mare', 'lumach', 'fasolar', 'telline', 'cannolicch'],
   crostacei: ['frutti di mare', 'canocch', 'cicala di mare', 'granseol'],
 };
 
-/** Le forme «senza ‹allergene›» per allergene. ⛔ «senza lattosio» NON è «senza latte», e non c'è. */
-export const SENZA_PER_ALLERGENE: Readonly<Record<string, readonly string[]>> = {
-  glutine: ['senza glutine', 'gluten free', 'gluten-free', 'senza glut'],
-  uova: ['senza uova', 'senza uovo', 'egg free', 'egg-free'],
-  latte: ['senza latte', 'senza latticini', 'dairy free', 'dairy-free', 'senza derivati del latte'],
-  soia: ['senza soia'],
-  frutta_a_guscio: ['senza frutta a guscio', 'senza frutta secca'],
-};
 
 export interface RicettaPerVocabolario {
   id: string;
@@ -133,11 +133,6 @@ export function contaSenza(ricette: readonly RicettaPerVocabolario[], forme = SE
   return out.sort((a, b) => (b.colTagLoStesso - b.giustificate) - (a.colTagLoStesso - a.giustificate));
 }
 
-/** La chiave delle esclusioni che corrisponde a un codice di `EU_ALLERGENS`. */
-export const CHIAVE_ESCLUSIONE: Readonly<Record<string, string>> = {
-  latte: 'latticini', glutine: 'glutine', uova: 'uova', pesce: 'pesce', crostacei: 'crostacei',
-  molluschi: 'molluschi', soia: 'soia', sesamo: 'sesamo', arachidi: 'arachidi', frutta_a_guscio: 'frutta a guscio',
-};
 
 export interface Divergenza {
   allergene: string;
@@ -163,7 +158,8 @@ export function divergenze(): Divergenza[] {
       const forme = [kw, `${kw}a`, `${kw}o`, `${kw}e`, `${kw}i`, `${kw}io`];
       return !forme.some((f) => hitsExclusion(f, chiaviEscl));
     });
-    const soloNelleEsclusioni = [...chiaviEscl].filter((p) => !def.keywords.some((kw) => chiaveCombacia(p, kw)));
+    // ⚠️ La chiave stessa («frutta a guscio») sta fra le parole espanse e non è un ingrediente: fuori.
+    const soloNelleEsclusioni = [...chiaviEscl].filter((p) => p !== chiave && !def.keywords.some((kw) => chiaveCombacia(p, kw)));
     if (soloNeiTag.length || soloNelleEsclusioni.length) out.push({ allergene: def.code, soloNeiTag, soloNelleEsclusioni });
   }
   return out;

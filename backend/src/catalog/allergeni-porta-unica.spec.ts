@@ -190,3 +190,25 @@ describe('⛔ la riparazione non tocca gli allergeni messi a mano', () => {
     expect(falsi.map((f) => f.allergen)).toEqual(['glutine']);
   });
 });
+
+/** ⛔ «Pasta senza glutine» col glutine scritto (5/9, 172 ricette): si toglie, ma solo se nessun altro ingrediente lo porta. */
+describe('⛔ il tag falso di «senza ‹allergene›»', () => {
+  it('⛔ toglie il glutine di «pasta senza glutine», e dice la forma', () => {
+    const falsi = allergeniFalsiDaTogliere({
+      id: 'g', name: 'Pasta senza glutine al pomodoro', ingredients: [{ name: 'pasta senza glutine' }, { name: 'pomodoro' }], allergens: ['glutine'],
+    });
+    expect(falsi).toEqual([{ allergen: 'glutine', chiave: 'senza', parola: 'senza glutine', ingrediente: 'pasta senza glutine' }]);
+  });
+
+  it('⛔ ma col pangrattato accanto il glutine resta: lo porta lui', () => {
+    expect(allergeniFalsiDaTogliere({
+      id: 'g', name: 'Cotoletta', ingredients: [{ name: 'pasta senza glutine' }, { name: 'pangrattato' }], allergens: ['glutine'],
+    })).toEqual([]);
+  });
+
+  it('⛔ «latte senza lattosio» non è «senza latte»: il tag resta', () => {
+    expect(allergeniFalsiDaTogliere({
+      id: 'l', name: 'Budino', ingredients: [{ name: 'latte senza lattosio' }], allergens: ['latte'],
+    })).toEqual([]);
+  });
+});

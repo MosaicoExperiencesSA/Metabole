@@ -1,4 +1,4 @@
-import { EU_ALLERGENS, suggestAllergens } from './allergens';
+import { EU_ALLERGENS, SENZA_PER_ALLERGENE, diceSenza, suggestAllergens } from './allergens';
 import { PAROLE_CHE_NON_SONO, chiaveCombacia, dentroUnaFraseCheNonE } from '../menu/exclusions';
 import { nomiIngredienti } from './elenco-ingredienti';
 
@@ -159,6 +159,18 @@ export function allergeniFalsiDaTogliere(r: RicettaDaRiparare): AllergeneFalso[]
     const def = EU_ALLERGENS.find((x) => x.code === codice);
     if (!def) continue;
     for (const nome of nomi) {
+      /**
+       * ⛔ **«pasta senza glutine» col glutine scritto** (5/9): 172 ricette. Il tag l'aveva scritto la
+       * vecchia porta da «pasta»; oggi `diceSenza` lo scarta, e nessun altro ingrediente lo porta
+       * (`trovatiOra` è già stato guardato sopra). Si sa perché c'era: si toglie.
+       */
+      if (diceSenza(nome, codice)) {
+        const forma = (SENZA_PER_ALLERGENE[codice] ?? []).find((f) => nome.includes(f)) ?? 'senza';
+        if (!out.some((x) => x.allergen === codice && x.chiave === 'senza' && x.parola === forma)) {
+          out.push({ allergen: codice, chiave: 'senza', parola: forma, ingrediente: nome });
+        }
+        continue;
+      }
       for (const kw of def.keywords) {
         /**
          * ⛔ **La condizione esatta: la vecchia porta lo scriveva, la nuova no.** Non «una chiave

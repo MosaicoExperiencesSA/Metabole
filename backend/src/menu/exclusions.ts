@@ -17,6 +17,16 @@ const DERIVATI_LATTE = [
   'latte', 'yogurt', 'formaggio', 'formaggi', 'burro', 'panna', 'mozzarella', 'ricotta',
   'parmigiano', 'grana', 'mascarpone', 'stracchino', 'scamorza', 'pecorino', 'gorgonzola',
   'caciocavallo', 'cheddar', 'brie', 'feta', 'kefir', 'latticini', 'ghee', 'burrata', 'provola',
+  /**
+   * ⛔ **Aggiunti il 5/9 dopo `diag:vocabolario-allergeni`** sul catalogo vero: 224 ricette con
+   * uno di questi dentro e SENZA il tag latte — scamorza 35, provola 30, burrata 21, emmental 20,
+   * fontina 18, caciotta 13, taleggio 12, skyr 10… Una cliente allergica al latte li riceveva.
+   * ⚠️ Da qui leggono anche i TAG (`catalog/allergens.ts`, unificato il 5/9): una parola scritta
+   * qui vale per tutte e due le porte.
+   */
+  'taleggio', 'robiola', 'crescenza', 'fontina', 'asiago', 'emmental', 'emmenthal', 'caciotta',
+  'skyr', 'philadelphia', 'squacquerone', 'quark', 'montasio', 'groviera', 'gruyere',
+  'gouda', 'latticello', 'caseina', 'caseinato', 'formaggino', 'fiocchi di latte', 'provolone',
 ];
 
 export const INTOLERANCE_MAP: Record<string, string[]> = {
@@ -38,7 +48,8 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
   'frutta secca': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'arachidi', 'pinoli', 'macadamia', 'pecan'],
   'frutta a guscio': ['noci', 'noce', 'mandorle', 'nocciole', 'pistacchi', 'anacardi', 'pinoli', 'macadamia', 'pecan'],
   legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'fave', 'lupini', 'borlotti', 'cannellini', 'cicerchie', 'edamame'],
-  uova: ['uovo', 'uova', 'frittata', 'maionese', 'albume', 'tuorlo', 'omelette'],
+  /** ⚠️ La meringa è uova che non si chiamano uova (5/9). */
+  uova: ['uovo', 'uova', 'frittata', 'maionese', 'albume', 'tuorlo', 'omelette', 'meringa'],
   /**
    * ✅ PESCE — l'elenco arriva dalla tabella delle specie passata da Simone (23/8), non da chi
    * scrive il codice: stessa regola di provenienza dei solfiti.
@@ -103,8 +114,18 @@ export const INTOLERANCE_MAP: Record<string, string[]> = {
     // ⚠️ Il crudo giapponese: quasi sempre pesce, e nel nome del piatto il pesce non compare.
     'sushi', 'sashimi',
   ],
-  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle', 'astice'],
-  molluschi: ['calamari', 'cozze', 'vongole', 'polpo', 'seppia', 'ostriche', 'capesante', 'totano'],
+  crostacei: ['gambero', 'gamberi', 'scampi', 'aragosta', 'granchio', 'mazzancolle', 'astice',
+    // 5/9: «frutti di mare» sono tutt'e due le famiglie; canocchie, cicale di mare, granseola.
+    'frutti di mare', 'canocchie', 'canocchia', 'cicala di mare', 'cicale di mare', 'granseola'],
+  molluschi: ['calamari', 'cozze', 'vongole', 'polpo', 'seppia', 'ostriche', 'capesante', 'totano',
+    /**
+     * ⛔ 5/9: «seppie» non conteneva «seppia» — 25 ricette di seppie senza il tag, e il gruppo
+     * «Molluschi» del catalogo le elenca. ⚠️ «telline» come parola intera: la radice `tellin` sta
+     * dentro «tortellini», e la tabella del 5/9 l'ha preso (radice solo a inizio di parola, qui;
+     * nei tag si usa la parola intera).
+     */
+    'seppie', 'capasante', 'capasanta', 'frutti di mare', 'lumache', 'lumaca', 'fasolari', 'telline',
+    'tellina', 'cannolicchi'],
   soia: ['soia', 'tofu', 'edamame', 'tempeh', 'miso'],
   sesamo: ['sesamo', 'tahini'],
   arachidi: ['arachidi', 'burro di arachidi'],

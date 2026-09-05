@@ -20,6 +20,30 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ✅ **I vocabolari degli allergeni sono UNO — e «pasta senza glutine» non risulta più col glutine.**
+  Simone, sui numeri della diagnostica: «ancora? continuiamo ad avere questo problema... possibile
+  che non riusciamo a trovare una soluzione?». La soluzione non è l'elenco allungato di nuovo: da
+  oggi `EU_ALLERGENS` (i tag sulle ricette) legge **anche tutte le parole di `INTOLERANCE_MAP`**
+  (le esclusioni delle clienti) — `conLeEsclusioni` in `catalog/allergens.ts`, con
+  `CHIAVE_ESCLUSIONE` che dice quale chiave corrisponde a quale allergene UE. Una parola nuova si
+  scrive in un posto e vale per tutte e due le porte; una prova tiene fermo che nessuna parola stia
+  solo nelle esclusioni. Aggiunti alle esclusioni (quindi a tutto): taleggio, robiola, crescenza,
+  fontina, asiago, emmental, caciotta, skyr, philadelphia, squacquerone, quark, montasio, groviera,
+  gouda, latticello, caseina, formaggino, fiocchi di latte, provolone; seppie, capasante, frutti
+  di mare (crostacei **e** molluschi, anche nella chat), lumache, fasolari, telline, cannolicchi;
+  canocchie, cicale di mare, granseola; la meringa fra le uova. ⚠️ Due radici tolte apposta: «edam»
+  (dentro edamame) e «tellin» (dentro tortellini, trovato dal tabulato).
+  ⛔ **La regola «senza ‹allergene›» per allergene, non per chiave**: `SENZA_PER_ALLERGENE` +
+  `diceSenza` in `suggestAllergens` — «pasta senza glutine» non scrive glutine qualunque parola
+  l'abbia fatto scattare; con il pangrattato nell'elenco il tag resta, dal pangrattato. «Senza
+  lattosio» non c'è, apposta (le proteine del latte ci sono tutte). Misurato prima: 186 col tag,
+  14 giustificate, **172 da togliere**.
+  ▶️ **Due comandi, una volta sola**: `ripara:allergeni-mancanti` (nuovo: **aggiunge** i tag che la
+  deduzione unificata trova — 224 + 616 misurati — mai toglie, salta le ricette toccate a mano)
+  e `ripara:allergeni-chiave` (lo stesso delle 215, con la riga «senza»). Dopo,
+  `diag:vocabolario-allergeni` tabella 1 e tabella 2 devono dare zero. Mutazioni provate:
+  unificazione spenta → 5 prove rosse; `diceSenza` spento → 3 rosse. Suite intera: 7853 verdi.
+
 - `[Sviluppo]` ✅ **Il vocabolario degli allergeni: lo strumento che lo misura prima di allargarlo.**
   `npm run diag:vocabolario-allergeni` (sola lettura, giudizio in `catalog/vocabolario-allergeni.ts`
   con 8 prove): le parole candidate (taleggio, robiola, fontina… seppie, frutti di mare) con quante

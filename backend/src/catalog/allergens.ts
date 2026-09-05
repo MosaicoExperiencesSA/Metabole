@@ -1,4 +1,4 @@
-import { chiaveCombacia } from '../menu/exclusions';
+import { INTOLERANCE_MAP, chiaveCombacia } from '../menu/exclusions';
 
 /**
  * Allergeni UE (14) e dizionario per il PRE-TAG assistito delle ricette (R8).
@@ -12,6 +12,56 @@ export interface AllergenDef {
   keywords: string[]; // termini (minuscolo) che, se presenti in un ingrediente, suggeriscono l'allergene
 }
 
+/**
+ * ⛔ **UN VOCABOLARIO SOLO (5/9): i TAG leggono anche le parole delle ESCLUSIONI.**
+ *
+ * `diag:vocabolario-allergeni` sul catalogo vero: sul pesce i tag conoscevano **15** parole e le
+ * esclusioni **67** — 616 ricette con sardine, dentice, spigola, ricciola, rombo, cernia… **senza il
+ * tag `pesce`**. La porta delle esclusioni le toglieva a chi ha dichiarato l'allergia; quella dei tag
+ * (la base personale di chi ha allergie) no. *Due elenchi che rispondono alla stessa domanda un
+ * giorno si contraddicono*: si contraddicevano già.
+ *
+ * ⚠️ Solo in questo verso — dalle esclusioni ai tag — ed è voluto: le parole delle esclusioni sono
+ * intere e curate (con le omonime: «carpaccio» non è carpa, «stromboli» non è rombo, e
+ * `chiaveVale` le applica anche qui); quelle dei tag sono radici larghe («farina», «pan ») che nelle
+ * esclusioni toglierebbero le farine di riso a chi esclude il glutine. Il verso opposto resta una
+ * divergenza **dichiarata** (`divergenze()` in `vocabolario-allergeni.ts`), non un'unificazione a metà.
+ */
+const CHIAVE_ESCLUSIONE: Readonly<Record<string, string>> = {
+  latte: 'latticini', glutine: 'glutine', uova: 'uova', pesce: 'pesce', crostacei: 'crostacei',
+  molluschi: 'molluschi', soia: 'soia', sesamo: 'sesamo', arachidi: 'arachidi', frutta_a_guscio: 'frutta a guscio',
+};
+export { CHIAVE_ESCLUSIONE };
+
+const conLeEsclusioni = (code: string, base: string[]): string[] => {
+  const chiave = CHIAVE_ESCLUSIONE[code];
+  const dalleEsclusioni = chiave ? (INTOLERANCE_MAP[chiave] ?? []) : [];
+  return [...new Set([...base, ...dalleEsclusioni.filter((p) => p !== chiave)])];
+};
+
+/**
+ * ⛔ **«SENZA ‹ALLERGENE›» NEL NOME DELL'INGREDIENTE: quell'allergene non si scrive, qualunque parola
+ * l'abbia fatto scattare** (5/9). «Pasta senza glutine» prendeva il glutine da «pasta»: 186 ricette
+ * col tag, di cui 172 solo per questo — una celiaca non riceveva la pasta fatta per lei.
+ * ⛔ **«senza lattosio» NON c'è**: il latte senza lattosio ha tutte le proteine del latte.
+ * ⚠️ Vale per l'INGREDIENTE, non per la ricetta: pasta senza glutine + pangrattato normale resta col
+ * glutine, dal pangrattato (le 14 «giustificate» della misura).
+ */
+export const SENZA_PER_ALLERGENE: Readonly<Record<string, readonly string[]>> = {
+  glutine: ['senza glutine', 'gluten free', 'gluten-free', 'glutenfree'],
+  uova: ['senza uova', 'senza uovo', 'egg free', 'egg-free'],
+  latte: ['senza latte', 'senza latticini', 'dairy free', 'dairy-free', 'senza derivati del latte'],
+  soia: ['senza soia', 'soy free', 'soy-free'],
+  frutta_a_guscio: ['senza frutta a guscio', 'senza frutta secca', 'nut free', 'nut-free'],
+  arachidi: ['senza arachidi'],
+  sesamo: ['senza sesamo'],
+};
+
+export function diceSenza(nome: string, code: string): boolean {
+  for (const f of SENZA_PER_ALLERGENE[code] ?? []) if (nome.includes(f)) return true;
+  return false;
+}
+
 export const EU_ALLERGENS: AllergenDef[] = [
   { code: 'glutine', label: 'Glutine', keywords: ['glutine', 'grano', 'farina', 'frumento', 'pane', 'pasta', 'orzo', 'farro', 'avena', 'segale', 'seitan', 'couscous', 'bulgur', 'cracker', 'biscott', 'pizza', 'pangrattato', 'pan ', 'birra'] },
   { code: 'crostacei', label: 'Crostacei', keywords: ['gamber', 'mazzancoll', 'scampi', 'aragost', 'granchio', 'astice', 'crostace'] },
@@ -19,7 +69,9 @@ export const EU_ALLERGENS: AllergenDef[] = [
   { code: 'pesce', label: 'Pesce', keywords: ['pesce', 'salmone', 'tonno', 'sgombro', 'aringa', 'branzino', 'orata', 'merluzzo', 'sogliola', 'trota', 'acciugh', 'alici', 'platessa', 'baccal', 'nasello'] },
   { code: 'arachidi', label: 'Arachidi', keywords: ['arachid'] },
   { code: 'soia', label: 'Soia', keywords: ['soia', 'tofu', 'tempeh', 'edamame', 'miso'] },
-  { code: 'latte', label: 'Latte e derivati', keywords: ['latte', 'burro', 'formagg', 'mozzarell', 'cheddar', 'brie', 'feta', 'ricott', 'parmigian', 'grana', 'mascarpone', 'panna', 'yogurt', 'kefir', 'latticin', 'ghee', 'stracchino', 'gorgonzol', 'pecorino', 'caciocavallo', 'crema di formaggio'] },
+  { code: 'latte', label: 'Latte e derivati', keywords: ['latte', 'burro', 'formagg', 'mozzarell', 'cheddar', 'brie', 'feta', 'ricott', 'parmigian', 'grana', 'mascarpone', 'panna', 'yogurt', 'kefir', 'latticin', 'ghee', 'stracchino', 'gorgonzol', 'pecorino', 'caciocavallo', 'crema di formaggio',
+    // 5/9: le radici per i plurali di quello che le esclusioni scrivono per intero (scamorze, provole, caciotte).
+    'scamorz', 'provol', 'caciott', 'formaggin', 'gruy'] },
   { code: 'frutta_a_guscio', label: 'Frutta a guscio', keywords: ['mandorl', 'noci', 'noce', 'nocciol', 'macadamia', 'anacard', 'pistacch', 'pinoli', 'pecan'] },
   { code: 'sedano', label: 'Sedano', keywords: ['sedano'] },
   { code: 'senape', label: 'Senape', keywords: ['senape'] },
@@ -71,8 +123,13 @@ export const EU_ALLERGENS: AllergenDef[] = [
     'succo concentrato', 'succo da concentrato',
   ] },
   { code: 'lupini', label: 'Lupini', keywords: ['lupini', 'lupino'] },
-  { code: 'molluschi', label: 'Molluschi', keywords: ['calamar', 'cozze', 'vongol', 'polpo', 'seppia', 'ostrich', 'capesant', 'moscardin', 'mollusch', 'totano'] },
+  { code: 'molluschi', label: 'Molluschi', keywords: ['calamar', 'cozze', 'vongol', 'polpo', 'seppia', 'ostrich', 'capesant', 'moscardin', 'mollusch', 'totano',
+    // 5/9: «seppie» non contiene «seppia»; capasante; frutti di mare. ⚠️ NON `tellin`: sta dentro «tortellini».
+    'seppi', 'capasant', 'frutti di mare'] },
 ];
+
+/** ⛔ L'unificazione, applicata una volta al caricamento: vedi `conLeEsclusioni` sopra. */
+for (const a of EU_ALLERGENS) a.keywords = conLeEsclusioni(a.code, a.keywords);
 
 const ALLERGEN_LABEL = new Map(EU_ALLERGENS.map((a) => [a.code, a.label]));
 export const allergenLabel = (code: string) => ALLERGEN_LABEL.get(code) ?? code;
@@ -140,6 +197,8 @@ export function suggestAllergens(ingredients: unknown): { allergen: string; labe
   for (const a of EU_ALLERGENS) {
     const matched: string[] = [];
     for (const name of names) {
+      /** ⛔ «pasta senza glutine» non porta il glutine, qualunque parola l'abbia fatto scattare. */
+      if (diceSenza(name, a.code)) continue;
       for (const kw of a.keywords) {
         if (chiaveCombacia(name, kw)) {
           matched.push(name);

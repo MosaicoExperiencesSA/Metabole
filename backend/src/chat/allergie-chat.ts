@@ -132,14 +132,26 @@ const normalizzaChiave = (t: string): string =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ');
 
-const DIZIONARIO: { parola: string; codici: string[] }[] = [
-  ...EU_ALLERGENS.flatMap((a) => [
-    { parola: normalizzaChiave(a.label), codici: [a.code] },
-    { parola: normalizzaChiave(a.code.replace(/_/g, ' ')), codici: [a.code] },
-    ...a.keywords.map((k) => ({ parola: normalizzaChiave(k), codici: [a.code] })),
-  ]),
-  ...PAROLE_IN_PIU.map((p) => ({ parola: normalizzaChiave(p.parola), codici: p.codici })),
-]
+/**
+ * ⚠️ **La stessa parola in due allergeni si UNISCE, non vince la prima** (5/9). «frutti di mare» sta
+ * ora fra le parole di `crostacei` E di `molluschi` (vocabolario unificato con le esclusioni): con
+ * un elenco piatto la prima voce prendeva la parola, la toglieva dal testo, e i molluschi restavano
+ * fuori — esattamente la metà che su un'allergia fa male. Qui parola → unione dei codici.
+ */
+const PER_PAROLA = new Map<string, string[]>();
+const aggiungi = (parola: string, codici: readonly string[]) => {
+  const prima = PER_PAROLA.get(parola) ?? [];
+  PER_PAROLA.set(parola, [...new Set([...prima, ...codici])]);
+};
+for (const a of EU_ALLERGENS) {
+  aggiungi(normalizzaChiave(a.label), [a.code]);
+  aggiungi(normalizzaChiave(a.code.replace(/_/g, ' ')), [a.code]);
+  for (const k of a.keywords) aggiungi(normalizzaChiave(k), [a.code]);
+}
+for (const p of PAROLE_IN_PIU) aggiungi(normalizzaChiave(p.parola), p.codici);
+
+const DIZIONARIO: { parola: string; codici: string[] }[] = [...PER_PAROLA.entries()]
+  .map(([parola, codici]) => ({ parola, codici }))
   // Le più lunghe per prime: «frutta a guscio» prima di «frutta», così la parola più precisa vince
   // e non si finisce a proporre due allergeni per una cosa sola.
   .sort((a, b) => b.parola.length - a.parola.length);

@@ -801,15 +801,17 @@ describe('VeraChatService — la scrittura', () => {
   });
 
   /**
-   * ⚠️ **«e un'altra voce», non «e altre 1 voci».** Lo legge una persona. `crostacei` ha esattamente
-   * sette membri, cioè uno oltre il taglio: è il caso che fa comparire il singolare.
+   * ⚠️ **«e un'altra voce», non «e altre 1 voci».** Lo legge una persona. `uova` ha esattamente
+   * sette membri oltre la parola stessa (che Vera non ripete), cioè uno oltre il taglio: è il caso
+   * che fa comparire il singolare. (Fino al 5/9 era `crostacei`, che con frutti di mare, canocchie
+   * e granseola è salito a tredici.) ⚠️ Se allarghi `uova` la prova va spostata su un'altra chiave.
    */
   it('⚠️ con una voce sola oltre il taglio la frase è al singolare', async () => {
     const { service, messaggioCreate } = make(
       {},
       {
         statoAperto: statoAmbito({
-          intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['crostacei'], tenuti: [] },
+          intento: { tipo: 'restrizione', cliente: 'Giulia Rossi', vietati: ['uova'], tenuti: [] },
         }),
       },
     );

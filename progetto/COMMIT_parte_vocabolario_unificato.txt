@@ -1,0 +1,82 @@
+I vocabolari degli allergeni sono uno, e «pasta senza glutine» non risulta più col glutine
+
+Simone, il 5/9, davanti al tabulato di `diag:vocabolario-allergeni`: «ancora?
+continuiamo ad avere questo problema... possibile che non riusciamo a trovare
+una soluzione?». Aveva ragione due volte: era la quarta volta che si allungava
+a mano l'elenco delle parole (31/8 latti vegetali, 4/9 seppie, oggi taleggio),
+e ogni volta si allungava UNO dei due elenchi, e l'altro restava indietro.
+
+PERCHÉ ERANO DUE, E PERCHÉ DIVERGEVANO
+
+`EU_ALLERGENS` (`catalog/allergens.ts`) scrive i tag sulle ricette: radici,
+«formagg», «ricott». `INTOLERANCE_MAP` (`menu/exclusions.ts`) toglie i piatti a
+chi ha dichiarato l'allergia: parole intere, «taleggio», «cernia». Due
+vocabolari nati in due giorni diversi per due porte diverse, e nessuna prova
+che li confrontasse. Misurato oggi sul catalogo vero: sul pesce 15 parole
+contro 67 — 616 ricette con sardine, dentice, spigola, ricciola, rombo, cernia
+SENZA il tag pesce. Una cliente allergica al pesce non le riceveva (le
+esclusioni le vedevano), ma la base personale di chi ha allergie — che legge i
+tag — le contava come sicure.
+
+LA SOLUZIONE NON È UN ELENCO PIÙ LUNGO
+
+Da oggi i tag leggono anche tutte le parole delle esclusioni:
+`conLeEsclusioni(code, base)` in `allergens.ts`, con `CHIAVE_ESCLUSIONE` che
+dice quale chiave delle esclusioni corrisponde a ogni allergene UE (latte ↔
+latticini, crostacei ↔ crostacei, frutta_a_guscio ↔ frutta a guscio…). Una
+parola nuova si scrive in `INTOLERANCE_MAP` e basta: vale per la porta che
+toglie e per quella che tagga. E una prova lo tiene fermo: `divergenze()` deve
+dire «nessuna parola sta SOLO nelle esclusioni», per ogni allergene. Il verso
+opposto (radici solo nei tag: «farina», «pan », «birra») resta dichiarato.
+
+Aggiunte alle esclusioni, quindi a tutto: taleggio, robiola, crescenza,
+fontina, asiago, emmental, emmenthal, caciotta, skyr, philadelphia,
+squacquerone, quark, montasio, groviera, gruyere, gouda, latticello, caseina,
+caseinato, formaggino, fiocchi di latte, provolone; seppie, capasante, frutti
+di mare, lumache, fasolari, telline, cannolicchi; canocchie, cicale di mare,
+granseola; la meringa fra le uova. «Frutti di mare» vale crostacei E
+molluschi, anche nel dizionario della chat (era una mappa parola → un codice
+solo: adesso è l'unione).
+
+DUE RADICI TOLTE APPOSTA: «edam» sta dentro «edamame» (che è soia), «tellin»
+sta dentro «tortellini» — la seconda l'ha trovata il tabulato, non io. È il
+difetto di «grana» dentro «melagrana», e la regola è la stessa: una radice
+corta dentro una parola lunga si scrive intera.
+
+«PASTA SENZA GLUTINE» — LA REGOLA PER ALLERGENE, NON PER CHIAVE
+
+La regola «senza ‹chiave›» del 5/9 mattina toglieva `glutine` da «pasta senza
+glutine» ma restava «pasta», che è una chiave del glutine da sola: il tag si
+scriveva lo stesso. Adesso `SENZA_PER_ALLERGENE` (glutine: «senza glutine»,
+«gluten free», «gluten-free», «glutenfree»; uova, latte, soia, frutta a
+guscio, arachidi, sesamo) e `diceSenza(nome, allergene)` stanno in
+`suggestAllergens`: se il nome dell'ingrediente lo dice, quell'allergene non
+si scrive DA QUELL'INGREDIENTE, qualunque parola l'abbia fatto scattare. Con il
+pangrattato nell'elenco il tag resta, dal pangrattato: è il falso negativo che
+la tabella 2 separava (14 giustificate su 186). «Senza lattosio» NON c'è, ed è
+una scelta: le proteine del latte ci sono tutte.
+
+DUE COMANDI, UNA VOLTA SOLA (regola di Simone del 5/9: «una volta sistemate
+basta»)
+
+- `ripara:allergeni-mancanti` (nuovo, `catalog/allergeni-mancanti.ts` con le
+  prove): AGGIUNGE i tag che la deduzione unificata trova e la ricetta non ha,
+  mai toglie, salta le ricette toccate a mano (registro
+  `catalog.recipe.allergens.set`) e non tocca `allergensReviewed`. Misurati:
+  224 sulle parole candidate + 616 sul pesce.
+- `ripara:allergeni-chiave` (lo stesso delle 215): `allergeniFalsiDaTogliere`
+  ha la riga `chiave: 'senza'`, 172 da togliere.
+
+Dopo, `diag:vocabolario-allergeni` deve dare zero in tabella 1 e in tabella 2.
+Da lì in poi le ricette nuove le tagga la porta unica la notte stessa: non c'è
+un terzo comando da lanciare.
+
+LA PROVA DI VERA È CAMBIATA, E DICE PERCHÉ
+
+«e un'altra voce» (il singolare oltre il taglio di sei) usava `crostacei`, che
+oggi è salito a tredici. Adesso usa `uova`: sette membri oltre la parola
+stessa, che Vera non ripete. Il commento dice che se si allarga `uova` la
+prova va spostata.
+
+MUTAZIONI: unificazione spenta → 5 prove rosse; `diceSenza` spento → 3 rosse.
+Suite intera 7853 verdi, build verde. Niente migrazioni.
