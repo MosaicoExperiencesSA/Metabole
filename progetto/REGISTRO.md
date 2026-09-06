@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-06
 
+- `[Sviluppo]` ⛔ **L'agente ha letto «può contenere tracce» come se fossero ingredienti: il sorgo
+  soffiato risulta col glutine, su 78 ricette.** Trovato lanciando `ritira:tag-alimento`, che elenca
+  gli alimenti da cui i tag sono partiti. Quattro righe hanno propagato, tre sono giuste — brodo
+  vegetale → sedano (1761 ricette), cous cous integrale → glutine (90), salsa di soia → glutine
+  (72). La quarta no: **sorgo soffiato → glutine, sesamo, soia, frutta a guscio**. Il sorgo è
+  naturalmente senza glutine — è uno dei cereali che una celiaca può mangiare — e gli altri tre sono
+  l'elenco tipico del blocco «può contenere tracce di» di un'etichetta.
+  ⚠️ **Il verso dell'errore è quello che di solito si preferisce, e qui costa lo stesso.** Un
+  allergene di troppo non fa male a nessuno, ma toglie il piatto a chi poteva mangiarlo: una celiaca
+  perde 78 ricette che le erano permesse, e nessuno le dirà mai perché. È il difetto simmetrico di
+  quello che si teme sempre, e si vede molto meno.
+  ✅ **Prompt corretto in tutti e due i giri**: «può contenere tracce» e «prodotto in uno
+  stabilimento che utilizza» non sono allergeni dell'alimento, un allergene si mette solo se è un
+  ingrediente, e i cereali naturalmente senza glutine — sorgo compreso — non hanno il glutine anche
+  se l'etichetta avvisa del rischio. ⚠️ La riga di prima diceva il contrario: *«per un prodotto
+  trasformato considera anche gli ingredienti tipici dell'etichetta»* ce lo mandava.
+  ▶️ **Il prompt vale per le righe nuove**: la riga già scritta e i tag propagati restano dove sono,
+  e si tolgono con i tre comandi in ordine scritti nella voce di lavoro — prima si corregge la riga
+  in tabella, poi si ritira, altrimenti la propagazione notturna li rimette.
+
+- `[Sviluppo]` ✅ **Chiusa `scheda-stile-cablata-nell-app`: misurata in produzione, ed è zero.**
+  `diag:schede-stile`: **10 stili in gioco, 10 con la scheda piena**, zero senza scheda, zero a
+  metà, **zero clienti** su uno stile scoperto (62 profili vivi su 62). Zero anche le due cose che
+  potevano rompersi di sponda: nessuna dieta pubblicata senza codice stile, e nessuno stile con
+  clienti sopra che nessuna dieta visibile pubblica.
+  ⛔ **Quindi la strada che restava — portare le schede a database — non si fa.** Costava una
+  tabella e una schermata per togliere un rilascio: si paga se il difetto morde, e oggi non morde
+  nessuno. La distanza resta sorvegliata da due parti: la prova sugli stili dei preset e questa
+  diagnostica sugli stili veri del database, che prende anche le diete scritte a mano — il caso che
+  nessuna prova può vedere.
+
 - `[Sviluppo]` ✅ **`npm run diag:schede-stile`: chi resta senza la scheda del «?», misurato sugli
   stili veri.** La voce era aperta da otto giorni per una ragione precisa, scritta lì dentro: la
   prova del 3/9 confronta le schede dell'app con i **preset** del backend, ma gli stili che una

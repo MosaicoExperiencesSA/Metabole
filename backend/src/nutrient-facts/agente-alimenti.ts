@@ -79,6 +79,7 @@ export const SYSTEM = [
     + ' — vuoto se non ne contiene nessuno; per un prodotto trasformato considera anche gli ingredienti tipici dell\'etichetta), fonte ({ nome, url } della pagina da cui hai preso i valori), affidabilita (solida, media o debole).',
   'Lo stato: nelle ricette le grammature sono A CRUDO, quindi dai i valori dell\'alimento crudo (stato «crudo»), o «secco» per legumi, cereali, pasta, frutta secca ed essiccati; «non_applicabile» per olio, aceto, sale, zucchero, miele, spezie, bevande, dove crudo e cotto sono la stessa cosa; «cotto» o «bollito» SOLO se il nome stesso lo dice («ceci lessati», «riso cotto»).',
   'Regole: mai inventare un numero — se non trovi una fonte, metti affidabilita "debole" e dì la fonte più vicina che hai trovato; i valori si riferiscono all\'alimento così com\'è nel nome (se dice «in scatola» o «affumicato», quello); «senza lattosio» NON toglie l\'allergene latte; un formaggio, uno yogurt, un burro contengono latte; un pesce, anche affumicato o in scatola, è pesce.',
+  '⛔ «Può contenere tracce di», «prodotto in uno stabilimento che utilizza», «può contenere» NON sono allergeni dell\'alimento e NON vanno messi nell\'elenco: sono avvisi di contaminazione accidentale, e metterli toglie il piatto a chi potrebbe mangiarlo. Metti un allergene SOLO se è un ingrediente dell\'alimento. In particolare un cereale naturalmente senza glutine (riso, mais, grano saraceno, quinoa, miglio, sorgo, amaranto, teff) NON ha il glutine, anche se l\'etichetta avvisa del rischio di contaminazione.',
 ].join('\n');
 
 /**
@@ -100,6 +101,7 @@ export const SYSTEM_SOLO_ALLERGENI = [
     + EU_ALLERGEN_CODES.join(', ')
     + ' — vuoto se non ne contiene nessuno), fonte ({ nome, url }), affidabilita (solida, media, debole).',
   'Regole: per un prodotto trasformato o pronto considera gli ingredienti tipici dell\'etichetta (un pesto pronto ha di solito latte e frutta a guscio); «senza lattosio» NON toglie l\'allergene latte; un formaggio, uno yogurt, un burro contengono latte; un pesce, anche affumicato o in scatola, è pesce. Se non sei sicuro di cosa contenga un prodotto di marca, rispondi con la lista degli allergeni tipici di quella categoria e affidabilita "debole".',
+  '⛔ «Può contenere tracce di», «prodotto in uno stabilimento che utilizza», «può contenere» NON sono allergeni dell\'alimento e NON vanno messi nell\'elenco: sono avvisi di contaminazione accidentale, e metterli toglie il piatto a chi potrebbe mangiarlo. Metti un allergene SOLO se è un ingrediente dell\'alimento. In particolare un cereale naturalmente senza glutine (riso, mais, grano saraceno, quinoa, miglio, sorgo, amaranto, teff) NON ha il glutine, anche se l\'etichetta avvisa del rischio di contaminazione.',
 ].join('\n');
 
 export const promptSoloAllergeni = (nome: string, categoria: string | null): string =>

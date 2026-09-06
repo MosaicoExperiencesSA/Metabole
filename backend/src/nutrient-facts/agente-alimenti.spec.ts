@@ -234,6 +234,32 @@ describe('vagliaAllergeni — il giro sulle righe già in tabella', () => {
     expect(v).toMatchObject({ esito: 'ok', fonte: 'https://esempio.it/pesto' });
   });
 
+  /**
+   * ⛔ **«PUÒ CONTENERE TRACCE» NON È UN ALLERGENE — misurato in produzione il 6/9.**
+   *
+   * Il primo giro dell'agente in produzione ha scritto su «sorgo soffiato»: glutine, sesamo, soia e
+   * frutta a guscio, e quei quattro tag sono arrivati a **78 ricette**. Il sorgo è naturalmente
+   * senza glutine — è uno dei cereali che una celiaca può mangiare — e gli altri tre sono l'elenco
+   * tipico del blocco «può contenere tracce di» di un'etichetta. L'AI aveva letto l'avviso di
+   * contaminazione come se fosse la lista degli ingredienti, e nessuna riga del prompt le diceva di
+   * non farlo: anzi, «considera anche gli ingredienti tipici dell'etichetta» ce la mandava.
+   *
+   * ⚠️ **Il verso dell'errore è quello che di solito si preferisce, e qui costa lo stesso.** Un
+   * allergene di troppo non fa male a nessuno, ma toglie il piatto a chi poteva mangiarlo: una
+   * celiaca perde 78 ricette che le erano permesse, e nessuno le dirà mai perché.
+   */
+  it('⛔ tutti e due i prompt dicono che «può contenere tracce» non è un allergene', () => {
+    for (const sistema of [SYSTEM, SYSTEM_SOLO_ALLERGENI]) {
+      /** ⚠️ Le due frasi che fanno il lavoro, non una parola qualsiasi del paragrafo. */
+      expect(sistema).toMatch(/tracce[^']*NON sono allergeni/i);
+      expect(sistema).toMatch(/SOLO se è un ingrediente/i);
+      expect(sistema).toMatch(/contaminazione/i);
+      /** ⚠️ E il caso che l'ha fatto scoprire è nominato: i cereali senza glutine, sorgo compreso. */
+      expect(sistema).toMatch(/sorgo/i);
+      expect(sistema).toMatch(/grano saraceno|quinoa|miglio/i);
+    }
+  });
+
   it('⛔ il sistema del giro allergeni elenca i quattordici codici e dice le trappole', () => {
     for (const c of EU_ALLERGEN_CODES) expect(SYSTEM_SOLO_ALLERGENI).toContain(c);
     expect(SYSTEM_SOLO_ALLERGENI).toMatch(/senza lattosio/);

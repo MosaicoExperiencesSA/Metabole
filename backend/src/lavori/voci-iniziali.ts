@@ -312,6 +312,46 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'agente-scambia-le-tracce-per-allergeni',
+    titolo: '\u26d4 L\'agente ha letto «pu\u00f2 contenere tracce» come se fossero ingredienti: il sorgo soffiato risulta col glutine, su 78 ricette',
+    dettaglio:
+      '\u25b6\ufe0f **Trovato il 6/9 lanciando `npm run ritira:tag-alimento`**, che elenca gli alimenti da cui i tag '
+      + 'sono partiti. Quattro righe hanno propagato, e tre sono giuste: brodo vegetale \u2192 sedano (1761 ricette), '
+      + 'cous cous integrale \u2192 glutine (90), salsa di soia light \u2192 glutine (72). La quarta no:\n'
+      + '\u26d4 **`sorgo soffiato` \u2192 glutine, sesamo, soia, frutta a guscio, su 78 ricette.** Il sorgo \u00e8 '
+      + 'naturalmente **senza glutine** \u2014 \u00e8 uno dei cereali che una celiaca pu\u00f2 mangiare \u2014 e gli '
+      + 'altri tre sono l\'elenco tipico del blocco «pu\u00f2 contenere tracce di» di un\'etichetta. L\'AI ha letto '
+      + 'l\'avviso di contaminazione come se fosse la lista degli ingredienti.\n\n'
+      + '\u26a0\ufe0f **Il verso dell\'errore \u00e8 quello che di solito si preferisce, e qui costa lo stesso.** Un '
+      + 'allergene di troppo non fa male a nessuno, ma **toglie il piatto a chi poteva mangiarlo**: una celiaca perde '
+      + '78 ricette che le erano permesse, e nessuno le dir\u00e0 mai perch\u00e9. \u00c8 il difetto simmetrico di '
+      + 'quello che si teme sempre, e si vede molto meno.\n\n'
+      + '\u2705 **Il prompt \u00e8 corretto (6/9), tutti e due i giri.** Una riga nuova in `SYSTEM` e in '
+      + '`SYSTEM_SOLO_ALLERGENI`: «pu\u00f2 contenere tracce», «prodotto in uno stabilimento che utilizza» NON sono '
+      + 'allergeni dell\'alimento; un allergene si mette **solo** se \u00e8 un ingrediente; e i cereali naturalmente '
+      + 'senza glutine (riso, mais, grano saraceno, quinoa, miglio, **sorgo**, amaranto, teff) non hanno il glutine '
+      + 'anche se l\'etichetta avvisa del rischio. \u26a0\ufe0f La riga di prima diceva il contrario: «per un prodotto '
+      + 'trasformato considera anche gli ingredienti tipici dell\'etichetta» \u2014 ce lo mandava. Una prova tiene '
+      + 'ferme tutte e due le regole nei due prompt.\n\n'
+      + '\u25b6\ufe0f **RESTA DA FARE, ed \u00e8 di Simone perch\u00e9 sono tre comandi in ordine.** Il prompt corretto '
+      + 'vale per le righe **nuove**: quella gi\u00e0 scritta e i 78 \u00d7 4 tag propagati restano dove sono.\n'
+      + '1. **Correggere la riga «sorgo soffiato»** dalla pagina Valori nutrizionali \u2192 allergeni (togliere '
+      + 'glutine, sesamo, soia, frutta a guscio; se il prodotto \u00e8 di marca e l\'etichetta dichiara davvero un '
+      + 'ingrediente, lasciare **quello**).\n'
+      + '2. `ALIMENTO="sorgo soffiato" npm run ritira:tag-alimento` \u2014 sola lettura: dice quanti tag si '
+      + 'toglierebbero e quanti restano, con il perch\u00e9 di ognuno.\n'
+      + '3. `ALIMENTO="sorgo soffiato" CONFERMA=1 npm run ritira:tag-alimento`.\n'
+      + '\u26a0\ufe0f **L\'ordine non \u00e8 negoziabile e lo script lo impone**: finch\u00e9 la riga in tabella '
+      + 'dichiara quegli allergeni, il ritiro si ferma \u2014 la propagazione notturna li rimetterebbe tutti.\n\n'
+      + '\u26a0\ufe0f **E le altre tre righe vanno guardate lo stesso**, con l\'occhio di adesso: «brodo vegetale \u2192 '
+      + 'sedano» \u00e8 quasi certamente giusto (il sedano \u00e8 un ingrediente del brodo) ma tocca **1761 ricette**, '
+      + 'cio\u00e8 il numero pi\u00f9 grande di tutti: se fosse sbagliato sarebbe il danno pi\u00f9 grande fatto finora.',
+    categoria: CODICE,
+    ordine: 680,
+    nata: '2026-09-06T10:00',
+  },
+
+  {
     chiave: 'chiavi-dichiarate-che-nessuno-legge',
     categoria: CODICE,
     ordine: 1,
@@ -5955,7 +5995,22 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'testo clinico con le sue fonti — li scrive Lucia, non chi tocca il file.'
       + '\n⚠️ **Quello che il tabulato ancora NON dice**: nel profilo il «?» segue lo stile **assegnato**, che '
       + 'il motore può aver cambiato ripiegando su un\'altra dieta; il conto guarda lo stile **scelto in '
-      + 'registrazione**, e l\'etichetta lo scrive invece di far credere il contrario.',
+      + 'registrazione**, e l\'etichetta lo scrive invece di far credere il contrario.'
+      + '\n\n✅ **MISURATA IN PRODUZIONE IL 6/9, ed è zero.** `npm run diag:schede-stile`: **10 stili in gioco, '
+      + '10 con la scheda piena**, zero senza scheda, zero a metà, **zero clienti** su uno stile scoperto (62 '
+      + 'profili vivi guardati su 62). Zero anche le due cose che potevano rompersi di sponda: nessuna dieta '
+      + 'pubblicata **senza codice stile**, e nessuno stile con clienti sopra che nessuna dieta visibile '
+      + 'pubblica.\n'
+      + '⛔ **Quindi la strada (c) NON si fa**, e la voce si chiude. Portare le schede a database costa una '
+      + 'tabella e una schermata per togliere un rilascio: si paga se il difetto morde, e oggi non morde '
+      + 'nessuno. ⚠️ E la distanza adesso è **sorvegliata da due parti**: la prova del 3/9 sugli stili dei '
+      + 'preset (rossa se un preset nuovo nasce senza scheda) e questa diagnostica sugli stili veri del '
+      + 'database (che prende anche le diete scritte a mano, che è il caso che nessuna prova può vedere).\n'
+      + '▶️ **Il giorno che il numero non è più zero**, la decisione torna aperta con il conto in mano invece '
+      + 'che a naso. ⚠️ Resta vero, e non è un difetto di oggi: `vegan`, `vegetarian` e `balanced` hanno '
+      + 'l\'etichetta in `STYLE_LABELS` e non la scheda — nessuna dieta pubblicata li usa, e la sentinella '
+      + '`it.failing` in `scheda-stile-nell-app.spec.ts` diventa rossa il giorno che qualcuno le scrive.',
+    fatta: true,
     categoria: CODICE,
     ordine: 666,
     nata: '2026-08-28T09:05',

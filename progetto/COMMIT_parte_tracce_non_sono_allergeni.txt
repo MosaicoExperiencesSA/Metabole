@@ -1,0 +1,46 @@
+Summary
+-------
+L'agente leggeva "puo' contenere tracce" come se fossero ingredienti: il sorgo soffiato risulta col
+glutine, su 78 ricette. Prompt corretto, e la voce delle schede stile si chiude perche' misurata a
+zero.
+
+Trovato lanciando ritira:tag-alimento in produzione. Quattro righe hanno propagato, tre giuste
+(brodo vegetale -> sedano su 1761 ricette, cous cous -> glutine su 90, salsa di soia -> glutine su
+72). La quarta no: sorgo soffiato -> glutine, sesamo, soia, frutta a guscio. Il sorgo e'
+naturalmente senza glutine, e gli altri tre sono il blocco "puo' contenere tracce di" di
+un'etichetta.
+
+Il verso dell'errore e' quello che di solito si preferisce e qui costa lo stesso: un allergene di
+troppo non fa male a nessuno, ma toglie il piatto a chi poteva mangiarlo. Una celiaca perde 78
+ricette che le erano permesse, e nessuno le dira' mai perche'.
+
+Description
+-----------
+IL PROMPT
+Una riga nuova in SYSTEM e in SYSTEM_SOLO_ALLERGENI: "puo' contenere tracce di" e "prodotto in uno
+stabilimento che utilizza" NON sono allergeni dell'alimento; un allergene si mette SOLO se e' un
+ingrediente; i cereali naturalmente senza glutine (riso, mais, grano saraceno, quinoa, miglio,
+sorgo, amaranto, teff) non hanno il glutine anche se l'etichetta avvisa del rischio.
+
+La riga di prima diceva il contrario: "per un prodotto trasformato considera anche gli ingredienti
+tipici dell'etichetta" ce lo mandava. Una prova tiene ferme le due frasi operative in tutti e due i
+prompt.
+
+COSA RESTA DA FARE, E IN CHE ORDINE
+Il prompt vale per le righe nuove: la riga gia' scritta e i 78 x 4 tag propagati restano dove sono.
+1. correggere la riga "sorgo soffiato" dalla pagina Valori nutrizionali
+2. ALIMENTO="sorgo soffiato" npm run ritira:tag-alimento   (sola lettura)
+3. ALIMENTO="sorgo soffiato" CONFERMA=1 npm run ritira:tag-alimento
+L'ordine non e' negoziabile e lo script lo impone: finche' la riga dichiara quegli allergeni il
+ritiro si ferma, perche' la propagazione notturna li rimetterebbe.
+
+LA SCHEDA DEL "?" SI CHIUDE
+diag:schede-stile in produzione: 10 stili in gioco, 10 con la scheda piena, zero clienti scoperte
+su 62 profili vivi. Zero anche le due cose che potevano rompersi di sponda. Quindi la strada che
+restava -- portare le schede a database -- non si fa: costava una tabella e una schermata per
+togliere un rilascio, e si paga se il difetto morde. La distanza resta sorvegliata da due parti.
+
+Niente migrazioni. 8072 prove verdi, 4 mutazioni provate una per una.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01DYFuVapCUpZ1uZPEyeUsNM
