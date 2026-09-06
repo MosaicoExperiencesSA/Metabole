@@ -156,7 +156,8 @@
     "diag:piatto-doppio": "ts-node --transpile-only prisma/diag-piatto-doppio.ts",
     "diag:equivalenze-doppie": "ts-node --transpile-only prisma/diag-equivalenze-doppie.ts",
     "diag:pool-disallineato": "ts-node --transpile-only prisma/diag-pool-disallineato.ts",
-    "rifai:basi": "ts-node --transpile-only prisma/rifai-basi-personali.ts"
+    "rifai:basi": "ts-node --transpile-only prisma/rifai-basi-personali.ts",
+    "diag:schede-stile": "ts-node --transpile-only prisma/diag-schede-stile.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

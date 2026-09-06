@@ -18,6 +18,33 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-06
+
+- `[Sviluppo]` ✅ **`npm run diag:schede-stile`: chi resta senza la scheda del «?», misurato sugli
+  stili veri.** La voce era aperta da otto giorni per una ragione precisa, scritta lì dentro: la
+  prova del 3/9 confronta le schede dell'app con i **preset** del backend, ma gli stili che una
+  cliente vede arrivano dal **database**, e i preset sono solo il seme. Una dieta scritta a mano in
+  banca dati con uno stile che nei preset non c'è esce senza scheda, e nessuna prova se ne accorge:
+  è l'incidente del 6/8, parola per parola.
+  Il tabulato distingue **tre cose**: chi non ha nessuna scheda (in registrazione il pallino non
+  compare proprio), chi ce l'ha a metà (il pallino compare e apre un popup svuotato, che è peggio
+  perché sembra una risposta), e **quante clienti stanno oggi** su uno stile scoperto — il numero da
+  cui dipende se vale la pena portare le schede a database.
+  ⚠️ **Tre correzioni dalla revisione, e sono quelle da cui dipende se il numero è vero.** Uno stile
+  con delle clienti sopra e nessuna dieta visibile spariva da ogni riga — e la sua scheda finiva fra
+  quelle «che nessuno usa», cioè segnalata come lavoro fermo mentre ci stanno sopra delle persone.
+  I profili si contavano tutti, compresi gli account cancellati e chi ha compilato il questionario
+  senza mai comprare: il numero era gonfio proprio dove serve preciso. E una dieta pubblicata con il
+  codice stile vuoto veniva saltata in silenzio.
+  ⚠️ Le soglie che decidono «campo scritto» erano a 60 caratteri, contro testi veri il cui più corto
+  è 187: non potevano vedere una «cosa dice la ricerca» scritta a un terzo. Adesso 100.
+  ⚠️ **E una prova che si adeguava a qualunque numero.** Fissate le soglie, la prima correzione
+  costruiva i casi **dalla soglia stessa**: abbassandola, il caso «sotto» diventava zero caratteri e
+  quello «sopra» uno, e passava lo stesso. È lo stesso difetto del test che leggeva i propri
+  commenti, trovato ieri sulle guardie: una prova che prende i suoi riferimenti da ciò che dovrebbe
+  sorvegliare dice sempre di sì. Adesso i valori sono scritti a mano.
+  Niente migrazioni, 8071 prove verdi.
+
 ## 2026-09-05
 
 - `[Sviluppo]` ⚠️ **Primo passo delle 29 guardie: dieci agganciate, e la scoperta che non chiudono

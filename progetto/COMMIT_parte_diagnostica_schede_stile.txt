@@ -1,0 +1,63 @@
+Summary
+-------
+npm run diag:schede-stile: quali stili una cliente puo' ricevere senza la scheda del "?", misurato
+sugli stili veri del database invece che sui preset.
+
+La voce scheda-stile-cablata-nell-app era rimasta aperta per una ragione precisa: la prova del 3/9
+confronta le schede dell'app con i PRESET del backend, ma gli stili che una cliente vede arrivano
+dal database (GET /onboarding/diet-products) e i preset sono solo il seme. Una dieta scritta a mano
+in banca dati, con uno stile che nei preset non c'e', esce senza scheda e nessuna prova se ne
+accorge: e' l'incidente del 6/8, parola per parola.
+
+Il tabulato dice tre cose separate: chi non ha NESSUNA scheda (in registrazione il "?" non compare
+proprio), chi ce l'ha A META' (il "?" compare e apre un popup svuotato, che e' peggio perche'
+sembra una risposta), e quante clienti stanno oggi su uno stile scoperto -- il numero da cui
+dipende se serve portare le schede a database.
+
+Il giudizio sta in engine-rules/scheda-stile.ts con le sue prove, non nello script. Il lettore che
+viveva dentro la prova del 3/9 e' sceso li', cosi' prova e diagnostica non lo riscrivono a modo
+loro.
+
+Description
+-----------
+LO ZERO PARLA
+Senza nessuna dieta pubblicata il tabulato lo dice invece di stampare "zero stili scoperti". Se il
+lettore non ricava piu' nessuna scheda dal file si ferma: un regex rotto farebbe risultare ogni
+stile scoperto, cioe' un tabulato di allarmi falsi, che e' il modo piu' veloce per far smettere di
+leggere i tabulati.
+
+TRE COSE CORRETTE IN REVISIONE, E SONO QUELLE DA CUI DIPENDE SE IL NUMERO E' VERO
+1. Uno stile con delle clienti sopra e nessuna dieta visibile spariva da ogni riga -- e la sua
+   scheda finiva fra quelle "che nessuno usa", cioe' segnalata come lavoro fermo mentre ci stanno
+   sopra delle persone. Il backoffice assegna guardando solo status: approved: clientVisible chiude
+   l'app, non la scheda.
+2. I profili si contavano tutti, compresi gli account cancellati (la cancellazione self-service
+   lascia il profilo dov'e', dietStyle compreso) e chi ha compilato il questionario senza mai
+   comprare. Il numero era gonfio proprio dove serve preciso.
+3. Una dieta pubblicata con il codice stile vuoto veniva saltata in silenzio. Il DTO valida
+   @IsString() senza @MinLength, quindi la stringa vuota entra in banca dati, e DIET_INFO[''] non
+   esiste: e' il difetto del 6/8 esatto.
+
+E le soglie che decidono "campo scritto" erano tarate cosi' in basso (60 caratteri) da non vedere
+una "cosa dice la ricerca" scritta a un terzo. Misurati i testi veri -- il piu' corto e' 187 -- ora
+stanno a 100. Il titolo resta a 4 perche' "DASH" e' un titolo giusto.
+
+UN QUARTO ESITO: LA SCHEDA CHE NON SO LEGGERE
+Cinque campi vuoti su cinque non e' una scheda a meta': e' il lettore che non la legge (backtick,
+virgolette doppie, tutta su una riga). Finiva fra quelle da riscrivere, e avrebbe mandato la
+nutrizionista a rifare un testo clinico gia' scritto.
+
+LE PROVE CHE NON MORDEVANO
+Le soglie sono il giudizio e non le fissava nessuna prova: abbassandole tutte a 1 le prove
+restavano verdi. La prima correzione non bastava, perche' costruiva i casi dalla soglia stessa --
+una prova che si adegua a qualunque numero. Ora i valori sono scritti a mano.
+
+QUELLO CHE IL TABULATO ANCORA NON DICE
+Nel profilo il "?" segue lo stile ASSEGNATO, che il motore puo' aver cambiato ripiegando su
+un'altra dieta; il conto guarda lo stile SCELTO in registrazione. L'etichetta lo scrive invece di
+far credere il contrario.
+
+Niente migrazioni. 8071 prove verdi, 12 mutazioni provate una per una.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01DYFuVapCUpZ1uZPEyeUsNM

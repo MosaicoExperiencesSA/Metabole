@@ -37,62 +37,14 @@ const sorgenteApp = readFileSync(percorsoApp('onboarding', 'dietInfo.ts'), 'utf8
 const sorgenteOnboarding = readFileSync(percorsoApp('pages', 'Onboarding.tsx'), 'utf8');
 
 /**
- * I campi che la cliente legge nel popup. `fonti` è opzionale per scheda: valgono le generali.
- *
- * ⚠️ La lunghezza minima è **per campo**, non una sola soglia: «Mediterranea» è un titolo giusto e
- * lungo dodici caratteri, mentre `cosaDiceLaRicerca` in dodici caratteri è un campo non scritto. Una
- * soglia unica avrebbe dovuto scendere al livello del titolo, e allora non avrebbe più visto niente.
+ * ⚠️ **Il lettore sta in `scheda-stile.ts` dal 5/9**, e non è un trasloco di comodo: gli stili che
+ * una cliente vede davvero arrivano dal **database**, non dai preset, e una prova la banca dati di
+ * produzione non la può interrogare. Il giudizio è sceso in un modulo che sia questa prova sia
+ * `npm run diag:schede-stile` chiamano — così nessuno dei due lo riscrive a modo suo.
  */
-const CAMPI = ['titolo', 'cose', 'inPratica', 'cosaDiceLaRicerca', 'attenzione'] as const;
-const MINIMO: Record<(typeof CAMPI)[number], number> = {
-  titolo: 4, cose: 60, inPratica: 60, cosaDiceLaRicerca: 60, attenzione: 40,
-};
-
-interface Scheda { campi: Record<string, string> }
-
-/**
- * ⚠️ Si legge il **corpo** di `DIET_INFO`, non tutte le parole del file: una ricerca per
- * sottostringa direbbe «c'è» anche trovando lo stile dentro un commento o dentro l'elenco fonti.
- *
- * ⛔ La chiave accetta anche cifre, trattini, camelCase e apici. La prima stesura usava
- * `[a-z_]+`: il giorno che un preset introduce `keto2` o `'summer-holiday'` la scheda ci sarebbe e
- * la prova direbbe «manca», mandando il prossimo a cercare un difetto che non esiste.
- *
- * ⛔ E `indexOf('export const DIET_INFO')` è un match per **prefisso**: prenderebbe
- * `DIET_INFO_FONTI` se qualcuno la spostasse sopra. Si àncora al `= {` della dichiarazione vera.
- */
-export function schedeDelloStile(sorgente: string): Map<string, Scheda> {
-  const apertura = sorgente.match(/export const DIET_INFO\s*:[^=]*=\s*\{/);
-  if (!apertura || apertura.index === undefined) return new Map();
-  const corpo = sorgente.slice(apertura.index + apertura[0].length);
-  const fine = corpo.indexOf('\n};');
-  const dentro = fine >= 0 ? corpo.slice(0, fine) : corpo;
-
-  const capoChiave = /^ {2}(?:'([^']+)'|"([^"]+)"|([A-Za-z_$][\w$]*)): \{/gm;
-  const capi: { nome: string; da: number }[] = [];
-  for (let m = capoChiave.exec(dentro); m; m = capoChiave.exec(dentro)) {
-    capi.push({ nome: m[1] ?? m[2] ?? m[3], da: m.index + m[0].length });
-  }
-
-  const out = new Map<string, Scheda>();
-  capi.forEach((c, i) => {
-    const blocco = dentro.slice(c.da, i + 1 < capi.length ? capi[i + 1].da : dentro.length);
-    const campi: Record<string, string> = {};
-    for (const campo of CAMPI) {
-      const m = blocco.match(new RegExp(`\\n {4}${campo}:\\s*\\n?\\s*'((?:[^'\\\\]|\\\\.)*)'`));
-      if (m) campi[campo] = m[1];
-    }
-    out.set(c.nome, { campi });
-  });
-  return out;
-}
-
-/** Le fonti generali: l'array deve esserci **e avere dentro qualcosa**. */
-export function fontiGenerali(sorgente: string): string[] {
-  const m = sorgente.match(/export const DIET_INFO_FONTI[^=]*=\s*\[([\s\S]*?)\]/);
-  if (!m) return [];
-  return [...m[1].matchAll(/'((?:[^'\\]|\\.)+)'/g)].map((x) => x[1]);
-}
+import {
+  CAMPI, MINIMO, fontiGenerali, schedeDelloStile,
+} from './scheda-stile';
 
 describe('la scheda del «?» esiste, ed è piena, per ogni stile del catalogo', () => {
   const schede = schedeDelloStile(sorgenteApp);
