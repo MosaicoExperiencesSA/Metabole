@@ -988,8 +988,17 @@ export class FinanceController {
 }
 
 /** Gestione negozio (admin): piani e prodotti/integratori. */
+/**
+ * ⛔ **La guardia agganciata il 5/9, primo passo delle 29.** Questa rotta ha il solo elenco dei
+ * ruoli, e dentro c'è l'admin e basta: l'admin è superutente e la guardia lo lascia passare senza
+ * leggere la matrice, mentre chi admin non è prendeva 403 già ieri. Quindi l'aggancio **non toglie
+ * l'accesso a nessuno** — chiude la casella, che finora spegneva la voce di menu e non la porta.
+ * ⚠️ L'elenco dei ruoli resta sotto: senza, il fail-open della guardia si rovescia e un singhiozzo
+ * del database diventa 403 per tutti (`page.guard.ts`, correzione del 17/8).
+ */
 @Controller('admin/shop')
 @Roles('admin')
+@RequirePage('shop')
 export class AdminShopController {
   constructor(private readonly commerce: CommerceService) {}
 

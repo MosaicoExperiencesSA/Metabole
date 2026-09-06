@@ -293,13 +293,65 @@ export type MotivoSenzaGuardia =
  * condizioni le tiene ferme `chiavi-senza-guardia.spec.ts`: una chiave che prende la sua guardia e
  * resta qui direbbe «è decorativa» di una casella che adesso comanda.
  */
+/**
+ * ⛔ **LE GUARDIE CHE CI SONO E NON POSSONO DECIDERE — la lezione del 5/9 sera.**
+ *
+ * Il 5/9 dieci chiavi hanno preso la loro `@RequirePage`, scelte con questo criterio: la rotta è
+ * `@Roles('admin')` e basta, quindi agganciare non toglie l'accesso a nessuno. Il criterio reggeva;
+ * la conclusione che ne era stata tratta — *«la casella adesso chiude la porta»* — **era falsa**, e
+ * l'ha trovata la revisione avversariale prima della consegna.
+ *
+ * ⛔ **Il motivo, in una riga**: `page.guard.ts` fa uscire l'admin **prima** di leggere la matrice
+ * (`if (user.role === 'admin') return true`). Su una rotta dove l'unico che entra è l'admin, la
+ * guardia non ha nessun esito raggiungibile diverso da «passa». Spegnere la casella toglie la voce
+ * di menu e lascia la porta aperta **esattamente come il giorno prima**.
+ *
+ * ⛔ **E il conto stava per mentire.** Tolte dai `buco`, quelle dieci facevano scendere il numero
+ * mostrato nella pagina Permessi da 29 a 19: Simone avrebbe letto «dieci caselle in meno mentono»
+ * senza che nulla fosse cambiato. È il gesto che `chiavi-senza-guardia.spec.ts` vieta per
+ * iscritto — *si accorcia agganciando le guardie, mai riclassificando* — raggiunto per una strada
+ * laterale, che nessuna prova sorvegliava.
+ *
+ * ⚠️ **Le guardie restano agganciate lo stesso, e non è un ripiego**: il giorno che qualcuno allarga
+ * uno di quei `@Roles`, la matrice comincia a comandare da sola, senza che nessuno debba ricordarsi
+ * di tornare qui. È difesa in profondità, e costa zero. Ma finché sopra c'è `@Roles('admin')`, la
+ * casella **non chiude niente**, e questa tabella è il posto dove sta scritto.
+ *
+ * ▶️ **Come si chiude davvero una di queste**: si allarga `@Roles` ai ruoli che nei default hanno
+ * già la chiave, e da quel momento è la matrice a decidere. Non è più un gesto gratis — cambia chi
+ * entra — e si fa una chiave per volta, con Simone.
+ */
+export const GUARDIA_INERTE: Readonly<Record<string, { perche: string; bucoAltrove?: string }>> = {
+  audit_logs: { perche: '`admin/audit-logs` è `@Roles(admin)` e l\'admin salta la guardia' },
+  users: { perche: '`admin/users` è `@Roles(admin)` e l\'admin salta la guardia' },
+  roles: { perche: '`admin/roles` è `@Roles(admin)` e l\'admin salta la guardia' },
+  engine_config: { perche: '`admin/config` è `@Roles(admin)` e l\'admin salta la guardia' },
+  pdf_templates: { perche: '`admin/pdf-templates` è `@Roles(admin)` e l\'admin salta la guardia' },
+  shop: { perche: '`admin/shop` è `@Roles(admin)` e l\'admin salta la guardia' },
+  email_templates: { perche: '`admin/email` è `@Roles(admin)` e l\'admin salta la guardia' },
+  email_log: { perche: '`admin/email` è `@Roles(admin)` e l\'admin salta la guardia' },
+  accounting_costs: { perche: '`admin/accounting` è `@Roles(admin)` e l\'admin salta la guardia' },
+  /**
+   * ⛔ **`accounting` è il caso che dimostra perché questa tabella serve.** Le rotte di
+   * `admin/accounting` sono admin-only come le altre, ma la stessa chiave apre la pagina Pagamenti,
+   * e `admin/payments` è `@Roles('admin', 'sales')` **senza guardia**: `sales` ha `accounting`
+   * `{view}` nei default, quindi Simone che gliela spegne gli toglie la voce di menu e gli lascia
+   * l'elenco dei pagamenti, le contabili bancarie e i pulsanti di approvazione. Qui il buco è vero e
+   * raggiungibile da un ruolo vero, ed è per questo che `accounting` **resta anche fra i `buco`**.
+   * ⚠️ Non si chiude agganciando e basta: `sales` ha solo `view`, e le tre scritture di
+   * `admin/payments` chiederebbero `manage` — cioè gli si toglierebbe qualcosa che oggi fa. È una
+   * decisione di Simone, non una correzione.
+   */
+  accounting: {
+    perche: '`admin/accounting` è `@Roles(admin)` e l\'admin salta la guardia',
+    bucoAltrove: '`admin/payments` (@Roles admin+sales) non ha nessuna guardia',
+  },
+};
+
 export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> = {
   // ⛔ I BUCHI SU DATI SENSIBILI O POTERI FORTI. Sono quelli da chiudere per primi, uno per uno.
-  audit_logs: 'buco',
-  users: 'buco',
   permissions: 'buco',
-  roles: 'buco',
-  engine_config: 'buco',
+  accounting: 'buco',
   engine_protocols: 'buco',
   engine_rules: 'buco',
   health_documents: 'buco',
@@ -307,16 +359,10 @@ export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> 
   clinical_clearance: 'buco',
   chat: 'buco',
   posta: 'buco',
-  accounting: 'buco',
-  accounting_costs: 'buco',
   compensation: 'buco',
   commissions: 'buco',
   withdrawals: 'buco',
   discounts: 'buco',
-  shop: 'buco',
-  email_log: 'buco',
-  email_templates: 'buco',
-  pdf_templates: 'buco',
   // ⛔ Questi tre **cambiano dati clinici** e la casella non li ferma: la rotta è protetta dal solo
   //    elenco dei ruoli. `change_diet_type` in particolare è quella che il 28/8 è stata trovata
   //    accesa su `sales` senza che il codice l'avesse mai data.

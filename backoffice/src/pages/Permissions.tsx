@@ -39,6 +39,11 @@ interface Matrix {
    * inventata è peggio di nessun avviso.
    */
   senzaGuardia?: Record<string, 'buco' | 'figlia' | 'grantor' | 'innocua'>;
+  /**
+   * ⛔ Le chiavi che una `@RequirePage` ce l'hanno e **non decide**: la rotta è `@Roles('admin')` e
+   * l'admin salta la guardia. La casella governa la voce di menu e non la porta, come un buco.
+   */
+  guardiaInerte?: Record<string, { perche: string; bucoAltrove?: string }>;
 }
 
 interface CellVal {
@@ -155,6 +160,21 @@ export function Permissions() {
   }, [data]);
 
   /** «Gestione dieta apre anche Catalogo diete e Ricette» — scritto dai dati, non a mano. */
+  /**
+   * ⛔ **Le caselle che non chiudono la porta, contate una volta sola.** Sono due casi diversi con
+   * lo stesso effetto per chi guarda: il **buco** (la guardia manca) e la **guardia inerte** (la
+   * guardia c'è ma sopra passa solo l'admin, che la salta). ⚠️ `accounting` sta in tutti e due gli
+   * elenchi — inerte sulle sue rotte, buco vero su `admin/payments` — e va contata una volta:
+   * sommare i due numeri direbbe trenta caselle dove ce ne sono ventinove.
+   */
+  const caselleCheNonChiudono = useMemo(
+    () => [...new Set([
+      ...Object.keys(data?.senzaGuardia ?? {}).filter((k) => data?.senzaGuardia?.[k] === 'buco'),
+      ...Object.keys(data?.guardiaInerte ?? {}),
+    ])],
+    [data],
+  );
+
   const righeCheApronoAltro = useMemo(
     () => Object.entries(data?.concede ?? {})
       .map(([hub, concesse]) => `«${pageLabel(hub)}» apre anche ${concesse.map(pageLabel).join(' e ')}`),
@@ -209,7 +229,7 @@ export function Permissions() {
           di questa pagina evita apposta. Aggiungere un hub l'avrebbe resa falsa, coi badge giusti.
 
           ⚠️ **E il perimetro si dichiara per intero.** Questi avvisi coprono tre vie — l'hub,
-          l'eredità e il ruolo di base — e non tutte: 43 chiavi su 67 non sono lette da nessuna
+          l'eredità e il ruolo di base — e non tutte: 33 chiavi su 67 non sono lette da nessuna
           `@RequirePage`, e lì la casella governa il menu e non la porta (l'endpoint è protetto dal
           solo `@Roles`). Dire «spegnerle non chiude la porta» senza qualificarlo sarebbe promettere
           più di quello che si guarda. */}
@@ -235,11 +255,10 @@ export function Permissions() {
           tabella che scorre. ⚠️ E dice **cosa non è**: le figlie di una pagina guardata e i due
           grantor non sono in conto, perché non sono difetti — mescolarli rifarebbe l'elenco unico
           in cui il buco e la scelta si somigliano. */}
-      {Object.values(data.senzaGuardia ?? {}).filter((m) => m === 'buco').length > 0 && (
+      {caselleCheNonChiudono.length > 0 && (
         <Banner kind="warn">
           <b>
-            {Object.values(data.senzaGuardia ?? {}).filter((m) => m === 'buco').length} caselle
-            governano la voce di menu e non la porta.
+            {caselleCheNonChiudono.length} caselle governano la voce di menu e non la porta.
           </b>{' '}
           Per quelle schermate l'API è protetta dal solo elenco dei ruoli: spegnere la casella
           nasconde la voce e <b>non</b> chiude l'endpoint. Hanno una nota gialla sotto il nome.
@@ -293,10 +312,21 @@ export function Permissions() {
                       ⚠️ Solo per i **buchi**: la figlia di una pagina guardata e il grantor non
                       sono difetti, e segnalarli insieme rifarebbe l'elenco unico che questa
                       classificazione esiste per sciogliere. */}
-                  {data.senzaGuardia?.[pageKey] === 'buco' && (
+                  {(data.senzaGuardia?.[pageKey] === 'buco' || data.guardiaInerte?.[pageKey]) && (
                     <div style={{ fontSize: 10, fontWeight: 400, color: '#8A5A00', marginTop: 2, whiteSpace: 'normal', maxWidth: 200 }}>
                       ⚠️ Questa casella governa la <b>voce di menu</b>, non l'API: spegnerla nasconde
                       la schermata e <b>non</b> chiude la porta.
+                      {/* ⛔ **La guardia c'è, e non basta.** Dirlo cambia cosa si fa dopo: su un buco
+                          manca il decoratore, qui il decoratore c'è e non ha nessun esito possibile
+                          perché sopra passa solo l'admin, che salta la guardia. Si chiude
+                          allargando l'elenco dei ruoli, non aggiungendo una guardia che c'è già. */}
+                      {data.guardiaInerte?.[pageKey] && (
+                        <div style={{ marginTop: 2 }}>
+                          La guardia è agganciata ma non decide: {data.guardiaInerte[pageKey].perche}.
+                          {data.guardiaInerte[pageKey].bucoAltrove
+                            && <> ⛔ E resta scoperta {data.guardiaInerte[pageKey].bucoAltrove}.</>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </td>

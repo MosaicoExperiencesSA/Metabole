@@ -1,0 +1,64 @@
+Summary
+-------
+Primo passo delle 29 guardie: dieci @RequirePage agganciate, e il conto che dice la verita su
+cosa hanno chiuso (niente).
+
+Dieci chiavi che nessuna guardia leggeva hanno preso la loro @RequirePage: audit_logs, users,
+roles, engine_config, pdf_templates, shop, email_templates, email_log, accounting,
+accounting_costs. Tutte su rotte @Roles('admin'): nessuno perde l'accesso.
+
+⛔ Ma NON chiudono niente, e la revisione avversariale lo ha trovato prima della consegna.
+page.guard.ts fa uscire l'admin PRIMA di leggere la matrice: dove l'unico che entra e' l'admin la
+guardia non ha nessun esito possibile diverso da "passa". Spegnere quelle caselle toglie ancora la
+voce di menu e lascia la porta aperta, come il giorno prima.
+
+E il conto stava per mentire: tolte dai buchi, facevano scendere il numero in pagina da 29 a 19
+senza che fosse cambiato niente. Adesso c'e' GUARDIA_INERTE, la pagina Permessi le segnala come i
+buchi, e il numero le comprende: 29, come prima.
+
+Piu' un buco vero trovato dalla revisione: admin/payments e' @Roles(admin, sales) senza guardia, e
+sales ha accounting nei default.
+
+Description
+-----------
+PERCHE' LE GUARDIE RESTANO
+Il giorno che qualcuno allarga uno di quei @Roles, la matrice comincia a comandare da sola senza
+che nessuno debba ricordarsi di tornare sul decoratore. E' difesa in profondita' e costa zero. Ma
+finche' sopra c'e' @Roles('admin'), la casella non chiude niente, e adesso c'e' un posto dove sta
+scritto: GUARDIA_INERTE in permissions/pages.ts, che il servizio manda alla pagina e la pagina
+mostra sotto il nome della riga, come per i buchi.
+
+IL BUCO VERO SU admin/payments
+sales ha accounting: {view} nei default e /admin/payments e' @Roles('admin', 'sales') senza
+nessuna guardia. Spegnere quella casella a sales gli toglie la voce di menu e gli lascia l'elenco
+dei pagamenti, le contabili bancarie e i pulsanti di approvazione. Non si chiude agganciando e
+basta: sales ha solo view, e le tre scritture chiederebbero manage, cioe' gli si toglierebbe
+qualcosa che oggi fa. E' una decisione di Simone, e intanto accounting resta fra i buchi con
+scritto dove sta la porta.
+
+LE PROVE CHE NON MORDEVANO
+La prima stesura contava "quante guardie, quante rotte" e chiedeva che i due numeri fossero
+uguali. Restava verde togliendo la guardia allo scarico della fattura cifrata e mettendola due
+volte sul report PDF; scambiando fra loro email_templates ed email_log; mettendo accounting sulla
+cancellazione di un costo. E il test sui @Roles guardava solo la classe, mentre in Nest il metodo
+vince sulla classe: un @Roles allargato sul singolo metodo passava inosservato, ed e' esattamente
+lo scenario che quella prova dichiarava di presidiare. Adesso l'accoppiamento rotta -> chiave e'
+scritto una riga per volta e congelato.
+
+Una prova precedente non mordeva per un motivo diverso e istruttivo: leggeva i propri commenti.
+Il commento sopra la classe nominava @Roles('admin') per spiegare perche' la guardia era gratis, e
+togliendo il decoratore vero la prova restava verde. Ora i commenti si spogliano prima di
+guardare.
+
+ALTRO
+payment-methods spostata sotto accounting_costs: e' la tendina del modulo costi, e la pagina che
+la usa sta sotto quella chiave.
+
+Da decidere insieme: /contabilita sta sotto accounting_costs ma legge il conto economico, che e'
+accounting. Oggi non si vede perche' sono tutte e due solo-admin.
+
+Niente migrazioni. 8038 prove verdi, build backend e backoffice verdi, 12 mutazioni provate una
+per una.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01DYFuVapCUpZ1uZPEyeUsNM

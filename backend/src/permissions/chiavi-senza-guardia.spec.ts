@@ -1,5 +1,5 @@
 /**
- * ⛔ **QUARANTATRÉ CHIAVI SU SESSANTAQUATTRO NON LE LEGGE NESSUNA GUARDIA.**
+ * ⛔ **TRENTATRÉ CHIAVI SU SESSANTASETTE NON LE LEGGE NESSUNA GUARDIA.**
  *
  * `CLAUDE.md` lo dice da agosto: *«una chiave dichiarata e non letta da nessuno è un interruttore
  * che non accende niente»*, e il 13/8 ne erano state tolte due (`engine_reviews`, `assignments`).
@@ -19,7 +19,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { BACKOFFICE_PAGES, DEFAULT_ESPLICITI, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA } from './pages';
+import { BACKOFFICE_PAGES, DEFAULT_ESPLICITI, GUARDIA_INERTE, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA } from './pages';
 
 /** Tutti i `.ts` del backend, esclusi i test: una guardia in uno spec non protegge niente. */
 function sorgenti(dir: string, out: string[] = []): string[] {
@@ -47,14 +47,12 @@ const chiaviLette = (() => {
  * aggiunto una casella che non chiude niente, e va discusso, non registrato.
  */
 const SENZA_GUARDIA_OGGI = [
-  'accounting', 'accounting_costs', 'allergens', 'assign_coach', 'assign_nutritionist',
-  'audit_logs', 'change_allergies', 'change_diet_type', 'change_fasting_window', 'charts',
-  'chat', 'clinical_clearance', 'colazioni', 'commissions', 'compensation', 'creation_validation',
-  'crm_calendar', 'crm_import', 'crm_lead_new', 'crm_leads', 'crm_pipeline', 'dashboard',
-  'discounts', 'diet_workspace', 'email_log', 'email_templates', 'engine_config',
-  'engine_protocols', 'engine_rules', 'equivalence_groups', 'escalations', 'health_documents',
-  'lead_acceptance', 'notifications', 'pdf_templates', 'permissions', 'posta', 'publisher',
-  'roles', 'shop', 'testimonials', 'users', 'withdrawals',
+  'allergens', 'assign_coach', 'assign_nutritionist', 'change_allergies', 'change_diet_type',
+  'change_fasting_window', 'charts', 'chat', 'clinical_clearance', 'colazioni', 'commissions',
+  'compensation', 'creation_validation', 'crm_calendar', 'crm_import', 'crm_lead_new',
+  'crm_leads', 'crm_pipeline', 'dashboard', 'diet_workspace', 'discounts', 'engine_protocols',
+  'engine_rules', 'equivalence_groups', 'escalations', 'health_documents', 'lead_acceptance',
+  'notifications', 'permissions', 'posta', 'publisher', 'testimonials', 'withdrawals',
 ].sort();
 
 describe('le chiavi di permesso che nessuna guardia legge', () => {
@@ -82,8 +80,15 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
    * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
    *
-   * ✅ **43 su 67 dal 4/9 sera**, ed è il verso giusto **tre volte**: `menu_a_mano`, `diet_descriptions`
-   * e ora `attiva_piano` sono nate **con** la loro guardia — le chiavi salgono, quelle guardate
+   * ✅ **33 su 67 dal 5/9 sera**, ed è il primo passo della strada (b): dieci guardie agganciate
+   * davvero — `audit_logs`, `users`, `roles`, `engine_config`, `pdf_templates`, `shop`,
+   * `email_templates`, `email_log`, `accounting`, `accounting_costs`. Tutte e dieci su rotte
+   * `@Roles('admin')` e basta: l'admin è superutente e la guardia lo lascia passare senza leggere
+   * la matrice, chi admin non è prendeva 403 già ieri. ⛔ **Costo per chi lavora: zero** — ed è il
+   * criterio con cui è stato scelto il gruppo, non un caso fortunato.
+   *
+   * ✅ **43 su 67 dal 4/9 sera**, ed era il verso giusto **tre volte**: `menu_a_mano`, `diet_descriptions`
+   * e `attiva_piano` sono nate **con** la loro guardia — le chiavi salgono, quelle guardate
    * salgono, e le 43 restano 43. ⚠️ Il numero scende **solo** agganciando le guardie che mancano,
    * mai riclassificando.
    *
@@ -93,9 +98,9 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * `diet_descriptions` si è accesa davvero: la chiave era stata dichiarata prima di agganciare la
    * `@RequirePage`, e tre prove sono diventate rosse nello stesso momento.
    */
-  it('⚠️ e sono 43 su 67: il numero che sta scritto nella voce e nel banner', () => {
+  it('⚠️ e sono 33 su 67: il numero che sta scritto nella voce e nel banner', () => {
     expect(BACKOFFICE_PAGES.length).toBe(67);
-    expect(senza.length).toBe(43);
+    expect(senza.length).toBe(33);
     const banner = readFileSync(
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
     );
@@ -130,7 +135,14 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
    */
   it('⛔ e una chiave CON la guardia non ha un motivo: sarebbe un avviso falso in pagina', () => {
     const conGuardia = BACKOFFICE_PAGES.filter((k) => chiaviLette.has(k));
-    expect(conGuardia.filter((k) => MOTIVO_SENZA_GUARDIA[k])).toEqual([]);
+    /**
+     * ⚠️ **L'eccezione, e ha un nome**: una chiave può avere la sua guardia su certe rotte e una
+     * porta scoperta su altre. `accounting` è così dal 5/9 (`admin/payments`), e il suo avviso in
+     * pagina non è falso — è l'unico posto dove quella porta è scritta. L'eccezione vale **solo**
+     * se `GUARDIA_INERTE` dichiara dove sta il buco: senza, è una riga marcia.
+     */
+    const marce = conGuardia.filter((k) => MOTIVO_SENZA_GUARDIA[k] && !GUARDIA_INERTE[k]?.bucoAltrove);
+    expect(marce).toEqual([]);
   });
 
   /** ⚠️ E nessun motivo per una chiave che non esiste più: un elenco che sopravvive alla cosa che descrive. */
@@ -140,17 +152,47 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
   });
 
   /**
-   * ⛔ **I buchi sono la parte che conta, e sono la maggioranza: 29 su 43.** Il numero sta scritto
-   * qui perché è quello che dice quanto lavoro resta — ogni riga è una casella che oggi **mente** a
-   * chi la guarda. ⚠️ Si accorcia agganciando le guardie, **mai riclassificando**: spostare una
-   * chiave da `buco` a `figlia` per far scendere il numero è la stessa cosa che spegnere l'avviso.
+   * ⛔ **I buchi sono la parte che conta.** Ogni riga è una casella che oggi **mente** a chi la
+   * guarda. ⚠️ Si accorcia agganciando le guardie, **mai riclassificando**: spostare una chiave da
+   * `buco` a `figlia` per far scendere il numero è la stessa cosa che spegnere l'avviso.
+   *
+   * ⛔ **E NEMMENO AGGANCIANDO UNA GUARDIA CHE NON PUÒ DECIDERE** — la lezione del 5/9 sera, ed è
+   * la strada laterale che questa prova non sorvegliava. Dieci chiavi hanno preso la loro
+   * `@RequirePage` su rotte `@Roles('admin')`: uscivano da `senza`, il numero scendeva da 29 a 19,
+   * e in pagina non era cambiato **niente** — l'admin salta la guardia prima di leggere la matrice.
+   * Adesso il conto che dice quanto lavoro resta è **buchi + guardie inerti**, e quello non scende
+   * se non succede qualcosa per davvero.
    */
-  it('⛔ e quanti sono i buchi veri: 29 su 43', () => {
+  it('⛔ e quante caselle non chiudono ancora la porta: 20 buchi + 10 guardie inerti = 29', () => {
     const per = (m: string) => senza.filter((k) => MOTIVO_SENZA_GUARDIA[k] === m).length;
-    expect(per('buco')).toBe(29);
+    /** ⚠️ 19 fra quelle **senza** guardia; il ventesimo è `accounting`, che la guardia ce l'ha ma non su tutte le sue rotte. */
+    expect(per('buco')).toBe(19);
     expect(per('figlia')).toBe(9);
     expect(per('grantor')).toBe(2);
     expect(per('innocua')).toBe(3);
+    expect(Object.keys(GUARDIA_INERTE)).toHaveLength(10);
+    /**
+     * ⛔ **Il numero vero, quello che Simone legge.** `accounting` sta in tutti e due gli elenchi —
+     * guardia inerte sulle sue rotte, buco vero su `admin/payments` — e si conta **una volta**.
+     */
+    const buchi = Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => MOTIVO_SENZA_GUARDIA[k] === 'buco');
+    expect(buchi).toHaveLength(20);
+    const nonChiudono = new Set([...buchi, ...Object.keys(GUARDIA_INERTE)]);
+    expect(nonChiudono.size).toBe(29);
+  });
+
+  /**
+   * ⛔ **UNA GUARDIA INERTE DEVE ESSERE DAVVERO INERTE, non una scusa.** La riga si toglie il giorno
+   * che la guardia comincia a decidere — cioè quando `@Roles` si allarga oltre l'admin. Se resta,
+   * la pagina Permessi dice «questa casella non chiude la porta» di una che invece la chiude, e
+   * l'avviso falso insegna a non leggere gli avvisi.
+   */
+  it('⛔ ogni guardia dichiarata inerte sta su una rotta @Roles(admin) e basta', () => {
+    const sorgente = sorgenti(join(__dirname, '..')).map((p) => readFileSync(p, 'utf8')).join('\n');
+    for (const chiave of Object.keys(GUARDIA_INERTE)) {
+      /** ⚠️ La guardia c'è davvero: senza, «inerte» sarebbe solo un modo di non agganciarla. */
+      expect(sorgente).toContain(`@RequirePage('${chiave}'`);
+    }
   });
 
   /**
@@ -233,6 +275,22 @@ describe('la classificazione arriva a chi guarda la matrice', () => {
   it('⛔ e la pagina la legge, e segnala i buchi', () => {
     const pagina = bo('pages', 'Permissions.tsx');
     expect(pagina).toMatch(/data\.senzaGuardia\?\.\[pageKey\] === 'buco'/);
+  });
+
+  /**
+   * ⛔ **LO STESSO GIRO PER LE GUARDIE INERTI, e serve più dell'altro.** Un buco si vede: la
+   * guardia non c'è. Una guardia inerte sembra un lavoro fatto — il decoratore è lì, sotto gli
+   * occhi di chi rilegge — e non decide niente. Se questa tabella non arriva in pagina, dieci
+   * caselle smettono di essere segnalate **proprio perché** qualcuno le ha «chiuse».
+   */
+  it('⛔ il servizio manda anche le guardie inerti, e la pagina le segnala', () => {
+    const servizio = readFileSync(join(__dirname, 'permissions.service.ts'), 'utf8');
+    expect(servizio).toMatch(/guardiaInerte: GUARDIA_INERTE/);
+    const pagina = bo('pages', 'Permissions.tsx');
+    expect(pagina).toMatch(/data\.guardiaInerte\?\.\[pageKey\]/);
+    /** ⚠️ E il conto in cima le comprende: sommare due elenchi che si sovrappongono direbbe 30 su 29. */
+    expect(pagina).toMatch(/caselleCheNonChiudono/);
+    expect(pagina).toMatch(/new Set\(\[/);
   });
 
   /**

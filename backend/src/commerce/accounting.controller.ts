@@ -4,6 +4,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { AccountingService, CADENCES, COST_CATEGORIES } from './accounting.service';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 
 class CreateCostDto {
   @IsString() @MinLength(2) @MaxLength(160)
@@ -96,18 +97,26 @@ class FatturaDto {
 export class AccountingController {
   constructor(private readonly accounting: AccountingService) {}
 
+  /**
+   * ⛔ **Guardia per METODO e non di classe**: qui dentro convivono due chiavi diverse, e una
+   * guardia sulla classe le confonderebbe in una sola — che è il difetto che stiamo chiudendo,
+   * rifatto un piano più sopra.
+   */
+  @RequirePage('accounting')
   @Get('report')
   report(@Query('from') from: string, @Query('to') to: string) {
     return this.accounting.report(from, to);
   }
 
   /** Report del periodo in PDF (base64) da scaricare. */
+  @RequirePage('accounting')
   @Get('report/pdf')
   reportPdf(@Query('from') from: string, @Query('to') to: string) {
     return this.accounting.reportPdf(from, to);
   }
 
   /** Report del periodo in CSV (base64) da scaricare. */
+  @RequirePage('accounting')
   @Get('report/csv')
   reportCsv(@Query('from') from: string, @Query('to') to: string) {
     return this.accounting.reportCsv(from, to);
@@ -118,27 +127,38 @@ export class AccountingController {
    * pagina le usa in due punti (il modulo di inserimento e il filtro della colonna) e le vuole anche
    * quando di costi non ce n'è ancora nessuno.
    */
+  /**
+   * ⚠️ **`accounting_costs` e non `accounting`**: è la tendina del **modulo costi**, e la pagina che
+   * la usa (`/contabilita`) sta sotto quella chiave. Metterla sotto l'altra avrebbe fatto fallire
+   * il caricamento a chi ha i costi e non il conto economico — il giorno che i due permessi
+   * smettono di coincidere, che è tutto il senso di averli separati.
+   */
+  @RequirePage('accounting_costs')
   @Get('payment-methods')
   metodiPagamento() {
     return this.accounting.metodiPagamento();
   }
 
+  @RequirePage('accounting_costs')
   @Get('costs')
   listCosts() {
     return this.accounting.listCosts();
   }
 
+  @RequirePage('accounting_costs')
   @Post('costs')
   createCost(@CurrentUser() user: AuthUser, @Body() dto: CreateCostDto) {
     return this.accounting.registerCost(dto, user.sub);
   }
 
+  @RequirePage('accounting_costs')
   @Patch('costs/:id')
   updateCost(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCostDto) {
     return this.accounting.updateCost(id, dto, user.sub);
   }
 
   @HttpCode(200)
+  @RequirePage('accounting_costs')
   @Delete('costs/:id')
   deleteCost(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.accounting.deleteCost(id, user.sub);
@@ -148,18 +168,21 @@ export class AccountingController {
 
   /** Allega o sostituisce la fattura del costo. Un file per costo, max 5 MB, salvato cifrato. */
   @HttpCode(200)
+  @RequirePage('accounting_costs')
   @Post('costs/:id/fattura')
   allegaFattura(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: FatturaDto) {
     return this.accounting.allegaFattura(id, dto, user.sub);
   }
 
   /** La fattura in base64: la pagina la apre in una scheda nuova o la scarica. */
+  @RequirePage('accounting_costs')
   @Get('costs/:id/fattura')
   scaricaFattura(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.accounting.scaricaFattura(id, user.sub);
   }
 
   @HttpCode(200)
+  @RequirePage('accounting_costs')
   @Delete('costs/:id/fattura')
   rimuoviFattura(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.accounting.rimuoviFattura(id, user.sub);

@@ -4,7 +4,7 @@ import { isSystemRole } from '../common/roles';
 import { PrismaService } from '../prisma/prisma.service';
 import { RolesService } from '../roles/roles.service';
 import {
-  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA,
+  BACKOFFICE_PAGES, DEFAULT_ESPLICITI, DEFAULT_PERMISSIONS, GUARDIA_INERTE, INHERIT_DEFAULTS, MOTIVO_SENZA_GUARDIA,
   NON_EREDITANO,
   PAGE_GRANTS, PageKey,
 } from './pages';
@@ -234,6 +234,14 @@ export class PermissionsService implements OnModuleInit {
        * nessun motivo su una chiave che la guardia ce l'ha.
        */
       senzaGuardia: MOTIVO_SENZA_GUARDIA,
+      /**
+       * ⛔ **Le guardie che ci sono e non decidono** (5/9 sera). Una `@RequirePage` su una rotta
+       * `@Roles('admin')` non chiude niente: l'admin salta la guardia prima di leggere la matrice.
+       * Senza questa riga la pagina avrebbe smesso di avvisare su dieci caselle che continuano a
+       * governare la voce di menu e non la porta — e il numero in cima sarebbe sceso da 29 a 19
+       * senza che in produzione fosse cambiato niente.
+       */
+      guardiaInerte: GUARDIA_INERTE,
       aperteLoStesso,
       /**
        * ⚠️ Quante caselle sono spente **solo perché la loro riga non esiste**. Non stanno in

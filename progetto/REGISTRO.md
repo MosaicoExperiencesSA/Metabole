@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-05
 
+- `[Sviluppo]` ⚠️ **Primo passo delle 29 guardie: dieci agganciate, e la scoperta che non chiudono
+  niente.** Dieci chiavi che nessuna guardia leggeva hanno preso la loro `@RequirePage`, scelte con
+  un criterio: la rotta è `@Roles('admin')` e basta, quindi agganciare non toglie l'accesso a
+  nessuno. Il criterio reggeva; la conclusione no.
+  ⛔ **`page.guard.ts` fa uscire l'admin prima di leggere la matrice.** Dove l'unico che entra è
+  l'admin, la guardia non ha nessun esito possibile diverso da «passa»: spegnere quelle caselle
+  toglie ancora la voce di menu e lascia la porta aperta, esattamente come il giorno prima. L'ha
+  trovato la revisione avversariale, prima della consegna.
+  ⛔ **E il conto stava per mentire.** Tolte dall'elenco dei buchi, quelle dieci facevano scendere
+  il numero mostrato nella pagina Permessi da 29 a 19: si sarebbe letto «dieci caselle in meno
+  mentono» senza che in produzione fosse cambiato niente. È il gesto che quella voce vieta per
+  iscritto — *si accorcia agganciando le guardie, mai riclassificando* — raggiunto per una strada
+  laterale che nessuna prova sorvegliava. Adesso c'è `GUARDIA_INERTE`, la pagina la mostra sotto il
+  nome della riga come per i buchi, e il numero le comprende: **29**, come prima.
+  ⚠️ **Le guardie restano agganciate lo stesso**, e non è un ripiego: il giorno che uno di quei
+  `@Roles` si allarga, la matrice comincia a comandare da sola senza che nessuno debba ricordarsi
+  di tornare sul decoratore. Come si chiude davvero una di queste è scritto nella voce: si allarga
+  `@Roles` ai ruoli che nei default hanno già la chiave, e da lì non è più un gesto gratis.
+  ⛔ **Un buco vero, dalla stessa revisione**: `admin/payments` è `@Roles('admin', 'sales')` senza
+  nessuna guardia, e `sales` ha `accounting` nei default. Spegnergli quella casella gli toglie la
+  voce di menu e gli lascia l'elenco dei pagamenti, le contabili bancarie e i pulsanti di
+  approvazione. Non si chiude agganciando e basta — `sales` ha solo `view`, e le tre scritture
+  chiederebbero `manage` — quindi è una decisione, non una correzione: `accounting` resta fra i
+  buchi con scritto **dove** sta la porta.
+  ⚠️ **Tre prove nuove non mordevano, e una per un motivo che vale la pena ricordare**: leggeva i
+  propri commenti. Il commento sopra la classe nominava `@Roles('admin')` per spiegare perché la
+  guardia era gratis, e togliendo il decoratore vero la prova restava verde. Le altre due contavano
+  «quante guardie, quante rotte» invece di dire quale chiave sta su quale rotta: restavano verdi
+  togliendo la guardia allo scarico della fattura cifrata e mettendola due volte sul report, o
+  scambiando fra loro `email_templates` ed `email_log`. Adesso l'accoppiamento è scritto una riga
+  per volta, e le dodici mutazioni provate mordono tutte.
+  8038 prove verdi, niente migrazioni.
+
 - `[Sviluppo]` ✅ **L'agente alimenti chiude le sue tre code: gli allergeni delle righe che in
   tabella ci sono già, gli scarti visibili in pagina, e il gesto per disfare un tag sbagliato.**
   Erano le tre cose lasciate aperte apposta il 5/9 mattina, dopo la revisione dell'agente.
