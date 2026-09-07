@@ -359,8 +359,7 @@ export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> 
   clinical_clearance: 'buco',
   chat: 'buco',
   posta: 'buco',
-  compensation: 'buco',
-  commissions: 'buco',
+  // ✅ `compensation` e `commissions` sono state agganciate il 7/9: la casella accende davvero.
   withdrawals: 'buco',
   discounts: 'buco',
   // ⛔ Questi tre **cambiano dati clinici** e la casella non li ferma: la rotta è protetta dal solo

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 import { Banner, Pager, Spinner } from '../components/ui';
 import { BottoneExcel, ContatoreRighe, useTabella, type Colonna } from '../components/tabella';
 
@@ -21,6 +22,15 @@ const date = (s: string) => new Date(s).toLocaleDateString('it-IT');
 const TETTO_SERVER = 1000;
 
 export function Provvigioni() {
+  /**
+   * ⚠️ **Il cestino solo a chi ha «gestisce»** (7/9). Da quando questa pagina si apre anche in sola
+   * vista — la Responsabile Coach le legge, non le storna — un pulsante che c'è e risponde «non hai
+   * il permesso» è peggio di un pulsante che non c'è: sembra un guasto. Il cancello vero resta sul
+   * server (`@RequirePage('commissions', 'manage')` sulla DELETE): questo toglie il pulsante, non
+   * il permesso.
+   */
+  const { can } = useAuth();
+  const puoStornare = can('commissions', 'manage');
   const [rows, setRows] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +82,7 @@ export function Provvigioni() {
     { chiave: 'ricevente', titolo: 'Ricevente', valore: (r) => r.recipient, filtro: 'scelta', etichettaTutti: 'Tutti' },
     // I centesimi, non «€ 297,00»: come testo «€ 100,00» finirebbe prima di «€ 20,00».
     { chiave: 'importo', titolo: 'Importo', valore: (r) => r.amountCents, stile: { textAlign: 'right' }, esporta: (r) => (r.amountCents ?? 0) / 100 },
-    { chiave: 'azioni', titolo: '' },
+    ...(puoStornare ? [{ chiave: 'azioni', titolo: '' } as Colonna<Commission>] : []),
   ];
 
   // Il server manda le più recenti in cima: lo stesso ordine resta quello di partenza.
@@ -132,15 +142,17 @@ export function Provvigioni() {
                   <td className="muted">{r.product}</td>
                   <td>{r.recipient}</td>
                   <td style={{ textAlign: 'right' }}><b>{euro(r.amountCents)}</b></td>
-                  <td style={{ textAlign: 'right', width: 36 }}>
-                    <button
-                      onClick={() => deleteRow(r)}
-                      title="Elimina provvigione"
-                      style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}
-                    >
-                      <i className="ti ti-x" />
-                    </button>
-                  </td>
+                  {puoStornare && (
+                    <td style={{ textAlign: 'right', width: 36 }}>
+                      <button
+                        onClick={() => deleteRow(r)}
+                        title="Elimina provvigione"
+                        style={{ border: 'none', background: 'transparent', color: '#e5484d', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}
+                      >
+                        <i className="ti ti-x" />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

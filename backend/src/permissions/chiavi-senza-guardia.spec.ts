@@ -48,8 +48,8 @@ const chiaviLette = (() => {
  */
 const SENZA_GUARDIA_OGGI = [
   'allergens', 'assign_coach', 'assign_nutritionist', 'change_allergies', 'change_diet_type',
-  'change_fasting_window', 'charts', 'chat', 'clinical_clearance', 'colazioni', 'commissions',
-  'compensation', 'creation_validation', 'crm_calendar', 'crm_import', 'crm_lead_new',
+  'change_fasting_window', 'charts', 'chat', 'clinical_clearance', 'colazioni',
+  'creation_validation', 'crm_calendar', 'crm_import', 'crm_lead_new',
   'crm_leads', 'crm_pipeline', 'dashboard', 'diet_workspace', 'discounts', 'engine_protocols',
   'engine_rules', 'equivalence_groups', 'escalations', 'health_documents', 'lead_acceptance',
   'notifications', 'permissions', 'posta', 'publisher', 'testimonials', 'withdrawals',
@@ -80,6 +80,13 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
    * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
    *
+   * ✅ **31 su 67 dal 7/9**, ed è il verso giusto: `compensation` e `commissions` sono passate da
+   * `@Roles('admin')` alla loro chiave, perché la casella era stata **accesa in sola vista alla
+   * Responsabile Coach** e la pagina rispondeva 403 lo stesso. ⚠️ Le due non sono uguali: su
+   * `commissions` la `DELETE` chiede `manage`, quindi la sola vista apre l'elenco e non consente
+   * di stornare. ⛔ **Costo per chi lavora: zero** — l'admin è superutente e passa senza leggere la
+   * matrice, chi admin non è prendeva 403 già ieri.
+   *
    * ✅ **33 su 67 dal 5/9 sera**, ed è il primo passo della strada (b): dieci guardie agganciate
    * davvero — `audit_logs`, `users`, `roles`, `engine_config`, `pdf_templates`, `shop`,
    * `email_templates`, `email_log`, `accounting`, `accounting_costs`. Tutte e dieci su rotte
@@ -98,9 +105,9 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * `diet_descriptions` si è accesa davvero: la chiave era stata dichiarata prima di agganciare la
    * `@RequirePage`, e tre prove sono diventate rosse nello stesso momento.
    */
-  it('⚠️ e sono 33 su 67: il numero che sta scritto nella voce e nel banner', () => {
+  it('⚠️ e sono 31 su 67: il numero che sta scritto nella voce e nel banner', () => {
     expect(BACKOFFICE_PAGES.length).toBe(67);
-    expect(senza.length).toBe(33);
+    expect(senza.length).toBe(31);
     const banner = readFileSync(
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
     );
@@ -163,10 +170,17 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
    * Adesso il conto che dice quanto lavoro resta è **buchi + guardie inerti**, e quello non scende
    * se non succede qualcosa per davvero.
    */
-  it('⛔ e quante caselle non chiudono ancora la porta: 20 buchi + 10 guardie inerti = 29', () => {
+  it('⛔ e quante caselle non chiudono ancora la porta: 18 buchi + 10 guardie inerti = 27', () => {
     const per = (m: string) => senza.filter((k) => MOTIVO_SENZA_GUARDIA[k] === m).length;
-    /** ⚠️ 19 fra quelle **senza** guardia; il ventesimo è `accounting`, che la guardia ce l'ha ma non su tutte le sue rotte. */
-    expect(per('buco')).toBe(19);
+    /**
+     * ⚠️ 17 fra quelle **senza** guardia; il diciottesimo è `accounting`, che la guardia ce l'ha ma
+     * non su tutte le sue rotte.
+     *
+     * ✅ **Da 19 a 17 il 7/9**: `compensation` e `commissions` sono uscite dai buchi **agganciando**,
+     * non riclassificando — e non sono finite fra le guardie inerti, perché il loro `@Roles('admin')`
+     * è stato **tolto**: adesso la matrice decide davvero chi entra.
+     */
+    expect(per('buco')).toBe(17);
     expect(per('figlia')).toBe(9);
     expect(per('grantor')).toBe(2);
     expect(per('innocua')).toBe(3);
@@ -176,9 +190,9 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
      * guardia inerte sulle sue rotte, buco vero su `admin/payments` — e si conta **una volta**.
      */
     const buchi = Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => MOTIVO_SENZA_GUARDIA[k] === 'buco');
-    expect(buchi).toHaveLength(20);
+    expect(buchi).toHaveLength(18);
     const nonChiudono = new Set([...buchi, ...Object.keys(GUARDIA_INERTE)]);
-    expect(nonChiudono.size).toBe(29);
+    expect(nonChiudono.size).toBe(27);
   });
 
   /**

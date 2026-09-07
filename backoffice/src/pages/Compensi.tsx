@@ -43,7 +43,10 @@ export function Compensi() {
       try {
         setRows(await api<CompRow[]>(`/admin/compensation${period ? `?period=${period}` : ''}`));
       } catch (err) {
-        if (err instanceof ApiError && err.status === 403) setError('Sezione riservata agli amministratori.');
+        // ⚠️ Non più «riservata agli amministratori» (7/9): da quando la rotta legge la matrice,
+        // chi arriva qui senza permesso non è «non admin», è «casella spenta» — e chi la accende è
+        // Simone dalla pagina Permessi, non il ruolo.
+        if (err instanceof ApiError && err.status === 403) setError('Non hai il permesso per questa sezione.');
         else setError(err instanceof Error ? err.message : 'Caricamento non riuscito.');
       } finally {
         setLoading(false);

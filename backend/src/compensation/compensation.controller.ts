@@ -1,19 +1,34 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { Roles } from '../common/decorators/roles.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { confineMese } from '../common/date-only';
 import { CATEGORIE_COMPENSO, tettoAttivoCents } from '../common/tetto-compensi';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Compensi staff: aggrega dal registro contabile (LedgerEntry) quanto spetta a ciascuno,
- * distinguendo provvigioni vendita e compensi visite. Solo admin.
+ * distinguendo provvigioni vendita e compensi visite.
+ *
+ * ⛔ **CHI ENTRA LO DECIDE LA MATRICE, non un elenco di ruoli scritto qui** (7/9). Era
+ * `@Roles('admin')`, e la casella «Compensi staff» della pagina Permessi non accendeva niente:
+ * Simone l'aveva data in sola vista alla **Responsabile Coach**, lei apriva la pagina e leggeva
+ * «Sezione riservata agli amministratori». È il caso esatto che `CLAUDE.md` chiama *«una chiave
+ * dichiarata e non letta da nessuno è un interruttore che non accende niente»* — con l'aggravante
+ * che l'interruttore c'era, si poteva alzare, e restava buio.
+ *
+ * ⚠️ Qui il livello lo deduce il metodo: è un `GET`, quindi basta **view**. Non c'è nessuna rotta
+ * di scrittura sotto questo controller, quindi «vedere» è tutto quello che questa pagina concede —
+ * che è quello che serviva: *«lei deve vederle non modificarle ma vedere»*.
+ *
+ * ⚠️ E `@Roles` è tolto, non affiancato: con un `@Roles` sotto, `PageGuard` resta permissivo se la
+ * lettura della matrice fallisce (vedi il fail-open in `page.guard.ts`). Senza, questo è l'unico
+ * cancello e un errore **chiude**.
  *
  * Da §16.8 la riga porta anche il TETTO mensile della persona e se lo ha raggiunto: è la pagina
  * dove un mese «strano» si guarda, ed è il posto in cui la risposta «ha toccato il tetto» deve
  * essere leggibile senza aprire il registro contabile riga per riga.
  */
 @Controller('admin/compensation')
-@Roles('admin')
+@RequirePage('compensation')
 export class CompensationController {
   constructor(private readonly prisma: PrismaService) {}
 

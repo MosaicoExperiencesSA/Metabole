@@ -3,7 +3,9 @@ import { vedeTutteLeClienti } from '../common/perimetro-clienti';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { STATI_CON_UN_PIANO } from '../commerce/stati-abbonamento';
-import { coachTeamScope, isCoachLike } from '../common/coach-team';
+import { COACH_LIKE_ROLES, coachTeamScope, isCoachLike } from '../common/coach-team';
+import { CATEGORIE_COMPENSO } from '../common/tetto-compensi';
+import { BarraCoach, barrePerMese } from './barre-coach';
 import {
   confineMese,
   confineMeseGiorni,
@@ -284,6 +286,114 @@ export class AnalyticsService {
       totalRevenueCents: payments.reduce((a: number, p: { amountCents: number }) => a + p.amountCents, 0),
       avgLossKg: lossByClient.length ? round1(lossByClient.reduce((a, c) => a + c.lossKg, 0) / lossByClient.length) : 0,
       activeSubscriptions: activeSubs,
+    };
+  }
+
+  /**
+   * LA RETE COACH CHE QUESTA PERSONA VEDE — «chi è collegato sotto di me».
+   *
+   * `coachTeamScope` risponde già alla domanda per i ruoli coach-like (la coordinatrice: lei più
+   * tutta la rete sotto di lei, a qualunque livello) e `null` per gli altri, che qui vuol dire
+   * «nessun limite»: admin e Responsabile Coach vedono tutte le coach, che è quello che i due ruoli
+   * fanno già in ogni altra pagina (`RUOLI_CHE_VEDONO_TUTTE`, `coach.service`).
+   *
+   * ⚠️ Il filtro sul **ruolo** non è un di più: `reteSottoDiMe` risale due archi, `managerId` e
+   * `headNutritionistId`, quindi nella rete di una coordinatrice possono comparire schede che coach
+   * non sono. In un grafico intitolato «Fatturato coach» una nutrizionista è una barra che nessuno
+   * sa leggere.
+   */
+  private async reteCoachVisibile(user: AuthUser): Promise<{ staffId: string; nome: string }[]> {
+    const ammessi = await coachTeamScope(this.prisma, user.sub);
+    const staff = (await this.prisma.staff.findMany({
+      where: {
+        ...(ammessi ? { id: { in: ammessi } } : {}),
+        user: { role: { in: [...COACH_LIKE_ROLES] } },
+      } as never,
+      select: { id: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    })) as { id: string; displayName: string }[];
+    return staff.map((s) => ({ staffId: s.id, nome: s.displayName }));
+  }
+
+  /**
+   * FATTURATO COACH e PROVVIGIONI MATURATE, **una barra per coach**, con il mese scegliibile
+   * (richiesta di Simone del 7/9).
+   *
+   * Dodici mesi arrivano in un colpo solo, come le classifiche per perdita: cambiare mese dalla
+   * tendina non deve costare un giro di rete per un grafico di poche barre.
+   *
+   * ⚠️ **Le provvigioni si leggono dal REGISTRO CONTABILE**, con le stesse categorie del portafoglio
+   * staff e del tetto di guadagno (`CATEGORIE_COMPENSO`). È la ragione per cui non si contano da
+   * `StaffCompensation` né si ricalcolano da una percentuale: il numero che la coordinatrice vede
+   * qui dev'essere **lo stesso** che la coach vede scritto nel proprio portafoglio alla voce «in
+   * maturazione». Due modi di contare la stessa provvigione sono due numeri che non tornano, e
+   * quello che si crede è sempre il più alto.
+   *
+   * ⚠️ **Il fatturato è quello delle clienti assegnate a QUELLA coach**, e non risale la rete: la
+   * barra di una coordinatrice non contiene il fatturato delle sue coach, che hanno già la loro. La
+   * somma delle barre è il fatturato della rete, una volta sola. Vedi `barre-coach.ts`.
+   */
+  async graficiCoach(user: AuthUser) {
+    const coach = await this.reteCoachVisibile(user);
+    const meseDiOggi = meseLocale(new Date());
+    const mesi: string[] = [];
+    for (let i = 11; i >= 0; i -= 1) mesi.push(meseSpostato(meseDiOggi, -i));
+    // In tendina dal più recente, come i periodi delle classifiche.
+    const periodi = [...mesi].reverse().map((chiave) => ({ chiave, etichetta: etichettaMese(chiave) }));
+
+    const vuoto = (): Record<string, BarraCoach[]> =>
+      barrePerMese({ mesi, coach, incassi: [], compensi: [] });
+    if (coach.length === 0) return { mesePredefinito: meseDiOggi, periodi, perPeriodo: vuoto() };
+
+    const staffIds = coach.map((c) => c.staffId);
+    // Gli estremi della finestra sono ISTANTI di Roma, come le colonne che filtrano
+    // (`Payment.createdAt`, `LedgerEntry.date`): lo stesso confine con cui `barrePerMese` decide
+    // poi in quale mese cade ogni riga.
+    const da = confineMese(mesi[0]).gte;
+    const a = confineMese(mesi[mesi.length - 1]).lt;
+
+    const clienti = (await this.prisma.user.findMany({
+      where: {
+        role: 'client',
+        deletedAt: null,
+        clientProfile: { assignedCoachId: { in: staffIds } },
+      } as never,
+      select: { id: true, clientProfile: { select: { assignedCoachId: true } } },
+    })) as unknown as { id: string; clientProfile: { assignedCoachId: string | null } | null }[];
+    const coachDellaCliente = new Map(clienti.map((c) => [c.id, c.clientProfile?.assignedCoachId ?? null]));
+    const ids = clienti.map((c) => c.id);
+
+    const [pagamenti, compensi] = await Promise.all([
+      ids.length
+        ? (this.prisma.payment.findMany({
+            where: { clientId: { in: ids }, status: 'approved' as never, createdAt: { gte: da, lt: a } },
+            select: { clientId: true, amountCents: true, createdAt: true },
+          }) as Promise<{ clientId: string; amountCents: number; createdAt: Date }[]>)
+        : Promise.resolve([] as { clientId: string; amountCents: number; createdAt: Date }[]),
+      this.prisma.ledgerEntry.findMany({
+        where: {
+          type: 'expense' as never,
+          category: { in: CATEGORIE_COMPENSO },
+          staffId: { in: staffIds },
+          date: { gte: da, lt: a },
+        },
+        select: { staffId: true, amountCents: true, date: true },
+      }) as Promise<{ staffId: string | null; amountCents: number; date: Date }[]>,
+    ]);
+
+    return {
+      mesePredefinito: meseDiOggi,
+      periodi,
+      perPeriodo: barrePerMese({
+        mesi,
+        coach,
+        incassi: pagamenti.map((p) => ({
+          coachStaffId: coachDellaCliente.get(p.clientId) ?? null,
+          amountCents: p.amountCents,
+          quando: p.createdAt,
+        })),
+        compensi: compensi.map((c) => ({ staffId: c.staffId, amountCents: c.amountCents, quando: c.date })),
+      }),
     };
   }
 

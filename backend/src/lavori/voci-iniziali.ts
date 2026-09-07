@@ -83,6 +83,73 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'compensi-e-provvigioni-al-responsabile',
+    categoria: CODICE,
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-09-07T14:00',
+    priorita: 'alta',
+    titolo: '✅ «Compensi staff» e «Provvigioni»: la casella era accesa e la porta restava chiusa — SBLOCCATE',
+    dettaglio:
+      'Segnalazione di Simone del 7/9: *«Responsabile Coach ho dato visibilità di Compensi staff e di '
+      + 'Provvigioni ma se cerca di entrare vede la scritta rossa visibile solo da admin… lei deve '
+      + 'vederle non modificarle ma vedere»*.\n\n'
+      + '⛔ **Non mancava un permesso: mancava chi lo legge.** `GET /admin/compensation` e '
+      + '`GET /admin/commissions` erano `@Roles(\'admin\')`, cioè guardavano il **ruolo**. Le chiavi '
+      + '`compensation` e `commissions` erano due delle 33 dichiarate e non lette da nessuna '
+      + '`@RequirePage`: l\'interruttore c\'era, si alzava, e restava buio. È il caso esatto che '
+      + '`CLAUDE.md` chiama «una chiave dichiarata e non letta da nessuno è un interruttore che non '
+      + 'accende niente» — misurato, stavolta, dalla persona che ci ha sbattuto contro.\n\n'
+      + '✅ Ora le due rotte leggono la matrice. Alla Responsabile Coach basta la **sola vista** già '
+      + 'concessa.\n\n'
+      + '✅ **E vedere non è modificare**: la `DELETE` di una provvigione chiede `manage`, che di '
+      + 'default ha solo l\'admin. Chi ha la sola vista apre l\'elenco e non può stornare — e il '
+      + 'cestino sparisce dalla riga, perché un pulsante che risponde «non hai il permesso» sembra un '
+      + 'guasto.\n\n'
+      + '⚠️ Le chiavi senza guardia scendono da **33 a 31** su 67, e i buchi da 20 a 18. Scendono '
+      + '**agganciando**, non riclassificando: le due non sono finite fra le «guardie inerti» perché '
+      + 'il loro `@Roles(\'admin\')` è stato tolto, e adesso la matrice decide davvero.',
+  },
+  {
+    chiave: 'grafici-fatturato-e-provvigioni-per-coach',
+    categoria: CODICE,
+    ordine: 0,
+    blocca: false,
+    fatta: true,
+    nata: '2026-09-07T12:00',
+    titolo: '✅ Due grafici nuovi: «Fatturato coach» e «Provvigioni maturate», una barra per coach',
+    dettaglio:
+      'Richiesta di Simone del 7/9, con la forma decisa da lui: *«scegli dal menu a tendina il mese e '
+      + 'mi fai vedere una barra verticale per ogni coach»*.\n\n'
+      + 'Nella pagina **Grafici**, sopra le classifiche per perdita. Dodici mesi arrivano in un colpo '
+      + 'solo: cambiare mese non chiama il server.\n\n'
+      + '⚠️ **Chi vede chi.** La sezione è di tre ruoli — admin, Responsabile Coach, Coordinatrice '
+      + 'Coach — e non compare agli altri. Il perimetro è quello di sempre (`reteSottoDiMe`): la '
+      + 'coordinatrice vede sé e tutta la rete sotto di lei, a qualunque livello; admin e '
+      + 'Responsabile Coach vedono tutte le coach, come già fanno in ogni altra pagina.\n\n'
+      + '⚠️ **Il fatturato non risale la rete.** La barra di una coordinatrice contiene le clienti '
+      + 'assegnate a lei, non quelle delle sue coach — che hanno già la loro. Così la somma delle '
+      + 'barre è il fatturato della rete contato **una volta**. Le provvigioni seguono da sé: una '
+      + 'riga del registro contabile ha un `staffId` solo, e la provvigione di catena della '
+      + 'coordinatrice è già una riga sua.\n\n'
+      + '⚠️ **Le provvigioni si leggono dal REGISTRO CONTABILE**, con le stesse categorie del '
+      + 'portafoglio staff e del tetto di guadagno: il numero che la coordinatrice vede qui è lo '
+      + 'stesso che la coach legge nel proprio portafoglio alla voce «in maturazione». Uno storno la '
+      + 'porta **sotto lo zero**, e la barra ci va davvero.\n\n'
+      + '⚠️ **Il mese è quello di Roma.** Un incasso delle 00:30 del 1° settembre è di settembre, non '
+      + 'di agosto: è la riga fissata nelle prove, ed è l\'errore che non si vedrebbe (il totale del '
+      + 'mese resterebbe giusto e solo le barre non tornerebbero).\n\n'
+      + '⚠️ **Una coach che non ha fatturato ha una barra piatta col suo nome sotto**: «zero» e «non '
+      + 'lo so» sono due risposte diverse, e chi guarda una squadra ha bisogno della prima.\n\n'
+      + '⚠️ Restano due cose da decidere, e le decide Simone:\n'
+      + '· il fatturato è datato sulla **creazione** del pagamento (come il resto della pagina), la '
+      + 'provvigione sulla data della riga di registro: un pagamento creato a fine mese e approvato a '
+      + 'mese nuovo cade nei due grafici in mesi diversi;\n'
+      + '· una **Responsabile Coach** con clienti assegnate a lei non ha una barra sua: il grafico '
+      + 'mostra i ruoli coach e coordinatrice.',
+  },
+  {
     chiave: 'equivalenze-un-nome-un-gruppo',
     categoria: 'Da fare — codice',
     ordine: 0,

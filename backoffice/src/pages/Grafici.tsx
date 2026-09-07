@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Banner, Spinner } from '../components/ui';
 import { MiniTrend } from '../components/MiniTrend';
 import { SerieGiornaliera } from '../components/SerieGiornaliera';
+import { GraficiCoach } from '../components/BarreCoach';
 
 interface NamedLoss { name: string; lossKg: number }
 interface NamedAmount { name: string; amountCents: number }
@@ -191,6 +192,16 @@ export function Grafici() {
           {data.longestTenured && <Stat label="Cliente da più tempo" value={data.longestTenured.name} sub={new Date(data.longestTenured.since).toLocaleDateString('it-IT')} icon="ti-hourglass" color="var(--coral-dark)" />}
         </div>
       )}
+
+      {/*
+        FATTURATO COACH e PROVVIGIONI MATURATE, una barra per coach (richiesta del 7/9).
+
+        ⚠️ La sezione decide da sé se mostrarsi: chiede i suoi dati e, se il server risponde 403,
+        non compare. Non c'è una copia dell'elenco dei ruoli qui — l'elenco sta in un posto solo, la
+        `@Roles` della rotta, e un secondo elenco scritto in pagina è il secondo elenco che un
+        giorno smetterà di combaciare col primo.
+      */}
+      <GraficiCoach />
 
       <ClassifichePerdita classifica={data.classificaPerdita} />
     </>

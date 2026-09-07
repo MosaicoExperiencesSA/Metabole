@@ -945,13 +945,26 @@ export class FinanceController {
     private readonly crm: CrmService,
   ) {}
 
-  @Roles('admin')
+  /**
+   * ⛔ **LEGGERE LE PROVVIGIONI: lo decide la matrice, non `@Roles('admin')`** (7/9).
+   *
+   * Stessa storia di «Compensi staff»: la casella «Provvigioni» era stata data in sola vista alla
+   * Responsabile Coach e la pagina rispondeva 403 lo stesso, perché la rotta guardava il ruolo e
+   * non il permesso. La chiave `commissions` esisteva e non la leggeva nessuno.
+   *
+   * ⚠️ **Vedere e cancellare sono due livelli diversi, ed è il punto.** Il `GET` chiede `view`, la
+   * `DELETE` chiede `manage` — e `manage` su questa chiave, di default, ce l'ha solo l'admin.
+   * Quindi chi ha la sola vista apre l'elenco e **non può stornare niente**: era la richiesta
+   * («deve vederle non modificarle ma vedere»), e qui è una regola del server, non un pulsante
+   * nascosto nella pagina.
+   */
+  @RequirePage('commissions')
   @Get('admin/commissions')
   commissions() {
     return this.finance.listCommissions();
   }
 
-  @Roles('admin')
+  @RequirePage('commissions', 'manage')
   @Delete('admin/commissions/:id')
   deleteCommission(@Param('id') id: string, @CurrentUser() actor: AuthUser) {
     return this.finance.deleteCommission(id, actor.sub);

@@ -1,0 +1,92 @@
+Due grafici per coach, e le caselle Compensi/Provvigioni che adesso accendono davvero
+
+Due cose in una consegna, tenute insieme dallo stesso ruolo: la Responsabile Coach.
+
+1. LA CASELLA ERA ACCESA E LA PORTA RESTAVA CHIUSA
+Segnalazione di Simone: «Responsabile Coach ho dato visibilita di Compensi staff e di Provvigioni ma
+se cerca di entrare vede la scritta rossa visibile solo da admin... lei deve vederle non modificarle
+ma vedere».
+
+⛔ Non mancava un permesso: mancava chi lo legge. `GET /admin/compensation` e `GET /admin/commissions`
+erano `@Roles('admin')`, cioe guardavano il RUOLO. Le chiavi `compensation` e `commissions` erano due
+delle 33 dichiarate e non lette da nessuna `@RequirePage` — l'interruttore c'era, si alzava, e
+restava buio.
+
+⚠️ È il difetto che questo progetto aveva gia misurato e scritto. La prova
+`chiavi-senza-guardia.spec.ts` lo conta, la pagina Permessi lo dichiara in un banner: «la casella
+governa il menu e non la porta». Finche nessuno provava ad accendere una di quelle caselle il conto
+restava un numero. Simone ne ha accese due e ha trovato la porta chiusa — ed e cosi che si scopre che
+un avviso scritto bene non e una correzione.
+
+✅ Ora le due rotte leggono la matrice. Alla Responsabile Coach basta la sola vista gia concessa.
+⚠️ E `@Roles` e stato TOLTO, non affiancato: con un `@Roles` sotto, `PageGuard` resta permissivo se
+la lettura dei permessi fallisce (il fail-open documentato in `page.guard.ts`). Senza, quello e
+l'unico cancello e un errore chiude.
+✅ E vedere non e modificare: la `DELETE` di una provvigione chiede `manage`, che di default ha solo
+l'admin. Chi ha la sola vista apre l'elenco e non puo stornare — e il cestino sparisce dalla riga,
+perche un pulsante che risponde «non hai il permesso» sembra un guasto, non una regola.
+⚠️ Chiavi senza guardia da 33 a 31 su 67, buchi da 20 a 18. Scendono AGGANCIANDO, non
+riclassificando, e le due non entrano fra le «guardie inerti»: il loro `@Roles('admin')` non c'e piu.
+Sentinella e banner della pagina Permessi riallineati nello stesso commit.
+
+2. FATTURATO COACH E PROVVIGIONI MATURATE, UNA BARRA PER COACH
+Richiesta di Simone, con la forma decisa da lui: «scegli dal menu a tendina il mese e mi fai vedere
+una barra verticale per ogni coach». Nella pagina Grafici, sopra le classifiche per perdita. Dodici
+mesi arrivano in un colpo solo: cambiare mese non chiama il server.
+
+⚠️ CHI VEDE CHI. La sezione e di tre ruoli — admin, Responsabile Coach, Coordinatrice Coach — e agli
+altri non compare. La pagina Grafici ne serve sei, e un 403 li non e un errore da mostrare: la
+sezione si toglie da se, senza un secondo elenco di ruoli scritto in pagina. Il perimetro e
+`reteSottoDiMe`, quello di sempre: la coordinatrice vede se e tutta la rete sotto di lei a qualunque
+livello; admin e Responsabile Coach vedono tutte le coach, come gia fanno altrove.
+⛔ Senza scheda staff la coordinatrice non vede tutte: vede zero. Fissato in una prova.
+
+⛔ IL FATTURATO NON RISALE LA RETE, e non e una svista. La barra di una coordinatrice contiene le
+clienti assegnate a lei, non quelle delle sue coach — che hanno gia la loro. Se ci finissero, la somma
+delle barre non sarebbe il fatturato della rete: sarebbe il fatturato contato due volte, e un grafico
+in cui il totale non e la somma di quello che mostra e un grafico che mente. La rete decide QUALI
+BARRE SI VEDONO, non dove finiscono i soldi.
+
+⚠️ LE PROVVIGIONI SI LEGGONO DAL REGISTRO CONTABILE, con le stesse categorie del portafoglio staff e
+del tetto di guadagno (`CATEGORIE_COMPENSO`): il numero che la coordinatrice legge qui e LO STESSO
+che la coach vede nel proprio portafoglio alla voce «in maturazione». Due modi di contare la stessa
+provvigione sono due numeri che non tornano, e quello che si crede e sempre il piu alto.
+
+⚠️ Uno storno porta la provvigione del mese sotto lo zero, e la barra ci scende davvero: appiattirla
+nasconderebbe l'unico mese in cui c'e qualcosa da capire. Una coach che non ha fatturato ha una barra
+piatta col suo nome sotto: «zero» e «non lo so» sono due risposte diverse, e chi guarda una squadra ha
+bisogno della prima.
+
+⚠️ Il mese e quello di ROMA. Un incasso delle 00:30 del 1 settembre e di settembre, non di agosto: e
+la riga fissata nelle prove, ed e l'errore che non si vedrebbe — il totale del mese resterebbe giusto
+e solo le barre non tornerebbero.
+
+⚠️ DUE COSE RESTANO DA DECIDERE, e le decide Simone (scritte anche nella voce di lavoro):
+· il fatturato e datato sulla CREAZIONE del pagamento, come tutto il resto della pagina, mentre la
+  provvigione porta la data della riga di registro: un pagamento creato a fine mese e approvato a mese
+  nuovo cade nei due grafici in mesi diversi;
+· una Responsabile Coach con clienti assegnate a lei non ha una barra sua, perche il grafico mostra i
+  ruoli coach e coordinatrice.
+
+DOVE STA IL GIUDIZIO
+Nel modulo puro `analytics/barre-coach.ts`: il mese di una riga e a chi si attribuisce. Si verifica
+con date fisse, senza banca dati e senza aspettare la mezzanotte. Il perimetro — chi vede chi — ha la
+sua prova a parte, con Prisma finto, perche sbagliarlo non si vede: nessun errore, nessuna riga rossa,
+una pagina che sembra funzionare.
+
+⚠️ Dichiarato nel codice: dentro `barrePerMese` il controllo «e nella mia rete?» e una SECONDA
+serratura che oggi non chiude niente — le barre si costruiscono scorrendo l'elenco delle coach, quindi
+un id estraneo finirebbe in una mappa che nessuno legge. Togliendolo i test restano verdi, l'ho
+provato. Resta perche il giorno che quella proiezione cambia la perdita sarebbe silenziosa.
+
+FILE
+- backend: `analytics/barre-coach.ts` + spec · `analytics/grafici-coach-perimetro.spec.ts` ·
+  `analytics/analytics.service.ts` · `analytics/analytics.controller.ts` ·
+  `compensation/compensation.controller.ts` · `commerce/commerce.controller.ts` ·
+  `permissions/pages.ts` · `permissions/chiavi-senza-guardia.spec.ts` · `lavori/voci-iniziali.ts`
+- backoffice: `components/BarreCoach.tsx` · `pages/Grafici.tsx` · `pages/Provvigioni.tsx` ·
+  `pages/Compensi.tsx` · `pages/Permissions.tsx`
+
+470 suite / 8086 test backend verdi · backoffice 33 suite / 304 verdi · quattro mutazioni provate:
+tre mordono (mese UTC, storno azzerato, filtro di ruolo tolto), la quarta no ed e dichiarata sopra.
+Nessuna migrazione.

@@ -18,6 +18,63 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-07
+
+- `[Sviluppo]` ⛔ **«Compensi staff» e «Provvigioni»: la casella era accesa e la porta restava
+  chiusa.** Segnalazione di Simone: *«Responsabile Coach ho dato visibilità di Compensi staff e di
+  Provvigioni ma se cerca di entrare vede la scritta rossa visibile solo da admin… lei deve vederle
+  non modificarle ma vedere»*. Non mancava un permesso: mancava **chi lo legge**.
+  `GET /admin/compensation` e `GET /admin/commissions` erano `@Roles('admin')`, cioè guardavano il
+  ruolo; le chiavi `compensation` e `commissions` erano due delle 33 dichiarate e non lette da
+  nessuna `@RequirePage`.
+  ⚠️ **È il difetto che questo progetto aveva già misurato e scritto, e che nessuno aveva ancora
+  pagato di persona.** La prova `chiavi-senza-guardia.spec.ts` lo conta da settembre, la pagina
+  Permessi lo dichiara in un banner: «la casella governa il menu e non la porta». Finché nessuno
+  provava ad accendere una di quelle caselle, il conto restava un numero. Il 7/9 Simone ne ha accese
+  due e ha trovato la porta chiusa — ed è così che si scopre che un avviso scritto bene non è una
+  correzione.
+  ✅ Ora le due rotte leggono la matrice (`@RequirePage`), e `@Roles` è **tolto**, non affiancato:
+  con un `@Roles` sotto, `PageGuard` resta permissivo se la lettura dei permessi fallisce. Senza,
+  quello è l'unico cancello e un errore **chiude**.
+  ✅ E vedere non è modificare: la `DELETE` di una provvigione chiede `manage`, che di default ha
+  solo l'admin. Chi ha la sola vista apre l'elenco e non può stornare — con il cestino tolto dalla
+  riga, perché un pulsante che risponde «non hai il permesso» sembra un guasto, non una regola.
+  ⚠️ Chiavi senza guardia da **33 a 31** su 67, buchi da 20 a 18. Scendono **agganciando**, e le due
+  non entrano fra le «guardie inerti»: il loro `@Roles('admin')` non c'è più, quindi la matrice
+  decide davvero. Sentinella e banner della pagina Permessi riallineati nello stesso commit.
+
+- `[Sviluppo]` ✅ **Due grafici nuovi: «Fatturato coach» e «Provvigioni maturate», una barra
+  verticale per coach, con il mese in tendina.** Richiesta di Simone, con la forma decisa da lui:
+  *«scegli dal menu a tendina il mese e mi fai vedere una barra verticale per ogni coach»*. Stanno
+  nella pagina Grafici, sopra le classifiche per perdita; dodici mesi arrivano in un colpo solo, così
+  cambiare mese non chiama il server.
+  ⚠️ **Chi vede chi**: la sezione è di tre ruoli — admin, Responsabile Coach, Coordinatrice Coach —
+  e agli altri non compare (403 dalla rotta, e la sezione si toglie da sé: nessun secondo elenco di
+  ruoli scritto in pagina). Il perimetro è `reteSottoDiMe`, quello di sempre.
+  ⛔ **Il fatturato non risale la rete, e non è una svista.** La barra di una coordinatrice contiene
+  le clienti assegnate a lei, non quelle delle sue coach: se ci finissero, la somma delle barre non
+  sarebbe il fatturato della rete ma il fatturato contato due volte, e un grafico in cui il totale
+  non è la somma di quello che mostra è un grafico che mente. La rete decide **quali barre si
+  vedono**, non dove finiscono i soldi.
+  ⚠️ **Le provvigioni si leggono dal registro contabile**, con le stesse categorie del portafoglio
+  staff e del tetto di guadagno: il numero che la coordinatrice legge qui è **lo stesso** che la
+  coach vede nel proprio portafoglio alla voce «in maturazione». Due modi di contare la stessa
+  provvigione sono due numeri che non tornano, e quello che si crede è sempre il più alto.
+  ⚠️ Uno **storno** porta la provvigione del mese sotto lo zero, e la barra ci scende davvero:
+  appiattirla a zero nasconderebbe l'unico mese in cui c'è qualcosa da capire. E una coach che non ha
+  fatturato ha una **barra piatta col suo nome sotto**: «zero» e «non lo so» sono due risposte
+  diverse.
+  ⚠️ Il mese è quello di **Roma**: un incasso delle 00:30 del 1° settembre è di settembre. È la riga
+  fissata nelle prove, ed è l'errore che non si vedrebbe — il totale del mese resterebbe giusto e
+  solo le barre non tornerebbero.
+  ⚠️ **Due cose restano da decidere** (scritte anche nella voce di lavoro): il fatturato è datato
+  sulla *creazione* del pagamento, come il resto della pagina, mentre la provvigione porta la data
+  della riga di registro — un pagamento creato a fine mese e approvato a mese nuovo cade nei due
+  grafici in mesi diversi; e una Responsabile Coach con clienti assegnate a lei non ha una barra sua,
+  perché il grafico mostra i ruoli coach e coordinatrice.
+
+---
+
 ## 2026-09-06
 
 - `[Sviluppo]` ⛔ **L'agente ha letto «può contenere tracce» come se fossero ingredienti: il sorgo

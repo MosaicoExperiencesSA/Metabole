@@ -27,6 +27,21 @@ export class AnalyticsController {
     return this.analytics.serieGiornaliera(user, mese);
   }
 
+  /**
+   * FATTURATO COACH e PROVVIGIONI MATURATE, una barra per coach, mese per mese.
+   *
+   * ⚠️ I ruoli sono **tre**, e non sono quelli della pagina: la classe apre i grafici anche a coach,
+   * nutrizioniste e capo nutrizionista, ma questi due dati sono i soldi di una squadra di coach.
+   * Una coach non deve vedere quanto fattura e quanto guadagna la collega, e una nutrizionista non
+   * ha niente da farci. Chi entra vede la propria rete: la coordinatrice le sue, admin e
+   * Responsabile Coach tutte (`reteCoachVisibile`).
+   */
+  @Roles('admin', 'sales', 'coach_coordinator')
+  @Get('coach')
+  graficiCoach(@CurrentUser() user: AuthUser) {
+    return this.analytics.graficiCoach(user);
+  }
+
   /** Genera dati demo (6 mesi) per vedere i grafici popolati. Solo admin. */
   @Roles('admin')
   @HttpCode(200)
