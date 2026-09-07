@@ -83,6 +83,63 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'vera-solo-chi-ha-un-percorso',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-07T17:00',
+    priorita: 'alta',
+    titolo: '✅ Vera chiedeva di clienti senza percorso: le fabbriche erano DUE, e la seconda si chiudeva da sola',
+    dettaglio:
+      'Segnalazione di Simone del 7/9: «Vera continua a fare domande su clienti che non hanno un '
+      + 'percorso attivo. Deve monitorare solo quelle con un percorso attivo».\n\n'
+      + '⛔ **Fabbrica 1 — il giro notturno.** `promemoriaSupervisione` partiva da '
+      + '`{ screeningFlag: true }` e basta. `screeningFlag` è un flag di **profilo** che nessuno '
+      + 'riazzera a fine percorso: una cliente chiusa a luglio, se nessuno le aveva scritto «può '
+      + 'proseguire», generava un promemoria **ogni sette giorni, per sempre** — con dentro la frase '
+      + '«la cliente sta mangiando», falsa a percorso concluso.\n\n'
+      + '⛔ **Fabbrica 2 — l\'anello che si chiudeva da solo.** `runAdherenceSweep` apriva «scarsa '
+      + 'aderenza: nessun check-in da N giorni» a tutte le **utenze** attive. Ma chi ha finito il '
+      + 'percorso non può più fare check-in: glielo impedisce `checkinDue`, trenta righe più sotto '
+      + 'nello stesso file. Percorso finito → niente check-in → segnalazione → lista della mattina, '
+      + 'ogni giorno. Un allarme che accusa una persona di non fare una cosa che il sistema le '
+      + 'impedisce.\n\n'
+      + '⚠️ **L\'incoerenza era già dentro Vera**: nello stesso riquadro «quello che aspetta me» '
+      + 'convivevano il conto del pool (che i conclusi li escludeva, con la ragione scritta: «un '
+      + 'numero gonfio è un numero che si smette di guardare») e i conti delle domande e delle '
+      + 'sostituzioni, che li includevano.\n\n'
+      + '⚠️ **E la decisione era già tua**: `PUNTO_DELLA_SITUAZIONE.md` la riporta («tutto questo vale '
+      + 'solo per chi ha un piano attivo»), applicata al motore e alla coda del nutrizionista e mai '
+      + 'propagata a Vera, che è nata dopo. Qui si usa **lo stesso** filtro, non uno nuovo.\n\n'
+      + '✅ Sistemati: il giro notturno, le domande aperte e il loro contatore, le segnalazioni e la '
+      + 'coda «Da validare» della lista della mattina, il quadro della giornata, le sostituzioni da '
+      + 'verificare, e la fabbrica delle segnalazioni.\n\n'
+      + '⛔ **Tutte le prove di Vera erano verdi prima e dopo** — 1268, nessuna rossa — perché nessuna '
+      + 'fissava il perimetro-piano. Adesso c\'è una sentinella sui sorgenti che tiene fermo l\'elenco '
+      + 'delle porte scoperte, con la ragione di ognuna.\n\n'
+      + '▶️ **Restano fuori, di proposito**: il registro **storico** (vedere una cliente conclusa lì è '
+      + 'giusto) e `applicaRestrizione`, che scrive su molte persone in una volta e merita un '
+      + 'passaggio suo con la misura davanti.',
+  },
+  {
+    chiave: 'panieri-pallino-verificata',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-07T16:45',
+    titolo: '✅ Il pallino verde accanto al nome del piatto: dice «verificata», non «attiva»',
+    dettaglio:
+      'Simone, 7/9: «accanto al nome della ricetta mi fai comparire un pallino verde se è '
+      + 'verificata».\n\n'
+      + '⚠️ Sono **due firme diverse** su due colonne diverse: *attiva* è «il motore la può usare», '
+      + '*verificata* è «una nutrizionista ha guardato la ricetta intera». Quasi tutto il catalogo è '
+      + 'attivo e mai guardato, ed è per questo che il pallino serve: scorrendo una cella si vede a '
+      + 'colpo d\'occhio cosa è già passato sotto gli occhi di qualcuno.\n\n'
+      + '⚠️ `=== true`, non `!!`: da un server vecchio `verificata` arriva `undefined`, che vuol dire '
+      + '«non lo so» e non «no». In quel caso il pallino **non compare affatto**, come già fa il '
+      + 'pulsante «nascondi verificate».',
+  },
+  {
     chiave: 'togli-un-giorno-di-menu',
     categoria: CODICE,
     ordine: 0,

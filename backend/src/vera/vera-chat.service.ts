@@ -20,7 +20,8 @@ import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
-import { filtroPerimetroSuCliente, perimetroClienti } from '../common/perimetro-clienti';
+import { filtroPerimetroSuCliente, filtroPerimetroSuClienteConPiano, perimetroClienti } from '../common/perimetro-clienti';
+import { filtroProfiloConPianoAttivo } from '../common/piano-attivo';
 import { etichettaSlot } from '../common/slot-pasto';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { expandExclusion } from '../menu/exclusions';
@@ -4248,7 +4249,14 @@ export class VeraChatService {
 
     const segnalazioni = await leggi('le segnalazioni', async () => {
       const righe = (await this.prisma.escalation.findMany({
-        where: { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuCliente(perimetro) } as never,
+        /**
+         * ⛔ **PERIMETRO *E* PERCORSO** (7/9). C'era solo il perimetro, cioè «di chi sei la
+         * nutrizionista»: una cliente che ha finito a luglio è ancora tua, e ogni mattina portava
+         * qui la sua «scarsa aderenza» — che nasce proprio **perché** ha finito e non fa più
+         * check-in. Le due domande cadono tutte e due sotto la chiave `client`, ed è per questo che
+         * si fondono in un posto solo invece di scriverne due accanto (la seconda vincerebbe).
+         */
+        where: { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuClienteConPiano(perimetro) } as never,
         orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
         take: 40,
         select: { id: true, category: true, reason: true, client: { select: { clientProfile: { select: { name: true } } } } },
@@ -4267,7 +4275,16 @@ export class VeraChatService {
      */
     const daValidare = await leggi('la coda «Da validare»', async () => {
       const clienti = (await this.prisma.clientProfile.findMany({
-        where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+        /**
+         * ⛔ **È LA STESSA CODA CHE IL BACKOFFICE LEGGE COL FILTRO** (`nutritionist.service`), e qui
+         * lo leggeva senza: sulla stessa cliente conclusa la pagina diceva «non c'è niente» e la
+         * lista della mattina la numerava. Due numeri sulla stessa tabella, e nessun modo di capire
+         * quale guardare.
+         */
+        where: {
+          ...(perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}),
+          ...filtroProfiloConPianoAttivo(),
+        } as never,
         select: { userId: true },
         take: 1000,
       })) as { userId: string }[];
@@ -4550,7 +4567,9 @@ export class VeraChatService {
 
   private async contaSegnalazioni(userId: string): Promise<{ cliniche: number; altre: number }> {
     const perimetro = await perimetroClienti(this.prisma, userId);
-    const base = { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuCliente(perimetro) };
+    // ⚠️ Lo stesso filtro dell'elenco (perimetro + percorso): un contatore che conta più righe di
+    // quante l'elenco ne mostra è la pastiglia che si apre sul vuoto.
+    const base = { status: { in: ['open', 'in_progress'] }, ...filtroPerimetroSuClienteConPiano(perimetro) };
     const [cliniche, tutte] = await Promise.all([
       this.prisma.escalation.count({ where: { ...base, category: 'clinical' } as never }),
       this.prisma.escalation.count({ where: base as never }),

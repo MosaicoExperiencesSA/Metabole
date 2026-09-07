@@ -1117,6 +1117,8 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
     dentro: { famiglia: string; regime: string; slot: string }[];
     disponibili: { famiglia: string; regime: string }[];
     bloccata: string | null;
+    /** Quanti panieri esistono per il regime di questa ricetta. `undefined` da un server vecchio. */
+    panieriDelRegime?: number;
   }
   /**
    * ⛔ **SENZA «gestisce» LA SEZIONE È IN SOLA LETTURA** (7/9, segnalato da Simone con lo
@@ -1128,18 +1130,45 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
   const { can } = useAuth();
   const puoGestireIPanieri = can('panieri', 'manage');
   const [stato, setStato] = useState<Stato | null>(null);
+  /**
+   * ⛔ **NON HO IL PERMESSO** è diverso da **NON SONO RIUSCITO A LEGGERE**, e fino al 7/9 questa
+   * sezione li trattava uguale: spariva in tutti e due i casi.
+   */
+  const [fuoriPermesso, setFuoriPermesso] = useState(false);
   const [scelte, setScelte] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
 
+  /**
+   * ⛔ **L'ERRORE ERA MUTO, E LA SEZIONE SPARIVA** — 7/9, dalla segnalazione di Simone: «l'elenco
+   * c'è, ma non tutte lo mostrano».
+   *
+   * Il ramo di errore chiamava `setErr(...)` e lasciava `stato` a `null`; tre righe più sotto
+   * `if (!stato) return null` toglieva di mezzo tutto il riquadro — **compreso il banner rosso che
+   * era appena stato riempito**. Risultato: su una ricetta il cui caricamento falliva, «In quali
+   * panieri sta» semplicemente **non c'era**, identica a una ricetta senza permesso e identica a
+   * una che non è in nessun paniere. Tre cose diverse, una schermata sola, e nessun modo di
+   * distinguerle guardando.
+   *
+   * ⚠️ È il difetto peggiore di questa famiglia: **non lascia traccia**. Chi apre la ricetta non
+   * vede un errore, vede un pezzo di pagina che non c'è — e conclude che il piatto non stia in
+   * nessun paniere, che è la risposta opposta a quella vera.
+   *
+   * Adesso i tre casi sono tre: senza permesso la sezione sparisce (giusto: non è roba sua), con un
+   * errore lo **dice**, e in nessun paniere lo dice già da prima.
+   */
   async function carica() {
     try {
       setStato(await api<Stato>(`/panieri/ricetta/${recipe.id}`));
       setErr(null);
+      setFuoriPermesso(false);
     } catch (e) {
       /** ⚠️ Chi non ha la chiave `panieri` non deve vedere un errore rosso: la sezione sparisce. */
-      if (e instanceof ApiError && (e.status === 403 || e.status === 401)) { setStato(null); setErr(null); return; }
+      if (e instanceof ApiError && (e.status === 403 || e.status === 401)) {
+        setStato(null); setErr(null); setFuoriPermesso(true); return;
+      }
+      setFuoriPermesso(false);
       setErr(e instanceof ApiError ? e.message : 'Non riesco a leggere i panieri.');
     }
   }
@@ -1206,7 +1235,9 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
     } finally { setBusy(false); }
   }
 
-  if (!stato) return null;
+  // Senza permesso la sezione non c'è, ed è giusto. Con un errore c'è, e lo dice.
+  if (fuoriPermesso) return null;
+  if (!stato && !err) return null;
 
   return (
     <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
@@ -1216,10 +1247,15 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
         Vale <b>subito</b>: non aspetta «Salva».
       </p>
 
-      {err && <Banner kind="err">{err}</Banner>}
+      {err && (
+        <Banner kind="err">
+          {err} — ⚠️ questo non vuol dire che la ricetta non stia in nessun paniere: vuol dire che
+          non sono riuscito a leggerlo. Riapri la scheda fra un momento.
+        </Banner>
+      )}
       {avviso && <Banner kind="ok">{avviso}</Banner>}
 
-      {stato.dentro.length === 0 ? (
+      {!stato ? null : stato.dentro.length === 0 ? (
         <div className="muted" style={{ fontSize: 12, padding: '6px 0' }}>
           In nessun paniere: il motore non la pesca per nessuna cliente.
         </div>
@@ -1247,16 +1283,35 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
         ⛔ Il motivo si dice PRIMA del clic che fallirebbe: scoprirlo premendo un pulsante, paniere
         per paniere, è far cercare a qualcuno una cosa che sappiamo già.
       */}
-      {!puoGestireIPanieri ? (
+      {!stato ? null : !puoGestireIPanieri ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
           Sola lettura: per aggiungere o togliere panieri serve il permesso <b>Panieri · gestisce</b>.
         </p>
       ) : stato.bloccata ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠️ {stato.bloccata}</p>
+      ) : stato.panieriDelRegime === 0 ? (
+        /*
+          ⛔ **«NESSUN PANIERE PER QUESTO REGIME» NON È «È GIÀ IN TUTTI»** — 7/9, da «non ho la lista
+          panieri per poter aggiungere».
+
+          Le due cose si vedevano uguali (nessuna pastiglia) e la pagina ne diceva una sola, quella
+          sbagliata: *«è già in tutti i panieri»*. Chi la leggeva concludeva che il piatto fosse a
+          posto, e invece non poteva entrare da nessuna parte — per una ragione che non è sua.
+
+          ⚠️ `Recipe.regime` è una stringa libera; i panieri hanno i quattro regimi di `REGIMI`. Un
+          valore fuori da quei quattro (una vecchia importazione, un refuso) porta esattamente qui.
+        */
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          ⛔ <b>Non esiste nessun paniere per il regime «{recipe.regime}»</b>, quindi da qui non la si
+          può aggiungere da nessuna parte — e non è un problema della ricetta. I panieri esistono per
+          quattro regimi: se questo non è uno di quelli, va corretto il <b>regime della ricetta</b>;
+          se invece è giusto, il paniere di quel regime non è ancora stato creato.
+        </p>
       ) : stato.disponibili.length === 0 ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          È già in tutti i panieri <b>{recipe.regime}</b>. ⚠️ Negli altri regimi non può stare: un
-          piatto di un regime dentro il paniere di un altro finirebbe nel piatto sbagliato.
+          È già in <b>tutti</b> i {stato.panieriDelRegime ?? ''} panieri <b>{recipe.regime}</b>.
+          ⚠️ Negli altri regimi non può stare: un piatto di un regime dentro il paniere di un altro
+          finirebbe nel piatto sbagliato.
         </p>
       ) : (
         <div style={{ marginTop: 8 }}>

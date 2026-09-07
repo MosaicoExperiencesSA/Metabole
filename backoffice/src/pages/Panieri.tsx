@@ -414,7 +414,34 @@ export function Panieri() {
               <tbody>
                 {ricetteMostrate.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.name}</td>
+                    <td>
+                      {/*
+                        ⛔ **IL PALLINO VERDE È «VERIFICATA», NON «ATTIVA»** (Simone, 7/9). Sono due
+                        firme diverse e stanno in due colonne diverse: *attiva* vuol dire «il motore
+                        la può usare», *verificata* vuol dire «una nutrizionista ha guardato la
+                        ricetta intera». Un piatto può essere attivo e mai guardato — anzi, è il caso
+                        di quasi tutto il catalogo — ed è la ragione per cui questo pallino serve:
+                        scorrendo la cella si vede a colpo d'occhio cosa è già passato sotto gli
+                        occhi di qualcuno.
+                        ⚠️ **`=== true`, non `!!`**: `verificata` è opzionale e da un server vecchio
+                        arriva `undefined`, che vuol dire «non lo so» e non «no». Un pallino spento
+                        su «non lo so» direbbe una cosa che non sappiamo — e la pagina già distingue
+                        i due casi con `sannoLeVerificate`.
+                      */}
+                      {sannoLeVerificate && (
+                        <span
+                          aria-label={r.verificata === true ? 'verificata' : 'non verificata'}
+                          title={r.verificata === true ? 'Verificata da una nutrizionista' : 'Non ancora verificata'}
+                          style={{
+                            display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                            marginRight: 8, verticalAlign: 'middle', flex: 'none',
+                            background: r.verificata === true ? 'var(--ok-ink)' : 'transparent',
+                            border: r.verificata === true ? 'none' : '1px solid var(--line)',
+                          }}
+                        />
+                      )}
+                      {r.name}
+                    </td>
                     <td>{r.kcal}</td>
                     <td>{r.active ? 'attiva' : <span style={{ color: 'var(--muted)' }}>bozza — il motore non la usa</span>}</td>
                     {puoModificare && (

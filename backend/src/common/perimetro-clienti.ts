@@ -25,6 +25,7 @@
  */
 import type { PrismaService } from '../prisma/prisma.service';
 import { coachTeamScope, isCoachLike } from './coach-team';
+import { filtroClienteConPianoAttivo } from './piano-attivo';
 
 /** Id usato quando lo staff non ha una scheda: non corrisponde a nessuno, di proposito. */
 const NESSUNO = '00000000-0000-0000-0000-000000000000';
@@ -123,4 +124,28 @@ export async function clienteNelPerimetro(
   })) as { assignedCoachId: string | null; assignedNutritionistId: string | null } | null;
   const assegnato = profilo?.[perimetro.field] ?? null;
   return !!assegnato && perimetro.staffIds.includes(assegnato);
+}
+
+
+/**
+ * ⛔ **PERIMETRO STAFF *E* PERCORSO ATTIVO, nello stesso `where`.**
+ *
+ * Le due domande cadono tutte e due sotto la chiave `client`, e chi le scriveva una accanto
+ * all'altra si sovrascriveva la prima con la seconda senza nessun errore: un `where` con due
+ * `client:` è JavaScript legale, e vince l'ultimo. Questa funzione le fonde una volta sola.
+ *
+ * ⚠️ «Chi è cliente mia» e «ha un percorso in corso» sono due domande **diverse**, e per un anno il
+ * progetto ne ha usata una sola. Il perimetro dice di chi ti puoi occupare; il piano dice se c'è
+ * qualcosa di cui occuparsi. Una cliente conclusa a luglio è ancora tua, e non ha niente in corso.
+ */
+export function filtroPerimetroSuClienteConPiano(
+  perimetro: PerimetroClienti | null,
+  adesso = new Date(),
+): Record<string, unknown> {
+  return {
+    client: {
+      ...(perimetro ? { clientProfile: { [perimetro.field]: { in: perimetro.staffIds } } } : {}),
+      ...filtroClienteConPianoAttivo(adesso),
+    },
+  };
 }

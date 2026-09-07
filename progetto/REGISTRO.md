@@ -20,6 +20,69 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-07
 
+- `[Sviluppo]` ⛔ **«In quali panieri sta» spariva senza dire niente, e quando restava poteva
+  mentire.** Segnalazione di Simone: *«l'elenco c'è ma non tutte lo mostrano»* → *«non ho la lista
+  panieri per poter aggiungere»*. Due difetti diversi, tutti e due muti.
+  ⛔ **Il primo: l'errore che spariva insieme alla sezione.** Il ramo di errore chiamava `setErr(…)`
+  e lasciava `stato` a `null`; tre righe più sotto `if (!stato) return null` toglieva di mezzo il
+  riquadro — **compreso il banner rosso appena riempito**. Su una ricetta il cui caricamento falliva,
+  «In quali panieri sta» semplicemente non c'era: identica a una senza permesso, e identica a una
+  che non sta in nessun paniere. ⚠️ Tre cose diverse, una schermata sola. E chi guarda non conclude
+  «non ho letto»: conclude «non sta in nessun paniere», che è la risposta **opposta** a quella vera.
+  Adesso i tre casi sono tre: senza permesso sparisce (giusto), con un errore **resta e lo dice**, in
+  nessun paniere lo diceva già.
+  ⛔ **Il secondo: «è già in tutti i panieri» detto a chi non ne ha nessuno.** `disponibili` è vuoto
+  in due situazioni che si vedono uguali — nessuna pastiglia — e la pagina ne diceva una sola. Se per
+  il regime della ricetta **non esiste nessun paniere**, il piatto non è «già in tutti»: non può
+  entrare da nessuna parte, e la ragione non è sua. ⚠️ Non è un caso teorico: `Recipe.regime` è una
+  stringa libera, i panieri hanno i quattro regimi di `REGIMI`, e un valore fuori da quei quattro
+  (una vecchia importazione, un refuso) usciva da `doveSta` con l'elenco vuoto e **nessun motivo**.
+  Ora il server manda quanti panieri esistono per quel regime, e la pagina distingue: «non esiste
+  nessun paniere per il regime X — o si corregge il regime della ricetta, o quel paniere non è ancora
+  stato creato». E «è già in tutti» porta il **numero**: una frase con dentro un conto si può
+  verificare, una senza va creduta.
+
+- `[Sviluppo]` ⛔ **Vera chiedeva di clienti senza percorso: le fabbriche erano DUE, e la seconda
+  si chiudeva da sola.** Segnalazione di Simone: *«Vera continua a fare domande su clienti che non
+  hanno un percorso attivo»*.
+  ⛔ **La prima.** `promemoriaSupervisione` partiva da `{ screeningFlag: true }` e basta.
+  `screeningFlag` è un flag di **profilo**, e nessuno lo riazzera a fine percorso: una cliente chiusa
+  a luglio, se nessuno le aveva scritto «può proseguire», generava un promemoria **ogni sette
+  giorni, per sempre** — con dentro la frase «la cliente sta mangiando», che a percorso concluso è
+  falsa. Il presupposto su cui la regola era stata scritta sta nel suo stesso docstring («riceve i
+  menu lo stesso») e vale solo per chi ha un piano: il codice non lo controllava.
+  ⛔ **La seconda, ed è un anello che si chiude da solo.** `runAdherenceSweep` apriva «scarsa
+  aderenza: nessun check-in da N giorni» a tutte le **utenze** attive — dove `active` è lo stato
+  dell'utenza, non del piano. Ma chi ha finito il percorso **non può più** fare check-in: glielo
+  impedisce `checkinDue`, trenta righe più sotto **nello stesso file**. Percorso finito → niente
+  check-in → segnalazione → lista della mattina, ogni giorno. Un allarme che accusa una persona di
+  non fare una cosa che il sistema stesso le impedisce di fare.
+  ⚠️ **L'incoerenza era già dentro Vera**, nello stesso riquadro: «quello che aspetta me» metteva
+  accanto il conto del pool — che i percorsi conclusi li **esclude**, con la ragione scritta: *«un
+  numero gonfio è un numero che si smette di guardare»* — e i conti delle domande e delle
+  sostituzioni, che li **includevano**. Un riquadro, due definizioni di «le mie clienti».
+  ⚠️ **E la decisione era già di Simone**: `PUNTO_DELLA_SITUAZIONE.md` la riporta («tutto questo vale
+  solo per chi ha un piano attivo»), applicata al motore e alla coda del nutrizionista e **mai
+  propagata a Vera**, che è nata dopo ed è la porta da cui la nutrizionista lavora ogni giorno. Qui
+  si usa **lo stesso** filtro di quei due, non uno nuovo: se un giorno si decide diversamente su
+  `queued` o sul monitoraggio, si cambia in un posto solo.
+  ⛔ **E tutte le prove di Vera erano verdi prima e dopo — 1268, nessuna rossa.** Non perché il
+  codice fosse giusto: perché **nessuna prova fissava il perimetro-piano**, e nessun `.spec.ts` di
+  `vera/` nominava «piano attivo». Adesso c'è una sentinella sui sorgenti che tiene fermo l'elenco
+  delle porte scoperte, ognuna con la sua ragione — ed è nata trovandone due che avevo mancato
+  rileggendo a mano.
+  ▶️ **Restano fuori, di proposito**: il registro **storico** (una cliente conclusa lì è giusto
+  vederla, è successo) e `applicaRestrizione`, che scrive su molte persone in una volta e merita un
+  passaggio suo con la misura davanti.
+
+- `[Sviluppo]` ✅ **Il pallino verde accanto al nome del piatto, nella pagina Panieri — e dice
+  «verificata», non «attiva».** Sono due firme diverse su due colonne diverse: *attiva* è «il motore
+  la può usare», *verificata* è «una nutrizionista ha guardato la ricetta intera». Quasi tutto il
+  catalogo è attivo e mai guardato, ed è per questo che il pallino serve.
+  ⚠️ `=== true` e non `!!`: da un server vecchio `verificata` arriva `undefined`, che vuol dire «non
+  lo so» e non «no» — e in quel caso il pallino non compare affatto, invece di dichiarare un «no»
+  che non sappiamo.
+
 - `[Sviluppo]` ✅ **La ✕ su un giorno di menu: si toglie, e i giorni dopo scalano indietro di uno.**
   Richiesta di Simone; su quali giorni ha deciso lui: **da oggi in poi, oggi compreso**.
   ⛔ **Lo scorrimento è la sola forma sicura, non una comodità.** `deliverIfEligible` non cerca i

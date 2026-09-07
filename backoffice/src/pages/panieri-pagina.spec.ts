@@ -264,3 +264,31 @@ describe('⛔ scrivere una ricetta nuova stando dentro una cella del paniere', (
     expect(pagina).toMatch(/onClose=\{\(\) => \{\s*\n\s*setNuovaPerLaCella\(null\);[\s\S]{0,400}void carica\(\);/);
   });
 });
+
+/**
+ * ⛔ **IL PALLINO VERDE ACCANTO AL NOME** (Simone, 7/9) — e dice «verificata», non «attiva».
+ *
+ * Sono due firme diverse su due colonne diverse: *attiva* è «il motore la può usare», *verificata* è
+ * «una nutrizionista ha guardato la ricetta intera». Quasi tutto il catalogo è attivo e mai
+ * guardato, ed è per questo che il pallino serve.
+ */
+describe('⛔ il pallino di «verificata» accanto al nome del piatto', () => {
+  const pagina = src('./Panieri.tsx');
+
+  it('legge `verificata`, non `active`', () => {
+    expect(pagina).toMatch(/r\.verificata === true \? 'Verificata da una nutrizionista'/);
+  });
+
+  it('⚠️ `=== true` e non `!!`: da un server vecchio arriva `undefined`, che è «non lo so», non «no»', () => {
+    expect(pagina).toMatch(/background: r\.verificata === true \?/);
+    expect(pagina).not.toMatch(/background: !!r\.verificata/);
+  });
+
+  it('⛔ e se il server non sa rispondere il pallino non compare affatto: la pagina non inventa un «no»', () => {
+    expect(pagina).toMatch(/\{sannoLeVerificate && \(\s*\n\s*<span/);
+  });
+
+  it('⚠️ ha un’etichetta leggibile: il colore da solo non è un’informazione', () => {
+    expect(pagina).toContain("aria-label={r.verificata === true ? 'verificata' : 'non verificata'}");
+  });
+});

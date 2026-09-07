@@ -25,6 +25,7 @@ import { MailService } from '../mail/mail.service';
 import { casiCapiti, CasoCapito, fraseNonCapite, RigaMessaggio } from './corpus';
 import { DizionarioService } from './dizionario.service';
 import { perimetroClienti } from '../common/perimetro-clienti';
+import { filtroProfiloConPianoAttivo } from '../common/piano-attivo';
 import { RigaAudit, RigaAzioneVera, RigaFoodSwap, unisciRegistro, VoceRegistro } from './registro-allargato';
 import { componiReport, intervalloMese, ReportMensile, RigaReport, nomeMese } from './report-mensile';
 import { RicettaDaScrivere, SCRITTURA_RICETTA, ScritturaRicetta } from './scrittura-ricetta';
@@ -212,7 +213,16 @@ export class RegistroVeraService {
   async sostituzioniDaVerificare(userId: string): Promise<number> {
     const perimetro = await perimetroClienti(this.prisma, userId);
     const clienti = (await this.prisma.clientProfile.findMany({
-      where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+      /**
+       * ⛔ **PERIMETRO *E* PERCORSO** (7/9). Il perimetro dice di chi ti puoi occupare; il piano dice
+       * se c'è qualcosa di cui occuparsi. Una sostituzione da verificare su una cliente che ha finito
+       * il percorso a luglio è una riga che nessuno chiuderà mai, e che ogni mattina occupa un posto
+       * nella lista di chi deve lavorare.
+       */
+      where: {
+        ...(perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}),
+        ...filtroProfiloConPianoAttivo(),
+      } as never,
       select: { userId: true },
       take: 1000,
     })) as { userId: string }[];
@@ -248,7 +258,16 @@ export class RegistroVeraService {
   } | null> {
     const perimetro = await perimetroClienti(this.prisma, userId);
     const clienti = (await this.prisma.clientProfile.findMany({
-      where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
+      /**
+       * ⛔ **PERIMETRO *E* PERCORSO** (7/9). Il perimetro dice di chi ti puoi occupare; il piano dice
+       * se c'è qualcosa di cui occuparsi. Una sostituzione da verificare su una cliente che ha finito
+       * il percorso a luglio è una riga che nessuno chiuderà mai, e che ogni mattina occupa un posto
+       * nella lista di chi deve lavorare.
+       */
+      where: {
+        ...(perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}),
+        ...filtroProfiloConPianoAttivo(),
+      } as never,
       select: { userId: true },
       take: 1000,
     })) as { userId: string }[];

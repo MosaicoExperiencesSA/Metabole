@@ -35,6 +35,7 @@ import {
 import { ProgressService } from './progress.service';
 import { EscalationRoutingService } from '../escalations/escalation-routing.service';
 import { eUnitaAcqua } from '../common/unita-acqua';
+import { filtroClienteConPianoAttivo } from '../common/piano-attivo';
 import { giornoItaliano, toDateOnly } from '../common/date-only';
 import { bicchieriObiettivo } from '../common/obiettivo-acqua';
 import { obiettivoPassi } from '../common/obiettivo-passi';
@@ -755,16 +756,33 @@ export class SignalsService {
   }
 
   /**
-   * R12 — Scarsa aderenza (cron giornaliero): per le clienti attive che avevano un
-   * check-in ma non ne fanno da `low_adherence_days` giorni, apre una segnalazione
-   * alla coach. Config 0 = spenta. Idempotente per (cliente, categoria).
+   * R12 — Scarsa aderenza (cron giornaliero): per le clienti **con un percorso in corso** che
+   * avevano un check-in ma non ne fanno da `low_adherence_days` giorni, apre una segnalazione alla
+   * coach. Config 0 = spenta. Idempotente per (cliente, categoria).
+   *
+   * ⛔ **L'ANELLO CHE SI CHIUDEVA DA SOLO** (7/9, dalla segnalazione di Simone su Vera). Qui il
+   * `where` era `{ role: 'client', status: 'active', deletedAt: null }` — dove `active` è lo stato
+   * **dell'utenza**, non del piano. E trenta righe più sotto, in `checkinDue`, sta scritto che il
+   * check-in si chiede solo a chi ha un piano attivo.
+   *
+   * ⛔ Quindi: percorso finito → la cliente **non può più** fare check-in → dopo `low_adherence_days`
+   * scatta «scarsa aderenza: nessun check-in da N giorni» → la segnalazione entra nella lista della
+   * mattina della nutrizionista, ogni giorno, per sempre. Un allarme che accusa una persona di non
+   * fare una cosa che il sistema stesso le impedisce di fare.
+   *
+   * ⚠️ **Ed è la fabbrica, non la vetrina**: filtrare solo le liste di Vera avrebbe nascosto le righe
+   * lasciando che continuassero a nascere. Il posto giusto per un rumore è dove viene prodotto.
+   *
+   * ⚠️ Stesso filtro del motore e della coda del nutrizionista (`filtroClienteConPianoAttivo`), non
+   * uno nuovo: se un giorno si decide diversamente su `queued` o sul monitoraggio, si cambia in un
+   * posto solo.
    */
   async runAdherenceSweep(): Promise<{ opened: number; days: number }> {
     const days = await this.configParams.getNumber('low_adherence_days', 0);
     if (days <= 0) return { opened: 0, days: 0 };
     const since = new Date(Date.now() - days * 86_400_000);
     const clients = (await this.prisma.user.findMany({
-      where: { role: 'client', status: 'active', deletedAt: null },
+      where: { role: 'client', status: 'active', deletedAt: null, ...filtroClienteConPianoAttivo() },
       select: { id: true },
     })) as { id: string }[];
     let opened = 0;

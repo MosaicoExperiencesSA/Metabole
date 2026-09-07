@@ -327,6 +327,21 @@ export class PanieriService {
     dentro: { famiglia: string; regime: string; slot: string }[];
     disponibili: { famiglia: string; regime: string }[];
     bloccata: string | null;
+    /**
+     * ⛔ **QUANTI PANIERI ESISTONO PER IL REGIME DI QUESTA RICETTA** (7/9, da «non ho la lista
+     * panieri per poter aggiungere»).
+     *
+     * Senza questo numero la pagina non sa distinguere due cose che si vedono uguali — un elenco di
+     * pastiglie vuoto — e ne diceva una sola, quella sbagliata: *«è già in tutti i panieri»*. Se per
+     * quel regime di panieri non ce n'è **nessuno**, la ricetta non è «già in tutti»: non può entrare
+     * da nessuna parte, e la ragione non è sua.
+     *
+     * ⚠️ Il caso non è teorico: `Recipe.regime` è una stringa libera e `Paniere.regime` sono i
+     * quattro di `REGIMI` (`omnivore`, `pescetarian`, `vegetarian`, `vegan`). Una ricetta scritta
+     * con un valore che non è fra quei quattro esce da questa funzione con `disponibili` vuoto **e
+     * nessun motivo**, e chi la guarda conclude che il piatto sia a posto.
+     */
+    panieriDelRegime: number;
   }> {
     const ricetta = (await this.prisma.recipe.findUnique({
       where: { id: recipeId },
@@ -366,7 +381,13 @@ export class PanieriService {
         /** ⚠️ Detto PRIMA del clic, come gli altri due: il pasto è quello della ricetta. */
         : fuoriPostoNelPasto(ricetta, slotCapofila(ricetta.mealSlot));
 
-    return { ricetta, dentro, disponibili, bloccata };
+    return {
+      ricetta,
+      dentro,
+      disponibili,
+      bloccata,
+      panieriDelRegime: panieri.filter((p) => p.regime === ricetta.regime).length,
+    };
   }
 
 }

@@ -106,7 +106,7 @@ describe('⛔ i panieri in sola lettura', () => {
   });
 
   it('⛔ e senza permesso non compaiono le pastiglie: si dice perché, invece di lasciare pulsanti che falliscono', () => {
-    expect(pagina).toMatch(/\{!puoGestireIPanieri \? \(/);
+    expect(pagina).toMatch(/!puoGestireIPanieri \? \(/);
     expect(pagina).toContain('Sola lettura');
     expect(pagina).toContain('Panieri · gestisce');
   });
@@ -122,5 +122,60 @@ describe('il paniere di partenza arriva già scelto', () => {
 
   it('⚠️ si preseleziona SOLO se è davvero fra i disponibili: una pastiglia accesa su una scelta impossibile prometterebbe un’aggiunta che fallisce', () => {
     expect(pagina).toMatch(/stato\.disponibili\.some\(\(d\) => `\$\{d\.famiglia\}\|\$\{d\.regime\}` === chiave\)/);
+  });
+});
+
+/**
+ * ⛔ **TRE CASI DIVERSI, TRE SCHERMATE DIVERSE** — 7/9, da «l'elenco c'è ma non tutte lo mostrano».
+ *
+ * Il ramo di errore chiamava `setErr(...)` e lasciava `stato` a `null`; tre righe più sotto
+ * `if (!stato) return null` toglieva di mezzo il riquadro **compreso il banner appena riempito**. Su
+ * una ricetta il cui caricamento falliva, «In quali panieri sta» non c'era — identica a una senza
+ * permesso e identica a una che non sta in nessun paniere.
+ *
+ * ⚠️ È il difetto peggiore di questa famiglia: non lascia traccia. Chi guarda non vede un errore,
+ * vede un pezzo di pagina che manca, e conclude che il piatto non stia in nessun paniere — la
+ * risposta **opposta** a quella vera.
+ */
+describe('⛔ quando i panieri non si leggono, la sezione lo DICE', () => {
+  it('senza permesso sparisce, e solo per quello', () => {
+    expect(pagina).toMatch(/setStato\(null\); setErr\(null\); setFuoriPermesso\(true\); return;/);
+    expect(pagina).toMatch(/if \(fuoriPermesso\) return null;/);
+  });
+
+  it('⛔ con un errore la sezione RESTA: non si esce se c’è qualcosa da dire', () => {
+    expect(pagina).toMatch(/if \(!stato && !err\) return null;/);
+  });
+
+  it('⛔ e il messaggio dice che «non lo so» non è «non sta in nessun paniere»', () => {
+    expect(pagina).toContain('non vuol dire che la ricetta non stia in nessun paniere');
+  });
+});
+
+/**
+ * ⛔ **«NESSUN PANIERE PER QUESTO REGIME» NON È «È GIÀ IN TUTTI»** — 7/9, da «non ho la lista panieri
+ * per poter aggiungere».
+ *
+ * Le due cose si vedono uguali — nessuna pastiglia — e la pagina ne diceva una sola, quella
+ * sbagliata. Chi leggeva «è già in tutti i panieri» concludeva che il piatto fosse a posto, e invece
+ * non poteva entrare da nessuna parte, per una ragione che non era sua.
+ */
+describe('⛔ i due modi di non avere pastiglie', () => {
+  it('il server manda quanti panieri esistono per quel regime', () => {
+    expect(pagina).toMatch(/panieriDelRegime\?: number;/);
+  });
+
+  it('⛔ a zero panieri la pagina lo DICE, e non dice «è già in tutti»', () => {
+    expect(pagina).toMatch(/stato\.panieriDelRegime === 0 \? \(/);
+    expect(pagina).toContain('Non esiste nessun paniere per il regime');
+  });
+
+  it('⚠️ e la frase indica le due strade: o il regime della ricetta o il paniere che manca', () => {
+    expect(pagina).toContain('va corretto il');
+    expect(pagina).toContain('non è ancora stato creato');
+  });
+
+  it('⚠️ «è già in tutti» adesso porta un NUMERO: una frase con dentro un conto si può verificare', () => {
+    expect(pagina).toMatch(/\{stato\.panieriDelRegime \?\? ''\} panieri/);
   });
 });

@@ -15,6 +15,7 @@
  */
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
+import { chiHaUnPianoAttivo, filtroProfiloConPianoAttivo } from '../common/piano-attivo';
 import {
   PROMEMORIA_OGNI_GIORNI,
   TIPO_PROMEMORIA,
@@ -172,7 +173,27 @@ export class RichiesteVeraService {
      * del 25/8. Il tetto resta (una query senza limite su una tabella che cresce è l'altro modo di
      * sbagliare), ma adesso il numero vero si conta e la differenza si scrive.
      */
-    const quante = await this.prisma.clientProfile.count({ where: { screeningFlag: true } as never });
+    /**
+     * ⛔ **SOLO CHI HA UN PERCORSO IN CORSO** (Simone, 7/9: «Vera continua a fare domande su clienti
+     * che non hanno un percorso attivo; deve monitorare solo quelle con un percorso attivo»).
+     *
+     * ⛔ Qui c'era `{ screeningFlag: true }` e basta, ed è **la fabbrica** del rumore.
+     * `screeningFlag` è un flag di **profilo**: nessuno lo riazzera a fine percorso. Quindi una
+     * cliente che ha chiuso a luglio, se nessuno le ha mai scritto «può proseguire», generava un
+     * promemoria **ogni sette giorni, per sempre** — con dentro la frase «la cliente sta mangiando»,
+     * che a percorso concluso è falsa.
+     *
+     * ⚠️ Il presupposto su cui `promemoriaDovuto` è stato scritto sta nel suo docstring: *«una
+     * cliente in screening che nessuno ha mai guardato **riceve i menu lo stesso**»*. Vale solo per
+     * chi ha un piano — e il codice non lo controllava.
+     *
+     * ⚠️ **Non è una decisione nuova**: `PUNTO_DELLA_SITUAZIONE.md` la riporta come regola di Simone
+     * («tutto questo vale solo per chi ha un piano attivo»), applicata al motore e alla coda del
+     * nutrizionista e mai propagata a Vera, che è nata dopo. Qui si usa **lo stesso** filtro di quei
+     * due, così i numeri combaciano invece di essere «quasi» uguali.
+     */
+    const soloConPercorso = { screeningFlag: true, ...filtroProfiloConPianoAttivo() };
+    const quante = await this.prisma.clientProfile.count({ where: soloConPercorso as never });
     if (quante > TETTO_SORVEGLIATE) {
       this.logger.error(
         `Sorveglianza percorsi supervisionati: ${quante} clienti in screening, ma il giro ne guarda ` +
@@ -182,7 +203,9 @@ export class RichiesteVeraService {
     }
 
     const profili = (await this.prisma.clientProfile.findMany({
-      where: { screeningFlag: true } as never,
+      // ⚠️ Lo STESSO oggetto del conteggio qui sopra, non una copia: il numero nel log e le clienti
+      // guardate devono parlare della stessa popolazione, o il messaggio sul tetto mente.
+      where: soloConPercorso as never,
       select: {
         userId: true,
         name: true,
@@ -284,11 +307,35 @@ export class RichiesteVeraService {
    * assegnata — che altrimenti non le vedrebbe nessuno.
    */
   async aperte(userId: string, tutte = false): Promise<RichiestaAperta[]> {
-    return (await this.prisma.richiestaVera.findMany({
+    const righe = (await this.prisma.richiestaVera.findMany({
       where: { stato: 'aperta', ...(tutte ? {} : { nutrizionistaId: userId }) } as never,
       orderBy: { createdAt: 'asc' },
       take: 100,
     })) as unknown as RichiestaAperta[];
+    return this.soloDiChiHaUnPercorso(righe);
+  }
+
+  /**
+   * ⛔ **LE DOMANDE DI CHI NON HA PIÙ UN PERCORSO NON SI MOSTRANO** (7/9).
+   *
+   * ⚠️ **Si filtra in memoria, e non è pigrizia.** `RichiestaVera` porta un `clienteId` che è una
+   * stringa senza relazione — di proposito: il suo commento dice *«la richiesta si legge anche per
+   * una cliente cancellata»*. Prisma non può risalire, quindi si leggono le righe (sono poche e già
+   * limitate a cento) e si chiede in **una** query chi, fra quelle, ha un piano.
+   *
+   * ⚠️ **Le domande già scritte restano a database, e si nascondono soltanto.** Chiuderle o
+   * cancellarle vorrebbe dire riscrivere una cosa che è successa: la regola di questo servizio è
+   * «si chiude, non si cancella», e una domanda nata quando il percorso era vivo è successa davvero.
+   * Da qui in avanti non ne nascono più (`promemoriaSupervisione` qui sopra); queste smettono solo
+   * di occupare la lista della mattina.
+   */
+  private async soloDiChiHaUnPercorso<T extends { clienteId?: string | null }>(righe: T[]): Promise<T[]> {
+    if (!righe.length) return righe;
+    const conPiano = await chiHaUnPianoAttivo(
+      this.prisma as never,
+      righe.map((r) => r.clienteId ?? '').filter(Boolean),
+    );
+    return righe.filter((r) => !!r.clienteId && conPiano.has(r.clienteId));
   }
 
   /**
@@ -312,10 +359,14 @@ export class RichiesteVeraService {
       .catch(() => undefined);
   }
 
+  /**
+   * ⚠️ **Un `findMany` e non un `count`**, ed è il prezzo del filtro qui sopra: il conteggio deve
+   * dire lo **stesso** numero dell'elenco. Un contatore che conta anche le domande di chi ha finito
+   * il percorso, sopra un elenco che non le mostra, è la pastiglia col «3» che si apre su due righe
+   * — e chi la vede pensa che manchi qualcosa.
+   */
   async quante(userId: string, tutte = false): Promise<number> {
-    return this.prisma.richiestaVera.count({
-      where: { stato: 'aperta', ...(tutte ? {} : { nutrizionistaId: userId }) } as never,
-    });
+    return (await this.aperte(userId, tutte)).length;
   }
 
   /**

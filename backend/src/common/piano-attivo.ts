@@ -290,3 +290,41 @@ export async function pianoDiCliente(
   const m = await pianiDiClienti(prisma, [clientId], adesso);
   return m.get(clientId) ?? { stato: 'mai', etichetta: 'nessun piano', nomePiano: null, fine: null, riceveMenu: false };
 }
+
+
+/**
+ * ⛔ **LO STESSO FILTRO, PARTENDO DA `ClientProfile`.**
+ *
+ * `filtroClienteConPianoAttivo` filtra un `User`; mezza Vera parte invece da `clientProfile`, e
+ * scrivere `user: { subscriptions: { ... } }` a mano in ogni punto vorrebbe dire riscrivere sei
+ * volte la stessa domanda — e il giorno che si cambia idea su `queued` o sul monitoraggio,
+ * cambiarne cinque.
+ */
+export function filtroProfiloConPianoAttivo(adesso = new Date()) {
+  return { user: filtroClienteConPianoAttivo(adesso) };
+}
+
+/**
+ * ⛔ **QUALI DI QUESTI CLIENTI HANNO UN PERCORSO, in una query sola.**
+ *
+ * Serve dove la riga da filtrare **non ha una relazione** verso il cliente e quindi Prisma non può
+ * risalire: `RichiestaVera` porta un `clienteId` che è una stringa e basta (lo dice il suo commento:
+ * *«la richiesta si legge anche per una cliente cancellata»*). Lì l'unica strada onesta è leggere le
+ * righe — sono poche e già limitate — e chiedere in un colpo solo chi, fra quelle, ha un piano.
+ *
+ * ⚠️ Una `Set` e non un elenco: chi chiama filtra righe, e un `includes` dentro un ciclo su cento
+ * righe è la forma lenta della stessa cosa.
+ */
+export async function chiHaUnPianoAttivo(
+  prisma: { user: { findMany: (a: unknown) => Promise<{ id: string }[]> } },
+  clienteIds: readonly string[],
+  adesso = new Date(),
+): Promise<Set<string>> {
+  const unici = [...new Set(clienteIds.filter(Boolean))];
+  if (!unici.length) return new Set();
+  const righe = await prisma.user.findMany({
+    where: { id: { in: unici }, ...filtroClienteConPianoAttivo(adesso) },
+    select: { id: true },
+  });
+  return new Set(righe.map((r) => r.id));
+}

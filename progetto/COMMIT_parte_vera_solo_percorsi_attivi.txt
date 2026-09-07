@@ -1,0 +1,94 @@
+Vera guarda solo chi ha un percorso in corso — le fabbriche del rumore erano due
+
+Segnalazione di Simone: «Vera continua a fare domande su clienti che non hanno un percorso attivo.
+Deve monitorare solo quelle con un percorso attivo».
+
+FABBRICA 1 — IL GIRO NOTTURNO
+`promemoriaSupervisione` partiva da `{ screeningFlag: true }` e basta. `screeningFlag` e' un flag di
+PROFILO, e nessuno lo riazzera a fine percorso: una cliente chiusa a luglio, se nessuno le aveva
+scritto «puo proseguire», generava un promemoria OGNI SETTE GIORNI, PER SEMPRE — con dentro la frase
+«la cliente sta mangiando», che a percorso concluso e' falsa.
+⚠️ Il presupposto su cui la regola era stata scritta sta nel suo stesso docstring («una cliente in
+screening che nessuno ha mai guardato riceve i menu lo stesso») e vale solo per chi ha un piano. Il
+codice non lo controllava.
+
+FABBRICA 2 — L'ANELLO CHE SI CHIUDE DA SOLO
+`runAdherenceSweep` apriva «scarsa aderenza: nessun check-in da N giorni» a tutte le UTENZE attive —
+dove `active` e' lo stato dell'utenza, non del piano. Ma chi ha finito il percorso NON PUO' PIU' fare
+check-in: glielo impedisce `checkinDue`, trenta righe piu sotto NELLO STESSO FILE.
+Percorso finito → niente check-in → segnalazione «scarsa aderenza» → lista della mattina di Vera,
+ogni giorno. Un allarme che accusa una persona di non fare una cosa che il sistema le impedisce.
+⚠️ E' la fabbrica, non la vetrina: filtrare solo le liste di Vera avrebbe nascosto le righe lasciando
+che continuassero a nascere.
+
+L'INCOERENZA ERA GIA' DENTRO VERA, NELLO STESSO RIQUADRO
+«Quello che aspetta me» metteva accanto il conto del pool — che i percorsi conclusi li ESCLUDE, con
+la ragione gia scritta: «un numero gonfio e' un numero che si smette di guardare» — e i conti delle
+domande e delle sostituzioni, che li INCLUDEVANO. Un riquadro, due definizioni di «le mie clienti».
+E la coda «Da validare» e' la stessa tabella che il Backoffice legge COL filtro: sulla stessa cliente
+conclusa la pagina diceva «non c'e' niente» e Vera la numerava.
+
+LA DECISIONE ERA GIA' DI SIMONE
+`PUNTO_DELLA_SITUAZIONE.md` la riporta: «tutto questo vale solo per chi ha un piano attivo».
+Applicata al motore e alla coda del nutrizionista, MAI propagata a Vera — che e' nata dopo ed e' la
+porta da cui la nutrizionista lavora ogni giorno. Qui si usa LO STESSO filtro di quei due, non uno
+nuovo: se un giorno si decide diversamente su `queued` o sul monitoraggio, si cambia in un posto solo.
+
+COSA E' STATO SISTEMATO
+Il giro notturno del promemoria · le domande aperte e il loro contatore · le segnalazioni e la coda
+«Da validare» della lista della mattina · il quadro della giornata · le sostituzioni da verificare ·
+la fabbrica delle segnalazioni di scarsa aderenza.
+
+⚠️ Il contatore delle domande e' passato da `count` a `findMany`: deve dire lo STESSO numero
+dell'elenco, o e' la pastiglia col «3» che si apre su due righe.
+⚠️ Le domande gia scritte restano a database e si nascondono soltanto: «si chiude, non si cancella»,
+e una domanda nata quando il percorso era vivo e' successa davvero.
+
+⛔ E TUTTE LE PROVE DI VERA ERANO VERDI PRIMA E DOPO — 1268, NESSUNA ROSSA
+Non perche' il codice fosse giusto: perche' NESSUNA PROVA FISSAVA IL PERIMETRO-PIANO, e nessun
+`.spec.ts` di `vera/` nominava «piano attivo». Adesso c'e' una sentinella sui sorgenti che tiene fermo
+l'elenco delle porte scoperte, ognuna con la sua ragione — ed e' nata trovandone DUE che avevo
+mancato rileggendo a mano.
+
+▶️ RESTANO FUORI, DI PROPOSITO
+Il registro STORICO (una cliente conclusa li e' giusto vederla: e' successo) e `applicaRestrizione`,
+che scrive su molte persone in una volta e merita un passaggio suo con la misura davanti.
+
+E IL PALLINO VERDE NELLA PAGINA PANIERI
+Accanto al nome del piatto, e dice «verificata», non «attiva»: sono due firme diverse su due colonne
+diverse, e quasi tutto il catalogo e' attivo e mai guardato. `=== true` e non `!!`: da un server
+vecchio arriva `undefined`, che e' «non lo so» — e in quel caso il pallino non compare affatto.
+
+FILE
+- backend: `common/piano-attivo.ts` (`filtroProfiloConPianoAttivo`, `chiHaUnPianoAttivo`) ·
+  `common/perimetro-clienti.ts` (`filtroPerimetroSuClienteConPiano`) · `vera/richieste.service.ts` ·
+  `vera/vera-chat.service.ts` · `vera/registro.service.ts` · `signals/signals.service.ts` ·
+  `vera/solo-chi-ha-un-percorso.spec.ts` (nuovo) · `vera/domande-solo-con-percorso.spec.ts` (nuovo) ·
+  `lavori/voci-iniziali.ts`
+- backoffice: `pages/Panieri.tsx` · `pages/panieri-pagina.spec.ts`
+
+474 suite / 8108 test backend verdi · backoffice 34 suite / 327 verdi · quattro mutazioni provate e
+tutte e quattro fanno fallire i test. Nessuna migrazione.
+
+E «IN QUALI PANIERI STA»: DUE DIFETTI, TUTTI E DUE MUTI
+Da «l'elenco c'e' ma non tutte lo mostrano» → «non ho la lista panieri per poter aggiungere».
+
+⛔ L'ERRORE SPARIVA INSIEME ALLA SEZIONE. Il ramo di errore chiamava `setErr(...)` e lasciava `stato`
+a null; tre righe piu sotto `if (!stato) return null` toglieva di mezzo il riquadro COMPRESO il
+banner rosso appena riempito. Su una ricetta il cui caricamento falliva, «In quali panieri sta» non
+c'era: identica a una senza permesso e identica a una che non sta in nessun paniere.
+⚠️ Chi guarda non conclude «non ho letto»: conclude «non sta in nessun paniere» — la risposta OPPOSTA
+a quella vera. Adesso i tre casi sono tre.
+
+⛔ «E' GIA' IN TUTTI I PANIERI» DETTO A CHI NON NE HA NESSUNO. `disponibili` e' vuoto in due
+situazioni che si vedono uguali, e la pagina ne diceva una sola. Se per il regime della ricetta non
+esiste NESSUN paniere, il piatto non e' «gia in tutti»: non puo entrare da nessuna parte, e la
+ragione non e' sua.
+⚠️ Non e' teorico: `Recipe.regime` e' una stringa libera, i panieri hanno i quattro regimi di
+`REGIMI`, e un valore fuori da quei quattro usciva da `doveSta` con l'elenco vuoto e NESSUN motivo.
+Ora il server manda `panieriDelRegime` e la pagina distingue, indicando le due strade (il regime
+della ricetta, o il paniere che manca). E «e' gia in tutti» porta il NUMERO: una frase con dentro un
+conto si puo verificare, una senza va creduta.
+
+FILE (aggiunta): `catalog/panieri.service.ts` · `backoffice/pages/Ricette.tsx` ·
+`backoffice/pages/ricette-panieri.spec.ts`
