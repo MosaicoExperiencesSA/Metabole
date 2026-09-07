@@ -42,14 +42,21 @@ describe('⛔ le porte dei panieri', () => {
   });
 
   /**
-   * ⚠️ E anche i ruoli: `manage` sta col capo. Proporre una dieta e spostare il pool di tutte sono
-   * due poteri diversi, ed è la stessa ragione per cui la chiave non è `diets_catalog`.
+   * ⛔ **E CHI SCRIVE LO DICE LA CASELLA, non un secondo elenco di ruoli** — cambiato il 7/9.
+   *
+   * Qui c'era il contrario: `@Roles('head_nutritionist', 'admin')` sui due metodi, e questa prova lo
+   * teneva fermo. ⚠️ Il giorno in cui Simone ha acceso «Panieri · gestisce» alla Nutrizionista, quel
+   * secondo elenco l'avrebbe bloccata lo stesso — la casella accesa, la porta chiusa, e nessun modo
+   * di capirlo dall'interfaccia. È lo stesso difetto di «Compensi staff» e «Provvigioni», trovato lo
+   * stesso giorno.
+   *
+   * ⚠️ **Il `@Roles` della classe resta, e questa prova lo pretende**: senza, `PageGuard` diventa
+   * l'unico cancello e sul suo fail-open non ci sarebbe più nessuna rete. Quello che non deve
+   * tornare è il **secondo** elenco, sui metodi.
    */
-  it('⚠️ e a scrivere è il capo nutrizionista, non chi propone', () => {
+  it('⛔ i due metodi che scrivono NON hanno un elenco di ruoli proprio: decide la casella', () => {
     for (const metodo of ['aggiungi', 'togli']) {
-      const r = ruoli(metodo) ?? [];
-      expect(r).toContain('head_nutritionist');
-      expect(r).not.toContain('nutritionist');
+      expect(ruoli(metodo)).toBeUndefined();
     }
   });
 

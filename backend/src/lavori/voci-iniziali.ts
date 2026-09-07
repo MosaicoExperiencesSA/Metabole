@@ -83,6 +83,93 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'togli-un-giorno-di-menu',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-07T15:00',
+    titolo: '✅ La ✕ su un giorno di menu: si toglie, e i giorni dopo scalano indietro di uno',
+    dettaglio:
+      'Richiesta di Simone del 7/9: «per ogni giorno di menu dobbiamo mettere la ✕ in un angolino in '
+      + 'modo che admin e nutrizionista possano cancellare un giorno; se è in mezzo scorrono i '
+      + 'successivi in riempimento». Alla domanda su quali giorni: **«da oggi in poi, oggi '
+      + 'compreso»**.\n\n'
+      + '⛔ **Lo scorrimento non è comodità: è la sola forma sicura.** `deliverIfEligible` non cerca i '
+      + 'buchi — guarda l\'**ultimo** giorno in calendario e compone da lì. Cancellare un giorno che '
+      + 'ne lascia uno più avanti apre un buco **permanente**: «menu in preparazione» su quella data, '
+      + 'per sempre, senza nessun errore. Facendo scalare i successivi di uno non resta niente di '
+      + 'scoperto in mezzo, e quello che si libera è l\'**ultima** data, cioè dove il motore sa '
+      + 'comporre. È la prima cancellazione di `MenuDay` che non è una coda, ed è dichiarata così in '
+      + '`una-porta-per-i-giorni.spec.ts`.\n\n'
+      + '⚠️ **Si scorre TUTTO quello che viene dopo, buchi compresi.** Su un calendario che ha già un '
+      + 'vuoto, fermarsi al primo salto lo **allargherebbe** da uno a due giorni. Scorrendo tutto il '
+      + 'vuoto resta uno e arretra.\n\n'
+      + '⚠️ **Gli spostamenti si applicano uno per uno, in ordine di data crescente**: `MenuDay` ha '
+      + '`@@unique([clientId, date])`, e ogni giorno prende la data che il precedente ha appena '
+      + 'liberato. Al contrario, o con un `updateMany`, il database rifiuta.\n\n'
+      + '⚠️ **Decisione mia, da ribaltare se non ti torna**: sui giorni spostati si azzerano `viewedAt` '
+      + 'e `apertoDallaClienteIl`. Quelle colonne dicono «ha visto QUESTO menu in QUESTA data», e la '
+      + 'data è cambiata: tenerle bloccherebbe per sempre la rigenerazione di giornate che la cliente '
+      + 'non ha ancora vissuto.\n\n'
+      + '⚠️ Col **piano fermato** non si tocca niente: si cancellerebbe senza poter ricomporre.\n\n'
+      + '⚠️ Chiave di permesso sua, `cancella_giorno_menu`, nata **con** la guardia che la legge. '
+      + 'Default: nutrizionista, capo nutrizionista, admin.',
+  },
+  {
+    chiave: 'panieri-la-casella-e-il-pulsante',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-07T16:00',
+    priorita: 'alta',
+    titolo: '✅ Panieri: il pulsante che diceva «Aggiungi a nessun panierei», e il secondo cancello che rendeva la casella finta',
+    dettaglio:
+      'Tre cose, arrivate il 7/9 da due screenshot di Simone e da «il capo nutrizionista non '
+      + 'riesce».\n\n'
+      + '⛔ **Il pulsante.** Il testo era `Aggiungi a ${scelte.length || \'nessun\'} paniere${scelte.length '
+      + '=== 1 ? \'\' : \'i\'}`: a zero scelte componeva **«Aggiungi a nessun panierei»** — una parola che '
+      + 'non esiste, e una frase che si legge come un\'azione quando è uno stato. Il pulsante lì è '
+      + 'disabilitato ma aveva lo stile pieno, identico a uno attivo: si preme, non succede niente, '
+      + 'sembra rotto. Adesso a zero dice «Scegli un paniere qui sopra» e si vede che è spento.\n\n'
+      + '⛔ **Il secondo cancello.** `POST /panieri/ricetta` aveva `@RequirePage(panieri, manage)` **e** '
+      + '`@Roles(head_nutritionist, admin)`. Simone ha acceso «Panieri · gestisce» alla Nutrizionista '
+      + 'e quella casella non avrebbe acceso niente. ⚠️ **È lo stesso difetto di «Compensi staff» e '
+      + '«Provvigioni», trovato lo stesso giorno in una pagina diversa**: due volte in una giornata '
+      + 'non è una coincidenza. L\'elenco di ruoli sui due metodi è stato tolto; quello della classe '
+      + 'resta (coach e marketing non entrano) e serve da rete al fail-open di `PageGuard`.\n\n'
+      + '⚠️ **Ribalta `DECISIONI_Panieri.md` §19** («modifica solo capo nutrizionista e admin»), e '
+      + 'l\'ha ribaltata Simone sapendo che togliere una ricetta cambia i menu di **tutte** le clienti '
+      + 'di quella famiglia e regime.\n\n'
+      + '⛔ **E senza «gestisce» la sezione è in sola lettura.** Prima pastiglie e pulsanti comparivano '
+      + 'a chiunque avesse «vede», e il clic moriva in un 403 muto.',
+  },
+  {
+    chiave: 'nuova-ricetta-dalla-pagina-panieri',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-07T16:30',
+    titolo: '✅ «Nuova ricetta» anche dalla pagina Panieri, già indirizzata alla cella',
+    dettaglio:
+      'Simone, 7/9: «il "nuova ricetta" inseriamolo anche nella scheda dei panieri».\n\n'
+      + 'Nell\'elenco di una cella c\'è «Nuova ricetta»: la finestra è **la stessa** della pagina '
+      + 'Ricette e nasce col **regime** e il **pasto** della cella, e al passo «In quali panieri» quel '
+      + 'paniere è **già scelto**. Chi era dentro *Keto · omnivoro · Cena* e ha visto quattro cene, un '
+      + 'piatto lo vuole lì: fargli ridire tre cose che aveva già detto aprendo la cella sono tre '
+      + 'occasioni di sbagliarne una.\n\n'
+      + '⚠️ Si preseleziona **solo** se quel paniere è davvero fra i disponibili: una pastiglia accesa '
+      + 'su una scelta impossibile prometterebbe un\'aggiunta che poi fallisce.\n\n'
+      + '⛔ **Trovato rileggendo il proprio lavoro**: il pulsante chiede **due** permessi, non uno. '
+      + '`POST /recipes` è `@RequirePage(recipes)` senza livello, e su un `POST` quel default vale '
+      + '**manage**: con il solo `panieri · gestisce` avrebbe aperto una finestra che poi falliva al '
+      + 'salvataggio — cioè il difetto che questa stessa consegna stava correggendo due riquadri più '
+      + 'in là.\n\n'
+      + '⚠️ **Aperto, e non l\'ho toccato**: nella stessa pagina il pulsante «Modifica» sta dietro '
+      + '`can(\'recipes\')`, che è **«vede»**, mentre salvare vuole «gestisce». Stessa famiglia di '
+      + 'difetto, ma è codice che c\'era già e allargare una consegna per sistemarlo di rimbalzo è il '
+      + 'modo di non farla rivedere da nessuno. Da fare a parte.',
+  },
+  {
     chiave: 'compensi-e-provvigioni-al-responsabile',
     categoria: CODICE,
     ordine: 0,
@@ -423,9 +510,18 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 1,
     nata: '2026-09-03T11:00',
-    titolo: '▶️ 29 caselle di permesso su 65 spengono il menu e non la porta — adesso la pagina lo DICE',
+    titolo: '▶️ 27 caselle di permesso su 67 spengono il menu e non la porta — due agganciate il 7/9',
     dettaglio:
-      '**Misurato il 3/9**, mentre si chiudeva `togliere-una-chiave-non-basta-se-c-e-un-hub`: '
+      '✅ **7/9 — le prime due agganciate perché qualcuno ci ha sbattuto contro.** Simone ha dato '
+      + 'alla Responsabile Coach la vista su «Compensi staff» e «Provvigioni», lei ha aperto le '
+      + 'pagine e ha letto «riservata agli amministratori»: le due rotte erano `@Roles(admin)`, e la '
+      + 'casella accesa non accendeva niente. Ora leggono la matrice, e il loro `@Roles` è stato '
+      + '**tolto**, non affiancato — quindi non sono guardie inerti, decidono davvero. ⚠️ Le caselle '
+      + 'che non chiudono la porta scendono da **29 a 27**, i buchi da 20 a 18, le chiavi senza '
+      + 'guardia da 33 a 31 su 67. ⛔ **Questa voce è la prova che l\'avviso non basta**: il numero '
+      + 'era misurato, scritto e mostrato in un banner da settembre, e il difetto è stato pagato lo '
+      + 'stesso — da una persona che voleva solo entrare in una pagina.\n\n'
+      + '**Misurato il 3/9**, mentre si chiudeva `togliere-una-chiave-non-basta-se-c-e-un-hub`: '
       + '`BACKOFFICE_PAGES` dichiara **66** chiavi e solo **23** compaiono in un `@RequirePage`. Le '
       + 'altre **43** governano la voce di menu e basta: la rotta dietro è protetta da `@Roles`, o '
       + 'da niente. ⚠️ Qui c\'era scritto «65 e 22»: erano i numeri del pomeriggio, e la sera stessa '

@@ -20,6 +20,59 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-07
 
+- `[Sviluppo]` ✅ **La ✕ su un giorno di menu: si toglie, e i giorni dopo scalano indietro di uno.**
+  Richiesta di Simone; su quali giorni ha deciso lui: **da oggi in poi, oggi compreso**.
+  ⛔ **Lo scorrimento è la sola forma sicura, non una comodità.** `deliverIfEligible` non cerca i
+  buchi: guarda l'**ultimo** giorno in calendario e compone da lì. Cancellare un giorno che ne
+  lascia uno più avanti apre un buco **permanente** — «menu in preparazione» su quella data, per
+  sempre, senza nessun errore da nessuna parte. Facendo scalare i successivi non resta niente di
+  scoperto in mezzo, e quello che si libera è l'**ultima** data: esattamente dove il motore sa
+  comporre. È la prima cancellazione di `MenuDay` che non è una coda, ed è dichiarata così nella
+  sentinella che dal 24/8 pretende che ogni cancellazione dica perché non lascia niente in piedi.
+  ⚠️ **Si scorre tutto quello che viene dopo, buchi compresi**: su un calendario che ha già un vuoto,
+  fermarsi al primo salto lo **allargherebbe** da uno a due giorni. Così il vuoto resta uno e arretra.
+  ⚠️ Gli spostamenti si applicano **uno per uno, in ordine di data crescente**: `@@unique([clientId,
+  date])`, e ogni giorno prende la data che il precedente ha appena liberato.
+  ⚠️ **Decisione mia**: sui giorni spostati si azzerano `viewedAt` e `apertoDallaClienteIl` — dicono
+  «ha visto QUESTO menu in QUESTA data», e la data è cambiata.
+  ⚠️ Chiave `cancella_giorno_menu`, nata **con** la sua guardia. Quattro mutazioni provate sul modulo
+  puro, tutte e quattro mordono.
+
+- `[Sviluppo]` ⛔ **Panieri: il pulsante diceva «Aggiungi a nessun panierei», e sotto c'era un
+  secondo cancello che rendeva finta la casella.** Arrivato da due screenshot di Simone e da «il capo
+  nutrizionista non riesce».
+  Il testo era `Aggiungi a ${scelte.length || 'nessun'} paniere${scelte.length === 1 ? '' : 'i'}`: a
+  zero scelte una parola che non esiste, e una frase che si legge come un'azione quando è uno stato.
+  Il pulsante è disabilitato ma aveva lo stile pieno: si preme, non succede niente, sembra rotto.
+  ⛔ **E il cancello.** `POST /panieri/ricetta` aveva la chiave `panieri · manage` **e**
+  `@Roles('head_nutritionist','admin')`. Simone ha acceso «gestisce» alla Nutrizionista dalla pagina
+  Permessi, e quella casella non avrebbe acceso niente.
+  ⚠️ **È lo stesso difetto di «Compensi staff» e «Provvigioni», trovato lo stesso giorno, in una
+  pagina diversa.** Due volte in una giornata non è una coincidenza: è la forma che ha qui *«una
+  chiave dichiarata e non letta da nessuno»* — con l'aggravante, in tutti e tre i casi, che
+  l'interruttore c'era, si alzava, e restava buio. Chi cerca il prossimo lo cerchi dove una rotta ha
+  **due** cancelli invece di uno.
+  ⚠️ Ribalta `DECISIONI_Panieri.md` §19, e l'ha ribaltata Simone sapendo che togliere una ricetta
+  cambia i menu di **tutte** le clienti di quella famiglia e regime. Il `@Roles` della **classe**
+  resta: coach e marketing non entrano, e serve da rete al fail-open di `PageGuard`.
+  ⛔ E senza «gestisce» la sezione «In quali panieri» è ora in **sola lettura**: prima pastiglie e
+  pulsanti comparivano a chiunque avesse «vede», e il clic moriva in un 403 muto.
+
+- `[Sviluppo]` ✅ **«Nuova ricetta» anche dalla pagina Panieri, già indirizzata alla cella.**
+  La finestra è **la stessa** della pagina Ricette e nasce col regime e il pasto della cella; al
+  passo «In quali panieri» quel paniere è già scelto. Chi era dentro *Keto · omnivoro · Cena* e ha
+  visto quattro cene un piatto lo vuole lì, e fargli ridire tre cose che aveva già detto aprendo la
+  cella sono tre occasioni di sbagliarne una. Si preseleziona **solo** se quel paniere è davvero fra
+  i disponibili.
+  ⛔ **Trovato rileggendo il proprio lavoro**: il pulsante chiede **due** permessi. `POST /recipes` è
+  `@RequirePage('recipes')` senza livello, e su un `POST` quel default vale **manage**: con il solo
+  `panieri · gestisce` avrebbe aperto una finestra che poi falliva al salvataggio — il difetto che
+  questa stessa consegna stava correggendo due riquadri più in là.
+  ⚠️ **Aperto e non toccato**: nella stessa pagina «Modifica» sta dietro `can('recipes')`, che è
+  **«vede»**, mentre salvare vuole «gestisce». Stessa famiglia, ma è codice che c'era già: allargare
+  una consegna per sistemarlo di rimbalzo è il modo di non farla rivedere da nessuno.
+
+
 - `[Sviluppo]` ⛔ **«Compensi staff» e «Provvigioni»: la casella era accesa e la porta restava
   chiusa.** Segnalazione di Simone: *«Responsabile Coach ho dato visibilità di Compensi staff e di
   Provvigioni ma se cerca di entrare vede la scritta rossa visibile solo da admin… lei deve vederle

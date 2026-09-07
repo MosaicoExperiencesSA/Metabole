@@ -101,6 +101,7 @@ export const BACKOFFICE_PAGES = [
    * le due `GET` e non trova la porta: è coerente, ma va saputo.
    */
   'menu_a_mano',
+  'cancella_giorno_menu',
   /**
    * **LE DESCRIZIONI DELLE DIETE** — i testi che la cliente legge in app (3/9).
    *
@@ -538,6 +539,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     health_documents: { view: true, manage: true },
     // ⚠️ È il suo mestiere: è lei che il 31/8 sarebbe uscita in cinque minuti da una cliente senza menu.
     menu_a_mano: { view: true, manage: true },
+    cancella_giorno_menu: { view: true, manage: true },
     diet_descriptions: { view: true, manage: true },
   },
   head_nutritionist: {
@@ -570,6 +572,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     catalog_coverage: { view: true },
     health_documents: { view: true, manage: true },
     menu_a_mano: { view: true, manage: true },
+    cancella_giorno_menu: { view: true, manage: true },
     diet_descriptions: { view: true, manage: true },
     assign_nutritionist: { view: true, manage: true }, // il capo nutrizionisti assegna il nutrizionista
     engine_config: { view: true },
@@ -679,6 +682,7 @@ export const DEFAULT_PERMISSIONS: Record<Role, Partial<Record<PageKey, Perm>>> =
     // La pagina «Lavori»: di default solo admin, come ha chiesto Simone.
     dev_backlog: { view: true, manage: true },
     menu_a_mano: { view: true, manage: true },
+    cancella_giorno_menu: { view: true, manage: true },
     diet_descriptions: { view: true, manage: true },
   },
 };

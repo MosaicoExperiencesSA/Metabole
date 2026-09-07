@@ -703,9 +703,14 @@ function GeneratoreWidget() {
  * confermare gli allergeni deve poter correggere il piatto senza cambiare pagina (richiesta di
  * Simone). Restava privato di questo file e non lo usava nessun altro.
  */
-export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'catalogo', onClose, onSaved }: {
+export function RecipeModal({ recipe, defaultRegime, defaultSlot, paniereDiPartenza, contesto = 'catalogo', onClose, onSaved }: {
   recipe: Recipe | null;
   defaultRegime?: string;
+  /**
+   * ⚠️ Da quale cella della pagina Panieri è stata aperta, quando lo è stata (7/9). Serve al passo
+   * «In quali panieri», che se lo trova già selezionato.
+   */
+  paniereDiPartenza?: { famiglia: string; regime: string } | null;
   /**
    * ⚠️ Il pasto già scelto da chi apre la finestra. Serve a «Scrivi menu a mano», che la apre stando
    * dentro uno slot preciso: proporre «pranzo» a chi sta riempiendo la colazione è farlo sbagliare
@@ -922,7 +927,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
             e il server ricalcola `bloccata` sulla ricetta vera — che gli allergeni li ha appena
             ricevuti davvero, con un PATCH. Passarglielo nel prop sarebbe un doppione che un giorno
             dice il contrario del database. */}
-        <InQualiPanieri recipe={creata} />
+        <InQualiPanieri recipe={creata} paniereDiPartenza={paniereDiPartenza} />
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
           {/* ⚠️ L'etichetta dice cosa succede, e da «Scrivi menu a mano» succede una cosa in più. */}
           <button className="btn" onClick={() => onSaved(null, creata)}>
@@ -1028,7 +1033,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
         * ⚠️ Resta «In quali panieri», che è la stessa domanda fatta alla porta giusta.
         */}
       {/* Solo su una ricetta che esiste già: una ricetta nuova non ha ancora un id da collegare. */}
-      {recipe && <InQualiPanieri recipe={recipe} />}
+      {recipe && <InQualiPanieri recipe={recipe} paniereDiPartenza={paniereDiPartenza} />}
 
       <div className="row" style={{ alignItems: 'center', gap: 8, marginTop: 14 }}>
         <Toggle on={f.active} onChange={(v) => setF({ ...f, active: v })} />
@@ -1098,12 +1103,30 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, contesto = 'ca
  * ⚠️ **Vale subito, come i collegamenti sopra**: tocca il paniere, non la ricetta, e tenerlo in
  * sospeso vorrebbe dire poter chiudere la scheda a metà.
  */
-function InQualiPanieri({ recipe }: { recipe: Recipe }) {
+function InQualiPanieri({ recipe, paniereDiPartenza }: {
+  recipe: Recipe;
+  /**
+   * ⚠️ Il paniere da cui si è partiti, quando la ricetta nasce dalla pagina Panieri (Simone, 7/9:
+   * «il "nuova ricetta" inseriamolo anche nella scheda dei panieri»). Arriva già selezionato: chi
+   * era dentro la cella *Keto · omnivoro · Cena* e ha scritto un piatto lo voleva **lì**, e
+   * fargli ritrovare la pastiglia da premere sarebbe fargli ridire una cosa che aveva già detto.
+   */
+  paniereDiPartenza?: { famiglia: string; regime: string } | null;
+}) {
   interface Stato {
     dentro: { famiglia: string; regime: string; slot: string }[];
     disponibili: { famiglia: string; regime: string }[];
     bloccata: string | null;
   }
+  /**
+   * ⛔ **SENZA «gestisce» LA SEZIONE È IN SOLA LETTURA** (7/9, segnalato da Simone con lo
+   * screenshot). Fino a oggi le pastiglie e i due pulsanti comparivano a chiunque avesse «vede»: si
+   * sceglieva, si premeva, e la chiamata moriva in un 403 **muto** — la finestra restava lì, uguale,
+   * e sembrava un guasto. Un pulsante che c'è e non può funzionare è peggio di un pulsante che non
+   * c'è: manda a cercare un difetto dove c'è solo un permesso.
+   */
+  const { can } = useAuth();
+  const puoGestireIPanieri = can('panieri', 'manage');
   const [stato, setStato] = useState<Stato | null>(null);
   const [scelte, setScelte] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -1121,6 +1144,19 @@ function InQualiPanieri({ recipe }: { recipe: Recipe }) {
     }
   }
   useEffect(() => { void carica(); }, [recipe.id]);
+
+  /**
+   * ⚠️ Si preseleziona **solo se quel paniere è davvero fra i disponibili**: se la ricetta ci sta
+   * già, o è di un altro regime, una pastiglia accesa su una scelta impossibile prometterebbe
+   * un'aggiunta che poi fallisce.
+   */
+  useEffect(() => {
+    if (!paniereDiPartenza || !stato) return;
+    const chiave = `${paniereDiPartenza.famiglia}|${paniereDiPartenza.regime}`;
+    if (stato.disponibili.some((d) => `${d.famiglia}|${d.regime}` === chiave)) {
+      setScelte((v) => (v.includes(chiave) ? v : [...v, chiave]));
+    }
+  }, [stato, paniereDiPartenza?.famiglia, paniereDiPartenza?.regime]);
 
   /**
    * ⛔ **Uno alla volta, e il conto di cosa è andato.** Simone ha chiesto di poterne scegliere più
@@ -1195,9 +1231,11 @@ function InQualiPanieri({ recipe }: { recipe: Recipe }) {
                 <td><b>{p.famiglia}</b> <span className="chip">{p.regime}</span></td>
                 <td className="muted" style={{ fontSize: 11 }}>{SLOT[p.slot] ?? p.slot}</td>
                 <td style={{ textAlign: 'right' }}>
-                  <button className="btn ghost sm" disabled={busy} onClick={() => void togli(p)}>
-                    <i className="ti ti-unlink" /> Togli
-                  </button>
+                  {puoGestireIPanieri && (
+                    <button className="btn ghost sm" disabled={busy} onClick={() => void togli(p)}>
+                      <i className="ti ti-unlink" /> Togli
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1209,7 +1247,11 @@ function InQualiPanieri({ recipe }: { recipe: Recipe }) {
         ⛔ Il motivo si dice PRIMA del clic che fallirebbe: scoprirlo premendo un pulsante, paniere
         per paniere, è far cercare a qualcuno una cosa che sappiamo già.
       */}
-      {stato.bloccata ? (
+      {!puoGestireIPanieri ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          Sola lettura: per aggiungere o togliere panieri serve il permesso <b>Panieri · gestisce</b>.
+        </p>
+      ) : stato.bloccata ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠️ {stato.bloccata}</p>
       ) : stato.disponibili.length === 0 ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
@@ -1239,8 +1281,26 @@ function InQualiPanieri({ recipe }: { recipe: Recipe }) {
               );
             })}
           </div>
-          <button className="btn sm" style={{ marginTop: 8 }} disabled={busy || !scelte.length} onClick={() => void aggiungi()}>
-            <i className="ti ti-plus" /> {busy ? 'Aggiungo…' : `Aggiungi a ${scelte.length || 'nessun'} paniere${scelte.length === 1 ? '' : 'i'}`}
+          {/*
+            ⛔ **A ZERO SCELTE IL PULSANTE NON DICE «Aggiungi»** (7/9). La riga di prima era
+            `Aggiungi a ${scelte.length || 'nessun'} paniere${scelte.length === 1 ? '' : 'i'}`, e a
+            zero componeva **«Aggiungi a nessun panierei»**: una parola che non esiste, e una frase
+            che si legge come un'azione quando invece è uno stato. Il pulsante in quel momento è
+            disabilitato ma ha lo stile pieno, identico a uno attivo: si preme, non succede niente, e
+            sembra rotto. È così che è arrivata la segnalazione.
+          */}
+          <button
+            className={scelte.length ? 'btn sm' : 'btn ghost sm'}
+            style={{ marginTop: 8 }}
+            disabled={busy || !scelte.length}
+            onClick={() => void aggiungi()}
+          >
+            <i className="ti ti-plus" />{' '}
+            {busy
+              ? 'Aggiungo…'
+              : scelte.length === 0
+                ? 'Scegli un paniere qui sopra'
+                : `Aggiungi a ${scelte.length} paniere${scelte.length === 1 ? '' : 'i'}`}
           </button>
         </div>
       )}

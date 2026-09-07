@@ -55,15 +55,30 @@ export class PanieriController {
     return this.panieri.ricetteDi(decodeURIComponent(famiglia), regime, slot);
   }
 
+  /**
+   * ⛔ **CHI SCRIVE NEL PANIERE LO DECIDE LA CASELLA, non un elenco di ruoli scritto qui** (7/9).
+   *
+   * Fino a oggi c'era anche `@Roles('head_nutritionist', 'admin')`. Il 7/9 Simone ha acceso
+   * «Panieri · gestisce» alla **Nutrizionista** dalla pagina Permessi, e quella casella non avrebbe
+   * acceso niente: il secondo cancello l'avrebbe fermata lo stesso — ⚠️ **lo stesso difetto di
+   * «Compensi staff» e «Provvigioni»**, trovato lo stesso giorno, in una pagina diversa. Due volte
+   * in una giornata non è una coincidenza: è la forma che ha qui *«una chiave dichiarata e non letta
+   * da nessuno»*.
+   *
+   * ⚠️ **Ribalta la decisione del 31/8** (`DECISIONI_Panieri.md` §19: «modifica solo capo
+   * nutrizionista e admin»), e l'ha ribaltata lui sapendo cosa comporta: togliere una ricetta cambia
+   * i menu di **tutte** le clienti di quella famiglia e regime, non solo delle sue.
+   *
+   * ⚠️ Il `@Roles` della **classe** resta e vale: coach e marketing qui non entrano comunque. Quello
+   * che è sparito è il secondo elenco, quello che rendeva la casella decorativa.
+   */
   @RequirePage('panieri', 'manage')
-  @Roles('head_nutritionist', 'admin')
   @Post('ricetta')
   aggiungi(@Body() dto: RicettaNelPaniereDto, @CurrentUser() user: AuthUser) {
     return this.panieri.aggiungi(dto.famiglia, dto.regime, dto.slot, dto.recipeId, user.sub);
   }
 
   @RequirePage('panieri', 'manage')
-  @Roles('head_nutritionist', 'admin')
   @Delete('ricetta')
   togli(@Body() dto: RicettaNelPaniereDto, @CurrentUser() user: AuthUser) {
     return this.panieri.togli(dto.famiglia, dto.regime, dto.slot, dto.recipeId, user.sub);

@@ -1,0 +1,85 @@
+La ✕ su un giorno di menu, e i due panieri: il pulsante che mentiva e il cancello di troppo
+
+1. LA ✕ SU UN GIORNO DI MENU — I GIORNI DOPO SCALANO INDIETRO DI UNO
+Richiesta di Simone; su quali giorni ha deciso lui: da OGGI in poi, oggi compreso.
+
+⛔ LO SCORRIMENTO E' LA SOLA FORMA SICURA, NON UNA COMODITA'. `deliverIfEligible` non cerca i buchi:
+guarda l'ULTIMO giorno in calendario e compone da li. Cancellare un giorno che ne lascia uno piu
+avanti apre un buco PERMANENTE — «menu in preparazione» su quella data, per sempre, senza nessun
+errore da nessuna parte. E' il difetto raccontato in `una-porta-per-i-giorni.spec.ts`, vissuto dieci
+giorni in produzione su tre percorsi. Facendo scalare i successivi non resta niente di scoperto in
+mezzo, e quello che si libera e' l'ULTIMA data: esattamente dove il motore sa comporre.
+Questa e' la prima cancellazione di `MenuDay` che NON e' una coda, ed e' dichiarata cosi nella
+sentinella con la ragione per cui non lascia niente in piedi.
+
+⚠️ SI SCORRE TUTTO QUELLO CHE VIENE DOPO, BUCHI COMPRESI. Su un calendario che ha gia un vuoto,
+fermarsi al primo salto lo ALLARGHEREBBE da uno a due giorni. Scorrendo tutto il vuoto resta uno e
+arretra, e in fondo si libera una data.
+
+⚠️ Gli spostamenti si applicano UNO PER UNO, in ordine di data crescente: `@@unique([clientId,
+date])`, e ogni giorno prende la data che il precedente ha appena liberato. Al contrario, o con un
+`updateMany`, il database rifiuta.
+
+⚠️ DECISIONE MIA, da ribaltare se non torna: sui giorni spostati si azzerano `viewedAt` e
+`apertoDallaClienteIl`. Dicono «ha visto QUESTO menu in QUESTA data», e la data e' cambiata: tenerle
+bloccherebbe per sempre la rigenerazione di giornate che la cliente non ha ancora vissuto.
+
+⚠️ Col piano fermato non si tocca niente: si cancellerebbe senza poter ricomporre.
+⚠️ Un giorno gia vissuto non si tocca, e il cancello vero e' sul server: la ✕ nascosta e' cortesia.
+⚠️ Chiave `cancella_giorno_menu`, nata CON la guardia che la legge. Default: nutrizionista, capo
+nutrizionista, admin. Le chiavi salgono a 68 e quelle senza guardia restano 31.
+
+2. PANIERI: IL PULSANTE CHE MENTIVA
+Il testo era `Aggiungi a ${scelte.length || 'nessun'} paniere${scelte.length === 1 ? '' : 'i'}`: a
+zero scelte componeva «Aggiungi a nessun panierei» — una parola che non esiste, e una frase che si
+legge come un'azione quando invece e' uno stato. Il pulsante li e' disabilitato ma aveva lo stile
+pieno, identico a uno attivo: si preme, non succede niente, e sembra rotto. E' arrivato da uno
+screenshot, insieme a «il capo nutrizionista non riesce».
+✅ A zero dice «Scegli un paniere qui sopra» e si vede che e' spento.
+⛔ E senza «gestisce» la sezione e' in SOLA LETTURA: prima pastiglie e pulsanti comparivano a
+chiunque avesse «vede», e il clic moriva in un 403 muto.
+
+3. PANIERI: IL CANCELLO DI TROPPO — LO STESSO DIFETTO DI STAMATTINA
+`POST /panieri/ricetta` aveva la chiave `panieri · manage` E `@Roles('head_nutritionist','admin')`.
+Simone ha acceso «Panieri · gestisce» alla Nutrizionista dalla pagina Permessi, e quella casella non
+avrebbe acceso niente.
+⚠️ E' LO STESSO DIFETTO DI «Compensi staff» E «Provvigioni», trovato lo stesso giorno in una pagina
+diversa. Due volte in una giornata non e' una coincidenza: e' la forma che ha qui «una chiave
+dichiarata e non letta da nessuno», con l'aggravante che in tutti e tre i casi l'interruttore c'era,
+si alzava, e restava buio. Chi cerca il prossimo lo cerchi dove una rotta ha DUE cancelli invece di
+uno.
+⚠️ Ribalta `DECISIONI_Panieri.md` §19, e l'ha ribaltata Simone sapendo cosa comporta: togliere una
+ricetta cambia i menu di TUTTE le clienti di quella famiglia e regime.
+⚠️ Il `@Roles` della CLASSE resta: coach e marketing non entrano, e serve da rete al fail-open di
+`PageGuard`. Quello che e' sparito e' il secondo elenco, sui metodi — e la sentinella adesso
+pretende che non torni.
+
+4. «NUOVA RICETTA» ANCHE DALLA PAGINA PANIERI
+Nell'elenco di una cella. E' la STESSA finestra della pagina Ricette e nasce col regime e il pasto
+della cella; al passo «In quali panieri» quel paniere e' gia scelto. Chi era dentro Keto · omnivoro ·
+Cena e ha visto quattro cene un piatto lo vuole li, e fargli ridire tre cose che aveva gia detto
+aprendo la cella sono tre occasioni di sbagliarne una.
+⚠️ Si preseleziona SOLO se quel paniere e' davvero fra i disponibili: una pastiglia accesa su una
+scelta impossibile prometterebbe un'aggiunta che poi fallisce.
+
+⛔ TROVATO RILEGGENDO IL PROPRIO LAVORO: il pulsante chiede DUE permessi, non uno. `POST /recipes` e'
+`@RequirePage('recipes')` senza livello, e su un `POST` quel default vale manage: con il solo
+`panieri · gestisce` avrebbe aperto una finestra che poi falliva al salvataggio — cioe' esattamente
+il difetto che questa stessa consegna stava correggendo due riquadri piu in la.
+
+⚠️ APERTO E NON TOCCATO: nella stessa pagina «Modifica» sta dietro `can('recipes')`, che e' «vede»,
+mentre salvare vuole «gestisce». Stessa famiglia di difetto, ma e' codice che c'era gia: allargare
+una consegna per sistemarlo di rimbalzo e' il modo di non farla rivedere da nessuno. Da fare a parte.
+
+FILE
+- backend: `menu/togli-un-giorno.ts` + spec · `menu/menu.service.ts` (`togliUnGiornoDiMenu`) ·
+  `menu/una-porta-per-i-giorni.spec.ts` · `clients/clients.service.ts` · `clients/clients.controller.ts` ·
+  `catalog/panieri.controller.ts` · `catalog/panieri-guardia.spec.ts` · `permissions/pages.ts` ·
+  `permissions/chiavi-senza-guardia.spec.ts` · `lavori/voci-iniziali.ts`
+- backoffice: `pages/ClientDetail.tsx` · `pages/giorno-di-menu-si-toglie.spec.ts` (nuovo) ·
+  `pages/Ricette.tsx` · `pages/Panieri.tsx` · `pages/ricette-panieri.spec.ts` ·
+  `pages/panieri-pagina.spec.ts` · `pages/ricetta-nuova-e-panieri.spec.ts` ·
+  `pages/Permissions.tsx` · `lib/labels.ts`
+
+472 suite / 8097 test backend verdi · backoffice 34 suite / 323 verdi · quattro mutazioni sul modulo
+puro e tutte e quattro fanno fallire i test. Nessuna migrazione.

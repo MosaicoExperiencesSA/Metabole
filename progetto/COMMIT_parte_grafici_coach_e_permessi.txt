@@ -90,3 +90,8 @@ FILE
 470 suite / 8086 test backend verdi · backoffice 33 suite / 304 verdi · quattro mutazioni provate:
 tre mordono (mese UTC, storno azzerato, filtro di ruolo tolto), la quarta no ed e dichiarata sopra.
 Nessuna migrazione.
+
+E LA VOCE DI LAVORO CHE CONTAVA QUELLE CASELLE E' STATA RIALLINEATA
+`chiavi-dichiarate-che-nessuno-legge` diceva «29 su 65»: adesso dice 27 su 67, con scritto sopra
+perche' sono scese. E' la voce che quel difetto lo teneva contato — lasciarla ferma avrebbe voluto
+dire che il numero giusto stava solo nella prova.

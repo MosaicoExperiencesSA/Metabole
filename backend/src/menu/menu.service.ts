@@ -55,7 +55,8 @@ import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import { PushService } from '../notifications/push.service';
 import { provaAttivata } from '../commerce/prova-attivata';
 import { PrismaService } from '../prisma/prisma.service';
-import { giornoDelDato, toDateOnly } from '../common/date-only';
+import { giornoDelDato, giornoLocale, toDateOnly } from '../common/date-only';
+import { toglieUnGiorno } from './togli-un-giorno';
 import { quotaProteicaMinima } from './correzione-kcal';
 // La tabella unica delle finestre del digiuno: slot saltati, etichette e pasto principale.
 import { finestraCheAgisce, slotEsclusiTotali, spuntiniTolti } from './finestre-digiuno';
@@ -3630,6 +3631,98 @@ export class MenuService {
    * qualche caloria, il nulla è sbagliato e basta. `ripristinati` dice a chi chiama che la modifica
    * non è arrivata nel piatto, così può dirlo a chi l'ha fatta invece di lasciarglielo credere.
    */
+  /**
+   * ⛔ **TOGLIE UN GIORNO E FA SCORRERE INDIETRO QUELLI DOPO** (Simone, 7/9).
+   *
+   * ⚠️ **Questa è l'unica cancellazione di `MenuDay` che non è una coda**, ed è dichiarata così in
+   * `una-porta-per-i-giorni.spec.ts`. Non lascia un buco per un motivo diverso: i giorni successivi
+   * **scalano di uno**, quindi in mezzo non resta niente di scoperto e quello che si libera è
+   * l'**ultima** data — cioè esattamente dove `deliverIfEligible` sa comporre. Il giudizio (chi si
+   * sposta, dove, e in che ordine) sta nel modulo puro `togli-un-giorno.ts`.
+   *
+   * ⚠️ **Gli spostamenti si applicano UNO PER UNO, in ordine di data crescente.** `MenuDay` ha
+   * `@@unique([clientId, date])`: il primo prende la data appena liberata dalla cancellazione, il
+   * secondo quella liberata dal primo. Un `updateMany` o l'ordine inverso sbattono contro l'indice.
+   *
+   * ⚠️ **`viewedAt` e `apertoDallaClienteIl` si azzerano sui giorni spostati.** Quelle due colonne
+   * rispondono a «la cliente ha visto QUESTO menu in QUESTA data», e la data è cambiata: tenerle
+   * varrebbe «già aperto» su una giornata che lei non ha ancora vissuto, e i giorni «già aperti»
+   * non si rifanno più. Azzerarle è il verso prudente — al massimo si rifà una giornata che si
+   * poteva tenere.
+   *
+   * ⚠️ **Col piano fermato non si tocca niente**, come le tre rigenerazioni: si cancellerebbe senza
+   * poter ricomporre la coda, e la cliente resterebbe con un giorno in meno per sempre.
+   */
+  async togliUnGiornoDiMenu(
+    clientId: string,
+    dayId: string,
+    attoreId: string,
+  ): Promise<{ giornoTolto: string; spostati: number; dataLiberata: string | null; delivered: string[] }> {
+    if (await this.pianoFermato(clientId)) {
+      throw new BadRequestException('Il piano di questa cliente è fermo: finché è così un giorno non si può togliere, perché la coda non si ricomporrebbe.');
+    }
+
+    const righe = (await this.prisma.menuDay.findMany({
+      where: { clientId },
+      select: { id: true, date: true },
+    })) as { id: string; date: Date }[];
+
+    const esito = toglieUnGiorno({
+      calendario: righe.map((r) => ({ id: r.id, giorno: r.date.toISOString().slice(0, 10) })),
+      idDaTogliere: dayId,
+      // ⚠️ Il giorno di ROMA, non quello del processo: alle 00:30 del 7 settembre a Roma il server
+      // (UTC) è ancora al 6, e «i giorni passati non si toccano» taglierebbe un giorno più in là.
+      oggi: giornoLocale(new Date()),
+    });
+    if (!esito.si) throw new BadRequestException(esito.perche);
+
+    await this.prisma.$transaction(async (tx) => {
+      await (tx as unknown as typeof this.prisma).menuDay.delete({ where: { id: esito.idDaCancellare } });
+      for (const s of esito.spostamenti) {
+        await (tx as unknown as typeof this.prisma).menuDay.update({
+          where: { id: s.id },
+          data: {
+            date: toDateOnly(s.a),
+            // La finestra di visibilità segue la giornata: se restasse ferma, un giorno spostato
+            // indietro resterebbe invisibile il giorno in cui va mangiato.
+            visibleFrom: toDateOnly(s.a),
+            viewedAt: null,
+            apertoDallaClienteIl: null,
+          } as never,
+        });
+      }
+    });
+
+    // Fuori dalla transazione: la ricomposizione ha i suoi cancelli e le sue scritture, e se
+    // fallisce non deve riportare indietro la cancellazione già decisa.
+    const delivered = await this.deliverIfEligible(clientId);
+
+    await this.audit.log({
+      action: 'menu.day.removed',
+      actorId: attoreId,
+      entityType: 'menu_day',
+      entityId: esito.idDaCancellare,
+      metadata: {
+        clientId,
+        giorno: esito.giornoTolto,
+        spostati: esito.spostamenti.length,
+        dataLiberata: esito.dataLiberata,
+        ricomposti: delivered,
+      },
+    });
+    this.logger.log(
+      `Giorno ${esito.giornoTolto} tolto a ${clientId}: ${esito.spostamenti.length} giornate scalate di uno, `
+      + `liberata ${esito.dataLiberata ?? '(nessuna)'}, ricomposte ${delivered.length}.`,
+    );
+
+    return {
+      giornoTolto: esito.giornoTolto,
+      spostati: esito.spostamenti.length,
+      dataLiberata: esito.dataLiberata,
+      delivered,
+    };
+  }
+
   async redeliverFutureDays(clientId: string): Promise<{ removed: number; delivered: string[]; ripristinati: number }> {
     // Come `regenerateFromToday`: col piano fermo si cancellerebbe senza poter rierogare.
     if (await this.pianoFermato(clientId)) return { removed: 0, delivered: [], ripristinati: 0 };

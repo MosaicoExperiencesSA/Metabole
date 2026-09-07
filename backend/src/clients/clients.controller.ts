@@ -215,6 +215,29 @@ export class ClientsController {
   }
 
   /**
+   * ⛔ **TOGLIE UN GIORNO DI MENU, E FA SCORRERE INDIETRO QUELLI DOPO** (Simone, 7/9: «per ogni
+   * giorno di menu dobbiamo mettere la ✕ in un angolino… se è in mezzo scorrono i successivi in
+   * riempimento»).
+   *
+   * ⚠️ **Chiave sua, e nasce con la guardia che la legge.** Togliere un giorno di menu non è
+   * «aprire la scheda di una cliente»: è decidere che una persona quel giorno mangia altro, e la
+   * conseguenza arriva nella sua app. Con `clients` sarebbe stato un potere regalato a chiunque
+   * apra una scheda, e non separabile senza un rilascio.
+   *
+   * ⚠️ `manage`, non `view`: qui si cancella.
+   */
+  @RequirePage('cancella_giorno_menu', 'manage')
+  @HttpCode(200)
+  @Delete(':id/menus/:dayId')
+  togliGiornoDiMenu(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('dayId') dayId: string,
+  ) {
+    return this.clients.togliGiornoDiMenu(id, user.sub, dayId);
+  }
+
+  /**
    * ⛔ **LA STESSA DOMANDA DEL LATO CLIENTE, per chi corregge dal backoffice** (voce
    * `pesata-strana-chiedi-conferma`). Sola lettura: dice se il numero che si sta scrivendo non
    * torna con le pesate confinanti, e **non tocca niente**.

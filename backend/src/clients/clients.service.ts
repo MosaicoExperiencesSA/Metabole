@@ -1686,6 +1686,19 @@ export class ClientsService {
    * preciso. Il tetto sui giorni e sul `take` c'è perché un intervallo aperto su una cliente di due
    * anni sarebbe una query da migliaia di righe per rispondere a un click.
    */
+  /**
+   * TOGLIE UN GIORNO DAL MENU DELLA CLIENTE, facendo scorrere indietro quelli dopo (Simone, 7/9).
+   *
+   * ⚠️ Qui c'è **solo il perimetro**: che chi apre questa scheda possa davvero aprirla. Chi può
+   * premere la ✕ lo decide la chiave `cancella_giorno_menu` sul controller, e cosa succede alle
+   * giornate lo decide `MenuService.togliUnGiornoDiMenu` — che è dove sta il motore, e dove sta la
+   * ragione per cui questa cancellazione non apre un buco.
+   */
+  async togliGiornoDiMenu(userId: string, actorId: string, dayId: string) {
+    await this.assertClientAccess(actorId, userId);
+    return this.menu.togliUnGiornoDiMenu(userId, dayId, actorId);
+  }
+
   async getMenus(userId: string, actorId: string, periodo?: { from?: string; to?: string }) {
     await this.assertClientAccess(actorId, userId);
     // Finestra dei menu: di default gli ultimi 56 giorni + 7 avanti; con `from`/`to` si aprono i

@@ -23,7 +23,9 @@ describe('la ricetta appena creata chiede in quali panieri va', () => {
 
   /** ⚠️ E il secondo passo riusa lo stesso pezzo della modifica, invece di un secondo elenco. */
   it('⚠️ il secondo passo è `InQualiPanieri`, non un elenco nuovo', () => {
-    expect(ricette).toMatch(/<InQualiPanieri recipe=\{creata\} \/>/);
+    // ⚠️ Dal 7/9 porta anche il paniere di partenza (apertura dalla pagina Panieri): il pezzo
+    // riusato resta lo stesso, la prova guarda il nome e non la lista degli attributi.
+    expect(ricette).toMatch(/<InQualiPanieri recipe=\{creata\}/);
   });
 
   /**

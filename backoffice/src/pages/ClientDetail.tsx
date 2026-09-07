@@ -860,6 +860,46 @@ export function ClientDetail() {
     }
   }
 
+  /**
+   * ⛔ **TOGLIERE UN GIORNO DI MENU** (Simone, 7/9). Chiave sua, `manage`: qui si cancella.
+   *
+   * ⚠️ **Solo da oggi in poi**, e l'ha deciso lui. Un giorno già vissuto non si fa scorrere: le date
+   * dei giorni dopo finirebbero nel passato, sopra giornate che la cliente ha aperto e valutato. Il
+   * cancello vero è sul server — questo toglie la ✕ dove non servirebbe a niente premerla.
+   */
+  const puoTogliereUnGiorno = can('cancella_giorno_menu', 'manage');
+  const [giornoBusy, setGiornoBusy] = useState<string | null>(null);
+  const oggiIso = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  async function togliGiornoDiMenu(day: MenuDayRow) {
+    /**
+     * ⚠️ La conferma dice **cosa succede dopo**, non «sei sicuro?». Lo scorrimento è la parte che
+     * nessuno si aspetta: senza scriverlo, chi preme crede di aver lasciato un buco.
+     */
+    const oggi = day.date === oggiIso;
+    if (!confirm(
+      `Togliere il menu del ${date(day.date)}?\n\n`
+      + 'I giorni successivi scalano indietro di uno per riempire il vuoto, e il motore ricompone '
+      + 'l\u2019ultimo giorno del piano: la cliente non resta con una giornata scoperta.\n'
+      + (oggi
+        ? '\n\u26a0\ufe0f \u00c8 il giorno di OGGI: se ha gi\u00e0 aperto l\u2019app stamattina, questo menu le sparisce e al suo posto vede quello di domani.'
+        : ''),
+    )) return;
+    setGiornoBusy(day.id);
+    setMenusErr(null);
+    try {
+      await api(`/admin/clients/${id}/menus/${day.id}`, { method: 'DELETE' });
+      await openMenus(menusPeriodo ?? undefined);
+    } catch (err) {
+      setMenusErr(err instanceof ApiError ? err.message : 'Non riesco a togliere questo giorno.');
+    } finally {
+      setGiornoBusy(null);
+    }
+  }
+
   // Correzione misure inserite male dal cliente (permesso dedicato "Correggi misure cliente")
   const canFixMeasures = can('fix_measures', 'manage');
   // Cambio data inizio piano (permesso dedicato "Cambia data inizio piano")
@@ -2688,8 +2728,21 @@ export function ClientDetail() {
                   <div key={day.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 14px' }}>
                     <div className="spread" style={{ marginBottom: 6 }}>
                       <b>{date(day.date)}</b>
-                      <span className="muted" style={{ fontSize: 12 }}>
-                        {day.dietName ?? '—'} · livello {day.level}
+                      <span className="row" style={{ gap: 8, alignItems: 'center' }}>
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {day.dietName ?? '—'} · livello {day.level}
+                        </span>
+                        {puoTogliereUnGiorno && day.date >= oggiIso && (
+                          <button
+                            title="Togli questo giorno: i successivi scalano indietro di uno"
+                            aria-label={`Togli il menu del ${date(day.date)}`}
+                            disabled={giornoBusy != null}
+                            onClick={() => void togliGiornoDiMenu(day)}
+                            style={{ border: 'none', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 2, opacity: giornoBusy === day.id ? 0.4 : 1 }}
+                          >
+                            <i className="ti ti-x" />
+                          </button>
+                        )}
                       </span>
                     </div>
                     <div style={{ display: 'grid', gap: 4 }}>

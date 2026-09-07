@@ -36,7 +36,7 @@ const PERMESSI = new Map<string, string>([
     // `redeliverFutureDays` (> oggi), `regenerateFromToday` (>= oggi), `restartFromPlanStart`
     // (tutto): tre `where` per DATA, nessun filtro sul contenuto e nessuno su `viewedAt`. Dopo
     // ognuna, l'ultimo giorno rimasto è per forza precedente a quello che si vuole ricomporre.
-    'le tre rigenerazioni intere: cancellano per data, quindi sono code per costruzione',
+    'le tre rigenerazioni intere sono code per costruzione (cancellano per data); ⛔ `togliUnGiornoDiMenu` NO — e non lascia un buco per un motivo diverso: i giorni dopo SCALANO DI UNO, quindi in mezzo non resta niente di scoperto e quello che si libera è l ULTIMA data, dove `deliverIfEligible` sa comporre',
   ],
   [
     'src/vera/vera-chat.service.ts',

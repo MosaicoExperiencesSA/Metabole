@@ -222,3 +222,45 @@ describe('le frasi dei filtri si leggono dove finiscono', () => {
       .join('\n')).not.toContain('**');
   });
 });
+
+/**
+ * ⛔ **«NUOVA RICETTA» ANCHE DA QUI** — Simone, 7/9: «il "nuova ricetta" inseriamolo anche nella
+ * scheda dei panieri».
+ *
+ * ⚠️ Non è lo stesso gesto che farlo dalla pagina Ricette, ed è la ragione per cui vale: chi sta
+ * guardando *Keto · omnivoro · Cena* e vede quattro cene, un piatto lo vuole **lì**. Se la finestra
+ * si aprisse vuota, chi la usa dovrebbe ridire regime, pasto e paniere — tre cose che aveva già
+ * detto aprendo la cella, e tre occasioni di sbagliarne una.
+ */
+describe('⛔ scrivere una ricetta nuova stando dentro una cella del paniere', () => {
+  const pagina = src('./Panieri.tsx');
+
+  /**
+   * ⛔ **DUE permessi, non uno** (trovato in revisione, 7/9). `POST /recipes` è
+   * `@RequirePage('recipes')` senza livello, e su un `POST` quel default vale **manage**: chiedere
+   * solo `panieri · gestisce` avrebbe mostrato un pulsante che apre una finestra e poi fallisce al
+   * salvataggio — il difetto che questa stessa consegna sta correggendo in `InQualiPanieri`.
+   */
+  it('⛔ il pulsante chiede «gestisce» sui panieri E «gestisce» sulle ricette', () => {
+    expect(pagina).toMatch(/puoGestire && puoScrivereRicette && \([\s\S]{0,300}Nuova ricetta/);
+    expect(pagina).toMatch(/const puoScrivereRicette = can\('recipes', 'manage'\)/);
+  });
+
+  it('⛔ nasce col REGIME e col PASTO della cella: non si ridice quello che si è già detto aprendola', () => {
+    expect(pagina).toMatch(/defaultRegime=\{nuovaPerLaCella\.cella\.regime\}/);
+    expect(pagina).toMatch(/defaultSlot=\{nuovaPerLaCella\.slot\}/);
+  });
+
+  it('⛔ e il paniere di partenza arriva già scelto al passo «In quali panieri»', () => {
+    expect(pagina).toMatch(/paniereDiPartenza=\{\{ famiglia: nuovaPerLaCella\.cella\.famiglia, regime: nuovaPerLaCella\.cella\.regime \}\}/);
+  });
+
+  it('⚠️ è la STESSA finestra della modifica, non una copia', () => {
+    expect(pagina).toMatch(/<RecipeModal\s+recipe=\{null\}/);
+    expect(pagina).toMatch(/<RecipeModal\s+recipe=\{inModifica\}/);
+  });
+
+  it('⚠️ si ricarica anche CHIUDENDO: la ricetta può essere nata nei due passi dopo il salvataggio, e i numeri sarebbero già vecchi', () => {
+    expect(pagina).toMatch(/onClose=\{\(\) => \{\s*\n\s*setNuovaPerLaCella\(null\);[\s\S]{0,400}void carica\(\);/);
+  });
+});

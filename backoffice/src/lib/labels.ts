@@ -69,6 +69,7 @@ export const PAGE_LABEL: Record<string, string> = {
   equivalence_groups: 'Gruppi di equivalenza',
   panieri: 'Panieri',
   menu_a_mano: 'Menu scritto a mano',
+  cancella_giorno_menu: 'Cancella un giorno di menu',
   diet_descriptions: 'Descrizioni diete',
   food_swaps: 'Sostituzioni',
   nutri_assistant: 'Assistente (Vera)',

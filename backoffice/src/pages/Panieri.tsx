@@ -107,6 +107,15 @@ export function Panieri() {
    * che si apre e non si chiude è peggio di una porta che non c'è.
    */
   const puoModificare = can('recipes');
+  /**
+   * ⛔ **SCRIVERE una ricetta è `recipes` in «gestisce», non in «vede»** — trovato rileggendo il
+   * proprio lavoro, il 7/9. `POST /recipes` porta `@RequirePage('recipes')` senza livello, e su un
+   * `POST` quel default vale **manage**. Il pulsante «Nuova ricetta» chiede quindi **due** permessi:
+   * `recipes · gestisce` per scriverla e `panieri · gestisce` per metterla in questa cella — se ne
+   * chiedesse uno solo mostrerebbe un pulsante che fallisce al salvataggio, cioè esattamente il
+   * difetto che questa consegna sta correggendo altrove.
+   */
+  const puoScrivereRicette = can('recipes', 'manage');
   const [celle, setCelle] = useState<Cella[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
@@ -115,6 +124,17 @@ export function Panieri() {
   const [ricette, setRicette] = useState<Ricetta[] | null>(null);
   /** La ricetta aperta nel popup «Modifica ricetta», caricata intera: la tabella ne ha solo un pezzo. */
   const [inModifica, setInModifica] = useState<Recipe | null>(null);
+  /**
+   * ⛔ **«Nuova ricetta» anche da qui** (Simone, 7/9: «il "nuova ricetta" inseriamolo anche nella
+   * scheda dei panieri»).
+   *
+   * ⚠️ Non è lo stesso gesto che farlo dalla pagina Ricette, ed è il motivo per cui vale la pena:
+   * chi sta guardando *Keto · omnivoro · Cena* e si accorge che le cene sono quattro, un piatto lo
+   * vuole **lì**. Aprendo da qui la finestra nasce già col **regime** e il **pasto** della cella, e
+   * al passo «In quali panieri» quel paniere è già scelto: chi scrive la ricetta non deve ridire
+   * tre cose che aveva già detto aprendo la cella.
+   */
+  const [nuovaPerLaCella, setNuovaPerLaCella] = useState<{ cella: Cella; slot: string } | null>(null);
   /**
    * ⛔ **I due pulsanti valgono per TUTTA la pagina** — i numeri della matrice e l'elenco che si
    * apre sotto. Un filtro che cambiasse solo l'elenco farebbe leggere due verità diverse nella
@@ -358,7 +378,14 @@ export function Panieri() {
             <h2 style={{ margin: 0 }}>
               {aperta.cella.famiglia} · {NOME_REGIME[aperta.cella.regime] ?? aperta.cella.regime} · {NOME_SLOT[aperta.slot]}
             </h2>
-            <button className="btn ghost" onClick={() => { setAperta(null); setRicette(null); }}>Chiudi</button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {puoGestire && puoScrivereRicette && (
+                <button className="btn" onClick={() => setNuovaPerLaCella(aperta)} title="Scrivi un piatto nuovo per questa cella: nasce già con questo regime e questo pasto">
+                  <i className="ti ti-plus" /> Nuova ricetta
+                </button>
+              )}
+              <button className="btn ghost" onClick={() => { setAperta(null); setRicette(null); }}>Chiudi</button>
+            </div>
           </div>
           {(aperta.slot === 'morning_snack' || aperta.slot === 'afternoon_snack') && (
             <p className="muted" style={{ marginTop: 4 }}>
@@ -419,6 +446,32 @@ export function Panieri() {
         cambia i conti della matrice, e lasciare i numeri vecchi sotto un popup appena chiuso è il
         modo più diretto per far credere che il salvataggio non abbia funzionato.
       */}
+      {/*
+        ⚠️ **Lo slot della cella, non quello «capofila».** Spuntino e merenda pescano dallo stesso
+        paniere e l'elenco li mostra insieme: aprendo da «Merenda» la ricetta nasce merenda, che è
+        quello che ha in testa chi ha premuto. Dove finisce davvero la riga di paniere lo normalizza
+        il server, come fa già per ogni aggiunta.
+      */}
+      {nuovaPerLaCella && (
+        <RecipeModal
+          recipe={null}
+          defaultRegime={nuovaPerLaCella.cella.regime}
+          defaultSlot={nuovaPerLaCella.slot}
+          paniereDiPartenza={{ famiglia: nuovaPerLaCella.cella.famiglia, regime: nuovaPerLaCella.cella.regime }}
+          onClose={() => {
+            setNuovaPerLaCella(null);
+            // ⚠️ Si ricarica anche chiudendo: la ricetta può essere stata creata e messa nel paniere
+            // nei due passi dopo il salvataggio, e i numeri della matrice sarebbero già vecchi.
+            void carica();
+            if (aperta) void apri(aperta.cella, aperta.slot);
+          }}
+          onSaved={() => {
+            void carica();
+            if (aperta) void apri(aperta.cella, aperta.slot);
+          }}
+        />
+      )}
+
       {inModifica && (
         <RecipeModal
           recipe={inModifica}
