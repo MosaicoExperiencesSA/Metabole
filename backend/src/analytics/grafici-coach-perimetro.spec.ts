@@ -11,6 +11,10 @@
  *  · in tutti e tre i casi il filtro sul **ruolo** c'è, perché `reteSottoDiMe` risale anche l'arco
  *    delle nutrizioniste e in un grafico «Fatturato coach» una nutrizionista è una barra che
  *    nessuno sa leggere.
+ *
+ * ⛔ **E dentro il filtro c'è anche `sales`**, chiuso il 7/9 sera: senza, una Responsabile Coach con
+ * clienti assegnate a sé non aveva nessuna barra, e la somma delle barre smetteva di essere il
+ * fatturato della rete — cioè la promessa scritta in questa stessa consegna.
  */
 import { Test } from '@nestjs/testing';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
@@ -52,7 +56,7 @@ describe('AnalyticsService.graficiCoach — il perimetro «chi è collegato sott
     const chiamate = prisma.staff.findMany.mock.calls;
     const where = chiamate[chiamate.length - 1][0].where;
     expect(where.id).toEqual({ in: expect.arrayContaining(['staff-io', 'staff-sotto-1', 'staff-sotto-2']) });
-    expect(where.user).toEqual({ role: { in: ['coach', 'coach_coordinator'] } });
+    expect(where.user).toEqual({ role: { in: ['coach', 'coach_coordinator', 'sales'] } });
   });
 
   it('⛔ senza scheda staff la coordinatrice NON vede tutte: vede zero', async () => {
@@ -69,7 +73,7 @@ describe('AnalyticsService.graficiCoach — il perimetro «chi è collegato sott
     await service.graficiCoach(utente(role));
     const where = whereDelloStaff();
     expect(where.id).toBeUndefined();
-    expect(where.user).toEqual({ role: { in: ['coach', 'coach_coordinator'] } });
+    expect(where.user).toEqual({ role: { in: ['coach', 'coach_coordinator', 'sales'] } });
   });
 
   it('senza nessuna coach nella rete non si interroga né i pagamenti né il registro', async () => {

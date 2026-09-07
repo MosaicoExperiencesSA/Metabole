@@ -106,7 +106,16 @@ export function Panieri() {
    * solo `panieri` vorrebbe dire farlo compilare un modulo che al «Salva» risponde 403. Una porta
    * che si apre e non si chiude è peggio di una porta che non c'è.
    */
-  const puoModificare = can('recipes');
+  /**
+   * ⛔ **«Modifica» apre una finestra che SALVA, quindi chiede «gestisce»** (7/9 sera).
+   *
+   * Qui c'era `can('recipes')`, che è **«vede»**. Oggi i tre ruoli che hanno `recipes` ce l'hanno in
+   * tutti e due i livelli, quindi non cambia niente per nessuno — ⚠️ ma è vero **finché nessuno
+   * spegne «gestisce» a qualcuno dalla pagina Permessi. Il giorno che succede, quella persona
+   * troverebbe il pulsante, aprirebbe la scheda, scriverebbe, e il salvataggio morirebbe in un 403:
+   * lo stesso difetto che questa consegna ha appena corretto due volte.
+   */
+  const puoModificare = can('recipes', 'manage');
   /**
    * ⛔ **SCRIVERE una ricetta è `recipes` in «gestisce», non in «vede»** — trovato rileggendo il
    * proprio lavoro, il 7/9. `POST /recipes` porta `@RequirePage('recipes')` senza livello, e su un

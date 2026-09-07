@@ -20,6 +20,35 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-07
 
+- `[Sviluppo]` ✅ **Chiuso quello che avevo lasciato aperto in giornata: tre punti, e uno era una
+  frase falsa scritta da me.**
+  ⛔ **`applicaRestrizione` tocca solo chi ha un percorso.** È l'unica azione del progetto che scrive
+  sul profilo di **molte persone in una volta**, e fino a stasera scriveva `dislikedFoods` anche a
+  chi aveva chiuso mesi prima: una modifica su qualcuno a cui non stiamo erogando niente, che
+  riemerge il giorno che quella persona torna — con un divieto deciso per una coorte a cui in quel
+  momento non apparteneva.
+  ⚠️ **Il filtro sta a valle, non nel `where`, e non è una scorciatoia**: serve la differenza fra i
+  due numeri. Chi approva legge quante ne ha toccate **e** quante ne ha saltate, e perché. Un `where`
+  filtrato avrebbe dato il numero giusto facendo sparire la portata — e una scrittura di massa di cui
+  non si conosce la portata è quella che nessuno ferma in tempo. Il **tetto** ora conta chi verrà
+  toccato davvero: 201 nel perimetro ma 3 con un percorso non lo fanno più scattare.
+  ⛔ **La Responsabile Coach non aveva nessuna barra, e questo rendeva FALSA una frase di questa
+  stessa consegna.** I grafici prendevano i soli ruoli coach-like: una `sales` con clienti assegnate
+  a sé spariva, e «la somma delle barre è il fatturato della rete, contato una volta» smetteva di
+  essere vero senza che niente lo segnalasse. ⚠️ Un grafico che promette un totale e non lo mantiene
+  è peggio di un grafico che il totale non lo promette. Adesso `sales` è nell'elenco: se ha clienti
+  ha la sua barra, se non ne ha la barra è a zero — la stessa regola di tutte.
+  ⚠️ **E «Modifica» nella pagina Panieri chiede «gestisce»**, non «vede». Oggi non cambia niente per
+  nessuno (i tre ruoli che hanno `recipes` ce l'hanno a tutti e due i livelli); cambia il giorno che
+  qualcuno spegne «gestisce» a qualcun altro — cioè lo stesso difetto corretto due volte stamattina.
+  ⛔ **E la sentinella di Vera ha dato un FALSO NEGATIVO, in questa stessa sessione.** Guardava 1400
+  caratteri dopo la chiamata: filtrando `applicaRestrizione`, il suo marcatore è finito **dentro la
+  finestra della funzione precedente** e `scopertePerDieta` — che scoperta lo è davvero — ha smesso
+  di essere contata. ⚠️ Una prova che diventa verde perché è migliorato il codice accanto non sta
+  guardando quello che dice di guardare. Ora il marcatore deve stare **dentro le parentesi della
+  chiamata**, con bilanciamento vero, o nelle poche righe subito prima — deroga che serve a un caso
+  solo, le due porte gemelle che condividono un `where` estratto in una `const`.
+
 - `[Sviluppo]` ⛔ **«In quali panieri sta» spariva senza dire niente, e quando restava poteva
   mentire.** Segnalazione di Simone: *«l'elenco c'è ma non tutte lo mostrano»* → *«non ho la lista
   panieri per poter aggiungere»*. Due difetti diversi, tutti e due muti.

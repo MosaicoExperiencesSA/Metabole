@@ -307,7 +307,19 @@ export class AnalyticsService {
     const staff = (await this.prisma.staff.findMany({
       where: {
         ...(ammessi ? { id: { in: ammessi } } : {}),
-        user: { role: { in: [...COACH_LIKE_ROLES] } },
+        /**
+         * ⛔ **ANCHE LA RESPONSABILE COACH, e non è un ruolo in più per gentilezza** (7/9, chiuso la
+         * sera stessa). Con i soli ruoli coach-like, una Responsabile Coach che ha clienti assegnate
+         * a sé non aveva **nessuna** barra: il suo fatturato non compariva da nessuna parte, e la
+         * frase che questa consegna scrive — *«la somma delle barre è il fatturato della rete,
+         * contato una volta»* — diventava **falsa**, senza che niente lo segnalasse.
+         *
+         * ⚠️ Un grafico che promette un totale e non lo mantiene è peggio di un grafico che il
+         * totale non lo promette. `sales` sta nella catena provvigionale (coach → coordinatrice →
+         * responsabile) e può avere clienti sue: se ne ha, ha la sua barra; se non ne ha, la barra è
+         * a zero — che è la stessa regola di tutte le altre.
+         */
+        user: { role: { in: [...COACH_LIKE_ROLES, 'sales'] } },
       } as never,
       select: { id: true, displayName: true },
       orderBy: { displayName: 'asc' },

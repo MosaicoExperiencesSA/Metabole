@@ -22,6 +22,7 @@ import { Logger } from '@nestjs/common';
 import { combaciaAlimento } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { perimetroClienti } from '../common/perimetro-clienti';
+import { chiHaUnPianoAttivo } from '../common/piano-attivo';
 import { registraSostituzione } from '../food-swaps/registra-sostituzione';
 import type { PrismaService } from '../prisma/prisma.service';
 import { CAMPI_DEL_GIORNO, type GiornoDaValutare, clientiColpiti, codePerCliente, daQuandoSiPuoRifare, giorniColpitiDaiVietati } from './menu-da-rifare';
@@ -474,18 +475,55 @@ async function applicaRestrizione(prisma: PrismaService, p: Proposta, termini: s
 
   // ⚠️ Il perimetro è quello di CHI HA PROPOSTO, non di chi approva.
   const perimetro = await perimetroClienti(prisma, p.nutrizionistaId);
-  const profili = (await prisma.clientProfile.findMany({
+  const tutte = (await prisma.clientProfile.findMany({
     where: (perimetro ? { [perimetro.field]: { in: perimetro.staffIds } } : {}) as never,
     select: { userId: true, dislikedFoods: true },
   })) as { userId: string; dislikedFoods: string[] }[];
 
+  /**
+   * ⛔ **SOLO CHI HA UN PERCORSO IN CORSO** (7/9, il pezzo che il giro su Vera aveva lasciato
+   * fuori di proposito: è l'unica azione del progetto che scrive su molte persone in una volta, e
+   * meritava di essere guardata da sola).
+   *
+   * Fin qui questa regola scriveva `dislikedFoods` a **tutte** le clienti del perimetro, comprese
+   * quelle che hanno chiuso mesi fa. ⚠️ Non è un fastidio da poco: è una scrittura sul profilo di
+   * una persona a cui non stiamo erogando niente, fatta senza che nessuno se ne accorga, e che
+   * riemergerà il giorno che quella cliente torna — con un divieto deciso per una coorte a cui in
+   * quel momento non apparteneva.
+   *
+   * ⚠️ **E le due si CONTANO tutte e due**, ed è il punto. Filtrare e basta avrebbe fatto sparire il
+   * numero: chi approva avrebbe letto «applicata a 12 clienti» senza sapere che ce n'erano 30 nel
+   * perimetro. Qui si dice sia quante sono state toccate sia quante sono state saltate e perché —
+   * la misura sta dove si prende la decisione, non in un tabulato che nessuno lancia.
+   */
+  const conPercorso = await chiHaUnPianoAttivo(prisma as never, tutte.map((t) => t.userId));
+  const profili = tutte.filter((t) => conPercorso.has(t.userId));
+  const saltate = tutte.length - profili.length;
+  const perche = saltate
+    ? ` ${saltate} ${saltate === 1 ? 'è stata saltata perché non ha' : 'sono state saltate perché non hanno'} un percorso in corso.`
+    : '';
+
+  /**
+   * ⚠️ **Il tetto conta chi verrà toccato DAVVERO**, non chi sta nel perimetro: contare anche le
+   * concluse avrebbe fatto scattare il freno su una scrittura che ne raggiunge la metà, e un freno
+   * che si chiude quando non serve è un freno che poi si alza.
+   */
   if (profili.length > MAX_CLIENTI_IN_UNA_VOLTA) {
     return {
       toccate: 0,
       riepilogo:
-        `Questa regola toccherebbe ${profili.length} clienti in una volta, che è oltre il tetto di ` +
-        `${MAX_CLIENTI_IN_UNA_VOLTA}. Non ho scritto niente: una modifica di questa portata va fatta ` +
-        'sapendo esattamente su chi ricade.',
+        `Questa regola toccherebbe ${profili.length} clienti con un percorso in corso, che è oltre il ` +
+        `tetto di ${MAX_CLIENTI_IN_UNA_VOLTA}. Non ho scritto niente: una modifica di questa portata ` +
+        'va fatta sapendo esattamente su chi ricade.' + perche,
+    };
+  }
+
+  if (!profili.length) {
+    return {
+      toccate: 0,
+      riepilogo:
+        `Nessuna cliente da toccare: delle ${tutte.length} del perimetro, nessuna ha un percorso in `
+        + 'corso. La regola resta scritta e varrà per chi comincerà da qui in avanti.',
     };
   }
 
@@ -504,10 +542,10 @@ async function applicaRestrizione(prisma: PrismaService, p: Proposta, termini: s
   return {
     toccate,
     riepilogo:
-      toccate === 0
-        ? `Erano già tutte a posto: nessuna delle ${profili.length} clienti aveva bisogno della modifica.`
-        : `Applicata a ${toccate} client${toccate === 1 ? 'e' : 'i'} su ${profili.length}: ` +
-          `da adesso non vedranno più ${puliti.join(', ')}.`,
+      (toccate === 0
+        ? `Erano già tutte a posto: nessuna delle ${profili.length} clienti con un percorso in corso aveva bisogno della modifica.`
+        : `Applicata a ${toccate} client${toccate === 1 ? 'e' : 'i'} su ${profili.length} con un percorso in corso: ` +
+          `da adesso non vedranno più ${puliti.join(', ')}.`) + perche,
   };
 }
 

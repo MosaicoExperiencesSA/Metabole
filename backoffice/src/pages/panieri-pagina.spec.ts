@@ -292,3 +292,17 @@ describe('⛔ il pallino di «verificata» accanto al nome del piatto', () => {
     expect(pagina).toContain("aria-label={r.verificata === true ? 'verificata' : 'non verificata'}");
   });
 });
+
+/**
+ * ⛔ **«Modifica» chiede «gestisce», non «vede»** — 7/9 sera, chiudendo quello che avevo lasciato
+ * aperto la mattina.
+ *
+ * Apre una finestra che **salva**, e `PATCH /recipes/:id` chiede `manage`. Oggi i tre ruoli che
+ * hanno `recipes` ce l'hanno in tutti e due i livelli, quindi non cambia niente per nessuno: cambia
+ * il giorno che qualcuno spegne «gestisce» a qualcun altro dalla pagina Permessi.
+ */
+describe('⛔ «Modifica» sta dietro il permesso che serve davvero', () => {
+  it('chiede `manage`, non il solo «vede»', () => {
+    expect(src('./Panieri.tsx')).toMatch(/const puoModificare = can\('recipes', 'manage'\)/);
+  });
+});

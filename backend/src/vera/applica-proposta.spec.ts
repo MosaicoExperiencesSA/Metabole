@@ -19,7 +19,20 @@ const proposta = (over: Partial<Proposta> = {}): Proposta => ({
 const makePrisma = (profili: { userId: string; dislikedFoods: string[] }[], over: Record<string, unknown> = {}) => {
   const update = jest.fn().mockResolvedValue({});
   const prisma = {
-    user: { findUnique: jest.fn().mockResolvedValue({ role: 'nutritionist' }) },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ role: 'nutritionist' }),
+      /**
+       * ⚠️ **`chiHaUnPianoAttivo`** (7/9): la restrizione estesa scrive solo su chi ha un percorso in
+       * corso. Il finto risponde «hanno il piano tutte quelle che mi chiedi» — così queste prove
+       * continuano a misurare quello che misuravano (spezzatura, idempotenza, perimetro, tetto) e non
+       * si trasformano di nascosto in prove sul filtro, che ha le sue.
+       *
+       * ⛔ Ma pretende che il filtro ci sia nella `where`: senza `subscriptions` risponde «nessuno». Un
+       * finto che risponde uguale con e senza filtro non verifica niente, fa passare tutto.
+       */
+      findMany: jest.fn().mockImplementation(async ({ where }: any) =>
+        (where?.subscriptions ? (where?.id?.in ?? []).map((id: string) => ({ id })) : [])),
+    },
     staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-lucia' }) },
     clientProfile: { findMany: jest.fn().mockResolvedValue(profili), update },
     ...over,

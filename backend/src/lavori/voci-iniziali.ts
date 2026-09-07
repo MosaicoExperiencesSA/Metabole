@@ -567,7 +567,7 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 1,
     nata: '2026-09-03T11:00',
-    titolo: '▶️ 27 caselle di permesso su 67 spengono il menu e non la porta — due agganciate il 7/9',
+    titolo: '▶️ 27 caselle di permesso su 68 spengono il menu e non la porta — due agganciate il 7/9',
     dettaglio:
       '✅ **7/9 — le prime due agganciate perché qualcuno ci ha sbattuto contro.** Simone ha dato '
       + 'alla Responsabile Coach la vista su «Compensi staff» e «Provvigioni», lei ha aperto le '

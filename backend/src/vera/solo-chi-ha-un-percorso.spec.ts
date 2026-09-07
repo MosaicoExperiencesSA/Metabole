@@ -62,12 +62,15 @@ const SCOPERTE_OGGI: Record<string, { quante: number; perche: string }> = {
   'applica-proposta.ts': {
     quante: 2,
     perche:
-      'due, e per ragioni diverse. (a) `applicaRestrizione` scrive `dislikedFoods` su molte persone in '
-      + 'una volta e oggi tocca anche chi ha chiuso mesi fa: ⛔ va filtrata, ma da sola e con la sua '
-      + 'misura davanti — Simone l\'ha messa fuori da questa consegna il 7/9, di proposito. '
-      + '(b) `scopertePerDieta` parte dalle giornate future (`menuDay` con `date >= oggi`): chi ha '
-      + 'giornate davanti ha un piano per costruzione, quindi il filtro c\'è già ed è più stretto di '
-      + 'questo — ⚠️ ma è **de facto**, non dichiarato, ed è il motivo per cui sta scritto qui.',
+      'due porte che leggono largo, e tutte e due per una ragione. (a) `scopertePerDieta` parte dalle '
+      + '**giornate future** (`menuDay` con `date >= oggi`): chi ha giornate davanti ha un piano per '
+      + 'costruzione, quindi il filtro c\'è già ed è più stretto di questo — ⚠️ ma è **de facto**, non '
+      + 'dichiarato. (b) `applicaRestrizione` legge tutte le clienti del perimetro **apposta**: il '
+      + 'filtro è due righe sotto (`chiHaUnPianoAttivo`) e serve la differenza fra i due numeri per '
+      + 'poter dire a chi approva quante sono state **saltate** e perché. ⚠️ Filtrare nel `where` '
+      + 'avrebbe fatto sparire quel numero, e una scrittura di massa che non dice su chi non ricade è '
+      + 'una scrittura di cui non si conosce la portata. La prova che quel filtro esista sul serio è '
+      + 'qui sotto, fra le fabbriche — senza, questa riga sarebbe un alibi.',
   },
 };
 
@@ -88,26 +91,47 @@ function sorgenti(dir: string, out: string[] = []): string[] {
 const senzaCommenti = (src: string): string =>
   src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-/** Quante porte, in questo file, non hanno un marcatore nelle righe subito dopo. */
+/**
+ * Da `(` alla sua parentesi chiusa: **gli argomenti veri** di quella chiamata, non un tot di
+ * caratteri a caso.
+ */
+function dentroLaChiamata(codice: string, aperta: number): string {
+  let livello = 0;
+  for (let i = aperta; i < codice.length; i += 1) {
+    if (codice[i] === '(') livello += 1;
+    else if (codice[i] === ')') {
+      livello -= 1;
+      if (livello === 0) return codice.slice(aperta, i + 1);
+    }
+  }
+  return codice.slice(aperta);
+}
+
+/**
+ * Quante porte, in questo file, non dichiarano il filtro.
+ *
+ * ⛔ **LA FINESTRA A CARATTERI HA DATO UN FALSO NEGATIVO, il 7/9 sera.** La prima stesura guardava
+ * 1400 caratteri dopo la chiamata: quando `applicaRestrizione` è stata filtrata, il suo
+ * `chiHaUnPianoAttivo` è finito **dentro la finestra della funzione precedente**, e
+ * `scopertePerDieta` — che scoperta lo è davvero — ha smesso di essere contata. Una prova che
+ * diventa verde perché il file accanto è migliorato non sta guardando quello che dice di guardare.
+ *
+ * ⚠️ Adesso il marcatore deve stare **dentro le parentesi della chiamata** — che è dove sta un
+ * `where`, con parentesi bilanciate e non a spanne — **oppure** nelle poche righe subito prima, e
+ * quella deroga serve a un caso solo: due porte gemelle (un `count` e un `findMany` sulla stessa
+ * popolazione) che condividono un `where` estratto in una `const`. È la forma **giusta**, perché due
+ * `where` copiati divergono, e sarebbe assurdo punirla.
+ */
 function porteScoperte(codice: string): number {
   let quante = 0;
   for (const rx of PORTE) {
     rx.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = rx.exec(codice)) !== null) {
-      /**
-       * ⚠️ **Si guarda anche PRIMA, non solo dopo.** Due porte gemelle (un `count` e un `findMany`
-       * sulla stessa popolazione) condividono spesso un `where` estratto in una `const` qualche riga
-       * sopra — ed è la forma **giusta**, perché due `where` copiati divergono. Una finestra solo in
-       * avanti le segnalava tutte e due come scoperte.
-       *
-       * ⚠️ La finestra è generosa di proposito: un `where` con `select` e `take` dentro è lungo, e
-       * una finestra stretta segnalerebbe come scoperta una porta filtrata due righe più giù. Il
-       * prezzo è che una porta davvero scoperta accanto a una filtrata passa — per questo la prova
-       * conta anche il **totale** e tiene fermo l'elenco per file.
-       */
-      const intorno = codice.slice(Math.max(0, m.index - 1200), m.index + 1400);
-      if (!MARCATORI.some((k) => intorno.includes(k))) quante += 1;
+      const aperta = codice.indexOf('(', m.index);
+      const argomenti = aperta === -1 ? '' : dentroLaChiamata(codice, aperta);
+      const pocoPrima = codice.slice(Math.max(0, m.index - 600), m.index);
+      if (!MARCATORI.some((k) => argomenti.includes(k) || pocoPrima.includes(k))) quante += 1;
     }
   }
   return quante;
@@ -168,6 +192,25 @@ describe('⛔ le due fabbriche del rumore', () => {
     expect(src).toMatch(
       /role: 'client', status: 'active', deletedAt: null, \.\.\.filtroClienteConPianoAttivo\(\)/,
     );
+  });
+
+  /**
+   * ⛔ **L'ESENZIONE (b) NON DEVE POTER DIVENTARE UN ALIBI.** `applicaRestrizione` è nell'elenco delle
+   * porte che leggono largo, e ci sta perché il filtro è a valle: se un giorno quel filtro sparisse,
+   * la porta resterebbe larga, l'elenco continuerebbe a dire «va bene così», e la scrittura di massa
+   * tornerebbe a toccare chi ha finito il percorso — senza che niente diventi rosso.
+   */
+  it('⛔ la scrittura di massa filtra DAVVERO, e dice quante ne ha saltate', () => {
+    const src = leggi('applica-proposta.ts');
+    expect(src).toMatch(/const conPercorso = await chiHaUnPianoAttivo\(/);
+    expect(src).toMatch(/const profili = tutte\.filter\(\(t\) => conPercorso\.has\(t\.userId\)\)/);
+    expect(src).toMatch(/const saltate = tutte\.length - profili\.length/);
+    // ⚠️ E il numero arriva a chi approva, non resta in una variabile.
+    expect(src).toContain('un percorso in corso.');
+  });
+
+  it('⚠️ e il tetto conta chi verrà toccato davvero, non chi sta nel perimetro', () => {
+    expect(leggi('applica-proposta.ts')).toMatch(/if \(profili\.length > MAX_CLIENTI_IN_UNA_VOLTA\)/);
   });
 
   it('⚠️ e il contatore delle domande conta quello che l’elenco mostra, non di più', () => {
