@@ -1,0 +1,65 @@
+Altre cinque caselle di permesso agganciate — e per la prima volta su chiavi che decidono
+
+`escalations`, `health_documents`, `assign_nutritionist`, `lead_acceptance`, `engine_protocols`:
+dodici porte in tutto.
+
+LA DIFFERENZA CON LE DIECI DEL 5/9 E' TUTTA QUI
+Là sotto c'era `@Roles('admin')` e l'admin salta la guardia prima di leggere la matrice: la casella
+continuava a governare la voce di menu e non la porta, e infatti quelle si dichiarano INERTI. Queste
+no — sotto ci sono nutrizioniste, capo nutrizionista, coach e coordinatrice, e per loro la casella
+comincia a contare. E' il primo movimento vero di quel numero da quando esiste.
+
+⛔ COSTO ZERO CALCOLATO, NON CONGELATO
+`guardie-agganciate-a-costo-zero.spec.ts` verificava un criterio sintattico («la rotta e'
+@Roles(admin) e basta»), che copre solo le guardie inerti. Per queste cinque il costo zero non si
+legge nel `@Roles`: si CALCOLA, confrontando i ruoli ammessi con quello che i default danno loro.
+Una prova nuova lo fa porta per porta. Un elenco scritto a mano direbbe «costava zero il 7
+settembre»; questa dice «costa zero ADESSO», e diventa rossa in tre versi:
+· qualcuno allarga un `@Roles` a un ruolo che la chiave non ce l'ha (403 dal giorno dopo);
+· qualcuno toglie un default a un ruolo che passa di li;
+· qualcuno stacca una guardia.
+⚠️ Il verso opposto del difetto di stamattina: li una casella accesa non accendeva niente, qui una
+persona che ieri lavorava leggerebbe «Non hai il permesso», senza che nessuno abbia deciso niente.
+
+⚠️ `health_documents` E' AGGANCIATA PER METODO
+Non sulla classe, che contiene anche agenda e visite: sarebbero sparite dietro una chiave che non le
+riguarda, e nessuno avrebbe capito perche'. E NON su `GET documents/:id/content`, che la usa anche la
+CLIENTE per scaricare i propri referti — li un 403 sarebbe nell'app, su un documento suo. Il cancello
+di quella rotta resta `assertDocumentAccess`, che sa distinguere «e' il mio» da «e' di una paziente».
+
+⛔ E UNA RIGA DI `pages.ts` DICEVA IL FALSO: CORRETTA
+Su `change_allergies`, `change_diet_type`, `change_fasting_window` e `clinical_clearance` c'era
+scritto «la casella non li ferma: la rotta e' protetta dal solo elenco dei ruoli». Non e' vero, e non
+lo era: `updateClient` chiama `ruoloPuo`, che legge `role_page_permission` con LA STESSA catena
+genitori/default del `PageGuard`. La casella li ferma davvero, solo non tramite `@RequirePage`.
+⚠️ Stanno fra i buchi per un criterio SINTATTICO, e la guardia giusta e' dov'e': PER CAMPO, perche'
+una `@RequirePage` sulla `PATCH admin/clients/:id` chiuderebbe tutta la scheda, telefono compreso.
+Sarebbe un aggancio che peggiora il prodotto per far scendere un numero.
+
+I CONTI
+Caselle che non chiudono la porta: da 27 a 22. Buchi da 18 a 13. Chiavi senza guardia da 31 a 26 su
+68. Banner della pagina Permessi e voce di lavoro riallineati nello stesso commit.
+
+▶️ RESTANO 22, E LE PROSSIME NON SONO GRATIS: SONO DECISIONI DI SIMONE
+· `posta` — sette ruoli su otto perderebbero invio, cancellazione e configurazione: `manage` su quella
+  chiave non ce l'ha nessuno. Va prima deciso se darlo, o agganciata come `view` esplicito ovunque.
+· `engine_rules` — il `@Roles` e il default SI CONTRADDICONO GIA' OGGI: la rotta ammette la
+  nutrizionista, il default dice «le gestisce solo il capo nutrizionista». Agganciare allinea il
+  codice all'intenzione scritta, ma toglie un potere reale a qualcuno che oggi ce l'ha.
+· `crm_leads` e `assign_coach` — stessa forma: tolgono qualcosa a nutrizionista, capo o coach.
+· `accounting` su `admin/payments` — `sales` approva, rifiuta e annulla pagamenti pur avendo solo
+  «vede». O gli si da `manage` nei default, o si scopre che approvava senza che nessuno l'avesse
+  deciso. E' il buco su denaro piu concreto dei 13 rimasti.
+· `chat` e `documents/:id/content` — rotte che servono anche la CLIENTE, che non ha righe in matrice:
+  serve prima un criterio, non un aggancio.
+
+FILE
+- backend: `escalations/escalations.controller.ts` · `nutritionist/nutritionist.controller.ts` ·
+  `commerce/lead-assignment.controller.ts` · `engine/engine.controller.ts` ·
+  `health-area/health-area.controller.ts` · `permissions/pages.ts` ·
+  `permissions/chiavi-senza-guardia.spec.ts` · `permissions/guardie-che-decidono.spec.ts` (nuovo) ·
+  `lavori/voci-iniziali.ts`
+- backoffice: `pages/Permissions.tsx`
+
+476 suite / 8166 test backend verdi · backoffice 34 suite / 335 verdi · quattro mutazioni provate e
+tutte e quattro fanno fallire i test. Nessuna migrazione.

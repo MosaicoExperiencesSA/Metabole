@@ -20,6 +20,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { ClinicalNotesService } from './clinical-notes.service';
@@ -159,11 +160,30 @@ export class NutritionistController {
     return this.visits.complete(user, id, dto);
   }
 
+  /**
+   * ⛔ **LA CASELLA `health_documents` ADESSO DECIDE — e la guardia sta sui METODI, non sulla
+   * classe** (7/9).
+   *
+   * ⚠️ Questo controller non serve solo i documenti: dentro ci sono anche l'agenda e le visite, che
+   * hanno chiavi loro. Una `@RequirePage('health_documents')` sulla classe le chiuderebbe tutte
+   * dietro una chiave che non le riguarda — e nessuno capirebbe perché l'agenda è sparita.
+   *
+   * ⛔ **E NON va su `GET documents/:id/content`**, che sta nell'altro controller qui sopra: quella
+   * rotta la usa anche la **cliente** per scaricare i propri referti, e il ruolo `client` non ha
+   * righe in matrice. Agganciarla lì vorrebbe dire un 403 nell'app, su un documento suo. Il cancello
+   * di quella rotta è `assertDocumentAccess`, che sa distinguere «è il mio» da «è di una paziente».
+   *
+   * ⚠️ Costo zero: `nutritionist` e `head_nutritionist` hanno la chiave in `{view, manage}` e sono i
+   * soli due nel `@Roles`. Sono i dati più sensibili del sistema, ed è la ragione per cui questa è
+   * fra le prime cinque.
+   */
+  @RequirePage('health_documents')
   @Get('clients/:id/documents')
   patientDocuments(@CurrentUser() user: AuthUser, @Param('id') clientId: string) {
     return this.documents.listForPatient(user, clientId);
   }
 
+  @RequirePage('health_documents', 'manage')
   @HttpCode(200)
   @Post('documents/:id/review')
   reviewDocument(
@@ -174,11 +194,14 @@ export class NutritionistController {
     return this.documents.review(user, id, dto);
   }
 
+  @RequirePage('health_documents')
   @Get('clients/:id/notes')
   notesList(@CurrentUser() user: AuthUser, @Param('id') clientId: string) {
     return this.notes.list(user, clientId);
   }
 
+  // ⚠️ Scrivere una nota clinica è `manage`: è un dato sanitario che entra nella cartella.
+  @RequirePage('health_documents', 'manage')
   @Post('clients/:id/notes')
   createNote(
     @CurrentUser() user: AuthUser,

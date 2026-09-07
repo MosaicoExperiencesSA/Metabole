@@ -47,12 +47,10 @@ const chiaviLette = (() => {
  * aggiunto una casella che non chiude niente, e va discusso, non registrato.
  */
 const SENZA_GUARDIA_OGGI = [
-  'allergens', 'assign_coach', 'assign_nutritionist', 'change_allergies', 'change_diet_type',
+  'allergens', 'assign_coach', 'change_allergies', 'change_diet_type',
   'change_fasting_window', 'charts', 'chat', 'clinical_clearance', 'colazioni',
   'creation_validation', 'crm_calendar', 'crm_import', 'crm_lead_new',
-  'crm_leads', 'crm_pipeline', 'dashboard', 'diet_workspace', 'discounts', 'engine_protocols',
-  'engine_rules', 'equivalence_groups', 'escalations', 'health_documents', 'lead_acceptance',
-  'notifications', 'permissions', 'posta', 'publisher', 'testimonials', 'withdrawals',
+  'crm_leads', 'crm_pipeline', 'dashboard', 'diet_workspace', 'discounts',   'engine_rules', 'equivalence_groups',   'notifications', 'permissions', 'posta', 'publisher', 'testimonials', 'withdrawals',
 ].sort();
 
 describe('le chiavi di permesso che nessuna guardia legge', () => {
@@ -79,6 +77,15 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * da questo commento invece di correggerlo: il banner è rimasto a 64. È la regola di `CLAUDE.md`
    * — *il registro comincia a mentire* — pagata restringendo la sentinella per farla combaciare.
    * Adesso il banner è dentro la prova, e non si può più aggiustare la prova al posto del banner.
+   *
+   * ✅ **26 su 68 dal 7/9 sera tardi**, e per la prima volta il numero scende su chiavi che
+   * **decidono davvero**: `escalations`, `health_documents`, `assign_nutritionist`,
+   * `lead_acceptance`, `engine_protocols`. ⚠️ La differenza con le dieci del 5/9 è tutta qui: là
+   * sotto c'era `@Roles('admin')` e l'admin salta la guardia, quindi la casella continuava a
+   * governare il menu e non la porta — e infatti quelle si dichiarano **inerti**. Queste cinque no:
+   * sotto ci sono nutrizioniste, capo, coach e coordinatrice, e per loro la casella comincia a
+   * contare. ⛔ Tutte e cinque a **costo zero verificato**: ogni ruolo ammesso dal `@Roles` ha già la
+   * chiave nei default.
    *
    * ✅ **31 su 68 dal 7/9 sera**: `cancella_giorno_menu` è nata **con** la sua `@RequirePage`, quindi
    * le chiavi salgono e quelle senza guardia restano 31. ⚠️ È il verso giusto, ed è la quarta volta
@@ -109,9 +116,9 @@ describe('le chiavi di permesso che nessuna guardia legge', () => {
    * `diet_descriptions` si è accesa davvero: la chiave era stata dichiarata prima di agganciare la
    * `@RequirePage`, e tre prove sono diventate rosse nello stesso momento.
    */
-  it('⚠️ e sono 31 su 68: il numero che sta scritto nella voce e nel banner', () => {
+  it('⚠️ e sono 26 su 68: il numero che sta scritto nella voce e nel banner', () => {
     expect(BACKOFFICE_PAGES.length).toBe(68);
-    expect(senza.length).toBe(31);
+    expect(senza.length).toBe(26);
     const banner = readFileSync(
       join(__dirname, '..', '..', '..', 'backoffice', 'src', 'pages', 'Permissions.tsx'), 'utf8',
     );
@@ -174,7 +181,7 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
    * Adesso il conto che dice quanto lavoro resta è **buchi + guardie inerti**, e quello non scende
    * se non succede qualcosa per davvero.
    */
-  it('⛔ e quante caselle non chiudono ancora la porta: 18 buchi + 10 guardie inerti = 27', () => {
+  it('⛔ e quante caselle non chiudono ancora la porta: 13 buchi + 10 guardie inerti = 22', () => {
     const per = (m: string) => senza.filter((k) => MOTIVO_SENZA_GUARDIA[k] === m).length;
     /**
      * ⚠️ 17 fra quelle **senza** guardia; il diciottesimo è `accounting`, che la guardia ce l'ha ma
@@ -184,7 +191,7 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
      * non riclassificando — e non sono finite fra le guardie inerti, perché il loro `@Roles('admin')`
      * è stato **tolto**: adesso la matrice decide davvero chi entra.
      */
-    expect(per('buco')).toBe(17);
+    expect(per('buco')).toBe(12);
     expect(per('figlia')).toBe(9);
     expect(per('grantor')).toBe(2);
     expect(per('innocua')).toBe(3);
@@ -194,9 +201,9 @@ describe('ogni chiave senza guardia dice PERCHÉ', () => {
      * guardia inerte sulle sue rotte, buco vero su `admin/payments` — e si conta **una volta**.
      */
     const buchi = Object.keys(MOTIVO_SENZA_GUARDIA).filter((k) => MOTIVO_SENZA_GUARDIA[k] === 'buco');
-    expect(buchi).toHaveLength(18);
+    expect(buchi).toHaveLength(13);
     const nonChiudono = new Set([...buchi, ...Object.keys(GUARDIA_INERTE)]);
-    expect(nonChiudono.size).toBe(27);
+    expect(nonChiudono.size).toBe(22);
   });
 
   /**

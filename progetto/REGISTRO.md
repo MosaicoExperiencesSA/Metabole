@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-07
 
+- `[Sviluppo]` ✅ **Altre cinque caselle di permesso agganciate — e per la prima volta su chiavi che
+  DECIDONO.** `escalations`, `health_documents`, `assign_nutritionist`, `lead_acceptance`,
+  `engine_protocols`: dodici porte in tutto.
+  ⚠️ **La differenza con le dieci del 5/9 è tutta qui.** Là sotto c'era `@Roles('admin')` e l'admin
+  salta la guardia prima di leggere la matrice: la casella continuava a governare la voce di menu e
+  non la porta, e infatti quelle si dichiarano **inerti**. Queste no — sotto ci sono nutrizioniste,
+  capo nutrizionista, coach e coordinatrice, e per loro la casella comincia a contare.
+  ⛔ **Costo zero CALCOLATO, non congelato.** Una prova nuova confronta, porta per porta, i ruoli
+  ammessi dal `@Roles` con quello che i default danno loro. Un elenco scritto a mano direbbe «costava
+  zero il 7 settembre»; questa dice «costa zero **adesso**», e diventa rossa in tre versi: se qualcuno
+  allarga un `@Roles` a un ruolo che la chiave non ce l'ha, se toglie un default a un ruolo che passa
+  di lì, se stacca una guardia. Provate tutte e tre, e una quarta sulla revisione di un documento
+  sanitario: mordono.
+  ⚠️ **`health_documents` è agganciata per METODO**, non sulla classe — che contiene anche agenda e
+  visite, e sarebbero sparite dietro una chiave che non le riguarda — e **non** su
+  `GET documents/:id/content`, che la usa anche la **cliente** per scaricare i propri referti: lì un
+  403 sarebbe nell'app, su un documento suo.
+  ⛔ **E una riga di `pages.ts` diceva il falso: corretta.** Su `change_allergies`, `change_diet_type`,
+  `change_fasting_window` e `clinical_clearance` c'era scritto «la casella non li ferma: la rotta è
+  protetta dal solo elenco dei ruoli». ⚠️ Non è vero, e non lo era: `updateClient` chiama `ruoloPuo`,
+  che legge `role_page_permission` con **la stessa** catena genitori/default del `PageGuard`. La
+  casella li ferma davvero — solo non tramite `@RequirePage`. Stanno fra i buchi per un criterio
+  **sintattico**, e la guardia giusta è dov'è: **per campo**, perché una `@RequirePage` sulla
+  `PATCH admin/clients/:id` chiuderebbe tutta la scheda, telefono compreso. Sarebbe un aggancio che
+  peggiora il prodotto per far scendere un numero.
+  ▶️ **Restano 22 su 68**, e le prossime non sono gratis: sono decisioni di Simone. `posta` (sette
+  ruoli su otto perderebbero invio e cancellazione: `manage` non ce l'ha nessuno), `crm_leads`,
+  `assign_coach`, `engine_rules` — dove il `@Roles` e il default **si contraddicono già oggi**, la
+  nutrizionista può cambiare regole che il default dichiara del solo capo — e `accounting` su
+  `admin/payments`, dove `sales` approva e annulla pagamenti pur avendo solo «vede».
+
 - `[Sviluppo]` ✅ **Chiuso quello che avevo lasciato aperto in giornata: tre punti, e uno era una
   frase falsa scritta da me.**
   ⛔ **`applicaRestrizione` tocca solo chi ha un percorso.** È l'unica azione del progetto che scrive

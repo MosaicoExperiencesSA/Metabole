@@ -18,6 +18,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { EngineService } from './engine.service';
@@ -115,8 +116,15 @@ export class EngineController {
   }
 }
 
-/** Protocolli: il nutrizionista propone, un collega/il capo valida (mai il proprio). */
+/**
+ * Protocolli: il nutrizionista propone, un collega/il capo valida (mai il proprio).
+ *
+ * ⛔ **La casella `engine_protocols` adesso decide** (7/9). Costo zero: `nutritionist` e
+ * `head_nutritionist` hanno la chiave in `{view, manage}`; l'admin ha solo `view` nei default ma
+ * salta la guardia, quindi la `POST` di validazione continua a funzionargli.
+ */
 @Controller('protocols')
+@RequirePage('engine_protocols')
 @Roles('nutritionist', 'head_nutritionist')
 export class ProtocolsController {
   constructor(private readonly engine: EngineService) {}

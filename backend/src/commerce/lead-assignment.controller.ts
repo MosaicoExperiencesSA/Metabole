@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ArrayMaxSize, ArrayNotEmpty, IsArray, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { LeadAssignmentService } from './lead-assignment.service';
@@ -67,7 +68,14 @@ export class LeadAssignmentController {
     return this.svc.listCoaches(user.sub);
   }
 
-  /** Il capo nutrizionisti (o admin) assegna il nutrizionista a una cliente. */
+  /**
+   * Il capo nutrizionisti (o admin) assegna il nutrizionista a una cliente.
+   *
+   * ⛔ **La casella `assign_nutritionist` adesso decide** (7/9). Costo zero verificato:
+   * `head_nutritionist` ha la chiave in `{view, manage}`, quindi oggi non cambia niente — cambia il
+   * giorno che Simone gliela spegne, che fin qui non serviva a nulla farlo.
+   */
+  @RequirePage('assign_nutritionist', 'manage')
   @Roles('head_nutritionist', 'admin')
   @HttpCode(200)
   @Post('leads/:id/assign-nutritionist')
@@ -75,7 +83,8 @@ export class LeadAssignmentController {
     return this.svc.assignNutritionist(id, dto.nutritionistStaffId, user.sub);
   }
 
-  /** Elenco nutrizionisti per il menu di assegnazione. */
+  /** Elenco nutrizionisti per il menu di assegnazione. ⚠️ È una lettura: `view`. */
+  @RequirePage('assign_nutritionist')
   @Roles('head_nutritionist', 'admin')
   @Get('nutritionists')
   nutritionists() {
@@ -111,6 +120,12 @@ export class LeadAssignmentController {
     return this.svc.myInvite(user.sub);
   }
 
+  /**
+   * ⛔ **`lead_acceptance` adesso decide.** Costo zero: coach e coordinatrice hanno la chiave in
+   * `{view, manage}`. ⚠️ `manage` su tutte e due, accettare e rifiutare: sono la stessa decisione
+   * presa nei due versi, e separarle vorrebbe dire poter dare a qualcuno il potere di dire solo no.
+   */
+  @RequirePage('lead_acceptance', 'manage')
   @Roles('coach', 'coach_coordinator')
   @HttpCode(200)
   @Post('leads/:id/accept')
@@ -118,6 +133,7 @@ export class LeadAssignmentController {
     return this.svc.accept(id, user.sub);
   }
 
+  @RequirePage('lead_acceptance', 'manage')
   @Roles('coach', 'coach_coordinator')
   @HttpCode(200)
   @Post('leads/:id/reject')

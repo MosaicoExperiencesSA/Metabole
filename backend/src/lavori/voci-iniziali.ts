@@ -567,9 +567,33 @@ export const VOCI_INIZIALI: Voce[] = [
     categoria: CODICE,
     ordine: 1,
     nata: '2026-09-03T11:00',
-    titolo: '▶️ 27 caselle di permesso su 68 spengono il menu e non la porta — due agganciate il 7/9',
+    titolo: '▶️ 22 caselle di permesso su 68 spengono il menu e non la porta — sette agganciate il 7/9',
     dettaglio:
-      '✅ **7/9 — le prime due agganciate perché qualcuno ci ha sbattuto contro.** Simone ha dato '
+      '✅ **7/9 SERA — altre cinque, e per la prima volta su chiavi che DECIDONO.** `escalations`, '
+      + '`health_documents`, `assign_nutritionist`, `lead_acceptance`, `engine_protocols`. ⚠️ La '
+      + 'differenza con le dieci del 5/9 è tutta qui: là sotto c\'era `@Roles(admin)` e l\'admin salta '
+      + 'la guardia, quindi la casella continuava a governare il menu e non la porta — e infatti quelle '
+      + 'si dichiarano **inerti**. Queste no: sotto ci sono nutrizioniste, capo, coach e coordinatrice.\n'
+      + '⛔ **Costo zero CALCOLATO, non congelato**: una prova nuova confronta, porta per porta, i ruoli '
+      + 'ammessi dal `@Roles` con quello che i default danno loro. Un elenco scritto a mano direbbe '
+      + '«costava zero il 7 settembre»; questa dice «costa zero adesso», e diventa rossa in tre versi — '
+      + 'se si allarga un `@Roles` a un ruolo senza la chiave, se si toglie un default a un ruolo che '
+      + 'passa di lì, se si stacca una guardia. Provate tutte e tre: mordono.\n'
+      + '⚠️ `health_documents` è agganciata **per metodo**, non sulla classe (che contiene anche agenda e '
+      + 'visite) e **non** su `GET documents/:id/content`, che la usa anche la cliente per i propri '
+      + 'referti: lì un 403 sarebbe nell\'app, su un documento suo.\n'
+      + '⛔ **E una riga di questo file diceva il falso, corretta.** Su `change_allergies`, '
+      + '`change_diet_type`, `change_fasting_window` e `clinical_clearance` c\'era scritto «la casella '
+      + 'non li ferma». Non è vero: `updateClient` chiama `ruoloPuo`, che legge la stessa matrice con la '
+      + 'stessa catena del `PageGuard`. Stanno fra i buchi per un criterio **sintattico**, non perché la '
+      + 'porta sia aperta — e la guardia giusta è dov\'è, **per campo**: una `@RequirePage` sulla PATCH '
+      + 'chiuderebbe tutta la scheda, telefono compreso.\n'
+      + '▶️ **Restano 22.** Le prossime non sono gratis e sono decisioni tue: `posta` (sette ruoli su '
+      + 'otto perderebbero invio e cancellazione: `manage` non ce l\'ha nessuno), `crm_leads`, '
+      + '`assign_coach`, `engine_rules` (toglierebbe alla nutrizionista regole che il default dice essere '
+      + 'del solo capo — il `@Roles` e il default si contraddicono già oggi), e `accounting` su '
+      + '`admin/payments`, dove `sales` approva pagamenti pur avendo solo «vede».\n\n'
+      + '✅ **7/9 — le prime due agganciate perché qualcuno ci ha sbattuto contro.** Simone ha dato '
       + 'alla Responsabile Coach la vista su «Compensi staff» e «Provvigioni», lei ha aperto le '
       + 'pagine e ha letto «riservata agli amministratori»: le due rotte erano `@Roles(admin)`, e la '
       + 'casella accesa non accendeva niente. Ora leggono la matrice, e il loro `@Roles` è stato '

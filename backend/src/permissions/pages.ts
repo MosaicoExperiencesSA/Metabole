@@ -353,25 +353,43 @@ export const MOTIVO_SENZA_GUARDIA: Readonly<Record<string, MotivoSenzaGuardia>> 
   // ⛔ I BUCHI SU DATI SENSIBILI O POTERI FORTI. Sono quelli da chiudere per primi, uno per uno.
   permissions: 'buco',
   accounting: 'buco',
-  engine_protocols: 'buco',
   engine_rules: 'buco',
-  health_documents: 'buco',
-  escalations: 'buco',
-  clinical_clearance: 'buco',
+  /**
+   * ✅ **AGGANCIATE IL 7/9, e queste NON sono guardie inerti**: `escalations`, `health_documents`,
+   * `assign_nutritionist`, `lead_acceptance`, `engine_protocols` — più `compensation` e
+   * `commissions` la mattina. La differenza con le dieci del 5/9 è tutta qui: là sotto c'era
+   * `@Roles('admin')` e l'admin salta la guardia, quindi non cambiava niente per nessuno; qui i ruoli
+   * sono nutrizioniste, capo, coach e coordinatrice, e per loro la casella comincia a decidere.
+   * ⚠️ Tutte e cinque a **costo zero verificato**: ogni ruolo che passa dal `@Roles` ha già la chiave
+   * nei default, quindi oggi nessuno perde niente. Cambia il giorno che Simone ne spegne una — che
+   * fin qui non serviva a nulla fare.
+   */
   chat: 'buco',
   posta: 'buco',
-  // ✅ `compensation` e `commissions` sono state agganciate il 7/9: la casella accende davvero.
   withdrawals: 'buco',
   discounts: 'buco',
-  // ⛔ Questi tre **cambiano dati clinici** e la casella non li ferma: la rotta è protetta dal solo
-  //    elenco dei ruoli. `change_diet_type` in particolare è quella che il 28/8 è stata trovata
-  //    accesa su `sales` senza che il codice l'avesse mai data.
+  /**
+   * ⛔ **CORRETTA IL 7/9 — la riga di prima diceva il falso.** C'era scritto che questi tre «cambiano
+   * dati clinici e la casella non li ferma: la rotta è protetta dal solo elenco dei ruoli».
+   *
+   * ⚠️ Non è vero, e non lo era: `updateClient` chiama `ruoloPuo(..., 'manage')` su ciascuno dei tre
+   * (`clients.service.ts`), e `ruoloPuo` legge `role_page_permission` con **la stessa** catena
+   * genitori/default del `PageGuard`. La casella li ferma davvero — semplicemente non tramite
+   * `@RequirePage`. Stanno in questo elenco per un criterio **sintattico** (non compaiono in una
+   * `@RequirePage`), non perché la porta sia aperta.
+   *
+   * ⛔ **E la guardia giusta è dov'è**: il controllo scatta **per campo**, solo se `regime`,
+   * `dietStyle`, le allergie o la finestra del digiuno cambiano davvero. Una `@RequirePage` sulla
+   * `PATCH admin/clients/:id` chiuderebbe **tutta** la scheda — telefono e indirizzo compresi — a chi
+   * non ha quella chiave. Sarebbe un aggancio che peggiora il prodotto per far scendere un numero.
+   *
+   * ⚠️ Lo stesso vale per `clinical_clearance`, qui sotto.
+   */
   change_allergies: 'buco',
   change_diet_type: 'buco',
   change_fasting_window: 'buco',
+  clinical_clearance: 'buco',
   assign_coach: 'buco',
-  assign_nutritionist: 'buco',
-  lead_acceptance: 'buco',
   crm_leads: 'buco',
 
   /**

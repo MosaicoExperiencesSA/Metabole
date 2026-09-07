@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequirePage } from '../common/decorators/require-page.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthUser } from '../common/interfaces/auth-user.interface';
 import { NutritionistService } from './nutritionist.service';
@@ -137,6 +138,10 @@ export class NutritionistController {
    * `GET /admin/escalations`, che restituiva le segnalazioni di TUTTE le clienti a chiunque
    * avesse il ruolo — anche a una nutrizionista con tre pazienti.
    */
+  // ⚠️ Guardia per METODO e non di classe: questo controller serve anche la coda di validazione, i
+  // protocolli e l'agenda, che hanno chiavi loro. Una guardia sulla classe le chiuderebbe tutte
+  // dietro `escalations`.
+  @RequirePage('escalations')
   @Get('escalations')
   segnalazioni(@CurrentUser() user: AuthUser) {
     return this.nutritionist.segnalazioni(user);
@@ -146,6 +151,9 @@ export class NutritionistController {
    * Sblocca il piano: chiude la segnalazione e RIPROVA davvero a costruire la base sicura.
    * Chiudere la segnalazione e basta è cosmetico — il blocco si ricalcola a ogni menu.
    */
+  // ⚠️ `manage`: sbloccare un piano non è guardarlo. Il livello lo dedurrebbe già il metodo (POST →
+  // manage), ma qui si scrive perché la riga si legge accanto a un `@Get` che chiede `view`.
+  @RequirePage('escalations', 'manage')
   @HttpCode(200)
   @Post('escalations/:id/sblocca')
   sblocca(@Param('id') id: string, @CurrentUser() user: AuthUser) {
