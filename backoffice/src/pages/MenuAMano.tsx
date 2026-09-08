@@ -235,7 +235,7 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
     setSalvando(true); setErrore(null); setEsito(null);
     if (!conferma) setDaConfermare(null);
     try {
-      const r = await api<{ kcal: number; avvisi: string[] }>(`/admin/clients/${clientId}/menu-a-mano`, {
+      const r = await api<{ kcal: number; avvisi: string[]; avvisiDopo?: string[]; dopoIlSalvataggio?: string | null }>(`/admin/clients/${clientId}/menu-a-mano`, {
         method: 'POST',
         body: JSON.stringify({
           data,
@@ -252,7 +252,23 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
           })),
         }),
       });
-      setEsito(`Giornata del ${data} scritta: ${r.kcal} kcal.${r.avvisi.length ? ` ${r.avvisi.join(' ')}` : ''}`);
+      /**
+       * ⛔ **A cose fatte si legge la frase al PASSATO** (8/9, revisione avversariale). Qui si
+       * rimettevano in pancia gli stessi `avvisi` del prima: «**salvando**, quello che ha in mano
+       * cambia», scritto dopo che il salvataggio era avvenuto. La coda che serve adesso è un'altra
+       * — c'è una persona da avvisare — e la dà il server (`dopoIlSalvataggio`), con le stesse
+       * parole che usa Vera dall'altra porta.
+       *
+       * ⚠️ La separazione fra «avvisi da confermare» e «avvisi che restano veri dopo» la fa il
+       * SERVER, dove le frasi sono state costruite: farla qui vorrebbe dire cercare un pezzo di
+       * frase, e il giorno che la frase si riscrive il filtro smette di filtrare in silenzio.
+       */
+      const restano = r.avvisiDopo ?? r.avvisi;
+      setEsito(
+        `Giornata del ${data} scritta: ${r.kcal} kcal.`
+        + (restano.length ? ` ${restano.join(' ')}` : '')
+        + (r.dopoIlSalvataggio ? ` ⚠️ ${r.dopoIlSalvataggio}` : ''),
+      );
       setScelte({});
       setDaConfermare(null);
       /** ⚠️ La cornice si ricarica: i banner («questo giorno ha già un menu») erano rimasti quelli di prima. */
@@ -282,9 +298,21 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
       {esito && <Banner kind="ok">{esito}</Banner>}
       {daConfermare && <Banner kind="warn"><b>Da leggere prima di salvare:</b> {daConfermare}</Banner>}
 
-      {/* ⛔ Quello che la cliente ha già in mano resta suo: si dice PRIMA, non dopo il clic. */}
+      {/*
+        ⛔ **NON FERMA PIÙ, E LA FRASE È CAMBIATA CON LA REGOLA** — decisione di Simone, 8/9: *«il
+        nutrizionista sostituisce anche se il cliente ha già visto. vince su tutto»*.
+
+        ⚠️ La riga vecchia diceva «quello resta suo, **non si riscrive**». Lasciarla sopra un
+        pulsante che adesso riscrive sarebbe la bugia peggiore di tutte: chi la legge decide di non
+        provarci, e quello che il prodotto sa fare glielo nasconde la sua stessa schermata. Adesso
+        dice la CONSEGUENZA — quello che la cliente ha in mano cambia — che è la cosa su cui c'è da
+        decidere. Il no diventa un «Ho letto, salva lo stesso», come gli altri avvisi.
+      */}
       {cornice?.esistente?.giaAperto && (
-        <Banner kind="warn">Il menu di questo giorno la cliente lo ha <b>già aperto</b>: quello resta suo, non si riscrive.</Banner>
+        <Banner kind="warn">
+          La cliente ha <b>già aperto</b> il menu di questo giorno: salvando, quello che ha in mano
+          cambia — magari ci aveva già fatto la spesa. Si può fare, e resta scritto nel registro.
+        </Banner>
       )}
       {/* ⚠️ Non blocca: la stessa condizione la porta la giornata che ha appena scritto lei, perché
           per una cliente che non ha mai aperto l'app non lo sappiamo per definizione. Chiede una
@@ -490,7 +518,8 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
           : (
             <button
               className="btn"
-              disabled={!c.siPuoProvare || salvando || !!cornice?.esistente?.giaAperto}
+              /* ⛔ `giaAperto` non spegne piu il pulsante (8/9): adesso e un avviso da confermare. */
+              disabled={!c.siPuoProvare || salvando}
               onClick={() => void salva(false)}
             >
               {salvando ? 'Salvo…' : 'Salva la giornata'}

@@ -338,14 +338,70 @@ describe('scrivere la giornata', () => {
   });
 
   /**
-   * ⛔ **Quello che la cliente ha già aperto resta suo** — magari ci ha già fatto la spesa. Stessa
-   * regola di `scriviGiornataDettata`, stesso motivo.
+   * ⛔ **IL GIORNO GIÀ APERTO SI RISCRIVE, CON UNA CONFERMA** — decisione di Simone, 8/9: *«il
+   * nutrizionista sostituisce anche se il cliente ha già visto. vince su tutto»*.
+   *
+   * ⚠️ **La prova che c'era qui sarebbe rimasta VERDE attraverso tutto il cambiamento**, ed è la
+   * cosa da ricordare: diceva `rejects.toThrow(/già aperto/)`, e il messaggio nuovo — «Da
+   * confermare: La cliente ha già aperto…» — contiene quelle due parole. Il `toThrow` su un pezzo
+   * di frase non distingue **«non si può»** da **«va confermato»**, che in questa schermata sono la
+   * differenza fra un cancello e un avviso. Adesso si guarda la scrittura: `upsert` chiamato o no.
    */
-  it('⛔ un giorno già aperto dalla cliente non si riscrive', async () => {
-    const { s, upsert } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
-    await expect(s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
-      .rejects.toThrow(/già aperto/);
-    expect(upsert).not.toHaveBeenCalled();
+  it('⛔ un giorno già aperto si riscrive: prima chiede conferma, poi passa', async () => {
+    const g = { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true };
+    const primo = servizio({ giorno: g });
+    await expect(primo.s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA }))
+      .rejects.toThrow(/Da confermare.*già aperto/);
+    /** ⛔ Senza conferma non si scrive NIENTE: l'avviso non è un messaggio decorativo. */
+    expect(primo.upsert).not.toHaveBeenCalled();
+
+    const { s, upsert } = servizio({ giorno: g });
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(upsert).toHaveBeenCalled();
+    /** ⚠️ E l'avviso dice la CONSEGUENZA, non «quello resta suo»: quella frase adesso sarebbe falsa. */
+    expect(esito.avvisi.join(' ')).toContain('quello che ha in mano cambia');
+    expect(esito.avvisi.join(' ')).not.toContain('resta suo');
+  });
+
+  /**
+   * ⛔ **E resta scritto nel registro con un campo suo**, non solo dentro il testo di un avviso:
+   * alla domanda «quante volte abbiamo cambiato un menu che la cliente aveva già in mano» si deve
+   * poter rispondere senza cercare dentro delle frasi.
+   */
+  it('⛔ la sovrascrittura dopo l\'apertura finisce nel registro', async () => {
+    const { s, audit } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect((audit.log as jest.Mock).mock.calls[0][0].metadata).toMatchObject({ sovrascrittoDopoApertura: true });
+  });
+
+  /**
+   * ⛔ **DOPO IL SALVATAGGIO LA FRASE VA AL PASSATO** — revisione avversariale, 8/9. La schermata
+   * rimetteva in pancia al banner verde gli stessi avvisi del prima: «**salvando**, quello che ha
+   * in mano cambia», detto a salvataggio avvenuto. E la coda che serve a cose fatte è un'altra:
+   * c'è una persona da avvisare. ⚠️ La separazione la fa il server, dove le frasi sono nate: farla
+   * cercando un pezzo di frase nella schermata smetterebbe di funzionare in silenzio il giorno che
+   * la frase si riscrive.
+   */
+  it('⛔ a cose fatte l\'avviso sull\'apertura esce dagli avvisi e diventa una coda al passato', async () => {
+    const { s } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(esito.avvisi.join(' ')).toContain('salvando');
+    expect(esito.avvisiDopo.join(' ')).not.toContain('salvando');
+    expect(esito.dopoIlSalvataggio).toContain('valuta se avvisarla');
+  });
+
+  /** ⚠️ Su un giorno non aperto non c'è nessuna coda: una coda che c'è sempre non si legge più. */
+  it('⚠️ senza apertura non c\'è nessuna coda da leggere', async () => {
+    const { s } = servizio();
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(esito.dopoIlSalvataggio).toBeNull();
+  });
+
+  /** ⚠️ E su un giorno mai aperto quel campo NON c'è: un campo sempre presente non conta niente. */
+  it('⚠️ su un giorno non aperto la bandierina non si scrive', async () => {
+    const { s, audit } = servizio();
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect((audit.log as jest.Mock).mock.calls[0][0].metadata.sovrascrittoDopoApertura).toBeUndefined();
   });
 
   /**

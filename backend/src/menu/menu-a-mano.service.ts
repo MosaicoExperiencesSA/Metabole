@@ -351,7 +351,12 @@ export class MenuAManoService {
         ? {
           meals: esistente.meals,
           scrittaAMano: scrittaAMano(esistente.meals),
-          /** ⛔ Se la cliente l'ha già aperto, quello resta suo: la schermata deve dirlo prima. */
+          /**
+           * ⚠️ **Non è più un divieto, è una cosa da dire prima** (8/9). La frase che stava qui —
+           * «quello resta suo» — è la regola che la decisione di Simone ha ritirato: lasciarla nel
+           * file che l'ha ritirata, sopra il campo che alimenta il banner, vuol dire che fra un
+           * mese qualcuno la rimette in piedi leggendo questo commento.
+           */
           giaAperto: laClienteLHaAperto(esistente as never),
           nonSappiamo: nonSappiamoSeLHaAperto(esistente as never),
         }
@@ -378,12 +383,20 @@ export class MenuAManoService {
     const cornice = await this.corniceDi(clientId, input.data);
 
     /**
-     * ⛔ **Un giorno che la cliente ha già aperto NON si riscrive** — la stessa regola di
-     * `scriviGiornataDettata`: quello che ha in mano è suo, magari ci ha già fatto la spesa.
+     * ⛔ **IL GIORNO GIÀ APERTO NON FERMA PIÙ LA NUTRIZIONISTA** — decisione di Simone, 8/9:
+     * *«il nutrizionista sostituisce anche se il cliente ha già visto. vince su tutto»*.
+     *
+     * Fino a oggi qui c'era un `throw`: la giornata si componeva pasto per pasto e il salvataggio
+     * rispondeva di no. ⚠️ Ed era un no **senza via d'uscita in questa schermata**, mentre la via
+     * d'uscita esisteva davvero — «Rigenera menu» dalla scheda — cioè lo stesso gesto, fatto da
+     * un'altra porta, con meno controlli di questa.
+     *
+     * ⚠️ La regola non è sparita, ha **cambiato natura**: da cancello a cosa da leggere. Il motivo
+     * per cui esisteva resta vero (magari ci ha già fatto la spesa), e per questo diventa un avviso
+     * da confermare qui sotto invece di un divieto — la stessa forma degli altri, e come gli altri
+     * finisce nel registro. ⛔ Chi automatizza NON eredita questo: i rifacimenti che partono da
+     * soli continuano a non toccare un giorno aperto, perché lì non c'è nessuno che ha letto niente.
      */
-    if (cornice.esistente?.giaAperto) {
-      throw new BadRequestException('Il menu di quel giorno la cliente lo ha già aperto: quello resta suo.');
-    }
 
     const verdetti = await this.valutate(clientId, (input.pasti ?? []).map((p) => p.recipeId));
     const pasti: PastoAMano[] = [];
@@ -448,6 +461,17 @@ export class MenuAManoService {
      * correggerlo: la via d'uscita che non esce.
      */
     const avvisi = [...verdetto.avvisi];
+    /**
+     * ⚠️ **L'avviso dice la CONSEGUENZA, non il divieto.** «Quello resta suo» era la frase di
+     * quando era un no: ripetuta sopra un salvataggio che passa sarebbe una bugia. Qui si dice cosa
+     * succede alla cliente — quello che ha in mano cambia — perché è la sola cosa su cui chi salva
+     * deve decidere.
+     */
+    const avvisoApertura = cornice.esistente?.giaAperto
+      ? 'La cliente ha già aperto il menu di questo giorno: salvando, quello che ha in mano cambia '
+        + '— magari ci aveva già fatto la spesa.'
+      : null;
+    if (avvisoApertura) avvisi.push(avvisoApertura);
     if (cornice.esistente?.nonSappiamo) {
       avvisi.push('Non si sa se la cliente ha già aperto questo giorno: la sua app non lo dice ancora.');
     }
@@ -510,6 +534,12 @@ export class MenuAManoService {
         kcal: verdetto.conto.kcal,
         targetKcal: cornice.targetKcal,
         avvisi,
+        /**
+         * ⚠️ **Una bandierina sua, oltre alla frase negli avvisi.** Fra sei mesi, alla domanda «quante
+         * volte abbiamo cambiato un menu che la cliente aveva già in mano?», cercare dentro il testo
+         * di un array di frasi vuol dire non poter rispondere: la frase si riscrive, il campo no.
+         */
+        ...(cornice.esistente?.giaAperto ? { sovrascrittoDopoApertura: true } : {}),
         /** ⚠️ Le forzature si contano sul verdetto del SERVER, non su quello che ha detto il client. */
         forzature: pasti.filter((p) => p.bloccata).map((p) => ({ nome: p.name, perche: p.forzatoPerche })),
       },
@@ -519,7 +549,30 @@ export class MenuAManoService {
       `Menu scritto a mano per ${clientId} il ${input.data} da ${attore.nome}: `
       + `${meals.length} pasti, ${verdetto.conto.kcal} kcal${avvisi.length ? ` — avvisi: ${avvisi.join(' ')}` : ''}.`,
     );
-    return { scritta: true, kcal: verdetto.conto.kcal, avvisi };
+    /**
+     * ⛔ **DOPO IL SALVATAGGIO LA FRASE VA AL PASSATO** — trovato da una revisione avversariale
+     * l'8/9. La schermata rimetteva in pancia al banner verde gli stessi `avvisi`, cioè
+     * «**salvando**, quello che ha in mano cambia» detto quando il salvataggio è già avvenuto. Un
+     * avviso al futuro dopo il gesto non è un avviso, e soprattutto non è la cosa che serve a chi
+     * ha appena scritto: serve sapere che c'è una persona da avvisare.
+     *
+     * ⚠️ **Le due liste si separano QUI**, dove l'avviso è stato costruito, invece di farlo
+     * indovinare alla schermata cercando un pezzo di frase: una frase si riscrive, e il giorno che
+     * si riscrive quel filtro smette di filtrare in silenzio. È la stessa ragione della bandierina
+     * nel registro. ⚠️ E la coda la dà Vera con le stesse parole (`giornataScritta`): la stessa
+     * decisione, raccontata uguale dalle due porte.
+     */
+    return {
+      scritta: true,
+      kcal: verdetto.conto.kcal,
+      avvisi,
+      /** Gli avvisi che restano veri anche a cose fatte: quello sull'apertura non lo è più. */
+      avvisiDopo: avvisi.filter((a) => a !== avvisoApertura),
+      dopoIlSalvataggio: avvisoApertura
+        ? 'La cliente quel giorno lo aveva già aperto: quello che aveva visto adesso è cambiato, '
+          + 'valuta se avvisarla.'
+        : null,
+    };
   }
 
   /** `AAAA-MM-GG` → mezzanotte UTC, come `@db.Date`. Una data storta si ferma qui. */

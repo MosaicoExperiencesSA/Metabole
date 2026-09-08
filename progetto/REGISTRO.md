@@ -20,6 +20,40 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **Il giorno che la cliente ha gia aperto si riscrive: la nutrizionista vince.**
+  Decisione di Simone: *«il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su
+  tutto»*, con **una conferma sola**. Il «gia aperto» era un cancello in due porte, e tutte e due si
+  arrendevano **dopo** che la giornata era gia stata composta: «Scrivi il menu a mano» rispondeva 400
+  col pulsante **spento** e la frase «quello resta suo, non si riscrive»; la giornata dettata a Vera
+  si arrendeva dopo l'anteprima **e dopo il si**. ⚠️ E il no non era nemmeno vero: la via d'uscita
+  esisteva — «Rigenera menu» dalla scheda — cioe lo stesso gesto da un'altra porta **con meno
+  controlli**. ▶️ Adesso e un avviso da confermare, e usa il meccanismo che c'era gia; in Vera la
+  riga sta nell'**anteprima**, prima del «Confermi?» che esisteva. ⛔ **Chi automatizza non eredita
+  questo**: i rifacimenti che partono da soli continuano a non toccare un giorno aperto — li non c'e
+  nessuno che ha letto la conseguenza.
+  ⛔ **Cinque cose dalla revisione avversariale.** (a) **La mezzanotte**: «domani» era calcolato due
+  volte, in due giri di conversazione — a cavallo della mezzanotte l'avviso parlava di un giorno e la
+  scrittura ne toccava un altro; adesso la data si decide una volta e viaggia nello stato. (b) **La
+  prova non guardava il giorno**: il finto ignora il `where`, quindi l'anteprima poteva leggere OGGI
+  e 251 prove restavano verdi — e la prova nuova, scritta con la mezzanotte UTC, era verde di giorno
+  e **rossa sotto `test:notte`**, cioe proprio nel turno per cui esiste. (c) Il **giorno che non c'e**
+  si diceva dopo cinque piatti dettati, con il dato gia in mano all'anteprima. (d) **A cose fatte la
+  frase restava al futuro** («salvando, quello che ha in mano cambia»): adesso c'e una coda al
+  passato, «valuta se avvisarla», con le stesse parole nelle due porte. (e) Le prove del backoffice
+  guardavano solo `disabled={…}`: il blocco poteva **rientrare dall'onClick** con tutto verde.
+  ⛔ **E una prova sarebbe rimasta verde attraverso tutto il cambiamento**: `rejects.toThrow(/gia
+  aperto/)` non distingue «non si puo» da «va confermato» — le due parole stanno in tutti e due i
+  messaggi.
+  ⚠️ **Resta aperto e va deciso**: (1) **la cliente non viene avvisata di niente**, e siccome aprire
+  la **lista della spesa** segna aperti tutti e sette i giorni, chi tocchiamo e quasi sempre chi ha
+  gia comprato — la lista si rimescola da sola, le spunte del piatto tolto spariscono, e nessuno le
+  dice perche; (2) **altre cinque porte di Vera** dicono ancora «quello resta suo», ma toccano tutti
+  i giorni futuri di una o di tutte le clienti, non un giorno solo; (3) dopo la sovrascrittura il
+  giorno resta marchiato «gia aperto», e altrove nel repo la stessa domanda ha risposta opposta.
+  ⚠️ Misurato: backend **478 suite / 8202 prove** (verdi anche con `test:notte`), backoffice
+  **36 / 351**, build di tutti e due. **Nessuna migrazione.** Dettaglio in
+  `progetto/COMMIT_parte_giorno_aperto_si_riscrive.txt`.
+
 - `[Sviluppo]` ⛔ **Nessuna ricetta nuova si salvava piu — da nessuna delle tre porte.** Segnalato
   da Simone con lo screenshot della finestra «Nuova ricetta» aperta da «Scrivi il menu a mano», con
   il nutrizionista davanti: *«Il campo «verified» non e previsto in questa richiesta»*. La spunta

@@ -1,0 +1,91 @@
+Il giorno che la cliente ha gia aperto si riscrive: la nutrizionista vince, con una conferma
+
+LA DECISIONE (Simone, 8/9)
+«Il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su tutto.»
+E, alla domanda: UNA conferma sola, poi passa.
+
+DOV'ERA IL NO
+Due porte, e tutte e due si arrendevano DOPO che la giornata era gia stata
+composta:
+· «Scrivi il menu a mano» — il server rispondeva 400 e la schermata teneva il
+  pulsante SPENTO, con scritto «quello resta suo, non si riscrive»;
+· la giornata dettata a Vera — si arrendeva dopo l'anteprima e dopo il «si»,
+  con «non scrivo niente».
+⚠️ E il no non era nemmeno vero: la via d'uscita esisteva, «Rigenera menu» dalla
+scheda, cioe lo stesso gesto da un'altra porta CON MENO CONTROLLI di questa.
+
+COSA C'E ADESSO
+Il «gia aperto» e passato da cancello a cosa da leggere, e usa il meccanismo di
+conferma che c'era gia («Da confermare:» + «Ho letto, salva lo stesso»).
+· In «Scrivi il menu a mano»: il pulsante non si spegne piu, il banner dice la
+  CONSEGUENZA (quello che la cliente ha in mano cambia) invece del divieto, e
+  nel registro resta un campo suo, `sovrascrittoDopoApertura`.
+· In Vera: le due arrese («l'ha gia aperto» e «non lo so») sono diventate una
+  riga nell'ANTEPRIMA, prima del «Confermi?» che gia c'era. Nessuna conferma
+  nuova: quella giusta era gia li, si usava male.
+⛔ CHI AUTOMATIZZA NON EREDITA QUESTO. I rifacimenti che partono da soli
+continuano a non toccare un giorno aperto: li non c'e nessuno che ha letto la
+conseguenza. E la differenza fra un gesto e un automatismo.
+
+I CINQUE PUNTI DELLA REVISIONE AVVERSARIALE
+· LA MEZZANOTTE. «Domani» era calcolato DUE volte, una nell'anteprima e una al
+  «si», in due giri di conversazione diversi: a cavallo della mezzanotte di Roma
+  l'avviso parlava di un giorno e la scrittura ne toccava un altro. Adesso la
+  data si decide una volta sola, nell'anteprima, e viaggia nello stato.
+· LA PROVA CHE NON GUARDAVA IL GIORNO. Il finto dei test ignora il `where`:
+  misurato, l'anteprima poteva leggere OGGI invece di domani e 251 prove
+  restavano verdi. Adesso una prova legge la data delle due query e pretende che
+  siano lo stesso giorno, e che quel giorno sia domani. ⚠️ Scritta la prima volta
+  con la mezzanotte UTC, era verde di giorno e ROSSA sotto `test:notte` — cioe
+  proprio nel turno per cui esiste: ricalcolata con `aGiorno`, la stessa del
+  codice.
+· IL GIORNO CHE NON C'E si diceva dopo cinque piatti dettati e un «si», mentre
+  l'anteprima aveva gia in mano il dato e lo buttava via. Adesso si dice subito.
+  ⚠️ Distinguendo i due `null`: «so che il giorno non c'e» e un fatto, «la query
+  e fallita» e non sapere niente, e li si tace.
+· LA FRASE AL FUTURO DOPO IL GESTO. A salvataggio avvenuto la schermata
+  rimetteva in pancia gli stessi avvisi: «SALVANDO, quello che ha in mano
+  cambia». Adesso il server manda una coda al passato — «lo aveva gia aperto:
+  quello che aveva visto adesso e cambiato, valuta se avvisarla» — con le stesse
+  parole che usa Vera dall'altra porta. ⚠️ La separazione la fa il server, dove
+  le frasi sono nate: farla cercando un pezzo di frase nella schermata
+  smetterebbe di funzionare in silenzio il giorno che la frase si riscrive.
+· IL CANCELLO CHE POTEVA RIENTRARE DALL'ONCLICK. Le prove del backoffice
+  guardavano solo `disabled={…}`: misurato, rimettendo il blocco dentro
+  l'`onClick` restavano tutte verdi, e lo stesso spegnendo il banner con
+  `{false && …}`. Adesso si conta dove `giaAperto` puo comparire e si pretende
+  che il banner sia appeso alla condizione vera.
+
+⛔ E UNA PROVA CHE SAREBBE RIMASTA VERDE ATTRAVERSO TUTTO
+`menu-a-mano.service.spec.ts` diceva `rejects.toThrow(/gia aperto/)`, e il
+messaggio nuovo — «Da confermare: La cliente ha gia aperto…» — contiene quelle
+due parole. Un `toThrow` su un pezzo di frase non distingue «non si puo» da «va
+confermato», che qui sono la differenza fra un cancello e un avviso. Adesso si
+guarda la scrittura: `upsert` chiamato o no.
+
+MISURATO
+- Backend 478 suite / 8202 prove verdi, anche con `npm run test:notte`.
+- Backoffice 36 suite / 351 prove, build di tutti e due.
+- Le prove mordono: rimesso il blocco, rosse; spostato l'avviso dopo il
+  «Confermi?», rossa; letto oggi invece di domani, rossa.
+
+⚠️ COSA RESTA APERTO, E VA DECISO
+1. LA CLIENTE NON VIENE AVVISATA DI NIENTE. Non esiste nessuna notifica «il tuo
+   menu di giovedi e cambiato». E il caso peggiore e il caso normale: aprire la
+   LISTA DELLA SPESA segna aperti tutti e sette i giorni, quindi chi tocchiamo e
+   quasi sempre chi ha gia comprato. La lista si ricalcola a ogni lettura: le
+   voci del piatto tolto spariscono CON LA LORO SPUNTA, le nuove arrivano da
+   spuntare, e non c'e una riga che dica perche. Il precedente per farlo esiste
+   gia (`senza-glutine.ts` avvisa la cliente quando i suoi menu cambiano).
+2. LE ALTRE CINQUE PORTE DI VERA dicono ancora «l'ha gia aperto in app e quello
+   resta suo»: «niente pesce per Giulia», «togli lo spuntino», «rifai con piu
+   proteine», «mettila a 18:6», e l'approvazione di una regola dal capo. Sono
+   gesti umani come questi due, ma toccano TUTTI i giorni futuri di una o di
+   tutte le clienti, non un giorno solo: «vince su tutto» li vuol dire cancellare
+   la spesa a piu persone in un colpo. Va deciso, non lasciato implicito.
+3. Dopo la sovrascrittura il giorno resta marchiato «gia aperto». Altrove nel
+   repo la stessa domanda ha risposta opposta (`menu.service.ts` azzera le due
+   colonne quando un giorno si sposta). Qui non e stata nemmeno posta.
+
+MIGRAZIONE
+Nessuna.

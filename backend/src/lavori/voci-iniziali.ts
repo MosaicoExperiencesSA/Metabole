@@ -83,6 +83,37 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'giorno-gia-aperto-si-riscrive',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-08T10:30',
+    priorita: 'alta',
+    titolo: '✅ Il giorno gia aperto dalla cliente si riscrive: la nutrizionista vince, con una conferma',
+    dettaglio:
+      'Decisione di Simone: «il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su '
+      + 'tutto», con UNA conferma sola.\n\n'
+      + '⛔ Il «gia aperto» era un cancello in due porte, e tutte e due si arrendevano DOPO che la '
+      + 'giornata era gia stata composta: «Scrivi il menu a mano» rispondeva 400 col pulsante spento '
+      + 'e la frase «quello resta suo, non si riscrive»; la giornata dettata a Vera si arrendeva dopo '
+      + 'l\'anteprima e dopo il si.\n\n'
+      + '⚠️ E il no non era nemmeno vero: la via d\'uscita esisteva — «Rigenera menu» dalla scheda — '
+      + 'cioe lo stesso gesto da un\'altra porta CON MENO CONTROLLI.\n\n'
+      + '✅ Adesso e un avviso da confermare e usa il meccanismo che c\'era gia; in Vera la riga sta '
+      + 'nell\'ANTEPRIMA, prima del «Confermi?» che esisteva. ⛔ Chi automatizza non eredita questo.\n\n'
+      + '⛔ Dalla revisione avversariale: la MEZZANOTTE (due «domani» in due giri di conversazione) · '
+      + 'la prova che non guardava QUALE giorno legge (il finto ignora il `where`) · il giorno che non '
+      + 'c\'e detto dopo cinque piatti dettati · la frase rimasta al futuro dopo il salvataggio · il '
+      + 'blocco che poteva rientrare dall\'onClick con tutte le prove verdi.\n\n'
+      + '⚠️ RESTA APERTO E VA DECISO: (1) la cliente non viene avvisata di niente, e siccome aprire la '
+      + 'LISTA DELLA SPESA segna aperti tutti e sette i giorni, chi tocchiamo e quasi sempre chi ha gia '
+      + 'comprato; (2) altre CINQUE porte di Vera dicono ancora «quello resta suo», ma toccano tutti i '
+      + 'giorni futuri di una o di tutte le clienti; (3) dopo la sovrascrittura il giorno resta '
+      + 'marchiato «gia aperto».\n\n'
+      + '⚠️ Misurato: backend 478 suite / 8202 prove (verdi anche con test:notte), backoffice 36 / 351. '
+      + 'Nessuna migrazione.',
+  },
+  {
     chiave: 'ricetta-nuova-non-si-salvava-verified',
     categoria: CODICE,
     ordine: 0,

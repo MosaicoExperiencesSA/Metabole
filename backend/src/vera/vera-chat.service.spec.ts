@@ -3,6 +3,7 @@ import { scegliPerRicetta } from '../nutrient-facts/stato-alimento';
 import { DizionarioService } from './dizionario.service';
 import { PoolDisponibileService } from './pool-disponibile.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { aGiorno } from '../common/date-only';
 import { RegistroVeraService } from './registro.service';
 import { RichiesteVeraService } from './richieste.service';
 import { ValoriNutrizionaliService } from '../nutrient-facts/valori-nutrizionali.service';
@@ -3036,27 +3037,131 @@ describe('VeraChatService — la giornata dettata', () => {
     return ultimoAgente(messaggioCreate).testo;
   };
 
-  it('⚠️ se la giornata di domani è già stata aperta, non si tocca — e lo dice così', async () => {
+  /**
+   * ⛔ **LE DUE ARRESE SONO DIVENTATE UN AVVISO** — decisione di Simone, 8/9: *«il nutrizionista
+   * sostituisce anche se il cliente ha già visto. vince su tutto»*.
+   *
+   * ⚠️ E l'avviso sta **prima del sì**, non dopo: si arrendeva dopo che la nutrizionista aveva
+   * dettato cinque piatti e confermato. Un avviso dato dopo il gesto non è un avviso.
+   */
+  const anteprima = async (over: ReturnType<typeof conCatalogo>) => {
+    const { service, messaggioCreate } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    return ultimoAgente(messaggioCreate).testo;
+  };
+
+  it('⛔ giornata già aperta: l\'anteprima lo dice PRIMA di chiedere «Confermi?»', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: true });
+    const testo = await anteprima(over);
+    expect(testo).toContain('lo ha già aperto in app');
+    expect(testo).toContain('quello che ha in mano cambia');
+    /** ⚠️ L'ordine conta: l'avviso deve stare sopra la domanda, non sotto. */
+    expect(testo.indexOf('già aperto')).toBeLessThan(testo.indexOf('Confermi?'));
+  });
+
+  it('⛔ e al sì la scrive lo stesso: la nutrizionista vince', async () => {
     const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: true });
     const testo = await arrivaFinoAlSi(over);
-    expect(over.menuDay.update).not.toHaveBeenCalled();
-    expect(testo).toContain('lo ha già aperto in app');
+    expect(over.menuDay.update).toHaveBeenCalled();
+    /** ⚠️ E la coda dice che è cambiato SOTTO: «la vedrà quando aprirà» sarebbe falso proprio qui. */
+    expect(testo).toContain('lo aveva **già aperto**');
+    expect(testo).toContain('valuta se avvisarla');
   });
 
-  it('⛔ se non sappiamo se l\'ha aperta, si dice «non lo so» — non «potrebbe averla vista»', async () => {
+  it('⛔ «non lo so» avvisa e poi scrive: non è più un\'arresa', async () => {
     const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: false });
-    const testo = await arrivaFinoAlSi(over);
-    expect(over.menuDay.update).not.toHaveBeenCalled();
-    expect(testo).toContain('Non so dirti se ha già aperto');
-    expect(testo).toContain('Rigenera menu');
+    expect(await anteprima(over)).toContain('Non so dirti se ha già aperto');
+    const testo = await arrivaFinoAlSi(conCatalogo({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: false }));
+    expect(testo).toContain('Fatto');
+    /** ⚠️ Qui la coda NON dice «l'aveva già aperto»: non lo sappiamo, e inventarlo sarebbe peggio. */
+    expect(testo).not.toContain('valuta se avvisarla');
   });
 
-  it('⚠️ e se domani non è ancora stato preparato, il motivo è quello', async () => {
-    const over = conCatalogo(null);
-    const testo = await arrivaFinoAlSi(over);
-    expect(over.menuDay.update).not.toHaveBeenCalled();
-    expect(testo).toContain('non è ancora stata preparata');
+  /** ⚠️ Su una giornata mai aperta l'anteprima resta pulita: un avviso che c'è sempre non è un avviso. */
+  it('⚠️ giornata non aperta: nessun avviso nell\'anteprima', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: true });
+    const testo = await anteprima(over);
+    expect(testo).not.toContain('già aperto');
+    expect(testo).not.toContain('Non so dirti');
   });
+
+  /**
+   * ⛔ **QUALE GIORNO LEGGE, E CHE SIA LO STESSO CHE SCRIVE** — trovato da una revisione
+   * avversariale l'8/9.
+   *
+   * ⚠️ **Il finto di questi test ignora il `where`** (è scritto anche più su, in un altro caso che
+   * per questo guarda l'argomento della query): finché nessuno controlla la data, l'anteprima
+   * potrebbe leggere **oggi** invece di domani e tutte le prove qui sopra resterebbero verdi —
+   * misurato, la mutazione sopravviveva. E il difetto vero che ne nasce è la mezzanotte: due
+   * `new Date()` in due giri di conversazione diversi, l'avviso su un giorno e la scrittura su un
+   * altro.
+   */
+  const dataDi = (m: jest.Mock, i: number) => (m.mock.calls[i][0].where.date as Date).toISOString().slice(0, 10);
+  /**
+   * ⚠️ **«Domani» è domani A ROMA, e l'attesa si calcola con la stessa funzione del codice**
+   * (`aGiorno`). La prima stesura di questa prova usava la mezzanotte UTC: verde di giorno e
+   * **rossa sotto `test:notte`**, che è esattamente il turno in cui il difetto della mezzanotte
+   * vive. Una prova che non regge la notte non sorveglia il caso per cui è stata scritta.
+   */
+  const domaniISO = () => new Date(aGiorno(new Date()).getTime() + 86_400_000).toISOString().slice(0, 10);
+
+  it('⛔ l\'anteprima legge DOMANI, e la scrittura tocca lo stesso giorno', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: true });
+    await arrivaFinoAlSi(over);
+    const letture = over.menuDay.findFirst as jest.Mock;
+    /** ⚠️ Due letture: quella dell'anteprima e quella della scrittura. Devono dire lo stesso giorno. */
+    expect(letture.mock.calls.length).toBeGreaterThanOrEqual(2);
+    const primo = dataDi(letture, 0);
+    expect(primo).toBe(domaniISO());
+    expect(dataDi(letture, letture.mock.calls.length - 1)).toBe(primo);
+  });
+
+  /**
+   * ⛔ **Il giorno che non c'è si dice PRIMA del sì**, non dopo cinque piatti dettati:
+   * l'informazione l'anteprima ce l'ha già in mano, e la buttava via.
+   */
+  it('⛔ se domani non è preparato, l\'anteprima lo dice subito e non chiede «Confermi?»', async () => {
+    const over = conCatalogo(null);
+    const testo = await anteprima(over);
+    expect(testo).toContain('non è ancora stata preparata');
+    expect(testo).not.toContain('Confermi?');
+    /** ⚠️ E non si inventa un avviso sull'apertura di un giorno che non esiste. */
+    expect(testo).not.toContain('Non so dirti');
+    expect(over.menuDay.update).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **«Aperto» vince su «non lo so», e l'ordine dei due rami non è indifferente.** Un giorno
+   * composto prima che la cliente aggiornasse l'app e aperto dopo ha `apertureTracciate: false`
+   * **e** una data di apertura: invertendo i rami si direbbe «non so dirti» su un giorno che
+   * sappiamo aperto — e nessuna prova se ne accorgeva.
+   */
+  it('⛔ aperto davvero ma non tracciato: si dice APERTO, non «non lo so»', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: false });
+    const testo = await anteprima(over);
+    expect(testo).toContain('lo ha già aperto in app');
+    expect(testo).not.toContain('Non so dirti');
+  });
+
+  /** ⛔ E la sovrascrittura dopo l'apertura resta scritta nel REGISTRO, non solo nel testo. */
+  it('⛔ il registro di Vera porta la bandierina della sovrascrittura', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: true });
+    const { service, registro } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    await service.parla('lucia', 'sì');
+    const scritte = (registro.scrivi as jest.Mock).mock.calls.map((c) => c[0]);
+    const giornata = scritte.find((r) => r.dettaglio?.giornataDettata);
+    expect(giornata.dettaglio.giornataDettata.sovrascrittoDopoApertura).toBe(true);
+  });
+
+  /**
+   * ⚠️ **Spostata in anteprima l'8/9.** Questa prova arrivava fino al sì, perché fino a quel giorno
+   * il motivo si sentiva solo dopo la conferma. Adesso l'anteprima si arrende prima, quindi il
+   * «sì» non ha più niente da confermare e la frase la si legge un giro prima: la prova sta più
+   * sotto, «se domani non è preparato, l'anteprima lo dice subito».
+   */
 });
 
 /**

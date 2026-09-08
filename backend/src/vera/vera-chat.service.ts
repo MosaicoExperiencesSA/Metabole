@@ -2897,6 +2897,58 @@ export class VeraChatService {
       };
     }
     const quando = stato.dataGiornata ?? 'domani';
+    /**
+     * ⛔ **L'APERTURA SI DICE QUI, NON DOPO IL SÌ** — decisione di Simone, 8/9: *«il nutrizionista
+     * sostituisce anche se il cliente ha già visto. vince su tutto»*.
+     *
+     * Prima `scriviGiornataDettata` si arrendeva **dopo** la conferma: si dettavano cinque piatti,
+     * si leggeva l'anteprima, si diceva sì, e la risposta era «non scrivo niente». Adesso la
+     * scrive, e il fatto che la cliente ce l'abbia in mano si dice **prima**, dove ancora serve a
+     * decidere: la conferma in questo punto c'è già, non ne serve una nuova.
+     *
+     * ⚠️ **Se non riesco a leggere il giorno non invento**: nessun avviso e la scrittura prova lo
+     * stesso: un «potrebbe averlo aperto» detto per un errore di lettura è un avviso che insegna a
+     * non leggere gli avvisi.
+     */
+    /**
+     * ⛔ **LA DATA SI CALCOLA UNA VOLTA SOLA, QUI, E VIAGGIA NELLO STATO** — trovato da una
+     * revisione avversariale l'8/9.
+     *
+     * La prima stesura la calcolava due volte: una in questa anteprima e una in
+     * `scriviGiornataDettata`, in due giri di conversazione diversi. A cavallo della mezzanotte di
+     * Roma l'anteprima parla del giorno D+1 e la scrittura tocca D+2: l'avviso «lo ha già aperto»
+     * si riferirebbe a un giorno **diverso** da quello riscritto, cioè la decisione verrebbe presa
+     * su un fatto di un altro giorno. È la famiglia di difetti per cui in CI gira `test:notte`.
+     */
+    const giornoDaScrivere = new Date(aGiorno(new Date()).getTime() + 86_400_000);
+    /**
+     * ⛔ **DUE `null` DIVERSI, E NON VANNO CONFUSI** — lo stesso errore che il 26/8 era stato tolto
+     * dalla scrittura e che la prima stesura di questa anteprima ha rifatto dalla porta accanto.
+     * `findFirst` che rende `null` vuol dire **so per certo che il giorno non c'è**, ed è un fatto
+     * da dire subito; una query che fallisce vuol dire **non so niente**, e lì si tace: un
+     * «potrebbe averlo aperto» detto per un errore di lettura insegna a non leggere gli avvisi.
+     */
+    const letturaGiorno = await this.prisma.menuDay.findFirst({
+      where: { clientId: stato.clienteId!, date: giornoDaScrivere } as never,
+      select: { apertoDallaClienteIl: true, apertureTracciate: true } as never,
+    }).then((g) => (g ?? 'manca') as { apertoDallaClienteIl?: Date | null; apertureTracciate?: boolean } | 'manca')
+      .catch(() => 'errore' as const);
+    /**
+     * ⛔ **Il giorno che non c'è si dice PRIMA di far dettare il sì.** Prima questa resa arrivava
+     * dopo cinque piatti dettati e una conferma: l'informazione era già in mano all'anteprima e la
+     * si buttava via.
+     */
+    if (letturaGiorno === 'manca') {
+      return { testo: testi.giornataNonPreparata(quando), esito: 'arresa' };
+    }
+    const giornoOra = letturaGiorno === 'errore' ? null : letturaGiorno;
+    const avvisoApertura = !giornoOra
+      ? null
+      : laClienteLHaAperto(giornoOra)
+        ? testi.giornataGiaAperta(quando)
+        : nonSappiamoSeLHaAperto(giornoOra)
+          ? testi.giornataAperturaSconosciuta(quando)
+          : null;
     return {
       testo: testi.anteprimaGiornata(
         quando,
@@ -2904,14 +2956,16 @@ export class VeraChatService {
         conto.kcal,
         target,
         conto.scostamentoPct,
+        avvisoApertura,
       ),
       esito: 'in_corso',
-      stato: { ...stato, passo: 'conferma' },
+      /** ⚠️ La data decisa qui è quella su cui si scriverà: vedi il cappello sopra. */
+      stato: { ...stato, passo: 'conferma', giornoDaScrivereISO: giornoDaScrivere.toISOString().slice(0, 10) },
     };
   }
 
   /**
-   * La scrittura: un solo giorno, e solo se **non è ancora stato aperto**.
+   * La scrittura: un solo giorno — **quello deciso dall'anteprima**.
    *
    * ⚠️ Si scrive nel `meals` con lo stesso snapshot che usa il motore ({slot, recipeId, name,
    * kcal}): una giornata dettata dev'essere indistinguibile da una generata per tutto il resto
@@ -2919,9 +2973,17 @@ export class VeraChatService {
    */
   private async scriviGiornataDettata(nutrizionistaId: string, stato: StatoVera): Promise<EsitoVera> {
     const scelte = (stato.scelteGiornata ?? []) as SceltaGiornata[];
-    // ⚠️ «Domani» è domani **a Roma**. Con la mezzanotte UTC, una giornata dettata all'una di notte
-    // finiva su OGGI: la nutrizionista dice «domani» e la cliente se la trova nel piatto stamattina.
-    const domani = new Date(aGiorno(new Date()).getTime() + 86_400_000);
+    /**
+     * ⛔ **LA DATA È QUELLA DELL'ANTEPRIMA, non una ricalcolata adesso** (8/9, revisione
+     * avversariale). Ricalcolarla qui vuol dire che a cavallo della mezzanotte si scrive su un
+     * giorno diverso da quello di cui si è appena parlato — e da quello su cui è stato dato il sì.
+     *
+     * ⚠️ «Domani» è domani **a Roma**: il ripiego serve solo a una conversazione ripresa da uno
+     * stato vecchio, che quel campo non ce l'ha.
+     */
+    const domani = stato.giornoDaScrivereISO
+      ? new Date(`${stato.giornoDaScrivereISO}T00:00:00.000Z`)
+      : new Date(aGiorno(new Date()).getTime() + 86_400_000);
 
     /**
      * ⛔ **TRE MOTIVI PER NON SCRIVERE, E VANNO DETTI SEPARATI** (26/8, trovato in revisione).
@@ -2938,29 +3000,22 @@ export class VeraChatService {
       where: { clientId: stato.clienteId!, date: domani } as never,
       select: { id: true, apertoDallaClienteIl: true, apertureTracciate: true } as never,
     })) as { id: string; apertoDallaClienteIl?: Date | null; apertureTracciate?: boolean } | null;
-    if (!giorno) {
-      return {
-        testo: 'La giornata di domani non è ancora stata preparata: non c\'è niente su cui scrivere. Non scrivo niente.',
-        esito: 'arresa',
-      };
-    }
-    if (laClienteLHaAperto(giorno)) {
-      return {
-        testo:
-          'Il menu di domani lo ha già aperto in app: quello resta suo — magari ci ha già fatto la spesa. ' +
-          'Non scrivo niente.',
-        esito: 'arresa',
-      };
-    }
-    if (nonSappiamoSeLHaAperto(giorno)) {
-      return {
-        testo:
-          'Non so dirti se ha già aperto il menu di domani: la sua app non me lo dice ancora, e nel dubbio ' +
-          'non le riscrivo una giornata che potrebbe avere in mano. Se vuoi cambiargliela lo stesso c\'è ' +
-          '«Rigenera menu» dalla sua scheda. Non scrivo niente.',
-        esito: 'arresa',
-      };
-    }
+    /** ⚠️ Resta come rete: fra l'anteprima e il sì il giorno può essere sparito davvero. */
+    if (!giorno) return { testo: testi.giornataNonPreparata('domani'), esito: 'arresa' };
+    /**
+     * ⛔ **QUI NON CI SONO PIÙ DUE ARRESE** — decisione di Simone, 8/9: *«il nutrizionista
+     * sostituisce anche se il cliente ha già visto. vince su tutto»*.
+     *
+     * Si arrendeva sul «l'ha già aperto» e sul «non lo so», e lo faceva **dopo** che la
+     * nutrizionista aveva dettato la giornata intera e detto sì. Le due condizioni si leggono
+     * ancora — servono a dire com'è andata a chi ha appena scritto — ma non fermano niente: quello
+     * che era un no è diventato una riga nell'anteprima, prima della conferma.
+     *
+     * ⚠️ **Chi automatizza NON eredita questo.** `codaDaRifare` e i rifacimenti che partono da soli
+     * continuano a non toccare un giorno aperto: lì non c'è nessuno che ha letto la conseguenza, ed
+     * è la differenza fra un gesto e un automatismo.
+     */
+    const eraGiaAperta = laClienteLHaAperto(giorno);
 
     await this.prisma.menuDay.update({
       where: { id: giorno.id },
@@ -2990,9 +3045,21 @@ export class VeraChatService {
       soggettoTipo: 'user',
       soggettoId: stato.clienteId ?? null,
       soggettoNome: stato.clienteNome ?? null,
-      dettaglio: { giornataDettata: { data: domani.toISOString().slice(0, 10), kcal, pasti: scelte } },
+      /**
+       * ⚠️ **La bandierina sta nel registro, non solo nel testo** — come in «Scrivi il menu a mano».
+       * Alla domanda «quante volte abbiamo cambiato un menu che la cliente aveva già in mano?» si
+       * deve poter rispondere per tutte e due le porte, non per una.
+       */
+      dettaglio: {
+        giornataDettata: {
+          data: domani.toISOString().slice(0, 10),
+          kcal,
+          pasti: scelte,
+          ...(eraGiaAperta ? { sovrascrittoDopoApertura: true } : {}),
+        },
+      },
     })) as { id: string };
-    return { testo: testi.giornataScritta('domani', kcal), esito: 'scritta', azioneId: riga.id };
+    return { testo: testi.giornataScritta('domani', kcal, eraGiaAperta), esito: 'scritta', azioneId: riga.id };
   }
 
   // ──────────────────────── le proteine: la quota minima di questa cliente ──

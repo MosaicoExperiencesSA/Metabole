@@ -158,6 +158,12 @@ export interface StatoVera {
   righeGiornata?: unknown;
   scelteGiornata?: { slot: string; recipeId: string; nome: string; kcal: number }[];
   dataGiornata?: string;
+  /**
+   * ⛔ **Il giorno su cui si scriverà, deciso dall'ANTEPRIMA** (8/9). Senza, la data si calcolava
+   * due volte in due giri di conversazione diversi, e a cavallo della mezzanotte l'avviso
+   * sull'apertura parlava di un giorno e la scrittura ne toccava un altro.
+   */
+  giornoDaScrivereISO?: string;
   /** Le proteine: la quota minima di adesso e quella che si sta per scrivere (frazioni 0–1). */
   proteinePrima?: number;
   proteineDopo?: number;
@@ -610,18 +616,46 @@ export const testi = {
     `Per **${pasto}** non trovo «${dettato}» fra i piatti approvati per lei.\n` +
     'Puoi dirmelo con un altro nome, oppure dettarmi la ricetta nuova e poi rimetterla in giornata.',
 
+  /**
+   * ⛔ **L'AVVISO SULL'APERTURA STA QUI, prima del sì** — decisione di Simone, 8/9: *«il
+   * nutrizionista sostituisce anche se il cliente ha già visto. vince su tutto»*.
+   *
+   * Prima Vera si arrendeva **dopo** la conferma: la nutrizionista dettava cinque piatti, leggeva
+   * l'anteprima, diceva sì, e si sentiva rispondere «non scrivo niente». Adesso la scrive — e
+   * siccome la conferma in questo punto **c'è già**, il fatto che la cliente l'abbia in mano si
+   * dice qui, dove ancora serve a decidere. ⚠️ Un avviso dato dopo il gesto non è un avviso, è una
+   * giustificazione.
+   */
   anteprimaGiornata: (
     quando: string,
     scelte: { pasto: string; nome: string; kcal: number }[],
     kcal: number,
     target: number | null,
     scostamento: number | null,
+    avvisoApertura?: string | null,
   ) =>
     `Ecco la giornata di **${quando}**:\n` +
     scelte.map((s) => `· ${s.pasto}: **${s.nome}** — ${s.kcal} kcal`).join('\n') +
     `\n\n**Totale ${kcal} kcal**` +
     (target ? ` contro un obiettivo di ${target} (${scostamento! > 0 ? '+' : ''}${scostamento}%).` : '.') +
+    (avvisoApertura ? `\n\n${avvisoApertura}` : '') +
     '\n\n**Confermi?**',
+
+  /**
+   * ⚠️ **Detta in ANTEPRIMA da quando l'informazione c'è già lì** (8/9): prima arrivava dopo cinque
+   * piatti dettati e un sì, su un dato che l'anteprima aveva in mano e buttava via.
+   */
+  giornataNonPreparata: (quando: string) =>
+    `La giornata di ${quando} non è ancora stata preparata: non c'è niente su cui scrivere. Non scrivo niente.`,
+
+  /** ⚠️ Dice la conseguenza per la cliente, non un divieto: il divieto non c'è più. */
+  giornataGiaAperta: (quando: string) =>
+    `⚠️ Il menu di ${quando} **lo ha già aperto in app**: scrivendo, quello che ha in mano cambia ` +
+    '— magari ci aveva già fatto la spesa.',
+
+  giornataAperturaSconosciuta: (quando: string) =>
+    `⚠️ Non so dirti se ha già aperto il menu di ${quando}: la sua app non me lo dice ancora. ` +
+    'Potrebbe averlo in mano.',
 
   /**
    * ⚠️ Fuori tolleranza NON si scrive (decisione di Simone): si dice di quanto sfora. Una giornata
@@ -654,9 +688,17 @@ export const testi = {
     'posso dirti se questa giornata ci sta dentro — il numero che calcolerei non è quello che sta ' +
     'mangiando. **Non la scrivo.** Correggete la pesata sbagliata dalla sua scheda e ridettamela.',
 
-  giornataScritta: (quando: string, kcal: number) =>
+  /**
+   * ⚠️ **La coda cambia se lei quel giorno lo aveva già aperto**: «la vedrà quando aprirà quel
+   * giorno» sarebbe falso per chi l'ha già aperto — e falso proprio nel caso in cui la conseguenza
+   * conta di più. Si dice che è cambiato sotto, così chi ha scritto sa se le deve un messaggio.
+   */
+  giornataScritta: (quando: string, kcal: number, eraGiaAperta = false) =>
     `Fatto: la giornata di ${quando} è quella che hai dettato (${kcal} kcal). ` +
-    'Lo trovi nel registro, e lei la vedrà quando aprirà quel giorno.',
+    (eraGiaAperta
+      ? 'Lo trovi nel registro. ⚠️ Lei quel giorno lo aveva **già aperto**: quello che aveva visto '
+        + 'adesso è cambiato, valuta se avvisarla.'
+      : 'Lo trovi nel registro, e lei la vedrà quando aprirà quel giorno.'),
 
   giornataNienteDaScrivere: () =>
     'Non ho capito nessun pasto. Scrivimeli uno per riga, per esempio:\n' +
