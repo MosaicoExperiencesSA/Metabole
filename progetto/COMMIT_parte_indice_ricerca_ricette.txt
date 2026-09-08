@@ -1,0 +1,58 @@
+Due indici sul nome delle ricette: la ricerca smette di ordinare ventimila righe
+
+PERCHE
+L'8/9 la ricerca del menu a mano ha smesso di fare una lettura sola: adesso ne
+fa TRE, ognuna con `ORDER BY name ASC LIMIT 200`. Su `recipe` c'era un indice
+solo, `(regime, meal_slot, active)`: niente sul NOME, che e la colonna su cui si
+cerca e su cui si ordina.
+
+MISURATO, NON DEDOTTO
+Postgres 16 in sandbox, 20.000 ricette finte con nomi realistici, EXPLAIN
+ANALYZE:
+
+  ricerca             prima      dopo
+  «%yogurt%» (4000)   16,3 ms    2,2 ms     il caso frequente
+  «%zabaione%» (0)    15,1 ms    0,27 ms    la ricerca che non trova niente
+  campo vuoto         16,3 ms    0,36 ms    l'elenco fuori dal paniere
+  «yogurt%» (1333)    16,6 ms    16,8 ms    ⚠️ NON migliora
+
+⚠️ IL CASO CHE NON MIGLIORA VA DETTO. Con `ILIKE 'yogurt%'` il pianificatore
+preferisce scorrere l'indice sul nome nell'ordine giusto e fermarsi a 200,
+filtrando per strada: gli costa poco per via del LIMIT, e il trigramma non lo
+usa. Non peggiora niente — era gia cosi — ma chi un giorno guardera quel numero
+deve sapere che e conosciuto, e non un indice che manca.
+
+DUE INDICI, E UNO SOLO NON BASTA
+· il btree su `name` serve all'ORDINE: `ORDER BY name LIMIT 200` si ferma alle
+  prime duecento invece di ordinare l'insieme intero. Salva il caso frequente e
+  il campo vuoto;
+· il GIN a trigrammi serve a TROVARE quando le corrispondenze sono poche: senza,
+  una ricerca che non trova niente legge comunque tutte e ventimila le righe. E
+  il caso che una persona incontra ogni volta che scrive una parola sbagliata.
+
+⚠️ Il trigramma sta sulla colonna NUDA (`name gin_trgm_ops`), non su
+`lower(name)`: Prisma genera `ILIKE`, e un indice su `lower(name)` con `ILIKE`
+sulla colonna nuda NON VIENE MAI USATO — misurato, il pianificatore lo ignorava
+e tornava alla lettura sequenziale.
+
+⚠️ Il GIN non e nello schema Prisma, e non e una dimenticanza: lo schema sa
+esprimere il btree (`@@index([name])`) ma non un indice a trigrammi senza
+accendere una funzione in anteprima. Chi un giorno lancera `prisma migrate dev`
+lo vedra come «deriva»: e voluto, e non va tolto. Sta scritto anche nello schema
+e nel commento della migrazione.
+
+⚠️ `CREATE EXTENSION IF NOT EXISTS pg_trgm` e l'unica riga che puo fallire per
+permessi. E un'estensione «fidata» da Postgres 13 e su Neon la installa il
+proprietario del database. Se il deploy si fermasse li, il btree da solo vale
+gia tre dei quattro casi misurati: si toglie quella riga e si ripubblica.
+
+MISURATO (codice)
+- La migrazione gira davvero, e due volte di fila non rompe niente: provata su
+  un Postgres 16 vero in sandbox, e tutte e tre le istruzioni sono idempotenti.
+- `prisma validate`: schema valido.
+- Backend 480 suite / 8260 prove verdi, `nest build` verde.
+
+MIGRAZIONE
+`20260908160000_indice_ricerca_ricette` — una `CREATE EXTENSION` e due
+`CREATE INDEX`, tutte additive e idempotenti. Nessuna colonna, nessun dato
+toccato. La applica Render al deploy.

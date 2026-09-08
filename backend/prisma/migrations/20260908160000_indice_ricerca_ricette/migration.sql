@@ -1,0 +1,43 @@
+-- CERCARE UNA RICETTA PER NOME: DUE INDICI, E UNO SOLO NON BASTA — 8/9/2026.
+--
+-- L'8/9 la ricerca del menu a mano ha smesso di fare una lettura sola: adesso ne fa TRE (il nome
+-- comincia con la parola / una parola comincia cosi / il nome la contiene), ognuna con
+-- `ORDER BY name ASC LIMIT 200`. Su `recipe` c'era un indice solo, `(regime, meal_slot, active)`:
+-- niente sul NOME, che e la colonna su cui si cerca e su cui si ordina.
+--
+-- MISURATO, non dedotto (Postgres 16, 20.000 ricette finte con nomi realistici, EXPLAIN ANALYZE):
+--
+--   ricerca            | prima      | dopo
+--   -------------------|------------|--------
+--   «%yogurt%» (4000)  | 16,3 ms    | 2,2 ms     <- il caso frequente
+--   «%zabaione%» (0)   | 15,1 ms    | 0,27 ms    <- la ricerca che non trova niente
+--   campo vuoto        | 16,3 ms    | 0,36 ms    <- l'elenco di partenza fuori dal paniere
+--   «yogurt%» (1333)   | 16,6 ms    | 16,8 ms    <- ⚠️ NON migliora, vedi sotto
+--
+-- ⚠️ IL CASO CHE NON MIGLIORA VA DETTO. Con `ILIKE 'yogurt%'` il pianificatore preferisce scorrere
+-- l'indice sul nome nell'ordine giusto e fermarsi a 200, filtrando per strada: gli costa poco per
+-- via del LIMIT, e non usa il trigramma. Non peggiora niente (era gia cosi), ma chi un giorno
+-- guardera quel numero deve sapere che e conosciuto e non un indice che manca.
+--
+-- PERCHE DUE INDICI E NON UNO:
+-- · il btree su `name` serve all'ORDINE — `ORDER BY name LIMIT 200` si ferma alle prime duecento
+--   invece di ordinare l'insieme intero. E' quello che salva il caso frequente e il campo vuoto;
+-- · il GIN a trigrammi serve a TROVARE quando le corrispondenze sono poche: senza, una ricerca che
+--   non trova niente legge comunque tutte e ventimila le righe. E' il caso che una persona incontra
+--   ogni volta che scrive una parola sbagliata.
+--
+-- ⚠️ L'indice a trigrammi sta sulla colonna NUDA (`name gin_trgm_ops`), non su `lower(name)`:
+-- Prisma genera `ILIKE`, e un indice su `lower(name)` con `ILIKE` sulla colonna nuda **non viene mai
+-- usato** — misurato, il pianificatore lo ignorava e tornava alla lettura sequenziale.
+--
+-- ⚠️ IL GIN NON E' NELLO SCHEMA PRISMA, e non e' una dimenticanza: lo schema sa esprimere il btree
+-- (`@@index([name])`) ma non un indice a trigrammi senza accendere una funzione in anteprima. Chi un
+-- giorno lancera `prisma migrate dev` vedra' questo indice come «deriva»: e' voluto, e non va tolto.
+--
+-- ⚠️ `CREATE EXTENSION` e' l'unica riga che puo' fallire per permessi. `pg_trgm` e' un'estensione
+-- «fidata» da Postgres 13 e su Neon la installa il proprietario del database; se il deploy si
+-- fermasse qui, il btree da solo vale gia' tre dei quattro casi misurati.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS "recipe_name_idx" ON "recipe" ("name");
+CREATE INDEX IF NOT EXISTS "recipe_name_trgm_idx" ON "recipe" USING gin ("name" gin_trgm_ops);

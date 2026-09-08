@@ -20,6 +20,29 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **Due indici sul nome delle ricette** — decisione di Simone dopo la consegna della
+  ricerca: da stamattina la ricerca fa **tre letture** con `ORDER BY name LIMIT 200`, e su `recipe`
+  c'era un indice solo, `(regime, meal_slot, active)` — **niente sul nome**, cioe la colonna su cui
+  si cerca e su cui si ordina.
+  ▶️ **Misurato, non dedotto** (Postgres 16 vero in sandbox, 20.000 ricette finte, `EXPLAIN
+  ANALYZE`): «%yogurt%» **16,3 → 2,2 ms** · «%zabaione%», la ricerca che non trova niente,
+  **15,1 → 0,27 ms** · campo vuoto **16,3 → 0,36 ms**. ⚠️ **E il caso che NON migliora va detto**:
+  «yogurt%» resta a **16,8 ms**, perche col `LIMIT` il pianificatore preferisce scorrere l'indice
+  nell'ordine giusto e filtrare per strada. Non peggiora niente, ma chi guardera quel numero deve
+  sapere che e conosciuto e non un indice che manca.
+  ⚠️ **Due indici, e uno solo non basta**: il btree serve all'**ordine** (fermarsi alle prime
+  duecento invece di ordinarne ventimila), il GIN a trigrammi serve a **trovare** quando le
+  corrispondenze sono poche. ⛔ E il trigramma sta sulla colonna **nuda**, non su `lower(name)`:
+  Prisma genera `ILIKE`, e su `lower(name)` quell'indice **non viene mai usato** — misurato.
+  ⚠️ Il GIN **non e nello schema Prisma** (non lo sa esprimere senza una funzione in anteprima):
+  chi lancera `prisma migrate dev` lo vedra come deriva, ed e voluto — sta scritto nello schema e
+  nella migrazione. ⚠️ L'unica riga che puo fallire per permessi e `CREATE EXTENSION pg_trgm`: se il
+  deploy si fermasse li, il btree da solo vale tre dei quattro casi.
+  ⚠️ Misurato: la migrazione gira su un Postgres vero **due volte di fila** senza rompere niente
+  (tutte e tre le istruzioni idempotenti) · `prisma validate` verde · backend **480 suite / 8260
+  prove**. **MIGRAZIONE**: `20260908160000_indice_ricerca_ricette`, additiva, la applica Render.
+  Dettaglio in `progetto/COMMIT_parte_indice_ricerca_ricette.txt`.
+
 - `[Sviluppo]` ⛔ **La ricerca mette in cima chi comincia con quello che hai scritto** — richiesta di
   Simone: *«deve dare priorita alle parole che iniziano con quelle che scrivo, poi quelle che lo
   contengono»*. ⛔ **E il difetto vero non era l'ordine, era il TETTO**: la ricerca prende le prime

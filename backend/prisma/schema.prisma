@@ -1892,6 +1892,15 @@ model Recipe {
   panieri PaniereRicetta[]
 
   @@index([regime, mealSlot, active])
+  /**
+   * ⛔ **Il NOME e la colonna su cui si cerca e su cui si ordina**, e fino all'8/9 non aveva nessun
+   * indice: `ORDER BY name LIMIT 200` ordinava ventimila righe a ogni battuta di tasto.
+   * ⚠️ Accanto a questo, la migrazione `20260908160000_indice_ricerca_ricette` crea anche un indice
+   * a **trigrammi** che lo schema non sa esprimere: serve alle ricerche che trovano poco, e chi
+   * lancia `prisma migrate dev` lo vedra come deriva. E voluto: il perche e i numeri misurati stanno
+   * nel commento di quella migrazione.
+   */
+  @@index([name])
   @@map("recipe")
 }
 

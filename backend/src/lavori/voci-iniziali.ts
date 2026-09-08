@@ -83,6 +83,33 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'indice-nome-ricette',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-08T16:00',
+    priorita: 'neutra',
+    titolo: '✅ Due indici sul nome delle ricette: la ricerca smette di ordinare ventimila righe',
+    dettaglio:
+      'Da stamattina la ricerca fa TRE letture con `ORDER BY name LIMIT 200`, e su `recipe` c\'era un '
+      + 'indice solo, `(regime, meal_slot, active)`: niente sul NOME.\n\n'
+      + '✅ **Misurato, non dedotto** (Postgres 16 vero in sandbox, 20.000 ricette finte, EXPLAIN '
+      + 'ANALYZE): «%yogurt%» 16,3 → 2,2 ms · «%zabaione%» (non trova niente) 15,1 → 0,27 ms · campo '
+      + 'vuoto 16,3 → 0,36 ms.\n\n'
+      + '⚠️ **E il caso che NON migliora va detto**: «yogurt%» resta a 16,8 ms, perche col LIMIT il '
+      + 'pianificatore preferisce scorrere l\'indice nell\'ordine giusto e filtrare per strada. Non '
+      + 'peggiora niente, ma e conosciuto e non un indice che manca.\n\n'
+      + '⚠️ Due indici e uno solo non basta: il btree serve all\'ORDINE, il GIN a trigrammi serve a '
+      + 'TROVARE quando le corrispondenze sono poche. ⛔ E il trigramma sta sulla colonna NUDA, non '
+      + 'su `lower(name)`: Prisma genera `ILIKE` e su `lower(name)` quell\'indice non viene mai usato '
+      + '— misurato.\n\n'
+      + '⚠️ Il GIN non e nello schema Prisma: chi lancera `prisma migrate dev` lo vedra come deriva, '
+      + 'ed e voluto. ⚠️ L\'unica riga che puo fallire per permessi e `CREATE EXTENSION pg_trgm`: se '
+      + 'il deploy si fermasse li, il btree da solo vale tre dei quattro casi.\n\n'
+      + '⚠️ MIGRAZIONE `20260908160000_indice_ricerca_ricette`, additiva e idempotente (provata due '
+      + 'volte di fila su un Postgres vero). Backend 480 suite / 8260 prove.',
+  },
+  {
     chiave: 'ordine-ricerca-ricette-prefisso',
     categoria: CODICE,
     ordine: 0,
