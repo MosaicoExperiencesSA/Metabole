@@ -390,8 +390,30 @@ export function MenuAMano({ clientId, onClose }: { clientId: string; onClose: ()
                 </label>
                 {taglio !== null && (
                   <div className="muted" style={{ fontSize: 11.5, marginTop: 6, color: '#8A5A00' }}>
-                    ⚠️ Sono le prime {taglio} in ordine alfabetico: scrivi qualche lettera per trovare
-                    quella che cerchi — le altre ci sono, non sono qui.
+                    {/*
+                      ⛔ **DUE FRASI, PERCHÉ SONO DUE ORDINI** — 8/9, la prima stesura ne aveva una
+                      sola e una revisione avversariale l'ha smontata.
+
+                      A campo di ricerca **vuoto** il server fa una lettura sola e l'ordine è quello
+                      del database, cioè alfabetico; **cercando** qualcosa vengono prima le ricette
+                      che cominciano con quello che è stato scritto. Una frase sola era vera in un
+                      caso e falsa nell'altro: la prima stesura aveva solo **girato** la bugia —
+                      prima era vera a campo vuoto, dopo era vera cercando — invece di toglierla.
+                      ⚠️ E il caso a campo vuoto è quello **frequente**: fuori dal paniere il taglio
+                      scatta appena si alza la casella, prima ancora di scrivere una lettera.
+                    */}
+                    {cerca.trim() ? (
+                      <>
+                        ⚠️ Sono le prime {taglio}: prima quelle che <b>cominciano</b> con quello che
+                        hai scritto, poi quelle che lo contengono. Scrivi qualche lettera in più per
+                        stringere — le altre ci sono, non sono qui.
+                      </>
+                    ) : (
+                      <>
+                        ⚠️ Sono le prime {taglio} in ordine alfabetico: scrivi qualche lettera per
+                        trovare quella che cerchi — le altre ci sono, non sono qui.
+                      </>
+                    )}
                   </div>
                 )}
                 <div style={{ maxHeight: 220, overflow: 'auto', marginTop: 6 }}>

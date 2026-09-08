@@ -52,6 +52,8 @@ function servizio(over: {
   staffId?: string | null;
   /** ⚠️ Gli avvisi «menu cambiato» che la cliente non ha ancora letto: servono al dedup. */
   avvisiNonLetti?: { payload: { giorno: string } }[];
+  /** ⚠️ Un catalogo su misura: serve a riprodurre il TETTO della ricerca con nomi veri. */
+  catalogo?: typeof RICETTE;
 } = {}) {
   const upsert = jest.fn().mockResolvedValue({});
   const prisma = {
@@ -69,15 +71,32 @@ function servizio(over: {
       }),
     },
     recipe: {
-      findMany: jest.fn().mockImplementation(({ where }: never) => {
-        const w = (where ?? {}) as { mealSlot?: string; name?: { contains?: string }; id?: { in?: string[] }; regime?: { in?: string[] } };
+      /**
+       * ⚠️ **Il finto imita anche `startsWith`, l'ordinamento e il `take`** — dall'8/9 servono tutti
+       * e tre: la ricerca fa tre letture (comincia / parola / contiene) e il difetto vero era il
+       * TETTO, che senza `take` qui non si potrebbe nemmeno riprodurre.
+       */
+      findMany: jest.fn().mockImplementation(({ where, take }: never) => {
+        const w = (where ?? {}) as { mealSlot?: string; name?: { contains?: string; startsWith?: string; mode?: string }; id?: { in?: string[] }; regime?: { in?: string[] } };
+        /**
+         * ⛔ **Il finto RISPETTA `mode`** — 8/9, da una revisione avversariale: minuscolizzando
+         * sempre i due lati, togliere `mode: 'insensitive'` dal servizio lasciava **tutte** le prove
+         * verdi, mentre in Postgres `LIKE 'yogurt%'` non trova *Yogurt greco* — cioè proprio la riga
+         * della richiesta di Simone. Un finto più indulgente del database è una prova che guarda
+         * altrove.
+         */
+        const comeCerca = (v: string) => (w.name?.mode === 'insensitive' ? v.toLowerCase() : v);
         const w2 = (where ?? {}) as { active?: boolean };
-        return Promise.resolve(RICETTE
+        const catalogo = (over.catalogo ?? RICETTE) as typeof RICETTE;
+        const righe = catalogo
           .filter((r) => (w2.active === true ? r.active !== false : true))
           .filter((r) => (w.id?.in ? w.id.in.includes(r.id) : true))
           .filter((r) => (w.mealSlot ? r.mealSlot === w.mealSlot : true))
           .filter((r) => (w.regime?.in ? w.regime.in.includes(r.regime ?? 'omnivore') : true))
-          .filter((r) => (w.name?.contains ? r.name.toLowerCase().includes(w.name.contains.toLowerCase()) : true)));
+          .filter((r) => (w.name?.startsWith ? comeCerca(r.name).startsWith(comeCerca(w.name.startsWith)) : true))
+          .filter((r) => (w.name?.contains ? comeCerca(r.name).includes(comeCerca(w.name.contains)) : true))
+          .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+        return Promise.resolve(typeof take === 'number' ? righe.slice(0, take) : righe);
       }),
     },
     /** ⚠️ Letta SOLO quando si esce dal paniere: dentro, il regime non serve e non si chiede. */
@@ -446,6 +465,129 @@ describe('scrivere la giornata', () => {
     });
     await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
     expect(avviso).toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **CHI COMINCIA CON QUELLO CHE HAI SCRITTO STA IN CIMA** — richiesta di Simone, 8/9, con lo
+   * screenshot: cercando «yogurt» uscivano *Ciotola…*, *Coppa…*, *Grano saraceno…*, cioè l'ordine
+   * alfabetico — l'ordine di nessuna domanda.
+   *
+   * ⛔ **E il difetto vero era il TETTO**, non l'ordine: la ricerca prende le prime `TETTO_RICERCA`
+   * in ordine alfabetico, quindi uno *Yogurt greco* può restare **fuori dall'elenco** perché davanti
+   * a lui ci stanno duecento nomi che cominciano per A. Riordinare le duecento arrivate non lo
+   * farebbe comparire: sarebbe la promessa di una completezza che non c'è.
+   */
+  describe('la ricerca mette in cima chi comincia con la parola cercata', () => {
+    /** Duecentocinquanta piatti che cominciano per A, e uno che si chiama davvero «Yogurt greco». */
+    const catalogoGrande = [
+      ...Array.from({ length: 250 }, (_, i) => ({
+        id: `a${i}`,
+        name: `Avena e yogurt numero ${String(i).padStart(3, '0')}`,
+        kcal: 300, mealSlot: 'breakfast', ingredients: [{ name: 'avena' }], allergens: [], regime: 'vegan',
+      })),
+      { id: 'yg', name: 'Yogurt greco con frutta', kcal: 300, mealSlot: 'breakfast', ingredients: [{ name: 'yogurt' }], allergens: [], regime: 'vegan' },
+    ];
+
+    it('⛔ «Yogurt greco» c\'è ed è il primo, anche con duecentocinquanta «Avena» davanti', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true);
+      expect(r.righe[0].nome).toBe('Yogurt greco con frutta');
+    });
+
+    /**
+     * ⚠️ **La prova che morde davvero è questa**: senza le letture separate la riga giusta non
+     * sarebbe nell'elenco per niente — non «più in basso», proprio assente. Misurato.
+     */
+    it('⛔ e non è solo «più in alto»: senza le letture separate non ci sarebbe affatto', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true);
+      expect(r.righe.map((x) => x.nome)).toContain('Yogurt greco con frutta');
+    });
+
+    /** ⚠️ E dietro restano le altre, in ordine alfabetico dentro il loro livello. */
+    it('⚠️ dietro di lui l\'alfabetico regge', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true);
+      expect(r.righe[1].nome).toBe('Avena e yogurt numero 000');
+    });
+
+    /**
+     * ⛔ **LA MAIUSCOLA**: senza `mode: 'insensitive'` Postgres non trova *Yogurt greco* cercando
+     * «yogurt», ed è la riga esatta della richiesta. Il finto rispetta `mode` apposta (vedi sopra):
+     * questa prova senza quello sarebbe verde comunque.
+     */
+    it('⛔ «yogurt» minuscolo trova «Yogurt greco»: la ricerca non guarda le maiuscole', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true);
+      expect(r.righe[0].nome).toBe('Yogurt greco con frutta');
+    });
+
+    /** ⚠️ E gli spazi battuti per sbaglio attorno alla parola non fanno sparire niente. */
+    it('⚠️ « yogurt » con gli spazi trova le stesse cose', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', '  yogurt  ', true);
+      expect(r.righe[0].nome).toBe('Yogurt greco con frutta');
+    });
+
+    /**
+     * ⛔ **LE TRE LETTURE CHIEDONO TRE COSE DIVERSE.** Contarle non basta: la seconda può diventare
+     * uguale alla terza e la garanzia «la parola-che-comincia c'è di sicuro» sparisce in silenzio.
+     */
+    it('⛔ le tre letture sono comincia / parola / contiene, e hanno un tetto', async () => {
+      const { s, prisma } = servizio();
+      const letture = (prisma as unknown as { recipe: { findMany: jest.Mock } }).recipe.findMany;
+      letture.mockClear();
+      await s.ricette('u-admin', 'c1', 'breakfast', 'porridge');
+      const dove = letture.mock.calls.map((c) => c[0].where.name);
+      expect(dove).toContainEqual({ startsWith: 'porridge', mode: 'insensitive' });
+      expect(dove).toContainEqual({ contains: ' porridge', mode: 'insensitive' });
+      expect(dove).toContainEqual({ contains: 'porridge', mode: 'insensitive' });
+      /** ⚠️ E ognuna ha il suo tetto: senza, su ventimila ricette sono tre letture illimitate. */
+      for (const c of letture.mock.calls) expect(c[0].take).toBe(200);
+    });
+
+    /**
+     * ⛔ **IL TAGLIO FINALE C'È.** Le tre letture prendono duecento righe ciascuna e possono essere
+     * disgiunte: senza il taglio la risposta ne manderebbe fino a **seicento** mentre la schermata
+     * scrive «sono le prime duecento».
+     */
+    it('⛔ non si mandano più righe del tetto dichiarato', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const r = await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true);
+      expect(r.righe.length).toBeLessThanOrEqual(r.tetto!);
+      expect(r.troncato).toBe(true);
+    });
+
+    /**
+     * ⚠️ **A campo vuoto la lettura resta UNA**: tre query per mostrare l'elenco di partenza
+     * sarebbero tre volte il lavoro per lo stesso risultato.
+     */
+    it('⚠️ senza niente da cercare si legge una volta sola', async () => {
+      const { s, prisma } = servizio();
+      const letture = (prisma as unknown as { recipe: { findMany: jest.Mock } }).recipe.findMany;
+      letture.mockClear();
+      await s.ricette('u-admin', 'c1', 'breakfast');
+      expect(letture).toHaveBeenCalledTimes(1);
+    });
+
+    /** ⚠️ E cercando qualcosa le letture sono tre, una per livello. */
+    it('⚠️ cercando qualcosa si leggono i tre livelli', async () => {
+      const { s, prisma } = servizio();
+      const letture = (prisma as unknown as { recipe: { findMany: jest.Mock } }).recipe.findMany;
+      letture.mockClear();
+      await s.ricette('u-admin', 'c1', 'breakfast', 'porridge');
+      expect(letture).toHaveBeenCalledTimes(3);
+    });
+
+    /**
+     * ⛔ **Nessun doppione.** Le tre letture si sovrappongono per costruzione: una riga doppia
+     * nell'elenco si clicca due volte credendo di aver sbagliato la prima.
+     */
+    it('⛔ le tre letture non producono doppioni', async () => {
+      const { s } = servizio({ catalogo: catalogoGrande as never });
+      const nomi = (await s.ricette('u-admin', 'c1', 'breakfast', 'yogurt', true)).righe.map((x) => x.nome);
+      expect(new Set(nomi).size).toBe(nomi.length);
+    });
   });
 
   /**

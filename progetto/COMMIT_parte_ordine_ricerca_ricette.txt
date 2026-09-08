@@ -1,0 +1,98 @@
+La ricerca mette in cima chi comincia con quello che hai scritto
+
+LA RICHIESTA (Simone, 8/9)
+«Se faccio la ricerca nel scrivi menu deve dare priorita alle parole che
+iniziano con quelle che scrivo, poi quelle che lo contengono.»
+
+⛔ E IL DIFETTO VERO NON ERA L'ORDINE, ERA IL TETTO
+La ricerca prende le prime 200 ricette IN ORDINE ALFABETICO. Cercando «yogurt»,
+uno «Yogurt greco» puo restare FUORI DALL'ELENCO perche davanti a lui ci stanno
+duecento nomi che cominciano per A — e riordinare le duecento gia arrivate non
+lo farebbe comparire. Riordinare e basta sarebbe stata la promessa di una
+completezza che non c'e.
+
+COSA C'E ADESSO
+Tre livelli, in un modulo puro (`ordine-ricerca-ricette.ts`):
+1. il nome COMINCIA con quello che hai scritto — «Yogurt greco con frutta»;
+2. una PAROLA del nome comincia cosi — «Coppa yogurt di soia»;
+3. il nome lo CONTIENE — «gurt» trova «yogurt».
+Dentro ogni livello si torna all'alfabetico: senza, due ricerche uguali danno
+due elenchi diversi senza che sia cambiato niente.
+
+E il servizio fa TRE letture invece di una, solo quando si sta cercando: le due
+in piu servono a GARANTIRE che le righe dei primi due livelli ci siano, non a
+ordinare. Si uniscono per id, si ordinano col modulo puro, e SOLO ALLA FINE si
+taglia a 200.
+⚠️ Le tre letture si uniscono nell'ordine SBAGLIATO apposta: mettendole in fila
+«comincia, parola, contiene» l'elenco risulterebbe gia ordinato per caso e il
+modulo puro diventerebbe codice che si puo togliere senza far diventare rossa
+nessuna prova. E successo nella prima stesura, ed e stato misurato.
+
+⛔ E LA STESSA COSA IN VERA, DOV'ERA MOLTO PEGGIO
+`cercaRicetta` non aveva NESSUN ordine e il tetto e SEI: cercando «yogurt» fra
+quaranta nomi che lo contengono, Vera ne mostrava sei decise dal database, e il
+passo dopo e «dimmi il numero» su quelle sei. La ricetta che si chiama
+esattamente cosi poteva non esserci affatto, e la nutrizionista non aveva
+nessun modo di arrivarci. Adesso se ne leggono duecento, si ordinano con la
+stessa regola, e se ne mostrano sei — sei e un limite di CONVERSAZIONE, non di
+ricerca. ⚠️ Su quella funzione non c'era nessuna prova: la modifica non ha fatto
+diventare rossa nessuna riga, ed e il segnale che la prova che mancava era
+quella.
+
+I SETTE PUNTI DELLA REVISIONE AVVERSARIALE
+· ⛔ LA FRASE IN SCHERMATA ERA FALSA NELLO STATO DI PARTENZA. La prima stesura
+  aveva GIRATO la bugia invece di toglierla: «prima quelle che cominciano con
+  quello che hai scritto» compariva anche a campo di ricerca VUOTO, dove non e
+  stato scritto niente e l'ordine e quello del database. E il caso a campo vuoto
+  e quello frequente. Adesso sono due frasi, perche sono due ordini.
+· ⛔ IL FINTO DEI TEST ERA PIU INDULGENTE DEL DATABASE: minuscolizzava sempre i
+  due lati, quindi togliendo `mode: insensitive` dal servizio TUTTE le prove
+  restavano verdi — mentre in Postgres `LIKE 'yogurt%'` non trova «Yogurt greco»,
+  cioe la riga esatta della richiesta.
+· Il secondo e il terzo livello non erano distinti da nessuna prova: invertendoli
+  restava tutto verde, perche nelle fixture chi stava al secondo livello veniva
+  prima anche in alfabeto.
+· L'alfabetico dentro il livello non era provato: la fixture era gia ordinata e
+  `sort` in V8 e stabile, quindi svuotando il comparatore restava verde.
+· Nessuna prova guardava la FORMA delle tre `where`: la seconda lettura poteva
+  diventare identica alla terza e la garanzia spariva in silenzio.
+· Il taglio finale e il `take` delle tre letture non erano pinzati: senza taglio
+  la risposta poteva mandare seicento righe al browser mentre la schermata scrive
+  «sono le prime duecento».
+· Il `trim` non era provato a livello di servizio: con « yogurt» (spazio davanti,
+  si batte spesso) `startsWith` non avrebbe trovato piu niente.
+⚠️ E `giudica` girava su seicento righe per poi buttarne quattrocento: adesso si
+ordina e si taglia PRIMA di giudicare.
+
+MISURATO
+- Backend 480 suite / 8260 prove, verdi anche con `npm run test:notte`.
+- Backoffice 36 suite / 351 prove, build di tutti e due.
+- Nove mutazioni provate e tutte uccise: niente letture separate · niente
+  riordino · tetto applicato prima · `mode` tolto · seconda lettura uguale alla
+  terza · niente `take` · niente `trim` · livelli invertiti · comparatore senza
+  alfabetico. Piu due su Vera: niente ordinamento, e ritorno a `take: 6`.
+
+⚠️ COSA RESTA APERTO
+1. NON C'E UN INDICE su `recipe.name` (`schema.prisma` ha solo
+   `[regime, mealSlot, active]`), e ognuna delle tre letture fa
+   `ORDER BY name LIMIT 200`. Con un btree su `name` il piano si ferma alle prime
+   duecento invece di ordinare l'insieme intero; meglio ancora un GIN `pg_trgm`
+   su `lower(name)`, che aiuta anche i due `contains`. E una migrazione: la
+   decidi tu, io non l'ho scritta.
+2. Prisma non fa escaping dei jolly `%` e `_` in `contains`/`startsWith`:
+   cercando «Pane_» escono anche «PaneXintegrale». E pre-esistente e sta in tutto
+   il progetto (`catalog.service.ts`, `vera-chat.service.ts`, `crm.service.ts`),
+   non introdotto qui. ⚠️ Effetto nuovo: quelle righe adesso finiscono in FONDO,
+   perche il modulo puro tratta `%` alla lettera e non gli da nessun livello.
+3. LA GARANZIA E PIENA SOLO AL PRIMO LIVELLO: anche la seconda lettura ha il suo
+   tetto, quindi con trecento nomi che contengono « riso» una «Zuppa di riso» puo
+   restare fuori lo stesso. `troncato` lo dice.
+4. L'ordine del database (`ORDER BY name`) e quello di JS (`localeCompare it`)
+   coincidono solo se la collation di Postgres e ICU o glibc. Su `C`/`POSIX` no,
+   e si vedrebbe scrivendo una lettera e cancellandola. Da leggere in produzione
+   con `SHOW lc_collate;`.
+5. La pagina Ricette del backoffice ha lo stesso ordine alfabetico con tetto
+   1000: meno urgente, perche accanto c'e il conto vero.
+
+MIGRAZIONE
+Nessuna.

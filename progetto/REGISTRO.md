@@ -20,6 +20,41 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **La ricerca mette in cima chi comincia con quello che hai scritto** — richiesta di
+  Simone: *«deve dare priorita alle parole che iniziano con quelle che scrivo, poi quelle che lo
+  contengono»*. ⛔ **E il difetto vero non era l'ordine, era il TETTO**: la ricerca prende le prime
+  **200 in ordine alfabetico**, quindi cercando «yogurt» uno *Yogurt greco* poteva restare **fuori
+  dall'elenco** perche davanti a lui ci stanno duecento nomi che cominciano per A — riordinare le
+  duecento arrivate non lo farebbe comparire.
+  ▶️ Tre livelli in un modulo puro (comincia · una parola comincia · lo contiene), e dentro ognuno
+  l'alfabetico. Il servizio fa **tre letture** invece di una, ma solo quando si cerca: le due in piu
+  **garantiscono che le righe giuste ci siano**, non ordinano. Si uniscono per id, si ordinano col
+  modulo puro, e **solo alla fine** si taglia. ⚠️ Si uniscono nell'ordine **sbagliato apposta**:
+  altrimenti l'elenco sarebbe gia ordinato per caso e il modulo puro si potrebbe togliere senza far
+  diventare rossa nessuna prova — successo nella prima stesura, misurato.
+  ⛔ **E la stessa cosa in Vera, dov'era molto peggio**: `cercaRicetta` non aveva **nessun ordine** e
+  il tetto e **sei**, quindi Vera mostrava sei righe decise dal database e il passo dopo e «dimmi il
+  numero» su quelle sei — la ricetta che si chiama esattamente cosi poteva **non esserci affatto**.
+  ⚠️ Su quella funzione **non c'era nessuna prova**: la modifica non ha fatto diventare rossa nessuna
+  riga.
+  ⛔ **Sette cose dalla revisione avversariale.** (a) La frase in schermata era **falsa nello stato
+  di partenza**: la prima stesura aveva **girato** la bugia invece di toglierla, e a campo vuoto
+  l'ordine e ancora alfabetico. (b) **Il finto dei test era piu indulgente del database**:
+  minuscolizzava sempre, quindi togliendo `mode: insensitive` restava tutto verde mentre in Postgres
+  `LIKE 'yogurt%'` non trova *Yogurt greco*. (c) Il secondo e il terzo livello non erano distinti da
+  nessuna prova. (d) L'alfabetico dentro il livello nemmeno (fixture gia ordinata + `sort` stabile).
+  (e) Nessuna prova guardava la **forma** delle tre `where`. (f) Il taglio finale e il `take` non
+  erano pinzati: la risposta poteva mandare **seicento** righe. (g) Il `trim` non era provato nel
+  servizio. ⚠️ E `giudica` girava su seicento righe per poi buttarne quattrocento.
+  ⚠️ **Resta aperto**: **non c'e un indice su `recipe.name`** e ognuna delle tre letture fa
+  `ORDER BY name LIMIT 200` (serve una migrazione, decisione di Simone) · Prisma non fa escaping dei
+  jolly `%`/`_` in `contains` (pre-esistente in tutto il progetto) · la garanzia e piena **solo al
+  primo livello** · l'ordine del database e quello di JS coincidono solo con una collation ICU o
+  glibc, da leggere con `SHOW lc_collate;`.
+  ⚠️ Misurato: backend **480 suite / 8260 prove** (verdi anche con `test:notte`), backoffice
+  **36 / 351**, build di tutti e due. Nove mutazioni uccise, piu due su Vera. **Nessuna migrazione.**
+  Dettaglio in `progetto/COMMIT_parte_ordine_ricerca_ricette.txt`.
+
 - `[Sviluppo]` ⛔ **La cliente viene avvisata quando il suo menu cambia sotto** — la meta che
   mancava alla decisione «il nutrizionista vince su tutto». ⚠️ **Il caso peggiore e il caso
   normale**: aprire la **lista della spesa** segna aperti **tutti e sette** i giorni, quindi chi

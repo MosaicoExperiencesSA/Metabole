@@ -83,6 +83,41 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'ordine-ricerca-ricette-prefisso',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-08T15:00',
+    priorita: 'alta',
+    titolo: '✅ La ricerca mette in cima chi comincia con quello che hai scritto',
+    dettaglio:
+      'Richiesta di Simone: «deve dare priorita alle parole che iniziano con quelle che scrivo, poi '
+      + 'quelle che lo contengono».\n\n'
+      + '⛔ **E il difetto vero non era l\'ordine, era il TETTO**: la ricerca prende le prime 200 IN '
+      + 'ORDINE ALFABETICO, quindi cercando «yogurt» uno «Yogurt greco» poteva restare FUORI '
+      + 'DALL\'ELENCO — e riordinare le duecento gia arrivate non lo farebbe comparire.\n\n'
+      + '✅ Tre livelli in un modulo puro (comincia · una parola comincia · lo contiene), e dentro '
+      + 'ognuno l\'alfabetico. Tre letture invece di una, solo quando si cerca: le due in piu '
+      + 'GARANTISCONO che le righe giuste ci siano. Si taglia solo alla fine.\n\n'
+      + '⛔ **E la stessa cosa in Vera, dov\'era molto peggio**: `cercaRicetta` non aveva nessun '
+      + 'ordine e il tetto e SEI, quindi mostrava sei righe decise dal database e poi chiedeva «dimmi '
+      + 'il numero» — la ricetta giusta poteva non esserci affatto. Su quella funzione non c\'era '
+      + 'nessuna prova.\n\n'
+      + '⛔ Dalla revisione avversariale: la frase in schermata era FALSA a campo vuoto (la prima '
+      + 'stesura aveva girato la bugia, non tolta) · il finto dei test era piu indulgente del '
+      + 'database (senza `mode: insensitive` restava tutto verde, ma Postgres non trova «Yogurt») · '
+      + 'secondo e terzo livello non distinti · alfabetico dentro il livello non provato · la forma '
+      + 'delle tre `where` non guardata · taglio finale e `take` non pinzati (fino a 600 righe al '
+      + 'browser) · `trim` non provato.\n\n'
+      + '⚠️ RESTA APERTO: non c\'e un INDICE su `recipe.name` e ognuna delle tre letture fa '
+      + '`ORDER BY name LIMIT 200` — serve una migrazione, e la decide Simone · Prisma non fa '
+      + 'escaping dei jolly `%` e `_` (pre-esistente, in tutto il progetto) · la garanzia e piena '
+      + 'solo al primo livello · l\'ordine del database e quello di JS coincidono solo con una '
+      + 'collation ICU o glibc (`SHOW lc_collate;`).\n\n'
+      + '⚠️ Misurato: backend 480 suite / 8260 prove (verdi anche con test:notte), backoffice 36 / '
+      + '351. Nove mutazioni uccise, piu due su Vera. Nessuna migrazione.',
+  },
+  {
     chiave: 'avviso-cliente-menu-cambiato',
     categoria: CODICE,
     ordine: 0,

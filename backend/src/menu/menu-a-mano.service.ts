@@ -14,6 +14,7 @@ import { scrittaAMano } from '../vera/menu-da-rifare';
 import { laClienteLHaAperto, nonSappiamoSeLHaAperto } from '../vera/menu-da-rifare';
 import { PushService } from '../notifications/push.service';
 import { avvisaGiornoRiscritto, codaPerChiHaSalvato, laGiornataECambiata } from './avviso-giorno-riscritto';
+import { ordinaPerSomiglianza } from './ordine-ricerca-ricette';
 
 /**
  * ⛔ **IL MENU SCRITTO A MANO DALLA SCHEDA CLIENTE** — la via d'uscita che il 31/8 non c'era.
@@ -271,19 +272,81 @@ export class MenuAManoService {
     const dovePescare = tuttoIlCatalogo
       ? { regime: { in: [...regimiAmmessi] } }
       : { id: { in: ids } };
-    const ricette = (await this.prisma.recipe.findMany({
-      where: {
-        ...dovePescare,
-        active: true,
-        ...(slot ? { mealSlot: slot } : {}),
-        ...(cerca ? { name: { contains: cerca, mode: 'insensitive' } } : {}),
-      } as never,
+    /**
+     * ⛔ **CHI COMINCIA CON QUELLO CHE HAI SCRITTO STA IN CIMA** — richiesta di Simone, 8/9.
+     *
+     * ⛔ **E non basta riordinare quello che è arrivato: il difetto è il TETTO.** La ricerca prende
+     * le prime `TETTO_RICERCA` **in ordine alfabetico**, quindi cercando «yogurt» uno *Yogurt greco*
+     * può restare **fuori dall'elenco** perché davanti a lui ci stanno duecento nomi che cominciano
+     * per A — e riordinare le duecento arrivate non lo farebbe comparire. Ordinare senza questo
+     * sarebbe la promessa di una completezza che non c'è.
+     *
+     * ⚠️ Quindi si cercano **prima** i due gruppi che devono esserci — chi comincia con la parola, e
+     * chi ha una parola che comincia così — e **poi** si riempie con il resto fino al tetto. Sono
+     * tre letture invece di una, e solo quando si sta cercando qualcosa: a campo vuoto la query
+     * resta quella di prima.
+     *
+     * ⚠️ Il `' ' + cerca` è la stessa definizione grezza di «parola» che usa `livelloDiSomiglianza`,
+     * ed è voluto: vedi il cappello di `ordine-ricerca-ricette.ts`.
+     */
+    const base = {
+      ...dovePescare,
+      active: true,
+      ...(slot ? { mealSlot: slot } : {}),
+    };
+    const campi = { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true };
+    const leggi = (dove: Record<string, unknown>) => this.prisma.recipe.findMany({
+      where: { ...base, ...dove } as never,
       orderBy: { name: 'asc' },
       take: TETTO_RICERCA,
-      select: { id: true, name: true, kcal: true, mealSlot: true, ingredients: true, allergens: true },
-    })) as { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[];
+      select: campi,
+    }) as Promise<{ id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[]>;
+
+    let ricette: { id: string; name: string; kcal: number; mealSlot: string; ingredients: unknown; allergens?: string[] }[];
+    /** ⚠️ Quante ne aveva trovate il database prima del taglio: è quello che dice `troncato`. */
+    let pescate: number;
+    if (!cerca) {
+      ricette = await leggi({});
+      pescate = ricette.length;
+    } else {
+      const [comincia, parola, contiene] = await Promise.all([
+        leggi({ name: { startsWith: cerca, mode: 'insensitive' } }),
+        leggi({ name: { contains: ` ${cerca}`, mode: 'insensitive' } }),
+        leggi({ name: { contains: cerca, mode: 'insensitive' } }),
+      ]);
+      /**
+       * ⚠️ **Si uniscono per id, non si concatenano**: le tre letture si sovrappongono per
+       * costruzione (chi comincia con la parola la contiene anche), e una riga doppia nell'elenco
+       * si clicca due volte credendo di aver sbagliato la prima.
+       *
+       * ⛔ **E si uniscono nell'ordine SBAGLIATO apposta.** Mettendole in fila «comincia, parola,
+       * contiene» l'elenco risulterebbe già ordinato **per caso**, e l'ordine vero — quello del
+       * modulo puro — diventerebbe codice che si può togliere senza far diventare rossa nessuna
+       * prova: è successo nella prima stesura, ed è stato misurato. Qui le letture servono a
+       * **garantire che le righe giuste ci siano**; a metterle in fila c'è un posto solo, ed è
+       * `ordinaPerSomiglianza`.
+       *
+       * ⚠️ **La garanzia è piena solo al primo livello**: anche la seconda lettura ha il suo tetto,
+       * quindi con trecento nomi che contengono « riso» una *Zuppa di riso* può restare fuori lo
+       * stesso. `troncato` lo dice, ed è il segnale che c'è dell'altro.
+       */
+      const viste = new Map<string, typeof contiene[number]>();
+      for (const r of [...contiene, ...comincia, ...parola]) if (!viste.has(r.id)) viste.set(r.id, r);
+      /**
+       * ⛔ **Si ordina e si taglia PRIMA di giudicare.** `giudica` legge allergeni, intolleranze e
+       * sostituzioni riga per riga: farlo su seicento per poi buttarne quattrocento è lavoro fatto
+       * per niente, a ogni battuta di tasto.
+       */
+      ricette = ordinaPerSomiglianza([...viste.values()], cerca, (r) => r.name).slice(0, TETTO_RICERCA);
+      pescate = viste.size;
+    }
 
     return {
+      /**
+       * ⚠️ Sono già in fila e già tagliate: l'ordine l'ha deciso il modulo puro (tre livelli, e
+       * dentro l'alfabetico), il tetto è stato applicato **dopo** l'ordine — tagliare prima
+       * vorrebbe dire buttare via proprio le righe che le due letture in più sono andate a cercare.
+       */
       righe: ricette.map((r) => ({ ...this.giudica(r, esclusioni), fuoriDalPaniere: !nelPaniere.has(r.id) })),
       poolVuoto: !ids.length,
       /**
@@ -317,7 +380,12 @@ export class MenuAManoService {
        * ⚠️ Perciò la schermata lo **legge**: il campo c'era già e non lo guardava nessuno, il che
        * è lo stesso silenzio con un campo in più.
        */
-      troncato: ricette.length >= TETTO_RICERCA,
+      /**
+       * ⚠️ **Si misura su quante ne ha pescate il database, non su quante ne restano dopo il
+       * taglio** (8/9): sono due numeri diversi da quando l'ordine e il tetto stanno dopo l'unione,
+       * e quello che la schermata dice — «ce n'erano altre, non sono qui» — è il primo.
+       */
+      troncato: pescate >= TETTO_RICERCA,
       tetto: TETTO_RICERCA,
     };
   }

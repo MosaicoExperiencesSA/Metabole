@@ -1343,6 +1343,50 @@ describe('VeraChatService — le ricette', () => {
   };
   const RICETTA = 'Tonno alle olive\ntonno 120 g\nolive nere 30 g\npranzo onnivora';
 
+  /**
+   * ⛔ **SEI RIGHE PRESE A CASO** — 8/9, dalla richiesta di Simone sulla ricerca del menu a mano,
+   * portata qui da una revisione avversariale.
+   *
+   * `cercaRicetta` non aveva **nessun `orderBy`** e il tetto è **sei**: cercando «yogurt» fra
+   * quaranta nomi che lo contengono, Vera ne mostrava sei decise dal database, e il passo dopo è
+   * «dimmi il numero» su quelle sei. Una ricetta che si chiama **esattamente** così poteva non
+   * esserci affatto, e la nutrizionista non aveva nessun modo di arrivarci.
+   *
+   * ⚠️ **Non c'era nessuna prova su questa funzione**: la modifica non ha fatto diventare rossa
+   * nessuna riga, ed è il segnale che la prova che mancava era questa.
+   */
+  it('⛔ fra tante omonime, quella che si chiama così viene proposta per prima', async () => {
+    const molte = [
+      { id: 'r1', name: 'Coppa yogurt di soia' },
+      { id: 'r2', name: 'Ciotola con yogurt e granola' },
+      { id: 'r3', name: 'Yogurt greco con frutta' },
+      { id: 'r4', name: 'Granola e yogurt di cocco' },
+    ];
+    const { service, messaggioCreate } = make({
+      recipe: {
+        findMany: jest.fn().mockImplementation(({ take }: never) => Promise.resolve(molte.slice(0, take ?? molte.length))),
+        count: jest.fn().mockResolvedValue(molte.length),
+      },
+    });
+    await service.parla('lucia', 'modifica la ricetta yogurt');
+    const { testo } = ultimoAgente(messaggioCreate);
+    /** ⛔ Prima riga dell'elenco numerato: è quella su cui cadrà «dimmi il numero». */
+    expect(testo).toMatch(/1\. Yogurt greco con frutta/);
+  });
+
+  /**
+   * ⛔ **E si legge PIÙ LARGO di quante se ne mostrano.** Sei lette e sei mostrate vuol dire che la
+   * riga giusta può non essere mai stata letta: nessun ordine la può recuperare.
+   */
+  it('⛔ si leggono più di sei ricette, anche se se ne mostrano sei', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ id: 'r1', name: 'Yogurt greco' }]);
+    const { service } = make({ recipe: { findMany, count: jest.fn().mockResolvedValue(1) } });
+    await service.parla('lucia', 'modifica la ricetta yogurt');
+    expect(findMany.mock.calls[0][0].take).toBeGreaterThan(6);
+    /** ⚠️ E si legge in un ordine, non «come capita»: senza, due ricerche uguali danno due elenchi. */
+    expect(findMany.mock.calls[0][0].orderBy).toEqual({ name: 'asc' });
+  });
+
   it('chiede la ricetta invece di indovinarla', async () => {
     const { service, messaggioCreate } = make();
     await service.parla('lucia', 'inseriamo una ricetta per il menu keto');

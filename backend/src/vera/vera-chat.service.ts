@@ -19,6 +19,7 @@ import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
 import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
 import { avvisaGiornoRiscritto, codaPerChiHaSalvato } from '../menu/avviso-giorno-riscritto';
+import { ordinaPerSomiglianza } from '../menu/ordine-ricerca-ricette';
 import { PushService } from '../notifications/push.service';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
@@ -136,6 +137,15 @@ interface ClienteTrovata {
 
 /** Quanti alimenti si propongono quando si chiede «quali sono?». Oltre, l'elenco non si legge. */
 const MAX_PROPOSTI = 20;
+/**
+ * ⛔ **Quante ricette si LEGGONO per scegliere quelle da mostrare** (8/9). Erano sei lette e sei
+ * mostrate, senza nessun ordine: la ricetta che si chiama esattamente come hai scritto poteva non
+ * essere fra quelle sei, e non c'era modo di arrivarci. Adesso se ne leggono di più e si sceglie con
+ * la stessa regola del menu a mano.
+ */
+const TETTO_LETTURA_RICETTE = 200;
+/** ⚠️ Quante se ne mostrano: è un limite di CONVERSAZIONE — un elenco più lungo non si legge. */
+const RICETTE_DA_MOSTRARE = 6;
 
 const logger = new Logger('VeraChat');
 
@@ -1052,11 +1062,27 @@ export class VeraChatService {
     if (cercato.length < 3) {
       return { testo: 'Dimmi almeno tre lettere del nome, o non so cosa cercare.', esito: 'in_corso', stato };
     }
-    const trovate = (await this.prisma.recipe.findMany({
+    /**
+     * ⛔ **SEI RIGHE PRESE A CASO ERANO IL PEGGIO DI TUTTI** — 8/9, dalla stessa richiesta di Simone
+     * sulla ricerca del menu a mano, portata qui da una revisione avversariale.
+     *
+     * Qui non c'era **nessun `orderBy`** e il tetto è **sei**: cercando «yogurt greco» fra quaranta
+     * nomi che lo contengono, Vera ne mostrava sei decise dal database — e il passo dopo è «dimmi il
+     * numero» su quelle sei. Una ricetta che si chiama **esattamente** così poteva non esserci
+     * affatto, e la nutrizionista non aveva **nessun modo** di arrivarci: né scorrere, né sapere che
+     * c'era dell'altro.
+     *
+     * ⚠️ Si legge più largo e si sceglie qui, con la stessa regola del menu a mano: prima chi
+     * comincia con quello che hai scritto, poi chi ha una parola che comincia così, poi il resto.
+     * Le sei che si mostrano restano sei — quello è un limite di **conversazione**, non di ricerca.
+     */
+    const pescate = (await this.prisma.recipe.findMany({
       where: { name: { contains: cercato, mode: 'insensitive' }, active: true } as never,
       select: { id: true, name: true },
-      take: 6,
+      orderBy: { name: 'asc' },
+      take: TETTO_LETTURA_RICETTE,
     })) as { id: string; name: string }[];
+    const trovate = ordinaPerSomiglianza(pescate, cercato, (r) => r.name).slice(0, RICETTE_DA_MOSTRARE);
 
     if (!trovate.length) return { testo: testi.ricettaNonTrovata(cercato), esito: 'arresa' };
     if (trovate.length > 1) {
