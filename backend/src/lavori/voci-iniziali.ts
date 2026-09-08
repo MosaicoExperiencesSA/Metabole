@@ -523,8 +523,51 @@ export const VOCI_INIZIALI: Voce[] = [
   },
 
   {
+    chiave: 'la-spunta-che-non-ha-messo-nessuno',
+    titolo: '⛔ «Allergeni guardati» non vuol dire che li abbia guardati qualcuno: due script lo scrivono in blocco, senza registro',
+    dettaglio:
+      '⛔ **TROVATO L\'8/9 misurando le 66 ricette del sorgo.** Tutta la protezione degli allergeni '
+      + 'poggia su una frase — *«dove ha guardato una persona non si tocca niente»* — e quella frase, nel '
+      + 'codice, è il campo `allergensReviewed`. Cercando **chi** avesse firmato le 66 è venuto fuori che '
+      + 'quel campo diventa vero in **cinque** modi, e solo il primo è una persona che guarda quella ricetta:\n'
+      + '1. `setRecipeAllergens` — una per una. Registro `catalog.recipe.allergens.set`, **una riga per '
+      + 'ricetta**, con chi e quando. ⛔ Questa è una firma.\n'
+      + '2. `confermaAllergeniInBlocco` — la spunta in blocco del 19/8. Registro '
+      + '`catalog.recipe.allergens.bulk`: **una riga per tutto il blocco**, con i numeri ma **senza gli '
+      + 'id**. ⚠️ È un gesto umano vero, ma sulla singola ricetta è muto: si sa che qualcuno ha '
+      + 'confermato quattromila ricette, non quali.\n'
+      + '3. `reviewDietAllergens` del motore — firma una **dieta**; le ricette si ritrovano passando dai giorni.\n'
+      + '4. ⛔ **`prisma/approve-diets.ts`** — `recipe.updateMany({ where: { allergensReviewed: false } })`, '
+      + 'cioè **tutto il catalogo in un colpo**, senza nessuna riga di registro e senza nessuna persona. '
+      + 'Il file stesso lo dice: *«bypassa i passi UI, da usare in allestimento catalogo»*.\n'
+      + '5. ⛔ **`prisma/pubblica-tutto.ts`** — stessa cosa per le ricette di ogni dieta pubblicata, anche '
+      + 'questo senza registro.\n\n'
+      + '⚠️ **Perché è più grave di un difetto**: non è che il codice sbagli, è che una **parola** vuol '
+      + 'dire due cose. Quando il ritiro dei tag legge `allergensReviewed` e si ferma, sta dicendo «qui '
+      + 'ha deciso una persona» — e su una parte del catalogo non è vero. Nel verso in cui pesa: un '
+      + 'allergene falso che nessuno ha mai guardato resta addosso alla ricetta **in nome di una firma '
+      + 'che non esiste**, e toglie il piatto a chi poteva mangiarlo.\n'
+      + '▶️ **LA MISURA C\'È E NON SCRIVE NIENTE:** `npm run diag:firme-allergeni` (sola lettura). '
+      + 'Confronta le ricette segnate guardate con quelle che il registro sa spiegare: la differenza è il '
+      + 'numero di spunte che non ha messo nessuno. ⚠️ È una stima **per difetto** — i blocchi possono '
+      + 'aver confermato due volte la stessa ricetta, e ogni doppione conta come una spiegata in più — '
+      + 'perché un conto che sbaglia deve sbagliare dalla parte che non rassicura.\n'
+      + '▶️ **COSA DECIDERE, dopo aver visto il numero.** Se le spunte senza nessuno sono poche, non è '
+      + 'successo niente e si chiude. Se sono tante, le strade sono due e sono di Simone: (a) distinguere '
+      + 'nel dato le conferme vere da quelle degli script — servirebbe una colonna «chi», che oggi non '
+      + 'c\'è; (b) mettere un cancello su quei due script, perché una `updateMany` che firma per conto '
+      + 'di una nutrizionista non dovrebbe poter partire da una shell senza lasciare traccia.\n'
+      + '⚠️ **Intanto non si tocca niente.** Il ritiro continua a fermarsi davanti a `allergensReviewed`, '
+      + 'che è il verso giusto: in dubbio l\'allergene resta. Questa voce serve a non lasciare la frase '
+      + '«ha guardato una persona» in giro per il progetto senza sapere quando è vera.',
+    categoria: CODICE,
+    ordine: 681,
+    nata: '2026-09-08T14:00',
+  },
+
+  {
     chiave: 'agente-scambia-le-tracce-per-allergeni',
-    titolo: '\u25b6\ufe0f Tracce lette come ingredienti: il sorgo \u00e8 SISTEMATO (12 ricette su 78) \u2014 ⛔ 66 restano, e restano per la firma di una persona',
+    titolo: '\u25b6\ufe0f Tracce lette come ingredienti: il sorgo \u00e8 SISTEMATO (12 su 78) \u2014 ⛔ le 66 rimaste hanno una misura, e la misura ha trovato di peggio',
     dettaglio:
       '\u2705 **8/9 — IL SORGO È SISTEMATO, e la misura ha detto una cosa che non sapevamo.**\n'
       + 'Simone ha corretto la riga in tabella e lanciato il ritiro: **36 tag tolti da 12 ricette**. La '
@@ -537,12 +580,19 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'ricetta in cui il glutine **c\'era già**, messo dall\'AI: quella spunta non è una conferma '
       + 'informata su quel tag, è un errore che ha preso la firma di una persona. ⛔ E `FORZA=1` non '
       + 'serve: salta solo il cancello «la riga dichiara ancora», non la conferma umana.\n'
-      + '▶️ **COSA RESTA, ed è una decisione.** Prima si **misura**: quante delle 66 sono spunte '
-      + '**in blocco** (`confermaAllergeniInBlocco`) e quante conferme singole. Il registro della '
-      + 'propagazione ha le date, quindi «confermato DOPO aver letto quel tag» si distingue da '
-      + '«spuntato in blocco quando il tag c\'era già». Poi si decide: script che riapre le sole spunte '
-      + 'in blocco, oppure revisione a mano. ⚠️ La misura va fatta prima: dice se il lavoro vale 66 '
-      + 'ricette o sei.\n'
+      + '✅ **8/9 pomeriggio — LA MISURA ADESSO C\'È, e cercandola è saltato fuori di peggio.** '
+      + '`ALIMENTO="sorgo soffiato" npm run diag:firme-allergeni` (sola lettura) mette in fila le date: '
+      + 'per ognuna delle 66 dice se la firma è arrivata **dopo** che il tag c\'era — e allora quel '
+      + 'tag è stato guardato davvero, e non si tocca — oppure **prima**, e allora la firma sta sotto '
+      + 'una lista che nel frattempo è cambiata.\n'
+      + '⛔ **E c\'è un terzo caso che non avevamo previsto: la spunta che non ha messo nessuno.** '
+      + '`allergensReviewed` diventa vero anche da `prisma/approve-diets.ts`, che lo scrive su **tutto il '
+      + 'catalogo** con una `updateMany` e non lascia nessuna riga di registro. Se è mai girato in '
+      + 'produzione, una parte delle 66 è protetta da una firma che non è di nessuno. ▶️ Ha una voce '
+      + 'sua, perché non riguarda solo il sorgo: riguarda ogni volta che diciamo «qui ha guardato una '
+      + 'persona».\n'
+      + '▶️ **La decisione resta di Simone, e il numero da guardare è quello dello script**: le '
+      + 'ricette in cui nessuno ha mai visto quel tag. Poi si sceglie se riaprirle con uno script o a mano.\n'
       + '▶️ **E le altre tre righe restano da guardare**, con l\'occhio di adesso. `brodo vegetale → '
       + 'sedano` tocca **1761 ricette**: quasi certamente giusto, ma è il numero più grande di tutti.\n\n'
       + '\u25b6\ufe0f **Trovato il 6/9 lanciando `npm run ritira:tag-alimento`**, che elenca gli alimenti da cui i tag '

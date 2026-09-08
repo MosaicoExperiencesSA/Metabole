@@ -1,0 +1,60 @@
+«Allergeni guardati» non vuol dire che li abbia guardati qualcuno: la misura, e cosa ha trovato
+
+Cercando di misurare le 66 ricette del sorgo e' saltato fuori il ritrovamento vero della giornata.
+Tutta la protezione degli allergeni poggia su una frase — «dove ha guardato una persona non si tocca
+niente» — e quella frase, nel codice, e' il campo `allergensReviewed`. Diventa vero in CINQUE modi, e
+solo il primo e' una persona che guarda quella ricetta:
+
+1. `setRecipeAllergens` — una per una. Registro `catalog.recipe.allergens.set`, una riga PER RICETTA,
+   con chi e quando. ⛔ Questa e' una firma.
+2. `confermaAllergeniInBlocco` — la spunta in blocco del 19/8. Una riga per tutto il blocco, con i
+   numeri ma SENZA gli id. ⚠️ Gesto umano vero, ma sulla singola ricetta e' muto.
+3. `reviewDietAllergens` del motore — firma una DIETA; le ricette si ritrovano dai giorni.
+4. ⛔ `prisma/approve-diets.ts` — `updateMany({ where: { allergensReviewed: false } })`, cioe' TUTTO
+   IL CATALOGO in un colpo, senza nessuna riga di registro e senza nessuna persona.
+5. ⛔ `prisma/pubblica-tutto.ts` — stessa cosa per le ricette di ogni dieta pubblicata, anche questo
+   senza registro.
+
+⚠️ NON E' CHE IL CODICE SBAGLI: E' CHE UNA PAROLA VUOL DIRE DUE COSE
+Quando il ritiro dei tag legge `allergensReviewed` e si ferma, sta dicendo «qui ha deciso una
+persona» — e su una parte del catalogo non e' vero. Nel verso in cui pesa: un allergene falso che
+nessuno ha mai guardato resta addosso alla ricetta IN NOME DI UNA FIRMA CHE NON ESISTE, e toglie il
+piatto a chi poteva mangiarlo.
+
+▶️ LA MISURA C'E' E NON SCRIVE NIENTE
+`npm run diag:firme-allergeni` — sola lettura, nessun CONFERMA, apposta: una misura che puo' anche
+scrivere e' una misura che prima o poi qualcuno lancia col dito sbagliato.
+· senza argomenti: quante ricette risultano guardate e quante il registro sa spiegare. La differenza
+  e' il numero di spunte che non ha messo nessuno.
+· `ALIMENTO="sorgo soffiato" npm run diag:firme-allergeni`: scende alle singole ricette e per ognuna
+  dice se la firma e' DOPO il tag (l'ha visto: non si tocca) o PRIMA (la firma sta sotto una lista
+  che nel frattempo e' cambiata).
+
+⚠️ IL CONTO SBAGLIA DALLA PARTE CHE NON RASSICURA
+La stima e' PER DIFETTO: i blocchi possono aver confermato due volte la stessa ricetta e ogni
+doppione conta come una spiegata in piu'. Le spunte senza nessuno sono ALMENO quelle.
+
+⛔ IL GIUDIZIO STA IN UN MODULO PURO, CON LE SUE PROVE
+`src/nutrient-facts/chi-ha-firmato.ts`, 13 prove. Il caso che conta di piu' e' il confine — firma e
+tag nello stesso istante — e li' il verdetto sta dalla parte di chi ha l'allergia, mai da quella di
+chi vuole togliere. Tre mutazioni provate (confine `>=`, ramo del blocco incerto tolto, pavimento a
+zero tolto): tre rosse.
+⚠️ E in dubbio non assolve: quando il registro non basta, il verdetto e' «non si sa», mai «si puo'
+togliere».
+
+⚠️ INTANTO NON SI TOCCA NIENTE
+Il ritiro continua a fermarsi davanti a `allergensReviewed`, che e' il verso giusto. Questa consegna
+non cambia nessun comportamento: aggiunge una misura e una voce di lavoro.
+
+FILE
+- backend nuovi: `nutrient-facts/chi-ha-firmato.ts` + `.spec.ts`, `prisma/diag-firme-allergeni.ts`
+- backend tocchi: `package.json` (una riga: lo script), `lavori/voci-iniziali.ts`
+- progetto: `REGISTRO.md`
+
+13 prove nuove verdi, 74 prove dei lavori verdi. Nessuna migrazione.
+
+⚠️ NOTA ONESTA SUL CONTROLLO DEI TIPI: qui `npm run typecheck` non arriva in fondo (`prisma generate`
+non riesce a partire in questo ambiente, e il client resta uno stub). Ho lanciato `tsc` sull'intero
+progetto coi tipi stub: zero errori sui tre file nuovi, e i due soli errori sono preesistenti e in
+file che non ho toccato (`approve-diets.ts` e `dedupe-diets.ts`, l'opzione `timeout` di
+`$transaction` che lo stub non conosce). Il controllo vero lo fa il tuo Mac.

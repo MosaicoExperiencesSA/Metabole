@@ -20,6 +20,38 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **«Allergeni guardati» non vuol dire che li abbia guardati qualcuno.** Cercando di
+  misurare le 66 ricette del sorgo è saltato fuori il ritrovamento vero della giornata. Tutta la
+  protezione degli allergeni poggia su una frase — *«dove ha guardato una persona non si tocca
+  niente»* — e quella frase, nel codice, è il campo `allergensReviewed`. Quel campo diventa vero in
+  **cinque** modi, e solo il primo è una persona che guarda quella ricetta: `setRecipeAllergens`
+  (una riga di registro per ricetta, con chi e quando); `confermaAllergeniInBlocco` (una riga per
+  tutto il blocco, con i numeri ma **senza gli id**: gesto umano vero, ma sulla singola ricetta è
+  muto); `reviewDietAllergens` del motore (firma una dieta, non una ricetta); e poi i due che
+  contano: ⛔ **`prisma/approve-diets.ts`** scrive `allergensReviewed: true` su **tutto il catalogo**
+  con una `updateMany`, senza nessuna riga di registro e senza nessuna persona, e ⛔
+  **`prisma/pubblica-tutto.ts`** fa lo stesso per le ricette di ogni dieta pubblicata.
+  ⚠️ **Non è che il codice sbagli: è che una parola vuol dire due cose.** Quando il ritiro dei tag
+  legge `allergensReviewed` e si ferma, sta dicendo «qui ha deciso una persona» — e su una parte del
+  catalogo non è vero. Nel verso in cui pesa: un allergene falso che nessuno ha mai guardato resta
+  addosso alla ricetta **in nome di una firma che non esiste**, e toglie il piatto a chi poteva
+  mangiarlo.
+  ▶️ **La misura c'è, e non scrive niente**: `npm run diag:firme-allergeni` (sola lettura, nessun
+  `CONFERMA`, apposta — una misura che può anche scrivere è una misura che prima o poi qualcuno
+  lancia col dito sbagliato). Confronta le ricette segnate guardate con quelle che il registro sa
+  spiegare: la differenza è il numero di spunte che non ha messo nessuno. ⚠️ È una stima **per
+  difetto** — i blocchi possono aver confermato due volte la stessa ricetta e ogni doppione conta
+  come una spiegata in più — perché un conto che sbaglia deve sbagliare dalla parte che non
+  rassicura. Con `ALIMENTO="sorgo soffiato"` scende alle singole ricette e per ognuna dice se la
+  firma è **dopo** il tag (l'ha visto: non si tocca) o **prima** (la firma sta sotto una lista che
+  nel frattempo è cambiata).
+  ⛔ **Il giudizio sta in un modulo puro con le sue prove** (`chi-ha-firmato.ts`, 13 prove): il caso
+  che conta di più è il confine — firma e tag nello stesso istante — e lì il verdetto sta dalla parte
+  di chi ha l'allergia, mai da quella di chi vuole togliere. Tre mutazioni provate, tre rosse.
+  ⚠️ **E in dubbio non assolve**: quando il registro non basta a dire chi ha firmato, il verdetto è
+  «non si sa», mai «si può togliere». Intanto non si tocca niente: il ritiro continua a fermarsi
+  davanti a `allergensReviewed`, che è il verso giusto.
+
 - `[Sviluppo]` ✅ **Il sorgo soffiato è sistemato — e la misura ha detto una cosa che non sapevamo.**
   Simone ha corretto la riga in tabella e lanciato `ritira:tag-alimento`: **36 tag tolti da 12
   ricette**. La verifica dopo dice `0 da ritirare`, e i conti tornano da soli: 218 «guardate da una
