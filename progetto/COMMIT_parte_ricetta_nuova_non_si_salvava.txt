@@ -1,0 +1,77 @@
+Nessuna ricetta nuova si salvava piu: il campo «verified» non era previsto nella creazione
+
+IL DIFETTO
+Segnalato da Simone l'8/9 con lo screenshot della finestra «Nuova ricetta»
+aperta da «Scrivi il menu a mano», su una cliente vera, con il nutrizionista
+davanti:
+
+  Il campo «verified» non e previsto in questa richiesta.
+
+La spunta «Ricetta verificata» e nata il 4/9 sulla MODIFICA. La finestra e una
+sola per creazione e modifica, e la casella si vede anche quando la ricetta non
+esiste ancora: in creazione `verificaCambiata` e sempre vero (`!recipe`), quindi
+il corpo del POST portava sempre `verified`. `CreateRecipeDto` quel campo non lo
+aveva, e con `forbidNonWhitelisted: true` la pipe rifiutava TUTTO il corpo prima
+di arrivare al servizio.
+
+⛔ NON ERA UN DIFETTO DEL MENU A MANO. La finestra la aprono tre porte — pagina
+Ricette, pagina Panieri, «Scrivi il menu a mano» — e da tutte e tre nessuna
+ricetta nuova si salvava. Quello che Simone ha visto in una valeva in tutte.
+
+⛔ E IL SECONDO PUNTO — «non ha i panieri» — ERA IL PRIMO VISTO DA VALLE.
+Il passo «In quali panieri?» si apre DOPO il salvataggio. Una ricetta che non
+nasce non arriva mai al passo che la mette nel piatto di qualcuno: non c'erano
+due difetti, ce n'era uno con due facce.
+
+COSA C'E ADESSO
+`verified` e in `CreateRecipeDto`, e alla creazione il giudizio lo da lo STESSO
+modulo puro della modifica (`verifica-della-ricetta.ts`): con la spunta accesa la
+ricetta nasce firmata con il nome di chi salva e l'ora, e la firma finisce
+nell'audit. Senza spunta nasce non verificata.
+⚠️ La cura NON era togliere il campo dal corpo: la casella sta li e si preme, e
+una casella che si preme e non accende niente e il difetto che stiamo togliendo
+da settimane.
+⚠️ Verificata NON e «allergeni confermati»: una ricetta puo nascere verificata e
+restare fuori dai menu finche gli allergeni non sono confermati. Restano due
+firme diverse su due cose diverse, e c'e una prova che lo tiene fermo.
+
+I TRE PUNTI CHE LA PRIMA STESURA AVEVA SBAGLIATO (revisione avversariale)
+· La prova che doveva impedire il ritorno del guasto era una COPIA A MANO dei
+  campi della finestra, con scritto sopra «se un giorno la finestra ne aggiunge
+  uno, e qui che ci si accorge». Non era vero: niente la legava a `Ricette.tsx`.
+  Misurato: aggiungendo un campo qualsiasi al corpo del POST, tutta la suite
+  restava verde e il difetto dell'8/9 ripassava identico. Adesso la prova LEGGE
+  il sorgente della finestra, estrae le chiavi — comprese quelle dentro gli
+  spread condizionali, che e dove `verified` si nascondeva, e comprese quelle
+  scritte in forma abbreviata, che la prima versione del setaccio perdeva — e le
+  confronta con le proprieta che `CreateRecipeDto` dichiara, prese dal registro
+  di class-validator invece che da un elenco scritto due volte.
+· Il 401 non e «non hai il permesso». Finche senza permesso la sezione «In quali
+  panieri» SPARIVA, tenere 401 e 403 nello stesso ramo era innocuo. Dal momento
+  in cui quel ramo SCRIVE un motivo non lo e piu: a una nutrizionista che il
+  permesso ce l'ha, e a cui e scaduta la sessione, avrebbe detto «non hai il
+  permesso Panieri, chiedilo a chi li gestisce». Un motivo falso e peggio di
+  nessun motivo: manda a cercare dalla parte sbagliata.
+· Il vicolo cieco vero non era quello coperto. La Nutrizionista ha «Panieri ·
+  vede» e non «gestisce»: la lettura RIESCE, quindi il ramo del permesso mancante
+  non entra mai, e si finiva su una riga grigia «Sola lettura» sotto una frase
+  che aveva appena promesso un elenco — in fondo a una ricetta appena nata che
+  nessuna cliente ricevera. Adesso dentro la catena si dice la conseguenza e a
+  chi chiedere; nella scheda del catalogo, dove si stava solo guardando, la riga
+  grigia resta.
+
+MISURATO
+- Backend: 478 suite / 8193 prove verdi, `nest build` verde.
+- Backoffice: 35 suite / 345 prove verdi, `npm run build` verde.
+- La prova nuova MORDE: rimessa indietro la sola correzione del DTO e del
+  servizio, sei prove diventano rosse (e sono rosse per l'asserzione, non per il
+  compilatore — l'extra del corpo di prova e volutamente non tipizzato, cosi la
+  prova che riproduce il messaggio di Simone gira davvero invece di non partire).
+- La sentinella nuova morde: aggiunto un campo di troppo al corpo del POST in
+  `Ricette.tsx`, due prove diventano rosse.
+- Nel backoffice una prova del 7/9 e diventata rossa da sola (pinzava
+  `if (fuoriPermesso) return null;`) ed e stata aggiornata: la regola non si e
+  allargata, si e fatta piu precisa.
+
+MIGRAZIONE
+Nessuna.

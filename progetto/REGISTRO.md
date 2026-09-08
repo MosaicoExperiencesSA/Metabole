@@ -20,6 +20,37 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **Nessuna ricetta nuova si salvava piu — da nessuna delle tre porte.** Segnalato
+  da Simone con lo screenshot della finestra «Nuova ricetta» aperta da «Scrivi il menu a mano», con
+  il nutrizionista davanti: *«Il campo «verified» non e previsto in questa richiesta»*. La spunta
+  «Ricetta verificata» e nata il 4/9 sulla **modifica**, ma la finestra e una sola: in creazione
+  `verificaCambiata` e sempre vero (`!recipe`), quindi il POST portava sempre `verified` — e
+  `CreateRecipeDto` quel campo non ce l'aveva, cosi `forbidNonWhitelisted` rifiutava **tutto il
+  corpo** prima del servizio. ⚠️ Non era un difetto del menu a mano: la finestra la aprono pagina
+  Ricette, pagina Panieri e menu a mano, e da tutte e tre non nasceva piu niente.
+  ⛔ **E il secondo punto — «non ha i panieri» — era il primo visto da valle**: «In quali panieri?»
+  si apre DOPO il salvataggio, e una ricetta che non nasce non ci arriva mai. Un difetto con due
+  facce, non due difetti.
+  ▶️ Adesso `verified` e nel DTO e alla creazione il giudizio lo da **lo stesso modulo puro** della
+  modifica (`verifica-della-ricetta.ts`): spunta accesa = firmata col nome di chi salva e l'ora,
+  scritta anche nell'audit. ⚠️ La cura non era togliere il campo dal corpo: la casella si preme, e
+  una casella che si preme e non accende niente e il difetto che togliamo da settimane. ⚠️ E
+  «verificata» resta diverso da «allergeni confermati»: una ricetta puo nascere verificata e restare
+  fuori dai menu.
+  ⛔ **Tre correzioni sono arrivate dalla revisione avversariale, e la prima riguarda una prova
+  mia.** (a) La prova sul corpo del POST era una **copia a mano** con scritto sopra che si sarebbe
+  accorta del prossimo campo: non era vero, e misurandolo il difetto ripassava con tutta la suite
+  verde — adesso **legge** `Ricette.tsx`, prende le chiavi anche dentro gli spread condizionali
+  (dove `verified` si nascondeva) e in forma abbreviata (che il primo setaccio perdeva) e le
+  confronta col registro di class-validator. (b) Il **401 non e «non hai il permesso»**: finche la
+  sezione spariva era innocuo, da quando scrive un motivo direbbe a una nutrizionista con il
+  permesso di andare a disturbare un collega — un motivo falso e peggio di nessun motivo. (c) Il
+  vicolo cieco vero era un altro: la Nutrizionista ha **«Panieri · vede» e non «gestisce»**, quindi
+  la lettura riesce, il ramo del permesso mancante non entra mai, e restava una riga grigia «Sola
+  lettura» sotto una promessa di elenco, in fondo a una ricetta che nessuna cliente ricevera.
+  ⚠️ Misurato: backend **478 suite / 8193 prove**, backoffice **35 / 345**, build di tutti e due.
+  **Nessuna migrazione.** Dettaglio in `progetto/COMMIT_parte_ricetta_nuova_non_si_salvava.txt`.
+
 - `[Sviluppo]` ⛔ **«Allergeni guardati» non vuol dire che li abbia guardati qualcuno.** Cercando di
   misurare le 66 ricette del sorgo è saltato fuori il ritrovamento vero della giornata. Tutta la
   protezione degli allergeni poggia su una frase — *«dove ha guardato una persona non si tocca

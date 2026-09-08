@@ -83,6 +83,41 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'ricetta-nuova-non-si-salvava-verified',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-08T09:00',
+    priorita: 'alta',
+    titolo: '✅ Nessuna ricetta nuova si salvava piu: «il campo verified non e previsto in questa richiesta»',
+    dettaglio:
+      'Segnalato da Simone l\'8/9 con lo screenshot della finestra «Nuova ricetta» aperta da '
+      + '«Scrivi il menu a mano», con il nutrizionista davanti.\n\n'
+      + '⛔ **Il difetto.** La spunta «Ricetta verificata» e nata il 4/9 sulla MODIFICA, ma la '
+      + 'finestra e una sola: in creazione `verificaCambiata` e sempre vero (`!recipe`), quindi il '
+      + 'POST portava sempre `verified`. `CreateRecipeDto` quel campo non lo aveva e '
+      + '`forbidNonWhitelisted` rifiutava TUTTO il corpo prima del servizio.\n\n'
+      + '⚠️ **Non era un difetto del menu a mano**: la finestra la aprono tre porte — pagina '
+      + 'Ricette, pagina Panieri, menu a mano — e da tutte e tre non nasceva piu nessuna ricetta.\n\n'
+      + '⛔ **Il secondo punto («non ha i panieri») era il primo visto da valle**: «In quali '
+      + 'panieri?» si apre DOPO il salvataggio. Una ricetta che non nasce non arriva mai al passo '
+      + 'che la mette nel piatto di qualcuno.\n\n'
+      + '✅ Adesso `verified` e nel DTO e alla creazione il giudizio lo da lo stesso modulo puro '
+      + 'della modifica: spunta accesa = ricetta firmata col nome di chi salva e l\'ora, scritta '
+      + 'anche nell\'audit. ⚠️ Resta diverso da «allergeni confermati»: una ricetta puo nascere '
+      + 'verificata e restare fuori dai menu.\n\n'
+      + '⛔ **Tre correzioni dalla revisione avversariale.** (a) La prova sul corpo del POST era una '
+      + 'copia a mano: misurata, il difetto ripassava con la suite verde — adesso LEGGE '
+      + '`Ricette.tsx`, comprese le chiavi dentro gli spread condizionali e in forma abbreviata. '
+      + '(b) Il 401 non e «non hai il permesso»: da quando quel ramo scrive un motivo, direbbe a chi '
+      + 'ha il permesso e ha solo la sessione scaduta di andare a disturbare un collega. (c) Il '
+      + 'vicolo cieco vero: la Nutrizionista ha «Panieri · vede» e non «gestisce», quindi la lettura '
+      + 'riesce e restava una riga grigia «Sola lettura» sotto una promessa di elenco, in fondo a '
+      + 'una ricetta che nessuna cliente ricevera.\n\n'
+      + '⚠️ Misurato: backend 478 suite / 8193 prove, backoffice 35 / 345, build di tutti e due. '
+      + 'Nessuna migrazione.',
+  },
+  {
     chiave: 'vera-solo-chi-ha-un-percorso',
     categoria: CODICE,
     ordine: 0,

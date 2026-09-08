@@ -927,7 +927,7 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, paniereDiParte
             e il server ricalcola `bloccata` sulla ricetta vera — che gli allergeni li ha appena
             ricevuti davvero, con un PATCH. Passarglielo nel prop sarebbe un doppione che un giorno
             dice il contrario del database. */}
-        <InQualiPanieri recipe={creata} paniereDiPartenza={paniereDiPartenza} />
+        <InQualiPanieri recipe={creata} paniereDiPartenza={paniereDiPartenza} senzaPermessoDillo />
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
           {/* ⚠️ L'etichetta dice cosa succede, e da «Scrivi menu a mano» succede una cosa in più. */}
           <button className="btn" onClick={() => onSaved(null, creata)}>
@@ -1103,8 +1103,19 @@ export function RecipeModal({ recipe, defaultRegime, defaultSlot, paniereDiParte
  * ⚠️ **Vale subito, come i collegamenti sopra**: tocca il paniere, non la ricetta, e tenerlo in
  * sospeso vorrebbe dire poter chiudere la scheda a metà.
  */
-function InQualiPanieri({ recipe, paniereDiPartenza }: {
+function InQualiPanieri({ recipe, paniereDiPartenza, senzaPermessoDillo = false }: {
   recipe: Recipe;
+  /**
+   * ⛔ **Dentro la catena della ricetta nuova, sparire è una bugia** (8/9).
+   *
+   * Nella scheda del catalogo, a chi non ha la chiave `panieri` questa sezione **non compare**, ed
+   * è giusto: non è roba sua, e non c'è niente che gliela stia promettendo. Nel passo «In quali
+   * panieri?» invece la riga sopra ha appena scritto *«qui sotto ci sono i panieri in cui può
+   * andare — o il motivo per cui non può andare in nessuno»*: sparire lì lascia una finestra che
+   * promette un elenco e mostra il vuoto, cioè fa credere che i panieri non ci siano quando il
+   * problema è il permesso. Con `true` il motivo si legge.
+   */
+  senzaPermessoDillo?: boolean;
   /**
    * ⚠️ Il paniere da cui si è partiti, quando la ricetta nasce dalla pagina Panieri (Simone, 7/9:
    * «il "nuova ricetta" inseriamolo anche nella scheda dei panieri»). Arriva già selezionato: chi
@@ -1165,8 +1176,26 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
       setFuoriPermesso(false);
     } catch (e) {
       /** ⚠️ Chi non ha la chiave `panieri` non deve vedere un errore rosso: la sezione sparisce. */
-      if (e instanceof ApiError && (e.status === 403 || e.status === 401)) {
+      if (e instanceof ApiError && e.status === 403) {
         setStato(null); setErr(null); setFuoriPermesso(true); return;
+      }
+      /**
+       * ⛔ **IL 401 NON È «NON HAI IL PERMESSO»** — trovato da una revisione avversariale l'8/9,
+       * sulla prima stesura del banner qui sotto.
+       *
+       * Finché senza permesso la sezione **spariva**, mettere 401 e 403 nello stesso ramo era
+       * innocuo: due modi di non vedere niente. Dal momento in cui quel ramo **scrive un motivo**,
+       * non lo è più: a una nutrizionista che quel permesso ce l'ha, e a cui è semplicemente
+       * scaduta la sessione, direbbe «non hai il permesso Panieri, chiedilo a chi li gestisce» —
+       * cioè le farebbe disturbare un collega per un difetto che si ripara rientrando.
+       *
+       * ⚠️ È lo stesso guasto che questa sezione esiste per togliere, girato al contrario: un
+       * motivo falso è peggio di nessun motivo, perché manda a cercare dalla parte sbagliata.
+       */
+      if (e instanceof ApiError && e.status === 401) {
+        setStato(null); setFuoriPermesso(false);
+        setErr('La sessione è scaduta: rientra e riapri la ricetta.');
+        return;
       }
       setFuoriPermesso(false);
       setErr(e instanceof ApiError ? e.message : 'Non riesco a leggere i panieri.');
@@ -1236,7 +1265,20 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
   }
 
   // Senza permesso la sezione non c'è, ed è giusto. Con un errore c'è, e lo dice.
-  if (fuoriPermesso) return null;
+  // ⚠️ Tranne dentro la catena della ricetta nuova, dove il motivo si scrive: vedi `senzaPermessoDillo`.
+  if (fuoriPermesso) {
+    if (!senzaPermessoDillo) return null;
+    return (
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+        <b style={{ fontSize: 13 }}>In quali panieri sta</b>
+        <Banner kind="warn">
+          Non hai il permesso «Panieri», quindi da qui non puoi metterla in nessun paniere.
+          ⚠️ La ricetta è salvata in catalogo, ma finché qualcuno non la mette in un paniere il
+          motore non la pesca per nessuna cliente: chiedilo a chi gestisce i panieri.
+        </Banner>
+      </div>
+    );
+  }
   if (!stato && !err) return null;
 
   return (
@@ -1284,9 +1326,30 @@ function InQualiPanieri({ recipe, paniereDiPartenza }: {
         per paniere, è far cercare a qualcuno una cosa che sappiamo già.
       */}
       {!stato ? null : !puoGestireIPanieri ? (
-        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Sola lettura: per aggiungere o togliere panieri serve il permesso <b>Panieri · gestisce</b>.
-        </p>
+        /*
+          ⛔ **DENTRO LA CATENA LA SOLA LETTURA È UN VICOLO CIECO, e va detto** — 8/9, da una
+          revisione avversariale.
+
+          ⚠️ **È il caso di tutti i giorni, non un caso di bordo**: la Nutrizionista ha «Panieri ·
+          vede» e non «gestisce», quindi la GET riesce (niente banner del permesso mancante) e qui
+          si ferma **senza nessuna pastiglia da premere** — sotto una riga che ha appena promesso
+          «qui sotto ci sono i panieri in cui può andare». Nella scheda del catalogo «Sola lettura»
+          basta: si stava guardando. Nel passo che segue la creazione no, perché lì la ricetta è
+          appena nata e **non la riceverà nessuno** finché qualcun altro non la mette in un paniere:
+          chi ha appena scritto il piatto deve uscire sapendo che manca un passaggio e a chi
+          chiederlo, non convinto di aver finito.
+        */
+        senzaPermessoDillo ? (
+          <Banner kind="warn">
+            Hai «Panieri · vede» ma non «<b>gestisce</b>», quindi da qui non la puoi mettere in
+            nessun paniere. ⚠️ La ricetta è salvata in catalogo, ma finché non sta in un paniere il
+            motore non la pesca per nessuna cliente: chiedilo a chi gestisce i panieri.
+          </Banner>
+        ) : (
+          <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Sola lettura: per aggiungere o togliere panieri serve il permesso <b>Panieri · gestisce</b>.
+          </p>
+        )
       ) : stato.bloccata ? (
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>⚠️ {stato.bloccata}</p>
       ) : stato.panieriDelRegime === 0 ? (

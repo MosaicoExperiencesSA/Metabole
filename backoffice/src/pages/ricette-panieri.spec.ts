@@ -55,9 +55,14 @@ describe('la sezione dei panieri nel popup della ricetta', () => {
   /**
    * ⚠️ Chi non ha la chiave `panieri` non deve vedere un errore rosso in fondo alla scheda: la
    * sezione semplicemente non c'è. Un 403 previsto non è un guasto da mostrare.
+   *
+   * ⛔ **Il 401 è uscito da questo ramo l'8/9**: da quando il caso «senza permesso» scrive un
+   * motivo, metterci dentro anche la sessione scaduta vorrebbe dire dire una cosa falsa a chi il
+   * permesso ce l'ha. Vedi `panieri-passo-senza-permesso.spec.ts`.
    */
   it('⚠️ e senza la chiave `panieri` la sezione sparisce invece di mostrare un errore', () => {
-    expect(pagina).toMatch(/e\.status === 403 \|\| e\.status === 401/);
+    expect(pagina).toMatch(/e instanceof ApiError && e\.status === 403/);
+    expect(pagina).not.toMatch(/e\.status === 403 \|\| e\.status === 401/);
   });
 
   /** ⚠️ La conferma dice cosa cambia per le clienti, come nella pagina Panieri. */
@@ -138,9 +143,16 @@ describe('il paniere di partenza arriva già scelto', () => {
  * risposta **opposta** a quella vera.
  */
 describe('⛔ quando i panieri non si leggono, la sezione lo DICE', () => {
-  it('senza permesso sparisce, e solo per quello', () => {
+  /**
+   * ⚠️ **Aggiornata l'8/9, e la regola si è fatta più precisa, non più larga.** Nella scheda del
+   * catalogo la sezione sparisce ancora — lì non c'è niente che stia promettendo un elenco. Nel
+   * passo «In quali panieri?» della ricetta appena creata, invece, la riga sopra ha appena promesso
+   * *«qui sotto ci sono i panieri… o il motivo per cui non può andare in nessuno»*: lì si dice il
+   * motivo. Vedi `panieri-passo-senza-permesso.spec.ts`.
+   */
+  it('senza permesso sparisce, e solo per quello (tranne dentro la catena, dove lo dice)', () => {
     expect(pagina).toMatch(/setStato\(null\); setErr\(null\); setFuoriPermesso\(true\); return;/);
-    expect(pagina).toMatch(/if \(fuoriPermesso\) return null;/);
+    expect(pagina).toMatch(/if \(fuoriPermesso\) \{\n\s*if \(!senzaPermessoDillo\) return null;/);
   });
 
   it('⛔ con un errore la sezione RESTA: non si esce se c’è qualcosa da dire', () => {

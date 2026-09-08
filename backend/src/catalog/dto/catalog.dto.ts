@@ -361,6 +361,28 @@ export class CreateRecipeDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /**
+   * ⛔ **LA SPUNTA «RICETTA VERIFICATA», ANCHE ALLA NASCITA** — 8/9, dalla segnalazione di Simone.
+   *
+   * La finestra «Nuova ricetta» mostra la casella «Verificata dalla nutrizionista» **anche quando
+   * la ricetta non esiste ancora**, e quindi manda `verified` nel POST. Qui il campo non c'era: la
+   * pipe di validazione rispondeva «Il campo «verified» non è previsto in questa richiesta» e
+   * **nessuna ricetta nuova si salvava più** — da tutte e tre le porte (pagina Ricette, pagina
+   * Panieri, «Scrivi il menu a mano»), non solo da quella dove Simone l'ha vista.
+   *
+   * ⚠️ **La cura non era togliere il campo dal corpo**: la casella sta lì, si preme, e una casella
+   * che si preme e non accende niente è il difetto che questo progetto toglie da settimane. Chi
+   * scrive una ricetta e la sta guardando in quel momento la può firmare subito — con il **suo**
+   * nome e l'ora, come nella modifica, perché il giudizio lo dà lo stesso modulo puro
+   * (`verifica-della-ricetta.ts`).
+   *
+   * ⚠️ E non è `allergensReviewed`: una ricetta può nascere verificata e restare **fuori dai menu**
+   * finché gli allergeni non sono confermati. Sono due firme diverse su due cose diverse.
+   */
+  @IsOptional()
+  @IsBoolean()
+  verified?: boolean;
 }
 
 /** Modifica ricetta: tutti i campi opzionali (si aggiornano solo quelli inviati). */

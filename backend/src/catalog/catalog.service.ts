@@ -2011,6 +2011,26 @@ export class CatalogService {
       throw new BadRequestException(`Da confermare: ${verdetto.problema}`);
     }
 
+    /**
+     * ⛔ **LA SPUNTA «VERIFICATA» VALE ANCHE ALLA NASCITA** — 8/9.
+     *
+     * La finestra la mostra anche su una ricetta che non esiste ancora, e la mandava: `verified`
+     * non era in `CreateRecipeDto`, la pipe rispondeva «Il campo «verified» non è previsto in
+     * questa richiesta» e **il POST moriva sempre**. Non si salvava più nessuna ricetta nuova, da
+     * nessuna delle tre porte.
+     *
+     * ⚠️ **Il giudizio è lo stesso della modifica**, e si chiede allo stesso modulo puro invece di
+     * riscriverlo: qui il «prima» è una ricetta che non c'era, quindi non verificata e senza niente
+     * da far decadere — `verified: true` la firma col nome di chi salva e l'ora, `false` e assente
+     * la lasciano non verificata.
+     */
+    const esitoVerifica = cosaSuccedeAllaVerifica(
+      { verificata: false, ingredienti: undefined, regime: dto.regime },
+      { verified: dto.verified },
+      userId,
+    );
+    const campiVerifica = campiDaScrivere(esitoVerifica);
+
     const recipe = await this.prisma.recipe.create({
       data: {
         name: dto.name,
@@ -2024,6 +2044,9 @@ export class CatalogService {
         difficulty: dto.difficulty ?? 'media',
         seasons: dto.seasons ?? [],
         active: dto.active ?? true,
+        ...(campiVerifica
+          ? { verifiedAt: campiVerifica.verifiedAt, verifiedById: campiVerifica.verifiedById }
+          : {}),
       },
     });
     await this.audit.log({
@@ -2034,8 +2057,19 @@ export class CatalogService {
       /**
        * ⛔ **La forzatura resta scritta.** Un permesso senza traccia è un pulsante «ignora»: fra sei
        * mesi, davanti a un piatto etichettato male, nessuno saprebbe se qualcuno ci aveva pensato.
+       *
+       * ⚠️ **E la firma alla nascita anche**, per la stessa ragione per cui si scrive nella
+       * modifica: chi si chiede «chi ha verificato questo piatto» deve trovarlo nel registro anche
+       * quando la risposta è «quella stessa che l'ha scritto».
        */
-      ...(verdetto.esito === 'conferma' ? { metadata: { regimeForzato: verdetto.problema } } : {}),
+      ...(verdetto.esito === 'conferma' || esitoVerifica.tipo === 'verificata'
+        ? {
+          metadata: {
+            ...(verdetto.esito === 'conferma' ? { regimeForzato: verdetto.problema } : {}),
+            ...(esitoVerifica.tipo === 'verificata' ? { verifica: 'verificata' } : {}),
+          },
+        }
+        : {}),
     });
     return recipe;
   }
