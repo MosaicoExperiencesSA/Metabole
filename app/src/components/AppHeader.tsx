@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import Sheet from './Sheet';
+import { rottaClienteDaNotifica, type DatiNotifica } from '../lib/rottaNotifica';
 
 /**
  * Header comune a tutte le schermate dell'app (come nel prototipo):
@@ -12,7 +13,12 @@ import Sheet from './Sheet';
 interface Notif {
   id: string;
   type: string;
-  payload?: { title?: string; body?: string } | null;
+  /**
+   * ⚠️ **Nel payload c'è anche dove portare** (`kind`, `giorno`, `counterpart`…): è la stessa roba
+   * che viaggia nella push, perché `notificaUtente` la scrive in tutte e due. Qui era tipizzata a
+   * titolo e corpo, e per questo la campanella non poteva usarla per navigare.
+   */
+  payload?: ({ title?: string; body?: string } & DatiNotifica) | null;
   readAt: string | null;
   scheduledFor: string;
 }
@@ -32,6 +38,8 @@ const TYPE_ICON: Record<string, [string, string, string]> = {
   mini_plan: ['ti-heart-handshake', '#DCEBE3', '#0E7C66'],
   chat_reply_coach: ['ti-message-2', '#DCEBE3', '#0E7C66'],
   chat_reply_nutritionist: ['ti-message-2', '#E7EEF6', '#3A6EA5'],
+  /** ⚠️ 8/9: «il menu di giovedì è cambiato». Senza riga qui l'icona sarebbe quella generica. */
+  menu_giorno_riscritto: ['ti-refresh-alert', '#FBEEE7', '#E8825A'],
 };
 
 // Ogni tipo di notifica porta alla funzione giusta al tap (deep-link in-app).
@@ -99,10 +107,26 @@ export default function AppHeader({
     }
   }
 
-  // Tap su una notifica: la segna letta e apre la funzione collegata (se mappata).
+  /**
+   * Tap su una notifica: la segna letta e apre la funzione collegata.
+   *
+   * ⛔ **PRIMA SI CHIEDE A `rottaClienteDaNotifica`, POI ALLA TABELLA** — 8/9, da una revisione
+   * avversariale.
+   *
+   * La cliente tocca le notifiche da **due** posti: la push e questa campanella. `rottaNotifica.ts`
+   * esiste apposta perché la risposta sia **una**, e il suo cappello lo dice a lettere chiare — ma
+   * qui la risposta la dava una **seconda** tabella, `TYPE_ROUTE`, e le due erano già divergenti.
+   * Il costo si è visto con l'avviso «il menu di giovedì è cambiato»: dalla push portava alla
+   * giornata giusta, dalla campanella **non faceva niente**, e per chi usa l'app dal web — dove le
+   * push non esistono proprio — la campanella è l'unico canale che c'è.
+   *
+   * ⚠️ `TYPE_ROUTE` resta come **ripiego** e non è un doppione dimenticato: risponde per tipo a
+   * notizie che nel payload non hanno niente da cui dedurre la rotta (il promemoria delle misure,
+   * il check-in). Le due si sommano nell'ordine giusto: chi porta i fatti vince su chi indovina.
+   */
   function openNotif(n: Notif) {
     void markRead(n);
-    const route = TYPE_ROUTE[n.type];
+    const route = rottaClienteDaNotifica(n.payload ?? null) ?? TYPE_ROUTE[n.type];
     if (route) { setSheet(null); nav(route); }
   }
 

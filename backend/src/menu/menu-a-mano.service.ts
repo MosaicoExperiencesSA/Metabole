@@ -12,6 +12,8 @@ import { controllaGiornata, pastiDaScrivere, type PastoAMano } from './giornata-
 import { KcalNeedService } from './kcal-need.service';
 import { scrittaAMano } from '../vera/menu-da-rifare';
 import { laClienteLHaAperto, nonSappiamoSeLHaAperto } from '../vera/menu-da-rifare';
+import { PushService } from '../notifications/push.service';
+import { avvisaGiornoRiscritto, codaPerChiHaSalvato, laGiornataECambiata } from './avviso-giorno-riscritto';
 
 /**
  * ⛔ **IL MENU SCRITTO A MANO DALLA SCHEDA CLIENTE** — la via d'uscita che il 31/8 non c'era.
@@ -43,6 +45,12 @@ export class MenuAManoService {
     private readonly kcalNeed: KcalNeedService,
     private readonly configParams: ConfigParamsService,
     private readonly audit: AuditService,
+    /**
+     * ⚠️ **Serve ad avvisare la CLIENTE**, non lo staff: quando si riscrive un giorno che aveva già
+     * aperto, quello che ha in mano cambia e deve saperlo. `PushModule` è già fra gli `imports` di
+     * `MenuModule` e dipende solo da servizi globali: non porta con sé nessun cerchio.
+     */
+    private readonly push: PushService,
   ) {}
 
   /**
@@ -545,6 +553,23 @@ export class MenuAManoService {
       },
     } as never).catch(() => undefined);
 
+    /**
+     * ⛔ **E LA CLIENTE VIENE AVVISATA** — la metà che mancava alla decisione dell'8/9. Il perché,
+     * e perché solo quando l'aveva davvero aperto, sta in `avviso-giorno-riscritto.ts`.
+     *
+     * ⚠️ Sta **dopo** la scrittura e non dentro una `Promise.all` con l'audit: un avviso mandato
+     * prima che il menu sia scritto racconterebbe un cambiamento che potrebbe non essere avvenuto.
+     */
+    /**
+     * ⚠️ **Si avvisa solo se qualcosa è cambiato DAVVERO.** Riaprire una giornata, guardarla e
+     * risalvarla identica è un gesto normale: mandarle «è cambiato, ricontrolla la spesa» quando ha
+     * in mano gli stessi piatti è un allarme falso. Vedi `laGiornataECambiata`.
+     */
+    const cambiata = laGiornataECambiata(cornice.esistente?.meals, meals);
+    const esitoAvviso = cornice.esistente?.giaAperto && cambiata
+      ? await avvisaGiornoRiscritto(this.prisma, this.push, { clientId, dataISO: input.data })
+      : null;
+
     this.logger.log(
       `Menu scritto a mano per ${clientId} il ${input.data} da ${attore.nome}: `
       + `${meals.length} pasti, ${verdetto.conto.kcal} kcal${avvisi.length ? ` — avvisi: ${avvisi.join(' ')}` : ''}.`,
@@ -568,9 +593,9 @@ export class MenuAManoService {
       avvisi,
       /** Gli avvisi che restano veri anche a cose fatte: quello sull'apertura non lo è più. */
       avvisiDopo: avvisi.filter((a) => a !== avvisoApertura),
-      dopoIlSalvataggio: avvisoApertura
-        ? 'La cliente quel giorno lo aveva già aperto: quello che aveva visto adesso è cambiato, '
-          + 'valuta se avvisarla.'
+      /** ⚠️ Se non è cambiato niente non c'è nessuna coda: non c'è niente da dire a nessuno. */
+      dopoIlSalvataggio: cambiata
+        ? codaPerChiHaSalvato(esitoAvviso, cornice.esistente?.nonSappiamo === true)
         : null,
     };
   }

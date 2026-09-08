@@ -1,0 +1,94 @@
+La cliente viene avvisata quando il suo menu cambia sotto
+
+PERCHE
+L'8/9 il cancello e caduto: la nutrizionista riscrive un giorno anche se la
+cliente lo ha gia aperto. Mancava la meta che riguarda LEI.
+
+⛔ E il caso peggiore e il caso NORMALE, non un caso di bordo: aprire la LISTA
+DELLA SPESA segna aperti tutti e sette i giorni consegnati, quindi chi viene
+riscritto e quasi sempre chi ha gia comprato. La lista si ricalcola a ogni
+lettura: le voci del piatto tolto spariscono INSIEME ALLA LORO SPUNTA, quelle
+nuove compaiono da spuntare, e una quantita gia spuntata puo cambiare sotto.
+Senza una riga che dica perche, la cliente vede una lista che si e rimescolata
+da sola, con in frigo la roba di un menu che non esiste piu.
+
+COSA C'E ADESSO
+Una funzione libera, `avvisaGiornoRiscritto`, chiamata dalle DUE porte (menu a
+mano e giornata dettata a Vera): una regola sola, perche se ognuna si scrivesse
+la sua notifica il giorno che una cambia testo l'altra direbbe quello vecchio.
+· «Il menu di giovedi 10 settembre e cambiato» — il giorno si chiama come lo
+  chiamerebbe lei: oggi, domani, dopodomani, poi nome e data.
+· Il corpo nomina la spesa, perche e quello che c'e da fare.
+· Non dice CHI l'ha riscritto: la rotta la usano nutrizionista, capo e admin, e
+  una notifica che dice il falso su chi ha toccato il suo menu e peggio di una
+  che non lo dice.
+· Il tocco apre QUEL giorno (`/menu?giorno=…`), non il menu di oggi.
+
+SI AVVISA SOLO SE SERVE, e ogni «no» ha la sua ragione:
+· solo se l'aveva DAVVERO aperto (non a ogni giornata composta, o sarebbe un
+  campanello che suona sempre);
+· solo se qualcosa e CAMBIATO davvero (riaprire e risalvare identico e un gesto
+  normale: un allarme falso costa piu di uno mancato);
+· una volta sola finche non l'ha letta (tre salvataggi di fila non fanno tre
+  push);
+· mai su un giorno gia passato: non ci sarebbe niente da fare.
+
+I QUATTRO PUNTI DELLA REVISIONE AVVERSARIALE
+· ⛔ LA CAMPANELLA ERA UN VICOLO CIECO. La cliente tocca le notifiche da DUE
+  posti — la push e la campanella in app — e `rottaNotifica.ts` esiste apposta
+  perche la risposta sia UNA. La campanella pero aveva una SECONDA tabella
+  (`TYPE_ROUTE`), e le due erano gia divergenti: dalla push si arrivava alla
+  giornata giusta, dalla campanella il tocco NON FACEVA NIENTE. E per chi usa
+  l'app dal web, dove le push non esistono, la campanella e l'unico canale.
+  Adesso chiede prima a `rottaClienteDaNotifica` e usa la tabella come ripiego.
+· ⛔ `?giorno=` NON VENIVA RILETTO SENZA RIMONTARE. La data si leggeva solo
+  all'apertura della schermata. La cliente che ha l'app aperta PROPRIO SUL MENU
+  — cioe quella che ha appena guardato i giorni e fatto la spesa — navigava da
+  `/menu` a `/menu`: React riusa lo stesso elemento, e a schermo restava il
+  giorno di prima MENTRE l'indirizzo ne diceva un altro. Nessun errore, e la
+  persona conclude che la notifica mentisse.
+· ⛔ ALLA NUTRIZIONISTA SI DICEVA «VALUTA SE AVVISARLA» ESATTAMENTE QUANDO
+  L'AVVISO ERA GIA PARTITO — cioe la cliente riceveva la notizia due volte — e
+  NON si diceva niente nel caso «non lo so», che e il solo in cui la strada
+  umana e l'unica che resta (app vecchia, aperture non tracciate). Invertito:
+  «l'abbiamo avvisata» da una parte, «non le e partito nessun avviso: scrivile
+  tu» dall'altra.
+· ⛔ IL COMMENTO «le clienti non usano questo path» in `notifica-utente.ts` da
+  oggi era falso, ed e la riga che spiega perche le preferenze delle clienti non
+  vengono lette li. Corretto, con scritto perche questo avviso NON si spegne.
+
+LE PROVE
+Provate 13 mutazioni: 12 uccise. L'unica sopravvissuta era il FUSO —
+sostituendo `giornoLocale` con `toISOString`, 317 prove restavano verdi. Fra
+mezzanotte e le due di notte i due differiscono di un giorno intero, e la parola
+che cambia e proprio quella che dice alla cliente se deve muoversi adesso:
+«oggi» invece di «domani». La prova adesso c'e, e passa `adesso` a mano
+(00:30 del 10/9 a Roma = 22:30 del 9/9 in UTC).
+⚠️ E la guardia su `giorno` nella push stava in una spec lontana: rimessa anche
+in `dati-push.spec.ts`, che e dove si va a cercarla.
+⚠️ Una sentinella del progetto ha preso da sola due asterischi di markdown in un
+testo che la nutrizionista legge anche dove nessuno lo disegna.
+
+MISURATO
+- Backend 479 suite / 8232 prove, verdi anche con `npm run test:notte`.
+- App 220 prove, backoffice 351, build di tutti e tre.
+
+⚠️ COSA RESTA APERTO
+1. IL PERIMETRO E PIU STRETTO DEL PROBLEMA, e il codice lo sapeva gia:
+   «Rigenera menu» (`regenerateFromToday`) e `redeliverFutureDays` cancellano e
+   rifanno TUTTI i giorni futuri senza guardare se la cliente li aveva aperti, e
+   partono da soli a ogni cambio di kcal, di tipo di dieta, di pesata o di data
+   di inizio. Stessa persona, stesso danno, sette giorni invece di uno, su una
+   porta che scatta molto piu spesso. Serve la variante «piu giorni».
+2. Chi ha l'app vecchia non ci manda le aperture, quindi non riceve l'avviso
+   anche se il menu ce l'aveva in mano. Si chiude da solo con gli aggiornamenti;
+   nel frattempo la coda dice alla nutrizionista di scriverle.
+3. Esiste gia una notifica gemella (`menu_cambio_verificato`, quando si corregge
+   una sostituzione concordata in chat) che porta il giorno con la chiave `data`
+   invece di `giorno`: non viaggia nella push e il tocco non porta da nessuna
+   parte. Due nomi per lo stesso campo, e quella vecchia resta muta.
+4. La cliente non puo disattivare questo avviso, ed e una scelta: non e un
+   promemoria, dice a chi sta per cucinare che il piatto e cambiato.
+
+MIGRAZIONE
+Nessuna.

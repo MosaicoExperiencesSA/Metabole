@@ -44,3 +44,23 @@ describe('datiPush', () => {
     expect(datiPush('chat_reply_coach', { counterpart: 'coach' }).counterpart).toBe('coach');
   });
 });
+
+/**
+ * ⛔ **`giorno` — la chiave entrata l'8/9** con «il menu di giovedì è cambiato».
+ *
+ * ⚠️ La guardia stava solo in una spec lontana (`menu/menu-a-mano.service.spec.ts`): togliendo la
+ * chiave da `CHIAVI_UTILI` diventava rossa quella, non questa — cioè non il posto dove si va a
+ * cercare quando si tocca questo elenco. Senza la data nella push, il tocco aprirebbe il menu del
+ * giorno corrente invece di quello riscritto.
+ */
+describe('la giornata viaggia nella push', () => {
+  it('⛔ `giorno` passa', () => {
+    expect(datiPush('menu_giorno_riscritto', { kind: 'menu_giorno_cambiato', giorno: '2026-09-10' }))
+      .toEqual({ type: 'menu_giorno_riscritto', kind: 'menu_giorno_cambiato', giorno: '2026-09-10' });
+  });
+
+  /** ⚠️ E resta una stringa o non passa: FCM accetta solo stringhe, e un numero fa fallire tutto. */
+  it('⚠️ una data che non è una stringa non entra', () => {
+    expect(datiPush('menu_giorno_riscritto', { giorno: 20260910 }).giorno).toBeUndefined();
+  });
+});

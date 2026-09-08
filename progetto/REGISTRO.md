@@ -20,6 +20,39 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
+- `[Sviluppo]` ⛔ **La cliente viene avvisata quando il suo menu cambia sotto** — la meta che
+  mancava alla decisione «il nutrizionista vince su tutto». ⚠️ **Il caso peggiore e il caso
+  normale**: aprire la **lista della spesa** segna aperti **tutti e sette** i giorni, quindi chi
+  viene riscritto e quasi sempre chi **ha gia comprato** — e la lista si ricalcola a ogni lettura,
+  cioe le voci del piatto tolto spariscono **insieme alla loro spunta** e le nuove arrivano da
+  spuntare, senza una riga che dica perche.
+  ▶️ Adesso una funzione libera (`avvisaGiornoRiscritto`) avvisa dalle **due** porte con le stesse
+  parole: «Il menu di giovedi 10 settembre e cambiato», il corpo nomina la spesa, e il tocco apre
+  **quel** giorno. ⚠️ Non dice **chi** l'ha riscritto: la rotta la usano nutrizionista, capo e admin.
+  ⚠️ Si avvisa **solo** se l'aveva davvero aperto, **solo** se qualcosa e cambiato davvero, **una
+  volta sola** finche non l'ha letta, e **mai** su un giorno gia passato.
+  ⛔ **Quattro cose dalla revisione avversariale.** (a) **La campanella era un vicolo cieco**: la
+  cliente tocca le notifiche da due posti e `rottaNotifica.ts` esiste perche la risposta sia una, ma
+  la campanella aveva una **seconda tabella** — dalla push si arrivava al giorno giusto, dalla
+  campanella il tocco **non faceva niente**, e per chi usa l'app dal web quella e l'unico canale.
+  (b) **`?giorno=` non veniva riletto senza rimontare**: la cliente con l'app aperta **proprio sul
+  menu** — cioe quella che ha appena fatto la spesa — restava sul giorno di prima mentre l'indirizzo
+  ne diceva un altro. (c) **Alla nutrizionista si diceva «valuta se avvisarla» esattamente quando
+  l'avviso era gia partito** (notizia due volte) e **non** si diceva niente nel caso «non lo so»,
+  che e il solo in cui la strada umana e l'unica: invertito. (d) Il commento «le clienti non usano
+  questo path» era diventato falso.
+  ⛔ **Tredici mutazioni, dodici uccise. L'unica sopravvissuta era il FUSO**: sostituendo
+  `giornoLocale` con `toISOString`, **317 prove restavano verdi** — e fra mezzanotte e le due la
+  parola che cambia e proprio quella che dice se muoversi adesso, «oggi» invece di «domani».
+  ⚠️ **Resta aperto**: «Rigenera menu» e `redeliverFutureDays` cancellano e rifanno **tutti** i
+  giorni futuri senza guardare le aperture e **senza avvisare**, e partono da soli a ogni cambio di
+  kcal, dieta, pesata o data d'inizio — stesso danno, sette giorni invece di uno, su una porta che
+  scatta molto piu spesso. E la notifica gemella `menu_cambio_verificato` porta il giorno con la
+  chiave `data`: non viaggia nella push e il tocco non porta da nessuna parte.
+  ⚠️ Misurato: backend **479 suite / 8232 prove** (verdi anche con `test:notte`), app **220**,
+  backoffice **351**, build di tutti e tre. **Nessuna migrazione.** Dettaglio in
+  `progetto/COMMIT_parte_avviso_menu_cambiato.txt`.
+
 - `[Sviluppo]` ⛔ **La misura delle firme ha risposto ZERO sbagliando, e il difetto era mio.** Primo
   giro su Render: `23695` ricette segnate «allergeni guardati», e sotto `10` firmate una per una,
   `9316` dichiarate da 113 blocchi, `260835` dichiarate da 2151 revisioni di dieta — totale

@@ -50,7 +50,18 @@ export async function notificaUtente(
       select: { id: true, prefs: true },
     });
     if (!recipient) return;
-    // Opt-out per tipo dello staff (tabella nel profilo). Le clienti non usano questo path.
+    /**
+     * Opt-out per tipo dello **staff** (tabella in `User.prefs`).
+     *
+     * ⚠️ **Dall'8/9 anche una CLIENTE passa di qui** — l'avviso «il menu di … è cambiato» — e la
+     * riga di prima diceva «le clienti non usano questo path». Chi la leggeva concludeva che le
+     * preferenze delle clienti (`clientProfile.notificationPrefs`) non servissero mai qui.
+     *
+     * ⛔ **Quell'avviso non si spegne, ed è una scelta**: dice a una persona che sta per cucinare o
+     * ha appena fatto la spesa che il piatto è cambiato. Non è un promemoria da silenziare, e per
+     * questo non è in `CLIENT_NOTIFICATION_TYPES`. Un tipo nuovo per le clienti che **non** abbia
+     * questa natura non va aggiunto qui senza prima passare dalle loro preferenze.
+     */
     if (staffDisabledTypes(recipient.prefs).includes(input.type)) return;
     await prisma.notification.create({
       data: {

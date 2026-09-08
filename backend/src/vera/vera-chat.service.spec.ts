@@ -109,7 +109,10 @@ function make(
     },
     // La riga si RILEGGE prima di scrivere il verdetto (voce 245): di default è ancora da guardare.
     foodSwap: { findUnique: jest.fn().mockResolvedValue({ stato: 'da_verificare' }) },
-    notification: { findMany: jest.fn().mockResolvedValue(opzioni.avvisi ?? []) },
+    /** ⚠️ `create` dall'8/9: e la riga dell'avviso alla cliente quando le si riscrive un giorno. */
+    notification: { findMany: jest.fn().mockResolvedValue(opzioni.avvisi ?? []), create: jest.fn().mockResolvedValue({}) },
+    /* NB: `findMany` serve a due cose diverse (gli avvisi della pagina e il dedup dell'avviso alla
+       cliente). Vuoto va bene per tutte e due: nessun avviso in attesa di essere letto. */
     staff: {
       updateMany: jest.fn().mockResolvedValue({}),
       findUnique: jest.fn().mockResolvedValue({ displayName: 'Lucia' }),
@@ -289,8 +292,15 @@ function make(
     }),
   };
 
+  /**
+   * ⚠️ **Le push, dall'8/9**: Vera avvisa la cliente quando le riscrive un giorno che aveva già
+   * aperto. Il finto serve a far compilare e a poter guardare che l'avviso parta davvero.
+   */
+  const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
+
   return {
-    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never, decisioni as never, digiuno as never),
+    push,
+    service: new VeraChatService(prisma, dizionario, pool, registro, richieste, valori, configParams as never, ricette, clienti as never, kcal as never, sostituzioni as never, ai as never, combinazioni as never, decisioni as never, digiuno as never, push as never),
     valori,
     ricette,
     richieste,
@@ -3064,9 +3074,14 @@ describe('VeraChatService — la giornata dettata', () => {
     const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: true });
     const testo = await arrivaFinoAlSi(over);
     expect(over.menuDay.update).toHaveBeenCalled();
-    /** ⚠️ E la coda dice che è cambiato SOTTO: «la vedrà quando aprirà» sarebbe falso proprio qui. */
-    expect(testo).toContain('lo aveva **già aperto**');
-    expect(testo).toContain('valuta se avvisarla');
+    /**
+     * ⚠️ E la coda dice cosa è successo davvero: «la vedrà quando aprirà» sarebbe falso proprio qui.
+     * ⛔ **E non dice più «valuta se avvisarla»**: l'avviso è appena partito da solo (8/9, revisione
+     * avversariale) — chiederle di scrivere vorrebbe dire far arrivare la stessa notizia due volte.
+     */
+    expect(testo).toContain('lo aveva già aperto');
+    expect(testo).toContain('l\'abbiamo avvisata');
+    expect(testo).not.toContain('valuta se avvisarla');
   });
 
   it('⛔ «non lo so» avvisa e poi scrive: non è più un\'arresa', async () => {
@@ -3142,6 +3157,34 @@ describe('VeraChatService — la giornata dettata', () => {
     const testo = await anteprima(over);
     expect(testo).toContain('lo ha già aperto in app');
     expect(testo).not.toContain('Non so dirti');
+  });
+
+  /**
+   * ⛔ **E LA CLIENTE VIENE AVVISATA, con le stesse parole dell'altra porta.** Il testo sta in
+   * `menu/avviso-giorno-riscritto.ts`: una regola sola per «Scrivi il menu a mano» e per Vera,
+   * altrimenti il giorno che una cambia frase l'altra continua a dire quella vecchia.
+   */
+  it('⛔ riscrivendo un giorno gia aperto, alla cliente arriva l\'avviso', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: new Date('2026-08-26'), apertureTracciate: true });
+    const { service, prisma, push } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    await service.parla('lucia', 'sì');
+    const create = (prisma as unknown as { notification: { create: jest.Mock } }).notification.create;
+    const riga = create.mock.calls[0][0].data;
+    expect(riga.type).toBe('menu_giorno_riscritto');
+    expect((riga.payload as { kind?: string }).kind).toBe('menu_giorno_cambiato');
+    expect(push.sendToUser).toHaveBeenCalled();
+  });
+
+  /** ⛔ E su un giorno che NON aveva aperto non le arriva niente: il campanello non suona a vuoto. */
+  it('⛔ su un giorno non aperto la cliente non riceve niente', async () => {
+    const over = conCatalogo({ id: 'md-1', apertoDallaClienteIl: null, apertureTracciate: true });
+    const { service, prisma } = make(over, { kcal: kcalFinto() });
+    await service.parla('lucia', DETTATO);
+    await service.parla('lucia', '1');
+    await service.parla('lucia', 'sì');
+    expect((prisma as unknown as { notification: { create: jest.Mock } }).notification.create).not.toHaveBeenCalled();
   });
 
   /** ⛔ E la sovrascrittura dopo l'apertura resta scritta nel REGISTRO, non solo nel testo. */

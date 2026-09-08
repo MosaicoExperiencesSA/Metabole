@@ -691,13 +691,17 @@ export const testi = {
   /**
    * ⚠️ **La coda cambia se lei quel giorno lo aveva già aperto**: «la vedrà quando aprirà quel
    * giorno» sarebbe falso per chi l'ha già aperto — e falso proprio nel caso in cui la conseguenza
-   * conta di più. Si dice che è cambiato sotto, così chi ha scritto sa se le deve un messaggio.
+   * conta di più.
+   *
+   * ⛔ **E il testo della coda non sta qui**: lo scrive `codaPerChiHaSalvato`, accanto all'avviso
+   * che parte alla cliente, perché è quello a decidere cosa dire — «l'abbiamo avvisata» o «scrivile
+   * tu». Scriverlo qui vorrebbe dire farlo divergere da quello che legge chi usa «Scrivi il menu a
+   * mano», che è la stessa notizia detta alla stessa persona.
    */
-  giornataScritta: (quando: string, kcal: number, eraGiaAperta = false) =>
+  giornataScritta: (quando: string, kcal: number, coda: string | null = null) =>
     `Fatto: la giornata di ${quando} è quella che hai dettato (${kcal} kcal). ` +
-    (eraGiaAperta
-      ? 'Lo trovi nel registro. ⚠️ Lei quel giorno lo aveva **già aperto**: quello che aveva visto '
-        + 'adesso è cambiato, valuta se avvisarla.'
+    (coda
+      ? `Lo trovi nel registro. ⚠️ ${coda}`
       : 'Lo trovi nel registro, e lei la vedrà quando aprirà quel giorno.'),
 
   giornataNienteDaScrivere: () =>

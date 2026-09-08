@@ -18,6 +18,8 @@ import { diceDiFermarsi, leggiCortesia, rispostaCortesia } from './cortesie';
 import { TIPO_PROMEMORIA } from '../clients/promemoria-supervisione';
 import { leggiDigiunoDettato } from './digiuno-dettato';
 import { aGiorno, giornoItaliano } from '../common/date-only';
+import { avvisaGiornoRiscritto, codaPerChiHaSalvato } from '../menu/avviso-giorno-riscritto';
+import { PushService } from '../notifications/push.service';
 import { chiaveAlimento, combaciaAlimento, normalizza } from '../common/nomi-alimento';
 import { spezzaTagAlimenti } from '../common/tag-alimenti';
 import { filtroPerimetroSuCliente, filtroPerimetroSuClienteConPiano, perimetroClienti } from '../common/perimetro-clienti';
@@ -198,6 +200,14 @@ export class VeraChatService {
     @Inject(SCRITTURA_DECISIONE) private readonly decisioni: ScritturaDecisione,
     /** ⛔ Le ore del digiuno (25/8): la porta che la regola della cliente promette. */
     @Inject(SCRITTURA_DIGIUNO) private readonly digiuno: ScritturaDigiuno,
+    /**
+     * ⚠️ **Serve ad avvisare la CLIENTE** quando una sua giornata viene riscritta dopo che l'aveva
+     * già aperta (8/9). ⛔ È l'unico servizio concreto in mezzo alle porte, e la ragione è che la
+     * regola dev'essere **una sola** con «Scrivi il menu a mano»: una porta in più qui, con un
+     * finto in più in ogni prova, avrebbe fatto divergere due testi che devono dire la stessa cosa.
+     * `PushModule` dipende solo da servizi globali, quindi non porta cerchi.
+     */
+    private readonly push: PushService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────── ingressi ──
@@ -3059,7 +3069,24 @@ export class VeraChatService {
         },
       },
     })) as { id: string };
-    return { testo: testi.giornataScritta('domani', kcal, eraGiaAperta), esito: 'scritta', azioneId: riga.id };
+    /**
+     * ⛔ **E la cliente viene avvisata**, come dall'altra porta e con le stesse parole: la regola sta
+     * in `avviso-giorno-riscritto.ts`, non qui. Vedi il cappello di quel file per il perché si
+     * avvisa solo quando l'aveva davvero aperta.
+     */
+    const esitoAvviso = eraGiaAperta
+      ? await avvisaGiornoRiscritto(this.prisma, this.push, {
+        clientId: stato.clienteId!,
+        dataISO: domani.toISOString().slice(0, 10),
+      })
+      : null;
+    /**
+     * ⚠️ **La coda dice cosa è successo DAVVERO**, non «valuta se avvisarla» a prescindere: la
+     * regola sta accanto all'avviso, in `codaPerChiHaSalvato`, così le due porte dicono la stessa
+     * cosa nello stesso caso.
+     */
+    const coda = codaPerChiHaSalvato(esitoAvviso, nonSappiamoSeLHaAperto(giorno));
+    return { testo: testi.giornataScritta('domani', kcal, coda), esito: 'scritta', azioneId: riga.id };
   }
 
   // ──────────────────────── le proteine: la quota minima di questa cliente ──

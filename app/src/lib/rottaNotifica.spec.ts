@@ -88,7 +88,10 @@ describe('i dati che arrivano dalla push', () => {
     // `?intent=` e cominciare il dialogo invece di aprire una chat muta. Sta anche qui perché
     // questo confronto è sulla forma INTERA, e una chiave nuova lo fa diventare rosso — il che è
     // esattamente quello che deve fare: chi aggiunge un campo lo vede subito.
-    const vuoto = { threadId: null, clientId: null, visitId: null, counterpart: null, kind: null };
+    // ⚠️ `giorno` è nato l'8/9 con «il menu di giovedì è cambiato»: senza, il tocco aprirebbe il
+    // menu del giorno corrente invece di quello riscritto. Questo confronto è andato rosso da solo
+    // quando è stato aggiunto — cioè ha fatto il suo mestiere.
+    const vuoto = { threadId: null, clientId: null, visitId: null, counterpart: null, kind: null, giorno: null };
     expect(datiDallaPush(undefined)).toEqual(vuoto);
     expect(datiDallaPush('non un oggetto')).toEqual(vuoto);
   });
@@ -124,5 +127,47 @@ describe('le notifiche che cominciano una conversazione', () => {
 
   it('e il «kind» arriva anche dalla push, dove tutto è stringa', () => {
     expect(datiDallaPush({ data: { kind: 'allergie_conferma', counterpart: 'ai' } }).kind).toBe('allergie_conferma');
+  });
+});
+
+/**
+ * ⛔ **IL MENU CAMBIATO APRE QUEL GIORNO** — 8/9, la metà mancante della decisione «il nutrizionista
+ * vince su tutto».
+ *
+ * La cliente riceve «Il menu di giovedì è cambiato» dopo aver già aperto quella giornata — e molto
+ * spesso dopo aver già fatto la spesa, perché aprire la lista segna aperti tutti e sette i giorni.
+ * Portarla sul menu **del giorno corrente** vorrebbe dire farle cercare a mano la giornata di cui
+ * le abbiamo appena parlato: la parte peggiore, proprio nel momento peggiore.
+ */
+describe('la notifica del menu cambiato porta sul giorno giusto', () => {
+  it('⛔ apre il menu di QUEL giorno', () => {
+    expect(rottaClienteDaNotifica({ kind: 'menu_giorno_cambiato', giorno: '2026-09-10' }))
+      .toBe('/menu?giorno=2026-09-10');
+  });
+
+  /** ⚠️ Senza la data non si inventa niente: si apre il menu e basta. */
+  it('⚠️ senza la data apre il menu, non la home', () => {
+    expect(rottaClienteDaNotifica({ kind: 'menu_giorno_cambiato' })).toBe('/menu');
+  });
+
+  /**
+   * ⛔ **Vince sulla chat.** Questa notizia non ha `counterpart` né `threadId` oggi, ma il ramo sta
+   * in cima di proposito: se un domani ne guadagnasse uno, il tocco finirebbe in chat e la giornata
+   * cambiata resterebbe da cercare.
+   */
+  it('⛔ il giorno vince anche se la notizia porta una controparte', () => {
+    expect(rottaClienteDaNotifica({ kind: 'menu_giorno_cambiato', giorno: '2026-09-10', counterpart: 'nutritionist' }))
+      .toBe('/menu?giorno=2026-09-10');
+  });
+
+  /** ⚠️ E la data arriva anche dalla push, non solo dalla riga in app. */
+  it('⚠️ la data sopravvive al giro da Firebase', () => {
+    expect(datiDallaPush({ data: { kind: 'menu_giorno_cambiato', giorno: '2026-09-10' } }).giorno)
+      .toBe('2026-09-10');
+  });
+
+  /** ⚠️ Le altre notizie non sono state toccate: il ramo nuovo guarda solo il suo `kind`. */
+  it('⚠️ una notizia qualsiasi non finisce nel menu', () => {
+    expect(rottaClienteDaNotifica({ counterpart: 'coach' })).toBe('/assistente?who=coach');
   });
 });

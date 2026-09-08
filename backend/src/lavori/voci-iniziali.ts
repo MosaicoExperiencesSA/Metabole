@@ -83,6 +83,41 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
+    chiave: 'avviso-cliente-menu-cambiato',
+    categoria: CODICE,
+    ordine: 0,
+    fatta: true,
+    nata: '2026-09-08T12:00',
+    priorita: 'alta',
+    titolo: '✅ La cliente viene avvisata quando il suo menu cambia sotto',
+    dettaglio:
+      'La meta che mancava alla decisione «il nutrizionista vince su tutto».\n\n'
+      + '⛔ **Il caso peggiore e il caso normale**: aprire la LISTA DELLA SPESA segna aperti tutti e '
+      + 'sette i giorni, quindi chi viene riscritto e quasi sempre chi ha gia comprato. La lista si '
+      + 'ricalcola a ogni lettura: le voci del piatto tolto spariscono INSIEME ALLA LORO SPUNTA, le '
+      + 'nuove arrivano da spuntare, e nessuna riga diceva perche.\n\n'
+      + '✅ Adesso una funzione libera avvisa dalle DUE porte con le stesse parole: «Il menu di '
+      + 'giovedi 10 settembre e cambiato», il corpo nomina la spesa, e il tocco apre QUEL giorno. '
+      + 'Non dice chi l\'ha riscritto (la rotta la usano nutrizionista, capo e admin).\n\n'
+      + '⚠️ Si avvisa solo se l\'aveva davvero aperto, solo se qualcosa e cambiato davvero, una '
+      + 'volta sola finche non l\'ha letta, e mai su un giorno gia passato.\n\n'
+      + '⛔ Dalla revisione avversariale: la CAMPANELLA era un vicolo cieco (seconda tabella di '
+      + 'rotte, tocco muto — e per chi usa l\'app dal web e l\'unico canale) · `?giorno=` non '
+      + 'veniva riletto senza rimontare (la cliente gia sul menu restava sul giorno di prima) · alla '
+      + 'nutrizionista si diceva «valuta se avvisarla» proprio quando l\'avviso era gia partito, e '
+      + 'niente nel caso in cui la strada umana e l\'unica.\n\n'
+      + '⛔ Tredici mutazioni, dodici uccise. L\'unica sopravvissuta era il FUSO: con `toISOString` '
+      + 'al posto di `giornoLocale`, 317 prove restavano verdi — e fra mezzanotte e le due la parola '
+      + 'che cambia e quella che dice se muoversi adesso.\n\n'
+      + '⚠️ RESTA APERTO: «Rigenera menu» e `redeliverFutureDays` cancellano e rifanno TUTTI i '
+      + 'giorni futuri senza guardare le aperture e senza avvisare, e partono da soli a ogni cambio '
+      + 'di kcal, dieta, pesata o data d\'inizio. E la notifica gemella `menu_cambio_verificato` '
+      + 'porta il giorno con la chiave `data`: non viaggia nella push e il tocco non porta da '
+      + 'nessuna parte.\n\n'
+      + '⚠️ Misurato: backend 479 suite / 8232 prove (verdi anche con test:notte), app 220, '
+      + 'backoffice 351. Nessuna migrazione.',
+  },
+  {
     chiave: 'vera-solo-chi-ha-un-percorso',
     categoria: CODICE,
     ordine: 0,

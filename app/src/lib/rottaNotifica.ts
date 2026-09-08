@@ -33,6 +33,14 @@ export interface DatiNotifica {
    * parliamo?»: la domanda deve essere già lì.
    */
   kind?: string | null;
+  /**
+   * ⚠️ **La giornata di cui parla la notizia** (`AAAA-MM-GG`), quando ce n'è una. Entrata l'8/9 con
+   * l'avviso «il menu di giovedì è cambiato»: senza, il tocco aprirebbe il menu del giorno corrente
+   * invece di quello riscritto, e chi ha appena letto «giovedì è cambiato» si troverebbe davanti
+   * oggi senza capire perché. Il server manda **il fatto** — quale giorno — e la rotta la compone
+   * l'app, come per tutto il resto qui.
+   */
+  giorno?: string | null;
 }
 
 /** Le notizie che non aprono una schermata, ma un dialogo. `?intent=` lo fa cominciare. */
@@ -70,6 +78,15 @@ export function rottaDaNotifica(dati: DatiNotifica | null | undefined, schedaCli
  */
 export function rottaClienteDaNotifica(dati: DatiNotifica | null | undefined): string | null {
   if (!dati) return null;
+  /**
+   * ⛔ **Il menu cambiato apre QUEL giorno, non il menu e basta** (8/9). È la prima cosa guardata
+   * di proposito: la notizia nomina una data, e portarla sul giorno corrente vorrebbe dire farle
+   * cercare a mano la giornata di cui le abbiamo appena parlato — su una spesa già fatta, è la
+   * parte peggiore. ⚠️ Senza la data non si inventa niente: si apre il menu.
+   */
+  if (dati.kind === 'menu_giorno_cambiato') {
+    return dati.giorno ? `/menu?giorno=${dati.giorno}` : '/menu';
+  }
   // Prima di tutto il resto: se questa notizia apre un dialogo, si va in chat CON l'intento. Dopo
   // il ramo `counterpart === 'ai'` sarebbe troppo tardi — porterebbe alla stessa chat, muta.
   const intento = dati.kind ? INTENTO_PER_NOTIZIA[dati.kind] : undefined;
@@ -93,5 +110,6 @@ export function datiDallaPush(payload: unknown): DatiNotifica {
     visitId: stringa(interno.visitId),
     counterpart: stringa(interno.counterpart),
     kind: stringa(interno.kind),
+    giorno: stringa(interno.giorno),
   };
 }

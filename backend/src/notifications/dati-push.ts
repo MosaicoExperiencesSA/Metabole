@@ -32,7 +32,13 @@
  * ⚠️ Nessun contenuto sanitario: `title` e `body` della push sono già scritti per essere letti
  * sulla schermata di blocco, e qui non si aggiunge niente che non sia un identificativo.
  */
-const CHIAVI_UTILI = ['kind', 'threadId', 'clientId', 'visitId', 'counterpart'] as const;
+/**
+ * ⚠️ **`giorno` è entrato l'8/9** con l'avviso «il menu di giovedì è cambiato»: senza, il tocco
+ * sulla push aprirebbe il menu **del giorno corrente** invece di quello riscritto — e chi ha appena
+ * letto «giovedì è cambiato» si troverebbe davanti oggi, senza capire perché. È una data, non un
+ * contenuto sanitario: sta dentro la regola scritta qui sopra.
+ */
+const CHIAVI_UTILI = ['kind', 'threadId', 'clientId', 'visitId', 'counterpart', 'giorno'] as const;
 
 export function datiPush(type: string, payload?: Record<string, unknown>): Record<string, string> {
   const dati: Record<string, string> = { type };

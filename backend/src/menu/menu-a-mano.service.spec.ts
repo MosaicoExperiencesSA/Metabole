@@ -50,6 +50,8 @@ function servizio(over: {
   /** Il regime della dieta della cliente: letto solo quando si esce dal paniere. */
   regimeDieta?: string | null;
   staffId?: string | null;
+  /** ⚠️ Gli avvisi «menu cambiato» che la cliente non ha ancora letto: servono al dedup. */
+  avvisiNonLetti?: { payload: { giorno: string } }[];
 } = {}) {
   const upsert = jest.fn().mockResolvedValue({});
   const prisma = {
@@ -93,11 +95,21 @@ function servizio(over: {
         { meals: [{ slot: 'lunch' }, { slot: 'dinner' }] },
       ]),
     },
+    /** ⚠️ La riga dell'avviso alla cliente: la scrive `notificaUtente`, che legge anche `user`. */
+    /** ⚠️ `findMany`: è il dedup «una sola volta finché non l'ha letta». Vuoto = nessuna in attesa. */
+    notification: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue(over.avvisiNonLetti ?? []) },
   } as unknown as PrismaService;
   const kcal = { computeTargetKcal: jest.fn().mockResolvedValue(over.target === undefined ? 1700 : over.target) } as unknown as KcalNeedService;
   const config = { getNumber: jest.fn(async (_k: string, def: number) => def) } as unknown as ConfigParamsService;
   const audit = { log: jest.fn().mockResolvedValue(undefined) } as unknown as AuditService;
-  return { s: new MenuAManoService(prisma, kcal, config, audit), upsert, prisma, audit };
+  /**
+   * ⚠️ **Il finto delle push serve a due cose**: far compilare, e permettere di controllare che
+   * l'avviso alla cliente parta davvero. La riga in app la scrive `prisma.notification.create`, che
+   * sta nel finto di Prisma.
+   */
+  const push = { sendToUser: jest.fn().mockResolvedValue(undefined) };
+  const avviso = (prisma as unknown as { notification: { create: jest.Mock } }).notification.create;
+  return { s: new MenuAManoService(prisma, kcal, config, audit, push as never), upsert, prisma, audit, push, avviso };
 }
 
 /** ⚠️ Il client manda SOLO questo: nome, kcal e verdetto li rilegge il server. */
@@ -387,7 +399,105 @@ describe('scrivere la giornata', () => {
     const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
     expect(esito.avvisi.join(' ')).toContain('salvando');
     expect(esito.avvisiDopo.join(' ')).not.toContain('salvando');
-    expect(esito.dopoIlSalvataggio).toContain('valuta se avvisarla');
+    /**
+     * ⛔ **E la coda dice che l'avviso È PARTITO, non «valuta se avvisarla»** — corretto l'8/9 da
+     * una revisione avversariale: la spinta a scrivere stava esattamente dove il sistema aveva già
+     * avvisato (la cliente riceveva la notizia due volte) e mancava dove è l'unica strada.
+     */
+    expect(esito.dopoIlSalvataggio).toContain('l\'abbiamo avvisata');
+    expect(esito.dopoIlSalvataggio).not.toContain('valuta se avvisarla');
+  });
+
+  /**
+   * ⛔ **«NON LO SO» È IL CASO IN CUI LA SPINTA SERVE DAVVERO.** L'app di quella cliente non ci
+   * manda le aperture, quindi nessun avviso parte: se qualcuno non le scrive, il suo menu cambia
+   * sotto in silenzio. Prima questa coda era **vuota** proprio qui.
+   */
+  it('⛔ quando non si sa, si dice che nessun avviso è partito e di scriverle', async () => {
+    const { s, avviso } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: null, apertureTracciate: false } });
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(avviso).not.toHaveBeenCalled();
+    expect(esito.dopoIlSalvataggio).toContain('non le è partito nessun');
+    expect(esito.dopoIlSalvataggio).toContain('scrivile tu');
+  });
+
+  /**
+   * ⛔ **NON SI SUONA DUE VOLTE PER LA STESSA GIORNATA finché non l'ha letta.** La nutrizionista
+   * salva, si accorge che la cena non torna, risalva: senza questo alla cliente arrivano due push
+   * identiche in due minuti.
+   */
+  it('⛔ un avviso non ancora letto per quel giorno ne blocca un secondo', async () => {
+    const { s, avviso, push } = servizio({
+      giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true },
+      avvisiNonLetti: [{ payload: { giorno: '2026-09-10' } }],
+    });
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(avviso).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+    /** ⚠️ E si dice perché, invece di far credere che sia partito. */
+    expect(esito.dopoIlSalvataggio).toContain('non gliene abbiamo mandato un altro');
+  });
+
+  /** ⚠️ Un avviso non letto per un ALTRO giorno non blocca niente: il dedup è per giornata. */
+  it('⚠️ il dedup guarda la giornata, non il tipo', async () => {
+    const { s, avviso } = servizio({
+      giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true },
+      avvisiNonLetti: [{ payload: { giorno: '2026-09-30' } }],
+    });
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(avviso).toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **E LA CLIENTE VIENE AVVISATA** — la metà che mancava alla decisione dell'8/9. Il menu che
+   * aveva in mano cambia sotto, e molto spesso ci ha gia fatto la spesa: aprire la lista segna
+   * aperti tutti e sette i giorni.
+   */
+  it('⛔ se lo aveva già aperto, alla cliente arriva l\'avviso — in app e in push', async () => {
+    const { s, avviso, push } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    const riga = avviso.mock.calls[0][0].data;
+    expect(riga.userId).toBe('c1');
+    expect(riga.type).toBe('menu_giorno_riscritto');
+    /** ⛔ Il `kind` e la data sono quello che fa aprire QUEL giorno invece del menu di oggi. */
+    expect(riga.payload).toMatchObject({ kind: 'menu_giorno_cambiato', giorno: '2026-09-10' });
+    expect(push.sendToUser).toHaveBeenCalled();
+    expect((push.sendToUser.mock.calls[0][3] as Record<string, string>).giorno).toBe('2026-09-10');
+  });
+
+  /**
+   * ⛔ **E NON si avvisa quando non l'aveva aperto.** La nutrizionista compone giornate future tutti
+   * i giorni: un avviso per ognuna sarebbe un campanello che suona sempre, cioè uno che si smette di
+   * guardare.
+   */
+  it('⛔ su un giorno mai aperto la cliente non riceve niente', async () => {
+    const { s, avviso, push } = servizio();
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(avviso).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  /** ⚠️ E nemmeno quando NON SAPPIAMO: un avviso su un fatto che non abbiamo è un avviso inventato. */
+  it('⚠️ «non si sa se l\'ha aperto» non fa partire nessun avviso', async () => {
+    const { s, avviso } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: null, apertureTracciate: false } });
+    await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(avviso).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⛔ **L'avviso non deve poter far fallire il menu.** Se la notifica esplode, la giornata è già
+   * scritta: tornare indietro con un errore vorrebbe dire perdere il lavoro vero per colpa di quello
+   * accessorio — e far credere alla nutrizionista che non abbia salvato.
+   */
+  it('⛔ se l\'avviso fallisce, la giornata resta scritta', async () => {
+    const { s, avviso, upsert } = servizio({ giorno: { id: 'g1', meals: [], apertoDallaClienteIl: new Date(), apertureTracciate: true } });
+    avviso.mockRejectedValueOnce(new Error('database giù'));
+    // ⚠️ Senza questa riga la prova passerebbe anche togliendo del tutto l'invio: verificato.
+
+    const esito = await s.scrivi('c1', LUCIA, { data: '2026-09-10', pasti: GIORNATA, conferma: true });
+    expect(upsert).toHaveBeenCalled();
+    expect(avviso).toHaveBeenCalled();
+    expect(esito.scritta).toBe(true);
   });
 
   /** ⚠️ Su un giorno non aperto non c'è nessuna coda: una coda che c'è sempre non si legge più. */

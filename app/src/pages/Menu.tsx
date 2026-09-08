@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import AppHeader from '../components/AppHeader';
 import { slotInfo, testoSostituzione, etichettaMetodo, type ApiMenuDay, type ApiMeal, type ApiRecipe, type ApiCiclo, testoPorzione, testoIngredientiScheda } from '../lib/meals';
@@ -194,6 +195,24 @@ export default function Menu() {
     const g = new URLSearchParams(window.location.search).get('giorno');
     return g && /^\d{4}-\d{2}-\d{2}$/.test(g) ? g : null;
   });
+  /**
+   * ⛔ **`?giorno=` VA RILETTO ANCHE SENZA RIMONTARE** — 8/9, da una revisione avversariale.
+   *
+   * Fino a oggi la data si leggeva **solo** nell'inizializzatore qui sopra, cioè solo al montaggio.
+   * Bastava perché ci si arrivava sempre da un'altra schermata (Percorso, Storico). Dall'8/9 no: la
+   * notifica «il menu di giovedì è cambiato» porta a `/menu?giorno=…`, e la cliente che ha l'app
+   * aperta **proprio sul menu** — cioè quella che ha appena guardato i giorni e fatto la spesa —
+   * naviga da `/menu` a `/menu`. React Router riusa lo stesso elemento, niente rimonta, e a schermo
+   * resta il giorno di prima **mentre l'indirizzo dice un altro giorno**: nessun errore, nessuna
+   * traccia, e la persona conclude che la notifica mentisse.
+   *
+   * ⚠️ Si guarda la `location` e non `window.location`: quest'ultima non fa ridisegnare niente.
+   */
+  const location = useLocation();
+  useEffect(() => {
+    const g = new URLSearchParams(location.search).get('giorno');
+    if (g && /^\d{4}-\d{2}-\d{2}$/.test(g)) setSelDate(g);
+  }, [location.search]);
   // Ricetta aperta direttamente (es. dal tasto "Ricetta" della Home via ?ricetta=&giorno=).
   const [recipe, setRecipe] = useState<{ recipeId: string; date?: string; slot?: string; porzione?: number; tag?: string } | null>(() => {
     const p = new URLSearchParams(window.location.search);

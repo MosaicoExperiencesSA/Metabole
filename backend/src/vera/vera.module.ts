@@ -15,6 +15,7 @@ import { RegistroVeraService } from './registro.service';
 import { ClientsService } from '../clients/clients.service';
 import { NutritionistModule } from '../nutritionist/nutritionist.module';
 import { NutritionistService } from '../nutritionist/nutritionist.service';
+import { PushModule } from '../notifications/push.module';
 import { ProfileModule } from '../profile/profile.module';
 import { ProfileService } from '../profile/profile.service';
 import { RichiesteVeraService, SCRITTURA_CLIENTE, SCRITTURA_KCAL } from './richieste.service';
@@ -94,7 +95,7 @@ import { VeraController } from './vera.controller';
    * nessuno dei due conosce Vera.
    * ⚠️ Ma è una cosa che vede solo `app.module.spec.ts`: Nest risolve le dipendenze all'AVVIO.
    */
-  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule, EquivalenceModule, ProfileModule],
+  imports: [ClientsModule, CatalogModule, NutrientFactsModule, MailModule, NutritionistModule, FoodSwapsModule, AiModule, EquivalenceModule, ProfileModule, PushModule],
   controllers: [VeraController],
   providers: [
     PoolDisponibileService,
