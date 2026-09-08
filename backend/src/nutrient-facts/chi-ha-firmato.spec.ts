@@ -86,17 +86,41 @@ describe('chiHaFirmato — chi ha guardato quel tag, e quando', () => {
 });
 
 describe('spunteSenzaNessuno — quante conferme non ha messo nessuno', () => {
-  it('⛔ il buco è quello che il registro non spiega', () => {
-    expect(spunteSenzaNessuno({ segnateGuardate: 4000, firmeUnaPerUna: 120, confermateInBlocco: 900, confermateDalMotore: 80 }))
-      .toEqual({ spiegate: 1100, senzaNessuno: 2900 });
+  /**
+   * ⛔ **QUESTA È LA PROVA CHE MANCAVA L'8/9**, ed è il caso che è successo davvero su Render: la
+   * prima stesura sommava i tre numeri, il totale sfondava il catalogo di dieci volte, la
+   * sottrazione andava sotto zero e il pavimento la riportava a zero — che veniva letto come «tutto
+   * a posto». ⚠️ Adesso i numeri veri del 8/9 devono dare la risposta vera.
+   */
+  it('⛔ i numeri VERI di Render: 23695 guardate, 10 firmate, 9316 dai blocchi', () => {
+    // `conTracciaPropria` è già l'unione DISTINTA: 10 firme + le ricette delle 2151 diete riviste.
+    expect(spunteSenzaNessuno({ segnateGuardate: 23695, conTracciaPropria: 12000, dichiarateDaiBlocchi: 9316 }))
+      .toEqual({ conTracciaPropria: 12000, forseDaiBlocchi: 9316, senzaNessuno: 2379 });
   });
 
-  it('⚠️ se il registro spiega più di quante ne risultano, il buco è zero e non un negativo', () => {
-    expect(spunteSenzaNessuno({ segnateGuardate: 100, firmeUnaPerUna: 60, confermateInBlocco: 90, confermateDalMotore: 0 }).senzaNessuno).toBe(0);
+  it('⛔ e i blocchi NON si sommano alle tracce: coprono al massimo quello che resta scoperto', () => {
+    const e = spunteSenzaNessuno({ segnateGuardate: 1000, conTracciaPropria: 900, dichiarateDaiBlocchi: 5000 });
+    expect(e.forseDaiBlocchi).toBe(100);
+    expect(e.senzaNessuno).toBe(0);
   });
 
-  it('⚠️ tutto spiegato: nessuno script di mezzo, ed è la risposta buona', () => {
-    expect(spunteSenzaNessuno({ segnateGuardate: 200, firmeUnaPerUna: 200, confermateInBlocco: 0, confermateDalMotore: 0 }))
-      .toEqual({ spiegate: 200, senzaNessuno: 0 });
+  it('⛔ nessun blocco: quello che non ha traccia propria non lo ha messo nessuno', () => {
+    expect(spunteSenzaNessuno({ segnateGuardate: 23695, conTracciaPropria: 10, dichiarateDaiBlocchi: 0 }))
+      .toEqual({ conTracciaPropria: 10, forseDaiBlocchi: 0, senzaNessuno: 23685 });
+  });
+
+  it('⚠️ tutte con traccia propria: niente da attribuire ai blocchi, e il buco è zero per davvero', () => {
+    expect(spunteSenzaNessuno({ segnateGuardate: 200, conTracciaPropria: 200, dichiarateDaiBlocchi: 50 }))
+      .toEqual({ conTracciaPropria: 200, forseDaiBlocchi: 0, senzaNessuno: 0 });
+  });
+
+  /**
+   * ⚠️ Le tracce distinte possono superare le segnate guardate: una ricetta può stare in una dieta
+   * rivista **e** aver perso la spunta dopo (gli ingredienti cambiati la fanno decadere). Il numero
+   * non deve sfondare e non deve mangiarsi il buco.
+   */
+  it('⚠️ più tracce che spunte: il conto si ferma, non va in negativo', () => {
+    expect(spunteSenzaNessuno({ segnateGuardate: 100, conTracciaPropria: 400, dichiarateDaiBlocchi: 0 }))
+      .toEqual({ conTracciaPropria: 100, forseDaiBlocchi: 0, senzaNessuno: 0 });
   });
 });

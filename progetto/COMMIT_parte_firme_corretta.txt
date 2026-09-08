@@ -1,0 +1,45 @@
+La misura delle firme rispondeva ZERO sbagliando: corretta, e il numero vero e' 10 su 23.695
+
+⛔ IL DIFETTO, CHE ERA MIO
+Primo giro su Render: 23695 ricette segnate «allergeni guardati», e sotto 10 firmate una per una,
+9316 dichiarate da 113 blocchi, 260835 dichiarate da 2151 revisioni di dieta — totale «spiegate»
+270.161 su 27.136 ricette in catalogo. Dieci volte tutto il catalogo. Le diete si scambiano le
+ricette, quindi sommare i loro conti contava la stessa spunta centinaia di volte: il totale
+sfondava, la sottrazione andava sotto zero, il pavimento la riportava a zero — e lo script stampava
+`✅ Il registro spiega tutte le spunte`.
+
+⚠️ E NEL MODULO C'ERA GIA' SCRITTO «E' UNA STIMA PER DIFETTO»
+Di fianco al via libera. Una cautela scritta accanto a un ✅ non e' una cautela: e' un ✅. Terza volta
+in questo progetto che qualcosa diventa verde senza guardare niente — e stavolta era la misura
+stessa, cioe' lo strumento costruito apposta per non fidarsi.
+
+✅ COME SI CONTA ADESSO
+Le ricette si contano UNA VOLTA SOLA e solo se si sa QUALI:
+· le revisioni di dieta si risolvono in id di ricetta distinti, non si sommano;
+· i blocchi restano FUORI dalla somma, come incertezza: `catalog.recipe.allergens.bulk` scrive
+  quante e non quali, quindi una copertura di cui non si conoscono i membri non si somma alle altre;
+· escono tre numeri invece di uno — si sa quali sono / forse coperte dai blocchi / senza nessuna
+  spiegazione possibile;
+· e quando il buco torna a zero SOLO grazie ai blocchi, lo script dice «non si sa», non «a posto».
+Una prova coi numeri veri dell'8/9 tiene fermo il caso. Rimettendo la somma: tre prove rosse.
+
+⛔ IL NUMERO VERO E' USCITO LO STESSO, ED E' PEGGIO DEL BUCO CHE CERCAVO
+Su 23.695 ricette segnate «allergeni guardati», quelle firmate UNA PER UNA — riquadro aperto, quella
+ricetta — sono 10. Tutto il resto e' un gesto in blocco: 113 spunte di massa e 2151 «segna
+verificati gli allergeni di tutta la dieta».
+⚠️ Nessuno di questi e' un abuso e nessuno e' un difetto: sono i gesti che abbiamo dato noi, e senza
+non si sarebbe potuto lavorare su un catalogo che cresce di ~4600 ricette a settimana. Ma vuol dire
+che «una persona ha guardato quella ricetta» e' vero sulla FIRMA, quasi mai sulla RICETTA — e il
+ritiro dei tag si ferma esattamente su quella frase. Le 66 del sorgo sono protette da un gesto che
+con ogni probabilita' non le ha mai viste.
+⚠️ Lo script adesso lo dice da solo, in fondo: la proporzione fra «una per una» e il totale.
+
+FILE
+- backend: `nutrient-facts/chi-ha-firmato.ts` (+ `.spec.ts`), `prisma/diag-firme-allergeni.ts`,
+  `lavori/voci-iniziali.ts`
+- progetto: `REGISTRO.md`
+
+15 prove del modulo verdi (2 nuove sul difetto vero), 74 prove dei lavori verdi. Nessuna migrazione.
+⚠️ Type-check: qui `npm run typecheck` non parte (`prisma generate` non riesce in questo ambiente).
+`tsc` su tutto il progetto coi tipi stub: zero errori sui file toccati, restano i due preesistenti in
+`approve-diets.ts` e `dedupe-diets.ts` che non ho toccato.

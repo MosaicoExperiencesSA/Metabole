@@ -83,72 +83,6 @@ export const PANIERE = 'Aspetta il paniere';
 
 export const VOCI_INIZIALI: Voce[] = [
   {
-    chiave: 'giorno-gia-aperto-si-riscrive',
-    categoria: CODICE,
-    ordine: 0,
-    fatta: true,
-    nata: '2026-09-08T10:30',
-    priorita: 'alta',
-    titolo: '✅ Il giorno gia aperto dalla cliente si riscrive: la nutrizionista vince, con una conferma',
-    dettaglio:
-      'Decisione di Simone: «il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su '
-      + 'tutto», con UNA conferma sola.\n\n'
-      + '⛔ Il «gia aperto» era un cancello in due porte, e tutte e due si arrendevano DOPO che la '
-      + 'giornata era gia stata composta: «Scrivi il menu a mano» rispondeva 400 col pulsante spento '
-      + 'e la frase «quello resta suo, non si riscrive»; la giornata dettata a Vera si arrendeva dopo '
-      + 'l\'anteprima e dopo il si.\n\n'
-      + '⚠️ E il no non era nemmeno vero: la via d\'uscita esisteva — «Rigenera menu» dalla scheda — '
-      + 'cioe lo stesso gesto da un\'altra porta CON MENO CONTROLLI.\n\n'
-      + '✅ Adesso e un avviso da confermare e usa il meccanismo che c\'era gia; in Vera la riga sta '
-      + 'nell\'ANTEPRIMA, prima del «Confermi?» che esisteva. ⛔ Chi automatizza non eredita questo.\n\n'
-      + '⛔ Dalla revisione avversariale: la MEZZANOTTE (due «domani» in due giri di conversazione) · '
-      + 'la prova che non guardava QUALE giorno legge (il finto ignora il `where`) · il giorno che non '
-      + 'c\'e detto dopo cinque piatti dettati · la frase rimasta al futuro dopo il salvataggio · il '
-      + 'blocco che poteva rientrare dall\'onClick con tutte le prove verdi.\n\n'
-      + '⚠️ RESTA APERTO E VA DECISO: (1) la cliente non viene avvisata di niente, e siccome aprire la '
-      + 'LISTA DELLA SPESA segna aperti tutti e sette i giorni, chi tocchiamo e quasi sempre chi ha gia '
-      + 'comprato; (2) altre CINQUE porte di Vera dicono ancora «quello resta suo», ma toccano tutti i '
-      + 'giorni futuri di una o di tutte le clienti; (3) dopo la sovrascrittura il giorno resta '
-      + 'marchiato «gia aperto».\n\n'
-      + '⚠️ Misurato: backend 478 suite / 8202 prove (verdi anche con test:notte), backoffice 36 / 351. '
-      + 'Nessuna migrazione.',
-  },
-  {
-    chiave: 'ricetta-nuova-non-si-salvava-verified',
-    categoria: CODICE,
-    ordine: 0,
-    fatta: true,
-    nata: '2026-09-08T09:00',
-    priorita: 'alta',
-    titolo: '✅ Nessuna ricetta nuova si salvava piu: «il campo verified non e previsto in questa richiesta»',
-    dettaglio:
-      'Segnalato da Simone l\'8/9 con lo screenshot della finestra «Nuova ricetta» aperta da '
-      + '«Scrivi il menu a mano», con il nutrizionista davanti.\n\n'
-      + '⛔ **Il difetto.** La spunta «Ricetta verificata» e nata il 4/9 sulla MODIFICA, ma la '
-      + 'finestra e una sola: in creazione `verificaCambiata` e sempre vero (`!recipe`), quindi il '
-      + 'POST portava sempre `verified`. `CreateRecipeDto` quel campo non lo aveva e '
-      + '`forbidNonWhitelisted` rifiutava TUTTO il corpo prima del servizio.\n\n'
-      + '⚠️ **Non era un difetto del menu a mano**: la finestra la aprono tre porte — pagina '
-      + 'Ricette, pagina Panieri, menu a mano — e da tutte e tre non nasceva piu nessuna ricetta.\n\n'
-      + '⛔ **Il secondo punto («non ha i panieri») era il primo visto da valle**: «In quali '
-      + 'panieri?» si apre DOPO il salvataggio. Una ricetta che non nasce non arriva mai al passo '
-      + 'che la mette nel piatto di qualcuno.\n\n'
-      + '✅ Adesso `verified` e nel DTO e alla creazione il giudizio lo da lo stesso modulo puro '
-      + 'della modifica: spunta accesa = ricetta firmata col nome di chi salva e l\'ora, scritta '
-      + 'anche nell\'audit. ⚠️ Resta diverso da «allergeni confermati»: una ricetta puo nascere '
-      + 'verificata e restare fuori dai menu.\n\n'
-      + '⛔ **Tre correzioni dalla revisione avversariale.** (a) La prova sul corpo del POST era una '
-      + 'copia a mano: misurata, il difetto ripassava con la suite verde — adesso LEGGE '
-      + '`Ricette.tsx`, comprese le chiavi dentro gli spread condizionali e in forma abbreviata. '
-      + '(b) Il 401 non e «non hai il permesso»: da quando quel ramo scrive un motivo, direbbe a chi '
-      + 'ha il permesso e ha solo la sessione scaduta di andare a disturbare un collega. (c) Il '
-      + 'vicolo cieco vero: la Nutrizionista ha «Panieri · vede» e non «gestisce», quindi la lettura '
-      + 'riesce e restava una riga grigia «Sola lettura» sotto una promessa di elenco, in fondo a '
-      + 'una ricetta che nessuna cliente ricevera.\n\n'
-      + '⚠️ Misurato: backend 478 suite / 8193 prove, backoffice 35 / 345, build di tutti e due. '
-      + 'Nessuna migrazione.',
-  },
-  {
     chiave: 'vera-solo-chi-ha-un-percorso',
     categoria: CODICE,
     ordine: 0,
@@ -590,7 +524,7 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'la-spunta-che-non-ha-messo-nessuno',
-    titolo: '⛔ «Allergeni guardati» non vuol dire che li abbia guardati qualcuno: due script lo scrivono in blocco, senza registro',
+    titolo: '⛔ «Allergeni guardati»: su 23.695 ricette, 10 le ha guardate una per una una persona — il resto è gesto in blocco',
     dettaglio:
       '⛔ **TROVATO L\'8/9 misurando le 66 ricette del sorgo.** Tutta la protezione degli allergeni '
       + 'poggia su una frase — *«dove ha guardato una persona non si tocca niente»* — e quella frase, nel '
@@ -613,6 +547,29 @@ export const VOCI_INIZIALI: Voce[] = [
       + 'ha deciso una persona» — e su una parte del catalogo non è vero. Nel verso in cui pesa: un '
       + 'allergene falso che nessuno ha mai guardato resta addosso alla ricetta **in nome di una firma '
       + 'che non esiste**, e toglie il piatto a chi poteva mangiarlo.\n'
+      + '⛔ **8/9 SERA — LA PRIMA MISURA HA RISPOSTO ZERO SBAGLIANDO, e il difetto era mio.** Su Render: '
+      + '`23695` ricette segnate guardate, e sotto `10` firmate una per una, `9316` dichiarate da 113 '
+      + 'blocchi, `260835` dichiarate da 2151 revisioni di dieta — totale «spiegate» **270.161 su 27.136 '
+      + 'ricette in catalogo**, dieci volte tutto il catalogo. Le diete si scambiano le ricette, quindi '
+      + 'sommare i loro conti contava la stessa spunta centinaia di volte; il totale sfondava, la '
+      + 'sottrazione andava sotto zero, il pavimento la riportava a zero — e lo script stampava '
+      + '`✅ nessuno script di allestimento di mezzo`.\n'
+      + '⚠️ **Il commento diceva già «è una stima per difetto» e accanto c\'era un via libera.** Una '
+      + 'cautela scritta di fianco a un `✅` non è una cautela: è un `✅`. È la terza volta in questo '
+      + 'progetto che una prova diventa verde senza guardare niente, e stavolta la prova era la misura '
+      + 'stessa. ✅ **Corretto**: le ricette si contano una volta sola e solo se si sa **quali** — le '
+      + 'revisioni di dieta si risolvono in id distinti, i blocchi restano da parte come **incertezza** '
+      + 'perché il registro non ne scrive gli id, e quando il buco torna zero solo grazie a loro lo '
+      + 'script dice «non si sa», non «a posto». Una prova coi numeri veri dell\'8/9 tiene fermo il '
+      + 'caso; rimettendo la somma, tre prove diventano rosse.\n'
+      + '⛔ **E INTANTO IL NUMERO VERO È USCITO LO STESSO, ed è peggio del buco che cercavo.** Su '
+      + '**23.695** ricette segnate «allergeni guardati», quelle firmate **una per una** — riquadro '
+      + 'aperto, quella ricetta — sono **10**. Tutto il resto è un gesto in blocco: 113 spunte di '
+      + 'massa e 2151 «segna verificati gli allergeni di tutta la dieta». ⚠️ Nessuno di questi è un '
+      + 'abuso e nessuno è un difetto — sono i gesti che abbiamo dato noi, e senza non si sarebbe '
+      + 'potuto lavorare. Ma vuol dire che «una persona ha guardato quella ricetta» è vero sulla '
+      + '**firma**, quasi mai sulla **ricetta** — e il ritiro dei tag si ferma esattamente su quella '
+      + 'frase. Le 66 del sorgo sono protette da un gesto che, con ogni probabilità, non le ha mai viste.\n'
       + '▶️ **LA MISURA C\'È E NON SCRIVE NIENTE:** `npm run diag:firme-allergeni` (sola lettura). '
       + 'Confronta le ricette segnate guardate con quelle che il registro sa spiegare: la differenza è il '
       + 'numero di spunte che non ha messo nessuno. ⚠️ È una stima **per difetto** — i blocchi possono '

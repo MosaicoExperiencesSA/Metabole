@@ -119,21 +119,59 @@ export const PAROLE_DEL_VERDETTO: Record<Verdetto, string> = {
 };
 
 /**
- * ⛔ **QUANTE SPUNTE NON HA MESSO NESSUNO.** Il conto che dice se `allergensReviewed` è ancora una
- * firma: le ricette segnate guardate, meno quelle che il registro sa spiegare. La differenza è
- * arrivata da `approve-diets.ts` o `pubblica-tutto.ts`, che non lasciano traccia.
+ * ⛔ **QUANTE SPUNTE NON HA MESSO NESSUNO — e la prima stesura, l'8/9, ha risposto ZERO SBAGLIANDO.**
  *
- * ⚠️ È una **stima per eccesso del noto**, quindi per difetto del buco: i blocchi possono
- * sovrapporsi (la stessa ricetta confermata due volte conta due), quindi il numero vero di spunte
- * senza nessuno dietro è **almeno** questo. Un conto che sbaglia deve sbagliare dalla parte che non
- * rassicura.
+ * ## Il difetto, perché è quello che conta
+ *
+ * La prima stesura **sommava** tre numeri — le firme una per una, le ricette dichiarate dai blocchi,
+ * quelle dichiarate dalle revisioni di dieta — e sottraeva la somma dalle ricette segnate guardate.
+ * Su Render ha risposto così:
+ *
+ * ```
+ *   Segnate «allergeni guardati»        23695
+ *   · firmate una per una                  10
+ *   · confermate in blocco (113)          9316
+ *   · confermate dal motore (2151 diete) 260835
+ *   Spiegate dal registro               270161
+ *   ⛔ SENZA NESSUNO DIETRO                 0     ← falso
+ * ```
+ *
+ * ⛔ **270.161 «spiegate» su 27.136 ricette in catalogo: dieci volte tutto il catalogo.** Le diete si
+ * scambiano le ricette in continuazione, quindi 2151 revisioni toccano in gran parte le **stesse**
+ * ricette: sommarle conta la stessa spunta centinaia di volte. Il totale sfonda, la sottrazione va
+ * sotto zero, il pavimento la riporta a zero — e lo zero viene letto come «tutto a posto».
+ *
+ * ⚠️ **La riga di commento diceva già «è una stima per difetto del buco»**, e poi lo script stampava
+ * `✅ nessuno script di allestimento di mezzo`. Una cautela scritta accanto a un via libera non è una
+ * cautela: è un via libera. Il difetto non era il conto, era aver fatto rispondere «sì» a una cosa
+ * che poteva solo rispondere «non lo so».
+ *
+ * ## Come si conta adesso
+ *
+ * ⛔ **Le ricette si contano una volta sola, e solo se si sa QUALI sono.** Le revisioni di dieta si
+ * risolvono in **id di ricetta distinti** prima di contarle; le firme una per una sono già id. I
+ * blocchi no: `catalog.recipe.allergens.bulk` scrive i numeri e **non** gli id, quindi non si sa
+ * quali ricette abbiano coperto — e una copertura di cui non si conoscono i membri non si somma alle
+ * altre, si tiene da parte come **incertezza**.
+ *
+ * Ne escono tre numeri invece di uno, e servono tutti e tre:
+ *  · **con traccia propria** — si sa quali ricette sono, contate una volta;
+ *  · **forse dai blocchi** — al massimo tante, ma non si sa quali;
+ *  · ⛔ **senza nessuna spiegazione possibile** — quello che resta anche regalando ai blocchi tutta
+ *    la copertura che dichiarano. Sopra zero, quelle spunte non le ha messe nessuno.
  */
 export function spunteSenzaNessuno(input: {
   segnateGuardate: number;
-  firmeUnaPerUna: number;
-  confermateInBlocco: number;
-  confermateDalMotore: number;
-}): { spiegate: number; senzaNessuno: number } {
-  const spiegate = input.firmeUnaPerUna + input.confermateInBlocco + input.confermateDalMotore;
-  return { spiegate, senzaNessuno: Math.max(0, input.segnateGuardate - spiegate) };
+  /** Ricette **distinte** che hanno una traccia loro: `allergens.set`, o la revisione della loro dieta. */
+  conTracciaPropria: number;
+  /** Quante ricette i blocchi dicono di aver confermato — senza dire **quali**. */
+  dichiarateDaiBlocchi: number;
+}): { conTracciaPropria: number; forseDaiBlocchi: number; senzaNessuno: number } {
+  const scoperte = Math.max(0, input.segnateGuardate - input.conTracciaPropria);
+  const forseDaiBlocchi = Math.min(input.dichiarateDaiBlocchi, scoperte);
+  return {
+    conTracciaPropria: Math.min(input.conTracciaPropria, input.segnateGuardate),
+    forseDaiBlocchi,
+    senzaNessuno: scoperte - forseDaiBlocchi,
+  };
 }

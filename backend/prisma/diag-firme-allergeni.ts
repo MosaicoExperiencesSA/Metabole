@@ -56,33 +56,75 @@ async function main(): Promise<void> {
     prisma.auditLog.findMany({ where: { action: AZIONE_MOTORE } as never, select: { entityId: true, createdAt: true, metadata: true } as never }) as Promise<{ entityId: string | null; createdAt: Date; metadata: unknown }[]>,
   ]);
   const numero = (m: unknown, chiave: string) => Number(((m ?? {}) as Record<string, unknown>)[chiave] ?? 0) || 0;
-  const confermateInBlocco = blocchi.reduce((a, b) => a + numero(b.metadata, 'confermate'), 0);
-  const confermateDalMotore = dalMotore.reduce((a, b) => a + numero(b.metadata, 'count'), 0);
+
+  /**
+   * ⛔ **LE RICETTE SI CONTANO UNA VOLTA SOLA — la prima stesura le sommava, e ha risposto ZERO
+   * sbagliando.** Le 2151 revisioni di dieta dichiaravano 260.835 ricette confermate su un catalogo
+   * di 27.136: le diete si scambiano le ricette, e sommare i loro conti contava la stessa spunta
+   * centinaia di volte. Qui le revisioni si **risolvono in id** e si uniscono in un insieme, che è
+   * l\'unica forma in cui quel numero vuol dire qualcosa.
+   */
+  const conTracciaPropria = new Set(firmeUnaPerUna.map((f) => String(f.entityId ?? '')).filter(Boolean));
+  const dieteRiviste = [...new Set(dalMotore.map((r) => String(r.entityId ?? '')).filter(Boolean))];
+  for (let i = 0; i < dieteRiviste.length; i += 200) {
+    const giorni = (await prisma.dietDayTemplate.findMany({
+      where: { dietId: { in: dieteRiviste.slice(i, i + 200) } } as never,
+      select: { meals: true } as never,
+    })) as { meals: unknown }[];
+    for (const g of giorni) {
+      for (const m of (Array.isArray(g.meals) ? g.meals : []) as { recipeId?: string }[]) {
+        if (m.recipeId) conTracciaPropria.add(m.recipeId);
+      }
+    }
+  }
+  /** ⚠️ Del blocco si conosce **una** ricetta: la capofila, che il registro scrive come `entityId`. */
+  for (const b of blocchi) if (b.entityId) conTracciaPropria.add(String(b.entityId));
+
+  const dichiarateDaiBlocchi = blocchi.reduce((a, b) => a + numero(b.metadata, 'confermate'), 0);
   const conto = spunteSenzaNessuno({
     segnateGuardate,
-    firmeUnaPerUna: new Set(firmeUnaPerUna.map((f) => String(f.entityId ?? ''))).size,
-    confermateInBlocco,
-    confermateDalMotore,
+    conTracciaPropria: conTracciaPropria.size,
+    dichiarateDaiBlocchi,
   });
 
-  titolo('LE SPUNTE DI CONFERMA — quante le ha messe una persona');
+  titolo('LE SPUNTE DI CONFERMA — quante le ha messe una persona, e chi');
   riga(`  Ricette in catalogo                              ${String(ricetteInTutto).padStart(7)}`);
   riga(`  Segnate «allergeni guardati»                     ${String(segnateGuardate).padStart(7)}`);
   riga('');
-  riga(`  · firmate una per una (registro, per ricetta)     ${String(new Set(firmeUnaPerUna.map((f) => String(f.entityId ?? ''))).size).padStart(7)}`);
-  riga(`  · confermate in blocco (${String(blocchi.length).padStart(3)} blocchi)             ${String(confermateInBlocco).padStart(7)}`);
-  riga(`  · confermate dal motore (${String(dalMotore.length).padStart(3)} diete)              ${String(confermateDalMotore).padStart(7)}`);
+  riga(`  ⛔ Firmate UNA PER UNA, riquadro aperto           ${String(new Set(firmeUnaPerUna.map((f) => String(f.entityId ?? ''))).size).padStart(7)}   ← l\'unico gesto su QUELLA ricetta`);
+  riga(`  · ricette raggiunte da una revisione di dieta     ${String(conTracciaPropria.size).padStart(7)}   (${dieteRiviste.length} diete, ricette distinte)`);
+  riga(`  · dichiarate dai blocchi (${String(blocchi.length).padStart(3)} blocchi)          ${String(dichiarateDaiBlocchi).padStart(7)}   ⚠️ quante, non QUALI`);
   riga(`  ────────────────────────────────────────────────  ${'─'.repeat(7)}`);
-  riga(`  Spiegate dal registro                            ${String(conto.spiegate).padStart(7)}`);
-  riga(`  ⛔ SENZA NESSUNO DIETRO                          ${String(conto.senzaNessuno).padStart(7)}`);
+  riga(`  Si sa quali sono                                 ${String(conto.conTracciaPropria).padStart(7)}`);
+  riga(`  Forse coperte dai blocchi                        ${String(conto.forseDaiBlocchi).padStart(7)}   ⚠️ al massimo: non si sa quali`);
+  riga(`  ⛔ SENZA NESSUNA SPIEGAZIONE POSSIBILE            ${String(conto.senzaNessuno).padStart(7)}`);
   riga('');
   if (conto.senzaNessuno > 0) {
-    riga('  ⛔ Quelle spunte non le ha messe una persona: le ha messe `approve-diets.ts` o');
-    riga('     `pubblica-tutto.ts`, che scrivono `allergensReviewed: true` in blocco e senza registro.');
-    riga('     ⚠️ Il numero è per DIFETTO: i blocchi possono aver confermato due volte la stessa');
-    riga('     ricetta, e ogni doppione qui conta come una spiegata in piu.');
+    riga('  ⛔ Queste restano anche regalando ai blocchi tutta la copertura che dichiarano: nessuna');
+    riga('     persona può averle messe. Sono di `approve-diets.ts` o `pubblica-tutto.ts`, che scrivono');
+    riga('     `allergensReviewed: true` in blocco e senza registro.');
+  } else if (conto.forseDaiBlocchi > 0) {
+    riga(`  ⚠️ NON è un via libera: ${conto.forseDaiBlocchi} spunte tornano solo se si dà per buono che i blocchi`);
+    riga('     abbiano coperto ricette tutte diverse fra loro e tutte scoperte — cioè il caso più');
+    riga('     favorevole possibile. Il registro dei blocchi non scrive gli id, quindi meglio di così');
+    riga('     non si può sapere: la risposta onesta è «non si sa», non «a posto».');
   } else {
-    riga('  ✅ Il registro spiega tutte le spunte: nessuno script di allestimento di mezzo.');
+    riga('  ✅ Ogni spunta ha una traccia sua nel registro: si sa per ognuna chi e quando.');
+  }
+  riga('');
+
+  /**
+   * ⚠️ **IL NUMERO CHE CONTA DAVVERO NON È IL BUCO: È LA PRIMA RIGA.** Le firme una per una sono le
+   * uniche in cui qualcuno ha guardato **quella** ricetta. Tutto il resto — blocchi, revisioni di
+   * dieta — è un gesto solo su centinaia di piatti insieme. La protezione «un tag su una ricetta che
+   * una persona ha guardato non si tocca» vale quanto questa proporzione.
+   */
+  const unaPerUna = new Set(firmeUnaPerUna.map((f) => String(f.entityId ?? ''))).size;
+  if (segnateGuardate > 0) {
+    const quota = (unaPerUna / segnateGuardate) * 100;
+    riga(`  ▶️ Guardate una per una: ${unaPerUna} su ${segnateGuardate} (${quota < 0.1 ? '<0,1' : quota.toFixed(1)}%).`);
+    riga('     ⚠️ Tutto il resto è un gesto in blocco. «Ha guardato una persona» è vero sulla FIRMA,');
+    riga('     non sulla singola ricetta — ed è la frase su cui il ritiro dei tag si ferma.');
   }
 
   if (!ALIMENTO) {
@@ -138,10 +180,10 @@ async function main(): Promise<void> {
    * verrebbe contata come «nessuno», e il conto direbbe che c'è piu da recuperare di quanto ce n'è.
    */
   const perRicettaDalMotore = new Map<string, Date[]>();
-  const dieteRiviste = [...new Set(revisioniDiete.map((r) => String(r.entityId ?? '')).filter(Boolean))];
-  if (dieteRiviste.length) {
+  const dieteDiQuestoGiro = [...new Set(revisioniDiete.map((r) => String(r.entityId ?? '')).filter(Boolean))];
+  if (dieteDiQuestoGiro.length) {
     const giorni = (await prisma.dietDayTemplate.findMany({
-      where: { dietId: { in: dieteRiviste } } as never,
+      where: { dietId: { in: dieteDiQuestoGiro } } as never,
       select: { dietId: true, meals: true } as never,
     })) as { dietId: string; meals: unknown }[];
     const ricetteDellaDieta = new Map<string, Set<string>>();

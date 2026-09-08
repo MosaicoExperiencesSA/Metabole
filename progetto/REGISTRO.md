@@ -20,70 +20,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ## 2026-09-08
 
-- `[Sviluppo]` ⛔ **Il giorno che la cliente ha gia aperto si riscrive: la nutrizionista vince.**
-  Decisione di Simone: *«il nutrizionista sostituisce anche se il cliente ha gia visto. Vince su
-  tutto»*, con **una conferma sola**. Il «gia aperto» era un cancello in due porte, e tutte e due si
-  arrendevano **dopo** che la giornata era gia stata composta: «Scrivi il menu a mano» rispondeva 400
-  col pulsante **spento** e la frase «quello resta suo, non si riscrive»; la giornata dettata a Vera
-  si arrendeva dopo l'anteprima **e dopo il si**. ⚠️ E il no non era nemmeno vero: la via d'uscita
-  esisteva — «Rigenera menu» dalla scheda — cioe lo stesso gesto da un'altra porta **con meno
-  controlli**. ▶️ Adesso e un avviso da confermare, e usa il meccanismo che c'era gia; in Vera la
-  riga sta nell'**anteprima**, prima del «Confermi?» che esisteva. ⛔ **Chi automatizza non eredita
-  questo**: i rifacimenti che partono da soli continuano a non toccare un giorno aperto — li non c'e
-  nessuno che ha letto la conseguenza.
-  ⛔ **Cinque cose dalla revisione avversariale.** (a) **La mezzanotte**: «domani» era calcolato due
-  volte, in due giri di conversazione — a cavallo della mezzanotte l'avviso parlava di un giorno e la
-  scrittura ne toccava un altro; adesso la data si decide una volta e viaggia nello stato. (b) **La
-  prova non guardava il giorno**: il finto ignora il `where`, quindi l'anteprima poteva leggere OGGI
-  e 251 prove restavano verdi — e la prova nuova, scritta con la mezzanotte UTC, era verde di giorno
-  e **rossa sotto `test:notte`**, cioe proprio nel turno per cui esiste. (c) Il **giorno che non c'e**
-  si diceva dopo cinque piatti dettati, con il dato gia in mano all'anteprima. (d) **A cose fatte la
-  frase restava al futuro** («salvando, quello che ha in mano cambia»): adesso c'e una coda al
-  passato, «valuta se avvisarla», con le stesse parole nelle due porte. (e) Le prove del backoffice
-  guardavano solo `disabled={…}`: il blocco poteva **rientrare dall'onClick** con tutto verde.
-  ⛔ **E una prova sarebbe rimasta verde attraverso tutto il cambiamento**: `rejects.toThrow(/gia
-  aperto/)` non distingue «non si puo» da «va confermato» — le due parole stanno in tutti e due i
-  messaggi.
-  ⚠️ **Resta aperto e va deciso**: (1) **la cliente non viene avvisata di niente**, e siccome aprire
-  la **lista della spesa** segna aperti tutti e sette i giorni, chi tocchiamo e quasi sempre chi ha
-  gia comprato — la lista si rimescola da sola, le spunte del piatto tolto spariscono, e nessuno le
-  dice perche; (2) **altre cinque porte di Vera** dicono ancora «quello resta suo», ma toccano tutti
-  i giorni futuri di una o di tutte le clienti, non un giorno solo; (3) dopo la sovrascrittura il
-  giorno resta marchiato «gia aperto», e altrove nel repo la stessa domanda ha risposta opposta.
-  ⚠️ Misurato: backend **478 suite / 8202 prove** (verdi anche con `test:notte`), backoffice
-  **36 / 351**, build di tutti e due. **Nessuna migrazione.** Dettaglio in
-  `progetto/COMMIT_parte_giorno_aperto_si_riscrive.txt`.
-
-- `[Sviluppo]` ⛔ **Nessuna ricetta nuova si salvava piu — da nessuna delle tre porte.** Segnalato
-  da Simone con lo screenshot della finestra «Nuova ricetta» aperta da «Scrivi il menu a mano», con
-  il nutrizionista davanti: *«Il campo «verified» non e previsto in questa richiesta»*. La spunta
-  «Ricetta verificata» e nata il 4/9 sulla **modifica**, ma la finestra e una sola: in creazione
-  `verificaCambiata` e sempre vero (`!recipe`), quindi il POST portava sempre `verified` — e
-  `CreateRecipeDto` quel campo non ce l'aveva, cosi `forbidNonWhitelisted` rifiutava **tutto il
-  corpo** prima del servizio. ⚠️ Non era un difetto del menu a mano: la finestra la aprono pagina
-  Ricette, pagina Panieri e menu a mano, e da tutte e tre non nasceva piu niente.
-  ⛔ **E il secondo punto — «non ha i panieri» — era il primo visto da valle**: «In quali panieri?»
-  si apre DOPO il salvataggio, e una ricetta che non nasce non ci arriva mai. Un difetto con due
-  facce, non due difetti.
-  ▶️ Adesso `verified` e nel DTO e alla creazione il giudizio lo da **lo stesso modulo puro** della
-  modifica (`verifica-della-ricetta.ts`): spunta accesa = firmata col nome di chi salva e l'ora,
-  scritta anche nell'audit. ⚠️ La cura non era togliere il campo dal corpo: la casella si preme, e
-  una casella che si preme e non accende niente e il difetto che togliamo da settimane. ⚠️ E
-  «verificata» resta diverso da «allergeni confermati»: una ricetta puo nascere verificata e restare
-  fuori dai menu.
-  ⛔ **Tre correzioni sono arrivate dalla revisione avversariale, e la prima riguarda una prova
-  mia.** (a) La prova sul corpo del POST era una **copia a mano** con scritto sopra che si sarebbe
-  accorta del prossimo campo: non era vero, e misurandolo il difetto ripassava con tutta la suite
-  verde — adesso **legge** `Ricette.tsx`, prende le chiavi anche dentro gli spread condizionali
-  (dove `verified` si nascondeva) e in forma abbreviata (che il primo setaccio perdeva) e le
-  confronta col registro di class-validator. (b) Il **401 non e «non hai il permesso»**: finche la
-  sezione spariva era innocuo, da quando scrive un motivo direbbe a una nutrizionista con il
-  permesso di andare a disturbare un collega — un motivo falso e peggio di nessun motivo. (c) Il
-  vicolo cieco vero era un altro: la Nutrizionista ha **«Panieri · vede» e non «gestisce»**, quindi
-  la lettura riesce, il ramo del permesso mancante non entra mai, e restava una riga grigia «Sola
-  lettura» sotto una promessa di elenco, in fondo a una ricetta che nessuna cliente ricevera.
-  ⚠️ Misurato: backend **478 suite / 8193 prove**, backoffice **35 / 345**, build di tutti e due.
-  **Nessuna migrazione.** Dettaglio in `progetto/COMMIT_parte_ricetta_nuova_non_si_salvava.txt`.
+- `[Sviluppo]` ⛔ **La misura delle firme ha risposto ZERO sbagliando, e il difetto era mio.** Primo
+  giro su Render: `23695` ricette segnate «allergeni guardati», e sotto `10` firmate una per una,
+  `9316` dichiarate da 113 blocchi, `260835` dichiarate da 2151 revisioni di dieta — totale
+  «spiegate» **270.161 su 27.136 ricette in catalogo**, dieci volte tutto il catalogo. Le diete si
+  scambiano le ricette, quindi sommare i loro conti contava la stessa spunta centinaia di volte: il
+  totale sfondava, la sottrazione andava sotto zero, il pavimento la riportava a zero — e lo script
+  stampava `✅ Il registro spiega tutte le spunte`.
+  ⚠️ **Nel modulo c'era già scritto «è una stima per difetto», di fianco al via libera.** Una cautela
+  scritta accanto a un `✅` non è una cautela: è un `✅`. **Terza volta in questo progetto** che
+  qualcosa diventa verde senza guardare niente — e stavolta era la misura stessa, cioè lo strumento
+  costruito apposta per non fidarsi.
+  ✅ **Corretto**: le ricette si contano **una volta sola e solo se si sa quali**. Le revisioni di
+  dieta si risolvono in id di ricetta distinti; i blocchi restano fuori dalla somma come
+  **incertezza**, perché `catalog.recipe.allergens.bulk` scrive quante e non quali; e quando il buco
+  torna a zero solo grazie a loro, lo script dice «non si sa», non «a posto». Una prova coi numeri
+  veri dell'8/9 tiene fermo il caso, e rimettendo la somma tre prove diventano rosse.
+  ⛔ **E il numero vero è uscito lo stesso, ed è peggio del buco che cercavo.** Su **23.695** ricette
+  segnate «allergeni guardati», quelle firmate **una per una** — riquadro aperto, quella ricetta —
+  sono **10**. Tutto il resto è un gesto in blocco: 113 spunte di massa e 2151 «segna verificati gli
+  allergeni di tutta la dieta».
+  ⚠️ **Nessuno di questi è un abuso e nessuno è un difetto**: sono i gesti che abbiamo dato noi, e
+  senza non si sarebbe potuto lavorare su un catalogo che cresce di ~4600 ricette a settimana. Ma
+  vuol dire che «una persona ha guardato quella ricetta» è vero sulla **firma**, quasi mai sulla
+  **ricetta** — e il ritiro dei tag si ferma esattamente su quella frase. Le 66 del sorgo sono
+  protette da un gesto che con ogni probabilità non le ha mai viste.
 
 - `[Sviluppo]` ⛔ **«Allergeni guardati» non vuol dire che li abbia guardati qualcuno.** Cercando di
   misurare le 66 ricette del sorgo è saltato fuori il ritrovamento vero della giornata. Tutta la
