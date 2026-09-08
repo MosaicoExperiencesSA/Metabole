@@ -18,6 +18,31 @@ Autori: `[Sviluppo]` (Simone + Claude Cowork) · `[Prodotto]` (socio + AI).
 
 ---
 
+## 2026-09-08
+
+- `[Sviluppo]` ✅ **Il sorgo soffiato è sistemato — e la misura ha detto una cosa che non sapevamo.**
+  Simone ha corretto la riga in tabella e lanciato `ritira:tag-alimento`: **36 tag tolti da 12
+  ricette**. La verifica dopo dice `0 da ritirare`, e i conti tornano da soli: 218 «guardate da una
+  persona» + 36 «il tag non c'è già più» = 254.
+  ⛔ **Ma le ricette col tag erano 78, e ne sono state recuperate 12.** Le altre **66** restano col
+  glutine sbagliato, e non è un difetto dello script: su quelle qualcuno aveva già confermato gli
+  allergeni, e un tag su una ricetta che una persona ha guardato non si tocca mai — «quello che c'è
+  scritto è suo».
+  ⚠️ **È la regola giusta che produce l'effetto sbagliato.** Chi ha confermato ha guardato una
+  ricetta in cui il glutine **c'era già**, messo dall'AI: quella spunta non è una conferma informata
+  su quel tag, è un errore che ha preso la firma di una persona. E `FORZA=1` non c'entra — salta solo
+  il cancello «la riga dichiara ancora quegli allergeni», non la conferma umana.
+  ⚠️ **La voce di lavoro diceva «78 ricette» e adesso dice il vero**: 12 recuperate, 66 no, e perché.
+  Lasciarla com'era voleva dire far mentire l'elenco su un lavoro appena fatto.
+  ▶️ **Prima di decidere, si misura**: quante delle 66 sono spunte **in blocco** e quante conferme
+  singole. Il registro della propagazione ha le date, quindi «confermato dopo aver letto quel tag» si
+  distingue da «spuntato in blocco quando il tag c'era già». La misura dice se il lavoro vale 66
+  ricette o sei.
+  ⚠️ Restano da guardare le altre tre righe che avevano propagato: `brodo vegetale → sedano` tocca
+  **1761 ricette** — quasi certamente giusto, ma è il numero più grande di tutti.
+
+---
+
 ## 2026-09-07
 
 - `[Sviluppo]` ✅ **Altre cinque caselle di permesso agganciate — e per la prima volta su chiavi che

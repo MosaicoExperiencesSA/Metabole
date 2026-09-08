@@ -524,9 +524,28 @@ export const VOCI_INIZIALI: Voce[] = [
 
   {
     chiave: 'agente-scambia-le-tracce-per-allergeni',
-    titolo: '\u26d4 L\'agente ha letto «pu\u00f2 contenere tracce» come se fossero ingredienti: il sorgo soffiato risulta col glutine, su 78 ricette',
+    titolo: '\u25b6\ufe0f Tracce lette come ingredienti: il sorgo \u00e8 SISTEMATO (12 ricette su 78) \u2014 ⛔ 66 restano, e restano per la firma di una persona',
     dettaglio:
-      '\u25b6\ufe0f **Trovato il 6/9 lanciando `npm run ritira:tag-alimento`**, che elenca gli alimenti da cui i tag '
+      '\u2705 **8/9 — IL SORGO È SISTEMATO, e la misura ha detto una cosa che non sapevamo.**\n'
+      + 'Simone ha corretto la riga in tabella e lanciato il ritiro: **36 tag tolti da 12 ricette**. La '
+      + 'verifica dopo dice `0 da ritirare`, e i conti tornano da soli: 218 + 36 = 254.\n'
+      + '⛔ **Ma le ricette erano 78, e ne sono state recuperate 12.** Le altre **66** restano col '
+      + 'glutine sbagliato, e non è un difetto dello script: su quelle qualcuno aveva già confermato '
+      + 'gli allergeni, e un tag su una ricetta che una persona ha guardato non si tocca mai — «quello '
+      + 'che c\'è scritto è suo».\n'
+      + '⚠️ **È la regola giusta che produce l\'effetto sbagliato.** Chi ha confermato ha guardato una '
+      + 'ricetta in cui il glutine **c\'era già**, messo dall\'AI: quella spunta non è una conferma '
+      + 'informata su quel tag, è un errore che ha preso la firma di una persona. ⛔ E `FORZA=1` non '
+      + 'serve: salta solo il cancello «la riga dichiara ancora», non la conferma umana.\n'
+      + '▶️ **COSA RESTA, ed è una decisione.** Prima si **misura**: quante delle 66 sono spunte '
+      + '**in blocco** (`confermaAllergeniInBlocco`) e quante conferme singole. Il registro della '
+      + 'propagazione ha le date, quindi «confermato DOPO aver letto quel tag» si distingue da '
+      + '«spuntato in blocco quando il tag c\'era già». Poi si decide: script che riapre le sole spunte '
+      + 'in blocco, oppure revisione a mano. ⚠️ La misura va fatta prima: dice se il lavoro vale 66 '
+      + 'ricette o sei.\n'
+      + '▶️ **E le altre tre righe restano da guardare**, con l\'occhio di adesso. `brodo vegetale → '
+      + 'sedano` tocca **1761 ricette**: quasi certamente giusto, ma è il numero più grande di tutti.\n\n'
+      + '\u25b6\ufe0f **Trovato il 6/9 lanciando `npm run ritira:tag-alimento`**, che elenca gli alimenti da cui i tag '
       + 'sono partiti. Quattro righe hanno propagato, e tre sono giuste: brodo vegetale \u2192 sedano (1761 ricette), '
       + 'cous cous integrale \u2192 glutine (90), salsa di soia light \u2192 glutine (72). La quarta no:\n'
       + '\u26d4 **`sorgo soffiato` \u2192 glutine, sesamo, soia, frutta a guscio, su 78 ricette.** Il sorgo \u00e8 '

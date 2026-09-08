@@ -1,0 +1,35 @@
+Il sorgo soffiato e' sistemato: la voce di lavoro adesso dice il vero (12 su 78, non 78)
+
+Simone ha corretto la riga in tabella e lanciato `ritira:tag-alimento`: 36 tag tolti da 12 ricette.
+La verifica dopo dice `0 da ritirare`, e i conti tornano da soli: 218 «guardate da una persona» + 36
+«il tag non c'e' gia piu» = 254.
+
+⛔ MA LE RICETTE COL TAG ERANO 78, E NE SONO STATE RECUPERATE 12
+Le altre 66 restano col glutine sbagliato, e non e' un difetto dello script: su quelle qualcuno aveva
+gia confermato gli allergeni, e un tag su una ricetta che una persona ha guardato non si tocca mai —
+«quello che c'e' scritto e' suo».
+
+⚠️ E' LA REGOLA GIUSTA CHE PRODUCE L'EFFETTO SBAGLIATO
+Chi ha confermato ha guardato una ricetta in cui il glutine C'ERA GIA', messo dall'AI: quella spunta
+non e' una conferma informata su quel tag, e' un errore che ha preso la firma di una persona.
+E `FORZA=1` non c'entra: salta solo il cancello «la riga dichiara ancora quegli allergeni», non la
+conferma umana.
+
+⚠️ LA VOCE DI LAVORO DICEVA «78 RICETTE» E ADESSO DICE IL VERO
+12 recuperate, 66 no, e perche'. Lasciarla com'era voleva dire far mentire l'elenco su un lavoro
+appena fatto — e l'elenco e' la sola cosa che dice cosa resta da fare.
+
+▶️ PRIMA DI DECIDERE, SI MISURA
+Quante delle 66 sono spunte IN BLOCCO e quante conferme singole. Il registro della propagazione ha le
+date, quindi «confermato dopo aver letto quel tag» si distingue da «spuntato in blocco quando il tag
+c'era gia». La misura dice se il lavoro vale 66 ricette o sei — e va fatta prima di scrivere lo
+script, non dopo.
+
+⚠️ E restano da guardare le altre tre righe che avevano propagato: `brodo vegetale → sedano` tocca
+1761 ricette, quasi certamente giusto ma e' il numero piu grande di tutti.
+
+FILE
+- backend: `lavori/voci-iniziali.ts`
+- progetto: `REGISTRO.md`
+
+74 prove dei lavori verdi. Nessuna migrazione.
